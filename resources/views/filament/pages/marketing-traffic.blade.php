@@ -58,6 +58,8 @@
   <span style="margin-left:auto;font-size:12px;opacity:.45;align-self:center">{{ $rangeLabel }}</span>
 </div>
 
+{{-- MARKER-INVEST-SHARE — Overview carries the tiles, the funnel and the
+     chart; Pages & sources keeps the tables. --}}
 <div class="mkt-panel" data-mkt-panel="overview">
 {{-- MARKER-MKTTILES — by key: topStats() also returns a 'sessions' entry that
      is explorer data, not a tile, and looping the array rendered it as a
@@ -74,8 +76,6 @@
   @endforeach
 </div>
 
-</div>
-<div class="mkt-panel" data-mkt-panel="pages" hidden>
 <div class="mt-sec">Signup funnel</div>
 @php $mtTop = collect($stages)->max('count') ?: 1; @endphp
 <div class="mt-funnel">
@@ -95,26 +95,6 @@
 
 <div class="mt-two" style="margin-top:24px">
   <div>
-    <div class="mt-sec" style="margin-top:0">Quiz recommendations</div>
-    @forelse($intent['quiz_recommendation'] as $rec => $count)
-      <div class="mt-row"><span style="text-transform:capitalize">{{ $rec }}</span><b>{{ number_format($count) }}</b></div>
-    @empty
-      <div class="mt-empty">No quiz completions in this window</div>
-    @endforelse
-  </div>
-
-  <div>
-    <div class="mt-sec" style="margin-top:0">Industry landing pages</div>
-    @forelse($intent['industry_pages'] as $path => $sessions)
-      <div class="mt-row"><span>{{ $path }}</span><b>{{ number_format($sessions) }}</b></div>
-    @empty
-      <div class="mt-empty">No industry page visits in this window</div>
-    @endforelse
-  </div>
-</div>
-
-{{-- MARKER-MKTCONV — chart sits in Pages & sources; it reads with the
-     page/source tables it sits beside. --}}
 <div class="mt-sec">Daily visitors</div>
 {{-- dailyVisitors() returns ['current' => int[], 'prior' => int[], 'hourly' => bool]
      — a flat series of counts, one per bucket, NOT a list of rows. --}}
@@ -136,6 +116,28 @@
      (resources/views/tenant/reports/traffic.blade.php, .rse-* block). Same
      class names and values, so the two surfaces stay comparable. The scroll
      box is what keeps this section from running away as traffic grows. --}}
+</div>
+<div class="mkt-panel" data-mkt-panel="pages" hidden>
+    <div class="mt-sec" style="margin-top:0">Quiz recommendations</div>
+    @forelse($intent['quiz_recommendation'] as $rec => $count)
+      <div class="mt-row"><span style="text-transform:capitalize">{{ $rec }}</span><b>{{ number_format($count) }}</b></div>
+    @empty
+      <div class="mt-empty">No quiz completions in this window</div>
+    @endforelse
+  </div>
+
+  <div>
+    <div class="mt-sec" style="margin-top:0">Industry landing pages</div>
+    @forelse($intent['industry_pages'] as $path => $sessions)
+      <div class="mt-row"><span>{{ $path }}</span><b>{{ number_format($sessions) }}</b></div>
+    @empty
+      <div class="mt-empty">No industry page visits in this window</div>
+    @endforelse
+  </div>
+</div>
+
+{{-- MARKER-MKTCONV — chart sits in Pages & sources; it reads with the
+     page/source tables it sits beside. --}}
 </div>
 <div class="mkt-panel" data-mkt-panel="sessions" hidden>
 <style>

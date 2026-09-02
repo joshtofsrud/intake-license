@@ -12,6 +12,12 @@
   <p class="lede">{{ $equity }}% on conversion. The same terms apply to every participant — no side
     letter, and no better price for going first. Everything here is a summary; the proposal is the
     document.</p>
+  {{-- MARKER-INVEST-SHARE — the headline number is the ROUND, not the ask of any
+       one person, and that is easy to misread. --}}
+  <p class="lede" style="margin-top:10px">
+    <b>You don't have to take the whole round.</b> ${{ number_format($target) }} is the total; it is
+    shared among however many people come in. Participation starts at $1,000, there is no maximum, and
+    everyone is on the same terms whatever the size.</p>
 
   @if($showBar && ($funded || $committed))
     @php

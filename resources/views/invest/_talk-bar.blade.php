@@ -8,7 +8,8 @@
     $investDemoOn = $investDemo && \App\Models\DemoSetting::get('offline:demo') !== '1';
 @endphp
 @if($talkBarType && $talkBarType->isBookable())
-<section style="padding:26px 0 0"><div class="wrap">
+{{-- MARKER-INVEST-SHARE — was flush against the first accordion --}}
+<section style="padding:18px 0 34px"><div class="wrap">
   <div class="ok" style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:14px 18px">
     <div style="width:34px;height:34px;border-radius:50%;background:var(--panel2);display:grid;place-items:center;font-weight:700;color:var(--body);flex:none">J</div>
     <p style="margin:0;font-size:14px"><b>Questions? Talk to Josh.</b><br>{{ $talkBarType->length_min }} minutes, one on one — often quicker than email.</p>
