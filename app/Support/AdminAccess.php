@@ -86,7 +86,8 @@ class AdminAccess
             'raise', 'raise-setup', 'investor-record'        => 'raise',
             'team-roles'                                     => 'team',
             'scheduling', 'scheduling-availability',
-            'scheduling-types', 'scheduling-google'          => 'scheduling', // MARKER-SCHED-ADMIN / MARKER-SCHED-GOOGLE
+            'scheduling-types', 'scheduling-google',
+            'demo'                                           => 'scheduling', // MARKER-SCHED-ADMIN / MARKER-SCHED-GOOGLE / MARKER-DEMO-ENTRY
             // roles-access is a read-only reference every staff role may
             // open; dashboard is the one area all four roles hold.
             'roles-access'                                   => 'dashboard',

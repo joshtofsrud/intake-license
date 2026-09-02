@@ -67,6 +67,11 @@ Route::domain($domain)->group(function () {
         ->name('invest.contribute.thanks');
     Route::post('/contact', [Platform\MarketingController::class, 'contact'])->name('marketing.contact.submit');
 
+    // MARKER-DEMO-ENTRY — the public way in. Two steps because session cookies
+    // are per-subdomain: this hop is signed, the sign-in happens on the demo host.
+    Route::get('/demo', [\App\Http\Controllers\DemoEntryController::class, 'start'])
+        ->middleware('throttle:30,1')->name('demo.start');
+
     // MARKER-SCHED-PUBLIC — booking a call with Intake (master-admin scheduling).
     Route::get('/book/manage/{token}',              [Platform\BookController::class, 'manage'])->name('book.manage');
     Route::post('/book/manage/{token}/cancel',      [Platform\BookController::class, 'cancel'])->middleware('throttle:10,1')->name('book.cancel');
@@ -1271,3 +1276,11 @@ Route::post('/invest/i/{token}/commit', [\App\Http\Controllers\InvestorPortalCon
 Route::get('/invest/i/{token}/doc/{documentId}', [\App\Http\Controllers\InvestorPortalController::class, 'document'])
     ->whereNumber('documentId')
     ->name('invest.portal.doc');
+
+// MARKER-DEMO-ENTRY — runs on the demo tenant's own host (demo.intake.works).
+// Signed, five-minute link minted by /demo on the marketing site. ResolveTenant
+// is required here: without it tenant() is null and the entry 404s.
+Route::middleware(['App\Http\Middleware\ResolveTenant'])->group(function () {
+    Route::get('/demo/enter', [\App\Http\Controllers\DemoEntryController::class, 'enter'])
+        ->middleware('throttle:30,1')->name('demo.enter');
+});
