@@ -20,12 +20,19 @@ class DemoBuildTemplate extends Command
     protected $signature = 'demo:build-template
         {--from= : Source tenant subdomain (required)}
         {--force : Skip the confirmation prompt}
+        {--slug=demo : Subdomain for the demo tenant (a second vertical gets its own)}
+        {--name= : Display name; defaults to Intake Bike Works for the bike demo}
         {--max-rows=50000 : Abort if any single table exceeds this many rows}';
 
     protected $description = 'Copy + anonymise a tenant into the frozen Intake Bike Works demo template';
 
     private const DEMO_SUBDOMAIN = 'demo';
     private const DEMO_NAME      = 'Intake Bike Works';
+
+    // MARKER-DEMO-RESET — resolved per run so a second vertical can be built
+    // with the same command instead of a forked copy.
+    private string $slug = self::DEMO_SUBDOMAIN;
+    private string $demoName = self::DEMO_NAME;
     private const DEMO_EMAIL     = 'hello@intakebikeworks.example';
     private const DEMO_PHONE     = '(509) 555-0142';
 
@@ -64,6 +71,9 @@ class DemoBuildTemplate extends Command
             return self::FAILURE;
         }
 
+        $this->slug     = preg_replace('/[^a-z0-9-]/', '', strtolower((string) $this->option('slug'))) ?: self::DEMO_SUBDOMAIN;
+        $this->demoName = trim((string) $this->option('name')) ?: ($this->slug === self::DEMO_SUBDOMAIN ? self::DEMO_NAME : ucwords(str_replace('-', ' ', $this->slug)) . ' Demo');
+
         $fromSub = (string) $this->option('from');
         if ($fromSub === '') {
             $this->error('--from=<source subdomain> is required.');
@@ -78,9 +88,9 @@ class DemoBuildTemplate extends Command
             $this->error('Source tenant is itself a demo. No.');
             return self::FAILURE;
         }
-        $existing = Tenant::withTrashed()->where('subdomain', self::DEMO_SUBDOMAIN)->first();
+        $existing = Tenant::withTrashed()->where('subdomain', $this->slug)->first();
         if ($existing && ! $existing->is_demo) {
-            $this->error("Subdomain 'demo' belongs to a real tenant — refusing.");
+            $this->error("Subdomain '{$this->slug}' belongs to a real tenant — refusing.");
             return self::FAILURE;
         }
         if (! $this->option('force') && ! $this->confirm("Rebuild the demo template from '{$src->name}'? The current demo tenant and template are replaced.")) {
@@ -108,8 +118,8 @@ class DemoBuildTemplate extends Command
             $this->uuidMap[strtolower($src->id)] = $demoId;
             $row = (array) DB::table('tenants')->where('id', $src->id)->first();
             $row['id']            = $demoId;
-            $row['name']          = self::DEMO_NAME;
-            $row['subdomain']     = self::DEMO_SUBDOMAIN;
+            $row['name']          = $this->demoName;
+            $row['subdomain']     = $this->slug;
             $row['custom_domain'] = null;
             $row['is_demo']       = 1;
             $row['is_active']     = 1;
@@ -149,8 +159,8 @@ class DemoBuildTemplate extends Command
             $this->info("demo tenant: {$demoId}");
 
             // brand sweep: every mention of the source shop becomes the demo shop
-            $this->sweep[$src->name] = self::DEMO_NAME;
-            $this->sweep[$fromSub . '.'] = self::DEMO_SUBDOMAIN . '.';
+            $this->sweep[$src->name] = $this->demoName;
+            $this->sweep[$fromSub . '.'] = $this->slug . '.';
 
             // ---- 3. copy ----------------------------------------------
             $meta = [];
@@ -223,7 +233,7 @@ class DemoBuildTemplate extends Command
             return self::FAILURE;
         }
         $this->info('Leak check clean: 0 of ' . count($this->leakSamples) . ' sampled real emails found in the copy.');
-        $this->info('Template frozen at storage/app/demo/. Patch 3 restores it hourly.');
+        $this->info("Template frozen at storage/app/demo/{$this->slug}/. demo:reset restores it hourly.");
         return self::SUCCESS;
     }
 
@@ -671,10 +681,11 @@ class DemoBuildTemplate extends Command
     private function freeze(string $demoId, array $tables): void
     {
         $local = Storage::disk('local');
-        $local->deleteDirectory('demo');
-        $local->makeDirectory('demo');
+        $dir   = 'demo/' . $this->slug; // MARKER-DEMO-RESET
+        $local->deleteDirectory($dir);
+        $local->makeDirectory($dir);
 
-        $fh = fopen(storage_path('app/demo/template.jsonl'), 'w');
+        $fh = fopen(storage_path('app/' . $dir . '/template.jsonl'), 'w');
         $tenantRow = (array) DB::table('tenants')->where('id', $demoId)->first();
         fwrite($fh, json_encode(['table' => 'tenants', 'row' => $tenantRow]) . "\n");
         $counts = ['tenants' => 1];
@@ -690,18 +701,54 @@ class DemoBuildTemplate extends Command
         // frozen copy of the media dir, restored alongside the rows
         $public = Storage::disk('public');
         foreach ($public->allFiles('tenants/' . $demoId) as $file) {
-            $local->put('demo/files/' . substr($file, strlen('tenants/' . $demoId) + 1), $public->get($file));
+            $local->put($dir . '/files/' . substr($file, strlen('tenants/' . $demoId) + 1), $public->get($file));
         }
 
-        $local->put('demo/manifest.json', json_encode([
-            'tenant_id'  => $demoId,
-            'subdomain'  => self::DEMO_SUBDOMAIN,
-            'name'       => self::DEMO_NAME,
-            'built_at'   => now()->toIso8601String(),
-            'tables'     => array_keys(array_filter($counts)),
-            'row_counts' => array_filter($counts),
+        // MARKER-DEMO-RESET — activity per calendar week, so the reset can anchor
+        // the demo on a genuinely busy one instead of whatever week it was built.
+        $weeks = $this->weekActivity($demoId);
+        arsort($weeks);
+        $busiest = array_key_first($weeks);
+
+        $local->put($dir . '/manifest.json', json_encode([
+            'tenant_id'    => $demoId,
+            'subdomain'    => $this->slug,
+            'name'         => $this->demoName,
+            'built_at'     => now()->toIso8601String(),
+            'tables'       => array_keys(array_filter($counts)),
+            'row_counts'   => array_filter($counts),
+            'weeks'        => $weeks,
+            'busiest_week' => $busiest,
         ], JSON_PRETTY_PRINT));
+        if ($busiest) {
+            $this->info("busiest week in the template: {$busiest} ({$weeks[$busiest]} events)");
+        }
         $this->info('frozen: ' . array_sum($counts) . ' rows across ' . count(array_filter($counts)) . ' tables');
+    }
+
+    /**
+     * MARKER-DEMO-RESET — count dated activity per week (Monday key). Used to
+     * pick, and later to let someone choose, which week the demo sits in.
+     */
+    private function weekActivity(string $demoId): array
+    {
+        $sources = [
+            'tenant_appointments' => 'starts_at',
+            'tenant_sales'        => 'created_at',
+            'tenant_deliveries'   => 'created_at',
+        ];
+        $weeks = [];
+        foreach ($sources as $table => $col) {
+            if (! \Illuminate\Support\Facades\Schema::hasTable($table)
+                || ! \Illuminate\Support\Facades\Schema::hasColumn($table, $col)) continue;
+            foreach (DB::table($table)->where('tenant_id', $demoId)->whereNotNull($col)->pluck($col) as $v) {
+                try {
+                    $k = \Carbon\CarbonImmutable::parse($v)->startOfWeek()->format('Y-m-d');
+                } catch (\Throwable) { continue; }
+                $weeks[$k] = ($weeks[$k] ?? 0) + 1;
+            }
+        }
+        return $weeks;
     }
 
     private function leakCheck(string $demoId, array $tables): int

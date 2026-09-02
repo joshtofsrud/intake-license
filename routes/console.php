@@ -225,3 +225,9 @@ Schedule::command('bookings:send-reminders')
 Schedule::command('bookings:sync-google')
     ->everyFifteenMinutes()
     ->withoutOverlapping();
+
+// MARKER-DEMO-RESET — the demo tenant goes back to its frozen state every hour,
+// on the hour. The banner counts down to this.
+Schedule::command('demo:reset')
+    ->hourly()
+    ->withoutOverlapping();

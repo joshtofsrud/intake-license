@@ -1,0 +1,159 @@
+<?php
+
+namespace App\Console\Commands;
+
+use App\Models\DemoSetting;
+use App\Models\Tenant;
+use Carbon\CarbonImmutable;
+use Illuminate\Console\Command;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
+
+/**
+ * MARKER-DEMO-RESET — restore a demo tenant from its frozen template.
+ *
+ * Runs hourly on the hour, and on demand. Everything visitors did is discarded;
+ * the template is never modified. Dates are shifted by whole weeks so the demo
+ * always reads as a live, busy shop rather than a museum piece.
+ */
+class DemoReset extends Command
+{
+    protected $signature   = 'demo:reset {--slug=demo : Which demo tenant} {--force : Ignore the pause}';
+    protected $description = 'Restore the demo tenant from its frozen template';
+
+    public function handle(): int
+    {
+        $slug = (string) $this->option('slug');
+
+        if (! $this->option('force')) {
+            $pausedUntil = DemoSetting::get("paused_until:{$slug}");
+            if ($pausedUntil && CarbonImmutable::parse($pausedUntil)->isFuture()) {
+                $this->line('paused until ' . $pausedUntil . ' — skipping');
+                return self::SUCCESS;
+            }
+        }
+
+        $local = Storage::disk('local');
+        $dir   = "demo/{$slug}";
+        if (! $local->exists("{$dir}/manifest.json") || ! $local->exists("{$dir}/template.jsonl")) {
+            $this->error("No frozen template at storage/app/{$dir} — run demo:build-template first.");
+            return self::FAILURE;
+        }
+        $manifest = json_decode($local->get("{$dir}/manifest.json"), true);
+        $tenantId = $manifest['tenant_id'] ?? null;
+        $tables   = $manifest['tables'] ?? [];
+        if (! $tenantId || ! $tables) {
+            $this->error('Manifest is missing tenant_id or tables.');
+            return self::FAILURE;
+        }
+
+        $tenant = Tenant::withTrashed()->find($tenantId);
+        if ($tenant && ! $tenant->is_demo) {
+            $this->error('Refusing: the manifest tenant is not flagged is_demo.');
+            return self::FAILURE;
+        }
+
+        $shiftDays = $this->shiftDays($manifest, $slug);
+        $started   = microtime(true);
+
+        DB::statement('SET FOREIGN_KEY_CHECKS=0');
+        try {
+            // wipe: child tables first is unnecessary with checks off, and the
+            // manifest order is the copy order anyway
+            foreach (array_reverse($tables) as $t) {
+                DB::table($t)->where('tenant_id', $tenantId)->delete();
+            }
+            DB::table('tenants')->where('id', $tenantId)->delete();
+
+            $rows = 0; $buffer = []; $current = null;
+            $fh = fopen(storage_path("app/{$dir}/template.jsonl"), 'r');
+            while (($line = fgets($fh)) !== false) {
+                $line = trim($line);
+                if ($line === '') continue;
+                $entry = json_decode($line, true);
+                if (! $entry) continue;
+                $table = $entry['table'];
+                $row   = $this->shiftRow($table, $entry['row'], $shiftDays);
+
+                if ($current !== null && $table !== $current) {
+                    $this->flush($current, $buffer);
+                    $buffer = [];
+                }
+                $current  = $table;
+                $buffer[] = $row;
+                $rows++;
+                if (count($buffer) >= 200) {
+                    $this->flush($current, $buffer);
+                    $buffer = [];
+                }
+            }
+            fclose($fh);
+            if ($buffer) $this->flush($current, $buffer);
+        } finally {
+            DB::statement('SET FOREIGN_KEY_CHECKS=1');
+        }
+
+        // media: the frozen snapshot is authoritative
+        $public = Storage::disk('public');
+        $public->deleteDirectory('tenants/' . $tenantId);
+        foreach ($local->allFiles("{$dir}/files") as $file) {
+            $rel = substr($file, strlen("{$dir}/files") + 1);
+            $public->put('tenants/' . $tenantId . '/' . $rel, $local->get($file));
+        }
+
+        // sessions from before this moment are stale; the banner middleware
+        // compares against this and ejects them
+        DemoSetting::put("epoch:{$slug}", (string) now()->timestamp);
+        DemoSetting::put("last_reset_at:{$slug}", now()->toIso8601String());
+        DemoSetting::put("shift_days:{$slug}", (string) $shiftDays);
+
+        $secs = round(microtime(true) - $started, 1);
+        $this->info("demo '{$slug}' reset: {$rows} rows, dates shifted {$shiftDays} days, {$secs}s");
+        Log::info('MARKER-DEMO-RESET complete', ['slug' => $slug, 'rows' => $rows, 'shift_days' => $shiftDays, 'seconds' => $secs]);
+        return self::SUCCESS;
+    }
+
+    private function flush(string $table, array $rows): void
+    {
+        if ($rows) DB::table($table)->insert($rows);
+    }
+
+    /**
+     * Whole weeks between the anchor week and this week, so weekday-keyed data
+     * (availability, capacity rules, shifts) still lines up after the shift.
+     */
+    private function shiftDays(array $manifest, string $slug): int
+    {
+        $anchor = DemoSetting::get("anchor_week:{$slug}") ?: ($manifest['busiest_week'] ?? null);
+        if (! $anchor) return 0;
+        $anchorMonday = CarbonImmutable::parse($anchor)->startOfWeek();
+        $thisMonday   = CarbonImmutable::now(config('app.timezone'))->startOfWeek();
+        return (int) $anchorMonday->diffInDays($thisMonday, false);
+    }
+
+    private array $dateCols = [];
+
+    private function shiftRow(string $table, array $row, int $days): array
+    {
+        if ($days === 0) return $row;
+        if (! isset($this->dateCols[$table])) {
+            $cols = DB::select(
+                "SELECT COLUMN_NAME c FROM information_schema.COLUMNS
+                 WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?
+                   AND DATA_TYPE IN ('date','datetime','timestamp')", [DB::getDatabaseName(), $table]);
+            $this->dateCols[$table] = array_map(fn ($r) => $r->c, $cols);
+        }
+        foreach ($this->dateCols[$table] as $col) {
+            $v = $row[$col] ?? null;
+            if ($v === null || $v === '' || str_starts_with((string) $v, '0000')) continue;
+            try {
+                $row[$col] = CarbonImmutable::parse($v)->addDays($days)->format(
+                    strlen((string) $v) <= 10 ? 'Y-m-d' : 'Y-m-d H:i:s');
+            } catch (\Throwable) {
+                // unparseable: leave it exactly as frozen
+            }
+        }
+        return $row;
+    }
+}
