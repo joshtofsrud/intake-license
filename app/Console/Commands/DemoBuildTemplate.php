@@ -88,6 +88,7 @@ class DemoBuildTemplate extends Command
 
         $tables = $this->discoverTables();
         $this->info('Tenant-scoped tables: ' . count($tables));
+        $this->line('Customers table: ' . $this->customersTable()); // MARKER-DEMO-TEMPLATE-CUSTTABLE
 
         // ---- 1. clear the old demo ------------------------------------
         DB::statement('SET FOREIGN_KEY_CHECKS=0');
@@ -419,10 +420,19 @@ class DemoBuildTemplate extends Command
     private const FIRST = ['Avery','Jordan','Riley','Casey','Morgan','Quinn','Rowan','Skyler','Emerson','Finley','Harper','Kendall','Logan','Marlow','Nico','Parker','Reese','Sawyer','Tatum','Wren','Blake','Charlie','Dakota','Ellis','Frankie','Hayden','Indigo','Jules','Kai','Lennon','Mica','Noel','Oakley','Peyton','Remy','Shiloh','Teagan','Vesper','Winter','Zephyr'];
     private const LAST  = ['Alder','Birchwood','Cardinal','Driftwood','Eastman','Fernhill','Granite','Hollis','Ironwood','Juniper','Kestrel','Larkspur','Merritt','Northgate','Oakhurst','Pinecrest','Quarry','Ridgeway','Sandpoint','Timberline','Underhill','Vantage','Westbrook','Yarrow','Ashford','Bristlecone','Cascade','Deerfield','Elkhorn','Foxglove','Glacier','Harborview','Inlet','Jetty','Kettle','Lakeshore','Meridian','Nightingale','Overlook','Palisade'];
 
-    /** MARKER-DEMO-TEMPLATE-CUSTOMERS — the shop's customers are tenant_customers. */
+    /**
+     * MARKER-DEMO-TEMPLATE-CUSTTABLE — the shop's customers. App\Models\Customer
+     * is the licensing-level model ('customers', no tenant_id); the tenant one
+     * is App\Models\Tenant\TenantCustomer. Checked against the schema so a
+     * wrong name fails at the top of the run, not after the copy.
+     */
     private function customersTable(): string
     {
-        return (new \App\Models\Customer)->getTable();
+        $table = (new \App\Models\Tenant\TenantCustomer)->getTable();
+        if (! \Illuminate\Support\Facades\Schema::hasColumn($table, 'tenant_id')) {
+            throw new \RuntimeException("Customer table '{$table}' has no tenant_id — the anonymiser would miss every customer.");
+        }
+        return $table;
     }
 
     private function anonymiseCustomers(string $demoId): void
