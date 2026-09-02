@@ -45,6 +45,12 @@ class DemoBuildTemplate extends Command
      * shop with live syncs, and it would bloat the frozen template past what
      * the hourly restore can finish.
      */
+    /**
+     * MARKER-DEMO-FIXES — internal staff notes are private chatter, not demo
+     * texture. Anonymising names does not make the content fit to publish.
+     */
+    private const PRIVATE_TABLES = '/^tenant_notes$/i';
+
     private const BULK = '/availability_snapshot|distributor_sync|brand_sync|sync_state|_audit_log|audit_log|email_ledger|email_send|message_ledger|traffic|search_quer|search_log|analytics|page_view|activity_log|import_row|catalog_match|catalog_identifier/i';
 
     /** Columns never swept or copied verbatim into the freeze log output. */
@@ -201,6 +207,8 @@ class DemoBuildTemplate extends Command
             }
 
             // ---- 5. anonymise -----------------------------------------
+            $this->scrubPrivateContent($demoId); // MARKER-DEMO-FIXES
+            $this->demoBranding($demoId);        // MARKER-DEMO-FIXES
             $this->anonymiseCustomers($demoId);
             $this->anonymiseStaff($demoId);
             foreach ($tables as $t) {
@@ -256,7 +264,13 @@ class DemoBuildTemplate extends Command
             $this->line('Skipping bulk/derived tables (regenerable, not demo data):');
             foreach ($skipped as $t) $this->line('  - ' . $t);
         }
-        return array_values(array_filter($all, fn ($t) => ! preg_match(self::BULK, $t)));
+        // MARKER-DEMO-FIXES
+        $private = array_values(array_filter($all, fn ($t) => preg_match(self::PRIVATE_TABLES, $t)));
+        if ($private) {
+            $this->line('Skipping private staff content (never suitable for a public demo):');
+            foreach ($private as $t) $this->line('  - ' . $t);
+        }
+        return array_values(array_filter($all, fn ($t) => ! preg_match(self::BULK, $t) && ! preg_match(self::PRIVATE_TABLES, $t)));
     }
 
     /** MARKER-DEMO-TEMPLATE-UNIQUE — uuid-shaped FK columns on this table. */
@@ -452,6 +466,52 @@ class DemoBuildTemplate extends Command
             throw new \RuntimeException("Customer table '{$table}' has no tenant_id — the anonymiser would miss every customer.");
         }
         return $table;
+    }
+
+    /**
+     * MARKER-DEMO-FIXES — internal-note messages carry the same private chatter
+     * tenant_notes did. Dropped rather than rewritten: there is no safe way to
+     * decide which internal remark is fit for strangers to read.
+     */
+    private function scrubPrivateContent(string $demoId): void
+    {
+        if (! \Illuminate\Support\Facades\Schema::hasTable('tenant_messages')) return;
+        $threadIds = DB::table('tenant_threads')->where('tenant_id', $demoId)->pluck('id');
+        if ($threadIds->isEmpty()) return;
+        $n = 0;
+        foreach ($threadIds->chunk(300) as $chunk) {
+            $q = DB::table('tenant_messages')->whereIn('thread_id', $chunk);
+            if (\Illuminate\Support\Facades\Schema::hasColumn('tenant_messages', 'kind')) {
+                $q->where(function ($w) {
+                    $w->where('kind', 'internal_note')->orWhere('direction', 'system');
+                });
+            } else {
+                $q->where('direction', 'system');
+            }
+            $n += $q->delete();
+        }
+        $this->info("private internal notes removed: {$n}");
+    }
+
+    /**
+     * MARKER-DEMO-FIXES — the nav and footer sections carry logo_size from the
+     * source shop, so a hand change inside the demo was wiped by the next
+     * restore. The wordmark is wide; small is the size that fits.
+     */
+    private function demoBranding(string $demoId): void
+    {
+        if (! \Illuminate\Support\Facades\Schema::hasTable('tenant_page_sections')) return;
+        $n = 0;
+        foreach (DB::table('tenant_page_sections')->where('tenant_id', $demoId)
+            ->whereIn('section_type', ['nav', 'footer', 'shell_nav', 'shell_footer'])->get() as $row) {
+            $content = json_decode((string) $row->content, true);
+            if (! is_array($content)) continue;
+            $content['logo_size'] = 'small';
+            DB::table('tenant_page_sections')->where('id', $row->id)
+                ->update(['content' => json_encode($content)]);
+            $n++;
+        }
+        $this->info("nav/footer logo size set to small: {$n} section(s)");
     }
 
     private function anonymiseCustomers(string $demoId): void

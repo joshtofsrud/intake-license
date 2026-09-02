@@ -5,6 +5,7 @@ namespace App\Filament\Pages;
 use App\Models\DemoSetting;
 use App\Models\Tenant;
 use App\Support\AdminAccess;
+use Illuminate\Support\Facades\Auth;
 use Carbon\CarbonImmutable;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
@@ -34,7 +35,9 @@ class Demo extends Page
 
     public static function canAccess(): bool
     {
-        return AdminAccess::allows('scheduling');
+        // MARKER-DEMO-FIXES — allows() is ($user, $area). Passing the area
+        // alone threw inside the nav render, so every admin page 500'd.
+        return AdminAccess::allows(Auth::guard('web')->user(), 'scheduling');
     }
 
     public function mount(): void

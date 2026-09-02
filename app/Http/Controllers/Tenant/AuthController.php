@@ -18,6 +18,11 @@ class AuthController extends Controller
 {
     public function showLogin()
     {
+        // MARKER-DEMO-FIXES — nobody can sign in to the demo by hand.
+        $demoTenant = tenant();
+        if ($demoTenant && $demoTenant->is_demo && ! Auth::guard('tenant')->check()) {
+            return redirect('https://' . config('intake.domain') . '/demo');
+        }
         if (Auth::guard('tenant')->check()) {
             return redirect()->route('tenant.dashboard');
         }
@@ -112,9 +117,16 @@ class AuthController extends Controller
             }
         }
 
+        // MARKER-DEMO-FIXES — on a demo tenant there is no password to log
+        // back in with, so a logout would break the demo until the next
+        // reset. Send them through the front door again instead.
+        $demoTenant = tenant();
         Auth::guard('tenant')->logout();
         $request->session()->invalidate();
         $request->session()->regenerateToken();
+        if ($demoTenant && $demoTenant->is_demo) {
+            return redirect('https://' . config('intake.domain') . '/demo');
+        }
 
         return redirect()->route('tenant.login')
             ->withCookie(Cookie::forget(DeviceTrustService::COOKIE_NAME));

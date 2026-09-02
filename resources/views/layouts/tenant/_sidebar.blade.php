@@ -112,7 +112,10 @@
         </form>
 
         {{-- MARKER-PATCH-496 — switch user (PIN tier only) --}}
-        @if($currentTenant->pin_tier_active)
+        {{-- MARKER-DEMO-FIXES — never on the demo: it asks for a PIN and a
+             password no visitor can know, and drops them at a login they
+             cannot pass. --}}
+        @if($currentTenant->pin_tier_active && ! $currentTenant->is_demo)
         <a href="{{ route('tenant.switch') }}" class="ia-sb-user-menu-item" role="menuitem">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
                stroke="currentColor" stroke-width="2" stroke-linecap="round"

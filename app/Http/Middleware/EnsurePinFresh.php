@@ -37,7 +37,8 @@ class EnsurePinFresh
     {
         $tenant = app('tenant') ?? null;
 
-        if (! $tenant || ! $tenant->pin_tier_active) {
+        // MARKER-DEMO-FIXES — a demo visitor has no PIN and no way to set one.
+        if (! $tenant || ! $tenant->pin_tier_active || $tenant->is_demo) {
             return $next($request);
         }
 
