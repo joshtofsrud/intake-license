@@ -10,3 +10,19 @@
 .ia-confirm-btn--primary{background:var(--ia-accent);color:var(--ia-accent-text);border-color:var(--ia-accent)}
 .ia-confirm-btn--danger{background:#A32D2D;color:#fff;border-color:#A32D2D}
 .ia-confirm-btn--danger:hover{background:#791F1F}
+
+
+/* MARKER-AUDIENCE-POLISH — text input for IntakeConfirm.prompt */
+.ia-confirm-input {
+  width: 100%;
+  margin-top: 12px;
+  background: var(--ia-input-bg, rgba(255,255,255,.07));
+  border: 0.5px solid var(--ia-border);
+  border-radius: var(--ia-r-sm, 6px);
+  color: var(--ia-text);
+  padding: 9px 11px;
+  font-size: 14px;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+.ia-confirm-input:focus { outline: none; border-color: var(--ia-accent); }

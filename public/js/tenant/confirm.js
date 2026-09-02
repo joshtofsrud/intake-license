@@ -144,7 +144,90 @@
     });
   }
 
-  window.IntakeConfirm = { show: show, alert: alert };
+  /**
+   * MARKER-AUDIENCE-POLISH — a text prompt in the app's own dialog, because
+   * every caller that wanted one was falling back to window.prompt.
+   * Resolves with the trimmed string, or null if cancelled — same contract
+   * callers were already coding against.
+   */
+  function prompt(opts) {
+    opts = opts || {};
+    var title       = opts.title       || 'Enter a value';
+    var message     = opts.message     || '';
+    var value       = opts.value       || '';
+    var placeholder = opts.placeholder || '';
+    var confirmText = opts.confirmText || 'Save';
+    var cancelText  = opts.cancelText  || 'Cancel';
+
+    return new Promise(function (resolve) {
+      var backdrop = document.createElement('div');
+      backdrop.className = 'ia-confirm-backdrop';
+
+      var card = document.createElement('div');
+      card.className = 'ia-confirm-card';
+
+      var h = document.createElement('div');
+      h.className = 'ia-confirm-title';
+      h.textContent = title;
+      card.appendChild(h);
+
+      if (message) {
+        var m = document.createElement('div');
+        m.className = 'ia-confirm-msg';
+        m.textContent = message;
+        card.appendChild(m);
+      }
+
+      var input = document.createElement('input');
+      input.type = 'text';
+      input.className = 'ia-confirm-input';
+      input.value = value;
+      input.placeholder = placeholder;
+      card.appendChild(input);
+
+      var row = document.createElement('div');
+      row.className = 'ia-confirm-actions';
+
+      var cancel = document.createElement('button');
+      cancel.type = 'button';
+      cancel.className = 'ia-confirm-btn';
+      cancel.textContent = cancelText;
+
+      var ok = document.createElement('button');
+      ok.type = 'button';
+      ok.className = 'ia-confirm-btn ia-confirm-btn--primary';
+      ok.textContent = confirmText;
+
+      row.appendChild(cancel);
+      row.appendChild(ok);
+      card.appendChild(row);
+      backdrop.appendChild(card);
+      document.body.appendChild(backdrop);
+
+      function close(result) {
+        document.removeEventListener('keydown', onKey);
+        if (backdrop.parentNode) backdrop.parentNode.removeChild(backdrop);
+        resolve(result);
+      }
+      function submit() {
+        var v = (input.value || '').trim();
+        close(v === '' ? null : v);
+      }
+      function onKey(e) {
+        if (e.key === 'Escape') close(null);
+        if (e.key === 'Enter' && document.activeElement === input) { e.preventDefault(); submit(); }
+      }
+
+      cancel.addEventListener('click', function () { close(null); });
+      ok.addEventListener('click', submit);
+      backdrop.addEventListener('click', function (e) { if (e.target === backdrop) close(null); });
+      document.addEventListener('keydown', onKey);
+
+      setTimeout(function () { input.focus(); input.select(); }, 30);
+    });
+  }
+
+  window.IntakeConfirm = { show: show, alert: alert, prompt: prompt };
 }());
 
 // MARKER-CAMPAIGN-V2F — a one-field prompt in the app's own dialog styling,

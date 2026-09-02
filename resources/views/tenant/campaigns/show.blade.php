@@ -1285,15 +1285,14 @@ window.CB = (function() {
     try { last = window.localStorage.getItem('cb-test-to') || ''; } catch (e) {}
     const to = last || defaultTestTo;
 
-    IntakeConfirm.prompt
-      ? IntakeConfirm.prompt({
-          title: 'Send a test of this campaign',
-          message: 'It uses the last saved draft, with sample values in place of merge tags, and counts as one email.',
-          value: to,
-          placeholder: 'name@example.com',
-          confirmText: 'Send test',
-        }).then(submitTest)
-      : submitTest(window.prompt('Send the test to which address?', to));
+    // MARKER-AUDIENCE-POLISH — the fallback is gone; prompt() is real now.
+    IntakeConfirm.prompt({
+      title: 'Send a test of this campaign',
+      message: 'It uses the last saved draft, with sample values in place of merge tags, and counts as one email.',
+      value: to,
+      placeholder: 'name@example.com',
+      confirmText: 'Send test',
+    }).then(submitTest);
   }
 
   function submitTest(address) {
@@ -1509,18 +1508,29 @@ window.CB = (function() {
         if (cmd === 'bullet')  editor.chain().focus().toggleBulletList().run();
         if (cmd === 'ordered') editor.chain().focus().toggleOrderedList().run();
         if (cmd === 'link') {
+          // MARKER-AUDIENCE-POLISH — was window.prompt; the app has its own now.
           const prev = editor.getAttributes('link').href || '';
-          const url  = window.prompt('URL (leave empty to remove):', prev);
-          if (url === null) return;
-          if (url === '') {
-            editor.chain().focus().unsetLink().run();
-          } else {
-            let normalized = url.trim();
+          IntakeConfirm.prompt({
+            title: prev ? 'Edit this link' : 'Add a link',
+            message: 'Leave it empty to remove the link.',
+            value: prev,
+            placeholder: 'https://example.com',
+            confirmText: prev ? 'Update' : 'Add link',
+          }).then(function (url) {
+            if (url === null) {
+              // empty means remove, and prompt() returns null for both empty
+              // and cancel — so only act when the field HAD a link to clear.
+              if (prev) { editor.chain().focus().unsetLink().run(); updateToolbarState(); }
+              return;
+            }
+            let normalized = String(url).trim();
             if (!/^(https?:\/\/|mailto:)/i.test(normalized)) {
               normalized = 'https://' + normalized;
             }
             editor.chain().focus().setLink({ href: normalized }).run();
-          }
+            updateToolbarState();
+          });
+          return;
         }
         updateToolbarState();
       });
@@ -1950,17 +1960,20 @@ function cbConfirmSend() {
   .aud-mode button.on{background:var(--ia-surface-2);color:var(--ia-text);border-color:var(--ia-border-strong)}
   .aud-note{font-size:11px;opacity:.5;line-height:1.45;margin:8px 0 0}
   .aud-join{font-size:11px;color:var(--ia-text-dim);text-transform:uppercase;letter-spacing:.06em;margin:2px 0 6px}
-  .aud-rule{border:.5px solid var(--ia-border);border-radius:var(--ia-r-sm);padding:8px;margin-bottom:6px}
-  .aud-rule-top{display:grid;grid-template-columns:1fr 1fr auto;gap:6px;align-items:center}
-  .aud-rule-val{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px}
+  /* MARKER-AUDIENCE-POLISH — one rule should read as one line, not a card. */
+  .aud-rule{padding:8px 0;border-bottom:.5px solid var(--ia-border)}
+  .aud-rule:first-child{padding-top:2px}
+  .aud-rule-top{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr) auto;gap:6px;align-items:center}
+  .aud-rule-val{display:grid;grid-template-columns:80px minmax(0,1fr);gap:6px;margin-top:6px}
+  .aud-rule .cb-field-select,.aud-rule .cb-field-input{padding:6px 8px;font-size:12px}
   .aud-rule .x{background:none;border:0;color:var(--ia-text-dim);cursor:pointer;font-size:16px;line-height:1;padding:0 2px}
   .aud-rule .x:hover{color:#f87171}
   .aud-add{background:none;border:.5px dashed var(--ia-border-strong);color:var(--ia-text-dim);width:100%;
     border-radius:var(--ia-r-sm);padding:7px;font-size:12px;font-weight:600;font-family:inherit;cursor:pointer}
   .aud-add:hover{color:var(--ia-text)}
-  .aud-count{margin-top:12px;padding:11px;border-radius:var(--ia-r-sm);background:var(--ia-surface-2);border:.5px solid var(--ia-border)}
-  .aud-count .big{font-size:20px;font-weight:700;line-height:1.15}
-  .aud-count .sub2{font-size:12px;color:var(--ia-text-dim);margin-top:2px}
+  .aud-count{margin-top:12px;padding:12px 13px;border-radius:var(--ia-r-sm);background:var(--ia-surface-2);border:.5px solid var(--ia-border)}
+  .aud-count .big{font-size:24px;font-weight:700;line-height:1.1;letter-spacing:-.01em}
+  .aud-count .sub2{font-size:12px;color:var(--ia-text-dim);margin-top:4px;line-height:1.5}
   .aud-count .warn{font-size:11.5px;color:#ffcf8b;margin-top:7px;line-height:1.45}
   .aud-saved-row{display:flex;align-items:center;gap:8px;padding:6px 0;font-size:13px}
   .aud-saved-row .aud-del{margin-left:auto;background:none;border:0;color:var(--ia-text-dim);cursor:pointer;font-size:15px}
@@ -2038,7 +2051,12 @@ function cbConfirmSend() {
       num.className = 'cb-field-input'; num.type = 'number'; num.min = '0';
       num.value = rule.value || '6';
       num.addEventListener('input', function () { rules[i].value = num.value; refresh(); });
-      var unit = sel([['days', 'days'], ['months', 'months'], ['years', 'years']], rule.unit || 'months');
+      // MARKER-AUDIENCE-POLISH — "more than 6 months" is not what the rule
+      // means; it means more than 6 months AGO.
+      var suffix = (rule.op === 'longer_ago') ? ' ago' : '';
+      var unit = sel([
+        ['days', 'days' + suffix], ['months', 'months' + suffix], ['years', 'years' + suffix]
+      ], rule.unit || 'months');
       unit.addEventListener('change', function () { rules[i].unit = unit.value; refresh(); });
       row.appendChild(num); row.appendChild(unit);
       wrap.appendChild(row);
@@ -2090,6 +2108,8 @@ function cbConfirmSend() {
     return mode === 'saved' && !document.querySelector('input[name="aud_saved"]:checked');
   }
 
+  function esc2(t) { var d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
+
   var timer = null, sampleOpen = false;
   function refresh(withSample) {
     var payload = targeting();
@@ -2122,9 +2142,9 @@ function cbConfirmSend() {
         var c = j.counts;
         root.querySelector('[data-aud-total]').innerHTML =
           c.mailable + ' <span style="font-size:12px;font-weight:500;opacity:.6">will receive this</span>';
-        root.querySelector('[data-aud-sub]').textContent =
-          c.matched + ' match · ' + c.mailable + ' have marketing permission · about $' +
-          (c.mailable * j.rate).toFixed(2);
+        root.querySelector('[data-aud-sub]').innerHTML =
+          esc2(c.matched + ' match, ' + c.mailable + ' have marketing permission') +
+          '<br>' + esc2('About $' + (c.mailable * j.rate).toFixed(2) + ' to send');
         var warn = root.querySelector('[data-aud-warn]');
         if (c.blocked > 0) {
           warn.hidden = false;
@@ -2180,18 +2200,14 @@ function cbConfirmSend() {
       IntakeConfirm.alert({ title: 'Nothing to save', message: 'Build a list first, then save it.' });
       return;
     }
-    // IntakeConfirm exposes show() and alert(); prompt() is guarded exactly the
-    // way the composer's test-send does it, falling back to window.prompt.
-    var ask = IntakeConfirm.prompt
-      ? IntakeConfirm.prompt({
-          title: 'Save this audience',
-          message: 'Give it a name you will recognise on the next campaign.',
-          placeholder: 'Lapsed riders',
-          confirmText: 'Save'
-        })
-      : Promise.resolve(window.prompt('Name this audience', 'Lapsed riders'));
-
-    ask.then(function (name) {
+    // MARKER-AUDIENCE-POLISH — IntakeConfirm.prompt exists now, so no
+    // window.prompt fallback: house rule is no native dialogs.
+    IntakeConfirm.prompt({
+      title: 'Save this audience',
+      message: 'Give it a name you will recognise on the next campaign.',
+      placeholder: 'Lapsed riders',
+      confirmText: 'Save'
+    }).then(function (name) {
       if (!name) return;
       var fd = new FormData();
       fd.append('_token', document.querySelector('meta[name="csrf-token"]').content);
