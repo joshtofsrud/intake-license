@@ -457,7 +457,14 @@ class DemoBuildTemplate extends Command
                         }
                     }
                     if (! empty($old['email'])) { $this->sweep[$old['email']] = $email; if ($seen < 40) { $this->leakSamples[] = $old['email']; $seen++; } }
-                    if (! empty($old['phone'])) { $this->sweep[$old['phone']] = $phone; }
+                    // MARKER-DEMO-TEMPLATE-PHONE — the same number appears in notes
+                    // and messages in whatever shape someone typed it; map them all
+                    // to this customer's fake number.
+                    if (! empty($old['phone'])) {
+                        foreach ($this->phoneForms((string) $old['phone']) as $form) {
+                            $this->sweep[$form] = $phone;
+                        }
+                    }
                     $upd['email'] = empty($old['email']) ? null : $email;
                     $upd['phone'] = empty($old['phone']) ? null : $phone;
                     foreach (['address', 'address_line1', 'street'] as $col) {
@@ -472,6 +479,24 @@ class DemoBuildTemplate extends Command
                 }
             });
         $this->info("customers anonymised: {$i}");
+    }
+
+    /**
+     * MARKER-DEMO-TEMPLATE-PHONE — common written forms of one 10-digit number:
+     * (509) 555-1234 · 509-555-1234 · 509.555.1234 · 5095551234 · +1 509 555 1234
+     */
+    private function phoneForms(string $raw): array
+    {
+        $d = preg_replace('/[^0-9]/', '', $raw);
+        if (strlen($d) === 11 && str_starts_with($d, '1')) $d = substr($d, 1);
+        if (strlen($d) !== 10) return [$raw];
+        $a = substr($d, 0, 3); $b = substr($d, 3, 3); $c = substr($d, 6, 4);
+        return array_values(array_unique([
+            $raw,
+            "({$a}) {$b}-{$c}", "({$a}){$b}-{$c}", "{$a}-{$b}-{$c}", "{$a}.{$b}.{$c}",
+            "{$a} {$b} {$c}", "{$a}{$b}{$c}",
+            "+1{$a}{$b}{$c}", "+1 {$a} {$b} {$c}", "+1-{$a}-{$b}-{$c}", "1-{$a}-{$b}-{$c}",
+        ]));
     }
 
     private function anonymiseStaff(string $demoId): void
@@ -580,6 +605,7 @@ class DemoBuildTemplate extends Command
 
     private function scrub(string $v, bool $prose = false): string
     {
+        unset($prose); // MARKER-DEMO-TEMPLATE-PHONE — identity sweep now applies everywhere
         // row uuids (fk stragglers, media paths/urls, page-builder json refs)
         $new = preg_replace_callback(
             '/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i',
@@ -593,10 +619,18 @@ class DemoBuildTemplate extends Command
                 return preg_match('/@(example\.com|intakebikeworks\.example|intake\.works)$/i', $m[0]) ? $m[0] : 'visitor@example.com';
             },
             $new);
-        $new = preg_replace('/(?<!\d)\(?\+?1?[\s.\-)]{0,2}\d{3}[\s.\-)]{1,2}\d{3}[\s.\-]\d{4}(?!\d)/', '(509) 555-0142', $new);
-        if ($prose && $this->sweep) {
+        // MARKER-DEMO-TEMPLATE-PHONE — identities BEFORE the catch-all, or each
+        // customer's own fake number gets flattened into the fallback. Cheap on
+        // short columns too, so it is no longer gated on $prose.
+        if ($this->sweep) {
             $new = strtr($new, $this->sweep);
         }
+        // whatever is left belongs to nobody in the table — but never touch a
+        // number the identity map just wrote
+        $new = preg_replace_callback(
+            '/(?<!\d)\(?\+?1?[\s.\-)]{0,2}\d{3}[\s.\-)]{1,2}\d{3}[\s.\-]\d{4}(?!\d)/',
+            fn ($m) => str_contains(preg_replace('/[^0-9]/', '', $m[0]), '509555') ? $m[0] : self::DEMO_PHONE,
+            $new);
         return $new;
     }
 
