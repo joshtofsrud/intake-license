@@ -45,6 +45,14 @@ class CampaignController extends Controller
         // legally be emailed, not who exists.
         $mailableCount = TenantCustomer::where('tenant_id', $tenant->id)->emailMailable()->count();
 
+        // MARKER-CAMPAIGN-AUDIENCE
+        $audienceSvc     = app(\App\Services\Tenant\AudienceService::class);
+        $audienceFields  = \App\Services\Tenant\AudienceService::FIELDS;
+        $audienceChoices = \App\Services\Tenant\AudienceService::CHOICES;
+        $savedAudiences  = \App\Models\Tenant\TenantAudience::where('tenant_id', $tenant->id)
+            ->orderBy('name')->get(['id', 'name', 'rules']);
+        $audienceSummary = $audienceSvc->describe($tenant, $campaign->targeting);
+
         $segments = [
             'all'             => "All customers with marketing permission ({$mailableCount} of {$customerCount})",
             'has_appointment' => 'Customers with an appointment (permission-holders only)',
@@ -74,7 +82,8 @@ class CampaignController extends Controller
         $attribution = $this->attributionFor($campaign);
 
         return view('tenant.campaigns.show', compact(
-            'campaign', 'customerCount', 'segments', 'blocks', 'discounts', 'attribution'
+            'campaign', 'customerCount', 'segments', 'blocks', 'discounts', 'attribution',
+            'audienceFields', 'audienceChoices', 'savedAudiences', 'audienceSummary' // MARKER-CAMPAIGN-AUDIENCE
         ));
     }
 
@@ -185,7 +194,9 @@ class CampaignController extends Controller
 
         $name    = trim((string) $request->input('name', ''));
         $subject = trim((string) $request->input('subject', ''));
-        $segment = $request->input('segment', 'all');
+        // MARKER-CAMPAIGN-AUDIENCE — the composer posts a targeting JSON now;
+        // 'segment' is still read so an older cached form still saves.
+        $targeting = $this->targetingFromRequest($request);
 
         // Blocks come in as JSON string from the hidden form field
         $blocksJson = (string) $request->input('blocks_json', '[]');
@@ -226,7 +237,7 @@ class CampaignController extends Controller
             'show_header' => (bool) $request->boolean('show_header', true), // MARKER-CAMPAIGN-HDR
             'blocks'    => $blocks,
             'body_html' => $bodyHtml,
-            'targeting' => ['segment' => $segment],
+            'targeting' => $targeting,
         ]);
 
         return back()->with('success', $wasScheduled
@@ -299,15 +310,12 @@ class CampaignController extends Controller
             return back()->with('error', 'This month\'s marketing limit ($' . number_format($capState['cap'], 2) . ') has been reached, so campaigns are paused. Raise or remove the limit in Settings → Email charges. Receipts and confirmations are unaffected.');
         }
 
-        $segment = $campaign->targeting['segment'] ?? 'all';
-
-        $base = TenantCustomer::where('tenant_id', $tenant->id);
-        if ($segment === 'has_appointment') {
-            $base->whereHas('appointments');
-        }
-
-        $totalInSegment = (clone $base)->whereNotNull('email')->where('email', '!=', '')->count();
-        $mailable       = (clone $base)->emailMailable()->get(['id', 'email']);
+        // MARKER-CAMPAIGN-AUDIENCE — one resolver, shared with the pre-send
+        // panel and the scheduled-fire path, so all three agree on the list.
+        $audience       = app(\App\Services\Tenant\AudienceService::class);
+        $counts         = $audience->counts($tenant, $campaign->targeting);
+        $totalInSegment = $counts['withEmail'];
+        $mailable       = $audience->mailable($tenant, $campaign->targeting)->get(['id', 'email']);
 
         if ($mailable->isEmpty()) {
             return back()->with('error', $totalInSegment > 0
@@ -456,23 +464,95 @@ class CampaignController extends Controller
     }
 
     /** MARKER-CAMPAIGN-CHECKS — recipients and what the send will cost. */
-    private function preSendAudience($campaign, $tenant): array
+    /** MARKER-CAMPAIGN-AUDIENCE — read the posted audience, whatever its shape. */
+    private function targetingFromRequest(Request $request): array
     {
-        $segment = $campaign->targeting['segment'] ?? 'all';
+        $raw = $request->input('targeting_json');
+        if (is_string($raw) && $raw !== '') {
+            $decoded = json_decode($raw, true);
+            if (is_array($decoded)) {
+                $mode = $decoded['mode'] ?? 'all';
+                $svc  = app(\App\Services\Tenant\AudienceService::class);
 
-        $base = TenantCustomer::where('tenant_id', $tenant->id);
-        if ($segment === 'has_appointment') {
-            $base->whereHas('appointments');
+                if ($mode === 'rules') {
+                    return ['mode' => 'rules', 'rules' => $svc->sanitize($decoded['rules'] ?? [])];
+                }
+                if ($mode === 'saved' && ! empty($decoded['audience_id'])) {
+                    return ['mode' => 'saved', 'audience_id' => (string) $decoded['audience_id']];
+                }
+                return ['mode' => 'all'];
+            }
         }
 
-        $withEmail = (clone $base)->whereNotNull('email')->where('email', '!=', '')->count();
-        $mailable  = (clone $base)->emailMailable()->count();
-        $rate      = \App\Services\EmailLedger::rate();
+        // legacy form post
+        return ['segment' => $request->input('segment', 'all')];
+    }
+
+    /** MARKER-CAMPAIGN-AUDIENCE — live count + sample for the builder. */
+    public function audienceCount(Request $request)
+    {
+        $tenant    = tenant();
+        $svc       = app(\App\Services\Tenant\AudienceService::class);
+        $targeting = $this->targetingFromRequest($request);
+
+        return response()->json([
+            'success'  => true,
+            'counts'   => $svc->counts($tenant, $targeting),
+            'describe' => $svc->describe($tenant, $targeting),
+            'sample'   => $request->boolean('with_sample') ? $svc->sample($tenant, $targeting) : [],
+            'rate'     => \App\Services\EmailLedger::rate(),
+        ]);
+    }
+
+    /** MARKER-CAMPAIGN-AUDIENCE — save the current rules for reuse. */
+    public function audienceSave(Request $request)
+    {
+        $tenant = tenant();
+        $name   = trim((string) $request->input('name', ''));
+        if ($name === '') {
+            return response()->json(['success' => false, 'error' => 'Give the audience a name.'], 422);
+        }
+
+        $svc   = app(\App\Services\Tenant\AudienceService::class);
+        $rules = $svc->sanitize(json_decode((string) $request->input('rules_json', '[]'), true));
+        if (! $rules) {
+            return response()->json(['success' => false, 'error' => 'Add at least one rule before saving.'], 422);
+        }
+
+        $audience = \App\Models\Tenant\TenantAudience::create([
+            'tenant_id' => $tenant->id,
+            'name'      => mb_substr($name, 0, 120),
+            'rules'     => $rules,
+        ]);
+
+        return response()->json([
+            'success'  => true,
+            'audience' => ['id' => $audience->id, 'name' => $audience->name],
+        ]);
+    }
+
+    /** MARKER-CAMPAIGN-AUDIENCE */
+    public function audienceDelete(Request $request, string $id)
+    {
+        $tenant = tenant();
+        \App\Models\Tenant\TenantAudience::where('tenant_id', $tenant->id)->where('id', $id)->delete();
+        return response()->json(['success' => true]);
+    }
+
+    private function preSendAudience($campaign, $tenant): array
+    {
+        // MARKER-CAMPAIGN-AUDIENCE
+        $audience = app(\App\Services\Tenant\AudienceService::class);
+        $counts   = $audience->counts($tenant, $campaign->targeting);
+        $rate     = \App\Services\EmailLedger::rate();
 
         return [
-            'mailable'  => $mailable,
-            'withEmail' => $withEmail,
-            'cost'      => $mailable * $rate,
+            'mailable'  => $counts['mailable'],
+            'withEmail' => $counts['withEmail'],
+            'matched'   => $counts['matched'],
+            'blocked'   => $counts['blocked'],
+            'describe'  => $audience->describe($tenant, $campaign->targeting),
+            'cost'      => $counts['mailable'] * $rate,
         ];
     }
 

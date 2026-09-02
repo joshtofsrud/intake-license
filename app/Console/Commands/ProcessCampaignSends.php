@@ -52,12 +52,11 @@ class ProcessCampaignSends extends Command
                 continue;
             }
 
-            $segment = $campaign->targeting['segment'] ?? 'all';
-            $base = \App\Models\Tenant\TenantCustomer::where('tenant_id', $tenant->id);
-            if ($segment === 'has_appointment') {
-                $base->whereHas('appointments');
-            }
-            $mailable = (clone $base)->emailMailable()->get(['id', 'email']);
+            // MARKER-CAMPAIGN-AUDIENCE — same resolver the composer and the
+            // pre-send panel use. Built at FIRE time, so rules see today's data.
+            $mailable = app(\App\Services\Tenant\AudienceService::class)
+                ->mailable($tenant, $campaign->targeting)
+                ->get(['id', 'email']);
 
             if ($mailable->isEmpty()) {
                 $campaign->update(['status' => 'draft', 'scheduled_at' => null]);

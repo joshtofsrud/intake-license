@@ -492,6 +492,276 @@
   opacity: .5;
 }
 </style>
+
+{{-- MARKER-CAMPAIGN-AUDIENCE --}}
+<style>
+  .aud-mode{display:flex;gap:6px;margin-bottom:10px}
+  .aud-mode button{flex:1;background:none;border:.5px solid var(--ia-border);border-radius:var(--ia-r-sm);
+    color:var(--ia-text-dim);padding:6px 8px;font-size:12px;font-weight:600;font-family:inherit;cursor:pointer}
+  .aud-mode button.on{background:var(--ia-surface-2);color:var(--ia-text);border-color:var(--ia-border-strong)}
+  .aud-note{font-size:11px;opacity:.5;line-height:1.45;margin:8px 0 0}
+  .aud-join{font-size:11px;color:var(--ia-text-dim);text-transform:uppercase;letter-spacing:.06em;margin:2px 0 6px}
+  .aud-rule{border:.5px solid var(--ia-border);border-radius:var(--ia-r-sm);padding:8px;margin-bottom:6px}
+  .aud-rule-top{display:grid;grid-template-columns:1fr 1fr auto;gap:6px;align-items:center}
+  .aud-rule-val{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px}
+  .aud-rule .x{background:none;border:0;color:var(--ia-text-dim);cursor:pointer;font-size:16px;line-height:1;padding:0 2px}
+  .aud-rule .x:hover{color:#f87171}
+  .aud-add{background:none;border:.5px dashed var(--ia-border-strong);color:var(--ia-text-dim);width:100%;
+    border-radius:var(--ia-r-sm);padding:7px;font-size:12px;font-weight:600;font-family:inherit;cursor:pointer}
+  .aud-add:hover{color:var(--ia-text)}
+  .aud-count{margin-top:12px;padding:11px;border-radius:var(--ia-r-sm);background:var(--ia-surface-2);border:.5px solid var(--ia-border)}
+  .aud-count .big{font-size:20px;font-weight:700;line-height:1.15}
+  .aud-count .sub2{font-size:12px;color:var(--ia-text-dim);margin-top:2px}
+  .aud-count .warn{font-size:11.5px;color:#ffcf8b;margin-top:7px;line-height:1.45}
+  .aud-saved-row{display:flex;align-items:center;gap:8px;padding:6px 0;font-size:13px}
+  .aud-saved-row .aud-del{margin-left:auto;background:none;border:0;color:var(--ia-text-dim);cursor:pointer;font-size:15px}
+  .aud-preview{margin-top:10px;border:.5px solid var(--ia-border);border-radius:var(--ia-r-sm);font-size:12.5px}
+  .aud-preview div{padding:6px 10px;border-top:.5px solid var(--ia-border)}
+  .aud-preview div:first-child{border-top:0}
+  .aud-preview .no{font-size:10.5px;border:.5px solid var(--ia-border-strong);border-radius:4px;padding:0 5px;margin-left:6px;opacity:.7}
+</style>
+<script>
+(function () {
+  var root = document.querySelector('[data-aud-count]');
+  if (!root) return; // not a draft
+
+  var FIELDS  = @json($audienceFields);
+  var CHOICES = @json($audienceChoices);
+  var saved0  = @json($campaign->targeting ?? ['mode' => 'all']);
+
+  var hidden = document.getElementById('cb-targeting-json');
+  var list   = document.querySelector('[data-aud-rules]');
+  var mode   = saved0.mode || ((saved0.segment === 'has_appointment') ? 'rules' : 'all');
+  var rules  = (saved0.rules || []).slice();
+  if (!rules.length && saved0.segment === 'has_appointment') {
+    rules = [{ field: 'visit_count', op: 'at_least', value: '1', unit: 'months' }];
+  }
+
+  var OPS = {
+    age:    [['within', 'within the last'], ['longer_ago', 'more than']],
+    number: [['at_least', 'at least'], ['at_most', 'at most']],
+    money:  [['at_least', 'at least'], ['at_most', 'at most']],
+    flag:   [['is', 'yes'], ['is_not', 'no']],
+    text:   [['is', 'is'], ['is_not', 'is not']],
+    choice: [['is', 'is'], ['is_not', 'is not']]
+  };
+
+  function sel(options, value, cls) {
+    var s = document.createElement('select');
+    s.className = cls || 'cb-field-select';
+    options.forEach(function (o) {
+      var opt = document.createElement('option');
+      opt.value = o[0]; opt.textContent = o[1];
+      if (String(value) === String(o[0])) opt.selected = true;
+      s.appendChild(opt);
+    });
+    return s;
+  }
+
+  function drawRule(rule, i) {
+    var wrap = document.createElement('div');
+    wrap.className = 'aud-rule';
+
+    var top = document.createElement('div');
+    top.className = 'aud-rule-top';
+
+    var fieldSel = sel(Object.keys(FIELDS).map(function (k) { return [k, FIELDS[k].label]; }), rule.field);
+    fieldSel.addEventListener('change', function () {
+      rules[i] = { field: fieldSel.value, op: '', value: '', unit: 'months' };
+      render();
+    });
+
+    var type = (FIELDS[rule.field] || {}).type || 'flag';
+    var opSel = sel(OPS[type] || OPS.flag, rule.op);
+    opSel.addEventListener('change', function () { rules[i].op = opSel.value; refresh(); });
+
+    var x = document.createElement('button');
+    x.type = 'button'; x.className = 'x'; x.textContent = '×'; x.title = 'Remove';
+    x.addEventListener('click', function () { rules.splice(i, 1); render(); });
+
+    top.appendChild(fieldSel); top.appendChild(opSel); top.appendChild(x);
+    wrap.appendChild(top);
+
+    if (type === 'age') {
+      var row = document.createElement('div');
+      row.className = 'aud-rule-val';
+      var num = document.createElement('input');
+      num.className = 'cb-field-input'; num.type = 'number'; num.min = '0';
+      num.value = rule.value || '6';
+      num.addEventListener('input', function () { rules[i].value = num.value; refresh(); });
+      var unit = sel([['days', 'days'], ['months', 'months'], ['years', 'years']], rule.unit || 'months');
+      unit.addEventListener('change', function () { rules[i].unit = unit.value; refresh(); });
+      row.appendChild(num); row.appendChild(unit);
+      wrap.appendChild(row);
+    } else if (type === 'number' || type === 'money') {
+      var n2 = document.createElement('input');
+      n2.className = 'cb-field-input'; n2.type = 'number'; n2.min = '0';
+      n2.style.marginTop = '6px';
+      n2.value = rule.value || (type === 'money' ? '100' : '1');
+      n2.addEventListener('input', function () { rules[i].value = n2.value; refresh(); });
+      wrap.appendChild(n2);
+    } else if (type === 'text') {
+      var t = document.createElement('input');
+      t.className = 'cb-field-input'; t.style.marginTop = '6px';
+      t.placeholder = 'Spokane';
+      t.value = rule.value || '';
+      t.addEventListener('input', function () { rules[i].value = t.value; refresh(); });
+      wrap.appendChild(t);
+    } else if (type === 'choice') {
+      var opts = CHOICES[rule.field] || {};
+      var c = sel(Object.keys(opts).map(function (k) { return [k, opts[k]]; }), rule.value);
+      c.style.marginTop = '6px';
+      c.addEventListener('change', function () { rules[i].value = c.value; refresh(); });
+      wrap.appendChild(c);
+    }
+
+    return wrap;
+  }
+
+  function render() {
+    if (list) {
+      list.innerHTML = '';
+      rules.forEach(function (r, i) { list.appendChild(drawRule(r, i)); });
+    }
+    refresh();
+  }
+
+  function targeting() {
+    if (mode === 'rules')  return { mode: 'rules', rules: rules };
+    if (mode === 'saved')  {
+      var picked = document.querySelector('input[name="aud_saved"]:checked');
+      return { mode: 'saved', audience_id: picked ? picked.value : '' };
+    }
+    return { mode: 'all' };
+  }
+
+  var timer = null, sampleOpen = false;
+  function refresh(withSample) {
+    var payload = targeting();
+    if (hidden) hidden.value = JSON.stringify(payload);
+    clearTimeout(timer);
+    timer = setTimeout(function () { fetchCount(payload, withSample || sampleOpen); }, 250);
+  }
+
+  function fetchCount(payload, withSample) {
+    var fd = new FormData();
+    fd.append('_token', document.querySelector('meta[name="csrf-token"]') ? document.querySelector('meta[name="csrf-token"]').content : '');
+    fd.append('targeting_json', JSON.stringify(payload));
+    if (withSample) fd.append('with_sample', '1');
+
+    fetch('{{ route('tenant.campaigns.audience.count') }}', {
+      method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin'
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        if (!j || !j.success) return;
+        var c = j.counts;
+        root.querySelector('[data-aud-total]').innerHTML =
+          c.mailable + ' <span style="font-size:12px;font-weight:500;opacity:.6">will receive this</span>';
+        root.querySelector('[data-aud-sub]').textContent =
+          c.matched + ' match · ' + c.mailable + ' have marketing permission · about $' +
+          (c.mailable * j.rate).toFixed(2);
+        var warn = root.querySelector('[data-aud-warn]');
+        if (c.blocked > 0) {
+          warn.hidden = false;
+          warn.textContent = c.blocked + " match but haven't given permission, so they're skipped. You can confirm permission for imported contacts on Contacts & consent.";
+        } else { warn.hidden = true; }
+
+        var box = document.querySelector('[data-aud-sample]');
+        if (withSample && box) {
+          box.hidden = false;
+          box.innerHTML = '';
+          (j.sample || []).forEach(function (p) {
+            var d = document.createElement('div');
+            d.textContent = p.name || p.email || '—';
+            if (!p.mailable) {
+              var tag = document.createElement('span');
+              tag.className = 'no'; tag.textContent = 'no permission';
+              d.appendChild(tag);
+            }
+            box.appendChild(d);
+          });
+          if (!(j.sample || []).length) box.innerHTML = '<div>Nobody matches these rules yet.</div>';
+        }
+      })
+      .catch(function () {});
+  }
+
+  document.querySelectorAll('[data-aud-mode]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      mode = b.dataset.audMode;
+      document.querySelectorAll('[data-aud-mode]').forEach(function (x) { x.classList.toggle('on', x === b); });
+      document.querySelectorAll('[data-aud-panel]').forEach(function (p) { p.hidden = p.dataset.audPanel !== mode; });
+      if (mode === 'rules' && !rules.length) { rules = [{ field: 'last_visit', op: 'longer_ago', value: '6', unit: 'months' }]; }
+      render();
+    });
+  });
+
+  document.querySelectorAll('input[name="aud_saved"]').forEach(function (r) {
+    r.addEventListener('change', function () { refresh(); });
+  });
+
+  var addBtn = document.querySelector('[data-aud-add]');
+  if (addBtn) addBtn.addEventListener('click', function () {
+    rules.push({ field: 'visit_count', op: 'at_least', value: '1', unit: 'months' });
+    render();
+  });
+
+  var prevBtn = document.querySelector('[data-aud-preview]');
+  if (prevBtn) prevBtn.addEventListener('click', function () { sampleOpen = true; refresh(true); });
+
+  var saveBtn = document.querySelector('[data-aud-save]');
+  if (saveBtn) saveBtn.addEventListener('click', function () {
+    if (mode !== 'rules' || !rules.length) {
+      IntakeConfirm.alert({ title: 'Nothing to save', message: 'Build a list first, then save it.' });
+      return;
+    }
+    // IntakeConfirm exposes show() and alert(); prompt() is guarded exactly the
+    // way the composer's test-send does it, falling back to window.prompt.
+    var ask = IntakeConfirm.prompt
+      ? IntakeConfirm.prompt({
+          title: 'Save this audience',
+          message: 'Give it a name you will recognise on the next campaign.',
+          placeholder: 'Lapsed riders',
+          confirmText: 'Save'
+        })
+      : Promise.resolve(window.prompt('Name this audience', 'Lapsed riders'));
+
+    ask.then(function (name) {
+      if (!name) return;
+      var fd = new FormData();
+      fd.append('_token', document.querySelector('meta[name="csrf-token"]').content);
+      fd.append('name', name);
+      fd.append('rules_json', JSON.stringify(rules));
+      fetch('{{ route('tenant.campaigns.audience.save') }}', {
+        method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin'
+      }).then(function (r) { return r.json(); }).then(function () { location.reload(); });
+    });
+  });
+
+  document.querySelectorAll('[data-aud-delete]').forEach(function (b) {
+    b.addEventListener('click', function (e) {
+      e.preventDefault();
+      IntakeConfirm.show({
+        title: 'Delete this audience?',
+        message: 'Campaigns already sent are unaffected. Any draft using it falls back to everyone with permission.',
+        confirmText: 'Delete',
+        danger: true
+      }).then(function (ok) {
+        if (!ok) return;
+        var fd = new FormData();
+        fd.append('_token', document.querySelector('meta[name="csrf-token"]').content);
+        fd.append('_method', 'DELETE');
+        fetch('/admin/campaign-audience/' + b.dataset.audDelete, {
+          method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin'
+        }).then(function () { location.reload(); });
+      });
+    });
+  });
+
+  render();
+})();
+</script>
 @endpush
 
 @section('content')
@@ -634,6 +904,8 @@
 
   <input type="hidden" name="blocks_json" id="cb-blocks-json" value="">
   <input type="hidden" name="segment" id="cb-segment" value="{{ $campaign->targeting['segment'] ?? 'all' }}">
+  {{-- MARKER-CAMPAIGN-AUDIENCE — the audience travels with Save draft --}}
+  <input type="hidden" name="targeting_json" id="cb-targeting-json" value="{{ json_encode($campaign->targeting ?? ['mode' => 'all']) }}">
 
   {{-- Action row --}}
   @if($campaign->status === 'draft')
@@ -651,15 +923,56 @@
 
   <div class="cb-col">
     <div class="cb-col-title">Audience</div>
+    {{-- MARKER-CAMPAIGN-AUDIENCE --}}
     @if($campaign->status === 'draft')
-      <select class="cb-field-select" onchange="document.getElementById('cb-segment').value = this.value">
-        @foreach($segments as $value => $label)
-          <option value="{{ $value }}" {{ ($campaign->targeting['segment'] ?? 'all') === $value ? 'selected' : '' }}>{{ $label }}</option>
-        @endforeach
-      </select>
-      <p style="font-size:11px;opacity:.45;margin-top:8px;line-height:1.4">Saved with the next Save draft click.</p>
+      @php
+        $t0 = $campaign->targeting ?? [];
+        $mode0 = $t0['mode'] ?? (($t0['segment'] ?? 'all') === 'has_appointment' ? 'rules' : 'all');
+      @endphp
+      <div class="aud-mode">
+        <button type="button" data-aud-mode="rules" class="{{ $mode0 === 'rules' ? 'on' : '' }}">Build a list</button>
+        <button type="button" data-aud-mode="saved" class="{{ $mode0 === 'saved' ? 'on' : '' }}">Saved</button>
+        <button type="button" data-aud-mode="all" class="{{ $mode0 === 'all' ? 'on' : '' }}">Everyone</button>
+      </div>
+
+      <div data-aud-panel="all" {{ $mode0 === 'all' ? '' : 'hidden' }}>
+        <p class="aud-note">Every customer with an email address and marketing permission.</p>
+      </div>
+
+      <div data-aud-panel="saved" {{ $mode0 === 'saved' ? '' : 'hidden' }}>
+        @forelse($savedAudiences as $sa)
+          <label class="aud-saved-row">
+            <input type="radio" name="aud_saved" value="{{ $sa->id }}"
+                   {{ ($t0['audience_id'] ?? '') === $sa->id ? 'checked' : '' }}>
+            <span>{{ $sa->name }}</span>
+            <button type="button" class="aud-del" data-aud-delete="{{ $sa->id }}" title="Delete">×</button>
+          </label>
+        @empty
+          <p class="aud-note">No saved audiences yet. Build a list, then save it for next time.</p>
+        @endforelse
+        <p class="aud-note">A saved audience re-runs its rules when the campaign sends, so it is never a stale copy.</p>
+      </div>
+
+      <div data-aud-panel="rules" {{ $mode0 === 'rules' ? '' : 'hidden' }}>
+        <div class="aud-join">Customers matching all of</div>
+        <div data-aud-rules></div>
+        <button type="button" class="aud-add" data-aud-add>+ Add a rule</button>
+        <p class="aud-note">Anyone without marketing permission is left out whatever the rules say.</p>
+      </div>
+
+      <div class="aud-count" data-aud-count>
+        <div class="big" data-aud-total>—</div>
+        <div class="sub2" data-aud-sub>Counting…</div>
+        <div class="warn" data-aud-warn hidden></div>
+      </div>
+
+      <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+        <button type="button" class="ia-btn" data-aud-preview style="font-size:12px;padding:6px 10px">Who's in this list</button>
+        <button type="button" class="ia-btn" data-aud-save style="font-size:12px;padding:6px 10px">Save as audience…</button>
+      </div>
+      <div class="aud-preview" data-aud-sample hidden></div>
     @else
-      <div style="font-size:13px">{{ $segments[$campaign->targeting['segment'] ?? 'all'] ?? 'All customers' }}</div>
+      <div style="font-size:13px">{{ $audienceSummary }}</div>
     @endif
   </div>
 

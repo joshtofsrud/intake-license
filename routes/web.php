@@ -1092,6 +1092,11 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             Route::post('/campaigns/{id}/schedule',   [TenantControllers\CampaignController::class, 'schedule'])->name('campaigns.schedule');
             Route::post('/campaigns/{id}/unschedule', [TenantControllers\CampaignController::class, 'unschedule'])->name('campaigns.unschedule');
             Route::get('/campaign-catalog-search', [TenantControllers\CampaignController::class, 'catalogSearch'])->name('campaigns.catalog-search'); // MARKER-CAMPAIGN-V2C
+            // MARKER-CAMPAIGN-AUDIENCE — these sit under /campaign-audience, NOT
+            // /campaigns/..., so the /campaigns/{id} wildcard cannot swallow them.
+            Route::post('/campaign-audience/count',       [TenantControllers\CampaignController::class, 'audienceCount'])->name('campaigns.audience.count');
+            Route::post('/campaign-audience/save',        [TenantControllers\CampaignController::class, 'audienceSave'])->name('campaigns.audience.save');
+            Route::delete('/campaign-audience/{id}',      [TenantControllers\CampaignController::class, 'audienceDelete'])->name('campaigns.audience.delete');
 
             // MARKER-PATCH-450 — Engage -> Recovery (abandoned-booking worklist + funnel)
             Route::get('/recovery',         [TenantControllers\RecoveryController::class, 'index'])->name('recovery.index');
