@@ -13,6 +13,11 @@ class SmsService
      */
     public static function send(Tenant $tenant, string $to, string $body): void
     {
+        // MARKER-DEMO-COMMS — demo tenants never text anyone.
+        if ($tenant->is_demo) {
+            Log::info('MARKER-DEMO-COMMS sms suppressed (demo tenant)', ['tenant' => $tenant->id]);
+            return;
+        }
         $to = self::normalizePhone($to);
         if (!$to) {
             throw new \InvalidArgumentException('Invalid phone number');

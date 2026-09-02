@@ -15,6 +15,18 @@ class EmailService
         $this->tenant = $tenant;
     }
 
+    // MARKER-DEMO-COMMS — demo tenants never reach a real transport. The
+    // send "succeeds" (callers behave exactly as live and record the
+    // message); the record carries meta.demo_suppressed via InboxService.
+    private function deliver(\Closure $build): void
+    {
+        if ($this->tenant && $this->tenant->is_demo) {
+            \Illuminate\Support\Facades\Log::info('MARKER-DEMO-COMMS email suppressed (demo tenant)', ['tenant' => $this->tenant->id]);
+            return;
+        }
+        Mail::send([], [], $build);
+    }
+
     // ----------------------------------------------------------------
     // Send a named template email
     // $vars are merged into the template subject + body
@@ -68,7 +80,7 @@ class EmailService
 
         try {
             $tenantId = $this->tenant->id;
-            Mail::send([], [], function ($message) use (
+            $this->deliver(function ($message) use (
                 $toEmail, $subject, $html, $fromName, $fromEmail, $replyTo, $tenantId
             ) {
                 $message
@@ -188,7 +200,7 @@ class EmailService
 
         try {
             $tenantId = $this->tenant->id;
-            Mail::send([], [], function ($message) use (
+            $this->deliver(function ($message) use (
                 $toEmail, $subject, $html, $fromName, $fromEmail, $replyTo, $tenantId, $templateKey
             ) {
                 $message
@@ -246,7 +258,7 @@ class EmailService
 
         try {
             $tenantId = $this->tenant->id;
-            Mail::send([], [], function ($message) use (
+            $this->deliver(function ($message) use (
                 $toEmail, $subject, $html, $fromName, $fromEmail, $replyTo, $tenantId, $templateKey, $pdfBytes, $filename
             ) {
                 $message
@@ -588,7 +600,7 @@ HTML;
 
         try {
             $tenantId = $this->tenant->id;
-            Mail::send([], [], function ($message) use (
+            $this->deliver(function ($message) use (
                 $toEmail, $subject, $html, $fromName, $fromEmail, $replyTo,
                 $tenantId, $stream, $unsubscribeUrl, $campaignId, $sendId
             ) {

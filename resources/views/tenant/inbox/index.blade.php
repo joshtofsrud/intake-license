@@ -443,7 +443,7 @@
               <button type="submit" title="Delete message">&times;</button>
             </form>
             <div class="ib-msg-body">@if($cls === 'note')<strong>Internal note · </strong>@endif{{ $m->body }}</div>
-            <div class="ib-msg-time">@if($cls === 'in' || $cls === 'out')<span class="ib-chan">{{ strtoupper($m->channel) }}</span>@endif{{ tlocal_datetime($m->created_at, 'M j, g:i A') }}</div>
+            <div class="ib-msg-time">@if($cls === 'in' || $cls === 'out')<span class="ib-chan">{{ strtoupper($m->channel) }}</span>@endif @if(($m->meta['demo_suppressed'] ?? false))<span class="ib-chan" title="This is a demo, so no email or text actually went out.">Not really sent — demo</span>@endif{{ tlocal_datetime($m->created_at, 'M j, g:i A') }}</div>
           </div>
         @empty
           <div class="ib-empty">No messages yet.</div>

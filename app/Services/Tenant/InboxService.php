@@ -119,6 +119,7 @@ class InboxService
             'body'            => $body,
             'channel'         => $channel,
             'sent_by_user_id' => $userId,
+            'meta'            => $tenant->is_demo ? ['demo_suppressed' => true] : null, // MARKER-DEMO-COMMS
             'delivered_at'    => now(), // best-effort; delivery receipts are a later enhancement
         ]);
 
@@ -149,7 +150,11 @@ class InboxService
             'direction'    => 'out',
             'kind'         => 'transactional',
             'body'         => $subject,
-            'meta'         => ['template' => $templateKey, 'via' => 'system_email'],
+            'meta'         => array_filter([
+                'template'        => $templateKey,
+                'via'             => 'system_email',
+                'demo_suppressed' => $thread->tenant?->is_demo ? true : null, // MARKER-DEMO-COMMS
+            ]),
             'channel'      => 'email',
             'delivered_at' => now(),
         ]);
