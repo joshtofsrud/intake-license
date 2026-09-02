@@ -220,8 +220,33 @@ details.sec .body section + section{padding-top:30px}
 @media(max-width:640px){
   .rail .wrap{gap:16px}
   details.sec > summary{font-size:15px;padding:17px 0}
-  details.sec > summary .cap{display:none}
+  /* MARKER-INVEST-MOBILE-PASS — the caption carries the argument, so it drops
+     under the heading rather than disappearing. The "+" stays on the first
+     line by spanning the grid. */
+  details.sec > summary{display:grid;grid-template-columns:1fr auto;align-items:baseline;column-gap:12px}
+  details.sec > summary .cap{display:block;grid-column:1;font-size:12.5px;line-height:1.45;margin-top:3px}
+  details.sec > summary::after{grid-column:2;grid-row:1;margin-left:0}
 }
+
+/* MARKER-INVEST-MOBILE-PASS — the talk bar on a phone. Avatar inline with the
+   heading; the two actions share one row as equal halves instead of stacking
+   at different widths. */
+@media(max-width:640px){
+  .talkbar-actions{width:100%;margin:12px 0 0 !important;display:flex;gap:9px}
+  .talkbar-actions > a{flex:1 1 0;min-width:0;padding:0 12px !important;height:44px !important;
+    display:inline-flex;align-items:center;justify-content:center;text-align:center}
+  .talkbar-av{width:28px !important;height:28px !important;font-size:12px}
+}
+
+/* MARKER-INVEST-MOBILE-PASS — the rail scrolls; without a scrollbar nothing
+   says so, so items past the edge read as clipped. The fades are that signal. */
+.rail{position:relative}
+.rail::after,.rail::before{content:"";position:absolute;top:0;bottom:0;width:34px;pointer-events:none;z-index:2;
+  opacity:0;transition:opacity .15s}
+.rail::after{right:0;background:linear-gradient(to right,rgba(12,12,12,0),rgba(12,12,12,.96))}
+.rail::before{left:0;background:linear-gradient(to left,rgba(12,12,12,0),rgba(12,12,12,.96))}
+.rail.can-scroll-right::after{opacity:1}
+.rail.can-scroll-left::before{opacity:1}
 
 /* MARKER-INVEST-CONFIRM — the success message, where it will actually be read.
    A banner on a page this long lands below the fold after the reload. */

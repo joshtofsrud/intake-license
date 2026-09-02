@@ -197,10 +197,10 @@ textarea:focus{border-color:var(--lime-line)}
   @endphp
   @if($talkType && $talkType->isBookable())
   <div class="ok" style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:26px">
-    <div style="width:34px;height:34px;border-radius:50%;background:var(--panel2);display:grid;place-items:center;font-weight:700;color:var(--body);flex:none">J</div>
+    <div class="talkbar-av" style="width:34px;height:34px;border-radius:50%;background:var(--panel2);display:grid;place-items:center;font-weight:700;color:var(--body);flex:none">J</div>
     <p style="margin:0;font-size:14px"><b>Questions first? Talk to Josh.</b><br>{{ $talkType->length_min }} minutes, one on one — no proposal, no code, no commitment.</p>
     {{-- MARKER-INVEST-BAR-ALIGN — matches the shared bar on the other pages --}}
-    <div style="margin:0 0 0 auto;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+    <div class="talkbar-actions" style="margin:0 0 0 auto;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
       @if($investDemoOn)
         <a href="{{ url('/demo') }}" style="display:inline-flex;align-items:center;justify-content:center;height:42px;padding:0 18px;border:1px solid var(--lime-line);border-radius:8px;color:var(--lime);font-weight:600;font-size:14px;text-decoration:none;white-space:nowrap">See the demo</a>
       @endif

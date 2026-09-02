@@ -68,6 +68,21 @@
     sync();
   });
 
+  // MARKER-INVEST-MOBILE-PASS — show a fade only on the side there is more to
+  // see, so it never suggests scrolling that is not there.
+  var rail = document.querySelector('.rail');
+  var strip = rail && rail.querySelector('.wrap');
+  if (rail && strip) {
+    var sync = function () {
+      var max = strip.scrollWidth - strip.clientWidth;
+      rail.classList.toggle('can-scroll-right', strip.scrollLeft < max - 2);
+      rail.classList.toggle('can-scroll-left', strip.scrollLeft > 2);
+    };
+    strip.addEventListener('scroll', sync, { passive: true });
+    window.addEventListener('resize', sync);
+    sync();
+  }
+
   // MARKER-INVEST-RAILMENU — the dropdown itself.
   var menus = document.querySelectorAll('.rail-menu');
   menus.forEach(function (menu) {
