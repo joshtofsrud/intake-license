@@ -6,7 +6,8 @@
        2. Client JS detected idle locally
        3. An AJAX fetch returned 423 Locked (caught by global handler in idle-lock.js)
      ================================================================ --}}
-@if(isset($currentTenant) && $currentTenant->pin_tier_active && isset($authUser))
+{{-- MARKER-DEMO-IDLELOCK — never on a demo tenant, wherever it is included --}}
+@if(isset($currentTenant) && $currentTenant->pin_tier_active && isset($authUser) && ! $currentTenant->is_demo)
 <div class="ia-lock-overlay" id="ia-lock-overlay"
      style="display: {{ ($pinLockPending ?? false) ? 'flex' : 'none' }}"
      data-initially-locked="{{ ($pinLockPending ?? false) ? '1' : '0' }}"

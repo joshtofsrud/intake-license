@@ -190,11 +190,15 @@
 <script src="{{ asset('js/tenant/sidebar-collapse.js') }}?v={{ filemtime(public_path('js/tenant/sidebar-collapse.js')) }}" defer></script>
 <script src="{{ asset('js/tenant/mobile-nav.js') }}?v={{ filemtime(public_path('js/tenant/mobile-nav.js')) }}" defer></script>
 <script src="{{ asset('js/tenant/location-switcher.js') }}?v={{ filemtime(public_path('js/tenant/location-switcher.js')) }}" defer></script>
+@unless($currentTenant->is_demo ?? false) {{-- MARKER-DEMO-IDLELOCK --}}
 <script src="{{ asset('js/tenant/idle-lock.js') }}?v={{ filemtime(public_path('js/tenant/idle-lock.js')) }}" defer></script>
+@endunless
 
 {{-- MARKER-IMPERSONATION-PIN — omitted while impersonating so the client
      idle timer has nothing to open. --}}
-@unless(session()->has('impersonating_from'))
+{{-- MARKER-DEMO-IDLELOCK — and on a demo tenant, where a visitor has no PIN
+     and creating one would lock the demo behind a number only they know. --}}
+@unless(session()->has('impersonating_from') || ($currentTenant->is_demo ?? false))
   @include('layouts.tenant._lock-overlay')
 @endunless
 @include('layouts.tenant._action-gate-modal')
