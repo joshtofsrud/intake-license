@@ -106,6 +106,8 @@ class DemoReset extends Command
             $public->put('tenants/' . $tenantId . '/' . $rel, $local->get($file));
         }
 
+        $this->realignAppointments($tenantId); // MARKER-DEMO-TIMELINE
+
         // sessions from before this moment are stale; the banner middleware
         // compares against this and ejects them
         DemoSetting::put("epoch:{$slug}", (string) now()->timestamp);
@@ -116,6 +118,55 @@ class DemoReset extends Command
         $this->info("demo '{$slug}' reset: {$rows} rows, dates shifted {$shiftDays} days, {$secs}s");
         Log::info('MARKER-DEMO-RESET complete', ['slug' => $slug, 'rows' => $rows, 'shift_days' => $shiftDays, 'seconds' => $secs]);
         return self::SUCCESS;
+    }
+
+    /**
+     * MARKER-DEMO-TIMELINE — status follows the calendar, not the source data.
+     *
+     * The shift moves dates but not meaning: an appointment that was finished
+     * in the source can land three days from now and still say "completed".
+     * This walks the demo's appointments and makes each one make sense where
+     * it now sits. Past days are left exactly alone — that history is what
+     * makes the sales and reports screens worth looking at.
+     */
+    private function realignAppointments(string $tenantId): void
+    {
+        if (! \Illuminate\Support\Facades\Schema::hasTable('tenant_appointments')) return;
+
+        $today   = \Carbon\CarbonImmutable::now(config('app.timezone'))->toDateString();
+        $future  = 0; $todayN = 0;
+
+        foreach (DB::table('tenant_appointments')->where('tenant_id', $tenantId)
+            ->where('appointment_date', '>=', $today)
+            ->get(['id', 'appointment_date', 'status']) as $a) {
+
+            if (in_array($a->status, ['cancelled', 'refunded'], true)) {
+                continue; // a cancellation reads fine on any date
+            }
+
+            // deterministic per row: the same reset yields the same board
+            $bucket = hexdec(substr(md5((string) $a->id), 0, 2)) % 3;
+            $upd    = ['completed_at' => null];
+
+            if ((string) $a->appointment_date === $today) {
+                $upd['status'] = [0 => 'in_progress', 1 => 'confirmed', 2 => 'completed'][$bucket];
+                if ($upd['status'] === 'completed') {
+                    $upd['completed_at'] = \Carbon\CarbonImmutable::now(config('app.timezone'))->subHours(2);
+                } else {
+                    $upd['payment_status'] = 'unpaid';
+                }
+                $todayN++;
+            } else {
+                // still to come: open, and not yet paid for
+                $upd['status']         = $bucket === 2 ? 'pending' : 'confirmed';
+                $upd['payment_status'] = 'unpaid';
+                $future++;
+            }
+
+            DB::table('tenant_appointments')->where('id', $a->id)->update($upd);
+        }
+
+        $this->line("  appointments realigned: {$todayN} today, {$future} upcoming");
     }
 
     private function flush(string $table, array $rows): void

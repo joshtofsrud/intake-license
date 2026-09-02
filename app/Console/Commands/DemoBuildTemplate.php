@@ -242,6 +242,20 @@ class DemoBuildTemplate extends Command
         }
         $this->info('Leak check clean: 0 of ' . count($this->leakSamples) . ' sampled real emails found in the copy.');
         $this->info("Template frozen at storage/app/demo/{$this->slug}/. demo:reset restores it hourly.");
+
+        // MARKER-DEMO-TIMELINE — building as root writes files the web user
+        // cannot read, and the admin page then just says "no frozen template",
+        // which looks like a bug in entirely the wrong place.
+        $manifestPath = storage_path('app/demo/' . $this->slug . '/manifest.json');
+        $owner = function_exists('posix_getpwuid') ? (posix_getpwuid(fileowner($manifestPath))['name'] ?? '?') : '?';
+        $me    = function_exists('posix_geteuid') ? (posix_getpwuid(posix_geteuid())['name'] ?? '?') : '?';
+        if (in_array($me, ['root'], true)) {
+            $this->warn('');
+            $this->warn("Built as {$me}, so the template belongs to {$owner} and the web user probably cannot read it.");
+            $this->warn('The Demo admin page will say "No frozen template" and the hourly reset will fail. Fix with:');
+            $this->warn('  chown -R www-data:www-data ' . storage_path('app/demo'));
+            $this->warn('and build as the web user next time: sudo -u www-data php artisan demo:build-template --from=...');
+        }
         return self::SUCCESS;
     }
 
@@ -500,6 +514,14 @@ class DemoBuildTemplate extends Command
      */
     private function demoBranding(string $demoId): void
     {
+        // MARKER-DEMO-TIMELINE — the demo is not a PIN-tier shop. Clearing the
+        // staff PINs is what turns the tier off, so nothing PIN-shaped renders
+        // after a reset either.
+        DB::table('tenant_users')->where('tenant_id', $demoId)->update([
+            'pin_hash' => null, 'pin_set_at' => null,
+            'pin_failed_count' => 0, 'pin_locked_until' => null,
+        ]);
+
         if (! \Illuminate\Support\Facades\Schema::hasTable('tenant_page_sections')) return;
         $n = 0;
         foreach (DB::table('tenant_page_sections')->where('tenant_id', $demoId)

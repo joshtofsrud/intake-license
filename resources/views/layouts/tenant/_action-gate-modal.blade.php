@@ -7,7 +7,9 @@
      This is the modal shown when switching locations (and, in the future,
      for refunds, voids, manager overrides, etc.).
      ================================================================ --}}
-@if(isset($currentTenant) && $currentTenant->pin_tier_active && isset($authUser))
+{{-- MARKER-DEMO-TIMELINE — a demo visitor has no PIN and cannot set one, so
+     the gate would strand them exactly like switch-user did. --}}
+@if(isset($currentTenant) && $currentTenant->pin_tier_active && isset($authUser) && ! $currentTenant->is_demo)
 <div class="ia-action-gate" id="ia-action-gate"
      style="display: none"
      role="dialog"
