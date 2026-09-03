@@ -1458,3 +1458,17 @@ html.ia-sb-collapsed .ia-sidebar-logo {
 .ia-standing-txt b{color:#FCD34D}
 .ia-standing.is-urgent .ia-standing-txt b{color:#fecaca}
 .ia-standing-cta{display:inline-block;margin-left:6px;color:inherit;text-decoration:underline;font-weight:600}
+
+/* MARKER-SETTINGS-BACKLINK — back navigation belongs top-left, above the
+   title, and should say where it goes. */
+.ia-back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--ia-text-dim);
+  text-decoration: none;
+  margin-bottom: 10px;
+  transition: color var(--ia-t);
+}
+.ia-back-link:hover { color: var(--ia-text); text-decoration: underline; }

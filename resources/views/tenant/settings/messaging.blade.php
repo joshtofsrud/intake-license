@@ -6,12 +6,13 @@
 
 @section('content')
 
+{{-- MARKER-SETTINGS-BACKLINK --}}
+<a href="{{ route('tenant.settings.index') }}#communication" class="ia-back-link">&larr; Communication settings</a>
 <div class="ia-page-head">
   <div class="ia-page-head-left">
     <h1 class="ia-page-title">Messaging</h1>
     <p class="ia-page-subtitle">Your business text number — confirmations, reminders, and two-way conversations in the Inbox.</p>
   </div>
-  <a href="{{ route('tenant.settings.index') }}" class="ia-btn">All settings</a>
 </div>
 
 @if(session('flash'))

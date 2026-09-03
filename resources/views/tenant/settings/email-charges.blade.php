@@ -37,12 +37,13 @@
 @section('content')
 
 {{-- the same header every other settings page uses --}}
+{{-- MARKER-SETTINGS-BACKLINK --}}
+<a href="{{ route('tenant.settings.index') }}#account" class="ia-back-link">&larr; Account settings</a>
 <div class="ia-page-head">
   <div class="ia-page-head-left">
     <h1 class="ia-page-title">Email charges</h1>
     <p class="ia-page-subtitle">What your messages have cost, the charge behind each send, and the monthly limit that stops a campaign before it runs away.</p>
   </div>
-  <a href="{{ route('tenant.settings.index') }}" class="ia-btn">All settings</a>
 </div>
 
 <div class="ec-stack">

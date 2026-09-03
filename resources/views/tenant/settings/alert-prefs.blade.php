@@ -5,12 +5,13 @@
 
 @section('content')
 
+{{-- MARKER-SETTINGS-BACKLINK --}}
+<a href="{{ route('tenant.settings.index') }}" class="ia-back-link">&larr; All settings</a>
 <div class="ia-page-head">
   <div class="ia-page-head-left">
     <h1 class="ia-page-title">Notifications</h1>
     <p class="ia-page-subtitle">Choose how you want to hear about what's happening. These settings are just for you.</p>
   </div>
-  <a href="{{ route('tenant.settings.index') }}" class="ia-btn">All settings</a>
 </div>
 
 @if(session('flash'))
