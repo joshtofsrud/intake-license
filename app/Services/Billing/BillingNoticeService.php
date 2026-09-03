@@ -66,18 +66,12 @@ class BillingNoticeService
         }
 
         if ($template->send_email && $notice->email_to) {
-            try {
-                $to   = $notice->email_to;
-                $text = $body . "\n\n— Intake";
-                Mail::raw($text, function ($m) use ($to, $subject) {
-                    $m->to($to)->subject($subject);
-                });
-                $notice->forceFill(['emailed' => true])->save();
-            } catch (\Throwable $e) {
-                logger()->error('MARKER-BILLING-NOTICES email failed', [
-                    'tenant' => $tenant->id, 'event' => $event, 'error' => $e->getMessage(),
-                ]);
-            }
+            // MARKER-BILLING-NOTICE-MAIL — branded as Intake, from the platform
+            // address, multipart. Raw text about somebody's card with no
+            // identity on it reads exactly like a phishing attempt.
+            $this->sendMail($notice->email_to, $subject, $body, $link, $tenant->name)
+                ? $notice->forceFill(['emailed' => true])->save()
+                : null;
         }
 
         logger()->info('MARKER-BILLING-NOTICES sent', [
@@ -95,6 +89,58 @@ class BillingNoticeService
             ->whereNull('resolved_at')
             ->when($event, fn ($q) => $q->where('event', $event))
             ->update(['resolved_by_action' => $action, 'resolved_at' => now()]);
+    }
+
+    /**
+     * MARKER-BILLING-NOTICE-MAIL — platform chrome, platform sender, multipart.
+     * Public so the master-admin test send uses exactly this path rather than
+     * a lookalike that could drift from what shops actually receive.
+     */
+    public function sendMail(string $to, string $subject, string $bodyText, ?string $link, string $shopName): bool
+    {
+        try {
+            $html = view('emails.platform.notice', [
+                'subject'   => $subject,
+                'bodyText'  => $bodyText,
+                'link'      => $link,
+                'linkLabel' => 'Open billing settings',
+                'shopName'  => $shopName,
+                'logoUrl'   => rtrim(config('app.url'), '/') . '/icon.svg',
+            ])->render();
+
+            $from     = \App\Models\PlatformSettings::fromAddress();
+            $fromName = \App\Models\PlatformSettings::fromName() ?: 'Intake';
+
+            Mail::send([], [], function ($m) use ($to, $subject, $bodyText, $html, $from, $fromName) {
+                $m->to($to)->subject($subject)->text($bodyText . "\n\n— Intake");
+                $m->html($html);
+                if ($from) {
+                    $m->from($from, $fromName);
+                }
+            });
+
+            return true;
+        } catch (\Throwable $e) {
+            logger()->error('MARKER-BILLING-NOTICE-MAIL send failed', [
+                'to' => $to, 'subject' => $subject, 'error' => $e->getMessage(),
+            ]);
+            return false;
+        }
+    }
+
+    /** Sample values, so a test looks like the real thing rather than braces. */
+    public function sampleTokens(): array
+    {
+        return [
+            '{shop}'       => 'Willamette Mountain Mercantile',
+            '{balance}'    => '$18.40',
+            '{amount}'     => '$25.00',
+            '{messages}'   => '1,204',
+            '{card}'       => 'VISA ···· 4417',
+            '{card_last4}' => '4417',
+            '{expires}'    => '09/2028',
+            '{link}'       => 'https://example.intake.works/admin/settings/billing-card',
+        ];
     }
 
     private function sentRecently(Tenant $tenant, string $event, int $hours): bool
