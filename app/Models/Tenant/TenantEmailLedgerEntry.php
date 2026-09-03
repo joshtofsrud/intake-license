@@ -21,6 +21,7 @@ class TenantEmailLedgerEntry extends Model
         // MARKER-SMS-METER — the SMS half of the same ledger
         'channel', 'segments', 'to_phone',
         'is_free', // MARKER-EMAIL-RATES
+        'charge_run_id', // MARKER-BILLING-CHARGE
     ];
 
     protected $casts = [

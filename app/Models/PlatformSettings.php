@@ -19,6 +19,8 @@ class PlatformSettings extends Model
         'email_rate',             // MARKER-EMAIL-LEDGER
         'email_rate_marketing',   // MARKER-EMAIL-RATES
         'email_free_monthly',     // MARKER-EMAIL-RATES
+        'charging_enabled',       // MARKER-BILLING-CHARGE
+        'charge_threshold_default_cents',
         'sms_rate',               // MARKER-SMS-METER
         'mms_multiplier',         // MARKER-SMS-METER
         'email_broadcast_stream', // MARKER-EMAIL-LEDGER

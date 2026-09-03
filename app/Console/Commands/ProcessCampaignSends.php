@@ -52,6 +52,17 @@ class ProcessCampaignSends extends Command
                 continue;
             }
 
+            // MARKER-BILLING-CHARGE — a failed card pauses campaigns. Receipts,
+            // reminders and confirmations are untouched: stopping those breaks
+            // a shop's day over a few dollars.
+            if ($tenant->campaigns_paused_at) {
+                \Illuminate\Support\Facades\Log::warning('MARKER-BILLING-CHARGE campaign held — billing needs attention', [
+                    'tenant' => $tenant->id, 'campaign' => $campaign->id,
+                ]);
+                $campaign->update(['status' => 'draft', 'scheduled_at' => null]);
+                continue;
+            }
+
             // MARKER-CAMPAIGN-AUDIENCE — same resolver the composer and the
             // pre-send panel use. Built at FIRE time, so rules see today's data.
             $mailable = app(\App\Services\Tenant\AudienceService::class)

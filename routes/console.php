@@ -231,3 +231,9 @@ Schedule::command('bookings:sync-google')
 Schedule::command('demo:reset')
     ->hourly()
     ->withoutOverlapping();
+
+// MARKER-BILLING-CHARGE — settle balances over the threshold, retry failures,
+// reconcile anything mid-flight. Does nothing while the master switch is off.
+Schedule::command('billing:charge-due')
+    ->hourly()
+    ->withoutOverlapping();

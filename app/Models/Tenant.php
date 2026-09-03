@@ -28,6 +28,7 @@ class Tenant extends Model
         'email_spend_cap_cents', // MARKER-EMAIL-BILLING
         'email_free_monthly',    // MARKER-EMAIL-RATES
         // MARKER-BILLING-CARD
+        'charge_threshold_cents', 'charging_enabled', 'campaigns_paused_at', // MARKER-BILLING-CHARGE
         'stripe_payment_method_id', 'card_brand', 'card_last4',
         'card_exp_month', 'card_exp_year', 'card_added_at', 'billing_email',
         'sms_enabled', 'sms_from_number', 'twilio_account_sid', 'twilio_auth_token',
