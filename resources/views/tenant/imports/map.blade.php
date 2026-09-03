@@ -52,27 +52,6 @@
 </div>
 @endif
 
-{{-- MARKER-CUSTOMER-TAGS — one label for the whole file, so the list stays
-     findable as a group afterwards. --}}
-@if($import->type === 'customers')
-<div class="ia-card" style="margin-bottom:14px">
-  <div class="cbody" style="padding:13px 16px">
-    <label style="display:block;font-size:11px;text-transform:uppercase;letter-spacing:.06em;opacity:.55;margin-bottom:6px">
-      Tag everyone this import creates
-    </label>
-    <input type="text" name="tag_name" form="mapping-form" maxlength="60"
-           value="{{ $import->options['tag_name'] ?? '' }}"
-           placeholder="e.g. The Bike Hub list"
-           style="width:100%;max-width:380px;background:var(--ia-input-bg);border:.5px solid var(--ia-border);border-radius:var(--ia-r-md);color:var(--ia-text);padding:8px 11px;font:inherit;font-size:13px">
-    <p style="font-size:12px;opacity:.55;line-height:1.55;margin-top:8px">
-      Optional. The tag goes on every customer this file creates, so you can find them again — filter the
-      customer list by it, or send to them from a campaign. Rows that match an existing customer aren't
-      tagged: those people didn't come from this file. A tag doesn't grant marketing permission.
-    </p>
-  </div>
-</div>
-@endif
-
 {{-- MARKER-IMPORT-PRESETS — preset bar. These are SEPARATE forms rendered
      after the main one and reached with the HTML5 form attribute: a nested
      form silently reroutes the outer submit, which has bitten us before. --}}
@@ -152,7 +131,9 @@
     </div>
   </div>
 
-  <div class="imp-two">
+  {{-- MARKER-IMPORT-TAG-CARD — three settings decide what this run does, so
+       they sit together at the same size. --}}
+  <div class="{{ $import->type === 'customers' ? 'imp-three' : 'imp-two' }}">
     <div class="ia-card">
       <div class="ia-card-head"><span class="ia-card-title">Existing customers</span></div>
       <div class="ia-card-body">
@@ -177,6 +158,34 @@
         <p class="imp-hint" style="margin-top:8px">Any column above can override this for itself.</p>
       </div>
     </div>
+
+    {{-- MARKER-IMPORT-TAG-CARD / MARKER-CUSTOMER-TAGS --}}
+    @if($import->type === 'customers')
+    <div class="ia-card">
+      <div class="ia-card-head"><span class="ia-card-title">Tag</span></div>
+      <div class="ia-card-body">
+        <input type="text" name="tag_name" maxlength="60"
+               value="{{ $import->options['tag_name'] ?? '' }}"
+               placeholder="e.g. The Bike Hub list"
+               style="width:100%;background:var(--ia-input-bg);border:.5px solid var(--ia-border);border-radius:var(--ia-r-md);color:var(--ia-text);padding:8px 11px;font:inherit;font-size:13px">
+
+        <label class="imp-radio" style="margin-top:10px">
+          <input type="radio" name="tag_scope" value="created"
+                 {{ ($import->options['tag_scope'] ?? 'created') === 'created' ? 'checked' : '' }}>
+          <span><b>New customers only</b><span>Rows that match someone you already have are left untagged.</span></span>
+        </label>
+        <label class="imp-radio">
+          <input type="radio" name="tag_scope" value="touched"
+                 {{ ($import->options['tag_scope'] ?? 'created') === 'touched' ? 'checked' : '' }}>
+          <span><b>New and updated</b><span>Anyone in this file gets the tag, whether or not you already had them.</span></span>
+        </label>
+
+        <p class="imp-hint" style="margin-top:8px">
+          Optional. Lets you find this list again later. A tag doesn't grant marketing permission.
+        </p>
+      </div>
+    </div>
+    @endif
   </div>
 
   @if($import->type === 'inventory')

@@ -300,6 +300,10 @@ class ImportController extends Controller
                 // CREATES. Updates and skips are not tagged: those people
                 // did not come from this file.
                 'tag_name'          => trim((string) $request->input('tag_name', '')) ?: null,
+                // MARKER-IMPORT-TAG-CARD — 'created' (default) or 'touched',
+                // which also tags rows that matched an existing customer.
+                'tag_scope'         => in_array($request->input('tag_scope'), ['created', 'touched'], true)
+                                       ? $request->input('tag_scope') : 'created',
             ]),
         ]);
 

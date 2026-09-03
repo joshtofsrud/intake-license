@@ -362,6 +362,20 @@ class CustomerImporter
                             $before = [];
                             foreach ($row['changes'] as $k => $v) { $before[$k] = $row['match']->{$k}; }
                             $row['match']->update($row['changes']);
+
+                            // MARKER-IMPORT-TAG-CARD — someone from this list who
+                            // already existed is still on the list; tag them too
+                            // when asked. Default stays creates-only.
+                            if (($this->import->options['tag_scope'] ?? 'created') === 'touched'
+                                && ($tagId = $this->importTagId())) {
+                                \Illuminate\Support\Facades\DB::table('tenant_customer_tag_pivot')->insertOrIgnore([
+                                    'id'          => (string) \Illuminate\Support\Str::uuid(),
+                                    'tenant_id'   => $this->tenant->id,
+                                    'tag_id'      => $tagId,
+                                    'customer_id' => $row['match']->id,
+                                    'created_at'  => now(),
+                                ]);
+                            }
                             \App\Models\Tenant\TenantImportRow::create([
                                 'import_id' => $this->import->id, 'tenant_id' => $this->tenant->id,
                                 'action' => 'updated', 'record_type' => 'customer',

@@ -13,6 +13,10 @@
 .imp-drop{border:1.5px dashed var(--ia-border-strong);border-radius:var(--ia-r-lg);padding:30px 20px;
           text-align:center;background:rgba(255,255,255,.02);font-size:12.5px;color:var(--ia-text-dim)}
 .imp-two{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px}
+/* MARKER-IMPORT-TAG-CARD */
+.imp-three{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-top:16px}
+@media(max-width:1100px){.imp-three{grid-template-columns:1fr 1fr}}
+@media(max-width:760px){.imp-three{grid-template-columns:1fr}}
 @media(max-width:760px){.imp-two{grid-template-columns:1fr}}
 .imp-radio{display:flex;gap:9px;align-items:flex-start;padding:8px 0;cursor:pointer}
 .imp-radio input{margin-top:3px;accent-color:var(--ia-accent)}
