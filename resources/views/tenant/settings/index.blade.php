@@ -88,6 +88,11 @@
   display: block;
   max-width: 1200px;
 }
+/* MARKER-SETTINGS-SPACING — cards within a section are separated by the grid's
+   own gap; sections had nothing between them, so a card at the end of one sat
+   flush against the card starting the next. Same 18px, so stacked and
+   side-by-side cards are spaced identically. */
+.set-section + .set-section { margin-top: 18px; }
 /* Each card in a settings form becomes a grid cell.
    Cards default to ~half width (min 420px). Cards with .set-card--wide
    span the full row. Save bars and headers are always full-row. */
