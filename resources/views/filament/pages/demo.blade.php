@@ -61,10 +61,24 @@
 
         <div style="{{ $card }}">
             <div style="{{ $label }}">Visitors</div>
-            <div style="font-size:15px;font-weight:600">{{ number_format($s['entries']) }} total {{ \Illuminate\Support\Str::plural('entry', $s['entries']) }}</div>
+            {{-- MARKER-DEMO-COUNTS — people first; raw hits are the footnote. --}}
+            <div style="font-size:15px;font-weight:600">
+                {{ number_format($s['people']) }} {{ \Illuminate\Support\Str::plural('person', $s['people']) }}
+            </div>
+            <div style="font-size:12px;opacity:.6;margin-top:2px;line-height:1.5">
+                {{ number_format($s['entries']) }} {{ \Illuminate\Support\Str::plural('entry', $s['entries']) }} since launch, repeats included
+                @if($s['bot_entries'] > 0)
+                    · {{ number_format($s['bot_entries']) }} from crawlers
+                @endif
+            </div>
             <div style="{{ $body }};margin-top:2px">
                 @if($s['last_entry']) Last {{ \Carbon\Carbon::parse($s['last_entry'])->diffForHumans() }} @else Nobody has walked in yet @endif
             </div>
+            <p style="font-size:11.5px;opacity:.5;line-height:1.5;margin-top:8px">
+                Marketing Traffic counts the same entries over a rolling window and drops crawlers, so its
+                figure is smaller. Entries from before conversion tracking was fixed raised this counter
+                without leaving a row there, and that gap will not close.
+            </p>
         </div>
     </div>
 

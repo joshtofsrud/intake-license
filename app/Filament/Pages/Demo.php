@@ -82,12 +82,46 @@ class Demo extends Page
             'live_rows'   => $tenant ? DB::table('tenant_appointments')->where('tenant_id', $tenant->id)->count() : 0,
             'last_reset'  => DemoSetting::get('last_reset_at:' . self::SLUG),
             'shift_days'  => DemoSetting::get('shift_days:' . self::SLUG),
+            // MARKER-DEMO-COUNTS — raw hits since launch: every entry, including
+            // repeats and crawlers, and the only record of entries from before
+            // the funnel table worked. Kept as-is; people are counted below.
             'entries'     => (int) DemoSetting::get('entries:' . self::SLUG, '0'),
+            'people'      => $this->distinctVisitors(),
+            'bot_entries' => $this->botEntries(),
             'last_entry'  => DemoSetting::get('last_entry_at:' . self::SLUG),
             'offline'     => DemoSetting::get('offline:' . self::SLUG) === '1',
             'paused_until' => ($paused && CarbonImmutable::parse($paused)->isFuture()) ? $paused : null,
             'entry_url'   => url('/demo'),
         ];
+    }
+
+    /**
+     * MARKER-DEMO-COUNTS — how many DIFFERENT people walked in, ignoring bots.
+     * This is the number worth quoting; the raw counter is not.
+     */
+    private function distinctVisitors(): int
+    {
+        $platform = \App\Models\Tenant::where('is_platform', true)->first();
+        if (! $platform) return 0;
+
+        return (int) DB::table('tenant_funnel_events')
+            ->where('tenant_id', $platform->id)
+            ->where('event_type', 'demo_entered')
+            ->where(function ($w) { $w->whereNull('device')->orWhere('device', '!=', 'bot'); })
+            ->distinct()->count('session_id');
+    }
+
+    /** Crawlers that followed the link. Each one triggers a full demo login. */
+    private function botEntries(): int
+    {
+        $platform = \App\Models\Tenant::where('is_platform', true)->first();
+        if (! $platform) return 0;
+
+        return (int) DB::table('tenant_funnel_events')
+            ->where('tenant_id', $platform->id)
+            ->where('event_type', 'demo_entered')
+            ->where('device', 'bot')
+            ->count();
     }
 
     /** Suppressed sends: proof the kill worked, and a talking point. */
