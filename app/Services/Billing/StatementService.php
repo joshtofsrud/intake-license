@@ -24,8 +24,26 @@ class StatementService
         $start = ($monthStart ?? CarbonImmutable::now())->startOfMonth();
         $end   = $start->endOfMonth();
 
-        $plan   = $this->plan($tenant);
-        $addons = $this->addons($tenant);
+        // MARKER-STATEMENT-HISTORY — a month that finished before the shop
+        // existed has no statement. Anything else would be fiction.
+        $createdAt = $tenant->created_at ? CarbonImmutable::parse($tenant->created_at) : null;
+        if ($createdAt && $end->lt($createdAt)) {
+            return [
+                'exists'      => false,
+                'period'      => ['start' => $start, 'end' => $end, 'label' => $start->format('F Y')],
+                'created_at'  => $createdAt,
+                'total_cents' => 0,
+            ];
+        }
+
+        // MARKER-STATEMENT-HISTORY — plan and add-ons describe TODAY'S
+        // arrangement; there is no record of what a shop had last April, so a
+        // past month shows usage only, which is genuinely historical because
+        // every ledger row keeps its own rate and date.
+        $isCurrentMonth = $start->isSameMonth(CarbonImmutable::now());
+
+        $plan   = $isCurrentMonth ? $this->plan($tenant)   : ['tier' => $tenant->plan_tier, 'label' => ucfirst((string) $tenant->plan_tier), 'locations' => 0, 'unit' => 0, 'cents' => 0];
+        $addons = $isCurrentMonth ? $this->addons($tenant) : [];
         $usage  = $this->usage($tenant, $start, $end);
 
         $addonsTotal = array_sum(array_column($addons, 'cents'));
@@ -36,6 +54,8 @@ class StatementService
         $afterDiscount  = $applied['platform_cents'] + $applied['addons_cents'] + $usage['cents'];
 
         return [
+            'exists'          => true,
+            'usage_only'      => ! $isCurrentMonth,   // MARKER-STATEMENT-HISTORY
             'period'          => ['start' => $start, 'end' => $end, 'label' => $start->format('F Y')],
             'plan'            => $plan,
             'addons'          => $addons,

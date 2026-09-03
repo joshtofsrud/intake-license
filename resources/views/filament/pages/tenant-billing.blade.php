@@ -45,7 +45,16 @@
         @endif
     </div>
 
-    @if($tenant && $statement)
+    {{-- MARKER-STATEMENT-HISTORY --}}
+    @if($tenant && $statement && ! ($statement['exists'] ?? true))
+        <div style="{{ $card }};margin-top:16px">
+            <div style="{{ $label }}">{{ $statement['period']['label'] }}</div>
+            <p style="{{ $body }}">
+                This shop did not exist yet — it was created
+                {{ \Carbon\Carbon::parse($statement['created_at'])->format('F j, Y') }}.
+            </p>
+        </div>
+    @elseif($tenant && $statement)
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px;margin-top:16px">
             <div style="{{ $card }}">
                 <div style="{{ $label }}">Unbilled balance</div>
@@ -81,8 +90,17 @@
         {{-- the statement itself --}}
         <div style="{{ $card }};margin-top:16px">
             <div style="{{ $label }}">Statement · {{ $statement['period']['label'] }}</div>
+            @if($statement['usage_only'] ?? false)
+                {{-- MARKER-STATEMENT-HISTORY --}}
+                <p style="{{ $body }};margin-bottom:10px;opacity:.6">
+                    Usage only. Plan and add-ons describe today's arrangement, and there is no record of what
+                    this shop had that month, so showing them here would be a guess. Usage is exact — every
+                    row carries the rate it was sent at.
+                </p>
+            @endif
             <table style="width:100%;border-collapse:collapse;font-size:13px;font-variant-numeric:tabular-nums">
                 <tbody>
+                    @unless($statement['usage_only'] ?? false)
                     <tr>
                         <td style="padding:7px 0;border-top:1px solid rgba(127,127,127,.14)">
                             {{ $statement['plan']['label'] }}
@@ -90,6 +108,7 @@
                         </td>
                         <td style="padding:7px 0;border-top:1px solid rgba(127,127,127,.14);text-align:right">{{ $money($statement['plan']['cents']) }}</td>
                     </tr>
+                    @endunless
                     @foreach($statement['addons'] as $a)
                         <tr>
                             <td style="padding:7px 0;border-top:1px solid rgba(127,127,127,.14)">

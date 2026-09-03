@@ -53,12 +53,22 @@ class TenantBilling extends Page
         return $this->tenantId ? Tenant::find($this->tenantId) : null;
     }
 
-    /** The last six months, so you can look at the one being queried. */
+    /**
+     * MARKER-STATEMENT-HISTORY — months this shop actually existed for. Six
+     * months from today would offer April to a shop created in August, and the
+     * statement for it would be invented.
+     */
     public function monthOptions(): array
     {
+        $tenant = $this->tenant();
+        $first  = $tenant && $tenant->created_at
+            ? CarbonImmutable::parse($tenant->created_at)->startOfMonth()
+            : CarbonImmutable::now()->startOfMonth()->subMonths(5);
+
         $out = [];
-        for ($i = 0; $i < 6; $i++) {
+        for ($i = 0; $i < 24; $i++) {
             $m = CarbonImmutable::now()->startOfMonth()->subMonths($i);
+            if ($m->lt($first)) break;
             $out[$m->format('Y-m')] = $m->format('F Y');
         }
         return $out;
