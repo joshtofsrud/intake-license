@@ -71,7 +71,7 @@ class AdminAccess
         }
         return match ($segment) {
             'tenants', 'password-editor',
-            'customer-cleanup'                               => 'tenants', // MARKER-CUST-CLEANUP
+            'customer-cleanup', 'billing-discounts'          => 'tenants', // MARKER-CUST-CLEANUP / MARKER-BILLING-DISCOUNTS
             'tenant-domains'                                 => 'domains',
             'sales-channels', 'sales-prospects'              => 'crm',
             'sales-agencies'                                 => 'reps',

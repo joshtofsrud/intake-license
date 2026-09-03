@@ -3,7 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Models\Tenant;
-use App\Models\TenantDiscount;
+use App\Models\TenantBillingDiscount;
 use Illuminate\Console\Command;
 
 /**
@@ -31,7 +31,7 @@ class BackfillTenantDiscounts extends Command
             if ($path !== 'gift' && ! $giftedAt) {
                 continue;
             }
-            if (TenantDiscount::where('tenant_id', $tenant->id)->exists()) {
+            if (TenantBillingDiscount::where('tenant_id', $tenant->id)->exists()) {
                 $this->line("  {$tenant->name}: already has a discount, skipped");
                 continue;
             }
@@ -43,7 +43,7 @@ class BackfillTenantDiscounts extends Command
             $found++;
 
             if ($this->option('write')) {
-                TenantDiscount::create([
+                TenantBillingDiscount::create([
                     'tenant_id'    => $tenant->id,
                     'reason'       => 'Gifted account — no platform charge',
                     'scope'        => 'both',

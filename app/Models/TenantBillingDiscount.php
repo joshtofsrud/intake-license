@@ -6,12 +6,19 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-// MARKER-BILLING-DISCOUNTS
-class TenantDiscount extends Model
+/**
+ * MARKER-BILLING-DISCOUNTS — what Intake charges a shop, and why it is less
+ * than list price.
+ *
+ * Not to be confused with App\Models\Tenant\TenantDiscount, which is a shop's
+ * discount CODES for its own customers. Different table, different audience,
+ * different money.
+ */
+class TenantBillingDiscount extends Model
 {
     use HasUuids;
 
-    protected $table = 'tenant_discounts';
+    protected $table = 'tenant_billing_discounts';
 
     protected $fillable = [
         'tenant_id', 'reason', 'scope', 'percent', 'amount_cents',
@@ -36,7 +43,6 @@ class TenantDiscount extends Model
         return $this->belongsTo(Tenant::class);
     }
 
-    /** Live on a given day — the statement asks per period, not per today. */
     public function activeOn(\Carbon\CarbonInterface $date): bool
     {
         if ($this->starts_on && $date->lt($this->starts_on)) return false;

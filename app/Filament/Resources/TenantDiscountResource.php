@@ -4,7 +4,7 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\TenantDiscountResource\Pages;
 use App\Models\Tenant;
-use App\Models\TenantDiscount;
+use App\Models\TenantBillingDiscount;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
@@ -17,15 +17,15 @@ class TenantDiscountResource extends Resource
     use \App\Support\GatedByAdminArea;
     protected static string $adminArea = 'tenants';
 
-    protected static ?string $model = TenantDiscount::class;
+    protected static ?string $model = TenantBillingDiscount::class;
 
     protected static ?string $navigationIcon  = 'heroicon-o-receipt-percent';
     protected static ?string $navigationGroup = 'Platform';
-    protected static ?string $navigationLabel = 'Discounts';
+    protected static ?string $navigationLabel = 'Billing discounts';
     protected static ?int    $navigationSort  = 86;
-    protected static ?string $modelLabel       = 'discount';
-    protected static ?string $pluralModelLabel = 'discounts';
-    protected static ?string $slug             = 'tenant-discounts';
+    protected static ?string $modelLabel       = 'billing discount';
+    protected static ?string $pluralModelLabel = 'billing discounts';
+    protected static ?string $slug             = 'billing-discounts';
 
     public static function form(Form $form): Form
     {
@@ -47,7 +47,7 @@ class TenantDiscountResource extends Resource
                 ->schema([
                     Forms\Components\Select::make('scope')
                         ->label('Applies to')
-                        ->options(TenantDiscount::SCOPES)
+                        ->options(TenantBillingDiscount::SCOPES)
                         ->default('both')->required()
                         ->helperText('Email and texts are never discounted — they are pass-through costs. To waive usage, write off a charge instead.'),
 
@@ -78,13 +78,13 @@ class TenantDiscountResource extends Resource
                 Tables\Columns\TextColumn::make('tenant.name')->label('Shop')->searchable()->sortable(),
                 Tables\Columns\TextColumn::make('reason')->searchable()->limit(50),
                 Tables\Columns\TextColumn::make('scope')->badge()
-                    ->formatStateUsing(fn ($state) => TenantDiscount::SCOPES[$state] ?? $state),
+                    ->formatStateUsing(fn ($state) => TenantBillingDiscount::SCOPES[$state] ?? $state),
                 Tables\Columns\TextColumn::make('amount')->label('Amount')
-                    ->getStateUsing(fn (TenantDiscount $r) => $r->describeAmount()),
+                    ->getStateUsing(fn (TenantBillingDiscount $r) => $r->describeAmount()),
                 Tables\Columns\TextColumn::make('window')->label('Runs')
-                    ->getStateUsing(fn (TenantDiscount $r) => $r->describeWindow()),
+                    ->getStateUsing(fn (TenantBillingDiscount $r) => $r->describeWindow()),
                 Tables\Columns\TextColumn::make('status')->label('Status')->badge()
-                    ->getStateUsing(function (TenantDiscount $r) {
+                    ->getStateUsing(function (TenantBillingDiscount $r) {
                         if ($r->starts_on && now()->lt($r->starts_on)) return 'Queued';
                         return $r->activeOn(now()) ? 'Active' : 'Ended';
                     })
@@ -100,8 +100,8 @@ class TenantDiscountResource extends Resource
     {
         return [
             'index'  => Pages\ListTenantDiscounts::route('/'),
-            'create' => Pages\CreateTenantDiscount::route('/create'),
-            'edit'   => Pages\EditTenantDiscount::route('/{record}/edit'),
+            'create' => Pages\CreateTenantBillingDiscount::route('/create'),
+            'edit'   => Pages\EditTenantBillingDiscount::route('/{record}/edit'),
         ];
     }
 }

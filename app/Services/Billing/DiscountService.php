@@ -3,7 +3,7 @@
 namespace App\Services\Billing;
 
 use App\Models\Tenant;
-use App\Models\TenantDiscount;
+use App\Models\TenantBillingDiscount;
 use Carbon\CarbonInterface;
 
 /**
@@ -18,13 +18,13 @@ use Carbon\CarbonInterface;
  */
 class DiscountService
 {
-    /** @return \Illuminate\Support\Collection<TenantDiscount> */
+    /** @return \Illuminate\Support\Collection<TenantBillingDiscount> */
     public function activeFor(Tenant $tenant, CarbonInterface $on)
     {
-        return TenantDiscount::where('tenant_id', $tenant->id)
+        return TenantBillingDiscount::where('tenant_id', $tenant->id)
             ->orderBy('starts_on')
             ->get()
-            ->filter(fn (TenantDiscount $d) => $d->activeOn($on))
+            ->filter(fn (TenantBillingDiscount $d) => $d->activeOn($on))
             ->values();
     }
 
