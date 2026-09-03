@@ -1177,11 +1177,14 @@
     </div>
   </div>
 
+{{-- MARKER-SUBSCRIPTION-CARD — only shown when there is a subscription to
+     manage. Without one the Billing card above already says everything this
+     card used to, and an empty card reads like something is missing. --}}
+@if($currentTenant->stripe_customer_id)
 <div class="set-section set-section--grid">
     <div class="ia-card" style="margin-bottom:20px">
       <div class="ia-card-head"><span class="ia-card-title">Subscription</span></div>
 
-      @if($currentTenant->stripe_customer_id)
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;max-width:480px;font-size:13px;margin-bottom:16px">
           <div>
             <div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--ia-text-muted);margin-bottom:4px;font-weight:500">Current plan</div>
@@ -1211,16 +1214,9 @@
         <p style="font-size:12px;color:var(--ia-text-muted);margin-top:8px">
           Update your card, download invoices, or cancel your subscription through Stripe's secure portal.
         </p>
-      @else
-        {{-- MARKER-SETTINGS-CARDS — a gifted shop has no Stripe customer on
-             purpose; telling them to contact support reads as a fault. --}}
-        <p style="margin:0;color:var(--ia-text-muted);font-size:13px;line-height:1.55">
-          No subscription is attached to this shop — nothing is being charged for the platform itself.
-          Email is still metered as it sends; the Email charges card above shows what that has come to.
-        </p>
-      @endif
     </div>
   </div>
+@endif
 </div>
 
 {{-- =====================================================================
