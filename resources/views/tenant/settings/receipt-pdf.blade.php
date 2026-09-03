@@ -80,6 +80,21 @@
         <td class="r">${{ number_format($l['cents'] / 100, 2) }}</td>
       </tr>
     @endforeach
+    {{-- MARKER-BILLING-TAX-ROOM — only shown when tax was actually charged --}}
+    @if($tax > 0)
+      <tr>
+        <td colspan="3" class="r muted">Subtotal</td>
+        <td class="r">${{ number_format($subtotal / 100, 2) }}</td>
+      </tr>
+      <tr>
+        <td colspan="3" class="r muted">
+          Sales tax
+          @if($tax_where) · {{ $tax_where }} @endif
+          @if($tax_rate) · {{ rtrim(rtrim(number_format($tax_rate * 100, 3), '0'), '.') }}% @endif
+        </td>
+        <td class="r">${{ number_format($tax / 100, 2) }}</td>
+      </tr>
+    @endif
     <tr class="total">
       <td colspan="3">{{ $run->status === 'written_off' ? 'Written off — nothing charged' : 'Total charged' }}</td>
       <td class="r">${{ number_format($total / 100, 2) }}</td>

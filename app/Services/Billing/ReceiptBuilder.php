@@ -52,10 +52,14 @@ class ReceiptBuilder
             'tenant'   => $run->tenant,
             'lines'    => $lines,
             'period'   => $period,
-            'subtotal' => array_sum(array_column($lines, 'cents')),
-            // No tax line: none is being collected. A $0.00 tax row on a filed
-            // document is a claim, and a false one.
-            'total'    => $run->amount_cents,
+            'subtotal' => $run->subtotalCents(),
+            // MARKER-BILLING-TAX-ROOM — a tax row appears only when tax was
+            // actually charged. A $0.00 tax line on a filed document is a
+            // claim, and while none is collected it would be a false one.
+            'tax'          => (int) $run->tax_cents,
+            'tax_rate'     => $run->tax_rate,
+            'tax_where'    => $run->tax_jurisdiction,
+            'total'        => $run->amount_cents,
             'number'   => 'INT-' . strtoupper(substr(str_replace('-', '', $run->id), 0, 10)),
         ];
     }

@@ -108,6 +108,11 @@ class ChargeService
                 'tenant_id'       => $tenant->id,
                 'status'          => TenantChargeRun::PENDING,
                 'amount_cents'    => $cents,
+                // MARKER-BILLING-TAX-ROOM — no tax is calculated yet, so the
+                // total equals the subtotal. When a calculator is added it
+                // sets tax_cents and raises amount_cents; nothing else moves.
+                'subtotal_cents'  => $cents,
+                'tax_cents'       => 0,
                 'message_count'   => $claimed,
                 'idempotency_key' => 'run_' . $runId,
             ]);

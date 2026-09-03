@@ -80,6 +80,29 @@
     </div>
   </div>
 
+  {{-- MARKER-BILLING-ADDRESS — where the shop is registered. Used on receipts,
+       and it is what a tax calculation would be based on if tax is ever
+       switched on. None is charged today. --}}
+  <div class="ia-card">
+    <div class="ia-card-head"><span class="ia-card-title">Billing address</span></div>
+    <p style="font-size:13px;color:var(--ia-text-dim);line-height:1.6;margin-bottom:12px">
+      Your registered business address. It appears on receipts, and would be used to work out sales tax
+      where that applies — no tax is charged today.
+    </p>
+    @php $inp = 'width:100%;background:var(--ia-input-bg);border:.5px solid var(--ia-border);border-radius:var(--ia-r-md);color:var(--ia-text);padding:8px 11px;font:inherit;font-size:13px;margin-bottom:8px'; @endphp
+    <form method="POST" action="{{ route('tenant.settings.billing_card.address') }}">
+      @csrf
+      <input name="billing_address_line1" value="{{ $currentTenant->billing_address_line1 }}" placeholder="Street address" style="{{ $inp }}">
+      <input name="billing_address_line2" value="{{ $currentTenant->billing_address_line2 }}" placeholder="Suite, unit (optional)" style="{{ $inp }}">
+      <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:8px">
+        <input name="billing_city"     value="{{ $currentTenant->billing_city }}"     placeholder="City"  style="{{ $inp }}">
+        <input name="billing_state"    value="{{ $currentTenant->billing_state }}"    placeholder="State" style="{{ $inp }}">
+        <input name="billing_postcode" value="{{ $currentTenant->billing_postcode }}" placeholder="ZIP"   style="{{ $inp }}">
+      </div>
+      <button type="submit" class="ia-btn ia-btn--secondary">Save address</button>
+    </form>
+  </div>
+
   <div class="ia-card">
     <div class="ia-card-head"><span class="ia-card-title">Billing email</span></div>
     <p style="font-size:13px;color:var(--ia-text-dim);line-height:1.6;margin-bottom:12px">

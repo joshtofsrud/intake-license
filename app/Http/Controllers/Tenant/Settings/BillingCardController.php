@@ -74,6 +74,36 @@ class BillingCardController extends Controller
             ->with('success', 'Card removed.');
     }
 
+    /** MARKER-BILLING-ADDRESS */
+    public function billingAddress(Request $request, BillingCardService $cards)
+    {
+        $this->guardManager();
+
+        $data = $request->validate([
+            'billing_address_line1' => 'nullable|string|max:191',
+            'billing_address_line2' => 'nullable|string|max:191',
+            'billing_city'          => 'nullable|string|max:96',
+            'billing_state'         => 'nullable|string|max:32',
+            'billing_postcode'      => 'nullable|string|max:24',
+        ]);
+
+        $tenant = tenant();
+        $tenant->forceFill($data + ['billing_country' => 'US'])->save();
+
+        // Best effort: the address is saved either way, and a Stripe hiccup
+        // must not lose what the shop just typed.
+        try {
+            $cards->syncAddress($tenant);
+        } catch (\Throwable $e) {
+            logger()->warning('MARKER-BILLING-ADDRESS stripe sync failed', [
+                'tenant' => $tenant->id, 'error' => $e->getMessage(),
+            ]);
+        }
+
+        return redirect()->route('tenant.settings.billing_card')
+            ->with('success', 'Billing address saved.');
+    }
+
     public function billingEmail(Request $request)
     {
         $this->guardManager();

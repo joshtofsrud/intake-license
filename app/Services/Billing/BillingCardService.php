@@ -137,6 +137,27 @@ class BillingCardService
         ])->save();
     }
 
+    /**
+     * MARKER-BILLING-ADDRESS — Stripe holds the address any tax calculation
+     * would be based on, so it is pushed on save rather than left to drift
+     * from what the shop typed.
+     */
+    public function syncAddress(Tenant $tenant): void
+    {
+        if (! $tenant->stripe_customer_id) return;
+
+        $this->client()->customers->update($tenant->stripe_customer_id, [
+            'address' => array_filter([
+                'line1'       => $tenant->billing_address_line1,
+                'line2'       => $tenant->billing_address_line2,
+                'city'        => $tenant->billing_city,
+                'state'       => $tenant->billing_state,
+                'postal_code' => $tenant->billing_postcode,
+                'country'     => $tenant->billing_country ?: 'US',
+            ]),
+        ]);
+    }
+
     /** For the UI: what is on file, and whether it is about to expire. */
     public function cardState(Tenant $tenant): array
     {
