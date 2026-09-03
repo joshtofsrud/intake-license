@@ -17,6 +17,8 @@ class PlatformSettings extends Model
         'mail_from_address',
         'mail_from_name',
         'email_rate',             // MARKER-EMAIL-LEDGER
+        'email_rate_marketing',   // MARKER-EMAIL-RATES
+        'email_free_monthly',     // MARKER-EMAIL-RATES
         'sms_rate',               // MARKER-SMS-METER
         'mms_multiplier',         // MARKER-SMS-METER
         'email_broadcast_stream', // MARKER-EMAIL-LEDGER

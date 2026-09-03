@@ -44,6 +44,9 @@ class PlatformEmail extends Page implements HasForms
             // MARKER-MARKETING-ADMIN
             'email_broadcast_stream' => $settings->email_broadcast_stream,
             'email_rate'             => $settings->email_rate !== null ? (string) $settings->email_rate : '0.002',
+            // MARKER-EMAIL-RATES
+            'email_rate_marketing'   => $settings->email_rate_marketing !== null ? (string) $settings->email_rate_marketing : '0.0035',
+            'email_free_monthly'     => (string) ($settings->email_free_monthly ?? 0),
             'test_recipient'    => auth()->user()?->email,
         ]);
     }
@@ -78,6 +81,18 @@ class PlatformEmail extends Page implements HasForms
                             ->maxLength(64)
                             ->helperText('Create a Broadcasts-type stream in Postmark first, then put its ID here. Marketing must never ride the transactional stream — one spam complaint there can suspend receipts for every shop.')
                             ->autocomplete('off'),
+                        // MARKER-EMAIL-RATES — two rates: campaigns are a revenue
+                        // tool, receipts are the cost of operating.
+                        TextInput::make('email_rate_marketing')
+                            ->label('Campaign rate, per email')
+                            ->numeric()->step('0.00001')->prefix('$')
+                            ->helperText('Charged for campaigns. Stamped onto each row at send time, so changing it never rewrites a past month.'),
+
+                        TextInput::make('email_free_monthly')
+                            ->label('Free emails per shop, per month')
+                            ->numeric()->minValue(0)
+                            ->helperText('Every shop gets this many free each month before anything is charged. A shop can be given its own figure on its tenant record.'),
+
                         TextInput::make('email_rate')
                             ->label('Rate per email (USD)')
                             ->numeric()
@@ -110,6 +125,9 @@ class PlatformEmail extends Page implements HasForms
             // MARKER-MARKETING-ADMIN
             'email_broadcast_stream' => trim((string) ($state['email_broadcast_stream'] ?? '')) ?: null,
             'email_rate'             => is_numeric($state['email_rate'] ?? null) ? (float) $state['email_rate'] : 0.002,
+            // MARKER-EMAIL-RATES
+            'email_rate_marketing'   => is_numeric($state['email_rate_marketing'] ?? null) ? (float) $state['email_rate_marketing'] : 0.0035,
+            'email_free_monthly'     => is_numeric($state['email_free_monthly'] ?? null) ? (int) $state['email_free_monthly'] : 0,
         ]);
         PlatformSettings::forget();
 

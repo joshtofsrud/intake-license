@@ -122,6 +122,16 @@ class StatementService
             ->where('status', TenantEmailLedgerEntry::STATUS_SENT)
             ->whereBetween('created_at', [$start, $end]);
 
+        // MARKER-EMAIL-RATES — campaigns, transactional and free are three
+        // different answers; one blended range read as a bug.
+        $marketing = (clone $base('email'))->where('kind', 'campaign')->where('is_free', false)
+            ->selectRaw('COUNT(*) n, SUM(rate) spend, MIN(rate) lo, MAX(rate) hi')->first();
+
+        $transactional = (clone $base('email'))->where('kind', '!=', 'campaign')->where('is_free', false)
+            ->selectRaw('COUNT(*) n, SUM(rate) spend, MIN(rate) lo, MAX(rate) hi')->first();
+
+        $free = (clone $base('email'))->where('is_free', true)->count();
+
         $email = (clone $base('email'))
             ->selectRaw('COUNT(*) n, SUM(rate * segments) spend, MIN(rate) lo, MAX(rate) hi')->first();
 
@@ -136,6 +146,21 @@ class StatementService
                 'count' => (int) ($email->n ?? 0),
                 'cents' => $emailCents,
                 'rate'  => $this->rateLabel($email->lo ?? null, $email->hi ?? null),
+                // MARKER-EMAIL-RATES
+                'marketing' => [
+                    'count' => (int) ($marketing->n ?? 0),
+                    'cents' => (int) round(((float) ($marketing->spend ?? 0)) * 100),
+                    'rate'  => $this->rateLabel($marketing->lo ?? null, $marketing->hi ?? null),
+                ],
+                'transactional' => [
+                    'count' => (int) ($transactional->n ?? 0),
+                    'cents' => (int) round(((float) ($transactional->spend ?? 0)) * 100),
+                    'rate'  => $this->rateLabel($transactional->lo ?? null, $transactional->hi ?? null),
+                ],
+                'free' => [
+                    'count'     => (int) $free,
+                    'allowance' => \App\Services\EmailLedger::freeAllowance($tenant->id),
+                ],
             ],
             'sms' => [
                 'count'    => (int) ($sms->n ?? 0),

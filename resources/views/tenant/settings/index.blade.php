@@ -1122,15 +1122,40 @@
       @endif
 
       <div class="bill-grp">Usage this month</div>
-      <div class="bill-line">
-        <div>Email
-          <span class="bill-meta">
-            {{ number_format($statement['usage']['email']['count']) }} sent
-            @if($statement['usage']['email']['rate']) · {{ $statement['usage']['email']['rate'] }} each @endif
-          </span>
+      {{-- MARKER-EMAIL-RATES — named lines, not a blended range --}}
+      @if($statement['usage']['email']['free']['count'] > 0)
+        <div class="bill-line">
+          <div>Included emails
+            <span class="bill-meta">
+              first {{ number_format($statement['usage']['email']['free']['allowance']) }} each month ·
+              {{ number_format($statement['usage']['email']['free']['count']) }} used
+            </span>
+          </div>
+          <div>$0.00</div>
         </div>
-        <div>{{ \App\Services\Billing\StatementService::money($statement['usage']['email']['cents']) }}</div>
-      </div>
+      @endif
+      @if($statement['usage']['email']['marketing']['count'] > 0)
+        <div class="bill-line">
+          <div>Campaigns
+            <span class="bill-meta">
+              {{ number_format($statement['usage']['email']['marketing']['count']) }} sent
+              @if($statement['usage']['email']['marketing']['rate']) · {{ $statement['usage']['email']['marketing']['rate'] }} each @endif
+            </span>
+          </div>
+          <div>{{ \App\Services\Billing\StatementService::money($statement['usage']['email']['marketing']['cents']) }}</div>
+        </div>
+      @endif
+      @if($statement['usage']['email']['transactional']['count'] > 0)
+        <div class="bill-line">
+          <div>Receipts &amp; reminders
+            <span class="bill-meta">
+              {{ number_format($statement['usage']['email']['transactional']['count']) }} sent
+              @if($statement['usage']['email']['transactional']['rate']) · {{ $statement['usage']['email']['transactional']['rate'] }} each @endif
+            </span>
+          </div>
+          <div>{{ \App\Services\Billing\StatementService::money($statement['usage']['email']['transactional']['cents']) }}</div>
+        </div>
+      @endif
       @if($statement['usage']['sms']['count'] || $statement['usage']['sms']['byo'])
         <div class="bill-line">
           <div>Text messages

@@ -24,18 +24,26 @@ class EmailLedger
         ?int $campaignId = null
     ): ?TenantEmailLedgerEntry {
         try {
-            return TenantEmailLedgerEntry::create([
+            $isFree = self::usedThisMonth($tenantId) < self::freeAllowance($tenantId);
+
+            $entry = TenantEmailLedgerEntry::create([
                 'tenant_id'    => $tenantId,
                 'kind'         => $kind,
                 'template_key' => $templateKey,
                 'to_email'     => strtolower(trim($toEmail)),
-                'rate'         => self::rate(),
+                // MARKER-EMAIL-RATES — marketing and transactional are priced
+                // differently, and the first N of the month are free.
+                'rate'         => $isFree ? 0 : self::rateFor($kind),
+                'is_free'      => $isFree,
                 'stream'       => $kind === 'campaign'
                                     ? (self::broadcastStream() ?? 'outbound')
                                     : 'outbound',
                 'status'       => TenantEmailLedgerEntry::STATUS_PENDING,
                 'campaign_id'  => $campaignId,
             ]);
+
+            self::noteWritten($tenantId);
+            return $entry;
         } catch (\Throwable $e) {
             // Loud, because this is unbilled mail — but never blocking.
             logger()->error('email_ledger.begin_failed', [
@@ -159,9 +167,75 @@ class EmailLedger
     }
 
     /** Dollars per email, master-admin editable, never hardcoded at call sites. */
+    /** MARKER-EMAIL-RATES — transactional: receipts, reminders, confirmations. */
     public static function rate(): float
     {
         return (float) (PlatformSettings::current()->email_rate ?? 0.002);
+    }
+
+    /** MARKER-EMAIL-RATES — marketing: campaigns a shop chooses to send. */
+    public static function marketingRate(): float
+    {
+        return (float) (PlatformSettings::current()->email_rate_marketing ?? 0.0035);
+    }
+
+    /** The rate a given kind of mail is charged at. */
+    public static function rateFor(string $kind): float
+    {
+        return $kind === 'campaign' ? self::marketingRate() : self::rate();
+    }
+
+    /**
+     * How many free emails this shop gets each month. Memoised: begin() runs
+     * once per recipient, and a campaign has thousands.
+     */
+    private static array $allowance = [];
+
+    public static function freeAllowance(string $tenantId): int
+    {
+        if (! array_key_exists($tenantId, self::$allowance)) {
+            $own = \App\Models\Tenant::whereKey($tenantId)->value('email_free_monthly');
+            self::$allowance[$tenantId] = $own !== null
+                ? (int) $own                                            // 0 means deliberately none
+                : (int) (PlatformSettings::current()->email_free_monthly ?? 0);
+        }
+        return self::$allowance[$tenantId];
+    }
+
+    /**
+     * MARKER-EMAIL-RATES — how many of this month's emails have been metered.
+     *
+     * Seeded from the database once per process and incremented in memory, so a
+     * 1,500-recipient campaign does not run 1,500 COUNT queries. Two workers
+     * starting at the same moment can each seed before the other writes, which
+     * may grant a few extra free emails — deliberately preferred to locking
+     * every send.
+     */
+    private static array $monthCount = [];
+
+    public static function usedThisMonth(string $tenantId): int
+    {
+        $key = $tenantId . ':' . now()->format('Y-m');
+        if (! array_key_exists($key, self::$monthCount)) {
+            self::$monthCount[$key] = TenantEmailLedgerEntry::where('tenant_id', $tenantId)
+                ->where('channel', 'email')
+                ->whereIn('status', [TenantEmailLedgerEntry::STATUS_SENT, TenantEmailLedgerEntry::STATUS_PENDING])
+                ->where('created_at', '>=', now()->startOfMonth())
+                ->count();
+        }
+        return self::$monthCount[$key];
+    }
+
+    private static function noteWritten(string $tenantId): void
+    {
+        $key = $tenantId . ':' . now()->format('Y-m');
+        self::$monthCount[$key] = (self::$monthCount[$key] ?? 0) + 1;
+    }
+
+    /** Remaining free emails, for the statement and the pre-send estimate. */
+    public static function freeRemaining(string $tenantId): int
+    {
+        return max(0, self::freeAllowance($tenantId) - self::usedThisMonth($tenantId));
     }
 
     /** Postmark broadcast stream ID, or null when not yet configured. */

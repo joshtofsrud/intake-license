@@ -500,7 +500,7 @@ class CampaignController extends Controller
             'counts'   => $svc->counts($tenant, $targeting),
             'describe' => $svc->describe($tenant, $targeting),
             'sample'   => $request->boolean('with_sample') ? $svc->sample($tenant, $targeting) : [],
-            'rate'     => \App\Services\EmailLedger::rate(),
+            'rate'     => \App\Services\EmailLedger::marketingRate(), // MARKER-EMAIL-RATES
         ]);
     }
 
@@ -544,7 +544,7 @@ class CampaignController extends Controller
         // MARKER-CAMPAIGN-AUDIENCE
         $audience = app(\App\Services\Tenant\AudienceService::class);
         $counts   = $audience->counts($tenant, $campaign->targeting);
-        $rate     = \App\Services\EmailLedger::rate();
+        $rate     = \App\Services\EmailLedger::marketingRate(); // MARKER-EMAIL-RATES
 
         return [
             'mailable'  => $counts['mailable'],
