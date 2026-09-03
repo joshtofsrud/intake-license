@@ -47,6 +47,9 @@ class PlatformEmail extends Page implements HasForms
             // MARKER-EMAIL-RATES
             'email_rate_marketing'   => $settings->email_rate_marketing !== null ? (string) $settings->email_rate_marketing : '0.0035',
             'email_free_monthly'     => (string) ($settings->email_free_monthly ?? 0),
+            // MARKER-BILLING-CONTROLS
+            'charging_enabled'               => (bool) ($settings->charging_enabled ?? false),
+            'charge_threshold_default_cents' => number_format((($settings->charge_threshold_default_cents ?? 2500) / 100), 2, '.', ''),
             'test_recipient'    => auth()->user()?->email,
         ]);
     }
@@ -88,6 +91,18 @@ class PlatformEmail extends Page implements HasForms
                             ->numeric()->step('0.00001')->prefix('$')
                             ->helperText('Charged for campaigns. Stamped onto each row at send time, so changing it never rewrites a past month.'),
 
+                        // MARKER-BILLING-CONTROLS — the master switch. Off is the
+                        // safe state and the default; a shop's own setting cannot
+                        // override it.
+                        \Filament\Forms\Components\Toggle::make('charging_enabled')
+                            ->label('Charge cards for usage')
+                            ->helperText('Off means no shop is charged, whatever their own setting says. Turn this on only once tax handling is settled — usage keeps accruing safely in the meantime.'),
+
+                        TextInput::make('charge_threshold_default_cents')
+                            ->label('Charge when a balance reaches')
+                            ->numeric()->step('0.01')->prefix('$')
+                            ->helperText('The default for shops without their own figure. A lower number means smaller, more frequent charges. It does not stop anything sending — that is the shop\'s own spend limit.'),
+
                         TextInput::make('email_free_monthly')
                             ->label('Free emails per shop, per month')
                             ->numeric()->minValue(0)
@@ -128,6 +143,11 @@ class PlatformEmail extends Page implements HasForms
             // MARKER-EMAIL-RATES
             'email_rate_marketing'   => is_numeric($state['email_rate_marketing'] ?? null) ? (float) $state['email_rate_marketing'] : 0.0035,
             'email_free_monthly'     => is_numeric($state['email_free_monthly'] ?? null) ? (int) $state['email_free_monthly'] : 0,
+            // MARKER-BILLING-CONTROLS
+            'charging_enabled'               => (bool) ($state['charging_enabled'] ?? false),
+            'charge_threshold_default_cents' => is_numeric($state['charge_threshold_default_cents'] ?? null)
+                ? (int) round(((float) $state['charge_threshold_default_cents']) * 100)
+                : 2500,
         ]);
         PlatformSettings::forget();
 

@@ -5,10 +5,14 @@ namespace App\Filament\Pages;
 use App\Models\Tenant;
 use App\Models\Tenant\TenantEmailLedgerEntry;
 use App\Models\TenantBillingDiscount;
+use App\Models\PlatformSettings;
+use App\Models\TenantChargeRun;
+use App\Services\Billing\ChargeService;
 use App\Services\Billing\StatementService;
 use App\Services\EmailLedger;
 use App\Support\AdminAccess;
 use Carbon\CarbonImmutable;
+use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Illuminate\Support\Facades\Auth;
 
@@ -31,6 +35,11 @@ class TenantBilling extends Page
     public ?string $tenantId = null;
     public string  $month    = '';
 
+    // MARKER-BILLING-CONTROLS
+    public string $thresholdDollars = '';
+    public string $resolveReason    = '';
+    public ?string $resolvingRunId  = null;
+
     public static function canAccess(): bool
     {
         return AdminAccess::allows(Auth::guard('web')->user(), 'tenants');
@@ -41,6 +50,7 @@ class TenantBilling extends Page
         abort_unless(static::canAccess(), 403);
         $this->tenantId = request()->query('tenant');
         $this->month    = now()->format('Y-m');
+        $this->syncThreshold(); // MARKER-BILLING-CONTROLS
     }
 
     public function tenants()
@@ -130,6 +140,160 @@ class TenantBilling extends Page
         return ($tenant->twilio_account_sid && $tenant->twilio_auth_token)
             ? "The shop's own Twilio — segments metered at $0.00"
             : 'Intake-provided — segments billed';
+    }
+
+    // ---- MARKER-BILLING-CONTROLS ------------------------------------
+
+    public function updatedTenantId(): void
+    {
+        $this->syncThreshold();
+    }
+
+    private function syncThreshold(): void
+    {
+        $tenant = $this->tenant();
+        $this->thresholdDollars = $tenant && $tenant->charge_threshold_cents !== null
+            ? number_format($tenant->charge_threshold_cents / 100, 2, '.', '')
+            : '';
+    }
+
+    public function chargingState(): array
+    {
+        $tenant = $this->tenant();
+        $svc    = app(ChargeService::class);
+
+        return [
+            'master'     => (bool) (PlatformSettings::current()->charging_enabled ?? false),
+            'tenant'     => (bool) ($tenant?->charging_enabled),
+            'has_card'   => (bool) ($tenant?->stripe_payment_method_id),
+            'can_charge' => $tenant ? $svc->canCharge($tenant) : false,
+            'threshold'  => $tenant ? $svc->threshold($tenant) : 0,
+            'unbilled'   => $tenant ? $svc->unbilledCents($tenant) : 0,
+            'default'    => (int) (PlatformSettings::current()->charge_threshold_default_cents ?? 2500),
+            'paused'     => $tenant?->campaigns_paused_at,
+        ];
+    }
+
+    public function runs()
+    {
+        $tenant = $this->tenant();
+        if (! $tenant) return collect();
+
+        return TenantChargeRun::where('tenant_id', $tenant->id)
+            ->orderByDesc('created_at')->limit(20)->get();
+    }
+
+    public function toggleCharging(): void
+    {
+        $tenant = $this->tenant();
+        if (! $tenant) return;
+
+        $now = ! $tenant->charging_enabled;
+        $tenant->forceFill(['charging_enabled' => $now])->save();
+
+        logger()->info('MARKER-BILLING-CONTROLS charging toggled', [
+            'tenant' => $tenant->id, 'enabled' => $now, 'by' => Auth::guard('web')->id(),
+        ]);
+
+        Notification::make()
+            ->title($now ? 'Charging enabled for this shop' : 'Charging disabled for this shop')
+            ->body($now
+                ? 'Balances over the threshold will be charged to the card on file.'
+                : 'Usage keeps accruing; nothing will be charged.')
+            ->success()->send();
+    }
+
+    public function saveThreshold(): void
+    {
+        $tenant = $this->tenant();
+        if (! $tenant) return;
+
+        $raw = trim($this->thresholdDollars);
+        $tenant->forceFill([
+            'charge_threshold_cents' => $raw === '' ? null : (int) round(((float) $raw) * 100),
+        ])->save();
+
+        Notification::make()->title('Threshold saved')
+            ->body($raw === '' ? 'Using the platform default.' : 'Charging at $' . number_format((float) $raw, 2) . '.')
+            ->success()->send();
+    }
+
+    /** Settle now rather than waiting for the hourly pass — for testing. */
+    public function chargeNow(): void
+    {
+        $tenant = $this->tenant();
+        if (! $tenant) return;
+
+        $svc = app(ChargeService::class);
+        if (! $svc->canCharge($tenant)) {
+            Notification::make()->danger()->title('Cannot charge')
+                ->body('Charging is off, or there is no card on file.')->send();
+            return;
+        }
+
+        $run = $svc->claim($tenant);
+        if (! $run) {
+            Notification::make()->title('Nothing to charge')
+                ->body('No unbilled usage.')->send();
+            return;
+        }
+
+        $run = $svc->charge($run);
+
+        $run->status === TenantChargeRun::CHARGED
+            ? Notification::make()->success()->title('Charged ' . self::money($run->amount_cents))->send()
+            : Notification::make()->danger()->title('Charge failed')
+                ->body($run->failure_message ?: 'See the run below.')->send();
+    }
+
+    public function startResolve(string $runId): void
+    {
+        $this->resolvingRunId = $runId;
+        $this->resolveReason  = '';
+    }
+
+    public function cancelResolve(): void
+    {
+        $this->resolvingRunId = null;
+        $this->resolveReason  = '';
+    }
+
+    public function refundRun(): void
+    {
+        $run = TenantChargeRun::find($this->resolvingRunId);
+        if (! $run || trim($this->resolveReason) === '') {
+            Notification::make()->danger()->title('A reason is required')
+                ->body('Six months from now, somebody will ask why.')->send();
+            return;
+        }
+
+        $ok = app(ChargeService::class)->refund($run, trim($this->resolveReason), Auth::guard('web')->user()?->email);
+
+        $ok
+            ? Notification::make()->success()->title('Refunded ' . self::money($run->amount_cents))->send()
+            : Notification::make()->danger()->title('Refund failed')->body('Only a charged run can be refunded.')->send();
+
+        $this->cancelResolve();
+    }
+
+    public function writeOffRun(): void
+    {
+        $run = TenantChargeRun::find($this->resolvingRunId);
+        if (! $run || trim($this->resolveReason) === '') {
+            Notification::make()->danger()->title('A reason is required')
+                ->body('Six months from now, somebody will ask why.')->send();
+            return;
+        }
+
+        $ok = app(ChargeService::class)->writeOff($run, trim($this->resolveReason), Auth::guard('web')->user()?->email);
+
+        $ok
+            ? Notification::make()->success()->title('Written off')
+                ->body('No money moved. Those messages will never be charged again.')->send()
+            : Notification::make()->danger()->title('Cannot write off')
+                ->body('That run was already settled with money — refund it instead.')->send();
+
+        $this->cancelResolve();
     }
 
     public static function money(int $cents): string

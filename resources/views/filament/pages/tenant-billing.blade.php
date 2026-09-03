@@ -168,6 +168,114 @@
             </table>
         </div>
 
+        {{-- MARKER-BILLING-CONTROLS --}}
+        @php $charging = $this->chargingState(); @endphp
+
+        <div style="{{ $card }};margin-top:16px">
+            <div style="{{ $label }}">Charging</div>
+
+            @unless($charging['master'])
+                <div style="background:rgba(240,196,106,.08);border:1px solid rgba(240,196,106,.3);border-radius:8px;padding:10px 12px;font-size:12.5px;line-height:1.55;margin-bottom:12px">
+                    Charging is switched off platform-wide, so nothing is charged for any shop whatever this
+                    page says. The master switch is on Platform email.
+                </div>
+            @endunless
+
+            <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center">
+                <div style="font-size:13px">
+                    This shop: <b>{{ $charging['tenant'] ? 'charging enabled' : 'not charging' }}</b>
+                    @if(! $charging['has_card'])
+                        <span style="opacity:.6">· no card on file</span>
+                    @endif
+                </div>
+                <x-filament::button size="sm" :color="$charging['tenant'] ? 'gray' : 'primary'" wire:click="toggleCharging">
+                    {{ $charging['tenant'] ? 'Stop charging this shop' : 'Enable charging' }}
+                </x-filament::button>
+            </div>
+
+            <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-top:14px">
+                <div>
+                    <div style="{{ $label }};margin-bottom:4px">Charge when the balance reaches</div>
+                    <div style="display:flex;gap:6px;align-items:center">
+                        <span style="opacity:.6">$</span>
+                        <input wire:model="thresholdDollars" placeholder="{{ number_format($charging['default'] / 100, 2) }}"
+                               class="rounded-lg border-gray-300 dark:bg-white/5 dark:border-white/10 text-sm" style="width:120px">
+                        <x-filament::button size="sm" color="gray" wire:click="saveThreshold">Save</x-filament::button>
+                    </div>
+                </div>
+                <div style="font-size:12px;opacity:.6;padding-bottom:8px">
+                    Blank uses the platform default (${{ number_format($charging['default'] / 100, 2) }}).
+                    Unbilled now: <b>{{ \App\Filament\Pages\TenantBilling::money($charging['unbilled']) }}</b>.
+                </div>
+                @if($charging['can_charge'] && $charging['unbilled'] > 0)
+                    <x-filament::button size="sm" wire:click="chargeNow"
+                        wire:confirm="Charge {{ \App\Filament\Pages\TenantBilling::money($charging['unbilled']) }} to this shop's card now?">
+                        Charge now
+                    </x-filament::button>
+                @endif
+            </div>
+
+            @if($charging['paused'])
+                <p style="{{ $body }};color:#F0C46A;margin-top:12px">
+                    Campaigns are paused for this shop after a failed charge. Receipts and reminders are still
+                    sending. Refunding or writing off the failed run, or a successful charge, releases them.
+                </p>
+            @endif
+        </div>
+
+        {{-- MARKER-BILLING-CONTROLS — the runs, and what can be done about them --}}
+        <div style="{{ $card }};margin-top:16px">
+            <div style="{{ $label }}">Charge runs</div>
+            @php $runs = $this->runs(); @endphp
+
+            @forelse($runs as $run)
+                <div style="display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;padding:9px 0;border-top:1px solid rgba(127,127,127,.14);font-size:13px">
+                    <span style="min-width:96px;opacity:.6">{{ $run->created_at->format('M j, H:i') }}</span>
+                    <span style="font-weight:600;min-width:78px">{{ \App\Filament\Pages\TenantBilling::money($run->amount_cents) }}</span>
+                    <span style="opacity:.6">{{ number_format($run->message_count) }} messages</span>
+                    <span style="padding:2px 9px;border-radius:999px;border:1px solid rgba(127,127,127,.3);font-size:11px;text-transform:uppercase;letter-spacing:.04em">
+                        {{ $run->describeStatus() }}
+                    </span>
+                    @if($run->failure_message)
+                        <span style="opacity:.6;font-size:12px">{{ \Illuminate\Support\Str::limit($run->failure_message, 60) }}</span>
+                    @endif
+                    @if($run->resolution_reason)
+                        <span style="opacity:.6;font-size:12px">{{ $run->resolution_reason }}</span>
+                    @endif
+
+                    <span style="margin-left:auto;display:flex;gap:6px">
+                        @if($run->status === 'charged')
+                            <x-filament::button size="xs" color="gray" wire:click="startResolve('{{ $run->id }}')">Refund</x-filament::button>
+                        @elseif(in_array($run->status, ['pending', 'failed', 'charging']))
+                            <x-filament::button size="xs" color="gray" wire:click="startResolve('{{ $run->id }}')">Write off</x-filament::button>
+                        @endif
+                    </span>
+                </div>
+
+                @if($resolvingRunId === $run->id)
+                    <div style="padding:12px;border:1px solid rgba(127,127,127,.25);border-radius:8px;margin:8px 0 14px">
+                        <div style="{{ $label }};margin-bottom:6px">Why?</div>
+                        <input wire:model="resolveReason" placeholder="Comped after the bad send on Sep 2"
+                               class="rounded-lg border-gray-300 dark:bg-white/5 dark:border-white/10 text-sm" style="width:100%;max-width:460px">
+                        <p style="{{ $body }};margin-top:6px;font-size:12px">
+                            This is recorded against the run and shown on the shop's statement, so a comped
+                            month reads as comped rather than as a gap.
+                        </p>
+                        <div style="display:flex;gap:8px;margin-top:10px">
+                            @if($run->status === 'charged')
+                                <x-filament::button size="sm" color="danger" wire:click="refundRun">Refund {{ \App\Filament\Pages\TenantBilling::money($run->amount_cents) }}</x-filament::button>
+                            @else
+                                <x-filament::button size="sm" color="danger" wire:click="writeOffRun">Write off {{ \App\Filament\Pages\TenantBilling::money($run->amount_cents) }}</x-filament::button>
+                            @endif
+                            <x-filament::button size="sm" color="gray" wire:click="cancelResolve">Cancel</x-filament::button>
+                        </div>
+                    </div>
+                @endif
+            @empty
+                <p style="{{ $body }}">No charge runs yet.</p>
+            @endforelse
+        </div>
+
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px;margin-top:16px">
             <div style="{{ $card }}">
                 {{-- MARKER-BILLING-CARD --}}
