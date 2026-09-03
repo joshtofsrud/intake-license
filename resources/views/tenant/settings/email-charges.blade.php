@@ -91,6 +91,103 @@
       When it's reached, campaigns stop sending —
       <strong style="color:var(--ia-text,#f4f4f5)">receipts, confirmations and reminders keep going regardless</strong>.
     </p>
+
+{{-- MARKER-EMAIL-CHARGES-V2 — the balance, what caused it, and history --}}
+<div class="ia-card" style="margin-bottom:16px">
+  <div class="ia-card-head"><span class="ia-card-title">Balance</span></div>
+  <div class="ia-card-body">
+    <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap">
+      <div style="font-size:30px;font-weight:700;letter-spacing:-.01em">
+        ${{ number_format((float) ($balance->spend ?? 0), 2) }}
+      </div>
+      <div style="font-size:13px;color:var(--ia-text-muted)">
+        {{ number_format((int) ($balance->n ?? 0)) }} emails metered to date
+      </div>
+    </div>
+    <p style="font-size:12.5px;color:var(--ia-text-muted);line-height:1.55;margin:10px 0 0">
+      Accrued, not yet billed — email is metered as it sends, and nothing is charged automatically today.
+      Each row keeps the rate it was sent at, so changing the rate later never rewrites what you already owe.
+    </p>
+  </div>
+</div>
+
+<div class="ia-card" style="margin-bottom:16px">
+  <div class="ia-card-head"><span class="ia-card-title">Charges per send</span>
+    <span style="margin-left:auto;font-size:12px;color:var(--ia-text-muted)">last 90 days</span>
+  </div>
+  <div class="ia-card-body">
+    @forelse($sends as $campaignId => $rows)
+      @php
+        $sent   = $rows->firstWhere('status', 'sent');
+        $voided = $rows->firstWhere('status', 'voided');
+        $spend  = (float) ($sent->spend ?? 0);
+        $n      = (int) ($sent->n ?? 0);
+        $lo     = (float) ($sent->rate_lo ?? 0);
+        $hi     = (float) ($sent->rate_hi ?? 0);
+      @endphp
+      <div style="display:flex;align-items:baseline;gap:10px;padding:9px 0;border-bottom:1px solid var(--ia-border);flex-wrap:wrap">
+        <a href="{{ route('tenant.campaigns.results', $campaignId) }}" style="font-weight:600;font-size:13.5px">
+          {{ $sendNames[$campaignId] ?? 'Campaign' }}
+        </a>
+        <span style="font-size:12px;color:var(--ia-text-muted)">
+          {{ \Carbon\Carbon::parse($sent->last_at ?? ($voided->last_at ?? now()))->format('M j') }}
+        </span>
+        <span style="font-size:12.5px;color:var(--ia-text-muted)">
+          {{ number_format($n) }} sent @ ${{ $lo === $hi ? rtrim(rtrim(number_format($lo, 5), '0'), '.') : rtrim(rtrim(number_format($lo, 5), '0'), '.') . '–' . rtrim(rtrim(number_format($hi, 5), '0'), '.') }}
+        </span>
+        @if($voided)
+          <span style="font-size:12px;color:var(--ia-text-muted);opacity:.8">
+            · {{ number_format((int) $voided->n) }} voided, not charged
+          </span>
+        @endif
+        <span style="margin-left:auto;font-weight:600">${{ number_format($spend, 2) }}</span>
+      </div>
+    @empty
+      <p style="font-size:13px;color:var(--ia-text-muted);margin:0">No campaigns sent in the last 90 days.</p>
+    @endforelse
+  </div>
+</div>
+
+<div class="ia-card" style="margin-bottom:16px">
+  <div class="ia-card-head"><span class="ia-card-title">Everything else</span>
+    <span style="margin-left:auto;font-size:12px;color:var(--ia-text-muted)">this month</span>
+  </div>
+  <div class="ia-card-body">
+    @forelse($other as $row)
+      <div style="display:flex;gap:10px;padding:7px 0;border-bottom:1px solid var(--ia-border);font-size:13px">
+        <span style="text-transform:capitalize">{{ str_replace('_', ' ', $row->kind) }}</span>
+        <span style="color:var(--ia-text-muted)">{{ number_format((int) $row->n) }} emails</span>
+        <span style="margin-left:auto">${{ number_format((float) $row->spend, 2) }}</span>
+      </div>
+    @empty
+      <p style="font-size:13px;color:var(--ia-text-muted);margin:0">No receipts, reminders or tests billed this month.</p>
+    @endforelse
+    <p style="font-size:12px;color:var(--ia-text-muted);margin:10px 0 0;line-height:1.5">
+      Receipts and reminders are part of running the shop; they are metered the same way but they are not marketing,
+      so the monthly limit below applies to campaigns only.
+    </p>
+  </div>
+</div>
+
+@if(count($history) > 1)
+<div class="ia-card" style="margin-bottom:16px">
+  <div class="ia-card-head"><span class="ia-card-title">By month</span></div>
+  <div class="ia-card-body">
+    @php $peak = collect($history)->max('spend') ?: 1; @endphp
+    @foreach($history as $h)
+      <div style="display:flex;align-items:center;gap:10px;padding:5px 0;font-size:13px">
+        <span style="width:74px;color:var(--ia-text-muted)">{{ \Carbon\Carbon::createFromFormat('Y-m', $h->ym)->format('M Y') }}</span>
+        <span style="flex:1;height:6px;border-radius:3px;background:var(--ia-surface-2);overflow:hidden">
+          <span style="display:block;height:100%;width:{{ max(2, round(((float) $h->spend / $peak) * 100)) }}%;background:var(--ia-accent)"></span>
+        </span>
+        <span style="width:64px;text-align:right;color:var(--ia-text-muted)">{{ number_format((int) $h->n) }}</span>
+        <span style="width:70px;text-align:right;font-weight:600">${{ number_format((float) $h->spend, 2) }}</span>
+      </div>
+    @endforeach
+  </div>
+</div>
+@endif
+
     <form method="POST" action="{{ route('tenant.settings.email_charges.cap') }}">
       @csrf
       <label class="ec-check">

@@ -1042,7 +1042,23 @@
   </form>
 
   {{-- Subscription (read-only, separate from form) --}}
+    {{-- MARKER-EMAIL-CHARGES-V2 — its own card, outside the Stripe conditional:
+       email is metered whether or not a shop has a subscription, and gifted
+       shops could not reach this page at all. --}}
   <div class="set-section set-section--grid">
+    <div class="ia-card">
+      <div class="ia-card-head"><span class="ia-card-title">Email charges</span></div>
+      <div class="ia-card-body">
+        <p style="font-size:13px;color:var(--ia-text-muted);line-height:1.55;margin:0 0 12px">
+          What campaigns and notifications have cost so far, the charge behind each send, and the
+          monthly limit that stops a campaign before it runs away.
+        </p>
+        <a href="{{ route('tenant.settings.email_charges') }}" class="ia-btn ia-btn--ghost">Email charges &amp; limit</a>
+      </div>
+    </div>
+  </div>
+
+<div class="set-section set-section--grid">
     <div class="ia-card" style="margin-bottom:20px">
       <div class="ia-card-head"><span class="ia-card-title">Subscription</span></div>
 
@@ -1068,9 +1084,6 @@
           </div>
         </div>
 
-        {{-- MARKER-EMAIL-BILLING --}}
-        <a href="{{ route('tenant.settings.email_charges') }}" class="ia-btn ia-btn--ghost" style="margin-bottom:10px;display:inline-block">Email charges &amp; limit</a>
-        <br>
         <a href="{{ route('tenant.billing.portal', []) }}"
            class="ia-btn ia-btn--primary"
            target="_blank" rel="noopener noreferrer">
