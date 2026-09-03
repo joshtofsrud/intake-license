@@ -26,6 +26,10 @@ class EmailChargesController extends Controller
         $tenant = tenant();
 
         $mtd = EmailLedger::monthToDate($tenant->id);
+
+        // MARKER-EMAIL-CHARGES-V3 — the same composer the Account tab uses, so
+        // the two screens can never disagree about this month's figures.
+        $statement = app(\App\Services\Billing\StatementService::class)->for($tenant);
         $cap = EmailLedger::capState($tenant);
 
         // Recent campaign spend, grouped by campaign — the lines a shop
@@ -96,6 +100,7 @@ class EmailChargesController extends Controller
             'rate'       => EmailLedger::rate(),
             'campaigns'  => $campaigns,
             'names'      => $names,
+            'statement'  => $statement,    // MARKER-EMAIL-CHARGES-V3
             'balance'    => $balance,      // MARKER-EMAIL-CHARGES-V2
             'sends'      => $sends,
             'sendNames'  => $sendNames,

@@ -51,8 +51,10 @@
 
 <div class="ia-page-head">
   <div class="ia-page-head-left">
-    <h1 class="ia-page-title">Settings</h1>
-    <p class="ia-page-subtitle">Configure your shop, payments, and team.</p>
+    {{-- MARKER-EMAIL-CHARGES-V3 — this is the Payments page; it was titled
+         "Settings" with the index page's subtitle. --}}
+    <h1 class="ia-page-title">Payments</h1>
+    <p class="ia-page-subtitle">How money reaches you — card processing, payouts and the methods your customers can use.</p>
   </div>
 </div>
 
