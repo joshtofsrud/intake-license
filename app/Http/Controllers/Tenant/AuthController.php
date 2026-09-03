@@ -18,6 +18,13 @@ class AuthController extends Controller
 {
     public function showLogin()
     {
+        // MARKER-LOGIN-NO-TENANT — reserved hosts (api, www, app…) never get a
+        // tenant from ResolveTenant, and this view cannot render without one.
+        // Send them to the platform sign-in rather than throwing.
+        if (! tenant()) {
+            return redirect()->away('https://' . config('intake.domain', 'intake.works') . '/login');
+        }
+
         // MARKER-DEMO-FIXES — nobody can sign in to the demo by hand.
         $demoTenant = tenant();
         if ($demoTenant && $demoTenant->is_demo && ! Auth::guard('tenant')->check()) {
@@ -134,6 +141,13 @@ class AuthController extends Controller
 
     public function showForgot()
     {
+        // MARKER-LOGIN-NO-TENANT — reserved hosts (api, www, app…) never get a
+        // tenant from ResolveTenant, and these views cannot render without one.
+        // Send them to the platform sign-in rather than throwing.
+        if (! tenant()) {
+            return redirect()->away('https://' . config('intake.domain', 'intake.works') . '/login');
+        }
+
         return view('tenant.auth.forgot');
     }
 
@@ -175,6 +189,13 @@ class AuthController extends Controller
 
     public function showReset(Request $request)
     {
+        // MARKER-LOGIN-NO-TENANT — reserved hosts (api, www, app…) never get a
+        // tenant from ResolveTenant, and these views cannot render without one.
+        // Send them to the platform sign-in rather than throwing.
+        if (! tenant()) {
+            return redirect()->away('https://' . config('intake.domain', 'intake.works') . '/login');
+        }
+
         $token = $request->query('token');
         if (! $token || ! Cache::has('pwd_reset_' . $token)) {
             return redirect()->route('tenant.login')

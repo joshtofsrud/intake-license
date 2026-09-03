@@ -4,17 +4,19 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   @include('partials.mobile-input-zoom') {{-- MARKER-MOBILE-INPUT-ZOOM --}}
-  <title>Sign in — {{ $currentTenant->name }}</title>
-  @if($currentTenant->favicon_url)
-    <link rel="icon" href="{{ $currentTenant->favicon_url }}">
+  {{-- MARKER-LOGIN-NO-TENANT — this view can be reached on a host with no
+     tenant; every tenant field is optional here on purpose. --}}
+<title>Sign in{{ isset($currentTenant) ? ' — ' . ($currentTenant->name ?? null) : '' }}</title>
+  @if(isset($currentTenant) && ($currentTenant->favicon_url ?? null))
+    <link rel="icon" href="{{ ($currentTenant->favicon_url ?? null) }}">
   @endif
   <link rel="stylesheet" href="{{ asset('css/fonts.css') }}">{{-- MARKER-SELFHOST-FONTS-2 --}}
   <style>
     *{box-sizing:border-box;margin:0;padding:0}
     body{font-family:'Inter',-apple-system,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;-webkit-font-smoothing:antialiased}
     :root{
-      --accent: {{ $currentTenant->accent_color ?? '#BEF264' }};
-      --accent-text: {{ \App\Support\ColorHelper::accentTextColor($currentTenant->accent_color ?? '#BEF264') }};
+      --accent: {{ ($currentTenant->accent_color ?? null) ?? '#BEF264' }};
+      --accent-text: {{ \App\Support\ColorHelper::accentTextColor(($currentTenant->accent_color ?? null) ?? '#BEF264') }};
       --bg:     #0f0f0f;
       --bg2:    #1a1a1a;
       --text:   #f0f0f0;
@@ -44,10 +46,10 @@
 <body>
 <div class="card">
   <div class="logo-wrap">
-    @if($currentTenant->logo_url)
-      <img src="{{ $currentTenant->logo_url }}" alt="{{ $currentTenant->name }}">
+    @if($currentTenant->logo_url ?? null))
+      <img src="{{ ($currentTenant->logo_url ?? null) }}" alt="{{ ($currentTenant->name ?? null) }}">
     @endif
-    <div class="shop-name">{{ $currentTenant->name }}</div>
+    <div class="shop-name">{{ ($currentTenant->name ?? null) }}</div>
     <div class="shop-sub">Staff portal</div>
   </div>
 
@@ -72,7 +74,7 @@
       <input type="checkbox" name="remember" value="1"> Remember me for 30 days
     </label>
 
-    @if($currentTenant->pin_tier_active)
+    @if($currentTenant->pin_tier_active ?? null))
       <label class="remember" style="flex-direction:column;align-items:flex-start;gap:4px">
         <span style="display:flex;align-items:center;gap:8px">
           <input type="checkbox" name="trust_device" value="1" checked> Trust this device
