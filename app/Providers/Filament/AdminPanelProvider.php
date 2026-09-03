@@ -117,7 +117,8 @@ class AdminPanelProvider extends PanelProvider
                 \App\Filament\Pages\SchedulingAvailability::class, // MARKER-SCHED-ADMIN
                 \App\Filament\Pages\SchedulingTypes::class,        // MARKER-SCHED-ADMIN
                 \App\Filament\Pages\Demo::class,
-                \App\Filament\Pages\CustomerCleanup::class,   // MARKER-CUST-CLEANUP                   // MARKER-DEMO-ENTRY
+                \App\Filament\Pages\CustomerCleanup::class,   // MARKER-CUST-CLEANUP
+                \App\Filament\Pages\TenantBilling::class,     // MARKER-TENANT-BILLING                   // MARKER-DEMO-ENTRY
             ])
             ->widgets([
                 ServerHealthWidget::class,
