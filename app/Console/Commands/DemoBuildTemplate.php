@@ -49,7 +49,9 @@ class DemoBuildTemplate extends Command
      * MARKER-DEMO-FIXES — internal staff notes are private chatter, not demo
      * texture. Anonymising names does not make the content fit to publish.
      */
-    private const PRIVATE_TABLES = '/^tenant_notes$/i';
+    // MARKER-DEMO-BILLING-SKIP — billing terms are between Intake and a real
+    // shop; copied into the demo they would show a stranger's arrangement.
+    private const PRIVATE_TABLES = '/^tenant_notes$|^tenant_billing_discounts$/i';
 
     private const BULK = '/availability_snapshot|distributor_sync|brand_sync|sync_state|_audit_log|audit_log|email_ledger|email_send|message_ledger|traffic|search_quer|search_log|analytics|page_view|activity_log|import_row|catalog_match|catalog_identifier/i';
 

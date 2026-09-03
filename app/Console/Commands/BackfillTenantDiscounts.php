@@ -23,7 +23,16 @@ class BackfillTenantDiscounts extends Command
     {
         $found = 0;
 
+        $skippedDemo = 0;
+
         foreach (Tenant::where('is_platform', false)->get() as $tenant) {
+            // MARKER-DEMO-BILLING-SKIP — a demo tenant is rebuilt from a copy
+            // and wiped hourly; a discount record on it means nothing.
+            if ($tenant->is_demo) {
+                $skippedDemo++;
+                continue;
+            }
+
             $settings = $tenant->settings ?? [];
             $path     = is_array($settings) ? ($settings['signup_path'] ?? null) : null;
             $giftedAt = is_array($settings) ? ($settings['gifted_at'] ?? null) : null;
@@ -53,6 +62,10 @@ class BackfillTenantDiscounts extends Command
                     'created_by'   => 'billing:backfill-discounts',
                 ]);
             }
+        }
+
+        if ($skippedDemo) {
+            $this->line("  ({$skippedDemo} demo tenant(s) skipped — they are never billed.)");
         }
 
         if (! $found) {
