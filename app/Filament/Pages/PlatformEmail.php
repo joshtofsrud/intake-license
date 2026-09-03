@@ -47,6 +47,13 @@ class PlatformEmail extends Page implements HasForms
             // MARKER-EMAIL-RATES
             'email_rate_marketing'   => $settings->email_rate_marketing !== null ? (string) $settings->email_rate_marketing : '0.0035',
             'email_free_monthly'     => (string) ($settings->email_free_monthly ?? 0),
+            // MARKER-ALLOWANCE-TIERS — one row per tier, so a plan can include
+            // more than the next one down.
+            'email_free_by_tier'     => collect(\App\Services\EmailLedger::tiers())
+                ->map(fn ($t) => [
+                    'tier'  => $t,
+                    'count' => (string) (($settings->email_free_by_tier[$t] ?? null) ?? ($settings->email_free_monthly ?? 0)),
+                ])->values()->all(),
             // MARKER-BILLING-CONTROLS
             'charging_enabled'               => (bool) ($settings->charging_enabled ?? false),
             'charge_threshold_default_cents' => number_format((($settings->charge_threshold_default_cents ?? 2500) / 100), 2, '.', ''),
@@ -103,8 +110,19 @@ class PlatformEmail extends Page implements HasForms
                             ->numeric()->step('0.01')->prefix('$')
                             ->helperText('The default for shops without their own figure. A lower number means smaller, more frequent charges. It does not stop anything sending — that is the shop\'s own spend limit.'),
 
+                        // MARKER-ALLOWANCE-TIERS
+                        \Filament\Forms\Components\Repeater::make('email_free_by_tier')
+                            ->label('Free emails included, by plan')
+                            ->schema([
+                                TextInput::make('tier')->label('Plan')->disabled()->dehydrated(),
+                                TextInput::make('count')->label('Free emails each month')->numeric()->minValue(0),
+                            ])
+                            ->columns(2)
+                            ->addable(false)->deletable(false)->reorderable(false)
+                            ->helperText('What each plan includes before anything meters. A single shop can be given its own figure on its Tenant billing page — that always wins.'),
+
                         TextInput::make('email_free_monthly')
-                            ->label('Free emails per shop, per month')
+                            ->label('Fallback, for plans not listed above')
                             ->numeric()->minValue(0)
                             ->helperText('Every shop gets this many free each month before anything is charged. A shop can be given its own figure on its tenant record.'),
 
@@ -143,6 +161,11 @@ class PlatformEmail extends Page implements HasForms
             // MARKER-EMAIL-RATES
             'email_rate_marketing'   => is_numeric($state['email_rate_marketing'] ?? null) ? (float) $state['email_rate_marketing'] : 0.0035,
             'email_free_monthly'     => is_numeric($state['email_free_monthly'] ?? null) ? (int) $state['email_free_monthly'] : 0,
+            // MARKER-ALLOWANCE-TIERS
+            'email_free_by_tier'     => collect($state['email_free_by_tier'] ?? [])
+                ->filter(fn ($r) => ! empty($r['tier']))
+                ->mapWithKeys(fn ($r) => [$r['tier'] => is_numeric($r['count'] ?? null) ? (int) $r['count'] : 0])
+                ->all(),
             // MARKER-BILLING-CONTROLS
             'charging_enabled'               => (bool) ($state['charging_enabled'] ?? false),
             'charge_threshold_default_cents' => is_numeric($state['charge_threshold_default_cents'] ?? null)

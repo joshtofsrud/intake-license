@@ -19,6 +19,7 @@ class PlatformSettings extends Model
         'email_rate',             // MARKER-EMAIL-LEDGER
         'email_rate_marketing',   // MARKER-EMAIL-RATES
         'email_free_monthly',     // MARKER-EMAIL-RATES
+        'email_free_by_tier',     // MARKER-ALLOWANCE-TIERS
         'charging_enabled',       // MARKER-BILLING-CHARGE
         'charge_threshold_default_cents',
         'sms_rate',               // MARKER-SMS-METER
@@ -26,6 +27,12 @@ class PlatformSettings extends Model
         'email_broadcast_stream', // MARKER-EMAIL-LEDGER
         'alert_500_enabled',      // MARKER-500-ALERT
         'alert_500_email',        // MARKER-500-ALERT
+    ];
+
+    // MARKER-ALLOWANCE-TIERS — without this the json column reads back as a
+    // string and every allowance lookup silently falls through to the default.
+    protected $casts = [
+        'email_free_by_tier' => 'array',
     ];
 
     /** Laravel's framework default when nothing is configured. */

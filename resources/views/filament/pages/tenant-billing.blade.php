@@ -81,9 +81,25 @@
                 @endif
             </div>
             <div style="{{ $card }}">
+                {{-- MARKER-ALLOWANCE-TIERS --}}
+                @php $allow = $this->allowanceState(); @endphp
                 <div style="{{ $label }}">Included each month</div>
-                <div style="font-size:24px;font-weight:700">{{ number_format($this->allowance()) }}</div>
-                <div style="font-size:12px;opacity:.6;margin-top:2px">free emails before anything meters</div>
+                <div style="font-size:24px;font-weight:700">{{ number_format($allow['effective']) }}</div>
+                <div style="font-size:12px;opacity:.6;margin-top:2px">
+                    @if($allow['overridden'])
+                        set for this shop · {{ $allow['tier_name'] }} includes {{ number_format($allow['tier']) }}
+                    @else
+                        included with {{ $allow['tier_name'] }}
+                    @endif
+                </div>
+                <div style="display:flex;gap:6px;align-items:center;margin-top:10px">
+                    <input wire:model="allowanceOverride" placeholder="{{ number_format($allow['tier']) }}"
+                           class="rounded-lg border-gray-300 dark:bg-white/5 dark:border-white/10 text-sm" style="width:96px">
+                    <x-filament::button size="xs" color="gray" wire:click="saveAllowance">Save</x-filament::button>
+                </div>
+                <div style="font-size:11px;opacity:.5;margin-top:6px;line-height:1.45">
+                    Blank uses the plan's allowance. 0 means none at all.
+                </div>
             </div>
         </div>
 

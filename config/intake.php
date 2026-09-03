@@ -32,12 +32,18 @@ return [
     */
     'admin_email' => env('ADMIN_EMAIL', ''),
 
+    // MARKER-CONFIG-PLAN-PRICES — DEAD BLOCK. 'plan_prices' is declared again
+    // further down and PHP keeps the last one, so nothing here was ever read.
+    // Commented rather than deleted so the values stay visible.
+    /*
     'plan_prices' => [
-        'starter' => (int) env('PLAN_PRICE_STARTER', 2900),
-        'branded' => (int) env('PLAN_PRICE_BRANDED', 7900),
-        'scale'   => (int) env('PLAN_PRICE_SCALE', 19900),
-        'custom'  => (int) env('PLAN_PRICE_CUSTOM', 0),
-    ],
+            'starter' => (int) env('PLAN_PRICE_STARTER', 2900),
+            'branded' => (int) env('PLAN_PRICE_BRANDED', 7900),
+            'scale'   => (int) env('PLAN_PRICE_SCALE', 19900),
+            'custom'  => (int) env('PLAN_PRICE_CUSTOM', 0),
+        ],
+    */
+
 
     'reserved_subdomains' => [
         'www',

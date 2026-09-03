@@ -37,6 +37,7 @@ class TenantBilling extends Page
 
     // MARKER-BILLING-CONTROLS
     public string $thresholdDollars = '';
+    public string $allowanceOverride = '';   // MARKER-ALLOWANCE-TIERS
     public string $resolveReason    = '';
     public ?string $resolvingRunId  = null;
 
@@ -152,9 +153,50 @@ class TenantBilling extends Page
     private function syncThreshold(): void
     {
         $tenant = $this->tenant();
+        // MARKER-ALLOWANCE-TIERS — blank means "use whatever the tier includes".
+        $this->allowanceOverride = $tenant && $tenant->email_free_monthly !== null
+            ? (string) $tenant->email_free_monthly
+            : '';
         $this->thresholdDollars = $tenant && $tenant->charge_threshold_cents !== null
             ? number_format($tenant->charge_threshold_cents / 100, 2, '.', '')
             : '';
+    }
+
+    /** MARKER-ALLOWANCE-TIERS — what this shop gets, and where that came from. */
+    public function allowanceState(): array
+    {
+        $tenant = $this->tenant();
+        if (! $tenant) return ['effective' => 0, 'tier' => 0, 'overridden' => false];
+
+        return [
+            'effective'  => \App\Services\EmailLedger::freeAllowance($tenant->id),
+            'tier'       => \App\Services\EmailLedger::tierAllowance($tenant->plan_tier),
+            'tier_name'  => ucfirst((string) $tenant->plan_tier),
+            'overridden' => $tenant->email_free_monthly !== null,
+        ];
+    }
+
+    public function saveAllowance(): void
+    {
+        $tenant = $this->tenant();
+        if (! $tenant) return;
+
+        $raw = trim($this->allowanceOverride);
+        $tenant->forceFill([
+            'email_free_monthly' => $raw === '' ? null : max(0, (int) $raw),
+        ])->save();
+
+        logger()->info('MARKER-ALLOWANCE-TIERS override set', [
+            'tenant' => $tenant->id, 'value' => $raw === '' ? null : (int) $raw,
+            'by' => Auth::guard('web')->id(),
+        ]);
+
+        Notification::make()->success()
+            ->title($raw === '' ? 'Using the plan\'s allowance' : 'Allowance set for this shop')
+            ->body($raw === ''
+                ? 'This shop now gets whatever its plan includes.'
+                : number_format((int) $raw) . ' free emails a month, regardless of plan.')
+            ->send();
     }
 
     public function chargingState(): array

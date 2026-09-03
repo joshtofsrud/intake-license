@@ -194,12 +194,45 @@ class EmailLedger
     public static function freeAllowance(string $tenantId): int
     {
         if (! array_key_exists($tenantId, self::$allowance)) {
-            $own = \App\Models\Tenant::whereKey($tenantId)->value('email_free_monthly');
-            self::$allowance[$tenantId] = $own !== null
-                ? (int) $own                                            // 0 means deliberately none
-                : (int) (PlatformSettings::current()->email_free_monthly ?? 0);
+            // MARKER-ALLOWANCE-TIERS — one resolution order, here only:
+            //   this shop's override → its tier's allowance → platform default
+            // A shop set to 0 deliberately gets none; null means "use the tier".
+            $row = \App\Models\Tenant::whereKey($tenantId)->first(['email_free_monthly', 'plan_tier']);
+
+            if ($row && $row->email_free_monthly !== null) {
+                self::$allowance[$tenantId] = (int) $row->email_free_monthly;
+            } else {
+                self::$allowance[$tenantId] = self::tierAllowance($row->plan_tier ?? null);
+            }
         }
         return self::$allowance[$tenantId];
+    }
+
+    /** MARKER-ALLOWANCE-TIERS — what a tier includes, before any override. */
+    public static function tierAllowance(?string $tier): int
+    {
+        $settings = PlatformSettings::current();
+        $byTier   = $settings->email_free_by_tier;
+
+        if (is_string($byTier)) {
+            $byTier = json_decode($byTier, true);
+        }
+
+        if (is_array($byTier) && $tier && array_key_exists($tier, $byTier)) {
+            return (int) $byTier[$tier];
+        }
+
+        // No tier table yet, or a tier not listed in it: fall back to the
+        // single platform number rather than silently giving nothing.
+        return (int) ($settings->email_free_monthly ?? 0);
+    }
+
+    /** For the editors: the tiers a figure can be set against. */
+    public static function tiers(): array
+    {
+        return array_keys((array) config('intake.plan_prices', [
+            'starter' => 0, 'branded' => 0, 'scale' => 0, 'custom' => 0,
+        ]));
     }
 
     /**
