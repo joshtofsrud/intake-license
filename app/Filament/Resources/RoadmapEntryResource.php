@@ -23,9 +23,9 @@ class RoadmapEntryResource extends Resource
     protected static ?string $model = RoadmapEntry::class;
 
     protected static ?string $navigationIcon  = 'heroicon-o-map';
-    protected static ?string $navigationGroup = 'Platform';
+    protected static ?string $navigationGroup = 'Site & content';
     protected static ?string $navigationLabel = 'Roadmap';
-    protected static ?int    $navigationSort  = 21;
+    protected static ?int    $navigationSort  = 70;
     protected static ?string $recordTitleAttribute = 'title';
 
     protected static ?string $modelLabel       = 'Roadmap entry';

@@ -22,7 +22,7 @@ class Scheduling extends Page
     protected static ?string $navigationLabel = 'Calendar';
     protected static ?string $navigationGroup = 'Scheduling';
     protected static ?string $title           = 'Calendar';
-    protected static ?int    $navigationSort  = 60;
+    protected static ?int    $navigationSort  = 10;
     protected static ?string $slug            = 'scheduling';
 
     protected static string $view = 'filament.pages.scheduling';

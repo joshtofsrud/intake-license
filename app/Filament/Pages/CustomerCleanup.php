@@ -23,8 +23,8 @@ class CustomerCleanup extends Page
 {
     protected static ?string $navigationIcon  = 'heroicon-o-sparkles';
     protected static ?string $navigationLabel = 'Customer cleanup';
-    protected static ?string $navigationGroup = 'Platform';
-    protected static ?int    $navigationSort  = 84;
+    protected static ?string $navigationGroup = 'Operations';
+    protected static ?int    $navigationSort  = 20;
     protected static string  $view            = 'filament.pages.customer-cleanup';
     protected static ?string $slug            = 'customer-cleanup';
 

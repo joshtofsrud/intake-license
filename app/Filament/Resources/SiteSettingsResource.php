@@ -25,7 +25,7 @@ class SiteSettingsResource extends Resource
     protected static ?string $model = SiteSettings::class;
 
     protected static ?string $navigationIcon  = 'heroicon-o-cog-6-tooth';
-    protected static ?string $navigationGroup = 'Platform';
+    protected static ?string $navigationGroup = 'Site & content';
     protected static ?string $navigationLabel = 'Site settings';
     protected static ?int    $navigationSort  = 30;
 

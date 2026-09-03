@@ -23,8 +23,9 @@ class PasswordEditor extends Page implements HasForms
     use InteractsWithForms;
 
     protected static ?string $navigationIcon = 'heroicon-o-key';
+    protected static ?string $navigationGroup = 'Tenants';
     protected static ?string $navigationLabel = 'Password Editor';
-    protected static ?int $navigationSort = 2;
+    protected static ?int $navigationSort = 30;
 
     protected static string $view = 'filament.pages.password-editor';
 

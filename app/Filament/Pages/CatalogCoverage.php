@@ -22,7 +22,7 @@ class CatalogCoverage extends Page
     protected static ?string $navigationIcon  = 'heroicon-o-scale';
     protected static ?string $navigationLabel = 'Catalog coverage';
     protected static ?string $navigationGroup = 'Distribution';
-    protected static ?int    $navigationSort  = 23;
+    protected static ?int    $navigationSort  = 60;
     protected static ?string $title = 'Catalog coverage';
 
     protected static string $view = 'filament.pages.catalog-coverage';

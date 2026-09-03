@@ -16,7 +16,7 @@ class SchedulingAvailability extends Page
     protected static ?string $navigationLabel = 'Availability';
     protected static ?string $navigationGroup = 'Scheduling';
     protected static ?string $title           = 'Availability';
-    protected static ?int    $navigationSort  = 61;
+    protected static ?int    $navigationSort  = 20;
     protected static ?string $slug            = 'scheduling-availability';
 
     protected static string $view = 'filament.pages.scheduling-availability';

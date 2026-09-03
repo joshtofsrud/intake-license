@@ -20,7 +20,7 @@ class TeamRoles extends Page
     protected static ?string $navigationGroup = 'Team';
     protected static ?string $title           = 'Team & roles';
     protected static ?string $slug            = 'team-roles';
-    protected static ?int    $navigationSort  = 95;
+    protected static ?int    $navigationSort  = 10;
 
     protected static string $view = 'filament.pages.team-roles';
 

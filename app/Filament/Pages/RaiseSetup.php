@@ -23,7 +23,7 @@ class RaiseSetup extends Page
     protected static ?string $navigationLabel = 'Raise setup';
     protected static ?string $navigationGroup = 'Raise';
     protected static ?string $title           = 'Raise setup';
-    protected static ?int    $navigationSort  = 91;
+    protected static ?int    $navigationSort  = 30;
 
     protected static string $view = 'filament.pages.raise-setup';
 

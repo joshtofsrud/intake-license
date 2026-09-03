@@ -23,9 +23,9 @@ class ChangelogEntryResource extends Resource
     protected static ?string $model = ChangelogEntry::class;
 
     protected static ?string $navigationIcon  = 'heroicon-o-megaphone';
-    protected static ?string $navigationGroup = 'Platform';
+    protected static ?string $navigationGroup = 'Site & content';
     protected static ?string $navigationLabel = 'Changelog';
-    protected static ?int    $navigationSort  = 20;
+    protected static ?int    $navigationSort  = 60;
     protected static ?string $recordTitleAttribute = 'title';
 
     protected static ?string $modelLabel       = 'Changelog entry';

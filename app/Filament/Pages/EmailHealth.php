@@ -22,8 +22,8 @@ class EmailHealth extends Page
 
     protected static ?string $navigationIcon  = 'heroicon-o-envelope';
     protected static ?string $navigationLabel = 'Email health';
-    protected static ?string $navigationGroup = 'Platform';
-    protected static ?int    $navigationSort  = 20;
+    protected static ?string $navigationGroup = 'Billing';
+    protected static ?int    $navigationSort  = 60;
 
     protected static string $view = 'filament.pages.email-health';
 

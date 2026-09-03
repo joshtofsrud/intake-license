@@ -11,7 +11,7 @@ class Contributions extends Page
     protected static ?string $navigationIcon  = 'heroicon-o-hand-raised';
     protected static ?string $navigationGroup = 'Raise';
     protected static ?string $navigationLabel = 'Contributions';
-    protected static ?int    $navigationSort  = 30;
+    protected static ?int    $navigationSort  = 10;
     protected static string  $view = 'filament.pages.contributions';
 
     protected function getViewData(): array

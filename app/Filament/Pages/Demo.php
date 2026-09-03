@@ -23,8 +23,8 @@ class Demo extends Page
 {
     protected static ?string $navigationIcon  = 'heroicon-o-play-circle';
     protected static ?string $navigationLabel = 'Demo';
-    protected static ?string $navigationGroup = 'Platform';
-    protected static ?int    $navigationSort  = 82;
+    protected static ?string $navigationGroup = 'Operations';
+    protected static ?int    $navigationSort  = 10;
     protected static string  $view            = 'filament.pages.demo';
     protected static ?string $slug            = 'demo';
 

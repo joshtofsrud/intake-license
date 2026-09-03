@@ -27,8 +27,8 @@ class PlatformEmail extends Page implements HasForms
 
     protected static ?string $navigationIcon  = 'heroicon-o-at-symbol';
     protected static ?string $navigationLabel = 'Platform email';
-    protected static ?string $navigationGroup = 'Platform';
-    protected static ?int    $navigationSort  = 21;
+    protected static ?string $navigationGroup = 'Billing';
+    protected static ?int    $navigationSort  = 50;
 
     protected static string $view = 'filament.pages.platform-email';
 

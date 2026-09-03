@@ -19,9 +19,9 @@ class BillingNoticeTemplateResource extends Resource
     protected static ?string $model = BillingNoticeTemplate::class;
 
     protected static ?string $navigationIcon  = 'heroicon-o-envelope-open';
-    protected static ?string $navigationGroup = 'Platform';
+    protected static ?string $navigationGroup = 'Billing';
     protected static ?string $navigationLabel = 'Billing notices';
-    protected static ?int    $navigationSort  = 87;
+    protected static ?int    $navigationSort  = 30;
     protected static ?string $modelLabel       = 'billing notice';
     protected static ?string $pluralModelLabel = 'billing notices';
     protected static ?string $slug             = 'billing-notices';

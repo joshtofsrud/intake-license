@@ -25,9 +25,9 @@ class PlatformNavItemResource extends Resource
     protected static ?string $model = TenantNavItem::class;
 
     protected static ?string $navigationIcon  = 'heroicon-o-bars-3';
-    protected static ?string $navigationGroup = 'Platform';
+    protected static ?string $navigationGroup = 'Site & content';
     protected static ?string $navigationLabel = 'Navigation';
-    protected static ?int    $navigationSort  = 11;
+    protected static ?int    $navigationSort  = 20;
     protected static ?string $recordTitleAttribute = 'label';
 
     protected static ?string $modelLabel       = 'Nav item';

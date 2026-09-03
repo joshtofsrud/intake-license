@@ -30,7 +30,7 @@ class SalesProspectResource extends Resource
     protected static ?string $navigationIcon  = 'heroicon-o-flag';
     protected static ?string $navigationGroup = 'Sales';
     protected static ?string $navigationLabel = 'Prospects';
-    protected static ?int    $navigationSort  = 2;
+    protected static ?int    $navigationSort  = 20;
     protected static ?string $recordTitleAttribute = 'shop';
     protected static ?string $modelLabel       = 'prospect';
     protected static ?string $pluralModelLabel = 'prospects';

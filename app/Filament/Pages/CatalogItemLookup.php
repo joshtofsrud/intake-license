@@ -24,7 +24,7 @@ class CatalogItemLookup extends Page
     protected static ?string $navigationIcon  = 'heroicon-o-magnifying-glass';
     protected static ?string $navigationLabel = 'Item lookup';
     protected static ?string $navigationGroup = 'Distribution';
-    protected static ?int    $navigationSort  = 21;
+    protected static ?int    $navigationSort  = 40;
     protected static ?string $title = 'Catalog item lookup';
 
     protected static string $view = 'filament.pages.catalog-item-lookup';

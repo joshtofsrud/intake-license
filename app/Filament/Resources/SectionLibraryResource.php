@@ -26,7 +26,7 @@ class SectionLibraryResource extends Resource
     protected static ?string $model = TenantPageSection::class;
 
     protected static ?string $navigationIcon  = 'heroicon-o-squares-2x2';
-    protected static ?string $navigationGroup = 'Platform';
+    protected static ?string $navigationGroup = 'Site & content';
     protected static ?string $navigationLabel = 'Section library';
     protected static ?int    $navigationSort  = 40;
 

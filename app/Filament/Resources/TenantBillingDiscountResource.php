@@ -20,9 +20,9 @@ class TenantBillingDiscountResource extends Resource
     protected static ?string $model = TenantBillingDiscount::class;
 
     protected static ?string $navigationIcon  = 'heroicon-o-receipt-percent';
-    protected static ?string $navigationGroup = 'Platform';
+    protected static ?string $navigationGroup = 'Billing';
     protected static ?string $navigationLabel = 'Billing discounts';
-    protected static ?int    $navigationSort  = 86;
+    protected static ?int    $navigationSort  = 20;
     protected static ?string $modelLabel       = 'billing discount';
     protected static ?string $pluralModelLabel = 'billing discounts';
     protected static ?string $slug             = 'billing-discounts';

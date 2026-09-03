@@ -31,7 +31,7 @@ class CatalogTitleControl extends Page
     protected static ?string $navigationIcon  = 'heroicon-o-tag';
     protected static ?string $navigationLabel = 'Titles';
     protected static ?string $navigationGroup = 'Distribution';
-    protected static ?int    $navigationSort  = 19;
+    protected static ?int    $navigationSort  = 20;
     protected static ?string $title = 'Product titles';
 
     protected static string $view = 'filament.pages.catalog-title-control';

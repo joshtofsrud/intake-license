@@ -27,7 +27,7 @@ class DistributorFieldMapResource extends Resource
     protected static ?string $navigationIcon  = 'heroicon-o-arrows-right-left';
     protected static ?string $navigationGroup = 'Distribution';
     protected static ?string $navigationLabel = 'Field Mapping';
-    protected static ?int    $navigationSort  = 20;
+    protected static ?int    $navigationSort  = 30;
     protected static ?string $recordTitleAttribute = 'canonical_field';
 
     protected static ?string $modelLabel       = 'field map';

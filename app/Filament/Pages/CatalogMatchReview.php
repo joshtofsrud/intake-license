@@ -26,7 +26,7 @@ class CatalogMatchReview extends Page
     protected static ?string $navigationIcon  = 'heroicon-o-link';
     protected static ?string $navigationLabel = 'Catalog matches';
     protected static ?string $navigationGroup = 'Distribution';
-    protected static ?int    $navigationSort  = 22;
+    protected static ?int    $navigationSort  = 50;
     protected static ?string $title = 'Catalog matches';
 
     protected static string $view = 'filament.pages.catalog-match-review';

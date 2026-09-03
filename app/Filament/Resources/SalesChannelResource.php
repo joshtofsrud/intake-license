@@ -21,7 +21,7 @@ class SalesChannelResource extends Resource
 
     protected static ?string $navigationIcon  = 'heroicon-o-megaphone';
     protected static ?string $navigationGroup = 'Sales';
-    protected static ?int    $navigationSort  = 1;
+    protected static ?int    $navigationSort  = 10;
     protected static ?string $navigationLabel = 'Campaigns';
     protected static ?string $modelLabel      = 'campaign';
     protected static ?string $slug            = 'sales/campaigns';

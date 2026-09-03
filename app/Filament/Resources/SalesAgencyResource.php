@@ -22,7 +22,7 @@ class SalesAgencyResource extends Resource
 
     protected static ?string $navigationIcon  = 'heroicon-o-user-group';
     protected static ?string $navigationGroup = 'Sales';
-    protected static ?int    $navigationSort  = 3;
+    protected static ?int    $navigationSort  = 30;
     protected static ?string $navigationLabel = 'Reps & agencies';
     protected static ?string $modelLabel      = 'agency';
     protected static ?string $slug            = 'sales/agencies';

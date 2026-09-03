@@ -18,7 +18,7 @@ class Raise extends Page
     protected static ?string $navigationLabel = 'Raise';
     protected static ?string $navigationGroup = 'Raise';
     protected static ?string $title           = 'Raise';
-    protected static ?int    $navigationSort  = 90;
+    protected static ?int    $navigationSort  = 20;
 
     protected static string $view = 'filament.pages.raise';
 

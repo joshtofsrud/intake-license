@@ -26,10 +26,11 @@ class TenantDomainResource extends Resource
 
     protected static ?string $model = TenantDomain::class;
     protected static ?string $navigationIcon = 'heroicon-o-globe-alt';
+    protected static ?string $navigationGroup = 'Tenants';
     protected static ?string $navigationLabel = 'Custom Domains';
     protected static ?string $modelLabel = 'custom domain';
     protected static ?string $pluralModelLabel = 'custom domains';
-    protected static ?int $navigationSort = 5;
+    protected static ?int $navigationSort = 20;
 
     /**
      * Badge on the nav showing the count of domains needing attention.

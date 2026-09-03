@@ -16,9 +16,9 @@ class ActivationResource extends Resource
 
     protected static ?string $model = Activation::class;
     protected static ?string $navigationIcon = 'heroicon-o-globe-alt';
-    protected static ?string $navigationGroup = 'Installs';
+    protected static ?string $navigationGroup = 'Tenants';
     protected static ?string $navigationLabel = 'All installs';
-    protected static ?int $navigationSort = 3;
+    protected static ?int $navigationSort = 40;
 
     public static function form(Form $form): Form
     {

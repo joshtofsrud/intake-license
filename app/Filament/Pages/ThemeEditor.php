@@ -38,8 +38,8 @@ class ThemeEditor extends Page implements HasForms
 
     protected static ?string $navigationIcon = 'heroicon-o-swatch';
     protected static ?string $navigationLabel = 'Themes';
-    protected static ?string $navigationGroup = 'Configuration';
-    protected static ?int $navigationSort = 5;
+    protected static ?string $navigationGroup = 'Site & content';
+    protected static ?int $navigationSort = 50;
     protected static ?string $title = 'Theme editor';
 
     protected static string $view = 'filament.pages.theme-editor';

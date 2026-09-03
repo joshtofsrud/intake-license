@@ -21,6 +21,7 @@ use Illuminate\Support\Facades\Schema;
  * auto-refreshing table of every interesting event on the platform:
  * requests, errors, mail, auth, impersonation, audits, webhooks, jobs.
  */
+// MARKER-ADMIN-SIDEBAR — sidebar regrouped; see the patch header for the map.
 class DebugLogResource extends Resource
 {
     use \App\Support\GatedByAdminArea; // MARKER-ADMIN-NAV-GATE
@@ -29,9 +30,9 @@ class DebugLogResource extends Resource
     protected static ?string $model = DebugLog::class;
 
     protected static ?string $navigationIcon  = 'heroicon-o-bug-ant';
-    protected static ?string $navigationGroup = 'Platform';
+    protected static ?string $navigationGroup = 'Operations';
     protected static ?string $navigationLabel = 'Debug logs';
-    protected static ?int    $navigationSort  = 99;
+    protected static ?int    $navigationSort  = 30;
     protected static ?string $recordTitleAttribute = 'message';
 
     public static function getNavigationBadge(): ?string

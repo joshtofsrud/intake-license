@@ -27,8 +27,8 @@ class TenantBilling extends Page
 {
     protected static ?string $navigationIcon  = 'heroicon-o-banknotes';
     protected static ?string $navigationLabel = 'Tenant billing';
-    protected static ?string $navigationGroup = 'Platform';
-    protected static ?int    $navigationSort  = 85;
+    protected static ?string $navigationGroup = 'Billing';
+    protected static ?int    $navigationSort  = 10;
     protected static string  $view            = 'filament.pages.tenant-billing';
     protected static ?string $slug            = 'tenant-billing';
 

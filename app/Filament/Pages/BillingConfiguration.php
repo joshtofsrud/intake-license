@@ -25,8 +25,8 @@ class BillingConfiguration extends Page implements HasForms
 
     protected static ?string $navigationIcon = 'heroicon-o-credit-card';
     protected static ?string $navigationLabel = 'Billing configuration';
-    protected static ?string $navigationGroup = 'Platform';
-    protected static ?int $navigationSort = 10;
+    protected static ?string $navigationGroup = 'Billing';
+    protected static ?int $navigationSort = 40;
 
     protected static string $view = 'filament.pages.billing-configuration';
 

@@ -17,7 +17,7 @@ class SchedulingTypes extends Page
     protected static ?string $navigationLabel = 'Booking types';
     protected static ?string $navigationGroup = 'Scheduling';
     protected static ?string $title           = 'Booking types';
-    protected static ?int    $navigationSort  = 62;
+    protected static ?int    $navigationSort  = 30;
     protected static ?string $slug            = 'scheduling-types';
 
     protected static string $view = 'filament.pages.scheduling-types';

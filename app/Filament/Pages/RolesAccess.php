@@ -15,7 +15,7 @@ class RolesAccess extends Page
     protected static ?string $navigationGroup = 'Team';
     protected static ?string $title           = 'Roles & access';
     protected static ?string $slug            = 'roles-access';
-    protected static ?int    $navigationSort  = 96;
+    protected static ?int    $navigationSort  = 20;
 
     protected static string $view = 'filament.pages.roles-access';
 
