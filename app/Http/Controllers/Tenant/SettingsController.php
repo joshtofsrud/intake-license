@@ -31,7 +31,10 @@ class SettingsController extends Controller
             ->get();
 
         $paymentMethods = \App\Models\Tenant\TenantPaymentMethod::bootstrapFor($tenant); // MARKER-PATCH-629
-        return view('tenant.settings.index', compact('receivingMethods', 'paymentMethods'));
+        // MARKER-BILLING-STATEMENT — one composer, shared with master admin.
+        $statement = app(\App\Services\Billing\StatementService::class)->for(tenant());
+
+        return view('tenant.settings.index', compact('statement', 'receivingMethods', 'paymentMethods'));
     }
 
     public function update(Request $request)

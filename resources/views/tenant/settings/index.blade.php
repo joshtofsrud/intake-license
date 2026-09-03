@@ -273,6 +273,33 @@
 .sms-test-status.success { display:block; background:rgba(120,200,120,.10); color:#78c878; border:0.5px solid rgba(120,200,120,.25); }
 .sms-test-status.error   { display:block; background:rgba(240,149,149,.10); color:#F09595; border:0.5px solid rgba(240,149,149,.25); }
 </style>
+
+{{-- MARKER-BILLING-STATEMENT --}}
+<style>
+  .bill-card{font-variant-numeric:tabular-nums}
+  .bill-grp{font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;opacity:.45;margin:16px 0 6px}
+  .bill-line{display:grid;grid-template-columns:1fr auto;gap:16px;align-items:baseline;padding:7px 0;
+    border-bottom:.5px solid rgba(127,127,127,.14);font-size:13.5px}
+  .bill-line.is-off{opacity:.6}
+  .bill-strike{text-decoration:line-through;text-decoration-color:rgba(127,127,127,.6)}
+  .bill-meta{font-size:12px;opacity:.5;margin-left:6px}
+  .bill-sub{display:grid;grid-template-columns:1fr auto;gap:16px;padding:11px 0 0;margin-top:6px;
+    border-top:.5px solid var(--ia-border);font-size:13.5px;opacity:.75}
+  .bill-disc{display:grid;grid-template-columns:1fr auto;gap:16px;padding:7px 0;font-size:13.5px;color:#8ED98F}
+  .bill-why{display:block;font-size:12px;opacity:.55;margin-top:2px;color:var(--ia-text-muted)}
+  .bill-total{display:grid;grid-template-columns:1fr auto;gap:16px;align-items:baseline;margin-top:12px;
+    padding-top:13px;border-top:.5px solid var(--ia-border-strong)}
+  .bill-total .t{font-size:12px;text-transform:uppercase;letter-spacing:.06em;opacity:.5}
+  .bill-total .v{font-size:28px;font-weight:700;letter-spacing:-.02em}
+  .bill-save{display:flex;align-items:baseline;gap:10px;margin-top:13px;padding:10px 13px;border-radius:var(--ia-r-md);
+    background:rgba(142,217,143,.08);border:.5px solid rgba(142,217,143,.28);flex-wrap:wrap}
+  .bill-save .big{font-weight:700;color:#8ED98F}
+  .bill-save .cap{font-size:12.5px;opacity:.7}
+  .bill-foot{font-size:12px;opacity:.5;line-height:1.55;margin-top:14px;padding-top:12px;
+    border-top:.5px solid var(--ia-border)}
+  .bill-pill{font-size:11px;letter-spacing:.05em;text-transform:uppercase;border:.5px solid rgba(142,217,143,.4);
+    border-radius:999px;padding:3px 10px;color:#8ED98F}
+</style>
 @endpush
 
 @section('content')
@@ -1050,13 +1077,103 @@
          Messaging cards below: content directly in .ia-card (there is no
          .ia-card-body class), and a primary button, because --ghost is
          deliberately borderless muted text and read as plain copy. --}}
-    <div class="ia-card">
-      <div class="ia-card-head"><span class="ia-card-title">Email charges</span></div>
-      <p style="font-size:13px;opacity:.5;margin-bottom:12px;line-height:1.55">
-        What campaigns and notifications have cost so far, the charge behind each send, and the
-        monthly limit that stops a campaign before it runs away.
+    {{-- MARKER-BILLING-STATEMENT — plan, add-ons and usage are one bill; the
+         interesting part is the arithmetic between them, so it reads as a
+         statement rather than a row of tiles. --}}
+    <div class="ia-card set-card--wide bill-card">
+      <div class="ia-card-head">
+        <span class="ia-card-title">Billing</span>
+        @if($statement['discount_cents'] > 0)
+          <span class="bill-pill">{{ $statement['discounts'][0]['discount']->reason ?? 'Discounted' }}</span>
+        @endif
+      </div>
+
+      <div class="bill-grp">{{ $statement['period']['label'] }} · plan</div>
+      <div class="bill-line">
+        <div>{{ $statement['plan']['label'] }}
+          <span class="bill-meta">
+            {{ $statement['plan']['locations'] }} {{ \Illuminate\Support\Str::plural('location', $statement['plan']['locations']) }} · monthly
+          </span>
+        </div>
+        <div>{{ \App\Services\Billing\StatementService::money($statement['plan']['cents']) }}</div>
+      </div>
+
+      @if($statement['addons'])
+        <div class="bill-grp">Add-ons</div>
+        @foreach($statement['addons'] as $a)
+          <div class="bill-line {{ $a['canceling'] ? 'is-off' : '' }}">
+            <div><span class="{{ $a['canceling'] ? 'bill-strike' : '' }}">{{ $a['name'] }}</span>
+              @if($a['canceling'])
+                <span class="bill-meta">cancels {{ \Carbon\Carbon::parse($a['canceling'])->format('M j') }} — billed until then</span>
+              @elseif($a['note'])
+                <span class="bill-meta">{{ $a['note'] }}</span>
+              @elseif($a['since'])
+                <span class="bill-meta">since {{ \Carbon\Carbon::parse($a['since'])->format('M Y') }}</span>
+              @endif
+            </div>
+            <div>{{ \App\Services\Billing\StatementService::money($a['cents']) }}</div>
+          </div>
+        @endforeach
+      @endif
+
+      <div class="bill-grp">Usage this month</div>
+      <div class="bill-line">
+        <div>Email
+          <span class="bill-meta">
+            {{ number_format($statement['usage']['email']['count']) }} sent
+            @if($statement['usage']['email']['rate']) · {{ $statement['usage']['email']['rate'] }} each @endif
+          </span>
+        </div>
+        <div>{{ \App\Services\Billing\StatementService::money($statement['usage']['email']['cents']) }}</div>
+      </div>
+      @if($statement['usage']['sms']['count'] || $statement['usage']['sms']['byo'])
+        <div class="bill-line">
+          <div>Text messages
+            <span class="bill-meta">
+              {{ number_format($statement['usage']['sms']['segments']) }} segments
+              @if($statement['usage']['sms']['byo']) · on your own Twilio, billed by them @endif
+            </span>
+          </div>
+          <div>{{ \App\Services\Billing\StatementService::money($statement['usage']['sms']['cents']) }}</div>
+        </div>
+      @endif
+
+      @if($statement['discount_cents'] > 0)
+        <div class="bill-sub">
+          <div>Before discounts</div>
+          <div>{{ \App\Services\Billing\StatementService::money($statement['before_cents']) }}</div>
+        </div>
+        @foreach($statement['discounts'] as $d)
+          <div class="bill-disc">
+            <div>{{ $d['discount']->reason }}
+              <span class="bill-why">{{ $d['discount']->describeAmount() }} · {{ $d['discount']->describeWindow() }}</span>
+            </div>
+            <div>−{{ \App\Services\Billing\StatementService::money($d['cents']) }}</div>
+          </div>
+        @endforeach
+      @endif
+
+      <div class="bill-total">
+        <div class="t">This month</div>
+        <div class="v">{{ \App\Services\Billing\StatementService::money($statement['total_cents']) }}</div>
+      </div>
+
+      @if($statement['saving_cents'] > 0)
+        <div class="bill-save">
+          <span class="big">Saving {{ \App\Services\Billing\StatementService::money($statement['saving_cents']) }} a month</span>
+          <span class="cap">Usage is not covered by the discount.</span>
+        </div>
+      @endif
+
+      <p class="bill-foot">
+        Nothing is charged automatically yet — this is what the month has come to, not an invoice.
+        Email and texts are metered as they send, and each one keeps the rate it went out at.
       </p>
-      <a href="{{ route('tenant.settings.email_charges') }}" class="ia-btn ia-btn--primary">Open Email charges</a>
+
+      <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
+        <a href="{{ route('tenant.settings.email_charges') }}" class="ia-btn ia-btn--primary">See every charge</a>
+        <a href="{{ route('tenant.feature_addons.index') }}" class="ia-btn ia-btn--secondary">Manage add-ons</a>
+      </div>
     </div>
   </div>
 
