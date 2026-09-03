@@ -223,6 +223,30 @@
             @endif
         </div>
 
+        {{-- MARKER-BILLING-NOTICES — what the shop was told, and what happened after --}}
+        <div style="{{ $card }};margin-top:16px">
+            <div style="{{ $label }}">Billing notices sent</div>
+            @php $notices = $this->notices(); @endphp
+            @forelse($notices as $n)
+                <div style="display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;padding:8px 0;border-top:1px solid rgba(127,127,127,.14);font-size:13px">
+                    <span style="min-width:96px;opacity:.6">{{ $n->created_at->format('M j, H:i') }}</span>
+                    <span style="font-weight:600;min-width:140px">{{ \App\Models\BillingNoticeTemplate::find($n->event)?->label ?? $n->event }}</span>
+                    <span style="opacity:.6">
+                        @if($n->alerted) alert @endif
+                        @if($n->alerted && $n->emailed) + @endif
+                        @if($n->emailed) email to {{ $n->email_to }} @endif
+                        @if(! $n->alerted && ! $n->emailed) not delivered @endif
+                    </span>
+                    <span style="margin-left:auto;opacity:.7">{{ $n->describeOutcome() }}</span>
+                </div>
+            @empty
+                <p style="{{ $body }}">Nothing sent yet. Notices go out when a balance builds with no card, when a charge fails, and as a receipt when one succeeds.</p>
+            @endforelse
+            <p style="{{ $body }};margin-top:10px;opacity:.55">
+                The wording, the channels and how often each one may repeat are on Platform → Billing notices.
+            </p>
+        </div>
+
         {{-- MARKER-BILLING-CONTROLS — the runs, and what can be done about them --}}
         <div style="{{ $card }};margin-top:16px">
             <div style="{{ $label }}">Charge runs</div>

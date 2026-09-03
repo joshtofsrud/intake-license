@@ -107,6 +107,9 @@ class BillingCardService
             'card_added_at'            => now(),
         ])->save();
 
+        // MARKER-BILLING-NOTICES — they did the thing we asked.
+        app(\App\Services\Billing\BillingNoticeService::class)->resolve($tenant, 'card_added');
+
         logger()->info('MARKER-BILLING-CARD card saved', [
             'tenant' => $tenant->id, 'brand' => $pm->card->brand ?? '?', 'last4' => $pm->card->last4 ?? '?',
         ]);

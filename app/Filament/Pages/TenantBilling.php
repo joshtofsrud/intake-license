@@ -174,6 +174,16 @@ class TenantBilling extends Page
         ];
     }
 
+    /** MARKER-BILLING-NOTICES — what we told them, and what they did next. */
+    public function notices()
+    {
+        $tenant = $this->tenant();
+        if (! $tenant) return collect();
+
+        return \App\Models\BillingNotice::where('tenant_id', $tenant->id)
+            ->orderByDesc('created_at')->limit(20)->get();
+    }
+
     public function runs()
     {
         $tenant = $this->tenant();

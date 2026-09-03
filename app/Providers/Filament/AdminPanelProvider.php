@@ -8,6 +8,7 @@ use App\Filament\Resources\DebugLogResource;
 use App\Filament\Resources\LicenseResource;
 use App\Filament\Resources\MarketingPageResource;
 use App\Filament\Resources\ChangelogEntryResource;
+use App\Filament\Resources\BillingNoticeTemplateResource; // MARKER-BILLING-NOTICES
 use App\Filament\Resources\TenantBillingDiscountResource; // MARKER-BILLING-DISCOUNTS
 use App\Filament\Resources\RoadmapEntryResource;
 use App\Filament\Resources\PlatformNavItemResource;
@@ -68,6 +69,7 @@ class AdminPanelProvider extends PanelProvider
                 PlatformNavItemResource::class, // patch 45 — nav editor
                 ChangelogEntryResource::class,
                 TenantBillingDiscountResource::class, // MARKER-BILLING-DISCOUNTS
+                BillingNoticeTemplateResource::class, // MARKER-BILLING-NOTICES
                 RoadmapEntryResource::class,
                 SiteSettingsResource::class, // patch 45 — global site settings
                 SectionLibraryResource::class, // patch 45 — section type catalog

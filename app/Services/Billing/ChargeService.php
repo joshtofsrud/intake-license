@@ -155,6 +155,14 @@ class ChargeService
 
                 $this->resumeCampaigns($tenant);
 
+                // MARKER-BILLING-NOTICES — receipt, and the open notice is answered.
+                $notices = app(\App\Services\Billing\BillingNoticeService::class);
+                $notices->notify($tenant, 'charged', [
+                    '{amount}'   => '$' . number_format($run->amount_cents / 100, 2),
+                    '{messages}' => number_format($run->message_count),
+                ], $run->id);
+                $notices->resolve($tenant, 'charged');
+
                 logger()->info('MARKER-BILLING-CHARGE charged', [
                     'tenant' => $tenant->id, 'run' => $run->id, 'cents' => $run->amount_cents,
                 ]);
@@ -264,6 +272,9 @@ class ChargeService
 
         $this->resumeCampaigns($run->tenant);
 
+        app(\App\Services\Billing\BillingNoticeService::class)  // MARKER-BILLING-NOTICES
+            ->resolve($run->tenant, 'written_off');
+
         logger()->info('MARKER-BILLING-CHARGE written off', [
             'run' => $run->id, 'cents' => $run->amount_cents, 'by' => $by, 'reason' => $reason,
         ]);
@@ -291,6 +302,11 @@ class ChargeService
         ])->save();
 
         $this->pauseCampaigns($run->tenant);
+
+        // MARKER-BILLING-NOTICES
+        app(\App\Services\Billing\BillingNoticeService::class)->notify($run->tenant, 'charge_failed', [
+            '{amount}' => '$' . number_format($run->amount_cents / 100, 2),
+        ], $run->id);
 
         logger()->warning('MARKER-BILLING-CHARGE failed', [
             'tenant' => $run->tenant_id, 'run' => $run->id, 'code' => $code, 'attempts' => $attempts,

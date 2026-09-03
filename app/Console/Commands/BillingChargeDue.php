@@ -50,6 +50,14 @@ class BillingChargeDue extends Command
 
             if ($balance < $threshold) continue;
 
+            // MARKER-BILLING-NOTICES — a balance over the threshold with no card
+            // is the moment worth telling them about; nothing else would.
+            if (! $tenant->stripe_payment_method_id && ! $this->option('dry')) {
+                app(\App\Services\Billing\BillingNoticeService::class)->notify($tenant, 'no_card', [
+                    '{balance}' => '$' . number_format($balance / 100, 2),
+                ]);
+            }
+
             if (! $charges->canCharge($tenant)) {
                 $this->line(sprintf('  %-28s $%s over threshold, but charging is off or no card',
                     $tenant->name, number_format($balance / 100, 2)));
