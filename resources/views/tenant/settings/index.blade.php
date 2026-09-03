@@ -1046,15 +1046,17 @@
        email is metered whether or not a shop has a subscription, and gifted
        shops could not reach this page at all. --}}
   <div class="set-section set-section--grid">
+    {{-- MARKER-SETTINGS-CARDS — same shape as the Rental / Notification /
+         Messaging cards below: content directly in .ia-card (there is no
+         .ia-card-body class), and a primary button, because --ghost is
+         deliberately borderless muted text and read as plain copy. --}}
     <div class="ia-card">
       <div class="ia-card-head"><span class="ia-card-title">Email charges</span></div>
-      <div class="ia-card-body">
-        <p style="font-size:13px;color:var(--ia-text-muted);line-height:1.55;margin:0 0 12px">
-          What campaigns and notifications have cost so far, the charge behind each send, and the
-          monthly limit that stops a campaign before it runs away.
-        </p>
-        <a href="{{ route('tenant.settings.email_charges') }}" class="ia-btn ia-btn--ghost">Email charges &amp; limit</a>
-      </div>
+      <p style="font-size:13px;opacity:.5;margin-bottom:12px;line-height:1.55">
+        What campaigns and notifications have cost so far, the charge behind each send, and the
+        monthly limit that stops a campaign before it runs away.
+      </p>
+      <a href="{{ route('tenant.settings.email_charges') }}" class="ia-btn ia-btn--primary">Open Email charges</a>
     </div>
   </div>
 
@@ -1093,8 +1095,11 @@
           Update your card, download invoices, or cancel your subscription through Stripe's secure portal.
         </p>
       @else
+        {{-- MARKER-SETTINGS-CARDS — a gifted shop has no Stripe customer on
+             purpose; telling them to contact support reads as a fault. --}}
         <p style="margin:0;color:var(--ia-text-muted);font-size:13px;line-height:1.55">
-          No billing account is connected to this tenant. Contact support to enable billing.
+          No subscription is attached to this shop — nothing is being charged for the platform itself.
+          Email is still metered as it sends; the Email charges card above shows what that has come to.
         </p>
       @endif
     </div>
