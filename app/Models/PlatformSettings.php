@@ -17,6 +17,8 @@ class PlatformSettings extends Model
         'mail_from_address',
         'mail_from_name',
         'email_rate',             // MARKER-EMAIL-LEDGER
+        'sms_rate',               // MARKER-SMS-METER
+        'mms_multiplier',         // MARKER-SMS-METER
         'email_broadcast_stream', // MARKER-EMAIL-LEDGER
         'alert_500_enabled',      // MARKER-500-ALERT
         'alert_500_email',        // MARKER-500-ALERT

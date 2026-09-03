@@ -11,7 +11,7 @@ class SmsService
      * Send an SMS to a phone number on behalf of a tenant.
      * Throws on provider error (so callers can log to the offer row).
      */
-    public static function send(Tenant $tenant, string $to, string $body): void
+    public static function send(Tenant $tenant, string $to, string $body, string $kind = 'other'): void
     {
         // MARKER-DEMO-COMMS — demo tenants never text anyone.
         if ($tenant->is_demo) {
@@ -32,6 +32,7 @@ class SmsService
         }
 
         if ($driver === 'null') {
+            // MARKER-SMS-METER — nothing left the building, so nothing is metered.
             Log::info('SmsService (null driver)', [
                 'tenant_id' => $tenant->id,
                 'to'        => $to,
@@ -41,9 +42,14 @@ class SmsService
         }
 
         if ($driver === 'twilio') {
+            // MARKER-SMS-METER — row first, then send: a crash mid-send leaves a
+            // pending row rather than a message nobody was charged for.
+            $entry = \App\Services\MessageLedger::begin($tenant, $kind, $to, $body);
             try {
                 self::sendViaTwilio($tenant, $to, $body);
+                \App\Services\MessageLedger::markSent($entry);
             } catch (\Throwable $e) {
+                \App\Services\MessageLedger::void($entry);
                 // Don't break the caller (booking flow, status update, etc.) on Twilio errors.
                 // Log it, return silently. Caller-side: assume "best effort" delivery.
                 Log::error('SmsService Twilio send failed', [

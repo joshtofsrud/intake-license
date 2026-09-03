@@ -18,6 +18,8 @@ class TenantEmailLedgerEntry extends Model
     protected $fillable = [
         'tenant_id', 'kind', 'template_key', 'to_email',
         'rate', 'stream', 'status', 'campaign_id',
+        // MARKER-SMS-METER — the SMS half of the same ledger
+        'channel', 'segments', 'to_phone',
     ];
 
     protected $casts = [
