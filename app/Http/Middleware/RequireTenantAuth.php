@@ -20,6 +20,15 @@ class RequireTenantAuth
     {
         $tenant = app('tenant');
 
+        // MARKER-TENANT-AUTH-NO-TENANT — reserved hosts (api, www, app…) never
+        // resolve a tenant, so everything below would read properties on null.
+        // There is no shop to sign into on a platform host; send them to the
+        // platform sign-in rather than throwing a 500 at someone who is
+        // already lost.
+        if (! $tenant) {
+            return redirect()->away('https://' . config('intake.domain', 'intake.works') . '/login');
+        }
+
         // Check authentication against the tenant guard
         if (! Auth::guard('tenant')->check()) {
             return redirect()->route('tenant.login', [
