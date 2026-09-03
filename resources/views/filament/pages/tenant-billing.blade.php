@@ -170,6 +170,23 @@
 
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px;margin-top:16px">
             <div style="{{ $card }}">
+                {{-- MARKER-BILLING-CARD --}}
+                <div style="{{ $label }}">Card on file</div>
+                @php $cardState = app(\App\Services\Billing\BillingCardService::class)->cardState($tenant); @endphp
+                @if($cardState['has_card'])
+                    <p style="{{ $body }}">
+                        {{ strtoupper($cardState['brand'] ?? 'Card') }} ···· {{ $cardState['last4'] }}
+                        @if($cardState['expires']) · expires {{ $cardState['expires'] }} @endif
+                    </p>
+                    @if($cardState['expiring'])
+                        <p style="{{ $body }};color:#F0C46A;margin-top:6px">Expires soon — a charge would fail.</p>
+                    @endif
+                @else
+                    <p style="{{ $body }}">No card saved. Usage accrues but cannot be settled.</p>
+                @endif
+            </div>
+
+            <div style="{{ $card }}">
                 <div style="{{ $label }}">Text messages</div>
                 <p style="{{ $body }}">{{ $this->smsOwnership() }}</p>
                 <p style="{{ $body }};margin-top:8px;opacity:.55">

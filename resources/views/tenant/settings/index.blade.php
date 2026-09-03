@@ -1202,6 +1202,7 @@
 
       <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
         <a href="{{ route('tenant.settings.email_charges') }}" class="ia-btn ia-btn--primary">See every charge</a>
+        <a href="{{ route('tenant.settings.billing_card') }}" class="ia-btn ia-btn--secondary">{{ $currentTenant->stripe_payment_method_id ? 'Payment method' : 'Add a card' }}</a>
         <a href="{{ route('tenant.feature_addons.index') }}" class="ia-btn ia-btn--secondary">Manage add-ons</a>
       </div>
     </div>

@@ -1160,6 +1160,12 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             // MARKER-EMAIL-BILLING
             Route::get( '/settings/email-charges',           [TenantControllers\Settings\EmailChargesController::class, 'index'])->name('settings.email_charges');
             Route::post('/settings/email-charges/cap',       [TenantControllers\Settings\EmailChargesController::class, 'updateCap'])->name('settings.email_charges.cap');
+            // MARKER-BILLING-CARD — saving a card for later, unattended charging.
+            Route::get( '/settings/billing-card',            [TenantControllers\Settings\BillingCardController::class, 'index'])->name('settings.billing_card');
+            Route::post('/settings/billing-card/intent',     [TenantControllers\Settings\BillingCardController::class, 'intent'])->name('settings.billing_card.intent');
+            Route::get( '/settings/billing-card/complete',   [TenantControllers\Settings\BillingCardController::class, 'complete'])->name('settings.billing_card.complete');
+            Route::post('/settings/billing-card/forget',     [TenantControllers\Settings\BillingCardController::class, 'forget'])->name('settings.billing_card.forget');
+            Route::post('/settings/billing-card/email',      [TenantControllers\Settings\BillingCardController::class, 'billingEmail'])->name('settings.billing_card.email');
             Route::post('/settings/messaging/search',        [TenantControllers\Settings\MessagingController::class, 'search'])->name('settings.messaging.search');
             Route::post('/settings/messaging/claim',         [TenantControllers\Settings\MessagingController::class, 'claim'])->name('settings.messaging.claim');
             Route::post('/settings/messaging/byo',           [TenantControllers\Settings\MessagingController::class, 'saveByo'])->name('settings.messaging.byo');
