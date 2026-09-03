@@ -22,6 +22,32 @@ class CustomerImporter
 
     public const CHUNK = 200;
 
+    /**
+     * MARKER-CUSTOMER-TAGS — the tag for this import, made once and remembered.
+     * firstOrCreate per row would be 13,000 lookups for one answer.
+     */
+    private ?string $tagIdMemo = null;
+    private bool $tagResolved = false;
+
+    private function importTagId(): ?string
+    {
+        if ($this->tagResolved) {
+            return $this->tagIdMemo;
+        }
+        $this->tagResolved = true;
+
+        $name = (string) (($this->import->options['tag_name'] ?? '') ?: '');
+        if (trim($name) === '') {
+            return $this->tagIdMemo = null;
+        }
+
+        $this->tagIdMemo = \App\Models\Tenant\TenantCustomerTag::findOrCreateFor(
+            $this->tenant->id, $name
+        )->id;
+
+        return $this->tagIdMemo;
+    }
+
     public function __construct(private Tenant $tenant, private TenantImport $import) {}
 
     private function fields(): array
@@ -310,6 +336,19 @@ class CustomerImporter
                                 $row['values'],
                                 ['tenant_id' => $this->tenant->id],
                             ));
+
+                            // MARKER-CUSTOMER-TAGS — stamp the tag as the row is
+                            // created, so a 13,000-row list is a segment from the
+                            // first row rather than something to backfill later.
+                            if ($tagId = $this->importTagId()) {
+                                \Illuminate\Support\Facades\DB::table('tenant_customer_tag_pivot')->insertOrIgnore([
+                                    'id'          => (string) \Illuminate\Support\Str::uuid(),
+                                    'tenant_id'   => $this->tenant->id,
+                                    'tag_id'      => $tagId,
+                                    'customer_id' => $made->id,
+                                    'created_at'  => now(),
+                                ]);
+                            }
                             \App\Models\Tenant\TenantImportRow::create([
                                 'import_id' => $this->import->id, 'tenant_id' => $this->tenant->id,
                                 'action' => 'created', 'record_type' => 'customer',

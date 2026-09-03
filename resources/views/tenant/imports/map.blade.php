@@ -52,6 +52,27 @@
 </div>
 @endif
 
+{{-- MARKER-CUSTOMER-TAGS — one label for the whole file, so the list stays
+     findable as a group afterwards. --}}
+@if($import->type === 'customers')
+<div class="ia-card" style="margin-bottom:14px">
+  <div class="cbody" style="padding:13px 16px">
+    <label style="display:block;font-size:11px;text-transform:uppercase;letter-spacing:.06em;opacity:.55;margin-bottom:6px">
+      Tag everyone this import creates
+    </label>
+    <input type="text" name="tag_name" form="mapping-form" maxlength="60"
+           value="{{ $import->options['tag_name'] ?? '' }}"
+           placeholder="e.g. The Bike Hub list"
+           style="width:100%;max-width:380px;background:var(--ia-input-bg);border:.5px solid var(--ia-border);border-radius:var(--ia-r-md);color:var(--ia-text);padding:8px 11px;font:inherit;font-size:13px">
+    <p style="font-size:12px;opacity:.55;line-height:1.55;margin-top:8px">
+      Optional. The tag goes on every customer this file creates, so you can find them again — filter the
+      customer list by it, or send to them from a campaign. Rows that match an existing customer aren't
+      tagged: those people didn't come from this file. A tag doesn't grant marketing permission.
+    </p>
+  </div>
+</div>
+@endif
+
 {{-- MARKER-IMPORT-PRESETS — preset bar. These are SEPARATE forms rendered
      after the main one and reached with the HTML5 form attribute: a nested
      form silently reroutes the outer submit, which has bitten us before. --}}
@@ -85,7 +106,7 @@
 </div>
 @endif
 
-<form method="POST" action="{{ route('tenant.imports.mapping', $import->id) }}">
+<form id="mapping-form" method="POST" action="{{ route('tenant.imports.mapping', $import->id) }}">
   @csrf
 
   <div class="ia-card">

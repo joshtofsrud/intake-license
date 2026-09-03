@@ -40,6 +40,8 @@ class AudienceService
         'customer_type'  => ['label' => 'Business or individual',  'type' => 'choice'],
         'consent_source' => ['label' => 'Opted in via',            'type' => 'choice'],
         'special_order'  => ['label' => 'Special order',           'type' => 'flag'],
+        // MARKER-CUSTOMER-TAGS — the reason imports stay findable.
+        'tag'            => ['label' => 'Tag',                      'type' => 'tag'],
     ];
 
     public const CHOICES = [
@@ -287,6 +289,15 @@ class AudienceService
             case 'special_order':
                 $op === 'is_not' ? $q->doesntHave('specialOrders') : $q->has('specialOrders');
                 break;
+
+            // MARKER-CUSTOMER-TAGS
+            case 'tag':
+                $tagId = (string) $rule['value'];
+                if ($tagId === '') break;
+                $op === 'is_not'
+                    ? $q->whereDoesntHave('tags', fn ($t) => $t->where('tenant_customer_tags.id', $tagId))
+                    : $q->whereHas('tags', fn ($t) => $t->where('tenant_customer_tags.id', $tagId));
+                break;
         }
     }
 
@@ -311,6 +322,10 @@ class AudienceService
             'customer_type' => (self::CHOICES['customer_type'][$v] ?? $v) . ($rule['op'] === 'is_not' ? ' (excluded)' : ''),
             'consent_source'=> 'opted in via ' . (self::CHOICES['consent_source'][$v] ?? $v),
             'special_order' => $rule['op'] === 'is_not' ? 'no special orders' : 'has a special order',
+            'tag'           => (function () use ($rule) {   // MARKER-CUSTOMER-TAGS
+                $name = \App\Models\Tenant\TenantCustomerTag::find($rule['value'])->name ?? 'a deleted tag';
+                return ($rule['op'] === 'is_not' ? 'not tagged ' : 'tagged ') . $name;
+            })(),
             default         => strtolower($label),
         };
     }

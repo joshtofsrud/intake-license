@@ -296,6 +296,10 @@ class ImportController extends Controller
                                        ? $request->input('stock_mode') : 'set',
                 'create_categories' => $request->boolean('create_categories'),
                 'create_vendors'    => $request->boolean('create_vendors'),
+                // MARKER-CUSTOMER-TAGS — tag every customer this import
+                // CREATES. Updates and skips are not tagged: those people
+                // did not come from this file.
+                'tag_name'          => trim((string) $request->input('tag_name', '')) ?: null,
             ]),
         ]);
 

@@ -74,6 +74,11 @@ class TenantCustomer extends Authenticatable
     }
 
     public function tenant(): BelongsTo       { return $this->belongsTo(Tenant::class); }
+    // MARKER-CUSTOMER-TAGS
+    public function tags(): \Illuminate\Database\Eloquent\Relations\BelongsToMany
+    {
+        return $this->belongsToMany(TenantCustomerTag::class, 'tenant_customer_tag_pivot', 'customer_id', 'tag_id')->withTimestamps();
+    }
     public function appointments(): HasMany   { return $this->hasMany(TenantAppointment::class, 'customer_id'); }
     public function specialOrders(): HasMany  { return $this->hasMany(TenantSpecialOrder::class, 'customer_id'); }
     public function notes(): HasMany          { return $this->hasMany(TenantCustomerNote::class, 'customer_id')->orderByDesc('created_at'); }
