@@ -160,6 +160,9 @@ class ChargeService
                 $notices->notify($tenant, 'charged', [
                     '{amount}'   => '$' . number_format($run->amount_cents / 100, 2),
                     '{messages}' => number_format($run->message_count),
+                    // MARKER-BILLING-RECEIPT — the receipt itself, not just a note about it
+                    '{link}'     => 'https://' . $tenant->subdomain . '.' . config('intake.domain')
+                                    . '/admin/settings/receipt/' . $run->id,
                 ], $run->id);
                 $notices->resolve($tenant, 'charged');
 

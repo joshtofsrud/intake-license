@@ -1166,6 +1166,8 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             Route::get( '/settings/billing-card/complete',   [TenantControllers\Settings\BillingCardController::class, 'complete'])->name('settings.billing_card.complete');
             Route::post('/settings/billing-card/forget',     [TenantControllers\Settings\BillingCardController::class, 'forget'])->name('settings.billing_card.forget');
             Route::post('/settings/billing-card/email',      [TenantControllers\Settings\BillingCardController::class, 'billingEmail'])->name('settings.billing_card.email');
+            // MARKER-BILLING-RECEIPT — a receipt a bookkeeper will accept.
+            Route::get('/settings/receipt/{run}', [TenantControllers\Settings\ChargeReceiptController::class, 'show'])->name('settings.charge_receipt');
             Route::post('/settings/messaging/search',        [TenantControllers\Settings\MessagingController::class, 'search'])->name('settings.messaging.search');
             Route::post('/settings/messaging/claim',         [TenantControllers\Settings\MessagingController::class, 'claim'])->name('settings.messaging.claim');
             Route::post('/settings/messaging/byo',           [TenantControllers\Settings\MessagingController::class, 'saveByo'])->name('settings.messaging.byo');

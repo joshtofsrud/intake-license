@@ -186,6 +186,36 @@
     @endif
   </div>
 
+  {{-- MARKER-BILLING-RECEIPT — what has actually been taken from the card --}}
+  @php
+    $runs = \App\Models\TenantChargeRun::where('tenant_id', $currentTenant->id)
+        ->whereIn('status', ['charged', 'refunded', 'written_off'])
+        ->orderByDesc('created_at')->limit(12)->get();
+  @endphp
+  @if($runs->isNotEmpty())
+    <div class="ia-card">
+      <div class="ia-card-head"><span class="ia-card-title">Card charges</span></div>
+      <table class="ec-table">
+        <thead><tr><th>Date</th><th>What</th><th class="r">Amount</th><th class="r">Receipt</th></tr></thead>
+        <tbody>
+          @foreach($runs as $run)
+            <tr>
+              <td style="color:var(--ia-text-dim)">{{ ($run->charged_at ?? $run->created_at)->format('M j, Y') }}</td>
+              <td>
+                {{ number_format($run->message_count) }} messages
+                @if($run->status === 'refunded')<span class="ec-sub2">refunded</span>@endif
+                @if($run->status === 'written_off')<span class="ec-sub2">written off — not charged</span>@endif
+              </td>
+              <td class="r">${{ number_format($run->amount_cents / 100, 2) }}</td>
+              <td class="r"><a href="{{ route('tenant.settings.charge_receipt', $run->id) }}" target="_blank" style="color:var(--ia-accent)">PDF</a></td>
+            </tr>
+          @endforeach
+        </tbody>
+      </table>
+      <p class="ec-note">Charges happen when the balance reaches your threshold, not on a fixed date.</p>
+    </div>
+  @endif
+
   {{-- HISTORY AND THE LIMIT — different questions, similar weight --}}
   <div class="ec-grid">
     <div class="ia-card">
