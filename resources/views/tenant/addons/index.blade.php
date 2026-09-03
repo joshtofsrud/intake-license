@@ -1,4 +1,4 @@
-@extends('layouts.tenant')
+@extends('layouts.tenant.app')
 
 @section('title', 'Add-ons')
 
