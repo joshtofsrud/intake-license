@@ -1,14 +1,14 @@
 <?php
 // MARKER-BILLING-DISCOUNTS
-namespace App\Filament\Resources\TenantDiscountResource\Pages;
+namespace App\Filament\Resources\TenantBillingDiscountResource\Pages;
 
-use App\Filament\Resources\TenantDiscountResource;
+use App\Filament\Resources\TenantBillingDiscountResource;
 use Filament\Resources\Pages\CreateRecord;
 use Illuminate\Support\Facades\Auth;
 
-class CreateTenantDiscount extends CreateRecord
+class CreateTenantBillingDiscount extends CreateRecord
 {
-    protected static string $resource = TenantDiscountResource::class;
+    protected static string $resource = TenantBillingDiscountResource::class;
 
     protected function mutateFormDataBeforeCreate(array $data): array
     {

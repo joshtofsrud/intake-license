@@ -2,7 +2,7 @@
 
 namespace App\Filament\Resources;
 
-use App\Filament\Resources\TenantDiscountResource\Pages;
+use App\Filament\Resources\TenantBillingDiscountResource\Pages;
 use App\Models\Tenant;
 use App\Models\TenantBillingDiscount;
 use Filament\Forms;
@@ -12,7 +12,7 @@ use Filament\Tables;
 use Filament\Tables\Table;
 
 // MARKER-BILLING-DISCOUNTS
-class TenantDiscountResource extends Resource
+class TenantBillingDiscountResource extends Resource
 {
     use \App\Support\GatedByAdminArea;
     protected static string $adminArea = 'tenants';
@@ -99,7 +99,7 @@ class TenantDiscountResource extends Resource
     public static function getPages(): array
     {
         return [
-            'index'  => Pages\ListTenantDiscounts::route('/'),
+            'index'  => Pages\ListTenantBillingDiscounts::route('/'),
             'create' => Pages\CreateTenantBillingDiscount::route('/create'),
             'edit'   => Pages\EditTenantBillingDiscount::route('/{record}/edit'),
         ];
