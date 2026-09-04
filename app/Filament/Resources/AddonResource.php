@@ -118,12 +118,12 @@ class AddonResource extends Resource
 
                 Tables\Columns\TextColumn::make('status')->badge()
                     ->formatStateUsing(fn ($state) => match ($state) {
-                        Addon::CLOSED  => 'Closed to new',
+                        Addon::DEPRECATED  => 'Closed to new',
                         Addon::RETIRED => 'Retired',
                         default        => 'Active',
                     })
                     ->color(fn ($state) => match ($state) {
-                        Addon::CLOSED  => 'warning',
+                        Addon::DEPRECATED  => 'warning',
                         Addon::RETIRED => 'danger',
                         default        => 'success',
                     }),

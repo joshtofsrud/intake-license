@@ -53,6 +53,9 @@ class FeatureAccessService
     public function detailedFeatureBreakdown(Tenant $tenant): Collection
     {
         $addons = DB::table('addons')
+            // MARKER-ADDON-TENANT-LINK — 'deprecated' is closed to new shops but
+            // still works for those who have it, so it belongs here. 'retired'
+            // is absent on purpose: that is what turns it off for everyone.
             ->whereIn('status', ['active', 'deprecated'])
             ->orderBy('sort_order')
             ->get();
@@ -106,7 +109,10 @@ class FeatureAccessService
                 'description' => $addon->description,
                 'tooltip' => $addon->tooltip,
                 'category' => $addon->category,
-                'price_cents' => $addon->price_cents,
+                // MARKER-ADDON-TENANT-LINK — the price master admin set, not the
+                // column. Otherwise a shop's own catalogue and its statement
+                // quote different figures for the same add-on.
+                'price_cents' => \App\Support\AddonPricing::for($addon->code),
                 'price_display_override' => $addon->price_display_override,
                 'billing_cadence' => $addon->billing_cadence,
                 'included_in_plans' => $includedPlans,

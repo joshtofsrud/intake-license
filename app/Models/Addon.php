@@ -70,14 +70,18 @@ class Addon extends Model
      *          taking a feature away from someone paying for it.
      * RETIRED  off for everyone; existing activations stop.
      */
-    public const ACTIVE  = 'active';
-    public const CLOSED  = 'closed';
-    public const RETIRED = 'retired';
+    // MARKER-ADDON-TENANT-LINK — 'deprecated' is the closed-to-new state,
+    // because FeatureAccessService already treats it as one. Inventing a
+    // synonym ('closed') meant an add-on matched neither branch of that query
+    // and vanished for shops already paying for it.
+    public const ACTIVE     = 'active';
+    public const DEPRECATED = 'deprecated';
+    public const RETIRED    = 'retired';
 
     public const STATUSES = [
-        self::ACTIVE  => 'Active — anyone can add it',
-        self::CLOSED  => 'Closed — no new shops, existing keep it',
-        self::RETIRED => 'Retired — off for everyone',
+        self::ACTIVE     => 'Active — anyone can add it',
+        self::DEPRECATED => 'Closed — no new shops, existing keep it and are still billed',
+        self::RETIRED    => 'Retired — off for everyone, existing activations stop',
     ];
 
     /** MARKER-ADDON-CATALOG — today's price, which may be newer than the column. */
@@ -90,6 +94,12 @@ class Addon extends Model
     public function isAvailableToNew(): bool
     {
         return $this->status === self::ACTIVE;
+    }
+
+    /** Closed to new shops, but still live and billed for those who have it. */
+    public function isClosedToNew(): bool
+    {
+        return $this->status === self::DEPRECATED;
     }
 
     /** Does a shop that already has it keep working? */
