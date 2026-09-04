@@ -3,7 +3,6 @@
 namespace App\Providers\Filament;
 
 use App\Filament\Resources\ActivationResource;
-use App\Filament\Resources\PlanPriceResource; // MARKER-PLAN-PRICING
 use App\Filament\Resources\CustomerResource;
 use App\Filament\Resources\DebugLogResource;
 use App\Filament\Resources\LicenseResource;
@@ -62,7 +61,6 @@ class AdminPanelProvider extends PanelProvider
             // an empty table changes nothing.
             ->navigationGroups(\App\Support\AdminNav::groupOrder())
             ->resources([
-                PlanPriceResource::class, // MARKER-PLAN-PRICING
                 SalesChannelResource::class, // MARKER-CAMPAIGNS-REGISTER
                 SalesAgencyResource::class, // MARKER-AGENCIES-REGISTER
                 SalesProspectResource::class, // MARKER-SALES-REGISTER

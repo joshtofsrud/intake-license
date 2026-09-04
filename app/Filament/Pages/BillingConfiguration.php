@@ -46,6 +46,12 @@ class BillingConfiguration extends Page implements HasForms
             'stripe_live_secret_key' => $settings->stripe_live_secret_key,
             'stripe_live_webhook_secret' => $settings->stripe_live_webhook_secret,
             'stripe_live_contrib_webhook_secret' => $settings->stripe_live_contrib_webhook_secret,
+            // MARKER-PRICING-ONE-PLACE
+            'plan_prices' => collect(\App\Support\PlanPricing::all())->map(fn ($cents, $tier) => [
+                'tier'           => $tier,
+                'dollars'        => number_format($cents / 100, 2, '.', ''),
+                'effective_from' => now()->toDateString(),
+            ])->values()->all(),
             'stripe_price_starter_monthly' => $settings->stripe_price_starter_monthly,
             'stripe_price_starter_annual' => $settings->stripe_price_starter_annual,
             'stripe_price_branded_monthly' => $settings->stripe_price_branded_monthly,
@@ -130,32 +136,67 @@ class BillingConfiguration extends Page implements HasForms
                             ->autocomplete('off'),
                     ]),
 
+                // MARKER-PRICING-ONE-PLACE — the list price, edited here rather
+                // than on a page of its own, so it sits with the Stripe IDs it
+                // labels and there is one place to change a number.
+                Section::make('Plan prices')
+                    ->description('What each plan costs per licensed location, per month. This is the list price — what a new shop is quoted and what the marketing page should say. It is not what anyone is charged: Stripe decides that from their subscription, and a shop\'s real cost is on their statement with any discount applied.')
+                    ->collapsible()
+                    ->schema([
+                        \Filament\Forms\Components\Repeater::make('plan_prices')
+                            ->label(false)
+                            ->schema([
+                                TextInput::make('tier')->label('Plan')->disabled()->dehydrated(),
+                                TextInput::make('dollars')->label('Per month')->numeric()->prefix('$')->required(),
+                                \Filament\Forms\Components\DatePicker::make('effective_from')
+                                    ->label('From')
+                                    ->helperText('Today applies it now; a future date waits.'),
+                            ])
+                            ->columns(3)
+                            ->addable(false)->deletable(false)->reorderable(false),
+
+                        \Filament\Forms\Components\Placeholder::make('scheduled')
+                            ->label('Scheduled changes')
+                            ->content(function () {
+                                $rows = \App\Support\PlanPricing::scheduled();
+                                if ($rows->isEmpty()) {
+                                    return 'None. A price with a future date would be listed here until it takes over.';
+                                }
+                                return $rows->map(fn ($r) =>
+                                    ucfirst($r->tier) . ' → ' . $r->dollars() . ' on ' . $r->effective_from->format('M j, Y')
+                                )->implode(' · ');
+                            }),
+                    ]),
+
                 Section::make('Plan tier price IDs')
-                    ->description('Create products + prices in Stripe dashboard, then paste the price IDs here. Prices are displayed only — they live in Stripe.')
+                    ->description('Create the products and prices in Stripe, then paste the IDs here. The amounts shown come from the section above; Stripe must be kept in step by hand — changing a price here does not change what Stripe charges.')
                     ->collapsible()
                     ->schema([
                         TextInput::make('stripe_price_starter_monthly')
-                            ->label('Starter — monthly ($29)')
+                            ->label(fn () => 'Starter — monthly ($' . number_format(\App\Support\PlanPricing::for('starter') / 100, 0) . ')')
                             ->placeholder('price_...')
                             ->autocomplete('off'),
                         TextInput::make('stripe_price_starter_annual')
-                            ->label('Starter — annual ($290, 2 mo free)')
+                            ->label('Starter — annual')
+                            ->helperText('Annual pricing is set in Stripe only — the table above is monthly.')
                             ->placeholder('price_...')
                             ->autocomplete('off'),
                         TextInput::make('stripe_price_branded_monthly')
-                            ->label('Branded — monthly ($79)')
+                            ->label(fn () => 'Branded — monthly ($' . number_format(\App\Support\PlanPricing::for('branded') / 100, 0) . ')')
                             ->placeholder('price_...')
                             ->autocomplete('off'),
                         TextInput::make('stripe_price_branded_annual')
-                            ->label('Branded — annual ($790, 2 mo free)')
+                            ->label('Branded — annual')
+                            ->helperText('Annual pricing is set in Stripe only — the table above is monthly.')
                             ->placeholder('price_...')
                             ->autocomplete('off'),
                         TextInput::make('stripe_price_scale_monthly')
-                            ->label('Scale — monthly ($199)')
+                            ->label(fn () => 'Scale — monthly ($' . number_format(\App\Support\PlanPricing::for('scale') / 100, 0) . ')')
                             ->placeholder('price_...')
                             ->autocomplete('off'),
                         TextInput::make('stripe_price_scale_annual')
-                            ->label('Scale — annual ($1990, 2 mo free)')
+                            ->label('Scale — annual')
+                            ->helperText('Annual pricing is set in Stripe only — the table above is monthly.')
                             ->placeholder('price_...')
                             ->autocomplete('off'),
                     ]),
@@ -193,6 +234,29 @@ class BillingConfiguration extends Page implements HasForms
 
     public function save(): void
     {
+        // MARKER-PRICING-ONE-PLACE save — a row per tier, dated. Writing a row
+        // rather than updating one keeps the history: a price that applied last
+        // month stays in the table, which is what makes a scheduled change and
+        // a later audit both possible.
+        foreach (($this->form->getState()['plan_prices'] ?? []) as $row) {
+            $tier = (string) ($row['tier'] ?? '');
+            if ($tier === '' || ! isset($row['dollars'])) continue;
+
+            $cents = (int) round(((float) $row['dollars']) * 100);
+            $from  = $row['effective_from'] ?: now()->toDateString();
+
+            if (\App\Support\PlanPricing::for($tier) === $cents
+                && \Carbon\Carbon::parse($from)->isToday()) {
+                continue;   // unchanged: do not litter the table with duplicates
+            }
+
+            \App\Models\PlanPrice::updateOrCreate(
+                ['tier' => $tier, 'effective_from' => $from],
+                ['price_cents' => $cents, 'created_by' => \Illuminate\Support\Facades\Auth::guard('web')->user()?->email],
+            );
+        }
+        \App\Support\PlanPricing::forget();
+
         $state = $this->form->getState();
 
         $settings = BillingSettings::current();
