@@ -117,7 +117,9 @@ class StatementService
             $out[] = [
                 'code'      => $row->addon_code,
                 'name'      => $addon->name,
-                'cents'     => ($included || ! $recurring) ? 0 : (int) $addon->price_cents,
+                // MARKER-ADDON-CATALOG — the dated price, not the column, so a price
+                //  change does not rewrite what an older statement said.
+                'cents'     => ($included || ! $recurring) ? 0 : \App\Support\AddonPricing::for($row->addon_code),
                 'note'      => $included ? 'included in ' . ucfirst((string) $tenant->plan_tier)
                               : (! $recurring ? 'one-time' : null),
                 'status'    => $row->status,

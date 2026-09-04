@@ -3,6 +3,7 @@
 namespace App\Providers\Filament;
 
 use App\Filament\Resources\ActivationResource;
+use App\Filament\Resources\AddonResource; // MARKER-ADDON-CATALOG
 use App\Filament\Resources\CustomerResource;
 use App\Filament\Resources\DebugLogResource;
 use App\Filament\Resources\LicenseResource;
@@ -61,6 +62,7 @@ class AdminPanelProvider extends PanelProvider
             // an empty table changes nothing.
             ->navigationGroups(\App\Support\AdminNav::groupOrder())
             ->resources([
+                AddonResource::class, // MARKER-ADDON-CATALOG
                 SalesChannelResource::class, // MARKER-CAMPAIGNS-REGISTER
                 SalesAgencyResource::class, // MARKER-AGENCIES-REGISTER
                 SalesProspectResource::class, // MARKER-SALES-REGISTER
