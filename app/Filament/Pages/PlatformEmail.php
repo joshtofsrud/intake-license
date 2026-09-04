@@ -41,6 +41,7 @@ class PlatformEmail extends Page implements HasForms
 
         $this->form->fill([
             'mail_from_address' => $settings->mail_from_address,
+            'support_email'      => $settings->support_email,   // MARKER-SUPPORT-EMAIL
             'mail_from_name'    => $settings->mail_from_name,
             // MARKER-MARKETING-ADMIN
             'email_broadcast_stream' => $settings->email_broadcast_stream,
@@ -72,9 +73,17 @@ class PlatformEmail extends Page implements HasForms
                         TextInput::make('mail_from_address')
                             ->label('From address')
                             ->email()
-                            ->placeholder('hello@intake.works')
+                            ->placeholder(\App\Models\PlatformSettings::fromAddress())
                             ->helperText('Must be a verified sender signature (or on a verified domain) in Postmark, or delivery will fail.')
                             ->autocomplete('off'),
+
+                        // MARKER-SUPPORT-EMAIL — shown to shops on error pages,
+                        // the locked page, the help page, and the add-on "ask us"
+                        // button. Blank uses the sending address above.
+                        TextInput::make('support_email')
+                            ->label('Support address')
+                            ->email()
+                            ->helperText('Where shops are told to write when something breaks. Leave blank to use the sending address.'),
                         TextInput::make('mail_from_name')
                             ->label('From name')
                             ->placeholder('Intake')

@@ -38,7 +38,7 @@ class WelcomeEmail extends Mailable
             // repo it resolved to the framework placeholder. Every welcome email
             // was addressed from example.com, which has no sender signature.
             from: new Address(
-                \App\Models\PlatformSettings::fromAddress() ?: 'hello@intake.works',
+                \App\Models\PlatformSettings::fromAddress() ?: \App\Models\PlatformSettings::fromAddress(),
                 \App\Models\PlatformSettings::fromName() ?: 'Intake'
             ),
             subject: 'Welcome to Intake — ' . $this->tenant->name,

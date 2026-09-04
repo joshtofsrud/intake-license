@@ -15,6 +15,7 @@ class PlatformSettings extends Model
 
     protected $fillable = [
         'mail_from_address',
+        'support_email',          // MARKER-SUPPORT-EMAIL
         'mail_from_name',
         'email_rate',             // MARKER-EMAIL-LEDGER
         'email_rate_marketing',   // MARKER-EMAIL-RATES
@@ -65,6 +66,21 @@ class PlatformSettings extends Model
      * The effective sender address: stored setting, else env/config, else
      * null when the only thing available is the framework placeholder.
      */
+
+    /**
+     * MARKER-SUPPORT-EMAIL — where a shop should write when something is wrong.
+     *
+     * Falls back to the platform sending address rather than a literal, because
+     * that is an address someone has actually configured. A support link that
+     * points at a mailbox nobody reads is worse than no link.
+     */
+    public static function supportEmail(): string
+    {
+        $stored = trim((string) (self::current()->support_email ?? ''));
+
+        return $stored !== '' ? $stored : self::fromAddress();
+    }
+
     public static function fromAddress(): ?string
     {
         $stored = trim((string) (self::current()->mail_from_address ?? ''));

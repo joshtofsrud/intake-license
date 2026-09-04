@@ -224,7 +224,7 @@
 
 <footer class="err-foot">
   @yield('footer_text', 'Need help? Email')
-  <a href="mailto:support@intake.works">support@intake.works</a>
+  <a href="mailto:{{ \App\Models\PlatformSettings::supportEmail() }}">{{ \App\Models\PlatformSettings::supportEmail() }}</a>
 </footer>
 
 </body>

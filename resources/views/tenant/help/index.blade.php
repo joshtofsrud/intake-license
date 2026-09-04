@@ -923,7 +923,7 @@
         <p>Items are loosely grouped by status: <strong>In progress</strong>, <strong>Up next</strong>, <strong>Considering</strong>. The timeline is fluid — priorities shift based on what shops actually ask for.</p>
         <div class="help-tip">
           <div class="help-tip-label">Have a request?</div>
-          Email feedback@intake.works any time. Real customer feedback drives the roadmap more than anything else.
+          Email {{ \App\Models\PlatformSettings::supportEmail() }} any time. Real customer feedback drives the roadmap more than anything else.
         </div>
       </div>
     </div>

@@ -40,14 +40,14 @@
       <p>Access to Intake has been paused by our team.
         @if($standing['reason'])<br><span style="color:#c9c9cf">{{ $standing['reason'] }}</span>@endif
       </p>
-      <div class="acts"><a class="btn primary" href="mailto:support@intake.works">Contact support</a></div>
+      <div class="acts"><a class="btn primary" href="mailto:{{ \App\Models\PlatformSettings::supportEmail() }}">Contact support</a></div>
     @else
       <h1>Your account is on hold</h1>
       <p>We weren't able to collect payment, and the grace period has passed. Update your card
          and everything comes straight back — your data, settings and history are untouched.</p>
       <div class="acts">
         <a class="btn primary" href="{{ route('tenant.billing.portal') }}">Update payment method</a>
-        <a class="btn" href="mailto:support@intake.works">Contact support</a>
+        <a class="btn" href="mailto:{{ \App\Models\PlatformSettings::supportEmail() }}">Contact support</a>
       </div>
     @endif
 
