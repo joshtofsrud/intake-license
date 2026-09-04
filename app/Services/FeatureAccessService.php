@@ -118,6 +118,8 @@ class FeatureAccessService
                 'included_in_plans' => $includedPlans,
                 'sort_order' => $addon->sort_order,
                 'is_self_serve' => (bool) $addon->is_self_serve,
+                // MARKER-ADDON-VISIBILITY — what the shop may see and do.
+                'visibility'    => $addon->visibility ?? 'self_serve',
                 'is_new' => (bool) $addon->is_new,
                 'min_plan_tier' => $addon->min_plan_tier ?? null, // MARKER-PATCH-217
                 'tier_locked' => $tierLocked,                     // MARKER-PATCH-217

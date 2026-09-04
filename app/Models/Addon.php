@@ -31,6 +31,7 @@ class Addon extends Model
         'sort_order',
         'status',
         'is_self_serve',
+        'visibility', // MARKER-ADDON-VISIBILITY
         'is_new',
     ];
 
@@ -77,6 +78,29 @@ class Addon extends Model
     public const ACTIVE     = 'active';
     public const DEPRECATED = 'deprecated';
     public const RETIRED    = 'retired';
+
+    /**
+     * MARKER-ADDON-VISIBILITY — what a shop sees.
+     *
+     * SELF_SERVE  visible, and they can switch it on.
+     * ASK         visible, but the button starts a conversation instead. For
+     *             anything that needs setup, a contract, or a chat about price.
+     * HIDDEN      not shown. You enable it for them.
+     */
+    public const VIS_SELF_SERVE = 'self_serve';
+    public const VIS_ASK        = 'ask';
+    public const VIS_HIDDEN     = 'hidden';
+
+    public const VISIBILITIES = [
+        self::VIS_SELF_SERVE => 'Shops can add it themselves',
+        self::VIS_ASK        => 'Shops can see it and ask about it',
+        self::VIS_HIDDEN     => 'Shops cannot see it — you enable it',
+    ];
+
+    public function isVisibleToShops(): bool
+    {
+        return ($this->visibility ?? self::VIS_SELF_SERVE) !== self::VIS_HIDDEN;
+    }
 
     public const STATUSES = [
         self::ACTIVE     => 'Active — anyone can add it',

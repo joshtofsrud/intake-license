@@ -85,8 +85,19 @@ class AddonResource extends Resource
                         ->required()
                         ->helperText('Closed keeps existing shops working and billed; retired turns it off for them too.'),
 
+                    // MARKER-ADDON-VISIBILITY — what shops see, on the add-on.
+                    Forms\Components\Select::make('visibility')
+                        ->label('Shops see it as')
+                        ->options(Addon::VISIBILITIES)
+                        ->default(Addon::VIS_SELF_SERVE)
+                        ->required()
+                        ->live()
+                        ->helperText('Hidden means they cannot discover it at all — worth avoiding for anything you would like them to buy.'),
+
                     Forms\Components\Toggle::make('is_self_serve')
-                        ->label('A shop can turn it on themselves'),
+                        ->label('A shop can turn it on themselves')
+                        ->visible(fn ($get) => $get('visibility') === Addon::VIS_SELF_SERVE)
+                        ->helperText('Off means the tile shows but the button asks you instead.'),
 
                     Forms\Components\TextInput::make('sort_order')->numeric()->default(0),
                 ])->columns(2),
@@ -115,6 +126,18 @@ class AddonResource extends Resource
                         ->where('addon_code', $r->code)
                         ->whereIn('status', ['active', 'canceling', 'failed_payment'])
                         ->count()),
+
+                Tables\Columns\TextColumn::make('visibility')->label('Shops see')->badge()
+                    ->formatStateUsing(fn ($state) => match ($state) {
+                        Addon::VIS_ASK    => 'Can ask',
+                        Addon::VIS_HIDDEN => 'Hidden',
+                        default           => 'Can add',
+                    })
+                    ->color(fn ($state) => match ($state) {
+                        Addon::VIS_HIDDEN => 'gray',
+                        Addon::VIS_ASK    => 'warning',
+                        default           => 'success',
+                    }),
 
                 Tables\Columns\TextColumn::make('status')->badge()
                     ->formatStateUsing(fn ($state) => match ($state) {

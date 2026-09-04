@@ -64,6 +64,11 @@
                     @foreach($grouped[$catKey] as $feature)
                         @php
                             $isActive = $feature->has_access;
+                            {{-- MARKER-ADDON-VISIBILITY --}}
+
+                            $askOnly    = ($feature->visibility ?? 'self_serve') === 'ask';
+
+                            $tierLocked = (bool) ($feature->tier_locked ?? false);
                             $isIncluded = $feature->source === 'plan_tier' && ! $feature->is_suppressed;
                             $isCanceling = $feature->tenant_addon_status === 'canceling';
                             $isFailed = $feature->tenant_addon_status === 'failed_payment';
@@ -134,6 +139,18 @@
                                     <span class="addon-card__state addon-card__state--suppressed">
                                         Contact support to enable
                                     </span>
+                                @elseif($tierLocked)
+                                    {{-- MARKER-ADDON-VISIBILITY — say which plan
+                                         it needs. Hiding it entirely means the
+                                         shop cannot want what it cannot see. --}}
+                                    <span class="addon-card__state addon-card__state--locked">
+                                        Available on {{ ucfirst($feature->min_plan_tier) }}
+                                    </span>
+                                @elseif($askOnly)
+                                    <a class="addon-card__btn addon-card__btn--ask"
+                                       href="mailto:{{ config('intake.support_email', 'hello@intake.works') }}?subject={{ rawurlencode('About the ' . $feature->name . ' add-on') }}">
+                                        Ask us about it
+                                    </a>
                                 @else
                                     <button type="button" class="addon-card__btn addon-card__btn--add" data-action="add">
                                         Add now
