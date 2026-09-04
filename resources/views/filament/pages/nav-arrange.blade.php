@@ -38,8 +38,8 @@
                 <span style="{{ $label }}">{{ $groupName }}</span>
                 <span style="font-size:11px;opacity:.4">{{ count($items) }}</span>
                 <span style="margin-left:auto;display:flex;gap:4px">
-                    <x-filament::button size="xs" color="gray" wire:click="moveGroupUp(@js($groupName))">↑</x-filament::button>
-                    <x-filament::button size="xs" color="gray" wire:click="moveGroupDown(@js($groupName))">↓</x-filament::button>
+                    <x-filament::button size="xs" color="gray" wire:click="moveGroupUp('{{ $this->groupKey($groupName) }}')">↑</x-filament::button>
+                    <x-filament::button size="xs" color="gray" wire:click="moveGroupDown('{{ $this->groupKey($groupName) }}')">↓</x-filament::button>
                 </span>
             </div>
 
@@ -47,9 +47,9 @@
                 <div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-top:1px solid rgba(127,127,127,.14);flex-wrap:wrap">
                     <span style="display:flex;gap:3px">
                         <x-filament::button size="xs" color="gray" :disabled="$i === 0"
-                            wire:click="moveUp(@js($item['key']), @js($groupName))">↑</x-filament::button>
+                            wire:click="moveUp('{{ $item['key'] }}', '{{ $this->groupKey($groupName) }}')">↑</x-filament::button>
                         <x-filament::button size="xs" color="gray" :disabled="$i === count($items) - 1"
-                            wire:click="moveDown(@js($item['key']), @js($groupName))">↓</x-filament::button>
+                            wire:click="moveDown('{{ $item['key'] }}', '{{ $this->groupKey($groupName) }}')">↓</x-filament::button>
                     </span>
 
                     {{-- MARKER-NAV-ARRANGE — the label edits in place. House rule:
@@ -57,7 +57,7 @@
                          one. Enter or clicking away saves; empty restores the
                          page's own name. --}}
                     <input value="{{ $item['label'] }}"
-                           x-on:blur="$wire.rename(@js($item['key']), $event.target.value)"
+                           x-on:blur="$wire.rename('{{ $item['key'] }}', $event.target.value)"
                            x-on:keydown.enter="$event.target.blur()"
                            class="rounded-lg border-gray-300 dark:bg-white/5 dark:border-white/10 text-sm"
                            style="min-width:190px;font-size:13.5px;padding:3px 8px"
@@ -68,16 +68,18 @@
 
                     <span style="opacity:.35;font-size:11.5px;min-width:150px">{{ $item['short'] }}</span>
 
-                    <select x-on:change="$wire.setGroup(@js($item['key']), $event.target.value)"
+                    <select x-on:change="$wire.setGroup('{{ $item['key'] }}', $event.target.value)"
                             class="rounded-lg border-gray-300 dark:bg-white/5 dark:border-white/10 text-sm"
                             style="font-size:12px;padding:3px 6px">
                         @foreach(array_unique(array_merge($groups, ['(top level)'])) as $g)
-                            <option value="{{ $g }}" @selected($g === $groupName)>{{ $g }}</option>
+                            {{-- MARKER-NAV-ARRANGE-BLADE — value is a key, not a name --}}
+                            <option value="{{ $g === '(top level)' ? 'top' : $this->groupKey($g) }}"
+                                    @selected($g === $groupName)>{{ $g }}</option>
                         @endforeach
                     </select>
 
                     <span style="margin-left:auto;display:flex;gap:6px">
-                        <x-filament::button size="xs" color="gray" wire:click="hide(@js($item['key']))">
+                        <x-filament::button size="xs" color="gray" wire:click="hide('{{ $item['key'] }}')">
                             Hide
                         </x-filament::button>
                     </span>
@@ -96,7 +98,7 @@
                 <span style="opacity:.35;font-size:11.5px">{{ $item['short'] }}</span>
                 <span style="opacity:.45;font-size:11.5px">would sit in {{ $item['group'] }}</span>
                 <span style="margin-left:auto">
-                    <x-filament::button size="xs" wire:click="unhide(@js($item['key']))">Show again</x-filament::button>
+                    <x-filament::button size="xs" wire:click="unhide('{{ $item['key'] }}')">Show again</x-filament::button>
                 </span>
             </div>
         @empty

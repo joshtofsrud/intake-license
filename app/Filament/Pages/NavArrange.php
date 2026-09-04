@@ -171,6 +171,26 @@ class NavArrange extends Page
 
     // ---- changes ----------------------------------------------------
 
+    /**
+     * MARKER-NAV-ARRANGE-BLADE — a group's key. Group names contain spaces and
+     * ampersands ("Site & content"), which is one more thing that can go wrong
+     * inside an attribute. A hex key cannot.
+     */
+    public static function groupKey(string $name): string
+    {
+        return substr(md5('group:' . $name), 0, 12);
+    }
+
+    private function groupFromKey(string $key): ?string
+    {
+        foreach ($this->groupNames() as $name) {
+            if (self::groupKey($name) === $key) {
+                return $name;
+            }
+        }
+        return null;
+    }
+
     /** MARKER-NAV-ARRANGE-KEYS — key back to class, from what is registered. */
     private function classFor(string $key): ?string
     {
@@ -206,14 +226,18 @@ class NavArrange extends Page
         AdminNav::forget();
     }
 
-    public function moveUp(string $key, string $group): void
+    public function moveUp(string $key, string $groupKey): void
     {
-        if ($class = $this->classFor($key)) { $this->nudge($class, $group, -1); }
+        $class = $this->classFor($key);
+        $group = $this->groupFromKey($groupKey);
+        if ($class && $group !== null) { $this->nudge($class, $group, -1); }
     }
 
-    public function moveDown(string $key, string $group): void
+    public function moveDown(string $key, string $groupKey): void
     {
-        if ($class = $this->classFor($key)) { $this->nudge($class, $group, 1); }
+        $class = $this->classFor($key);
+        $group = $this->groupFromKey($groupKey);
+        if ($class && $group !== null) { $this->nudge($class, $group, 1); }
     }
 
     private function nudge(string $class, string $group, int $dir): void
@@ -239,10 +263,11 @@ class NavArrange extends Page
         AdminNav::forget();
     }
 
-    public function setGroup(string $key, string $group): void
+    public function setGroup(string $key, string $groupKey): void
     {
         $class = $this->classFor($key);
-        if (! $class) return;
+        $group = $groupKey === 'top' ? '(top level)' : $this->groupFromKey($groupKey);
+        if (! $class || $group === null) return;
 
         $this->rowFor($class)->update([
             'group' => $group === '(top level)' ? null : $group,
@@ -291,8 +316,15 @@ class NavArrange extends Page
         Notification::make()->success()->title('Back in the sidebar')->send();
     }
 
-    public function moveGroupUp(string $name): void   { $this->nudgeGroup($name, -1); }
-    public function moveGroupDown(string $name): void { $this->nudgeGroup($name, 1); }
+    public function moveGroupUp(string $groupKey): void
+    {
+        if ($n = $this->groupFromKey($groupKey)) { $this->nudgeGroup($n, -1); }
+    }
+
+    public function moveGroupDown(string $groupKey): void
+    {
+        if ($n = $this->groupFromKey($groupKey)) { $this->nudgeGroup($n, 1); }
+    }
 
     private function nudgeGroup(string $name, int $dir): void
     {
