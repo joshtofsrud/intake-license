@@ -64,7 +64,6 @@
                     @foreach($grouped[$catKey] as $feature)
                         @php
                             $isActive = $feature->has_access;
-                            {{-- MARKER-ADDON-VISIBILITY --}}
 
                             $askOnly    = ($feature->visibility ?? 'self_serve') === 'ask';
 
