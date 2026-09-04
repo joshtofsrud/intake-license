@@ -46,6 +46,32 @@ class TenantEmailSuppression extends Model
      * Is the given email suppressed for the given tenant?
      * Returns true if EITHER a tenant-scoped or platform-wide suppression matches.
      */
+    /**
+     * MARKER-WAITLIST-SUPPRESSION — suppressed for reasons that survive consent.
+     *
+     * A bounce means the mailbox is not there; a complaint means they told the
+     * provider this shop's mail was spam. Neither is undone by someone asking
+     * to be notified about something. An UNSUBSCRIBE is different — it is a
+     * marketing preference, and it does not cancel a request they made — so it
+     * is not counted here.
+     *
+     * Use this for mail someone actively asked for. Use isSuppressed() for
+     * anything they did not.
+     */
+    public static function isUndeliverable(?string $tenantId, string $email): bool
+    {
+        $email = strtolower(trim($email));
+        if ($email === '') return false;
+
+        return self::where('email', $email)
+            ->whereIn('reason', ['bounce', 'complaint'])
+            ->where(function ($q) use ($tenantId) {
+                $q->whereNull('tenant_id')
+                  ->orWhere('tenant_id', $tenantId);
+            })
+            ->exists();
+    }
+
     public static function isSuppressed(?string $tenantId, string $email): bool
     {
         $email = strtolower(trim($email));

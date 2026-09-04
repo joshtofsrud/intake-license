@@ -41,7 +41,18 @@ class SendWaitlistOfferNotificationJob implements ShouldQueue
         $emailError = null;
         $smsError   = null;
 
-        if ($settings->notify_email && $customer->email) {
+        // MARKER-WAITLIST-SUPPRESSION — a waitlist entry is a request to be
+        // told, so a marketing unsubscribe does not cancel it. A bounce or a
+        // complaint does: one is a mailbox that is not there, the other is
+        // someone who reported this shop for spam.
+        if ($settings->notify_email && $customer->email
+            && \App\Models\Tenant\TenantEmailSuppression::isUndeliverable($tenant->id, $customer->email)) {
+            Log::info('Waitlist email skipped — address bounced or complained', [
+                'offer_id' => $offer->id,
+                'tenant'   => $tenant->id,
+            ]);
+            $emailError = 'suppressed: undeliverable';
+        } elseif ($settings->notify_email && $customer->email) {
             // MARKER-LEDGER-STRAGGLERS
             $ledger = \App\Services\EmailLedger::begin($tenant->id, 'reminder', $customer->email, 'waitlist_offer');
             try {
