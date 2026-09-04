@@ -82,7 +82,7 @@ class MarketingFunnelController extends Controller
      * MARKER-MKTSID -- anonymous session id, same shape as the tenant
      * tracker's resolveSession().
      *
-     * The client id wins when present and well-formed: several first-visit
+     * The COOKIE wins when present and well-formed (see the body). Several first-visit
      * beacons can be in flight before any Set-Cookie lands, and preferring
      * the cookie would mint a separate id for each of them (the bug the
      * tenant side fixed in MARKER-FUNNEL-SESSION-FIX). The regex allows 12
@@ -93,14 +93,27 @@ class MarketingFunnelController extends Controller
      */
     protected function resolveSession(Request $request): string
     {
-        $fromPayload = (string) $request->input('session_id', '');
-        if ($fromPayload !== '' && preg_match('/^[a-zA-Z0-9]{12,64}$/', $fromPayload)) {
-            return $fromPayload;
-        }
-
+        // MARKER-TRAFFIC-IDENTITY -- COOKIE FIRST, then payload, then random.
+        //
+        // The old order put the payload first, which made "visitors" mean
+        // "sessions": sessionStorage dies with the tab, so the same person
+        // returning tomorrow arrived with a brand-new id even though their
+        // 90-day cookie was sitting right there.
+        //
+        // The comment below used to warn that preferring the cookie would mint
+        // an id per in-flight beacon on a first visit. That is only true if the
+        // cookie-miss case falls through to random() -- with the payload as the
+        // middle step, those first-visit beacons still share the client's id,
+        // because no cookie exists yet to prefer. Both problems are covered by
+        // this order, and neither is by the other one.
         $cookie = (string) $request->cookie('mkt_sid', '');
         if ($cookie !== '' && preg_match('/^[a-zA-Z0-9]{12,64}$/', $cookie)) {
             return $cookie;
+        }
+
+        $fromPayload = (string) $request->input('session_id', '');
+        if ($fromPayload !== '' && preg_match('/^[a-zA-Z0-9]{12,64}$/', $fromPayload)) {
+            return $fromPayload;
         }
 
         return (string) Str::random(40);

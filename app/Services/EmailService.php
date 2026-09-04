@@ -298,6 +298,49 @@ class EmailService
     // ----------------------------------------------------------------
     // Render a template body as full HTML email
     // ----------------------------------------------------------------
+    /**
+     * MARKER-TRAFFIC-IDENTITY -- tag links that point at our own marketing site
+     * so campaign clicks are attributable.
+     *
+     * Postmark rewrites every link through its click tracker, so by the time
+     * someone lands, document.referrer is Postmark's domain or nothing at all,
+     * and the visit reads as Direct. A utm_source survives that redirect
+     * because it travels in the destination URL, and the tracker already reads
+     * utm_source, utm_medium and utm_campaign.
+     *
+     * Only OUR domain is touched: rewriting a shop's own links, or a supplier's,
+     * would be meddling with someone else's analytics.
+     */
+    public function tagMarketingLinks(string $html, ?string $campaignName = null): string
+    {
+        $domain = (string) config('intake.domain', 'intake.works');
+
+        return preg_replace_callback(
+            '/href="(https?:\/\/[^"]+)"/i',
+            function ($m) use ($domain, $campaignName) {
+                $url = $m[1];
+
+                $host = parse_url($url, PHP_URL_HOST) ?: '';
+                if ($host === '' || ! str_ends_with(strtolower($host), strtolower($domain))) {
+                    return $m[0];   // not ours; leave it alone
+                }
+                if (str_contains($url, 'utm_source=')) {
+                    return $m[0];   // already tagged by hand
+                }
+
+                $params = ['utm_source' => 'email', 'utm_medium' => 'campaign'];
+                if ($campaignName) {
+                    $params['utm_campaign'] = \Illuminate\Support\Str::slug(mb_substr($campaignName, 0, 60));
+                }
+
+                $sep = str_contains($url, '?') ? '&' : '?';
+
+                return 'href="' . $url . $sep . http_build_query($params) . '"';
+            },
+            $html
+        ) ?? $html;
+    }
+
     public function renderHtml(string $body, bool $withHeader = true): string
     {
         // MARKER-CAMPAIGN-HDR — a campaign can drop the shop header so it can
@@ -592,6 +635,9 @@ HTML;
             . '<a href="' . e($unsubscribeUrl) . '" style="color:#8a8a8e">Unsubscribe</a> from marketing email — '
             . 'receipts and booking confirmations are unaffected.</p>';
 
+        // MARKER-TRAFFIC-IDENTITY — tag before the chrome wraps it, so the
+        // footer's own links are left alone.
+        $bodyHtml = $this->tagMarketingLinks($bodyHtml, $campaign->name ?? null);
         $html = $this->renderHtml($bodyHtml . $footer, $withHeader);
 
         $fromName  = $this->tenant->emailFromName();
