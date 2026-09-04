@@ -26,15 +26,36 @@
     </header>
 
     @php
+        // MARKER-ADDON-CATEGORIES — labels are a nicety, not the list of what
+        // exists. This used to loop over these keys alone, so an add-on in any
+        // other category (retail, as it turned out) was never drawn and nothing
+        // said so.
         $categoryLabels = [
             'communication' => 'Communication',
-            'operations' => 'Operations',
-            'feature' => 'Tier features',
-            'onboarding' => 'One-time services',
+            'operations'    => 'Operations',
+            'retail'        => 'Retail',
+            'feature'       => 'Tier features',
+            'onboarding'    => 'One-time services',
         ];
+
+        // Known categories first, in the order above; anything the database has
+        // that is not listed follows, titleised, rather than vanishing.
+        $orderedCategories = collect(array_keys($categoryLabels))
+            ->filter(fn ($k) => isset($grouped[$k]) && $grouped[$k]->count())
+            ->merge(
+                collect($grouped)->keys()
+                    ->reject(fn ($k) => array_key_exists($k, $categoryLabels))
+                    ->filter(fn ($k) => $grouped[$k]->count())
+            )
+            ->unique()
+            ->values();
     @endphp
 
-    @foreach($categoryLabels as $catKey => $catLabel)
+    @foreach($orderedCategories as $catKey)
+        @php
+            $catLabel = $categoryLabels[$catKey]
+                ?? \Illuminate\Support\Str::of((string) $catKey)->replace(['_', '-'], ' ')->title()->toString();
+        @endphp
         @if(isset($grouped[$catKey]) && $grouped[$catKey]->count())
             <section class="addons-section" data-category="{{ $catKey }}">
                 <h2 class="addons-section__title">{{ $catLabel }}</h2>
