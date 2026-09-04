@@ -43,7 +43,9 @@
 @media(max-width:900px){.mt-two-up{grid-template-columns:1fr}}
 .mt-card{border:1px solid rgba(127,127,127,.22);border-radius:12px;padding:14px 16px}
 .mt-bar-row{position:relative;display:flex;align-items:center;gap:10px;padding:7px 8px;font-size:13px}
-.mt-bar{position:absolute;left:0;top:2px;bottom:2px;background:rgba(139,124,246,.16);border-radius:6px}
+/* MARKER-TRAFFIC-V3-FIX — .mt-bar is the PRESETS toolbar; reusing the name
+   here as an absolutely-positioned fill pulled that toolbar out of flow. */
+.mt-fill{position:absolute;left:0;top:2px;bottom:2px;background:rgba(139,124,246,.16);border-radius:6px}
 .mt-bar-label{position:relative;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .mt-bar-n{position:relative;margin-left:auto;opacity:.6;font-variant-numeric:tabular-nums}
 /* MARKER-TRAFFIC-V2 */
@@ -240,8 +242,10 @@
     @php $srcMax = collect($sources)->max('visits') ?: 1; @endphp
     @forelse($sources as $src)
       <div class="mt-bar-row">
-        <span class="mt-bar" style="width:{{ max(6, round((($src['visits'] ?? 0) / $srcMax) * 100)) }}%"></span>
-        <span class="mt-bar-label">{{ $src['source'] ?? $src['label'] ?? 'unknown' }}</span>
+        <span class="mt-fill" style="width:{{ max(6, round((($src['visits'] ?? 0) / $srcMax) * 100)) }}%"></span>
+        <span class="mt-bar-label">{{-- MARKER-TRAFFIC-V3-FIX — topSources() emits 'name'; reading 'source'
+             made every row read "unknown". --}}
+        {{ $src['name'] ?: '(direct)' }}</span>
         <span class="mt-bar-n">{{ number_format($src['visits'] ?? 0) }}</span>
       </div>
     @empty
@@ -254,7 +258,7 @@
     @php $pgMax = collect($pages)->max('views') ?: 1; @endphp
     @forelse($pages as $pg)
       <div class="mt-bar-row">
-        <span class="mt-bar" style="width:{{ max(6, round((($pg['views'] ?? 0) / $pgMax) * 100)) }}%"></span>
+        <span class="mt-fill" style="width:{{ max(6, round((($pg['views'] ?? 0) / $pgMax) * 100)) }}%"></span>
         <span class="mt-bar-label">{{ $pg['path'] ?? '/' }}</span>
         <span class="mt-bar-n">{{ number_format($pg['views'] ?? 0) }}</span>
       </div>
@@ -277,8 +281,7 @@
 @forelse($intent['industry_pages'] as $path => $sessions)
       <div class="mt-row"><span>{{ $path }}</span><b>{{ number_format($sessions) }}</b></div>
     @empty
-      <div class="mt-empty">No industry page visits in this window</div>
-    @endforelse
+@endforelse
   </div>
 </div>
 
