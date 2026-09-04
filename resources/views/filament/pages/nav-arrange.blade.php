@@ -47,9 +47,9 @@
                 <div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-top:1px solid rgba(127,127,127,.14);flex-wrap:wrap">
                     <span style="display:flex;gap:3px">
                         <x-filament::button size="xs" color="gray" :disabled="$i === 0"
-                            wire:click="moveUp(@js($item['class']), @js($groupName))">↑</x-filament::button>
+                            wire:click="moveUp(@js($item['key']), @js($groupName))">↑</x-filament::button>
                         <x-filament::button size="xs" color="gray" :disabled="$i === count($items) - 1"
-                            wire:click="moveDown(@js($item['class']), @js($groupName))">↓</x-filament::button>
+                            wire:click="moveDown(@js($item['key']), @js($groupName))">↓</x-filament::button>
                     </span>
 
                     {{-- MARKER-NAV-ARRANGE — the label edits in place. House rule:
@@ -57,7 +57,8 @@
                          one. Enter or clicking away saves; empty restores the
                          page's own name. --}}
                     <input value="{{ $item['label'] }}"
-                           wire:change="rename(@js($item['class']), $event.target.value)"
+                           x-on:blur="$wire.rename(@js($item['key']), $event.target.value)"
+                           x-on:keydown.enter="$event.target.blur()"
                            class="rounded-lg border-gray-300 dark:bg-white/5 dark:border-white/10 text-sm"
                            style="min-width:190px;font-size:13.5px;padding:3px 8px"
                            title="{{ $item['renamed'] ? 'Originally ' . $item['declared'] . ' — clear to restore' : 'Type a new name, or leave blank to keep this one' }}">
@@ -67,7 +68,7 @@
 
                     <span style="opacity:.35;font-size:11.5px;min-width:150px">{{ $item['short'] }}</span>
 
-                    <select wire:change="setGroup(@js($item['class']), $event.target.value)"
+                    <select x-on:change="$wire.setGroup(@js($item['key']), $event.target.value)"
                             class="rounded-lg border-gray-300 dark:bg-white/5 dark:border-white/10 text-sm"
                             style="font-size:12px;padding:3px 6px">
                         @foreach(array_unique(array_merge($groups, ['(top level)'])) as $g)
@@ -76,7 +77,7 @@
                     </select>
 
                     <span style="margin-left:auto;display:flex;gap:6px">
-                        <x-filament::button size="xs" color="gray" wire:click="hide(@js($item['class']))">
+                        <x-filament::button size="xs" color="gray" wire:click="hide(@js($item['key']))">
                             Hide
                         </x-filament::button>
                     </span>
@@ -95,7 +96,7 @@
                 <span style="opacity:.35;font-size:11.5px">{{ $item['short'] }}</span>
                 <span style="opacity:.45;font-size:11.5px">would sit in {{ $item['group'] }}</span>
                 <span style="margin-left:auto">
-                    <x-filament::button size="xs" wire:click="unhide(@js($item['class']))">Show again</x-filament::button>
+                    <x-filament::button size="xs" wire:click="unhide(@js($item['key']))">Show again</x-filament::button>
                 </span>
             </div>
         @empty

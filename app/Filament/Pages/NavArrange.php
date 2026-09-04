@@ -112,6 +112,9 @@ class NavArrange extends Page
                 'renamed'   => (bool) ($row && $row->label),
                 'moved'     => (bool) ($row && $row->group),
                 'short'     => class_basename($class),
+                // MARKER-NAV-ARRANGE-KEYS — a backslash in a wire: expression
+                // never survives the round trip, so the class never travels.
+                'key'       => substr(md5($class), 0, 12),
             ];
 
             if ($row && $row->hidden) {
@@ -168,6 +171,17 @@ class NavArrange extends Page
 
     // ---- changes ----------------------------------------------------
 
+    /** MARKER-NAV-ARRANGE-KEYS — key back to class, from what is registered. */
+    private function classFor(string $key): ?string
+    {
+        foreach (array_keys($this->registered()) as $class) {
+            if (substr(md5($class), 0, 12) === $key) {
+                return $class;
+            }
+        }
+        return null;
+    }
+
     private function rowFor(string $class): AdminNavItem
     {
         return AdminNavItem::firstOrCreate(
@@ -192,14 +206,14 @@ class NavArrange extends Page
         AdminNav::forget();
     }
 
-    public function moveUp(string $class, string $group): void
+    public function moveUp(string $key, string $group): void
     {
-        $this->nudge($class, $group, -1);
+        if ($class = $this->classFor($key)) { $this->nudge($class, $group, -1); }
     }
 
-    public function moveDown(string $class, string $group): void
+    public function moveDown(string $key, string $group): void
     {
-        $this->nudge($class, $group, 1);
+        if ($class = $this->classFor($key)) { $this->nudge($class, $group, 1); }
     }
 
     private function nudge(string $class, string $group, int $dir): void
@@ -225,8 +239,11 @@ class NavArrange extends Page
         AdminNav::forget();
     }
 
-    public function setGroup(string $class, string $group): void
+    public function setGroup(string $key, string $group): void
     {
+        $class = $this->classFor($key);
+        if (! $class) return;
+
         $this->rowFor($class)->update([
             'group' => $group === '(top level)' ? null : $group,
             'sort'  => 9999,   // lands at the end of its new group
@@ -236,8 +253,11 @@ class NavArrange extends Page
         Notification::make()->success()->title('Moved')->send();
     }
 
-    public function rename(string $class, string $label): void
+    public function rename(string $key, string $label): void
     {
+        $class = $this->classFor($key);
+        if (! $class) return;
+
         $label = trim($label);
         $this->rowFor($class)->update(['label' => $label === '' ? null : mb_substr($label, 0, 60)]);
         AdminNav::forget();
@@ -247,8 +267,11 @@ class NavArrange extends Page
             ->send();
     }
 
-    public function hide(string $class): void
+    public function hide(string $key): void
     {
+        $class = $this->classFor($key);
+        if (! $class) return;
+
         $this->rowFor($class)->update(['hidden' => true]);
         AdminNav::forget();
 
@@ -257,8 +280,11 @@ class NavArrange extends Page
             ->send();
     }
 
-    public function unhide(string $class): void
+    public function unhide(string $key): void
     {
+        $class = $this->classFor($key);
+        if (! $class) return;
+
         $this->rowFor($class)->update(['hidden' => false]);
         AdminNav::forget();
 
