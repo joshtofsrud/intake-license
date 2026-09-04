@@ -88,6 +88,7 @@ class AdminPanelProvider extends PanelProvider
                 // bare Pages\ prefix resolves into Filament's own namespace and kills
                 // artisan at boot.
                 \App\Filament\Pages\Contributions::class,
+                \App\Filament\Pages\TaskHealth::class,      // MARKER-TASK-HEALTH
                 // MARKER-PATCH-135 — custom dashboard replaces Pages\Dashboard
                 \App\Filament\Pages\PlatformDashboard::class,
                 \App\Filament\Pages\Distributors::class, // HLC distributor hub

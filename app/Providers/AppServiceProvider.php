@@ -62,6 +62,15 @@ class AppServiceProvider extends ServiceProvider
         );
         Event::subscribe(LogQueueEvents::class);
 
+        // MARKER-TASK-HEALTH — record every scheduled run so a job that stops
+        // working is visible before a shop reports it.
+        Event::listen(\Illuminate\Console\Events\ScheduledTaskStarting::class,
+            [\App\Listeners\RecordScheduledTask::class, 'starting']);
+        Event::listen(\Illuminate\Console\Events\ScheduledTaskFinished::class,
+            [\App\Listeners\RecordScheduledTask::class, 'finished']);
+        Event::listen(\Illuminate\Console\Events\ScheduledTaskFailed::class,
+            [\App\Listeners\RecordScheduledTask::class, 'failed']);
+
         // Model observers
         Tenant::observe(TenantObserver::class);
         TenantUser::observe(TenantUserObserver::class);
