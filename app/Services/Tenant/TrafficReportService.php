@@ -501,7 +501,18 @@ class TrafficReportService
                 $sessions[$sid] = [
                     'stage'  => 0,
                     'device' => $r->device ?: 'unknown',
-                    'source' => $r->utm_source ?: ($r->referrer_domain ?: '(direct)'),
+                    // MARKER-TRAFFIC-POLISH — our own host is not a referral.
+                    // Someone moving from /pricing to /features arrives with a
+                    // referrer of intake.works, and counting that as a source
+                    // inflates a channel that does not exist.
+                    'source' => $r->utm_source ?: (
+                        ($r->referrer_domain && ! str_ends_with(
+                            strtolower($r->referrer_domain),
+                            strtolower((string) config('intake.domain', 'intake.works'))
+                        ))
+                            ? $r->referrer_domain
+                            : '(direct)'
+                    ),
                     'new'    => (bool) $r->is_new_session,
                 ];
             }

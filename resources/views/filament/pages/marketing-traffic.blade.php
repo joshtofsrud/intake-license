@@ -24,7 +24,10 @@
 
 <style>
 .mt-bar{display:flex;gap:6px;margin-bottom:18px}
-.mt-bar a{padding:6px 13px;border-radius:99px;font-size:12.5px;text-decoration:none;
+/* MARKER-TRAFFIC-POLISH — the pill centres its own label rather than relying
+   on the row's alignment, which left the text sitting low. */
+.mt-bar a{height:100%;display:inline-flex;align-items:center;justify-content:center;
+  padding:0 14px;border-radius:99px;font-size:12.5px;text-decoration:none;
   background:rgba(255,255,255,.06);color:inherit;opacity:.6}
 .mt-bar a.on{opacity:1;font-weight:600;box-shadow:inset 0 0 0 1px currentColor}
 .mt-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:22px}
@@ -227,7 +230,12 @@
       @if($i > 0)
         <div class="mt-gap" aria-hidden="true">
           <span class="mt-arrow">→</span>
-          @if($drop !== null && $drop > 0)
+          {{-- MARKER-TRAFFIC-POLISH — only when the sequence actually falls.
+               These steps are independent counts in the window, not stages one
+               person passes through: the live data runs 39 → 1 → 0 → 1 → 1, and
+               a percentage between unrelated numbers asserts a journey that did
+               not happen. --}}
+          @if($drop !== null && $drop > 0 && $count > 0)
             <span class="mt-drop">−{{ $drop }}%</span>
           @endif
         </div>
@@ -246,9 +254,10 @@
   </div>
 
   <p class="mt-hint">
-    Every step is the same size on purpose: the numbers carry the story, and at these volumes a
-    proportional bar would show four near-identical slivers. A step that cannot happen yet is left out
-    rather than sitting at zero.
+    Each tile counts what happened in this window on its own — they are not yet scoped to the people who
+    passed the step before, so a later number can be higher than an earlier one. Percentages appear only
+    where the sequence genuinely falls. A step that cannot happen yet is left out rather than sitting at
+    zero.
   </p>
 @else
   <p class="mt-empty">No funnel activity in this window.</p>
