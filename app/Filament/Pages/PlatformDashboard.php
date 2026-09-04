@@ -355,14 +355,54 @@ class PlatformDashboard extends Page
         $weekTrend       = $weekDelta > 0 ? 'up' : ($weekDelta < 0 ? 'down' : 'flat');
         $weekDeltaLabel  = $weekDelta > 0 ? "+{$weekDelta}%" : ($weekDelta < 0 ? "{$weekDelta}%" : 'flat');
 
-        // MRR estimate
+        // MARKER-REAL-MRR — what is actually being charged, not list price by
+        // tier. Gifted shops carry subscription_status 'active', so the old sum
+        // reported five free shops as $875 of revenue.
         $plans = \App\Support\PlanPricing::all() ?? [];
-        $paidTenants = Tenant::where('subscription_status', 'active')->get(['plan_tier']);
-        $mrr = $paidTenants->sum(fn ($t) => ($plans[$t->plan_tier] ?? 0) / 100);
+        $activeTenants = Tenant::where('subscription_status', 'active')
+            ->get(['id', 'plan_tier', 'licensed_locations']);
 
-        $inTrial   = Tenant::where('subscription_status', '!=', 'active')
-            ->where('trial_ends_at', '>', now())->count();
-        $trialPotential = $inTrial * (($plans['branded'] ?? 7900) / 100);
+        $discounts = class_exists(\App\Services\Billing\DiscountService::class)
+            ? app(\App\Services\Billing\DiscountService::class)
+            : null;
+
+        $mrrCents  = 0;   // after discounts: money
+        $listCents = 0;   // before discounts: potential
+        $giftedCount = 0;
+        $payingCount = 0;
+
+        foreach ($activeTenants as $t) {
+            $unit      = (int) ($plans[$t->plan_tier] ?? 0);
+            $locations = max(1, (int) ($t->licensed_locations ?: 1));
+            $list      = $unit * $locations;
+            $listCents += $list;
+
+            $net = $list;
+            if ($discounts) {
+                // Same path the shop's own statement uses, so the dashboard and
+                // the statement cannot disagree about what a shop pays.
+                $applied = $discounts->apply($t, \Carbon\CarbonImmutable::now(), $list, 0);
+                $net = (int) ($applied['platform_cents'] ?? $list);
+            }
+
+            $mrrCents += $net;
+            $net > 0 ? $payingCount++ : $giftedCount++;
+        }
+
+        $mrr        = $mrrCents / 100;
+        $mrrList    = $listCents / 100;
+
+        // Trials were all priced at Branded regardless of the plan being
+        // trialled; use each tenant's own tier.
+        $trialTenants = Tenant::where('subscription_status', '!=', 'active')
+            ->where('trial_ends_at', '>', now())
+            ->get(['plan_tier', 'licensed_locations']);
+
+        $inTrial        = $trialTenants->count();
+        $trialPotential = $trialTenants->sum(function ($t) use ($plans) {
+            $unit = (int) ($plans[$t->plan_tier] ?? 0);
+            return ($unit * max(1, (int) ($t->licensed_locations ?: 1))) / 100;
+        });
 
         // Sparkline: tenants per week, 12 weeks
         $weekly = [];
@@ -386,7 +426,11 @@ class PlatformDashboard extends Page
             'weekTrend'         => $weekTrend,        // MARKER-PATCH-136
             'weekDeltaLabel'    => $weekDeltaLabel,   // MARKER-PATCH-136
             'mrr'               => $mrr,
-            'paidCount'         => $paidTenants->count(),
+            // MARKER-REAL-MRR
+            'mrrList'      => $mrrList,
+            'payingCount'  => $payingCount,
+            'giftedCount'  => $giftedCount,
+            'paidCount'         => $payingCount,   // MARKER-REAL-MRR — shops actually paying
             'inTrial'           => $inTrial,
             'trialPotential'    => $trialPotential,
             'weekly'            => $weekly,

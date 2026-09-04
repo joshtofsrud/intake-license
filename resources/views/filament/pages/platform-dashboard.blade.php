@@ -362,9 +362,26 @@
 
       <a class="pd-biz-card wide" href="/admin/tenants">
         <div class="pd-biz-lbl">Est. MRR</div>
-        <div class="pd-biz-num">${{ number_format($saas['mrr']) }} <small>from {{ $saas['paidCount'] }} paid {{ \Str::plural('plan', $saas['paidCount']) }}</small></div>
+        {{-- MARKER-REAL-MRR — money first. "5 paid plans" counted gifted shops
+             as paying; they are named separately now, and list price is shown
+             as potential rather than as income. --}}
+        <div class="pd-biz-num">${{ number_format($saas['mrr']) }}
+          <small>
+            @if(($saas['payingCount'] ?? 0) > 0)
+              from {{ $saas['payingCount'] }} paying {{ \Str::plural('shop', $saas['payingCount']) }}
+            @else
+              nobody is paying yet
+            @endif
+            @if(($saas['giftedCount'] ?? 0) > 0)
+              · {{ $saas['giftedCount'] }} gifted
+            @endif
+          </small>
+        </div>
         <div class="pd-biz-delta">
-          {{ $saas['inTrial'] }} in trial · est. <b>+${{ number_format($saas['trialPotential']) }}</b> if all convert
+          ${{ number_format($saas['mrrList'] ?? 0) }} at list price
+          @if(($saas['inTrial'] ?? 0) > 0)
+            · {{ $saas['inTrial'] }} in trial, est. <b>+${{ number_format($saas['trialPotential']) }}</b> if all convert
+          @endif
         </div>
       </a>
     </div>
