@@ -159,9 +159,12 @@ class CreateTenant extends CreateRecord
             $owner = \App\Models\Tenant\TenantUser::where('tenant_id', $tenant->id)
                 ->where('role', 'owner')->first();
             if ($tenant && $owner) {
+                // MARKER-PLATFORM-MAIL-LOG — free record so this send is answerable.
+                $__mailLog = \App\Services\EmailLedger::platform($owner->email, 'tenant_welcome');
                 \Illuminate\Support\Facades\Mail::to($owner->email)->send(
                     new \App\Mail\WelcomeEmail($tenant, $owner, $stash['password'], 'gift')
                 );
+                if ($__mailLog) \App\Services\EmailLedger::markSent($__mailLog);
             }
         } catch (\Throwable $e) {
             \Illuminate\Support\Facades\Log::warning('Gift welcome email failed (non-fatal)', [

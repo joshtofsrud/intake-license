@@ -352,9 +352,12 @@ class OnboardingController extends Controller
 
         // MARKER-PATCH-143 — fire welcome email on billing signup path
         try {
+            // MARKER-PLATFORM-MAIL-LOG — free record so this send is answerable.
+            $__mailLog = \App\Services\EmailLedger::platform($user->email, 'welcome');
             \Illuminate\Support\Facades\Mail::to($user->email)->send(
                 new \App\Mail\WelcomeEmail($tenant, $user, null, 'signup')
             );
+            if ($__mailLog) \App\Services\EmailLedger::markSent($__mailLog);
         } catch (\Throwable $mailErr) {
             \Illuminate\Support\Facades\Log::warning('Welcome email send failed (non-fatal)', [
                 'tenant_id' => $tenant->id, 'error' => $mailErr->getMessage(),

@@ -148,6 +148,8 @@ class InvestorMessenger
         $html = static::html($message['subject'], $message['body']);
 
         try {
+            // MARKER-PLATFORM-MAIL-LOG — free record so this send is answerable.
+            $__mailLog = \App\Services\EmailLedger::platform((string) ($investor->email ?? ''), 'investor_message');
             Mail::send([], [], function ($mail) use ($investor, $message, $html) {
                 $mail->to($investor->email, $investor->name)
                      ->subject($message['subject'])
@@ -155,6 +157,7 @@ class InvestorMessenger
 
                 if ($html) { $mail->html($html); }
             });
+            if (isset($__mailLog) && $__mailLog) \App\Services\EmailLedger::markSent($__mailLog);
         } catch (\Throwable $e) {
             Log::error('MARKER-RAISE-COMPOSE send failed', ['investor' => $investor->id, 'error' => $e->getMessage()]);
 
@@ -185,6 +188,8 @@ class InvestorMessenger
         $html = static::html($message['subject'], $message['body']);
 
         try {
+            // MARKER-PLATFORM-MAIL-LOG — free record so this send is answerable.
+            $__mailLog = \App\Services\EmailLedger::platform((string) ($investor->email ?? ''), 'investor_message');
             Mail::send([], [], function ($mail) use ($investor, $message, $html) {
                 $mail->to($investor->email, $investor->name)
                      ->subject($message['subject'])
@@ -192,6 +197,7 @@ class InvestorMessenger
 
                 if ($html) { $mail->html($html); }
             });
+            if (isset($__mailLog) && $__mailLog) \App\Services\EmailLedger::markSent($__mailLog);
         } catch (\Throwable $e) {
             Log::error('MARKER-RAISE-MESSAGES send failed', ['key' => $key, 'error' => $e->getMessage()]);
             InvestorEvent::log($investor->id, 'message_failed', $message['label'] . ' failed to send');

@@ -131,6 +131,8 @@ class BookingMailer
             $html = view('emails.platform.booking', $data + ['subject' => $subject])->render();
             $from = PlatformSettings::fromAddress();
             $name = PlatformSettings::fromName() ?: 'Intake';
+            // MARKER-PLATFORM-MAIL-LOG — free record so this send is answerable.
+            $__mailLog = \App\Services\EmailLedger::platform((string) ($to ?? ''), 'platform_booking');
             Mail::send([], [], function ($m) use ($to, $subject, $html, $ics, $from, $name) {
                 $m->to($to)->subject($subject)->html($html);
                 if ($from) {
@@ -140,6 +142,7 @@ class BookingMailer
                     $m->attachData($ics, 'invite.ics', ['mime' => 'text/calendar; charset=utf-8; method=REQUEST']);
                 }
             });
+            if (isset($__mailLog) && $__mailLog) \App\Services\EmailLedger::markSent($__mailLog);
             return true;
         } catch (\Throwable $e) {
             Log::error('MARKER-SCHED-PUBLIC mail failed', ['to' => $to, 'subject' => $subject, 'error' => $e->getMessage()]);

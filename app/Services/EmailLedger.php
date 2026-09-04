@@ -16,6 +16,54 @@ use App\Models\Tenant\TenantEmailLedgerEntry;
  */
 class EmailLedger
 {
+
+    /**
+     * MARKER-PLATFORM-MAIL-LOG — record a platform send, free of charge.
+     *
+     * Invites, resets, welcome mail and investor messages are Intake speaking,
+     * not a shop speaking to its customers. They should not be billed to
+     * anyone, but they should be answerable: "did that invite actually go?" is
+     * a support question, and without a row the only answer is in Postmark.
+     *
+     * Logged against the platform tenant on purpose. Putting it on the
+     * recipient's shop would show mail they did not send in their own costs.
+     *
+     * Returns null and stays silent if anything is missing — a missing log must
+     * never be the reason a password reset fails to send.
+     */
+    public static function platform(string $toEmail, string $templateKey): ?TenantEmailLedgerEntry
+    {
+        try {
+            $platform = \App\Models\Tenant::where('is_platform', true)->first();
+            if (! $platform) {
+                return null;
+            }
+
+            $entry = TenantEmailLedgerEntry::create([
+                'tenant_id'    => $platform->id,
+                'kind'         => 'platform',
+                'template_key' => $templateKey,
+                'to_email'     => strtolower(trim($toEmail)),
+                'rate'         => 0,
+                'stream'       => 'outbound',
+                'status'       => 'pending',
+            ]);
+
+            // Flagged free where the column exists, so it never lands in a
+            // charge run even if rates change later.
+            if (\Illuminate\Support\Facades\Schema::hasColumn('tenant_email_ledger', 'is_free')) {
+                $entry->forceFill(['is_free' => true])->save();
+            }
+
+            return $entry;
+        } catch (\Throwable $e) {
+            logger()->warning('MARKER-PLATFORM-MAIL-LOG could not record a send', [
+                'to' => $toEmail, 'error' => $e->getMessage(),
+            ]);
+            return null;
+        }
+    }
+
     public static function begin(
         string $tenantId,
         string $kind,
