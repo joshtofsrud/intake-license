@@ -166,7 +166,7 @@
       <div class="ia-card-body">
         <input type="text" name="tag_name" maxlength="60"
                value="{{ $import->options['tag_name'] ?? '' }}"
-               placeholder="e.g. The Bike Hub list"
+               placeholder="e.g. Newsletter list"
                style="width:100%;background:var(--ia-input-bg);border:.5px solid var(--ia-border);border-radius:var(--ia-r-md);color:var(--ia-text);padding:8px 11px;font:inherit;font-size:13px">
 
         <label class="imp-radio" style="margin-top:10px">

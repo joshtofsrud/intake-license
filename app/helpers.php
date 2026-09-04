@@ -270,7 +270,7 @@ if (! function_exists('brand_initials')) {
         }
 
         $words = preg_split('/[\s\-\/&]+/u', $name, -1, PREG_SPLIT_NO_EMPTY) ?: [];
-        // Drop noise words so "The Bike Hub" reads TBH, not THE.
+        // Drop noise words so "The Corner Shop" reads TCS, not THE.
         $skip = ['the', 'and', 'of', 'a', 'an', '&'];
         $kept = array_values(array_filter($words, fn ($w) => ! in_array(mb_strtolower($w), $skip, true)));
         if (count($kept) < 2) {

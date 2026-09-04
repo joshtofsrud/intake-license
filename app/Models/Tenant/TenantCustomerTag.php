@@ -38,7 +38,7 @@ class TenantCustomerTag extends Model
             ->where('tag_id', $this->id)->count();
     }
 
-    /** Find or make, so an import never creates a second "Bike Hub list". */
+    /** Find or make, so a second import never creates a duplicate tag. */
     public static function findOrCreateFor(string $tenantId, string $name, ?string $by = null): self
     {
         $name = trim(preg_replace('/\s+/', ' ', $name));

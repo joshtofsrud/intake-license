@@ -220,7 +220,7 @@
             <label class="ob-label" for="ob-name">Business name</label>
             <input type="text" class="ob-input" id="ob-name"
                    value="{{ $currentTenant->name }}"
-                   placeholder="The Bike Hub">
+                   placeholder="Your shop's name">
           </div>
 
           <div class="ob-field">

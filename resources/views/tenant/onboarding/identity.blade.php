@@ -181,7 +181,7 @@
     <div>
       <div class="field">
         <label class="label" for="ob-name">Shop name</label>
-        <input type="text" class="input" id="ob-name" value="{{ $tenant->name }}" placeholder="The Bike Hub">
+        <input type="text" class="input" id="ob-name" value="{{ $tenant->name }}" placeholder="Your shop's name">
         <div class="helper">Pre-filled from your account at signup. Edit if needed.</div>
       </div>
 
