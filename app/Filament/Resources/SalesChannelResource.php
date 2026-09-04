@@ -14,6 +14,7 @@ use Illuminate\Database\Eloquent\Builder;
 
 class SalesChannelResource extends Resource
 {
+    use \App\Support\UsesAdminNav; // MARKER-NAV-ORDER
     use \App\Support\GatedByAdminArea; // MARKER-ADMIN-NAV-GATE
     protected static string $adminArea = 'crm';
 

@@ -8,6 +8,7 @@ use Filament\Pages\Page;
 
 class Contributions extends Page
 {
+    use \App\Support\UsesAdminNav; // MARKER-NAV-ORDER
     protected static ?string $navigationIcon  = 'heroicon-o-hand-raised';
     protected static ?string $navigationGroup = 'Raise';
     protected static ?string $navigationLabel = 'Contributions';

@@ -19,6 +19,7 @@ use Illuminate\Database\Eloquent\Builder;
  */
 class PlatformNavItemResource extends Resource
 {
+    use \App\Support\UsesAdminNav; // MARKER-NAV-ORDER
     use \App\Support\GatedByAdminArea; // MARKER-ADMIN-NAV-GATE
     protected static string $adminArea = 'marketing';
 

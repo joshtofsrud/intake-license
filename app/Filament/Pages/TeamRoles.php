@@ -15,6 +15,7 @@ use Illuminate\Support\Str;
 
 class TeamRoles extends Page
 {
+    use \App\Support\UsesAdminNav; // MARKER-NAV-ORDER
     protected static ?string $navigationIcon  = 'heroicon-o-users';
     protected static ?string $navigationLabel = 'Team & roles';
     protected static ?string $navigationGroup = 'Team';

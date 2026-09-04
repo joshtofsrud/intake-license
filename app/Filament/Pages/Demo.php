@@ -21,6 +21,7 @@ use Illuminate\Support\Facades\Storage;
  */
 class Demo extends Page
 {
+    use \App\Support\UsesAdminNav; // MARKER-NAV-ORDER
     protected static ?string $navigationIcon  = 'heroicon-o-play-circle';
     protected static ?string $navigationLabel = 'Demo';
     protected static ?string $navigationGroup = 'Operations';

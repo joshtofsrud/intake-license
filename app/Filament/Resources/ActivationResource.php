@@ -11,6 +11,7 @@ use Filament\Tables\Table;
 
 class ActivationResource extends Resource
 {
+    use \App\Support\UsesAdminNav; // MARKER-NAV-ORDER
     use \App\Support\GatedByAdminArea; // MARKER-ADMIN-NAV-GATE
     protected static string $adminArea = 'config';
 

@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\Auth;
 // MARKER-SCHED-ADMIN — week calendar + upcoming list + booking actions.
 class Scheduling extends Page
 {
+    use \App\Support\UsesAdminNav; // MARKER-NAV-ORDER
     use \App\Support\GatedByAdminArea;
     protected static string $adminArea = 'scheduling';
 

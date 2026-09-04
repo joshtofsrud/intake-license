@@ -9,6 +9,7 @@ use Filament\Pages\Page;
 // MARKER-SCHED-ADMIN — hours, rules and blocked dates behind the public slots.
 class SchedulingAvailability extends Page
 {
+    use \App\Support\UsesAdminNav; // MARKER-NAV-ORDER
     use \App\Support\GatedByAdminArea;
     protected static string $adminArea = 'scheduling';
 

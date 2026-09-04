@@ -25,6 +25,7 @@ use Illuminate\Support\Facades\Auth;
  */
 class TenantBilling extends Page
 {
+    use \App\Support\UsesAdminNav; // MARKER-NAV-ORDER
     protected static ?string $navigationIcon  = 'heroicon-o-banknotes';
     protected static ?string $navigationLabel = 'Tenant billing';
     protected static ?string $navigationGroup = 'Billing';

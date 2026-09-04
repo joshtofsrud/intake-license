@@ -10,6 +10,7 @@ use Illuminate\Support\Str;
 // MARKER-SCHED-ADMIN — the kinds of call people can book, and their links.
 class SchedulingTypes extends Page
 {
+    use \App\Support\UsesAdminNav; // MARKER-NAV-ORDER
     use \App\Support\GatedByAdminArea;
     protected static string $adminArea = 'scheduling';
 

@@ -56,6 +56,10 @@ class AdminPanelProvider extends PanelProvider
             ->login()
             ->colors(['primary' => Color::Violet])
             ->brandName('Intake')
+            // MARKER-NAV-ORDER — group order comes from the database when it has
+            // an opinion. An empty array means Filament keeps its own order, so
+            // an empty table changes nothing.
+            ->navigationGroups(\App\Support\AdminNav::groupOrder())
             ->resources([
                 SalesChannelResource::class, // MARKER-CAMPAIGNS-REGISTER
                 SalesAgencyResource::class, // MARKER-AGENCIES-REGISTER

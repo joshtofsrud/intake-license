@@ -13,6 +13,7 @@ use Filament\Tables\Table;
 // MARKER-BILLING-NOTICES — every word a shop reads about billing, edited here.
 class BillingNoticeTemplateResource extends Resource
 {
+    use \App\Support\UsesAdminNav; // MARKER-NAV-ORDER
     use \App\Support\GatedByAdminArea;
     protected static string $adminArea = 'tenants';
 

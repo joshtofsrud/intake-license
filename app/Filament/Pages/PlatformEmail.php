@@ -20,6 +20,7 @@ use Illuminate\Support\Facades\Mail;
  */
 class PlatformEmail extends Page implements HasForms
 {
+    use \App\Support\UsesAdminNav; // MARKER-NAV-ORDER
     use \App\Support\GatedByAdminArea; // MARKER-ADMIN-NAV-GATE
     protected static string $adminArea = 'config';
 

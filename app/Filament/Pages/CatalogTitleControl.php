@@ -23,6 +23,7 @@ use Livewire\WithPagination;
  */
 class CatalogTitleControl extends Page
 {
+    use \App\Support\UsesAdminNav; // MARKER-NAV-ORDER
     use \App\Support\GatedByAdminArea; // MARKER-ADMIN-NAV-GATE
     protected static string $adminArea = 'catalog';
 

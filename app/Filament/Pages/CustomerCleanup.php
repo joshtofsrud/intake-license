@@ -21,6 +21,7 @@ use Illuminate\Support\Facades\Auth;
  */
 class CustomerCleanup extends Page
 {
+    use \App\Support\UsesAdminNav; // MARKER-NAV-ORDER
     protected static ?string $navigationIcon  = 'heroicon-o-sparkles';
     protected static ?string $navigationLabel = 'Customer cleanup';
     protected static ?string $navigationGroup = 'Operations';

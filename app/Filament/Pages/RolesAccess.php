@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Auth;
 
 class RolesAccess extends Page
 {
+    use \App\Support\UsesAdminNav; // MARKER-NAV-ORDER
     protected static ?string $navigationIcon  = 'heroicon-o-shield-check';
     protected static ?string $navigationLabel = 'Roles & access';
     protected static ?string $navigationGroup = 'Team';

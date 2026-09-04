@@ -24,6 +24,7 @@ use Illuminate\Support\Facades\Schema;
 // MARKER-ADMIN-SIDEBAR — sidebar regrouped; see the patch header for the map.
 class DebugLogResource extends Resource
 {
+    use \App\Support\UsesAdminNav; // MARKER-NAV-ORDER
     use \App\Support\GatedByAdminArea; // MARKER-ADMIN-NAV-GATE
     protected static string $adminArea = 'logs';
 
