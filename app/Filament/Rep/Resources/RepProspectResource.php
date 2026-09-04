@@ -80,7 +80,7 @@ class RepProspectResource extends Resource
                 ->schema([
                     Forms\Components\Select::make('quote_tier')
                         ->label('Base tier')->live()->native(false)
-                        ->options(fn () => collect(config('intake.plan_prices', []))
+                        ->options(fn () => collect(\App\Support\PlanPricing::all())
                             ->filter(fn ($cents) => (int) $cents > 0)
                             ->map(fn ($cents, $key) => ucfirst($key) . ' — $' . number_format($cents / 100) . '/mo')
                             ->all())

@@ -62,7 +62,7 @@ class OnboardingController extends Controller
 
         return view('platform.signup', [
             'plan'       => $request->query('plan', 'starter'),
-            'planPrices' => config('intake.plan_prices'),
+            'planPrices' => \App\Support\PlanPricing::all(),
         ]);
     }
 
@@ -122,7 +122,7 @@ class OnboardingController extends Controller
         }
 
         $settings    = BillingSettings::current();
-        $planPrices  = config('intake.plan_prices');
+        $planPrices  = \App\Support\PlanPricing::all();
 
         return view('platform.signup-payment', [
             'pending'          => $pending,

@@ -356,7 +356,7 @@ class PlatformDashboard extends Page
         $weekDeltaLabel  = $weekDelta > 0 ? "+{$weekDelta}%" : ($weekDelta < 0 ? "{$weekDelta}%" : 'flat');
 
         // MRR estimate
-        $plans = config('intake.plan_prices') ?? [];
+        $plans = \App\Support\PlanPricing::all() ?? [];
         $paidTenants = Tenant::where('subscription_status', 'active')->get(['plan_tier']);
         $mrr = $paidTenants->sum(fn ($t) => ($plans[$t->plan_tier] ?? 0) / 100);
 

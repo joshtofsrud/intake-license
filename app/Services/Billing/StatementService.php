@@ -75,7 +75,7 @@ class StatementService
     private function plan(Tenant $tenant): array
     {
         $tier   = $tenant->plan_tier ?: 'starter';
-        $prices = (array) config('intake.plan_prices', []);
+        $prices = (array) \App\Support\PlanPricing::all();
         $cents  = (int) ($prices[$tier] ?? 0);
 
         // Per-location licensing: the plan covers one, extra locations multiply.

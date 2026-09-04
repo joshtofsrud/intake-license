@@ -12,7 +12,7 @@ class PlatformStatsWidget extends BaseWidget
 
     protected function getStats(): array
     {
-        $plans       = config('intake.plan_prices');
+        $plans       = \App\Support\PlanPricing::all();
         $totalTenants= Tenant::count();
         $active      = Tenant::where('onboarding_status', 'complete')->count();
         $trials      = Tenant::where('onboarding_status', 'pending')

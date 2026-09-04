@@ -29,7 +29,7 @@ class SalesFunnelWidget extends BaseWidget
 
         // Conservative targetable value: A/B shops, lead_score as a 0..1 weight,
         // times the lowest configured paid plan price (cents -> dollars).
-        $plans = config('intake.plan_prices', []);
+        $plans = \App\Support\PlanPricing::all();
         $floor = $plans ? min(array_filter($plans)) / 100 : 89;
         $value = (int) round(
             SalesProspect::whereIn('priority', ['A', 'B'])

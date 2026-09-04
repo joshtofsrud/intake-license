@@ -119,7 +119,7 @@ class SalesProspect extends Model
 
     /**
      * Quote = tier base + add-ons, in whole dollars. Tiers come from
-     * config('intake.plan_prices') (cents); add-ons from the `addons` table.
+     * \App\Support\PlanPricing::all() (cents); add-ons from the `addons` table.
      * An add-on whose included_in_plans covers the chosen tier prices at +$0
      * — same rule FeatureAccessService applies.
      */
@@ -128,7 +128,7 @@ class SalesProspect extends Model
         if (! $this->quote_tier) {
             return null;
         }
-        $plans = config('intake.plan_prices', []);
+        $plans = \App\Support\PlanPricing::all();
         if (! isset($plans[$this->quote_tier])) {
             return null;
         }
