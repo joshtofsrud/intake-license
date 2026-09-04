@@ -43,6 +43,11 @@ return [
             'custom'  => (int) env('PLAN_PRICE_CUSTOM', 0),
         ],
     */
+    // MARKER-TRAFFIC-V2 — the day visitor counting started meaning "people"
+    // rather than "browser tabs". Windows spanning it mix two definitions, and
+    // the traffic page says so. Set to the date MARKER-TRAFFIC-IDENTITY shipped.
+    'traffic_identity_cutover' => env('TRAFFIC_IDENTITY_CUTOVER', '2026-09-03'),
+
 
 
     'reserved_subdomains' => [

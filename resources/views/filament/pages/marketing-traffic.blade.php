@@ -32,6 +32,26 @@
 .mt-tile-k{font-size:11px;opacity:.55}
 .mt-tile-v{font-size:24px;font-weight:700;margin-top:2px}
 .mt-tile-d{font-size:11.5px;margin-top:2px;opacity:.6}
+/* MARKER-TRAFFIC-V2 */
+.mt-note{border-radius:10px;padding:11px 14px;font-size:12.5px;line-height:1.55;margin-bottom:14px}
+.mt-note--warn{background:rgba(240,196,106,.08);border:1px solid rgba(240,196,106,.3)}
+.mt-headline{display:grid;grid-template-columns:210px 1fr;border:1px solid rgba(127,127,127,.22);border-radius:12px;overflow:hidden}
+@media(max-width:900px){.mt-headline{grid-template-columns:1fr}}
+.mt-metrics{border-right:1px solid rgba(127,127,127,.22);padding:4px 0}
+@media(max-width:900px){.mt-metrics{border-right:0;border-bottom:1px solid rgba(127,127,127,.22);display:grid;grid-template-columns:1fr 1fr}}
+.mt-metric{display:block;width:100%;text-align:left;background:none;border:0;border-left:2px solid transparent;padding:12px 16px;cursor:pointer;font:inherit;color:inherit}
+.mt-metric.is-on{background:rgba(139,124,246,.08);border-left-color:rgb(var(--primary-500))}
+.mt-metric .k{display:block;font-size:11.5px;opacity:.55}
+.mt-metric .v{display:block;font-size:22px;font-weight:700;letter-spacing:-.02em;line-height:1.15}
+.mt-metric .d{display:block;font-size:11.5px;opacity:.6}
+.mt-metric .d.up{color:#7FD98F;opacity:1}.mt-metric .d.down{color:#F08A8A;opacity:1}
+.mt-chartwrap{padding:14px 16px 8px}
+.mt-axis{display:flex;justify-content:space-between;font-size:11px;opacity:.45;margin-top:4px}
+.mt-funnel{display:flex;gap:2px;height:38px;border-radius:8px;overflow:hidden}
+.mt-fstep{display:flex;align-items:center;justify-content:center;font-size:12.5px;font-weight:600;background:rgba(139,124,246,.30);min-width:36px}
+.mt-flabels{display:flex;gap:2px;margin-top:6px;font-size:11px;opacity:.5}
+.mt-flabels div{text-align:center;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;min-width:36px}
+.mt-hint{font-size:12px;opacity:.5;line-height:1.55;margin-top:10px}
 .mt-sec{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;opacity:.5;margin:24px 0 10px}
 .mt-funnel{display:flex;flex-direction:column;gap:8px}
 .mt-step{padding:11px 14px;border-radius:10px;background:rgba(255,255,255,.04);
@@ -61,57 +81,101 @@
 {{-- MARKER-INVEST-SHARE — Overview carries the tiles, the funnel and the
      chart; Pages & sources keeps the tables. --}}
 <div class="mkt-panel" data-mkt-panel="overview">
-{{-- MARKER-MKTTILES — by key: topStats() also returns a 'sessions' entry that
-     is explorer data, not a tile, and looping the array rendered it as a
-     blank 0. --}}
-<div class="mt-grid">
-  @foreach(collect($stats)->only(['visitors', 'page_views', 'started', 'completed']) as $tile)
-    <div class="mt-tile">
-      <div class="mt-tile-k">{{ $tile['label'] ?? '' }}</div>
-      <div class="mt-tile-v">{{ number_format((float) ($tile['value'] ?? 0)) }}</div>
-      @if(isset($tile['delta']) && $tile['delta'] !== null)
-        <div class="mt-tile-d">{{ $tile['delta'] > 0 ? '+' : '' }}{{ $tile['delta'] }}% vs previous</div>
-      @endif
-    </div>
-  @endforeach
+{{-- MARKER-TRAFFIC-V2 — the tiles pick which metric the chart draws, so one
+     large chart answers four questions instead of four tiles answering none. --}}
+@if($identityCutover)
+  <div class="mt-note mt-note--warn">
+    <b>Visitor counting changed on {{ $identityCutover }}.</b>
+    Before then a person returning in a new tab counted twice, so this window mixes two definitions — a drop
+    across that date is partly the fix, not lost traffic.
+  </div>
+@endif
+
+<div class="mt-headline">
+  <div class="mt-metrics">
+    @foreach(collect($stats)->only(['visitors', 'page_views', 'started', 'completed']) as $key => $tile)
+      <button type="button" class="mt-metric {{ $metric === $key ? 'is-on' : '' }}"
+              wire:click="$set('metric', '{{ $key }}')">
+        <span class="k">{{ $tile['label'] ?? $key }}</span>
+        <span class="v">{{ number_format((float) ($tile['value'] ?? 0)) }}</span>
+        @if(isset($tile['delta']) && $tile['delta'] !== null)
+          <span class="d {{ $tile['delta'] > 0 ? 'up' : ($tile['delta'] < 0 ? 'down' : '') }}">
+            {{ $tile['delta'] > 0 ? '+' : '' }}{{ $tile['delta'] }}% vs previous
+          </span>
+        @endif
+      </button>
+    @endforeach
+  </div>
+
+  <div class="mt-chartwrap">
+    @if(($series['points'] ?? 0) > 1)
+      @php
+        $peak = max(1, (int) $series['peak']);
+        $n    = max(1, count($series['current']) - 1);
+        $line = function ($vals) use ($peak, $n) {
+            $out = [];
+            foreach (array_values($vals) as $i => $v) {
+                $out[] = round(($i / $n) * 720, 1) . ',' . round(190 - (((int) $v / $peak) * 165), 1);
+            }
+            return implode(' ', $out);
+        };
+      @endphp
+      <svg viewBox="0 0 720 200" width="100%" height="200" preserveAspectRatio="none">
+        <g stroke="rgba(127,127,127,.18)" stroke-width="1">
+          <line x1="0" y1="25" x2="720" y2="25"/><line x1="0" y1="80" x2="720" y2="80"/>
+          <line x1="0" y1="135" x2="720" y2="135"/><line x1="0" y1="190" x2="720" y2="190"/>
+        </g>
+        @if(count($series['previous']) > 1)
+          <polyline fill="none" stroke="rgba(127,127,127,.45)" stroke-width="1.5" stroke-dasharray="3 3"
+                    points="{{ $line($series['previous']) }}"/>
+        @endif
+        <polyline fill="none" stroke="rgb(var(--primary-500))" stroke-width="2.5"
+                  points="{{ $line($series['current']) }}"/>
+      </svg>
+      <div class="mt-axis">
+        <span>{{ ($series['hourly'] ?? false) ? 'midnight' : 'start of window' }}</span>
+        <span style="opacity:.6">dashed = the period before</span>
+        <span>now</span>
+      </div>
+    @else
+      <p class="mt-empty">Not enough buckets in this window to draw a line — widen the range.</p>
+    @endif
+  </div>
 </div>
 
-<div class="mt-sec">Signup funnel</div>
-@php $mtTop = collect($stages)->max('count') ?: 1; @endphp
-<div class="mt-funnel">
-  @foreach($stages as $stage)
-    <div>
-      <div class="mt-step">
-        <div class="mt-step-l">{{ $stage['label'] }}
-          @if($stage['note'])<div class="mt-step-note">{{ $stage['note'] }}</div>@endif
-        </div>
-        <div class="mt-step-n">{{ number_format($stage['count']) }}</div>
-        <div class="mt-step-u">{{ $stage['unit'] }}</div>
-      </div>
-      <div class="mt-track"><i style="width:{{ $mtTop > 0 ? round(($stage['count'] / $mtTop) * 100) : 0 }}%"></i></div>
-    </div>
-  @endforeach
-</div>
+<div class="mt-sec">From visit to shop</div>
+@php
+  // There is no 'possible' flag on a stage; the step that cannot happen yet is
+  // marked by its note. Filtering on a key that does not exist would silently
+  // keep everything, so filter on the note.
+  $steps = collect($stages ?? [])
+      ->reject(fn ($st) => str_contains((string) ($st['note'] ?? ''), "isn't built yet"))
+      ->values();
+@endphp
+@if($steps->count())
+  <div class="mt-funnel">
+    @foreach($steps as $i => $st)
+      <div class="mt-fstep" style="flex:{{ max(1, (int) $st['count']) }};opacity:{{ 1 - ($i * 0.13) }}"
+           title="{{ $st['label'] }}">{{ number_format((int) $st['count']) }}</div>
+    @endforeach
+  </div>
+  <div class="mt-flabels">
+    @foreach($steps as $st)
+      <div style="flex:{{ max(1, (int) $st['count']) }}">{{ $st['label'] }}</div>
+    @endforeach
+  </div>
+  <p class="mt-hint">
+    Widths are proportional, so the drop-off is what you see first. A step that cannot happen yet is left out
+    rather than sitting at zero — a row that always reads zero teaches you to ignore the whole funnel.
+  </p>
+@else
+  <p class="mt-empty">No funnel activity in this window.</p>
+@endif
 
 <div class="mt-two" style="margin-top:24px">
   <div>
-<div class="mt-sec">Daily visitors</div>
-{{-- dailyVisitors() returns ['current' => int[], 'prior' => int[], 'hourly' => bool]
-     — a flat series of counts, one per bucket, NOT a list of rows. --}}
-@php $mtSeries = $daily['current'] ?? []; @endphp
-@if(count($mtSeries))
-  @php $mtMax = max($mtSeries) ?: 1; @endphp
-  <div style="display:flex;align-items:flex-end;gap:2px;height:110px">
-    @foreach($mtSeries as $mtV)
-      <div title="{{ (int) $mtV }} {{ ($daily['hourly'] ?? false) ? 'this hour' : 'this day' }}"
-           style="flex:1;min-width:2px;height:{{ max(2, round(((int) $mtV / $mtMax) * 100)) }}%;
-                  background:currentColor;opacity:.55;border-radius:2px 2px 0 0"></div>
-    @endforeach
-  </div>
-@else
-  <div class="mt-empty">No traffic recorded yet — data starts accumulating once this deploys.</div>
-@endif
-
+{{-- MARKER-TRAFFIC-V2 — the daily bars moved into the headline chart above,
+     where they can be compared against the previous period. --}}
 {{-- MARKER-MKTSESSTYLE — mirrors tenant admin's booking sessions explorer
      (resources/views/tenant/reports/traffic.blade.php, .rse-* block). Same
      class names and values, so the two surfaces stay comparable. The scroll

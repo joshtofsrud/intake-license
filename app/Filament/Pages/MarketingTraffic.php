@@ -29,9 +29,17 @@ class MarketingTraffic extends Page
 
     public string $window = '30d';
 
+    // MARKER-TRAFFIC-V2 — a real date range, and which metric the chart draws.
+    public ?string $from   = null;
+    public ?string $to     = null;
+    public string  $metric = 'visitors';
+
     public function mount(): void
     {
         $this->window = request()->query('window', '30d');
+        // MARKER-TRAFFIC-V2
+        $this->from = request()->query('from');
+        $this->to   = request()->query('to');
         // MARKER-MKTSID -- '1d' is TrafficReportService's existing today window.
         if (! in_array($this->window, ['1d', '7d', '30d', '90d'], true)) {
             $this->window = '30d';
@@ -46,7 +54,11 @@ class MarketingTraffic extends Page
             return ['platform' => null, 'window' => $this->window];
         }
 
-        $report = (new TrafficReportService($platform, $this->window))->excludeBots();
+        // MARKER-TRAFFIC-V2 — a custom range wins over the preset. The service
+        // has always accepted from/to; only the page never offered it.
+        $report = $this->from && $this->to
+            ? (new TrafficReportService($platform, $this->window, $this->from, $this->to))->excludeBots()
+            : (new TrafficReportService($platform, $this->window))->excludeBots();
         $funnel = new SignupFunnelService(
             CarbonImmutable::instance($report->curStart()),
             CarbonImmutable::instance($report->curEnd())
@@ -60,11 +72,62 @@ class MarketingTraffic extends Page
             'daily'      => $report->dailyVisitors(),
             'stages'     => $funnel->stages(),
             'intent'     => $funnel->intent(),
+            'metric'     => $this->metric,          // MARKER-TRAFFIC-V2
+            'series'     => $this->series($report),
+            'identityCutover' => $this->identityCutover($report),
             'sessions'   => (new MarketingSessionsService( // MARKER-MKTSESSIONS
                 CarbonImmutable::instance($report->curStart()),
                 CarbonImmutable::instance($report->curEnd())
             ))->recent(200), // MARKER-MKTSESSTYLE — the scroll box bounds height now
         ];
+    }
+
+    /**
+     * MARKER-TRAFFIC-V2 — the chart's points for whichever metric is selected,
+     * plus the same window a period earlier so the comparison is drawable.
+     */
+    private function series($report): array
+    {
+        $daily = $report->dailyVisitors();
+
+        // The service returns ['current' => [int,...], 'prior' => [int,...],
+        // 'hourly' => bool] — plain lists, keyed by position, and the earlier
+        // window is 'prior' rather than 'previous'. Reading it as anything else
+        // silently yields an empty chart.
+        $cur  = array_values($daily['current'] ?? []);
+        $prev = array_values($daily['prior'] ?? []);
+
+        return [
+            'current' => $cur,
+            'previous'=> $prev,
+            'hourly'  => (bool) ($daily['hourly'] ?? false),
+            'peak'    => max(1, (int) max([0, ...$cur, ...$prev])),
+            'points'  => count($cur),
+        ];
+    }
+
+    /**
+     * MARKER-TRAFFIC-V2 — visitor counting changed meaning on the day
+     * MARKER-TRAFFIC-IDENTITY deployed: before it, one person returning counted
+     * twice. A window spanning that date mixes two definitions, and a chart that
+     * does not say so invites a conclusion about a trend that is partly an
+     * artefact of the fix.
+     */
+    private function identityCutover($report): ?string
+    {
+        $cutover = config('intake.traffic_identity_cutover');
+        if (! $cutover) return null;
+
+        try {
+            $c = \Carbon\CarbonImmutable::parse($cutover);
+        } catch (\Throwable $e) {
+            return null;
+        }
+
+        return $c->between(
+            \Carbon\CarbonImmutable::instance($report->curStart()),
+            \Carbon\CarbonImmutable::instance($report->curEnd())
+        ) ? $c->format('M j') : null;
     }
 
     /**
