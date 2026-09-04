@@ -6,6 +6,7 @@
   @include('partials.mobile-input-zoom') {{-- MARKER-MOBILE-INPUT-ZOOM --}}
   {{-- MARKER-LOGIN-NO-TENANT — this view can be reached on a host with no
      tenant; every tenant field is optional here on purpose. --}}
+{{-- MARKER-LOGIN-PAREN-FIX --}}
 <title>Sign in{{ isset($currentTenant) ? ' — ' . ($currentTenant->name ?? null) : '' }}</title>
   @if(isset($currentTenant) && ($currentTenant->favicon_url ?? null))
     <link rel="icon" href="{{ ($currentTenant->favicon_url ?? null) }}">
@@ -46,7 +47,7 @@
 <body>
 <div class="card">
   <div class="logo-wrap">
-    @if($currentTenant->logo_url ?? null))
+    @if($currentTenant->logo_url ?? null)
       <img src="{{ ($currentTenant->logo_url ?? null) }}" alt="{{ ($currentTenant->name ?? null) }}">
     @endif
     <div class="shop-name">{{ ($currentTenant->name ?? null) }}</div>
@@ -74,7 +75,7 @@
       <input type="checkbox" name="remember" value="1"> Remember me for 30 days
     </label>
 
-    @if($currentTenant->pin_tier_active ?? null))
+    @if($currentTenant->pin_tier_active ?? null)
       <label class="remember" style="flex-direction:column;align-items:flex-start;gap:4px">
         <span style="display:flex;align-items:center;gap:8px">
           <input type="checkbox" name="trust_device" value="1" checked> Trust this device
