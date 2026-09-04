@@ -63,13 +63,25 @@
 .mt-metric .d.up{color:#7FD98F;opacity:1}.mt-metric .d.down{color:#F08A8A;opacity:1}
 .mt-chartwrap{padding:14px 16px 8px}
 .mt-axis{display:flex;justify-content:space-between;font-size:11px;opacity:.45;margin-top:4px}
-.mt-funnel{display:flex;gap:2px;height:38px;border-radius:8px;overflow:hidden}
-.mt-fstep{display:flex;align-items:center;justify-content:center;font-size:12.5px;font-weight:600;background:rgba(139,124,246,.30);min-width:36px}
-.mt-flabels{display:flex;gap:2px;margin-top:6px;font-size:11px;opacity:.5}
-.mt-flabels div{text-align:center;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;min-width:36px}
+/* MARKER-FUNNEL-TILES */
+.mt-tiles{display:flex;align-items:stretch;gap:0;flex-wrap:wrap}
+.mt-tile{flex:1 1 0;min-width:104px;padding:14px 12px;border-radius:12px;
+  background:rgba(139,124,246,.10);border:1px solid rgba(139,124,246,.22);text-align:center}
+.mt-tile.is-zero{background:rgba(255,255,255,.03);border-color:rgba(127,127,127,.20)}
+.mt-tile .n{font-size:24px;font-weight:700;letter-spacing:-.02em;line-height:1.1;font-variant-numeric:tabular-nums}
+.mt-tile .l{font-size:12px;margin-top:4px;opacity:.75;line-height:1.35}
+.mt-tile .p{font-size:11px;margin-top:3px;opacity:.45}
+.mt-tile.is-zero .n{opacity:.45}
+.mt-gap{display:flex;flex-direction:column;align-items:center;justify-content:center;
+  min-width:52px;padding:0 4px;gap:2px}
+.mt-arrow{font-size:13px;opacity:.3}
+.mt-drop{font-size:11px;color:#F0A0A0;opacity:.85;font-variant-numeric:tabular-nums}
+@media(max-width:760px){
+  .mt-tiles{flex-direction:column}
+  .mt-gap{flex-direction:row;min-width:0;padding:2px 0}
+}
 .mt-hint{font-size:12px;opacity:.5;line-height:1.55;margin-top:10px}
 .mt-sec{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;opacity:.5;margin:24px 0 10px}
-.mt-funnel{display:flex;flex-direction:column;gap:8px}
 .mt-step{padding:11px 14px;border-radius:10px;background:rgba(255,255,255,.04);
   display:flex;align-items:center;gap:12px}
 .mt-step-l{flex:1;font-size:13.5px}
@@ -201,25 +213,42 @@
       ->values();
 @endphp
 @if($steps->count())
-  <div class="mt-funnel">
+  {{-- MARKER-FUNNEL-TILES — equal tiles. At 39 → 1 → 0 the widths of a
+       proportional bar say nothing, and a floor under them says less. The
+       count is the message; the gap carries the fall-off. --}}
+  <div class="mt-tiles">
     @foreach($steps as $i => $st)
-      {{-- MARKER-TRAFFIC-V3 — a floor under the flex weight. 248 → 3 makes the
-           last steps a sliver and crushes their labels; a minimum keeps every
-           step readable while the widths still show the fall-off. --}}
-      @php $w = max(0.14, (int) $st['count'] / max(1, (int) $steps[0]['count'])); @endphp
-      <div class="mt-fstep" style="flex:{{ round($w, 3) }};opacity:{{ 1 - ($i * 0.13) }}"
-           title="{{ $st['label'] }} — {{ number_format((int) $st['count']) }}">{{ number_format((int) $st['count']) }}</div>
+      @php
+        $count = (int) $st['count'];
+        $prev  = $i > 0 ? (int) $steps[$i - 1]['count'] : null;
+        $drop  = ($prev !== null && $prev > 0) ? round((1 - ($count / $prev)) * 100) : null;
+      @endphp
+
+      @if($i > 0)
+        <div class="mt-gap" aria-hidden="true">
+          <span class="mt-arrow">→</span>
+          @if($drop !== null && $drop > 0)
+            <span class="mt-drop">−{{ $drop }}%</span>
+          @endif
+        </div>
+      @endif
+
+      <div class="mt-tile {{ $count === 0 ? 'is-zero' : '' }}">
+        <div class="n">{{ number_format($count) }}</div>
+        <div class="l">{{ $st['label'] }}</div>
+        @if($i > 0 && $steps[0]['count'] > 0)
+          <div class="p">{{ round(($count / (int) $steps[0]['count']) * 100) }}% of visits</div>
+        @else
+          <div class="p">&nbsp;</div>
+        @endif
+      </div>
     @endforeach
   </div>
-  <div class="mt-flabels">
-    @foreach($steps as $st)
-      @php $w = max(0.14, (int) $st['count'] / max(1, (int) $steps[0]['count'])); @endphp
-      <div style="flex:{{ round($w, 3) }}">{{ $st['label'] }}</div>
-    @endforeach
-  </div>
+
   <p class="mt-hint">
-    Widths are proportional, so the drop-off is what you see first. A step that cannot happen yet is left out
-    rather than sitting at zero — a row that always reads zero teaches you to ignore the whole funnel.
+    Every step is the same size on purpose: the numbers carry the story, and at these volumes a
+    proportional bar would show four near-identical slivers. A step that cannot happen yet is left out
+    rather than sitting at zero.
   </p>
 @else
   <p class="mt-empty">No funnel activity in this window.</p>
