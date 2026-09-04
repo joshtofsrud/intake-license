@@ -317,6 +317,62 @@ class TrafficReportService
      * Uses a left join against a date series so days with zero visits
      * still show up as 0 rather than missing entries.
      */
+    /**
+     * MARKER-TRAFFIC-V3 — the same daily buckets, for a chosen metric.
+     *
+     * visitors    distinct sessions        (what the old series always drew)
+     * page_views  page_view events
+     * started     booking_started sessions
+     * completed   booking_completed sessions
+     *
+     * Counting sessions rather than events for the booking steps keeps them
+     * comparable with the funnel, where a reloaded page is still one person.
+     */
+    public function dailyMetricSeries(string $metric, CarbonImmutable $start, CarbonImmutable $end): array
+    {
+        $q = TenantFunnelEvent::query()
+            ->tap(fn ($qq) => $this->applyBotFilter($qq))
+            ->where('tenant_id', $this->tenant->id)
+            ->where('created_at', '>=', $start)
+            ->where('created_at', '<',  $end);
+
+        $count = 'COUNT(DISTINCT session_id) as n';
+
+        switch ($metric) {
+            case 'page_views':
+                $q->where('event_type', 'page_view');
+                $count = 'COUNT(*) as n';
+                break;
+            case 'started':
+                $q->where('event_type', 'booking_started');
+                break;
+            case 'completed':
+                $q->where('event_type', 'booking_completed');
+                break;
+            default: // visitors
+                break;
+        }
+
+        $rows = $q->selectRaw('DATE(created_at) as d, ' . $count)
+            ->groupBy('d')->pluck('n', 'd')->all();
+
+        $series = [];
+        for ($i = 0; $i < $this->days; $i++) {
+            $series[] = (int) ($rows[$start->addDays($i)->toDateString()] ?? 0);
+        }
+        return $series;
+    }
+
+    /** MARKER-TRAFFIC-V3 — labels for the chart's x axis. */
+    public function dayLabels(): array
+    {
+        $out = [];
+        for ($i = 0; $i < $this->days; $i++) {
+            $out[] = $this->curStart->addDays($i)->format('M j');
+        }
+        return $out;
+    }
+
     protected function dailySessionSeries(CarbonImmutable $start, CarbonImmutable $end): array
     {
         $rows = TenantFunnelEvent::query()

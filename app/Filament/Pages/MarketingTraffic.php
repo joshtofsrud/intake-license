@@ -33,6 +33,7 @@ class MarketingTraffic extends Page
     public ?string $from   = null;
     public ?string $to     = null;
     public string  $metric = 'visitors';
+    public bool    $compare = true;   // MARKER-TRAFFIC-V3 — the ghost line
 
     public function mount(): void
     {
@@ -73,6 +74,9 @@ class MarketingTraffic extends Page
             'stages'     => $funnel->stages(),
             'intent'     => $funnel->intent(),
             'metric'     => $this->metric,          // MARKER-TRAFFIC-V2
+            'sources'    => $report->topSources(6), // MARKER-TRAFFIC-V3
+            'pages'      => $report->topPages(6),
+            'compare'    => $this->compare,
             'series'     => $this->series($report),
             'identityCutover' => $this->identityCutover($report),
             'sessions'   => (new MarketingSessionsService( // MARKER-MKTSESSIONS
@@ -88,6 +92,25 @@ class MarketingTraffic extends Page
      */
     private function series($report): array
     {
+        // MARKER-TRAFFIC-V3 — draw the metric that is actually selected.
+        if ($this->metric !== 'visitors') {
+            $cur  = $report->dailyMetricSeries($this->metric,
+                        \Carbon\CarbonImmutable::instance($report->curStart()),
+                        \Carbon\CarbonImmutable::instance($report->curEnd()));
+            $prev = $report->dailyMetricSeries($this->metric,
+                        \Carbon\CarbonImmutable::instance($report->prevStart()),
+                        \Carbon\CarbonImmutable::instance($report->prevEnd()));
+
+            return [
+                'current'  => $cur,
+                'previous' => $prev,
+                'hourly'   => false,
+                'peak'     => max(1, (int) max([0, ...$cur, ...$prev])),
+                'points'   => count($cur),
+                'labels'   => $report->dayLabels(),
+            ];
+        }
+
         $daily = $report->dailyVisitors();
 
         // The service returns ['current' => [int,...], 'prior' => [int,...],
@@ -103,6 +126,7 @@ class MarketingTraffic extends Page
             'hourly'  => (bool) ($daily['hourly'] ?? false),
             'peak'    => max(1, (int) max([0, ...$cur, ...$prev])),
             'points'  => count($cur),
+            'labels'  => $report->dayLabels(),   // MARKER-TRAFFIC-V3
         ];
     }
 

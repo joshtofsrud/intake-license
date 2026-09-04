@@ -32,6 +32,20 @@
 .mt-tile-k{font-size:11px;opacity:.55}
 .mt-tile-v{font-size:24px;font-weight:700;margin-top:2px}
 .mt-tile-d{font-size:11.5px;margin-top:2px;opacity:.6}
+/* MARKER-TRAFFIC-V3 */
+.mt-range{display:inline-flex;align-items:center;gap:6px;border:1px solid rgba(127,127,127,.3);border-radius:999px;padding:4px 10px;margin-left:6px}
+.mt-range input{background:none;border:0;color:inherit;font:inherit;font-size:12.5px;width:120px}
+.mt-range input::-webkit-calendar-picker-indicator{filter:invert(.6);cursor:pointer}
+.mt-clear{font-size:11.5px;opacity:.55;text-decoration:underline}
+.mt-compare{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;opacity:.75;margin-left:10px}
+.mt-legend{font-size:11px;opacity:.42;margin-top:2px}
+.mt-two-up{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:20px}
+@media(max-width:900px){.mt-two-up{grid-template-columns:1fr}}
+.mt-card{border:1px solid rgba(127,127,127,.22);border-radius:12px;padding:14px 16px}
+.mt-bar-row{position:relative;display:flex;align-items:center;gap:10px;padding:7px 8px;font-size:13px}
+.mt-bar{position:absolute;left:0;top:2px;bottom:2px;background:rgba(139,124,246,.16);border-radius:6px}
+.mt-bar-label{position:relative;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.mt-bar-n{position:relative;margin-left:auto;opacity:.6;font-variant-numeric:tabular-nums}
 /* MARKER-TRAFFIC-V2 */
 .mt-note{border-radius:10px;padding:11px 14px;font-size:12.5px;line-height:1.55;margin-bottom:14px}
 .mt-note--warn{background:rgba(240,196,106,.08);border:1px solid rgba(240,196,106,.3)}
@@ -75,6 +89,23 @@
   @foreach(['1d' => 'Today', '7d' => 'Last 7 days', '30d' => 'Last 30 days', '90d' => 'Last 90 days'] as $wKey => $wLabel)
     <a href="?window={{ $wKey }}" class="{{ $window === $wKey ? 'on' : '' }}">{{ $wLabel }}</a>
   @endforeach
+  {{-- MARKER-TRAFFIC-V3 — a real range. TrafficReportService always accepted
+       from/to; only the page never offered it. --}}
+  <form method="GET" class="mt-range">
+    <input type="hidden" name="window" value="{{ $window }}">
+    <input type="date" name="from" value="{{ $from ?? '' }}" onchange="this.form.submit()">
+    <span>→</span>
+    <input type="date" name="to" value="{{ $to ?? '' }}" onchange="this.form.submit()">
+    @if($from || $to)
+      <a href="{{ url()->current() }}?window={{ $window }}" class="mt-clear" title="Back to the preset">clear</a>
+    @endif
+  </form>
+
+  <label class="mt-compare">
+    <input type="checkbox" wire:model.live="compare" @checked($compare)>
+    <span>Compare to previous</span>
+  </label>
+
   <span style="margin-left:auto;font-size:12px;opacity:.45;align-self:center">{{ $rangeLabel }}</span>
 </div>
 
@@ -125,18 +156,33 @@
           <line x1="0" y1="25" x2="720" y2="25"/><line x1="0" y1="80" x2="720" y2="80"/>
           <line x1="0" y1="135" x2="720" y2="135"/><line x1="0" y1="190" x2="720" y2="190"/>
         </g>
-        @if(count($series['previous']) > 1)
+        @if($compare && count($series['previous']) > 1)
           <polyline fill="none" stroke="rgba(127,127,127,.45)" stroke-width="1.5" stroke-dasharray="3 3"
                     points="{{ $line($series['previous']) }}"/>
         @endif
+        {{-- MARKER-TRAFFIC-V3 — the fill is what makes a sparse line read as a
+             quantity rather than a squiggle. --}}
+        <defs>
+          <linearGradient id="mtfill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="rgb(var(--primary-500))" stop-opacity=".34"/>
+            <stop offset="100%" stop-color="rgb(var(--primary-500))" stop-opacity="0"/>
+          </linearGradient>
+        </defs>
+        <polygon fill="url(#mtfill)" points="0,200 {{ $line($series['current']) }} 720,200"/>
         <polyline fill="none" stroke="rgb(var(--primary-500))" stroke-width="2.5"
                   points="{{ $line($series['current']) }}"/>
       </svg>
       <div class="mt-axis">
-        <span>{{ ($series['hourly'] ?? false) ? 'midnight' : 'start of window' }}</span>
-        <span style="opacity:.6">dashed = the period before</span>
-        <span>now</span>
+        {{-- MARKER-TRAFFIC-V3 — real dates, not "start of window" --}}
+        @php $lbl = $series['labels'] ?? []; @endphp
+        <span>{{ $lbl[0] ?? '' }}</span>
+        @if(count($lbl) > 3)<span>{{ $lbl[intdiv(count($lbl), 3)] }}</span>@endif
+        @if(count($lbl) > 3)<span>{{ $lbl[intdiv(count($lbl) * 2, 3)] }}</span>@endif
+        <span>{{ $lbl[count($lbl) - 1] ?? '' }}</span>
       </div>
+      @if($compare)
+        <div class="mt-legend">dashed = the same length of time before this window</div>
+      @endif
     @else
       <p class="mt-empty">Not enough buckets in this window to draw a line — widen the range.</p>
     @endif
@@ -155,13 +201,18 @@
 @if($steps->count())
   <div class="mt-funnel">
     @foreach($steps as $i => $st)
-      <div class="mt-fstep" style="flex:{{ max(1, (int) $st['count']) }};opacity:{{ 1 - ($i * 0.13) }}"
-           title="{{ $st['label'] }}">{{ number_format((int) $st['count']) }}</div>
+      {{-- MARKER-TRAFFIC-V3 — a floor under the flex weight. 248 → 3 makes the
+           last steps a sliver and crushes their labels; a minimum keeps every
+           step readable while the widths still show the fall-off. --}}
+      @php $w = max(0.14, (int) $st['count'] / max(1, (int) $steps[0]['count'])); @endphp
+      <div class="mt-fstep" style="flex:{{ round($w, 3) }};opacity:{{ 1 - ($i * 0.13) }}"
+           title="{{ $st['label'] }} — {{ number_format((int) $st['count']) }}">{{ number_format((int) $st['count']) }}</div>
     @endforeach
   </div>
   <div class="mt-flabels">
     @foreach($steps as $st)
-      <div style="flex:{{ max(1, (int) $st['count']) }}">{{ $st['label'] }}</div>
+      @php $w = max(0.14, (int) $st['count'] / max(1, (int) $steps[0]['count'])); @endphp
+      <div style="flex:{{ round($w, 3) }}">{{ $st['label'] }}</div>
     @endforeach
   </div>
   <p class="mt-hint">
@@ -180,6 +231,38 @@
      (resources/views/tenant/reports/traffic.blade.php, .rse-* block). Same
      class names and values, so the two surfaces stay comparable. The scroll
      box is what keeps this section from running away as traffic grows. --}}
+
+{{-- MARKER-TRAFFIC-V3 — where they came from and what they read belong under
+     the funnel, not behind another tab. --}}
+<div class="mt-two-up">
+  <div class="mt-card">
+    <div class="mt-sec" style="margin-top:0">Where they came from</div>
+    @php $srcMax = collect($sources)->max('visits') ?: 1; @endphp
+    @forelse($sources as $src)
+      <div class="mt-bar-row">
+        <span class="mt-bar" style="width:{{ max(6, round((($src['visits'] ?? 0) / $srcMax) * 100)) }}%"></span>
+        <span class="mt-bar-label">{{ $src['source'] ?? $src['label'] ?? 'unknown' }}</span>
+        <span class="mt-bar-n">{{ number_format($src['visits'] ?? 0) }}</span>
+      </div>
+    @empty
+      <p class="mt-empty">Nothing recorded in this window.</p>
+    @endforelse
+  </div>
+
+  <div class="mt-card">
+    <div class="mt-sec" style="margin-top:0">What they read</div>
+    @php $pgMax = collect($pages)->max('views') ?: 1; @endphp
+    @forelse($pages as $pg)
+      <div class="mt-bar-row">
+        <span class="mt-bar" style="width:{{ max(6, round((($pg['views'] ?? 0) / $pgMax) * 100)) }}%"></span>
+        <span class="mt-bar-label">{{ $pg['path'] ?? '/' }}</span>
+        <span class="mt-bar-n">{{ number_format($pg['views'] ?? 0) }}</span>
+      </div>
+    @empty
+      <p class="mt-empty">Nothing recorded in this window.</p>
+    @endforelse
+  </div>
+</div>
 </div>
 <div class="mkt-panel" data-mkt-panel="pages" hidden>
     <div class="mt-sec" style="margin-top:0">Quiz recommendations</div>
@@ -191,8 +274,7 @@
   </div>
 
   <div>
-    <div class="mt-sec" style="margin-top:0">Industry landing pages</div>
-    @forelse($intent['industry_pages'] as $path => $sessions)
+@forelse($intent['industry_pages'] as $path => $sessions)
       <div class="mt-row"><span>{{ $path }}</span><b>{{ number_format($sessions) }}</b></div>
     @empty
       <div class="mt-empty">No industry page visits in this window</div>
