@@ -97,11 +97,27 @@ class InventoryController extends Controller
             $q->where('is_active', true);
         }
 
+        // MARKER-ITEM-IDENTIFIERS — the four identifiers a shop actually
+        // quotes: SKU, UPC, EAN and MPN. The last two were not even stored
+        // before this patch, so searching them returned nothing.
         if ($search !== '') {
             // MARKER-PATCH-552 — tokenized any-field match
             $q->where(function ($q2) use ($search) {
                 foreach (array_filter(preg_split('/\s+/', $search)) as $t) {
-                    $q2->whereRaw("CONCAT_WS(' ', name, display_subtitle, sku, catalog_upc) LIKE ?", ['%' . $t . '%']);
+                    $q2->where(function ($w) use ($t) {
+                        $w->whereRaw(
+                            "CONCAT_WS(' ', name, display_subtitle, sku, catalog_upc, catalog_ean, catalog_mpn) LIKE ?",
+                            ['%' . $t . '%']
+                        )
+                        // MARKER-ITEM-IDENTIFIERS — a multi-sourced item can
+                        // carry a different part number per supplier; any of
+                        // them should find it.
+                        ->orWhereExists(function ($sub) use ($t) {
+                            $sub->selectRaw('1')->from('tenant_inventory_item_vendors as v')
+                                ->whereColumn('v.inventory_item_id', 'tenant_inventory_items.id')
+                                ->where('v.vendor_sku', 'like', '%' . $t . '%');
+                        });
+                    });
                 }
             });
         }
@@ -601,7 +617,8 @@ class InventoryController extends Controller
                 $s = $data['f_q'];
                 $q->where(function ($w) use ($s) { // MARKER-PATCH-552 — tokenized
                     foreach (array_filter(preg_split('/\s+/', $s)) as $t) {
-                        $w->whereRaw("CONCAT_WS(' ', name, display_subtitle, sku, catalog_upc) LIKE ?", ['%' . $t . '%']);
+                        // MARKER-ITEM-IDENTIFIERS — same four identifiers as the list.
+                        $w->whereRaw("CONCAT_WS(' ', name, display_subtitle, sku, catalog_upc, catalog_ean, catalog_mpn) LIKE ?", ['%' . $t . '%']);
                     }
                 });
             }

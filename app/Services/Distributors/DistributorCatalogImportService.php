@@ -309,6 +309,11 @@ class DistributorCatalogImportService
             'catalog_map_cents'      => $cat->map_cents,
             'catalog_case_quantity'  => $cat->case_quantity,
             'catalog_upc'            => $cat->upc,
+            // MARKER-ITEM-IDENTIFIERS — a lot of HLC rows carry an EAN and no
+            // UPC; without these two the item is unfindable by barcode or by
+            // manufacturer part number.
+            'catalog_ean'            => $cat->ean ?: null,
+            'catalog_mpn'            => $cat->manufacturer_sku ?: null,
             // MARKER-CATALOG-COLORSIZE — the columns added in May finally get
             // a value. On CREATE only: a shop's own edit outranks the feed,
             // same rule the description above follows.

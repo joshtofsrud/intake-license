@@ -212,7 +212,7 @@ class RegisterController extends Controller
                 // item's text: "Centerline Rotor 200mm" matches name+subtitle.
                 ->where(function ($w) use ($q) {
                     foreach (array_filter(preg_split('/\s+/', $q)) as $t) {
-                        $w->whereRaw("CONCAT_WS(' ', name, display_subtitle, sku, catalog_upc) LIKE ?", ['%' . $t . '%']);
+                        $w->whereRaw("CONCAT_WS(' ', name, display_subtitle, sku, catalog_upc, catalog_ean, catalog_mpn) LIKE ?", ['%' . $t . '%']);
                     }
                 })
                 ->limit(15)

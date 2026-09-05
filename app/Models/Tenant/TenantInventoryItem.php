@@ -49,6 +49,8 @@ class TenantInventoryItem extends Model
         'catalog_map_cents',
         'catalog_case_quantity',
         'catalog_upc',
+        'catalog_ean',   // MARKER-ITEM-IDENTIFIERS
+        'catalog_mpn',
         'catalog_title_seen',
         'catalog_details_seen', // MARKER-DETAILS-WATCH
         'catalog_synced_at',

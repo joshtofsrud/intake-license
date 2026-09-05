@@ -51,7 +51,7 @@ class StorefrontController extends Controller
                 // Same tokenized any-field match as the register (patch-552).
                 $w->where(function ($x) use ($q) {
                     foreach (array_filter(preg_split('/\s+/', $q)) as $t) {
-                        $x->whereRaw("CONCAT_WS(' ', name, display_subtitle, sku, catalog_upc) LIKE ?", ['%' . $t . '%']);
+                        $x->whereRaw("CONCAT_WS(' ', name, display_subtitle, sku, catalog_upc, catalog_ean, catalog_mpn) LIKE ?", ['%' . $t . '%']);
                     }
                 });
             })
@@ -135,7 +135,7 @@ class StorefrontController extends Controller
                 ->with('distributorCatalog:id,manufacturer,images')
                 ->where(function ($x) use ($toks) {
                     foreach ($toks as $t) {
-                        $x->whereRaw("CONCAT_WS(' ', name, display_subtitle, sku, catalog_upc) LIKE ?", ['%' . $t . '%']);
+                        $x->whereRaw("CONCAT_WS(' ', name, display_subtitle, sku, catalog_upc, catalog_ean, catalog_mpn) LIKE ?", ['%' . $t . '%']);
                     }
                 })
                 ->limit(60)
