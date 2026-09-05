@@ -19,7 +19,7 @@ class DistributorCatalogImportService
      * @param array{category?:string,brand?:string,include_unsellable?:bool} $filters
      * @return array{tenant_id:string,code:string,matched_catalog:int,created:int,merged:int,skipped:int,dry_run:bool}
      */
-    public function import(string $tenantId, string $distributorCode, array $filters = [], bool $dryRun = false, int $limit = 0): array
+    public function import(string $tenantId, string $distributorCode, array $filters = [], bool $dryRun = false, int $limit = 0, int $offset = 0): array
     {
         $code = strtoupper($distributorCode);
         $res = [
@@ -27,7 +27,7 @@ class DistributorCatalogImportService
             'created' => 0, 'merged' => 0, 'skipped' => 0, 'dry_run' => $dryRun,
         ];
 
-        $candidates = $this->candidates($code, $filters, $limit);
+        $candidates = $this->candidates($code, $filters, $limit, $offset);
         $res['matched_catalog'] = $candidates->count();
         if ($candidates->isEmpty()) {
             return $res;
@@ -100,7 +100,20 @@ class DistributorCatalogImportService
         return $res;
     }
 
-    private function candidates(string $code, array $filters, int $limit)
+    /**
+     * MARKER-CATALOG-IMPORT-ALL — ordered and offsettable.
+     *
+     * This query had no ORDER BY. limit/offset over an unordered result is
+     * undefined in MySQL, so the paged import job could have skipped or
+     * repeated rows between pages. Ordering by id is what makes paging
+     * correct — it is part of the feature, not a tidy-up.
+     *
+     * The filters here are distributor / active / sellable / category /
+     * brand only. Rows already linked to an item are skipped inside the
+     * import loop rather than filtered out here, so the candidate set does
+     * not shift as the import progresses and offsets stay meaningful.
+     */
+    private function candidates(string $code, array $filters, int $limit, int $offset = 0)
     {
         $q = PlatformDistributorCatalog::query()
             ->where('distributor_code', $code)
@@ -115,11 +128,40 @@ class DistributorCatalogImportService
         if (! empty($filters['brand'])) {
             $q->where('manufacturer', 'like', '%' . $filters['brand'] . '%');
         }
+        $q->orderBy('id');   // MARKER-CATALOG-IMPORT-ALL — required for paging
+
         if ($limit > 0) {
             $q->limit($limit);
         }
+        if ($offset > 0) {
+            $q->offset($offset);
+        }
 
         return $q->get();
+    }
+
+    /**
+     * MARKER-CATALOG-IMPORT-ALL — how many rows the filters match, counted in
+     * the database. Preview needs the true number without hydrating 47,000
+     * models to find it.
+     */
+    public function candidateCount(string $distributorCode, array $filters = []): int
+    {
+        $q = PlatformDistributorCatalog::query()
+            ->where('distributor_code', strtoupper($distributorCode))
+            ->where('is_active', true);
+
+        if (empty($filters['include_unsellable'])) {
+            $q->where(fn ($w) => $w->whereNull('is_sellable')->orWhere('is_sellable', true));
+        }
+        if (! empty($filters['category'])) {
+            $q->where('category', 'like', '%' . $filters['category'] . '%');
+        }
+        if (! empty($filters['brand'])) {
+            $q->where('manufacturer', 'like', '%' . $filters['brand'] . '%');
+        }
+
+        return (int) $q->count();
     }
 
     /**

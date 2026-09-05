@@ -467,13 +467,45 @@ class DistributorController extends Controller
         $view['filters'] = $filters;
         $view['mode'] = $data['mode'];
 
-        if (blank($filters['brand'] ?? null) && blank($filters['category'] ?? null)) {
-            return view('tenant.distributors.import', $view)
-                ->with('error', 'Choose at least a brand or a category.');
+        // MARKER-CATALOG-IMPORT-ALL — no brand and no category now means the
+        // WHOLE catalog. The old guard refused with view()->with('error'),
+        // which sets a view variable while the view reads session('error') —
+        // so the refusal rendered as nothing at all.
+        $importer = app(\App\Services\Distributors\DistributorCatalogImportService::class);
+        $total    = $importer->candidateCount($code, $filters);
+
+        if ($total === 0) {
+            $view['error'] = 'Nothing in the ' . $code . ' catalog matches those filters.';
+            return view('tenant.distributors.import', $view);
         }
 
-        $view['result'] = app(\App\Services\Distributors\DistributorCatalogImportService::class)
-            ->import(tenant()->id, $code, $filters, $data['mode'] !== 'commit', 2000);
+        if ($data['mode'] !== 'commit') {
+            // Preview inspects a leading sample for the created/merged/skipped
+            // estimate — hydrating 47,000 rows to preview them is the problem
+            // we are fixing — but reports the true total beside it.
+            $view['result'] = $importer->import(tenant()->id, $code, $filters, true, 2000);
+            $view['result']['candidate_total'] = $total;
+            $view['result']['sampled']         = min(2000, $total);
+
+            return view('tenant.distributors.import', $view);
+        }
+
+        // Commit: queued, however large.
+        $batch = \App\Models\Tenant\CatalogChangeBatch::create([
+            'tenant_id'      => tenant()->id,
+            'action'         => 'import',
+            'filter'         => $filters + ['code' => $code],
+            'item_count'     => 0,
+            'run_by'         => auth('tenant')->id(),
+            'status'         => 'running',
+            'progress_done'  => 0,
+            'progress_total' => $total,
+            'progress_stage' => 'importing',
+        ]);
+
+        \App\Jobs\ImportDistributorCatalogJob::dispatch(tenant()->id, $code, $filters, $batch->id);
+
+        $view['queued'] = ['total' => $total, 'code' => $code];
 
         return view('tenant.distributors.import', $view);
     }

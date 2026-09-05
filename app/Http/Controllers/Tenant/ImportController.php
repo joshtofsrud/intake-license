@@ -716,6 +716,44 @@ class ImportController extends Controller
             })
             ->orderByDesc('updated_at')->first();
 
+        // MARKER-CATALOG-IMPORT-ALL — a distributor catalog import is the
+        // other long-running job a shop can start. Same banner, same shape.
+        $batch = \App\Models\Tenant\CatalogChangeBatch::where('tenant_id', tenant()->id)
+            ->where(function ($q) {
+                $q->where('status', 'running')
+                  ->orWhere(function ($q2) {
+                      $q2->whereIn('progress_stage', ['done', 'failed'])
+                         ->whereNull('progress_seen_at')
+                         ->where('updated_at', '>=', now()->subHours(6));
+                  });
+            })
+            ->orderByDesc('updated_at')->first();
+
+        if ($batch && (! $import || $batch->updated_at > $import->updated_at)) {
+            $running = $batch->status === 'running';
+            $res     = (array) ($batch->result ?? []);
+            $code    = (string) (($batch->filter ?? [])['code'] ?? 'distributor');
+
+            return response()->json([
+                'active'  => true,
+                'id'      => $batch->id,
+                'kind'    => 'catalog',
+                'running' => $running,
+                'stage'   => $batch->progress_stage,
+                'done'    => (int) $batch->progress_done,
+                'total'   => (int) $batch->progress_total,
+                'pct'     => $batch->progress_total > 0
+                    ? min(100, (int) round($batch->progress_done / $batch->progress_total * 100)) : 0,
+                'label'   => 'Importing ' . $code . ' catalog',
+                'result'  => $running ? null : ($batch->progress_stage === 'failed'
+                    ? 'Catalog import stopped — what imported is on the batch and can still be undone'
+                    : 'Catalog import finished · ' . number_format((int) ($res['created'] ?? 0)) . ' added, '
+                        . number_format((int) ($res['merged'] ?? 0)) . ' merged, '
+                        . number_format((int) ($res['skipped'] ?? 0)) . ' already had'),
+                'href'    => route('tenant.distributors.attention.history'),
+            ]);
+        }
+
         if (! $import) {
             return response()->json(['active' => false]);
         }
@@ -751,6 +789,11 @@ class ImportController extends Controller
     {
         $this->guard();
         \App\Models\Tenant\TenantImport::where('tenant_id', tenant()->id)
+            ->where('id', $id)->update(['progress_seen_at' => now()]);
+
+        // MARKER-CATALOG-IMPORT-ALL — the banner shows both kinds, so dismiss
+        // has to reach both. Ids are uuids; only one of these can match.
+        \App\Models\Tenant\CatalogChangeBatch::where('tenant_id', tenant()->id)
             ->where('id', $id)->update(['progress_seen_at' => now()]);
 
         return response()->json(['ok' => true]);

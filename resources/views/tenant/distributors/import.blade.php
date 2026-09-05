@@ -51,6 +51,24 @@
   @include('layouts.tenant._inventory-tabs')
 
   @if(session('error'))<div class="im-banner im-err">{{ session('error') }}</div>@endif
+  {{-- MARKER-CATALOG-IMPORT-ALL — errors set on the view, not only flashed. --}}
+  @if(!empty($error))<div class="im-banner im-err">{{ $error }}</div>@endif
+  {{-- MARKER-CATALOG-IMPORT-ALL — the preview used to inspect 2,000 rows and
+     say nothing about it, so a 24,000-item brand looked like 2,000 items. --}}
+@if(!empty($result['candidate_total']) && ($result['candidate_total'] ?? 0) > ($result['sampled'] ?? 0))
+  <div class="im-banner">
+    <b>{{ number_format($result['candidate_total']) }} items match.</b>
+    The numbers below come from checking the first {{ number_format($result['sampled']) }};
+    importing brings in all {{ number_format($result['candidate_total']) }}.
+  </div>
+@endif
+@if(!empty($queued))
+    <div class="im-banner">
+      <b>Importing {{ number_format($queued['total']) }} items from {{ $queued['code'] }}.</b>
+      It runs in the background — the bar at the top of the page tracks it, and you can carry on working.
+      Everything it adds lands on one batch, so it can be undone in one go from catalog history.
+    </div>
+  @endif
 
   <div class="im-card">
     <h2 class="im-h">Import items</h2>
