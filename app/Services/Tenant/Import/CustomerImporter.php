@@ -284,7 +284,8 @@ class CustomerImporter
         $csv = new CsvFile($this->import->stored_path, $this->import->delimiter, $this->import->encoding);
 
         $counts = ['create' => 0, 'update' => 0, 'unchanged' => 0,
-                   'skipped' => 0, 'unmatched' => 0, 'error' => 0];
+                   'skipped' => 0, 'unmatched' => 0, 'error' => 0,
+                   'will_tag' => 0]; // MARKER-PREVIEW-TAGS
         $sample = [];
         $seen   = [];
         $first  = true;
@@ -302,6 +303,15 @@ class CustomerImporter
             foreach ($batch as $b) {
                 $row = $this->buildRow($b['cells'], $existing[$b['key']] ?? null, $b['line']);
                 $counts[$row['outcome']] = ($counts[$row['outcome']] ?? 0) + 1;
+
+                // MARKER-PREVIEW-TAGS — same rule the write path uses, so the
+                // preview can't promise a tag run() won't apply. 'create' has
+                // no record yet but will have one; everything else needs a match.
+                if ($this->tagWants($row['outcome'])
+                    && ($row['outcome'] === 'create' || $row['match'])) {
+                    $counts['will_tag']++;
+                }
+
                 if (count($sample) < $sampleLimit) {
                     $sample[] = [
                         'line'    => $b['line'],
@@ -340,7 +350,9 @@ class CustomerImporter
         }
         $flush();
 
-        return ['counts' => $counts, 'sample' => $sample];
+        // MARKER-PREVIEW-TAGS — the name too, so the button can say it.
+        return ['counts' => $counts, 'sample' => $sample,
+                'tag_name' => trim((string) ($this->import->options['tag_name'] ?? '')) ?: null];
     }
 
     /** Write it. Each chunk is its own transaction. */
