@@ -518,9 +518,18 @@ class DistributorController extends Controller
             // Preview inspects a leading sample for the created/merged/skipped
             // estimate — hydrating 47,000 rows to preview them is the problem
             // we are fixing — but reports the true total beside it.
-            $view['result'] = $importer->import(tenant()->id, $code, $filters, true, 2000);
-            $view['result']['candidate_total'] = $total;
-            $view['result']['sampled']         = min(2000, $total);
+            // MARKER-PREVIEW-EXACT — exact counts over the whole set, in SQL.
+            // The old preview sampled 2,000 rows and said so on screen, which
+            // read as a cap. Nobody needs to know how an estimate was made.
+            $linked = $importer->linkedCandidateCount(tenant()->id, $code, $filters);
+            $view['result'] = [
+                'matched_catalog' => $total,
+                'created'         => max(0, $total - $linked),
+                'merged'          => $linked,
+                'skipped'         => 0,
+                'dry_run'         => true,
+                'candidate_total' => $total,
+            ];
 
             return view('tenant.distributors.import', $view);
         }

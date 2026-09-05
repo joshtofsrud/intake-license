@@ -53,16 +53,7 @@
   @if(session('error'))<div class="im-banner im-err">{{ session('error') }}</div>@endif
   {{-- MARKER-CATALOG-IMPORT-ALL — errors set on the view, not only flashed. --}}
   @if(!empty($error))<div class="im-banner im-err">{{ $error }}</div>@endif
-  {{-- MARKER-CATALOG-IMPORT-ALL — the preview used to inspect 2,000 rows and
-     say nothing about it, so a 24,000-item brand looked like 2,000 items. --}}
-@if(!empty($result['candidate_total']) && ($result['candidate_total'] ?? 0) > ($result['sampled'] ?? 0))
-  <div class="im-banner">
-    <b>{{ number_format($result['candidate_total']) }} items match.</b>
-    The numbers below come from checking the first {{ number_format($result['sampled']) }};
-    importing brings in all {{ number_format($result['candidate_total']) }}.
-  </div>
-@endif
-@if(!empty($queued))
+  @if(!empty($queued))
     <div class="im-banner">
       <b>Importing {{ number_format($queued['total']) }} items from {{ $queued['code'] }}.</b>
       It runs in the background — the bar at the top of the page tracks it, and you can carry on working.
@@ -94,7 +85,7 @@
         <button class="im-btn primary" type="submit" onclick="document.getElementById('im-mode').value='preview'">Preview</button>
       </div>
       {{-- MARKER-IMPORT-PREVIEW-TOTAL --}}
-      <p class="im-sub" style="margin:10px 0 0">Leave both as “Any” to bring in the whole catalog. Anything over a couple of thousand items imports in the background — the bar at the top of the page tracks it, and it all lands on one batch you can undo in one go.</p>
+      <p class="im-sub" style="margin:10px 0 0">Leave both as “Any” to bring in the whole catalog. Importing runs in the background whatever the size — the bar at the top of the page tracks it, and it all lands on one batch you can undo in one go.</p>
     </form>
   </div>
 

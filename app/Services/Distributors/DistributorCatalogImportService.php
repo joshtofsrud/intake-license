@@ -145,6 +145,35 @@ class DistributorCatalogImportService
      * the database. Preview needs the true number without hydrating 47,000
      * models to find it.
      */
+    /**
+     * MARKER-PREVIEW-EXACT — how many matching catalog rows this shop already
+     * carries, counted in SQL against the item and vendor-pivot links.
+     */
+    public function linkedCandidateCount(string $tenantId, string $distributorCode, array $filters = []): int
+    {
+        $q = PlatformDistributorCatalog::query()
+            ->where('distributor_code', strtoupper($distributorCode))
+            ->where('is_active', true);
+        if (empty($filters['include_unsellable'])) {
+            $q->where(fn ($w) => $w->whereNull('is_sellable')->orWhere('is_sellable', true));
+        }
+        if (! empty($filters['category'])) { $q->where('category', 'like', '%' . $filters['category'] . '%'); }
+        if (! empty($filters['brand']))    { $q->where('manufacturer', 'like', '%' . $filters['brand'] . '%'); }
+
+        return (int) $q->where(function ($w) use ($tenantId) {
+            $w->whereExists(function ($e) use ($tenantId) {
+                $e->selectRaw('1')->from('tenant_inventory_items as i')
+                  ->whereColumn('i.distributor_catalog_id', 'platform_distributor_catalogs.id')
+                  ->where('i.tenant_id', $tenantId);
+            })->orWhereExists(function ($e) use ($tenantId) {
+                $e->selectRaw('1')->from('tenant_inventory_item_vendors as v')
+                  ->join('tenant_inventory_items as i2', 'i2.id', '=', 'v.inventory_item_id')
+                  ->whereColumn('v.distributor_catalog_id', 'platform_distributor_catalogs.id')
+                  ->where('i2.tenant_id', $tenantId);
+            });
+        })->count();
+    }
+
     public function candidateCount(string $distributorCode, array $filters = []): int
     {
         $q = PlatformDistributorCatalog::query()
