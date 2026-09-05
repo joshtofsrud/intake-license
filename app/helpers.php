@@ -289,3 +289,17 @@ if (! function_exists('brand_initials')) {
         return mb_strtoupper($out);
     }
 }
+
+// MARKER-TC-EDIT-SCOPE — tenant-local value for a <input type="datetime-local">.
+// editPunch parses submitted values in the tenant timezone, so the field has to
+// be rendered in it too or every save would shift by the UTC offset.
+if (! function_exists('tlocal_input')) {
+    function tlocal_input($utc): string
+    {
+        if (! $utc) {
+            return '';
+        }
+
+        return \Carbon\Carbon::parse($utc)->setTimezone(tenant()->timezone())->format('Y-m-d\\TH:i');
+    }
+}

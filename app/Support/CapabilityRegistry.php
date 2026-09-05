@@ -36,9 +36,19 @@ class CapabilityRegistry
                 'default_roles' => ['Manager'],
             ],
             'timeclock.edit' => [
-                'label'   => 'Edit punches',
+                'label'   => 'Edit anyone’s punches',
                 'section' => 'timeclock',
                 'desc'    => 'Add, edit, or fix any staff member’s punches (audit-logged).',
+                'gate'    => null,
+                'default_roles' => ['Manager'],
+            ],
+            // MARKER-TC-EDIT-SCOPE — the narrower half. Someone can be trusted
+            // to correct their own missed clock-out without being able to
+            // touch the rest of the team's hours.
+            'timeclock.edit_own' => [
+                'label'   => 'Edit their own punches',
+                'section' => 'timeclock',
+                'desc'    => 'Correct or add punches on their own timesheet only (audit-logged).',
                 'gate'    => null,
                 'default_roles' => ['Manager'],
             ],

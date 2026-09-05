@@ -37,6 +37,29 @@
 .tc-inp { padding: 6px 10px; border-radius: 6px; border: 0.5px solid var(--ia-border); background: var(--ia-input-bg, #0a0a0a); color: var(--ia-text); font-size: 12.5px; }
 @media (max-width: 760px) { .tc-stats { grid-template-columns: 1fr 1fr; } }
 </style>
+{{-- MARKER-TC-EDIT-SCOPE — edit affordances. Matches the team grid's modal
+     shape (.tt-*) with this page's own prefix, so nothing collides. --}}
+<style>
+.tc-edit{display:none;padding:12px 16px;border-bottom:.5px solid var(--ia-border);background:rgba(127,127,127,.05)}
+.tc-edit.on{display:block}
+.tc-edit label{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.05em;
+  color:var(--ia-text-muted);margin:9px 0 4px}
+.tc-edit input{width:100%;background:var(--ia-surface-2,rgba(255,255,255,.05));color:var(--ia-text);
+  border:.5px solid var(--ia-border);border-radius:8px;padding:8px 10px;font-size:13px;margin-bottom:2px}
+.tc-mov{display:none;position:fixed;inset:0;z-index:900;background:rgba(0,0,0,.55);
+  align-items:center;justify-content:center;padding:20px}
+.tc-mov.on{display:flex}
+.tc-modal{width:420px;max-width:100%;background:var(--ia-surface,#0c0c0c);
+  border:.5px solid var(--ia-border);border-radius:14px;overflow:hidden}
+.tc-mh{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;
+  border-bottom:.5px solid var(--ia-border);font-size:14px;font-weight:650}
+.tc-mb{padding:14px 16px}
+.tc-mb label{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.05em;
+  color:var(--ia-text-muted);margin:9px 0 4px}
+.tc-mb input{width:100%;background:var(--ia-surface-2,rgba(255,255,255,.05));color:var(--ia-text);
+  border:.5px solid var(--ia-border);border-radius:8px;padding:8px 10px;font-size:13px}
+.tc-mf{display:flex;justify-content:flex-end;gap:8px;padding:12px 16px;border-top:.5px solid var(--ia-border)}
+</style>
 @endpush
 
 @section('content')
@@ -74,6 +97,12 @@
         <form method="POST" action="{{ route('tenant.timeclock.out') }}" data-os-punch="out">@csrf
           <button class="tc-btn tc-btn--out" type="submit">Clock out</button>
         </form>
+      @elseif($authUser->exempt_from_timeclock)
+        {{-- MARKER-TC-EDIT-SCOPE — the button is gone because the endpoint
+             refuses it, not instead of the endpoint refusing it. --}}
+        <div style="font-size:12.5px;color:var(--ia-text-muted);max-width:220px;text-align:right">
+          You're marked as <b>never clocks in</b>. Turn it off below to use the clock.
+        </div>
       @else
         <form method="POST" action="{{ route('tenant.timeclock.in') }}" data-os-punch="in">@csrf
           <button class="tc-btn tc-btn--in" type="submit">Clock in</button>
@@ -118,10 +147,33 @@
     </div>
   </div>
 
+  {{-- MARKER-TC-EDIT-SCOPE — self-serve exemption toggle. Posts to the
+       ACCOUNT endpoint: TeamController redirects self-edits away, so anything
+       a person sets on themselves has to go through /admin/account. --}}
+  <div class="tc-card" style="margin-top:16px">
+    <div class="tc-card-h">Clock-in prompts</div>
+    <form method="POST" action="{{ route('tenant.account.timeclock-exempt') }}"
+          style="padding:12px 16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+      @csrf @method('PATCH')
+      <label style="display:flex;align-items:center;gap:9px;font-size:13px;cursor:pointer;flex:1 1 auto">
+        <input type="checkbox" name="exempt_from_timeclock" value="1" {{ $authUser->exempt_from_timeclock ? 'checked' : '' }}>
+        <span>I never clock in — hide the prompt and the clock-in button</span>
+      </label>
+      <button class="tc-mini" type="submit">Save</button>
+    </form>
+    <div style="padding:0 16px 12px;font-size:11.5px;color:var(--ia-text-muted)">
+      Hours already recorded are kept, and a shift you're on now can still be clocked out.
+      Managers set this for other people on their team member page.
+    </div>
+  </div>
+
   {{-- MARKER-PATCH-613 — shift history + email/print timesheet --}}
   <div class="tc-card" style="margin-top:16px">
     <div class="tc-card-h">Shift history
       <span style="display:flex;gap:8px">
+        @if($canEditMine ?? false)
+          <button class="tc-mini" type="button" onclick="document.getElementById('tc-add').classList.add('on')">Add a missed punch</button>
+        @endif
         <a class="tc-mini" href="{{ route('tenant.timeclock.timesheet') }}" target="_blank" rel="noopener">Print timesheet</a>
         <button class="tc-mini" type="button" onclick="document.getElementById('tc-email').style.display='flex'">Email timesheet</button>
       </span>
@@ -140,13 +192,68 @@
           @if($p->auto_closed)<span style="color:var(--ia-amber,#F59E0B);font-size:10px;text-transform:uppercase;margin-left:6px">auto-closed</span>@endif
           @if($p->edited_at)<span style="color:var(--ia-text-muted);font-size:10px;margin-left:6px">edited</span>@endif
         </span>
-        <span class="dur">{{ intdiv($mins,60) }}h {{ $mins % 60 }}m</span>
+        <span class="dur">{{ intdiv($mins,60) }}h {{ $mins % 60 }}m
+          @if($canEditMine ?? false)
+            <button type="button" class="tc-mini" style="margin-left:8px"
+                    onclick="document.getElementById('tc-ed-{{ $p->id }}').classList.toggle('on')">Edit</button>
+          @endif
+        </span>
       </div>
+      @if($canEditMine ?? false)
+        {{-- MARKER-TC-EDIT-SCOPE — same endpoint and same required audit
+             reason as the team grid; only the surface is new. --}}
+        <form class="tc-edit" id="tc-ed-{{ $p->id }}" method="POST"
+              action="{{ route('tenant.timeclock.punch.edit', ['punchId' => $p->id]) }}">
+          @csrf
+          <label>Clock in</label>
+          <input type="datetime-local" name="clock_in_at" required
+                 value="{{ tlocal_input($p->clock_in_at) }}">
+          <label>Clock out</label>
+          <input type="datetime-local" name="clock_out_at"
+                 value="{{ $p->clock_out_at ? tlocal_input($p->clock_out_at) : '' }}">
+          <label>Break minutes</label>
+          <input type="number" name="break_minutes" min="0" max="1440" value="{{ (int) ($p->break_minutes ?? 0) }}">
+          <label>Reason (required · audit)</label>
+          <input type="text" name="reason" required placeholder="e.g. missed clock-out">
+          <div style="display:flex;justify-content:flex-end;gap:8px">
+            <button type="button" class="tc-mini"
+                    onclick="document.getElementById('tc-ed-{{ $p->id }}').classList.remove('on')">Cancel</button>
+            <button type="submit" class="tc-mini">Save</button>
+          </div>
+        </form>
+      @endif
     @empty
       <div class="tc-empty">No punches recorded yet.</div>
     @endforelse
   </div>
 </div>
+
+@if($canEditMine ?? false)
+{{-- MARKER-TC-EDIT-SCOPE — add a punch to YOUR OWN timesheet. The endpoint
+     re-checks the subject, so someone holding only edit_own cannot post
+     another person's id here. --}}
+<div class="tc-mov" id="tc-add">
+  <div class="tc-modal">
+    <form method="POST" action="{{ route('tenant.timeclock.punch.create') }}">@csrf
+      <input type="hidden" name="tenant_user_id" value="{{ $authUser->id }}">
+      <div class="tc-mh">
+        <span>Add a missed punch</span>
+        <span style="cursor:pointer" onclick="document.getElementById('tc-add').classList.remove('on')">×</span>
+      </div>
+      <div class="tc-mb">
+        <label>Clock in</label><input type="datetime-local" name="clock_in_at" required>
+        <label>Clock out (optional)</label><input type="datetime-local" name="clock_out_at">
+        <label>Reason (required · audit)</label>
+        <input type="text" name="reason" required placeholder="e.g. forgot to clock in on route">
+      </div>
+      <div class="tc-mf">
+        <button type="button" class="tc-mini" onclick="document.getElementById('tc-add').classList.remove('on')">Cancel</button>
+        <button type="submit" class="tc-mini">Add punch</button>
+      </div>
+    </form>
+  </div>
+</div>
+@endif
 @endsection
 
 @push('scripts')

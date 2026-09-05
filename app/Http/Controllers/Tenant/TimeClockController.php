@@ -48,9 +48,13 @@ class TimeClockController extends Controller
         $weekMinutes  = $history->where('clock_in_at', '>=', $weekStart)->sum(fn ($p) => $p->minutes());
         $monthMinutes = $history->where('clock_in_at', '>=', $monthStart)->sum(fn ($p) => $p->minutes());
 
+        // MARKER-TC-EDIT-SCOPE — My time can edit when either capability
+        // applies; the narrower one is enough for your own timesheet.
+        $canEditMine = $this->mayEditPunchFor($user, $user->id);
+
         return view('tenant.timeclock.index', compact(
             'open', 'mine', 'onClock', 'todayMinutes',
-            'history', 'weekMinutes', 'monthMinutes'
+            'history', 'weekMinutes', 'monthMinutes', 'canEditMine'
         ))->with('offlineSyncEnabled', app(\App\Services\FeatureAccessService::class)->hasAddon(tenant(), 'offline_sync')); // MARKER-OFFLINE-SYNC
     }
 
@@ -105,10 +109,34 @@ class TimeClockController extends Controller
         return response()->json(['ok' => true]);
     }
 
+    /**
+     * MARKER-TC-EDIT-SCOPE — who may touch a given punch. timeclock.edit is
+     * "anyone's"; timeclock.edit_own is "their own only". Both are role
+     * settings in Roles & access, never role names in code.
+     */
+    private function mayEditPunchFor($user, ?string $subjectUserId): bool
+    {
+        if ($user->can('timeclock.edit')) {
+            return true;
+        }
+
+        return $subjectUserId !== null
+            && $subjectUserId === $user->id
+            && $user->can('timeclock.edit_own');
+    }
+
     public function punchIn(Request $request)
     {
         $tenant = tenant();
         $user   = Auth::guard('tenant')->user();
+
+        // MARKER-TC-EDIT-SCOPE — the exemption was cosmetic: it hid the nudge
+        // and the sidebar item while this endpoint still accepted the punch.
+        // A hidden button is not a gate. punchOut stays open so anyone
+        // mid-shift when the flag is set can still close their shift.
+        if ($user->exempt_from_timeclock) {
+            return back()->with('error', 'You are marked as never clocks in. Turn that off below to clock in.');
+        }
 
         if (TenantTimePunch::openFor($tenant->id, $user->id)) {
             return back()->with('error', 'You are already clocked in.');
@@ -273,7 +301,7 @@ class TimeClockController extends Controller
             ];
         }
 
-        $canEdit = $user->can('timeclock.edit');
+        $canEdit = $user->can('timeclock.edit'); // MARKER-TC-EDIT-SCOPE — the team grid is other people's punches, so it needs the wider one
         $days = [];
         for ($i = 0; $i < 7; $i++) $days[] = $weekStart->copy()->addDays($i);
 
@@ -292,9 +320,11 @@ class TimeClockController extends Controller
     {
         $tenant = tenant();
         $user   = Auth::guard('tenant')->user();
-        abort_unless($user->can('timeclock.edit'), 403);
 
+        // MARKER-TC-EDIT-SCOPE — the punch is loaded first: whether this is
+        // allowed depends on WHOSE punch it is, not on the route.
         $punch = TenantTimePunch::where('tenant_id', $tenant->id)->where('id', $punchId)->firstOrFail();
+        abort_unless($this->mayEditPunchFor($user, $punch->tenant_user_id), 403);
 
         $data = $request->validate([
             'clock_in_at'   => ['required', 'date'],
@@ -327,14 +357,16 @@ class TimeClockController extends Controller
     {
         $tenant = tenant();
         $user   = Auth::guard('tenant')->user();
-        abort_unless($user->can('timeclock.edit'), 403);
-
         $data = $request->validate([
             'tenant_user_id' => ['required', 'uuid'],
             'clock_in_at'    => ['required', 'date'],
             'clock_out_at'   => ['nullable', 'date'],
             'reason'         => ['required', 'string', 'max:500'],
         ]);
+
+        // MARKER-TC-EDIT-SCOPE — validated first, so the subject is known
+        // before deciding. Somebody with edit_own can only add to themselves.
+        abort_unless($this->mayEditPunchFor($user, $data['tenant_user_id']), 403);
 
         $tz = $tenant->timezone();
         $punch = TenantTimePunch::create([
