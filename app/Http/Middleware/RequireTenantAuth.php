@@ -40,8 +40,31 @@ class RequireTenantAuth
 
         // Verify the authenticated user belongs to this tenant
         if ($user->tenant_id !== $tenant->id) {
-            Auth::guard('tenant')->logout();
-            abort(403, 'Access denied.');
+            // MARKER-IMPERSONATE-CROSS — during impersonation this is a SWITCH,
+            // not an intrusion. The tenant cookie is scoped to .intake.works so
+            // it reaches every shop's host; wiping it here killed the shop the
+            // operator was actually working in, and the way back with it.
+            if (is_impersonating() && $this->mayImpersonate()) {
+                $owner = \App\Models\Tenant\TenantUser::where('tenant_id', $tenant->id)
+                    ->where('role', 'owner')->where('is_active', true)->first();
+
+                if ($owner) {
+                    Auth::guard('tenant')->login($owner);
+                    $user = $owner;
+                    debug_log()->impersonation('switch', $tenant, $owner);
+                } else {
+                    // Nothing to become here. Go back to master admin rather
+                    // than destroying a session that is still valid elsewhere.
+                    return redirect()->away(
+                        'https://' . config('intake.domain', 'intake.works') . '/admin/tenants'
+                    );
+                }
+            } else {
+                // The case this rule exists for: a real staff member on
+                // another shop's host. Unchanged.
+                Auth::guard('tenant')->logout();
+                abort(403, 'Access denied.');
+            }
         }
 
         // Check minimum role requirement
@@ -53,6 +76,27 @@ class RequireTenantAuth
         view()->share('authUser', $user);
 
         return $next($request);
+    }
+
+    /**
+     * MARKER-IMPERSONATE-CROSS — is the operator behind this impersonation
+     * still a platform admin allowed to impersonate? The session says an
+     * impersonation is in progress; this checks the person it belongs to,
+     * so a stale session can never be used to walk between shops.
+     */
+    private function mayImpersonate(): bool
+    {
+        $from = session('impersonating_from');
+        if (! is_array($from) || empty($from['user_id'])) {
+            return false;
+        }
+
+        $admin = \App\Models\User::find($from['user_id']);
+
+        return $admin
+            && $admin->is_admin
+            && $admin->suspended_at === null
+            && \App\Support\AdminAccess::allows($admin, 'impersonation');
     }
 
     /**

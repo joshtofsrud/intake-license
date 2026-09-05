@@ -36,6 +36,13 @@ class ImpersonationController extends Controller
             'return_url' => 'https://' . config('intake.domain') . '/admin/tenants',
         ]);
 
+        // MARKER-IMPERSONATE-CROSS — end any impersonation already running
+        // before starting this one. Logging the new owner in on top of the old
+        // left two overlapping states, and which won depended on request order.
+        if (Auth::guard('tenant')->check()) {
+            Auth::guard('tenant')->logout();
+        }
+
         // Log in as the tenant owner via the tenant guard
         Auth::guard('tenant')->login($owner);
 
