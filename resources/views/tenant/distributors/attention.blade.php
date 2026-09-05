@@ -33,6 +33,9 @@ a.at-chip.on .k{color:var(--ia-accent)}
 .at-chg{font-size:12.5px;line-height:1.6;max-width:430px}
 .at-chg .old{color:var(--ia-text-muted);text-decoration:line-through;text-decoration-color:rgba(242,109,109,.55)}
 .at-hl{background:rgba(205,233,138,.16);border-radius:3px;padding:0 2px;color:#cde98a}
+/* MARKER-ATTENTION-FILTERROW — desktop keeps the toggle on its own line. */
+.at-filter{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.at-filter .at-seg{flex:0 0 100%;margin-top:2px}
 .at-pager-top{display:none} /* MARKER-ATTENTION-TIGHT — mobile only */
 /* MARKER-ATTENTION-ACTIONS — the same hook the Communication Center uses to get
    the tab bar out of the way while something is being edited. */
@@ -66,9 +69,14 @@ body.at-bar-open .ia-mobile-nav{display:none}
   /* pager above the list; the bottom one stays for the end of the page */
   .at-pager-top{display:block;margin-bottom:10px}
 
-  /* the filter form stacks instead of overflowing */
-  .at-filter{display:flex;flex-wrap:wrap;gap:8px}
-  .at-filter select,.at-filter input{flex:1 1 46%;min-width:0}
+  /* the filter form: two dropdowns a row, then Filter + Clear + the stock
+     toggle sharing the last line instead of taking two of their own */
+  .at-filter{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+  .at-filter select{flex:1 1 46%;min-width:0}
+  .at-filter > .at-btn{flex:0 0 auto;padding:8px 14px}
+  .at-filter .at-seg{flex:1 1 auto;margin-top:0;display:flex;min-width:0}
+  .at-filter .at-segbtn{flex:1 1 0;min-width:0;padding:8px 6px;font-size:11.5px;
+    text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
   /* the table becomes cards — as a FLEX row, so the checkbox is a normal
      child. Absolute positioning inside a display:block table row does not
@@ -325,21 +333,26 @@ body.at-bar-open .ia-mobile-nav{display:none}
     @if(($filters['brand'] ?? null) || ($filters['category'] ?? null) || ($filters['reason'] ?? null))
       <a class="at-btn" href="{{ route('tenant.distributors.attention', $stock !== 'all' ? ['stock' => $stock] : []) }}">Clear</a>
     @endif
-  </form>
 
-  @php
+    {{-- MARKER-ATTENTION-FILTERROW — the stock toggle lives inside the filter
+         form now, so it can share the button's line on a phone. It is links,
+         not inputs: nothing about what the form submits changes. --}}
+    @php
     $segLink = fn ($s) => route('tenant.distributors.attention', array_filter([
         'stock'    => $s === 'all' ? null : $s,
         'brand'    => $filters['brand'] ?? null,
         'category' => $filters['category'] ?? null,
         'reason'   => $filters['reason'] ?? null,
     ]));
-  @endphp
-  <div class="at-seg">
+    @endphp
+    <div class="at-seg">
     <a class="at-segbtn {{ $stock === 'all' ? 'active' : '' }}" href="{{ $segLink('all') }}">All ({{ $counts['total'] }})</a>
     <a class="at-segbtn {{ $stock === 'in' ? 'active' : '' }}" href="{{ $segLink('in') }}">In stock ({{ $counts['in'] ?? 0 }})</a>
     <a class="at-segbtn {{ $stock === 'out' ? 'active' : '' }}" href="{{ $segLink('out') }}">Out of stock ({{ $counts['out'] ?? 0 }})</a>
   </div>
+  </form>
+
+
 
   {{-- MARKER-TITLE-RATIO -- legend: name edits below the threshold never
        reach this page; the stored baseline adopts them silently. --}}
