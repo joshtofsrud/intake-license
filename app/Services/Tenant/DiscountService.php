@@ -146,6 +146,9 @@ class DiscountService
                 'redemption_count' => TenantDiscountRedemption::where('discount_id', $locked->id)->count(),
             ]);
 
+            // MARKER-PROMO-TAGS — the one place every surface passes through.
+            app(DiscountTagService::class)->onRedeemed($locked, $customerId);
+
             return [
                 'ok'           => true,
                 'reason'       => null,
@@ -163,7 +166,10 @@ class DiscountService
     public function releaseRedemption(TenantDiscountRedemption $redemption): void
     {
         $discountId = $redemption->discount_id;
+        $customerId = $redemption->customer_id; // MARKER-PROMO-TAGS
+        $tenantId   = $redemption->tenant_id;
         $redemption->delete();
+        app(DiscountTagService::class)->onReleased($tenantId, $discountId, $customerId); // MARKER-PROMO-TAGS
 
         $d = TenantDiscount::find($discountId);
         if ($d) {
@@ -185,8 +191,10 @@ class DiscountService
         $released = 0;
         foreach ($rows as $row) {
             $discountId = $row->discount_id;
+            $customerId = $row->customer_id; // MARKER-PROMO-TAGS
             $row->delete();
             $released++;
+            app(DiscountTagService::class)->onReleased($tenantId, $discountId, $customerId); // MARKER-PROMO-TAGS
 
             $d = TenantDiscount::find($discountId);
             if ($d) {

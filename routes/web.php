@@ -1077,6 +1077,8 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             Route::patch('/discounts/{id}',         [TenantControllers\DiscountAdminController::class, 'update'])->name('discounts.update');
             Route::post('/discounts/{id}/toggle',   [TenantControllers\DiscountAdminController::class, 'toggle'])->name('discounts.toggle');
             Route::delete('/discounts/{id}',        [TenantControllers\DiscountAdminController::class, 'destroy'])->name('discounts.destroy');
+            Route::post('/discounts/{id}/tags',     [TenantControllers\DiscountAdminController::class, 'tags'])->name('discounts.tags');       // MARKER-PROMO-TAGS
+            Route::post('/discounts/{id}/campaign', [TenantControllers\DiscountAdminController::class, 'campaign'])->name('discounts.campaign'); // MARKER-PROMO-TAGS
 
             Route::get('/campaigns',            [TenantControllers\CampaignController::class, 'index'])->name('campaigns.index');
             Route::get('/campaigns/{id}',       [TenantControllers\CampaignController::class, 'show'])->name('campaigns.show');

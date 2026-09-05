@@ -53,8 +53,18 @@ class DiscountAdminController extends Controller
             ->limit(25)
             ->get();
 
+        // MARKER-PROMO-TAGS — tag names per code, and how many redemptions
+        // had no customer (those can never be tagged; say so).
+        $tagSvc      = app(\App\Services\Tenant\DiscountTagService::class);
+        $tagNames    = $tagSvc->namesByDiscount($tenant->id);
+        $anonByCode  = TenantDiscountRedemption::where('tenant_id', $tenant->id)
+            ->whereNull('customer_id')->selectRaw('discount_id, COUNT(*) as n')
+            ->groupBy('discount_id')->pluck('n', 'discount_id')->all();
+
         return view('tenant.discounts.index', [
             'pageTitle'   => 'Discounts',
+            'tagNames'    => $tagNames,
+            'anonByCode'  => $anonByCode,
             'discounts'   => $discounts,
             'given'       => $given,
             'totals'      => $totals,
@@ -70,12 +80,67 @@ class DiscountAdminController extends Controller
 
         $data = $this->validated($request, null);
 
-        TenantDiscount::create($data + [
+        $discount = TenantDiscount::create($data + [
             'tenant_id'  => $tenant->id,
             'created_by' => $me->id,
         ]);
 
+        // MARKER-PROMO-TAGS — optional on create; a comma-separated list.
+        $tags = trim((string) $request->input('tags', ''));
+        if ($tags !== '') {
+            app(\App\Services\Tenant\DiscountTagService::class)->setTags($discount, $tags, $me->id);
+        }
+
         return back()->with('success', 'Discount code created.');
+    }
+
+    /**
+     * MARKER-PROMO-TAGS — change the tags on an existing code. Adding a tag
+     * backfills everyone who already redeemed it; removing one only stops
+     * future tagging (past customers keep it — it was true when applied).
+     */
+    public function tags(Request $request, string $id)
+    {
+        $me = $this->guardManager();
+        $discount = TenantDiscount::where('tenant_id', tenant()->id)->findOrFail($id);
+
+        $v = $request->validate(['tags' => ['nullable', 'string', 'max:600']]);
+        $ids = app(\App\Services\Tenant\DiscountTagService::class)->setTags($discount, (string) ($v['tags'] ?? ''), $me->id);
+
+        return back()->with('success', $ids ? 'Tags saved. Past redeemers were tagged too.' : 'Tags cleared.');
+    }
+
+    /**
+     * MARKER-PROMO-TAGS — "Email these customers": a draft campaign whose
+     * audience is everyone tagged by this code's FIRST tag, straight into
+     * the composer. One tag, not all of them, so the audience is exactly
+     * "used this code" and not the shared promo tag's wider set.
+     */
+    public function campaign(string $id)
+    {
+        $me = $this->guardManager();
+        $tenant   = tenant();
+        $discount = TenantDiscount::where('tenant_id', $tenant->id)->findOrFail($id);
+
+        $tagIds = app(\App\Services\Tenant\DiscountTagService::class)->tagIdsFor($discount->id);
+        if (! $tagIds) {
+            return back()->with('error', 'Give this code a tag first — that\'s what the campaign targets.');
+        }
+
+        $campaign = \App\Models\Tenant\TenantCampaign::create([
+            'tenant_id'  => $tenant->id,
+            'name'       => 'Customers who used ' . $discount->code,
+            'type'       => 'bulk',
+            'status'     => 'draft',
+            'subject'    => '',
+            'body_html'  => '',
+            'blocks'     => [],
+            'targeting'  => ['mode' => 'rules', 'rules' => [['field' => 'tag', 'op' => 'is', 'value' => $tagIds[0]]]],
+            'created_by' => $me->id,
+        ]);
+
+        return redirect()->route('tenant.campaigns.show', ['id' => $campaign->id])
+            ->with('success', 'Campaign created for everyone who used ' . $discount->code . '. Compose your message below.');
     }
 
     public function update(Request $request, string $id)
