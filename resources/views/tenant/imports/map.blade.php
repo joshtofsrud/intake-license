@@ -177,11 +177,18 @@
         <label class="imp-radio">
           <input type="radio" name="tag_scope" value="touched"
                  {{ ($import->options['tag_scope'] ?? 'created') === 'touched' ? 'checked' : '' }}>
-          <span><b>New and updated</b><span>Anyone in this file gets the tag, whether or not you already had them.</span></span>
+          <span><b>New and updated</b><span>Adds the tag to people this file creates or changes. A row that matches someone and changes nothing is left untagged.</span></span>
+        </label>
+        {{-- MARKER-IMPORT-TAG-ALL --}}
+        <label class="imp-radio">
+          <input type="radio" name="tag_scope" value="all"
+                 {{ ($import->options['tag_scope'] ?? 'created') === 'all' ? 'checked' : '' }}>
+          <span><b>Everyone in this file</b><span>Tags every row that matches or creates a customer — including rows that change nothing. Use this to tag a list you have already imported.</span></span>
         </label>
 
         <p class="imp-hint" style="margin-top:8px">
           Optional. Lets you find this list again later. A tag doesn't grant marketing permission.
+          Rows with no email can't be matched to anyone, so they're always created rather than tagged in place.
         </p>
       </div>
     </div>

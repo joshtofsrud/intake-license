@@ -302,7 +302,7 @@ class ImportController extends Controller
                 'tag_name'          => trim((string) $request->input('tag_name', '')) ?: null,
                 // MARKER-IMPORT-TAG-CARD — 'created' (default) or 'touched',
                 // which also tags rows that matched an existing customer.
-                'tag_scope'         => in_array($request->input('tag_scope'), ['created', 'touched'], true)
+                'tag_scope'         => in_array($request->input('tag_scope'), ['created', 'touched', 'all'], true) // MARKER-IMPORT-TAG-ALL
                                        ? $request->input('tag_scope') : 'created',
             ]),
         ]);

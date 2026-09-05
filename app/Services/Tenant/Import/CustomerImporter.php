@@ -50,6 +50,53 @@ class CustomerImporter
 
     public function __construct(private Tenant $tenant, private TenantImport $import) {}
 
+    /**
+     * MARKER-IMPORT-TAG-ALL — does this outcome earn the tag?
+     *
+     *   created  — new customers only (the default)
+     *   touched  — created or actually changed
+     *   all      — everyone in the file who resolves to a customer, including
+     *              rows that matched and needed no changes. This is the whole
+     *              point of re-sending a list you already imported.
+     *
+     * 'error' and 'unmatched' never tag: there is no record to tag.
+     */
+    private function tagWants(string $outcome): bool
+    {
+        $scope = $this->import->options['tag_scope'] ?? 'created';
+
+        return match ($scope) {
+            'all'     => in_array($outcome, ['create', 'update', 'unchanged', 'skipped'], true),
+            'touched' => in_array($outcome, ['create', 'update'], true),
+            default   => $outcome === 'create',
+        };
+    }
+
+    /**
+     * MARKER-IMPORT-TAG-ALL — one insert per batch rather than one per
+     * customer. insertOrIgnore keeps it idempotent, so re-running the same
+     * file never duplicates a pivot row.
+     */
+    private function flushTags(array $customerIds, ?string $tagId): int
+    {
+        $customerIds = array_values(array_unique(array_filter($customerIds)));
+        if (! $customerIds || ! $tagId) return 0;
+
+        $rows = array_map(fn ($cid) => [
+            'id'          => (string) \Illuminate\Support\Str::uuid(),
+            'tenant_id'   => $this->tenant->id,
+            'tag_id'      => $tagId,
+            'customer_id' => $cid,
+            'created_at'  => now(),
+        ], $customerIds);
+
+        foreach (array_chunk($rows, 500) as $chunk) {
+            \Illuminate\Support\Facades\DB::table('tenant_customer_tag_pivot')->insertOrIgnore($chunk);
+        }
+
+        return count($customerIds);
+    }
+
     private function fields(): array
     {
         return ImportFieldRegistry::customers();
@@ -302,7 +349,8 @@ class CustomerImporter
         $csv = new CsvFile($this->import->stored_path, $this->import->delimiter, $this->import->encoding);
 
         $counts = ['created' => 0, 'updated' => 0, 'unchanged' => 0,
-                   'skipped' => 0, 'unmatched' => 0, 'errors' => 0];
+                   'skipped' => 0, 'unmatched' => 0, 'errors' => 0,
+                   'tagged' => 0]; // MARKER-IMPORT-TAG-ALL
         $errorRows = [];
         $first = true;
         $seen  = [];
@@ -317,9 +365,19 @@ class CustomerImporter
             if (! $batch) { return; }
             $existing = $this->lookup(array_map(fn ($b) => $b['key'], $batch));
 
-            DB::transaction(function () use ($batch, $existing, &$counts, &$errorRows) {
+            // MARKER-IMPORT-TAG-ALL — ids gathered here, written once below.
+            $toTag = [];
+
+            DB::transaction(function () use ($batch, $existing, &$counts, &$errorRows, &$toTag) {
                 foreach ($batch as $b) {
                     $row = $this->buildRow($b['cells'], $existing[$b['key']] ?? null, $b['line']);
+
+                    // MARKER-IMPORT-TAG-ALL — decided once per row, for every
+                    // outcome, instead of inside two of the branches. 'create'
+                    // has no id until it is made, so it is added there.
+                    if ($row['outcome'] !== 'create' && $row['match'] && $this->tagWants($row['outcome'])) {
+                        $toTag[] = $row['match']->id;
+                    }
 
                     switch ($row['outcome']) {
                         case 'create':
@@ -337,17 +395,11 @@ class CustomerImporter
                                 ['tenant_id' => $this->tenant->id],
                             ));
 
-                            // MARKER-CUSTOMER-TAGS — stamp the tag as the row is
-                            // created, so a 13,000-row list is a segment from the
-                            // first row rather than something to backfill later.
-                            if ($tagId = $this->importTagId()) {
-                                \Illuminate\Support\Facades\DB::table('tenant_customer_tag_pivot')->insertOrIgnore([
-                                    'id'          => (string) \Illuminate\Support\Str::uuid(),
-                                    'tenant_id'   => $this->tenant->id,
-                                    'tag_id'      => $tagId,
-                                    'customer_id' => $made->id,
-                                    'created_at'  => now(),
-                                ]);
+                            // MARKER-CUSTOMER-TAGS / MARKER-IMPORT-TAG-ALL —
+                            // collected with the rest of the batch and written
+                            // in one insert after the transaction.
+                            if ($this->tagWants('create')) {
+                                $toTag[] = $made->id;
                             }
                             \App\Models\Tenant\TenantImportRow::create([
                                 'import_id' => $this->import->id, 'tenant_id' => $this->tenant->id,
@@ -363,19 +415,9 @@ class CustomerImporter
                             foreach ($row['changes'] as $k => $v) { $before[$k] = $row['match']->{$k}; }
                             $row['match']->update($row['changes']);
 
-                            // MARKER-IMPORT-TAG-CARD — someone from this list who
-                            // already existed is still on the list; tag them too
-                            // when asked. Default stays creates-only.
-                            if (($this->import->options['tag_scope'] ?? 'created') === 'touched'
-                                && ($tagId = $this->importTagId())) {
-                                \Illuminate\Support\Facades\DB::table('tenant_customer_tag_pivot')->insertOrIgnore([
-                                    'id'          => (string) \Illuminate\Support\Str::uuid(),
-                                    'tenant_id'   => $this->tenant->id,
-                                    'tag_id'      => $tagId,
-                                    'customer_id' => $row['match']->id,
-                                    'created_at'  => now(),
-                                ]);
-                            }
+                            // MARKER-IMPORT-TAG-CARD / MARKER-IMPORT-TAG-ALL —
+                            // handled by the collector above, which covers
+                            // unchanged and skipped rows too.
                             \App\Models\Tenant\TenantImportRow::create([
                                 'import_id' => $this->import->id, 'tenant_id' => $this->tenant->id,
                                 'action' => 'updated', 'record_type' => 'customer',
@@ -399,6 +441,10 @@ class CustomerImporter
                     }
                 }
             });
+
+            // MARKER-IMPORT-TAG-ALL — outside the transaction: a tag write must
+            // never roll back the import it describes.
+            $counts['tagged'] += $this->flushTags($toTag, $this->importTagId());
 
             $batch = [];
         };

@@ -35,6 +35,11 @@
 @elseif($import->status === 'done')
   <div class="ia-flash ia-flash--success">
     {{ number_format($import->total('created') + $import->total('updated')) }} rows imported.
+    {{-- MARKER-IMPORT-TAG-ALL — tagging is often the whole point of the run. --}}
+    @if($import->total('tagged') > 0)
+      {{ number_format($import->total('tagged')) }} customers tagged
+      <b>{{ $import->options['tag_name'] ?? '' }}</b>.
+    @endif
   </div>
   {{-- MARKER-CONSENT-IMPORT-FIX — the next step nobody would otherwise know about. --}}
   @if($import->type === 'customers' && $import->total('created') > 0)
