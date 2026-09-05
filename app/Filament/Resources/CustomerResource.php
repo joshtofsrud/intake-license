@@ -19,6 +19,8 @@ class CustomerResource extends Resource
     protected static ?string $model = Customer::class;
     protected static ?string $navigationIcon = 'heroicon-o-users';
     protected static ?string $navigationGroup = 'Licensing';
+    // MARKER-FUNNEL-SCOPED — explicit, so a model rename can't rename the sidebar.
+    protected static ?string $navigationLabel = 'Customers';
     protected static ?int $navigationSort = 10;
 
     public static function form(Form $form): Form

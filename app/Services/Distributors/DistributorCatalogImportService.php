@@ -251,7 +251,11 @@ class DistributorCatalogImportService
         return TenantInventoryItem::create([
             'tenant_id'              => $tenantId,
             'sku'                    => $cat->product_key ?: $cat->distributor_variant_no,
-            'name'                   => $cat->display_name ?: ($cat->name ?: $cat->distributor_variant_no),
+            // MARKER-BRAND-ECHO — the raw-name fallback can carry the feed's
+            // doubled brand; composed display_names are already deduped.
+            'name'                   => \App\Services\Distributors\CatalogTitleComposer::collapseRepeats(
+                                            $cat->display_name ?: ($cat->name ?: $cat->distributor_variant_no)
+                                        ),
             'display_subtitle'       => $cat->display_subtitle,
             // MARKER-IMPORT-DESC — vendor copy, on create only. HLC and BTI
             // rarely supply it; QBP's bullet points do. Never written on a

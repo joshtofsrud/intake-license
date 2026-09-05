@@ -27,27 +27,54 @@ class SignupFunnelService
         return Tenant::where('is_platform', true)->value('id');
     }
 
-    private function sessions(string $eventType): int
+    // MARKER-FUNNEL-SCOPED — one row of stage flags per session, summed
+    // cumulatively: a session counts at a step only if it also hit every
+    // step before it. Monotonic by construction, so the funnel can only
+    // fall. One grouped query replaces five independent distinct-counts.
+    /** @return array{pv:int,pr:int,qz:int,ct:int,ss:int} */
+    private function cumulativeSessions(): array
     {
+        $zero = ['pv' => 0, 'pr' => 0, 'qz' => 0, 'ct' => 0, 'ss' => 0];
         $id = $this->platformTenantId();
         if (! $id) {
-            return 0;
+            return $zero;
         }
 
-        return (int) DB::table('tenant_funnel_events')
+        $flags = DB::table('tenant_funnel_events')
             ->where('tenant_id', $id)
-            ->where('event_type', $eventType)
+            ->whereIn('event_type', [
+                'page_view', 'pricing_viewed', 'quiz_completed',
+                'contact_submitted', 'signup_started',
+            ])
             ->whereBetween('created_at', [$this->start, $this->end])
-            ->distinct()->count('session_id');
+            ->groupBy('session_id')
+            ->select([
+                DB::raw("MAX(event_type = 'page_view')         as pv"),
+                DB::raw("MAX(event_type = 'pricing_viewed')    as pr"),
+                DB::raw("MAX(event_type = 'quiz_completed')    as qz"),
+                DB::raw("MAX(event_type = 'contact_submitted') as ct"),
+                DB::raw("MAX(event_type = 'signup_started')    as ss"),
+            ]);
+
+        $row = DB::query()->fromSub($flags, 's')
+            ->selectRaw('COALESCE(SUM(pv), 0)                as pv')
+            ->selectRaw('COALESCE(SUM(pv * pr), 0)           as pr')
+            ->selectRaw('COALESCE(SUM(pv * pr * qz), 0)      as qz')
+            ->selectRaw('COALESCE(SUM(pv * pr * qz * ct), 0) as ct')
+            ->selectRaw('COALESCE(SUM(pv * pr * qz * ct * ss), 0) as ss')
+            ->first();
+
+        return $row ? array_map('intval', (array) $row) : $zero;
     }
 
     /** @return array<int, array{label:string, count:int, unit:string, note:?string}> */
     public function stages(): array
     {
-        $visitors = $this->sessions('page_view');
-        $pricing  = $this->sessions('pricing_viewed');
-        $quiz     = $this->sessions('quiz_completed');
-        $contact  = $this->sessions('contact_submitted');
+        $s = $this->cumulativeSessions();
+        $visitors = $s['pv'];
+        $pricing  = $s['pr'];
+        $quiz     = $s['qz'];
+        $contact  = $s['ct'];
 
         // Tenants created in the window — the only stage that is a real outcome.
         $tenants = (int) Tenant::query()
@@ -55,7 +82,7 @@ class SignupFunnelService
             ->whereBetween('created_at', [$this->start, $this->end])
             ->count();
 
-        $signupStarted = $this->sessions('signup_started');
+        $signupStarted = $s['ss'];
 
         return [
             ['label' => 'Visited the site',   'count' => $visitors, 'unit' => 'sessions', 'note' => null],

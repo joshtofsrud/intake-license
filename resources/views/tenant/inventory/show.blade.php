@@ -109,14 +109,9 @@
   // ID), so it is read per tenant and never shared. Licence requires
   // hotlinking: these URLs are the only permitted display mechanism.
   $catCode  = $item->distributorCatalog?->distributor_code;
-  $clsPrefix = null;
-  if ($catCode === 'QBP') {
-      $clsPrefix = \App\Models\Tenant\TenantDistributorCatalogSubscription::query()
-          ->where('tenant_id', tenant()->id)
-          ->where('distributor_code', 'QBP')
-          ->value('cls_image_url');
-  }
-  $clsSize = config('distributors.qbp_cls.image_size', 'p350x350m');
+  // MARKER-BRAND-ECHO — one copy of the URL logic lives in CatalogImages;
+  // this page only keeps the prefix lookup for its "needs a CLS key" notice.
+  $clsPrefix = $catCode === 'QBP' ? \App\Support\CatalogImages::qbpClsPrefix() : null;
   $catAttrs  = $item->distributorCatalog?->attributes ?? [];
   // MARKER-ITEM-SOURCING — BTI ships \n in group_text as LITERAL characters,
   // so the specs card rendered "\n - Redesigned Trail…". Repaired at display;
@@ -249,28 +244,8 @@
     <div class="ia-card">
       <div class="ia-card-body">
         @php
-          $imgSrcs = collect($catImages)->map(function ($img) use ($clsPrefix, $clsSize) {
-            $raw = is_array($img)
-                ? ($img['url'] ?? $img['Url'] ?? $img['path'] ?? $img['fileName'] ?? null)
-                : (is_string($img) ? $img : null);
-
-            if (! is_string($raw) || trim($raw) === '') {
-                return null;
-            }
-            $raw = trim($raw);
-
-            // Already a URL (HLC, BTI) — leave it alone.
-            if (str_starts_with($raw, 'http://') || str_starts_with($raw, 'https://') || str_starts_with($raw, '//')) {
-                return $raw;
-            }
-
-            // A bare file name (QBP) needs this tenant's CLS prefix. Without
-            // one there is nothing to build, and a filename in a src attribute
-            // is just a broken image.
-            return $clsPrefix
-                ? \App\Services\Distributors\QbpClsClient::imageUrl($clsPrefix, $clsSize, $raw)
-                : null;
-          })->filter()->values();
+          {{-- MARKER-BRAND-ECHO — shared logic, was a private copy of it. --}}
+          $imgSrcs = collect(\App\Support\CatalogImages::urls($catImages, $catCode));
 
           // Names present but no licence to display them — worth saying,
           // because "no image" and "no CLS key" have different fixes.

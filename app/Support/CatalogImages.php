@@ -26,7 +26,7 @@ class CatalogImages
     public static function urls($images, ?string $distributorCode, ?string $tenantId = null, int $limit = 8): array
     {
         $prefix = $distributorCode === 'QBP'
-            ? self::clsPrefix($tenantId)
+            ? self::qbpClsPrefix($tenantId)
             : null;
 
         $size = config('distributors.qbp_cls.image_size', 'p350x350m');
@@ -61,7 +61,11 @@ class CatalogImages
             ->all();
     }
 
-    private static function clsPrefix(?string $tenantId): ?string
+    /**
+     * MARKER-BRAND-ECHO — public, so a page can tell "no images" apart from
+     * "images present but no CLS licence to display them".
+     */
+    public static function qbpClsPrefix(?string $tenantId = null): ?string
     {
         $tenantId = $tenantId ?: (tenant()?->id);
         if (! $tenantId) {

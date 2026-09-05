@@ -19,6 +19,8 @@ class LicenseResource extends Resource
     protected static ?string $model = License::class;
     protected static ?string $navigationIcon = 'heroicon-o-key';
     protected static ?string $navigationGroup = 'Licensing';
+    // MARKER-FUNNEL-SCOPED — explicit, so a model rename can't rename the sidebar.
+    protected static ?string $navigationLabel = 'Licenses';
     protected static ?int $navigationSort = 20;
 
     public static function form(Form $form): Form

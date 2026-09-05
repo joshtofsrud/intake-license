@@ -36,6 +36,18 @@ class PostmarkWebhookController extends Controller
      * Postmark bounce Types that are permanent enough to suppress on first hit.
      * Soft/Transient/etc. are logged only (a follow-up can promote after N).
      */
+    /**
+     * MARKER-STREAM-ASSERT — types that mean the MAILBOX is gone, not that
+     * one sender was refused. A mailbox that does not exist does not exist
+     * for every shop, so these suppress platform-wide on first hit instead
+     * of waiting for the 3-tenant escalation.
+     */
+    protected array $platformWideBounceTypes = [
+        'HardBounce',
+        'BadEmailAddress',
+        'ManuallyDeactivated',
+    ];
+
     protected array $suppressOnBounceTypes = [
         'HardBounce',
         'BadEmailAddress',
@@ -164,7 +176,15 @@ class PostmarkWebhookController extends Controller
 
         if (in_array($type, $this->suppressOnBounceTypes, true)) {
             $this->suppress($tenantId, $email, 'bounce', $type, $msgId, $detail);
-            $this->maybeEscalateToPlatform($email);
+
+            // MARKER-STREAM-ASSERT — mailbox-gone types block everywhere at
+            // once (the tenant row above stays for their suppression page);
+            // sender-specific types keep the 3-tenant escalation.
+            if (in_array($type, $this->platformWideBounceTypes, true)) {
+                $this->suppress(null, $email, 'bounce', $type, $msgId, $detail);
+            } else {
+                $this->maybeEscalateToPlatform($email);
+            }
         }
         // Soft/Transient bounces are logged only.
 

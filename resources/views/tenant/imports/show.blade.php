@@ -86,8 +86,10 @@
         <b>used since</b> — sold, transferred, put on a ticket — is kept rather than deleted, and
         you'll be told which. Stock is corrected with a counter-movement, so the history stays intact.
       </p>
+      {{-- MARKER-CLEARNAV-DIALOG — in-app dialog, not confirm(). --}}
       <form method="POST" action="{{ route('tenant.imports.reverse', $import->id) }}"
-            onsubmit="return confirm('Reverse this import? Records that have been used since will be kept.')">
+            data-confirm="Reverse this import? Records that have been used since will be kept."
+            data-confirm-label="Reverse import">
         @csrf
         <button type="submit" class="ia-btn ia-btn--secondary">Reverse import</button>
       </form>
@@ -190,5 +192,7 @@
 })();
 </script>
 @endpush
+
+@include('tenant.imports._confirm')
 
 @endsection

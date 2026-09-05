@@ -210,6 +210,11 @@ body.at-bar-open .ia-mobile-nav{display:none}
 
   /* the page title and the history link stop fighting for one line */
   .ia-page-head{flex-wrap:wrap}
+
+  /* MARKER-CLEARNAV-DIALOG — scroll room after the list. Without it the last
+     card's own buttons sit behind the fixed tab bar — and behind the sticky
+     bulk bar when a selection is active — with no way to scroll them clear. */
+  .at-pager-bottom{padding-bottom:calc(88px + env(safe-area-inset-bottom, 0px))}
 }
 </style>
 @endpush

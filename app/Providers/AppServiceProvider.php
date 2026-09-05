@@ -60,6 +60,13 @@ class AppServiceProvider extends ServiceProvider
             \Illuminate\Mail\Events\MessageSending::class,
             \App\Listeners\ApplyPlatformMailFrom::class
         );
+
+        // MARKER-STREAM-ASSERT — every send declares its Postmark stream;
+        // unstamped mail is transactional and gets 'outbound' explicitly.
+        Event::listen(
+            \Illuminate\Mail\Events\MessageSending::class,
+            \App\Listeners\AssertMessageStream::class
+        );
         Event::subscribe(LogQueueEvents::class);
 
         // MARKER-TASK-HEALTH — record every scheduled run so a job that stops

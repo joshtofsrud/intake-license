@@ -230,11 +230,9 @@
       @if($i > 0)
         <div class="mt-gap" aria-hidden="true">
           <span class="mt-arrow">→</span>
-          {{-- MARKER-TRAFFIC-POLISH — only when the sequence actually falls.
-               These steps are independent counts in the window, not stages one
-               person passes through: the live data runs 39 → 1 → 0 → 1 → 1, and
-               a percentage between unrelated numbers asserts a journey that did
-               not happen. --}}
+          {{-- MARKER-FUNNEL-SCOPED — steps are cumulative now (each counts
+               only sessions that hit every step before it), so the percentage
+               is a real drop-off. Shown only when there is a fall to report. --}}
           @if($drop !== null && $drop > 0 && $count > 0)
             <span class="mt-drop">−{{ $drop }}%</span>
           @endif
@@ -254,10 +252,10 @@
   </div>
 
   <p class="mt-hint">
-    Each tile counts what happened in this window on its own — they are not yet scoped to the people who
-    passed the step before, so a later number can be higher than an earlier one. Percentages appear only
-    where the sequence genuinely falls. A step that cannot happen yet is left out rather than sitting at
-    zero.
+    Each step counts sessions that also passed every step before it, so the funnel only falls.
+    "Became a tenant" is the exception — it counts accounts created in the window, however they
+    arrived, so it can sit above the step before it. A step that cannot happen yet is left out
+    rather than sitting at zero.
   </p>
 @else
   <p class="mt-empty">No funnel activity in this window.</p>

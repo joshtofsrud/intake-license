@@ -57,7 +57,7 @@ class CatalogTitleComposer
     // MARKER-TITLE-DEDUP -- collapse immediately repeated words ("Silver
     // Silver EA" -> "Silver EA") after rendering. Case-insensitive, adjacent
     // repeats only, so legitimate non-adjacent recurrences are untouched.
-    private static function collapseRepeats(string $s): string
+    public static function collapseRepeats(string $s): string
     {
         return (string) preg_replace('/(\S+)(?:\s+\1)+(?=\s|$)/iu', '$1', $s);
     }
