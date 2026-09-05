@@ -575,7 +575,19 @@ class InventoryController extends Controller
             $c->_count = (int) ($countsByCat[$c->id] ?? 0);
         });
 
+        // MARKER-CAT-UNDO — recent assignments for the rail, and a suggestion
+        // per bucket from this shop's own history.
+        $assignments = \Illuminate\Support\Facades\DB::table('tenant_category_assignments')
+            ->where('tenant_id', $tenant->id)->orderByDesc('created_at')->limit(6)->get();
+        $suggest = app(\App\Services\Tenant\CategorySuggestService::class);
+        $suggestions = $suggest->forBuckets($tenant->id, array_column($buckets, 'key'));
+        $activeSuggestion = $suggestions[$bucket] ?? null;
+        if ($activeSuggestion) {
+            $activeSuggestion['path'] = collect($tree)->firstWhere('id', $activeSuggestion['category_id'])['path'] ?? $activeSuggestion['category_name'];
+        }
+
         return view('tenant.inventory.uncategorized', [
+            'assignments' => $assignments, 'suggestions' => $suggestions, 'activeSuggestion' => $activeSuggestion,
             'buckets' => $buckets, 'noneCount' => $noneCount, 'total' => $total,
             'activeBucket' => $bucket, 'items' => $items,
             // MARKER-SPLIT-BY
@@ -600,6 +612,55 @@ class InventoryController extends Controller
             $out = array_merge($out, $this->buildCategoryTree($cats, $counts, $c->id, $depth + 1, $path));
         }
         return $out;
+    }
+
+    /**
+     * MARKER-CAT-UNDO — reverse one assignment. Restores each item's prior
+     * category; an item whose category has since been changed by hand is
+     * kept and counted, not clobbered.
+     */
+    public function uncategorizedUndo(Request $request, string $id): RedirectResponse
+    {
+        $tenant = tenant();
+        $a = \Illuminate\Support\Facades\DB::table('tenant_category_assignments')
+            ->where('tenant_id', $tenant->id)->where('id', $id)->first();
+        if (! $a) {
+            return back()->with('flash', ['type' => 'error', 'message' => 'That assignment is gone.']);
+        }
+        if ($a->undone_at) {
+            return back()->with('flash', ['type' => 'info', 'message' => 'Already undone.']);
+        }
+
+        $restored = 0; $kept = 0;
+        \Illuminate\Support\Facades\DB::table('tenant_category_assignment_items')
+            ->where('assignment_id', $a->id)->whereNull('restored_at')
+            ->orderBy('id')->chunkById(500, function ($rows) use (&$restored, &$kept, $a, $tenant) {
+                foreach ($rows as $r) {
+                    $item = TenantInventoryItem::where('tenant_id', $tenant->id)->find($r->item_id);
+                    if (! $item) { $kept++; continue; }
+                    if ((string) $item->category_id !== (string) $a->category_id) {
+                        $kept++;   // changed by hand since — theirs now
+                        continue;
+                    }
+                    $item->update(['category_id' => $r->prior_category_id]);
+                    \Illuminate\Support\Facades\DB::table('tenant_category_assignment_items')
+                        ->where('id', $r->id)->update(['restored_at' => now()]);
+                    $restored++;
+                }
+            });
+
+        \Illuminate\Support\Facades\DB::table('tenant_category_assignments')->where('id', $a->id)
+            ->update(['undone_at' => now(), 'kept_count' => $kept, 'updated_at' => now()]);
+
+        // The rule this taught is unlearned too — it was wrong.
+        if ($a->bucket_key) {
+            \Illuminate\Support\Facades\DB::table('tenant_bucket_rules')
+                ->where('tenant_id', $tenant->id)->where('bucket_key', $a->bucket_key)
+                ->where('category_id', $a->category_id)->delete();
+        }
+
+        return back()->with('flash', ['type' => 'success',
+            'message' => "Undone: {$restored} item(s) back to uncategorized" . ($kept ? ", {$kept} kept (changed since)." : '.')]);
     }
 
     public function uncategorizedAssign(Request $request): RedirectResponse
@@ -646,7 +707,34 @@ class InventoryController extends Controller
             $q->whereIn('id', $data['item_ids'] ?? []);
         }
 
+        // MARKER-CAT-UNDO — record what each item had BEFORE, so this can be
+        // undone. One batch row, one ledger row per item.
+        $rows = (clone $q)->get(['id', 'category_id']);
+        $assignmentId = (string) \Illuminate\Support\Str::uuid();
+        $bucketKey = trim((string) ($data['f_cat'] ?? $request->input('bucket', '')));
+
+        \Illuminate\Support\Facades\DB::transaction(function () use ($rows, $assignmentId, $tenant, $category, $bucketKey, $request, $q) {
+            \Illuminate\Support\Facades\DB::table('tenant_category_assignments')->insert([
+                'id' => $assignmentId, 'tenant_id' => $tenant->id,
+                'bucket_key' => $bucketKey !== '' ? $bucketKey : null,
+                'category_id' => $category->id, 'category_name' => $category->name,
+                'item_count' => $rows->count(),
+                'source' => in_array($request->input('source'), ['rule', 'model'], true) ? $request->input('source') : 'hand',
+                'created_by' => auth('tenant')->id(), 'created_at' => now(), 'updated_at' => now(),
+            ]);
+            foreach ($rows->chunk(500) as $chunk) {
+                \Illuminate\Support\Facades\DB::table('tenant_category_assignment_items')->insert(
+                    $chunk->map(fn ($r) => ['id' => (string) \Illuminate\Support\Str::uuid(), 'assignment_id' => $assignmentId,
+                                           'item_id' => $r->id, 'prior_category_id' => $r->category_id])->all()
+                );
+            }
+        });
+
         $count = $q->update(['category_id' => $category->id]);
+
+        // MARKER-CAT-UNDO — learn the rule. Picking something else next time
+        // overwrites it, so a wrong first guess never sticks.
+        app(\App\Services\Tenant\CategorySuggestService::class)->learn($tenant->id, $bucketKey, $category->id);
 
         // Remember this destination for quick re-pick (most-recent first, capped).
         $recent = collect(session('inv_recent_categories', []))

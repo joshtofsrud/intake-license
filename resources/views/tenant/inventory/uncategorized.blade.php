@@ -22,13 +22,30 @@
   @if($total === 0)
     <div class="ia-card" style="text-align:center;padding:42px;color:var(--ia-text-dim)"><div style="font-size:30px">&#10003;</div>Everything's categorized.</div>
   @else
-    {{-- buckets: gather, don't decide --}}
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+    {{-- MARKER-CAT-UNDO — bucket tools: search + top/all switch, client-side
+         over the chips already on the page. --}}
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+      <input type="text" id="ucBkSearch" class="ia-input" placeholder="Search buckets — e.g. tires, forks, gloves" style="width:300px">
+      <span style="display:inline-flex;border:.5px solid var(--ia-border);border-radius:100px;overflow:hidden">
+        <button type="button" class="uc-bkmode on" data-mode="top" style="padding:5px 12px;font-size:12px">Top 30</button>
+        <button type="button" class="uc-bkmode" data-mode="all" style="padding:5px 12px;font-size:12px">All {{ count($buckets) }}</button>
+        <button type="button" class="uc-bkmode" data-mode="sug" style="padding:5px 12px;font-size:12px">With suggestions ({{ count($suggestions ?? []) }})</button>
+      </span>
+    </div>
+    <style>
+      .uc-bkmode{color:var(--ia-text-dim)} .uc-bkmode.on{background:rgba(190,242,100,.13);color:var(--ia-text);font-weight:600}
+      .uc-sug{font-size:10.5px;padding:1px 7px;border-radius:100px;background:rgba(125,184,232,.15);color:#9fd0f5;border:.5px solid rgba(125,184,232,.35)}
+      .uc-sug.rule{background:rgba(190,242,100,.12);color:var(--ia-accent);border-color:rgba(190,242,100,.35)}
+      .uc-chip[hidden]{display:none !important}
+    </style>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px" id="ucChips">
       @foreach($buckets as $b)
-        @php $on = $activeBucket === $b['key']; @endphp
+        @php $on = $activeBucket === $b['key']; $sg = $suggestions[$b['key']] ?? null; @endphp
         <a href="{{ route('tenant.inventory.uncategorized', ['bucket' => $b['key']]) }}"
+           class="uc-chip" data-label="{{ strtolower($b['label']) }}" data-idx="{{ $loop->index }}" data-sug="{{ $sg ? 1 : 0 }}"
            style="display:flex;gap:9px;align-items:center;padding:9px 13px;border-radius:8px;text-decoration:none;font-size:13px;border:1px solid {{ $on ? 'var(--ia-accent)' : 'var(--ia-border)' }};background:{{ $on ? 'rgba(190,242,100,.13)' : 'var(--ia-surface)' }};color:var(--ia-text)">
           {{ $b['label'] }} <span style="font-family:var(--ia-mono);font-size:12px;color:{{ $on ? 'var(--ia-accent)' : 'var(--ia-text-dim)' }}">{{ $b['count'] }}</span>
+          @if($sg)<span class="uc-sug {{ $sg['kind'] === 'rule' ? 'rule' : '' }}">→ {{ $sg['category_name'] }}</span>@endif
         </a>
       @endforeach
       @if($noneCount > 0)
@@ -39,7 +56,32 @@
         </a>
       @endif
     </div>
-    <p style="font-size:12px;color:var(--ia-text-mute);margin:8px 0 18px">Buckets come from the distributor's catalog category &mdash; they gather like items. They don't decide the destination; that's your call.</p>
+    <p style="font-size:12px;color:var(--ia-text-mute);margin:8px 0 12px">Buckets come from the distributor's catalog category &mdash; they gather like items. They don't decide the destination; that's your call.</p>
+
+    {{-- MARKER-CAT-UNDO — the rail. Every assignment is one line; undo puts
+         each item back to what it had. Items changed by hand since are kept. --}}
+    @if(($assignments ?? collect())->count())
+      <div class="ia-card" style="padding:0;margin-bottom:18px;overflow:hidden">
+        <div style="display:flex;align-items:center;padding:9px 14px;font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--ia-text-dim);border-bottom:1px solid var(--ia-border)">Recent assignments</div>
+        @foreach($assignments as $a)
+          <div style="display:flex;align-items:center;gap:12px;padding:9px 14px;font-size:13px;border-top:1px solid var(--ia-border);{{ $a->undone_at ? 'opacity:.5' : '' }}">
+            <span style="font-weight:600;font-variant-numeric:tabular-nums;width:56px;text-align:right">{{ number_format($a->item_count) }}</span>
+            <span style="color:var(--ia-text-dim)">{{ $a->bucket_key ?: 'selected items' }}</span>
+            <span style="color:var(--ia-text-dim)">→</span>
+            <span style="font-weight:600">{{ $a->category_name }}</span>
+            <span style="font-size:10.5px;padding:1px 7px;border-radius:100px;border:.5px solid var(--ia-border);color:var(--ia-text-dim)">{{ ['hand' => 'by hand', 'rule' => 'rule', 'model' => 'suggested'][$a->source] ?? $a->source }}</span>
+            @if($a->kept_count)<span style="font-size:11.5px;color:var(--ia-warn,#F0C46A)">{{ $a->kept_count }} kept — changed since</span>@endif
+            <span style="margin-left:auto;font-size:12px;color:var(--ia-text-dim);white-space:nowrap">{{ $a->undone_at ? 'undone ' . \Carbon\Carbon::parse($a->undone_at)->diffForHumans() : \Carbon\Carbon::parse($a->created_at)->diffForHumans() }}</span>
+            @unless($a->undone_at)
+              <form method="POST" action="{{ route('tenant.inventory.uncategorized.undo', $a->id) }}" style="margin:0">
+                @csrf
+                <button type="submit" style="font-size:12px;border:.5px solid var(--ia-border-strong);border-radius:100px;padding:3px 10px;background:none;color:inherit;cursor:pointer">Undo</button>
+              </form>
+            @endunless
+          </div>
+        @endforeach
+      </div>
+    @endif
 
     {{-- active bucket --}}
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
@@ -71,6 +113,10 @@
     <form method="POST" action="{{ route('tenant.inventory.uncategorized.assign') }}">
       @csrf
       <input type="hidden" name="category_id" id="catId">
+      {{-- MARKER-CAT-UNDO — scope + provenance for the suggestion buttons. --}}
+      <input type="hidden" name="f_cat" value="{{ $activeBucket === '__none__' ? '' : $activeBucket }}">
+      <input type="hidden" name="select_all" id="ucSelectAll" value="">
+      <input type="hidden" name="source" id="ucSource" value="hand">
       <div class="uc-grid" style="display:grid;grid-template-columns:1fr 350px;gap:18px;align-items:start">
         {{-- worklist --}}
         <div>
@@ -106,6 +152,28 @@
         {{-- destination --}}
         <div class="ia-card" style="position:sticky;top:16px;overflow:hidden">
           <div style="padding:13px 15px;border-bottom:1px solid var(--ia-border);font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--ia-text-dim);font-weight:700">Assign selected to&hellip;</div>
+          {{-- MARKER-CAT-UNDO — the suggestion, with its reason. Never applied
+               on its own; two buttons, both explicit. --}}
+          @if(!empty($activeSuggestion))
+            <div style="margin:12px 14px 4px;border:.5px solid rgba(190,242,100,.35);background:rgba(190,242,100,.10);border-radius:12px;padding:13px 15px">
+              <div style="font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--ia-text-dim);margin-bottom:5px">Suggested for this bucket</div>
+              <div style="font-size:16px;font-weight:600">{{ $activeSuggestion['category_name'] }}</div>
+              <div style="font-size:12.5px;color:var(--ia-text-muted);margin-top:5px;line-height:1.5">
+                @if($activeSuggestion['kind'] === 'rule')
+                  Because you put <b>{{ $activeSuggestion['because'][0] }}</b> there before.
+                @else
+                  Because you put @foreach($activeSuggestion['because'] as $i => $bk)<b>{{ $bk }}</b>{{ $i < count($activeSuggestion['because']) - 1 ? ', ' : '' }}@endforeach there. Same family of buckets.
+                @endif
+              </div>
+              <div style="display:flex;gap:8px;margin-top:11px;flex-wrap:wrap">
+                <button type="button" class="ia-btn ia-btn--sm ia-btn--primary"
+                        onclick="ucSuggestAll(@js($activeSuggestion['category_id']), @js($activeSuggestion['path']))">Assign all {{ number_format($bucketTotal) }}</button>
+                <button type="button" class="ia-btn ia-btn--sm ia-btn--ghost"
+                        onclick="ucPick(@js($activeSuggestion['category_id']), 0, @js($activeSuggestion['path']))">Only the selected</button>
+              </div>
+              <div style="font-size:12px;color:var(--ia-text-dim);margin-top:9px">Not right? Pick below — the rule learns from what you choose.</div>
+            </div>
+          @endif
           @if($recent->count())
             <div style="padding:11px 14px;border-bottom:1px solid var(--ia-border)">
               <div style="font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--ia-text-mute);margin-bottom:7px">Recently used</div>
@@ -168,6 +236,39 @@
       document.getElementById('ucAdding').textContent = n ? ('+' + n) : '';
     }
   }
+  // MARKER-CAT-UNDO — assign the whole bucket to the suggestion, in one post.
+  function ucSuggestAll(cid, path){
+    ucPick(cid, 0, path);
+    document.getElementById('ucSelectAll').value = '1';
+    document.getElementById('ucSource').value = 'rule';
+    document.getElementById('ucAssign').disabled = false;
+    document.getElementById('ucAssign').closest('form').submit();
+  }
+  // MARKER-CAT-UNDO — bucket search + top/all/with-suggestions.
+  (function(){
+    var chips = Array.prototype.slice.call(document.querySelectorAll('.uc-chip'));
+    var mode = 'top';
+    var q = '';
+    function apply(){
+      var shown = 0;
+      chips.forEach(function(c){
+        var byQ = !q || c.dataset.label.indexOf(q) >= 0;
+        var byMode = mode === 'all' || (mode === 'top' && parseInt(c.dataset.idx, 10) < 30) || (mode === 'sug' && c.dataset.sug === '1');
+        var on = byQ && (q ? true : byMode);
+        c.hidden = !on; if (on) shown++;
+      });
+    }
+    var s = document.getElementById('ucBkSearch');
+    if (s) s.addEventListener('input', function(){ q = s.value.trim().toLowerCase(); apply(); });
+    document.querySelectorAll('.uc-bkmode').forEach(function(b){
+      b.addEventListener('click', function(){
+        mode = b.dataset.mode;
+        document.querySelectorAll('.uc-bkmode').forEach(function(x){ x.classList.toggle('on', x === b); });
+        apply();
+      });
+    });
+    if (chips.length) apply();
+  })();
   function ucPick(cid, have, path){
     ucCid = cid; ucHave = have;
     document.getElementById('catId').value = cid;

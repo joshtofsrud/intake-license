@@ -844,6 +844,7 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
                 Route::patch('/categories/{id}/parent', [TenantControllers\InventoryCategoryController::class, 'reparent'])->name('categories.reparent');
                 Route::get('/uncategorized',         [TenantControllers\InventoryController::class, 'uncategorized'])->name('uncategorized');
                 Route::post('/uncategorized/assign', [TenantControllers\InventoryController::class, 'uncategorizedAssign'])->name('uncategorized.assign');
+                Route::post('/uncategorized/undo/{id}', [TenantControllers\InventoryController::class, 'uncategorizedUndo'])->name('uncategorized.undo'); // MARKER-CAT-UNDO
 // Receiving — POS Phase 1, gated by retail capability
                 Route::prefix('receiving')->name('receiving.')->group(function () {
                     Route::get('/',                              [TenantControllers\ReceiveShipmentController::class, 'index'])->name('index');
