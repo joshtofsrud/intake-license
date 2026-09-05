@@ -1525,12 +1525,15 @@ class RegisterController extends Controller
             })->values();
 
         // MARKER-PATCH-553 — HLC stores images as objects; pull usable URLs.
-        $images = collect((array) ($item->distributorCatalog?->images ?? []))
-            ->map(function ($im) {
-                if (is_string($im)) return $im;
-                if (is_array($im)) return $im['Url'] ?? $im['url'] ?? $im['src'] ?? null;
-                return null;
-            })->filter()->values()->all();
+        // MARKER-MODAL-QBP-IMAGES — QBP stores bare filenames, not URLs. This
+        // read Url/url/src, found none, and passed the filename straight to an
+        // <img src>, so every QBP photo drew a broken icon in the item modal
+        // while the same item's photos loaded on the inventory page.
+        $images = \App\Support\CatalogImages::urls(
+            $item->distributorCatalog?->images ?? [],
+            $item->distributorCatalog?->distributor_code,
+            $tenant->id ?? null,
+        );
 
         // Specs from canonical attributes
         $attrs = collect((array) ($item->distributorCatalog?->attributes ?? []))
