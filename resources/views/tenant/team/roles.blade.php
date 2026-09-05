@@ -70,6 +70,26 @@
 .ra-ni-head { font-size:9.5px; text-transform:uppercase; letter-spacing:.1em; color:var(--ia-text-dim); padding:12px 10px 4px; }
 .ra-cap { font-size:11.5px; color:var(--ia-text-dim); max-width:240px; margin-top:6px; }
 .ra-cap b { color:var(--ia-accent); }
+
+/* MARKER-TC-EXEMPT-CAP — capability rows. .ra-tog-cap had NO styling, so the
+   browser drew a raw native checkbox next to the section switches. Scoped
+   under .ra-caps on purpose: .ra-cap is also used for a paragraph in the nav
+   preview below, which must stay a paragraph. */
+.ra-secwrap { display:flex; flex-direction:column; }
+.ra-caps { display:flex; flex-direction:column; gap:2px; padding:6px 12px 2px 22px; }
+.ra-caps-dim { opacity:.45; }
+.ra-caps .ra-cap { display:flex; align-items:center; gap:10px; max-width:none; margin-top:0;
+  padding:5px 0; font-size:11.5px; cursor:pointer; }
+.ra-caps .ra-cap.off { opacity:.55; }
+.ra-caps .ra-cap .cn { flex:1 1 auto; min-width:0; }
+.ra-tog-cap { appearance:none; -webkit-appearance:none; margin-left:auto; width:28px; height:16px;
+  border-radius:99px; background:rgba(255,255,255,.06); border:1px solid var(--ia-border);
+  position:relative; flex:none; cursor:pointer; transition:.15s; }
+.ra-tog-cap::after { content:""; position:absolute; top:1px; left:1px; width:12px; height:12px;
+  border-radius:50%; background:#8a8a88; transition:.15s; }
+.ra-tog-cap:checked { background:var(--ia-accent-soft); border-color:var(--ia-accent); }
+.ra-tog-cap:checked::after { left:13px; background:var(--ia-accent); }
+.ra-tog-cap:disabled { cursor:default; opacity:.6; }
 </style>
 @endpush
 
@@ -147,14 +167,19 @@
           <div class="ra-secs">
             @foreach($gSections as $key => $def)
               @php $on = $selIsOwner || in_array($key, $selChecked, true); @endphp
+              {{-- MARKER-TC-EXEMPT-CAP — the section and its capabilities are
+                   ONE grid item. As direct children of the two-column grid the
+                   capability block landed in the next COLUMN, floating beside
+                   an unrelated section instead of under its own. --}}
+              @php $caps = \App\Support\CapabilityRegistry::forSection($key);
+                   $caps = array_filter($caps, fn($d) => !$d['gate'] || tenant()->{$d['gate']}); @endphp
+              <div class="ra-secwrap">
               <label class="ra-sec {{ $on ? '' : 'off' }}">
                 <span class="sn">{{ $def['label'] }}</span>
                 <input type="checkbox" class="ra-tog" name="sections[]" value="{{ $key }}"
                        @checked($on) @if($selIsOwner) disabled @endif>
               </label>
               {{-- MARKER-PATCH-611 — capabilities nested under their section --}}
-              @php $caps = \App\Support\CapabilityRegistry::forSection($key);
-                   $caps = array_filter($caps, fn($d) => !$d['gate'] || tenant()->{$d['gate']}); @endphp
               @if(!empty($caps))
                 <div class="ra-caps {{ $on ? '' : 'ra-caps-dim' }}">
                   @foreach($caps as $ck => $cd)
@@ -167,6 +192,7 @@
                   @endforeach
                 </div>
               @endif
+              </div>
             @endforeach
           </div>
         </div>
@@ -248,6 +274,11 @@
   editor.addEventListener('change', e => {
     if (!e.target.classList.contains('ra-tog')) return;
     e.target.closest('.ra-sec').classList.toggle('off', !e.target.checked);
+    // MARKER-TC-EXEMPT-CAP — the dim state was server-rendered only, so
+    // switching a section off left its capabilities looking live.
+    const wrap = e.target.closest('.ra-secwrap');
+    const caps = wrap ? wrap.querySelector('.ra-caps') : null;
+    if (caps) { caps.classList.toggle('ra-caps-dim', !e.target.checked); }
     renderPreview();
   });
 
@@ -256,7 +287,13 @@
       const grp = editor.querySelector(`.ra-grp[data-group="${btn.dataset.toggleAll}"]`);
       const togs = [...grp.querySelectorAll('.ra-tog')];
       const target = !togs.every(t => t.checked);
-      togs.forEach(t => { t.checked = target; t.closest('.ra-sec').classList.toggle('off', !target); });
+      togs.forEach(t => {
+        t.checked = target;
+        t.closest('.ra-sec').classList.toggle('off', !target);
+        const w = t.closest('.ra-secwrap');
+        const c = w ? w.querySelector('.ra-caps') : null;
+        if (c) { c.classList.toggle('ra-caps-dim', !target); }
+      });
       renderPreview();
     });
   });

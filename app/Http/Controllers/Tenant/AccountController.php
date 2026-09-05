@@ -42,6 +42,11 @@ class AccountController extends Controller
     public function updateTimeclockExempt(Request $request)
     {
         $me = Auth::guard('tenant')->user();
+
+        // MARKER-TC-EXEMPT-CAP — a hidden card is not a gate. Both surfaces
+        // that offer this post here, so this is the one place to stop it.
+        abort_unless($me->can('timeclock.exempt_self'), 403);
+
         $exempt = (bool) $request->boolean('exempt_from_timeclock');
         $me->update(['exempt_from_timeclock' => $exempt]);
 

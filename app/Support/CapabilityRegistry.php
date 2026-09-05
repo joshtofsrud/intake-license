@@ -52,6 +52,16 @@ class CapabilityRegistry
                 'gate'    => null,
                 'default_roles' => ['Manager'],
             ],
+            // MARKER-TC-EXEMPT-CAP — deciding you don't clock in is a payroll
+            // decision, not a personal preference. Empty default_roles: nobody
+            // has it until it is granted here. Owner passes implicitly.
+            'timeclock.exempt_self' => [
+                'label'   => 'Turn off their own clock-in requirement',
+                'section' => 'timeclock',
+                'desc'    => 'Mark themselves as never clocks in, which hides the prompt and blocks the clock. Managers set this for other people on the team member page.',
+                'gate'    => null,
+                'default_roles' => [],
+            ],
             'timeclock.approve' => [
                 'label'   => 'Approve & lock pay periods',
                 'section' => 'timeclock',

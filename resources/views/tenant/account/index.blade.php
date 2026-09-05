@@ -67,7 +67,9 @@
 </div>
 
 {{-- Password --}}
-{{-- MARKER-TIMECLOCK-EXEMPT — self-serve clock-in nudge opt-out --}}
+{{-- MARKER-TIMECLOCK-EXEMPT — self-serve clock-in nudge opt-out.
+     MARKER-TC-EXEMPT-CAP — only for whoever holds the capability. --}}
+@if($me->can('timeclock.exempt_self'))
 <div class="ia-card" style="margin-bottom:14px">
   <div class="ia-card-head"><span class="ia-card-title">Time clock</span></div>
   <p style="font-size:12px;color:var(--ia-text-dim);margin:0 0 14px">If you don't punch a clock, turn off the reminder that shows on every page when you're off the clock.</p>
@@ -89,6 +91,7 @@
     </div>
   </form>
 </div>
+@endif
 
 <div class="ia-card" style="margin-bottom:14px">
   <div class="ia-card-head"><span class="ia-card-title">Password</span></div>

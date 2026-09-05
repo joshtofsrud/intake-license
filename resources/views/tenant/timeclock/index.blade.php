@@ -149,7 +149,9 @@
 
   {{-- MARKER-TC-EDIT-SCOPE — self-serve exemption toggle. Posts to the
        ACCOUNT endpoint: TeamController redirects self-edits away, so anything
-       a person sets on themselves has to go through /admin/account. --}}
+       a person sets on themselves has to go through /admin/account.
+       MARKER-TC-EXEMPT-CAP — behind the capability; the endpoint checks too. --}}
+  @if($authUser->can('timeclock.exempt_self'))
   <div class="tc-card" style="margin-top:16px">
     <div class="tc-card-h">Clock-in prompts</div>
     <form method="POST" action="{{ route('tenant.account.timeclock-exempt') }}"
@@ -166,6 +168,7 @@
       Managers set this for other people on their team member page.
     </div>
   </div>
+  @endif
 
   {{-- MARKER-PATCH-613 — shift history + email/print timesheet --}}
   <div class="tc-card" style="margin-top:16px">
