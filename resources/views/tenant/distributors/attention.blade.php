@@ -78,10 +78,26 @@ body.at-bar-open .ia-mobile-nav{display:none}
      toggle sharing the last line instead of taking two of their own */
   .at-filter{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
   .at-filter select{flex:1 1 46%;min-width:0}
-  .at-filter > .at-btn{flex:0 0 auto;padding:8px 14px}
-  .at-filter .at-seg{flex:1 1 auto;margin-top:0;display:flex;min-width:0}
-  .at-filter .at-segbtn{flex:1 1 0;min-width:0;padding:8px 6px;font-size:11.5px;
-    text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  /* MARKER-ATTENTION-ROWHEIGHT — one strip, one height. Clear sized itself from
+     its padding and the toggle from its segment buttons, so the two sat at
+     different heights beside each other and the row looked broken. Stretching
+     the row and letting both fill it keeps them level whatever the padding or
+     font does. */
+  .at-filter{align-items:stretch}
+  .at-filter select{flex:1 1 46%;min-width:0}
+  .at-filter > .at-btn{
+    flex:0 0 auto;
+    display:inline-flex;align-items:center;justify-content:center;
+    padding:0 16px;
+    line-height:1;
+  }
+  .at-filter .at-seg{flex:1 1 auto;margin-top:0;display:flex;min-width:0;align-items:stretch}
+  .at-filter .at-segbtn{
+    flex:1 1 0;min-width:0;
+    display:inline-flex;align-items:center;justify-content:center;
+    padding:10px 6px;font-size:11.5px;line-height:1;
+    text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
 
   /* the table becomes cards — as a FLEX row, so the checkbox is a normal
      child. Absolute positioning inside a display:block table row does not
