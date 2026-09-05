@@ -54,6 +54,12 @@ class ImportDistributorCatalogJob implements ShouldQueue, ShouldBeUnique
         $totals = ['created' => 0, 'merged' => 0, 'skipped' => 0, 'matched_catalog' => 0];
         $offset = 0;
 
+        // MARKER-CATALOG-PROGRESS-HOLD — the import service rewrites this same
+        // batch row each page as its undo ledger, resetting status and
+        // progress_total. Keep the total here and re-assert state per page.
+        $total = (int) $batch->progress_total
+            ?: $importer->candidateCount($this->code, $this->filters);
+
         try {
             while (true) {
                 $res = $importer->import($tenant->id, $this->code, $this->filters, false, self::PAGE, $offset);
@@ -65,8 +71,11 @@ class ImportDistributorCatalogJob implements ShouldQueue, ShouldBeUnique
 
                 $offset += self::PAGE;
                 $batch->update([
-                    'progress_done' => min($offset, (int) $batch->progress_total),
-                    'item_count'    => $totals['created'] + $totals['merged'],
+                    'status'         => 'running',
+                    'progress_stage' => 'importing',
+                    'progress_total' => $total,
+                    'progress_done'  => min($offset, $total),
+                    'item_count'     => $totals['created'] + $totals['merged'],
                 ]);
 
                 // A short page means the catalog is exhausted.
@@ -77,7 +86,8 @@ class ImportDistributorCatalogJob implements ShouldQueue, ShouldBeUnique
 
             $batch->update([
                 'status'         => 'done',
-                'progress_done'  => (int) $batch->progress_total,
+                'progress_done'  => $total,
+                'progress_total' => $total,
                 'progress_stage' => 'done',
                 'result'         => $totals,
                 'item_count'     => $totals['created'] + $totals['merged'],
