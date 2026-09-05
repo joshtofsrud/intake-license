@@ -292,11 +292,14 @@ class AudienceService
 
             // MARKER-CUSTOMER-TAGS
             case 'tag':
-                $tagId = (string) $rule['value'];
-                if ($tagId === '') break;
+                // MARKER-AUD-TAGPICK — one or many ids, comma-joined. Nothing
+                // picked matches NOBODY: an unfinished rule fails closed
+                // instead of silently widening to the whole list.
+                $tagIds = array_values(array_filter(array_map('trim', explode(',', (string) $rule['value']))));
+                if (! $tagIds) { $q->whereRaw('1 = 0'); break; }
                 $op === 'is_not'
-                    ? $q->whereDoesntHave('tags', fn ($t) => $t->where('tenant_customer_tags.id', $tagId))
-                    : $q->whereHas('tags', fn ($t) => $t->where('tenant_customer_tags.id', $tagId));
+                    ? $q->whereDoesntHave('tags', fn ($t) => $t->whereIn('tenant_customer_tags.id', $tagIds))
+                    : $q->whereHas('tags', fn ($t) => $t->whereIn('tenant_customer_tags.id', $tagIds));
                 break;
         }
     }
@@ -322,9 +325,12 @@ class AudienceService
             'customer_type' => (self::CHOICES['customer_type'][$v] ?? $v) . ($rule['op'] === 'is_not' ? ' (excluded)' : ''),
             'consent_source'=> 'opted in via ' . (self::CHOICES['consent_source'][$v] ?? $v),
             'special_order' => $rule['op'] === 'is_not' ? 'no special orders' : 'has a special order',
-            'tag'           => (function () use ($rule) {   // MARKER-CUSTOMER-TAGS
-                $name = \App\Models\Tenant\TenantCustomerTag::find($rule['value'])->name ?? 'a deleted tag';
-                return ($rule['op'] === 'is_not' ? 'not tagged ' : 'tagged ') . $name;
+            'tag'           => (function () use ($rule) {   // MARKER-CUSTOMER-TAGS / MARKER-AUD-TAGPICK
+                $ids   = array_values(array_filter(array_map('trim', explode(',', (string) $rule['value']))));
+                if (! $ids) return 'tagged (nothing picked — matches no one)';
+                $names = \App\Models\Tenant\TenantCustomerTag::whereIn('id', $ids)->pluck('name')->all();
+                if (count($names) < count($ids)) $names[] = 'a deleted tag';
+                return ($rule['op'] === 'is_not' ? 'not tagged ' : 'tagged ') . implode(' or ', $names);
             })(),
             default         => strtolower($label),
         };

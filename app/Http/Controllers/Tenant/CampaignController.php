@@ -49,6 +49,9 @@ class CampaignController extends Controller
         $audienceSvc     = app(\App\Services\Tenant\AudienceService::class);
         $audienceFields  = \App\Services\Tenant\AudienceService::FIELDS;
         $audienceChoices = \App\Services\Tenant\AudienceService::CHOICES;
+        // MARKER-AUD-TAGPICK — the shop's tags for the Tag rule's picker.
+        $audienceTags = \App\Models\Tenant\TenantCustomerTag::where('tenant_id', $tenant->id)
+            ->orderBy('name')->pluck('name', 'id')->all();
         $savedAudiences  = \App\Models\Tenant\TenantAudience::where('tenant_id', $tenant->id)
             ->orderBy('name')->get(['id', 'name', 'rules']);
         $audienceSummary = $audienceSvc->describe($tenant, $campaign->targeting);
@@ -83,7 +86,7 @@ class CampaignController extends Controller
 
         return view('tenant.campaigns.show', compact(
             'campaign', 'customerCount', 'segments', 'blocks', 'discounts', 'attribution',
-            'audienceFields', 'audienceChoices', 'savedAudiences', 'audienceSummary' // MARKER-CAMPAIGN-AUDIENCE
+            'audienceFields', 'audienceChoices', 'audienceTags', 'savedAudiences', 'audienceSummary' // MARKER-CAMPAIGN-AUDIENCE / MARKER-AUD-TAGPICK
         ));
     }
 

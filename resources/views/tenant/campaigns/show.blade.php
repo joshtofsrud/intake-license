@@ -1966,6 +1966,12 @@ function cbConfirmSend() {
   .aud-rule-top{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr) auto;gap:6px;align-items:center}
   .aud-rule-val{display:grid;grid-template-columns:80px minmax(0,1fr);gap:6px;margin-top:6px}
   .aud-rule .cb-field-select,.aud-rule .cb-field-input{padding:6px 8px;font-size:12px}
+  /* MARKER-AUD-TAGPICK — tag chips */
+  .aud-tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+  .aud-tag{display:inline-flex;align-items:center;gap:6px;font-size:12px;padding:4px 10px;border-radius:100px;border:.5px solid var(--ia-border);cursor:pointer;color:var(--ia-text-muted);user-select:none}
+  .aud-tag input{display:none}
+  .aud-tag.on{border-color:var(--ia-accent);color:var(--ia-text);background:rgba(127,127,127,.08)}
+  .aud-tag-empty{font-size:11.5px;color:var(--ia-text-dim);margin-top:8px}
   .aud-rule .x{background:none;border:0;color:var(--ia-text-dim);cursor:pointer;font-size:16px;line-height:1;padding:0 2px}
   .aud-rule .x:hover{color:#f87171}
   .aud-add{background:none;border:.5px dashed var(--ia-border-strong);color:var(--ia-text-dim);width:100%;
@@ -1989,6 +1995,7 @@ function cbConfirmSend() {
 
   var FIELDS  = @json($audienceFields);
   var CHOICES = @json($audienceChoices);
+  var TAGS    = @json($audienceTags ?? []); // MARKER-AUD-TAGPICK
   var saved0  = @json($campaign->targeting ?? ['mode' => 'all']);
 
   var hidden = document.getElementById('cb-targeting-json');
@@ -2005,7 +2012,8 @@ function cbConfirmSend() {
     money:  [['at_least', 'at least'], ['at_most', 'at most']],
     flag:   [['is', 'yes'], ['is_not', 'no']],
     text:   [['is', 'is'], ['is_not', 'is not']],
-    choice: [['is', 'is'], ['is_not', 'is not']]
+    choice: [['is', 'is'], ['is_not', 'is not']],
+    tag:    [['is', 'has any of'], ['is_not', 'has none of']] // MARKER-AUD-TAGPICK
   };
 
   function sel(options, value, cls) {
@@ -2080,6 +2088,35 @@ function cbConfirmSend() {
       c.style.marginTop = '6px';
       c.addEventListener('change', function () { rules[i].value = c.value; refresh(); });
       wrap.appendChild(c);
+    } else if (type === 'tag') {
+      // MARKER-AUD-TAGPICK — chips, several allowed; value is ids joined by commas.
+      var ids = Object.keys(TAGS);
+      if (!ids.length) {
+        var none = document.createElement('div');
+        none.className = 'aud-tag-empty';
+        none.textContent = 'No tags yet. Tag customers on their record, or from a discount code.';
+        wrap.appendChild(none);
+      } else {
+        var picked = String(rule.value || '').split(',').filter(Boolean);
+        var box = document.createElement('div'); box.className = 'aud-tags';
+        ids.forEach(function (id) {
+          var lab = document.createElement('label');
+          lab.className = 'aud-tag' + (picked.indexOf(id) >= 0 ? ' on' : '');
+          var cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = picked.indexOf(id) >= 0;
+          cb.addEventListener('change', function () {
+            var cur = String(rules[i].value || '').split(',').filter(Boolean);
+            if (cb.checked) { if (cur.indexOf(id) < 0) cur.push(id); }
+            else { cur = cur.filter(function (x) { return x !== id; }); }
+            rules[i].value = cur.join(',');
+            lab.classList.toggle('on', cb.checked);
+            refresh();
+          });
+          lab.appendChild(cb);
+          lab.appendChild(document.createTextNode(TAGS[id]));
+          box.appendChild(lab);
+        });
+        wrap.appendChild(box);
+      }
     }
 
     return wrap;
