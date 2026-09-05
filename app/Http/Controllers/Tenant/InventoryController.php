@@ -49,7 +49,13 @@ class InventoryController extends Controller
 
         $search   = trim((string) $request->input('s', ''));
         $category = $request->input('category');
-        $stock    = $request->input('stock'); // '', 'in', 'low', 'out', 'archived' — MARKER-INV-IN-STOCK
+        // MARKER-CAT-PLACEHOLDER — in-stock is the landing state. Only when
+        // the parameter is ABSENT: ?stock= (chosen "All stock levels") is an
+        // explicit choice and is honoured, or the filter could never be
+        // cleared.
+        $stock    = $request->has('stock')
+            ? $request->input('stock')
+            : 'in'; // '', 'in', 'low', 'out', 'archived' — MARKER-INV-IN-STOCK
         $sort     = $request->input('sort', 'name_asc');
         // MARKER-INV-BRAND-DIST
         $brand       = trim((string) $request->input('brand', ''));

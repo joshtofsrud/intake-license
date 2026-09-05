@@ -44,6 +44,9 @@
       <div class="ia-form-group">
         <label class="ia-form-label">Category <span class="ia-required">*</span></label>
         <select name="category_id" class="ia-input" required>
+          {{-- MARKER-CAT-PLACEHOLDER — a new item starts uncategorised, not in
+               whichever category happens to sort first. --}}
+          <option value="" @selected(old('category_id') === null)>— Select a category —</option>
           <option value="">Select category…</option>
           {{-- MARKER-ITEM-CAT-TREE — children indented under their parent, matching
                the index filter. A flat A-Z list put children rows above their own

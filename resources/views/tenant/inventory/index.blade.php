@@ -270,6 +270,15 @@
     </select>
   @endif
 
+  {{-- MARKER-CAT-PLACEHOLDER — the list lands on in-stock, so say so. A
+       default nobody can see is the same as a bug. --}}
+  @if($stock === 'in')
+    <span style="font-size:11.5px;color:var(--ia-text-dim);align-self:center">
+      Showing what you have on hand ·
+      <a href="{{ route('tenant.inventory.index', array_filter(['s' => $search, 'category' => $category, 'stock' => ''], fn ($v) => $v !== null)) }}"
+         style="text-decoration:underline">show everything</a>
+    </span>
+  @endif
   <select name="stock" class="ia-input" style="width:auto">
     @foreach($stockLabels as $val => $label)
       <option value="{{ $val }}" @selected($stock === $val)>{{ $label }}</option>
