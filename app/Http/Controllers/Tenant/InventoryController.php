@@ -647,7 +647,9 @@ class InventoryController extends Controller
         $vendors = \App\Models\Tenant\TenantVendor::where('tenant_id', $tenant->id)
             ->where('is_active', true)->orderBy('name')->get();
 
-        if ($categories->isEmpty()) {
+        // MARKER-ERR-HOME — categoryOptions() is declared `: array` and returns
+        // one. Calling ->isEmpty() on it fataled every visit to Add Item.
+        if (empty($categories)) {
             return redirect()->route('tenant.inventory.categories.index')
                 ->with('flash', ['type' => 'info', 'message' => 'Create at least one category before adding items.']);
         }

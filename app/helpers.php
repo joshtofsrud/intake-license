@@ -293,6 +293,33 @@ if (! function_exists('brand_initials')) {
 // MARKER-TC-EDIT-SCOPE — tenant-local value for a <input type="datetime-local">.
 // editPunch parses submitted values in the tenant timezone, so the field has to
 // be rendered in it too or every save would shift by the UTC offset.
+if (! function_exists('error_home_url')) {
+    /**
+     * MARKER-ERR-HOME — where "Back to dashboard" should actually go.
+     *
+     * url('/') on a tenant host is the shop's PUBLIC site. For a shop with no
+     * published site that redirects to a login, so a staff member who hit an
+     * error looked like they had been signed out. Send people back to the
+     * thing they were using.
+     */
+    function error_home_url(): string
+    {
+        try {
+            if (auth('tenant')->check()) {
+                return url('/admin');
+            }
+
+            if (auth('web')->check() && (auth('web')->user()->is_admin ?? false)) {
+                return 'https://' . config('intake.domain', 'intake.works') . '/admin';
+            }
+        } catch (\Throwable $e) {
+            // An error page must never itself throw. Fall through to the root.
+        }
+
+        return url('/');
+    }
+}
+
 if (! function_exists('tlocal_input')) {
     function tlocal_input($utc): string
     {

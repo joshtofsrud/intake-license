@@ -13,7 +13,8 @@ Something went sideways. We've been notified automatically and we'll dig into it
   <a href="{{ url('/docs') }}">Help</a>
 @endsection
 @section('actions')
-  <a href="{{ url('/') }}" class="btn btn-primary">← Back to dashboard</a>
+  {{-- MARKER-ERR-HOME --}}
+  <a href="{{ error_home_url() }}" class="btn btn-primary">← Back to dashboard</a>
   <a href="javascript:window.location.reload()" class="btn btn-secondary">Try this page again</a>
 @endsection
 @section('status_block')

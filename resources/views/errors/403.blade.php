@@ -12,7 +12,8 @@ Either you're not signed in to this shop, or the owner hasn't granted you permis
   <a href="{{ url('/login') }}">Sign in with a different account</a>
 @endsection
 @section('actions')
-  <a href="{{ url('/') }}" class="btn btn-primary">← Back to dashboard</a>
+  {{-- MARKER-ERR-HOME --}}
+  <a href="{{ error_home_url() }}" class="btn btn-primary">← Back to dashboard</a>
   <a href="{{ url('/logout') }}" class="btn btn-secondary">Sign out</a>
 @endsection
 @section('footer_text', "Need help? Contact your shop's owner, or email")
