@@ -51,7 +51,7 @@ class ImportDistributorCatalogJob implements ShouldQueue, ShouldBeUnique
             return;
         }
 
-        $totals = ['created' => 0, 'merged' => 0, 'skipped' => 0, 'matched_catalog' => 0];
+        $totals = ['created' => 0, 'merged' => 0, 'skipped' => 0, 'matched_catalog' => 0, 'errors' => 0]; // MARKER-IMPORT-SKU-MERGE
         $offset = 0;
 
         // MARKER-CATALOG-PROGRESS-HOLD — the import service rewrites this same
@@ -65,7 +65,7 @@ class ImportDistributorCatalogJob implements ShouldQueue, ShouldBeUnique
                 $res = $importer->import($tenant->id, $this->code, $this->filters, false, self::PAGE, $offset);
 
                 $seen = (int) ($res['matched_catalog'] ?? 0);
-                foreach (['created', 'merged', 'skipped', 'matched_catalog'] as $k) {
+                foreach (['created', 'merged', 'skipped', 'matched_catalog', 'errors'] as $k) {
                     $totals[$k] += (int) ($res[$k] ?? 0);
                 }
 

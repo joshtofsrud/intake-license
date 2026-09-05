@@ -34,7 +34,7 @@ class DistributorCatalogImportService
         }
 
         $vendor = $dryRun ? null : $this->vendorFor($tenantId, $code);
-        [$byKey, $byUpc, $linkedCatalog] = $this->existingIndexes($tenantId);
+        [$byKey, $byUpc, $linkedCatalog, $bySku] = $this->existingIndexes($tenantId); // MARKER-IMPORT-SKU-MERGE
 
         // MARKER-IMPORT-MATCHES
         $matchedRows = $this->matchedRows($candidates->pluck('id')->all());
@@ -70,6 +70,16 @@ class DistributorCatalogImportService
                     : (($cat->upc && isset($byUpc[$cat->upc])) ? $byUpc[$cat->upc] : null);
             }
 
+            // MARKER-IMPORT-SKU-MERGE — the shop already has an item with the
+            // SKU this row would be created under. The database will refuse
+            // a duplicate; treat it as the match it is, same as a UPC hit.
+            if ($matchId === null) {
+                $sku = strtoupper(trim((string) ($cat->product_key ?: $cat->distributor_variant_no)));
+                if ($sku !== '' && isset($bySku[$sku])) {
+                    $matchId = $bySku[$sku];
+                }
+            }
+
             if ($matchId) {
                 if (! $dryRun) {
                     $this->addSource($matchId, $vendor, $code, $cat);
@@ -81,9 +91,20 @@ class DistributorCatalogImportService
 
             // 3) new product -> create catalog-only item + source
             if (! $dryRun) {
-                $item = $this->createItem($tenantId, $cat);
-                $this->addSource($item->id, $vendor, $code, $cat);
-                $id = $item->id;
+                try {
+                    $item = $this->createItem($tenantId, $cat);
+                    $this->addSource($item->id, $vendor, $code, $cat);
+                    $id = $item->id;
+                } catch (\Throwable $e) {
+                    // MARKER-IMPORT-SKU-MERGE — one odd row must not end a
+                    // 39,000-row import. Count it, log it, move on.
+                    $res['errors'] = ($res['errors'] ?? 0) + 1;
+                    \Illuminate\Support\Facades\Log::warning('Catalog import row skipped', [
+                        'tenant' => $tenantId, 'code' => $code, 'catalog_id' => $cat->id, 'error' => $e->getMessage(),
+                    ]);
+                    continue;
+                }
+                $bySku[strtoupper(trim((string) $item->sku))] = $id;
             } else {
                 $id = 'dry';
             }
@@ -201,7 +222,7 @@ class DistributorCatalogImportService
     {
         $items = TenantInventoryItem::query()
             ->where('tenant_id', $tenantId)
-            ->get(['id', 'catalog_upc', 'distributor_catalog_id']);
+            ->get(['id', 'sku', 'catalog_upc', 'distributor_catalog_id']); // MARKER-IMPORT-SKU-MERGE
 
         $itemIds = $items->pluck('id');
         $pivots = TenantInventoryItemVendor::query()
@@ -218,11 +239,15 @@ class DistributorCatalogImportService
 
         $byKey = [];
         $byUpc = [];
+        $bySku = [];   // MARKER-IMPORT-SKU-MERGE
         $linked = [];
 
         foreach ($items as $it) {
             if ($it->catalog_upc) {
                 $byUpc[$it->catalog_upc] = $it->id;
+            }
+            if ($it->sku) {
+                $bySku[strtoupper(trim($it->sku))] = $it->id;
             }
             if ($it->distributor_catalog_id) {
                 $linked[$it->distributor_catalog_id] = $it->id;
@@ -242,7 +267,7 @@ class DistributorCatalogImportService
             }
         }
 
-        return [$byKey, $byUpc, $linked];
+        return [$byKey, $byUpc, $linked, $bySku]; // MARKER-IMPORT-SKU-MERGE
     }
 
     /**
