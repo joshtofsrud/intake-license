@@ -45,7 +45,7 @@
            class="uc-chip" data-label="{{ strtolower($b['label']) }}" data-idx="{{ $loop->index }}" data-sug="{{ $sg ? 1 : 0 }}"
            style="display:flex;gap:9px;align-items:center;padding:9px 13px;border-radius:8px;text-decoration:none;font-size:13px;border:1px solid {{ $on ? 'var(--ia-accent)' : 'var(--ia-border)' }};background:{{ $on ? 'rgba(190,242,100,.13)' : 'var(--ia-surface)' }};color:var(--ia-text)">
           {{ $b['label'] }} <span style="font-family:var(--ia-mono);font-size:12px;color:{{ $on ? 'var(--ia-accent)' : 'var(--ia-text-dim)' }}">{{ $b['count'] }}</span>
-          @if($sg)<span class="uc-sug {{ $sg['kind'] === 'rule' ? 'rule' : '' }}">→ {{ $sg['category_name'] }}</span>@endif
+          @if($sg && $sg['kind'] === 'rule')<span class="uc-sug rule">→ {{ $sg['category_name'] }}</span>@elseif($sg)<span class="uc-sug" style="opacity:.55">maybe {{ $sg['category_name'] }}</span>@endif
         </a>
       @endforeach
       @if($noneCount > 0)
@@ -154,7 +154,15 @@
           <div style="padding:13px 15px;border-bottom:1px solid var(--ia-border);font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--ia-text-dim);font-weight:700">Assign selected to&hellip;</div>
           {{-- MARKER-CAT-UNDO — the suggestion, with its reason. Never applied
                on its own; two buttons, both explicit. --}}
-          @if(!empty($activeSuggestion))
+          {{-- MARKER-CAT-SUGGEST-TONE — a family match is a hint. Only an exact
+               rule (this same bucket, assigned before) earns the green box and
+               the assign-all button; bucket contents vary too much for less. --}}
+          @if(!empty($activeSuggestion) && $activeSuggestion['kind'] !== 'rule')
+            <div style="margin:10px 14px 0;font-size:12.5px;color:var(--ia-text-dim);line-height:1.5">
+              Similar buckets went to <b style="color:var(--ia-text-muted)">{{ $activeSuggestion['category_name'] }}</b>. Pick it below if that's right for these.
+            </div>
+          @endif
+          @if(!empty($activeSuggestion) && $activeSuggestion['kind'] === 'rule')
             <div style="margin:12px 14px 4px;border:.5px solid rgba(190,242,100,.35);background:rgba(190,242,100,.10);border-radius:12px;padding:13px 15px">
               <div style="font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--ia-text-dim);margin-bottom:5px">Suggested for this bucket</div>
               <div style="font-size:16px;font-weight:600">{{ $activeSuggestion['category_name'] }}</div>
@@ -428,11 +436,24 @@ function ucNote(){
    identifiers are a parse-time SyntaxError, so the whole script block was
    thrown away and none of this ever ran. */
 const ucAttrSel = document.getElementById('ucAttr');
-if (ucAttrSel) ucAttrSel.addEventListener('change', e => {
-  ucAttr = e.target.value || null;
-  ucVal = null;
-  ucNote(); ucPaintChips(); ucPaintRows();
-});
+// MARKER-CAT-SUGGEST-TONE — remember the split-by per bucket, so the reload
+// after Assign doesn't reset it to the default every time.
+const UC_SPLIT_KEY = 'uc-split:' + @json($activeBucket);
+if (ucAttrSel) {
+  try {
+    const saved = localStorage.getItem(UC_SPLIT_KEY);
+    if (saved !== null && [...ucAttrSel.options].some(o => o.value === saved)) {
+      ucAttrSel.value = saved;
+      ucAttr = saved || null;
+    }
+  } catch (err) {}
+  ucAttrSel.addEventListener('change', e => {
+    ucAttr = e.target.value || null;
+    ucVal = null;
+    try { localStorage.setItem(UC_SPLIT_KEY, e.target.value); } catch (err) {}
+    ucNote(); ucPaintChips(); ucPaintRows();
+  });
+}
 
 ucNote(); ucPaintChips(); ucPaintRows();
 </script>
