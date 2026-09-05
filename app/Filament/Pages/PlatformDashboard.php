@@ -73,8 +73,108 @@ class PlatformDashboard extends Page
             'wp'         => $this->buildWp(),
             'domains'    => $this->buildDomains(),
             'activity'   => $this->buildActivity(),
+            'series'     => $this->buildSeries(),        // MARKER-DASH-REFACTOR
+            'recentAlerts' => $this->buildRecentAlerts(), // MARKER-DASH-REFACTOR
             'generatedAt'=> now(),
         ];
+    }
+
+    // ─────────────────────────────────────────────────────────
+    // MARKER-DASH-REFACTOR — headline series + cross-tenant activity
+    // ─────────────────────────────────────────────────────────
+
+    /**
+     * One 30-day daily series per headline metric, plus a headline value and
+     * a delta line, so the metric column can chart any of them.
+     */
+    protected function buildSeries(): array
+    {
+        $days  = 30;
+        $start = now()->subDays($days - 1)->startOfDay();
+        $end   = now()->endOfDay();
+        $labels = [];
+        for ($cur = $start->copy(); $cur <= $end; $cur->addDay()) {
+            $labels[] = $cur->toDateString();
+        }
+
+        // Signups per day, and the prior window for the delta.
+        $signups    = $this->dailySignups($start, $end);
+        $priorSign  = array_sum($this->dailySignups(now()->subDays(2 * $days - 1)->startOfDay(), now()->subDays($days)->endOfDay()));
+        $signTotal  = array_sum($signups);
+
+        // Total tenants as of each day = total now minus signups after that day.
+        $totalNow = Tenant::count();
+        $tenants  = [];
+        $after    = 0;
+        for ($i = $days - 1; $i >= 0; $i--) {
+            $tenants[$i] = $totalNow - $after;
+            $after += $signups[$i];
+        }
+        ksort($tenants);
+        $tenants = array_values($tenants);
+
+        // Est. MRR (list) as of each day: active tenants that existed then.
+        $plans  = \App\Support\PlanPricing::all() ?? [];
+        $active = Tenant::where('subscription_status', 'active')->get(['created_at', 'plan_tier', 'licensed_locations']);
+        $mrr = [];
+        foreach ($labels as $d) {
+            $dayEnd = \Carbon\Carbon::parse($d)->endOfDay();
+            $cents  = 0;
+            foreach ($active as $t) {
+                if ($t->created_at && $t->created_at->lte($dayEnd)) {
+                    $cents += (int) ($plans[$t->plan_tier] ?? 0) * max(1, (int) ($t->licensed_locations ?: 1));
+                }
+            }
+            $mrr[] = (int) round($cents / 100);
+        }
+        $mrrNow   = end($mrr) ?: 0;
+        $mrrStart = $mrr[0] ?? 0;
+
+        // Failed jobs per day, if the table exists.
+        $failed = array_fill(0, $days, 0);
+        $failedTotal = null;
+        if (Schema::hasTable('failed_jobs')) {
+            $rows = DB::table('failed_jobs')->where('failed_at', '>=', $start)
+                ->selectRaw('DATE(failed_at) as d, COUNT(*) as c')->groupBy('d')->pluck('c', 'd');
+            foreach ($labels as $i => $d) { $failed[$i] = (int) ($rows[$d] ?? 0); }
+            $failedTotal = (int) DB::table('failed_jobs')->where('failed_at', '>=', now()->subDay())->count();
+        }
+
+        $signDelta = $signTotal - $priorSign;
+        return [
+            'labels' => $labels,
+            'metrics' => [
+                'signups' => ['k' => 'Signups · 30 days', 'v' => (string) $signTotal,
+                    'd' => ($signDelta >= 0 ? '+' : '') . $signDelta . ' vs prior 30', 'tone' => $signDelta > 0 ? 'up' : ($signDelta < 0 ? 'down' : ''),
+                    'series' => $signups, 'mode' => 'cumulative', 'legend' => 'Cumulative signups over the last 30 days.'],
+                'tenants' => ['k' => 'Total tenants', 'v' => (string) $totalNow,
+                    'd' => $signTotal . ' new in 30 days', 'tone' => '',
+                    'series' => $tenants, 'mode' => 'level', 'legend' => 'Total tenants on each day.'],
+                'mrr' => ['k' => 'Est. MRR', 'v' => '$' . number_format($mrrNow),
+                    'd' => ($mrrNow - $mrrStart >= 0 ? '+' : '-') . '$' . number_format(abs($mrrNow - $mrrStart)) . ' in 30 days', 'tone' => $mrrNow > $mrrStart ? 'up' : ($mrrNow < $mrrStart ? 'down' : ''),
+                    'series' => $mrr, 'mode' => 'level', 'legend' => 'List-price MRR of active tenants existing on each day. Discounts and gifts are not netted here — the SaaS card is.'],
+                'failed' => ['k' => 'Failed jobs · 24h', 'v' => $failedTotal === null ? 'n/a' : (string) $failedTotal,
+                    'd' => $failedTotal === null ? 'no failed_jobs table' : ($failedTotal === 0 ? 'queue clear' : 'see health'), 'tone' => ($failedTotal ?? 0) > 0 ? 'down' : '',
+                    'series' => $failed, 'mode' => 'level', 'legend' => 'Failed jobs per day over the last 30 days.'],
+            ],
+        ];
+    }
+
+    /** Newest staff alerts across every tenant — real platform activity. */
+    protected function buildRecentAlerts(): array
+    {
+        if (! Schema::hasTable('tenant_staff_alerts')) return [];
+        return DB::table('tenant_staff_alerts as a')
+            ->leftJoin('tenants as t', 't.id', '=', 'a.tenant_id')
+            ->orderByDesc('a.created_at')
+            ->limit(8)
+            ->get(['a.title', 'a.body', 'a.event', 'a.is_critical', 'a.created_at', 't.subdomain', 't.name as tenant_name'])
+            ->map(fn ($r) => [
+                'who'  => $r->subdomain ?: ($r->tenant_name ?: '—'),
+                'what' => trim($r->title . ($r->body ? ' · ' . \Illuminate\Support\Str::limit($r->body, 70) : '')),
+                'tone' => $r->is_critical ? 'bad' : (str_starts_with((string) $r->event, 'payment.failed') ? 'bad' : ''),
+                'time' => \Carbon\Carbon::parse($r->created_at)->diffForHumans(null, true),
+            ])->all();
     }
 
     // ─────────────────────────────────────────────────────────
@@ -368,6 +468,7 @@ class PlatformDashboard extends Page
 
         $mrrCents  = 0;   // after discounts: money
         $listCents = 0;   // before discounts: potential
+        $byTier    = [];  // MARKER-DASH-REFACTOR
         $giftedCount = 0;
         $payingCount = 0;
 
@@ -387,6 +488,12 @@ class PlatformDashboard extends Page
 
             $mrrCents += $net;
             $net > 0 ? $payingCount++ : $giftedCount++;
+
+            // MARKER-DASH-REFACTOR — per-tier rollup for the SaaS card.
+            $tier = (string) ($t->plan_tier ?: 'other');
+            $byTier[$tier] = $byTier[$tier] ?? ['tenants' => 0, 'cents' => 0];
+            $byTier[$tier]['tenants']++;
+            $byTier[$tier]['cents'] += $net;
         }
 
         $mrr        = $mrrCents / 100;
@@ -438,6 +545,7 @@ class PlatformDashboard extends Page
             'extAccepted'       => $extAccepted,
             'extRevenue'        => $extRevenue,
             'extTenants'        => $extTenants,
+            'byTier'            => $byTier,      // MARKER-DASH-REFACTOR
         ];
     }
 
