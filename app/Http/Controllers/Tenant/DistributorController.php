@@ -568,11 +568,11 @@ class DistributorController extends Controller
         return [
             'importCode' => $code,
             'importCodes' => $this->importableCodes(),
-            'brands' => (clone $base)->whereNotNull('manufacturer')
+            'brands' => (clone $base)->whereNotNull('manufacturer')->whereRaw("TRIM(manufacturer) <> ''") // MARKER-BLANK-CATEGORY
                 ->distinct()->orderBy('manufacturer')->pluck('manufacturer'),
             // MARKER-SSEL-SCOPE — categories narrow to the chosen brand so
             // the picker never offers a category the brand has no items in.
-            'categories' => (clone $base)->whereNotNull('category')
+            'categories' => (clone $base)->whereNotNull('category')->whereRaw("TRIM(category) <> ''") // MARKER-BLANK-CATEGORY
                 ->when($brand !== null && $brand !== '', fn ($q) => $q->where('manufacturer', $brand))
                 ->distinct()->orderBy('category')->pluck('category'),
             'catalogTotal' => (clone $base)->count(),
@@ -589,7 +589,7 @@ class DistributorController extends Controller
 
         $categories = \App\Models\PlatformDistributorCatalog::query()
             ->where('distributor_code', $code)->where('is_active', true)
-            ->whereNotNull('category')
+            ->whereNotNull('category')->whereRaw("TRIM(category) <> ''") // MARKER-BLANK-CATEGORY
             ->when($brand !== '', fn ($q) => $q->where('manufacturer', $brand))
             ->distinct()->orderBy('category')->pluck('category');
 
