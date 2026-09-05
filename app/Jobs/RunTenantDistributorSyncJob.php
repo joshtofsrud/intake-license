@@ -61,6 +61,8 @@ class RunTenantDistributorSyncJob implements ShouldQueue
                     $res = $service->sync($sub, $this->dryRun);
                 } catch (\Throwable $e) {
                     $agg['errors'][] = $code . ': ' . $e->getMessage();
+                    \App\Support\JobFailureReporter::report(self::class, $code . ' sync failed inside a "Sync now" run', $e,   // MARKER-JOB-ISSUES-2
+                        ['code' => $code], $this->tenantId);
                     $agg['failed'] = array_values(array_unique(
                         array_merge($agg['failed'] ?? [], [$code])
                     ));
@@ -84,6 +86,7 @@ class RunTenantDistributorSyncJob implements ShouldQueue
             // Reaching here now means the run itself failed — loading the
             // subscriptions — not one distributor inside it.
             $error = $e->getMessage();
+            \App\Support\JobFailureReporter::report(self::class, '"Sync now" run could not start', $e, [], $this->tenantId);   // MARKER-JOB-ISSUES-2
         }
 
         DB::table('tenant_distributor_sync_runs')->where('id', $runId)->update([

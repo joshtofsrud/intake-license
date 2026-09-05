@@ -112,6 +112,8 @@ class SendAppointmentReceiptJob implements ShouldQueue
                 'appointment_id' => $appt->id,
                 'error'          => $e->getMessage(),
             ]);
+            \App\Support\JobFailureReporter::report(self::class, 'Appointment receipt did not send', $e,   // MARKER-JOB-ISSUES-2
+                ['appointment_id' => $appt->id], $appt->tenant_id);
             $this->log($appt, $to, 'failed', $e->getMessage());
         }
     }

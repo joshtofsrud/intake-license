@@ -125,6 +125,10 @@ class SendSaleReceiptJob implements ShouldQueue
                 'sale_id' => $sale->id,
                 'error'   => $e->getMessage(),
             ]);
+            // MARKER-JOB-ISSUES-2 — a receipt that never sent is a customer
+            // who thinks they weren't charged. Master admin needs to know.
+            \App\Support\JobFailureReporter::report(self::class, 'Sale receipt did not send', $e,
+                ['sale_id' => $sale->id, 'sale_number' => $sale->sale_number ?? null], $sale->tenant_id);
             $this->log($sale, $to, 'failed', $e->getMessage());
         }
     }

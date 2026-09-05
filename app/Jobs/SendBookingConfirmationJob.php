@@ -87,6 +87,8 @@ class SendBookingConfirmationJob implements ShouldQueue
                     'appointment_id' => $appointment->id,
                     'error'          => $e->getMessage(),
                 ]);
+                \App\Support\JobFailureReporter::report(self::class, 'Booking confirmation email did not send', $e,   // MARKER-JOB-ISSUES-2
+                    ['appointment_id' => $appointment->id], $appointment->tenant_id);
                 $this->log($tenant, $appointment, 'email', $customer->email, 'failed', $e->getMessage());
             }
         } else {
@@ -104,6 +106,8 @@ class SendBookingConfirmationJob implements ShouldQueue
                     'appointment_id' => $appointment->id,
                     'error'          => $e->getMessage(),
                 ]);
+                \App\Support\JobFailureReporter::report(self::class, 'Booking confirmation text did not send', $e,   // MARKER-JOB-ISSUES-2
+                    ['appointment_id' => $appointment->id], $appointment->tenant_id);
                 $this->log($tenant, $appointment, 'sms', $customer->phone, 'failed', $e->getMessage());
             }
         } else {

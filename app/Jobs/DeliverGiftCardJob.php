@@ -67,6 +67,8 @@ class DeliverGiftCardJob implements ShouldQueue
 
             $card->update(['delivered_at' => now()]);
         } catch (\Throwable $e) {
+            \App\Support\JobFailureReporter::report(self::class, 'Gift card was not delivered to the recipient', $e,   // MARKER-JOB-ISSUES-2
+                ['gift_card_id' => $card->id], $card->tenant_id);
             Log::warning('gift_card.delivery_failed', [
                 'gift_card_id' => $card->id,
                 'tenant_id'    => $card->tenant_id,

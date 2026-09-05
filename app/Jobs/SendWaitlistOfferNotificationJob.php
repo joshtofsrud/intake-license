@@ -62,6 +62,8 @@ class SendWaitlistOfferNotificationJob implements ShouldQueue
             } catch (\Throwable $e) {
                 \App\Services\EmailLedger::void($ledger);
                 $emailError = $e->getMessage();
+                \App\Support\JobFailureReporter::report(self::class, 'Waitlist offer email did not send', $e,   // MARKER-JOB-ISSUES-2
+                    ['offer_id' => $offer->id], $offer->tenant_id ?? null);
                 Log::error('Waitlist email failed', [
                     'offer_id' => $offer->id,
                     'error'    => $emailError,
@@ -75,6 +77,8 @@ class SendWaitlistOfferNotificationJob implements ShouldQueue
                 $smsOk = true;
             } catch (\Throwable $e) {
                 $smsError = $e->getMessage();
+                \App\Support\JobFailureReporter::report(self::class, 'Waitlist offer text did not send', $e,   // MARKER-JOB-ISSUES-2
+                    ['offer_id' => $offer->id], $offer->tenant_id ?? null);
                 Log::error('Waitlist SMS failed', [
                     'offer_id' => $offer->id,
                     'error'    => $smsError,

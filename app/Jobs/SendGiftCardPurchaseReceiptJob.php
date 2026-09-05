@@ -65,6 +65,8 @@ class SendGiftCardPurchaseReceiptJob implements ShouldQueue
                 'gift_card_id' => $card->id,
                 'error'        => $e->getMessage(),
             ]);
+            \App\Support\JobFailureReporter::report(self::class, 'Gift card purchase receipt did not send', $e,   // MARKER-JOB-ISSUES-2
+                ['gift_card_id' => $card->id], $card->tenant_id);
         }
     }
 }
