@@ -261,11 +261,15 @@ body.at-bar-open .ia-mobile-nav{display:none}
        through: a tile narrows by reason, it does not quietly drop the rest. --}}
   @php
     $tileHref = function (?string $reason) use ($filters, $stock) {
+        // MARKER-ATTENTION-TILES-FIX — the names the PAGE reads. f_brand and
+        // friends are the hidden inputs on the bulk-action POST form, and
+        // nothing reads them from the query string, so tiles built with those
+        // reloaded the page unchanged.
         return route('tenant.distributors.attention', array_filter([
-            'f_brand'    => $filters['brand'] ?? null,
-            'f_category' => $filters['category'] ?? null,
-            'f_reason'   => $reason,
-            'f_stock'    => $stock !== 'all' ? $stock : null,
+            'brand'    => $filters['brand'] ?? null,
+            'category' => $filters['category'] ?? null,
+            'reason'   => $reason,
+            'stock'    => $stock !== 'all' ? $stock : null,
         ]));
     };
     $tileOn = $filters['reason'] ?? null;
