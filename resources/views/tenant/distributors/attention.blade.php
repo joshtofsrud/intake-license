@@ -28,6 +28,7 @@
 .at-chg{font-size:12.5px;line-height:1.6;max-width:430px}
 .at-chg .old{color:var(--ia-text-muted);text-decoration:line-through;text-decoration-color:rgba(242,109,109,.55)}
 .at-hl{background:rgba(205,233,138,.16);border-radius:3px;padding:0 2px;color:#cde98a}
+.at-pager-top{display:none} /* MARKER-ATTENTION-TIGHT — mobile only */
 
 /* MARKER-ATTENTION-MOBILE — below 720px the table becomes cards. The markup is
    unchanged: these rows live inside the bulk-action form and carry the
@@ -37,63 +38,82 @@
 
   /* the sync card: four across becomes one per row */
   .at-sync{flex-direction:column}
-  /* MARKER-ATTENTION-SLIM — tighter, and the supporting line sits beside the
-     value rather than under it: three stacked stats plus a button was most of
-     a screen before the first item appeared. */
-  .at-sync-stat{border-right:0;border-bottom:.5px solid var(--ia-border);padding:9px 14px}
-  .at-sync-stat .k{font-size:9.5px;letter-spacing:.08em}
-  .at-sync-stat .v{font-size:14.5px;margin-top:2px;display:inline}
-  .at-sync-stat .d{font-size:11px;margin-top:0;display:inline;margin-left:7px}
-  .at-sync-stat .v{font-size:16px}
-  .at-sync-act{min-width:0;padding:12px 14px}
+  /* MARKER-ATTENTION-TIGHT — label and value share a line; this was three
+     stacked blocks and a button, which filled a phone screen on its own. */
+  .at-sync-stat{border-right:0;border-bottom:.5px solid var(--ia-border);padding:8px 13px;
+    display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+  .at-sync-stat .k{font-size:9.5px;letter-spacing:.07em;flex:0 0 88px}
+  .at-sync-stat .v{font-size:13.5px;margin-top:0}
+  .at-sync-stat .d{font-size:10.5px;margin-top:0;flex:1 1 100%;padding-left:96px}
+  .at-sync-act{min-width:0;padding:10px 13px}
   .at-sync-act .at-btn{width:100%}
 
-  /* the stat tiles: two across rather than four squeezed */
-  .at-chips{display:grid;grid-template-columns:1fr 1fr;gap:9px}
-  .at-chip{min-width:0}
+  /* the stat tiles: a compact 2x2, not four tall boxes */
+  .at-chips{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:12px}
+  .at-chip{min-width:0;padding:7px 11px}
+  .at-chip .v{font-size:17px}
+  .at-chip .k{font-size:9.5px}
+
+  /* pager above the list; the bottom one stays for the end of the page */
+  .at-pager-top{display:block;margin-bottom:10px}
 
   /* the filter form stacks instead of overflowing */
   .at-filter{display:flex;flex-wrap:wrap;gap:8px}
   .at-filter select,.at-filter input{flex:1 1 46%;min-width:0}
 
-  /* the table becomes cards */
+  /* the table becomes cards — as a FLEX row, so the checkbox is a normal
+     child. Absolute positioning inside a display:block table row does not
+     reliably stay inside it, which is how the checkbox ended up outside the
+     card's left edge. */
   .at-tbl, .at-tbl tbody, .at-tbl tr, .at-tbl td{display:block;width:100%}
-  .at-tbl thead{position:absolute;left:-9999px}       /* headers have no place here */
+  .at-tbl thead{position:absolute;left:-9999px}
   .at-tbl tr{
+    display:flex;
+    flex-wrap:wrap;
+    align-items:flex-start;
+    gap:0 10px;
     border:.5px solid var(--ia-border);
-    border-radius:var(--ia-r-lg, 14px);
-    padding:13px 14px;
-    margin-bottom:10px;
-    position:relative;
+    border-radius:var(--ia-r-md, 10px);
+    padding:11px 12px;
+    margin-bottom:8px;
   }
   .at-tbl td{border:0;padding:0}
 
-  /* the checkbox sits top-right, out of the reading order */
-  .at-c-pick{position:absolute;top:12px;right:12px;width:auto}
-  .at-tbl .at-cb{width:20px;height:20px}
+  /* checkbox: a column of its own at the start of the card */
+  .at-c-pick{flex:0 0 22px;width:22px;padding-top:1px}
+  .at-tbl .at-cb{width:19px;height:19px;margin:0}
 
-  .at-c-item{padding-right:34px !important;font-size:14.5px;line-height:1.35}
-  .at-c-why{margin-top:9px}
+  /* name takes the rest of the first line; the reason rides along with it */
+  .at-c-item{flex:1 1 0;min-width:0;font-size:13.5px;line-height:1.35}
+  .at-c-why{flex:0 0 auto;margin-left:auto;align-self:flex-start}
+  .at-c-why .at-badge{font-size:10px;padding:1px 7px}
 
-  /* the change: labelled, and allowed to wrap */
+  .at-c-item .at-dim{font-size:10.5px}
+
+  /* the change: full width beneath, labelled, wrapping */
   .at-c-chg{
-    margin-top:11px;
-    padding-top:10px !important;
+    flex:1 1 100%;
+    margin-top:9px;
+    padding-top:8px !important;
     border-top:.5px solid var(--ia-border) !important;
     max-width:none;
     white-space:normal;
     word-break:break-word;
+    font-size:12px;
+    line-height:1.5;
   }
   .at-c-chg::before{
     content:attr(data-l);
     display:block;
-    font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;
-    color:var(--ia-text-dim);margin-bottom:5px;
+    font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;
+    color:var(--ia-text-dim);margin-bottom:4px;
   }
+  .at-c-chg .when{font-size:10.5px}
 
-  /* per-row actions, full width and reachable with a thumb */
-  .at-tbl td:last-child{margin-top:11px;text-align:left !important;display:flex;gap:7px;flex-wrap:wrap}
-  .at-tbl td:last-child .at-btn{flex:1 1 46%;padding:9px 10px}
+  /* per-row actions across the bottom of the card */
+  .at-tbl td:last-child{flex:1 1 100%;margin-top:9px;text-align:left !important;
+    display:flex;gap:6px;flex-wrap:wrap}
+  .at-tbl td:last-child .at-btn{flex:1 1 46%;padding:8px 9px;font-size:12px}
 
   /* the bulk bar follows you down the page */
   .at-bar{
@@ -297,6 +317,9 @@
       <input type="hidden" name="f_reason" value="{{ $filters['reason'] ?? '' }}">
       <input type="hidden" name="f_stock" value="{{ $stock }}">
       <script>function setAct(a){document.getElementById('at-action').value=a;}</script>
+      {{-- MARKER-ATTENTION-TIGHT — with 100 cards a page, the pager at the
+           bottom is a very long scroll away on a phone. --}}
+      <div class="at-pager-top">{{ $flags->links() }}</div>
       <table class="at-tbl">
           <thead><tr>
             {{-- MARKER-ATTENTION-SELECT — this takes the rows on THIS PAGE.
@@ -427,7 +450,7 @@
         <input type="checkbox" name="select_all" value="1" id="at-select-all" hidden>
       </div>
     </form>
-    <div style="margin-top:14px">{{ $flags->links() }}</div> {{-- MARKER-ATTENTION-SCALE --}}
+    <div style="margin-top:14px" class="at-pager-bottom">{{ $flags->links() }}</div> {{-- MARKER-ATTENTION-SCALE --}}
   @endif
 </div>
 {{-- MARKER-ATTENTION-ITEM-INFO — the same modal the register uses. --}}
