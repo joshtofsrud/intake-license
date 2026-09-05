@@ -42,8 +42,23 @@ class CustomerController extends Controller
                 $q2->where('first_name', 'like', "%{$search}%")
                    ->orWhere('last_name',  'like', "%{$search}%")
                    ->orWhere('email',      'like', "%{$search}%")
-                   ->orWhere('phone',      'like', "%{$search}%");
+                   ->orWhere('phone',      'like', "%{$search}%")
+                   // MARKER-TAGS-VISIBLE — a tag name is a thing people search for.
+                   ->orWhereHas('tags', fn ($t) => $t->where('tenant_customer_tags.name', 'like', "%{$search}%"));
             });
+        }
+
+        // MARKER-TAGS-VISIBLE — ?tag={id}, where a chip on the record links to.
+        $tagId     = (string) $request->input('tag', '');
+        $tagFilter = null;
+        if ($tagId !== '') {
+            $tagFilter = \App\Models\Tenant\TenantCustomerTag::where('tenant_id', $tenant->id)
+                ->where('id', $tagId)->first();
+            if ($tagFilter) {
+                $q->whereHas('tags', fn ($t) => $t->where('tenant_customer_tags.id', $tagFilter->id));
+            } else {
+                $tagId = ''; // stale link; show everyone rather than nobody
+            }
         }
 
         // VIPs-only filter is a sort option for UX simplicity. When
@@ -132,6 +147,7 @@ class CustomerController extends Controller
         $totalPages = max(1, ceil($total / $perPage));
 
         return view('tenant.customers.index', compact(
+            'tagFilter', // MARKER-TAGS-VISIBLE
             'customers', 'stats', 'total', 'page', 'totalPages', 'search', 'sort', 'createdAfter'
         ));
     }
@@ -406,13 +422,82 @@ class CustomerController extends Controller
             $customer->load('contacts', 'primaryContact');
         }
 
+        // MARKER-TAGS-VISIBLE — this customer's tags, and every tag the shop
+        // has, for the picker.
+        $customerTags = $customer->tags()->orderBy('name')->get();
+        $allTags = \App\Models\Tenant\TenantCustomerTag::where('tenant_id', $tenant->id)
+            ->orderBy('name')->get();
+
         return view('tenant.customers.show', compact(
+            'customerTags', 'allTags',
             'customer', 'appointments', 'notes',
             'totalSpend', 'lastService', 'updateUrl',
             'customerMemberships', 'customerPacks',
             'membershipProducts', 'packProducts',
             'timelineMonths', 'timelineCount', 'specialOrdersOpen', 'specialOrdersClosed', 'soVendors',
             'customerActiveAssets', 'customerArchivedAssets')); // MARKER-PATCH-158-C
+    }
+
+    /**
+     * MARKER-TAGS-VISIBLE — add a tag to one customer. Existing tag by id, or
+     * a new one by name; matching is case-insensitive so "Newsletter" never
+     * becomes a second "newsletter".
+     */
+    public function addTag(Request $request, string $id)
+    {
+        $tenant   = tenant();
+        $customer = TenantCustomer::where('tenant_id', $tenant->id)->findOrFail($id);
+
+        $v = $request->validate([
+            'tag_id'   => ['nullable', 'uuid'],
+            'tag_name' => ['nullable', 'string', 'max:60'],
+        ]);
+
+        $tag = null;
+        if (! empty($v['tag_id'])) {
+            $tag = \App\Models\Tenant\TenantCustomerTag::where('tenant_id', $tenant->id)
+                ->where('id', $v['tag_id'])->first();
+        } elseif (trim((string) ($v['tag_name'] ?? '')) !== '') {
+            $tag = \App\Models\Tenant\TenantCustomerTag::findOrCreateFor(
+                $tenant->id, trim($v['tag_name']), auth('tenant')->id()
+            );
+        }
+
+        if (! $tag) {
+            return back()->with('error', 'Pick a tag or type a new one.');
+        }
+
+        \Illuminate\Support\Facades\DB::table('tenant_customer_tag_pivot')->insertOrIgnore([
+            'id'          => (string) \Illuminate\Support\Str::uuid(),
+            'tenant_id'   => $tenant->id,
+            'tag_id'      => $tag->id,
+            'customer_id' => $customer->id,
+            'created_at'  => now(),
+        ]);
+
+        debug_log()->audit('customer.tag_added', 'Tagged ' . $customer->fullName() . ' ' . $tag->name, [
+            'customer_id' => $customer->id, 'tag_id' => $tag->id,
+        ]);
+
+        return back()->with('success', 'Tagged ' . $tag->name . '.');
+    }
+
+    /** MARKER-TAGS-VISIBLE — take a tag off one customer. */
+    public function removeTag(Request $request, string $id, string $tagId)
+    {
+        $tenant   = tenant();
+        $customer = TenantCustomer::where('tenant_id', $tenant->id)->findOrFail($id);
+
+        \Illuminate\Support\Facades\DB::table('tenant_customer_tag_pivot')
+            ->where('tenant_id', $tenant->id)
+            ->where('customer_id', $customer->id)
+            ->where('tag_id', $tagId)->delete();
+
+        debug_log()->audit('customer.tag_removed', 'Untagged ' . $customer->fullName(), [
+            'customer_id' => $customer->id, 'tag_id' => $tagId,
+        ]);
+
+        return back()->with('success', 'Tag removed.');
     }
 
     public function store(Request $request)

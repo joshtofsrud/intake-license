@@ -19,6 +19,14 @@
 
 @section('content')
 
+{{-- MARKER-TAGS-VISIBLE — a chip click has to land somewhere that explains itself. --}}
+@if(!empty($tagFilter))
+  <div class="ia-flash ia-flash--info" style="margin-bottom:12px">
+    Showing customers tagged <b>{{ $tagFilter->name }}</b>.
+    <a href="{{ route('tenant.customers.index') }}" style="text-decoration:underline">Show everyone</a>
+  </div>
+@endif
+
 {{-- CUSTOMER-LIST-MOBILE v1 — parallel desktop + mobile renders. --}}
 
 {{-- ========== DESKTOP HEAD (hidden on mobile via CSS) ========== --}}

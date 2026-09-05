@@ -231,6 +231,21 @@
   letter-spacing:.07em;text-transform:uppercase;border-radius:100px;padding:3px 9px;
   border:.5px solid var(--ia-border);color:var(--ia-text-dim);background:none}
 button.cust-mk-chip{cursor:pointer}
+/* MARKER-TAGS-VISIBLE — customer tags, same pill shape as the consent chips
+   but lower-case and accented, so a tag never reads as a status. */
+.cust-tag{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;
+  border-radius:100px;padding:3px 9px;border:.5px solid var(--ia-border);
+  color:var(--ia-text-muted);text-decoration:none}
+a.cust-tag:hover{color:var(--ia-text);border-color:var(--ia-accent)}
+.cust-tag-x{border:0;background:none;color:var(--ia-text-dim);cursor:pointer;font-size:13px;line-height:1;padding:0}
+.cust-tag-x:hover{color:var(--ia-text)}
+.cust-tag-add{border-style:dashed;cursor:pointer;background:none;font:inherit;font-size:11px;font-weight:600;
+  color:var(--ia-text-dim);border-radius:100px;padding:3px 10px;border:.5px dashed var(--ia-border)}
+.cust-tag-add:hover{color:var(--ia-text);border-color:var(--ia-text-muted)}
+.cust-tagform{display:none;gap:6px;align-items:center;margin-top:8px;flex-wrap:wrap}
+.cust-tagform.on{display:flex}
+.cust-tagform select,.cust-tagform input{background:var(--ia-surface-2);border:.5px solid var(--ia-border);
+  border-radius:var(--ia-r-md);color:var(--ia-text);padding:6px 9px;font:inherit;font-size:12.5px}
 button.cust-mk-chip:hover{color:var(--ia-text);border-color:var(--ia-text-muted)}
 /* MARKER-CONSENT-DIALOG — in-app confirm, matching the edit sheet's scrim. */
 .mk-dlg-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:210;opacity:0;
@@ -977,6 +992,19 @@ body.ia-theme-b .cust-edit-handle { background: rgba(0,0,0,.18); }
           @endif
         @endif
       @endif
+      {{-- MARKER-TAGS-VISIBLE — what this customer is tagged with, and a way
+           to change it. Each chip opens the list filtered to that tag. --}}
+      @foreach($customerTags ?? [] as $tg)
+        <span class="cust-tag">
+          <a href="{{ route('tenant.customers.index', ['tag' => $tg->id]) }}" style="color:inherit;text-decoration:none">{{ $tg->name }}</a>
+          <form method="POST" action="{{ route('tenant.customers.tags.remove', ['id' => $customer->id, 'tagId' => $tg->id]) }}" style="display:inline">
+            @csrf
+            <button type="submit" class="cust-tag-x" title="Remove tag">&times;</button>
+          </form>
+        </span>
+      @endforeach
+      <button type="button" class="cust-tag-add" onclick="document.getElementById('cust-tagform').classList.toggle('on')">+ Tag</button>
+
       @if($caCanManage && $customer->email)
         <form method="POST" action="{{ route('tenant.customers.account_link', $customer->id) }}"
               onsubmit="return confirm('{{ $caHasAccount ? 'Email a password reset link to ' : 'Email an account invite to ' }}{{ $customer->email }}?')">
@@ -986,6 +1014,20 @@ body.ia-theme-b .cust-edit-handle { background: rgba(0,0,0,.18); }
           </button>
         </form>
       @endif
+
+      {{-- MARKER-TAGS-VISIBLE — pick an existing tag or type a new one. Its
+           own form, a sibling of the chips, never nested inside one. --}}
+      <form method="POST" action="{{ route('tenant.customers.tags.add', $customer->id) }}" class="cust-tagform" id="cust-tagform">
+        @csrf
+        <select name="tag_id">
+          <option value="">— new tag —</option>
+          @foreach($allTags ?? [] as $t)
+            <option value="{{ $t->id }}">{{ $t->name }}</option>
+          @endforeach
+        </select>
+        <input type="text" name="tag_name" maxlength="60" placeholder="or type a new one">
+        <button type="submit" class="ia-btn ia-btn--primary ia-btn--sm">Add</button>
+      </form>
     </div>
   </div>
   <div class="ia-page-actions">

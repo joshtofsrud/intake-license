@@ -35,13 +35,29 @@ class GlobalSearchController extends Controller
         $like = '%' . $q . '%';
         $groups = [];
 
+        // ---- tags themselves. MARKER-TAGS-VISIBLE — for a tag of any size
+        // the useful answer is the tag, not twenty arbitrary people carrying it.
+        $tags = \App\Models\Tenant\TenantCustomerTag::where('tenant_id', $tenant->id)
+            ->where('name', 'like', $like)
+            ->withCount('customers')
+            ->orderByDesc('customers_count')->limit(4)->get();
+        if ($tags->count()) {
+            $groups[] = $this->group('Tags', $tags->map(fn ($t) => [
+                'title'    => $t->name,
+                'subtitle' => number_format($t->customers_count) . ' ' . \Illuminate\Support\Str::plural('customer', $t->customers_count),
+                'url'      => route('tenant.customers.index', ['tag' => $t->id]),
+            ]));
+        }
+
         // ---- customers
         $customers = TenantCustomer::where('tenant_id', $tenant->id)
             ->where(fn ($w) => $w
                 ->where('first_name', 'like', $like)
                 ->orWhere('last_name', 'like', $like)
                 ->orWhere('email', 'like', $like)
-                ->orWhere('phone', 'like', $like))
+                ->orWhere('phone', 'like', $like)
+                // MARKER-TAGS-VISIBLE — carrying a searched-for tag is a match.
+                ->orWhereHas('tags', fn ($t) => $t->where('tenant_customer_tags.name', 'like', $like)))
             ->limit(self::PER_GROUP)->get();
         if ($customers->count()) {
             $groups[] = $this->group('Customers', $customers->map(fn ($c) => [

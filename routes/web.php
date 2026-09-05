@@ -815,6 +815,9 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             // MARKER-CUST-ACCOUNT — capability-gated inside the controller.
             Route::post('/customers/{id}/account-link',                    [TenantControllers\CustomerController::class, 'sendAccountLink'])->name('customers.account_link');
             Route::post('/customers/{id}/marketing-toggle', [TenantControllers\CustomerController::class, 'toggleMarketing'])->name('customers.marketing-toggle'); // MARKER-CONSENT-CLEANUP
+            // MARKER-TAGS-VISIBLE
+            Route::post('/customers/{id}/tags',              [TenantControllers\CustomerController::class, 'addTag'])->name('customers.tags.add');
+            Route::post('/customers/{id}/tags/{tagId}/remove', [TenantControllers\CustomerController::class, 'removeTag'])->name('customers.tags.remove');
             // MARKER-CUST-ADMIN
             Route::get('/customers/{id}/removal-preview', [TenantControllers\CustomerController::class, 'removalPreview'])->name('customers.removal-preview');
             Route::post('/customers/{id}/remove', [TenantControllers\CustomerController::class, 'remove'])->name('customers.remove');
