@@ -654,6 +654,77 @@ class DistributorController extends Controller
             : 'Sync queued — refresh in a minute for results.');
     }
 
+    /**
+     * MARKER-CATALOG-UNDO — what bulk changes have been made, and undoing them.
+     */
+    public function catalogHistory(\Illuminate\Http\Request $request)
+    {
+        $this->guard();
+
+        $batches = \App\Models\Tenant\CatalogChangeBatch::where('tenant_id', tenant()->id)
+            ->orderByDesc('created_at')
+            ->limit(60)
+            ->get();
+
+        return view('tenant.distributors.history', compact('batches'));
+    }
+
+    public function catalogHistoryShow(\Illuminate\Http\Request $request, string $batchId)
+    {
+        $this->guard();
+
+        $batch = \App\Models\Tenant\CatalogChangeBatch::where('tenant_id', tenant()->id)
+            ->findOrFail($batchId);
+
+        // The table is capped: a 4,520-item batch is not a page anyone reads to
+        // the end of, and loading it whole helps nobody.
+        $rows = \App\Models\Tenant\CatalogChangeItem::where('batch_id', $batch->id)
+            ->orderBy('id')
+            ->limit(200)
+            ->get();
+
+        $items = \App\Models\Tenant\TenantInventoryItem::whereIn('id', $rows->pluck('item_id'))
+            ->get()->keyBy('id');
+
+        return view('tenant.distributors.history-show', compact('batch', 'rows', 'items'));
+    }
+
+    public function catalogUndo(\Illuminate\Http\Request $request, string $batchId)
+    {
+        $this->guard();
+
+        $batch = \App\Models\Tenant\CatalogChangeBatch::where('tenant_id', tenant()->id)
+            ->findOrFail($batchId);
+
+        if (! $batch->isReversible()) {
+            return back()->with('error', 'That batch cannot be undone.');
+        }
+
+        $result = (new \App\Services\Tenant\CatalogChangeReverser($batch))->revert();
+
+        $msg = number_format($result['restored']) . ' put back';
+        if ($result['kept'] > 0) {
+            $msg .= ' · ' . number_format($result['kept']) . ' kept because they were edited since';
+        }
+
+        return back()->with('success', $msg);
+    }
+
+    public function catalogUndoItem(\Illuminate\Http\Request $request, string $batchId, string $itemId)
+    {
+        $this->guard();
+
+        $batch = \App\Models\Tenant\CatalogChangeBatch::where('tenant_id', tenant()->id)
+            ->findOrFail($batchId);
+
+        $result = (new \App\Services\Tenant\CatalogChangeReverser($batch))->revert($itemId);
+
+        return back()->with(
+            $result['restored'] ? 'success' : 'error',
+            $result['restored'] ? 'Put back.' : 'Left alone — it has been edited since.'
+        );
+    }
+
     public function attentionResolve(\Illuminate\Http\Request $request): \Illuminate\Http\RedirectResponse
     {
         $this->guard();

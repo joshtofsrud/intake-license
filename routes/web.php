@@ -1129,6 +1129,11 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
                 Route::get('/attention',          [TenantControllers\DistributorController::class, 'attention'])->name('attention');
                 Route::post('/attention/resolve', [TenantControllers\DistributorController::class, 'attentionResolve'])->name('attention.resolve');
                 Route::post('/attention/sync',    [TenantControllers\DistributorController::class, 'attentionSync'])->name('attention.sync'); // MARKER-PATCH-555
+                // MARKER-CATALOG-UNDO
+                Route::get('/attention/history',                     [TenantControllers\DistributorController::class, 'catalogHistory'])->name('attention.history');
+                Route::get('/attention/history/{batchId}',           [TenantControllers\DistributorController::class, 'catalogHistoryShow'])->name('attention.history.show');
+                Route::post('/attention/history/{batchId}/undo',     [TenantControllers\DistributorController::class, 'catalogUndo'])->name('attention.history.undo');
+                Route::post('/attention/history/{batchId}/undo/{itemId}', [TenantControllers\DistributorController::class, 'catalogUndoItem'])->name('attention.history.undo.item');
                 Route::post('/import/run',        [TenantControllers\DistributorController::class, 'importRun'])->name('import.run');
                 Route::get('/connection',         [TenantControllers\DistributorController::class, 'connection'])->name('connection');
                 Route::post('/connection/key',    [TenantControllers\DistributorController::class, 'saveKey'])->name('connection.key');

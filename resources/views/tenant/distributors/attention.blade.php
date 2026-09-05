@@ -85,6 +85,10 @@
   {{-- MARKER-ATTENTION-PER-DIST — this queue spans every connected
        distributor, so it can't be titled after one of them. --}}
   <h1 style="font-size:20px;font-weight:600;margin-bottom:14px">Distributor catalogs</h1>
+  {{-- MARKER-CATALOG-UNDO --}}
+  <a href="{{ route('tenant.distributors.attention.history') }}" class="ia-back-link" style="margin-left:auto">
+    Change history
+  </a>
   @include('layouts.tenant._inventory-tabs')
 
   {{-- MARKER-PATCH-558 — sync status card (supersedes the 555 button row):
