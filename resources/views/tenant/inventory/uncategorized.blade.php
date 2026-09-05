@@ -58,29 +58,65 @@
     </div>
     <p style="font-size:12px;color:var(--ia-text-mute);margin:8px 0 12px">Buckets come from the distributor's catalog category &mdash; they gather like items. They don't decide the destination; that's your call.</p>
 
-    {{-- MARKER-CAT-UNDO — the rail. Every assignment is one line; undo puts
-         each item back to what it had. Items changed by hand since are kept. --}}
+    {{-- MARKER-CAT-RAIL2 — one collapsed line, not a card. Undo previews
+         the items it would put back before doing anything. --}}
     @if(($assignments ?? collect())->count())
-      <div class="ia-card" style="padding:0;margin-bottom:18px;overflow:hidden">
-        <div style="display:flex;align-items:center;padding:9px 14px;font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--ia-text-dim);border-bottom:1px solid var(--ia-border)">Recent assignments</div>
-        @foreach($assignments as $a)
-          <div style="display:flex;align-items:center;gap:12px;padding:9px 14px;font-size:13px;border-top:1px solid var(--ia-border);{{ $a->undone_at ? 'opacity:.5' : '' }}">
-            <span style="font-weight:600;font-variant-numeric:tabular-nums;width:56px;text-align:right">{{ number_format($a->item_count) }}</span>
-            <span style="color:var(--ia-text-dim)">{{ $a->bucket_key ?: 'selected items' }}</span>
-            <span style="color:var(--ia-text-dim)">→</span>
-            <span style="font-weight:600">{{ $a->category_name }}</span>
-            <span style="font-size:10.5px;padding:1px 7px;border-radius:100px;border:.5px solid var(--ia-border);color:var(--ia-text-dim)">{{ ['hand' => 'by hand', 'rule' => 'rule', 'model' => 'suggested'][$a->source] ?? $a->source }}</span>
-            @if($a->kept_count)<span style="font-size:11.5px;color:var(--ia-warn,#F0C46A)">{{ $a->kept_count }} kept — changed since</span>@endif
-            <span style="margin-left:auto;font-size:12px;color:var(--ia-text-dim);white-space:nowrap">{{ $a->undone_at ? 'undone ' . \Carbon\Carbon::parse($a->undone_at)->diffForHumans() : \Carbon\Carbon::parse($a->created_at)->diffForHumans() }}</span>
-            @unless($a->undone_at)
-              <form method="POST" action="{{ route('tenant.inventory.uncategorized.undo', $a->id) }}" style="margin:0">
-                @csrf
-                <button type="submit" style="font-size:12px;border:.5px solid var(--ia-border-strong);border-radius:100px;padding:3px 10px;background:none;color:inherit;cursor:pointer">Undo</button>
-              </form>
-            @endunless
-          </div>
+      @php $live = $assignments->whereNull('undone_at'); @endphp
+      <div id="ucRail" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 16px;font-size:12.5px;color:var(--ia-text-dim)">
+        <span style="font-size:10.5px;text-transform:uppercase;letter-spacing:.07em">Recent</span>
+        @foreach($live->take(3) as $a)
+          <span style="display:inline-flex;align-items:center;gap:6px;padding:4px 9px;border:.5px solid var(--ia-border);border-radius:100px;color:var(--ia-text-muted)">
+            <b style="color:var(--ia-text)">{{ number_format($a->item_count) }}</b> {{ $a->bucket_key ?: 'selected' }} → <b style="color:var(--ia-text)">{{ $a->category_name }}</b>
+            <button type="button" onclick="ucUndoPreview(@js($a->id))" style="background:none;border:0;color:var(--ia-accent);cursor:pointer;font-size:12px;text-decoration:underline;padding:0">Undo</button>
+          </span>
+        @endforeach
+        @if($live->count() > 3)<button type="button" id="ucRailMore" onclick="document.getElementById('ucRailAll').hidden=false;this.hidden=true" style="background:none;border:0;color:var(--ia-text-dim);cursor:pointer;text-decoration:underline;font-size:12px">+ {{ $live->count() - 3 }} more</button>@endif
+      </div>
+      <div id="ucRailAll" hidden style="display:flex;gap:8px;flex-wrap:wrap;margin:-8px 0 16px;font-size:12.5px">
+        @foreach($live->slice(3) as $a)
+          <span style="display:inline-flex;align-items:center;gap:6px;padding:4px 9px;border:.5px solid var(--ia-border);border-radius:100px;color:var(--ia-text-muted)">
+            <b style="color:var(--ia-text)">{{ number_format($a->item_count) }}</b> {{ $a->bucket_key ?: 'selected' }} → <b style="color:var(--ia-text)">{{ $a->category_name }}</b>
+            <button type="button" onclick="ucUndoPreview(@js($a->id))" style="background:none;border:0;color:var(--ia-accent);cursor:pointer;font-size:12px;text-decoration:underline;padding:0">Undo</button>
+          </span>
         @endforeach
       </div>
+
+      {{-- undo preview modal — in-app, never confirm() --}}
+      <div id="ucUndoDlg" hidden style="position:fixed;inset:0;z-index:300;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:20px">
+        <div style="background:var(--ia-surface);border:.5px solid var(--ia-border);border-radius:14px;width:100%;max-width:560px;max-height:80vh;display:flex;flex-direction:column;overflow:hidden">
+          <div style="padding:14px 18px;border-bottom:.5px solid var(--ia-border);font-weight:600" id="ucUndoTitle">Undo</div>
+          <div style="padding:10px 18px;font-size:12.5px;color:var(--ia-text-dim)" id="ucUndoSub"></div>
+          <div style="overflow:auto;padding:0 18px 10px;font-size:13px" id="ucUndoList"></div>
+          <div style="padding:12px 18px;border-top:.5px solid var(--ia-border);display:flex;gap:8px;justify-content:flex-end">
+            <button type="button" class="ia-btn ia-btn--ghost ia-btn--sm" onclick="document.getElementById('ucUndoDlg').hidden=true">Keep them</button>
+            <form method="POST" id="ucUndoForm" style="margin:0">@csrf<button type="submit" class="ia-btn ia-btn--primary ia-btn--sm" id="ucUndoGo">Undo</button></form>
+          </div>
+        </div>
+      </div>
+      <script>
+        window.ucUndoPreview = function (id) {
+          var dlg = document.getElementById('ucUndoDlg'), list = document.getElementById('ucUndoList');
+          document.getElementById('ucUndoForm').action = @json(url('/admin/inventory/uncategorized/undo')) + '/' + id;
+          list.innerHTML = '<div style="padding:12px 0;color:var(--ia-text-dim)">Loading…</div>';
+          dlg.hidden = false;
+          fetch(@json(url('/admin/inventory/uncategorized/assignments')) + '/' + id + '/items', {headers: {'Accept': 'application/json'}, credentials: 'same-origin'})
+            .then(function (r) { return r.json(); })
+            .then(function (d) {
+              document.getElementById('ucUndoTitle').textContent = 'Undo: ' + d.count.toLocaleString() + ' \u2192 ' + d.category;
+              document.getElementById('ucUndoSub').textContent = 'These go back to where they were'
+                + (d.kept ? ' \u2014 ' + d.kept + ' changed since and will be kept' : '')
+                + (d.shown < d.count ? ' \u2014 showing the first ' + d.shown : '') + '.';
+              list.innerHTML = d.items.map(function (it) {
+                return '<div style="display:flex;gap:10px;padding:7px 0;border-top:.5px solid var(--ia-border);' + (it.changed_since ? 'opacity:.45' : '') + '">'
+                  + '<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + it.name.replace(/</g, '&lt;') + '</span>'
+                  + '<span style="color:var(--ia-text-dim);font-family:var(--ia-mono);font-size:12px">' + (it.sku || '') + '</span>'
+                  + '<span style="color:var(--ia-text-dim);font-size:12px;white-space:nowrap">\u2192 ' + (it.changed_since ? 'kept' : it.back_to) + '</span></div>';
+              }).join('');
+              document.getElementById('ucUndoGo').textContent = 'Undo ' + (d.count - d.kept).toLocaleString();
+            })
+            .catch(function () { list.innerHTML = '<div style="padding:12px 0;color:#F08A8A">Could not load the items.</div>'; });
+        };
+      </script>
     @endif
 
     {{-- active bucket --}}
@@ -175,7 +211,7 @@
               </div>
               <div style="display:flex;gap:8px;margin-top:11px;flex-wrap:wrap">
                 <button type="button" class="ia-btn ia-btn--sm ia-btn--primary"
-                        onclick="ucSuggestAll(@js($activeSuggestion['category_id']), @js($activeSuggestion['path']))">Assign all {{ number_format($bucketTotal) }}</button>
+                        onclick="ucSuggestAll(@js($activeSuggestion['category_id']), @js($activeSuggestion['path']))">Assign all {{ number_format(collect($buckets)->firstWhere('key', $activeBucket)['count'] ?? $bucketTotal) }}</button>{{-- MARKER-CAT-RAIL2 — the bucket, not the page --}}
                 <button type="button" class="ia-btn ia-btn--sm ia-btn--ghost"
                         onclick="ucPick(@js($activeSuggestion['category_id']), 0, @js($activeSuggestion['path']))">Only the selected</button>
               </div>

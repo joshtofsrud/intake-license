@@ -619,6 +619,36 @@ class InventoryController extends Controller
      * category; an item whose category has since been changed by hand is
      * kept and counted, not clobbered.
      */
+    /** MARKER-CAT-RAIL2 — what an assignment touched, for the undo preview. */
+    public function uncategorizedAssignmentItems(Request $request, string $id)
+    {
+        $tenant = tenant();
+        $a = \Illuminate\Support\Facades\DB::table('tenant_category_assignments')
+            ->where('tenant_id', $tenant->id)->where('id', $id)->first();
+        abort_unless($a, 404);
+
+        $rows = \Illuminate\Support\Facades\DB::table('tenant_category_assignment_items as ai')
+            ->join('tenant_inventory_items as i', 'i.id', '=', 'ai.item_id')
+            ->leftJoin('tenant_inventory_categories as pc', 'pc.id', '=', 'ai.prior_category_id')
+            ->where('ai.assignment_id', $a->id)
+            ->orderBy('i.name')->limit(300)
+            ->get(['i.id', 'i.name', 'i.sku', 'i.category_id', 'ai.restored_at', 'pc.name as prior_name']);
+
+        $kept = 0;
+        $items = $rows->map(function ($r) use ($a, &$kept) {
+            $changedSince = (string) $r->category_id !== (string) $a->category_id && ! $r->restored_at;
+            if ($changedSince) $kept++;
+            return ['name' => $r->name, 'sku' => $r->sku, 'back_to' => $r->prior_name ?: 'Uncategorized',
+                    'restored' => (bool) $r->restored_at, 'changed_since' => $changedSince];
+        });
+
+        return response()->json([
+            'count' => (int) $a->item_count, 'shown' => $items->count(), 'kept' => $kept,
+            'category' => $a->category_name, 'bucket' => $a->bucket_key, 'undone' => (bool) $a->undone_at,
+            'items' => $items,
+        ]);
+    }
+
     public function uncategorizedUndo(Request $request, string $id): RedirectResponse
     {
         $tenant = tenant();
@@ -734,7 +764,12 @@ class InventoryController extends Controller
 
         // MARKER-CAT-UNDO — learn the rule. Picking something else next time
         // overwrites it, so a wrong first guess never sticks.
-        app(\App\Services\Tenant\CategorySuggestService::class)->learn($tenant->id, $bucketKey, $category->id);
+        // MARKER-CAT-RAIL2 — only a WHOLE-bucket assignment teaches a rule. A
+        // partial one (47 of 1,839, split by size) says nothing about the
+        // bucket, and learning from it produced "assign all 1,839 to 27.5".
+        if ($request->boolean('select_all')) {
+            app(\App\Services\Tenant\CategorySuggestService::class)->learn($tenant->id, $bucketKey, $category->id);
+        }
 
         // Remember this destination for quick re-pick (most-recent first, capped).
         $recent = collect(session('inv_recent_categories', []))
