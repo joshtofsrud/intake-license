@@ -587,7 +587,12 @@ body.at-bar-open .ia-mobile-nav{display:none}
   // not loaded; everything matching is a deliberate second step.
   (function () {
     var TOTAL = {{ (int) ($flags->total() ?? 0) }};
-    var PER   = {{ (int) ($flags->count() ?? 0) }};
+
+    // MARKER-ATTENTION-SELECT-VISIBLE — count the checkboxes that are really
+    // on the page, not the paginator's row count. They match today; if a row
+    // ever renders without one, "every row ticked" would become unreachable
+    // and the wider scope would vanish with it.
+    function atPer() { return document.querySelectorAll('.at-cb').length; }
 
     window.atSelectPage = function (checked) {
       document.querySelectorAll('.at-cb').forEach(function (c) { c.checked = checked; });
@@ -627,9 +632,16 @@ body.at-bar-open .ia-mobile-nav{display:none}
       }
 
       scope.classList.remove('armed');
-      if (picked >= PER && TOTAL > PER) {
+
+      // MARKER-ATTENTION-SELECT-VISIBLE — offered as soon as anything is
+      // selected. It used to need EVERY row on the page ticked first, so
+      // nobody found it.
+      var per = atPer();
+      if (picked > 0 && TOTAL > per) {
         scope.hidden = false;
-        text.textContent = 'All ' + picked.toLocaleString() + ' on this page are selected.';
+        text.textContent = picked >= per
+          ? 'All ' + picked.toLocaleString() + ' on this page are selected.'
+          : picked.toLocaleString() + ' selected on this page.';
         link.textContent = 'Select all ' + TOTAL.toLocaleString() + ' matching this filter';
         link.onclick = function () { return atScope(true); };
       } else {
