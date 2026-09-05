@@ -8,6 +8,11 @@
 .at-card{background:var(--ia-surface);border:.5px solid var(--ia-border);border-radius:var(--ia-r-lg);padding:20px;margin-bottom:18px}
 .at-chips{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px}
 .at-chip{background:var(--ia-surface-2);border:.5px solid var(--ia-border);border-radius:var(--ia-r-md);padding:11px 16px;min-width:120px}
+/* MARKER-ATTENTION-TILES — a tile is a control now, so it looks like one. */
+a.at-chip{display:block;text-decoration:none;color:inherit;cursor:pointer;transition:border-color .12s,background .12s}
+a.at-chip:hover{border-color:var(--ia-border-strong)}
+a.at-chip.on{border-color:var(--ia-accent);background:rgba(224,166,75,.10)}
+a.at-chip.on .k{color:var(--ia-accent)}
 .at-chip .v{font-size:22px;font-weight:700;font-family:var(--ia-mono)}
 .at-chip .k{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--ia-text-dim);font-weight:600;margin-top:2px}
 .at-tbl input[type=checkbox],.at-bar input[type=checkbox]{accent-color:var(--ia-accent);width:15px;height:15px;cursor:pointer;vertical-align:middle}
@@ -250,13 +255,41 @@ body.at-bar-open .ia-mobile-nav{display:none}
     </div>
   </div>
 
+  {{-- MARKER-ATTENTION-TILES — the counts are the filter. Reading a tile then
+       hunting for the same value in a dropdown was four steps to act on a
+       number already on the screen. Brand, category and stock are carried
+       through: a tile narrows by reason, it does not quietly drop the rest. --}}
+  @php
+    $tileHref = function (?string $reason) use ($filters, $stock) {
+        return route('tenant.distributors.attention', array_filter([
+            'f_brand'    => $filters['brand'] ?? null,
+            'f_category' => $filters['category'] ?? null,
+            'f_reason'   => $reason,
+            'f_stock'    => $stock !== 'all' ? $stock : null,
+        ]));
+    };
+    $tileOn = $filters['reason'] ?? null;
+  @endphp
+
   <div class="at-chips">
-    <div class="at-chip"><div class="v">{{ $counts['total'] }}</div><div class="k">Open</div></div>
-    <div class="at-chip"><div class="v" style="color:#cde98a">{{ $counts['title'] ?? 0 }}</div><div class="k">Titles</div></div>
-    <div class="at-chip"><div class="v" style="color:#9fd0e8">{{ $counts['details'] ?? 0 }}</div><div class="k">Details</div></div>
-    <div class="at-chip"><div class="v" style="color:#f0a3a3">{{ $counts['below_map'] }}</div><div class="k">Below MAP</div></div>
-    <div class="at-chip"><div class="v" style="color:#f0c78a">{{ $counts['off_msrp'] }}</div><div class="k">Off MSRP</div></div>
-    <div class="at-chip"><div class="v" style="color:#aebbcf">{{ $counts['vanished'] }}</div><div class="k">Vanished</div></div>
+    <a class="at-chip {{ $tileOn ? '' : 'on' }}" href="{{ $tileHref(null) }}">
+      <div class="v">{{ $counts['total'] }}</div><div class="k">Open</div></a>
+
+    <a class="at-chip {{ $tileOn === 'title_changed' ? 'on' : '' }}" href="{{ $tileHref('title_changed') }}">
+      <div class="v" style="color:#cde98a">{{ $counts['title'] ?? 0 }}</div><div class="k">Titles</div></a>
+
+    <a class="at-chip {{ $tileOn === 'details_changed' ? 'on' : '' }}" href="{{ $tileHref('details_changed') }}">
+      <div class="v" style="color:#9fd0e8">{{ $counts['details'] ?? 0 }}</div><div class="k">Details</div></a>
+
+    <a class="at-chip {{ $tileOn === 'below_map' ? 'on' : '' }}" href="{{ $tileHref('below_map') }}">
+      <div class="v" style="color:#f0a3a3">{{ $counts['below_map'] }}</div><div class="k">Below MAP</div></a>
+
+    <a class="at-chip {{ $tileOn === 'off_msrp' ? 'on' : '' }}" href="{{ $tileHref('off_msrp') }}">
+      <div class="v" style="color:#f0c78a">{{ $counts['off_msrp'] }}</div><div class="k">Off MSRP</div></a>
+
+    {{-- the dropdown calls this one "Cost removed"; same flag, one name. --}}
+    <a class="at-chip {{ $tileOn === 'cost_vanished' ? 'on' : '' }}" href="{{ $tileHref('cost_vanished') }}">
+      <div class="v" style="color:#aebbcf">{{ $counts['vanished'] }}</div><div class="k">Cost removed</div></a>
   </div>
 
   <form method="GET" action="{{ route('tenant.distributors.attention') }}" class="at-filter">
