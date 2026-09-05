@@ -51,6 +51,41 @@ body.at-bar-open .ia-mobile-nav{display:none}
    unchanged: these rows live inside the bulk-action form and carry the
    checkboxes selection depends on, so this is done by changing how they are
    displayed rather than by rebuilding them. */
+
+.at-chg .nb{color:#F26D6D;font-weight:700}
+.at-chg .when{font-size:11px;color:var(--ia-text-muted)}
+.at-rowact{display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap}
+.at-rowact .at-btn{padding:5px 11px;font-size:12px}
+.at-b-map{background:rgba(226,75,74,.16);color:#f0a3a3}
+.at-b-msrp{background:rgba(239,159,39,.16);color:#f0c78a}
+.at-b-van{background:rgba(120,140,170,.16);color:#aebbcf}
+.at-b-title{background:rgba(190,242,100,.15);color:#cde98a}
+.at-filter{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
+.at-sel{padding:7px 10px;border-radius:var(--ia-r-md);font-size:13px;border:1px solid var(--ia-border-strong);background:var(--ia-surface-2);color:var(--ia-text)}
+.at-seg{display:inline-flex;border:1px solid var(--ia-border-strong);border-radius:var(--ia-r-md);overflow:hidden;margin-bottom:14px}
+.at-segbtn{padding:8px 16px;font-size:13px;font-weight:600;color:var(--ia-text-dim);text-decoration:none;border-right:1px solid var(--ia-border-strong)}
+.at-segbtn:last-child{border-right:0}
+.at-segbtn.active{background:var(--ia-accent);color:var(--ia-accent-text)}
+/* MARKER-ATTENTION-SLIM — hidden until something is selected. A sticky bar
+   that is always there covers the row you are reading, and on a phone it
+   covered the diff you are being asked to judge. */
+.at-bar[hidden]{display:none !important}
+.at-bar{position:sticky;bottom:10px;background:var(--ia-surface-2);border:.5px solid var(--ia-border);border-radius:var(--ia-r-md);padding:12px 16px;margin-top:14px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;box-shadow:0 10px 28px rgba(0,0,0,.4)}
+.at-btn{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:var(--ia-r-md);font-size:13px;font-weight:600;cursor:pointer;border:1px solid var(--ia-border-strong);background:var(--ia-surface-2);color:var(--ia-text)}
+.at-btn.primary{background:var(--ia-accent);color:var(--ia-accent-text);border-color:var(--ia-accent)}
+.at-banner{padding:11px 15px;border-radius:var(--ia-r-md);font-size:13px;margin-bottom:16px;border:1px solid}
+.at-ok{background:rgba(99,153,34,.15);border-color:rgba(99,153,34,.4);color:#cfe6ab}
+.at-empty{text-align:center;padding:48px 20px;color:var(--ia-text-dim)}
+.at-empty .big{font-size:34px;margin-bottom:8px}
+.at-dim{color:var(--ia-text-dim)}
+.at-toggle{font-size:12px;color:var(--ia-text-dim)}
+.at-toggle a{color:var(--ia-accent);text-decoration:none}
+
+/* MARKER-ATTENTION-CSSORDER — the mobile block lives at the END of the sheet.
+   It was at the top, ahead of the base .at-btn and .at-sel rules; equal
+   specificity means the later rule wins, so every button rule in here was
+   silently discarded and three rounds of tuning changed nothing. An override
+   goes last. */
 @media (max-width: 720px) {
 
   /* the sync card: four across becomes one per row */
@@ -176,34 +211,6 @@ body.at-bar-open .ia-mobile-nav{display:none}
   /* the page title and the history link stop fighting for one line */
   .ia-page-head{flex-wrap:wrap}
 }
-.at-chg .nb{color:#F26D6D;font-weight:700}
-.at-chg .when{font-size:11px;color:var(--ia-text-muted)}
-.at-rowact{display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap}
-.at-rowact .at-btn{padding:5px 11px;font-size:12px}
-.at-b-map{background:rgba(226,75,74,.16);color:#f0a3a3}
-.at-b-msrp{background:rgba(239,159,39,.16);color:#f0c78a}
-.at-b-van{background:rgba(120,140,170,.16);color:#aebbcf}
-.at-b-title{background:rgba(190,242,100,.15);color:#cde98a}
-.at-filter{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
-.at-sel{padding:7px 10px;border-radius:var(--ia-r-md);font-size:13px;border:1px solid var(--ia-border-strong);background:var(--ia-surface-2);color:var(--ia-text)}
-.at-seg{display:inline-flex;border:1px solid var(--ia-border-strong);border-radius:var(--ia-r-md);overflow:hidden;margin-bottom:14px}
-.at-segbtn{padding:8px 16px;font-size:13px;font-weight:600;color:var(--ia-text-dim);text-decoration:none;border-right:1px solid var(--ia-border-strong)}
-.at-segbtn:last-child{border-right:0}
-.at-segbtn.active{background:var(--ia-accent);color:var(--ia-accent-text)}
-/* MARKER-ATTENTION-SLIM — hidden until something is selected. A sticky bar
-   that is always there covers the row you are reading, and on a phone it
-   covered the diff you are being asked to judge. */
-.at-bar[hidden]{display:none !important}
-.at-bar{position:sticky;bottom:10px;background:var(--ia-surface-2);border:.5px solid var(--ia-border);border-radius:var(--ia-r-md);padding:12px 16px;margin-top:14px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;box-shadow:0 10px 28px rgba(0,0,0,.4)}
-.at-btn{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:var(--ia-r-md);font-size:13px;font-weight:600;cursor:pointer;border:1px solid var(--ia-border-strong);background:var(--ia-surface-2);color:var(--ia-text)}
-.at-btn.primary{background:var(--ia-accent);color:var(--ia-accent-text);border-color:var(--ia-accent)}
-.at-banner{padding:11px 15px;border-radius:var(--ia-r-md);font-size:13px;margin-bottom:16px;border:1px solid}
-.at-ok{background:rgba(99,153,34,.15);border-color:rgba(99,153,34,.4);color:#cfe6ab}
-.at-empty{text-align:center;padding:48px 20px;color:var(--ia-text-dim)}
-.at-empty .big{font-size:34px;margin-bottom:8px}
-.at-dim{color:var(--ia-text-dim)}
-.at-toggle{font-size:12px;color:var(--ia-text-dim)}
-.at-toggle a{color:var(--ia-accent);text-decoration:none}
 </style>
 @endpush
 
