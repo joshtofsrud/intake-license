@@ -2635,9 +2635,61 @@ class RegisterController extends Controller
             return response()->json(['ok' => false, 'error' => 'Refund records cannot be deleted here.'], 422);
         }
 
+        // MARKER-SALE-DELETE-STOCK — a refund already put this stock back once.
+        // Restoring again would double-count, so refuse and say why.
+        $refund = \App\Models\Tenant\TenantSale::where('tenant_id', $tenant->id)
+            ->where('refund_of_sale_id', $sale->id)->first();
+        if ($refund) {
+            return response()->json([
+                'ok'    => false,
+                'error' => 'This sale has a refund against it (' . ($refund->sale_number ?: $refund->id)
+                    . '). Its stock has already been returned — delete the refund first if this really needs removing.',
+            ], 422);
+        }
+
         $apptId = $sale->appointment_id;
 
-        \Illuminate\Support\Facades\DB::transaction(function () use ($tenant, $sale) {
+        // MARKER-SALE-DELETE-STOCK — put the stock back. This used to delete the
+        // lines and the sale and leave the units deducted, with the outgoing
+        // movements pointing at a sale that no longer existed.
+        $restored = [];
+
+        \Illuminate\Support\Facades\DB::transaction(function () use ($tenant, $sale, &$restored) {
+            $inventory = app(\App\Services\Pos\InventoryService::class);
+            $actor     = auth('tenant')->user();
+            $location  = $sale->location_id
+                ? \App\Models\Tenant\TenantLocation::where('tenant_id', $tenant->id)->find($sale->location_id)
+                : null;
+
+            $lines = \App\Models\Tenant\TenantSaleItem::where('tenant_id', $tenant->id)
+                ->where('sale_id', $sale->id)->get();
+
+            foreach ($lines as $line) {
+                // Services and gift cards hold no stock; only real items moved any.
+                if (! $line->inventory_item_id || ! $location) {
+                    continue;
+                }
+
+                $qty = (int) round((float) $line->quantity);
+                if ($qty <= 0) {
+                    continue;
+                }
+
+                $item = \App\Models\Tenant\TenantInventoryItem::where('tenant_id', $tenant->id)
+                    ->find($line->inventory_item_id);
+                if (! $item) {
+                    continue;   // item deleted since; nothing to put back
+                }
+
+                $inventory->incrementStock(
+                    $tenant, $item, $location, $qty,
+                    'sale', $sale->id, $actor, null, 'return',
+                    'Sale ' . ($sale->sale_number ?: $sale->id) . ' deleted (data correction)'
+                );
+
+                $restored[] = ['name' => $item->name, 'qty' => $qty];
+            }
+
             \App\Models\Tenant\TenantSaleItem::where('tenant_id', $tenant->id)
                 ->where('sale_id', $sale->id)
                 ->delete();
@@ -2671,7 +2723,13 @@ class RegisterController extends Controller
             'by'          => auth('tenant')->id(),
         ]);
 
-        return response()->json(['ok' => true]);
+        return response()->json(['ok' => true,
+            // MARKER-SALE-DELETE-STOCK — say what came back.
+            'restored' => $restored,
+            'restored_note' => $restored
+                ? collect($restored)->map(fn ($r) => $r['qty'] . ' × ' . $r['name'])->implode(', ') . ' returned to stock'
+                : null,
+        ]);
     }
 
     /**
