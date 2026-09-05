@@ -33,12 +33,12 @@
       </span>
     </div>
     <style>
-      .uc-bkmode{color:var(--ia-text-dim)} .uc-bkmode.on{background:rgba(190,242,100,.13);color:var(--ia-text);font-weight:600}
+      .uc-bkmode{color:var(--ia-text-dim);background:none;border:0;cursor:pointer;font:inherit} .uc-bkmode.on{background:rgba(190,242,100,.13);color:var(--ia-text);font-weight:600}
       .uc-sug{font-size:10.5px;padding:1px 7px;border-radius:100px;background:rgba(125,184,232,.15);color:#9fd0f5;border:.5px solid rgba(125,184,232,.35)}
       .uc-sug.rule{background:rgba(190,242,100,.12);color:var(--ia-accent);border-color:rgba(190,242,100,.35)}
       .uc-chip[hidden]{display:none !important}
     </style>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px" id="ucChips">
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px" id="ucBuckets">
       @foreach($buckets as $b)
         @php $on = $activeBucket === $b['key']; $sg = $suggestions[$b['key']] ?? null; @endphp
         <a href="{{ route('tenant.inventory.uncategorized', ['bucket' => $b['key']]) }}"
