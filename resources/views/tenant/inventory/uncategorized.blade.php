@@ -82,13 +82,17 @@
       </div>
 
       {{-- undo preview modal — in-app, never confirm() --}}
-      <div id="ucUndoDlg" hidden style="position:fixed;inset:0;z-index:300;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:20px">
+      {{-- MARKER-CAT-UNDO-DLGFIX — `hidden` loses to display:flex, so the
+           dialog rendered on page load with an empty list and a live Undo
+           button. Visibility is a class now, and the button is disabled until
+           the items have actually loaded. --}}
+      <div id="ucUndoDlg" style="display:none;position:fixed;inset:0;z-index:300;background:rgba(0,0,0,.55);align-items:center;justify-content:center;padding:20px">
         <div style="background:var(--ia-surface);border:.5px solid var(--ia-border);border-radius:14px;width:100%;max-width:560px;max-height:80vh;display:flex;flex-direction:column;overflow:hidden">
           <div style="padding:14px 18px;border-bottom:.5px solid var(--ia-border);font-weight:600" id="ucUndoTitle">Undo</div>
           <div style="padding:10px 18px;font-size:12.5px;color:var(--ia-text-dim)" id="ucUndoSub"></div>
           <div style="overflow:auto;padding:0 18px 10px;font-size:13px" id="ucUndoList"></div>
           <div style="padding:12px 18px;border-top:.5px solid var(--ia-border);display:flex;gap:8px;justify-content:flex-end">
-            <button type="button" class="ia-btn ia-btn--ghost ia-btn--sm" onclick="document.getElementById('ucUndoDlg').hidden=true">Keep them</button>
+            <button type="button" class="ia-btn ia-btn--ghost ia-btn--sm" onclick="document.getElementById('ucUndoDlg').style.display='none'">Keep them</button>
             <form method="POST" id="ucUndoForm" style="margin:0">@csrf<button type="submit" class="ia-btn ia-btn--primary ia-btn--sm" id="ucUndoGo">Undo</button></form>
           </div>
         </div>
@@ -98,7 +102,9 @@
           var dlg = document.getElementById('ucUndoDlg'), list = document.getElementById('ucUndoList');
           document.getElementById('ucUndoForm').action = @json(url('/admin/inventory/uncategorized/undo')) + '/' + id;
           list.innerHTML = '<div style="padding:12px 0;color:var(--ia-text-dim)">Loading…</div>';
-          dlg.hidden = false;
+          dlg.style.display = 'flex';
+          var go = document.getElementById('ucUndoGo');
+          go.disabled = true; go.textContent = 'Loading…';
           fetch(@json(url('/admin/inventory/uncategorized/assignments')) + '/' + id + '/items', {headers: {'Accept': 'application/json'}, credentials: 'same-origin'})
             .then(function (r) { return r.json(); })
             .then(function (d) {
@@ -112,7 +118,9 @@
                   + '<span style="color:var(--ia-text-dim);font-family:var(--ia-mono);font-size:12px">' + (it.sku || '') + '</span>'
                   + '<span style="color:var(--ia-text-dim);font-size:12px;white-space:nowrap">\u2192 ' + (it.changed_since ? 'kept' : it.back_to) + '</span></div>';
               }).join('');
-              document.getElementById('ucUndoGo').textContent = 'Undo ' + (d.count - d.kept).toLocaleString();
+              var g = document.getElementById('ucUndoGo');
+              g.disabled = false;
+              g.textContent = 'Undo ' + (d.count - d.kept).toLocaleString();
             })
             .catch(function () { list.innerHTML = '<div style="padding:12px 0;color:#F08A8A">Could not load the items.</div>'; });
         };
