@@ -797,6 +797,9 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             Route::get('/imports/{id}/detail',  [TenantControllers\ImportController::class, 'detail'])->name('imports.detail');
             Route::get('/imports/{id}/errors',          [TenantControllers\ImportController::class, 'errors'])->name('imports.errors');
             Route::post('/imports/{id}/reverse',        [TenantControllers\ImportController::class, 'reverse'])->name('imports.reverse'); // MARKER-IMPORT2
+            // MARKER-IMPORT-PROGRESS — declared BEFORE /imports/{id} so 'progress' isn't swallowed as an id.
+            Route::get('/imports/progress',             [TenantControllers\ImportController::class, 'progress'])->name('imports.progress');
+            Route::post('/imports/{id}/progress-seen',  [TenantControllers\ImportController::class, 'progressSeen'])->name('imports.progress_seen');
             // MARKER-IMPORT3 — template must be declared BEFORE /imports/{id},
             // or 'template' would be swallowed as an id.
             Route::delete('/imports/{id}',              [TenantControllers\ImportController::class, 'destroy'])->name('imports.destroy');

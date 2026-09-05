@@ -698,6 +698,64 @@ class ImportController extends Controller
      * result says so plainly. Undoing twice is harmless: reversed rows are
      * stamped and skipped.
      */
+    /**
+     * MARKER-IMPORT-PROGRESS — tiny JSON for the banner. Reads columns the
+     * job already wrote; never counts anything, so polling stays cheap.
+     */
+    public function progress()
+    {
+        $this->guard();
+
+        $import = \App\Models\Tenant\TenantImport::where('tenant_id', tenant()->id)
+            ->whereIn('status', ['running', 'reversing'])
+            ->orWhere(function ($q) {
+                $q->where('tenant_id', tenant()->id)
+                  ->whereIn('progress_stage', ['done', 'reversed', 'failed'])
+                  ->whereNull('progress_seen_at')
+                  ->where('updated_at', '>=', now()->subHours(6));
+            })
+            ->orderByDesc('updated_at')->first();
+
+        if (! $import) {
+            return response()->json(['active' => false]);
+        }
+
+        $running = in_array($import->status, ['running', 'reversing'], true);
+        $totals  = (array) $import->totals;
+        $rev     = (array) ($totals['reversal'] ?? []);
+
+        return response()->json([
+            'active'   => true,
+            'id'       => $import->id,
+            'running'  => $running,
+            'stage'    => $import->progress_stage,
+            'done'     => (int) $import->progress_done,
+            'total'    => (int) $import->progress_total,
+            'pct'      => $import->progress_total > 0
+                ? min(100, (int) round($import->progress_done / $import->progress_total * 100)) : 0,
+            'label'    => $import->status === 'reversing' ? 'Reversing import' : 'Importing ' . $import->type,
+            'result'   => $running ? null : match ($import->progress_stage) {
+                'reversed' => 'Reverse finished · ' . number_format((int) ($rev['deleted'] ?? 0)) . ' deleted, '
+                    . number_format((int) ($rev['restored'] ?? 0)) . ' restored'
+                    . (($rev['kept'] ?? 0) ? ', ' . number_format((int) $rev['kept']) . ' kept (used since)' : ''),
+                'failed'   => $import->failure_reason ?: 'Stopped — press Reverse again to continue',
+                default    => 'Import finished · ' . number_format((int) ($totals['created'] ?? 0)) . ' added, '
+                    . number_format((int) ($totals['updated'] ?? 0)) . ' updated',
+            },
+            'href'     => route('tenant.imports.show', $import->id),
+        ]);
+    }
+
+    /** MARKER-IMPORT-PROGRESS — dismiss the finished banner. */
+    public function progressSeen(string $id)
+    {
+        $this->guard();
+        \App\Models\Tenant\TenantImport::where('tenant_id', tenant()->id)
+            ->where('id', $id)->update(['progress_seen_at' => now()]);
+
+        return response()->json(['ok' => true]);
+    }
+
     public function reverse(string $id)
     {
         $this->guard();
@@ -707,17 +765,23 @@ class ImportController extends Controller
             return back()->with('error', 'Only a finished import can be reversed.');
         }
 
-        $result = (new \App\Services\Tenant\Import\ImportReverser(tenant(), $import))->reverse();
+        // MARKER-IMPORT-PROGRESS — queued. This used to run inline: every row
+        // undone in the web request, with fifteen unbatched queries apiece.
+        $pending = \App\Models\Tenant\TenantImportRow::where('import_id', $import->id)
+            ->where('tenant_id', tenant()->id)->whereNull('reversed_at')->count();
 
         $import->update([
-            'status' => 'reversed',
-            'totals' => array_merge((array) $import->totals, ['reversal' => $result]),
+            'status'         => 'reversing',
+            'progress_done'  => 0,
+            'progress_total' => $pending,
+            'progress_stage' => 'reversing',
+            'progress_seen_at' => null,
         ]);
 
-        $msg = 'Reversed: ' . $result['deleted'] . ' deleted, ' . $result['restored'] . ' restored';
-        if ($result['stock_reversed']) { $msg .= ', ' . $result['stock_reversed'] . ' stock changes undone'; }
-        if ($result['kept']) {
-            $msg .= '. ' . $result['kept'] . ' kept because they have been used since.';
+        \App\Jobs\ReverseImportJob::dispatch(tenant()->id, $import->id);
+
+        $msg = 'Reversing ' . number_format($pending) . ' rows in the background — the banner at the top tracks it.';
+        if (false) {
         }
 
         return redirect()->route('tenant.imports.show', $import->id)->with('success', $msg);

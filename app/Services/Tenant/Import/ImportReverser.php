@@ -45,29 +45,74 @@ class ImportReverser
         ['tenant_rentals', 'customer_id'],
     ];
 
-    /** @return string|null reason it must be kept, or null if safe to delete */
-    private function blockedBy(string $type, string $id, ?int $ownMovements = 0): ?string
+    /**
+     * MARKER-IMPORT-PROGRESS — usable ref tables, resolved ONCE per run.
+     * These were five Schema::hasTable + five Schema::hasColumn probes PER
+     * ROW, each one hitting information_schema.
+     */
+    private array $refCache = [];
+
+    private function refsFor(string $type): array
     {
+        if (isset($this->refCache[$type])) return $this->refCache[$type];
+
         $refs = $type === 'item' ? self::ITEM_REFS : ($type === 'customer' ? self::CUSTOMER_REFS : []);
-
+        $out  = [];
         foreach ($refs as [$table, $column]) {
-            if (! \Schema::hasTable($table) || ! \Schema::hasColumn($table, $column)) {
-                continue;
+            if (\Schema::hasTable($table) && \Schema::hasColumn($table, $column)) {
+                $out[] = [$table, $column];
             }
+        }
+        return $this->refCache[$type] = $out;
+    }
 
-            $count = DB::table($table)->where($column, $id)->count();
+    /**
+     * MARKER-IMPORT-PROGRESS — one grouped query per ref table for a whole
+     * chunk of ids, instead of a COUNT per row per table.
+     *
+     * @param  array<string,int>  $ownMovements  record_id => movements this import made
+     * @return array<string,string>  record_id => reason it must be kept
+     */
+    private function blockedForBatch(string $type, array $ids, array $ownMovements = []): array
+    {
+        $ids = array_values(array_unique(array_filter($ids)));
+        if (! $ids) return [];
 
-            // The import's OWN stock movements don't count as outside use.
-            if ($table === 'tenant_inventory_movements') {
-                $count -= (int) $ownMovements;
-            }
+        $blocked = [];
+        foreach ($this->refsFor($type) as [$table, $column]) {
+            $counts = DB::table($table)->whereIn($column, $ids)
+                ->selectRaw("{$column} as rid, COUNT(*) as n")
+                ->groupBy($column)->pluck('n', 'rid');
 
-            if ($count > 0) {
-                return 'Used by ' . str_replace(['tenant_', '_'], ['', ' '], $table);
+            foreach ($counts as $rid => $n) {
+                $n = (int) $n;
+                // The import's OWN stock movements don't count as outside use.
+                if ($table === 'tenant_inventory_movements') {
+                    $n -= (int) ($ownMovements[$rid] ?? 0);
+                }
+                if ($n > 0 && ! isset($blocked[$rid])) {
+                    $blocked[$rid] = 'Used by ' . str_replace(['tenant_', '_'], ['', ' '], $table);
+                }
             }
         }
 
-        return null;
+        return $blocked;
+    }
+
+    /** Single-id convenience, kept for any caller outside the batch path. */
+    private function blockedBy(string $type, string $id, ?int $ownMovements = 0): ?string
+    {
+        return $this->blockedForBatch($type, [$id], [$id => (int) $ownMovements])[$id] ?? null;
+    }
+
+    /** MARKER-IMPORT-PROGRESS — per-chunk progress callback, set by the job. */
+    public $onProgress = null;
+
+    private function tick(int $done): void
+    {
+        if (is_callable($this->onProgress)) {
+            ($this->onProgress)($done);
+        }
     }
 
     public function reverse(): array
@@ -77,11 +122,33 @@ class ImportReverser
         $inventory = app(InventoryService::class);
         $user      = auth('tenant')->user();
 
-        $rows = TenantImportRow::where('import_id', $this->import->id)
+        // MARKER-IMPORT-PROGRESS — the whole ledger used to load at once.
+        // Chunked so memory is flat whatever the file size, and so progress
+        // can be reported as it goes.
+        $base = TenantImportRow::where('import_id', $this->import->id)
             ->where('tenant_id', $this->tenant->id)
-            ->whereNull('reversed_at')
-            ->orderByDesc('id')      // newest first: undo in reverse order
-            ->get();
+            ->whereNull('reversed_at');
+
+        $total = (clone $base)->count();
+        $seen  = 0;
+        $this->import->update(['progress_done' => 0, 'progress_total' => $total, 'progress_stage' => 'reversing']);
+
+        (clone $base)->orderByDesc('id')->chunkById(200, function ($rows) use (&$result, &$seen, $inventory, $user) {
+            $this->reverseChunk($rows, $result, $inventory, $user);
+            $seen += $rows->count();
+            $this->import->update(['progress_done' => $seen]);
+            $this->tick($seen);
+        }, 'id', 'id');
+
+        return $result;
+    }
+
+    /**
+     * MARKER-IMPORT-PROGRESS — the original body, now per chunk. Reference
+     * checks for the whole chunk are resolved up front in one pass.
+     */
+    private function reverseChunk($rows, array &$result, $inventory, $user): void
+    {
 
         // 1) stock first — a counter-movement needs the item to still exist
         foreach ($rows->where('stock_delta', '!=', null) as $row) {
@@ -122,12 +189,30 @@ class ImportReverser
         }
 
         // 3) delete created records, unless something now points at them
-        foreach ($rows->where('action', 'created') as $row) {
-            $ownMovements = TenantImportRow::where('import_id', $this->import->id)
-                ->where('record_id', $row->record_id)
-                ->whereNotNull('stock_delta')->count();
+        // MARKER-IMPORT-PROGRESS — batch the "is this still referenced?"
+        // question for every created row in the chunk, before touching any.
+        $createdRows = $rows->where('action', 'created');
+        $createdIds  = $createdRows->pluck('record_id')->all();
 
-            $blocked = $this->blockedBy($row->record_type, $row->record_id, $ownMovements);
+        // This import's own stock movements, counted across the WHOLE import
+        // (not just this chunk — a record's stock rows can land in another
+        // chunk), in one grouped query instead of one COUNT per row.
+        $ownMoves = $createdIds
+            ? TenantImportRow::where('import_id', $this->import->id)
+                ->whereIn('record_id', $createdIds)->whereNotNull('stock_delta')
+                ->selectRaw('record_id, COUNT(*) as n')->groupBy('record_id')
+                ->pluck('n', 'record_id')->map(fn ($n) => (int) $n)->all()
+            : [];
+
+        $blockedItems = $this->blockedForBatch('item', $createdRows->where('record_type', 'item')->pluck('record_id')->all(), $ownMoves);
+        $blockedCusts = $this->blockedForBatch('customer', $createdRows->where('record_type', 'customer')->pluck('record_id')->all());
+
+        foreach ($createdRows as $row) {
+            // MARKER-IMPORT-PROGRESS — both answers were computed for the
+            // whole chunk above; this was a COUNT plus fifteen queries per row.
+            $blocked = $row->record_type === 'item'
+                ? ($blockedItems[$row->record_id] ?? null)
+                : ($blockedCusts[$row->record_id] ?? null);
 
             if ($blocked) {
                 $result['kept']++;
@@ -155,7 +240,6 @@ class ImportReverser
             $row->update(['reversed_at' => now()]);
         }
 
-        return $result;
     }
 
     private function modelFor(string $type, string $id)

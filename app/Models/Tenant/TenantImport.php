@@ -15,6 +15,7 @@ class TenantImport extends Model
         'encoding', 'has_header', 'columns', 'mapping', 'row_overrides', 'options', 'totals',
         'status', 'failure_reason', 'error_path', 'created_by_user_id',
         'started_at', 'finished_at',
+        'progress_done', 'progress_total', 'progress_stage', 'progress_seen_at', // MARKER-IMPORT-PROGRESS
     ];
 
     protected $casts = [

@@ -43,9 +43,18 @@ class TenantCustomerTag extends Model
     {
         $name = trim(preg_replace('/\s+/', ' ', $name));
 
-        return static::firstOrCreate(
-            ['tenant_id' => $tenantId, 'name' => $name],
-            ['created_by' => $by]
-        );
+        // MARKER-IMPORT-PROGRESS — match case-insensitively. firstOrCreate on
+        // the exact name made "Newsletter" a SECOND tag beside "newsletter",
+        // silently splitting the audience in two.
+        $existing = static::where('tenant_id', $tenantId)
+            ->whereRaw('LOWER(name) = ?', [mb_strtolower($name)])
+            ->first();
+        if ($existing) {
+            return $existing;
+        }
+
+        return static::create([
+            'tenant_id' => $tenantId, 'name' => $name, 'created_by' => $by,
+        ]);
     }
 }
