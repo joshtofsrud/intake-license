@@ -13,6 +13,9 @@
   ];
   $stockLabels = [
     ''     => 'All stock levels',
+    // MARKER-INV-IN-STOCK — the common case, and first after "all": with
+    // catalog imports the list is mostly items the shop does not hold.
+    'in'   => 'In stock only',
     'low'  => 'Low stock only',
     'out'  => 'Out of stock only',
     // MARKER-INV-LIST — was a header button; it's a state, not a place.

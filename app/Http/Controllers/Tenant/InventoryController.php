@@ -49,7 +49,7 @@ class InventoryController extends Controller
 
         $search   = trim((string) $request->input('s', ''));
         $category = $request->input('category');
-        $stock    = $request->input('stock'); // 'low', 'out', 'all'
+        $stock    = $request->input('stock'); // '', 'in', 'low', 'out', 'archived' — MARKER-INV-IN-STOCK
         $sort     = $request->input('sort', 'name_asc');
         // MARKER-INV-BRAND-DIST
         $brand       = trim((string) $request->input('brand', ''));
@@ -166,6 +166,20 @@ class InventoryController extends Controller
                 });
             } else {
                 $q->where('computed_stock_count', '<=', 0);
+            }
+        } elseif ($stock === 'in') {
+            // MARKER-INV-IN-STOCK — what the shop actually holds. Mirrors the
+            // 'out' branch: with a location in scope the question is about
+            // THAT location's shelf, not the sum across the company. An item
+            // with no row at this location has never been stocked here, so it
+            // is correctly absent rather than counted as zero.
+            if ($hereLocId) {
+                $q->whereHas('locations', function ($w) use ($hereLocId) {
+                    $w->where('location_id', $hereLocId)
+                      ->where('computed_stock_count', '>', 0);
+                });
+            } else {
+                $q->where('computed_stock_count', '>', 0);
             }
         }
 
