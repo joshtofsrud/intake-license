@@ -198,6 +198,7 @@ $tenantRoutes = function () {
     // MARKER-PATCH-528 — public delivery-window confirm page (token is the credential)
     Route::get('/d/{token}',             [TenantControllers\DeliveryConfirmController::class, 'show'])->name('tenant.delivery_confirm.show');
     Route::post('/d/{token}',            [TenantControllers\DeliveryConfirmController::class, 'confirm'])->name('tenant.delivery_confirm.save');
+    Route::post('/d/{token}/call',       [TenantControllers\DeliveryConfirmController::class, 'requestCall'])->name('tenant.delivery_confirm.call'); // MARKER-DELIVERY-CALL
     // MARKER-PATCH-149 — anonymous funnel event tracking from public pages
     Route::post('/funnel/track',         [TenantControllers\FunnelTrackController::class, 'store'])->name('tenant.funnel.track');
     // MARKER-REGISTER-RECON-DISPLAY — customer pay display (token is the credential)

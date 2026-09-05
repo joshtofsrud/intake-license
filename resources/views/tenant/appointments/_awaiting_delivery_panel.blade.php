@@ -37,10 +37,12 @@
   @foreach($appointments as $appt)
     @php
       $why = $deliveryWhy[$appt->id] ?? null;
-      $whyKey = $why === null ? 'none' : ($why === 'no_reply' ? 'sent' : ($why === 'sent' ? 'sent' : 'replied'));
+      // MARKER-DELIVERY-CALL — call_requested is its own state: answered, but by phone.
+      $whyKey = $why === null ? 'none' : ($why === 'call_requested' ? 'call' : ($why === 'no_reply' ? 'sent' : ($why === 'sent' ? 'sent' : 'replied')));
       $whyLabel = [
         'none'    => 'no contact yet',
         'sent'    => $why === 'no_reply' ? 'no reply yet' : 'options sent',
+        'call'    => 'asked for a call',
         'replied' => 'replied — needs scheduling',
       ][$whyKey];
       $days = $appt->completed_at ? (int) $appt->completed_at->diffInDays(now()) : 0;

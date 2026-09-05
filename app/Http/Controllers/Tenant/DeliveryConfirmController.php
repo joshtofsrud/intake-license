@@ -39,7 +39,11 @@ class DeliveryConfirmController extends Controller
         [$tenant, $proposal] = $this->resolve($token);
         if (!$proposal) abort(404);
 
-        if (!$proposal->isPending() && $proposal->status !== TenantDeliveryProposal::STATUS_NO_REPLY) { // MARKER-PATCH-534
+        // MARKER-DELIVERY-CALL — a customer who asked for a call can still
+        // pick a window afterwards; the call request is superseded.
+        $canAnswer = $proposal->isPending()
+            || in_array($proposal->status, [TenantDeliveryProposal::STATUS_NO_REPLY, TenantDeliveryProposal::STATUS_CALL_REQUESTED], true); // MARKER-PATCH-534
+        if (!$canAnswer) {
             return redirect()->route('tenant.delivery_confirm.show', $token);
         }
 
@@ -96,6 +100,51 @@ class DeliveryConfirmController extends Controller
             ]);
         } catch (\Throwable $e) {
             Log::warning('Delivery window_chosen alert failed', ['proposal_id' => $proposal->id, 'error' => $e->getMessage()]);
+        }
+
+        return redirect()->route('tenant.delivery_confirm.show', $token);
+    }
+
+    /**
+     * MARKER-DELIVERY-CALL — POST /d/{token}/call. The customer would rather
+     * be phoned than pick a window. Counts as answered (the unanswered sweep
+     * only touches pending), raises a staff alert, and leaves the link live
+     * so they can still choose a window if they change their mind.
+     */
+    public function requestCall(Request $request, string $token)
+    {
+        [$tenant, $proposal] = $this->resolve($token);
+        if (!$proposal) abort(404);
+
+        $canAnswer = $proposal->isPending()
+            || in_array($proposal->status, [TenantDeliveryProposal::STATUS_NO_REPLY, TenantDeliveryProposal::STATUS_CALL_REQUESTED], true);
+        if (!$canAnswer) {
+            return redirect()->route('tenant.delivery_confirm.show', $token);
+        }
+
+        $note = trim((string) $request->input('call_note', ''));
+        $note = mb_substr($note, 0, 200);
+
+        $proposal->update([
+            'status'            => TenantDeliveryProposal::STATUS_CALL_REQUESTED,
+            'call_note'         => $note !== '' ? $note : null,
+            'call_requested_at' => now(),
+        ]);
+
+        try {
+            $proposal->loadMissing('customer');
+            $custName = trim(($proposal->customer->first_name ?? '') . ' ' . ($proposal->customer->last_name ?? '')) ?: 'A customer';
+            $phone    = $proposal->customer->phone ?? null;
+            app(\App\Services\Tenant\StaffAlertService::class)->emit($tenant, 'delivery.call_requested', [
+                'title' => 'Customer asked for a call',
+                'body'  => $custName . ' would rather you call about delivery'
+                    . ($phone ? ' · ' . $phone : '')
+                    . ($note !== '' ? ' · "' . $note . '"' : ''),
+                'link'  => $proposal->appointment_id ? route('tenant.appointments.show', $proposal->appointment_id) : route('tenant.deliveries.index'),
+                'meta'  => ['proposal_id' => $proposal->id, 'appointment_id' => $proposal->appointment_id],
+            ]);
+        } catch (\Throwable $e) {
+            Log::warning('Delivery call_requested alert failed', ['proposal_id' => $proposal->id, 'error' => $e->getMessage()]);
         }
 
         return redirect()->route('tenant.delivery_confirm.show', $token);

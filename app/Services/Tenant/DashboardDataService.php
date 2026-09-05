@@ -201,6 +201,15 @@ class DashboardDataService
                             ->where('tenant_delivery_proposals.tenant_id', $tenantId)
                             ->where('tenant_delivery_proposals.status', 'no_reply');
                     })->count();
+                // MARKER-DELIVERY-CALL — asked to be phoned instead.
+                $awaitingCallCount = (clone $base)
+                    ->whereExists(function ($q) use ($tenantId) {
+                        $q->selectRaw('1')
+                            ->from('tenant_delivery_proposals')
+                            ->whereColumn('tenant_delivery_proposals.appointment_id', 'tenant_appointments.id')
+                            ->where('tenant_delivery_proposals.tenant_id', $tenantId)
+                            ->where('tenant_delivery_proposals.status', 'call_requested');
+                    })->count();
             }
         }
 
@@ -217,7 +226,8 @@ class DashboardDataService
                 'desc'  => ($awaitingDeliveryCount === 1
                         ? "1 completed {$singular} with no drop-off scheduled"
                         : "{$awaitingDeliveryCount} completed {$plural} with no drop-off scheduled")
-                    . ($awaitingNoReplyCount > 0 ? " — {$awaitingNoReplyCount} never replied to the options link" : ''),
+                    . ($awaitingNoReplyCount > 0 ? " — {$awaitingNoReplyCount} never replied to the options link" : '')
+                    . (($awaitingCallCount ?? 0) > 0 ? " — {$awaitingCallCount} asked for a call" : ''), // MARKER-DELIVERY-CALL
                 'tone'  => 'amber',
                 'link'  => route('tenant.appointments.index', ['filter' => 'awaiting_delivery']),
             ];

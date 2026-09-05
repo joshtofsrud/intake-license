@@ -4,6 +4,7 @@
   $accentText = \App\Support\ColorHelper::accentTextColor($accent);
   $tz = $tenant->timezone();
   $isPending = $proposal->isPending() || $proposal->status === 'no_reply'; // MARKER-PATCH-534 — link keeps working after the no-reply flag
+  $calledIn  = $proposal->status === 'call_requested'; // MARKER-DELIVERY-CALL — answered, but still allowed to pick a window
   $deadline = $proposal->expires_at?->copy()->setTimezone($tz);
   $noun = $tenant->asset_label_singular ?: 'order'; // MARKER-PATCH-535
 @endphp
@@ -50,6 +51,14 @@
   .card-k { flex: none; width: 54px; font-size: 12px; opacity: .55; padding-top: 2px; }
   .card-v { font-size: 14.5px; line-height: 1.45; }
   .btn--ghost { background: none; border: 1.5px solid rgba(255,255,255,.18); color: #f0f0f0; }
+  /* MARKER-DELIVERY-CALL */
+  .or { display:flex; align-items:center; gap:12px; margin:18px 0 12px; font-size:12px; opacity:.5; }
+  .or::before, .or::after { content:""; flex:1; height:1px; background:rgba(255,255,255,.12); }
+  .call { display:none; margin-top:10px; }
+  .call.on { display:block; }
+  .call input[type=text] { width:100%; box-sizing:border-box; background:rgba(255,255,255,.05); border:1.5px solid rgba(255,255,255,.14); border-radius:10px; padding:11px 13px; color:#f0f0f0; font:inherit; font-size:14px; margin-bottom:10px; }
+  .call input[type=text]:focus { outline:0; border-color:var(--accent); }
+  .ok { background:rgba(190,242,100,.1); border:1.5px solid rgba(190,242,100,.35); border-radius:12px; padding:13px 15px; font-size:14px; margin-bottom:16px; }
 </style>
 </head>
 <body>
@@ -61,9 +70,14 @@
     <div class="shop">{{ $tenant->name }}</div>
   @endif
 
-  @if($isPending)
+  @if($isPending || $calledIn)
     <h1>Your {{ $noun }} is ready! 🎉</h1>
-    <p class="sub">Pick the delivery window that works — we'll bring it to you.</p>
+    @if($calledIn)
+      {{-- MARKER-DELIVERY-CALL — they asked for a call; the windows stay in case they change their mind --}}
+      <div class="ok">Got it — {{ $tenant->name }} will give you a call{{ $proposal->call_note ? ' (' . $proposal->call_note . ')' : '' }}. If a window below works after all, you can still pick it.</div>
+    @else
+      <p class="sub">Pick the delivery window that works — we'll bring it to you.</p>
+    @endif
     @if($error)<div class="err">{{ $error }}</div>@endif
 
     <form method="POST" action="{{ route('tenant.delivery_confirm.save', $proposal->token) }}" id="dc-form">
@@ -82,6 +96,24 @@
       <input type="hidden" name="date" id="dc-date">
       <button class="btn" type="submit" id="dc-btn" disabled>Confirm window</button>
     </form>
+
+    @unless($calledIn)
+    {{-- MARKER-DELIVERY-CALL — the other answer. Its own form, never nested. --}}
+    <div class="or">or</div>
+    <button class="btn btn--ghost" type="button" id="dc-call-toggle">Rather talk? Ask us to call</button>
+    <form method="POST" action="{{ route('tenant.delivery_confirm.call', $proposal->token) }}" class="call" id="dc-call">
+      @csrf
+      <input type="text" name="call_note" maxlength="200" placeholder="Best time to reach you (optional)">
+      <button class="btn" type="submit">Ask {{ $tenant->name }} to call me</button>
+    </form>
+    <script>
+      document.getElementById('dc-call-toggle').addEventListener('click', function () {
+        document.getElementById('dc-call').classList.add('on');
+        this.style.display = 'none';
+        document.querySelector('#dc-call input').focus();
+      });
+    </script>
+    @endunless
     <script>
       document.querySelectorAll('.win input').forEach(function (r) {
         r.addEventListener('change', function () {

@@ -30,6 +30,7 @@ class StaffAlertController extends Controller
         // MARKER-DELIVERY-ALERTS
         'delivery.window_chosen' => 'Customer chose a delivery window',
         'delivery.no_reply'      => 'Delivery window unanswered — call the customer',
+        'delivery.call_requested'=> 'Customer asked for a call about delivery', // MARKER-DELIVERY-CALL
         // MARKER-TOFF-ALERTS
         'timeoff.requested'      => 'New time-off request (reviewers)',
         'timeoff.decided'        => 'Your time-off request was decided',

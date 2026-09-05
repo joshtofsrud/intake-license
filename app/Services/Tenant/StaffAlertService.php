@@ -49,6 +49,7 @@ class StaffAlertService
         // MARKER-DELIVERY-ALERTS
         'delivery.window_chosen' => ['in_app' => true,  'sms' => false],
         'delivery.no_reply'      => ['in_app' => true,  'sms' => false],
+        'delivery.call_requested'=> ['in_app' => true,  'sms' => false], // MARKER-DELIVERY-CALL
         // MARKER-TOFF-ALERTS
         'timeoff.requested'      => ['in_app' => true,  'sms' => false],
         'timeoff.decided'        => ['in_app' => true,  'sms' => false],

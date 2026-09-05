@@ -18,9 +18,11 @@ class TenantDeliveryProposal extends Model
         'tenant_id', 'appointment_id', 'customer_id', 'token',
         'windows', 'status', 'confirmed_window_id', 'confirmed_date',
         'delivery_id', 'expires_at', 'confirmed_at', 'sent_channels',
+        'call_note', 'call_requested_at', // MARKER-DELIVERY-CALL
     ];
 
     protected $casts = [
+        'call_requested_at' => 'datetime', // MARKER-DELIVERY-CALL
         'windows'        => 'array',
         'confirmed_date' => 'date',
         'expires_at'     => 'datetime',
@@ -31,6 +33,7 @@ class TenantDeliveryProposal extends Model
     public const STATUS_CONFIRMED = 'confirmed';
     public const STATUS_ASSUMED   = 'assumed'; // legacy — no longer written (MARKER-PATCH-534)
     public const STATUS_NO_REPLY  = 'no_reply'; // MARKER-PATCH-534
+    public const STATUS_CALL_REQUESTED = 'call_requested'; // MARKER-DELIVERY-CALL — customer asked to be called instead
     public const STATUS_EXPIRED   = 'expired';
     public const STATUS_CANCELLED = 'cancelled';
 
