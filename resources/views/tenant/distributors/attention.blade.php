@@ -412,10 +412,10 @@ body.at-bar-open .ia-mobile-nav{display:none}
          selected, which meant nobody found it. --}}
     @if($flags->total() > $flags->count())
       <span style="margin-left:10px">
-        <a href="#" onclick="return atScope(true)"
+        <a href="#" onclick="atScope(true);return false;"
            style="color:var(--ia-accent);font-weight:600;text-decoration:underline">Select all {{ number_format($flags->total()) }}</a>
         <span style="opacity:.45">·</span>
-        <a href="#" onclick="atSelectPage(true);return false;"
+        <a href="#" onclick="atScope(false);atSelectPage(true);return false;"
            style="color:var(--ia-text-muted);text-decoration:underline">Select this page ({{ $flags->count() }})</a>
       </span>
     @endif
@@ -613,6 +613,7 @@ body.at-bar-open .ia-mobile-nav{display:none}
     };
 
     window.atScope = function (all) {
+      // MARKER-ATTENTION-RENDER — atRender() is what unhides the action bar.
       var box = document.getElementById('at-select-all');
       if (box) { box.checked = !!all; }
       if (all) {
