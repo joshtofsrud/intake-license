@@ -720,7 +720,9 @@ class ImportController extends Controller
         // other long-running job a shop can start. Same banner, same shape.
         $batch = \App\Models\Tenant\CatalogChangeBatch::where('tenant_id', tenant()->id)
             ->where(function ($q) {
-                $q->where('status', 'running')
+                // MARKER-CATALOG-PROGRESS-STAGE — progress_stage, not status:
+                // the import service resets status each page, stage is ours.
+                $q->where('progress_stage', 'importing')
                   ->orWhere(function ($q2) {
                       $q2->whereIn('progress_stage', ['done', 'failed'])
                          ->whereNull('progress_seen_at')
@@ -730,7 +732,7 @@ class ImportController extends Controller
             ->orderByDesc('updated_at')->first();
 
         if ($batch && (! $import || $batch->updated_at > $import->updated_at)) {
-            $running = $batch->status === 'running';
+            $running = $batch->progress_stage === 'importing'; // MARKER-CATALOG-PROGRESS-STAGE
             $res     = (array) ($batch->result ?? []);
             $code    = (string) (($batch->filter ?? [])['code'] ?? 'distributor');
 
