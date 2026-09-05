@@ -407,6 +407,18 @@ body.at-bar-open .ia-mobile-nav{display:none}
   @endphp
   <div class="at-legend">
     <span>Showing {{ $flags->count() }} of {{ $flags->total() }} matching the filter.</span>
+    {{-- MARKER-ATTENTION-ALWAYS — always on screen, whether or not anything
+         is ticked. It was previously hidden until every row on the page was
+         selected, which meant nobody found it. --}}
+    @if($flags->total() > $flags->count())
+      <span style="margin-left:10px">
+        <a href="#" onclick="return atScope(true)"
+           style="color:var(--ia-accent);font-weight:600;text-decoration:underline">Select all {{ number_format($flags->total()) }}</a>
+        <span style="opacity:.45">·</span>
+        <a href="#" onclick="atSelectPage(true);return false;"
+           style="color:var(--ia-text-muted);text-decoration:underline">Select this page ({{ $flags->count() }})</a>
+      </span>
+    @endif
     <button type="button" class="at-legend-more"
             onclick="IntakeConfirm.alert({ title: 'About these counts', message: @js($legend) })">
       Why some renames never appear
