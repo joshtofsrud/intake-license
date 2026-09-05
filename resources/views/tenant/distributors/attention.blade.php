@@ -812,3 +812,27 @@ body.at-bar-open .ia-mobile-nav{display:none}
   document.addEventListener('DOMContentLoaded', function () { paint(false); });
 })();
 </script>
+
+
+{{-- MARKER-ATTENTION-REVEAL — the top link ticks the rows through the page's
+     own atScope(), but nothing unhides the action bar from that path. Bind to
+     the click itself so it works whichever function the link calls. --}}
+<script>
+document.addEventListener('click', function (e) {
+  var a = e.target && e.target.closest && e.target.closest('#at-top-all, a[onclick*="atScope"], a[onclick*="atAllMatching"]');
+  if (!a) { return; }
+  setTimeout(function () {
+    var armed = (document.getElementById('at-select-all') || {}).checked;
+    var n = document.querySelectorAll('.at-cb:checked').length;
+    var bar = document.getElementById('at-bar');
+    if (bar && (armed || n)) {
+      bar.hidden = false;
+      document.body.classList.add('at-bar-open');
+    }
+    var label = document.getElementById('at-bar-label');
+    if (label) {
+      label.textContent = armed ? 'With all {{ $flags->total() }}:' : 'With ' + n + ' selected:';
+    }
+  }, 0);
+});
+</script>
