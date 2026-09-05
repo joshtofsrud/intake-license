@@ -33,6 +33,11 @@ a.at-chip.on .k{color:var(--ia-accent)}
 .at-chg{font-size:12.5px;line-height:1.6;max-width:430px}
 .at-chg .old{color:var(--ia-text-muted);text-decoration:line-through;text-decoration-color:rgba(242,109,109,.55)}
 .at-hl{background:rgba(205,233,138,.16);border-radius:3px;padding:0 2px;color:#cde98a}
+/* MARKER-ATTENTION-AUTOFILTER */
+.at-legend{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:11.5px;
+  color:var(--ia-text-dim);margin:6px 2px 10px}
+.at-legend-more{background:none;border:0;padding:0;font:inherit;font-size:11.5px;
+  color:var(--ia-text-muted);text-decoration:underline;cursor:pointer}
 /* MARKER-ATTENTION-FILTERROW — desktop keeps the toggle on its own line. */
 .at-filter{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
 .at-filter .at-seg{flex:0 0 100%;margin-top:2px}
@@ -304,7 +309,7 @@ body.at-bar-open .ia-mobile-nav{display:none}
       <div class="v" style="color:#aebbcf">{{ $counts['vanished'] }}</div><div class="k">Cost removed</div></a>
   </div>
 
-  <form method="GET" action="{{ route('tenant.distributors.attention') }}" class="at-filter">
+  <form method="GET" action="{{ route('tenant.distributors.attention') }}" class="at-filter" id="at-filter-form">
     @if($stock !== 'all')<input type="hidden" name="stock" value="{{ $stock }}">@endif
     <select name="brand" class="at-sel">
       <option value="">All brands</option>
@@ -329,7 +334,10 @@ body.at-bar-open .ia-mobile-nav{display:none}
         <option value="{{ $pp }}" @selected(($perPage ?? 100) === $pp)>{{ $pp }} / page</option>
       @endforeach
     </select>
-    <button class="at-btn primary" type="submit">Filter</button>
+    {{-- MARKER-ATTENTION-AUTOFILTER — the dropdowns submit themselves. The
+         button survives only where scripting does not: without this, turning
+         off JS would leave the filters unusable rather than just clunkier. --}}
+    <noscript><button class="at-btn primary" type="submit">Filter</button></noscript>
     @if(($filters['brand'] ?? null) || ($filters['category'] ?? null) || ($filters['reason'] ?? null))
       <a class="at-btn" href="{{ route('tenant.distributors.attention', $stock !== 'all' ? ['stock' => $stock] : []) }}">Clear</a>
     @endif
@@ -356,8 +364,17 @@ body.at-bar-open .ia-mobile-nav{display:none}
 
   {{-- MARKER-TITLE-RATIO -- legend: name edits below the threshold never
        reach this page; the stored baseline adopts them silently. --}}
-  <div class="at-dim" style="font-size:11.5px;margin:6px 2px 10px">
-    Name changes under {{ $titleThresholdPct ?? 15 }}% are treated as cosmetic feed edits and adopted silently &mdash; they never appear here and never touch your item names. Counts above cover all open flags; the table shows {{ $flags->count() }} of {{ $flags->total() }} matching the filter.
+  {{-- MARKER-ATTENTION-AUTOFILTER — the count is the useful part and stays
+       visible; the explanation is worth reading once, not every visit. --}}
+  @php
+    $legend = 'Name changes under ' . ($titleThresholdPct ?? 15) . '% are treated as cosmetic feed edits and adopted silently — they never appear here and never touch your item names. The counts above cover all open flags.';
+  @endphp
+  <div class="at-legend">
+    <span>Showing {{ $flags->count() }} of {{ $flags->total() }} matching the filter.</span>
+    <button type="button" class="at-legend-more"
+            onclick="IntakeConfirm.alert({ title: 'About these counts', message: @js($legend) })">
+      Why some renames never appear
+    </button>
   </div>
 
   @if($flags->isEmpty())
@@ -651,6 +668,16 @@ body.at-bar-open .ia-mobile-nav{display:none}
         btn.textContent = btn.getAttribute('data-label') + ' (' + n.toLocaleString() + ')';
       });
     }
+
+    // MARKER-ATTENTION-AUTOFILTER — a dropdown IS the filter. Only submit on a
+    // real change, so re-picking the same value does not reload the page.
+    document.addEventListener('DOMContentLoaded', function () {
+      var form = document.getElementById('at-filter-form');
+      if (!form) { return; }
+      form.querySelectorAll('select').forEach(function (sel) {
+        sel.addEventListener('change', function () { form.submit(); });
+      });
+    });
 
     document.addEventListener('DOMContentLoaded', atRender);
   })();
