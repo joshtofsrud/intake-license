@@ -322,7 +322,8 @@
     </div>
     {{-- MARKER-PATCH-496 — switch user (PIN tier only) --}}
     {{-- MARKER-DEMO-FIXES — see _sidebar: no switch user on a demo tenant --}}
-    @if($currentTenant->pin_tier_active && ! $currentTenant->is_demo)
+    {{-- MARKER-IMPERSONATE-SWITCH — see _sidebar --}}
+    @if($currentTenant->pin_tier_active && ! $currentTenant->is_demo && ! is_impersonating())
     <a href="{{ route('tenant.switch') }}" class="ia-drawer-signout" style="text-decoration:none">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M16 3h5v5"/><path d="M21 3l-7 7"/>

@@ -42,6 +42,19 @@ class StaffSwitchController extends Controller
             return redirect()->route('tenant.dashboard');
         }
 
+        // MARKER-IMPERSONATE-SWITCH — never wipe an impersonated session.
+        // The wipe below calls session()->invalidate(), which destroys
+        // `impersonating_from` as well as the tenant login, so the master
+        // admin loses both the shop and the way back to /admin/tenants.
+        // Switching staff is meaningless while impersonating anyway: it
+        // would ask for a PIN the platform operator does not have.
+        if (is_impersonating()) {
+            return redirect()->route('tenant.dashboard')->with(
+                'info',
+                'Switching staff is not available while impersonating. Use "Stop impersonating" to return to master admin.'
+            );
+        }
+
         // PATCH-CHUNK-5H2 wipe-session — /admin/switch is both the
         // initial-PIN-entry surface AND the "switch staff" surface.
         // When someone is already signed in and visits here, they want
@@ -124,6 +137,13 @@ class StaffSwitchController extends Controller
                 'failed_count' => $user->pin_failed_count,
                 'locked_until' => $user->pin_locked_until?->toIso8601String(),
             ], 422);
+        }
+
+        // MARKER-IMPERSONATE-SWITCH — the page is blocked above, but this is
+        // a POST endpoint in its own right and its no-location branch logs
+        // the tenant guard out, which would end an impersonated session.
+        if (is_impersonating()) {
+            return response()->json(['ok' => false, 'error' => 'impersonating'], 403);
         }
 
         // Success — sign in.
@@ -215,6 +235,12 @@ class StaffSwitchController extends Controller
                 'ok' => false,
                 'error' => 'device_password_mismatch',
             ], 422);
+        }
+
+        // MARKER-IMPERSONATE-SWITCH — same reasoning as verifyPin, and this
+        // one would also write a PIN onto a real staff account.
+        if (is_impersonating()) {
+            return response()->json(['ok' => false, 'error' => 'impersonating'], 403);
         }
 
         $this->pins->setPin($user, $request->input('pin'));

@@ -115,7 +115,9 @@
         {{-- MARKER-DEMO-FIXES — never on the demo: it asks for a PIN and a
              password no visitor can know, and drops them at a login they
              cannot pass. --}}
-        @if($currentTenant->pin_tier_active && ! $currentTenant->is_demo)
+        {{-- MARKER-IMPERSONATE-SWITCH — hidden while impersonating: the
+             page refuses, and offering a dead end is worse than omitting it. --}}
+        @if($currentTenant->pin_tier_active && ! $currentTenant->is_demo && ! is_impersonating())
         <a href="{{ route('tenant.switch') }}" class="ia-sb-user-menu-item" role="menuitem">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
                stroke="currentColor" stroke-width="2" stroke-linecap="round"
