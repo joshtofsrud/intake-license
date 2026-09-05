@@ -77,7 +77,10 @@ class TenantCustomer extends Authenticatable
     // MARKER-CUSTOMER-TAGS
     public function tags(): \Illuminate\Database\Eloquent\Relations\BelongsToMany
     {
-        return $this->belongsToMany(TenantCustomerTag::class, 'tenant_customer_tag_pivot', 'customer_id', 'tag_id')->withTimestamps();
+        // MARKER-TAG-PIVOT-FIX — the pivot has created_at only. withTimestamps()
+        // also selects pivot_updated_at, which does not exist: 1054 on every
+        // read of this relation.
+        return $this->belongsToMany(TenantCustomerTag::class, 'tenant_customer_tag_pivot', 'customer_id', 'tag_id')->withPivot('created_at');
     }
     public function appointments(): HasMany   { return $this->hasMany(TenantAppointment::class, 'customer_id'); }
     public function specialOrders(): HasMany  { return $this->hasMany(TenantSpecialOrder::class, 'customer_id'); }

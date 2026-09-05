@@ -24,12 +24,13 @@ class TenantCustomerTag extends Model
 
     public function customers(): BelongsToMany
     {
+        // MARKER-TAG-PIVOT-FIX — same pivot, same missing updated_at.
         return $this->belongsToMany(
             TenantCustomer::class,
             'tenant_customer_tag_pivot',
             'tag_id',
             'customer_id'
-        )->withTimestamps();
+        )->withPivot('created_at');
     }
 
     public function customerCount(): int
