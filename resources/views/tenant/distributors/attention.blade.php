@@ -37,7 +37,13 @@
 
   /* the sync card: four across becomes one per row */
   .at-sync{flex-direction:column}
-  .at-sync-stat{border-right:0;border-bottom:.5px solid var(--ia-border);padding:12px 14px}
+  /* MARKER-ATTENTION-SLIM — tighter, and the supporting line sits beside the
+     value rather than under it: three stacked stats plus a button was most of
+     a screen before the first item appeared. */
+  .at-sync-stat{border-right:0;border-bottom:.5px solid var(--ia-border);padding:9px 14px}
+  .at-sync-stat .k{font-size:9.5px;letter-spacing:.08em}
+  .at-sync-stat .v{font-size:14.5px;margin-top:2px;display:inline}
+  .at-sync-stat .d{font-size:11px;margin-top:0;display:inline;margin-left:7px}
   .at-sync-stat .v{font-size:16px}
   .at-sync-act{min-width:0;padding:12px 14px}
   .at-sync-act .at-btn{width:100%}
@@ -118,6 +124,10 @@
 .at-segbtn{padding:8px 16px;font-size:13px;font-weight:600;color:var(--ia-text-dim);text-decoration:none;border-right:1px solid var(--ia-border-strong)}
 .at-segbtn:last-child{border-right:0}
 .at-segbtn.active{background:var(--ia-accent);color:var(--ia-accent-text)}
+/* MARKER-ATTENTION-SLIM — hidden until something is selected. A sticky bar
+   that is always there covers the row you are reading, and on a phone it
+   covered the diff you are being asked to judge. */
+.at-bar[hidden]{display:none !important}
 .at-bar{position:sticky;bottom:10px;background:var(--ia-surface-2);border:.5px solid var(--ia-border);border-radius:var(--ia-r-md);padding:12px 16px;margin-top:14px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;box-shadow:0 10px 28px rgba(0,0,0,.4)}
 .at-btn{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:var(--ia-r-md);font-size:13px;font-weight:600;cursor:pointer;border:1px solid var(--ia-border-strong);background:var(--ia-surface-2);color:var(--ia-text)}
 .at-btn.primary{background:var(--ia-accent);color:var(--ia-accent-text);border-color:var(--ia-accent)}
@@ -402,7 +412,7 @@
         <a href="#" id="at-scope-link" onclick="return atScope(true)"></a>
       </div>
 
-      <div class="at-bar">
+      <div class="at-bar" id="at-bar">
         <span class="at-dim" style="font-size:12px" id="at-bar-label">With selected:</span>
         <button class="at-btn primary" type="submit" onclick="setAct('adopt_title')">Adopt new title</button>
         <button class="at-btn" type="submit" onclick="setAct('keep_title')">Keep mine</button>
@@ -495,6 +505,11 @@
       if (label) {
         label.textContent = picked ? 'With ' + picked.toLocaleString() + ' selected:' : 'With selected:';
       }
+
+      // MARKER-ATTENTION-SLIM — the bar only exists when it has something to
+      // act on, so it never sits on top of the row being read.
+      var bar = document.getElementById('at-bar');
+      if (bar) { bar.hidden = !(all || picked); }
     }
 
     document.addEventListener('change', function (e) {
