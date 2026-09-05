@@ -213,7 +213,9 @@
       <script>function setAct(a){document.getElementById('at-action').value=a;}</script>
       <table class="at-tbl">
           <thead><tr>
-            <th style="width:28px"><input type="checkbox" onclick="document.querySelectorAll('.at-cb').forEach(c=>c.checked=this.checked)"></th>
+            {{-- MARKER-ATTENTION-SELECT — this takes the rows on THIS PAGE.
+                 Everything matching the filter is a separate, stated choice. --}}
+            <th style="width:28px"><input type="checkbox" id="at-all-page" onclick="atSelectPage(this.checked)"></th>
             <th style="width:24%">Item</th><th style="width:13%">What happened</th><th>The change</th><th style="text-align:right">Act on it</th>
           </tr></thead>
           <tbody>
@@ -318,8 +320,14 @@
           </tbody>
       </table>
 
+      {{-- MARKER-ATTENTION-SELECT — the escalation, stated rather than ticked. --}}
+      <div id="at-scope" class="at-scope" hidden>
+        <span id="at-scope-text"></span>
+        <a href="#" id="at-scope-link" onclick="return atScope(true)"></a>
+      </div>
+
       <div class="at-bar">
-        <span class="at-dim" style="font-size:12px">With selected:</span>
+        <span class="at-dim" style="font-size:12px" id="at-bar-label">With selected:</span>
         <button class="at-btn primary" type="submit" onclick="setAct('adopt_title')">Adopt new title</button>
         <button class="at-btn" type="submit" onclick="setAct('keep_title')">Keep mine</button>
         <button class="at-btn primary" type="submit" onclick="setAct('adopt_details')">Adopt new details</button>
@@ -328,9 +336,9 @@
         <button class="at-btn primary" type="submit" onclick="setAct('raise_map')">Raise to MAP</button>
         <button class="at-btn" type="submit" onclick="setAct('match_msrp')">Match MSRP</button>
         <button class="at-btn" type="submit" onclick="setAct('acknowledge')">Dismiss</button>
-        <label class="at-dim" style="font-size:12px;margin-left:auto;cursor:pointer">
-          <input type="checkbox" name="select_all" value="1"> apply to all {{ $flags->total() }} matching the filter
-        </label>
+        {{-- MARKER-ATTENTION-SELECT — no longer a tick beside the buttons: the
+             scope is chosen above and shown in the label to the left. --}}
+        <input type="checkbox" name="select_all" value="1" id="at-select-all" hidden>
       </div>
     </form>
     <div style="margin-top:14px">{{ $flags->links() }}</div> {{-- MARKER-ATTENTION-SCALE --}}
@@ -338,5 +346,115 @@
 </div>
 {{-- MARKER-ATTENTION-ITEM-INFO — the same modal the register uses. --}}
 @include('tenant._item-detail-modal')
+
+@push('styles')
+<style>
+  /* MARKER-ATTENTION-SELECT */
+  .at-scope{background:rgba(224,166,75,.10);border:.5px solid rgba(224,166,75,.4);
+    border-radius:var(--ia-r-md);padding:10px 13px;margin-bottom:10px;font-size:12.5px;line-height:1.6}
+  .at-scope.armed{background:rgba(240,138,138,.10);border-color:rgba(240,138,138,.45)}
+  .at-scope a{color:var(--ia-accent);font-weight:600;text-decoration:underline;margin-left:6px}
+  @media(max-width:720px){
+    .at-bar{flex-wrap:wrap}
+    .at-bar .at-btn{flex:1 1 46%}
+  }
+</style>
+@endpush
+
+@push('scripts')
+<script>
+  // MARKER-ATTENTION-SELECT — two scopes, and the page always says which is in
+  // force. "This page" is what a checkbox can honestly mean when the rest are
+  // not loaded; everything matching is a deliberate second step.
+  (function () {
+    var TOTAL = {{ (int) ($flags->total() ?? 0) }};
+    var PER   = {{ (int) ($flags->count() ?? 0) }};
+
+    window.atSelectPage = function (checked) {
+      document.querySelectorAll('.at-cb').forEach(function (c) { c.checked = checked; });
+      if (!checked) { atScope(false); }
+      atRender();
+    };
+
+    window.atScope = function (all) {
+      var box = document.getElementById('at-select-all');
+      if (box) { box.checked = !!all; }
+      if (all) {
+        document.querySelectorAll('.at-cb').forEach(function (c) { c.checked = true; });
+        var head = document.getElementById('at-all-page');
+        if (head) { head.checked = true; }
+      }
+      atRender();
+      return false;
+    };
+
+    function atRender() {
+      var all     = (document.getElementById('at-select-all') || {}).checked;
+      var picked  = document.querySelectorAll('.at-cb:checked').length;
+      var scope   = document.getElementById('at-scope');
+      var text    = document.getElementById('at-scope-text');
+      var link    = document.getElementById('at-scope-link');
+      var label   = document.getElementById('at-bar-label');
+      if (!scope) { return; }
+
+      if (all) {
+        scope.hidden = false;
+        scope.classList.add('armed');
+        text.textContent = 'All ' + TOTAL.toLocaleString() + ' items matching this filter are selected — not just this page.';
+        link.textContent = 'Select only this page instead';
+        link.onclick = function () { return atScope(false); };
+        if (label) { label.textContent = 'With all ' + TOTAL.toLocaleString() + ':'; }
+        return;
+      }
+
+      scope.classList.remove('armed');
+      if (picked >= PER && TOTAL > PER) {
+        scope.hidden = false;
+        text.textContent = 'All ' + picked.toLocaleString() + ' on this page are selected.';
+        link.textContent = 'Select all ' + TOTAL.toLocaleString() + ' matching this filter';
+        link.onclick = function () { return atScope(true); };
+      } else {
+        scope.hidden = true;
+      }
+      if (label) {
+        label.textContent = picked ? 'With ' + picked.toLocaleString() + ' selected:' : 'With selected:';
+      }
+    }
+
+    document.addEventListener('change', function (e) {
+      if (e.target && e.target.classList && e.target.classList.contains('at-cb')) {
+        var box = document.getElementById('at-select-all');
+        // Unticking any row means this is no longer "everything".
+        if (box && box.checked && !e.target.checked) { box.checked = false; }
+        atRender();
+      }
+    });
+
+    document.addEventListener('DOMContentLoaded', atRender);
+  })();
+
+  // The bulk buttons confirm with the real number and scope.
+  window.atConfirm = function (action, label) {
+    var all    = (document.getElementById('at-select-all') || {}).checked;
+    var picked = document.querySelectorAll('.at-cb:checked').length;
+    var total  = {{ (int) ($flags->total() ?? 0) }};
+    var n      = all ? total : picked;
+
+    if (!n) {
+      IntakeConfirm.alert({ title: 'Nothing selected', message: 'Tick some rows first.' });
+      return false;
+    }
+
+    return IntakeConfirm.show({
+      title: label + ' for ' + n.toLocaleString() + ' item' + (n === 1 ? '' : 's') + '?',
+      message: all
+        ? 'This applies to every item matching the current filter, not just this page. You can put it back from Change history.'
+        : 'You can put it back from Change history.',
+      confirmText: label,
+      danger: n > 100
+    });
+  };
+</script>
+@endpush
 
 @endsection
