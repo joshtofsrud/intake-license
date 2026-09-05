@@ -28,6 +28,82 @@
 .at-chg{font-size:12.5px;line-height:1.6;max-width:430px}
 .at-chg .old{color:var(--ia-text-muted);text-decoration:line-through;text-decoration-color:rgba(242,109,109,.55)}
 .at-hl{background:rgba(205,233,138,.16);border-radius:3px;padding:0 2px;color:#cde98a}
+
+/* MARKER-ATTENTION-MOBILE — below 720px the table becomes cards. The markup is
+   unchanged: these rows live inside the bulk-action form and carry the
+   checkboxes selection depends on, so this is done by changing how they are
+   displayed rather than by rebuilding them. */
+@media (max-width: 720px) {
+
+  /* the sync card: four across becomes one per row */
+  .at-sync{flex-direction:column}
+  .at-sync-stat{border-right:0;border-bottom:.5px solid var(--ia-border);padding:12px 14px}
+  .at-sync-stat .v{font-size:16px}
+  .at-sync-act{min-width:0;padding:12px 14px}
+  .at-sync-act .at-btn{width:100%}
+
+  /* the stat tiles: two across rather than four squeezed */
+  .at-chips{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+  .at-chip{min-width:0}
+
+  /* the filter form stacks instead of overflowing */
+  .at-filter{display:flex;flex-wrap:wrap;gap:8px}
+  .at-filter select,.at-filter input{flex:1 1 46%;min-width:0}
+
+  /* the table becomes cards */
+  .at-tbl, .at-tbl tbody, .at-tbl tr, .at-tbl td{display:block;width:100%}
+  .at-tbl thead{position:absolute;left:-9999px}       /* headers have no place here */
+  .at-tbl tr{
+    border:.5px solid var(--ia-border);
+    border-radius:var(--ia-r-lg, 14px);
+    padding:13px 14px;
+    margin-bottom:10px;
+    position:relative;
+  }
+  .at-tbl td{border:0;padding:0}
+
+  /* the checkbox sits top-right, out of the reading order */
+  .at-c-pick{position:absolute;top:12px;right:12px;width:auto}
+  .at-tbl .at-cb{width:20px;height:20px}
+
+  .at-c-item{padding-right:34px !important;font-size:14.5px;line-height:1.35}
+  .at-c-why{margin-top:9px}
+
+  /* the change: labelled, and allowed to wrap */
+  .at-c-chg{
+    margin-top:11px;
+    padding-top:10px !important;
+    border-top:.5px solid var(--ia-border) !important;
+    max-width:none;
+    white-space:normal;
+    word-break:break-word;
+  }
+  .at-c-chg::before{
+    content:attr(data-l);
+    display:block;
+    font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;
+    color:var(--ia-text-dim);margin-bottom:5px;
+  }
+
+  /* per-row actions, full width and reachable with a thumb */
+  .at-tbl td:last-child{margin-top:11px;text-align:left !important;display:flex;gap:7px;flex-wrap:wrap}
+  .at-tbl td:last-child .at-btn{flex:1 1 46%;padding:9px 10px}
+
+  /* the bulk bar follows you down the page */
+  .at-bar{
+    position:sticky;bottom:0;z-index:5;
+    background:var(--ia-surface);
+    border:.5px solid var(--ia-border-strong,rgba(255,255,255,.22));
+    border-radius:var(--ia-r-lg,14px);
+    padding:11px 12px;margin-top:12px;
+    display:flex;flex-wrap:wrap;gap:7px;
+  }
+  .at-bar .at-btn{flex:1 1 46%}
+  .at-bar > span:first-child{flex:1 1 100%;margin-bottom:2px}
+
+  /* the page title and the history link stop fighting for one line */
+  .ia-page-head{flex-wrap:wrap}
+}
 .at-chg .nb{color:#F26D6D;font-weight:700}
 .at-chg .when{font-size:11px;color:var(--ia-text-muted)}
 .at-rowact{display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap}
@@ -229,8 +305,8 @@
               $sell = $item->shop_sell_price_cents ?? null;
             @endphp
             <tr>
-              <td><input class="at-cb" type="checkbox" name="flag_ids[]" value="{{ $f->id }}"></td>
-              <td>
+              <td class="at-c-pick"><input class="at-cb" type="checkbox" name="flag_ids[]" value="{{ $f->id }}"></td>
+              <td class="at-c-item">
                 <div style="display:flex;align-items:center;gap:7px">
                   <div style="font-weight:600">{{ $item->name ?? '—' }}</div>
                   {{-- MARKER-ATTENTION-ITEM-INFO — deciding on a rename needs to
@@ -256,8 +332,8 @@
                   @endif
                 </div>
               </td>
-              <td><span class="at-badge {{ $bc }}">{{ $bl }}</span></td>
-              <td class="at-chg">
+              <td class="at-c-why" data-l="What happened"><span class="at-badge {{ $bc }}">{{ $bl }}</span></td>
+              <td class="at-chg at-c-chg" data-l="The change">
                 @if($f->reason === 'title_changed')
                   <span class="old">{{ $d['old'] ?? $item->name }}</span> →<br>
                   {!! $wordDiff($d['old'] ?? $item->name, $d['new'] ?? $cat?->display_name) !!}
