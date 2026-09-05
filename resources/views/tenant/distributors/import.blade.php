@@ -93,7 +93,8 @@
       <div style="margin-top:16px;display:flex;gap:10px">
         <button class="im-btn primary" type="submit" onclick="document.getElementById('im-mode').value='preview'">Preview</button>
       </div>
-      <p class="im-sub" style="margin:10px 0 0">Choose at least a brand or a category. Large pulls are capped at 2,000 per run — narrow the filter to get everything.</p>
+      {{-- MARKER-IMPORT-PREVIEW-TOTAL --}}
+      <p class="im-sub" style="margin:10px 0 0">Leave both as “Any” to bring in the whole catalog. Anything over a couple of thousand items imports in the background — the bar at the top of the page tracks it, and it all lands on one batch you can undo in one go.</p>
     </form>
   </div>
 
@@ -105,20 +106,47 @@
         @if(!empty($filters['include_unsellable'])) · incl. unsellable @endif
       </p>
 
+      @php
+        // MARKER-IMPORT-PREVIEW-TOTAL — when the preview only inspected a
+        // leading sample, the honest headline is the number that WILL be
+        // imported, not the size of the sample.
+        $sampled = (int) ($result['sampled'] ?? 0);
+        $candTotal = (int) ($result['candidate_total'] ?? 0);
+        $isSample = $mode !== 'commit' && $candTotal > 0 && $sampled > 0 && $candTotal > $sampled;
+      @endphp
+
       <div class="im-stats">
-        <div class="im-stat"><div class="v" style="color:var(--ia-accent)">{{ number_format($result['created']) }}</div><div class="k">{{ $mode==='commit' ? 'Created' : 'To create' }}</div></div>
+        <div class="im-stat">
+          <div class="v" style="color:var(--ia-accent)">{{ number_format($isSample ? $candTotal : $result['created']) }}</div>
+          <div class="k">{{ $mode==='commit' ? 'Created' : 'Will be imported' }}</div>
+        </div>
         <div class="im-stat"><div class="v">{{ number_format($result['merged']) }}</div><div class="k">{{ $mode==='commit' ? 'Source added' : 'Already carried' }}</div></div>
         <div class="im-stat"><div class="v" style="color:var(--ia-text-dim)">{{ number_format($result['skipped']) }}</div><div class="k">Skipped</div></div>
       </div>
+
+      @if($isSample)
+        <p class="im-sub" style="margin:8px 0 0">
+          “Already carried” and “Skipped” come from checking the first {{ number_format($sampled) }} rows —
+          the rest are counted as they import.
+        </p>
+      @endif
 
       @if($mode === 'commit')
         <div class="im-banner im-ok">Done. {{ number_format($result['created']) }} new item(s) added to your catalog.</div>
         <a class="im-btn" href="{{ route('tenant.inventory.index') }}">Go to Inventory</a>
       @else
-        @if($result['created'] + $result['merged'] === 0)
+        @if(! $isSample && $result['created'] + $result['merged'] === 0)
           <div class="im-banner im-info">Nothing new to import for this filter — you already carry these, or none match.</div>
         @else
-          <div class="im-banner im-info">Preview only — nothing imported yet. Confirm to add {{ number_format($result['created']) }} new item(s).</div>
+          {{-- MARKER-IMPORT-PREVIEW-TOTAL --}}
+          <div class="im-banner im-info">
+            Preview only — nothing imported yet.
+            @if($isSample)
+              Importing brings in all <b>{{ number_format($candTotal) }}</b> matching items, in the background.
+            @else
+              Confirm to add {{ number_format($result['created']) }} new item(s).
+            @endif
+          </div>
           <form method="POST" action="{{ route('tenant.distributors.import.run') }}">
             <input type="hidden" name="code" value="{{ $importCode }}">
             @csrf
@@ -126,7 +154,14 @@
             <input type="hidden" name="brand" value="{{ $filters['brand'] ?? '' }}">
             <input type="hidden" name="category" value="{{ $filters['category'] ?? '' }}">
             <input type="hidden" name="include_unsellable" value="{{ !empty($filters['include_unsellable']) ? '1' : '' }}">
-            <button class="im-btn primary" type="submit">Import {{ number_format($result['created']) }} item(s)</button>
+            {{-- MARKER-IMPORT-PREVIEW-TOTAL — the button must name what it does. --}}
+            <button class="im-btn primary" type="submit">
+              @if($isSample)
+                Import all {{ number_format($candTotal) }} items
+              @else
+                Import {{ number_format($result['created']) }} item(s)
+              @endif
+            </button>
           </form>
         @endif
       @endif
