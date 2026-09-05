@@ -5,6 +5,10 @@
 
 @push('styles')
 <style>
+.dc-toggle{width:38px;height:21px;border-radius:99px;border:.5px solid var(--ia-border);background:rgba(127,127,127,.18);position:relative;cursor:pointer;flex:none;padding:0;transition:.15s}
+.dc-toggle span{position:absolute;top:2px;left:2px;width:15px;height:15px;border-radius:50%;background:#8a8a88;transition:.15s}
+.dc-toggle.on{background:var(--ia-accent-soft);border-color:var(--ia-accent)}
+.dc-toggle.on span{left:20px;background:var(--ia-accent)}
 .dc-card{background:var(--ia-surface);border:.5px solid var(--ia-border);border-radius:var(--ia-r-lg);padding:22px;margin-bottom:18px}
 .dc-h{font-size:15px;font-weight:600;margin:0 0 4px}
 .dc-sub{font-size:12.5px;color:var(--ia-text-dim);margin-bottom:16px;line-height:1.5}
@@ -41,7 +45,7 @@
 
   <p class="dc-sub">Connect each distributor you buy from to unlock your cost and live availability.</p>
 
-  <div class="dc-note">Browsing and importing the catalog works without a key. Your <b>own</b> key
+  <div class="dc-note">Turn on the distributors you buy from. Your <b>own</b> key
   unlocks <b>your cost</b> and <b>live availability</b> — per-account, never shared between shops.</div>
 
   @if (count($boxes) > 1)
@@ -55,9 +59,25 @@
   @foreach ($boxes as $i => $b)
     <div class="dc-card">
       <div style="display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap">
-        <div>
-          <h2 class="dc-h">Your {{ $b['label'] }} account</h2>
-          <p class="dc-sub" style="margin-bottom:0">Stored encrypted. Used only for your shop's cost &amp; availability.</p>
+        <div style="display:flex;align-items:center;gap:12px">
+          {{-- MARKER-DIST-TOGGLE --}}
+          <form method="POST" action="{{ route('tenant.distributors.connection.toggle') }}">
+            @csrf
+            <input type="hidden" name="code" value="{{ $b['code'] }}">
+            <input type="hidden" name="enabled" value="{{ $b['enabled'] ? '' : '1' }}">
+            <button type="submit" class="dc-toggle {{ $b['enabled'] ? 'on' : '' }}"
+                    title="{{ $b['enabled'] ? 'Turn off' : 'Turn on' }}"><span></span></button>
+          </form>
+          <div>
+            <h2 class="dc-h" style="margin:0">{{ $b['label'] }}</h2>
+            <p class="dc-sub" style="margin-bottom:0">
+              @if($b['enabled'])
+                Stored encrypted. Used only for your shop's cost &amp; availability.
+              @else
+                Turn on to import from the {{ $b['label'] }} catalog and add your account key.
+              @endif
+            </p>
+          </div>
         </div>
         <div style="font-size:12px;color:var(--ia-text-dim);text-align:right">
           {{-- MARKER-FLASH-MODAL — this said "connected" whenever a credential
@@ -77,6 +97,9 @@
           {{ number_format($b['linked']) }} linked item{{ $b['linked'] === 1 ? '' : 's' }}
         </div>
       </div>
+
+      {{-- MARKER-DIST-TOGGLE --}}
+      @if($b['enabled'])
 
       @if (count($boxes) > 1)
         {{-- Position in words; the stored number never appears. Its own form so
@@ -170,6 +193,7 @@
         <div data-dc-testnote
              style="display:none;font-size:11.5px;color:var(--ia-text-dim);margin-top:9px;line-height:1.5"></div>
       </form>
+      @endif {{-- MARKER-DIST-TOGGLE --}}
     </div>
   @endforeach
 
