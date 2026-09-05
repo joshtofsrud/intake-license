@@ -244,7 +244,9 @@
     <div class="ia-card">
       <div class="ia-card-body">
         @php
-          {{-- MARKER-BRAND-ECHO — shared logic, was a private copy of it. --}}
+          // MARKER-BRAND-ECHO / MARKER-BLADE-COMMENT-FIX — a slash comment, not
+          // a Blade one. Inside a @php block a Blade comment is passed through
+          // to PHP verbatim and the view then fails to compile.
           $imgSrcs = collect(\App\Support\CatalogImages::urls($catImages, $catCode));
 
           // Names present but no licence to display them — worth saying,
