@@ -99,9 +99,15 @@ class DistributorCatalogImportService
                     // MARKER-IMPORT-SKU-MERGE — one odd row must not end a
                     // 39,000-row import. Count it, log it, move on.
                     $res['errors'] = ($res['errors'] ?? 0) + 1;
-                    \Illuminate\Support\Facades\Log::warning('Catalog import row skipped', [
-                        'tenant' => $tenantId, 'code' => $code, 'catalog_id' => $cat->id, 'error' => $e->getMessage(),
-                    ]);
+                    $res['error_samples'][] = ['catalog_id' => $cat->id, 'error' => \Illuminate\Support\Str::limit($e->getMessage(), 200)];
+                    // MARKER-JOB-ISSUES — first skipped row of this run is
+                    // reported (with the row); the rest are counted.
+                    if ($res['errors'] === 1) {
+                        \App\Support\JobFailureReporter::report(
+                            self::class, $code . ' catalog import is skipping rows it cannot create', $e,
+                            ['catalog_id' => $cat->id, 'code' => $code], $tenantId
+                        );
+                    }
                     continue;
                 }
                 $bySku[strtoupper(trim((string) $item->sku))] = $id;

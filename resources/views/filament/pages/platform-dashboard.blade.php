@@ -158,6 +158,23 @@
           <span class="mt-bar-n">{!! $row['value'] !!}</span>
         </a>
       @endforeach
+      {{-- MARKER-JOB-ISSUES — the unresolved errors, not just their count.
+           One line per distinct failure; the row above stays the headline. --}}
+      @if(!empty($issues))
+        <div class="card-h" style="margin-top:14px"><span class="t">Open issues</span><span class="s"><a href="/admin/debug-logs?activeTab=errors">all unresolved →</a></span></div>
+        @foreach($issues as $i)
+          <a class="mt-bar-row" href="{{ $i['href'] }}" style="align-items:flex-start">
+            <div class="mt-fill" style="width:{{ min(60, 12 + $i['n'] * 6) }}%;background:rgba(240,138,138,.14)"></div>
+            <span class="mt-bar-label" style="white-space:normal">
+              <b>{{ $i['title'] }}</b>
+              @if($i['tenant']) <span class="pill" style="margin-left:6px">{{ $i['tenant'] }}</span>@endif
+              @if($i['detail'])<br><span style="font-size:11.5px;opacity:.6">{{ $i['detail'] }}</span>@endif
+            </span>
+            <span class="mt-bar-n">{{ $i['job'] }} · {{ $i['n'] }}× · {{ $i['last'] }} ago</span>
+          </a>
+        @endforeach
+      @endif
+
       {{-- MARKER-500-ALERT — switch + send-to for 5xx alert emails, behaviour unchanged. --}}
       <div class="alert500">
         <label style="display:flex;gap:8px;align-items:center;cursor:pointer">

@@ -53,7 +53,11 @@ class ReverseImportJob implements ShouldQueue, ShouldBeUnique
                 'progress_seen_at' => null,
             ]);
         } catch (\Throwable $e) {
-            Log::error('ReverseImportJob failed', ['import_id' => $import->id, 'error' => $e->getMessage()]);
+            // MARKER-JOB-ISSUES
+            \App\Support\JobFailureReporter::report(
+                self::class, 'Import reverse stopped', $e,
+                ['import_id' => $import->id], $tenant->id
+            );
             // Back to done: the rows already undone stay stamped, so pressing
             // Reverse again picks up exactly where this left off.
             $import->update([

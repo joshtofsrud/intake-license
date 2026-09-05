@@ -93,14 +93,20 @@ class ImportDistributorCatalogJob implements ShouldQueue, ShouldBeUnique
                 'item_count'     => $totals['created'] + $totals['merged'],
             ]);
         } catch (\Throwable $e) {
-            Log::error('ImportDistributorCatalogJob failed', [
-                'tenant' => $this->tenantId, 'code' => $this->code,
-                'offset' => $offset, 'error' => $e->getMessage(),
-            ]);
+            // MARKER-JOB-ISSUES — reported, not just logged: master admin
+            // sees it, the alert address gets it, and it carries a refId.
+            $ref = \App\Support\JobFailureReporter::report(
+                self::class,
+                $this->code . ' catalog import stopped after ' . number_format($totals['created'] + $totals['merged']) . ' items',
+                $e,
+                ['batch_id' => $this->batchId, 'code' => $this->code, 'offset' => $offset, 'totals' => $totals],
+                $this->tenantId
+            );
             // Items already imported stay imported and stay on this batch, so
             // the existing undo still covers exactly what was written.
             $batch->update([
-                'status' => 'failed', 'progress_stage' => 'failed', 'result' => $totals,
+                'status' => 'failed', 'progress_stage' => 'failed',
+                'result' => $totals + ['ref_id' => $ref, 'error' => \Illuminate\Support\Str::limit($e->getMessage(), 300)],
             ]);
         }
     }

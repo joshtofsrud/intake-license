@@ -75,6 +75,7 @@ class PlatformDashboard extends Page
             'activity'   => $this->buildActivity(),
             'series'     => $this->buildSeries(),        // MARKER-DASH-REFACTOR
             'recentAlerts' => $this->buildRecentAlerts(), // MARKER-DASH-REFACTOR
+            'issues'     => $this->buildIssues(),        // MARKER-JOB-ISSUES
             'generatedAt'=> now(),
         ];
     }
@@ -158,6 +159,40 @@ class PlatformDashboard extends Page
                     'series' => $failed, 'mode' => 'level', 'legend' => 'Failed jobs per day over the last 30 days.'],
             ],
         ];
+    }
+
+    /**
+     * MARKER-JOB-ISSUES — unresolved errors grouped by fingerprint: one line
+     * per distinct failure, not one per occurrence. Top five, newest first.
+     */
+    protected function buildIssues(): array
+    {
+        $rows = DebugLog::query()
+            ->where('severity', 'error')->where('is_resolved', false)
+            ->whereNotNull('fingerprint')
+            ->where('created_at', '>=', now()->subDays(7))
+            ->selectRaw('fingerprint, COUNT(*) as n, MAX(created_at) as last_at, MIN(created_at) as first_at, MAX(id) as last_id')
+            ->groupBy('fingerprint')
+            ->orderByDesc('last_at')->limit(5)->get();
+
+        if ($rows->isEmpty()) return [];
+
+        $latest = DebugLog::whereIn('id', $rows->pluck('last_id'))->with('tenant:id,subdomain')->get()->keyBy('id');
+
+        return $rows->map(function ($g) use ($latest) {
+            $l = $latest[$g->last_id] ?? null;
+            $ctx = (array) ($l->context ?? []);
+            return [
+                'title'   => $l ? ($ctx['summary'] ?? $l->message) : 'Error',
+                'detail'  => $l ? \Illuminate\Support\Str::limit($ctx['error'] ?? '', 120) : '',
+                'job'     => $l && $l->job_class ? class_basename($l->job_class) : ($l->channel ?? 'error'),
+                'tenant'  => $l?->tenant?->subdomain,
+                'n'       => (int) $g->n,
+                'last'    => \Carbon\Carbon::parse($g->last_at)->diffForHumans(null, true),
+                'ref'     => $ctx['ref_id'] ?? null,
+                'href'    => '/admin/debug-logs/' . $g->last_id,
+            ];
+        })->all();
     }
 
     /** Newest staff alerts across every tenant — real platform activity. */
@@ -349,6 +384,14 @@ class PlatformDashboard extends Page
         $rows[] = $failed === null
             ? ['name' => 'Failed jobs', 'meta' => 'failed_jobs table not yet created', 'value' => 'n/a', 'state' => 'idle', 'href' => null]
             : ['name' => 'Failed jobs', 'meta' => 'trailing 24h', 'value' => "<b>{$failed}</b> in 24h", 'state' => $failed > 0 ? 'bad' : 'ok', 'href' => null];
+
+        // MARKER-JOB-ISSUES — jobs that caught their own failure and reported
+        // it. These never reach failed_jobs; before this row they reached
+        // nothing at all.
+        $caught = (int) DebugLog::where('event', 'job.failed')->where('created_at', '>=', now()->subDay())->count();
+        $rows[] = ['name' => 'Background jobs', 'meta' => 'caught failures, trailing 24h',
+                   'value' => "<b>{$caught}</b> reported", 'state' => $caught > 0 ? 'bad' : 'ok',
+                   'href' => '/admin/debug-logs?activeTab=errors'];
 
         // Queue backlog
         $pending = 0;
