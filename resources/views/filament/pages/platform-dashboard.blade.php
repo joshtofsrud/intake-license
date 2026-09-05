@@ -179,11 +179,11 @@
       <div class="alert500">
         <label style="display:flex;gap:8px;align-items:center;cursor:pointer">
           <input type="checkbox" wire:model="alert500Enabled" style="width:14px;height:14px">
-          Email me on every 5xx
+          Email me on every 5xx and failed background job
         </label>
         <input type="email" wire:model="alert500Email" placeholder="alerts@intake.works">
         <button type="button" wire:click="saveAlert500">Save</button>
-        <span class="mt-legend" style="flex-basis:100%">One email per unique error site per 15 minutes, carrying the log line's refId. Off or blank = no emails; errors still log.</span>
+        <span class="mt-legend" style="flex-basis:100%">One email per distinct error or job failure per 15 minutes, carrying its refId. Off or blank = no emails; everything still logs and shows above.</span>
       </div>
     </div>
 
