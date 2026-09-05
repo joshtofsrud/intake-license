@@ -71,8 +71,13 @@ class CartService
             $line->save();
         } else {
             $images = (array) ($item->distributorCatalog?->images ?? []);
-            $first  = $images[0] ?? null;
-            $imgUrl = is_array($first) ? ($first['Url'] ?? $first['url'] ?? $first['src'] ?? null) : (is_string($first) ? $first : null);
+            // MARKER-QBP-IMAGES-EVERYWHERE
+            $imgUrl = \App\Support\CatalogImages::urls(
+                $images,
+                $item->distributorCatalog?->distributor_code ?? null,
+                $item->tenant_id ?? null,
+                1,
+            )[0] ?? null;
             $price  = (int) ($item->effectiveSellPriceCents() ?? 0);
 
             TenantOrderItem::create([

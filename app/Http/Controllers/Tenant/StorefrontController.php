@@ -195,8 +195,18 @@ class StorefrontController extends Controller
 
         return response()->json(['corrected' => $corrected && $scored->isNotEmpty() ? implode(' ', $tokens) : null, 'items' => $scored->map(function ($i) {
             $ims = (array) ($i->distributorCatalog?->images ?? []);
-            $f = $ims[0] ?? null;
-            $img = is_array($f) ? ($f['Url'] ?? $f['url'] ?? $f['src'] ?? null) : (is_string($f) ? $f : null);
+            // MARKER-QBP-IMAGES-EVERYWHERE — a QBP entry is a bare filename,
+            // not a URL, so this was putting a filename in a src on the shop's
+            // public product pages.
+            // Derived from the item, not from variables that may not exist in
+            // this scope: $catCode/$tenantId were not defined here, so passing
+            // them would quietly resolve every QBP image to null.
+            $img = \App\Support\CatalogImages::urls(
+                $ims,
+                $p->distributorCatalog?->distributor_code ?? null,
+                $p->tenant_id ?? null,
+                1,
+            )[0] ?? null;
             return [
                 'name'  => $i->name,
                 'brand' => $i->distributorCatalog?->manufacturer,
@@ -218,12 +228,14 @@ class StorefrontController extends Controller
 
         $cat = $item->distributorCatalog;
 
-        $images = collect((array) ($cat?->images ?? []))
-            ->map(function ($im) {
-                if (is_string($im)) return $im;
-                if (is_array($im)) return $im['Url'] ?? $im['url'] ?? $im['src'] ?? null;
-                return null;
-            })->filter()->values()->take(6)->all();
+        // MARKER-QBP-IMAGES-EVERYWHERE-2 — the product gallery had its own copy
+        // of the same lookup, so a QBP product page showed six broken images.
+        $images = \App\Support\CatalogImages::urls(
+            $cat?->images ?? [],
+            $cat?->distributor_code ?? null,
+            $cat?->tenant_id ?? null,
+            6,
+        );
 
         $attrs = collect((array) ($cat?->attributes ?? []))
             ->filter(fn ($a) => is_array($a) && !empty($a['Name']) && trim((string) ($a['Value'] ?? '')) !== '')

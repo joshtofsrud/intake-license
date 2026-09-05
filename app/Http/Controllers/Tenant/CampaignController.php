@@ -722,10 +722,13 @@ class CampaignController extends Controller
         }
         foreach ($products as $pI) {
             $ims   = (array) ($pI->distributorCatalog->images ?? []);
-            $first = $ims[0] ?? null;
-            $photo = is_array($first)
-                ? ($first['Url'] ?? $first['url'] ?? $first['src'] ?? null)
-                : (is_string($first) ? $first : null);
+            // MARKER-QBP-IMAGES-EVERYWHERE — QBP stores filenames, not URLs.
+            $photo = \App\Support\CatalogImages::urls(
+                $ims,
+                $m->distributorCatalog->distributor_code ?? null,
+                $m->tenant_id ?? null,
+                1,
+            )[0] ?? null;
             $cents = $pI->effectiveSellPriceCents();
             $out[] = [
                 'kind'  => 'product',

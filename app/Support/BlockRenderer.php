@@ -603,10 +603,13 @@ class BlockRenderer
             }
             // Same image resolution the storefront's product showcase uses.
             $ims   = (array) ($m->distributorCatalog->images ?? []);
-            $first = $ims[0] ?? null;
-            $photo = is_array($first)
-                ? ($first['Url'] ?? $first['url'] ?? $first['src'] ?? null)
-                : (is_string($first) ? $first : null);
+            // MARKER-QBP-IMAGES-EVERYWHERE — QBP stores filenames, not URLs.
+            $photo = \App\Support\CatalogImages::urls(
+                $ims,
+                $m->distributorCatalog->distributor_code ?? null,
+                $m->tenant_id ?? null,
+                1,
+            )[0] ?? null;
 
             $cents = $m->effectiveSellPriceCents();
 
