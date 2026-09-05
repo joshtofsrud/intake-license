@@ -554,7 +554,7 @@ body.at-bar-open .ia-mobile-nav{display:none}
       {{-- MARKER-ATTENTION-SELECT — the escalation, stated rather than ticked. --}}
       <div id="at-scope" class="at-scope" hidden>
         <span id="at-scope-text"></span>
-        <a href="#" id="at-scope-link" onclick="return atAllMatching()"></a>
+        <a href="#" id="at-scope-link" onclick="return atScope(true)"></a>
       </div>
 
       <div class="at-bar" id="at-bar">
@@ -641,6 +641,15 @@ body.at-bar-open .ia-mobile-nav{display:none}
         link.textContent = 'Select only this page instead';
         link.onclick = function () { return atScope(false); };
         if (label) { label.textContent = 'With all ' + TOTAL.toLocaleString() + ':'; }
+        // MARKER-ATTENTION-ARMED-BAR — this returned early, skipping the bar
+        // reveal and atActions() below. Cold Select-all ticked the rows and
+        // showed nothing; the buttons never appeared.
+        var barA = document.getElementById('at-bar');
+        if (barA) {
+          barA.hidden = false;
+          document.body.classList.add('at-bar-open');
+          atActions(true, picked);
+        }
         return;
       }
 
@@ -768,71 +777,3 @@ body.at-bar-open .ia-mobile-nav{display:none}
 @endpush
 
 @endsection
-
-
-{{-- MARKER-ATTENTION-STANDALONE --}}
-<script>
-(function () {
-  function paint(armed) {
-    var n = document.querySelectorAll('.at-cb:checked').length;
-    var bar = document.getElementById('at-bar');
-    if (bar) {
-      bar.hidden = !(armed || n);
-      document.body.classList.toggle('at-bar-open', !!(armed || n));
-    }
-    var label = document.getElementById('at-bar-label');
-    if (label) {
-      label.textContent = armed ? 'With all {{ $flags->total() }}:'
-                                : (n ? 'With ' + n + ' selected:' : 'With selected:');
-    }
-    var sc = document.getElementById('at-scope');
-    var tx = document.getElementById('at-scope-text');
-    if (sc && tx) {
-      sc.hidden = !armed;
-      sc.classList.toggle('armed', !!armed);
-      tx.textContent = 'All {{ $flags->total() }} items matching this filter are selected — not just this page.';
-    }
-  }
-  window.atAllMatching = function () {
-    document.querySelectorAll('.at-cb').forEach(function (c) { c.checked = true; });
-    var h = document.getElementById('at-all-page');
-    if (h) { h.checked = true; }
-    var arm = document.getElementById('at-select-all');
-    if (arm) { arm.checked = true; }
-    paint(true);
-    return false;
-  };
-  document.addEventListener('change', function (e) {
-    if (e.target && e.target.classList && e.target.classList.contains('at-cb')) {
-      var arm = document.getElementById('at-select-all');
-      if (arm) { arm.checked = false; }
-      paint(false);
-    }
-  });
-  document.addEventListener('DOMContentLoaded', function () { paint(false); });
-})();
-</script>
-
-
-{{-- MARKER-ATTENTION-REVEAL — the top link ticks the rows through the page's
-     own atScope(), but nothing unhides the action bar from that path. Bind to
-     the click itself so it works whichever function the link calls. --}}
-<script>
-document.addEventListener('click', function (e) {
-  var a = e.target && e.target.closest && e.target.closest('#at-top-all, a[onclick*="atScope"], a[onclick*="atAllMatching"]');
-  if (!a) { return; }
-  setTimeout(function () {
-    var armed = (document.getElementById('at-select-all') || {}).checked;
-    var n = document.querySelectorAll('.at-cb:checked').length;
-    var bar = document.getElementById('at-bar');
-    if (bar && (armed || n)) {
-      bar.hidden = false;
-      document.body.classList.add('at-bar-open');
-    }
-    var label = document.getElementById('at-bar-label');
-    if (label) {
-      label.textContent = armed ? 'With all {{ $flags->total() }}:' : 'With ' + n + ' selected:';
-    }
-  }, 0);
-});
-</script>
