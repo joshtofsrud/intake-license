@@ -51,9 +51,11 @@ class DistributorController extends Controller
 
         $boxes = [];
         foreach ($registry->supported() as $code) {
+            // MARKER-DIST-TOGGLE — a row created just by opening this page is
+            // not a connection. It starts OFF and the shop turns it on.
             $sub = TenantDistributorCatalogSubscription::firstOrCreate(
                 ['tenant_id' => $tenant->id, 'distributor_code' => $code],
-                ['is_active' => true],
+                ['is_active' => false],
             );
             $creds = (array) ($sub->credentials_encrypted ?? []);
 
@@ -69,6 +71,7 @@ class DistributorController extends Controller
                 'linkedVendorId' => \App\Models\Tenant\TenantVendor::where('tenant_id', tenant()->id)
                     ->where('distributor_code', strtolower($code))->value('id'),
                 'fields'    => $registry->credentialFields($code),
+                'enabled'   => (bool) $sub->is_active,   // MARKER-DIST-TOGGLE
                 'hasKey'    => filled($creds['api_key'] ?? null),
                 'maskedKey' => $this->mask($creds['api_key'] ?? null),
                 // MARKER-PARTIAL-CREDS — a hint per field, not the whole
@@ -122,6 +125,38 @@ class DistributorController extends Controller
      * A blank credential means "leave what's stored alone", so a shop can
      * change its priority without re-typing a key it can't read back.
      */
+    /**
+     * MARKER-DIST-TOGGLE — turn a distributor on or off for this shop.
+     * Turning OFF keeps the stored credentials, so pausing does not mean
+     * re-entering an API key later.
+     */
+    public function toggleDistributor(\Illuminate\Http\Request $request)
+    {
+        $this->guard();
+
+        $data = $request->validate([
+            'code'    => ['required', 'string', 'max:32'],
+            'enabled' => ['nullable'],
+        ]);
+
+        $code = strtoupper($data['code']);
+        if (! in_array($code, app(\App\Services\Distributors\DistributorRegistry::class)->supported(), true)) {
+            abort(404);
+        }
+
+        $sub = TenantDistributorCatalogSubscription::firstOrCreate(
+            ['tenant_id' => tenant()->id, 'distributor_code' => $code],
+            ['is_active' => false],
+        );
+
+        $on = (bool) $request->boolean('enabled');
+        $sub->update(['is_active' => $on]);
+
+        return back()->with('success', $on
+            ? $code . ' turned on. Add your account key to unlock your cost and availability.'
+            : $code . ' turned off. Your key is kept — turn it back on any time.');
+    }
+
     public function saveKey(Request $request): RedirectResponse
     {
         $this->guard();
@@ -563,18 +598,52 @@ class DistributorController extends Controller
     {
         $supported = app(\App\Services\Distributors\DistributorRegistry::class)->supported();
 
+        // MARKER-DIST-TOGGLE — only distributors THIS shop has connected. The
+        // platform catalog is shared, so without this a shop was offered
+        // catalogs (and dealer cost, MAP and MSRP) for accounts it does not
+        // hold. Credentials as well as the toggle: the switch alone is the
+        // shop's intent, the key is the evidence.
+        $connected = \App\Models\Tenant\TenantDistributorCatalogSubscription::query()
+            ->where('tenant_id', tenant()->id)
+            ->where('is_active', true)
+            ->get(['distributor_code', 'credentials_encrypted'])
+            ->filter(function ($s) {
+                $creds = (array) ($s->credentials_encrypted ?? []);
+                return filled($creds['api_key'] ?? null);
+            })
+            ->pluck('distributor_code')
+            ->map(fn ($c) => strtoupper($c))
+            ->all();
+
+        if (! $connected) {
+            return [];
+        }
+
         return \App\Models\PlatformDistributorCatalog::query()
             ->whereIn('distributor_code', $supported)
+            ->whereIn('distributor_code', $connected)
             ->where('is_active', true)
             ->select('distributor_code')->distinct()
             ->orderBy('distributor_code')
             ->pluck('distributor_code')->all();
     }
 
-    /** The distributor being imported from, defaulting to the first available. */
+    /**
+     * The distributor being imported from, defaulting to the first available.
+     *
+     * MARKER-DIST-TOGGLE — every import path (the screen, importRun, the
+     * category picker) resolves its code through here, so refusing an
+     * unconnected distributor here refuses it everywhere. A hidden option is
+     * not a gate; a crafted POST must fail too.
+     */
     private function importCode(?string $requested): string
     {
         $codes = $this->importableCodes();
+
+        if ($requested !== null && $requested !== ''
+            && ! in_array(strtoupper($requested), array_map('strtoupper', $codes), true)) {
+            abort(403, 'Your shop has not connected that distributor.');
+        }
         $requested = strtoupper((string) $requested);
 
         return in_array($requested, $codes, true)

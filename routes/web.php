@@ -1148,6 +1148,8 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
                 Route::post('/import/run',        [TenantControllers\DistributorController::class, 'importRun'])->name('import.run');
                 Route::get('/connection',         [TenantControllers\DistributorController::class, 'connection'])->name('connection');
                 Route::post('/connection/key',    [TenantControllers\DistributorController::class, 'saveKey'])->name('connection.key');
+                // MARKER-DIST-TOGGLE
+                Route::post('/connection/toggle', [TenantControllers\DistributorController::class, 'toggleDistributor'])->name('connection.toggle');
                 // MARKER-PRIORITY-ORDER — its own route so a reorder never
                 // travels through the credential form, where a blank field
                 // means "keep the saved key".
