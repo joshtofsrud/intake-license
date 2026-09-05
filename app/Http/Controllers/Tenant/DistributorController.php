@@ -713,6 +713,20 @@ class DistributorController extends Controller
         $applied = 0;
         $skipped = 0;
         $userId = optional($request->user())->id;
+
+        // MARKER-CATALOG-HISTORY — capture what these items look like before we
+        // touch them, so the batch can be put back.
+        $recorder = new \App\Services\Tenant\CatalogChangeRecorder(
+            tenant()->id,
+            $action,
+            [
+                'select_all' => (bool) ($data['select_all'] ?? false),
+                'brand'      => $data['f_brand'] ?? null,
+                'category'   => $data['f_category'] ?? null,
+                'reason'     => $data['f_reason'] ?? null,
+            ],
+            optional($request->user())->email,
+        );
         $titleReason = \App\Models\Tenant\TenantPricingAttentionFlag::REASON_TITLE_CHANGED;
         $detailsReason = \App\Models\Tenant\TenantPricingAttentionFlag::REASON_DETAILS_CHANGED; // MARKER-DETAILS-WATCH
 
@@ -743,17 +757,21 @@ class DistributorController extends Controller
                     $skipped++;
                     continue;
                 }
+                $recorder->capture($item);          // MARKER-CATALOG-HISTORY
                 $item->shop_sell_price_cents = (int) $target;
                 $item->save();
+                $recorder->captured($item);
             } elseif ($action === 'adopt_title') {
                 $cat = $item?->distributorCatalog;
                 if (! $item || ! $cat || blank($cat->display_name)) {
                     $skipped++;
                     continue;
                 }
+                $recorder->capture($item);          // MARKER-CATALOG-HISTORY
                 $item->name = $cat->display_name;
                 $item->catalog_title_seen = $cat->display_name; // snapshot so it won't re-flag
                 $item->save();
+                $recorder->captured($item);          // MARKER-CATALOG-HISTORY
             } elseif ($action === 'keep_title') {
                 // Keep the tenant's name; just acknowledge the catalog's new title
                 // so the watch stops flagging it.
@@ -770,6 +788,7 @@ class DistributorController extends Controller
                     $skipped++;
                     continue;
                 }
+                $recorder->capture($item);          // MARKER-CATALOG-HISTORY
                 foreach (['color', 'size', 'description'] as $fld) {
                     if (filled($cat->{$fld})) {
                         $item->{$fld} = $cat->{$fld};
@@ -781,6 +800,7 @@ class DistributorController extends Controller
                     'description' => $cat->description,
                 ];
                 $item->save();
+                $recorder->captured($item);          // MARKER-CATALOG-HISTORY
             } elseif ($action === 'keep_details') {
                 // Keep the tenant's values; snapshot the catalog's so the
                 // watch stops flagging this change.
@@ -813,6 +833,10 @@ class DistributorController extends Controller
             'keep_details'  => 'Kept your details',
         ][$action];
         $msg = "{$verb}: {$applied} item(s)." . ($skipped ? " {$skipped} skipped." : '');
+
+        // MARKER-CATALOG-HISTORY — one batch per bulk action.
+
+        $batchId = $recorder->finish();
 
         return back()->with('success', $msg);
     }
