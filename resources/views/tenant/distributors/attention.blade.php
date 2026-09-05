@@ -83,20 +83,28 @@ body.at-bar-open .ia-mobile-nav{display:none}
      different heights beside each other and the row looked broken. Stretching
      the row and letting both fill it keeps them level whatever the padding or
      font does. */
-  .at-filter{align-items:stretch}
-  .at-filter select{flex:1 1 46%;min-width:0}
+  /* MARKER-ATTENTION-ROWFIX — ONE height for everything in this strip. Trying
+     to match paddings put Clear first taller than the toggle, then shorter:
+     with no vertical padding it falls back to its line-height while the
+     segment buttons keep theirs. A fixed height cannot drift. */
+  .at-filter{--at-h:38px;align-items:stretch}
+  .at-filter select{flex:1 1 46%;min-width:0;height:var(--at-h);padding-top:0;padding-bottom:0}
   .at-filter > .at-btn{
     flex:0 0 auto;
+    height:var(--at-h);
     display:inline-flex;align-items:center;justify-content:center;
     padding:0 16px;
     line-height:1;
+    box-sizing:border-box;
   }
-  .at-filter .at-seg{flex:1 1 auto;margin-top:0;display:flex;min-width:0;align-items:stretch}
+  .at-filter .at-seg{flex:1 1 auto;margin-top:0;display:flex;min-width:0;height:var(--at-h)}
   .at-filter .at-segbtn{
     flex:1 1 0;min-width:0;
+    height:100%;
     display:inline-flex;align-items:center;justify-content:center;
-    padding:10px 6px;font-size:11.5px;line-height:1;
+    padding:0 6px;font-size:11.5px;line-height:1;
     text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    box-sizing:border-box;
   }
 
   /* the table becomes cards — as a FLEX row, so the checkbox is a normal
