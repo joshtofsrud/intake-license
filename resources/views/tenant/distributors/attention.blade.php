@@ -29,6 +29,10 @@
 .at-chg .old{color:var(--ia-text-muted);text-decoration:line-through;text-decoration-color:rgba(242,109,109,.55)}
 .at-hl{background:rgba(205,233,138,.16);border-radius:3px;padding:0 2px;color:#cde98a}
 .at-pager-top{display:none} /* MARKER-ATTENTION-TIGHT — mobile only */
+/* MARKER-ATTENTION-ACTIONS — the same hook the Communication Center uses to get
+   the tab bar out of the way while something is being edited. */
+body.at-bar-open .ia-mobile-nav{display:none}
+.at-bar .at-btn[hidden]{display:none !important}
 
 /* MARKER-ATTENTION-MOBILE — below 720px the table becomes cards. The markup is
    unchanged: these rows live inside the bulk-action form and carry the
@@ -338,7 +342,10 @@
               $sell = $item->shop_sell_price_cents ?? null;
             @endphp
             <tr>
-              <td class="at-c-pick"><input class="at-cb" type="checkbox" name="flag_ids[]" value="{{ $f->id }}"></td>
+              {{-- MARKER-ATTENTION-ACTIONS — the reason travels with the row so
+                   the bar can offer only what applies. --}}
+              <td class="at-c-pick"><input class="at-cb" type="checkbox" name="flag_ids[]"
+                  value="{{ $f->id }}" data-reason="{{ $f->reason }}"></td>
               <td class="at-c-item">
                 <div style="display:flex;align-items:center;gap:7px">
                   <div style="font-weight:600">{{ $item->name ?? '—' }}</div>
@@ -437,14 +444,14 @@
 
       <div class="at-bar" id="at-bar">
         <span class="at-dim" style="font-size:12px" id="at-bar-label">With selected:</span>
-        <button class="at-btn primary" type="submit" onclick="setAct('adopt_title')">Adopt new title</button>
-        <button class="at-btn" type="submit" onclick="setAct('keep_title')">Keep mine</button>
-        <button class="at-btn primary" type="submit" onclick="setAct('adopt_details')">Adopt new details</button>
-        <button class="at-btn" type="submit" onclick="setAct('keep_details')">Keep my details</button>
+        <button class="at-btn primary" type="submit" data-applies="title_changed" onclick="setAct('adopt_title')">Adopt new title</button>
+        <button class="at-btn" type="submit" data-applies="title_changed" onclick="setAct('keep_title')">Keep mine</button>
+        <button class="at-btn primary" type="submit" data-applies="details_changed" onclick="setAct('adopt_details')">Adopt new details</button>
+        <button class="at-btn" type="submit" data-applies="details_changed" onclick="setAct('keep_details')">Keep my details</button>
         <span class="at-dim" style="opacity:.4">|</span>
-        <button class="at-btn primary" type="submit" onclick="setAct('raise_map')">Raise to MAP</button>
-        <button class="at-btn" type="submit" onclick="setAct('match_msrp')">Match MSRP</button>
-        <button class="at-btn" type="submit" onclick="setAct('acknowledge')">Dismiss</button>
+        <button class="at-btn primary" type="submit" data-applies="price" onclick="setAct('raise_map')">Raise to MAP</button>
+        <button class="at-btn" type="submit" data-applies="price" onclick="setAct('match_msrp')">Match MSRP</button>
+        <button class="at-btn" type="submit" data-applies="any" onclick="setAct('acknowledge')">Dismiss</button>
         {{-- MARKER-ATTENTION-SELECT — no longer a tick beside the buttons: the
              scope is chosen above and shown in the label to the left. --}}
         <input type="checkbox" name="select_all" value="1" id="at-select-all" hidden>
@@ -532,7 +539,16 @@
       // MARKER-ATTENTION-SLIM — the bar only exists when it has something to
       // act on, so it never sits on top of the row being read.
       var bar = document.getElementById('at-bar');
-      if (bar) { bar.hidden = !(all || picked); }
+      if (bar) {
+        var show = !!(all || picked);
+        bar.hidden = !show;
+
+        // MARKER-ATTENTION-ACTIONS — two fixed bars at the bottom of a phone
+        // leaves nothing to read. Same hook the Communication Center uses.
+        document.body.classList.toggle('at-bar-open', show);
+
+        atActions(all, picked);
+      }
     }
 
     document.addEventListener('change', function (e) {
@@ -543,6 +559,48 @@
         atRender();
       }
     });
+
+    // MARKER-ATTENTION-ACTIONS — show only the buttons the selection can use,
+    // with the number each will affect. Offering "Raise to MAP" for a rename
+    // makes the bar a liar: the controller skips it and says nothing.
+    function atActions(all, picked) {
+      var counts = { title_changed: 0, details_changed: 0, price: 0, any: 0 };
+
+      if (all) {
+        // Everything matching the filter: we cannot count what is not loaded,
+        // so every action stays available and the count is left off.
+        counts = null;
+      } else {
+        document.querySelectorAll('.at-cb:checked').forEach(function (c) {
+          var r = c.getAttribute('data-reason') || '';
+          if (r === 'title_changed' || r === 'details_changed') {
+            counts[r]++;
+          } else {
+            counts.price++;   // below_map, off_msrp, vanished — price-side flags
+          }
+          counts.any++;
+        });
+      }
+
+      document.querySelectorAll('.at-bar .at-btn').forEach(function (btn) {
+        var applies = btn.getAttribute('data-applies');
+        if (!applies) { return; }
+
+        if (counts === null) {
+          btn.hidden = false;
+          btn.textContent = btn.getAttribute('data-label') || btn.textContent;
+          return;
+        }
+
+        var n = counts[applies] || 0;
+        btn.hidden = n === 0;
+
+        if (!btn.getAttribute('data-label')) {
+          btn.setAttribute('data-label', btn.textContent.trim());
+        }
+        btn.textContent = btn.getAttribute('data-label') + ' (' + n.toLocaleString() + ')';
+      });
+    }
 
     document.addEventListener('DOMContentLoaded', atRender);
   })();
