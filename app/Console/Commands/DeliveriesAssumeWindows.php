@@ -21,11 +21,43 @@ class DeliveriesAssumeWindows extends Command
 
     public function handle(): int
     {
-        $flagged = TenantDeliveryProposal::query()
+        // MARKER-DELIVERY-ALERTS — was a single bulk UPDATE, which could not
+        // say WHO went unanswered. Now per proposal, so each one raises an
+        // alert naming the customer. The status write is unchanged; the
+        // alert is best-effort and never blocks the flag.
+        $flagged = 0;
+        $alerts  = app(\App\Services\Tenant\StaffAlertService::class);
+
+        TenantDeliveryProposal::query()
             ->where('status', TenantDeliveryProposal::STATUS_PENDING)
             ->whereNotNull('expires_at')
             ->where('expires_at', '<=', now())
-            ->update(['status' => TenantDeliveryProposal::STATUS_NO_REPLY]);
+            ->with(['tenant', 'customer'])
+            ->orderBy('expires_at')
+            ->chunkById(200, function ($proposals) use (&$flagged, $alerts) {
+                foreach ($proposals as $proposal) {
+                    $proposal->update(['status' => TenantDeliveryProposal::STATUS_NO_REPLY]);
+                    $flagged++;
+
+                    if (! $proposal->tenant) {
+                        continue;
+                    }
+
+                    try {
+                        $custName = trim(($proposal->customer->first_name ?? '') . ' ' . ($proposal->customer->last_name ?? '')) ?: 'A customer';
+                        $alerts->emit($proposal->tenant, 'delivery.no_reply', [
+                            'title' => 'Delivery window unanswered',
+                            'body'  => $custName . ' never picked a window — give them a call',
+                            'link'  => route('tenant.deliveries.index'),
+                            'meta'  => ['proposal_id' => $proposal->id, 'appointment_id' => $proposal->appointment_id],
+                        ]);
+                    } catch (\Throwable $e) {
+                        \Illuminate\Support\Facades\Log::warning('Delivery no_reply alert failed', [
+                            'proposal_id' => $proposal->id, 'error' => $e->getMessage(),
+                        ]);
+                    }
+                }
+            });
 
         $this->info("Flagged {$flagged} proposal(s) as no_reply.");
         return self::SUCCESS;

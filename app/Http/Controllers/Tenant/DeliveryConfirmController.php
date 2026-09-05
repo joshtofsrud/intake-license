@@ -79,6 +79,25 @@ class DeliveryConfirmController extends Controller
             ]);
         }
 
+        // MARKER-DELIVERY-ALERTS — the customer was told; now tell the shop.
+        // Best-effort like the notification above: an alert failure must
+        // never undo a confirmed delivery.
+        try {
+            $proposal->loadMissing('customer');
+            $custName = trim(($proposal->customer->first_name ?? '') . ' ' . ($proposal->customer->last_name ?? '')) ?: 'A customer';
+            $whenLabel = $day->isoFormat('ddd MMM D') . ' · ' . ($window->label ?: (
+                Carbon::parse((string) $window->starts_at)->format('g:i A') . '–' . Carbon::parse((string) $window->ends_at)->format('g:i A')
+            ));
+            app(\App\Services\Tenant\StaffAlertService::class)->emit($tenant, 'delivery.window_chosen', [
+                'title' => 'Delivery window chosen',
+                'body'  => $custName . ' picked ' . $whenLabel,
+                'link'  => route('tenant.deliveries.index', ['date' => $day->toDateString()]),
+                'meta'  => ['delivery_id' => $delivery->id, 'proposal_id' => $proposal->id, 'appointment_id' => $proposal->appointment_id],
+            ]);
+        } catch (\Throwable $e) {
+            Log::warning('Delivery window_chosen alert failed', ['proposal_id' => $proposal->id, 'error' => $e->getMessage()]);
+        }
+
         return redirect()->route('tenant.delivery_confirm.show', $token);
     }
 

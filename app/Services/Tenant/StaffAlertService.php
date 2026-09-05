@@ -46,6 +46,9 @@ class StaffAlertService
         'rental.reserved_online' => ['in_app' => true,  'sms' => false],
         'lease.created'          => ['in_app' => true,  'sms' => false],
         'announcement'           => ['in_app' => true,  'sms' => false],
+        // MARKER-DELIVERY-ALERTS
+        'delivery.window_chosen' => ['in_app' => true,  'sms' => false],
+        'delivery.no_reply'      => ['in_app' => true,  'sms' => false],
         // MARKER-TOFF-ALERTS
         'timeoff.requested'      => ['in_app' => true,  'sms' => false],
         'timeoff.decided'        => ['in_app' => true,  'sms' => false],

@@ -37,6 +37,8 @@
     'offer.accepted'          => ['Offer', '🏷'],
     'inbox.needs_reply'       => ['Inbox', '💬'],
     'announcement'            => ['Announcement', '📣'],
+    'delivery.window_chosen'  => ['Delivery', '🚚'], // MARKER-DELIVERY-ALERTS
+    'delivery.no_reply'       => ['Delivery', '🚚'],
     'timeoff.requested'       => ['Time off', '🌴'],
     'timeoff.decided'         => ['Time off', '🌴'],
     'timeoff.withdrawn'       => ['Time off', '🌴'],

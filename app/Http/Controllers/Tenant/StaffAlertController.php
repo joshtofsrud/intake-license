@@ -27,6 +27,9 @@ class StaffAlertController extends Controller
         'payment.refund_external'=> 'Refund issued outside Intake',
         'rental.reserved_online' => 'New online rental reservation',
         'lease.created'          => 'New lease',
+        // MARKER-DELIVERY-ALERTS
+        'delivery.window_chosen' => 'Customer chose a delivery window',
+        'delivery.no_reply'      => 'Delivery window unanswered — call the customer',
         // MARKER-TOFF-ALERTS
         'timeoff.requested'      => 'New time-off request (reviewers)',
         'timeoff.decided'        => 'Your time-off request was decided',
