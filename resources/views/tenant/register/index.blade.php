@@ -485,7 +485,7 @@
     <div class="reg-picker-wrap" style="margin-left:auto;max-width:220px">
       <x-tenant.searchable-select name="register_picker" id="registerPicker" :searchable="false"
         :options="$sselRegs" :selected="(string) ($currentRegisterId ?? 0)"
-        any="No register / display" noun="registers" />
+        any="" noun="registers" />{{-- MARKER-SSEL-DEFAULT — "0" is already the first option --}}
     </div>
   @endif
 </div>

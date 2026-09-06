@@ -87,7 +87,7 @@
       <div style="min-width:180px;max-width:220px">
         <x-tenant.searchable-select name="register_draft_retention_days" :searchable="false"
           :options="['0' => 'Forever', '7' => '7 days', '14' => '14 days', '30' => '30 days', '90' => '90 days']"
-          :selected="(string) $draftRetention" any="" noun="options" />{{-- MARKER-SSEL-NODUPE — the default is a real option; an "any" row duplicates it --}}
+          :selected="(string) $draftRetention" any=""{{-- MARKER-SSEL-DEFAULT — 0 is a real option; the selected value resolves to it --}} noun="options" />{{-- MARKER-SSEL-NODUPE — the default is a real option; an "any" row duplicates it --}}
       </div>
     </div>
   </div>
