@@ -101,9 +101,11 @@
 
     function open() {
       panel.hidden = false;
-      input.value = '';
+      // MARKER-SSEL-NOSEARCH — there is no search box when :searchable=false;
+      // this threw and the panel never opened.
+      if (input) { input.value = ''; }
       filter('');
-      input.focus();
+      if (input) { input.focus(); }
     }
     function close() { panel.hidden = true; }
 
@@ -159,8 +161,8 @@
     }
 
     btn.addEventListener('click', function () { panel.hidden ? open() : close(); });
-    input.addEventListener('input', function () { filter(input.value); });
-    input.addEventListener('keydown', function (e) {
+    if (input) input.addEventListener('input', function () { filter(input.value); });
+    if (input) input.addEventListener('keydown', function (e) {
       if (e.key === 'ArrowDown')      { e.preventDefault(); setHl(hl + 1); }
       else if (e.key === 'ArrowUp')   { e.preventDefault(); setHl(hl - 1); }
       else if (e.key === 'Enter')     { e.preventDefault(); if (visible[hl]) { choose(visible[hl]); } }
