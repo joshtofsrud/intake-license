@@ -59,9 +59,17 @@ class RequireTenantAuth
                         'https://' . config('intake.domain', 'intake.works') . '/admin/tenants'
                     );
                 }
+            } elseif (is_impersonating()) {
+                // MARKER-IMPERSONATE-NEVER-LOGOUT — impersonating and the
+                // switch could not happen (no owner, or the gate said no).
+                // Destroying the session here is what kept logging Josh out.
+                // Go back to master admin instead; the session survives.
+                return redirect()->away(
+                    'https://' . config('intake.domain', 'intake.works') . '/admin/tenants'
+                );
             } else {
                 // The case this rule exists for: a real staff member on
-                // another shop's host. Unchanged.
+                // another shop's host, no impersonation in play.
                 Auth::guard('tenant')->logout();
                 abort(403, 'Access denied.');
             }
