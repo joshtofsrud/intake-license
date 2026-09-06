@@ -140,7 +140,7 @@
           </div>
           {{-- MARKER-BULK-WORKING --}}
           <form method="POST" action="{{ route('tenant.distributors.import.run') }}"
-                data-bulk-count="{{ (int) ($result['candidate_total'] ?? $catalogCount ?? 0) }}"{{-- MARKER-BULK-WORKING-IMPORT — candidate_total only exists after a preview; fall back to the catalog count so a straight commit still shows it --}}>
+                data-bulk-count="{{ (int) (isset($result['created']) ? ($result['created'] + ($result['merged'] ?? 0)) : ($catalogTotal ?? 0)) }}"{{-- MARKER-BULK-WORKING-TOUCHED — what will actually be written; candidate_total also counts rows you already carry --}}{{-- MARKER-BULK-WORKING-IMPORT — candidate_total only exists after a preview; fall back to the catalog count so a straight commit still shows it --}}>
             <input type="hidden" name="code" value="{{ $importCode }}">
             @csrf
             <input type="hidden" name="mode" value="commit">
