@@ -112,6 +112,17 @@
         Impersonating · stop
       </a>
     @endif
+
+    {{-- MARKER-IMPORT-PROGRESS — background import/reverse banner. Sits on
+         every page because the work outlives the page that started it. --}}
+    <div id="ia-jobbar" hidden>
+      <div class="ia-jobbar-in">
+        <span class="ia-jobbar-dot"></span>
+        <span class="ia-jobbar-txt"></span>
+        <span class="ia-jobbar-track"><span class="ia-jobbar-fill"></span></span>
+        <a class="ia-jobbar-link" href="#">View</a>
+        <button type="button" class="ia-jobbar-x" title="Dismiss">&times;</button>
+      </div>
     </div>
 
     {{-- Page content --}}
@@ -223,9 +234,80 @@ window.IntakeOfflineConfig = {
 </script>
 <script src="{{ asset('js/offline-sync.js') }}?v=nogear2"></script>
 
+{{-- MARKER-IMPORT-PROGRESS --}}
+<style>
+  #ia-jobbar{position:sticky;top:0;z-index:60;background:var(--ia-surface-2,rgba(255,255,255,.05));
+    border-bottom:.5px solid var(--ia-border)}
+  .ia-jobbar-in{display:flex;align-items:center;gap:12px;padding:8px 16px;font-size:12.5px;color:var(--ia-text)}
+  .ia-jobbar-dot{width:8px;height:8px;border-radius:50%;background:var(--ia-accent);flex:none;
+    animation:ia-jobpulse 1.4s ease-in-out infinite}
+  #ia-jobbar.is-done .ia-jobbar-dot{animation:none}
+  #ia-jobbar.is-failed .ia-jobbar-dot{background:#F08A8A;animation:none}
+  @keyframes ia-jobpulse{0%,100%{opacity:1}50%{opacity:.25}}
+  @media(prefers-reduced-motion:reduce){.ia-jobbar-dot{animation:none}}
+  .ia-jobbar-txt{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .ia-jobbar-track{flex:1;min-width:60px;max-width:280px;height:5px;border-radius:3px;
+    background:rgba(127,127,127,.25);overflow:hidden}
+  #ia-jobbar.is-done .ia-jobbar-track,#ia-jobbar.is-failed .ia-jobbar-track{display:none}
+  .ia-jobbar-fill{display:block;height:100%;width:0;border-radius:3px;background:var(--ia-accent);transition:width .4s}
+  .ia-jobbar-link{margin-left:auto;color:var(--ia-accent);font-weight:600;text-decoration:none;white-space:nowrap}
+  .ia-jobbar-x{background:none;border:0;color:var(--ia-text-dim);font-size:17px;line-height:1;cursor:pointer;padding:0 2px}
+</style>
+<script>
+(function () {
+  var bar = document.getElementById('ia-jobbar');
+  if (!bar) return;
+  var txt = bar.querySelector('.ia-jobbar-txt'),
+      fill = bar.querySelector('.ia-jobbar-fill'),
+      link = bar.querySelector('.ia-jobbar-link'),
+      xBtn = bar.querySelector('.ia-jobbar-x');
+  var URL_P = @json(route('tenant.imports.progress'));
+  var SEEN  = @json(url('/admin/imports')) + '/';
+  var TOKEN = document.querySelector('meta[name="csrf-token"]');
+  var current = null, timer = null;
 
-{{-- MARKER-BULK-WORKING --}}
-<x-tenant.bulk-working />
+  function hide() { bar.hidden = true; }
+
+  function paint(d) {
+    if (!d || !d.active) { hide(); return; }
+    current = d.id;
+    bar.hidden = false;
+    bar.classList.toggle('is-done', !d.running && d.stage !== 'failed');
+    bar.classList.toggle('is-failed', d.stage === 'failed');
+    if (d.running) {
+      txt.textContent = d.label + ' · ' + d.done.toLocaleString() + ' of ' + d.total.toLocaleString() + ' · ' + d.pct + '%';
+      fill.style.width = d.pct + '%';
+    } else {
+      txt.textContent = d.result || 'Finished';
+    }
+    link.href = d.href || '#';
+    // Only a finished banner is dismissible; a running one is information.
+    xBtn.style.display = d.running ? 'none' : '';
+  }
+
+  function poll() {
+    fetch(URL_P, { headers: { 'Accept': 'application/json' }, credentials: 'same-origin' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) {
+        paint(d);
+        var wait = (d && d.active && d.running) ? 3000 : 15000;
+        timer = setTimeout(poll, wait);
+      })
+      .catch(function () { timer = setTimeout(poll, 30000); });
+  }
+
+  xBtn.addEventListener('click', function () {
+    if (!current) { hide(); return; }
+    fetch(SEEN + current + '/progress-seen', {
+      method: 'POST', credentials: 'same-origin',
+      headers: { 'X-CSRF-TOKEN': TOKEN ? TOKEN.content : '', 'Accept': 'application/json' }
+    }).catch(function () {});
+    hide();
+  });
+
+  poll();
+})();
+</script>
 
 @stack('scripts')
 

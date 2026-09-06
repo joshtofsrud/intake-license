@@ -698,7 +698,108 @@ class ImportController extends Controller
      * result says so plainly. Undoing twice is harmless: reversed rows are
      * stamped and skipped.
      */
+    /**
+     * MARKER-IMPORT-PROGRESS — tiny JSON for the banner. Reads columns the
+     * job already wrote; never counts anything, so polling stays cheap.
+     */
+    public function progress()
+    {
+        $this->guard();
 
+        $import = \App\Models\Tenant\TenantImport::where('tenant_id', tenant()->id)
+            ->whereIn('status', ['running', 'reversing'])
+            ->orWhere(function ($q) {
+                $q->where('tenant_id', tenant()->id)
+                  ->whereIn('progress_stage', ['done', 'reversed', 'failed'])
+                  ->whereNull('progress_seen_at')
+                  ->where('updated_at', '>=', now()->subHours(6));
+            })
+            ->orderByDesc('updated_at')->first();
+
+        // MARKER-CATALOG-IMPORT-ALL — a distributor catalog import is the
+        // other long-running job a shop can start. Same banner, same shape.
+        $batch = \App\Models\Tenant\CatalogChangeBatch::where('tenant_id', tenant()->id)
+            ->where(function ($q) {
+                // MARKER-CATALOG-PROGRESS-STAGE — progress_stage, not status:
+                // the import service resets status each page, stage is ours.
+                $q->where('progress_stage', 'importing')
+                  ->orWhere(function ($q2) {
+                      $q2->whereIn('progress_stage', ['done', 'failed'])
+                         ->whereNull('progress_seen_at')
+                         ->where('updated_at', '>=', now()->subHours(6));
+                  });
+            })
+            ->orderByDesc('updated_at')->first();
+
+        if ($batch && (! $import || $batch->updated_at > $import->updated_at)) {
+            $running = $batch->progress_stage === 'importing'; // MARKER-CATALOG-PROGRESS-STAGE
+            $res     = (array) ($batch->result ?? []);
+            $code    = (string) (($batch->filter ?? [])['code'] ?? 'distributor');
+
+            return response()->json([
+                'active'  => true,
+                'id'      => $batch->id,
+                'kind'    => 'catalog',
+                'running' => $running,
+                'stage'   => $batch->progress_stage,
+                'done'    => (int) $batch->progress_done,
+                'total'   => (int) $batch->progress_total,
+                'pct'     => $batch->progress_total > 0
+                    ? min(100, (int) round($batch->progress_done / $batch->progress_total * 100)) : 0,
+                'label'   => 'Importing ' . $code . ' catalog',
+                'result'  => $running ? null : ($batch->progress_stage === 'failed'
+                    ? 'Catalog import stopped — what imported is on the batch and can still be undone'
+                    : 'Catalog import finished · ' . number_format((int) ($res['created'] ?? 0)) . ' added, '
+                        . number_format((int) ($res['merged'] ?? 0)) . ' merged, '
+                        . number_format((int) ($res['skipped'] ?? 0)) . ' already had'),
+                'href'    => route('tenant.distributors.attention.history'),
+            ]);
+        }
+
+        if (! $import) {
+            return response()->json(['active' => false]);
+        }
+
+        $running = in_array($import->status, ['running', 'reversing'], true);
+        $totals  = (array) $import->totals;
+        $rev     = (array) ($totals['reversal'] ?? []);
+
+        return response()->json([
+            'active'   => true,
+            'id'       => $import->id,
+            'running'  => $running,
+            'stage'    => $import->progress_stage,
+            'done'     => (int) $import->progress_done,
+            'total'    => (int) $import->progress_total,
+            'pct'      => $import->progress_total > 0
+                ? min(100, (int) round($import->progress_done / $import->progress_total * 100)) : 0,
+            'label'    => $import->status === 'reversing' ? 'Reversing import' : 'Importing ' . $import->type,
+            'result'   => $running ? null : match ($import->progress_stage) {
+                'reversed' => 'Reverse finished · ' . number_format((int) ($rev['deleted'] ?? 0)) . ' deleted, '
+                    . number_format((int) ($rev['restored'] ?? 0)) . ' restored'
+                    . (($rev['kept'] ?? 0) ? ', ' . number_format((int) $rev['kept']) . ' kept (used since)' : ''),
+                'failed'   => $import->failure_reason ?: 'Stopped — press Reverse again to continue',
+                default    => 'Import finished · ' . number_format((int) ($totals['created'] ?? 0)) . ' added, '
+                    . number_format((int) ($totals['updated'] ?? 0)) . ' updated',
+            },
+            'href'     => route('tenant.imports.show', $import->id),
+        ]);
+    }
+
+    /** MARKER-IMPORT-PROGRESS — dismiss the finished banner. */
+    public function progressSeen(string $id)
+    {
+        $this->guard();
+        \App\Models\Tenant\TenantImport::where('tenant_id', tenant()->id)
+            ->where('id', $id)->update(['progress_seen_at' => now()]);
+
+        // MARKER-CATALOG-IMPORT-ALL — the banner shows both kinds, so dismiss
+        // has to reach both. Ids are uuids; only one of these can match.
+        \App\Models\Tenant\CatalogChangeBatch::where('tenant_id', tenant()->id)
+            ->where('id', $id)->update(['progress_seen_at' => now()]);
+
+        return response()->json(['ok' => true]);
+    }
 
     public function reverse(string $id)
     {
