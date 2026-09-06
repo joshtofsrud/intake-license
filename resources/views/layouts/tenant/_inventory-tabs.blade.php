@@ -15,6 +15,7 @@
       $invTabs[] = ['route' => 'tenant.inventory.uncategorized', 'label' => 'Uncategorized (' . $uncatCount . ')', 'match' => 'tenant.inventory.uncategorized'];
   }
   $invTabs[] = ['route' => 'tenant.inventory.categories.index', 'label' => 'Categories',        'match' => 'tenant.inventory.categories'];
+  $invTabs[] = ['route' => 'tenant.inventory.category-mappings.index', 'label' => 'Category mappings', 'match' => 'tenant.inventory.category-mappings']; // MARKER-CAT-MAP
   $invTabs[] = ['route' => 'tenant.inventory.receiving.index',  'label' => 'Receiving',         'match' => 'tenant.inventory.receiving'];
   $invTabs[] = ['route' => 'tenant.inventory.reports',          'label' => 'Reports',           'match' => 'tenant.inventory.reports']; // MARKER-INV-REPORTS-TABS
   if ($distOn) {

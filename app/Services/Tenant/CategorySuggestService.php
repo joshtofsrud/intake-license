@@ -14,15 +14,23 @@ use Illuminate\Support\Str;
 class CategorySuggestService
 {
     /** Record (or overwrite) bucket -> category after an assignment. */
-    public function learn(string $tenantId, ?string $bucketKey, string $categoryId): void
+    public function learn(string $tenantId, ?string $bucketKey, string $categoryId, string $sourceKind = 'distributor', string $sourceName = 'UNKNOWN'): void
     {
         $bucketKey = trim((string) $bucketKey);
         if ($bucketKey === '' || $bucketKey === '__none__') return;
 
+        // MARKER-CAT-MAP — one table for every source. A rule the user set
+        // deliberately (on the mappings page or in an import) is never
+        // overwritten by an inference from a bucket assignment.
+        $key = ['tenant_id' => $tenantId, 'source_kind' => $sourceKind, 'source_name' => $sourceName, 'bucket_key' => $bucketKey];
+        $existing = DB::table('tenant_bucket_rules')->where($key)->first(['id', 'set_by']);
+        if ($existing && $existing->set_by === 'user') {
+            return;
+        }
         DB::table('tenant_bucket_rules')->updateOrInsert(
-            ['tenant_id' => $tenantId, 'bucket_key' => $bucketKey],
+            $key,
             ['id' => DB::raw("COALESCE(id, '" . (string) Str::uuid() . "')"),
-             'category_id' => $categoryId, 'hits' => DB::raw('COALESCE(hits, 0) + 1'),
+             'category_id' => $categoryId, 'set_by' => 'mapper', 'hits' => DB::raw('COALESCE(hits, 0) + 1'),
              'last_used_at' => now(), 'updated_at' => now(), 'created_at' => DB::raw('COALESCE(created_at, NOW())')]
         );
     }
@@ -39,6 +47,7 @@ class CategorySuggestService
         $rules = DB::table('tenant_bucket_rules as r')
             ->join('tenant_inventory_categories as c', 'c.id', '=', 'r.category_id')
             ->where('r.tenant_id', $tenantId)
+            ->where('r.source_kind', 'distributor')   // MARKER-CAT-MAP — the mapper's buckets are catalog categories
             ->get(['r.bucket_key', 'r.category_id', 'c.name as category_name']);
 
         if ($rules->isEmpty()) return [];
