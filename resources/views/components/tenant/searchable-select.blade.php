@@ -37,7 +37,12 @@
       <div class="ssel-search"><input type="text" placeholder="Type to filter&hellip;" autocomplete="off"></div>
     @endif
     <div class="ssel-list" role="listbox">
-      <div class="ssel-opt ssel-any {{ $selected === '' ? 'is-sel' : '' }}" data-v="" data-l="{{ $any }}" role="option"><span class="t">{{ $any }}</span><span class="ssel-tick">&#10003;</span></div>
+      {{-- MARKER-SSEL-NOBLANK — this row was rendered whatever $any held, so
+           any="" produced an empty option in every picker. It exists only when
+           there is something to say, e.g. "Any brand" on a filter. --}}
+      @if($any !== '')
+        <div class="ssel-opt ssel-any {{ (string) $selected === '' ? 'is-sel' : '' }}" data-v="" data-l="{{ $any }}" role="option"><span class="t">{{ $any }}</span><span class="ssel-tick">&#10003;</span></div>
+      @endif
       @foreach($sselOpts as $o)
         <div class="ssel-opt {{ (string) $selected === $o['v'] ? 'is-sel' : '' }}" data-v="{{ $o['v'] }}" data-l="{{ $o['l'] }}" role="option"><span class="t">{!! nl2br(e($o['l'])) !!}</span><span class="ssel-tick">&#10003;</span></div>
       @endforeach
