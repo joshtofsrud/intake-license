@@ -32,11 +32,13 @@
   /* MARKER-REG-MOBILE — these three were inline on the <select>, which meant
      no media query could override them and the stage-3b mobile rule below
      silently did nothing. */
+  .reg-tabs-bar .reg-picker-wrap,
   .reg-tabs-bar #registerPicker{margin-left:auto;max-width:220px;font-size:13px}
 
   @media (max-width: 760px){
     /* now reachable: its own full-width row under the tabs */
-    .reg-tabs-bar #registerPicker{
+    .reg-tabs-bar .reg-picker-wrap,
+  .reg-tabs-bar #registerPicker{
       display:block;width:100%;max-width:none;margin:8px 0 2px
     }
     /* the checkout banner stacks rather than wrapping around its button */
@@ -49,6 +51,7 @@
      Centre it and size it to the tab links instead. Scoped to the picker:
      .reg-tab-link needs the bar to stay stretch-aligned so its -0.5px bottom
      margin keeps the active underline on the border. */
+  .reg-tabs-bar .reg-picker-wrap,
   .reg-tabs-bar #registerPicker{
     align-self:center;height:30px;padding:0 10px;line-height:1
   }
@@ -56,7 +59,8 @@
   /* MARKER-OFFLINE-SYNC stage 3b — mobile: picker on its own full-width row
      instead of floating beside wrapped tabs */
   @media (max-width: 760px) {
-    .reg-tabs-bar #registerPicker{
+    .reg-tabs-bar .reg-picker-wrap,
+  .reg-tabs-bar #registerPicker{
       order:99;flex:1 1 100%;max-width:none;margin:8px 0 2px;width:100%;
     }
     .reg-tabs-bar{row-gap:2px}
@@ -482,7 +486,7 @@
       $sselRegs = ['0' => 'No register / display'];
       foreach ($registers as $r) { $sselRegs[(string) $r->id] = '#' . $r->number . ' — ' . $r->name; }
     @endphp
-    <div class="reg-picker-wrap" style="margin-left:auto;max-width:220px">
+    <div class="reg-picker-wrap" style="margin-left:auto;width:220px;flex:0 0 220px">{{-- MARKER-SSEL-REGWIDTH — the old CSS sized #registerPicker itself; that id is now the hidden input, so the wrapper needs a real width or it collapses --}}
       <x-tenant.searchable-select name="register_picker" id="registerPicker" :searchable="false"
         :options="$sselRegs" :selected="(string) ($currentRegisterId ?? 0)"
         any="" noun="registers" />{{-- MARKER-SSEL-DEFAULT — "0" is already the first option --}}
