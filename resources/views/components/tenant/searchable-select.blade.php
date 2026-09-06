@@ -34,7 +34,7 @@
         <div class="ssel-opt {{ (string) $selected === $o['v'] ? 'is-sel' : '' }}" data-v="{{ $o['v'] }}" data-l="{{ $o['l'] }}" role="option"><span class="t">{!! nl2br(e($o['l'])) !!}</span><span class="ssel-tick">&#10003;</span></div>
       @endforeach
     </div>
-    <div class="ssel-foot"><span class="ssel-cnt"></span><span>Enter to pick &middot; Esc to close</span></div>
+    <div class="ssel-foot"><span class="ssel-cnt"></span>{{-- MARKER-SSEL-NOHINT — keyboard hint removed --}}</div>
   </div>
 </div>
 @once

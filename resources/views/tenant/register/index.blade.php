@@ -474,13 +474,19 @@
   @if (($registers ?? collect())->isNotEmpty())
     {{-- MARKER-REG-MOBILE — margin/max-width/font-size moved to CSS so the
          mobile rule can override them. --}}
-    <select id="registerPicker" class="ia-input"
-            title="Pay-station display this device drives">
-      <option value="0">No register / display</option>
-      @foreach ($registers as $r)
-        <option value="{{ $r->id }}" @selected(($currentRegisterId ?? 0) === $r->id)>#{{ $r->number }} — {{ $r->name }}</option>
-      @endforeach
-    </select>
+    {{-- MARKER-SSEL-REGPICKER — our picker, not the OS-drawn native popup.
+         The hidden input keeps the id "registerPicker" so the pairing script
+         below reads it exactly as before, and the component fires `change`
+         on it, which is the event that script already listens for. --}}
+    @php
+      $sselRegs = ['0' => 'No register / display'];
+      foreach ($registers as $r) { $sselRegs[(string) $r->id] = '#' . $r->number . ' — ' . $r->name; }
+    @endphp
+    <div class="reg-picker-wrap" style="margin-left:auto;max-width:220px">
+      <x-tenant.searchable-select name="register_picker" id="registerPicker" :searchable="false"
+        :options="$sselRegs" :selected="(string) ($currentRegisterId ?? 0)"
+        any="No register / display" noun="registers" />
+    </div>
   @endif
 </div>
 

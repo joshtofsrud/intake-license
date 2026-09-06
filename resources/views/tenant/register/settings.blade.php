@@ -87,7 +87,7 @@
       <div style="min-width:180px;max-width:220px">
         <x-tenant.searchable-select name="register_draft_retention_days" :searchable="false"
           :options="['0' => 'Forever', '7' => '7 days', '14' => '14 days', '30' => '30 days', '90' => '90 days']"
-          :selected="(string) $draftRetention" any="Forever" noun="options" />
+          :selected="(string) $draftRetention" any="" noun="options" />{{-- MARKER-SSEL-NODUPE — the default is a real option; an "any" row duplicates it --}}
       </div>
     </div>
   </div>
@@ -105,7 +105,7 @@
       <div style="min-width:180px;max-width:220px">
         <x-tenant.searchable-select name="register_quote_retention_days" :searchable="false"
           :options="['0' => 'Forever', '30' => '30 days', '90' => '90 days', '180' => '180 days', '365' => '1 year']"
-          :selected="(string) $quoteRetention" any="Forever" noun="options" />
+          :selected="(string) $quoteRetention" any="" noun="options" />{{-- MARKER-SSEL-NODUPE — the default is a real option; an "any" row duplicates it --}}
       </div>
     </div>
   </div>
@@ -187,7 +187,7 @@
         <div style="min-width:180px;max-width:230px">
           <x-tenant.searchable-select name="gift_card_pending_retention_days" :searchable="false"
             :options="['0' => 'Keep forever', '1' => 'Purge after 1 day', '3' => 'Purge after 3 days', '7' => 'Purge after 7 days', '30' => 'Purge after 30 days']"
-            :selected="(string) $gift['pending_days']" any="Keep forever" noun="options" />
+            :selected="(string) $gift['pending_days']" any="" noun="options" />
         </div>
         <div class="gc-hint">An online purchase that never finished payment leaves an unpaid card row. Only rows with no payment and no balance history are ever purged.</div>
       </div>
