@@ -284,6 +284,51 @@ class InventoryService
      * Writes a single movement with quantity_delta = newCount - currentStock.
      * Reason is REQUIRED for audit clarity ("damaged in transit", "found in storeroom").
      */
+    /**
+     * MARKER-RECEIVED-COST — the ONE place received cost is written.
+     *
+     * $units arrived at $unitCostCents each. How that folds into the item's
+     * received cost depends on the shop's method:
+     *   average — weighted by units, across every event so far (default)
+     *   last    — the most recent price wins outright
+     *   manual  — never auto-updated; the shop sets it by hand
+     * A seeded value carries zero units, so the first real event is weighted
+     * entirely by real stock rather than by a typed number.
+     */
+    public function recordReceivedCost(
+        Tenant $tenant,
+        TenantInventoryItem $item,
+        int $units,
+        int $unitCostCents,
+        string $source,
+    ): void {
+        if ($units <= 0 || $unitCostCents < 0) {
+            return;
+        }
+
+        $method = (string) ((array) ($tenant->settings ?? []))['inventory_cost_method'] ?? 'average';
+        if ($method === 'manual') {
+            return;
+        }
+
+        $item->refresh();
+        $prevCost  = $item->received_cost_cents;
+        $prevUnits = (int) ($item->received_cost_units ?? 0);
+
+        if ($method === 'last' || $prevCost === null || $prevUnits <= 0) {
+            $newCost = $unitCostCents;
+        } else {
+            $newCost = (int) round((($prevCost * $prevUnits) + ($unitCostCents * $units)) / ($prevUnits + $units));
+        }
+
+        $item->forceFill([
+            'received_cost_cents'  => $newCost,
+            'received_cost_units'  => $prevUnits + $units,
+            'received_cost_at'     => now(),
+            'received_cost_source' => $source,
+        ])->save();
+    }
+
     public function adjustStock(
         Tenant $tenant,
         TenantInventoryItem $item,
@@ -292,6 +337,7 @@ class InventoryService
         string $reason,
         ?TenantUser $tenantUser = null,
         ?string $notes = null,
+        ?int $unitCostCents = null,   // MARKER-RECEIVED-COST — stock coming IN at a known price
     ): TenantInventoryMovement {
         $this->assertTenantOwnsResources($tenant, $item, $location);
 
@@ -304,7 +350,7 @@ class InventoryService
         }
 
         return DB::transaction(function () use (
-            $tenant, $item, $location, $newCount, $reason, $tenantUser, $notes
+            $tenant, $item, $location, $newCount, $reason, $tenantUser, $notes, $unitCostCents
         ) {
             $itemLocation = $this->getOrCreateItemLocationLocked($tenant, $item, $location);
             $delta = $newCount - $itemLocation->computed_stock_count;
@@ -318,7 +364,7 @@ class InventoryService
                 referenceType: 'manual',
                 referenceId: null,
                 tenantUser: $tenantUser,
-                costCentsAtTime: $item->effectiveCostCents(),
+                costCentsAtTime: $unitCostCents ?? $item->effectiveCostCents(),  // MARKER-RECEIVED-COST
                 reason: $reason,
                 notes: $notes,
             );
@@ -326,6 +372,13 @@ class InventoryService
             $this->applyDeltaToCaches($item, $itemLocation, $delta);
 
             event(new InventoryStockChanged($movement));
+
+            // MARKER-RECEIVED-COST — an adjustment IN with a cost is stock
+            // arriving at a known price, same as a receive. Out, or no cost,
+            // leaves received cost alone.
+            if ($delta > 0 && $unitCostCents !== null) {
+                $this->recordReceivedCost($tenant, $item, $delta, $unitCostCents, 'adjustment');
+            }
 
             return $movement;
         });

@@ -544,6 +544,15 @@ class ReceiveShipmentController extends Controller
                         movementType: 'receive',
                         notes: "Shipment {$shipment->shipment_number}",
                     );
+
+                    // MARKER-RECEIVED-COST — this is the number you paid,
+                    // rolled up onto the item. Catalog prefilled the line;
+                    // whatever the receiver left on it is what committed.
+                    if ($line->unit_cost_cents !== null) {
+                        $this->inventory->recordReceivedCost(
+                            $tenant, $item, (int) $line->received_quantity, (int) $line->unit_cost_cents, 'receive'
+                        );
+                    }
                 }
 
                 // patch-90 commit() SO arrival pass — auto-link arrived SOs.

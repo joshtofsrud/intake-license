@@ -1145,6 +1145,7 @@ class InventoryController extends Controller
             'reason_code' => ['required', 'string', 'in:damaged,expired,theft_shrinkage,count_correction,found,vendor_credit,donation,internal_use,display,sample,other'],
             'reason_text' => ['nullable', 'string', 'max:500'],
             'notes'       => ['nullable', 'string', 'max:1000'],
+            'unit_cost'   => ['nullable', 'numeric', 'min:0'], // MARKER-RECEIVED-COST
         ]);
 
         // 'other' requires a reason_text
@@ -1170,6 +1171,8 @@ class InventoryController extends Controller
                 reason: $reasonString,
                 tenantUser: Auth::guard('tenant')->user(),
                 notes: $data['notes'] ?? null,
+                unitCostCents: isset($data['unit_cost']) && $data['unit_cost'] !== '' && $data['unit_cost'] !== null
+                    ? (int) round(((float) $data['unit_cost']) * 100) : null, // MARKER-RECEIVED-COST
             );
         } catch (InvalidQuantityException $e) {
             return back()->withInput()->withErrors(['reason_code' => $e->getMessage()]);

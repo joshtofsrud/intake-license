@@ -57,6 +57,10 @@ class TenantInventoryItem extends Model
         'price_ack_at',
         'price_ack_by',
         'shop_cost_cents',
+        'received_cost_cents',   // MARKER-RECEIVED-COST
+        'received_cost_units',
+        'received_cost_at',
+        'received_cost_source',
         'shop_sell_price_cents',
         'shop_case_quantity',
         'shop_reorder_threshold',
@@ -81,6 +85,9 @@ class TenantInventoryItem extends Model
         'catalog_details_seen' => 'array', // MARKER-DETAILS-WATCH
         'price_ack_at' => 'datetime',
         'shop_cost_cents' => 'integer',
+        'received_cost_cents' => 'integer',   // MARKER-RECEIVED-COST
+        'received_cost_units' => 'integer',
+        'received_cost_at'    => 'datetime',
         'shop_sell_price_cents' => 'integer',
         'shop_case_quantity' => 'integer',
         'shop_reorder_threshold' => 'integer',
@@ -119,9 +126,36 @@ class TenantInventoryItem extends Model
     // ─── Catalog/Shop fallback accessors ─────────────────────────────────
     // Effective value = shop value if set, else catalog value.
 
+    /**
+     * MARKER-RECEIVED-COST — the cost margin should use.
+     *
+     * Received cost is yours: what stock actually arrived at. Catalog cost is
+     * theirs, and fills the gap only until you have a real number. The old
+     * version fell back from a typed shop cost to catalog silently, so no
+     * caller could tell a price you paid from a price a distributor listed.
+     * costSource() says which this is.
+     */
     public function effectiveCostCents(): ?int
     {
-        return $this->shop_cost_cents ?? $this->catalog_cost_cents;
+        return $this->received_cost_cents ?? $this->catalog_cost_cents;
+    }
+
+    /** 'received' | 'catalog' | null — which number effectiveCostCents() is. */
+    public function costSource(): ?string
+    {
+        if ($this->received_cost_cents !== null) return 'received';
+        if ($this->catalog_cost_cents !== null)  return 'catalog';
+        return null;
+    }
+
+    /** Plain words for a margin figure: "your cost" or "estimated from BTI's catalog". */
+    public function costSourceLabel(): string
+    {
+        return match ($this->costSource()) {
+            'received' => 'your cost',
+            'catalog'  => 'estimated from the ' . ($this->distributorCatalog?->distributor_code ?? 'distributor') . ' catalog',
+            default    => 'no cost recorded',
+        };
     }
 
     public function effectiveSellPriceCents(): ?int

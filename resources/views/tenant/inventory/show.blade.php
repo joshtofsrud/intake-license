@@ -208,6 +208,14 @@
           <input type="number" min="0" name="new_count" class="ia-input" required value="{{ old('new_count') }}">
           <div class="ia-form-hint">The actual count on hand right now. We'll calculate the difference.</div>
         </div>
+        {{-- MARKER-RECEIVED-COST — stock coming in at a known price feeds your
+             received cost, same as a receive. Leave blank to move quantity only. --}}
+        <div class="ia-form-group">
+          <label class="ia-form-label">Cost per unit ($)</label>
+          <input type="number" min="0" step="0.01" name="unit_cost" class="ia-input" value="{{ old('unit_cost') }}"
+                 placeholder="{{ $item->effectiveCostCents() !== null ? number_format($item->effectiveCostCents() / 100, 2) : 'optional' }}">
+          <div class="ia-form-hint">Only used when the count goes up. Sets your received cost; blank leaves cost alone.</div>
+        </div>
         <div class="ia-form-group">
           <label class="ia-form-label">Reason <span class="ia-required">*</span></label>
           <select name="reason_code" class="ia-input" required onchange="document.getElementById('reason-other-row').style.display = this.value === 'other' ? '' : 'none'">
