@@ -930,12 +930,10 @@
       {{-- Window --}}
       <div class="del-row">
         <label class="del-label">Window</label>
-        <select name="window_minutes" class="del-select" id="del-window">
-          <option value="15">15 min window</option>
-          <option value="30" selected>30 min window</option>
-          <option value="60">60 min window</option>
-          <option value="120">2 hour window</option>
-        </select>
+        {{-- MARKER-SSEL-BATCH2 --}}
+        <x-tenant.searchable-select name="window_minutes" :searchable="false"
+          :options="['15' => '15 min window', '30' => '30 min window', '60' => '60 min window', '120' => '2 hour window']"
+          selected="30" any="30 min window" noun="windows" />
       </div>
 
       {{-- Address — MARKER-PATCH-153 — manual entry, no autofill --}}
@@ -948,12 +946,16 @@
       @if($is_timeslot && $resources->isNotEmpty())
         <div class="del-row">
           <label class="del-label">Delivery resource</label>
-          <select name="delivery_resource_id" class="del-select" id="del-resource">
-            <option value="">Unassigned</option>
-            @foreach($resources as $res)
-              <option value="{{ $res->id }}">{{ $res->name }}@if($res->subtitle) — {{ $res->subtitle }}@endif</option>
-            @endforeach
-          </select>
+          {{-- MARKER-SSEL-BATCH2 --}}
+          @php
+            $sselRes = [];
+            foreach ($resources as $res) {
+                $sselRes[$res->id] = $res->name . ($res->subtitle ? ' — ' . $res->subtitle : '');
+            }
+          @endphp
+          <x-tenant.searchable-select name="delivery_resource_id" :options="$sselRes"
+            selected="" any="Unassigned" noun="resources"
+            :searchable="count($sselRes) >= 12" />
           @error('delivery_resource_id')<div class="del-error">{{ $message }}</div>@enderror
         </div>
       @endif

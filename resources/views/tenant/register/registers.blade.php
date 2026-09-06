@@ -49,13 +49,14 @@
               style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
           @csrf
           <label style="font-size:12.5px;color:var(--ia-muted)">Welcome-screen logo</label>
-          <select name="display_logo" class="ia-input" style="max-width:210px;font-size:13px"
-                  onchange="this.form.submit()">
-            <option value="auto"  @selected($r->display_logo === 'auto')>Auto (light, then main)</option>
-            <option value="light" @selected($r->display_logo === 'light')>Light logo</option>
-            <option value="main"  @selected($r->display_logo === 'main')>Main logo</option>
-            <option value="none"  @selected($r->display_logo === 'none')>No logo</option>
-          </select>
+          {{-- MARKER-SSEL-BATCH2 — the native select submitted on change; the
+               component has no onchange, so the handler at the foot of this
+               page listens for its hidden input instead. --}}
+          <div style="max-width:210px" data-ssel-submit>
+            <x-tenant.searchable-select name="display_logo" :searchable="false"
+              :options="['auto' => 'Auto (light, then main)', 'light' => 'Light logo', 'main' => 'Main logo', 'none' => 'No logo']"
+              :selected="$r->display_logo ?? 'auto'" any="Auto (light, then main)" noun="logo options" />
+          </div>
         </form>
         <div style="display:flex;gap:8px">
           <button class="ia-btn ia-btn-ghost" onclick="toggleQr({{ $r->id }})">Show pairing QR</button>
@@ -108,3 +109,15 @@ function toggleQr(id) {
 }
 </script>
 @endsection
+
+{{-- MARKER-SSEL-BATCH2 — ssel-submit-handler. Replaces the native select's
+     onchange="this.form.submit()": the component fires `change` on its hidden
+     input, so the logo choice still saves the moment it is picked. --}}
+<script>
+  document.addEventListener('change', function (e) {
+    var host = e.target.closest && e.target.closest('[data-ssel-submit]');
+    if (!host || !e.target.classList.contains('ssel-val')) { return; }
+    var form = host.closest('form');
+    if (form) { form.submit(); }
+  });
+</script>

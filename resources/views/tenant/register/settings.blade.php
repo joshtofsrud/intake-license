@@ -83,13 +83,12 @@
     </div>
     <div class="rs-row">
       <label for="rs-draft">Keep drafts</label>
-      <select id="rs-draft" name="register_draft_retention_days" class="ia-input" style="width:auto;min-width:180px">
-        <option value="0"  @selected($draftRetention === 0)>Forever</option>
-        <option value="7"  @selected($draftRetention === 7)>7 days</option>
-        <option value="14" @selected($draftRetention === 14)>14 days</option>
-        <option value="30" @selected($draftRetention === 30)>30 days</option>
-        <option value="90" @selected($draftRetention === 90)>90 days</option>
-      </select>
+      {{-- MARKER-SSEL-BATCH2 --}}
+      <div style="min-width:180px;max-width:220px">
+        <x-tenant.searchable-select name="register_draft_retention_days" :searchable="false"
+          :options="['0' => 'Forever', '7' => '7 days', '14' => '14 days', '30' => '30 days', '90' => '90 days']"
+          :selected="(string) $draftRetention" any="Forever" noun="options" />
+      </div>
     </div>
   </div>
 
@@ -102,13 +101,12 @@
     </div>
     <div class="rs-row">
       <label for="rs-quote">Keep quotes</label>
-      <select id="rs-quote" name="register_quote_retention_days" class="ia-input" style="width:auto;min-width:180px">
-        <option value="0"   @selected($quoteRetention === 0)>Forever</option>
-        <option value="30"  @selected($quoteRetention === 30)>30 days</option>
-        <option value="90"  @selected($quoteRetention === 90)>90 days</option>
-        <option value="180" @selected($quoteRetention === 180)>180 days</option>
-        <option value="365" @selected($quoteRetention === 365)>1 year</option>
-      </select>
+      {{-- MARKER-SSEL-BATCH2 --}}
+      <div style="min-width:180px;max-width:220px">
+        <x-tenant.searchable-select name="register_quote_retention_days" :searchable="false"
+          :options="['0' => 'Forever', '30' => '30 days', '90' => '90 days', '180' => '180 days', '365' => '1 year']"
+          :selected="(string) $quoteRetention" any="Forever" noun="options" />
+      </div>
     </div>
   </div>
 
@@ -185,13 +183,12 @@
     <div class="rs-row" style="margin-bottom:14px">
       <label for="rs-gc-pending">Abandoned online</label>
       <div>
-        <select id="rs-gc-pending" name="gift_card_pending_retention_days" class="ia-input" style="width:auto;min-width:180px">
-          <option value="0"  @selected($gift['pending_days'] === 0)>Keep forever</option>
-          <option value="1"  @selected($gift['pending_days'] === 1)>Purge after 1 day</option>
-          <option value="3"  @selected($gift['pending_days'] === 3)>Purge after 3 days</option>
-          <option value="7"  @selected($gift['pending_days'] === 7)>Purge after 7 days</option>
-          <option value="30" @selected($gift['pending_days'] === 30)>Purge after 30 days</option>
-        </select>
+        {{-- MARKER-SSEL-BATCH2 --}}
+        <div style="min-width:180px;max-width:230px">
+          <x-tenant.searchable-select name="gift_card_pending_retention_days" :searchable="false"
+            :options="['0' => 'Keep forever', '1' => 'Purge after 1 day', '3' => 'Purge after 3 days', '7' => 'Purge after 7 days', '30' => 'Purge after 30 days']"
+            :selected="(string) $gift['pending_days']" any="Keep forever" noun="options" />
+        </div>
         <div class="gc-hint">An online purchase that never finished payment leaves an unpaid card row. Only rows with no payment and no balance history are ever purged.</div>
       </div>
     </div>
