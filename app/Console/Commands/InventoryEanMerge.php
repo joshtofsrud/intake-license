@@ -122,7 +122,7 @@ class InventoryEanMerge extends Command
         $this->line('Matching on: ' . implode(', ', $on));
         $this->newLine();
 
-        $folded = $pivots = $inherited = $done = $stocked = $moved = 0;
+        $folded = $pivots = $inherited = $done = $stocked = $moved = $dropped = 0;
 
         // Every other table that points at an inventory item follows the fold.
         // Discovered rather than hardcoded: a table added later would otherwise
@@ -137,7 +137,46 @@ class InventoryEanMerge extends Command
                 $refTables[] = $table;
             }
         }
+        // A blanket UPDATE breaks on any table with a unique key that includes
+        // inventory_item_id — the loser and the survivor can each already hold
+        // the row that key allows only once (tenant_pricing_attention_flags is
+        // unique on tenant_id + inventory_item_id + reason, and both items
+        // carry the same flag). Discover those keys and repoint row by row,
+        // dropping the loser's row where the survivor already has its match.
+        $uniqueKeys = [];
+        foreach ($refTables as $table) {
+            $stats = DB::select(
+                "SELECT INDEX_NAME, COLUMN_NAME FROM INFORMATION_SCHEMA.STATISTICS
+                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND NON_UNIQUE = 0
+                 ORDER BY INDEX_NAME, SEQ_IN_INDEX",
+                [$table]
+            );
+            $byIndex = [];
+            foreach ($stats as $s) {
+                $byIndex[$s->INDEX_NAME][] = $s->COLUMN_NAME;
+            }
+            foreach ($byIndex as $columns) {
+                if (in_array('inventory_item_id', $columns, true)) {
+                    $uniqueKeys[$table][] = $columns;
+                }
+            }
+
+            // The row-by-row path addresses rows by id. Fail now rather than
+            // part-way through a run if some table does not have one.
+            if (! empty($uniqueKeys[$table]) && ! \Illuminate\Support\Facades\Schema::hasColumn($table, 'id')) {
+                $this->error("{$table} has a unique key on inventory_item_id but no id column to address rows by.");
+                return self::FAILURE;
+            }
+        }
+
         $this->line('Repointing: ' . implode(', ', $refTables));
+        if ($uniqueKeys) {
+            foreach ($uniqueKeys as $table => $keys) {
+                foreach ($keys as $columns) {
+                    $this->line('  unique key on ' . $table . ': ' . implode(' + ', $columns));
+                }
+            }
+        }
         $this->newLine();
 
         // Cluster per tenant. Identifiers are only unique within a shop, and
@@ -237,7 +276,7 @@ class InventoryEanMerge extends Command
                 $survivor = TenantInventoryItem::find($survivorRow->id);
                 $losers   = TenantInventoryItem::whereIn('id', array_map(fn ($l) => $l->id, $ordered))->get();
 
-                DB::transaction(function () use ($survivor, $losers, $refTables, &$pivots, &$inherited, &$moved) {
+                DB::transaction(function () use ($survivor, $losers, $refTables, $uniqueKeys, $clusterStock, &$pivots, &$inherited, &$moved, &$dropped) {
                     $fill = [];
                     foreach ($losers as $loser) {
                         foreach (TenantInventoryItemVendor::where('inventory_item_id', $loser->id)->get() as $pivot) {
@@ -280,9 +319,44 @@ class InventoryEanMerge extends Command
                         // or movement still reads as it did — repointing moves
                         // the link without rewriting the history.
                         foreach ($refTables as $table) {
-                            $moved += DB::table($table)
-                                ->where('inventory_item_id', $loser->id)
-                                ->update(['inventory_item_id' => $survivor->id]);
+                            if (empty($uniqueKeys[$table])) {
+                                $moved += DB::table($table)
+                                    ->where('inventory_item_id', $loser->id)
+                                    ->update(['inventory_item_id' => $survivor->id]);
+                                continue;
+                            }
+
+                            // Row by row, because a unique key including
+                            // inventory_item_id can already be taken by the
+                            // survivor's own row.
+                            foreach (DB::table($table)->where('inventory_item_id', $loser->id)->get() as $row) {
+                                $clash = false;
+                                foreach ($uniqueKeys[$table] as $columns) {
+                                    $probe = DB::table($table)->where('inventory_item_id', $survivor->id);
+                                    foreach ($columns as $col) {
+                                        if ($col === 'inventory_item_id') {
+                                            continue;
+                                        }
+                                        $val = $row->{$col} ?? null;
+                                        $val === null ? $probe->whereNull($col) : $probe->where($col, $val);
+                                    }
+                                    if ($probe->exists()) {
+                                        $clash = true;
+                                        break;
+                                    }
+                                }
+
+                                if ($clash) {
+                                    // The survivor already carries the same
+                                    // row. The loser's is a duplicate of it.
+                                    DB::table($table)->where('id', $row->id)->delete();
+                                    $dropped++;
+                                } else {
+                                    DB::table($table)->where('id', $row->id)
+                                        ->update(['inventory_item_id' => $survivor->id]);
+                                    $moved++;
+                                }
+                            }
                         }
 
                         foreach (self::INHERIT_BLANKS as $field) {
@@ -294,6 +368,11 @@ class InventoryEanMerge extends Command
                         if ($loser->is_stock_tracked) {
                             $survivor->is_stock_tracked = true;
                         }
+
+                        // Read before the save: getOriginal() reflects the saved
+                        // state once save() has run, so capturing afterwards
+                        // reports 0 for every fold.
+                        $loserStock = (int) $loser->computed_stock_count;
 
                         $loser->is_active            = false;
                         $loser->computed_stock_count = 0;
@@ -307,7 +386,7 @@ class InventoryEanMerge extends Command
                             'tenant_id'   => $loser->tenant_id,
                             'loser_id'    => $loser->id,
                             'loser_sku'   => $loser->sku,
-                            'loser_stock' => (int) $loser->getOriginal('computed_stock_count'),
+                            'loser_stock' => $loserStock,
                             'survivor_id' => $survivor->id,
                             'survivor_sku' => $survivor->sku,
                         ]);
@@ -322,8 +401,10 @@ class InventoryEanMerge extends Command
                     if ($locRows->exists()) {
                         $survivor->computed_stock_count = (int) $locRows->sum('computed_stock_count');
                     } else {
-                        $survivor->computed_stock_count = (int) $survivor->computed_stock_count
-                            + $losers->sum(fn ($l) => (int) $l->getOriginal('computed_stock_count'));
+                        // $clusterStock was summed before anything was written.
+                        // Re-reading the losers here would give 0 — their counts
+                        // have already been zeroed above.
+                        $survivor->computed_stock_count = $clusterStock;
                     }
 
                     $survivor->fill($fill)->save();
@@ -344,6 +425,7 @@ class InventoryEanMerge extends Command
         if ($apply) {
             $this->line('Pivots moved     : ' . $pivots);
             $this->line('Rows repointed   : ' . $moved);
+            $this->line('Dup rows dropped : ' . $dropped . ' (survivor already had the same unique row)');
             $this->line('Fields inherited : ' . $inherited);
         } else {
             $this->newLine();
