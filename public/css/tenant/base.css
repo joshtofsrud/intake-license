@@ -266,6 +266,35 @@ ul { list-style: none; }
   box-shadow: 0 0 0 3px var(--ia-accent-soft);
 }
 .ia-textarea { resize: vertical; min-height: 80px; }
+
+/* MARKER-DARK-SELECT — a dropdown's LIST is drawn by the OS, not by this
+   stylesheet. With near-white text and no colour-scheme declared, a browser
+   in light mode painted a white popup and inherited white text: white on
+   white, reported by a tenant. color-scheme tells the browser to render
+   native controls dark; the explicit option colours cover the platforms that
+   ignore it (older Firefox, some Linux GTK themes). */
+body.ia-theme-c,
+body.ia-theme-c .ia-input,
+body.ia-theme-c .ia-select,
+body.ia-theme-c .ia-textarea,
+body.ia-theme-c select,
+body.ia-theme-c input,
+body.ia-theme-c textarea {
+  color-scheme: dark;
+}
+body.ia-theme-c select option,
+body.ia-theme-c select optgroup {
+  background-color: #1c1c1c;
+  color: #f0f0f0;
+}
+/* Native pickers — date, time, colour — get the same treatment. */
+body.ia-theme-c input[type="date"],
+body.ia-theme-c input[type="datetime-local"],
+body.ia-theme-c input[type="time"],
+body.ia-theme-c input[type="month"],
+body.ia-theme-c input[type="week"] {
+  color-scheme: dark;
+}
 .ia-input-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .ia-input-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
 
