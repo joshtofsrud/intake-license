@@ -792,11 +792,6 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             Route::delete('/import-mappings/{mappingId}',      [TenantControllers\ImportController::class, 'deletePreset'])->name('imports.preset.delete');
             Route::get('/imports/{id}/conflicts/{field}',      [TenantControllers\ImportController::class, 'conflictField'])->name('imports.conflict.field');
             Route::post('/imports/{id}/conflicts/{field}',     [TenantControllers\ImportController::class, 'saveConflictField'])->name('imports.conflict.field.save');
-            // MARKER-IMPORT-PROGRESS-ROUTE — these MUST stay above /imports/{id}.
-            // Laravel matches in declaration order, so below it 'progress' is
-            // read as an import id and the banner's poll 404s.
-            Route::get('/imports/progress',             [TenantControllers\ImportController::class, 'progress'])->name('imports.progress');
-            Route::post('/imports/{id}/progress-seen',  [TenantControllers\ImportController::class, 'progressSeen'])->name('imports.progress_seen');
             Route::get('/imports/{id}',                 [TenantControllers\ImportController::class, 'show'])->name('imports.show');
             // MARKER-IMPORT-DRILLDOWN — what's behind a result number
             Route::get('/imports/{id}/detail',  [TenantControllers\ImportController::class, 'detail'])->name('imports.detail');

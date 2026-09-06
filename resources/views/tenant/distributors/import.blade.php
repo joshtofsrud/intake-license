@@ -138,7 +138,9 @@
               Confirm to add {{ number_format($result['created']) }} new item(s).
             @endif
           </div>
-          <form method="POST" action="{{ route('tenant.distributors.import.run') }}">
+          {{-- MARKER-BULK-WORKING --}}
+          <form method="POST" action="{{ route('tenant.distributors.import.run') }}"
+                data-bulk-count="{{ (int) ($result['candidate_total'] ?? 0) }}">
             <input type="hidden" name="code" value="{{ $importCode }}">
             @csrf
             <input type="hidden" name="mode" value="commit">
