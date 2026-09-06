@@ -6,7 +6,7 @@
      import screen uses) or an associative array of value => label, which a
      category needs: a uuid value with a readable name. `searchable` turns the
      filter box off for short lists; it also hides itself on a phone. --}}
-@props(['name', 'options' => [], 'selected' => '', 'any' => 'Any', 'noun' => 'options', 'searchable' => true, 'required' => false])
+@props(['name', 'options' => [], 'selected' => '', 'any' => 'Any', 'noun' => 'options', 'searchable' => true, 'required' => false, 'id' => null]){{-- MARKER-SSEL-ID — the hidden input can carry a caller's id; scripts that used to read the native select by id still find it --}}
 @php
   // A list is 0,1,2… in order; anything else is a value => label map, even
   // when its keys happen to be numeric.
@@ -27,7 +27,7 @@
   }
 @endphp
 <div class="ssel" data-noun="{{ $noun }}" data-name="{{ $name }}">{{-- MARKER-SSEL-SCOPE --}}
-  <input type="hidden" name="{{ $name }}" value="{{ $selected }}" class="ssel-val">
+  <input type="hidden" name="{{ $name }}" value="{{ $selected }}" class="ssel-val" @if($id) id="{{ $id }}" @endif>
   <button type="button" class="ssel-btn" aria-haspopup="listbox">
     <span class="ssel-cur {{ (string) $selected === '' ? 'is-any' : '' }}">{{ $sselCur !== '' ? $sselCur : $any }}</span>
     <span class="ssel-chev" aria-hidden="true">&#9662;</span>
