@@ -52,7 +52,10 @@
         @php
           $catOpts = [];
           foreach ($categories as $opt) {
-              $catOpts[$opt['cat']->id] = ($opt['depth'] ? '└ ' : '') . $opt['cat']->name;
+              // MARKER-CAT-DEPTH-INDENT — one marker per level, so a grandchild
+              // reads as a grandchild instead of a sibling of its parent.
+              $catOpts[$opt['cat']->id] = str_repeat('\u{00A0}\u{00A0}\u{00A0}', max(0, $opt['depth'] - 1))
+                  . ($opt['depth'] ? '└ ' : '') . $opt['cat']->name;
           }
         @endphp
         <x-tenant.searchable-select name="category_id" :options="$catOpts"
