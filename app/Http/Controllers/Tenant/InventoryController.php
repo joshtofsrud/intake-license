@@ -385,25 +385,37 @@ class InventoryController extends Controller
      */
     public static function categoryOptions(string $tenantId): array
     {
+        // MARKER-CAT-DEPTH2 — walks the whole tree. This emitted roots and
+        // their direct children, then appended anything unseen to the END, so
+        // a grandchild ("27.5 / 650b" under "tires" under "Parts") landed in a
+        // clump at the bottom instead of nested under its parent.
         $all = TenantInventoryCategory::where('tenant_id', $tenantId)
             ->orderBy('sort_order')->orderBy('name')->get();
+
+        $byParent = [];
+        foreach ($all as $c) {
+            $byParent[$c->parent_id ?? ''][] = $c;
+        }
 
         $out  = [];
         $seen = [];
 
-        foreach ($all->whereNull('parent_id') as $root) {
-            $out[]        = ['cat' => $root, 'depth' => 0];
-            $seen[$root->id] = true;
-
-            foreach ($all->where('parent_id', $root->id) as $child) {
-                $out[]         = ['cat' => $child, 'depth' => 1];
-                $seen[$child->id] = true;
+        $walk = function ($parentKey, int $depth) use (&$walk, &$out, &$seen, $byParent) {
+            foreach ($byParent[$parentKey] ?? [] as $c) {
+                if (isset($seen[$c->id]) || $depth > 8) {
+                    continue;
+                }
+                $seen[$c->id] = true;
+                $out[] = ['cat' => $c, 'depth' => $depth];
+                $walk($c->id, $depth + 1);
             }
-        }
+        };
 
-        foreach ($all as $cat) {
-            if (! isset($seen[$cat->id])) {
-                $out[] = ['cat' => $cat, 'depth' => 0];
+        $walk('', 0);
+
+        foreach ($all as $c) {
+            if (! isset($seen[$c->id])) {
+                $out[] = ['cat' => $c, 'depth' => 0];
             }
         }
 
