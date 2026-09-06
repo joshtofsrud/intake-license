@@ -139,15 +139,21 @@
     @if(count($attrOptions))
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
         <span style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--ia-text-mute);font-weight:600">Split by</span>
-        <select id="ucAttr"
-                style="background:var(--ia-input-bg);border:1px solid var(--ia-border);border-radius:var(--ia-r-md);color:var(--ia-text);padding:7px 10px;font-size:12.5px;min-width:280px">
-          <option value="" @selected(! $activeAttr)>— no split —</option>
-          @foreach($attrOptions as $o)
-            <option value="{{ $o['key'] }}" data-label="{{ $o['label'] }}" @selected($activeAttr === $o['key'])>
-              {{ $o['label'] }} — {{ $o['cov'] }}% · {{ $o['vals'] }} values{{ $o['qualifies'] ? '' : ' (' . $o['reason'] . ')' }}
-            </option>
-          @endforeach
-        </select>
+        {{-- MARKER-SSEL-SPLITBY — our picker. The id stays on the hidden input
+             so the split-by script reads .value exactly as before; ucLabel()
+             is switched to the component's own label below. --}}
+        @php
+          $sselAttrs = [];
+          foreach ($attrOptions as $o) {
+              $sselAttrs[(string) $o['key']] = $o['label'] . ' — ' . $o['cov'] . '% · ' . $o['vals'] . ' values'
+                  . ($o['qualifies'] ? '' : ' (' . $o['reason'] . ')');
+          }
+        @endphp
+        <div style="min-width:280px;max-width:420px">
+          <x-tenant.searchable-select name="uc_attr" id="ucAttr" :options="$sselAttrs" :assoc="true"
+            :selected="(string) ($activeAttr ?? '')" any="— no split —" noun="attributes"
+            :searchable="count($sselAttrs) >= 12" />
+        </div>
         <span id="ucAttrNote" style="font-size:12px;color:var(--ia-text-dim)"></span>
       </div>
 
@@ -393,9 +399,14 @@ function ucAll(checked){
 }
 
 function ucLabel(){
-  const sel = document.getElementById('ucAttr');  // MARKER-UCSEL-COLLISION
-  const opt = sel && sel.selectedOptions[0];
-  return (opt && opt.dataset.label) || 'Size';
+  // MARKER-SSEL-SPLITBY — no selectedOptions on a hidden input; the picker
+  // shows the chosen label in .ssel-cur, and the attribute name is the part
+  // before the em dash.
+  const host = document.getElementById('ucAttr');
+  const cur  = host && host.closest('.ssel') && host.closest('.ssel').querySelector('.ssel-cur');
+  const txt  = cur ? cur.textContent.trim() : '';
+  if (!txt || txt.indexOf('no split') !== -1) { return 'Size'; }
+  return txt.split(' — ')[0] || 'Size';
 }
 
 function ucPaintRows(){
@@ -486,8 +497,16 @@ const UC_SPLIT_KEY = 'uc-split:' + @json($activeBucket);
 if (ucAttrSel) {
   try {
     const saved = localStorage.getItem(UC_SPLIT_KEY);
-    if (saved !== null && [...ucAttrSel.options].some(o => o.value === saved)) {
+    // MARKER-SSEL-SPLITSTORE — a hidden input has no .options; read the
+    // picker's own rendered options instead, or this threw and took the
+    // change listener below with it.
+    const root = ucAttrSel.closest('.ssel');
+    const known = root ? [...root.querySelectorAll('.ssel-opt')].map(o => o.dataset.v) : [];
+    if (saved !== null && known.indexOf(saved) !== -1) {
       ucAttrSel.value = saved;
+      const lbl = root && root.querySelector('.ssel-cur');
+      const pick = root && root.querySelector('.ssel-opt[data-v="' + saved + '"]');
+      if (lbl && pick) { lbl.textContent = pick.dataset.l; }
       ucAttr = saved || null;
     }
   } catch (err) {}
