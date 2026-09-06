@@ -121,7 +121,8 @@ class ReceiveShipmentController extends Controller
 
         $data = $request->validate([
             'shipment_number'    => ['required', 'string', 'max:30', 'regex:/^[A-Za-z0-9\-\/_.]+$/'],
-            'location_id'        => ['required', 'uuid', 'exists:tenant_locations,id'],
+            'location_id'        => ['required', 'uuid', \Illuminate\Validation\Rule::exists('tenant_locations', 'id')
+                ->where(fn ($q) => $q->where('tenant_id', $tenant->id))], // MARKER-EXISTS-TENANT-SCOPE
             'received_date'      => ['required', 'date'],
             'distributor_name'   => ['nullable', 'string', 'max:128'],
             'distributor_code'   => ['nullable', 'string', 'max:32'],

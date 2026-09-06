@@ -761,7 +761,8 @@ class InventoryController extends Controller
         $tenant = tenant();
 
         $data = $request->validate([
-            'category_id' => ['required', 'uuid', 'exists:tenant_inventory_categories,id'],
+            'category_id' => ['required', 'uuid', \Illuminate\Validation\Rule::exists('tenant_inventory_categories', 'id')
+                ->where(fn ($q) => $q->where('tenant_id', $tenant->id))], // MARKER-EXISTS-TENANT-SCOPE
             'item_ids'    => ['nullable', 'array'],
             'item_ids.*'  => ['uuid'],
             'select_all'  => ['nullable', 'boolean'],
@@ -911,7 +912,8 @@ class InventoryController extends Controller
         }
 
         $data = $request->validate([
-            'category_id'           => ['required', 'uuid', 'exists:tenant_inventory_categories,id'],
+            'category_id'           => ['required', 'uuid', \Illuminate\Validation\Rule::exists('tenant_inventory_categories', 'id')
+                ->where(fn ($q) => $q->where('tenant_id', $tenant->id))], // MARKER-EXISTS-TENANT-SCOPE
             'sku'                   => ['required', 'string', 'max:64'],
             'name'                  => ['required', 'string', 'max:255'],
             'description'           => ['nullable', 'string'],
@@ -1135,7 +1137,8 @@ class InventoryController extends Controller
         $item = TenantInventoryItem::where('tenant_id', $tenant->id)->findOrFail($id);
 
         $data = $request->validate([
-            'category_id'             => ['required', 'uuid', 'exists:tenant_inventory_categories,id'],
+            'category_id'             => ['required', 'uuid', \Illuminate\Validation\Rule::exists('tenant_inventory_categories', 'id')
+                ->where(fn ($q) => $q->where('tenant_id', $tenant->id))], // MARKER-EXISTS-TENANT-SCOPE
             'sku'                     => ['required', 'string', 'max:64'],
             'name'                    => ['required', 'string', 'max:255'],
             'description'             => ['nullable', 'string'],
@@ -1205,7 +1208,8 @@ class InventoryController extends Controller
         $item = TenantInventoryItem::where('tenant_id', $tenant->id)->findOrFail($id);
 
         $data = $request->validate([
-            'location_id' => ['required', 'uuid', 'exists:tenant_locations,id'],
+            'location_id' => ['required', 'uuid', \Illuminate\Validation\Rule::exists('tenant_locations', 'id')
+                ->where(fn ($q) => $q->where('tenant_id', $tenant->id))], // MARKER-EXISTS-TENANT-SCOPE
             'new_count'   => ['required', 'integer', 'min:0'],
             'reason_code' => ['required', 'string', 'in:damaged,expired,theft_shrinkage,count_correction,found,vendor_credit,donation,internal_use,display,sample,other'],
             'reason_text' => ['nullable', 'string', 'max:500'],

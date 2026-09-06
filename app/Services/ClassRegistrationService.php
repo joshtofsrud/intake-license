@@ -51,6 +51,13 @@ class ClassRegistrationService
                 $session = TenantClassSession::where('tenant_id', $tenantId)
                     ->findOrFail($sessionId);
 
+                // MARKER-EXISTS-TENANT-SCOPE — the session was scoped to the
+                // tenant and the customer was not, so a foreign customer_id
+                // reached resolvePayment() and the registration row itself.
+                // Scope it the same way, in the same place.
+                TenantCustomer::where('tenant_id', $tenantId)
+                    ->findOrFail($customerId);
+
                 // Guard: session must be bookable
                 if (!$session->isBookable()) {
                     throw new RuntimeException('This class session is not available for registration.');
