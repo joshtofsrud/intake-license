@@ -15,8 +15,9 @@
 @include('layouts.tenant._inventory-tabs')
 
 <p style="font-size:12.5px;color:var(--ia-text-dim);margin:0 0 14px;line-height:1.6;max-width:820px">
-  A rule says: when a distributor's catalog, or a file you import, calls something <i>this</i>, put it in <i>that</i> category.
-  Rules written here or during an import are yours; rules the uncategorized mapper learns from a whole-bucket assignment are marked as learned. Yours win.
+  {{-- MARKER-SOURCE-CAT --}}
+  Categories your imports brought in that don't match one of yours. Nothing was created — the items are uncategorized and remember what the file called them.
+  Pick a category and those items move; you can finish this whenever, in any order.
 </p>
 
 <form method="GET" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px">
@@ -32,10 +33,11 @@
 </form>
 
 @if($unmapped->count())
-  <div class="ia-card" style="padding:0;margin-bottom:16px;overflow:hidden">
+  {{-- MARKER-SOURCE-CAT — overflow:visible, or the card clips the picker panel --}}
+  <div class="ia-card" style="padding:0;margin-bottom:16px;overflow:visible">
     <div style="display:flex;align-items:baseline;justify-content:space-between;padding:12px 16px;border-bottom:.5px solid var(--ia-border)">
-      <span style="font-size:13px;font-weight:600">No rule yet <span style="font-size:10.5px;padding:1px 8px;border-radius:99px;border:.5px solid rgba(240,196,106,.5);color:#F0C46A;margin-left:6px">{{ $unmapped->count() }}</span></span>
-      <span style="font-size:11.5px;color:var(--ia-text-dim)">source strings on imported items with nowhere to go</span>
+      <span style="font-size:13px;font-weight:600">Not mapped yet <span style="font-size:10.5px;padding:1px 8px;border-radius:99px;border:.5px solid rgba(240,196,106,.5);color:#F0C46A;margin-left:6px">{{ $unmapped->count() }}</span></span>
+      <span style="font-size:11.5px;color:var(--ia-text-dim)">pick a category and the items move</span>
     </div>
     @foreach($unmapped as $u)
       @include('tenant.inventory._category-mapping-row', [
@@ -48,7 +50,7 @@
 
 @forelse($groups as $gk => $rows)
   @php [$kind, $name] = explode('|', $gk, 2); @endphp
-  <div class="ia-card" style="padding:0;margin-bottom:16px;overflow:hidden">
+  <div class="ia-card" style="padding:0;margin-bottom:16px;overflow:visible">
     <div style="display:flex;align-items:baseline;justify-content:space-between;padding:12px 16px;border-bottom:.5px solid var(--ia-border)">
       <span style="font-size:13px;font-weight:600;display:flex;align-items:center;gap:8px">
         {{ $name === 'UNKNOWN' ? 'Distributor catalogs' : $name }}
@@ -81,7 +83,7 @@
     <input type="hidden" name="source_name" id="cm-src">
     <input type="hidden" name="bucket_key" id="cm-bucket">
     <input type="hidden" name="category_id" id="cm-cat">
-    <div style="font-weight:600;font-size:14px" id="cm-title">Change rule</div>
+    <div style="font-weight:600;font-size:14px" id="cm-title">Assign these items</div>
     <p style="font-size:12.5px;color:var(--ia-text-muted);margin:8px 0 14px;line-height:1.55" id="cm-body"></p>
     {{-- in-app, not window.prompt(): the name for a new category --}}
     <div id="cm-new-wrap" style="display:none;margin-bottom:14px">
@@ -118,8 +120,8 @@
     var label = row.querySelector('.ssel-cur') ? row.querySelector('.ssel-cur').textContent.trim() : v;
     document.getElementById('cm-title').textContent = '“' + row.dataset.cmBucket + '” → ' + (v === '__new__' ? 'a new category' : label);
     document.getElementById('cm-body').textContent = n
-      ? n.toLocaleString() + ' item' + (n === 1 ? '' : 's') + ' currently carry this source string. Move them to the new category now, or only apply the rule to items that arrive from here on? Moved items land on the undo rail.'
-      : 'No items carry this source string yet — the rule applies to whatever arrives next.';
+      ? n.toLocaleString() + ' item' + (n === 1 ? '' : 's') + ' came in as “' + row.dataset.cmBucket + '”. Move them to this category? They land on the undo rail, so this is reversible.'
+      : 'Nothing currently carries this string.';
     document.getElementById('cm-move').hidden = !n;
     var dlg = document.getElementById('cm-dlg');
     dlg.style.display = 'flex';

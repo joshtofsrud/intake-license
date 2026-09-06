@@ -41,6 +41,13 @@ class InventoryImporter
 
     public function __construct(private Tenant $tenant, private TenantImport $import) {}
 
+    /** MARKER-SOURCE-CAT — what to call this file on the mappings page. */
+    private function sourceName(): string
+    {
+        $n = trim((string) ($this->import->original_filename ?? ''));
+        return $n !== '' ? \Illuminate\Support\Str::limit(pathinfo($n, PATHINFO_FILENAME), 60, '') : 'CSV import';
+    }
+
     private function fields(): array
     {
         return ImportFieldRegistry::inventory();
@@ -346,7 +353,9 @@ class InventoryImporter
                 ->where('id', $this->option('location_id'))->first()
             : null;
 
-        $createCats    = (bool) $this->option('create_categories', true);
+        // MARKER-SOURCE-CAT — kept for the reverser's signature only; imports
+        // no longer create categories under any option.
+        $createCats    = false;
         $createVendors = (bool) $this->option('create_vendors', true);
         $stockMode     = $this->option('stock_mode', 'set');
         $user          = auth('tenant')->user();
@@ -384,17 +393,26 @@ class InventoryImporter
 
                     $made = [];
 
-                    // category / vendor resolution
-                    $categoryId = null;
+                    // MARKER-SOURCE-CAT — an import never creates categories.
+                    // An exact name match is filed; anything else lands
+                    // uncategorized WITH THE FILE'S STRING KEPT, so it can be
+                    // mapped later on the Category mappings page.
+                    $categoryId    = null;
+                    $sourceCategory = null;
                     if (! empty($row['extra']['category'])) {
-                        $cat = $this->resolveCategory($row['extra']['category'], $createCats, $made);
+                        $sourceCategory = trim((string) $row['extra']['category']);
+                        $cat = $this->resolveCategory($sourceCategory, false, $made);
                         $categoryId = $cat?->id;
                     }
 
                     $item = $row['match'];
 
                     if ($row['outcome'] === 'create') {
-                        $item = TenantInventoryItem::create(array_merge($row['values'], array_filter([
+                        $item = TenantInventoryItem::create(array_merge($row['values'], [
+                            // MARKER-SOURCE-CAT — what the file called it.
+                            'source_category' => $sourceCategory,
+                            'source_name'     => $this->sourceName(),
+                        ], array_filter([
                             'tenant_id'   => $this->tenant->id,
                             'category_id' => $categoryId,
                         ])));

@@ -39,6 +39,11 @@ class EnsureCustomerTenant
                 // portal session id from another shop was logging staff and
                 // impersonating admins out of every admin page.
                 // Clear what is actually wrong, and nothing else.
+                // MARKER-CUSTOMER-SESSION-CSRF — log the customer out and drop
+                // their tenant stamp. The token is deliberately NOT regenerated:
+                // doing so invalidates the CSRF token of the page the visitor is
+                // already on, which showed up as a 419 on the next post. Nothing
+                // here is a session-fixation risk — no new login is happening.
                 $guard->logout();
                 $request->session()->forget(self::SESSION_KEY);
             }

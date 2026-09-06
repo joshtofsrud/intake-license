@@ -221,7 +221,11 @@
               <span><b>Leave stock alone</b></span></label>
           </div>
         </div>
-        <label class="imp-radio"><input type="checkbox" name="create_categories" value="1" checked>
+        {{-- MARKER-SOURCE-CAT — an import no longer creates categories. Rows
+             that don't match one you already have land uncategorized, keeping
+             the file's category so you can map them on Inventory > Category
+             mappings whenever you like. --}}
+        <label class="imp-radio" hidden><input type="checkbox" name="create_categories" value="0">
           <span><b>Create categories that don't exist</b><span>Matched on name. "Parts &gt; Brakes" creates the parent too.</span></span></label>
         <label class="imp-radio"><input type="checkbox" name="create_vendors" value="1" checked>
           <span><b>Create vendors that don't exist</b><span>Existing vendors are matched on name first.</span></span></label>

@@ -779,9 +779,11 @@ class InventoryController extends Controller
         // MARKER-CAT-RAIL2 — only a WHOLE-bucket assignment teaches a rule. A
         // partial one (47 of 1,839, split by size) says nothing about the
         // bucket, and learning from it produced "assign all 1,839 to 27.5".
-        if ($request->boolean('select_all')) {
-            app(\App\Services\Tenant\CategorySuggestService::class)->learn($tenant->id, $bucketKey, $category->id);
-        }
+        // MARKER-SOURCE-CAT — no learning. A bucket almost never maps whole:
+        // assigning one size out of "Tires" taught "all Tires -> 27.5 / 650b",
+        // and against no distributor in particular, so it spoke for every
+        // catalog at once. Mapping is something the shop does deliberately on
+        // the Category mappings page, not something inferred here.
 
         // Remember this destination for quick re-pick (most-recent first, capped).
         $recent = collect(session('inv_recent_categories', []))
