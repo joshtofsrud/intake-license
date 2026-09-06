@@ -347,29 +347,35 @@ body.at-bar-open .ia-mobile-nav{display:none}
 
   <form method="GET" action="{{ route('tenant.distributors.attention') }}" class="at-filter" id="at-filter-form">
     @if($stock !== 'all')<input type="hidden" name="stock" value="{{ $stock }}">@endif
-    <select name="brand" class="at-sel">
-      <option value="">All brands</option>
-      @foreach(($brandOptions ?? []) as $b)<option value="{{ $b }}" @selected(($filters['brand'] ?? null)===$b)>{{ $b }}</option>@endforeach
-    </select>
-    <select name="category" class="at-sel">
-      <option value="">All categories</option>
-      @foreach(($categoryOptions ?? []) as $c)<option value="{{ $c }}" @selected(($filters['category'] ?? null)===$c)>{{ $c }}</option>@endforeach
-    </select>
-    <select name="reason" class="at-sel">
-      <option value="">All reasons</option>
-      <option value="title_changed" @selected(($filters['reason'] ?? null)==='title_changed')>Title changed</option>
-      <option value="details_changed" @selected(($filters['reason'] ?? null)==='details_changed')>Details updated</option>
-      <option value="below_map" @selected(($filters['reason'] ?? null)==='below_map')>Below MAP</option>
-      <option value="off_msrp" @selected(($filters['reason'] ?? null)==='off_msrp')>Off MSRP</option>
-      <option value="cost_vanished" @selected(($filters['reason'] ?? null)==='cost_vanished')>Cost removed</option>
-      <option value="map_vanished" @selected(($filters['reason'] ?? null)==='map_vanished')>MAP removed</option>
-      <option value="msrp_vanished" @selected(($filters['reason'] ?? null)==='msrp_vanished')>MSRP removed</option>
-    </select>
-    <select name="per" class="at-sel" title="Rows per page"> {{-- MARKER-ATTENTION-SCALE --}}
-      @foreach([50,100,250] as $pp)
-        <option value="{{ $pp }}" @selected(($perPage ?? 100) === $pp)>{{ $pp }} / page</option>
-      @endforeach
-    </select>
+    {{-- MARKER-SSEL-FILTERS --}}
+    <div style="min-width:170px">
+      <x-tenant.searchable-select name="brand" :options="collect($brandOptions ?? [])->values()->all()"
+        :selected="(string) ($filters['brand'] ?? '')" any="All brands" noun="brands"
+        :searchable="count($brandOptions ?? []) >= 12" />
+    </div>
+    {{-- MARKER-SSEL-FILTERS --}}
+    <div style="min-width:190px">
+      <x-tenant.searchable-select name="category" :options="collect($categoryOptions ?? [])->values()->all()"
+        :selected="(string) ($filters['category'] ?? '')" any="All categories" noun="categories"
+        :searchable="count($categoryOptions ?? []) >= 12" />
+    </div>
+    {{-- MARKER-SSEL-FILTERS --}}
+    <div style="min-width:170px">
+      <x-tenant.searchable-select name="reason" :assoc="true" :searchable="false"
+        :options="[
+          'title_changed' => 'Title changed', 'details_changed' => 'Details updated',
+          'below_map' => 'Below MAP', 'off_msrp' => 'Off MSRP',
+          'cost_vanished' => 'Cost removed', 'map_vanished' => 'MAP removed',
+          'msrp_vanished' => 'MSRP removed',
+        ]"
+        :selected="(string) ($filters['reason'] ?? '')" any="All reasons" noun="reasons" />
+    </div>
+    {{-- MARKER-SSEL-FILTERS / MARKER-ATTENTION-SCALE --}}
+    <div style="min-width:120px">
+      <x-tenant.searchable-select name="per" :assoc="true" :searchable="false"
+        :options="['50' => '50 / page', '100' => '100 / page', '250' => '250 / page']"
+        :selected="(string) ($perPage ?? 100)" any="" noun="page sizes" />
+    </div>
     {{-- MARKER-ATTENTION-AUTOFILTER — the dropdowns submit themselves. The
          button survives only where scripting does not: without this, turning
          off JS would leave the filters unusable rather than just clunkier. --}}
@@ -747,8 +753,14 @@ body.at-bar-open .ia-mobile-nav{display:none}
     document.addEventListener('DOMContentLoaded', function () {
       var form = document.getElementById('at-filter-form');
       if (!form) { return; }
-      form.querySelectorAll('select').forEach(function (sel) {
-        sel.addEventListener('change', function () { form.submit(); });
+      // MARKER-SSEL-FILTERS — the filters are components now, so there are no
+      // <select> elements to bind. Their hidden inputs dispatch the same
+      // `change`, so listening on the form catches every one, including any
+      // added later.
+      form.addEventListener('change', function (e) {
+        if (e.target && e.target.classList && e.target.classList.contains('ssel-val')) {
+          form.submit();
+        }
       });
     });
 

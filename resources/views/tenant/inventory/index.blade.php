@@ -240,34 +240,45 @@
     placeholder="Search name, SKU, or UPC…" style="max-width:300px">
 
   {{-- MARKER-CAT-TREE — parents first, children indented beneath them --}}
-  <select name="category" class="ia-input" style="width:auto">
-    <option value="">All categories</option>
-    {{-- MARKER-CAT-DEPTH — one flat loop; depth carries the nesting. --}}
-    @foreach($categoryTree as $node)
-      <option value="{{ $node['cat']->id }}" @selected($category === $node['cat']->id)>
-        {!! $node['depth'] ? str_repeat('&nbsp;&nbsp;', $node['depth']) . '└ ' : '' !!}{{ $node['cat']->name }}
-      </option>
-    @endforeach
-  </select>
+  {{-- MARKER-SSEL-FILTERS — our picker: the native popup is OS-drawn and
+       ignores the dark theme. "All categories" stays, because here an empty
+       value is a real choice rather than a placeholder. --}}
+  @php
+    $sselCats = [];
+    foreach ($categoryTree as $node) {
+        $sselCats[(string) $node['cat']->id] =
+            str_repeat("\u{00A0}\u{00A0}", (int) $node['depth'])
+            . ($node['depth'] ? '└ ' : '') . $node['cat']->name;
+    }
+  @endphp
+  <div style="min-width:210px">
+    <x-tenant.searchable-select name="category" :options="$sselCats" :assoc="true"
+      :selected="(string) ($category ?? '')" any="All categories" noun="categories"
+      :searchable="count($sselCats) >= 12" />
+  </div>
   @unless($includeSubs)<input type="hidden" name="subs" value="0">@endunless
 
   {{-- MARKER-INV-BRAND-DIST --}}
   @if($brandOptions->isNotEmpty())
-    <select name="brand" class="ia-input" style="width:auto">
-      <option value="">All brands</option>
-      @foreach($brandOptions as $b)
-        <option value="{{ $b }}" @selected($brand === $b)>{{ $b }}</option>
-      @endforeach
-    </select>
+    {{-- MARKER-SSEL-FILTERS --}}
+    <div style="min-width:170px">
+      <x-tenant.searchable-select name="brand" :options="$brandOptions->values()->all()"
+        :selected="(string) ($brand ?? '')" any="All brands" noun="brands"
+        :searchable="$brandOptions->count() >= 12" />
+    </div>
   @endif
 
   @if($distributorOptions->count() > 1)
-    <select name="distributor" class="ia-input" style="width:auto">
-      <option value="">All distributors</option>
-      @foreach($distributorOptions as $d)
-        <option value="{{ $d }}" @selected($distributor === $d)>Available from {{ $d }}</option>
-      @endforeach
-    </select>
+    {{-- MARKER-SSEL-FILTERS --}}
+    @php
+      $sselDist = [];
+      foreach ($distributorOptions as $d) { $sselDist[(string) $d] = 'Available from ' . $d; }
+    @endphp
+    <div style="min-width:180px">
+      <x-tenant.searchable-select name="distributor" :options="$sselDist" :assoc="true"
+        :selected="(string) ($distributor ?? '')" any="All distributors" noun="distributors"
+        :searchable="false" />
+    </div>
   @endif
 
   {{-- MARKER-CAT-PLACEHOLDER — the list lands on in-stock, so say so. A
@@ -279,17 +290,18 @@
          style="text-decoration:underline">show everything</a>
     </span>
   @endif
-  <select name="stock" class="ia-input" style="width:auto">
-    @foreach($stockLabels as $val => $label)
-      <option value="{{ $val }}" @selected($stock === $val)>{{ $label }}</option>
-    @endforeach
-  </select>
+  {{-- MARKER-SSEL-FILTERS — $stockLabels already has '' => 'All stock levels'
+       as a real option, so no separate any row. --}}
+  <div style="min-width:180px">
+    <x-tenant.searchable-select name="stock" :options="$stockLabels" :assoc="true"
+      :selected="(string) ($stock ?? '')" any="" noun="stock levels" :searchable="false" />
+  </div>
 
-  <select name="sort" class="ia-input" style="width:auto">
-    @foreach($sortLabels as $val => $label)
-      <option value="{{ $val }}" @selected($sort === $val)>{{ $label }}</option>
-    @endforeach
-  </select>
+  {{-- MARKER-SSEL-FILTERS --}}
+  <div style="min-width:180px">
+    <x-tenant.searchable-select name="sort" :options="$sortLabels" :assoc="true"
+      :selected="(string) ($sort ?? '')" any="" noun="sort orders" :searchable="false" />
+  </div>
 
   <button type="submit" class="ia-btn ia-btn--secondary">Filter</button>
   @if($search || $category || $stock || $brand || $distributor || $sort !== 'name_asc')
