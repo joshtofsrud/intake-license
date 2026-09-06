@@ -508,7 +508,10 @@ class InventoryController extends Controller
         }
         $all = $wq->orderBy('name')->limit(500)->get();
         // MARKER-UNCAT-LABEL — the view shows the name, never the prefixed key.
+        // MARKER-UNCAT-LABEL2 — $bucketLabel feeds the heading and predates the
+        // cat:/src: keys, so it was printing "cat:Crankset".
         $activeBucketLabel  = $bucket === '__none__' ? 'No catalog signal' : $bucketName;
+        $bucketLabel        = $activeBucketLabel;
         $activeBucketKind   = $bucketKind;
         $activeBucketSource = collect($buckets)->firstWhere('key', $bucket)['source'] ?? null;
 
