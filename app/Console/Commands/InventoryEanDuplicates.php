@@ -156,18 +156,33 @@ class InventoryEanDuplicates extends Command
                 }
                 $this->newLine();
                 $this->line(strtoupper($label) . ' — first ' . min($listN, count($rows)) . ' of ' . count($rows) . ':');
+
+                // Print every member in full. A truncated name cannot tell you
+                // whether two rows are the same product written twice or two
+                // genuinely different products — which is the only question
+                // that matters here, and it is a judgement call, not a metric.
                 foreach (array_slice($rows, 0, $listN) as $g) {
+                    $this->newLine();
                     $this->line(sprintf(
-                        '  %-14s EAN %-16s x%d  names=%d sizes=%d stock=%d  [%s]  %s',
+                        '  %s  EAN %s  (%d items, stock %d)',
                         $subs[$g->tenant_id] ?? '?',
                         $g->catalog_ean,
                         $g->items,
-                        $g->names,
-                        $g->sizes,
-                        $g->stock,
-                        $g->skus,
-                        \Illuminate\Support\Str::limit($g->example_name, 48)
+                        $g->stock
                     ));
+                    $members = DB::table('tenant_inventory_items')
+                        ->whereIn('id', explode(',', $g->ids))
+                        ->orderBy('sku')
+                        ->get(['sku', 'size', 'color', 'name', 'distributor_catalog_id']);
+                    foreach ($members as $m) {
+                        $this->line(sprintf(
+                            '      %-14s size=%-10s color=%-10s %s',
+                            $m->sku,
+                            $m->size ?: '-',
+                            $m->color ?: '-',
+                            $m->name
+                        ));
+                    }
                 }
             }
         }
