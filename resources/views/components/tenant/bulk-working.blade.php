@@ -60,7 +60,10 @@
     // Disabled AFTER the browser has collected the form values: a disabled
     // button's own name/value is not submitted, and on some of these forms
     // that value is the action.
-    var btns = form.querySelectorAll('button[type=submit], input[type=submit]');
+    // MARKER-BULK-WORKING-SCOPE — only the button that was actually pressed.
+    // The whole table lives inside this form, so relabelling every submit
+    // renamed and disabled every per-row action too.
+    var btns = e.submitter ? [e.submitter] : [];
     setTimeout(function () {
       Array.prototype.forEach.call(btns, function (b) {
         b.disabled = true;

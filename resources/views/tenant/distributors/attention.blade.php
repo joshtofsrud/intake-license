@@ -431,7 +431,7 @@ body.at-bar-open .ia-mobile-nav{display:none}
     {{-- MARKER-BULK-WORKING — 9,105 rows through one request looked like a
          dead browser. --}}
     <form method="POST" action="{{ route('tenant.distributors.attention.resolve') }}"
-          data-bulk-count="{{ $flags->total() }}">
+          data-bulk-count="auto" data-bulk-all="{{ $flags->total() }}"{{-- MARKER-BULK-WORKING-SCOPE --}}>
       @csrf
       <input type="hidden" name="action" id="at-action" value="">
       <input type="hidden" name="f_brand" value="{{ $filters['brand'] ?? '' }}">
