@@ -452,7 +452,7 @@ class PlatformDashboard extends Page
         // Backups
         $bk = SystemHealth::read('last_backup');
         if (! $bk || empty($bk['at'])) {
-            $rows[] = ['name' => 'Last backup', 'meta' => 'backup script has not reported yet', 'value' => 'no record', 'state' => 'warn', 'href' => null];
+            $rows[] = ['name' => 'Last backup', 'meta' => 'not wired: append the tools/ fragment to /usr/local/bin/intake-backup.sh'  /* MARKER-DASH-ROWFIX */, 'value' => 'no record', 'state' => 'warn', 'href' => null];
         } else {
             $ts = \Carbon\Carbon::parse($bk['at']);
             $age = $ts->diffInHours(now());

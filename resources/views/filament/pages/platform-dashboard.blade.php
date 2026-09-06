@@ -22,7 +22,16 @@
   @media(max-width:900px){.mt-two-up{grid-template-columns:1fr}}
   .mt-card{border:1px solid rgba(127,127,127,.22);border-radius:12px;padding:14px 16px}
   .mt-bar-row{position:relative;display:flex;align-items:center;gap:10px;padding:7px 8px;font-size:13px;color:inherit;text-decoration:none}
-  .mt-fill{position:absolute;left:0;top:2px;bottom:2px;background:rgba(139,124,246,.16);border-radius:6px}
+  /* MARKER-DASH-ROWFIX — .mt-fill deleted, not just unused: dead styling is
+     how decoration creeps back into a row that shouldn't have it. */
+  .iss-row{display:flex;align-items:flex-start;gap:9px;padding:8px 8px;border-radius:6px;color:inherit;text-decoration:none}
+  .iss-row:hover{background:rgba(127,127,127,.08)}
+  .iss-dot{width:6px;height:6px;border-radius:50%;background:var(--pd-bad);flex:none;margin-top:6px}
+  .iss-body{min-width:0;flex:1}
+  .iss-msg{display:block;font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .iss-meta{display:block;font-size:11px;opacity:.5;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .iss-meta .pill{margin:0 2px}
+  .iss-meta code{font-size:10.5px}
   .mt-bar-label{position:relative;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
   .mt-bar-n{position:relative;margin-left:auto;opacity:.6;font-variant-numeric:tabular-nums;white-space:nowrap}
   .mt-note{border-radius:10px;padding:11px 14px;font-size:12.5px;line-height:1.55;margin-bottom:14px}
@@ -138,21 +147,19 @@
     @endforeach
   </div>
 
-  @php $backupRow = collect($health)->firstWhere('name', 'Last backup'); @endphp
-  @if($backupRow && $backupRow['state'] !== 'ok')
-    <div class="mt-note mt-note--warn">
-      <b>Last backup: {{ $backupRow['value'] }}.</b> This tile reads <code>system_health.last_backup</code>, which only the server backup script writes. Until the fragment in <code>tools/</code> is appended to <code>/usr/local/bin/intake-backup.sh</code> it stays amber — an unreported backup, not a failed one.
-    </div>
-  @endif
+  {{-- MARKER-DASH-ROWFIX — this said the same thing as the tile and the
+       health row: three times on one screen for one unwired script. The row
+       carries the explanation now. --}}
 
   <div class="mt-two-up" style="margin-top:0">
     {{-- operational health --}}
     <div class="mt-card">
       <div class="card-h"><span class="t">Operational health</span><span class="s"><a href="/admin/debug-logs">Full system log →</a></span></div>
       @foreach($health as $row)
-        @php $fill = $row['state'] === 'bad' ? 60 : ($row['state'] === 'warn' ? 30 : 0); @endphp
         <a class="mt-bar-row" href="{{ $row['href'] ?? '#' }}">
-          @if($fill)<div class="mt-fill" style="width:{{ $fill }}%;{{ $row['state'] === 'warn' ? 'background:rgba(240,196,106,.14)' : 'background:rgba(240,138,138,.16)' }}"></div>@endif
+          {{-- MARKER-DASH-ROWFIX — no fill. Its width meant severity, not a
+               quantity, so it drew a box behind the label that looked like a
+               button. The pill carries the state instead. --}}
           <span class="mt-bar-label">{{ $row['name'] }}</span>
           <span class="pill {{ $row['state'] }}">{{ ['ok' => 'ok', 'warn' => 'watch', 'bad' => 'action', 'idle' => 'n/a'][$row['state']] ?? $row['state'] }}</span>
           <span class="mt-bar-n">{!! $row['value'] !!}</span>
@@ -163,14 +170,20 @@
       @if(!empty($issues))
         <div class="card-h" style="margin-top:14px"><span class="t">Open issues</span><span class="s"><a href="/admin/debug-logs?activeTab=errors">all unresolved →</a></span></div>
         @foreach($issues as $i)
-          <a class="mt-bar-row" href="{{ $i['href'] }}" style="align-items:flex-start">
-            <div class="mt-fill" style="width:{{ min(60, 12 + $i['n'] * 6) }}%;background:rgba(240,138,138,.14)"></div>
-            <span class="mt-bar-label" style="white-space:normal">
-              <b>{{ $i['title'] }}</b>
-              @if($i['tenant']) <span class="pill" style="margin-left:6px">{{ $i['tenant'] }}</span>@endif
-              @if($i['detail'])<br><span style="font-size:11.5px;opacity:.6">{{ $i['detail'] }}</span>@endif
+          {{-- MARKER-DASH-ROWFIX — an exception message is not a short label.
+               One line, truncated, full text on hover; everything else on a
+               muted second line. --}}
+          <a class="iss-row" href="{{ $i['href'] }}" title="{{ $i['title'] }}{{ $i['detail'] ? ' — ' . $i['detail'] : '' }}">
+            <span class="iss-dot" aria-hidden="true"></span>
+            <span class="iss-body">
+              <span class="iss-msg">{{ $i['title'] }}</span>
+              <span class="iss-meta">
+                {{ $i['job'] }}
+                @if($i['tenant'])<span class="pill">{{ $i['tenant'] }}</span>@endif
+                · {{ $i['n'] }}× · {{ $i['last'] }} ago
+                @if($i['ref']) · <code>{{ $i['ref'] }}</code>@endif
+              </span>
             </span>
-            <span class="mt-bar-n">{{ $i['job'] }} · {{ $i['n'] }}× · {{ $i['last'] }} ago</span>
           </a>
         @endforeach
       @endif
