@@ -39,10 +39,10 @@ use Illuminate\Support\Facades\DB;
  *   - vendor pivots move to the survivor, so the loser's distributor becomes
  *     an additional source — what the importer would have done had it matched
  *   - the survivor inherits any field it has blank and a loser has filled
- *   - losers are marked is_active = false and stamped in notes
+ *   - losers are marked is_active = false and logged
  *
  * Nothing is deleted (RUNBOOK rule). A bad fold is undone by flipping
- * is_active back and moving the pivot; the notes stamp records where it went.
+ * is_active back and moving the pivot; the log line records where it went.
  *
  * HARD GUARD: a cluster is skipped if any member has stock, movements or sale
  * lines — folding those would repoint a real sale at a different row.
@@ -98,6 +98,17 @@ class InventoryEanMerge extends Command
         }
 
         $fields = array_map(fn ($k) => self::FIELD_FOR[$k], $on);
+
+        // Fail before touching anything if a column we intend to read or write
+        // is not actually on the table. A missing column otherwise surfaces as
+        // a QueryException part-way through the run, after earlier clusters
+        // have already committed.
+        $cols    = \Illuminate\Support\Facades\Schema::getColumnListing('tenant_inventory_items');
+        $missing = array_diff(array_merge($fields, self::INHERIT_BLANKS, ['is_active', 'computed_stock_count']), $cols);
+        if ($missing) {
+            $this->error('tenant_inventory_items has no column: ' . implode(', ', $missing));
+            return self::FAILURE;
+        }
 
         $this->newLine();
         $this->line($apply ? 'APPLYING' : 'DRY RUN — nothing will be written (add --apply)');
@@ -237,11 +248,19 @@ class InventoryEanMerge extends Command
                         }
 
                         $loser->is_active = false;
-                        $loser->notes = trim((string) $loser->notes . sprintf(
-                            "\n[MARKER-EAN-MERGE] folded into %s (%s) on %s",
-                            $survivor->sku, $survivor->id, now()->toDateString()
-                        ));
                         $loser->save();
+
+                        // tenant_inventory_items has no notes column, so the
+                        // audit trail goes to the log. The loser keeps its own
+                        // EAN/UPC/MPN, so a reversal can find the survivor by
+                        // the same identifiers that matched them.
+                        \Illuminate\Support\Facades\Log::info('MARKER-EAN-MERGE folded item', [
+                            'tenant_id'   => $loser->tenant_id,
+                            'loser_id'    => $loser->id,
+                            'loser_sku'   => $loser->sku,
+                            'survivor_id' => $survivor->id,
+                            'survivor_sku' => $survivor->sku,
+                        ]);
                     }
 
                     if ($fill) {
