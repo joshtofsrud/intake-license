@@ -34,10 +34,18 @@
       </div>
       <div class="ia-form-group">
         <label class="ia-form-label">Parent category</label>
-        <select name="parent_id" class="ia-input" style="max-width:400px">
-          <option value="">— None (top level) —</option>
-          @foreach($tree as $o)<option value="{{ $o['id'] }}">{{ str_repeat('— ', $o['depth']) }}{{ $o['name'] }}</option>@endforeach
-        </select>
+        {{-- MARKER-SSEL-BATCH1 — our picker: the native popup is drawn by the
+             OS and ignored the dark theme, so this list read white on white
+             for a tenant in light mode. --}}
+        @php
+          $sselParents = [];
+          foreach ($tree as $o) { $sselParents[$o['id']] = str_repeat('— ', $o['depth']) . $o['name']; }
+        @endphp
+        <div style="max-width:400px">
+          <x-tenant.searchable-select name="parent_id" :options="$sselParents"
+            selected="" any="— None (top level) —" noun="categories"
+            :searchable="count($sselParents) >= 12" />
+        </div>
       </div>
       <button type="submit" class="ia-btn ia-btn--primary">Add category</button>
     </div>
@@ -71,10 +79,22 @@
               <form method="POST" action="{{ route('tenant.inventory.categories.reparent', $node['id']) }}" style="margin:0">
                 @csrf
                 @method('PATCH')
-                <select name="parent_id" onchange="this.form.submit()" class="ia-input" style="max-width:260px;font-size:13px;padding:5px 8px">
-                  <option value="">— top level —</option>
-                  @foreach($tree as $o)@if($o['id'] !== $node['id'])<option value="{{ $o['id'] }}" @selected($node['parent_id'] === $o['id'])>{{ str_repeat('— ', $o['depth']) }}{{ $o['name'] }}</option>@endif @endforeach
-                </select>
+                {{-- MARKER-SSEL-BATCH1 — one of these per row; on 291
+                     categories it is the worst instance of the OS popup. The
+                     component fires `change` on its hidden input, and the
+                     handler at the foot of this page submits the form, so
+                     reparenting still saves on pick as it always has. --}}
+                @php
+                  $sselRow = [];
+                  foreach ($tree as $o) {
+                      if ($o['id'] !== $node['id']) { $sselRow[$o['id']] = str_repeat('— ', $o['depth']) . $o['name']; }
+                  }
+                @endphp
+                <div style="max-width:260px" data-ssel-submit>
+                  <x-tenant.searchable-select name="parent_id" :options="$sselRow"
+                    :selected="$node['parent_id'] ?? ''" any="— top level —" noun="categories"
+                    :searchable="count($sselRow) >= 12" />
+                </div>
               </form>
             </td>
             <td>@if($node['count'] > 0)<a href="{{ route('tenant.inventory.index', ['category' => $node['id']]) }}" style="color:var(--ia-accent);text-decoration:none;font-weight:600" title="View these items">{{ $node['count'] }}</a>@else<span style="color:var(--ia-text-muted)">0</span>@endif{{-- MARKER-PATCH-HLC28-COUNT --}}</td>
@@ -87,3 +107,15 @@
 </div>
 
 @endsection
+
+{{-- MARKER-SSEL-BATCH1 — ssel-submit-handler. The native row select had
+     onchange="this.form.submit()"; the component has no onchange, so the same
+     behaviour is bound to its hidden input's change event instead. --}}
+<script>
+  document.addEventListener('change', function (e) {
+    var host = e.target.closest && e.target.closest('[data-ssel-submit]');
+    if (!host || !e.target.classList.contains('ssel-val')) { return; }
+    var form = host.closest('form');
+    if (form) { form.submit(); }
+  });
+</script>
