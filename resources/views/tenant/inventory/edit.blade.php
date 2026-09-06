@@ -45,16 +45,19 @@
 
       <div class="ia-form-group">
         <label class="ia-form-label">Category <span class="ia-required">*</span></label>
-        <select name="category_id" class="ia-input" required>
-          {{-- MARKER-CAT-PLACEHOLDER — without an empty option a null category
-               shows as the FIRST category and saves as it. `required` then
-               blocks submit until someone actually chooses. --}}
-          <option value="" @selected(old('category_id', $item->category_id) === null)>— Select a category —</option>
-          {{-- MARKER-ITEM-CAT-TREE --}}
-          @foreach($categories as $opt)
-            <option value="{{ $opt['cat']->id }}" @selected(old('category_id', $item->category_id) === $opt['cat']->id)>{{ $opt['depth'] ? '   └ ' : '' }}{{ $opt['cat']->name }}</option>
-          @endforeach
-        </select>
+        {{-- MARKER-SSEL-CATS — our picker, not a native select: macOS draws
+             the native popup itself and ignored two attempts to make it dark,
+             so a tenant on a light-mode machine got white on white. This one
+             renders in our CSS. `required` is enforced server-side. --}}
+        @php
+          $catOpts = [];
+          foreach ($categories as $opt) {
+              $catOpts[$opt['cat']->id] = ($opt['depth'] ? '└ ' : '') . $opt['cat']->name;
+          }
+        @endphp
+        <x-tenant.searchable-select name="category_id" :options="$catOpts"
+          :selected="old('category_id', $item->category_id) ?? ''"
+          any="— Select a category —" noun="categories" :searchable="count($catOpts) >= 12" />
       </div>
 
       {{-- patch-99 color/size fields --}}

@@ -2,19 +2,36 @@
      `name`, so any form using a native <select> can swap in without touching
      its controller. Options are server-rendered; JS only filters/highlights.
      Styling reads the app CSS vars, so it follows the tenant theme. --}}
-@props(['name', 'options' => [], 'selected' => '', 'any' => 'Any', 'noun' => 'options'])
+{{-- MARKER-SSEL-CATS — `options` may be a flat list (value === label, as the
+     import screen uses) or an associative array of value => label, which a
+     category needs: a uuid value with a readable name. `searchable` turns the
+     filter box off for short lists; it also hides itself on a phone. --}}
+@props(['name', 'options' => [], 'selected' => '', 'any' => 'Any', 'noun' => 'options', 'searchable' => true, 'required' => false])
+@php
+  $sselOpts = [];
+  foreach ($options as $k => $v) {
+      $sselOpts[] = is_int($k) ? ['v' => (string) $v, 'l' => (string) $v]
+                               : ['v' => (string) $k, 'l' => (string) $v];
+  }
+  $sselCur = '';
+  foreach ($sselOpts as $o) {
+      if ($o['v'] === (string) $selected) { $sselCur = $o['l']; break; }
+  }
+@endphp
 <div class="ssel" data-noun="{{ $noun }}" data-name="{{ $name }}">{{-- MARKER-SSEL-SCOPE --}}
   <input type="hidden" name="{{ $name }}" value="{{ $selected }}" class="ssel-val">
   <button type="button" class="ssel-btn" aria-haspopup="listbox">
-    <span class="ssel-cur {{ $selected === '' ? 'is-any' : '' }}">{{ $selected !== '' ? $selected : $any }}</span>
+    <span class="ssel-cur {{ (string) $selected === '' ? 'is-any' : '' }}">{{ $sselCur !== '' ? $sselCur : $any }}</span>
     <span class="ssel-chev" aria-hidden="true">&#9662;</span>
   </button>
   <div class="ssel-panel" hidden>
-    <div class="ssel-search"><input type="text" placeholder="Type to filter&hellip;" autocomplete="off"></div>
+    @if($searchable)
+      <div class="ssel-search"><input type="text" placeholder="Type to filter&hellip;" autocomplete="off"></div>
+    @endif
     <div class="ssel-list" role="listbox">
       <div class="ssel-opt ssel-any {{ $selected === '' ? 'is-sel' : '' }}" data-v="" data-l="{{ $any }}" role="option"><span class="t">{{ $any }}</span><span class="ssel-tick">&#10003;</span></div>
-      @foreach($options as $o)
-        <div class="ssel-opt {{ $selected === (string) $o ? 'is-sel' : '' }}" data-v="{{ $o }}" data-l="{{ $o }}" role="option"><span class="t">{{ $o }}</span><span class="ssel-tick">&#10003;</span></div>
+      @foreach($sselOpts as $o)
+        <div class="ssel-opt {{ (string) $selected === $o['v'] ? 'is-sel' : '' }}" data-v="{{ $o['v'] }}" data-l="{{ $o['l'] }}" role="option"><span class="t">{!! nl2br(e($o['l'])) !!}</span><span class="ssel-tick">&#10003;</span></div>
       @endforeach
     </div>
     <div class="ssel-foot"><span class="ssel-cnt"></span><span>Enter to pick &middot; Esc to close</span></div>
@@ -211,3 +228,9 @@
 })();
 </script>
 @endonce
+
+{{-- MARKER-SSEL-CATS-PHONE — a filter box on a phone raises the keyboard over
+     the list it is meant to filter. Below 640px the list stands on its own. --}}
+<style>
+  @media (max-width: 640px) { .ssel-search { display: none !important; } }
+</style>
