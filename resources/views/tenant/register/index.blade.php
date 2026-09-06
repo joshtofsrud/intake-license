@@ -483,12 +483,19 @@
          below reads it exactly as before, and the component fires `change`
          on it, which is the event that script already listens for. --}}
     @php
+      // MARKER-SSEL-REGBASE — "No register / display" is the base option with
+      // value 0, and it is what a session with nothing paired selects. There
+      // is no separate placeholder row: any="" keeps the list to real options.
       $sselRegs = ['0' => 'No register / display'];
-      foreach ($registers as $r) { $sselRegs[(string) $r->id] = '#' . $r->number . ' — ' . $r->name; }
+      foreach ($registers as $r) {
+          $sselRegs[(string) $r->id] = '#' . $r->number . ' — ' . $r->name;
+      }
+      $sselRegCur = (string) ($currentRegisterId ?? 0);
+      if (! array_key_exists($sselRegCur, $sselRegs)) { $sselRegCur = '0'; }
     @endphp
     <div class="reg-picker-wrap" style="margin-left:auto;width:220px;flex:0 0 220px">{{-- MARKER-SSEL-REGWIDTH — the old CSS sized #registerPicker itself; that id is now the hidden input, so the wrapper needs a real width or it collapses --}}
       <x-tenant.searchable-select name="register_picker" id="registerPicker" :searchable="false"
-        :options="$sselRegs" :selected="(string) ($currentRegisterId ?? 0)"
+        :options="$sselRegs" :selected="$sselRegCur"
         any="" noun="registers" />{{-- MARKER-SSEL-DEFAULT — "0" is already the first option --}}
     </div>
   @endif
