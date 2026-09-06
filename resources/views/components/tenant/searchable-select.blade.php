@@ -6,11 +6,14 @@
      import screen uses) or an associative array of value => label, which a
      category needs: a uuid value with a readable name. `searchable` turns the
      filter box off for short lists; it also hides itself on a phone. --}}
-@props(['name', 'options' => [], 'selected' => '', 'any' => 'Any', 'noun' => 'options', 'searchable' => true, 'required' => false, 'id' => null]){{-- MARKER-SSEL-ID — the hidden input can carry a caller's id; scripts that used to read the native select by id still find it --}}
+@props(['name', 'options' => [], 'selected' => '', 'any' => 'Any', 'noun' => 'options', 'searchable' => true, 'required' => false, 'id' => null, 'assoc' => null]){{-- MARKER-SSEL-ID — the hidden input can carry a caller's id; scripts that used to read the native select by id still find it --}}
 @php
   // A list is 0,1,2… in order; anything else is a value => label map, even
   // when its keys happen to be numeric.
-  $sselAssoc = ! array_is_list($options);
+  // MARKER-SSEL-ASSOC — array_is_list() cannot tell ['0' => 'None'] from a
+  // one-item list: PHP casts the key to 0 either way. Callers passing a map
+  // say so instead of it being guessed from the shape.
+  $sselAssoc = $assoc ?? ! array_is_list($options);
   $sselOpts = [];
   foreach ($options as $k => $v) {
       // MARKER-SSEL-NUMKEY — PHP casts numeric string keys back to integers,

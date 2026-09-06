@@ -494,7 +494,7 @@
       if (! array_key_exists($sselRegCur, $sselRegs)) { $sselRegCur = '0'; }
     @endphp
     <div class="reg-picker-wrap" style="margin-left:auto;width:220px;flex:0 0 220px">{{-- MARKER-SSEL-REGWIDTH — the old CSS sized #registerPicker itself; that id is now the hidden input, so the wrapper needs a real width or it collapses --}}
-      <x-tenant.searchable-select name="register_picker" id="registerPicker" :searchable="false"
+      <x-tenant.searchable-select name="register_picker" id="registerPicker" :searchable="false" :assoc="true"
         :options="$sselRegs" :selected="$sselRegCur"
         any="" noun="registers" />{{-- MARKER-SSEL-DEFAULT — "0" is already the first option --}}
     </div>
