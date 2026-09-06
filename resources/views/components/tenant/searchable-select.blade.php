@@ -8,10 +8,18 @@
      filter box off for short lists; it also hides itself on a phone. --}}
 @props(['name', 'options' => [], 'selected' => '', 'any' => 'Any', 'noun' => 'options', 'searchable' => true, 'required' => false])
 @php
+  // A list is 0,1,2… in order; anything else is a value => label map, even
+  // when its keys happen to be numeric.
+  $sselAssoc = ! array_is_list($options);
   $sselOpts = [];
   foreach ($options as $k => $v) {
-      $sselOpts[] = is_int($k) ? ['v' => (string) $v, 'l' => (string) $v]
-                               : ['v' => (string) $k, 'l' => (string) $v];
+      // MARKER-SSEL-NUMKEY — PHP casts numeric string keys back to integers,
+      // so ['0' => 'Forever'] arrives with $k === 0 and the old is_int() test
+      // read it as a FLAT list: value became "Forever", nothing matched the
+      // selected "0", and the button rendered blank.
+      $sselOpts[] = (is_int($k) && ! $sselAssoc)
+          ? ['v' => (string) $v, 'l' => (string) $v]
+          : ['v' => (string) $k, 'l' => (string) $v];
   }
   $sselCur = '';
   foreach ($sselOpts as $o) {
