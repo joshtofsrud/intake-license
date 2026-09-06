@@ -33,9 +33,14 @@ class EnsureCustomerTenant
                 || ($customer && $customer->tenant_id !== $tenant->id);
 
             if ($mismatch) {
+                // MARKER-CUSTOMER-SESSION-SCOPE — this is the CUSTOMER guard,
+                // but invalidate() destroys the WHOLE session: the tenant
+                // guard's login and impersonating_from with it. A stale
+                // portal session id from another shop was logging staff and
+                // impersonating admins out of every admin page.
+                // Clear what is actually wrong, and nothing else.
                 $guard->logout();
-                $request->session()->invalidate();
-                $request->session()->regenerateToken();
+                $request->session()->forget(self::SESSION_KEY);
             }
         }
 
