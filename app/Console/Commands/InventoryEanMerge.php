@@ -44,8 +44,15 @@ use Illuminate\Support\Facades\DB;
  * Nothing is deleted (RUNBOOK rule). A bad fold is undone by flipping
  * is_active back and moving the pivot; the log line records where it went.
  *
- * HARD GUARD: a cluster is skipped if any member has stock, movements or sale
- * lines — folding those would repoint a real sale at a different row.
+ * STOCK AND HISTORY move too. Per-location rows are summed onto the survivor
+ * (that table is unique on item+location, so a location both already stock is
+ * added into rather than duplicated), and every other table carrying an
+ * inventory_item_id is repointed. Those tables are discovered at runtime rather
+ * than hardcoded, so one added later is not silently left pointing at a dead
+ * row.
+ *
+ * Repointing sale lines and movements does not rewrite history: both snapshot
+ * name and SKU at write time, so an old receipt still reads exactly as it did.
  *
  * Dry run by default. --apply writes.
  */
@@ -115,7 +122,23 @@ class InventoryEanMerge extends Command
         $this->line('Matching on: ' . implode(', ', $on));
         $this->newLine();
 
-        $folded = $skipped = $pivots = $inherited = $done = 0;
+        $folded = $pivots = $inherited = $done = $stocked = $moved = 0;
+
+        // Every other table that points at an inventory item follows the fold.
+        // Discovered rather than hardcoded: a table added later would otherwise
+        // be silently left pointing at a deactivated row.
+        $refTables = [];
+        foreach (DB::select('SHOW TABLES') as $row) {
+            $table = array_values((array) $row)[0];
+            if (in_array($table, ['tenant_inventory_item_locations', 'tenant_inventory_item_vendors'], true)) {
+                continue; // both have a unique key and are handled explicitly
+            }
+            if (\Illuminate\Support\Facades\Schema::hasColumn($table, 'inventory_item_id')) {
+                $refTables[] = $table;
+            }
+        }
+        $this->line('Repointing: ' . implode(', ', $refTables));
+        $this->newLine();
 
         // Cluster per tenant. Identifiers are only unique within a shop, and
         // items never merge across tenants.
@@ -183,25 +206,9 @@ class InventoryEanMerge extends Command
 
                 $ids = array_map(fn ($m) => $m->id, $members);
 
-                $touched = [];
-                foreach (['tenant_sale_items', 'tenant_inventory_movements'] as $table) {
-                    foreach (DB::table($table)->whereIn('inventory_item_id', $ids)
-                                ->distinct()->pluck('inventory_item_id') as $id) {
-                        $touched[$id] = true;
-                    }
-                }
-
-                $blocked = null;
+                $clusterStock = 0;
                 foreach ($members as $m) {
-                    if (isset($touched[$m->id]) || (int) $m->computed_stock_count !== 0) {
-                        $blocked = $m;
-                        break;
-                    }
-                }
-                if ($blocked) {
-                    $skipped++;
-                    $this->line(sprintf('  SKIP  %s has stock or history', $blocked->sku));
-                    continue;
+                    $clusterStock += (int) $m->computed_stock_count;
                 }
 
                 // Longest name wins; the rows arrive oldest-first and usort is
@@ -212,21 +219,25 @@ class InventoryEanMerge extends Command
 
                 $done++;
 
-                $this->line(sprintf('  FOLD  keep %-14s <- %s',
+                $this->line(sprintf('  FOLD  keep %-14s <- %-28s %s',
                     $survivorRow->sku,
-                    implode(', ', array_map(fn ($l) => $l->sku, $ordered))
+                    implode(', ', array_map(fn ($l) => $l->sku, $ordered)),
+                    $clusterStock > 0 ? "stock {$clusterStock} combined" : ''
                 ));
                 $this->line('          ' . \Illuminate\Support\Str::limit($survivorRow->name, 100));
 
                 if (! $apply) {
                     $folded++;
+                    if ($clusterStock > 0) {
+                        $stocked++;
+                    }
                     continue;
                 }
 
                 $survivor = TenantInventoryItem::find($survivorRow->id);
                 $losers   = TenantInventoryItem::whereIn('id', array_map(fn ($l) => $l->id, $ordered))->get();
 
-                DB::transaction(function () use ($survivor, $losers, &$pivots, &$inherited) {
+                DB::transaction(function () use ($survivor, $losers, $refTables, &$pivots, &$inherited, &$moved) {
                     $fill = [];
                     foreach ($losers as $loser) {
                         foreach (TenantInventoryItemVendor::where('inventory_item_id', $loser->id)->get() as $pivot) {
@@ -241,13 +252,51 @@ class InventoryEanMerge extends Command
                             }
                         }
 
+                        // Per-location stock. Unique on (inventory_item_id,
+                        // location_id), so a location the survivor already
+                        // stocks is summed into rather than repointed.
+                        foreach (DB::table('tenant_inventory_item_locations')
+                                    ->where('inventory_item_id', $loser->id)->get() as $loc) {
+                            $existing = DB::table('tenant_inventory_item_locations')
+                                ->where('inventory_item_id', $survivor->id)
+                                ->where('location_id', $loc->location_id)
+                                ->first();
+                            if ($existing) {
+                                DB::table('tenant_inventory_item_locations')
+                                    ->where('id', $existing->id)
+                                    ->update(['computed_stock_count' =>
+                                        (int) $existing->computed_stock_count + (int) $loc->computed_stock_count]);
+                                DB::table('tenant_inventory_item_locations')->where('id', $loc->id)->delete();
+                            } else {
+                                DB::table('tenant_inventory_item_locations')
+                                    ->where('id', $loc->id)
+                                    ->update(['inventory_item_id' => $survivor->id]);
+                            }
+                        }
+
+                        // Everything else that points at an item follows it.
+                        // tenant_sale_items and tenant_inventory_movements both
+                        // snapshot name and SKU at write time, so a past receipt
+                        // or movement still reads as it did — repointing moves
+                        // the link without rewriting the history.
+                        foreach ($refTables as $table) {
+                            $moved += DB::table($table)
+                                ->where('inventory_item_id', $loser->id)
+                                ->update(['inventory_item_id' => $survivor->id]);
+                        }
+
                         foreach (self::INHERIT_BLANKS as $field) {
                             if (blank($survivor->{$field}) && filled($loser->{$field}) && ! array_key_exists($field, $fill)) {
                                 $fill[$field] = $loser->{$field};
                             }
                         }
 
-                        $loser->is_active = false;
+                        if ($loser->is_stock_tracked) {
+                            $survivor->is_stock_tracked = true;
+                        }
+
+                        $loser->is_active            = false;
+                        $loser->computed_stock_count = 0;
                         $loser->save();
 
                         // tenant_inventory_items has no notes column, so the
@@ -258,16 +307,32 @@ class InventoryEanMerge extends Command
                             'tenant_id'   => $loser->tenant_id,
                             'loser_id'    => $loser->id,
                             'loser_sku'   => $loser->sku,
+                            'loser_stock' => (int) $loser->getOriginal('computed_stock_count'),
                             'survivor_id' => $survivor->id,
                             'survivor_sku' => $survivor->sku,
                         ]);
                     }
 
-                    if ($fill) {
-                        $survivor->fill($fill)->save();
-                        $inherited += count($fill);
+                    // Stock is the sum of the cluster. Prefer recomputing from
+                    // the location rows now that they all hang off the survivor
+                    // — but an item with no location rows at all still has a
+                    // count on the item, and summing an empty set would zero it.
+                    $locRows = DB::table('tenant_inventory_item_locations')
+                        ->where('inventory_item_id', $survivor->id);
+                    if ($locRows->exists()) {
+                        $survivor->computed_stock_count = (int) $locRows->sum('computed_stock_count');
+                    } else {
+                        $survivor->computed_stock_count = (int) $survivor->computed_stock_count
+                            + $losers->sum(fn ($l) => (int) $l->getOriginal('computed_stock_count'));
                     }
+
+                    $survivor->fill($fill)->save();
+                    $inherited += count($fill);
                 });
+
+                if ($clusterStock > 0) {
+                    $stocked++;
+                }
 
                 $folded++;
             }
@@ -275,9 +340,10 @@ class InventoryEanMerge extends Command
 
         $this->newLine();
         $this->line('Clusters folded  : ' . $folded);
-        $this->line('Clusters skipped : ' . $skipped . ' (stock or history)');
+        $this->line('  carrying stock : ' . $stocked);
         if ($apply) {
             $this->line('Pivots moved     : ' . $pivots);
+            $this->line('Rows repointed   : ' . $moved);
             $this->line('Fields inherited : ' . $inherited);
         } else {
             $this->newLine();
