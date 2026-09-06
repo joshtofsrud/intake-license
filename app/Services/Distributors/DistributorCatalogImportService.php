@@ -34,7 +34,7 @@ class DistributorCatalogImportService
         }
 
         $vendor = $dryRun ? null : $this->vendorFor($tenantId, $code);
-        [$byKey, $byUpc, $linkedCatalog, $bySku] = $this->existingIndexes($tenantId); // MARKER-IMPORT-SKU-MERGE
+        [$byKey, $byUpc, $linkedCatalog, $bySku, $byEan] = $this->existingIndexes($tenantId); // MARKER-IMPORT-SKU-MERGE, MARKER-IMPORT-EAN-MERGE
 
         // MARKER-IMPORT-MATCHES
         $matchedRows = $this->matchedRows($candidates->pluck('id')->all());
@@ -68,6 +68,19 @@ class DistributorCatalogImportService
                 $matchId = ($key && isset($byKey[$key]))
                     ? $byKey[$key]
                     : (($cat->upc && isset($byUpc[$cat->upc])) ? $byUpc[$cat->upc] : null);
+            }
+
+            // MARKER-IMPORT-EAN-MERGE — same product, different distributor,
+            // no UPC on either side. Two rows for one Schwalbe tyre (SW21041
+            // and TR00641, EAN 4026495969444) each created their own item
+            // because the EAN sat on the row and on the item but was never a
+            // match key. Tested with the other barcode and ahead of the SKU:
+            // an EAN identifies the product, a SKU is a shop's own label.
+            if ($matchId === null) {
+                $ean = trim((string) $cat->ean);
+                if ($ean !== '' && isset($byEan[$ean])) {
+                    $matchId = $byEan[$ean];
+                }
             }
 
             // MARKER-IMPORT-SKU-MERGE — the shop already has an item with the
@@ -119,6 +132,12 @@ class DistributorCatalogImportService
             }
             if ($cat->upc) {
                 $byUpc[$cat->upc] = $id;
+            }
+            // MARKER-IMPORT-EAN-MERGE — without this, two rows sharing an EAN
+            // inside one run would both create an item. The index has to learn
+            // as it goes, exactly as product_key, UPC and SKU do above.
+            if ($cat->ean && trim((string) $cat->ean) !== '') {
+                $byEan[trim((string) $cat->ean)] = $id;
             }
             $linkedCatalog[$cat->id] = $id;
             $res['created']++;
@@ -228,7 +247,7 @@ class DistributorCatalogImportService
     {
         $items = TenantInventoryItem::query()
             ->where('tenant_id', $tenantId)
-            ->get(['id', 'sku', 'catalog_upc', 'distributor_catalog_id']); // MARKER-IMPORT-SKU-MERGE
+            ->get(['id', 'sku', 'catalog_upc', 'catalog_ean', 'distributor_catalog_id']); // MARKER-IMPORT-SKU-MERGE, MARKER-IMPORT-EAN-MERGE
 
         $itemIds = $items->pluck('id');
         $pivots = TenantInventoryItemVendor::query()
@@ -246,11 +265,17 @@ class DistributorCatalogImportService
         $byKey = [];
         $byUpc = [];
         $bySku = [];   // MARKER-IMPORT-SKU-MERGE
+        $byEan = [];   // MARKER-IMPORT-EAN-MERGE
         $linked = [];
 
         foreach ($items as $it) {
             if ($it->catalog_upc) {
                 $byUpc[$it->catalog_upc] = $it->id;
+            }
+            // MARKER-IMPORT-EAN-MERGE — trim only, matching how the identifier
+            // backfill normalised the column: NULLIF(TRIM(COALESCE(...)), '').
+            if ($it->catalog_ean && trim($it->catalog_ean) !== '') {
+                $byEan[trim($it->catalog_ean)] = $it->id;
             }
             if ($it->sku) {
                 $bySku[strtoupper(trim($it->sku))] = $it->id;
@@ -273,7 +298,7 @@ class DistributorCatalogImportService
             }
         }
 
-        return [$byKey, $byUpc, $linked, $bySku]; // MARKER-IMPORT-SKU-MERGE
+        return [$byKey, $byUpc, $linked, $bySku, $byEan]; // MARKER-IMPORT-SKU-MERGE, MARKER-IMPORT-EAN-MERGE
     }
 
     /**
