@@ -18,10 +18,18 @@
   .mt-tile-v{font-size:24px;font-weight:700;margin-top:2px}
   .mt-tile-d{font-size:11.5px;margin-top:2px;opacity:.6}
   .mt-legend{font-size:11px;opacity:.42;margin-top:2px}
-  .mt-two-up{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:20px}
+  /* MARKER-DASH-LEADERS — the right column held a funnel and a title that
+     needed room; at 1fr it wrapped "of signups" mid-phrase. */
+  .mt-two-up{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(300px,1fr);gap:14px;margin-top:20px}
   @media(max-width:900px){.mt-two-up{grid-template-columns:1fr}}
   .mt-card{border:1px solid rgba(127,127,127,.22);border-radius:12px;padding:14px 16px}
   .mt-bar-row{position:relative;display:flex;align-items:center;gap:10px;padding:7px 8px;font-size:13px;color:inherit;text-decoration:none}
+  /* MARKER-DASH-LEADERS — joins a short label to a value on a card whose width
+     is whatever the window leaves it. Without it the two sat at opposite ends
+     of the row with nothing relating them. */
+  .mt-lead{flex:1;border-bottom:1px dotted rgba(255,255,255,.13);transform:translateY(-3px);min-width:12px}
+  .mt-bar-row .mt-bar-label{white-space:nowrap;overflow:visible;text-overflow:clip}
+  .mt-bar-row .mt-bar-n{margin-left:0;white-space:nowrap}
   /* MARKER-DASH-ROWFIX — .mt-fill deleted, not just unused: dead styling is
      how decoration creeps back into a row that shouldn't have it. */
   .iss-row{display:flex;align-items:flex-start;gap:9px;padding:8px 8px;border-radius:6px;color:inherit;text-decoration:none}
@@ -48,7 +56,14 @@
   .mt-metric .d.up{color:var(--pd-ok);opacity:1}.mt-metric .d.down{color:var(--pd-bad);opacity:1}
   .mt-chartwrap{padding:14px 16px 8px}
   .mt-axis{display:flex;justify-content:space-between;font-size:11px;opacity:.45;margin-top:4px}
-  .mt-tiles{display:flex;align-items:stretch;gap:0;flex-wrap:wrap}
+  /* MARKER-DASH-LEADERS — one row per step. As boxes in a grid they had no
+     room in a 300px column and the arrows fell between lines. */
+  .mt-tiles{display:flex;flex-direction:column;gap:8px}
+  .mt-tiles .mt-gap{display:none}
+  .mt-tiles .mt-tile{display:flex;align-items:baseline;gap:10px;text-align:left;min-width:0;padding:10px 12px}
+  .mt-tiles .mt-tile .n{font-size:20px;line-height:1}
+  .mt-tiles .mt-tile .l{flex:1;margin-top:0}
+  .mt-tiles .mt-tile .p{margin-top:0}
   .mt-tile{flex:1 1 0;min-width:104px;padding:14px 12px;border-radius:12px;
     background:rgba(139,124,246,.10);border:1px solid rgba(139,124,246,.22);text-align:center}
   .mt-tile.is-zero{background:rgba(127,127,127,.06);border-color:rgba(127,127,127,.20)}
@@ -162,6 +177,7 @@
                button. The pill carries the state instead. --}}
           <span class="mt-bar-label">{{ $row['name'] }}</span>
           <span class="pill {{ $row['state'] }}">{{ ['ok' => 'ok', 'warn' => 'watch', 'bad' => 'action', 'idle' => 'n/a'][$row['state']] ?? $row['state'] }}</span>
+          <span class="mt-lead"></span>{{-- MARKER-DASH-LEADERS --}}
           <span class="mt-bar-n">{!! $row['value'] !!}</span>
         </a>
       @endforeach
