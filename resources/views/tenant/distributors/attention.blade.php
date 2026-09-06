@@ -428,7 +428,11 @@ body.at-bar-open .ia-mobile-nav{display:none}
   @if($flags->isEmpty())
     <div class="at-card"><div class="at-empty"><div class="big">✓</div>All clear — no pricing attention needed right now.</div></div>
   @else
-    <form method="POST" action="{{ route('tenant.distributors.attention.resolve') }}">
+    {{-- MARKER-BULK-WORKING — 9,105 rows through one request looked like a
+         dead browser. The count is the whole filtered set when select-all is
+         armed; otherwise the script falls back to the ticked boxes. --}}
+    <form method="POST" action="{{ route('tenant.distributors.attention.resolve') }}"
+          data-bulk-count="{{ $flags->total() }}">
       @csrf
       <input type="hidden" name="action" id="at-action" value="">
       <input type="hidden" name="f_brand" value="{{ $filters['brand'] ?? '' }}">
