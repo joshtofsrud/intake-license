@@ -287,6 +287,14 @@ body.ia-theme-c select optgroup {
   background-color: #1c1c1c;
   color: #f0f0f0;
 }
+/* MARKER-DARK-SELECT-OPAQUE — macOS ignores color-scheme on a control whose
+   own background is translucent (--ia-input-bg is rgba white at 7%), and
+   paints its default light popup instead. An opaque background that matches
+   what the overlay resolves to over --ia-surface makes it honour dark. */
+body.ia-theme-c select,
+body.ia-theme-c .ia-select {
+  background-color: #2a2a2a;
+}
 /* Native pickers — date, time, colour — get the same treatment. */
 body.ia-theme-c input[type="date"],
 body.ia-theme-c input[type="datetime-local"],
