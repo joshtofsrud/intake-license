@@ -507,6 +507,11 @@ class InventoryController extends Controller
             $wq->whereHas('distributorCatalog', fn ($x) => $x->where('category', $bucketName));
         }
         $all = $wq->orderBy('name')->limit(500)->get();
+        // MARKER-UNCAT-LABEL — the view shows the name, never the prefixed key.
+        $activeBucketLabel  = $bucket === '__none__' ? 'No catalog signal' : $bucketName;
+        $activeBucketKind   = $bucketKind;
+        $activeBucketSource = collect($buckets)->firstWhere('key', $bucket)['source'] ?? null;
+
         $bucketTotal = $all->count();
 
         // MARKER-SPLIT-BY — tally every attribute across the bucket, then
@@ -642,6 +647,7 @@ class InventoryController extends Controller
 
         return view('tenant.inventory.uncategorized', [
             'assignments' => $assignments, 'suggestions' => $suggestions, 'activeSuggestion' => $activeSuggestion,
+            'activeBucketLabel' => $activeBucketLabel, 'activeBucketKind' => $activeBucketKind, 'activeBucketSource' => $activeBucketSource,
             'buckets' => $buckets, 'noneCount' => $noneCount, 'total' => $total,
             'activeBucket' => $bucket, 'items' => $items,
             // MARKER-SPLIT-BY

@@ -1,3 +1,4 @@
+{{-- MARKER-UNCAT-LABEL — cat:/src: are URL keys, not names --}}
 @extends('layouts.tenant.app')
 @php $pageTitle = 'Uncategorized'; @endphp
 {{-- MARKER-PATCH-HLC24 --}}
@@ -136,7 +137,7 @@
     {{-- active bucket --}}
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
       <span style="font-size:16px;font-weight:600">{{ $bucketLabel }}</span>
-      @if($activeBucket !== '__none__')<span style="font-size:11px;color:var(--ia-text-mute);font-family:var(--ia-mono);background:var(--ia-surface-2);border:1px solid var(--ia-border);border-radius:20px;padding:2px 9px">catalog category "{{ $activeBucket }}"</span>@endif
+      @if($activeBucket !== '__none__')<span style="font-size:11px;color:var(--ia-text-mute);font-family:var(--ia-mono);background:var(--ia-surface-2);border:1px solid var(--ia-border);border-radius:20px;padding:2px 9px">catalog category "{{ $activeBucketLabel ?? $activeBucket }}"</span>@endif
     </div>
 
     {{-- size sub-groups (touch of A) --}}
