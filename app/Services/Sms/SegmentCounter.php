@@ -16,9 +16,28 @@ namespace App\Services\Sms;
  */
 class SegmentCounter
 {
-    /** The GSM 03.38 basic alphabet. */
+    /**
+     * The GSM 03.38 basic alphabet — 127 characters (0x00-0x7F less ESC,
+     * which is the escape into the extended table below).
+     *
+     * MARKER-GSM-DOLLAR — the backslash in front of $ is load-bearing.
+     * It is not a stray. Do not "tidy" it away.
+     *
+     * PHP identifiers accept bytes \x80-\xff, so every accented character
+     * on this line is a legal identifier character. Left unescaped, the
+     * text "$¥èéùìòÇ" is not text at all: PHP reads it as the variable
+     * $¥èéùìòÇ and interpolates it. Interpolation is illegal in a const,
+     * so the class became a compile-time fatal — "Constant expression
+     * contains invalid operations" — and a compile-time fatal is not
+     * Throwable, so the try/catch in SmsService could not see it. Merely
+     * autoloading this class killed the request, and every SMS send would
+     * have 500'd the moment a tenant switched SMS on.
+     *
+     * $ is a genuine GSM character and has to stay in the alphabet.
+     * Escaping keeps the literal and ends the interpolation.
+     */
     private const GSM_BASIC =
-        "@£$¥èéùìòÇ\nØø\rÅåΔ_ΦΓΛΩΠΨΣΘΞÆæßÉ !\"#¤%&'()*+,-./0123456789:;<=>?"
+        "@£\$¥èéùìòÇ\nØø\rÅåΔ_ΦΓΛΩΠΨΣΘΞÆæßÉ !\"#¤%&'()*+,-./0123456789:;<=>?"
         . "¡ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÑÜ§¿abcdefghijklmnopqrstuvwxyzäöñüà";
 
     /** GSM characters that take two positions. */
