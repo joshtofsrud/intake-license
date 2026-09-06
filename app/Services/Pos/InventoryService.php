@@ -306,7 +306,7 @@ class InventoryService
             return;
         }
 
-        $method = (string) ((array) ($tenant->settings ?? []))['inventory_cost_method'] ?? 'average';
+        $method = (string) (((array) ($tenant->settings ?? []))['inventory_cost_method'] ?? 'average'); // MARKER-COST-METHOD-FIX
         if ($method === 'manual') {
             return;
         }

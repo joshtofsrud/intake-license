@@ -512,7 +512,7 @@
     </div>
 
     {{-- MARKER-COST-METHOD-UI — how your cost is calculated when stock arrives --}}
-    @php $costMethod = (string) ((array) ($currentTenant->settings ?? []))['inventory_cost_method'] ?? 'average'; @endphp
+    @php $costMethod = (string) (((array) ($currentTenant->settings ?? []))['inventory_cost_method'] ?? 'average'); @endphp{{-- MARKER-COST-METHOD-FIX — the cast bound tighter than ?? and threw on a missing key --}}
     <div class="ia-card" style="margin-bottom:20px">
       <div class="ia-card-head"><span class="ia-card-title">Inventory cost</span></div>
       <div class="ia-form-group">
