@@ -433,36 +433,78 @@ class InventoryController extends Controller
         $attrKey = trim((string) $request->query('attr', ''));
         $attrVal = trim((string) $request->query('val', '')) ?: null;
 
-        // Buckets: group uncategorized items by catalog category.
+        // MARKER-UNCAT-SOURCE — buckets group by the item's SOURCE, whichever
+        // kind it has: a distributor's catalog category, or the category string
+        // a CSV import kept. One list, one flow — an imported item used to
+        // appear here AND on a separate mappings tab, with two ways to assign
+        // it. The key carries the kind so two sources can use the same word.
         $bucketRows = TenantInventoryItem::query()
             ->where('tenant_inventory_items.tenant_id', $tenant->id)
             ->whereNull('tenant_inventory_items.category_id')
             ->leftJoin($catTable . ' as c', 'tenant_inventory_items.distributor_catalog_id', '=', 'c.id')
-            ->selectRaw('c.category as cat, count(*) as n')
-            ->groupBy('c.category')
+            ->selectRaw('c.category as cat, c.distributor_code as dist, count(*) as n')
+            ->groupBy('c.category', 'c.distributor_code')
+            ->get();
+
+        $importRows = TenantInventoryItem::query()
+            ->where('tenant_id', $tenant->id)
+            ->whereNull('category_id')
+            ->whereNotNull('source_category')
+            ->where('source_category', '!=', '')
+            ->selectRaw('source_category as cat, source_name as src, count(*) as n')
+            ->groupBy('source_category', 'source_name')
             ->get();
 
         $buckets = [];
         $noneCount = 0;
+
         foreach ($bucketRows as $r) {
-            if ($r->cat === null || $r->cat === '') { $noneCount += (int) $r->n; }
-            else { $buckets[] = ['key' => $r->cat, 'label' => $r->cat, 'count' => (int) $r->n]; }
+            if ($r->cat === null || $r->cat === '') { $noneCount += (int) $r->n; continue; }
+            $buckets[] = ['key' => 'cat:' . $r->cat, 'label' => $r->cat,
+                          'count' => (int) $r->n, 'source' => $r->dist ?: 'catalog', 'kind' => 'catalog'];
         }
+        foreach ($importRows as $r) {
+            $buckets[] = ['key' => 'src:' . $r->cat, 'label' => $r->cat,
+                          'count' => (int) $r->n, 'source' => $r->src ?: 'import', 'kind' => 'import'];
+        }
+
+        // An item with a catalog category AND an import string is counted in
+        // both, so the none-count must exclude anything with either.
+        $noneCount = TenantInventoryItem::query()
+            ->where('tenant_id', $tenant->id)->whereNull('category_id')
+            ->where(function ($w) { $w->whereNull('source_category')->orWhere('source_category', ''); })
+            ->where(function ($w) use ($catTable) {
+                $w->whereNull('distributor_catalog_id')
+                  ->orWhereHas('distributorCatalog', fn ($x) => $x->whereNull('category')->orWhere('category', ''));
+            })
+            ->count();
+
         usort($buckets, fn ($a, $b) => $b['count'] <=> $a['count']);
-        $total = array_sum(array_column($buckets, 'count')) + $noneCount;
+        $total = TenantInventoryItem::where('tenant_id', $tenant->id)->whereNull('category_id')->count();
 
         if ($bucket === '') { $bucket = $buckets[0]['key'] ?? '__none__'; }
+
+        // MARKER-UNCAT-SOURCE — a key is "cat:<catalog category>" or
+        // "src:<import string>". Bare keys from an older link still resolve as
+        // catalog, so a bookmarked URL does not 404 into an empty bucket.
+        $bucketKind = 'catalog';
+        $bucketName = $bucket;
+        if (str_starts_with($bucket, 'src:'))      { $bucketKind = 'import';  $bucketName = substr($bucket, 4); }
+        elseif (str_starts_with($bucket, 'cat:'))  { $bucketKind = 'catalog'; $bucketName = substr($bucket, 4); }
 
         // Active bucket worklist (bounded).
         $wq = TenantInventoryItem::query()->with('distributorCatalog')
             ->where('tenant_id', $tenant->id)->whereNull('category_id');
         if ($bucket === '__none__') {
-            $wq->where(function ($w) {
-                $w->whereNull('distributor_catalog_id')
-                  ->orWhereHas('distributorCatalog', fn ($x) => $x->whereNull('category')->orWhere('category', ''));
-            });
+            $wq->where(function ($w) { $w->whereNull('source_category')->orWhere('source_category', ''); })
+               ->where(function ($w) {
+                   $w->whereNull('distributor_catalog_id')
+                     ->orWhereHas('distributorCatalog', fn ($x) => $x->whereNull('category')->orWhere('category', ''));
+               });
+        } elseif ($bucketKind === 'import') {
+            $wq->where('source_category', $bucketName);
         } else {
-            $wq->whereHas('distributorCatalog', fn ($x) => $x->where('category', $bucket));
+            $wq->whereHas('distributorCatalog', fn ($x) => $x->where('category', $bucketName));
         }
         $all = $wq->orderBy('name')->limit(500)->get();
         $bucketTotal = $all->count();
@@ -734,7 +776,15 @@ class InventoryController extends Controller
                 $q->whereHas('distributorCatalog', fn ($w) => $w->where('manufacturer', $data['f_brand']));
             }
             if (filled($data['f_cat'] ?? null)) {
-                $q->whereHas('distributorCatalog', fn ($w) => $w->where('category', $data['f_cat']));
+                // MARKER-UNCAT-SOURCE — "assign all in this bucket" must follow
+                // the bucket's KIND. Scoping an import bucket as a catalog
+                // category matched nothing, so select-all silently assigned
+                // only the ticked rows.
+                if ($bucketKind === 'import') {
+                    $q->where('source_category', $bucketKey);
+                } else {
+                    $q->whereHas('distributorCatalog', fn ($w) => $w->where('category', $bucketKey));
+                }
             }
             if (filled($data['f_q'] ?? null)) {
                 $s = $data['f_q'];
@@ -753,7 +803,11 @@ class InventoryController extends Controller
         // undone. One batch row, one ledger row per item.
         $rows = (clone $q)->get(['id', 'category_id']);
         $assignmentId = (string) \Illuminate\Support\Str::uuid();
-        $bucketKey = trim((string) ($data['f_cat'] ?? $request->input('bucket', '')));
+        // MARKER-UNCAT-SOURCE — the scope carries its kind; the ledger keeps
+        // the bare string, as before.
+        $rawBucket = trim((string) ($data['f_cat'] ?? $request->input('bucket', '')));
+        $bucketKind = str_starts_with($rawBucket, 'src:') ? 'import' : 'catalog';
+        $bucketKey  = preg_replace('/^(src|cat):/', '', $rawBucket);
 
         \Illuminate\Support\Facades\DB::transaction(function () use ($rows, $assignmentId, $tenant, $category, $bucketKey, $request, $q) {
             \Illuminate\Support\Facades\DB::table('tenant_category_assignments')->insert([

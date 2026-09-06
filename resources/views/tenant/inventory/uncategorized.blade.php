@@ -45,6 +45,11 @@
            class="uc-chip" data-label="{{ strtolower($b['label']) }}" data-idx="{{ $loop->index }}" data-sug="{{ $sg ? 1 : 0 }}"
            style="display:flex;gap:9px;align-items:center;padding:9px 13px;border-radius:8px;text-decoration:none;font-size:13px;border:1px solid {{ $on ? 'var(--ia-accent)' : 'var(--ia-border)' }};background:{{ $on ? 'rgba(190,242,100,.13)' : 'var(--ia-surface)' }};color:var(--ia-text)">
           {{ $b['label'] }} <span style="font-family:var(--ia-mono);font-size:12px;color:{{ $on ? 'var(--ia-accent)' : 'var(--ia-text-dim)' }}">{{ $b['count'] }}</span>
+          {{-- MARKER-UNCAT-SOURCE — a sync and an import can use the same word;
+               say which this is. --}}
+          @if(!empty($b['source']))
+            <span style="font-size:10px;padding:1px 7px;border-radius:99px;border:.5px solid {{ ($b['kind'] ?? '') === 'import' ? 'rgba(240,196,106,.45)' : 'rgba(159,208,245,.35)' }};color:{{ ($b['kind'] ?? '') === 'import' ? '#F0C46A' : '#9fd0f5' }};white-space:nowrap">{{ $b['source'] }}</span>
+          @endif
           @if($sg && $sg['kind'] === 'rule')<span class="uc-sug rule">→ {{ $sg['category_name'] }}</span>@elseif($sg)<span class="uc-sug" style="opacity:.55">maybe {{ $sg['category_name'] }}</span>@endif
         </a>
       @endforeach
@@ -56,7 +61,8 @@
         </a>
       @endif
     </div>
-    <p style="font-size:12px;color:var(--ia-text-mute);margin:8px 0 12px">Buckets come from the distributor's catalog category &mdash; they gather like items. They don't decide the destination; that's your call.</p>
+    {{-- MARKER-UNCAT-SOURCE --}}
+    <p style="font-size:12px;color:var(--ia-text-mute);margin:8px 0 12px">Buckets come from wherever the item came from &mdash; a distributor's catalog category, or the category a file you imported used. They gather like items; they don't decide the destination, that's your call.</p>
 
     {{-- MARKER-CAT-RAIL2 — one collapsed line, not a card. Undo previews
          the items it would put back before doing anything. --}}
