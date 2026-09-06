@@ -13,9 +13,12 @@
   // MARKER-SSEL-ASSOC — array_is_list() cannot tell ['0' => 'None'] from a
   // one-item list: PHP casts the key to 0 either way. Callers passing a map
   // say so instead of it being guessed from the shape.
-  $sselAssoc = $assoc ?? ! array_is_list($options);
+  // MARKER-SSEL-COLLECTION — callers pass Collections as often as arrays
+  // (the import screen does); array_is_list() only accepts an array.
+  $sselItems = $options instanceof \Illuminate\Support\Collection ? $options->all() : (array) $options;
+  $sselAssoc = $assoc ?? ! array_is_list($sselItems);
   $sselOpts = [];
-  foreach ($options as $k => $v) {
+  foreach ($sselItems as $k => $v) {
       // MARKER-SSEL-NUMKEY — PHP casts numeric string keys back to integers,
       // so ['0' => 'Forever'] arrives with $k === 0 and the old is_int() test
       // read it as a FLAT list: value became "Forever", nothing matched the
