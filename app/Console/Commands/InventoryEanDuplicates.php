@@ -37,7 +37,8 @@ class InventoryEanDuplicates extends Command
 {
     protected $signature = 'inventory:ean-duplicates
                             {--tenant= : Limit to one tenant subdomain (e.g. wmm)}
-                            {--list=0  : Also print this many example groups per bucket}';
+                            {--list=0  : Also print this many example groups per bucket}
+                            {--csv=    : Write every group to this path as CSV, names side by side}';
 
     protected $description = 'Report inventory items sharing an EAN, bucketed by whether they are safe to fold.';
 
@@ -185,6 +186,76 @@ class InventoryEanDuplicates extends Command
                     }
                 }
             }
+        }
+
+        // Every group, names side by side, for reading in a spreadsheet.
+        $csv = (string) $this->option('csv');
+        if ($csv !== '') {
+            $members = [];
+            foreach (array_chunk($ids, 5000) as $chunk) {
+                foreach (DB::table('tenant_inventory_items')->whereIn('id', $chunk)
+                            ->get(['id', 'sku', 'size', 'color', 'name']) as $m) {
+                    $members[$m->id] = $m;
+                }
+            }
+
+            $widest = 0;
+            foreach ($groups as $g) {
+                $widest = max($widest, (int) $g->items);
+            }
+
+            $head = ['bucket', 'tenant', 'ean', 'items', 'stock'];
+            for ($i = 1; $i <= $widest; $i++) {
+                $head[] = "sku_{$i}";
+                $head[] = "size_{$i}";
+                $head[] = "name_{$i}";
+            }
+
+            $bucketOf = [];
+            foreach ($buckets as $label => $rows) {
+                foreach ($rows as $g) {
+                    $bucketOf[$g->tenant_id . '|' . $g->catalog_ean] = $label;
+                }
+            }
+
+            $fh = fopen($csv, 'w');
+            if ($fh === false) {
+                $this->error("Cannot write {$csv}");
+                return self::FAILURE;
+            }
+            fputcsv($fh, $head);
+
+            foreach ($groups as $g) {
+                $row = [
+                    $bucketOf[$g->tenant_id . '|' . $g->catalog_ean] ?? '?',
+                    $subs[$g->tenant_id] ?? $g->tenant_id,
+                    $g->catalog_ean,
+                    $g->items,
+                    $g->stock,
+                ];
+                $these = [];
+                foreach (explode(',', $g->ids) as $id) {
+                    if (isset($members[$id])) {
+                        $these[] = $members[$id];
+                    }
+                }
+                usort($these, fn ($a, $b) => strcmp((string) $a->sku, (string) $b->sku));
+                foreach ($these as $m) {
+                    $row[] = $m->sku;
+                    $row[] = $m->size ?: '';
+                    $row[] = $m->name;
+                }
+                for ($i = count($these); $i < $widest; $i++) {
+                    $row[] = '';
+                    $row[] = '';
+                    $row[] = '';
+                }
+                fputcsv($fh, $row);
+            }
+            fclose($fh);
+
+            $this->newLine();
+            $this->info(sprintf('Wrote %d groups to %s', count($groups), $csv));
         }
 
         $this->newLine();
