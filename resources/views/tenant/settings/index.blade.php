@@ -511,6 +511,32 @@
       <div style="font-size:12px;opacity:.5;margin-top:8px">Shown on your customer booking page — e.g. “bike”, “vehicle”, “pet”. Leave blank for “item”.</div>
     </div>
 
+    {{-- MARKER-COST-METHOD-UI — how your cost is calculated when stock arrives --}}
+    @php $costMethod = (string) ((array) ($currentTenant->settings ?? []))['inventory_cost_method'] ?? 'average'; @endphp
+    <div class="ia-card" style="margin-bottom:20px">
+      <div class="ia-card-head"><span class="ia-card-title">Inventory cost</span></div>
+      <div class="ia-form-group">
+        <label class="ia-form-label">When stock arrives, your cost is</label>
+        <div style="display:flex;flex-direction:column;gap:9px;margin-top:4px">
+          <label style="display:flex;gap:10px;align-items:flex-start;cursor:pointer">
+            <input type="radio" name="inventory_cost_method" value="average" @checked($costMethod === 'average') style="margin-top:3px">
+            <span><b style="font-weight:500">Weighted average</b><br><span style="font-size:12px;opacity:.6">Blends across shipments by quantity — the truest margin over time.</span></span>
+          </label>
+          <label style="display:flex;gap:10px;align-items:flex-start;cursor:pointer">
+            <input type="radio" name="inventory_cost_method" value="last" @checked($costMethod === 'last') style="margin-top:3px">
+            <span><b style="font-weight:500">Last cost</b><br><span style="font-size:12px;opacity:.6">The most recent shipment sets it outright.</span></span>
+          </label>
+          <label style="display:flex;gap:10px;align-items:flex-start;cursor:pointer">
+            <input type="radio" name="inventory_cost_method" value="manual" @checked($costMethod === 'manual') style="margin-top:3px">
+            <span><b style="font-weight:500">Manual</b><br><span style="font-size:12px;opacity:.6">Receiving never changes it — you set cost on each item yourself.</span></span>
+          </label>
+        </div>
+        <p style="font-size:11px;opacity:.5;margin-top:10px;line-height:1.5">
+          Applies to receiving and to stock adjustments in with a cost. Until you've received an item at least once, the distributor's catalog cost is used and reports say so.
+        </p>
+      </div>
+    </div>
+
     {{-- Tax --}}
     <div class="ia-card" style="margin-bottom:20px">
       <div class="ia-card-head"><span class="ia-card-title">Sales tax</span></div>
