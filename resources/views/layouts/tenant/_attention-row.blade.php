@@ -26,7 +26,11 @@
   @include('layouts.tenant._notes-pad')
 
   {{-- alerts bell (existing dropdown, rebuilt) --}}
-  @include('layouts.tenant._staff-alerts-bell')
+  {{-- MARKER-ALERTS-GATE — the bell is the feature too. Without this a shop
+       that never bought staff alerts kept a bell opening an empty page. --}}
+  @if(optional(tenant())->staff_alerts_enabled)
+    @include('layouts.tenant._staff-alerts-bell')
+  @endif
 </div>
 
 {{-- search modal --}}

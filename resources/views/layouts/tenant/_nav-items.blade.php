@@ -191,6 +191,10 @@
       'badge'  => 'inbox',
     ],
     [
+      // MARKER-ALERTS-GATE — the add-on gates the feature; without this the nav
+      // entry, the bell and an empty "you're all caught up" page showed to
+      // shops that never bought it, reading as broken rather than unsold.
+      'gate'   => 'staff_alerts_enabled',
       'route'  => 'tenant.notifications',
       'label'  => 'Alerts',
       'icon'   => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1.8a3.2 3.2 0 0 0-3.2 3.2c0 3-1.3 3.9-1.3 3.9h9c0 0-1.3-.9-1.3-3.9A3.2 3.2 0 0 0 7 1.8z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><path d="M6 11.2a1.2 1.2 0 0 0 2 0" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>',
