@@ -52,6 +52,19 @@
     .svc-check svg{ width:12px; height:12px; opacity:0; }
     .svc.sel .svc-check svg{ opacity:1; }
 
+    /* MARKER-SIMPLE-CATS — category rail + groups */
+    .bk-cat-rail{ display:flex; gap:8px; overflow-x:auto; padding:2px 0 16px; margin:0 -2px; scrollbar-width:none; -webkit-overflow-scrolling:touch; }
+    .bk-cat-rail::-webkit-scrollbar{ display:none; }
+    .bk-cat-pill{ flex:none; padding:8px 15px; border-radius:99px; border:1px solid var(--p-border); background:transparent; color:var(--p-text); opacity:.72; font-size:13px; font-weight:600; white-space:nowrap; cursor:pointer; font-family:inherit; transition:opacity .12s, border-color .12s, background .12s; }
+    .bk-cat-pill:hover{ opacity:1; border-color:var(--p-muted); }
+    .bk-cat-pill:focus-visible{ outline:2px solid var(--p-accent); outline-offset:2px; }
+    .bk-cat-pill.is-active{ background:var(--p-accent); color:var(--p-accent-text); border-color:var(--p-accent); opacity:1; }
+    .bk-cat-pill-ct{ opacity:.55; font-size:11.5px; margin-left:5px; }
+    .bk-cat-pill.is-active .bk-cat-pill-ct{ opacity:.7; }
+    .svc-group{ margin-bottom:22px; }
+    .svc-group:last-child{ margin-bottom:0; }
+    .svc-heading{ font-size:12.5px; font-weight:600; color:var(--p-muted); margin:0 0 9px 2px; letter-spacing:.02em; }
+
     /* calendar */
     .cal{ background:var(--p-card); border:1px solid var(--p-border); border-radius:var(--p-r-lg); padding:16px; }
     .cal-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
@@ -117,21 +130,73 @@
     <section class="bk-section active" id="bk-step-1">
       <div class="bk-section-title">{{ $h1 }}</div>
       <div class="bk-section-sub">{{ $bk['step1_sub'] ?? 'Choose the service you need.' }}</div>
-      <div class="svc-grid">
-        @forelse($simpleServices as $svc)
-          <button type="button" class="svc" data-id="{{ $svc['id'] }}" data-price="{{ $svc['price_cents'] }}" data-name="{{ $svc['name'] }}">
-            <div class="svc-body">
-              <div class="svc-name">{{ $svc['name'] }}</div>
-              @if($svc['tagline'])<div class="svc-tag">{{ $svc['tagline'] }}</div>@endif
+      @php
+        // MARKER-SIMPLE-CATS — group the curated menu by category. Group order
+        // follows first appearance in $simpleServices, which BookingFlowService
+        // already sorts by simple_sort then sort_order, so the tenant's own
+        // curation still drives the page rather than an alphabetical re-sort.
+        //
+        // Services with no category go to a single trailing bucket keyed
+        // '__uncat' rather than the slug 'other', so a real category actually
+        // named "Other" cannot silently merge into it. Without the bucket an
+        // uncategorised service would be reachable on All and disappear the
+        // moment any pill is active.
+        $__svcAll   = collect($simpleServices);
+        $__svcNamed = $__svcAll->filter(fn ($s) => filled($s['category']))->groupBy('category');
+        $__svcOther = $__svcAll->filter(fn ($s) => blank($s['category']))->values();
+
+        $__svcGroups = [];
+        foreach ($__svcNamed as $__catName => $__catItems) {
+            $__svcGroups[] = [
+                'slug'  => \Illuminate\Support\Str::slug($__catName) ?: '__cat' . count($__svcGroups),
+                'label' => $__catName,
+                'items' => $__catItems,
+            ];
+        }
+        if ($__svcOther->count()) {
+            $__svcGroups[] = ['slug' => '__uncat', 'label' => 'Other', 'items' => $__svcOther];
+        }
+
+        // One group is not a filter. Matches the advanced flow, which only
+        // draws its rail above a single category.
+        $__railOn = count($__svcGroups) > 1;
+      @endphp
+
+      @if($__railOn)
+        <div class="bk-cat-rail" id="bk-cat-rail">
+          <button type="button" class="bk-cat-pill is-active" data-cat="all">All <span class="bk-cat-pill-ct">{{ $__svcAll->count() }}</span></button>
+          @foreach($__svcGroups as $__g)
+            <button type="button" class="bk-cat-pill" data-cat="{{ $__g['slug'] }}">{{ $__g['label'] }} <span class="bk-cat-pill-ct">{{ $__g['items']->count() }}</span></button>
+          @endforeach
+        </div>
+      @endif
+
+      <div id="svc-catalog">
+        @forelse($__svcGroups as $__g)
+          <div class="svc-group" data-cat="{{ $__g['slug'] }}">
+            @if($__railOn)
+              <div class="svc-heading">{{ $__g['label'] }}</div>
+            @endif
+            <div class="svc-grid">
+              @foreach($__g['items'] as $svc)
+                <button type="button" class="svc" data-id="{{ $svc['id'] }}" data-price="{{ $svc['price_cents'] }}" data-name="{{ $svc['name'] }}">
+                  <div class="svc-body">
+                    <div class="svc-name">{{ $svc['name'] }}</div>
+                    @if($svc['tagline'])<div class="svc-tag">{{ $svc['tagline'] }}</div>@endif
+                  </div>
+                  <div class="svc-meta">
+                    @if($svc['price_cents'] > 0)<div class="svc-price">${{ number_format($svc['price_cents']/100, 2) }}</div>@endif
+                    @if($svc['duration'])<div class="svc-dur">{{ $svc['duration'] >= 60 ? round($svc['duration']/60,1).' hr' : $svc['duration'].' min' }}</div>@endif
+                  </div>
+                  <span class="svc-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg></span>
+                </button>
+              @endforeach
             </div>
-            <div class="svc-meta">
-              @if($svc['price_cents'] > 0)<div class="svc-price">${{ number_format($svc['price_cents']/100, 2) }}</div>@endif
-              @if($svc['duration'])<div class="svc-dur">{{ $svc['duration'] >= 60 ? round($svc['duration']/60,1).' hr' : $svc['duration'].' min' }}</div>@endif
-            </div>
-            <span class="svc-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg></span>
-          </button>
+          </div>
         @empty
-          <div class="cal-empty">No services are available to book right now.</div>
+          <div class="svc-grid">
+            <div class="cal-empty">No services are available to book right now.</div>
+          </div>
         @endforelse
       </div>
       <div class="actions">
@@ -260,6 +325,25 @@
       if (step === 3) refreshSummary();
     }
     $all('[data-back]').forEach(function(b){ b.addEventListener('click', function(){ go(+b.dataset.back); }); });
+
+    /* MARKER-SIMPLE-CATS — pill rail filters the groups below. Absent when the
+       menu has one group, so bail out rather than assume the rail is there. */
+    (function(){
+      var rail = $('#bk-cat-rail');
+      if (!rail) return;
+      var pills  = $all('.bk-cat-pill', rail);
+      var groups = $all('.svc-group');
+      pills.forEach(function(pill){
+        pill.addEventListener('click', function(){
+          pills.forEach(function(p){ p.classList.remove('is-active'); });
+          pill.classList.add('is-active');
+          var cat = pill.dataset.cat;
+          groups.forEach(function(g){
+            g.style.display = (cat === 'all' || g.dataset.cat === cat) ? '' : 'none';
+          });
+        });
+      });
+    })();
 
     /* ---- step 1: service ---- */
     $all('.svc').forEach(function(el){
