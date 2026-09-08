@@ -230,6 +230,8 @@
 @endsection
 
 @push('scripts')
+  <!-- MARKER-SIMPLE-STRIPE-JS -->
+  @if($stripeEnabled)<script src="https://js.stripe.com/v3/"></script>@endif
   <script>
   (function(){
     var CFG = {
@@ -409,7 +411,13 @@
     });
 
     function confirmCard(clientSecret, token){
-      if (!stripe || !card){ return err('Card form not ready.'); }
+      // MARKER-SIMPLE-STRIPE-JS — reset the button. Every other error path
+      // does; without it the customer is stuck on a disabled "Booking..."
+      // with no way to retry.
+      if (!stripe || !card){
+        var b0 = $('#bk-submit'); b0.disabled = false; b0.textContent = 'Book it';
+        return err('Card form not ready.');
+      }
       stripe.confirmCardPayment(clientSecret, { payment_method:{ card: card } }).then(function(result){
         if (result.error){ var b=$('#bk-submit'); b.disabled=false; b.textContent='Book it'; return err(result.error.message); }
         fetch('/book/finalize', {
