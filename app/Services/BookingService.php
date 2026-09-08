@@ -205,6 +205,9 @@ class BookingService
             // problem we add a re-check here similar to the time-slot path.
 
             return DB::transaction(function () use (
+                $tenant, // MARKER-BOOKING-TENANT-USE — the need_by check below
+                         // reads $tenant->settings; without this capture any
+                         // booking carrying a need_by threw "Undefined variable".
                 $data, $tenantId, $plan,
                 $totalCents, $totalDuration, $slotWeight,
                 $appointmentTime, $appointmentEndTime, $resourceId,
