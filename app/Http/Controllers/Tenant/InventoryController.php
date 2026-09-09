@@ -49,13 +49,23 @@ class InventoryController extends Controller
 
         $search   = trim((string) $request->input('s', ''));
         $category = $request->input('category');
-        // MARKER-CAT-PLACEHOLDER — in-stock is the landing state. Only when
-        // the parameter is ABSENT: ?stock= (chosen "All stock levels") is an
-        // explicit choice and is honoured, or the filter could never be
-        // cleared.
-        $stock    = $request->has('stock')
-            ? $request->input('stock')
-            : 'in'; // '', 'in', 'low', 'out', 'archived' — MARKER-INV-IN-STOCK
+        // MARKER-INV-STOCK-MEMORY — the landing state is what this user last
+        // chose, not a hardcoded 'in'. An explicit ?stock= (including the empty
+        // "All stock levels") is still honoured and is what gets remembered;
+        // only an ABSENT parameter falls back, and to 'in' on a first visit.
+        // Keyed by tenant so a viewer with more than one shop can't carry one
+        // shop's filter into another's list. 'archived' is deliberately NOT
+        // remembered, and viewing it leaves the previous choice intact.
+        $stockMemoryKey = 'inv_stock_filter.' . $tenant->id;
+        if ($request->has('stock')) {
+            $stock = (string) $request->input('stock');
+            if ($stock !== 'archived') {
+                $request->session()->put($stockMemoryKey, $stock);
+            }
+        } else {
+            $stock = (string) $request->session()->get($stockMemoryKey, 'in');
+        }
+        // '', 'in', 'low', 'out', 'archived' — MARKER-INV-IN-STOCK
         $sort     = $request->input('sort', 'name_asc');
         // MARKER-INV-BRAND-DIST
         $brand       = trim((string) $request->input('brand', ''));
@@ -92,7 +102,17 @@ class InventoryController extends Controller
         // way back to it.
         // MARKER-INV-LIST — reachable as a stock level now, with the old
         // ?archived=1 links still honoured so nothing bookmarked breaks.
-        $archived = $request->boolean('archived') || $request->query('stock') === 'archived';
+        // MARKER-INV-STOCK-MEMORY — was $request->query('stock'), the RAW
+        // parameter. With $stock able to come from the session the two could
+        // disagree — $stock === 'archived' while $archived stayed false — and
+        // the filter block below has NO 'archived' branch, so the list fell
+        // through to no stock filter at all: every item, unfiltered, under an
+        // Archived heading. Forcing $stock in the archived case also stops an
+        // old ?archived=1 link applying a remembered filter to trashed rows.
+        $archived = $request->boolean('archived') || $stock === 'archived';
+        if ($archived) {
+            $stock = 'archived';
+        }
 
         $q = TenantInventoryItem::with(['category.parent']) // MARKER-CAT-TREE — path without N+1
             ->where('tenant_id', $tenant->id);
