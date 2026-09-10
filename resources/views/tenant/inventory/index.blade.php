@@ -405,17 +405,128 @@
   <a href="{{ route('tenant.inventory.index', array_filter(['s'=>$search,'stock'=>$stock,'sort'=>$sort!=='name_asc'?$sort:null])) }}"
      class="{{ $category ? '' : 'sel' }}">All items</a>
   {{-- MARKER-CAT-DEPTH — one loop at any depth. Indent is capped at 3
-       steps so a deep tree still fits the rail instead of sliding off. --}}
+       steps so a deep tree still fits the rail instead of sliding off.
+       MARKER-CAT-COLLAPSE — the tree is a DFS flat list, so every node after
+       a root and before the next root is that root's descendant. That lets
+       one wrapper per root hold the whole branch without nesting the loop. --}}
+  @php
+    $rootOf   = [];
+    $curRoot  = null;
+    foreach ($categoryTree as $n) {
+      if ($n['depth'] === 0) { $curRoot = $n['cat']->id; }
+      $rootOf[$n['cat']->id] = $curRoot;
+    }
+    // The selected category's branch opens server-side: no flash, and a
+    // shared link never arrives with its own category hidden.
+    $forceOpen = $category ? ($rootOf[$category] ?? null) : null;
+    $branchIsOpen = false;
+  @endphp
   @foreach($categoryTree as $node)
-    @php $inDepth = min($node['depth'], 3); @endphp
-    <a href="{{ route('tenant.inventory.index', array_filter(['s'=>$search,'stock'=>$stock,'sort'=>$sort!=='name_asc'?$sort:null,'category'=>$node['cat']->id,'subs'=>$includeSubs?null:'0'])) }}"
-       class="{{ $category === $node['cat']->id ? 'sel' : '' }} {{ $node['depth'] ? 'is-child' : '' }}"
-       style="padding-left:{{ 10 + $inDepth * 13 }}px"
-       @if($node['depth'] > 3) title="{{ $node['cat']->name }}" @endif>
-      <span>{{ $node['cat']->name }}</span><span class="cnt">{{ $node['count'] }}</span>
-    </a>
+    @php
+      $inDepth = min($node['depth'], 3);
+      $isRoot  = $node['depth'] === 0;
+      $catId   = $node['cat']->id;
+    @endphp
+
+    @if($isRoot && $branchIsOpen)
+      </div>
+      @php $branchIsOpen = false; @endphp
+    @endif
+
+    @if($isRoot)
+      @php $openNow = $forceOpen === $catId; @endphp
+      <div class="cat-row">
+        @if($node['kids'] > 0)
+          <button type="button" class="cat-toggle" data-root="{{ $catId }}"
+                  aria-expanded="{{ $openNow ? 'true' : 'false' }}"
+                  aria-label="Show or hide subcategories of {{ $node['cat']->name }}">▸</button>
+        @else
+          <span class="cat-toggle is-leaf" aria-hidden="true"></span>
+        @endif
+        <a href="{{ route('tenant.inventory.index', array_filter(['s'=>$search,'stock'=>$stock,'sort'=>$sort!=='name_asc'?$sort:null,'category'=>$catId,'subs'=>$includeSubs?null:'0'])) }}"
+           class="{{ $category === $catId ? 'sel' : '' }}">
+          <span>{{ $node['cat']->name }}</span><span class="cnt">{{ $node['count'] }}</span>
+        </a>
+      </div>
+      @if($node['kids'] > 0)
+        <div class="cat-kids" data-root="{{ $catId }}" @if(! $openNow) hidden @endif>
+        @php $branchIsOpen = true; @endphp
+      @endif
+    @else
+      <a href="{{ route('tenant.inventory.index', array_filter(['s'=>$search,'stock'=>$stock,'sort'=>$sort!=='name_asc'?$sort:null,'category'=>$catId,'subs'=>$includeSubs?null:'0'])) }}"
+         class="{{ $category === $catId ? 'sel' : '' }} is-child"
+         style="padding-left:{{ 10 + $inDepth * 13 }}px"
+         @if($node['depth'] > 3) title="{{ $node['cat']->name }}" @endif>
+        <span class="cat-dash" aria-hidden="true">{{ str_repeat('–', $inDepth) }}</span>
+        <span>{{ $node['cat']->name }}</span><span class="cnt">{{ $node['count'] }}</span>
+      </a>
+    @endif
   @endforeach
+  @if($branchIsOpen)
+    </div>
+  @endif
 </aside>
+
+@push('styles')
+<style>
+  /* MARKER-CAT-COLLAPSE */
+  .cat-row{display:flex;align-items:center;gap:2px}
+  .cat-row > a{flex:1;min-width:0}
+  .cat-toggle{flex:0 0 18px;width:18px;height:22px;padding:0;border:0;background:none;
+    color:var(--ia-text-muted);font-size:10px;line-height:1;cursor:pointer;
+    transition:transform .12s ease}
+  .cat-toggle[aria-expanded="true"]{transform:rotate(90deg)}
+  .cat-toggle.is-leaf{cursor:default}
+  .cat-dash{color:var(--ia-text-muted);margin-right:4px;letter-spacing:-1px}
+</style>
+@endpush
+
+@push('scripts')
+<script>
+// MARKER-CAT-COLLAPSE — open set per tenant. A branch forced open server-side
+// because it holds the selected category is left alone on load: the stored
+// state is a preference, not an instruction to hide what you just filtered by.
+(function () {
+  var KEY = 'inv-cats-open:{{ tenant()->id }}';
+
+  function read() {
+    try { return JSON.parse(localStorage.getItem(KEY) || '[]'); } catch (e) { return []; }
+  }
+  function write(list) {
+    try { localStorage.setItem(KEY, JSON.stringify(list)); } catch (e) {}
+  }
+
+  var open = read();
+
+  document.querySelectorAll('.cat-kids').forEach(function (box) {
+    var root = box.getAttribute('data-root');
+    var btn  = document.querySelector('.cat-toggle[data-root="' + root + '"]');
+    if (!box.hasAttribute('hidden')) { return; }   // forced open by the server
+    if (open.indexOf(root) === -1) { return; }
+    box.removeAttribute('hidden');
+    if (btn) { btn.setAttribute('aria-expanded', 'true'); }
+  });
+
+  document.querySelectorAll('.cat-toggle[data-root]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var root = btn.getAttribute('data-root');
+      var box  = document.querySelector('.cat-kids[data-root="' + root + '"]');
+      if (!box) { return; }
+
+      var nowOpen = box.hasAttribute('hidden');
+      if (nowOpen) { box.removeAttribute('hidden'); } else { box.setAttribute('hidden', ''); }
+      btn.setAttribute('aria-expanded', nowOpen ? 'true' : 'false');
+
+      var list = read();
+      var at   = list.indexOf(root);
+      if (nowOpen && at === -1) { list.push(root); }
+      if (!nowOpen && at !== -1) { list.splice(at, 1); }
+      write(list);
+    });
+  });
+})();
+</script>
+@endpush
 @endif
 
 <div style="flex:1;min-width:0">
