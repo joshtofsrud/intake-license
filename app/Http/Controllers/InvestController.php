@@ -223,6 +223,38 @@ class InvestController extends Controller
             'email' => $data['email'], 'amount' => $investor->amount, 'new' => $isNew,
         ]);
 
+        // MARKER-MONEY-ALERTS — the investor got their confirmation above; this
+        // is the half that was missing. Same address resolution as the access
+        // request handler. Never allowed to throw: they have already committed
+        // and the record is already saved, so a mail failure must not 500 them.
+        try {
+            $notify = RaiseSetting::get('notify_email')
+                ?: \App\Models\PlatformSettings::fromAddress();
+
+            if ($notify) {
+                \Illuminate\Support\Facades\Mail::raw(
+                    ($isNew ? 'New commitment' : 'Commitment updated') . ' from the shared link'
+                    . "\n\n"
+                    . $investor->name . ' <' . $investor->email . '>' . "\n"
+                    . 'Amount: $' . number_format($investor->amount) . "\n"
+                    . ($investor->entity ? 'Entity: ' . $investor->entity . "\n" : '')
+                    . ($data['note'] ? "\nWhat they said:\n" . $data['note'] . "\n" : '')
+                    . "\nOpen Raise admin to issue documents or mark it declined.",
+                    function ($mail) use ($notify, $investor) {
+                        $mail->to($notify)
+                             ->subject('Intake raise — $' . number_format($investor->amount)
+                                       . ' commitment from ' . $investor->name);
+                    }
+                );
+            } else {
+                Log::warning('MARKER-MONEY-ALERTS commitment saved but no notify address', [
+                    'investor' => $investor->id,
+                ]);
+            }
+        } catch (\Throwable $e) {
+            Log::error('MARKER-MONEY-ALERTS commitment notify failed', ['error' => $e->getMessage()]);
+        }
+
         return back()->with('invest_lead_ok', true);
     }
 

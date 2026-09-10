@@ -95,6 +95,60 @@ class ContributionWebhookController extends Controller
                 'contribution' => $contribution->id,
                 'amount'       => $contribution->amount_cents,
             ]);
+
+            // MARKER-MONEY-ALERTS — money landed and nothing here told anyone.
+            // Both sends are wrapped and swallowed: this handler must reach its
+            // 2xx or Stripe retries the event, and a retry that got past the
+            // dedupe insert would notify twice for one payment.
+            try {
+                $notify = \App\Models\RaiseSetting::get('notify_email')
+                    ?: \App\Models\PlatformSettings::fromAddress();
+
+                if ($notify) {
+                    \Illuminate\Support\Facades\Mail::raw(
+                        'A contribution was paid.' . "\n\n"
+                        . ($contribution->name ?: 'Name not given')
+                        . ' <' . ($contribution->email ?: 'no email') . '>' . "\n"
+                        . 'Amount: $' . number_format($contribution->amount, 2)
+                        . ' ' . strtoupper($contribution->currency ?: 'usd') . "\n"
+                        . ($contribution->note ? "\nTheir note:\n" . $contribution->note . "\n" : '')
+                        . "\nStripe payment: " . ($contribution->stripe_payment_intent ?: 'n/a'),
+                        function ($mail) use ($notify, $contribution) {
+                            $mail->to($notify)
+                                 ->subject('Intake — $' . number_format($contribution->amount, 2)
+                                           . ' contribution received');
+                        }
+                    );
+                } else {
+                    Log::warning('MARKER-MONEY-ALERTS contribution paid but no notify address', [
+                        'contribution' => $contribution->id,
+                    ]);
+                }
+            } catch (\Throwable $e) {
+                Log::error('MARKER-MONEY-ALERTS contribution notify failed', ['error' => $e->getMessage()]);
+            }
+
+            // The person who just paid gets an acknowledgement rather than a
+            // thanks page and nothing in their inbox.
+            try {
+                if ($contribution->email) {
+                    \Illuminate\Support\Facades\Mail::raw(
+                        'Thank you — your contribution came through.' . "\n\n"
+                        . 'Amount: $' . number_format($contribution->amount, 2)
+                        . ' ' . strtoupper($contribution->currency ?: 'usd') . "\n"
+                        . 'Date: ' . $contribution->paid_at?->toDayDateTimeString() . "\n\n"
+                        . 'This is a contribution to the project, not an investment, and it '
+                        . 'buys no equity or stake.' . "\n\n"
+                        . 'Josh Tofsrud, Intake',
+                        function ($mail) use ($contribution) {
+                            $mail->to($contribution->email, $contribution->name ?: null)
+                                 ->subject('Thank you for backing Intake');
+                        }
+                    );
+                }
+            } catch (\Throwable $e) {
+                Log::error('MARKER-MONEY-ALERTS contribution receipt failed', ['error' => $e->getMessage()]);
+            }
         }
 
         if ($event->type === 'checkout.session.expired') {

@@ -15,7 +15,9 @@ class RaiseSetting extends Model
 
     public static function get(string $key, ?string $default = null): ?string
     {
-        return static::find($key)->value ?? $default;
+        // MARKER-MONEY-ALERTS — ?-> because find() returns null on a missing
+        // key and ?? does not save you from calling ->value on null.
+        return static::find($key)?->value ?? $default;
     }
 
     public static function put(string $key, ?string $value): void
