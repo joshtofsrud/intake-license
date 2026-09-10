@@ -71,7 +71,22 @@ class InventoryController extends Controller
         $brand       = trim((string) $request->input('brand', ''));
         $distributor = trim((string) $request->input('distributor', ''));
         $page     = max(1, (int) $request->input('page', 1));
-        $perPage  = 25;
+        // MARKER-INV-PAGER — was hardcoded 25 and ignored the request.
+        // Allowlisted, because this value goes straight into forPage():
+        // ?perPage=100000 would otherwise be a free full-table read. Kept in
+        // the session per tenant, like the stock filter above.
+        $perPageAllowed = [25, 50, 100, 200];
+        $perPageKey     = 'inv_per_page.' . $tenant->id;
+        if ($request->has('perPage')) {
+            $perPage = (int) $request->input('perPage');
+            $perPage = in_array($perPage, $perPageAllowed, true) ? $perPage : 25;
+            $request->session()->put($perPageKey, $perPage);
+        } else {
+            $perPage = (int) $request->session()->get($perPageKey, 25);
+            if (! in_array($perPage, $perPageAllowed, true)) {
+                $perPage = 25;
+            }
+        }
 
         // patch-98 per-location list — resolve current location for the viewer
         // so list rows can show that location's stock instead of company total.
@@ -285,34 +300,52 @@ class InventoryController extends Controller
 
         // MARKER-INV-BRAND-DIST — built from what this tenant carries, not the
         // whole shared catalog, so the dropdown stays usable.
-        $brandOptions = \App\Models\PlatformDistributorCatalog::query()
-            ->whereIn('id', function ($w) {
-                $w->select('distributor_catalog_id')
-                  ->from('tenant_inventory_items')
-                  ->where('tenant_id', tenant()->id)
-                  ->whereNotNull('distributor_catalog_id');
-            })
-            ->whereNotNull('manufacturer')->where('manufacturer', '!=', '')
-            ->distinct()->orderBy('manufacturer')->pluck('manufacturer');
+        // MARKER-INV-PAGER — 1.9s cold / 867ms warm on a 55k-item tenant,
+        // recomputed on every click. Indexes are already present; the cost is
+        // genuine work, so the fix is not doing it 60 times a minute.
+        $brandOptions = \Illuminate\Support\Facades\Cache::remember(
+            'inv:brands:' . $tenant->id,
+            60,
+            fn () => \App\Models\PlatformDistributorCatalog::query()
+                ->whereIn('id', function ($w) {
+                    $w->select('distributor_catalog_id')
+                      ->from('tenant_inventory_items')
+                      ->where('tenant_id', tenant()->id)
+                      ->whereNotNull('distributor_catalog_id');
+                })
+                ->whereNotNull('manufacturer')->where('manufacturer', '!=', '')
+                ->distinct()->orderBy('manufacturer')->pluck('manufacturer')
+        );
 
-        $distributorOptions = \Illuminate\Support\Facades\DB::table('tenant_inventory_item_vendors as iv')
-            ->join('tenant_inventory_items as it', 'it.id', '=', 'iv.inventory_item_id')
-            ->where('it.tenant_id', tenant()->id)
-            ->whereNotNull('iv.distributor_code')->where('iv.distributor_code', '!=', '')
-            ->distinct()->orderBy('iv.distributor_code')
-            ->pluck('iv.distributor_code');
+        // MARKER-INV-PAGER — ~1.1s to return two values.
+        $distributorOptions = \Illuminate\Support\Facades\Cache::remember(
+            'inv:distributors:' . $tenant->id,
+            60,
+            fn () => \Illuminate\Support\Facades\DB::table('tenant_inventory_item_vendors as iv')
+                ->join('tenant_inventory_items as it', 'it.id', '=', 'iv.inventory_item_id')
+                ->where('it.tenant_id', tenant()->id)
+                ->whereNotNull('iv.distributor_code')->where('iv.distributor_code', '!=', '')
+                ->distinct()->orderBy('iv.distributor_code')
+                ->pluck('iv.distributor_code')
+        );
 
         $categories    = $allCats;
         $hasCategories = $categories->isNotEmpty();
 
         // MARKER-CAT-TREE — roots with their children and rolled-up counts.
-        $catCounts = TenantInventoryItem::where('tenant_id', $tenant->id)
-            ->where('is_active', true) // MARKER-CAT-TREE — matches the list's own active filter
-            ->whereNotNull('category_id')
-            ->selectRaw('category_id, COUNT(*) as c')
-            ->groupBy('category_id')
-            ->pluck('c', 'category_id')
-            ->toArray();
+        // MARKER-INV-PAGER — cached with the other two; the rail counts do not
+        // need to be second-accurate.
+        $catCounts = \Illuminate\Support\Facades\Cache::remember(
+            'inv:catcounts:' . $tenant->id,
+            60,
+            fn () => TenantInventoryItem::where('tenant_id', $tenant->id)
+                ->where('is_active', true) // MARKER-CAT-TREE — matches the list's own active filter
+                ->whereNotNull('category_id')
+                ->selectRaw('category_id, COUNT(*) as c')
+                ->groupBy('category_id')
+                ->pluck('c', 'category_id')
+                ->toArray()
+        );
 
         // MARKER-CAT-DEPTH — this used to walk roots and their direct
         // children ONLY, so anything nested deeper was invisible in the
@@ -357,6 +390,7 @@ class InventoryController extends Controller
             'showColor', 'showSize', // MARKER-INV-LIST
             'archived', // MARKER-ARCHIVE-MOVE
             'total', 'search', 'category', 'stock', 'sort', 'page', 'perPage',
+            'perPageAllowed', // MARKER-INV-PAGER
             'brand', 'distributor', 'brandOptions', 'distributorOptions', // MARKER-INV-BRAND-DIST
             'posCap',
             'currentLocation', 'isMultiLocation', 'hereStocks'

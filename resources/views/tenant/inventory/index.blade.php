@@ -351,6 +351,53 @@
 {{-- MARKER-CAT-TREE — the hierarchy the category admin already builds,
      finally visible where items are browsed. Plain links keep filters
      deep-linkable and need no JS. --}}
+@php
+  // MARKER-INV-PAGER — computed once, used by all three pager includes.
+  $pages = max(1, (int) ceil($total / max(1, $perPage)));
+
+  // MARKER-PAGER-FILTERS — brand and distributor were missing here, so paging
+  // out of a filtered list landed on the unfiltered one. Every filter the page
+  // reads lives in this one array; anything added to the form belongs here too,
+  // and nowhere else. perPage is deliberately ABSENT: it lives in the session,
+  // so page links do not need to carry it.
+  $qs = function ($p) use ($search, $category, $stock, $sort, $brand, $distributor) {
+    return http_build_query(array_filter([
+      's'           => $search,
+      'category'    => $category,
+      'brand'       => $brand,
+      'distributor' => $distributor,
+      'stock'       => $stock,
+      'sort'        => $sort,
+      'page'        => $p,
+    ], fn ($v) => $v !== null && $v !== ''));
+  };
+@endphp
+
+@push('styles')
+<style>
+  .inv-pager{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:10px 14px}
+  .inv-pager--top{border-bottom:0.5px solid var(--ia-border)}
+  .inv-pager--bottom{border-top:0.5px solid var(--ia-border)}
+  .inv-pager--mobile{justify-content:center}
+  .inv-pager-count{font-size:12px;color:var(--ia-text-muted)}
+  .inv-pager-size{display:flex;align-items:center;gap:6px;margin:0}
+  .inv-pager-size label{font-size:12px;color:var(--ia-text-muted)}
+  .inv-pager-size select{background:var(--ia-surface);color:var(--ia-text);
+    border:0.5px solid var(--ia-border);border-radius:var(--ia-r-sm,6px);
+    padding:4px 8px;font-size:12px}
+  .inv-pager-nav{display:flex;align-items:center;gap:4px;margin-left:auto}
+  .inv-pager--mobile .inv-pager-nav{margin-left:0}
+  .inv-pager-num{display:inline-flex;align-items:center;justify-content:center;
+    min-width:28px;height:28px;padding:0 6px;border-radius:var(--ia-r-sm,6px);
+    font-size:12px;color:var(--ia-text-muted);text-decoration:none}
+  .inv-pager-num:hover{background:var(--ia-surface-2,rgba(255,255,255,.06));color:var(--ia-text)}
+  .inv-pager-num.is-here{background:var(--ia-accent,#7cc00a);color:#0b0b0b;font-weight:600}
+  .inv-pager-gap{color:var(--ia-text-muted);font-size:12px;padding:0 2px}
+  .ia-btn.is-off{opacity:.35;pointer-events:none}
+  @media(max-width:640px){.inv-pager--top{display:none}}
+</style>
+@endpush
+
 <div class="inv-split">
 @if($hasCategories)
 <aside class="inv-cattree">
@@ -403,6 +450,7 @@
 @endif
 
 <div class="ia-card inv-desk-card">
+  @include('tenant.inventory._partials.pager', ['pagerWhere' => 'top'])
   @if($items->isEmpty())
     <div class="ia-card-body" style="text-align:center;padding:40px 20px;color:var(--ia-text-muted)">
       No items match your filters.
@@ -432,6 +480,7 @@
     </table>
 </div>
   @endif
+  @include('tenant.inventory._partials.pager', ['pagerWhere' => 'bottom'])
 </div>
 </div>{{-- /flex:1 --}}
 </div>{{-- /inv-split MARKER-CAT-TREE --}}
@@ -494,6 +543,7 @@
       @endforeach
     </div>
   @endif
+  @include('tenant.inventory._partials.pager', ['pagerWhere' => 'mobile'])
 </div>
 
 {{-- Filter sheet (mobile) --}}
@@ -575,35 +625,10 @@
 </script>
 @endpush
 
-@if($total > $perPage)
-  <div class="ia-pagination">
-    @php
-      $pages = (int) ceil($total / $perPage);
-      // MARKER-PAGER-FILTERS — brand and distributor were missing here, so
-      // paging out of a filtered list landed on the unfiltered one. Every
-      // filter the page reads lives in this one array; anything added to the
-      // form belongs here too, and nowhere else.
-      $qs = function ($p) use ($search, $category, $stock, $sort, $brand, $distributor) {
-        return http_build_query(array_filter([
-          's'           => $search,
-          'category'    => $category,
-          'brand'       => $brand,
-          'distributor' => $distributor,
-          'stock'       => $stock,
-          'sort'        => $sort,
-          'page'        => $p,
-        ], fn ($v) => $v !== null && $v !== ''));
-      };
-    @endphp
-    @if($page > 1)
-      <a href="?{{ $qs($page - 1) }}" class="ia-btn ia-btn--ghost">← Prev</a>
-    @endif
-    <span class="ia-pagination-info">Page {{ $page }} of {{ $pages }}</span>
-    @if($page < $pages)
-      <a href="?{{ $qs($page + 1) }}" class="ia-btn ia-btn--ghost">Next →</a>
-    @endif
-  </div>
-@endif
+{{-- MARKER-INV-PAGER — the pager used to live here, outside the results
+     column, so it rendered below whichever flex child was taller (the
+     category rail) rather than under the table. It is now included inside
+     the results card and under the mobile list instead. --}}
 
 @endif
 
