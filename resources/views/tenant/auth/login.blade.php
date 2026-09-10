@@ -90,7 +90,9 @@
   </form>
 
   <div class="links">
-    <a href="{{ route('tenant.login') }}?forgot=1">Forgot password?</a>
+    {{-- MARKER-FORGOT-WIRING — was route('tenant.login') . '?forgot=1',
+         which reloaded this same page. Nothing reads forgot=1. --}}
+    <a href="{{ route('tenant.forgot') }}">Forgot password?</a>
     <a href="/">← Back to site</a>
   </div>
 </div>

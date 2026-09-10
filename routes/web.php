@@ -358,7 +358,9 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
         Route::get('/login',            [TenantControllers\AuthController::class, 'showLogin'])->name('login');
         Route::post('/login',           [TenantControllers\AuthController::class, 'login'])->name('login.submit');
         Route::get('/forgot-password',  [TenantControllers\AuthController::class, 'showForgot'])->name('forgot');
-        Route::post('/forgot-password', [TenantControllers\AuthController::class, 'sendReset'])->name('forgot.submit');
+        // MARKER-FORGOT-WIRING — every hit here sends mail, so it is the one
+        // that most needed the limit it did not have. 3 per 10 minutes.
+        Route::post('/forgot-password', [TenantControllers\AuthController::class, 'sendReset'])->name('forgot.submit')->middleware('throttle:3,10');
         Route::get('/reset-password',   [TenantControllers\AuthController::class, 'showReset'])->name('reset');
         Route::post('/reset-password',  [TenantControllers\AuthController::class, 'resetPassword'])->name('reset.submit');
         // MARKER-PATCH-478 — team-member invite setup (public, tenant-resolved, token-gated)

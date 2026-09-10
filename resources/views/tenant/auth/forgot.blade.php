@@ -32,7 +32,9 @@
     <div class="success">Check your inbox — a reset link is on its way.</div>
   @endif
 
-  <form method="POST" action="{{ route('tenant.login') }}?forgot=1">
+  {{-- MARKER-FORGOT-WIRING — posted to the login handler, which would fail
+       validation on a missing password rather than send anything. --}}
+  <form method="POST" action="{{ route('tenant.forgot.submit') }}">
     @csrf
     <label>Email</label>
     <input type="email" name="email" required autofocus placeholder="you@example.com">

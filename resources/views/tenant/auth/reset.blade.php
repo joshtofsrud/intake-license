@@ -31,7 +31,9 @@
     <div class="error">{{ $errors->first() }}</div>
   @endif
 
-  <form method="POST" action="{{ route('tenant.login') }}?reset=1">
+  {{-- MARKER-FORGOT-WIRING — same dead end: even a valid emailed link
+       could not set a password, because this posted to login. --}}
+  <form method="POST" action="{{ route('tenant.reset.submit') }}">
     @csrf
     <input type="hidden" name="token" value="{{ $token }}">
 
