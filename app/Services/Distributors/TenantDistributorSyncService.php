@@ -40,6 +40,10 @@ class TenantDistributorSyncService
             'tenant_id' => $tenantId, 'code' => $code, 'linked' => 0,
             'cost_updated' => 0, 'avail_updated' => 0, 'seeded_price' => 0,
             'flags_opened' => 0, 'flags_resolved' => 0, 'dry_run' => $dryRun, 'errors' => [],
+            // MARKER-TITLE-SOURCE — rows this distributor supplies but does
+            // not own the naming of. Reported so the skip is countable
+            // rather than invisible.
+            'descriptive_skipped' => 0,
         ];
 
         /** @var \Illuminate\Support\Collection<int,TenantInventoryItemVendor> $pivots */
@@ -125,7 +129,17 @@ class TenantDistributorSyncService
             }
 
             $inStock = (int) ($item->computed_stock_count ?? 0) > 0;
-            $this->reconcile($tenantId, $item, $cat, $prevCost, $newCost, $inStock, $dryRun, $res);
+
+            // MARKER-TITLE-SOURCE — is THIS distributor the one whose wording
+            // the item follows? The item's own distributor_catalog_id decides
+            // it; when that is not set, the preferred pivot stands in. When
+            // neither applies no source owns the naming, and descriptive drift
+            // is left alone rather than handed to whoever synced last.
+            $isDescriptiveSource = $item->distributor_catalog_id !== null
+                ? $item->distributor_catalog_id === $cat->id
+                : (bool) $pivot->is_preferred;
+
+            $this->reconcile($tenantId, $item, $cat, $prevCost, $newCost, $inStock, $isDescriptiveSource, $dryRun, $res);
         }
 
         return $res;
@@ -257,6 +271,7 @@ class TenantDistributorSyncService
         ?int $prevCost,
         ?int $newCost,
         bool $inStock,
+        bool $isDescriptiveSource, // MARKER-TITLE-SOURCE
         bool $dryRun,
         array &$res
     ): void {
@@ -309,6 +324,17 @@ class TenantDistributorSyncService
             } else {
                 $this->resolveFlag($tenantId, $item, TenantPricingAttentionFlag::REASON_OFF_MSRP, $dryRun, $res);
             }
+        }
+
+        // MARKER-TITLE-SOURCE — everything above this line (cost vanished, MAP
+        // vanished, MSRP vanished) runs for EVERY distributor and still does.
+        // Everything below it is about what the product is called, and only
+        // the item's own source gets a say. Placed as a return because the
+        // descriptive checks are the last thing reconcile() does.
+        if (! $isDescriptiveSource) {
+            $res['descriptive_skipped']++;
+
+            return;
         }
 
         // Title / identity drift — NOT stock-gated; a renamed catalog item
