@@ -49,6 +49,12 @@ class Raise extends Page
     public array  $invitePreview = [];
     public ?int   $confirmDeleteId = null;
 
+    // MARKER-RAISE-CONFIRM — which destructive action is currently asking.
+    // A string rather than an id because it has to distinguish the action as
+    // well as the row: "funded:12" and "declined:12" are different questions
+    // about the same investor. Null means nothing is pending.
+    public ?string $pendingConfirm = null;
+
     public string $wireBank      = '';
     public string $wireAccount   = '';
     public string $wireRouting   = '';
@@ -282,6 +288,19 @@ class Raise extends Page
         $this->confirmDeleteId = null;
     }
 
+    // MARKER-RAISE-CONFIRM — replaces wire:confirm, which relies on the
+    // browser's native confirm() and fails closed and silently when that is
+    // suppressed. Asking in the row cannot be suppressed by the browser.
+    public function askConfirm(string $key): void
+    {
+        $this->pendingConfirm = $key;
+    }
+
+    public function cancelConfirm(): void
+    {
+        $this->pendingConfirm = null;
+    }
+
     public function deleteInvite(int $id): void
     {
         $investor = Investor::findOrFail($id);
@@ -367,6 +386,7 @@ class Raise extends Page
 
     public function markFunded(int $id): void
     {
+        $this->pendingConfirm = null; // MARKER-RAISE-CONFIRM
         $investor = Investor::findOrFail($id);
         $investor->forceFill([
             'funded_at'       => now(),
@@ -383,6 +403,7 @@ class Raise extends Page
 
     public function markDeclined(int $id): void
     {
+        $this->pendingConfirm = null; // MARKER-RAISE-CONFIRM
         $investor = Investor::findOrFail($id);
         $investor->forceFill(['declined_at' => now()])->save();
         \App\Models\InvestorEvent::log($investor->id, 'declined', 'Marked declined');
@@ -400,6 +421,7 @@ class Raise extends Page
 
     public function rotateInviteLink(): void
     {
+        $this->pendingConfirm = null; // MARKER-RAISE-CONFIRM
         $token = InvestToken::rotate('rotated from master admin');
 
         Notification::make()

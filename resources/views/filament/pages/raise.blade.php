@@ -270,12 +270,22 @@
                             <x-filament::button size="xs" color="gray" wire:click="markSigned({{ $investor->id }})">Signed</x-filament::button>
                         @endunless
                         @unless ($investor->funded_at)
-                            <x-filament::button size="xs"
-                                wire:click="markFunded({{ $investor->id }})"
-                                wire:confirm="Record {{ $usd($investor->amount) }} received from {{ $investor->name }}?">Funded</x-filament::button>
-                            <x-filament::button size="xs" color="danger"
-                                wire:click="markDeclined({{ $investor->id }})"
-                                wire:confirm="Mark {{ $investor->name }} declined?">Declined</x-filament::button>
+                            {{-- MARKER-RAISE-CONFIRM — was wire:confirm (native confirm(),
+                                 fails silently when the browser suppresses dialogs). --}}
+                            @if ($pendingConfirm === 'funded:' . $investor->id)
+                                <span class="text-xs text-gray-500 mr-2">Record {{ $usd($investor->amount) }} received?</span>
+                                <x-filament::button size="xs" wire:click="markFunded({{ $investor->id }})">Yes, record it</x-filament::button>
+                                <x-filament::button size="xs" color="gray" wire:click="cancelConfirm">Cancel</x-filament::button>
+                            @elseif ($pendingConfirm === 'declined:' . $investor->id)
+                                <span class="text-xs text-gray-500 mr-2">Mark {{ $investor->name }} declined?</span>
+                                <x-filament::button size="xs" color="danger" wire:click="markDeclined({{ $investor->id }})">Yes, declined</x-filament::button>
+                                <x-filament::button size="xs" color="gray" wire:click="cancelConfirm">Cancel</x-filament::button>
+                            @else
+                                <x-filament::button size="xs"
+                                    wire:click="askConfirm('funded:{{ $investor->id }}')">Funded</x-filament::button>
+                                <x-filament::button size="xs" color="danger"
+                                    wire:click="askConfirm('declined:{{ $investor->id }}')">Declined</x-filament::button>
+                            @endif
                         @endunless
                     @endif
                 </td>
@@ -314,11 +324,19 @@
                 <div class="text-sm text-gray-500">No link issued yet.</div>
             @endif
         </div>
-        <x-filament::button color="warning"
-            wire:click="rotateInviteLink"
-            wire:confirm="Issue a new link? Every copy of the current link stops working immediately.">
-            Rotate link
-        </x-filament::button>
+        {{-- MARKER-RAISE-CONFIRM — a suppressed native dialog here meant the
+             button appeared to do nothing while every old link kept working. --}}
+        @if ($pendingConfirm === 'rotate')
+            <div class="flex items-center gap-2">
+                <span class="text-xs text-gray-500">Issue a new link? Every copy of the current one stops working immediately.</span>
+                <x-filament::button color="warning" size="xs" wire:click="rotateInviteLink">Yes, rotate</x-filament::button>
+                <x-filament::button color="gray" size="xs" wire:click="cancelConfirm">Cancel</x-filament::button>
+            </div>
+        @else
+            <x-filament::button color="warning" wire:click="askConfirm('rotate')">
+                Rotate link
+            </x-filament::button>
+        @endif
     </div>
     <p class="mt-3 text-xs text-gray-500">
         A freely forwardable link starts to look like general solicitation, which Reg D 506(b) does not allow.
