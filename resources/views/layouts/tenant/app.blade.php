@@ -179,7 +179,12 @@
     theme:      '{{ $adminTheme }}',
     currency:   '{{ $currentTenant->currency_symbol ?? "$" }}',
     ajaxUrl:    '{{ url("/admin/ajax") }}',
-    pinIdleThresholdSec:    {{ (int) config('intake.auth.pin_idle_threshold_sec', 120) }},
+    {{-- MARKER-PIN-THRESHOLD — must be the POLICY value, not the raw config.
+         The server enforces TenantAuthPolicy::idleThresholdSec(), which honours
+         the per-tenant settings.security.pin_idle_threshold_sec override. Reading
+         config() here made the client lock earlier than the server considered the
+         session stale, and a refresh inside that gap rendered the page unlocked. --}}
+    pinIdleThresholdSec:    {{ (int) \App\Services\TenantAuthPolicy::idleThresholdSec($currentTenant) }},
     pinHeartbeatIntervalSec:{{ (int) config('intake.auth.pin_heartbeat_interval_sec', 60) }},
   };
 </script>
