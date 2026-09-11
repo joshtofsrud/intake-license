@@ -861,11 +861,21 @@
 
     <div class="cb-modal-body">
       <div class="cb-modal-actions">
+        {{-- MARKER-UPLOAD-LIMITS — the limit is rendered from the same config
+             the server enforces, so the two cannot drift apart. avif was in
+             this accept list but is not in allowed_mime, and mail clients do
+             not render it reliably, so it is no longer offered. --}}
         <label class="cb-upload-btn">
-          <input type="file" id="cb-upload-input" accept="image/jpeg,image/png,image/gif,image/webp,image/avif" style="display:none" onchange="CB.handleUpload(this.files[0])">
+          <input type="file" id="cb-upload-input"
+                 accept="image/jpeg,image/png,image/gif,image/webp"
+                 data-max-bytes="{{ (int) config('intake.image_quotas.per_file_bytes') }}"
+                 style="display:none" onchange="CB.handleUpload(this.files[0])">
           <span>Upload new image</span>
         </label>
         <span id="cb-upload-status" style="font-size:12px;opacity:.6;margin-left:12px"></span>
+        <span style="font-size:11.5px;opacity:.45;margin-left:12px">
+          JPEG, PNG, GIF or WebP · up to {{ round(((int) config('intake.image_quotas.per_file_bytes')) / 1024 / 1024, 1) }} MB
+        </span>
       </div>
 
       <div id="cb-picker-grid" class="cb-picker-grid">
@@ -1790,6 +1800,31 @@ window.CB = (function() {
     async handleUpload(file) {
       if (!file) return;
       const status = document.getElementById('cb-upload-status');
+
+      // MARKER-UPLOAD-LIMITS — checked here because the size is known the
+      // moment the file is chosen. Uploading it only to be refused wastes
+      // the wait, and if it is over the SERVER's ceiling rather than the
+      // app's, PHP discards it and the failure cannot be described properly.
+      const input = document.getElementById('cb-upload-input');
+      const maxBytes = parseInt((input && input.dataset.maxBytes) || '0', 10);
+      const asMb = (b) => (b / 1024 / 1024).toFixed(1);
+
+      if (maxBytes > 0 && file.size > maxBytes) {
+        if (status) {
+          status.textContent = 'That image is ' + asMb(file.size) + ' MB — the limit is '
+            + asMb(maxBytes) + ' MB. Try a smaller version.';
+        }
+        if (input) input.value = '';
+        return;
+      }
+
+      const allowed = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+      if (file.type && allowed.indexOf(file.type) === -1) {
+        if (status) status.textContent = 'That file is not a JPEG, PNG, GIF or WebP.';
+        if (input) input.value = '';
+        return;
+      }
+
       if (status) status.textContent = 'Uploading…';
 
       const fd = new FormData();

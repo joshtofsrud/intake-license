@@ -50,11 +50,61 @@ class CampaignImageController extends Controller
     /**
      * Upload a new image to the library.
      */
+    /**
+     * MARKER-UPLOAD-LIMITS — "6M" and "8M" as bytes. PHP's shorthand only ever
+     * carries one suffix, so this stays deliberately small; an unsuffixed value
+     * is already bytes, and anything unparseable returns 0 so the caller treats
+     * the limit as unknown rather than as zero.
+     */
+    private static function iniBytes(?string $value): int
+    {
+        $value = trim((string) $value);
+
+        if ($value === '') {
+            return 0;
+        }
+
+        $unit   = strtolower(substr($value, -1));
+        $number = (int) $value;
+
+        return match ($unit) {
+            'g'     => $number * 1024 * 1024 * 1024,
+            'm'     => $number * 1024 * 1024,
+            'k'     => $number * 1024,
+            default => ctype_digit($value) ? (int) $value : 0,
+        };
+    }
+
     public function upload(Request $request)
     {
         $tenant = tenant();
 
         if (! $request->hasFile('image')) {
+            // MARKER-UPLOAD-LIMITS — an empty $_FILES alongside a large request
+            // body is not a missing file: PHP discarded an oversized upload
+            // before Laravel ran, so the app's own per-file limit never got a
+            // say. Reporting both as "no file provided" is what made a 4 MB
+            // image look like a mystery instead of a size problem.
+            $posted = (int) ($request->server('CONTENT_LENGTH') ?: 0);
+            $iniMax = min(self::iniBytes(ini_get('upload_max_filesize')),
+                          self::iniBytes(ini_get('post_max_size')));
+
+            if ($posted > 0 && $iniMax > 0 && $posted >= $iniMax) {
+                \Illuminate\Support\Facades\Log::warning(
+                    'MARKER-UPLOAD-LIMITS server rejected an upload before PHP parsed it',
+                    ['posted_bytes' => $posted, 'ini_limit_bytes' => $iniMax,
+                     'app_limit_bytes' => (int) config('intake.image_quotas.per_file_bytes'),
+                     'tenant' => $tenant->id]
+                );
+
+                return response()->json([
+                    'error' => 'This server is currently refusing anything over '
+                        . round($iniMax / 1024 / 1024, 1)
+                        . ' MB, which is below the image limit shown here. Use a smaller'
+                        . ' image — and tell Intake, because that is a setting on our side.',
+                ], 422);
+            }
+
             return response()->json(['error' => 'No file provided.'], 422);
         }
 
