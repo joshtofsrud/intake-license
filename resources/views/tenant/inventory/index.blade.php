@@ -235,7 +235,8 @@
   </div>
 @endif
 
-<form method="get" action="{{ route('tenant.inventory.index') }}" class="ia-toolbar">
+{{-- MARKER-INV-AUTOFILTER — id so the change listener can find this form without depending on the class, which is styling. --}}
+<form method="get" action="{{ route('tenant.inventory.index') }}" class="ia-toolbar" id="inv-toolbar-form">
   <input type="search" name="s" class="ia-input" value="{{ $search }}"
     placeholder="Search name, SKU, or UPC…" style="max-width:300px">
 
@@ -744,3 +745,35 @@
 @endif
 
 @endsection
+
+@push('scripts')
+<script>
+// MARKER-INV-AUTOFILTER — apply a filter the moment it is picked.
+// The pickers fire a bubbling 'change' on their hidden input, so one
+// delegated listener covers stock, brand, distributor, category and sort,
+// including any picker added to this toolbar later.
+(function () {
+  var form = document.getElementById('inv-toolbar-form');
+  if (!form) { return; }
+
+  form.addEventListener('change', function (e) {
+    var t = e.target;
+    if (!t || !t.name) { return; }
+
+    // The text box is not a filter picker: submitting here would fire on
+    // blur, which is the autosave behaviour we do not want.
+    if (t.name === 's') { return; }
+
+    // Rows-per-page lives in its own form and submits itself.
+    if (t.name === 'perPage') { return; }
+
+    // Any filter change resets to page 1 — staying on page 14 of a list that
+    // just became three pages long shows an empty table.
+    var page = form.querySelector('[name="page"]');
+    if (page) { page.value = '1'; }
+
+    form.submit();
+  });
+})();
+</script>
+@endpush
