@@ -931,7 +931,9 @@
       <div class="del-row">
         <label class="del-label">Window</label>
         {{-- MARKER-SSEL-BATCH2 --}}
+        {{-- MARKER-DRAWER-GUARDS — :id is required for getElementById('del-window') --}}
         <x-tenant.searchable-select name="window_minutes" :searchable="false"
+          :id="'del-window'"
           :options="['15' => '15 min window', '30' => '30 min window', '60' => '60 min window', '120' => '2 hour window']"
           selected="30" any="30 min window" noun="windows" />
       </div>
@@ -1115,27 +1117,31 @@
     document.getElementById('del-drawer-title').textContent = 'Edit ' + d.type;
     document.getElementById('del-drawer-sub').textContent = d.status === 'completed' ? 'Completed ' + (d.completed_at || '') : 'Scheduled';
     document.getElementById('del-form').action = window.delRoutes.base + '/' + id;
-    document.getElementById('del-form-method').value = 'PATCH';
+    // MARKER-DRAWER-GUARDS — every getElementById is guarded so that a missing
+    // element (conditional render, component without :id, DOM change) cannot
+    // throw and abort the function before the customer field is populated.
+    var fmEl = document.getElementById('del-form-method'); if (fmEl) fmEl.value = 'PATCH';
+    var ttEl = document.getElementById('del-drawer-title'); if (ttEl) ttEl.textContent = 'Edit ' + d.type;
+    var sbEl = document.getElementById('del-drawer-sub');   if (sbEl) sbEl.textContent = d.status === 'completed' ? 'Completed ' + (d.completed_at || '') : 'Scheduled';
     delSelectType(d.type);
     var iso = d.scheduled_at_iso || '';
     var parts = iso.split('T');
-    document.getElementById('del-date').value = parts[0] || '';
-    document.getElementById('del-time').value = parts[1] || '';
-    document.getElementById('del-window').value = String(d.window_minutes || 30);
+    var dtEl = document.getElementById('del-date');   if (dtEl) dtEl.value = parts[0] || '';
+    var tmEl = document.getElementById('del-time');   if (tmEl) tmEl.value = parts[1] || '';
+    var wEl  = document.getElementById('del-window'); if (wEl)  wEl.value  = String(d.window_minutes || 30);
     // MARKER-PATCH-153 — populate search box with customer name
     delSetCustomer(d.customer_id, d.customer_name || '');
     delSetContactTiles(d.customer_phone || '', d.customer_email || ''); // MARKER-PATCH-447
-    document.getElementById('del-address').value = d.address || '';
-    var rEl = document.getElementById('del-resource');
-    if (rEl) rEl.value = d.delivery_resource_id || '';
-    document.getElementById('del-notes').value = d.notes || '';
+    var adEl = document.getElementById('del-address'); if (adEl) adEl.value = d.address || '';
+    var rEl  = document.getElementById('del-resource'); if (rEl) rEl.value = d.delivery_resource_id || '';
+    var ntEl = document.getElementById('del-notes');   if (ntEl) ntEl.value = d.notes || '';
     delLoadAssets(d.customer_id, { selected: d.assets_ids || [] }); // MARKER-PATCH-427
-    document.getElementById('del-complete-btn').style.display = (d.status === 'scheduled') ? '' : 'none';
-    document.getElementById('del-cancel-btn').style.display = (d.status === 'scheduled') ? '' : 'none';
+    var cpEl = document.getElementById('del-complete-btn'); if (cpEl) cpEl.style.display = (d.status === 'scheduled') ? '' : 'none';
+    var cnEl = document.getElementById('del-cancel-btn');   if (cnEl) cnEl.style.display = (d.status === 'scheduled') ? '' : 'none';
     // MARKER-PATCH-157 — set both button labels for edit mode
     // MARKER-PATCH-157-FIX1 — shorter labels
-    document.getElementById('del-save-btn').textContent = 'Update';
-    document.getElementById('del-save-notify-btn').textContent = 'Update & notify';
+    var svEl = document.getElementById('del-save-btn');        if (svEl) svEl.textContent = 'Update';
+    var snEl = document.getElementById('del-save-notify-btn'); if (snEl) snEl.textContent = 'Update & notify';
   }
 
   // MARKER-PATCH-447 — set the call/text/email tiles from the customer's phone/email
@@ -1143,13 +1149,18 @@
     var row = document.getElementById('del-contact-tiles');
     if (!row) return;
     var p = (phone || '').replace(/[^0-9+]/g, '');
+    // MARKER-DRAWER-GUARDS — guarded; same pattern as the rest of the drawer.
     var call = document.getElementById('del-ctile-call');
     var text = document.getElementById('del-ctile-text');
     var mail = document.getElementById('del-ctile-email');
-    if (p) { call.href = 'tel:' + p; call.classList.remove('is-disabled'); text.href = 'sms:' + p; text.classList.remove('is-disabled'); }
-    else   { call.href = '#'; call.classList.add('is-disabled'); text.href = '#'; text.classList.add('is-disabled'); }
-    if (email) { mail.href = 'mailto:' + email; mail.classList.remove('is-disabled'); }
-    else       { mail.href = '#'; mail.classList.add('is-disabled'); }
+    if (call && text) {
+      if (p) { call.href = 'tel:' + p; call.classList.remove('is-disabled'); text.href = 'sms:' + p; text.classList.remove('is-disabled'); }
+      else   { call.href = '#'; call.classList.add('is-disabled'); text.href = '#'; text.classList.add('is-disabled'); }
+    }
+    if (mail) {
+      if (email) { mail.href = 'mailto:' + email; mail.classList.remove('is-disabled'); }
+      else       { mail.href = '#'; mail.classList.add('is-disabled'); }
+    }
     row.style.display = (p || email) ? '' : 'none';
   }
 
