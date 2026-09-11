@@ -67,7 +67,7 @@
     }
   }
 
-  async function heartbeat() {
+  async function heartbeat(isRetry) {
     if (isLocked) return;
     try {
       const res = await fetch('/admin/pin/heartbeat', {
@@ -79,6 +79,15 @@
       } else if (res.status === 401) {
         // User signed out elsewhere. Send them to the login page.
         window.location.href = '/admin/login';
+      } else if (res.status === 419 && !isRetry) {
+        // MARKER-HEARTBEAT-419 — stale CSRF token. Without this the request
+        // that keeps the session alive fails every interval from here on,
+        // silently, with the same dead token. Same recovery submitPin uses.
+        // isRetry bounds it to one refresh and one retry: if the session is
+        // genuinely gone, fall through and wait for the next interval rather
+        // than spinning.
+        const authed = await refreshContext();
+        if (authed) return heartbeat(true);
       }
     } catch (err) {
       // Network issue — silent. If it persists, next idle check or
