@@ -277,6 +277,78 @@ class InventoryController extends Controller
         $total = (clone $q)->count();
         $items = $q->forPage($page, $perPage)->get();
 
+        // MARKER-INV-EMPTY — a blank filtered list is a dead end unless it
+        // says what WOULD work. These run only when the result is empty.
+        //
+        // They deliberately ignore the stock filter: scoping suggestions to
+        // the current stock level tends to return nothing at exactly the
+        // moment the viewer is stuck, and a suggestion leading to another
+        // blank page is worse than no suggestion. The empty state says so,
+        // and every suggestion link clears the stock filter.
+        //
+        // A free-text search that matches nothing is a search problem, not a
+        // category problem, so brand/category suggestions stay out of the way.
+        $emptyReason       = null;
+        $suggestBrands     = [];
+        $suggestCategories = [];
+
+        if ($total === 0) {
+            if ($search !== '') {
+                $emptyReason = 'search';
+            } else {
+                if ($category) {
+                    $catIdsForSuggest = $includeSubs
+                        ? self::descendantCategoryIds($allCats, $category)
+                        : [$category];
+
+                    $suggestBrands = \Illuminate\Support\Facades\DB::table('tenant_inventory_items as it')
+                        ->join('platform_distributor_catalogs as pdc', 'pdc.id', '=', 'it.distributor_catalog_id')
+                        ->where('it.tenant_id', $tenant->id)
+                        ->where('it.is_active', true)
+                        ->whereIn('it.category_id', $catIdsForSuggest)
+                        ->whereNotNull('pdc.manufacturer')
+                        ->where('pdc.manufacturer', '!=', '')
+                        ->selectRaw('pdc.manufacturer as name, COUNT(*) as c')
+                        ->groupBy('pdc.manufacturer')
+                        ->orderByDesc('c')
+                        ->limit(12)
+                        ->get()
+                        ->map(fn ($r) => ['name' => $r->name, 'count' => (int) $r->c])
+                        ->all();
+                }
+
+                if ($brand !== '') {
+                    $catNames = collect($allCats)->keyBy(fn ($c) => (string) $c->id);
+
+                    $suggestCategories = \Illuminate\Support\Facades\DB::table('tenant_inventory_items as it')
+                        ->join('platform_distributor_catalogs as pdc', 'pdc.id', '=', 'it.distributor_catalog_id')
+                        ->where('it.tenant_id', $tenant->id)
+                        ->where('it.is_active', true)
+                        ->where('pdc.manufacturer', $brand)
+                        ->whereNotNull('it.category_id')
+                        ->selectRaw('it.category_id, COUNT(*) as c')
+                        ->groupBy('it.category_id')
+                        ->orderByDesc('c')
+                        ->limit(12)
+                        ->get()
+                        ->map(fn ($r) => [
+                            'id'    => (string) $r->category_id,
+                            'name'  => $catNames[(string) $r->category_id]->name ?? 'Uncategorised',
+                            'count' => (int) $r->c,
+                        ])
+                        ->filter(fn ($c) => $c['id'] !== (string) $category)
+                        ->values()
+                        ->all();
+                }
+
+                // Nothing to suggest and a stock filter is on — that is the
+                // thing standing in the way.
+                if (! $suggestBrands && ! $suggestCategories && $stock !== '') {
+                    $emptyReason = 'stock';
+                }
+            }
+        }
+
         // patch-98 hereStocks lookup: item_id => current-location count
         $hereStocks = [];
         if ($hereLocId && $items->isNotEmpty()) {
@@ -391,6 +463,7 @@ class InventoryController extends Controller
             'archived', // MARKER-ARCHIVE-MOVE
             'total', 'search', 'category', 'stock', 'sort', 'page', 'perPage',
             'perPageAllowed', // MARKER-INV-PAGER
+            'emptyReason', 'suggestBrands', 'suggestCategories', // MARKER-INV-EMPTY
             'brand', 'distributor', 'brandOptions', 'distributorOptions', // MARKER-INV-BRAND-DIST
             'posCap',
             'currentLocation', 'isMultiLocation', 'hereStocks'

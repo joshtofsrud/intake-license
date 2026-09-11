@@ -564,8 +564,9 @@
 <div class="ia-card inv-desk-card">
   @include('tenant.inventory._partials.pager', ['pagerWhere' => 'top'])
   @if($items->isEmpty())
-    <div class="ia-card-body" style="text-align:center;padding:40px 20px;color:var(--ia-text-muted)">
-      No items match your filters.
+    {{-- MARKER-INV-EMPTY --}}
+    <div class="ia-card-body">
+      @include('tenant.inventory._partials.empty-state', ['emptyVariant' => 'desk'])
     </div>
   @else
 <div class="ia-table-wrap">
@@ -600,8 +601,9 @@
 {{-- Mobile card list (≤640px). Same data, different shape. --}}
 <div class="inv-mobile">
   @if($items->isEmpty())
-    <div class="inv-mobile-list" style="padding:40px 20px;text-align:center;color:var(--ia-text-muted);font-size:13px">
-      No items match your filters.
+    {{-- MARKER-INV-EMPTY --}}
+    <div class="inv-mobile-list">
+      @include('tenant.inventory._partials.empty-state', ['emptyVariant' => 'mobile'])
     </div>
   @else
     <div class="inv-mobile-list">
