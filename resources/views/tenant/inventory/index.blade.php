@@ -561,6 +561,38 @@
   </div>
 @endif
 
+{{-- MARKER-MERGE-UI --}}
+@if(($canMergeItems ?? false))
+  <div id="inv-merge-bar" style="display:none;align-items:center;gap:12px;padding:10px 14px;margin-bottom:12px;
+       background:rgba(190,242,100,.08);border:0.5px solid rgba(190,242,100,.3);border-radius:8px;font-size:12.5px">
+    <span id="inv-merge-count"></span>
+    <button type="button" class="ia-btn ia-btn--sm ia-btn--primary" style="margin-left:auto"
+            id="inv-merge-go" onclick="invOpenMerge()" disabled>Merge…</button>
+    <button type="button" class="ia-btn ia-btn--sm" onclick="invClearPicks()">Clear</button>
+  </div>
+
+  <div id="inv-merge-scrim" onclick="invCloseMerge()"
+       style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:60"></div>
+
+  <div id="inv-merge-modal" role="dialog" aria-modal="true"
+       style="display:none;position:fixed;z-index:61;top:50%;left:50%;transform:translate(-50%,-50%);
+              width:560px;max-width:94vw;max-height:88vh;overflow:auto;background:var(--ia-surface);
+              border:0.5px solid var(--ia-border-strong);border-radius:12px;box-shadow:0 24px 60px rgba(0,0,0,.6)">
+    <div style="padding:18px 20px 2px">
+      <h2 style="margin:0;font-size:17px">Merge these two items?</h2>
+      <div style="color:var(--ia-text-dim);font-size:12px;margin-top:3px">
+        One record will remain. This cannot be undone.
+      </div>
+    </div>
+    <div style="padding:16px 20px" id="inv-merge-body">Working it out…</div>
+    <div style="padding:14px 20px 18px;border-top:0.5px solid var(--ia-border);display:flex;gap:8px;justify-content:flex-end">
+      <button type="button" class="ia-btn" onclick="invCloseMerge()">Cancel</button>
+      <button type="button" class="ia-btn ia-btn--primary" id="inv-merge-commit"
+              onclick="invCommitMerge()" disabled>Merge into kept item</button>
+    </div>
+  </div>
+@endif
+
 <div class="ia-card inv-desk-card">
   @include('tenant.inventory._partials.pager', ['pagerWhere' => 'top'])
   @if($items->isEmpty())
@@ -575,6 +607,8 @@
       <thead>
         <tr>
           <th style="width:4px;padding:0"></th>
+            {{-- MARKER-MERGE-UI — matches the cell added to item-card. --}}
+            @if(($canMergeItems ?? false))<th style="width:30px"></th>@endif
           <th>Item</th>
           <th>UPC</th>
           {{-- MARKER-INV-LIST --}}
@@ -778,4 +812,224 @@
   });
 })();
 </script>
+@endpush
+
+@push('scripts')
+<script>
+// MARKER-MERGE-UI
+(function () {
+  var picks = [];      // [{id, name, sku}]
+  var flipped = false; // which of the two survives
+  var data = null;
+
+  var bar   = document.getElementById('inv-merge-bar');
+  var count = document.getElementById('inv-merge-count');
+  var go    = document.getElementById('inv-merge-go');
+  if (!bar) { return; }
+
+  var token = document.querySelector('meta[name="csrf-token"]').content;
+  var esc = function (v) {
+    return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  };
+  var money = function (c) { return c == null ? '—' : '$' + (c / 100).toFixed(2); };
+
+  window.invPick = function (cb) {
+    var entry = { id: cb.value, name: cb.dataset.name, sku: cb.dataset.sku };
+
+    if (cb.checked) {
+      // Two is the whole feature. A third tick is refused rather than
+      // silently ignored, so nobody thinks they queued a batch.
+      if (picks.length >= 2) {
+        cb.checked = false;
+        count.textContent = 'Two at a time — untick one first.';
+        return;
+      }
+      picks.push(entry);
+    } else {
+      picks = picks.filter(function (p) { return p.id !== cb.value; });
+    }
+
+    bar.style.display = picks.length ? 'flex' : 'none';
+    go.disabled = picks.length !== 2;
+    count.textContent = picks.length === 2
+      ? '2 selected'
+      : picks.length + ' selected — pick one more';
+  };
+
+  window.invClearPicks = function () {
+    picks = [];
+    document.querySelectorAll('.inv-pick').forEach(function (c) { c.checked = false; });
+    bar.style.display = 'none';
+    go.disabled = true;
+  };
+
+  function pair() {
+    return flipped
+      ? { loser: picks[1], survivor: picks[0] }
+      : { loser: picks[0], survivor: picks[1] };
+  }
+
+  window.invSwapMerge = function () { flipped = !flipped; loadPreview(); };
+
+  window.invOpenMerge = function () {
+    if (picks.length !== 2) { return; }
+    flipped = false;
+    document.getElementById('inv-merge-scrim').style.display = 'block';
+    document.getElementById('inv-merge-modal').style.display = 'block';
+    loadPreview();
+  };
+
+  window.invCloseMerge = function () {
+    document.getElementById('inv-merge-scrim').style.display = 'none';
+    document.getElementById('inv-merge-modal').style.display = 'none';
+  };
+
+  function loadPreview() {
+    var p = pair();
+    var body = document.getElementById('inv-merge-body');
+    document.getElementById('inv-merge-commit').disabled = true;
+    body.textContent = 'Working it out…';
+
+    fetch('{{ route('tenant.inventory.merge.preview') }}', {
+      method: 'POST',
+      headers: { 'X-CSRF-TOKEN': token, 'Accept': 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ loser_id: p.loser.id, survivor_id: p.survivor.id })
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (d) { data = d; render(d, p); })
+      .catch(function () { body.textContent = 'Could not work out what this merge would do.'; });
+  }
+
+  function render(d, p) {
+    var c = d.counts || {};
+    var rows = [];
+
+    // Per location, because stock is per location — "6 + 8 = 14" is only
+    // true when both sit in one place.
+    if ((d.locations || []).length) {
+      rows.push(['Stock', d.locations.map(function (l) {
+        return esc(l.name) + ': ' + l.before + ' + ' + l.moved + ' = <strong>' + l.after + '</strong>';
+      }).join('<br>')]);
+    } else {
+      rows.push(['Stock', 'Nothing to move — the merged-away item holds none.']);
+    }
+
+    if (c.sales)     { rows.push(['Sales history', c.sales + ' line' + (c.sales === 1 ? '' : 's') + ' reattach']); }
+    if (c.receiving) { rows.push(['Receiving', c.receiving + ' row' + (c.receiving === 1 ? '' : 's') + ' move across']); }
+    if (c.special)   { rows.push(['Special orders', c.special + ' move across']); }
+    if (c.parts)     { rows.push(['Job parts', c.parts + ' move across']); }
+    if (c.movements) { rows.push(['Change history', c.movements + ' movement' + (c.movements === 1 ? '' : 's') + ' merge in date order']); }
+    if (c.vendors)   { rows.push(['Vendors', c.vendors + ' link' + (c.vendors === 1 ? '' : 's') + ', duplicates dropped']); }
+    if (c.photos)    { rows.push(['Photos', c.photos + ' move over, after the kept item\'s']); }
+    if ((d.adopts || []).length) { rows.push(['Adopted', d.adopts.map(esc).join(', ')]); }
+
+    var priceOpts = '';
+    if (d.price && d.price.loser !== null && d.price.loser !== d.price.survivor) {
+      priceOpts =
+        '<div style="margin-top:5px;display:flex;gap:6px;flex-wrap:wrap">'
+        + '<button type="button" class="ia-btn ia-btn--sm mg-opt on" data-k="price" data-v="keep">Keep ' + money(d.price.survivor) + '</button>'
+        + '<button type="button" class="ia-btn ia-btn--sm mg-opt" data-k="price" data-v="take">Take ' + money(d.price.loser) + '</button>'
+        + '</div>';
+    }
+
+    var costOpts = '';
+    if (d.cost && (d.cost.loser !== d.cost.survivor)) {
+      costOpts =
+        '<div style="margin-top:5px;display:flex;gap:6px;flex-wrap:wrap">'
+        + '<button type="button" class="ia-btn ia-btn--sm mg-opt on" data-k="cost" data-v="keep">Keep ' + money(d.cost.survivor) + '</button>'
+        + '<button type="button" class="ia-btn ia-btn--sm mg-opt" data-k="cost" data-v="take">Take ' + money(d.cost.loser) + '</button>'
+        + (d.cost.weighted !== null
+            ? '<button type="button" class="ia-btn ia-btn--sm mg-opt" data-k="cost" data-v="average">Weighted ' + money(d.cost.weighted) + '</button>'
+            : '')
+        + '</div>';
+    }
+
+    document.getElementById('inv-merge-body').innerHTML =
+      '<div style="border:0.5px dashed rgba(242,119,122,.5);border-radius:8px;padding:12px 14px;position:relative">'
+      + '<button type="button" class="ia-btn ia-btn--sm" style="position:absolute;right:10px;top:10px" onclick="invSwapMerge()">Swap</button>'
+      + '<div style="font-size:10.5px;font-weight:700;letter-spacing:.04em;color:#f2777a;margin-bottom:6px">MERGES AWAY</div>'
+      + '<div style="font-weight:650;font-size:13.5px;padding-right:64px">' + esc(p.loser.name) + '</div>'
+      + '<div style="color:var(--ia-text-dim);font-size:11.5px">SKU ' + esc(p.loser.sku) + '</div>'
+      + '</div>'
+      + '<div style="text-align:center;margin:-8px 0;position:relative;z-index:2">'
+      + '<span style="display:inline-flex;width:30px;height:30px;border-radius:50%;align-items:center;justify-content:center;'
+      + 'background:var(--ia-surface);border:0.5px solid rgba(126,224,129,.5);color:#7ee081">↓</span></div>'
+      + '<div style="border:0.5px solid rgba(126,224,129,.45);background:rgba(126,224,129,.05);border-radius:8px;padding:12px 14px">'
+      + '<div style="font-size:10.5px;font-weight:700;letter-spacing:.04em;color:#7ee081;margin-bottom:6px">KEPT</div>'
+      + '<div style="font-weight:650;font-size:13.5px">' + esc(p.survivor.name) + '</div>'
+      + '<div style="color:var(--ia-text-dim);font-size:11.5px">SKU ' + esc(p.survivor.sku) + '</div>'
+      + '</div>'
+      + '<div style="margin-top:14px;border:0.5px solid var(--ia-border);border-radius:8px">'
+      + '<div style="padding:8px 13px;font-size:10.5px;letter-spacing:.09em;color:var(--ia-text-dim);border-bottom:0.5px solid var(--ia-border)">WHAT HAPPENS</div>'
+      + rows.map(function (r) {
+          return '<div style="display:flex;gap:10px;padding:8px 13px;border-bottom:0.5px solid var(--ia-border);font-size:12.5px">'
+            + '<span style="flex:0 0 130px;color:var(--ia-text-dim)">' + r[0] + '</span>'
+            + '<span style="flex:1">' + r[1] + '</span></div>';
+        }).join('')
+      + '<div style="display:flex;gap:10px;padding:8px 13px;border-bottom:0.5px solid var(--ia-border);font-size:12.5px">'
+      + '<span style="flex:0 0 130px;color:var(--ia-text-dim)">Sell price</span><span style="flex:1">' + money(d.price ? d.price.survivor : null) + priceOpts + '</span></div>'
+      + '<div style="display:flex;gap:10px;padding:8px 13px;font-size:12.5px">'
+      + '<span style="flex:0 0 130px;color:var(--ia-text-dim)">Cost</span><span style="flex:1">' + money(d.cost ? d.cost.survivor : null) + costOpts + '</span></div>'
+      + '</div>'
+      + '<div style="margin-top:13px;background:rgba(245,196,81,.07);border:0.5px solid rgba(245,196,81,.35);'
+      + 'border-radius:8px;padding:11px 13px;font-size:12px;color:var(--ia-text-muted);line-height:1.5">'
+      + '<strong>Not yet carried over:</strong> the merged-away barcode. A shelf label printed from '
+      + '<strong>' + esc(p.loser.sku) + '</strong> will stop scanning until barcode aliases are built. '
+      + 'Its identifiers are adopted only where the kept item has none.'
+      + '</div>'
+      + '<label style="display:flex;gap:9px;align-items:flex-start;margin-top:13px;font-size:12.5px;color:var(--ia-text-muted)">'
+      + '<input type="checkbox" id="inv-merge-ack" style="margin-top:3px">'
+      + '<span>I understand <strong>' + esc(p.loser.name) + '</strong> will no longer exist as a separate item.</span></label>';
+
+    document.getElementById('inv-merge-ack').addEventListener('change', function () {
+      document.getElementById('inv-merge-commit').disabled = !this.checked;
+    });
+
+    document.querySelectorAll('.mg-opt').forEach(function (b) {
+      b.addEventListener('click', function () {
+        document.querySelectorAll('.mg-opt[data-k="' + b.dataset.k + '"]').forEach(function (o) {
+          o.classList.remove('on');
+        });
+        b.classList.add('on');
+      });
+    });
+  }
+
+  window.invCommitMerge = function () {
+    var p = pair();
+    var btn = document.getElementById('inv-merge-commit');
+    var pick = function (k) {
+      var el = document.querySelector('.mg-opt.on[data-k="' + k + '"]');
+      return el ? el.dataset.v : 'keep';
+    };
+
+    btn.disabled = true;
+    btn.textContent = 'Merging…';
+
+    fetch('{{ route('tenant.inventory.merge.commit') }}', {
+      method: 'POST',
+      headers: { 'X-CSRF-TOKEN': token, 'Accept': 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        loser_id: p.loser.id,
+        survivor_id: p.survivor.id,
+        price_choice: pick('price'),
+        cost_choice: pick('cost')
+      })
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (d.url) { window.location = d.url; return; }
+        btn.textContent = 'Merge failed';
+      })
+      .catch(function () { btn.textContent = 'Merge failed'; });
+  };
+})();
+</script>
+<style>
+  /* MARKER-MERGE-UI */
+  .mg-opt{opacity:.55}
+  .mg-opt.on{opacity:1;border-color:var(--ia-accent);color:var(--ia-accent)}
+</style>
 @endpush

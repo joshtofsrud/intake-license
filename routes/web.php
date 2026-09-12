@@ -838,6 +838,10 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
                 // subscriptions inside the controller.
                 Route::get('/catalog-lookup',    [TenantControllers\InventoryController::class, 'catalogLookup'])->name('catalog-lookup');
 
+                // MARKER-MERGE-UI — capability checked in the controller.
+                Route::post('/merge/preview',    [TenantControllers\InventoryController::class, 'mergePreview'])->name('merge.preview');
+                Route::post('/merge',            [TenantControllers\InventoryController::class, 'mergeCommit'])->name('merge.commit');
+
                 // MARKER-ITEM-IMAGES
                 Route::post('/{item}/images',                 [TenantControllers\InventoryImageController::class, 'upload'])->name('images.upload');
                 Route::delete('/{item}/images/{join}',        [TenantControllers\InventoryImageController::class, 'detach'])->name('images.detach');

@@ -29,8 +29,19 @@
   $isMulti = $isMultiLocation ?? false;
 @endphp
 
-<tr class="inv-row" onclick="window.location='{{ $detailUrl }}'" style="cursor:pointer">
+<tr class="inv-row" onclick="window.location='{{ $detailUrl }}'" style="cursor:pointer" data-item-id="{{ $item->id }}">
   <td class="inv-row-bar" style="width:4px;padding:0;background:{{ $barColor }};border-radius:0"></td>
+
+  {{-- MARKER-MERGE-UI — stopPropagation because the whole row is a link to
+       the item; without it, ticking a box navigates away. --}}
+  @if(($canMergeItems ?? false))
+    <td style="width:30px;padding-left:8px" onclick="event.stopPropagation()">
+      <input type="checkbox" class="inv-pick" value="{{ $item->id }}"
+             data-name="{{ $item->name }}"
+             data-sku="{{ $item->sku }}"
+             onchange="invPick(this)">
+    </td>
+  @endif
 
   <td class="inv-row-identity">
     {{-- MARKER-INV-LIST — distributor names run 90+ characters and wrapped

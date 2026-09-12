@@ -20,6 +20,97 @@ use Illuminate\Support\Str;
 class ItemMergeService
 {
     /**
+     * MARKER-MERGE-UI — what merge() WOULD do, touching nothing.
+     *
+     * Counts the same rows and runs the same per-location signed arithmetic
+     * as merge(), so the confirm screen cannot promise something different
+     * from what happens. Negative counts sum here exactly as they do there.
+     */
+    public function preview(TenantInventoryItem $loser, TenantInventoryItem $survivor): array
+    {
+        $locNames = DB::table('tenant_locations')
+            ->where('tenant_id', $survivor->tenant_id)
+            ->pluck('name', 'id')->all();
+
+        $loserLocs = DB::table('tenant_inventory_item_locations')
+            ->where('inventory_item_id', $loser->id)->get();
+
+        $survivorLocs = DB::table('tenant_inventory_item_locations')
+            ->where('inventory_item_id', $survivor->id)
+            ->pluck('computed_stock_count', 'location_id')->all();
+
+        $locations = [];
+        $movedTotal = 0;
+
+        foreach ($loserLocs as $row) {
+            $qty = (int) $row->computed_stock_count;
+
+            if ($qty === 0) {
+                continue;
+            }
+
+            $before = (int) ($survivorLocs[$row->location_id] ?? 0);
+            $movedTotal += $qty;
+
+            $locations[] = [
+                'name'   => $locNames[$row->location_id] ?? 'Unknown location',
+                'moved'  => $qty,
+                'before' => $before,
+                'after'  => $before + $qty,
+            ];
+        }
+
+        $survivorTotal = (int) array_sum($survivorLocs);
+
+        // Weighted average, offered as a cost option. Negative counts are left
+        // out of the weighting: stock below zero contributes no value, and
+        // letting it weight the average produces a cost that never existed.
+        $loserCost    = $loser->effectiveCostCents();
+        $survivorCost = $survivor->effectiveCostCents();
+        $weighted     = null;
+
+        $lq = max(0, $movedTotal);
+        $sq = max(0, $survivorTotal);
+
+        if ($loserCost !== null && $survivorCost !== null && ($lq + $sq) > 0) {
+            $weighted = (int) round((($loserCost * $lq) + ($survivorCost * $sq)) / ($lq + $sq));
+        }
+
+        return [
+            'locations'      => $locations,
+            'moved_total'    => $movedTotal,
+            'survivor_total' => $survivorTotal,
+            'result_total'   => $survivorTotal + $movedTotal,
+            'counts'         => [
+                'sales'     => DB::table('tenant_sale_items')->where('inventory_item_id', $loser->id)->count(),
+                'receiving' => DB::table('tenant_inventory_receive_shipment_items')->where('inventory_item_id', $loser->id)->count(),
+                'special'   => DB::table('tenant_special_orders')->where('inventory_item_id', $loser->id)->count(),
+                'parts'     => DB::table('tenant_appointment_parts')->where('inventory_item_id', $loser->id)->count(),
+                'movements' => DB::table('tenant_inventory_movements')->where('inventory_item_id', $loser->id)->count(),
+                'vendors'   => DB::table('tenant_inventory_item_vendors')->where('inventory_item_id', $loser->id)->count(),
+                'photos'    => DB::getSchemaBuilder()->hasTable('tenant_inventory_item_images')
+                    ? DB::table('tenant_inventory_item_images')->where('inventory_item_id', $loser->id)->count()
+                    : 0,
+            ],
+            'cost' => [
+                'survivor' => $survivorCost,
+                'loser'    => $loserCost,
+                'weighted' => $weighted,
+            ],
+            'price' => [
+                'survivor' => $survivor->effectiveSellPriceCents(),
+                'loser'    => $loser->effectiveSellPriceCents(),
+            ],
+            'adopts' => array_values(array_filter([
+                blank($survivor->catalog_upc) && filled($loser->catalog_upc) ? 'UPC ' . $loser->catalog_upc : null,
+                blank($survivor->catalog_ean) && filled($loser->catalog_ean) ? 'EAN ' . $loser->catalog_ean : null,
+                blank($survivor->catalog_mpn) && filled($loser->catalog_mpn) ? 'MPN ' . $loser->catalog_mpn : null,
+                blank($survivor->distributor_catalog_id) && filled($loser->distributor_catalog_id) ? 'its catalog link' : null,
+            ])),
+        ];
+    }
+
+    /**
      * @param  TenantInventoryItem  $loser     merged away
      * @param  TenantInventoryItem  $survivor  kept
      * @param  array{price?:string, cost?:string}  $choices  'keep' (survivor's),

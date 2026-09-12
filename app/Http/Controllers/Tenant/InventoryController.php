@@ -274,6 +274,11 @@ class InventoryController extends Controller
             }
         }
 
+        // MARKER-MERGE-UI — the checkbox column only exists for people who can
+        // actually merge; the endpoints check the same capability themselves.
+        $canMergeItems = (bool) optional(\Illuminate\Support\Facades\Auth::guard('tenant')->user())
+            ->can('inventory.items.merge');
+
         $total = (clone $q)->count();
         $items = $q->forPage($page, $perPage)->get();
 
@@ -463,6 +468,7 @@ class InventoryController extends Controller
             'archived', // MARKER-ARCHIVE-MOVE
             'total', 'search', 'category', 'stock', 'sort', 'page', 'perPage',
             'perPageAllowed', // MARKER-INV-PAGER
+            'canMergeItems', // MARKER-MERGE-UI
             'emptyReason', 'suggestBrands', 'suggestCategories', // MARKER-INV-EMPTY
             'brand', 'distributor', 'brandOptions', 'distributorOptions', // MARKER-INV-BRAND-DIST
             'posCap',
@@ -1254,6 +1260,72 @@ class InventoryController extends Controller
                 'updated_at'             => now(),
             ]
         );
+    }
+
+    /** MARKER-MERGE-UI — what a merge would do. Read-only. */
+    public function mergePreview(Request $request): \Illuminate\Http\JsonResponse
+    {
+        [$loser, $survivor] = $this->mergePair($request);
+
+        return response()->json(
+            app(\App\Services\Inventory\ItemMergeService::class)->preview($loser, $survivor)
+        );
+    }
+
+    /** MARKER-MERGE-UI — do it. */
+    public function mergeCommit(Request $request): \Illuminate\Http\JsonResponse
+    {
+        [$loser, $survivor] = $this->mergePair($request);
+
+        $report = app(\App\Services\Inventory\ItemMergeService::class)->merge(
+            $loser,
+            $survivor,
+            [
+                'price' => $request->input('price_choice', 'keep'),
+                'cost'  => $request->input('cost_choice', 'keep'),
+            ],
+            \Illuminate\Support\Facades\Auth::guard('tenant')->id(),
+        );
+
+        \Illuminate\Support\Facades\Log::info('MARKER-ITEM-MERGE completed', [
+            'tenant'   => $survivor->tenant_id,
+            'merge_id' => $report['merge_id'],
+            'loser'    => $loser->id,
+            'survivor' => $survivor->id,
+            'by'       => \Illuminate\Support\Facades\Auth::guard('tenant')->id(),
+        ]);
+
+        return response()->json([
+            'ok'  => true,
+            'url' => route('tenant.inventory.show', $survivor->id),
+        ]);
+    }
+
+    /**
+     * Both endpoints resolve the same way, and the capability is checked here
+     * rather than only in the view: a hidden button is not a permission.
+     *
+     * @return array{0: TenantInventoryItem, 1: TenantInventoryItem}
+     */
+    private function mergePair(Request $request): array
+    {
+        $tenant = tenant();
+        $this->assertRetailEnabled($tenant);
+
+        $user = \Illuminate\Support\Facades\Auth::guard('tenant')->user();
+        abort_unless($user && $user->can('inventory.items.merge'), 403);
+
+        $data = $request->validate([
+            'loser_id'    => ['required', 'string'],
+            'survivor_id' => ['required', 'string', 'different:loser_id'],
+        ]);
+
+        $loser = TenantInventoryItem::where('tenant_id', $tenant->id)
+            ->findOrFail($data['loser_id']);
+        $survivor = TenantInventoryItem::where('tenant_id', $tenant->id)
+            ->findOrFail($data['survivor_id']);
+
+        return [$loser, $survivor];
     }
 
     private function syncItemSources(Request $request, TenantInventoryItem $item): void
