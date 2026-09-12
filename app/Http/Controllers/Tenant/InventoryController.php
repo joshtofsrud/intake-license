@@ -1120,6 +1120,11 @@ class InventoryController extends Controller
         }
 
         $this->linkChosenCatalogRow($request, $item); // MARKER-ITEM-IDENT-ENTRY
+
+        // MARKER-AUTOLINK — belt and braces. If the hidden field did not make
+        // it, the identifiers still will. This is what turns a lost link from
+        // likely into impossible.
+        self::autoLinkByIdentifiers($item->refresh());
         $this->syncItemSources($request, $item);      // MARKER-ITEM-SOURCES-EDIT
 
         return redirect()->route('tenant.inventory.show', $item->id)
@@ -1197,7 +1202,10 @@ class InventoryController extends Controller
             // MARKER-IDENT-ENTRY-FIX — SKU was left empty whenever a row had no
             // product_key, and the description was never sent at all.
             'variant_no'   => $c->distributor_variant_no,
-            'description'  => $c->description,
+            // MARKER-AUTOLINK — QBP leaves description empty and puts the specs
+            // in display_subtitle, so a linked QBP item showed a blank
+            // description and looked half-imported.
+            'description'  => $c->description ?: $c->display_subtitle,
             'upc'          => $c->upc,
             'ean'          => $c->ean,
             'mpn'          => $c->manufacturer_sku,
@@ -1215,6 +1223,81 @@ class InventoryController extends Controller
      * give it a vendor source, so a hand-added item is reorderable from the
      * start rather than being a dead end the first time it runs out.
      */
+    /**
+     * MARKER-AUTOLINK — link an item to the catalog by its identifiers.
+     *
+     * The hidden field from the lookup is a convenience, not the mechanism.
+     * An item carrying a barcode that matches exactly one catalog row from a
+     * subscribed distributor IS that product, however the barcode got there —
+     * typed, scanned, imported or prefilled.
+     *
+     * Deliberately conservative: never overwrites an existing link, requires
+     * exactly ONE match, and only considers active rows from active
+     * subscriptions.
+     */
+    public static function autoLinkByIdentifiers(TenantInventoryItem $item): bool
+    {
+        if (filled($item->distributor_catalog_id)) {
+            return false;
+        }
+
+        $codes = \App\Models\Tenant\TenantDistributorCatalogSubscription::where('tenant_id', $item->tenant_id)
+            ->where('is_active', true)
+            ->pluck('distributor_code')
+            ->map(fn ($c) => strtoupper((string) $c))
+            ->all();
+
+        if (! $codes) {
+            return false;
+        }
+
+        foreach ([
+            ['upc', $item->catalog_upc],
+            ['ean', $item->catalog_ean],
+            ['manufacturer_sku', $item->catalog_mpn],
+        ] as [$column, $value]) {
+            if (blank($value)) {
+                continue;
+            }
+
+            $rows = \App\Models\PlatformDistributorCatalog::whereIn('distributor_code', $codes)
+                ->where('is_active', true)
+                ->where($column, $value)
+                ->limit(2)
+                ->get();
+
+            if ($rows->count() !== 1) {
+                continue; // none, or ambiguous — leave it alone
+            }
+
+            $cat = $rows->first();
+            $item->forceFill(['distributor_catalog_id' => $cat->id])->save();
+
+            $vendor = \App\Models\Tenant\TenantVendor::firstOrCreate(
+                ['tenant_id' => $item->tenant_id, 'name' => $cat->distributor_name ?: $cat->distributor_code],
+                ['is_active' => true]
+            );
+
+            \Illuminate\Support\Facades\DB::table('tenant_inventory_item_vendors')->updateOrInsert(
+                ['inventory_item_id' => $item->id, 'vendor_id' => $vendor->id],
+                [
+                    'id'                     => (string) \Illuminate\Support\Str::uuid(),
+                    'distributor_catalog_id' => $cat->id,
+                    'distributor_code'       => $cat->distributor_code,
+                    'vendor_sku'             => $cat->product_key ?: $cat->distributor_variant_no,
+                    'unit_cost_cents'        => $cat->cost_cents,
+                    'is_preferred'           => true,
+                    'created_at'             => now(),
+                    'updated_at'             => now(),
+                ]
+            );
+
+            return true;
+        }
+
+        return false;
+    }
+
     private function linkChosenCatalogRow(Request $request, TenantInventoryItem $item): void
     {
         $catalogId = trim((string) $request->input('distributor_catalog_id', ''));
@@ -1550,6 +1633,10 @@ class InventoryController extends Controller
         ]);
 
         $this->syncItemSources($request, $item); // MARKER-ITEM-SOURCES-EDIT
+
+        // MARKER-AUTOLINK — typing a barcode into an existing item is the other
+        // way a link becomes possible, so try again on every save.
+        self::autoLinkByIdentifiers($item->refresh());
 
         return redirect()->route('tenant.inventory.show', $item->id)
             ->with('flash', ['type' => 'success', 'message' => 'Item updated.']);
