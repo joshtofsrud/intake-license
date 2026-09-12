@@ -97,17 +97,51 @@ class GlobalSearchController extends Controller
 
         // ---- products (inventory items) — gated on retail
         if ($tenant->retail_enabled) {
+            // MARKER-SEARCH-IDENTIFIERS — barcodes too, not just name and sku.
+            // Matching sku alone meant a scanned barcode found the item that
+            // had it typed into the SKU box by mistake, and missed the one
+            // carrying it in catalog_upc where it belongs.
+            $bare = trim((string) $q);
+
             $items = TenantInventoryItem::where('tenant_id', $tenant->id)
                 ->where(fn ($w) => $w
                     ->where('name', 'like', $like)
-                    ->orWhere('sku', 'like', $like))
+                    ->orWhere('sku', 'like', $like)
+                    ->orWhere('catalog_upc', 'like', $like)
+                    ->orWhere('catalog_ean', 'like', $like)
+                    ->orWhere('catalog_mpn', 'like', $like))
+                // An exact identifier goes first: someone who just scanned is
+                // holding the answer, not browsing for it.
+                ->orderByRaw(
+                    'CASE WHEN sku = ? OR catalog_upc = ? OR catalog_ean = ? OR catalog_mpn = ? THEN 0 ELSE 1 END',
+                    [$bare, $bare, $bare, $bare]
+                )
                 ->limit(self::PER_GROUP)->get();
+
             if ($items->count()) {
-                $groups[] = $this->group('Products', $items->map(fn ($i) => [
-                    'title'    => $i->name,
-                    'subtitle' => $i->sku,
-                    'url'      => route('tenant.inventory.show', $i->id),
-                ]));
+                $groups[] = $this->group('Products', $items->map(function ($i) use ($bare) {
+                    // Say WHICH identifier matched. A row whose subtitle shows
+                    // an unfamiliar SKU, when the person searched a barcode,
+                    // reads as the wrong product.
+                    $sub = $i->sku;
+
+                    foreach ([
+                        'catalog_upc' => 'UPC',
+                        'catalog_ean' => 'EAN',
+                        'catalog_mpn' => 'MPN',
+                    ] as $col => $label) {
+                        if ($bare !== '' && (string) $i->$col === $bare && (string) $i->sku !== $bare) {
+                            $sub = $i->sku ? $i->sku . ' · ' . $label . ' ' . $bare : $label . ' ' . $bare;
+                            break;
+                        }
+                    }
+
+                    return [
+                        'title'    => $i->name,
+                        'subtitle' => $sub,
+                        'url'      => route('tenant.inventory.show', $i->id),
+                    ];
+                }));
             }
         }
 
