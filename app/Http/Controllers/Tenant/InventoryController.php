@@ -1188,6 +1188,10 @@ class InventoryController extends Controller
             'subtitle'     => $c->display_subtitle,
             'manufacturer' => $c->manufacturer,
             'product_key'  => $c->product_key,
+            // MARKER-IDENT-ENTRY-FIX — SKU was left empty whenever a row had no
+            // product_key, and the description was never sent at all.
+            'variant_no'   => $c->distributor_variant_no,
+            'description'  => $c->description,
             'upc'          => $c->upc,
             'ean'          => $c->ean,
             'mpn'          => $c->manufacturer_sku,

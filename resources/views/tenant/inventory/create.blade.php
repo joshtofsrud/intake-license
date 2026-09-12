@@ -28,29 +28,16 @@
     <div class="ia-card-head"><span class="ia-card-title">Item details</span></div>
     <div class="ia-card-body">
 
-      <div class="ia-input-grid-2">
-        <div class="ia-form-group">
-          <label class="ia-form-label">Name <span class="ia-required">*</span></label>
-          <input type="text" name="name" class="ia-input" required value="{{ old('name') }}">
-        </div>
-        <div class="ia-form-group">
-          <label class="ia-form-label">SKU <span class="ia-required">*</span></label>
-          <input type="text" name="sku" class="ia-input" required value="{{ old('sku') }}"
-            placeholder="e.g. CHN-105-11">
-          <div class="ia-form-hint">Must be unique within your shop.</div>
-        </div>
-      </div>
-
-      {{-- MARKER-ITEM-IDENT-ENTRY — these three are what link an item to a
-           distributor catalog. Without them a hand-entered item matches
-           nothing, never updates its cost, and cannot be reordered. --}}
-            {{-- MARKER-ITEM-IDENT-ENTRY — look it up before typing it. Picking a row
+      {{-- MARKER-IDENT-ENTRY-FIX — first thing on the form: the question is
+           whether this product is already known, and every other field
+           depends on the answer.
+           MARKER-ITEM-IDENT-ENTRY — look it up before typing it. Picking a row
            fills the fields below AND links the item, so it behaves like an
            imported one from then on: cost updates, rename flags, reordering. --}}
       <div class="ia-form-group" id="cat-lookup-wrap">
         <label class="ia-form-label">Find it in a distributor catalog</label>
         <input type="text" id="cat-lookup" class="ia-input"
-               placeholder="Scan a barcode, or type a name — e.g. Hans Dampf 29 x 2.6"
+               placeholder="Scan a barcode, or type a product name"
                autocomplete="off">
         <div class="ia-form-hint" id="cat-lookup-hint">
           Searches the distributors your shop is connected to. Optional — fill the form in by
@@ -64,6 +51,23 @@
         </div>
       </div>
 
+      <div class="ia-input-grid-2">
+        <div class="ia-form-group">
+          <label class="ia-form-label">Name <span class="ia-required">*</span></label>
+          <input type="text" name="name" class="ia-input" required value="{{ old('name') }}">
+        </div>
+        <div class="ia-form-group">
+          <label class="ia-form-label">SKU <span class="ia-required">*</span></label>
+          <input type="text" name="sku" class="ia-input" required value="{{ old('sku') }}"
+            placeholder="Your own code for this item">
+          <div class="ia-form-hint">Must be unique within your shop.</div>
+        </div>
+      </div>
+
+      {{-- MARKER-ITEM-IDENT-ENTRY — these three are what link an item to a
+           distributor catalog. Without them a hand-entered item matches
+           nothing, never updates its cost, and cannot be reordered. --}}
+      
       <div class="ia-form-row">
         <div class="ia-form-group">
           <label class="ia-form-label">Barcode (UPC)</label>
@@ -74,7 +78,7 @@
         <div class="ia-form-group">
           <label class="ia-form-label">EAN</label>
           <input type="text" name="catalog_ean" class="ia-input ia-scan-field"
-                 value="{{ old('catalog_ean') }}" placeholder="13-digit, if different">
+                 value="{{ old('catalog_ean') }}" placeholder="If different from the barcode">
         </div>
       </div>
 
@@ -82,7 +86,7 @@
         <div class="ia-form-group">
           <label class="ia-form-label">Manufacturer part number</label>
           <input type="text" name="catalog_mpn" class="ia-input ia-scan-field"
-                 value="{{ old('catalog_mpn') }}" placeholder="e.g. TR00641">
+                 value="{{ old('catalog_mpn') }}" placeholder="Supplier or maker code">
           <div class="ia-form-hint">The maker's own code, if you have it.</div>
         </div>
         <div class="ia-form-group"></div>
@@ -110,11 +114,11 @@
       <div class="ia-input-grid-2">
         <div class="ia-form-group">
           <label class="ia-form-label">Color</label>
-          <input type="text" name="color" class="ia-input" maxlength="60" value="{{ old('color') }}" placeholder="Black, Red, Anodized…">
+          <input type="text" name="color" class="ia-input" maxlength="60" value="{{ old('color') }}" placeholder="Colour or finish">
         </div>
         <div class="ia-form-group">
           <label class="ia-form-label">Size</label>
-          <input type="text" name="size" class="ia-input" maxlength="60" value="{{ old('size') }}" placeholder="M, 27.2mm, 700x25c…">
+          <input type="text" name="size" class="ia-input" maxlength="60" value="{{ old('size') }}" placeholder="Size or dimensions">
         </div>
       </div>
 
@@ -292,7 +296,10 @@ document.querySelectorAll('.ia-scan-field').forEach(function (el) {
 
     // Only ever fills blanks — anything already typed is the shop's own choice.
     setIfEmpty('name', r.name);
-    setIfEmpty('sku', r.product_key);
+    // MARKER-IDENT-ENTRY-FIX — not every catalog row carries a product_key, and
+    // an empty SKU on a required field sends the user back to typing one.
+    setIfEmpty('sku', r.product_key || r.variant_no || r.mpn);
+    setIfEmpty('description', r.description);
     setIfEmpty('catalog_upc', r.upc);
     setIfEmpty('catalog_ean', r.ean);
     setIfEmpty('catalog_mpn', r.mpn);
@@ -303,9 +310,15 @@ document.querySelectorAll('.ia-scan-field').forEach(function (el) {
     setIfEmpty('shop_case_quantity', r.case_qty);
 
     hidden.value = r.id;
-    label.textContent = 'Linked to ' + r.distributor + ' · ' + (r.name || '');
+    // MARKER-IDENT-ENTRY-FIX — the full title is already in the Name field
+    // directly above; repeating it here and in the result row put the same
+    // 90 characters on screen three times. Identify the LINK, not the product.
+    label.textContent = 'Linked to ' + r.distributor
+      + (r.product_key ? ' · ' + r.product_key : '')
+      + (r.upc || r.ean ? ' · ' + (r.upc || r.ean) : '');
     chosen.style.display = '';
     results.style.display = 'none';
+    results.innerHTML = '';
     box.value = '';
   });
 

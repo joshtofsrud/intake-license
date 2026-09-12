@@ -56,7 +56,7 @@
         <div class="ia-form-group">
           <label class="ia-form-label">EAN</label>
           <input type="text" name="catalog_ean" class="ia-input ia-scan-field"
-                 value="{{ old('catalog_ean', $item->catalog_ean) }}" placeholder="13-digit, if different">
+                 value="{{ old('catalog_ean', $item->catalog_ean) }}" placeholder="If different from the barcode">
         </div>
       </div>
 
@@ -64,7 +64,7 @@
         <div class="ia-form-group">
           <label class="ia-form-label">Manufacturer part number</label>
           <input type="text" name="catalog_mpn" class="ia-input ia-scan-field"
-                 value="{{ old('catalog_mpn', $item->catalog_mpn) }}" placeholder="e.g. TR00641">
+                 value="{{ old('catalog_mpn', $item->catalog_mpn) }}" placeholder="Supplier or maker code">
           <div class="ia-form-hint">The maker's own code, if you have it.</div>
         </div>
         <div class="ia-form-group"></div>
@@ -94,11 +94,11 @@
       <div class="ia-input-grid-2">
         <div class="ia-form-group">
           <label class="ia-form-label">Color</label>
-          <input type="text" name="color" class="ia-input" maxlength="60" value="{{ old('color', $item->color ?? '') }}" placeholder="Black, Red, Anodized…">
+          <input type="text" name="color" class="ia-input" maxlength="60" value="{{ old('color', $item->color ?? '') }}" placeholder="Colour or finish">
         </div>
         <div class="ia-form-group">
           <label class="ia-form-label">Size</label>
-          <input type="text" name="size" class="ia-input" maxlength="60" value="{{ old('size', $item->size ?? '') }}" placeholder="M, 27.2mm, 700x25c…">
+          <input type="text" name="size" class="ia-input" maxlength="60" value="{{ old('size', $item->size ?? '') }}" placeholder="Size or dimensions">
         </div>
       </div>
 
