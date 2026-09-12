@@ -1019,6 +1019,43 @@
     });
   }
 
+  function showResult(d) {
+    var r = d.report || {};
+    var lines = [];
+
+    (r.locations || []).forEach(function (l) {
+      lines.push('<div><strong>' + esc(l.name || 'Location') + '</strong>: '
+        + l.before + ' + ' + l.moved + ' = <strong>' + l.after + '</strong></div>');
+    });
+
+    var moved = r.moved || {};
+    var bits = [];
+    if (moved.movements)      { bits.push(moved.movements + ' movement' + (moved.movements === 1 ? '' : 's')); }
+    if (moved.vendors)        { bits.push(moved.vendors + ' vendor link' + (moved.vendors === 1 ? '' : 's')); }
+    if (moved.flags)          { bits.push(moved.flags + ' attention flag' + (moved.flags === 1 ? '' : 's')); }
+    if (moved.tenant_sale_items) { bits.push(moved.tenant_sale_items + ' sale line' + (moved.tenant_sale_items === 1 ? '' : 's')); }
+
+    document.getElementById('inv-merge-body').innerHTML =
+      '<div style="text-align:center;padding:6px 0 14px">'
+      + '<div style="font-size:26px;line-height:1">✓</div>'
+      + '<div style="font-size:15px;font-weight:650;margin-top:6px">Merged</div>'
+      + '<div style="color:var(--ia-text-dim);font-size:12.5px;margin-top:3px">'
+      + 'Everything now lives on <strong>' + esc((d.kept || {}).sku || '') + '</strong></div>'
+      + '</div>'
+      + '<div style="border:0.5px solid var(--ia-border);border-radius:8px;padding:12px 14px;font-size:12.5px;line-height:1.6">'
+      + (lines.length ? lines.join('') : '<div>No stock needed moving.</div>')
+      + (bits.length ? '<div style="color:var(--ia-text-dim);margin-top:6px">Also moved: ' + bits.join(', ') + '</div>' : '')
+      + '</div>'
+      + '<div style="margin-top:12px;font-size:11.5px;color:var(--ia-text-dim)">'
+      + 'The merged-away item still opens, and says where it went.'
+      + '</div>';
+
+    var foot = document.getElementById('inv-merge-commit').parentNode;
+    foot.innerHTML =
+      '<a class="ia-btn" href="' + d.url + '">Open the kept item</a>'
+      + '<button type="button" class="ia-btn ia-btn--primary" onclick="window.location.reload()">Done</button>';
+  }
+
   window.invCommitMerge = function () {
     var p = pair();
     var btn = document.getElementById('inv-merge-commit');
@@ -1042,7 +1079,10 @@
     })
       .then(function (r) { return r.json(); })
       .then(function (d) {
-        if (d.url) { window.location = d.url; return; }
+        // MARKER-MERGE-RESULT — report in place. Redirecting to the kept item
+        // hid whether the merge matched what the preview promised, and threw
+        // away the filtered list underneath.
+        if (d.ok) { showResult(d); return; }
         btn.textContent = 'Merge failed';
       })
       .catch(function () { btn.textContent = 'Merge failed'; });

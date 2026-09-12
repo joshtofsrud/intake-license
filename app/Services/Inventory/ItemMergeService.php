@@ -237,8 +237,13 @@ class ItemMergeService
                     ]);
                 }
 
+                // MARKER-MERGE-RESULT — the name, not just the id: the
+                // result panel has to say WHERE the stock landed, and an id
+                // tells a person nothing.
                 $report['locations'][] = [
                     'location_id' => $row->location_id,
+                    'name'        => DB::table('tenant_locations')
+                        ->where('id', $row->location_id)->value('name') ?: 'Unknown location',
                     'moved'       => $qty,
                     'before'      => $before,
                     'after'       => $after,

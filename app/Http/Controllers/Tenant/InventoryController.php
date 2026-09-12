@@ -1392,9 +1392,14 @@ class InventoryController extends Controller
             'by'       => \Illuminate\Support\Facades\Auth::guard('tenant')->id(),
         ]);
 
+        // MARKER-MERGE-RESULT — hand back what actually happened, not just a
+        // place to go. These are post-transaction figures, so a difference
+        // between them and the preview is visible rather than invisible.
         return response()->json([
-            'ok'  => true,
-            'url' => route('tenant.inventory.show', $survivor->id),
+            'ok'     => true,
+            'url'    => route('tenant.inventory.show', $survivor->id),
+            'report' => $report,
+            'kept'   => ['name' => $survivor->name, 'sku' => $survivor->sku],
         ]);
     }
 
