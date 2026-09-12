@@ -194,19 +194,13 @@ class StorefrontController extends Controller
         );
 
         return response()->json(['corrected' => $corrected && $scored->isNotEmpty() ? implode(' ', $tokens) : null, 'items' => $scored->map(function ($i) {
-            $ims = (array) ($i->distributorCatalog?->images ?? []);
-            // MARKER-QBP-IMAGES-EVERYWHERE — a QBP entry is a bare filename,
-            // not a URL, so this was putting a filename in a src on the shop's
-            // public product pages.
-            // Derived from the item, not from variables that may not exist in
-            // this scope: $catCode/$tenantId were not defined here, so passing
-            // them would quietly resolve every QBP image to null.
-            $img = \App\Support\CatalogImages::urls(
-                $ims,
-                $p->distributorCatalog?->distributor_code ?? null,
-                $p->tenant_id ?? null,
-                1,
-            )[0] ?? null;
+            // MARKER-ITEM-IMAGES-EVERYWHERE — was passing $p->distributorCatalog
+            // and $p->tenant_id from inside a closure that only receives $i.
+            // $p is not in scope, so both arrived null and every QBP image in
+            // storefront search resolved to nothing. Asking the item removes
+            // the chance of handing the wrong thing over: it knows its own
+            // tenant, and it puts the shop's own photo first.
+            $img = $i->primaryImageUrl();
             return [
                 'name'  => $i->name,
                 'brand' => $i->distributorCatalog?->manufacturer,
@@ -228,14 +222,18 @@ class StorefrontController extends Controller
 
         $cat = $item->distributorCatalog;
 
-        // MARKER-QBP-IMAGES-EVERYWHERE-2 — the product gallery had its own copy
-        // of the same lookup, so a QBP product page showed six broken images.
-        $images = \App\Support\CatalogImages::urls(
-            $cat?->images ?? [],
-            $cat?->distributor_code ?? null,
-            $cat?->tenant_id ?? null,
-            6,
-        );
+        // MARKER-ITEM-IMAGES-EVERYWHERE — was passing $cat?->tenant_id, but
+        // $cat is a platform catalog row shared across tenants and has no
+        // tenant_id at all. The CLS prefix is per tenant, so that resolved to
+        // null and QBP galleries came out empty.
+        //
+        // Hidden distributor images are honoured here too: switching one off
+        // on the item page takes it off the storefront, which is the point.
+        $images = collect($item->displayImages(6))
+            ->reject(fn ($img) => $img['hidden'])
+            ->pluck('url')
+            ->values()
+            ->all();
 
         $attrs = collect((array) ($cat?->attributes ?? []))
             ->filter(fn ($a) => is_array($a) && !empty($a['Name']) && trim((string) ($a['Value'] ?? '')) !== '')

@@ -1584,11 +1584,15 @@ class RegisterController extends Controller
         // read Url/url/src, found none, and passed the filename straight to an
         // <img src>, so every QBP photo drew a broken icon in the item modal
         // while the same item's photos loaded on the inventory page.
-        $images = \App\Support\CatalogImages::urls(
-            $item->distributorCatalog?->images ?? [],
-            $item->distributorCatalog?->distributor_code,
-            $tenant->id ?? null,
-        );
+        // MARKER-ITEM-IMAGES-EVERYWHERE — this one was already passing the
+        // right tenant; it moves onto displayImages() so a shop's own photo
+        // shows at the till, and so a distributor image switched off on the
+        // item page is not still sitting in the modal.
+        $images = collect($item->displayImages())
+            ->reject(fn ($img) => $img['hidden'])
+            ->pluck('url')
+            ->values()
+            ->all();
 
         // Specs from canonical attributes
         $attrs = collect((array) ($item->distributorCatalog?->attributes ?? []))
