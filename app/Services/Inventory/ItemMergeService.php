@@ -101,6 +101,29 @@ class ItemMergeService
                 'survivor' => $survivor->effectiveSellPriceCents(),
                 'loser'    => $loser->effectiveSellPriceCents(),
             ],
+            // MARKER-MERGE-COMMITMENTS — what is promised to someone. These
+            // all survive a merge (every row is repointed at the survivor),
+            // but a person about to make an irreversible change should know
+            // something is in flight before making it.
+            'commitments' => [
+                'open_sales' => DB::table('tenant_sale_items as si')
+                    ->join('tenant_sales as s', 's.id', '=', 'si.sale_id')
+                    ->where('si.inventory_item_id', $loser->id)
+                    ->whereIn('s.payment_status', ['draft', 'quote', 'unpaid', 'partial'])
+                    ->count(),
+
+                'special_orders' => DB::table('tenant_special_orders')
+                    ->where('inventory_item_id', $loser->id)
+                    ->whereIn('status', \App\Models\Tenant\TenantSpecialOrder::STATUSES_OPEN)
+                    ->count(),
+
+                'incoming' => DB::table('tenant_inventory_receive_shipment_items as li')
+                    ->join('tenant_inventory_receive_shipments as sh', 'sh.id', '=', 'li.shipment_id')
+                    ->where('li.inventory_item_id', $loser->id)
+                    ->where('sh.status', 'draft')
+                    ->count(),
+            ],
+
             'adopts' => array_values(array_filter([
                 blank($survivor->catalog_upc) && filled($loser->catalog_upc) ? 'UPC ' . $loser->catalog_upc : null,
                 blank($survivor->catalog_ean) && filled($loser->catalog_ean) ? 'EAN ' . $loser->catalog_ean : null,

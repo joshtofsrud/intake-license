@@ -925,6 +925,27 @@
     if (c.photos)    { rows.push(['Photos', c.photos + ' move over, after the kept item\'s']); }
     if ((d.adopts || []).length) { rows.push(['Adopted', d.adopts.map(esc).join(', ')]); }
 
+    // MARKER-MERGE-COMMITMENTS — surfaced above the choices, not buried under
+    // them: this is the part that should stop someone, and a warning below the
+    // fold is a warning nobody read.
+    var cm = d.commitments || {};
+    var promised = [];
+    if (cm.open_sales)     { promised.push(cm.open_sales + ' open sale' + (cm.open_sales === 1 ? '' : 's') + ' with this item on them'); }
+    if (cm.special_orders) { promised.push(cm.special_orders + ' open special order' + (cm.special_orders === 1 ? '' : 's')); }
+    if (cm.incoming)       { promised.push(cm.incoming + ' line on a receiving draft'); }
+
+    var warn = '';
+    if (promised.length) {
+      warn =
+        '<div style="margin-top:13px;background:rgba(242,119,122,.07);border:0.5px solid rgba(242,119,122,.35);'
+        + 'border-radius:8px;padding:11px 13px;font-size:12px;color:var(--ia-text-muted);line-height:1.5">'
+        + '<strong style="color:var(--ia-text)">Someone is waiting on this item.</strong> '
+        + promised.map(esc).join(', ') + '. '
+        + 'These all move to the kept item and keep working — but the name on them will change, '
+        + 'so check nobody is mid-transaction before you go ahead.'
+        + '</div>';
+    }
+
     var priceOpts = '';
     if (d.price && d.price.loser !== null && d.price.loser !== d.price.survivor) {
       priceOpts =
@@ -973,6 +994,7 @@
       + '<div style="display:flex;gap:10px;padding:8px 13px;font-size:12.5px">'
       + '<span style="flex:0 0 130px;color:var(--ia-text-dim)">Cost</span><span style="flex:1">' + money(d.cost ? d.cost.survivor : null) + costOpts + '</span></div>'
       + '</div>'
+      + warn
       + '<div style="margin-top:13px;background:rgba(245,196,81,.07);border:0.5px solid rgba(245,196,81,.35);'
       + 'border-radius:8px;padding:11px 13px;font-size:12px;color:var(--ia-text-muted);line-height:1.5">'
       + '<strong>Not yet carried over:</strong> the merged-away barcode. A shelf label printed from '
