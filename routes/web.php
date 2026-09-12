@@ -615,6 +615,8 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
 
             // MARKER-PATCH-231 — global search.
             Route::get('/search', [TenantControllers\GlobalSearchController::class, 'search'])->name('search');
+            // MARKER-SEARCH-ALL — the full results surface behind the modal.
+            Route::get('/search/all', [TenantControllers\GlobalSearchController::class, 'page'])->name('search.page');
 
             // MARKER-PATCH-231 — notifications full page.
             Route::get('/notifications', [TenantControllers\StaffAlertController::class, 'page'])->name('notifications');

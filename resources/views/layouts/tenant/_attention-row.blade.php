@@ -100,12 +100,26 @@
 
   function render(groups){
     if (!groups || !groups.length){ results.innerHTML='<div class="ar-empty">No matches.</div>'; return; }
+    // MARKER-SEARCH-ALL — say when a group is cut short. Six rows with nothing
+    // to indicate a seventh reads as "that is all of them", which in a shop
+    // with thousands of customers is usually false.
+    var lastQuery = (input.value || '').trim();
+
     results.innerHTML = groups.map(function(g){
-      return '<div class="ar-grp-label">'+esc(g.label)+'</div>' + g.rows.map(function(r){
+      var shown = g.rows.length;
+      var total = (typeof g.total === 'number') ? g.total : shown;
+      var more  = total - shown;
+
+      return '<div class="ar-grp-label">'+esc(g.label)+
+        (more > 0 ? ' <span style="opacity:.6;font-weight:400">'+shown+' of '+total+'</span>' : '')+
+        '</div>' + g.rows.map(function(r){
         return '<a class="ar-item" href="'+esc(r.url)+'">'+
           '<span class="ar-item-title">'+esc(r.title)+'</span>'+
           (r.subtitle ? '<span class="ar-item-sub">'+esc(r.subtitle)+'</span>' : '')+'</a>';
-      }).join('');
+      }).join('') + (more > 0
+        ? '<a class="ar-item" href="{{ route('tenant.search.page') }}?q='+encodeURIComponent(lastQuery)+'">'+
+          '<span class="ar-item-title" style="opacity:.75">See all '+total+' '+esc(g.label.toLowerCase())+' →</span></a>'
+        : '');
     }).join('');
   }
 

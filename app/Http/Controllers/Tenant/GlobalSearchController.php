@@ -23,8 +23,16 @@ class GlobalSearchController extends Controller
 {
     private const PER_GROUP = 6;
 
-    public function search(Request $request)
+    // MARKER-SEARCH-ALL — what the results page shows per group. Enough to be
+    // the answer for a shop-sized search without becoming a report.
+    private const PER_PAGE = 50;
+
+    public function search(Request $request, ?int $limit = null)
     {
+        // MARKER-SEARCH-ALL — the results page calls this with a bigger limit
+        // rather than duplicating seven queries that would drift apart.
+        $perGroup = $limit ?? self::PER_GROUP;
+
         $tenant = tenant();
         $q = trim((string) $request->input('q', ''));
 
@@ -58,13 +66,23 @@ class GlobalSearchController extends Controller
                 ->orWhere('phone', 'like', $like)
                 // MARKER-TAGS-VISIBLE — carrying a searched-for tag is a match.
                 ->orWhereHas('tags', fn ($t) => $t->where('tenant_customer_tags.name', 'like', $like)))
-            ->limit(self::PER_GROUP)->get();
+            ->limit($perGroup)->get();
+
+            // MARKER-SEARCH-ALL — same constraints, unlimited count.
+            $customerTotal = TenantCustomer::where('tenant_id', $tenant->id)
+            ->where(fn ($w) => $w
+                ->where('first_name', 'like', $like)
+                ->orWhere('last_name', 'like', $like)
+                ->orWhere('email', 'like', $like)
+                ->orWhere('phone', 'like', $like)
+                // MARKER-TAGS-VISIBLE — carrying a searched-for tag is a match.
+                ->orWhereHas('tags', fn ($t) => $t->where('tenant_customer_tags.name', 'like', $like)))->count();
         if ($customers->count()) {
             $groups[] = $this->group('Customers', $customers->map(fn ($c) => [
                 'title'    => trim(($c->first_name ?? '') . ' ' . ($c->last_name ?? '')) ?: ($c->email ?: 'Customer'),
                 'subtitle' => $c->email ?: $c->phone,
                 'url'      => route('tenant.customers.show', $c->id),
-            ]));
+            ]), $customerTotal);
         }
 
         // ---- appointments
@@ -74,7 +92,7 @@ class GlobalSearchController extends Controller
                 ->orWhere('customer_first_name', 'like', $like)
                 ->orWhere('customer_last_name', 'like', $like)
                 ->orWhere('customer_email', 'like', $like))
-            ->orderByDesc('created_at')->limit(self::PER_GROUP)->get();
+            ->orderByDesc('created_at')->limit($perGroup)->get();
         if ($appts->count()) {
             $groups[] = $this->group('Appointments', $appts->map(fn ($a) => [
                 'title'    => $a->ra_number,
@@ -86,7 +104,7 @@ class GlobalSearchController extends Controller
         // ---- sales
         $sales = TenantSale::where('tenant_id', $tenant->id)
             ->where('sale_number', 'like', $like)
-            ->orderByDesc('created_at')->limit(self::PER_GROUP)->get();
+            ->orderByDesc('created_at')->limit($perGroup)->get();
         if ($sales->count()) {
             $groups[] = $this->group('Sales', $sales->map(fn ($s) => [
                 'title'    => $s->sale_number,
@@ -116,9 +134,20 @@ class GlobalSearchController extends Controller
                     'CASE WHEN sku = ? OR catalog_upc = ? OR catalog_ean = ? OR catalog_mpn = ? THEN 0 ELSE 1 END',
                     [$bare, $bare, $bare, $bare]
                 )
-                ->limit(self::PER_GROUP)->get();
+                ->limit($perGroup)->get();
 
             if ($items->count()) {
+                // MARKER-SEARCH-ALL — counted on the same constraints as the
+                // rows above, so the header cannot disagree with the list.
+                $productTotal = TenantInventoryItem::where('tenant_id', $tenant->id)
+                    ->where(fn ($w) => $w
+                        ->where('name', 'like', $like)
+                        ->orWhere('sku', 'like', $like)
+                        ->orWhere('catalog_upc', 'like', $like)
+                        ->orWhere('catalog_ean', 'like', $like)
+                        ->orWhere('catalog_mpn', 'like', $like))
+                    ->count();
+
                 $groups[] = $this->group('Products', $items->map(function ($i) use ($bare) {
                     // Say WHICH identifier matched. A row whose subtitle shows
                     // an unfamiliar SKU, when the person searched a barcode,
@@ -141,7 +170,7 @@ class GlobalSearchController extends Controller
                         'subtitle' => $sub,
                         'url'      => route('tenant.inventory.show', $i->id),
                     ];
-                }));
+                }), $productTotal);
             }
         }
 
@@ -149,7 +178,7 @@ class GlobalSearchController extends Controller
         if ($tenant->rentals_enabled) {
             $rentals = TenantRental::where('tenant_id', $tenant->id)
                 ->where('rental_number', 'like', $like)
-                ->orderByDesc('created_at')->limit(self::PER_GROUP)->get();
+                ->orderByDesc('created_at')->limit($perGroup)->get();
             if ($rentals->count()) {
                 $groups[] = $this->group('Rentals', $rentals->map(fn ($r) => [
                     'title'    => $r->rental_number,
@@ -163,7 +192,7 @@ class GlobalSearchController extends Controller
         if ($tenant->leases_enabled) {
             $leases = Lease::where('tenant_id', $tenant->id)
                 ->where('lease_number', 'like', $like)
-                ->orderByDesc('created_at')->limit(self::PER_GROUP)->get();
+                ->orderByDesc('created_at')->limit($perGroup)->get();
             if ($leases->count()) {
                 $groups[] = $this->group('Leases', $leases->map(fn ($l) => [
                     'title'    => $l->lease_number,
@@ -176,8 +205,40 @@ class GlobalSearchController extends Controller
         return response()->json(['groups' => $groups]);
     }
 
-    private function group(string $label, $rows): array
+    /**
+     * MARKER-SEARCH-ALL — a group now says how many there really are.
+     *
+     * $total is the unlimited count. When it exceeds what was returned, the
+     * modal shows "6 of 23" and offers the results page. Passing null keeps
+     * the old behaviour for groups where a count is not worth a second query.
+     */
+    private function group(string $label, $rows, ?int $total = null): array
     {
-        return ['label' => $label, 'rows' => $rows->values()];
+        $rows = $rows->values();
+
+        return [
+            'label' => $label,
+            'rows'  => $rows,
+            'total' => $total ?? $rows->count(),
+        ];
+    }
+
+    /**
+     * MARKER-SEARCH-ALL — the full results page. Same groups, same order, same
+     * shapes as the modal; only the limit differs. Sharing the modal's grouping
+     * means nothing has to be re-learned between the two.
+     */
+    public function page(Request $request)
+    {
+        $q = trim((string) $request->input('q', ''));
+
+        $groups = [];
+
+        if (mb_strlen($q) >= 2) {
+            $request->merge(['q' => $q]);
+            $groups = $this->search($request, self::PER_PAGE)->getData(true)['groups'] ?? [];
+        }
+
+        return view('tenant.search.results', compact('q', 'groups'));
     }
 }
