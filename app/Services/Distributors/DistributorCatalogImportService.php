@@ -93,9 +93,52 @@ class DistributorCatalogImportService
                 }
             }
 
+            // MARKER-IDENT-IN-SKU — the shop typed a barcode into the SKU box.
+            // With no UPC field on the add-item form that is the only place it
+            // could go, so a hand-entered item carries the product's identifier
+            // as its SKU and nothing in catalog_upc or catalog_ean. None of the
+            // comparisons above can see that, and the row would be created a
+            // second time alongside the item it duplicates. A SKU that is
+            // character-for-character this product's barcode IS this product.
+            if ($matchId === null) {
+                foreach ([(string) $cat->upc, (string) $cat->ean] as $barcode) {
+                    $barcode = strtoupper(trim($barcode));
+                    if ($barcode !== '' && isset($bySku[$barcode])) {
+                        $matchId = $bySku[$barcode];
+                        break;
+                    }
+                }
+            }
+
             if ($matchId) {
                 if (! $dryRun) {
                     $this->addSource($matchId, $vendor, $code, $cat);
+
+                    // MARKER-IDENT-IN-SKU — fill the identifier columns that were
+                    // empty, so the next import matches on UPC or EAN like every
+                    // other item and the SKU fallback above is needed once per
+                    // item rather than on every run. Only ever fills a blank —
+                    // an identifier already on the item is left exactly as it is.
+                    $fill = [];
+                    $matched = \App\Models\Tenant\TenantInventoryItem::find($matchId);
+                    if ($matched) {
+                        if (blank($matched->catalog_upc) && filled($cat->upc)) {
+                            $fill['catalog_upc'] = $cat->upc;
+                        }
+                        if (blank($matched->catalog_ean) && filled($cat->ean)) {
+                            $fill['catalog_ean'] = trim((string) $cat->ean);
+                        }
+                        if ($fill) {
+                            $matched->forceFill($fill)->save();
+
+                            if (isset($fill['catalog_upc'])) {
+                                $byUpc[$fill['catalog_upc']] = $matchId;
+                            }
+                            if (isset($fill['catalog_ean'])) {
+                                $byEan[$fill['catalog_ean']] = $matchId;
+                            }
+                        }
+                    }
                 }
                 $linkedCatalog[$cat->id] = $matchId;
                 $res['merged']++;
