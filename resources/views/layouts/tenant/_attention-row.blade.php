@@ -83,6 +83,9 @@
   var input = modal.querySelector('[data-ar-input]');
   var results = modal.querySelector('[data-ar-results]');
   var searchUrl = '{{ route('tenant.search') }}';
+  // MARKER-SEARCH-ALL-FIX — declared here rather than inlined inside a nested
+  // string further down, matching the line above it.
+  var searchAllUrl = '{{ route('tenant.search.page') }}';
   var t, lastReq = 0;
 
   function isOpen(){ return modal.style.display !== 'none'; }
@@ -117,7 +120,7 @@
           '<span class="ar-item-title">'+esc(r.title)+'</span>'+
           (r.subtitle ? '<span class="ar-item-sub">'+esc(r.subtitle)+'</span>' : '')+'</a>';
       }).join('') + (more > 0
-        ? '<a class="ar-item" href="{{ route('tenant.search.page') }}?q='+encodeURIComponent(lastQuery)+'">'+
+        ? '<a class="ar-item" href="'+searchAllUrl+'?q='+encodeURIComponent(lastQuery)+'">'+
           '<span class="ar-item-title" style="opacity:.75">See all '+total+' '+esc(g.label.toLowerCase())+' →</span></a>'
         : '');
     }).join('');
@@ -132,6 +135,14 @@
       fetch(searchUrl + '?q=' + encodeURIComponent(q), { headers:{'Accept':'application/json'} })
         .then(function(r){ return r.json(); })
         .then(function(d){ if (myReq === lastReq) render(d.groups); })
+        // MARKER-SEARCH-ALL-FIX — without this, a failed search left the hint
+        // text sitting there and looked exactly like a dead input.
+        .catch(function(err){
+          console.error('search failed', err);
+          if (myReq === lastReq) {
+            results.innerHTML = '<div class="ar-empty">Search is not responding. Try again in a moment.</div>';
+          }
+        })
         .catch(function(){});
     }, 200);
   });
