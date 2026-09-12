@@ -6,25 +6,48 @@ use Illuminate\Support\Facades\DB;
 /**
  * MARKER-ITEM-MERGE — merge_out / merge_in on the movement_type enum.
  *
- * Deliberately NOT reusing transfer_out / transfer_in: a transfer means stock
- * physically moved between locations, and a multi-location shop reads that
- * report. A merge moves stock between RECORDS at the same location. Sharing
- * the type would make those reports quietly wrong.
+ * Reads the column's CURRENT definition rather than restating it. The first
+ * version of this migration listed the values from the create migration and
+ * silently dropped 'appointment' and 'appointment_refund', which a later
+ * migration had added — MySQL refused with "data truncated", because rows
+ * were using them.
  *
- * Enum values are only added, never removed or reordered, so existing rows are
- * untouched. The down() drops them again, which is safe only while no merge
- * has been recorded — hence the guard.
+ * Appending to what is actually there cannot make that mistake, no matter how
+ * many migrations widen this enum between now and the next one.
  */
 return new class extends Migration
 {
-    private const BASE = "'sale','sale_void','refund','receive','adjustment','transfer_out','transfer_in','initial'";
+    private function currentValues(): array
+    {
+        $row = DB::selectOne("
+            SELECT COLUMN_TYPE AS t
+            FROM information_schema.COLUMNS
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_NAME   = 'tenant_inventory_movements'
+              AND COLUMN_NAME  = 'movement_type'
+        ");
+
+        if (! $row || ! preg_match_all("/'((?:[^']|'')*)'/", $row->t, $m)) {
+            throw new RuntimeException('Could not read the movement_type enum definition.');
+        }
+
+        return array_map(fn ($v) => str_replace("''", "'", $v), $m[1]);
+    }
 
     public function up(): void
     {
-        DB::statement(
-            "ALTER TABLE tenant_inventory_movements
-             MODIFY COLUMN movement_type ENUM(" . self::BASE . ",'merge_out','merge_in') NOT NULL"
-        );
+        $values = $this->currentValues();
+        $adding = array_values(array_diff(['merge_out', 'merge_in'], $values));
+
+        if (! $adding) {
+            return; // already there — safe to re-run after a failed attempt
+        }
+
+        $all = array_merge($values, $adding);
+        $list = implode(',', array_map(fn ($v) => "'" . str_replace("'", "''", $v) . "'", $all));
+
+        DB::statement("ALTER TABLE tenant_inventory_movements
+                       MODIFY COLUMN movement_type ENUM({$list}) NOT NULL");
     }
 
     public function down(): void
@@ -36,13 +59,19 @@ return new class extends Migration
         if ($inUse) {
             throw new RuntimeException(
                 'Refusing to drop merge_out/merge_in: movements of that type exist and '
-                . 'would be destroyed. Reverse the merges first if this is really wanted.'
+                . 'would be destroyed. Reverse those merges first if this is really wanted.'
             );
         }
 
-        DB::statement(
-            "ALTER TABLE tenant_inventory_movements
-             MODIFY COLUMN movement_type ENUM(" . self::BASE . ") NOT NULL"
-        );
+        $values = array_values(array_diff($this->currentValues(), ['merge_out', 'merge_in']));
+
+        if (! $values) {
+            return;
+        }
+
+        $list = implode(',', array_map(fn ($v) => "'" . str_replace("'", "''", $v) . "'", $values));
+
+        DB::statement("ALTER TABLE tenant_inventory_movements
+                       MODIFY COLUMN movement_type ENUM({$list}) NOT NULL");
     }
 };
