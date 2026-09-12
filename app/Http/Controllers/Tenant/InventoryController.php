@@ -1262,6 +1262,20 @@ class InventoryController extends Controller
         );
     }
 
+    /**
+     * MARKER-MERGE-AFTER — a hidden button is not a permission. Restoring a
+     * merged item would produce a record with no stock, no history and a SKU
+     * that may since have been reused.
+     */
+    private function assertNotMerged(TenantInventoryItem $item): void
+    {
+        abort_if(
+            filled($item->merged_into_id),
+            409,
+            'This item was merged into another and cannot be restored on its own.'
+        );
+    }
+
     /** MARKER-MERGE-UI — what a merge would do. Read-only. */
     public function mergePreview(Request $request): \Illuminate\Http\JsonResponse
     {
@@ -1614,6 +1628,8 @@ class InventoryController extends Controller
 
         $item = TenantInventoryItem::withTrashed()
             ->where('tenant_id', $tenant->id)->findOrFail($id);
+
+        $this->assertNotMerged($item); // MARKER-MERGE-AFTER
 
         $item->restore();
         $item->update(['is_active' => true]);

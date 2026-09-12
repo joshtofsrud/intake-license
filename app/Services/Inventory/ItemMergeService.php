@@ -348,7 +348,14 @@ class ItemMergeService
             $report['applied'] = $fill;
 
             // ---- and the loser goes -------------------------------------------
-            $loser->forceFill(['is_active' => false])->save();
+            // MARKER-MERGE-AFTER — record the destination. Without this the
+            // loser is indistinguishable from an ordinary archived item, and
+            // Restore would resurrect a husk whose stock and history now
+            // belong to the survivor.
+            $loser->forceFill([
+                'is_active'      => false,
+                'merged_into_id' => $survivor->id,
+            ])->save();
             $loser->delete(); // soft: historical rows still resolve its id
 
             return $report;

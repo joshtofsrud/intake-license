@@ -30,6 +30,12 @@
     'receive' => 'Received', 'adjustment' => 'Adjustment',
     'transfer_out' => 'Transfer out', 'transfer_in' => 'Transfer in',
     'initial' => 'Initial stock',
+    // MARKER-MERGE-AFTER — a movement with no label renders blank on the one
+    // page someone opens when a count looks wrong. merge_in / merge_out are
+    // new; appointment / appointment_refund have been missing since they were
+    // added to the enum.
+    'merge_in' => 'Merged in', 'merge_out' => 'Merged out',
+    'appointment' => 'Used on a job', 'appointment_refund' => 'Returned from a job',
   ];
 
   $money = fn ($c) => $c !== null ? '$' . number_format($c / 100, 2) : '—';
@@ -150,7 +156,13 @@
   </div>
   <div class="ia-page-actions">
     {{-- MARKER-ARCHIVE-MOVE — archiving belongs here, away from Save. --}}
-    @if($item->trashed())
+    @if($item->trashed() && $item->merged_into_id)
+      {{-- MARKER-MERGE-AFTER — merged, not archived. Restoring would bring
+           back an empty record: its stock, history and vendors belong to the
+           survivor now, and its SKU may have been reused since. --}}
+      <a href="{{ route('tenant.inventory.show', $item->merged_into_id) }}"
+         class="ia-btn ia-btn--primary">Go to the item this was merged into</a>
+    @elseif($item->trashed())
       <form method="POST" action="{{ route('tenant.inventory.restore', $item->id) }}">
         @csrf
         <button type="submit" class="ia-btn ia-btn--primary">Restore item</button>

@@ -35,6 +35,7 @@ class TenantInventoryItem extends Model
     protected $table = 'tenant_inventory_items';
 
     protected $fillable = [
+        'merged_into_id', // MARKER-MERGE-AFTER
         'hidden_catalog_images', // MARKER-ITEM-IMAGES
         'tenant_id',
         'category_id',
