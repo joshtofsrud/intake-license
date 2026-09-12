@@ -156,6 +156,14 @@
   .reg-results-section.mouse-active .reg-row.highlighted:not(:hover){background:transparent}
   .reg-row .name{font-weight:500;font-size:14px}
   .reg-row .meta{font-size:12px;color:var(--ia-text-dim)}
+  /* MARKER-REG-STOCK */
+  .reg-stock-chip{display:inline-block;margin-left:6px;padding:1px 7px;border-radius:999px;
+    font-size:11px;font-weight:600;border:0.5px solid transparent;white-space:nowrap}
+  .reg-stock-chip.is-in{color:#7ee081;border-color:rgba(126,224,129,.35)}
+  .reg-stock-chip.is-elsewhere{color:#6fb3f2;border-color:rgba(111,179,242,.35)}
+  .reg-stock-chip.is-order{color:#f5c451;border-color:rgba(245,196,81,.35)}
+  .reg-stock-chip.is-over{color:#f5c451;border-color:rgba(245,196,81,.35)}
+  .reg-stock-chip.is-out{color:#f2777a;border-color:rgba(242,119,122,.35)}
   .reg-row .price{font-size:14px;font-weight:600;color:var(--ia-text);white-space:nowrap}
 
   .reg-hint{
@@ -1436,6 +1444,40 @@ async function runSearch() {
 let highlighted = 0;
 let visibleResults = [];
 
+// MARKER-REG-STOCK — always ends on something the person at the counter can
+// DO: sell it, fetch it from the other shop, or order it. Kept short, because
+// anything longer gets skipped with a customer waiting.
+function stockChip(p) {
+  if (typeof p.current_location_stock !== 'number') { return ''; }
+
+  const n         = p.current_location_stock;
+  const elsewhere = Array.isArray(p.stock_elsewhere) ? p.stock_elsewhere : [];
+  const atHere    = (p.stock_scope === 'location' && p.current_location_name)
+    ? ' at ' + escapeHtml(p.current_location_name)
+    : '';
+
+  if (n > 0) {
+    return ` <span class="reg-stock-chip is-in">${n} in stock${atHere}</span>`;
+  }
+
+  // None here, but on a shelf somewhere — name the biggest pile first.
+  if (elsewhere.length) {
+    const parts = elsewhere.map(e => `${e.n} at ${escapeHtml(e.name)}`);
+    return ` <span class="reg-stock-chip is-elsewhere">None here · ${parts.join(', ')}</span>`;
+  }
+
+  // Nowhere at all. A vendor turns a dead end into a special order.
+  if (p.vendor_name) {
+    return ` <span class="reg-stock-chip is-order">None in stock · order from ${escapeHtml(p.vendor_name)}</span>`;
+  }
+
+  if (p.allow_oversell) {
+    return ` <span class="reg-stock-chip is-over">None in stock · can still sell</span>`;
+  }
+
+  return ` <span class="reg-stock-chip is-out">None in stock</span>`;
+}
+
 function renderResults(data, refundResult) {
   let html = '';
   visibleResults = [];
@@ -1453,10 +1495,12 @@ function renderResults(data, refundResult) {
   if (data.products && data.products.length) {
     html += '<div class="reg-results-section"><h3>Products</h3>';
     data.products.forEach(p => {
-      visibleResults.push({type:'product',source_id:p.id,name:p.name,price_cents:p.price_cents,is_taxable:p.is_taxable,current_location_stock:p.current_location_stock,current_location_name:p.current_location_name});
+      visibleResults.push({type:'product',source_id:p.id,name:p.name,price_cents:p.price_cents,is_taxable:p.is_taxable,current_location_stock:p.current_location_stock,current_location_name:p.current_location_name,allow_oversell:p.allow_oversell,stock_scope:p.stock_scope,stock_elsewhere:p.stock_elsewhere,vendor_name:p.vendor_name});
       const idx = visibleResults.length - 1;
+      // MARKER-REG-STOCK — answered in the row, rather than surfacing later as
+      // an oversell warning once the item is already in the cart.
       html += `<div class="reg-row" data-i="${idx}">
-        <div><div class="name">${escapeHtml(p.name)}</div><div class="meta">${escapeHtml(p.subtitle || p.sku || '')}</div></div>
+        <div><div class="name">${escapeHtml(p.name)}</div><div class="meta">${escapeHtml(p.subtitle || p.sku || '')}${stockChip(p)}</div></div>
         <button type="button" class="reg-info-btn" data-item-id="${p.id}" title="Item details" aria-label="Item details">i</button>
         <div class="price">${fmt(p.price_cents)}</div>
       </div>`;

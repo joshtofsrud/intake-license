@@ -218,17 +218,67 @@ class RegisterController extends Controller
                 ->limit(15)
                 ->get();
 
-            // One join to fetch all per-location counts for the matched items
-            $stockByItem = [];
-            if ($registerLocationId && $productItems->isNotEmpty()) {
-                $stockByItem = \App\Models\Tenant\TenantInventoryItemLocation::whereIn(
-                        'inventory_item_id', $productItems->pluck('id')
-                    )
-                    ->where('location_id', $registerLocationId)
-                    ->pluck('computed_stock_count', 'inventory_item_id')
+            // MARKER-REG-STOCK — counts for EVERY active location, not just
+            // this register's. "None here" is a dead end at the counter;
+            // "none here, two at Oakridge" is something staff can act on.
+            $stockByItem     = [];  // item id => count at THIS register
+            $elsewhereByItem = [];  // item id => [['name' => ..., 'n' => ...], ...]
+            $vendorByItem    = [];  // item id => vendor name, for none-anywhere
+
+            if ($productItems->isNotEmpty()) {
+                $itemIds = $productItems->pluck('id');
+
+                $locNames = \App\Models\Tenant\TenantLocation::where('tenant_id', $tenant->id)
+                    ->where('is_active', true)
+                    ->pluck('name', 'id')
                     ->toArray();
+
+                $rows = \App\Models\Tenant\TenantInventoryItemLocation::whereIn('inventory_item_id', $itemIds)
+                    ->whereIn('location_id', array_keys($locNames))
+                    ->get(['inventory_item_id', 'location_id', 'computed_stock_count']);
+
+                foreach ($rows as $row) {
+                    $n = (int) $row->computed_stock_count;
+
+                    if ($registerLocationId && $row->location_id === $registerLocationId) {
+                        $stockByItem[$row->inventory_item_id] = $n;
+                        continue;
+                    }
+
+                    if ($n > 0) {
+                        $elsewhereByItem[$row->inventory_item_id][] = [
+                            'name' => $locNames[$row->location_id] ?? 'Another location',
+                            'n'    => $n,
+                        ];
+                    }
+                }
+
+                // Biggest pile first — that is the one worth phoning.
+                foreach ($elsewhereByItem as $id => $list) {
+                    usort($list, fn ($a, $b) => $b['n'] <=> $a['n']);
+                    $elsewhereByItem[$id] = $list;
+                }
+
+                // Preferred vendor first, so a product on nobody's shelf can
+                // still be special-ordered without leaving the register to find
+                // out from whom.
+                $vendorRows = \Illuminate\Support\Facades\DB::table('tenant_inventory_item_vendors as iv')
+                    ->join('tenant_vendors as v', 'v.id', '=', 'iv.vendor_id')
+                    ->whereIn('iv.inventory_item_id', $itemIds)
+                    ->orderByDesc('iv.is_preferred')
+                    ->get(['iv.inventory_item_id', 'v.name']);
+
+                foreach ($vendorRows as $vr) {
+                    $vendorByItem[$vr->inventory_item_id] ??= $vr->name;
+                }
             }
 
+            // MARKER-REG-STOCK — with no register location in session the
+            // per-location lookup finds nothing and every product would report
+            // 0: not "none in stock" but "we did not look". Fall back to the
+            // item's own company-wide count and say which figure it is — the
+            // cart's oversell badge reads this same field, so getting it wrong
+            // makes it warn on everything.
             $products = $productItems->map(fn ($p) => [
                 'id'                     => $p->id,
                 'name'                   => $p->name ?? '',
@@ -237,8 +287,13 @@ class RegisterController extends Controller
                 'price_cents'            => (int) ($p->effectiveSellPriceCents() ?? 0),
                 'is_taxable'             => (($p->tax_class_code ?? null) !== 'exempt'),
                 'allow_oversell'         => (bool) $p->allow_oversell,
-                'current_location_stock' => (int) ($stockByItem[$p->id] ?? 0),
+                'current_location_stock' => $registerLocationId
+                    ? (int) ($stockByItem[$p->id] ?? 0)
+                    : (int) ($p->computed_stock_count ?? 0),
                 'current_location_name'  => $registerLocationName,
+                'stock_scope'            => $registerLocationId ? 'location' : 'company',
+                'stock_elsewhere'        => array_slice($elsewhereByItem[$p->id] ?? [], 0, 3),
+                'vendor_name'            => $vendorByItem[$p->id] ?? null,
             ])->toArray();
         }
 
