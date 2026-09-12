@@ -35,6 +35,7 @@ class TenantInventoryItem extends Model
     protected $table = 'tenant_inventory_items';
 
     protected $fillable = [
+        'hidden_catalog_images', // MARKER-ITEM-IMAGES
         'tenant_id',
         'category_id',
         'sku',
@@ -76,6 +77,7 @@ class TenantInventoryItem extends Model
     ];
 
     protected $casts = [
+        'hidden_catalog_images' => 'array', // MARKER-ITEM-IMAGES
         'show_online' => 'boolean', // MARKER-PATCH-561
         'catalog_cost_cents' => 'integer',
         'catalog_msrp_cents' => 'integer',
@@ -97,6 +99,75 @@ class TenantInventoryItem extends Model
         'is_active' => 'boolean',
         'is_stock_tracked' => 'boolean',
     ];
+
+    /** MARKER-ITEM-IMAGES — the shop's own photos, in the order they set. */
+    public function itemImages()
+    {
+        return $this->hasMany(TenantInventoryItemImage::class, 'inventory_item_id')
+            ->orderBy('sort_order');
+    }
+
+    /**
+     * MARKER-ITEM-IMAGES — every picture for this item, in display order:
+     * the shop's own first, then the distributor's that have not been switched
+     * off. ONE definition of that order, so the item page, the storefront, the
+     * register and a future merge cannot disagree about which photo is first.
+     *
+     * Distributor URLs come from CatalogImages because QBP's CLS prefix is per
+     * tenant and licence-bound — resolving those anywhere else would duplicate
+     * a rule that is not ours to restate.
+     */
+    public function displayImages(int $limit = 12): array
+    {
+        $out = [];
+
+        foreach ($this->itemImages as $join) {
+            if (! $join->media || $join->media->archived_at) {
+                continue;
+            }
+
+            $out[] = [
+                'source'   => 'tenant',
+                'url'      => $join->media->url,
+                'media_id' => $join->media->id,
+                'join_id'  => $join->id,
+                'hidden'   => false,
+            ];
+        }
+
+        $hidden = (array) ($this->hidden_catalog_images ?? []);
+
+        $catUrls = \App\Support\CatalogImages::urls(
+            $this->distributorCatalog?->images,
+            $this->distributorCatalog?->distributor_code,
+            $this->tenant_id,
+            $limit
+        );
+
+        foreach ($catUrls as $url) {
+            $out[] = [
+                'source'   => 'distributor',
+                'url'      => $url,
+                'media_id' => null,
+                'join_id'  => null,
+                'hidden'   => in_array($url, $hidden, true),
+            ];
+        }
+
+        return array_slice($out, 0, $limit);
+    }
+
+    /** The thumbnail: first visible image, whoever it came from. */
+    public function primaryImageUrl(): ?string
+    {
+        foreach ($this->displayImages() as $img) {
+            if (! $img['hidden']) {
+                return $img['url'];
+            }
+        }
+
+        return null;
+    }
 
     public function tenant(): BelongsTo
     {

@@ -837,6 +837,12 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
                 // MARKER-ITEM-IDENT-ENTRY — scoped to the shop's own active
                 // subscriptions inside the controller.
                 Route::get('/catalog-lookup',    [TenantControllers\InventoryController::class, 'catalogLookup'])->name('catalog-lookup');
+
+                // MARKER-ITEM-IMAGES
+                Route::post('/{item}/images',                 [TenantControllers\InventoryImageController::class, 'upload'])->name('images.upload');
+                Route::delete('/{item}/images/{join}',        [TenantControllers\InventoryImageController::class, 'detach'])->name('images.detach');
+                Route::post('/{item}/images/reorder',         [TenantControllers\InventoryImageController::class, 'reorder'])->name('images.reorder');
+                Route::post('/{item}/images/toggle-catalog',  [TenantControllers\InventoryImageController::class, 'toggleCatalogImage'])->name('images.toggle-catalog');
                 Route::post('/',                 [TenantControllers\InventoryController::class, 'store'])->name('store');
                 Route::get('/categories',        [TenantControllers\InventoryCategoryController::class, 'index'])->name('categories.index');
                 Route::post('/categories',       [TenantControllers\InventoryCategoryController::class, 'store'])->name('categories.store');

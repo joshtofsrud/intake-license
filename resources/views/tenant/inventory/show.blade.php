@@ -261,16 +261,70 @@
           // because "no image" and "no CLS key" have different fixes.
           $imagesNeedCls = $imgSrcs->isEmpty() && ! empty($catImages) && $catCode === 'QBP' && ! $clsPrefix;
         @endphp
-        @if($imgSrcs->isNotEmpty())
-          <div class="ia-media-main"><img id="ia-media-hero" src="{{ $imgSrcs->first() }}" alt="{{ $item->name }}"></div>
-          @if($imgSrcs->count() > 1)
-            <div class="ia-media-thumbs">
-              @foreach($imgSrcs as $i => $s)
-                <button type="button" class="ia-media-thumb @if($i === 0)is-active @endif" data-src="{{ $s }}" onclick="iaPickImage(this)"><img src="{{ $s }}" alt=""></button>
-              @endforeach
-            </div>
+        {{-- MARKER-ITEM-IMAGES-UI — one strip for both sources. displayImages()
+             is the single definition of the order, so this page, the storefront
+             and the register cannot disagree about which photo comes first. --}}
+        @php $allImgs = $item->displayImages(); @endphp
+
+        @if(count($allImgs))
+          @php $firstVisible = collect($allImgs)->firstWhere('hidden', false); @endphp
+
+          @if($firstVisible)
+            <div class="ia-media-main"><img id="ia-media-hero" src="{{ $firstVisible['url'] }}" alt="{{ $item->name }}"></div>
           @endif
-          <div class="ia-media-cap">{{ $imgSrcs->count() }} image{{ $imgSrcs->count() === 1 ? '' : 's' }} from {{ $item->distributorCatalog?->distributor_name ?? 'distributor' }}</div>
+
+          <div class="ia-media-thumbs" id="ia-img-strip">
+            @foreach($allImgs as $i => $img)
+              <div class="ia-img-cell @if($img['hidden']) is-off @endif"
+                   data-join="{{ $img['join_id'] }}"
+                   data-src="{{ $img['url'] }}"
+                   data-source="{{ $img['source'] }}"
+                   @if($img['source'] === 'tenant') draggable="true" @endif>
+                <button type="button" class="ia-media-thumb @if($firstVisible && $img['url'] === $firstVisible['url']) is-active @endif"
+                        data-src="{{ $img['url'] }}" onclick="iaPickImage(this)">
+                  <img src="{{ $img['url'] }}" alt="">
+                </button>
+
+                <span class="ia-img-badge">{{ $img['source'] === 'tenant' ? 'Yours' : ($item->distributorCatalog?->distributor_code ?: 'Distributor') }}</span>
+
+                @if($img['source'] === 'tenant')
+                  <button type="button" class="ia-img-x" title="Remove from this item"
+                          onclick="iaDetach('{{ $img['join_id'] }}', this)">×</button>
+                @else
+                  <button type="button" class="ia-img-x" title="{{ $img['hidden'] ? 'Show this image again' : 'Hide this image' }}"
+                          onclick="iaToggleCat('{{ $img['url'] }}', this)">{{ $img['hidden'] ? '+' : '−' }}</button>
+                @endif
+              </div>
+            @endforeach
+          </div>
+
+          <div class="ia-media-cap">
+            @php
+              $mine   = collect($allImgs)->where('source', 'tenant')->count();
+              $theirs = collect($allImgs)->where('source', 'distributor')->count();
+              $off    = collect($allImgs)->where('hidden', true)->count();
+            @endphp
+            {{-- MARKER-ITEM-IMAGES-UI — legend, because none of this is visible
+                 from looking at the pictures. --}}
+            {{ $mine }} of yours, {{ $theirs }} from {{ $item->distributorCatalog?->distributor_name ?? 'the distributor' }}@if($off), {{ $off }} switched off@endif.
+            The first one shown is the thumbnail everywhere else.
+            Switching a distributor image off only affects this shop — nothing is deleted,
+            and if the distributor replaces that image the new one will appear.
+            Drag your own photos to reorder them.
+          </div>
+
+          <div class="ia-img-add">
+            <label class="ia-btn ia-btn--sm" style="cursor:pointer;margin:0">
+              <input type="file" accept="image/jpeg,image/png,image/gif,image/webp"
+                     data-max-bytes="{{ (int) config('intake.image_quotas.per_file_bytes') }}"
+                     style="display:none" onchange="iaUploadImage(this)">
+              Add a photo
+            </label>
+            <span class="ia-img-status" id="ia-img-status"></span>
+            <span style="font-size:11.5px;color:var(--ia-text-dim)">
+              JPEG, PNG, GIF or WebP · up to {{ round(((int) config('intake.image_quotas.per_file_bytes')) / 1024 / 1024, 1) }} MB
+            </span>
+          </div>
         @elseif($imagesNeedCls)
           {{-- MARKER-QBP-CLS-AUTO — this used to blame a missing CLS key, which
                sent people to a field that was already filled. The key is
@@ -282,7 +336,7 @@
             or an admin can run it now with <code>php artisan qbp:cls-refresh</code>.
           </div>
         @else
-          <div class="ia-media-empty">No image from the distributor catalog.</div>
+          <div class="ia-media-empty">No pictures yet — add one below.</div>
         @endif
       </div>
     </div>
@@ -671,3 +725,133 @@
 
 @endsection
 
+@push('styles')
+<style>
+  /* MARKER-ITEM-IMAGES-UI */
+  .ia-img-cell{position:relative;display:inline-block}
+  .ia-img-cell.is-off{opacity:.35}
+  .ia-img-cell[draggable="true"]{cursor:grab}
+  .ia-img-cell.dragging{opacity:.4}
+  .ia-img-badge{position:absolute;left:3px;bottom:3px;font-size:9px;padding:1px 5px;
+    border-radius:999px;background:rgba(0,0,0,.72);color:#fff;pointer-events:none}
+  .ia-img-x{position:absolute;top:2px;right:2px;width:18px;height:18px;line-height:1;
+    border-radius:50%;border:0;background:rgba(0,0,0,.72);color:#fff;cursor:pointer;font-size:12px}
+  .ia-img-add{margin-top:10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .ia-img-status{font-size:11.5px;color:var(--ia-text-dim)}
+</style>
+@endpush
+
+@push('scripts')
+<script>
+// MARKER-ITEM-IMAGES-UI
+(function () {
+  var strip  = document.getElementById('ia-img-strip');
+  var status = document.getElementById('ia-img-status');
+  var itemId = '{{ $item->id }}';
+  var token  = document.querySelector('meta[name="csrf-token"]').content;
+
+  function say(msg) { if (status) { status.textContent = msg || ''; } }
+
+  window.iaUploadImage = function (input) {
+    var file = input.files && input.files[0];
+    if (!file) { return; }
+
+    // Checked here so an oversized file is refused instantly rather than
+    // after the upload — and before PHP can discard it and report nothing.
+    var max = parseInt(input.dataset.maxBytes || '0', 10);
+    if (max > 0 && file.size > max) {
+      say('That image is ' + (file.size / 1024 / 1024).toFixed(1)
+        + ' MB — the limit is ' + (max / 1024 / 1024).toFixed(1) + ' MB.');
+      input.value = '';
+      return;
+    }
+
+    say('Uploading…');
+    var fd = new FormData();
+    fd.append('image', file);
+
+    fetch('/admin/inventory/' + itemId + '/images', {
+      method: 'POST',
+      headers: { 'X-CSRF-TOKEN': token, 'Accept': 'application/json' },
+      body: fd
+    })
+      .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+      .then(function (res) {
+        if (!res.ok) { say(res.d.error || 'Upload failed.'); return; }
+        window.location.reload();
+      })
+      .catch(function () { say('Upload failed.'); })
+      .finally(function () { input.value = ''; });
+  };
+
+  window.iaDetach = function (joinId, btn) {
+    fetch('/admin/inventory/' + itemId + '/images/' + joinId, {
+      method: 'DELETE',
+      headers: { 'X-CSRF-TOKEN': token, 'Accept': 'application/json' }
+    }).then(function () { window.location.reload(); });
+  };
+
+  window.iaToggleCat = function (url, btn) {
+    fetch('/admin/inventory/' + itemId + '/images/toggle-catalog', {
+      method: 'POST',
+      headers: {
+        'X-CSRF-TOKEN': token,
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ url: url })
+    }).then(function () { window.location.reload(); });
+  };
+
+  // Drag to reorder — only the shop's own photos are draggable, because the
+  // distributor's order is not ours to hold an opinion about.
+  if (strip) {
+    var dragged = null;
+
+    strip.addEventListener('dragstart', function (e) {
+      var cell = e.target.closest('.ia-img-cell[draggable="true"]');
+      if (!cell) { return; }
+      dragged = cell;
+      cell.classList.add('dragging');
+    });
+
+    strip.addEventListener('dragend', function () {
+      if (dragged) { dragged.classList.remove('dragging'); }
+      dragged = null;
+    });
+
+    strip.addEventListener('dragover', function (e) {
+      if (!dragged) { return; }
+      e.preventDefault();
+      var over = e.target.closest('.ia-img-cell[draggable="true"]');
+      if (!over || over === dragged) { return; }
+      var rect = over.getBoundingClientRect();
+      strip.insertBefore(dragged, (e.clientX - rect.left) < rect.width / 2 ? over : over.nextSibling);
+    });
+
+    strip.addEventListener('drop', function (e) {
+      e.preventDefault();
+      var ids = Array.prototype.slice
+        .call(strip.querySelectorAll('.ia-img-cell[data-join]'))
+        .map(function (c) { return c.dataset.join; })
+        .filter(Boolean);
+
+      if (!ids.length) { return; }
+
+      say('Saving order…');
+      fetch('/admin/inventory/' + itemId + '/images/reorder', {
+        method: 'POST',
+        headers: {
+          'X-CSRF-TOKEN': token,
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ ids: ids })
+      })
+        .then(function () { say('Order saved.'); })
+        .catch(function () { say('Could not save the order.'); });
+    });
+  }
+})();
+</script>
+@endpush
