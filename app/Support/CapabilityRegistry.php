@@ -28,6 +28,17 @@ class CapabilityRegistry
     {
         return [
             // ---- Inventory ----
+            // MARKER-ITEM-MERGE — quieter and less reversible than deleting a
+            // category: two records become one and the stock arithmetic is not
+            // obvious afterwards. Manager by default.
+            'inventory.items.merge' => [
+                'label'   => 'Merge items',
+                'section' => 'inventory',
+                'desc'    => 'Combine two inventory items into one, keeping the stock and history of both.',
+                'gate'    => null,
+                'default_roles' => ['Manager'],
+            ],
+
             // MARKER-CAT-EDIT — split in two deliberately. Renaming the
             // category that thousands of items sit in is loud and reversible;
             // deleting is quiet and is not. A shop may well want the first
