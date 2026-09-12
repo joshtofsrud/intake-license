@@ -225,7 +225,12 @@ class ItemMergeService
                         'cost_cents_at_time' => $m['item'] === $loser->id
                             ? $loser->effectiveCostCents()
                             : $survivor->effectiveCostCents(),
-                        'user_id'            => $actingUserId,
+                        // MARKER-MERGE-USERCOL — tenant_user_id, not user_id.
+                        // The create migration declares user_id; a later one
+                        // (fix_pos_user_fks_to_tenant_users) drops it and adds
+                        // tenant_user_id. Reading only the first file gets this
+                        // exactly backwards.
+                        'tenant_user_id'     => $actingUserId,
                         'reason'             => 'merge',
                         'notes'              => 'Merged from ' . $loser->sku . ' into ' . $survivor->sku,
                         'created_at'         => now(),
