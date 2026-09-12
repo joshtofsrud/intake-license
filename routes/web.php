@@ -834,6 +834,9 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
                 // MARKER-INV-REPORTS — must precede /{id} below.
                 Route::get('/reports',           [TenantControllers\InventoryReportController::class, 'index'])->name('reports');
                 Route::get('/create',            [TenantControllers\InventoryController::class, 'create'])->name('create');
+                // MARKER-ITEM-IDENT-ENTRY — scoped to the shop's own active
+                // subscriptions inside the controller.
+                Route::get('/catalog-lookup',    [TenantControllers\InventoryController::class, 'catalogLookup'])->name('catalog-lookup');
                 Route::post('/',                 [TenantControllers\InventoryController::class, 'store'])->name('store');
                 Route::get('/categories',        [TenantControllers\InventoryCategoryController::class, 'index'])->name('categories.index');
                 Route::post('/categories',       [TenantControllers\InventoryCategoryController::class, 'store'])->name('categories.store');

@@ -1043,6 +1043,12 @@ class InventoryController extends Controller
                 ->where(fn ($q) => $q->where('tenant_id', $tenant->id))], // MARKER-EXISTS-TENANT-SCOPE
             'sku'                   => ['required', 'string', 'max:64'],
             'name'                  => ['required', 'string', 'max:255'],
+            // MARKER-ITEM-IDENT-ENTRY — stored as typed, trimmed only. No
+            // check-digit rule: a supplier's own 8-digit code in the barcode
+            // box is better saved than argued with.
+            'catalog_upc'            => ['nullable', 'string', 'max:32'],
+            'catalog_ean'            => ['nullable', 'string', 'max:32'],
+            'catalog_mpn'            => ['nullable', 'string', 'max:64'],
             'description'           => ['nullable', 'string'],
             'color'                 => ['nullable', 'string', 'max:60'],
             'size'                  => ['nullable', 'string', 'max:60'],
@@ -1087,6 +1093,10 @@ class InventoryController extends Controller
             'shop_bin_location'      => $data['shop_bin_location'] ?? null,
             'allow_oversell'         => (bool) ($data['allow_oversell'] ?? true),
             'is_active'              => true,
+            // MARKER-ITEM-IDENT-ENTRY
+            'catalog_upc'            => filled($data['catalog_upc'] ?? null) ? trim($data['catalog_upc']) : null,
+            'catalog_ean'            => filled($data['catalog_ean'] ?? null) ? trim($data['catalog_ean']) : null,
+            'catalog_mpn'            => filled($data['catalog_mpn'] ?? null) ? trim($data['catalog_mpn']) : null,
         ]);
 
         // Optional initial stock — record at the default location
@@ -1103,7 +1113,8 @@ class InventoryController extends Controller
             }
         }
 
-        $this->syncItemSources($request, $item); // MARKER-ITEM-SOURCES-EDIT
+        $this->linkChosenCatalogRow($request, $item); // MARKER-ITEM-IDENT-ENTRY
+        $this->syncItemSources($request, $item);      // MARKER-ITEM-SOURCES-EDIT
 
         return redirect()->route('tenant.inventory.show', $item->id)
             ->with('flash', ['type' => 'success', 'message' => "Item '{$item->name}' created."]);
@@ -1119,6 +1130,128 @@ class InventoryController extends Controller
      * Rows the form no longer lists are deleted, so removing a vendor in the
      * UI actually removes it.
      */
+    /**
+     * MARKER-ITEM-IDENT-ENTRY — search the catalogs this shop subscribes to.
+     *
+     * Scoped to ACTIVE subscriptions only: the platform catalog is shared, and
+     * a shop must not be able to browse a distributor it has no relationship
+     * with just by hitting this URL.
+     */
+    public function catalogLookup(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $tenant = tenant();
+        $this->assertRetailEnabled($tenant);
+
+        $q = trim((string) $request->input('q', ''));
+
+        if (mb_strlen($q) < 3) {
+            return response()->json(['rows' => []]);
+        }
+
+        $codes = \App\Models\Tenant\TenantDistributorCatalogSubscription::where('tenant_id', $tenant->id)
+            ->where('is_active', true)
+            ->pluck('distributor_code')
+            ->map(fn ($c) => strtoupper((string) $c))
+            ->all();
+
+        if (! $codes) {
+            return response()->json(['rows' => [], 'note' => 'no_subscriptions']);
+        }
+
+        $rows = \App\Models\PlatformDistributorCatalog::query()
+            ->whereIn('distributor_code', $codes)
+            ->where('is_active', true)
+            ->where(function ($w) use ($q) {
+                // An exact barcode wins outright; otherwise every word has to
+                // land somewhere in the row's text, the same rule the register
+                // search uses.
+                $w->where('upc', $q)
+                  ->orWhere('ean', $q)
+                  ->orWhere('manufacturer_sku', $q)
+                  ->orWhere('product_key', $q);
+
+                foreach (array_filter(preg_split('/\s+/', $q)) as $term) {
+                    $w->orWhereRaw(
+                        "CONCAT_WS(' ', name, display_name, display_subtitle, manufacturer, product_key) LIKE ?",
+                        ['%' . $term . '%']
+                    );
+                }
+            })
+            ->orderByRaw('CASE WHEN upc = ? OR ean = ? THEN 0 ELSE 1 END', [$q, $q])
+            ->limit(20)
+            ->get();
+
+        return response()->json(['rows' => $rows->map(fn ($c) => [
+            'id'           => $c->id,
+            'distributor'  => $c->distributor_code,
+            'name'         => $c->display_name ?: $c->name,
+            'subtitle'     => $c->display_subtitle,
+            'manufacturer' => $c->manufacturer,
+            'product_key'  => $c->product_key,
+            'upc'          => $c->upc,
+            'ean'          => $c->ean,
+            'mpn'          => $c->manufacturer_sku,
+            'color'        => $c->color,
+            'size'         => $c->size,
+            'cost'         => $c->cost_cents  !== null ? round($c->cost_cents / 100, 2)  : null,
+            'msrp'         => $c->msrp_cents  !== null ? round($c->msrp_cents / 100, 2)  : null,
+            'map'          => $c->map_cents   !== null ? round($c->map_cents / 100, 2)   : null,
+            'case_qty'     => $c->case_quantity,
+        ])->all()]);
+    }
+
+    /**
+     * MARKER-ITEM-IDENT-ENTRY — attach the chosen catalog row to a new item and
+     * give it a vendor source, so a hand-added item is reorderable from the
+     * start rather than being a dead end the first time it runs out.
+     */
+    private function linkChosenCatalogRow(Request $request, TenantInventoryItem $item): void
+    {
+        $catalogId = trim((string) $request->input('distributor_catalog_id', ''));
+
+        if ($catalogId === '') {
+            return;
+        }
+
+        $tenant = tenant();
+
+        $codes = \App\Models\Tenant\TenantDistributorCatalogSubscription::where('tenant_id', $tenant->id)
+            ->where('is_active', true)
+            ->pluck('distributor_code')
+            ->map(fn ($c) => strtoupper((string) $c))
+            ->all();
+
+        // Re-check the subscription here too: the hidden field is user input.
+        $cat = \App\Models\PlatformDistributorCatalog::whereKey($catalogId)
+            ->whereIn('distributor_code', $codes ?: ['__none__'])
+            ->first();
+
+        if (! $cat) {
+            return;
+        }
+
+        $item->forceFill(['distributor_catalog_id' => $cat->id])->save();
+
+        $vendor = \App\Models\Tenant\TenantVendor::firstOrCreate(
+            ['tenant_id' => $tenant->id, 'name' => $cat->distributor_name ?: $cat->distributor_code],
+            ['is_active' => true]
+        );
+
+        \Illuminate\Support\Facades\DB::table('tenant_inventory_item_vendors')->updateOrInsert(
+            ['inventory_item_id' => $item->id, 'vendor_id' => $vendor->id],
+            [
+                'id'                     => (string) \Illuminate\Support\Str::uuid(),
+                'distributor_catalog_id' => $cat->id,
+                'distributor_code'       => $cat->distributor_code,
+                'vendor_sku'             => $cat->product_key,
+                'unit_cost_cents'        => $cat->cost_cents,
+                'is_preferred'           => true,
+                'created_at'             => now(),
+                'updated_at'             => now(),
+            ]
+        );
+    }
+
     private function syncItemSources(Request $request, TenantInventoryItem $item): void
     {
         $tenantId = $item->tenant_id;
@@ -1268,6 +1401,12 @@ class InventoryController extends Controller
                 ->where(fn ($q) => $q->where('tenant_id', $tenant->id))], // MARKER-EXISTS-TENANT-SCOPE
             'sku'                     => ['required', 'string', 'max:64'],
             'name'                    => ['required', 'string', 'max:255'],
+            // MARKER-ITEM-IDENT-ENTRY — stored as typed, trimmed only. No
+            // check-digit rule: a supplier's own 8-digit code in the barcode
+            // box is better saved than argued with.
+            'catalog_upc'              => ['nullable', 'string', 'max:32'],
+            'catalog_ean'              => ['nullable', 'string', 'max:32'],
+            'catalog_mpn'              => ['nullable', 'string', 'max:64'],
             'description'             => ['nullable', 'string'],
             'color'                 => ['nullable', 'string', 'max:60'],
             'size'                  => ['nullable', 'string', 'max:60'],
@@ -1312,6 +1451,12 @@ class InventoryController extends Controller
             'shop_bin_location'      => $data['shop_bin_location'] ?? null,
             'allow_oversell'         => (bool) ($data['allow_oversell'] ?? true),
             'is_active'              => (bool) ($data['is_active'] ?? true),
+            // MARKER-ITEM-IDENT-ENTRY — update() validated these three without
+            // ever writing them, which would have silently discarded whatever
+            // was typed into the new fields.
+            'catalog_upc'            => filled($data['catalog_upc'] ?? null) ? trim($data['catalog_upc']) : null,
+            'catalog_ean'            => filled($data['catalog_ean'] ?? null) ? trim($data['catalog_ean']) : null,
+            'catalog_mpn'            => filled($data['catalog_mpn'] ?? null) ? trim($data['catalog_mpn']) : null,
         ]);
 
         $this->syncItemSources($request, $item); // MARKER-ITEM-SOURCES-EDIT

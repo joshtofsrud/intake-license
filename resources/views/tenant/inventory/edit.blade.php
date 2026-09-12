@@ -43,6 +43,33 @@
         </div>
       </div>
 
+      {{-- MARKER-ITEM-IDENT-ENTRY — these three are what link an item to a
+           distributor catalog. Without them a hand-entered item matches
+           nothing, never updates its cost, and cannot be reordered. --}}
+      <div class="ia-form-row">
+        <div class="ia-form-group">
+          <label class="ia-form-label">Barcode (UPC)</label>
+          <input type="text" name="catalog_upc" class="ia-input ia-scan-field"
+                 value="{{ old('catalog_upc', $item->catalog_upc) }}" placeholder="Scan or type">
+          <div class="ia-form-hint">The number under the barcode. Not the same as your SKU.</div>
+        </div>
+        <div class="ia-form-group">
+          <label class="ia-form-label">EAN</label>
+          <input type="text" name="catalog_ean" class="ia-input ia-scan-field"
+                 value="{{ old('catalog_ean', $item->catalog_ean) }}" placeholder="13-digit, if different">
+        </div>
+      </div>
+
+      <div class="ia-form-row">
+        <div class="ia-form-group">
+          <label class="ia-form-label">Manufacturer part number</label>
+          <input type="text" name="catalog_mpn" class="ia-input ia-scan-field"
+                 value="{{ old('catalog_mpn', $item->catalog_mpn) }}" placeholder="e.g. TR00641">
+          <div class="ia-form-hint">The maker's own code, if you have it.</div>
+        </div>
+        <div class="ia-form-group"></div>
+      </div>
+
       <div class="ia-form-group">
         <label class="ia-form-label">Category <span class="ia-required">*</span></label>
         {{-- MARKER-SSEL-CATS — our picker, not a native select: macOS draws
@@ -182,3 +209,19 @@
 </form>
 
 @endsection
+
+@push('scripts')
+<script>
+// MARKER-ITEM-IDENT-ENTRY — see create.blade.php. A scanner's Enter moves on
+// instead of submitting a half-edited item.
+document.querySelectorAll('.ia-scan-field').forEach(function (el) {
+  el.addEventListener('keydown', function (e) {
+    if (e.key !== 'Enter') { return; }
+    e.preventDefault();
+    var fields = Array.prototype.slice.call(document.querySelectorAll('input, select, textarea'));
+    var i = fields.indexOf(el);
+    if (i > -1 && fields[i + 1]) { fields[i + 1].focus(); }
+  });
+});
+</script>
+@endpush
