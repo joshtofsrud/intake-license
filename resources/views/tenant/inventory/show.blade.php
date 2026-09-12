@@ -321,18 +321,6 @@
             Drag your own photos to reorder them.
           </div>
 
-          <div class="ia-img-add">
-            <label class="ia-btn ia-btn--sm" style="cursor:pointer;margin:0">
-              <input type="file" accept="image/jpeg,image/png,image/gif,image/webp"
-                     data-max-bytes="{{ (int) config('intake.image_quotas.per_file_bytes') }}"
-                     style="display:none" onchange="iaUploadImage(this)">
-              Add a photo
-            </label>
-            <span class="ia-img-status" id="ia-img-status"></span>
-            <span style="font-size:11.5px;color:var(--ia-text-dim)">
-              JPEG, PNG, GIF or WebP · up to {{ round(((int) config('intake.image_quotas.per_file_bytes')) / 1024 / 1024, 1) }} MB
-            </span>
-          </div>
         @elseif($imagesNeedCls)
           {{-- MARKER-QBP-CLS-AUTO — this used to blame a missing CLS key, which
                sent people to a field that was already filled. The key is
@@ -346,6 +334,22 @@
         @else
           <div class="ia-media-empty">No pictures yet — add one below.</div>
         @endif
+
+        {{-- MARKER-ITEM-IMAGES-ADD — outside the branch above on purpose. It
+             used to live inside the has-images case, so an item with no
+             pictures showed "add one below" and then nothing to add with. --}}
+        <div class="ia-img-add">
+          <label class="ia-btn ia-btn--sm" style="cursor:pointer;margin:0">
+            <input type="file" accept="image/jpeg,image/png,image/gif,image/webp"
+                   data-max-bytes="{{ (int) config('intake.image_quotas.per_file_bytes') }}"
+                   style="display:none" onchange="iaUploadImage(this)">
+            Add a photo
+          </label>
+          <span class="ia-img-status" id="ia-img-status"></span>
+          <span style="font-size:11.5px;color:var(--ia-text-dim)">
+            JPEG, PNG, GIF or WebP · up to {{ round(((int) config('intake.image_quotas.per_file_bytes')) / 1024 / 1024, 1) }} MB
+          </span>
+        </div>
       </div>
     </div>
 
