@@ -306,7 +306,15 @@
             @endphp
             {{-- MARKER-ITEM-IMAGES-UI — legend, because none of this is visible
                  from looking at the pictures. --}}
-            {{ $mine }} of yours, {{ $theirs }} from {{ $item->distributorCatalog?->distributor_name ?? 'the distributor' }}@if($off), {{ $off }} switched off@endif.
+            {{-- MARKER-ITEM-IMAGES-GLUE — @endif on its own line. Written inline
+                 as "off@endif" it was not a directive at all: Blade requires a
+                 non-word character before the @, so it compiled as literal text
+                 and left the @if open to the end of the file. --}}
+            {{ $mine }} of yours, {{ $theirs }} from {{ $item->distributorCatalog?->distributor_name ?? 'the distributor' }}
+            @if($off)
+              , {{ $off }} switched off
+            @endif
+            .
             The first one shown is the thumbnail everywhere else.
             Switching a distributor image off only affects this shop — nothing is deleted,
             and if the distributor replaces that image the new one will appear.
