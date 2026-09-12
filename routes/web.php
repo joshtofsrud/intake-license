@@ -839,6 +839,10 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
                 Route::post('/categories',       [TenantControllers\InventoryCategoryController::class, 'store'])->name('categories.store');
                 Route::post('/categories/quick',        [TenantControllers\InventoryCategoryController::class, 'quickStore'])->name('categories.quick');
                 Route::patch('/categories/{id}/parent', [TenantControllers\InventoryCategoryController::class, 'reparent'])->name('categories.reparent');
+                // MARKER-CAT-EDIT — capability-checked inside the controller,
+                // because a hidden button is not a permission.
+                Route::patch('/categories/{id}',        [TenantControllers\InventoryCategoryController::class, 'rename'])->name('categories.rename');
+                Route::delete('/categories/{id}',       [TenantControllers\InventoryCategoryController::class, 'destroy'])->name('categories.destroy');
                 Route::get('/uncategorized',         [TenantControllers\InventoryController::class, 'uncategorized'])->name('uncategorized');
                 Route::post('/uncategorized/assign', [TenantControllers\InventoryController::class, 'uncategorizedAssign'])->name('uncategorized.assign');
                 Route::post('/uncategorized/undo/{id}', [TenantControllers\InventoryController::class, 'uncategorizedUndo'])->name('uncategorized.undo'); // MARKER-CAT-UNDO

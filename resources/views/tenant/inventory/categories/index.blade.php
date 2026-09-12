@@ -69,6 +69,8 @@
           <th>Name</th>
           <th>Parent (move)</th>
           <th>Items</th>
+            {{-- MARKER-CAT-EDIT --}}
+            <th style="width:210px">Actions</th>
         </tr>
       </thead>
       <tbody>
@@ -98,6 +100,66 @@
               </form>
             </td>
             <td>@if($node['count'] > 0)<a href="{{ route('tenant.inventory.index', ['category' => $node['id']]) }}" style="color:var(--ia-accent);text-decoration:none;font-weight:600" title="View these items">{{ $node['count'] }}</a>@else<span style="color:var(--ia-text-muted)">0</span>@endif{{-- MARKER-PATCH-HLC28-COUNT --}}</td>
+            {{-- MARKER-CAT-EDIT — rename is inline; delete only appears when the
+                 category is genuinely empty, counting ARCHIVED items too. The
+                 disabled state carries its reason rather than failing on click. --}}
+            @php
+              $catAll   = (int) ($allCounts[$node['id']] ?? 0);
+              $catKids  = (int) ($childCounts[$node['id']] ?? 0);
+              $catEmpty = $catAll === 0 && $catKids === 0;
+              $canRn    = $authUser->can('inventory.categories.rename');
+              $canDel   = $authUser->can('inventory.categories.delete');
+            @endphp
+            <td>
+              @if($canRn || $canDel)
+                <div class="cat-acts" data-id="{{ $node['id'] }}">
+                  @if($canRn)
+                    <form method="POST" action="{{ route('tenant.inventory.categories.rename', $node['id']) }}"
+                          class="cat-rn-form" style="display:none;margin:0">
+                      @csrf
+                      @method('PATCH')
+                      <input type="text" name="name" value="{{ $node['name'] }}" class="ia-input cat-rn-input"
+                             style="width:150px;padding:4px 7px;font-size:12.5px">
+                      <button type="submit" class="ia-btn ia-btn--primary ia-btn--sm">Save</button>
+                      <button type="button" class="ia-btn ia-btn--sm cat-rn-cancel">Cancel</button>
+                    </form>
+                  @endif
+
+                  <div class="cat-act-buttons">
+                    @if($canRn)
+                      <button type="button" class="ia-btn ia-btn--sm cat-rn-start">Rename</button>
+                    @endif
+
+                    @if($canDel)
+                      @if($catEmpty)
+                        <button type="button" class="ia-btn ia-btn--sm cat-del-start"
+                                style="color:var(--ia-danger,#f2777a)">Delete</button>
+                      @else
+                        <button type="button" class="ia-btn ia-btn--sm" disabled
+                                title="{{ $catKids > 0
+                                    ? $catKids . ' sub-categor' . ($catKids === 1 ? 'y' : 'ies') . ' under it'
+                                    : $catAll . ' item' . ($catAll === 1 ? '' : 's') . ' in it (archived included)' }}"
+                                style="opacity:.35">Delete</button>
+                      @endif
+                    @endif
+                  </div>
+
+                  @if($canDel && $catEmpty)
+                    <form method="POST" action="{{ route('tenant.inventory.categories.destroy', $node['id']) }}"
+                          class="cat-del-form" style="display:none;margin:0">
+                      @csrf
+                      @method('DELETE')
+                      <span style="font-size:12px;color:var(--ia-text-muted)">Delete “{{ $node['name'] }}”?</span>
+                      <button type="submit" class="ia-btn ia-btn--sm"
+                              style="color:var(--ia-danger,#f2777a)">Yes, delete</button>
+                      <button type="button" class="ia-btn ia-btn--sm cat-del-cancel">Keep it</button>
+                    </form>
+                  @endif
+                </div>
+              @else
+                <span style="color:var(--ia-text-muted);font-size:12px">—</span>
+              @endif
+            </td>
           </tr>
         @endforeach
       </tbody>
@@ -119,3 +181,45 @@
     if (form) { form.submit(); }
   });
 </script>
+
+@push('scripts')
+<script>
+// MARKER-CAT-EDIT — swap a row between its buttons and one of its two forms.
+// No native confirm(): deleting asks inside the row, which the browser cannot
+// suppress, and rename needs no confirmation at all because it is reversible.
+(function () {
+  function show(wrap, which) {
+    var btns = wrap.querySelector('.cat-act-buttons');
+    var rn   = wrap.querySelector('.cat-rn-form');
+    var del  = wrap.querySelector('.cat-del-form');
+    if (btns) { btns.style.display = which === null ? '' : 'none'; }
+    if (rn)   { rn.style.display   = which === 'rename' ? 'inline-flex' : 'none'; }
+    if (del)  { del.style.display  = which === 'delete' ? 'inline-flex' : 'none'; }
+    if (which === 'rename' && rn) {
+      var i = rn.querySelector('.cat-rn-input');
+      if (i) { i.focus(); i.select(); }
+    }
+  }
+
+  document.addEventListener('click', function (e) {
+    var t = e.target;
+    if (!t || !t.classList) { return; }
+    var wrap = t.closest ? t.closest('.cat-acts') : null;
+    if (!wrap) { return; }
+
+    if (t.classList.contains('cat-rn-start'))  { show(wrap, 'rename'); }
+    if (t.classList.contains('cat-del-start')) { show(wrap, 'delete'); }
+    if (t.classList.contains('cat-rn-cancel') || t.classList.contains('cat-del-cancel')) {
+      show(wrap, null);
+    }
+  });
+
+  // Escape backs out of whichever form is open.
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Escape') { return; }
+    var open = document.querySelector('.cat-rn-form[style*="inline-flex"], .cat-del-form[style*="inline-flex"]');
+    if (open) { show(open.closest('.cat-acts'), null); }
+  });
+})();
+</script>
+@endpush

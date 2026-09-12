@@ -37,9 +37,20 @@ class InventoryCategoryController extends Controller
             ->where('is_active', true)->whereNotNull('category_id')
             ->selectRaw('category_id, count(*) as n')->groupBy('category_id')->pluck('n', 'category_id');
 
+        // MARKER-CAT-EDIT — the same count WITHOUT is_active, because that is
+        // what delete enforces. Showing only the active tally would let a
+        // category read 0 here and still refuse to delete, which looks broken.
+        $allCounts = \App\Models\Tenant\TenantInventoryItem::where('tenant_id', $tenant->id)
+            ->whereNotNull('category_id')
+            ->selectRaw('category_id, count(*) as n')->groupBy('category_id')->pluck('n', 'category_id');
+
+        $childCounts = $categories->whereNotNull('parent_id')
+            ->groupBy('parent_id')->map->count();
+
         $tree = $this->treeFor($categories, $counts);
 
-        return view('tenant.inventory.categories.index', compact('categories', 'tree'));
+        return view('tenant.inventory.categories.index',
+            compact('categories', 'tree', 'allCounts', 'childCounts'));
     }
 
     /** Flatten tenant categories into a pre-ordered tree with depth + path + count. */
@@ -138,6 +149,92 @@ class InventoryCategoryController extends Controller
         $cat->update(['parent_id' => $newParent]);
 
         return back()->with('flash', ['type' => 'success', 'message' => "Moved \"{$cat->name}\"."]);
+    }
+
+    /**
+     * MARKER-CAT-EDIT — rename only. The slug is deliberately NOT regenerated:
+     * it is what storefront URLs are built from, and silently breaking every
+     * existing link to fix a typo would be a worse bug than the typo.
+     */
+    public function rename(Request $request, string $id): RedirectResponse
+    {
+        $tenant = tenant();
+        $this->assertRetailEnabled($tenant);
+
+        $user = \Illuminate\Support\Facades\Auth::guard('tenant')->user();
+        abort_unless($user && $user->can('inventory.categories.rename'), 403);
+
+        $cat = TenantInventoryCategory::where('tenant_id', $tenant->id)->findOrFail($id);
+
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:120'],
+        ]);
+
+        $was = $cat->name;
+        $new = trim($data['name']);
+
+        if ($new === '' || $new === $was) {
+            return back();
+        }
+
+        $clash = TenantInventoryCategory::where('tenant_id', $tenant->id)
+            ->where('parent_id', $cat->parent_id)
+            ->where('id', '!=', $cat->id)
+            ->whereRaw('LOWER(name) = ?', [mb_strtolower($new)])
+            ->exists();
+
+        if ($clash) {
+            return back()->with('flash', ['type' => 'error',
+                'message' => "There is already a \"{$new}\" in the same place."]);
+        }
+
+        $cat->update(['name' => $new]);
+
+        return back()->with('flash', ['type' => 'success',
+            'message' => "Renamed \"{$was}\" to \"{$new}\"."]);
+    }
+
+    /**
+     * MARKER-CAT-EDIT — delete, but only when there is genuinely nothing in it.
+     *
+     * The item count is recomputed here WITHOUT the is_active filter that
+     * index() uses. The page can legitimately show 0 for a category that still
+     * holds archived items, and deleting on the strength of that number would
+     * orphan exactly the rows nobody is looking at.
+     */
+    public function destroy(Request $request, string $id): RedirectResponse
+    {
+        $tenant = tenant();
+        $this->assertRetailEnabled($tenant);
+
+        $user = \Illuminate\Support\Facades\Auth::guard('tenant')->user();
+        abort_unless($user && $user->can('inventory.categories.delete'), 403);
+
+        $cat = TenantInventoryCategory::where('tenant_id', $tenant->id)->findOrFail($id);
+
+        $children = TenantInventoryCategory::where('tenant_id', $tenant->id)
+            ->where('parent_id', $cat->id)->count();
+
+        if ($children > 0) {
+            return back()->with('flash', ['type' => 'error',
+                'message' => "\"{$cat->name}\" still has {$children} sub-categor"
+                    . ($children === 1 ? 'y' : 'ies') . ' under it.']);
+        }
+
+        $items = \App\Models\Tenant\TenantInventoryItem::where('tenant_id', $tenant->id)
+            ->where('category_id', $cat->id)
+            ->count();
+
+        if ($items > 0) {
+            return back()->with('flash', ['type' => 'error',
+                'message' => "\"{$cat->name}\" still has {$items} item"
+                    . ($items === 1 ? '' : 's') . ' in it, including archived ones.']);
+        }
+
+        $name = $cat->name;
+        $cat->delete();
+
+        return back()->with('flash', ['type' => 'success', 'message' => "Deleted \"{$name}\"."]);
     }
 
     private function uniqueSlug($tenant, string $name): string

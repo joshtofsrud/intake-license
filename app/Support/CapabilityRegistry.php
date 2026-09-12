@@ -27,6 +27,26 @@ class CapabilityRegistry
     public static function all(): array
     {
         return [
+            // ---- Inventory ----
+            // MARKER-CAT-EDIT — split in two deliberately. Renaming the
+            // category that thousands of items sit in is loud and reversible;
+            // deleting is quiet and is not. A shop may well want the first
+            // without the second.
+            'inventory.categories.rename' => [
+                'label'   => 'Rename categories',
+                'section' => 'inventory',
+                'desc'    => 'Change a category name. Applies everywhere the name appears.',
+                'gate'    => null,
+                'default_roles' => ['Manager'],
+            ],
+            'inventory.categories.delete' => [
+                'label'   => 'Delete empty categories',
+                'section' => 'inventory',
+                'desc'    => 'Remove a category that has no items and no sub-categories.',
+                'gate'    => null,
+                'default_roles' => ['Manager'],
+            ],
+
             // ---- Time clock ----
             'timeclock.manage' => [
                 'label'   => 'Manage the team timesheet',
