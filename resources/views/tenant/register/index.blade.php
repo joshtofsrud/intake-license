@@ -1537,9 +1537,20 @@ async function fireDraftSave() {
   return draftSaveInFlight;
 }
 
+// MARKER-INTENT-DRAFTS — a cart is not a record until someone means it to be.
+// Without this, every price lookup left a draft behind: scan, walk away, and
+// the list fills up with carts nobody started on purpose.
+//
+// Once a draft EXISTS — because the cart was held, or a special order or a
+// layaway needed a sale to attach to — autosave resumes on it normally, so
+// nothing is lost part-way through a real transaction.
 function queueDraftSave() {
   // Empty cart with no existing draft — nothing to save.
   if (!cart.items.length && !cart.draft_id) return;
+
+  // No draft yet and nobody asked for one: keep it in the browser.
+  if (!cart.draft_id) { setSaveStatus('local'); return; }
+
   clearTimeout(draftSaveTimer);
   draftSaveTimer = setTimeout(fireDraftSave, DRAFT_DEBOUNCE_MS);
   setSaveStatus('pending');
@@ -1550,6 +1561,13 @@ function setSaveStatus(state) {
   const el = document.getElementById('saveStatus');
   if (!el) return;
   clearTimeout(saveStatusTimer);
+  // MARKER-INTENT-DRAFTS — say what is actually true. A cart that is not saved
+  // anywhere must not imply it is.
+  if (state === 'local') {
+    el.textContent = 'Not saved — hold this sale to keep it';
+    el.classList.add('visible');
+    return;
+  }
   if (state === 'pending' || state === 'saving') {
     el.textContent = 'Saving…';
     el.classList.add('visible');
@@ -1562,11 +1580,14 @@ function setSaveStatus(state) {
   }
 }
 
-async function flushDraftSave() {
+// MARKER-INTENT-DRAFTS — force=true is the deliberate act: Hold, Add to
+// order, Put on layaway. Those three need a sale row to exist and say so.
+// Everything else only flushes a draft that is already there.
+async function flushDraftSave(force) {
   // Cancel any pending debounce, fire immediately, await any in-flight save.
   clearTimeout(draftSaveTimer);
   draftSaveTimer = null;
-  if (cart.items.length || cart.draft_id) {
+  if ((force && cart.items.length) || cart.draft_id) {
     await fireDraftSave();
   }
   if (draftSaveInFlight) await draftSaveInFlight;
@@ -1894,6 +1915,8 @@ function addToOrderForLine(key, retried) {
   // create the order before cart.draft_id existed, leaving it with no sale
   // link — exactly the orphan class this feature exists to prevent. Flush
   // the draft first and wait for its id.
+  // MARKER-INTENT-DRAFTS — a special order must link to a sale, so this path
+  // creates one deliberately.
   if (!cart.draft_id && !retried && typeof fireDraftSave === 'function') {
     Promise.resolve(fireDraftSave())
       .then(function () { addToOrderForLine(key, true); })
@@ -2539,6 +2562,11 @@ document.getElementById('layawayBtn')?.addEventListener('click', async () => {
     }
   }
   const btn = document.getElementById('layawayBtn'); btn.disabled = true;
+
+  // MARKER-INTENT-DRAFTS — the plan converts the cart's draft, so make sure
+  // one exists. Opening a layaway is as deliberate as it gets.
+  try { await flushDraftSave(true); } catch (e) {}
+
   try {
     const r = await fetch(ROUTES.layawayOpen, {
       method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF, Accept: 'application/json' },
@@ -2727,8 +2755,8 @@ document.getElementById('splitAmountInput')?.addEventListener('input', function 
 document.getElementById('holdSaleBtn')?.addEventListener('click', async function () {
   if (!cart.items.length) { showError('Nothing to hold — the cart is empty.'); return; }
 
-  // Make sure the autosave has landed, so there is a draft to name.
-  await flushDraftSave();
+  // MARKER-INTENT-DRAFTS — this is the act that creates the record.
+  await flushDraftSave(true);
   if (!cart.draft_id) { showError('Could not park this cart. Try again.'); return; }
 
   const suggested = cart.customer ? (cart.customer.name || '') : '';
@@ -4504,9 +4532,14 @@ function refreshDraftsBanner(drafts) {
   // Filter out the current cart's own draft from the count.
   const others = drafts.filter(d => d.id !== cart.draft_id);
   if (!others.length) { banner.style.display = 'none'; return; }
-  const word = others.length === 1 ? 'draft' : 'drafts';
+  // MARKER-INTENT-DRAFTS — these are sales somebody chose to keep, so say so.
+  // "open drafts" described a thing that happened to you; "held" describes a
+  // thing you did.
+  const held = others.filter(d => d.held);
+  const shown = held.length ? held : others;
+  const word = shown.length === 1 ? 'held sale' : 'held sales';
   document.getElementById('draftsBannerLabel').textContent =
-    others.length + ' open ' + word + ' at this location';
+    shown.length + ' ' + word + ' at this location';
   banner.style.display = '';
 }
 
