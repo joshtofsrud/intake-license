@@ -62,9 +62,7 @@ class TenantSpecialOrder extends Model
         'arrived_at',
         'pulled_at',
         'cancelled_at',
-        'deposit_cents',
-        'deposit_paid_at',
-        'deposit_payment_ref',
+        // MARKER-SO-DEPOSIT — money lives on the sale ledger, not here.
         'batch_id',
         'parent_id',
         'cancellation_reason',
@@ -81,8 +79,7 @@ class TenantSpecialOrder extends Model
         'arrived_at'                => 'datetime',
         'pulled_at'                 => 'datetime',
         'cancelled_at'              => 'datetime',
-        'deposit_cents'             => 'integer',
-        'deposit_paid_at'           => 'datetime',
+        // MARKER-SO-DEPOSIT — columns removed; nothing to cast.
     ];
 
     public const STATUS_NEEDED    = 'needed';
@@ -218,15 +215,19 @@ class TenantSpecialOrder extends Model
     }
 
     /**
-     * Outstanding deposit balance in cents. Estimated total minus
-     * deposit already collected. Returns 0 if no estimate set.
+     * MARKER-SO-DEPOSIT — the estimated total. This used to subtract a
+     * deposit held on the SO row; that column is gone, and what a customer
+     * has paid is on their layaway's ledger. Returns 0 if no estimate set.
      */
     public function depositOutstandingCents(): int
     {
         if ($this->unit_cost_cents_estimated === null) {
             return 0;
         }
-        $estimatedTotal = $this->unit_cost_cents_estimated * $this->quantity;
-        return max(0, $estimatedTotal - (int) $this->deposit_cents);
+        // MARKER-SO-DEPOSIT — this used to subtract a deposit held on the SO
+        // row. What a customer has paid lives on the layaway's ledger, and a
+        // special order with no layaway has no customer money against it, so
+        // the estimate is simply the estimate.
+        return max(0, $this->unit_cost_cents_estimated * $this->quantity);
     }
 }

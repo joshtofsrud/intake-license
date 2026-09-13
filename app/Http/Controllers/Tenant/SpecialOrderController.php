@@ -259,7 +259,6 @@ class SpecialOrderController extends Controller
             'allocations.*.appointment_id' => ['nullable', 'string'],
             'allocations.*.quantity'    => ['required', 'integer', 'min:1'],
             'notes'                     => ['nullable', 'string'],
-            'deposit_cents'             => ['nullable', 'integer', 'min:0'],
         ]);
 
         // Determine initial status: if vendor + PO + ETA provided → 'ordered'.
@@ -293,7 +292,6 @@ class SpecialOrderController extends Controller
                     'created_from'              => 'manual',
                     'batch_id'                  => $batchId,
                     'created_by_user_id'        => Auth::guard('tenant')->id(),
-                    'deposit_cents'             => $data['deposit_cents'] ?? 0,
                     'notes'                     => $data['notes'] ?? null,
                 ];
                 $created[] = $this->service->create($row);

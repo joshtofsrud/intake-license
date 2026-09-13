@@ -124,27 +124,44 @@
       </div>
     </div>
 
-    {{-- Deposit card --}}
-    @if($so->deposit_cents > 0)
+    {{-- MARKER-SO-DEPOSIT — replaces the deposit card. Money is read from the
+         layaway's ledger, never stored here. The shop needs to know a customer
+         has paid, because that changes how hard you chase the vendor; it does
+         not take payments on this page. --}}
+    @php
+      $soPlan = $so->sale_id
+        ? \App\Models\Tenant\TenantLayawayPlan::where('sale_id', $so->sale_id)->with('customer')->first()
+        : null;
+      $soPaid = $soPlan ? app(\App\Services\Tenant\LayawayService::class)->paidCents($soPlan) : 0;
+      $soBal  = $soPlan ? app(\App\Services\Tenant\LayawayService::class)->balanceCents($soPlan) : 0;
+    @endphp
+
+    @if($soPlan)
       <div class="ia-card" style="margin-top:16px">
         <div class="ia-card-head">
-          <span class="ia-card-title">Deposit</span>
+          <span class="ia-card-title">For a layaway</span>
         </div>
         <div class="ia-card-body">
           <div class="so-detail-grid">
             <div>
-              <div class="so-detail-label">Deposit collected</div>
-              <div class="so-detail-value"><strong>{{ format_money($so->deposit_cents) }}</strong></div>
+              <div class="so-detail-label">Customer</div>
+              <div class="so-detail-value">{{ $soPlan->customer?->name ?: '—' }}</div>
             </div>
             <div>
-              <div class="so-detail-label">Paid at</div>
-              <div class="so-detail-value">
-                @if($so->deposit_paid_at){{ $so->deposit_paid_at->format('M j, Y') }}@else <span class="ia-text-muted">pending</span> @endif
+              <div class="so-detail-label">Paid so far</div>
+              <div class="so-detail-value"><strong>{{ format_money($soPaid) }}</strong>
+                @if($soBal === 0)<span class="ia-badge" style="margin-left:6px">paid in full</span>@endif
               </div>
+            </div>
+            <div>
+              <div class="so-detail-label">Still owed</div>
+              <div class="so-detail-value">{{ format_money($soBal) }}</div>
             </div>
           </div>
           <p class="ia-text-muted" style="font-size:11.5px;margin-top:12px">
-            Deposit Stripe capture wires up in Stage 6 with the register integration. Current display reflects what's stored on the SO row.
+            This customer is waiting on this arrival.
+            <a href="{{ route('tenant.register.layaways.show', $soPlan->id) }}">Open the plan →</a>
+            Payments are taken at the register, not here.
           </p>
         </div>
       </div>

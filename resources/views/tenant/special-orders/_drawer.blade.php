@@ -87,12 +87,16 @@
           </div>
         </div>
 
-        {{-- DEPOSIT --}}
+        {{-- MARKER-SO-DEPOSIT — the deposit box is gone. It wrote to the SO
+             row, where no report, refund or reconciliation could see it. If a
+             customer is paying up front for goods that are not here, that is a
+             layaway: ring it at the register and this order gets raised
+             automatically, linked to their plan. --}}
         <div class="ia-form-group">
-          <label class="ia-form-label">Deposit (cents, optional)</label>
-          <input type="number" name="deposit_cents" class="ia-input" min="0" placeholder="0">
-          <div class="ia-form-help">
-            Recorded on the SO row only. Stripe capture wires up in Stage 6.
+          <div class="ia-form-help" style="margin:0">
+            <strong>Taking money up front?</strong> Ring it at the register as a layaway — the
+            special order is raised for you and the payment lands on the customer's plan, where
+            reports and refunds can see it.
           </div>
         </div>
 

@@ -108,9 +108,6 @@ class SpecialOrderService
      *   created_from         (default 'manual')
      *   unit_cost_cents_estimated (nullable)
      *   expected_arrival_date (nullable)
-     *   deposit_cents        (nullable, default 0)
-     *   deposit_paid_at      (nullable)
-     *   deposit_payment_ref  (nullable)
      *   batch_id             (nullable)
      *   parent_id            (nullable - set by splitForPartialReceipt only)
      *   created_by_user_id   (nullable)
@@ -184,9 +181,7 @@ class SpecialOrderService
                 'unit_cost_cents_estimated' => $data['unit_cost_cents_estimated'] ?? null,
                 'expected_arrival_date'     => $data['expected_arrival_date'] ?? null,
                 'ordered_at'                => $status === TenantSpecialOrder::STATUS_ORDERED ? now() : null,
-                'deposit_cents'             => $data['deposit_cents'] ?? 0,
-                'deposit_paid_at'           => $data['deposit_paid_at'] ?? null,
-                'deposit_payment_ref'       => $data['deposit_payment_ref'] ?? null,
+                // MARKER-SO-DEPOSIT — not written any more.
                 'batch_id'                  => $data['batch_id'] ?? null,
                 'parent_id'                 => $data['parent_id'] ?? null,
                 'created_by_user_id'        => $data['created_by_user_id'] ?? null,
