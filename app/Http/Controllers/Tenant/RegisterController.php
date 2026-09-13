@@ -735,6 +735,7 @@ class RegisterController extends Controller
 
         $v = $request->validate([
             'customer_id'              => 'required|uuid',
+            'draft_id'                 => 'nullable|uuid', // MARKER-LAYAWAY-DRAFT
             'opening_amount_cents'     => 'nullable|integer|min:0',
             'payment_method'           => 'required|string|in:cash,check,store_credit,mark_paid',
             'payment_reference'        => 'nullable|string|max:120',
@@ -759,6 +760,9 @@ class RegisterController extends Controller
             $result = app(\App\Services\Tenant\LayawayService::class)->open(
                 $tenant,
                 [
+                    // MARKER-LAYAWAY-DRAFT — the cart's existing draft, so the
+                    // layaway takes it over instead of leaving it behind.
+                    'id'                 => $v['draft_id'] ?? null,
                     'rang_up_by_user_id' => $user->id,
                     'location_id'        => $locationId,
                     'customer_id'        => $v['customer_id'],

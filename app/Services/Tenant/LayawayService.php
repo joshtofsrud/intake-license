@@ -46,7 +46,13 @@ class LayawayService
         return DB::transaction(function () use ($tenant, $cart, $openingPaymentCents, $method, $reference, $userId, $policy) {
             $cart['tenant_id'] = $tenant->id;
 
-            // A draft is exactly a sale with lines and no stock movement.
+            // MARKER-LAYAWAY-DRAFT — if the register already autosaved this
+            // cart as a draft, CONVERT it. saveDraft() updates in place when
+            // given an id and creates a new sale when not, so omitting it left
+            // the original draft orphaned beside the layaway — same goods, two
+            // rows, one of them resumable at the till.
+            //
+            // A layaway is a draft that grew up, not a new record beside one.
             $sale = $this->sales->saveDraft($cart);
             $sale->forceFill(['payment_status' => 'layaway'])->save();
             $sale->load('items');

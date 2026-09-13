@@ -2385,6 +2385,7 @@ document.getElementById('layawayBtn')?.addEventListener('click', async () => {
       method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF, Accept: 'application/json' },
       body: JSON.stringify({
         customer_id: cart.customer.id,
+        draft_id: cart.draft_id || null, // MARKER-LAYAWAY-DRAFT
         opening_amount_cents: typed,
         payment_method: cart.payment_method,
         payment_reference: document.getElementById('tenderRefInput').value.trim() || null,
@@ -2393,6 +2394,11 @@ document.getElementById('layawayBtn')?.addEventListener('click', async () => {
     });
     const d = await r.json();
     if (!d.ok) { tenderModalError(d.error || 'Could not open the layaway.'); btn.disabled = false; return; }
+    // MARKER-LAYAWAY-DRAFT — clear the failed-attempt error. It was sitting
+    // above the success panel saying the opening payment was too small, on a
+    // layaway that had just opened.
+    tenderModalError('');
+
     const lr = document.getElementById('layawayResult');
     lr.style.display = '';
     lr.innerHTML = `<div style="padding:12px;border:0.5px solid rgba(126,224,129,.4);border-radius:8px;font-size:13px">
@@ -2405,7 +2411,14 @@ document.getElementById('layawayBtn')?.addEventListener('click', async () => {
     btn.textContent = 'Done'; btn.disabled = false;
     btn.onclick = () => {
       closeModal('tenderModal');
-      cart.items = []; cart.payments = []; cart.payment_method = null; renderCart();
+      // MARKER-LAYAWAY-DRAFT — a full reset. The customer stayed attached, so
+      // the next sale silently began as theirs; and draft_id still pointed at
+      // the layaway's own sale row, so the next autosave would have written
+      // into it.
+      cart.items = []; cart.payments = []; cart.payment_method = null;
+      cart.customer = null; cart.draft_id = null; cart.payment_reference = null;
+      cart.tipCents = 0; cart.discountCents = 0; cart.discountCode = null;
+      renderCart();
       document.getElementById('tenderConfirmBtn').style.display = '';
       btn.textContent = 'Put on layaway'; btn.onclick = null;
       if (cart.customer) loadCustomerOpen(cart.customer.id);
