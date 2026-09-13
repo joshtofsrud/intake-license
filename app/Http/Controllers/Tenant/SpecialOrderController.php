@@ -31,6 +31,46 @@ class SpecialOrderController extends Controller
      * a different scope chain on the underlying TenantSpecialOrder
      * query — counts are cheap to compute alongside.
      */
+    /** MARKER-SO-ORPHANS — how long orphans are kept before the sweep. */
+    public function saveCleanup(Request $request)
+    {
+        $tenant = tenant();
+        $v = $request->validate(['days' => 'required|integer|min:0|max:365']);
+
+        \App\Support\SpecialOrderCleanup::setDays($tenant, (int) $v['days']);
+
+        return back()->with('flash', ['type' => 'success', 'message' =>
+            \App\Support\SpecialOrderCleanup::describe($tenant) . ' — orphaned special orders.']);
+    }
+
+    /**
+     * MARKER-SO-ORPHANS — clear them now, rather than waiting for the sweep.
+     *
+     * CANCELS, does not delete. One that reached a vendor may have money
+     * against it, and its history is the only record of that. Cancelled is
+     * reversible and auditable.
+     */
+    public function clearOrphans(Request $request)
+    {
+        $tenant = tenant();
+        $ids = (array) $request->input('ids', []);
+
+        if (! $ids) {
+            return back();
+        }
+
+        $n = \App\Models\Tenant\TenantSpecialOrder::where('tenant_id', $tenant->id)
+            ->whereIn('id', $ids)
+            ->whereIn('status', \App\Models\Tenant\TenantSpecialOrder::STATUSES_OPEN)
+            ->update([
+                'status'     => \App\Models\Tenant\TenantSpecialOrder::STATUS_CANCELLED,
+                'updated_at' => now(),
+            ]);
+
+        return back()->with('flash', ['type' => 'success', 'message' =>
+            $n . ' orphaned special order' . ($n === 1 ? '' : 's') . ' cancelled.']);
+    }
+
     public function index(Request $request): View
     {
         $tenant = tenant();
@@ -153,6 +193,10 @@ class SpecialOrderController extends Controller
                     ->all();
             }
 
+            // MARKER-SO-ORPHANS — collected as we resolve origins, so the
+            // board can show them apart from work that still needs a decision.
+            $orphanIds = [];
+
             foreach ($sos as $so) {
                 if ($so->appointment_id) {
                     if (! isset($liveAppts[$so->appointment_id])) {
@@ -172,6 +216,13 @@ class SpecialOrderController extends Controller
                     } else {
                         $origins[$so->id] = ['state' => 'live', 'label' => 'Sale ' . $liveSales[$so->sale_id]];
                     }
+                }
+
+                if (($origins[$so->id]['state'] ?? null) === 'orphan') {
+                    $orphanIds[] = $so->id; // MARKER-SO-ORPHANS
+                }
+
+                if (false) {
                 } elseif ($so->created_from === 'register') {
                     // Created before sale linking existed — the link was never
                     // recorded, so it cannot be reconstructed. Say so plainly.
@@ -187,6 +238,10 @@ class SpecialOrderController extends Controller
         }
 
         return view('tenant.special-orders.index', [
+            // MARKER-SO-ORPHANS
+            'orphanIds'     => $orphanIds ?? [],
+            'cleanupDays'   => \App\Support\SpecialOrderCleanup::days($tenant),
+            'cleanupLabel'  => \App\Support\SpecialOrderCleanup::describe($tenant),
             'origins'    => $origins, // MARKER-SO-ORIGIN
             'grouped'    => $grouped,                  // MARKER-SO-SCROLL
             'scrollCap'  => $scrollCap,                // MARKER-SO-SCROLL

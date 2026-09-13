@@ -930,6 +930,9 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             // through SpecialOrderService for validation + audit notes.
             Route::prefix('special-orders')->name('special-orders.')->group(function () {
                 Route::get('/',                                    [TenantControllers\SpecialOrderController::class, 'index'])->name('index');
+                // MARKER-SO-ORPHANS
+                Route::post('/cleanup',                            [TenantControllers\SpecialOrderController::class, 'saveCleanup'])->name('cleanup');
+                Route::post('/clear-orphans',                      [TenantControllers\SpecialOrderController::class, 'clearOrphans'])->name('clear-orphans');
                 Route::post('/',                                   [TenantControllers\SpecialOrderController::class, 'store'])->name('store');
                 Route::get('/appointments-for-customer',           [TenantControllers\SpecialOrderController::class, 'appointmentsForCustomer'])->name('appointments-for-customer');
                 Route::get('/{id}',                                [TenantControllers\SpecialOrderController::class, 'show'])->name('show');

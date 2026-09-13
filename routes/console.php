@@ -237,3 +237,9 @@ Schedule::command('demo:reset')
 Schedule::command('billing:charge-due')
     ->hourly()
     ->withoutOverlapping();
+
+// MARKER-SO-ORPHANS — nightly, after the day's work is done. Each tenant's own
+// interval decides what it takes; a tenant set to 0 is skipped entirely.
+Schedule::command('special-orders:clear-orphans --apply')
+    ->dailyAt('03:10')
+    ->withoutOverlapping();

@@ -78,6 +78,67 @@
   $sogUnassigned = $vgroups[''] ?? [];
 @endphp
 
+{{-- MARKER-SO-ORPHANS — orphans first, and apart. These are not waiting for
+     a vendor decision: their sale, work order or line has gone, so nobody is
+     waiting for them at all. Leaving them in "Needs a vendor" made the board's
+     count read as work when it was debris. --}}
+@php
+  $sogOrphans    = collect($sogUnassigned)->filter(fn ($so) => in_array($so->id, $orphanIds ?? [], true))->values();
+  $sogUnassigned = collect($sogUnassigned)->reject(fn ($so) => in_array($so->id, $orphanIds ?? [], true))->values();
+@endphp
+
+@if($sogOrphans->count())
+  <div class="sog-box" style="border-color:rgba(240,149,149,.3);margin-bottom:14px">
+    <div class="sog-head" style="flex-wrap:wrap;gap:8px">
+      <span class="sog-name" style="color:#F09595">No longer needed</span>
+      <span class="sog-count">
+        {{ $sogOrphans->count() }} {{ \Illuminate\Support\Str::plural('item', $sogOrphans->count()) }} —
+        the sale or work order behind {{ $sogOrphans->count() === 1 ? 'it is' : 'them are' }} gone
+      </span>
+
+      <div style="margin-left:auto;display:flex;align-items:center;gap:10px">
+        {{-- The interval, said out loud, where the records it affects are.
+             A sweep nobody was told about is records vanishing. --}}
+        <form method="POST" action="{{ route('tenant.special-orders.cleanup') }}"
+              style="display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--ia-text-dim)">
+          @csrf
+          <span>Clear automatically after</span>
+          <input type="number" name="days" min="0" max="365" value="{{ $cleanupDays ?? 7 }}"
+                 style="width:58px;padding:4px 6px;background:var(--ia-input-bg);border:0.5px solid var(--ia-border);
+                        border-radius:5px;color:var(--ia-text);font-size:12px">
+          <span>days</span>
+          <button type="submit" class="ia-btn ia-btn--sm" style="padding:4px 9px">Save</button>
+        </form>
+
+        <form method="POST" action="{{ route('tenant.special-orders.clear-orphans') }}"
+              onsubmit="return true">
+          @csrf
+          @foreach($sogOrphans as $so)<input type="hidden" name="ids[]" value="{{ $so->id }}">@endforeach
+          <button type="submit" class="ia-btn ia-btn--sm"
+                  data-confirm="Cancel {{ $sogOrphans->count() }} special order(s) whose sale or work order has gone? They are cancelled, not deleted — the history stays."
+                  style="color:#F09595;padding:4px 10px">Clear all now</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="sog-body scrolls">
+      @foreach($sogOrphans as $so)
+        @include('tenant.special-orders._vendor_group_row', ['so' => $so, 'og' => $origins[$so->id] ?? null])
+      @endforeach
+    </div>
+
+    <div style="padding:8px 14px;font-size:11.5px;color:var(--ia-text-dim);border-top:0.5px solid var(--ia-border)">
+      @if(($cleanupDays ?? 7) === 0)
+        <strong>Automatic clearing is off.</strong> These stay until someone clears them.
+      @else
+        These are cancelled automatically once they have been orphaned for {{ $cleanupDays }}
+        {{ \Illuminate\Support\Str::plural('day', $cleanupDays) }}. Cancelled, not deleted — one that
+        reached a vendor may have money against it, and its history is the only record of that.
+      @endif
+    </div>
+  </div>
+@endif
+
 {{-- ---------- 1. items still needing a vendor: one scrollable box ---------- --}}
 @if(count($sogUnassigned))
   <div class="sog-box needs">
