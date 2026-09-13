@@ -102,6 +102,12 @@
     border-radius: var(--ia-r-xs);
     font-weight: 500;
   }
+  /* MARKER-RESERVE-VISIBLE — held stock reads differently from missing stock. */
+  .reg-stock-chip.is-held{
+    color:#f5c451;
+    border-color:rgba(245,196,81,.4);
+  }
+
   /* patch-96 oversell-badge — small amber inline marker on cart lines */
   .reg-oversell-badge {
     display:inline-block; margin-left:8px;
@@ -1523,8 +1529,21 @@ function stockChip(p) {
     ? ' at ' + escapeHtml(p.current_location_name)
     : '';
 
+  // MARKER-RESERVE-VISIBLE — name the reason. A unit held on a layaway is on
+  // the shelf and cannot be sold; saying only "none here" sends someone to
+  // look for stock that is sitting right in front of them.
+  const heldHere = (typeof p.reserved_here === 'number') ? p.reserved_here : 0;
+
   if (n > 0) {
-    return ` <span class="reg-stock-chip is-in">${n} in stock${atHere}</span>`;
+    const more = heldHere > 0
+      ? ` <span class="reg-stock-chip is-held">${heldHere} more held on layaway</span>`
+      : '';
+    return ` <span class="reg-stock-chip is-in">${n} available${atHere}</span>${more}`;
+  }
+
+  if (heldHere > 0) {
+    const onHand = (typeof p.on_hand_here === 'number') ? p.on_hand_here : heldHere;
+    return ` <span class="reg-stock-chip is-held">${onHand} on hand${atHere} · held on layaway, not for sale</span>`;
   }
 
   // None here, but on a shelf somewhere — name the biggest pile first.
@@ -1562,7 +1581,7 @@ function renderResults(data, refundResult) {
   if (data.products && data.products.length) {
     html += '<div class="reg-results-section"><h3>Products</h3>';
     data.products.forEach(p => {
-      visibleResults.push({type:'product',source_id:p.id,name:p.name,price_cents:p.price_cents,is_taxable:p.is_taxable,current_location_stock:p.current_location_stock,current_location_name:p.current_location_name,allow_oversell:p.allow_oversell,stock_scope:p.stock_scope,stock_elsewhere:p.stock_elsewhere,vendor_name:p.vendor_name});
+      visibleResults.push({type:'product',source_id:p.id,name:p.name,price_cents:p.price_cents,is_taxable:p.is_taxable,current_location_stock:p.current_location_stock,current_location_name:p.current_location_name,allow_oversell:p.allow_oversell,stock_scope:p.stock_scope,stock_elsewhere:p.stock_elsewhere,vendor_name:p.vendor_name,reserved_here:p.reserved_here,on_hand_here:p.on_hand_here}); // MARKER-RESERVE-VISIBLE
       const idx = visibleResults.length - 1;
       // MARKER-REG-STOCK — answered in the row, rather than surfacing later as
       // an oversell warning once the item is already in the cart.
@@ -1698,6 +1717,8 @@ function addToCart(item) {
     is_taxable: item.is_taxable !== false,
     current_location_stock: (typeof item.current_location_stock === 'number')
       ? item.current_location_stock : null,
+    reserved_here: (typeof item.reserved_here === 'number') ? item.reserved_here : 0, // MARKER-RESERVE-VISIBLE
+    on_hand_here:  (typeof item.on_hand_here  === 'number') ? item.on_hand_here  : null,
     current_location_name: item.current_location_name || null,
     transfer_request_id: null,
     transfer_request_from: null,
@@ -1970,7 +1991,18 @@ function renderCart() {
         if (isOversold) {
           const overBy = i.qty - i.current_location_stock;
           const locLabel = i.current_location_name ? ' at ' + escapeHtml(i.current_location_name) : '';
-          badge = `<span class="reg-oversell-badge" title="Stock will go to ${i.current_location_stock - i.qty}${locLabel}">⚠ short ${overBy}${locLabel}</span>`;
+
+          // MARKER-RESERVE-VISIBLE — if the shortfall is explained by units
+          // held on a layaway, say that instead of "short". The stock is
+          // there; it belongs to someone. Telling staff it is short sends
+          // them to recount a shelf that is correct.
+          const heldHere = (typeof i.reserved_here === 'number') ? i.reserved_here : 0;
+
+          if (heldHere > 0 && heldHere >= overBy) {
+            badge = `<span class="reg-oversell-badge" title="On the shelf, promised to a layaway. The sale will be refused.">⚠ ${heldHere} held on layaway${locLabel} — not short</span>`;
+          } else {
+            badge = `<span class="reg-oversell-badge" title="Stock will go to ${i.current_location_stock - i.qty}${locLabel}">⚠ short ${overBy}${locLabel}</span>`;
+          }
 
           // Action row: each button is either active (button) or already-fired (pill).
           // MARKER-PATCH-162 — transfer button only renders when the tenant

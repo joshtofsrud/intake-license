@@ -253,6 +253,19 @@ class RegisterController extends Controller
                     ->whereIn('location_id', array_keys($locNames))
                     ->get(['inventory_item_id', 'location_id', 'computed_stock_count', 'reserved_count']);
 
+                // MARKER-RESERVE-VISIBLE — keep the held figure, not just the
+                // difference. "short 1" and "1 is on someone's layaway" look
+                // identical once you have subtracted, and only one of them
+                // means go and recount the shelf.
+                $reservedHere = [];
+                $onHandHere   = [];
+                foreach ($rows as $row) {
+                    if ($registerLocationId && $row->location_id === $registerLocationId) {
+                        $reservedHere[$row->inventory_item_id] = (int) $row->reserved_count;
+                        $onHandHere[$row->inventory_item_id]   = (int) $row->computed_stock_count;
+                    }
+                }
+
                 foreach ($rows as $row) {
                     // MARKER-RESERVE — the register sells from AVAILABLE. A unit
                     // held on layaway is on the shelf and cannot be sold.
@@ -309,6 +322,9 @@ class RegisterController extends Controller
                     ? (int) ($stockByItem[$p->id] ?? 0)
                     : $p->availableCount(), // MARKER-RESERVE
                 'current_location_name'  => $registerLocationName,
+                // MARKER-RESERVE-VISIBLE
+                'reserved_here'          => (int) ($reservedHere[$p->id] ?? 0),
+                'on_hand_here'           => (int) ($onHandHere[$p->id] ?? 0),
                 'stock_scope'            => $registerLocationId ? 'location' : 'company',
                 'stock_elsewhere'        => array_slice($elsewhereByItem[$p->id] ?? [], 0, 3),
                 'vendor_name'            => $vendorByItem[$p->id] ?? null,
