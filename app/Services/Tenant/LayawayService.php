@@ -96,7 +96,12 @@ class LayawayService
                     'sale_id'            => $sale->id,
                     'sale_item_id'       => $line->id,
                     'status'             => TenantSpecialOrder::STATUS_NEEDED,
-                    'created_from'       => 'layaway',
+                    // MARKER-LAYAWAY-SO-SOURCE — 'register' because that is
+                    // where this was rung, and because created_from is an enum
+                    // of register|appointment|item|manual|booking. It has no
+                    // 'layaway' value, and inventing one truncated the insert.
+                    // The tie back to the plan is sale_id / sale_item_id.
+                    'created_from'       => 'register',
                 ]);
                 $ordered += $short;
             }
