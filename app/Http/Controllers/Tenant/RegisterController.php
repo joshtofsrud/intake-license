@@ -249,10 +249,12 @@ class RegisterController extends Controller
 
                 $rows = \App\Models\Tenant\TenantInventoryItemLocation::whereIn('inventory_item_id', $itemIds)
                     ->whereIn('location_id', array_keys($locNames))
-                    ->get(['inventory_item_id', 'location_id', 'computed_stock_count']);
+                    ->get(['inventory_item_id', 'location_id', 'computed_stock_count', 'reserved_count']);
 
                 foreach ($rows as $row) {
-                    $n = (int) $row->computed_stock_count;
+                    // MARKER-RESERVE — the register sells from AVAILABLE. A unit
+                    // held on layaway is on the shelf and cannot be sold.
+                    $n = (int) $row->computed_stock_count - (int) $row->reserved_count;
 
                     if ($registerLocationId && $row->location_id === $registerLocationId) {
                         $stockByItem[$row->inventory_item_id] = $n;
@@ -303,7 +305,7 @@ class RegisterController extends Controller
                 'allow_oversell'         => (bool) $p->allow_oversell,
                 'current_location_stock' => $registerLocationId
                     ? (int) ($stockByItem[$p->id] ?? 0)
-                    : (int) ($p->computed_stock_count ?? 0),
+                    : $p->availableCount(), // MARKER-RESERVE
                 'current_location_name'  => $registerLocationName,
                 'stock_scope'            => $registerLocationId ? 'location' : 'company',
                 'stock_elsewhere'        => array_slice($elsewhereByItem[$p->id] ?? [], 0, 3),

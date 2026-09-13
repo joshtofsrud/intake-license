@@ -207,7 +207,7 @@ class StorefrontController extends Controller
                 'price' => $i->effectiveSellPriceCents() !== null
                     ? '$' . number_format($i->effectiveSellPriceCents() / 100, 2) : null,
                 'img'   => $img,
-                'stock' => (int) ($i->computed_stock_count ?? 0) > 0,
+                'stock' => $i->availableCount() > 0, // MARKER-RESERVE — held units are not for sale online either
                 'url'   => '/shop/' . $i->id,
             ];
         })->values()]);

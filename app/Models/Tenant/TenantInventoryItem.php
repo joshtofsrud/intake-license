@@ -101,6 +101,14 @@ class TenantInventoryItem extends Model
         'is_stock_tracked' => 'boolean',
     ];
 
+    /** MARKER-RESERVE — on hand minus held, across every location. */
+    public function availableCount(): int
+    {
+        $reserved = (int) $this->locations()->sum('reserved_count');
+
+        return (int) $this->computed_stock_count - $reserved;
+    }
+
     /** MARKER-ITEM-ALIASES — identifiers that used to resolve to this item. */
     public function aliases()
     {

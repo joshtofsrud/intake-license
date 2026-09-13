@@ -68,12 +68,23 @@ class InventoryService
             $loc = TenantInventoryItemLocation::where('id', $loc->id)->lockForUpdate()->first();
         }
 
-        $newLocStock = $loc->computed_stock_count - $qty;
+        // MARKER-RESERVE — a unit held for someone else is not available. If
+        // this very line holds a reservation (a layaway completing), consume it
+        // first so it does not block itself; then check against what remains
+        // held for others. This is the one place the rule is enforced for
+        // every sale path — register, draft commit, storefront.
+        foreach (app(ReservationService::class)->activeFor($item, $locationId) as $own) {
+            app(ReservationService::class)->consume($own);
+        }
+        $loc->refresh();
 
-        if ($newLocStock < 0 && !$invItem->allow_oversell) {
+        $heldForOthers = (int) $loc->reserved_count;
+        $newLocStock   = $loc->computed_stock_count - $qty;
+
+        if (($newLocStock - $heldForOthers) < 0 && !$invItem->allow_oversell) {
             throw new InventoryStockException(
                 "Insufficient stock for {$invItem->name} at this location: "
-                . "have {$loc->computed_stock_count}, need {$qty}."
+                . "have {$loc->computed_stock_count}, {$heldForOthers} held on layaway, need {$qty}."
             );
         }
 
@@ -220,12 +231,16 @@ class InventoryService
             $loc = TenantInventoryItemLocation::where('id', $loc->id)->lockForUpdate()->first();
         }
 
-        $newLocStock = $loc->computed_stock_count - $qty;
+        // MARKER-RESERVE — a job pulling a part cannot take a unit that is
+        // held for a layaway. Same rule as sales; parts hold nothing of their
+        // own so there is nothing to consume first.
+        $heldForOthers = (int) $loc->reserved_count;
+        $newLocStock   = $loc->computed_stock_count - $qty;
 
-        if ($newLocStock < 0 && !$invItem->allow_oversell) {
+        if (($newLocStock - $heldForOthers) < 0 && !$invItem->allow_oversell) {
             throw new InventoryStockException(
                 "Insufficient stock for {$invItem->name} at this location: "
-                . "have {$loc->computed_stock_count}, need {$qty}."
+                . "have {$loc->computed_stock_count}, {$heldForOthers} held on layaway, need {$qty}."
             );
         }
 

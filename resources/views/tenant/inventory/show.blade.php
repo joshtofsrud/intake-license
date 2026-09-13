@@ -35,6 +35,7 @@
     // new; appointment / appointment_refund have been missing since they were
     // added to the enum.
     'merge_in' => 'Merged in', 'merge_out' => 'Merged out',
+    'reserve' => 'Held for layaway', 'release' => 'Released from layaway', // MARKER-RESERVE
     'appointment' => 'Used on a job', 'appointment_refund' => 'Returned from a job',
   ];
 
@@ -504,7 +505,9 @@
       </div>
       <div class="ia-card-body">
         <table class="ia-table">
-          <thead><tr><th>Location</th><th style="text-align:right">On hand</th><th style="text-align:right">Reorder at</th><th>Bin</th></tr></thead>
+          {{-- MARKER-RESERVE — three numbers, not one. On hand is what you count;
+               reserved is held for a layaway; available is what the register sells. --}}
+          <thead><tr><th>Location</th><th style="text-align:right">On hand</th><th style="text-align:right">Reserved</th><th style="text-align:right">Available</th><th style="text-align:right">Reorder at</th><th>Bin</th></tr></thead>
           <tbody>
             @foreach($locations as $loc)
               @php $il = $itemLocByLocId[$loc->id] ?? null; @endphp
@@ -514,12 +517,23 @@
                   <span @if($il && 0 > $il->computed_stock_count) style="color:#E24B4A;font-weight:600" @endif>{{ $il ? $il->computed_stock_count : 0 }}</span>
                   @if($il && $il->isLowStock())<span class="ia-badge ia-badge--amber">Low</span>@endif
                 </td>
+                <td style="text-align:right" @if($il && $il->reserved_count > 0) title="Held on layaway" @endif>
+                  @if($il && $il->reserved_count > 0)<span style="color:var(--warn,#f5c451)">{{ $il->reserved_count }}</span>@else<span style="color:var(--ia-text-dim)">0</span>@endif
+                </td>
+                <td style="text-align:right;font-weight:600">{{ $il ? $il->available() : 0 }}</td>
                 <td style="text-align:right;color:var(--ia-text-muted)">{{ $il && $il->shop_reorder_threshold !== null ? $il->shop_reorder_threshold : '—' }}</td>
                 <td>{{ $il && $il->shop_bin_location ? $il->shop_bin_location : '—' }}</td>
               </tr>
             @endforeach
           </tbody>
         </table>
+        {{-- MARKER-RESERVE — legend, because three numbers with no explanation
+             read as a discrepancy. --}}
+        <div style="font-size:11.5px;color:var(--ia-text-dim);margin-top:8px;line-height:1.5">
+          <strong>On hand</strong> is what is physically here and what a stock count checks against.
+          <strong>Reserved</strong> is held for a layaway and cannot be sold to anyone else.
+          <strong>Available</strong> is the difference, and is the number the register and the storefront use.
+        </div>
       </div>
     </div>
     @endif

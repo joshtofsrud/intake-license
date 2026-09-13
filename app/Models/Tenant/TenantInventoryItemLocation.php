@@ -30,6 +30,7 @@ class TenantInventoryItemLocation extends Model
         'inventory_item_id',
         'location_id',
         'computed_stock_count',
+        'reserved_count', // MARKER-RESERVE — set only by ReservationService
         'shop_reorder_threshold',
         'shop_reorder_quantity',
         'shop_bin_location',
@@ -38,6 +39,7 @@ class TenantInventoryItemLocation extends Model
 
     protected $casts = [
         'computed_stock_count' => 'integer',
+        'reserved_count'       => 'integer', // MARKER-RESERVE
         'shop_reorder_threshold' => 'integer',
         'shop_reorder_quantity' => 'integer',
         'is_active' => 'boolean',
@@ -77,6 +79,16 @@ class TenantInventoryItemLocation extends Model
     /**
      * True when current stock has fallen at or below the reorder threshold.
      */
+    /**
+     * MARKER-RESERVE — what can actually be sold here. On hand is what you
+     * count on the shelf; available is on hand minus what is held for a
+     * layaway. The register uses this; stock counts use on hand.
+     */
+    public function available(): int
+    {
+        return (int) $this->computed_stock_count - (int) $this->reserved_count;
+    }
+
     public function isLowStock(): bool
     {
         $threshold = $this->effectiveReorderThreshold();
