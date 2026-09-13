@@ -1567,7 +1567,33 @@ class RegisterController extends Controller
         $print = \App\Services\PrintIdentityService::forTenant($tenant); // MARKER-PATCH-332
         $embed = $request->boolean('embed');
 
-        return view('tenant.register.receipt', compact('tenant', 'sale', 'print', 'embed'));
+        // MARKER-DOC-STATE — a layaway has two documents: the agreement signed
+        // at creation, and a slip per payment. ?doc= picks; default is the
+        // agreement for a plan that has just opened.
+        $plan = $sale->payment_status === 'layaway'
+            ? \App\Models\Tenant\TenantLayawayPlan::where('sale_id', $sale->id)->first()
+            : null;
+
+        $doc = $request->query('doc');
+        if ($plan && ! in_array($doc, ['agreement', 'payment'], true)) {
+            $doc = 'agreement';
+        }
+
+        // The slip shows ONE payment: the named one, or the most recent.
+        $slipPayment = null;
+        if ($plan && $doc === 'payment') {
+            $slipPayment = $request->query('payment_id')
+                ? $sale->payments->firstWhere('id', $request->query('payment_id'))
+                : $sale->payments->sortByDesc('created_at')->first();
+        }
+
+        $layawayPaid = $plan ? app(\App\Services\Tenant\LayawayService::class)->paidCents($plan) : 0;
+        $layawayBalance = $plan ? app(\App\Services\Tenant\LayawayService::class)->balanceCents($plan) : 0;
+
+        return view('tenant.register.receipt', compact(
+            'tenant', 'sale', 'print', 'embed',
+            'plan', 'doc', 'slipPayment', 'layawayPaid', 'layawayBalance'
+        ));
     }
 
     public function showSaleJson(Request $request, string $id): JsonResponse

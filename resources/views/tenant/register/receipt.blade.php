@@ -22,7 +22,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Receipt {{ $sale->sale_number }}</title>
+{{-- MARKER-DOC-STATE — the browser tab and the print header say the same
+     thing the document does. --}}
+<title>{{ ($plan ?? null) ? (($doc ?? '') === 'payment' ? 'Layaway payment' : 'Layaway agreement') : ($sale->payment_status === 'quote' ? 'Quote' : ($sale->payment_status === 'draft' ? 'Working copy' : 'Receipt')) }} {{ $sale->sale_number }}</title>
 <style>
   @page { size: {{ $pageMm }} auto; margin: 0; }
   * { box-sizing: border-box; }
@@ -78,7 +80,31 @@
     @if($headerText)<div class="meta">{!! nl2br(e($headerText)) !!}</div>@endif{{-- MARKER-PATCH-330 --}}
   </div>
 
-  <div class="ctr lbl">{{ $sale->isRefunded() ? 'REFUND' : 'RECEIPT' }}</div>
+  {{-- MARKER-DOC-STATE — say what this document IS. Printing "RECEIPT" on a
+       draft, a quote or a layaway asserts a transaction that has not
+       happened. --}}
+  @php
+    $docLabel = match (true) {
+      $sale->isRefunded()                     => 'REFUND',
+      ($plan ?? null) && ($doc ?? '') === 'payment' => 'LAYAWAY PAYMENT',
+      ($plan ?? null)                         => 'LAYAWAY AGREEMENT',
+      $sale->payment_status === 'draft'       => 'NOT A RECEIPT',
+      $sale->payment_status === 'quote'       => 'QUOTE',
+      default                                 => 'RECEIPT',
+    };
+    $docSub = match (true) {
+      ($plan ?? null) && ($doc ?? '') === 'payment' => 'Goods remain with the shop until paid and collected',
+      ($plan ?? null)                         => 'Goods held for the customer — not yet sold',
+      $sale->payment_status === 'draft'       => 'Working copy · nothing has been paid',
+      $sale->payment_status === 'quote'       => 'An offer, not a sale',
+      default                                 => null,
+    };
+  @endphp
+
+  <div class="ctr lbl">{{ $docLabel }}</div>
+  @if($docSub)
+    <div class="ctr" style="font-size:10px;margin-top:-2px">{{ $docSub }}</div>
+  @endif
 
   <table style="margin-top:4px">
     <tr><td>Sale</td><td class="r" style="white-space:normal">{{ $sale->sale_number }}</td></tr>
@@ -134,7 +160,59 @@
   <hr class="hr2">
   <table class="grand"><tr><td>TOTAL</td><td class="r">{{ $m($sale->total_cents) }}</td></tr></table>
 
-  @if($sale->payments && $sale->payments->count())
+  {{-- MARKER-DOC-STATE — the layaway money picture. A total alone tells the
+       customer nothing about what they still owe or when. --}}
+  @if($plan ?? null)
+    <hr class="hr">
+    <table>
+      <tr><td>Paid to date</td><td class="r">{{ $m($layawayPaid) }}</td></tr>
+      @if(($slipPayment ?? null))
+        <tr><td><strong>This payment</strong></td><td class="r"><strong>{{ $m($slipPayment->amount_cents) }}</strong></td></tr>
+      @endif
+      <tr><td><strong>Balance</strong></td><td class="r"><strong>{{ $m($layawayBalance) }}</strong></td></tr>
+      @if($plan->next_due_on && $layawayBalance > 0)
+        <tr><td>Next payment</td><td class="r">{{ $m($plan->scheduled_amount_cents ?? 0) }} by {{ $plan->next_due_on->format('M j, Y') }}</td></tr>
+      @endif
+      @if($plan->collect_by)
+        <tr><td>Collect by</td><td class="r">{{ $plan->collect_by->format('M j, Y') }}</td></tr>
+      @endif
+    </table>
+
+    @if(($doc ?? '') === 'agreement')
+      <hr class="hr">
+      @php $pol = (array) ($plan->policy ?? []); @endphp
+      <div style="font-size:10px;line-height:1.45">
+        <div style="font-weight:700;margin-bottom:3px">TERMS</div>
+        Goods listed above are held by {{ $tenant->name }} and remain its property until paid in
+        full and collected.<br>
+        Payments are due {{ $plan->frequency === 'none' ? 'at any time' : str_replace(['biweekly','weekly','monthly'], ['every two weeks','every week','monthly'], $plan->frequency) }},
+        with {{ $plan->grace_days }} days' grace before a payment counts as late.<br>
+        @if(($pol['cancel_refund'] ?? 'less_fee') === 'full')
+          If cancelled, everything paid is refunded in full.
+        @elseif(($pol['cancel_refund'] ?? '') === 'store_credit')
+          If cancelled, everything paid is returned as store credit.
+        @else
+          If cancelled, everything paid is refunded less a restocking fee of
+          {{ (int) ($pol['restock_fee_pct'] ?? 0) }}% of the value of items held.
+        @endif
+        <br>
+        Any item not in stock is ordered for this plan; the collection date above may move if the
+        supplier is late, and the shop will say so.
+      </div>
+
+      <hr class="hr">
+      <div style="font-size:10px;line-height:2.4">
+        Customer signature ______________________________<br>
+        Date ____________________
+      </div>
+      <div style="font-size:8.5px;margin-top:6px;line-height:1.35">
+        These terms are set by {{ $tenant->name }}. Layaway is regulated in some states; this
+        document is not legal advice and has not been reviewed against the law where you trade.
+      </div>
+    @endif
+  @endif
+
+  @if($sale->payments && $sale->payments->count() && ! (($doc ?? '') === 'agreement'))
     <hr class="hr">
     <table>
       @foreach($sale->payments as $p)
@@ -147,7 +225,22 @@
   @endif
 
   <div class="foot">
-    @if($footerText){!! nl2br(e($footerText)) !!}@else Thank you!<br>{{ $tenant->name }}@endif{{-- MARKER-PATCH-330 --}}
+    {{-- MARKER-DOC-STATE — "Thank you!" belongs on a completed sale. On a
+         quote or a working copy it reads as confirmation of something that
+         has not happened. --}}
+    @if($sale->payment_status === 'draft')
+      Working copy — not a receipt<br>{{ $tenant->name }}
+    @elseif($sale->payment_status === 'quote')
+      Quote only — no payment has been taken<br>{{ $tenant->name }}
+    @elseif(($plan ?? null) && ($doc ?? '') === 'agreement')
+      Keep this agreement<br>{{ $tenant->name }}
+    @elseif(($plan ?? null))
+      Keep this slip<br>{{ $tenant->name }}
+    @elseif($footerText)
+      {!! nl2br(e($footerText)) !!}
+    @else
+      Thank you!<br>{{ $tenant->name }}
+    @endif{{-- MARKER-PATCH-330 --}}
   </div>
 
   @php $feedRows = (int) ceil(((int) ($print['feed_mm'] ?? 0)) / 3); @endphp{{-- MARKER-PATCH-327 --}}
