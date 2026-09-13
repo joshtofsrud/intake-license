@@ -39,7 +39,13 @@ class LayawayService
      *
      * @return array{plan: TenantLayawayPlan, sale: TenantSale, held: int, ordered: int}
      */
-    public function open(Tenant $tenant, array $cart, ?int $openingPaymentCents, string $method, ?string $reference, ?string $userId): array
+    /**
+     * MARKER-LAYAWAY-TENDERED — $legs is a split already taken at the register.
+     * When present it IS the opening payment and $openingPaymentCents is
+     * ignored; each leg is recorded in turn so nothing taken at the counter
+     * goes missing from the plan.
+     */
+    public function open(Tenant $tenant, array $cart, ?int $openingPaymentCents, string $method, ?string $reference, ?string $userId, ?array $legs = null): array
     {
         $policy = LayawaySettings::for($tenant);
 
@@ -56,6 +62,12 @@ class LayawayService
             $sale = $this->sales->saveDraft($cart);
             $sale->forceFill(['payment_status' => 'layaway'])->save();
             $sale->load('items');
+
+            // MARKER-LAYAWAY-TENDERED — the legs together are the opening
+            // payment, so the minimum is judged on their sum, not on any one.
+            if ($legs) {
+                $openingPaymentCents = array_sum(array_column($legs, 'amount_cents'));
+            }
 
             $minFirst = (int) round($sale->total_cents * ($policy['min_first_pct'] / 100));
             if ($openingPaymentCents !== null && $openingPaymentCents < $minFirst) {
@@ -125,7 +137,14 @@ class LayawayService
                 'collect_by'  => now()->addDays((int) $policy['term_days'])->toDateString(),
             ]);
 
-            if ($openingPaymentCents) {
+            if ($legs) {
+                // MARKER-LAYAWAY-TENDERED — each leg on the ledger, as taken.
+                foreach ($legs as $leg) {
+                    $this->pay($plan, (int) $leg['amount_cents'], $leg['method'],
+                        $leg['reference'] ?? null, $userId);
+                }
+                $plan->refresh();
+            } elseif ($openingPaymentCents) {
                 $this->pay($plan, $openingPaymentCents, $method, $reference, $userId);
                 $plan->refresh();
             } else {

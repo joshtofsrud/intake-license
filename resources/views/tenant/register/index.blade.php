@@ -2470,12 +2470,34 @@ async function handOverLayaway(planId) {
 
 document.getElementById('layawayBtn')?.addEventListener('click', async () => {
   if (!cart.customer) { tenderModalError('Attach a customer first — a layaway holds goods for someone.'); return; }
-  if (!cart.payment_method) { tenderModalError('Pick how the opening payment is being made.'); return; }
-  if (!['cash', 'check', 'store_credit', 'mark_paid'].includes(cart.payment_method)) {
-    tenderModalError('Card on a layaway is coming; use cash, check, store credit or mark paid for the opening payment.'); return;
-  }
+
+  // MARKER-LAYAWAY-TENDERED — legs already added ARE the opening payment.
+  // Adding a split leg clears cart.payment_method so the next tender can be
+  // picked, so checking that field told someone who had just paid $500 to
+  // pick how they were paying.
+  const legs = (cart.payments || []).map(p => ({
+    method: p.method,
+    amount_cents: p.amount_cents,
+    reference: p.reference || null,
+  }));
+
   const amtEl = document.getElementById('splitAmountInput');
   const typed = amtEl && amtEl.value ? Math.round(parseFloat(String(amtEl.value).replace(/[^0-9.]/g, '')) * 100) : null;
+
+  if (!legs.length) {
+    // Nothing tendered yet — the old path, unchanged.
+    if (!cart.payment_method) { tenderModalError('Pick how the opening payment is being made, or add one above.'); return; }
+    if (!['cash', 'check', 'store_credit', 'mark_paid'].includes(cart.payment_method)) {
+      tenderModalError('Card on a layaway is coming; use cash, check, store credit or mark paid for the opening payment.'); return;
+    }
+  } else {
+    const bad = legs.filter(l => !['cash', 'check', 'store_credit', 'mark_paid'].includes(l.method));
+    if (bad.length) {
+      tenderModalError('A layaway cannot open on ' + bad[0].method.replace('_', ' ')
+        + ' yet — remove that payment, or use cash, check, store credit or mark paid.');
+      return;
+    }
+  }
   const btn = document.getElementById('layawayBtn'); btn.disabled = true;
   try {
     const r = await fetch(ROUTES.layawayOpen, {
@@ -2483,9 +2505,12 @@ document.getElementById('layawayBtn')?.addEventListener('click', async () => {
       body: JSON.stringify({
         customer_id: cart.customer.id,
         draft_id: cart.draft_id || null, // MARKER-LAYAWAY-DRAFT
-        opening_amount_cents: typed,
-        payment_method: cart.payment_method,
-        payment_reference: document.getElementById('tenderRefInput').value.trim() || null,
+        // MARKER-LAYAWAY-TENDERED — legs when a split has begun, otherwise
+        // the single typed amount as before.
+        payments: legs.length ? legs : null,
+        opening_amount_cents: legs.length ? null : typed,
+        payment_method: legs.length ? legs[0].method : cart.payment_method,
+        payment_reference: legs.length ? null : (document.getElementById('tenderRefInput').value.trim() || null),
         items: cart.items.filter(i => i.type !== 'gift_card').map(serializeLine),
       })
     });

@@ -739,6 +739,11 @@ class RegisterController extends Controller
             'opening_amount_cents'     => 'nullable|integer|min:0',
             'payment_method'           => 'required|string|in:cash,check,store_credit,mark_paid',
             'payment_reference'        => 'nullable|string|max:120',
+            // MARKER-LAYAWAY-TENDERED — a split already taken at the register.
+            'payments'                       => 'nullable|array',
+            'payments.*.method'              => 'required_with:payments|string|in:cash,check,store_credit,mark_paid',
+            'payments.*.amount_cents'        => 'required_with:payments|integer|min:1',
+            'payments.*.reference'           => 'nullable|string|max:120',
             'items'                    => 'required|array|min:1',
             'items.*.type'             => 'required|string|in:service,product,open_item',
             'items.*.service_id'       => 'nullable|uuid',
@@ -772,6 +777,7 @@ class RegisterController extends Controller
                 $v['payment_method'],
                 $v['payment_reference'] ?? null,
                 $user->id,
+                $v['payments'] ?? null, // MARKER-LAYAWAY-TENDERED
             );
         } catch (\App\Services\Tenant\SaleValidationException | \App\Services\Tenant\InventoryStockException $e) {
             return response()->json(['ok' => false, 'error' => $e->getMessage()], 422);
