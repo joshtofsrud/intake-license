@@ -492,6 +492,11 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
                 // MARKER-GC-FUNCTIONS -- bind a preprinted card at pickup
                 Route::post('/gift-cards/{cardId}/bind-code', [TenantControllers\GiftCardController::class, 'bindCode'])->name('gift-cards.bind-code');
                 Route::post('/register/transactions',     [TenantControllers\RegisterController::class, 'storeTransaction'])->name('register.transactions.store');
+                // MARKER-LAYAWAY-REGISTER
+                Route::get( '/register/customers/{customer}/open',  [TenantControllers\RegisterController::class, 'customerOpen'])->name('register.customer.open');
+                Route::post('/register/layaway',                     [TenantControllers\RegisterController::class, 'openLayaway'])->name('register.layaway.open');
+                Route::post('/register/layaway/{plan}/pay',          [TenantControllers\RegisterController::class, 'payLayaway'])->name('register.layaway.pay');
+                Route::post('/register/layaway/{plan}/complete',     [TenantControllers\RegisterController::class, 'completeLayaway'])->name('register.layaway.complete');
                 Route::get('/register/history',          [TenantControllers\RegisterController::class, 'historyIndex'])->name('register.history.index');
                 Route::get('/register/sales/{id}/json',  [TenantControllers\RegisterController::class, 'showSaleJson'])->name('register.sales.show');
                 // MARKER-PATCH-319 — printable 80mm sales receipt

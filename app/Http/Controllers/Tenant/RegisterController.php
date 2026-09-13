@@ -58,6 +58,8 @@ class RegisterController extends Controller
             // checkout refuses the values regardless.
             'canLinePrice' => (bool) optional(\Illuminate\Support\Facades\Auth::guard('tenant')->user())
                 ->can('register.line_price'),
+            'canLayaway'   => (bool) optional(\Illuminate\Support\Facades\Auth::guard('tenant')->user())
+                ->can('register.layaway.create'), // MARKER-LAYAWAY-REGISTER
             'offlineSyncEnabled' => app(\App\Services\FeatureAccessService::class)->hasAddon($tenant, 'offline_sync'), // MARKER-OFFLINE-SYNC
             'registers'  => \App\Models\Tenant\TenantRegister::where('tenant_id', $tenant->id)->where('is_active', true)->orderBy('number')->get(['id','number','name']), // MARKER-REGISTER-RECON-DISPLAY
             'currentRegisterId' => (int) $request->session()->get('current_register_id', 0), // MARKER-REGISTER-RECON-DISPLAY
@@ -531,6 +533,190 @@ class RegisterController extends Controller
      * Called on every cart change with debounce. First call creates,
      * subsequent calls include 'id' and update.
      */
+    /** MARKER-LAYAWAY-REGISTER — what this customer has open: layaways and work orders with a balance. */
+    public function customerOpen(Request $request, string $customerId): JsonResponse
+    {
+        $tenant = tenant();
+        $this->assertRetailEnabled($tenant);
+
+        $out = [];
+
+        $plans = \App\Models\Tenant\TenantLayawayPlan::where('tenant_id', $tenant->id)
+            ->where('customer_id', $customerId)
+            ->whereIn('status', ['active', 'ready'])
+            ->with('sale.items')
+            ->orderBy('next_due_on')
+            ->get();
+
+        $svc = app(\App\Services\Tenant\LayawayService::class);
+
+        foreach ($plans as $plan) {
+            $out[] = [
+                'kind'            => 'layaway',
+                'id'              => $plan->id,
+                'label'           => 'Layaway ' . ($plan->sale->sale_number ?: substr($plan->id, 0, 8)),
+                'status'          => $plan->status,
+                'awaiting'        => $plan->awaitingArrival(),
+                'overdue'         => $plan->isOverdue(),
+                'balance_cents'   => $svc->balanceCents($plan),
+                'scheduled_cents' => (int) ($plan->scheduled_amount_cents ?? 0),
+                'next_due_on'     => $plan->next_due_on?->toDateString(),
+                'items'           => $plan->sale->items->count(),
+                'first_item'      => $plan->sale->items->first()?->name_snapshot,
+            ];
+        }
+
+        foreach (\App\Models\Tenant\TenantAppointment::where('tenant_id', $tenant->id)
+            ->where('customer_id', $customerId)
+            ->whereColumn('paid_cents', '<', 'total_cents')
+            ->where('total_cents', '>', 0)
+            ->whereNotIn('status', ['cancelled', 'no_show'])
+            ->orderBy('scheduled_at')
+            ->get() as $appt) {
+            $out[] = [
+                'kind'          => 'appointment',
+                'id'            => $appt->id,
+                'label'         => 'Work order ' . ($appt->appointment_number ?: substr($appt->id, 0, 8)),
+                'status'        => $appt->status,
+                'balance_cents' => max(0, (int) $appt->total_cents - (int) $appt->paid_cents),
+                'url'           => route('tenant.appointments.show', $appt->id),
+            ];
+        }
+
+        return response()->json(['ok' => true, 'open' => $out]);
+    }
+
+    /** MARKER-LAYAWAY-REGISTER — open a layaway from the cart. */
+    public function openLayaway(Request $request): JsonResponse
+    {
+        $tenant = tenant();
+        $this->assertRetailEnabled($tenant);
+
+        $user = \Illuminate\Support\Facades\Auth::guard('tenant')->user();
+        abort_unless($user && $user->can('register.layaway.create'), 403);
+
+        $locationId = $request->session()->get('current_location_id');
+        if (! $locationId) {
+            return response()->json(['ok' => false, 'error' => 'Pick a location first.'], 422);
+        }
+
+        $v = $request->validate([
+            'customer_id'              => 'required|uuid',
+            'opening_amount_cents'     => 'nullable|integer|min:0',
+            'payment_method'           => 'required|string|in:cash,check,store_credit,mark_paid',
+            'payment_reference'        => 'nullable|string|max:120',
+            'items'                    => 'required|array|min:1',
+            'items.*.type'             => 'required|string|in:service,product,open_item',
+            'items.*.service_id'       => 'nullable|uuid',
+            'items.*.inventory_item_id'=> 'nullable|uuid',
+            'items.*.name_snapshot'    => 'nullable|string|max:255',
+            'items.*.unit_price_cents' => 'nullable|integer|min:0',
+            'items.*.quantity'         => 'nullable|numeric|min:0.001',
+            'items.*.discount_cents'   => 'nullable|integer|min:0',
+            'items.*.is_taxable'       => 'nullable|boolean',
+            'items.*.notes'            => 'nullable|string',
+        ]);
+
+        // A layaway has to be for someone — it is their goods being held.
+        if (! \App\Models\Tenant\TenantCustomer::where('tenant_id', $tenant->id)->whereKey($v['customer_id'])->exists()) {
+            return response()->json(['ok' => false, 'error' => 'Attach a customer first — a layaway holds goods for someone.'], 422);
+        }
+
+        try {
+            $result = app(\App\Services\Tenant\LayawayService::class)->open(
+                $tenant,
+                [
+                    'rang_up_by_user_id' => $user->id,
+                    'location_id'        => $locationId,
+                    'customer_id'        => $v['customer_id'],
+                    'items'              => $v['items'],
+                ],
+                $v['opening_amount_cents'] ?? null,
+                $v['payment_method'],
+                $v['payment_reference'] ?? null,
+                $user->id,
+            );
+        } catch (\App\Services\Tenant\SaleValidationException | \App\Services\Tenant\InventoryStockException $e) {
+            return response()->json(['ok' => false, 'error' => $e->getMessage()], 422);
+        }
+
+        $plan = $result['plan'];
+        $svc  = app(\App\Services\Tenant\LayawayService::class);
+
+        return response()->json([
+            'ok'            => true,
+            'plan_id'       => $plan->id,
+            'label'         => 'Layaway ' . ($result['sale']->sale_number ?: substr($plan->id, 0, 8)),
+            'held'          => $result['held'],
+            'ordered'       => $result['ordered'],
+            'total_cents'   => (int) $result['sale']->total_cents,
+            'paid_cents'    => $svc->paidCents($plan),
+            'balance_cents' => $svc->balanceCents($plan),
+            'next_due_on'   => $plan->next_due_on?->toDateString(),
+            'scheduled_cents' => (int) ($plan->scheduled_amount_cents ?? 0),
+        ]);
+    }
+
+    /** MARKER-LAYAWAY-REGISTER — a payment against an open plan. */
+    public function payLayaway(Request $request, string $planId): JsonResponse
+    {
+        $tenant = tenant();
+        $this->assertRetailEnabled($tenant);
+
+        $v = $request->validate([
+            'amount_cents'      => 'required|integer|min:1',
+            'payment_method'    => 'required|string|in:cash,check,store_credit,mark_paid',
+            'payment_reference' => 'nullable|string|max:120',
+        ]);
+
+        $plan = \App\Models\Tenant\TenantLayawayPlan::where('tenant_id', $tenant->id)->findOrFail($planId);
+        $svc  = app(\App\Services\Tenant\LayawayService::class);
+
+        try {
+            $svc->pay($plan, $v['amount_cents'], $v['payment_method'], $v['payment_reference'] ?? null,
+                \Illuminate\Support\Facades\Auth::guard('tenant')->id());
+        } catch (\App\Services\Tenant\SaleValidationException $e) {
+            return response()->json(['ok' => false, 'error' => $e->getMessage()], 422);
+        }
+
+        $plan->refresh();
+
+        return response()->json([
+            'ok'             => true,
+            'status'         => $plan->status,
+            'balance_cents'  => $svc->balanceCents($plan),
+            'paid_cents'     => $svc->paidCents($plan),
+            'next_due_on'    => $plan->next_due_on?->toDateString(),
+            'scheduled_cents'=> (int) ($plan->scheduled_amount_cents ?? 0),
+            // Can the goods leave right now?
+            'can_hand_over'  => $plan->status === 'ready' && ! $plan->awaitingArrival(),
+        ]);
+    }
+
+    /** MARKER-LAYAWAY-REGISTER — handover: the layaway becomes a sale. */
+    public function completeLayaway(Request $request, string $planId): JsonResponse
+    {
+        $tenant = tenant();
+        $this->assertRetailEnabled($tenant);
+
+        $plan = \App\Models\Tenant\TenantLayawayPlan::where('tenant_id', $tenant->id)->findOrFail($planId);
+
+        try {
+            $sale = app(\App\Services\Tenant\LayawayService::class)->complete(
+                $plan, \Illuminate\Support\Facades\Auth::guard('tenant')->id()
+            );
+        } catch (\App\Services\Tenant\SaleValidationException | \App\Services\Tenant\InventoryStockException $e) {
+            return response()->json(['ok' => false, 'error' => $e->getMessage()], 422);
+        }
+
+        return response()->json([
+            'ok'          => true,
+            'sale_id'     => $sale->id,
+            'sale_number' => $sale->sale_number,
+            'total_cents' => (int) $sale->total_cents,
+        ]);
+    }
+
     public function storeDraft(Request $request): JsonResponse
     {
         $tenant = tenant();

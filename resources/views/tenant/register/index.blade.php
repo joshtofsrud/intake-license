@@ -706,8 +706,13 @@
 
     {{-- MARKER-TENDERFIX --}}
     <div id="tenderModalErr" style="display:none;font-size:12.5px;color:#f87171;margin-bottom:10px"></div>
+    {{-- MARKER-LAYAWAY-REGISTER — result panel, shown in place of the tender
+         form once a layaway has been opened. --}}
+    <div id="layawayResult" style="display:none"></div>
     <div class="reg-modal-actions">
       <button type="button" class="reg-btn-secondary" data-close-modal="tenderModal">Cancel</button>
+      <button type="button" class="reg-btn-secondary" id="layawayBtn" style="display:none;margin-right:auto"
+              title="Hold the goods and take an opening payment">Put on layaway</button>
       <button type="button" class="reg-btn-primary" id="tenderConfirmBtn" disabled>Continue</button>
     </div>
   </div>
@@ -1072,6 +1077,7 @@
 // wherever it finds them, including inside a JS comment, so writing the
 // condition out literally here would inject a real unclosed directive.
 window.CAN_LINE_PRICE = @json($canLinePrice ?? false);
+window.CAN_LAYAWAY = @json($canLayaway ?? false); // MARKER-LAYAWAY-REGISTER
 
 // MARKER-ITEM-MODAL-SHARED — thin shim. The register's info button already
 // calls openItemInfo(); keeping the name means that call site is untouched.
@@ -1135,6 +1141,11 @@ const ROUTES = {
   search:      @json(route('tenant.register.search')),
   discountValidate: @json(route('tenant.register.discount.validate')), // MARKER-REGISTER-DISCOUNT
   storeSale:   @json(route('tenant.register.sales.store')),
+  // MARKER-LAYAWAY-REGISTER
+  customerOpen:    @json(route('tenant.register.customer.open', ['customer' => '__ID__'])),
+  layawayOpen:     @json(route('tenant.register.layaway.open')),
+  layawayPay:      @json(route('tenant.register.layaway.pay', ['plan' => '__ID__'])),
+  layawayComplete: @json(route('tenant.register.layaway.complete', ['plan' => '__ID__'])),
   offlineCatalog: @json(route('tenant.register.offline_catalog')), // MARKER-OFFLINE-SYNC
   offlineSyncEnabled: {{ ($offlineSyncEnabled ?? false) ? 'true' : 'false' }}, // MARKER-OFFLINE-SYNC
   storeDraft:  @json(route('tenant.register.drafts.store')),
@@ -2118,7 +2129,9 @@ function renderCart() {
           <a class="profile-link" href="${profileUrl}" target="_blank" rel="noopener">View profile →</a>
           <span class="clear" id="clearCust">Remove</span>
         </div>
+        <div id="custOpen"></div>
       </div>`;
+    loadCustomerOpen(c.id); // MARKER-LAYAWAY-REGISTER
     var skipChk = document.getElementById('skipReceiptChk');
     if (skipChk) {
       skipChk.addEventListener('change', function(){
@@ -2141,6 +2154,148 @@ function renderCart() {
   }
   renderTotals();
 }
+
+// MARKER-LAYAWAY-REGISTER ---------------------------------------------------
+async function loadCustomerOpen(customerId) {
+  const box = document.getElementById('custOpen');
+  if (!box || !customerId) return;
+  try {
+    const r = await fetch(ROUTES.customerOpen.replace('__ID__', customerId), { headers: { Accept: 'application/json' } });
+    const d = await r.json();
+    if (!d.ok || !d.open.length) { box.innerHTML = ''; return; }
+    box.innerHTML = '<div style="font-size:10.5px;letter-spacing:.09em;color:var(--ia-text-dim);margin:10px 0 6px">OPEN WITH THIS CUSTOMER</div>'
+      + d.open.map(o => {
+          const meta = o.kind === 'layaway'
+            ? (o.status === 'ready' ? (o.awaiting ? 'Paid · waiting on a special order' : 'Paid · ready to hand over')
+               : fmt(o.balance_cents) + ' balance' + (o.scheduled_cents ? ' · ' + fmt(o.scheduled_cents) + ' due ' + (o.next_due_on || '') : '')
+                 + (o.overdue ? ' · <span style="color:#f2777a">overdue</span>' : ''))
+            : fmt(o.balance_cents) + ' balance';
+          const btn = o.kind === 'layaway'
+            ? (o.status === 'ready' && !o.awaiting
+                ? `<button type="button" class="reg-btn-primary" style="padding:4px 10px;font-size:12px" data-handover="${o.id}">Hand over</button>`
+                : (o.balance_cents > 0 ? `<button type="button" class="reg-btn-primary" style="padding:4px 10px;font-size:12px" data-payon='${JSON.stringify({id:o.id,balance_cents:o.balance_cents,scheduled_cents:o.scheduled_cents,label:o.label})}'>Pay on this</button>` : ''))
+            : `<a class="reg-btn-secondary" style="padding:4px 10px;font-size:12px;text-decoration:none" href="${o.url}">Open</a>`;
+          return `<div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border:0.5px solid var(--ia-border);border-radius:8px;margin-bottom:6px;font-size:12.5px">
+            <div style="flex:1"><div>${escapeHtml(o.label)}${o.first_item ? ' <span style="color:var(--ia-text-dim)">· ' + escapeHtml(o.first_item) + (o.items > 1 ? ' +' + (o.items - 1) : '') + '</span>' : ''}</div>
+            <div style="font-size:11.5px;color:var(--ia-text-dim)">${meta}</div></div>${btn}</div>`;
+        }).join('');
+
+    box.querySelectorAll('[data-payon]').forEach(b => b.addEventListener('click', () => {
+      cart.layaway_target = JSON.parse(b.dataset.payon);
+      openTenderForPlan();
+    }));
+    box.querySelectorAll('[data-handover]').forEach(b => b.addEventListener('click', () => handOverLayaway(b.dataset.handover)));
+  } catch (e) { box.innerHTML = ''; }
+}
+
+function openTenderForPlan() {
+  const t = cart.layaway_target;
+  document.getElementById('tenderRefInput').value = '';
+  { const amt = document.getElementById('splitAmountInput'); if (amt) amt.value = ((t.scheduled_cents || t.balance_cents) / 100).toFixed(2); }
+  document.getElementById('tenderConfirmBtn').disabled = true;
+  document.querySelectorAll('#tenderModal .reg-tender-btn').forEach(b => b.classList.remove('selected'));
+  resetGiftTender();
+  tenderModalError('');
+  const lb = document.getElementById('layawayBtn'); if (lb) lb.style.display = 'none';
+  const lr = document.getElementById('layawayResult');
+  if (lr) {
+    lr.style.display = '';
+    lr.innerHTML = `<div style="padding:9px 12px;border:0.5px solid rgba(190,242,100,.35);border-radius:8px;margin-bottom:10px;font-size:12.5px">
+      Paying on <strong>${escapeHtml(t.label)}</strong> · ${fmt(t.balance_cents)} balance.
+      <span style="color:var(--ia-text-dim)">Enter any amount up to the balance. Card through the terminal is not available on plans yet — cash, check, store credit or mark paid.</span></div>`;
+  }
+  openModal('tenderModal');
+}
+
+async function payOnLayaway() {
+  const t = cart.layaway_target;
+  const amtEl = document.getElementById('splitAmountInput');
+  const typed = amtEl && amtEl.value ? Math.round(parseFloat(String(amtEl.value).replace(/[^0-9.]/g, '')) * 100) : (t.scheduled_cents || t.balance_cents);
+  if (!typed || isNaN(typed) || typed <= 0) { tenderModalError('Enter an amount.'); return; }
+  if (typed > t.balance_cents) { tenderModalError('That is more than the ' + fmt(t.balance_cents) + ' owed.'); return; }
+  if (!['cash', 'check', 'store_credit', 'mark_paid'].includes(cart.payment_method)) {
+    tenderModalError('Card on a layaway is coming; use cash, check, store credit or mark paid for now.'); return;
+  }
+  const btn = document.getElementById('tenderConfirmBtn'); btn.disabled = true;
+  try {
+    const r = await fetch(ROUTES.layawayPay.replace('__ID__', t.id), {
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF, Accept: 'application/json' },
+      body: JSON.stringify({ amount_cents: typed, payment_method: cart.payment_method, payment_reference: cart.payment_reference })
+    });
+    const d = await r.json();
+    if (!d.ok) { tenderModalError(d.error || 'Payment failed.'); btn.disabled = false; return; }
+    const lr = document.getElementById('layawayResult');
+    lr.innerHTML = `<div style="padding:12px;border:0.5px solid rgba(126,224,129,.4);border-radius:8px;font-size:13px">
+      <div style="font-weight:650">${fmt(typed)} recorded on ${escapeHtml(t.label)}</div>
+      <div style="color:var(--ia-text-dim);margin-top:3px">${d.balance_cents > 0
+        ? fmt(d.balance_cents) + ' still owed' + (d.scheduled_cents ? ' · next ' + fmt(d.scheduled_cents) + ' due ' + (d.next_due_on || '') : '')
+        : (d.can_hand_over ? 'Paid in full — everything is here. Hand it over now?' : 'Paid in full — waiting on a special order to arrive.')}</div>
+      ${d.can_hand_over ? '<button type="button" class="reg-btn-primary" style="margin-top:10px" id="handOverNow">Hand over now</button>' : ''}
+    </div>`;
+    const ho = document.getElementById('handOverNow');
+    if (ho) ho.addEventListener('click', () => handOverLayaway(t.id));
+    cart.layaway_target = null;
+    setTimeout(() => { if (!ho) { closeModal('tenderModal'); if (cart.customer) loadCustomerOpen(cart.customer.id); } }, 1800);
+  } catch (e) { tenderModalError('Payment failed.'); btn.disabled = false; }
+}
+
+async function handOverLayaway(planId) {
+  const ok = window.iaConfirm ? await iaConfirm('Hand over the goods now? This completes the sale and moves the stock.') : true;
+  if (!ok) return;
+  try {
+    const r = await fetch(ROUTES.layawayComplete.replace('__ID__', planId), {
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF, Accept: 'application/json' }, body: '{}'
+    });
+    const d = await r.json();
+    if (!d.ok) { if (window.IntakeToast) IntakeToast.error(d.error || 'Could not complete.'); return; }
+    closeModal('tenderModal');
+    showReceipt({ sale_number: d.sale_number, total_cents: d.total_cents, sale_id: d.sale_id });
+    cart.items = []; cart.customer = null; cart.layaway_target = null; renderCart();
+  } catch (e) { if (window.IntakeToast) IntakeToast.error('Could not complete.'); }
+}
+
+document.getElementById('layawayBtn')?.addEventListener('click', async () => {
+  if (!cart.customer) { tenderModalError('Attach a customer first — a layaway holds goods for someone.'); return; }
+  if (!cart.payment_method) { tenderModalError('Pick how the opening payment is being made.'); return; }
+  if (!['cash', 'check', 'store_credit', 'mark_paid'].includes(cart.payment_method)) {
+    tenderModalError('Card on a layaway is coming; use cash, check, store credit or mark paid for the opening payment.'); return;
+  }
+  const amtEl = document.getElementById('splitAmountInput');
+  const typed = amtEl && amtEl.value ? Math.round(parseFloat(String(amtEl.value).replace(/[^0-9.]/g, '')) * 100) : null;
+  const btn = document.getElementById('layawayBtn'); btn.disabled = true;
+  try {
+    const r = await fetch(ROUTES.layawayOpen, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF, Accept: 'application/json' },
+      body: JSON.stringify({
+        customer_id: cart.customer.id,
+        opening_amount_cents: typed,
+        payment_method: cart.payment_method,
+        payment_reference: document.getElementById('tenderRefInput').value.trim() || null,
+        items: cart.items.filter(i => i.type !== 'gift_card').map(serializeLine),
+      })
+    });
+    const d = await r.json();
+    if (!d.ok) { tenderModalError(d.error || 'Could not open the layaway.'); btn.disabled = false; return; }
+    const lr = document.getElementById('layawayResult');
+    lr.style.display = '';
+    lr.innerHTML = `<div style="padding:12px;border:0.5px solid rgba(126,224,129,.4);border-radius:8px;font-size:13px">
+      <div style="font-weight:650">${escapeHtml(d.label)} opened</div>
+      <div style="color:var(--ia-text-dim);margin-top:4px;line-height:1.6">
+        ${d.held} unit${d.held === 1 ? '' : 's'} held on the shelf · ${d.ordered} on special order<br>
+        ${fmt(d.paid_cents)} taken · ${fmt(d.balance_cents)} to go${d.scheduled_cents ? ' · next ' + fmt(d.scheduled_cents) + ' due ' + (d.next_due_on || '') : ''}
+      </div></div>`;
+    document.getElementById('tenderConfirmBtn').style.display = 'none';
+    btn.textContent = 'Done'; btn.disabled = false;
+    btn.onclick = () => {
+      closeModal('tenderModal');
+      cart.items = []; cart.payments = []; cart.payment_method = null; renderCart();
+      document.getElementById('tenderConfirmBtn').style.display = '';
+      btn.textContent = 'Put on layaway'; btn.onclick = null;
+      if (cart.customer) loadCustomerOpen(cart.customer.id);
+    };
+  } catch (e) { tenderModalError('Could not open the layaway.'); btn.disabled = false; }
+});
+// ---------------------------------------------------------------------------
 
 function calcSubtotal() { return cart.items.reduce((sum, i) => sum + Math.round(((typeof i.effective_price_cents === 'number') ? i.effective_price_cents : i.price_cents) * i.qty), 0); }
 function calcRefundSubtotal() {
@@ -2558,6 +2713,18 @@ document.getElementById('payBtn').addEventListener('click', () => {
   document.querySelectorAll('#tenderModal .reg-tender-btn').forEach(b => b.classList.remove('selected'));
   resetGiftTender();          // MARKER-TENDERFIX -- fresh card check every sale
   tenderModalError('');
+  // MARKER-LAYAWAY-REGISTER — opened from the cart: no plan target. The
+  // button shows when this could be a layaway: a customer, product lines,
+  // no refunds, no split already started.
+  cart.layaway_target = null;
+  { const lb = document.getElementById('layawayBtn'), lr = document.getElementById('layawayResult');
+    if (lr) { lr.style.display = 'none'; lr.innerHTML = ''; }
+    if (lb) {
+      const eligible = window.CAN_LAYAWAY === true && cart.items.some(i => i.type === 'product')
+        && cart.refund_lines.length === 0 && cart.payments.length === 0;
+      lb.style.display = eligible ? '' : 'none';
+    }
+  }
   openModal('tenderModal');
 });
 
@@ -3075,6 +3242,8 @@ function computeTotalsForCommit() {
 
 // MARKER-TENDERFIX -- what is the sale still asking for right now?
 function tenderDueCents() {
+  // MARKER-LAYAWAY-REGISTER — pointed at a plan, the amount due is the plan's.
+  if (cart.layaway_target) { return cart.layaway_target.scheduled_cents || cart.layaway_target.balance_cents; }
   return (calcSubtotal() - cart.discountCents + calcTax() + calcSurcharge() + cart.tipCents)
        - (calcRefundSubtotal() + calcRefundTax());
 }
@@ -3137,7 +3306,7 @@ document.getElementById('tenderConfirmBtn').addEventListener('click', () => {
     const typed = raw === '' ? null : Math.round(parseFloat(raw) * 100);
     const due   = cart.payments.length > 0 ? splitRemaining() : tenderDueCents();
 
-    if (typed !== null && !isNaN(typed) && typed > 0 && typed < due) {
+    if (!cart.layaway_target && typed !== null && !isNaN(typed) && typed > 0 && typed < due) {
       document.getElementById('splitAddBtn').click();
       tenderModalError(fmt(splitRemaining()) + ' still to collect — add another payment, or Collect when the amount covers it.');
       return;
@@ -3145,6 +3314,10 @@ document.getElementById('tenderConfirmBtn').addEventListener('click', () => {
   }
 
   cart.payment_reference = document.getElementById('tenderRefInput').value.trim() || null;
+
+  // MARKER-LAYAWAY-REGISTER — paying on a plan is not a sale. Record it and
+  // stop; nothing below this line applies to a layaway payment.
+  if (cart.layaway_target) { payOnLayaway(); return; }
 
   // MARKER-GIFTCARDS -- single gift tender: require a checked card whose
   // balance covers the full total; otherwise it belongs in a split.
