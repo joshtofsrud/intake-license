@@ -1043,11 +1043,6 @@
 
 @if(!empty($preAttachCustomer))
 <script>
-  // MARKER-LINE-PRICE-SCOPE — on window, not const. This file has several
-  // separate <script> blocks; a const declared here is invisible three blocks
-  // later where renderCart() lives, and the ReferenceError stopped the cart
-  // repainting at all.
-  window.CAN_LINE_PRICE = @json($canLinePrice ?? false);
   // Patch 46: pre-attach customer from walk-in flow query param.
   // Runs after the register page's cart JS has initialized.
   document.addEventListener('DOMContentLoaded', function() {
@@ -1067,6 +1062,17 @@
      the appointment part picker can use the same one. --}}
 @include('tenant._item-detail-modal')
 <script>
+// MARKER-LINE-PRICE-COND — declared HERE because this block is unconditional.
+// Its previous home was inside the pre-attach-customer conditional, which only
+// renders when the register is opened from a walk-in with a customer already
+// attached — so on a normal load the flag was never defined and the control
+// was correctly hidden from everyone, including Owners.
+//
+// NOTE: no Blade directive names in this comment. Blade compiles directives
+// wherever it finds them, including inside a JS comment, so writing the
+// condition out literally here would inject a real unclosed directive.
+window.CAN_LINE_PRICE = @json($canLinePrice ?? false);
+
 // MARKER-ITEM-MODAL-SHARED — thin shim. The register's info button already
 // calls openItemInfo(); keeping the name means that call site is untouched.
 function openItemInfo( id ) {
