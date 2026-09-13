@@ -60,6 +60,14 @@ class RegisterController extends Controller
                 ->can('register.line_price'),
             'canLayaway'   => (bool) optional(\Illuminate\Support\Facades\Auth::guard('tenant')->user())
                 ->can('register.layaway.create'), // MARKER-LAYAWAY-REGISTER
+            // MARKER-QUICK-ADD — capped at 6: past that it is a menu, and a
+            // menu is what the search already is.
+            'quickServices' => \App\Models\Tenant\TenantServiceItem::where('tenant_id', $tenant->id)
+                ->where('is_active', true)
+                ->where('show_on_register', true)
+                ->orderBy('sort_order')
+                ->limit(6)
+                ->get(['id', 'name', 'price_cents']),
             'canOverrideReserve' => (bool) optional(\Illuminate\Support\Facades\Auth::guard('tenant')->user())
                 ->can('register.layaway.override_reserve'), // MARKER-RESERVE-OVERRIDE
             'offlineSyncEnabled' => app(\App\Services\FeatureAccessService::class)->hasAddon($tenant, 'offline_sync'), // MARKER-OFFLINE-SYNC

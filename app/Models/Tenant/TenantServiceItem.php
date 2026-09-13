@@ -17,6 +17,7 @@ class TenantServiceItem extends Model
         'slot_weight','is_active','sort_order',
         'simple_enabled','simple_sort','simple_tagline', // MARKER-FLOW-4
         'quick_only', // MARKER-PATCH-546
+        'show_on_register', // MARKER-QUICK-ADD
     ];
     protected $casts = [
         'is_active'             => 'boolean',
@@ -28,6 +29,7 @@ class TenantServiceItem extends Model
         'sort_order'            => 'integer',
         'simple_enabled'        => 'boolean',
         'quick_only'            => 'boolean', // MARKER-PATCH-546
+        'show_on_register'      => 'boolean', // MARKER-QUICK-ADD
         'simple_sort'           => 'integer',
     ];
 

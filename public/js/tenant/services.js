@@ -50,6 +50,7 @@
       slot_weight: s.slot_weight|0 || 1,
       is_active: !!s.is_active,
       quick_only: !!s.quick_only, // MARKER-PATCH-546
+      show_on_register: !!s.show_on_register, // MARKER-QUICK-ADD
       sort_order: s.sort_order|0,
       eligible_resource_ids: Array.isArray(s.eligible_resource_ids) ? s.eligible_resource_ids.slice() : [],
       addons: (s.addons || []).map(normalizeAttachedAddon),
@@ -414,6 +415,16 @@
           + 'Only show in quick booking'
         + '</label>'
         + '<div class="sv-time-hint">Hidden from the full multi-step flow. Still needs to be in the Simple menu (Booking Mode page) to appear anywhere.</div>'
+      + '</div>'
+      // MARKER-QUICK-ADD — the register button. Deliberately its own flag: the
+      // two above are the public booking flow, and a till button should never
+      // publish a service to customers as a side effect.
+      + '<div class="sv-drawer-field">'
+        + '<label class="sv-drawer-label" style="display:flex;align-items:center;gap:9px;cursor:pointer;text-transform:none;letter-spacing:normal">'
+          + '<input type="checkbox" data-drawer-field="show_on_register" data-drawer-check="1" data-service="' + esc(s.id) + '"' + (s.show_on_register ? ' checked' : '') + ' style="accent-color:var(--ia-accent)">'
+          + 'Quick add button at the register'
+        + '</label>'
+        + '<div class="sv-time-hint">Appears as a tap-to-add button on the register, in this list\'s order. Staff only — nothing to do with the booking page.</div>'
       + '</div>'
       + '<div class="sv-drawer-field">'
         + '<label class="sv-drawer-label">Add-ons attached <span style="color:var(--ia-text-dim);margin-left:6px;text-transform:none;letter-spacing:normal">(' + s.addons.length + ')</span></label>'

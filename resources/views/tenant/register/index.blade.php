@@ -154,6 +154,14 @@
     cursor:pointer;padding:2px}
   .tend-link:hover{color:var(--ia-text);text-decoration:underline}
 
+  /* MARKER-QUICK-ADD */
+  .reg-quick-btn{display:flex;align-items:center;justify-content:space-between;gap:10px;
+    background:var(--ia-surface-2);border:0.5px solid var(--ia-border);border-radius:var(--ia-r);
+    padding:12px 14px;color:var(--ia-text);cursor:pointer;font-family:inherit;text-align:left}
+  .reg-quick-btn:hover{border-color:var(--ia-border-strong)}
+  .reg-quick-btn .qs-n{font-size:13.5px}
+  .reg-quick-btn .qs-p{font-size:12px;color:var(--ia-text-dim);font-variant-numeric:tabular-nums}
+
   /* patch-96 oversell-badge — small amber inline marker on cart lines */
   .reg-oversell-badge {
     display:inline-block; margin-left:8px;
@@ -601,6 +609,13 @@
 
       <div id="resultsArea">
         <div class="reg-empty">Type to search products and services.</div>
+      </div>
+
+      {{-- MARKER-QUICK-ADD — the services a counter rings hourly, chosen per
+           service in Services, ordered by the list's own sort order. --}}
+      <div id="quickAddWrap" style="display:none;margin:14px 0 10px">
+        <div style="font-size:10.5px;letter-spacing:.09em;color:var(--ia-text-dim);margin-bottom:8px">QUICK ADD</div>
+        <div id="quickAddGrid" style="display:grid;grid-template-columns:1fr 1fr;gap:8px"></div>
       </div>
 
       <button type="button" class="reg-open-item" id="addOpenItemBtn">+ Add custom item</button>
@@ -1181,6 +1196,7 @@
 // condition out literally here would inject a real unclosed directive.
 window.CAN_LINE_PRICE = @json($canLinePrice ?? false);
 window.CAN_LAYAWAY = @json($canLayaway ?? false); // MARKER-LAYAWAY-REGISTER
+window.QUICK_SERVICES = @json($quickServices ?? []); // MARKER-QUICK-ADD
 window.CAN_OVERRIDE_RESERVE = @json($canOverrideReserve ?? false); // MARKER-RESERVE-OVERRIDE
 
 // MARKER-ITEM-MODAL-SHARED — thin shim. The register's info button already
@@ -2663,6 +2679,38 @@ document.getElementById('tenderCashInput')?.addEventListener('input', tenderChan
 document.getElementById('splitAmountInput')?.addEventListener('input', function () {
   tenderButtonLabel(cart.payments.length > 0 ? splitRemaining() : tenderDueCents());
 });
+
+// MARKER-QUICK-ADD — a button per chosen service. Adds through addToCart, the
+// same path the search results use, so a quick-added line is indistinguishable
+// from a searched one everywhere downstream.
+(function () {
+  var list = window.QUICK_SERVICES || [];
+  var wrap = document.getElementById('quickAddWrap');
+  var grid = document.getElementById('quickAddGrid');
+  if (!wrap || !grid || !list.length) { return; }
+
+  wrap.style.display = '';
+  grid.innerHTML = list.map(function (s) {
+    return '<button type="button" class="reg-quick-btn" data-qs="' + s.id + '">'
+      + '<span class="qs-n">' + escapeHtml(s.name) + '</span>'
+      + '<span class="qs-p">' + fmt(s.price_cents || 0) + '</span>'
+      + '</button>';
+  }).join('');
+
+  grid.querySelectorAll('[data-qs]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var s = list.find(function (x) { return x.id === b.dataset.qs; });
+      if (!s) { return; }
+      addToCart({
+        type: 'service',
+        source_id: s.id,
+        name: s.name,
+        price_cents: s.price_cents || 0,
+        is_taxable: true,
+      });
+    });
+  });
+})();
 
 function calcSubtotal() { return cart.items.reduce((sum, i) => sum + Math.round(((typeof i.effective_price_cents === 'number') ? i.effective_price_cents : i.price_cents) * i.qty), 0); }
 function calcRefundSubtotal() {
