@@ -3180,7 +3180,7 @@ input.ma-asset-name-edit:focus {
             });
             if (ok) go();
           } else {
-            if (confirm('Move back to ' + label + '?')) go();
+            if (await iaConfirm('Move back to ' + label + '?')) go(); // MARKER-INLINE-CONFIRM-2
           }
         } else {
           go();

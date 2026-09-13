@@ -341,8 +341,8 @@ function onThemeChange() {
   autoSave();
 }
 
-function resetDefaults() {
-  if (!confirm('Reset all booking form settings to defaults?')) return;
+async function resetDefaults() {
+  if (!(await iaConfirm('Reset all booking form settings to defaults?'))) return; // MARKER-INLINE-CONFIRM-2
   var theme = document.getElementById('bke-booking_theme').value;
   var defs = themeDefaults[theme] || themeDefaults['light'];
 

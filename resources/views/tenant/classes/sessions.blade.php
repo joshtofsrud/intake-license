@@ -576,11 +576,11 @@
    * good on mobile. Returns false to block the synchronous form submit, then
    * resubmits programmatically if the user confirms.
    */
-  window.iaConfirmCancelRegistration = function(form, ev){
+  window.iaConfirmCancelRegistration = async function(form, ev){
     ev.preventDefault();
     if (!window.IntakeConfirm) {
       // Fallback if confirm.js hasn't loaded — keep the action working.
-      if (window.confirm('Cancel this registration?')) form.submit();
+      if (await iaConfirm('Cancel this registration?')) form.submit(); // MARKER-INLINE-CONFIRM-2
       return false;
     }
     window.IntakeConfirm.show({

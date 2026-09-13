@@ -1207,14 +1207,14 @@
         var url  = @json(route('tenant.special-orders.cancel', ['id' => '__ID__']));
         var csrf = (document.querySelector('meta[name="csrf-token"]') || {}).content;
 
-        document.addEventListener('click', function (e) {
+        document.addEventListener('click', async function (e) {
           var btn = e.target.closest('[data-appt-so-cancel]');
           if (!btn) return;
           e.preventDefault();
           e.stopPropagation();
 
           var num = btn.getAttribute('data-so-number') || 'this special order';
-          if (!confirm('Cancel ' + num + '? The part is no longer needed for this work order.')) return;
+          if (!(await iaConfirm('Cancel ' + num + '? The part is no longer needed for this work order.'))) return; // MARKER-INLINE-CONFIRM-2
 
           btn.disabled = true;
           fetch(url.replace('__ID__', btn.getAttribute('data-appt-so-cancel')), {
@@ -1926,8 +1926,8 @@ document.addEventListener('keydown', function (e) {
 
   function bindDeleteOnEl(btn) {
     if (!btn) return;
-    btn.addEventListener('click', function () {
-      if (!confirm('Delete this note?')) return;
+    btn.addEventListener('click', async function () {
+      if (!(await iaConfirm('Delete this note?'))) return; // MARKER-INLINE-CONFIRM-2
       var noteId = btn.getAttribute('data-note-id');
       var fd = new FormData();
       fd.append('_token', csrf);
@@ -2387,11 +2387,11 @@ document.addEventListener('keydown', function (e) {
 
   // Remove
   if (partsBody) {
-    partsBody.addEventListener('click', function(e) {
+    partsBody.addEventListener('click', async function(e) {
       var btn = e.target.closest('.part-remove');
       if (!btn) return;
       var partId = btn.getAttribute('data-part-id');
-      if (!confirm('Remove this item?')) return;
+      if (!(await iaConfirm('Remove this item?'))) return; // MARKER-INLINE-CONFIRM-2
       fetch(updateUrl, {
         method: 'PATCH',
         headers: { 'Content-Type':'application/json', 'X-CSRF-TOKEN': csrf, 'Accept':'application/json' },
@@ -2507,8 +2507,8 @@ document.addEventListener('keydown', function (e) {
      the now-unlocked editing UI renders cleanly.
      =================================================================== */
   document.querySelectorAll('.void-sale-btn').forEach(function (btn) {
-    btn.addEventListener('click', function () {
-      if (!confirm('Void the draft register sale to edit this appointment?\n\nThe sale will be cancelled. After your edits, completing the appointment again creates a fresh draft.')) {
+    btn.addEventListener('click', async function () {
+      if (!(await iaConfirm('Void the draft register sale to edit this appointment?\n\nThe sale will be cancelled. After your edits, completing the appointment again creates a fresh draft.'))) { // MARKER-INLINE-CONFIRM-2
         return;
       }
       btn.disabled = true;

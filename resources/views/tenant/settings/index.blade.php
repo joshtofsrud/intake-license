@@ -1794,8 +1794,8 @@
     // Discard: reload the page (server-rendered, so this resets to saved state)
     var discardBtn = form.querySelector('[data-discard]');
     if (discardBtn) {
-      discardBtn.addEventListener('click', function() {
-        if (confirm('Discard your unsaved changes?')) {
+      discardBtn.addEventListener('click', async function() {
+        if (await iaConfirm('Discard your unsaved changes?')) { // MARKER-INLINE-CONFIRM-2
           window.location.reload();
         }
       });

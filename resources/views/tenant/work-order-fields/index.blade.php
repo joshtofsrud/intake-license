@@ -520,8 +520,8 @@
       .catch(function(){ showError('Network error.'); });
   }
 
-  function deleteField(id) {
-    if (!confirm('Delete this field? Existing work-order values will remain on their appointments but can no longer be edited.')) return;
+  async function deleteField(id) {
+    if (!(await iaConfirm('Delete this field? Existing work-order values will remain on their appointments but can no longer be edited.'))) return; // MARKER-INLINE-CONFIRM-2
     var fd = new FormData();
     fd.append('_token', csrf);
     fd.append('_method', 'DELETE');

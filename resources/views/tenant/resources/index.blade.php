@@ -205,8 +205,8 @@
       };
 
       // ---- Deactivate ----
-      window.deactivateResource = function (id) {
-        if (!confirm('Deactivate this resource? Past appointments stay visible. New appointments cannot be assigned to it.')) return;
+      window.deactivateResource = async function (id) {
+        if (!(await iaConfirm('Deactivate this resource? Past appointments stay visible. New appointments cannot be assigned to it.'))) return; // MARKER-INLINE-CONFIRM-2
         fetch("{{ url('admin/resources') }}/" + id, {
           method: 'DELETE',
           headers: {

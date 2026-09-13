@@ -1257,9 +1257,9 @@
     document.getElementById('del-notify-flag').value = notify ? '1' : '0';
     return true;
   }
-  function delComplete() {
+  async function delComplete() {
     if (!window.delEditing) return;
-    if (!confirm('Mark this delivery complete?')) return;
+    if (!(await iaConfirm('Mark this delivery complete?'))) return; // MARKER-INLINE-CONFIRM-2
     var f = document.createElement('form');
     f.method = 'POST';
     f.action = window.delRoutes.base + '/' + window.delEditing + '/complete';
@@ -1267,9 +1267,9 @@
     document.body.appendChild(f);
     f.submit();
   }
-  function delCancel() {
+  async function delCancel() {
     if (!window.delEditing) return;
-    if (!confirm('Cancel this delivery? The customer will NOT be auto-notified of the cancellation.')) return;
+    if (!(await iaConfirm('Cancel this delivery? The customer will NOT be auto-notified of the cancellation.'))) return; // MARKER-INLINE-CONFIRM-2
     var f = document.createElement('form');
     f.method = 'POST';
     f.action = window.delRoutes.base + '/' + window.delEditing + '/cancel';

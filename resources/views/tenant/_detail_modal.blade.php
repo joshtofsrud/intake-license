@@ -523,8 +523,8 @@ var DM = {
     this.updateAppt('add_note', { note: note });
   },
 
-  deleteApptNote: function(noteId) {
-    if (!confirm('Delete this note?')) return;
+  deleteApptNote: async function(noteId) {
+    if (!(await iaConfirm('Delete this note?'))) return; // MARKER-INLINE-CONFIRM-2
     this.activeTab = 'dm-tab-notes';
     this.updateAppt('delete_note', { note_id: noteId });
   },
@@ -625,8 +625,8 @@ var DM = {
     this.post(url, { op: 'add_note', note: note }, function() { DM.reload(); });
   },
 
-  deleteCustNote: function(noteId) {
-    if (!confirm('Delete this note?')) return;
+  deleteCustNote: async function(noteId) {
+    if (!(await iaConfirm('Delete this note?'))) return; // MARKER-INLINE-CONFIRM-2
     this.activeTab = 'dm-tab-custnotes';
     var url = '/admin/customers?update=' + encodeURIComponent(this.currentId);
     this.post(url, { op: 'delete_note', note_id: noteId }, function() { DM.reload(); });

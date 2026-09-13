@@ -615,8 +615,8 @@
 
   function bindDel(btn) {
     if (!btn) return;
-    btn.addEventListener('click', function () {
-      if (!confirm('Delete this note?')) return;
+    btn.addEventListener('click', async function () {
+      if (!(await iaConfirm('Delete this note?'))) return; // MARKER-INLINE-CONFIRM-2
       var noteId = btn.getAttribute('data-note-id');
       post({ op: 'delete_note', note_id: noteId }, function (resp) {
         if (!resp.ok) return;

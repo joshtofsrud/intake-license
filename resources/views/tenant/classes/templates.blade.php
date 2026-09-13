@@ -337,7 +337,19 @@
     var changed  = (newNotes !== _originalClassNotes);
     if (!changed || _upcomingSessions === 0) return;
     if (!window.IntakeConfirm) {
-      if (!window.confirm('Update class notes on ' + _upcomingSessions + ' upcoming session(s)?')) {
+      // MARKER-INLINE-CONFIRM-2 — submit handler: prevent, ask, replay.
+      if (ev.target.dataset.iaConfirmed !== '1') {
+        ev.preventDefault();
+        iaConfirm('Update class notes on ' + _upcomingSessions + ' upcoming session(s)?').then(function (ok) {
+          if (!ok) { return; }
+          ev.target.dataset.iaConfirmed = '1';
+          if (typeof ev.target.requestSubmit === 'function') { ev.target.requestSubmit(); }
+          else { ev.target.submit(); }
+        });
+        return;
+      }
+      delete ev.target.dataset.iaConfirmed;
+      if (false) {
         ev.preventDefault();
       }
       return;
@@ -352,8 +364,8 @@
   });
   window.closeEditModal = function(){ editModal.classList.remove('is-open'); }
 
-  window.confirmDelete = function(id, name){
-    if(!confirm('Delete "' + name + '"? This cannot be undone.')) return;
+  window.confirmDelete = async function(id, name){
+    if(!(await iaConfirm('Delete "' + name + '"? This cannot be undone.'))) return; // MARKER-INLINE-CONFIRM-2
     deleteForm.action = baseUrl + '/' + id;
     deleteForm.submit();
   }
