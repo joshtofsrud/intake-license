@@ -297,7 +297,12 @@
   .reg-totals-row{display:flex;justify-content:space-between;padding:5px 0;color:var(--ia-text-muted)}
   .reg-totals-row.grand{font-size:18px;font-weight:600;color:var(--ia-text);padding-top:10px;margin-top:6px;border-top:0.5px solid var(--ia-border)}
 
-  .reg-pay-row{display:grid;grid-template-columns:1fr 2fr;gap:8px;margin-top:16px}
+  /* MARKER-HOLD-ROW — three buttons now, not two. Hold and Save quote share
+     the top row; Collect payment spans the full width beneath, which is both
+     the fix and the right hierarchy: the primary action should not be fighting
+     two occasional ones for horizontal space. */
+  .reg-pay-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:16px}
+  .reg-pay-row .reg-pay{grid-column:1 / -1}
   .reg-pay{
     padding:14px;background:var(--ia-accent);color:var(--ia-accent-text);
     border:none;border-radius:var(--ia-r-md);font-size:15px;font-weight:600;
