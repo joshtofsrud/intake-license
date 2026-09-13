@@ -1043,6 +1043,8 @@
 
 @if(!empty($preAttachCustomer))
 <script>
+  // MARKER-LINE-PRICE
+  const CAN_LINE_PRICE = @json($canLinePrice ?? false);
   // Patch 46: pre-attach customer from walk-in flow query param.
   // Runs after the register page's cart JS has initialized.
   document.addEventListener('DOMContentLoaded', function() {
@@ -1755,6 +1757,92 @@ function updateQty(key, qty) {
   queueDraftSave();
 }
 
+// MARKER-LINE-PRICE — one place decides what a typed price MEANS.
+  //
+  //   below the original → discount: the line keeps its real price and the
+  //     difference is recorded, so the concession survives into reporting
+  //   above the original → override: a new price, and no discount, because
+  //     none was given
+  //
+  // Stored per unit; quantity is applied when the line is serialised, so
+  // changing the quantity afterwards does the right thing without re-asking.
+  function applyLinePrice(line, newCents) {
+    if (newCents === null || isNaN(newCents) || newCents < 0) { return; }
+
+    line.effective_price_cents = newCents;
+
+    if (newCents < line.price_cents) {
+      line.line_discount_cents = line.price_cents - newCents;
+      line.line_override_cents = null;
+    } else if (newCents > line.price_cents) {
+      line.line_discount_cents = 0;
+      line.line_override_cents = newCents;
+    } else {
+      line.line_discount_cents = 0;
+      line.line_override_cents = null;
+    }
+  }
+
+  function editLinePrice(key) {
+    const line = cart.items.find(i => i.key === key);
+    if (!line) { return; }
+
+    const current = (typeof line.effective_price_cents === 'number')
+      ? line.effective_price_cents : line.price_cents;
+
+    // In-app prompt, not window.prompt: native dialogs get suppressed and
+    // fail closed and silently, which has bitten this app before.
+    openLinePriceModal(line, current);
+  }
+
+  function openLinePriceModal(line, currentCents) {
+    const wrap = document.getElementById('reg-lineprice');
+    if (!wrap) { return; }
+
+    document.getElementById('reg-lineprice-name').textContent = line.name;
+    document.getElementById('reg-lineprice-orig').textContent = fmt(line.price_cents);
+    const input = document.getElementById('reg-lineprice-input');
+    input.value = (currentCents / 100).toFixed(2);
+    wrap.dataset.key = line.key;
+    wrap.style.display = 'flex';
+    input.focus();
+    input.select();
+  }
+
+  window.regLinePriceClose = function () {
+    const wrap = document.getElementById('reg-lineprice');
+    if (wrap) { wrap.style.display = 'none'; }
+  };
+
+  window.regLinePriceSave = function () {
+    const wrap = document.getElementById('reg-lineprice');
+    const key  = parseInt(wrap.dataset.key, 10);
+    const line = cart.items.find(i => i.key === key);
+    const val  = parseFloat(document.getElementById('reg-lineprice-input').value);
+
+    if (line && !isNaN(val)) {
+      applyLinePrice(line, Math.round(val * 100));
+    }
+
+    regLinePriceClose();
+    renderCart();
+  };
+
+  window.regLinePriceReset = function () {
+    const wrap = document.getElementById('reg-lineprice');
+    const key  = parseInt(wrap.dataset.key, 10);
+    const line = cart.items.find(i => i.key === key);
+
+    if (line) {
+      line.effective_price_cents = line.price_cents;
+      line.line_discount_cents = 0;
+      line.line_override_cents = null;
+    }
+
+    regLinePriceClose();
+    renderCart();
+  };
+
 function renderCart() {
   const lines = document.getElementById('cartLines');
   const totalCount = cart.items.length + cart.refund_lines.length;
@@ -1844,16 +1932,38 @@ function renderCart() {
           }
         }
 
+        // MARKER-LINE-PRICE — effective price is what the line actually
+        // charges. Below the original it is a discount and the original stays
+        // visible struck through; above it is simply the new price.
+        const orig = i.price_cents;
+        const eff  = (typeof i.effective_price_cents === 'number') ? i.effective_price_cents : orig;
+        const per  = orig - eff;
+
+        let priceMeta;
+        if (per > 0) {
+          priceMeta = `<s style="opacity:.55">${fmt(orig)}</s> ${fmt(eff)} `
+            + `<span class="reg-line-disc">−${fmt(per)} each</span> · ${i.type}`;
+        } else if (per < 0) {
+          priceMeta = `<s style="opacity:.55">${fmt(orig)}</s> ${fmt(eff)} `
+            + `<span class="reg-line-up">price changed</span> · ${i.type}`;
+        } else {
+          priceMeta = `${fmt(orig)} · ${i.type}`;
+        }
+
+        const priceBtn = CAN_LINE_PRICE
+          ? `<button type="button" class="reg-line-edit" data-price="${i.key}" title="Change this line's price">edit price</button>`
+          : '';
+
         return `
         <div class="reg-line">
           <div>
             <div class="name">${escapeHtml(i.name)} ${badge}</div>
-            <div class="meta">${fmt(i.price_cents)} · ${i.type}</div>
+            <div class="meta">${priceMeta} ${priceBtn}</div>
             ${actionRow}
           </div>
           <input type="text" class="qty" value="${i.qty}" data-key="${i.key}" inputmode="decimal">
           <div style="display:flex;align-items:center;gap:6px">
-            <span class="total">${fmt(Math.round(i.price_cents * i.qty))}</span>
+            <span class="total">${fmt(Math.round(eff * i.qty))}</span>
             <button type="button" class="remove" data-remove="${i.key}">×</button>
           </div>
         </div>
@@ -1870,6 +1980,10 @@ function renderCart() {
   });
   lines.querySelectorAll('[data-remove]').forEach(btn => {
     btn.addEventListener('click', () => removeLine(parseInt(btn.dataset.remove, 10)));
+  });
+  // MARKER-LINE-PRICE
+  lines.querySelectorAll('[data-price]').forEach(btn => {
+    btn.addEventListener('click', () => editLinePrice(parseInt(btn.dataset.price, 10)));
   });
   // patch-100a oversell-actions — wire the action buttons
   lines.querySelectorAll('[data-action="transfer"]').forEach(btn => {
@@ -1974,7 +2088,7 @@ function renderCart() {
   renderTotals();
 }
 
-function calcSubtotal() { return cart.items.reduce((sum, i) => sum + Math.round(i.price_cents * i.qty), 0); }
+function calcSubtotal() { return cart.items.reduce((sum, i) => sum + Math.round(((typeof i.effective_price_cents === 'number') ? i.effective_price_cents : i.price_cents) * i.qty), 0); }
 function calcRefundSubtotal() {
   return cart.refund_lines.reduce((sum, r) => sum + Math.round(r.price_cents * r.qty), 0);
 }
@@ -3438,6 +3552,12 @@ function preflightCheck() {
   const hasServiceLine = cart.items.some(i => i.type === 'service');
   if (hasServiceLine && !cart.customer) {
     return {
+      // MARKER-LINE-PRICE — buildLine() has always accepted these two; the
+      // register simply never sent them. Discount is per unit on screen and
+      // per line on the wire, which is what the column means.
+      discount_cents: Math.max(0, Math.round((i.line_discount_cents || 0) * i.qty)),
+      ...(i.line_override_cents ? { unit_price_cents: i.line_override_cents } : {}),
+
       title: 'Add a customer',
       message: 'A customer is required when the sale includes a service. Attach a customer and we\'ll continue.',
       actionLabel: 'Add customer →',
@@ -4176,3 +4296,41 @@ loadDrafts().then(refreshDraftsBanner);
 @endif
 @endpush
 
+{{-- MARKER-LINE-PRICE — in-app, because native dialogs get suppressed and then
+     fail closed without telling anyone. --}}
+@if(($canLinePrice ?? false))
+<div id="reg-lineprice" style="display:none;position:fixed;inset:0;z-index:80;
+     background:rgba(0,0,0,.6);align-items:center;justify-content:center"
+     onclick="if (event.target === this) regLinePriceClose()">
+  <div style="background:var(--ia-surface);border:0.5px solid var(--ia-border-strong);
+       border-radius:12px;width:340px;max-width:92vw;padding:18px 20px">
+    <div style="font-size:15px;font-weight:650;margin-bottom:2px">Change price</div>
+    <div id="reg-lineprice-name" style="font-size:12.5px;color:var(--ia-text-dim);margin-bottom:14px"></div>
+
+    <label style="font-size:11.5px;color:var(--ia-text-dim)">New price each</label>
+    <input type="text" id="reg-lineprice-input" class="ia-input" inputmode="decimal"
+           style="width:100%;margin-top:5px;font-size:16px"
+           onkeydown="if (event.key === 'Enter') { event.preventDefault(); regLinePriceSave(); }
+                      if (event.key === 'Escape') { regLinePriceClose(); }">
+
+    <div style="font-size:11.5px;color:var(--ia-text-dim);margin-top:8px;line-height:1.5">
+      Normally <span id="reg-lineprice-orig"></span>.
+      Lower records a discount on the sale; higher just sets the price.
+    </div>
+
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
+      <button type="button" class="ia-btn ia-btn--sm" onclick="regLinePriceReset()">Reset</button>
+      <button type="button" class="ia-btn ia-btn--sm" onclick="regLinePriceClose()">Cancel</button>
+      <button type="button" class="ia-btn ia-btn--sm ia-btn--primary" onclick="regLinePriceSave()">Apply</button>
+    </div>
+  </div>
+</div>
+
+<style>
+  .reg-line-edit{background:none;border:0;color:var(--ia-accent);font-size:11px;
+    cursor:pointer;padding:0 2px;font-family:inherit;opacity:.8}
+  .reg-line-edit:hover{opacity:1;text-decoration:underline}
+  .reg-line-disc{color:#7ee081}
+  .reg-line-up{color:#f5c451}
+</style>
+@endif

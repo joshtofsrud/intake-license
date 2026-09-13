@@ -27,6 +27,18 @@ class CapabilityRegistry
     public static function all(): array
     {
         return [
+            // ---- Register ----
+            // MARKER-LINE-PRICE — covers both directions: discounting a line
+            // and overriding its price upward. Backfilled onto every existing
+            // role by migration, so this changes nobody's access on deploy.
+            'register.line_price' => [
+                'label'   => 'Change prices and discounts on a sale',
+                'section' => 'register',
+                'desc'    => 'Edit the price of a line at the register. Below the normal price records a discount; above it sets a new price.',
+                'gate'    => null,
+                'default_roles' => ['Manager', 'Staff'],
+            ],
+
             // ---- Inventory ----
             // MARKER-ITEM-MERGE — quieter and less reversible than deleting a
             // category: two records become one and the stock arithmetic is not

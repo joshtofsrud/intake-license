@@ -54,6 +54,10 @@ class RegisterController extends Controller
 
         return view('tenant.register.index', [
             'tenant'     => $tenant,
+            // MARKER-LINE-PRICE — the control is hidden without it, and
+            // checkout refuses the values regardless.
+            'canLinePrice' => (bool) optional(\Illuminate\Support\Facades\Auth::guard('tenant')->user())
+                ->can('register.line_price'),
             'offlineSyncEnabled' => app(\App\Services\FeatureAccessService::class)->hasAddon($tenant, 'offline_sync'), // MARKER-OFFLINE-SYNC
             'registers'  => \App\Models\Tenant\TenantRegister::where('tenant_id', $tenant->id)->where('is_active', true)->orderBy('number')->get(['id','number','name']), // MARKER-REGISTER-RECON-DISPLAY
             'currentRegisterId' => (int) $request->session()->get('current_register_id', 0), // MARKER-REGISTER-RECON-DISPLAY
@@ -1610,6 +1614,27 @@ class RegisterController extends Controller
 
         // MARKER-PATCH-553 — cost/margin only for roles with the capability
         $user = \Illuminate\Support\Facades\Auth::guard('tenant')->user(); // MARKER-PATCH-554
+
+        // MARKER-LINE-PRICE — the price arrives from a browser, so the gate
+        // lives here as well as in the view. Without the capability, any
+        // per-line price or discount is stripped and the catalog price stands;
+        // the sale still goes through rather than failing at the till with a
+        // customer waiting.
+        if (! ($user && $user->can('register.line_price'))) {
+            $stripped = collect($request->input('items', []))->map(function ($i) {
+                unset($i['discount_cents']);
+
+                // An open item has no catalog price to fall back on, so its
+                // typed price is the only price it has and must survive.
+                if (($i['type'] ?? null) !== 'open_item') {
+                    unset($i['unit_price_cents']);
+                }
+
+                return $i;
+            })->all();
+
+            $request->merge(['items' => $stripped]);
+        }
         $costPayload = null;
         if ($user && $user->canAccessSection('cost_margins')) {
             $cost  = (int) ($item->effectiveCostCents() ?? 0);
