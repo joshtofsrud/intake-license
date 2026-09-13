@@ -123,7 +123,11 @@
 
     <div class="sog-body scrolls">
       @foreach($sogOrphans as $so)
-        @include('tenant.special-orders._vendor_group_row', ['so' => $so, 'og' => $origins[$so->id] ?? null])
+        {{-- MARKER-SO-ORPHANS-INCLUDE — the same arguments the needs-a-vendor
+             block passes. The partial derives $og from $origins itself; what
+             it cannot do without is vendorId and selectable. Nothing here is
+             selectable: these are not being grouped into a vendor order. --}}
+        @include('tenant.special-orders._vendor_group_row', ['so' => $so, 'vendorId' => '', 'selectable' => false])
       @endforeach
     </div>
 
