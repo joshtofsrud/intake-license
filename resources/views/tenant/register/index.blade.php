@@ -108,6 +108,52 @@
     border-color:rgba(245,196,81,.4);
   }
 
+  /* MARKER-TENDER-LAYOUT ------------------------------------------------- */
+  .reg-tender-modal{max-width:460px;padding:0;overflow:hidden}
+  .tend-head{padding:18px 22px 16px;border-bottom:0.5px solid var(--ia-border)}
+  .tend-eyebrow{display:flex;align-items:center;justify-content:space-between;
+    font-size:11.5px;color:var(--ia-text-dim);letter-spacing:.02em}
+  .tend-x{background:none;border:0;color:var(--ia-text-dim);font-size:20px;line-height:1;
+    cursor:pointer;padding:0 2px}
+  .tend-x:hover{color:var(--ia-text)}
+  .tend-amount{font-size:34px;font-weight:700;letter-spacing:-.02em;margin-top:6px;
+    font-variant-numeric:tabular-nums}
+  .tend-sub{font-size:12.5px;color:var(--ia-text-dim);margin-top:2px}
+  .tend-body{padding:16px 22px 4px;max-height:52vh;overflow-y:auto}
+  .tend-label{font-size:11.5px;color:var(--ia-text-dim);margin:0 0 8px}
+  .tend-primary{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
+  .tend-big{display:flex;align-items:center;justify-content:space-between;
+    padding:15px 16px;font-size:14px;font-weight:600}
+  .tend-dot{width:14px;height:14px;border-radius:50%;border:1.5px solid var(--ia-border-strong);flex:0 0 auto}
+  .reg-tender-btn.tend-big.selected .tend-dot{border-color:var(--ia-accent);
+    background:radial-gradient(circle,var(--ia-accent) 0 42%,transparent 44%)}
+  .tend-more{width:100%;display:flex;align-items:center;justify-content:space-between;
+    background:var(--ia-input-bg);border:0.5px solid var(--ia-border);border-radius:var(--ia-r);
+    color:var(--ia-text);padding:12px 15px;font:inherit;font-size:13.5px;cursor:pointer;margin-bottom:12px}
+  .tend-more:hover{border-color:var(--ia-border-strong)}
+  .tend-chev{transition:transform .15s;color:var(--ia-text-dim)}
+  .tend-more[aria-expanded="true"] .tend-chev{transform:rotate(180deg)}
+  .tend-other{margin-bottom:12px}
+  .tend-cash-input{position:relative;margin-bottom:8px}
+  .tend-cash-input b{position:absolute;left:13px;top:50%;transform:translateY(-50%);
+    color:var(--ia-text-dim);font-size:15px}
+  .tend-cash-input input{width:100%;padding:13px 13px 13px 27px;font-size:17px;font-weight:700;
+    font-variant-numeric:tabular-nums;background:var(--ia-input-bg);color:var(--ia-text);
+    border:0.5px solid var(--ia-border);border-radius:var(--ia-r)}
+  .tend-quick{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px}
+  .tend-quick button{background:var(--ia-surface-2);border:0.5px solid var(--ia-border);
+    color:var(--ia-text);border-radius:var(--ia-r);padding:9px 0;font:inherit;font-size:13px;cursor:pointer}
+  .tend-quick button:hover{border-color:var(--ia-border-strong)}
+  .tend-change{display:flex;align-items:center;justify-content:space-between;
+    padding:10px 0 14px;font-size:13px;color:var(--ia-text-muted)}
+  .tend-change b{font-size:16px;font-variant-numeric:tabular-nums;color:#7ee081}
+  .tend-foot{padding:14px 22px 18px;border-top:0.5px solid var(--ia-border)}
+  .tend-go{width:100%;padding:14px;font-size:14.5px;font-weight:700}
+  .tend-links{display:flex;gap:18px;justify-content:center;margin-top:12px}
+  .tend-link{background:none;border:0;color:var(--ia-text-dim);font:inherit;font-size:12.5px;
+    cursor:pointer;padding:2px}
+  .tend-link:hover{color:var(--ia-text);text-decoration:underline}
+
   /* patch-96 oversell-badge — small amber inline marker on cart lines */
   .reg-oversell-badge {
     display:inline-block; margin-left:8px;
@@ -633,22 +679,51 @@
   </div>
 </div>
 
+{{-- MARKER-TENDER-LAYOUT — rearranged, not rewired. Every id below is the
+     one the existing JS already looks for; only the order, grouping and
+     wording have changed. --}}
 <div class="reg-modal-bg" id="tenderModal">
-  <div class="reg-modal">
-    <h2>Choose tender</h2>
-    <div class="lede">How is the customer paying?</div>
-    <div class="reg-tender-grid">
-      <button type="button" class="reg-tender-btn" data-tender="cash">Cash</button>
-      <button type="button" class="reg-tender-btn" data-tender="card">Card</button>
-      {{-- MARKER-PATCH-172 — payment-link tender (hidden when direct payments off) --}}
-      <button type="button" class="reg-tender-btn" data-tender="payment_link" id="tenderPaymentLinkBtn" style="display:none">
-        Send payment link
-        <div style="font-size:11px;opacity:.55;font-weight:400;margin-top:2px">Customer pays from their phone</div>
+  <div class="reg-modal reg-tender-modal">
+
+    {{-- Amount due leads. Before this, the only number on screen was an input
+         box that doubled as the split field. --}}
+    <div class="tend-head">
+      <div class="tend-eyebrow">
+        <span>Collect payment · Amount due</span>
+        <button type="button" class="tend-x" data-close-modal="tenderModal" aria-label="Back to the sale">&times;</button>
+      </div>
+      <div class="tend-amount" id="tenderAmountDue">$0.00</div>
+      <div class="tend-sub" id="tenderAmountSub"></div>
+    </div>
+
+    <div class="tend-body">
+      <div class="tend-label">Payment method</div>
+
+      {{-- The two used almost every time, given the weight they earn. --}}
+      <div class="tend-primary">
+        <button type="button" class="reg-tender-btn tend-big" data-tender="card">
+          <span class="tend-big-name">Card</span><span class="tend-dot"></span>
+        </button>
+        <button type="button" class="reg-tender-btn tend-big" data-tender="cash">
+          <span class="tend-big-name">Cash</span><span class="tend-dot"></span>
+        </button>
+      </div>
+
+      {{-- Everything else, folded away until wanted. --}}
+      <button type="button" class="tend-more" id="tenderMoreBtn" aria-expanded="false">
+        <span>Other payment methods</span><span class="tend-chev">&#9662;</span>
       </button>
-      <button type="button" class="reg-tender-btn" data-tender="check">Check</button>
-      <button type="button" class="reg-tender-btn" data-tender="store_credit">Store credit</button>
-      @if(tenant()->gift_cards_visible)<button type="button" class="reg-tender-btn" data-tender="gift_card">Gift card</button>@endif {{-- MARKER-GIFTCARDS-GATE --}}
-      {{-- MARKER-PATCH-630 — manual tenders from tenant_payment_methods (Venmo, Cash App, custom) --}}
+
+      <div class="reg-tender-grid tend-other" id="tenderOtherGrid" style="display:none">
+        {{-- MARKER-PATCH-172 — payment-link tender (hidden when direct payments off) --}}
+        <button type="button" class="reg-tender-btn" data-tender="payment_link" id="tenderPaymentLinkBtn" style="display:none">
+          Send payment link
+          <div style="font-size:11px;opacity:.55;font-weight:400;margin-top:2px">Customer pays from their phone</div>
+        </button>
+        <button type="button" class="reg-tender-btn" data-tender="check">Check</button>
+        <button type="button" class="reg-tender-btn" data-tender="store_credit">Store credit</button>
+        @if(tenant()->gift_cards_visible)<button type="button" class="reg-tender-btn" data-tender="gift_card">Gift card</button>@endif {{-- MARKER-GIFTCARDS-GATE --}}
+        {{-- MARKER-PATCH-630 — manual tenders from tenant_payment_methods (Venmo, Cash App, custom) --}}
       @foreach(($manualTenders ?? []) as $mt)
         <button type="button" class="reg-tender-btn" data-tender="{{ $mt['key'] }}"
                 data-manual="1" data-name="{{ $mt['name'] }}"
@@ -658,24 +733,23 @@
           @if($mt['hint'])<div style="font-size:11px;opacity:.55;font-weight:400;margin-top:2px">{{ $mt['hint'] }}</div>@endif
         </button>
       @endforeach
-      <button type="button" class="reg-tender-btn" data-tender="mark_paid">No tender (already paid)</button>
-    </div>
-    {{-- MARKER-SPLIT-TENDER — amount entry: prefilled with remaining; Add
-         records a partial payment. Untouched prefill + Confirm = the classic
-         single-tender path, unchanged. --}}
-    <div id="splitAmountRow" style="display:none;gap:8px;margin-bottom:12px">
-      <div style="flex:1;position:relative">
-        <b style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--ia-text-dim);font-size:15px">$</b>
-        <input type="text" id="splitAmountInput" inputmode="decimal"
-               style="width:100%;padding:12px 12px 12px 26px;font-size:16px;font-weight:700;font-variant-numeric:tabular-nums">
       </div>
-      <button type="button" class="reg-btn" id="splitAddBtn" style="padding:0 18px;font-weight:800">Add payment</button>
-    </div>
-    <div id="splitHint" style="display:none;font-size:11.5px;color:var(--ia-text-dim);margin:-6px 0 12px">
-      Type a partial amount to split tenders — cash above the remainder computes change.
-    </div>
-    {{-- MARKER-GIFTCARDS -- code entry + live balance for the gift tender --}}
-    <div id="gcTenderRow" style="display:none;margin-bottom:12px">
+
+      {{-- MARKER-TENDER-LAYOUT — cash received and change. The calculation
+           already existed but only surfaced if you went through Add payment;
+           here it is part of the cash tender, where a counter needs it. --}}
+      <div id="tenderCashRow" style="display:none">
+        <div class="tend-label">Cash received</div>
+        <div class="tend-cash-input">
+          <b>$</b><input type="text" id="tenderCashInput" inputmode="decimal" placeholder="0.00">
+        </div>
+        <div class="tend-quick" id="tenderQuickKeys"></div>
+        <div class="tend-change">
+          <span>Change due</span><b id="tenderChangeAmt">$0.00</b>
+        </div>
+      </div>
+
+      <div id="gcTenderRow" style="display:none;margin-bottom:12px">
       <label style="display:block;font-size:12px;color:var(--ia-text-dim);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em">Gift card code</label>
       <div style="display:flex;gap:8px">
         <input type="text" id="gcTenderCode" placeholder="GC-0000-0000-0000" style="flex:1;padding:10px;background:var(--ia-input-bg);border:0.5px solid var(--ia-border);border-radius:var(--ia-r-sm);color:var(--ia-text);font-size:14px;font-family:var(--ia-font-mono)">
@@ -687,12 +761,11 @@
       </div>
       <div id="gcTenderErr" style="display:none;font-size:12.5px;color:#f87171;margin-top:8px"></div>
     </div>
-    <div id="tenderRefRow" style="display:none;margin-bottom:14px">
+      <div id="tenderRefRow" style="display:none;margin-bottom:14px">
       <label style="display:block;font-size:12px;color:var(--ia-text-dim);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em">Reference (optional)</label>
       <input type="text" id="tenderRefInput" placeholder="Check #, last 4 of card, etc.">
     </div>
-    {{-- MARKER-PATCH-630 — manual payment link (Venmo / Cash App) --}}
-    <div id="tenderManualRow" style="display:none;margin-bottom:14px">
+      <div id="tenderManualRow" style="display:none;margin-bottom:14px">
       <div id="tenderManualInstr" style="font-size:12px;color:var(--ia-text-muted);margin-bottom:8px"></div>
       <div id="tenderManualLinkWrap" style="display:none">
         <div id="tenderManualLink" style="font-size:12px;background:var(--ia-surface-2,#1a1a1a);border:1px solid var(--ia-border);border-radius:8px;padding:9px 11px;color:var(--ia-accent);word-break:break-all;margin-bottom:8px"></div>
@@ -703,7 +776,23 @@
       </div>
       <div style="font-size:11px;color:var(--ia-text-dim,rgba(255,255,255,.4));margin-top:8px">Confirm the payment arrived in your app, then continue — the sale records as paid by this method.</div>
     </div>
-    {{-- MARKER-SPLIT-TENDER — running remaining + recorded split payments.
+
+      {{-- MARKER-SPLIT-TENDER — unchanged behaviour: a partial amount here
+           starts a split. Now labelled, and sitting under the tender it
+           applies to, instead of being an unlabelled box meaning two things. --}}
+      <div id="splitAmountRow" style="display:none;gap:8px;margin-bottom:12px">
+        <div style="flex:1;position:relative">
+          <b style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--ia-text-dim);font-size:15px">$</b>
+          <input type="text" id="splitAmountInput" inputmode="decimal"
+                 style="width:100%;padding:12px 12px 12px 26px;font-size:16px;font-weight:700;font-variant-numeric:tabular-nums">
+        </div>
+        <button type="button" class="reg-btn" id="splitAddBtn" style="padding:0 18px;font-weight:800">Add payment</button>
+      </div>
+      <div id="splitHint" style="display:none;font-size:11.5px;color:var(--ia-text-dim);margin:-6px 0 12px">
+        Type a partial amount to split tenders — cash above the remainder computes change.
+      </div>
+
+      {{-- MARKER-SPLIT-TENDER — running remaining + recorded split payments.
          MARKER-TENDERUX — moved BELOW the tender grid: stacking legs above it
          pushed the grid and the action buttons down as payments were added,
          moving the target under the cashier's finger mid-transaction. --}}
@@ -712,17 +801,23 @@
       <span>Remaining</span><b id="splitRemain"></b>
     </div>
 
-    {{-- MARKER-TENDERFIX --}}
-    <div id="tenderModalErr" style="display:none;font-size:12.5px;color:#f87171;margin-bottom:10px"></div>
-    {{-- MARKER-LAYAWAY-REGISTER — result panel, shown in place of the tender
-         form once a layaway has been opened. --}}
-    <div id="layawayResult" style="display:none"></div>
-    <div class="reg-modal-actions">
-      <button type="button" class="reg-btn-secondary" data-close-modal="tenderModal">Cancel</button>
-      <button type="button" class="reg-btn-secondary" id="layawayBtn" style="display:none;margin-right:auto"
-              title="Hold the goods and take an opening payment">Put on layaway</button>
-      <button type="button" class="reg-btn-primary" id="tenderConfirmBtn" disabled>Continue</button>
+      <div id="layawayResult" style="display:none"></div>
+      <div id="tenderModalErr" style="display:none;font-size:12.5px;color:#f87171;margin-bottom:10px"></div>
     </div>
+
+    {{-- The action says what it will do. The two secondary routes are links,
+         not buttons competing with it. --}}
+    <div class="tend-foot">
+      <button type="button" class="reg-btn-primary tend-go" id="tenderConfirmBtn" disabled>Continue</button>
+      <div class="tend-links">
+        <button type="button" class="tend-link" id="layawayBtn" style="display:none">Move to layaway</button>
+        {{-- MARKER-TENDER-LAYOUT — the mark_paid tender, as the mockup's
+             "Already paid" link. Same .reg-tender-btn class and data-tender
+             the existing handler binds to; only its placement changed. --}}
+        <button type="button" class="reg-tender-btn tend-link" data-tender="mark_paid">Already paid</button>
+      </div>
+    </div>
+
   </div>
 </div>
 
@@ -2302,6 +2397,7 @@ function openTenderForPlan() {
   { const amt = document.getElementById('splitAmountInput'); if (amt) amt.value = ((t.scheduled_cents || t.balance_cents) / 100).toFixed(2); }
   document.getElementById('tenderConfirmBtn').disabled = true;
   document.querySelectorAll('#tenderModal .reg-tender-btn').forEach(b => b.classList.remove('selected'));
+  if (typeof tenderPaint === 'function') { tenderPaint(); } // MARKER-TENDER-LAYOUT
   resetGiftTender();
   tenderModalError('');
   const lb = document.getElementById('layawayBtn'); if (lb) lb.style.display = 'none';
@@ -2313,6 +2409,7 @@ function openTenderForPlan() {
       <span style="color:var(--ia-text-dim)">Enter any amount up to the balance, then pick how they are paying.</span></div>`;
   }
   openModal('tenderModal');
+  if (typeof tenderPaint === 'function') { tenderPaint(); } // MARKER-TENDER-LAYOUT
 }
 
 async function payOnLayaway() {
@@ -2426,6 +2523,105 @@ document.getElementById('layawayBtn')?.addEventListener('click', async () => {
   } catch (e) { tenderModalError('Could not open the layaway.'); btn.disabled = false; }
 });
 // ---------------------------------------------------------------------------
+
+// MARKER-TENDER-LAYOUT — presentation only. Nothing here records a payment;
+// it fills in the figures the old modal never showed and keeps the action
+// button honest about what it is about to do.
+function tenderPaint() {
+  const due = cart.payments.length > 0 ? splitRemaining() : tenderDueCents();
+
+  const amtEl = document.getElementById('tenderAmountDue');
+  const subEl = document.getElementById('tenderAmountSub');
+  if (amtEl) { amtEl.textContent = fmt(due); }
+  if (subEl) {
+    const who = cart.customer ? (cart.customer.name || 'Customer') : 'No customer';
+    const n = cart.items.length;
+    subEl.textContent = who + ' · ' + n + ' item' + (n === 1 ? '' : 's')
+      + (cart.payments.length ? ' · ' + fmt(splitPaid()) + ' already tendered' : '');
+  }
+
+  // Cash panel only for cash, and only then do quick keys make sense.
+  const cashRow = document.getElementById('tenderCashRow');
+  if (cashRow) {
+    const isCash = cart.payment_method === 'cash';
+    cashRow.style.display = isCash ? '' : 'none';
+    if (isCash) { tenderQuickKeys(due); tenderChange(); }
+  }
+
+  tenderButtonLabel(due);
+}
+
+function splitPaid() {
+  return cart.payments.reduce((n, p) => n + p.amount_cents, 0);
+}
+
+// Round up to the next $5, $10 and $20 above what is owed — the notes a
+// person actually hands over. Exact first, because it is the common case.
+function tenderQuickKeys(due) {
+  const box = document.getElementById('tenderQuickKeys');
+  if (!box) { return; }
+  const up = (step) => Math.ceil(due / step) * step;
+  const opts = [...new Set([up(500), up(1000), up(2000)])].filter(v => v > due).slice(0, 2);
+  box.innerHTML = '<button type="button" data-cash="' + due + '">Exact</button>'
+    + opts.map(v => '<button type="button" data-cash="' + v + '">' + fmt(v) + '</button>').join('');
+  box.querySelectorAll('[data-cash]').forEach(b => b.addEventListener('click', () => {
+    document.getElementById('tenderCashInput').value = (parseInt(b.dataset.cash, 10) / 100).toFixed(2);
+    tenderChange();
+  }));
+}
+
+function tenderChange() {
+  const input = document.getElementById('tenderCashInput');
+  const out = document.getElementById('tenderChangeAmt');
+  if (!input || !out) { return; }
+  const due = cart.payments.length > 0 ? splitRemaining() : tenderDueCents();
+  const got = Math.round((parseFloat(String(input.value).replace(/[^0-9.]/g, '')) || 0) * 100);
+  out.textContent = fmt(Math.max(0, got - due));
+
+  // The existing split path reads splitAmountInput. Keep the two in step so
+  // cash typed here behaves exactly as cash typed there always has.
+  const split = document.getElementById('splitAmountInput');
+  if (split && got > 0) { split.value = (Math.min(got, due) / 100).toFixed(2); }
+
+  tenderButtonLabel(due);
+}
+
+function tenderButtonLabel(due) {
+  const btn = document.getElementById('tenderConfirmBtn');
+  if (!btn) { return; }
+  if (cart.layaway_target) { btn.textContent = 'Take payment'; return; }
+  if (!cart.payment_method) { btn.textContent = 'Continue'; return; }
+
+  const typed = (() => {
+    const el = document.getElementById('splitAmountInput');
+    const v = el && el.value ? Math.round(parseFloat(String(el.value).replace(/[^0-9.]/g, '')) * 100) : null;
+    return (v && !isNaN(v)) ? v : null;
+  })();
+  const amount = (typed !== null && typed < due) ? typed : due;
+
+  btn.textContent = ({
+    card:         'Charge ' + fmt(amount),
+    cash:         'Complete cash payment · ' + fmt(amount),
+    check:        'Record check · ' + fmt(amount),
+    store_credit: 'Apply store credit · ' + fmt(amount),
+    gift_card:    'Apply gift card · ' + fmt(amount),
+    payment_link: 'Send a payment link',
+    mark_paid:    'Record as already paid',
+  })[cart.payment_method] || ('Take ' + fmt(amount));
+}
+
+// The "Other payment methods" fold.
+document.getElementById('tenderMoreBtn')?.addEventListener('click', function () {
+  const grid = document.getElementById('tenderOtherGrid');
+  const open = grid.style.display !== 'none';
+  grid.style.display = open ? 'none' : '';
+  this.setAttribute('aria-expanded', open ? 'false' : 'true');
+});
+
+document.getElementById('tenderCashInput')?.addEventListener('input', tenderChange);
+document.getElementById('splitAmountInput')?.addEventListener('input', function () {
+  tenderButtonLabel(cart.payments.length > 0 ? splitRemaining() : tenderDueCents());
+});
 
 function calcSubtotal() { return cart.items.reduce((sum, i) => sum + Math.round(((typeof i.effective_price_cents === 'number') ? i.effective_price_cents : i.price_cents) * i.qty), 0); }
 function calcRefundSubtotal() {
@@ -2856,6 +3052,7 @@ document.getElementById('payBtn').addEventListener('click', () => {
     }
   }
   openModal('tenderModal');
+  if (typeof tenderPaint === 'function') { tenderPaint(); } // MARKER-TENDER-LAYOUT
 });
 
 // Refund-tender modal handlers
@@ -3305,6 +3502,7 @@ async function confirmCardPayment() {
       resetGiftTender();      // MARKER-TENDERFIX
       tenderModalError('');
       openModal('tenderModal');
+  if (typeof tenderPaint === 'function') { tenderPaint(); } // MARKER-TENDER-LAYOUT
       return;
     }
     cart.payment_method = 'split';
