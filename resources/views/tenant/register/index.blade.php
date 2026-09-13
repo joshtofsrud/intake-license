@@ -1043,8 +1043,11 @@
 
 @if(!empty($preAttachCustomer))
 <script>
-  // MARKER-LINE-PRICE
-  const CAN_LINE_PRICE = @json($canLinePrice ?? false);
+  // MARKER-LINE-PRICE-SCOPE — on window, not const. This file has several
+  // separate <script> blocks; a const declared here is invisible three blocks
+  // later where renderCart() lives, and the ReferenceError stopped the cart
+  // repainting at all.
+  window.CAN_LINE_PRICE = @json($canLinePrice ?? false);
   // Patch 46: pre-attach customer from walk-in flow query param.
   // Runs after the register page's cart JS has initialized.
   document.addEventListener('DOMContentLoaded', function() {
@@ -1950,7 +1953,9 @@ function renderCart() {
           priceMeta = `${fmt(orig)} · ${i.type}`;
         }
 
-        const priceBtn = CAN_LINE_PRICE
+        // Falls back to false: a missing flag should hide the control, never
+        // break the cart.
+        const priceBtn = (window.CAN_LINE_PRICE === true)
           ? `<button type="button" class="reg-line-edit" data-price="${i.key}" title="Change this line's price">edit price</button>`
           : '';
 
