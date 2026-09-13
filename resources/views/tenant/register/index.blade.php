@@ -3097,16 +3097,30 @@ document.getElementById('tenderConfirmBtn').addEventListener('click', () => {
   // MARKER-BIZ-REGISTER — a PO-required customer is asked once, here, rather
   // than the invoice being rejected weeks later for a missing reference.
   if (cart.customer && cart.customer.po_required && !cart.po_number) {
-    const po = window.prompt(
-      (cart.customer.name || 'This customer') + ' requires a PO number for this sale.'
-    );
-    if (po === null) return;                 // cancelled — do not complete
-    const clean = String(po).trim();
-    if (!clean) {
-      if (window.IntakeToast) IntakeToast.error('A PO number is required for this customer.');
-      return;
-    }
-    cart.po_number = clean;
+    // MARKER-TENANT-CONFIRM — was window.prompt. This gates completing a sale
+    // for a PO-required customer, so a suppressed dialog here meant a sale
+    // that could not be rung through, with nothing on screen to say why.
+    // In-app prompt; on a value, the same click is resumed.
+    const askPo = (window.IntakeConfirm && typeof IntakeConfirm.prompt === 'function')
+      ? IntakeConfirm.prompt({
+          title: 'PO number required',
+          message: (cart.customer.name || 'This customer') + ' requires a PO number for this sale.',
+          placeholder: 'PO number',
+          confirmText: 'Continue',
+        })
+      : Promise.resolve(window.prompt((cart.customer.name || 'This customer') + ' requires a PO number for this sale.'));
+
+    askPo.then(function (po) {
+      if (po === null || po === undefined) return;   // cancelled — do not complete
+      const clean = String(po).trim();
+      if (!clean) {
+        if (window.IntakeToast) IntakeToast.error('A PO number is required for this customer.');
+        return;
+      }
+      cart.po_number = clean;
+      document.getElementById('tenderConfirmBtn').click(); // resume with the PO set
+    });
+    return;
   }
 
   cart.payment_reference = document.getElementById('tenderRefInput').value.trim() || null;

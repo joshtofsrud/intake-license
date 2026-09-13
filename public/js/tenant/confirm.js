@@ -279,3 +279,108 @@ window.IntakeConfirm.prompt = function (opts) {
     input.select();
   });
 };
+
+// MARKER-TENANT-CONFIRM — one interceptor for every attribute-based native
+// confirm in the tenant app.
+//
+//   onsubmit="return confirm('…')" and onclick="return confirm('…')" are
+//   inline handlers, which fire in the TARGET phase. This listener runs in the
+//   CAPTURE phase, so it gets there first: it stops the event, asks in-app,
+//   and on Yes re-fires with the inline attribute removed for the duration so
+//   the native dialog never runs. Nothing in any view has to change, and a
+//   form written that way tomorrow gets the same treatment.
+//
+//   Why not just override window.confirm: it is synchronous, and the inline
+//   handler needs its return value in the same tick. A modal cannot answer in
+//   the same tick, so the event has to be replayed instead.
+(function () {
+  'use strict';
+
+  var RE = /\bconfirm\s*\(\s*(['"])((?:\\.|(?!\1).)*)\1/;
+
+  function messageFrom(attr) {
+    var m = RE.exec(attr || '');
+    if (!m) { return 'Are you sure?'; }
+    return m[2].replace(/\\(['"\\])/g, '$1').replace(/\\n/g, '\n');
+  }
+
+  function looksDestructive(msg) {
+    return /\b(delete|remove|erase|void|cancel|archive|revert|discard|lock|regenerate|disconnect|tear down)\b/i.test(msg);
+  }
+
+  function ask(msg) {
+    if (!window.IntakeConfirm || typeof window.IntakeConfirm.show !== 'function') {
+      // The helper failed to load: fall back to the native dialog rather than
+      // silently allowing the action. Failing closed is the whole point.
+      return Promise.resolve(window.confirm(msg));
+    }
+    return window.IntakeConfirm.show({
+      title: 'Please confirm',
+      message: msg,
+      confirmText: 'Yes, go ahead',
+      danger: looksDestructive(msg)
+    });
+  }
+
+  // Forms with onsubmit="return confirm(...)"
+  document.addEventListener('submit', function (e) {
+    var form = e.target;
+    if (!form || form.tagName !== 'FORM') { return; }
+
+    if (form.dataset.iaConfirmed === '1') {
+      delete form.dataset.iaConfirmed;
+      return; // replay after Yes — let it through
+    }
+
+    var attr = form.getAttribute('onsubmit');
+    if (!attr || !RE.test(attr)) { return; }
+
+    e.preventDefault();
+    e.stopImmediatePropagation();
+
+    var submitter = e.submitter || null;
+
+    ask(messageFrom(attr)).then(function (ok) {
+      if (!ok) { return; }
+      form.dataset.iaConfirmed = '1';
+      form.removeAttribute('onsubmit');
+      try {
+        if (typeof form.requestSubmit === 'function') {
+          form.requestSubmit(submitter || undefined);
+        } else {
+          form.submit();
+        }
+      } finally {
+        form.setAttribute('onsubmit', attr);
+      }
+    });
+  }, true);
+
+  // Buttons / links with onclick="return confirm(...)"
+  document.addEventListener('click', function (e) {
+    var el = e.target && e.target.closest ? e.target.closest('[onclick]') : null;
+    if (!el) { return; }
+
+    if (el.dataset.iaConfirmed === '1') {
+      delete el.dataset.iaConfirmed;
+      return;
+    }
+
+    var attr = el.getAttribute('onclick');
+    if (!attr || !RE.test(attr)) { return; }
+
+    e.preventDefault();
+    e.stopImmediatePropagation();
+
+    ask(messageFrom(attr)).then(function (ok) {
+      if (!ok) { return; }
+      el.dataset.iaConfirmed = '1';
+      el.removeAttribute('onclick');
+      try {
+        el.click();
+      } finally {
+        el.setAttribute('onclick', attr);
+      }
+    });
+  }, true);
+})();
