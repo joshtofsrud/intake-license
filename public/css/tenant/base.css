@@ -1333,17 +1333,27 @@ body.ia-theme-c .ia-schedule-pill.is-active {
 /* MARKER-SIDEBAR-COLLAPSE ---------------------------------------------------
    220px of chrome is expensive in the page builder. Collapse to an icon rail.
    Everything keys off a class on <html> so the state applies before paint. */
+/* MARKER-SB-COLLAPSE-VISIBLE — this was opacity:0 until the sidebar was
+   hovered, so a finished feature was undiscoverable: a 22px chevron at 50%
+   grey, revealed only by mousing over a region nobody mouses over on purpose.
+   Always visible now, with a border so it reads as a control rather than a
+   decoration, and a target a finger can actually hit. */
 .ia-sb-collapse-btn {
-  position: absolute; top: 14px; right: 8px; z-index: 3;
+  position: absolute; top: 13px; right: 8px; z-index: 3;
   display: flex; align-items: center; justify-content: center;
-  width: 22px; height: 22px; padding: 0;
-  background: none; border: none; cursor: pointer;
-  border-radius: 5px;
+  width: 28px; height: 28px; padding: 0;
+  background: var(--ia-surface-2, rgba(255,255,255,.05));
+  border: 0.5px solid var(--ia-border, rgba(255,255,255,.13));
+  cursor: pointer;
+  border-radius: 7px;
   color: var(--ia-text-dim, rgba(255,255,255,.5));
-  opacity: 0; transition: opacity .13s, background .13s, color .13s;
+  opacity: 1; transition: background .13s, color .13s, border-color .13s;
 }
 .ia-sidebar:hover .ia-sb-collapse-btn,
-.ia-sb-collapse-btn:focus-visible { opacity: 1; }
+.ia-sb-collapse-btn:focus-visible {
+  color: var(--ia-text, #f0f0f0);
+  border-color: var(--ia-border-strong, rgba(255,255,255,.22));
+}
 .ia-sb-collapse-btn:hover {
   background: rgba(127,127,127,.14);
   color: var(--ia-text, #f0f0f0);

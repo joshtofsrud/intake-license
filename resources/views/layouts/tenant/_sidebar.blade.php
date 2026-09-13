@@ -18,6 +18,53 @@
     </svg>
   </button>
 
+  {{-- MARKER-SB-COLLAPSE-VISIBLE — a one-time hint. A chevron in a corner is
+       still a mystery even when you can see it; this names it once and never
+       comes back. Dismissed the first time the button is used, or on click. --}}
+  <div class="ia-sb-collapse-hint" id="ia-sb-collapse-hint" hidden>
+    Narrow the menu
+  </div>
+
+  @push('styles')
+  <style>
+    .ia-sb-collapse-hint{
+      position:absolute; top:15px; right:42px; z-index:3;
+      background:var(--ia-surface-2, #262626);
+      border:0.5px solid var(--ia-border-strong, rgba(255,255,255,.22));
+      color:var(--ia-text, #f0f0f0);
+      font-size:11.5px; white-space:nowrap;
+      padding:5px 10px; border-radius:6px;
+      box-shadow:0 6px 18px rgba(0,0,0,.45);
+      pointer-events:none;
+    }
+    html.ia-sb-collapsed .ia-sb-collapse-hint{ display:none; }
+  </style>
+  @endpush
+
+  @push('scripts')
+  <script>
+    // MARKER-SB-COLLAPSE-VISIBLE — shown until the person has used the button
+    // once, then never again. Stored per browser, like the collapse state.
+    (function () {
+      try {
+        var seen = localStorage.getItem('ia-sb-collapse-seen') === '1';
+        var hint = document.getElementById('ia-sb-collapse-hint');
+        var btn  = document.getElementById('ia-sb-collapse');
+        if (!hint || !btn) { return; }
+
+        if (!seen && localStorage.getItem('ia-sidebar-collapsed') !== '1') {
+          hint.hidden = false;
+        }
+
+        btn.addEventListener('click', function () {
+          hint.hidden = true;
+          try { localStorage.setItem('ia-sb-collapse-seen', '1'); } catch (e) {}
+        });
+      } catch (e) {}
+    })();
+  </script>
+  @endpush
+
   {{-- Logo (image only when uploaded, fallback to letter + name when not) --}}
   <div class="ia-sidebar-logo">
     @if($sidebarLogo)
