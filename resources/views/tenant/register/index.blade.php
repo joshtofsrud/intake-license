@@ -1086,6 +1086,7 @@
 // condition out literally here would inject a real unclosed directive.
 window.CAN_LINE_PRICE = @json($canLinePrice ?? false);
 window.CAN_LAYAWAY = @json($canLayaway ?? false); // MARKER-LAYAWAY-REGISTER
+window.CAN_OVERRIDE_RESERVE = @json($canOverrideReserve ?? false); // MARKER-RESERVE-OVERRIDE
 
 // MARKER-ITEM-MODAL-SHARED — thin shim. The register's info button already
 // calls openItemInfo(); keeping the name means that call site is untouched.
@@ -1269,6 +1270,7 @@ async function osTryQueueCommit(){
   await io.queueSale(osBuildSalePayload());
   cart.items = []; cart.refund_lines = []; cart.refund_meta = null;
   cart.customer = null; cart.tipCents = 0; cart.discountCents = 0; cart.discountCode = null; // MARKER-REGISTER-DISCOUNT
+  cart.override_reserved = false; // MARKER-RESERVE-OVERRIDE — never carries into the next sale
   cart.po_number = null; // MARKER-BIZ-REGISTER
   (function(){ var r = document.getElementById('taxExemptRow'); if (r) r.style.display = 'none'; })();
   cart.payment_method = null; cart.payments = []; if (typeof renderSplit === 'function') renderSplit(); /* MARKER-SPLIT-TENDER */ cart.payment_reference = null;
@@ -1999,7 +2001,11 @@ function renderCart() {
           const heldHere = (typeof i.reserved_here === 'number') ? i.reserved_here : 0;
 
           if (heldHere > 0 && heldHere >= overBy) {
-            badge = `<span class="reg-oversell-badge" title="On the shelf, promised to a layaway. The sale will be refused.">⚠ ${heldHere} held on layaway${locLabel} — not short</span>`;
+            // MARKER-RESERVE-OVERRIDE — the door, for whoever holds the key.
+            const sellAnyway = (window.CAN_OVERRIDE_RESERVE === true && !cart.override_reserved)
+              ? ` <button type="button" class="reg-oversell-btn" data-action="override-reserve" data-key="${i.key}">Sell anyway…</button>`
+              : (cart.override_reserved ? ' <span class="reg-oversell-pill">✓ Selling anyway — their plan loses this item</span>' : '');
+            badge = `<span class="reg-oversell-badge" title="On the shelf, promised to a layaway.">⚠ ${heldHere} held on layaway${locLabel} — not short</span>${sellAnyway}`;
           } else {
             badge = `<span class="reg-oversell-badge" title="Stock will go to ${i.current_location_stock - i.qty}${locLabel}">⚠ short ${overBy}${locLabel}</span>`;
           }
@@ -2081,6 +2087,21 @@ function renderCart() {
     btn.addEventListener('click', () => removeLine(parseInt(btn.dataset.remove, 10)));
   });
   // MARKER-LINE-PRICE
+  // MARKER-RESERVE-OVERRIDE — the consequence is stated before the click, and
+  // it is another customer's, which is why this asks rather than toggles.
+  lines.querySelectorAll('[data-action="override-reserve"]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const ok = window.iaConfirm
+        ? await iaConfirm('This item is held for another customer\'s layaway.\n\n'
+            + 'Selling it releases their hold: their plan stays open and still owes what it owed, '
+            + 'but their item is gone and will need ordering.\n\nSell it to the customer in front of you?')
+        : true;
+      if (!ok) { return; }
+      cart.override_reserved = true;
+      renderCart();
+    });
+  });
+
   lines.querySelectorAll('[data-price]').forEach(btn => {
     btn.addEventListener('click', () => editLinePrice(parseInt(btn.dataset.price, 10)));
   });
@@ -3724,6 +3745,7 @@ async function commitTransaction(opts = {}) {
         card_brand: cart.card_brand || null,
         card_last4: cart.card_last4 || null,
         card_funding: cart.card_funding || null,
+        override_reserved: !!cart.override_reserved, // MARKER-RESERVE-OVERRIDE
         items: hasNewSale ? cart.items.map(serializeLine) : [],
         refund: {
           original_sale_id: cart.refund_meta.original_sale_id,

@@ -129,7 +129,11 @@ class SaleService
             $sale->load('items');
             foreach ($sale->items as $line) {
                 if ($line->type === 'product') {
-                    $this->inventory->decrementForSaleItem($sale, $line, $data['location_id']);
+                    // MARKER-RESERVE-OVERRIDE — only ever true when the
+                    // controller verified the capability.
+                    $this->inventory->decrementForSaleItem(
+                        $sale, $line, $data['location_id'], (bool) ($data['override_reserved'] ?? false)
+                    );
                 }
             }
 
@@ -395,7 +399,9 @@ class SaleService
             // Decrement inventory for product lines now that we're committing.
             foreach ($sale->items as $line) {
                 if ($line->type === 'product') {
-                    $this->inventory->decrementForSaleItem($sale, $line, $sale->location_id);
+                    $this->inventory->decrementForSaleItem(
+                        $sale, $line, $sale->location_id, (bool) ($data['override_reserved'] ?? false)
+                    ); // MARKER-RESERVE-OVERRIDE
                 }
             }
 

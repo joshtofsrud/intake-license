@@ -31,7 +31,14 @@ class InventoryService
      * Throws InventoryStockException if stock would go negative and the
      * item does not allow_oversell.
      */
-    public function decrementForSaleItem(TenantSale $sale, TenantSaleItem $item, string $locationId): void
+    /**
+     * MARKER-RESERVE-OVERRIDE — $overrideReserved lets an owner sell a unit
+     * held for someone else's layaway. It releases the blocking reservations
+     * (a real, attributable movement on the other plan's history) rather than
+     * quietly ignoring them, so the other plan's line is visibly without stock
+     * instead of invisibly so.
+     */
+    public function decrementForSaleItem(TenantSale $sale, TenantSaleItem $item, string $locationId, bool $overrideReserved = false): void
     {
         if ($item->type !== 'product' || !$item->inventory_item_id) {
             return; // service / open_item / gift_card lines don't touch inventory
@@ -80,6 +87,45 @@ class InventoryService
 
         $heldForOthers = (int) $loc->reserved_count;
         $newLocStock   = $loc->computed_stock_count - $qty;
+
+        // MARKER-RESERVE-OVERRIDE — take the hold off someone else's plan,
+        // on purpose, with a movement row that says so. Only ever reached when
+        // the capability was checked and the person confirmed the consequence.
+        if ($overrideReserved && ($newLocStock - $heldForOthers) < 0 && $heldForOthers > 0) {
+            $need = $heldForOthers - max(0, $newLocStock);
+            $freed = 0;
+            $affected = [];
+
+            $blocking = \App\Models\Tenant\TenantInventoryReservation::active()
+                ->where('inventory_item_id', $invItem->id)
+                ->where('location_id', $locationId)
+                ->where('sale_id', '!=', $sale->id)
+                ->orderByDesc('created_at') // the newest promise is the least settled
+                ->get();
+
+            foreach ($blocking as $res) {
+                if ($freed >= $need) {
+                    break;
+                }
+                app(ReservationService::class)->release($res, 'sold_to_another_customer');
+                $freed += $res->quantity;
+                $affected[] = $res->sale_id;
+            }
+
+            \Illuminate\Support\Facades\Log::warning('MARKER-RESERVE-OVERRIDE reserved stock sold to another customer', [
+                'tenant'        => $sale->tenant_id,
+                'item'          => $invItem->id,
+                'item_name'     => $invItem->name,
+                'location'      => $locationId,
+                'sold_on_sale'  => $sale->id,
+                'freed_units'   => $freed,
+                'affected_sales'=> array_values(array_unique($affected)),
+                'by'            => \Illuminate\Support\Facades\Auth::guard('tenant')->id(),
+            ]);
+
+            $loc->refresh();
+            $heldForOthers = (int) $loc->reserved_count;
+        }
 
         if (($newLocStock - $heldForOthers) < 0 && !$invItem->allow_oversell) {
             throw new InventoryStockException(

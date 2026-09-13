@@ -60,6 +60,8 @@ class RegisterController extends Controller
                 ->can('register.line_price'),
             'canLayaway'   => (bool) optional(\Illuminate\Support\Facades\Auth::guard('tenant')->user())
                 ->can('register.layaway.create'), // MARKER-LAYAWAY-REGISTER
+            'canOverrideReserve' => (bool) optional(\Illuminate\Support\Facades\Auth::guard('tenant')->user())
+                ->can('register.layaway.override_reserve'), // MARKER-RESERVE-OVERRIDE
             'offlineSyncEnabled' => app(\App\Services\FeatureAccessService::class)->hasAddon($tenant, 'offline_sync'), // MARKER-OFFLINE-SYNC
             'registers'  => \App\Models\Tenant\TenantRegister::where('tenant_id', $tenant->id)->where('is_active', true)->orderBy('number')->get(['id','number','name']), // MARKER-REGISTER-RECON-DISPLAY
             'currentRegisterId' => (int) $request->session()->get('current_register_id', 0), // MARKER-REGISTER-RECON-DISPLAY
@@ -472,7 +474,15 @@ class RegisterController extends Controller
         }
 
         try {
+            // MARKER-RESERVE-OVERRIDE — the browser asks; the server decides.
+            // Without the capability the flag is dropped and the sale is
+            // refused by the normal rule, exactly as if it had never been set.
+            $overrideReserved = $request->boolean('override_reserved')
+                && (bool) optional(\Illuminate\Support\Facades\Auth::guard('tenant')->user())
+                    ->can('register.layaway.override_reserve');
+
             $sale = $this->sales->createSale([
+                'override_reserved'  => $overrideReserved, // MARKER-RESERVE-OVERRIDE
                 'tenant_id'          => $tenant->id,
                 'rang_up_by_user_id' => auth('tenant')->id(),
                 'location_id'        => $locationId,
