@@ -997,23 +997,6 @@
       <a href="{{ route('tenant.alerts.prefs') }}" class="ia-btn ia-btn--primary">Open Notification settings</a>
     </div>
 
-    {{-- MARKER-LAYAWAY-SETTINGS-LINK — the policy every layaway agreement is
-         printed from. Shown with its two headline numbers so the terms can be
-         checked without opening the page. --}}
-    @php $lay = \App\Support\LayawaySettings::for($currentTenant); @endphp
-    <div class="ia-card" style="margin-bottom:20px">
-      <div class="ia-card-head" style="display:flex;align-items:center;justify-content:space-between">
-        <span class="ia-card-title">Layaway</span>
-        <span class="ia-badge">{{ (int) $lay['min_first_pct'] }}% to open · {{ (int) $lay['term_days'] }} days</span>
-      </div>
-      <p style="font-size:13px;opacity:.5;margin-bottom:12px;line-height:1.55">
-        What it takes to open a layaway, how long a customer has to collect, and what happens if
-        they cancel. Every agreement you print is filled from these terms as they stood the day
-        the plan opened.
-      </p>
-      <a href="{{ route('tenant.settings.layaway.index') }}" class="ia-btn ia-btn--primary">Open Layaway settings</a>
-    </div>
-
     {{-- MARKER-PATCH-224 — SMS config moved to Settings -> Messaging --}}
     <div class="ia-card" style="margin-bottom:20px">
       <div class="ia-card-head" style="display:flex;align-items:center;justify-content:space-between">
@@ -1312,6 +1295,23 @@
     {{-- MARKER-PATCH-169 — Direct Payments bridge feature.
          Only renders when master admin flipped direct_payments_enabled on for this tenant.
          Tenant pastes their own Stripe keys here for register card-sales. --}}
+    {{-- MARKER-LAYAWAY-SETTINGS-TAB — the policy every layaway agreement is
+         printed from. Shown with its two headline numbers so the terms can be
+         checked without opening the page. --}}
+    @php $lay = \App\Support\LayawaySettings::for($currentTenant); @endphp
+    <div class="ia-card" style="margin-bottom:20px">
+      <div class="ia-card-head" style="display:flex;align-items:center;justify-content:space-between">
+        <span class="ia-card-title">Layaway</span>
+        <span class="ia-badge">{{ (int) $lay['min_first_pct'] }}% to open · {{ (int) $lay['term_days'] }} days</span>
+      </div>
+      <p style="font-size:13px;opacity:.5;margin-bottom:12px;line-height:1.55">
+        What it takes to open a layaway, how long a customer has to collect, and what happens if
+        they cancel. Every agreement you print is filled from these terms as they stood the day
+        the plan opened.
+      </p>
+      <a href="{{ route('tenant.settings.layaway.index') }}" class="ia-btn ia-btn--primary">Open Layaway settings</a>
+    </div>
+
     @if($currentTenant->direct_payments_enabled ?? false)
     {{-- MARKER-PATCH-618 — toggle-able (default on). Off hides card + payment-link tenders at the register; refunds of past charges still work. --}}
     <div class="provider-card {{ ($s['stripe_register_enabled'] ?? true) ? 'enabled' : '' }}" id="register-payments-card">
