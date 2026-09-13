@@ -243,3 +243,9 @@ Schedule::command('billing:charge-due')
 Schedule::command('special-orders:clear-orphans --apply')
     ->dailyAt('03:10')
     ->withoutOverlapping();
+
+// MARKER-HOLD — nightly. Held carts are never touched; neither is one with a
+// payment against it. Each tenant's own interval decides the rest.
+Schedule::command('register:clear-recovered --apply')
+    ->dailyAt('03:20')
+    ->withoutOverlapping();

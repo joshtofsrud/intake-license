@@ -658,6 +658,9 @@
               style="width:100%;margin-top:10px;padding:9px;font-size:13px">Discount or code</button>
 
       <div class="reg-pay-row">
+        {{-- MARKER-HOLD — parking a cart deliberately, as opposed to the autosave
+             that happens anyway. The name is what tells them apart later. --}}
+        <button type="button" class="reg-quote-btn" id="holdSaleBtn">Hold sale</button>
         <button type="button" class="reg-quote-btn" id="quoteBtn" disabled>Save quote</button>
         <button type="button" class="reg-pay" id="payBtn" disabled>Collect payment</button>
       </div>
@@ -1270,6 +1273,9 @@ const ROUTES = {
   offlineSyncEnabled: {{ ($offlineSyncEnabled ?? false) ? 'true' : 'false' }}, // MARKER-OFFLINE-SYNC
   storeDraft:  @json(route('tenant.register.drafts.store')),
   listDrafts:  @json(route('tenant.register.drafts.index')),
+  // MARKER-HOLD
+  holdDraft:    @json(route('tenant.register.drafts.hold', ['id' => '__ID__'])),
+  draftCleanup: @json(route('tenant.register.drafts.cleanup')),
   draftBase:   @json(url('/admin/register/drafts')),
   commitDraft: @json(url('/admin/register/drafts')),
   storeQuote:  @json(route('tenant.register.quotes.store')),
@@ -2711,6 +2717,47 @@ document.getElementById('splitAmountInput')?.addEventListener('input', function 
     });
   });
 })();
+
+// MARKER-HOLD ---------------------------------------------------------------
+document.getElementById('holdSaleBtn')?.addEventListener('click', async function () {
+  if (!cart.items.length) { showError('Nothing to hold — the cart is empty.'); return; }
+
+  // Make sure the autosave has landed, so there is a draft to name.
+  await flushDraftSave();
+  if (!cart.draft_id) { showError('Could not park this cart. Try again.'); return; }
+
+  const suggested = cart.customer ? (cart.customer.name || '') : '';
+  const label = window.IntakeConfirm && typeof IntakeConfirm.prompt === 'function'
+    ? await IntakeConfirm.prompt({
+        title: 'Hold this sale',
+        message: 'Give it a name you will recognise — the customer, the bike, whatever you would say out loud.',
+        value: suggested,
+        placeholder: 'Blue Santa Cruz guy',
+        confirmText: 'Hold it',
+      })
+    : window.prompt('Name this held sale', suggested);
+
+  if (!label) { return; }
+
+  try {
+    const r = await fetch(ROUTES.holdDraft.replace('__ID__', cart.draft_id), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF, Accept: 'application/json' },
+      body: JSON.stringify({ label: String(label).slice(0, 60) }),
+    });
+    const d = await r.json();
+    if (!d.ok) { showError('Could not hold this sale.'); return; }
+
+    if (window.IntakeToast) { IntakeToast.success('Held as "' + d.label + '".'); }
+
+    // Clear the screen for the next customer — that is the point of holding.
+    cart.items = []; cart.payments = []; cart.payment_method = null;
+    cart.customer = null; cart.draft_id = null; cart.tipCents = 0;
+    cart.discountCents = 0; cart.discountCode = null;
+    renderCart();
+    if (typeof loadDrafts === 'function') { loadDrafts(); }
+  } catch (e) { showError('Could not hold this sale.'); }
+});
 
 function calcSubtotal() { return cart.items.reduce((sum, i) => sum + Math.round(((typeof i.effective_price_cents === 'number') ? i.effective_price_cents : i.price_cents) * i.qty), 0); }
 function calcRefundSubtotal() {
@@ -4474,7 +4521,7 @@ function renderDraftsList(drafts) {
   const list = document.getElementById('draftsList');
   const others = drafts.filter(d => d.id !== cart.draft_id);
   if (!others.length) {
-    list.innerHTML = '<div class="reg-empty">No other open drafts.</div>';
+    list.innerHTML = '<div class="reg-empty">No held or recovered carts.</div>';
     return;
   }
   list.innerHTML = others.map(d => {

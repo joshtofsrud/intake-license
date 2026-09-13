@@ -1106,10 +1106,56 @@ class RegisterController extends Controller
                         ? trim(($d->rangUpBy->first_name ?? '') . ' ' . ($d->rangUpBy->last_name ?? ''))
                         : null,
                     'updated_at'   => $d->updated_at?->toIso8601String(),
+                    // MARKER-HOLD — a name means somebody chose to keep this.
+                    'hold_label'   => $d->hold_label,
+                    'held'         => filled($d->hold_label),
+                    'held_at'      => $d->held_at?->toIso8601String(),
                 ];
             });
 
-        return response()->json(['drafts' => $drafts]);
+        // MARKER-HOLD — held first, then the recovered ones by age. A cashier
+        // looking for a parked customer should not scroll past debris.
+        $drafts = $drafts->sortBy(fn ($d) => $d['held'] ? 0 : 1)->values();
+
+        return response()->json([
+            'drafts'        => $drafts,
+            'cleanup_days'  => \App\Support\DraftCleanup::days($tenant),
+            'cleanup_label' => \App\Support\DraftCleanup::describe($tenant),
+        ]);
+    }
+
+    /** MARKER-HOLD — park this cart under a name. */
+    public function holdDraft(Request $request, string $id): JsonResponse
+    {
+        $tenant = tenant();
+
+        $v = $request->validate(['label' => 'required|string|max:60']);
+
+        $sale = TenantSale::where('tenant_id', $tenant->id)
+            ->whereIn('payment_status', ['draft', 'quote'])
+            ->findOrFail($id);
+
+        $sale->forceFill([
+            'hold_label' => trim($v['label']),
+            'held_at'    => now(),
+        ])->save();
+
+        return response()->json(['ok' => true, 'label' => $sale->hold_label]);
+    }
+
+    /** MARKER-HOLD — how long recovered carts are kept. */
+    public function saveDraftCleanup(Request $request)
+    {
+        $tenant = tenant();
+        $v = $request->validate(['days' => 'required|integer|min:0|max:90']);
+
+        \App\Support\DraftCleanup::setDays($tenant, (int) $v['days']);
+
+        return response()->json([
+            'ok'    => true,
+            'label' => \App\Support\DraftCleanup::describe($tenant),
+            'days'  => \App\Support\DraftCleanup::days($tenant),
+        ]);
     }
 
     /**

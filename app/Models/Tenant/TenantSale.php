@@ -46,6 +46,7 @@ class TenantSale extends Model
         'sale_date'      => 'date',
         'paid_at'        => 'datetime',
         'quote_expires_at' => 'datetime',
+        'held_at'        => 'datetime', // MARKER-HOLD
         'subtotal_cents' => 'integer',
         'discount_cents' => 'integer',
         'tax_cents'      => 'integer',

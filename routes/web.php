@@ -472,6 +472,9 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
                 Route::post('/register/checkout-session/check',   [TenantControllers\RegisterController::class, 'checkCheckoutSession'])->name('register.checkout_session.check');
                 Route::post('/register/checkout-session/cancel',  [TenantControllers\RegisterController::class, 'cancelCheckoutSession'])->name('register.checkout_session.cancel');
                 Route::get('/register/drafts',            [TenantControllers\RegisterController::class, 'listDrafts'])->name('register.drafts.index');
+                // MARKER-HOLD
+                Route::post('/register/drafts/{id}/hold',  [TenantControllers\RegisterController::class, 'holdDraft'])->name('register.drafts.hold');
+                Route::post('/register/drafts/cleanup',    [TenantControllers\RegisterController::class, 'saveDraftCleanup'])->name('register.drafts.cleanup');
                 Route::post('/register/drafts',           [TenantControllers\RegisterController::class, 'storeDraft'])->name('register.drafts.store');
                 Route::get('/register/drafts/{id}',        [TenantControllers\RegisterController::class, 'showDraft'])->name('register.drafts.show');
                 Route::delete('/register/drafts/{id}',     [TenantControllers\RegisterController::class, 'discardDraft'])->name('register.drafts.destroy');
