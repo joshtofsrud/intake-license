@@ -2471,6 +2471,19 @@ async function handOverLayaway(planId) {
 document.getElementById('layawayBtn')?.addEventListener('click', async () => {
   if (!cart.customer) { tenderModalError('Attach a customer first — a layaway holds goods for someone.'); return; }
 
+  // MARKER-LAYAWAY-NO-GIFTCARD — refuse, do not filter. This used to strip
+  // gift-card lines out of the payload silently, so the plan quietly covered
+  // less than the cart on screen. Name the line and let the person decide.
+  const gcLines = cart.items.filter(i => i.type === 'gift_card');
+  if (gcLines.length) {
+    tenderModalError(
+      gcLines.length === 1
+        ? 'Remove the gift card first — a gift card cannot go on a layaway, because there is nothing to hold. Ring it as its own sale.'
+        : 'Remove the ' + gcLines.length + ' gift cards first — gift cards cannot go on a layaway, because there is nothing to hold. Ring them as their own sale.'
+    );
+    return;
+  }
+
   // MARKER-LAYAWAY-TENDERED — legs already added ARE the opening payment.
   // Adding a split leg clears cart.payment_method so the next tender can be
   // picked, so checking that field told someone who had just paid $500 to
@@ -2511,7 +2524,10 @@ document.getElementById('layawayBtn')?.addEventListener('click', async () => {
         opening_amount_cents: legs.length ? null : typed,
         payment_method: legs.length ? legs[0].method : cart.payment_method,
         payment_reference: legs.length ? null : (document.getElementById('tenderRefInput').value.trim() || null),
-        items: cart.items.filter(i => i.type !== 'gift_card').map(serializeLine),
+        // MARKER-LAYAWAY-NO-GIFTCARD — no filter here any more. A gift card in
+        // the cart is refused above, with a reason; silently sending fewer
+        // lines than the cart shows is how a total stops matching the goods.
+        items: cart.items.map(serializeLine),
       })
     });
     const d = await r.json();

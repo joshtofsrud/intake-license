@@ -59,6 +59,19 @@ class LayawayService
             // rows, one of them resumable at the till.
             //
             // A layaway is a draft that grew up, not a new record beside one.
+            // MARKER-LAYAWAY-NO-GIFTCARD — a gift card has no goods to hold
+            // and its value exists the moment it is issued. Checked here as
+            // well as in the register, because a rule enforced only in a
+            // browser is not enforced.
+            foreach (($cart['items'] ?? []) as $line) {
+                if (($line['type'] ?? null) === 'gift_card') {
+                    throw new SaleValidationException(
+                        'A gift card cannot go on a layaway — there is nothing to hold, and its '
+                        . 'value exists as soon as it is issued. Sell the gift card on its own.'
+                    );
+                }
+            }
+
             $sale = $this->sales->saveDraft($cart);
             $sale->forceFill(['payment_status' => 'layaway'])->save();
             $sale->load('items');
