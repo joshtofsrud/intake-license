@@ -31,6 +31,28 @@ class CapabilityRegistry
             // MARKER-LINE-PRICE — covers both directions: discounting a line
             // and overriding its price upward. Backfilled onto every existing
             // role by migration, so this changes nobody's access on deploy.
+            // MARKER-LAYAWAY — backfilled onto existing roles by migration.
+            'register.layaway.create' => [
+                'label'   => 'Start a layaway',
+                'section' => 'register',
+                'desc'    => 'Open a layaway from the register, holding stock for the customer.',
+                'gate'    => null,
+                'default_roles' => ['Manager', 'Staff'],
+            ],
+            'register.layaway.cancel' => [
+                'label'   => 'Cancel a layaway',
+                'section' => 'register',
+                'desc'    => 'Cancel a layaway, release its stock and refund per policy.',
+                'gate'    => null,
+                'default_roles' => ['Manager'],
+            ],
+            'register.layaway.override_reserve' => [
+                'label'   => 'Sell a reserved item anyway',
+                'section' => 'register',
+                'desc'    => 'Sell a unit that is held for someone else\'s layaway. Their plan loses the item.',
+                'gate'    => null,
+                'default_roles' => [],
+            ],
             'register.line_price' => [
                 'label'   => 'Change prices and discounts on a sale',
                 'section' => 'register',

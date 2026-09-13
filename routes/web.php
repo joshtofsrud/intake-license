@@ -1209,6 +1209,9 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             Route::post('/settings/messaging/claim',         [TenantControllers\Settings\MessagingController::class, 'claim'])->name('settings.messaging.claim');
             Route::post('/settings/messaging/byo',           [TenantControllers\Settings\MessagingController::class, 'saveByo'])->name('settings.messaging.byo');
             Route::post('/settings/messaging/sync-webhook',  [TenantControllers\Settings\MessagingController::class, 'syncWebhook'])->name('settings.messaging.sync');
+            // MARKER-LAYAWAY
+            Route::get( '/settings/layaway',             [TenantControllers\Settings\LayawayController::class, 'index'])->name('settings.layaway.index');
+            Route::post('/settings/layaway',             [TenantControllers\Settings\LayawayController::class, 'save'])->name('settings.layaway.save');
             Route::get( '/settings/payments',            [TenantControllers\Settings\PaymentsController::class, 'index'])->name('settings.payments.index');
             Route::post('/settings/payments/connect',    [TenantControllers\Settings\PaymentsController::class, 'connect'])->name('settings.payments.connect');
             Route::post('/settings/payments/resume',     [TenantControllers\Settings\PaymentsController::class, 'resume'])->name('settings.payments.resume');

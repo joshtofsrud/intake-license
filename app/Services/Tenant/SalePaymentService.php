@@ -199,7 +199,11 @@ class SalePaymentService
             }
         }
 
-        if (in_array($sale->payment_status, ['draft', 'quote'], true)) {
+        // MARKER-LAYAWAY — a layaway stays 'layaway' until handover, however
+        // much has been paid. Without this, the first payment would flip it to
+        // 'partial' and paying it off would flip it to 'paid' — a completed
+        // sale with the goods still on the shelf. The plan owns paid/balance.
+        if (in_array($sale->payment_status, ['draft', 'quote', 'layaway'], true)) {
             return;
         }
 
