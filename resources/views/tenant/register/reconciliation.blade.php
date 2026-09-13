@@ -104,7 +104,7 @@
     btn.addEventListener('click', async function(){
       var pi = btn.getAttribute('data-reconcile');
       var saleId = btn.getAttribute('data-sale');
-      if (!confirm('Record this Stripe payment against the candidate sale? This writes a ledger entry.')) return;
+      if (!(await iaConfirm('Record this Stripe payment against the candidate sale? This writes a ledger entry.'))) return; // MARKER-INLINE-CONFIRM-1
       btn.disabled = true; btn.textContent = 'Recording…';
       try {
         var res = await fetch(RECORD_URL, {

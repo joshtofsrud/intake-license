@@ -2615,7 +2615,7 @@ function renderSplit() {
       + (p.change_cents ? '<span class="chg">Change due ' + fmt(p.change_cents) + '</span>' : '');
     row.querySelector('.x').addEventListener('click', async () => {
       if (!p.locked) { cart.payments.splice(i, 1); renderSplit(); return; }
-      if (!confirm('Void this ' + fmt(p.amount_cents) + ' card charge? The customer will be refunded.')) return;
+      if (!(await iaConfirm('Void this ' + fmt(p.amount_cents) + ' card charge? The customer will be refunded.'))) return; // MARKER-INLINE-CONFIRM-1
       try {
         const res = await fetch(ROUTES.paymentIntentAutoRefund, {
           method: 'POST',
@@ -3306,7 +3306,7 @@ document.getElementById('paymentLinkCopyBtn').addEventListener('click', () => {
 // MARKER-PATCH-192 — "Cancel link": explicit destructive action. Expires the
 // Stripe session and marks the sale cancelled. Only fires on deliberate click.
 document.getElementById('paymentLinkCancelBtn').addEventListener('click', async () => {
-  if (!confirm('Cancel this payment link? The customer will no longer be able to pay it.')) return;
+  if (!(await iaConfirm('Cancel this payment link? The customer will no longer be able to pay it.'))) return; // MARKER-INLINE-CONFIRM-1
   stopPaymentLinkPolling();
   if (PaymentLink.saleId) {
     try {
@@ -4068,7 +4068,7 @@ function lsClose() {
 document.getElementById('lsCloseBtn').addEventListener('click', lsClose);
 document.getElementById('lsCancelLinkBtn').addEventListener('click', async () => {
   if (!LinkStatus.saleId) return;
-  if (!confirm('Cancel this payment link? The customer will no longer be able to pay it.')) return;
+  if (!(await iaConfirm('Cancel this payment link? The customer will no longer be able to pay it.'))) return; // MARKER-INLINE-CONFIRM-1
   try {
     await fetch(ROUTES.checkoutSessionCancel, {
       method: 'POST',

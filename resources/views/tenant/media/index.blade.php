@@ -108,7 +108,7 @@
 
   // Archive — soft-delete; file stays on disk so live pages keep rendering.
   window.mlArchive = async function (id, btn) {
-    if (!confirm('Remove this from your library? Pages already using it keep working.')) return;
+    if (!(await iaConfirm('Remove this from your library? Pages already using it keep working.'))) return; // MARKER-INLINE-CONFIRM-1
     try {
       const r = await fetch('{{ url('admin/media') }}/' + id + '/archive', {
         method: 'POST', headers: { 'X-CSRF-TOKEN': csrf },

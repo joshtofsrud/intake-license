@@ -384,3 +384,18 @@ window.IntakeConfirm.prompt = function (opts) {
     });
   }, true);
 })();
+
+// MARKER-INLINE-CONFIRM-1 — the one call every rewritten inline confirm uses.
+// Same title, same button text, same danger heuristic, so a site converted
+// next month looks like one converted today.
+window.iaConfirm = function (msg) {
+  if (!window.IntakeConfirm || typeof window.IntakeConfirm.show !== 'function') {
+    return Promise.resolve(window.confirm(msg)); // helper missing: fail closed, not open
+  }
+  return window.IntakeConfirm.show({
+    title: 'Please confirm',
+    message: msg,
+    confirmText: 'Yes, go ahead',
+    danger: /\b(delete|remove|erase|void|cancel|detach|reset|discard|refund)\b/i.test(msg)
+  });
+};

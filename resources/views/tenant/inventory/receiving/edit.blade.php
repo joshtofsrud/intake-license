@@ -484,8 +484,8 @@
     }
   });
 
-  window.rcvRemoveLine = function (lineId) {
-    if (!confirm('Remove this line?')) return;
+  window.rcvRemoveLine = async function (lineId) {
+    if (!(await iaConfirm('Remove this line?'))) return; // MARKER-INLINE-CONFIRM-1
     jsonReq('DELETE', urls.removeItem(lineId)).then(function (res) {
       if (res.ok && res.body && res.body.ok) {
         var row = document.querySelector('#rcv-tbody tr[data-line-id="' + lineId + '"]');
@@ -579,14 +579,32 @@
     }
   }
 
+  // MARKER-INLINE-CONFIRM-1 — was a synchronous onsubmit returning true or
+  // false from a native confirm(). Now always prevents the submit, asks in
+  // app, and re-submits with a flag set so this handler lets it through.
+  // Commit writes stock movements and cannot be undone: exactly the place a
+  // suppressed dialog must not silently decide either way.
   window.rcvConfirmCommit = function (e) {
+    var form = e.target;
+
+    if (form.dataset.iaConfirmed === '1') {
+      delete form.dataset.iaConfirmed;
+      return true;
+    }
+
+    e.preventDefault();
+
     var lines = document.getElementById('rcv-commit-lines').textContent;
     var units = document.getElementById('rcv-commit-units').textContent;
-    if (!confirm('Commit will write movements for ' + lines + ', ' + units + '. This cannot be undone. Continue?')) {
-      e.preventDefault();
-      return false;
-    }
-    return true;
+
+    iaConfirm('Commit will write movements for ' + lines + ', ' + units + '. This cannot be undone. Continue?')
+      .then(function (ok) {
+        if (!ok) { return; }
+        form.dataset.iaConfirmed = '1';
+        if (typeof form.requestSubmit === 'function') { form.requestSubmit(); } else { form.submit(); }
+      });
+
+    return false;
   };
 
   setTimeout(function () { newLineInput.focus(); }, 100);

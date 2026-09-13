@@ -186,10 +186,10 @@
         .catch(function () { btn.disabled = false; results.innerHTML = '<p style="font-size:12.5px;color:#A32D2D">Search failed.</p>'; });
     });
 
-    document.getElementById('msg-results').addEventListener('click', function (e) {
+    document.getElementById('msg-results').addEventListener('click', async function (e) {
       var b = e.target.closest('.msg-claim');
       if (!b) return;
-      if (!confirm('Claim ' + b.getAttribute('data-number') + ' as your business text number?')) return;
+      if (!(await iaConfirm('Claim ' + b.getAttribute('data-number') + ' as your business text number?'))) return; // MARKER-INLINE-CONFIRM-1
       document.getElementById('msg-claim-number').value = b.getAttribute('data-number');
       document.getElementById('msg-claim-form').submit();
     });

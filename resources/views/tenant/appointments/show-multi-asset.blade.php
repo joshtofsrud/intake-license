@@ -3125,7 +3125,7 @@ input.ma-asset-name-edit:focus {
 
   // ---------------------- Detach asset ----------------------
   window.maDetachAsset = async function(appointmentAssetId, assetName) {
-    if (!confirm('Detach "' + assetName + '" from this appointment?\n\nServices on this asset will move to "Unassigned services" rather than being deleted.')) return;
+    if (!(await iaConfirm('Detach "' + assetName + '" from this appointment?\n\nServices on this asset will move to "Unassigned services" rather than being deleted.'))) return; // MARKER-INLINE-CONFIRM-1
     const result = await post({ op: 'detach_asset', appointment_asset_id: appointmentAssetId });
     if (!result.ok) { alert('Detach failed: ' + result.message); return; }
     location.reload();
@@ -3203,7 +3203,7 @@ input.ma-asset-name-edit:focus {
           cancelText:  'Keep closed',
         });
       } else {
-        proceed = confirm('Reopen this appointment? Status will return to pending.');
+        proceed = await iaConfirm('Reopen this appointment? Status will return to pending.'); // MARKER-INLINE-CONFIRM-1
       }
       if (!proceed) return;
       const result = await post({ op: 'status', status: 'pending' });
@@ -3257,7 +3257,7 @@ input.ma-asset-name-edit:focus {
       if (!row) return;
       const kind = row.dataset.kind;
       const id   = row.dataset.itemId;
-      if (!confirm('Remove this ' + (kind === 'addon' ? 'add-on' : 'service') + '?')) return;
+      if (!(await iaConfirm('Remove this ' + (kind === 'addon' ? 'add-on' : 'service') + '?'))) return; // MARKER-INLINE-CONFIRM-1
       const result = await post({
         op: kind === 'addon' ? 'remove_addon' : 'remove_service',
         [kind === 'addon' ? 'addon_id' : 'item_id']: id,
@@ -3407,7 +3407,7 @@ input.ma-asset-name-edit:focus {
   // Part remove button
   document.querySelectorAll('.ma-part-remove').forEach(function(btn) {
     btn.addEventListener('click', async function() {
-      if (!confirm('Remove this part from the appointment?')) return;
+      if (!(await iaConfirm('Remove this part from the appointment?'))) return; // MARKER-INLINE-CONFIRM-1
       const partId = btn.dataset.partId;
       const result = await post({ op: 'remove_part', part_id: partId });
       if (!result.ok) {
@@ -3894,7 +3894,7 @@ input.ma-asset-name-edit:focus {
   // Notes: delete
   document.querySelectorAll('.ma-note-delete').forEach(function(btn) {
     btn.addEventListener('click', async function() {
-      if (!confirm('Delete this note?')) return;
+      if (!(await iaConfirm('Delete this note?'))) return; // MARKER-INLINE-CONFIRM-1
       const noteId = btn.dataset.noteId;
       const result = await post({ op: 'delete_note', note_id: noteId });
       if (!result.ok) {
@@ -3938,7 +3938,7 @@ input.ma-asset-name-edit:focus {
           cancelText:  'Keep it',
           danger:      true,
         })
-      : confirm('Cancel this appointment?');
+      : await iaConfirm('Cancel this appointment?'); // MARKER-INLINE-CONFIRM-1
     if (!proceed) return;
     const fd = new FormData();
     fd.append('_token', {!! json_encode(csrf_token()) !!});
