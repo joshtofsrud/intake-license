@@ -214,7 +214,7 @@
                     </x-filament::button>
                     <x-filament::button size="xs" color="danger"
                         wire:click="deleteDocument({{ $doc->id }})"
-                        wire:confirm="Delete {{ $doc->label }}? The file is removed from disk.">Delete</x-filament::button>
+                        data-confirm="Delete {{ $doc->label }}? The file is removed from disk.">Delete</x-filament::button>
                 </td>
             </tr>
         @endforeach
@@ -237,7 +237,7 @@
             <div class="flex gap-2">
                 <x-filament::button wire:click="saveTemplate">Save</x-filament::button>
                 <x-filament::button color="gray" wire:click="resetTemplate"
-                    wire:confirm="Discard your wording and go back to the shipped version?">Reset</x-filament::button>
+                    data-confirm="Discard your wording and go back to the shipped version?">Reset</x-filament::button>
                 <x-filament::button color="gray" wire:click="closeTemplate">Close</x-filament::button>
             </div>
             <p class="text-xs text-gray-500">

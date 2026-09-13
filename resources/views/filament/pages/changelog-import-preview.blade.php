@@ -150,7 +150,7 @@
         <div class="flex flex-wrap items-center gap-3 border-t border-zinc-800 pt-6">
             <x-filament::button
                 wire:click="commitImport"
-                wire:confirm="Import the selected entries as drafts?"
+                data-confirm="Import the selected entries as drafts?"
                 :disabled="$newCount === 0 && $updCount === 0"
                 color="success"
             >

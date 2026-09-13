@@ -176,6 +176,78 @@ class AdminPanelProvider extends PanelProvider
                 </style>
                 HTML)
             )
+            // MARKER-ADMIN-CONFIRM — in-app confirm for every [data-confirm].
+            // Replaces wire:confirm, which uses the browser's native confirm()
+            // and fails closed and silently when that is suppressed. Capture
+            // phase, so the click is intercepted before Livewire's own
+            // listener runs; on Yes the button is flagged and the click is
+            // re-dispatched, and Livewire handles it exactly as before.
+            ->renderHook(
+                PanelsRenderHook::BODY_END,
+                fn (): string => Blade::render(<<<'HTML'
+                <div id="ia-confirm" style="display:none;position:fixed;inset:0;z-index:100;
+                     background:rgba(0,0,0,.6);align-items:center;justify-content:center">
+                  <div role="dialog" aria-modal="true" aria-labelledby="ia-confirm-msg"
+                       style="background:rgb(24 24 27);border:1px solid rgba(255,255,255,.14);
+                              border-radius:12px;width:420px;max-width:92vw;padding:20px 22px;
+                              box-shadow:0 24px 60px rgba(0,0,0,.6);color:#f4f4f5;font-size:14px;line-height:1.5">
+                    <div id="ia-confirm-msg" style="white-space:pre-line"></div>
+                    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:18px">
+                      <button type="button" id="ia-confirm-no"
+                              style="padding:7px 14px;border-radius:8px;border:1px solid rgba(255,255,255,.18);
+                                     background:transparent;color:inherit;cursor:pointer;font:inherit">Cancel</button>
+                      <button type="button" id="ia-confirm-yes"
+                              style="padding:7px 14px;border-radius:8px;border:0;background:#bef264;
+                                     color:#0b0b0b;font-weight:600;cursor:pointer;font:inherit">Yes, go ahead</button>
+                    </div>
+                  </div>
+                </div>
+                <script>
+                (function () {
+                  var wrap = document.getElementById('ia-confirm');
+                  var msg  = document.getElementById('ia-confirm-msg');
+                  var yes  = document.getElementById('ia-confirm-yes');
+                  var no   = document.getElementById('ia-confirm-no');
+                  var pending = null;
+
+                  function close() { wrap.style.display = 'none'; pending = null; }
+
+                  document.addEventListener('click', function (e) {
+                    var btn = e.target.closest ? e.target.closest('[data-confirm]') : null;
+                    if (!btn) { return; }
+
+                    // Second pass after Yes: let it through to Livewire.
+                    if (btn.dataset.confirmed === '1') {
+                      delete btn.dataset.confirmed;
+                      return;
+                    }
+
+                    e.preventDefault();
+                    e.stopImmediatePropagation();
+
+                    pending = btn;
+                    msg.textContent = btn.getAttribute('data-confirm') || 'Are you sure?';
+                    wrap.style.display = 'flex';
+                    yes.focus();
+                  }, true);
+
+                  yes.addEventListener('click', function () {
+                    var btn = pending;
+                    close();
+                    if (!btn) { return; }
+                    btn.dataset.confirmed = '1';
+                    btn.click();
+                  });
+
+                  no.addEventListener('click', close);
+                  wrap.addEventListener('click', function (e) { if (e.target === wrap) { close(); } });
+                  document.addEventListener('keydown', function (e) {
+                    if (e.key === 'Escape' && wrap.style.display === 'flex') { close(); }
+                  });
+                })();
+                </script>
+                HTML)
+            )
             ->authGuard('web')
             ->authMiddleware([
                 Authenticate::class,

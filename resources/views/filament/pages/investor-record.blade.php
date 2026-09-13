@@ -63,7 +63,7 @@
                         </x-filament::button>
                         <x-filament::button size="xs" color="danger"
                             wire:click="deleteDocument({{ $doc->id }})"
-                            wire:confirm="Delete {{ $doc->label }}?">Delete</x-filament::button>
+                            data-confirm="Delete {{ $doc->label }}?">Delete</x-filament::button>
                     </div>
                 </div>
             @empty
@@ -128,7 +128,7 @@
                             <div class="mt-3">
                                 <x-filament::button size="xs"
                                     wire:click="sendMessage('{{ $key }}')"
-                                    wire:confirm="Send this to {{ $investor->email ?: 'nobody — no email on file' }}?">
+                                    data-confirm="Send this to {{ $investor->email ?: 'nobody — no email on file' }}?">
                                     Send now
                                 </x-filament::button>
                             </div>

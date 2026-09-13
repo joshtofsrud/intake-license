@@ -100,7 +100,7 @@
             @if(! $locked)
               <x-filament::button class="mt-2" size="sm" color="gray"
                 wire:click="suspend({{ $selected->id }})"
-                wire:confirm="Suspend {{ $selected->email }}? They are signed out on their next request and blocked until restored.">Suspend</x-filament::button>
+                data-confirm="Suspend {{ $selected->email }}? They are signed out on their next request and blocked until restored.">Suspend</x-filament::button>
             @endif
           @endif
         </div>
@@ -111,7 +111,7 @@
             <div class="mt-1 text-xs text-gray-500">Deletes the account and revokes access immediately. Their name stays on past audit entries.</div>
             <x-filament::button class="mt-2" size="sm" color="danger"
               wire:click="remove({{ $selected->id }})"
-              wire:confirm="Remove {{ $selected->email }}? This can't be undone.">Remove {{ $selected->name }}…</x-filament::button>
+              data-confirm="Remove {{ $selected->email }}? This can't be undone.">Remove {{ $selected->name }}…</x-filament::button>
           </div>
         @endif
       </div>
@@ -216,7 +216,7 @@
                 @endif
                 <x-filament::button size="xs" color="gray"
                   wire:click="toggleRepActive({{ $rep->id }})"
-                  wire:confirm="{{ $rep->status === 'active' ? 'Deactivate' : 'Activate' }} {{ $rep->name }}?">
+                  data-confirm="{{ $rep->status === 'active' ? 'Deactivate' : 'Activate' }} {{ $rep->name }}?">
                   {{ $rep->status === 'active' ? 'Deactivate' : 'Activate' }}
                 </x-filament::button>
               </td>

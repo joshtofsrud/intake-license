@@ -87,7 +87,7 @@
                         @if($t['risky'])
                             <x-filament::button size="xs" color="gray"
                                 wire:click="runNow('{{ $t['command'] }}')"
-                                wire:confirm="{{ $t['note'] }} Run it now?">
+                                data-confirm="{{ $t['note'] }} Run it now?">
                                 Run now
                             </x-filament::button>
                         @else

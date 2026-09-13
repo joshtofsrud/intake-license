@@ -225,7 +225,7 @@
                 </div>
                 @if($charging['can_charge'] && $charging['unbilled'] > 0)
                     <x-filament::button size="sm" wire:click="chargeNow"
-                        wire:confirm="Charge {{ \App\Filament\Pages\TenantBilling::money($charging['unbilled']) }} to this shop's card now?">
+                        data-confirm="Charge {{ \App\Filament\Pages\TenantBilling::money($charging['unbilled']) }} to this shop's card now?">
                         Charge now
                     </x-filament::button>
                 @endif

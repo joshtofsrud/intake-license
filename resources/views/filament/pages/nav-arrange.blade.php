@@ -113,7 +113,7 @@
         </div>
         <span style="margin-left:auto">
             <x-filament::button color="danger" wire:click="resetAll"
-                wire:confirm="Put every item back where its page declares it belongs? Your arrangement is discarded.">
+                data-confirm="Put every item back where its page declares it belongs? Your arrangement is discarded.">
                 Reset the sidebar
             </x-filament::button>
         </span>

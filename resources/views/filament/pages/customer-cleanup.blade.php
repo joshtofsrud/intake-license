@@ -69,7 +69,7 @@
                 <div style="{{ $label }};margin:0">{{ $summary[$group]['label'] ?? 'Rows' }}</div>
                 <div style="margin-left:auto;display:flex;gap:8px">
                     <x-filament::button size="sm" color="gray" wire:click="optOutGroup"
-                        wire:confirm="Remove marketing permission from everyone in this group? Their records are untouched.">
+                        data-confirm="Remove marketing permission from everyone in this group? Their records are untouched.">
                         Remove marketing permission from all
                     </x-filament::button>
                 </div>
@@ -105,7 +105,7 @@
                             <td style="padding:7px 0;text-align:right">
                                 @if($open)
                                     <x-filament::button size="xs" color="danger" wire:click="removeOne('{{ $r['id'] }}')"
-                                        wire:confirm="{{ $r['mode'] === 'delete' ? 'Delete this customer? Nothing references them.' : 'Erase this customer\'s details? Their sales and bookings stay.' }}">
+                                        data-confirm="{{ $r['mode'] === 'delete' ? 'Delete this customer? Nothing references them.' : 'Erase this customer\'s details? Their sales and bookings stay.' }}">
                                         Remove
                                     </x-filament::button>
                                 @endif
