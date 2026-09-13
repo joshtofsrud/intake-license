@@ -1083,6 +1083,49 @@ function openItemInfo( id ) {
 }
 </script>
 
+{{-- MARKER-LINE-PRICE-PLACE — inside the content section on purpose. This
+     block used to sit after the final @endpush, and a view that extends a
+     layout renders nothing outside a section or a push: the modal was in the
+     source and absent from every page. --}}
+{{-- MARKER-LINE-PRICE — in-app, because native dialogs get suppressed and then
+     fail closed without telling anyone. --}}
+@if(($canLinePrice ?? false))
+<div id="reg-lineprice" style="display:none;position:fixed;inset:0;z-index:80;
+     background:rgba(0,0,0,.6);align-items:center;justify-content:center"
+     onclick="if (event.target === this) regLinePriceClose()">
+  <div style="background:var(--ia-surface);border:0.5px solid var(--ia-border-strong);
+       border-radius:12px;width:340px;max-width:92vw;padding:18px 20px">
+    <div style="font-size:15px;font-weight:650;margin-bottom:2px">Change price</div>
+    <div id="reg-lineprice-name" style="font-size:12.5px;color:var(--ia-text-dim);margin-bottom:14px"></div>
+
+    <label style="font-size:11.5px;color:var(--ia-text-dim)">New price each</label>
+    <input type="text" id="reg-lineprice-input" class="ia-input" inputmode="decimal"
+           style="width:100%;margin-top:5px;font-size:16px"
+           onkeydown="if (event.key === 'Enter') { event.preventDefault(); regLinePriceSave(); }
+                      if (event.key === 'Escape') { regLinePriceClose(); }">
+
+    <div style="font-size:11.5px;color:var(--ia-text-dim);margin-top:8px;line-height:1.5">
+      Normally <span id="reg-lineprice-orig"></span>.
+      Lower records a discount on the sale; higher just sets the price.
+    </div>
+
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
+      <button type="button" class="ia-btn ia-btn--sm" onclick="regLinePriceReset()">Reset</button>
+      <button type="button" class="ia-btn ia-btn--sm" onclick="regLinePriceClose()">Cancel</button>
+      <button type="button" class="ia-btn ia-btn--sm ia-btn--primary" onclick="regLinePriceSave()">Apply</button>
+    </div>
+  </div>
+</div>
+
+<style>
+  .reg-line-edit{background:none;border:0;color:var(--ia-accent);font-size:11px;
+    cursor:pointer;padding:0 2px;font-family:inherit;opacity:.8}
+  .reg-line-edit:hover{opacity:1;text-decoration:underline}
+  .reg-line-disc{color:#7ee081}
+  .reg-line-up{color:#f5c451}
+</style>
+@endif
+
 @endsection
 
 @push('scripts')
@@ -4306,42 +4349,3 @@ loadDrafts().then(refreshDraftsBanner);
 <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
 @endif
 @endpush
-
-{{-- MARKER-LINE-PRICE — in-app, because native dialogs get suppressed and then
-     fail closed without telling anyone. --}}
-@if(($canLinePrice ?? false))
-<div id="reg-lineprice" style="display:none;position:fixed;inset:0;z-index:80;
-     background:rgba(0,0,0,.6);align-items:center;justify-content:center"
-     onclick="if (event.target === this) regLinePriceClose()">
-  <div style="background:var(--ia-surface);border:0.5px solid var(--ia-border-strong);
-       border-radius:12px;width:340px;max-width:92vw;padding:18px 20px">
-    <div style="font-size:15px;font-weight:650;margin-bottom:2px">Change price</div>
-    <div id="reg-lineprice-name" style="font-size:12.5px;color:var(--ia-text-dim);margin-bottom:14px"></div>
-
-    <label style="font-size:11.5px;color:var(--ia-text-dim)">New price each</label>
-    <input type="text" id="reg-lineprice-input" class="ia-input" inputmode="decimal"
-           style="width:100%;margin-top:5px;font-size:16px"
-           onkeydown="if (event.key === 'Enter') { event.preventDefault(); regLinePriceSave(); }
-                      if (event.key === 'Escape') { regLinePriceClose(); }">
-
-    <div style="font-size:11.5px;color:var(--ia-text-dim);margin-top:8px;line-height:1.5">
-      Normally <span id="reg-lineprice-orig"></span>.
-      Lower records a discount on the sale; higher just sets the price.
-    </div>
-
-    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
-      <button type="button" class="ia-btn ia-btn--sm" onclick="regLinePriceReset()">Reset</button>
-      <button type="button" class="ia-btn ia-btn--sm" onclick="regLinePriceClose()">Cancel</button>
-      <button type="button" class="ia-btn ia-btn--sm ia-btn--primary" onclick="regLinePriceSave()">Apply</button>
-    </div>
-  </div>
-</div>
-
-<style>
-  .reg-line-edit{background:none;border:0;color:var(--ia-accent);font-size:11px;
-    cursor:pointer;padding:0 2px;font-family:inherit;opacity:.8}
-  .reg-line-edit:hover{opacity:1;text-decoration:underline}
-  .reg-line-disc{color:#7ee081}
-  .reg-line-up{color:#f5c451}
-</style>
-@endif
