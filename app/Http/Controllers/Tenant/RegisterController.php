@@ -533,11 +533,14 @@ class RegisterController extends Controller
      * Called on every cart change with debounce. First call creates,
      * subsequent calls include 'id' and update.
      */
+    // MARKER-LAYAWAY-GUARD-FIX — no assertRetailEnabled() here: that method
+    // belongs to InventoryController and never existed on this class. The
+    // whole register route group is already behind RequireRetailCapability
+    // middleware, so these actions cannot be reached without retail.
     /** MARKER-LAYAWAY-TAB — the list. */
     public function layawaysIndex(Request $request)
     {
         $tenant = tenant();
-        $this->assertRetailEnabled($tenant);
 
         $svc = app(\App\Services\Tenant\LayawayService::class);
 
@@ -578,7 +581,6 @@ class RegisterController extends Controller
     public function layawayShow(Request $request, string $planId)
     {
         $tenant = tenant();
-        $this->assertRetailEnabled($tenant);
 
         $plan = \App\Models\Tenant\TenantLayawayPlan::where('tenant_id', $tenant->id)
             ->with(['sale.items', 'sale.payments', 'customer'])
@@ -609,7 +611,6 @@ class RegisterController extends Controller
     public function layawayCancel(Request $request, string $planId)
     {
         $tenant = tenant();
-        $this->assertRetailEnabled($tenant);
 
         $user = \Illuminate\Support\Facades\Auth::guard('tenant')->user();
         abort_unless($user && $user->can('register.layaway.cancel'), 403);
@@ -645,7 +646,6 @@ class RegisterController extends Controller
     public function customerOpen(Request $request, string $customerId): JsonResponse
     {
         $tenant = tenant();
-        $this->assertRetailEnabled($tenant);
 
         $out = [];
 
@@ -698,7 +698,6 @@ class RegisterController extends Controller
     public function openLayaway(Request $request): JsonResponse
     {
         $tenant = tenant();
-        $this->assertRetailEnabled($tenant);
 
         $user = \Illuminate\Support\Facades\Auth::guard('tenant')->user();
         abort_unless($user && $user->can('register.layaway.create'), 403);
@@ -769,7 +768,6 @@ class RegisterController extends Controller
     public function payLayaway(Request $request, string $planId): JsonResponse
     {
         $tenant = tenant();
-        $this->assertRetailEnabled($tenant);
 
         $v = $request->validate([
             'amount_cents'      => 'required|integer|min:1',
@@ -805,7 +803,6 @@ class RegisterController extends Controller
     public function completeLayaway(Request $request, string $planId): JsonResponse
     {
         $tenant = tenant();
-        $this->assertRetailEnabled($tenant);
 
         $plan = \App\Models\Tenant\TenantLayawayPlan::where('tenant_id', $tenant->id)->findOrFail($planId);
 
