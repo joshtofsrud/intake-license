@@ -77,8 +77,11 @@ class ImpersonationController extends Controller
             debug_log()->impersonation('end', $tenant, $target);
         }
 
+        // MARKER-GUEST-REDIRECT — if there is no admin session to go back to,
+        // the guest redirect will take over on the next auth route; send them
+        // to the tenant list and let it decide.
         $returnUrl = $from['return_url'] ?? url('/admin/tenants');
 
-        return redirect($returnUrl)->with('success', 'Impersonation ended.');
+        return redirect($returnUrl)->with('success', $tenant ? 'Impersonation ended.' : 'Signed out of the tenant.');
     }
 }

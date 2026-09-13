@@ -12,6 +12,26 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
+        // MARKER-GUEST-REDIRECT — where an unauthenticated request goes. There
+        // is no route named 'login' in this app, so without this every `auth`
+        // route 500'd with "Route [login] not defined" the moment a session
+        // expired. Platform domain → Filament's login; anything else → the
+        // tenant login on that subdomain.
+        $middleware->redirectGuestsTo(function ($request) {
+            $host = strtolower($request->getHost());
+            $platform = strtolower(parse_url((string) config('app.url'), PHP_URL_HOST) ?: '');
+
+            if ($host === $platform || $host === 'www.' . $platform) {
+                return \Illuminate\Support\Facades\Route::has('filament.admin.auth.login')
+                    ? route('filament.admin.auth.login')
+                    : '/admin/login';
+            }
+
+            return \Illuminate\Support\Facades\Route::has('tenant.login')
+                ? route('tenant.login')
+                : '/admin/login';
+        });
+
         // Append LogRequests to every web + api request so we capture the
         // full request lifecycle including the terminate() write. Runs last
         // in the stack so it sees the real response status.

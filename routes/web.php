@@ -92,8 +92,11 @@ Route::domain($domain)->group(function () {
     // owner/admin via EnsureMasterAdmin.
     Route::middleware(['auth', \App\Http\Middleware\EnforceAdminArea::class . ':impersonation'])->group(function () {
         Route::post('/admin/impersonate/{tenantId}', [\App\Http\Controllers\Admin\ImpersonationController::class, 'impersonate'])->name('admin.impersonate');
-        Route::get('/admin/impersonate/stop',         [\App\Http\Controllers\Admin\ImpersonationController::class, 'stop'])->name('admin.impersonate.stop');
     });
+    // MARKER-GUEST-REDIRECT — stopping needs no admin session: it logs the
+    // tenant guard out and goes back. Refusing it stranded people inside a
+    // tenant they were trying to leave.
+    Route::get('/admin/impersonate/stop', [\App\Http\Controllers\Admin\ImpersonationController::class, 'stop'])->name('admin.impersonate.stop');
 
     // MARKER-SCHED-GOOGLE — Google Calendar OAuth for scheduling (scheduling area).
     Route::middleware(['auth', \App\Http\Middleware\EnforceAdminArea::class . ':scheduling'])->group(function () {
