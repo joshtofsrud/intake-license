@@ -533,6 +533,114 @@ class RegisterController extends Controller
      * Called on every cart change with debounce. First call creates,
      * subsequent calls include 'id' and update.
      */
+    /** MARKER-LAYAWAY-TAB — the list. */
+    public function layawaysIndex(Request $request)
+    {
+        $tenant = tenant();
+        $this->assertRetailEnabled($tenant);
+
+        $svc = app(\App\Services\Tenant\LayawayService::class);
+
+        $plans = \App\Models\Tenant\TenantLayawayPlan::where('tenant_id', $tenant->id)
+            ->whereIn('status', ['active', 'ready'])
+            ->with(['sale.items', 'customer'])
+            ->orderByRaw('CASE WHEN next_due_on IS NULL THEN 1 ELSE 0 END, next_due_on')
+            ->get();
+
+        // Sorted the way a shop asks: what is wrong first, what is ready next.
+        $rows = $plans->map(function ($plan) use ($svc) {
+            $balance = $svc->balanceCents($plan);
+            $paid    = $svc->paidCents($plan);
+            $ready   = $plan->status === 'ready' && ! $plan->awaitingArrival();
+
+            return [
+                'plan'     => $plan,
+                'paid'     => $paid,
+                'balance'  => $balance,
+                'overdue'  => $plan->isOverdue(),
+                'due_soon' => ! $plan->isOverdue() && $plan->next_due_on && $plan->next_due_on->diffInDays(now(), false) >= -3,
+                'awaiting' => $plan->awaitingArrival(),
+                'ready'    => $ready,
+                'pct'      => $plan->sale->total_cents > 0 ? (int) round($paid / $plan->sale->total_cents * 100) : 0,
+            ];
+        })->sortBy(fn ($r) => $r['overdue'] ? 0 : ($r['due_soon'] ? 1 : ($r['ready'] ? 2 : 3)))->values();
+
+        return view('tenant.register.layaways', [
+            'rows'      => $rows,
+            'heldCents' => $rows->sum('paid'),
+            'owedCents' => $rows->sum('balance'),
+            'overdue'   => $rows->where('overdue', true)->count(),
+            'readyNow'  => $rows->where('ready', true)->count(),
+        ]);
+    }
+
+    /** MARKER-LAYAWAY-TAB — one plan. */
+    public function layawayShow(Request $request, string $planId)
+    {
+        $tenant = tenant();
+        $this->assertRetailEnabled($tenant);
+
+        $plan = \App\Models\Tenant\TenantLayawayPlan::where('tenant_id', $tenant->id)
+            ->with(['sale.items', 'sale.payments', 'customer'])
+            ->findOrFail($planId);
+
+        $svc = app(\App\Services\Tenant\LayawayService::class);
+
+        // Per line: how much is held here, how much is still on order.
+        $held = \App\Models\Tenant\TenantInventoryReservation::where('sale_id', $plan->sale_id)
+            ->where('status', 'active')->get()->groupBy('sale_item_id');
+
+        $orders = \App\Models\Tenant\TenantSpecialOrder::where('sale_id', $plan->sale_id)
+            ->get()->groupBy('sale_item_id');
+
+        return view('tenant.register.layaway-show', [
+            'plan'      => $plan,
+            'paid'      => $svc->paidCents($plan),
+            'balance'   => $svc->balanceCents($plan),
+            'preview'   => $svc->cancelPreview($plan),
+            'heldBy'    => $held,
+            'ordersBy'  => $orders,
+            'canCancel' => (bool) optional(\Illuminate\Support\Facades\Auth::guard('tenant')->user())
+                ->can('register.layaway.cancel'),
+        ]);
+    }
+
+    /** MARKER-LAYAWAY-TAB — cancel, with the refund the preview promised. */
+    public function layawayCancel(Request $request, string $planId)
+    {
+        $tenant = tenant();
+        $this->assertRetailEnabled($tenant);
+
+        $user = \Illuminate\Support\Facades\Auth::guard('tenant')->user();
+        abort_unless($user && $user->can('register.layaway.cancel'), 403);
+
+        $v = $request->validate([
+            'reason' => 'required|string|max:64',
+            'method' => 'required|string|in:cash,check,store_credit,mark_paid',
+        ]);
+
+        $plan = \App\Models\Tenant\TenantLayawayPlan::where('tenant_id', $tenant->id)->findOrFail($planId);
+
+        try {
+            $result = app(\App\Services\Tenant\LayawayService::class)
+                ->cancel($plan, $v['reason'], $v['method'], $user->id);
+        } catch (\App\Services\Tenant\SaleValidationException $e) {
+            return back()->with('flash', ['type' => 'error', 'message' => $e->getMessage()]);
+        }
+
+        return redirect()->route('tenant.register.layaways.index')->with('flash', [
+            'type'    => 'success',
+            'message' => 'Layaway cancelled. ' . ($result['refund_cents'] > 0
+                ? '$' . number_format($result['refund_cents'] / 100, 2) . ' refunded'
+                  . ($result['fee_cents'] > 0 ? ' after a $' . number_format($result['fee_cents'] / 100, 2) . ' restocking fee' : '')
+                  . '.'
+                : 'Nothing to refund.')
+                . ($result['open_special_orders'] > 0
+                    ? ' ' . $result['open_special_orders'] . ' special order(s) are still open — decide whether to keep or cancel them with the vendor.'
+                    : ''),
+        ]);
+    }
+
     /** MARKER-LAYAWAY-REGISTER — what this customer has open: layaways and work orders with a balance. */
     public function customerOpen(Request $request, string $customerId): JsonResponse
     {
