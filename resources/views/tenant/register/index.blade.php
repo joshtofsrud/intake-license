@@ -2551,6 +2551,9 @@ document.getElementById('payBtn').addEventListener('click', () => {
   document.getElementById('tenderRefRow').style.display = 'none';
   document.getElementById('tenderManualRow').style.display = 'none'; // MARKER-PATCH-630
   document.getElementById('tenderRefInput').value = '';
+  // MARKER-TENDER-AMOUNT — everything else here was cleared per sale; the
+  // amount was not, so the last customer's partial figure greeted the next.
+  { const amt = document.getElementById('splitAmountInput'); if (amt) amt.value = ''; }
   document.getElementById('tenderConfirmBtn').disabled = true;
   document.querySelectorAll('#tenderModal .reg-tender-btn').forEach(b => b.classList.remove('selected'));
   resetGiftTender();          // MARKER-TENDERFIX -- fresh card check every sale
@@ -3121,6 +3124,24 @@ document.getElementById('tenderConfirmBtn').addEventListener('click', () => {
       document.getElementById('tenderConfirmBtn').click(); // resume with the PO set
     });
     return;
+  }
+
+  // MARKER-TENDER-AMOUNT — a typed amount that does not cover what is due is
+  // a split leg, not a full payment. Collect used to ignore this field and
+  // complete for the whole total on the selected tender; now it does what Add
+  // payment does and keeps the modal open for the rest. It can never charge
+  // more than the person typed.
+  {
+    const amtEl = document.getElementById('splitAmountInput');
+    const raw   = amtEl ? String(amtEl.value || '').replace(/[^0-9.]/g, '') : '';
+    const typed = raw === '' ? null : Math.round(parseFloat(raw) * 100);
+    const due   = cart.payments.length > 0 ? splitRemaining() : tenderDueCents();
+
+    if (typed !== null && !isNaN(typed) && typed > 0 && typed < due) {
+      document.getElementById('splitAddBtn').click();
+      tenderModalError(fmt(splitRemaining()) + ' still to collect — add another payment, or Collect when the amount covers it.');
+      return;
+    }
   }
 
   cart.payment_reference = document.getElementById('tenderRefInput').value.trim() || null;
