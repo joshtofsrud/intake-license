@@ -995,11 +995,13 @@
       + '<span style="flex:0 0 130px;color:var(--ia-text-dim)">Cost</span><span style="flex:1">' + money(d.cost ? d.cost.survivor : null) + costOpts + '</span></div>'
       + '</div>'
       + warn
-      + '<div style="margin-top:13px;background:rgba(245,196,81,.07);border:0.5px solid rgba(245,196,81,.35);'
+      // MARKER-ITEM-ALIASES — this used to warn that old labels would stop
+      // scanning. They no longer do, so it says what happens instead.
+      + '<div style="margin-top:13px;background:rgba(126,224,129,.06);border:0.5px solid rgba(126,224,129,.3);'
       + 'border-radius:8px;padding:11px 13px;font-size:12px;color:var(--ia-text-muted);line-height:1.5">'
-      + '<strong>Not yet carried over:</strong> the merged-away barcode. A shelf label printed from '
-      + '<strong>' + esc(p.loser.sku) + '</strong> will stop scanning until barcode aliases are built. '
-      + 'Its identifiers are adopted only where the kept item has none.'
+      + '<strong style="color:var(--ia-text)">Old labels keep scanning.</strong> '
+      + '<strong>' + esc(p.loser.sku) + '</strong> and its barcodes become aliases of the kept item, '
+      + 'so a shelf tag or receipt printed before this merge still finds it.'
       + '</div>'
       + '<label style="display:flex;gap:9px;align-items:flex-start;margin-top:13px;font-size:12.5px;color:var(--ia-text-muted)">'
       + '<input type="checkbox" id="inv-merge-ack" style="margin-top:3px">'

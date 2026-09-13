@@ -216,7 +216,17 @@ class RegisterController extends Controller
                 // item's text: "Centerline Rotor 200mm" matches name+subtitle.
                 ->where(function ($w) use ($q) {
                     foreach (array_filter(preg_split('/\s+/', $q)) as $t) {
-                        $w->whereRaw("CONCAT_WS(' ', name, display_subtitle, sku, catalog_upc, catalog_ean, catalog_mpn) LIKE ?", ['%' . $t . '%']);
+                        // MARKER-ITEM-ALIASES — each word must hit the item's
+                        // own text OR one of its old identifiers. A scanned
+                        // label from before a merge lands here.
+                        $w->where(function ($or) use ($t) {
+                            $or->whereRaw("CONCAT_WS(' ', name, display_subtitle, sku, catalog_upc, catalog_ean, catalog_mpn) LIKE ?", ['%' . $t . '%'])
+                               ->orWhereExists(function ($sub) use ($t) {
+                                   $sub->selectRaw('1')->from('tenant_inventory_item_aliases as al')
+                                       ->whereColumn('al.inventory_item_id', 'tenant_inventory_items.id')
+                                       ->where('al.code', 'like', '%' . $t . '%');
+                               });
+                        });
                     }
                 })
                 ->limit(15)

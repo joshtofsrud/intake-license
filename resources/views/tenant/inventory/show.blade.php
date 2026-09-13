@@ -153,6 +153,18 @@
       @php $mpn = $item->distributorCatalog?->manufacturer_sku; @endphp {{-- MARKER-PATCH-587 --}}
       @if($mpn)&nbsp;·&nbsp; MPN <code>{{ $mpn }}</code>@endif
     </p>
+    {{-- MARKER-ITEM-ALIASES — old identifiers that still resolve here. Said
+         out loud, because a label that scans to a differently-named item
+         looks like a bug unless the page explains it. --}}
+    @if($item->aliases->isNotEmpty())
+      <p style="font-size:12px;color:var(--ia-text-dim);margin-top:4px">
+        Also scans as
+        @foreach($item->aliases as $al)
+          <code title="{{ ucfirst($al->source) }} · was the {{ strtoupper($al->kind) }} of a merged item">{{ $al->code }}</code>@if(! $loop->last), @endif
+        @endforeach
+        <span style="opacity:.7">— from items merged into this one</span>
+      </p>
+    @endif
   </div>
   <div class="ia-page-actions">
     {{-- MARKER-ARCHIVE-MOVE — archiving belongs here, away from Save. --}}

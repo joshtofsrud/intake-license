@@ -380,6 +380,71 @@ class ItemMergeService
 
             $report['applied'] = $fill;
 
+            // MARKER-ITEM-ALIASES — every identifier the loser carried keeps
+            // resolving, to the survivor. A code the survivor already has as
+            // its OWN identifier is skipped: it already resolves. A code the
+            // survivor already holds as an alias is skipped by the unique key.
+            // The loser's own aliases come across too — a chain of merges
+            // must not lose the oldest label.
+            $survivor->refresh();
+
+            $own = array_filter([
+                strtoupper(trim((string) $survivor->sku)),
+                strtoupper(trim((string) $survivor->catalog_upc)),
+                strtoupper(trim((string) $survivor->catalog_ean)),
+                strtoupper(trim((string) $survivor->catalog_mpn)),
+            ]);
+
+            $candidates = [
+                ['sku', $loser->sku],
+                ['upc', $loser->catalog_upc],
+                ['ean', $loser->catalog_ean],
+                ['mpn', $loser->catalog_mpn],
+            ];
+
+            foreach (DB::table('tenant_inventory_item_aliases')
+                ->where('inventory_item_id', $loser->id)->get() as $inherited) {
+                $candidates[] = [$inherited->kind, $inherited->code];
+            }
+
+            $report['aliases'] = [];
+
+            foreach ($candidates as [$kind, $code]) {
+                $code = trim((string) $code);
+
+                if ($code === '' || in_array(strtoupper($code), $own, true)) {
+                    continue;
+                }
+
+                $exists = DB::table('tenant_inventory_item_aliases')
+                    ->where('inventory_item_id', $survivor->id)
+                    ->where('code', $code)
+                    ->exists();
+
+                if ($exists) {
+                    continue;
+                }
+
+                DB::table('tenant_inventory_item_aliases')->insert([
+                    'id'                => (string) Str::uuid(),
+                    'tenant_id'         => $tenantId,
+                    'inventory_item_id' => $survivor->id,
+                    'code'              => $code,
+                    'kind'              => $kind,
+                    'source'            => 'merge',
+                    'from_item_id'      => $loser->id,
+                    'created_at'        => now(),
+                ]);
+
+                $report['aliases'][] = $code;
+            }
+
+            // The loser's alias rows are now the survivor's; nothing should
+            // still point at a record that is about to be soft-deleted.
+            DB::table('tenant_inventory_item_aliases')
+                ->where('inventory_item_id', $loser->id)
+                ->delete();
+
             // ---- and the loser goes -------------------------------------------
             // MARKER-MERGE-AFTER — record the destination. Without this the
             // loser is indistinguishable from an ordinary archived item, and

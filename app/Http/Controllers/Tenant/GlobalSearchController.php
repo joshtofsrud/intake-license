@@ -127,7 +127,13 @@ class GlobalSearchController extends Controller
                     ->orWhere('sku', 'like', $like)
                     ->orWhere('catalog_upc', 'like', $like)
                     ->orWhere('catalog_ean', 'like', $like)
-                    ->orWhere('catalog_mpn', 'like', $like))
+                    ->orWhere('catalog_mpn', 'like', $like)
+                    // MARKER-ITEM-ALIASES
+                    ->orWhereExists(function ($sub) use ($like) {
+                        $sub->selectRaw('1')->from('tenant_inventory_item_aliases as al')
+                            ->whereColumn('al.inventory_item_id', 'tenant_inventory_items.id')
+                            ->where('al.code', 'like', $like);
+                    }))
                 // An exact identifier goes first: someone who just scanned is
                 // holding the answer, not browsing for it.
                 ->orderByRaw(

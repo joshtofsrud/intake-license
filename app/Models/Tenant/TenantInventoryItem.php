@@ -101,6 +101,13 @@ class TenantInventoryItem extends Model
         'is_stock_tracked' => 'boolean',
     ];
 
+    /** MARKER-ITEM-ALIASES — identifiers that used to resolve to this item. */
+    public function aliases()
+    {
+        return $this->hasMany(TenantInventoryItemAlias::class, 'inventory_item_id')
+            ->orderBy('created_at');
+    }
+
     /** MARKER-ITEM-IMAGES — the shop's own photos, in the order they set. */
     public function itemImages()
     {

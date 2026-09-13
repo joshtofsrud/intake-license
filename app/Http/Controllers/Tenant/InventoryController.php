@@ -157,6 +157,12 @@ class InventoryController extends Controller
                             $sub->selectRaw('1')->from('tenant_inventory_item_vendors as v')
                                 ->whereColumn('v.inventory_item_id', 'tenant_inventory_items.id')
                                 ->where('v.vendor_sku', 'like', '%' . $t . '%');
+                        })
+                        // MARKER-ITEM-ALIASES — an old label still finds it.
+                        ->orWhereExists(function ($sub) use ($t) {
+                            $sub->selectRaw('1')->from('tenant_inventory_item_aliases as al')
+                                ->whereColumn('al.inventory_item_id', 'tenant_inventory_items.id')
+                                ->where('al.code', 'like', '%' . $t . '%');
                         });
                     });
                 }
