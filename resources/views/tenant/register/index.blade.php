@@ -2210,6 +2210,59 @@ function renderCart() {
   renderTotals();
 }
 
+// MARKER-LAYAWAY-CARD — set when a card charge is for a plan rather than the
+// cart. Cleared on every outcome, so a later cart sale can never be mistaken
+// for a plan payment.
+const LayawayCard = { planId: null, amountCents: 0 };
+
+async function recordLayawayCardPayment(conf) {
+  const planId = LayawayCard.planId;
+  const amount = LayawayCard.amountCents;
+  LayawayCard.planId = null;
+  LayawayCard.amountCents = 0;
+
+  const ref = (conf.card_brand && conf.card_last4) ? (conf.card_brand + ' ····' + conf.card_last4) : 'Card';
+
+  try {
+    const r = await fetch(ROUTES.layawayPay.replace('__ID__', planId), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF, Accept: 'application/json' },
+      body: JSON.stringify({
+        amount_cents: amount,
+        payment_method: 'card',
+        payment_reference: ref,
+        stripe_payment_intent_id: conf.payment_intent,
+      })
+    });
+    const d = await r.json();
+
+    if (!d.ok) {
+      // The charge went through. Say so, loudly, with the reference — this is
+      // money that exists in Stripe and not yet on the plan.
+      if (window.IntakeToast) IntakeToast.error(d.error || 'Charged, but not recorded. Reference ' + conf.payment_intent);
+      return;
+    }
+
+    if (window.IntakeToast) {
+      IntakeToast.success(fmt(amount) + ' taken on card · '
+        + (d.balance_cents > 0 ? fmt(d.balance_cents) + ' still owed' : 'paid in full'));
+    }
+
+    if (d.can_hand_over) {
+      const ok = window.iaConfirm
+        ? await iaConfirm('Paid in full and everything is here. Hand it over now?')
+        : true;
+      if (ok) { handOverLayaway(planId); return; }
+    }
+
+    if (cart.customer) { loadCustomerOpen(cart.customer.id); }
+  } catch (e) {
+    if (window.IntakeToast) {
+      IntakeToast.error('Charged, but recording failed. Reference ' + conf.payment_intent + ' — record it manually.');
+    }
+  }
+}
+
 // MARKER-LAYAWAY-REGISTER ---------------------------------------------------
 async function loadCustomerOpen(customerId) {
   const box = document.getElementById('custOpen');
@@ -2257,7 +2310,7 @@ function openTenderForPlan() {
     lr.style.display = '';
     lr.innerHTML = `<div style="padding:9px 12px;border:0.5px solid rgba(190,242,100,.35);border-radius:8px;margin-bottom:10px;font-size:12.5px">
       Paying on <strong>${escapeHtml(t.label)}</strong> · ${fmt(t.balance_cents)} balance.
-      <span style="color:var(--ia-text-dim)">Enter any amount up to the balance. Card through the terminal is not available on plans yet — cash, check, store credit or mark paid.</span></div>`;
+      <span style="color:var(--ia-text-dim)">Enter any amount up to the balance, then pick how they are paying.</span></div>`;
   }
   openModal('tenderModal');
 }
@@ -2268,8 +2321,17 @@ async function payOnLayaway() {
   const typed = amtEl && amtEl.value ? Math.round(parseFloat(String(amtEl.value).replace(/[^0-9.]/g, '')) * 100) : (t.scheduled_cents || t.balance_cents);
   if (!typed || isNaN(typed) || typed <= 0) { tenderModalError('Enter an amount.'); return; }
   if (typed > t.balance_cents) { tenderModalError('That is more than the ' + fmt(t.balance_cents) + ' owed.'); return; }
+  // MARKER-LAYAWAY-CARD — a card goes through the terminal first and comes
+  // back to payOnLayaway via the card modal's success path.
+  if (cart.payment_method === 'card' && ROUTES.directPaymentsEnabled && ROUTES.directPaymentsPk) {
+    LayawayCard.planId = t.id;
+    LayawayCard.amountCents = typed;
+    closeModal('tenderModal');
+    openCardPaymentModal();
+    return;
+  }
   if (!['cash', 'check', 'store_credit', 'mark_paid'].includes(cart.payment_method)) {
-    tenderModalError('Card on a layaway is coming; use cash, check, store credit or mark paid for now.'); return;
+    tenderModalError('Use cash, check, store credit or mark paid — or card if the terminal is set up.'); return;
   }
   const btn = document.getElementById('tenderConfirmBtn'); btn.disabled = true;
   try {
@@ -3060,9 +3122,14 @@ async function openCardPaymentModal() {
   const totals = computeTotalsForCommit();
   // MARKER-SPLIT-ANYORDER — a pending split card leg charges the typed
   // amount; otherwise (single-tender card) the full total as always.
-  const amountCents = SplitCard.pendingAmountCents != null
-    ? SplitCard.pendingAmountCents
-    : totals.total_cents + (cart.tipCents || 0);
+  // MARKER-LAYAWAY-CARD — a plan payment charges the plan's amount. This has
+  // to be decided HERE: the line below is the single source of the charge, and
+  // anything set before this function runs is overwritten by it.
+  const amountCents = LayawayCard.planId
+    ? LayawayCard.amountCents
+    : (SplitCard.pendingAmountCents != null
+        ? SplitCard.pendingAmountCents
+        : totals.total_cents + (cart.tipCents || 0));
   DirectPay.chargeAmountCents = amountCents;
   document.getElementById('cardPaymentAmount').textContent = fmt(amountCents);
   document.getElementById('cardPaymentChargeLabel').textContent = 'Charge ' + fmt(amountCents);
@@ -3229,6 +3296,16 @@ async function confirmCardPayment() {
     }
     cart.payment_method = 'split';
     commitTransaction({});
+    return;
+  }
+
+  // MARKER-LAYAWAY-CARD — pointed at a plan there is no cart to commit: the
+  // charge belongs on an existing sale's ledger. Same card, same Stripe
+  // metadata, different destination.
+  if (LayawayCard.planId) {
+    closeModal('cardPaymentModal');
+    DirectPay.inFlight = false;
+    recordLayawayCardPayment(conf);
     return;
   }
 

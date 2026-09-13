@@ -795,19 +795,49 @@ class RegisterController extends Controller
     {
         $tenant = tenant();
 
+        // MARKER-LAYAWAY-CARD — card joins the list. The charge itself has
+        // already happened by the time this is called; this records it.
         $v = $request->validate([
-            'amount_cents'      => 'required|integer|min:1',
-            'payment_method'    => 'required|string|in:cash,check,store_credit,mark_paid',
-            'payment_reference' => 'nullable|string|max:120',
+            'amount_cents'             => 'required|integer|min:1',
+            'payment_method'           => 'required|string|in:cash,check,store_credit,mark_paid,card',
+            'payment_reference'        => 'nullable|string|max:120',
+            'stripe_payment_intent_id' => 'nullable|string|max:120',
         ]);
 
         $plan = \App\Models\Tenant\TenantLayawayPlan::where('tenant_id', $tenant->id)->findOrFail($planId);
         $svc  = app(\App\Services\Tenant\LayawayService::class);
 
+        // MARKER-LAYAWAY-CARD — the reference carries the payment intent so a
+        // plan payment reconciles against Stripe the same way a sale does.
+        $reference = $v['payment_reference'] ?? null;
+        if (! empty($v['stripe_payment_intent_id'])) {
+            $reference = trim(($reference ?: 'Card') . ' · ' . $v['stripe_payment_intent_id']);
+        }
+
         try {
-            $svc->pay($plan, $v['amount_cents'], $v['payment_method'], $v['payment_reference'] ?? null,
+            $svc->pay($plan, $v['amount_cents'], $v['payment_method'], $reference,
                 \Illuminate\Support\Facades\Auth::guard('tenant')->id());
         } catch (\App\Services\Tenant\SaleValidationException $e) {
+            // The card has already been charged by this point. Refusing here
+            // would leave money in Stripe that no ledger knows about, so this
+            // is logged with the intent id and the cashier is told plainly.
+            if (! empty($v['stripe_payment_intent_id'])) {
+                \Illuminate\Support\Facades\Log::error('MARKER-LAYAWAY-CARD charged but not recorded', [
+                    'tenant'         => $tenant->id,
+                    'plan'           => $plan->id,
+                    'payment_intent' => $v['stripe_payment_intent_id'],
+                    'amount_cents'   => $v['amount_cents'],
+                    'reason'         => $e->getMessage(),
+                ]);
+
+                return response()->json([
+                    'ok'    => false,
+                    'error' => 'The card was charged but the payment could not be recorded: ' . $e->getMessage()
+                             . ' Note the reference ' . $v['stripe_payment_intent_id']
+                             . ' and record it manually, or refund it in Stripe.',
+                ], 422);
+            }
+
             return response()->json(['ok' => false, 'error' => $e->getMessage()], 422);
         }
 
