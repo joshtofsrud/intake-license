@@ -1000,12 +1000,95 @@ class RegisterController extends Controller
         ]);
     }
 
+    /**
+     * MARKER-VOID-PERSISTED — reverse a payment that is on the ledger.
+     *
+     * Looked up on the sale, never taken from the browser. A card leg is
+     * refunded in Stripe first; if Stripe refuses, nothing is reversed and the
+     * intent id is returned, because that is money still sitting in Stripe.
+     * Every method gets a KIND_REFUND row referencing the original, so the
+     * history shows a void rather than a row that vanished.
+     */
+    public function voidCartPayment(Request $request): JsonResponse
+    {
+        $tenant = tenant();
+
+        $v = $request->validate([
+            'draft_id'   => 'required|uuid',
+            'payment_id' => 'required|uuid',
+        ]);
+
+        $sale = TenantSale::where('tenant_id', $tenant->id)
+            ->whereIn('payment_status', ['draft', 'quote'])
+            ->findOrFail($v['draft_id']);
+
+        $payment = $sale->payments()->findOrFail($v['payment_id']);
+
+        if ((int) $payment->amount_cents <= 0) {
+            return response()->json(['ok' => false, 'error' => 'That row is already a reversal.'], 422);
+        }
+
+        // Already voided? A refund row referencing this payment means yes.
+        $already = $sale->payments()
+            ->where('reference_payment_id', $payment->id)
+            ->where('kind', \App\Models\Tenant\TenantSalePayment::KIND_REFUND)
+            ->exists();
+        if ($already) {
+            return response()->json(['ok' => true, 'payments' => $this->cartPaymentsFor($sale)]);
+        }
+
+        // A Stripe charge is refunded there FIRST. If that fails, stop: the
+        // money is still in Stripe and the ledger must keep saying so.
+        $intent = null;
+        if ($payment->external_reference && preg_match('/pi_[A-Za-z0-9]+/', $payment->external_reference, $m)) {
+            $intent = $m[0];
+        }
+
+        $stripeRefundId = null;
+        if ($intent) {
+            $direct = new DirectPaymentsService($tenant);
+            $refund = $direct->refundPaymentIntent($intent, 'split_leg_voided');
+            if (! $refund) {
+                \Illuminate\Support\Facades\Log::error('MARKER-VOID-PERSISTED Stripe refund refused', [
+                    'tenant' => $tenant->id, 'sale' => $sale->id, 'payment' => $payment->id, 'intent' => $intent,
+                ]);
+                return response()->json([
+                    'ok'    => false,
+                    'error' => 'Stripe would not refund this charge. Nothing has been reversed. Reference '
+                             . $intent . ' — check the Stripe dashboard.',
+                ], 502);
+            }
+            $stripeRefundId = $refund->id;
+        }
+
+        app(\App\Services\Tenant\SalePaymentService::class)->refund(
+            $sale,
+            (int) $payment->amount_cents,
+            $payment->method,
+            $payment->id,
+            $stripeRefundId,
+            'Voided at the register before the sale was finalised.',
+        );
+
+        return response()->json([
+            'ok'       => true,
+            'payments' => $this->cartPaymentsFor($sale->fresh()),
+        ]);
+    }
+
     /** MARKER-PAY-PERSIST — the sale's payments, in the shape the register draws. */
     private function cartPaymentsFor(\App\Models\Tenant\TenantSale $sale): array
     {
-        return $sale->payments()
-            ->orderBy('created_at')
-            ->get()
+        // MARKER-VOID-PERSISTED — a voided payment and its reversal are both on
+        // the ledger (that is the point), but neither belongs on the register's
+        // list of live tenders. Net them out here.
+        $all = $sale->payments()->orderBy('created_at')->get();
+        $voidedIds = $all->where('kind', \App\Models\Tenant\TenantSalePayment::KIND_REFUND)
+            ->pluck('reference_payment_id')->filter()->all();
+
+        return $all
+            ->filter(fn ($p) => (int) $p->amount_cents > 0 && ! in_array($p->id, $voidedIds, true))
+            ->values()
             ->map(fn ($p) => [
                 'id'           => $p->id,
                 'method'       => $p->method,

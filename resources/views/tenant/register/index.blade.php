@@ -1289,6 +1289,7 @@ const ROUTES = {
   // MARKER-HOLD
   holdDraft:    @json(route('tenant.register.drafts.hold', ['id' => '__ID__'])),
   recordPayment: @json(route('tenant.register.payments.record')), // MARKER-PAY-PERSIST
+  voidPayment:   @json(route('tenant.register.payments.void')),   // MARKER-VOID-PERSISTED
   draftCleanup: @json(route('tenant.register.drafts.cleanup')),
   draftBase:   @json(url('/admin/register/drafts')),
   commitDraft: @json(url('/admin/register/drafts')),
@@ -3364,19 +3365,34 @@ function renderSplit() {
       + removeCtl
       + (p.change_cents ? '<span class="chg">Change due ' + fmt(p.change_cents) + '</span>' : '');
     row.querySelector('.x').addEventListener('click', async () => {
-      if (!p.locked) { cart.payments.splice(i, 1); renderSplit(); return; }
-      if (!(await iaConfirm('Void this ' + fmt(p.amount_cents) + ' card charge? The customer will be refunded.'))) return; // MARKER-INLINE-CONFIRM-1
+      // A leg that is not on the ledger yet is only in this tab: drop it.
+      if (!p.locked && !p.id) { cart.payments.splice(i, 1); renderSplit(); return; }
+
+      // MARKER-VOID-PERSISTED — a ledger row is reversed on the server. The
+      // old path posted straight to the Stripe refund endpoint, which for a
+      // cash leg meant asking Stripe to refund "undefined". The server now
+      // decides what a void means for this method, and the register mirrors
+      // whatever the ledger says afterwards.
+      const isCard = /pi_[A-Za-z0-9]+/.test(String(p.reference || ''));
+      const msg = isCard
+        ? 'Void this ' + fmt(p.amount_cents) + ' card charge? The customer will be refunded in Stripe.'
+        : 'Void this ' + fmt(p.amount_cents) + ' ' + (p.label || p.method) + ' payment? It will be reversed on the sale.';
+      if (!(await iaConfirm(msg))) return;
+
       try {
-        const res = await fetch(ROUTES.paymentIntentAutoRefund, {
+        const res = await fetch(ROUTES.voidPayment, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': CSRF },
-          body: JSON.stringify({ payment_intent: p.stripe_payment_intent_id, reason: 'split_leg_voided' }),
+          body: JSON.stringify({ draft_id: cart.draft_id, payment_id: p.id }),
         });
         const data = await res.json();
-        if (!data.ok) throw new Error(data.error || 'Refund failed');
-        cart.payments.splice(i, 1); renderSplit();
+        if (!data.ok) { tenderModalError(data.error || 'Could not void that payment.'); return; }
+        cart.payments = data.payments;
+        renderSplit();
+        if (typeof tenderPaint === 'function') { tenderPaint(); }
+        renderCart();
       } catch (e) {
-        alert('Void failed: ' + e.message + ' — check the Stripe dashboard for ' + p.stripe_payment_intent_id);
+        tenderModalError('Could not void that payment. Nothing was changed.');
       }
     });
     list.appendChild(row);
