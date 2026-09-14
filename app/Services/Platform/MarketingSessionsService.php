@@ -21,8 +21,10 @@ class MarketingSessionsService
     ) {}
 
     /** Friendly label for a named event; page views show their path instead. */
-    private static function label(string $eventType, ?string $path): string
+    private static function label(string $eventType, ?string $path, ?string $step = null): string
     {
+        // MARKER-MKTDONE — MARKER-MKTCONV added five event types and never taught
+        // this match about them, so timelines printed raw 'cta_click' / 'page_exit'.
         return match ($eventType) {
             'page_view'         => $path ?: '/',
             'pricing_viewed'    => 'Looked at pricing',
@@ -31,6 +33,11 @@ class MarketingSessionsService
             'contact_submitted' => 'Sent a message',
             'signup_started'    => 'Started signup',
             'signup_completed'  => 'Finished signup',
+            'demo_entered'      => 'Entered the demo',
+            'booking_started'   => 'Opened the booking page',
+            'booking_completed' => 'Booked a call',
+            'cta_click'         => $step ? 'Clicked ' . $step : 'Clicked a link',
+            'page_exit'         => 'Left the page',
             default             => $eventType,
         };
     }
@@ -69,7 +76,7 @@ class MarketingSessionsService
             })
             ->orderBy('created_at')
             ->limit(self::EVENT_LIMIT)
-            ->get(['session_id', 'event_type', 'path', 'device', 'referrer_domain', 'utm_source', 'created_at']);
+            ->get(['session_id', 'event_type', 'path', 'device', 'referrer_domain', 'utm_source', 'step', 'created_at']); // MARKER-MKTDONE — step labels the click
 
         $sessions = [];
 
@@ -109,13 +116,18 @@ class MarketingSessionsService
                 $s['pages'][] = $path;
             }
 
-            if (in_array($e->event_type, ['quiz_completed', 'contact_submitted', 'signup_completed'], true)) {
+            // MARKER-MKTDONE — a demo entry or a booked call is a conversion too.
+            // Without these, a session that booked a call read as "browsed".
+            if (in_array($e->event_type, [
+                'quiz_completed', 'contact_submitted', 'signup_completed',
+                'demo_entered', 'booking_completed',
+            ], true)) {
                 $s['converted'] = true;
             }
 
             $s['timeline'][] = [
                 'at'   => $at->setTimezone($tz)->format('g:i:s A'),
-                'what' => self::label($e->event_type, $e->path),
+                'what' => self::label($e->event_type, $e->path, $e->step ?? null),
             ];
 
             unset($s);

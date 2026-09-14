@@ -67,6 +67,14 @@ class MarketingFunnelController extends Controller
             return response()->json(['ok' => true, 'skipped' => 'bot']);
         }
 
+        // MARKER-MKTDONE -- is this someone coming back? The column has existed
+        // since the table was created and the marketing ingest never wrote it,
+        // so it defaulted to true on every row and newVsReturning() could only
+        // ever report 100% new. A valid mkt_sid cookie already on the request
+        // means we have seen this browser before.
+        $prior = (string) $request->cookie('mkt_sid', '');
+        $data['is_new_session'] = ($prior !== '' && preg_match('/^[a-zA-Z0-9]{12,64}$/', $prior)) ? 0 : 1;
+
         // MARKER-MKTSID -- resolve the visitor's id, then persist it as a
         // cookie so it survives a tab close and a blocked sessionStorage.
         $data['session_id'] = $this->resolveSession($request);
@@ -184,6 +192,10 @@ class MarketingFunnelController extends Controller
                 'utm_campaign'    => $data['utm_campaign'] ?? null,
                 'device'          => $data['device'] ?? null,
                 'step'            => $data['step'] ?? null,
+                // MARKER-MKTDONE -- server-side calls (contact, quiz, demo) carry no
+                // flag of their own; a cookie on the request means not-new.
+                'is_new_session'  => $data['is_new_session']
+                    ?? ((request() && request()->cookie('mkt_sid')) ? 0 : 1),
                 // MARKER-MKTFIX — this table has created_at ONLY (declared
                 // useCurrent, no updated_at). Writing updated_at threw on every
                 // insert, and the catch below made it silent.

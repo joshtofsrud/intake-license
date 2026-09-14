@@ -71,32 +71,70 @@ class SignupFunnelService
         return $row ? array_map('intval', (array) $row) : $zero;
     }
 
-    /** @return array<int, array{label:string, count:int, unit:string, note:?string}> */
+    /**
+     * MARKER-MKTDONE — BROWSING only, and only the steps that really are a
+     * sequence. These stay cumulative: a session counts at a step only if it
+     * also hit every step before it, so the funnel can only fall.
+     *
+     * Contact, demo, calls and signup used to sit on this same cumulative line,
+     * which HID REAL CONVERSIONS — a visitor who landed on /contact from a
+     * search result and wrote to you never reached "Got in touch", because they
+     * had not viewed pricing and finished the quiz first. Those live in
+     * outcomes() now, each counted on its own.
+     *
+     * @return array<int, array{label:string, count:int, unit:string, note:?string}>
+     */
     public function stages(): array
     {
         $s = $this->cumulativeSessions();
-        $visitors = $s['pv'];
-        $pricing  = $s['pr'];
-        $quiz     = $s['qz'];
-        $contact  = $s['ct'];
 
-        // Tenants created in the window — the only stage that is a real outcome.
+        return [
+            ['label' => 'Visited the site',   'count' => $s['pv'], 'unit' => 'sessions', 'note' => null],
+            ['label' => 'Viewed pricing',     'count' => $s['pr'], 'unit' => 'sessions', 'note' => null],
+            ['label' => 'Completed the quiz', 'count' => $s['qz'], 'unit' => 'sessions', 'note' => null],
+        ];
+    }
+
+    /**
+     * MARKER-MKTDONE — the things that actually count as a result, each measured
+     * independently of the others and of the browsing funnel. None of these
+     * requires any of the rest: someone can book a call without ever opening
+     * pricing, and frequently does.
+     *
+     * @return array<int, array{label:string, count:int, unit:string, note:?string}>
+     */
+    public function outcomes(): array
+    {
+        $id = $this->platformTenantId();
+
+        $sessionsFor = function (array $types) use ($id): int {
+            if (! $id) return 0;
+
+            return (int) DB::table('tenant_funnel_events')
+                ->where('tenant_id', $id)
+                ->whereIn('event_type', $types)
+                ->whereBetween('created_at', [$this->start, $this->end])
+                ->where(function ($w) { $w->whereNull('device')->orWhere('device', '!=', 'bot'); })
+                ->distinct('session_id')
+                ->count('session_id');
+        };
+
         $tenants = (int) Tenant::query()
             ->where('is_platform', false)
             ->whereBetween('created_at', [$this->start, $this->end])
             ->count();
 
-        $signupStarted = $s['ss'];
-
         return [
-            ['label' => 'Visited the site',   'count' => $visitors, 'unit' => 'sessions', 'note' => null],
-            ['label' => 'Viewed pricing',     'count' => $pricing,  'unit' => 'sessions', 'note' => null],
-            ['label' => 'Completed the quiz', 'count' => $quiz,     'unit' => 'sessions', 'note' => null],
-            ['label' => 'Got in touch',       'count' => $contact,  'unit' => 'sessions', 'note' => null],
-            ['label' => 'Started signup',     'count' => $signupStarted, 'unit' => 'sessions',
-             'note'  => 'Self-serve signup isn\'t built yet — this stays at zero until it ships.'],
-            ['label' => 'Became a tenant',    'count' => $tenants,  'unit' => 'accounts',
-             'note'  => 'Counts tenant records created in this window, however they arrived.'],
+            ['label' => 'Got in touch',   'count' => $sessionsFor(['contact_submitted']), 'unit' => 'sessions',
+             'note'  => 'Recorded on the server when the message saved.'],
+            ['label' => 'Entered the demo', 'count' => $sessionsFor(['demo_entered']), 'unit' => 'sessions',
+             'note'  => 'Recorded on the server when the demo opened.'],
+            ['label' => 'Booked a call',  'count' => $sessionsFor(['booking_completed']), 'unit' => 'sessions',
+             'note'  => 'Recorded on the server when the booking saved.'],
+            ['label' => 'Started signup', 'count' => $sessionsFor(['signup_started']), 'unit' => 'sessions',
+             'note'  => "Self-serve signup isn't built yet — this stays at zero until it ships."],
+            ['label' => 'Became a tenant', 'count' => $tenants, 'unit' => 'accounts',
+             'note'  => 'Accounts created in this window, however they arrived.'],
         ];
     }
 

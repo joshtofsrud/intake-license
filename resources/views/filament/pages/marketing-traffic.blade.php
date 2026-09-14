@@ -11,7 +11,7 @@
 </style>
 <div class="mkt-tabs">
   <button type="button" class="mkt-tab on" data-mkt-tab="overview">Overview</button>
-  <button type="button" class="mkt-tab" data-mkt-tab="intent">Quiz &amp; industry</button>
+  <button type="button" class="mkt-tab" data-mkt-tab="intent">Pages &amp; sources</button>
   <button type="button" class="mkt-tab" data-mkt-tab="sessions">Sessions</button>
   <button type="button" class="mkt-tab" data-mkt-tab="conversions">Conversions</button>
 </div>
@@ -100,6 +100,26 @@
 .mt-row:last-child{border-bottom:0}
 .mt-empty{padding:18px;text-align:center;font-size:12.5px;opacity:.4}
 </style>
+
+{{-- MARKER-MKTDONE — LEGEND. Two different things produce a page of zeroes:
+     a quiet week, and a tracker that has stopped reporting. Those looked
+     identical here for weeks. This says which. --}}
+<div class="mt-note {{ $health['stale'] ? 'mt-note--warn' : '' }}" style="margin-bottom:14px">
+  @if($health['stale'])
+    <b>No page view has been recorded {{ $health['ago'] ? 'since ' . $health['ago'] : 'at all' }}.</b>
+    Visit intake.works in a private window and reload this page — if nothing appears, the tracker
+    is not reaching the site and every browser-sent number below is wrong rather than empty.
+  @else
+    <b>Tracking is live.</b> Last page view recorded {{ $health['ago'] }}.
+  @endif
+  <div class="mt-legend" style="margin-top:6px;opacity:.6">
+    Sent by the browser (can be blocked, and stops entirely if the tracker breaks):
+    page views, pricing views, clicks, exits.
+    Recorded by the server when it happens (always right): messages sent, quiz completions,
+    demo entries, booked calls, accounts created.
+    Crawler traffic is excluded everywhere on this page.
+  </div>
+</div>
 
 <div class="mt-bar">
   {{-- MARKER-MKTSID --}}
@@ -206,14 +226,9 @@
   </div>
 </div>
 
-<div class="mt-sec">From visit to shop</div>
+<div class="mt-sec">How far they got</div>
 @php
-  // There is no 'possible' flag on a stage; the step that cannot happen yet is
-  // marked by its note. Filtering on a key that does not exist would silently
-  // keep everything, so filter on the note.
-  $steps = collect($stages ?? [])
-      ->reject(fn ($st) => str_contains((string) ($st['note'] ?? ''), "isn't built yet"))
-      ->values();
+  $steps = collect($stages ?? [])->values();
 @endphp
 @if($steps->count())
   {{-- MARKER-FUNNEL-TILES — equal tiles. At 39 → 1 → 0 the widths of a
@@ -230,9 +245,6 @@
       @if($i > 0)
         <div class="mt-gap" aria-hidden="true">
           <span class="mt-arrow">→</span>
-          {{-- MARKER-FUNNEL-SCOPED — steps are cumulative now (each counts
-               only sessions that hit every step before it), so the percentage
-               is a real drop-off. Shown only when there is a fall to report. --}}
           @if($drop !== null && $drop > 0 && $count > 0)
             <span class="mt-drop">−{{ $drop }}%</span>
           @endif
@@ -252,14 +264,34 @@
   </div>
 
   <p class="mt-hint">
-    Each step counts sessions that also passed every step before it, so the funnel only falls.
-    "Became a tenant" is the exception — it counts accounts created in the window, however they
-    arrived, so it can sit above the step before it. A step that cannot happen yet is left out
-    rather than sitting at zero.
+    Browsing only, and cumulative: each step counts sessions that also passed every step before
+    it, so this can only fall.
   </p>
 @else
-  <p class="mt-empty">No funnel activity in this window.</p>
+  <p class="mt-empty">No browsing activity in this window.</p>
 @endif
+
+{{-- MARKER-MKTDONE — OUTCOMES, counted independently. These used to sit on the
+     cumulative line above, which meant a visitor who arrived straight at
+     /contact and wrote to you was never counted as having got in touch. None of
+     these depends on any of the others, so none of them gates another. --}}
+<div class="mt-sec">What came of it</div>
+<div class="mt-grid">
+  @foreach($outcomes ?? [] as $oc)
+    <div class="mt-tile {{ (int) $oc['count'] === 0 ? 'is-zero' : '' }}" style="text-align:left">
+      <div class="n">{{ number_format((int) $oc['count']) }}</div>
+      <div class="l">{{ $oc['label'] }}</div>
+      <div class="p">{{ $oc['unit'] }}</div>
+      @if($oc['note'])
+        <div class="mt-step-note">{{ $oc['note'] }}</div>
+      @endif
+    </div>
+  @endforeach
+</div>
+<p class="mt-hint">
+  Each of these is counted on its own — someone can book a call without ever opening pricing.
+  They do not add up to the funnel above and are not meant to.
+</p>
 
 {{-- MARKER-MKTREPAIR — this whole region was mis-nested. The Pages panel
      opened INSIDE the Overview panel, so hiding Overview hid it too and the
@@ -302,7 +334,49 @@
 </div>{{-- /overview panel --}}
 
 <div class="mkt-panel" data-mkt-panel="intent" hidden>
+  {{-- MARKER-MKTDONE — Overview carries the top six of each; this is the whole
+       list, plus the device split, which the service has always computed and
+       no surface has ever shown. --}}
   <div class="mt-two-up">
+    <div class="mt-card">
+      <div class="mt-sec" style="margin-top:0">Every page read</div>
+      @php $apMax = collect($allPages)->max('views') ?: 1; @endphp
+      @forelse($allPages as $pg)
+        <div class="mt-bar-row">
+          <span class="mt-fill" style="width:{{ max(6, round((($pg['views'] ?? 0) / $apMax) * 100)) }}%"></span>
+          <span class="mt-bar-label">{{ $pg['path'] ?? '/' }}</span>
+          <span class="mt-bar-n">{{ number_format($pg['views'] ?? 0) }} · {{ number_format($pg['unique_visitors'] ?? 0) }} people</span>
+        </div>
+      @empty
+        <p class="mt-empty">Nothing recorded in this window.</p>
+      @endforelse
+    </div>
+
+    <div class="mt-card">
+      <div class="mt-sec" style="margin-top:0">Every source</div>
+      @php $asMax = collect($allSources)->max('visits') ?: 1; @endphp
+      @forelse($allSources as $src)
+        <div class="mt-bar-row">
+          <span class="mt-fill" style="width:{{ max(6, round((($src['visits'] ?? 0) / $asMax) * 100)) }}%"></span>
+          <span class="mt-bar-label">{{ $src['name'] ?: '(direct)' }}</span>
+          <span class="mt-bar-n">{{ number_format($src['visits'] ?? 0) }}</span>
+        </div>
+      @empty
+        <p class="mt-empty">Nothing recorded in this window.</p>
+      @endforelse
+    </div>
+  </div>
+
+  <div class="mt-two-up">
+    <div class="mt-card">
+      <div class="mt-sec" style="margin-top:0">Devices</div>
+      @forelse($devices as $d)
+        <div class="mt-row"><span style="text-transform:capitalize">{{ $d['device'] }}</span><b>{{ number_format($d['count']) }} · {{ $d['pct'] }}%</b></div>
+      @empty
+        <p class="mt-empty">Nothing recorded in this window.</p>
+      @endforelse
+    </div>
+
     <div class="mt-card">
       <div class="mt-sec" style="margin-top:0">Quiz recommendations</div>
       @forelse($intent['quiz_recommendation'] as $rec => $count)
@@ -412,6 +486,8 @@
       wrap.querySelectorAll('.rse-chip').forEach(function (c) { c.classList.remove('on'); });
       chip.classList.add('on');
       var f = chip.getAttribute('data-f');
+      // MARKER-MKTDONE — remembered, so a re-render doesn't silently reset it.
+      try { sessionStorage.setItem('intake_mkt_sess_filter', f); } catch (e) {}
       document.querySelectorAll('.rse-row').forEach(function (r) {
         r.style.display = (f === 'all' || r.getAttribute('data-status') === f) ? 'flex' : 'none';
       });
@@ -474,17 +550,68 @@
 </div>
 
 <script>
+// MARKER-MKTDONE — the tab and the session filter survive a Livewire re-render.
+// Clicking a metric tile or the compare box re-renders this component, which
+// re-ran show('overview') and threw you back to the first tab every time, and
+// reset the session chips with it. The tab is in the URL hash so a reload and a
+// shared link land on the same tab; the chip is remembered for the session.
 (function () {
-  var tabs = document.querySelectorAll('[data-mkt-tab]');
+  var tabs   = document.querySelectorAll('[data-mkt-tab]');
   var panels = document.querySelectorAll('[data-mkt-panel]');
-  function show(name) {
+  var names  = Array.prototype.map.call(tabs, function (t) { return t.dataset.mktTab; });
+  var KEY    = 'intake_mkt_tab';
+
+  function show(name, remember) {
+    if (names.indexOf(name) === -1) { name = 'overview'; }
     tabs.forEach(function (t) { t.classList.toggle('on', t.dataset.mktTab === name); });
     panels.forEach(function (p) { p.hidden = (p.dataset.mktPanel !== name); });
+    if (remember) {
+      try { sessionStorage.setItem(KEY, name); } catch (e) {}
+      if (history.replaceState) {
+        history.replaceState(null, '', '#' + name);
+      }
+    }
   }
+
   tabs.forEach(function (t) {
-    t.addEventListener('click', function () { show(t.dataset.mktTab); });
+    t.addEventListener('click', function () { show(t.dataset.mktTab, true); });
   });
-  show('overview');
+
+  var initial = (window.location.hash || '').replace('#', '');
+  if (!initial) {
+    try { initial = sessionStorage.getItem(KEY) || 'overview'; } catch (e) { initial = 'overview'; }
+  }
+  show(initial, false);
+
+  // Re-apply after every Livewire DOM update, since the markup is replaced.
+  document.addEventListener('livewire:navigated', function () { show(initial, false); });
+  if (window.Livewire && window.Livewire.hook) {
+    window.Livewire.hook('morph.updated', function () {
+      var current = 'overview';
+      try { current = sessionStorage.getItem(KEY) || 'overview'; } catch (e) {}
+      show(current, false);
+
+      var f = 'all';
+      try { f = sessionStorage.getItem('intake_mkt_sess_filter') || 'all'; } catch (e) {}
+      applyFilter(f);
+    });
+  }
+
+  function applyFilter(f) {
+    var wrap = document.getElementById('mktSessFilters');
+    if (!wrap) { return; }
+    wrap.querySelectorAll('.rse-chip').forEach(function (c) {
+      c.classList.toggle('on', c.getAttribute('data-f') === f);
+    });
+    document.querySelectorAll('.rse-row').forEach(function (r) {
+      r.style.display = (f === 'all' || r.getAttribute('data-status') === f) ? 'flex' : 'none';
+    });
+  }
+  window.__mktApplyFilter = applyFilter;
+
+  var saved = 'all';
+  try { saved = sessionStorage.getItem('intake_mkt_sess_filter') || 'all'; } catch (e) {}
+  if (saved !== 'all') { applyFilter(saved); }
 })();
 </script>
 </x-filament-panels::page>
