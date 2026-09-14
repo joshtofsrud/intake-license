@@ -3274,7 +3274,13 @@ document.getElementById('payBtn').addEventListener('click', () => {
   }
 
   // Standard sale-direction tender flow (net > 0).
-  cart.payment_method = null; cart.payments = []; if (typeof renderSplit === 'function') renderSplit(); /* MARKER-SPLIT-TENDER */
+  // MARKER-TENDER-KEEPS-PAID — do NOT wipe cart.payments here. They are rows on
+  // the sale's ledger now, not a scratch list for this open; clearing them made
+  // the modal show the full total on a sale that was already part-paid, and
+  // "Remaining" overstate the balance by exactly what had been taken. The
+  // in-browser state that is safe to reset on open still resets below.
+  cart.payment_method = null;
+  if (typeof renderSplit === 'function') renderSplit(); /* MARKER-SPLIT-TENDER */
   cart.payment_reference = null;
   document.getElementById('tenderRefRow').style.display = 'none';
   document.getElementById('tenderManualRow').style.display = 'none'; // MARKER-PATCH-630
