@@ -1280,6 +1280,7 @@ const ROUTES = {
   listDrafts:  @json(route('tenant.register.drafts.index')),
   // MARKER-HOLD
   holdDraft:    @json(route('tenant.register.drafts.hold', ['id' => '__ID__'])),
+  recordPayment: @json(route('tenant.register.payments.record')), // MARKER-PAY-PERSIST
   draftCleanup: @json(route('tenant.register.drafts.cleanup')),
   draftBase:   @json(url('/admin/register/drafts')),
   commitDraft: @json(url('/admin/register/drafts')),
@@ -2792,6 +2793,53 @@ document.getElementById('holdSaleBtn')?.addEventListener('click', async function
   } catch (e) { showError('Could not hold this sale.'); }
 });
 
+// MARKER-PAY-PERSIST — record a payment on the sale, then mirror what the sale
+// holds. The ledger is the truth; cart.payments is a copy of it for drawing.
+async function persistPayment(leg) {
+  const optimistic = Object.assign({}, leg, { pending: true });
+  cart.payments.push(optimistic);
+  renderSplit();
+
+  try {
+    const r = await fetch(ROUTES.recordPayment, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF, Accept: 'application/json' },
+      body: JSON.stringify({
+        draft_id: cart.draft_id || null,
+        amount_cents: leg.amount_cents,
+        method: leg.method,
+        reference: leg.reference,
+        change_cents: leg.change_cents || 0,
+        stripe_payment_intent_id: leg.payment_intent || null,
+        customer_id: cart.customer ? cart.customer.id : null,
+        items: cart.items.map(serializeLine),
+      }),
+    });
+    const d = await r.json();
+
+    if (!d.ok) {
+      // Take the optimistic row back out — it is not on the ledger.
+      cart.payments = cart.payments.filter(p => p !== optimistic);
+      renderSplit();
+      tenderModalError(d.error || 'The payment could not be recorded.');
+      return false;
+    }
+
+    // Mirror the sale. From here the cart is backed by a record that survives
+    // a refresh, a crash, or a closed tab.
+    cart.draft_id = d.draft_id;
+    cart.payments = d.payments;
+    renderSplit();
+    if (typeof tenderPaint === 'function') { tenderPaint(); }
+    return true;
+  } catch (e) {
+    cart.payments = cart.payments.filter(p => p !== optimistic);
+    renderSplit();
+    tenderModalError('The payment could not be recorded. Nothing was taken.');
+    return false;
+  }
+}
+
 function calcSubtotal() { return cart.items.reduce((sum, i) => sum + Math.round(((typeof i.effective_price_cents === 'number') ? i.effective_price_cents : i.price_cents) * i.qty), 0); }
 function calcRefundSubtotal() {
   return cart.refund_lines.reduce((sum, r) => sum + Math.round(r.price_cents * r.qty), 0);
@@ -3346,7 +3394,10 @@ document.getElementById('splitAddBtn').addEventListener('click', () => {
     if (c <= 0) return;
   }
   const selBtn = document.querySelector('#tenderModal .reg-tender-btn.selected');
-  cart.payments.push({
+
+  // MARKER-PAY-PERSIST — to the ledger, not to a list in this tab. A refresh
+  // between two legs used to lose the first one along with the whole cart.
+  persistPayment({
     method: cart.payment_method,
     amount_cents: c,
     change_cents: change,
@@ -3354,6 +3405,7 @@ document.getElementById('splitAddBtn').addEventListener('click', () => {
              : ((document.getElementById('tenderRefInput').value || '').trim() || null),
     label: selBtn ? selBtn.textContent.trim().split('\n')[0].trim() : cart.payment_method,
   });
+
   cart.payment_method = null;
   document.querySelectorAll('#tenderModal .reg-tender-btn').forEach(b => b.classList.remove('selected'));
   document.getElementById('splitAmountRow').style.display = 'none';
@@ -4616,6 +4668,9 @@ async function resumeDraft(id) {
     cart.customer = data.draft.customer;
     cart.tipCents = data.draft.tip_cents || 0;
     cart.tax_locked = !!data.draft.tax_locked;
+    // MARKER-PAY-PERSIST — the money comes back with the cart. This is the
+    // whole point: take $300, refresh, and the $300 is still there.
+    cart.payments = data.draft.payments || [];
     cart.items = (data.draft.items || []).map(i => ({
       key: ++lineKey,
       type: i.type,
@@ -4629,6 +4684,7 @@ async function resumeDraft(id) {
     }));
     closeModal('draftsModal');
     renderCart();
+    if (typeof renderSplit === 'function') { renderSplit(); } // MARKER-PAY-PERSIST
     refreshDraftsBanner(await loadDrafts());
   } catch (e) {
     showError('Network error loading draft.');

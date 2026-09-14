@@ -896,6 +896,126 @@ class RegisterController extends Controller
         ]);
     }
 
+    /**
+     * MARKER-PAY-PERSIST — record a payment against the cart's sale as it is
+     * taken, rather than holding it in the browser until commit.
+     *
+     * Creates the sale if there is not one yet: the first payment is what
+     * turns a cart into a record. Returns the sale's whole payment list so the
+     * register mirrors the ledger rather than its own memory.
+     */
+    public function recordCartPayment(Request $request): JsonResponse
+    {
+        $tenant = tenant();
+        $user   = \Illuminate\Support\Facades\Auth::guard('tenant')->user();
+        $locationId = $request->session()->get('current_location_id');
+
+        $v = $request->validate([
+            'draft_id'                 => 'nullable|uuid',
+            'amount_cents'             => 'required|integer|min:1',
+            'method'                   => 'required|string|max:32',
+            'reference'                => 'nullable|string|max:120',
+            'change_cents'             => 'nullable|integer|min:0',
+            'stripe_payment_intent_id' => 'nullable|string|max:120',
+            'customer_id'              => 'nullable|uuid',
+            'items'                    => 'required|array|min:1',
+            'items.*.type'             => 'required|string|in:service,product,open_item,gift_card',
+            'items.*.service_id'       => 'nullable|uuid',
+            'items.*.inventory_item_id'=> 'nullable|uuid',
+            'items.*.gift_card'        => 'nullable|array',
+            'items.*.name_snapshot'    => 'nullable|string|max:255',
+            'items.*.unit_price_cents' => 'nullable|integer|min:0',
+            'items.*.quantity'         => 'nullable|numeric|min:0.001',
+            'items.*.discount_cents'   => 'nullable|integer|min:0',
+            'items.*.is_taxable'       => 'nullable|boolean',
+            'items.*.notes'            => 'nullable|string',
+        ]);
+
+        if (! $locationId) {
+            return response()->json(['ok' => false, 'error' => 'Pick a location first.'], 422);
+        }
+
+        try {
+            $result = \Illuminate\Support\Facades\DB::transaction(function () use ($tenant, $v, $user, $locationId) {
+                // The sale must exist before money can be attached to it. If the
+                // cart has no draft yet, this payment is what creates one — the
+                // same shape as Hold and Add to order.
+                $sale = $this->sales->saveDraft([
+                    'id'                 => $v['draft_id'] ?? null,
+                    'tenant_id'          => $tenant->id,
+                    'rang_up_by_user_id' => $user?->id,
+                    'location_id'        => $locationId,
+                    'customer_id'        => $v['customer_id'] ?? null,
+                    'items'              => $v['items'],
+                ]);
+
+                $reference = $v['reference'] ?? null;
+                if (! empty($v['stripe_payment_intent_id'])) {
+                    $reference = trim(($reference ?: 'Card') . ' · ' . $v['stripe_payment_intent_id']);
+                }
+
+                $payment = app(\App\Services\Tenant\SalePaymentService::class)->record(
+                    $sale,
+                    (int) $v['amount_cents'],
+                    \App\Models\Tenant\TenantSalePayment::KIND_PAYMENT,
+                    'register',
+                    $v['method'],
+                    null,
+                    $reference,
+                    ($v['change_cents'] ?? 0) > 0
+                        ? 'Change given: ' . number_format(((int) $v['change_cents']) / 100, 2)
+                        : null,
+                );
+
+                return ['sale' => $sale->fresh(), 'payment' => $payment];
+            });
+        } catch (\Throwable $e) {
+            // The charge may already have happened. Never swallow this.
+            \Illuminate\Support\Facades\Log::error('MARKER-PAY-PERSIST could not record a payment', [
+                'tenant'         => $tenant->id,
+                'draft'          => $v['draft_id'] ?? null,
+                'amount_cents'   => $v['amount_cents'],
+                'method'         => $v['method'],
+                'payment_intent' => $v['stripe_payment_intent_id'] ?? null,
+                'error'          => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'ok'    => false,
+                'error' => 'The payment could not be recorded: ' . $e->getMessage()
+                         . (! empty($v['stripe_payment_intent_id'])
+                             ? ' The card WAS charged — reference ' . $v['stripe_payment_intent_id']
+                               . '. Record it manually or refund it in Stripe.'
+                             : ''),
+            ], 422);
+        }
+
+        $sale = $result['sale'];
+
+        return response()->json([
+            'ok'         => true,
+            'draft_id'   => $sale->id,
+            'payments'   => $this->cartPaymentsFor($sale),
+            'paid_cents' => (int) $sale->payments()->sum('amount_cents'),
+        ]);
+    }
+
+    /** MARKER-PAY-PERSIST — the sale's payments, in the shape the register draws. */
+    private function cartPaymentsFor(\App\Models\Tenant\TenantSale $sale): array
+    {
+        return $sale->payments()
+            ->orderBy('created_at')
+            ->get()
+            ->map(fn ($p) => [
+                'id'           => $p->id,
+                'method'       => $p->method,
+                'amount_cents' => (int) $p->amount_cents,
+                'reference'    => $p->external_reference,
+                'label'        => ucfirst(str_replace('_', ' ', (string) $p->method)),
+                'locked'       => true, // it is on the ledger; it is real
+            ])->all();
+    }
+
     public function storeDraft(Request $request): JsonResponse
     {
         $tenant = tenant();
@@ -1186,6 +1306,10 @@ class RegisterController extends Controller
                     'phone' => $draft->customer->phone ?? '',
                 ] : null,
                 'tip_cents'   => $draft->tip_cents,
+                // MARKER-PAY-PERSIST — without this, resuming restores the
+                // items and silently drops the money, which is the failure
+                // this whole patch exists to stop.
+                'payments'    => $this->cartPaymentsFor($draft),
                 'notes'       => $draft->notes,
                 'tax_locked'  => (bool) $draft->tax_locked,
                 'tax_cents'   => (int) $draft->tax_cents,
