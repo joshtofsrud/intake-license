@@ -222,15 +222,31 @@ class TenantInventoryItem extends Model
      * caller could tell a price you paid from a price a distributor listed.
      * costSource() says which this is.
      */
+    /**
+     * MARKER-COST-PRECEDENCE — received, then what the shop entered, then catalog.
+     *
+     * shop_cost_cents was missing from this chain entirely, so an item created by
+     * hand with a cost typed in had NO effective cost: the margin read as a dash,
+     * and every sale of it stamped cost_cents_at_time null, which understates COGS
+     * and overstates profit in every report that reads it. Sell price has always
+     * done the equivalent fallback (shop_sell_price_cents ?? catalog_msrp_cents) —
+     * cost just never got the middle step.
+     *
+     * Order is deliberate: what was actually paid on a purchase order beats what
+     * someone typed into the item, which beats a distributor's list price.
+     */
     public function effectiveCostCents(): ?int
     {
-        return $this->received_cost_cents ?? $this->catalog_cost_cents;
+        return $this->received_cost_cents
+            ?? $this->shop_cost_cents
+            ?? $this->catalog_cost_cents;
     }
 
-    /** 'received' | 'catalog' | null — which number effectiveCostCents() is. */
+    /** 'received' | 'shop' | 'catalog' | null — which number effectiveCostCents() is. */
     public function costSource(): ?string
     {
         if ($this->received_cost_cents !== null) return 'received';
+        if ($this->shop_cost_cents !== null)     return 'shop';   // MARKER-COST-PRECEDENCE
         if ($this->catalog_cost_cents !== null)  return 'catalog';
         return null;
     }
@@ -240,6 +256,7 @@ class TenantInventoryItem extends Model
     {
         return match ($this->costSource()) {
             'received' => 'your cost',
+            'shop'     => 'the cost you entered',
             'catalog'  => 'estimated from the ' . ($this->distributorCatalog?->distributor_code ?? 'distributor') . ' catalog',
             default    => 'no cost recorded',
         };

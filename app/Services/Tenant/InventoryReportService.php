@@ -16,6 +16,12 @@ use Illuminate\Support\Facades\DB;
  * NOTHING here ships data anywhere. The push to distro is consent-gated
  * per tenant->rep relationship and is a separate piece of work.
  */
+// MARKER-COST-PRECEDENCE — these valuations used COALESCE(shop, catalog) while
+// TenantInventoryItem::effectiveCostCents() used received ?? catalog. Two
+// different orders over the same three columns, so stock valuation and the
+// register could disagree about the cost of the same item. Both now read
+// received ?? shop ?? catalog. Keep the two in step: if one changes, so does
+// the other.
 class InventoryReportService
 {
     public function __construct(private Tenant $tenant) {}
@@ -109,7 +115,7 @@ class InventoryReportService
             ->whereNull('deleted_at')
             ->selectRaw('SUM(CASE WHEN computed_stock_count > 0 THEN 1 ELSE 0 END) as skus')
             ->selectRaw('SUM(GREATEST(computed_stock_count, 0)) as units')
-            ->selectRaw('SUM(GREATEST(computed_stock_count, 0) * COALESCE(shop_cost_cents, catalog_cost_cents, 0)) as cost')
+            ->selectRaw('SUM(GREATEST(computed_stock_count, 0) * COALESCE(received_cost_cents, shop_cost_cents, catalog_cost_cents, 0)) as cost')
             ->selectRaw('SUM(GREATEST(computed_stock_count, 0) * COALESCE(shop_sell_price_cents, catalog_msrp_cents, 0)) as retail')
             ->selectRaw('SUM(CASE WHEN computed_stock_count < 0 THEN 1 ELSE 0 END) as negative_skus')
             ->first();
@@ -189,12 +195,12 @@ class InventoryReportService
 
         $totals = (clone $q)
             ->selectRaw('COUNT(*) as skus')
-            ->selectRaw('SUM(computed_stock_count * COALESCE(shop_cost_cents, catalog_cost_cents, 0)) as cost')
+            ->selectRaw('SUM(computed_stock_count * COALESCE(received_cost_cents, shop_cost_cents, catalog_cost_cents, 0)) as cost')
             ->first();
 
         $items = (clone $q)
             ->select('id', 'sku', 'name', 'computed_stock_count')
-            ->selectRaw('computed_stock_count * COALESCE(shop_cost_cents, catalog_cost_cents, 0) as tied_cents')
+            ->selectRaw('computed_stock_count * COALESCE(received_cost_cents, shop_cost_cents, catalog_cost_cents, 0) as tied_cents')
             ->orderByDesc('tied_cents')
             ->limit($limit)
             ->get();
@@ -218,7 +224,7 @@ class InventoryReportService
             ->where('i.is_active', true)
             ->whereNull('i.deleted_at')
             ->select('i.id', 'i.computed_stock_count', 'c.name as category')
-            ->selectRaw('COALESCE(i.shop_cost_cents, i.catalog_cost_cents, 0) as unit_cost')
+            ->selectRaw('COALESCE(i.received_cost_cents, i.shop_cost_cents, i.catalog_cost_cents, 0) as unit_cost')
             ->get();
 
         $rows = [];
