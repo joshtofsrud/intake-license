@@ -478,6 +478,7 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
                 // MARKER-PAY-PERSIST
                 Route::post('/register/payments',          [TenantControllers\RegisterController::class, 'recordCartPayment'])->name('register.payments.record');
                 Route::post('/register/payments/void',     [TenantControllers\RegisterController::class, 'voidCartPayment'])->name('register.payments.void'); // MARKER-VOID-PERSISTED
+                Route::post('/register/sale/void',         [TenantControllers\RegisterController::class, 'voidCartSale'])->name('register.sale.void'); // MARKER-NO-ORPHAN-MONEY
                 Route::post('/register/drafts',           [TenantControllers\RegisterController::class, 'storeDraft'])->name('register.drafts.store');
                 Route::get('/register/drafts/{id}',        [TenantControllers\RegisterController::class, 'showDraft'])->name('register.drafts.show');
                 Route::delete('/register/drafts/{id}',     [TenantControllers\RegisterController::class, 'discardDraft'])->name('register.drafts.destroy');

@@ -1076,6 +1076,89 @@ class RegisterController extends Controller
         ]);
     }
 
+    /**
+     * MARKER-NO-ORPHAN-MONEY — refund every payment on this sale, then void it.
+     *
+     * Used when the goods are gone and the money is not: the last line removed
+     * from a part-paid cart, or a part-paid draft being thrown away. Each
+     * payment is reversed the same way a single void is — Stripe first where
+     * there is a charge, then the ledger — so one failure stops the lot rather
+     * than leaving half a refund.
+     */
+    public function voidCartSale(Request $request): JsonResponse
+    {
+        $tenant = tenant();
+
+        $v = $request->validate(['draft_id' => 'required|uuid']);
+
+        $sale = TenantSale::where('tenant_id', $tenant->id)
+            ->whereIn('payment_status', ['draft', 'quote'])
+            ->findOrFail($v['draft_id']);
+
+        $live = $sale->payments()
+            ->where('amount_cents', '>', 0)
+            ->get()
+            ->reject(function ($p) use ($sale) {
+                return $sale->payments()
+                    ->where('reference_payment_id', $p->id)
+                    ->where('kind', \App\Models\Tenant\TenantSalePayment::KIND_REFUND)
+                    ->exists();
+            });
+
+        $refunded = 0;
+
+        foreach ($live as $payment) {
+            $intent = null;
+            if ($payment->external_reference && preg_match('/pi_[A-Za-z0-9]+/', $payment->external_reference, $m)) {
+                $intent = $m[0];
+            }
+
+            $stripeRefundId = null;
+            if ($intent) {
+                $direct = new DirectPaymentsService($tenant);
+                $refund = $direct->refundPaymentIntent($intent, 'sale_voided');
+                if (! $refund) {
+                    // Stop here. Half a refund is worse than none, and the
+                    // cashier needs to know exactly which charge is stuck.
+                    \Illuminate\Support\Facades\Log::error('MARKER-NO-ORPHAN-MONEY Stripe refused a refund', [
+                        'tenant' => $tenant->id, 'sale' => $sale->id, 'payment' => $payment->id, 'intent' => $intent,
+                    ]);
+
+                    return response()->json([
+                        'ok'    => false,
+                        'error' => 'Stripe would not refund ' . number_format($payment->amount_cents / 100, 2)
+                                 . ' (reference ' . $intent . '). ' . $refunded . ' payment(s) were refunded before this one. '
+                                 . 'Nothing has been voided — check the Stripe dashboard.',
+                    ], 502);
+                }
+                $stripeRefundId = $refund->id;
+            }
+
+            app(\App\Services\Tenant\SalePaymentService::class)->refund(
+                $sale,
+                (int) $payment->amount_cents,
+                $payment->method,
+                $payment->id,
+                $stripeRefundId,
+                'Sale voided at the register — goods removed before it was finalised.',
+            );
+
+            $refunded++;
+        }
+
+        // Everything is back with the customer; the sale can go.
+        try {
+            $this->sales->discardDraft($tenant->id, $sale->id);
+        } catch (SaleValidationException $e) {
+            return response()->json([
+                'ok'    => false,
+                'error' => 'Payments were refunded, but the sale could not be discarded: ' . $e->getMessage(),
+            ], 422);
+        }
+
+        return response()->json(['ok' => true, 'refunded' => $refunded]);
+    }
+
     /** MARKER-PAY-PERSIST — the sale's payments, in the shape the register draws. */
     private function cartPaymentsFor(\App\Models\Tenant\TenantSale $sale): array
     {
@@ -1418,6 +1501,23 @@ class RegisterController extends Controller
     public function discardDraft(Request $request, string $id): JsonResponse
     {
         $tenant = tenant();
+
+        // MARKER-NO-ORPHAN-MONEY — a draft holding payments is not a draft any
+        // more; it is a customer's money. Deleting it here used to take the
+        // money with it, with no check and no trace.
+        $live = TenantSale::where('tenant_id', $tenant->id)->find($id);
+        if ($live) {
+            $net = (int) $live->payments()->sum('amount_cents');
+            if ($net > 0) {
+                return response()->json([
+                    'ok'    => false,
+                    'error' => 'This sale is holding ' . number_format($net / 100, 2)
+                             . ' in payments. Refund them first — a sale with money on it cannot just be discarded.',
+                    'needs_refund'  => true,
+                    'paid_cents'    => $net,
+                ], 422);
+            }
+        }
 
         try {
             $this->sales->discardDraft($tenant->id, $id);

@@ -1290,6 +1290,7 @@ const ROUTES = {
   holdDraft:    @json(route('tenant.register.drafts.hold', ['id' => '__ID__'])),
   recordPayment: @json(route('tenant.register.payments.record')), // MARKER-PAY-PERSIST
   voidPayment:   @json(route('tenant.register.payments.void')),   // MARKER-VOID-PERSISTED
+  voidSale:      @json(route('tenant.register.sale.void')),       // MARKER-NO-ORPHAN-MONEY
   draftCleanup: @json(route('tenant.register.drafts.cleanup')),
   draftBase:   @json(url('/admin/register/drafts')),
   commitDraft: @json(url('/admin/register/drafts')),
@@ -1961,7 +1962,49 @@ function addToOrderForLine(key, retried) {
   .catch(err => alert('Add to order error: ' + err.message));
 }
 
+// MARKER-NO-ORPHAN-MONEY — refund everything on this sale and void it.
+async function refundAndVoidSale() {
+  const paid = (cart.payments || []).reduce((n, p) => n + (p.amount_cents || 0), 0);
+
+  const ok = await iaConfirm('Refund ' + fmt(paid) + ' and void this sale? '
+    + 'The customer gets their money back and nothing is kept.');
+  if (!ok) { return false; }
+
+  try {
+    const r = await fetch(ROUTES.voidSale, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF, Accept: 'application/json' },
+      body: JSON.stringify({ draft_id: cart.draft_id }),
+    });
+    const d = await r.json();
+    if (!d.ok) { showError(d.error || 'Could not void this sale.'); return false; }
+
+    if (window.IntakeToast) { IntakeToast.success(fmt(paid) + ' refunded. Sale voided.'); }
+
+    cart.items = []; cart.payments = []; cart.payment_method = null;
+    cart.customer = null; cart.draft_id = null; cart.tipCents = 0;
+    cart.discountCents = 0; cart.discountCode = null;
+    renderCart();
+    if (typeof renderSplit === 'function') { renderSplit(); }
+    if (typeof loadDrafts === 'function') { loadDrafts(); }
+    return true;
+  } catch (e) {
+    showError('Could not void this sale. Nothing was changed.');
+    return false;
+  }
+}
+
 function removeLine(key) {
+  // MARKER-NO-ORPHAN-MONEY — taking the last line out of a part-paid cart
+  // leaves the shop holding a customer's money against nothing: Total $0.00,
+  // Paid $129.00, and no way to give it back. Removing the goods does not
+  // remove the obligation, so this asks instead of quietly doing it.
+  const paidNow = (cart.payments || []).reduce((n, p) => n + (p.amount_cents || 0), 0);
+  if (paidNow > 0 && cart.items.length === 1 && cart.items[0].key === key) {
+    refundAndVoidSale();
+    return;
+  }
+
   // MARKER-SO-SALE-LINK — a line that requested a special order takes that
   // request with it. Only retracts orders still in "needed"; anything already
   // placed with a vendor is left alone and reported, since goods may be
@@ -4753,6 +4796,9 @@ async function resumeDraft(id) {
   }
 }
 
+// MARKER-NO-ORPHAN-MONEY — the drafts list reaches the same hole: discarding
+// a part-paid sale used to delete the money with it, server-side, with no
+// check at all. The server now refuses; this turns that refusal into a choice.
 async function discardDraftFromList(id) {
   const ok = await confirmDialog(
     'This draft will be permanently deleted.',
@@ -4766,6 +4812,24 @@ async function discardDraftFromList(id) {
       headers: {'Accept':'application/json', 'X-CSRF-TOKEN': CSRF},
     });
     const data = await res.json();
+
+    // MARKER-NO-ORPHAN-MONEY — the server refuses a draft holding payments.
+    // Turn that into the one action that resolves it.
+    if (!data.ok && data.needs_refund) {
+      const go = await iaConfirm('This sale is holding ' + fmt(data.paid_cents)
+        + ' in payments. Refund it all and void the sale?');
+      if (!go) { return; }
+      const r2 = await fetch(ROUTES.voidSale, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF, Accept: 'application/json' },
+        body: JSON.stringify({ draft_id: id }),
+      });
+      const d2 = await r2.json();
+      if (!d2.ok) { showError(d2.error || 'Could not void that sale.'); return; }
+      if (window.IntakeToast) { IntakeToast.success(fmt(data.paid_cents) + ' refunded. Sale voided.'); }
+      refreshDraftsBanner(await loadDrafts());
+      return;
+    }
     if (!data.ok) { showError(data.error || 'Could not discard draft.'); return; }
     // If we just discarded the cart's own draft, clear it too.
     if (cart.draft_id === id) {
