@@ -23,7 +23,7 @@ class SectionRegistry
             'register'          => ['label' => 'Register',           'group' => 'main',     'prefixes' => ['tenant.register'],                             'gate' => 'retail_enabled'],
             'schedule'          => ['label' => 'Schedule',           'group' => 'main',     'prefixes' => ['tenant.calendar', 'tenant.appointments'],      'gate' => null],
             'rentals'           => ['label' => 'Rentals',            'group' => 'main',     'prefixes' => ['tenant.rentals'],                              'gate' => 'rentals_visible'],
-            'classes'           => ['label' => 'Classes',            'group' => 'main',     'prefixes' => ['tenant.classes'],                              'gate' => 'classes_enabled'],
+            'classes'           => ['label' => 'Classes',            'group' => 'main',     'prefixes' => ['tenant.classes'],                              'gate' => 'classes_active'],
             'customers'         => ['label' => 'Customers',          'group' => 'main',     'prefixes' => ['tenant.customers'],                            'gate' => null],
             'inventory'         => ['label' => 'Inventory',          'group' => 'main',     'prefixes' => ['tenant.inventory', 'tenant.distributors'],     'gate' => 'retail_enabled'],
             'special_orders'    => ['label' => 'Special Orders',     'group' => 'main',     'prefixes' => ['tenant.special-orders'],                       'gate' => 'retail_enabled'],

@@ -687,7 +687,7 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
                 Route::post('/hours',      [TenantControllers\OnboardingWizardController::class, 'saveHours'])->name('hours.save');
                 Route::get('/services',    [TenantControllers\OnboardingWizardController::class, 'showServices'])->name('services');
                 Route::post('/services',   [TenantControllers\OnboardingWizardController::class, 'saveServices'])->name('services.save');
-                Route::get('/team',        [TenantControllers\OnboardingWizardController::class, 'showTeam'])->name('team');
+                Route::get('/team',        [TenantControllers\OnboardingWizardController::class, 'showTeamshowTeamOrSkip'])->name('team');
                 Route::post('/team',       [TenantControllers\OnboardingWizardController::class, 'saveTeam'])->name('team.save');
                 Route::get('/payment',     [TenantControllers\OnboardingWizardController::class, 'showPayment'])->name('payment');
                 Route::post('/payment',    [TenantControllers\OnboardingWizardController::class, 'savePayment'])->name('payment.save');

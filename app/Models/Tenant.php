@@ -444,6 +444,24 @@ class Tenant extends Model
      * not an addon, and it depends on rentals being active. "Available"
      * means the shop *could* turn it on; "enabled" means they have.
      */
+    /**
+     * MARKER-CLASSES-ADDON — classes_enabled is what the SHOP asked for;
+     * this is whether they are entitled to it. Both have to be true.
+     *
+     * The column keeps its own meaning so that a tenant who upgrades gets
+     * their classes back exactly as they left them, rather than having the
+     * setting wiped when their plan lapsed.
+     */
+    public function getClassesAvailableAttribute(): bool
+    {
+        return $this->hasAddon('classes');
+    }
+
+    public function getClassesActiveAttribute(): bool
+    {
+        return $this->classes_available && (bool) $this->getRawOriginal('classes_enabled');
+    }
+
     public function getLeasingAvailableAttribute(): bool
     {
         $rank = ['starter' => 0, 'branded' => 1, 'scale' => 2, 'custom' => 3];

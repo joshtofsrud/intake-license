@@ -131,6 +131,13 @@
     <button type="button" class="btn btn-primary" id="ob-continue">
       {{ $existingServices->count() > 0 ? 'Add another → Team' : 'Continue → Team' }}
     </button>
+      {{-- MARKER-ONBOARD-PLAN — a real skip. The first service used to be
+           mandatory with no way past, which is a hard stop on someone who just
+           wants to look around before writing a price list. --}}
+      <button type="button" class="btn-skip" id="skipServicesBtn"
+              style="background:none;border:0;font:inherit;cursor:pointer;padding:10px 4px">
+        Skip for now — add services later
+      </button>
   </div>
 @endsection
 
@@ -164,8 +171,10 @@
     const dur   = parseInt(durEl.value, 10);
     const price = priceEl.value.trim();
 
-    // If a service was already added on this page (existing services) and
-    // the user left the form blank, treat Continue as "skip to Team."
+    // MARKER-ONBOARD-PLAN — SKIP_OK means "a service already exists", so this
+    // only ever let someone stop adding MORE. The first service had no way
+    // past at all: blank gave the "give your first service a name" banner and
+    // that was the end of it. The explicit Skip button below handles that.
     if (!name && SKIP_OK) {
       cont.disabled = true;
       cont.textContent = 'Continuing…';
@@ -175,7 +184,7 @@
 
     if (!name) {
       nameEl.classList.add('invalid');
-      showError('Give your first service a name so customers know what to book.');
+      showError('Give your first service a name — or use Skip for now below if you would rather set this up later.');
       return;
     }
     if (price === '' || isNaN(parseFloat(price)) || parseFloat(price) < 0) {
@@ -214,5 +223,13 @@
     }
   });
 })();
+
+  // MARKER-ONBOARD-PLAN — goes straight on. Nothing is created, so nothing has
+  // to be cleaned up if they never come back to it.
+  document.getElementById('skipServicesBtn')?.addEventListener('click', function () {
+    this.disabled = true;
+    this.textContent = 'Skipping…';
+    window.location.href = @json(route('tenant.onboarding.wizard.team', []));
+  });
 </script>
 @endsection

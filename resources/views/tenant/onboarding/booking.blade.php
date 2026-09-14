@@ -114,6 +114,10 @@
 
   {{-- Classes: independent toggle --}}
   <div class="booking-section">
+  {{-- MARKER-ONBOARD-PLAN — classes start at branded. Offering the toggle on a
+       starter plan invites someone to switch on something they do not have.
+       Named rather than hidden, so nobody wonders where it went. --}}
+  @if($canClasses ?? false)
     <div class="classes-toggle-row">
       <div class="classes-toggle-label">
         <strong>Group classes</strong>
@@ -121,6 +125,14 @@
       </div>
       <div class="toggle {{ $tenant->classes_enabled ? 'on' : '' }}" id="ob-classes-toggle"></div>
     </div>
+  @else
+    <div class="classes-toggle-row" style="opacity:.65">
+      <div class="classes-toggle-label">
+        <strong>Group classes</strong>
+        <div class="helper">Classes are part of the Branded plan. You can add them later from Settings — nothing here changes if you upgrade.</div>
+      </div>
+    </div>
+  @endif
   </div>
 
   <div class="actions">

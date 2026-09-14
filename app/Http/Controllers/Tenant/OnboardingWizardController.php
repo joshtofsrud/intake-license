@@ -68,6 +68,20 @@ class OnboardingWizardController extends Controller
         return $this->render('services', 5);
     }
 
+    /**
+     * MARKER-ONBOARD-PLAN — starter is one person, so there is nobody to add.
+     * Skipped rather than shown and then enforced later, which is how you get
+     * someone inviting a colleague who cannot sign in.
+     */
+    public function showTeamOrSkip()
+    {
+        if (! $this->tierAtLeast(tenant(), 'branded')) {
+            return redirect()->route('tenant.onboarding.wizard.payment', []);
+        }
+
+        return $this->showTeam();
+    }
+
     public function showTeam(): View
     {
         return $this->render('team', 6);
@@ -121,10 +135,13 @@ class OnboardingWizardController extends Controller
             'onboarding_step' => max(2, $tenant->onboarding_step ?? 0),
         ];
 
-        // Pre-fill step 3 booking defaults based on workflow — only if the
-        // tenant hasn't already chosen a booking mode (fresh signup).
+        // MARKER-ONBOARD-PLAN — the workflow picked at stage 1 decides the
+        // booking mode. This used to run only when booking_mode was null, but
+        // signup writes 'drop_off' at tenant creation, so it was never null and
+        // the choice was silently thrown away — pick "book me a time", get
+        // drop-off. A hard-coded signup default is not a choice the tenant made.
         $workflow = session('onboarding_workflow');
-        if (is_null($tenant->booking_mode) && in_array($workflow, ['takein', 'booktime', 'class'], true)) {
+        if (in_array($workflow, ['takein', 'booktime', 'class'], true)) {
             $defaults = [
                 'takein'   => ['booking_mode' => 'drop_off',   'classes_enabled' => false],
                 'booktime' => ['booking_mode' => 'time_slots', 'classes_enabled' => false],
@@ -385,11 +402,34 @@ class OnboardingWizardController extends Controller
 
     private function render(string $step, int $stepNumber): View
     {
+        $tenant = tenant();
+
         return view("tenant.onboarding.{$step}", [
             'currentStep' => $stepNumber,
             'totalSteps'  => self::TOTAL_STEPS,
-            'tenant'      => tenant(),
+            'tenant'      => $tenant,
+            // MARKER-ONBOARD-PLAN — the wizard did not know what the tenant had
+            // just bought, so it offered everything to everybody.
+            'planTier'    => $tenant->plan_tier ?? 'starter',
+            'canClasses'  => $this->tierAtLeast($tenant, 'branded'),
+            'canTeam'     => $this->tierAtLeast($tenant, 'branded'),
         ]);
+    }
+
+    /**
+     * MARKER-ONBOARD-PLAN — plan-tier floor, matching FeatureAccessService's
+     * ordering so onboarding and the app cannot disagree about what a tier is.
+     */
+    private function tierAtLeast($tenant, string $floor): bool
+    {
+        $rank = fn (?string $t) => match ($t) {
+            'branded' => 1,
+            'scale'   => 2,
+            'custom'  => 3,
+            default   => 0,
+        };
+
+        return $rank($tenant->plan_tier ?? 'starter') >= $rank($floor);
     }
 
     private function stepResponse(int $savedStep, string $nextStep): JsonResponse
