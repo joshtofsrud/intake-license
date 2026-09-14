@@ -156,7 +156,15 @@ class SettingsController extends Controller
             'timezone'             => $request->input('timezone'),
             'booking_window_days'  => (int) $request->input('booking_window_days'),
             'min_notice_hours'     => (int) $request->input('min_notice_hours'),
-            'classes_enabled'      => (bool) $request->input('classes_enabled'),
+            // MARKER-CLASSES-SETTINGS — a hidden button is not a gate. Without
+            // the entitlement this field is ignored entirely, so a crafted
+            // request cannot set a flag the plan does not include. The stored
+            // value is preserved rather than cleared: it means "the shop wants
+            // classes", and wiping it would make someone who upgrades later
+            // rediscover a setting they already chose.
+            'classes_enabled'      => $tenant->classes_available
+                ? (bool) $request->input('classes_enabled')
+                : (bool) $tenant->getRawOriginal('classes_enabled'),
             'deliveries_enabled'   => (bool) $request->input('deliveries_enabled'), // MARKER-PATCH-156
             'multi_asset_enabled'  => (bool) $request->input('multi_asset_enabled'), // MARKER-PATCH-158-B
             'asset_label_singular' => $request->filled('asset_label_singular') ? trim($request->input('asset_label_singular')) : 'item',  // MARKER-PATCH-215

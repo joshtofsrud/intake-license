@@ -443,22 +443,36 @@
       </div>
     </div>
 
-    {{-- Class bookings --}}
+    {{-- MARKER-CLASSES-SETTINGS — a toggle that does nothing is worse than no
+         toggle. Since classes became a gated addon, switching this on without
+         the entitlement produced no Classes section and no /classes page, with
+         nothing on screen explaining why. --}}
     <div class="ia-card" style="margin-bottom:20px">
       <div class="ia-card-head"><span class="ia-card-title">Class bookings</span></div>
-      <div style="padding:6px 0;display:flex;align-items:center;justify-content:space-between;gap:16px">
-        <div>
-          <div style="font-size:14px;font-weight:500">Enable class bookings</div>
-          <div style="font-size:12px;opacity:.5;margin-top:2px">Adds a Classes section to your admin and a customer-facing /classes page.</div>
+
+      @if($currentTenant->classes_available)
+        <div style="padding:6px 0;display:flex;align-items:center;justify-content:space-between;gap:16px">
+          <div>
+            <div style="font-size:14px;font-weight:500">Enable class bookings</div>
+            <div style="font-size:12px;opacity:.5;margin-top:2px">Adds a Classes section to your admin and a customer-facing /classes page.</div>
+          </div>
+          <input type="hidden" name="classes_enabled" id="classes_enabled_input" value="{{ $currentTenant->getRawOriginal('classes_enabled') ? '1' : '0' }}">
+          <button type="button"
+            class="ia-toggle {{ $currentTenant->getRawOriginal('classes_enabled') ? 'on' : '' }}"
+            id="classes-toggle-btn"
+            aria-label="Enable class bookings">
+            <span class="ia-toggle-sr">{{ $currentTenant->getRawOriginal('classes_enabled') ? 'Enabled' : 'Disabled' }}</span>
+          </button>
         </div>
-        <input type="hidden" name="classes_enabled" id="classes_enabled_input" value="{{ $currentTenant->classes_enabled ? '1' : '0' }}">
-        <button type="button"
-          class="ia-toggle {{ $currentTenant->classes_enabled ? 'on' : '' }}"
-          id="classes-toggle-btn"
-          aria-label="Enable class bookings">
-          <span class="ia-toggle-sr">{{ $currentTenant->classes_enabled ? 'Enabled' : 'Disabled' }}</span>
-        </button>
-      </div>
+      @else
+        <div style="padding:6px 0;font-size:12.5px;opacity:.6;line-height:1.6">
+          Class bookings are part of the <strong>Branded</strong> plan. Scheduled group sessions with
+          their own capacity, registrations and a customer-facing classes page.
+          @if($currentTenant->getRawOriginal('classes_enabled'))
+            <br><br>Your classes settings are kept — they come back exactly as you left them if you upgrade.
+          @endif
+        </div>
+      @endif
     </div>
 
     {{-- MARKER-PATCH-156 — Deliveries --}}
