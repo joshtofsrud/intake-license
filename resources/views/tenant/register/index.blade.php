@@ -2839,6 +2839,13 @@ async function persistPayment(leg) {
     cart.payments = d.payments;
     renderSplit();
     if (typeof tenderPaint === 'function') { tenderPaint(); }
+
+    // MARKER-PAID-REPAINT — the panel too. Its Paid / Still owed rows live in
+    // the total-writing routine, and its "Not saved" line is only touched by
+    // the autosave path, which a payment does not go through. Without these
+    // two calls the panel kept saying nothing had happened.
+    renderCart();
+    setSaveStatus('saved');
     return true;
   } catch (e) {
     cart.payments = cart.payments.filter(p => p !== optimistic);
