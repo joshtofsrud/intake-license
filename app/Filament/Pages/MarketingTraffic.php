@@ -104,7 +104,9 @@ class MarketingTraffic extends Page
             return [
                 'current'  => $cur,
                 'previous' => $prev,
-                'hourly'   => false,
+                // MARKER-MKTREPAIR — a 1-day window is bucketed hourly for every
+                // metric now, not only for visitors.
+                'hourly'   => $report->isHourly(),
                 'peak'     => max(1, (int) max([0, ...$cur, ...$prev])),
                 'points'   => count($cur),
                 'labels'   => $report->dayLabels(),

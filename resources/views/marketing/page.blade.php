@@ -301,7 +301,15 @@
     }
 </script>
 @include('marketing._plan-quiz')
-{{-- MARKER-MKTCONV — the tracker now lives in marketing/layout.blade.php so
-     EVERY marketing page reports, not only builder-rendered ones. --}}
+{{-- MARKER-MKTREPAIR — the tracker has to be HERE. MARKER-MKTCONV moved it to
+     marketing/layout.blade.php, but every routed marketing page is rendered by
+     MarketingController::renderPage into THIS file, which carries its own
+     <html> and extends no layout. The include went somewhere nothing renders,
+     and the marketing site recorded nothing from that deploy onward. The
+     layout keeps its copy for the old static views; the script's own
+     __intakeMktFunnel guard makes a double include harmless. --}}
+@if(empty($builderPreview))
+@include('marketing._funnel_tracker')
+@endif
 </body>
 </html>

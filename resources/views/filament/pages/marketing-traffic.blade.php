@@ -11,7 +11,7 @@
 </style>
 <div class="mkt-tabs">
   <button type="button" class="mkt-tab on" data-mkt-tab="overview">Overview</button>
-  <button type="button" class="mkt-tab" data-mkt-tab="pages">Pages &amp; sources</button>
+  <button type="button" class="mkt-tab" data-mkt-tab="intent">Quiz &amp; industry</button>
   <button type="button" class="mkt-tab" data-mkt-tab="sessions">Sessions</button>
   <button type="button" class="mkt-tab" data-mkt-tab="conversions">Conversions</button>
 </div>
@@ -261,17 +261,13 @@
   <p class="mt-empty">No funnel activity in this window.</p>
 @endif
 
-<div class="mt-two" style="margin-top:24px">
-  <div>
-{{-- MARKER-TRAFFIC-V2 — the daily bars moved into the headline chart above,
-     where they can be compared against the previous period. --}}
-{{-- MARKER-MKTSESSTYLE — mirrors tenant admin's booking sessions explorer
-     (resources/views/tenant/reports/traffic.blade.php, .rse-* block). Same
-     class names and values, so the two surfaces stay comparable. The scroll
-     box is what keeps this section from running away as traffic grows. --}}
-
-{{-- MARKER-TRAFFIC-V3 — where they came from and what they read belong under
-     the funnel, not behind another tab. --}}
+{{-- MARKER-MKTREPAIR — this whole region was mis-nested. The Pages panel
+     opened INSIDE the Overview panel, so hiding Overview hid it too and the
+     tab rendered blank; the industry list sat loose in Overview's grid with
+     no heading; and its @forelse reused $sessions as the loop variable,
+     overwriting the sessions array with an integer so count($sessions) in the
+     Sessions panel fatalled the page. Panels are siblings now and the loop
+     variable is its own name. --}}
 <div class="mt-two-up">
   <div class="mt-card">
     <div class="mt-sec" style="margin-top:0">Where they came from</div>
@@ -279,9 +275,9 @@
     @forelse($sources as $src)
       <div class="mt-bar-row">
         <span class="mt-fill" style="width:{{ max(6, round((($src['visits'] ?? 0) / $srcMax) * 100)) }}%"></span>
-        <span class="mt-bar-label">{{-- MARKER-TRAFFIC-V3-FIX — topSources() emits 'name'; reading 'source'
+        {{-- MARKER-TRAFFIC-V3-FIX — topSources() emits 'name'; reading 'source'
              made every row read "unknown". --}}
-        {{ $src['name'] ?: '(direct)' }}</span>
+        <span class="mt-bar-label">{{ $src['name'] ?: '(direct)' }}</span>
         <span class="mt-bar-n">{{ number_format($src['visits'] ?? 0) }}</span>
       </div>
     @empty
@@ -303,27 +299,31 @@
     @endforelse
   </div>
 </div>
-</div>
-<div class="mkt-panel" data-mkt-panel="pages" hidden>
-    <div class="mt-sec" style="margin-top:0">Quiz recommendations</div>
-    @forelse($intent['quiz_recommendation'] as $rec => $count)
-      <div class="mt-row"><span style="text-transform:capitalize">{{ $rec }}</span><b>{{ number_format($count) }}</b></div>
-    @empty
-      <div class="mt-empty">No quiz completions in this window</div>
-    @endforelse
-  </div>
+</div>{{-- /overview panel --}}
 
-  <div>
-@forelse($intent['industry_pages'] as $path => $sessions)
-      <div class="mt-row"><span>{{ $path }}</span><b>{{ number_format($sessions) }}</b></div>
-    @empty
-@endforelse
+<div class="mkt-panel" data-mkt-panel="intent" hidden>
+  <div class="mt-two-up">
+    <div class="mt-card">
+      <div class="mt-sec" style="margin-top:0">Quiz recommendations</div>
+      @forelse($intent['quiz_recommendation'] as $rec => $count)
+        <div class="mt-row"><span style="text-transform:capitalize">{{ $rec }}</span><b>{{ number_format($count) }}</b></div>
+      @empty
+        <p class="mt-empty">No quiz completions in this window.</p>
+      @endforelse
+    </div>
+
+    <div class="mt-card">
+      <div class="mt-sec" style="margin-top:0">Industry pages</div>
+      {{-- MARKER-MKTREPAIR — $industrySessions, NOT $sessions. --}}
+      @forelse($intent['industry_pages'] as $path => $industrySessions)
+        <div class="mt-row"><span>{{ $path }}</span><b>{{ number_format($industrySessions) }}</b></div>
+      @empty
+        <p class="mt-empty">No industry page views in this window.</p>
+      @endforelse
+    </div>
   </div>
 </div>
 
-{{-- MARKER-MKTCONV — chart sits in Pages & sources; it reads with the
-     page/source tables it sits beside. --}}
-</div>
 <div class="mkt-panel" data-mkt-panel="sessions" hidden>
 <style>
 .rse-zone{margin-top:26px}

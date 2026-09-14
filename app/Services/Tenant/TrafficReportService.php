@@ -291,6 +291,7 @@ class TrafficReportService
     protected function sessionEventCount(string $eventType, CarbonImmutable $start, CarbonImmutable $end): int
     {
         return (int) TenantFunnelEvent::query()
+            ->tap(fn ($q) => $this->applyBotFilter($q)) // MARKER-MKTREPAIR
             ->where('tenant_id', $this->tenant->id)
             ->where('event_type', $eventType)
             ->where('created_at', '>=', $start)
@@ -353,12 +354,19 @@ class TrafficReportService
                 break;
         }
 
-        $rows = $q->selectRaw('DATE(created_at) as d, ' . $count)
+        // MARKER-MKTREPAIR — same tenant-local bucketing as dailySessionSeries,
+        // and an HOURLY mode for a 1-day window. Without it, Today + any metric
+        // other than Visitors returned a single bucket and the view fell through
+        // to "Not enough buckets in this window to draw a line".
+        $divisor = $this->days === 1 ? 60 : 1440;
+        $buckets = $this->days === 1 ? 24 : $this->days;
+
+        $rows = $q->selectRaw('FLOOR(TIMESTAMPDIFF(MINUTE, ?, created_at) / ' . $divisor . ') as d, ' . $count, [$start->toDateTimeString()])
             ->groupBy('d')->pluck('n', 'd')->all();
 
         $series = [];
-        for ($i = 0; $i < $this->days; $i++) {
-            $series[] = (int) ($rows[$start->addDays($i)->toDateString()] ?? 0);
+        for ($i = 0; $i < $buckets; $i++) {
+            $series[] = (int) ($rows[$i] ?? 0);
         }
         return $series;
     }
@@ -366,29 +374,53 @@ class TrafficReportService
     /** MARKER-TRAFFIC-V3 — labels for the chart's x axis. */
     public function dayLabels(): array
     {
+        // MARKER-MKTREPAIR — labels were formatted in UTC, so the axis could name
+        // a different day than the bucket it sits under. A 1-day window is
+        // bucketed by hour, so it gets hour labels rather than one repeated date.
+        $tz  = $this->tenant->timezone ?? config('app.timezone', 'UTC');
         $out = [];
+
+        if ($this->days === 1) {
+            for ($i = 0; $i < 24; $i++) {
+                $out[] = $this->curStart->addHours($i)->setTimezone($tz)->format('g A');
+            }
+            return $out;
+        }
+
         for ($i = 0; $i < $this->days; $i++) {
-            $out[] = $this->curStart->addDays($i)->format('M j');
+            $out[] = $this->curStart->addDays($i)->setTimezone($tz)->format('M j');
         }
         return $out;
     }
 
+    /** MARKER-MKTREPAIR — a 1-day window is bucketed by hour, not by day. */
+    public function isHourly(): bool
+    {
+        return $this->days === 1;
+    }
+
     protected function dailySessionSeries(CarbonImmutable $start, CarbonImmutable $end): array
     {
+        // MARKER-MKTREPAIR — bucket by DAY OFFSET FROM THE WINDOW START, which is
+        // tenant-local midnight held as UTC, exactly as hourlySessionSeries()
+        // already does. DATE(created_at) grouped in UTC: for an America/Los_Angeles
+        // tenant every event after 5pm local landed on the NEXT day's bar, and the
+        // current evening's traffic fell off the end of the chart while still
+        // counting in the tiles above it. A DST change inside a long window shifts
+        // a boundary by an hour, which is a far smaller error than a whole day.
         $rows = TenantFunnelEvent::query()
             ->tap(fn ($q) => $this->applyBotFilter($q)) // MARKER-MKTCONV
             ->where('tenant_id', $this->tenant->id)
             ->where('created_at', '>=', $start)
             ->where('created_at', '<',  $end)
-            ->selectRaw('DATE(created_at) as d, COUNT(DISTINCT session_id) as n')
+            ->selectRaw('FLOOR(TIMESTAMPDIFF(MINUTE, ?, created_at) / 1440) as d, COUNT(DISTINCT session_id) as n', [$start->toDateTimeString()])
             ->groupBy('d')
             ->pluck('n', 'd')
             ->all();
 
         $series = [];
         for ($i = 0; $i < $this->days; $i++) {
-            $day = $start->addDays($i)->toDateString();
-            $series[] = (int) ($rows[$day] ?? 0);
+            $series[] = (int) ($rows[$i] ?? 0);
         }
         return $series;
     }
@@ -677,6 +709,7 @@ class TrafficReportService
         $sourceExpr = "COALESCE(NULLIF(utm_source, ''), NULLIF(referrer_domain, ''), '(direct)')";
 
         $visits = TenantFunnelEvent::query()
+            ->tap(fn ($q) => $this->applyBotFilter($q)) // MARKER-MKTREPAIR
             ->where('tenant_id', $this->tenant->id)
             ->where('created_at', '>=', $this->curStart)
             ->where('created_at', '<',  $this->curEnd)
@@ -691,6 +724,7 @@ class TrafficReportService
 
         // Conversions by source (booking_completed sessions)
         $conv = TenantFunnelEvent::query()
+            ->tap(fn ($q) => $this->applyBotFilter($q)) // MARKER-MKTREPAIR
             ->where('tenant_id', $this->tenant->id)
             ->where('event_type', 'booking_completed')
             ->where('created_at', '>=', $this->curStart)
@@ -754,6 +788,7 @@ class TrafficReportService
     public function topPages(int $limit = 8): array
     {
         return TenantFunnelEvent::query()
+            ->tap(fn ($q) => $this->applyBotFilter($q)) // MARKER-MKTREPAIR
             ->where('tenant_id', $this->tenant->id)
             ->where('event_type', 'page_view')
             ->where('created_at', '>=', $this->curStart)

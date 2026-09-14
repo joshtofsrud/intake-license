@@ -47,6 +47,10 @@ class SignupFunnelService
                 'contact_submitted', 'signup_started',
             ])
             ->whereBetween('created_at', [$this->start, $this->end])
+            // MARKER-MKTREPAIR — the tiles exclude bots and this did not, so the
+            // funnel's first step could sit ABOVE the Visitors tile beside it.
+            // Historical crawler rows predate the ingest-side skip.
+            ->where(function ($w) { $w->whereNull('device')->orWhere('device', '!=', 'bot'); })
             ->groupBy('session_id')
             ->select([
                 DB::raw("MAX(event_type = 'page_view')         as pv"),
@@ -122,6 +126,7 @@ class SignupFunnelService
                 ->where('event_type', 'page_view')
                 ->where('path', 'like', '/for/%')
                 ->whereBetween('created_at', [$this->start, $this->end])
+                ->where(function ($w) { $w->whereNull('device')->orWhere('device', '!=', 'bot'); }) // MARKER-MKTREPAIR
                 ->select('path', DB::raw('COUNT(DISTINCT session_id) as sessions'))
                 ->groupBy('path')->orderByDesc('sessions')->limit(10)
                 ->pluck('sessions', 'path')->all();
