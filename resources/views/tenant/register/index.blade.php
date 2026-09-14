@@ -656,6 +656,14 @@
         <div class="reg-totals-row" id="surchargeRow" style="display:none"><span id="surchLabel">Surcharge</span><span id="surchVal">$0.00</span></div>
         <div class="reg-totals-row" id="tipRow" style="display:none"><span>Tip</span><span id="tipVal">$0.00</span></div>
         <div class="reg-totals-row grand"><span>Total</span><span id="totalVal">$0.00</span></div>
+        {{-- MARKER-PAID-VISIBLE — shown only when the sale has money on it, so
+             an ordinary cart looks exactly as it did. --}}
+        <div class="reg-totals-row" id="cartPaidRow" style="display:none">
+          <span>Paid</span><span id="cartPaidAmt" style="color:#7ee081">$0.00</span>
+        </div>
+        <div class="reg-totals-row grand" id="cartRemainRow" style="display:none">
+          <span>Still owed</span><span id="cartRemainAmt">$0.00</span>
+        </div>
       </div>
 
       {{-- MARKER-REGISTER-DISCOUNT --}}
@@ -2894,6 +2902,21 @@ function renderTotals() {
   document.getElementById('taxVal').textContent = fmt(netTax);
   document.getElementById('totalVal').textContent = fmt(total);
 
+  // MARKER-PAID-VISIBLE — a panel reading "Total $929.00" while $387 has been
+  // taken tells a cashier something untrue. Same maths the tender modal uses,
+  // so the two cannot disagree.
+  (function () {
+    const paid = (cart.payments || []).reduce((n, x) => n + (x.amount_cents || 0), 0);
+    const row  = document.getElementById('cartPaidRow');
+    const rem  = document.getElementById('cartRemainRow');
+    if (!row || !rem) { return; }
+    if (paid <= 0) { row.style.display = 'none'; rem.style.display = 'none'; return; }
+    row.style.display = '';
+    rem.style.display = '';
+    document.getElementById('cartPaidAmt').textContent = fmt(paid);
+    document.getElementById('cartRemainAmt').textContent = fmt(Math.max(0, total - paid));
+  })();
+
   if (disc > 0) { document.getElementById('discountRow').style.display = ''; document.getElementById('discVal').textContent = fmtNeg(disc); }
   else { document.getElementById('discountRow').style.display = 'none'; }
   if (surch > 0) { document.getElementById('surchargeRow').style.display = ''; document.getElementById('surchLabel').textContent = CFG.surchargeLabel; document.getElementById('surchVal').textContent = fmt(surch); }
@@ -3393,6 +3416,11 @@ document.getElementById('splitAddBtn').addEventListener('click', () => {
     if (c > gcTender.balance) c = gcTender.balance;
     if (c <= 0) return;
   }
+  // MARKER-PAID-VISIBLE — wipe the previous message before the numbers move.
+  // A stale "$800 still to collect" sitting under a correct "$542 remaining"
+  // is worse than no message: at a till the red number wins.
+  tenderModalError('');
+
   const selBtn = document.querySelector('#tenderModal .reg-tender-btn.selected');
 
   // MARKER-PAY-PERSIST — to the ledger, not to a list in this tab. A refresh
@@ -4684,7 +4712,11 @@ async function resumeDraft(id) {
     }));
     closeModal('draftsModal');
     renderCart();
-    if (typeof renderSplit === 'function') { renderSplit(); } // MARKER-PAY-PERSIST
+    // MARKER-PAID-VISIBLE — renderSplit draws the legs; it does not touch the
+    // panel totals or the modal header. Resuming a part-paid sale showed the
+    // full total until a tender was clicked.
+    if (typeof renderSplit === 'function') { renderSplit(); }
+    if (typeof tenderPaint === 'function') { tenderPaint(); }
     refreshDraftsBanner(await loadDrafts());
   } catch (e) {
     showError('Network error loading draft.');
