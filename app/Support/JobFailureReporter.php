@@ -31,6 +31,16 @@ class JobFailureReporter
         $site  = basename($e->getFile()) . ':' . $e->getLine();
         $fingerprint = substr(hash('sha256', $jobClass . '|' . get_class($e) . '|' . $site), 0, 64);
 
+        // MARKER-INBOX — the inbox's first alert feed. Same ref as the email
+        // and the log line, so all three point at one thing.
+        \App\Support\PlatformInbox::alert([
+            'tenant_id' => $tenantId,
+            'subject'   => $summary,
+            'body'      => class_basename($jobClass) . ' — ' . get_class($e) . ' at ' . $site . "\n\n" . $e->getMessage(),
+            'ref_id'    => $refId,
+            'meta'      => ['job' => $jobClass, 'fingerprint' => $fingerprint],
+        ]);
+
         try {
             // Through error(), not job(): the dashboard's Unresolved errors and
             // the "unresolved errors only" filter both look at channel=error.

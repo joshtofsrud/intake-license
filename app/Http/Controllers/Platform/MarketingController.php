@@ -74,19 +74,28 @@ class MarketingController extends Controller
 
     public function contact(Request $request)
     {
-        // MARKER-MKTTRAFFIC — only a real POST is a submission.
-        if ($request->isMethod('post')) {
-            \App\Http\Controllers\Platform\MarketingFunnelController::record('contact_submitted', [
-                'session_id' => (string) $request->input('session_id', 'server'),
-                'path'       => '/contact',
-            ]);
-        }
-
         if ($request->isMethod('GET')) {
             return $this->renderPage('contact');
         }
 
-        // POST: validate and email. Keeps existing behavior.
+        $thanks = back()->with('status', 'Thanks! We\'ll be in touch within 1 business day.');
+
+        // MARKER-INBOX — SPAM GATE, before anything is counted or stored.
+        // Every submission from Sep 4 to Sep 15 was a bot; the form had no
+        // protection and the funnel event fired before validation. A bot gets
+        // the same thank-you as a person and leaves no trace — never tell it
+        // that it failed.
+        //
+        //   honeypot: a field people can't see; anything in it is a bot.
+        $honey = (string) $request->input('website', '');
+        //   timing: the form stamps when it was rendered; nobody fills this
+        //   in under three seconds.
+        $stamp = (int) $request->input('_t', 0);
+        $tooFast = $stamp <= 0 || (time() - $stamp) < 3;
+        if ($honey !== '' || $tooFast) {
+            return $thanks;
+        }
+
         $validator = Validator::make($request->all(), [
             'name'    => 'required|string|max:120',
             'email'   => 'required|email|max:191',
@@ -98,11 +107,27 @@ class MarketingController extends Controller
             return back()->withErrors($validator)->withInput();
         }
 
-        // TODO(patch 46): wire to real mail when SMTP settings finalized.
-        // For now log and redirect.
+        // Fallback record. The inbox is the surface; this is the belt.
         \Log::info('Marketing contact form', $request->only(['name','email','phone','message']));
 
-        return back()->with('status', 'Thanks! We\'ll be in touch within 1 business day.');
+        \App\Support\PlatformInbox::message(\App\Models\PlatformInboxMessage::KIND_CONTACT, [
+            'name'       => $request->input('name'),
+            'email'      => $request->input('email'),
+            'phone'      => $request->input('phone'),
+            'subject'    => 'Message from the website',
+            'body'       => $request->input('message'),
+            'source_url' => url('/contact'),
+            'ip'         => $request->ip(),
+        ]);
+
+        // MARKER-MKTTRAFFIC — the funnel event, now only for a real person,
+        // after the gate and after validation.
+        \App\Http\Controllers\Platform\MarketingFunnelController::record('contact_submitted', [
+            'session_id' => (string) $request->input('session_id', 'server'),
+            'path'       => '/contact',
+        ]);
+
+        return $thanks;
     }
 
     // Patch 45: CMS-only marketing — single render path.

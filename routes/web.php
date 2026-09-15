@@ -65,7 +65,9 @@ Route::domain($domain)->group(function () {
         ->middleware('throttle:6,1')->name('invest.contribute');
     Route::get('/invest/contributed', [\App\Http\Controllers\ContributionController::class, 'thanks'])
         ->name('invest.contribute.thanks');
-    Route::post('/contact', [Platform\MarketingController::class, 'contact'])->name('marketing.contact.submit');
+    Route::post('/contact', [Platform\MarketingController::class, 'contact'])
+        ->middleware('throttle:5,1') // MARKER-INBOX — five posts a minute per IP is a person; bots burst
+        ->name('marketing.contact.submit');
 
     // MARKER-DEMO-ENTRY — the public way in. Two steps because session cookies
     // are per-subdomain: this hop is signed, the sign-in happens on the demo host.

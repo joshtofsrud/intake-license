@@ -83,6 +83,9 @@ class AdminPanelProvider extends PanelProvider
                 DistributorFieldMapResource::class, // HLC field mapping
             ])
             ->pages([
+                // MARKER-INBOX — explicit registration; this panel does not
+                // auto-discover, and an unregistered page has no route.
+                \App\Filament\Pages\PlatformInbox::class,
                 // MARKER-HELP-ADMIN — this panel lists pages EXPLICITLY and does
                 // not auto-discover, so an unregistered page class has no route
                 // at all. This has bitten at least five times; do not remove.
