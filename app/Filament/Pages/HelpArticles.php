@@ -101,7 +101,18 @@ class HelpArticles extends Page
             'reaches'  => $arts->mapWithKeys(fn ($a) => [$a->id => $this->reach($a, $tenants)])->all(),
             'sel'      => $selected,
             'selReach' => $selected ? $this->reach($selected, $tenants) : null,
-            'addons'   => Addon::orderBy('name')->get(['code', 'name', 'price_cents', 'price_display_override']),
+            // MARKER-HELP-PICKER — only add-ons that can gate a feature: recurring,
+            // not onboarding services, not retired. Grouped by category in the
+            // table's own order so the picker reads like the pricing page.
+            'addonGroups' => Addon::query()
+                ->whereNotIn('billing_cadence', ['one_time', 'usage'])
+                ->where('category', '!=', 'onboarding')
+                ->whereNotIn('status', ['retired', 'archived'])
+                ->orderBy('category')
+                ->orderBy('sort_order')
+                ->orderBy('name')
+                ->get(['code', 'name', 'category', 'price_cents', 'price_display_override'])
+                ->groupBy('category'),
             'tiers'    => TenantPage::TIER_ORDER,
             'tenants'  => $tenants,
         ];

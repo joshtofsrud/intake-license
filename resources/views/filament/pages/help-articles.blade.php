@@ -38,6 +38,16 @@
     border-radius:99px;padding:5px 10px;cursor:pointer}
   .hc-check.on{background:rgba(139,124,246,.12);border-color:rgba(139,124,246,.45)}
   .hc-check.noprice{opacity:.55}
+  .hc-groups{display:flex;flex-direction:column;gap:6px}
+  .hc-group{border:1px solid var(--hc-line);border-radius:10px;padding:0 10px}
+  .hc-group>summary{cursor:pointer;font-size:12.5px;padding:8px 0;list-style:none;display:flex;gap:8px;align-items:center}
+  .hc-group>summary::before{content:'›';display:inline-block;transition:transform .15s;opacity:.6}
+  .hc-group[open]>summary::before{transform:rotate(90deg)}
+  .hc-group>summary span{margin-left:auto;font-size:11px;opacity:.5}
+  .hc-group .hc-checks{padding:0 0 10px}
+  .hc-unpriced{margin:0 0 10px}
+  .hc-unpriced>summary{cursor:pointer;font-size:11.5px;opacity:.55;list-style:none;padding:2px 0 6px}
+  .hc-unpriced .hc-checks{padding:0}
   .hc-reach{border:1px solid var(--hc-line);border-radius:10px;padding:11px 12px}
   .hc-reach .big{font-size:19px;font-weight:700}
   .hc-reach .who{font-size:11.5px;opacity:.7;margin-top:6px;line-height:1.7}
@@ -146,17 +156,52 @@
 
           <div class="hc-f">
             <label>Add-ons the shop must have</label>
-            <div class="hc-checks">
-              @foreach($addons as $ad)
-                @php $on = in_array($ad->code, $sel->help_addons ?? [], true); @endphp
-                <span class="hc-check {{ $on ? 'on' : '' }} {{ $sellable($ad) ? '' : 'noprice' }}"
-                      wire:click="toggleAddon('{{ $sel->id }}','{{ $ad->code }}')"
-                      title="{{ $sellable($ad) ? '' : 'No price configured — an article gated on this hides instead of locking.' }}">
-                  {{ $ad->name }}{{ $sellable($ad) ? '' : ' · no price' }}
-                </span>
+            {{-- MARKER-HELP-PICKER — grouped, filtered, and the unpriced ones
+                 tucked behind a disclosure so the list reads at a glance. --}}
+            @php
+              $chosen  = $sel->help_addons ?? [];
+              $labels  = ['communication' => 'Communication', 'operations' => 'Operations',
+                          'feature' => 'Features', 'retail' => 'Retail', 'team' => 'Team'];
+            @endphp
+            @if(count($chosen))
+              <div class="hc-checks" style="margin-bottom:10px">
+                @foreach($addonGroups->flatten(1)->whereIn('code', $chosen) as $ad)
+                  <span class="hc-check on" wire:click="toggleAddon('{{ $sel->id }}','{{ $ad->code }}')" title="Click to remove">
+                    {{ $ad->name }} ×
+                  </span>
+                @endforeach
+              </div>
+            @endif
+            <div class="hc-groups">
+              @foreach($addonGroups as $cat => $list)
+                @php
+                  $priced   = $list->filter(fn ($a) => $sellable($a) && ! in_array($a->code, $chosen, true));
+                  $unpriced = $list->filter(fn ($a) => ! $sellable($a) && ! in_array($a->code, $chosen, true));
+                @endphp
+                @if($priced->count() || $unpriced->count())
+                  <details class="hc-group" {{ $loop->first ? 'open' : '' }}>
+                    <summary>{{ $labels[$cat] ?? ucfirst($cat) }} <span>{{ $priced->count() }}</span></summary>
+                    <div class="hc-checks">
+                      @foreach($priced as $ad)
+                        <span class="hc-check" wire:click="toggleAddon('{{ $sel->id }}','{{ $ad->code }}')">{{ $ad->name }}</span>
+                      @endforeach
+                    </div>
+                    @if($unpriced->count())
+                      <details class="hc-unpriced">
+                        <summary>{{ $unpriced->count() }} with no price set</summary>
+                        <div class="hc-checks">
+                          @foreach($unpriced as $ad)
+                            <span class="hc-check noprice" wire:click="toggleAddon('{{ $sel->id }}','{{ $ad->code }}')"
+                                  title="No price configured — an article gated on this hides instead of locking.">{{ $ad->name }}</span>
+                          @endforeach
+                        </div>
+                      </details>
+                    @endif
+                  </details>
+                @endif
               @endforeach
             </div>
-            <div class="hc-hint">All of them, not any.</div>
+            <div class="hc-hint">All of them, not any. One-time services and credits aren't listed — they can't gate a feature.</div>
           </div>
 
           <div class="hc-f">
