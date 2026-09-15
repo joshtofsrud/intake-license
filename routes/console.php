@@ -249,3 +249,9 @@ Schedule::command('special-orders:clear-orphans --apply')
 Schedule::command('register:clear-recovered --apply')
     ->dailyAt('03:20')
     ->withoutOverlapping();
+
+// MARKER-TENANT-SIGNALS — nightly, after the register sweep. Raises an inbox
+// alert once when a tenant crosses a line; silent while it stays crossed.
+Schedule::command('tenants:signals')
+    ->dailyAt('06:10')
+    ->withoutOverlapping();
