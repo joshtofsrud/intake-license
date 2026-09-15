@@ -1,8 +1,10 @@
+@php $bgId = 'mkbg-' . substr((string) ($section->id ?? uniqid()), 0, 8); @endphp {{-- MARKER-MKT-SECTION-BG --}}
+@include('marketing.sections._section_bg', ['bgId' => $bgId])
 {{-- Text + image block. Content: heading, body, image_url, image_position (left|right), cta_label, cta_url --}}
 @php
     $imgRight = ($c['image_position'] ?? 'right') === 'right';
 @endphp
-<section class="{{ $padding }}" @if(!empty($inlineStyle ?? \'\')) style="{{ $inlineStyle }}" @endif>
+<section class="{{ $padding }} {{ $bgId }}" @if(!empty($inlineStyle ?? \'\')) style="{{ $inlineStyle }}" @endif>
     <div class="mk-container">
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:48px;align-items:center;max-width:1100px;margin:0 auto">
             <div style="order: {{ $imgRight ? 1 : 2 }}">

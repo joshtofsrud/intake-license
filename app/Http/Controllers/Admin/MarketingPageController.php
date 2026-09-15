@@ -81,6 +81,19 @@ class MarketingPageController extends Controller
             ->firstOrFail();
 
         $sections = $page->sections()->where('is_visible', true)->get();
+
+        // MARKER-MKT-SECTION-BG — a help article previews in its own shell,
+        // through the public partials a shop's Help page uses. The marketing
+        // template wrapped it in intake.works nav and footer, which is not what
+        // any shop will ever see.
+        if (($page->kind ?? 'page') === 'howto') {
+            return view('admin.help-article-preview', [
+                'page'     => $page,
+                'sections' => $sections,
+                'tenant'   => $platform,
+            ]);
+        }
+
         $navItems = TenantNavItem::where('tenant_id', $platform->id)
             ->orderBy('sort_order')->get();
 

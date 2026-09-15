@@ -1,5 +1,7 @@
+@php $bgId = 'mkbg-' . substr((string) ($section->id ?? uniqid()), 0, 8); @endphp {{-- MARKER-MKT-SECTION-BG --}}
+@include('marketing.sections._section_bg', ['bgId' => $bgId])
 {{-- FAQ accordion. Content: heading, items[{q, a}] --}}
-<section class="{{ $padding }}" @if(!empty($inlineStyle ?? \'\')) style="{{ $inlineStyle }}" @endif>
+<section class="{{ $padding }} {{ $bgId }}" @if(!empty($inlineStyle ?? \'\')) style="{{ $inlineStyle }}" @endif>
     <div class="mk-container" style="max-width:760px">
         @if(!empty($c['heading']))
             <h2 class="mk-section-title" style="text-align:center;margin-bottom:32px">{{ $c['heading'] }}</h2>

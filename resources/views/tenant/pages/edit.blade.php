@@ -1879,7 +1879,14 @@ body.ia-theme-b .pb2-preview-frame-wrap {
       </div>
 
       <div class="pb2-status-say">
-        @if($page->is_published)
+        {{-- MARKER-MKT-SECTION-BG — a guide never has a public URL. --}}
+        @if(($page->kind ?? 'page') === 'howto')
+          @if($page->is_published)
+            Shops on a qualifying plan see this on their Help page. Others see it locked or not at all, per its gate.
+          @else
+            Only you can see this. No shop sees a draft guide.
+          @endif
+        @elseif($page->is_published)
           Anyone can visit <span class="pb2-status-url">{{ $pubHost }}{{ $pubUrl }}</span>.
         @else
           Only you can see this. Visitors to <span class="pb2-status-url">{{ $pubUrl }}</span> get a 404.

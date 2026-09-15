@@ -1,3 +1,5 @@
+@php $bgId = 'mkbg-' . substr((string) ($section->id ?? uniqid()), 0, 8); @endphp {{-- MARKER-MKT-SECTION-BG --}}
+@include('marketing.sections._section_bg', ['bgId' => $bgId])
 {{--
     CTA banner. Content: headline, subheading, cta_label, cta_url, bg_color, text_color
 
@@ -29,7 +31,7 @@
     }
 </style>
 
-<section class="mk-cta-strip">
+<section class="mk-cta-strip {{ $bgId }}">
     <div class="mk-container">
         <h2 class="mk-cta-h2">{{ $c['headline'] ?? 'Ready to get started?' }}</h2>
         @if(!empty($c['subheading']))

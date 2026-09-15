@@ -1,3 +1,5 @@
+@php $bgId = 'mkbg-' . substr((string) ($section->id ?? uniqid()), 0, 8); @endphp {{-- MARKER-MKT-SECTION-BG --}}
+@include('marketing.sections._section_bg', ['bgId' => $bgId])
 {{--
     Hero. Content: eyebrow, headline, accent_words, subheading,
                    cta_primary_label, cta_primary_url,
@@ -59,7 +61,7 @@
     .mk-hero-note { font-size: 12px; color: var(--mk-dim); }
 </style>
 
-<section class="mk-hero">
+<section class="mk-hero {{ $bgId }}">
     <div class="mk-container">
         @if(!empty($c['eyebrow']))
             <div class="mk-eyebrow">{{ $c['eyebrow'] }}</div>

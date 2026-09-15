@@ -1,3 +1,5 @@
+@php $bgId = 'mkbg-' . substr((string) ($section->id ?? uniqid()), 0, 8); @endphp {{-- MARKER-MKT-SECTION-BG --}}
+@include('marketing.sections._section_bg', ['bgId' => $bgId])
 {{--
     Feature grid. Content: eyebrow, heading, subheading, columns (2|3|4),
                           features[{icon, title, body}], cta_label, cta_url
@@ -61,7 +63,7 @@
     @media(max-width: 560px) { .mk-feat-grid { grid-template-columns: 1fr; } }
 </style>
 
-<section class="mk-section">
+<section class="mk-section {{ $bgId }}">
     <div class="mk-container">
         @if(!empty($c['eyebrow']))
             <div class="mk-eyebrow">{{ $c['eyebrow'] }}</div>

@@ -1,5 +1,7 @@
+@php $bgId = 'mkbg-' . substr((string) ($section->id ?? uniqid()), 0, 8); @endphp {{-- MARKER-MKT-SECTION-BG --}}
+@include('marketing.sections._section_bg', ['bgId' => $bgId])
 {{-- Stats row. Content: heading, stats[{number, label}] --}}
-<section class="{{ $padding }}" @if(!empty($inlineStyle ?? \'\')) style="{{ $inlineStyle }}" @endif>
+<section class="{{ $padding }} {{ $bgId }}" @if(!empty($inlineStyle ?? \'\')) style="{{ $inlineStyle }}" @endif>
     <div class="mk-container">
         @if(!empty($c['heading']))
             <h2 style="text-align:center;margin-bottom:40px">{{ $c['heading'] }}</h2>

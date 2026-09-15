@@ -1,3 +1,5 @@
+@php $bgId = 'mkbg-' . substr((string) ($section->id ?? uniqid()), 0, 8); @endphp {{-- MARKER-MKT-SECTION-BG --}}
+@include('marketing.sections._section_bg', ['bgId' => $bgId])
 {{--
     Step timeline. New section type for the "Up and running in minutes" block.
     Content: eyebrow, heading, subheading,
@@ -52,7 +54,7 @@
     }
 </style>
 
-<section class="mk-section">
+<section class="mk-section {{ $bgId }}">
     <div class="mk-container">
         @if(!empty($c['eyebrow']))
             <div class="mk-eyebrow">{{ $c['eyebrow'] }}</div>
