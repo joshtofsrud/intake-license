@@ -1074,6 +1074,10 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             Route::post('/media/{id}/archive', [TenantControllers\MediaLibraryController::class, 'archive'])->name('media.archive');
 
             Route::get('/help', [TenantControllers\HelpController::class, 'index'])->name('help.index');
+            // MARKER-HELP-TENANT — gated articles under the existing help page.
+            // Distinct names: help.index above already exists and is untouched.
+            Route::get('/help/for/{key}',       [TenantControllers\HelpController::class, 'forKey'])->name('help.for');
+            Route::get('/help/article/{slug}',  [TenantControllers\HelpController::class, 'show'])->name('help.article');
 
             Route::get('/whats-new', [TenantControllers\WhatsNewController::class, 'changelog'])->name('whats_new.changelog');
             Route::get('/whats-coming', [TenantControllers\WhatsNewController::class, 'roadmap'])->name('whats_new.roadmap');

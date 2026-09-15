@@ -1062,6 +1062,85 @@
     </div>
   </div>
 
+  {{-- MARKER-HELP-TENANT — guides written in master admin, gated to this shop.
+       Sits under the hand-written tour rather than replacing it. --}}
+  @isset($helpGrouped)
+  <div id="guides" style="margin-top:36px;padding-top:28px;border-top:1px solid var(--ia-border,#1f1f1f);">
+    <style>
+      .hlp-h2{font-size:18px;font-weight:800;letter-spacing:-.02em;margin:0}
+      .hlp-sub{font-size:12.5px;color:var(--ia-text-3,#888);margin-top:2px}
+      .hlp-search{width:100%;background:var(--ia-surface,#131313);border:1px solid var(--ia-border,#1f1f1f);
+        border-radius:10px;color:inherit;font:inherit;font-size:14px;padding:11px 13px;margin:16px 0 20px}
+      .hlp-cat{margin-bottom:22px}
+      .hlp-cat h3{font-size:12px;font-weight:700;color:var(--ia-text-3,#888);margin:0 0 8px;
+        text-transform:uppercase;letter-spacing:.07em}
+      .hlp-list{border:1px solid var(--ia-border,#1f1f1f);border-radius:14px;overflow:hidden;background:var(--ia-surface,#131313)}
+      .hlp-row{display:flex;align-items:center;gap:12px;padding:13px 16px;border-bottom:1px solid var(--ia-border,#1f1f1f);
+        color:inherit;text-decoration:none}
+      .hlp-row:last-child{border-bottom:0}
+      a.hlp-row:hover{background:var(--ia-surface-2,#181818)}
+      .hlp-row .t{flex:1;min-width:0}
+      .hlp-row .m{font-size:11.5px;color:var(--ia-text-3,#888);margin-top:1px}
+      .hlp-row .chev{color:var(--ia-text-3,#888)}
+      .hlp-locked .t{color:var(--ia-text-2,#aaa)}
+      .hlp-lock{font-size:11px;border:1px solid rgba(190,242,100,.35);background:rgba(190,242,100,.10);
+        border-radius:99px;padding:3px 9px;white-space:nowrap;color:#BEF264}
+      .hlp-empty{padding:26px 16px;text-align:center;color:var(--ia-text-3,#888);font-size:13px}
+    </style>
+
+    <div class="hlp-h2">Guides for your shop</div>
+    <div class="hlp-sub">{{ $helpReadable }} {{ $helpReadable === 1 ? 'guide' : 'guides' }} for the features you have.</div>
+
+    <form method="GET" action="{{ route('tenant.help.index') }}#guides">
+      <input class="hlp-search" type="search" name="q" value="{{ $helpQ }}"
+             placeholder="Search guides — try a word you'd see on the screen itself">
+    </form>
+
+    @php $hlpAny = false; @endphp
+    @foreach($helpCats as $hlpCat)
+      @php $hlpRows = $helpGrouped[$hlpCat->id] ?? collect(); @endphp
+      @if($hlpRows->count())
+        @php $hlpAny = true; @endphp
+        <div class="hlp-cat">
+          <h3>{{ $hlpCat->name }}</h3>
+          <div class="hlp-list">
+            @foreach($hlpRows as $hlpRow)
+              @php $hlpA = $hlpRow['article']; @endphp
+              @if($hlpRow['state'] === 'read')
+                <a class="hlp-row" href="{{ route('tenant.help.article', $hlpA->slug) }}">
+                  <span class="t"><span>{{ $hlpA->title }}</span></span>
+                  <span class="chev">›</span>
+                </a>
+              @else
+                @php $hlpNeed = collect($hlpA->missingAddonsFor(tenant()))->map(fn ($c) => $helpAddonNames[$c] ?? $c); @endphp
+                <div class="hlp-row hlp-locked">
+                  <span class="t">
+                    <span>{{ $hlpA->title }}</span>
+                    <span class="m">Part of {{ $hlpNeed->join(' and ') }}</span>
+                  </span>
+                  <span class="hlp-lock">Add {{ $hlpNeed->first() }}</span>
+                </div>
+              @endif
+            @endforeach
+          </div>
+        </div>
+      @endif
+    @endforeach
+
+    @unless($hlpAny)
+      <div class="hlp-list">
+        <div class="hlp-empty">
+          @if($helpQ !== '')
+            Nothing matches “{{ $helpQ }}”. Try a word you'd see on the screen itself.
+          @else
+            No guides published yet.
+          @endif
+        </div>
+      </div>
+    @endunless
+  </div>
+  @endisset
+
   {{-- Back to top --}}
   <div class="help-back-top">
     <a href="#dashboard">↑ Back to top</a>

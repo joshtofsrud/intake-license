@@ -113,6 +113,12 @@ class MarketingController extends Controller
         $page = TenantPage::where('tenant_id', $tenant->id)
             ->where('slug', $slug)
             ->where('is_published', true)
+            // MARKER-HELP-TENANT — help articles are platform pages too (kind
+            // 'howto'). Without this, publishing one made it readable by anyone
+            // at intake.works/<slug>, straight past the tier and add-on gate.
+            ->where(function ($w) {
+                $w->whereNull('kind')->orWhere('kind', 'page');
+            })
             ->first();
 
         if (! $page) abort(404);
