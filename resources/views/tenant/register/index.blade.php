@@ -1098,8 +1098,23 @@
       <input type="text" id="customerSearchInput" placeholder="Name, email, or phone" autocomplete="off">
       <div class="reg-cust-results" id="customerResults" style="display:none"></div>
     </div>
+    {{-- MARKER-REG-CUSTPICK — no match: the same inline create the appointment
+         modal has. Name already split from what was typed. --}}
+    <div id="custNewFields" style="display:none;margin-bottom:12px">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <input type="text"  id="custNewFirst" placeholder="First name *" autocomplete="off">
+        <input type="text"  id="custNewLast"  placeholder="Last name *"  autocomplete="off">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
+        <input type="email" id="custNewEmail" placeholder="Email *" autocomplete="off">
+        <input type="text"  id="custNewPhone" placeholder="Phone" autocomplete="off" inputmode="tel">
+      </div>
+      <div style="font-size:11px;color:var(--ia-text-dim);margin-top:6px">No match — a new customer will be created.</div>
+      <div id="custNewErr" style="display:none;font-size:12.5px;color:#f87171;margin-top:8px"></div>
+    </div>
     <div class="reg-modal-actions">
       <button type="button" class="reg-btn-secondary" data-close-modal="customerModal">Cancel</button>
+      <button type="button" class="reg-btn-primary" id="custNewAttachBtn" style="display:none">Add &amp; attach</button>
     </div>
   </div>
 </div>
@@ -3152,11 +3167,86 @@ function openCustomerModal() {
   // stale one, so an abandoned prompt can't fire on a later, unrelated pick.
   if (!window.__custPickArmed) { window.afterCustomerPick = null; }
   window.__custPickArmed = false;
+  custNewReset(); // MARKER-REG-CUSTPICK
   document.getElementById('customerSearchInput').value = '';
   document.getElementById('customerResults').style.display = 'none';
   openModal('customerModal');
   setTimeout(() => document.getElementById('customerSearchInput').focus(), 50);
 }
+// MARKER-REG-CUSTPICK — create on no match ----------------------------------
+function custNewShow(q) {
+  const wrap = document.getElementById('custNewFields');
+  const first = document.getElementById('custNewFirst');
+  const last  = document.getElementById('custNewLast');
+  if (wrap.style.display === 'none') {
+    const parts = (q || '').trim().split(/\s+/);
+    if (parts.length >= 2 && !q.includes('@') && !/\d/.test(q)) {
+      first.value = parts[0];
+      last.value  = parts.slice(1).join(' ');
+    } else if (q && q.includes('@')) {
+      document.getElementById('custNewEmail').value = q.trim();
+    } else if (q && /^[\d\s()+.-]+$/.test(q)) {
+      document.getElementById('custNewPhone').value = q.trim();
+    }
+  }
+  wrap.style.display = '';
+  document.getElementById('custNewAttachBtn').style.display = '';
+}
+function custNewHide() {
+  document.getElementById('custNewFields').style.display = 'none';
+  document.getElementById('custNewAttachBtn').style.display = 'none';
+}
+function custNewReset() {
+  custNewHide();
+  ['custNewFirst', 'custNewLast', 'custNewEmail', 'custNewPhone'].forEach(id => { document.getElementById(id).value = ''; });
+  const err = document.getElementById('custNewErr'); err.style.display = 'none'; err.textContent = '';
+}
+function custNewError(msg) {
+  const err = document.getElementById('custNewErr'); err.textContent = msg; err.style.display = '';
+}
+document.getElementById('custNewAttachBtn').addEventListener('click', async () => {
+  const first = document.getElementById('custNewFirst').value.trim();
+  const last  = document.getElementById('custNewLast').value.trim();
+  const email = document.getElementById('custNewEmail').value.trim();
+  const phone = document.getElementById('custNewPhone').value.trim();
+  if (!first || !last || !email) { custNewError('First name, last name and email are required.'); return; }
+
+  const btn = document.getElementById('custNewAttachBtn');
+  btn.disabled = true;
+  try {
+    const res = await fetch('{{ route('tenant.customers.store') }}', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+      },
+      body: JSON.stringify({ first_name: first, last_name: last, email: email, phone: phone || null }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.ok || !data.id) {
+      const msg = data.message || (data.errors ? Object.values(data.errors).flat().join(' ') : 'Could not create the customer.');
+      custNewError(msg);
+      return;
+    }
+    cart.customer = { id: data.id, name: (first + ' ' + last).trim(), email: email, phone: phone || null };
+    closeModal('customerModal');
+    renderCart();
+    queueDraftSave();
+    // Same resume as picking an existing customer — an Add to order that
+    // asked for a customer finishes here.
+    if (typeof window.afterCustomerPick === 'function') {
+      const resume = window.afterCustomerPick;
+      window.afterCustomerPick = null;
+      resume();
+    }
+  } catch (e) {
+    custNewError(e.message || 'Could not create the customer.');
+  } finally {
+    btn.disabled = false;
+  }
+});
+
 let custTimer = null;
 document.getElementById('customerSearchInput').addEventListener('input', () => {
   clearTimeout(custTimer);
@@ -3165,7 +3255,7 @@ document.getElementById('customerSearchInput').addEventListener('input', () => {
 async function searchCustomers() {
   const q = document.getElementById('customerSearchInput').value.trim();
   const box = document.getElementById('customerResults');
-  if (q.length < 2) { box.style.display = 'none'; return; }
+  if (q.length < 2) { box.style.display = 'none'; custNewHide(); return; } // MARKER-REG-CUSTPICK
   const url = new URL(ROUTES.search, window.location.origin);
   url.searchParams.set('q', q);
   url.searchParams.set('type', 'customer');
@@ -3173,10 +3263,14 @@ async function searchCustomers() {
     const res = await fetch(url, {headers:{'Accept':'application/json'}});
     const data = await res.json();
     if (!data.customers || !data.customers.length) {
-      box.innerHTML = '<div class="row" style="color:var(--ia-text-dim)">No matches.</div>';
-      box.style.display = '';
+      // MARKER-REG-CUSTPICK — the results give way to the create fields, as
+      // the appointment modal does. A two-word query with no @ or digits is
+      // almost always a name, so pre-split it.
+      box.style.display = 'none';
+      custNewShow(q);
       return;
     }
+    custNewHide(); // MARKER-REG-CUSTPICK
     box.innerHTML = data.customers.map(c => `
       <div class="row" data-cust='${JSON.stringify(c)}'>
         <div style="font-weight:500">${escapeHtml(c.name || '(no name)')}</div>
