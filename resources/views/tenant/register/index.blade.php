@@ -1912,15 +1912,25 @@ function requestTransferForLine(key) {
       renderCart();
       queueDraftSave();
     } else {
-      alert('Transfer request failed: ' + (data.error || 'unknown error'));
+      IntakeConfirm.alert({ title: 'Couldn\'t request transfer', message: (data.error || 'Unknown error') }); // MARKER-SO-CUSTOMER
     }
   })
-  .catch(err => alert('Transfer request error: ' + err.message));
+  .catch(err => IntakeConfirm.alert({ title: 'Couldn\'t request transfer', message: err.message })); // MARKER-SO-CUSTOMER
 }
 
 function addToOrderForLine(key, retried) {
   const line = cart.items.find(i => i.key === key);
   if (!line || line.special_order_id) return;
+
+  // MARKER-SO-CUSTOMER — a special order is a promise to a person. With no
+  // customer on the sale, open the picker and finish this click once one is
+  // chosen. The picker's row handler looks for afterCustomerPick.
+  if (!cart.customer) {
+    window.afterCustomerPick = function () { addToOrderForLine(key, retried); };
+    window.__custPickArmed = true;
+    openCustomerModal();
+    return;
+  }
 
   // MARKER-SO-DRAFT-RACE — draft saving is debounced, so a fast click could
   // create the order before cart.draft_id existed, leaving it with no sale
@@ -1944,7 +1954,8 @@ function addToOrderForLine(key, retried) {
     body: JSON.stringify({
       inventory_item_id: line.source_id,
       quantity: Math.max(1, Math.ceil(line.qty)),
-      customer_id: cart.customer_id || null,
+      // MARKER-SO-CUSTOMER — cart.customer_id never existed; this was always null.
+      customer_id: cart.customer ? cart.customer.id : null,
       sale_id: cart.draft_id || null, // MARKER-SO-SALE-LINK — lets the server clean up later
     }),
   })
@@ -1956,10 +1967,10 @@ function addToOrderForLine(key, retried) {
       renderCart();
       queueDraftSave();
     } else {
-      alert('Add to order failed: ' + (data.error || 'unknown error'));
+      IntakeConfirm.alert({ title: 'Couldn\'t add to order', message: (data.error || 'Unknown error') }); // MARKER-SO-CUSTOMER
     }
   })
-  .catch(err => alert('Add to order error: ' + err.message));
+  .catch(err => IntakeConfirm.alert({ title: 'Couldn\'t add to order', message: err.message })); // MARKER-SO-CUSTOMER
 }
 
 // MARKER-NO-ORPHAN-MONEY — refund everything on this sale and void it.
@@ -3137,6 +3148,10 @@ document.getElementById('gcTenderCheckBtn').addEventListener('click', async () =
 // MARKER-GIFTCARDS end ------------------------------------------------------
 
 function openCustomerModal() {
+  // MARKER-SO-CUSTOMER — a fresh open with no pending action clears any
+  // stale one, so an abandoned prompt can't fire on a later, unrelated pick.
+  if (!window.__custPickArmed) { window.afterCustomerPick = null; }
+  window.__custPickArmed = false;
   document.getElementById('customerSearchInput').value = '';
   document.getElementById('customerResults').style.display = 'none';
   openModal('customerModal');
@@ -3174,6 +3189,12 @@ async function searchCustomers() {
         closeModal('customerModal');
         renderCart();
         queueDraftSave();
+        // MARKER-SO-CUSTOMER — resume the action that needed a customer.
+        if (typeof window.afterCustomerPick === 'function') {
+          const resume = window.afterCustomerPick;
+          window.afterCustomerPick = null;
+          resume();
+        }
       });
     });
     box.style.display = '';
