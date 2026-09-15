@@ -322,25 +322,197 @@
       </div>
 
       <div>
-        <div style="font-size:11px;color:var(--ia-text-3,#888);text-transform:uppercase;letter-spacing:0.08em;font-weight:700;margin-bottom:8px;">By service</div>
-        @if(count($revenue['by_service']))
-          <div class="rep-list">
-            @foreach($revenue['by_service'] as $svc)
-              <div class="rep-list-row">
-                <div>
-                  <div style="font-weight:600;">{{ $svc['name'] }}</div>
-                  <div class="meta">{{ $svc['bookings'] }} {{ $svc['bookings'] === 1 ? 'booking' : 'bookings' }}</div>
-                </div>
-                <div class="num-cell">${{ number_format($svc['cents'] / 100) }}</div>
-                <div class="num-cell" style="color:var(--ia-text-3,#888);font-size:11.5px;">{{ $svc['pct'] }}%</div>
-              </div>
-            @endforeach
-          </div>
-        @else
-          <div class="rep-empty">No service revenue in this range.</div>
-        @endif
+        {{-- MARKER-OPS-PANELS — this column used to hold "By service", which
+             grouped every line type under a service heading and priced whole
+             sales against a cash headline. The operating numbers live in their
+             own zone below, on a single sale basis. --}}
+        <div style="font-size:11px;color:var(--ia-text-3,#888);text-transform:uppercase;letter-spacing:0.08em;font-weight:700;margin-bottom:8px;">This range</div>
+        <div class="rep-list">
+          <div class="rep-list-row"><div>Sold</div><div class="num-cell">${{ number_format($ops['sales_cents'] / 100) }}</div><div></div></div>
+          <div class="rep-list-row"><div>Labor<div class="meta">{{ $ops['labor_pct'] }}% of sales</div></div><div class="num-cell">${{ number_format($ops['labor_cents'] / 100) }}</div><div></div></div>
+          <div class="rep-list-row"><div>Parts &amp; product</div><div class="num-cell">${{ number_format($ops['product_cents'] / 100) }}</div><div></div></div>
+          <div class="rep-list-row"><div>Margin<div class="meta">product lines only</div></div><div class="num-cell">{{ $ops['margin_pct'] }}%</div><div></div></div>
+        </div>
+        <div style="font-size:11.5px;color:var(--ia-text-3,#888);margin-top:10px;line-height:1.5;">
+          By sale, not by payment — so this won't match the chart beside it on a day with deposits.
+        </div>
       </div>
     </div>
+  </section>
+
+  {{-- ZONE: OPERATING NUMBERS — MARKER-OPS-PANELS --}}
+  <section class="rep-zone">
+    <div class="rep-zone-head">
+      <div class="rep-zone-title">📊 Operating numbers</div>
+      <div class="rep-zone-sub">
+        Sales dated in this range, cancellations excluded and refunds subtracted. Tax removed.
+        The revenue chart above is by payment received, so the two are meant to differ when money
+        arrives on a different day than the sale.
+      </div>
+      @if($ops['uncosted_lines'] > 0)
+        <div class="rep-zone-warn">
+          {{ $ops['uncosted_lines'] }} product {{ $ops['uncosted_lines'] === 1 ? 'line has' : 'lines have' }}
+          no recorded cost and {{ $ops['uncosted_lines'] === 1 ? 'is' : 'are' }} counted at zero — margin below is understated.
+        </div>
+      @endif
+    </div>
+
+    {{-- categories --}}
+    <div style="font-size:11px;color:var(--ia-text-3,#888);text-transform:uppercase;letter-spacing:0.08em;font-weight:700;margin-bottom:8px;">
+      Sales by category
+    </div>
+    @php $catMax = collect($ops['cat_rows'])->max('cents') ?: 1; @endphp
+    @forelse($ops['cat_rows'] as $row)
+      <div class="rep-list-row">
+        <div style="position:relative;">
+          <span style="position:absolute;left:0;top:-4px;bottom:-4px;width:{{ max(2, round(($row['cents'] / $catMax) * 100)) }}%;background:rgba(190,242,100,0.13);border-radius:5px;"></span>
+          <span style="position:relative;font-weight:600;">{{ $row['name'] }}</span>
+          @if($ops['spotlight_name'] ?? null)
+            @if($row['name'] === $ops['spotlight_name'])<span class="meta" style="position:relative;"> · spotlight</span>@endif
+          @endif
+        </div>
+        <div class="num-cell">${{ number_format($row['cents'] / 100) }}</div>
+        <div class="num-cell" style="color:var(--ia-text-3,#888);font-size:11.5px;">{{ $row['pct'] }}%</div>
+      </div>
+    @empty
+      <div class="rep-empty">No product sales in this range.</div>
+    @endforelse
+
+    <div style="font-size:11.5px;margin-top:10px;color:{{ $ops['coverage_pct'] < 90 ? '#F59E0B' : 'var(--ia-text-3,#888)' }};line-height:1.5;">
+      {{ $ops['coverage_pct'] }}% of product sales landed in a real category.
+      @if($ops['uncategorised_cents'] > 0)
+        ${{ number_format($ops['uncategorised_cents'] / 100) }} is uncategorised —
+        <a href="{{ route('tenant.inventory.uncategorized') }}" style="color:inherit;text-decoration:underline;">map those items</a>
+        and these numbers get sharper.
+      @endif
+    </div>
+
+    {{-- labor + attachment --}}
+    <div class="rep-grid-2" style="margin-top:22px;grid-template-columns:1fr 1fr;">
+      <div>
+        <div style="font-size:11px;color:var(--ia-text-3,#888);text-transform:uppercase;letter-spacing:0.08em;font-weight:700;margin-bottom:8px;">Labor</div>
+        <div style="font-size:27px;font-weight:800;letter-spacing:-0.02em;">${{ number_format($ops['labor_cents'] / 100) }}</div>
+        <div class="meta">{{ $ops['labor_pct'] }}% of sales · {{ $ops['service_tickets'] }} service {{ $ops['service_tickets'] === 1 ? 'ticket' : 'tickets' }}</div>
+        @php $labMax = collect($ops['labor_rows'])->max('cents') ?: 1; @endphp
+        <div style="margin-top:12px;">
+          @forelse($ops['labor_rows'] as $row)
+            <div class="rep-list-row">
+              <div style="position:relative;">
+                <span style="position:absolute;left:0;top:-4px;bottom:-4px;width:{{ max(2, round(($row['cents'] / $labMax) * 100)) }}%;background:rgba(190,242,100,0.13);border-radius:5px;"></span>
+                <span style="position:relative;">{{ $row['name'] }}</span>
+              </div>
+              <div class="num-cell">${{ number_format($row['cents'] / 100) }}</div>
+              <div class="num-cell" style="color:var(--ia-text-3,#888);font-size:11.5px;">{{ $row['pct'] }}%</div>
+            </div>
+          @empty
+            <div class="rep-empty">No labor sold in this range.</div>
+          @endforelse
+        </div>
+      </div>
+
+      <div>
+        <div style="font-size:11px;color:var(--ia-text-3,#888);text-transform:uppercase;letter-spacing:0.08em;font-weight:700;margin-bottom:8px;">Parts attached to labor</div>
+        <div style="font-size:27px;font-weight:800;letter-spacing:-0.02em;">${{ number_format($ops['attached_cents'] / 100) }}</div>
+        <div class="meta">{{ $ops['attach_pct'] }}% of all parts sold · {{ $ops['items_per_ticket'] }} items per service ticket</div>
+        <div style="margin-top:12px;">
+          <div class="rep-list-row">
+            <div style="position:relative;">
+              <span style="position:absolute;left:0;top:-4px;bottom:-4px;width:{{ max(2, $ops['attach_pct']) }}%;background:rgba(190,242,100,0.13);border-radius:5px;"></span>
+              <span style="position:relative;">On a service ticket</span>
+            </div>
+            <div class="num-cell">${{ number_format($ops['attached_cents'] / 100) }}</div>
+            <div class="num-cell" style="color:var(--ia-text-3,#888);font-size:11.5px;">{{ $ops['attach_pct'] }}%</div>
+          </div>
+          <div class="rep-list-row">
+            <div style="position:relative;">
+              <span style="position:absolute;left:0;top:-4px;bottom:-4px;width:{{ max(2, 100 - $ops['attach_pct']) }}%;background:rgba(190,242,100,0.13);border-radius:5px;"></span>
+              <span style="position:relative;">Sold on its own</span>
+            </div>
+            <div class="num-cell">${{ number_format($ops['standalone_cents'] / 100) }}</div>
+            <div class="num-cell" style="color:var(--ia-text-3,#888);font-size:11.5px;">{{ 100 - $ops['attach_pct'] }}%</div>
+          </div>
+        </div>
+        <div style="font-size:11.5px;color:var(--ia-text-3,#888);margin-top:10px;line-height:1.5;">
+          A ticket counts as service work when it carries at least one service line. Labor rung up as an
+          open item won't count, and will read as a low attachment rate.
+        </div>
+      </div>
+    </div>
+
+    {{-- margin --}}
+    <div class="rep-grid-2" style="margin-top:22px;grid-template-columns:1fr 1fr 1fr;">
+      <div>
+        <div style="font-size:11px;color:var(--ia-text-3,#888);text-transform:uppercase;letter-spacing:0.08em;font-weight:700;">Product sales</div>
+        <div style="font-size:24px;font-weight:800;margin-top:4px;">${{ number_format($ops['product_cents'] / 100) }}</div>
+        <div class="meta">{{ $ops['units'] }} units · excludes labor and tax</div>
+      </div>
+      <div>
+        <div style="font-size:11px;color:var(--ia-text-3,#888);text-transform:uppercase;letter-spacing:0.08em;font-weight:700;">Cost of goods</div>
+        <div style="font-size:24px;font-weight:800;margin-top:4px;">${{ number_format($ops['cogs_cents'] / 100) }}</div>
+        <div class="meta">{{ $ops['uncosted_lines'] > 0 ? $ops['uncosted_lines'] . ' lines at zero cost' : 'every line has a cost' }}</div>
+      </div>
+      <div>
+        <div style="font-size:11px;color:var(--ia-text-3,#888);text-transform:uppercase;letter-spacing:0.08em;font-weight:700;">Margin</div>
+        <div style="font-size:24px;font-weight:800;margin-top:4px;">{{ $ops['margin_pct'] }}%</div>
+        <div class="meta">${{ number_format($ops['margin_cents'] / 100) }} gross</div>
+      </div>
+    </div>
+  </section>
+
+  {{-- ZONE: TARGETS — MARKER-OPS-PANELS --}}
+  <section class="rep-zone">
+    <div class="rep-zone-head">
+      <div class="rep-zone-title">🎯 Targets</div>
+      <div class="rep-zone-sub">What good looks like for your shop. Leave one blank and it stays blank — no status is shown for a number you haven't set.</div>
+    </div>
+
+    <form method="POST" action="{{ route('tenant.reports.targets') }}">
+      @csrf
+      @php
+        $actuals = [
+          'avg_ticket' => ['Average ticket', '$' . number_format($ops['avg_ticket_cents'] / 100), $ops['avg_ticket_cents'] / 100, '$'],
+          'labor_pct'  => ['Labor share', $ops['labor_pct'] . '%', $ops['labor_pct'], '%'],
+          'attach_pct' => ['Attachment rate', $ops['attach_pct'] . '%', $ops['attach_pct'], '%'],
+          'margin_pct' => ['Margin', $ops['margin_pct'] . '%', $ops['margin_pct'], '%'],
+        ];
+      @endphp
+
+      <div class="rep-list-row head">
+        <div>Measure</div><div class="num-cell">Actual</div><div class="num-cell">Target</div>
+      </div>
+      @foreach($actuals as $key => $a)
+        @php $t = $targets[$key] ?? null; @endphp
+        <div class="rep-list-row">
+          <div>
+            {{ $a[0] }}
+            @if($t !== null)
+              <div class="meta" style="color:{{ $a[2] >= $t ? '#BEF264' : '#F59E0B' }};">
+                {{ $a[2] >= $t ? 'on target' : 'under target' }}
+              </div>
+            @else
+              <div class="meta">no target set</div>
+            @endif
+          </div>
+          <div class="num-cell">{{ $a[1] }}</div>
+          <div class="num-cell">
+            <input type="number" step="0.1" min="0" name="targets[{{ $key }}]" value="{{ $t }}" placeholder="—"
+                   style="width:86px;background:transparent;border:1px solid var(--ia-border,#1f1f1f);border-radius:7px;color:inherit;font:inherit;font-size:13px;padding:4px 7px;text-align:right;">
+          </div>
+        </div>
+      @endforeach
+
+      <div style="display:flex;align-items:center;gap:12px;margin-top:16px;flex-wrap:wrap;">
+        <label style="font-size:12px;color:var(--ia-text-3,#888);">Spotlight category</label>
+        <select name="spotlight" style="background:transparent;border:1px solid var(--ia-border,#1f1f1f);border-radius:8px;color:inherit;font:inherit;font-size:13px;padding:6px 9px;">
+          <option value="">None</option>
+          @foreach($ops['cat_rows'] as $row)
+            <option value="{{ $row['name'] }}" @selected($spotlight === $row['name'])>{{ $row['name'] }}</option>
+          @endforeach
+        </select>
+        <button type="submit" style="background:#BEF264;border:0;border-radius:9px;color:#14180a;font:inherit;font-weight:700;font-size:13px;padding:8px 16px;cursor:pointer;">Save targets</button>
+        <span style="font-size:11.5px;color:var(--ia-text-3,#888);">The category that matters most in your shop — it isn't fixed to any trade.</span>
+      </div>
+    </form>
   </section>
 
   {{-- ZONE: BOOKINGS --}}

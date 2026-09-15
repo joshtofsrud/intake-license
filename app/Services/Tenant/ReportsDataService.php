@@ -151,8 +151,13 @@ class ReportsDataService
             ->distinct()
             ->pluck('sale_id');
 
+        // MARKER-OPS-PANELS — by_service is retired. It grouped EVERY line type
+        // under a service heading, called sales "bookings", and summed whole
+        // sale totals against a cash headline. zoneOps() answers this properly
+        // and on one basis. Kept as an empty array so an older cached view
+        // cannot fatal on a missing key mid-deploy.
         $byService = [];
-        if ($paidSaleIds->isNotEmpty()) {
+        if (false) {
             $byService = DB::table('tenant_sale_items')
                 ->where('tenant_id', $this->tenant->id)
                 ->whereIn('sale_id', $paidSaleIds)
@@ -180,6 +185,195 @@ class ReportsDataService
             'by_service'    => $byService,
         ];
     }
+    /**
+     * MARKER-OPS-PANELS — the operating numbers, all on ONE basis.
+     *
+     * SALE basis: sales dated in the range, cancelled excluded, refund sales
+     * subtracted. NOT the cash basis used by zoneRevenue() above — that one
+     * answers "what money arrived", this answers "what did we sell". They
+     * differ on any day with a deposit or a layaway instalment, which is why
+     * the page says so out loud instead of letting two numbers quietly disagree.
+     *
+     * Tax is removed everywhere here (line_total_cents includes it), so margin
+     * is not inflated by money that belongs to the state.
+     */
+    public function zoneOps(Carbon $from, Carbon $to): array
+    {
+        $tid = $this->tenant->id;
+
+        // Sales in range, with the sign each one contributes.
+        $sales = DB::table('tenant_sales')
+            ->where('tenant_id', $tid)
+            ->whereBetween('sale_date', [$from->toDateString(), $to->toDateString()])
+            ->where('status', '!=', 'cancelled')
+            ->get(['id', 'refund_of_sale_id']);
+
+        if ($sales->isEmpty()) {
+            return $this->emptyOps();
+        }
+
+        $signOf = $sales->mapWithKeys(fn ($s) => [$s->id => $s->refund_of_sale_id ? -1 : 1])->all();
+
+        $lines = DB::table('tenant_sale_items as li')
+            ->leftJoin('tenant_inventory_items as i', 'i.id', '=', 'li.inventory_item_id')
+            ->whereIn('li.sale_id', array_keys($signOf))
+            ->where('li.tenant_id', $tid)
+            ->get([
+                'li.sale_id', 'li.type', 'li.name_snapshot', 'li.quantity',
+                'li.line_total_cents', 'li.tax_cents', 'li.cost_cents_snapshot',
+                'i.category_id',
+            ]);
+
+        // Root category per item category, walked once and cached.
+        $catNames = $this->rootCategoryNames($tid);
+
+        $catTotals   = [];   // root category name => net cents
+        $laborTotals = [];   // service name       => net cents
+        $productNet  = 0;
+        $laborNet    = 0;
+        $cogs        = 0;
+        $uncosted    = 0;
+        $uncategorised = 0;
+        $units       = 0;
+
+        $serviceSales = [];  // sale_id => true, if it carries a service line
+        $partsBySale  = [];  // sale_id => net product cents
+        $itemsBySale  = [];  // sale_id => line count
+
+        foreach ($lines as $l) {
+            $sign = $signOf[$l->sale_id] ?? 1;
+            $net  = ((int) $l->line_total_cents - (int) $l->tax_cents) * $sign;
+
+            $itemsBySale[$l->sale_id] = ($itemsBySale[$l->sale_id] ?? 0) + 1;
+
+            if ($l->type === 'service') {
+                $laborNet += $net;
+                $laborTotals[$l->name_snapshot] = ($laborTotals[$l->name_snapshot] ?? 0) + $net;
+                $serviceSales[$l->sale_id] = true;
+                continue;
+            }
+
+            // Everything else sells as product for these purposes: open items
+            // and gift cards included, so the totals reconcile to the sale.
+            $productNet += $net;
+            $units      += (int) round((float) $l->quantity) * $sign;
+            $partsBySale[$l->sale_id] = ($partsBySale[$l->sale_id] ?? 0) + $net;
+
+            $cost = $l->cost_cents_snapshot;
+            if ($cost === null || (int) $cost === 0) {
+                $uncosted++;
+            } else {
+                $cogs += (int) $cost * max(1, (int) round((float) $l->quantity)) * $sign;
+            }
+
+            $root = $l->category_id ? ($catNames[$l->category_id] ?? null) : null;
+            if ($root === null) {
+                $uncategorised += $net;
+                $root = 'Uncategorised';
+            }
+            $catTotals[$root] = ($catTotals[$root] ?? 0) + $net;
+        }
+
+        $attached   = 0;
+        $standalone = 0;
+        $ticketItems = 0;
+
+        foreach ($partsBySale as $saleId => $cents) {
+            if (isset($serviceSales[$saleId])) {
+                $attached += $cents;
+            } else {
+                $standalone += $cents;
+            }
+        }
+        foreach (array_keys($serviceSales) as $saleId) {
+            $ticketItems += $itemsBySale[$saleId] ?? 0;
+        }
+
+        $tickets   = count($serviceSales);
+        $allSales  = $productNet + $laborNet;
+        $partsAll  = $attached + $standalone;
+        $covered   = $productNet - $uncategorised;
+
+        arsort($catTotals);
+        arsort($laborTotals);
+
+        return [
+            'sales_cents'      => $allSales,
+            'labor_cents'      => $laborNet,
+            'labor_pct'        => $allSales > 0 ? round(($laborNet / $allSales) * 100, 1) : 0,
+            'labor_rows'       => $this->topRows($laborTotals, $laborNet),
+
+            'product_cents'    => $productNet,
+            'cat_rows'         => $this->topRows($catTotals, $productNet, 8),
+            'coverage_pct'     => $productNet > 0 ? round(($covered / $productNet) * 100) : 100,
+            'uncategorised_cents' => $uncategorised,
+
+            'attached_cents'   => $attached,
+            'standalone_cents' => $standalone,
+            'attach_pct'       => $partsAll > 0 ? round(($attached / $partsAll) * 100) : 0,
+            'service_tickets'  => $tickets,
+            'items_per_ticket' => $tickets > 0 ? round($ticketItems / $tickets, 1) : 0,
+
+            'cogs_cents'       => $cogs,
+            'margin_cents'     => $productNet - $cogs,
+            'margin_pct'       => $productNet > 0 ? round((($productNet - $cogs) / $productNet) * 100, 1) : 0,
+            'uncosted_lines'   => $uncosted,
+
+            // MARKER-OPS-PANELS — whichever category this shop chose to watch.
+            'spotlight_name'   => $this->tenant->settings['report_spotlight_category'] ?? null,
+            'units'            => $units,
+            'avg_ticket_cents' => count($signOf) > 0 ? (int) round($allSales / count($signOf)) : 0,
+        ];
+    }
+
+    /** Category id => ROOT category name, so a nested category rolls up. */
+    protected function rootCategoryNames(string $tid): array
+    {
+        $cats = DB::table('tenant_inventory_categories')
+            ->where('tenant_id', $tid)
+            ->get(['id', 'name', 'parent_id'])
+            ->keyBy('id');
+
+        $out = [];
+        foreach ($cats as $id => $cat) {
+            $seen = [];
+            $node = $cat;
+            // Walk to the root, guarding against a cycle rather than hanging.
+            while ($node->parent_id && isset($cats[$node->parent_id]) && ! isset($seen[$node->id])) {
+                $seen[$node->id] = true;
+                $node = $cats[$node->parent_id];
+            }
+            $out[$id] = $node->name;
+        }
+
+        return $out;
+    }
+
+    protected function topRows(array $totals, int $of, int $limit = 6): array
+    {
+        $rows = [];
+        foreach (array_slice($totals, 0, $limit, true) as $name => $cents) {
+            $rows[] = [
+                'name'  => $name,
+                'cents' => (int) $cents,
+                'pct'   => $of > 0 ? round(($cents / $of) * 100) : 0,
+            ];
+        }
+        return $rows;
+    }
+
+    protected function emptyOps(): array
+    {
+        return [
+            'sales_cents' => 0, 'labor_cents' => 0, 'labor_pct' => 0, 'labor_rows' => [],
+            'product_cents' => 0, 'cat_rows' => [], 'coverage_pct' => 100, 'uncategorised_cents' => 0,
+            'attached_cents' => 0, 'standalone_cents' => 0, 'attach_pct' => 0,
+            'service_tickets' => 0, 'items_per_ticket' => 0,
+            'cogs_cents' => 0, 'margin_cents' => 0, 'margin_pct' => 0, 'uncosted_lines' => 0,
+            'units' => 0, 'avg_ticket_cents' => 0, 'spotlight_name' => null,
+        ];
+    }
+
     public function zoneBookings(Carbon $from, Carbon $to): array
     {
         $isSingleDay = $from->isSameDay($to);

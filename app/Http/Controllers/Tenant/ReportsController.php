@@ -25,6 +25,36 @@ use Illuminate\View\View;
  */
 class ReportsController extends Controller
 {
+    /** MARKER-OPS-PANELS — inline target edits from the reports page. */
+    public function saveTargets(Request $request)
+    {
+        $tenant = app('tenant');
+
+        $data = $request->validate([
+            'targets'   => ['array'],
+            'targets.*' => ['nullable', 'numeric', 'min:0', 'max:1000000'],
+            'spotlight' => ['nullable', 'string', 'max:120'],
+        ]);
+
+        $targets = [];
+        foreach (($data['targets'] ?? []) as $key => $value) {
+            // A blank target is an ABSENT target, not a zero — a zero would
+            // read as "target met" on every measure.
+            if ($value === null || $value === '') {
+                continue;
+            }
+            $targets[$key] = (float) $value;
+        }
+
+        $settings = $tenant->settings ?? [];
+        $settings['report_targets'] = $targets;
+        $settings['report_spotlight_category'] = $data['spotlight'] ?: null;
+        $tenant->settings = $settings;
+        $tenant->save();
+
+        return back()->with('info', 'Targets saved.');
+    }
+
     public function index(Request $request): View
     {
         $tenant = tenant();
@@ -81,6 +111,10 @@ class ReportsController extends Controller
             'services'    => $svc->zoneServices($from, $to),
             'staff'       => $svc->zoneStaff($from, $to),
             'capacity'    => $svc->zoneCapacity($from, $to),
+            // MARKER-OPS-PANELS
+            'ops'         => $svc->zoneOps($from, $to),
+            'targets'     => (array) ($tenant->settings['report_targets'] ?? []),
+            'spotlight'   => $tenant->settings['report_spotlight_category'] ?? null,
             'today_label' => $today->format('l, F j, Y'),
         ]);
     }

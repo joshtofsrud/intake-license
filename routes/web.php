@@ -719,6 +719,8 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             Route::delete('/deliveries/resources/{id}',         [TenantControllers\DeliveryResourcesController::class, 'destroy'])->name('deliveries.resources.destroy');
 
             Route::get('/reports',              [TenantControllers\ReportsController::class, 'index'])->name('reports.index');
+            // MARKER-OPS-PANELS
+            Route::post('/reports/targets', [TenantControllers\ReportsController::class, 'saveTargets'])->name('reports.targets');
             Route::get('/reports/customers',    [TenantControllers\ReportsController::class, 'customers'])->name('reports.customers');
             Route::get('/reports/services',     [TenantControllers\ReportsController::class, 'services'])->name('reports.services');
             Route::get('/reports/retail',       [TenantControllers\ReportsController::class, 'retail'])->name('reports.retail');
