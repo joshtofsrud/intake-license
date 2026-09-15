@@ -1683,6 +1683,12 @@ class BookingService
                 'first_name' => $data['first_name'] ?? $customer->first_name,
                 'last_name'  => $data['last_name']  ?? $customer->last_name,
                 'phone'      => $data['phone']      ?? $customer->phone,
+                // MARKER-CUST-ADDR — a supplied address fills a BLANK one and
+                // never overwrites what is already on file.
+                'address_line1' => $customer->address_line1 ?: ($data['address_line1'] ?? null),
+                'city'          => $customer->city          ?: ($data['city']          ?? null),
+                'state'         => $customer->state         ?: ($data['state']         ?? null),
+                'postcode'      => $customer->postcode      ?: ($data['postcode']      ?? null),
             ])->save();
             return $customer;
         }
@@ -1693,6 +1699,11 @@ class BookingService
             'last_name'  => $data['last_name']  ?? '',
             'email'      => $email,
             'phone'      => $data['phone']      ?? null,
+            // MARKER-CUST-ADDR
+            'address_line1' => $data['address_line1'] ?? null,
+            'city'          => $data['city']          ?? null,
+            'state'         => $data['state']         ?? null,
+            'postcode'      => $data['postcode']      ?? null,
         ]);
     }
 

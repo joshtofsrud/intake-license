@@ -1109,7 +1109,17 @@
         <input type="email" id="custNewEmail" placeholder="Email *" autocomplete="off">
         <input type="text"  id="custNewPhone" placeholder="Phone" autocomplete="off" inputmode="tel">
       </div>
-      <div style="font-size:11px;color:var(--ia-text-dim);margin-top:6px">No match — a new customer will be created.</div>
+      {{-- MARKER-CUST-ADDR — optional, but asked for up front so the record
+           doesn't start life failing data health. --}}
+      <div style="margin-top:8px">
+        <input type="text" id="custNewAddr" placeholder="Street address" autocomplete="off">
+      </div>
+      <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:8px;margin-top:8px">
+        <input type="text" id="custNewCity"  placeholder="City" autocomplete="off">
+        <input type="text" id="custNewState" placeholder="State" autocomplete="off">
+        <input type="text" id="custNewPost"  placeholder="ZIP" autocomplete="off" inputmode="numeric">
+      </div>
+      <div style="font-size:11px;color:var(--ia-text-dim);margin-top:6px">No match — a new customer will be created. Address is optional.</div>
       <div id="custNewErr" style="display:none;font-size:12.5px;color:#f87171;margin-top:8px"></div>
     </div>
     <div class="reg-modal-actions">
@@ -3174,11 +3184,15 @@ function openCustomerModal() {
   setTimeout(() => document.getElementById('customerSearchInput').focus(), 50);
 }
 // MARKER-REG-CUSTPICK — create on no match ----------------------------------
+let custNewTouched = false; // MARKER-CUST-ADDR — the user has typed in a field
 function custNewShow(q) {
   const wrap = document.getElementById('custNewFields');
   const first = document.getElementById('custNewFirst');
   const last  = document.getElementById('custNewLast');
-  if (wrap.style.display === 'none') {
+  // MARKER-CUST-ADDR — keep splitting the typed name until the user edits a
+  // field themselves. Splitting only on first show froze the last name at
+  // its first letter while the search box kept being typed into.
+  if (!custNewTouched) {
     const parts = (q || '').trim().split(/\s+/);
     if (parts.length >= 2 && !q.includes('@') && !/\d/.test(q)) {
       first.value = parts[0];
@@ -3198,17 +3212,27 @@ function custNewHide() {
 }
 function custNewReset() {
   custNewHide();
-  ['custNewFirst', 'custNewLast', 'custNewEmail', 'custNewPhone'].forEach(id => { document.getElementById(id).value = ''; });
+  custNewTouched = false; // MARKER-CUST-ADDR
+  ['custNewFirst', 'custNewLast', 'custNewEmail', 'custNewPhone',
+   'custNewAddr', 'custNewCity', 'custNewState', 'custNewPost'].forEach(id => { document.getElementById(id).value = ''; });
   const err = document.getElementById('custNewErr'); err.style.display = 'none'; err.textContent = '';
 }
 function custNewError(msg) {
   const err = document.getElementById('custNewErr'); err.textContent = msg; err.style.display = '';
 }
+// MARKER-CUST-ADDR — once a field is typed in, the search box stops driving it.
+['custNewFirst', 'custNewLast', 'custNewEmail', 'custNewPhone'].forEach(id => {
+  document.getElementById(id).addEventListener('input', () => { custNewTouched = true; });
+});
 document.getElementById('custNewAttachBtn').addEventListener('click', async () => {
   const first = document.getElementById('custNewFirst').value.trim();
   const last  = document.getElementById('custNewLast').value.trim();
   const email = document.getElementById('custNewEmail').value.trim();
   const phone = document.getElementById('custNewPhone').value.trim();
+  const addr  = document.getElementById('custNewAddr').value.trim();   // MARKER-CUST-ADDR
+  const city  = document.getElementById('custNewCity').value.trim();
+  const st    = document.getElementById('custNewState').value.trim();
+  const post  = document.getElementById('custNewPost').value.trim();
   if (!first || !last || !email) { custNewError('First name, last name and email are required.'); return; }
 
   const btn = document.getElementById('custNewAttachBtn');
@@ -3221,7 +3245,10 @@ document.getElementById('custNewAttachBtn').addEventListener('click', async () =
         'Accept': 'application/json',
         'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
       },
-      body: JSON.stringify({ first_name: first, last_name: last, email: email, phone: phone || null }),
+      body: JSON.stringify({
+        first_name: first, last_name: last, email: email, phone: phone || null,
+        address_line1: addr || null, city: city || null, state: st || null, postcode: post || null, // MARKER-CUST-ADDR
+      }),
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok || !data.ok || !data.id) {

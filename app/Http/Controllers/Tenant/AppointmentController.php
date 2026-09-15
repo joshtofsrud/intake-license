@@ -276,6 +276,11 @@ class AppointmentController extends Controller
             'customer_last_name'  => ['required_without:customer_id', 'string', 'max:100'],
             'customer_email'      => ['required_without:customer_id', 'email', 'max:255'],
             'customer_phone'      => ['nullable', 'string', 'max:32'],
+            // MARKER-CUST-ADDR — optional, passed through to the customer record.
+            'customer_address_line1' => ['nullable', 'string', 'max:191'],
+            'customer_city'          => ['nullable', 'string', 'max:100'],
+            'customer_state'         => ['nullable', 'string', 'max:64'],
+            'customer_postcode'      => ['nullable', 'string', 'max:20'],
             'appointment_date'    => ['required', 'date'],
             'appointment_time'    => ['nullable', 'string'],
             'resource_id'         => ['nullable', 'string', 'uuid'],
@@ -323,6 +328,11 @@ class AppointmentController extends Controller
             'last_name'        => $last,
             'email'            => $email,
             'phone'            => $phone,
+            // MARKER-CUST-ADDR
+            'address_line1'    => $data['customer_address_line1'] ?? null,
+            'city'             => $data['customer_city']          ?? null,
+            'state'            => $data['customer_state']         ?? null,
+            'postcode'         => $data['customer_postcode']      ?? null,
             'date'             => $data['appointment_date'],
             'appointment_time' => $apptTime,
             'resource_id'      => $data['resource_id'] ?? null,

@@ -252,7 +252,17 @@
                 <input type="email" id="appt-email" class="appt-input" placeholder="Email *">
                 <input type="tel"   id="appt-phone" class="appt-input" placeholder="Phone">
               </div>
-              <div style="font-size:11px;opacity:.55;margin-top:6px">No match — a new customer will be created.</div>
+              {{-- MARKER-CUST-ADDR — optional address at creation, so the
+                   record doesn't start life failing data health. --}}
+              <div style="margin-top:8px">
+                <input type="text" id="appt-addr" class="appt-input" placeholder="Street address" autocomplete="off">
+              </div>
+              <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:8px;margin-top:8px">
+                <input type="text" id="appt-city"  class="appt-input" placeholder="City"  autocomplete="off">
+                <input type="text" id="appt-state" class="appt-input" placeholder="State" autocomplete="off">
+                <input type="text" id="appt-post"  class="appt-input" placeholder="ZIP"   autocomplete="off" inputmode="numeric">
+              </div>
+              <div style="font-size:11px;opacity:.55;margin-top:6px">No match — a new customer will be created. Address is optional.</div>
             </div>
           </div>
           <div id="appt-cust-attached" class="appt-cust-attached" style="display:none">
@@ -598,6 +608,7 @@ window.ApptModal = (function () {
   }
 
   function clearCustomer() {
+    ['appt-addr', 'appt-city', 'appt-state', 'appt-post'].forEach(function (id) { var n = el(id); if (n) n.value = ''; }); // MARKER-CUST-ADDR
     state.customerId = null;
     el('appt-cust-attached').style.display = 'none';
     el('appt-cust-search-wrap').style.display = 'block';
@@ -945,6 +956,11 @@ window.ApptModal = (function () {
       payload.customer_last_name  = el('appt-last').value.trim();
       payload.customer_email      = el('appt-email').value.trim();
       payload.customer_phone      = el('appt-phone').value.trim();
+      // MARKER-CUST-ADDR
+      payload.customer_address_line1 = el('appt-addr').value.trim();
+      payload.customer_city          = el('appt-city').value.trim();
+      payload.customer_state         = el('appt-state').value.trim();
+      payload.customer_postcode      = el('appt-post').value.trim();
       if (!payload.customer_first_name || !payload.customer_last_name || !payload.customer_email) {
         showError('First name, last name, and email are required for a new customer.');
         btn.disabled = false; btn.innerHTML = 'Save appointment';
