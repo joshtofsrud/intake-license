@@ -53,7 +53,14 @@ class MarketingPageResource extends Resource
             return parent::getEloquentQuery()->whereRaw('1 = 0');
         }
 
-        return parent::getEloquentQuery()->where('tenant_id', $platform->id);
+        // MARKER-HELP-ADMIN — help articles are platform pages too (kind 'howto').
+        // Without this they would appear in the marketing page list, where
+        // publishing one would put it on intake.works.
+        return parent::getEloquentQuery()
+            ->where('tenant_id', $platform->id)
+            ->where(function ($w) {
+                $w->whereNull('kind')->orWhere('kind', 'page');
+            });
     }
 
     public static function form(Form $form): Form

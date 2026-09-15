@@ -83,6 +83,10 @@ class AdminPanelProvider extends PanelProvider
                 DistributorFieldMapResource::class, // HLC field mapping
             ])
             ->pages([
+                // MARKER-HELP-ADMIN — this panel lists pages EXPLICITLY and does
+                // not auto-discover, so an unregistered page class has no route
+                // at all. This has bitten at least five times; do not remove.
+                \App\Filament\Pages\HelpArticles::class,
                 // MARKER-CONTRIBUTIONS · MARKER-CONTRIBUTIONS-FQN — fully qualified
                 // on purpose: there is no `use App\Filament\Pages` in this file, so a
                 // bare Pages\ prefix resolves into Filament's own namespace and kills
