@@ -160,8 +160,17 @@ class SpecialOrderController extends Controller
         $origins = [];
         if ($sos->isNotEmpty()) {
             $saleIds = $sos->pluck('sale_id')->filter()->unique();
+            // MARKER-SO-HELD — a draft has no sale_number until it is paid, and
+            // isset() on a null value is false, so a HELD sale read as deleted
+            // and its order sat under No longer needed waiting for the sweep to
+            // cancel it. Key by id, label by number, and test presence with
+            // has(), never isset().
             $liveSales = $saleIds->isEmpty() ? collect() : \App\Models\Tenant\TenantSale::where('tenant_id', $tenant->id)
-                ->whereIn('id', $saleIds)->pluck('sale_number', 'id');
+                ->whereIn('id', $saleIds)
+                ->get(['id', 'sale_number', 'payment_status'])
+                ->mapWithKeys(fn ($sale) => [$sale->id => $sale->sale_number
+                    ? ('Sale ' . $sale->sale_number)
+                    : ($sale->payment_status === 'draft' ? 'Held sale' : 'Sale (unnumbered)')]);
 
             // MARKER-SO-LINEGONE — a live sale does not mean the request is
             // live: the LINE that asked for it may have been removed while the
@@ -208,13 +217,13 @@ class SpecialOrderController extends Controller
                         $origins[$so->id] = ['state' => 'live', 'label' => $liveAppts[$so->appointment_id]];
                     }
                 } elseif ($so->sale_id) {
-                    if (! isset($liveSales[$so->sale_id])) {
+                    if (! $liveSales->has($so->sale_id)) { // MARKER-SO-HELD — has(), not isset()
                         $origins[$so->id] = ['state' => 'orphan', 'label' => 'Sale removed'];
                     } elseif ($so->inventory_item_id && empty($hasLine[$so->sale_id][$so->inventory_item_id])) {
                         // MARKER-SO-LINEGONE
                         $origins[$so->id] = ['state' => 'orphan', 'label' => 'Line removed from sale'];
                     } else {
-                        $origins[$so->id] = ['state' => 'live', 'label' => 'Sale ' . $liveSales[$so->sale_id]];
+                        $origins[$so->id] = ['state' => 'live', 'label' => $liveSales[$so->sale_id]];
                     }
                 }
 
@@ -222,13 +231,18 @@ class SpecialOrderController extends Controller
                     $orphanIds[] = $so->id; // MARKER-SO-ORPHANS
                 }
 
-                if (false) {
-                } elseif ($so->created_from === 'register') {
-                    // Created before sale linking existed — the link was never
-                    // recorded, so it cannot be reconstructed. Say so plainly.
-                    $origins[$so->id] = ['state' => 'unknown', 'label' => 'Origin not recorded'];
-                } else {
-                    $origins[$so->id] = ['state' => 'manual', 'label' => ucfirst((string) $so->created_from)];
+                // MARKER-SO-HELD — this used to run for EVERY order and overwrite
+                // the live/orphan result above, so a register order linked to a
+                // perfectly good sale still wore "Origin not recorded". Only an
+                // order with no sale and no appointment has nothing to say.
+                if (! $so->sale_id && ! $so->appointment_id) {
+                    if ($so->created_from === 'register') {
+                        // Created before sale linking existed — the link was never
+                        // recorded, so it cannot be reconstructed. Say so plainly.
+                        $origins[$so->id] = ['state' => 'unknown', 'label' => 'Origin not recorded'];
+                    } else {
+                        $origins[$so->id] = ['state' => 'manual', 'label' => ucfirst((string) $so->created_from)];
+                    }
                 }
 
                 if ($so->source_confirmed_at && $origins[$so->id]['state'] !== 'live') {
