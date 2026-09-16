@@ -38,6 +38,7 @@ class DemoReset extends Command
         $dir   = "demo/{$slug}";
         if (! $local->exists("{$dir}/manifest.json") || ! $local->exists("{$dir}/template.jsonl")) {
             $this->error("No frozen template at storage/app/{$dir} — run demo:build-template first.");
+            $this->alert("No frozen template at storage/app/{$dir}", $slug); // MARKER-DEMO-ALERT
             return self::FAILURE;
         }
         $manifest = json_decode($local->get("{$dir}/manifest.json"), true);
@@ -45,12 +46,14 @@ class DemoReset extends Command
         $tables   = $manifest['tables'] ?? [];
         if (! $tenantId || ! $tables) {
             $this->error('Manifest is missing tenant_id or tables.');
+            $this->alert('Manifest is missing tenant_id or tables', $slug); // MARKER-DEMO-ALERT
             return self::FAILURE;
         }
 
         $tenant = Tenant::withTrashed()->find($tenantId);
         if ($tenant && ! $tenant->is_demo) {
             $this->error('Refusing: the manifest tenant is not flagged is_demo.');
+            $this->alert('Manifest tenant is not flagged is_demo', $slug, $tenantId); // MARKER-DEMO-ALERT
             return self::FAILURE;
         }
 
@@ -94,6 +97,10 @@ class DemoReset extends Command
             }
             fclose($fh);
             if ($buffer) $this->flush($current, $buffer);
+        } catch (\Throwable $e) {
+            // MARKER-DEMO-ALERT — the demo is now WIPED and not restored: loudest possible.
+            \App\Support\JobFailureReporter::report(self::class, "demo:reset failed mid-restore — the '{$slug}' demo is DOWN until it succeeds", $e, ['slug' => $slug, 'rows_before_failure' => $rows ?? 0], $tenantId);
+            throw $e;
         } finally {
             DB::statement('SET FOREIGN_KEY_CHECKS=1');
         }
@@ -178,6 +185,12 @@ class DemoReset extends Command
      * MARKER-DEMO-DRIFT — the frozen template can carry columns a later
      * migration dropped; keep only what the live table has, and say so once.
      */
+    /** MARKER-DEMO-ALERT — pre-flight refusals have no exception, so build one for the reporter. */
+    private function alert(string $why, string $slug, ?string $tenantId = null): void
+    {
+        \App\Support\JobFailureReporter::report(self::class, "demo:reset refused — the '{$slug}' demo will not restore: {$why}", new \RuntimeException($why), ['slug' => $slug], $tenantId);
+    }
+
     private function flush(string $table, array $rows): void
     {
         if (! $rows) return;
