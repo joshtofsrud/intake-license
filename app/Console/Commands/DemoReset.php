@@ -169,9 +169,33 @@ class DemoReset extends Command
         $this->line("  appointments realigned: {$todayN} today, {$future} upcoming");
     }
 
+    /** @var array<string, array<string,true>> table => column set */
+    private array $columnsOf = [];
+    /** @var array<string, true> "table.column" already reported */
+    private array $driftReported = [];
+
+    /**
+     * MARKER-DEMO-DRIFT — the frozen template can carry columns a later
+     * migration dropped; keep only what the live table has, and say so once.
+     */
     private function flush(string $table, array $rows): void
     {
-        if ($rows) DB::table($table)->insert($rows);
+        if (! $rows) return;
+        $this->columnsOf[$table] ??= array_fill_keys(\Illuminate\Support\Facades\Schema::getColumnListing($table), true);
+        $keep = $this->columnsOf[$table];
+        foreach ($rows as &$row) {
+            foreach (array_keys($row) as $col) {
+                if (! isset($keep[$col])) {
+                    if (! isset($this->driftReported["$table.$col"])) {
+                        $this->driftReported["$table.$col"] = true;
+                        $this->warn("  {$table}.{$col} is in the template but not the table — dropped (rebuild the template to clear this)");
+                    }
+                    unset($row[$col]);
+                }
+            }
+        }
+        unset($row);
+        DB::table($table)->insert($rows);
     }
 
     /**
