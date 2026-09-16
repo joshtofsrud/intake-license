@@ -79,6 +79,43 @@
       @if($error)<div style="color:#f87171;font-size:13px;margin-top:8px">{{ $error }}</div>@endif
     </div>
 
+    {{-- MARKER-SALES-UPLOAD --}}
+    <details style="{{ $card }};margin-top:16px" @if($uploadPreview || $uploadResult) open @endif>
+      <summary style="cursor:pointer;font-size:13px;font-weight:600">Load a shop list (free base layer)</summary>
+      <div style="{{ $muted }};margin:8px 0">A CSV like the Overture export: shop_name, address, city, state_code, postcode, website, verified_workstand, and latitude/longitude if you have them. Rows already present (same name, city and address) are skipped. Nothing is written until you confirm, and a batch can be undone below — only rows nobody has worked are removed.</div>
+      <input type="file" wire:model="shopList" accept=".csv,text/csv" class="{{ $input }}" style="width:100%">
+      <div wire:loading wire:target="shopList" style="{{ $muted }};margin-top:4px">Uploading…</div>
+      @error('shopList')<div style="color:#f87171;font-size:12px;margin-top:4px">{{ $message }}</div>@enderror
+      <label style="display:flex;gap:8px;font-size:13px;align-items:center;margin-top:8px"><input type="checkbox" wire:model="uploadAssign" class="rounded"> Assign to territory reps on load</label>
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <button class="sfs-btn" wire:click="previewUpload" wire:loading.attr="disabled" @disabled(! $shopList)><span wire:loading.remove wire:target="previewUpload">Preview</span><span wire:loading wire:target="previewUpload">Reading…</span></button>
+        @if($uploadPreview && ! $uploadPreview['error'])
+          <button class="sfs-btn p" wire:click="importUpload" wire:loading.attr="disabled"><span wire:loading.remove wire:target="importUpload">Load {{ number_format($uploadPreview['inserted']) }} shops</span><span wire:loading wire:target="importUpload">Loading… this can take a minute</span></button>
+        @endif
+      </div>
+      @if($uploadPreview && ! $uploadPreview['error'])
+        <div style="font-size:13px;margin-top:10px"><b>{{ number_format($uploadPreview['inserted']) }} new</b> · {{ number_format($uploadPreview['matched']) }} already present · {{ number_format($uploadPreview['blank']) }} skipped (no name or state) · {{ number_format($uploadPreview['with_coords']) }} with coordinates · {{ number_format($uploadPreview['total']) }} rows read</div>
+        @if($uploadPreview['with_coords'] === 0)<div style="{{ $muted }};margin-top:4px;color:#fbbf24">No coordinates in this file — these shops won't appear on maps until a Pull details. Re-export with latitude/longitude if you can.</div>@endif
+      @endif
+      @if($uploadResult && ! $uploadResult['error'])
+        <div style="font-size:13px;margin-top:10px">Loaded <b>{{ number_format($uploadResult['inserted']) }}</b> as batch <code>{{ $uploadResult['batch'] }}</code>.</div>
+      @endif
+      @php $batches = $this->batches(); @endphp
+      @if($batches)
+        <div style="{{ $label }};margin-top:14px">Loaded batches</div>
+        @foreach($batches as $b)
+          <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;padding:5px 0;border-top:1px solid rgba(127,127,127,.12)" wire:key="b-{{ $b['batch'] }}">
+            <span><code>{{ $b['batch'] }}</code> · {{ number_format($b['total']) }} shops · {{ number_format($b['untouched']) }} untouched</span>
+            @if($confirmUndo === $b['batch'])
+              <span style="display:flex;gap:6px;align-items:center"><span style="{{ $muted }}">Remove {{ number_format($b['untouched']) }} untouched?</span><button class="sfs-btn sm" style="border-color:#f87171;color:#f87171" wire:click="undoBatch('{{ $b['batch'] }}')" wire:loading.attr="disabled">Remove</button><button class="sfs-btn sm ghost" wire:click="$set('confirmUndo', '')">Cancel</button></span>
+            @else
+              <button class="sfs-btn sm" wire:click="$set('confirmUndo', '{{ $b['batch'] }}')" @disabled(! $b['untouched'])>Undo</button>
+            @endif
+          </div>
+        @endforeach
+      @endif
+    </details>
+
     <div style="{{ $card }};margin-top:16px">
       <div style="{{ $label }}">Recent searches</div>
       @forelse($this->recentSearches() as $s)

@@ -20,6 +20,7 @@ use Illuminate\Support\Facades\Auth;
 class SalesFindShops extends Page
 {
     use \App\Support\UsesAdminNav;
+    use \Livewire\WithFileUploads; // MARKER-SALES-UPLOAD
     protected static ?string $navigationIcon  = 'heroicon-o-magnifying-glass-circle';
     protected static ?string $navigationLabel = 'Find shops';
     protected static ?string $navigationGroup = 'Sales';
@@ -44,6 +45,13 @@ class SalesFindShops extends Page
     // setup card
     public string $placesKey    = '';
     public int    $budgetDollars = 50;
+
+    // MARKER-SALES-UPLOAD — shop list upload
+    public $shopList = null;
+    public ?array $uploadPreview = null;
+    public bool   $uploadAssign  = true;
+    public ?array $uploadResult  = null;
+    public string $confirmUndo   = '';
 
     public static function canAccess(): bool
     {
@@ -147,6 +155,36 @@ class SalesFindShops extends Page
             Notification::make()->title('Places failed')->body($e->getMessage())->danger()->send();
         }
     }
+
+    // ---------------------------------------------------------------- MARKER-SALES-UPLOAD
+    public function updatedShopList(): void { $this->uploadPreview = null; $this->uploadResult = null; }
+
+    public function previewUpload(): void
+    {
+        $this->validate(['shopList' => ['required', 'file', 'max:51200']]); // 50 MB
+        $this->uploadResult = null;
+        $this->uploadPreview = (new \App\Services\Sales\ShopListImporter())->import($this->shopList->getRealPath(), null, $this->uploadAssign, true);
+        if ($this->uploadPreview['error']) Notification::make()->title($this->uploadPreview['error'])->danger()->send();
+    }
+
+    public function importUpload(): void
+    {
+        $this->validate(['shopList' => ['required', 'file', 'max:51200']]);
+        $r = (new \App\Services\Sales\ShopListImporter())->import($this->shopList->getRealPath(), null, $this->uploadAssign, false);
+        try { $this->shopList->delete(); } catch (\Throwable $e) {}
+        $this->shopList = null; $this->uploadPreview = null; $this->uploadResult = $r;
+        if ($r['error']) { Notification::make()->title($r['error'])->danger()->send(); return; }
+        Notification::make()->title($r['inserted'] . ' shops loaded')->body("Batch {$r['batch']} · {$r['matched']} already present · {$r['assigned']} assigned to a territory")->success()->send();
+    }
+
+    public function undoBatch(string $batch): void
+    {
+        $r = (new \App\Services\Sales\ShopListImporter())->undo($batch);
+        $this->confirmUndo = '';
+        Notification::make()->title("Removed {$r['removed']} of {$r['all']}")->body($r['kept'] ? "{$r['kept']} kept because someone has worked them." : 'Batch fully removed.')->success()->send();
+    }
+
+    public function batches(): array { return (new \App\Services\Sales\ShopListImporter())->batches(); }
 
     private function row(string $placeId): ?array
     {
