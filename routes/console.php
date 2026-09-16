@@ -228,7 +228,8 @@ Schedule::command('bookings:sync-google')
 
 // MARKER-DEMO-RESET — the demo tenant goes back to its frozen state every hour,
 // on the hour. The banner counts down to this.
-Schedule::command('demo:reset')
+// MARKER-DEMO-IDLE — the command itself skips idle hours; when it does run, keep it off the app's CPU/IO
+Schedule::exec('nice -n 15 ionice -c2 -n7 ' . PHP_BINARY . ' ' . base_path('artisan') . ' demo:reset')
     ->hourly()
     ->withoutOverlapping();
 

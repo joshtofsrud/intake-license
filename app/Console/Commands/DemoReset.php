@@ -60,6 +60,16 @@ class DemoReset extends Command
         $shiftDays = $this->shiftDays($manifest, $slug);
         $started   = microtime(true);
 
+        // MARKER-DEMO-IDLE — nothing to undo when nobody has been in since the last reset
+        if (! $this->option('force')) {
+            $lastEntry = DemoSetting::get("last_entry_at:{$slug}");
+            $lastReset = DemoSetting::get("last_reset_at:{$slug}");
+            if ($lastReset && (! $lastEntry || $lastEntry <= $lastReset)) {
+                $this->info('No demo entries since the last reset — skipping (use --force to reset anyway).');
+                return self::SUCCESS;
+            }
+        }
+
         DB::statement('SET FOREIGN_KEY_CHECKS=0');
         try {
             // wipe: child tables first is unnecessary with checks off, and the
