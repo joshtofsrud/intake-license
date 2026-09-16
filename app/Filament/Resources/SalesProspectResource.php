@@ -315,6 +315,22 @@ class SalesProspectResource extends Resource
                 Tables\Actions\EditAction::make(),
             ])
             ->bulkActions([
+                // MARKER-SALES-ROUTE — bulk enrichment, capped so a stray select-all can't run up the Places bill.
+                Tables\Actions\BulkAction::make('pullDetails')
+                    ->label('Pull details from Places')->icon('heroicon-o-arrow-down-tray')
+                    ->requiresConfirmation()
+                    ->modalDescription(fn ($records) => 'Fetches phone, hours, rating and coordinates for ' . min(count($records), 25) . ' prospect(s) — about $' . number_format(min(count($records), 25) * \App\Models\SalesSetting::placesCostCents() / 100, 2) . '. Typed phone/website are never overwritten. Max 25 per run.')
+                    ->action(function ($records) {
+                        $client = new \App\Services\Sales\PlacesClient();
+                        $ok = $none = 0; $err = null;
+                        foreach ($records->take(25) as $r) {
+                            try { $res = \App\Services\Sales\ProspectEnricher::enrich($r, $client); $res === 'no record' ? $none++ : $ok++; }
+                            catch (\Throwable $e) { $err = $e->getMessage(); break; }
+                        }
+                        \App\Models\SalesPlacesSearch::create(['user_id' => auth()->id(), 'industry' => 'details', 'place' => 'bulk pull', 'radius_miles' => 0, 'requests' => $client->requests, 'found' => $ok, 'new_count' => 0, 'cost_cents' => $client->requests * \App\Models\SalesSetting::placesCostCents()]);
+                        Notification::make()->title("$ok updated" . ($none ? ", $none not found" : ''))->body($err ?: '')->{$err ? 'danger' : 'success'}()->send();
+                    })
+                    ->deselectRecordsAfterCompletion(),
                 // MARKER-SALES-FIND — bulk assignment; the /rep panel only shows a prospect once it has an agency or rep.
                 Tables\Actions\BulkAction::make('assignTerritory')
                     ->label('Assign by territory')->icon('heroicon-o-map')

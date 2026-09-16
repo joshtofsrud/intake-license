@@ -76,7 +76,7 @@ class AdminAccess
             'tenant-domains'                                 => 'domains',
             'sales-channels', 'sales-prospects',
             'sales-find-shops', 'sales-territories',
-            'sales-pipeline'                                 => 'crm', // MARKER-SALES-FIND / MARKER-SALES-BOARD
+            'sales-pipeline', 'sales-route-day'              => 'crm', // MARKER-SALES-FIND / MARKER-SALES-BOARD / MARKER-SALES-ROUTE
             'sales-agencies'                                 => 'reps',
             'marketing-pages', 'platform-nav-items',
             'changelog-entries', 'roadmap-entries',

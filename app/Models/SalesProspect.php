@@ -32,6 +32,7 @@ class SalesProspect extends Model
         'google_place_id', 'lat', 'lng',
         'postcode', 'territory_id', 'hours', 'enriched_at', // MARKER-SALES-FIND
         'invite_token', 'invite_email', 'invite_plan', 'invited_at', 'converted_at', // MARKER-SALES-INVITE
+        'import_batch', // MARKER-SALES-ROUTE
     ];
 
     protected $casts = [

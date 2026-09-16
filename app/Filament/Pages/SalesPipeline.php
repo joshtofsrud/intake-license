@@ -271,26 +271,13 @@ class SalesPipeline extends Page
         return (int) ($tmp->computeQuoteMonthly() ?? 0);
     }
 
-    /** Pull phone, hours, website, rating and coordinates from Places. Never overwrites a typed phone/website. */
+    /** MARKER-SALES-ROUTE — shared with the bulk action and Route day. */
     public function enrich(): void
     {
         $p = $this->current(); if (! $p) return;
         try {
-            $client = new PlacesClient();
-            if (! $client->configured()) { Notification::make()->title('Add a Google Places key on Find shops first')->warning()->send(); return; }
-            $raw = $p->google_place_id ? $client->details($p->google_place_id) : $client->findOne(trim("{$p->shop} {$p->city} {$p->state}"));
-            if (! $raw) { Notification::make()->title('Places has no record for this shop')->warning()->send(); return; }
-            $n = PlacesClient::normalise($raw);
-            $changes = ['enriched_at' => now()];
-            foreach (['hours' => 'hours', 'rating' => 'rating', 'rating_count' => 'rating_count', 'lat' => 'lat', 'lng' => 'lng', 'google_maps_url' => 'maps_url', 'primary_type' => 'primary_type', 'business_status' => 'gstatus', 'google_place_id' => 'place_id', 'postcode' => 'postcode'] as $col => $k) {
-                if ($n[$k] !== null && $n[$k] !== '') $changes[$col] = $n[$k];
-            }
-            foreach (['phone', 'website', 'address', 'city', 'state'] as $col) {
-                if (blank($p->{$col}) && ! empty($n[$col])) $changes[$col] = $n[$col];
-            }
-            $p->update($changes);
-            $p->activities()->create(['type' => 'system', 'body' => 'Details pulled from Places']);
-            Notification::make()->title('Details pulled')->body(($n['phone'] ?? 'no phone') . ' · ' . ($n['hours'] ? 'hours saved' : 'no hours'))->success()->send();
+            $r = \App\Services\Sales\ProspectEnricher::enrich($p);
+            Notification::make()->title($r === 'no record' ? 'Places has no record for this shop' : 'Details pulled')->body($r)->{$r === 'no record' ? 'warning' : 'success'}()->send();
         } catch (\Throwable $e) {
             Notification::make()->title('Places failed')->body($e->getMessage())->danger()->send();
         }
