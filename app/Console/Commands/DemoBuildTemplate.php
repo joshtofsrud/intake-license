@@ -53,7 +53,7 @@ class DemoBuildTemplate extends Command
     // shop; copied into the demo they would show a stranger's arrangement.
     private const PRIVATE_TABLES = '/^tenant_notes$|^tenant_billing_discounts$/i';
 
-    private const BULK = '/availability_snapshot|distributor_sync|brand_sync|sync_state|_audit_log|audit_log|email_ledger|email_send|message_ledger|traffic|search_quer|search_log|analytics|page_view|activity_log|import_row|catalog_match|catalog_identifier/i';
+    private const BULK = '/availability_snapshot|distributor_sync|brand_sync|sync_state|_audit_log|audit_log|email_ledger|email_send|message_ledger|traffic|search_quer|search_log|search_term|analytics|page_view|activity_log|import_row|catalog_match|catalog_identifier/i';
 
     /** Columns never swept or copied verbatim into the freeze log output. */
     private const SECRET_COLS = '/password|pin_hash|remember_token|secret|api_key|_token$/i';
