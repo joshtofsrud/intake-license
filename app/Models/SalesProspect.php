@@ -31,6 +31,7 @@ class SalesProspect extends Model
         'best_ask', 'source', 'source_url', 'google_maps_url', 'notes',
         'google_place_id', 'lat', 'lng',
         'postcode', 'territory_id', 'hours', 'enriched_at', // MARKER-SALES-FIND
+        'invite_token', 'invite_email', 'invite_plan', 'invited_at', 'converted_at', // MARKER-SALES-INVITE
     ];
 
     protected $casts = [
@@ -45,6 +46,8 @@ class SalesProspect extends Model
         'next_action_on'    => 'date',
         'last_contacted_at' => 'datetime',
         'enriched_at'       => 'datetime', // MARKER-SALES-FIND
+        'invited_at'        => 'datetime', // MARKER-SALES-INVITE
+        'converted_at'      => 'datetime', // MARKER-SALES-INVITE
         'lat'               => 'decimal:6',
         'lng'               => 'decimal:6',
     ];

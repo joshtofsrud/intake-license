@@ -96,11 +96,11 @@
       @csrf
 
       <label>Your name *</label>
-      <input type="text" name="name" value="{{ old('name') }}" required
+      <input type="text" name="name" value="{{ old('name', ($invite ?? null)?->owner_contact ?? '') }}" required
         placeholder="Jane Smith" {{ $errors->has('name') ? 'class=err' : '' }}>
 
       <label>Shop name *</label>
-      <input type="text" name="shop_name" id="shop-name" value="{{ old('shop_name') }}" required
+      <input type="text" name="shop_name" id="shop-name" value="{{ old('shop_name', ($invite ?? null)?->shop ?? '') }}" required
         placeholder="Spokes Cycle Works" autocomplete="organization">
 
       <label>Your booking URL *</label>
@@ -112,11 +112,11 @@
       <div class="su-subdomain-status" id="subdomain-status"></div>
 
       <label style="margin-top:16px">Email *</label>
-      <input type="email" name="email" value="{{ old('email') }}" required
+      <input type="email" name="email" value="{{ old('email', ($invite ?? null)?->invite_email ?? '') }}" required
         placeholder="jane@yourshop.com" {{ $errors->has('email') ? 'class=err' : '' }}>
 
       <label style="margin-top:16px">Phone number</label>
-      <input type="tel" name="phone" value="{{ old('phone') }}"
+      <input type="tel" name="phone" value="{{ old('phone', ($invite ?? null)?->phone ?? '') }}"
         placeholder="+1 (555) 000-0000" {{ $errors->has('phone') ? 'class=err' : '' }}>
 
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">

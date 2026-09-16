@@ -51,6 +51,14 @@ class SalesPipeline extends Page
     public ?string $quoteTier = null;
     public array   $quoteAddons = [];
 
+    // MARKER-SALES-INVITE
+    public bool   $showInvite  = false;
+    public string $inviteEmail = '';
+    public string $inviteName  = '';
+    public string $invitePlan  = 'scale';
+    public string $inviteMessage = '';
+    public string $linkTenantId = '';
+
     public static function canAccess(): bool
     {
         return AdminAccess::allows(Auth::guard('web')->user(), 'crm');
@@ -144,7 +152,55 @@ class SalesPipeline extends Page
         $this->logBody = ''; $this->logNext = null; $this->logNextAction = '';
     }
 
-    public function close(): void { $this->openId = null; }
+    public function close(): void { $this->openId = null; $this->showInvite = false; }
+
+    // ---------------------------------------------------------------- MARKER-SALES-INVITE
+    public function openInvite(): void
+    {
+        $p = $this->current(); if (! $p) return;
+        $this->showInvite  = true;
+        $this->inviteEmail = $p->invite_email ?: (string) $p->email;
+        $this->inviteName  = (string) $p->owner_contact;
+        $this->invitePlan  = $p->invite_plan ?: ($p->quote_tier ?: 'scale');
+        $this->inviteMessage = '';
+    }
+
+    public function sendInvite(): void
+    {
+        $p = $this->current(); if (! $p) return;
+        $this->validate([
+            'inviteEmail' => ['required', 'email', 'max:191'],
+            'inviteName'  => ['nullable', 'string', 'max:191'],
+            'invitePlan'  => ['required', 'in:' . implode(',', array_keys($this->tiers()))],
+            'inviteMessage' => ['nullable', 'string', 'max:2000'],
+        ]);
+        try {
+            $u = Auth::user();
+            \App\Services\Sales\ProspectConversion::invite($p, strtolower(trim($this->inviteEmail)), $this->invitePlan, trim($this->inviteName) ?: null, trim($this->inviteMessage) ?: null, $u?->name, $u?->email);
+            $this->showInvite = false;
+            Notification::make()->title('Invite sent to ' . $this->inviteEmail)->body('The card moves to Trial when they sign up, and to Won on the first paid invoice.')->success()->send();
+        } catch (\Throwable $e) {
+            Notification::make()->title('Invite failed')->body($e->getMessage())->danger()->send();
+        }
+    }
+
+    public function linkTenant(): void
+    {
+        $p = $this->current(); if (! $p || ! $this->linkTenantId) return;
+        $t = \App\Models\Tenant::find($this->linkTenantId); if (! $t) return;
+        if (SalesProspect::where('tenant_id', $t->id)->where('id', '!=', $p->id)->exists()) {
+            Notification::make()->title('That tenant is already linked to another prospect')->warning()->send(); return;
+        }
+        \App\Services\Sales\ProspectConversion::link($p, $t, 'Linked by ' . (Auth::user()?->name ?? 'staff'));
+        $this->linkTenantId = '';
+        Notification::make()->title('Linked to ' . $t->name)->success()->send();
+    }
+
+    public function linkableTenants()
+    {
+        $taken = SalesProspect::query()->whereNotNull('tenant_id')->pluck('tenant_id');
+        return \App\Models\Tenant::query()->where('is_platform', false)->whereNotIn('id', $taken)->orderBy('name')->get(['id', 'name', 'subdomain']);
+    }
     public function setTab(string $t): void { $this->tab = $t; }
 
     public function setStage(string $stage): void

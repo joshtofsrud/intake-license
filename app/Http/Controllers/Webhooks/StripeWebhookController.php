@@ -139,6 +139,11 @@ class StripeWebhookController extends Controller
 
         $tenant->update($updates);
 
+        // MARKER-SALES-INVITE — a paid invoice closes the linked prospect as Won.
+        try { \App\Services\Sales\ProspectConversion::onTenantActive($tenant); } catch (\Throwable $e) {
+            Log::warning('[StripeWebhook] prospect won-flip failed', ['tenant' => $tenant->subdomain, 'error' => $e->getMessage()]);
+        }
+
         Log::info('[StripeWebhook] tenant marked active', [
             'tenant' => $tenant->subdomain,
         ]);

@@ -123,8 +123,37 @@
         <select class="{{ $input }}" style="width:auto" wire:change="setStage($event.target.value)">@foreach(\App\Models\SalesProspect::STAGES as $k => $v)<option value="{{ $k }}" @selected($cur->stage === $k)>{{ $v }}</option>@endforeach</select>
         <select class="{{ $input }}" style="width:auto" wire:change="setPriority($event.target.value)">@foreach(\App\Models\SalesProspect::PRIORITIES as $k => $v)<option value="{{ $k }}" @selected($cur->priority === $k)>Priority {{ $v }}</option>@endforeach</select>
         <select class="{{ $input }}" style="width:auto" wire:change="setRep($event.target.value)"><option value="">Unassigned</option>@foreach($this->reps() as $r)<option value="{{ $r->id }}" @selected($cur->sales_rep_id === $r->id)>{{ $r->name }} · {{ $r->agency?->name }}</option>@endforeach</select>
-        <button class="spb-btn sm" style="margin-left:auto;opacity:.5" disabled title="Comes in the next patch">Invite to trial</button>
+        @if(! $cur->tenant_id && ! in_array($cur->stage, ['won', 'lost'], true))
+          <button class="spb-btn sm" style="margin-left:auto;background:#BEF264;border-color:#BEF264;color:#0a0a0a" wire:click="openInvite">{{ $cur->invited_at ? 'Re-send trial invite' : 'Invite to trial' }}</button>
+        @endif
       </div>
+      {{-- MARKER-SALES-INVITE --}}
+      @if($cur->invited_at && ! $cur->tenant_id)
+        <div style="{{ $muted }};margin-top:8px">Invite sent {{ $cur->invited_at->diffForHumans() }} to {{ $cur->invite_email }} · {{ ucfirst($cur->invite_plan) }} · <a href="{{ \App\Services\Sales\ProspectConversion::signupUrl($cur) }}" target="_blank" rel="noopener" style="color:#a78bfa">signup link</a></div>
+      @endif
+      @if($showInvite)
+        <div style="{{ $card }};margin-top:10px">
+          <div style="font-weight:600;font-size:13px;margin-bottom:8px">Invite to trial</div>
+          <div style="{{ $muted }};margin-bottom:8px">Emails the owner a signup link carrying this prospect. Their trial starts through the normal signup (card on file, nothing charged until the trial ends). The card moves to Trial when they sign up and to Won on the first paid invoice; the agency's commission accrues from that invoice.</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <div><div style="{{ $muted }}">Owner email</div><input type="email" class="{{ $input }}" style="width:100%" wire:model="inviteEmail"></div>
+            <div><div style="{{ $muted }}">Owner name</div><input type="text" class="{{ $input }}" style="width:100%" wire:model="inviteName"></div>
+            <div><div style="{{ $muted }}">Plan</div><select class="{{ $input }}" style="width:100%" wire:model="invitePlan">@foreach($this->tiers() as $key => $cents)<option value="{{ $key }}">{{ ucfirst($key) }} · ${{ number_format($cents / 100) }}/mo</option>@endforeach</select></div>
+            <div style="grid-column:1/-1"><div style="{{ $muted }}">Personal note (optional — replaces the default paragraph)</div><textarea class="{{ $input }}" rows="3" style="width:100%" wire:model="inviteMessage"></textarea></div>
+          </div>
+          @error('inviteEmail')<div style="color:#f87171;font-size:12px;margin-top:6px">{{ $message }}</div>@enderror
+          <div style="display:flex;gap:8px;margin-top:10px;justify-content:flex-end"><button class="spb-btn" wire:click="$set('showInvite', false)">Cancel</button><button class="spb-btn" style="background:#BEF264;border-color:#BEF264;color:#0a0a0a" wire:click="sendInvite" wire:loading.attr="disabled">Send invite</button></div>
+        </div>
+      @endif
+      @if(! $cur->tenant_id)
+        <div style="display:flex;gap:8px;margin-top:8px;align-items:center">
+          <span style="{{ $muted }}">Already a tenant?</span>
+          <select class="{{ $input }}" style="width:auto;flex:1" wire:model="linkTenantId"><option value="">Link an existing tenant…</option>@foreach($this->linkableTenants() as $t)<option value="{{ $t->id }}">{{ $t->name }} · {{ $t->subdomain }}</option>@endforeach</select>
+          <button class="spb-btn sm" wire:click="linkTenant">Link</button>
+        </div>
+      @else
+        <div style="{{ $muted }};margin-top:8px">Tenant <b>{{ $cur->tenant?->name }}</b> · {{ $cur->tenant?->subscription_status ?? 'no billing' }}@if($cur->tenant?->trial_ends_at) · trial ends {{ $cur->tenant->trial_ends_at->format('M j') }}@endif · <a href="{{ \App\Filament\Resources\TenantResource::getUrl('edit', ['record' => $cur->tenant_id]) }}" style="color:#a78bfa">open tenant</a></div>
+      @endif
       <div id="spb-lost" style="{{ $cur->stage === 'lost' ? '' : 'display:none' }};margin-top:10px">
         <div style="{{ $muted }}">Why lost</div>
         <div style="display:flex;gap:8px"><input type="text" class="{{ $input }}" wire:model="lostReason" style="flex:1" placeholder="e.g. corporate POS contract through 2028"><button class="spb-btn" wire:click="setStage('lost')">Mark lost</button></div>

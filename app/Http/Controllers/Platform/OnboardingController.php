@@ -48,6 +48,11 @@ class OnboardingController extends Controller
 
     public function signup(Request $request)
     {
+        // MARKER-SALES-INVITE — a signup link from the pipeline carries the prospect's token.
+        $invite = \App\Services\Sales\ProspectConversion::fromToken($request->query('invite'));
+        if ($invite) {
+            $request->session()->put(\App\Services\Sales\ProspectConversion::SESSION_KEY, $invite->id);
+        }
         // Capture quiz attribution from URL params (set by plan quiz modal).
         // Stashed in session so it survives the multi-step signup flow.
         if ($request->query('quiz_session')) {
@@ -61,7 +66,8 @@ class OnboardingController extends Controller
         }
 
         return view('platform.signup', [
-            'plan'       => $request->query('plan', 'starter'),
+            'invite'     => $invite, // MARKER-SALES-INVITE
+            'plan'       => $invite?->invite_plan ?: $request->query('plan', 'starter'),
             'planPrices' => \App\Support\PlanPricing::all(),
         ]);
     }
@@ -339,6 +345,7 @@ class OnboardingController extends Controller
             'booking_mode'                => 'drop_off',
             'settings'                    => ['onboarding_step' => 'branding', 'admin_theme' => 'a'],
         ]);
+        \App\Services\Sales\ProspectConversion::linkFromSession($tenant); // MARKER-SALES-INVITE
 
         $user = TenantUser::create([
             'tenant_id'  => $tenant->id,
@@ -387,6 +394,7 @@ class OnboardingController extends Controller
                     'booking_mode'        => 'drop_off',
                     'settings'            => ['onboarding_step' => 'branding', 'admin_theme' => 'a'],
                 ]);
+                \App\Services\Sales\ProspectConversion::linkFromSession($tenant); // MARKER-SALES-INVITE
 
                 $user = TenantUser::create([
                     'tenant_id'  => $tenant->id,
