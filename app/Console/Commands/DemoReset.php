@@ -38,7 +38,7 @@ class DemoReset extends Command
         $dir   = "demo/{$slug}";
         if (! $local->exists("{$dir}/manifest.json") || ! $local->exists("{$dir}/template.jsonl")) {
             $this->error("No frozen template at storage/app/{$dir} — run demo:build-template first.");
-            $this->alert("No frozen template at storage/app/{$dir}", $slug); // MARKER-DEMO-ALERT
+            $this->reportRefusal("No frozen template at storage/app/{$dir}", $slug); // MARKER-DEMO-ALERT
             return self::FAILURE;
         }
         $manifest = json_decode($local->get("{$dir}/manifest.json"), true);
@@ -46,14 +46,14 @@ class DemoReset extends Command
         $tables   = $manifest['tables'] ?? [];
         if (! $tenantId || ! $tables) {
             $this->error('Manifest is missing tenant_id or tables.');
-            $this->alert('Manifest is missing tenant_id or tables', $slug); // MARKER-DEMO-ALERT
+            $this->reportRefusal('Manifest is missing tenant_id or tables', $slug); // MARKER-DEMO-ALERT
             return self::FAILURE;
         }
 
         $tenant = Tenant::withTrashed()->find($tenantId);
         if ($tenant && ! $tenant->is_demo) {
             $this->error('Refusing: the manifest tenant is not flagged is_demo.');
-            $this->alert('Manifest tenant is not flagged is_demo', $slug, $tenantId); // MARKER-DEMO-ALERT
+            $this->reportRefusal('Manifest tenant is not flagged is_demo', $slug, $tenantId); // MARKER-DEMO-ALERT
             return self::FAILURE;
         }
 
@@ -181,16 +181,16 @@ class DemoReset extends Command
     /** @var array<string, true> "table.column" already reported */
     private array $driftReported = [];
 
-    /**
-     * MARKER-DEMO-DRIFT — the frozen template can carry columns a later
-     * migration dropped; keep only what the live table has, and say so once.
-     */
     /** MARKER-DEMO-ALERT — pre-flight refusals have no exception, so build one for the reporter. */
-    private function alert(string $why, string $slug, ?string $tenantId = null): void
+    private function reportRefusal(string $why, string $slug, ?string $tenantId = null): void // MARKER-DEMO-ALERT-FIX — not alert(): that name is Command::alert()
     {
         \App\Support\JobFailureReporter::report(self::class, "demo:reset refused — the '{$slug}' demo will not restore: {$why}", new \RuntimeException($why), ['slug' => $slug], $tenantId);
     }
 
+    /**
+     * MARKER-DEMO-DRIFT — the frozen template can carry columns a later
+     * migration dropped; keep only what the live table has, and say so once.
+     */
     private function flush(string $table, array $rows): void
     {
         if (! $rows) return;
