@@ -30,6 +30,7 @@ class SalesProspect extends Model
         'owner_contact', 'phone', 'email', 'website', 'address',
         'best_ask', 'source', 'source_url', 'google_maps_url', 'notes',
         'google_place_id', 'lat', 'lng',
+        'postcode', 'territory_id', 'hours', 'enriched_at', // MARKER-SALES-FIND
     ];
 
     protected $casts = [
@@ -43,6 +44,7 @@ class SalesProspect extends Model
         'quote_monthly'     => 'integer',
         'next_action_on'    => 'date',
         'last_contacted_at' => 'datetime',
+        'enriched_at'       => 'datetime', // MARKER-SALES-FIND
         'lat'               => 'decimal:6',
         'lng'               => 'decimal:6',
     ];
@@ -111,6 +113,12 @@ class SalesProspect extends Model
     public function rep(): BelongsTo
     {
         return $this->belongsTo(SalesRep::class, 'sales_rep_id');
+    }
+
+    // MARKER-SALES-FIND
+    public function territory(): BelongsTo
+    {
+        return $this->belongsTo(SalesTerritory::class, 'territory_id');
     }
 
     // MARKER-QUOTE-REALPRICING — priced from the platform's real sources.

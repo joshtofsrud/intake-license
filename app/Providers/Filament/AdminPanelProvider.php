@@ -66,6 +66,7 @@ class AdminPanelProvider extends PanelProvider
                 SalesChannelResource::class, // MARKER-CAMPAIGNS-REGISTER
                 SalesAgencyResource::class, // MARKER-AGENCIES-REGISTER
                 SalesProspectResource::class, // MARKER-SALES-REGISTER
+                \App\Filament\Resources\SalesTerritoryResource::class, // MARKER-SALES-FIND
                 TenantResource::class,
                 TenantDomainResource::class,  // MARKER-PATCH-119
                 CustomerResource::class,
@@ -135,7 +136,8 @@ class AdminPanelProvider extends PanelProvider
                 \App\Filament\Pages\Demo::class,
                 \App\Filament\Pages\NavArrange::class,             // MARKER-NAV-ARRANGE
                 \App\Filament\Pages\CustomerCleanup::class,   // MARKER-CUST-CLEANUP
-                \App\Filament\Pages\TenantBilling::class,     // MARKER-TENANT-BILLING                   // MARKER-DEMO-ENTRY
+                \App\Filament\Pages\TenantBilling::class,     // MARKER-TENANT-BILLING
+                \App\Filament\Pages\SalesFindShops::class,    // MARKER-SALES-FIND — explicit registration; this panel does NOT auto-discover                   // MARKER-DEMO-ENTRY
             ])
             ->widgets([
                 ServerHealthWidget::class,

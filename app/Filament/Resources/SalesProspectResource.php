@@ -265,6 +265,8 @@ class SalesProspectResource extends Resource
                     ->label('Agency')
                     ->options(fn () => \App\Models\SalesAgency::query()->orderBy('name')->pluck('name', 'id')->all()),
                 Tables\Filters\SelectFilter::make('loop')->options(SalesProspect::LOOPS),
+                Tables\Filters\SelectFilter::make('territory_id')->label('Territory') // MARKER-SALES-FIND
+                    ->options(fn () => \App\Models\SalesTerritory::query()->orderBy('priority')->pluck('name', 'id')->all()),
                 Tables\Filters\SelectFilter::make('state')
                     ->options(fn () => SalesProspect::query()
                         ->whereNotNull('state')->distinct()->orderBy('state')
@@ -313,6 +315,30 @@ class SalesProspectResource extends Resource
                 Tables\Actions\EditAction::make(),
             ])
             ->bulkActions([
+                // MARKER-SALES-FIND — bulk assignment; the /rep panel only shows a prospect once it has an agency or rep.
+                Tables\Actions\BulkAction::make('assignTerritory')
+                    ->label('Assign by territory')->icon('heroicon-o-map')
+                    ->requiresConfirmation()
+                    ->modalDescription('Applies the territory rules. Prospects that already have a rep keep it.')
+                    ->action(function ($records) {
+                        \App\Services\Sales\TerritoryResolver::forget();
+                        $n = 0; foreach ($records as $r) if (\App\Services\Sales\TerritoryResolver::apply($r)) $n++;
+                        Notification::make()->title("$n assigned")->success()->send();
+                    })
+                    ->deselectRecordsAfterCompletion(),
+                Tables\Actions\BulkAction::make('assignRep')
+                    ->label('Assign to rep')->icon('heroicon-o-user')
+                    ->form([
+                        Forms\Components\Select::make('sales_rep_id')->label('Rep')->required()->native(false)->searchable()
+                            ->options(fn () => \App\Models\SalesRep::query()->with('agency')->where('status', 'active')->orderBy('name')->get()
+                                ->mapWithKeys(fn ($rep) => [$rep->id => $rep->name . ' · ' . ($rep->agency?->name ?? '')])->all()),
+                    ])
+                    ->action(function ($records, array $data) {
+                        $rep = \App\Models\SalesRep::find($data['sales_rep_id']);
+                        $records->each(fn ($r) => $r->update(['sales_rep_id' => $rep->id, 'agency_id' => $rep->agency_id]));
+                        Notification::make()->title(count($records) . ' assigned to ' . $rep->name)->success()->send();
+                    })
+                    ->deselectRecordsAfterCompletion(),
                 Tables\Actions\BulkAction::make('stage')
                     ->label('Set stage')->icon('heroicon-o-arrow-right-circle')
                     ->form([Forms\Components\Select::make('stage')->options(SalesProspect::STAGES)->required()->native(false)])
