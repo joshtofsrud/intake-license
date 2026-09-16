@@ -52,6 +52,11 @@ class SalesFindShops extends Page
     public bool   $uploadAssign  = true;
     public ?array $uploadResult  = null;
     public string $confirmUndo   = '';
+    // MARKER-SALES-UPLOAD2 — mapping step
+    public array  $uploadHeaders = [];
+    public array  $uploadSample  = [];
+    public array  $columnMap     = [];
+    public ?string $uploadError  = null;
 
     public static function canAccess(): bool
     {
@@ -157,22 +162,50 @@ class SalesFindShops extends Page
     }
 
     // ---------------------------------------------------------------- MARKER-SALES-UPLOAD
-    public function updatedShopList(): void { $this->uploadPreview = null; $this->uploadResult = null; }
+    public function updatedShopList(): void
+    {
+        $this->uploadPreview = null; $this->uploadResult = null; $this->uploadError = null;
+        $this->uploadHeaders = []; $this->uploadSample = []; $this->columnMap = [];
+        if (! $this->shopList) return;
+        try {
+            $this->validate(['shopList' => ['file', 'max:51200']]);
+            $i = (new \App\Services\Sales\ShopListImporter())->inspect($this->shopList->getRealPath());
+            if ($i['error']) { $this->uploadError = $i['error']; return; }
+            $this->uploadHeaders = $i['headers']; $this->uploadSample = $i['sample'];
+            $this->columnMap = \App\Services\Sales\ShopListImporter::guessMap($i['headers']);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            $this->uploadError = implode(' ', $e->validator->errors()->all());
+        } catch (\Throwable $e) {
+            $this->uploadError = 'Could not read the file: ' . $e->getMessage();
+        }
+    }
+
+    public function fields(): array { return \App\Services\Sales\ShopListImporter::FIELDS; }
+
+    public function mapProblem(): ?string
+    {
+        if (! $this->uploadHeaders) return null;
+        if (empty($this->columnMap['shop']))  return 'Pick the column that holds the shop name.';
+        if (empty($this->columnMap['state'])) return 'Pick the column that holds the state.';
+        return null;
+    }
 
     public function previewUpload(): void
     {
         $this->validate(['shopList' => ['required', 'file', 'max:51200']]); // 50 MB
         $this->uploadResult = null;
-        $this->uploadPreview = (new \App\Services\Sales\ShopListImporter())->import($this->shopList->getRealPath(), null, $this->uploadAssign, true);
+        if ($this->mapProblem()) { Notification::make()->title($this->mapProblem())->warning()->send(); return; }
+        $this->uploadPreview = (new \App\Services\Sales\ShopListImporter())->import($this->shopList->getRealPath(), null, $this->uploadAssign, true, null, $this->columnMap);
         if ($this->uploadPreview['error']) Notification::make()->title($this->uploadPreview['error'])->danger()->send();
     }
 
     public function importUpload(): void
     {
         $this->validate(['shopList' => ['required', 'file', 'max:51200']]);
-        $r = (new \App\Services\Sales\ShopListImporter())->import($this->shopList->getRealPath(), null, $this->uploadAssign, false);
+        if ($this->mapProblem()) { Notification::make()->title($this->mapProblem())->warning()->send(); return; }
+        $r = (new \App\Services\Sales\ShopListImporter())->import($this->shopList->getRealPath(), null, $this->uploadAssign, false, null, $this->columnMap);
         try { $this->shopList->delete(); } catch (\Throwable $e) {}
-        $this->shopList = null; $this->uploadPreview = null; $this->uploadResult = $r;
+        $this->shopList = null; $this->uploadPreview = null; $this->uploadResult = $r; $this->uploadHeaders = []; $this->uploadSample = []; $this->columnMap = [];
         if ($r['error']) { Notification::make()->title($r['error'])->danger()->send(); return; }
         Notification::make()->title($r['inserted'] . ' shops loaded')->body("Batch {$r['batch']} · {$r['matched']} already present · {$r['assigned']} assigned to a territory")->success()->send();
     }

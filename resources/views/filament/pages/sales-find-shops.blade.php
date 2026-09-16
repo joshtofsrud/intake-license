@@ -83,12 +83,37 @@
     <details style="{{ $card }};margin-top:16px" @if($uploadPreview || $uploadResult) open @endif>
       <summary style="cursor:pointer;font-size:13px;font-weight:600">Load a shop list (free base layer)</summary>
       <div style="{{ $muted }};margin:8px 0">A CSV like the Overture export: shop_name, address, city, state_code, postcode, website, verified_workstand, and latitude/longitude if you have them. Rows already present (same name, city and address) are skipped. Nothing is written until you confirm, and a batch can be undone below — only rows nobody has worked are removed.</div>
-      <input type="file" wire:model="shopList" accept=".csv,text/csv" class="{{ $input }}" style="width:100%">
-      <div wire:loading wire:target="shopList" style="{{ $muted }};margin-top:4px">Uploading…</div>
+      {{-- MARKER-SALES-UPLOAD2 — progress + errors are shown here; before this the page went quiet when the upload was rejected --}}
+      <div x-data="{ up: false, pct: 0, err: '' }"
+           x-on:livewire-upload-start="up = true; pct = 0; err = ''"
+           x-on:livewire-upload-progress="pct = $event.detail.progress"
+           x-on:livewire-upload-finish="up = false; pct = 100"
+           x-on:livewire-upload-error="up = false; err = 'The upload was rejected before it reached Intake — usually the server body-size limit (413). ' + ($event.detail && $event.detail.message ? $event.detail.message : '')">
+        <input type="file" wire:model="shopList" accept=".csv,text/csv" class="{{ $input }}" style="width:100%">
+        <div x-show="up" style="margin-top:6px;height:6px;border-radius:3px;background:rgba(127,127,127,.2);overflow:hidden"><div :style="'height:100%;background:rgb(139,92,246);width:' + pct + '%'"></div></div>
+        <div x-show="err" x-text="err" style="color:#f87171;font-size:12px;margin-top:6px"></div>
+      </div>
+      @if($uploadError)<div style="color:#f87171;font-size:12px;margin-top:6px">{{ $uploadError }}</div>@endif
+      @if($uploadHeaders)
+        <div style="{{ $label }};margin-top:14px">Map columns</div>
+        <div style="{{ $muted }};margin-bottom:6px">{{ count($uploadHeaders) }} columns found. Guessed where the names were obvious; fix anything wrong. Shop name and state are required.</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 10px">
+          @foreach($this->fields() as $field => [$flabel, $req])
+            <div wire:key="map-{{ $field }}">
+              <div style="{{ $muted }}">{{ $flabel }}{{ $req ? ' *' : '' }}</div>
+              <select class="{{ $input }}" style="width:100%" wire:model.live="columnMap.{{ $field }}">
+                <option value="">— not in this file —</option>
+                @foreach($uploadHeaders as $h)<option value="{{ $h }}">{{ $h }}@if(isset($uploadSample[0][$h]) && $uploadSample[0][$h] !== '') · e.g. {{ Str::limit($uploadSample[0][$h], 28) }}@endif</option>@endforeach
+              </select>
+            </div>
+          @endforeach
+        </div>
+        @if($this->mapProblem())<div style="color:#fbbf24;font-size:12px;margin-top:6px">{{ $this->mapProblem() }}</div>@endif
+      @endif
       @error('shopList')<div style="color:#f87171;font-size:12px;margin-top:4px">{{ $message }}</div>@enderror
       <label style="display:flex;gap:8px;font-size:13px;align-items:center;margin-top:8px"><input type="checkbox" wire:model="uploadAssign" class="rounded"> Assign to territory reps on load</label>
       <div style="display:flex;gap:8px;margin-top:10px">
-        <button class="sfs-btn" wire:click="previewUpload" wire:loading.attr="disabled" @disabled(! $shopList)><span wire:loading.remove wire:target="previewUpload">Preview</span><span wire:loading wire:target="previewUpload">Reading…</span></button>
+        <button class="sfs-btn" wire:click="previewUpload" wire:loading.attr="disabled" @disabled(! $uploadHeaders || $this->mapProblem())><span wire:loading.remove wire:target="previewUpload">Preview</span><span wire:loading wire:target="previewUpload">Reading…</span></button>
         @if($uploadPreview && ! $uploadPreview['error'])
           <button class="sfs-btn p" wire:click="importUpload" wire:loading.attr="disabled"><span wire:loading.remove wire:target="importUpload">Load {{ number_format($uploadPreview['inserted']) }} shops</span><span wire:loading wire:target="importUpload">Loading… this can take a minute</span></button>
         @endif
