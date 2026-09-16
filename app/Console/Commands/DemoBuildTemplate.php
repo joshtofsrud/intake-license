@@ -229,7 +229,7 @@ class DemoBuildTemplate extends Command
             foreach ($tRow as $col => $v) {
                 if (is_string($v) && $v !== '' && ! preg_match(self::SECRET_COLS, $col)
                     && ! in_array($col, ['id', 'subdomain', 'name'], true)) {
-                    $new = $this->scrub($v, true, null);
+                    $new = $this->scrubAny($v, true, null); // MARKER-DEMO-JSON-SCRUB — tenants.settings is JSON
                     if ($new !== $v) $tUpd[$col] = $new;
                 }
             }
@@ -680,7 +680,7 @@ class DemoBuildTemplate extends Command
                 foreach ($textCols as $col) {
                     $v = $r->{$col} ?? null;
                     if ($v === null || $v === '') continue;
-                    $new = $this->scrub((string) $v, $namesHere && in_array($col, $proseCols, true), $meta['lengths'][$col] ?? null);
+                    $new = $this->scrubAny((string) $v, $namesHere && in_array($col, $proseCols, true), $meta['lengths'][$col] ?? null); // MARKER-DEMO-JSON-SCRUB
                     if ($new !== $v) $upd[$col] = $new;
                 }
                 if ($upd) DB::table($table)->where($pk, $r->{$pk})->update($upd);
@@ -692,7 +692,7 @@ class DemoBuildTemplate extends Command
                     ->whereNotNull($col)->distinct()->pluck($col);
                 foreach ($values as $v) {
                     if ($v === '') continue;
-                    $new = $this->scrub((string) $v, $namesHere && in_array($col, $proseCols, true), $meta['lengths'][$col] ?? null);
+                    $new = $this->scrubAny((string) $v, $namesHere && in_array($col, $proseCols, true), $meta['lengths'][$col] ?? null); // MARKER-DEMO-JSON-SCRUB
                     if ($new !== $v) {
                         DB::table($table)->where('tenant_id', $demoId)->where($col, $v)
                             ->update([$col => $new]);
@@ -733,6 +733,28 @@ class DemoBuildTemplate extends Command
             }
         }
         return $node;
+    }
+
+    /** MARKER-DEMO-JSON-SCRUB — anything that parses as a JSON object/array is scrubbed value-by-value, never as one string. */
+    private function scrubAny(string $v, bool $names, ?int $maxLen): string
+    {
+        $c = ltrim($v)[0] ?? '';
+        if ($c === '{' || $c === '[') {
+            $data = json_decode($v, true);
+            if (json_last_error() === JSON_ERROR_NONE && is_array($data)) return $this->scrubJson($data, $names, $v);
+        }
+        return $this->scrub($v, $names, $maxLen);
+    }
+
+    private function scrubJson(array $data, bool $names, string $original): string
+    {
+        $walk = function (&$node) use (&$walk, $names) {
+            if (is_array($node)) { foreach ($node as &$child) $walk($child); unset($child); }
+            elseif (is_string($node) && $node !== '') { $node = $this->scrub($node, $names, null); }
+        };
+        $walk($data);
+        $out = json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        return $out === false ? $original : $out;
     }
 
     private function scrub(string $v, bool $names = true, ?int $maxLen = null): string
