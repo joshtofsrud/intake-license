@@ -137,6 +137,7 @@ class AdminPanelProvider extends PanelProvider
                 \App\Filament\Pages\NavArrange::class,             // MARKER-NAV-ARRANGE
                 \App\Filament\Pages\CustomerCleanup::class,   // MARKER-CUST-CLEANUP
                 \App\Filament\Pages\TenantBilling::class,     // MARKER-TENANT-BILLING
+                \App\Filament\Pages\SalesPipeline::class,     // MARKER-SALES-BOARD — explicit registration; this panel does NOT auto-discover
                 \App\Filament\Pages\SalesFindShops::class,    // MARKER-SALES-FIND — explicit registration; this panel does NOT auto-discover                   // MARKER-DEMO-ENTRY
             ])
             ->widgets([

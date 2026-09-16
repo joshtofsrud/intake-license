@@ -57,6 +57,26 @@ class PlacesClient
         return $out;
     }
 
+    /** MARKER-SALES-BOARD — one place by id (Place Details). */
+    public function details(string $placeId): ?array
+    {
+        if (! $this->key) throw new \RuntimeException('Google Places key is not set.');
+        $this->requests++;
+        $fields = str_replace(['nextPageToken,', 'places.'], '', self::FIELDS);
+        $res = Http::timeout(15)->withHeaders(['X-Goog-Api-Key' => $this->key, 'X-Goog-FieldMask' => $fields])
+            ->get('https://places.googleapis.com/v1/places/' . rawurlencode($placeId));
+        if ($res->status() === 404) return null;
+        if (! $res->ok()) throw new \RuntimeException('Places: ' . ($res->json('error.message') ?? ('HTTP ' . $res->status())));
+        return $res->json() ?: null;
+    }
+
+    /** MARKER-SALES-BOARD — best single match for a free-text query (used when a prospect has no place id). */
+    public function findOne(string $query): ?array
+    {
+        $r = $this->post(['textQuery' => $query, 'pageSize' => 1], self::FIELDS);
+        return $r['places'][0] ?? null;
+    }
+
     /** Normalise one raw place into the shape the finder and prospects use. */
     public static function normalise(array $p): array
     {
