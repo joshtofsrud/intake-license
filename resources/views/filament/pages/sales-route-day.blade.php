@@ -95,7 +95,8 @@
 
   <div>
     <div wire:ignore class="srd-map" id="srd-map"></div>
-    <script type="application/json" id="srd-data">@json(['start' => $startLat !== null ? ['lat' => $startLat, 'lng' => $startLng, 'label' => $startLabel] : null, 'stops' => $pts])</script>
+    {{-- MARKER-SALES-JSONFIX — not @json: that directive splits on commas --}}
+    <script type="application/json" id="srd-data">{!! json_encode(['start' => $startLat !== null ? ['lat' => $startLat, 'lng' => $startLng, 'label' => $startLabel] : null, 'stops' => $pts], JSON_HEX_TAG | JSON_HEX_AMP) !!}</script>
   </div>
 </div>
 

@@ -143,7 +143,8 @@
 
   <div>
     <div wire:ignore class="sfs-map" id="sfs-map"></div>
-    <script type="application/json" id="sfs-data">@json(['rows' => $this->results, 'selected' => $this->selected, 'located' => $this->located])</script>
+    {{-- MARKER-SALES-JSONFIX — not @json: that directive splits on commas --}}
+    <script type="application/json" id="sfs-data">{!! json_encode(['rows' => $this->results, 'selected' => $this->selected, 'located' => $this->located], JSON_HEX_TAG | JSON_HEX_AMP) !!}</script>
 
     <div style="{{ $card }};margin-top:16px;padding:0">
       <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 14px;flex-wrap:wrap;gap:8px">
