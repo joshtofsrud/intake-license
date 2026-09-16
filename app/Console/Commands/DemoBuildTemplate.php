@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Models\DemoSetting; // MARKER-DEMO-BUILD-SAFE
 use App\Models\Tenant;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
@@ -108,6 +109,11 @@ class DemoBuildTemplate extends Command
         $tables = $this->discoverTables();
         $this->info('Tenant-scoped tables: ' . count($tables));
         $this->line('Customers table: ' . $this->customersTable()); // MARKER-DEMO-TEMPLATE-CUSTTABLE
+
+        // MARKER-DEMO-BUILD-SAFE — nobody sees half-anonymised data: offline until the leak check passes
+        $wasOffline = DemoSetting::get('offline:' . $this->slug) === '1';
+        DemoSetting::put('offline:' . $this->slug, '1');
+        if (! $wasOffline) DemoSetting::put('offline_reason:' . $this->slug, 'The demo is being rebuilt right now.');
 
         // ---- 1. clear the old demo ------------------------------------
         DB::statement('SET FOREIGN_KEY_CHECKS=0');
@@ -228,6 +234,10 @@ class DemoBuildTemplate extends Command
                 }
             }
             if ($tUpd) DB::table('tenants')->where('id', $demoId)->update($tUpd);
+        } catch (\Throwable $e) {
+            // MARKER-DEMO-BUILD-SAFE — a half-built demo with a stale manifest 500s the hourly reset
+            \App\Support\JobFailureReporter::report(self::class, "demo:build-template crashed for '{$this->slug}' — the demo is OFFLINE until a build completes (re-run demo:build-template --from=… --force)", $e, ['slug' => $this->slug, 'from' => $src->subdomain]);
+            throw $e;
         } finally {
             DB::statement('SET FOREIGN_KEY_CHECKS=1');
         }
@@ -244,6 +254,7 @@ class DemoBuildTemplate extends Command
         }
         $this->info('Leak check clean: 0 of ' . count($this->leakSamples) . ' sampled real emails found in the copy.');
         $this->info("Template frozen at storage/app/demo/{$this->slug}/. demo:reset restores it hourly.");
+        if (! $wasOffline) { DemoSetting::put('offline:' . $this->slug, '0'); DemoSetting::put('offline_reason:' . $this->slug, null); $this->info('demo switched back on'); } // MARKER-DEMO-BUILD-SAFE
 
         // MARKER-DEMO-TIMELINE — building as root writes files the web user
         // cannot read, and the admin page then just says "no frozen template",
@@ -588,6 +599,21 @@ class DemoBuildTemplate extends Command
      * MARKER-DEMO-TEMPLATE-PHONE — common written forms of one 10-digit number:
      * (509) 555-1234 · 509-555-1234 · 509.555.1234 · 5095551234 · +1 509 555 1234
      */
+    /** @var array<string,string> */ private array $sweepText = [];
+    /** @var array<string,string> */ private array $sweepDigits = [];
+    private int $sweepSplitAt = -1;
+
+    /** MARKER-DEMO-BUILD-SAFE — partition $sweep once per size change: keys that are only digits (optionally +) go to the guarded regex. */
+    private function splitSweep(): void
+    {
+        if ($this->sweepSplitAt === count($this->sweep)) return;
+        $this->sweepText = []; $this->sweepDigits = [];
+        foreach ($this->sweep as $k => $v) {
+            if (preg_match('/^\+?\d{10,11}$/', $k)) $this->sweepDigits[$k] = $v; else $this->sweepText[$k] = $v;
+        }
+        $this->sweepSplitAt = count($this->sweep);
+    }
+
     private function phoneForms(string $raw): array
     {
         $d = preg_replace('/[^0-9]/', '', $raw);
@@ -735,8 +761,12 @@ class DemoBuildTemplate extends Command
         // MARKER-DEMO-TEMPLATE-PHONE — identities BEFORE the catch-all, or each
         // customer's own fake number gets flattened into the fallback. Cheap on
         // short columns too, so it is no longer gated on $prose.
+        // MARKER-DEMO-BUILD-SAFE — bare digit runs only as whole numbers, never inside
+        // a longer number or a decimal (the 10-digit form once landed inside 7.2298622366…)
         if ($this->sweep) {
-            $new = strtr($new, $this->sweep);
+            $this->splitSweep();
+            if ($this->sweepText)   $new = strtr($new, $this->sweepText);
+            if ($this->sweepDigits) $new = preg_replace_callback('/(?<![\d.])\+?\d{10,11}(?![\d.])/', fn ($m) => $this->sweepDigits[$m[0]] ?? $m[0], $new);
         }
         // whatever is left belongs to nobody in the table — but never touch a
         // number the identity map just wrote
