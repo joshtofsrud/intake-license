@@ -80,22 +80,29 @@
     </div>
 
     {{-- MARKER-SALES-UPLOAD --}}
-    <details style="{{ $card }};margin-top:16px" @if($uploadPreview || $uploadResult) open @endif>
-      <summary style="cursor:pointer;font-size:13px;font-weight:600">Load a shop list (free base layer)</summary>
+    {{-- MARKER-SALES-UPLOAD3 — not a <details>: Livewire's morph dropped the user's `open` attribute on every re-render --}}
+    <div style="{{ $card }};margin-top:16px">
+      <div style="display:flex;justify-content:space-between;align-items:center;cursor:pointer" wire:click="$toggle('showLoader')">
+        <span style="font-size:13px;font-weight:600">Load a shop list (free base layer)</span>
+        <span style="{{ $muted }}">{{ $showLoader ? 'hide' : 'show' }}</span>
+      </div>
+      <div style="{{ $showLoader ? '' : 'display:none' }}">
       <div style="{{ $muted }};margin:8px 0">A CSV like the Overture export: shop_name, address, city, state_code, postcode, website, verified_workstand, and latitude/longitude if you have them. Rows already present (same name, city and address) are skipped. Nothing is written until you confirm, and a batch can be undone below — only rows nobody has worked are removed.</div>
       {{-- MARKER-SALES-UPLOAD2 — progress + errors are shown here; before this the page went quiet when the upload was rejected --}}
-      <div x-data="{ up: false, pct: 0, err: '' }"
-           x-on:livewire-upload-start="up = true; pct = 0; err = ''"
-           x-on:livewire-upload-progress="pct = $event.detail.progress"
-           x-on:livewire-upload-finish="up = false; pct = 100"
+      <div x-data="{ up: false, pct: 0, err: '', stage: '' }"
+           x-on:change="if ($event.target.type === 'file' && $event.target.files.length) { stage = 'Picked ' + $event.target.files[0].name + ' (' + Math.round($event.target.files[0].size / 1024) + ' KB) — waiting for the upload to start…'; err = ''; setTimeout(() => { if (!up && pct === 0 && !err) { err = 'The browser never started the upload. Reload the page and try again; if it repeats, tell Josh the file name and size.'; } }, 4000); }"
+           x-on:livewire-upload-start="up = true; pct = 0; err = ''; stage = 'Uploading…'"
+           x-on:livewire-upload-progress="pct = $event.detail.progress; stage = 'Uploading… ' + pct + '%'"
+           x-on:livewire-upload-finish="up = false; pct = 100; stage = 'Uploaded — reading the columns…'"
            x-on:livewire-upload-error="up = false; err = 'The upload was rejected before it reached Intake — usually the server body-size limit (413). ' + ($event.detail && $event.detail.message ? $event.detail.message : '')">
         <input type="file" wire:model="shopList" accept=".csv,text/csv" class="{{ $input }}" style="width:100%">
         <div x-show="up" style="margin-top:6px;height:6px;border-radius:3px;background:rgba(127,127,127,.2);overflow:hidden"><div :style="'height:100%;background:rgb(139,92,246);width:' + pct + '%'"></div></div>
         <div x-show="err" x-text="err" style="color:#f87171;font-size:12px;margin-top:6px"></div>
+        <div x-show="stage && !err" x-text="stage" style="{{ $muted }};margin-top:6px"></div>
       </div>
       @if($uploadError)<div style="color:#f87171;font-size:12px;margin-top:6px">{{ $uploadError }}</div>@endif
       @if($uploadHeaders)
-        <div style="{{ $label }};margin-top:14px">Map columns</div>
+        <div style="{{ $label }};margin-top:14px">Map columns · file read</div>
         <div style="{{ $muted }};margin-bottom:6px">{{ count($uploadHeaders) }} columns found. Guessed where the names were obvious; fix anything wrong. Shop name and state are required.</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 10px">
           @foreach($this->fields() as $field => [$flabel, $req])
@@ -139,7 +146,8 @@
           </div>
         @endforeach
       @endif
-    </details>
+      </div>
+    </div>
 
     <div style="{{ $card }};margin-top:16px">
       <div style="{{ $label }}">Recent searches</div>

@@ -57,6 +57,7 @@ class SalesFindShops extends Page
     public array  $uploadSample  = [];
     public array  $columnMap     = [];
     public ?string $uploadError  = null;
+    public bool   $showLoader    = false; // MARKER-SALES-UPLOAD3 — panel open state lives here, not in a <details> the morph can close
 
     public static function canAccess(): bool
     {
@@ -166,6 +167,7 @@ class SalesFindShops extends Page
     {
         $this->uploadPreview = null; $this->uploadResult = null; $this->uploadError = null;
         $this->uploadHeaders = []; $this->uploadSample = []; $this->columnMap = [];
+        $this->showLoader = true; // MARKER-SALES-UPLOAD3
         if (! $this->shopList) return;
         try {
             $this->validate(['shopList' => ['file', 'max:51200']]);
