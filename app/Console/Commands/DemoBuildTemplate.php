@@ -68,7 +68,8 @@ class DemoBuildTemplate extends Command
 
     private array $uuidMap = [];   // old uuid => new uuid (every copied row, all tables)
     private array $intMap  = [];   // "table:oldId" => newId (rare bigint-PK tables)
-    private array $sweep     = []; // exact-match map: emails, phone forms, brand
+    private array $sweep      = []; // exact-match map: emails (looked up by the email regex)
+    private array $brandSweep = []; // MARKER-DEMO-SWEEP-FAST — shop name + subdomain, the only strtr left
     private array $nameSweep = []; // MARKER-DEMO-TEMPLATE-NAMES — people's names, whole words only
     private array $leakSamples = []; // real emails that must NOT survive
     private ?array $referencedTables = null; // MARKER-DEMO-TEMPLATE-BULK
@@ -175,8 +176,8 @@ class DemoBuildTemplate extends Command
             $this->info("demo tenant: {$demoId}");
 
             // brand sweep: every mention of the source shop becomes the demo shop
-            $this->sweep[$src->name] = $this->demoName;
-            $this->sweep[$fromSub . '.'] = $this->slug . '.';
+            $this->brandSweep[$src->name] = $this->demoName; // MARKER-DEMO-SWEEP-FAST
+            $this->brandSweep[$fromSub . '.'] = $this->slug . '.';
 
             // ---- 3. copy ----------------------------------------------
             $meta = [];
@@ -600,10 +601,9 @@ class DemoBuildTemplate extends Command
                     // MARKER-DEMO-TEMPLATE-PHONE — the same number appears in notes
                     // and messages in whatever shape someone typed it; map them all
                     // to this customer's fake number.
-                    if (! empty($old['phone'])) {
-                        foreach ($this->phoneForms((string) $old['phone']) as $form) {
-                            $this->sweep[$form] = $phone;
-                        }
+                    if (! empty($old['phone'])) { // MARKER-DEMO-SWEEP-FAST
+                        $d = self::phoneDigits((string) $old['phone']);
+                        if ($d !== null) $this->phoneMap[$d] = $phone;
                     }
                     $upd['email'] = empty($old['email']) ? null : $email;
                     $upd['phone'] = empty($old['phone']) ? null : $phone;
@@ -625,34 +625,8 @@ class DemoBuildTemplate extends Command
      * MARKER-DEMO-TEMPLATE-PHONE — common written forms of one 10-digit number:
      * (509) 555-1234 · 509-555-1234 · 509.555.1234 · 5095551234 · +1 509 555 1234
      */
-    /** @var array<string,string> */ private array $sweepText = [];
-    /** @var array<string,string> */ private array $sweepDigits = [];
-    private int $sweepSplitAt = -1;
-
-    /** MARKER-DEMO-BUILD-SAFE — partition $sweep once per size change: keys that are only digits (optionally +) go to the guarded regex. */
-    private function splitSweep(): void
-    {
-        if ($this->sweepSplitAt === count($this->sweep)) return;
-        $this->sweepText = []; $this->sweepDigits = [];
-        foreach ($this->sweep as $k => $v) {
-            if (preg_match('/^\+?\d{10,11}$/', $k)) $this->sweepDigits[$k] = $v; else $this->sweepText[$k] = $v;
-        }
-        $this->sweepSplitAt = count($this->sweep);
-    }
-
-    private function phoneForms(string $raw): array
-    {
-        $d = preg_replace('/[^0-9]/', '', $raw);
-        if (strlen($d) === 11 && str_starts_with($d, '1')) $d = substr($d, 1);
-        if (strlen($d) !== 10) return [$raw];
-        $a = substr($d, 0, 3); $b = substr($d, 3, 3); $c = substr($d, 6, 4);
-        return array_values(array_unique([
-            $raw,
-            "({$a}) {$b}-{$c}", "({$a}){$b}-{$c}", "{$a}-{$b}-{$c}", "{$a}.{$b}.{$c}",
-            "{$a} {$b} {$c}", "{$a}{$b}{$c}",
-            "+1{$a}{$b}{$c}", "+1 {$a} {$b} {$c}", "+1-{$a}-{$b}-{$c}", "1-{$a}-{$b}-{$c}",
-        ]));
-    }
+    /** MARKER-DEMO-SWEEP-FAST — 10-digit number => that customer's fake number */
+    private array $phoneMap = [];
 
     private function anonymiseStaff(string $demoId): void
     {
@@ -811,11 +785,15 @@ class DemoBuildTemplate extends Command
         // short columns too, so it is no longer gated on $prose.
         // MARKER-DEMO-BUILD-SAFE — bare digit runs only as whole numbers, never inside
         // a longer number or a decimal (the 10-digit form once landed inside 7.2298622366…)
-        if ($this->sweep) {
-            $this->splitSweep();
-            if ($this->sweepText)   $new = strtr($new, $this->sweepText);
-            if ($this->sweepDigits) $new = preg_replace_callback('/(?<![\d.])\+?\d{10,11}(?![\d.])/', fn ($m) => $this->sweepDigits[$m[0]] ?? $m[0], $new);
+        // MARKER-DEMO-SWEEP-FAST — one regex finds every written form; the digits index a small map.
+        // Bare digit runs must stand alone (never inside a longer number or a decimal).
+        if ($this->phoneMap) {
+            $new = preg_replace_callback(
+                '/(?<![\d.])(?:\+?1[\s.\-]?)?\(?\d{3}\)?[\s.\-]?\d{3}[\s.\-]?\d{4}(?![\d.])/',
+                function ($m) { $d = self::phoneDigits($m[0]); return ($d !== null && isset($this->phoneMap[$d])) ? $this->phoneMap[$d] : $m[0]; },
+                $new);
         }
+        if ($this->brandSweep) $new = strtr($new, $this->brandSweep); // two entries: shop name, subdomain
         // whatever is left belongs to nobody in the table — but never touch a
         // number the identity map just wrote
         $new = preg_replace_callback(
