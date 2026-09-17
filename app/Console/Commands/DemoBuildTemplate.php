@@ -98,6 +98,8 @@ class DemoBuildTemplate extends Command
             return self::FAILURE;
         }
         $existing = Tenant::withTrashed()->where('subdomain', $this->slug)->first();
+        $building = $this->slug . '-building'; // MARKER-DEMO-BUILD-SWAP — the new copy lives here until it is safe to serve
+        $leftover = Tenant::withTrashed()->where('subdomain', $building)->first();
         if ($existing && ! $existing->is_demo) {
             $this->error("Subdomain '{$this->slug}' belongs to a real tenant — refusing.");
             return self::FAILURE;
@@ -110,21 +112,21 @@ class DemoBuildTemplate extends Command
         $this->info('Tenant-scoped tables: ' . count($tables));
         $this->line('Customers table: ' . $this->customersTable()); // MARKER-DEMO-TEMPLATE-CUSTTABLE
 
-        // MARKER-DEMO-BUILD-SAFE — nobody sees half-anonymised data: offline until the leak check passes
+        // MARKER-DEMO-BUILD-SWAP — the live demo keeps serving during the build; it goes offline only for the swap
         $wasOffline = DemoSetting::get('offline:' . $this->slug) === '1';
-        DemoSetting::put('offline:' . $this->slug, '1');
-        if (! $wasOffline) DemoSetting::put('offline_reason:' . $this->slug, 'The demo is being rebuilt right now.');
+        $t0 = microtime(true);
+        $el = fn () => sprintf('%5.1fs', microtime(true) - $t0);
 
         // ---- 1. clear the old demo ------------------------------------
         DB::statement('SET FOREIGN_KEY_CHECKS=0');
         try {
-            if ($existing) {
+            if ($leftover) { // MARKER-DEMO-BUILD-SWAP
                 foreach ($tables as $t) {
-                    DB::table($t)->where('tenant_id', $existing->id)->delete();
+                    DB::table($t)->where('tenant_id', $leftover->id)->delete();
                 }
-                DB::table('tenants')->where('id', $existing->id)->delete();
-                Storage::disk('public')->deleteDirectory('tenants/' . $existing->id);
-                $this->line('cleared previous demo tenant');
+                DB::table('tenants')->where('id', $leftover->id)->delete();
+                Storage::disk('public')->deleteDirectory('tenants/' . $leftover->id);
+                $this->line('cleared a leftover interrupted build (' . $leftover->id . ')');
             }
 
             // ---- 2. the tenant row ------------------------------------
@@ -133,7 +135,7 @@ class DemoBuildTemplate extends Command
             $row = (array) DB::table('tenants')->where('id', $src->id)->first();
             $row['id']            = $demoId;
             $row['name']          = $this->demoName;
-            $row['subdomain']     = $this->slug;
+            $row['subdomain']     = $building; // MARKER-DEMO-BUILD-SWAP — renamed to the real slug at the swap
             $row['custom_domain'] = null;
             $row['is_demo']       = 1;
             $row['is_active']     = 1;
@@ -219,8 +221,13 @@ class DemoBuildTemplate extends Command
             $this->demoBranding($demoId);        // MARKER-DEMO-FIXES
             $this->anonymiseCustomers($demoId);
             $this->anonymiseStaff($demoId);
+            $this->line('Anonymise sweep (every text column of every table — the long part):'); // MARKER-DEMO-BUILD-SWAP
             foreach ($tables as $t) {
+                $rows = DB::table($t)->where('tenant_id', $demoId)->count();
+                if ($rows === 0) continue;
+                $this->output->write(sprintf('  %-42s %6d rows … ', $t, $rows));
                 $this->sweepTable($t, $demoId, $meta[$t]);
+                $this->line('done ' . $el());
             }
             // the tenants row isn't in $tables — its settings JSON and any
             // contact columns get the same scrub by hand
@@ -234,26 +241,45 @@ class DemoBuildTemplate extends Command
                 }
             }
             if ($tUpd) DB::table('tenants')->where('id', $demoId)->update($tUpd);
+
+            // MARKER-DEMO-BUILD-SWAP — leak check BEFORE anything is exposed; a dirty copy never replaces the live demo
+            $leaks = $this->leakCheck($demoId, $tables);
+            if ($leaks > 0) {
+                throw new \RuntimeException("LEAK CHECK FAILED: {$leaks} real address(es) still present in the new copy. Live demo left untouched; the -building tenant is cleared on the next run.");
+            }
+            $this->info('Leak check clean: 0 of ' . count($this->leakSamples) . ' sampled real emails found in the copy. ' . $el());
+
+            // ---- swap: seconds, and the only moment the demo is offline ----
+            DemoSetting::put('offline:' . $this->slug, '1');
+            if (! $wasOffline) DemoSetting::put('offline_reason:' . $this->slug, 'The demo is being rebuilt right now.');
+            if ($existing) {
+                foreach ($tables as $t) {
+                    DB::table($t)->where('tenant_id', $existing->id)->delete();
+                }
+                DB::table('tenants')->where('id', $existing->id)->delete();
+                Storage::disk('public')->deleteDirectory('tenants/' . $existing->id);
+                $this->line('cleared previous demo tenant (' . $existing->id . ')');
+            }
+            DB::table('tenants')->where('id', $demoId)->update(['subdomain' => $this->slug]);
+            $this->info("swapped in: {$this->slug} now serves {$demoId} " . $el());
         } catch (\Throwable $e) {
             // MARKER-DEMO-BUILD-SAFE — a half-built demo with a stale manifest 500s the hourly reset
-            \App\Support\JobFailureReporter::report(self::class, "demo:build-template crashed for '{$this->slug}' — the demo is OFFLINE until a build completes (re-run demo:build-template --from=… --force)", $e, ['slug' => $this->slug, 'from' => $src->subdomain]);
+            \App\Support\JobFailureReporter::report(self::class, "demo:build-template crashed for '{$this->slug}' — the live demo was left as it was; re-run demo:build-template --from=… --force", $e, ['slug' => $this->slug, 'from' => $src->subdomain]);
             throw $e;
         } finally {
             DB::statement('SET FOREIGN_KEY_CHECKS=1');
         }
 
         // ---- 6. media files + freeze ----------------------------------
-        $this->copyMedia($src->id, $demoId);
-        $this->freeze($demoId, $tables);
-
-        // ---- leak check ----------------------------------------------
-        $leaks = $this->leakCheck($demoId, $tables);
-        if ($leaks > 0) {
-            $this->error("LEAK CHECK FAILED: {$leaks} real address(es) still present. Template NOT safe — do not expose the demo.");
-            return self::FAILURE;
+        try { // MARKER-DEMO-BUILD-SWAP — past the swap the demo is offline, so a failure here must be loud too
+            $this->copyMedia($src->id, $demoId);
+            $this->line('Freezing template … ' . $el());
+            $this->freeze($demoId, $tables);
+        } catch (\Throwable $e) {
+            \App\Support\JobFailureReporter::report(self::class, "demo:build-template failed after the swap for '{$this->slug}' — the demo is OFFLINE until a build completes (re-run demo:build-template --from=… --force)", $e, ['slug' => $this->slug, 'from' => $src->subdomain]);
+            throw $e;
         }
-        $this->info('Leak check clean: 0 of ' . count($this->leakSamples) . ' sampled real emails found in the copy.');
-        $this->info("Template frozen at storage/app/demo/{$this->slug}/. demo:reset restores it hourly.");
+        $this->info("Template frozen at storage/app/demo/{$this->slug}/. demo:reset restores it hourly. Total " . $el());
         if (! $wasOffline) { DemoSetting::put('offline:' . $this->slug, '0'); DemoSetting::put('offline_reason:' . $this->slug, null); $this->info('demo switched back on'); } // MARKER-DEMO-BUILD-SAFE
 
         // MARKER-DEMO-TIMELINE — building as root writes files the web user
@@ -807,10 +833,13 @@ class DemoBuildTemplate extends Command
     {
         $disk = Storage::disk('public');
         $n = 0;
-        foreach ($disk->allFiles('tenants/' . $srcId) as $file) {
+        $files = $disk->allFiles('tenants/' . $srcId);
+        $this->output->write('Copying media: ' . count($files) . ' files … '); // MARKER-DEMO-BUILD-SWAP
+        foreach ($files as $file) {
             $disk->copy($file, str_replace('tenants/' . $srcId, 'tenants/' . $demoId, $file));
-            $n++;
+            if (++$n % 250 === 0) $this->output->write($n . ' ');
         }
+        $this->line('');
         $this->info("media files copied: {$n}");
     }
 

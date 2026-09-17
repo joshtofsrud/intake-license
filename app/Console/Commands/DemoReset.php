@@ -50,6 +50,14 @@ class DemoReset extends Command
             return self::FAILURE;
         }
 
+        // MARKER-DEMO-BUILD-SWAP — the subdomain must belong to the manifest's tenant (or nobody), never to a stray
+        $holder = Tenant::withTrashed()->where('subdomain', $slug)->where('id', '!=', $tenantId)->first();
+        if ($holder) {
+            $this->error("Refusing: tenant {$holder->id} holds subdomain '{$slug}' but the manifest expects {$tenantId}. Rebuild the template (demo:build-template --from=… --force).");
+            $this->reportRefusal("subdomain '{$slug}' is held by {$holder->id}, not the manifest's {$tenantId} — rebuild the template", $slug, $tenantId);
+            return self::FAILURE;
+        }
+
         $tenant = Tenant::withTrashed()->find($tenantId);
         if ($tenant && ! $tenant->is_demo) {
             $this->error('Refusing: the manifest tenant is not flagged is_demo.');
