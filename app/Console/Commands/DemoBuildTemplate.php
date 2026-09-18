@@ -285,8 +285,21 @@ class DemoBuildTemplate extends Command
         if ($this->slug !== $fromSub) {
             $clone = \App\Models\Tenant::where('subdomain', $this->slug)->first();
             if ($clone && $clone->is_demo && (string) $clone->id !== (string) $demoId) {
+                // MARKER-DEMO-SCAFFOLD-PURGE - a tenant row cannot be deleted
+                // while its children exist: several constraints are RESTRICT.
+                // $tables is the same tenant-scoped list this command cleared
+                // the previous demo with a few hundred lines above.
                 $this->line("Removing build scaffold {$clone->subdomain}...");
-                $clone->forceDelete();
+                DB::statement('SET FOREIGN_KEY_CHECKS=0');
+                try {
+                    foreach ($tables as $t) {
+                        DB::table($t)->where('tenant_id', $clone->id)->delete();
+                    }
+                    DB::table('tenants')->where('id', $clone->id)->delete();
+                    Storage::disk('public')->deleteDirectory('tenants/' . $clone->id);
+                } finally {
+                    DB::statement('SET FOREIGN_KEY_CHECKS=1');
+                }
             }
         }
         } catch (\Throwable $e) {

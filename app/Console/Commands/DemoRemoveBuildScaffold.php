@@ -56,9 +56,54 @@ class DemoRemoveBuildScaffold extends Command
             return self::SUCCESS;
         }
 
-        $tenant->forceDelete();
+        $this->purge($tenant);
         $this->info("Deleted {$sub}.");
 
         return self::SUCCESS;
+    }
+
+    /**
+     * MARKER-DEMO-SCAFFOLD-PURGE — remove a tenant and everything it owns.
+     *
+     * A tenant row cannot be deleted on its own: several child tables carry
+     * ON DELETE RESTRICT, which is what made forceDelete() fail. This mirrors
+     * what DemoBuildTemplate already does when it clears a previous demo —
+     * clear every tenant-scoped table with checks off, then the tenant row.
+     *
+     * The FK checks are restored in a finally, so a failure halfway through
+     * cannot leave this connection running without them.
+     */
+    protected function purge(Tenant $tenant): void
+    {
+        $db = \Illuminate\Support\Facades\DB::getDatabaseName();
+
+        $tables = collect(\Illuminate\Support\Facades\DB::select(
+            "SELECT TABLE_NAME t FROM information_schema.COLUMNS
+             WHERE TABLE_SCHEMA = ? AND COLUMN_NAME = 'tenant_id'",
+            [$db]
+        ))->pluck('t')->all();
+
+        \Illuminate\Support\Facades\DB::statement('SET FOREIGN_KEY_CHECKS=0');
+
+        try {
+            $removed = 0;
+            foreach ($tables as $t) {
+                if ($t === 'tenants') {
+                    continue;
+                }
+                $removed += \Illuminate\Support\Facades\DB::table($t)
+                    ->where('tenant_id', $tenant->id)
+                    ->delete();
+            }
+
+            \Illuminate\Support\Facades\DB::table('tenants')->where('id', $tenant->id)->delete();
+
+            \Illuminate\Support\Facades\Storage::disk('public')
+                ->deleteDirectory('tenants/' . $tenant->id);
+
+            $this->line("Cleared {$removed} rows across " . count($tables) . ' tenant-scoped tables.');
+        } finally {
+            \Illuminate\Support\Facades\DB::statement('SET FOREIGN_KEY_CHECKS=1');
+        }
     }
 }
