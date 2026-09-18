@@ -18,7 +18,8 @@ class PlatformCampaign extends Model
     // a fillable array comments out the rest of it, which has bitten campaigns
     // once already (scheduled_at and sent_at silently un-fillable).
     protected $fillable = [
-        'name', 'subject', 'preheader', 'from_name', 'from_email',
+        'name', 'subject', 'preheader', 'body', // MARKER-PLATFORM-CAMPAIGNS-UI
+        'from_name', 'from_email',
         'audience_id', 'blocks', 'status', 'scheduled_at', 'sent_at',
         'total_recipients', 'total_sent', 'total_opened', 'total_clicked',
     ];

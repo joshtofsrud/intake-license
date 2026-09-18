@@ -61,14 +61,18 @@
     </div>
   @endunless
 
+  {{-- MARKER-PLATFORM-CAMPAIGNS-UI --}}
   <div class="pc-tabs">
-    <span class="on">Messages</span>
+    <span class="{{ $tab === 'messages' ? 'on' : '' }}" style="cursor:pointer" wire:click="setTab('messages')">Messages</span>
+    <span class="{{ $tab === 'campaigns' ? 'on' : '' }}" style="cursor:pointer" wire:click="setTab('campaigns')">Campaigns</span>
   </div>
 
+  @if($tab === 'messages')
+  {{-- MARKER-PLATFORM-MSG-COMPLETE --}}
   <div class="pc-legend">
-    <b>These are the emails Intake sends about itself</b> — not a shop's mail to its customers, which each shop
-    controls on its own Communication page. Edit one and your version sends from then on; Revert deletes it and
-    the built-in email comes back.
+    <b>Every email Intake sends about itself is listed here</b> — not a shop's mail to its customers, which each
+    shop controls on its own Communication page. Three of them edit on this page; billing notices and investor
+    messages have their own editors and are linked; the rest are fixed, each saying why.
   </div>
 
   @if($editingKey && $meta)
@@ -141,6 +145,187 @@
         @endforeach
       </div>
     @endforeach
+
+    {{-- MARKER-PLATFORM-MSG-COMPLETE — the rest of what the platform sends. --}}
+    @foreach($others as $group => $rows)
+      <div class="pc-grp">{{ $group }}</div>
+      <div class="pc-list">
+        @foreach($rows as $row)
+          <div class="pc-row" style="grid-template-columns:1fr 130px 1fr 110px">
+            <div>
+              <div class="t">{{ $row['label'] }}</div>
+              <div class="d">{{ $row['note'] }}</div>
+            </div>
+            <div>
+              @if($row['edit'] === 'elsewhere')
+                <span class="pc-pill">Edited elsewhere</span>
+              @else
+                <span class="pc-pill">Fixed</span>
+              @endif
+            </div>
+            <div class="fires">{{ $row['fires'] }}</div>
+            <div style="text-align:right">
+              @if($row['edit'] === 'elsewhere')
+                <a href="{{ url($row['where']) }}" style="color:var(--pc-accent);text-decoration:none;font-size:13px">Open →</a>
+              @else
+                <span style="opacity:.35;font-size:12.5px">—</span>
+              @endif
+            </div>
+          </div>
+        @endforeach
+      </div>
+    @endforeach
+  @endif
+  @endif
+
+  {{-- ======================================================= CAMPAIGNS --}}
+  @if($tab === 'campaigns')
+    <div class="pc-legend">
+      <b>Campaigns go to Intake's own people</b> — tenants, prospects, people who wrote in, reps. A shop's
+      customers are never an audience here; that list belongs to the shop.
+      @unless($streamOk)
+        <br><b style="color:#f0c46a">No platform broadcast stream is set, so nothing can send yet.</b>
+      @endunless
+    </div>
+
+    @if($campaign)
+      <div class="pc-cols">
+        <div class="pc-card">
+          <h3>{{ $campaign->name }}</h3>
+          <div class="sub">{{ ucfirst($campaign->status) }}@if($campaign->scheduled_at) · {{ $campaign->scheduled_at->format('D M j, g:i A') }}@endif</div>
+
+          <div class="pc-f"><label>Name</label><input type="text" wire:model="cName"></div>
+          <div class="pc-f"><label>Subject</label><input type="text" wire:model="cSubject"></div>
+          <div class="pc-f">
+            <label>Audience</label>
+            <select wire:model.live="cAudience" style="width:100%;background:transparent;border:1px solid var(--pc-line);border-radius:8px;color:inherit;font:inherit;font-size:13.5px;padding:8px 10px">
+              <option value="">Pick an audience…</option>
+              @foreach($audiences as $a)
+                <option value="{{ $a->id }}">{{ $a->name }}</option>
+              @endforeach
+            </select>
+          </div>
+          <div class="pc-f">
+            <label>Body</label>
+            <textarea wire:model="cBody" placeholder="Write the email. Blank lines make paragraphs."></textarea>
+            <div class="pc-tok"><code>&#123;&#123;first_name&#125;&#125;</code><code>&#123;&#123;shop_name&#125;&#125;</code></div>
+          </div>
+          <div class="pc-f">
+            <label>Send at <span style="opacity:.55">(leave blank to send now)</span></label>
+            <input type="datetime-local" wire:model="cSchedule">
+          </div>
+
+          @if($blockers)
+            <div class="pc-note" style="color:#f0c46a">
+              @foreach($blockers as $b){{ $b }} @endforeach
+            </div>
+          @endif
+
+          <div class="pc-acts">
+            <button type="button" class="pc-btn" wire:click="saveCampaign">Save draft</button>
+            <button type="button" class="pc-btn pc-btn--pri" wire:click="scheduleCampaign" @disabled(count($blockers) > 0)>
+              {{ trim($cSchedule) !== '' ? 'Schedule' : 'Send now' }}
+            </button>
+            @if(in_array($campaign->status, ['scheduled', 'sending'], true))
+              <button type="button" class="pc-btn pc-btn--warn" wire:click="cancelCampaign">Cancel</button>
+            @endif
+            <button type="button" class="pc-btn" wire:click="closeCampaign">Close</button>
+          </div>
+        </div>
+
+        <div class="pc-card">
+          <h3>Who this reaches</h3>
+          <div class="sub">Counted by the same rules the sender uses</div>
+          @if($reach)
+            <div style="font-size:30px;font-weight:800;letter-spacing:-.02em">{{ $reach['mailable'] }}</div>
+            <div class="pc-note" style="margin-top:2px">
+              of {{ $reach['matched'] }} matched — the difference is people who unsubscribed.
+              @if($reach['names'])<br>{{ implode(', ', $reach['names']) }}@if($reach['mailable'] > count($reach['names'])) and {{ $reach['mailable'] - count($reach['names']) }} more @endif @endif
+            </div>
+          @else
+            <div class="pc-note">Pick an audience to see the reach.</div>
+          @endif
+
+          @if($campaign->total_sent)
+            <div style="margin-top:18px;border-top:1px solid var(--pc-line);padding-top:14px">
+              <div class="pc-grp" style="padding-top:0">Results</div>
+              <div style="font-size:13.5px;line-height:1.9">
+                Sent <b>{{ $campaign->total_sent }}</b> of {{ $campaign->total_recipients }}<br>
+                @if($campaign->sent_at)Finished {{ $campaign->sent_at->diffForHumans() }}@endif
+              </div>
+            </div>
+          @endif
+        </div>
+      </div>
+    @else
+      <div style="display:flex;gap:8px;margin-bottom:14px">
+        <button type="button" class="pc-btn pc-btn--pri" wire:click="newCampaign">New campaign</button>
+      </div>
+
+      <div class="pc-list">
+        @forelse($campaigns as $c)
+          <div class="pc-row" style="grid-template-columns:1fr 110px 1fr 70px">
+            <div>
+              <div class="t">{{ $c->name }}</div>
+              <div class="d">{{ $c->subject ?: 'No subject yet' }}</div>
+            </div>
+            <div><span class="pc-pill {{ $c->status === 'sent' ? 'pc-pill--custom' : '' }}">{{ ucfirst($c->status) }}</span></div>
+            <div class="fires">
+              {{ optional($c->audience)->name ?: 'No audience' }}
+              @if($c->total_sent) · {{ $c->total_sent }} sent @endif
+            </div>
+            <button type="button" class="pc-edit" wire:click="openCampaign('{{ $c->id }}')">Open</button>
+          </div>
+        @empty
+          <div style="padding:26px 16px;text-align:center;opacity:.5;font-size:13px">No campaigns yet.</div>
+        @endforelse
+      </div>
+
+      <div class="pc-grp">Audiences</div>
+      <div class="pc-list">
+        @forelse($audiences as $a)
+          <div class="pc-row" style="grid-template-columns:1fr 150px 1fr 70px">
+            <div><div class="t">{{ $a->name }}</div></div>
+            <div><span class="pc-pill">{{ \App\Models\PlatformAudience::SOURCES[$a->source] ?? $a->source }}</span></div>
+            <div class="fires">{{ count($a->rules ?? []) }} {{ count($a->rules ?? []) === 1 ? 'rule' : 'rules' }}</div>
+            <div></div>
+          </div>
+        @empty
+          <div style="padding:20px 16px;text-align:center;opacity:.5;font-size:13px">No audiences yet — make one below.</div>
+        @endforelse
+      </div>
+
+      <div class="pc-card" style="margin-top:14px">
+        <h3>New audience</h3>
+        <div class="sub">Rules, not a fixed list — it re-resolves every time a campaign fires</div>
+        <div class="pc-f"><label>Name</label><input type="text" wire:model="aName" placeholder="Tenants without rentals"></div>
+        <div class="pc-f">
+          <label>Source</label>
+          <select wire:model="aSource" style="width:100%;background:transparent;border:1px solid var(--pc-line);border-radius:8px;color:inherit;font:inherit;font-size:13.5px;padding:8px 10px">
+            @foreach(\App\Models\PlatformAudience::SOURCES as $k => $label)
+              <option value="{{ $k }}">{{ $label }}</option>
+            @endforeach
+          </select>
+        </div>
+        <div class="pc-f">
+          <label>Optional rule</label>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+            <input type="text" wire:model="aField" placeholder="plan_tier / addon / status">
+            <select wire:model="aOp" style="background:transparent;border:1px solid var(--pc-line);border-radius:8px;color:inherit;font:inherit;font-size:13.5px;padding:8px 10px">
+              <option value="is">is</option>
+              <option value="is_not">is not</option>
+              <option value="has">has</option>
+              <option value="has_not">doesn't have</option>
+            </select>
+            <input type="text" wire:model="aValue" placeholder="scale / rentals">
+          </div>
+          <div class="pc-note">Leave the rule blank for everyone in that source.</div>
+        </div>
+        <div class="pc-acts">
+          <button type="button" class="pc-btn pc-btn--pri" wire:click="newAudience">Save audience</button>
+        </div>
+      </div>
+    @endif
   @endif
 </div>
 </x-filament-panels::page>

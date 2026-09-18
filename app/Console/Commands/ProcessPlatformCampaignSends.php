@@ -170,6 +170,17 @@ class ProcessPlatformCampaignSends extends Command
             'email'      => $row->email,
         ];
 
+        // MARKER-PLATFORM-CAMPAIGNS-UI — one body format across the platform:
+        // the composer writes text and it renders in the same Intake chrome the
+        // template editor uses. Blocks remain supported, so a block-built
+        // campaign still renders through BlockRenderer if one ever exists.
+        if (trim((string) $campaign->body) !== '') {
+            return view('emails.platform.custom', [
+                'bodyHtml' => nl2br(e(\App\Support\PlatformEmailTemplates::merge((string) $campaign->body, $vars))),
+                'postal'   => \App\Services\Platform\PlatformMailer::postalAddress(),
+            ])->render();
+        }
+
         return BlockRenderer::render($campaign->blocks ?? [], $vars, [
             'preheader'     => (string) $campaign->preheader,
             'resolveTokens' => true,

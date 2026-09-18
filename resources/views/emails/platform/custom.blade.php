@@ -9,8 +9,12 @@
   <table cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#f5f5f5;padding:32px 16px;">
     <tr><td align="center">
       <table cellpadding="0" cellspacing="0" border="0" width="560" style="background:#fff;border-radius:12px;overflow:hidden;border:1px solid #e5e5e5;">
-        <tr><td style="padding:28px 32px 0;">
-          <div style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#888;">Intake</div>
+        {{-- MARKER-PLATFORM-MSG-COMPLETE — the real mark, not the word. An
+             absolute URL because a mail client has no site to be relative to,
+             and alt text so a blocked image still reads as Intake. --}}
+        <tr><td style="padding:26px 32px 0;">
+          <img src="{{ url('/icon.svg') }}" alt="Intake" width="30" height="30"
+               style="display:block;border:0;outline:none;border-radius:7px;">
         </td></tr>
         <tr><td style="padding:18px 32px 28px;font-size:15px;line-height:1.65;color:#333;">
           {!! $bodyHtml !!}
