@@ -65,6 +65,7 @@ return [
         'status',
         'health',
         'support',
+        'intake',  // MARKER-PLATFORM-INBOUND - the platform reply localpart
     ],
 
     /*

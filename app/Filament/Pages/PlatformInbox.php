@@ -172,8 +172,14 @@ class PlatformInbox extends Page
                 Log::error('Inbox reply to tenant failed', ['id' => $row->id, 'error' => $e->getMessage()]);
             }
         } elseif ($row->email) {
+            // MARKER-PLATFORM-INBOUND — Reply-To is now a tokenised platform
+            // address, so their answer comes back into this thread instead of
+            // a mailbox the app can't read. Falls back to the from address
+            // when inbound isn't configured.
             $to      = $row->email;
-            $replyTo = \App\Support\PlatformInbox::notifyAddress();
+            $token   = $row->replyToken();
+            $replyTo = \App\Services\Platform\PlatformMailer::replyTo($token)
+                ?: \App\Support\PlatformInbox::notifyAddress();
             $subject = 'Re: ' . ($row->subject ?: 'your message to Intake');
             try {
                 Mail::raw($text, function ($m) use ($to, $subject, $replyTo) {
@@ -190,10 +196,21 @@ class PlatformInbox extends Page
 
         if ($sent) {
             $row->update([
-                'status'     => 'read',
-                'replied_at' => now(),
-                'reply_body' => $text,
+                'status'          => 'read',
+                'replied_at'      => now(),
+                'reply_body'      => $text,
+                'last_message_at' => now(), // MARKER-PLATFORM-INBOUND
             ]);
+
+            // MARKER-PLATFORM-INBOUND — record our side of the conversation too,
+            // so the thread reads in order rather than as one stored last reply.
+            \App\Models\PlatformInboxReply::create([
+                'message_id' => $row->id,
+                'direction'  => 'out',
+                'from_email' => \App\Services\Platform\PlatformMailer::fromAddress(),
+                'body'       => $text,
+            ]);
+
             $this->reply = '';
         }
     }

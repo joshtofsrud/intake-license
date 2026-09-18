@@ -17,12 +17,14 @@ class PlatformInboxMessage extends Model
         'kind', 'status', 'tenant_id', 'name', 'email', 'phone', 'company',
         'subject', 'body', 'source_url', 'ref_id', 'meta',
         'read_at', 'replied_at', 'reply_body', 'ip',
+        'inbound_token', 'campaign_id', 'last_message_at', // MARKER-PLATFORM-INBOUND
     ];
 
     protected $casts = [
-        'meta'       => 'array',
-        'read_at'    => 'datetime',
-        'replied_at' => 'datetime',
+        'meta'            => 'array',
+        'read_at'         => 'datetime',
+        'replied_at'      => 'datetime',
+        'last_message_at' => 'datetime', // MARKER-PLATFORM-INBOUND
     ];
 
     public const KIND_CONTACT = 'contact';
@@ -56,5 +58,24 @@ class PlatformInboxMessage extends Model
     public function scopeUnread($q)
     {
         return $q->where('status', 'new');
+    }
+
+    // ------------------------------------------------------------------
+    // MARKER-PLATFORM-INBOUND — a message is a conversation, not a one-off
+    // ------------------------------------------------------------------
+
+    public function replies(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(PlatformInboxReply::class, 'message_id')->orderBy('created_at');
+    }
+
+    /** The token a reply comes back on. Minted on demand, then kept. */
+    public function replyToken(): string
+    {
+        if (! $this->inbound_token) {
+            $this->forceFill(['inbound_token' => \Illuminate\Support\Str::random(24)])->save();
+        }
+
+        return $this->inbound_token;
     }
 }

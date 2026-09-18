@@ -52,6 +52,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->validateCsrfTokens(except: [
             'mkt/track', // MARKER-MKTTRAFFIC — beacon from cached marketing pages
             'email/unsubscribe/*', // MARKER-CAMPAIGN-DELIVERY — Gmail/Yahoo one-click POST; HMAC sig is the auth
+            'platform-email/unsubscribe/*', // MARKER-PLATFORM-EMAIL - one-click POST, HMAC is the auth
             'webhooks/stripe',
             'webhooks/stripe/*',
             'webhooks/dropbox-sign',   // MARKER-SIGNING-SEND

@@ -256,3 +256,9 @@ Schedule::command('register:clear-recovered --apply')
 Schedule::command('tenants:signals')
     ->dailyAt('06:10')
     ->withoutOverlapping();
+
+// MARKER-PLATFORM-EMAIL — fires due platform campaigns and drains pending
+// sends. Harmless when no stream is configured: it returns immediately.
+Schedule::command('platform:process-campaign-sends')
+    ->everyMinute()
+    ->withoutOverlapping();

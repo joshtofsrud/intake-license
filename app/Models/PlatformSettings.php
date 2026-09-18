@@ -28,6 +28,11 @@ class PlatformSettings extends Model
         'email_broadcast_stream', // MARKER-EMAIL-LEDGER
         'alert_500_enabled',      // MARKER-500-ALERT
         'alert_500_email',        // MARKER-500-ALERT
+        'platform_broadcast_stream', // MARKER-PLATFORM-EMAIL
+        // MARKER-PLATFORM-INBOUND — platform_from_name / platform_from_email
+        // removed: mail_from_address and mail_from_name above already are the
+        // platform sender, and two homes for one address is how they drift.
+        'platform_postal_address',   // MARKER-PLATFORM-EMAIL
     ];
 
     // MARKER-ALLOWANCE-TIERS — without this the json column reads back as a

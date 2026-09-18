@@ -69,6 +69,14 @@ Route::domain($domain)->group(function () {
         ->middleware('throttle:5,1') // MARKER-INBOX — five posts a minute per IP is a person; bots burst
         ->name('marketing.contact.submit');
 
+    // MARKER-PLATFORM-EMAIL — stateless unsubscribe for Intake's own
+    // marketing mail. GET asks, POST acts (scanners follow links), and the
+    // POST is also what Gmail's one-click unsubscribe header calls.
+    Route::get('/platform-email/unsubscribe/{e}/{sig}', [Platform\PlatformUnsubscribeController::class, 'show'])
+        ->name('platform.unsubscribe');
+    Route::post('/platform-email/unsubscribe/{e}/{sig}', [Platform\PlatformUnsubscribeController::class, 'store'])
+        ->name('platform.unsubscribe.confirm');
+
     // MARKER-DEMO-ENTRY — the public way in. Two steps because session cookies
     // are per-subdomain: this hop is signed, the sign-in happens on the demo host.
     Route::get('/demo/{slug?}', [\App\Http\Controllers\DemoEntryController::class, 'start'])

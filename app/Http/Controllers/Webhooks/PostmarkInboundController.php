@@ -57,6 +57,17 @@ class PostmarkInboundController extends Controller
         $from = trim((string) ($payload['From'] ?? ($payload['FromFull']['Email'] ?? '')));
 
         // 1. Token is still the precise route when it resolves.
+        // 1a. MARKER-PLATFORM-INBOUND — a reply to Intake ITSELF, before any
+        //     tenant lookup. Platform tokens live in their own table, and this
+        //     patch reserves the 'intake' subdomain so a tenant can never own
+        //     the localpart the platform replies on.
+        if ($token !== '') {
+            $platform = \App\Models\PlatformInboxMessage::where('inbound_token', $token)->first();
+            if ($platform) {
+                return $this->platformReply($platform, $payload, $from, $msgId);
+            }
+        }
+
         $thread = $token !== ''
             ? TenantThread::where('inbound_token', $token)->first()
             : null;
@@ -215,5 +226,45 @@ class PostmarkInboundController extends Controller
         $parts = preg_split('/\s+/', $name, 2);
 
         return [$parts[0], isset($parts[1]) ? trim($parts[1]) : ''];
+    }
+
+    /**
+     * MARKER-PLATFORM-INBOUND — record a reply to Intake's own mail.
+     *
+     * Deliberately forgiving: an empty body still creates the turn, because a
+     * person who hit reply and sent an image or a one-word answer has still
+     * replied, and dropping it recreates the dead end this patch closes. The
+     * message is reopened so it can't be answered into an archived thread.
+     */
+    protected function platformReply(
+        \App\Models\PlatformInboxMessage $message,
+        array $payload,
+        string $from,
+        string $msgId
+    ) {
+        if ($msgId !== '' && \App\Models\PlatformInboxReply::where('external_id', $msgId)->exists()) {
+            return response('OK', 200); // Postmark retried; already recorded
+        }
+
+        $body = trim((string) ($payload['StrippedTextReply'] ?? ''));
+        if ($body === '') {
+            $body = trim(strip_tags((string) ($payload['TextBody'] ?? '')));
+        }
+
+        \App\Models\PlatformInboxReply::create([
+            'message_id'  => $message->id,
+            'direction'   => 'in',
+            'from_email'  => $from ?: $message->email,
+            'body'        => $body !== '' ? $body : '(no text — check the original email)',
+            'external_id' => $msgId ?: null,
+        ]);
+
+        $message->forceFill([
+            'status'          => 'new',
+            'read_at'         => null,
+            'last_message_at' => now(),
+        ])->save();
+
+        return response('OK', 200);
     }
 }
