@@ -47,6 +47,69 @@ class PlatformEmailTemplates
         ],
     ];
 
+    /**
+     * MARKER-PLATFORM-MSG-COMPLETE — every email the platform sends, including
+     * the ones this page cannot edit.
+     *
+     * A list that shows three rows while a dozen senders exist is worse than no
+     * list: it answers "is that everything?" with a confident no-but-looks-like-
+     * yes. So each entry declares its `edit` mode and, when it is not editable
+     * here, says where it lives or why it is fixed.
+     */
+    public const OTHER_SENDERS = [
+        [
+            'group' => 'Billing',
+            'label' => 'Billing notices',
+            'fires' => 'Invoices, payment failures, trial and dunning notices',
+            'edit'  => 'elsewhere',
+            'where' => '/admin/billing-notices',
+            'note'  => 'Already editable, with their own tokens and per-event rows.',
+        ],
+        [
+            'group' => 'Raise',
+            'label' => 'Investor messages',
+            'fires' => 'Invites, updates and document notices to investors',
+            'edit'  => 'elsewhere',
+            'where' => '/admin/raise-setup',
+            'note'  => 'Edited on Raise setup, defaults merged with your overrides.',
+        ],
+        [
+            'group' => 'Scheduling',
+            'label' => 'Call booking confirmation',
+            'fires' => 'Someone books a call with you, and on reschedule or cancel',
+            'edit'  => 'fixed',
+            'note'  => 'Renders a details table and attaches a calendar invite — text editing would break both.',
+        ],
+        [
+            'group' => 'Tenant features',
+            'label' => 'Waitlist offer',
+            'fires' => 'A shop\'s waitlist offer goes to their customer',
+            'edit'  => 'fixed',
+            'note'  => 'Sent on the shop\'s behalf to their customer, so it follows the shop\'s branding, not yours.',
+        ],
+        [
+            'group' => 'Alerts to you',
+            'label' => '500 error alerts',
+            'fires' => 'A server error, at most one per site every 15 minutes',
+            'edit'  => 'fixed',
+            'note'  => 'Plain text to you alone. Nothing to design.',
+        ],
+        [
+            'group' => 'Alerts to you',
+            'label' => 'Job failure reports',
+            'fires' => 'A background job throws',
+            'edit'  => 'fixed',
+            'note'  => 'Carries the reference id that matches the log line and the inbox alert.',
+        ],
+        [
+            'group' => 'Alerts to you',
+            'label' => 'New inbox message',
+            'fires' => 'Someone writes in through the contact form',
+            'edit'  => 'fixed',
+            'note'  => 'A nudge to go and read it, not a message in its own right.',
+        ],
+    ];
+
     public static function override(string $key): ?PlatformEmailTemplate
     {
         try {
