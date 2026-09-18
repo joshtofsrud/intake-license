@@ -2051,6 +2051,9 @@ body.ia-theme-b .pb2-preview-frame-wrap {
           @php $firstPerType = 'tenant.pages.sections._' . $firstSection->section_type; @endphp
           @if(view()->exists($firstPerType))
             @include($firstPerType, ['section' => $firstSection, 'c' => $firstSection->content ?? [], 'navItems' => $navItems ?? collect(), 'availablePages' => $availablePages ?? collect(), 'isBookingExtras' => $isBookingExtras ?? false])
+            {{-- MARKER-SECTION-OVERLAP — shared across every type, so a new
+                 section type never has to remember to include it. --}}
+            @include('tenant.pages.sections._overlap', ['section' => $firstSection])
           @else
             @include('tenant.pages._section', ['section' => $firstSection])
           @endif

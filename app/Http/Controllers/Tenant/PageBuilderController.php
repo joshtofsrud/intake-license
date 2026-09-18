@@ -1015,10 +1015,14 @@ class PageBuilderController extends Controller
                         ->orderBy('nav_order')
                         ->get(['id', 'title', 'slug', 'is_home']);
                 }
+                // MARKER-SECTION-OVERLAP — the shared control is appended to
+                // the fragment too, or it would vanish the moment you clicked
+                // a different section (this response replaces the body).
                 return view($perType, array_merge(
                     ['section' => $section, 'c' => $section->content ?? []],
                     $extras
-                ))->render();
+                ))->render()
+                    . view('tenant.pages.sections._overlap', ['section' => $section])->render();
             }
             return view('tenant.pages._section', ['section' => $section])->render();
         }

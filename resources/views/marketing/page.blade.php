@@ -273,6 +273,19 @@
     @endphp
 
     @if(view()->exists($partial))
+        {{-- MARKER-SECTION-OVERLAP — same treatment as the tenant renderer, so
+             intake.works and a shop's own site behave identically. --}}
+        @php
+          $pull   = max(0, min(240, (int) ($c['overlap_top'] ?? 0)));
+          $pullId = 'pbpull-' . substr((string) $section->id, 0, 8);
+        @endphp
+        @if($pull > 0)
+          <style>
+            .{{ $pullId }} { margin-top: -{{ $pull }}px; position: relative; z-index: 2; }
+            @media (max-width: 768px) { .{{ $pullId }} { margin-top: 0; } }
+          </style>
+          <div class="{{ $pullId }}">
+        @endif
         @if(!empty($builderPreview))<div data-pb-section="{{ $section->id }}" data-pb-type="{{ $section->section_type }}">@endif
         @include($partial, [
             'c' => $c,
@@ -285,6 +298,7 @@
             'industry' => $industry,
         ])
         @if(!empty($builderPreview))</div>@endif
+        @if($pull > 0)</div>@endif
     @else
         <div style="background:#3b1d0b;color:#ffcc80;padding:12px 24px;font-size:13px;text-align:center;border-top:0.5px solid rgba(255,255,255,.08)">
             No renderer for section type: <code>{{ $type }}</code>

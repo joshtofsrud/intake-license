@@ -355,6 +355,21 @@
       {{-- MARKER-BUILDER-SYNC — an addressable wrapper, builder-only. Section
            partials render their own <section> elements with markup we don't
            control, so a wrapper is the only reliable anchor. --}}
+      {{-- MARKER-SECTION-OVERLAP — a scoped style block, not an inline style:
+           the pull has to disappear on a phone and inline CSS cannot carry a
+           media query. z-index lifts this section's background over the one
+           before it, which is the whole point. --}}
+      @php
+        $pull   = max(0, min(240, (int) ($sc['overlap_top'] ?? 0)));
+        $pullId = 'pbpull-' . substr((string) $section->id, 0, 8);
+      @endphp
+      @if($pull > 0)
+        <style>
+          .{{ $pullId }} { margin-top: -{{ $pull }}px; position: relative; z-index: 2; }
+          @media (max-width: 768px) { .{{ $pullId }} { margin-top: 0; } }
+        </style>
+        <div class="{{ $pullId }}">
+      @endif
       @if(!empty($builderPreview))<div data-pb-section="{{ $section->id }}" data-pb-type="{{ $section->section_type }}">@endif
       @include($partial, [
         'c'        => $sc,
@@ -364,6 +379,7 @@
         'tenant'   => $currentTenant,
       ])
       @if(!empty($builderPreview))</div>@endif
+      @if($pull > 0)</div>@endif
     @elseif(config('app.debug'))
       <div style="padding:24px;margin:20px auto;max-width:800px;background:#fef3c7;border:1px solid #f59e0b;border-radius:8px;color:#78350f;font-family:monospace;font-size:13px;">
         <strong>⚠ Page builder section unsupported on public renderer:</strong> <code>{{ $section->section_type }}</code><br>
