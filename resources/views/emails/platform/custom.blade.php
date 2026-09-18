@@ -16,7 +16,10 @@
           {!! $bodyHtml !!}
         </td></tr>
         <tr><td style="padding:16px 32px 26px;border-top:1px solid #eee;font-size:11.5px;color:#888;line-height:1.6;">
-          Intake@if($postal) · {{ $postal }}@endif
+          {{-- MARKER-PLATFORM-CHROME-GLUE — one expression, no directive against
+               a word character. `Intake@if(...)` did not compile and its @endif
+               fataled the view. --}}
+          {{ trim('Intake' . ($postal ? ' · ' . $postal : '')) }}
         </td></tr>
       </table>
     </td></tr>
