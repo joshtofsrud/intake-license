@@ -164,7 +164,9 @@ class ListTenants extends ListRecords
         ];
 
         // MARKER-DEMO-BUILD-CLEANUP — real money only.
-        $totalMrr = $tenantData->reject(fn ($t) => $t['is_demo'] ?? false)->sum('mrr_cents');
+        // MARKER-TENANTLIST-OBJFIX — these rows are stdClass (the map above
+        // returns `(object) [...]`), so array access fatals. Object syntax.
+        $totalMrr = $tenantData->reject(fn ($t) => ! empty($t->is_demo))->sum('mrr_cents');
 
         // Resolve pending delete record (if any) for modal display
         $pendingDelete = $this->pendingDeleteId
