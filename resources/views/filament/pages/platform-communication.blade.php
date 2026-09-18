@@ -65,6 +65,9 @@
   <div class="pc-tabs">
     <span class="{{ $tab === 'messages' ? 'on' : '' }}" style="cursor:pointer" wire:click="setTab('messages')">Messages</span>
     <span class="{{ $tab === 'campaigns' ? 'on' : '' }}" style="cursor:pointer" wire:click="setTab('campaigns')">Campaigns</span>
+    {{-- MARKER-PLATFORM-SENDLOG --}}
+    <span class="{{ $tab === 'activity' ? 'on' : '' }}" style="cursor:pointer" wire:click="setTab('activity')">Activity</span>
+    <span class="{{ $tab === 'suppressions' ? 'on' : '' }}" style="cursor:pointer" wire:click="setTab('suppressions')">Suppressions</span>
   </div>
 
   @if($tab === 'messages')
@@ -326,6 +329,56 @@
         </div>
       </div>
     @endif
+  @endif
+
+  {{-- ======================================================== ACTIVITY --}}
+  @if($tab === 'activity')
+    <div class="pc-legend">
+      <b>Everything Intake has sent, newest first</b> — campaign sends and one-off mail together. Automatic
+      alerts to you aren't listed; they're in the debug log where they belong.
+    </div>
+
+    <div class="pc-list">
+      @forelse($activity as $row)
+        <div class="pc-row" style="grid-template-columns:150px 1fr 1fr 110px">
+          <div class="fires">{{ $row['when']?->diffForHumans() }}</div>
+          <div><div class="t" style="font-size:13.5px">{{ $row['email'] }}</div></div>
+          <div class="fires">{{ $row['what'] }}</div>
+          <div>
+            <span class="pc-pill @if($row['status'] === 'failed') pc-pill--custom @endif">{{ ucfirst($row['status']) }}</span>
+          </div>
+        </div>
+      @empty
+        <div style="padding:26px 16px;text-align:center;opacity:.5;font-size:13px">Nothing sent yet.</div>
+      @endforelse
+    </div>
+  @endif
+
+  {{-- ==================================================== SUPPRESSIONS --}}
+  @if($tab === 'suppressions')
+    <div class="pc-legend">
+      <b>One list, three reasons.</b> Someone asked to stop ({{ $suppressCounts['unsubscribe'] }}), their mail
+      server refused us ({{ $suppressCounts['bounce'] }}), or they marked us as spam
+      ({{ $suppressCounts['complaint'] }}). Every one of these is skipped at send time. None of it affects a
+      shop's own mail to its customers, or anything transactional about their account.
+    </div>
+
+    <div class="pc-list">
+      @forelse($suppressions as $row)
+        <div class="pc-row" style="grid-template-columns:1fr 150px 1fr 110px">
+          <div><div class="t" style="font-size:13.5px">{{ $row->email }}</div></div>
+          <div>
+            <span class="pc-pill">{{ \App\Models\PlatformEmailOptout::KINDS[$row->kind ?? 'unsubscribe'] ?? 'Suppressed' }}</span>
+          </div>
+          <div class="fires">{{ $row->detail ?: '—' }}</div>
+          <div style="text-align:right">
+            <button type="button" class="pc-edit" wire:click="unsuppress('{{ $row->email }}')">Allow again</button>
+          </div>
+        </div>
+      @empty
+        <div style="padding:26px 16px;text-align:center;opacity:.5;font-size:13px">Nobody is suppressed.</div>
+      @endforelse
+    </div>
   @endif
 </div>
 </x-filament-panels::page>

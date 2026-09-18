@@ -110,4 +110,27 @@ class PlatformMailer
 
         return true;
     }
+
+    /**
+     * MARKER-PLATFORM-SENDLOG — record a non-campaign platform send.
+     *
+     * Best-effort by design: a failure to write the log must never stop the
+     * email, so every caller stays on its own path if this throws.
+     */
+    public static function log(string $kind, string $email, ?string $subject, array $extra = []): void
+    {
+        try {
+            \App\Models\PlatformEmailSend::create([
+                'kind'         => $kind,
+                'template_key' => $extra['template_key'] ?? null,
+                'email'        => mb_strtolower(trim($email)),
+                'subject'      => $subject,
+                'tenant_id'    => $extra['tenant_id'] ?? null,
+                'status'       => $extra['status'] ?? 'sent',
+                'error'        => $extra['error'] ?? null,
+            ]);
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('platform send log failed', ['error' => $e->getMessage()]);
+        }
+    }
 }

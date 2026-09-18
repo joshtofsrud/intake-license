@@ -64,7 +64,21 @@ class PlatformCommunication extends Page
 
     public function setTab(string $tab): void
     {
-        $this->tab = $tab === 'campaigns' ? 'campaigns' : 'messages';
+        // MARKER-PLATFORM-SENDLOG — four tabs now, all of them real.
+        $this->tab = in_array($tab, ['messages', 'campaigns', 'activity', 'suppressions'], true)
+            ? $tab
+            : 'messages';
+    }
+
+    /** MARKER-PLATFORM-SENDLOG — let an address back in. */
+    public function unsuppress(string $email): void
+    {
+        \App\Models\PlatformEmailOptout::whereKey($email)->delete();
+
+        Notification::make()->success()
+            ->title('Removed from the suppression list')
+            ->body($email . ' can be mailed again. If it bounced before, it may bounce again.')
+            ->send();
     }
 
     protected function getViewData(): array
@@ -115,7 +129,44 @@ class PlatformCommunication extends Page
             $others[$row['group']][] = $row;
         }
 
+        // MARKER-PLATFORM-SENDLOG — the log is campaign sends and one-off sends
+        // read together, newest first, rather than a second copy of either.
+        $activity = collect();
+        $suppressions = collect();
+        $suppressCounts = ['unsubscribe' => 0, 'bounce' => 0, 'complaint' => 0];
+
+        try {
+            $ones = \App\Models\PlatformEmailSend::latest()->limit(100)->get()->map(fn ($r) => [
+                'when'    => $r->created_at,
+                'email'   => $r->email,
+                'what'    => $r->subject ?: ucfirst($r->kind),
+                'kind'    => $r->kind,
+                'status'  => $r->status,
+            ]);
+
+            $camp = \App\Models\PlatformCampaignSend::with([])->latest()->limit(100)->get()->map(fn ($r) => [
+                'when'    => $r->sent_at ?: $r->created_at,
+                'email'   => $r->email,
+                'what'    => 'Campaign',
+                'kind'    => 'campaign',
+                'status'  => $r->status,
+            ]);
+
+            $activity = $ones->concat($camp)->sortByDesc('when')->take(100)->values();
+
+            $suppressions = \App\Models\PlatformEmailOptout::latest('updated_at')->limit(200)->get();
+            foreach ($suppressions as $row) {
+                $k = $row->kind ?: 'unsubscribe';
+                $suppressCounts[$k] = ($suppressCounts[$k] ?? 0) + 1;
+            }
+        } catch (\Throwable $e) {
+            // migration not run yet
+        }
+
         return [
+            'activity'       => $activity,
+            'suppressions'   => $suppressions,
+            'suppressCounts' => $suppressCounts,
             'others'     => $others,
             'audiences'  => $audiences,
             'campaigns'  => $campaigns,
@@ -223,6 +274,8 @@ class PlatformCommunication extends Page
                     $m->from($from, PlatformMailer::fromName());
                 }
             });
+
+            PlatformMailer::log('test', $to, '[TEST] ' . $subject, ['template_key' => $this->editing]);
 
             Notification::make()->success()->title('Test sent to ' . $to)->send();
         } catch (\Throwable $e) {

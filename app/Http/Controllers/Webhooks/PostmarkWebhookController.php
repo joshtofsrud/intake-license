@@ -164,6 +164,19 @@ class PostmarkWebhookController extends Controller
             return response('OK', 200);
         }
 
+        // MARKER-PLATFORM-SENDLOG — a bounce with NO tenant metadata is platform
+        // mail: EmailService stamps tenant_id on every tenant send and
+        // PlatformMailer deliberately does not. Suppress it on our own list so
+        // the next campaign skips the address.
+        if (! $tenantId && in_array($type, $this->suppressOnBounceTypes, true)) {
+            \App\Models\PlatformEmailOptout::suppress(
+                $email,
+                'bounce',
+                trim(($type ?: 'Bounce') . ' — ' . (string) ($payload['Description'] ?? '')),
+                'postmark'
+            );
+        }
+
         TenantEmailBounceEvent::create([
             'tenant_id'         => $tenantId,
             'email'             => $email,
@@ -214,6 +227,13 @@ class PostmarkWebhookController extends Controller
             'source_message_id' => $msgId,
             'payload'           => $payload,
         ]);
+
+        // MARKER-PLATFORM-SENDLOG — a complaint against platform mail is
+        // permanent and immediate. No soft handling: someone who marked it as
+        // spam has said everything they need to.
+        if ($email !== '') {
+            \App\Models\PlatformEmailOptout::suppress($email, 'complaint', 'Marked as spam', 'postmark');
+        }
 
         // Complaints are always platform-wide (tenant_id = null).
         $this->suppress(null, $email, 'complaint', 'SpamComplaint', $msgId, null);
