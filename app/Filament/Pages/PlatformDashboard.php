@@ -116,7 +116,10 @@ class PlatformDashboard extends Page
 
         // Est. MRR (list) as of each day: active tenants that existed then.
         $plans  = \App\Support\PlanPricing::all() ?? [];
-        $active = Tenant::where('subscription_status', 'active')->get(['created_at', 'plan_tier', 'licensed_locations']);
+        // MARKER-DEMO-BUILD-CLEANUP — a demo shop is not revenue.
+        $active = Tenant::where('subscription_status', 'active')
+            ->where('is_demo', false)
+            ->get(['created_at', 'plan_tier', 'licensed_locations']);
         $mrr = [];
         foreach ($labels as $d) {
             $dayEnd = \Carbon\Carbon::parse($d)->endOfDay();
@@ -489,8 +492,8 @@ class PlatformDashboard extends Page
     protected function buildSaas(): array
     {
         $totalTenants = Tenant::count();
-        $newThisWeek  = Tenant::where('created_at', '>=', now()->subDays(7))->count();
-        $newLastWeek  = Tenant::whereBetween('created_at', [now()->subDays(14), now()->subDays(7)])->count();
+        $newThisWeek  = Tenant::where('is_demo', false)->where('created_at', '>=', now()->subDays(7))->count(); // MARKER-DEMO-BUILD-CLEANUP
+        $newLastWeek  = Tenant::where('is_demo', false)->whereBetween('created_at', [now()->subDays(14), now()->subDays(7)])->count(); // MARKER-DEMO-BUILD-CLEANUP
         $weekDelta    = $newLastWeek > 0
             ? (int) round((($newThisWeek - $newLastWeek) / $newLastWeek) * 100)
             : ($newThisWeek > 0 ? 100 : 0);

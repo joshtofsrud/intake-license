@@ -276,6 +276,19 @@ class DemoBuildTemplate extends Command
             $this->copyMedia($src->id, $demoId);
             $this->line('Freezing template … ' . $el());
             $this->freeze($demoId, $tables);
+
+        // MARKER-DEMO-BUILD-CLEANUP - the clone was scaffolding. The manifest
+        // records the LIVE demo's id and demo:reset restores from the files on
+        // disk, so nothing reads this tenant again. Leaving it behind put a
+        // fake shop in the tenants list and $199 of imaginary MRR on the
+        // dashboard, and every future build would add another.
+        if ($this->slug !== $fromSub) {
+            $clone = \App\Models\Tenant::where('subdomain', $this->slug)->first();
+            if ($clone && $clone->is_demo && (string) $clone->id !== (string) $demoId) {
+                $this->line("Removing build scaffold {$clone->subdomain}...");
+                $clone->forceDelete();
+            }
+        }
         } catch (\Throwable $e) {
             \App\Support\JobFailureReporter::report(self::class, "demo:build-template failed after the swap for '{$this->slug}' — the demo is OFFLINE until a build completes (re-run demo:build-template --from=… --force)", $e, ['slug' => $this->slug, 'from' => $src->subdomain]);
             throw $e;

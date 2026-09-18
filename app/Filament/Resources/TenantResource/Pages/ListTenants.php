@@ -100,6 +100,11 @@ class ListTenants extends ListRecords
 
         $tenants = $query->get();
 
+        // MARKER-DEMO-BUILD-CLEANUP — demo tenants are not customers. They were
+        // counted in the header and in MRR because the filter tested
+        // is_platform and not is_demo, which overstated both.
+        $demoCount = $tenants->where('is_demo', true)->count();
+
         $metrics = app(TenantMetricsService::class);
         $tenantData = $tenants->map(function (Tenant $t) use ($metrics) {
             $m = $metrics->forTenant($t);
@@ -133,6 +138,7 @@ class ListTenants extends ListRecords
                 'initial' => $this->initialFor($t->name),
                 'avatar_color' => $this->avatarColorFor($t->name),
                 'is_platform' => $isPlatform,
+                'is_demo'     => (bool) $t->is_demo, // MARKER-DEMO-BUILD-CLEANUP
                 'is_protected' => $isPlatform, // can expand later (e.g. Intake employees)
             ];
         });
@@ -157,7 +163,8 @@ class ListTenants extends ListRecords
             'past_due' => $tenants->filter(fn ($t) => $this->resolveLifecycle($t, $metrics->forTenant($t)['is_trial']) === 'past_due')->count(),
         ];
 
-        $totalMrr = $tenantData->sum('mrr_cents');
+        // MARKER-DEMO-BUILD-CLEANUP — real money only.
+        $totalMrr = $tenantData->reject(fn ($t) => $t['is_demo'] ?? false)->sum('mrr_cents');
 
         // Resolve pending delete record (if any) for modal display
         $pendingDelete = $this->pendingDeleteId
@@ -168,6 +175,7 @@ class ListTenants extends ListRecords
             'tenants' => $tenantData,
             'counts' => $counts,
             'totalMrr' => $totalMrr,
+            'demoCount' => $demoCount, // MARKER-DEMO-BUILD-CLEANUP
             'filterStatus' => $this->filterStatus,
             'filterPlan' => $this->filterPlan,
             'filterSubscription' => $this->filterSubscription,

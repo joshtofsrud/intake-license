@@ -15,6 +15,11 @@
                     @if($counts['suspended']) · {{ $counts['suspended'] }} suspended @endif
                     @if($counts['past_due'] ?? 0) · {{ $counts['past_due'] }} past due @endif
                     · ${{ number_format($totalMrr / 100, 0) }}/mo MRR
+                    {{-- MARKER-DEMO-BUILD-CLEANUP — say it, or the number looks
+                         wrong to anyone who counts the cards. --}}
+                    @if(($demoCount ?? 0) > 0)
+                      <span style="opacity:.55">· excludes {{ $demoCount }} demo {{ $demoCount === 1 ? 'tenant' : 'tenants' }}</span>
+                    @endif
                 </div>
                 <div class="tg-search-wrap">
                     <svg class="tg-search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
