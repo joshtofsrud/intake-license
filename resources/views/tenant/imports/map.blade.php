@@ -229,6 +229,24 @@
           <span><b>Create categories that don't exist</b><span>Matched on name. "Parts &gt; Brakes" creates the parent too.</span></span></label>
         <label class="imp-radio"><input type="checkbox" name="create_vendors" value="1" checked>
           <span><b>Create vendors that don't exist</b><span>Existing vendors are matched on name first.</span></span></label>
+
+        {{-- MARKER-IMPORT-MPN-BRAND — one vendor for the whole file. --}}
+        @if(($import->type ?? '') === 'inventory' && isset($vendors))
+          <div style="margin-top:12px">
+            <label for="import_vendor_id" style="display:block;font-size:13px;font-weight:600;margin-bottom:5px">Vendor for this whole import</label>
+            <select name="import_vendor_id" id="import_vendor_id" class="imp-sel" style="max-width:340px;width:100%">
+              <option value="">No vendor</option>
+              @foreach($vendors as $v)
+                <option value="{{ $v->id }}">{{ $v->name }}</option>
+              @endforeach
+            </select>
+            <div class="imp-hint" style="margin-top:5px">
+              A distributor file has one supplier and a brand per row, so vendor is set here rather
+              than mapped. Map <b>Brand</b> to the column that varies. If the file does carry a
+              vendor column and you map it, that column wins for those rows.
+            </div>
+          </div>
+        @endif
       </div>
     </div>
   @endif

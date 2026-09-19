@@ -253,9 +253,13 @@ class ImportController extends Controller
         // "email". saveMapping() blocks on this same field.
         $matchField = ImportFieldRegistry::matchField($import->type);
 
+        // MARKER-IMPORT-MPN-BRAND — the vendor list for the import-level select.
+        $vendors = \App\Models\Tenant\TenantVendor::where('tenant_id', tenant()->id)
+            ->orderBy('name')->get(['id', 'name']);
+
         return view('tenant.imports.map', compact(
             'import', 'preview', 'stats', 'fields', 'mapping', 'locations',
-            'matchField', 'presets', 'applied', 'autoMatched'));
+            'matchField', 'presets', 'applied', 'autoMatched', 'vendors'));
     }
 
     public function saveMapping(Request $request, string $id)
@@ -296,6 +300,10 @@ class ImportController extends Controller
                                        ? $request->input('stock_mode') : 'set',
                 'create_categories' => $request->boolean('create_categories'),
                 'create_vendors'    => $request->boolean('create_vendors'),
+                // MARKER-IMPORT-MPN-BRAND — one vendor for the whole file. A
+                // distributor file has a single supplier and a brand per row;
+                // a mapped vendor column still wins where one exists.
+                'import_vendor_id'  => $request->input('import_vendor_id') ?: null,
                 // MARKER-CUSTOMER-TAGS — tag every customer this import
                 // CREATES. Updates and skips are not tagged: those people
                 // did not come from this file.

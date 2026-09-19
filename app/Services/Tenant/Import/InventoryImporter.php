@@ -441,8 +441,22 @@ class InventoryImporter
                     }
 
                     // vendor link through the pivot (no tenant_id — scope via item)
-                    if (! empty($row['extra']['vendor'])) {
-                        $vendor = $this->resolveVendor($row['extra']['vendor'], $createVendors, $made);
+                    // MARKER-IMPORT-MPN-BRAND — a mapped vendor column wins for
+                    // its row (a value in the file is more specific than a
+                    // setting on the screen); otherwise the whole import shares
+                    // the vendor chosen on the map screen.
+                    $rowVendorName = $row['extra']['vendor'] ?? null;
+                    $importVendorId = $this->option('import_vendor_id');
+
+                    if (empty($rowVendorName) && $importVendorId) {
+                        $vendor = $this->vendorById($importVendorId);
+                        if ($vendor) {
+                            $this->linkVendor($item, $vendor, $row['values']['shop_cost_cents'] ?? null);
+                        }
+                    }
+
+                    if (! empty($rowVendorName)) {
+                        $vendor = $this->resolveVendor($rowVendorName, $createVendors, $made);
                         if ($vendor) {
                             $linked = DB::table('tenant_inventory_item_vendors')
                                 ->where('inventory_item_id', $item->id)
@@ -519,5 +533,42 @@ class InventoryImporter
         $flush();
 
         return ['counts' => $counts, 'errorRows' => $errorRows];
+    }
+
+    /**
+     * MARKER-IMPORT-MPN-BRAND — the import-level vendor, looked up once.
+     *
+     * By id, not name: it was chosen from the tenant's own list, so there is
+     * nothing to resolve and nothing to accidentally create.
+     */
+    private function vendorById($id)
+    {
+        if (array_key_exists('__import__', $this->vendorCache)) {
+            return $this->vendorCache['__import__'];
+        }
+
+        $vendor = TenantVendor::where('tenant_id', $this->tenant->id)->find($id);
+
+        return $this->vendorCache['__import__'] = $vendor;
+    }
+
+    /** MARKER-IMPORT-MPN-BRAND — idempotent pivot link, shared by both paths. */
+    private function linkVendor($item, $vendor, $costCents = null): void
+    {
+        $linked = DB::table('tenant_inventory_item_vendors')
+            ->where('inventory_item_id', $item->id)
+            ->where('vendor_id', $vendor->id)->exists();
+
+        if ($linked) {
+            return;
+        }
+
+        DB::table('tenant_inventory_item_vendors')->insert([
+            'inventory_item_id' => $item->id,
+            'vendor_id'         => $vendor->id,
+            'unit_cost_cents'   => $costCents,
+            'is_preferred'      => 0,
+            'created_at'        => now(), 'updated_at' => now(),
+        ]);
     }
 }

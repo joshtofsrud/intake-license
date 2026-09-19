@@ -55,6 +55,11 @@ class ImportFieldRegistry
             'color'        => ['label' => 'Colour',         'type' => 'text', 'max' => 64],
             'size'         => ['label' => 'Size',           'type' => 'text', 'max' => 64],
             'upc'          => ['label' => 'UPC',            'type' => 'text', 'max' => 64],
+            // MARKER-IMPORT-MPN-BRAND — MPN is matchable because in a
+            // distributor file it is often the only stable key; SKU is
+            // frequently the shop's own invention and absent from the feed.
+            'catalog_mpn'  => ['label' => 'MPN (mfr part no.)', 'type' => 'text', 'max' => 64, 'match' => true],
+            'shop_brand'   => ['label' => 'Brand',          'type' => 'text', 'max' => 128],
             'tax_class_code' => ['label' => 'Tax class',    'type' => 'text', 'max' => 32],
             'is_active'    => ['label' => 'Active',         'type' => 'bool'],
             'is_stock_tracked' => ['label' => 'Track stock','type' => 'bool'],

@@ -53,6 +53,7 @@ class TenantInventoryItem extends Model
         'catalog_upc',
         'catalog_ean',   // MARKER-ITEM-IDENTIFIERS
         'catalog_mpn',
+        'shop_brand', // MARKER-IMPORT-MPN-BRAND — the shop's own brand value
         'catalog_title_seen',
         'catalog_details_seen', // MARKER-DETAILS-WATCH
         'catalog_synced_at',

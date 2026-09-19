@@ -138,7 +138,10 @@
   $closedSos = $item->specialOrders->whereIn('status', ['pulled', 'cancelled'])->sortByDesc('updated_at')->take(5);
   $onOrderQty = $openSos->sum('quantity');
 
-  $brand = $item->distributorCatalog?->manufacturer;
+  // MARKER-IMPORT-MPN-BRAND — the shop's own brand wins over the catalog's,
+  // the same precedence cost uses. Before this, an item with no catalog link
+  // simply had no brand.
+  $brand = $item->shop_brand ?: $item->distributorCatalog?->manufacturer;
 @endphp
 
 @section('content')

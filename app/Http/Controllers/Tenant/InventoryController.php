@@ -263,9 +263,13 @@ class InventoryController extends Controller
             // to the items table: a hand-created item has no catalog row and
             // must not disappear from the list because someone sorted by
             // brand. Those sort last instead.
+            // MARKER-IMPORT-MPN-BRAND - the shop's own brand wins over the
+            // catalog's, so an imported item with a brand sorts among the
+            // others instead of falling into the 'zzzz' bucket with the
+            // genuinely brandless ones.
             $dir = $sort === 'brand_asc' ? 'asc' : 'desc';
             $q->leftJoin('platform_distributor_catalogs as pdc_sort', 'pdc_sort.id', '=', 'tenant_inventory_items.distributor_catalog_id')
-              ->orderByRaw("COALESCE(NULLIF(pdc_sort.manufacturer, ''), 'zzzz') {$dir}")
+              ->orderByRaw("COALESCE(NULLIF(tenant_inventory_items.shop_brand, ''), NULLIF(pdc_sort.manufacturer, ''), 'zzzz') {$dir}")
               ->orderBy('tenant_inventory_items.name')
               ->select('tenant_inventory_items.*');
         } else {
