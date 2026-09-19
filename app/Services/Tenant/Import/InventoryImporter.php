@@ -31,6 +31,7 @@ class InventoryImporter
     // MARKER-IMPORT-MERGE — conflict analysis for the merge review screen.
     use AnalysesConflicts;
     use BuildsCombinedFields; // MARKER-IMPORT-COMBINE
+    use MatchesRecords;       // MARKER-IMPORT-MATCH
 
     public const CHUNK = 100;
 
@@ -282,20 +283,26 @@ class InventoryImporter
     {
         $csv = new CsvFile($this->import->stored_path, $this->import->delimiter, $this->import->encoding);
 
-        $counts = ['create' => 0, 'update' => 0, 'unchanged' => 0,
+        $counts = ['create' => 0, 'update' => 0, 'unchanged' => 0, 'possible_duplicate' => 0,
                    'skipped' => 0, 'unmatched' => 0, 'error' => 0];
         $sample = []; $seen = []; $first = true;
+        $this->ledgerStart('preview'); // MARKER-IMPORT-MATCH
         $newCats = []; $newVendors = [];
         $skuIdx  = $this->skuIndex();
 
         $batch = [];
         $flush = function () use (&$batch, &$counts, &$sample, $sampleLimit, &$newCats, &$newVendors) {
             if (! $batch) { return; }
-            $existing = $this->lookup(array_map(fn ($b) => $b['key'], $batch));
+            // MARKER-IMPORT-MATCH — three keys, strongest first, and a judge
+            // step that turns a weak or disagreeing match into a possible
+            // duplicate rather than a silent merge. Every row is ledgered.
+            $matches = $this->matchBatch($batch);
 
-            foreach ($batch as $b) {
-                $row = $this->buildRow($b['cells'], $existing[$b['key']] ?? null, $b['line']);
+            foreach ($batch as $i => $b) {
+                $row = $this->buildRow($b['cells'], $matches[$i]['record'], $b['line']);
+                $row = $this->judge($row, $matches[$i], $b['line'], $b['cells']);
                 $counts[$row['outcome']] = ($counts[$row['outcome']] ?? 0) + 1;
+                $this->ledgerRow('preview', $b['line'], $b['cells'], $row, $matches[$i]);
 
                 // Which categories/vendors WOULD be created — resolve read-only.
                 if (! empty($row['extra']['category'])) {
@@ -330,11 +337,13 @@ class InventoryImporter
 
             if ($key !== '' && isset($seen[$key])) {
                 $counts['error']++;
+                $dupErr = ['SKU appears twice in this file (also line ' . $seen[$key] . ')'];
                 if (count($sample) < $sampleLimit) {
                     $sample[] = ['line' => $line, 'outcome' => 'error',
-                                 'errors' => ['SKU appears twice in this file (also line ' . $seen[$key] . ')'],
+                                 'errors' => $dupErr,
                                  'sku' => $key, 'name' => '—', 'changes' => [], 'stock' => null];
                 }
+                $this->ledgerRow('preview', $line, $cells, ['outcome' => 'error', 'errors' => $dupErr, 'changes' => []]); // MARKER-IMPORT-MATCH
                 continue;
             }
             if ($key !== '') { $seen[$key] = $line; }
@@ -343,6 +352,7 @@ class InventoryImporter
             if (count($batch) >= self::CHUNK) { $flush(); }
         }
         $flush();
+        $this->ledgerFlush(); // MARKER-IMPORT-MATCH
 
         return ['counts' => $counts, 'sample' => $sample,
                 'newCategories' => array_keys($newCats), 'newVendors' => array_keys($newVendors)];
@@ -350,6 +360,7 @@ class InventoryImporter
 
     public function run(): array
     {
+        $this->ledgerStart('run'); // MARKER-IMPORT-MATCH
         $csv = new CsvFile($this->import->stored_path, $this->import->delimiter, $this->import->encoding);
         $inventory = app(InventoryService::class);
 
@@ -374,12 +385,23 @@ class InventoryImporter
         $flush = function () use (&$batch, &$counts, &$errorRows, $inventory, $location,
                                  $createCats, $createVendors, $stockMode, $user) {
             if (! $batch) { return; }
-            $existing = $this->lookup(array_map(fn ($b) => $b['key'], $batch));
+            $matches = $this->matchBatch($batch); // MARKER-IMPORT-MATCH
 
             DB::transaction(function () use ($batch, $existing, &$counts, &$errorRows, $inventory,
                                             $location, $createCats, $createVendors, $stockMode, $user) {
-                foreach ($batch as $b) {
-                    $row = $this->buildRow($b['cells'], $existing[$b['key']] ?? null, $b['line']);
+                foreach ($batch as $i => $b) {
+                    $row = $this->buildRow($b['cells'], $matches[$i]['record'], $b['line']);
+                    $row = $this->judge($row, $matches[$i], $b['line'], $b['cells']); // MARKER-IMPORT-MATCH
+                    $this->ledgerRow('run', $b['line'], $b['cells'], $row, $matches[$i]);
+
+                    // MARKER-IMPORT-MATCH — the controller refuses to run with
+                    // unresolved possible duplicates, so reaching here means a
+                    // race. Never merge it: skip, count, and say so.
+                    if ($row['outcome'] === 'possible_duplicate') {
+                        $counts['skipped']++;
+                        $errorRows[] = [$b['cells'], 'Unresolved possible duplicate — not written'];
+                        continue;
+                    }
 
                     if ($row['outcome'] === 'error') {
                         $counts['errors']++;
@@ -417,6 +439,9 @@ class InventoryImporter
                             // MARKER-SOURCE-CAT — what the file called it.
                             'source_category' => $sourceCategory,
                             'source_name'     => $this->sourceName(),
+                            // MARKER-IMPORT-UPC-WRITE - a mapped UPC used to be
+                            // collected and silently dropped.
+                            'catalog_ean'     => $row['extra']['upc'] ?? null,
                         ], array_filter([
                             'tenant_id'   => $this->tenant->id,
                             'category_id' => $categoryId,
@@ -435,6 +460,11 @@ class InventoryImporter
                         if ($changes) {
                             $before = [];
                             foreach ($changes as $k => $v) { $before[$k] = $item->{$k}; }
+                            // MARKER-IMPORT-UPC-WRITE - fill a missing UPC on update
+                            // too; never overwrite one the shop already has.
+                            if (! empty($row['extra']['upc']) && empty($item->catalog_ean)) {
+                                $changes['catalog_ean'] = $row['extra']['upc'];
+                            }
                             $item->update($changes);
                             TenantImportRow::create([
                                 'import_id' => $this->import->id, 'tenant_id' => $this->tenant->id,
@@ -527,6 +557,7 @@ class InventoryImporter
             if (count($batch) >= self::CHUNK) { $flush(); }
         }
         $flush();
+        $this->ledgerFlush(); // MARKER-IMPORT-MATCH
 
         return ['counts' => $counts, 'errorRows' => $errorRows];
     }

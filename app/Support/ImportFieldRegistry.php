@@ -94,6 +94,20 @@ class ImportFieldRegistry
     }
 
     /** The field a row is matched on for this import type. */
+    /**
+     * MARKER-IMPORT-MATCH — the words a screen uses for this import type, so
+     * an inventory import never says "customers". One place, used by every
+     * import view.
+     */
+    public static function nouns(string $importType): array
+    {
+        return $importType === 'inventory'
+            ? ['singular' => 'item', 'plural' => 'items', 'key' => 'SKU',
+               'keys' => 'SKU, then UPC, then MPN', 'route' => 'tenant.inventory.index', 'view' => 'View inventory']
+            : ['singular' => 'customer', 'plural' => 'customers', 'key' => 'email',
+               'keys' => 'email, then phone, then name and postcode', 'route' => 'tenant.customers.index', 'view' => 'View customers'];
+    }
+
     public static function matchField(string $importType): string
     {
         foreach (self::for($importType) as $key => $def) {

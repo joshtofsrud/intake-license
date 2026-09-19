@@ -3,6 +3,8 @@
 {{-- MARKER-IMPORT1 --}}
 
 @section('content')
+{{-- MARKER-IMPORT-MATCH — per-type nouns; this screen serves both importers. --}}
+@php $nouns = \App\Support\ImportFieldRegistry::nouns($import->type ?? 'customers'); @endphp
 @include('tenant.imports._styles')
 
 @if(session('error'))<div class="ia-flash ia-flash--error" style="margin-bottom:14px">{{ session('error') }}</div>@endif
@@ -15,7 +17,7 @@
     <p class="ia-page-subtitle mono">{{ $import->original_filename }}</p>
   </div>
   <div class="ia-page-actions">
-    <a href="{{ route('tenant.customers.index') }}" class="ia-btn ia-btn--secondary">View customers</a>
+    <a href="{{ route($nouns['route']) }}" class="ia-btn ia-btn--secondary">{{ $nouns['view'] }}</a>
     <a href="{{ route('tenant.imports.index') }}" class="ia-btn ia-btn--primary">Done</a>
   </div>
 </div>
@@ -37,7 +39,7 @@
     {{ number_format($import->total('created') + $import->total('updated')) }} rows imported.
     {{-- MARKER-IMPORT-TAG-ALL — tagging is often the whole point of the run. --}}
     @if($import->total('tagged') > 0)
-      {{ number_format($import->total('tagged')) }} customers tagged
+      {{ number_format($import->total('tagged')) }} {{ $nouns['plural'] }} tagged
       <b>{{ $import->options['tag_name'] ?? '' }}</b>.
     @endif
   </div>

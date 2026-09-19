@@ -3,6 +3,8 @@
 {{-- MARKER-IMPORT1 --}}
 
 @section('content')
+{{-- MARKER-IMPORT-MATCH — per-type nouns; this screen serves both importers. --}}
+@php $nouns = \App\Support\ImportFieldRegistry::nouns($import->type ?? 'customers'); @endphp
 @include('tenant.imports._styles')
 
 @if(session('error'))<div class="ia-flash ia-flash--error" style="margin-bottom:14px">{{ session('error') }}</div>@endif
@@ -276,12 +278,12 @@
        they sit together at the same size. --}}
   <div class="{{ $import->type === 'customers' ? 'imp-three' : 'imp-two' }}">
     <div class="ia-card">
-      <div class="ia-card-head"><span class="ia-card-title">Existing customers</span></div>
+      <div class="ia-card-head"><span class="ia-card-title">Existing {{ $nouns['plural'] }}</span></div>
       <div class="ia-card-body">
         <label class="imp-radio"><input type="radio" name="mode" value="upsert" checked>
-          <span><b>Add and update</b><span>New emails are created; ones you already have are merged.</span></span></label>
+          <span><b>Add and update</b><span>New {{ $nouns['plural'] }} are created; ones you already have are merged.</span></span></label>
         <label class="imp-radio"><input type="radio" name="mode" value="insert">
-          <span><b>Add only</b><span>Existing customers are left alone and reported as skipped.</span></span></label>
+          <span><b>Add only</b><span>Existing {{ $nouns['plural'] }} are left alone and reported as skipped.</span></span></label>
         <label class="imp-radio"><input type="radio" name="mode" value="update">
           <span><b>Update only</b><span>Nothing new is created. Rows with no match are listed, not dropped.</span></span></label>
       </div>

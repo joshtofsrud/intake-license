@@ -545,13 +545,40 @@ class ImportController extends Controller
         $result = $this->importer($import)->preview();
         $import->update(['status' => 'previewed']);
 
-        return view('tenant.imports.preview', compact('import', 'result'));
+        // MARKER-IMPORT-MATCH — the review list and the ledger behind the tiles.
+        $dupes = \App\Models\Tenant\TenantImportLedgerRow::where('import_id', $import->id)
+            ->where('phase', 'preview')->where('outcome', 'possible_duplicate')
+            ->orderBy('line')->limit(500)->get();
+        $decisions = ($import->row_overrides ?? [])['__match'] ?? [];
+        $showOutcome = request()->query('rows');
+        $ledgerRows = $showOutcome
+            ? \App\Models\Tenant\TenantImportLedgerRow::where('import_id', $import->id)
+                ->where('phase', 'preview')->where('outcome', $showOutcome)->orderBy('line')->limit(500)->get()
+            : collect();
+        $nouns  = ImportFieldRegistry::nouns($import->type);
+        $fields = ImportFieldRegistry::for($import->type);
+        $header = (array) ($import->columns ?? []);
+
+        return view('tenant.imports.preview', compact(
+            'import', 'result', 'dupes', 'decisions', 'showOutcome', 'ledgerRows', 'nouns', 'fields', 'header'));
     }
 
     public function run(string $id)
     {
         $this->guard();
         $import = $this->find($id);
+
+        // MARKER-IMPORT-MATCH — no silent merges: a run cannot start while any
+        // possible duplicate from the preview is unresolved.
+        $decided   = ($import->row_overrides ?? [])['__match'] ?? [];
+        $unresolved = \App\Models\Tenant\TenantImportLedgerRow::where('import_id', $import->id)
+            ->where('phase', 'preview')->where('outcome', 'possible_duplicate')
+            ->pluck('line')->filter(fn ($l) => ! isset($decided[(string) $l]))->count();
+        if ($unresolved > 0) {
+            return redirect()->route('tenant.imports.preview', $import->id)
+                ->with('error', $unresolved . ' possible ' . ($unresolved === 1 ? 'duplicate needs' : 'duplicates need')
+                    . ' a decision before this can run. Nothing has been written.');
+        }
 
         $import->update(['status' => 'running', 'started_at' => now()]);
 
@@ -758,5 +785,63 @@ class ImportController extends Controller
         }
 
         return redirect()->route('tenant.imports.show', $import->id)->with('success', $msg);
+    }
+
+    /**
+     * MARKER-IMPORT-MATCH — record merge / create / skip for possible
+     * duplicates. Stored alongside per-field conflict decisions so one place
+     * holds every choice made about this file.
+     */
+    public function resolveMatches(Request $request, string $id)
+    {
+        $import = $this->find($id);
+        $ov = (array) ($import->row_overrides ?? []);
+        $cur = (array) ($ov['__match'] ?? []);
+
+        $all = $request->input('all');
+        if (in_array($all, ['merge', 'create', 'skip'], true)) {
+            $lines = \App\Models\Tenant\TenantImportLedgerRow::where('import_id', $import->id)
+                ->where('phase', 'preview')->where('outcome', 'possible_duplicate')->pluck('line');
+            foreach ($lines as $l) { $cur[(string) $l] = $all; }
+        }
+
+        foreach ((array) $request->input('decision', []) as $line => $d) {
+            if (in_array($d, ['merge', 'create', 'skip'], true)) { $cur[(string) (int) $line] = $d; }
+        }
+
+        $ov['__match'] = $cur;
+        $import->update(['row_overrides' => $ov]);
+
+        return redirect()->route('tenant.imports.preview', $import->id)
+            ->with('success', count($cur) . ' ' . (count($cur) === 1 ? 'decision' : 'decisions') . ' saved.');
+    }
+
+    /**
+     * MARKER-IMPORT-MATCH — the ledger as a CSV: the input columns as they
+     * were, with Outcome / Reason / Matched / Match key appended. Every input
+     * row gets an output row.
+     */
+    public function ledger(Request $request, string $id)
+    {
+        $import = $this->find($id);
+        $phase  = $request->query('phase') === 'run' ? 'run' : 'preview';
+        $header = (array) ($import->columns ?? []);
+
+        $rows = \App\Models\Tenant\TenantImportLedgerRow::where('import_id', $import->id)
+            ->where('phase', $phase)->orderBy('line')->cursor();
+
+        $name = pathinfo((string) $import->original_filename, PATHINFO_FILENAME) . '-' . $phase . '-ledger.csv';
+
+        return response()->streamDownload(function () use ($rows, $header) {
+            $out = fopen('php://output', 'w');
+            fputcsv($out, array_merge(['Line'], $header, ['Outcome', 'Reason', 'Matched', 'Match key', 'Changed fields']));
+            foreach ($rows as $r) {
+                fputcsv($out, array_merge(
+                    [$r->line], (array) $r->cells,
+                    [$r->outcome, $r->reason, $r->matched_label, $r->match_key, implode(', ', (array) $r->changes)]
+                ));
+            }
+            fclose($out);
+        }, $name, ['Content-Type' => 'text/csv']);
     }
 }

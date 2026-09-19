@@ -20,6 +20,7 @@ class CustomerImporter
     // MARKER-IMPORT-MERGE — conflict analysis for the merge review screen.
     use AnalysesConflicts;
     use BuildsCombinedFields; // MARKER-IMPORT-COMBINE
+    use MatchesRecords;       // MARKER-IMPORT-MATCH
 
     public const CHUNK = 200;
 
@@ -289,7 +290,8 @@ class CustomerImporter
     {
         $csv = new CsvFile($this->import->stored_path, $this->import->delimiter, $this->import->encoding);
 
-        $counts = ['create' => 0, 'update' => 0, 'unchanged' => 0,
+        $this->ledgerStart('preview'); // MARKER-IMPORT-MATCH
+        $counts = ['possible_duplicate' => 0, 'create' => 0, 'update' => 0, 'unchanged' => 0,
                    'skipped' => 0, 'unmatched' => 0, 'error' => 0,
                    'will_tag' => 0]; // MARKER-PREVIEW-TAGS
         $sample = [];
@@ -305,10 +307,15 @@ class CustomerImporter
         $batch = [];
         $flush = function () use (&$batch, &$counts, &$sample, $sampleLimit) {
             if (! $batch) { return; }
-            $existing = $this->lookup(array_map(fn ($b) => $b['key'], $batch));
-            foreach ($batch as $b) {
-                $row = $this->buildRow($b['cells'], $existing[$b['key']] ?? null, $b['line']);
+            // MARKER-IMPORT-MATCH — email, then phone, then name+postcode; a
+            // weak or disagreeing match becomes a possible duplicate, never a
+            // silent merge. Every row is ledgered.
+            $matches = $this->matchBatch($batch);
+            foreach ($batch as $i => $b) {
+                $row = $this->buildRow($b['cells'], $matches[$i]['record'], $b['line']);
+                $row = $this->judge($row, $matches[$i], $b['line'], $b['cells']);
                 $counts[$row['outcome']] = ($counts[$row['outcome']] ?? 0) + 1;
+                $this->ledgerRow('preview', $b['line'], $b['cells'], $row, $matches[$i]);
 
                 // MARKER-PREVIEW-TAGS — same rule the write path uses, so the
                 // preview can't promise a tag run() won't apply. 'create' has
@@ -355,6 +362,7 @@ class CustomerImporter
             if (count($batch) >= self::CHUNK) { $flush(); }
         }
         $flush();
+        $this->ledgerFlush(); // MARKER-IMPORT-MATCH
 
         // MARKER-PREVIEW-TAGS — the name too, so the button can say it.
         return ['counts' => $counts, 'sample' => $sample,
@@ -364,6 +372,7 @@ class CustomerImporter
     /** Write it. Each chunk is its own transaction. */
     public function run(): array
     {
+        $this->ledgerStart('run'); // MARKER-IMPORT-MATCH
         $csv = new CsvFile($this->import->stored_path, $this->import->delimiter, $this->import->encoding);
 
         $counts = ['created' => 0, 'updated' => 0, 'unchanged' => 0,
@@ -381,14 +390,25 @@ class CustomerImporter
         $batch = [];
         $flush = function () use (&$batch, &$counts, &$errorRows) {
             if (! $batch) { return; }
-            $existing = $this->lookup(array_map(fn ($b) => $b['key'], $batch));
+            $matches = $this->matchBatch($batch); // MARKER-IMPORT-MATCH
 
             // MARKER-IMPORT-TAG-ALL — ids gathered here, written once below.
             $toTag = [];
 
             DB::transaction(function () use ($batch, $existing, &$counts, &$errorRows, &$toTag) {
-                foreach ($batch as $b) {
-                    $row = $this->buildRow($b['cells'], $existing[$b['key']] ?? null, $b['line']);
+                foreach ($batch as $i => $b) {
+                    $row = $this->buildRow($b['cells'], $matches[$i]['record'], $b['line']);
+                    $row = $this->judge($row, $matches[$i], $b['line'], $b['cells']); // MARKER-IMPORT-MATCH
+                    $this->ledgerRow('run', $b['line'], $b['cells'], $row, $matches[$i]);
+
+                    // MARKER-IMPORT-MATCH — the controller refuses to run with
+                    // unresolved possible duplicates; reaching here is a race.
+                    // Never merge it: skip, count, and say so.
+                    if ($row['outcome'] === 'possible_duplicate') {
+                        $counts['skipped'] = ($counts['skipped'] ?? 0) + 1;
+                        $errorRows[] = [$b['cells'], 'Unresolved possible duplicate — not written'];
+                        continue;
+                    }
 
                     // MARKER-IMPORT-TAG-ALL — decided once per row, for every
                     // outcome, instead of inside two of the branches. 'create'
@@ -484,6 +504,7 @@ class CustomerImporter
             if (count($batch) >= self::CHUNK) { $flush(); }
         }
         $flush();
+        $this->ledgerFlush(); // MARKER-IMPORT-MATCH
 
         return ['counts' => $counts, 'errorRows' => $errorRows];
     }

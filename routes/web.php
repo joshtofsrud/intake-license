@@ -827,6 +827,9 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             Route::delete('/import-mappings/{mappingId}',      [TenantControllers\ImportController::class, 'deletePreset'])->name('imports.preset.delete');
             Route::get('/imports/{id}/conflicts/{field}',      [TenantControllers\ImportController::class, 'conflictField'])->name('imports.conflict.field');
             Route::post('/imports/{id}/conflicts/{field}',     [TenantControllers\ImportController::class, 'saveConflictField'])->name('imports.conflict.field.save');
+    // MARKER-IMPORT-MATCH — possible-duplicate decisions and the row ledger.
+    Route::post('/imports/{id}/matches', [TenantControllers\ImportController::class, 'resolveMatches'])->name('imports.matches.save');
+    Route::get('/imports/{id}/ledger',   [TenantControllers\ImportController::class, 'ledger'])->name('imports.ledger');
             Route::get('/imports/{id}',                 [TenantControllers\ImportController::class, 'show'])->name('imports.show');
             // MARKER-IMPORT-DRILLDOWN — what's behind a result number
             Route::get('/imports/{id}/detail',  [TenantControllers\ImportController::class, 'detail'])->name('imports.detail');
