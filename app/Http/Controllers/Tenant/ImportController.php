@@ -320,11 +320,11 @@ class ImportController extends Controller
                 'stock_mode'        => in_array($request->input('stock_mode'), ['set', 'add', 'leave'], true)
                                        ? $request->input('stock_mode') : 'set',
                 'create_categories' => $request->boolean('create_categories'),
-                'create_vendors'    => $request->boolean('create_vendors'),
-                // MARKER-IMPORT-MPN-BRAND — one vendor for the whole file. A
-                // distributor file has a single supplier and a brand per row;
-                // a mapped vendor column still wins where one exists.
-                'import_vendor_id'  => $request->input('import_vendor_id') ?: null,
+                // MARKER-IMPORT-VENDOR-ONCE — the only place a vendor is chosen
+                // or created for an import. "__new" with a name creates one,
+                // once, matched on name first so a retyped existing vendor is
+                // not duplicated either.
+                'import_vendor_id'  => $this->importVendorId($request),
                 // MARKER-CUSTOMER-TAGS — tag every customer this import
                 // CREATES. Updates and skips are not tagged: those people
                 // did not come from this file.
@@ -843,5 +843,24 @@ class ImportController extends Controller
             }
             fclose($out);
         }, $name, ['Content-Type' => 'text/csv']);
+    }
+
+    /** MARKER-IMPORT-VENDOR-ONCE — resolve the import-level vendor choice. */
+    private function importVendorId(Request $request): ?string
+    {
+        $choice = (string) $request->input('import_vendor_id', '');
+        if ($choice === '') {
+            return null;
+        }
+
+        // MARKER-IMPORT-VENDOR-MODAL — creation moved to the modal, which
+        // posts to VendorController::store and puts a real id in the select
+        // before the mapping is saved. "__new" can only arrive if the modal
+        // was cancelled mid-way; treat it as no vendor rather than guess.
+        if ($choice === '__new') {
+            return null;
+        }
+
+        return \App\Models\Tenant\TenantVendor::where('tenant_id', tenant()->id)->find($choice)?->id;
     }
 }

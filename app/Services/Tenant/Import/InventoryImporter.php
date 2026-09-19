@@ -480,7 +480,10 @@ class InventoryImporter
                     // its row (a value in the file is more specific than a
                     // setting on the screen); otherwise the whole import shares
                     // the vendor chosen on the map screen.
-                    $rowVendorName = $row['extra']['vendor'] ?? null;
+                    // MARKER-IMPORT-VENDOR-ONCE — a row can no longer carry a
+                    // vendor: the field left the registry. Kept as a hard null
+                    // so a stale mapping can never resurrect per-row creation.
+                    $rowVendorName = null;
                     $importVendorId = $this->option('import_vendor_id');
 
                     if (empty($rowVendorName) && $importVendorId) {

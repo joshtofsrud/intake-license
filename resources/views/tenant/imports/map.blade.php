@@ -370,24 +370,36 @@
              mappings whenever you like. --}}
         <label class="imp-radio" hidden><input type="checkbox" name="create_categories" value="0">
           <span><b>Create categories that don't exist</b><span>Matched on name. "Parts &gt; Brakes" creates the parent too.</span></span></label>
-        <label class="imp-radio"><input type="checkbox" name="create_vendors" value="1" checked>
-          <span><b>Create vendors that don't exist</b><span>Existing vendors are matched on name first.</span></span></label>
 
         {{-- MARKER-IMPORT-MPN-BRAND — one vendor for the whole file. --}}
         @if(($import->type ?? '') === 'inventory' && isset($vendors))
           <div style="margin-top:12px">
             <label for="import_vendor_id" style="display:block;font-size:13px;font-weight:600;margin-bottom:5px">Vendor for this whole import</label>
-            <select name="import_vendor_id" id="import_vendor_id" class="imp-sel" style="max-width:340px;width:100%">
+            {{-- MARKER-IMPORT-VENDOR-ONCE — the only place a vendor is chosen or
+                 created for an import. Never from a column. --}}
+            @php $curVendor = $import->options['import_vendor_id'] ?? ''; @endphp
+            <select name="import_vendor_id" id="import_vendor_id" class="imp-sel" style="max-width:340px;width:100%"
+                    onchange="if (this.value === '__new') { window.impOpenVendorModal(this); }">
               <option value="">No vendor</option>
               @foreach($vendors as $v)
-                <option value="{{ $v->id }}">{{ $v->name }}</option>
+                <option value="{{ $v->id }}" @selected($curVendor === $v->id)>{{ $v->name }}</option>
               @endforeach
+              <option value="__new">Create a new vendor…</option>
             </select>
-            <div class="imp-hint" style="margin-top:5px">
-              A distributor file has one supplier and a brand per row, so vendor is set here rather
-              than mapped. Map <b>Brand</b> to the column that varies. If the file does carry a
-              vendor column and you map it, that column wins for those rows.
+            {{-- MARKER-IMPORT-VENDOR-MODAL — creating opens the real vendor form. --}}
+            <div class="imp-hint" style="margin-top:6px">
+              This is the <b>only</b> way a vendor is set by an import — never from a column, so a file
+              can never create one vendor per row. Map the column that names the maker to <b>Brand</b>.
             </div>
+            @php
+              $staleVendorCols = collect((array) ($mapping ?? []))->filter(fn ($m) => (is_array($m) ? ($m['field'] ?? null) : $m) === 'vendor')->count();
+            @endphp
+            @if($staleVendorCols > 0)
+              <div class="imp-hint" style="margin-top:6px;color:#f0c46a">
+                This mapping (or its preset) still points {{ $staleVendorCols }} {{ Str::plural('column', $staleVendorCols) }} at
+                the old "Vendor (by name)" field. Those columns are now ignored — re-map them to Brand if that's what they hold.
+              </div>
+            @endif
           </div>
         @endif
       </div>
@@ -404,4 +416,94 @@
 <form method="POST" action="{{ route('tenant.imports.preset.apply', $import->id) }}" id="imp-preset-apply">@csrf</form>
 <form method="POST" action="{{ route('tenant.imports.preset.save', $import->id) }}" id="imp-preset-save">@csrf</form>
 @include('tenant.imports._confirm')
+{{-- MARKER-IMPORT-VENDOR-MODAL — the real vendor form, in the register's modal
+     vocabulary. Submits to VendorController::store by XHR and drops the new
+     vendor into the select. --}}
+<style>
+  .imp-modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.7);display:none;align-items:center;justify-content:center;z-index:1000;padding:20px}
+  .imp-modal-bg.open{display:flex}
+  .imp-modal{background:var(--ia-surface);border:0.5px solid var(--ia-border);border-radius:var(--ia-r-lg);padding:22px 24px;width:100%;max-width:720px;max-height:92vh;overflow:auto}
+  .imp-modal h3{margin:0 0 4px;font-size:16px;font-weight:600}
+  .imp-modal .sub{font-size:12.5px;color:var(--ia-text-dim);margin-bottom:14px}
+  .imp-modal-actions{display:flex;gap:8px;margin-top:16px;justify-content:flex-end}
+  .imp-modal-err{display:none;margin-bottom:10px;font-size:12.5px;color:var(--ia-red);background:var(--ia-red-soft);border-radius:var(--ia-r-md);padding:8px 10px}
+</style>
+
+<div class="imp-modal-bg" id="imp-vendor-modal" role="dialog" aria-modal="true" aria-labelledby="imp-vendor-title">
+  <form class="imp-modal" id="imp-vendor-form" method="POST" action="{{ route('tenant.vendors.store') }}">
+    @csrf
+    <h3 id="imp-vendor-title">New vendor</h3>
+    <div class="sub">Everything the vendor page asks for, captured now. Only the name is required.</div>
+    <div class="imp-modal-err" id="imp-vendor-err"></div>
+    @include('tenant.vendors._fields')
+    <div class="imp-modal-actions">
+      <button type="button" class="ia-btn ia-btn--secondary" id="imp-vendor-cancel">Cancel</button>
+      <button type="submit" class="ia-btn ia-btn--primary" id="imp-vendor-save">Create vendor</button>
+    </div>
+  </form>
+</div>
+
+<script>
+(function () {
+  var bg     = document.getElementById('imp-vendor-modal');
+  var form   = document.getElementById('imp-vendor-form');
+  var err    = document.getElementById('imp-vendor-err');
+  var save   = document.getElementById('imp-vendor-save');
+  var select = null;
+
+  window.impOpenVendorModal = function (sel) {
+    select = sel;
+    err.style.display = 'none';
+    form.reset();
+    bg.classList.add('open');
+    var first = form.querySelector('input[name=name]');
+    if (first) first.focus();
+  };
+
+  function close(restore) {
+    bg.classList.remove('open');
+    if (restore && select) select.value = '';
+  }
+
+  document.getElementById('imp-vendor-cancel').addEventListener('click', function () { close(true); });
+  bg.addEventListener('click', function (e) { if (e.target === bg) close(true); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && bg.classList.contains('open')) close(true); });
+
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    save.disabled = true;
+    err.style.display = 'none';
+
+    fetch(form.action, {
+      method: 'POST',
+      headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+      body: new FormData(form)
+    }).then(function (r) {
+      return r.json().then(function (j) { return { status: r.status, body: j }; });
+    }).then(function (res) {
+      if (res.status >= 400 || !res.body || !res.body.ok) {
+        var msg = 'Could not save the vendor.';
+        if (res.body && res.body.errors) {
+          msg = Object.keys(res.body.errors).map(function (k) { return res.body.errors[k].join(' '); }).join(' ');
+        } else if (res.body && res.body.message) {
+          msg = res.body.message;
+        }
+        err.textContent = msg; err.style.display = 'block';
+        return;
+      }
+      // Add (or select) the vendor in the import-level select and close.
+      var existing = Array.prototype.find.call(select.options, function (o) { return o.value === res.body.id; });
+      if (!existing) {
+        var opt = document.createElement('option');
+        opt.value = res.body.id; opt.textContent = res.body.name;
+        select.insertBefore(opt, select.querySelector('option[value="__new"]'));
+      }
+      select.value = res.body.id;
+      close(false);
+    }).catch(function () {
+      err.textContent = 'Could not reach the server. Try again.'; err.style.display = 'block';
+    }).finally(function () { save.disabled = false; });
+  });
+})();
+</script>
 @endsection

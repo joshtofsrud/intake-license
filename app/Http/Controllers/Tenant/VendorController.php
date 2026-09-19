@@ -90,10 +90,19 @@ class VendorController extends Controller
         $tenant = tenant();
         $data   = $this->validatedPayload($request, $tenant->id);
 
-        TenantVendor::create($data + ['tenant_id' => $tenant->id]);
+        // MARKER-IMPORT-VENDOR-MODAL — a name that already exists is that
+        // vendor, not a second one; same rule the import select applies.
+        $vendor = TenantVendor::where('tenant_id', $tenant->id)
+            ->whereRaw('LOWER(name) = ?', [mb_strtolower(trim((string) $data['name']))])->first();
+        $reused = (bool) $vendor;
+        $vendor = $vendor ?: TenantVendor::create($data + ['tenant_id' => $tenant->id]);
+
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json(['ok' => true, 'id' => $vendor->id, 'name' => $vendor->name, 'reused' => $reused]);
+        }
 
         return redirect()->route('tenant.vendors.index')
-            ->with('flash', ['type' => 'success', 'message' => 'Vendor saved.']);
+            ->with('flash', ['type' => 'success', 'message' => $reused ? 'That vendor already existed — using it.' : 'Vendor saved.']);
     }
 
     /**

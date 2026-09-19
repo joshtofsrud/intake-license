@@ -44,7 +44,10 @@ class ImportFieldRegistry
             'display_subtitle' => ['label' => 'Subtitle',   'type' => 'text', 'max' => 255],
             'description'  => ['label' => 'Description',    'type' => 'text', 'max' => 5000],
             'category'     => ['label' => 'Category (by name)', 'type' => 'resolve'],
-            'vendor'       => ['label' => 'Vendor (by name)',   'type' => 'resolve'],
+            // MARKER-IMPORT-VENDOR-ONCE — 'vendor' is no longer mappable. A
+            // vendor is chosen or created once per import on the map screen.
+            // Resolving a name per row created a vendor per distinct value,
+            // and the Brand column was auto-matching to it.
             'shop_cost_cents'        => ['label' => 'Shop cost',       'type' => 'money'],
             'shop_sell_price_cents'  => ['label' => 'Sell price',      'type' => 'money'],
             'shop_case_quantity'     => ['label' => 'Case quantity',   'type' => 'int'],
@@ -175,7 +178,9 @@ class ImportFieldRegistry
             'name'         => ['name', 'itemname', 'description', 'title', 'product'],
             'description'  => ['longdescription', 'longdesc', 'details', 'detail'],
             'category'     => ['category', 'dept', 'department', 'group', 'class'],
-            'vendor'       => ['vendor', 'supplier', 'brand', 'manufacturer', 'distributor'],
+            // MARKER-IMPORT-VENDOR-ONCE — brand words go to Brand now; vendor
+            // words match nothing, because vendor is not a column.
+            'shop_brand'   => ['brand', 'manufacturer', 'make', 'maker'],
             'shop_cost_cents'       => ['cost', 'unitcost', 'wholesale', 'buyprice'],
             'shop_sell_price_cents' => ['price', 'retail', 'retailprice', 'sellprice', 'msrp'],
             'shop_case_quantity'    => ['casequantity', 'caseqty', 'packsize'],
