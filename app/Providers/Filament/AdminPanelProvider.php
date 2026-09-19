@@ -189,11 +189,13 @@ class AdminPanelProvider extends PanelProvider
                 HTML)
             )
             // MARKER-ADMIN-MOBILE — one sheet that makes every custom page
-            // usable on a phone. Loaded at HEAD_END so it lands AFTER each
-            // page's own <style> block and wins by order; versioned by
-            // filemtime so a change is picked up without a cache clear.
+            // usable on a phone. MARKER-ADMIN-MOBILE-2: loaded at BODY_END,
+            // not HEAD_END — each page's <style> sits inside the body, so the
+            // head is BEFORE it and the page was winning every un-!important
+            // rule. Versioned by filemtime so a change is picked up without
+            // a cache clear.
             ->renderHook(
-                PanelsRenderHook::HEAD_END,
+                PanelsRenderHook::BODY_END,
                 fn (): string => '<link rel="stylesheet" href="'
                     . asset('css/admin/mobile.css') . '?v='
                     . (file_exists(public_path('css/admin/mobile.css')) ? filemtime(public_path('css/admin/mobile.css')) : '1')

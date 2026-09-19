@@ -30,6 +30,23 @@
   .fi-page select[style*="min-width"] { width: 100%; }
   .fi-page code[style*="min-width"] { white-space: normal; word-break: break-all; }
 
+  /* ---- MARKER-ADMIN-MOBILE-2: the actual overflow mechanism ----------
+     A flex child will not shrink below its content unless it has min-width:0.
+     The activity and leader rows are flex rows of nowrap text, so they grew
+     past the card and the card grew past the page. Wrapping the text alone
+     could not fix that while the child still refused to shrink. */
+  .fi-page .mt-card,
+  .fi-page .fi-section,
+  .fi-page .fi-wi-widget { max-width: 100%; overflow: hidden; }
+
+  .act > *,
+  .mt-bar-row > *,
+  .iss-row > * { min-width: 0; }
+
+  .act .what,
+  .act .who { white-space: normal !important; overflow: visible !important; text-overflow: clip; }
+  .act .w   { width: 46px; }
+
   /* ---- dashboard + marketing traffic (.mt-*) ------------------------ */
   .mt-grid    { grid-template-columns: 1fr 1fr !important; }
   .mt-two-up,
