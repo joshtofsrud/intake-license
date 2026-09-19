@@ -279,7 +279,27 @@ class ImportController extends Controller
             ];
         }
 
-        $used = array_column($map, 'field');
+        // MARKER-IMPORT-COMBINE — parse combined fields. Kept alongside the
+        // direct map (not inside it) because they are a different kind of
+        // source; presets save options, so they ride along.
+        $combined = [];
+        foreach ((array) $request->input('combined', []) as $def) {
+            $target = $def['target'] ?? null;
+            if (! $target || ! isset($fields[$target])) { continue; }
+            $parts = [];
+            foreach ((array) ($def['parts'] ?? []) as $part) {
+                $type = $part['type'] ?? '';
+                if ($type === 'col' && ($part['idx'] ?? '') !== '') {
+                    $parts[] = ['type' => 'col', 'idx' => (int) $part['idx']];
+                } elseif ($type === 'text' && trim((string) ($part['value'] ?? '')) !== '') {
+                    $parts[] = ['type' => 'text', 'value' => (string) $part['value']];
+                }
+            }
+            if (! array_filter($parts, fn ($x) => $x['type'] === 'col')) { continue; }
+            $combined[] = ['target' => $target, 'sep' => (string) ($def['sep'] ?? ' '), 'parts' => $parts];
+        }
+
+        $used = array_merge(array_column($map, 'field'), array_column($combined, 'target'));
         $match = ImportFieldRegistry::matchField($import->type);
         if (! in_array($match, $used, true)) {
             return back()->with('error',
@@ -290,6 +310,7 @@ class ImportController extends Controller
         $import->update([
             'mapping' => $map,
             'options' => array_merge((array) $import->options, [
+                'combined'          => $combined, // MARKER-IMPORT-COMBINE
                 'mode'      => in_array($request->input('mode'), ['upsert', 'insert', 'update'], true)
                                ? $request->input('mode') : 'upsert',
                 'direction' => in_array($request->input('direction'), ['csv', 'keep', 'blank'], true)

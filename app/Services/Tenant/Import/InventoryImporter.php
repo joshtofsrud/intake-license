@@ -30,6 +30,7 @@ class InventoryImporter
 {
     // MARKER-IMPORT-MERGE — conflict analysis for the merge review screen.
     use AnalysesConflicts;
+    use BuildsCombinedFields; // MARKER-IMPORT-COMBINE
 
     public const CHUNK = 100;
 
@@ -198,6 +199,10 @@ class InventoryImporter
             $dirs[$f]   = $m['dir'] ?: $this->option('direction', 'csv');
             $dirs[$f]   = $this->rowDirection($f, $dirs[$f], $line);
         }
+
+        // MARKER-IMPORT-COMBINE — after the direct loop, so a combined field
+        // wins over a direct mapping to the same target.
+        $this->applyCombined($cells, $values, $dirs, $errors, $line, $extra);
 
         $mode = $this->option('mode', 'upsert');
 

@@ -109,7 +109,7 @@
               <td class="mono">{{ $head !== '' ? $head : 'Column ' . ($i + 1) }}</td>
               <td><span class="imp-sample">{{ Str::limit((string) $sample, 40) }}</span></td>
               <td>
-                <select name="field[{{ $i }}]" class="imp-sel">
+                <select name="field[{{ $i }}]" class="imp-sel" data-col="{{ $i }}">
                   <option value="">— ignore this column —</option>
                   @foreach($fields as $key => $def)
                     <option value="{{ $key }}" @selected($chosen === $key)>{{ $def['label'] }}</option>
@@ -130,6 +130,147 @@
       </table>
     </div>
   </div>
+
+  {{-- MARKER-IMPORT-COMBINE — build a field from several columns and text.
+       A second kind of source, not a replacement for the direct mapping. --}}
+  @php
+    $combinedDefs = (array) (($import->options['combined'] ?? []));
+    $sampleRow    = $preview['sample'][0] ?? [];
+  @endphp
+  <div class="ia-card" id="imp-combine" style="margin-top:16px">
+    <div class="ia-card-head">
+      <span class="ia-card-title">Combined fields</span>
+      <span style="margin-left:auto;font-size:11.5px;color:var(--ia-text-dim)">optional</span>
+    </div>
+    <div class="ia-card-body">
+      <div class="imp-hint" style="margin-bottom:12px">
+        Build one field out of several columns and any text between them — <b>Brand</b> + <b>Item name</b>
+        into Item name, or <b>Colour</b> / <b>Size</b> into Subtitle. A combined field <b>wins</b> over a
+        column mapped directly to the same target. Empty pieces are dropped along with their separator.
+      </div>
+
+      <div id="imp-combine-rows"></div>
+
+      <button type="button" class="ia-btn ia-btn--secondary" id="imp-combine-add" style="margin-top:6px">+ Add a combined field</button>
+    </div>
+  </div>
+
+  <script>
+  (function () {
+    var fields  = @json(collect($fields)->map(fn ($d, $k) => ['key' => $k, 'label' => $d['label']])->values());
+    var headers = @json(collect($preview['header'])->map(fn ($h, $i) => $h !== '' ? $h : 'Column ' . ($i + 1))->values());
+    var sample  = @json(array_values($sampleRow));
+    var defs    = @json(array_values($combinedDefs));
+    var wrap    = document.getElementById('imp-combine-rows');
+    var n = 0;
+
+    function esc(s) { return String(s).replace(/[&<>"']/g, function (c) { return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+
+    function fieldOptions(sel) {
+      return fields.map(function (f) { return '<option value="' + esc(f.key) + '"' + (f.key === sel ? ' selected' : '') + '>' + esc(f.label) + '</option>'; }).join('');
+    }
+    function colOptions(sel) {
+      return headers.map(function (h, i) { return '<option value="' + i + '"' + (String(i) === String(sel) ? ' selected' : '') + '>' + esc(h) + '</option>'; }).join('');
+    }
+
+    function partHtml(rowIdx, partIdx, part) {
+      var isCol = !part || part.type === 'col';
+      return '<span class="imp-part" data-type="' + (isCol ? 'col' : 'text') + '" style="display:inline-flex;gap:4px;align-items:center;margin:0 4px 6px 0">'
+        + '<input type="hidden" name="combined[' + rowIdx + '][parts][' + partIdx + '][type]" value="' + (isCol ? 'col' : 'text') + '">'
+        + (isCol
+            ? '<select name="combined[' + rowIdx + '][parts][' + partIdx + '][idx]" class="imp-sel imp-part-col">' + colOptions(part ? part.idx : 0) + '</select>'
+            : '<input type="text" name="combined[' + rowIdx + '][parts][' + partIdx + '][value]" class="imp-sel imp-part-text" placeholder="text" value="' + esc(part ? part.value : '') + '" style="width:110px">')
+        + '<button type="button" class="ia-btn ia-btn--ghost ia-btn--sm imp-part-x" title="Remove" style="padding:2px 6px">×</button>'
+        + '</span>';
+    }
+
+    function rowHtml(i, def) {
+      var parts = (def && def.parts && def.parts.length) ? def.parts : [{type:'col', idx:0}];
+      var html = '<div class="imp-combine-row" data-row="' + i + '" style="border:0.5px solid var(--ia-border);border-radius:var(--ia-r-md);padding:12px 14px;margin-bottom:10px">'
+        + '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px">'
+        + '<span style="font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--ia-text-dim)">Becomes</span>'
+        + '<select name="combined[' + i + '][target]" class="imp-sel imp-combine-target" style="min-width:180px">' + fieldOptions(def ? def.target : '') + '</select>'
+        + '<span style="font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--ia-text-dim);margin-left:8px">joined with</span>'
+        + '<input type="text" name="combined[' + i + '][sep]" class="imp-sel imp-combine-sep" value="' + esc(def ? def.sep : ' ') + '" style="width:60px;text-align:center" title="Separator">'
+        + '<button type="button" class="ia-btn ia-btn--ghost ia-btn--sm imp-combine-remove" style="margin-left:auto">Remove</button>'
+        + '</div>'
+        + '<div class="imp-parts" style="display:flex;flex-wrap:wrap;align-items:center">';
+      parts.forEach(function (p, k) { html += partHtml(i, k, p); });
+      html += '</div>'
+        + '<div style="display:flex;gap:6px;margin-top:4px">'
+        + '<button type="button" class="ia-btn ia-btn--ghost ia-btn--sm imp-add-col" style="font-size:12px">+ column</button>'
+        + '<button type="button" class="ia-btn ia-btn--ghost ia-btn--sm imp-add-text" style="font-size:12px">+ text</button>'
+        + '</div>'
+        + '<div class="imp-hint imp-combine-preview" style="margin-top:8px"></div>'
+        + '</div>';
+      return html;
+    }
+
+    // Mirrors BuildsCombinedFields::combineValue so the preview is honest.
+    function computePreview(row) {
+      var sep = row.querySelector('.imp-combine-sep').value;
+      var pieces = [], anyCol = false;
+      row.querySelectorAll('.imp-part').forEach(function (p) {
+        if (p.dataset.type === 'col') {
+          var v = (sample[p.querySelector('select').value] || '').trim();
+          if (v !== '') { pieces.push(v); anyCol = true; }
+        } else {
+          pieces.push(p.querySelector('input[type=text]').value);
+        }
+      });
+      var out = anyCol ? pieces.join(sep).replace(new RegExp('(\\s*' + sep.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*){2,}', 'g'), sep).trim() : '';
+      var target = row.querySelector('.imp-combine-target');
+      var label  = target.options[target.selectedIndex] ? target.options[target.selectedIndex].text : '';
+      row.querySelector('.imp-combine-preview').innerHTML =
+        anyCol ? 'First row → <b>' + esc(label) + '</b>: <span class="imp-sample">' + esc(out) + '</span>'
+               : 'First row has nothing in these columns — the field is left as it would be otherwise.';
+      markOverrides();
+    }
+
+    function markOverrides() {
+      document.querySelectorAll('select[data-col]').forEach(function (sel) {
+        var note = sel.parentElement.querySelector('.imp-override-note');
+        if (note) note.remove();
+      });
+      var targets = {};
+      document.querySelectorAll('.imp-combine-target').forEach(function (t) { targets[t.value] = true; });
+      document.querySelectorAll('select[data-col]').forEach(function (sel) {
+        if (sel.value && targets[sel.value]) {
+          var n = document.createElement('div');
+          n.className = 'imp-hint imp-override-note';
+          n.style.color = 'var(--ia-accent)';
+          n.textContent = 'A combined field replaces this.';
+          sel.parentElement.appendChild(n);
+        }
+      });
+    }
+
+    function addRow(def) {
+      var d = document.createElement('div');
+      d.innerHTML = rowHtml(n++, def);
+      var row = d.firstElementChild;
+      wrap.appendChild(row);
+      computePreview(row);
+    }
+
+    wrap.addEventListener('click', function (e) {
+      var row = e.target.closest('.imp-combine-row'); if (!row) return;
+      var parts = row.querySelector('.imp-parts');
+      var i = row.dataset.row, k = parts.querySelectorAll('.imp-part').length;
+      if (e.target.classList.contains('imp-add-col'))  { parts.insertAdjacentHTML('beforeend', partHtml(i, k, {type:'col', idx:0})); computePreview(row); }
+      if (e.target.classList.contains('imp-add-text')) { parts.insertAdjacentHTML('beforeend', partHtml(i, k, {type:'text', value:''})); computePreview(row); }
+      if (e.target.classList.contains('imp-part-x'))   { e.target.closest('.imp-part').remove(); computePreview(row); }
+      if (e.target.classList.contains('imp-combine-remove')) { row.remove(); markOverrides(); }
+    });
+    wrap.addEventListener('input',  function (e) { var r = e.target.closest('.imp-combine-row'); if (r) computePreview(r); });
+    wrap.addEventListener('change', function (e) { var r = e.target.closest('.imp-combine-row'); if (r) computePreview(r); });
+    document.querySelectorAll('select[data-col]').forEach(function (s) { s.addEventListener('change', markOverrides); });
+    document.getElementById('imp-combine-add').addEventListener('click', function () { addRow(null); });
+
+    defs.forEach(addRow);
+    markOverrides();
+  })();
+  </script>
 
   {{-- MARKER-IMPORT-TAG-CARD — three settings decide what this run does, so
        they sit together at the same size. --}}

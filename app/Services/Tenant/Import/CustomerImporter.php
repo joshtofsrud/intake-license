@@ -19,6 +19,7 @@ class CustomerImporter
 {
     // MARKER-IMPORT-MERGE — conflict analysis for the merge review screen.
     use AnalysesConflicts;
+    use BuildsCombinedFields; // MARKER-IMPORT-COMBINE
 
     public const CHUNK = 200;
 
@@ -201,6 +202,11 @@ class CustomerImporter
             $dirs[$m['field']]   = $m['dir'] ?: $this->option('direction', 'csv');
             $dirs[$m['field']]   = $this->rowDirection($m['field'], $dirs[$m['field']], $line);
         }
+
+        // MARKER-IMPORT-COMBINE — after the direct loop, so a combined field
+        // wins over a direct mapping to the same target.
+        $combinedExtra = [];
+        $this->applyCombined($cells, $values, $dirs, $errors, $line, $combinedExtra);
 
         $matchField = ImportFieldRegistry::matchField('customers');
         $mode       = $this->option('mode', 'upsert');
