@@ -153,10 +153,10 @@ details.imp-ref[open] summary::before{content:'\25BE'}
 .preset-row:last-of-type{border-bottom:0}
 .preset-rename{display:flex;gap:6px;align-items:center}
 .preset-row form{margin:0}
-</style>
 /* MARKER-IMPORT-MATCH */
 .imp-tile.is-active{outline:2px solid var(--ia-accent);outline-offset:-2px}
 .imp-tile .v.warn{color:#f0c46a}
 .chip--possible_duplicate{background:rgba(240,196,106,.14);color:#f0c46a}
 .imp-legend{border:0.5px solid var(--ia-border);border-radius:var(--ia-r-md);padding:10px 14px;font-size:12.5px;line-height:1.6;color:var(--ia-text-muted)}
 .imp-legend b{color:var(--ia-text)}
+</style>
