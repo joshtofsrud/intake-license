@@ -292,6 +292,11 @@ class ServiceController extends Controller
             'cleanup_after_minutes' => (int) $service->cleanup_after_minutes,
             'slot_weight'           => (int) $service->slot_weight,
             'is_active'             => (bool) $service->is_active,
+            // MARKER-SERVICE-FLAGS-ROUNDTRIP — these two were saved but never
+            // returned, so the drawer redrew them from its stale local copy
+            // and both checkboxes appeared to reset on save.
+            'quick_only'            => (bool) $service->quick_only,
+            'show_on_register'      => (bool) $service->show_on_register,
             'sort_order'            => (int) $service->sort_order,
         ]]);
     }

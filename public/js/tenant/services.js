@@ -593,8 +593,14 @@
       }
       var d = r.json.data || {};
       var catChanged = d.category_id && (!curCat || d.category_id !== curCat.id);
-      ['name','price_cents','prep_before_minutes','duration_minutes','cleanup_after_minutes','slot_weight','category_id'].forEach(function (k) {
-        if (d[k] !== undefined) s[k] = d[k];
+      // MARKER-SERVICE-FLAGS-ROUNDTRIP - copy back EVERY key the server sent,
+      // not a hard-coded seven. The old list omitted quick_only and
+      // show_on_register, so the drawer redrew those checkboxes from the stale
+      // local object and they appeared to reset even though the save worked.
+      // A fixed list silently goes out of date every time a field is added;
+      // 'id' is skipped because replacing it mid-render would orphan the row.
+      Object.keys(d).forEach(function (k) {
+        if (k !== 'id' && d[k] !== undefined) s[k] = d[k];
       });
       if (payload.description !== undefined) s.description = payload.description;
       if (catChanged) moveServiceToCategory(serviceId, d.category_id);
