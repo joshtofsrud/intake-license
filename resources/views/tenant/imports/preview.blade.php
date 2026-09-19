@@ -68,13 +68,21 @@
     <span style="margin-left:auto;font-size:11.5px;color:var(--ia-text-dim)">first {{ count($result['sample']) }} rows</span></div>
   <div class="imp-scroll">
     <table class="imp">
-      <thead><tr><th style="width:60px">Line</th><th style="width:220px">Email</th><th>Name</th><th style="width:280px">Outcome</th></tr></thead>
+      {{-- MARKER-IMPORT-PREVIEW-SHAPE — one view, two importers. Customers
+           key rows on email, inventory on SKU; the header follows the type so
+           the column is never mislabelled. --}}
+      @php $isInv = ($import->type ?? '') === 'inventory'; @endphp
+      <thead><tr><th style="width:60px">Line</th><th style="width:220px">{{ $isInv ? 'SKU' : 'Email' }}</th><th>Name</th><th style="width:280px">Outcome</th></tr></thead>
       <tbody>
         @foreach($result['sample'] as $row)
           <tr>
             <td class="mono">{{ $row['line'] }}</td>
-            <td class="mono">{{ $row['key'] }}</td>
-            <td>{{ $row['label'] }}</td>
+            {{-- MARKER-IMPORT-PREVIEW-SHAPE — whichever shape this importer
+                 emits. Neither key is renamed: both are already written into
+                 stored preview results, and changing one would break the
+                 history of every past run for a cosmetic gain. --}}
+            <td class="mono">{{ $row['key'] ?? $row['sku'] ?? '—' }}</td>
+            <td>{{ $row['label'] ?? $row['name'] ?? '—' }}</td>
             <td>
               <span class="chip chip--{{ $row['outcome'] }}">{{ str_replace('_',' ', $row['outcome']) }}</span>
               @if($row['errors'])
