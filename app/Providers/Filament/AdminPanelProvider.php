@@ -188,6 +188,17 @@ class AdminPanelProvider extends PanelProvider
                 </style>
                 HTML)
             )
+            // MARKER-ADMIN-MOBILE — one sheet that makes every custom page
+            // usable on a phone. Loaded at HEAD_END so it lands AFTER each
+            // page's own <style> block and wins by order; versioned by
+            // filemtime so a change is picked up without a cache clear.
+            ->renderHook(
+                PanelsRenderHook::HEAD_END,
+                fn (): string => '<link rel="stylesheet" href="'
+                    . asset('css/admin/mobile.css') . '?v='
+                    . (file_exists(public_path('css/admin/mobile.css')) ? filemtime(public_path('css/admin/mobile.css')) : '1')
+                    . '">'
+            )
             // MARKER-ADMIN-CONFIRM — in-app confirm for every [data-confirm].
             // Replaces wire:confirm, which uses the browser's native confirm()
             // and fails closed and silently when that is suppressed. Capture
