@@ -458,18 +458,9 @@ class InventoryImporter
                     if (! empty($rowVendorName)) {
                         $vendor = $this->resolveVendor($rowVendorName, $createVendors, $made);
                         if ($vendor) {
-                            $linked = DB::table('tenant_inventory_item_vendors')
-                                ->where('inventory_item_id', $item->id)
-                                ->where('vendor_id', $vendor->id)->exists();
-                            if (! $linked) {
-                                DB::table('tenant_inventory_item_vendors')->insert([
-                                    'inventory_item_id' => $item->id,
-                                    'vendor_id'         => $vendor->id,
-                                    'unit_cost_cents'   => $row['values']['shop_cost_cents'] ?? null,
-                                    'is_preferred'      => 0,
-                                    'created_at'        => now(), 'updated_at' => now(),
-                                ]);
-                            }
+                            // MARKER-IMPORT-PIVOT-UUID - same helper as the
+                            // import-level path: one insert to keep correct.
+                            $this->linkVendor($item, $vendor, $row['values']['shop_cost_cents'] ?? null);
                         }
                     }
 
@@ -563,7 +554,11 @@ class InventoryImporter
             return;
         }
 
+        // MARKER-IMPORT-PIVOT-UUID - the pivot's key is uuid('id')->primary()
+        // with no database default, so a query-builder insert must supply it.
+        // Eloquent would have; DB::table() does not.
         DB::table('tenant_inventory_item_vendors')->insert([
+            'id'                => (string) \Illuminate\Support\Str::uuid(),
             'inventory_item_id' => $item->id,
             'vendor_id'         => $vendor->id,
             'unit_cost_cents'   => $costCents,
