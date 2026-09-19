@@ -4,6 +4,7 @@
 
 @section('content')
 @include('tenant.imports._styles')
+@include('tenant.imports._progress')
 
 {{-- MARKER-IMPORT-MATCH — rebuilt around the ledger. Every tile opens the
      rows behind it; possible duplicates are reviewed here and the run will

@@ -32,6 +32,7 @@ class InventoryImporter
     use AnalysesConflicts;
     use BuildsCombinedFields; // MARKER-IMPORT-COMBINE
     use MatchesRecords;       // MARKER-IMPORT-MATCH
+    use ReportsProgress;      // MARKER-IMPORT-QUEUE
 
     public const CHUNK = 100;
 
@@ -287,6 +288,7 @@ class InventoryImporter
                    'skipped' => 0, 'unmatched' => 0, 'error' => 0];
         $sample = []; $seen = []; $first = true;
         $this->ledgerStart('preview'); // MARKER-IMPORT-MATCH
+        $this->progressStart('previewing', $this->rowTotal()); // MARKER-IMPORT-QUEUE
         $newCats = []; $newVendors = [];
         $skuIdx  = $this->skuIndex();
 
@@ -349,10 +351,16 @@ class InventoryImporter
             if ($key !== '') { $seen[$key] = $line; }
 
             $batch[] = ['line' => $line, 'cells' => $cells, 'key' => $key];
-            if (count($batch) >= self::CHUNK) { $flush(); }
+            if (count($batch) >= self::CHUNK) {
+                $flush();
+                // MARKER-IMPORT-QUEUE — progress and cancel, between chunks.
+                $this->progressTick(self::CHUNK, $counts);
+                if ($this->cancelRequested()) { break; }
+            }
         }
         $flush();
         $this->ledgerFlush(); // MARKER-IMPORT-MATCH
+        $this->progressDone($this->cancelRequested() ? 'cancelled' : 'finished'); // MARKER-IMPORT-QUEUE
 
         return ['counts' => $counts, 'sample' => $sample,
                 'newCategories' => array_keys($newCats), 'newVendors' => array_keys($newVendors)];
@@ -361,6 +369,7 @@ class InventoryImporter
     public function run(): array
     {
         $this->ledgerStart('run'); // MARKER-IMPORT-MATCH
+        $this->progressStart('running', $this->rowTotal()); // MARKER-IMPORT-QUEUE
         $csv = new CsvFile($this->import->stored_path, $this->import->delimiter, $this->import->encoding);
         $inventory = app(InventoryService::class);
 
@@ -557,10 +566,16 @@ class InventoryImporter
             if ($key !== '') { $seen[$key] = $line; }
 
             $batch[] = ['line' => $line, 'cells' => $cells, 'key' => $key];
-            if (count($batch) >= self::CHUNK) { $flush(); }
+            if (count($batch) >= self::CHUNK) {
+                $flush();
+                // MARKER-IMPORT-QUEUE — progress and cancel, between chunks.
+                $this->progressTick(self::CHUNK, $counts);
+                if ($this->cancelRequested()) { break; }
+            }
         }
         $flush();
         $this->ledgerFlush(); // MARKER-IMPORT-MATCH
+        $this->progressDone($this->cancelRequested() ? 'cancelled' : 'finished'); // MARKER-IMPORT-QUEUE
 
         return ['counts' => $counts, 'errorRows' => $errorRows];
     }
@@ -604,5 +619,34 @@ class InventoryImporter
             'is_preferred'      => 0,
             'created_at'        => now(), 'updated_at' => now(),
         ]);
+    }
+
+    /**
+     * MARKER-IMPORT-QUEUE — the preview screen's data WITHOUT re-reading the
+     * file. Counts come from the ledger the job wrote, so opening the page
+     * costs one grouped query instead of a full pass.
+     */
+    public function previewSummary(int $sampleLimit = 250): array
+    {
+        $counts = ['create' => 0, 'update' => 0, 'unchanged' => 0, 'possible_duplicate' => 0,
+                   'skipped' => 0, 'unmatched' => 0, 'error' => 0];
+
+        $rows = \App\Models\Tenant\TenantImportLedgerRow::where('import_id', $this->import->id)
+            ->where('phase', 'preview')
+            ->selectRaw('outcome, COUNT(*) as n')->groupBy('outcome')->pluck('n', 'outcome');
+
+        foreach ($rows as $outcome => $n) {
+            $counts[$outcome] = (int) $n;
+        }
+
+        $stored = (array) (($this->import->totals ?? [])['preview'] ?? []);
+
+        return [
+            'counts'        => array_merge($counts, array_intersect_key($stored, ['will_tag' => 0])),
+            'sample'        => [],
+            'newCategories' => $stored['newCategories'] ?? [],
+            'newVendors'    => $stored['newVendors'] ?? [],
+            'tag_name'      => $stored['tag_name'] ?? null,
+        ];
     }
 }

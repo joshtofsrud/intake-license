@@ -139,16 +139,23 @@
     $combinedDefs = (array) (($import->options['combined'] ?? []));
     $sampleRow    = $preview['sample'][0] ?? [];
   @endphp
+  <style>
+    /* MARKER-IMPORT-COMBINE-2 — the separator segment */
+    .imp-seg{display:inline-flex;background:var(--ia-surface-2);border:0.5px solid var(--ia-border);border-radius:var(--ia-r-md);padding:2px;gap:2px}
+    .imp-seg-btn{padding:4px 10px;border-radius:6px;font-size:12px;color:var(--ia-text-muted);background:none;border:none;cursor:pointer;font-family:inherit;transition:all var(--ia-t)}
+    .imp-seg-btn.on{background:var(--ia-accent-soft);color:var(--ia-accent)}
+    .imp-seg-btn:focus-visible{outline:2px solid var(--ia-accent);outline-offset:1px}
+  </style>
   <div class="ia-card" id="imp-combine" style="margin-top:16px">
     <div class="ia-card-head">
       <span class="ia-card-title">Combined fields</span>
       <span style="margin-left:auto;font-size:11.5px;color:var(--ia-text-dim)">optional</span>
     </div>
     <div class="ia-card-body">
+      {{-- MARKER-IMPORT-COMBINE-2 --}}
       <div class="imp-hint" style="margin-bottom:12px">
-        Build one field out of several columns and any text between them — <b>Brand</b> + <b>Item name</b>
-        into Item name, or <b>Colour</b> / <b>Size</b> into Subtitle. A combined field <b>wins</b> over a
-        column mapped directly to the same target. Empty pieces are dropped along with their separator.
+        Assign the field you will target before building the combined field — we'll show you where it lands.
+        A combined field replaces whatever is mapped directly to that field.
       </div>
 
       <div id="imp-combine-rows"></div>
@@ -186,24 +193,49 @@
         + '</span>';
     }
 
+    // MARKER-IMPORT-COMBINE-2 — the row reads as a sentence: pieces, then how
+    // they are joined, then what they become, then the first-row result.
+    var SEPS = [['Space',' '],['Dash',' - '],['Slash',' / '],['Comma',', '],['None',''],['Custom',null]];
+
+    function sepChoice(sep) {
+      for (var k = 0; k < SEPS.length; k++) { if (SEPS[k][1] === sep) return SEPS[k][0]; }
+      return 'Custom';
+    }
+
     function rowHtml(i, def) {
-      var parts = (def && def.parts && def.parts.length) ? def.parts : [{type:'col', idx:0}];
-      var html = '<div class="imp-combine-row" data-row="' + i + '" style="border:0.5px solid var(--ia-border);border-radius:var(--ia-r-md);padding:12px 14px;margin-bottom:10px">'
-        + '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px">'
-        + '<span style="font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--ia-text-dim)">Becomes</span>'
-        + '<select name="combined[' + i + '][target]" class="imp-sel imp-combine-target" style="min-width:180px">' + fieldOptions(def ? def.target : '') + '</select>'
-        + '<span style="font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--ia-text-dim);margin-left:8px">joined with</span>'
-        + '<input type="text" name="combined[' + i + '][sep]" class="imp-sel imp-combine-sep" value="' + esc(def ? def.sep : ' ') + '" style="width:60px;text-align:center" title="Separator">'
+      var parts = (def && def.parts && def.parts.length) ? def.parts : [{type:'col', idx:0}, {type:'col', idx:1}];
+      var sep   = (def && typeof def.sep === 'string') ? def.sep : ' ';
+      var choice = sepChoice(sep);
+      // MARKER-IMPORT-COMBINE-3 — target first: you choose where it lands
+      // before you build what lands there.
+      var LAB = 'font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--ia-text-dim);min-width:90px';
+      var html = '<div class="imp-combine-row" data-row="' + i + '" style="border:0.5px solid var(--ia-border);border-radius:var(--ia-r-md);padding:14px 16px;margin-bottom:10px">'
+        // line 1: where it lands
+        + '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">'
+        + '<span style="' + LAB + '">Target field</span>'
+        + '<select name="combined[' + i + '][target]" class="imp-sel imp-combine-target" style="min-width:200px;max-width:320px">' + fieldOptions(def ? def.target : 'name') + '</select>'
         + '<button type="button" class="ia-btn ia-btn--ghost ia-btn--sm imp-combine-remove" style="margin-left:auto">Remove</button>'
         + '</div>'
-        + '<div class="imp-parts" style="display:flex;flex-wrap:wrap;align-items:center">';
+        // line 2: the pieces
+        + '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:10px">'
+        + '<span style="' + LAB + '">Built from</span>'
+        + '<span class="imp-parts" style="display:flex;flex-wrap:wrap;align-items:center;gap:2px 0">';
       parts.forEach(function (p, k) { html += partHtml(i, k, p); });
-      html += '</div>'
-        + '<div style="display:flex;gap:6px;margin-top:4px">'
-        + '<button type="button" class="ia-btn ia-btn--ghost ia-btn--sm imp-add-col" style="font-size:12px">+ column</button>'
-        + '<button type="button" class="ia-btn ia-btn--ghost ia-btn--sm imp-add-text" style="font-size:12px">+ text</button>'
+      html += '<button type="button" class="ia-btn ia-btn--ghost ia-btn--sm imp-add-col" style="font-size:12px">+ column</button>'
+        + '<button type="button" class="ia-btn ia-btn--ghost ia-btn--sm imp-add-text" style="font-size:12px;margin-left:4px">+ text</button>'
+        + '</span></div>'
+        // line 3: how they join
+        + '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:10px">'
+        + '<span style="' + LAB + '">Joined by</span>'
+        + '<span class="imp-seg imp-sep-seg">';
+      SEPS.forEach(function (sp) {
+        html += '<button type="button" class="imp-seg-btn' + (sp[0] === choice ? ' on' : '') + '" data-sep-choice="' + sp[0] + '"' + (sp[1] !== null ? ' data-sep="' + esc(sp[1]) + '"' : '') + '>' + sp[0] + '</button>';
+      });
+      html += '</span>'
+        + '<input type="text" name="combined[' + i + '][sep]" class="imp-sel imp-combine-sep" value="' + esc(sep) + '" style="width:80px;text-align:center' + (choice === 'Custom' ? '' : ';display:none') + '" placeholder="text" title="Custom separator">'
         + '</div>'
-        + '<div class="imp-hint imp-combine-preview" style="margin-top:8px"></div>'
+        // line 4: the result
+        + '<div class="imp-combine-preview" style="margin-top:12px;padding-top:10px;border-top:0.5px dashed var(--ia-border);font-size:13px"></div>'
         + '</div>';
       return html;
     }
@@ -220,12 +252,16 @@
           pieces.push(p.querySelector('input[type=text]').value);
         }
       });
-      var out = anyCol ? pieces.join(sep).replace(new RegExp('(\\s*' + sep.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*){2,}', 'g'), sep).trim() : '';
+      var out = anyCol ? pieces.join(sep) : '';
+      if (anyCol && sep !== '') {
+        var re = new RegExp('(\\s*' + sep.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*){2,}', 'g');
+        out = out.replace(re, sep).trim();
+      }
       var target = row.querySelector('.imp-combine-target');
       var label  = target.options[target.selectedIndex] ? target.options[target.selectedIndex].text : '';
-      row.querySelector('.imp-combine-preview').innerHTML =
-        anyCol ? 'First row → <b>' + esc(label) + '</b>: <span class="imp-sample">' + esc(out) + '</span>'
-               : 'First row has nothing in these columns — the field is left as it would be otherwise.';
+      row.querySelector('.imp-combine-preview').innerHTML = anyCol
+        ? '<span style="color:var(--ia-text-dim)">Lands in <b style="color:var(--ia-text)">' + esc(label) + '</b> as:</span> <span class="imp-sample" style="font-size:13px">' + esc(out) + '</span>'
+        : '<span style="color:var(--ia-text-dim)">The first line has nothing in these columns, so this field is left as it would be otherwise.</span>';
       markOverrides();
     }
 
@@ -263,6 +299,15 @@
       if (e.target.classList.contains('imp-add-text')) { parts.insertAdjacentHTML('beforeend', partHtml(i, k, {type:'text', value:''})); computePreview(row); }
       if (e.target.classList.contains('imp-part-x'))   { e.target.closest('.imp-part').remove(); computePreview(row); }
       if (e.target.classList.contains('imp-combine-remove')) { row.remove(); markOverrides(); }
+      // MARKER-IMPORT-COMBINE-2 — named separator choice
+      var segBtn = e.target.closest('[data-sep-choice]');
+      if (segBtn) {
+        row.querySelectorAll('[data-sep-choice]').forEach(function (b) { b.classList.toggle('on', b === segBtn); });
+        var sepInput = row.querySelector('.imp-combine-sep');
+        if (segBtn.dataset.sep !== undefined) { sepInput.value = segBtn.dataset.sep; sepInput.style.display = 'none'; }
+        else { sepInput.style.display = ''; sepInput.focus(); }
+        computePreview(row);
+      }
     });
     wrap.addEventListener('input',  function (e) { var r = e.target.closest('.imp-combine-row'); if (r) computePreview(r); });
     wrap.addEventListener('change', function (e) { var r = e.target.closest('.imp-combine-row'); if (r) computePreview(r); });

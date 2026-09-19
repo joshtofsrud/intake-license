@@ -542,7 +542,22 @@ class ImportController extends Controller
         $this->guard();
         $import = $this->find($id);
 
-        $result = $this->importer($import)->preview();
+        // MARKER-IMPORT-QUEUE — the dry run happens on the queue. An 18k-row
+        // file cannot finish inside a web request, and a 504 halfway through
+        // leaves the operator with nothing at all.
+        $hasLedger = \App\Models\Tenant\TenantImportLedgerRow::where('import_id', $import->id)
+            ->where('phase', 'preview')->exists();
+
+        if (! $hasLedger && ! in_array($import->progress_stage, ['previewing'], true)) {
+            $import->forceFill([
+                'progress_stage' => 'previewing', 'progress_done' => 0,
+                'progress_total' => (int) (($import->totals ?? [])['row_count'] ?? 0),
+                'progress_seen_at' => now(), 'cancel_requested_at' => null,
+            ])->save();
+            \App\Jobs\PreviewImportJob::dispatch(tenant()->id, $import->id);
+        }
+
+        $result = $this->importer($import)->previewSummary();
         $import->update(['status' => 'previewed']);
 
         // MARKER-IMPORT-MATCH — the review list and the ledger behind the tiles.
@@ -580,45 +595,20 @@ class ImportController extends Controller
                     . ' a decision before this can run. Nothing has been written.');
         }
 
-        $import->update(['status' => 'running', 'started_at' => now()]);
+        $import->forceFill([
+            'status' => 'running', 'started_at' => now(),
+            'progress_stage' => 'running', 'progress_done' => 0,
+            'progress_total' => (int) (($import->totals ?? [])['row_count'] ?? 0),
+            'progress_seen_at' => now(), 'cancel_requested_at' => null,
+        ])->save();
 
-        try {
-            $result = $this->importer($import)->run();
-        } catch (\Throwable $e) {
-            // MARKER-IMPORT-FAILREASON — never store an empty reason: a blank
-            // failure screen tells the operator nothing at all.
-            $reason = trim((string) $e->getMessage());
-            if ($reason === '') {
-                $reason = class_basename($e) . ' at ' . basename($e->getFile()) . ':' . $e->getLine()
-                        . ' (no message) — the application log for today has the full trace';
-            }
-
-            $import->update(['status' => 'failed', 'failure_reason' => $reason,
-                             'finished_at' => now()]);
-            \Log::error('customer import failed', [
-                'import' => $import->id,
-                'error'  => $reason,
-                'class'  => get_class($e),
-                'trace'  => \Illuminate\Support\Str::limit($e->getTraceAsString(), 2000),
-            ]);
-
-            return redirect()->route('tenant.imports.show', $import->id)
-                ->with('error', 'The import stopped: ' . $e->getMessage());
-        }
-
-        $errorPath = null;
-        if ($result['errorRows']) {
-            $errorPath = $this->writeErrorCsv($import, $result['errorRows']);
-        }
-
-        $import->update([
-            'status'      => 'done',
-            'totals'      => $result['counts'],
-            'error_path'  => $errorPath,
-            'finished_at' => now(),
-        ]);
+        // MARKER-IMPORT-QUEUE-CLEAN — off the request; the modal watches it.
+        // The old synchronous body was deleted, not commented out: the job
+        // is the record of what happens now.
+        \App\Jobs\RunImportJob::dispatch(tenant()->id, $import->id);
 
         return redirect()->route('tenant.imports.show', $import->id);
+
     }
 
     /** Original columns + a reason column, so it can be fixed and re-imported. */
@@ -712,21 +702,10 @@ class ImportController extends Controller
         return $out;
     }
 
+    /** MARKER-IMPORT-QUEUE-CLEAN — one writer, shared with RunImportJob. */
     private function writeErrorCsv(TenantImport $import, array $rows): string
     {
-        $rel = 'imports/' . $import->tenant_id . '/errors-' . $import->id . '.csv';
-        $abs = Storage::disk('local')->path($rel);
-        @mkdir(dirname($abs), 0775, true);
-
-        $h = fopen($abs, 'w');
-        $header = $import->columns ?? [];
-        if ($header) { fputcsv($h, array_merge($header, ['Why it was skipped'])); }
-        foreach ($rows as [$cells, $why]) {
-            fputcsv($h, array_merge((array) $cells, [$why]));
-        }
-        fclose($h);
-
-        return $abs;
+        return \App\Support\ImportErrorCsv::write($import, $rows);
     }
 
     public function show(string $id)
@@ -862,5 +841,40 @@ class ImportController extends Controller
         }
 
         return \App\Models\Tenant\TenantVendor::where('tenant_id', tenant()->id)->find($choice)?->id;
+    }
+
+    /**
+     * MARKER-IMPORT-QUEUE — what the modal polls. Deliberately cheap: four
+     * columns and a count, no file work.
+     */
+    public function progress(string $id)
+    {
+        $import = $this->find($id);
+
+        $seen    = $import->progress_seen_at;
+        $stalled = in_array($import->progress_stage, ['previewing', 'running'], true)
+                   && $seen && $seen->lt(now()->subSeconds(30));
+
+        return response()->json([
+            'stage'     => $import->progress_stage,
+            'status'    => $import->status,
+            'done'      => (int) $import->progress_done,
+            'total'     => (int) $import->progress_total,
+            'live'      => ($import->totals ?? [])['live'] ?? null,
+            'seen_ago'  => $seen ? $seen->diffInSeconds(now()) : null,
+            'stalled'   => $stalled,
+            'cancelled' => (bool) $import->cancel_requested_at,
+            'reason'    => $import->failure_reason,
+            'finished'  => in_array($import->progress_stage, ['finished', 'failed', 'cancelled'], true),
+        ]);
+    }
+
+    /** MARKER-IMPORT-QUEUE — a cancel the job honours between chunks. */
+    public function cancelRun(string $id)
+    {
+        $import = $this->find($id);
+        $import->forceFill(['cancel_requested_at' => now()])->save();
+
+        return response()->json(['ok' => true]);
     }
 }

@@ -830,6 +830,9 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
     // MARKER-IMPORT-MATCH — possible-duplicate decisions and the row ledger.
     Route::post('/imports/{id}/matches', [TenantControllers\ImportController::class, 'resolveMatches'])->name('imports.matches.save');
     Route::get('/imports/{id}/ledger',   [TenantControllers\ImportController::class, 'ledger'])->name('imports.ledger');
+    // MARKER-IMPORT-QUEUE — what the progress modal polls, and its cancel.
+    Route::get('/imports/{id}/progress', [TenantControllers\ImportController::class, 'progress'])->name('imports.progress');
+    Route::post('/imports/{id}/cancel',  [TenantControllers\ImportController::class, 'cancelRun'])->name('imports.cancel');
             Route::get('/imports/{id}',                 [TenantControllers\ImportController::class, 'show'])->name('imports.show');
             // MARKER-IMPORT-DRILLDOWN — what's behind a result number
             Route::get('/imports/{id}/detail',  [TenantControllers\ImportController::class, 'detail'])->name('imports.detail');

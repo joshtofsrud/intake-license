@@ -16,6 +16,7 @@ class TenantImport extends Model
         'status', 'failure_reason', 'error_path', 'created_by_user_id',
         'started_at', 'finished_at',
         'progress_done', 'progress_total', 'progress_stage', 'progress_seen_at', // MARKER-IMPORT-PROGRESS
+        'cancel_requested_at', // MARKER-IMPORT-QUEUE
     ];
 
     protected $casts = [
@@ -24,6 +25,7 @@ class TenantImport extends Model
         'row_overrides' => 'array',   // MARKER-IMPORT-MERGE
         'options'     => 'array',
         'totals'      => 'array',
+        'cancel_requested_at' => 'datetime', // MARKER-IMPORT-QUEUE
         'has_header'  => 'boolean',
         'started_at'  => 'datetime',
         'finished_at' => 'datetime',

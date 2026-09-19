@@ -6,6 +6,7 @@
 {{-- MARKER-IMPORT-MATCH — per-type nouns; this screen serves both importers. --}}
 @php $nouns = \App\Support\ImportFieldRegistry::nouns($import->type ?? 'customers'); @endphp
 @include('tenant.imports._styles')
+@include('tenant.imports._progress')
 
 @if(session('error'))<div class="ia-flash ia-flash--error" style="margin-bottom:14px">{{ session('error') }}</div>@endif
 
