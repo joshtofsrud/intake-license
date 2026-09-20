@@ -141,6 +141,73 @@
     </div>
 
     {{-- size sub-groups (touch of A) --}}
+{{-- MARKER-UNCAT-CARVE — narrow to a source, then carve by keyword. This
+     bucket mixes an import with older stock, so a keyword alone sweeps both. --}}
+<div class="uc-carve">
+  <form method="get" class="uc-carve-row">
+    <input type="hidden" name="bucket" value="{{ $activeBucket }}">
+
+    <label class="uc-lab">Where it came from</label>
+    <select name="src" class="uc-inp" onchange="this.form.submit()">
+      <option value="">Everything in this bucket ({{ number_format($bucketTotal) }})</option>
+      @foreach($sourceOptions as $so)
+        <option value="{{ $so->k }}" @selected($activeSource === $so->k)>{{ $so->label }} ({{ number_format($so->c) }})</option>
+      @endforeach
+    </select>
+
+    <label class="uc-lab" style="margin-left:14px">Name contains</label>
+    <input type="text" name="kw" value="{{ $keyword }}" class="uc-inp" placeholder="jkt, shorts, wader…" style="width:170px">
+    <label class="uc-chk"><input type="checkbox" name="kwsku" value="1" @checked($kwSku)> also SKU</label>
+    <button type="submit" class="ia-btn ia-btn--sm">Search</button>
+
+    @if($keyword !== '')
+      <span class="uc-count"><b>{{ number_format($matchCount) }}</b> match</span>
+      <span class="uc-of">of {{ number_format($narrowedTotal) }}</span>
+      <a href="{{ request()->fullUrlWithQuery(['kw' => null]) }}" class="ia-btn ia-btn--ghost ia-btn--sm">Clear</a>
+    @endif
+  </form>
+
+  @if($keyword !== '' && $matchCount > 0)
+    <div class="uc-carve-act">
+      {{-- MARKER-UNCAT-CARVE-SELECT — the page already ships uc-cb checkboxes
+           and ucAll()/ucUpd(); use them so the assign panel's count updates. --}}
+      <button type="button" class="ia-btn ia-btn--sm" onclick="ucAll(true)">
+        Select all {{ number_format(min($matchCount, 500)) }} shown
+      </button>
+      @if($matchCount > 500)
+        <span class="uc-of">Showing the first 500 — assign these, then search again for the rest.</span>
+      @endif
+    </div>
+  @endif
+
+  @if($triedKeywords->isNotEmpty())
+    <div class="uc-tried">
+      <span class="uc-of">Already worked through here:</span>
+      @foreach($triedKeywords as $tk)
+        <a href="{{ request()->fullUrlWithQuery(['kw' => $tk->keyword]) }}" class="uc-tried-chip">
+          {{ $tk->keyword }} <span>— {{ number_format($tk->n) }} done</span>
+        </a>
+      @endforeach
+    </div>
+  @endif
+</div>
+
+<style>
+  .uc-carve{background:var(--ia-surface-2);border:0.5px solid var(--ia-border);border-radius:var(--ia-r-md);padding:12px 14px;margin-bottom:14px}
+  .uc-carve-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .uc-lab{font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--ia-text-dim)}
+  .uc-inp{font-size:12.5px;padding:6px 9px;border-radius:6px;border:.5px solid var(--ia-border);background:var(--ia-input-bg);color:var(--ia-text);font-family:inherit}
+  .uc-chk{font-size:12px;color:var(--ia-text-dim);display:flex;align-items:center;gap:5px}
+  .uc-chk input{accent-color:var(--ia-accent)}
+  .uc-count{font-size:13px;color:var(--ia-accent)}
+  .uc-of{font-size:11.5px;color:var(--ia-text-dim)}
+  .uc-carve-act{display:flex;align-items:center;gap:10px;margin-top:10px}
+  .uc-tried{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:10px}
+  .uc-tried-chip{font-size:11.5px;padding:3px 9px;border-radius:99px;border:0.5px solid var(--ia-border);color:var(--ia-text-muted);text-decoration:none}
+  .uc-tried-chip span{color:var(--ia-text-dim)}
+  .uc-tried-chip:hover{border-color:var(--ia-border-strong)}
+</style>
+
     {{-- MARKER-SPLIT-BY-CLIENT — the picker runs in the browser. Nothing is
          remembered; the default still comes from the server-side ranking. --}}
     @if(count($attrOptions))

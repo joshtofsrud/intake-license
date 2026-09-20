@@ -682,6 +682,58 @@ class InventoryController extends Controller
         } else {
             $wq->whereHas('distributorCatalog', fn ($x) => $x->where('category', $bucketName));
         }
+        // MARKER-UNCAT-CARVE — narrow to one source, then carve by keyword.
+        // The big bucket mixes tonight's import with everything that never had
+        // a catalog category, so a keyword alone would sweep both.
+        $sourceKey = trim((string) $request->query('src', ''));
+        $keyword   = trim((string) $request->query('kw', ''));
+        $kwSku     = $request->boolean('kwsku');
+
+        // Which sources are present in THIS bucket, with counts. Vendors and
+        // imports both, because an item arrives by one or the other.
+        $sourceOptions = (clone $wq)
+            ->leftJoin('tenant_inventory_item_vendors as sv', 'sv.inventory_item_id', '=', 'tenant_inventory_items.id')
+            ->leftJoin('tenant_vendors as sven', 'sven.id', '=', 'sv.vendor_id')
+            ->selectRaw("CASE WHEN sven.id IS NOT NULL THEN CONCAT('v:', sven.id) ELSE 'none' END as k,
+                         COALESCE(sven.name, 'No vendor') as label, COUNT(DISTINCT tenant_inventory_items.id) as c")
+            ->groupBy('k', 'label')->orderByDesc('c')->limit(40)->get();
+
+        if ($sourceKey !== '' && str_starts_with($sourceKey, 'v:')) {
+            $vid = substr($sourceKey, 2);
+            $wq->whereExists(function ($w) use ($vid) {
+                $w->selectRaw('1')->from('tenant_inventory_item_vendors as vf')
+                  ->whereColumn('vf.inventory_item_id', 'tenant_inventory_items.id')
+                  ->where('vf.vendor_id', $vid);
+            });
+        } elseif ($sourceKey === 'none') {
+            $wq->whereNotExists(function ($w) {
+                $w->selectRaw('1')->from('tenant_inventory_item_vendors as vf')
+                  ->whereColumn('vf.inventory_item_id', 'tenant_inventory_items.id');
+            });
+        }
+
+        $narrowedTotal = (clone $wq)->count();
+
+        if ($keyword !== '') {
+            $like = '%' . str_replace(['%', '_'], ['\\%', '\\_'], $keyword) . '%';
+            $wq->where(function ($w) use ($like, $kwSku) {
+                $w->where('name', 'like', $like);
+                if ($kwSku) { $w->orWhere('sku', 'like', $like)->orWhere('catalog_mpn', 'like', $like); }
+            });
+        }
+
+        $matchCount = $keyword !== '' ? (clone $wq)->count() : $narrowedTotal;
+
+        // Keywords already worked through in this bucket, from the ledger —
+        // no second table, and they undo through the existing rail.
+        $triedKeywords = \Illuminate\Support\Facades\DB::table('tenant_category_assignments')
+            ->where('tenant_id', $tenant->id)
+            ->where('bucket_key', $bucket)
+            ->whereNull('undone_at')
+            ->whereNotNull('keyword')->where('keyword', '!=', '')
+            ->selectRaw('keyword, COUNT(*) as n, MAX(created_at) as last')
+            ->groupBy('keyword')->orderByDesc('last')->limit(12)->get();
+
         $all = $wq->orderBy('name')->limit(500)->get();
         // MARKER-UNCAT-LABEL — the view shows the name, never the prefixed key.
         // MARKER-UNCAT-LABEL2 — $bucketLabel feeds the heading and predates the
@@ -834,6 +886,11 @@ class InventoryController extends Controller
             'activeAttrLabel' => $activeAttrLabel, 'valuesByAttr' => $valuesByAttr,
             'bucketTotal' => $bucketTotal,
             'tree' => $tree, 'recent' => $recent,
+            // MARKER-UNCAT-CARVE
+            'sourceOptions' => $sourceOptions, 'activeSource' => $sourceKey,
+            'keyword' => $keyword, 'kwSku' => $kwSku,
+            'matchCount' => $matchCount, 'narrowedTotal' => $narrowedTotal,
+            'triedKeywords' => $triedKeywords,
         ]);
     }
 
@@ -997,6 +1054,10 @@ class InventoryController extends Controller
 
         \Illuminate\Support\Facades\DB::transaction(function () use ($rows, $assignmentId, $tenant, $category, $bucketKey, $request, $q) {
             \Illuminate\Support\Facades\DB::table('tenant_category_assignments')->insert([
+            // MARKER-UNCAT-CARVE-RECORD — what was searched, so the screen can
+            // show which words have been worked through in this bucket.
+            'keyword'    => trim((string) $request->input('kw', '')) ?: null,
+            'source_key' => trim((string) $request->input('src', '')) ?: null,
                 'id' => $assignmentId, 'tenant_id' => $tenant->id,
                 'bucket_key' => $bucketKey !== '' ? $bucketKey : null,
                 'category_id' => $category->id, 'category_name' => $category->name,
