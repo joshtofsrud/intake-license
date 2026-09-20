@@ -319,7 +319,9 @@ class ImportController extends Controller
                 'location_id'       => $request->input('location_id'),
                 'stock_mode'        => in_array($request->input('stock_mode'), ['set', 'add', 'leave'], true)
                                        ? $request->input('stock_mode') : 'set',
-                'create_categories' => $request->boolean('create_categories'),
+                // MARKER-IMPORT-MAP-CLEAN - 'create_categories' removed: the
+                // category review decides this per path now, so storing a
+                // blanket flag only invites someone to honour it later.
                 // MARKER-IMPORT-VENDOR-ONCE — the only place a vendor is chosen
                 // or created for an import. "__new" with a name creates one,
                 // once, matched on name first so a retyped existing vendor is

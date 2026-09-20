@@ -120,6 +120,30 @@
 </style>
 
 {{-- ==================================================== categories --}}
+{{-- MARKER-IMPORT-MAP-CLEAN — render whenever a category column is mapped,
+     even with nothing to show. A card that disappears reads as a missing
+     feature; one that says "nothing to review" reads as an answer. --}}
+@php
+  $catColumnMapped = collect((array) ($import->mapping ?? []))
+      ->contains(fn ($m) => (is_array($m) ? ($m['field'] ?? null) : $m) === 'category');
+@endphp
+@if($import->type === 'inventory' && ! count($catRows) && $catColumnMapped)
+  <div class="ia-card" style="margin-top:14px">
+    <div class="ia-card-head"><span class="ia-card-title">Categories in this file</span></div>
+    <div class="ia-card-body">
+      <div class="imp-hint">
+        @if($previewing)
+          Counting them now — this fills in when the check finishes.
+        @else
+          A category column is mapped, but this check found no values in it. Either the column is empty,
+          or the check ran before category review existed — <b>Back to mapping</b> and check the file again
+          to build the list.
+        @endif
+      </div>
+    </div>
+  </div>
+@endif
+
 @if($import->type === 'inventory' && count($catRows))
   @php
     $catNew      = collect($catRows)->where('new', true);

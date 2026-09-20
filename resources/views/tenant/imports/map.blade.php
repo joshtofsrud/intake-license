@@ -221,9 +221,14 @@
         + '<span style="' + LAB + '">Built from</span>'
         + '<span class="imp-parts" style="display:flex;flex-wrap:wrap;align-items:center;gap:2px 0">';
       parts.forEach(function (p, k) { html += partHtml(i, k, p); });
-      html += '<button type="button" class="ia-btn ia-btn--ghost ia-btn--sm imp-add-col" style="font-size:12px">+ column</button>'
+      // MARKER-IMPORT-MAP-CLEAN-BTNS — outside .imp-parts, so a new piece is
+      // appended to the pieces and the buttons stay at the end of the row.
+      // Inside, they held the position they were rendered at and pieces
+      // appeared after them.
+      html += '</span>'
+        + '<button type="button" class="ia-btn ia-btn--ghost ia-btn--sm imp-add-col" style="font-size:12px;margin-left:4px">+ column</button>'
         + '<button type="button" class="ia-btn ia-btn--ghost ia-btn--sm imp-add-text" style="font-size:12px;margin-left:4px">+ text</button>'
-        + '</span></div>'
+        + '</div>'
         // line 3: how they join
         + '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:10px">'
         + '<span style="' + LAB + '">Joined by</span>'
@@ -413,8 +418,15 @@
              that don't match one you already have land uncategorized, keeping
              the file's category so you can map them on Inventory > Category
              mappings whenever you like. --}}
-        <label class="imp-radio" hidden><input type="checkbox" name="create_categories" value="0">
-          <span><b>Create categories that don't exist</b><span>Matched on name. "Parts &gt; Brakes" creates the parent too.</span></span></label>
+        {{-- MARKER-IMPORT-MAP-CLEAN — the "create categories" checkbox was
+             removed, not hidden: it governed nothing after the category review
+             landed, and offering to create categories beside a feature built
+             so that none are created unseen is a contradiction on the page. --}}
+        <div class="imp-hint" style="margin-top:10px">
+          <b>Categories</b> are decided after this step. The check screen lists every category the file
+          names, with a count each, and you choose which to create, which to map onto ones you already
+          have, and which to leave off. Nothing is created from this file without you seeing it first.
+        </div>
 
         {{-- MARKER-IMPORT-MPN-BRAND — one vendor for the whole file. --}}
         @if(($import->type ?? '') === 'inventory' && isset($vendors))
