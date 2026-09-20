@@ -232,7 +232,14 @@ class InventoryController extends Controller
 
         // MARKER-INV-BRAND-DIST — brand lives on the linked catalog row.
         if ($brand !== '') {
-            $q->whereHas('distributorCatalog', fn ($w) => $w->where('manufacturer', $brand));
+            // MARKER-INV-FILTERS — a brand can come from the shop's own value
+            // or from the linked catalog. Matching only the catalog hid every
+            // imported item that had a brand.
+            $q->where(function ($w) use ($brand) {
+                $w->where('shop_brand', $brand)
+                  ->orWhere(fn ($x) => $x->whereNull('shop_brand')
+                      ->whereHas('distributorCatalog', fn ($c) => $c->where('manufacturer', $brand)));
+            });
         }
 
         // MARKER-INV-BRAND-DIST — "available from", not "created by". An item
@@ -240,11 +247,22 @@ class InventoryController extends Controller
         // asking what BTI can supply means all of it. whereExists keeps the
         // row unique — a join would list a two-source item twice.
         if ($distributor !== '') {
-            $q->whereExists(function ($w) use ($distributor) {
+            // MARKER-INV-FILTERS-VENDOR — this filters by VENDOR now. A
+            // distributor is a vendor with a feed attached, so listing only
+            // distributor_code meant a vendor like Patagonia could never
+            // appear however many of its items you held. An old ?distributor=
+            // code still works: it resolves to the vendor carrying that code.
+            $vendorId = \App\Models\Tenant\TenantVendor::where('tenant_id', tenant()->id)
+                ->where(fn ($w) => $w->whereKey($distributor)->orWhere('distributor_code', $distributor))
+                ->value('id');
+
+            $q->whereExists(function ($w) use ($vendorId, $distributor) {
                 $w->selectRaw('1')
                   ->from('tenant_inventory_item_vendors as iv_f')
-                  ->whereColumn('iv_f.inventory_item_id', 'tenant_inventory_items.id')
-                  ->where('iv_f.distributor_code', $distributor);
+                  ->whereColumn('iv_f.inventory_item_id', 'tenant_inventory_items.id');
+                $vendorId
+                    ? $w->where('iv_f.vendor_id', $vendorId)
+                    : $w->where('iv_f.distributor_code', $distributor);
             });
         }
 
@@ -316,15 +334,17 @@ class InventoryController extends Controller
                         ? self::descendantCategoryIds($allCats, $category)
                         : [$category];
 
+                    // MARKER-INV-FILTERS-SUGGEST — shop brand first, catalog as
+                    // the fallback, LEFT joined so an item with no catalog row
+                    // still counts toward its brand.
                     $suggestBrands = \Illuminate\Support\Facades\DB::table('tenant_inventory_items as it')
-                        ->join('platform_distributor_catalogs as pdc', 'pdc.id', '=', 'it.distributor_catalog_id')
+                        ->leftJoin('platform_distributor_catalogs as pdc', 'pdc.id', '=', 'it.distributor_catalog_id')
                         ->where('it.tenant_id', $tenant->id)
                         ->where('it.is_active', true)
                         ->whereIn('it.category_id', $catIdsForSuggest)
-                        ->whereNotNull('pdc.manufacturer')
-                        ->where('pdc.manufacturer', '!=', '')
-                        ->selectRaw('pdc.manufacturer as name, COUNT(*) as c')
-                        ->groupBy('pdc.manufacturer')
+                        ->whereRaw("COALESCE(NULLIF(it.shop_brand, ''), NULLIF(pdc.manufacturer, '')) IS NOT NULL")
+                        ->selectRaw("COALESCE(NULLIF(it.shop_brand, ''), NULLIF(pdc.manufacturer, '')) as name, COUNT(*) as c")
+                        ->groupByRaw("COALESCE(NULLIF(it.shop_brand, ''), NULLIF(pdc.manufacturer, ''))")
                         ->orderByDesc('c')
                         ->limit(12)
                         ->get()
@@ -391,7 +411,7 @@ class InventoryController extends Controller
         // recomputed on every click. Indexes are already present; the cost is
         // genuine work, so the fix is not doing it 60 times a minute.
         $brandOptions = \Illuminate\Support\Facades\Cache::remember(
-            'inv:brands:' . $tenant->id,
+            'inv:brands:v2:' . $tenant->id,
             60,
             fn () => \App\Models\PlatformDistributorCatalog::query()
                 ->whereIn('id', function ($w) {
@@ -402,18 +422,31 @@ class InventoryController extends Controller
                 })
                 ->whereNotNull('manufacturer')->where('manufacturer', '!=', '')
                 ->distinct()->orderBy('manufacturer')->pluck('manufacturer')
+                // MARKER-INV-FILTERS — plus the shop's own brands, which no
+                // catalog knows about. Union, sorted, deduplicated case-wise.
+                ->concat(
+                    \App\Models\Tenant\TenantInventoryItem::where('tenant_id', tenant()->id)
+                        ->whereNotNull('shop_brand')->where('shop_brand', '!=', '')
+                        ->distinct()->orderBy('shop_brand')->pluck('shop_brand')
+                )
+                ->unique(fn ($b) => mb_strtolower(trim((string) $b)))
+                ->sort(fn ($a, $b) => strcasecmp((string) $a, (string) $b))
+                ->values()
         );
 
         // MARKER-INV-PAGER — ~1.1s to return two values.
         $distributorOptions = \Illuminate\Support\Facades\Cache::remember(
-            'inv:distributors:' . $tenant->id,
+            'inv:vendors:v2:' . $tenant->id,
             60,
+            // MARKER-INV-FILTERS-VENDOR — every vendor that has items, not
+            // only the ones with a catalog feed. Keyed by id, labelled by
+            // name, so the option value is stable if a vendor is renamed.
             fn () => \Illuminate\Support\Facades\DB::table('tenant_inventory_item_vendors as iv')
                 ->join('tenant_inventory_items as it', 'it.id', '=', 'iv.inventory_item_id')
+                ->join('tenant_vendors as v', 'v.id', '=', 'iv.vendor_id')
                 ->where('it.tenant_id', tenant()->id)
-                ->whereNotNull('iv.distributor_code')->where('iv.distributor_code', '!=', '')
-                ->distinct()->orderBy('iv.distributor_code')
-                ->pluck('iv.distributor_code')
+                ->distinct()->orderBy('v.name')
+                ->pluck('v.name', 'v.id')
         );
 
         $categories    = $allCats;

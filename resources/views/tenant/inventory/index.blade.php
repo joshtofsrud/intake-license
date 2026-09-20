@@ -271,14 +271,16 @@
 
   @if($distributorOptions->count() > 1)
     {{-- MARKER-SSEL-FILTERS --}}
+    {{-- MARKER-INV-FILTERS — vendors, not only catalog feeds: a shop's own
+         vendor could never appear while this listed distributor codes. --}}
     @php
       $sselDist = [];
-      foreach ($distributorOptions as $d) { $sselDist[(string) $d] = 'Available from ' . $d; }
+      foreach ($distributorOptions as $dId => $dName) { $sselDist[(string) $dId] = 'From ' . $dName; }
     @endphp
     <div style="min-width:180px">
       <x-tenant.searchable-select name="distributor" :options="$sselDist" :assoc="true"
-        :selected="(string) ($distributor ?? '')" any="All distributors" noun="distributors"
-        :searchable="false" />
+        :selected="(string) ($distributor ?? '')" any="All vendors" noun="vendors"
+        :searchable="true" />
     </div>
   @endif
 
