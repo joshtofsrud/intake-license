@@ -87,7 +87,10 @@
     el.elapsed.textContent = elapsed(d.elapsed);
 
     el.tallies.innerHTML = '';
-    if (d.live) {
+    // MARKER-IMPORT-STATUS-RACE — a tally from the previous phase next to a
+    // bar showing this one is two numbers contradicting each other: the modal
+    // read "0 of 18,246 rows" beside "18,200 created".
+    if (d.live && d.done > 0) {
       Object.keys(d.live).forEach(function (k) {
         if (!d.live[k]) return;
         var s = document.createElement('span');
@@ -109,9 +112,15 @@
       el.title.textContent = 'Finished';
       el.sub.textContent = 'Every row has an outcome.';
       el.fill.style.width = '100%';
+    } else if (d.orphaned) {
+      // MARKER-IMPORT-STATUS-RACE — dispatched, then refused itself.
+      el.title.textContent = 'This run never started';
+      el.sub.textContent = 'The import was asked to run but the worker found it in another state.';
+      el.warn.className = 'imp-prog-warn failed';
+      el.warn.textContent = 'Nothing was written. Close this and press Import again — if it happens twice, tell me and I will look at the worker.';
     } else if (d.stalled) {
       el.title.textContent = 'Still going, but nothing has moved';
-      el.sub.textContent = 'No update for ' + d.seen_ago + ' seconds.';
+      el.sub.textContent = 'No update for ' + Math.round(d.seen_ago) + ' seconds.'; // MARKER-IMPORT-STATUS-RACE
       el.warn.className = 'imp-prog-warn stalled';
       el.warn.textContent = 'The worker may have stopped. Leave this open a moment; if nothing moves, stop the import and try again — nothing is lost, every row already written has a recorded outcome.';
     } else {
@@ -125,7 +134,8 @@
     }
 
     var done = d.finished || d.stage === 'failed' || d.stage === 'cancelled';
-    el.cancel.style.display = done ? 'none' : '';
+    el.cancel.style.display = (done || d.orphaned) ? 'none' : ''; // MARKER-IMPORT-STATUS-RACE
+    el.hide.style.display   = (done || d.orphaned) ? '' : 'none';
     el.hide.style.display   = done ? '' : 'none';
     el.go.style.display     = (d.stage === 'finished') ? '' : 'none';
   }

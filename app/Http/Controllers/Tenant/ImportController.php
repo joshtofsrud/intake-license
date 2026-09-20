@@ -560,7 +560,14 @@ class ImportController extends Controller
         }
 
         $result = $this->importer($import)->previewSummary();
-        $import->update(['status' => 'previewed']);
+
+        // MARKER-IMPORT-STATUS-RACE — only claim 'previewed' from a state that
+        // means "not doing anything else". This line used to run on EVERY load
+        // of this page, so refreshing it while a run was queued overwrote
+        // 'running' and the run job then quietly refused to start.
+        if (in_array($import->status, ['draft', 'previewing', 'previewed'], true)) {
+            $import->update(['status' => 'previewed']);
+        }
 
         // MARKER-IMPORT-MATCH — the review list and the ledger behind the tiles.
         $dupes = \App\Models\Tenant\TenantImportLedgerRow::where('import_id', $import->id)
@@ -876,6 +883,12 @@ class ImportController extends Controller
         $stalled = in_array($import->progress_stage, ['previewing', 'running'], true)
                    && $seen && $seen->lt(now()->subSeconds(30));
 
+        // MARKER-IMPORT-STATUS-RACE — stage says running, status disagrees:
+        // the job was dispatched and refused itself. That is a different thing
+        // from slow, and the modal must not call it stalled.
+        $orphaned = $import->progress_stage === 'running' && $import->status !== 'running'
+                    && ! in_array($import->status, ['done', 'cancelled', 'failed'], true);
+
         // MARKER-IMPORT-PROGRESS-FIX-ELAPSED — elapsed is a server fact. The
         // browser was timing from page load, so a restored tab reported 356
         // minutes on a run that had just started.
@@ -893,6 +906,7 @@ class ImportController extends Controller
             'live'      => ($import->totals ?? [])['live'] ?? null,
             'seen_ago'  => $seen ? $seen->diffInSeconds(now()) : null,
             'stalled'   => $stalled,
+            'orphaned'  => $orphaned, // MARKER-IMPORT-STATUS-RACE
             'cancelled' => (bool) $import->cancel_requested_at,
             'reason'    => $import->failure_reason,
             'finished'  => in_array($import->progress_stage, ['finished', 'failed', 'cancelled'], true),

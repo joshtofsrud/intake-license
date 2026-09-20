@@ -30,11 +30,48 @@ class RunImportJob implements ShouldQueue, ShouldBeUnique
 
     public function handle(): void
     {
+        // MARKER-IMPORT-STATUS-RACE — every exit from here says why. This job
+        // used to return on a status mismatch without a word, so a race
+        // between the preview finishing and the run starting looked exactly
+        // like nothing happening at all.
         $tenant = Tenant::find($this->tenantId);
-        if (! $tenant) { return; }
+        if (! $tenant) {
+            \Illuminate\Support\Facades\Log::warning('RunImportJob: tenant gone', [
+                'tenant' => $this->tenantId, 'import' => $this->importId,
+            ]);
+            return;
+        }
 
         $import = TenantImport::where('tenant_id', $tenant->id)->find($this->importId);
-        if (! $import || $import->status !== 'running') { return; }
+        if (! $import) {
+            \Illuminate\Support\Facades\Log::warning('RunImportJob: import gone', [
+                'tenant' => $tenant->id, 'import' => $this->importId,
+            ]);
+            return;
+        }
+
+        if ($import->status !== 'running') {
+            // Recoverable: the row still says a run was asked for, so say so
+            // on the row itself rather than disappearing.
+            $reason = 'The run was asked for but the import was in "' . $import->status
+                . '" when the worker picked it up, so nothing was written. Press Import again.';
+
+            $import->forceFill([
+                'status'           => 'failed',
+                'failure_reason'   => $reason,
+                'progress_stage'   => 'failed',
+                'progress_seen_at' => now(),
+            ])->save();
+
+            \App\Support\JobFailureReporter::report(
+                static::class,
+                'Import run refused itself: status was ' . $import->status,
+                new \RuntimeException($reason),
+                ['import' => $import->id],
+                $tenant->id
+            );
+            return;
+        }
 
         try {
             $importer = $import->type === 'inventory'

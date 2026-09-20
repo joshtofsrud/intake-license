@@ -43,8 +43,17 @@ class PreviewImportJob implements ShouldQueue, ShouldBeUnique
 
             $result = $importer->preview();
 
+            // MARKER-IMPORT-STATUS-RACE — if a run started while this preview
+            // was finishing, the run owns the status now. Writing 'previewed'
+            // over 'running' is what made RunImportJob refuse itself in
+            // silence.
+            $fresh  = $import->fresh();
+            $status = in_array($fresh->status, ['running', 'done', 'cancelled', 'failed'], true)
+                ? $fresh->status
+                : ($import->cancel_requested_at ? 'draft' : 'previewed');
+
             $import->forceFill([
-                'status'         => $import->cancel_requested_at ? 'draft' : 'previewed',
+                'status'         => $status,
                 // MARKER-IMPORT-CATS — the category tally rides with the counts
                 // so the review screen needs no second pass over the file.
                 'totals'         => array_merge((array) $import->totals, [
@@ -54,7 +63,10 @@ class PreviewImportJob implements ShouldQueue, ShouldBeUnique
                     'newCategories'    => $result['newCategories'] ?? [],
                     'newVendors'       => $result['newVendors'] ?? [],
                 ]),
-                'progress_stage' => $import->cancel_requested_at ? 'cancelled' : 'finished',
+                // Only claim the stage if a run has not taken it over either.
+                'progress_stage' => $fresh->progress_stage === 'running'
+                    ? 'running'
+                    : ($import->cancel_requested_at ? 'cancelled' : 'finished'),
                 'progress_seen_at' => now(),
             ])->save();
         } catch (\Throwable $e) {
