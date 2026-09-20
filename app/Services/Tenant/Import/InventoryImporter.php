@@ -413,7 +413,7 @@ class InventoryImporter
             if (! $batch) { return; }
             $matches = $this->matchBatch($batch); // MARKER-IMPORT-MATCH
 
-            DB::transaction(function () use ($batch, $existing, &$counts, &$errorRows, $inventory,
+            DB::transaction(function () use ($batch, $matches, /* MARKER-IMPORT-RUN-CLOSURE */ &$counts, &$errorRows, $inventory,
                                             $location, $createVendors, $stockMode, $user) {
                 foreach ($batch as $i => $b) {
                     $row = $this->buildRow($b['cells'], $matches[$i]['record'], $b['line']);

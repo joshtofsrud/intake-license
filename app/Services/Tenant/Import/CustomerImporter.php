@@ -404,7 +404,7 @@ class CustomerImporter
             // MARKER-IMPORT-TAG-ALL — ids gathered here, written once below.
             $toTag = [];
 
-            DB::transaction(function () use ($batch, $existing, &$counts, &$errorRows, &$toTag) {
+            DB::transaction(function () use ($batch, $matches, /* MARKER-IMPORT-RUN-CLOSURE */ &$counts, &$errorRows, &$toTag) {
                 foreach ($batch as $i => $b) {
                     $row = $this->buildRow($b['cells'], $matches[$i]['record'], $b['line']);
                     $row = $this->judge($row, $matches[$i], $b['line'], $b['cells']); // MARKER-IMPORT-MATCH
