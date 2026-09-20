@@ -570,12 +570,23 @@ class ImportController extends Controller
             ? \App\Models\Tenant\TenantImportLedgerRow::where('import_id', $import->id)
                 ->where('phase', 'preview')->where('outcome', $showOutcome)->orderBy('line')->limit(500)->get()
             : collect();
+        // MARKER-IMPORT-CATS — the tally, the decisions, and the tenant's own
+        // categories for the "map to existing" picker.
+        $catRows      = (array) (($import->totals ?? [])['categories'] ?? []);
+        $catCapped    = (bool) (($import->totals ?? [])['categoriesCapped'] ?? false);
+        $catDecisions = (array) (($import->row_overrides ?? [])['__cats'] ?? []);
+        $existingCats = $import->type === 'inventory'
+            ? \App\Models\Tenant\TenantInventoryCategory::where('tenant_id', tenant()->id)
+                ->orderBy('name')->get(['id', 'name', 'parent_id'])
+            : collect();
+
         $nouns  = ImportFieldRegistry::nouns($import->type);
         $fields = ImportFieldRegistry::for($import->type);
         $header = (array) ($import->columns ?? []);
 
         return view('tenant.imports.preview', compact(
-            'import', 'result', 'dupes', 'decisions', 'showOutcome', 'ledgerRows', 'nouns', 'fields', 'header'));
+            'import', 'result', 'dupes', 'decisions', 'showOutcome', 'ledgerRows', 'nouns', 'fields', 'header',
+            'catRows', 'catCapped', 'catDecisions', 'existingCats'));
     }
 
     public function run(string $id)
@@ -882,5 +893,47 @@ class ImportController extends Controller
         $import->forceFill(['cancel_requested_at' => now()])->save();
 
         return response()->json(['ok' => true]);
+    }
+
+    /**
+     * MARKER-IMPORT-CATS — record create / map / leave off per category path.
+     * Stored beside the duplicate decisions so one place holds every choice
+     * made about this file.
+     */
+    public function resolveCategories(Request $request, string $id)
+    {
+        $import = $this->find($id);
+        $ov  = (array) ($import->row_overrides ?? []);
+        $cur = (array) ($ov['__cats'] ?? []);
+
+        $paths = collect((array) (($import->totals ?? [])['categories'] ?? []))->pluck('path')->all();
+        $valid = \App\Models\Tenant\TenantInventoryCategory::where('tenant_id', tenant()->id)
+            ->pluck('id')->map(fn ($v) => (string) $v)->all();
+
+        $all = $request->input('all');
+        if (in_array($all, ['create', 'off'], true)) {
+            foreach ($paths as $path) { $cur[$path] = $all; }
+        }
+        if ($all === 'threshold') {
+            $min = max(1, (int) $request->input('min_rows', 10));
+            foreach ((array) (($import->totals ?? [])['categories'] ?? []) as $row) {
+                $cur[$row['path']] = ((int) $row['rows'] >= $min) ? 'create' : 'off';
+            }
+        }
+
+        foreach ((array) $request->input('decision', []) as $path => $d) {
+            $path = (string) $path;
+            if (! in_array($path, $paths, true)) { continue; }
+            if ($d === 'create' || $d === 'off') { $cur[$path] = $d; continue; }
+            if (in_array((string) $d, $valid, true)) { $cur[$path] = (string) $d; }
+        }
+
+        $ov['__cats'] = $cur;
+        $import->update(['row_overrides' => $ov]);
+
+        $creating = collect($cur)->filter(fn ($v) => $v === 'create')->count();
+
+        return redirect()->route('tenant.imports.preview', $import->id)
+            ->with('success', $creating . ' ' . \Illuminate\Support\Str::plural('category', $creating) . ' will be created.');
     }
 }

@@ -833,6 +833,8 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
     // MARKER-IMPORT-QUEUE — what the progress modal polls, and its cancel.
     Route::get('/imports/{id}/progress', [TenantControllers\ImportController::class, 'progress'])->name('imports.progress');
     Route::post('/imports/{id}/cancel',  [TenantControllers\ImportController::class, 'cancelRun'])->name('imports.cancel');
+    // MARKER-IMPORT-CATS — create / map / leave off, per category path.
+    Route::post('/imports/{id}/categories', [TenantControllers\ImportController::class, 'resolveCategories'])->name('imports.categories.save');
             Route::get('/imports/{id}',                 [TenantControllers\ImportController::class, 'show'])->name('imports.show');
             // MARKER-IMPORT-DRILLDOWN — what's behind a result number
             Route::get('/imports/{id}/detail',  [TenantControllers\ImportController::class, 'detail'])->name('imports.detail');

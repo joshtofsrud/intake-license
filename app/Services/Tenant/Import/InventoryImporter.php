@@ -289,11 +289,11 @@ class InventoryImporter
         $sample = []; $seen = []; $first = true;
         $this->ledgerStart('preview'); // MARKER-IMPORT-MATCH
         $this->progressStart('previewing', $this->rowTotal()); // MARKER-IMPORT-QUEUE
-        $newCats = []; $newVendors = [];
+        $newCats = []; $newVendors = []; $catTally = []; // MARKER-IMPORT-CATS
         $skuIdx  = $this->skuIndex();
 
         $batch = [];
-        $flush = function () use (&$batch, &$counts, &$sample, $sampleLimit, &$newCats, &$newVendors) {
+        $flush = function () use (&$batch, &$counts, &$sample, $sampleLimit, &$newCats, &$newVendors, &$catTally) {
             if (! $batch) { return; }
             // MARKER-IMPORT-MATCH — three keys, strongest first, and a judge
             // step that turns a weak or disagreeing match into a possible
@@ -309,6 +309,10 @@ class InventoryImporter
                 // Which categories/vendors WOULD be created — resolve read-only.
                 if (! empty($row['extra']['category'])) {
                     $name = $row['extra']['category'];
+                    // MARKER-IMPORT-CATS — count the rows behind each path, and
+                    // whether it already exists, so the review screen can sort
+                    // by weight and show what is genuinely new.
+                    $catTally[$name] = ($catTally[$name] ?? 0) + 1;
                     if (! $this->resolveCategory($name, false)) { $newCats[$name] = true; }
                 }
                 if (! empty($row['extra']['vendor'])) {
@@ -362,8 +366,19 @@ class InventoryImporter
         $this->ledgerFlush(); // MARKER-IMPORT-MATCH
         $this->progressDone($this->cancelRequested() ? 'cancelled' : 'finished'); // MARKER-IMPORT-QUEUE
 
+        // MARKER-IMPORT-CATS — biggest first; capped because a file with more
+        // than two thousand distinct paths does not have a category column,
+        // it has a description column, and a wall of rows would say nothing.
+        arsort($catTally);
+        $capped = count($catTally) > 2000;
+        $catList = [];
+        foreach (array_slice($catTally, 0, 2000, true) as $path => $n) {
+            $catList[] = ['path' => (string) $path, 'rows' => $n, 'new' => isset($newCats[$path])];
+        }
+
         return ['counts' => $counts, 'sample' => $sample,
-                'newCategories' => array_keys($newCats), 'newVendors' => array_keys($newVendors)];
+                'newCategories' => array_keys($newCats), 'newVendors' => array_keys($newVendors),
+                'categories' => $catList, 'categoriesCapped' => $capped];
     }
 
     public function run(): array
@@ -380,7 +395,9 @@ class InventoryImporter
 
         // MARKER-SOURCE-CAT — kept for the reverser's signature only; imports
         // no longer create categories under any option.
-        $createCats    = false;
+        // MARKER-IMPORT-CATS-DEAD — removed: category creation is decided per
+        // path on the preview screen now (decidedCategoryId), so a blanket
+        // flag governs nothing and only reads as though it does.
         $createVendors = (bool) $this->option('create_vendors', true);
         $stockMode     = $this->option('stock_mode', 'set');
         $user          = auth('tenant')->user();
@@ -392,12 +409,12 @@ class InventoryImporter
 
         $batch = [];
         $flush = function () use (&$batch, &$counts, &$errorRows, $inventory, $location,
-                                 $createCats, $createVendors, $stockMode, $user) {
+                                 $createVendors, $stockMode, $user) {
             if (! $batch) { return; }
             $matches = $this->matchBatch($batch); // MARKER-IMPORT-MATCH
 
             DB::transaction(function () use ($batch, $existing, &$counts, &$errorRows, $inventory,
-                                            $location, $createCats, $createVendors, $stockMode, $user) {
+                                            $location, $createVendors, $stockMode, $user) {
                 foreach ($batch as $i => $b) {
                     $row = $this->buildRow($b['cells'], $matches[$i]['record'], $b['line']);
                     $row = $this->judge($row, $matches[$i], $b['line'], $b['cells']); // MARKER-IMPORT-MATCH
@@ -437,8 +454,11 @@ class InventoryImporter
                     $sourceCategory = null;
                     if (! empty($row['extra']['category'])) {
                         $sourceCategory = trim((string) $row['extra']['category']);
-                        $cat = $this->resolveCategory($sourceCategory, false, $made);
-                        $categoryId = $cat?->id;
+                        // MARKER-IMPORT-CATS — your decision, or nothing. A path
+                        // you never approved resolves to null and the item goes
+                        // to Uncategorised with its source words intact; it is
+                        // never quietly created.
+                        $categoryId = $this->decidedCategoryId($sourceCategory, $made);
                     }
 
                     $item = $row['match'];
@@ -645,8 +665,37 @@ class InventoryImporter
             'counts'        => array_merge($counts, array_intersect_key($stored, ['will_tag' => 0])),
             'sample'        => [],
             'newCategories' => $stored['newCategories'] ?? [],
+            'categories'    => (array) (($this->import->totals ?? [])['categories'] ?? []),
+            'categoriesCapped' => (bool) (($this->import->totals ?? [])['categoriesCapped'] ?? false),
             'newVendors'    => $stored['newVendors'] ?? [],
             'tag_name'      => $stored['tag_name'] ?? null,
         ];
+    }
+
+    /**
+     * MARKER-IMPORT-CATS — resolve a category path through the decisions made
+     * on the preview screen.
+     *
+     *   create      make it (and its parents), once
+     *   <uuid>      an existing category you picked
+     *   anything else, including no decision at all  →  null (Uncategorised)
+     */
+    private function decidedCategoryId(string $path, ?array &$made = null): ?string
+    {
+        $decisions = (array) (($this->import->row_overrides ?? [])['__cats'] ?? []);
+        $decision  = $decisions[$path] ?? null;
+
+        if ($decision === null || $decision === 'off') {
+            return null;
+        }
+
+        if ($decision === 'create') {
+            return $this->resolveCategory($path, true, $made)?->id;
+        }
+
+        // A specific existing category. Verified against the tenant so a stale
+        // decision cannot point at someone else's row.
+        return \App\Models\Tenant\TenantInventoryCategory::where('tenant_id', $this->tenant->id)
+            ->whereKey($decision)->value('id');
     }
 }

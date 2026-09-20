@@ -548,6 +548,8 @@ class CustomerImporter
             'counts'        => array_merge($counts, array_intersect_key($stored, ['will_tag' => 0])),
             'sample'        => [],
             'newCategories' => $stored['newCategories'] ?? [],
+            'categories'    => (array) (($this->import->totals ?? [])['categories'] ?? []),
+            'categoriesCapped' => (bool) (($this->import->totals ?? [])['categoriesCapped'] ?? false),
             'newVendors'    => $stored['newVendors'] ?? [],
             'tag_name'      => $stored['tag_name'] ?? null,
         ];

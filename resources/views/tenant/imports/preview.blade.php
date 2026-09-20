@@ -111,6 +111,144 @@
   </div>
 @endif
 
+<style>
+  /* MARKER-IMPORT-CATS — same modal vocabulary as the vendor modal. */
+  .imp-modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.7);display:none;align-items:center;justify-content:center;z-index:1000;padding:20px}
+  .imp-modal-bg.open{display:flex}
+  .imp-modal{background:var(--ia-surface);border:0.5px solid var(--ia-border);border-radius:var(--ia-r-lg);width:100%}
+  .pc-pill{font-size:10.5px;padding:2px 8px;border-radius:99px;border:0.5px solid var(--ia-border);color:var(--ia-text-muted);white-space:nowrap}
+</style>
+
+{{-- ==================================================== categories --}}
+@if($import->type === 'inventory' && count($catRows))
+  @php
+    $catNew      = collect($catRows)->where('new', true);
+    $catExisting = collect($catRows)->where('new', false);
+    $willCreate  = collect($catDecisions)->filter(fn ($v) => $v === 'create')->count();
+    $willMap     = collect($catDecisions)->filter(fn ($v) => $v !== 'create' && $v !== 'off')->count();
+    $undecidedCats = $catNew->reject(fn ($r) => isset($catDecisions[$r['path']]))->count();
+    $offRows     = collect($catRows)->reject(fn ($r) => ($catDecisions[$r['path']] ?? 'off') !== 'off')->sum('rows');
+  @endphp
+
+  <div class="ia-card" style="margin-top:14px">
+    <div class="ia-card-head"><span class="ia-card-title">Categories in this file</span></div>
+    <div class="ia-card-body">
+      <div class="imp-hint" style="margin-bottom:12px">
+        The file names <b>{{ number_format(count($catRows)) }}</b> distinct categories.
+        <b>{{ number_format($catExisting->count()) }}</b> match ones you already have and
+        <b>{{ number_format($catNew->count()) }}</b> would be new. <b>Nothing is created until you say so</b> —
+        anything you leave off still imports, it just lands in Uncategorised with the file's own wording kept,
+        so the mapper can suggest from it later.
+        @if($catCapped)<br><b style="color:#f0c46a">More than 2,000 distinct values.</b> That is usually a description column rather than a category column — worth checking the mapping.@endif
+      </div>
+
+      <div style="display:flex;gap:26px;align-items:center;flex-wrap:wrap">
+        <div><div style="font-size:22px;font-weight:700">{{ number_format($catExisting->count()) }}</div><div class="imp-hint">match existing</div></div>
+        <div><div style="font-size:22px;font-weight:700;color:#f0c46a">{{ number_format($catNew->count()) }}</div><div class="imp-hint">would be new</div></div>
+        <div><div style="font-size:22px;font-weight:700;color:var(--ia-accent)">{{ number_format($willCreate) }}</div><div class="imp-hint">you've approved</div></div>
+        <div style="margin-left:auto">
+          <button type="button" class="ia-btn ia-btn--primary" onclick="document.getElementById('imp-cat-modal').classList.add('open')">
+            Review {{ number_format(count($catRows)) }} categories
+          </button>
+        </div>
+      </div>
+
+      @if($undecidedCats > 0)
+        <div class="imp-hint" style="margin-top:10px">
+          {{ number_format($undecidedCats) }} new {{ Str::plural('category', $undecidedCats) }} with no decision yet — those go to Uncategorised as things stand.
+        </div>
+      @endif
+    </div>
+  </div>
+
+  {{-- the review itself --}}
+  <div class="imp-modal-bg" id="imp-cat-modal" role="dialog" aria-modal="true">
+    <form method="POST" action="{{ route('tenant.imports.categories.save', $import->id) }}" class="imp-modal" style="max-width:920px;display:flex;flex-direction:column;max-height:92vh">
+      @csrf
+      <div style="padding:18px 22px 12px;border-bottom:0.5px solid var(--ia-border)">
+        <h3 style="margin:0 0 4px;font-size:16px;font-weight:600">Categories this file would use</h3>
+        <div style="font-size:12.5px;color:var(--ia-text-dim)">
+          Approve the ones you want, map the rest onto categories you already have, or leave them off.
+          Anything left off goes to Uncategorised.
+        </div>
+      </div>
+
+      <div style="display:flex;gap:8px;align-items:center;padding:10px 22px;border-bottom:0.5px solid var(--ia-border);flex-wrap:wrap">
+        <input type="text" class="imp-sel" id="imp-cat-filter" placeholder="Filter…" style="width:220px">
+        <span class="imp-hint">{{ number_format(count($catRows)) }} rows, biggest first</span>
+        <span style="margin-left:auto;display:flex;gap:6px;align-items:center">
+          <button type="submit" name="all" value="create" class="ia-btn ia-btn--sm">Approve all</button>
+          <button type="submit" name="all" value="off" class="ia-btn ia-btn--sm">Leave all off</button>
+          <span class="imp-hint">or</span>
+          <input type="number" name="min_rows" value="10" min="1" class="imp-sel" style="width:64px">
+          <button type="submit" name="all" value="threshold" class="ia-btn ia-btn--sm">Approve those with N+ items</button>
+        </span>
+      </div>
+
+      <div style="overflow:auto;flex:1">
+        <table class="imp" id="imp-cat-table">
+          <thead><tr>
+            <th>Category in the file</th>
+            <th style="width:90px;text-align:right">Items</th>
+            <th style="width:110px">Status</th>
+            <th style="width:340px">What to do</th>
+          </tr></thead>
+          <tbody>
+            @foreach($catRows as $row)
+              @php $d = $catDecisions[$row['path']] ?? ($row['new'] ? null : 'create'); @endphp
+              <tr data-path="{{ Str::lower($row['path']) }}">
+                <td>{{ $row['path'] }}</td>
+                <td style="text-align:right;font-variant-numeric:tabular-nums">{{ number_format($row['rows']) }}</td>
+                <td>
+                  @if($row['new'])<span class="pc-pill" style="color:#f0c46a">New</span>
+                  @else<span class="pc-pill">Exists</span>@endif
+                </td>
+                <td>
+                  <select name="decision[{{ $row['path'] }}]" class="imp-sel" style="width:100%">
+                    <option value="off" @selected($d === null || $d === 'off')>Leave off — Uncategorised</option>
+                    <option value="create" @selected($d === 'create')>{{ $row['new'] ? 'Create it' : 'Use the one that matches' }}</option>
+                    @foreach($existingCats as $ec)
+                      <option value="{{ $ec->id }}" @selected((string) $d === (string) $ec->id)>Map to: {{ $ec->name }}</option>
+                    @endforeach
+                  </select>
+                </td>
+              </tr>
+            @endforeach
+          </tbody>
+        </table>
+      </div>
+
+      <div style="padding:12px 22px;border-top:0.5px solid var(--ia-border);display:flex;gap:8px;align-items:center">
+        <span class="imp-hint">
+          <b style="color:var(--ia-text)">{{ number_format($willCreate) }}</b> to create ·
+          {{ number_format($willMap) }} mapped ·
+          {{ number_format($offRows) }} items to Uncategorised
+        </span>
+        <span style="margin-left:auto;display:flex;gap:8px">
+          <button type="button" class="ia-btn ia-btn--secondary" onclick="document.getElementById('imp-cat-modal').classList.remove('open')">Close</button>
+          <button type="submit" class="ia-btn ia-btn--primary">Save decisions</button>
+        </span>
+      </div>
+    </form>
+  </div>
+
+  <script>
+  (function () {
+    var f = document.getElementById('imp-cat-filter');
+    if (!f) return;
+    f.addEventListener('input', function () {
+      var q = this.value.toLowerCase();
+      document.querySelectorAll('#imp-cat-table tbody tr').forEach(function (tr) {
+        tr.style.display = tr.dataset.path.indexOf(q) === -1 ? 'none' : '';
+      });
+    });
+    var bg = document.getElementById('imp-cat-modal');
+    bg.addEventListener('click', function (e) { if (e.target === bg) bg.classList.remove('open'); });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') bg.classList.remove('open'); });
+  })();
+  </script>
+@endif
+
 {{-- ================================================ possible duplicates --}}
 @if($dupCount > 0)
   <form method="POST" action="{{ route('tenant.imports.matches.save', $import->id) }}" class="ia-card" style="margin-top:14px;border-color:rgba(240,196,106,.35)">

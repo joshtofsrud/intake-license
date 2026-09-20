@@ -45,7 +45,15 @@ class PreviewImportJob implements ShouldQueue, ShouldBeUnique
 
             $import->forceFill([
                 'status'         => $import->cancel_requested_at ? 'draft' : 'previewed',
-                'totals'         => array_merge((array) $import->totals, ['preview' => $result['counts']]),
+                // MARKER-IMPORT-CATS — the category tally rides with the counts
+                // so the review screen needs no second pass over the file.
+                'totals'         => array_merge((array) $import->totals, [
+                    'preview'          => $result['counts'],
+                    'categories'       => $result['categories'] ?? [],
+                    'categoriesCapped' => $result['categoriesCapped'] ?? false,
+                    'newCategories'    => $result['newCategories'] ?? [],
+                    'newVendors'       => $result['newVendors'] ?? [],
+                ]),
                 'progress_stage' => $import->cancel_requested_at ? 'cancelled' : 'finished',
                 'progress_seen_at' => now(),
             ])->save();
