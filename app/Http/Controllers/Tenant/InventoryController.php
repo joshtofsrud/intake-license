@@ -691,12 +691,42 @@ class InventoryController extends Controller
 
         // Which sources are present in THIS bucket, with counts. Vendors and
         // imports both, because an item arrives by one or the other.
-        $sourceOptions = (clone $wq)
-            ->leftJoin('tenant_inventory_item_vendors as sv', 'sv.inventory_item_id', '=', 'tenant_inventory_items.id')
-            ->leftJoin('tenant_vendors as sven', 'sven.id', '=', 'sv.vendor_id')
-            ->selectRaw("CASE WHEN sven.id IS NOT NULL THEN CONCAT('v:', sven.id) ELSE 'none' END as k,
-                         COALESCE(sven.name, 'No vendor') as label, COUNT(DISTINCT tenant_inventory_items.id) as c")
-            ->groupBy('k', 'label')->orderByDesc('c')->limit(40)->get();
+        // MARKER-UNCAT-CARVE-SQL — aggregate over a SUBQUERY of the bucket's
+        // ids rather than cloning the bucket query and joining onto it. The
+        // base query's predicates are unqualified (tenant_id, category_id,
+        // source_category), and tenant_vendors carries tenant_id too, so the
+        // join made them ambiguous and MySQL refused the whole page.
+        $bucketIds = (clone $wq)->select('tenant_inventory_items.id');
+
+        $vendorCounts = \Illuminate\Support\Facades\DB::table('tenant_inventory_item_vendors as sv')
+            ->join('tenant_vendors as sven', 'sven.id', '=', 'sv.vendor_id')
+            ->whereIn('sv.inventory_item_id', $bucketIds)
+            ->groupBy('sven.id', 'sven.name')
+            ->orderByDesc('c')
+            ->limit(40)
+            ->get([
+                'sven.id as vid',
+                'sven.name as label',
+                \Illuminate\Support\Facades\DB::raw('COUNT(DISTINCT sv.inventory_item_id) as c'),
+            ]);
+
+        $withVendor = \Illuminate\Support\Facades\DB::table('tenant_inventory_item_vendors as sv2')
+            ->whereIn('sv2.inventory_item_id', (clone $wq)->select('tenant_inventory_items.id'))
+            ->distinct()->count('sv2.inventory_item_id');
+
+        $sourceOptions = $vendorCounts->map(fn ($r) => (object) [
+            'k' => 'v:' . $r->vid, 'label' => $r->label, 'c' => (int) $r->c,
+        ]);
+
+        // Items in this bucket with no vendor at all — the older stock that
+        // shares the pile with an import. Counted here rather than from
+        // $bucketTotal, which is computed further down the action.
+        $noVendor = max(0, (clone $wq)->count() - $withVendor);
+        if ($noVendor > 0) {
+            $sourceOptions = $sourceOptions->push((object) [
+                'k' => 'none', 'label' => 'No vendor', 'c' => $noVendor,
+            ])->sortByDesc('c')->values();
+        }
 
         if ($sourceKey !== '' && str_starts_with($sourceKey, 'v:')) {
             $vid = substr($sourceKey, 2);
