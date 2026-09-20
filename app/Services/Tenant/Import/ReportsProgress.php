@@ -66,7 +66,7 @@ trait ReportsProgress
     /** Rows in the file, for the denominator. */
     protected function rowTotal(): int
     {
-        $n = (int) (($this->import->totals ?? [])['row_count'] ?? 0);
-        return $n > 0 ? $n : 0;
+        // MARKER-IMPORT-PROGRESS-FIX — the uploader puts it in options.
+        return $this->import->rowCount();
     }
 }

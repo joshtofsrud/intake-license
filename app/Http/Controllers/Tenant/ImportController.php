@@ -551,7 +551,7 @@ class ImportController extends Controller
         if (! $hasLedger && ! in_array($import->progress_stage, ['previewing'], true)) {
             $import->forceFill([
                 'progress_stage' => 'previewing', 'progress_done' => 0,
-                'progress_total' => (int) (($import->totals ?? [])['row_count'] ?? 0),
+                'progress_total' => $import->rowCount() /* MARKER-IMPORT-PROGRESS-FIX */,
                 'progress_seen_at' => now(), 'cancel_requested_at' => null,
             ])->save();
             \App\Jobs\PreviewImportJob::dispatch(tenant()->id, $import->id);
@@ -598,7 +598,7 @@ class ImportController extends Controller
         $import->forceFill([
             'status' => 'running', 'started_at' => now(),
             'progress_stage' => 'running', 'progress_done' => 0,
-            'progress_total' => (int) (($import->totals ?? [])['row_count'] ?? 0),
+            'progress_total' => $import->rowCount() /* MARKER-IMPORT-PROGRESS-FIX */,
             'progress_seen_at' => now(), 'cancel_requested_at' => null,
         ])->save();
 
@@ -855,7 +855,13 @@ class ImportController extends Controller
         $stalled = in_array($import->progress_stage, ['previewing', 'running'], true)
                    && $seen && $seen->lt(now()->subSeconds(30));
 
+        // MARKER-IMPORT-PROGRESS-FIX-ELAPSED — elapsed is a server fact. The
+        // browser was timing from page load, so a restored tab reported 356
+        // minutes on a run that had just started.
+        $from = $import->started_at ?: $import->updated_at;
+
         return response()->json([
+            'elapsed'   => $from ? max(0, $from->diffInSeconds(now())) : 0,
             'stage'     => $import->progress_stage,
             'status'    => $import->status,
             'done'      => (int) $import->progress_done,

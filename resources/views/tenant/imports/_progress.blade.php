@@ -64,15 +64,15 @@
   var progressUrl = @json(route('tenant.imports.progress', $import->id));
   var cancelUrl   = @json(route('tenant.imports.cancel', $import->id));
   var csrf        = @json(csrf_token());
-  var started     = Date.now();
   var timer       = null;
   var LABELS      = { create: 'created', update: 'updated', possible_duplicate: 'possible duplicates',
                       unchanged: 'already match', skipped: 'skipped', unmatched: 'no match', error: 'errors' };
 
   function fmt(n) { return (n || 0).toLocaleString(); }
 
-  function elapsed() {
-    var s = Math.round((Date.now() - started) / 1000);
+  // MARKER-IMPORT-PROGRESS-FIX — from the server, not from page load.
+  function elapsed(sec) {
+    var s = Math.max(0, Math.round(sec || 0));
     return s < 60 ? s + 's' : Math.floor(s / 60) + 'm ' + (s % 60) + 's';
   }
 
@@ -84,7 +84,7 @@
     el.count.textContent = d.total > 0
       ? fmt(d.done) + ' of ' + fmt(d.total) + ' rows · ' + pct + '%'
       : fmt(d.done) + ' rows';
-    el.elapsed.textContent = elapsed();
+    el.elapsed.textContent = elapsed(d.elapsed);
 
     el.tallies.innerHTML = '';
     if (d.live) {
@@ -153,7 +153,6 @@
 
   window.impWatchImport = function () {
     el.bg.classList.add('open');
-    started = Date.now();
     poll();
     clearInterval(timer);
     timer = setInterval(poll, 1500);

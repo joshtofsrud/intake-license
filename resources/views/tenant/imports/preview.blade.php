@@ -39,6 +39,16 @@
   ];
 @endphp
 
+{{-- MARKER-IMPORT-PROGRESS-FIX — a preview that has not finished must not
+     render as a file full of nothing. Until the job writes its ledger, the
+     screen says so and the run button stays disabled. --}}
+@php
+  $previewing = in_array($import->progress_stage, ['previewing'], true)
+                || (($c['create'] ?? 0) + ($c['update'] ?? 0) + ($c['unchanged'] ?? 0)
+                    + ($c['skipped'] ?? 0) + ($c['unmatched'] ?? 0) + ($c['error'] ?? 0)
+                    + $dupCount) === 0 && $import->status !== 'previewed';
+@endphp
+
 <div class="ia-page-head">
   <div>
     <h1 class="ia-page-title">What to expect</h1>
@@ -61,6 +71,14 @@
   or on the first key with a {{ $import->type === 'inventory' ? 'different item name' : 'different surname' }} —
   is a <b>possible duplicate</b> and is never merged without your say-so.
 </div>
+
+@if($previewing)
+  <div class="imp-legend" style="border-color:rgba(225,180,94,.35)">
+    <b>Still working out what will happen.</b> The file is being read and every row matched.
+    The counts below fill in as it goes, and this page refreshes itself when it's done — nothing has been
+    written and nothing can be until it finishes.
+  </div>
+@endif
 
 <div class="imp-tiles">
   @foreach($tiles as $key => [$label, $tone])
@@ -208,6 +226,11 @@
       {{ $undecided }} possible {{ Str::plural('duplicate', $undecided) }} still {{ $undecided === 1 ? 'needs' : 'need' }} a decision above.
     </span>
     <button type="submit" class="ia-btn ia-btn--primary" disabled>{{ $cta }}</button>
+  @elseif($previewing)
+    <span style="font-size:12px;color:var(--ia-text-dim);align-self:center;text-align:center">
+      Waiting for the preview to finish.
+    </span>
+    <button type="submit" class="ia-btn ia-btn--primary" disabled>Import</button>
   @elseif($writes === 0)
     <span style="font-size:12px;color:var(--ia-text-dim);align-self:center;text-align:center">
       @if(($c['error'] ?? 0) > 0)

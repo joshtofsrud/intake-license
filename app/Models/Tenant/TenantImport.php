@@ -35,4 +35,19 @@ class TenantImport extends Model
     {
         return (int) (($this->totals ?? [])[$key] ?? 0);
     }
+
+    /**
+     * MARKER-IMPORT-PROGRESS-FIX — rows in the file.
+     *
+     * The uploader stores this in OPTIONS (see MARKER-IMPORT3). Three separate
+     * readers had gone looking in totals, so every progress bar divided by
+     * zero while the import ran perfectly. One accessor, so a fourth reader
+     * cannot get it wrong.
+     */
+    public function rowCount(): int
+    {
+        return (int) (($this->options ?? [])['row_count']
+            ?? ($this->totals ?? [])['row_count']
+            ?? 0);
+    }
 }
