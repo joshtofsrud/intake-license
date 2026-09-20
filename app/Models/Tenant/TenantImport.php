@@ -27,6 +27,9 @@ class TenantImport extends Model
         'totals'      => 'array',
         'cancel_requested_at' => 'datetime', // MARKER-IMPORT-QUEUE
         'has_header'  => 'boolean',
+        // MARKER-IMPORT-PROGRESS-500 — added Sep 5 with the other progress
+        // columns and never cast, because nothing read it until the modal.
+        'progress_seen_at' => 'datetime',
         'started_at'  => 'datetime',
         'finished_at' => 'datetime',
     ];

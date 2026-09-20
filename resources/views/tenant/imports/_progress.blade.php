@@ -115,9 +115,12 @@
       el.warn.className = 'imp-prog-warn stalled';
       el.warn.textContent = 'The worker may have stopped. Leave this open a moment; if nothing moves, stop the import and try again — nothing is lost, every row already written has a recorded outcome.';
     } else {
-      el.title.textContent = d.stage === 'previewing' ? 'Working out what will happen' : 'Importing';
-      el.sub.textContent = d.stage === 'previewing'
-        ? 'Reading the file and matching every row. Nothing is being written.'
+      // MARKER-IMPORT-PROGRESS-500 — a preview is not an import. The modal
+      // said "Importing · Writing rows" while nothing was being written.
+      var isPreview = d.stage === 'previewing';
+      el.title.textContent = isPreview ? 'Checking the file' : 'Importing';
+      el.sub.textContent = isPreview
+        ? 'Reading every row and working out what would happen. Nothing is being written.'
         : 'Writing rows. You can leave this page — it keeps going.';
     }
 
@@ -127,10 +130,27 @@
     el.go.style.display     = (d.stage === 'finished') ? '' : 'none';
   }
 
+  // MARKER-IMPORT-PROGRESS-500 — a failing poll is news, not noise. The old
+  // empty catch let a 500 fire once a second behind a calm-looking bar.
+  var failures = 0;
+
+  function pollFailed(what) {
+    failures++;
+    el.warn.className = 'imp-prog-warn failed';
+    el.warn.textContent = failures < 3
+      ? 'Can\'t read the status right now (' + what + '). Retrying…'
+      : 'Can\'t read the status (' + what + '). The import itself may still be running — reload this page to check. Stopped retrying after ' + failures + ' attempts.';
+    if (failures >= 3) { clearInterval(timer); }
+  }
+
   function poll() {
     fetch(progressUrl, { headers: { 'Accept': 'application/json' } })
-      .then(function (r) { return r.json(); })
+      .then(function (r) {
+        if (!r.ok) { throw new Error('HTTP ' + r.status); }
+        return r.json();
+      })
       .then(function (d) {
+        failures = 0;
         if (['previewing', 'running'].indexOf(d.stage) !== -1 || d.stage === 'failed' || d.stage === 'cancelled') {
           el.bg.classList.add('open');
         }
@@ -140,10 +160,11 @@
           if (d.stage === 'finished') { setTimeout(function () { window.location.reload(); }, 900); }
         }
       })
-      .catch(function () { /* a dropped poll is not a failure; the next one tells the truth */ });
+      .catch(function (e) { pollFailed(e && e.message ? e.message : 'no response'); });
   }
 
   el.cancel.addEventListener('click', function () {
+    // MARKER-IMPORT-PROGRESS-500 — honest label for what is being stopped.
     el.cancel.disabled = true;
     el.sub.textContent = 'Stopping after the current batch…';
     fetch(cancelUrl, { method: 'POST', headers: { 'X-CSRF-TOKEN': csrf, 'Accept': 'application/json' } });

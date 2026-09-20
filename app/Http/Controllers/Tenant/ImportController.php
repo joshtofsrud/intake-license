@@ -862,7 +862,15 @@ class ImportController extends Controller
     {
         $import = $this->find($id);
 
-        $seen    = $import->progress_seen_at;
+        // MARKER-IMPORT-PROGRESS-500 — parse rather than assume. A cast can go
+        // missing again on the next column; a status endpoint that fatals is
+        // worse than one that is briefly vague, because the screen it feeds
+        // is the only thing telling the operator anything.
+        $seen = $import->progress_seen_at;
+        if ($seen && ! $seen instanceof \Carbon\CarbonInterface) {
+            $seen = \Carbon\Carbon::parse((string) $seen);
+        }
+
         $stalled = in_array($import->progress_stage, ['previewing', 'running'], true)
                    && $seen && $seen->lt(now()->subSeconds(30));
 
@@ -870,6 +878,9 @@ class ImportController extends Controller
         // browser was timing from page load, so a restored tab reported 356
         // minutes on a run that had just started.
         $from = $import->started_at ?: $import->updated_at;
+        if ($from && ! $from instanceof \Carbon\CarbonInterface) {
+            $from = \Carbon\Carbon::parse((string) $from);
+        }
 
         return response()->json([
             'elapsed'   => $from ? max(0, $from->diffInSeconds(now())) : 0,
