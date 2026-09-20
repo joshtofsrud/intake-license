@@ -550,6 +550,8 @@ class CustomerImporter
             'newCategories' => $stored['newCategories'] ?? [],
             'categories'    => (array) (($this->import->totals ?? [])['categories'] ?? []),
             'categoriesCapped' => (bool) (($this->import->totals ?? [])['categoriesCapped'] ?? false),
+            'categories'    => (array) (($this->import->totals ?? [])['categories'] ?? []),
+            'categoriesCapped' => (bool) (($this->import->totals ?? [])['categoriesCapped'] ?? false),
             'newVendors'    => $stored['newVendors'] ?? [],
             'tag_name'      => $stored['tag_name'] ?? null,
         ];
