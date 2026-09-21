@@ -57,15 +57,27 @@ class DuplicateItemMerger
             // Blanks on the kept item filled from the copies, in keep order.
             $fill = [];
             foreach ($losers as $id) {
-                foreach (['shop_bin_location', 'shop_reorder_threshold', 'shop_reorder_quantity', 'shop_case_quantity'] as $col) {
+                // MARKER-DUP-PRICE-RULE — category, brand, colour and size too: a
+                // catalog copy is often uncategorised while the shop's copy isn't.
+                foreach (['shop_bin_location', 'shop_reorder_threshold', 'shop_reorder_quantity', 'shop_case_quantity',
+                          'category_id', 'shop_brand', 'color', 'size'] as $col) {
                     if (! array_key_exists($col, $fill) && blank($survivor->$col) && filled($items[$id]->$col)) {
                         $fill[$col] = $items[$id]->$col;
                     }
                 }
             }
+            foreach ($losers as $id) {
+                if ($items[$id]->is_stock_tracked) {
+                    $fill['is_stock_tracked'] = true; // stock the shop counts stays counted
+                }
+            }
             if ($fill) {
                 $survivor->forceFill($fill)->save();
             }
+
+            // MARKER-DUP-PRICE-RULE — the kept (catalog) item carries the import's
+            // seed price; a price the shop chose on another copy replaces it.
+            $hasShopPrice = DuplicateItemFinder::isShopPrice($survivor);
 
             foreach ($losers as $id) {
                 $loser = $items[$id];
@@ -74,7 +86,8 @@ class DuplicateItemMerger
                 if ($priceFrom !== null) {
                     $price = $priceFrom === $id ? 'take' : 'keep';
                 } else {
-                    $price = ($survivor->shop_sell_price_cents === null && $loser->shop_sell_price_cents !== null) ? 'take' : 'keep';
+                    $price = (! $hasShopPrice && DuplicateItemFinder::isShopPrice($loser)) ? 'take' : 'keep';
+                    if ($price === 'take') { $hasShopPrice = true; }
                 }
                 $cost = ($survivor->shop_cost_cents === null && $loser->shop_cost_cents !== null) ? 'take' : 'keep';
 

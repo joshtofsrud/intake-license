@@ -36,6 +36,28 @@ class DuplicateItemFinder
 {
     private const JUNK_MPN = ['NA', 'NONE', 'NULL', 'TBD', '0000', 'XXXX'];
 
+    /**
+     * MARKER-DUP-PRICE-RULE — a price the SHOP chose, as opposed to the seed the
+     * distributor import writes into shop_sell_price_cents (MAP, else MSRP) on
+     * every item it creates. Treating the seed as the shop's own price flagged
+     * hundreds of "different prices" that were two list prices, and let a
+     * catalog copy's seed win over the price the shop actually set.
+     * Works for query rows and models alike.
+     */
+    public static function isShopPrice(object $item): bool
+    {
+        $p = $item->shop_sell_price_cents ?? null;
+        if ($p === null) {
+            return false;
+        }
+        if (($item->distributor_catalog_id ?? null) === null) {
+            return true;
+        }
+        $seeds = array_filter([$item->catalog_map_cents ?? null, $item->catalog_msrp_cents ?? null], fn ($v) => $v !== null);
+
+        return ! in_array((int) $p, array_map('intval', $seeds), true);
+    }
+
     /** @return array{ready:int, review:int, cleared:int} */
     public function find(string $tenantId): array
     {
@@ -43,7 +65,7 @@ class DuplicateItemFinder
             ->leftJoin('platform_distributor_catalogs as c', 'c.id', '=', 'i.distributor_catalog_id')
             ->where('i.tenant_id', $tenantId)->whereNull('i.deleted_at')
             ->get(['i.id', 'i.name', 'i.sku', 'i.catalog_upc', 'i.catalog_ean', 'i.catalog_mpn', 'i.shop_brand',
-                   'c.manufacturer', 'i.shop_sell_price_cents', 'i.catalog_msrp_cents', 'i.distributor_catalog_id', 'i.created_at'])
+                   'c.manufacturer', 'i.shop_sell_price_cents', 'i.catalog_msrp_cents', 'i.catalog_map_cents', 'i.distributor_catalog_id', 'i.created_at'])
             ->keyBy('id');
 
         // ---- barcode groups (union-find over the barcode pool) --------------
@@ -136,7 +158,9 @@ class DuplicateItemFinder
             $key = sha1(implode(',', $sorted));
             $seen[$key] = true;
 
-            $shopPrices = array_values(array_unique(array_filter(array_map(fn ($id) => $items[$id]->shop_sell_price_cents, $g), fn ($p) => $p !== null)));
+            // MARKER-DUP-PRICE-RULE — only prices the shop chose can disagree.
+            $shopPrices = array_values(array_unique(array_map(fn ($id) => (int) $items[$id]->shop_sell_price_cents,
+                array_filter($g, fn ($id) => self::isShopPrice($items[$id])))));
             $withStock  = array_values(array_filter($g, fn ($id) => ($stock[$id] ?? 0) !== 0));
 
             $reasons = [];
@@ -146,11 +170,14 @@ class DuplicateItemFinder
 
             // What the merged item would be: the kept record, the shop's price
             // (the first copy in keep order that has one), stock added up.
+            // MARKER-DUP-PRICE-RULE — the shop's own price wins (first in keep
+            // order); otherwise the kept item's price, seed included.
             $resultPrice = null;
             foreach ($g as $id) {
-                if ($items[$id]->shop_sell_price_cents !== null) { $resultPrice = (int) $items[$id]->shop_sell_price_cents; break; }
+                if (self::isShopPrice($items[$id])) { $resultPrice = (int) $items[$id]->shop_sell_price_cents; break; }
             }
-            $resultPrice ??= $items[$g[0]]->catalog_msrp_cents !== null ? (int) $items[$g[0]]->catalog_msrp_cents : null;
+            $resultPrice ??= $items[$g[0]]->shop_sell_price_cents !== null ? (int) $items[$g[0]]->shop_sell_price_cents
+                : ($items[$g[0]]->catalog_msrp_cents !== null ? (int) $items[$g[0]]->catalog_msrp_cents : null);
 
             $stockLocations = [];
             foreach ($withStock as $id) { foreach ($locs[$id] ?? [] as $loc => $n) { $stockLocations[$loc] = true; } }
@@ -163,6 +190,7 @@ class DuplicateItemFinder
                     'from'        => array_keys($vend[$id] ?? []),
                     'catalog'     => $linked($id),
                     'shop_price'  => $items[$id]->shop_sell_price_cents !== null ? (int) $items[$id]->shop_sell_price_cents : null,
+                    'shop_set'    => self::isShopPrice($items[$id]), // MARKER-DUP-PRICE-RULE
                     'list_price'  => $items[$id]->catalog_msrp_cents !== null ? (int) $items[$id]->catalog_msrp_cents : null,
                     'stock'       => $stock[$id] ?? 0,
                     'sales'       => $sales[$id] ?? 0,

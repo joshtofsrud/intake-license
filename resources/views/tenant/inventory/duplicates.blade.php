@@ -97,7 +97,7 @@
         @php
           $c = $g->preview['copies'] ?? [];
           $reasons = (array) $g->reasons;
-          $prices = collect($c)->filter(fn ($x) => $x['shop_price'] !== null)->unique('shop_price')->values();
+          $prices = collect($c)->filter(fn ($x) => ($x['shop_set'] ?? $x['shop_price'] !== null) && $x['shop_price'] !== null)->unique('shop_price')->values(); // MARKER-DUP-PRICE-RULE
           $stockLoc = $g->preview['stock_location'] ?? null;
           $stockVals = collect($c)->pluck('stock')->filter(fn ($n) => $n > 0)->unique()->values();
         @endphp
@@ -123,7 +123,7 @@
                 <div style="font-weight:600">{{ $i === 0 ? 'Kept' : 'Merged into it' }}</div>
                 <div>{{ $x['name'] }}</div>
                 <div class="dp-dim">
-                  {{ $x['sku'] ? 'SKU ' . $x['sku'] . ' · ' : '' }}{{ $x['from'] ? 'from ' . implode(', ', $x['from']) . ' · ' : '' }}{{ $x['shop_price'] !== null ? 'your price ' . $money($x['shop_price']) : 'list ' . $money($x['list_price']) }}
+                  {{ $x['sku'] ? 'SKU ' . $x['sku'] . ' · ' : '' }}{{ $x['from'] ? 'from ' . implode(', ', $x['from']) . ' · ' : '' }}{{ ($x['shop_set'] ?? false) ? 'your price ' . $money($x['shop_price']) : 'list price ' . $money($x['shop_price'] ?? $x['list_price']) }}
                   · {{ $x['stock'] }} in stock · {{ $x['sales'] }} {{ \Illuminate\Support\Str::plural('sale', $x['sales']) }}
                 </div>
               </div>
