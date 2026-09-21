@@ -12,6 +12,8 @@
   <p class="ch-hint">
     Every bulk action is one batch. Undo puts the items back as they were — except anything edited since,
     which is kept and counted, because throwing away newer work would be worse than not undoing at all.
+    {{-- MARKER-DATA-RETENTION --}}
+    <br><b>Batches are kept for 90 days.</b> After that a batch drops off this list and can no longer be undone.
   </p>
 
   @forelse($batches as $b)

@@ -42,6 +42,16 @@ Schedule::command('debug-log:prune')
     ->runInBackground();
 
 // ----------------------------------------------------------------
+// MARKER-DATA-RETENTION — task runs 14d, resolved attention flags 30d,
+// catalog undo history 90d, import ledger 30d after finish. After the
+// debug log prune, before memberships:tick at 04:00.
+// ----------------------------------------------------------------
+Schedule::command('data:prune')
+    ->dailyAt('03:45')
+    ->withoutOverlapping()
+    ->runInBackground();
+
+// ----------------------------------------------------------------
 // Memberships & packs daily tick — period rollover + pack expiry.
 // Runs at 04:00 to follow the debug log prune. Idempotent.
 // ----------------------------------------------------------------
