@@ -21,7 +21,23 @@ class TenantDistributorSyncService
         private readonly DistributorMapResolver $resolver,
     ) {}
 
-    public function sync(TenantDistributorCatalogSubscription $sub, bool $dryRun = false): array
+    /**
+     * MARKER-SYNC-CHUNKED — the linked pivots for one tenant + distributor,
+     * optionally one keyset slice of them: id > $after, id <= $upto.
+     * RunTenantDistributorSyncJob plans its slices from this same query.
+     */
+    public function linkedPivotQuery(string $tenantId, string $code, ?string $after = null, ?string $upto = null): \Illuminate\Database\Eloquent\Builder
+    {
+        return TenantInventoryItemVendor::query()
+            ->where('distributor_code', strtoupper($code))
+            ->whereNotNull('distributor_catalog_id')
+            ->whereHas('item', fn ($q) => $q->where('tenant_id', $tenantId))
+            ->when($after !== null, fn ($q) => $q->where('id', '>', $after))
+            ->when($upto !== null, fn ($q) => $q->where('id', '<=', $upto));
+    }
+
+    /** $after/$upto limit the run to one slice (MARKER-SYNC-CHUNKED); null = everything. */
+    public function sync(TenantDistributorCatalogSubscription $sub, bool $dryRun = false, ?string $after = null, ?string $upto = null): array
     {
         $code = strtoupper((string) $sub->distributor_code);
 
@@ -47,10 +63,7 @@ class TenantDistributorSyncService
         ];
 
         /** @var \Illuminate\Support\Collection<int,TenantInventoryItemVendor> $pivots */
-        $pivots = TenantInventoryItemVendor::query()
-            ->where('distributor_code', $code)
-            ->whereNotNull('distributor_catalog_id')
-            ->whereHas('item', fn ($q) => $q->where('tenant_id', $tenantId))
+        $pivots = $this->linkedPivotQuery($tenantId, $code, $after, $upto)
             ->with(['item', 'distributorCatalog'])
             ->get();
 
@@ -68,6 +81,11 @@ class TenantDistributorSyncService
         $res['errors'] = array_merge($res['errors'], $costErrors);
         $availByVariant = $this->fetchAvailability($adapter, $variantNos, $res);
 
+        // MARKER-SYNC-CHUNKED — stock snapshots are collected and written in
+        // batches after the loop (finally, so rows already saved above keep
+        // their snapshot even if a later item throws) — not one insert per item.
+        $snapshots = [];
+        try {
         foreach ($pivots as $pivot) {
             $cat = $pivot->distributorCatalog;
             $item = $pivot->item;
@@ -103,7 +121,7 @@ class TenantDistributorSyncService
             if ($newAvail !== null) {
                 $res['avail_updated']++;
                 if (! $dryRun) {
-                    \Illuminate\Support\Facades\DB::table('distributor_availability_snapshots')->insert([
+                    $snapshots[] = [
                         'tenant_id' => $tenantId,
                         'distributor_code' => $code,
                         'distributor_variant_no' => $vno,
@@ -112,7 +130,7 @@ class TenantDistributorSyncService
                         'checked_at' => now(),
                         'created_at' => now(),
                         'updated_at' => now(),
-                    ]);
+                    ];
                 }
             }
 
@@ -140,6 +158,11 @@ class TenantDistributorSyncService
                 : (bool) $pivot->is_preferred;
 
             $this->reconcile($tenantId, $item, $cat, $prevCost, $newCost, $inStock, $isDescriptiveSource, $dryRun, $res);
+        }
+        } finally {
+            foreach (array_chunk($snapshots, 1000) as $batch) {
+                \Illuminate\Support\Facades\DB::table('distributor_availability_snapshots')->insert($batch);
+            }
         }
 
         return $res;
