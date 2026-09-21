@@ -282,7 +282,27 @@ class CalendarController extends Controller
             }
         }
 
-        return view('tenant.calendar.index', [
+                // MARKER-APPT-PICKER — days holding an appointment staff added over
+        // the limit, with the real numbers so the banner can say 7 of 6.
+        $overCapacityDays = [];
+        $overDates = \App\Models\Tenant\TenantAppointment::where('tenant_id', tenant()->id)
+            ->where('override_capacity', true)
+            ->whereNotIn('status', ['cancelled', 'refunded'])
+            ->where('appointment_date', '>=', now(tenant()->timezone())->toDateString())
+            ->distinct()->pluck('appointment_date')->all();
+        if ($overDates) {
+            $svc = app(\App\Services\BookingService::class);
+            foreach ($overDates as $d) {
+                $ds = $d instanceof \Carbon\Carbon ? $d->toDateString() : (string) $d;
+                $row = $svc->dayLoad(tenant(), $ds, 1)[0] ?? null;
+                if ($row && $row['max'] !== null && $row['used'] > $row['max']) {
+                    $overCapacityDays[$ds] = ['used' => $row['used'], 'max' => $row['max']];
+                }
+            }
+        }
+
+return view('tenant.calendar.index', [
+            'overCapacityDays' => $overCapacityDays,
             'viewMode'      => 'day',
             'date'          => $date,
             'dateStr'       => $dateStr,

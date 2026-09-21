@@ -197,6 +197,30 @@
     .appt-sp-week-btn:hover:not(:disabled) { background: rgba(255,255,255,.08); }
     .appt-sp-week-btn:disabled { opacity: .35; cursor: not-allowed; }
     .appt-sp-week-label { opacity: .65; min-width: 100px; text-align: center; }
+    /* MARKER-APPT-PICKER — day cards for capacity mode */
+    .appt-day-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(116px,1fr)); gap:8px; }
+    .appt-day { position:relative; border:0.5px solid var(--ia-border); border-radius:8px; padding:10px 11px; cursor:pointer; background:var(--ia-surface-2); transition:all .12s ease; }
+    .appt-day:hover { border-color:var(--ia-border-strong); }
+    .appt-day.sel { border-color:var(--ia-accent); background:var(--ia-accent-soft); }
+    .appt-day.notice { border-style:dashed; border-color:rgba(240,196,106,.4); }
+    .appt-day.notice .appt-day-c { color:#f0c46a; }
+    .appt-day.over { border-color:rgba(248,113,113,.4); }
+    .appt-day.over .appt-day-c { color:#f87171; }
+    .appt-day.over .appt-day-bar i { background:#f87171; }
+    .appt-day.shut { opacity:.42; cursor:not-allowed; }
+    .appt-day-d { font-size:13px; font-weight:600; }
+    .appt-day-c { font-size:11.5px; color:var(--ia-text-dim); margin-top:2px; }
+    .appt-day-bar { height:4px; border-radius:99px; background:rgba(255,255,255,.1); margin-top:7px; overflow:hidden; }
+    .appt-day-bar i { display:block; height:100%; background:var(--ia-accent); }
+    .appt-day-flag { position:absolute; top:6px; right:8px; font-size:9px; letter-spacing:.05em; text-transform:uppercase; color:var(--ia-text-dim); }
+    .appt-day-note { font-size:11.5px; color:var(--ia-text-dim); margin-top:10px; }
+    .appt-day-warn { margin-top:12px; border-radius:8px; padding:10px 12px; font-size:12.5px; line-height:1.5; background:rgba(240,196,106,.1); border:0.5px solid rgba(240,196,106,.32); color:#f0c46a; }
+    .appt-day-warn.bad { background:rgba(248,113,113,.1); border-color:rgba(248,113,113,.32); color:#f87171; }
+    .appt-day-sub { margin-top:7px; }
+    .appt-day-sw { display:flex; align-items:center; gap:8px; color:var(--ia-text); font-size:12.5px; margin-bottom:5px; cursor:pointer; }
+    .appt-day-sw input { accent-color:var(--ia-accent); }
+    .appt-day-warn .appt-input { margin-top:7px; font-size:12.5px; }
+
     .appt-sp-times-list {
       max-height: 240px;       /* ~5 rows visible */
       overflow-y: auto;
@@ -330,7 +354,7 @@
 
         <div class="appt-section" id="appt-sp-times-section" style="display:none">
           <div class="appt-sp-times-head">
-            <div class="appt-section-h" style="margin-bottom:0">Available times</div>
+            <div class="appt-section-h" id="appt-sp-times-head-label" style="margin-bottom:0">Available times</div>
             <div class="appt-sp-week-nav">
               <button type="button" class="appt-sp-week-btn" id="appt-sp-prev-week" disabled>← Prev week</button>
               <span class="appt-sp-week-label" id="appt-sp-week-label">—</span>
@@ -415,6 +439,8 @@ window.ApptModal = (function () {
     customerId: null,
     pickerOpen: false,
     selectedSlot: null,     // {date, time, resource_id}
+    dayLoad: [],            // MARKER-APPT-PICKER — [{date,state,left,max,…}]
+    selectedDay: null,      // MARKER-APPT-PICKER — {date,state,left,max}
     selectedServiceId: null,
     selectedResourceId: null,
     selectedResourceName: '',
@@ -428,7 +454,14 @@ window.ApptModal = (function () {
     store:      "{{ route('tenant.appointments.store') }}",
     eligibleResources: "{{ route('tenant.appointments.eligible-resources') }}",
     weekTimes:         "{{ route('tenant.appointments.week-times') }}",
+    dayLoad:           "{{ route('tenant.appointments.day_load') }}", // MARKER-APPT-PICKER
   };
+
+  // MARKER-APPT-PICKER — a drop_off shop takes a number of jobs a day, so the
+  // question is which DAY, not which minute. The mode decides which picker
+  // runs; everything else in this modal is the same either way.
+  var bookingMode = @json($currentTenant->booking_mode ?? 'drop_off');
+  var dayPolicy = { short_notice: false, warns: true, overbook: false, notice_hours: 0 };
 
   // MARKER-APPT-ASSET — asset picker config (label + endpoint from the tenant)
   var assetsCfg = {
@@ -804,7 +837,134 @@ window.ApptModal = (function () {
   function onFindTimes() {
     if (!state.selectedServiceId || !state.selectedResourceId) return;
     state.weekStartDate = state.weekStartDate || todayStr();
-    fetchWeekTimes();
+    // MARKER-APPT-PICKER
+    if (bookingMode === 'drop_off') { fetchDayLoad(); } else { fetchWeekTimes(); }
+  }
+
+  // ---------------------------------------------------------- day picker
+  function fetchDayLoad() {
+    var listEl = el('appt-sp-times-list');
+    listEl.innerHTML = '<div class="appt-sp-times-empty">Loading…</div>';
+    el('appt-sp-times-section').style.display = 'block';
+    el('appt-sp-times-head-label').textContent = 'Which day';
+    el('appt-sp-week-label').textContent = formatWeekLabel(state.weekStartDate);
+    el('appt-sp-prev-week').disabled = (state.weekStartDate <= todayStr());
+
+    var url = routes.dayLoad
+      + '?start=' + encodeURIComponent(state.weekStartDate)
+      + '&days=7'
+      + '&service_id=' + encodeURIComponent(state.selectedServiceId || '');
+
+    fetch(url, { headers: { 'Accept': 'application/json' }, credentials: 'same-origin' })
+      .then(function (r) {
+        if (!r.ok) { throw new Error('HTTP ' + r.status); }
+        return r.json();
+      })
+      .then(function (data) {
+        state.dayLoad = data.days || [];
+        dayPolicy = data.policy || dayPolicy;
+        renderDayLoad();
+      })
+      .catch(function (e) {
+        listEl.innerHTML = '<div class="appt-sp-times-empty error">Could not read the days ('
+          + escapeHtml(e && e.message ? e.message : 'no response') + '). Try again.</div>';
+      });
+  }
+
+  function dayIsPickable(d) {
+    if (d.state === 'closed') { return false; }
+    if (d.state === 'too_soon') { return !!dayPolicy.short_notice; }
+    if (d.state === 'full') { return !!dayPolicy.overbook; }
+    return true;
+  }
+
+  function dayCaption(d) {
+    if (d.state === 'closed') { return 'Closed'; }
+    if (d.max === null) { return d.state === 'too_soon' ? 'Too soon' : 'Open'; }
+    if (d.state === 'full') { return 'Full · ' + d.used + ' of ' + d.max; }
+    if (d.state === 'too_soon') { return 'Too soon · ' + d.left + ' left'; }
+    return d.left + ' of ' + d.max + ' left';
+  }
+
+  function renderDayLoad() {
+    var listEl = el('appt-sp-times-list');
+    if (!state.dayLoad.length) {
+      listEl.innerHTML = '<div class="appt-sp-times-empty">Nothing in this week.</div>';
+      return;
+    }
+    var html = '<div class="appt-day-grid">';
+    state.dayLoad.forEach(function (d, idx) {
+      var pickable = dayIsPickable(d);
+      var cls = 'appt-day';
+      if (d.state === 'too_soon') { cls += ' notice'; }
+      if (d.state === 'full') { cls += ' over'; }
+      if (d.state === 'closed' || !pickable) { cls += ' shut'; }
+      if (state.selectedDay && state.selectedDay.date === d.date) { cls += ' sel'; }
+      var pct = (d.max && d.max > 0) ? Math.min(100, Math.round((d.used / d.max) * 100)) : 0;
+      html += '<div class="' + cls + '" data-idx="' + idx + '">'
+        + (d.is_today ? '<span class="appt-day-flag">Today</span>' : '')
+        + '<div class="appt-day-d">' + escapeHtml(d.label) + '</div>'
+        + '<div class="appt-day-c">' + escapeHtml(dayCaption(d)) + '</div>'
+        + '<div class="appt-day-bar"><i style="width:' + pct + '%"></i></div>'
+        + '</div>';
+    });
+    html += '</div>';
+    html += '<div id="appt-day-warn"></div>';
+    listEl.innerHTML = html;
+
+    listEl.querySelectorAll('.appt-day').forEach(function (card) {
+      card.addEventListener('click', function () {
+        var d = state.dayLoad[parseInt(card.dataset.idx, 10)];
+        if (!dayIsPickable(d)) { return; }
+        state.selectedDay = d;
+        // In drop_off there is no time; the day IS the selection.
+        state.selectedSlot = { date: d.date, time: null, resource_id: state.selectedResourceId };
+        renderDayLoad();
+        renderDayWarning();
+        if (typeof updateCreateEnabled === 'function') { updateCreateEnabled(); }
+      });
+    });
+    renderDayWarning();
+  }
+
+  function renderDayWarning() {
+    var box = el('appt-day-warn');
+    if (!box) { return; }
+    var d = state.selectedDay;
+    if (!d) { box.innerHTML = ''; return; }
+
+    var tooSoon = d.state === 'too_soon';
+    var full    = d.state === 'full';
+    if (!tooSoon && !full) {
+      box.innerHTML = '<div class="appt-day-note">' + escapeHtml(d.long_label)
+        + (d.max === null ? '' : ' · ' + (d.left - 1 < 0 ? 0 : d.left - 1) + ' of ' + d.max + ' left after this')
+        + '</div>';
+      return;
+    }
+
+    var lines = '';
+    if (tooSoon && dayPolicy.warns) {
+      lines += '<label class="appt-day-sw"><input type="checkbox" class="appt-ov-notice" checked> '
+        + 'Ignore the ' + dayPolicy.notice_hours + '-hour notice</label>';
+    }
+    if (full) {
+      lines += '<label class="appt-day-sw"><input type="checkbox" class="appt-ov-cap" checked> '
+        + 'Go over the limit — this makes ' + (d.used + 1) + ' on a day sized for ' + d.max + '</label>';
+    }
+
+    box.innerHTML = '<div class="appt-day-warn' + (full ? ' bad' : '') + '">'
+      + '<b>' + (tooSoon && full
+          ? 'Today is sooner than usual and already full.'
+          : (full ? escapeHtml(d.long_label) + ' is already full.'
+                  : 'Sooner than you normally take bookings.')) + '</b>'
+      + '<div class="appt-day-sub">' + lines + '</div>'
+      + '<input type="text" id="appt-ov-reason" class="appt-input" placeholder="Why (optional, shows on the calendar)">'
+      + '</div>';
+  }
+
+  function reloadWhenWeekChanges() {
+    // MARKER-APPT-PICKER — same nav, either picker.
+    if (bookingMode === 'drop_off') { fetchDayLoad(); } else { fetchWeekTimes(); }
   }
 
   function fetchWeekTimes() {
@@ -877,7 +1037,7 @@ window.ApptModal = (function () {
     var ymd = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
     if (ymd < todayStr()) ymd = todayStr();
     state.weekStartDate = ymd;
-    fetchWeekTimes();
+    reloadWhenWeekChanges(); // MARKER-APPT-PICKER-NAV
   }
 
   function onNextWeek() {
@@ -885,7 +1045,7 @@ window.ApptModal = (function () {
     var d = new Date(state.weekStartDate + 'T00:00:00');
     d.setDate(d.getDate() + 7);
     state.weekStartDate = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
-    fetchWeekTimes();
+    reloadWhenWeekChanges(); // MARKER-APPT-PICKER-NAV
   }
 
   function formatWeekLabel(startDate) {
@@ -952,6 +1112,10 @@ window.ApptModal = (function () {
       appointment_time: state.selectedSlot.time,
       resource_id: state.selectedResourceId,
       staff_notes: el('appt-notes').value || null,
+      // MARKER-APPT-PICKER — asked for here, granted by the tenant policy server-side.
+      override_short_notice: !!(document.querySelector('.appt-ov-notice') || {}).checked,
+      override_capacity:     !!(document.querySelector('.appt-ov-cap') || {}).checked,
+      override_reason:       (el('appt-ov-reason') && el('appt-ov-reason').value) || null,
       route_window_id: (el('appt-pd-window') && el('appt-pd-window').value) || null, // MARKER-PATCH-519
       need_by: (el('appt-pd-needby') && el('appt-pd-needby').value) || null,
       items: [

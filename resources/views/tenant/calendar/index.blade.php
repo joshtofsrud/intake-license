@@ -17,6 +17,18 @@
 
 @section('content')
 
+{{-- MARKER-APPT-PICKER — an override is only honest if the day shows it.
+     $overCapacityDays is keyed by date: ['used' => n, 'max' => m]. --}}
+@if(!empty($overCapacityDays))
+  <div style="border:0.5px solid rgba(248,113,113,.32);background:rgba(248,113,113,.09);border-radius:8px;padding:10px 13px;margin-bottom:12px;font-size:12.5px;color:#f87171">
+    <b>Over capacity:</b>
+    @foreach($overCapacityDays as $d => $c)
+      <span style="margin-right:12px">{{ \Carbon\Carbon::parse($d)->format('D M j') }} — {{ $c['used'] }} of {{ $c['max'] }}</span>
+    @endforeach
+    <span style="color:var(--ia-text-dim)">Staff added these deliberately. They still count.</span>
+  </div>
+@endif
+
 <div class="ia-page-head">
   <div class="ia-page-head-left">
     <h1 class="ia-page-title">Calendar</h1>
