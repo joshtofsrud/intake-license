@@ -381,6 +381,7 @@ class RegisterController extends Controller
     public function storeSale(Request $request): JsonResponse
     {
         $tenant = tenant();
+        $this->stripLinePricesUnlessAllowed($request); // MARKER-REGISTER-LINE-FIX
         $locationId = $request->session()->get('current_location_id');
 
         if (!$locationId) {
@@ -460,7 +461,7 @@ class RegisterController extends Controller
             $lineSubtotal = 0;
             foreach ($validated['items'] as $it) {
                 $qty   = (float) ($it['quantity'] ?? 1);
-                $price = (int) ($it['unit_price_cents'] ?? 0);
+                $price = $this->linePriceCents($tenant->id, $it); // MARKER-REGISTER-LINE-FIX
                 $lineSubtotal += max(0, (int) round($price * $qty) - (int) ($it['discount_cents'] ?? 0));
             }
 
@@ -732,6 +733,7 @@ class RegisterController extends Controller
     public function openLayaway(Request $request): JsonResponse
     {
         $tenant = tenant();
+        $this->stripLinePricesUnlessAllowed($request); // MARKER-REGISTER-LINE-FIX
 
         $user = \Illuminate\Support\Facades\Auth::guard('tenant')->user();
         abort_unless($user && $user->can('register.layaway.create'), 403);
@@ -907,6 +909,7 @@ class RegisterController extends Controller
     public function recordCartPayment(Request $request): JsonResponse
     {
         $tenant = tenant();
+        $this->stripLinePricesUnlessAllowed($request); // MARKER-REGISTER-LINE-FIX
         $user   = \Illuminate\Support\Facades\Auth::guard('tenant')->user();
         $locationId = $request->session()->get('current_location_id');
 
@@ -1185,6 +1188,7 @@ class RegisterController extends Controller
     public function storeDraft(Request $request): JsonResponse
     {
         $tenant = tenant();
+        $this->stripLinePricesUnlessAllowed($request); // MARKER-REGISTER-LINE-FIX
         $locationId = $request->session()->get('current_location_id');
 
         if (!$locationId) {
@@ -1490,6 +1494,14 @@ class RegisterController extends Controller
                     'is_taxable'        => (bool) $i->is_taxable,
                     'tax_cents'         => (int) $i->tax_cents,
                     'tax_rate_snapshot' => $i->tax_rate_snapshot,
+                    // MARKER-REGISTER-LINE-FIX — so a resumed line keeps its price edit.
+                    'catalog_price_cents' => match ($i->type) {
+                        'product' => $i->inventoryItem ? (int) ($i->inventoryItem->effectiveSellPriceCents() ?? 0) : null,
+                        'service' => $i->service ? (int) ($i->service->price_cents ?? 0) : null,
+                        default   => null,
+                    },
+                    'line_discount_cents' => (float) $i->quantity > 0
+                        ? (int) round(((int) $i->discount_cents) / (float) $i->quantity) : 0,
                 ])->values(),
             ],
         ]);
@@ -1743,6 +1755,7 @@ class RegisterController extends Controller
     public function storeTransaction(Request $request): JsonResponse
     {
         $tenant = tenant();
+        $this->stripLinePricesUnlessAllowed($request); // MARKER-REGISTER-LINE-FIX
         $locationId = $request->session()->get('current_location_id');
 
         // MARKER-GIFTCARDS -- gift-card tender is not wired into the mixed
@@ -2267,6 +2280,7 @@ class RegisterController extends Controller
     public function storeQuote(Request $request): JsonResponse
     {
         $tenant = tenant();
+        $this->stripLinePricesUnlessAllowed($request); // MARKER-REGISTER-LINE-FIX
         $locationId = $request->session()->get('current_location_id');
 
         if (!$locationId) {
@@ -2321,6 +2335,64 @@ class RegisterController extends Controller
     }
 
     /**
+     * MARKER-REGISTER-LINE-FIX — the per-line price gate (MARKER-LINE-PRICE).
+     * On Sep 12 it landed in itemInfo(), where it never ran against a sale,
+     * so no checkout path enforced it. Every endpoint that accepts register
+     * lines calls this first. Without register.line_price, per-line discounts
+     * and prices are dropped and the catalog price stands; the sale still
+     * goes through rather than failing at the till with a customer waiting.
+     */
+    private function stripLinePricesUnlessAllowed(Request $request): void
+    {
+        $user = \Illuminate\Support\Facades\Auth::guard('tenant')->user();
+        if ($user && $user->can('register.line_price')) {
+            return;
+        }
+
+        $stripped = collect($request->input('items', []))->map(function ($i) {
+            if (! is_array($i)) {
+                return $i;
+            }
+            unset($i['discount_cents']);
+
+            // An open item or a gift card has no catalog price to fall back
+            // on, so its typed price is the only price it has and must survive.
+            if (! in_array($i['type'] ?? null, ['open_item', 'gift_card'], true)) {
+                unset($i['unit_price_cents']);
+            }
+
+            return $i;
+        })->all();
+
+        $request->merge(['items' => $stripped]);
+    }
+
+    /**
+     * MARKER-REGISTER-LINE-FIX — what the server will charge for a line, for
+     * pricing a discount code. The register sends a unit price only for open
+     * items and price edits, so summing the payload alone priced every
+     * product and service at $0: percentage codes came to nothing and
+     * minimum-spend codes were refused.
+     */
+    private function linePriceCents(string $tenantId, array $line): int
+    {
+        if (isset($line['unit_price_cents'])) {
+            return (int) $line['unit_price_cents'];
+        }
+        if (($line['type'] ?? '') === 'product' && ! empty($line['inventory_item_id'])) {
+            $item = TenantInventoryItem::where('tenant_id', $tenantId)->find($line['inventory_item_id']);
+
+            return (int) ($item?->effectiveSellPriceCents() ?? 0);
+        }
+        if (($line['type'] ?? '') === 'service' && ! empty($line['service_id'])) {
+            return (int) (TenantServiceItem::where('tenant_id', $tenantId)
+                ->whereKey($line['service_id'])->value('price_cents') ?? 0);
+        }
+
+        return 0;
+    }
+
+    /**
      * GET /register/item/{id}/info — MARKER-PATCH-552
      * Everything staff want to see about an item mid-sale: identity,
      * price, per-location stock, and the catalog image when linked.
@@ -2371,26 +2443,6 @@ class RegisterController extends Controller
         // MARKER-PATCH-553 — cost/margin only for roles with the capability
         $user = \Illuminate\Support\Facades\Auth::guard('tenant')->user(); // MARKER-PATCH-554
 
-        // MARKER-LINE-PRICE — the price arrives from a browser, so the gate
-        // lives here as well as in the view. Without the capability, any
-        // per-line price or discount is stripped and the catalog price stands;
-        // the sale still goes through rather than failing at the till with a
-        // customer waiting.
-        if (! ($user && $user->can('register.line_price'))) {
-            $stripped = collect($request->input('items', []))->map(function ($i) {
-                unset($i['discount_cents']);
-
-                // An open item has no catalog price to fall back on, so its
-                // typed price is the only price it has and must survive.
-                if (($i['type'] ?? null) !== 'open_item') {
-                    unset($i['unit_price_cents']);
-                }
-
-                return $i;
-            })->all();
-
-            $request->merge(['items' => $stripped]);
-        }
         $costPayload = null;
         if ($user && $user->canAccessSection('cost_margins')) {
             $cost  = (int) ($item->effectiveCostCents() ?? 0);

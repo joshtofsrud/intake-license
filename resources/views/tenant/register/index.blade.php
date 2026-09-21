@@ -1183,6 +1183,10 @@
     <h2>Sale complete</h2>
     <div class="num" id="receiptNum"></div>
     <div class="total" id="receiptTotal"></div>
+    {{-- MARKER-REGISTER-LINE-FIX — the change stays on screen after the tender closes. --}}
+    <div id="receiptChange" style="display:none;text-align:center;margin:2px 0 8px;font-size:15px">
+      Change due <b id="receiptChangeAmt" style="color:#7ee081;font-variant-numeric:tabular-nums"></b>
+    </div>
     {{-- MARKER-PATCH-322 — print + email the receipt for this sale --}}
     <div class="reg-receipt-actions" style="display:flex;gap:8px;justify-content:center;margin:6px 0 2px">
       <button type="button" class="reg-btn-secondary" id="receiptPrintBtn">Print receipt</button>
@@ -1537,7 +1541,7 @@ function buildDraftPayload() {
         out.name_snapshot = i.name;
         out.unit_price_cents = i.price_cents;
       }
-      return out;
+      return linePriceFields(i, out); // MARKER-REGISTER-LINE-FIX
     }),
   };
 }
@@ -2536,6 +2540,7 @@ function openTenderForPlan() {
   { const amt = document.getElementById('splitAmountInput'); if (amt) amt.value = ((t.scheduled_cents || t.balance_cents) / 100).toFixed(2); }
   document.getElementById('tenderConfirmBtn').disabled = true;
   document.querySelectorAll('#tenderModal .reg-tender-btn').forEach(b => b.classList.remove('selected'));
+  resetCashTender(); // MARKER-REGISTER-LINE-FIX
   if (typeof tenderPaint === 'function') { tenderPaint(); } // MARKER-TENDER-LAYOUT
   resetGiftTender();
   tenderModalError('');
@@ -2755,6 +2760,17 @@ function tenderQuickKeys(due) {
   }));
 }
 
+// MARKER-REGISTER-LINE-FIX — the cash box was never cleared, and whatever sat
+// in it is copied into the payment amount, so last sale's $5 would record a
+// $5 payment on this sale's $40. Cleared on every open and every tender change.
+function resetCashTender() {
+  const inp = document.getElementById('tenderCashInput');
+  if (inp) { inp.value = ''; }
+  const out = document.getElementById('tenderChangeAmt');
+  if (out) { out.textContent = fmt(0); }
+  window.cashChangeCents = 0;
+}
+
 function tenderChange() {
   const input = document.getElementById('tenderCashInput');
   const out = document.getElementById('tenderChangeAmt');
@@ -2762,6 +2778,7 @@ function tenderChange() {
   const due = cart.payments.length > 0 ? splitRemaining() : tenderDueCents();
   const got = Math.round((parseFloat(String(input.value).replace(/[^0-9.]/g, '')) || 0) * 100);
   out.textContent = fmt(Math.max(0, got - due));
+  window.cashChangeCents = Math.max(0, got - due); // shown again on the receipt
 
   // The existing split path reads splitAmountInput. Keep the two in step so
   // cash typed here behaves exactly as cash typed there always has.
@@ -3384,7 +3401,7 @@ document.getElementById('quoteSaveBtn').addEventListener('click', async () => {
         out.name_snapshot = i.name;
         out.unit_price_cents = i.price_cents;
       }
-      return out;
+      return linePriceFields(i, out); // MARKER-REGISTER-LINE-FIX
     }),
   };
 
@@ -3490,6 +3507,7 @@ document.getElementById('payBtn').addEventListener('click', () => {
       lb.style.display = eligible ? '' : 'none';
     }
   }
+  resetCashTender(); // MARKER-REGISTER-LINE-FIX
   openModal('tenderModal');
   if (typeof tenderPaint === 'function') { tenderPaint(); } // MARKER-TENDER-LAYOUT
 });
@@ -3669,6 +3687,8 @@ document.querySelectorAll('#tenderModal .reg-tender-btn').forEach(btn => {
     }
     document.querySelectorAll('#tenderModal .reg-tender-btn').forEach(b => b.classList.remove('selected'));
     btn.classList.add('selected');
+    // MARKER-REGISTER-LINE-FIX — a different tender starts with an empty cash box.
+    if (btn.dataset.tender !== cart.payment_method) { resetCashTender(); }
     cart.payment_method = btn.dataset.tender;
     // MARKER-SPLIT-ANYORDER — no ordering rules: any number of payments,
     // any order, any amount. Card gets the same amount field as everything.
@@ -3734,6 +3754,9 @@ document.querySelectorAll('#tenderModal .reg-tender-btn').forEach(btn => {
       if (!isGift) { window.gcTender = null; const b = document.getElementById('gcTenderBalance'); if (b) b.style.display = 'none'; }
     })();
     renderTotals();
+    // MARKER-REGISTER-LINE-FIX — choosing a tender never repainted the panel,
+    // so Cash received / Change due only appeared as the sale completed.
+    if (typeof tenderPaint === 'function') { tenderPaint(); }
   });
 });
 
@@ -4595,7 +4618,43 @@ function serializeLine(i) {
     out.unit_price_cents = i.price_cents;
     out.gift_card = i.gift || {};
   }
+  return linePriceFields(i, out); // MARKER-REGISTER-LINE-FIX
+}
+
+// MARKER-REGISTER-LINE-FIX — a line's price edit (MARKER-LINE-PRICE) on the
+// wire. Since Sep 12 these fields never left the browser: the screen showed
+// the edited price and the sale recorded the full one. Discount is per unit
+// on screen and per line on the wire; an override is a new unit price. The
+// server drops both for staff without register.line_price.
+function linePriceFields(i, out) {
+  if (i.type === 'gift_card') { return out; }
+  const d = Math.max(0, Math.round((i.line_discount_cents || 0) * i.qty));
+  if (d > 0) { out.discount_cents = d; }
+  if (i.line_override_cents) { out.unit_price_cents = i.line_override_cents; }
   return out;
+}
+
+// MARKER-REGISTER-LINE-FIX — a resumed held sale gets its price edit back.
+// The server returns the stored unit price, the item's catalog price and the
+// per-unit discount; the same rule as applyLinePrice() rebuilds the line.
+function restoreLinePrice(i, line) {
+  if (line.type === 'open_item' || line.type === 'gift_card') { return line; }
+  const cat  = (typeof i.catalog_price_cents === 'number') ? i.catalog_price_cents : null;
+  const disc = Math.max(0, i.line_discount_cents || 0);
+  let unit = line.price_cents;
+  if (cat !== null && unit !== cat) {
+    if (unit > cat) {
+      line.line_override_cents = unit;          // priced up: a new price
+    } else {
+      line.line_discount_cents = cat - unit;    // priced down: a discount
+    }
+    line.price_cents = cat;
+  }
+  if (disc > 0) { line.line_discount_cents = (line.line_discount_cents || 0) + disc; }
+  const base = line.line_override_cents || line.price_cents;
+  const eff  = base - (line.line_discount_cents || 0);
+  if (eff !== line.price_cents) { line.effective_price_cents = eff; }
+  return line;
 }
 
 function showError(msg) {
@@ -4621,12 +4680,10 @@ function preflightCheck() {
   const hasServiceLine = cart.items.some(i => i.type === 'service');
   if (hasServiceLine && !cart.customer) {
     return {
-      // MARKER-LINE-PRICE — buildLine() has always accepted these two; the
-      // register simply never sent them. Discount is per unit on screen and
-      // per line on the wire, which is what the column means.
-      discount_cents: Math.max(0, Math.round((i.line_discount_cents || 0) * i.qty)),
-      ...(i.line_override_cents ? { unit_price_cents: i.line_override_cents } : {}),
-
+      // MARKER-REGISTER-LINE-FIX — two line-price fields sat here (put in the
+      // wrong function on Sep 12). They referenced a line that doesn't exist
+      // in this scope, so Collect payment threw on every cart with a service
+      // and no customer. They live in linePriceFields() now.
       title: 'Add a customer',
       message: 'A customer is required when the sale includes a service. Attach a customer and we\'ll continue.',
       actionLabel: 'Add customer →',
@@ -4685,6 +4742,14 @@ async function resetRegisterToFresh() {
 function showReceipt(data) {
   document.getElementById('receiptNum').textContent = data.sale_number;
   document.getElementById('receiptTotal').textContent = fmt(data.total_cents);
+  // MARKER-REGISTER-LINE-FIX — cash change, from the Cash received box.
+  { const row = document.getElementById('receiptChange');
+    const chg = (cart && cart.payment_method === 'cash') ? (window.cashChangeCents || 0) : 0;
+    if (row) {
+      row.style.display = chg > 0 ? '' : 'none';
+      document.getElementById('receiptChangeAmt').textContent = fmt(chg);
+    }
+    window.cashChangeCents = 0; }
   openModal('receiptModal');
 
   // MARKER-PATCH-322 — capture the sale for print/email before the cart clears.
@@ -4913,7 +4978,7 @@ async function resumeDraft(id) {
     // MARKER-PAY-PERSIST — the money comes back with the cart. This is the
     // whole point: take $300, refresh, and the $300 is still there.
     cart.payments = data.draft.payments || [];
-    cart.items = (data.draft.items || []).map(i => ({
+    cart.items = (data.draft.items || []).map(i => restoreLinePrice(i, {
       key: ++lineKey,
       type: i.type,
       source_id: i.source_id,

@@ -537,15 +537,27 @@ class SaleService
         }
 
         // Snapshot from source records when available
+        // MARKER-REGISTER-LINE-FIX — these ids arrive from the browser. Looked
+        // up unscoped, another shop's item could land on this sale and its
+        // stock movement would hit that shop's inventory. Scoped to the
+        // sale's shop, and an id that isn't this shop's refuses the line.
         if ($type === 'service' && $serviceId) {
-            $service = TenantServiceItem::find($serviceId);
+            $service = TenantServiceItem::where('tenant_id', $sale->tenant_id)->find($serviceId);
+            if (! $service) {
+                throw new SaleValidationException('That service is not in this shop.');
+            }
             if ($service) {
                 $name           = $name           ?? $service->name;
                 $description    = $description    ?? $service->description;
                 $unitPriceCents = $unitPriceCents ?? (int) ($service->price_cents ?? 0);
             }
         } elseif ($type === 'product' && $inventoryItemId) {
-            $item = TenantInventoryItem::find($inventoryItemId);
+            // withTrashed: a held sale whose item was deleted since still commits,
+            // exactly as before — the check is whose item it is, not whether it's live.
+            $item = TenantInventoryItem::withTrashed()->where('tenant_id', $sale->tenant_id)->find($inventoryItemId);
+            if (! $item) {
+                throw new SaleValidationException('That item is not in this shop.');
+            }
             if ($item) {
                 $name           = $name           ?? ($item->name ?? '');
                 $description    = $description    ?? ($item->description ?? null);
