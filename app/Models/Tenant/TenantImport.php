@@ -34,9 +34,17 @@ class TenantImport extends Model
         'finished_at' => 'datetime',
     ];
 
+    /**
+     * MARKER-IMPORT-RESULTS — a run's counts. Queued runs (Sep 19 on) store
+     * them under totals['run']; earlier synchronous runs stored them at the
+     * top level. Read whichever this import has — never a mix of the two.
+     */
     public function total(string $key): int
     {
-        return (int) (($this->totals ?? [])[$key] ?? 0);
+        $t   = (array) ($this->totals ?? []);
+        $src = (isset($t['run']) && is_array($t['run'])) ? $t['run'] : $t;
+
+        return (int) ($src[$key] ?? 0);
     }
 
     /**

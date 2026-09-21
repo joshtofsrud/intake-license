@@ -551,10 +551,15 @@ class ImportController extends Controller
             ->where('phase', 'preview')->exists();
 
         if (! $hasLedger && ! in_array($import->progress_stage, ['previewing'], true)) {
+            // MARKER-IMPORT-RESULTS — no preview ledger means nothing has run,
+            // so a 'failed' here is a failed PREVIEW. Retrying it starts clean;
+            // otherwise the job keeps 'failed' and the import is stuck there.
             $import->forceFill([
                 'progress_stage' => 'previewing', 'progress_done' => 0,
                 'progress_total' => $import->rowCount() /* MARKER-IMPORT-PROGRESS-FIX */,
                 'progress_seen_at' => now(), 'cancel_requested_at' => null,
+                'failure_reason' => null,
+                'status' => $import->status === 'failed' ? 'draft' : $import->status,
             ])->save();
             \App\Jobs\PreviewImportJob::dispatch(tenant()->id, $import->id);
         }
@@ -620,6 +625,9 @@ class ImportController extends Controller
             'progress_stage' => 'running', 'progress_done' => 0,
             'progress_total' => $import->rowCount() /* MARKER-IMPORT-PROGRESS-FIX */,
             'progress_seen_at' => now(), 'cancel_requested_at' => null,
+            // MARKER-IMPORT-RESULTS — a retry must not inherit the last
+            // attempt's reason, finish time or error file.
+            'failure_reason' => null, 'finished_at' => null, 'error_path' => null,
         ])->save();
 
         // MARKER-IMPORT-QUEUE-CLEAN — off the request; the modal watches it.

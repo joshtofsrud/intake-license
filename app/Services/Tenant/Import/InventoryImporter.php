@@ -664,13 +664,14 @@ class InventoryImporter
         return [
             'counts'        => array_merge($counts, array_intersect_key($stored, ['will_tag' => 0])),
             'sample'        => [],
-            'newCategories' => $stored['newCategories'] ?? [],
+            // MARKER-IMPORT-RESULTS — PreviewImportJob writes these at the top
+            // of totals; totals['preview'] holds only counts. The tag name is
+            // an option, not a total.
+            'newCategories' => (array) (($this->import->totals ?? [])['newCategories'] ?? []),
             'categories'    => (array) (($this->import->totals ?? [])['categories'] ?? []),
             'categoriesCapped' => (bool) (($this->import->totals ?? [])['categoriesCapped'] ?? false),
-            'categories'    => (array) (($this->import->totals ?? [])['categories'] ?? []),
-            'categoriesCapped' => (bool) (($this->import->totals ?? [])['categoriesCapped'] ?? false),
-            'newVendors'    => $stored['newVendors'] ?? [],
-            'tag_name'      => $stored['tag_name'] ?? null,
+            'newVendors'    => (array) (($this->import->totals ?? [])['newVendors'] ?? []),
+            'tag_name'      => trim((string) ($this->import->options['tag_name'] ?? '')) ?: null,
         ];
     }
 

@@ -90,6 +90,7 @@ class RunImportJob implements ShouldQueue, ShouldBeUnique
 
             $import->forceFill([
                 'status'           => $cancelled ? 'cancelled' : 'done',
+                'failure_reason'   => null, // MARKER-IMPORT-RESULTS
                 'totals'           => array_merge((array) $import->totals, ['run' => $result['counts'] ?? $result]),
                 'error_path'       => $errorPath,
                 'finished_at'      => now(),
