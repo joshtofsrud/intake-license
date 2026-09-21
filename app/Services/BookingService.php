@@ -738,16 +738,8 @@ class BookingService
                 : null;
 
             if ($mode === 'drop_off') {
-                // Effective cap = min(shop_override, resource_cap_sum) when both set.
-                // If neither is set, day is unbounded (treated as 'no cap' — still available).
-                $effectiveCap = null;
-                if ($shopOverride !== null && $resourceCapSum > 0) {
-                    $effectiveCap = min($shopOverride, $resourceCapSum);
-                } elseif ($shopOverride !== null) {
-                    $effectiveCap = $shopOverride;
-                } elseif ($resourceCapSum > 0) {
-                    $effectiveCap = $resourceCapSum;
-                }
+                // MARKER-APPT-DAYLOAD — shared with dayLoad(); one derivation.
+                $effectiveCap = self::effectiveDayCap($shopOverride, $resourceCapSum);
                 // Cap of 0 means closed for this day.
                 if ($effectiveCap === 0) { $cursor->addDay(); continue; }
 
@@ -1767,5 +1759,152 @@ class BookingService
         } catch (\Throwable $e) {
             \Illuminate\Support\Facades\Log::error('booking.failed_paid_record_error', ['pending_id' => $pending->id, 'error' => $e->getMessage()]);
         }
+    }
+
+    /**
+     * MARKER-APPT-DAYLOAD — the one place a day's cap is decided.
+     *
+     * Effective cap = min(shop override, resource cap sum) when both are set;
+     * whichever is set when only one is; null when neither, meaning unbounded.
+     * Lifted verbatim out of availableDates() so the staff day picker and the
+     * public availability answer can never disagree.
+     */
+    public static function effectiveDayCap(?int $shopOverride, int $resourceCapSum): ?int
+    {
+        if ($shopOverride !== null && $resourceCapSum > 0) {
+            return min($shopOverride, $resourceCapSum);
+        }
+        if ($shopOverride !== null) {
+            return $shopOverride;
+        }
+        if ($resourceCapSum > 0) {
+            return $resourceCapSum;
+        }
+
+        return null;
+    }
+
+    /**
+     * MARKER-APPT-DAYLOAD — how loaded each day in a window is, for STAFF.
+     *
+     * Unlike availableDates() this reports every day, including the ones a
+     * customer can never have: a day that is full, and a day inside the
+     * notice window. It states the situation and takes no view on whether a
+     * booking is allowed — that is the shop's policy, applied by the caller.
+     *
+     * state: open | full | closed | too_soon
+     */
+    public function dayLoad(Tenant $tenant, string $startDate, int $days = 7, ?string $serviceId = null): array
+    {
+        $bkTz = $tenant->timezone();
+        $mode = $tenant->booking_mode ?? 'drop_off';
+        $minNoticeHours = (int) ($tenant->min_notice_hours ?? 0);
+        $earliest = now($bkTz)->addHours($minNoticeHours);
+
+        $eligibleResourceIds = null;
+        if ($serviceId) {
+            $eligibleResourceIds = $this->eligibleResourcesForService($tenant->id, $serviceId);
+            if (empty($eligibleResourceIds)) {
+                return [];
+            }
+        }
+
+        $resourceCapQuery = \App\Models\Tenant\TenantResource::where('tenant_id', $tenant->id)
+            ->where('is_active', true)
+            ->whereNotNull('max_appointments_per_day');
+        if ($eligibleResourceIds !== null) {
+            $resourceCapQuery->whereIn('id', $eligibleResourceIds);
+        }
+        $resourceCapSum = (int) $resourceCapQuery->sum('max_appointments_per_day');
+
+        $cursor = Carbon::now($bkTz)->startOfDay();
+        $endStr = $cursor->copy()->addDays(max(1, $days))->toDateString();
+        if ($startDate) {
+            $cursor = Carbon::parse($startDate, $bkTz)->startOfDay();
+            $endStr = $cursor->copy()->addDays(max(1, $days) - 1)->toDateString();
+        }
+
+        [$defaults, $overrides] = $this->scheduleRulesFor($tenant, $cursor->toDateString(), $endStr);
+
+        $out = [];
+        while ($cursor->toDateString() <= $endStr) {
+            $dateStr = $cursor->toDateString();
+            $rule = $overrides[$dateStr] ?? $defaults[$cursor->dayOfWeek] ?? null;
+
+            $row = [
+                'date'       => $dateStr,
+                'label'      => $cursor->format('D j'),
+                'long_label' => $cursor->format('D, M j'),
+                'is_today'   => $cursor->isToday(),
+                'left'       => null,
+                'max'        => null,
+                'used'       => 0,
+                'state'      => 'closed',
+            ];
+
+            if (! $rule || ! empty($rule->is_closed)) {
+                $out[] = $row;
+                $cursor->addDay();
+                continue;
+            }
+
+            $shopOverride = isset($rule->max_appointments) && $rule->max_appointments !== null
+                ? (int) $rule->max_appointments
+                : null;
+            $cap = self::effectiveDayCap($shopOverride, $resourceCapSum);
+
+            if ($cap === 0) {
+                $out[] = $row;
+                $cursor->addDay();
+                continue;
+            }
+
+            $usedQuery = \App\Models\Tenant\TenantAppointment::where('tenant_id', $tenant->id)
+                ->whereNotIn('status', ['cancelled', 'refunded'])
+                ->where('appointment_date', $dateStr);
+            if ($eligibleResourceIds !== null) {
+                $usedQuery->whereIn('resource_id', $eligibleResourceIds);
+            }
+            $used = (int) $usedQuery->sum('slot_weight');
+
+            $row['used'] = $used;
+            $row['max']  = $cap;
+            $row['left'] = $cap === null ? null : max(0, $cap - $used);
+
+            // A day can be both too soon and full. Too soon is reported first
+            // because it is the rule the reader meets first; the counts are on
+            // the row either way, so the screen can say both.
+            if ($cursor->copy()->endOfDay()->lt($earliest)) {
+                $row['state'] = 'too_soon';
+            } elseif ($cap !== null && $used >= $cap) {
+                $row['state'] = 'full';
+            } else {
+                $row['state'] = 'open';
+            }
+
+            $row['over_capacity'] = $cap !== null && $used >= $cap;
+
+            $out[] = $row;
+            $cursor->addDay();
+        }
+
+        return $out;
+    }
+
+    /**
+     * MARKER-APPT-DAYLOAD — the schedule rules for a date range, as
+     * availableDates() loads them: weekday defaults keyed by day-of-week, and
+     * date overrides keyed by date.
+     */
+    protected function scheduleRulesFor(Tenant $tenant, string $from, string $to): array
+    {
+        $defaults = TenantCapacityRule::where('tenant_id', $tenant->id)
+            ->where('rule_type', 'default')->get()->keyBy('day_of_week');
+        $overrides = TenantCapacityRule::where('tenant_id', $tenant->id)
+            ->where('rule_type', 'override')
+            ->whereBetween('specific_date', [$from, $to])
+            ->get()->keyBy(fn($r) => $r->specific_date->toDateString());
+
+        return [$defaults, $overrides];
     }
 }
