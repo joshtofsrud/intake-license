@@ -88,6 +88,33 @@ class DebugLog extends Model
     // Scopes — used by the Filament table and widgets
     // ----------------------------------------------------------------
 
+    /**
+     * MARKER-ERROR-PARITY — an "issue": an error somebody can act on and
+     * resolve. Request rows are excluded: every 5xx writes one beside the
+     * exception row, so counting both doubled every failure.
+     */
+    public const ISSUE_SEVERITIES = ['error', 'critical'];
+
+    public function scopeIssues(Builder $q): Builder
+    {
+        return $q->whereIn('severity', self::ISSUE_SEVERITIES)->where('channel', '!=', 'request');
+    }
+
+    public function isIssue(): bool
+    {
+        return in_array($this->severity, self::ISSUE_SEVERITIES, true) && $this->channel !== 'request';
+    }
+
+    /** MARKER-ERROR-PARITY — is_resolved is the truth; resolved_at follows it. */
+    protected static function booted(): void
+    {
+        static::saving(function (DebugLog $log) {
+            if ($log->isDirty('is_resolved')) {
+                $log->resolved_at = $log->is_resolved ? ($log->resolved_at ?? now()) : null;
+            }
+        });
+    }
+
     public function scopeChannel(Builder $q, string $channel): Builder
     {
         return $q->where('channel', $channel);

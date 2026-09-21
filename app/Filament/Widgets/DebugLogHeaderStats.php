@@ -23,11 +23,12 @@ class DebugLogHeaderStats extends BaseWidget
 
     protected function getStats(): array
     {
-        $errors24   = DebugLog::where('channel', 'error')
+        // MARKER-ERROR-PARITY
+        $errors24   = DebugLog::issues()
             ->where('is_resolved', false)
             ->where('created_at', '>=', now()->subDay())->count();
 
-        $errors7    = DebugLog::where('channel', 'error')
+        $errors7    = DebugLog::issues()
             ->where('created_at', '>=', now()->subDays(7))->count();
 
         $slowReqs24 = DebugLog::where('channel', 'request')

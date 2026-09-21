@@ -44,7 +44,7 @@ class DebugLogResource extends Resource
             if (! Schema::hasTable('debug_logs')) return null;
 
             $count = DebugLog::query()
-                ->where('channel', 'error')
+                ->issues() // MARKER-ERROR-PARITY
                 ->where('is_resolved', false)
                 ->where('created_at', '>=', now()->subDay())
                 ->count();
@@ -89,7 +89,7 @@ class DebugLogResource extends Resource
                 ])->collapsible(),
 
             Forms\Components\Section::make('Resolution')
-                ->visible(fn ($record) => $record?->channel === 'error')
+                ->visible(fn ($record) => (bool) $record?->isIssue()) // MARKER-ERROR-PARITY
                 ->schema([
                     Forms\Components\Toggle::make('is_resolved'),
                     Forms\Components\Textarea::make('resolution_note')->rows(3),
@@ -211,7 +211,7 @@ class DebugLogResource extends Resource
 
                 Tables\Filters\Filter::make('unresolved_errors')
                     ->label('Unresolved errors only')
-                    ->query(fn (Builder $q) => $q->where('channel', 'error')->where('is_resolved', false))
+                    ->query(fn (Builder $q) => $q->issues()->where('is_resolved', false)) // MARKER-ERROR-PARITY
                     ->toggle(),
 
                 Tables\Filters\Filter::make('recent')
@@ -269,7 +269,7 @@ class DebugLogResource extends Resource
                     ->label('Mark resolved')
                     ->icon('heroicon-o-check-circle')
                     ->color('success')
-                    ->visible(fn (DebugLog $r) => $r->channel === 'error' && ! $r->is_resolved)
+                    ->visible(fn (DebugLog $r) => $r->isIssue() && ! $r->is_resolved) // MARKER-ERROR-PARITY
                     ->form([
                         Forms\Components\Textarea::make('note')->label('Resolution note')->rows(3),
                     ])
@@ -297,7 +297,7 @@ class DebugLogResource extends Resource
                     ->label('Reopen')
                     ->icon('heroicon-o-arrow-uturn-left')
                     ->color('warning')
-                    ->visible(fn (DebugLog $r) => $r->channel === 'error' && $r->is_resolved)
+                    ->visible(fn (DebugLog $r) => $r->isIssue() && $r->is_resolved) // MARKER-ERROR-PARITY
                     ->action(function (DebugLog $r) {
                         $r->update([
                             'is_resolved'     => false,

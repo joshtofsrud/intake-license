@@ -25,7 +25,7 @@ class DebugLogErrorsChart extends ChartWidget
         $counts = DebugLog::selectRaw('DATE(created_at) as d, severity, COUNT(*) as c')
             ->where('created_at', '>=', now()->subDays(14)->startOfDay())
             ->where(function ($q) {
-                $q->where('channel', 'error')
+                $q->where(fn ($w) => $w->issues()) // MARKER-ERROR-PARITY
                   ->orWhereIn('severity', ['warning', 'critical']);
             })
             ->groupBy('d', 'severity')

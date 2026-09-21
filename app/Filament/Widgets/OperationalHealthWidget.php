@@ -33,8 +33,9 @@ class OperationalHealthWidget extends BaseWidget
 
     protected function unresolvedErrors(): Stat
     {
-        $unresolved = DebugLog::where('severity', 'error')->whereNull('resolved_at')->count();
-        $last7      = DebugLog::where('severity', 'error')->where('created_at', '>=', now()->subDays(7))->count();
+        // MARKER-ERROR-PARITY
+        $unresolved = DebugLog::issues()->where('is_resolved', false)->count();
+        $last7      = DebugLog::issues()->where('created_at', '>=', now()->subDays(7))->count();
         return Stat::make('Unresolved errors', number_format($unresolved))
             ->description($last7 . ' in last 7 days')
             ->color($unresolved > 0 ? 'danger' : 'success');

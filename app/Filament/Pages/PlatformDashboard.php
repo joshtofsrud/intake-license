@@ -171,7 +171,7 @@ class PlatformDashboard extends Page
     protected function buildIssues(): array
     {
         $rows = DebugLog::query()
-            ->where('severity', 'error')->where('is_resolved', false)
+            ->issues()->where('is_resolved', false) // MARKER-ERROR-PARITY
             ->whereNotNull('fingerprint')
             ->where('created_at', '>=', now()->subDays(7))
             ->selectRaw('fingerprint, COUNT(*) as n, MAX(created_at) as last_at, MIN(created_at) as first_at, MAX(id) as last_id')
@@ -356,9 +356,10 @@ class PlatformDashboard extends Page
         $rows = [];
 
         // Unresolved errors
-        $unresolved = DebugLog::where('severity', 'error')->whereNull('resolved_at')->count();
-        $last7 = DebugLog::where('severity', 'error')->where('created_at', '>=', now()->subDays(7))->count();
-        $recent = DebugLog::where('severity', 'error')->orderByDesc('created_at')->first();
+        // MARKER-ERROR-PARITY — exactly what Debug Logs can resolve.
+        $unresolved = DebugLog::issues()->where('is_resolved', false)->count();
+        $last7 = DebugLog::issues()->where('created_at', '>=', now()->subDays(7))->count();
+        $recent = DebugLog::issues()->orderByDesc('created_at')->first();
         $rows[] = [
             'name'  => 'Unresolved errors',
             'meta'  => "{$unresolved} unresolved · {$last7} over last 7d" . ($recent ? ' · most recent ' . $recent->created_at->diffForHumans() : ''),
