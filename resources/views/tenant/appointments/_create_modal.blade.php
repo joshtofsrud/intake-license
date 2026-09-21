@@ -228,6 +228,16 @@
       border-radius: 8px;
       background: rgba(255,255,255,.02);
     }
+    /* MARKER-APPT-PICKER-CHROME — the day grid brings its own cards, so the
+       panel that frames a list of times is a box around boxes. It also has to
+       lose the 240px scroll, which clips a two-row grid for no reason. */
+    .appt-sp-times-list.is-days {
+      max-height: none;
+      overflow: visible;
+      border: 0;
+      border-radius: 0;
+      background: none;
+    }
   .appt-sp-short{margin-left:8px;font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:#f0c46a;border:0.5px solid rgba(240,196,106,.35);border-radius:99px;padding:1px 7px}
     .appt-sp-time-row {
       display: flex;
@@ -847,6 +857,7 @@ window.ApptModal = (function () {
     listEl.innerHTML = '<div class="appt-sp-times-empty">Loading…</div>';
     el('appt-sp-times-section').style.display = 'block';
     el('appt-sp-times-head-label').textContent = 'Which day';
+    listEl.classList.add('is-days'); // MARKER-APPT-PICKER-CHROME
     el('appt-sp-week-label').textContent = formatWeekLabel(state.weekStartDate);
     el('appt-sp-prev-week').disabled = (state.weekStartDate <= todayStr());
 
@@ -969,6 +980,7 @@ window.ApptModal = (function () {
 
   function fetchWeekTimes() {
     var listEl = el('appt-sp-times-list');
+    listEl.classList.remove('is-days'); // MARKER-APPT-PICKER-CHROME
     listEl.innerHTML = '<div class="appt-sp-times-empty">Loading…</div>';
     el('appt-sp-times-section').style.display = 'block';
     state.availLoading = true;
