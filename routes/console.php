@@ -52,6 +52,15 @@ Schedule::command('data:prune')
     ->runInBackground();
 
 // ----------------------------------------------------------------
+// MARKER-DUP-MERGE — refresh every shop's duplicate items (also refreshed
+// straight after each distributor or CSV inventory import).
+// ----------------------------------------------------------------
+Schedule::command('inventory:find-duplicates')
+    ->dailyAt('03:55')
+    ->withoutOverlapping()
+    ->runInBackground();
+
+// ----------------------------------------------------------------
 // Memberships & packs daily tick — period rollover + pack expiry.
 // Runs at 04:00 to follow the debug log prune. Idempotent.
 // ----------------------------------------------------------------

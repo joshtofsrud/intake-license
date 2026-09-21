@@ -97,6 +97,12 @@ class RunImportJob implements ShouldQueue, ShouldBeUnique
                 'progress_stage'   => $cancelled ? 'cancelled' : 'finished',
                 'progress_seen_at' => now(),
             ])->save();
+
+            // MARKER-DUP-MERGE — an inventory import can bring in copies of
+            // products already here; look again straight away.
+            if ($import->type === 'inventory') {
+                \App\Jobs\FindDuplicateItemsJob::dispatch($tenant->id);
+            }
         } catch (\Throwable $e) {
             $reason = trim((string) $e->getMessage()) ?: class_basename($e) . ' at ' . basename($e->getFile()) . ':' . $e->getLine();
             $import->forceFill([

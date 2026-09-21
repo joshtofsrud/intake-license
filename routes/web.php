@@ -884,6 +884,15 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
                 // MARKER-MERGE-UI — capability checked in the controller.
                 Route::post('/merge/preview',    [TenantControllers\InventoryController::class, 'mergePreview'])->name('merge.preview');
                 Route::post('/merge',            [TenantControllers\InventoryController::class, 'mergeCommit'])->name('merge.commit');
+                // MARKER-LIVE-IDENTIFY — asked by the item forms as each identifier field is left.
+                Route::get('/identify',          [TenantControllers\ItemIdentifyController::class, 'check'])->name('identify');
+
+                // MARKER-DUP-MERGE — duplicate items; capability checked in the controller.
+                Route::get('/duplicates',                [TenantControllers\DuplicateItemsController::class, 'index'])->name('duplicates');
+                Route::get('/duplicates/list.csv',       [TenantControllers\DuplicateItemsController::class, 'download'])->name('duplicates.download');
+                Route::post('/duplicates/merge-all',     [TenantControllers\DuplicateItemsController::class, 'mergeAll'])->name('duplicates.merge-all');
+                Route::post('/duplicates/{id}/merge',    [TenantControllers\DuplicateItemsController::class, 'merge'])->name('duplicates.merge');
+                Route::post('/duplicates/{id}/dismiss',  [TenantControllers\DuplicateItemsController::class, 'dismiss'])->name('duplicates.dismiss');
 
                 // MARKER-ITEM-IMAGES
                 Route::post('/{item}/images',                 [TenantControllers\InventoryImageController::class, 'upload'])->name('images.upload');

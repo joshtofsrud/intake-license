@@ -92,6 +92,9 @@ class ImportDistributorCatalogJob implements ShouldQueue, ShouldBeUnique
                 'result'         => $totals,
                 'item_count'     => $totals['created'] + $totals['merged'],
             ]);
+
+            // MARKER-DUP-MERGE — look for duplicates straight after an import.
+            \App\Jobs\FindDuplicateItemsJob::dispatch($this->tenantId);
         } catch (\Throwable $e) {
             // MARKER-JOB-ISSUES — reported, not just logged: master admin
             // sees it, the alert address gets it, and it carries a refId.

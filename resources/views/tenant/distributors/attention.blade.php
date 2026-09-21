@@ -255,6 +255,15 @@ body.at-bar-open .ia-mobile-nav{display:none}
   </a>
   @include('layouts.tenant._inventory-tabs')
 
+  {{-- MARKER-DUP-MERGE — the merge panel's front door on this page. --}}
+  @php $dupOpen = \App\Models\Tenant\TenantDuplicateGroup::openCount(tenant()->id); @endphp
+  @if($dupOpen > 0)
+    <a href="{{ route('tenant.inventory.duplicates') }}" class="at-sync" style="display:flex;justify-content:space-between;align-items:center;gap:12px;text-decoration:none;color:inherit;margin-bottom:14px">
+      <span><strong>{{ number_format($dupOpen) }} {{ \Illuminate\Support\Str::plural('product', $dupOpen) }}</strong> {{ $dupOpen === 1 ? 'is' : 'are' }} in your inventory more than once.</span>
+      <span style="color:var(--ia-accent);white-space:nowrap">Review and merge →</span>
+    </a>
+  @endif
+
   {{-- MARKER-PATCH-558 — sync status card (supersedes the 555 button row):
      plain language for shop owners, not developers. --}}
   @php

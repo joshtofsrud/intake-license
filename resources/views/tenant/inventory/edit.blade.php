@@ -24,7 +24,8 @@
 {{-- MARKER-BLADE-GLUE-FIX — the Archive form used to be nested INSIDE this
      one. Nested forms are invalid HTML and the inner submit can post to the
      outer action. The two are siblings now; Save reaches this form by id. --}}
-<form method="POST" action="{{ route('tenant.inventory.update', $item->id) }}">
+<form method="POST" action="{{ route('tenant.inventory.update', $item->id) }}"
+      data-identify-url="{{ route('tenant.inventory.identify') }}" data-identify-mode="edit" data-identify-except="{{ $item->id }}">{{-- MARKER-LIVE-IDENTIFY --}}
   @csrf
   @method('PATCH')
 
@@ -211,6 +212,7 @@
 @endsection
 
 @push('scripts')
+<script src="{{ asset('js/tenant/item-identify.js') }}?v=1"></script>{{-- MARKER-LIVE-IDENTIFY --}}
 <script>
 // MARKER-ITEM-IDENT-ENTRY — see create.blade.php. A scanner's Enter moves on
 // instead of submitting a half-edited item.

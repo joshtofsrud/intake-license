@@ -21,8 +21,10 @@
   </div>
 @endif
 
-<form method="POST" action="{{ route('tenant.inventory.store') }}">
+<form method="POST" action="{{ route('tenant.inventory.store') }}"
+      data-identify-url="{{ route('tenant.inventory.identify') }}" data-identify-mode="create">{{-- MARKER-LIVE-IDENTIFY --}}
   @csrf
+  <input type="hidden" name="duplicate_ok" value="">
 
   {{-- MARKER-BARCODE-IDENTITY — the barcode is already on an item. --}}
   @if(session('barcode_duplicate'))
@@ -226,6 +228,7 @@
 @endsection
 
 @push('scripts')
+<script src="{{ asset('js/tenant/item-identify.js') }}?v=1"></script>{{-- MARKER-LIVE-IDENTIFY --}}
 <script>
 // MARKER-ITEM-IDENT-ENTRY — barcode scanners send Enter the moment they finish
 // reading. On a form that submits on Enter this saves a half-filled item and

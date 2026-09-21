@@ -14,6 +14,11 @@
   if ($uncatCount > 0) {
       $invTabs[] = ['route' => 'tenant.inventory.uncategorized', 'label' => 'Uncategorized (' . $uncatCount . ')', 'match' => 'tenant.inventory.uncategorized'];
   }
+  // MARKER-DUP-MERGE — for every shop, not only ones with a distributor.
+  $dupCount = \App\Models\Tenant\TenantDuplicateGroup::openCount($currentTenant->id);
+  if ($dupCount > 0) {
+      $invTabs[] = ['route' => 'tenant.inventory.duplicates', 'label' => 'Duplicates (' . number_format($dupCount) . ')', 'match' => 'tenant.inventory.duplicates'];
+  }
   $invTabs[] = ['route' => 'tenant.inventory.categories.index', 'label' => 'Categories',        'match' => 'tenant.inventory.categories'];
   $invTabs[] = ['route' => 'tenant.inventory.receiving.index',  'label' => 'Receiving',         'match' => 'tenant.inventory.receiving'];
   $invTabs[] = ['route' => 'tenant.inventory.reports',          'label' => 'Reports',           'match' => 'tenant.inventory.reports']; // MARKER-INV-REPORTS-TABS
