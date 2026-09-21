@@ -427,68 +427,82 @@
     {{-- Booking window --}}
     <div class="ia-card" style="margin-bottom:20px">
       <div class="ia-card-head"><span class="ia-card-title">Booking window</span></div>
-      {{-- MARKER-BOOKING-HIER — the card holds two audiences. Saying so is the
-           whole hierarchy: without it these are four fields in a row. --}}
-      <div class="ia-form-label" style="margin-bottom:10px">Customers booking online</div>
-
-      <div class="ia-input-grid-2">
-        <div class="ia-form-group">
-          <label class="ia-form-label">How far ahead can they book?</label>
-          <input type="number" name="booking_window_days" class="ia-input" min="1" max="365"
-            value="{{ old('booking_window_days', $currentTenant->booking_window_days ?? 60) }}">
-          <p style="font-size:11px;opacity:.4;margin-top:4px">Days from today</p>
-        </div>
-        <div class="ia-form-group">
-          <label class="ia-form-label">Minimum notice required</label>
-          <input type="number" name="min_notice_hours" class="ia-input" min="0" max="168"
-            value="{{ old('min_notice_hours', $currentTenant->min_notice_hours ?? 24) }}">
-          <p style="font-size:11px;opacity:.4;margin-top:4px">0 = same-day bookings allowed</p>
+      {{-- MARKER-BOOKING-HIER-C — eyebrow and rule, the device the PDFs and
+           the invest site use. The earlier pass styled section heads as field
+           labels, so the card had six labels of equal weight. --}}
+      <div class="bw-group">
+        <div class="bw-eyebrow">Customers booking online</div>
+        <div class="ia-input-grid-2">
+          <div class="ia-form-group">
+            <label class="ia-form-label">How far ahead can they book?</label>
+            <input type="number" name="booking_window_days" class="ia-input" min="1" max="365"
+            value="{{ old('booking_window_days', $currentTenant->
+            <p class="bw-hint">Days from today</p>
+          </div>
+          <div class="ia-form-group">
+            <label class="ia-form-label">Minimum notice required</label>
+            <input type="number" name="min_notice_hours" class="ia-input" min="0" max="168"
+            value="{{ old('min_notice_hours', $currentTenant->
+            <p class="bw-hint">0 = same-day bookings allowed</p>
+          </div>
         </div>
       </div>
 
-      {{-- MARKER-BOOKING-OVERRIDE — the notice rule above is written for
-           customers booking online. A phone call or a walk-in is a different
-           situation, and until now the shop had no way to say so. --}}
-      <div style="margin-top:22px;padding-top:18px;border-top:0.5px solid var(--ia-border)">
-        <div class="ia-form-label" style="margin-bottom:3px">What staff may do that customers may not</div>
-        <p style="font-size:11.5px;opacity:.45;margin:0 0 12px">A phone call or a walk-in is not an online booking.</p>
+      {{-- MARKER-BOOKING-OVERRIDE — a phone call or a walk-in is not an
+           online booking, and until now the shop had no way to say so. --}}
+      <div class="bw-group">
+        <div class="bw-eyebrow">Staff exceptions</div>
+        <p class="bw-tagline">A phone call or a walk-in is not an online booking.</p>
 
-        <div class="ia-form-row">
+        {{-- The two permission rules are a pair, so they sit as one. --}}
+        <div class="ia-input-grid-2">
           <div class="ia-form-group">
-            <label class="ia-form-label">Booking sooner than the notice window</label>
+            <label class="ia-form-label">Sooner than the notice window</label>
             <select name="staff_notice_policy" class="ia-input">
               <option value="follow" @selected(($currentTenant->staff_notice_policy ?? 'follow') === 'follow')>Same rule as customers</option>
               <option value="warn"   @selected(($currentTenant->staff_notice_policy ?? '') === 'warn')>Staff can book anyway, with a warning</option>
               <option value="silent" @selected(($currentTenant->staff_notice_policy ?? '') === 'silent')>Staff can book anyway, no warning</option>
             </select>
-            <p style="font-size:11px;opacity:.4;margin-top:4px">Applies to the staff booking screens only. Online booking always follows the notice window above.</p>
           </div>
-
           <div class="ia-form-group">
-            {{-- MARKER-APPT-AUTOLOAD --}}
-            <label class="ia-form-label">Keep availability up to date while booking</label>
-            <select name="availability_auto_refresh" class="ia-input">
-              <option value="1" @selected(($currentTenant->availability_auto_refresh ?? true))>Refresh every minute</option>
-              <option value="0" @selected(! ($currentTenant->availability_auto_refresh ?? true))>Only when the screen is opened</option>
-            </select>
-            <p style="font-size:11px;opacity:.4;margin-top:4px">Useful when more than one person books at once. Your selection is never changed by a refresh.</p>
-          </div>
-
-          <div class="ia-form-group">
-            <label class="ia-form-label">Booking a day that is already full</label>
+            <label class="ia-form-label">A day that is already full</label>
             <select name="staff_capacity_policy" class="ia-input">
               <option value="block"  @selected(($currentTenant->staff_capacity_policy ?? 'block') === 'block')>Nobody can add — the day is closed</option>
               <option value="marked" @selected(($currentTenant->staff_capacity_policy ?? '') === 'marked')>Staff can add anyway, marked as over capacity</option>
             </select>
-            <p style="font-size:11px;opacity:.4;margin-top:4px">A full day can be any day, not only today.</p>
           </div>
         </div>
-        <div class="ia-legend" style="margin-top:12px;border:0.5px solid var(--ia-border);border-left:2px solid var(--ia-accent);border-radius:8px;padding:10px 13px;font-size:12px;line-height:1.55;opacity:.85">
+
+        {{-- MARKER-APPT-AUTOLOAD — about the screen, not about permission,
+             so it follows the pair rather than splitting it. --}}
+        <div class="ia-form-group" style="margin-top:4px">
+          <label class="ia-form-label">Keep availability up to date while booking</label>
+          <select name="availability_auto_refresh" class="ia-input">
+              <option value="1" @selected(($currentTenant->availability_auto_refresh ?? true))>Refresh every minute</option>
+              <option value="0" @selected(! ($currentTenant->availability_auto_refresh ?? true))>Only when the screen is opened</option>
+            </select>
+          <p class="bw-hint">Useful when more than one person books at once. Your selection is never changed by a refresh.</p>
+        </div>
+
+        <div class="bw-legend">
           These decide who may book, not what the day looks like afterwards. An over-capacity day still counts every
-          job and reads as over capacity wherever it is shown, and customers are never offered a short-notice or full
-          day whatever these are set to.
+          job wherever it is shown, and customers are never offered a short-notice or full day.
         </div>
       </div>
+
+      <style>
+        /* MARKER-BOOKING-HIER-C */
+        .bw-group + .bw-group { margin-top:26px; }
+        .bw-eyebrow { font-size:10.5px; letter-spacing:.11em; text-transform:uppercase; color:var(--ia-accent);
+                       font-weight:600; margin-bottom:11px; display:flex; align-items:center; gap:10px; }
+        .bw-eyebrow::after { content:''; flex:1; height:1px;
+                              background:linear-gradient(90deg, color-mix(in srgb, var(--ia-accent) 38%, transparent), transparent); }
+        .bw-tagline { font-size:11.5px; opacity:.5; margin:-5px 0 13px; }
+        .bw-hint { font-size:11px; opacity:.4; margin-top:4px; }
+        .bw-legend { margin-top:16px; border-left:2px solid var(--ia-accent); border-radius:0 8px 8px 0;
+                      background:color-mix(in srgb, var(--ia-accent) 6%, transparent);
+                      padding:10px 13px; font-size:12px; line-height:1.55; opacity:.9; }
+      </style>
     </div>
 
     {{-- MARKER-CLASSES-SETTINGS — a toggle that does nothing is worse than no
