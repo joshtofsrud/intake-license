@@ -197,6 +197,22 @@
     .appt-sp-week-btn:hover:not(:disabled) { background: rgba(255,255,255,.08); }
     .appt-sp-week-btn:disabled { opacity: .35; cursor: not-allowed; }
     .appt-sp-week-label { opacity: .65; min-width: 100px; text-align: center; }
+    /* MARKER-APPT-AUTOLOAD */
+    .appt-sp-refresh-state { font-size:11px; color:var(--ia-text-dim); margin-left:8px; }
+    .appt-sp-refresh-state a { color:var(--ia-text-muted); text-decoration:underline; }
+    .appt-day-changed { margin-top:10px; font-size:12px; color:#f0c46a; border-left:2px solid rgba(240,196,106,.5); padding-left:9px; }
+
+    /* MARKER-APPT-TILES — a short list of choices, shown rather than hidden */
+    .appt-tiles-grid { display:grid; gap:7px; }
+    .appt-tile { text-align:left; background:var(--ia-surface-2); border:0.5px solid var(--ia-border); border-radius:8px; padding:10px 12px; cursor:pointer; font-family:inherit; color:var(--ia-text); transition:all .12s ease; display:flex; flex-direction:column; gap:2px; }
+    .appt-tile:hover { border-color:var(--ia-border-strong); }
+    .appt-tile.on { border-color:var(--ia-accent); background:var(--ia-accent-soft); }
+    .appt-tile.add { border-style:dashed; color:var(--ia-text-muted); }
+    .appt-tile-l { font-size:13.5px; font-weight:600; }
+    .appt-tile-s { font-size:11.5px; color:var(--ia-text-dim); }
+    .appt-tile.on .appt-tile-s { color:var(--ia-text-muted); }
+    .appt-tiles-filter { font-size:12.5px; padding:7px 10px; }
+
     /* MARKER-APPT-PICKER — day cards for capacity mode */
     .appt-day-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(116px,1fr)); gap:8px; }
     .appt-day { position:relative; border:0.5px solid var(--ia-border); border-radius:8px; padding:10px 11px; cursor:pointer; background:var(--ia-surface-2); transition:all .12s ease; }
@@ -315,6 +331,9 @@
         <div class="appt-section" id="appt-asset-section">
           <div class="appt-section-h">{{ ucfirst($aSing) }}</div>
           <div id="appt-asset-need-customer" style="font-size:11px;opacity:.55">Choose a customer to pick or add a {{ $aSing }}.</div>
+          {{-- MARKER-APPT-TILES — the select stays as the value holder; the
+               tiles above it are what people actually touch. --}}
+          <div id="appt-asset-tiles" class="appt-tiles" style="display:none"></div>
           <select id="appt-asset-select" class="appt-input" style="display:none"
                   onchange="var n=document.getElementById('appt-asset-new'); if(n) n.style.display=(this.value==='__new__'?'block':'none');"></select>
           <div id="appt-asset-new" style="display:none; margin-top:8px">
@@ -351,6 +370,8 @@
 
         <div class="appt-section" id="appt-sp-resource-section" style="display:none">
           <div class="appt-section-h">Resource</div>
+          {{-- MARKER-APPT-TILES --}}
+          <div id="appt-sp-resource-tiles" class="appt-tiles" style="display:none"></div>
           <select id="appt-sp-resource" class="appt-input">
             <option value="">Select a resource…</option>
           </select>
@@ -369,6 +390,8 @@
               <button type="button" class="appt-sp-week-btn" id="appt-sp-prev-week" disabled>← Prev week</button>
               <span class="appt-sp-week-label" id="appt-sp-week-label">—</span>
               <button type="button" class="appt-sp-week-btn" id="appt-sp-next-week">Next week →</button>
+              {{-- MARKER-APPT-AUTOLOAD --}}
+              <span class="appt-sp-refresh-state" id="appt-sp-refresh-state"></span>
             </div>
           </div>
           <div class="appt-sp-times-list" id="appt-sp-times-list">
@@ -472,6 +495,11 @@ window.ApptModal = (function () {
   // runs; everything else in this modal is the same either way.
   var bookingMode = @json($currentTenant->booking_mode ?? 'drop_off');
   var dayPolicy = { short_notice: false, warns: true, overbook: false, notice_hours: 0 };
+
+  // MARKER-APPT-AUTOLOAD
+  var autoRefresh = @json((bool) ($currentTenant->availability_auto_refresh ?? true));
+  var settingsUrl = @json(route('tenant.settings.index'));
+  var refreshTimer = null;
 
   // MARKER-APPT-ASSET — asset picker config (label + endpoint from the tenant)
   var assetsCfg = {
@@ -583,6 +611,7 @@ window.ApptModal = (function () {
     el('appt-sp-service-wrap').style.display = 'block';
     hideServiceResults();
     el('appt-sp-resource').innerHTML = '<option value="">Select a resource…</option>';
+    var rt = el('appt-sp-resource-tiles'); if (rt) { rt.innerHTML = ''; rt.style.display = 'none'; } // MARKER-APPT-TILES
     el('appt-sp-resource-section').style.display = 'none';
     el('appt-sp-find-section').style.display = 'none';
     el('appt-sp-times-section').style.display = 'none';
@@ -598,7 +627,10 @@ window.ApptModal = (function () {
     return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
   }
 
-  function close() { el('new-appt-modal').style.display = 'none'; }
+  function close() {
+    stopAutoRefresh(); // MARKER-APPT-AUTOLOAD — no timer outlives its screen.
+    el('new-appt-modal').style.display = 'none';
+  }
 
   // ── Customer search ──
   el('appt-cust-search').addEventListener('input', function () {
@@ -667,6 +699,7 @@ window.ApptModal = (function () {
     if(!assetsCfg.enabled) return;
     var need=el('appt-asset-need-customer'); if(need) need.style.display='block';
     var sel=el('appt-asset-select'); if(sel){ sel.innerHTML=''; sel.style.display='none'; }
+    var at=el('appt-asset-tiles'); if(at){ at.innerHTML=''; at.style.display='none'; } // MARKER-APPT-TILES
     var nw=el('appt-asset-new'); if(nw) nw.style.display='none';
     var nm=el('appt-asset-name'); if(nm) nm.value='';
     var ni=el('appt-asset-id'); if(ni) ni.value='';
@@ -691,7 +724,10 @@ window.ApptModal = (function () {
           sel.appendChild(assetOpt('', 'Select ' + assetsCfg.singular + '\u2026'));
           assets.forEach(function(a){ sel.appendChild(assetOpt(a.id, a.name + (a.identifier ? ' \u00b7 ' + a.identifier : ''))); });
           sel.appendChild(assetOpt('__new__', '+ Add new ' + assetsCfg.singular));
-          sel.style.display='block';
+          sel.style.display='none'; // MARKER-APPT-TILES — tiles are the control
+          renderTiles('appt-asset-tiles', 'appt-asset-select',
+            assets.map(function (a) { return { value: a.id, label: a.name, sub: a.identifier || '' }; })
+              .concat([{ value: '__new__', label: '+ Add new ' + assetsCfg.singular, isAdd: true }]), '');
           var nw=el('appt-asset-new'); if(nw) nw.style.display='none';
         } else {
           assetNewOnly();
@@ -826,6 +862,10 @@ window.ApptModal = (function () {
           opt.textContent = r.name + (r.subtitle ? ' · ' + r.subtitle : '');
           rsel.appendChild(opt);
         });
+        // MARKER-APPT-TILES
+        rsel.style.display = 'none';
+        renderTiles('appt-sp-resource-tiles', 'appt-sp-resource',
+          resources.map(function (r) { return { value: r.id, label: r.name, sub: r.subtitle || '' }; }), '');
       })
       .catch(function () { showError('Could not load resources.'); });
   }
@@ -837,10 +877,15 @@ window.ApptModal = (function () {
     state.selectedResourceName = sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].text : '';
     state.selectedSlot = null;
     el('appt-sp-times-section').style.display = 'none';
+    // MARKER-APPT-AUTOLOAD — service and resource are both chosen by now, so
+    // there is nothing left for a button to ask. The button stays in the DOM
+    // as the manual refresh for when someone wants to force it.
+    el('appt-sp-find-section').style.display = 'none';
     if (resourceId) {
-      el('appt-sp-find-section').style.display = 'block';
+      onFindTimes();
+      startAutoRefresh();
     } else {
-      el('appt-sp-find-section').style.display = 'none';
+      stopAutoRefresh();
     }
   }
 
@@ -851,8 +896,144 @@ window.ApptModal = (function () {
     if (bookingMode === 'drop_off') { fetchDayLoad(); } else { fetchWeekTimes(); }
   }
 
+  // ---------------------------------------------------------- choice tiles
+  // The column count follows the number of options, so three choices read as
+  // a row and four read as a square instead of both being a ragged grid.
+  function tileColumns(n) {
+    if (n <= 1) { return 1; }
+    if (n === 2) { return 1; }   // two full-width rows
+    if (n === 3) { return 3; }
+    if (n === 4) { return 2; }
+    return 3;                    // 5, 6 and beyond
+  }
+
+  // opts: [{value, label, sub}] — renders into host, writes through to select.
+  function renderTiles(hostId, selectId, opts, placeholderValue) {
+    var host = el(hostId);
+    var sel  = el(selectId);
+    if (!host || !sel) { return; }
+
+    if (!opts.length) { host.style.display = 'none'; host.innerHTML = ''; return; }
+
+    var cols = tileColumns(opts.length);
+    var filter = opts.length >= 13;
+    var html = '';
+
+    if (filter) {
+      html += '<input type="text" class="appt-input appt-tiles-filter" placeholder="Filter…" '
+            + 'data-for="' + hostId + '" style="margin-bottom:8px">';
+    }
+    html += '<div class="appt-tiles-grid" style="grid-template-columns:repeat(' + cols + ',1fr)">';
+    opts.forEach(function (o) {
+      var on = String(sel.value || '') === String(o.value);
+      html += '<button type="button" class="appt-tile' + (on ? ' on' : '') + (o.isAdd ? ' add' : '') + '"'
+        + ' data-value="' + escapeHtml(String(o.value)) + '"'
+        + ' data-label="' + escapeHtml((o.label + ' ' + (o.sub || '')).toLowerCase()) + '">'
+        + '<span class="appt-tile-l">' + escapeHtml(o.label) + '</span>'
+        + (o.sub ? '<span class="appt-tile-s">' + escapeHtml(o.sub) + '</span>' : '')
+        + '</button>';
+    });
+    html += '</div>';
+    host.innerHTML = html;
+    host.style.display = 'block';
+
+    host.querySelectorAll('.appt-tile').forEach(function (b) {
+      b.addEventListener('click', function () {
+        sel.value = b.dataset.value;
+        sel.dispatchEvent(new Event('change', { bubbles: true }));
+        host.querySelectorAll('.appt-tile').forEach(function (x) { x.classList.remove('on'); });
+        b.classList.add('on');
+      });
+    });
+
+    var f = host.querySelector('.appt-tiles-filter');
+    if (f) {
+      f.addEventListener('input', function () {
+        var q = this.value.toLowerCase();
+        host.querySelectorAll('.appt-tile').forEach(function (b) {
+          b.style.display = b.dataset.label.indexOf(q) === -1 ? 'none' : '';
+        });
+      });
+    }
+
+    // A single real choice is preselected, but still shown: an invisible
+    // default is how the wrong one gets booked.
+    var real = opts.filter(function (o) { return !o.isAdd && String(o.value) !== String(placeholderValue || ''); });
+    if (real.length === 1 && !sel.value) {
+      sel.value = real[0].value;
+      sel.dispatchEvent(new Event('change', { bubbles: true }));
+      var only = host.querySelector('.appt-tile[data-value="' + real[0].value + '"]');
+      if (only) { only.classList.add('on'); }
+    }
+  }
+
+  // ------------------------------------------------------ auto refresh
+  // Every rule here exists because of a way this can go wrong: a refresh that
+  // moves the day you picked, wipes the reason you typed, runs in a hidden
+  // tab, or outlives the modal it belongs to.
+  function startAutoRefresh() {
+    stopAutoRefresh();
+    if (!autoRefresh) { renderRefreshState(); return; }
+    refreshTimer = setInterval(function () {
+      if (document.hidden) { return; }
+      if (!state.selectedServiceId || !state.selectedResourceId) { return; }
+      silentRefresh();
+    }, 60000);
+    renderRefreshState();
+  }
+
+  function stopAutoRefresh() {
+    if (refreshTimer) { clearInterval(refreshTimer); refreshTimer = null; }
+  }
+
+  function silentRefresh() {
+    var keptDate   = state.selectedDay ? state.selectedDay.date : null;
+    var keptSlot   = state.selectedSlot;
+    var reasonEl   = el('appt-ov-reason');
+    var keptReason = reasonEl ? reasonEl.value : null;
+    var wasState   = state.selectedDay ? state.selectedDay.state : null;
+
+    var done = function () {
+      // Put the selection back exactly as it was.
+      if (keptDate) {
+        var again = null;
+        state.dayLoad.forEach(function (d) { if (d.date === keptDate) { again = d; } });
+        if (again) {
+          state.selectedDay = again;
+          state.selectedSlot = keptSlot;
+          if (bookingMode === 'drop_off') { renderDayLoad(); }
+          if (again.state !== wasState) { noteDayChanged(again, wasState); }
+        }
+      }
+      var r2 = el('appt-ov-reason');
+      if (r2 && keptReason) { r2.value = keptReason; }
+    };
+
+    if (bookingMode === 'drop_off') { fetchDayLoad(done); } else { fetchWeekTimes(done); }
+  }
+
+  function noteDayChanged(d, was) {
+    var box = el('appt-day-warn');
+    if (!box) { return; }
+    var msg = d.state === 'full'
+      ? escapeHtml(d.long_label) + ' filled up while this was open — it is now ' + d.used + ' of ' + d.max + '.'
+      : escapeHtml(d.long_label) + ' changed while this was open.';
+    var note = document.createElement('div');
+    note.className = 'appt-day-changed';
+    note.textContent = msg;
+    box.parentNode.insertBefore(note, box);
+  }
+
+  function renderRefreshState() {
+    var host = el('appt-sp-refresh-state');
+    if (!host) { return; }
+    host.innerHTML = autoRefresh
+      ? 'Auto refresh on · <a href="' + settingsUrl + '" target="_blank" rel="noopener">settings</a>'
+      : 'Auto refresh off · <a href="' + settingsUrl + '" target="_blank" rel="noopener">settings</a>';
+  }
+
   // ---------------------------------------------------------- day picker
-  function fetchDayLoad() {
+  function fetchDayLoad(after) {
     var listEl = el('appt-sp-times-list');
     listEl.innerHTML = '<div class="appt-sp-times-empty">Loading…</div>';
     el('appt-sp-times-section').style.display = 'block';
@@ -875,6 +1056,7 @@ window.ApptModal = (function () {
         state.dayLoad = data.days || [];
         dayPolicy = data.policy || dayPolicy;
         renderDayLoad();
+        if (typeof after === 'function') { after(); } // MARKER-APPT-AUTOLOAD
       })
       .catch(function (e) {
         listEl.innerHTML = '<div class="appt-sp-times-empty error">Could not read the days ('
@@ -978,7 +1160,7 @@ window.ApptModal = (function () {
     if (bookingMode === 'drop_off') { fetchDayLoad(); } else { fetchWeekTimes(); }
   }
 
-  function fetchWeekTimes() {
+  function fetchWeekTimes(after) {
     var listEl = el('appt-sp-times-list');
     listEl.classList.remove('is-days'); // MARKER-APPT-PICKER-CHROME
     listEl.innerHTML = '<div class="appt-sp-times-empty">Loading…</div>';

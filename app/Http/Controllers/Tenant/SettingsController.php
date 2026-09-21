@@ -142,6 +142,7 @@ class SettingsController extends Controller
             // MARKER-BOOKING-OVERRIDE
             'staff_notice_policy'   => ['nullable', 'in:follow,warn,silent'],
             'staff_capacity_policy' => ['nullable', 'in:block,marked'],
+            'availability_auto_refresh' => ['nullable', 'boolean'], // MARKER-APPT-AUTOLOAD
             'classes_enabled'      => ['nullable', 'boolean'],
             'deliveries_enabled'   => ['nullable', 'boolean'], // MARKER-PATCH-156
             'multi_asset_enabled'  => ['nullable', 'boolean'], // MARKER-PATCH-158-B
@@ -162,6 +163,8 @@ class SettingsController extends Controller
             // MARKER-BOOKING-OVERRIDE — absent means the safe value, not null.
             'staff_notice_policy'   => $request->input('staff_notice_policy', 'follow'),
             'staff_capacity_policy' => $request->input('staff_capacity_policy', 'block'),
+            // MARKER-APPT-AUTOLOAD — an unchecked box posts nothing, so absent means off.
+            'availability_auto_refresh' => $request->boolean('availability_auto_refresh'),
             // MARKER-CLASSES-SETTINGS — a hidden button is not a gate. Without
             // the entitlement this field is ignored entirely, so a crafted
             // request cannot set a flag the plan does not include. The stored

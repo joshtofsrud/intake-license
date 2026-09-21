@@ -465,6 +465,16 @@
           </div>
 
           <div class="ia-form-group">
+            {{-- MARKER-APPT-AUTOLOAD --}}
+            <label class="ia-form-label">Keep availability up to date while booking</label>
+            <select name="availability_auto_refresh" class="ia-input">
+              <option value="1" @selected(($currentTenant->availability_auto_refresh ?? true))>Refresh every minute</option>
+              <option value="0" @selected(! ($currentTenant->availability_auto_refresh ?? true))>Only when the screen is opened</option>
+            </select>
+            <p style="font-size:11px;opacity:.4;margin-top:4px">Useful when more than one person books at once. Your selection is never changed by a refresh.</p>
+          </div>
+
+          <div class="ia-form-group">
             <label class="ia-form-label">Booking a day that is already full</label>
             <select name="staff_capacity_policy" class="ia-input">
               <option value="block"  @selected(($currentTenant->staff_capacity_policy ?? 'block') === 'block')>Nobody can add — the day is closed</option>

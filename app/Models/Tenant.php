@@ -50,6 +50,8 @@ class Tenant extends Model
         'booking_mode', 'booking_flow_mode', 'last_booking_mode_switch_at',
         'classes_enabled', 'deliveries_enabled', 'multi_asset_enabled',
         'staff_notice_policy', 'staff_capacity_policy',
+        // MARKER-APPT-AUTOLOAD
+        'availability_auto_refresh',
         'asset_label_singular', 'asset_label_plural', // MARKER-PATCH-215
         'asset_label_singular', 'asset_label_plural', // MARKER-PATCH-215
         'asset_label_singular', 'asset_label_plural', // MARKER-PATCH-215
@@ -66,6 +68,7 @@ class Tenant extends Model
     ];
 
     protected $casts = [
+        'availability_auto_refresh' => 'boolean', // MARKER-APPT-AUTOLOAD
         'consent_cleanup_until' => 'datetime', // MARKER-CONSENT-CLEANUP
         'past_due_since' => 'datetime', // MARKER-TENANT-STANDING
         'suspended_at'   => 'datetime',
