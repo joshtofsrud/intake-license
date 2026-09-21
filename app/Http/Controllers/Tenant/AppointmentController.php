@@ -3181,7 +3181,10 @@ class AppointmentController extends Controller
      */
     public function dayLoad(Request $request)
     {
-        $this->guard();
+        // MARKER-APPT-PICKER-GUARD — this controller guards through the route
+        // group, as weekTimes() and pickerData() do. The guard call that was
+        // here came from InventoryController, which defines one; this
+        // controller does not, so every request fatalled.
         $tenant = tenant();
 
         $start = $request->query('start') ?: now($tenant->timezone())->toDateString();
