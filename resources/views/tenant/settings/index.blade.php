@@ -427,9 +427,13 @@
     {{-- Booking window --}}
     <div class="ia-card" style="margin-bottom:20px">
       <div class="ia-card-head"><span class="ia-card-title">Booking window</span></div>
+      {{-- MARKER-BOOKING-HIER — the card holds two audiences. Saying so is the
+           whole hierarchy: without it these are four fields in a row. --}}
+      <div class="ia-form-label" style="margin-bottom:10px">Customers booking online</div>
+
       <div class="ia-input-grid-2">
         <div class="ia-form-group">
-          <label class="ia-form-label">How far ahead can customers book?</label>
+          <label class="ia-form-label">How far ahead can they book?</label>
           <input type="number" name="booking_window_days" class="ia-input" min="1" max="365"
             value="{{ old('booking_window_days', $currentTenant->booking_window_days ?? 60) }}">
           <p style="font-size:11px;opacity:.4;margin-top:4px">Days from today</p>
@@ -446,7 +450,8 @@
            customers booking online. A phone call or a walk-in is a different
            situation, and until now the shop had no way to say so. --}}
       <div style="margin-top:22px;padding-top:18px;border-top:0.5px solid var(--ia-border)">
-        <div class="ia-form-label" style="margin-bottom:10px">What staff may do that customers may not</div>
+        <div class="ia-form-label" style="margin-bottom:3px">What staff may do that customers may not</div>
+        <p style="font-size:11.5px;opacity:.45;margin:0 0 12px">A phone call or a walk-in is not an online booking.</p>
 
         <div class="ia-form-row">
           <div class="ia-form-group">
@@ -468,16 +473,10 @@
             <p style="font-size:11px;opacity:.4;margin-top:4px">A full day can be any day, not only today.</p>
           </div>
         </div>
-
         <div class="ia-legend" style="margin-top:12px;border:0.5px solid var(--ia-border);border-left:2px solid var(--ia-accent);border-radius:8px;padding:10px 13px;font-size:12px;line-height:1.55;opacity:.85">
-          <b>What these change, and what they don't.</b>
-          They decide who may book, not what the day looks like afterwards. An over-capacity day still counts every
-          job and still reads as over capacity everywhere it is shown, so planning is never told a comfortable lie.
-          Customers booking online are never offered a short-notice or full day whatever these are set to.
-          <br><br>
-          <b>Live now:</b> the short-notice rule — staff booking screens offer those times, tagged.
-          <b>Not live yet:</b> the full-day rule is saved and will take effect with the new appointment screen;
-          until then a full day stays closed to everyone.
+          These decide who may book, not what the day looks like afterwards. An over-capacity day still counts every
+          job and reads as over capacity wherever it is shown, and customers are never offered a short-notice or full
+          day whatever these are set to.
         </div>
       </div>
     </div>
