@@ -37,7 +37,6 @@ class Tenant extends Model
         'sms_enabled', 'sms_from_number', 'twilio_account_sid', 'twilio_auth_token',
         'twilio_number_sid', // MARKER-PATCH-224
         'direct_payments_enabled', // MARKER-PATCH-169B
-        'direct_payments_enabled', // MARKER-PATCH-169B
         'onboarding_status', 'onboarded_at', 'onboarding_step', 'industry_pack',
         'payment_processor', 'payment_processor_status',
         'payment_processor_account_id', 'payment_processor_connected_at',
@@ -52,8 +51,6 @@ class Tenant extends Model
         'staff_notice_policy', 'staff_capacity_policy',
         // MARKER-APPT-AUTOLOAD
         'availability_auto_refresh',
-        'asset_label_singular', 'asset_label_plural', // MARKER-PATCH-215
-        'asset_label_singular', 'asset_label_plural', // MARKER-PATCH-215
         'asset_label_singular', 'asset_label_plural', // MARKER-PATCH-215
         'stripe_customer_id', 'stripe_subscription_id', 'stripe_subscription_cadence',
         'trial_ends_at', 'subscription_status',

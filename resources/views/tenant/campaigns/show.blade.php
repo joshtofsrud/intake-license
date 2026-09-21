@@ -332,52 +332,6 @@
 .cb-tt-editor .ProseMirror ol { padding-left: 20px; margin: 0 0 8px; }
 .cb-tt-editor .ProseMirror a { color: var(--ia-accent); text-decoration: underline; }
 
-/* =============== TipTap rich text editor =============== */
-.cb-tt-toolbar {
-  display: flex;
-  gap: 2px;
-  padding: 6px 8px;
-  background: var(--ia-surface-2);
-  border: 0.5px solid var(--ia-border);
-  border-bottom: none;
-  border-top-left-radius: var(--ia-r-sm);
-  border-top-right-radius: var(--ia-r-sm);
-}
-.cb-tt-btn {
-  background: transparent;
-  border: 0.5px solid transparent;
-  border-radius: 3px;
-  cursor: pointer;
-  font-size: 12px;
-  padding: 4px 8px;
-  min-width: 26px;
-  color: var(--ia-text-muted);
-  font-family: inherit;
-}
-.cb-tt-btn:hover { background: var(--ia-hover); color: var(--ia-text); }
-.cb-tt-btn.active { background: var(--ia-accent-soft); border-color: var(--ia-accent); color: var(--ia-text); }
-.cb-tt-editor {
-  background: var(--ia-surface-2);
-  border: 0.5px solid var(--ia-border);
-  border-top: none;
-  border-bottom-left-radius: var(--ia-r-sm);
-  border-bottom-right-radius: var(--ia-r-sm);
-  padding: 10px 12px;
-  min-height: 120px;
-  font-size: 13px;
-  line-height: 1.55;
-  color: var(--ia-text);
-}
-.cb-tt-editor .ProseMirror {
-  outline: none;
-  min-height: 100px;
-}
-.cb-tt-editor .ProseMirror p { margin: 0 0 8px; }
-.cb-tt-editor .ProseMirror p:last-child { margin-bottom: 0; }
-.cb-tt-editor .ProseMirror ul,
-.cb-tt-editor .ProseMirror ol { padding-left: 20px; margin: 0 0 8px; }
-.cb-tt-editor .ProseMirror a { color: var(--ia-accent); text-decoration: underline; }
-
 /* =============== Image picker modal =============== */
 .cb-modal {
   position: fixed;
