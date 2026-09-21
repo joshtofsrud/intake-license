@@ -146,11 +146,6 @@ class TeamController extends Controller
     {
         $token  = (string) $request->query('token', '');
         $userId = $token !== '' ? $this->inviteUserId($token) : null; // MARKER-INVITE-DURABLE
-        if ($userId) { // MARKER-INVITE-RESEND — first-open stamp for the banner
-            \Illuminate\Support\Facades\DB::table('tenant_team_invites')
-                ->where('token', $token)->whereNull('opened_at')
-                ->update(['opened_at' => now(), 'updated_at' => now()]);
-        }
         if (! $userId) {
             return redirect()->route('tenant.login')
                 ->withErrors(['email' => 'This setup link is invalid or has expired.']);
@@ -161,6 +156,13 @@ class TeamController extends Controller
             return redirect()->route('tenant.login')
                 ->withErrors(['email' => 'This setup link is no longer valid.']);
         }
+
+        // MARKER-INVITE-RESEND — first-open stamp for the banner.
+        // MARKER-INVITE-SCOPE — tenant-scoped, and only once the user resolved.
+        \Illuminate\Support\Facades\DB::table('tenant_team_invites')
+            ->where('tenant_id', tenant()->id)
+            ->where('token', $token)->whereNull('opened_at')
+            ->update(['opened_at' => now(), 'updated_at' => now()]);
 
         return view('tenant.auth.setup', ['user' => $user, 'token' => $token]);
     }
@@ -199,7 +201,7 @@ class TeamController extends Controller
         if ($request->filled('pin')) {
             $this->pins->setPin($user, $request->input('pin'));
         }
-        \App\Support\TeamInvites::consume($token); // MARKER-INVITE-DURABLE
+        \App\Support\TeamInvites::consume(tenant()->id, $token); // MARKER-INVITE-SCOPE
 
         // MARKER-PATCH-498 — they just proved who they are by consuming a
         // single-use token and setting a password; making them sign in again
@@ -288,6 +290,7 @@ class TeamController extends Controller
         }
 
         \Illuminate\Support\Facades\DB::table('tenant_team_invites')
+            ->where('tenant_id', $tenant->id) // MARKER-INVITE-SCOPE
             ->where('tenant_user_id', $member->id)
             ->whereNull('accepted_at')
             ->update(['expires_at' => now(), 'updated_at' => now()]);
@@ -664,22 +667,20 @@ class TeamController extends Controller
         }
     }
 
-    // MARKER-INVITE-DURABLE — resolve a token to a tenant_user id, honouring
-    // legacy cache tokens issued before the cutover.
+    // MARKER-INVITE-DURABLE — resolve a token to a tenant_user id.
+    // MARKER-INVITE-SCOPE — only this tenant's invites; legacy cache path removed.
     private function inviteUserId(string $token): ?string
     {
         if ($token === '') {
             return null;
         }
         $row = \Illuminate\Support\Facades\DB::table('tenant_team_invites')
+            ->where('tenant_id', tenant()->id)
             ->where('token', $token)
             ->whereNull('accepted_at')
             ->where('expires_at', '>', now())
             ->first();
-        if ($row) {
-            return (string) $row->tenant_user_id;
-        }
-        $legacy = \Illuminate\Support\Facades\Cache::get('team_invite_' . $token);
-        return $legacy !== null ? (string) $legacy : null;
+
+        return $row ? (string) $row->tenant_user_id : null;
     }
 }
