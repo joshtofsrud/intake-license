@@ -430,22 +430,22 @@
       {{-- MARKER-BOOKING-HIER-C — eyebrow and rule, the device the PDFs and
            the invest site use. The earlier pass styled section heads as field
            labels, so the card had six labels of equal weight. --}}
-      <div class="bw-group">
-        <div class="bw-eyebrow">Customers booking online</div>
+      <div>
+        <div style="font-size:11.5px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--ia-text-muted);margin-bottom:12px">Customers booking online</div>
         <div class="ia-input-grid-2">
           <div class="ia-form-group">
             <label class="ia-form-label">How far ahead can they book?</label>
             <input type="number" name="booking_window_days" class="ia-input" min="1" max="365"
               value="{{ old('booking_window_days', $currentTenant->booking_window_days ?? 60) }}">
             {{-- MARKER-BOOKING-HIER-C-FIX — restored whole; see the patch header. --}}
-            <p class="bw-hint">Days from today</p>
+            <p style="font-size:11px;opacity:.4;margin-top:4px">Days from today</p>
           </div>
           <div class="ia-form-group">
             {{-- MARKER-NOTICE-UNIT — hours, beside a field in days. Say so. --}}
             <label class="ia-form-label">Minimum notice, in hours</label>
             <input type="number" name="min_notice_hours" class="ia-input" min="0" max="168"
               value="{{ old('min_notice_hours', $currentTenant->min_notice_hours ?? 24) }}">
-            <p class="bw-hint" id="bw-notice-hint">0 = same-day bookings allowed</p>
+            <p id="bw-notice-hint" style="font-size:11px;opacity:.4;margin-top:4px">0 = same-day bookings allowed</p>
             <script>
               (function () {
                 // Reads the number back in days, so 72 is visibly three days
@@ -471,9 +471,12 @@
 
       {{-- MARKER-BOOKING-OVERRIDE — a phone call or a walk-in is not an
            online booking, and until now the shop had no way to say so. --}}
-      <div class="bw-group">
-        <div class="bw-eyebrow">Staff exceptions</div>
-        <p class="bw-tagline">A phone call or a walk-in is not an online booking.</p>
+      {{-- MARKER-BOOKING-HIER-TOKENS — every colour here is a Theme Editor
+           token. The accent eyebrow and color-mix() rule it replaced were not,
+           so a theme change would have left this card behind. --}}
+      <div style="margin-top:24px;padding-top:20px;border-top:0.5px solid var(--ia-border)">
+        <div style="font-size:11.5px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--ia-text-muted);margin-bottom:12px">Staff exceptions</div>
+        <p style="font-size:11.5px;color:var(--ia-text-dim);margin:-6px 0 13px">A phone call or a walk-in is not an online booking.</p>
 
         {{-- The two permission rules are a pair, so they sit as one. --}}
         <div class="ia-input-grid-2">
@@ -502,28 +505,14 @@
               <option value="1" @selected(($currentTenant->availability_auto_refresh ?? true))>Refresh every minute</option>
               <option value="0" @selected(! ($currentTenant->availability_auto_refresh ?? true))>Only when the screen is opened</option>
             </select>
-          <p class="bw-hint">Useful when more than one person books at once. Your selection is never changed by a refresh.</p>
+          <p style="font-size:11px;opacity:.4;margin-top:4px">Useful when more than one person books at once. Your selection is never changed by a refresh.</p>
         </div>
 
-        <div class="bw-legend">
+        <div style="margin-top:16px;border:0.5px solid var(--ia-border);background:var(--ia-surface-2);border-radius:8px;padding:10px 13px;font-size:12px;line-height:1.55;color:var(--ia-text-muted)">
           These decide who may book, not what the day looks like afterwards. An over-capacity day still counts every
           job wherever it is shown, and customers are never offered a short-notice or full day.
         </div>
       </div>
-
-      <style>
-        /* MARKER-BOOKING-HIER-C */
-        .bw-group + .bw-group { margin-top:26px; }
-        .bw-eyebrow { font-size:10.5px; letter-spacing:.11em; text-transform:uppercase; color:var(--ia-accent);
-                       font-weight:600; margin-bottom:11px; display:flex; align-items:center; gap:10px; }
-        .bw-eyebrow::after { content:''; flex:1; height:1px;
-                              background:linear-gradient(90deg, color-mix(in srgb, var(--ia-accent) 38%, transparent), transparent); }
-        .bw-tagline { font-size:11.5px; opacity:.5; margin:-5px 0 13px; }
-        .bw-hint { font-size:11px; opacity:.4; margin-top:4px; }
-        .bw-legend { margin-top:16px; border-left:2px solid var(--ia-accent); border-radius:0 8px 8px 0;
-                      background:color-mix(in srgb, var(--ia-accent) 6%, transparent);
-                      padding:10px 13px; font-size:12px; line-height:1.55; opacity:.9; }
-      </style>
     </div>
 
     {{-- MARKER-CLASSES-SETTINGS — a toggle that does nothing is worse than no
