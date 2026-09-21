@@ -43,7 +43,13 @@ class Tenant extends Model
         'payment_processor_account_id', 'payment_processor_connected_at',
         'notification_email', 'currency', 'currency_symbol', 'timezone',
         'booking_window_days', 'min_notice_hours',
-        'staff_notice_policy', 'staff_capacity_policy', // MARKER-BOOKING-OVERRIDE 'booking_mode', 'booking_flow_mode', 'last_booking_mode_switch_at', 'classes_enabled', 'deliveries_enabled', 'multi_asset_enabled',
+        // MARKER-TENANT-FILLABLE-FIX — these six were commented out by a
+        // marker placed at the end of a line it did not own. Mass assignment
+        // drops unknown keys silently, so booking mode and the Classes,
+        // Deliveries and Multi-asset toggles stopped saving without an error.
+        'booking_mode', 'booking_flow_mode', 'last_booking_mode_switch_at',
+        'classes_enabled', 'deliveries_enabled', 'multi_asset_enabled',
+        'staff_notice_policy', 'staff_capacity_policy',
         'asset_label_singular', 'asset_label_plural', // MARKER-PATCH-215
         'asset_label_singular', 'asset_label_plural', // MARKER-PATCH-215
         'asset_label_singular', 'asset_label_plural', // MARKER-PATCH-215
