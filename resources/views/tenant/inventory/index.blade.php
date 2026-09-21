@@ -1099,3 +1099,19 @@
   .mg-opt.on{opacity:1;border-color:var(--ia-accent);color:var(--ia-accent)}
 </style>
 @endpush
+
+@push('scripts')
+<script src="{{ asset('js/intake-scan.js') }}?v=1"></script>
+<script>
+// MARKER-CAMERA-SCAN — a scan fills the search and runs it.
+(function () {
+  if (!window.IntakeScan) { return; }
+  document.querySelectorAll('#inv-toolbar-form input[name="s"], #inv-mobile-search-form input[name="s"]').forEach(function (input) {
+    IntakeScan.attach(input, function (code) {
+      input.value = code;
+      if (input.form) { input.form.submit(); }
+    }, { inset: input.closest('#inv-mobile-search-form') !== null });
+  });
+})();
+</script>
+@endpush

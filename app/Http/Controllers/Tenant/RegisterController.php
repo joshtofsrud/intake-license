@@ -325,6 +325,8 @@ class RegisterController extends Controller
                 'name'                   => $p->name ?? '',
                 'subtitle'               => $p->display_subtitle ?? '',
                 'sku'                    => $p->sku ?? '',
+                // MARKER-CAMERA-SCAN — so a scan can find its exact match.
+                'codes'                  => array_values(array_filter([$p->sku, $p->catalog_upc, $p->catalog_ean])),
                 'price_cents'            => (int) ($p->effectiveSellPriceCents() ?? 0),
                 'is_taxable'             => (($p->tax_class_code ?? null) !== 'exempt'),
                 'allow_oversell'         => (bool) $p->allow_oversell,
@@ -3653,6 +3655,8 @@ class RegisterController extends Controller
                 'name'                   => $p->name ?? '',
                 'subtitle'               => $p->display_subtitle ?? '',
                 'sku'                    => $p->sku ?? '',
+                // MARKER-CAMERA-SCAN — so a scan can find its exact match.
+                'codes'                  => array_values(array_filter([$p->sku, $p->catalog_upc, $p->catalog_ean])),
                 'price_cents'            => (int) ($p->effectiveSellPriceCents() ?? 0),
                 'is_taxable'             => (($p->tax_class_code ?? null) !== 'exempt'),
                 'allow_oversell'         => (bool) $p->allow_oversell,

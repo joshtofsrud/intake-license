@@ -605,7 +605,10 @@
   <div class="reg-grid">
 
     <div class="reg-panel">
-      <input type="text" class="reg-search" id="searchInput" placeholder="Search products and services…" autocomplete="off">
+      {{-- MARKER-CAMERA-SCAN — wrapper so the camera button sits inside the box. --}}
+      <div class="reg-search-wrap" style="position:relative">
+        <input type="text" class="reg-search" id="searchInput" placeholder="Search products and services…" autocomplete="off">
+      </div>
 
       <div class="reg-tabs">
         <button type="button" class="reg-tab active" data-type="all">All</button>
@@ -1308,6 +1311,7 @@ function openItemInfo( id ) {
 @endsection
 
 @push('scripts')
+<script src="{{ asset('js/intake-scan.js') }}?v=1"></script>{{-- MARKER-CAMERA-SCAN --}}
 <script>
 const ROUTES = {
   giftCardLookup: '{{ route('tenant.register.gift-cards.lookup') }}', // MARKER-GIFTCARDS
@@ -1774,7 +1778,7 @@ function renderResults(data, refundResult) {
   if (data.products && data.products.length) {
     html += '<div class="reg-results-section"><h3>Products</h3>';
     data.products.forEach(p => {
-      visibleResults.push({type:'product',source_id:p.id,name:p.name,price_cents:p.price_cents,is_taxable:p.is_taxable,current_location_stock:p.current_location_stock,current_location_name:p.current_location_name,allow_oversell:p.allow_oversell,stock_scope:p.stock_scope,stock_elsewhere:p.stock_elsewhere,vendor_name:p.vendor_name,reserved_here:p.reserved_here,on_hand_here:p.on_hand_here}); // MARKER-RESERVE-VISIBLE
+      visibleResults.push({type:'product',source_id:p.id,name:p.name,price_cents:p.price_cents,is_taxable:p.is_taxable,current_location_stock:p.current_location_stock,current_location_name:p.current_location_name,allow_oversell:p.allow_oversell,stock_scope:p.stock_scope,stock_elsewhere:p.stock_elsewhere,vendor_name:p.vendor_name,reserved_here:p.reserved_here,on_hand_here:p.on_hand_here,codes:p.codes||[]}); // MARKER-RESERVE-VISIBLE · MARKER-CAMERA-SCAN codes
       const idx = visibleResults.length - 1;
       // MARKER-REG-STOCK — answered in the row, rather than surfacing later as
       // an oversell warning once the item is already in the cart.
@@ -1866,6 +1870,34 @@ function applyHighlight() {
 }
 
 // Keyboard navigation on the search input
+// MARKER-CAMERA-SCAN — the phone camera as a scanner gun. The code goes into
+// the search; one match (preferring an exact barcode or SKU) goes straight
+// into the cart, several leave the list open for a tap, none says so.
+if (window.IntakeScan) {
+  IntakeScan.attach(searchInput, async function (code) {
+    searchInput.value = code;
+    await runSearch();
+    const same = (a, b) => a === b || a === '0' + b || '0' + a === b;
+    const exact = visibleResults.filter(r => r.type === 'product'
+      && (r.codes || []).some(c => same(String(c), code)));
+    const pick = exact.length === 1 ? exact[0] : (visibleResults.length === 1 ? visibleResults[0] : null);
+    if (pick) {
+      addToCart(pick);
+      searchInput.value = '';
+      visibleResults = [];
+      highlighted = 0;
+      resultsArea.innerHTML = '<div class="reg-empty">Type to search products and services.</div>';
+      const hint = document.getElementById('regHint');
+      if (hint) { hint.style.display = 'none'; }
+      if (window.IntakeToast) { IntakeToast.success('Added · ' + pick.name); }
+      return;
+    }
+    if (!visibleResults.length) {
+      showError('No item with barcode ' + code + '.');
+    }
+  }, { inset: true, placeholder: 'Search or scan products and services…' });
+}
+
 searchInput.addEventListener('keydown', (e) => {
   if (e.key === 'ArrowDown') {
     e.preventDefault();
