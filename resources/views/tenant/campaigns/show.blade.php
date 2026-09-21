@@ -977,29 +977,11 @@ window.CB = (function() {
       html += bgField(d); // MARKER-CAMPAIGN-V2E
       html += mergeChips(); // MARKER-CAMPAIGN-V2A
     } else if (t === 'paragraph') {
-      // Rich text editor — mount TipTap into this container after settings render.
-      // data-tt-html holds initial content; we read it during mount.
-      const initialHtml = d.html != null
-        ? d.html
-        : (d.text ? escapeHtml(d.text || '').replace(/\n/g, '<br>') : '');
-      html += `<div class="cb-field">
-        <label class="cb-field-label">Text (tokens like first_name supported)</label>
-        <div class="cb-tt-toolbar" id="cb-tt-toolbar"></div>
-        <div class="cb-tt-editor" id="cb-tt-editor" data-tt-html="${escapeAttr(initialHtml)}"></div>
-      </div>`;
+      html += richField('html', 'text', 'Text (tokens like first_name supported)', d); // MARKER-CAMPAIGN-RICH-SPLIT
       html += alignField(d.align);
-      // MARKER-CAMPAIGN-V2F — text size.
-      html += field('size', 'Text size', `
-        <select class="cb-field-select" onchange="CB.updateData('size', this.value)">
-          <option value="small"  ${d.size==='small'?'selected':''}>Small (14px)</option>
-          <option value="normal" ${(d.size||'normal')==='normal'?'selected':''}>Normal (16px)</option>
-          <option value="large"  ${d.size==='large'?'selected':''}>Large (18px)</option>
-          <option value="xlarge" ${d.size==='xlarge'?'selected':''}>Extra large (20px)</option>
-        </select>`);
+      html += sizeField(d); // MARKER-CAMPAIGN-V2F
       html += bgField(d); // MARKER-CAMPAIGN-V2E
       html += mergeChips(); // MARKER-CAMPAIGN-V2A
-      // Defer the mount so the DOM nodes exist first
-      setTimeout(mountTipTapEditor, 0);
     } else if (t === 'spacer') { // MARKER-CAMPAIGN-V2B
       html += field('height', 'Height', `
         <select class="cb-field-select" onchange="CB.updateData('height', this.value)">
@@ -1010,8 +992,10 @@ window.CB = (function() {
           <option value="64" ${String(d.height)==='64'?'selected':''}>Huge (64px)</option>
         </select>`);
     } else if (t === 'two_column') {
-      html += field('left', 'Left column', `<textarea class="cb-field-textarea" rows="4" oninput="CB.updateData('left', this.value)">${escapeHtml(d.left || '')}</textarea>`);
-      html += field('right', 'Right column', `<textarea class="cb-field-textarea" rows="4" oninput="CB.updateData('right', this.value)">${escapeHtml(d.right || '')}</textarea>`);
+      // MARKER-CAMPAIGN-RICH-SPLIT — rich text in each column, paragraph type.
+      html += richField('left_html', 'left', 'Left column', d);
+      html += richField('right_html', 'right', 'Right column', d);
+      html += sizeField(d);
       html += bgField(d); // MARKER-CAMPAIGN-V2E
       html += mergeChips();
       html += '<p style="font-size:10.5px;opacity:.45;margin:6px 0 0">Columns sit side by side on desktop and stack on narrow phones.</p>';
@@ -1028,7 +1012,8 @@ window.CB = (function() {
         </button>`;
       }
       html += field('alt', 'Alt text', `<input type="text" class="cb-field-input" value="${escapeAttr(d.alt || '')}" oninput="CB.updateData('alt', this.value)">`);
-      html += field('text', 'Text', `<textarea class="cb-field-textarea" rows="4" oninput="CB.updateData('text', this.value)">${escapeHtml(d.text || '')}</textarea>`);
+      html += richField('html', 'text', 'Text', d); // MARKER-CAMPAIGN-RICH-SPLIT
+      html += sizeField(d);
       html += field('side', 'Image on', `
         <select class="cb-field-select" onchange="CB.updateData('side', this.value)">
           <option value="left"  ${d.side!=='right'?'selected':''}>Left</option>
@@ -1407,22 +1392,61 @@ window.CB = (function() {
   }
 
   // ---- TipTap editor mount/destroy ----
-  let activeEditor = null;
+  // MARKER-CAMPAIGN-RICH-SPLIT — any number of rich-text boxes per block (a
+  // paragraph has one, two-column has two). Each .cb-tt-editor names the
+  // field it writes (data-tt-key) and the legacy plain-text field it
+  // replaces (data-tt-legacy); its toolbar is the element just before it.
+  let activeEditors = [];
+  let activeEditor = null; // where merge tags go: last focused box, else the first
+  let mountPending = false;
 
   function destroyTipTapEditor() {
-    if (activeEditor) {
-      try { activeEditor.destroy(); } catch (e) {}
-      activeEditor = null;
-    }
+    activeEditors.forEach(function (ed) { try { ed.destroy(); } catch (e) {} });
+    activeEditors = [];
+    activeEditor = null;
   }
 
-  function mountTipTapEditor() {
+  function scheduleMount() {
+    if (mountPending) return;
+    mountPending = true;
+    setTimeout(function () { mountPending = false; mountTipTapEditors(); }, 0);
+  }
+
+  function richField(key, legacyKey, label, d) {
+    const initial = d[key] != null
+      ? d[key]
+      : (d[legacyKey] ? escapeHtml(d[legacyKey] || '').replace(/\n/g, '<br>') : '');
+    scheduleMount(); // after the settings panel is in the DOM
+    return `<div class="cb-field">
+      <label class="cb-field-label">${label}</label>
+      <div class="cb-tt-toolbar"></div>
+      <div class="cb-tt-editor" data-tt-key="${escapeAttr(key)}" data-tt-legacy="${escapeAttr(legacyKey)}" data-tt-html="${escapeAttr(initial)}"></div>
+    </div>`;
+  }
+
+  function sizeField(d) {
+    return field('size', 'Text size', `
+        <select class="cb-field-select" onchange="CB.updateData('size', this.value)">
+          <option value="small"  ${d.size==='small'?'selected':''}>Small (14px)</option>
+          <option value="normal" ${(d.size||'normal')==='normal'?'selected':''}>Normal (16px)</option>
+          <option value="large"  ${d.size==='large'?'selected':''}>Large (18px)</option>
+          <option value="xlarge" ${d.size==='xlarge'?'selected':''}>Extra large (20px)</option>
+        </select>`);
+  }
+
+  function mountTipTapEditors() {
     destroyTipTapEditor();
+    if (!window.TipTap) return;
+    document.querySelectorAll('#cb-settings .cb-tt-editor').forEach(function (holder) {
+      const toolbar = holder.previousElementSibling;
+      if (!toolbar || !toolbar.classList.contains('cb-tt-toolbar')) return;
+      mountOneEditor(holder, toolbar);
+    });
+  }
 
-    const holder = document.getElementById('cb-tt-editor');
-    const toolbar = document.getElementById('cb-tt-toolbar');
-    if (!holder || !toolbar || !window.TipTap) return;
-
+  function mountOneEditor(holder, toolbar) {
+    const key = holder.getAttribute('data-tt-key') || 'html';
+    const legacy = holder.getAttribute('data-tt-legacy') || 'text';
     const initialHtml = holder.getAttribute('data-tt-html') || '';
 
     const editor = new window.TipTap.Editor({
@@ -1446,14 +1470,17 @@ window.CB = (function() {
         const block = blocks.find(b => b.id === selectedId);
         if (!block) return;
         block.data = block.data || {};
-        block.data.html = html;
-        delete block.data.text; // migrate off legacy text field on edit
+        block.data[key] = html;
+        delete block.data[legacy]; // migrate off the legacy plain-text field on edit
         syncHiddenInput();
         requestPreview();
       },
     });
 
-    activeEditor = editor;
+    activeEditors.push(editor);
+    if (!activeEditor) activeEditor = editor;
+    // Merge tags go into the box you were last typing in.
+    editor.on('focus', function () { activeEditor = editor; });
 
     // Toolbar
     toolbar.innerHTML = `
@@ -1520,7 +1547,7 @@ window.CB = (function() {
 
   // If TipTap loads after initial render, remount
   window.addEventListener('tiptap-loaded', function() {
-    if (document.getElementById('cb-tt-editor')) mountTipTapEditor();
+    if (document.querySelector('#cb-settings .cb-tt-editor')) mountTipTapEditors();
   });
 
   // ---- Public API ----

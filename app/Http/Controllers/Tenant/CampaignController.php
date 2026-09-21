@@ -828,8 +828,9 @@ class CampaignController extends Controller
             'footer'    => ['text'],
             // MARKER-CAMPAIGN-V2B
             'spacer'     => ['height'],
-            'two_column' => ['left', 'right', 'bg_color'],
-            'image_text' => ['url', 'alt', 'text', 'side', 'ratio', 'bg_color'],
+            // MARKER-CAMPAIGN-RICH-SPLIT — rich text + size, same as a paragraph.
+            'two_column' => ['left', 'right', 'left_html', 'right_html', 'size', 'bg_color'],
+            'image_text' => ['url', 'alt', 'text', 'html', 'size', 'side', 'ratio', 'bg_color'],
             'social'     => [], // links handled separately — it's an array
             'catalog'    => ['show_price', 'show_photo', 'cta_text', 'per_row', 'bg_color'], // MARKER-CAMPAIGN-V2C
             'gallery'    => ['layout', 'bg_color'], // MARKER-CAMPAIGN-V2F — images is an array
@@ -849,7 +850,8 @@ class CampaignController extends Controller
                         : (string) $block['data'][$field];
 
                     // Run HTML fields through the sanitizer before saving.
-                    if ($type === 'paragraph' && $field === 'html') {
+                    // MARKER-CAMPAIGN-RICH-SPLIT — every rich field, any block.
+                    if (in_array($field, ['html', 'left_html', 'right_html'], true)) {
                         $value = \App\Support\BlockRenderer::sanitizeHtml($value);
                     }
 

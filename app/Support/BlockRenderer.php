@@ -154,41 +154,62 @@ class BlockRenderer
     {
         $align = self::safeAlign($data['align'] ?? 'left');
 
-        // Prefer sanitized HTML field (from rich text editor); fall back to
-        // plain text field for legacy blocks — wrap in <p> with <br> for newlines.
-        if (!empty($data['html']) && is_string($data['html'])) {
-            $body = self::sanitizeHtml($data['html']);
-        } else {
-            $text = self::escape($data['text'] ?? '');
-            $body = nl2br($text);
-        }
-
-        if (trim(strip_tags($body)) === '') {
+        $body = self::bodyText($data, 'html', 'text');
+        if ($body === '') {
             $body = '<span style="color:#bbb;font-style:italic">Empty paragraph</span>';
         }
 
-        // Inline-style anchors because email clients strip CSS classes.
-        $body = preg_replace(
+        $bg = self::bgStyle($data);
+        $style = self::bodyStyle($data);
+
+        return <<<HTML
+            <tr><td style="padding:8px 24px;{$bg}text-align:{$align};{$style}">
+              {$body}
+            </td></tr>
+            HTML;
+    }
+
+    /**
+     * MARKER-CAMPAIGN-RICH-SPLIT — body text, the same wherever it appears:
+     * a paragraph, the text beside an image, a column. Rich HTML when the
+     * block has it (sanitized, anchors inline-styled because email clients
+     * strip CSS classes); otherwise the legacy plain-text field with newlines
+     * as <br>. Returns '' when there is nothing to show.
+     */
+    private static function bodyText(array $data, string $htmlKey, string $textKey): string
+    {
+        if (! empty($data[$htmlKey]) && is_string($data[$htmlKey])) {
+            $body = self::sanitizeHtml($data[$htmlKey]);
+        } else {
+            $body = nl2br(self::escape(trim((string) ($data[$textKey] ?? ''))));
+        }
+
+        if (trim(strip_tags($body)) === '') {
+            return '';
+        }
+
+        return preg_replace(
             '/<a\s+([^>]*?)href=(["\'])([^"\'\s]+)\2([^>]*)>/i',
             '<a $1href=$2$3$2$4 style="color:#0066cc;text-decoration:underline">',
             $body
         );
+    }
 
-        // MARKER-CAMPAIGN-V2F — text size was hardcoded at 15px. 16 is the
-        // default now; 15 read small at normal reading distance.
+    /**
+     * MARKER-CAMPAIGN-RICH-SPLIT — the body-text type style, shared so a
+     * column or the text beside an image can't drift from a paragraph again.
+     * MARKER-CAMPAIGN-V2F: 16px default; 15 read small at reading distance.
+     */
+    private static function bodyStyle(array $data): string
+    {
         $sizePx = match ((string) ($data['size'] ?? 'normal')) {
             'small'  => '14px',
             'large'  => '18px',
             'xlarge' => '20px',
             default  => '16px',
         };
-        $bg = self::bgStyle($data);
 
-        return <<<HTML
-            <tr><td style="padding:8px 24px;{$bg}text-align:{$align};font-size:{$sizePx};line-height:1.65;color:#333;font-family:-apple-system,BlinkMacSystemFont,sans-serif">
-              {$body}
-            </td></tr>
-            HTML;
+        return "font-size:{$sizePx};line-height:1.65;color:#333;font-family:-apple-system,BlinkMacSystemFont,sans-serif";
     }
 
     /**
@@ -355,8 +376,11 @@ class BlockRenderer
 
     private static function renderTwoColumn(array $data): string
     {
-        $left  = self::inlineText($data['left']  ?? '');
-        $right = self::inlineText($data['right'] ?? '');
+        // MARKER-CAMPAIGN-RICH-SPLIT — rich text and paragraph type, not a
+        // 14px plain-text caption.
+        $left  = self::bodyText($data, 'left_html', 'left');
+        $right = self::bodyText($data, 'right_html', 'right');
+        $style = self::bodyStyle($data);
 
         $bg = self::bgStyle($data); // MARKER-CAMPAIGN-V2E
 
@@ -364,8 +388,8 @@ class BlockRenderer
             <tr><td style="padding:8px 24px;{$bg}">
               <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
                 <tr>
-                  <td width="50%" valign="top" style="padding:8px 10px 8px 0;font-size:14px;line-height:1.6;color:#333;font-family:-apple-system,BlinkMacSystemFont,sans-serif">{$left}</td>
-                  <td width="50%" valign="top" style="padding:8px 0 8px 10px;font-size:14px;line-height:1.6;color:#333;font-family:-apple-system,BlinkMacSystemFont,sans-serif">{$right}</td>
+                  <td width="50%" valign="top" style="padding:8px 10px 8px 0;{$style}">{$left}</td>
+                  <td width="50%" valign="top" style="padding:8px 0 8px 10px;{$style}">{$right}</td>
                 </tr>
               </table>
             </td></tr>
@@ -376,7 +400,7 @@ class BlockRenderer
     {
         $url  = trim((string) ($data['url'] ?? ''));
         $alt  = self::escape($data['alt'] ?? '');
-        $text = self::inlineText($data['text'] ?? '');
+        $text = self::bodyText($data, 'html', 'text'); // MARKER-CAMPAIGN-RICH-SPLIT
         $side = ($data['side'] ?? 'left') === 'right' ? 'right' : 'left';
 
         // MARKER-CAMPAIGN-V2E — split ratio drives both cell widths and the
@@ -394,7 +418,9 @@ class BlockRenderer
             ? '<img src="' . self::escape($url) . '" alt="' . $alt . '" width="' . $imgPx . '" style="width:100%;max-width:' . $imgPx . 'px;display:block;border:0;border-radius:6px">'
             : '<div style="border:1px dashed #ccc;padding:30px;text-align:center;color:#aaa;font-size:12px">No image selected</div>';
 
-        $textCell = '<div style="font-size:14px;line-height:1.6;color:#333;font-family:-apple-system,BlinkMacSystemFont,sans-serif">' . $text . '</div>';
+        // MARKER-CAMPAIGN-RICH-SPLIT — the same type as a paragraph, so a
+        // picture beside text reads as part of the letter, not a caption.
+        $textCell = '<div style="' . self::bodyStyle($data) . '">' . $text . '</div>';
 
         [$a, $b] = $side === 'left' ? [$imgCell, $textCell] : [$textCell, $imgCell];
         $padA = $side === 'left' ? '0 14px 0 0' : '0 14px 0 0';
@@ -709,12 +735,6 @@ class BlockRenderer
               </table>
             </td></tr>
             HTML;
-    }
-
-    /** Escaped text with newlines as <br>, for the simple text fields above. */
-    private static function inlineText(string $value): string
-    {
-        return nl2br(self::escape(trim($value)));
     }
 
     private static function renderFooter(array $data): string
