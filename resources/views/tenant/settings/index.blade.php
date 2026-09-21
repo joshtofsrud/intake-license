@@ -441,6 +441,45 @@
           <p style="font-size:11px;opacity:.4;margin-top:4px">0 = same-day bookings allowed</p>
         </div>
       </div>
+
+      {{-- MARKER-BOOKING-OVERRIDE — the notice rule above is written for
+           customers booking online. A phone call or a walk-in is a different
+           situation, and until now the shop had no way to say so. --}}
+      <div style="margin-top:22px;padding-top:18px;border-top:0.5px solid var(--ia-border)">
+        <div class="ia-form-label" style="margin-bottom:10px">What staff may do that customers may not</div>
+
+        <div class="ia-form-row">
+          <div class="ia-form-group">
+            <label class="ia-form-label">Booking sooner than the notice window</label>
+            <select name="staff_notice_policy" class="ia-input">
+              <option value="follow" @selected(($currentTenant->staff_notice_policy ?? 'follow') === 'follow')>Same rule as customers</option>
+              <option value="warn"   @selected(($currentTenant->staff_notice_policy ?? '') === 'warn')>Staff can book anyway, with a warning</option>
+              <option value="silent" @selected(($currentTenant->staff_notice_policy ?? '') === 'silent')>Staff can book anyway, no warning</option>
+            </select>
+            <p style="font-size:11px;opacity:.4;margin-top:4px">Applies to the staff booking screens only. Online booking always follows the notice window above.</p>
+          </div>
+
+          <div class="ia-form-group">
+            <label class="ia-form-label">Booking a day that is already full</label>
+            <select name="staff_capacity_policy" class="ia-input">
+              <option value="block"  @selected(($currentTenant->staff_capacity_policy ?? 'block') === 'block')>Nobody can add — the day is closed</option>
+              <option value="marked" @selected(($currentTenant->staff_capacity_policy ?? '') === 'marked')>Staff can add anyway, marked as over capacity</option>
+            </select>
+            <p style="font-size:11px;opacity:.4;margin-top:4px">A full day can be any day, not only today.</p>
+          </div>
+        </div>
+
+        <div class="ia-legend" style="margin-top:12px;border:0.5px solid var(--ia-border);border-left:2px solid var(--ia-accent);border-radius:8px;padding:10px 13px;font-size:12px;line-height:1.55;opacity:.85">
+          <b>What these change, and what they don't.</b>
+          They decide who may book, not what the day looks like afterwards. An over-capacity day still counts every
+          job and still reads as over capacity everywhere it is shown, so planning is never told a comfortable lie.
+          Customers booking online are never offered a short-notice or full day whatever these are set to.
+          <br><br>
+          <b>Live now:</b> the short-notice rule — staff booking screens offer those times, tagged.
+          <b>Not live yet:</b> the full-day rule is saved and will take effect with the new appointment screen;
+          until then a full day stays closed to everyone.
+        </div>
+      </div>
     </div>
 
     {{-- MARKER-CLASSES-SETTINGS — a toggle that does nothing is worse than no

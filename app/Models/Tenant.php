@@ -42,7 +42,8 @@ class Tenant extends Model
         'payment_processor', 'payment_processor_status',
         'payment_processor_account_id', 'payment_processor_connected_at',
         'notification_email', 'currency', 'currency_symbol', 'timezone',
-        'booking_window_days', 'min_notice_hours', 'booking_mode', 'booking_flow_mode', 'last_booking_mode_switch_at', 'classes_enabled', 'deliveries_enabled', 'multi_asset_enabled',
+        'booking_window_days', 'min_notice_hours',
+        'staff_notice_policy', 'staff_capacity_policy', // MARKER-BOOKING-OVERRIDE 'booking_mode', 'booking_flow_mode', 'last_booking_mode_switch_at', 'classes_enabled', 'deliveries_enabled', 'multi_asset_enabled',
         'asset_label_singular', 'asset_label_plural', // MARKER-PATCH-215
         'asset_label_singular', 'asset_label_plural', // MARKER-PATCH-215
         'asset_label_singular', 'asset_label_plural', // MARKER-PATCH-215
@@ -654,4 +655,38 @@ class Tenant extends Model
         return $this->hasMany(Tenant\TenantDistributorCatalogSubscription::class);
     }
 
+
+    /**
+     * MARKER-BOOKING-OVERRIDE — staff exceptions to the booking rules.
+     *
+     * Two rules, kept apart on purpose. Notice is about WHEN: a job asked for
+     * sooner than the shop normally accepts. Capacity is about HOW MANY: a day
+     * that is already full, which can be any day, not only today. They happen
+     * to coincide on a busy same-day walk-in, which is what makes them easy to
+     * confuse for one setting.
+     *
+     * Customers are never affected by either. Both read only on staff paths.
+     */
+    public function staffNoticePolicy(): string
+    {
+        $v = (string) ($this->staff_notice_policy ?? 'follow');
+
+        return in_array($v, ['follow', 'warn', 'silent'], true) ? $v : 'follow';
+    }
+
+    public function staffMayBookShortNotice(): bool
+    {
+        return $this->staffNoticePolicy() !== 'follow';
+    }
+
+    /** Whether a short-notice booking should be flagged to the person making it. */
+    public function staffShortNoticeWarns(): bool
+    {
+        return $this->staffNoticePolicy() === 'warn';
+    }
+
+    public function staffMayOverbook(): bool
+    {
+        return (string) ($this->staff_capacity_policy ?? 'block') === 'marked';
+    }
 }

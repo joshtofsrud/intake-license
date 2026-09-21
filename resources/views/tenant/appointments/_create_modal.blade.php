@@ -204,6 +204,7 @@
       border-radius: 8px;
       background: rgba(255,255,255,.02);
     }
+  .appt-sp-short{margin-left:8px;font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:#f0c46a;border:0.5px solid rgba(240,196,106,.35);border-radius:99px;padding:1px 7px}
     .appt-sp-time-row {
       display: flex;
       justify-content: space-between;
@@ -823,6 +824,8 @@ window.ApptModal = (function () {
       .then(function (data) {
         state.availLoading = false;
         state.availSlots = data.slots || [];
+        // MARKER-BOOKING-OVERRIDE
+        state.shortNoticeWarns = !!data.short_notice_warns;
         renderTimes();
       })
       .catch(function () {
@@ -845,6 +848,10 @@ window.ApptModal = (function () {
       html += '<div class="appt-sp-time-row' + (isSel ? ' selected' : '') + '" data-idx="' + idx + '">'
         + '<span class="appt-sp-time-date">' + escapeHtml(slot.date_label) + '</span>'
         + '<span class="appt-sp-time-time">' + escapeHtml(slot.time_label) + '</span>'
+        // MARKER-BOOKING-OVERRIDE — a time inside the notice window is offered
+        // to staff, but it says what it is. Silent policy offers it unmarked.
+        + (slot.short_notice && state.shortNoticeWarns
+            ? '<span class="appt-sp-short">short notice</span>' : '')
         + '</div>';
     });
     listEl.innerHTML = html;

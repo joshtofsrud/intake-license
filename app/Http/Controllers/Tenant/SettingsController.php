@@ -139,6 +139,9 @@ class SettingsController extends Controller
             'timezone'             => ['required', 'string', 'max:64'],
             'booking_window_days'  => ['required', 'integer', 'min:1', 'max:365'],
             'min_notice_hours'     => ['required', 'integer', 'min:0', 'max:168'],
+            // MARKER-BOOKING-OVERRIDE
+            'staff_notice_policy'   => ['nullable', 'in:follow,warn,silent'],
+            'staff_capacity_policy' => ['nullable', 'in:block,marked'],
             'classes_enabled'      => ['nullable', 'boolean'],
             'deliveries_enabled'   => ['nullable', 'boolean'], // MARKER-PATCH-156
             'multi_asset_enabled'  => ['nullable', 'boolean'], // MARKER-PATCH-158-B
@@ -156,6 +159,9 @@ class SettingsController extends Controller
             'timezone'             => $request->input('timezone'),
             'booking_window_days'  => (int) $request->input('booking_window_days'),
             'min_notice_hours'     => (int) $request->input('min_notice_hours'),
+            // MARKER-BOOKING-OVERRIDE — absent means the safe value, not null.
+            'staff_notice_policy'   => $request->input('staff_notice_policy', 'follow'),
+            'staff_capacity_policy' => $request->input('staff_capacity_policy', 'block'),
             // MARKER-CLASSES-SETTINGS — a hidden button is not a gate. Without
             // the entitlement this field is ignored entirely, so a crafted
             // request cannot set a flag the plan does not include. The stored

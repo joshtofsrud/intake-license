@@ -577,10 +577,20 @@ class AppointmentController extends Controller
             $dateStr = $cursor->toDateString();
             $times = $bookingService->availableSlotsForDate($tenant, $dateStr, $resourceId, $required);
 
-            // For today, drop any slots earlier than the min-notice cutoff.
+            // MARKER-BOOKING-OVERRIDE — this is the STAFF endpoint. When the
+            // shop lets staff book short notice, those times are returned
+            // FLAGGED rather than filtered away, so the screen can offer them
+            // and say what they are. Customers' paths are untouched.
+            $shortNotice = [];
             if ($cursor->isToday() && $minNoticeHours > 0) {
                 $cutoffHi = $cutoff->format('H:i');
-                $times = array_values(array_filter($times, fn($t) => $t >= $cutoffHi));
+                if ($tenant->staffMayBookShortNotice()) {
+                    foreach ($times as $t) {
+                        if ($t < $cutoffHi) { $shortNotice[$t] = true; }
+                    }
+                } else {
+                    $times = array_values(array_filter($times, fn($t) => $t >= $cutoffHi));
+                }
             }
             // Past dates: skip entirely.
             if ($cursor->isPast() && !$cursor->isToday()) {
@@ -595,6 +605,8 @@ class AppointmentController extends Controller
                     'time'       => $t,
                     'date_label' => $dateLabel,
                     'time_label' => self::formatTimeLabel($t),
+                    // MARKER-BOOKING-OVERRIDE
+                    'short_notice' => isset($shortNotice[$t]),
                 ];
             }
             $cursor->addDay();
@@ -602,6 +614,8 @@ class AppointmentController extends Controller
 
         return response()->json([
             'slots'            => $slots,
+            'short_notice_warns' => $tenant->staffShortNoticeWarns(),
+            'min_notice_hours'   => $minNoticeHours,
             'required_minutes' => $required,
             'start_date'       => $startDate,
             'end_date'         => $endDate->toDateString(),
