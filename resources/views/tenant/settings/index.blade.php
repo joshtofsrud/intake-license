@@ -436,13 +436,14 @@
           <div class="ia-form-group">
             <label class="ia-form-label">How far ahead can they book?</label>
             <input type="number" name="booking_window_days" class="ia-input" min="1" max="365"
-            value="{{ old('booking_window_days', $currentTenant->
+              value="{{ old('booking_window_days', $currentTenant->booking_window_days ?? 60) }}">
+            {{-- MARKER-BOOKING-HIER-C-FIX — restored whole; see the patch header. --}}
             <p class="bw-hint">Days from today</p>
           </div>
           <div class="ia-form-group">
             <label class="ia-form-label">Minimum notice required</label>
             <input type="number" name="min_notice_hours" class="ia-input" min="0" max="168"
-            value="{{ old('min_notice_hours', $currentTenant->
+              value="{{ old('min_notice_hours', $currentTenant->min_notice_hours ?? 24) }}">
             <p class="bw-hint">0 = same-day bookings allowed</p>
           </div>
         </div>
