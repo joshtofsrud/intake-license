@@ -441,10 +441,30 @@
             <p class="bw-hint">Days from today</p>
           </div>
           <div class="ia-form-group">
-            <label class="ia-form-label">Minimum notice required</label>
+            {{-- MARKER-NOTICE-UNIT — hours, beside a field in days. Say so. --}}
+            <label class="ia-form-label">Minimum notice, in hours</label>
             <input type="number" name="min_notice_hours" class="ia-input" min="0" max="168"
               value="{{ old('min_notice_hours', $currentTenant->min_notice_hours ?? 24) }}">
-            <p class="bw-hint">0 = same-day bookings allowed</p>
+            <p class="bw-hint" id="bw-notice-hint">0 = same-day bookings allowed</p>
+            <script>
+              (function () {
+                // Reads the number back in days, so 72 is visibly three days
+                // and 3 is visibly three hours, before anyone saves it.
+                var inp = document.querySelector('input[name="min_notice_hours"]');
+                var out = document.getElementById('bw-notice-hint');
+                if (!inp || !out) { return; }
+                function say() {
+                  var h = parseInt(inp.value, 10);
+                  if (isNaN(h) || h <= 0) { out.textContent = '0 = same-day bookings allowed'; return; }
+                  if (h < 24) { out.textContent = h + (h === 1 ? ' hour' : ' hours') + ' before the appointment'; return; }
+                  var d = h / 24;
+                  var ds = (d % 1 === 0) ? String(d) : d.toFixed(1);
+                  out.textContent = h + ' hours = ' + ds + (d === 1 ? ' day' : ' days') + ' before the appointment';
+                }
+                inp.addEventListener('input', say);
+                say();
+              })();
+            </script>
           </div>
         </div>
       </div>
