@@ -764,6 +764,8 @@
   function iaPickImage(btn){var h=document.getElementById('ia-media-hero');if(h){h.src=btn.getAttribute('data-src');}var p=btn.parentElement;if(p){p.querySelectorAll('.ia-media-thumb').forEach(function(t){t.classList.toggle('is-active',t===btn);});}}
   function iaShowAdjust(){var c=document.getElementById('adjust-stock-card');if(c){c.style.display='block';c.scrollIntoView({behavior:'smooth',block:'nearest'});}}
   function iaHideAdjust(){var c=document.getElementById('adjust-stock-card');if(c){c.style.display='none';}}
+  // MARKER-BARCODE-IDENTITY — "Add stock" from the duplicate prompt lands here ready to count.
+  if (new URLSearchParams(window.location.search).get('adjust') === '1') { setTimeout(iaShowAdjust, 0); }
   (function(){
     document.querySelectorAll('.ia-show-tabs .ia-tab').forEach(function(btn){
       btn.addEventListener('click', function(){

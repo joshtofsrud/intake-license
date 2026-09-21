@@ -34,7 +34,7 @@ class DistributorCatalogImportService
         }
 
         $vendor = $dryRun ? null : $this->vendorFor($tenantId, $code);
-        [$byKey, $byUpc, $linkedCatalog, $bySku, $byEan] = $this->existingIndexes($tenantId); // MARKER-IMPORT-SKU-MERGE, MARKER-IMPORT-EAN-MERGE
+        [$byKey, $byUpc, $linkedCatalog, $bySku, $byEan, $byBarcode] = $this->existingIndexes($tenantId); // MARKER-IMPORT-SKU-MERGE, MARKER-IMPORT-EAN-MERGE, MARKER-BARCODE-IDENTITY
 
         // MARKER-IMPORT-MATCHES
         $matchedRows = $this->matchedRows($candidates->pluck('id')->all());
@@ -110,6 +110,20 @@ class DistributorCatalogImportService
                 }
             }
 
+            // MARKER-BARCODE-IDENTITY — the checks above compare UPC to UPC and
+            // EAN to EAN, exactly as typed. A UPC sitting in an item's EAN
+            // column, an EAN in its UPC column, or the same number with and
+            // without the leading zero never met. One normalised pool, any
+            // barcode on the row against any barcode on the item.
+            if ($matchId === null) {
+                foreach (\App\Support\Barcode::keys($cat->upc, $cat->ean) as $bk) {
+                    if (isset($byBarcode[$bk])) {
+                        $matchId = $byBarcode[$bk];
+                        break;
+                    }
+                }
+            }
+
             if ($matchId) {
                 if (! $dryRun) {
                     $this->addSource($matchId, $vendor, $code, $cat);
@@ -136,6 +150,9 @@ class DistributorCatalogImportService
                             }
                             if (isset($fill['catalog_ean'])) {
                                 $byEan[$fill['catalog_ean']] = $matchId;
+                            }
+                            foreach (\App\Support\Barcode::keys($fill['catalog_upc'] ?? null, $fill['catalog_ean'] ?? null) as $bk) { // MARKER-BARCODE-IDENTITY
+                                $byBarcode[$bk] = $byBarcode[$bk] ?? $matchId;
                             }
                         }
                     }
@@ -181,6 +198,9 @@ class DistributorCatalogImportService
             // as it goes, exactly as product_key, UPC and SKU do above.
             if ($cat->ean && trim((string) $cat->ean) !== '') {
                 $byEan[trim((string) $cat->ean)] = $id;
+            }
+            foreach (\App\Support\Barcode::keys($cat->upc, $cat->ean) as $bk) { // MARKER-BARCODE-IDENTITY
+                $byBarcode[$bk] = $byBarcode[$bk] ?? $id;
             }
             $linkedCatalog[$cat->id] = $id;
             $res['created']++;
@@ -309,6 +329,7 @@ class DistributorCatalogImportService
         $byUpc = [];
         $bySku = [];   // MARKER-IMPORT-SKU-MERGE
         $byEan = [];   // MARKER-IMPORT-EAN-MERGE
+        $byBarcode = []; // MARKER-BARCODE-IDENTITY — UPC, EAN and barcode-SKUs, normalised
         $linked = [];
 
         foreach ($items as $it) {
@@ -322,6 +343,9 @@ class DistributorCatalogImportService
             }
             if ($it->sku) {
                 $bySku[strtoupper(trim($it->sku))] = $it->id;
+            }
+            foreach (\App\Support\Barcode::keys($it->catalog_upc, $it->catalog_ean, $it->sku) as $bk) { // MARKER-BARCODE-IDENTITY
+                $byBarcode[$bk] = $byBarcode[$bk] ?? $it->id;
             }
             if ($it->distributor_catalog_id) {
                 $linked[$it->distributor_catalog_id] = $it->id;
@@ -341,7 +365,7 @@ class DistributorCatalogImportService
             }
         }
 
-        return [$byKey, $byUpc, $linked, $bySku, $byEan]; // MARKER-IMPORT-SKU-MERGE, MARKER-IMPORT-EAN-MERGE
+        return [$byKey, $byUpc, $linked, $bySku, $byEan, $byBarcode]; // MARKER-IMPORT-SKU-MERGE, MARKER-IMPORT-EAN-MERGE, MARKER-BARCODE-IDENTITY
     }
 
     /**

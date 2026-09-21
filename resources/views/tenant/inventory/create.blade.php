@@ -24,6 +24,25 @@
 <form method="POST" action="{{ route('tenant.inventory.store') }}">
   @csrf
 
+  {{-- MARKER-BARCODE-IDENTITY — the barcode is already on an item. --}}
+  @if(session('barcode_duplicate'))
+    @php $bd = session('barcode_duplicate'); @endphp
+    <div class="ia-flash" style="border:0.5px solid var(--ia-accent);margin-bottom:16px">
+      <strong>Already in your inventory</strong>
+      <div style="margin:6px 0 12px">
+        {{ $bd['name'] }}
+        · {{ $bd['price'] !== null ? '$' . number_format($bd['price'] / 100, 2) : 'no price' }}
+        · {{ $bd['stock'] }} in stock
+        · barcode {{ $bd['code'] }}
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <a href="{{ route('tenant.inventory.show', $bd['id']) }}" class="ia-btn ia-btn--secondary ia-btn--sm">Open it</a>
+        <a href="{{ route('tenant.inventory.show', $bd['id']) }}?adjust=1" class="ia-btn ia-btn--primary ia-btn--sm">Add stock</a>
+        <button type="submit" name="duplicate_ok" value="1" class="ia-btn ia-btn--ghost ia-btn--sm" style="margin-left:auto">It's a different product</button>
+      </div>
+    </div>
+  @endif
+
   <div class="ia-card" style="margin-bottom:20px">
     <div class="ia-card-head"><span class="ia-card-title">Item details</span></div>
     <div class="ia-card-body">

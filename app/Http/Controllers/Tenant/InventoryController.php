@@ -1207,6 +1207,31 @@ class InventoryController extends Controller
             ->where('id', $data['category_id'])
             ->firstOrFail();
 
+        // MARKER-BARCODE-IDENTITY — a barcode already in inventory (as UPC,
+        // EAN, a barcode-SKU or a merged-away code) is the same product. Stop
+        // and say which item, instead of creating a second copy. "It's a
+        // different product" resubmits with duplicate_ok and is logged.
+        $dupKeys = \App\Support\Barcode::keys($data['sku'], $data['catalog_upc'] ?? null, $data['catalog_ean'] ?? null);
+        if ($dupKeys) {
+            $hits = \App\Support\Barcode::itemsFor($tenant->id, $dupKeys);
+            if ($hits && ! $request->boolean('duplicate_ok')) {
+                $dup = reset($hits);
+                return back()->withInput()->with('barcode_duplicate', [
+                    'id'    => $dup->id,
+                    'name'  => $dup->name,
+                    'price' => $dup->effectiveSellPriceCents(),
+                    'stock' => (int) ($dup->computed_stock_count ?? 0),
+                    'code'  => (string) key($hits),
+                ]);
+            }
+            if ($hits) {
+                \Illuminate\Support\Facades\Log::info('MARKER-BARCODE-IDENTITY duplicate barcode saved on purpose', [
+                    'tenant_id' => $tenant->id, 'barcode' => (string) key($hits),
+                    'existing_item_id' => reset($hits)->id, 'user_id' => optional(Auth::guard('tenant')->user())->id,
+                ]);
+            }
+        }
+
         // Enforce SKU uniqueness within tenant
         $skuTaken = TenantInventoryItem::where('tenant_id', $tenant->id)
             ->where('sku', $data['sku'])
@@ -1736,6 +1761,16 @@ class InventoryController extends Controller
         TenantInventoryCategory::where('tenant_id', $tenant->id)
             ->where('id', $data['category_id'])
             ->firstOrFail();
+
+        // MARKER-BARCODE-IDENTITY — editing an item onto a barcode another
+        // item already carries would make two copies of one product.
+        $dupKeys = \App\Support\Barcode::keys($data['sku'], $data['catalog_upc'] ?? null, $data['catalog_ean'] ?? null);
+        if ($dupKeys && ($hits = \App\Support\Barcode::itemsFor($tenant->id, $dupKeys, $item->id))) {
+            $dup = reset($hits);
+            return back()->withInput()->withErrors([
+                'catalog_upc' => "Barcode " . key($hits) . " is already on \"{$dup->name}\". Merge the two items instead of giving them the same barcode.",
+            ]);
+        }
 
         // SKU uniqueness — exclude current item
         $skuTaken = TenantInventoryItem::where('tenant_id', $tenant->id)

@@ -82,19 +82,31 @@ trait MatchesRecords
         $q = fn () => TenantInventoryItem::where('tenant_id', $this->tenant->id);
 
         $bySku = $by('sku') ? $q()->whereIn(DB::raw('LOWER(sku)'), $by('sku'))->get()->keyBy(fn ($r) => strtolower((string) $r->sku)) : collect();
-        $byUpc = $by('upc') ? $q()->whereIn(DB::raw('LOWER(catalog_ean)'), $by('upc'))->get()->keyBy(fn ($r) => strtolower((string) $r->catalog_ean)) : collect();
+        // MARKER-BARCODE-IDENTITY — the barcode column used to be compared to
+        // catalog_ean only, exactly as typed. It now meets an item's UPC, EAN,
+        // a barcode used as its SKU, or a code kept from a merge, with the
+        // 12/13-digit forms treated as one. A SKU that is itself a barcode is
+        // looked up the same way.
+        $barcodeKeys = [];
+        foreach ($ids as $r) {
+            foreach (\App\Support\Barcode::keys($r['upc'] ?? null, $r['sku'] ?? null) as $bk) { $barcodeKeys[$bk] = true; }
+        }
+        $byBarcode = \App\Support\Barcode::itemsFor($this->tenant->id, array_keys($barcodeKeys));
         $byMpn = $by('catalog_mpn') ? $q()->whereIn(DB::raw('LOWER(catalog_mpn)'), $by('catalog_mpn'))->get()->keyBy(fn ($r) => strtolower((string) $r->catalog_mpn)) : collect();
 
         $out = [];
         foreach ($ids as $i => $r) {
             $sku = isset($r['sku']) ? strtolower(trim((string) $r['sku'])) : '';
-            $upc = isset($r['upc']) ? strtolower(trim((string) $r['upc'])) : '';
+            $bcHit = null; // MARKER-BARCODE-IDENTITY
+            foreach (\App\Support\Barcode::keys($r['upc'] ?? null, $r['sku'] ?? null) as $bk) {
+                if (isset($byBarcode[$bk])) { $bcHit = $byBarcode[$bk]; break; }
+            }
             $mpn = isset($r['catalog_mpn']) ? strtolower(trim((string) $r['catalog_mpn'])) : '';
 
             if ($sku !== '' && $bySku->has($sku)) {
                 $out[$i] = ['record' => $bySku[$sku], 'key' => 'sku', 'strong' => true, 'identity' => $r];
-            } elseif ($upc !== '' && $byUpc->has($upc)) {
-                $out[$i] = ['record' => $byUpc[$upc], 'key' => 'upc', 'strong' => false, 'identity' => $r];
+            } elseif ($bcHit) {
+                $out[$i] = ['record' => $bcHit, 'key' => 'upc', 'strong' => false, 'identity' => $r];
             } elseif ($mpn !== '' && $byMpn->has($mpn)) {
                 $out[$i] = ['record' => $byMpn[$mpn], 'key' => 'mpn', 'strong' => false, 'identity' => $r];
             } else {
