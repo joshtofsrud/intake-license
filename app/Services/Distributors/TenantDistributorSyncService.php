@@ -84,6 +84,7 @@ class TenantDistributorSyncService
         // MARKER-SYNC-CHUNKED — stock snapshots are collected and written in
         // batches after the loop (finally, so rows already saved above keep
         // their snapshot even if a later item throws) — not one insert per item.
+        // MARKER-SNAPSHOT-OVERWRITE — one row per item, overwritten each sync.
         $snapshots = [];
         try {
         foreach ($pivots as $pivot) {
@@ -161,7 +162,11 @@ class TenantDistributorSyncService
         }
         } finally {
             foreach (array_chunk($snapshots, 1000) as $batch) {
-                \Illuminate\Support\Facades\DB::table('distributor_availability_snapshots')->insert($batch);
+                \Illuminate\Support\Facades\DB::table('distributor_availability_snapshots')->upsert(
+                    $batch,
+                    ['tenant_id', 'distributor_code', 'distributor_variant_no'],
+                    ['distributor_catalog_id', 'avail', 'checked_at', 'updated_at'],
+                );
             }
         }
 
