@@ -140,7 +140,14 @@
   .tend-cash-input input{width:100%;padding:13px 13px 13px 27px;font-size:17px;font-weight:700;
     font-variant-numeric:tabular-nums;background:var(--ia-input-bg);color:var(--ia-text);
     border:0.5px solid var(--ia-border);border-radius:var(--ia-r)}
-  .tend-quick{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px}
+  .tend-quick{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:10px}
+  /* MARKER-CASH-SIMPLE — .reg-modal input[type=text] (padding:10px) outranked
+     .tend-cash-input input, so the "$" sat on top of the typed amount. */
+  .reg-modal .tend-cash-input input[type=text]{padding:13px 13px 13px 30px;font-size:18px}
+  .tend-quick button.on{border-color:var(--ia-accent);color:var(--ia-accent)}
+  .tend-change span{font-size:14px}
+  .tend-change b{font-size:24px !important}
+  .tend-change.owed b{color:#f5b54a !important}
   .tend-quick button{background:var(--ia-surface-2);border:0.5px solid var(--ia-border);
     color:var(--ia-text);border-radius:var(--ia-r);padding:9px 0;font:inherit;font-size:13px;cursor:pointer}
   .tend-quick button:hover{border-color:var(--ia-border-strong)}
@@ -764,6 +771,8 @@
           @if($mt['hint'])<div style="font-size:11px;opacity:.55;font-weight:400;margin-top:2px">{{ $mt['hint'] }}</div>@endif
         </button>
       @endforeach
+        {{-- MARKER-CASH-SIMPLE — "Already paid" lives with the other methods. --}}
+        <button type="button" class="reg-tender-btn" data-tender="mark_paid">Already paid</button>
       </div>
 
       {{-- MARKER-TENDER-LAYOUT — cash received and change. The calculation
@@ -776,7 +785,7 @@
         </div>
         <div class="tend-quick" id="tenderQuickKeys"></div>
         <div class="tend-change">
-          <span>Change due</span><b id="tenderChangeAmt">$0.00</b>
+          <span id="tenderChangeLabel">Change due</span><b id="tenderChangeAmt">$0.00</b>
         </div>
       </div>
 
@@ -842,10 +851,9 @@
       <button type="button" class="reg-btn-primary tend-go" id="tenderConfirmBtn" disabled>Continue</button>
       <div class="tend-links">
         <button type="button" class="tend-link" id="layawayBtn" style="display:none">Move to layaway</button>
-        {{-- MARKER-TENDER-LAYOUT — the mark_paid tender, as the mockup's
-             "Already paid" link. Same .reg-tender-btn class and data-tender
-             the existing handler binds to; only its placement changed. --}}
-        <button type="button" class="reg-tender-btn tend-link" data-tender="mark_paid">Already paid</button>
+        {{-- MARKER-CASH-SIMPLE — splitting is asked for, not always on screen.
+             A cash amount under the total is already a partial payment. --}}
+        <button type="button" class="tend-link" id="tenderSplitLink">Split payment</button>
       </div>
     </div>
 
@@ -2541,6 +2549,7 @@ function openTenderForPlan() {
   document.getElementById('tenderConfirmBtn').disabled = true;
   document.querySelectorAll('#tenderModal .reg-tender-btn').forEach(b => b.classList.remove('selected'));
   resetCashTender(); // MARKER-REGISTER-LINE-FIX
+  cart.splitOpen = false; // MARKER-CASH-SIMPLE
   if (typeof tenderPaint === 'function') { tenderPaint(); } // MARKER-TENDER-LAYOUT
   resetGiftTender();
   tenderModalError('');
@@ -2750,12 +2759,22 @@ function splitPaid() {
 function tenderQuickKeys(due) {
   const box = document.getElementById('tenderQuickKeys');
   if (!box) { return; }
-  const up = (step) => Math.ceil(due / step) * step;
-  const opts = [...new Set([up(500), up(1000), up(2000)])].filter(v => v > due).slice(0, 2);
+  // MARKER-CASH-SIMPLE — Exact, then the next three amounts a person hands
+  // over. Rounding up to $5/$10/$20 gave only "Exact" on a round total ($20
+  // due → every step is $20); a note that exactly matches steps to the next.
+  const opts = [];
+  [500, 1000, 2000, 5000, 10000].forEach(n => {
+    let v = Math.ceil(due / n) * n;
+    if (v === due && n >= 2000) { v = due + n; }
+    if (v > due && !opts.includes(v)) { opts.push(v); }
+  });
+  opts.sort((a, b) => a - b);
+  const label = v => (v % 100 === 0 ? '$' + (v / 100) : fmt(v));
   box.innerHTML = '<button type="button" data-cash="' + due + '">Exact</button>'
-    + opts.map(v => '<button type="button" data-cash="' + v + '">' + fmt(v) + '</button>').join('');
+    + opts.slice(0, 3).map(v => '<button type="button" data-cash="' + v + '">' + label(v) + '</button>').join('');
   box.querySelectorAll('[data-cash]').forEach(b => b.addEventListener('click', () => {
     document.getElementById('tenderCashInput').value = (parseInt(b.dataset.cash, 10) / 100).toFixed(2);
+    box.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
     tenderChange();
   }));
 }
@@ -2777,13 +2796,20 @@ function tenderChange() {
   if (!input || !out) { return; }
   const due = cart.payments.length > 0 ? splitRemaining() : tenderDueCents();
   const got = Math.round((parseFloat(String(input.value).replace(/[^0-9.]/g, '')) || 0) * 100);
-  out.textContent = fmt(Math.max(0, got - due));
   window.cashChangeCents = Math.max(0, got - due); // shown again on the receipt
 
+  // MARKER-CASH-SIMPLE — short cash is a partial payment: say what's still owed.
+  const short = got > 0 && got < due;
+  const lab = document.getElementById('tenderChangeLabel');
+  if (lab) { lab.textContent = short ? 'Still owed' : 'Change due'; }
+  if (out.parentNode) { out.parentNode.classList.toggle('owed', short); }
+  out.textContent = fmt(short ? due - got : Math.max(0, got - due));
+
   // The existing split path reads splitAmountInput. Keep the two in step so
-  // cash typed here behaves exactly as cash typed there always has.
+  // cash typed here behaves exactly as cash typed there always has — and an
+  // emptied box goes back to the full amount instead of a stale partial.
   const split = document.getElementById('splitAmountInput');
-  if (split && got > 0) { split.value = (Math.min(got, due) / 100).toFixed(2); }
+  if (split) { split.value = ((got > 0 ? Math.min(got, due) : due) / 100).toFixed(2); }
 
   tenderButtonLabel(due);
 }
@@ -2800,6 +2826,12 @@ function tenderButtonLabel(due) {
     return (v && !isNaN(v)) ? v : null;
   })();
   const amount = (typed !== null && typed < due) ? typed : due;
+
+  // MARKER-CASH-SIMPLE — short cash says so on the button.
+  if (cart.payment_method === 'cash' && amount < due) {
+    btn.textContent = 'Take ' + fmt(amount) + ' cash · ' + fmt(due - amount) + ' still owed';
+    return;
+  }
 
   btn.textContent = ({
     card:         'Charge ' + fmt(amount),
@@ -2820,7 +2852,27 @@ document.getElementById('tenderMoreBtn')?.addEventListener('click', function () 
   this.setAttribute('aria-expanded', open ? 'false' : 'true');
 });
 
-document.getElementById('tenderCashInput')?.addEventListener('input', tenderChange);
+document.getElementById('tenderCashInput')?.addEventListener('input', function () {
+  document.querySelectorAll('#tenderQuickKeys button').forEach(x => x.classList.remove('on'));
+  tenderChange();
+});
+
+// MARKER-CASH-SIMPLE — Split payment: show the amount field for the tender
+// picked (or the next one picked). Add payment records each part as before.
+document.getElementById('tenderSplitLink')?.addEventListener('click', function () {
+  cart.splitOpen = true;
+  const rowEl = document.getElementById('splitAmountRow');
+  const hintEl = document.getElementById('splitHint');
+  if (rowEl) { rowEl.style.display = 'flex'; }
+  if (hintEl) {
+    hintEl.style.display = '';
+    hintEl.textContent = cart.payment_method
+      ? 'Type the first part, then Add payment. Pick the next method for the rest.'
+      : 'Pick how the first part is paid, type it, then Add payment.';
+  }
+  const inp = document.getElementById('splitAmountInput');
+  if (inp && cart.payment_method) { setTimeout(() => { inp.focus(); inp.select(); }, 30); }
+});
 document.getElementById('splitAmountInput')?.addEventListener('input', function () {
   tenderButtonLabel(cart.payments.length > 0 ? splitRemaining() : tenderDueCents());
 });
@@ -3508,6 +3560,7 @@ document.getElementById('payBtn').addEventListener('click', () => {
     }
   }
   resetCashTender(); // MARKER-REGISTER-LINE-FIX
+  cart.splitOpen = false; // MARKER-CASH-SIMPLE
   openModal('tenderModal');
   if (typeof tenderPaint === 'function') { tenderPaint(); } // MARKER-TENDER-LAYOUT
 });
@@ -3698,11 +3751,16 @@ document.querySelectorAll('#tenderModal .reg-tender-btn').forEach(btn => {
       const splittable = !(t === 'payment_link' || t === 'mark_paid'); // MARKER-SPLIT-ANYORDER
       const rowEl = document.getElementById('splitAmountRow');
       const hintEl = document.getElementById('splitHint');
+      // MARKER-CASH-SIMPLE — the amount field keeps its value (Collect reads
+      // it) but only shows once a split is asked for or already under way.
+      const showRow = splittable && (cart.splitOpen || cart.payments.length > 0);
       if (rowEl && splittable) {
-        rowEl.style.display = 'flex'; if (hintEl) hintEl.style.display = '';
+        rowEl.style.display = showRow ? 'flex' : 'none';
+        if (hintEl) hintEl.style.display = showRow ? '' : 'none';
         const inp = document.getElementById('splitAmountInput');
         inp.value = (splitRemaining() / 100).toFixed(2);
-        setTimeout(() => { inp.focus(); inp.select(); }, 30);
+        if (showRow) { setTimeout(() => { inp.focus(); inp.select(); }, 30); }
+        else if (t === 'cash') { setTimeout(() => { const c = document.getElementById('tenderCashInput'); if (c) c.focus(); }, 30); }
       } else if (rowEl) {
         rowEl.style.display = 'none'; if (hintEl) hintEl.style.display = 'none';
       }
