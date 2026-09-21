@@ -123,16 +123,12 @@ class RoadmapEntryResource extends Resource
                         default => 'gray',
                     })
                     ->sortable(),
-                Tables\Columns\TextColumn::make('status')
-                    ->badge()
-                    ->formatStateUsing(fn ($state) => RoadmapEntry::STATUSES[$state] ?? $state)
-                    ->color(fn ($state) => match($state) {
-                        'shipped'      => 'success',
-                        'in_progress'  => 'warning',
-                        'next_up'      => 'info',
-                        'considering'  => 'gray',
-                        default        => 'gray',
-                    }),
+                // MARKER-ROADMAP-STATUS — change status in place, like Publish.
+                // Becoming shipped stamps the date via the model's saving hook.
+                Tables\Columns\SelectColumn::make('status')
+                    ->options(RoadmapEntry::STATUSES)
+                    ->selectablePlaceholder(false)
+                    ->sortable(),
                 Tables\Columns\TextColumn::make('title')->searchable()->limit(60),
                 Tables\Columns\TextColumn::make('category')->badge(),
                 Tables\Columns\TextColumn::make('display_timeframe')
@@ -189,6 +185,24 @@ class RoadmapEntryResource extends Resource
                     ->color('gray')
                     ->requiresConfirmation()
                     ->action(fn ($records) => $records->each->update(['is_published' => false])),
+                // MARKER-ROADMAP-STATUS — move several rows at once.
+                Tables\Actions\BulkAction::make('change_status')
+                    ->label('Change status')
+                    ->icon('heroicon-o-arrow-path')
+                    ->form([
+                        \Filament\Forms\Components\Select::make('status')
+                            ->label('Move selected to')
+                            ->options(RoadmapEntry::STATUSES)
+                            ->required()
+                            ->native(false),
+                    ])
+                    // save() per row, not a mass update(), so the saving hook
+                    // runs and shipped rows get their date.
+                    ->action(fn ($records, array $data) => $records->each(function ($r) use ($data) {
+                        $r->status = $data['status'];
+                        $r->save();
+                    }))
+                    ->deselectRecordsAfterCompletion(),
                 Tables\Actions\DeleteBulkAction::make(),
             ]);
     }

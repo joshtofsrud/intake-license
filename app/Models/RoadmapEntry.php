@@ -65,4 +65,23 @@ class RoadmapEntry extends Model
         }
         return $this->rough_timeframe;
     }
+
+    /**
+     * MARKER-ROADMAP-STATUS — becoming shipped stamps the date and drops the
+     * forward-looking timeframe. One hook, so the list dropdown, the bulk
+     * action, the edit form and the YAML importer cannot disagree.
+     */
+    protected static function booted(): void
+    {
+        static::saving(function (self $entry) {
+            if ($entry->status !== 'shipped' || ! $entry->isDirty('status')) {
+                return;
+            }
+            if (! $entry->shipped_on) {
+                $entry->shipped_on = now()->toDateString();
+            }
+            // "Next up" on a shipped row reads as a promise that was never kept.
+            $entry->rough_timeframe = null;
+        });
+    }
 }
