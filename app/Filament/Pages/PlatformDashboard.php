@@ -280,21 +280,23 @@ class PlatformDashboard extends Page
                'state'=>$pending > 50 ? 'bad' : ($pending > 5 ? 'warn' : 'ok')]
             : ['label'=>'Queue','value'=>'n/a','meta'=>'redis unreachable','pct'=>0,'state'=>'bad'];
 
-        // Backup
-        $bk = \App\Models\SystemHealth::read('last_backup');
-        if (! $bk || empty($bk['at'])) {
-            $tiles['backup'] = ['label'=>'Backup', 'value'=>'no record',
-                'meta'=>'script not yet wired', 'pct'=>0, 'state'=>'warn'];
+        // Backup — MARKER-BACKUP-RECORD: written by `artisan backup:record`,
+        // which /usr/local/bin/intake-backup.sh calls at the end of every run.
+        $bk = \App\Support\BackupStatus::read();
+        if ($bk['state'] === 'none') {
+            $tiles['backup'] = ['label'=>'Backup', 'value'=>'no report',
+                'meta'=>'intake-backup.sh has not reported yet', 'pct'=>0, 'state'=>'warn'];
+        } elseif ($bk['failed_at']) {
+            $tiles['backup'] = ['label'=>'Backup', 'value'=>'failed',
+                'meta'=>$bk['failed_at']->diffForHumans(null, true) . ' ago · ' . \Illuminate\Support\Str::limit($bk['reason'], 60),
+                'pct'=>100, 'state'=>'bad'];
         } else {
-            $ts = \Carbon\Carbon::parse($bk['at']);
-            $age = $ts->diffInHours(now());
-            $sizeMb = isset($bk['bytes']) ? round($bk['bytes'] / 1024 / 1024, 1) : null;
             $tiles['backup'] = [
                 'label'=>'Backup',
-                'value'=>$ts->diffForHumans(null, true).' ago',
-                'meta'=>$sizeMb ? $sizeMb.' MB' : 'size unknown',
-                'pct'=> min(100, ($age / 36) * 100),
-                'state'=>$age > 36 ? 'bad' : ($age > 30 ? 'warn' : 'ok'),
+                'value'=>$bk['at']->diffForHumans(null, true) . ' ago',
+                'meta'=>$bk['mb'] !== null ? $bk['mb'] . ' MB' : 'size unknown',
+                'pct'=> min(100, ($bk['age_hours'] / 36) * 100),
+                'state'=>$bk['state'],
             ];
         }
 
@@ -453,19 +455,21 @@ class PlatformDashboard extends Page
             'href'  => null,
         ];
 
-        // Backups
-        $bk = SystemHealth::read('last_backup');
-        if (! $bk || empty($bk['at'])) {
-            $rows[] = ['name' => 'Last backup', 'meta' => 'not wired: append the tools/ fragment to /usr/local/bin/intake-backup.sh'  /* MARKER-DASH-ROWFIX */, 'value' => 'no record', 'state' => 'warn', 'href' => null];
+        // Backups — MARKER-BACKUP-RECORD
+        $bk = \App\Support\BackupStatus::read();
+        if ($bk['state'] === 'none') {
+            $rows[] = ['name' => 'Last backup', 'meta' => 'intake-backup.sh has not reported yet',
+                       'value' => 'no report', 'state' => 'warn', 'href' => null];
+        } elseif ($bk['failed_at']) {
+            $rows[] = ['name' => 'Last backup', 'meta' => e($bk['reason']),
+                       'value' => '<b>failed</b> ' . e($bk['failed_at']->diffForHumans()),
+                       'state' => 'bad', 'href' => '/admin/debug-logs?activeTab=errors'];
         } else {
-            $ts = \Carbon\Carbon::parse($bk['at']);
-            $age = $ts->diffInHours(now());
-            $size = isset($bk['bytes']) ? round($bk['bytes'] / 1024 / 1024, 1) . ' MB' : '?';
             $rows[] = [
                 'name'  => 'Last backup',
-                'meta'  => "{$size} · " . ($bk['duration_sec'] ?? '?') . "s · 30-day retention",
-                'value' => "<b>{$ts->diffForHumans()}</b>",
-                'state' => $age > 36 ? 'bad' : ($age > 30 ? 'warn' : 'ok'),
+                'meta'  => ($bk['mb'] !== null ? $bk['mb'] . ' MB' : '?') . ' · ' . ($bk['duration'] ?? '?') . 's · 30-day retention',
+                'value' => '<b>' . e($bk['at']->diffForHumans()) . '</b>',
+                'state' => $bk['state'],
                 'href'  => null,
             ];
         }

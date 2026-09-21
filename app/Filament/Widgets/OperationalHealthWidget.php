@@ -122,19 +122,21 @@ class OperationalHealthWidget extends BaseWidget
 
     protected function backupStatus(): Stat
     {
-        $h = SystemHealth::read('last_backup');
-        if (! $h || empty($h['at'])) {
-            return Stat::make('Backup status', 'no record')
-                ->description('backup script has not reported yet')
+        // MARKER-BACKUP-RECORD — same reading as the dashboard tile.
+        $bk = \App\Support\BackupStatus::read();
+        if ($bk['state'] === 'none') {
+            return Stat::make('Backup status', 'no report')
+                ->description('intake-backup.sh has not reported yet')
                 ->color('warning');
         }
-        $ts = \Carbon\Carbon::parse($h['at']);
-        $ageHours = $ts->diffInHours(now());
-        $sizeMb   = isset($h['bytes']) ? round($h['bytes'] / 1024 / 1024, 1) . ' MB' : '?';
-        $color    = $ageHours > 36 ? 'danger' : ($ageHours > 30 ? 'warning' : 'success');
-        return Stat::make('Backup status', $ts->diffForHumans())
-            ->description($sizeMb . ' last run')
-            ->color($color);
+        if ($bk['failed_at']) {
+            return Stat::make('Backup status', 'failed ' . $bk['failed_at']->diffForHumans())
+                ->description(\Illuminate\Support\Str::limit($bk['reason'], 80))
+                ->color('danger');
+        }
+        return Stat::make('Backup status', $bk['at']->diffForHumans())
+            ->description(($bk['mb'] !== null ? $bk['mb'] . ' MB' : '?') . ' last run')
+            ->color(['ok' => 'success', 'warn' => 'warning', 'bad' => 'danger'][$bk['state']] ?? 'gray');
     }
 
     protected function domainsNeedingAttention(): Stat
