@@ -283,6 +283,12 @@ class AppointmentController extends Controller
             'customer_postcode'      => ['nullable', 'string', 'max:20'],
             'appointment_date'    => ['required', 'date'],
             'appointment_time'    => ['nullable', 'string'],
+            // MARKER-APPT-OVERRIDE — requested, not granted. The policy below
+            // decides; a crafted request cannot overbook a shop that has not
+            // turned it on.
+            'override_capacity'     => ['nullable', 'boolean'],
+            'override_short_notice' => ['nullable', 'boolean'],
+            'override_reason'       => ['nullable', 'string', 'max:200'],
             'resource_id'         => ['nullable', 'string', 'uuid'],
             'staff_notes'         => ['nullable', 'string', 'max:1000'],
             'items'               => ['required', 'array', 'min:1'],
@@ -333,6 +339,11 @@ class AppointmentController extends Controller
             'city'             => $data['customer_city']          ?? null,
             'state'            => $data['customer_state']         ?? null,
             'postcode'         => $data['customer_postcode']      ?? null,
+            // MARKER-APPT-OVERRIDE — asked for by the screen, granted by the shop.
+            'allow_overbook'        => $request->boolean('override_capacity') && tenant()->staffMayOverbook(),
+            'override_short_notice' => $request->boolean('override_short_notice') && tenant()->staffMayBookShortNotice(),
+            'override_reason'       => trim((string) $request->input('override_reason', '')) ?: null,
+            'override_by_user_id'   => auth()->id(),
             'date'             => $data['appointment_date'],
             'appointment_time' => $apptTime,
             'resource_id'      => $data['resource_id'] ?? null,
@@ -3161,4 +3172,33 @@ class AppointmentController extends Controller
         ]);
     }
 
+
+    /**
+     * MARKER-APPT-OVERRIDE — how loaded each day is, for the staff day picker.
+     *
+     * Reports the shop's policy alongside the days so the screen never offers
+     * an override the server would refuse.
+     */
+    public function dayLoad(Request $request)
+    {
+        $this->guard();
+        $tenant = tenant();
+
+        $start = $request->query('start') ?: now($tenant->timezone())->toDateString();
+        $days  = max(1, min(14, (int) $request->query('days', 7)));
+
+        $load = app(\App\Services\BookingService::class)
+            ->dayLoad($tenant, $start, $days, $request->query('service_id') ?: null);
+
+        return response()->json([
+            'days'  => $load,
+            'mode'  => $tenant->booking_mode ?? 'drop_off',
+            'policy' => [
+                'short_notice'  => $tenant->staffMayBookShortNotice(),
+                'warns'         => $tenant->staffShortNoticeWarns(),
+                'overbook'      => $tenant->staffMayOverbook(),
+                'notice_hours'  => (int) ($tenant->min_notice_hours ?? 0),
+            ],
+        ]);
+    }
 }

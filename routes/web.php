@@ -786,6 +786,8 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             Route::get('/appointments/day-times',   [TenantControllers\AppointmentController::class, 'dayTimes'])->name('appointments.day-times');
             Route::get('/appointments/resolve-resource', [TenantControllers\AppointmentController::class, 'resolveResource'])->name('appointments.resolve-resource');
             Route::post('/appointments',        [TenantControllers\AppointmentController::class, 'store'])->name('appointments.store');
+            // MARKER-APPT-OVERRIDE — day capacity for the staff day picker.
+            Route::get('/appointments/day-load', [TenantControllers\AppointmentController::class, 'dayLoad'])->name('appointments.day_load');
             // MARKER-NOTIFY-CHOICE — send a confirmation deliberately, after the
             // appointment has been saved and looked at.
             Route::post('/appointments/{id}/notify', [TenantControllers\AppointmentController::class, 'notify'])->name('appointments.notify');

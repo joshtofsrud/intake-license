@@ -531,6 +531,17 @@
 
 @section('content')
 
+{{-- MARKER-APPT-OVERRIDE — a bent rule says so on the record it produced. --}}
+@if($appointment->isOverride())
+  <div style="border:0.5px solid rgba(240,196,106,.35);background:rgba(240,196,106,.1);border-radius:8px;padding:11px 14px;margin-bottom:14px;font-size:13px;color:#f0c46a">
+    <b>{{ $appointment->overrideLabel() }}.</b>
+    @if($appointment->override_reason)
+      <span style="color:var(--ia-text-muted)">{{ $appointment->override_reason }}</span>
+    @endif
+    <span style="color:var(--ia-text-dim)">This job still counts toward the day's total.</span>
+  </div>
+@endif
+
 @php
   // Banner state — drives the top-of-page status banner.
   // Three cases: open draft sale (amber, take payment), paid (green),

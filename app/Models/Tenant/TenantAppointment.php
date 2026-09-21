@@ -13,6 +13,8 @@ class TenantAppointment extends Model
     use HasUuids;
     protected $table    = 'tenant_appointments';
     protected $fillable = [
+        // MARKER-APPT-OVERRIDE
+        'override_short_notice', 'override_capacity', 'override_reason', 'override_by_user_id',
         'tenant_id','customer_id','resource_id','location_id','ra_number',
         'customer_first_name','customer_last_name','customer_email','customer_phone',
         'appointment_date','appointment_time','appointment_end_time',
@@ -34,6 +36,8 @@ class TenantAppointment extends Model
         'completed_at', // MARKER-PATCH-481
     ];
     protected $casts = [
+        'override_short_notice' => 'boolean', // MARKER-APPT-OVERRIDE
+        'override_capacity'     => 'boolean',
         'appointment_date'         => 'date',
         'total_duration_minutes'         => 'integer',
         'prep_before_minutes_snapshot'   => 'integer',
@@ -241,4 +245,26 @@ class TenantAppointment extends Model
             ->first();
     }
 
+
+    /** MARKER-APPT-OVERRIDE — was any rule bent to make this booking exist? */
+    public function isOverride(): bool
+    {
+        return (bool) ($this->override_short_notice || $this->override_capacity);
+    }
+
+    /** Plain words for what was overridden, for the screens that show it. */
+    public function overrideLabel(): ?string
+    {
+        if ($this->override_short_notice && $this->override_capacity) {
+            return 'Booked inside the notice window, on a day that was already full';
+        }
+        if ($this->override_capacity) {
+            return 'Added to a day that was already full';
+        }
+        if ($this->override_short_notice) {
+            return 'Booked inside the notice window';
+        }
+
+        return null;
+    }
 }

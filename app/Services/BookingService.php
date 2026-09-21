@@ -168,6 +168,15 @@ class BookingService
                 }
             }
 
+            // MARKER-APPT-OVERRIDE — the shop may allow staff to add to a day
+            // that is already full. Take the first candidate in sort order
+            // rather than inventing spare capacity: the day really is over its
+            // limit, and the appointment is marked so it reads that way.
+            if ($picked === null && ! empty($data['allow_overbook'])) {
+                $first  = $candidates->first();
+                $picked = is_object($first) ? $first->id : $first;
+            }
+
             if ($picked === null) {
                 throw new RuntimeException('All staff are fully booked on that date. Please pick another day.');
             }
@@ -229,6 +238,12 @@ class BookingService
                 }
 
                 $appointment = TenantAppointment::create([
+                    // MARKER-APPT-OVERRIDE — carried onto the row so the day
+                    // can be counted honestly later.
+                    'override_short_notice' => (bool) ($data['override_short_notice'] ?? false),
+                    'override_capacity'     => (bool) ($data['allow_overbook'] ?? false),
+                    'override_reason'       => $data['override_reason'] ?? null,
+                    'override_by_user_id'   => $data['override_by_user_id'] ?? null,
                     'id'                       => (string) Str::uuid(),
                     'tenant_id'                => $tenantId,
                     'customer_id'              => $customer->id,
@@ -437,6 +452,15 @@ class BookingService
                 $used = $this->resourceUsedSlotsForDate($tenantId, $cand->id, $data['date']);
                 if (($used + $slotWeight) <= (int) $cand->max_appointments_per_day) { $picked = $cand->id; break; }
             }
+            // MARKER-APPT-OVERRIDE — the shop may allow staff to add to a day
+            // that is already full. Take the first candidate in sort order
+            // rather than inventing spare capacity: the day really is over its
+            // limit, and the appointment is marked so it reads that way.
+            if ($picked === null && ! empty($data['allow_overbook'])) {
+                $first  = $candidates->first();
+                $picked = is_object($first) ? $first->id : $first;
+            }
+
             if ($picked === null) {
                 throw new RuntimeException('All staff are fully booked on that date. Please pick another day.');
             }
