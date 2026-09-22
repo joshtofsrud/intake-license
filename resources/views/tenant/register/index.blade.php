@@ -223,6 +223,10 @@
   .reg-results-section.mouse-active .reg-row.highlighted:not(:hover){background:transparent}
   .reg-row .name{font-weight:500;font-size:14px}
   .reg-row .meta{font-size:12px;color:var(--ia-text-dim)}
+  /* MARKER-DESC-CLAMP — search rows show the catalog subtitle, which for some
+     distributors is the whole marketing description. Two lines, so a result
+     stays a row. The item's own page has the full text. */
+  .reg-row .meta{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
   /* MARKER-REG-STOCK */
   .reg-stock-chip{display:inline-block;margin-left:6px;padding:1px 7px;border-radius:999px;
     font-size:11px;font-weight:600;border:0.5px solid transparent;white-space:nowrap}

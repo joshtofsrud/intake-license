@@ -93,6 +93,11 @@
   .sd-pay-del:hover{color:#F87171;background:rgba(248,113,113,.10)}
   .sd-pay-del:disabled{opacity:.5;cursor:default}
   .sd-item-desc{font-size:12px;color:var(--ia-text-dim);margin-top:2px}
+  /* MARKER-DESC-CLAMP — a distributor's marketing copy runs to hundreds of
+     words and pushed the totals off the screen. Two lines, then More. */
+  .sd-item-desc.clamp{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .sd-item-desc.clamp.open{-webkit-line-clamp:unset;overflow:visible}
+  .sd-desc-more{background:none;border:0;padding:0;margin-top:2px;font:inherit;font-size:11.5px;color:var(--ia-accent);cursor:pointer}
   .sd-item-type{
     display:inline-block;font-size:10px;text-transform:uppercase;
     letter-spacing:.04em;color:var(--ia-text-dim);margin-left:6px;
@@ -334,7 +339,10 @@
         html += '<tr>'
           + '<td>'
           + '<div class="sd-item-name">' + escapeHtml(it.name || '—') + typeBadge + '</div>'
-          + (it.description ? '<div class="sd-item-desc">' + escapeHtml(it.description) + '</div>' : '')
+          + (it.description
+              ? '<div class="sd-item-desc clamp">' + escapeHtml(it.description) + '</div>'
+                + (String(it.description).length > 140 ? '<button type="button" class="sd-desc-more">More</button>' : '')
+              : '') // MARKER-DESC-CLAMP
           + '</td>'
           + '<td class="num">' + escapeHtml(String(it.quantity)) + '</td>'
           + '<td class="num">' + escapeHtml(fmtMoney(it.unit_price_cents))
@@ -494,6 +502,16 @@
     }
 
     bodyEl.innerHTML = html;
+
+    // MARKER-DESC-CLAMP — More/Less on a clamped description.
+    bodyEl.querySelectorAll('.sd-desc-more').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var desc = btn.previousElementSibling;
+        if (!desc) { return; }
+        var open = desc.classList.toggle('open');
+        btn.textContent = open ? 'Less' : 'More';
+      });
+    });
 
     // Wire any inline open-sale links (refund-of / refunds list)
     bodyEl.querySelectorAll('[data-open-sale]').forEach(function(a){
