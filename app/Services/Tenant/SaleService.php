@@ -224,6 +224,8 @@ class SaleService
                     'appointment_id'     => $data['appointment_id']     ?? $draft->appointment_id,
                     'location_id'        => $data['location_id'],
                     'tip_cents'          => (int) ($data['tip_cents'] ?? $draft->tip_cents),
+                    // MARKER-SALE-DISCOUNT-PERSIST — recalculate() clamps it to the sale.
+                    'sale_discount_cents' => (int) ($data['sale_discount_cents'] ?? $draft->sale_discount_cents),
                     'notes'              => $data['notes']              ?? $draft->notes,
                     'metadata'           => $data['metadata']           ?? $draft->metadata,
                 ]);

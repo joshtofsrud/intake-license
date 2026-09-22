@@ -357,8 +357,19 @@ class DirectPaymentsWebhookController extends Controller
             }
         }
 
+        // MARKER-SALE-DISCOUNT-PERSIST — what Stripe actually captured, not what
+        // the sale believes it is worth. When they differ the sale is left short
+        // (SalePaymentService works the status out from the ledger) and the
+        // difference is reported, instead of showing settled in full.
+        $captured = (int) ($session->amount_total ?? 0);
+        if ($captured > 0 && $captured !== (int) $sale->total_cents) {
+            \App\Support\JobFailureReporter::report(self::class,
+                'Payment link captured a different amount than the sale',
+                new \RuntimeException('sale ' . $sale->sale_number . ': captured ' . $captured . ' vs total ' . $sale->total_cents),
+                ['sale_id' => $sale->id, 'session_id' => $sessionId], $tenant->id);
+        }
+
         $sale->status                    = 'completed';
-        $sale->payment_status            = 'paid';
         $sale->paid_at                   = now();
         $sale->stripe_payment_intent_id  = $piId;
         $sale->stripe_charge_id          = $chargeId;
@@ -381,7 +392,7 @@ class DirectPaymentsWebhookController extends Controller
                 $hasPrior = $sale->payments()->count() > 0;
                 app(\App\Services\Tenant\SalePaymentService::class)->record(
                     sale:               $sale,
-                    amountCents:        (int) $sale->total_cents,
+                    amountCents:        $captured > 0 ? $captured : (int) $sale->total_cents, // MARKER-SALE-DISCOUNT-PERSIST
                     kind:               $hasPrior
                         ? \App\Models\Tenant\TenantSalePayment::KIND_BALANCE
                         : ($sale->appointment_id
@@ -403,6 +414,13 @@ class DirectPaymentsWebhookController extends Controller
             ]);
         }
 
+        // MARKER-SALE-DISCOUNT-PERSIST — payment_status is worked out from the
+        // ledger now; with no PaymentIntent there is no ledger row, so settle it
+        // here rather than leave a paid sale looking unpaid.
+        if ($sale->fresh()->payment_status !== 'paid' && $captured > 0 && $captured >= (int) $sale->total_cents) {
+            $sale->forceFill(['payment_status' => 'paid'])->save();
+        }
+
         Log::info('direct_payments_webhook.checkout_completed', [
             'tenant_id'  => $tenant->id,
             'sale_id'    => $sale->id,
@@ -413,9 +431,9 @@ class DirectPaymentsWebhookController extends Controller
         // is how staff find out the money landed and fulfillment can happen.
         app(\App\Services\Tenant\StaffAlertService::class)->emit($tenant, 'payment.link_completed', [
             'title' => 'Payment link completed — ' . $sale->sale_number,
-            'body'  => format_money((int) $sale->total_cents) . ' paid by card via link.',
+            'body'  => format_money($captured > 0 ? $captured : (int) $sale->total_cents) . ' paid by card via link.', // MARKER-SALE-DISCOUNT-PERSIST
             'link'  => '/admin/register/history',
-            'meta'  => ['sale_id' => $sale->id, 'amount_cents' => (int) $sale->total_cents],
+            'meta'  => ['sale_id' => $sale->id, 'amount_cents' => $captured > 0 ? $captured : (int) $sale->total_cents],
         ]);
     }
 

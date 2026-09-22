@@ -1221,11 +1221,16 @@ class RegisterController extends Controller
             'items.*.gift_card.gift_message'     => 'nullable|string|max:500',
             'items.*.assigned_staff_id'=> 'nullable|uuid',
             'items.*.notes'            => 'nullable|string',
+            // MARKER-SALE-DISCOUNT-PERSIST — a whole-sale discount belongs on
+            // the draft; every register sale is committed from one.
+            'sale_discount_cents'      => 'nullable|integer|min:0',
+            'discount_code'            => 'nullable|string|max:40',
         ]);
 
         try {
             $draft = $this->sales->saveDraft([
                 'id'                 => $validated['id'] ?? null,
+                'sale_discount_cents' => $validated['sale_discount_cents'] ?? null, // MARKER-SALE-DISCOUNT-PERSIST
                 'tenant_id'          => $tenant->id,
                 'rang_up_by_user_id' => auth('tenant')->id(),
                 'location_id'        => $locationId,
@@ -1564,7 +1569,36 @@ class RegisterController extends Controller
             'notes'             => 'nullable|string',
             // MARKER-PATCH-161 — per-sale receipt skip
             'skip_receipt'      => 'nullable|boolean',
+            // MARKER-SALE-DISCOUNT-PERSIST
+            'sale_discount_cents'  => 'nullable|integer|min:0',
+            'discount_code'        => 'nullable|string|max:40',
+            'expected_total_cents' => 'nullable|integer|min:0',
         ]);
+
+        // MARKER-SALE-DISCOUNT-PERSIST — apply the discount the register shows,
+        // then refuse if the register's total and the sale's still disagree.
+        // Recording a different number than the cashier and the customer saw is
+        // how a $1,999 sale was booked for a $1,350 charge.
+        if (array_key_exists('sale_discount_cents', $validated) || isset($validated['expected_total_cents'])) {
+            $draft = \App\Models\Tenant\TenantSale::where('tenant_id', $tenant->id)
+                ->where('id', $id)->whereIn('payment_status', ['draft', 'unpaid'])->first();
+            if ($draft) {
+                if (array_key_exists('sale_discount_cents', $validated)) {
+                    $draft->sale_discount_cents = (int) ($validated['sale_discount_cents'] ?? 0);
+                    $draft->save();
+                    $draft = $this->sales->recalculate($draft->fresh('items'));
+                }
+                if (isset($validated['expected_total_cents'])) {
+                    $serverTotal = (int) $draft->total_cents - (int) ($draft->tip_cents ?? 0) - (int) ($draft->surcharge_cents ?? 0);
+                    if ($serverTotal !== (int) $validated['expected_total_cents']) {
+                        return response()->json(['ok' => false, 'error' =>
+                            'This sale adds up to ' . format_money($serverTotal) . ' here, but the register shows '
+                            . format_money((int) $validated['expected_total_cents'])
+                            . '. Nothing was charged. Reload the sale and try again.'], 422);
+                    }
+                }
+            }
+        }
 
         try {
             $sale = $this->sales->commitDraft($tenant->id, $id, [
@@ -2778,7 +2812,14 @@ class RegisterController extends Controller
             'items'            => 'required|array|min:1',
             'tip_cents'        => 'nullable|integer|min:0',
             'discount_cents'   => 'nullable|integer|min:0',
+            // MARKER-SALE-DISCOUNT-PERSIST
+            'sale_discount_cents' => 'nullable|integer|min:0',
+            'discount_code'       => 'nullable|string|max:40',
         ]);
+
+        // MARKER-SALE-DISCOUNT-PERSIST — this endpoint was missed when the
+        // per-line price gate went in.
+        $this->stripLinePricesUnlessAllowed($request);
 
         $direct = new DirectPaymentsService($tenant);
         if (! $direct->isEnabled()) {
@@ -2857,6 +2898,8 @@ class RegisterController extends Controller
                     'paid_at'            => null,
                     'tip_cents'          => (int) ($validated['tip_cents'] ?? 0),
                     'discount_cents'     => (int) ($validated['discount_cents'] ?? 0),
+                    // MARKER-SALE-DISCOUNT-PERSIST — the field the server applies.
+                    'sale_discount_cents' => (int) ($validated['sale_discount_cents'] ?? 0),
                     'items'              => $validated['items'],
                     'checkout_session_id' => $session->id,
                 ]);
@@ -2876,6 +2919,23 @@ class RegisterController extends Controller
                 'ok'    => false,
                 'error' => 'Could not stage the sale. ' . $e->getMessage(),
             ], 500);
+        }
+
+        // MARKER-SALE-DISCOUNT-PERSIST — the link's amount and the sale must
+        // agree. They didn't: Stripe was charged the browser's number while the
+        // sale kept its own, so a discounted sale was booked at full price.
+        if ((int) $draftSale->total_cents !== (int) $validated['amount_cents']) {
+            \Illuminate\Support\Facades\Log::warning('direct_payments.link_amount_mismatch', [
+                'tenant_id' => $tenant->id, 'sale_id' => $draftSale->id,
+                'sale_total' => (int) $draftSale->total_cents, 'asked' => (int) $validated['amount_cents'],
+            ]);
+            \App\Support\JobFailureReporter::report(self::class, 'Payment link amount did not match the sale',
+                new \RuntimeException('sale ' . $draftSale->total_cents . ' vs link ' . $validated['amount_cents']),
+                ['sale_id' => $draftSale->id], $tenant->id);
+
+            return response()->json(['ok' => false, 'error' =>
+                'This sale adds up to ' . format_money((int) $draftSale->total_cents) . ' here, but the link was for '
+                . format_money((int) $validated['amount_cents']) . '. No link was sent. Reload the sale and try again.'], 422);
         }
 
         return response()->json([

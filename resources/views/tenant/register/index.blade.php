@@ -1540,6 +1540,11 @@ function buildDraftPayload() {
     id: cart.draft_id,
     customer_id: cart.customer ? cart.customer.id : null,
     tip_cents: cart.tipCents,
+    // MARKER-SALE-DISCOUNT-PERSIST — a whole-sale discount never left the
+    // browser: this payload didn't carry it, and the commit sends no items
+    // or totals, so the sale was always built at full price.
+    sale_discount_cents: cart.discountCents || 0,
+    discount_code: cart.discountCode || null,
     items: cart.items.map(i => {
       const out = { type: i.type, quantity: i.qty, is_taxable: i.is_taxable };
       // Round-trip per-line tax for tax_locked sales so recalc preserves it.
@@ -4316,6 +4321,9 @@ async function openPaymentLinkModal() {
         description: 'Purchase at ' + document.title,
         items: cart.items.map(serializeLine),
         tip_cents: cart.tipCents || 0,
+        // MARKER-SALE-DISCOUNT-PERSIST — the field the server applies.
+        sale_discount_cents: cart.discountCents || 0,
+        discount_code: cart.discountCode || null,
         discount_cents: cart.discountCents || 0,
         sale_id: cart.draft_id || null,
       }),
@@ -4632,6 +4640,12 @@ async function commitTransaction(opts = {}) {
       // Draft-backed pure sale — promote draft to paid (existing path).
       url = ROUTES.commitDraft + '/' + cart.draft_id + '/commit';
       payload = {
+        // MARKER-SALE-DISCOUNT-PERSIST — sent again at commit, so a discount
+        // applied after the last autosave still counts, and the register's
+        // own total is checked against the server's before money is taken.
+        sale_discount_cents: cart.discountCents || 0,
+        discount_code: cart.discountCode || null,
+        expected_total_cents: computeTotalsForCommit().total_cents,
         payment_method: cart.payment_method,
         payment_reference: cart.payment_reference,
         po_number: cart.po_number || null, // MARKER-BIZ-REGISTER
