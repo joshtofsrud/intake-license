@@ -28,6 +28,14 @@ a.at-chip.on .k{color:var(--ia-accent)}
 .at-sync-stat .v{font-size:15px;font-weight:700;margin-top:5px}
 .at-sync-stat .d{font-size:11.5px;color:var(--ia-text-muted);margin-top:2px}
 .at-sync-act{padding:14px 18px;display:flex;flex-direction:column;justify-content:center;gap:8px;flex:none;min-width:230px}
+/* MARKER-DUP-CALLOUT — the only new rules; fonts and everything else are the page's own. */
+.at-dup{border-color:var(--ia-accent);background:linear-gradient(0deg,var(--ia-accent-soft),var(--ia-accent-soft)),var(--ia-surface)}
+.at-dup-num{flex:0 0 auto;display:flex;flex-direction:column;justify-content:center}
+.at-dup-v{font-size:34px;font-weight:700;line-height:1;color:var(--ia-accent)}
+.at-dup-split{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.at-dup-split span{background:var(--ia-surface-2);border:.5px solid var(--ia-border);border-radius:var(--ia-r-md);padding:4px 10px;font-size:12px;color:var(--ia-text-muted)}
+.at-dup-split b{color:var(--ia-text);font-weight:700}
+.at-dup-split .look b{color:var(--ia-accent)}
 .at-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:7px;vertical-align:1px}
 .at-dot.ok{background:#8FD14F}.at-dot.bad{background:#F26D6D}.at-dot.run{background:var(--ia-accent)}.at-dot.idle{background:var(--ia-text-muted)}
 .at-chg{font-size:12.5px;line-height:1.6;max-width:430px}
@@ -255,13 +263,35 @@ body.at-bar-open .ia-mobile-nav{display:none}
   </a>
   @include('layouts.tenant._inventory-tabs')
 
-  {{-- MARKER-DUP-MERGE — the merge panel's front door on this page. --}}
-  @php $dupOpen = \App\Models\Tenant\TenantDuplicateGroup::openCount(tenant()->id); @endphp
+  {{-- MARKER-DUP-CALLOUT — duplicates, laid out like the sync card below (its own
+       .at-sync cells and .at-btn) so it belongs to the page; the accent border and
+       tint put it above it. Only the .at-dup rules are new CSS. --}}
+  @php
+    $dupReady = \App\Models\Tenant\TenantDuplicateGroup::where('tenant_id', tenant()->id)->where('status', 'ready')->count();
+    $dupLook  = \App\Models\Tenant\TenantDuplicateGroup::where('tenant_id', tenant()->id)->whereIn('status', ['review', 'failed'])->count();
+    $dupOpen  = $dupReady + $dupLook;
+  @endphp
   @if($dupOpen > 0)
-    <a href="{{ route('tenant.inventory.duplicates') }}" class="at-sync" style="display:flex;justify-content:space-between;align-items:center;gap:12px;text-decoration:none;color:inherit;margin-bottom:14px">
-      <span><strong>{{ number_format($dupOpen) }} {{ \Illuminate\Support\Str::plural('product', $dupOpen) }}</strong> {{ $dupOpen === 1 ? 'is' : 'are' }} in your inventory more than once.</span>
-      <span style="color:var(--ia-accent);white-space:nowrap">Review and merge →</span>
-    </a>
+    <div class="at-sync at-dup" role="region" aria-label="Duplicate products">
+      <div class="at-sync-stat at-dup-num">
+        <div class="at-dup-v">{{ number_format($dupOpen) }}</div>
+        <div class="d">duplicate {{ \Illuminate\Support\Str::plural('product', $dupOpen) }}</div>
+      </div>
+      <div class="at-sync-stat" style="flex:3">
+        <div class="v" style="margin-top:0">{{ $dupOpen === 1 ? 'This product is' : 'These products are' }} in your inventory more than once</div>
+        <div class="d" style="max-width:560px">Staff and the register can pick the wrong copy, and stock and sales split between them. Merging keeps one item with your price, stock and sales history.</div>
+        <div class="at-dup-split">
+          <span><b>{{ number_format($dupReady) }}</b> ready to merge</span>
+          @if($dupLook > 0)
+            <span class="look"><b>{{ number_format($dupLook) }}</b> {{ $dupLook === 1 ? 'needs' : 'need' }} a look</span>
+          @endif
+        </div>
+      </div>
+      <div class="at-sync-act">
+        <a href="{{ route('tenant.inventory.duplicates') }}" class="at-btn primary" style="justify-content:center;text-decoration:none">Review and merge</a>
+        <div style="font-size:11.5px;color:var(--ia-text-muted);text-align:center">Checked nightly and after each import</div>
+      </div>
+    </div>
   @endif
 
   {{-- MARKER-PATCH-558 — sync status card (supersedes the 555 button row):
