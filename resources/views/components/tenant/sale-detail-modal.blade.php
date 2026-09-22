@@ -337,7 +337,10 @@
           + (it.description ? '<div class="sd-item-desc">' + escapeHtml(it.description) + '</div>' : '')
           + '</td>'
           + '<td class="num">' + escapeHtml(String(it.quantity)) + '</td>'
-          + '<td class="num">' + escapeHtml(fmtMoney(it.unit_price_cents)) + '</td>'
+          + '<td class="num">' + escapeHtml(fmtMoney(it.unit_price_cents))
+            // MARKER-DISCOUNT-VISIBLE — a price edit on the line, said plainly.
+            + (it.discount_cents ? '<div class="sd-item-desc">less ' + escapeHtml(fmtMoney(it.discount_cents)) + '</div>' : '')
+          + '</td>'
           + '<td class="num">' + escapeHtml(fmtMoney(it.line_total_cents)) + '</td>'
           + '</tr>';
       });
@@ -349,8 +352,11 @@
     // Totals
     html += '<div class="sd-totals">';
     html += '<div class="sd-totals-row"><span>Subtotal</span><span class="num">' + escapeHtml(fmtMoney(sale.subtotal_cents)) + '</span></div>';
-    if (sale.discount_cents) {
-      html += '<div class="sd-totals-row"><span>Discount</span><span class="num">-' + escapeHtml(fmtMoney(sale.discount_cents)) + '</span></div>';
+    // MARKER-DISCOUNT-VISIBLE — sale_discount_cents is what the server applies;
+    // discount_cents is the older field. Show whichever carries the discount.
+    var sdDiscount = (sale.sale_discount_cents || 0) + (sale.discount_cents || 0);
+    if (sdDiscount) {
+      html += '<div class="sd-totals-row"><span>Discount</span><span class="num">-' + escapeHtml(fmtMoney(sdDiscount)) + '</span></div>';
     }
     if (sale.tax_cents) {
       html += '<div class="sd-totals-row"><span>Tax</span><span class="num">' + escapeHtml(fmtMoney(sale.tax_cents)) + '</span></div>';

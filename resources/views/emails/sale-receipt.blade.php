@@ -84,6 +84,14 @@
     <td style="padding:4px 0;font-size:13px;text-align:right">−{{ format_money($sale->discount_cents) }}</td>
   </tr>
   @endif
+  {{-- MARKER-DISCOUNT-VISIBLE — whole-sale discount, as the printed receipt
+       already shows it; without it the emailed receipt doesn't add up. --}}
+  @if((int) ($sale->sale_discount_cents ?? 0) > 0)
+  <tr>
+    <td style="padding:4px 0;font-size:13px;color:#666">Discount</td>
+    <td style="padding:4px 0;font-size:13px;text-align:right">−{{ format_money($sale->sale_discount_cents) }}</td>
+  </tr>
+  @endif
   @if($sale->surcharge_cents > 0)
   <tr>
     <td style="padding:4px 0;font-size:13px;color:#666">{{ $tenant->card_surcharge_label ?? 'Card surcharge' }}</td>

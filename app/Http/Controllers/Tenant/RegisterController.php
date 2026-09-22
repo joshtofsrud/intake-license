@@ -2170,6 +2170,10 @@ class RegisterController extends Controller
                 'notes'          => $sale->notes,
                 'subtotal_cents' => (int) $sale->subtotal_cents,
                 'discount_cents' => (int) $sale->discount_cents,
+                // MARKER-DISCOUNT-VISIBLE — the field the server applies; the
+                // sale showed a subtotal and a smaller total with nothing
+                // between them to explain the difference.
+                'sale_discount_cents' => (int) ($sale->sale_discount_cents ?? 0),
                 'tax_cents'      => (int) $sale->tax_cents,
                 'surcharge_cents'=> (int) $sale->surcharge_cents,
                 'tip_cents'      => (int) $sale->tip_cents,
