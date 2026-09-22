@@ -2075,7 +2075,10 @@ class RegisterController extends Controller
 
         $sale = TenantSale::where('id', $id)
             ->where('tenant_id', $tenant->id)
-            ->with(['customer', 'rangUpBy', 'items', 'location', 'refundOf:id,sale_number'])
+            // MARKER-SALE-LINE-IDS — the line's item, for its part number and
+            // barcode. withTrashed: an item merged away or deleted since the
+            // sale still identifies what was sold.
+            ->with(['customer', 'rangUpBy', 'items.inventoryItem' => fn ($q) => $q->withTrashed(), 'location', 'refundOf:id,sale_number'])
             ->first();
 
         if (! $sale) {
@@ -2105,6 +2108,11 @@ class RegisterController extends Controller
                 'quantity'         => (float) $i->quantity,
                 'unit_price_cents' => (int) $i->unit_price_cents,
                 'discount_cents'   => (int) $i->discount_cents,
+                // MARKER-SALE-LINE-IDS — what was sold, in the numbers staff
+                // and customers quote back.
+                'sku'              => $i->inventoryItem?->sku,
+                'mpn'              => $i->inventoryItem?->catalog_mpn,
+                'upc'              => $i->inventoryItem?->catalog_upc ?: $i->inventoryItem?->catalog_ean,
                 'tax_cents'        => (int) $i->tax_cents,
                 'is_taxable'       => (bool) $i->is_taxable,
                 'line_total_cents' => (int) $i->line_total_cents,

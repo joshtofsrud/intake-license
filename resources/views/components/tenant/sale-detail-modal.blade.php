@@ -93,6 +93,7 @@
   .sd-pay-del:hover{color:#F87171;background:rgba(248,113,113,.10)}
   .sd-pay-del:disabled{opacity:.5;cursor:default}
   .sd-item-desc{font-size:12px;color:var(--ia-text-dim);margin-top:2px}
+  .sd-item-ids{font-size:11.5px;color:var(--ia-text-muted);margin-top:2px;font-variant-numeric:tabular-nums} /* MARKER-SALE-LINE-IDS */
   /* MARKER-DESC-CLAMP — a distributor's marketing copy runs to hundreds of
      words and pushed the totals off the screen. Two lines, then More. */
   .sd-item-desc.clamp{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
@@ -339,6 +340,14 @@
         html += '<tr>'
           + '<td>'
           + '<div class="sd-item-name">' + escapeHtml(it.name || '—') + typeBadge + '</div>'
+          // MARKER-SALE-LINE-IDS — part number and barcode, when the line has them.
+          + (function () {
+              var ids = [];
+              if (it.mpn) { ids.push('MPN ' + it.mpn); }
+              if (it.upc) { ids.push('UPC ' + it.upc); }
+              if (!ids.length && it.sku) { ids.push('SKU ' + it.sku); }
+              return ids.length ? '<div class="sd-item-ids">' + escapeHtml(ids.join(' · ')) + '</div>' : '';
+            })()
           + (it.description
               ? '<div class="sd-item-desc clamp">' + escapeHtml(it.description) + '</div>'
                 + (String(it.description).length > 140 ? '<button type="button" class="sd-desc-more">More</button>' : '')
