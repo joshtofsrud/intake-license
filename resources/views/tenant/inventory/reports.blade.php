@@ -6,11 +6,8 @@
 @section('content')
 <div class="ia-section ia-section--wide">{{-- MARKER-SECTION-WIDTH — fluid, capped; see base.css --}}
 
-{{-- MARKER-INV-REPORTS-TABS — the shared inventory tab bar. The first
-     version of this page rendered no tabs at all, so it read as a
-     different app and Reports was unreachable from the other screens. --}}
-@include('layouts.tenant._inventory-tabs')
-
+{{-- MARKER-REPORTS-HEADER — the header goes above the tabs, as on every
+     other page in this section; this page had them the other way round. --}}
 <div class="ia-page-head">
   <div class="ia-page-head-left">
     <h1 class="ia-page-title">Inventory reports</h1>
@@ -25,6 +22,12 @@
     </div>
     <a href="{{ route('tenant.inventory.reports', ['days' => $days, 'export' => 'csv']) }}" class="ia-btn ia-btn--sm">Export CSV</a>
   </div>
+
+{{-- MARKER-INV-REPORTS-TABS — the shared inventory tab bar. The first
+     version of this page rendered no tabs at all, so it read as a
+     different app and Reports was unreachable from the other screens. --}}
+@include('layouts.tenant._inventory-tabs')
+
 </div>
 
 {{-- MARKER-INV-REPORTS-POLISH — .ia-stats-grid / .ia-stat / .ia-stat-label
