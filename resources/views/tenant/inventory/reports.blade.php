@@ -22,13 +22,14 @@
     </div>
     <a href="{{ route('tenant.inventory.reports', ['days' => $days, 'export' => 'csv']) }}" class="ia-btn ia-btn--sm">Export CSV</a>
   </div>
+</div>
 
 {{-- MARKER-INV-REPORTS-TABS — the shared inventory tab bar. The first
      version of this page rendered no tabs at all, so it read as a
-     different app and Reports was unreachable from the other screens. --}}
+     different app and Reports was unreachable from the other screens.
+     MARKER-REPORTS-HEADER-FIX — and it belongs AFTER the header, not inside
+     it: nested in that flex row the tabs sat beside the title and clipped. --}}
 @include('layouts.tenant._inventory-tabs')
-
-</div>
 
 {{-- MARKER-INV-REPORTS-POLISH — .ia-stats-grid / .ia-stat / .ia-stat-label
      / .ia-stat-value / .ia-stat-delta are the app's real components. The
