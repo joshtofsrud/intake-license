@@ -48,7 +48,18 @@ class TenantDistributorSyncService
 
         $adapter = $this->registry->forSubscription($sub);
         if ($adapter === null) {
-            throw new \RuntimeException("Subscription {$sub->id} has no usable {$code} credentials.");
+            // MARKER-OVERNIGHT-FIX — no credentials is a setting, not a fault.
+            // Throwing failed the nightly sync and reported an error every
+            // night (demo's HLC row). Say so on the subscription and stop.
+            \Illuminate\Support\Facades\DB::table('tenant_distributor_catalog_subscriptions')
+                ->where('tenant_id', $sub->tenant_id)->where('id', $sub->id)
+                ->update(['last_sync_status' => 'not_connected', 'updated_at' => now()]);
+
+            return [
+                'tenant_id' => (string) $sub->tenant_id, 'code' => $code, 'linked' => 0,
+                'note' => "{$code} isn't connected — add its credentials on the distributor page.",
+                'errors' => [], 'dry_run' => $dryRun,
+            ];
         }
 
         $tenantId = (string) $sub->tenant_id;

@@ -37,6 +37,25 @@ class ResolveTenant
         // Determine if this is a platform domain — skip tenant resolution
         // ----------------------------------------------------------------
         if ($this->isPlatformHost($host, $rootDomain, $reserved)) {
+            // MARKER-APEX-ACCOUNT — a customer-account link with no shop in it.
+            // Emails built before MARKER-TENANT-LINK carry the platform address,
+            // and they sit in inboxes for months. These pages need a shop to
+            // render, so they 500'd. Explain instead — and when a marketing page
+            // with the slug "account-help" is published, show that, so the
+            // wording is editable in master admin.
+            if ($request->is('account', 'account/*')) {
+                $platformId = \App\Models\Tenant::where('is_platform', true)->value('id');
+                $page = $platformId
+                    ? \App\Models\Tenant\TenantPage::where('tenant_id', $platformId)
+                        ->where('slug', 'account-help')->where('is_published', true)->first()
+                    : null;
+                if ($page) {
+                    return redirect('/account-help');
+                }
+
+                return response()->view('marketing.account-elsewhere', [], 404);
+            }
+
             return $next($request);
         }
 

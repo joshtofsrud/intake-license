@@ -716,7 +716,7 @@ class RegisterController extends Controller
             ->whereColumn('paid_cents', '<', 'total_cents')
             ->where('total_cents', '>', 0)
             ->whereNotIn('status', ['cancelled', 'no_show'])
-            ->orderBy('scheduled_at')
+            ->orderBy('appointment_date') // MARKER-OVERNIGHT-FIX — scheduled_at does not exist; this 500'd every time
             ->get() as $appt) {
             $out[] = [
                 'kind'          => 'appointment',
