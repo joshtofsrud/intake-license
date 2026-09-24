@@ -37,7 +37,9 @@ class CustomerAccountInvite extends Mailable
 
     public function content(): Content
     {
-        $url = route('tenant.customer.reset', [
+        // MARKER-TENANT-LINK — the shop's own address, not whatever host
+        // happened to render this email.
+        $url = $this->tenant->urlTo('account/reset', [
             'token' => $this->token,
             'email' => $this->customer->email,
         ]);

@@ -116,7 +116,8 @@ class TeamController extends Controller
             'created_at'     => now(),
             'updated_at'     => now(),
         ]);
-        $setupUrl = route('tenant.team.setup') . '?token=' . $token;
+        // MARKER-TENANT-LINK — the shop's own address (see Tenant::urlTo).
+        $setupUrl = $tenant->urlTo('team/setup', ['token' => $token]);
 
         // Best-effort email; the link is always shown to the inviter as a fallback.
         // MARKER-LEDGER-STRAGGLERS
@@ -304,7 +305,8 @@ class TeamController extends Controller
             'created_at'     => now(),
             'updated_at'     => now(),
         ]);
-        $setupUrl = route('tenant.team.setup') . '?token=' . $token;
+        // MARKER-TENANT-LINK — the shop's own address (see Tenant::urlTo).
+        $setupUrl = $tenant->urlTo('team/setup', ['token' => $token]);
 
         // MARKER-LEDGER-STRAGGLERS
         $ledger = \App\Services\EmailLedger::begin($tenant->id, 'staff', $member->email, 'team_invite');

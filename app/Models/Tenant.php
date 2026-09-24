@@ -257,6 +257,22 @@ class Tenant extends Model
         return 'https://' . $this->subdomain . '.intake.works';
     }
 
+    /**
+     * MARKER-TENANT-LINK — an absolute link to one of THIS shop's pages.
+     *
+     * route() builds from the host that happens to be generating it, and
+     * falls back to APP_URL (intake.works) when there isn't one — a queued
+     * job, a console command, anything reached through the apex. A customer
+     * then gets https://intake.works/account/reset, which belongs to no shop
+     * and cannot work. Anything customer-facing builds its links from here.
+     */
+    public function urlTo(string $path = '', array $query = []): string
+    {
+        $url = rtrim($this->publicUrl(), '/') . '/' . ltrim($path, '/');
+
+        return $query ? $url . '?' . http_build_query($query) : $url;
+    }
+
     public function bookingUrl(): string
     {
         return $this->publicUrl() . '/book';
