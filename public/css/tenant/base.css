@@ -1469,7 +1469,11 @@ html.ia-sb-collapsed .ia-sidebar-logo { padding-top: 40px; padding-bottom: 4px; 
    so a 27-inch screen doesn't stretch a table across two feet of glass. The
    pages used to set their own widths (880, 980, 1020, 1120, none), so content
    jumped as you moved between tabs. */
-.ia-section{width:100%;max-width:1440px;margin:0 auto;min-width:0}
+/* MARKER-SECTION-LEFT — left-aligned, not centred: centring made a 1440-capped
+   page and a 1680-capped one start at different left edges, so content slid
+   sideways as you moved between tabs. Now every page starts in the same
+   place and only the right edge differs. */
+.ia-section{width:100%;max-width:1440px;margin:0;min-width:0}
 .ia-section--wide{max-width:1680px}          /* table-heavy pages get more columns */
 .ia-section .ia-scroll-x{overflow-x:auto;-webkit-overflow-scrolling:touch}
 
