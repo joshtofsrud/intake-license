@@ -236,7 +236,10 @@
 
   {{-- MARKER-PRICE-SEED — the pricing check modal. --}}
   <script>
-  (function () {
+  // MARKER-PRICE-CHECK-READY — this script sits above the modal markup, so at
+  // parse time the modal doesn't exist yet: the first version bailed out here
+  // and the button did nothing. Wait for the document instead.
+  document.addEventListener('DOMContentLoaded', function () {
     var bg = document.getElementById('pcModalBg');
     if (!bg) { return; }
     var body = document.getElementById('pcBody'), title = document.getElementById('pcTitle');
@@ -295,7 +298,7 @@
 
     document.getElementById('pcClose').addEventListener('click', function () { bg.style.display = 'none'; });
     bg.addEventListener('click', function (e) { if (e.target === bg) { bg.style.display = 'none'; } });
-  })();
+  });
   </script>
 
   {{-- MARKER-TENANT-TEST-FEEDBACK --}}
