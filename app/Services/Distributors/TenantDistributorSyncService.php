@@ -148,7 +148,7 @@ class TenantDistributorSyncService
 
             // First-link seed only: MAP -> MSRP. Never overwrite a set price.
             if ($item->shop_sell_price_cents === null) {
-                $seed = $cat->map_cents ?? $cat->msrp_cents;
+                $seed = \App\Support\PriceSeed::for((string) $sub->tenant_id, $code, $cat->msrp_cents, $cat->map_cents); // MARKER-PRICE-SEED
                 if ($seed !== null) {
                     if (! $dryRun) {
                         $item->shop_sell_price_cents = $seed;

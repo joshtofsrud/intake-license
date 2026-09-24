@@ -1230,6 +1230,10 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
                 // means "keep the saved key".
                 Route::post('/connection/priority', [TenantControllers\DistributorController::class, 'movePriority'])->name('connection.priority');
                 Route::post('/connection/test',   [TenantControllers\DistributorController::class, 'testConnection'])->name('connection.test');
+                // MARKER-PRICE-SEED — the pricing rule and its check, per distributor.
+                Route::post('/connection/pricing',       [TenantControllers\DistributorController::class, 'savePricing'])->name('connection.pricing');
+                Route::get('/connection/pricing-check',  [TenantControllers\DistributorController::class, 'pricingCheck'])->name('connection.pricing.check');
+                Route::post('/connection/pricing-sweep', [TenantControllers\DistributorController::class, 'pricingSweep'])->name('connection.pricing.sweep');
                 Route::post('/connection/refresh',[TenantControllers\DistributorController::class, 'refreshSync'])->name('connection.refresh');
             });
 

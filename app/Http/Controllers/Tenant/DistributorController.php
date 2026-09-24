@@ -55,7 +55,9 @@ class DistributorController extends Controller
             // not a connection. It starts OFF and the shop turns it on.
             $sub = TenantDistributorCatalogSubscription::firstOrCreate(
                 ['tenant_id' => $tenant->id, 'distributor_code' => $code],
-                ['is_active' => false],
+                // MARKER-PRICE-SEED — new rows start at MSRP; the column
+                // defaults to 'map' so nobody already connected shifts.
+                ['is_active' => false, 'price_seed' => 'msrp'],
             );
             $creds = (array) ($sub->credentials_encrypted ?? []);
 
@@ -73,6 +75,7 @@ class DistributorController extends Controller
                 'fields'    => $registry->credentialFields($code),
                 'enabled'   => (bool) $sub->is_active,   // MARKER-DIST-TOGGLE
                 'hasKey'    => filled($creds['api_key'] ?? null),
+                'priceSeed' => $sub->price_seed ?: 'map', // MARKER-PRICE-SEED
                 'maskedKey' => $this->mask($creds['api_key'] ?? null),
                 // MARKER-PARTIAL-CREDS — a hint per field, not the whole
                 // joined credential under both of them.
@@ -297,6 +300,69 @@ class DistributorController extends Controller
             "Merged {$res['source_name']} into {$res['target_name']} — {$res['items']} items, "
             . "{$res['special_orders']} special orders and {$res['shipments']} receipts moved."
         );
+    }
+
+    /** MARKER-PRICE-SEED — which list price this distributor's new items start at. */
+    public function savePricing(Request $request): RedirectResponse
+    {
+        $this->guard();
+        $data = $request->validate([
+            'distributor_code' => ['required', 'string', 'max:32'],
+            'price_seed'       => ['required', 'in:msrp,map'],
+        ]);
+
+        TenantDistributorCatalogSubscription::where('tenant_id', tenant()->id)
+            ->where('distributor_code', strtoupper($data['distributor_code']))
+            ->update(['price_seed' => $data['price_seed'], 'updated_at' => now()]);
+
+        return back()->with('success', strtoupper($data['distributor_code']) . ': new items will start at '
+            . strtoupper($data['price_seed']) . '.');
+    }
+
+    /** MARKER-PRICE-SEED — where this distributor's items sit today. */
+    public function pricingCheck(Request $request, \App\Services\Distributors\DistributorPricingService $pricing): \Illuminate\Http\JsonResponse
+    {
+        $this->guard();
+        $code = strtoupper((string) $request->query('code', ''));
+        $sub = TenantDistributorCatalogSubscription::where('tenant_id', tenant()->id)
+            ->where('distributor_code', $code)->first();
+        if (! $sub) {
+            return response()->json(['ok' => false, 'error' => 'Not connected.'], 404);
+        }
+
+        $target = $sub->price_seed ?: 'map';
+
+        return response()->json([
+            'ok'      => true,
+            'code'    => $code,
+            'running' => cache()->has(\App\Jobs\SweepDistributorPricingJob::runningKey(tenant()->id, $code)),
+            'stats'   => $pricing->stats(tenant()->id, $code, $target),
+        ]);
+    }
+
+    /** MARKER-PRICE-SEED — move every untouched price to the chosen list price. */
+    public function pricingSweep(Request $request, \App\Services\Distributors\DistributorPricingService $pricing): RedirectResponse
+    {
+        $this->guard();
+        $data = $request->validate(['distributor_code' => ['required', 'string', 'max:32']]);
+        $code = strtoupper($data['distributor_code']);
+        $sub = TenantDistributorCatalogSubscription::where('tenant_id', tenant()->id)
+            ->where('distributor_code', $code)->firstOrFail();
+        $target = $sub->price_seed ?: 'map';
+
+        $n = $pricing->stats(tenant()->id, $code, $target)['change'];
+        if ($n === 0) {
+            return back()->with('error', 'Nothing to change — every untouched price is already at ' . strtoupper($target) . '.');
+        }
+
+        cache()->put(\App\Jobs\SweepDistributorPricingJob::runningKey(tenant()->id, $code), true, now()->addHours(2));
+        \App\Jobs\SweepDistributorPricingJob::dispatch(
+            tenant()->id, $code, $target,
+            optional($request->user())->id, optional($request->user())->email,
+        );
+
+        return back()->with('success', $code . ': moving ' . number_format($n) . ' prices to '
+            . strtoupper($target) . ' in the background. It can be put back from Catalog changes.');
     }
 
     public function movePriority(Request $request): RedirectResponse

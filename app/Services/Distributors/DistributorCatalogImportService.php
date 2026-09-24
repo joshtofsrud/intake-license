@@ -472,7 +472,9 @@ class DistributorCatalogImportService
             'color'                  => $cat->color ?: null,
             'size'                   => $cat->size ?: null,
             'catalog_title_seen'     => $cat->display_name, // baseline for the title-change watch
-            'shop_sell_price_cents'  => $cat->map_cents ?? $cat->msrp_cents, // first-link seed
+            // MARKER-PRICE-SEED — the shop's choice for this distributor, and a
+            // zero is no price at all (some feeds send MSRP 0.00).
+            'shop_sell_price_cents'  => \App\Support\PriceSeed::for($tenantId, (string) $cat->distributor_code, $cat->msrp_cents, $cat->map_cents),
             'computed_stock_count'   => 0,
             'is_stock_tracked'       => false, // catalog-only
             'is_active'              => true,

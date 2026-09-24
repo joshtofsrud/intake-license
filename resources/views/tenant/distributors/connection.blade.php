@@ -126,6 +126,43 @@
         </div>
       @endif
 
+      {{-- MARKER-PRICE-SEED — which list price this distributor's new items
+           start at, and a check of where its items sit today. Its own form, so
+           it never travels through the credential form (a blank field there
+           means "keep the saved key"). --}}
+      @if ($b['enabled'])
+        <div class="dc-row" style="border-top:.5px solid var(--ia-border);padding-top:16px;margin-top:14px">
+          <div class="dc-field" style="min-width:280px">
+            <label>Price new items at</label>
+            <form method="POST" action="{{ route('tenant.distributors.connection.pricing') }}" style="margin:0">
+              @csrf
+              <input type="hidden" name="distributor_code" value="{{ $b['code'] }}">
+              <div style="display:inline-flex;border:1px solid var(--ia-border-strong);border-radius:var(--ia-r-md);overflow:hidden">
+                @foreach (['msrp' => 'MSRP', 'map' => 'MAP'] as $val => $lbl)
+                  <button type="submit" name="price_seed" value="{{ $val }}"
+                          style="padding:8px 16px;font-size:13px;font-weight:600;border:0;cursor:pointer;
+                                 {{ ($b['priceSeed'] ?? 'map') === $val
+                                     ? 'background:var(--ia-accent);color:var(--ia-accent-text)'
+                                     : 'background:transparent;color:var(--ia-text-dim)' }}">{{ $lbl }}</button>
+                @endforeach
+              </div>
+            </form>
+            <div style="font-size:11.5px;color:var(--ia-text-dim);margin-top:6px;line-height:1.5">
+              Applies to items this distributor's imports create from now on. MAP is the lowest
+              price you may advertise, so pricing there gives up the margin between the two.
+              Prices you set yourself are never changed.
+            </div>
+          </div>
+          <div class="dc-field" style="min-width:240px">
+            <label>Pricing check</label>
+            <button type="button" class="dc-btn" data-pricing-check="{{ $b['code'] }}">Check pricing against MAP / MSRP</button>
+            <div style="font-size:11.5px;color:var(--ia-text-dim);margin-top:6px;line-height:1.5">
+              See where this distributor's items sit today, and fix them in one go.
+            </div>
+          </div>
+        </div>
+      @endif
+
       <form method="POST" action="{{ route('tenant.distributors.connection.key') }}" style="margin-top:14px">
         @csrf
         <input type="hidden" name="distributor_code" value="{{ $b['code'] }}">
@@ -197,6 +234,70 @@
     </div>
   @endforeach
 
+  {{-- MARKER-PRICE-SEED — the pricing check modal. --}}
+  <script>
+  (function () {
+    var bg = document.getElementById('pcModalBg');
+    if (!bg) { return; }
+    var body = document.getElementById('pcBody'), title = document.getElementById('pcTitle');
+    var sweep = document.getElementById('pcSweep'), codeIn = document.getElementById('pcCode');
+    var apply = document.getElementById('pcApply');
+    var money = function (c) {
+      return '$' + (Math.abs(c) / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    };
+    var row = function (label, value, strong) {
+      return '<div style="display:flex;justify-content:space-between;gap:12px;padding:11px 0;border-bottom:.5px solid var(--ia-border)'
+        + (strong ? ';font-weight:600' : '')
+        + '"><span>' + label + '</span><span style="font-family:var(--ia-font-mono)">' + value + '</span></div>';
+    };
+
+    document.querySelectorAll('[data-pricing-check]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var code = btn.getAttribute('data-pricing-check');
+        title.textContent = code + ' pricing';
+        body.innerHTML = 'Checking\u2026';
+        sweep.style.display = 'none';
+        bg.style.display = 'flex';
+
+        fetch('{{ route('tenant.distributors.connection.pricing.check') }}?code=' + encodeURIComponent(code),
+              { headers: { 'Accept': 'application/json' }, credentials: 'same-origin' })
+          .then(function (r) { return r.json(); })
+          .then(function (d) {
+            if (!d || !d.ok) { body.innerHTML = 'Could not read this distributor&rsquo;s pricing.'; return; }
+            var s = d.stats, t = s.target.toUpperCase(), other = t === 'MSRP' ? 'MAP' : 'MSRP';
+            var html = row('At MSRP', s.at_msrp.toLocaleString())
+              + row('At MAP', s.at_map.toLocaleString())
+              + row('Priced by you', s.shop_priced.toLocaleString())
+              + row('No price from the feed', s.no_price.toLocaleString())
+              + row('Still at the import&rsquo;s price, movable to ' + t, s.change.toLocaleString(), true);
+
+            if (s.change > 0 && !d.running) {
+              html += '<div style="font-size:12px;color:var(--ia-text-dim);background:var(--ia-accent-soft);'
+                + 'border:1px solid rgba(233,162,59,.25);border-radius:var(--ia-r-md);padding:10px 13px;margin-top:14px;line-height:1.55">'
+                + '<b>What this does.</b> ' + s.change.toLocaleString() + ' items still at the price the import gave them move to '
+                + t + ', ' + (s.delta_cents >= 0 ? 'raising' : 'lowering') + ' them by ' + money(s.delta_cents)
+                + ' in total, ' + Math.abs(s.avg_pct) + '% each on average. Prices you set yourself, and items with no '
+                + t + ', are left alone. It is recorded as one batch, so it can be put back from Catalog changes.</div>';
+              apply.textContent = 'Move ' + s.change.toLocaleString() + ' items to ' + t;
+              codeIn.value = d.code;
+              sweep.style.display = '';
+            } else if (d.running) {
+              html += '<div style="font-size:12.5px;color:var(--ia-text-dim);margin-top:14px">A sweep is already running in the background.</div>';
+            } else {
+              html += '<div style="font-size:12.5px;color:var(--ia-text-dim);margin-top:14px">Nothing to change: every untouched price is already at '
+                + t + '. Switch the setting to ' + other + ' to check the other way.</div>';
+            }
+            body.innerHTML = html;
+          })
+          .catch(function () { body.innerHTML = 'Could not read this distributor&rsquo;s pricing.'; });
+      });
+    });
+
+    document.getElementById('pcClose').addEventListener('click', function () { bg.style.display = 'none'; });
+    bg.addEventListener('click', function (e) { if (e.target === bg) { bg.style.display = 'none'; } });
+  })();
+  </script>
+
   {{-- MARKER-TENANT-TEST-FEEDBACK --}}
   <script>
   (function () {
@@ -242,6 +343,23 @@
     <div class="dc-unlock"><span style="color:var(--ia-accent)">&check;</span><div><b>Live availability</b> — per-warehouse stock on the item.</div></div>
     <div class="dc-unlock"><span style="color:var(--ia-accent)">&check;</span><div><b>Pricing attention</b> — vanished cost/MAP/MSRP flags on items you stock.</div></div>
     <div class="dc-unlock"><span class="dc-dim">&cir;</span><div class="dc-dim">Without a key: catalog, MAP and MSRP are visible, but cost, availability and flags stay hidden.</div></div>
+  </div>
+</div>
+
+{{-- MARKER-PRICE-SEED — the pricing check, in the app's own modal styles. --}}
+<div id="pcModalBg" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:900;align-items:flex-start;justify-content:center;padding:48px 16px;overflow:auto">
+  <div class="dc-card" style="width:100%;max-width:620px;margin:0" role="dialog" aria-label="Pricing check">
+    <h2 class="dc-h" id="pcTitle">Pricing check</h2>
+    <p class="dc-sub" id="pcSub">Where each item's price came from, and what it is now.</p>
+    <div id="pcBody" style="font-size:13px">Loading…</div>
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:18px;flex-wrap:wrap">
+      <button type="button" class="dc-btn" id="pcClose">Close</button>
+      <form method="POST" action="{{ route('tenant.distributors.connection.pricing.sweep') }}" id="pcSweep" style="margin:0;display:none">
+        @csrf
+        <input type="hidden" name="distributor_code" id="pcCode" value="">
+        <button type="submit" class="dc-btn primary" id="pcApply">Apply</button>
+      </form>
+    </div>
   </div>
 </div>
 @endsection
