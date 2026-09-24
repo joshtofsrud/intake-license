@@ -263,6 +263,13 @@ body.at-bar-open .ia-mobile-nav{display:none}
   </a>
   @include('layouts.tenant._inventory-tabs')
 
+  {{-- MARKER-ATTENTION-QUEUE — a bulk action big enough to be queued. --}}
+  @if(cache()->has(\App\Jobs\ResolvePricingAttentionJob::runningKey(tenant()->id)))
+    <div class="at-sync" style="padding:14px 18px;margin-bottom:14px">
+      Applying your last bulk action in the background. This list empties as it finishes — refresh to see progress.
+    </div>
+  @endif
+
   {{-- MARKER-DUP-CALLOUT — duplicates, laid out like the sync card below (its own
        .at-sync cells and .at-btn) so it belongs to the page; the accent border and
        tint put it above it. Only the .at-dup rules are new CSS. --}}

@@ -859,165 +859,50 @@ class DistributorController extends Controller
             $request->merge(['select_all' => false]);
         }
 
-        $q = \App\Models\Tenant\TenantPricingAttentionFlag::query()
-            ->with('item.distributorCatalog')
-            ->where('tenant_id', tenant()->id)
-            ->where('status', 'open');
+        // MARKER-ATTENTION-QUEUE — the same work, in a service both this
+        // request and the queued job call. Over a couple of hundred flags it
+        // cannot finish inside a request (nginx cuts it at 60s), so it queues.
+        $sel = [
+            'select_all' => $request->boolean('select_all'),
+            'f_brand'    => $data['f_brand'] ?? null,
+            'f_category' => $data['f_category'] ?? null,
+            'f_reason'   => $data['f_reason'] ?? null,
+            'f_stock'    => $data['f_stock'] ?? 'all',
+            'flag_ids'   => $data['flag_ids'] ?? [],
+        ];
 
-        if ($request->boolean('select_all')) {
-            // "Apply to all matching the filter" — re-query server-side, ignore ids.
-            if (filled($data['f_brand'] ?? null)) {
-                $q->whereHas('item.distributorCatalog', fn ($w) => $w->where('manufacturer', $data['f_brand']));
-            }
-            if (filled($data['f_category'] ?? null)) {
-                $q->whereHas('item.distributorCatalog', fn ($w) => $w->where('category', $data['f_category']));
-            }
-            if (filled($data['f_reason'] ?? null)) {
-                $q->where('reason', $data['f_reason']);
-            }
-            if (($data['f_stock'] ?? 'all') === 'in') {
-                $q->whereHas('item', fn ($w) => $w->where('computed_stock_count', '>', 0));
-            } elseif (($data['f_stock'] ?? 'all') === 'out') {
-                $q->whereHas('item', fn ($w) => $w->where('computed_stock_count', '<=', 0));
-            }
-        } else {
-            $q->whereIn('id', $data['flag_ids'] ?? []);
-        }
-
-        // MARKER-ATTENTION-SCALE -- a select-all over thousands of flags must
-        // not hydrate everything at once; stream in id-ordered chunks.
-        if (! (clone $q)->exists()) {
+        $resolver = app(\App\Services\Tenant\PricingAttentionResolver::class);
+        $count = $resolver->query(tenant()->id, $sel)->count();
+        if ($count === 0) {
             return back()->with('error', 'Nothing selected.');
-        }
-        $flags = $q->lazyById(200);
-
-        $applied = 0;
-        $skipped = 0;
-        $userId = optional($request->user())->id;
-
-        // MARKER-CATALOG-HISTORY — capture what these items look like before we
-        // touch them, so the batch can be put back.
-        $recorder = new \App\Services\Tenant\CatalogChangeRecorder(
-            tenant()->id,
-            $action,
-            [
-                'select_all' => (bool) ($data['select_all'] ?? false),
-                'brand'      => $data['f_brand'] ?? null,
-                'category'   => $data['f_category'] ?? null,
-                'reason'     => $data['f_reason'] ?? null,
-            ],
-            optional($request->user())->email,
-        );
-        $titleReason = \App\Models\Tenant\TenantPricingAttentionFlag::REASON_TITLE_CHANGED;
-        $detailsReason = \App\Models\Tenant\TenantPricingAttentionFlag::REASON_DETAILS_CHANGED; // MARKER-DETAILS-WATCH
-
-        foreach ($flags as $flag) {
-            $isTitle = $flag->reason === $titleReason;
-            $isDetails = $flag->reason === $detailsReason; // MARKER-DETAILS-WATCH
-            $item = $flag->item;
-
-            // Type guards — an action only applies to the matching flag kind.
-            if (in_array($action, ['adopt_title', 'keep_title'], true) && ! $isTitle) {
-                $skipped++;
-                continue;
-            }
-            if (in_array($action, ['adopt_details', 'keep_details'], true) && ! $isDetails) {
-                $skipped++;
-                continue;
-            }
-            if (in_array($action, ['raise_map', 'match_msrp'], true) && ($isTitle || $isDetails)) {
-                $skipped++;
-                continue;
-            }
-
-            if ($action === 'raise_map' || $action === 'match_msrp') {
-                $target = $action === 'raise_map'
-                    ? ($item?->catalog_map_cents ?? ($flag->detail['prev_map_cents'] ?? null))
-                    : ($item?->catalog_msrp_cents ?? ($flag->detail['prev_msrp_cents'] ?? null));
-                if (! $item || ! $target) {
-                    $skipped++;
-                    continue;
-                }
-                $recorder->capture($item);          // MARKER-CATALOG-HISTORY
-                $item->shop_sell_price_cents = (int) $target;
-                $item->save();
-                $recorder->captured($item);
-            } elseif ($action === 'adopt_title') {
-                $cat = $item?->distributorCatalog;
-                if (! $item || ! $cat || blank($cat->display_name)) {
-                    $skipped++;
-                    continue;
-                }
-                $recorder->capture($item);          // MARKER-CATALOG-HISTORY
-                $item->name = $cat->display_name;
-                $item->catalog_title_seen = $cat->display_name; // snapshot so it won't re-flag
-                $item->save();
-                $recorder->captured($item);          // MARKER-CATALOG-HISTORY
-            } elseif ($action === 'keep_title') {
-                // Keep the tenant's name; just acknowledge the catalog's new title
-                // so the watch stops flagging it.
-                $cat = $item?->distributorCatalog;
-                if ($item && $cat) {
-                    $item->catalog_title_seen = $cat->display_name;
-                    $item->save();
-                }
-            } elseif ($action === 'adopt_details') {
-                // MARKER-DETAILS-WATCH — copy only non-blank catalog values;
-                // the feed dropping a field never blanks the shop's own.
-                $cat = $item?->distributorCatalog;
-                if (! $item || ! $cat) {
-                    $skipped++;
-                    continue;
-                }
-                $recorder->capture($item);          // MARKER-CATALOG-HISTORY
-                foreach (['color', 'size', 'description'] as $fld) {
-                    if (filled($cat->{$fld})) {
-                        $item->{$fld} = $cat->{$fld};
-                    }
-                }
-                $item->catalog_details_seen = [
-                    'color'       => $cat->color,
-                    'size'        => $cat->size,
-                    'description' => $cat->description,
-                ];
-                $item->save();
-                $recorder->captured($item);          // MARKER-CATALOG-HISTORY
-            } elseif ($action === 'keep_details') {
-                // Keep the tenant's values; snapshot the catalog's so the
-                // watch stops flagging this change.
-                $cat = $item?->distributorCatalog;
-                if ($item && $cat) {
-                    $item->catalog_details_seen = [
-                        'color'       => $cat->color,
-                        'size'        => $cat->size,
-                        'description' => $cat->description,
-                    ];
-                    $item->save();
-                }
-            }
-            // 'acknowledge' falls through to resolve with no item change.
-
-            $flag->status = 'resolved';
-            $flag->resolved_at = now();
-            $flag->resolved_by = $userId;
-            $flag->save();
-            $applied++;
         }
 
         $verb = [
-            'raise_map'   => 'Raised to MAP',
-            'match_msrp'  => 'Matched to MSRP',
-            'acknowledge' => 'Dismissed',
-            'adopt_title' => 'Adopted new title',
-            'keep_title'  => 'Kept your title',
+            'raise_map'     => 'Raised to MAP',
+            'match_msrp'    => 'Matched to MSRP',
+            'acknowledge'   => 'Dismissed',
+            'adopt_title'   => 'Adopted new title',
+            'keep_title'    => 'Kept your title',
             'adopt_details' => 'Adopted new details',
             'keep_details'  => 'Kept your details',
         ][$action];
-        $msg = "{$verb}: {$applied} item(s)." . ($skipped ? " {$skipped} skipped." : '');
 
-        // MARKER-CATALOG-HISTORY — one batch per bulk action.
+        if ($count > 200) {
+            cache()->put(\App\Jobs\ResolvePricingAttentionJob::runningKey(tenant()->id), true, now()->addHours(2));
+            \App\Jobs\ResolvePricingAttentionJob::dispatch(
+                tenant()->id, $action, $sel,
+                optional($request->user())->id, optional($request->user())->email,
+            );
 
-        $batchId = $recorder->finish();
+            return back()->with('success', $verb . ': applying to ' . number_format($count)
+                . ' items in the background. This list empties as they finish — refresh to see progress.');
+        }
+
+        $res = $resolver->run(
+            tenant()->id, $action, $sel,
+            optional($request->user())->id, optional($request->user())->email,
+        );
+        $msg = "{$verb}: {$res['applied']} item(s)." . ($res['skipped'] ? " {$res['skipped']} skipped." : '');
 
         return back()->with('success', $msg);
     }
