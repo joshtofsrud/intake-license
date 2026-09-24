@@ -253,7 +253,7 @@ body.at-bar-open .ia-mobile-nav{display:none}
         ->implode(' ');
   };
 @endphp
-<div style="max-width:980px">
+<div class="ia-section ia-section--wide">{{-- MARKER-SECTION-WIDTH --}}
   {{-- MARKER-ATTENTION-PER-DIST — this queue spans every connected
        distributor, so it can't be titled after one of them. --}}
   <h1 style="font-size:20px;font-weight:600;margin-bottom:14px">Distributor catalogs</h1>

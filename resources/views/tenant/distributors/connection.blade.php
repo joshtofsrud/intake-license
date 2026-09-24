@@ -39,7 +39,7 @@
      multi-distributor boxes folded in. The previous patch replaced this whole
      section and silently dropped the tabs, the Account # field and the
      "what your key unlocks" panel. --}}
-<div style="max-width:880px">
+<div class="ia-section">{{-- MARKER-SECTION-WIDTH --}}
   <h1 style="font-size:20px;font-weight:600;margin-bottom:14px">Distributor catalogs</h1>
   @include('layouts.tenant._inventory-tabs')
 

@@ -1464,6 +1464,24 @@ html.ia-sb-collapsed .ia-sidebar-logo { padding-top: 40px; padding-bottom: 4px; 
    .pb2-shell (and anything else that escapes the layout with position:fixed)
    reads this instead of hardcoding 220px and silently breaking when the
    sidebar collapses. */
+/* MARKER-SECTION-WIDTH — one measure for a section's pages.
+   Fluid, so an iPad or a 1280 laptop fills the window exactly as before; capped
+   so a 27-inch screen doesn't stretch a table across two feet of glass. The
+   pages used to set their own widths (880, 980, 1020, 1120, none), so content
+   jumped as you moved between tabs. */
+.ia-section{width:100%;max-width:1440px;margin:0 auto;min-width:0}
+.ia-section--wide{max-width:1680px}          /* table-heavy pages get more columns */
+.ia-section .ia-scroll-x{overflow-x:auto;-webkit-overflow-scrolling:touch}
+
+/* MARKER-SECTION-WIDTH — the tab bar keeps the current tab in view instead of
+   clipping it, and fades at the edge so it reads as scrollable. */
+.ia-tabs{position:relative;min-width:0}
+.ia-tabs::after{content:'';position:absolute;right:0;top:0;bottom:1px;width:28px;pointer-events:none;
+  background:linear-gradient(to right,transparent,var(--ia-bg))}
+.ia-tabs.at-end::after{opacity:0}
+.ia-tabs-bar{scrollbar-width:none}
+.ia-tabs-bar::-webkit-scrollbar{display:none}
+
 :root { --ia-sidebar-w: 220px; }
 html.ia-sb-collapsed { --ia-sidebar-w: 60px; }
 @media (max-width: 900px) {

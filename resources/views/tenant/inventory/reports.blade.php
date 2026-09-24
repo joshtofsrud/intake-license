@@ -4,6 +4,7 @@
 @section('title', 'Inventory reports')
 
 @section('content')
+<div class="ia-section ia-section--wide">{{-- MARKER-SECTION-WIDTH — fluid, capped; see base.css --}}
 
 {{-- MARKER-INV-REPORTS-TABS — the shared inventory tab bar. The first
      version of this page rendered no tabs at all, so it read as a
@@ -148,6 +149,7 @@
     @endif
   </div>
 </div>
+</div>{{-- MARKER-SECTION-WIDTH --}}
 @endsection
 
 @push('styles')

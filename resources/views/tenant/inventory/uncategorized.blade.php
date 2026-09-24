@@ -6,7 +6,7 @@
 @php $bucketLabel = $activeBucketLabel ?? ($activeBucket === '__none__' ? 'No catalog signal' : preg_replace('/^(src|cat):/', '', $activeBucket)); @endphp{{-- MARKER-UNCAT-LABEL3 — this recomputed the label from the raw key and overwrote the controller's --}}
 <style>@media(max-width:880px){.uc-grid{grid-template-columns:1fr !important}}</style>
 
-<div style="max-width:1120px">
+<div class="ia-section ia-section--wide">{{-- MARKER-SECTION-WIDTH --}}
   <div class="ia-page-head">
     <div class="ia-page-head-left">
       <h1 class="ia-page-title">Inventory</h1>

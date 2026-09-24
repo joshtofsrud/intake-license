@@ -28,11 +28,33 @@
       $invTabs[] = ['route' => 'tenant.distributors.connection', 'label' => 'Connection & sync', 'match' => 'tenant.distributors.connection'];
   }
 @endphp
-<div style="display:flex;gap:4px;border-bottom:1px solid var(--ia-border);margin-bottom:22px;overflow-x:auto;white-space:nowrap">
+{{-- MARKER-SECTION-WIDTH — the bar scrolls, and the current tab is scrolled
+     into view: on Catalog attention the first tab was cut off, and on Import
+     and Connection the last one sat off-screen. --}}
+<div class="ia-tabs">
+<div class="ia-tabs-bar" style="display:flex;gap:4px;border-bottom:1px solid var(--ia-border);margin-bottom:22px;overflow-x:auto;white-space:nowrap">
   @foreach($invTabs as $t)
     @continue(! Route::has($t['route']))
     @php $active = str_starts_with($cur, $t['match']); @endphp
-    <a href="{{ route($t['route']) }}"
+    <a href="{{ route($t['route']) }}" @if($active) data-tab-active @endif
        style="padding:9px 15px;font-size:13px;font-weight:600;text-decoration:none;flex-shrink:0;border-bottom:2px solid {{ $active ? 'var(--ia-accent)' : 'transparent' }};color:{{ $active ? 'var(--ia-text)' : 'var(--ia-text-dim)' }}">{{ $t['label'] }}</a>
   @endforeach
 </div>
+</div>
+<script>
+// MARKER-SECTION-WIDTH — keep the current tab visible, and drop the right-hand
+// fade once the bar is scrolled to its end.
+(function () {
+  var wrap = document.currentScript.previousElementSibling;
+  if (!wrap || !wrap.classList.contains('ia-tabs')) { return; }
+  var bar = wrap.querySelector('.ia-tabs-bar');
+  var active = bar && bar.querySelector('[data-tab-active]');
+  if (active && bar.scrollWidth > bar.clientWidth) {
+    bar.scrollLeft = Math.max(0, active.offsetLeft - (bar.clientWidth - active.offsetWidth) / 2);
+  }
+  var edge = function () {
+    wrap.classList.toggle('at-end', bar.scrollLeft + bar.clientWidth >= bar.scrollWidth - 2);
+  };
+  if (bar) { bar.addEventListener('scroll', edge, { passive: true }); edge(); }
+})();
+</script>

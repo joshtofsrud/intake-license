@@ -29,7 +29,7 @@
 @endpush
 
 @section('content')
-<div style="max-width:880px">
+<div class="ia-section">{{-- MARKER-SECTION-WIDTH --}}
   <h1 style="font-size:20px;font-weight:600;margin-bottom:14px">Import from {{ $importCode }}</h1>
 
   {{-- MARKER-IMPORTER-PER-CODE — brands, categories and counts are per

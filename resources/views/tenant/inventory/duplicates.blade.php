@@ -23,7 +23,7 @@
   @media(max-width:720px){.dp-row{grid-template-columns:1fr}.dp-row .dp-arrow{display:none}}
 </style>
 
-<div style="max-width:1020px">
+<div class="ia-section">{{-- MARKER-SECTION-WIDTH --}}
   <div class="ia-page-head">
     <div class="ia-page-head-left">
       <h1 class="ia-page-title">Duplicate items</h1>

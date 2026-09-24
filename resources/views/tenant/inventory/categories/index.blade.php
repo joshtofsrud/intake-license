@@ -2,6 +2,7 @@
 @php $pageTitle = 'Inventory categories'; @endphp
 
 @section('content')
+<div class="ia-section">{{-- MARKER-SECTION-WIDTH — fluid, capped; see base.css --}}
 
 <div class="ia-page-head">
   <div class="ia-page-head-left">
@@ -168,6 +169,7 @@
   @endif
 </div>
 
+</div>{{-- MARKER-SECTION-WIDTH --}}
 @endsection
 
 {{-- MARKER-SSEL-BATCH1 — ssel-submit-handler. The native row select had

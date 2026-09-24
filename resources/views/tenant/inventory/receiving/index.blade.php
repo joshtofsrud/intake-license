@@ -55,6 +55,7 @@
 @endpush
 
 @section('content')
+<div class="ia-section">{{-- MARKER-SECTION-WIDTH — fluid, capped; see base.css --}}
 
 <div class="ia-page-head">
   <div class="ia-page-head-left">
@@ -232,4 +233,5 @@
   </div>
 @endif
 
+</div>{{-- MARKER-SECTION-WIDTH --}}
 @endsection
