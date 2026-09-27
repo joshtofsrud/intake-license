@@ -186,6 +186,7 @@
   <a href="{{ route('tenant.register.quotes.index') }}" class="reg-tab-link">Quotes</a>
   {{-- MARKER-LAYAWAY-TAB --}}
   <a href="{{ route('tenant.register.layaways.index') }}" class="reg-tab-link active">Layaways</a>
+  <a href="{{ route('tenant.register.reconciliation') }}" class="reg-tab-link">Reconciliation</a> {{-- MARKER-REG-RECON-TAB --}}
   <a href="{{ route('tenant.register.settings') }}" class="reg-tab-link">Settings</a> {{-- MARKER-REG-SETTINGS --}}
   </div>
 </div>

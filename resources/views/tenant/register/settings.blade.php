@@ -64,6 +64,7 @@
   {{-- MARKER-LAYAWAY-TAB --}}
   <a href="{{ route('tenant.register.layaways.index') }}" class="reg-tab-link">Layaways</a>
   <a href="{{ route('tenant.register.registers') }}" class="reg-tab-link">Registers</a>
+  <a href="{{ route('tenant.register.reconciliation') }}" class="reg-tab-link">Reconciliation</a> {{-- MARKER-REG-RECON-TAB --}}
   <a href="{{ route('tenant.register.settings') }}" class="reg-tab-link active">Settings</a>
   </div>
 </div>

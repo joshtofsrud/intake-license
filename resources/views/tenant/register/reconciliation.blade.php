@@ -5,6 +5,20 @@
 
 @push('styles')
 <style>
+  /* MARKER-REG-RECON-TAB — the Register tab bar, as the other Register pages
+     draw it; this page had none, so it could only be reached from an alert. */
+  .reg-tabs-bar{display:flex;gap:4px;margin:0 0 18px;border-bottom:0.5px solid var(--ia-border);flex-wrap:wrap}
+  .reg-tabs-scroll{display:contents}
+  @media (max-width: 760px){
+    .reg-tabs-bar{display:block;flex-wrap:nowrap}
+    .reg-tabs-scroll{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+    .reg-tabs-scroll::-webkit-scrollbar{display:none}
+    .reg-tab-link{white-space:nowrap;flex:0 0 auto;padding:10px 14px}
+  }
+  .reg-tab-link{padding:10px 18px;font-size:13px;font-weight:500;color:var(--ia-text-dim);text-decoration:none;
+    border-bottom:2px solid transparent;margin-bottom:-0.5px;transition:color var(--ia-t),border-color var(--ia-t)}
+  .reg-tab-link:hover{color:var(--ia-text)}
+  .reg-tab-link.active{color:var(--ia-text);border-bottom-color:var(--ia-accent)}
   .rec-wrap{max-width:980px;margin:0 auto;padding:8px 0 60px}
   .rec-head{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:8px;flex-wrap:wrap;gap:12px}
   .rec-head h1{font-size:22px;font-weight:700;letter-spacing:-.01em;margin:0}
@@ -32,6 +46,17 @@
 @endpush
 
 @section('content')
+<div class="reg-tabs-bar">
+  <div class="reg-tabs-scroll">
+  <a href="{{ route('tenant.register.index') }}" class="reg-tab-link">Transaction</a>
+  <a href="{{ route('tenant.register.history.index') }}" class="reg-tab-link">Transaction History</a>
+  <a href="{{ route('tenant.register.quotes.index') }}" class="reg-tab-link">Quotes</a>
+  <a href="{{ route('tenant.register.layaways.index') }}" class="reg-tab-link">Layaways</a>
+  <a href="{{ route('tenant.register.registers') }}" class="reg-tab-link">Registers</a>
+  <a href="{{ route('tenant.register.reconciliation') }}" class="reg-tab-link active">Reconciliation</a>
+  <a href="{{ route('tenant.register.settings') }}" class="reg-tab-link">Settings</a>
+  </div>
+</div>
 <div class="rec-wrap">
   <div class="rec-head">
     <div>
