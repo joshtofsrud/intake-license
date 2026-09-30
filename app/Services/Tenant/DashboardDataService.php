@@ -112,7 +112,55 @@ class DashboardDataService
             $todayDeliveries = collect();
         }
 
+        // MARKER-DASH-NEXT-DAY — an empty today points at the next day that
+        // has work (within 30 days), for appointments and for pickups/drop-offs
+        // separately, so the dashboard says what's coming instead of "nothing".
+        $tz = $this->tenant->timezone();
+        $horizon = $this->tnow()->copy()->addDays(30);
+        $nextApptDay = null;
+        $nextAppts = collect();
+        if ($todayAppointments->isEmpty()) {
+            $d = TenantAppointment::where('tenant_id', $this->tenant->id)
+                ->whereDate('appointment_date', '>', $today)
+                ->whereDate('appointment_date', '<=', $horizon->toDateString())
+                ->whereNotIn('status', AppointmentStatus::terminalStatuses())
+                ->min('appointment_date');
+            if ($d) {
+                $nextApptDay = Carbon::parse(substr((string) $d, 0, 10), $tz)->startOfDay();
+                $nextAppts = TenantAppointment::where('tenant_id', $this->tenant->id)
+                    ->whereDate('appointment_date', $nextApptDay->toDateString())
+                    ->whereNotIn('status', AppointmentStatus::terminalStatuses())
+                    ->orderByRaw('appointment_time IS NULL, appointment_time ASC')
+                    ->orderBy('created_at')
+                    ->with(['items', 'customer'])
+                    ->get();
+            }
+        }
+        $nextDeliveryDay = null;
+        $nextDeliveries = collect();
+        if ($todayDeliveries->isEmpty()) {
+            try {
+                $first = \App\Models\Tenant\TenantDelivery::where('tenant_id', $this->tenant->id)
+                    ->where('status', '!=', \App\Models\Tenant\TenantDelivery::STATUS_CANCELLED)
+                    ->where('scheduled_at', '>', $this->tnow()->copy()->setTimezone($tz)->endOfDay()->utc())
+                    ->where('scheduled_at', '<=', $horizon->copy()->utc())
+                    ->orderBy('scheduled_at')
+                    ->value('scheduled_at');
+                if ($first) {
+                    $nextDeliveryDay = Carbon::parse($first, 'UTC')->setTimezone($tz)->startOfDay();
+                    $nextDeliveries = (new \App\Services\Tenant\TenantDeliveryService($this->tenant))->forDay($nextDeliveryDay);
+                }
+            } catch (\Throwable $e) {
+                $nextDeliveryDay = null;
+                $nextDeliveries = collect();
+            }
+        }
+
         return [
+            'next_day'            => $nextApptDay,
+            'next_day_appointments' => $nextAppts,
+            'next_delivery_day'   => $nextDeliveryDay,
+            'next_day_deliveries' => $nextDeliveries,
             'appointments'        => $todayAppointments,
             'today_count'         => $todayAppointments->count(),
             'today_deliveries'    => $todayDeliveries,
