@@ -409,3 +409,14 @@
 .ia-msched-strip-dots { display: flex; gap: 3px; height: 4px; margin-top: 1px; }
 .ia-msched-strip-dots i { width: 4px; height: 4px; border-radius: 50%; background: var(--ia-accent); }
 .ia-msched-strip-chip.is-active .ia-msched-strip-dots i { background: var(--ia-accent-text); }
+
+/* MARKER-STRIP-MONTHS — the month above the strip, and the date picker laid
+   invisibly over it so one tap opens the phone's own picker. */
+.ia-msched-month { position: relative; display: inline-flex; align-items: center; gap: 6px;
+  font-size: 15px; font-weight: 600; margin: 2px 0 8px; color: var(--ia-text); }
+.ia-msched-month-caret { font-size: 11px; opacity: .55; }
+.ia-msched-month input[type="date"] { position: absolute; inset: 0; width: 100%; height: 100%;
+  opacity: 0; cursor: pointer; -webkit-appearance: none; appearance: none; border: 0; }
+/* The 1st of each month shows its month, in the accent, so the boundary is plain. */
+.ia-msched-strip-chip.is-month-start .ia-msched-strip-dow { color: var(--ia-accent); opacity: 1; font-weight: 700; }
+.ia-msched-strip-chip.is-month-start.is-active .ia-msched-strip-dow { color: var(--ia-accent-text); }

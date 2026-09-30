@@ -38,12 +38,16 @@
 
   // MARKER-SWIPE-STRIP — a long strip you can flick through, not seven fixed
   // days: four weeks back, eight forward. The selected day is centred on load.
-  $msStripStart = $msAnchorDate->copy()->subDays(28);
+  // MARKER-STRIP-MONTHS — a year back and three months forward; the month
+  // label and the date picker above the strip reach anything further.
+  $msStripStart = $msAnchorDate->copy()->subDays(365);
   $msStripDays = [];
-  for ($i = 0; $i < 85; $i++) {
+  for ($i = 0; $i <= 365 + 92; $i++) {
     $d = $msStripStart->copy()->addDays($i);
     $msStripDays[] = [
       'date'      => $d->toDateString(),
+      'month'     => $d->format('F Y'),
+      'mon'       => strtoupper($d->format('M')),
       'dow'       => $d->format('D'),
       'num'       => (int) $d->format('j'),
       'is_today'  => $d->toDateString() === $todayStr,
@@ -197,6 +201,22 @@
     </div>
   @endif
 
+  {{-- MARKER-STRIP-MONTHS — which month you're looking at, updated as you swipe.
+       Tapping it opens the date picker (the input sits invisibly over the
+       label so the phone's own picker opens on the first tap). --}}
+  @php
+    $msPickParams = ['view' => $viewMode === 'week' ? 'week' : 'day', 'date' => '__DATE__'];
+    if ($filterMode !== 'all' && !empty($msVisibleResourceIds)) {
+      $msPickParams['resources'] = implode(',', $msVisibleResourceIds);
+    }
+  @endphp
+  <div class="ia-msched-month">
+    <span id="msMonth">{{ $msAnchorDate->format('F Y') }}</span>
+    <span class="ia-msched-month-caret" aria-hidden="true">▾</span>
+    <input type="date" id="msPick" value="{{ $msAnchorDateStr }}" aria-label="Go to a date"
+           data-url="{{ route('tenant.calendar.index', $msPickParams) }}">
+  </div>
+
   {{-- MARKER-SWIPE-STRIP — swipe with the phone's own momentum; snaps gently to a day. --}}
   <div class="ia-msched-strip is-swipe" role="tablist" id="msStrip">
     @foreach($msStripDays as $sd)
@@ -207,9 +227,11 @@
         }
       @endphp
       <a href="{{ route('tenant.calendar.index', $stripParams) }}"
-         class="ia-msched-strip-chip {{ $sd['is_anchor'] ? 'is-active' : '' }} {{ $sd['is_today'] ? 'is-today' : '' }}"
+         class="ia-msched-strip-chip {{ $sd['is_anchor'] ? 'is-active' : '' }} {{ $sd['is_today'] ? 'is-today' : '' }} {{ $sd['num'] === 1 ? 'is-month-start' : '' }}"
+         data-month="{{ $sd['month'] }}"
          role="tab" aria-selected="{{ $sd['is_anchor'] ? 'true' : 'false' }}">
-        <span class="ia-msched-strip-dow">{{ $sd['dow'] }}</span>
+        {{-- MARKER-STRIP-MONTHS — the 1st shows its month instead of its weekday. --}}
+        <span class="ia-msched-strip-dow">{{ $sd['num'] === 1 ? $sd['mon'] : $sd['dow'] }}</span>
         <span class="ia-msched-strip-num">{{ $sd['num'] }}</span>
         <span class="ia-msched-strip-dots" aria-label="{{ $sd['count'] }} {{ \Illuminate\Support\Str::plural('appointment', $sd['count']) }}">
           @for ($di = 0; $di < $sd['dots']; $di++)
@@ -225,6 +247,31 @@
     var s = document.getElementById('msStrip');
     var a = s && s.querySelector('.is-active');
     if (a) { s.scrollLeft = a.offsetLeft - (s.clientWidth - a.offsetWidth) / 2; }
+
+    // MARKER-STRIP-MONTHS — the label follows the day in the middle of the strip.
+    var label = document.getElementById('msMonth');
+    var ticking = false;
+    var update = function () {
+      ticking = false;
+      if (!s || !label) { return; }
+      var mid = s.scrollLeft + s.clientWidth / 2, chips = s.children;
+      for (var i = 0; i < chips.length; i++) {
+        var c = chips[i];
+        if (c.offsetLeft <= mid && c.offsetLeft + c.offsetWidth >= mid) {
+          if (label.textContent !== c.dataset.month) { label.textContent = c.dataset.month; }
+          break;
+        }
+      }
+    };
+    if (s) { s.addEventListener('scroll', function () { if (!ticking) { ticking = true; requestAnimationFrame(update); } }, { passive: true }); }
+
+    // Any date, however far back: the picker navigates straight to it.
+    var pick = document.getElementById('msPick');
+    if (pick) {
+      pick.addEventListener('change', function () {
+        if (pick.value) { window.location.href = pick.dataset.url.replace('__DATE__', pick.value); }
+      });
+    }
   })();
   </script>
 
