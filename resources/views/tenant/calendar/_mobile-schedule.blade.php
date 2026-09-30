@@ -266,6 +266,52 @@
       @endforeach
     </div>
     <div class="ia-mm-legend">One bar per appointment, in its resource's colour · swipe sideways for another month</div>
+
+    {{-- MARKER-MONTH-INPLACE — every day of the grid has its list on the page
+         already (the month data is loaded anyway), so tapping a day swaps the
+         list in place instead of reloading the page. --}}
+    @foreach(($cells ?? []) as $mmCell)
+      @php $mmDay = collect($byDate[$mmCell['dateStr']] ?? [])->sortBy('appointment_time')->values(); @endphp
+      <div class="ia-mm-list" data-date="{{ $mmCell['dateStr'] }}" data-title="{{ $mmCell['date']->format('l, M j') }}"
+           data-count="{{ $mmDay->count() }}" {{ $mmCell['dateStr'] === $msAnchorDateStr ? '' : 'hidden' }}>
+        @if($mmDay->isEmpty())
+          <div class="ia-msched-empty">
+            <div class="ia-msched-empty-h">Nothing on the books</div>
+            <div class="ia-msched-empty-sub">Tap the + button to start a walk-in, or pick a different day above.</div>
+          </div>
+        @else
+          <div class="ia-msched-list">
+            @foreach($mmDay as $appt)
+              @php
+                $t = $msFmtTime($appt);
+                $r = $msResourceById[$appt->resource_id] ?? null;
+                $rColor = $r?->color_hex ?: '#888';
+              @endphp
+              <a href="{{ route('tenant.appointments.show', $appt->id) }}" class="ia-msched-row">
+                <div class="ia-msched-row-time">
+                  <div class="ia-msched-row-time-hm">{{ $t['hm'] }}</div>
+                  <div class="ia-msched-row-time-ap">{{ $t['ap'] }}</div>
+                </div>
+                <div class="ia-msched-row-stripe" style="background:{{ $rColor }}"></div>
+                <div class="ia-msched-row-body">
+                  <div class="ia-msched-row-cust">{{ trim(($appt->customer_first_name ?? '') . ' ' . ($appt->customer_last_name ?? '')) ?: 'Customer' }}</div>
+                  @if($appt->items->isNotEmpty())
+                    <div class="ia-msched-row-svc-main">{{ $appt->items->first()->item_name_snapshot }}</div>
+                  @endif
+                  <div class="ia-msched-row-meta">
+                    @if($r)
+                      <span class="ia-msched-row-res-dot" style="background:{{ $rColor }}"></span>
+                      <span class="ia-msched-row-res">{{ $r->name }}</span>
+                    @endif
+                  </div>
+                </div>
+                <span class="ia-msched-row-status {{ $msStatusClass($appt->status) }}" aria-label="{{ ucfirst(str_replace('_', ' ', $appt->status)) }}"></span>
+              </a>
+            @endforeach
+          </div>
+        @endif
+      </div>
+    @endforeach
     <script>
     // MARKER-MONTH-PHONE — swipe the grid for the next/previous month; the
     // month label opens the phone's date picker.
@@ -285,6 +331,29 @@
       }
       var p = document.getElementById('mmPick');
       if (p) { p.addEventListener('change', function () { if (p.value) { window.location.href = p.dataset.url.replace('__DATE__', p.value); } }); }
+
+      // MARKER-MONTH-INPLACE — select a day without reloading: move the
+      // highlight, show its list, update the heading and the address, and
+      // point Day/Week at it.
+      var title = document.querySelector('.ia-msched-title');
+      var sub = document.querySelector('.ia-msched-sub');
+      document.querySelectorAll('.ia-mm-day').forEach(function (a) {
+        a.addEventListener('click', function (e) {
+          var ds = (a.getAttribute('href').match(/date=(\d{4}-\d{2}-\d{2})/) || [])[1];
+          var list = ds && document.querySelector('.ia-mm-list[data-date="' + ds + '"]');
+          if (!list) { return; }
+          e.preventDefault();
+          document.querySelectorAll('.ia-mm-day.is-sel').forEach(function (x) { x.classList.remove('is-sel'); });
+          a.classList.add('is-sel');
+          document.querySelectorAll('.ia-mm-list').forEach(function (l) { l.hidden = l !== list; });
+          if (title) { title.textContent = list.dataset.title; }
+          if (sub) { var n = parseInt(list.dataset.count, 10) || 0; sub.textContent = n + (n === 1 ? ' appointment' : ' appointments'); }
+          if (window.history && history.replaceState) { history.replaceState(null, '', a.getAttribute('href')); }
+          document.querySelectorAll('.ia-msched-mode a').forEach(function (m) {
+            m.setAttribute('href', m.getAttribute('href').replace(/date=\d{4}-\d{2}-\d{2}/, 'date=' + ds));
+          });
+        });
+      });
     })();
     </script>
   @else
@@ -385,7 +454,9 @@
   @endif{{-- MARKER-MONTH-PHONE: day strip and day nav are for Day/Week --}}
 
   {{-- ─── Body ─── --}}
-  @if($viewMode === 'week')
+  @if($viewMode === 'month')
+    {{-- MARKER-MONTH-INPLACE — month mode's lists sit under the grid above --}}
+  @elseif($viewMode === 'week')
     {{-- WEEK MODE: grouped-by-day list (no gap rendering) --}}
     @php
       $weekGroups = [];
