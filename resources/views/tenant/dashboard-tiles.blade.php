@@ -43,6 +43,14 @@
       ->values();
 @endphp
 
+{{-- MARKER-DASH-STATS-STRIP — the same three figures as Overview, on phones,
+     a size smaller so Tiles stays tight. --}}
+<div class="ia-tiles-stats" aria-label="This week">
+  <div><b>{{ $today['today_count'] ?? 0 }}</b><span>Today</span></div>
+  <div><b>{{ format_money((int) ($today['week_revenue_cents'] ?? 0)) }}</b><span>Wk revenue</span></div>
+  <div><b>{{ $today['week_new_customers'] ?? 0 }}</b><span>New cust.</span></div>
+</div>
+
 {{-- MARKER-DASH-HEAD-MATCH — identical head to the Overview view: same
      greeting construction, same bold long date, same amber attention count
      (attention total, not the visible-card count), same action buttons. --}}

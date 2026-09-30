@@ -36,7 +36,7 @@
 {{-- DASH-MOBILE v1 — mobile-only hero + at-a-glance stats. Hidden on desktop. --}}
 <div class="ia-dash-mobile-only">
   {{-- 3-stat row --}}
-  <div class="ia-dash-m-stats">
+  <div class="ia-dash-m-stats ia-dash-m-stats--strip">{{-- MARKER-DASH-STATS-STRIP --}}
     <div class="ia-dash-m-stat">
       <div class="ia-dash-m-stat-num">{{ $today['today_count'] }}</div>
       <div class="ia-dash-m-stat-lbl">Today</div>

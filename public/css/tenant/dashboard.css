@@ -490,3 +490,11 @@
     transform: none; /* tighter tiles shouldn't bob on tap */
   }
 }
+
+/* MARKER-DASH-STATS-STRIP — the phone stats as a strip: no boxes, thin rules
+   between the figures, one hairline underneath. A modifier, so the original
+   .ia-dash-m-stat rules are untouched. */
+.ia-dash-m-stats.ia-dash-m-stats--strip { gap: 0; padding: 2px 0 12px; margin-bottom: 14px;
+  border-bottom: 0.5px solid var(--ia-border); }
+.ia-dash-m-stats--strip .ia-dash-m-stat { background: none; border: 0; border-radius: 0; padding: 2px 6px; }
+.ia-dash-m-stats--strip .ia-dash-m-stat + .ia-dash-m-stat { border-left: 0.5px solid var(--ia-border); }

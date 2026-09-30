@@ -134,3 +134,16 @@
 
 /* MARKER-NEEDSYOU-HIDDEN-FIX — hidden must beat display:flex */
 .ia-needsyou-bar[hidden], .ia-needsyou-zone[hidden], #ia-needsyou-grid[hidden] { display: none !important; }
+
+/* MARKER-DASH-STATS-STRIP — Tiles' stats strip: phones only, a size smaller
+   than Overview's to keep the view tight. */
+.ia-tiles-stats { display: none; }
+@media (max-width: 1023px) {
+  .ia-tiles-stats { display: grid; grid-template-columns: repeat(3, 1fr); padding: 0 0 10px; margin-bottom: 12px;
+    border-bottom: 0.5px solid var(--ia-border); text-align: center; }
+  .ia-tiles-stats > div { padding: 0 6px; }
+  .ia-tiles-stats > div + div { border-left: 0.5px solid var(--ia-border); }
+  .ia-tiles-stats b { display: block; font-size: 15px; font-weight: 600; letter-spacing: -.01em; line-height: 1.15;
+    font-variant-numeric: tabular-nums; }
+  .ia-tiles-stats span { display: block; font-size: 9.5px; text-transform: uppercase; letter-spacing: .05em; opacity: .5; margin-top: 2px; }
+}
