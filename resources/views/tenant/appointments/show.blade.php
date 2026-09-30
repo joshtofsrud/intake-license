@@ -615,6 +615,7 @@
      only sections (capacity slots, promised date, print tag) hide, and the page
      is an "Appointment", not a "Work order". --}}
 @php $apptIsTimeSlots = (tenant()->booking_mode ?? 'drop_off') === 'time_slots'; @endphp
+<script>document.documentElement.dataset.apptTimeslots = @json($apptIsTimeSlots ? '1' : '0');</script>
 <div class="ia-page-head appt-head">
   <div class="ia-page-head-left">
     <div style="font-size:11px;text-transform:uppercase;letter-spacing:.08em;opacity:.4;margin-bottom:4px">
@@ -651,14 +652,32 @@
   $amEmail = (string) $appointment->customer_email;
   $amTotal = (int) $appointment->total_cents;
   $amPaid  = (int) $appointment->paid_cents;
+  // MARKER-APPT-MOBILE-2 — the status as a chip, and the next step as a button.
+  $amStatus   = (string) $appointment->status;
+  $amSteps    = \App\Support\AppointmentStatus::pipeline();
+  $amTerminal = \App\Support\AppointmentStatus::isTerminal($amStatus);
+  $amIdx      = array_search($amStatus, $amSteps, true);
+  $amNext     = ($amIdx !== false && isset($amSteps[$amIdx + 1])) ? $amSteps[$amIdx + 1] : null;
+  $amLabel    = fn ($st) => ($statusLabels ?? [])[$st] ?? ucwords(str_replace('_', ' ', (string) $st));
+  $amVerb     = ['confirmed' => 'Confirm', 'in_progress' => 'Start', 'completed' => 'Complete'];
+  $amPaidLabel = $amTotal > 0 && $amPaid >= $amTotal ? format_money($amPaid) . ' paid'
+      : ($amPaid > 0 ? format_money(max(0, $amTotal - $amPaid)) . ' due' : ($amTotal > 0 ? format_money($amTotal) . ' due' : ''));
 @endphp
-<div class="appt-m-summary">
-  <div class="appt-m-when">
-    @if($amStart)
-      {{ $amStart->format('g:i A') }}@if($amEnd) – {{ $amEnd->format('g:i A') }}@endif
-    @else
-      No time set
-    @endif
+<div class="appt-m-summary" data-am-paid="{{ $amPaidLabel }}">
+  <div class="appt-m-top">
+    <div class="appt-m-when">
+      @if($amStart)
+        {{ $amStart->format('g:i A') }}@if($amEnd) – {{ $amEnd->format('g:i A') }}@endif
+      @else
+        No time set
+      @endif
+    </div>
+    <button type="button" class="appt-m-chip s-{{ $amStatus }}" id="amChip" {{ $amTerminal ? 'disabled' : '' }}>
+      <i></i>{{ $amLabel($amStatus) }}
+      @unless($amTerminal)
+        <span aria-hidden="true">▾</span>
+      @endunless
+    </button>
   </div>
   <div class="appt-m-sub">
     {{ $appointment->appointment_date->format('l, M j, Y') }}@if($amDurLabel) · {{ $amDurLabel }}@endif
@@ -721,13 +740,36 @@
   <div class="appt-m-ref">{{ $apptIsTimeSlots ? 'Appointment' : 'Work order' }} {{ $appointment->ra_number }}</div>
 </div>
 
+@unless($amTerminal)
+  {{-- MARKER-APPT-MOBILE-2 — the next step first, then Reschedule. Both drive
+       the page's own controls, so the behaviour is the desktop's exactly. --}}
+  <div class="appt-m-actions">
+    @if($amNext)
+      <button type="button" class="ia-btn ia-btn--primary" data-am-status="{{ $amNext }}">{{ $amVerb[$amNext] ?? 'Mark ' . $amLabel($amNext) }}</button>
+    @endif
+    <button type="button" class="ia-btn ia-btn--secondary" data-am-proxy=".appt-b-reschedule-btn">↻ Reschedule</button>
+  </div>
+  <div class="appt-m-sheet" id="amSheet" hidden>
+    <div class="appt-m-sheet-card">
+      <div class="appt-m-grab"></div>
+      <div class="appt-m-sheet-h">Status</div>
+      @foreach($amSteps as $amSt)
+        <button type="button" class="appt-m-opt {{ $amSt === $amStatus ? 'is-on' : '' }}" data-am-status="{{ $amSt }}">{{ $amLabel($amSt) }}</button>
+      @endforeach
+      <div class="appt-m-sheet-note">Go back a step or jump ahead. The button on the page moves it forward.</div>
+    </div>
+  </div>
+@endunless
+
 <style>
 /* MARKER-APPT-MOBILE — phone summary and rows. Scoped to .appt-m-* and a
    phone breakpoint; the contact tiles copy the customer page's .cmd-tile look. */
-.appt-m-summary { display: none; }
+.appt-m-summary, .appt-m-actions, .appt-m-cancel { display: none; }
 @media (max-width: 900px) {
   .appt-head, .appt-banner-paidfull,
   .appt-b-rail > .appt-b-when, .appt-b-cust-card { display: none !important; }
+  .appt-m-actions { display: grid; }
+  .appt-m-cancel { display: block; }
   .appt-m-summary { display: block; background: var(--ia-surface); border: 0.5px solid var(--ia-border);
     border-radius: 14px; padding: 16px; margin-bottom: 14px; }
   .appt-m-when { font-size: 24px; font-weight: 700; letter-spacing: -.01em; line-height: 1.15; }
@@ -757,58 +799,150 @@
   .appt-m-pill.is-ok { background: rgba(190,242,100,.10); color: var(--ia-accent); border-color: rgba(190,242,100,.25); }
   .appt-m-ref { font-size: 11.5px; color: var(--ia-text-dim); margin-top: 12px; }
 
-  /* status pills sit bare — no card around them */
-  .appt-progress-card { background: transparent !important; border: 0 !important; padding: 0 !important; box-shadow: none !important; }
-  /* one row of actions: Reschedule · Cancel, confirmation underneath */
-  .appt-b-actions { display: grid !important; grid-template-columns: 1fr 1fr; gap: 8px; }
-  .appt-b-actions-divider { display: none !important; }
-  .appt-b-actions .sc-wrap { grid-column: 1 / -1; }
+  /* MARKER-APPT-MOBILE-2 — status lives in the chip; the pill row is hidden
+     (kept in the page, since the chip and the sheet drive it). */
+  .appt-progress-card { display: none !important; }
+  .appt-m-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+  .appt-m-chip { flex: none; display: inline-flex; align-items: center; gap: 6px; padding: 6px 11px; border-radius: 99px;
+    font: 600 12.5px var(--ia-font); cursor: pointer; background: rgba(239,159,39,.14); color: #f0c78a;
+    border: 0.5px solid rgba(239,159,39,.35); }
+  .appt-m-chip i { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+  .appt-m-chip span { opacity: .7; font-size: 10px; }
+  .appt-m-chip.s-confirmed { background: rgba(96,165,250,.14); color: #93c5fd; border-color: rgba(96,165,250,.35); }
+  .appt-m-chip.s-in_progress { background: rgba(167,139,250,.14); color: #c4b5fd; border-color: rgba(167,139,250,.35); }
+  .appt-m-chip.s-completed, .appt-m-chip.s-closed, .appt-m-chip.s-shipped {
+    background: rgba(190,242,100,.12); color: var(--ia-accent); border-color: rgba(190,242,100,.3); }
+  .appt-m-chip.s-cancelled, .appt-m-chip.s-refunded, .appt-m-chip.s-no_show {
+    background: rgba(226,75,74,.14); color: #f0a3a3; border-color: rgba(226,75,74,.35); }
+  .appt-m-chip:disabled { cursor: default; }
 
-  /* everything else: a row you tap open */
-  .appt-row { padding: 0 !important; overflow: hidden; }
-  .appt-row > .appt-row-h { display: flex !important; align-items: center; gap: 10px; padding: 14px 16px !important;
-    margin: 0 !important; border: 0 !important; cursor: pointer; opacity: 1 !important; }
-  .appt-row-v { margin-left: auto; font-size: 13px; color: var(--ia-text-dim); text-transform: none; letter-spacing: 0; font-weight: 400; }
-  .appt-row-c { color: var(--ia-text-dim); transition: transform .15s; font-size: 14px; }
+  .appt-m-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 0 0 8px; }
+  .appt-m-actions .ia-btn { width: 100%; justify-content: center; }
+  /* the rail's own buttons stay in the page for the actions above to drive;
+     only Send confirmation (with its Text / Email choices) shows */
+  .appt-b-actions { display: block !important; background: transparent !important; border: 0 !important;
+    padding: 0 !important; box-shadow: none !important; margin: 0 !important; }
+  .appt-b-actions > .ia-btn, .appt-b-actions-divider { display: none !important; }
+  .appt-m-cancel { display: block; margin: 18px auto 6px; background: none; border: 0; color: #f0a3a3;
+    font-size: 13.5px; font-weight: 500; cursor: pointer; }
+
+  .appt-m-sheet { position: fixed; inset: 0; z-index: 1000; background: rgba(0,0,0,.55); display: flex; align-items: flex-end; }
+  .appt-m-sheet[hidden] { display: none; }
+  .appt-m-sheet-card { width: 100%; background: var(--ia-surface); border-radius: 18px 18px 0 0;
+    border-top: 0.5px solid var(--ia-border); padding: 10px 18px calc(24px + env(safe-area-inset-bottom, 0px)); }
+  .appt-m-grab { width: 38px; height: 4px; border-radius: 2px; background: rgba(255,255,255,.2); margin: 0 auto 10px; }
+  .appt-m-sheet-h { font-size: 15px; font-weight: 600; margin: 4px 0 10px; }
+  .appt-m-opt { display: block; width: 100%; text-align: left; background: none; border: 0; color: var(--ia-text);
+    padding: 13px 12px; border-radius: 10px; font-size: 15px; cursor: pointer; }
+  .appt-m-opt.is-on { background: rgba(255,255,255,.07); font-weight: 600; }
+  .appt-m-opt.is-on::after { content: '✓'; float: right; color: var(--ia-accent); }
+  .appt-m-sheet-note { font-size: 12px; color: var(--ia-text-dim); margin-top: 10px; }
+
+  /* MARKER-APPT-MOBILE-2 — one list, as in the mockup: sentence-case titles,
+     the answer on the right, each card's own buttons inside when opened. */
+  .appt-m-rows { border: 0.5px solid var(--ia-border); border-radius: 14px; overflow: hidden;
+    background: var(--ia-surface); margin: 12px 0 0; }
+  .appt-m-rows > .appt-row { border: 0 !important; border-top: 0.5px solid var(--ia-border) !important; border-radius: 0 !important;
+    margin: 0 !important; padding: 0 !important; box-shadow: none !important; background: transparent !important; }
+  .appt-m-rows > .appt-row:first-child { border-top: 0 !important; }
+  .appt-row-h { display: flex; align-items: center; gap: 10px; padding: 14px 16px; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+  .appt-row-t { font-size: 15px; font-weight: 600; color: var(--ia-text); }
+  .appt-row-v { margin-left: auto; font-size: 13.5px; color: var(--ia-text-dim); text-align: right; }
+  .appt-row-c { color: var(--ia-text-dim); transition: transform .15s; font-size: 15px; }
   .appt-row.open .appt-row-c { transform: rotate(90deg); }
-  .appt-row > .appt-row-b { display: none; padding: 0 16px 14px; }
+  .appt-row > .appt-row-b { display: none; padding: 0 16px 16px; }
   .appt-row.open > .appt-row-b { display: block; }
 }
 </style>
 <script>
-// MARKER-APPT-MOBILE — on a phone, each card below the summary becomes a row:
-// its own heading, a short answer on the right, the rest behind a tap.
+// MARKER-APPT-MOBILE-2 — the phone layout: status chip and sheet, the next-step
+// and Reschedule buttons, and every card as a row in one list.
 document.addEventListener('DOMContentLoaded', function () {
-  if (!window.matchMedia('(max-width: 900px)').matches) { return; }
-  var cards = Array.prototype.slice.call(document.querySelectorAll('.appt-b-main > .ia-card, [data-appt-resource-card]'));
-  cards.forEach(function (card) {
-    if (getComputedStyle(card).display === 'none') { return; }
-    var head = card.firstElementChild;
-    if (!head) { return; }
-    var body = document.createElement('div');
-    body.className = 'appt-row-b';
-    while (head.nextSibling) { body.appendChild(head.nextSibling); }
-    card.appendChild(body);
-    card.classList.add('appt-row');
-    head.classList.add('appt-row-h');
+  var q = function (s, r) { return (r || document).querySelector(s); };
 
-    var value = '';
-    var badge = body.querySelector('.ia-badge');
-    if (card.matches('[data-appt-resource-card]')) {
-      var who = body.querySelector('.sidebar-stat-value');
-      value = who ? who.textContent.trim() : '';
-    } else if (badge && /payment/i.test(head.textContent)) {
-      value = badge.textContent.trim();
-    }
-    var v = document.createElement('span'); v.className = 'appt-row-v'; v.textContent = value;
-    var c = document.createElement('span'); c.className = 'appt-row-c'; c.textContent = '›';
-    head.appendChild(v); head.appendChild(c);
-
-    head.addEventListener('click', function (e) {
-      if (e.target.closest('button, a, input, select, textarea, label')) { return; }
-      card.classList.toggle('open');
+  // Buttons that drive the page's own controls.
+  document.querySelectorAll('[data-am-proxy]').forEach(function (b) {
+    b.addEventListener('click', function () { var t = q(b.dataset.amProxy); if (t) { t.click(); } });
+  });
+  var sheet = q('#amSheet');
+  document.querySelectorAll('[data-am-status]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      if (sheet) { sheet.hidden = true; }
+      var step = q('.appt-progress-step[data-status="' + b.dataset.amStatus + '"]');
+      if (step) { step.click(); }
     });
   });
+  var chip = q('#amChip');
+  if (chip && sheet) {
+    chip.addEventListener('click', function () { sheet.hidden = false; });
+    sheet.addEventListener('click', function (e) { if (e.target === sheet) { sheet.hidden = true; } });
+  }
+
+  if (!window.matchMedia('(max-width: 900px)').matches) { return; }
+
+  // One list, in this order, each card with a plain title and a short answer.
+  var count = function (sel, root) { return root ? root.querySelectorAll(sel).length : 0; };
+  var none = function (n) { return n ? String(n) : 'None'; };
+  var summary = q('.appt-m-summary');
+  var find = {
+    services: function () { var t = q('#line-items-table'); return t && t.closest('.ia-card'); },
+    resource: function () { return q('[data-appt-resource-card]'); },
+    details:  function () { return q('#work-order-card'); },
+    products: function () { var t = q('#parts-table'); return t && t.closest('.ia-card'); },
+    so:       function () { return q('#so-parts-card'); },
+    charges:  function () {
+      var hit = null;
+      document.querySelectorAll('.appt-b-main > .ia-card').forEach(function (c) {
+        if (!hit && /additional charges/i.test(c.textContent.slice(0, 200))) { hit = c; }
+      });
+      return hit;
+    },
+    payment:  function () {
+      var hit = null;
+      document.querySelectorAll('.appt-b-main > .ia-card').forEach(function (c) {
+        var l = c.querySelector('.appt-section-label');
+        if (!hit && l && l.textContent.trim() === 'Payment') { hit = c; }
+      });
+      return hit;
+    },
+    notes:    function () { var n = q('#notes-list'); return n && n.closest('.ia-card'); },
+  };
+  var rows = [
+    ['services', 'Services',  function () { return 'Edit'; }],
+    ['resource', 'Resource',  function (c) { var w = c.querySelector('.sidebar-stat-value'); return w ? w.textContent.trim() : ''; }],
+    ['details',  document.documentElement.dataset.apptTimeslots === '1' ? 'Details' : 'Work order', function () { return ''; }],
+    ['products', 'Products',  function (c) { return none(count('tr.part-row', c)); }],
+    ['so',       'Special orders', function (c) { return none(count('tbody tr', c)); }],
+    ['charges',  'Extra charges',  function (c) { return none(count('.appt-charge-row', c)); }],
+    ['payment',  'Payment',   function () { return summary ? summary.dataset.amPaid || '' : ''; }],
+    ['notes',    'Notes',     function (c) { return String(count('.ia-note', c)); }],
+  ];
+
+  var list = document.createElement('div');
+  list.className = 'appt-m-rows';
+  rows.forEach(function (r) {
+    var card = find[r[0]]();
+    if (!card || getComputedStyle(card).display === 'none') { return; }
+    var value = r[2](card);
+    var body = document.createElement('div');
+    body.className = 'appt-row-b';
+    while (card.firstChild) { body.appendChild(card.firstChild); }
+    var head = document.createElement('div');
+    head.className = 'appt-row-h';
+    head.innerHTML = '<span class="appt-row-t"></span><span class="appt-row-v"></span><span class="appt-row-c">›</span>';
+    head.children[0].textContent = r[1];
+    head.children[1].textContent = value;
+    head.addEventListener('click', function () { card.classList.toggle('open'); });
+    card.appendChild(head);
+    card.appendChild(body);
+    card.classList.add('appt-row');
+    list.appendChild(card);
+  });
+
+  var after = q('.appt-b-actions') || q('.appt-b-rail');
+  if (after && list.children.length) { after.parentNode.insertBefore(list, after.nextSibling); }
+  var cancel = q('.appt-m-cancel');
+  if (cancel && list.parentNode) { list.parentNode.insertBefore(cancel, list.nextSibling); }
 });
 </script>
 
@@ -1834,6 +1968,10 @@ document.addEventListener('DOMContentLoaded', function () {
   </div>{{-- /.appt-b-main --}}
 
 </div>{{-- /.appt-b-shell --}}
+@unless(\App\Support\AppointmentStatus::isTerminal($appointment->status))
+  {{-- MARKER-APPT-MOBILE-2 — a quiet link, below the list, on phones only --}}
+  <button type="button" class="appt-m-cancel" data-am-proxy=".appt-b-cancel-btn">Cancel appointment</button>
+@endunless
 
 {{-- RESCHEDULE-MODAL v1 --}}
 @php
