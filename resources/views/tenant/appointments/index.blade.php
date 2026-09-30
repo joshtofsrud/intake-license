@@ -147,6 +147,9 @@ td.ia-inline-cell { cursor: default; }
 
 @section('content')
 
+{{-- MARKER-APPT-LIST-PHONE — on phones the section tabs sit at the top, as on
+     the calendar; the header's New appointment bar gives way to the + button. --}}
+<div class="appt-mobile-only appt-mtabs"><x-tenant.schedule-tabs active="appointments" /></div>
 <div class="ia-page-head">
   <div class="ia-page-head-left">
     @if(!empty($filter) && !empty($filterLabels[$filter]))
@@ -188,7 +191,8 @@ td.ia-inline-cell { cursor: default; }
 @endif
 
 @if(!empty($attentionForBar['cards']))
-  <div style="margin-bottom: 24px;">
+  {{-- MARKER-APPT-LIST-PHONE — the tiles stay on desktop; phones get chips. --}}
+  <div class="appt-desktop-only" style="margin-bottom: 24px;">
     @include('tenant.dashboard._attention_cards', [
       'cards' => $attentionForBar['cards'],
       'activeFilter' => $filter ?? '',
@@ -247,7 +251,7 @@ td.ia-inline-cell { cursor: default; }
       <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
     </svg>
     <input type="search" name="s" class="appt-mfilter-search" value="{{ $search }}"
-      placeholder="Search ITO#, name, email" autocomplete="off" id="appt-search-mobile">
+      placeholder="Search appointment #, name or email" autocomplete="off" id="appt-search-mobile">
   </div>
   {{-- Hidden fields preserve filter state when search submits --}}
   <input type="hidden" name="status"    id="appt-status-mobile"    value="{{ $status }}">
@@ -269,6 +273,52 @@ td.ia-inline-cell { cursor: default; }
     </svg>
   </button>
 </form>
+
+{{-- MARKER-APPT-LIST-PHONE — the attention tiles as one row of chips: each
+     filters the list; tapping the active one clears it. Only filters of this
+     list appear (Low stock, Win-back and the like live on their own pages),
+     and pickup filters are left out for time-slot shops. --}}
+@php
+  $amlTs = (tenant()->booking_mode ?? 'drop_off') === 'time_slots';
+  $amlDropOnly = ['pickup_outreach', 'ready_pickup', 'stale_pickups'];
+  $amlNames = [
+      'overdue_unstarted'    => 'Overdue',
+      'overdue_in_progress'  => 'Running late',
+      'unpaid_completed'     => 'Done, unpaid',
+      'unconfirmed_bookings' => 'Unconfirmed',
+  ];
+  $amlIndex = route('tenant.appointments.index');
+  $amlChips = [];
+  foreach (($attentionForBar['cards'] ?? []) as $amlCard) {
+      $amlLink = (string) ($amlCard['link'] ?? '');
+      $amlQ = [];
+      parse_str((string) parse_url($amlLink, PHP_URL_QUERY), $amlQ);
+      $amlSlug = $amlQ['filter'] ?? null;
+      if (! $amlSlug || ! str_starts_with($amlLink, $amlIndex)) { continue; }
+      if ($amlTs && in_array($amlSlug, $amlDropOnly, true)) { continue; }
+      $amlOn = ($filter ?? '') === $amlSlug;
+      $amlChips[] = ['label' => $amlNames[$amlSlug] ?? ($amlCard['title'] ?? $amlSlug), 'count' => (int) ($amlCard['count'] ?? 0),
+                     'tone' => $amlCard['tone'] ?? '', 'href' => $amlOn ? $amlIndex : $amlLink, 'on' => $amlOn];
+  }
+  $amlToday    = tenant()->localToday();
+  $amlTodayStr = $amlToday->toDateString();
+  $amlTomorrow = $amlToday->copy()->addDay()->toDateString();
+  $amlBase = \App\Models\Tenant\TenantAppointment::where('tenant_id', tenant()->id)->whereNotIn('status', ['cancelled', 'refunded']);
+  $amlOnToday = $dateFrom === $amlTodayStr && $dateTo === $amlTodayStr;
+  $amlOnUp    = $dateFrom === $amlTomorrow && ! $dateTo;
+  $amlChips[] = ['label' => 'Today', 'count' => (clone $amlBase)->whereDate('appointment_date', $amlTodayStr)->count(), 'tone' => '',
+                 'href' => $amlOnToday ? $amlIndex : route('tenant.appointments.index', ['date_from' => $amlTodayStr, 'date_to' => $amlTodayStr]), 'on' => $amlOnToday];
+  $amlChips[] = ['label' => 'Upcoming', 'count' => (clone $amlBase)->whereDate('appointment_date', '>=', $amlTomorrow)->count(), 'tone' => '',
+                 'href' => $amlOnUp ? $amlIndex : route('tenant.appointments.index', ['date_from' => $amlTomorrow, 'sort' => 'date_asc']), 'on' => $amlOnUp];
+@endphp
+<div class="appt-mobile-only appt-mchips" role="tablist" aria-label="Quick filters">
+  @foreach($amlChips as $amlChip)
+    <a href="{{ $amlChip['href'] }}" class="appt-mchip {{ $amlChip['on'] ? 'is-on' : '' }} {{ $amlChip['tone'] === 'red' ? 'is-red' : ($amlChip['tone'] === 'amber' ? 'is-amber' : '') }}"
+       role="tab" aria-selected="{{ $amlChip['on'] ? 'true' : 'false' }}">
+      <b>{{ number_format($amlChip['count']) }}</b> {{ $amlChip['label'] }}
+    </a>
+  @endforeach
+</div>
 
 {{-- Filter bottom sheet --}}
 <div class="appt-filter-backdrop" id="appt-filter-backdrop" onclick="ApptFilter.close()" aria-hidden="true"></div>
@@ -334,7 +384,8 @@ td.ia-inline-cell { cursor: default; }
 </div>
 
 {{-- MARKER-PATCH-439 — section tabs sit below the controls, right above the list --}}
-<x-tenant.schedule-tabs active="appointments" />
+{{-- MARKER-APPT-LIST-PHONE — on phones they're at the top instead --}}
+<div class="appt-desktop-only"><x-tenant.schedule-tabs active="appointments" /></div>
 
 {{-- Mobile result header --}}
 <div class="appt-mobile-only appt-list-header">
@@ -491,6 +542,12 @@ td.ia-inline-cell { cursor: default; }
         </div>
         <div class="appt-card-row3">
           <span class="appt-card-pill appt-card-pill--status appt-card-pill--{{ $statusTone }}">{{ $statusLabels[$statusKey] ?? $statusKey }}</span>
+          {{-- MARKER-APPT-LIST-PHONE — why it's in the Overdue / Running late chip --}}
+          @if(in_array($statusKey, ['pending', 'confirmed'], true) && $appt->appointment_date->toDateString() < $amlTodayStr)
+            <span class="appt-card-pill appt-card-pill--danger">Overdue</span>
+          @elseif($statusKey === 'in_progress' && $appt->appointment_date->toDateString() < $amlTodayStr)
+            <span class="appt-card-pill appt-card-pill--danger">Running late</span>
+          @endif
           <span class="appt-card-pill appt-card-pill--{{ $paymentTone }}">{{ $paymentLabels[$appt->payment_status] ?? $appt->payment_status }}</span>
         </div>
       </button>
@@ -790,6 +847,21 @@ td.ia-inline-cell { cursor: default; }
 @media (max-width: 600px) {
   .appt-desktop-only { display: none !important; }
   .appt-mobile-only { display: block; }
+
+  /* MARKER-APPT-LIST-PHONE — tabs up top, no header button, chips not tiles */
+  .appt-mtabs { margin-bottom: 12px; }
+  .appt-mtabs ~ .ia-page-head .ia-page-actions { display: none !important; }
+  .appt-mchips { display: flex !important; gap: 8px; overflow-x: auto; scrollbar-width: none;
+    margin: 12px -16px 4px; padding: 0 16px; -webkit-overflow-scrolling: touch; }
+  .appt-mchips::-webkit-scrollbar { display: none; }
+  .appt-mchip { flex: none; display: inline-flex; align-items: center; gap: 6px; padding: 8px 13px; border-radius: 99px;
+    border: 0.5px solid var(--ia-border-strong, rgba(255,255,255,.22)); font-size: 13px; font-weight: 500;
+    color: var(--ia-text-muted); text-decoration: none; white-space: nowrap; -webkit-tap-highlight-color: transparent; }
+  .appt-mchip b { font-weight: 700; font-variant-numeric: tabular-nums; }
+  .appt-mchip.is-red b { color: #f08a8a; }
+  .appt-mchip.is-amber b { color: #f0c78a; }
+  .appt-mchip.is-on { background: var(--ia-accent); border-color: var(--ia-accent); color: var(--ia-accent-text); }
+  .appt-mchip.is-on b { color: var(--ia-accent-text); }
 
   /* ── Filter bar (same shape as customer list) ── */
   .appt-mfilter {
