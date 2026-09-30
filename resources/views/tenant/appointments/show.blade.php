@@ -660,6 +660,12 @@
   $amNext     = ($amIdx !== false && isset($amSteps[$amIdx + 1])) ? $amSteps[$amIdx + 1] : null;
   $amLabel    = fn ($st) => ($statusLabels ?? [])[$st] ?? ucwords(str_replace('_', ' ', (string) $st));
   $amVerb     = ['confirmed' => 'Confirm', 'in_progress' => 'Start', 'completed' => 'Complete'];
+  // MARKER-APPT-MOBILE-3 — only the moves the server allows from here, so a
+  // choice always sticks; cancelling keeps its own button and confirm.
+  $amAllowed   = \App\Support\AppointmentStatus::TRANSITIONS[$amStatus] ?? [];
+  $amCanCancel = ! $amTerminal && in_array('cancelled', $amAllowed, true);
+  if ($amNext && ! in_array($amNext, $amAllowed, true)) { $amNext = null; }
+  $amSheetSteps = array_values(array_filter($amSteps, fn ($st) => $st === $amStatus || in_array($st, $amAllowed, true)));
   $amPaidLabel = $amTotal > 0 && $amPaid >= $amTotal ? format_money($amPaid) . ' paid'
       : ($amPaid > 0 ? format_money(max(0, $amTotal - $amPaid)) . ' due' : ($amTotal > 0 ? format_money($amTotal) . ' due' : ''));
 @endphp
@@ -740,23 +746,29 @@
   <div class="appt-m-ref">{{ $apptIsTimeSlots ? 'Appointment' : 'Work order' }} {{ $appointment->ra_number }}</div>
 </div>
 
+{{-- MARKER-APPT-MOBILE-3 — the same three buttons every time: next step,
+     Reschedule, Cancel. One that doesn't apply is greyed out, not removed. --}}
+<div class="appt-m-actions">
+  @if($amNext)
+    <button type="button" class="ia-btn ia-btn--primary" data-am-status="{{ $amNext }}">{{ $amVerb[$amNext] ?? 'Mark ' . $amLabel($amNext) }}</button>
+  @else
+    <button type="button" class="ia-btn ia-btn--secondary" disabled>✓ {{ $amLabel($amStatus) }}</button>
+  @endif
+  <button type="button" class="ia-btn ia-btn--secondary" data-am-proxy=".appt-b-reschedule-btn" {{ $amTerminal ? 'disabled' : '' }}>Reschedule</button>
+  <button type="button" class="ia-btn ia-btn--secondary appt-m-cancel-btn" data-am-proxy=".appt-b-cancel-btn" {{ $amCanCancel ? '' : 'disabled' }}>Cancel</button>
+</div>
 @unless($amTerminal)
-  {{-- MARKER-APPT-MOBILE-2 — the next step first, then Reschedule. Both drive
-       the page's own controls, so the behaviour is the desktop's exactly. --}}
-  <div class="appt-m-actions">
-    @if($amNext)
-      <button type="button" class="ia-btn ia-btn--primary" data-am-status="{{ $amNext }}">{{ $amVerb[$amNext] ?? 'Mark ' . $amLabel($amNext) }}</button>
-    @endif
-    <button type="button" class="ia-btn ia-btn--secondary" data-am-proxy=".appt-b-reschedule-btn">↻ Reschedule</button>
-  </div>
   <div class="appt-m-sheet" id="amSheet" hidden>
     <div class="appt-m-sheet-card">
       <div class="appt-m-grab"></div>
       <div class="appt-m-sheet-h">Status</div>
-      @foreach($amSteps as $amSt)
-        <button type="button" class="appt-m-opt {{ $amSt === $amStatus ? 'is-on' : '' }}" data-am-status="{{ $amSt }}">{{ $amLabel($amSt) }}</button>
+      @unless(in_array($amStatus, $amSheetSteps, true))
+        <button type="button" class="appt-m-opt is-on" disabled>{{ $amLabel($amStatus) }}</button>
+      @endunless
+      @foreach($amSheetSteps as $amSt)
+        <button type="button" class="appt-m-opt {{ $amSt === $amStatus ? 'is-on' : '' }}" data-am-status="{{ $amSt }}" {{ $amSt === $amStatus ? 'disabled' : '' }}>{{ $amLabel($amSt) }}</button>
       @endforeach
-      <div class="appt-m-sheet-note">Go back a step or jump ahead. The button on the page moves it forward.</div>
+      <div class="appt-m-sheet-note">Go back a step or jump ahead. To cancel, use the Cancel button.</div>
     </div>
   </div>
 @endunless
@@ -816,7 +828,11 @@
     background: rgba(226,75,74,.14); color: #f0a3a3; border-color: rgba(226,75,74,.35); }
   .appt-m-chip:disabled { cursor: default; }
 
-  .appt-m-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 0 0 8px; }
+  .appt-m-actions { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin: 0 0 8px; }
+  .appt-m-actions .ia-btn { padding: 11px 6px; font-size: 13px; }
+  .appt-m-actions .ia-btn:disabled { opacity: .4; cursor: default; }
+  .appt-m-cancel-btn:not(:disabled) { color: #f0a3a3 !important; border-color: rgba(226,75,74,.45) !important; }
+  .appt-m-opt:disabled { cursor: default; }
   .appt-m-actions .ia-btn { width: 100%; justify-content: center; }
   /* the rail's own buttons stay in the page for the actions above to drive;
      only Send confirmation (with its Text / Email choices) shows */
@@ -864,12 +880,30 @@ document.addEventListener('DOMContentLoaded', function () {
   document.querySelectorAll('[data-am-proxy]').forEach(function (b) {
     b.addEventListener('click', function () { var t = q(b.dataset.amProxy); if (t) { t.click(); } });
   });
+  // MARKER-APPT-MOBILE-3 — straight to the server, not through the hidden
+  // pill row (whose index logic misread legacy statuses, so picks didn't stick).
   var sheet = q('#amSheet');
+  var amUrl = @json(route('tenant.appointments.update', $appointment->id));
+  var amCsrf = (q('meta[name="csrf-token"]') || {}).content;
   document.querySelectorAll('[data-am-status]').forEach(function (b) {
     b.addEventListener('click', function () {
       if (sheet) { sheet.hidden = true; }
-      var step = q('.appt-progress-step[data-status="' + b.dataset.amStatus + '"]');
-      if (step) { step.click(); }
+      var fd = new FormData();
+      fd.append('_token', amCsrf); fd.append('_method', 'PATCH');
+      fd.append('op', 'status'); fd.append('status', b.dataset.amStatus);
+      b.disabled = true;
+      fetch(amUrl, { method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' } })
+        .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, body: j }; }); })
+        .then(function (res) {
+          if (res.ok && res.body && res.body.ok) {
+            if (window.IntakeToast) { IntakeToast.success(b.textContent.trim()); }
+            setTimeout(function () { window.location.reload(); }, 500);
+          } else {
+            b.disabled = false;
+            if (window.IntakeToast) { IntakeToast.error((res.body && res.body.message) || 'Could not update the status.'); }
+          }
+        })
+        .catch(function () { b.disabled = false; if (window.IntakeToast) { IntakeToast.error('Network error.'); } });
     });
   });
   var chip = q('#amChip');
@@ -952,7 +986,12 @@ document.addEventListener('DOMContentLoaded', function () {
   $pipelineSteps = \App\Support\AppointmentStatus::pipeline();
   // TODO: per-tenant extensions for 'shipped' and 'closed' once Workflow settings ship.
   $currentIndex = array_search($appointment->status, $pipelineSteps);
-  if ($currentIndex === false) $currentIndex = 0;
+  // MARKER-APPT-MOBILE-3 — legacy "done" statuses (shipped, closed) aren't in
+  // the pipeline; they were drawn as Pending, and a click then misfired.
+  if ($currentIndex === false) {
+      $doneAt = array_search('completed', $pipelineSteps);
+      $currentIndex = (\App\Support\AppointmentStatus::isDone($appointment->status) && $doneAt !== false) ? $doneAt : 0;
+  }
 @endphp
 
 {{-- LAYOUT-B-PIPELINE-RELOCATED v1: original full-width status pipeline removed.
@@ -1968,10 +2007,7 @@ document.addEventListener('DOMContentLoaded', function () {
   </div>{{-- /.appt-b-main --}}
 
 </div>{{-- /.appt-b-shell --}}
-@unless(\App\Support\AppointmentStatus::isTerminal($appointment->status))
-  {{-- MARKER-APPT-MOBILE-2 — a quiet link, below the list, on phones only --}}
-  <button type="button" class="appt-m-cancel" data-am-proxy=".appt-b-cancel-btn">Cancel appointment</button>
-@endunless
+{{-- MARKER-APPT-MOBILE-3 — Cancel lives in the action row now. --}}
 
 {{-- RESCHEDULE-MODAL v1 --}}
 @php

@@ -966,9 +966,9 @@ class DemoSeeder
             return $this->weightedPick(['completed' => 45, 'closed' => 45, 'in_progress' => 5, 'cancelled' => 5]);
         }
         if ($daysAgo <= 14) {
-            return $this->weightedPick(['closed' => 88, 'cancelled' => 6, 'refunded' => 3, 'shipped' => 3]);
+            return $this->weightedPick(['closed' => 91, 'cancelled' => 6, 'refunded' => 3]); // MARKER-APPT-MOBILE-3 — no legacy 'shipped'
         }
-        return $this->weightedPick(['closed' => 92, 'cancelled' => 4, 'refunded' => 2, 'shipped' => 2]);
+        return $this->weightedPick(['closed' => 94, 'cancelled' => 4, 'refunded' => 2]); // MARKER-APPT-MOBILE-3
     }
 
     private function pickPaymentStatus(string $status): string
