@@ -36,10 +36,11 @@
 
   $msAnchorDate = Cb::parse($msAnchorDateStr);
 
-  // 7-day strip
-  $msStripStart = $msAnchorDate->copy()->subDays(3);
+  // MARKER-SWIPE-STRIP — a long strip you can flick through, not seven fixed
+  // days: four weeks back, eight forward. The selected day is centred on load.
+  $msStripStart = $msAnchorDate->copy()->subDays(28);
   $msStripDays = [];
-  for ($i = 0; $i < 7; $i++) {
+  for ($i = 0; $i < 85; $i++) {
     $d = $msStripStart->copy()->addDays($i);
     $msStripDays[] = [
       'date'      => $d->toDateString(),
@@ -63,6 +64,22 @@
   $msSingleResource  = $msIsFiltered && count($msVisibleResourceIds) === 1
     ? ($msResourceById[$msVisibleResourceIds[0]] ?? null)
     : null;
+
+  // MARKER-SWIPE-STRIP — how busy each day in the strip is, in one query.
+  // Dots are relative to this shop's busiest day in view (1-3), so they read
+  // the same for a shop doing 4 a day or 40. They follow the staff filter.
+  $msCounts = \App\Models\Tenant\TenantAppointment::where('tenant_id', tenant()->id)
+      ->whereBetween('appointment_date', [$msStripDays[0]['date'], $msStripDays[count($msStripDays) - 1]['date']])
+      ->whereNotIn('status', ['cancelled', 'refunded'])
+      ->when($msIsFiltered && ! empty($msVisibleResourceIds), fn ($q) => $q->whereIn('resource_id', $msVisibleResourceIds))
+      ->selectRaw('DATE(appointment_date) d, COUNT(*) n')->groupBy('d')
+      ->pluck('n', 'd');
+  $msBusiest = max(1, (int) ($msCounts->max() ?? 0));
+  foreach ($msStripDays as $k => $sd) {
+      $n = (int) ($msCounts[$sd['date']] ?? 0);
+      $msStripDays[$k]['count'] = $n;
+      $msStripDays[$k]['dots']  = $n === 0 ? 0 : ($n / $msBusiest <= 0.34 ? 1 : ($n / $msBusiest <= 0.67 ? 2 : 3));
+  }
 
   // Helpers
   $msFmtTime = function ($appt) {
@@ -180,8 +197,8 @@
     </div>
   @endif
 
-  {{-- 7-day strip --}}
-  <div class="ia-msched-strip" role="tablist">
+  {{-- MARKER-SWIPE-STRIP — swipe with the phone's own momentum; snaps gently to a day. --}}
+  <div class="ia-msched-strip is-swipe" role="tablist" id="msStrip">
     @foreach($msStripDays as $sd)
       @php
         $stripParams = ['view' => $viewMode === 'week' ? 'week' : 'day', 'date' => $sd['date']];
@@ -194,9 +211,22 @@
          role="tab" aria-selected="{{ $sd['is_anchor'] ? 'true' : 'false' }}">
         <span class="ia-msched-strip-dow">{{ $sd['dow'] }}</span>
         <span class="ia-msched-strip-num">{{ $sd['num'] }}</span>
+        <span class="ia-msched-strip-dots" aria-label="{{ $sd['count'] }} {{ \Illuminate\Support\Str::plural('appointment', $sd['count']) }}">
+          @for ($di = 0; $di < $sd['dots']; $di++)
+            <i></i>
+          @endfor
+        </span>
       </a>
     @endforeach
   </div>
+  <script>
+  // MARKER-SWIPE-STRIP — centre the selected day, without animating.
+  (function () {
+    var s = document.getElementById('msStrip');
+    var a = s && s.querySelector('.is-active');
+    if (a) { s.scrollLeft = a.offsetLeft - (s.clientWidth - a.offsetWidth) / 2; }
+  })();
+  </script>
 
   {{-- Prev / Today / Next quick nav --}}
   @php

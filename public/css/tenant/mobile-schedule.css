@@ -385,3 +385,27 @@
     font-weight: 500;
   }
 }
+
+/* MARKER-SWIPE-STRIP — the strip as a long, flickable row. Native overflow
+   scrolling gives the phone's own momentum (it glides, then eases to a stop);
+   proximity snapping settles on a whole day without fighting a fast flick.
+   Seven days fit the width, as before. Added as a modifier, so the original
+   strip rules are untouched. */
+.ia-msched-strip.is-swipe {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.ia-msched-strip.is-swipe::-webkit-scrollbar { display: none; }
+.ia-msched-strip.is-swipe .ia-msched-strip-chip {
+  flex: 0 0 calc((100% - 24px) / 7);
+  scroll-snap-align: center;
+}
+/* Busy dots under the date: none, or 1-3 relative to the busiest day shown. */
+.ia-msched-strip-dots { display: flex; gap: 3px; height: 4px; margin-top: 1px; }
+.ia-msched-strip-dots i { width: 4px; height: 4px; border-radius: 50%; background: var(--ia-accent); }
+.ia-msched-strip-chip.is-active .ia-msched-strip-dots i { background: var(--ia-accent-text); }
