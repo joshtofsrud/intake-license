@@ -124,7 +124,11 @@
   .scm-sheet label { font-size: 12px; color: var(--ia-text-muted); display: block; margin-bottom: 5px; }
   .scm-sheet input, .scm-sheet select { width: 100%; background: rgba(255,255,255,.07); border: 1px solid var(--ia-border); border-radius: 10px;
     padding: 10px 11px; color: var(--ia-text); font: inherit; font-size: 14px; margin-bottom: 12px; }
-  .scm-two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .scm-two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; }
+  /* MARKER-SCHED-PHONE-2 — iOS gives time inputs an intrinsic minimum width,
+     so without these the End box ran off the sheet and overlapped Start. */
+  .scm-two > div { min-width: 0; }
+  .scm-sheet input[type="time"] { min-width: 0; max-width: 100%; display: block; -webkit-appearance: none; appearance: none; text-align: center; }
   .scm-exist { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: .5px dashed var(--ia-border); font-size: 13.5px; }
   .scm-btns { display: flex; gap: 8px; margin-top: 4px; }
   .scm-btns .sc-btn { flex: 1; justify-content: center; padding: 12px; }
@@ -330,8 +334,12 @@
               $scmUnavail = [];
               foreach (($availability[$m->id] ?? []) as $scmKey) {
                   [$scmDow, $scmBand] = array_pad(explode(':', $scmKey, 2), 2, '');
-                  if ((int) $scmDow === (int) $d->dayOfWeek) { $scmUnavail[] = $scmBandWord[$scmBand] ?? $scmBand; }
+                  if ((int) $scmDow === (int) $d->dayOfWeek) { $scmUnavail[] = $scmBand; }
               }
+              // MARKER-SCHED-PHONE-2 — in the day's order, and "all day" when
+              // every part of the day is marked.
+              $scmUnavail = array_values(array_intersect(['morning', 'afternoon', 'evening'], array_unique($scmUnavail)));
+              $scmUnavail = count($scmUnavail) === 3 ? ['all day'] : array_map(fn ($b) => $scmBandWord[$b] ?? $b, $scmUnavail);
               $scmShifts = collect($cell['shifts'])->map(fn ($sh) => [
                   'id' => $sh->id, 'start' => tlocal($sh->starts_at, 'H:i'), 'end' => tlocal($sh->ends_at, 'H:i'),
                   'label' => $sh->label, 'text' => tlocal($sh->starts_at, 'g:ia') . '–' . tlocal($sh->ends_at, 'g:ia'),
