@@ -32,10 +32,12 @@ class TenantInventoryCategory extends Model
         'sort_order',
         'tax_class_code',
         'source',
+        'track_serials', // MARKER-SERIAL-FOUNDATION
     ];
 
     protected $casts = [
         'sort_order' => 'integer',
+        'track_serials' => 'boolean', // MARKER-SERIAL-FOUNDATION
     ];
 
     public function tenant(): BelongsTo

@@ -63,6 +63,21 @@
       No categories yet. Add your first one above.
     </div>
   @else
+{{-- MARKER-SERIAL-FOUNDATION — what the switch does, since nothing on this
+     page changes to show it. --}}
+<div class="ser-legend">
+  <b>Serial numbers.</b> Switch on for a category and every item in it — and in its subcategories — is tracked by its own serial:
+  received by serial now, and sold, returned and moved by serial as those parts land. Stock already on hand stays sellable and is
+  marked <b>needs a serial</b> on each item's Units tab. Categories without it keep counting stock as a number.
+</div>
+@php
+  $serTracked = \App\Support\SerialTracking::trackedCategoryIds(tenant()->id);
+  $serById    = $categories->keyBy('id');
+  $serOnHand  = \App\Models\Tenant\TenantInventoryItem::where('tenant_id', tenant()->id)->where('is_active', true)
+      ->whereNotNull('category_id')->where('computed_stock_count', '>', 0)
+      ->selectRaw('category_id, SUM(computed_stock_count) as n')->groupBy('category_id')->pluck('n', 'category_id');
+  $serCanEdit = $authUser->can('inventory.categories.rename');
+@endphp
 <div class="ia-table-wrap">
     <table class="ia-table">
       <thead>
@@ -70,6 +85,7 @@
           <th>Name</th>
           <th>Parent (move)</th>
           <th>Items</th>
+          <th>Serial numbers</th>{{-- MARKER-SERIAL-FOUNDATION --}}
             {{-- MARKER-CAT-EDIT --}}
             <th style="width:210px">Actions</th>
         </tr>
@@ -101,6 +117,41 @@
               </form>
             </td>
             <td>@if($node['count'] > 0)<a href="{{ route('tenant.inventory.index', ['category' => $node['id']]) }}" style="color:var(--ia-accent);text-decoration:none;font-weight:600" title="View these items">{{ $node['count'] }}</a>@else<span style="color:var(--ia-text-muted)">0</span>@endif{{-- MARKER-PATCH-HLC28-COUNT --}}</td>
+            {{-- MARKER-SERIAL-FOUNDATION — on, inherited, or off --}}
+            @php
+              $serOwn = (bool) ($serById[$node['id']]->track_serials ?? false);
+              $serFrom = null;
+              if (! $serOwn && isset($serTracked[$node['id']])) {
+                  $p = $serById[$node['id']]->parent_id ?? null; $guard = 0;
+                  while ($p && $guard++ < 50) { $pc = $serById[$p] ?? null; if (! $pc) { break; } if ($pc->track_serials) { $serFrom = $pc->name; break; } $p = $pc->parent_id; }
+              }
+              // this category and everything under it (the tree is pre-ordered)
+              $serSubIds = [$node['id']]; $serKids = 0; $serStarted = false;
+              foreach ($tree as $o) {
+                  if ($o['id'] === $node['id']) { $serStarted = true; continue; }
+                  if (! $serStarted) { continue; }
+                  if ($o['depth'] <= $node['depth']) { break; }
+                  $serSubIds[] = $o['id']; $serKids++;
+              }
+              $serUnits = 0; foreach ($serSubIds as $sid) { $serUnits += (int) ($serOnHand[$sid] ?? 0); }
+            @endphp
+            <td>
+              @if($serFrom)
+                <span class="ser-from">From {{ $serFrom }}</span>
+              @elseif($serCanEdit)
+                <form method="POST" action="{{ route('tenant.inventory.categories.serials', $node['id']) }}" class="ser-form" style="margin:0"
+                      data-ser-msg="{{ $serOwn
+                          ? 'Stop tracking serial numbers in ' . $node['name'] . ($serKids ? ' and its ' . $serKids . ' subcategor' . ($serKids === 1 ? 'y' : 'ies') : '') . '? Serials already recorded stay on their units; receiving stops asking for them.'
+                          : 'Track serial numbers in ' . $node['name'] . ($serKids ? ' and its ' . $serKids . ' subcategor' . ($serKids === 1 ? 'y' : 'ies') : '') . '? ' . number_format($serUnits) . ' unit' . ($serUnits === 1 ? '' : 's') . ' on hand will be marked needs a serial. They stay sellable, and you can add their serials from each item.' }}">
+                  @csrf
+                  @method('PATCH')
+                  <input type="hidden" name="track_serials" value="{{ $serOwn ? 0 : 1 }}">
+                  <button type="submit" class="ser-tog {{ $serOwn ? 'on' : '' }}" aria-pressed="{{ $serOwn ? 'true' : 'false' }}" title="{{ $serOwn ? 'On — click to turn off' : 'Off — click to turn on' }}"><i></i></button>
+                </form>
+              @else
+                <span class="ser-from">{{ $serOwn ? 'On' : 'Off' }}</span>
+              @endif
+            </td>
             {{-- MARKER-CAT-EDIT — rename is inline; delete only appears when the
                  category is genuinely empty, counting ARCHIVED items too. The
                  disabled state carries its reason rather than failing on click. --}}
@@ -170,8 +221,9 @@
 </div>
 
 </div>{{-- MARKER-SECTION-WIDTH --}}
-@endsection
-
+{{-- MARKER-SERIAL-FOUNDATION — this handler used to sit after @endsection,
+     which Blade prints ahead of the layout — before the page's <!DOCTYPE> —
+     so the Categories page rendered in quirks mode. It lives inside now. --}}
 {{-- MARKER-SSEL-BATCH1 — ssel-submit-handler. The native row select had
      onchange="this.form.submit()"; the component has no onchange, so the same
      behaviour is bound to its hidden input's change event instead. --}}
@@ -183,6 +235,29 @@
     if (form) { form.submit(); }
   });
 </script>
+
+<style>
+  .ser-legend { font-size: 12.5px; color: var(--ia-text-muted); line-height: 1.6; background: var(--ia-accent-soft, rgba(233,162,59,.08));
+    border: 1px solid rgba(233,162,59,.25); border-radius: var(--ia-r-md, 8px); padding: 10px 14px; margin: 0 0 12px; }
+  .ser-legend b { color: var(--ia-text); }
+  .ser-from { font-size: 12px; color: var(--ia-text-muted); }
+  .ser-tog { width: 38px; height: 21px; border-radius: 99px; border: .5px solid var(--ia-border-2, rgba(255,255,255,.22));
+    background: rgba(255,255,255,.06); position: relative; padding: 0; cursor: pointer; }
+  .ser-tog i { position: absolute; top: 2px; left: 2px; width: 15px; height: 15px; border-radius: 50%; background: var(--ia-text-muted); transition: left .15s; }
+  .ser-tog.on { border-color: var(--ia-accent); background: var(--ia-accent-soft, rgba(233,162,59,.12)); }
+  .ser-tog.on i { left: 20px; background: var(--ia-accent); }
+</style>
+<script>
+  // MARKER-SERIAL-FOUNDATION — the switch asks first, in the app's own dialog.
+  document.addEventListener('submit', function (e) {
+    var f = e.target;
+    if (!f.classList || !f.classList.contains('ser-form') || f.dataset.serOk === '1') { return; }
+    e.preventDefault();
+    iaConfirm(f.getAttribute('data-ser-msg')).then(function (ok) { if (ok) { f.dataset.serOk = '1'; f.submit(); } });
+  });
+</script>
+@endsection
+
 
 @push('scripts')
 <script>

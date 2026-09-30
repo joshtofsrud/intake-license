@@ -908,6 +908,9 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
                 // because a hidden button is not a permission.
                 Route::patch('/categories/{id}',        [TenantControllers\InventoryCategoryController::class, 'rename'])->name('categories.rename');
                 Route::delete('/categories/{id}',       [TenantControllers\InventoryCategoryController::class, 'destroy'])->name('categories.destroy');
+                // MARKER-SERIAL-FOUNDATION — serial tracking on a category, and a serial for a piece already on hand
+                Route::patch('/categories/{id}/serials', [TenantControllers\InventoryUnitController::class, 'categorySerials'])->name('categories.serials');
+                Route::post('/{item}/serials',          [TenantControllers\InventoryUnitController::class, 'store'])->name('units.store');
                 Route::get('/uncategorized',         [TenantControllers\InventoryController::class, 'uncategorized'])->name('uncategorized');
                 Route::post('/uncategorized/assign', [TenantControllers\InventoryController::class, 'uncategorizedAssign'])->name('uncategorized.assign');
                 Route::post('/uncategorized/undo/{id}', [TenantControllers\InventoryController::class, 'uncategorizedUndo'])->name('uncategorized.undo'); // MARKER-CAT-UNDO
@@ -925,6 +928,10 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
                     Route::patch('/{id}/items/{itemId}',         [TenantControllers\ReceiveShipmentController::class, 'updateItem'])->name('items.update');
                     Route::delete('/{id}/items/{itemId}',        [TenantControllers\ReceiveShipmentController::class, 'removeItem'])->name('items.destroy');
                     Route::post('/{id}/commit',                  [TenantControllers\ReceiveShipmentController::class, 'commit'])->name('commit');
+                    // MARKER-SERIAL-FOUNDATION — serials on draft lines
+                    Route::get('/{id}/serials',                     [TenantControllers\InventoryUnitController::class, 'receivingSerials'])->name('serials');
+                    Route::post('/{id}/items/{itemId}/serials',     [TenantControllers\InventoryUnitController::class, 'receivingAddSerial'])->name('serials.add');
+                    Route::delete('/{id}/items/{itemId}/serials',   [TenantControllers\InventoryUnitController::class, 'receivingRemoveSerial'])->name('serials.remove');
                     Route::post('/{id}/items/new-inventory-item', [TenantControllers\ReceiveShipmentController::class, 'quickCreateItem'])->name('items.quick.create');
                     Route::get('/items/{id}/quick',     [TenantControllers\ReceiveShipmentController::class, 'quickShowItem'])->name('items.quick.show');
                     Route::patch('/items/{id}/quick',   [TenantControllers\ReceiveShipmentController::class, 'quickUpdateItem'])->name('items.quick.update');

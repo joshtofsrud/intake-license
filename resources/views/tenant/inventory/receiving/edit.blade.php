@@ -163,6 +163,95 @@
 </table>
 </div>
 
+{{-- MARKER-SERIAL-FOUNDATION — serial numbers for serialized lines. Scan each
+     unit; the shipment commits only when every serialized line has one serial
+     per unit received. Filled from /serials so lines added on the page appear. --}}
+<div id="rcv-serials" class="ia-card" style="margin-top:14px" hidden>
+  <div class="ia-card-head"><span class="ia-card-title">Serial numbers</span></div>
+  <div class="ia-card-body">
+    <div style="font-size:12.5px;color:var(--ia-text-muted);line-height:1.6;margin-bottom:10px">
+      These items track serial numbers. Scan or type each unit's serial and press Enter — scanning past the count raises Received.
+      The shipment can't be committed until every line below has one serial per unit, and a serial already in stock is refused.
+    </div>
+    <div id="rcv-serials-body"></div>
+  </div>
+</div>
+<style>
+  .rcvs-line { padding: 10px 0; border-top: .5px solid var(--ia-border); }
+  .rcvs-line:first-child { border-top: 0; }
+  .rcvs-h { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 6px; }
+  .rcvs-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+  .rcvs-chip { display: inline-flex; align-items: center; gap: 6px; font-family: var(--ia-font-mono, monospace); font-size: 12px;
+    background: var(--ia-surface-2, rgba(255,255,255,.05)); border: .5px solid var(--ia-border); border-radius: 99px; padding: 3px 4px 3px 10px; }
+  .rcvs-chip button { background: none; border: 0; color: var(--ia-text-muted); cursor: pointer; font-size: 13px; padding: 0 4px; }
+  .rcvs-ok { color: var(--ia-accent); font-size: 12px; font-weight: 600; }
+  .rcvs-short { color: #f0c78a; font-size: 12px; font-weight: 600; }
+</style>
+<script>
+(function () {
+  var box = document.getElementById('rcv-serials'), body = document.getElementById('rcv-serials-body');
+  if (!box) { return; }
+  var urlList = @json(route('tenant.inventory.receiving.serials', $shipment->id)); var urlLine = @json(route('tenant.inventory.receiving.serials.add', ['id' => $shipment->id, 'itemId' => '__L__']));
+  var csrf = (document.querySelector('meta[name="csrf-token"]') || {}).content;
+  var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); };
+  var toast = function (ok, m) { if (window.IntakeToast) { IntakeToast[ok ? 'success' : 'error'](m); } };
+  var req = function (method, url, data) {
+    return fetch(url, { method: method, headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': csrf, 'X-Requested-With': 'XMLHttpRequest' },
+      body: data ? JSON.stringify(data) : undefined }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, body: j }; }); });
+  };
+  var syncQty = function (lineId, received) {
+    var inp = document.querySelector('#rcv-tbody tr[data-line-id="' + lineId + '"] input[data-field="received_quantity"]');
+    if (inp && String(inp.value) !== String(received)) { inp.value = received; }
+  };
+  var render = function (lines, draft) {
+    box.hidden = !lines.length;
+    body.innerHTML = lines.map(function (l) {
+      var n = l.serials.length, short = n !== l.received;
+      return '<div class="rcvs-line" data-line="' + esc(l.id) + '">'
+        + '<div class="rcvs-h"><div><b>' + esc(l.name) + '</b>' + (l.sku ? ' <span style="color:var(--ia-text-muted);font-size:12px">' + esc(l.sku) + '</span>' : '') + '</div>'
+        + '<span class="' + (short ? 'rcvs-short' : 'rcvs-ok') + '">' + n + ' of ' + l.received + (short ? ' serials' : ' ✓') + '</span></div>'
+        + '<div class="rcvs-chips">' + l.serials.map(function (s) {
+            return '<span class="rcvs-chip">' + esc(s) + (draft ? '<button type="button" data-rm="' + esc(s) + '" aria-label="Remove">×</button>' : '') + '</span>';
+          }).join('') + '</div>'
+        + (draft ? '<input class="ia-input rcvs-in" placeholder="Scan or type the next serial, then Enter" maxlength="100" style="max-width:360px;font-family:var(--ia-font-mono,monospace)">' : '')
+        + '</div>';
+    }).join('');
+  };
+  var load = function () {
+    fetch(urlList, { headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' } })
+      .then(function (r) { return r.json(); }).then(function (j) { if (j && j.ok) { render(j.lines, j.draft); } }).catch(function () {});
+  };
+  body.addEventListener('keydown', function (e) {
+    if (e.key !== 'Enter' || !e.target.classList.contains('rcvs-in')) { return; }
+    e.preventDefault();
+    var inp = e.target, v = inp.value.trim(), line = inp.closest('[data-line]').getAttribute('data-line');
+    if (!v) { return; }
+    inp.disabled = true;
+    req('POST', urlLine.replace('__L__', line), { serial: v }).then(function (res) {
+      inp.disabled = false;
+      if (res.ok && res.body.ok) { syncQty(line, res.body.received); load(); setTimeout(function () {
+          var again = body.querySelector('[data-line="' + line + '"] .rcvs-in'); if (again) { again.focus(); } }, 250);
+      } else { toast(false, (res.body && res.body.message) || 'Could not add that serial.'); inp.select(); }
+    }).catch(function () { inp.disabled = false; toast(false, 'Network error.'); });
+  });
+  body.addEventListener('click', function (e) {
+    var b = e.target.closest('[data-rm]'); if (!b) { return; }
+    var line = b.closest('[data-line]').getAttribute('data-line');
+    req('DELETE', urlLine.replace('__L__', line), { serial: b.getAttribute('data-rm') }).then(function (res) {
+      if (res.ok && res.body.ok) { load(); } else { toast(false, (res.body && res.body.message) || 'Could not remove it.'); }
+    });
+  });
+  // Lines are added and edited in place above; follow them.
+  var t = null, soon = function () { clearTimeout(t); t = setTimeout(load, 700); };
+  var tb = document.getElementById('rcv-tbody');
+  if (tb) {
+    tb.addEventListener('change', soon);
+    if (window.MutationObserver) { new MutationObserver(soon).observe(tb, { childList: true }); }
+  }
+  load();
+})();
+</script>
+
 <div style="display:flex;justify-content:space-between;align-items:center;margin-top:18px;padding-top:16px;border-top:1px solid var(--ia-border)">
   <div id="rcv-commit-note" style="font-size:13px;color:var(--ia-text-muted)">
     Commits <strong id="rcv-commit-lines" style="color:var(--ia-accent)">0 items</strong>,

@@ -616,10 +616,22 @@
 
 </div>
 
+{{-- MARKER-SERIAL-FOUNDATION — serialized items get a Units tab. --}}
+@php
+  $serIsTracked = \App\Support\SerialTracking::isTracked($item);
+  $serNeed = $serIsTracked ? \App\Support\SerialTracking::needsSerialByLocation($item) : [];
+  $serNeedTotal = array_sum($serNeed);
+  $serUnits = $serIsTracked
+      ? \App\Models\Tenant\TenantInventoryUnit::where('tenant_id', $item->tenant_id)->where('inventory_item_id', $item->id)
+          ->orderByRaw("CASE status WHEN 'in_stock' THEN 0 WHEN 'sold' THEN 1 ELSE 2 END")->orderByDesc('received_at')->limit(300)->get()
+      : collect();
+  $serLocName = $locations->pluck('name', 'id');
+@endphp
 {{-- ============ tabbed: activity / special orders / sourced from ============ --}}
 <div class="ia-card ia-show-tabs" style="margin-top:4px">
   <div class="ia-tabbar">
     <button type="button" class="ia-tab is-active" data-tab="activity">Recent activity</button>
+    @if($serIsTracked)<button type="button" class="ia-tab" data-tab="units">Units @if($serNeedTotal)<span class="ia-tab-badge" title="Need a serial">{{ $serNeedTotal }}</span>@endif</button>@endif{{-- MARKER-SERIAL-FOUNDATION --}}
     <button type="button" class="ia-tab" data-tab="so">Special orders @if($openSos->count())<span class="ia-tab-badge">{{ $openSos->count() }}</span>@endif</button>
     {{-- MARKER-ITEM-SOURCING — the Sourced from tab is now a card above. --}}
   </div>
@@ -647,6 +659,50 @@
   </div>
 
   {{-- Special orders --}}
+  @if($serIsTracked)
+  {{-- MARKER-SERIAL-FOUNDATION — every unit of this item by serial --}}
+  <div class="ia-tabpanel" data-panel="units" hidden>
+    <div style="font-size:12.5px;color:var(--ia-text-muted);line-height:1.6;margin-bottom:12px">
+      Stock here is counted as usual; each unit below is one of those pieces, by serial. <b style="color:var(--ia-text)">Needs a serial</b> means pieces
+      that were on hand before serials were switched on — they can still be sold, and you can add their serials here.
+    </div>
+    @foreach($serNeed as $serLoc => $serGap)
+      <form method="POST" action="{{ route('tenant.inventory.units.store', $item->id) }}"
+            style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px 12px;margin-bottom:8px;border:1px dashed rgba(233,162,59,.4);border-radius:8px">
+        @csrf
+        <input type="hidden" name="location_id" value="{{ $serLoc }}">
+        <span style="font-size:13px"><b style="color:#f0c78a">{{ $serGap }} need{{ $serGap === 1 ? 's' : '' }} a serial</b>{{ $isMultiLocation ? ' · ' . ($serLocName[$serLoc] ?? '') : '' }}</span>
+        <input type="text" name="serial" class="ia-input" placeholder="Scan or type a serial" maxlength="100" required style="flex:1;min-width:160px;font-family:var(--ia-font-mono,monospace)">
+        <button type="submit" class="ia-btn ia-btn--primary ia-btn--sm">Add serial</button>
+      </form>
+    @endforeach
+    @if($serUnits->isEmpty())
+      <div style="text-align:center;color:var(--ia-text-muted);padding:16px">No serials recorded yet.</div>
+    @else
+      <input type="search" class="ia-input" placeholder="Find a serial…" style="max-width:260px;margin:4px 0 10px"
+             oninput="var q=this.value.toUpperCase().replace(/\s+/g,'');document.querySelectorAll('[data-ser-row]').forEach(function(r){r.hidden=q&&r.getAttribute('data-ser-row').indexOf(q)===-1;});">
+      <table class="ia-table">
+        <thead><tr><th>Serial</th>@if($isMultiLocation)<th>Location</th>@endif<th>Received</th><th style="text-align:right">Cost</th><th>Status</th></tr></thead>
+        <tbody>
+          @foreach($serUnits as $su)
+            <tr data-ser-row="{{ $su->serial_key }}">
+              <td style="font-family:var(--ia-font-mono,monospace);font-size:12.5px">{{ $su->serial }}</td>
+              @if($isMultiLocation)<td>{{ $su->status === 'in_stock' ? ($serLocName[$su->location_id] ?? '—') : '—' }}</td>@endif
+              <td>{{ $su->received_at ? tlocal_date($su->received_at, 'M j, Y') : '—' }}</td>
+              <td style="text-align:right">{{ $su->cost_cents !== null ? format_money($su->cost_cents) : '—' }}</td>
+              <td>
+                @if($su->status === 'in_stock')<span class="ia-badge ia-badge--green">In stock</span>
+                @elseif($su->status === 'sold')<span class="ia-badge">Sold</span>
+                @else<span class="ia-badge ia-badge--red">Written off</span>@endif
+              </td>
+            </tr>
+          @endforeach
+        </tbody>
+      </table>
+    @endif
+  </div>
+  @endif
+
   <div class="ia-tabpanel" data-panel="so" hidden>
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
       <div style="display:flex;align-items:baseline;gap:24px">

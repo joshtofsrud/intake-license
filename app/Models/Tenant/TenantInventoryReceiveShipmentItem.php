@@ -36,9 +36,11 @@ class TenantInventoryReceiveShipmentItem extends Model
         'unit_cost_cents',
         'total_cost_cents',
         'notes',
+        'serials', // MARKER-SERIAL-FOUNDATION — typed on a draft, become units on commit
     ];
 
     protected $casts = [
+        'serials' => 'array',
         'expected_quantity' => 'integer',
         'received_quantity' => 'integer',
         'unit_cost_cents' => 'integer',

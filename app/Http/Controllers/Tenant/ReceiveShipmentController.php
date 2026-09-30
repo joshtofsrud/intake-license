@@ -509,6 +509,26 @@ class ReceiveShipmentController extends Controller
             ]);
         }
 
+        // MARKER-SERIAL-FOUNDATION — a serialized line commits only with one
+        // serial per unit received, so every counted piece has an identity.
+        $serialShort = [];
+        foreach ($shipment->items as $sl) {
+            if ($sl->status !== 'received' || ! $sl->inventory_item_id || (int) $sl->received_quantity < 1) {
+                continue;
+            }
+            $slItem = TenantInventoryItem::where('tenant_id', $tenant->id)->find($sl->inventory_item_id);
+            if (\App\Support\SerialTracking::isTracked($slItem)) {
+                $have = count((array) ($sl->serials ?? []));
+                if ($have !== (int) $sl->received_quantity) {
+                    $serialShort[] = "{$sl->name}: {$have} of {$sl->received_quantity}";
+                }
+            }
+        }
+        if ($serialShort) {
+            return back()->with('flash', ['type' => 'error',
+                'message' => 'Each serialized unit needs its serial before committing — ' . implode('; ', $serialShort) . '.']);
+        }
+
         $tenantUser = auth('tenant')->user();
         $tenantUserId = $tenantUser?->id;
 
@@ -553,6 +573,20 @@ class ReceiveShipmentController extends Controller
                         $this->inventory->recordReceivedCost(
                             $tenant, $item, (int) $line->received_quantity, (int) $line->unit_cost_cents, 'receive'
                         );
+                    }
+
+                    // MARKER-SERIAL-FOUNDATION — the line's serials become units in stock here.
+                    if (\App\Support\SerialTracking::isTracked($item)) {
+                        foreach ((array) ($line->serials ?? []) as $sn) {
+                            if ($there = \App\Support\SerialTracking::inStock($tenant->id, (string) $sn)) {
+                                throw new \RuntimeException("{$sn} is already in stock (" . ($there->item->name ?? 'another item') . ').');
+                            }
+                            \App\Http\Controllers\Tenant\InventoryUnitController::saveUnit($tenant->id, $item, $shipment->location_id, (string) $sn, [
+                                'cost_cents'                => $line->unit_cost_cents,
+                                'received_shipment_id'      => $shipment->id,
+                                'received_shipment_item_id' => $line->id,
+                            ]);
+                        }
                     }
                 }
 
