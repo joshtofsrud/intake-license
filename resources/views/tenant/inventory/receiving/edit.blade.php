@@ -170,8 +170,8 @@
   <div class="ia-card-head"><span class="ia-card-title">Serial numbers</span></div>
   <div class="ia-card-body">
     <div style="font-size:12.5px;color:var(--ia-text-muted);line-height:1.6;margin-bottom:10px">
-      These items track serial numbers. Scan or type each unit's serial and press Enter — scanning past the count raises Received.
-      The shipment can't be committed until every line below has one serial per unit, and a serial already in stock is refused.
+      These items track serial numbers. Scan or type each unit's serial and press Enter if it's handy — scanning past the count
+      raises Received. It's optional: commit whenever you're ready, and any you skip show as <b>needs a serial</b> on the item.
     </div>
     <div id="rcv-serials-body"></div>
   </div>
@@ -185,7 +185,7 @@
     background: var(--ia-surface-2, rgba(255,255,255,.05)); border: .5px solid var(--ia-border); border-radius: 99px; padding: 3px 4px 3px 10px; }
   .rcvs-chip button { background: none; border: 0; color: var(--ia-text-muted); cursor: pointer; font-size: 13px; padding: 0 4px; }
   .rcvs-ok { color: var(--ia-accent); font-size: 12px; font-weight: 600; }
-  .rcvs-short { color: #f0c78a; font-size: 12px; font-weight: 600; }
+  .rcvs-short { color: var(--ia-text-muted); font-size: 12px; font-weight: 500; } /* MARKER-SERIAL-OPTIONAL — not a warning */
 </style>
 <script>
 (function () {
@@ -209,7 +209,7 @@
       var n = l.serials.length, short = n !== l.received;
       return '<div class="rcvs-line" data-line="' + esc(l.id) + '">'
         + '<div class="rcvs-h"><div><b>' + esc(l.name) + '</b>' + (l.sku ? ' <span style="color:var(--ia-text-muted);font-size:12px">' + esc(l.sku) + '</span>' : '') + '</div>'
-        + '<span class="' + (short ? 'rcvs-short' : 'rcvs-ok') + '">' + n + ' of ' + l.received + (short ? ' serials' : ' ✓') + '</span></div>'
+        + '<span class="' + (short ? 'rcvs-short' : 'rcvs-ok') + '">' + n + ' of ' + l.received + (short ? ' scanned' : ' ✓') + '</span></div>'
         + '<div class="rcvs-chips">' + l.serials.map(function (s) {
             return '<span class="rcvs-chip">' + esc(s) + (draft ? '<button type="button" data-rm="' + esc(s) + '" aria-label="Remove">×</button>' : '') + '</span>';
           }).join('') + '</div>'

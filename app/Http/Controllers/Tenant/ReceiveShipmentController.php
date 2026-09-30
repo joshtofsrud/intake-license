@@ -509,25 +509,9 @@ class ReceiveShipmentController extends Controller
             ]);
         }
 
-        // MARKER-SERIAL-FOUNDATION — a serialized line commits only with one
-        // serial per unit received, so every counted piece has an identity.
-        $serialShort = [];
-        foreach ($shipment->items as $sl) {
-            if ($sl->status !== 'received' || ! $sl->inventory_item_id || (int) $sl->received_quantity < 1) {
-                continue;
-            }
-            $slItem = TenantInventoryItem::where('tenant_id', $tenant->id)->find($sl->inventory_item_id);
-            if (\App\Support\SerialTracking::isTracked($slItem)) {
-                $have = count((array) ($sl->serials ?? []));
-                if ($have !== (int) $sl->received_quantity) {
-                    $serialShort[] = "{$sl->name}: {$have} of {$sl->received_quantity}";
-                }
-            }
-        }
-        if ($serialShort) {
-            return back()->with('flash', ['type' => 'error',
-                'message' => 'Each serialized unit needs its serial before committing — ' . implode('; ', $serialShort) . '.']);
-        }
+        // MARKER-SERIAL-OPTIONAL — serials are a tool, never a gate: a shipment
+        // commits whatever was scanned. Units without a serial show as "needs a
+        // serial" on the item, to be filled in whenever it's handy.
 
         $tenantUser = auth('tenant')->user();
         $tenantUserId = $tenantUser?->id;

@@ -66,9 +66,9 @@
 {{-- MARKER-SERIAL-FOUNDATION — what the switch does, since nothing on this
      page changes to show it. --}}
 <div class="ser-legend">
-  <b>Serial numbers.</b> Switch on for a category and every item in it — and in its subcategories — is tracked by its own serial:
-  received by serial now, and sold, returned and moved by serial as those parts land. Stock already on hand stays sellable and is
-  marked <b>needs a serial</b> on each item's Units tab. Categories without it keep counting stock as a number.
+  <b>Serial numbers.</b> Switch on for a category and its items — and its subcategories' — can carry a serial per unit. It's a tool,
+  not a gate: record serials when receiving or selling if it's handy, and nothing is ever blocked for a missing one. Units without a serial
+  show as <b>needs a serial</b> on each item's Units tab. Categories without it keep counting stock as a number.
 </div>
 @php
   $serTracked = \App\Support\SerialTracking::trackedCategoryIds(tenant()->id);
