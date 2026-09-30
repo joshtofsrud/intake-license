@@ -12,6 +12,27 @@ class EditTenant extends EditRecord
     protected static string $resource = TenantResource::class;
 
     /**
+     * MARKER-TENANTS-POLISH — Impersonate from the tenant's own page, the same
+     * POST the card's menu makes, so an accidental card click is one tap away.
+     */
+    protected function getHeaderActions(): array
+    {
+        $url = route('admin.impersonate', $this->record->id);
+        $js  = "const f=document.createElement('form');f.method='POST';f.action='" . e($url) . "';"
+             . "const t=document.createElement('input');t.type='hidden';t.name='_token';t.value='" . csrf_token() . "';"
+             . 'f.appendChild(t);document.body.appendChild(f);f.submit();';
+
+        return [
+            \Filament\Actions\Action::make('impersonate')
+                ->label('Impersonate')
+                ->icon('heroicon-o-user')
+                ->color('gray')
+                ->extraAttributes(['x-on:click.prevent' => $js]),
+            ...parent::getHeaderActions(),
+        ];
+    }
+
+    /**
      * MARKER-OWNER-FIELDS-SAVE — the owner_* fields are dehydrated(false)
      * because they are not columns on `tenants`. They were also never written
      * anywhere, so edits vanished. Write them to the owner's row here.

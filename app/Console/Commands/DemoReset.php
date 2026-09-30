@@ -247,6 +247,9 @@ class DemoReset extends Command
     private function shiftRow(string $table, array $row, int $days): array
     {
         if ($days === 0) return $row;
+        // MARKER-TENANTS-POLISH — the tenant's own row keeps its real dates: shifting
+        // it put the demo's "Joined" date in the future and sorted it first.
+        if ($table === 'tenants') return $row;
         if (! isset($this->dateCols[$table])) {
             $cols = DB::select(
                 "SELECT COLUMN_NAME c FROM information_schema.COLUMNS
@@ -262,6 +265,14 @@ class DemoReset extends Command
                     strlen((string) $v) <= 10 ? 'Y-m-d' : 'Y-m-d H:i:s');
             } catch (\Throwable) {
                 // unparseable: leave it exactly as frozen
+            }
+        }
+        // MARKER-TENANTS-POLISH — bookings may land ahead, but nothing can have been
+        // created or last edited in the future.
+        $now = CarbonImmutable::now()->format('Y-m-d H:i:s');
+        foreach (['created_at', 'updated_at'] as $stamp) {
+            if (isset($row[$stamp]) && is_string($row[$stamp]) && strlen($row[$stamp]) > 10 && $row[$stamp] > $now) {
+                $row[$stamp] = $now;
             }
         }
         return $row;

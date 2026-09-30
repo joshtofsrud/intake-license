@@ -524,8 +524,10 @@
     backdrop-filter: saturate(180%) blur(6px);
     -webkit-backdrop-filter: saturate(180%) blur(6px);
 }
+/* MARKER-TENANTS-POLISH — the page's own background (Filament's dark body is
+   gray-950), so the sticky controls don't read as a slate panel. */
 .dark .tg-controls {
-    background: rgb(var(--gray-900, 17 24 39));
+    background: rgb(var(--gray-950, 3 7 18));
     border-bottom-color: rgb(var(--gray-800, 31 41 55));
 }
 
