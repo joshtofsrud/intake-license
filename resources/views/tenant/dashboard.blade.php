@@ -5,6 +5,26 @@
   <link rel="stylesheet" href="{{ asset('css/tenant/dashboard-tiles.css') }}?v={{ filemtime(public_path('css/tenant/dashboard-tiles.css')) }}">
 @endpush
 @section('mobile-fab', 'walk-in')
+@push('styles')
+{{-- MARKER-DASH-LESS-CHROME — on phones the view switch shrinks to two icons
+     at the end of the greeting line, and the New sale / New appointment
+     buttons give way to the round + button (which offers both). A shop
+     without the + (retail off) keeps its buttons. --}}
+<style>
+  .ia-dash-head .vs-ic { display: none; }
+  @media (max-width: 1023px) {
+    .ia-dash-head { display: flex !important; flex-direction: row !important; flex-wrap: nowrap !important;
+      align-items: flex-start; justify-content: space-between; gap: 10px; }
+    .ia-dash-head .ia-page-head-left { flex: 1; min-width: 0; }
+    .ia-dash-head .ia-page-actions { flex: none; width: auto !important; margin: 0 !important; }
+    .ia-dash-head.has-fab .ia-page-actions > a.ia-btn { display: none !important; }
+    .ia-dash-head .ia-viewseg { padding: 2px !important; }
+    .ia-dash-head .ia-viewseg button { padding: 5px 8px !important; line-height: 0; }
+    .ia-dash-head .ia-viewseg .vs-lb { display: none; }
+    .ia-dash-head .ia-viewseg .vs-ic { display: inline-block; }
+  }
+</style>
+@endpush
 
 @section('content')
 
@@ -82,7 +102,7 @@
   @endif
 </div>
 
-<div class="ia-page-head">
+<div class="ia-page-head ia-dash-head {{ tenant()->retail_enabled ? 'has-fab' : '' }}">
   <div class="ia-page-head-left">
     <h1 class="ia-page-title">{{ $greetingLine }}</h1>
     {{-- MARKER-PATCH-110-STEP-10c --}}
@@ -107,10 +127,10 @@
     </a>
     {{-- MARKER-DASH-HEAD-MATCH — toggle lives in the page head on both views --}}
     <div class="ia-viewseg" style="display:inline-flex;background:var(--ia-surface);border:1px solid var(--ia-border);border-radius:9px;padding:3px">
-      <button type="button" class="on" style="padding:6px 13px;font-size:12px;font-weight:600;border-radius:6px;background:var(--ia-surface-2);color:var(--ia-text);border:none;cursor:pointer;font-family:inherit">Overview</button>
+      <button type="button" class="on" title="Overview" aria-label="Overview" style="padding:6px 13px;font-size:12px;font-weight:600;border-radius:6px;background:var(--ia-surface-2);color:var(--ia-text);border:none;cursor:pointer;font-family:inherit"><svg class="vs-ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="3" y="5" width="14" height="14" rx="2"/><path d="M21 7v10"/></svg><span class="vs-lb">Overview</span></button>
       <form method="POST" action="{{ route('tenant.dashboard.view') }}" style="margin:0;display:inline">
         @csrf<input type="hidden" name="view" value="tiles">
-        <button type="submit" style="padding:6px 13px;font-size:12px;font-weight:600;border-radius:6px;background:none;color:var(--ia-text-dim);border:none;cursor:pointer;font-family:inherit">Tiles</button>
+        <button type="submit" title="Tiles" aria-label="Tiles" style="padding:6px 13px;font-size:12px;font-weight:600;border-radius:6px;background:none;color:var(--ia-text-dim);border:none;cursor:pointer;font-family:inherit"><svg class="vs-ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg><span class="vs-lb">Tiles</span></button>
       </form>
     </div>
   </div>

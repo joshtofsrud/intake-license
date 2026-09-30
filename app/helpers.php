@@ -42,7 +42,8 @@ if (! function_exists('format_money')) {
     function format_money(int $cents, string $symbol = '$'): string
     {
         $sym = tenant()?->currency_symbol ?? $symbol;
-        return $sym . number_format($cents / 100, 2);
+        // MARKER-DASH-LESS-CHROME — sign first: "-$180.00", not "$-180.00".
+        return ($cents < 0 ? '-' : '') . $sym . number_format(abs($cents) / 100, 2);
     }
 }
 

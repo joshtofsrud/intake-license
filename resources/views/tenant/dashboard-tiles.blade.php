@@ -2,6 +2,28 @@
 {{-- MARKER-TILES — the simplified dashboard. A second view alongside the
      Overview dashboard, which is unchanged and stays the default. --}}
 @section('title', 'Dashboard')
+{{-- MARKER-DASH-LESS-CHROME — the round + button shows here too, as on Overview --}}
+@section('mobile-fab', 'walk-in')
+@push('styles')
+{{-- MARKER-DASH-LESS-CHROME — on phones the view switch shrinks to two icons
+     at the end of the greeting line, and the New sale / New appointment
+     buttons give way to the round + button (which offers both). A shop
+     without the + (retail off) keeps its buttons. --}}
+<style>
+  .ia-dash-head .vs-ic { display: none; }
+  @media (max-width: 1023px) {
+    .ia-dash-head { display: flex !important; flex-direction: row !important; flex-wrap: nowrap !important;
+      align-items: flex-start; justify-content: space-between; gap: 10px; }
+    .ia-dash-head .ia-page-head-left { flex: 1; min-width: 0; }
+    .ia-dash-head .ia-page-actions { flex: none; width: auto !important; margin: 0 !important; }
+    .ia-dash-head.has-fab .ia-page-actions > a.ia-btn { display: none !important; }
+    .ia-dash-head .ia-viewseg { padding: 2px !important; }
+    .ia-dash-head .ia-viewseg button { padding: 5px 8px !important; line-height: 0; }
+    .ia-dash-head .ia-viewseg .vs-lb { display: none; }
+    .ia-dash-head .ia-viewseg .vs-ic { display: inline-block; }
+  }
+</style>
+@endpush
 
 @push('styles')
   <link rel="stylesheet" href="{{ asset('css/tenant/dashboard-simple.css') }}?v={{ filemtime(public_path('css/tenant/dashboard-simple.css')) }}">
@@ -24,7 +46,7 @@
 {{-- MARKER-DASH-HEAD-MATCH — identical head to the Overview view: same
      greeting construction, same bold long date, same amber attention count
      (attention total, not the visible-card count), same action buttons. --}}
-<div class="ia-page-head ia-tiles-head">
+<div class="ia-page-head ia-tiles-head ia-dash-head {{ tenant()->retail_enabled ? 'has-fab' : '' }}">
   <div class="ia-page-head-left">
     <h1 class="ia-page-title">{{ $greeting['name'] ? 'Good ' . $greeting['time_of_day'] . ', ' . $greeting['name'] . '.' : 'Good ' . $greeting['time_of_day'] . '.' }}</h1>
     <p class="ia-page-subtitle">
@@ -47,9 +69,9 @@
     <div class="ia-viewseg">
       <form method="POST" action="{{ route('tenant.dashboard.view') }}">
         @csrf<input type="hidden" name="view" value="overview">
-        <button type="submit">Overview</button>
+        <button type="submit" title="Overview" aria-label="Overview"><svg class="vs-ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="3" y="5" width="14" height="14" rx="2"/><path d="M21 7v10"/></svg><span class="vs-lb">Overview</span></button>
       </form>
-      <button type="button" class="on">Tiles</button>
+      <button type="button" class="on" title="Tiles" aria-label="Tiles"><svg class="vs-ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg><span class="vs-lb">Tiles</span></button>
     </div>
   </div>
 </div>
@@ -60,7 +82,9 @@
   {{-- MARKER-TILES-NEEDSYOU-COLLAPSE --}}
   @php $worstTone = $cards->contains(fn ($c) => ($c['tone'] ?? '') === 'red') ? 'red' : 'amber'; @endphp
   <button type="button" id="ia-needsyou-bar" class="ia-needsyou-bar ia-needsyou-bar--{{ $worstTone }}" hidden>
-    <span class="ia-needsyou-count">{{ $cards->sum('count') }}</span>
+    {{-- MARKER-DASH-LESS-CHROME — the same count as the greeting (things that
+         need you), not every card's inner count added up. --}}
+    <span class="ia-needsyou-count">{{ $attention['total_items'] ?? $cards->count() }}</span>
     <span class="ia-needsyou-label">need you</span>
     <span class="ia-needsyou-titles">{{ $cards->pluck('title')->take(3)->implode(' · ') }}@if($cards->count() > 3) · +{{ $cards->count() - 3 }} more @endif</span>
     <span class="ia-needsyou-chev">▾</span>
