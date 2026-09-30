@@ -21,6 +21,7 @@ use Livewire\Attributes\Url;
 class PlatformCommunication extends Page
 {
     use \App\Support\UsesAdminNav;
+    use \Livewire\WithFileUploads; // MARKER-PLATFORM-LETTER — screenshots
 
     protected static ?string $navigationIcon  = 'heroicon-o-chat-bubble-left-right';
     protected static ?string $navigationLabel = 'Communication';
@@ -44,6 +45,11 @@ class PlatformCommunication extends Page
     public string $cBody = '';
     public string $cAudience = '';
     public string $cSchedule = '';
+    // MARKER-PLATFORM-LETTER — a campaign is plain text (body) or letter blocks
+    public string $cMode = 'body';
+    public array $cBlocks = [];
+    public string $cTheme = 'light';
+    public array $shotUploads = [];
 
     public string $aName = '';
     public string $aSource = 'tenants';
@@ -173,6 +179,13 @@ class PlatformCommunication extends Page
             'campaign'   => $campaign,
             'reach'      => $reach,
             'blockers'   => $campaign ? $this->blockers($campaign, $reach) : [],
+            // MARKER-PLATFORM-LETTER — the preview uses sample values, in the chosen theme
+            'letterPreview' => ($campaign && $this->cMode === 'letter')
+                ? \App\Support\PlatformLetter::render($this->cBlocks, \App\Support\PlatformLetter::sampleVars(),
+                    $this->cTheme === 'dark' ? 'dark' : 'light',
+                    \App\Support\PlatformLetter::footerFor(optional($campaign->audience)->source), '#')
+                : null,
+            'letterTypes' => \App\Support\PlatformLetter::TYPES,
             'streamOk'   => (bool) PlatformMailer::stream(),
             'groups'     => $groups,
             'editingKey' => $this->editing,
@@ -326,8 +339,8 @@ class PlatformCommunication extends Page
         if (trim((string) $c->subject) === '') {
             $out[] = 'Write a subject.';
         }
-        if (trim((string) $c->body) === '') {
-            $out[] = 'Write a body.';
+        if (trim((string) $c->body) === '' && ! \App\Support\PlatformLetter::isLetter($c->blocks ?? [])) {
+            $out[] = 'Write a body.'; // MARKER-PLATFORM-LETTER — or letter blocks
         }
         if ($reach !== null && $reach['mailable'] === 0) {
             $out[] = 'This audience matches nobody who can be mailed right now.';
@@ -385,6 +398,9 @@ class PlatformCommunication extends Page
         $this->cBody      = (string) $c->body;
         $this->cAudience  = (string) $c->audience_id;
         $this->cSchedule  = $c->scheduled_at?->format('Y-m-d\TH:i') ?? '';
+        $this->cBlocks    = \App\Support\PlatformLetter::isLetter($c->blocks ?? []) ? array_values($c->blocks) : [];
+        $this->cMode      = $this->cBlocks ? 'letter' : 'body';
+        $this->shotUploads = [];
         $this->tab        = 'campaigns';
     }
 
@@ -408,10 +424,23 @@ class PlatformCommunication extends Page
             return;
         }
 
+        // MARKER-PLATFORM-LETTER — uploaded screenshots land in public storage and
+        // the block keeps an absolute URL, since a mail client has no site to be
+        // relative to.
+        foreach ($this->shotUploads as $i => $file) {
+            if ($file && isset($this->cBlocks[$i]) && ($this->cBlocks[$i]['type'] ?? '') === 'letter_shot') {
+                $path = $file->store('platform-letters', 'public');
+                $this->cBlocks[$i]['data']['url'] = url('/storage/' . $path);
+            }
+        }
+        $this->shotUploads = [];
+        $letter = $this->cMode === 'letter';
+
         $c->update([
             'name'        => trim($this->cName) ?: 'Untitled campaign',
             'subject'     => trim($this->cSubject) ?: null,
-            'body'        => $this->cBody,
+            'body'        => $letter ? '' : $this->cBody,
+            'blocks'      => $letter ? array_values($this->cBlocks) : null,
             'audience_id' => $this->cAudience ?: null,
         ]);
 
@@ -450,6 +479,63 @@ class PlatformCommunication extends Page
             ->title($when->isFuture() ? 'Scheduled for ' . $when->format('D M j, g:i A') : 'Sending now')
             ->body('The worker builds the recipient list when it fires, so anyone who unsubscribes before then is excluded.')
             ->send();
+    }
+
+    // ------------------------------------------------------ MARKER-PLATFORM-LETTER
+
+    public function useLetter(): void
+    {
+        $this->cMode = 'letter';
+        if (! $this->cBlocks) {
+            $this->cBlocks = \App\Support\PlatformLetter::starter();
+            if (trim($this->cBody) !== '') {
+                $this->cBlocks[0]['data']['text'] = $this->cBody; // keep what was written
+            }
+        }
+    }
+
+    public function useBody(): void
+    {
+        $this->cMode = 'body';
+    }
+
+    public function addLetterBlock(string $type): void
+    {
+        if (isset(\App\Support\PlatformLetter::TYPES[$type])) {
+            $this->cBlocks[] = \App\Support\PlatformLetter::blank($type);
+        }
+    }
+
+    public function removeLetterBlock(int $i): void
+    {
+        unset($this->cBlocks[$i], $this->shotUploads[$i]);
+        $this->cBlocks = array_values($this->cBlocks);
+        $this->shotUploads = [];
+    }
+
+    public function moveLetterBlock(int $i, int $dir): void
+    {
+        $j = $i + $dir;
+        if (isset($this->cBlocks[$i], $this->cBlocks[$j])) {
+            [$this->cBlocks[$i], $this->cBlocks[$j]] = [$this->cBlocks[$j], $this->cBlocks[$i]];
+            $this->shotUploads = [];
+        }
+    }
+
+    public function addNumbersRow(int $i): void
+    {
+        $this->cBlocks[$i]['data']['rows'][] = ['', '', '', ''];
+    }
+
+    public function removeNumbersRow(int $i, int $r): void
+    {
+        unset($this->cBlocks[$i]['data']['rows'][$r]);
+        $this->cBlocks[$i]['data']['rows'] = array_values($this->cBlocks[$i]['data']['rows'] ?? []);
+    }
+
+    public function setLetterTheme(string $t): void
+    {
+        $this->cTheme = in_array($t, ['light', 'dark', 'phone'], true) ? $t : 'light';
     }
 
     public function cancelCampaign(): void

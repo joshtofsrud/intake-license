@@ -39,6 +39,17 @@
     padding:7px 13px;border-radius:9px;cursor:pointer}
   .pc-btn--pri{background:var(--pc-accent);border-color:var(--pc-accent);color:#14121f;font-weight:600}
   .pc-btn--warn{color:var(--pc-warn);border-color:rgba(240,196,106,.4)}
+  /* MARKER-PLATFORM-LETTER */
+  .pl-seg{display:inline-flex;border:1px solid var(--pc-line);border-radius:8px;padding:2px}
+  .pl-seg button{background:none;border:0;color:inherit;opacity:.6;padding:5px 11px;border-radius:6px;font:inherit;font-size:12.5px;cursor:pointer}
+  .pl-seg button.on{opacity:1;background:rgba(255,255,255,.08);font-weight:600}
+  .pl-blk{border:1px solid var(--pc-line);border-radius:10px;padding:10px 12px;margin-bottom:10px}
+  .pl-blk-h{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;font-size:13px}
+  .pl-blk-h button{background:none;border:0;color:inherit;opacity:.6;cursor:pointer;font-size:13px;padding:0 4px}
+  .pl-blk textarea,.pl-blk input[type=text]{width:100%;background:transparent;border:1px solid var(--pc-line);border-radius:8px;color:inherit;font:inherit;font-size:13.5px;padding:8px 10px}
+  .pl-grid{display:grid;grid-template-columns:1.6fr 1fr 1fr 1fr;gap:6px}
+  .pl-grid .pl-h{font-size:12px;opacity:.75}
+  .pl-add{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:4px 0 14px;font-size:12.5px;opacity:.9}
   .pc-note{font-size:12px;opacity:.6;line-height:1.6;margin-top:10px}
   .pc-frame{border:1px solid var(--pc-line);border-radius:10px;overflow:hidden;background:#fff}
   .pc-frame iframe{width:100%;height:520px;border:0;display:block}
@@ -208,11 +219,84 @@
               @endforeach
             </select>
           </div>
+          {{-- MARKER-PLATFORM-LETTER — plain text, or a letter built from blocks --}}
+          <div class="pc-f">
+            <label>Content</label>
+            <div class="pl-seg">
+              <button type="button" class="{{ $cMode === 'body' ? 'on' : '' }}" wire:click="useBody">Plain text</button>
+              <button type="button" class="{{ $cMode === 'letter' ? 'on' : '' }}" wire:click="useLetter">Letter</button>
+            </div>
+          </div>
+          @if($cMode === 'letter')
+            <div class="pc-note" style="margin:-4px 0 10px">
+              Tokens: <code>{first_name}</code> <code>{shop_name}</code> — and for investors <code>{amount}</code> <code>{percent}</code> <code>{remaining}</code> <code>{portal}</code>.
+              The preview on the right uses sample values.
+            </div>
+            @foreach($cBlocks as $i => $blk)
+              <div class="pl-blk" wire:key="lb-{{ $i }}-{{ $blk['type'] }}">
+                <div class="pl-blk-h">
+                  <b>{{ $letterTypes[$blk['type']] ?? $blk['type'] }}</b>
+                  <span>
+                    <button type="button" wire:click="moveLetterBlock({{ $i }}, -1)" title="Up">↑</button>
+                    <button type="button" wire:click="moveLetterBlock({{ $i }}, 1)" title="Down">↓</button>
+                    <button type="button" wire:click="removeLetterBlock({{ $i }})" title="Remove">✕</button>
+                  </span>
+                </div>
+                @switch($blk['type'])
+                  @case('letter_text')
+                    <textarea rows="6" wire:model.live.debounce.700ms="cBlocks.{{ $i }}.data.text" placeholder="Write it like a note. Blank lines make paragraphs."></textarea>
+                    @break
+                  @case('letter_numbers')
+                    <div class="pl-grid">
+                      @for($h = 0; $h < 4; $h++)
+                        <input type="text" wire:model.live.debounce.700ms="cBlocks.{{ $i }}.data.headers.{{ $h }}" placeholder="{{ ['Label', 'Last month', 'This month', 'Change'][$h] }}" class="pl-h">
+                      @endfor
+                      @foreach(($blk['data']['rows'] ?? []) as $r => $row)
+                        @for($k = 0; $k < 4; $k++)
+                          <input type="text" wire:model.live.debounce.700ms="cBlocks.{{ $i }}.data.rows.{{ $r }}.{{ $k }}">
+                        @endfor
+                      @endforeach
+                    </div>
+                    <div style="display:flex;gap:6px;margin-top:6px">
+                      <button type="button" class="pc-btn" wire:click="addNumbersRow({{ $i }})">+ Row</button>
+                      @if(count($blk['data']['rows'] ?? []) > 1)
+                        <button type="button" class="pc-btn" wire:click="removeNumbersRow({{ $i }}, {{ count($blk['data']['rows']) - 1 }})">− Last row</button>
+                      @endif
+                    </div>
+                    @break
+                  @case('letter_shot')
+                    @if(! empty($blk['data']['url']))
+                      <img src="{{ $blk['data']['url'] }}" alt="" style="max-width:100%;border-radius:6px;border:1px solid var(--pc-line);margin-bottom:6px">
+                    @endif
+                    <input type="file" accept="image/*" wire:model="shotUploads.{{ $i }}">
+                    <div class="pc-note" style="margin:4px 0 6px">Choose an image; it's saved with the draft. Or paste an image link:</div>
+                    <input type="text" wire:model.live.debounce.700ms="cBlocks.{{ $i }}.data.url" placeholder="https://…">
+                    <input type="text" wire:model.live.debounce.700ms="cBlocks.{{ $i }}.data.caption" placeholder="Caption" style="margin-top:6px">
+                    @break
+                  @case('letter_ask')
+                    <input type="text" wire:model.live.debounce.700ms="cBlocks.{{ $i }}.data.title" placeholder="What would help">
+                    <textarea rows="4" wire:model.live.debounce.700ms="cBlocks.{{ $i }}.data.items" placeholder="One ask per line" style="margin-top:6px"></textarea>
+                    @break
+                  @case('letter_signature')
+                    <textarea rows="3" wire:model.live.debounce.700ms="cBlocks.{{ $i }}.data.text"></textarea>
+                    <input type="text" wire:model.live.debounce.700ms="cBlocks.{{ $i }}.data.small" placeholder="Name · title · email" style="margin-top:6px">
+                    @break
+                @endswitch
+              </div>
+            @endforeach
+            <div class="pl-add">
+              <span>Add:</span>
+              @foreach($letterTypes as $lt => $ll)
+                <button type="button" class="pc-btn" wire:click="addLetterBlock('{{ $lt }}')">{{ $ll }}</button>
+              @endforeach
+            </div>
+          @else
           <div class="pc-f">
             <label>Body</label>
             <textarea wire:model="cBody" placeholder="Write the email. Blank lines make paragraphs."></textarea>
             <div class="pc-tok"><code>&#123;&#123;first_name&#125;&#125;</code><code>&#123;&#123;shop_name&#125;&#125;</code></div>
           </div>
+          @endif
           <div class="pc-f">
             <label>Send at <span style="opacity:.55">(leave blank to send now)</span></label>
             <input type="datetime-local" wire:model="cSchedule">
@@ -249,11 +333,30 @@
             <div class="pc-note">Pick an audience to see the reach.</div>
           @endif
 
+          {{-- MARKER-PLATFORM-LETTER — live preview, light / dark / phone --}}
+          @if($letterPreview)
+            <div style="margin-top:18px;border-top:1px solid var(--pc-line);padding-top:14px">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+                <div class="pc-grp" style="padding:0">Preview</div>
+                <div class="pl-seg">
+                  <button type="button" class="{{ $cTheme === 'light' ? 'on' : '' }}" wire:click="setLetterTheme('light')">Light</button>
+                  <button type="button" class="{{ $cTheme === 'dark' ? 'on' : '' }}" wire:click="setLetterTheme('dark')">Dark</button>
+                  <button type="button" class="{{ $cTheme === 'phone' ? 'on' : '' }}" wire:click="setLetterTheme('phone')">Phone</button>
+                </div>
+              </div>
+              <div class="pc-frame" style="{{ $cTheme === 'phone' ? 'max-width:380px;margin:0 auto' : '' }}">
+                <iframe srcdoc="{{ $letterPreview }}" title="Letter preview" style="height:640px"></iframe>
+              </div>
+              <div class="pc-note">Sample values stand in for the tokens. The email itself goes out in Light; Dark shows roughly how a dark-mode inbox will treat it.</div>
+            </div>
+          @endif
+
           @if($campaign->total_sent)
             <div style="margin-top:18px;border-top:1px solid var(--pc-line);padding-top:14px">
               <div class="pc-grp" style="padding-top:0">Results</div>
               <div style="font-size:13.5px;line-height:1.9">
                 Sent <b>{{ $campaign->total_sent }}</b> of {{ $campaign->total_recipients }}<br>
+                Opened <b>{{ (int) $campaign->total_opened }}</b> · clicked <b>{{ (int) $campaign->total_clicked }}</b> · replies arrive in your inbox<br>{{-- MARKER-PLATFORM-LETTER --}}
                 @if($campaign->sent_at)Finished {{ $campaign->sent_at->diffForHumans() }}@endif
               </div>
             </div>

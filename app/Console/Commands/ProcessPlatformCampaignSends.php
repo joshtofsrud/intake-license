@@ -170,6 +170,20 @@ class ProcessPlatformCampaignSends extends Command
             'email'      => $row->email,
         ];
 
+        // MARKER-PLATFORM-LETTER — a campaign written as a letter renders in
+        // Intake's palette, with investor tokens for investor rows.
+        if (\App\Support\PlatformLetter::isLetter($campaign->blocks ?? [])) {
+            if ($row->source_type === 'investors') {
+                $vars += \App\Support\PlatformLetter::investorVars(\App\Models\Investor::find($row->source_id));
+            }
+            return \App\Support\PlatformLetter::render(
+                $campaign->blocks, $vars, 'light',
+                \App\Support\PlatformLetter::footerFor($row->source_type),
+                PlatformUnsubscribeController::url($row->email),
+                (string) $campaign->preheader
+            );
+        }
+
         // MARKER-PLATFORM-CAMPAIGNS-UI — one body format across the platform:
         // the composer writes text and it renders in the same Intake chrome the
         // template editor uses. Blocks remain supported, so a block-built
@@ -191,11 +205,17 @@ class ProcessPlatformCampaignSends extends Command
     protected function merge(string $text, PlatformCampaignSend $row): string
     {
         $first = $this->firstName($row->name) ?: 'there';
-        return str_replace(
+        $text = str_replace(
             ['{{first_name}}', '{{shop_name}}'],
             [$first, $row->name ?: ''],
             $text
         );
+        // MARKER-PLATFORM-LETTER — single-brace tokens, and investor tokens, in subjects too.
+        $vars = ['first_name' => $first, 'shop_name' => $row->name ?: ''];
+        if ($row->source_type === 'investors') {
+            $vars += \App\Support\PlatformLetter::investorVars(\App\Models\Investor::find($row->source_id));
+        }
+        return \App\Support\PlatformLetter::merge($text, $vars);
     }
 
     protected function firstName(?string $full): ?string

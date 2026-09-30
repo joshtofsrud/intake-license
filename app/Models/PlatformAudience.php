@@ -21,5 +21,6 @@ class PlatformAudience extends Model
         'prospects'     => 'Prospects',
         'wrote_in'      => 'Wrote in',
         'reps'          => 'Reps & agencies',
+        'investors'     => 'Investors', // MARKER-PLATFORM-LETTER
     ];
 }

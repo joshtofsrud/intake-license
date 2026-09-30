@@ -31,6 +31,7 @@ class PlatformAudienceService
             'prospects'                => $this->fromProspects($rules),
             'wrote_in'                 => $this->fromInbox($rules),
             'reps'                     => $this->fromReps($rules),
+            'investors'                => $this->fromInvestors(), // MARKER-PLATFORM-LETTER
             default                    => collect(),
         };
 
@@ -60,6 +61,19 @@ class PlatformAudienceService
     }
 
     // ------------------------------------------------------------- sources
+
+    /** MARKER-PLATFORM-LETTER — everyone on the investor record who hasn't declined. */
+    protected function fromInvestors(): Collection
+    {
+        return \App\Models\Investor::whereNull('declined_at')->whereNotNull('email')->get()
+            ->map(fn ($i) => [
+                'email'       => (string) $i->email,
+                'name'        => $i->name,
+                'source_type' => 'investors',
+                'source_id'   => $i->id,
+                'vars'        => ['first_name' => trim(explode(' ', (string) $i->name)[0]) ?: 'there', 'shop_name' => ''],
+            ]);
+    }
 
     protected function fromTenants(array $rules, string $source): Collection
     {
