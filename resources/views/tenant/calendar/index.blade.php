@@ -16,6 +16,9 @@
 @section('mobile-fab', 'walk-in')
 
 @section('content')
+{{-- MARKER-CAL-COMPACT — the phone's "collapse the top" choice, applied before
+     the page draws so the full header never flashes. Only phones act on it. --}}
+<script>try { if (localStorage.getItem('ia-cal-compact') === '1') { document.documentElement.classList.add('ia-cal-compact'); } } catch (e) {}</script>
 
 {{-- MARKER-APPT-PICKER — an override is only honest if the day shows it.
      $overCapacityDays is keyed by date: ['used' => n, 'max' => m]. --}}

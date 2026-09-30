@@ -173,6 +173,20 @@
 @endphp
 
 <div class="ia-msched">
+  {{-- MARKER-CAL-COMPACT — shown instead of the whole top when it's collapsed:
+       what you're looking at, and one tap to open the top again. --}}
+  @php
+    $mcView = ['day' => 'Day', 'week' => 'Week', 'month' => 'Month'][$viewMode] ?? 'Day';
+    $mcWhen = $viewMode === 'day' ? $msAnchorDate->format('D, M j')
+            : ($viewMode === 'week' ? 'Week of ' . $msAnchorDate->copy()->startOfWeek()->format('M j') : '');
+    $mcWho  = ! $msIsFiltered ? 'All'
+            : (count($msVisibleResourceIds) === 1 ? (($msResourceById[$msVisibleResourceIds[0]] ?? null)?->name ?? '1 selected')
+            : count($msVisibleResourceIds) . ' selected');
+  @endphp
+  <button type="button" class="ia-msched-compact-bar" id="mcExpand" aria-label="Show the calendar controls">
+    <span>{{ $mcView }}@if($mcWhen) · {{ $mcWhen }}@endif · {{ $mcWho }}</span>
+    <span class="ia-msched-compact-caret" aria-hidden="true">▾</span>
+  </button>
 
   {{-- Header: title + mode toggle --}}
   <div class="ia-msched-head">
@@ -190,6 +204,7 @@
            class="ia-msched-mode-btn {{ $viewMode === 'month' ? 'is-active' : '' }}">Month</a>
       @endif
     </div>
+    <button type="button" class="ia-msched-collapse" id="mcCollapse" aria-label="Collapse the top" title="Collapse the top">⌃</button>{{-- MARKER-CAL-COMPACT --}}
   </div>
 
   {{-- Resource filter chips --}}
@@ -599,6 +614,20 @@
 
 </div>
 
+
+<script>
+// MARKER-CAL-COMPACT — collapse or open the top, and remember it on this phone.
+(function () {
+  var set = function (on) {
+    document.documentElement.classList.toggle('ia-cal-compact', on);
+    try { localStorage.setItem('ia-cal-compact', on ? '1' : '0'); } catch (e) {}
+    window.scrollTo(0, 0);
+  };
+  var c = document.getElementById('mcCollapse'), x = document.getElementById('mcExpand');
+  if (c) { c.addEventListener('click', function () { set(true); }); }
+  if (x) { x.addEventListener('click', function () { set(false); }); }
+})();
+</script>
 
 {{-- RESFILTER-SCROLL-HINT v1 — nudge the resource filter pill bar on page load
      to signal it's horizontally scrollable. Only fires if the bar actually
