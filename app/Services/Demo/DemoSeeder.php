@@ -638,6 +638,37 @@ class DemoSeeder
                 $appointment->addons()->create($addon);
             }
 
+            // MARKER-DEMO-SALE-LEDGER — a paid appointment carries the sale and
+            // payment behind it, as the app records them. Without these the page
+            // read "Paid in full — 0 payments on file" in every demo.
+            if ($paidCents > 0) {
+                $saleDate = $date->toDateString();
+                $sale = \App\Models\Tenant\TenantSale::create([
+                    'tenant_id'          => $tenant->id,
+                    'sale_number'        => app(\App\Services\Tenant\SaleService::class)->nextSaleNumber($tenant->id, $saleDate),
+                    'sale_date'          => $saleDate,
+                    'status'             => 'completed',
+                    'payment_status'     => $paidCents >= $total ? 'paid' : 'partial',
+                    'customer_id'        => $customer->id,
+                    'appointment_id'     => $appointment->id,
+                    'rang_up_by_user_id' => $owner->id,
+                    'subtotal_cents'     => $subtotal,
+                    'tax_cents'          => $tax,
+                    'total_cents'        => $total,
+                    'paid_at'            => $seededCreatedAt,
+                ]);
+                \App\Models\Tenant\TenantSalePayment::create([
+                    'tenant_id'           => $tenant->id,
+                    'sale_id'             => $sale->id,
+                    'amount_cents'        => $paidCents,
+                    'kind'                => 'payment',
+                    'source'              => 'manual_entry',
+                    'method'              => $paymentMethod ?: 'card',
+                    'recorded_by_user_id' => $owner->id,
+                    'recorded_at'         => $seededCreatedAt,
+                ]);
+            }
+
             foreach ($sampleResponses as $fieldKey => $source) {
                 $value = is_callable($source) ? $source() : $source[array_rand($source)];
                 $fieldLabel = match ($fieldKey) {

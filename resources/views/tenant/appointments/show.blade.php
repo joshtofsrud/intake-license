@@ -586,7 +586,7 @@
        class="ia-btn ia-btn--primary ia-btn--sm">Open in register →</a>
   </div>
 @elseif($bannerPaidFull)
-  <div style="background:rgba(132,204,22,.08);border:0.5px solid rgba(132,204,22,.30);border-radius:var(--ia-r-md);padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:14px">
+  <div class="appt-banner-paidfull" style="background:rgba(132,204,22,.08);border:0.5px solid rgba(132,204,22,.30);border-radius:var(--ia-r-md);padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:14px">
     <span style="font-size:20px;line-height:1">✅</span>
     <div style="flex:1">
       <div style="font-weight:500;font-size:13px;color:var(--ia-text)">Paid in full — {{ format_money($appointment->paid_cents) }}</div>
@@ -611,10 +611,14 @@
   </div>
 @endif
 
-<div class="ia-page-head">
+{{-- MARKER-APPT-MOBILE — time-slot shops book a time, not a repair: drop-off
+     only sections (capacity slots, promised date, print tag) hide, and the page
+     is an "Appointment", not a "Work order". --}}
+@php $apptIsTimeSlots = (tenant()->booking_mode ?? 'drop_off') === 'time_slots'; @endphp
+<div class="ia-page-head appt-head">
   <div class="ia-page-head-left">
     <div style="font-size:11px;text-transform:uppercase;letter-spacing:.08em;opacity:.4;margin-bottom:4px">
-      Work order
+      {{ $apptIsTimeSlots ? 'Appointment' : 'Work order' }}
     </div>
     <h1 class="ia-page-title">{{ $appointment->ra_number }}</h1>
     <p class="ia-page-subtitle">
@@ -626,6 +630,187 @@
     <a href="{{ route('tenant.appointments.index') }}" class="ia-btn ia-btn--ghost">← Back</a>
   </div>
 </div>
+
+{{-- MARKER-APPT-MOBILE — the phone view: what you need first, on one screen.
+     Time, staff, customer with Call · Text · Email, services, total and paid.
+     Everything else below becomes a row you tap open. Desktop is unchanged. --}}
+@php
+  $amDur = (int) ($appointment->total_duration_minutes ?? 0);
+  $amStart = null; $amEnd = null;
+  try {
+    if ($appointment->appointment_time) {
+      $amStart = \Carbon\Carbon::parse($appointment->appointment_date->toDateString() . ' ' . $appointment->appointment_time);
+      $amEnd = $amDur > 0 ? $amStart->copy()->addMinutes($amDur) : null;
+    }
+  } catch (\Throwable $e) { $amStart = null; $amEnd = null; }
+  $amDurLabel = $amDur >= 60
+    ? intdiv($amDur, 60) . ' h' . ($amDur % 60 ? ' ' . ($amDur % 60) . ' min' : '')
+    : ($amDur > 0 ? $amDur . ' min' : '');
+  $amRes   = ($availableResources ?? collect())->firstWhere('id', $appointment->resource_id);
+  $amPhone = preg_replace('/[^0-9+]/', '', (string) $appointment->customer_phone);
+  $amEmail = (string) $appointment->customer_email;
+  $amTotal = (int) $appointment->total_cents;
+  $amPaid  = (int) $appointment->paid_cents;
+@endphp
+<div class="appt-m-summary">
+  <div class="appt-m-when">
+    @if($amStart)
+      {{ $amStart->format('g:i A') }}@if($amEnd) – {{ $amEnd->format('g:i A') }}@endif
+    @else
+      No time set
+    @endif
+  </div>
+  <div class="appt-m-sub">
+    {{ $appointment->appointment_date->format('l, M j, Y') }}@if($amDurLabel) · {{ $amDurLabel }}@endif
+  </div>
+  @if($amRes)
+    <div class="appt-m-res"><i style="background: {{ $amRes->color_hex ?? '#888' }}"></i>{{ $amRes->name }}</div>
+  @endif
+
+  <div class="appt-m-hr"></div>
+  <div class="appt-m-cust">
+    <b>{{ $appointment->customerName() }}</b>
+    @if($appointment->customer_id)
+      <a href="{{ route('tenant.customers.show', $appointment->customer_id) }}">Profile ›</a>
+    @endif
+  </div>
+  <div class="appt-m-tiles">
+    <a href="{{ $amPhone ? 'tel:' . $amPhone : '#' }}" class="appt-m-tile {{ $amPhone ? '' : 'is-disabled' }}">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+      <span>Call</span>
+    </a>
+    <a href="{{ $amPhone ? 'sms:' . $amPhone : '#' }}" class="appt-m-tile {{ $amPhone ? '' : 'is-disabled' }}">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      <span>Text</span>
+    </a>
+    <a href="{{ $amEmail ? 'mailto:' . $amEmail : '#' }}" class="appt-m-tile {{ $amEmail ? '' : 'is-disabled' }}">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+      <span>Email</span>
+    </a>
+  </div>
+
+  @if($appointment->items->isNotEmpty() || $appointment->addons->isNotEmpty())
+    <div class="appt-m-hr"></div>
+    @foreach($appointment->items as $amItem)
+      @php $amMin = (int) ($amItem->duration_minutes_override ?? $amItem->duration_minutes_snapshot ?? 0); @endphp
+      <div class="appt-m-svc">
+        <span>{{ $amItem->item_name_snapshot }}@if($amMin)<small>{{ $amMin >= 60 ? intdiv($amMin, 60) . ' h' . ($amMin % 60 ? ' ' . ($amMin % 60) . ' min' : '') : $amMin . ' min' }}</small>@endif</span>
+        <span>{{ format_money((int) ($amItem->price_cents_override ?? $amItem->price_cents)) }}</span>
+      </div>
+    @endforeach
+    @foreach($appointment->addons as $amAddon)
+      @php $amMin = (int) ($amAddon->duration_minutes_override ?? $amAddon->duration_minutes_snapshot ?? 0); @endphp
+      <div class="appt-m-svc is-addon">
+        <span>+ {{ $amAddon->addon_name_snapshot }}@if($amMin)<small>{{ $amMin }} min</small>@endif</span>
+        <span>{{ format_money((int) ($amAddon->price_cents_override ?? $amAddon->price_cents)) }}</span>
+      </div>
+    @endforeach
+  @endif
+
+  <div class="appt-m-hr"></div>
+  <div class="appt-m-tot"><span>Total with tax</span><b>{{ format_money($amTotal) }}</b></div>
+  <div class="appt-m-paid">
+    @if($amTotal > 0 && $amPaid >= $amTotal)
+      <span class="appt-m-pill is-ok">Paid in full</span>
+    @elseif($amPaid > 0)
+      <span class="appt-m-pill">Paid {{ format_money($amPaid) }} · {{ format_money(max(0, $amTotal - $amPaid)) }} due</span>
+    @elseif($amTotal > 0)
+      <span class="appt-m-pill">{{ format_money($amTotal) }} due</span>
+    @endif
+  </div>
+  <div class="appt-m-ref">{{ $apptIsTimeSlots ? 'Appointment' : 'Work order' }} {{ $appointment->ra_number }}</div>
+</div>
+
+<style>
+/* MARKER-APPT-MOBILE — phone summary and rows. Scoped to .appt-m-* and a
+   phone breakpoint; the contact tiles copy the customer page's .cmd-tile look. */
+.appt-m-summary { display: none; }
+@media (max-width: 900px) {
+  .appt-head, .appt-banner-paidfull,
+  .appt-b-rail > .appt-b-when, .appt-b-cust-card { display: none !important; }
+  .appt-m-summary { display: block; background: var(--ia-surface); border: 0.5px solid var(--ia-border);
+    border-radius: 14px; padding: 16px; margin-bottom: 14px; }
+  .appt-m-when { font-size: 24px; font-weight: 700; letter-spacing: -.01em; line-height: 1.15; }
+  .appt-m-sub { font-size: 13px; color: var(--ia-text-dim); margin-top: 3px; }
+  .appt-m-res { display: flex; align-items: center; gap: 7px; font-size: 13px; color: var(--ia-text-muted); margin-top: 8px; }
+  .appt-m-res i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+  .appt-m-hr { height: 0.5px; background: var(--ia-border); margin: 14px 0; }
+  .appt-m-cust { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+  .appt-m-cust b { font-size: 17px; font-weight: 600; }
+  .appt-m-cust a { font-size: 12.5px; color: var(--ia-accent); text-decoration: none; }
+  .appt-m-tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 12px; }
+  .appt-m-tile { display: flex; flex-direction: column; align-items: center; gap: 4px; background: var(--ia-surface);
+    border: 0.5px solid var(--ia-border); border-radius: 10px; padding: 12px 6px; color: var(--ia-text);
+    text-decoration: none; -webkit-tap-highlight-color: transparent; }
+  .appt-m-tile svg { color: var(--ia-accent); }
+  .appt-m-tile span { font-size: 11px; color: var(--ia-text-muted); font-weight: 500; }
+  .appt-m-tile.is-disabled { opacity: .35; pointer-events: none; }
+  .appt-m-svc { display: flex; justify-content: space-between; gap: 10px; font-size: 14px; padding: 4px 0; }
+  .appt-m-svc small { color: var(--ia-text-dim); font-size: 12.5px; margin-left: 6px; }
+  .appt-m-svc.is-addon span:first-child { color: var(--ia-text-muted); }
+  .appt-m-tot { display: flex; justify-content: space-between; align-items: center; }
+  .appt-m-tot span { color: var(--ia-text-dim); font-size: 13px; }
+  .appt-m-tot b { font-size: 18px; }
+  .appt-m-paid { display: flex; justify-content: flex-end; margin-top: 6px; }
+  .appt-m-pill { display: inline-flex; align-items: center; padding: 4px 10px; border-radius: 99px; font-size: 11px;
+    font-weight: 500; background: var(--ia-surface-2); color: var(--ia-text-muted); border: 0.5px solid var(--ia-border); }
+  .appt-m-pill.is-ok { background: rgba(190,242,100,.10); color: var(--ia-accent); border-color: rgba(190,242,100,.25); }
+  .appt-m-ref { font-size: 11.5px; color: var(--ia-text-dim); margin-top: 12px; }
+
+  /* status pills sit bare — no card around them */
+  .appt-progress-card { background: transparent !important; border: 0 !important; padding: 0 !important; box-shadow: none !important; }
+  /* one row of actions: Reschedule · Cancel, confirmation underneath */
+  .appt-b-actions { display: grid !important; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .appt-b-actions-divider { display: none !important; }
+  .appt-b-actions .sc-wrap { grid-column: 1 / -1; }
+
+  /* everything else: a row you tap open */
+  .appt-row { padding: 0 !important; overflow: hidden; }
+  .appt-row > .appt-row-h { display: flex !important; align-items: center; gap: 10px; padding: 14px 16px !important;
+    margin: 0 !important; border: 0 !important; cursor: pointer; opacity: 1 !important; }
+  .appt-row-v { margin-left: auto; font-size: 13px; color: var(--ia-text-dim); text-transform: none; letter-spacing: 0; font-weight: 400; }
+  .appt-row-c { color: var(--ia-text-dim); transition: transform .15s; font-size: 14px; }
+  .appt-row.open .appt-row-c { transform: rotate(90deg); }
+  .appt-row > .appt-row-b { display: none; padding: 0 16px 14px; }
+  .appt-row.open > .appt-row-b { display: block; }
+}
+</style>
+<script>
+// MARKER-APPT-MOBILE — on a phone, each card below the summary becomes a row:
+// its own heading, a short answer on the right, the rest behind a tap.
+document.addEventListener('DOMContentLoaded', function () {
+  if (!window.matchMedia('(max-width: 900px)').matches) { return; }
+  var cards = Array.prototype.slice.call(document.querySelectorAll('.appt-b-main > .ia-card, [data-appt-resource-card]'));
+  cards.forEach(function (card) {
+    if (getComputedStyle(card).display === 'none') { return; }
+    var head = card.firstElementChild;
+    if (!head) { return; }
+    var body = document.createElement('div');
+    body.className = 'appt-row-b';
+    while (head.nextSibling) { body.appendChild(head.nextSibling); }
+    card.appendChild(body);
+    card.classList.add('appt-row');
+    head.classList.add('appt-row-h');
+
+    var value = '';
+    var badge = body.querySelector('.ia-badge');
+    if (card.matches('[data-appt-resource-card]')) {
+      var who = body.querySelector('.sidebar-stat-value');
+      value = who ? who.textContent.trim() : '';
+    } else if (badge && /payment/i.test(head.textContent)) {
+      value = badge.textContent.trim();
+    }
+    var v = document.createElement('span'); v.className = 'appt-row-v'; v.textContent = value;
+    var c = document.createElement('span'); c.className = 'appt-row-c'; c.textContent = '›';
+    head.appendChild(v); head.appendChild(c);
+
+    head.addEventListener('click', function (e) {
+      if (e.target.closest('button, a, input, select, textarea, label')) { return; }
+      card.classList.toggle('open');
+    });
+  });
+});
+</script>
 
 @php
   // Status progress bar — terminal states (cancelled/refunded) replace the bar with a card.
@@ -691,7 +876,9 @@
       </div>
     @endif
     {{-- MARKER-PATCH-311 --}}
+    @unless($apptIsTimeSlots){{-- MARKER-APPT-MOBILE — a booked time is the promise --}}
     <div style="margin-top:10px">@include('tenant.appointments._promised_editor')</div>
+    @endunless
     @include('tenant.appointments._delivery_propose_modal'){{-- MARKER-PATCH-527 --}}
     {{-- MARKER-PATCH-514 --}}
     @include('tenant.appointments._route_trip')
@@ -747,7 +934,7 @@
     <div class="appt-b-actions">
       {{-- MARKER-PATCH-313 --}}
       {{-- MARKER-PATCH-315 — gated on the tag enable toggle --}}
-      @if(data_get(tenant()->settings, 'work_order_tag.enabled', true))
+      @if(! $apptIsTimeSlots && data_get(tenant()->settings, 'work_order_tag.enabled', true)){{-- MARKER-APPT-MOBILE --}}
       <button type="button" class="ia-btn ia-btn--secondary" onclick="openTagModal()">&#9113; Print tag</button>
       @endif
       <div class="appt-b-actions-divider"></div>
@@ -762,7 +949,7 @@
     @endunless
 
     {{-- Customer card --}}
-    <div class="ia-card ia-card--tight">
+    <div class="ia-card ia-card--tight appt-b-cust-card">
       <div class="appt-section-label">Customer</div>
       <div style="font-weight:500;margin-bottom:4px">
         {{ $appointment->customerName() }}
@@ -856,6 +1043,8 @@
     </div>
 
     {{-- Capacity slots · LAYOUT-B-RAIL v1 (collapsible override) --}}
+    {{-- MARKER-APPT-MOBILE — drop-off capacity only; meaningless for a booked time --}}
+    @unless($apptIsTimeSlots)
     <div class="ia-card ia-card--tight">
       <div style="font-size:11px;text-transform:uppercase;letter-spacing:.07em;font-weight:500;opacity:.4;margin-bottom:10px">
         Capacity slots
@@ -899,6 +1088,7 @@
         </div>
       </details>
     </div>
+    @endunless
 
   </aside>
 
@@ -1131,7 +1321,8 @@
          Includes soft completion-block warning when appointment is
          in_progress and SOs aren't yet pulled.
          ════════════════════════════════════════════════════════════ --}}
-    @isset($specialOrdersForAppt)
+    {{-- MARKER-APPT-MOBILE — only for shops with retail on, as the Special Orders menu is --}}
+    @if(isset($specialOrdersForAppt) && tenant()->retail_enabled)
       @php
         $openAppointmentSos = $specialOrdersForAppt->whereIn('status', ['needed', 'ordered', 'arrived']);
         $unArrivedSos = $specialOrdersForAppt->whereIn('status', ['needed', 'ordered']);
@@ -1140,7 +1331,7 @@
 
       <div class="ia-card" id="so-parts-card" style="order:45;{{ $showBlockWarning ? 'border-left:3px solid #F59E0B;' : '' }}">
         <div class="appt-section-label" style="display:flex;align-items:center;justify-content:space-between;gap:10px">
-          <span>Special-order parts</span>
+          <span>Special orders</span>
           <button type="button" class="ia-btn ia-btn--ghost ia-btn--sm"
                   onclick='SoDrawer.open({customer_id: @json($appointment->customer_id), customer_label: @json($appointment->customerName()), appointment_id: @json($appointment->id), alloc_mode: "customer_appt"})'>
             + SO for this appointment
@@ -1157,7 +1348,7 @@
         @endif
 
         @if($specialOrdersForAppt->isEmpty())
-          <p style="font-size:13px;color:var(--ia-text-muted);padding:6px 0;margin:0">No special-order parts on this appointment.</p>
+          <p style="font-size:13px;color:var(--ia-text-muted);padding:6px 0;margin:0">No special orders on this appointment.</p>
         @else
           <table class="appt-line-items">
             <thead>
@@ -1266,11 +1457,11 @@
       .so-status--overdue  { background: rgba(248,113,113,0.15); color: #F87171; }
       </style>
       @endpush
-    @endisset
+    @endif
 
         <div class="ia-card" id="work-order-card" style="order:50">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;padding-bottom:12px;border-bottom:0.5px solid var(--ia-border)">
-        <div class="appt-section-label" style="margin-bottom:0">Work order</div>
+        <div class="appt-section-label" style="margin-bottom:0">{{ $apptIsTimeSlots ? 'Details' : 'Work order' }}</div>
         <button type="button" class="ia-btn ia-btn--ghost ia-btn--sm" id="wo-edit-toggle">Edit</button>
       </div>
 
