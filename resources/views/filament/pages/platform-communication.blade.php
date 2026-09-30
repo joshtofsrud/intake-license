@@ -39,6 +39,9 @@
     padding:7px 13px;border-radius:9px;cursor:pointer}
   .pc-btn--pri{background:var(--pc-accent);border-color:var(--pc-accent);color:#14121f;font-weight:600}
   .pc-btn--warn{color:var(--pc-warn);border-color:rgba(240,196,106,.4)}
+  .pc-btn:disabled{opacity:.4;cursor:not-allowed} /* MARKER-PLATFORM-LETTER-FIX */
+  .pl-file{position:relative;overflow:hidden;display:inline-block}
+  .pl-file input{position:absolute;inset:0;opacity:0;cursor:pointer}
   /* MARKER-PLATFORM-LETTER */
   .pl-seg{display:inline-flex;border:1px solid var(--pc-line);border-radius:8px;padding:2px}
   .pl-seg button{background:none;border:0;color:inherit;opacity:.6;padding:5px 11px;border-radius:6px;font:inherit;font-size:12.5px;cursor:pointer}
@@ -268,8 +271,13 @@
                     @if(! empty($blk['data']['url']))
                       <img src="{{ $blk['data']['url'] }}" alt="" style="max-width:100%;border-radius:6px;border:1px solid var(--pc-line);margin-bottom:6px">
                     @endif
-                    <input type="file" accept="image/*" wire:model="shotUploads.{{ $i }}">
-                    <div class="pc-note" style="margin:4px 0 6px">Choose an image; it's saved with the draft. Or paste an image link:</div>
+                    {{-- MARKER-PLATFORM-LETTER-FIX — an app button, not the browser's control --}}
+                    <label class="pc-btn pl-file">Choose image<input type="file" accept="image/*" wire:model="shotUploads.{{ $i }}"></label>
+                    <span class="pc-note" wire:loading wire:target="shotUploads.{{ $i }}">Uploading…</span>
+                    @if(! empty($shotUploads[$i]))
+                      <span class="pc-note">{{ $shotUploads[$i]->getClientOriginalName() }} — saved when you Save draft</span>
+                    @endif
+                    <div class="pc-note" style="margin:6px 0 6px">Or paste an image link:</div>
                     <input type="text" wire:model.live.debounce.700ms="cBlocks.{{ $i }}.data.url" placeholder="https://…">
                     <input type="text" wire:model.live.debounce.700ms="cBlocks.{{ $i }}.data.caption" placeholder="Caption" style="margin-top:6px">
                     @break

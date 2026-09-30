@@ -333,14 +333,27 @@ class PlatformCommunication extends Page
         if (! PlatformMailer::stream()) {
             $out[] = 'No platform broadcast stream is set, so nothing can send.';
         }
-        if (! $c->audience_id) {
+        // MARKER-PLATFORM-LETTER-FIX — judged on what's in the editor now, not the
+        // last saved draft (Send saves first, so the two agree when it matters).
+        if (! ($this->cAudience ?: $c->audience_id)) {
             $out[] = 'Pick an audience.';
         }
-        if (trim((string) $c->subject) === '') {
+        if (trim($this->cSubject) === '' && trim((string) $c->subject) === '') {
             $out[] = 'Write a subject.';
         }
-        if (trim((string) $c->body) === '' && ! \App\Support\PlatformLetter::isLetter($c->blocks ?? [])) {
-            $out[] = 'Write a body.'; // MARKER-PLATFORM-LETTER — or letter blocks
+        if ($this->cMode === 'letter') {
+            $words = '';
+            foreach ($this->cBlocks as $b) {
+                if (($b['type'] ?? '') === 'letter_text') {
+                    // the starter greeting on its own isn't a letter
+                    $words .= preg_replace('/^\s*hi\s*\{+\s*first_name\s*\}+,?/i', '', (string) ($b['data']['text'] ?? ''));
+                }
+            }
+            if (trim($words) === '') {
+                $out[] = 'Write the letter.';
+            }
+        } elseif (trim($this->cBody) === '' && trim((string) $c->body) === '') {
+            $out[] = 'Write a body.';
         }
         if ($reach !== null && $reach['mailable'] === 0) {
             $out[] = 'This audience matches nobody who can be mailed right now.';
