@@ -25,6 +25,12 @@
 .ms-f label { display:block; font-size:10px; text-transform:uppercase; letter-spacing:.05em; color:var(--ia-text-muted); margin:0 0 5px; font-weight:600; }
 .ms-f input, .ms-f select { width:100%; padding:9px 11px; margin-bottom:12px; background:var(--ia-surface-2,#1a1a1a); border:1px solid var(--ia-border); border-radius:7px; color:var(--ia-text); font-size:13px; }
 .ms-empty { padding:22px 15px; text-align:center; color:var(--ia-text-muted); font-size:12px; }
+/* MARKER-SCHED-PHONE — tabs on one scrolling line on phones */
+@media (max-width: 700px) {
+  .ms-sub { overflow-x: auto; flex-wrap: nowrap; white-space: nowrap; scrollbar-width: none; gap: 16px; }
+  .ms-sub::-webkit-scrollbar { display: none; }
+  .ms-sub a { flex: none; }
+}
 </style>
 @endpush
 
@@ -53,19 +59,45 @@
     <a class="ms-btn" href="{{ route('tenant.scheduling.mine', ['week' => $weekStart->copy()->addWeek()->toDateString()]) }}">▶</a>
   </div>
 
+  {{-- MARKER-SCHED-PHONE — the next published shift, whichever week it's in --}}
+  @php
+    $msNext = \App\Models\Tenant\TenantShift::where('tenant_id', tenant()->id)
+        ->where('tenant_user_id', auth('tenant')->id())
+        ->whereNotNull('published_at')->where('ends_at', '>', now())
+        ->orderBy('starts_at')->first();
+  @endphp
+  @if($msNext)
+    <div class="ms-card" style="padding:14px 16px;margin-bottom:14px;border-color:rgba(233,162,59,.45);background:rgba(233,162,59,.08)">
+      <div style="font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--ia-text-muted);font-weight:600">Next shift</div>
+      <div style="font-size:17px;font-weight:700;margin-top:4px">{{ tlocal_date($msNext->starts_at, 'l, M j') }} · {{ tlocal($msNext->starts_at) }} – {{ tlocal($msNext->ends_at) }}</div>
+      @if($msNext->label)<div style="font-size:12.5px;color:var(--ia-text-muted);margin-top:2px">{{ $msNext->label }}</div>@endif
+    </div>
+  @endif
   <div class="ms-cols">
     <div class="ms-card">
       <div class="ms-h">This week <span class="m">{{ intdiv($weekMinutes, 60) }}h {{ $weekMinutes % 60 }}m scheduled</span></div>
-      @forelse($shifts as $sh)
+      {{-- MARKER-SCHED-PHONE — every day of the week, so a day off reads as
+           "Off" rather than a gap, and approved time off says so. --}}
+      @foreach($days as $msD)
+        @php
+          $msDay = $msD->toDateString();
+          $msOnDay = $shifts->filter(fn ($sh) => tlocal_date($sh->starts_at, 'Y-m-d') === $msDay);
+          $msAway = $requests->first(fn ($r) => $r->status === 'approved'
+              && tlocal_date($r->starts_at, 'Y-m-d') <= $msDay && tlocal_date($r->ends_at, 'Y-m-d') >= $msDay);
+        @endphp
         <div class="ms-row">
-          <span style="color:var(--ia-text-muted);width:92px">{{ tlocal_date($sh->starts_at, 'D M j') }}</span>
-          <b>{{ tlocal($sh->starts_at) }} – {{ tlocal($sh->ends_at) }}</b>
+          <span style="color:var(--ia-text-muted);width:92px">{{ $msD->format('D M j') }}</span>
+          @if($msOnDay->isNotEmpty())
+            <b>{{ $msOnDay->map(fn ($sh) => tlocal($sh->starts_at) . ' – ' . tlocal($sh->ends_at))->implode(', ') }}</b>
+          @elseif($msAway)
+            <span style="color:#93c5fd">Time off · approved</span>
+          @else
+            <span style="color:var(--ia-text-muted)">Off</span>
+          @endif
           <span style="flex:1"></span>
-          @if($sh->label)<span class="ms-pill g">{{ $sh->label }}</span>@endif
+          @if($msOnDay->first()?->label)<span class="ms-pill g">{{ $msOnDay->first()->label }}</span>@endif
         </div>
-      @empty
-        <div class="ms-empty">No published shifts this week.</div>
-      @endforelse
+      @endforeach
     </div>
 
     <div class="ms-card">

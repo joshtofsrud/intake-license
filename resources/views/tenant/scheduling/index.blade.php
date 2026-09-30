@@ -62,6 +62,73 @@
 .sc-xs { background:none; border:1px solid var(--ia-border-2,rgba(255,255,255,.2)); color:var(--ia-text); border-radius:6px; padding:4px 10px; font-size:11px; font-weight:600; cursor:pointer; font-family:inherit; }
 .sc-xs--danger { background:#E88B8B; border-color:#E88B8B; color:#160b0b; }
 .sc-mf { padding:13px 18px; border-top:.5px solid var(--ia-border); display:flex; justify-content:flex-end; gap:9px; }
+/* MARKER-SCHED-PHONE — tabs on one scrolling line on phones */
+@media (max-width: 700px) {
+  .sc-sub { overflow-x: auto; flex-wrap: nowrap; white-space: nowrap; scrollbar-width: none; gap: 16px; }
+  .sc-sub::-webkit-scrollbar { display: none; }
+  .sc-sub a { flex: none; }
+}
+/* MARKER-SCHED-PHONE — the builder on phones: one day at a time. */
+.scm, .scm-sheet { display: none; }
+@media (max-width: 700px) {
+  .sc-grid, .sc-grid ~ p { display: none !important; }
+  .sc-bar { display: grid !important; grid-template-columns: auto 1fr auto; gap: 8px; align-items: center; }
+  .sc-bar > span:first-of-type { text-align: center; }
+  .sc-bar .sc-drafts { grid-column: 1 / -1; order: 5; margin: 0; }
+  .sc-bar > span[style*="margin-left:auto"] { grid-column: 1 / -1; margin: 0 !important; display: grid !important; grid-template-columns: 1fr 1fr 1.2fr; gap: 8px; }
+  .sc-bar > span[style*="margin-left:auto"] form, .sc-bar > span[style*="margin-left:auto"] > span { display: block; }
+  .sc-bar > span[style*="margin-left:auto"] .sc-btn { width: 100%; justify-content: center; }
+  #sc-tpl-menu { left: 0 !important; right: auto !important; width: min(330px, 88vw); }
+  .scm { display: block; margin-top: 12px; }
+  .scm-strip { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-bottom: 14px; }
+  .scm-d { border-radius: 10px; background: var(--ia-surface); border: .5px solid var(--ia-border); padding: 7px 2px 6px;
+    text-align: center; cursor: pointer; color: var(--ia-text); font: inherit; }
+  .scm-d .w { font-size: 9.5px; letter-spacing: .06em; color: var(--ia-text-muted); text-transform: uppercase; }
+  .scm-d .n { font-size: 15px; font-weight: 600; line-height: 1.3; }
+  .scm-d .s { font-size: 10px; color: var(--ia-text-muted); }
+  .scm-d .dem { height: 3px; border-radius: 2px; background: rgba(255,255,255,.08); margin: 5px 6px 0; overflow: hidden; }
+  .scm-d .dem i { display: block; height: 100%; background: rgba(96,165,250,.8); }
+  .scm-d.short .s { color: #f0a3a3; }
+  .scm-d.on { background: var(--ia-accent); border-color: var(--ia-accent); }
+  .scm-d.on .w, .scm-d.on .n, .scm-d.on .s { color: var(--ia-accent-text); }
+  .scm-d.on .dem { background: rgba(0,0,0,.15); }
+  .scm-d.on .dem i { background: var(--ia-accent-text); }
+  .scm-day[hidden] { display: none; }
+  .scm-dayh { display: flex; justify-content: space-between; align-items: baseline; margin: 4px 2px 8px; }
+  .scm-dayh b { font-size: 16px; }
+  .scm-dayh span { font-size: 12.5px; color: var(--ia-text-muted); }
+  .scm-warn { font-size: 12.5px; background: rgba(226,75,74,.10); border: .5px solid rgba(226,75,74,.35); color: #f0b3b3;
+    border-radius: 10px; padding: 9px 12px; margin-bottom: 10px; }
+  .scm-rows { border: .5px solid var(--ia-border); border-radius: 14px; overflow: hidden; background: var(--ia-surface); }
+  .scm-r { display: flex; align-items: center; gap: 12px; padding: 13px 14px; border-top: .5px solid var(--ia-border);
+    cursor: pointer; width: 100%; background: none; border-left: 0; border-right: 0; border-bottom: 0; color: var(--ia-text); font: inherit; text-align: left; }
+  .scm-r:first-child { border-top: 0; }
+  .scm-r[disabled] { cursor: default; }
+  .scm-who { flex: 1; min-width: 0; }
+  .scm-who b { display: block; font-size: 14.5px; }
+  .scm-who span { font-size: 12px; color: var(--ia-text-muted); }
+  .scm-who .note { display: block; color: #f0c78a; font-size: 11.5px; margin-top: 2px; }
+  .scm-chips { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+  .scm-sh { font-size: 12.5px; font-weight: 600; padding: 5px 10px; border-radius: 99px; white-space: nowrap;
+    background: rgba(233,162,59,.12); color: var(--ia-accent); }
+  .scm-sh.draft { outline: 1px dashed rgba(233,162,59,.5); }
+  .scm-sh.off { background: none; color: var(--ia-text-muted); outline: .5px dashed var(--ia-border-2, rgba(255,255,255,.22)); }
+  .scm-sh.to { background: rgba(96,165,250,.12); color: #93c5fd; }
+  .scm-sheet { position: fixed; inset: 0; z-index: 1000; background: rgba(0,0,0,.55); align-items: flex-end; }
+  .scm-sheet.on { display: flex; }
+  .scm-sheet-card { width: 100%; background: var(--ia-surface); border-radius: 18px 18px 0 0; border-top: .5px solid var(--ia-border);
+    padding: 10px 18px calc(24px + env(safe-area-inset-bottom, 0px)); max-height: 85vh; overflow-y: auto; }
+  .scm-grab { width: 38px; height: 4px; border-radius: 2px; background: rgba(255,255,255,.2); margin: 0 auto 12px; }
+  .scm-sheet h3 { margin: 0 0 2px; font-size: 16px; }
+  .scm-sheet .sub { font-size: 12.5px; color: var(--ia-text-muted); margin-bottom: 14px; }
+  .scm-sheet label { font-size: 12px; color: var(--ia-text-muted); display: block; margin-bottom: 5px; }
+  .scm-sheet input, .scm-sheet select { width: 100%; background: rgba(255,255,255,.07); border: 1px solid var(--ia-border); border-radius: 10px;
+    padding: 10px 11px; color: var(--ia-text); font: inherit; font-size: 14px; margin-bottom: 12px; }
+  .scm-two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .scm-exist { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: .5px dashed var(--ia-border); font-size: 13.5px; }
+  .scm-btns { display: flex; gap: 8px; margin-top: 4px; }
+  .scm-btns .sc-btn { flex: 1; justify-content: center; padding: 12px; }
+}
 </style>
 @endpush
 
@@ -159,7 +226,7 @@
         </span>
       </span>
       <form method="POST" action="{{ route('tenant.scheduling.publish', ['week' => $weekStart->toDateString()]) }}"
-            onsubmit="return confirm('Publish this week? Staff will see their shifts and get notified.')">@csrf
+            onsubmit="event.preventDefault(); var f = this; iaConfirm('Publish this week? Staff will see their shifts and get notified.').then(function (ok) { if (ok) { f.submit(); } });">@csrf{{-- MARKER-SCHED-PHONE: in-app dialog --}}
         <button class="sc-btn p" type="submit">Publish week →</button>
       </form>
     </span>
@@ -199,7 +266,7 @@
                   <div class="t">{{ tlocal($sh->starts_at, 'g:ia') }}–{{ tlocal($sh->ends_at, 'g:ia') }}@if(!empty($sh->avail_conflict))<span class="sc-warn" data-tip="Outside {{ $m->name }}'s stated availability">!</span>@endif</div>
                   @if($sh->label)<div class="l">{{ $sh->label }}</div>@endif
                   <form method="POST" action="{{ route('tenant.scheduling.shift.delete', $sh->id) }}" style="display:inline"
-                        onsubmit="return confirm('Remove this shift?')">@csrf<button class="x" type="submit">×</button></form>
+                        onsubmit="event.preventDefault(); var f = this; iaConfirm('Remove this shift?').then(function (ok) { if (ok) { f.submit(); } });">@csrf<button class="x" type="submit">×</button></form>
                 </div>
               @endforeach
               <button type="button" class="sc-add"
@@ -210,6 +277,178 @@
       </div>
     @endforeach
   </div>
+
+  {{-- MARKER-SCHED-PHONE — the builder on phones: a day strip (shifts, booking
+       demand, short-staffed days in red), then that day's staff as rows. Tap a
+       person to add or change their shift. The week bar above is the same one
+       desktop uses, laid out for a phone. --}}
+  @php
+    $scmPer = (int) ($set['bookings_per_staff'] ?? 0);
+    $scmTodayStr = tenant()->localToday()->toDateString();
+    $scmSel = 0;
+    foreach ($days as $scmI => $scmD) { if ($scmD->toDateString() === $scmTodayStr) { $scmSel = $scmI; } }
+    $scmBookings = []; $scmOn = []; $scmMaxB = 1;
+    for ($i = 0; $i < 7; $i++) {
+        $scmBookings[$i] = ! empty($demand['bands'][$i] ?? null) ? array_sum($demand['bands'][$i]) : null;
+        $scmMaxB = max($scmMaxB, (int) ($scmBookings[$i] ?? 0));
+        $scmOn[$i] = 0;
+        foreach ($staff as $m) { if (! empty($grid[$m->id][$i]['shifts'])) { $scmOn[$i]++; } }
+    }
+    $scmNeed = function ($i) use ($scmPer, $scmBookings) {
+        return ($scmPer > 0 && ($scmBookings[$i] ?? 0) > 0) ? (int) ceil($scmBookings[$i] / $scmPer) : 0;
+    };
+    $scmBandWord = ['morning' => 'mornings', 'afternoon' => 'afternoons', 'evening' => 'evenings'];
+    $scmLocations = \App\Models\Tenant\TenantLocation::where('tenant_id', tenant()->id)->orderBy('name')->get(['id', 'name']);
+  @endphp
+  <div class="scm">
+    <div class="scm-strip" role="tablist">
+      @foreach($days as $i => $d)
+        <button type="button" class="scm-d {{ $i === $scmSel ? 'on' : '' }} {{ $scmOn[$i] < $scmNeed($i) ? 'short' : '' }}" data-scm-day="{{ $i }}" role="tab">
+          <div class="w">{{ $d->format('D') }}</div>
+          <div class="n">{{ $d->format('j') }}</div>
+          <div class="s">{{ $scmOn[$i] }} on</div>
+          @if($scmBookings[$i] !== null)
+            <div class="dem"><i style="width: {{ (int) round(($scmBookings[$i] / $scmMaxB) * 100) }}%"></i></div>
+          @endif
+        </button>
+      @endforeach
+    </div>
+
+    @foreach($days as $i => $d)
+      <div class="scm-day" data-scm-day-panel="{{ $i }}" {{ $i === $scmSel ? '' : 'hidden' }}>
+        <div class="scm-dayh">
+          <b>{{ $d->format('l, M j') }}</b>
+          <span>{{ $scmOn[$i] }} on shift @if($scmBookings[$i] !== null) · {{ $scmBookings[$i] }} {{ \Illuminate\Support\Str::plural('booking', $scmBookings[$i]) }} @endif</span>
+        </div>
+        @if($scmOn[$i] < $scmNeed($i))
+          <div class="scm-warn">{{ $scmBookings[$i] }} bookings and {{ $scmOn[$i] }} on shift — your guide is {{ $scmNeed($i) }}.</div>
+        @endif
+        <div class="scm-rows">
+          @foreach($staff as $m)
+            @php
+              $cell = $grid[$m->id][$i];
+              $scmUnavail = [];
+              foreach (($availability[$m->id] ?? []) as $scmKey) {
+                  [$scmDow, $scmBand] = array_pad(explode(':', $scmKey, 2), 2, '');
+                  if ((int) $scmDow === (int) $d->dayOfWeek) { $scmUnavail[] = $scmBandWord[$scmBand] ?? $scmBand; }
+              }
+              $scmShifts = collect($cell['shifts'])->map(fn ($sh) => [
+                  'id' => $sh->id, 'start' => tlocal($sh->starts_at, 'H:i'), 'end' => tlocal($sh->ends_at, 'H:i'),
+                  'label' => $sh->label, 'text' => tlocal($sh->starts_at, 'g:ia') . '–' . tlocal($sh->ends_at, 'g:ia'),
+                  'location_id' => $sh->location_id, 'delete' => route('tenant.scheduling.shift.delete', $sh->id),
+              ])->values();
+            @endphp
+            <button type="button" class="scm-r" {{ $cell['off'] ? 'disabled' : '' }}
+                    data-scm-person="{{ $m->id }}" data-scm-name="{{ $m->name }}"
+                    data-scm-date="{{ $d->toDateString() }}" data-scm-date-label="{{ $d->format('l, M j') }}"
+                    data-scm-unavail="{{ $scmUnavail ? 'Unavailable ' . implode(', ', $scmUnavail) : '' }}"
+                    data-scm-shifts='@json($scmShifts)'>
+              <span class="scm-who">
+                <b>{{ $m->name }}</b><span>{{ $m->role }}</span>
+                @if($scmUnavail)<span class="note">Unavailable {{ implode(', ', $scmUnavail) }}</span>@endif
+              </span>
+              <span class="scm-chips">
+                @if($cell['off'])
+                  <span class="scm-sh to">Time off</span>
+                @elseif(empty($cell['shifts']))
+                  <span class="scm-sh off">Off</span>
+                @else
+                  @foreach($cell['shifts'] as $sh)
+                    <span class="scm-sh {{ $sh->published_at ? '' : 'draft' }}">{{ tlocal($sh->starts_at, 'g:ia') }}–{{ tlocal($sh->ends_at, 'g:ia') }}</span>
+                  @endforeach
+                @endif
+              </span>
+            </button>
+          @endforeach
+        </div>
+      </div>
+    @endforeach
+  </div>
+
+  <div class="scm-sheet" id="scm-sheet" aria-hidden="true">
+    <div class="scm-sheet-card" role="dialog" aria-modal="true">
+      <div class="scm-grab"></div>
+      <h3 id="scm-name"></h3>
+      <div class="sub" id="scm-sub"></div>
+      <div id="scm-exist"></div>
+      <form method="POST" action="{{ route('tenant.scheduling.shift.store') }}" id="scm-form">@csrf
+        <input type="hidden" name="tenant_user_id" id="scm-uid">
+        <input type="hidden" name="date" id="scm-date">
+        <input type="hidden" name="replace_shift_id" id="scm-replace">
+        <div class="scm-two">
+          <div><label>Start</label><input type="time" name="start_time" id="scm-start" value="09:00" required></div>
+          <div><label>End</label><input type="time" name="end_time" id="scm-end" value="17:00" required></div>
+        </div>
+        <label>Label (optional)</label>
+        <input type="text" name="label" id="scm-label" maxlength="80" placeholder="Shop, Routes, …">
+        @if($scmLocations->count() > 1)
+          <label>Location</label>
+          <select name="location_id" id="scm-loc">
+            @foreach($scmLocations as $scmLoc)
+              <option value="{{ $scmLoc->id }}" @selected(session('current_location_id') === $scmLoc->id)>{{ $scmLoc->name }}</option>
+            @endforeach
+          </select>
+        @endif
+        <div class="scm-btns">
+          <button type="button" class="sc-btn" id="scm-cancel">Cancel</button>
+          <button type="submit" class="sc-btn p" id="scm-save">Save shift</button>
+        </div>
+      </form>
+    </div>
+  </div>
+  <script>
+  // MARKER-SCHED-PHONE — day strip and the shift sheet.
+  document.addEventListener('DOMContentLoaded', function () {
+    document.querySelectorAll('[data-scm-day]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var i = b.getAttribute('data-scm-day');
+        document.querySelectorAll('[data-scm-day]').forEach(function (x) { x.classList.toggle('on', x === b); });
+        document.querySelectorAll('[data-scm-day-panel]').forEach(function (p) { p.hidden = p.getAttribute('data-scm-day-panel') !== i; });
+      });
+    });
+    var sheet = document.getElementById('scm-sheet');
+    if (!sheet) { return; }
+    var $ = function (id) { return document.getElementById(id); };
+    var csrf = (document.querySelector('meta[name="csrf-token"]') || {}).content;
+    var close = function () { sheet.classList.remove('on'); sheet.setAttribute('aria-hidden', 'true'); };
+    $('scm-cancel').addEventListener('click', close);
+    sheet.addEventListener('click', function (e) { if (e.target === sheet) { close(); } });
+    document.querySelectorAll('[data-scm-person]').forEach(function (row) {
+      row.addEventListener('click', function () {
+        if (row.disabled) { return; }
+        var shifts = []; try { shifts = JSON.parse(row.getAttribute('data-scm-shifts') || '[]'); } catch (e) {}
+        $('scm-name').textContent = row.getAttribute('data-scm-name');
+        var un = row.getAttribute('data-scm-unavail');
+        $('scm-sub').textContent = row.getAttribute('data-scm-date-label') + (un ? ' · ' + un : '');
+        $('scm-uid').value = row.getAttribute('data-scm-person');
+        $('scm-date').value = row.getAttribute('data-scm-date');
+        var one = shifts.length === 1 ? shifts[0] : null;
+        $('scm-replace').value = one ? one.id : '';
+        $('scm-start').value = one ? one.start : '09:00';
+        $('scm-end').value = one ? one.end : '17:00';
+        $('scm-label').value = one && one.label ? one.label : '';
+        if ($('scm-loc') && one && one.location_id) { $('scm-loc').value = one.location_id; }
+        $('scm-save').textContent = one ? 'Save shift' : (shifts.length ? 'Add another shift' : 'Add shift');
+        var ex = $('scm-exist'); ex.innerHTML = '';
+        shifts.forEach(function (s) {
+          var r = document.createElement('div'); r.className = 'scm-exist';
+          var t = document.createElement('span'); t.textContent = s.text + (s.label ? ' · ' + s.label : '');
+          var b = document.createElement('button'); b.type = 'button'; b.className = 'sc-btn'; b.textContent = 'Set as off';
+          b.addEventListener('click', function () {
+            iaConfirm('Remove this shift?').then(function (ok) {
+              if (!ok) { return; }
+              var f = document.createElement('form'); f.method = 'POST'; f.action = s['delete'];
+              var c = document.createElement('input'); c.type = 'hidden'; c.name = '_token'; c.value = csrf; f.appendChild(c);
+              document.body.appendChild(f); f.submit();
+            });
+          });
+          r.appendChild(t); r.appendChild(b); ex.appendChild(r);
+        });
+        sheet.classList.add('on'); sheet.setAttribute('aria-hidden', 'false');
+      });
+    });
+  });
+  </script>
 
   <p style="font-size:11px;color:var(--ia-text-muted);margin-top:12px">Shifts are drafts (dashed) until you publish the week. Approved time off blocks the cell. Overnight shifts: set an end time earlier than the start and it rolls to the next day.</p>
 </div>

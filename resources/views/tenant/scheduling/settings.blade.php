@@ -22,6 +22,12 @@
 .ss-tog input:checked + i::after { left:16px; background:var(--ia-accent-text,#0a0a0a); }
 .ss-num { width:76px; padding:7px 10px; background:var(--ia-surface-2,#1a1a1a); border:1px solid var(--ia-border); border-radius:7px; color:var(--ia-text); font-size:12.5px; }
 .ss-save { padding:9px 18px; border-radius:7px; font-size:12.5px; font-weight:600; cursor:pointer; border:none; background:var(--ia-accent); color:var(--ia-accent-text); }
+/* MARKER-SCHED-PHONE — tabs on one scrolling line on phones */
+@media (max-width: 700px) {
+  .ss-sub { overflow-x: auto; flex-wrap: nowrap; white-space: nowrap; scrollbar-width: none; gap: 16px; }
+  .ss-sub::-webkit-scrollbar { display: none; }
+  .ss-sub a { flex: none; }
+}
 </style>
 @endpush
 
@@ -47,6 +53,11 @@
       <div class="ss-row">
         <span>Booking demand overlay<div class="d">Show booking density from your calendar above the builder grid, so you staff against real load.</div></span>
         <label class="ss-tog"><input type="checkbox" name="scheduling_demand_overlay" value="1" @checked($set['demand_overlay'])><i></i></label>
+      </div>
+      {{-- MARKER-SCHED-PHONE — staffing guide, used with the demand overlay --}}
+      <div class="ss-row">
+        <span>Bookings per person on shift<div class="d">The builder flags a day when there are more bookings than this for each person on shift — for example, 3 means a day with 7 bookings wants 3 people. Needs the booking demand overlay. 0 = off.</div></span>
+        <input type="number" name="scheduling_bookings_per_staff" class="ss-num" min="0" max="50" value="{{ $set['bookings_per_staff'] ?? 0 }}">
       </div>
       <div class="ss-row">
         <span>Staff availability<div class="d">Staff set recurring day/time availability; the builder flags conflicts (never blocks).</div></span>

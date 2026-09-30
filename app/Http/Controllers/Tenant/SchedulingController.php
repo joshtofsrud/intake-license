@@ -98,6 +98,10 @@ class SchedulingController extends Controller
 
         // Availability conflicts: mark each shift chip that overlaps a band the
         // person marked unavailable (MARKER-PATCH-626 — inline ! with tooltip).
+        // MARKER-SCHED-PHONE — defined either way: compact() below names it, and
+        // with Staff availability switched off it was undefined, so the builder
+        // page threw instead of loading.
+        $availability = [];
         if ($set['availability']) {
             $availability = \App\Models\Tenant\TenantAvailability::where('tenant_id', $tenant->id)
                 ->where('preference', 'unavailable')
@@ -136,6 +140,8 @@ class SchedulingController extends Controller
             'availability'        => (bool) ($s['scheduling_availability'] ?? true),
             'notify_publish'      => (bool) ($s['scheduling_notify_publish'] ?? true),
             'timeoff_notice_days' => (int) ($s['scheduling_timeoff_notice_days'] ?? 0),
+            // MARKER-SCHED-PHONE — staffing guide; 0 = off.
+            'bookings_per_staff'  => (int) ($s['scheduling_bookings_per_staff'] ?? 0),
         ];
     }
 
@@ -157,6 +163,7 @@ class SchedulingController extends Controller
 
         $data = $request->validate([
             'scheduling_timeoff_notice_days' => ['required', 'integer', 'min:0', 'max:60'],
+            'scheduling_bookings_per_staff'  => ['nullable', 'integer', 'min:0', 'max:50'], // MARKER-SCHED-PHONE
         ]);
 
         $settings = $tenant->settings ?? [];
@@ -164,6 +171,7 @@ class SchedulingController extends Controller
         $settings['scheduling_availability']   = (bool) $request->input('scheduling_availability');
         $settings['scheduling_notify_publish'] = (bool) $request->input('scheduling_notify_publish');
         $settings['scheduling_timeoff_notice_days'] = $data['scheduling_timeoff_notice_days'];
+        $settings['scheduling_bookings_per_staff']  = (int) ($data['scheduling_bookings_per_staff'] ?? 0); // MARKER-SCHED-PHONE
         $tenant->update(['settings' => $settings]);
 
         return back()->with('success', 'Scheduling settings saved.');
@@ -293,6 +301,10 @@ class SchedulingController extends Controller
             'start_time'     => ['required', 'date_format:H:i'],
             'end_time'       => ['required', 'date_format:H:i'],
             'label'          => ['nullable', 'string', 'max:80'],
+            // MARKER-SCHED-PHONE — the phone sheet edits a shift by replacing it,
+            // and can pick the location when a shop has more than one.
+            'replace_shift_id' => ['nullable', 'uuid'],
+            'location_id'      => ['nullable', 'uuid'],
         ]);
 
         $tz    = $tenant->timezone();
@@ -314,12 +326,24 @@ class SchedulingController extends Controller
         TenantShift::create([
             'tenant_id'      => $tenant->id,
             'tenant_user_id' => $data['tenant_user_id'],
-            'location_id'    => session('current_location_id'),
+            'location_id'    => (! empty($data['location_id'])
+                                    && \App\Models\Tenant\TenantLocation::where('tenant_id', $tenant->id)->where('id', $data['location_id'])->exists())
+                                ? $data['location_id'] : session('current_location_id'),
             'starts_at'      => $start->utc(),
             'ends_at'        => $end->utc(),
             'label'          => $data['label'] ?? null,
             'created_by'     => $user->id,
         ]);
+
+        // MARKER-SCHED-PHONE — an edit replaces the old shift, only once the new
+        // one is saved (a refused save leaves the original untouched).
+        if (! empty($data['replace_shift_id'])) {
+            TenantShift::where('tenant_id', $tenant->id)
+                ->where('tenant_user_id', $data['tenant_user_id'])
+                ->where('id', $data['replace_shift_id'])
+                ->delete();
+            return back()->with('success', 'Shift updated (draft — publish when the week is ready).');
+        }
 
         // MARKER-PATCH-626 — conflicts now surface as an inline ! marker on the
         // shift chip in the grid (see index()), not a flash.
