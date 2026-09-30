@@ -29,6 +29,11 @@
       }
     }
     $msAppointments = $msAppointments->sortBy('appointment_time')->values();
+  } elseif ($viewMode === 'month') {
+    // MARKER-MONTH-PHONE — month mode: the chosen day's appointments list
+    // under the grid, from the month data the controller already loads.
+    $msAnchorDateStr = isset($monthAnchor) ? $monthAnchor->toDateString() : $todayStr;
+    $msAppointments  = collect($byDate[$msAnchorDateStr] ?? [])->sortBy('appointment_time')->values();
   } else {
     $msAnchorDateStr = $todayStr;
     $msAppointments  = collect();
@@ -68,6 +73,11 @@
   $msSingleResource  = $msIsFiltered && count($msVisibleResourceIds) === 1
     ? ($msResourceById[$msVisibleResourceIds[0]] ?? null)
     : null;
+
+  // MARKER-MONTH-PHONE — the month query carries no durations, so the day
+  // list under the grid skips the gap rows it draws for one resource.
+  if ($viewMode === 'month') { $msSingleResource = null; }
+  $msCanMonth = (tenant()->booking_mode ?? 'drop_off') !== 'drop_off';
 
   // MARKER-SWIPE-STRIP — how busy each day in the strip is, in one query.
   // Dots are relative to this shop's busiest day in view (1-3), so they read
@@ -175,6 +185,10 @@
          class="ia-msched-mode-btn {{ $viewMode === 'day' ? 'is-active' : '' }}">Day</a>
       <a href="{{ route('tenant.calendar.index', ['view' => 'week', 'date' => $msAnchorDateStr, 'resources' => $filterMode === 'all' ? null : implode(',', $msVisibleResourceIds)]) }}"
          class="ia-msched-mode-btn {{ $viewMode === 'week' ? 'is-active' : '' }}">Week</a>
+      @if($msCanMonth){{-- MARKER-MONTH-PHONE --}}
+        <a href="{{ route('tenant.calendar.index', ['view' => 'month', 'date' => $msAnchorDateStr, 'resources' => $filterMode === 'all' ? null : implode(',', $msVisibleResourceIds)]) }}"
+           class="ia-msched-mode-btn {{ $viewMode === 'month' ? 'is-active' : '' }}">Month</a>
+      @endif
     </div>
   </div>
 
@@ -201,6 +215,79 @@
     </div>
   @endif
 
+  @if($viewMode === 'month')
+    {{-- MARKER-MONTH-PHONE — the month grid: one bar per appointment, in its
+         resource's colour, up to three, then "+N". Tap a day to list it below;
+         swipe sideways (or the arrows) for the next month. --}}
+    @php
+      $mmParams = function (string $date) use ($filterMode, $msVisibleResourceIds) {
+          $p = ['view' => 'month', 'date' => $date];
+          if ($filterMode !== 'all' && ! empty($msVisibleResourceIds)) { $p['resources'] = implode(',', $msVisibleResourceIds); }
+          return $p;
+      };
+      $mmPrev = $monthAnchor->copy()->subMonthNoOverflow()->toDateString();
+      $mmNext = $monthAnchor->copy()->addMonthNoOverflow()->toDateString();
+    @endphp
+    <div class="ia-mm-head">
+      <div class="ia-msched-month">
+        <span>{{ $monthAnchor->format('F Y') }}</span>
+        <span class="ia-msched-month-caret" aria-hidden="true">▾</span>
+        <input type="date" id="mmPick" value="{{ $msAnchorDateStr }}" aria-label="Go to a date"
+               data-url="{{ route('tenant.calendar.index', $mmParams('__DATE__')) }}">
+      </div>
+      <div class="ia-mm-arrows">
+        <a href="{{ route('tenant.calendar.index', $mmParams($mmPrev)) }}" aria-label="Previous month">‹</a>
+        <a href="{{ route('tenant.calendar.index', $mmParams($mmNext)) }}" aria-label="Next month">›</a>
+      </div>
+    </div>
+    <div class="ia-mm-dow"><span>SUN</span><span>MON</span><span>TUE</span><span>WED</span><span>THU</span><span>FRI</span><span>SAT</span></div>
+    <div class="ia-mm-grid" id="mmGrid"
+         data-prev="{{ route('tenant.calendar.index', $mmParams($mmPrev)) }}"
+         data-next="{{ route('tenant.calendar.index', $mmParams($mmNext)) }}">
+      @foreach(($cells ?? []) as $mmCell)
+        @php
+          $mmList  = collect($byDate[$mmCell['dateStr']] ?? []);
+          $mmShown = $mmList->take(3);
+          $mmMore  = $mmList->count() - $mmShown->count();
+        @endphp
+        <a href="{{ route('tenant.calendar.index', $mmParams($mmCell['dateStr'])) }}"
+           class="ia-mm-day {{ $mmCell['inMonth'] ? '' : 'is-out' }} {{ $mmCell['dateStr'] === $todayStr ? 'is-today' : '' }} {{ $mmCell['dateStr'] === $msAnchorDateStr ? 'is-sel' : '' }}"
+           aria-label="{{ $mmCell['date']->format('l, M j') }}: {{ $mmList->count() }} {{ \Illuminate\Support\Str::plural('appointment', $mmList->count()) }}">
+          <span class="ia-mm-n">{{ $mmCell['date']->format('j') }}</span>
+          <span class="ia-mm-bars">
+            @foreach($mmShown as $mmA)
+              <i style="background: {{ ($resourceColors ?? [])[$mmA->resource_id] ?? '#888' }}"></i>
+            @endforeach
+            @if($mmMore > 0)
+              <em>+{{ $mmMore }}</em>
+            @endif
+          </span>
+        </a>
+      @endforeach
+    </div>
+    <div class="ia-mm-legend">One bar per appointment, in its resource's colour · swipe sideways for another month</div>
+    <script>
+    // MARKER-MONTH-PHONE — swipe the grid for the next/previous month; the
+    // month label opens the phone's date picker.
+    (function () {
+      var g = document.getElementById('mmGrid');
+      if (g) {
+        var sx = null, sy = null;
+        g.addEventListener('touchstart', function (e) { sx = e.touches[0].clientX; sy = e.touches[0].clientY; }, { passive: true });
+        g.addEventListener('touchend', function (e) {
+          if (sx === null) { return; }
+          var dx = e.changedTouches[0].clientX - sx, dy = e.changedTouches[0].clientY - sy;
+          sx = null;
+          if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+            window.location.href = dx < 0 ? g.dataset.next : g.dataset.prev;
+          }
+        });
+      }
+      var p = document.getElementById('mmPick');
+      if (p) { p.addEventListener('change', function () { if (p.value) { window.location.href = p.dataset.url.replace('__DATE__', p.value); } }); }
+    })();
+    </script>
+  @else
   {{-- MARKER-STRIP-MONTHS — which month you're looking at, updated as you swipe.
        Tapping it opens the date picker (the input sits invisibly over the
        label so the phone's own picker opens on the first tap). --}}
@@ -294,6 +381,8 @@
     @endunless
     <a href="{{ route('tenant.calendar.index', $nextParams) }}" class="ia-msched-nav-btn">Next day ›</a>
   </div>
+
+  @endif{{-- MARKER-MONTH-PHONE: day strip and day nav are for Day/Week --}}
 
   {{-- ─── Body ─── --}}
   @if($viewMode === 'week')

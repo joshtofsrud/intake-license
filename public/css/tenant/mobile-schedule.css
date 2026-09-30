@@ -420,3 +420,29 @@
 /* The 1st of each month shows its month, in the accent, so the boundary is plain. */
 .ia-msched-strip-chip.is-month-start .ia-msched-strip-dow { color: var(--ia-accent); opacity: 1; font-weight: 700; }
 .ia-msched-strip-chip.is-month-start.is-active .ia-msched-strip-dow { color: var(--ia-accent-text); }
+
+/* MARKER-MONTH-PHONE — month grid on phones: small cells, one bar per
+   appointment in its resource's colour (up to three, then +N). */
+.ia-mm-head { display: flex; align-items: center; justify-content: space-between; margin: 2px 0 8px; }
+.ia-mm-head .ia-msched-month { margin: 0; }
+.ia-mm-arrows { display: flex; gap: 6px; }
+.ia-mm-arrows a { width: 34px; height: 34px; border-radius: 10px; border: 0.5px solid var(--ia-border);
+  background: var(--ia-surface); color: var(--ia-text); display: grid; place-items: center; text-decoration: none; font-size: 16px; }
+.ia-mm-dow { display: grid; grid-template-columns: repeat(7, 1fr); font-size: 10px; letter-spacing: .06em;
+  color: var(--ia-text-dim); text-align: center; margin-bottom: 4px; }
+.ia-mm-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; touch-action: pan-y; }
+.ia-mm-day { aspect-ratio: 1 / 1.1; border-radius: 10px; display: flex; flex-direction: column; align-items: center;
+  justify-content: flex-start; gap: 4px; padding-top: 6px; text-decoration: none; color: var(--ia-text);
+  -webkit-tap-highlight-color: transparent; }
+.ia-mm-day.is-out { opacity: .3; }
+.ia-mm-day.is-today { box-shadow: inset 0 0 0 1px var(--ia-accent); }
+.ia-mm-day.is-today .ia-mm-n { color: var(--ia-accent); }
+.ia-mm-day.is-sel { background: var(--ia-accent); }
+.ia-mm-day.is-sel .ia-mm-n { color: var(--ia-accent-text); }
+.ia-mm-n { font-size: 14px; font-weight: 500; line-height: 1; }
+.ia-mm-bars { display: flex; flex-direction: column; gap: 2px; width: 72%; }
+.ia-mm-bars i { display: block; height: 3px; border-radius: 2px; }
+.ia-mm-bars em { font-style: normal; font-size: 8.5px; line-height: 1; color: var(--ia-text-dim); text-align: center; }
+.ia-mm-day.is-sel .ia-mm-bars i { box-shadow: 0 0 0 1px rgba(0,0,0,.3); }
+.ia-mm-day.is-sel .ia-mm-bars em { color: var(--ia-accent-text); }
+.ia-mm-legend { font-size: 11.5px; color: var(--ia-text-dim); margin: 8px 2px 14px; }
