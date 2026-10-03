@@ -9,8 +9,8 @@ That's <span class="err-title-accent">on us</span>, not you.
 Something went sideways. We've been notified automatically and we'll dig into it. In the meantime, going back and trying again often works — most issues like this clear in seconds.
 @endsection
 @section('mini_links')
-  <a href="{{ url('/status') }}">Status</a>
-  <a href="{{ url('/docs') }}">Help</a>
+  {{-- MARKER-ERROR-LINKS — there is no status page; help lives on intake.works --}}
+  <a href="{{ error_help_url() }}">Help</a>
 @endsection
 @section('actions')
   {{-- MARKER-ERR-HOME --}}

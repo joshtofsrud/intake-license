@@ -313,11 +313,37 @@ if (! function_exists('error_home_url')) {
             if (auth('web')->check() && (auth('web')->user()->is_admin ?? false)) {
                 return 'https://' . config('intake.domain', 'intake.works') . '/admin';
             }
+
+            // MARKER-ERROR-LINKS — a page-not-found error never loads the session,
+            // so a signed-in person looked signed out and was sent to the public
+            // site. Anyone who was inside /admin goes back to /admin; it asks
+            // them to sign in if they really aren't.
+            $path = trim((string) request()->path(), '/');
+            if ($path === 'admin' || str_starts_with($path, 'admin/')) {
+                return url('/admin');
+            }
         } catch (\Throwable $e) {
             // An error page must never itself throw. Fall through to the root.
         }
 
         return url('/');
+    }
+
+    /** MARKER-ERROR-LINKS — true when the error happened inside an admin area. */
+    function error_in_admin(): bool
+    {
+        try {
+            $path = trim((string) request()->path(), '/');
+            return $path === 'admin' || str_starts_with($path, 'admin/');
+        } catch (\Throwable $e) {
+            return false;
+        }
+    }
+
+    /** MARKER-ERROR-LINKS — help lives on intake.works, whichever address the error is on. */
+    function error_help_url(): string
+    {
+        return 'https://' . config('intake.domain', 'intake.works') . '/docs';
     }
 }
 
