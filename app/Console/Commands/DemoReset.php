@@ -99,6 +99,10 @@ class DemoReset extends Command
                 $entry = json_decode($line, true);
                 if (! $entry) continue;
                 $table = $entry['table'];
+                // MARKER-DEMO-NO-MAIL — permission claims are a legal record of who
+                // confirmed what; the demo's copy of the source shop's claims (its
+                // owner's IPs under a made-up name) is never loaded.
+                if ($table === 'tenant_consent_attestations') continue;
                 $row   = $this->shiftRow($table, $entry['row'], $shiftDays);
 
                 if ($current !== null && $table !== $current) {
@@ -121,6 +125,23 @@ class DemoReset extends Command
             throw $e;
         } finally {
             DB::statement('SET FOREIGN_KEY_CHECKS=1');
+        }
+
+        // MARKER-DEMO-NO-MAIL — every communication switch off after each rebuild
+        // (the template carries the source shop's settings). The mail guard
+        // stops anything that ignores these switches anyway.
+        DB::table('tenant_consent_attestations')->where('tenant_id', $tenantId)->delete();
+        if ($demoTenant = \App\Models\Tenant::find($tenantId)) {
+            $settings = (array) ($demoTenant->settings ?? []);
+            foreach (array_keys($settings) as $k) {
+                if (str_starts_with((string) $k, 'notify_')) {
+                    $settings[$k] = false;
+                }
+            }
+            $demoTenant->settings            = $settings;
+            $demoTenant->sms_enabled         = false;
+            $demoTenant->campaigns_paused_at = now();
+            $demoTenant->saveQuietly();
         }
 
         // media: the frozen snapshot is authoritative
@@ -267,13 +288,18 @@ class DemoReset extends Command
                 // unparseable: leave it exactly as frozen
             }
         }
-        // MARKER-TENANTS-POLISH — bookings may land ahead, but nothing can have been
-        // created or last edited in the future.
+        // MARKER-TENANTS-POLISH / MARKER-DEMO-NO-MAIL — bookings and schedules may
+        // land ahead, but nothing can have already happened in the future: any
+        // "…_at" stamp that isn't a plan for later is pulled back to now.
         $now = CarbonImmutable::now()->format('Y-m-d H:i:s');
-        foreach (['created_at', 'updated_at'] as $stamp) {
-            if (isset($row[$stamp]) && is_string($row[$stamp]) && strlen($row[$stamp]) > 10 && $row[$stamp] > $now) {
-                $row[$stamp] = $now;
+        foreach ($row as $col => $val) {
+            if (! is_string($col) || ! str_ends_with($col, '_at') || ! is_string($val) || strlen($val) <= 10 || $val <= $now) {
+                continue;
             }
+            if (preg_match('/(start|end|scheduled|expire|due|promised|window|next|until|remind|arriv|deliver_by|valid|publish|open|close|available|book)/', $col)) {
+                continue; // a plan for later — leave it ahead
+            }
+            $row[$col] = $now;
         }
         return $row;
     }

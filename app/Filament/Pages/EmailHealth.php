@@ -124,7 +124,10 @@ class EmailHealth extends Page
     /** MARKER-MARKETING-OVERSIGHT — permission claims, newest first. */
     protected function recentAttestations(): array
     {
-        $rows = \App\Models\Tenant\TenantConsentAttestation::orderByDesc('created_at')
+        // MARKER-DEMO-NO-MAIL — the demo shop's rows aren't real claims.
+        $rows = \App\Models\Tenant\TenantConsentAttestation::whereNotIn('tenant_id',
+                \App\Models\Tenant::where('is_demo', true)->pluck('id'))
+            ->orderByDesc('created_at')
             ->limit(15)->get();
 
         if ($rows->isEmpty()) return [];

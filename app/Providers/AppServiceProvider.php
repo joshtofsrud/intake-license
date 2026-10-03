@@ -61,6 +61,13 @@ class AppServiceProvider extends ServiceProvider
             \App\Listeners\ApplyPlatformMailFrom::class
         );
 
+        // MARKER-DEMO-NO-MAIL — nothing from a demo shop, and nothing to a
+        // reserved fake domain, ever leaves Intake (returns false = not sent).
+        Event::listen(
+            \Illuminate\Mail\Events\MessageSending::class,
+            \App\Listeners\BlockDemoAndReservedMail::class
+        );
+
         // MARKER-STREAM-ASSERT — every send declares its Postmark stream;
         // unstamped mail is transactional and gets 'outbound' explicitly.
         Event::listen(
