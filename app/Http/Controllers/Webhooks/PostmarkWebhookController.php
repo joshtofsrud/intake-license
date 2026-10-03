@@ -45,7 +45,9 @@ class PostmarkWebhookController extends Controller
     protected array $platformWideBounceTypes = [
         'HardBounce',
         'BadEmailAddress',
-        'ManuallyDeactivated',
+        // MARKER-MANUALLY-DEACTIVATED — not ManuallyDeactivated: that only
+        // echoes Postmark's own list (often a marketing unsubscribe), not a
+        // dead mailbox. See handleBounce().
     ];
 
     protected array $suppressOnBounceTypes = [
@@ -192,6 +194,25 @@ class PostmarkWebhookController extends Controller
             'source_message_id' => $msgId,
             'payload'           => $payload,
         ]);
+
+        // MARKER-MANUALLY-DEACTIVATED — Postmark reports a send to an address it
+        // has already deactivated on that stream. On the marketing stream that
+        // is usually an unsubscribe there: the shop's customer is opted out of
+        // marketing, nothing is blocked. On the transactional stream the shop
+        // stops mailing it, but it never counts toward an all-of-Intake block —
+        // with every shop on one stream, it would reach three shops at once.
+        if ($type === 'ManuallyDeactivated') {
+            $stream = (string) ($payload['MessageStream'] ?? 'outbound');
+            if ($tenantId && $stream !== 'outbound') {
+                foreach (\App\Models\Tenant\TenantCustomer::where('tenant_id', $tenantId)
+                             ->whereRaw('LOWER(email) = ?', [strtolower($email)])->get() as $customer) {
+                    app(\App\Services\Tenant\ConsentService::class)->optOut($customer);
+                }
+            } elseif ($tenantId) {
+                $this->suppress($tenantId, $email, 'bounce', $type, $msgId, $detail);
+            }
+            return response('OK', 200);
+        }
 
         if (in_array($type, $this->suppressOnBounceTypes, true)) {
             $this->suppress($tenantId, $email, 'bounce', $type, $msgId, $detail);

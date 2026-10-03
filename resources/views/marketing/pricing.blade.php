@@ -113,9 +113,9 @@
         <thead>
           <tr>
             <th>Feature</th>
-            <th>Basic</th>
+            <th>Starter</th>{{-- MARKER-HONEST-PROOF — the plans' real names --}}
             <th>Branded</th>
-            <th>Custom</th>
+            <th>Scale</th>
           </tr>
         </thead>
         <tbody>
@@ -183,7 +183,7 @@
       ['q' => 'Do you take a cut of my bookings?', 'a' => 'No transaction fees from Intake ever. You pay your plan fee plus Stripe\'s or PayPal\'s standard processing rates (typically 2.9% + 30¢). That\'s it.'],
       ['q' => 'What happens to my data if I cancel?', 'a' => 'Your account pauses — all data is retained for 90 days. You can export everything or reactivate at any time within that window.'],
       ['q' => 'Does the WordPress plugin work with any plan?', 'a' => 'Yes. The Intake WordPress plugin connects to your account on any plan. It\'s a free download from your dashboard.'],
-      ['q' => 'Can I use my own domain on Basic?', 'a' => 'Custom domains are available on the Branded plan and above. On Basic you get a yourshop.intake.works subdomain.'],
+      ['q' => 'Can I use my own domain on Starter?', 'a' => 'Custom domains are available on the Branded plan and above. On Starter you get a yourshop.intake.works subdomain.'],
     ];
     @endphp
     @foreach($faqs as $faq)

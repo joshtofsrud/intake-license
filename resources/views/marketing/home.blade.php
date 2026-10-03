@@ -80,19 +80,9 @@
   </div>
 </section>
 
-{{-- Social proof --}}
-<div class="mk-proof">
-  <div class="mk-container">
-    <div class="mk-proof-inner">
-      <span class="mk-proof-label">Trusted by shops like</span>
-      <div class="mk-proof-shops">
-        @foreach(['Spokes Cycle Works', 'Peak Ski + Board', 'Ridgeline Outdoor Co.', 'Coastal Bike Lab'] as $shop)
-          <span class="mk-proof-shop">{{ $shop }}</span>
-        @endforeach
-      </div>
-    </div>
-  </div>
-</div>
+{{-- MARKER-HONEST-PROOF — the "Trusted by shops like…" strip listed shops
+     that aren't customers. It comes back only with real shops that have
+     agreed to be named. --}}
 
 {{-- Features --}}
 <section class="mk-section">
