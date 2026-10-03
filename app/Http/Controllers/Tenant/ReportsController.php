@@ -17,6 +17,9 @@ use Illuminate\View\View;
  * ReportsController
  *
  * Phase 3: single global date range drives every zone.
+ * MARKER-REPORTS-LOCAL-DATES — custom from/to are parsed in the tenant's
+ * timezone, the same as the preset ranges. Parsed as UTC they became the
+ * previous local day once a zone shifted them into the tenant zone.
  *   /admin/reports                          (defaults to today)
  *   /admin/reports?range=today
  *   /admin/reports?range=week
@@ -71,8 +74,8 @@ class ReportsController extends Controller
             $fromStr = (string) $request->query('from', $today->toDateString());
             $toStr   = (string) $request->query('to',   $today->toDateString());
             try {
-                $from = Carbon::parse($fromStr)->startOfDay();
-                $to   = Carbon::parse($toStr)->startOfDay();
+                $from = Carbon::parse($fromStr, $tenant->timezone())->startOfDay();
+                $to   = Carbon::parse($toStr, $tenant->timezone())->startOfDay();
                 if ($from->gt($to)) [$from, $to] = [$to, $from]; // swap if reversed
             } catch (\Throwable $e) {
                 $from = $today->copy();
@@ -104,7 +107,7 @@ class ReportsController extends Controller
             'range_label' => $rangeLabel,
             'from'        => $from,
             'to'          => $to,
-            'kpis'        => $svc->topKpis(),
+            'kpis'        => $svc->topKpis($from, $to), // MARKER-REPORTS-RANGE-CARDS
             'revenue'     => $svc->zoneRevenue($from, $to),
             'bookings'    => $svc->zoneBookings($from, $to),
             'customers'   => $svc->zoneCustomers($from, $to),
@@ -208,8 +211,8 @@ class ReportsController extends Controller
             $fromStr = (string) $request->query('from', $today->toDateString());
             $toStr   = (string) $request->query('to',   $today->toDateString());
             try {
-                $from = Carbon::parse($fromStr)->startOfDay();
-                $to   = Carbon::parse($toStr)->startOfDay();
+                $from = Carbon::parse($fromStr, $tenant->timezone())->startOfDay();
+                $to   = Carbon::parse($toStr, $tenant->timezone())->startOfDay();
                 if ($from->gt($to)) [$from, $to] = [$to, $from];
             } catch (\Throwable $e) {
                 $from = $today->copy();
@@ -264,8 +267,8 @@ class ReportsController extends Controller
         if (!in_array($range, ['today', 'week', 'month', 'last_30', 'custom'], true)) $range = 'today';
         if ($range === 'custom') {
             try {
-                $from = Carbon::parse((string) $request->query('from', $today->toDateString()))->startOfDay();
-                $to   = Carbon::parse((string) $request->query('to',   $today->toDateString()))->startOfDay();
+                $from = Carbon::parse((string) $request->query('from', $today->toDateString()), $tenant->timezone())->startOfDay();
+                $to   = Carbon::parse((string) $request->query('to',   $today->toDateString()), $tenant->timezone())->startOfDay();
                 if ($from->gt($to)) [$from, $to] = [$to, $from];
             } catch (\Throwable $e) {
                 $from = $today->copy(); $to = $today->copy(); $range = 'today';
@@ -311,8 +314,8 @@ class ReportsController extends Controller
         if (!in_array($range, ['today', 'week', 'month', 'last_30', 'custom'], true)) $range = 'today';
         if ($range === 'custom') {
             try {
-                $from = Carbon::parse((string) $request->query('from', $today->toDateString()))->startOfDay();
-                $to   = Carbon::parse((string) $request->query('to',   $today->toDateString()))->startOfDay();
+                $from = Carbon::parse((string) $request->query('from', $today->toDateString()), $tenant->timezone())->startOfDay();
+                $to   = Carbon::parse((string) $request->query('to',   $today->toDateString()), $tenant->timezone())->startOfDay();
                 if ($from->gt($to)) [$from, $to] = [$to, $from];
             } catch (\Throwable $e) {
                 $from = $today->copy(); $to = $today->copy(); $range = 'today';
@@ -417,8 +420,8 @@ class ReportsController extends Controller
         if (!in_array($range, ['today', 'week', 'month', 'last_30', 'custom'], true)) $range = 'today';
         if ($range === 'custom') {
             try {
-                $from = Carbon::parse((string) $request->query('from', $today->toDateString()))->startOfDay();
-                $to   = Carbon::parse((string) $request->query('to',   $today->toDateString()))->startOfDay();
+                $from = Carbon::parse((string) $request->query('from', $today->toDateString()), $tenant->timezone())->startOfDay();
+                $to   = Carbon::parse((string) $request->query('to',   $today->toDateString()), $tenant->timezone())->startOfDay();
                 if ($from->gt($to)) [$from, $to] = [$to, $from];
             } catch (\Throwable $e) {
                 $from = $today->copy(); $to = $today->copy(); $range = 'today';

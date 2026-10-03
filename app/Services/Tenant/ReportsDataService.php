@@ -28,56 +28,85 @@ class ReportsDataService
 
     public function __construct(private readonly Tenant $tenant) {}
 
-    /** Top KPI row — always shows today's snapshot regardless of range. */
-    public function topKpis(): array
+    /**
+     * Top KPI row.
+     *
+     * MARKER-REPORTS-RANGE-CARDS — the cards follow the selected range. They
+     * used to show today whatever range was picked, under labels such as
+     * "Bookings" that didn't say so, which read as a report not updating.
+     *   One day   — compared with the same weekday a week earlier.
+     *   Longer    — compared with the same number of days just before it.
+     * No-show rate keeps the trailing 30 days for a single day, because one
+     * day's rate is noise; a longer range uses the range itself.
+     */
+    public function topKpis(?Carbon $from = null, ?Carbon $to = null): array
     {
         $today = $this->tenant->localToday();
-        $lastWeekSameDay = $today->copy()->subWeek();
+        $from  = ($from ?? $today)->copy()->startOfDay();
+        $to    = ($to ?? $from)->copy()->startOfDay();
 
-        $todayRevenue = $this->revenueForDate($today);
-        $lastWkRevenue = $this->revenueForDate($lastWeekSameDay);
+        $isSingleDay = $from->isSameDay($to);
+        $isToday     = $isSingleDay && $from->isSameDay($today);
+        $days        = (int) round(abs($from->diffInDays($to))) + 1;
 
-        $todayBookings = $this->bookingCountForDate($today);
-        $lastWkBookings = $this->bookingCountForDate($lastWeekSameDay);
+        if ($isSingleDay) {
+            $priorFrom = $from->copy()->subWeek();
+            $priorTo   = $priorFrom->copy();
+            $vsLabel   = 'vs. last ' . $from->format('l');
+            $when      = $isToday ? ' today' : ' · ' . $from->format('M j');
+        } else {
+            $priorTo   = $from->copy()->subDay();
+            $priorFrom = $priorTo->copy()->subDays($days - 1);
+            $vsLabel   = 'vs. previous ' . $days . ' days';
+            $when      = '';
+        }
 
-        $todayCapacity = $this->capacityForDate($today);
+        $revenue       = $this->revenueForRange($from, $to);
+        $priorRevenue  = $this->revenueForRange($priorFrom, $priorTo);
+        $bookings      = $this->bookingCountForRange($from, $to);
+        $priorBookings = $this->bookingCountForRange($priorFrom, $priorTo);
+        $newCust       = $this->newCustomerCountForRange($from, $to);
+        $priorNewCust  = $this->newCustomerCountForRange($priorFrom, $priorTo);
 
-        $thirtyDayNoShowRate = $this->noShowRateForRange(
-            $today->copy()->subDays(29), $today
-        );
-        $todayNoShowCount = $this->noShowCountForDate($today);
-
-        $todayNewCust = $this->newCustomerCountForDate($today);
-        $lastWkNewCust = $this->newCustomerCountForDate($lastWeekSameDay);
+        if ($isSingleDay) {
+            $noShowRate   = $this->noShowRateForRange($from->copy()->subDays(29), $from);
+            $noShowDetail = $this->noShowCountForDate($from) . ($isToday ? ' today' : ' that day');
+            $noShowPeriod = 'trailing 30 days';
+        } else {
+            $noShowRate   = $this->noShowRateForRange($from, $to);
+            $noShowDetail = $this->noShowCountForRange($from, $to) . ' in range';
+            $noShowPeriod = 'this range';
+        }
 
         return [
             [
-                'label'         => 'Revenue today',
-                'value_dollars' => $todayRevenue / 100,
-                'delta'         => $this->deltaPercent($todayRevenue, $lastWkRevenue),
-                'period_label'  => 'vs. last ' . $today->format('l'),
+                'label'         => 'Revenue' . $when,
+                'value_dollars' => $revenue / 100,
+                'delta'         => $this->deltaPercent($revenue, $priorRevenue),
+                'period_label'  => $vsLabel,
                 'format'        => 'money',
             ],
             [
-                'label'         => 'Bookings',
-                'value_int'     => $todayBookings,
-                'capacity'      => $todayCapacity,
-                'delta'         => $this->deltaCount($todayBookings, $lastWkBookings),
-                'period_label'  => 'vs. last ' . $today->format('l'),
+                'label'         => 'Bookings' . $when,
+                'value_int'     => $bookings,
+                // Capacity is a per-day rule, so it only means something on one day.
+                'capacity'      => $isSingleDay ? $this->capacityForDate($from) : null,
+                'delta'         => $this->deltaCount($bookings, $priorBookings),
+                'period_label'  => $vsLabel,
                 'format'        => 'count',
             ],
             [
                 'label'         => 'No-show rate',
-                'value_int'     => round($thirtyDayNoShowRate * 100),
-                'detail'        => $todayNoShowCount . ' today',
-                'period_label'  => 'trailing 30 days',
+                'value_int'     => round($noShowRate * 100),
+                'detail'        => $noShowDetail,
+                'period_label'  => $noShowPeriod,
                 'format'        => 'percent',
             ],
             [
-                'label'         => 'New customers today',
-                'value_int'     => $todayNewCust,
-                'delta'         => $this->deltaCount($todayNewCust, $lastWkNewCust),
-                'period_label'  => 'vs. last ' . $today->format('l'),
+                'label'         => 'New customers' . $when,
+                'value_int'     => $newCust,
+                'delta'         => $this->deltaCount($newCust, $priorNewCust),
+                'period_label'  => $vsLabel,
                 'format'        => 'count',
             ],
         ];
@@ -744,24 +773,26 @@ class ReportsDataService
         return $totalMinutes;
     }
 
-    private function revenueForDate(Carbon $date): int
+    private function revenueForRange(Carbon $from, Carbon $to): int
     {
         // MARKER-PATCH-184B — payments received (ledger) for the tenant-local
-        // day, replacing appointment totals. recorded_at is UTC; bound by the
+        // days, replacing appointment totals. recorded_at is UTC; bound by the
         // local-day window converted to UTC. Signed amounts net refunds.
+        // MARKER-REPORTS-RANGE-CARDS — widened from one day to a range.
         $tz = $this->tenant->timezone();
-        $start = $date->copy()->setTimezone($tz)->startOfDay()->utc();
-        $end   = $date->copy()->setTimezone($tz)->endOfDay()->utc();
+        $start = $from->copy()->setTimezone($tz)->startOfDay()->utc();
+        $end   = $to->copy()->setTimezone($tz)->endOfDay()->utc();
         return (int) DB::table('tenant_sale_payments')
             ->where('tenant_id', $this->tenant->id)
             ->whereBetween('recorded_at', [$start, $end])
             ->sum('amount_cents');
     }
 
-    private function bookingCountForDate(Carbon $date): int
+    private function bookingCountForRange(Carbon $from, Carbon $to): int
     {
+        // MARKER-REPORTS-RANGE-CARDS — widened from one day to a range.
         return TenantAppointment::where('tenant_id', $this->tenant->id)
-            ->where('appointment_date', $date->toDateString())
+            ->whereBetween('appointment_date', [$from->toDateString(), $to->toDateString()])
             ->whereNotIn('status', array_merge(self::CANCELLED_STATUSES, self::REFUNDED_STATUSES))
             ->count();
     }
@@ -836,11 +867,13 @@ class ReportsDataService
         return $noShows / $total;
     }
 
-    private function newCustomerCountForDate(Carbon $date): int
+    private function newCustomerCountForRange(Carbon $from, Carbon $to): int
     {
-        // MARKER-TZ-WAVE1 — created_at is UTC; bucket by the tenant day's
+        // MARKER-TZ-WAVE1 — created_at is UTC; bucket by the tenant days'
         // UTC range so evening signups land on the right local day.
-        [$s, $e] = tenant_day_utc_range($date, $this->tenant->timezone());
+        // MARKER-REPORTS-RANGE-CARDS — widened from one day to a range.
+        [$s]     = tenant_day_utc_range($from, $this->tenant->timezone());
+        [, $e]   = tenant_day_utc_range($to, $this->tenant->timezone());
         return TenantCustomer::where('tenant_id', $this->tenant->id)
             ->where('created_at', '>=', $s)
             ->where('created_at', '<',  $e)
