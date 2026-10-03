@@ -20,6 +20,7 @@ class PageBuilderController extends Controller
      */
     private const ARRAY_FIELDS = [
         'features', 'steps', 'plans', 'items', 'testimonials',
+        'groups', // MARKER-FEATURE-GROUPS
         'shop_names', 'logos', 'competitors', 'rows', 'stats', 'images',
         // MARKER-PATCH-158-G19 — Hero buttons list (Phase 2 field)
         'buttons',
@@ -582,8 +583,12 @@ class PageBuilderController extends Controller
         'legal_doc'        => ['doc_title'=>'Document title','effective_date'=>'','updated_date'=>'','intro_paragraph'=>'','show_toc'=>true,'sections'=>[['heading'=>'Section heading','blocks'=>[['type'=>'paragraph','text'=>'']]]]],
         // MARKER-PATCH-306 — raw HTML block, rendered as-is on the public page.
         'custom_html'      => ['html'=>'', 'bg_color'=>'', 'padding_y'=>'normal'],
-        // MARKER-PATCH-306 — raw HTML block, rendered as-is on the public page.
-        'custom_html'      => ['html'=>'', 'bg_color'=>'', 'padding_y'=>'normal'],
+        // MARKER-FEATURE-GROUPS — feature groups with an index (marketing pages).
+        // (The custom_html default was listed twice; the duplicate is gone.)
+        'feature_groups'   => ['eyebrow'=>'','heading'=>'','subheading'=>'','anchor_id'=>'','groups'=>[
+            ['label'=>'Booking','heading'=>'Bookings that fit the shop.','lead'=>'','features'=>[['title'=>'Your booking page','body'=>'On your own domain.']]],
+            ['label'=>'Register','heading'=>'A register that knows the job.','lead'=>'','features'=>[['title'=>'Card, cash and payment links','body'=>'At the counter or by link.']]],
+        ]],
     ];
 
     public function index(Request $request)

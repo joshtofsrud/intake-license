@@ -49,6 +49,7 @@
     'classes_embed'          => 'Classes schedule',
     'footer'                 => 'Footer',
     'feature_grid'           => 'Feature grid',
+    'feature_groups'         => 'Feature groups with index', // MARKER-FEATURE-GROUPS
     'step_timeline'          => 'Step timeline',
     'pricing_table'          => 'Pricing table',
     'rentals_showcase'       => 'Rentals showcase', // MARKER-PATCH-239
@@ -84,6 +85,7 @@
     'classes_embed'  => '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1" fill="currentColor"/>',
     'footer'         => '<rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="16" x2="21" y2="16"/>',
     'feature_grid'   => '<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>',
+    'feature_groups' => '<line x1="4" y1="6" x2="8" y2="6"/><line x1="4" y1="12" x2="8" y2="12"/><line x1="4" y1="18" x2="8" y2="18"/><rect x="12" y="4" width="9" height="7" rx="1"/><rect x="12" y="13" width="9" height="7" rx="1"/>', // MARKER-FEATURE-GROUPS
     'step_timeline'  => '<line x1="3" y1="6" x2="3" y2="6.01"/><line x1="3" y1="12" x2="3" y2="12.01"/><line x1="3" y1="18" x2="3" y2="18.01"/><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/>',
     'pricing_table'  => '<line x1="12" y1="2" x2="12" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>',
     'rentals_showcase' => '<circle cx="5.5" cy="17.5" r="3.5"/><circle cx="18.5" cy="17.5" r="3.5"/><path d="M15 6a1 1 0 1 0 0-2 1 1 0 0 0 0 2zm-3 11.5V14l-3-3 4-3 2 3h2"/>',
@@ -117,6 +119,7 @@
     'classes_embed' => 'Class schedule widget',
     'footer'        => 'Site footer with links + copyright',
     'feature_grid'  => 'Icon-led feature cards in a grid',
+    'feature_groups' => 'Grouped features with an index that stays on screen', // MARKER-FEATURE-GROUPS
     'step_timeline' => 'Numbered process steps',
     'faq_accordion' => 'Collapsible Q&A list',
     'pricing_table' => 'Side-by-side pricing tiers',
@@ -138,7 +141,7 @@
   // Logical grouping for the gallery. Order matters — common ones first.
   $typeGroups = [
     'Layout'     => ['nav','hero','footer'],
-    'Content'    => ['text_image','feature_grid','step_timeline','image_gallery','image_carousel','faq_accordion','stats_row'],
+    'Content'    => ['text_image','feature_grid','feature_groups','step_timeline','image_gallery','image_carousel','faq_accordion','stats_row'], // MARKER-FEATURE-GROUPS
     'Conversion' => ['services','cta_banner','booking_embed','contact_form','book_call','try_demo','pricing_table','rentals_showcase','rental_spotlight','rental_categories','rental_browse','products_showcase'], // MARKER-SCHED-SECTION book_call
     'Social'     => ['testimonial_carousel','logo_bar'],
     'Advanced'   => ['custom_html'], // MARKER-PATCH-306
@@ -1972,7 +1975,7 @@ body.ia-theme-b .pb2-preview-frame-wrap {
             $allowed = $isBookingExtras
               ? ['hero','cta_banner','feature_grid','custom_html','text_image','image_gallery','image_carousel','stats_row','testimonial_carousel','faq_accordion','logo_bar','step_timeline','pricing_table'] // MARKER-PATCH-603 — content sections; chrome/shop/nav excluded
               : ($isMarketing
-              ? ['nav','hero','text_image','cta_banner','image_gallery','image_carousel','contact_form','feature_grid','step_timeline','faq_accordion','footer','pricing_table','testimonial_carousel','logo_bar','stats_row','comparison_table','industry_pack_showcase','book_call','try_demo','custom_html'] /* MARKER-SCHED-SECTION / MARKER-DEMO-SECTION */
+              ? ['nav','hero','text_image','cta_banner','image_gallery','image_carousel','contact_form','feature_grid','step_timeline','faq_accordion','footer','pricing_table','testimonial_carousel','logo_bar','stats_row','comparison_table','industry_pack_showcase','book_call','try_demo','custom_html','feature_groups'] /* MARKER-SCHED-SECTION / MARKER-DEMO-SECTION / MARKER-FEATURE-GROUPS (marketing only) */
               : ['nav','hero','text_image','cta_banner','image_gallery','image_carousel','contact_form','booking_embed','classes_embed','feature_grid','step_timeline','faq_accordion','footer','testimonial_carousel','logo_bar','stats_row','pricing_table','rentals_showcase','rental_spotlight','rental_categories','rental_browse','products_showcase','custom_html']);
           @endphp
 
@@ -3204,6 +3207,42 @@ body.ia-theme-b .pb2-preview-frame-wrap {
       });
     }
   }
+
+  // MARKER-FEATURE-GROUPS — the feature-groups editor. Delegated, so it works
+  // for editor bodies the builder injects later. Groups serialize into the
+  // hidden data-field="groups" JSON, which the builder saves like any field.
+  (function () {
+    function serializePfg(ed) {
+      var out = [];
+      ed.querySelectorAll('.pfg-list .pfg-group').forEach(function (g) {
+        var v = function (k) { var el = g.querySelector('[data-pfg-field="' + k + '"]'); return el ? el.value : ''; };
+        var feats = v('features').split('\n').map(function (l) { return l.trim(); }).filter(Boolean).map(function (l) {
+          var parts = l.split(/\s+[\u2014\u2013|]\s+|\s+-\s+/);
+          var title = parts.shift();
+          return { title: title.trim(), body: parts.join(' \u2014 ').trim() };
+        });
+        out.push({ label: v('label').trim(), heading: v('heading').trim(), lead: v('lead').trim(), features: feats });
+      });
+      var json = ed.querySelector('.pfg-json');
+      if (json) { json.value = JSON.stringify(out); json.dispatchEvent(new Event('change', { bubbles: true })); }
+      var cnt = ed.querySelector('.pfg-count'); if (cnt) { cnt.textContent = out.length; }
+    }
+    document.addEventListener('input', function (e) {
+      var ed = e.target.closest && e.target.closest('.pfg-editor');
+      if (ed && e.target.hasAttribute('data-pfg-field')) { serializePfg(ed); }
+    });
+    document.addEventListener('click', function (e) {
+      var b = e.target.closest && e.target.closest('[data-pfg]');
+      if (!b) { return; }
+      var ed = b.closest('.pfg-editor'); if (!ed) { return; }
+      var act = b.getAttribute('data-pfg'), grp = b.closest('.pfg-group'), list = ed.querySelector('.pfg-list');
+      if (act === 'add') { list.appendChild(ed.querySelector('.pfg-tpl').content.firstElementChild.cloneNode(true)); }
+      else if (act === 'remove' && grp) { grp.remove(); }
+      else if (act === 'up' && grp && grp.previousElementSibling) { list.insertBefore(grp, grp.previousElementSibling); }
+      else if (act === 'down' && grp && grp.nextElementSibling) { list.insertBefore(grp.nextElementSibling, grp); }
+      serializePfg(ed);
+    });
+  })();
 
   function initFeaturesList(body) {
     const root   = body.querySelector('#pb2-feat-list');
