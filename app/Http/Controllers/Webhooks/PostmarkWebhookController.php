@@ -75,7 +75,13 @@ class PostmarkWebhookController extends Controller
             return $this->handleEngagement($recordType, $payload);
         }
 
-        // Delivery / SubscriptionChange etc. — acknowledged, not acted on.
+        // MARKER-POSTMARK-UNSUB — an unsubscribe recorded by Postmark (its own
+        // link, or a mail app's one-click button) now reaches Intake.
+        if ($recordType === 'SubscriptionChange') {
+            return $this->handleSubscriptionChange($payload);
+        }
+
+        // Delivery etc. — acknowledged, not acted on.
         Log::info('[Postmark] Ignored RecordType', ['type' => $recordType]);
         return response('OK', 200);
     }
@@ -245,6 +251,47 @@ class PostmarkWebhookController extends Controller
      * Pull tenant_id from Postmark Metadata. EmailService sets it on every
      * tenant send; platform mail omits it → null. Validates the tenant exists.
      */
+    /**
+     * MARKER-POSTMARK-UNSUB — mirror a Postmark unsubscribe into Intake.
+     *
+     * A shop's campaign carries tenant_id in its metadata: that shop's customers
+     * with the address are opted out of marketing, exactly as Intake's own
+     * unsubscribe page does. Platform mail (no tenant) records a platform
+     * opt-out. Postmark re-activating an address is logged, never used to opt
+     * anyone back in — consent has to come from the person, in Intake.
+     */
+    protected function handleSubscriptionChange(array $payload)
+    {
+        $email = strtolower(trim((string) ($payload['Recipient'] ?? '')));
+        $suppress = (bool) ($payload['SuppressSending'] ?? false);
+        Log::info('[Postmark] SubscriptionChange', [
+            'email' => $email, 'suppress' => $suppress,
+            'reason' => $payload['SuppressionReason'] ?? null, 'origin' => $payload['Origin'] ?? null,
+            'stream' => $payload['MessageStream'] ?? null,
+        ]);
+        if ($email === '' || ! $suppress) {
+            return response('OK', 200);
+        }
+        // Bounces and complaints arrive as their own records and are handled there.
+        if (in_array($payload['SuppressionReason'] ?? '', ['HardBounce', 'SpamComplaint'], true)) {
+            return response('OK', 200);
+        }
+
+        $tenantId = $this->tenantIdFromMetadata($payload);
+        if ($tenantId) {
+            $customers = \App\Models\Tenant\TenantCustomer::where('tenant_id', $tenantId)
+                ->whereRaw('LOWER(email) = ?', [$email])->get();
+            foreach ($customers as $customer) {
+                app(\App\Services\Tenant\ConsentService::class)->optOut($customer);
+            }
+            Log::info('[Postmark] Unsubscribe applied to shop customers', ['tenant_id' => $tenantId, 'count' => $customers->count()]);
+        } else {
+            \App\Models\PlatformEmailOptout::suppress($email, 'unsubscribe', 'Unsubscribed through Postmark', 'postmark');
+        }
+
+        return response('OK', 200);
+    }
+
     protected function tenantIdFromMetadata(array $payload): ?string
     {
         $meta = $payload['Metadata'] ?? [];
