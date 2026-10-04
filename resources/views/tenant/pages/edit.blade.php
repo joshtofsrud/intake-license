@@ -1482,6 +1482,7 @@ body.ia-theme-b .pb2-preview-frame-wrap {
   display: flex; align-items: center; gap: 10px;
 }
 /* MARKER-SHOP-NAV — menu rows in the Nav section */
+.sn-row.sn-new{box-shadow:0 0 0 2px var(--pb2-accent)}
 .sn-insp{flex:1;overflow-y:auto;min-height:0}
 .sn-row{border:.5px solid var(--pb2-border);border-radius:8px;padding:8px;margin-bottom:6px;background:var(--pb2-surface-2)}
 .sn-row.drag{opacity:.4}.sn-row.over{box-shadow:inset 0 2px 0 var(--pb2-accent)}
@@ -2438,6 +2439,20 @@ body.ia-theme-b .pb2-preview-frame-wrap {
   // Called after the inspector body is populated (initial render + every
   // section selection swap).
   const saveTimers = {};
+  // MARKER-NAV-INTENT — arriving from "Add it in the menu" / "Edit menu" on
+  // another page: open the Nav section; the menu editor finishes the job.
+  (function () {
+    var q = new URLSearchParams(location.search);
+    var sid = q.get('section');
+    if (!sid && q.get('select') !== 'nav') return;
+    window.pb2NavIntent = { add: q.get('add') || null };
+    if (history.replaceState) history.replaceState(null, '', location.pathname);
+    window.addEventListener('load', function () {
+      var n = sid ? document.querySelector('.pb2-section-item[data-section-id="' + sid + '"]')
+                  : document.querySelector('.pb2-section-item[data-section-type="nav"]');
+      if (n && !n.classList.contains('selected')) n.click();
+    });
+  })();
   // MARKER-EXPLICIT-SAVE — the inspector no longer saves on every keystroke.
   // Edits mark the section dirty; Save (top bar, or Cmd/Ctrl+S) writes them,
   // Revert reloads the saved version. Switching section with unsaved edits
@@ -4057,7 +4072,7 @@ body.ia-theme-b .pb2-preview-frame-wrap {
       pages = JSON.parse(host.dataset.pages || '{}');
       apps  = JSON.parse(host.dataset.apps  || '[]');
     } catch (e) { rows = []; pages = {}; apps = []; }
-    let pop = false, from = null;
+    let pop = false, from = null, hl = null; // hl: page highlighted after arriving from its link
     const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
     window.pb2NavRows = rows;
 
@@ -4084,7 +4099,7 @@ body.ia-theme-b .pb2-preview-frame-wrap {
           ? (p ? `<span class="sn-chip">Page</span>${esc(p.t)} · <code>${esc(p.path)}</code>${p.pub ? '' : '<span class="sn-warn">hidden — unpublished</span>'}`
                : '<span class="sn-warn">page deleted — remove this item</span>')
           : `<span class="sn-chip">Link</span><input class="sn-in" style="width:calc(100% - 46px)" data-sn-k="url" data-i="${i}" value="${esc(r.url)}" placeholder="/path or https://…">`;
-        return `<div class="sn-row" draggable="true" data-i="${i}">
+        return `<div class="sn-row${r.type === 'page' && r.page === hl ? ' sn-new' : ''}" draggable="true" data-i="${i}">
           <div class="sn-r1"><span class="sn-grip" title="Drag to reorder">⋮⋮</span>
             <input class="sn-in" data-sn-k="label" data-i="${i}" value="${esc(r.label)}" placeholder="${esc(p ? p.t : 'Label')}" maxlength="60">
             <button type="button" class="sn-x" data-sn-del="${i}" title="Remove from the menu">×</button></div>
@@ -4151,6 +4166,38 @@ body.ia-theme-b .pb2-preview-frame-wrap {
         .catch(() => { pb2SaveOk = false; setStatus('The menu was not saved — check your connection.'); return false; });
     }
     render();
+    // MARKER-NAV-INTENT — finish what the link on another page started:
+    // put that page in the list (unsaved), highlight it, explain in a dialog.
+    // Deferred, because the builder marks everything clean right after load.
+    const intent = window.pb2NavIntent;
+    if (intent) {
+      window.pb2NavIntent = null;
+      const apply = () => {
+        let title, msg;
+        const p = intent.add ? pages[intent.add] : null;
+        if (p) {
+          hl = intent.add;
+          if (rows.some(r => r.type === 'page' && r.page === intent.add)) {
+            title = p.t + ' is already in your menu';
+            msg = 'It\u2019s highlighted below. Drag to move it or change its style, then press Save.';
+            render();
+          } else {
+            rows.splice(rows.filter(r => r.side === 'left').length, 0, {type:'page', page:intent.add, label:'', url:'', style:'link', side:'left', tab:false});
+            changed();
+            title = p.t + ' is in your menu \u2014 not saved yet';
+            msg = 'It\u2019s highlighted below. Drag to move it, change its style if you like, then press Save. Leave without saving and nothing changes.';
+          }
+          const el = host.querySelector('.sn-row.sn-new');
+          if (el) el.scrollIntoView({ block: 'center' });
+        } else {
+          title = 'This is your site\u2019s menu';
+          msg = 'Every page shows it, desktop and phone. Add, remove or reorder items here \u2014 changes go live when you press Save.';
+        }
+        if (window.IntakeConfirm && window.IntakeConfirm.alert) window.IntakeConfirm.alert({ title: title, message: msg, okText: 'Got it' });
+      };
+      if (document.readyState === 'complete') setTimeout(apply, 150);
+      else window.addEventListener('load', () => setTimeout(apply, 150));
+    }
   }
 
   // Service category checkbox list — serializes checked IDs into a hidden
@@ -4439,12 +4486,6 @@ body.ia-theme-b .pb2-preview-frame-wrap {
   // ─── Save (manual button in topbar) ───────────────────────────────────
   window.savePageSettings = function() { return pb2SaveNow(); }; // MARKER-EXPLICIT-SAVE
   window.addEventListener('load', function () { setTimeout(pb2SetClean, 50); pb2DraftClear(); }); // MARKER-BUILDER-DRAFT — no leftovers
-  // MARKER-SHOP-NAV — "Edit menu" on any page lands here with ?select=nav.
-  window.addEventListener('load', function () {
-    if (!/[?&]select=nav\b/.test(location.search)) return;
-    var n = document.querySelector('.pb2-section-item[data-section-type="nav"]');
-    if (n) n.click();
-  });
 
   // ─── Listen for save events from inside inspector (future hook) ───────
   document.addEventListener('pb-section-saved', () => {
