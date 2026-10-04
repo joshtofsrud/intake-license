@@ -4178,14 +4178,14 @@ body.ia-theme-b .pb2-preview-frame-wrap {
         if (p) {
           hl = intent.add;
           if (rows.some(r => r.type === 'page' && r.page === intent.add)) {
-            title = p.t + ' is already in your menu';
-            msg = 'It\u2019s highlighted below. Drag to move it or change its style, then press Save.';
+            title = '\u201c' + p.t + '\u201d is already in your menu'; // MARKER-NAV-DIALOG-COPY
+            msg = 'It\u2019s highlighted on the right. Drag to move it or change its style, then press Save.';
             render();
           } else {
             rows.splice(rows.filter(r => r.side === 'left').length, 0, {type:'page', page:intent.add, label:'', url:'', style:'link', side:'left', tab:false});
             changed();
-            title = p.t + ' is in your menu \u2014 not saved yet';
-            msg = 'It\u2019s highlighted below. Drag to move it, change its style if you like, then press Save. Leave without saving and nothing changes.';
+            title = 'Added \u201c' + p.t + '\u201d to your menu';
+            msg = 'Not saved yet. It\u2019s highlighted on the right. Drag to move it or change its style, then press Save. Leave without saving and nothing changes.';
           }
           const el = host.querySelector('.sn-row.sn-new');
           if (el) el.scrollIntoView({ block: 'center' });
