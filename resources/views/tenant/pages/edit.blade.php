@@ -1481,6 +1481,10 @@ body.ia-theme-b .pb2-preview-frame-wrap {
   color: var(--pb2-text-faint);
   display: flex; align-items: center; gap: 10px;
 }
+/* MARKER-EXPLICIT-SAVE */
+.pb2-insp-footer .pb2-dirty-note { font-family: var(--pb2-mono); }
+.pb2-insp-footer .pb2-dirty-note.is-dirty { color: var(--pb2-accent); }
+.pb2-btn[data-pb2-save].is-dirty { box-shadow: 0 0 0 2px var(--pb2-accent); }
 .pb2-insp-footer kbd {
   background: var(--pb2-bg);
   border: 0.5px solid var(--pb2-border);
@@ -1493,7 +1497,10 @@ body.ia-theme-b .pb2-preview-frame-wrap {
 
 /* responsive collapse */
 @media (max-width: 1200px) {
-  .pb2-topbar, .pb2-layout { grid-template-columns: 240px 1fr 320px; }
+  .pb2-topbar { grid-template-columns: 240px 1fr 320px; }
+  /* MARKER-BUILDER-NARROW-FIX — two columns since the section list became a
+     slide-in panel; three left an empty 240px column under 1200px. */
+  .pb2-layout { grid-template-columns: 1fr 320px; }
 }
 @media (max-width: 900px) {
   .pb2-topbar { grid-template-columns: 1fr; height: auto; }
@@ -1738,7 +1745,7 @@ body.ia-theme-b .pb2-preview-frame-wrap {
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
         Preview
       </a>
-      <button class="pb2-btn pb2-btn-primary" type="button" onclick="savePageSettings()">Save</button>
+      <button class="pb2-btn pb2-btn-primary" type="button" data-pb2-save onclick="savePageSettings()">Save</button>
     </div>
   </div>
 
@@ -2053,17 +2060,24 @@ body.ia-theme-b .pb2-preview-frame-wrap {
                click path; legacy _section is the fallback for un-migrated types. --}}
           @php $firstPerType = 'tenant.pages.sections._' . $firstSection->section_type; @endphp
           @if(view()->exists($firstPerType))
+            {{-- MARKER-OVERLAP-TAB — both captured, then the shared overlap control is
+                 placed inside the Design tab rather than after every tab. --}}
+            @php ob_start(); @endphp
             @include($firstPerType, ['section' => $firstSection, 'c' => $firstSection->content ?? [], 'navItems' => $navItems ?? collect(), 'availablePages' => $availablePages ?? collect(), 'isBookingExtras' => $isBookingExtras ?? false])
-            {{-- MARKER-SECTION-OVERLAP — shared across every type, so a new
-                 section type never has to remember to include it. --}}
+            @php $__pb2Editor = ob_get_clean(); ob_start(); @endphp
             @include('tenant.pages.sections._overlap', ['section' => $firstSection])
+            @php $__pb2Overlap = ob_get_clean(); @endphp
+            {!! \App\Support\InspectorOverlap::place($__pb2Editor, $__pb2Overlap) !!}
           @else
             @include('tenant.pages._section', ['section' => $firstSection])
           @endif
         </div>
 
+        {{-- MARKER-EXPLICIT-SAVE --}}
         <div class="pb2-insp-footer">
-          <span>Changes save automatically</span>
+          <span id="pb2-dirty-note" class="pb2-dirty-note">All changes saved</span>
+          <button type="button" class="pb2-btn" id="pb2-insp-revert" style="margin-left:auto" disabled>Revert</button>
+          <button type="button" class="pb2-btn pb2-btn-primary" data-pb2-save onclick="pb2SaveNow()">Save</button>
         </div>
       @else
         <div class="pb2-insp-empty">
@@ -2369,18 +2383,19 @@ body.ia-theme-b .pb2-preview-frame-wrap {
       .then(r => r.json().catch(() => ({ success: r.ok })))
       .then(resp => {
         if (resp && resp.success !== false) {
+          pb2SaveOk = true;
           setStatus('Saved ✓', 1500);
           refreshPreview();
           // Reflect any title/label change in the section list (uses the
           // first visible text input as a best-guess label proxy).
           updateSidebarMetaFromInspector(sectionId);
         } else {
-          setStatus('Save failed', 3000);
+          pb2SaveOk = false; setStatus('Save failed', 3000);
           console.error('save failed', resp);
         }
       })
       .catch(err => {
-        setStatus('Save failed', 3000);
+        pb2SaveOk = false; setStatus('Save failed', 3000);
         console.error('save error', err);
       });
   }
@@ -2394,6 +2409,73 @@ body.ia-theme-b .pb2-preview-frame-wrap {
   // Called after the inspector body is populated (initial render + every
   // section selection swap).
   const saveTimers = {};
+  // MARKER-EXPLICIT-SAVE — the inspector no longer saves on every keystroke.
+  // Edits mark the section dirty; Save (top bar, or Cmd/Ctrl+S) writes them,
+  // Revert reloads the saved version. Switching section with unsaved edits
+  // asks first (in-app dialog), and leaving the page warns.
+  var pb2Dirty = false;
+  var pb2SaveOk = true;
+  window.pb2NavPending = false;
+  function pb2Paint() {
+    var note = document.getElementById('pb2-dirty-note');
+    var rev  = document.getElementById('pb2-insp-revert');
+    if (note) note.textContent = pb2Dirty ? 'Unsaved changes — Save, or \u2318S' : 'All changes saved';
+    if (note) note.classList.toggle('is-dirty', pb2Dirty);
+    if (rev)  rev.disabled = !pb2Dirty;
+    document.querySelectorAll('[data-pb2-save]').forEach(function (b) { b.classList.toggle('is-dirty', pb2Dirty); });
+  }
+  function pb2MarkDirty() {
+    if (!pb2Dirty) { pb2Dirty = true; setStatus('Unsaved'); }
+    pb2Paint();
+  }
+  window.pb2MarkDirty = pb2MarkDirty;
+  function pb2SetClean() {
+    pb2Dirty = false; window.pb2NavPending = false; window.pb2NavSaver = null;
+    pb2Paint();
+  }
+  function pb2SaveNow() {
+    if (!selectedId) { pb2SetClean(); return Promise.resolve(true); }
+    pb2SaveOk = true;
+    var jobs = [saveSection(selectedId)];
+    if (window.pb2NavPending && typeof window.pb2NavSaver === 'function') {
+      jobs.push(Promise.resolve(window.pb2NavSaver()));
+    }
+    return Promise.all(jobs).then(function () {
+      if (pb2SaveOk) { pb2SetClean(); refreshPreview(true); }
+      return pb2SaveOk;
+    });
+  }
+  window.pb2SaveNow = pb2SaveNow;
+  function pb2Revert() {
+    var item = document.querySelector('.pb2-section-item.selected');
+    if (!item) return;
+    var items = Array.prototype.slice.call(document.querySelectorAll('.pb2-section-item'));
+    pb2SetClean();
+    selectSection(item.dataset.sectionId, item.dataset.sectionType, items.indexOf(item) + 1, true);
+    refreshPreview(true);
+  }
+  function pb2AskUnsaved() {
+    if (window.IntakeConfirm && typeof window.IntakeConfirm.show === 'function') {
+      return window.IntakeConfirm.show({
+        title: 'Save your changes first?',
+        message: 'This section has edits that aren\u2019t saved. Save them and carry on, or stay here (Revert discards them).',
+        confirmText: 'Save and continue',
+        cancelText: 'Stay here'
+      });
+    }
+    return Promise.resolve(false); // no dialog helper: stay put rather than lose edits
+  }
+  document.addEventListener('keydown', function (e) {
+    if ((e.metaKey || e.ctrlKey) && (e.key === 's' || e.key === 'S')) { e.preventDefault(); pb2SaveNow(); }
+  });
+  window.addEventListener('beforeunload', function (e) {
+    if (pb2Dirty) { e.preventDefault(); e.returnValue = ''; }
+  });
+  (function () {
+    var rev = document.getElementById('pb2-insp-revert');
+    if (rev) rev.addEventListener('click', pb2Revert);
+    pb2Paint();
+  })();
   function attachAutosaveListeners(sectionId) {
     const body = document.getElementById('pb2-insp-body');
     if (!body) return;
@@ -2401,14 +2483,9 @@ body.ia-theme-b .pb2-preview-frame-wrap {
       // Skip our own non-field controls
       if (!input.hasAttribute('data-field') && input.name !== 'is_visible') return;
 
-      input.addEventListener('input', () => {
-        clearTimeout(saveTimers[sectionId]);
-        saveTimers[sectionId] = setTimeout(() => saveSection(sectionId), 800);
-      });
-      input.addEventListener('change', () => {
-        clearTimeout(saveTimers[sectionId]);
-        saveTimers[sectionId] = setTimeout(() => saveSection(sectionId), 100);
-      });
+      // MARKER-EXPLICIT-SAVE — mark unsaved; Save writes.
+      input.addEventListener('input',  () => pb2MarkDirty());
+      input.addEventListener('change', () => pb2MarkDirty());
     });
   }
 
@@ -2472,7 +2549,15 @@ body.ia-theme-b .pb2-preview-frame-wrap {
   }
 
   // ─── Section selection (swap inspector body, re-attach autosave) ──────
-  function selectSection(sectionId, type, idx) {
+  function selectSection(sectionId, type, idx, force) {
+    // MARKER-EXPLICIT-SAVE — never drop unsaved edits by clicking away.
+    if (!force && pb2Dirty && String(sectionId) !== String(selectedId)) {
+      pb2AskUnsaved().then(function (save) {
+        if (!save) return;
+        pb2SaveNow().then(function (ok) { if (ok) selectSection(sectionId, type, idx, true); });
+      });
+      return;
+    }
     document.querySelectorAll('.pb2-section-item').forEach(el => el.classList.remove('selected'));
     const item = document.querySelector(`.pb2-section-item[data-section-id="${sectionId}"]`);
     if (!item) return;
@@ -2496,6 +2581,7 @@ body.ia-theme-b .pb2-preview-frame-wrap {
           attachAutosaveListeners(sectionId);
           // MARKER-PATCH-158-G19 — wire up new per-type controls
           initInspectorControls();
+          pb2SetClean(); // MARKER-EXPLICIT-SAVE — controls may fire change while wiring up
         }
       })
       .catch(err => console.error('inspector load failed', err));
@@ -3855,8 +3941,10 @@ body.ia-theme-b .pb2-preview-frame-wrap {
     let saveTimer = null;
     let navDragEl = null; // MARKER-NAVDRAG
     function scheduleSave(immediate) {
-      clearTimeout(saveTimer);
-      saveTimer = setTimeout(saveNavLinks, immediate ? 100 : 800);
+      // MARKER-EXPLICIT-SAVE — nav links save with the section's Save button.
+      window.pb2NavPending = true;
+      window.pb2NavSaver = saveNavLinks;
+      if (window.pb2MarkDirty) window.pb2MarkDirty();
     }
 
     function setStatus(text) {
@@ -4048,8 +4136,7 @@ body.ia-theme-b .pb2-preview-frame-wrap {
     const hidden = body.querySelector(`input[data-field="${fieldName}"]`);
     if (!hidden) return;
     hidden.value = url;
-    hidden.dispatchEvent(new Event('change', { bubbles: true }));
-    setStatus('Saved ✓', 1500);
+    hidden.dispatchEvent(new Event('change', { bubbles: true })); // MARKER-EXPLICIT-SAVE — now unsaved until Save
     if (selectedId) {
       const item = document.querySelector(`.pb2-section-item[data-section-id="${selectedId}"]`);
       if (item) {
@@ -4293,10 +4380,8 @@ body.ia-theme-b .pb2-preview-frame-wrap {
   };
 
   // ─── Save (manual button in topbar) ───────────────────────────────────
-  window.savePageSettings = function() {
-    if (selectedId) saveSection(selectedId).then(() => refreshPreview(true));
-    else setStatus('Saved', 1000);
-  };
+  window.savePageSettings = function() { return pb2SaveNow(); }; // MARKER-EXPLICIT-SAVE
+  window.addEventListener('load', function () { setTimeout(pb2SetClean, 50); });
 
   // ─── Listen for save events from inside inspector (future hook) ───────
   document.addEventListener('pb-section-saved', () => {

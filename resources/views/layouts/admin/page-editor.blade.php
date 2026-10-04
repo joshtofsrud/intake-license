@@ -140,13 +140,21 @@
     <script src="{{ asset('js/tenant/confirm.js') }}?v={{ filemtime(public_path('js/tenant/confirm.js')) }}" defer></script>{{-- MARKER-BUILDER-DIALOGS --}}
 
     @stack('styles')
+    {{-- MARKER-EDITOR-SHELL-FIX --}}
+    <link rel="icon" href="{{ \App\Support\Brand::url('favicon') }}">
+    <style>
+      /* This shell has no sidebar: the builder spans the full width and starts
+         below the 56px top bar, so its own toolbar isn't hidden behind it. */
+      .pb2-shell { left: 0 !important; top: 56px !important; }
+      .ia-topbar-logo-img { height: 24px; width: auto; display: block; }
+    </style>
 </head>
 <body>
 
 <div class="ia-topbar">
     <a href="/admin" class="ia-topbar-logo">
-        <div class="ia-topbar-logo-mark">I</div>
-        Intake
+        {{-- MARKER-EDITOR-SHELL-FIX — the Brand page's wordmark, not a hand-drawn mark --}}
+        <img src="{{ \App\Support\Brand::url('logo') }}" alt="Intake" class="ia-topbar-logo-img">
     </a>
     <div class="ia-topbar-breadcrumb">
         <a href="/admin">Admin</a>
