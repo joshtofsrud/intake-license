@@ -77,23 +77,16 @@ class SiteSettingsResource extends Resource
                         ->helperText('Small text shown under the logo in the marketing footer.'),
                 ]),
 
+            // MARKER-BRAND-FOLD - logo, favicon and share image moved to the Brand page
+            // (master admin > Brand), where they are uploaded and used everywhere. The
+            // old URL fields here were read by nothing; the columns stay, unused.
             Forms\Components\Section::make('Brand assets')
-                ->description('URLs to override the default shipped assets. Leave blank to use the files in /public.')
                 ->schema([
-                    Forms\Components\TextInput::make('logo_url')
-                        ->label('Logo URL')
-                        ->url()
-                        ->helperText('Default: /logo.svg. Should be a 168×36 SVG with icon + wordmark.'),
-
-                    Forms\Components\TextInput::make('favicon_url')
-                        ->label('Favicon URL')
-                        ->url()
-                        ->helperText('Default: /favicon.svg. Should be a square SVG, optimized for small sizes.'),
-
-                    Forms\Components\TextInput::make('og_image_url')
-                        ->label('OG share image URL')
-                        ->url()
-                        ->helperText('Default: /og-image.png. Should be 1200×630 PNG.'),
+                    Forms\Components\Placeholder::make('brand_moved')
+                        ->label('')
+                        ->content(new \Illuminate\Support\HtmlString(
+                            'Logos, icon and share image are set on the <a href="' . e(\App\Filament\Pages\Brand::getUrl()) . '" style="text-decoration:underline">Brand</a> page.'
+                        )),
                 ]),
 
             Forms\Components\Section::make('Social links')
