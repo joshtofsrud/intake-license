@@ -85,6 +85,7 @@ class AdminPanelProvider extends PanelProvider
             ])
             ->pages([
                 \App\Filament\Pages\PlatformCommunication::class, // MARKER-PLATFORM-TEMPLATES
+                \App\Filament\Pages\Brand::class, // MARKER-BRAND-REGISTER
                 // MARKER-INBOX — explicit registration; this panel does not
                 // auto-discover, and an unregistered page has no route.
                 \App\Filament\Pages\PlatformInbox::class,
