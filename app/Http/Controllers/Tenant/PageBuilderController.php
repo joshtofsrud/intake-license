@@ -796,8 +796,9 @@ class PageBuilderController extends Controller
             });
         }
 
-        $navItems = TenantNavItem::where('tenant_id', $tenant->id)
-            ->orderBy('sort_order')->get();
+        $navItems = TenantNavItem::forSite((string) $tenant->id); // MARKER-SHOP-NAV
+        $navDraft = \App\Support\BuilderDraft::navRows((string) $page->id);
+        if ($navDraft !== null) $navItems = \App\Support\ShopNav::previewItems((string) $tenant->id, $navDraft);
 
         $catalog = TenantServiceCategory::where('tenant_id', $tenant->id)
             ->where('is_active', true)
@@ -860,9 +861,18 @@ class PageBuilderController extends Controller
             if ($tenant && ($tenant->is_platform ?? false)) {
                 return response()->json(['success' => false, 'error' => 'The intake.works menu is edited on Site & content › Navigation.'], 409);
             }
-            $items = collect($request->input('nav_items', []))
-                ->filter(fn ($it) => !empty($it['label']))
-                ->values();
+            // MARKER-SHOP-NAV — rows may be pages; each has a style and side.
+            $snPages = \App\Support\ShopNav::pages((string) $tenant->id);
+            $posted  = array_values(array_filter((array) $request->input('nav_items', []), 'is_array'));
+            $items   = collect($posted)->map(fn ($it) => \App\Support\ShopNav::clean($it, $snPages));
+            $bad     = $items->search(fn ($it) => $it === null);
+            if ($bad !== false) {
+                return response()->json([
+                    'ok' => false,
+                    'message' => 'Item ' . ($bad + 1) . ' needs a label and an address starting with /, https://, mailto: or tel: — or its page was deleted.',
+                ], 422);
+            }
+            $items = $items->values();
 
             if ($items->isEmpty()) {
                 return response()->json([
@@ -873,14 +883,7 @@ class PageBuilderController extends Controller
 
             \App\Models\Tenant\TenantNavItem::where('tenant_id', $tenant->id)->delete();
             foreach ($items as $i => $item) {
-                \App\Models\Tenant\TenantNavItem::create([
-                    'tenant_id'       => $tenant->id,
-                    'label'           => $item['label'],
-                    'url'             => $item['url'] ?? '/',
-                    'is_external'     => filter_var($item['is_external']    ?? false, FILTER_VALIDATE_BOOLEAN),
-                    'open_in_new_tab' => filter_var($item['open_in_new_tab'] ?? false, FILTER_VALIDATE_BOOLEAN),
-                    'sort_order'      => $i,
-                ]);
+                \App\Models\Tenant\TenantNavItem::create($item + ['tenant_id' => $tenant->id, 'sort_order' => $i]);
             }
 
             return response()->json(['ok' => true, 'count' => $items->count()]);
@@ -1087,14 +1090,7 @@ class PageBuilderController extends Controller
             return back()->with('success', $msg);
         }
 
-        // MARKER-PAGE-PUBLISH — nav visibility was equally unreachable.
-        if ($op === 'set_in_nav') {
-            $page->update(['is_in_nav' => (bool) $request->input('is_in_nav', 0)]);
-            if ($request->expectsJson()) return response()->json(['ok' => true]);
-            return back()->with('success', $page->is_in_nav
-                ? $page->title . ' now appears in your site navigation.'
-                : $page->title . ' is hidden from your site navigation.');
-        }
+        // MARKER-SHOP-NAV — set_in_nav removed: the menu is edited in the Nav section.
 
         if ($op === 'update_page') {
             $page->update([
@@ -1169,6 +1165,11 @@ class PageBuilderController extends Controller
                 }
             }
             \App\Support\BuilderDraft::put((string) $page->id, $sid, $content);
+            // MARKER-SHOP-NAV — the menu list rides along so the preview shows it unsaved.
+            if ($request->filled('nav_rows')) {
+                $navRows = json_decode((string) $request->input('nav_rows'), true);
+                if (is_array($navRows)) \App\Support\BuilderDraft::putNav((string) $page->id, $navRows);
+            }
             return response()->json(['success' => true]);
         }
         if ($op === 'draft_clear') {

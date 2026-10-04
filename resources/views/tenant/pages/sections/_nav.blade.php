@@ -53,76 +53,30 @@
     </div>
   </div>
 
+  {{-- MARKER-SHOP-NAV — the one menu control for the whole site. Built by
+       initNavLinkList() in pages/edit.blade.php from the JSON below; saved
+       with the section's Save button (op=update_nav). --}}
+  @php
+    $snT     = $currentTenant ?? tenant();
+    $snRows  = \App\Support\ShopNav::rows((string) $snT->id);
+    $snPages = \App\Support\ShopNav::pages((string) $snT->id);
+    $snApps  = collect([
+        ['label' => 'Book',    'url' => '/book',    'on' => true],
+        ['label' => 'Shop',    'url' => '/shop',    'on' => $snT->online_store_enabled && (bool) (($snT->settings['storefront']['enabled'] ?? true))],
+        ['label' => 'Rentals', 'url' => '/rentals', 'on' => (bool) ($snT->rentals_visible ?? false)],
+    ])->filter(fn ($d) => $d['on'])->values()->map(fn ($d) => ['label' => $d['label'], 'url' => $d['url']])->all();
+  @endphp
   <div class="pb2-group">
-    <div class="pb2-group-title">
-      Navigation links
-      <span class="pb2-group-meta" id="pb2-nav-links-count">{{ $navItems->count() }} link{{ $navItems->count() === 1 ? '' : 's' }}</span>
+    <div class="pb2-group-title">Menu <span class="pb2-group-meta" id="pb2-nav-links-count">{{ count($snRows) }}</span></div>
+    <div class="pb2-field-hint sn-legend" style="text-align:left;display:block">
+      <b>This list is your site’s menu</b> — every page, desktop and phone. Nothing else changes it.
+      Page items follow their page and hide while it’s unpublished. Buttons are just items styled as a button.
+      Live once you Save.
     </div>
-
-    <div class="pb2-field-hint" style="text-align:left;margin-bottom:8px;display:block">
-      Links appear in every section of every page. Changes save when you click outside the field.
-    </div>
-
-    <div class="pb2-navlist" id="pb2-nav-linklist">
-      @foreach($navItems as $i => $item)
-        <div class="pb2-navlist-item" data-nav-idx="{{ $i }}">
-          <span class="pb2-navlist-handle">⋮⋮</span>
-          <div class="pb2-navlist-fields">
-            <input type="text" class="pb2-input pb2-input-sm" data-nav-field="label" value="{{ $item->label }}" placeholder="Label">
-            <input type="text" class="pb2-input pb2-input-sm" data-nav-field="url" value="{{ $item->url }}" placeholder="/page or https://...">
-          </div>
-          <div class="pb2-navlist-meta">
-            <label title="Open in new tab">
-              <input type="checkbox" data-nav-field="open_in_new_tab" {{ $item->open_in_new_tab ? 'checked' : '' }}>
-              <span>↗</span>
-            </label>
-            <button type="button" class="pb2-navlist-remove" title="Remove">×</button>
-          </div>
-        </div>
-      @endforeach
-    </div>
-
-    <button type="button" class="pb2-addrow" id="pb2-nav-addlink">+ Add link</button>
-
-    {{-- MARKER-PATCH-577 — app destinations: feature-gated quick-add links --}}
-    @php
-      $navT = $currentTenant ?? tenant();
-      $appDests = collect([
-          ['label' => 'Book',    'url' => '/book',    'on' => true],
-          ['label' => 'Shop',    'url' => '/shop',    'on' => $navT->online_store_enabled && (bool) (($navT->settings['storefront']['enabled'] ?? true))],
-          ['label' => 'Rentals', 'url' => '/rentals', 'on' => (bool) ($navT->rentals_visible ?? false)],
-      ])->filter(fn ($d) => $d['on']);
-    @endphp
-    @if($appDests->isNotEmpty())
-      <details class="pb2-details" style="margin-top:10px">
-        <summary class="pb2-details-summary">Add from your apps</summary>
-        <div class="pb2-details-body">
-          @foreach($appDests as $d)
-            <button type="button" class="pb2-pagelink"
-              data-page-title="{{ $d['label'] }}"
-              data-page-url="{{ $d['url'] }}">
-              + {{ $d['label'] }} <span class="pb2-field-hint">{{ $d['url'] }}</span>
-            </button>
-          @endforeach
-        </div>
-      </details>
-    @endif
-
-    @if($availablePages->isNotEmpty())
-      <details class="pb2-details" style="margin-top:10px">
-        <summary class="pb2-details-summary">Add from existing pages</summary>
-        <div class="pb2-details-body">
-          @foreach($availablePages as $p)
-            <button type="button" class="pb2-pagelink"
-              data-page-title="{{ $p->title }}"
-              data-page-url="{{ $p->is_home ? '/' : '/' . $p->slug }}">
-              + {{ $p->title }} <span class="pb2-field-hint">{{ $p->is_home ? '/' : '/' . $p->slug }}</span>
-            </button>
-          @endforeach
-        </div>
-      </details>
-    @endif
-
+    <div id="pb2-nav-linklist"
+         data-rows="{{ json_encode($snRows) }}"
+         data-pages="{{ json_encode($snPages) }}"
+         data-apps="{{ json_encode($snApps) }}"></div>
     <div class="pb2-navlist-status" id="pb2-nav-status" style="margin-top:8px"></div>
   </div>
 
@@ -138,33 +92,8 @@
     <div class="pb2-field-hint" style="margin-top:6px">Lets customers sign in to see their bookings, orders, rentals and messages.</div>
   </div>
 
-  <div class="pb2-group">
-    <div class="pb2-group-title">CTA button</div>
-
-    <label class="pb2-checkbox-row">
-      <input type="checkbox" data-field="show_cta" value="1" {{ $get('show_cta', true) ? 'checked' : '' }}>
-      <span>Show CTA button</span>
-    </label>
-
-    <div class="pb2-field" style="margin-top:10px">
-      <label class="pb2-field-label">Button label</label>
-      <input type="text" class="pb2-input" data-field="cta_label" value="{{ $get('cta_label', 'Book Now') }}">
-    </div>
-
-    <div class="pb2-field">
-      <label class="pb2-field-label">Button URL</label>
-      <input type="text" class="pb2-input" data-field="cta_url" value="{{ $get('cta_url', '/book') }}">
-    </div>
-
-    <div class="pb2-field">
-      <label class="pb2-field-label">Button style</label>
-      <select class="pb2-input" data-field="cta_style">
-        @foreach(['primary'=>'Primary','outline'=>'Outline','ghost'=>'Ghost'] as $v => $n)
-          <option value="{{ $v }}" {{ $get('cta_style', 'primary') === $v ? 'selected' : '' }}>{{ $n }}</option>
-        @endforeach
-      </select>
-    </div>
-  </div>
+  {{-- MARKER-SHOP-NAV — the header button is now an item in the Menu above
+       (style: Button), not a separate setting. --}}
 
 </div>
 

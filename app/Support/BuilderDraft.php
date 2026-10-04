@@ -30,6 +30,18 @@ class BuilderDraft
         session()->put(self::KEY, $all);
     }
 
+    // MARKER-SHOP-NAV — unsaved menu rows for the builder preview.
+    public static function putNav(string $pageId, array $rows): void
+    {
+        self::put($pageId, '__nav', ['rows' => array_slice($rows, 0, 40)]);
+    }
+
+    public static function navRows(string $pageId): ?array
+    {
+        $d = session()->get(self::KEY, [])[$pageId]['__nav'] ?? null;
+        return is_array($d) && isset($d['rows']) && is_array($d['rows']) ? $d['rows'] : null;
+    }
+
     public static function clear(string $pageId): void
     {
         $all = session()->get(self::KEY, []);

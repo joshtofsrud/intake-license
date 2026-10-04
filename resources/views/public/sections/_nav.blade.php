@@ -26,11 +26,7 @@
   // Sticky
   $sticky = (bool)($c['sticky'] ?? true);
 
-  // CTA
-  $showCta   = (bool)($c['show_cta'] ?? true) && !empty($c['cta_label']);
-  $ctaLabel  = $c['cta_label']  ?? 'Book Now';
-  $ctaUrl    = $c['cta_url']    ?? '/book';
-  $ctaStyle  = $c['cta_style']  ?? 'primary';
+  // MARKER-SHOP-NAV — the header button is a menu item now (see the right-side loop).
 
   // Logo
   $showLogo = (bool)($c['show_logo'] ?? true);
@@ -285,7 +281,7 @@
       @endif
 
       <div class="p-nav-links">
-        @foreach($navItems as $item)
+        @foreach(collect($navItems)->filter(fn ($i) => ($i->side ?? 'left') !== 'right') as $item) {{-- MARKER-SHOP-NAV --}}
           @php
             $itemUrl    = $item->url ?? '/';
             $itemPath   = parse_url($itemUrl, PHP_URL_PATH) ?? $itemUrl;
@@ -294,7 +290,7 @@
             $newTab     = !empty($item->open_in_new_tab);
           @endphp
           <a href="{{ $itemUrl }}"
-             class="p-nav-link {{ $isActive ? 'active' : '' }}"
+             class="{{ ($item->style ?? 'link') === 'button' ? 'p-nav-cta p-nav-cta--primary' : (($item->style ?? 'link') === 'outline' ? 'p-nav-cta p-nav-cta--outline' : 'p-nav-link') }} {{ $isActive ? 'active' : '' }}"
              @if($newTab) target="_blank" rel="noopener" @endif>
             {{ $item->label }}
             @if($isExternal)<span style="opacity:.5;font-size:11px">↗</span>@endif
@@ -336,11 +332,12 @@
             {{ $navCustomer ? $navCustomer->first_name : 'Sign in' }}
           </a>
         @endif
-        @if($showCta)
-          <a href="{{ $ctaUrl }}" class="p-nav-cta p-nav-cta--{{ $ctaStyle }}">
-            {{ $ctaLabel }}
-          </a>
-        @endif
+        {{-- MARKER-SHOP-NAV — right-side menu items (the header button lives here now) --}}
+        @foreach(collect($navItems)->filter(fn ($i) => ($i->side ?? 'left') === 'right') as $item)
+          <a href="{{ $item->url ?? '/' }}"
+             class="{{ ($item->style ?? 'link') === 'button' ? 'p-nav-cta p-nav-cta--primary' : (($item->style ?? 'link') === 'outline' ? 'p-nav-cta p-nav-cta--outline' : 'p-nav-link') }}"
+             @if(!empty($item->open_in_new_tab)) target="_blank" rel="noopener" @endif>{{ $item->label }}</a>
+        @endforeach
         <button class="p-hamburger" onclick="if (typeof openMobileNav === 'function') openMobileNav()" aria-label="Open menu">
           <span></span><span></span><span></span>
         </button>

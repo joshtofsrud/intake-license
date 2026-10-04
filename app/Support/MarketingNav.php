@@ -49,8 +49,8 @@ class MarketingNav
             ->map(fn ($r) => [
                 'type'  => $r->page_id ? 'page' : 'link',
                 'page'  => $r->page_id ? (string) $r->page_id : null,
-                'label' => (string) ($r->label ?? ''),
-                'url'   => (string) ($r->url ?? ''),
+                'label' => (string) ($r->getRawOriginal('label') ?? ''), // MARKER-SHOP-NAV — raw, not the page title
+                'url'   => (string) ($r->getRawOriginal('url') ?? ''),
                 'style' => in_array($r->style, self::STYLES, true) ? $r->style : 'link',
                 'side'  => in_array($r->side, self::SIDES, true) ? $r->side : 'left',
                 'tab'   => (bool) $r->open_in_new_tab,

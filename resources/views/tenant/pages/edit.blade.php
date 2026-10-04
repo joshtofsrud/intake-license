@@ -1481,6 +1481,33 @@ body.ia-theme-b .pb2-preview-frame-wrap {
   color: var(--pb2-text-faint);
   display: flex; align-items: center; gap: 10px;
 }
+/* MARKER-SHOP-NAV — menu rows in the Nav section */
+.sn-insp{flex:1;overflow-y:auto;min-height:0}
+.sn-row{border:.5px solid var(--pb2-border);border-radius:8px;padding:8px;margin-bottom:6px;background:var(--pb2-surface-2)}
+.sn-row.drag{opacity:.4}.sn-row.over{box-shadow:inset 0 2px 0 var(--pb2-accent)}
+.sn-r1{display:flex;align-items:center;gap:6px}
+.sn-grip{cursor:grab;color:var(--pb2-text-faint);user-select:none;font-size:12px;width:12px}
+.sn-in{flex:1;min-width:0;background:var(--pb2-bg);border:.5px solid var(--pb2-border);border-radius:6px;color:var(--pb2-text);font:inherit;font-size:12.5px;padding:5px 7px}
+.sn-x{background:none;border:0;color:var(--pb2-text-faint);font-size:16px;cursor:pointer;line-height:1;padding:0 2px}
+.sn-x:hover{color:var(--pb2-danger)}
+.sn-r2{display:flex;align-items:center;gap:6px;margin-top:6px;padding-left:18px;flex-wrap:wrap}
+.sn-tgt{font-size:11.5px;color:var(--pb2-text-dim);flex:1 1 100%;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sn-tgt code{font-family:var(--pb2-mono,monospace);font-size:11px;color:var(--pb2-text)}
+.sn-chip{font-size:10px;font-weight:600;padding:1px 6px;border-radius:4px;background:var(--pb2-surface-3);color:var(--pb2-text);margin-right:4px}
+.sn-warn{font-size:10px;color:#F0C46A;border:.5px solid rgba(240,196,106,.5);border-radius:99px;padding:0 6px;margin-left:4px}
+.sn-seg{display:inline-flex;background:var(--pb2-bg);border-radius:6px;padding:2px;gap:1px}
+.sn-seg button{border:0;background:none;color:var(--pb2-text-dim);font:inherit;font-size:11px;padding:3px 6px;border-radius:4px;cursor:pointer}
+.sn-seg button.on{background:var(--pb2-surface-3);color:var(--pb2-text)}
+.sn-tab{display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--pb2-text-dim);margin-left:auto;cursor:pointer}
+.sn-add{display:flex;gap:6px;margin-top:8px;position:relative}
+.sn-add .pb2-btn{font-size:12px}
+.sn-pop{position:absolute;top:calc(100% + 4px);left:0;right:0;z-index:20;background:var(--pb2-surface);border:.5px solid var(--pb2-border-2);border-radius:8px;padding:4px;box-shadow:0 12px 30px rgba(0,0,0,.45)}
+.sn-pop button{display:flex;justify-content:space-between;width:100%;background:none;border:0;color:var(--pb2-text);font:inherit;font-size:12.5px;padding:7px 8px;border-radius:6px;cursor:pointer;text-align:left}
+.sn-pop button:hover{background:var(--pb2-surface-2)}
+.sn-pop small{color:var(--pb2-text-faint);font-family:var(--pb2-mono,monospace)}
+.pb2-insp-body .sn-legend{font-size:12px;line-height:1.55;border:.5px dashed var(--pb2-border-2);border-radius:8px;padding:9px 11px;margin-bottom:10px}
+.pb2-insp-body .sn-legend b{color:var(--pb2-text);font-weight:600}
+.pb2-insp-body .sn-in{width:auto}
 /* MARKER-INSP-FIT — controls fit the panel; it never scrolls sideways. */
 .pb2-insp-body { overflow-x: hidden; }
 .pb2-insp-body .pb2-field-row > * { min-width: 0; }
@@ -1938,15 +1965,7 @@ body.ia-theme-b .pb2-preview-frame-wrap {
       @if($isMarketing ?? false)
         @include('admin.partials.nav-status', ['page' => $page])
       @elseif(!$page->is_home)
-        <form method="POST" action="{{ $updateUrl }}" class="pb2-status-nav">
-          @csrf @method('PATCH')
-          <input type="hidden" name="op" value="set_in_nav">
-          <input type="hidden" name="is_in_nav" value="{{ $page->is_in_nav ? 0 : 1 }}">
-          <button type="submit" class="pb2-status-navbtn">
-            <span class="pb2-status-check {{ $page->is_in_nav ? 'on' : '' }}"></span>
-            Show in site navigation
-          </button>
-        </form>
+        @include('tenant.pages._nav-status', ['page' => $page])
       @endif
     </div>
 
@@ -2501,6 +2520,7 @@ body.ia-theme-b .pb2-preview-frame-wrap {
     var sid = selectedId, seq = ++pb2DraftSeq, c = pb2CollectContent();
     var f = { section_op: 'draft', section_id: sid };
     Object.keys(c).forEach(function (k) { f['content[' + k + ']'] = c[k]; });
+    if (window.pb2NavPending && window.pb2NavRows) f.nav_rows = JSON.stringify(window.pb2NavRows); // MARKER-SHOP-NAV
     pb2Post(f)
       .then(function (r) {
         if (!r.ok) throw new Error('draft ' + r.status);
@@ -4022,169 +4042,115 @@ body.ia-theme-b .pb2-preview-frame-wrap {
   // Nav link list editor. Each row has label + URL + open-in-new-tab toggle.
   // Saves via the existing tenant.pages.store endpoint with op=update_nav.
   // Auto-saves on input/change with the same 800/100ms debounce as content.
+// MARKER-SHOP-NAV — the menu editor inside the Nav section. Rows are pages
+  // (follow their page) or links, each with a style and side. Changes mark
+  // the section unsaved, show in the preview straight away (sent with the
+  // section's draft), and are written by the section's Save button.
   function initNavLinkList(body) {
-    const list   = body.querySelector('#pb2-nav-linklist');
-    const addBtn = body.querySelector('#pb2-nav-addlink');
+    const host   = body.querySelector('#pb2-nav-linklist');
     const count  = body.querySelector('#pb2-nav-links-count');
     const status = body.querySelector('#pb2-nav-status');
-    if (!list) return;
-
-    let saveTimer = null;
-    let navDragEl = null; // MARKER-NAVDRAG
-    function scheduleSave(immediate) {
-      // MARKER-EXPLICIT-SAVE — nav links save with the section's Save button.
-      window.pb2NavPending = true;
-      window.pb2NavSaver = saveNavLinks;
-      if (window.pb2MarkDirty) window.pb2MarkDirty();
-    }
+    if (!host) return;
+    let rows, pages, apps;
+    try {
+      rows  = JSON.parse(host.dataset.rows  || '[]');
+      pages = JSON.parse(host.dataset.pages || '{}');
+      apps  = JSON.parse(host.dataset.apps  || '[]');
+    } catch (e) { rows = []; pages = {}; apps = []; }
+    let pop = false, from = null;
+    const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+    window.pb2NavRows = rows;
 
     function setStatus(text) {
-      if (status) status.innerHTML = `<span class="pb2-field-hint" style="text-align:left">${text}</span>`;
+      if (status) status.innerHTML = text ? `<span class="pb2-field-hint" style="text-align:left">${text}</span>` : '';
     }
+    function changed() {
+      window.pb2NavRows = rows;
+      window.pb2NavPending = true;
+      window.pb2NavSaver = saveNavLinks;
+      if (count) count.textContent = rows.length;
+      if (window.pb2MarkDirty) window.pb2MarkDirty();
+      render();
+    }
+    function seg(i, k, opts, v) {
+      return '<span class="sn-seg">' + opts.map(o => `<button type="button" data-sn-seg="${k}" data-i="${i}" data-v="${o[0]}" class="${o[0] === v ? 'on' : ''}">${o[1]}</button>`).join('') + '</span>';
+    }
+    function render() {
+      const used = rows.filter(r => r.type === 'page').map(r => r.page);
+      const free = Object.keys(pages).filter(id => used.indexOf(id) < 0);
+      host.innerHTML = rows.map((r, i) => {
+        const p = r.type === 'page' ? pages[r.page] : null;
+        const tgt = r.type === 'page'
+          ? (p ? `<span class="sn-chip">Page</span>${esc(p.t)} · <code>${esc(p.path)}</code>${p.pub ? '' : '<span class="sn-warn">hidden — unpublished</span>'}`
+               : '<span class="sn-warn">page deleted — remove this item</span>')
+          : `<span class="sn-chip">Link</span><input class="sn-in" style="width:calc(100% - 46px)" data-sn-k="url" data-i="${i}" value="${esc(r.url)}" placeholder="/path or https://…">`;
+        return `<div class="sn-row" draggable="true" data-i="${i}">
+          <div class="sn-r1"><span class="sn-grip" title="Drag to reorder">⋮⋮</span>
+            <input class="sn-in" data-sn-k="label" data-i="${i}" value="${esc(r.label)}" placeholder="${esc(p ? p.t : 'Label')}" maxlength="60">
+            <button type="button" class="sn-x" data-sn-del="${i}" title="Remove from the menu">×</button></div>
+          <div class="sn-r2"><div class="sn-tgt">${tgt}</div>
+            ${seg(i, 'style', [['link','Link'],['button','Button'],['outline','Outline']], r.style)}
+            ${seg(i, 'side', [['left','L'],['right','R']], r.side)}
+            <label class="sn-tab"><input type="checkbox" data-sn-tab="${i}" ${r.tab ? 'checked' : ''}>New tab</label></div>
+        </div>`;
+      }).join('') +
+      (rows.length ? '' : '<div class="pb2-field-hint" style="text-align:left;padding:6px 0">The menu is empty — the header shows just the logo.</div>') +
+      `<div class="sn-add"><button type="button" class="pb2-btn" data-sn-pop="1">+ Page</button>
+        <button type="button" class="pb2-btn" data-sn-addlink="1">+ Link or button</button>
+        ${pop ? '<div class="sn-pop">' +
+          free.map(id => `<button type="button" data-sn-addpage="${id}"><span>${esc(pages[id].t)}${pages[id].pub ? '' : ' (unpublished)'}</span><small>${esc(pages[id].path)}</small></button>`).join('') +
+          apps.map(a => `<button type="button" data-sn-addapp="${esc(a.url)}" data-label="${esc(a.label)}"><span>${esc(a.label)}</span><small>${esc(a.url)}</small></button>`).join('') +
+          (free.length || apps.length ? '' : '<div class="pb2-field-hint" style="padding:8px">Every page is already in the menu.</div>') + '</div>' : ''}
+      </div>`;
+    }
+    host.addEventListener('input', e => {
+      const k = e.target.dataset.snK; if (!k) return;
+      rows[+e.target.dataset.i][k] = e.target.value;
+      window.pb2NavRows = rows; window.pb2NavPending = true; window.pb2NavSaver = saveNavLinks;
+      if (window.pb2MarkDirty) window.pb2MarkDirty();
+    });
+    host.addEventListener('change', e => {
+      if (e.target.dataset.snTab !== undefined) { rows[+e.target.dataset.snTab].tab = e.target.checked; changed(); }
+    });
+    host.addEventListener('click', e => {
+      const t = e.target.closest('button'); if (!t) return;
+      if (t.dataset.snSeg) { rows[+t.dataset.i][t.dataset.snSeg] = t.dataset.v; changed(); return; }
+      if (t.dataset.snDel !== undefined) { rows.splice(+t.dataset.snDel, 1); changed(); return; }
+      if (t.dataset.snPop) { pop = !pop; render(); return; }
+      if (t.dataset.snAddlink) { rows.push({type:'link', page:null, label:'', url:'', style:'link', side:'left', tab:false}); changed(); return; }
+      const at = rows.filter(r => r.side === 'left').length;
+      if (t.dataset.snAddpage) { rows.splice(at, 0, {type:'page', page:t.dataset.snAddpage, label:'', url:'', style:'link', side:'left', tab:false}); pop = false; changed(); return; }
+      if (t.dataset.snAddapp)  { rows.splice(at, 0, {type:'link', page:null, label:t.dataset.label, url:t.dataset.snAddapp, style:'link', side:'left', tab:false}); pop = false; changed(); return; }
+    });
+    host.addEventListener('dragstart', e => { const r = e.target.closest('.sn-row'); if (r) { from = +r.dataset.i; r.classList.add('drag'); } });
+    host.addEventListener('dragover',  e => { const r = e.target.closest('.sn-row'); if (r && from !== null) { e.preventDefault(); host.querySelectorAll('.sn-row.over').forEach(x => x.classList.remove('over')); r.classList.add('over'); } });
+    host.addEventListener('drop',      e => { const r = e.target.closest('.sn-row'); if (!r || from === null) return; e.preventDefault(); const m = rows.splice(from, 1)[0]; rows.splice(+r.dataset.i, 0, m); from = null; changed(); });
+    host.addEventListener('dragend',   () => { from = null; });
 
     function saveNavLinks() {
-      const items = [];
-      list.querySelectorAll('.pb2-navlist-item').forEach(row => {
-        const label = row.querySelector('[data-nav-field="label"]')?.value?.trim() || '';
-        const url   = row.querySelector('[data-nav-field="url"]')?.value?.trim() || '';
-        const newTab = row.querySelector('[data-nav-field="open_in_new_tab"]')?.checked ? '1' : '0';
-        if (!label) return; // skip blank rows
-        items.push({ label, url, open_in_new_tab: newTab });
-      });
-      if (count) count.textContent = items.length + ' link' + (items.length === 1 ? '' : 's');
-
       const fd = new FormData();
       fd.append('_token', getCsrf());
       fd.append('op', 'update_nav');
-      items.forEach((it, i) => {
-        fd.append(`nav_items[${i}][label]`, it.label);
-        fd.append(`nav_items[${i}][url]`, it.url);
-        fd.append(`nav_items[${i}][open_in_new_tab]`, it.open_in_new_tab);
+      rows.forEach((r, i) => {
+        fd.append(`nav_items[${i}][page_id]`, r.type === 'page' ? (r.page || '') : '');
+        fd.append(`nav_items[${i}][label]`, r.label || '');
+        fd.append(`nav_items[${i}][url]`, r.url || '');
+        fd.append(`nav_items[${i}][style]`, r.style);
+        fd.append(`nav_items[${i}][side]`, r.side);
+        fd.append(`nav_items[${i}][open_in_new_tab]`, r.tab ? '1' : '0');
       });
-
-      setStatus('Saving links…');
-      fetch(STORE_URL, {
-        method: 'POST', body: fd,
-        headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
-      })
-        .then(r => r.json().catch(() => null))
-        .then(() => {
-          setStatus('Links saved ✓');
-          // Reload preview so changes show
-          refreshPreview();
-          setTimeout(() => { if (status) status.innerHTML = ''; }, 1500);
+      setStatus('Saving the menu…');
+      return fetch(STORE_URL, { method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' } })
+        .then(r => r.json().then(j => ({ ok: r.ok, j })))
+        .then(({ ok, j }) => {
+          if (ok && j.ok) { setStatus(''); return true; }
+          pb2SaveOk = false;
+          setStatus(esc((j && (j.message || j.error)) || 'The menu was not saved.'));
+          return false;
         })
-        .catch(err => {
-          setStatus('Save failed');
-          console.error('nav save failed', err);
-        });
+        .catch(() => { pb2SaveOk = false; setStatus('The menu was not saved — check your connection.'); return false; });
     }
-
-    function wireRow(row) {
-      row.querySelectorAll('[data-nav-field]').forEach(input => {
-        input.addEventListener('input', () => scheduleSave(false));
-        input.addEventListener('change', () => scheduleSave(true));
-      });
-      const remove = row.querySelector('.pb2-navlist-remove');
-      if (remove) {
-        remove.addEventListener('click', () => {
-          row.remove();
-          scheduleSave(true);
-        });
-      }
-      // MARKER-NAVDRAG — hold the handle to drag-reorder; save reads DOM order
-      const handle = row.querySelector('.pb2-navlist-handle');
-      if (handle) {
-        handle.style.cursor = 'grab';
-        handle.addEventListener('mousedown',  () => { row.draggable = true; });
-        handle.addEventListener('touchstart', () => { row.draggable = true; }, { passive: true });
-        row.addEventListener('mouseup',    () => { row.draggable = false; });
-        row.addEventListener('mouseleave', () => { row.draggable = false; });
-        row.addEventListener('dragstart', e => {
-          navDragEl = row; row.classList.add('dragging');
-          e.dataTransfer.effectAllowed = 'move';
-          try { e.dataTransfer.setData('text/plain', 'nav'); } catch (_) {}
-        });
-        row.addEventListener('dragend', () => {
-          row.classList.remove('dragging'); row.draggable = false;
-          list.querySelectorAll('.pb2-navlist-item').forEach(el => el.classList.remove('drag-over-top','drag-over-bottom'));
-          navDragEl = null;
-        });
-        row.addEventListener('dragover', e => {
-          if (!navDragEl || navDragEl === row) return;
-          e.preventDefault();
-          const rect = row.getBoundingClientRect();
-          const before = e.clientY < rect.top + rect.height / 2;
-          row.classList.toggle('drag-over-top', before);
-          row.classList.toggle('drag-over-bottom', !before);
-        });
-        row.addEventListener('dragleave', () => row.classList.remove('drag-over-top','drag-over-bottom'));
-        row.addEventListener('drop', e => {
-          if (!navDragEl || navDragEl === row) return;
-          e.preventDefault();
-          const rect = row.getBoundingClientRect();
-          const before = e.clientY < rect.top + rect.height / 2;
-          row.classList.remove('drag-over-top','drag-over-bottom');
-          if (before) list.insertBefore(navDragEl, row);
-          else        list.insertBefore(navDragEl, row.nextSibling);
-          scheduleSave(true);
-        });
-      }
-    }
-
-    list.querySelectorAll('.pb2-navlist-item').forEach(wireRow);
-
-    if (addBtn) {
-      addBtn.addEventListener('click', () => {
-        const row = document.createElement('div');
-        row.className = 'pb2-navlist-item';
-        row.innerHTML = `
-          <span class="pb2-navlist-handle">⋮⋮</span>
-          <div class="pb2-navlist-fields">
-            <input type="text" class="pb2-input pb2-input-sm" data-nav-field="label" placeholder="Label">
-            <input type="text" class="pb2-input pb2-input-sm" data-nav-field="url" placeholder="/page or https://...">
-          </div>
-          <div class="pb2-navlist-meta">
-            <label title="Open in new tab">
-              <input type="checkbox" data-nav-field="open_in_new_tab">
-              <span>↗</span>
-            </label>
-            <button type="button" class="pb2-navlist-remove" title="Remove">×</button>
-          </div>
-        `;
-        list.appendChild(row);
-        wireRow(row);
-        // Focus the new label field
-        row.querySelector('[data-nav-field="label"]')?.focus();
-      });
-    }
-
-    // "Add from existing pages" — fills label + URL from the page
-    body.querySelectorAll('.pb2-pagelink').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const row = document.createElement('div');
-        row.className = 'pb2-navlist-item';
-        const title = btn.dataset.pageTitle || '';
-        const url   = btn.dataset.pageUrl || '/';
-        row.innerHTML = `
-          <span class="pb2-navlist-handle">⋮⋮</span>
-          <div class="pb2-navlist-fields">
-            <input type="text" class="pb2-input pb2-input-sm" data-nav-field="label" value="${title.replace(/"/g, '&quot;')}">
-            <input type="text" class="pb2-input pb2-input-sm" data-nav-field="url" value="${url.replace(/"/g, '&quot;')}">
-          </div>
-          <div class="pb2-navlist-meta">
-            <label title="Open in new tab">
-              <input type="checkbox" data-nav-field="open_in_new_tab">
-              <span>↗</span>
-            </label>
-            <button type="button" class="pb2-navlist-remove" title="Remove">×</button>
-          </div>
-        `;
-        list.appendChild(row);
-        wireRow(row);
-        scheduleSave(true);
-      });
-    });
+    render();
   }
 
   // Service category checkbox list — serializes checked IDs into a hidden
@@ -4473,6 +4439,12 @@ body.ia-theme-b .pb2-preview-frame-wrap {
   // ─── Save (manual button in topbar) ───────────────────────────────────
   window.savePageSettings = function() { return pb2SaveNow(); }; // MARKER-EXPLICIT-SAVE
   window.addEventListener('load', function () { setTimeout(pb2SetClean, 50); pb2DraftClear(); }); // MARKER-BUILDER-DRAFT — no leftovers
+  // MARKER-SHOP-NAV — "Edit menu" on any page lands here with ?select=nav.
+  window.addEventListener('load', function () {
+    if (!/[?&]select=nav\b/.test(location.search)) return;
+    var n = document.querySelector('.pb2-section-item[data-section-type="nav"]');
+    if (n) n.click();
+  });
 
   // ─── Listen for save events from inside inspector (future hook) ───────
   document.addEventListener('pb-section-saved', () => {

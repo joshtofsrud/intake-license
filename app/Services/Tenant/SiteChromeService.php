@@ -43,7 +43,7 @@ class SiteChromeService
         return $cache[$tenant->id] = [
             'nav'      => $chrome->firstWhere('section_type', 'nav'),
             'footer'   => $chrome->firstWhere('section_type', 'footer'),
-            'navItems' => TenantNavItem::where('tenant_id', $tenant->id)->orderBy('sort_order')->get(),
+            'navItems' => TenantNavItem::forSite((string) $tenant->id), // MARKER-SHOP-NAV
         ];
     }
 
@@ -74,8 +74,7 @@ class SiteChromeService
         $sections->push($body);
         if ($footer = $chrome->firstWhere('section_type', 'footer')) $sections->push($footer);
 
-        $navItems = TenantNavItem::where('tenant_id', $tenant->id)
-            ->orderBy('sort_order')->get();
+        $navItems = TenantNavItem::forSite((string) $tenant->id); // MARKER-SHOP-NAV
 
         // Layout titles come from a $page object; fake the fields it reads.
         $page = new TenantPage([
