@@ -164,8 +164,10 @@
 <script>
 (function () {
   // MARKER-GC-SETTINGS -- shop config drives the defaults and the client checks.
+  // MARKER-GC-COMMENTFIX -- never write the directive's name in a JS comment:
+  // Blade compiles it there too.
   // MARKER-GC-JSONFIX -- the array is built above and passed as ONE variable:
-  // Blade splits a @json argument on commas and keeps only three parts, so an
+  // Blade splits that directive's argument on commas and keeps only three parts, so an
   // inline array literal here silently truncated and fataled the page.
   var CFG = @json($gcShopCfg);
   var state = {
