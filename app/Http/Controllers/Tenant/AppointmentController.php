@@ -324,10 +324,12 @@ class AppointmentController extends Controller
             return response()->json(['ok' => false, 'errors' => ['customer_email' => ['Email is required.']]], 422);
         }
 
-        // Time defaults to noon if not provided (date-only flow).
+        // MARKER-STAFF-NO-NOON — no time picked (drop-off) means no time saved,
+        // matching online drop-off bookings. A placeholder noon was being sent
+        // to customers in confirmations and reminders as a real time.
         $apptTime = !empty($data['appointment_time'])
             ? (strlen($data['appointment_time']) === 5 ? $data['appointment_time'] . ':00' : $data['appointment_time'])
-            : '12:00:00';
+            : null;
 
         $payload = [
             'first_name'       => $first,
