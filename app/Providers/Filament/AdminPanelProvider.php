@@ -57,6 +57,12 @@ class AdminPanelProvider extends PanelProvider
             ->login()
             ->colors(['primary' => Color::Violet])
             ->brandName('Intake')
+            // MARKER-PANEL-BRAND — the Brand page's logos and favicon, not hand-set text.
+            // Closures, so the Brand row is read per request rather than at boot.
+            ->brandLogo(fn () => \App\Support\Brand::url('logo_light'))
+            ->darkModeBrandLogo(fn () => \App\Support\Brand::url('logo'))
+            ->brandLogoHeight('1.75rem')
+            ->favicon(fn () => \App\Support\Brand::url('favicon'))
             // MARKER-NAV-ORDER — group order comes from the database when it has
             // an opinion. An empty array means Filament keeps its own order, so
             // an empty table changes nothing.

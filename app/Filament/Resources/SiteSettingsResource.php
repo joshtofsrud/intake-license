@@ -98,12 +98,20 @@ class SiteSettingsResource extends Resource
                     Forms\Components\TextInput::make('github_url')->label('GitHub URL')->url(),
                 ]),
 
+            // MARKER-MKT-ANALYTICS — these now load (they were read by nothing).
             Forms\Components\Section::make('Analytics')
-                ->description('Tracking codes injected into every marketing page.')
+                ->description('Loaded on every public intake.works page. Not loaded in master admin, the rep panel, investor pages or booking-management links.')
                 ->collapsed()
                 ->schema([
+                    Forms\Components\TextInput::make('ga4_id')
+                        ->label('Google Analytics 4 measurement ID')
+                        ->placeholder('G-XXXXXXXXXX')
+                        ->maxLength(32)
+                        ->regex('/^G-[A-Z0-9]{4,20}$/i')
+                        ->validationMessages(['regex' => 'A GA4 measurement ID starts with G-, e.g. G-XXXXXXXXXX.']),
+
                     Forms\Components\TextInput::make('plausible_domain')
-                        ->label('Plausible / Fathom domain')
+                        ->label('Plausible domain')
                         ->placeholder('intake.works'),
 
                     Forms\Components\TextInput::make('gtm_id')

@@ -1,18 +1,5 @@
 {{-- MARKER-PATCH-150 — tenant public-page analytics + funnel tracking --}}
-@php
-  $ga4Id = $currentTenant->settings['analytics_ga4_id'] ?? null;
-@endphp
-
-@if($ga4Id)
-{{-- Google tag (gtag.js) — only when tenant has configured GA-4 --}}
-<script async src="https://www.googletagmanager.com/gtag/js?id={{ $ga4Id }}"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag(){dataLayer.push(arguments);}
-  gtag('js', new Date());
-  gtag('config', '{{ $ga4Id }}', { 'anonymize_ip': true });
-</script>
-@endif
+@include('public._ga4') {{-- MARKER-SHOP-GA4 — one copy of the tag, shared with the rental pages --}}
 
 {{-- Native funnel tracking — anonymous, no third-party --}}
 <script>

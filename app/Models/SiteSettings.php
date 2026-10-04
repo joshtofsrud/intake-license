@@ -29,6 +29,7 @@ class SiteSettings extends Model
         'github_url',
         'plausible_domain',
         'gtm_id',
+        'ga4_id',         // MARKER-MKT-ANALYTICS
         'brand',          // MARKER-BRAND
         'brand_history',
     ];

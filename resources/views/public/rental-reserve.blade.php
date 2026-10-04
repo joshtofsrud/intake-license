@@ -33,6 +33,7 @@
   .hint { font-size: 12px; opacity: .45; margin-top: 10px; text-align: center; }
   #pay-wrap { display: none; margin-top: 16px; }
 </style>
+  @include('public._ga4') {{-- MARKER-SHOP-GA4 --}}
 </head>
 <body>
 <div class="wrap">

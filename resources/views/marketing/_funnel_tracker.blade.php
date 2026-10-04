@@ -2,6 +2,7 @@
      tracker's contract but posts to the platform endpoint, since /funnel/track
      is tenant-host only. Anonymous: a random session id in sessionStorage, no
      third party, no fingerprinting. --}}
+@include('marketing._analytics') {{-- MARKER-MKT-ANALYTICS --}}
 <script>
 (function () {
   if (window.__intakeMktFunnel) { return; }

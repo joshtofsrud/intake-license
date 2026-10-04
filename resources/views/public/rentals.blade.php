@@ -39,6 +39,7 @@
   .card .cta { margin-top: 14px; text-align: center; font-size: 13.5px; font-weight: 650; padding: 9px 0; border-radius: 9px; background: var(--acc); color: #111; }
   .empty { text-align: center; padding: 60px 20px; opacity: .55; font-size: 15px; }
 </style>
+  @include('public._ga4') {{-- MARKER-SHOP-GA4 --}}
 </head>
 <body>
 @include('public._chrome-inline', ['chromePos' => 'top']) {{-- MARKER-PATCH-581 --}}

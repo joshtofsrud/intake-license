@@ -31,6 +31,12 @@ class RepPanelProvider extends PanelProvider
             ->path('rep')
             ->login()
             ->brandName('Intake · Rep')
+            // MARKER-PANEL-BRAND — the Brand page's logos and favicon, not hand-set text.
+            // Closures, so the Brand row is read per request rather than at boot.
+            ->brandLogo(fn () => \App\Support\Brand::url('logo_light'))
+            ->darkModeBrandLogo(fn () => \App\Support\Brand::url('logo'))
+            ->brandLogoHeight('1.75rem')
+            ->favicon(fn () => \App\Support\Brand::url('favicon'))
             ->colors(['primary' => Color::Sky])
             ->darkMode(true)
             ->resources([

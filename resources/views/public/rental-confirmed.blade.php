@@ -24,6 +24,7 @@
   .kv span:first-child { opacity: .55; }
   a.btn { display: inline-block; font-size: 14px; font-weight: 650; padding: 11px 26px; border-radius: 10px; background: var(--acc); color: #111; text-decoration: none; margin-top: 26px; }
 </style>
+  @include('public._ga4') {{-- MARKER-SHOP-GA4 --}}
 </head>
 <body>
 <div class="wrap">
