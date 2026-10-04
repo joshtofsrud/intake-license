@@ -39,6 +39,12 @@
     if ($maxW < 320 || $maxW > 1600) $maxW = 720;
     $subW = (int) round($maxW * 0.7);
 
+    // MARKER-MKT-HERO-PAD — editor padding presets, same scale as a shop hero.
+    // A hero saved before these fields existed keeps its original padding.
+    $padTokens = ['none' => '0', 'compact' => 'clamp(24px, 4vw, 40px)', 'normal' => 'clamp(48px, 7vw, 80px)', 'spacious' => 'clamp(72px, 10vw, 120px)'];
+    $padTop    = $padTokens[$c['padding_top'] ?? ''] ?? 'clamp(64px, 10vw, 120px)';
+    $padBottom = $padTokens[$c['padding_bottom'] ?? ''] ?? 'clamp(48px, 7vw, 88px)';
+
     $headSizes = ['auto' => 'clamp(36px, 6vw, 72px)', 'small' => '32px', 'medium' => '44px', 'large' => '56px', 'xl' => '72px'];
     $subSizes  = ['small' => '16px', 'medium' => 'clamp(15px, 2vw, 19px)', 'large' => '22px'];
     $headSize  = $headSizes[$c['headline_size'] ?? 'auto'] ?? $headSizes['auto'];
@@ -67,7 +73,7 @@
 
 <style>
     .mk-hero.{{ $hid }} {
-        padding: clamp(64px, 10vw, 120px) 0 clamp(48px, 7vw, 88px);
+        padding: {{ $padTop }} 0 {{ $padBottom }};
         text-align: {{ $align }};
         border-bottom: 0.5px solid var(--mk-border);
         @if($minHeight)

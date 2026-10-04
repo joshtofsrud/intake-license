@@ -283,8 +283,9 @@
         $mkwId     = 'mkw-' . substr(md5((string) $section->id), 0, 8);
         $mkwPad    = ['none' => '0', 'compact' => 'clamp(24px, 4vw, 48px)', 'spacious' => 'clamp(80px, 10vw, 140px)'];
         $mkwLegacy = $c['padding_override'] ?? null;
-        $mkwTop    = $mkwPad[$c['padding_top'] ?? $mkwLegacy] ?? null;
-        $mkwBot    = $mkwPad[$c['padding_bottom'] ?? $mkwLegacy] ?? null;
+        // MARKER-MKT-HERO-PAD — the hero applies its own padding presets.
+        $mkwTop    = $type === 'hero' ? null : ($mkwPad[$c['padding_top'] ?? $mkwLegacy] ?? null);
+        $mkwBot    = $type === 'hero' ? null : ($mkwPad[$c['padding_bottom'] ?? $mkwLegacy] ?? null);
         $mkwAnchor = in_array($type, ['custom_html', 'image_carousel', 'book_call', 'feature_groups', 'try_demo'], true)
             ? '' : preg_replace('/[^A-Za-z0-9_-]/', '', (string) ($c['anchor_id'] ?? ''));
         $mkwExtra  = in_array($type, ['custom_html', 'image_carousel'], true)
