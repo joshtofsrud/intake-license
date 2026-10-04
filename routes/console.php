@@ -281,3 +281,8 @@ Schedule::command('tenants:signals')
 Schedule::command('platform:process-campaign-sends')
     ->everyMinute()
     ->withoutOverlapping();
+
+// MARKER-SEO-SIGNALS — nightly search check; problems go to Issues.
+Schedule::command('seo:check')
+    ->dailyAt('04:15')
+    ->withoutOverlapping();

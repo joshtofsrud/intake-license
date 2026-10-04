@@ -9,7 +9,10 @@ $domain = config('intake.domain', 'intake.works');
 // Platform routes — intake.works
 // =========================================================================
 
-Route::domain($domain)->group(function () {
+Route::domain($domain)->middleware(\App\Http\Middleware\SeoSignals::class)->group(function () { // MARKER-SEO-SIGNALS
+
+    Route::get('/robots.txt',  [\App\Http\Controllers\SeoController::class, 'robots'])->name('marketing.robots');
+    Route::get('/sitemap.xml', [\App\Http\Controllers\SeoController::class, 'sitemap'])->name('marketing.sitemap');
 
     Route::get('/health', function () {
         try {
@@ -172,7 +175,9 @@ Route::domain($domain)->group(function () {
 // Platform routes — app.intake.works
 // =========================================================================
 
-Route::domain('app.' . $domain)->group(function () {
+Route::domain('app.' . $domain)->middleware(\App\Http\Middleware\SeoSignals::class)->group(function () { // MARKER-SEO-SIGNALS
+
+    Route::get('/robots.txt', [\App\Http\Controllers\SeoController::class, 'robots'])->name('platform.robots');
 
     Route::get('/',         [Platform\OnboardingController::class, 'index'])->name('platform.home');
     Route::get('/signup',   [Platform\OnboardingController::class, 'signup'])->name('platform.signup');
@@ -204,6 +209,11 @@ Route::domain('app.' . $domain)->group(function () {
 $tenantRoutes = function () {
 
     Route::get('/',        [TenantControllers\PublicController::class, 'home'])->name('tenant.home');
+    // MARKER-SEO-SIGNALS — registered before the /{slug} catch-all at the end of this group.
+    Route::get('/robots.txt',        [\App\Http\Controllers\SeoController::class, 'robots'])->name('tenant.seo.robots');
+    Route::get('/sitemap.xml',       [\App\Http\Controllers\SeoController::class, 'sitemap'])->name('tenant.seo.sitemap');
+    Route::get('/sitemap-pages.xml', [\App\Http\Controllers\SeoController::class, 'pages'])->name('tenant.seo.sitemap_pages');
+    Route::get('/sitemap-products-{part}.xml', [\App\Http\Controllers\SeoController::class, 'products'])->where('part', '[0-9]+')->name('tenant.seo.sitemap_products');
     Route::get('/confirm', [TenantControllers\PublicController::class, 'confirm'])->name('tenant.confirm');
     Route::get('/contact', [TenantControllers\PublicController::class, 'contact'])->name('tenant.contact');
 
@@ -1372,6 +1382,8 @@ Route::middleware([
         'App\Http\Middleware\ShowWelcomePage',
         // MARKER-DEMO-SECTION — after ResolveTenant, so tenant() is available.
         'App\Http\Middleware\DemoBanner',
+        // MARKER-SEO-SIGNALS — noindex / canonical / structured data on shop sites.
+        'App\Http\Middleware\SeoSignals',
     ])
     ->group($tenantRoutes);
 
