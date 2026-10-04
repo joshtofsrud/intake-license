@@ -29,6 +29,13 @@ class SiteSettings extends Model
         'github_url',
         'plausible_domain',
         'gtm_id',
+        'brand',          // MARKER-BRAND
+        'brand_history',
+    ];
+
+    protected $casts = [
+        'brand'         => 'array', // MARKER-BRAND
+        'brand_history' => 'array',
     ];
 
     public static function current(): self

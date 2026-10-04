@@ -105,7 +105,7 @@ class BillingNoticeService
                 'link'      => $link,
                 'linkLabel' => 'Open billing settings',
                 'shopName'  => $shopName,
-                'logoUrl'   => rtrim(config('app.url'), '/') . '/icon.svg',
+                'logoUrl'   => \App\Support\Brand::url('email'), // MARKER-BRAND
             ])->render();
 
             $from     = \App\Models\PlatformSettings::fromAddress();

@@ -7,9 +7,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Intake — {{ $investor->name }}</title>
 <meta name="robots" content="noindex, nofollow">
-<link rel="icon" href="{{ asset('favicon.svg') }}" type="image/svg+xml">
-<link rel="icon" href="{{ asset('favicon-32.png') }}" sizes="32x32">
-<link rel="apple-touch-icon" href="{{ asset('apple-touch-icon.png') }}">
+<link rel="icon" href="{{ \App\Support\Brand::url('favicon') }}" type="image/svg+xml">
+<link rel="icon" href="{{ \App\Support\Brand::url('favicon_32') }}" sizes="32x32">
+<link rel="apple-touch-icon" href="{{ \App\Support\Brand::url('apple') }}">
 {{-- MARKER-INVEST-RETURNS — no og:image here on purpose: a personal link
      pasted into a thread would unfurl the round to everyone in it. --}}
 <link rel="stylesheet" href="{{ asset('css/fonts.css') }}">
@@ -17,7 +17,7 @@
 </head><body>
 
 <nav><div class="wrap">
-  <a class="brand" href="/"><img src="{{ asset('icon.svg') }}" alt="" width="26" height="26"> intake</a>
+  <a class="brand" href="/"><img src="{{ \App\Support\Brand::url('icon') }}" alt="" width="26" height="26"> intake</a>
   <span class="who"><b>{{ $investor->name }}</b> · your link</span>
 </div></nav>
 

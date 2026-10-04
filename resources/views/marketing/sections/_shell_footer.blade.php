@@ -48,7 +48,7 @@
             <div>
                 <div class="mk-footer-brand-name">
                     {{-- MARKER-BRAND-CANON — was a letter "I", not the mark --}}
-                    <img src="{{ asset('icon.svg') }}" alt="" width="22" height="22" style="display:block">
+                    <img src="{{ \App\Support\Brand::url('icon') }}" alt="" width="22" height="22" style="display:block">
                     intake
                 </div>
                 <p class="mk-footer-tagline">Online booking, work orders, and customer management for service shops.</p>

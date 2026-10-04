@@ -35,19 +35,19 @@
 
 
     {{-- Patch #44 favicon links + OG meta — match the static-layout shell --}}
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
-    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
-    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png">
-    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+    <link rel="icon" type="image/svg+xml" href="{{ \App\Support\Brand::url('favicon') }}">
+    <link rel="icon" type="image/png" sizes="32x32" href="{{ \App\Support\Brand::url('favicon_32') }}">
+    <link rel="icon" type="image/png" sizes="16x16" href="{{ \App\Support\Brand::url('favicon_16') }}">
+    <link rel="apple-touch-icon" href="{{ \App\Support\Brand::url('apple') }}">
     <meta name="theme-color" content="#0c0c0c">
 
     {{-- OG/Twitter card --}}
-    <meta property="og:image" content="{{ url('/og-image.png') }}">
+    <meta property="og:image" content="{{ \App\Support\Brand::shareImageFor($page) }}">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
     <meta property="og:url" content="{{ url()->current() }}">
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:image" content="{{ url('/og-image.png') }}">
+    <meta name="twitter:image" content="{{ \App\Support\Brand::shareImageFor($page) }}">
 
     <link rel="stylesheet" href="{{ asset('css/fonts.css') }}">{{-- MARKER-SELFHOST-FONTS-2 --}}
     <style>

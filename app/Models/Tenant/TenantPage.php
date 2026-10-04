@@ -8,7 +8,7 @@ class TenantPage extends Model
 {
     use HasUuids;
     protected $table    = 'tenant_pages';
-    protected $fillable = ['tenant_id','title','slug','meta_title','meta_description','is_home','is_splash','is_published','published_at','is_in_nav','nav_order', // MARKER-PAGE-PUBLISH
+    protected $fillable = ['tenant_id','title','slug','meta_title','meta_description','og_image_url','is_home','is_splash','is_published','published_at','is_in_nav','nav_order', // MARKER-PAGE-PUBLISH
         'splash_page_id','splash_mode','splash_style','splash_frequency','splash_starts_at','splash_ends_at', // MARKER-SPLASH-2
         'kind','help_category_id','help_key','help_min_tier','help_addons','help_locked_mode','help_sort']; // MARKER-HELP-ADMIN
     protected $casts    = ['is_home' => 'boolean', 'is_splash' => 'boolean', 'is_published' => 'boolean', 'published_at' => 'datetime', 'is_in_nav' => 'boolean',

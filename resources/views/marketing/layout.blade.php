@@ -12,17 +12,17 @@
   <meta name="description" content="@yield('meta_description', 'Retail, booking, and classes — built for communication and efficiency. For service, retail, fitness, and appointment-based businesses.')">
 
   <!-- Logo system v1 (patch #44) — favicons + OG/Twitter meta -->
-  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
-  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
-  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png">
-  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="icon" type="image/svg+xml" href="{{ \App\Support\Brand::url('favicon') }}">
+  <link rel="icon" type="image/png" sizes="32x32" href="{{ \App\Support\Brand::url('favicon_32') }}">
+  <link rel="icon" type="image/png" sizes="16x16" href="{{ \App\Support\Brand::url('favicon_16') }}">
+  <link rel="apple-touch-icon" href="{{ \App\Support\Brand::url('apple') }}">
   <meta name="theme-color" content="#0c0c0c">
 
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="intake">
   <meta property="og:title" content="@yield('og_title', 'intake — Retail, booking, and classes — built for communication and efficiency.')">
   <meta property="og:description" content="@yield('og_description', 'For service, retail, fitness, and appointment-based businesses.')">
-  <meta property="og:image" content="{{ url('/og-image.png') }}">
+  <meta property="og:image" content="{{ \App\Support\Brand::url('og') }}">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
   <meta property="og:url" content="{{ url()->current() }}">
@@ -30,7 +30,7 @@
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="@yield('og_title', 'intake — Retail, booking, and classes — built for communication and efficiency.')">
   <meta name="twitter:description" content="@yield('og_description', 'For service, retail, fitness, and appointment-based businesses.')">
-  <meta name="twitter:image" content="{{ url('/og-image.png') }}">
+  <meta name="twitter:image" content="{{ \App\Support\Brand::url('og') }}">
   <link rel="stylesheet" href="{{ asset('css/fonts.css') }}">{{-- MARKER-SELFHOST-FONTS-2 --}}
   <style>
     /* ================================================================
@@ -251,7 +251,7 @@
   <div class="mk-nav-inner">
     <a href="{{ route('marketing.home') }}" class="mk-logo">
       {{-- MARKER-BRAND-CANON — canonical mark, not a redraw --}}
-      <img src="{{ asset('icon.svg') }}" alt="" width="26" height="26" style="display:block">
+      <img src="{{ \App\Support\Brand::url('icon') }}" alt="" width="26" height="26" style="display:block">
       intake
     </a>
     <div class="mk-nav-links">
@@ -288,7 +288,7 @@
       <div>
         <div class="mk-footer-brand-name">
           {{-- MARKER-BRAND-CANON --}}
-          <img src="{{ asset('icon.svg') }}" alt="" width="22" height="22" style="display:block">
+          <img src="{{ \App\Support\Brand::url('icon') }}" alt="" width="22" height="22" style="display:block">
           intake
         </div>
         <p class="mk-footer-tagline">Online booking, work orders, and customer management for service shops.</p>

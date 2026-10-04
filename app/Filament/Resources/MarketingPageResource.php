@@ -101,6 +101,15 @@ class MarketingPageResource extends Resource
                         ->rows(2)
                         ->maxLength(300)
                         ->helperText('Shows under the title in Google results. Aim for 150–160 characters.'),
+
+                    // MARKER-BRAND — this page's own share image; empty uses Brand's default.
+                    Forms\Components\FileUpload::make('og_image_url')
+                        ->label('Share image')
+                        ->image()
+                        ->disk('public')
+                        ->directory('og')
+                        ->maxSize(4096)
+                        ->helperText('Shown when a link to this page is shared — 1200 × 630. Leave empty to use the default from Brand.'),
                 ])->collapsible(),
         ]);
     }

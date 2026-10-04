@@ -13,7 +13,7 @@
              absolute URL because a mail client has no site to be relative to,
              and alt text so a blocked image still reads as Intake. --}}
         <tr><td style="padding:26px 32px 0;">
-          <img src="{{ url('/icon.svg') }}" alt="Intake" width="30" height="30"
+          <img src="{{ \App\Support\Brand::url('icon') }}" alt="Intake" width="30" height="30"
                style="display:block;border:0;outline:none;border-radius:7px;">
         </td></tr>
         <tr><td style="padding:18px 32px 28px;font-size:15px;line-height:1.65;color:#333;">

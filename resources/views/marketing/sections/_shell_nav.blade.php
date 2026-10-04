@@ -71,7 +71,7 @@
     <div class="mk-nav-inner">
         <a href="{{ route('marketing.home') }}" class="mk-logo">
             {{-- MARKER-BRAND-CANON — canonical mark, not a redraw --}}
-            <img src="{{ asset('icon.svg') }}" alt="" width="26" height="26" style="display:block">
+            <img src="{{ \App\Support\Brand::url('icon') }}" alt="" width="26" height="26" style="display:block">
             intake
         </a>
 

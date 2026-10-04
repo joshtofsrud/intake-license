@@ -11,10 +11,10 @@
   <meta name="robots" content="noindex,nofollow">
 
   <!-- Logo system v1 (patch #44) — favicons -->
-  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
-  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
-  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png">
-  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="icon" type="image/svg+xml" href="{{ \App\Support\Brand::url('favicon') }}">
+  <link rel="icon" type="image/png" sizes="32x32" href="{{ \App\Support\Brand::url('favicon_32') }}">
+  <link rel="icon" type="image/png" sizes="16x16" href="{{ \App\Support\Brand::url('favicon_16') }}">
+  <link rel="apple-touch-icon" href="{{ \App\Support\Brand::url('apple') }}">
   <meta name="theme-color" content="#0c0c0c">
   <link rel="stylesheet" href="{{ asset('css/fonts.css') }}">{{-- MARKER-SELFHOST-FONTS-2 --}}
   <style>

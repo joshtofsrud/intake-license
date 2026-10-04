@@ -6,13 +6,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Thank you — Intake</title>
 <meta name="robots" content="noindex, nofollow">
-<link rel="icon" href="{{ asset('favicon.svg') }}" type="image/svg+xml">
+<link rel="icon" href="{{ \App\Support\Brand::url('favicon') }}" type="image/svg+xml">
 <link rel="stylesheet" href="{{ asset('css/fonts.css') }}">
 @include('invest._styles')
 </head><body>
 
 <nav><div class="wrap">
-  <a class="brand" href="/"><img src="{{ asset('icon.svg') }}" alt="" width="26" height="26"> intake</a>
+  <a class="brand" href="/"><img src="{{ \App\Support\Brand::url('icon') }}" alt="" width="26" height="26"> intake</a>
 </div></nav>
 
 <section class="hero"><div class="wrap">
