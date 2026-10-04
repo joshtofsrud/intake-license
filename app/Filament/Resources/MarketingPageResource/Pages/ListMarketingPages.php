@@ -24,7 +24,6 @@ class ListMarketingPages extends ListRecords
                     $data['tenant_id']    = $platform->id;
                     $data['is_home']      = false;
                     $data['is_published'] = $data['is_published'] ?? false;
-                    $data['is_in_nav']    = $data['is_in_nav']    ?? true;
 
                     // Auto-slug from title if the user didn't provide one.
                     if (empty($data['slug']) && ! empty($data['title'])) {

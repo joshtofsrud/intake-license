@@ -67,32 +67,39 @@
     }
 </style>
 
+{{-- MARKER-MKT-NAV — drawn from master admin › Site & content › Navigation
+     (App\Support\MarketingNav). The only source: no hard-coded links or
+     buttons. $menuItems is passed only by the Navigation page's preview.
+     MARKER-MKT-LOGO — the Brand page's logo, sized by height only. --}}
+@php
+    $mkMenu  = isset($menuItems) && is_array($menuItems) ? $menuItems : \App\Support\MarketingNav::items();
+    $mkHere  = '/' . ltrim(request()->path(), '/');
+    $mkLeft  = array_values(array_filter($mkMenu, fn ($i) => $i['side'] === 'left'));
+    $mkRight = array_values(array_filter($mkMenu, fn ($i) => $i['side'] === 'right'));
+    $mkClass = function (array $i, string $where) use ($mkHere): string {
+        if ($i['style'] === 'button')  return 'mk-btn mk-btn--primary mk-btn--sm';
+        if ($i['style'] === 'outline') return 'mk-btn mk-btn--ghost mk-btn--sm';
+        if ($where === 'right')        return 'mk-nav-signin';
+        $path = rtrim((string) parse_url($i['url'], PHP_URL_PATH), '/') ?: '/';
+        return 'mk-nav-link' . ($path === (rtrim($mkHere, '/') ?: '/') && ! parse_url($i['url'], PHP_URL_HOST) ? ' active' : '');
+    };
+@endphp
 <nav class="mk-nav">
     <div class="mk-nav-inner">
         <a href="{{ route('marketing.home') }}" class="mk-logo">
-            {{-- MARKER-BRAND-CANON — canonical mark, not a redraw --}}
-            <img src="{{ \App\Support\Brand::url('icon') }}" alt="" width="26" height="26" style="display:block">
-            intake
+            <img src="{{ \App\Support\Brand::url('logo') }}" alt="Intake" style="display:block;height:26px;width:auto">
         </a>
 
         <div class="mk-nav-links">
-            @if(count($navItems))
-                @foreach($navItems as $item)
-                    <a href="{{ $item->url }}" class="mk-nav-link">{{ $item->label }}</a>
-                @endforeach
-            @else
-                {{-- Sensible defaults until someone edits nav in the admin --}}
-                <a href="{{ route('marketing.features') }}" class="mk-nav-link {{ request()->routeIs('marketing.features') ? 'active' : '' }}">Features</a>
-                <a href="{{ route('marketing.pricing') }}"  class="mk-nav-link {{ request()->routeIs('marketing.pricing')  ? 'active' : '' }}">Pricing</a>
-                <a href="{{ route('marketing.roadmap') }}"  class="mk-nav-link {{ request()->routeIs('marketing.roadmap')  ? 'active' : '' }}">Roadmap</a>
-                <a href="{{ route('marketing.changelog') }}"  class="mk-nav-link {{ request()->routeIs('marketing.changelog')  ? 'active' : '' }}">Changelog</a>
-                <a href="{{ route('marketing.docs') }}"     class="mk-nav-link {{ request()->routeIs('marketing.docs')     ? 'active' : '' }}">Docs</a>
-            @endif
+            @foreach($mkLeft as $i)
+                <a href="{{ $i['url'] }}" class="{{ $mkClass($i, 'left') }}" @if($i['tab']) target="_blank" rel="noopener" @endif>{{ $i['label'] }}</a>
+            @endforeach
         </div>
 
         <div class="mk-nav-end">
-            <a href="{{ route('platform.login') }}"  class="mk-nav-signin">Sign in</a>
-            <a href="{{ route('platform.signup') }}" class="mk-btn mk-btn--primary mk-btn--sm">Start free trial</a>
+            @foreach($mkRight as $i)
+                <a href="{{ $i['url'] }}" class="{{ $mkClass($i, 'right') }}" @if($i['tab']) target="_blank" rel="noopener" @endif>{{ $i['label'] }}</a>
+            @endforeach
         </div>
 
         <button class="mk-hamburger" onclick="toggleMobileNav()" aria-label="Menu">
@@ -100,19 +107,13 @@
         </button>
     </div>
 
+    {{-- Phone: links (and right-side links) live in the panel; right-side
+         buttons stay in the bar above. --}}
     <div class="mk-mobile-nav" id="mk-mobile-nav">
-        @if(count($navItems))
-            @foreach($navItems as $item)
-                <a href="{{ $item->url }}">{{ $item->label }}</a>
-            @endforeach
-        @else
-            <a href="{{ route('marketing.features') }}">Features</a>
-            <a href="{{ route('marketing.pricing') }}">Pricing</a>
-            <a href="{{ route('marketing.roadmap') }}">Roadmap</a>
-            <a href="{{ route('marketing.changelog') }}">Changelog</a>
-            <a href="{{ route('marketing.docs') }}">Docs</a>
-        @endif
-        <a href="{{ route('platform.login') }}">Sign in</a>
-        <a href="{{ route('platform.signup') }}" style="color:var(--mk-accent);margin-top:4px">Start free trial →</a>
+        @foreach($mkMenu as $i)
+            @if($i['side'] === 'left' || $i['style'] === 'link')
+                <a href="{{ $i['url'] }}" @if($i['tab']) target="_blank" rel="noopener" @endif>{{ $i['label'] }}</a>
+            @endif
+        @endforeach
     </div>
 </nav>

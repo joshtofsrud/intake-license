@@ -856,6 +856,10 @@ class PageBuilderController extends Controller
         // field), so handle it before the new-page validator below 422s on the
         // missing title. Empty-list guard prevents a bad save wiping the nav.
         if ($request->input('op') === 'update_nav') {
+            // MARKER-MKT-NAV — intake.works' menu is edited on Navigation only.
+            if ($tenant && ($tenant->is_platform ?? false)) {
+                return response()->json(['success' => false, 'error' => 'The intake.works menu is edited on Site & content › Navigation.'], 409);
+            }
             $items = collect($request->input('nav_items', []))
                 ->filter(fn ($it) => !empty($it['label']))
                 ->values();

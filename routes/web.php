@@ -142,6 +142,10 @@ Route::domain($domain)->middleware(\App\Http\Middleware\SeoSignals::class)->grou
             [\App\Http\Controllers\Admin\MarketingPageController::class, 'update']
         )->name('admin.marketing-pages.builder.update');
 
+        Route::get('/admin/navigation/preview', // MARKER-MKT-NAV
+            [\App\Http\Controllers\Admin\MarketingPageController::class, 'navPreview']
+        )->name('admin.navigation.preview');
+
         Route::get('/admin/marketing-pages/{pageId}/preview',
             [\App\Http\Controllers\Admin\MarketingPageController::class, 'preview']
         )->name('admin.marketing-pages.preview');

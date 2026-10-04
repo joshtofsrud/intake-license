@@ -81,14 +81,7 @@ class MarketingPageResource extends Resource
                     Forms\Components\Toggle::make('is_published')
                         ->helperText('Visitors only see published pages.'),
 
-                    Forms\Components\Toggle::make('is_in_nav')
-                        ->label('Show in navigation')
-                        ->helperText('Adds to the top nav on other marketing pages.'),
-
-                    Forms\Components\TextInput::make('nav_order')
-                        ->numeric()
-                        ->default(0)
-                        ->visible(fn ($get) => $get('is_in_nav')),
+                    // MARKER-MKT-NAV — menu membership lives on Site & content › Navigation.
                 ])->columns(2),
 
             Forms\Components\Section::make('SEO')
@@ -143,11 +136,6 @@ class MarketingPageResource extends Resource
                     ->boolean()
                     ->alignCenter(),
 
-                Tables\Columns\IconColumn::make('is_in_nav')
-                    ->label('In nav')
-                    ->boolean()
-                    ->alignCenter()
-                    ->toggleable(isToggledHiddenByDefault: true),
 
                 Tables\Columns\TextColumn::make('updated_at')
                     ->label('Updated')

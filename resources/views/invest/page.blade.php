@@ -18,7 +18,7 @@
 </head><body>
 
 <nav><div class="wrap">
-  <a class="brand" href="/"><img src="{{ \App\Support\Brand::url('icon') }}" alt="" width="26" height="26"> intake</a>
+  <a class="brand" href="/"><img src="{{ \App\Support\Brand::url('logo') }}" alt="Intake" style="display:block;height:26px;width:auto"></a>
   <span class="who">Invitation only</span>
 </div></nav>
 

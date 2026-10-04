@@ -155,6 +155,26 @@ class MarketingPageController extends Controller
         return Tenant::where('is_platform', true)->firstOrFail();
     }
 
+    /** MARKER-MKT-NAV — the real header, drawn from unsaved rows, for the Navigation page. */
+    public function navPreview(Request $request)
+    {
+        $platform = $this->platform();
+        $this->bindPlatform($platform);
+        $raw  = base64_decode((string) $request->query('d', ''), true);
+        $rows = json_decode($raw === false ? '[]' : $raw, true);
+        $rows = is_array($rows) ? array_slice(array_values(array_filter($rows, 'is_array')), 0, 30) : [];
+
+        return response()->view('marketing.page', [
+            'page'           => new TenantPage(['title' => 'Navigation preview']),
+            'sections'       => collect(),
+            'navItems'       => collect(),
+            'tenant'         => $platform,
+            'industry'       => null,
+            'builderPreview' => true,
+            'menuItems'      => \App\Support\MarketingNav::resolve($rows),
+        ]);
+    }
+
     private function bindPlatform(Tenant $platform): void
     {
         app()->instance('tenant', $platform);

@@ -12,7 +12,6 @@ use App\Filament\Resources\ChangelogEntryResource;
 use App\Filament\Resources\BillingNoticeTemplateResource; // MARKER-BILLING-NOTICES
 use App\Filament\Resources\TenantBillingDiscountResource; // MARKER-BILLING-DISCOUNTS
 use App\Filament\Resources\RoadmapEntryResource;
-use App\Filament\Resources\PlatformNavItemResource;
 use App\Filament\Resources\SectionLibraryResource;
 use App\Filament\Resources\SiteSettingsResource;
 use App\Filament\Resources\DistributorFieldMapResource;
@@ -79,7 +78,6 @@ class AdminPanelProvider extends PanelProvider
                 LicenseResource::class,
                 ActivationResource::class,
                 MarketingPageResource::class, // new — marketing page editor entry
-                PlatformNavItemResource::class, // patch 45 — nav editor
                 ChangelogEntryResource::class,
                 TenantBillingDiscountResource::class, // MARKER-BILLING-DISCOUNTS
                 BillingNoticeTemplateResource::class, // MARKER-BILLING-NOTICES
@@ -92,6 +90,8 @@ class AdminPanelProvider extends PanelProvider
             ->pages([
                 \App\Filament\Pages\PlatformCommunication::class, // MARKER-PLATFORM-TEMPLATES
                 \App\Filament\Pages\Brand::class, // MARKER-BRAND-REGISTER
+                // MARKER-MKT-NAV — explicit registration; this panel does not auto-discover.
+                \App\Filament\Pages\SiteNavigation::class,
                 // MARKER-INBOX — explicit registration; this panel does not
                 // auto-discover, and an unregistered page has no route.
                 \App\Filament\Pages\PlatformInbox::class,

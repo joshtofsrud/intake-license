@@ -1935,7 +1935,9 @@ body.ia-theme-b .pb2-preview-frame-wrap {
         <div class="pb2-status-hint">Add a section first — there's nothing on this page yet.</div>
       @endif
 
-      @if(!$page->is_home)
+      @if($isMarketing ?? false)
+        @include('admin.partials.nav-status', ['page' => $page])
+      @elseif(!$page->is_home)
         <form method="POST" action="{{ $updateUrl }}" class="pb2-status-nav">
           @csrf @method('PATCH')
           <input type="hidden" name="op" value="set_in_nav">

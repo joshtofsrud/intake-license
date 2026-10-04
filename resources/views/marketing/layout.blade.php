@@ -246,37 +246,8 @@
 </head>
 <body>
 
-{{-- Nav --}}
-<nav class="mk-nav">
-  <div class="mk-nav-inner">
-    <a href="{{ route('marketing.home') }}" class="mk-logo">
-      {{-- MARKER-BRAND-CANON — canonical mark, not a redraw --}}
-      <img src="{{ \App\Support\Brand::url('icon') }}" alt="" width="26" height="26" style="display:block">
-      intake
-    </a>
-    <div class="mk-nav-links">
-      <a href="{{ route('marketing.why-intake') }}" class="mk-nav-link {{ request()->routeIs('marketing.why-intake') ? 'active' : '' }}">Why Intake</a>
-      <a href="{{ route('marketing.features') }}" class="mk-nav-link {{ request()->routeIs('marketing.features') ? 'active' : '' }}">Features</a>
-      <a href="{{ route('marketing.pricing') }}"  class="mk-nav-link {{ request()->routeIs('marketing.pricing')  ? 'active' : '' }}">Pricing</a>
-      <a href="{{ route('marketing.docs') }}"     class="mk-nav-link {{ request()->routeIs('marketing.docs')     ? 'active' : '' }}">Docs</a>
-    </div>
-    <div class="mk-nav-end">
-      <a href="{{ route('platform.login') }}"         class="mk-nav-signin">Sign in</a>
-      <a href="{{ route('platform.signup') }}"        class="mk-btn mk-btn--primary mk-btn--sm">Start free trial</a>
-    </div>
-    <button class="mk-hamburger" onclick="toggleMobileNav()" aria-label="Menu">
-      <span></span><span></span><span></span>
-    </button>
-  </div>
-  <div class="mk-mobile-nav" id="mk-mobile-nav">
-    <a href="{{ route('marketing.why-intake') }}">Why Intake</a>
-    <a href="{{ route('marketing.features') }}">Features</a>
-    <a href="{{ route('marketing.pricing') }}">Pricing</a>
-    <a href="{{ route('marketing.docs') }}">Docs</a>
-    <a href="{{ route('platform.login') }}">Sign in</a>
-    <a href="{{ route('platform.signup') }}" style="color:var(--mk-accent);margin-top:4px">Start free trial →</a>
-  </div>
-</nav>
+{{-- MARKER-MKT-NAV — the one header, from Navigation --}}
+@include('marketing.sections._shell_nav')
 
 {{-- Page content --}}
 @yield('content')
@@ -288,8 +259,7 @@
       <div>
         <div class="mk-footer-brand-name">
           {{-- MARKER-BRAND-CANON --}}
-          <img src="{{ \App\Support\Brand::url('icon') }}" alt="" width="22" height="22" style="display:block">
-          intake
+          <img src="{{ \App\Support\Brand::url('logo') }}" alt="Intake" style="display:block;height:22px;width:auto">
         </div>
         <p class="mk-footer-tagline">Online booking, work orders, and customer management for service shops.</p>
       </div>
