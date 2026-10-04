@@ -129,7 +129,9 @@ class SeoCheck extends Command
             $p[] = 'robots.txt does not block the site';
         }
 
-        $home = $this->fetch($site['base'] . '/'); $n++;
+        // MARKER-SEO-CHECK-REDIRECT — judge this host's own answer. A redirect
+        // passes: search engines index where it lands, not the redirect.
+        $home = $this->fetch($site['base'] . '/', false); $n++;
         if ($home && $home->status() === 200 && ! $this->noindex($home)) {
             $p[] = 'Home page loads without a noindex signal';
         }
@@ -259,10 +261,11 @@ class SeoCheck extends Command
         return [$pages, $products, array_slice(array_values(array_unique($p)), 0, 20), $n];
     }
 
-    private function fetch(string $url)
+    private function fetch(string $url, bool $followRedirects = true)
     {
         try {
             return Http::withHeaders(['User-Agent' => 'IntakeSeoCheck/1.0 (+https://intake.works)'])
+                ->withOptions(['allow_redirects' => $followRedirects])
                 ->timeout(20)
                 ->get($url);
         } catch (\Throwable $e) {
