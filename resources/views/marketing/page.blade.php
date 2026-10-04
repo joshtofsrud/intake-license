@@ -119,7 +119,11 @@
             padding: clamp(48px, 7vw, 96px) 0;
             border-bottom: 0.5px solid var(--mk-border);
         }
-        .mk-section:last-of-type { border-bottom: none; }
+        /* MARKER-MKT-SECTION-LAYOUT — each section sits in a .mkw wrapper, so the
+           last one is marked by the loop; :last-of-type would match them all. */
+        .mkw-last > .mk-section { border-bottom: none; }
+        @media (max-width: 768px) { .mkw-hide-m { display: none !important; } }
+        @media (min-width: 769px) { .mkw-hide-d { display: none !important; } }
 
         .mk-eyebrow {
             font-size: 11px;
@@ -270,6 +274,30 @@
         $borderRadius = $borderRadiusValue && isset($radiusMap[$borderRadiusValue])
             ? $radiusMap[$borderRadiusValue]
             : null;
+
+        // MARKER-MKT-SECTION-LAYOUT — the editor's shared Layout settings,
+        // applied around every section so none of them silently does nothing.
+        // "Normal" (the editor default) keeps the section's own spacing; only
+        // None / Compact / Spacious override it. Sections that already handle
+        // their own anchor or classes are left to do so.
+        $mkwId     = 'mkw-' . substr(md5((string) $section->id), 0, 8);
+        $mkwPad    = ['none' => '0', 'compact' => 'clamp(24px, 4vw, 48px)', 'spacious' => 'clamp(80px, 10vw, 140px)'];
+        $mkwLegacy = $c['padding_override'] ?? null;
+        $mkwTop    = $mkwPad[$c['padding_top'] ?? $mkwLegacy] ?? null;
+        $mkwBot    = $mkwPad[$c['padding_bottom'] ?? $mkwLegacy] ?? null;
+        $mkwAnchor = in_array($type, ['custom_html', 'image_carousel', 'book_call', 'feature_groups', 'try_demo'], true)
+            ? '' : preg_replace('/[^A-Za-z0-9_-]/', '', (string) ($c['anchor_id'] ?? ''));
+        $mkwExtra  = in_array($type, ['custom_html', 'image_carousel'], true)
+            ? '' : trim(preg_replace('/[^A-Za-z0-9_ -]/', '', (string) ($c['custom_classes'] ?? '')));
+        $mkwColor  = fn ($v) => is_string($v) && preg_match('/^(#[0-9a-fA-F]{3,8}|rgba?\([0-9.,\s%]+\)|[a-zA-Z]+)$/', trim($v)) ? trim($v) : null;
+        $mkwHead   = $type === 'hero' ? null : $mkwColor($c['text_color'] ?? null);
+        $mkwBody   = $type === 'hero' ? null : $mkwColor($c['text_color_body'] ?? null);
+        $mkwLast   = collect($sections)->slice($loop->index + 1)->every(fn ($s) => in_array($s->section_type, ['nav', 'footer'], true));
+        $mkwClass  = trim('mkw ' . $mkwId
+            . (! empty($c['hide_on_mobile'])  ? ' mkw-hide-m' : '')
+            . (! empty($c['hide_on_desktop']) ? ' mkw-hide-d' : '')
+            . ($mkwLast ? ' mkw-last' : '')
+            . ($mkwExtra !== '' ? ' ' . $mkwExtra : ''));
     @endphp
 
     @if(view()->exists($partial))
@@ -287,6 +315,15 @@
           <div class="{{ $pullId }}">
         @endif
         @if(!empty($builderPreview))<div data-pb-section="{{ $section->id }}" data-pb-type="{{ $section->section_type }}">@endif
+        <div class="{{ $mkwClass }}" @if($mkwAnchor !== '') id="{{ $mkwAnchor }}" @endif>
+        @if($mkwTop !== null || $mkwBot !== null || $mkwHead || $mkwBody)
+          <style>
+            @if($mkwTop !== null) .{{ $mkwId }} > section, .{{ $mkwId }} > footer, .{{ $mkwId }} > div { padding-top: {{ $mkwTop }} !important; } @endif
+            @if($mkwBot !== null) .{{ $mkwId }} > section, .{{ $mkwId }} > footer, .{{ $mkwId }} > div { padding-bottom: {{ $mkwBot }} !important; } @endif
+            @if($mkwHead) .{{ $mkwId }} h1, .{{ $mkwId }} h2, .{{ $mkwId }} h3, .{{ $mkwId }} h4, .{{ $mkwId }} .mk-section-title { color: {{ $mkwHead }}; } @endif
+            @if($mkwBody) .{{ $mkwId }} p, .{{ $mkwId }} li, .{{ $mkwId }} .mk-section-sub { color: {{ $mkwBody }}; } @endif
+          </style>
+        @endif
         @include($partial, [
             'c' => $c,
             'section' => $section,
@@ -297,6 +334,7 @@
             'tenant' => $tenant,
             'industry' => $industry,
         ])
+        </div>
         @if(!empty($builderPreview))</div>@endif
         @if($pull > 0)</div>@endif
     @else
