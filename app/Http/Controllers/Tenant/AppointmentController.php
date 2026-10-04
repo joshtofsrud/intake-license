@@ -2934,9 +2934,28 @@ class AppointmentController extends Controller
             ->where('is_active', true);
 
         if ($q !== '') {
-            $query->where(function ($w) use ($q) {
+            // MARKER-APPT-PARTS-BARCODE - barcodes and part numbers too. A code
+            // of 12-14 digits also matches its 12/13-digit twin (UPC-A <-> EAN-13
+            // differ only by a leading zero).
+            $digits = preg_replace('/\\D/', '', $q);
+            $codes  = [];
+            if ($digits !== '' && $digits === preg_replace('/\\s+/', '', $q) && strlen($digits) >= 8 && strlen($digits) <= 14) {
+                $codes[] = $digits;
+                if (strlen($digits) === 12) { $codes[] = '0' . $digits; }
+                if (strlen($digits) === 13 && $digits[0] === '0') { $codes[] = substr($digits, 1); }
+                if (strlen($digits) === 14 && $digits[0] === '0') { $codes[] = substr($digits, 1); }
+            }
+            $query->where(function ($w) use ($q, $codes) {
                 $w->where('name', 'like', "%{$q}%")
-                  ->orWhere('sku',  'like', "%{$q}%");
+                  ->orWhere('sku',  'like', "%{$q}%")
+                  ->orWhere('catalog_mpn', 'like', "%{$q}%")
+                  ->orWhere('catalog_upc', 'like', "%{$q}%")
+                  ->orWhere('catalog_ean', 'like', "%{$q}%");
+                if ($codes) {
+                    $w->orWhereIn('catalog_upc', $codes)
+                      ->orWhereIn('catalog_ean', $codes)
+                      ->orWhereIn('sku', $codes);
+                }
             });
         }
 
