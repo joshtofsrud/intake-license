@@ -837,6 +837,7 @@ class PageBuilderController extends Controller
             }
         }
 
+        $sections = \App\Support\BuilderDraft::apply($sections, (string) $page->id); // MARKER-BUILDER-DRAFT
         // MARKER-BUILDER-SYNC — only the builder preview gets the section
         // anchors and the click-to-select bridge; the public page stays clean.
         $builderPreview = true;
@@ -1150,6 +1151,27 @@ class PageBuilderController extends Controller
         $pageId = $request->input('page_id');
         $page = TenantPage::where('tenant_id', $tenant->id)->where('id', $pageId)->firstOrFail();
 
+        // MARKER-BUILDER-DRAFT — unsaved edits for the builder preview only.
+        // Session, not database; no revision snapshot.
+        if ($op === 'draft') {
+            $sid = (string) $request->input('section_id');
+            TenantPageSection::where('page_id', $page->id)->where('id', $sid)->firstOrFail();
+            $content = $request->input('content', []);
+            if (! is_array($content)) $content = [];
+            foreach (self::ARRAY_FIELDS as $fld) {
+                if (isset($content[$fld]) && is_string($content[$fld])) {
+                    $decoded = json_decode($content[$fld], true);
+                    $content[$fld] = is_array($decoded) ? $decoded : [];
+                }
+            }
+            \App\Support\BuilderDraft::put((string) $page->id, $sid, $content);
+            return response()->json(['success' => true]);
+        }
+        if ($op === 'draft_clear') {
+            \App\Support\BuilderDraft::clear((string) $page->id);
+            return response()->json(['success' => true]);
+        }
+
         // MARKER-REWIND — capture BEFORE the change, labelled with what is
         // about to happen. 'add' is skipped: adding a section is undone by
         // deleting it, and snapshotting every add buries the useful points.
@@ -1199,6 +1221,7 @@ class PageBuilderController extends Controller
                 'padding'   => $request->input('padding', 'normal'),
                 'is_visible'=> (bool) $request->input('is_visible', 1),
             ]);
+            \App\Support\BuilderDraft::forget((string) $page->id, (string) $sid); // MARKER-BUILDER-DRAFT
             return response()->json(['success' => true]);
         }
 

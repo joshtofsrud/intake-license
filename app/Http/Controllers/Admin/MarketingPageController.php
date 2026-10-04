@@ -94,6 +94,8 @@ class MarketingPageController extends Controller
             ]);
         }
 
+        $sections = \App\Support\BuilderDraft::apply($sections, (string) $page->id); // MARKER-BUILDER-DRAFT
+
         $navItems = TenantNavItem::where('tenant_id', $platform->id)
             ->orderBy('sort_order')->get();
 

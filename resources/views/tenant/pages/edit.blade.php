@@ -1481,6 +1481,14 @@ body.ia-theme-b .pb2-preview-frame-wrap {
   color: var(--pb2-text-faint);
   display: flex; align-items: center; gap: 10px;
 }
+/* MARKER-INSP-FIT — controls fit the panel; it never scrolls sideways. */
+.pb2-insp-body { overflow-x: hidden; }
+.pb2-insp-body .pb2-field-row > * { min-width: 0; }
+.pb2-insp-body .pb2-field-row:has(.pb2-seg) { grid-template-columns: 1fr; }
+.pb2-insp-body .pb2-seg { min-width: 0; }
+.pb2-insp-body .pb2-seg-btn { min-width: 0; white-space: nowrap; }
+.pb2-insp-body input[type="range"] { min-width: 0; max-width: 100%; }
+
 /* MARKER-EXPLICIT-SAVE */
 .pb2-insp-footer .pb2-dirty-note { font-family: var(--pb2-mono); }
 .pb2-insp-footer .pb2-dirty-note.is-dirty { color: var(--pb2-accent); }
@@ -2427,10 +2435,12 @@ body.ia-theme-b .pb2-preview-frame-wrap {
   function pb2MarkDirty() {
     if (!pb2Dirty) { pb2Dirty = true; setStatus('Unsaved'); }
     pb2Paint();
+    pb2QueueDraft(); // MARKER-BUILDER-DRAFT
   }
   window.pb2MarkDirty = pb2MarkDirty;
   function pb2SetClean() {
     pb2Dirty = false; window.pb2NavPending = false; window.pb2NavSaver = null;
+    clearTimeout(pb2DraftTimer); // MARKER-BUILDER-DRAFT
     pb2Paint();
   }
   function pb2SaveNow() {
@@ -2446,13 +2456,92 @@ body.ia-theme-b .pb2-preview-frame-wrap {
     });
   }
   window.pb2SaveNow = pb2SaveNow;
+
+  // MARKER-BUILDER-DRAFT — unsaved edits show in the preview straight away.
+  // ~0.15s after a change the section's fields go to the session as a draft,
+  // the preview is rendered with it, and only that section is swapped in the
+  // frame: no reload, no scroll jump. Save still writes; Revert discards.
+  var pb2DraftTimer = null, pb2DraftSeq = 0;
+  function pb2CollectContent() {
+    var body = document.getElementById('pb2-insp-body');
+    var content = {};
+    if (!body) return content;
+    body.querySelectorAll('input[data-field$="_text"]').forEach(function (t) {
+      var base = t.getAttribute('data-field').replace(/_text$/, '');
+      var picker = body.querySelector('input[data-field="' + base + '"][type="color"]');
+      if (!picker) return;
+      var txt = (t.value || '').trim();
+      if (/^#[0-9a-fA-F]{6}$/.test(txt)) { picker.value = txt; picker.removeAttribute('data-blank'); }
+      else if (txt === '') { picker.setAttribute('data-blank', '1'); }
+      else { picker.removeAttribute('data-blank'); }
+    });
+    body.querySelectorAll('[data-field]').forEach(function (el) {
+      var f = el.getAttribute('data-field');
+      if (f.slice(-5) === '_text') return;
+      if (el.type === 'color' && el.getAttribute('data-blank') === '1') { content[f] = ''; return; }
+      content[f] = el.type === 'checkbox' ? (el.checked ? '1' : '0') : el.value;
+    });
+    return content;
+  }
+  function pb2Post(fields) {
+    var fd = new FormData();
+    fd.append('_token', getCsrf());
+    fd.append('page_id', PAGE_ID);
+    Object.keys(fields).forEach(function (k) { fd.append(k, fields[k]); });
+    return fetch(STORE_URL, { method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' } });
+  }
+  function pb2QueueDraft() {
+    clearTimeout(pb2DraftTimer);
+    pb2DraftTimer = setTimeout(pb2SendDraft, 150);
+  }
+  function pb2SendDraft() {
+    if (!selectedId) return;
+    var sid = selectedId, seq = ++pb2DraftSeq, c = pb2CollectContent();
+    var f = { section_op: 'draft', section_id: sid };
+    Object.keys(c).forEach(function (k) { f['content[' + k + ']'] = c[k]; });
+    pb2Post(f)
+      .then(function (r) {
+        if (!r.ok) throw new Error('draft ' + r.status);
+        return fetch(PREVIEW_URL + (PREVIEW_URL.indexOf('?') >= 0 ? '&' : '?') + 't=' + Date.now(), { headers: { 'Accept': 'text/html' } });
+      })
+      .then(function (r) { return r.text(); })
+      .then(function (html) { if (seq === pb2DraftSeq) pb2SwapSection(sid, html); })
+      .catch(function () { if (seq === pb2DraftSeq) refreshPreview(true); });
+  }
+  // Replace the section's contents inside its existing wrapper, so the
+  // preview's hover/click-to-select listeners on the wrapper keep working.
+  function pb2SwapSection(sid, html) {
+    var doc = null;
+    try { doc = PREVIEW_IFRAME && PREVIEW_IFRAME.contentDocument; } catch (e) { doc = null; }
+    var sel = '[data-pb-section="' + sid + '"]';
+    var cur = doc && doc.querySelector(sel);
+    var next = new DOMParser().parseFromString(html, 'text/html').querySelector(sel);
+    if (!cur || !next) { refreshPreview(true); return; }
+    while (cur.firstChild) cur.removeChild(cur.firstChild);
+    Array.prototype.slice.call(next.childNodes).forEach(function (n) {
+      var node = doc.importNode(n, true);
+      cur.appendChild(node);
+    });
+    // Scripts arriving this way don't run; re-create them so they do.
+    cur.querySelectorAll('script').forEach(function (old) {
+      var s = doc.createElement('script');
+      for (var i = 0; i < old.attributes.length; i++) s.setAttribute(old.attributes[i].name, old.attributes[i].value);
+      s.textContent = old.textContent;
+      old.parentNode.replaceChild(s, old);
+    });
+  }
+  function pb2DraftClear() {
+    return pb2Post({ section_op: 'draft_clear' }).catch(function () {});
+  }
   function pb2Revert() {
     var item = document.querySelector('.pb2-section-item.selected');
     if (!item) return;
     var items = Array.prototype.slice.call(document.querySelectorAll('.pb2-section-item'));
     pb2SetClean();
-    selectSection(item.dataset.sectionId, item.dataset.sectionType, items.indexOf(item) + 1, true);
-    refreshPreview(true);
+    pb2DraftClear().then(function () { // MARKER-BUILDER-DRAFT
+      selectSection(item.dataset.sectionId, item.dataset.sectionType, items.indexOf(item) + 1, true);
+      refreshPreview(true);
+    });
   }
   function pb2AskUnsaved() {
     if (window.IntakeConfirm && typeof window.IntakeConfirm.show === 'function') {
@@ -4381,7 +4470,7 @@ body.ia-theme-b .pb2-preview-frame-wrap {
 
   // ─── Save (manual button in topbar) ───────────────────────────────────
   window.savePageSettings = function() { return pb2SaveNow(); }; // MARKER-EXPLICIT-SAVE
-  window.addEventListener('load', function () { setTimeout(pb2SetClean, 50); });
+  window.addEventListener('load', function () { setTimeout(pb2SetClean, 50); pb2DraftClear(); }); // MARKER-BUILDER-DRAFT — no leftovers
 
   // ─── Listen for save events from inside inspector (future hook) ───────
   document.addEventListener('pb-section-saved', () => {
