@@ -131,8 +131,12 @@
     .{{ $hid }} .mk-hs-copy { container-type: inline-size; }
     .{{ $hid }} .mk-hs-copy .mk-hero-pill { flex-wrap: nowrap; }
     .{{ $hid }} .mk-hs-copy .mk-hero-pill .mk-btn { white-space: nowrap; padding-left: 18px; padding-right: 18px; }
-    @container (max-width: 560px) {
-        .{{ $hid }} .mk-hs-copy .mk-hero-pill { display: inline-flex; flex-direction: column; align-items: stretch; width: auto; max-width: 100%; border-radius: 22px; } /* MARKER-HERO-SPLIT-PILL-FIT */
+    /* MARKER-HERO-SPLIT-PILL-COMPACT — tighten before ever stacking */
+    @container (max-width: 600px) {
+        .{{ $hid }} .mk-hs-copy .mk-hero-pill .mk-btn { padding: 10px 13px; font-size: 13.5px; }
+    }
+    @container (max-width: 380px) {
+        .{{ $hid }} .mk-hs-copy .mk-hero-pill { display: inline-flex; flex-direction: column; align-items: stretch; width: auto; max-width: 100%; border-radius: 22px; }
         .{{ $hid }} .mk-hs-copy .mk-hero-pill .mk-btn { justify-content: center; }
     }
     @media (max-width: 860px) {
