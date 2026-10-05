@@ -306,13 +306,8 @@ if (! function_exists('error_home_url')) {
     function error_home_url(): string
     {
         try {
-            if (auth('tenant')->check()) {
-                return url('/admin');
-            }
-
-            if (auth('web')->check() && (auth('web')->user()->is_admin ?? false)) {
-                return 'https://' . config('intake.domain', 'intake.works') . '/admin';
-            }
+            // MARKER-ERROR-HOME-FIX — the destination follows WHERE the error
+            // happened, not who is signed in: public page → that site's home.
 
             // MARKER-ERROR-LINKS — a page-not-found error never loads the session,
             // so a signed-in person looked signed out and was sent to the public
