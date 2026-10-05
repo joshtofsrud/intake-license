@@ -14,7 +14,7 @@
     in <em> and shown in the accent color.
 --}}
 @php
-    $headline = $c['headline'] ?? 'Your headline here';
+    $headline = array_key_exists('headline', $c) ? (string) $c['headline'] : 'Your headline here'; // MARKER-CLEARED-FIELDS
     $safeHeadline = e($headline);
     if (!empty($c['accent_words'])) {
         // Escape first, then wrap the escaped phrase, so no XSS hole opens.

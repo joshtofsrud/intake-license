@@ -1165,6 +1165,7 @@ class PageBuilderController extends Controller
             TenantPageSection::where('page_id', $page->id)->where('id', $sid)->firstOrFail();
             $content = $request->input('content', []);
             if (! is_array($content)) $content = [];
+            $content = array_map(fn ($v) => $v === null ? '' : $v, $content); // MARKER-CLEARED-FIELDS — emptied stays emptied
             foreach (self::ARRAY_FIELDS as $fld) {
                 if (isset($content[$fld]) && is_string($content[$fld])) {
                     $decoded = json_decode($content[$fld], true);
@@ -1216,6 +1217,7 @@ class PageBuilderController extends Controller
             $section = TenantPageSection::where('page_id', $page->id)->where('id', $sid)->firstOrFail();
             $content = $request->input('content', []);
             if (!is_array($content)) $content = [];
+            $content = array_map(fn ($v) => $v === null ? '' : $v, $content); // MARKER-CLEARED-FIELDS — emptied stays emptied
 
             // Decode JSON strings for known array fields. The editor uses JSON
             // textareas for array-of-objects fields (features, steps, plans,
