@@ -447,7 +447,8 @@
 (function () {
   var PROPS = ['background', 'background-size', 'background-position', 'background-repeat'];
   function sec(el) { return el.querySelector(':scope > section') || el.querySelector(':scope > footer'); }
-  function docTop(el) { var t = 0; while (el) { t += el.offsetTop; el = el.offsetParent; } return t; }
+  // MARKER-MKT-BG-CHAIN-PRECISE — exact (sub-pixel) page position
+  function docTop(el) { return el.getBoundingClientRect().top + window.scrollY; }
   function paint() {
     document.querySelectorAll('.mkw[data-bg-chain]').forEach(function (el) {
       el.removeAttribute('data-bg-chain');
@@ -463,7 +464,7 @@
       var chain = all.slice(i, j);
       var top = docTop(chain[0]);
       var lastEl = chain[chain.length - 1];
-      var total = docTop(lastEl) + lastEl.offsetHeight - top;
+      var total = lastEl.getBoundingClientRect().bottom + window.scrollY - top;
       chain.forEach(function (el) {
         var s = sec(el); if (!s) return;
         el.setAttribute('data-bg-chain', '1');
