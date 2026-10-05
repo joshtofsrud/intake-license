@@ -1,4 +1,4 @@
-@php $bgId = 'mkbg-' . substr((string) ($section->id ?? uniqid()), 0, 8); @endphp {{-- MARKER-MKT-SECTION-BG --}}
+@php $bgId = 'mkbg-' . substr(md5((string) ($section->id ?? uniqid())), 0, 10); @endphp {{-- MARKER-MKT-SECTION-BG --}}
 @include('marketing.sections._section_bg', ['bgId' => $bgId])
 {{--
     MARKER-FEATURE-GROUPS — feature groups with an index.
@@ -17,7 +17,7 @@
         $groups = is_array($decoded) ? $decoded : [];
     }
     $groups = array_values(array_filter($groups, fn ($g) => is_array($g) && trim((string) ($g['label'] ?? $g['heading'] ?? '')) !== ''));
-    $fgxId = 'fgx-' . substr((string) ($section->id ?? uniqid()), 0, 8);
+    $fgxId = 'fgx-' . substr(md5((string) ($section->id ?? uniqid())), 0, 10);
 @endphp
 
 <style>

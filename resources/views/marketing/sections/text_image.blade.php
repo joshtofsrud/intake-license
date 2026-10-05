@@ -1,4 +1,4 @@
-@php $bgId = 'mkbg-' . substr((string) ($section->id ?? uniqid()), 0, 8); @endphp {{-- MARKER-MKT-SECTION-BG --}}
+@php $bgId = 'mkbg-' . substr(md5((string) ($section->id ?? uniqid())), 0, 10); @endphp {{-- MARKER-MKT-SECTION-BG --}}
 @include('marketing.sections._section_bg', ['bgId' => $bgId])
 {{-- Text + image block. Content: heading, body, image_url, image_position (left|right), cta_label, cta_url --}}
 @php

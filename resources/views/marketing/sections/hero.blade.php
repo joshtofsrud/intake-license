@@ -1,4 +1,4 @@
-@php $bgId = 'mkbg-' . substr((string) ($section->id ?? uniqid()), 0, 8); @endphp {{-- MARKER-MKT-SECTION-BG --}}
+@php $bgId = 'mkbg-' . substr(md5((string) ($section->id ?? uniqid())), 0, 10); @endphp {{-- MARKER-MKT-SECTION-BG --}}
 @include('marketing.sections._section_bg', ['bgId' => $bgId])
 {{--
     Hero (intake.works). MARKER-MKT-HERO-LAYOUT — reads the same editor

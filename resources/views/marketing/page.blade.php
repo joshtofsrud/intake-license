@@ -294,7 +294,9 @@
         $mkwHead   = $type === 'hero' ? null : $mkwColor($c['text_color'] ?? null);
         $mkwBody   = $type === 'hero' ? null : $mkwColor($c['text_color_body'] ?? null);
         $mkwLast   = collect($sections)->slice($loop->index + 1)->every(fn ($s) => in_array($s->section_type, ['nav', 'footer'], true));
-        $mkwClass  = trim('mkw ' . $mkwId
+        // MARKER-MKT-FLOAT-OVERLAP — the first drawn section can sit behind a Floating header.
+        $mkwFirst  = collect($sections)->slice(0, $loop->index)->every(fn ($s) => in_array($s->section_type, ['nav', 'footer'], true));
+        $mkwClass  = trim('mkw ' . $mkwId . ($mkwFirst ? ' mkw-first' : '')
             . (! empty($c['hide_on_mobile'])  ? ' mkw-hide-m' : '')
             . (! empty($c['hide_on_desktop']) ? ' mkw-hide-d' : '')
             . ($mkwLast ? ' mkw-last' : '')

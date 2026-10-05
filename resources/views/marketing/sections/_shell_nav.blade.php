@@ -81,6 +81,14 @@
     .mk-nav.is-float .mk-mobile-nav { margin: 8px auto 0; max-width: var(--mk-max); border-radius: 20px; border: 0.5px solid rgba(255,255,255,.08); background: color-mix(in srgb, var(--mkf-bg) 96%, transparent); }
     @media (max-width: 860px) { .mk-nav.is-float { padding: 10px 12px 0; } .mk-nav.is-float .mk-nav-inner { padding: 8px 8px 8px 16px; } }
 
+    /* MARKER-MKT-FLOAT-OVERLAP — the first section runs up behind the floating bar:
+       the header gives back its height, and that section gains the same space as a
+       transparent top border its background paints under. */
+    .mk-nav.is-float { --mkf-h: 76px; margin-bottom: calc(-1 * var(--mkf-h)); }
+    .mk-nav.is-float ~ .mkw-first > section,
+    .mk-nav.is-float ~ * .mkw-first > section { border-top: var(--mkf-h) solid transparent !important; background-origin: border-box !important; }
+    @media (max-width: 860px) { .mk-nav.is-float { --mkf-h: 62px; } }
+
     /* MARKER-MKT-HAMBURGER — three lines morph into an X */
     .mk-hamburger { cursor: pointer; transition: transform .2s ease; }
     .mk-hamburger:hover { transform: scale(1.06); }

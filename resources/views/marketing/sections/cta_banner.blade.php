@@ -1,4 +1,4 @@
-@php $bgId = 'mkbg-' . substr((string) ($section->id ?? uniqid()), 0, 8); @endphp {{-- MARKER-MKT-SECTION-BG --}}
+@php $bgId = 'mkbg-' . substr(md5((string) ($section->id ?? uniqid())), 0, 10); @endphp {{-- MARKER-MKT-SECTION-BG --}}
 @include('marketing.sections._section_bg', ['bgId' => $bgId])
 {{--
     CTA banner. Content: headline, subheading, cta_label, cta_url, bg_color, text_color
