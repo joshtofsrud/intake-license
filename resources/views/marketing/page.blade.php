@@ -354,8 +354,8 @@
         $mkBgHex   = fn ($v) => is_string($v) && preg_match('/^#[0-9a-fA-F]{3,8}$/', trim($v)) ? trim($v) : null;
         if ($mkBgMode === 'gradient') {
             $mkBgCarry = ! empty($c['bg_fade_out']) ? null : $mkBgFade($mkBgHex($c['bg_gradient_to'] ?? null) ?: '#0a0a0a'); // faded out = page background
-        } elseif ($mkBgMode === 'color' && $mkBgHex($section->bg_color ?? null)) {
-            $mkBgCarry = $mkBgFade($mkBgHex($section->bg_color));
+        } elseif ($mkBgMode === 'color' && ($mkBgHex($c['bg_color'] ?? null) || $mkBgHex($section->bg_color ?? null))) { // MARKER-MKT-BG-COLOUR
+            $mkBgCarry = $mkBgFade($mkBgHex($c['bg_color'] ?? null) ?: $mkBgHex($section->bg_color));
         } else {
             $mkBgCarry = null;
         }

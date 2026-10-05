@@ -18,8 +18,10 @@
   $bgOp     = max(0, min(100, (int) ($c['bg_opacity'] ?? 100)));
   $bgFadeFn = fn ($col) => $bgOp >= 100 ? $col : 'color-mix(in srgb, ' . $col . ' ' . $bgOp . '%, transparent)';
   $bgCont   = $isGrad && ! empty($c['bg_continue']);
-  $bgSolid  = $bgMode === 'color' && $bgOp < 100 && is_string($section->bg_color ?? null)
-              && preg_match('/^#[0-9a-fA-F]{3,8}$/', trim((string) $section->bg_color));
+  // MARKER-MKT-BG-COLOUR — the colour lives in the section's settings (older sections: the column).
+  $bgHexOk  = fn ($v) => is_string($v) && preg_match('/^#[0-9a-fA-F]{3,8}$/', trim($v)) ? trim($v) : null;
+  $bgColour = $bgHexOk($c['bg_color'] ?? null) ?: $bgHexOk($section->bg_color ?? null);
+  $bgSolid  = $bgMode === 'color' && $bgColour !== null;
 
   if ($isImage || $isGrad) {
       $bgColor  = $c['bg_color'] ?? '#0a0a0a';
@@ -48,7 +50,7 @@
       : $bgFadeFn($gradTo)) : '';
 @endphp
 @if($bgSolid)
-<style>.{{ $bgId }} { background: {{ $bgFadeFn(trim($section->bg_color)) }} !important; }</style>
+<style>.{{ $bgId }} { background: {{ $bgFadeFn($bgColour) }} !important; }</style>
 @endif
 @if($isImage || $isGrad)
 <style>

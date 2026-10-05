@@ -1,3 +1,5 @@
+@php $bgId = 'mkbg-' . substr(md5((string) ($section->id ?? uniqid())), 0, 10); @endphp {{-- MARKER-MKT-BG-COLOUR --}}
+@include('marketing.sections._section_bg', ['bgId' => $bgId])
 {{--
     Pricing. Content: eyebrow, heading, subheading, source ('config'|'manual'),
                       featured (slug), plans[] (manual), footnote
@@ -147,7 +149,7 @@
     }
 </style>
 
-<section class="mk-section {{ $ptId }}{{ $ptTabs ? ' pt-tabs' : '' }}">
+<section class="mk-section {{ $ptId }} {{ $bgId }}{{ $ptTabs ? ' pt-tabs' : '' }}">
     <div class="mk-container">
         @if(!empty($c['eyebrow']))
             <div class="mk-eyebrow">{{ $c['eyebrow'] }}</div>
