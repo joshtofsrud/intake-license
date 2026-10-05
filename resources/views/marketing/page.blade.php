@@ -400,7 +400,9 @@
 @endforeach
 
 {{-- Footer (shell — always present) --}}
+@if(empty($hideFooter)) {{-- MARKER-MKT-NAV-POLISH --}}
 @include('marketing.sections._shell_footer', ['navItems' => $navItems])
+@endif
 
 <script>
     function toggleMobileNav() {

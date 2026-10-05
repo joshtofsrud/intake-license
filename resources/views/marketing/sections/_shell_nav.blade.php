@@ -84,10 +84,25 @@
     /* MARKER-MKT-FLOAT-OVERLAP — the first section runs up behind the floating bar:
        the header gives back its height, and that section gains the same space as a
        transparent top border its background paints under. */
-    .mk-nav.is-float { --mkf-h: 76px; margin-bottom: calc(-1 * var(--mkf-h)); }
-    .mk-nav.is-float ~ .mkw-first > section,
-    .mk-nav.is-float ~ * .mkw-first > section { border-top: var(--mkf-h) solid transparent !important; background-origin: border-box !important; }
-    @media (max-width: 860px) { .mk-nav.is-float { --mkf-h: 62px; } }
+    .mk-nav.is-float { margin-bottom: calc(-1 * var(--mkf-h, 76px)); }
+
+    /* MARKER-MKT-NAV-POLISH — spacing presets, link colour, glass phone menu */
+    .mk-nav.is-float { padding-top: var(--mkf-out, 18px); }
+    .mk-nav.is-float .mk-nav-inner { padding: var(--mkf-pad, 12px 14px 12px 24px); }
+    .mk-nav.has-link .mk-nav-link, .mk-nav.has-link .mk-nav-signin, .mk-nav.has-link .mk-mobile-nav a { color: var(--mkf-link); opacity: .78; }
+    .mk-nav.has-link .mk-nav-link:hover, .mk-nav.has-link .mk-nav-link.active, .mk-nav.has-link .mk-nav-signin:hover { opacity: 1; }
+    .mk-nav.has-link .mk-hamburger span { background: var(--mkf-link); }
+    .mk-nav.is-float .mk-mobile-nav {
+        position: absolute; left: 12px; right: 12px; top: calc(100% + 8px); margin: 0;
+        background: color-mix(in srgb, var(--mkf-bg) var(--mkf-op), transparent);
+        backdrop-filter: blur(var(--mkf-blur)); -webkit-backdrop-filter: blur(var(--mkf-blur));
+        border: 0.5px solid rgba(255,255,255,.12); border-radius: 20px; box-shadow: 0 18px 40px rgba(0,0,0,.35);
+    }
+    .mk-nav.is-float .mk-mobile-nav a { border-color: rgba(127,127,127,.18); }
+    @media (max-width: 860px) {
+        .mk-nav.is-float { padding: var(--mkf-out-m, 10px) 12px 0; }
+        .mk-nav.is-float .mk-nav-inner { padding: var(--mkf-pad-m, 8px 8px 8px 16px); }
+    }
 
     /* MARKER-MKT-HAMBURGER — three lines morph into an X */
     .mk-hamburger { cursor: pointer; transition: transform .2s ease; }
@@ -106,6 +121,11 @@
 @php
     $mkMenu  = isset($menuItems) && is_array($menuItems) ? $menuItems : \App\Support\MarketingNav::items();
     $mkHead  = \App\Support\MarketingNav::header(isset($menuHeader) && is_array($menuHeader) ? $menuHeader : null); // MARKER-MKT-NAV-FLOAT
+    // MARKER-MKT-NAV-POLISH
+    $mkSpace = ['tight'  => ['10px', '8px 10px 8px 18px',   '8px',  '6px 6px 6px 14px'],
+                'normal' => ['18px', '12px 14px 12px 24px', '10px', '8px 8px 8px 16px'],
+                'roomy'  => ['26px', '16px 18px 16px 30px', '14px', '10px 10px 10px 18px']][$mkHead['space']];
+    $mkLink  = \App\Support\MarketingNav::linkColour($mkHead);
     $mkHere  = '/' . ltrim(request()->path(), '/');
     $mkLeft  = array_values(array_filter($mkMenu, fn ($i) => $i['side'] === 'left'));
     $mkRight = array_values(array_filter($mkMenu, fn ($i) => $i['side'] === 'right'));
@@ -117,7 +137,7 @@
         return 'mk-nav-link' . ($path === (rtrim($mkHere, '/') ?: '/') && ! parse_url($i['url'], PHP_URL_HOST) ? ' active' : '');
     };
 @endphp
-<nav class="mk-nav{{ $mkHead['style'] === 'float' ? ' is-float' : '' }}" style="--mkf-bg:{{ $mkHead['bg'] }};--mkf-op:{{ $mkHead['opacity'] }}%;--mkf-blur:{{ $mkHead['blur'] }}px;--mkf-pill:color-mix(in srgb, {{ $mkHead['pill'] }} {{ $mkHead['pill_strength'] }}%, transparent)">
+<nav id="mk-nav" class="mk-nav{{ $mkHead['style'] === 'float' ? ' is-float' : '' }}{{ $mkLink ? ' has-link' : '' }}" style="--mkf-out:{{ $mkSpace[0] }};--mkf-pad:{{ $mkSpace[1] }};--mkf-out-m:{{ $mkSpace[2] }};--mkf-pad-m:{{ $mkSpace[3] }};{{ $mkLink ? '--mkf-link:' . $mkLink . ';' : '' }}--mkf-bg:{{ $mkHead['bg'] }};--mkf-op:{{ $mkHead['opacity'] }}%;--mkf-blur:{{ $mkHead['blur'] }}px;--mkf-pill:color-mix(in srgb, {{ $mkHead['pill'] }} {{ $mkHead['pill_strength'] }}%, transparent)">
     <div class="mk-nav-inner">
         <a href="{{ route('marketing.home') }}" class="mk-logo">
             <img src="{{ \App\Support\Brand::url('logo') }}" alt="Intake" style="display:block;height:26px;width:auto">
@@ -151,3 +171,13 @@
         @endforeach
     </div>
 </nav>
+{{-- MARKER-MKT-NAV-POLISH — measure the floating bar so the page tucks under it exactly. --}}
+<script>
+(function () {
+    var nav = document.getElementById('mk-nav');
+    if (!nav || !nav.classList.contains('is-float')) return;
+    var inner = nav.querySelector('.mk-nav-inner');
+    function fit() { nav.style.setProperty('--mkf-h', (inner.offsetHeight + parseFloat(getComputedStyle(nav).paddingTop)) + 'px'); }
+    fit(); window.addEventListener('resize', fit); window.addEventListener('load', fit);
+})();
+</script>

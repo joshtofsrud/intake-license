@@ -59,8 +59,15 @@
           <label class="snv-ctl">Opacity <input type="range" min="0" max="100" x-model.number="header.opacity" @input="changed()"><b x-text="header.opacity + '%'"></b></label>
           <label class="snv-ctl">Blur <input type="range" min="0" max="30" x-model.number="header.blur" @input="changed()"><b x-text="header.blur + 'px'"></b></label>
           <label class="snv-ctl">Link pill <input type="color" x-model="header.pill" @input="changed()"><input type="range" min="0" max="30" x-model.number="header.pill_strength" @input="changed()" title="Pill strength"></label>
+          <span class="snv-seg" title="Room around and inside the bar"><template x-for="o in [['tight','Tight'],['normal','Normal'],['roomy','Roomy']]"><button type="button" :class="header.space===o[0] && 'on'" @click="header.space=o[0]; changed()" x-text="o[1]"></button></template></span>
         </span>
       </template>
+      {{-- MARKER-MKT-NAV-POLISH — both styles --}}
+      <span class="snv-ctl" style="font-size:12px">Links
+        <input type="color" :value="header.link || '#cccccc'" @input="header.link = $event.target.value; changed()">
+        <button type="button" class="snv-btn" style="padding:2px 8px;font-size:11.5px" x-show="header.link" @click="header.link=''; changed()">Auto</button>
+        <span x-show="!header.link" style="opacity:.6">Auto</span>
+      </span>
     </div>
     <div class="snv-head"><b>Preview</b>
       <span class="snv-seg"><button type="button" :class="dev==='desktop' && 'on'" @click="dev='desktop'; refresh()">Desktop</button><button type="button" :class="dev==='phone' && 'on'" @click="dev='phone'; refresh()">Phone</button></span></div>

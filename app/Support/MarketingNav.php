@@ -19,7 +19,7 @@ class MarketingNav
     public const SIDES  = ['left', 'right'];
 
     // MARKER-MKT-NAV-FLOAT — header style and its four Floating settings.
-    public const HEADER_DEFAULTS = ['style' => 'classic', 'bg' => '#0a0a0a', 'opacity' => 70, 'blur' => 14, 'pill' => '#ffffff', 'pill_strength' => 8];
+    public const HEADER_DEFAULTS = ['style' => 'classic', 'bg' => '#0a0a0a', 'opacity' => 70, 'blur' => 14, 'pill' => '#ffffff', 'pill_strength' => 8, 'space' => 'normal', 'link' => ''];
 
     public static function header(?array $override = null): array
     {
@@ -39,7 +39,19 @@ class MarketingNav
             'blur'          => $int($h['blur'] ?? null, $d['blur'], 30),
             'pill'          => $hex($h['pill'] ?? null, $d['pill']),
             'pill_strength' => $int($h['pill_strength'] ?? null, $d['pill_strength'], 30),
+            // MARKER-MKT-NAV-POLISH
+            'space'         => in_array($h['space'] ?? '', ['tight', 'normal', 'roomy'], true) ? $h['space'] : 'normal',
+            'link'          => $hex($h['link'] ?? null, ''),
         ];
+    }
+
+    /** Link colour to use: the chosen one, or dark on a light floating bar. */
+    public static function linkColour(array $h): ?string
+    {
+        if ($h['link'] !== '') return $h['link'];
+        if ($h['style'] !== 'float' || $h['opacity'] < 40) return null;
+        [$r, $g, $b] = sscanf($h['bg'], '#%02x%02x%02x');
+        return (0.2126 * $r + 0.7152 * $g + 0.0722 * $b) / 255 > 0.6 ? '#111111' : null;
     }
 
     public static function platform(): ?Tenant
