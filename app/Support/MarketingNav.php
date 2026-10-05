@@ -192,4 +192,74 @@ class MarketingNav
         $v = $n % 100;
         return $n . ($s[($v - 20) % 10] ?? $s[$v] ?? $s[0]);
     }
+
+    // ===================== MARKER-MKT-FOOTER =====================
+    // The intake.works footer: a tagline, up to 4 link columns, a legal row
+    // and a copyright line, edited on Site & content › Navigation. Rows are
+    // pages (follow the page, hidden while unpublished), links, or the plan
+    // finder. Until it's saved, the footer shows today's links.
+
+    public static function footerDefault(): array
+    {
+        $bySlug = [];
+        foreach (self::pages() as $id => $p) $bySlug[ltrim($p['path'], '/') ?: 'home'] = $id;
+        $pg  = fn ($slug, $label) => isset($bySlug[$slug]) ? ['type' => 'page', 'page' => $bySlug[$slug], 'label' => $label, 'url' => '', 'tab' => false] : ['type' => 'link', 'page' => null, 'label' => $label, 'url' => '/' . $slug, 'tab' => false];
+        $app = 'https://app.' . config('intake.domain', 'intake.works');
+        return [
+            'tagline'   => 'Online booking, work orders, and customer management for service shops.',
+            'columns'   => [
+                ['title' => 'Product', 'rows' => [$pg('features', 'Features'), $pg('pricing', 'Pricing'), $pg('roadmap', 'Roadmap'), $pg('changelog', 'Changelog'), $pg('docs', 'Docs')]],
+                ['title' => 'Company', 'rows' => [$pg('contact', 'Contact')]],
+                ['title' => 'Get started', 'rows' => [
+                    ['type' => 'link', 'page' => null, 'label' => 'Free trial', 'url' => $app . '/signup', 'tab' => false],
+                    ['type' => 'link', 'page' => null, 'label' => 'Sign in', 'url' => $app . '/login', 'tab' => false],
+                    ['type' => 'quiz', 'page' => null, 'label' => 'Which plan is right for me?', 'url' => '', 'tab' => false],
+                ]],
+            ],
+            'legal'     => [$pg('privacy', 'Privacy'), $pg('terms', 'Terms'), $pg('cookies', 'Cookies'), $pg('acceptable-use', 'Acceptable use')],
+            'copyright' => '© {year} Intake. All rights reserved.',
+        ];
+    }
+
+    public static function footer(?array $override = null): array
+    {
+        $raw = $override ?? (self::platform()?->settings['marketing_footer'] ?? null);
+        return is_array($raw) ? self::cleanFooter($raw) : self::footerDefault();
+    }
+
+    public static function cleanFooter(array $f): array
+    {
+        $txt = fn ($v, $n) => mb_substr(trim((string) $v), 0, $n);
+        $row = function ($r) use ($txt) {
+            if (! is_array($r)) return null;
+            $type = in_array($r['type'] ?? '', ['page', 'link', 'quiz'], true) ? $r['type'] : 'link';
+            return ['type' => $type, 'page' => $type === 'page' ? (string) ($r['page'] ?? '') : null,
+                    'label' => $txt($r['label'] ?? '', 60), 'url' => $type === 'link' ? $txt($r['url'] ?? '', 255) : '', 'tab' => ! empty($r['tab'])];
+        };
+        $cols = [];
+        foreach (array_slice(array_values((array) ($f['columns'] ?? [])), 0, 4) as $c) {
+            if (! is_array($c)) continue;
+            $cols[] = ['title' => $txt($c['title'] ?? '', 40), 'rows' => array_values(array_filter(array_map($row, array_slice((array) ($c['rows'] ?? []), 0, 10))))];
+        }
+        return [
+            'tagline'   => $txt($f['tagline'] ?? '', 200),
+            'columns'   => $cols,
+            'legal'     => array_values(array_filter(array_map($row, array_slice((array) ($f['legal'] ?? []), 0, 8)))),
+            'copyright' => $txt($f['copyright'] ?? '', 120),
+        ];
+    }
+
+    /** One footer row as the page draws it, or null (unpublished/missing page, empty link). */
+    public static function footerLink(array $r, ?array $pages = null): ?array
+    {
+        $pages ??= self::pages();
+        if ($r['type'] === 'quiz') return ['label' => $r['label'] ?: 'Which plan is right for me?', 'url' => '#', 'quiz' => true, 'tab' => false];
+        if ($r['type'] === 'page') {
+            $p = $pages[$r['page']] ?? null;
+            if (! $p || ! $p['published']) return null;
+            return ['label' => $r['label'] ?: $p['title'], 'url' => $p['path'], 'quiz' => false, 'tab' => $r['tab']];
+        }
+        if ($r['label'] === '' || ! preg_match('#^(/|https?://|mailto:|tel:)#i', $r['url'])) return null;
+        return ['label' => $r['label'], 'url' => $r['url'], 'quiz' => false, 'tab' => $r['tab']];
+    }
 }

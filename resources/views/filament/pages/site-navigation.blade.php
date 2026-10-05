@@ -34,6 +34,17 @@
   .snv-note { margin: 8px 0 0; font-size: 11.5px; opacity: .55; line-height: 1.5; }
   .snv-bar { background: rgba(10,10,10,.92); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); border-top: 1px solid var(--snv-line); padding: 12px 16px; margin: 0 -16px; z-index: 5; }
   html:not(.dark) .snv-bar { background: rgba(255,255,255,.94); }
+  /* MARKER-MKT-FOOTER */
+  .snv-fcols{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px;margin:12px 0}
+  .snv-fhead{display:flex;gap:6px;align-items:center;margin-bottom:6px}
+  .snv-ftitle{font-weight:600}
+  .snv-frow{display:grid;grid-template-columns:22px minmax(0,1fr) 22px;gap:6px;align-items:start;padding:6px 0;border-top:1px solid rgba(127,127,127,.12)}
+  .snv-fbody{display:grid;gap:4px;min-width:0}
+  .snv-fmove{display:grid;gap:2px}.snv-fmove button{border:0;background:none;color:inherit;opacity:.5;cursor:pointer;font-size:11px;padding:0}.snv-fmove button:disabled{opacity:.15;cursor:default}
+  .snv-fadd{display:flex;gap:6px;margin-top:8px}
+  .snv-fnewcol{align-self:start;justify-self:start}
+  .snv-chipish{display:inline-flex;gap:4px;align-items:center;margin:0 8px 6px 0}
+  .snv-ffr{height:300px}
   .snv-frame{width:100%;height:100px;border:1px solid var(--snv-line);border-radius:10px;background:#0a0a0a;display:block;margin:0 auto}
   .snv-frame.phone{width:390px;max-width:100%;height:520px}
   .snv-dim{font-size:12px;opacity:.6}
@@ -63,7 +74,7 @@
 </style>
 
 <div class="snv" wire:ignore
-     x-data="snvEditor(@js($rows), @js($pages), @js($previewUrl), @js($header))"
+     x-data="snvEditor(@js($rows), @js($pages), @js($previewUrl), @js($header), @js($footer))"
      x-on:nav-saved.window="saved = snapshot()"
      x-on:beforeunload.window="if (dirty) { $event.preventDefault(); $event.returnValue = ''; }">
 
@@ -169,18 +180,62 @@
     </div>
   </div>
 
+  {{-- MARKER-MKT-FOOTER — the intake.works footer, saved with the menu --}}
+  <div class="snv-card">
+    <div class="snv-head"><b>Footer</b><span class="snv-dim">Columns of links under every marketing page. Page links follow their page and hide while it's unpublished.</span></div>
+    <div class="snv-crow" style="border-top:0"><span class="snv-k">Tagline</span><div class="snv-v"><input class="snv-in" x-model="footer.tagline" @input="changed()" maxlength="200" placeholder="One line under the logo"></div></div>
+    <div class="snv-fcols">
+      <template x-for="(col, ci) in footer.columns" :key="'c' + ci">
+        <section class="snv-group">
+          <div class="snv-fhead"><input class="snv-in snv-ftitle" x-model="col.title" @input="changed()" placeholder="Column title" maxlength="40"><button type="button" class="snv-x" title="Remove column" @click="footer.columns.splice(ci, 1); changed()">×</button></div>
+          <template x-for="(r, ri) in col.rows" :key="'r' + ci + '-' + ri">
+            <div class="snv-frow">
+              <div class="snv-fmove"><button type="button" @click="fMove(col.rows, ri, -1)" :disabled="ri === 0">↑</button><button type="button" @click="fMove(col.rows, ri, 1)" :disabled="ri === col.rows.length - 1">↓</button></div>
+              <div class="snv-fbody">
+                <input class="snv-in" x-model="r.label" @input="changed()" :placeholder="r.type === 'page' && pages[r.page] ? pages[r.page].title : 'Label'" maxlength="60">
+                <template x-if="r.type === 'page'"><select class="snv-in" x-model="r.page" @change="changed()"><template x-for="(p, id) in pages" :key="id"><option :value="id" x-text="p.title + ' · ' + p.path + (p.published ? '' : ' (unpublished)')"></option></template></select></template>
+                <template x-if="r.type === 'link'"><input class="snv-in" x-model="r.url" @input="changed()" placeholder="/path or https://…" maxlength="255"></template>
+                <template x-if="r.type === 'quiz'"><span class="snv-dim">Opens the plan finder</span></template>
+              </div>
+              <button type="button" class="snv-x" title="Remove" @click="col.rows.splice(ri, 1); changed()">×</button>
+            </div>
+          </template>
+          <div class="snv-fadd"><button type="button" class="snv-btn snv-mini" @click="fAdd(col.rows, 'page')">+ Page</button><button type="button" class="snv-btn snv-mini" @click="fAdd(col.rows, 'link')">+ Link</button></div>
+        </section>
+      </template>
+      <button type="button" class="snv-btn snv-fnewcol" x-show="footer.columns.length < 4" @click="footer.columns.push({title: 'New column', rows: []}); changed()">+ Column</button>
+    </div>
+    <div class="snv-crow"><span class="snv-k">Legal row</span>
+      <div class="snv-v" style="flex-wrap:wrap">
+        <template x-for="(r, ri) in footer.legal" :key="'l' + ri">
+          <span class="snv-chipish"><input class="snv-in" style="width:120px" x-model="r.label" @input="changed()" :placeholder="r.type === 'page' && pages[r.page] ? pages[r.page].title : 'Label'">
+            <template x-if="r.type === 'page'"><select class="snv-in" style="width:150px" x-model="r.page" @change="changed()"><template x-for="(p, id) in pages" :key="id"><option :value="id" x-text="p.title"></option></template></select></template>
+            <template x-if="r.type === 'link'"><input class="snv-in" style="width:150px" x-model="r.url" @input="changed()" placeholder="/path or https://…"></template>
+            <button type="button" class="snv-x" @click="footer.legal.splice(ri, 1); changed()">×</button></span>
+        </template>
+        <button type="button" class="snv-btn snv-mini" @click="fAdd(footer.legal, 'page')">+ Page</button><button type="button" class="snv-btn snv-mini" @click="fAdd(footer.legal, 'link')">+ Link</button>
+      </div>
+    </div>
+    <div class="snv-crow"><span class="snv-k">Copyright</span><div class="snv-v"><input class="snv-in" x-model="footer.copyright" @input="changed()" maxlength="120"><i>{year} becomes the current year</i></div></div>
+    <div class="snv-head" style="margin-top:12px"><b>Footer preview</b></div>
+    <iframe class="snv-frame snv-ffr" x-ref="ffr" title="Footer preview"></iframe>
+  </div>
+
   <div class="snv-bar">
     <span class="snv-dim" x-text="dirty ? 'Unsaved changes — the live menu hasn\u2019t changed yet' : 'All changes saved'"></span>
-    <button type="button" class="snv-btn" :disabled="!dirty" @click="var s = JSON.parse(saved); rows = s.rows; header = s.header; changed()">Discard</button>
-    <button type="button" class="snv-btn snv-btn--pri" :disabled="!dirty" @click="$wire.save(JSON.parse(JSON.stringify(rows)), JSON.parse(JSON.stringify(header)))">Save</button>
+    <button type="button" class="snv-btn" :disabled="!dirty" @click="var s = JSON.parse(saved); rows = s.rows; header = s.header; footer = s.footer; changed()">Discard</button>
+    <button type="button" class="snv-btn snv-btn--pri" :disabled="!dirty" @click="$wire.save(JSON.parse(JSON.stringify(rows)), JSON.parse(JSON.stringify(header)), JSON.parse(JSON.stringify(footer)))">Save</button>
   </div>
 </div>
 
 <script>
-  function snvEditor(rows, pages, previewUrl, header) {
+  function snvEditor(rows, pages, previewUrl, header, footer) {
     return {
-      rows: rows, pages: pages, header: header, saved: JSON.stringify({rows: rows, header: header}), dev: 'desktop', pop: false, from: null, t: null,
-      snapshot() { return JSON.stringify({rows: this.rows, header: this.header}); },
+      rows: rows, pages: pages, header: header, footer: footer, saved: JSON.stringify({rows: rows, header: header, footer: footer}), dev: 'desktop', pop: false, from: null, t: null,
+      snapshot() { return JSON.stringify({rows: this.rows, header: this.header, footer: this.footer}); },
+      // MARKER-MKT-FOOTER
+      fAdd(list, type) { var first = Object.keys(this.pages)[0] || null; list.push({type: type, page: type === 'page' ? first : null, label: '', url: '', tab: false}); this.changed(); },
+      fMove(list, i, d) { var j = i + d; if (j < 0 || j >= list.length) return; var m = list.splice(i, 1)[0]; list.splice(j, 0, m); this.changed(); },
       // MARKER-MKT-NAV-PHONE — read/write the setting for the screen being edited.
       edit: 'desktop',
       val(k) { var p = this.header.phone || {}; return (this.edit === 'phone' && k in p) ? p[k] : this.header[k]; },
@@ -201,6 +256,8 @@
         var d = btoa(unescape(encodeURIComponent(JSON.stringify(this.rows))));
         var h = btoa(unescape(encodeURIComponent(JSON.stringify(this.header))));
         this.$refs.frame.src = previewUrl + '?d=' + encodeURIComponent(d) + '&h=' + encodeURIComponent(h);
+        var fb = btoa(unescape(encodeURIComponent(JSON.stringify(this.footer))));
+        if (this.$refs.ffr) this.$refs.ffr.src = previewUrl + '?mode=footer&f=' + encodeURIComponent(fb); // MARKER-MKT-FOOTER
       },
       openPanel() {
         if (this.dev !== 'phone') return;

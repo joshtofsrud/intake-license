@@ -50,40 +50,35 @@
                     {{-- MARKER-BRAND-CANON — was a letter "I", not the mark --}}
                     <img src="{{ \App\Support\Brand::url('logo') }}" alt="Intake" style="display:block;height:22px;width:auto">
                 </div>
-                <p class="mk-footer-tagline">Online booking, work orders, and customer management for service shops.</p>
+                @php
+                    // MARKER-MKT-FOOTER — from Site & content › Navigation (preview may pass $menuFooter)
+                    $mkFt    = \App\Support\MarketingNav::footer(isset($menuFooter) && is_array($menuFooter) ? $menuFooter : null);
+                    $mkFtPgs = \App\Support\MarketingNav::pages();
+                    $mkFtL   = fn ($r) => \App\Support\MarketingNav::footerLink($r, $mkFtPgs);
+                @endphp
+                @if($mkFt['tagline'] !== '')<p class="mk-footer-tagline">{{ $mkFt['tagline'] }}</p>@endif
             </div>
-            <div>
-                <div class="mk-footer-col-title">Product</div>
-                <a href="{{ route('marketing.features') }}" class="mk-footer-link">Features</a>
-                <a href="{{ route('marketing.pricing') }}"  class="mk-footer-link">Pricing</a>
-                <a href="{{ route('marketing.roadmap') }}"  class="mk-footer-link">Roadmap</a>
-                <a href="{{ route('marketing.changelog') }}"  class="mk-footer-link">Changelog</a>
-                <a href="{{ route('marketing.docs') }}"     class="mk-footer-link">Docs</a>
-            </div>
-            <div>
-                <div class="mk-footer-col-title">Company</div>
-                <a href="{{ route('marketing.contact') }}"  class="mk-footer-link">Contact</a>
-                <a href="#"                                 class="mk-footer-link">Blog</a>
-                <a href="#"                                 class="mk-footer-link">Status</a>
-            </div>
-            <div>
-                <div class="mk-footer-col-title">Get started</div>
-                <a href="{{ route('platform.signup') }}"    class="mk-footer-link">Free trial</a>
-                <a href="{{ route('platform.login') }}"     class="mk-footer-link">Sign in</a>
-                <a href="#" data-open-quiz                  class="mk-footer-link">Which plan is right for me?</a>
-            </div>
+            @foreach($mkFt['columns'] as $mkCol)
+                <div>
+                    @if($mkCol['title'] !== '')<div class="mk-footer-col-title">{{ $mkCol['title'] }}</div>@endif
+                    @foreach($mkCol['rows'] as $mkR)
+                        @php $mkLk = $mkFtL($mkR); @endphp
+                        @if($mkLk)
+                            <a href="{{ $mkLk['url'] }}" class="mk-footer-link" @if($mkLk['quiz']) data-open-quiz @endif @if($mkLk['tab']) target="_blank" rel="noopener" @endif>{{ $mkLk['label'] }}</a>
+                        @endif
+                    @endforeach
+                </div>
+            @endforeach
         </div>
         <div class="mk-footer-bottom">
-            <div class="mk-footer-copy">© {{ date('Y') }} Intake. All rights reserved.</div>
+            <div class="mk-footer-copy">{{ str_replace('{year}', date('Y'), $mkFt['copyright']) }}</div>
             <div class="mk-footer-legal">
-                {{-- Legal links commented out until LLC is registered and email forwards are live.
-                     Uncomment this block (and delete the two <a href="#"> lines below) to activate. --}}
-                {{-- <a href="/privacy">Privacy</a> --}}
-                {{-- <a href="/terms">Terms</a> --}}
-                {{-- <a href="/cookies">Cookies</a> --}}
-                {{-- <a href="/acceptable-use">Acceptable use</a> --}}
-                <a href="#">Privacy</a>
-                <a href="#">Terms</a>
+                @foreach($mkFt['legal'] as $mkR)
+                    @php $mkLk = $mkFtL($mkR); @endphp
+                    @if($mkLk)
+                        <a href="{{ $mkLk['url'] }}" @if($mkLk['quiz']) data-open-quiz @endif @if($mkLk['tab']) target="_blank" rel="noopener" @endif>{{ $mkLk['label'] }}</a>
+                    @endif
+                @endforeach
             </div>
         </div>
     </div>

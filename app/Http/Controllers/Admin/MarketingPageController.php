@@ -171,7 +171,9 @@ class MarketingPageController extends Controller
             'tenant'         => $platform,
             'industry'       => null,
             'builderPreview' => true,
-            'hideFooter'     => true, // MARKER-MKT-NAV-POLISH — the footer looked like a second header
+            'hideFooter'     => $request->query('mode') !== 'footer', // MARKER-MKT-NAV-POLISH / MARKER-MKT-FOOTER
+            'footerOnly'     => $request->query('mode') === 'footer',
+            'menuFooter'     => $request->query('mode') === 'footer' ? \App\Support\MarketingNav::cleanFooter((array) json_decode((string) base64_decode((string) $request->query('f', ''), true), true)) : null,
             'menuItems'      => \App\Support\MarketingNav::resolve($rows),
             // MARKER-MKT-NAV-FLOAT — unsaved header style from the Navigation page.
             'menuHeader'     => \App\Support\MarketingNav::cleanHeader((array) json_decode((string) base64_decode((string) $request->query('h', ''), true), true)),

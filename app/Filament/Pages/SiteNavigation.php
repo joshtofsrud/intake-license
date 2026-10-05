@@ -35,12 +35,13 @@ class SiteNavigation extends Page
             'rows'       => MarketingNav::rows(),
             'pages'      => MarketingNav::pages(),
             'header'     => MarketingNav::header(), // MARKER-MKT-NAV-FLOAT
+            'footer'     => MarketingNav::footer(),  // MARKER-MKT-FOOTER
             'previewUrl' => url('/admin/navigation/preview'),
         ];
     }
 
     /** Called from the page with the whole list; replaces the menu in one go. */
-    public function save(array $rows, array $header = []): void
+    public function save(array $rows, array $header = [], array $footer = []): void
     {
         $platform = MarketingNav::platform();
         if (! $platform) {
@@ -84,7 +85,14 @@ class SiteNavigation extends Page
             return;
         }
 
-        DB::transaction(function () use ($platform, $clean, $header) {
+        DB::transaction(function () use ($platform, $clean, $header, $footer) {
+            // MARKER-MKT-FOOTER — the footer saves with the menu.
+            if ($footer) {
+                $settings = $platform->settings ?? [];
+                $settings['marketing_footer'] = MarketingNav::cleanFooter($footer);
+                $platform->settings = $settings;
+                $platform->save();
+            }
             // MARKER-MKT-NAV-FLOAT — header style and its settings save with the menu.
             if ($header) {
                 $settings = $platform->settings ?? [];

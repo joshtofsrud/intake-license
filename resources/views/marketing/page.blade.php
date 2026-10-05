@@ -188,7 +188,9 @@
 <body>
 
 {{-- Nav (shell — always present) --}}
+@if(empty($footerOnly)) {{-- MARKER-MKT-FOOTER — the footer preview shows just the footer --}}
 @include('marketing.sections._shell_nav', ['navItems' => $navItems])
+@endif
 
 {{-- MARKER-MKT-PARITY — hover highlight + click-to-select, and the scroll-to
      handler the builder calls. Builder preview only; port of the tenant

@@ -253,45 +253,8 @@
 @yield('content')
 
 {{-- Footer --}}
-<footer class="mk-footer">
-  <div class="mk-container">
-    <div class="mk-footer-inner">
-      <div>
-        <div class="mk-footer-brand-name">
-          {{-- MARKER-BRAND-CANON --}}
-          <img src="{{ \App\Support\Brand::url('logo') }}" alt="Intake" style="display:block;height:22px;width:auto">
-        </div>
-        <p class="mk-footer-tagline">Online booking, work orders, and customer management for service shops.</p>
-      </div>
-      <div>
-        <div class="mk-footer-col-title">Product</div>
-        <a href="{{ route('marketing.why-intake') }}" class="mk-footer-link">Why Intake</a>
-        <a href="{{ route('marketing.features') }}"   class="mk-footer-link">Features</a>
-        <a href="{{ route('marketing.pricing') }}"    class="mk-footer-link">Pricing</a>
-        <a href="{{ route('marketing.docs') }}"       class="mk-footer-link">Docs</a>
-      </div>
-      <div>
-        <div class="mk-footer-col-title">Company</div>
-        <a href="{{ route('marketing.contact') }}"  class="mk-footer-link">Contact</a>
-        <a href="#"                                 class="mk-footer-link">Blog</a>
-        <a href="#"                                 class="mk-footer-link">Status</a>
-      </div>
-      <div>
-        <div class="mk-footer-col-title">Get started</div>
-        <a href="{{ route('platform.signup') }}"    class="mk-footer-link">Free trial</a>
-        <a href="{{ route('platform.login') }}"     class="mk-footer-link">Sign in</a>
-        <a href="#" data-open-quiz                  class="mk-footer-link">Which plan is right for me?</a>
-      </div>
-    </div>
-    <div class="mk-footer-bottom">
-      <div class="mk-footer-copy">© {{ date('Y') }} Intake. All rights reserved.</div>
-      <div class="mk-footer-legal">
-        <a href="#">Privacy</a>
-        <a href="#">Terms</a>
-      </div>
-    </div>
-  </div>
-</footer>
+{{-- MARKER-MKT-FOOTER — the one footer, from Navigation --}}
+@include('marketing.sections._shell_footer')
 
 <script>
 function toggleMobileNav() {
