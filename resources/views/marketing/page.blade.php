@@ -138,7 +138,7 @@
         .mkw.mkw-divider > section { border-bottom: 0.5px solid var(--mk-border) !important; background-origin: border-box !important; }
         /* MARKER-MKT-APPEAR */
         /* MARKER-MKT-APPEAR-CONTENT — the content appears; the background is always there */
-        html.mk-appear-on .mk-appear > section > *, html.mk-appear-on .mk-appear > footer > * { opacity: 0; transition: opacity .7s ease, transform .7s ease; transition-delay: var(--mk-appear-delay, 0ms); }
+        html.mk-appear-on .mk-appear > section > *, html.mk-appear-on .mk-appear > footer > * { opacity: 0; transition: opacity var(--mk-appear-dur, 700ms) ease, transform var(--mk-appear-dur, 700ms) ease; transition-delay: var(--mk-appear-delay, 0ms); } /* MARKER-APPEAR-DURATION */
         html.mk-appear-on .mk-appear-up > section > *, html.mk-appear-on .mk-appear-up > footer > * { transform: translateY(28px); }
         html.mk-appear-on .mk-appear.is-in > section > *, html.mk-appear-on .mk-appear.is-in > footer > * { opacity: 1; transform: none; }
         /* MARKER-MKT-BG-CHAIN — sections sharing a gradient show no divider between them. */
@@ -388,7 +388,7 @@
           </style>
           <div class="{{ $pullId }}">
         @endif
-        <div class="{{ $mkwClass }}" @if(in_array($c['appear'] ?? '', ['fade', 'up'], true)) style="--mk-appear-delay: {{ max(0, min(1000, (int) ($c['appear_delay'] ?? 0))) }}ms" @endif @if($mkwAnchor !== '') id="{{ $mkwAnchor }}" @endif @isset($mkGradCss[(string) $section->id]) data-bg-grad="{{ $mkGradCss[(string) $section->id] }}" @endisset @if(! empty($c['bg_continue']) && ! in_array((string) $c['bg_continue'], ['0', 'false'], true)) data-bg-cont="1" @endif>
+        <div class="{{ $mkwClass }}" @if(in_array($c['appear'] ?? '', ['fade', 'up'], true)) style="--mk-appear-delay: {{ max(0, min(1000, (int) ($c['appear_delay'] ?? 0))) }}ms; --mk-appear-dur: {{ max(200, min(2000, (int) ($c['appear_duration'] ?? 700))) }}ms" @endif @if($mkwAnchor !== '') id="{{ $mkwAnchor }}" @endif @isset($mkGradCss[(string) $section->id]) data-bg-grad="{{ $mkGradCss[(string) $section->id] }}" @endisset @if(! empty($c['bg_continue']) && ! in_array((string) $c['bg_continue'], ['0', 'false'], true)) data-bg-cont="1" @endif>
         @if($mkwTop !== null || $mkwBot !== null || $mkwHead || $mkwBody)
           <style>
             @if($mkwTop !== null) .{{ $mkwId }} > section, .{{ $mkwId }} > footer, .{{ $mkwId }} > div { padding-top: {{ $mkwTop }} !important; } @endif

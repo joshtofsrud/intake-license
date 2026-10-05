@@ -111,6 +111,7 @@
 @php
   $apMode  = in_array($section->content['appear'] ?? 'none', ['none', 'fade', 'up'], true) ? ($section->content['appear'] ?? 'none') : 'none';
   $apDelay = max(0, min(1000, (int) ($section->content['appear_delay'] ?? 0))); // MARKER-APPEAR-DELAY-SLIDER
+  $apDur   = max(200, min(2000, (int) ($section->content['appear_duration'] ?? 700))); // MARKER-APPEAR-DURATION
   $divOn   = ! empty($section->content['divider_below']) && ! in_array((string) $section->content['divider_below'], ['0', 'false'], true);
 @endphp
 <div class="pb2-group">
@@ -124,7 +125,7 @@
     <input type="hidden" data-field="appear" value="{{ $apMode }}">
   </div>
   <div class="pb2-field">
-    <label class="pb2-field-label">Delay</label>
+    <label class="pb2-field-label">Delay <span class="pb2-field-hint">wait before it starts</span></label>
     <div style="display:flex;align-items:center;gap:12px">
       <input type="range" min="0" max="1000" step="50" value="{{ $apDelay }}" style="flex:1;min-width:0"
              oninput="this.nextElementSibling.textContent = this.value + 'ms';
@@ -133,6 +134,17 @@
       <span style="min-width:56px;text-align:right;font-variant-numeric:tabular-nums;font-size:12.5px;opacity:.75">{{ $apDelay }}ms</span>
     </div>
     <input type="hidden" data-field="appear_delay" value="{{ $apDelay }}">
+  </div>
+  <div class="pb2-field">
+    <label class="pb2-field-label">Duration <span class="pb2-field-hint">how long the fade takes</span></label>
+    <div style="display:flex;align-items:center;gap:12px">
+      <input type="range" min="200" max="2000" step="100" value="{{ $apDur }}" style="flex:1;min-width:0"
+             oninput="this.nextElementSibling.textContent = (this.value / 1000).toFixed(1) + 's';
+                      var h = this.parentElement.parentElement.querySelector('[data-field=appear_duration]');
+                      h.value = this.value; h.dispatchEvent(new Event('change', { bubbles: true }));">
+      <span style="min-width:56px;text-align:right;font-variant-numeric:tabular-nums;font-size:12.5px;opacity:.75">{{ number_format($apDur / 1000, 1) }}s</span>
+    </div>
+    <input type="hidden" data-field="appear_duration" value="{{ $apDur }}">
   </div>
   <div class="pb2-field-hint" style="text-align:left;display:block">Plays once, the first time the section scrolls into view. Visitors who prefer reduced motion see it straight away.</div>
 </div>
