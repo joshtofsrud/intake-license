@@ -27,7 +27,31 @@ class MarketingNav
         return self::cleanHeader(is_array($raw) ? $raw : []);
     }
 
+    // MARKER-MKT-NAV-PHONE — desktop settings plus phone overrides (only the
+    // settings changed for phones are stored under 'phone').
     public static function cleanHeader(array $h): array
+    {
+        $desk  = self::cleanHeaderBase($h);
+        $in    = is_array($h['phone'] ?? null) ? $h['phone'] : [];
+        $phone = [];
+        if ($in) {
+            $merged = self::cleanHeaderBase(array_merge($desk, $in));
+            foreach (array_keys($in) as $k) {
+                if (array_key_exists($k, $desk)) $phone[$k] = $merged[$k];
+            }
+        }
+        return $desk + ['phone' => $phone];
+    }
+
+    /** The settings phones actually use. */
+    public static function phoneHeader(array $h): array
+    {
+        $p = $h['phone'] ?? [];
+        unset($h['phone']);
+        return array_merge($h, is_array($p) ? $p : []);
+    }
+
+    private static function cleanHeaderBase(array $h): array
     {
         $d   = self::HEADER_DEFAULTS;
         $hex = fn ($v, $fallback) => is_string($v) && preg_match('/^#[0-9a-fA-F]{6}$/', $v) ? strtolower($v) : $fallback;

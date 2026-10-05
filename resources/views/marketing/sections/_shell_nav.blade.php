@@ -126,6 +126,15 @@
                 'normal' => ['18px', '12px 14px 12px 24px', '10px', '8px 8px 8px 16px'],
                 'roomy'  => ['26px', '16px 18px 16px 30px', '14px', '10px 10px 10px 18px']][$mkHead['space']];
     $mkLink  = \App\Support\MarketingNav::linkColour($mkHead);
+    // MARKER-MKT-NAV-PHONE
+    $mkHeadP  = \App\Support\MarketingNav::phoneHeader($mkHead);
+    $mkSpaceP = ['tight'  => ['8px',  '6px 6px 6px 14px'],
+                 'normal' => ['10px', '8px 8px 8px 16px'],
+                 'roomy'  => ['14px', '10px 10px 10px 18px']][$mkHeadP['space']];
+    $mkLinkP  = \App\Support\MarketingNav::linkColour($mkHeadP);
+    $mkVars   = fn ($h, $out, $pad, $link) => '--mkf-bg:' . $h['bg'] . ';--mkf-op:' . $h['opacity'] . '%;--mkf-blur:' . $h['blur'] . 'px;'
+        . '--mkf-pill:color-mix(in srgb, ' . $h['pill'] . ' ' . $h['pill_strength'] . '%, transparent);'
+        . '--mkf-out:' . $out . ';--mkf-pad:' . $pad . ';--mkf-link:' . ($link ?: 'var(--mk-muted)') . ';';
     $mkHere  = '/' . ltrim(request()->path(), '/');
     $mkLeft  = array_values(array_filter($mkMenu, fn ($i) => $i['side'] === 'left'));
     $mkRight = array_values(array_filter($mkMenu, fn ($i) => $i['side'] === 'right'));
@@ -137,7 +146,17 @@
         return 'mk-nav-link' . ($path === (rtrim($mkHere, '/') ?: '/') && ! parse_url($i['url'], PHP_URL_HOST) ? ' active' : '');
     };
 @endphp
-<nav id="mk-nav" class="mk-nav{{ $mkHead['style'] === 'float' ? ' is-float' : '' }}{{ $mkLink ? ' has-link' : '' }}" style="--mkf-out:{{ $mkSpace[0] }};--mkf-pad:{{ $mkSpace[1] }};--mkf-out-m:{{ $mkSpace[2] }};--mkf-pad-m:{{ $mkSpace[3] }};{{ $mkLink ? '--mkf-link:' . $mkLink . ';' : '' }}--mkf-bg:{{ $mkHead['bg'] }};--mkf-op:{{ $mkHead['opacity'] }}%;--mkf-blur:{{ $mkHead['blur'] }}px;--mkf-pill:color-mix(in srgb, {{ $mkHead['pill'] }} {{ $mkHead['pill_strength'] }}%, transparent)">
+<style>
+    /* MARKER-MKT-NAV-PHONE — desktop and phone header settings */
+    #mk-nav { {{ $mkVars($mkHead, $mkSpace[0], $mkSpace[1], $mkLink) }} }
+    @media (max-width: 860px) {
+        #mk-nav { {{ $mkVars($mkHeadP, $mkSpaceP[0], $mkSpaceP[1], $mkLinkP) }} }
+        #mk-nav.is-float { padding: var(--mkf-out) 12px 0; }
+        #mk-nav.is-float .mk-nav-inner { padding: var(--mkf-pad); }
+    }
+</style>
+<nav id="mk-nav" class="mk-nav{{ $mkHead['style'] === 'float' ? ' is-float' : '' }}{{ ($mkLink || $mkLinkP) ? ' has-link' : '' }}"
+     data-style-desktop="{{ $mkHead['style'] }}" data-style-phone="{{ $mkHeadP['style'] }}">
     <div class="mk-nav-inner">
         <a href="{{ route('marketing.home') }}" class="mk-logo">
             <img src="{{ \App\Support\Brand::url('logo') }}" alt="Intake" style="display:block;height:26px;width:auto">
@@ -175,9 +194,21 @@
 <script>
 (function () {
     var nav = document.getElementById('mk-nav');
-    if (!nav || !nav.classList.contains('is-float')) return;
+    if (!nav) return;
     var inner = nav.querySelector('.mk-nav-inner');
-    function fit() { nav.style.setProperty('--mkf-h', (inner.offsetHeight + parseFloat(getComputedStyle(nav).paddingTop)) + 'px'); }
-    fit(); window.addEventListener('resize', fit); window.addEventListener('load', fit);
+    var phone = window.matchMedia('(max-width: 860px)');
+    // MARKER-MKT-NAV-PHONE — desktop and phone can use different styles.
+    function apply() {
+        var style = phone.matches ? nav.dataset.stylePhone : nav.dataset.styleDesktop;
+        nav.classList.toggle('is-float', style === 'float');
+        fit();
+    }
+    function fit() {
+        if (!nav.classList.contains('is-float')) { nav.style.removeProperty('--mkf-h'); return; }
+        nav.style.setProperty('--mkf-h', (inner.offsetHeight + parseFloat(getComputedStyle(nav).paddingTop)) + 'px');
+    }
+    apply();
+    if (phone.addEventListener) phone.addEventListener('change', apply); else phone.addListener(apply);
+    window.addEventListener('resize', fit); window.addEventListener('load', fit);
 })();
 </script>

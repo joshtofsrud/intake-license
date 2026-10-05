@@ -49,24 +49,29 @@
   <div class="snv-legend"><b>This list is the intake.works header</b> — on every marketing page, desktop and phone. Nothing else changes the menu. A page item hides itself while its page is unpublished and follows the page if its address changes. Changes go live when you press Save.</div>
 
   <div class="snv-card">
-    {{-- MARKER-MKT-NAV-FLOAT --}}
+    {{-- MARKER-MKT-NAV-FLOAT / MARKER-MKT-NAV-PHONE --}}
     <div class="snv-head" style="flex-wrap:wrap;justify-content:flex-start">
-      <b style="margin-right:6px">Header style</b>
-      <span class="snv-seg"><button type="button" :class="header.style==='classic' && 'on'" @click="header.style='classic'; changed()">Classic</button><button type="button" :class="header.style==='float' && 'on'" @click="header.style='float'; changed()">Floating</button></span>
-      <template x-if="header.style==='float'">
+      <b style="margin-right:6px">Header</b>
+      <span class="snv-seg" title="Which screen you're setting up"><button type="button" :class="edit==='desktop' && 'on'" @click="edit='desktop'; dev='desktop'; refresh()">Desktop</button><button type="button" :class="edit==='phone' && 'on'" @click="edit='phone'; dev='phone'; refresh()">Phone</button></span>
+      <span class="snv-dim" x-show="edit==='phone'" x-text="Object.keys(header.phone || {}).length ? 'Phone has its own settings' : 'Same as desktop'"></span>
+      <button type="button" class="snv-btn" style="padding:2px 8px;font-size:11.5px" x-show="edit==='phone' && Object.keys(header.phone || {}).length" @click="header.phone = {}; changed()">Use desktop for all</button>
+    </div>
+    <div class="snv-head" style="flex-wrap:wrap;justify-content:flex-start">
+      <b style="margin-right:6px">Style</b>
+      <span class="snv-seg"><button type="button" :class="val('style')==='classic' && 'on'" @click="set('style','classic')">Classic</button><button type="button" :class="val('style')==='float' && 'on'" @click="set('style','float')">Floating</button></span>
+      <template x-if="val('style')==='float'">
         <span style="display:inline-flex;gap:8px;flex-wrap:wrap;align-items:center;font-size:12px">
-          <label class="snv-ctl">Bar <input type="color" x-model="header.bg" @input="changed()"></label>
-          <label class="snv-ctl">Opacity <input type="range" min="0" max="100" x-model.number="header.opacity" @input="changed()"><b x-text="header.opacity + '%'"></b></label>
-          <label class="snv-ctl">Blur <input type="range" min="0" max="30" x-model.number="header.blur" @input="changed()"><b x-text="header.blur + 'px'"></b></label>
-          <label class="snv-ctl">Link pill <input type="color" x-model="header.pill" @input="changed()"><input type="range" min="0" max="30" x-model.number="header.pill_strength" @input="changed()" title="Pill strength"></label>
-          <span class="snv-seg" title="Room around and inside the bar"><template x-for="o in [['tight','Tight'],['normal','Normal'],['roomy','Roomy']]"><button type="button" :class="header.space===o[0] && 'on'" @click="header.space=o[0]; changed()" x-text="o[1]"></button></template></span>
+          <label class="snv-ctl">Bar <input type="color" :value="val('bg')" @input="set('bg', $event.target.value)"></label>
+          <label class="snv-ctl">Opacity <input type="range" min="0" max="100" :value="val('opacity')" @input="set('opacity', +$event.target.value)"><b x-text="val('opacity') + '%'"></b></label>
+          <label class="snv-ctl">Blur <input type="range" min="0" max="30" :value="val('blur')" @input="set('blur', +$event.target.value)"><b x-text="val('blur') + 'px'"></b></label>
+          <label class="snv-ctl">Link pill <input type="color" :value="val('pill')" @input="set('pill', $event.target.value)"><input type="range" min="0" max="30" :value="val('pill_strength')" @input="set('pill_strength', +$event.target.value)" title="Pill strength"></label>
+          <span class="snv-seg" title="Room around and inside the bar"><template x-for="o in [['tight','Tight'],['normal','Normal'],['roomy','Roomy']]"><button type="button" :class="val('space')===o[0] && 'on'" @click="set('space', o[0])" x-text="o[1]"></button></template></span>
         </span>
       </template>
-      {{-- MARKER-MKT-NAV-POLISH — both styles --}}
       <span class="snv-ctl" style="font-size:12px">Links
-        <input type="color" :value="header.link || '#cccccc'" @input="header.link = $event.target.value; changed()">
-        <button type="button" class="snv-btn" style="padding:2px 8px;font-size:11.5px" x-show="header.link" @click="header.link=''; changed()">Auto</button>
-        <span x-show="!header.link" style="opacity:.6">Auto</span>
+        <input type="color" :value="val('link') || '#cccccc'" @input="set('link', $event.target.value)">
+        <button type="button" class="snv-btn" style="padding:2px 8px;font-size:11.5px" x-show="val('link')" @click="set('link', '')">Auto</button>
+        <span x-show="!val('link')" style="opacity:.6">Auto</span>
       </span>
     </div>
     <div class="snv-head"><b>Preview</b>
@@ -133,6 +138,19 @@
     return {
       rows: rows, pages: pages, header: header, saved: JSON.stringify({rows: rows, header: header}), dev: 'desktop', pop: false, from: null, t: null,
       snapshot() { return JSON.stringify({rows: this.rows, header: this.header}); },
+      // MARKER-MKT-NAV-PHONE — read/write the setting for the screen being edited.
+      edit: 'desktop',
+      val(k) { var p = this.header.phone || {}; return (this.edit === 'phone' && k in p) ? p[k] : this.header[k]; },
+      set(k, v) {
+        if (this.edit === 'phone') {
+          if (!this.header.phone || Array.isArray(this.header.phone)) this.header.phone = {};
+          if (v === this.header[k]) { delete this.header.phone[k]; this.header.phone = Object.assign({}, this.header.phone); }
+          else this.header.phone = Object.assign({}, this.header.phone, {[k]: v});
+        } else {
+          this.header[k] = v;
+        }
+        this.changed();
+      },
       get dirty() { return this.snapshot() !== this.saved; },
       init() { this.refresh(); },
       changed() { clearTimeout(this.t); this.t = setTimeout(() => this.refresh(), 200); },
