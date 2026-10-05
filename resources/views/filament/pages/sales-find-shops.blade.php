@@ -247,7 +247,7 @@
       var data; try { data = JSON.parse(document.getElementById('sfs-data').textContent); } catch (e) { return; }
       if (!map) {
         map = L.map(el, { zoomControl: true }).setView([47.66, -117.43], 9);
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap &copy; CARTO' }).addTo(map);
+        /* MARKER-ESRI-DARK-TILES */ var esri = 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/'; L.tileLayer(esri + 'World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, maxNativeZoom: 16, attribution: 'Tiles &copy; Esri &mdash; Esri, HERE, Garmin, &copy; OpenStreetMap contributors' }).addTo(map); L.tileLayer(esri + 'World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, maxNativeZoom: 16 }).addTo(map);
       }
       if (layer) { layer.remove(); }
       layer = L.layerGroup().addTo(map);
