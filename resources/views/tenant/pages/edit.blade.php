@@ -2961,6 +2961,12 @@ body.ia-theme-b .pb2-preview-frame-wrap {
   function initInspectorControls() {
     const body = document.getElementById('pb2-insp-body');
     if (!body) return;
+    // MARKER-MKT-HIDE-TABLET — controls rendered elsewhere ask to sit after a field.
+    body.querySelectorAll('[data-move-after]').forEach(function (el) {
+      var t = body.querySelector('[data-field="' + el.dataset.moveAfter + '"]');
+      var row = t && (t.closest('label') || t.closest('.pb2-field'));
+      if (row && row !== el) row.after(el);
+    });
 
     // Restore the active tab after inspector reload so users don't bounce
     // back to "Content" mid-edit. If the new partial has no panels at all

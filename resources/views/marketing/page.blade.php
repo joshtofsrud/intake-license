@@ -137,7 +137,9 @@
         .mk-bg-span { position: relative; }
         .mk-bg-span section[class], .mk-bg-span footer[class] { background: transparent !important; border-bottom-color: transparent; }
         @media (max-width: 768px) { .mkw-hide-m { display: none !important; } }
-        @media (min-width: 769px) { .mkw-hide-d { display: none !important; } }
+        /* MARKER-MKT-HIDE-TABLET — phone ≤768, tablet 769–1024, desktop ≥1025 */
+        @media (min-width: 769px) and (max-width: 1024px) { .mkw-hide-t { display: none !important; } }
+        @media (min-width: 1025px) { .mkw-hide-d { display: none !important; } }
 
         .mk-eyebrow {
             font-size: 11px;
@@ -361,6 +363,7 @@
         $mkwClass  = trim('mkw ' . $mkwId . ($mkwNoLine ? ' mkw-noline' : '') . ($mkwFirst ? ' mkw-first' : '')
             . (! empty($c['hide_on_mobile'])  ? ' mkw-hide-m' : '')
             . (! empty($c['hide_on_desktop']) ? ' mkw-hide-d' : '')
+            . (! empty($c['hide_on_tablet'])  && ! in_array((string) $c['hide_on_tablet'], ['0', 'false'], true) ? ' mkw-hide-t' : '')
             . ($mkwLast ? ' mkw-last' : '')
             . ($mkwExtra !== '' ? ' ' . $mkwExtra : ''));
     @endphp

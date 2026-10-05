@@ -84,3 +84,12 @@
   </div>
 </div>
 @endif
+
+{{-- MARKER-MKT-HIDE-TABLET — moved beside "Hide on desktop" by the inspector (data-move-after). --}}
+@if($isMarketing ?? false)
+  @php $hideTab = ! empty($section->content['hide_on_tablet']) && ! in_array((string) $section->content['hide_on_tablet'], ['0', 'false'], true); @endphp
+  <label class="pb2-checkbox-row" data-move-after="hide_on_desktop">
+    <input type="checkbox" data-field="hide_on_tablet" value="1" {{ $hideTab ? 'checked' : '' }}>
+    <span>Hide on tablet <span class="pb2-field-hint">769–1024px</span></span>
+  </label>
+@endif

@@ -12,7 +12,7 @@
   $cdBtn    = trim((string) ($c['depth_button'] ?? 'View')) ?: 'View';
   $cdArrows = ! in_array((string) ($c['show_arrows'] ?? '1'), ['0', 'false', ''], true);
   $cdAnchor = preg_replace('/[^A-Za-z0-9_-]/', '', (string) ($c['anchor_id'] ?? ''));
-  $cdCls    = trim($customClass . (! empty($c['hide_on_mobile']) ? ' cd-hide-m' : '') . (! empty($c['hide_on_desktop']) ? ' cd-hide-d' : ''));
+  $cdCls    = trim($customClass . (empty($mkWrap) && ! empty($c['hide_on_mobile']) ? ' cd-hide-m' : '') . (empty($mkWrap) && ! empty($c['hide_on_desktop']) ? ' cd-hide-d' : '')); // MARKER-MKT-HIDE-TABLET
 @endphp
 <style>
   .{{ $cdId }} { padding: clamp(48px, 7vw, 96px) 0; }

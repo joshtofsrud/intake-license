@@ -42,7 +42,7 @@
 
 {{-- MARKER-CAROUSEL-DEPTH --}}
 @if(($c['carousel_style'] ?? 'classic') === 'depth')
-  @include('partials.carousel-depth', ['images' => $images, 'c' => $c, 'uid' => $uid, 'aspect' => $aspect, 'radius' => $radius, 'customClass' => $customClass])
+  @include('partials.carousel-depth', ['images' => $images, 'c' => $c, 'uid' => $uid, 'aspect' => $aspect, 'radius' => $radius, 'customClass' => $customClass, 'mkWrap' => true])
   @php return; @endphp
 @endif
 

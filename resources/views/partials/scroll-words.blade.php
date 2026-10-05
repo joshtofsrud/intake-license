@@ -24,7 +24,7 @@
   $swId     = 'sw' . substr(md5((string) ($section->id ?? uniqid())), 0, 8);
   $swAnchor = preg_replace('/[^A-Za-z0-9_-]/', '', (string) ($c['anchor_id'] ?? ''));
   $swCls    = trim(preg_replace('/[^A-Za-z0-9_ -]/', '', (string) ($c['custom_classes'] ?? ''))
-              . (! empty($c['hide_on_mobile']) ? ' sw-hide-m' : '') . (! empty($c['hide_on_desktop']) ? ' sw-hide-d' : ''));
+              . (empty($mkBg) && ! empty($c['hide_on_mobile']) ? ' sw-hide-m' : '') . (empty($mkBg) && ! empty($c['hide_on_desktop']) ? ' sw-hide-d' : '')); // MARKER-MKT-HIDE-TABLET — intake.works wrapper hides
   $swSentence = $swPrefix . ' ' . implode(', ', $swWords) . '.';
   // MARKER-SCROLL-WORDS-BG — shop sites: draw the colour or gradient here.
   // intake.works uses its shared background renderer (blend, fade, continue).
