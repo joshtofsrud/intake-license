@@ -1223,6 +1223,14 @@ class PageBuilderController extends Controller
                 }
             }
 
+            // MARKER-HERO-LEGACY-CLEAR — a saved button list replaces the old
+            // single-button fields for good, so nothing can rebuild a removed button.
+            if ($section->section_type === 'hero' && array_key_exists('buttons', $content)) {
+                foreach (['cta_primary_label', 'cta_primary_url', 'cta_secondary_label', 'cta_secondary_url'] as $legacy) {
+                    $content[$legacy] = '';
+                }
+            }
+
             $section->update([
                 'content'   => array_merge($section->content ?? [], $content),
                 'bg_color'  => $request->input('bg_color'),

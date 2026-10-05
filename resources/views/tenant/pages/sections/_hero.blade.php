@@ -24,7 +24,7 @@
   // Backward compat: if buttons[] is empty AND legacy cta_primary_label is set,
   // synthesize a buttons[] view so the editor shows them as editable rows. The
   // first save with the new editor writes buttons[] proper.
-  if (empty($buttons) && !empty($c['cta_primary_label'] ?? '')) {
+  if (empty($buttons) && ! array_key_exists('buttons', $c) && !empty($c['cta_primary_label'] ?? '')) { // MARKER-HERO-LEGACY-CLEAR — never-saved lists only
       $buttons = [
           ['label' => $c['cta_primary_label'], 'url' => $c['cta_primary_url'] ?? '/', 'style' => 'primary'],
       ];
