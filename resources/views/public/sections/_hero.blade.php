@@ -265,6 +265,11 @@
 .{{ $instId }} .p-hero-pill .p-hero-btn { border-radius: 999px; }
 .{{ $instId }} .p-hero-btn--pilllink { background: transparent; color: {{ $textColor }}; opacity: .85; }
 .{{ $instId }} .p-hero-btn--pilllink:hover { opacity: 1; }
+/* MARKER-HERO-PILL-MOBILE */
+@media (max-width: 600px) {
+  .{{ $instId }} .p-hero-pill { display: flex; flex-direction: column; width: 100%; border-radius: 22px; gap: 2px; padding: 6px; }
+  .{{ $instId }} .p-hero-pill .p-hero-btn { width: 100%; justify-content: center; text-align: center; box-sizing: border-box; }
+}
 .{{ $instId }} .p-hero-footnote {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 12px;

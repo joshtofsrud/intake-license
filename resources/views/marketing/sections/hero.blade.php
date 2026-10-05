@@ -113,6 +113,11 @@
     .{{ $hid }} .mk-hero-pill .mk-btn { border-radius: 999px; }
     .{{ $hid }} .mk-btn--pilllink { background: transparent; border: 0; color: var(--mk-text); opacity: .85; }
     .{{ $hid }} .mk-btn--pilllink:hover { opacity: 1; }
+    /* MARKER-HERO-PILL-MOBILE */
+    @media (max-width: 600px) {
+        .{{ $hid }} .mk-hero-pill { display: flex; flex-direction: column; width: 100%; border-radius: 22px; gap: 2px; padding: 6px; }
+        .{{ $hid }} .mk-hero-pill .mk-btn { width: 100%; justify-content: center; text-align: center; }
+    }
     .mk-hero-note { font-size: 12px; color: var(--mk-dim); }
 </style>
 
