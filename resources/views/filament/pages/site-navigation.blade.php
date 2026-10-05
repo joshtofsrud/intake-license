@@ -13,6 +13,18 @@
   .snv-ctl input[type=color]{width:24px;height:20px;border:0;background:none;padding:0}
   .snv-ctl input[type=range]{width:90px}
   .snv-ctl b{min-width:34px;text-align:right;font-weight:500}
+  /* MARKER-MKT-NAV-CONTROLS */
+  .snv-groups{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px;margin:4px 0 16px}
+  .snv-group{border:1px solid var(--snv-line);border-radius:10px;padding:12px 14px}
+  .snv-group h4{margin:0 0 8px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;opacity:.6;font-weight:600}
+  .snv-row{display:flex;align-items:center;gap:8px;min-height:30px;font-size:12.5px}
+  .snv-row>span:first-child{flex:0 0 112px;opacity:.75}
+  .snv-row input[type=range]{flex:1;min-width:0}
+  .snv-row input[type=color]{width:26px;height:22px;border:0;background:none;padding:0}
+  .snv-row b{min-width:42px;text-align:right;font-weight:500}
+  .snv-row i{font-style:normal;opacity:.55}
+  .snv-mini{padding:2px 8px;font-size:11.5px}
+  .snv-note{margin:6px 0 0;font-size:11.5px;opacity:.55}
   .snv-frame{width:100%;height:100px;border:1px solid var(--snv-line);border-radius:10px;background:#0a0a0a;display:block;margin:0 auto}
   .snv-frame.phone{width:390px;max-width:100%;height:520px}
   .snv-dim{font-size:12px;opacity:.6}
@@ -49,33 +61,52 @@
   <div class="snv-legend"><b>This list is the intake.works header</b> — on every marketing page, desktop and phone. Nothing else changes the menu. A page item hides itself while its page is unpublished and follows the page if its address changes. Changes go live when you press Save.</div>
 
   <div class="snv-card">
-    {{-- MARKER-MKT-NAV-FLOAT / MARKER-MKT-NAV-PHONE --}}
-    <div class="snv-head" style="flex-wrap:wrap;justify-content:flex-start">
-      <b style="margin-right:6px">Header</b>
+    {{-- MARKER-MKT-NAV-CONTROLS — header settings in four titled groups; every
+         control follows the Desktop | Phone switch (val / set). --}}
+    <div class="snv-head" style="flex-wrap:wrap;justify-content:flex-start;gap:10px">
+      <b>Header</b>
       <span class="snv-seg" title="Which screen you're setting up"><button type="button" :class="edit==='desktop' && 'on'" @click="edit='desktop'; dev='desktop'; refresh()">Desktop</button><button type="button" :class="edit==='phone' && 'on'" @click="edit='phone'; dev='phone'; refresh()">Phone</button></span>
       <span class="snv-dim" x-show="edit==='phone'" x-text="Object.keys(header.phone || {}).length ? 'Phone has its own settings' : 'Same as desktop'"></span>
       <button type="button" class="snv-btn" style="padding:2px 8px;font-size:11.5px" x-show="edit==='phone' && Object.keys(header.phone || {}).length" @click="header.phone = {}; changed()">Use desktop for all</button>
     </div>
-    <div class="snv-head" style="flex-wrap:wrap;justify-content:flex-start">
-      <b style="margin-right:6px">Style</b>
-      <span class="snv-seg"><button type="button" :class="val('style')==='classic' && 'on'" @click="set('style','classic')">Classic</button><button type="button" :class="val('style')==='float' && 'on'" @click="set('style','float')">Floating</button></span>
-      <template x-if="val('style')==='float'">
-        <span style="display:inline-flex;gap:8px;flex-wrap:wrap;align-items:center;font-size:12px">
-          <label class="snv-ctl">Bar <input type="color" :value="val('bg')" @input="set('bg', $event.target.value)"></label>
-          <label class="snv-ctl">Opacity <input type="range" min="0" max="100" :value="val('opacity')" @input="set('opacity', +$event.target.value)"><b x-text="val('opacity') + '%'"></b></label>
-          <label class="snv-ctl">Blur <input type="range" min="0" max="30" :value="val('blur')" @input="set('blur', +$event.target.value)"><b x-text="val('blur') + 'px'"></b></label>
-          <label class="snv-ctl">Link pill <input type="color" :value="val('pill')" @input="set('pill', $event.target.value)"><input type="range" min="0" max="30" :value="val('pill_strength')" @input="set('pill_strength', +$event.target.value)" title="Pill strength"></label>
-          <span class="snv-seg" title="Room around and inside the bar"><template x-for="o in [['tight','Tight'],['normal','Normal'],['roomy','Roomy']]"><button type="button" :class="val('space')===o[0] && 'on'" @click="set('space', o[0])" x-text="o[1]"></button></template></span>
-          <label class="snv-ctl" title="How far the logo and ☰ sit from the bar's ends (0 = Spacing default)">Edge room <input type="range" min="0" max="60" step="2" :value="val('pad_x')" @input="set('pad_x', +$event.target.value)"><b x-text="val('pad_x') ? val('pad_x') + 'px' : 'auto'"></b></label>
-          <label class="snv-ctl" title="Blur and fade the page as it scrolls up behind the bar"><input type="checkbox" :checked="!!val('fade')" @change="set('fade', $event.target.checked)"> Fade under</label>
-        </span>
-      </template>
-      <span class="snv-seg" x-show="edit==='phone'" title="Where the header buttons sit on phones"><template x-for="o in [['beside','Beside menu'],['centre','Centre'],['menu','In menu only']]"><button type="button" :class="val('btn_pos')===o[0] && 'on'" @click="set('btn_pos', o[0])" x-text="o[1]"></button></template></span>
-      <span class="snv-ctl" style="font-size:12px">Links
-        <input type="color" :value="val('link') || '#cccccc'" @input="set('link', $event.target.value)">
-        <button type="button" class="snv-btn" style="padding:2px 8px;font-size:11.5px" x-show="val('link')" @click="set('link', '')">Auto</button>
-        <span x-show="!val('link')" style="opacity:.6">Auto</span>
-      </span>
+    <div class="snv-groups">
+      <section class="snv-group">
+        <h4>Bar</h4>
+        <div class="snv-row"><span>Style</span>
+          <span class="snv-seg"><button type="button" :class="val('style')==='classic' && 'on'" @click="set('style','classic')">Classic</button><button type="button" :class="val('style')==='float' && 'on'" @click="set('style','float')">Floating</button></span></div>
+        <template x-if="val('style')==='float'"><div>
+          <div class="snv-row"><span>Colour</span><input type="color" :value="val('bg')" @input="set('bg', $event.target.value)"></div>
+          <div class="snv-row"><span>Opacity</span><input type="range" min="0" max="100" :value="val('opacity')" @input="set('opacity', +$event.target.value)"><b x-text="val('opacity') + '%'"></b></div>
+          <div class="snv-row"><span>Blur</span><input type="range" min="0" max="30" :value="val('blur')" @input="set('blur', +$event.target.value)"><b x-text="val('blur') + 'px'"></b></div>
+          <div class="snv-row"><span>Spacing</span><span class="snv-seg"><template x-for="o in [['tight','Tight'],['normal','Normal'],['roomy','Roomy']]"><button type="button" :class="val('space')===o[0] && 'on'" @click="set('space', o[0])" x-text="o[1]"></button></template></span></div>
+          <div class="snv-row"><span>Edge room</span><input type="range" min="0" max="60" step="2" :value="val('pad_x')" @input="set('pad_x', +$event.target.value)"><b x-text="val('pad_x') ? val('pad_x') + 'px' : 'auto'"></b></div>
+          <div class="snv-row"><span>Fade under</span><input type="checkbox" :checked="!!val('fade')" @change="set('fade', $event.target.checked)"></div>
+        </div></template>
+      </section>
+      <section class="snv-group">
+        <h4>Links</h4>
+        <div class="snv-row"><span>Colour</span><input type="color" :value="val('link') || '#cccccc'" @input="set('link', $event.target.value)"><button type="button" class="snv-btn snv-mini" x-show="val('link')" @click="set('link', '')">Auto</button><i x-show="!val('link')">Auto</i></div>
+        <template x-if="val('style')==='float'"><div>
+          <div class="snv-row"><span>Pill</span><input type="color" :value="val('pill')" @input="set('pill', $event.target.value)"></div>
+          <div class="snv-row"><span>Pill strength</span><input type="range" min="0" max="30" :value="val('pill_strength')" @input="set('pill_strength', +$event.target.value)"><b x-text="val('pill_strength') + '%'"></b></div>
+        </div></template>
+      </section>
+      <section class="snv-group">
+        <h4>Buttons</h4>
+        <div class="snv-row"><span>Text</span><input type="color" :value="val('btn_text') || '#111111'" @input="set('btn_text', $event.target.value)"><button type="button" class="snv-btn snv-mini" x-show="val('btn_text')" @click="set('btn_text', '')">Auto</button><i x-show="!val('btn_text')">Auto</i></div>
+        <div class="snv-row"><span>Fill</span><input type="color" :value="val('btn_fill') || '#bef264'" @input="set('btn_fill', $event.target.value)"><button type="button" class="snv-btn snv-mini" x-show="val('btn_fill')" @click="set('btn_fill', '')">Auto</button><i x-show="!val('btn_fill')">Auto</i></div>
+        <template x-if="edit==='phone'"><div>
+          <div class="snv-row"><span>Position</span><span class="snv-seg"><button type="button" :class="val('btn_pos')!=='menu' && 'on'" @click="set('btn_pos','bar')">In the bar</button><button type="button" :class="val('btn_pos')==='menu' && 'on'" @click="set('btn_pos','menu')">In menu only</button></span></div>
+          <div class="snv-row" x-show="val('btn_pos')!=='menu'"><span>Distance from ☰</span><input type="range" min="0" max="200" step="2" :value="val('btn_dist')" @input="set('btn_dist', +$event.target.value)"><b x-text="val('btn_dist') + 'px'"></b></div>
+        </div></template>
+        <p class="snv-note">Applies in the bar and inside the ☰ menu, so the button looks the same in both.</p>
+      </section>
+      <section class="snv-group">
+        <h4>Phone menu</h4>
+        <div class="snv-row"><span>Panel</span><input type="color" :value="val('menu_bg') || val('bg')" @input="set('menu_bg', $event.target.value)"><button type="button" class="snv-btn snv-mini" x-show="val('menu_bg')" @click="set('menu_bg', '')">Auto</button><i x-show="!val('menu_bg')">Same as bar</i></div>
+        <div class="snv-row"><span>Links</span><input type="color" :value="val('menu_link') || '#cccccc'" @input="set('menu_link', $event.target.value)"><button type="button" class="snv-btn snv-mini" x-show="val('menu_link')" @click="set('menu_link', '')">Auto</button><i x-show="!val('menu_link')">Same as links</i></div>
+        <p class="snv-note">The panel that opens from ☰ on phones.</p>
+      </section>
     </div>
     <div class="snv-head"><b>Preview</b>
       <span class="snv-seg"><button type="button" :class="dev==='desktop' && 'on'" @click="dev='desktop'; refresh()">Desktop</button><button type="button" :class="dev==='phone' && 'on'" @click="dev='phone'; refresh()">Phone</button></span></div>

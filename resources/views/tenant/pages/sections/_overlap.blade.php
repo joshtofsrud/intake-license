@@ -105,3 +105,37 @@
     <span>Hide on tablet <span class="pb2-field-hint">769–1024px</span></span>
   </label>
 @endif
+
+{{-- MARKER-MKT-APPEAR / MARKER-MKT-DIVIDER — intake.works only. --}}
+@if($isMarketing ?? false)
+@php
+  $apMode  = in_array($section->content['appear'] ?? 'none', ['none', 'fade', 'up'], true) ? ($section->content['appear'] ?? 'none') : 'none';
+  $apDelay = (string) (in_array((int) ($section->content['appear_delay'] ?? 0), [0, 150, 300], true) ? (int) $section->content['appear_delay'] : 0);
+  $divOn   = ! empty($section->content['divider_below']) && ! in_array((string) $section->content['divider_below'], ['0', 'false'], true);
+@endphp
+<div class="pb2-group">
+  <div class="pb2-group-title">Appear on scroll</div>
+  <div class="pb2-field">
+    <div class="pb2-seg" data-field-seg="appear">
+      @foreach(['none' => 'None', 'fade' => 'Fade in', 'up' => 'Fade up'] as $v => $n)
+        <button type="button" class="pb2-seg-btn {{ $apMode === $v ? 'active' : '' }}" data-seg-value="{{ $v }}">{{ $n }}</button>
+      @endforeach
+    </div>
+    <input type="hidden" data-field="appear" value="{{ $apMode }}">
+  </div>
+  <div class="pb2-field">
+    <label class="pb2-field-label">Delay</label>
+    <div class="pb2-seg" data-field-seg="appear_delay">
+      @foreach(['0' => 'None', '150' => '150ms', '300' => '300ms'] as $v => $n)
+        <button type="button" class="pb2-seg-btn {{ $apDelay === (string) $v ? 'active' : '' }}" data-seg-value="{{ $v }}">{{ $n }}</button>
+      @endforeach
+    </div>
+    <input type="hidden" data-field="appear_delay" value="{{ $apDelay }}">
+  </div>
+  <div class="pb2-field-hint" style="text-align:left;display:block">Plays once, the first time the section scrolls into view. Visitors who prefer reduced motion see it straight away.</div>
+</div>
+<label class="pb2-checkbox-row" data-move-after="hide_on_tablet">
+  <input type="checkbox" data-field="divider_below" value="1" {{ $divOn ? 'checked' : '' }}>
+  <span>Divider line below</span>
+</label>
+@endif

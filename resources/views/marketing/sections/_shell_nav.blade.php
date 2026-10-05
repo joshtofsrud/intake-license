@@ -139,7 +139,11 @@
     $mkVars   = fn ($h, $out, $pad, $link) => '--mkf-bg:' . $h['bg'] . ';--mkf-op:' . $h['opacity'] . '%;--mkf-blur:' . $h['blur'] . 'px;'
         . '--mkf-pill:color-mix(in srgb, ' . $h['pill'] . ' ' . $h['pill_strength'] . '%, transparent);'
         . '--mkf-out:' . $out . ';--mkf-pad:' . $pad . ';--mkf-link:' . ($link ?: 'var(--mk-muted)') . ';'
-    . '--mkf-fade:' . (! empty($h['fade']) ? '1' : '0') . ';'; // MARKER-MKT-NAV-EDGE
+    . '--mkf-fade:' . (! empty($h['fade']) ? '1' : '0') . ';' // MARKER-MKT-NAV-EDGE
+    // MARKER-MKT-NAV-BUTTONS / MENU — unset values fall back ("initial" makes var() use its fallback)
+    . '--mkf-btn-text:' . ($h['btn_text'] ?: 'initial') . ';--mkf-btn-fill:' . ($h['btn_fill'] ?: 'initial') . ';'
+    . '--mkf-btn-dist:' . (int) $h['btn_dist'] . 'px;'
+    . '--mkf-menu-bg:' . ($h['menu_bg'] ?: 'initial') . ';--mkf-menu-link:' . ($h['menu_link'] ?: 'initial') . ';';
     $mkHere  = '/' . ltrim(request()->path(), '/');
     $mkLeft  = array_values(array_filter($mkMenu, fn ($i) => $i['side'] === 'left'));
     $mkRight = array_values(array_filter($mkMenu, fn ($i) => $i['side'] === 'right'));
@@ -162,13 +166,19 @@
         backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
         mask-image: linear-gradient(to bottom, #000 45%, transparent); -webkit-mask-image: linear-gradient(to bottom, #000 45%, transparent);
     }
+    /* MARKER-MKT-NAV-BUTTONS — button colours, same in the bar and the ☰ menu */
+    #mk-nav .mk-btn--primary { background: var(--mkf-btn-fill, var(--mk-accent)); color: var(--mkf-btn-text, var(--mk-accent-text)); }
+    #mk-nav .mk-btn--ghost { color: var(--mkf-btn-text, var(--mk-text)); border-color: var(--mkf-btn-fill, rgba(255,255,255,.2)); }
+    /* MARKER-MKT-NAV-MENU — the phone menu's own colours */
+    #mk-nav .mk-mobile-nav a:not(.mk-btn) { color: var(--mkf-menu-link, var(--mkf-link, var(--mk-muted))); }
+    #mk-nav .mk-mobile-nav { background-color: var(--mkf-menu-bg, var(--mk-bg, #0c0c0c)); }
+    #mk-nav.is-float .mk-mobile-nav { background: color-mix(in srgb, var(--mkf-menu-bg, var(--mkf-bg)) var(--mkf-op), transparent); }
     /* MARKER-MKT-NAV-BTNPOS — where the header buttons sit on phones */
     #mk-nav .mk-mobile-cta { display: none; }
     @media (max-width: 860px) {
-        #mk-nav[data-btnpos="centre"] .mk-nav-end { margin-left: auto; margin-right: auto; }
-        #mk-nav[data-btnpos="centre"] .mk-hamburger { margin-left: 0; }
-        #mk-nav[data-btnpos="beside"] .mk-nav-end { margin-left: auto; }
-        #mk-nav[data-btnpos="beside"] .mk-hamburger { margin-left: 8px; }
+        /* MARKER-MKT-NAV-BUTTONS — in the bar, a set distance from ☰ */
+        #mk-nav[data-btnpos="bar"] .mk-nav-end { margin-left: auto; margin-right: var(--mkf-btn-dist, 0px); }
+        #mk-nav[data-btnpos="bar"] .mk-hamburger { margin-left: 8px; }
         #mk-nav[data-btnpos="menu"] .mk-nav-end .mk-btn { display: none; }
         #mk-nav[data-btnpos="menu"] .mk-mobile-cta { display: flex; justify-content: center; width: 100%; box-sizing: border-box; margin: 4px 0 8px; border-bottom: 0; }
     }
@@ -181,7 +191,7 @@
     }
 </style>
 <nav id="mk-nav" class="mk-nav{{ $mkHead['style'] === 'float' ? ' is-float' : '' }}{{ ($mkLink || $mkLinkP) ? ' has-link' : '' }}"
-     data-style-desktop="{{ $mkHead['style'] }}" data-style-phone="{{ $mkHeadP['style'] }}" data-btnpos="{{ $mkHeadP['btn_pos'] }}">
+     data-style-desktop="{{ $mkHead['style'] }}" data-style-phone="{{ $mkHeadP['style'] }}" data-btnpos="{{ $mkHeadP['btn_pos'] === 'menu' ? 'menu' : 'bar' }}">
     <div class="mk-nav-inner">
         <a href="{{ route('marketing.home') }}" class="mk-logo">
             <img src="{{ \App\Support\Brand::url('logo') }}" alt="Intake" style="display:block;height:26px;width:auto">

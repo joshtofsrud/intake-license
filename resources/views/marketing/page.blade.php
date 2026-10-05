@@ -133,6 +133,13 @@
            last one is marked by the loop; :last-of-type would match them all. */
         .mkw-last > .mk-section { border-bottom: none; }
         .mkw-noline > section { border-bottom-color: transparent !important; } /* MARKER-MKT-NO-LINE */
+        /* MARKER-MKT-DIVIDER — no divider lines unless a section asks for one */
+        .mkw > section { border-bottom-color: transparent !important; }
+        .mkw.mkw-divider > section { border-bottom: 0.5px solid var(--mk-border) !important; }
+        /* MARKER-MKT-APPEAR */
+        html.mk-appear-on .mk-appear { opacity: 0; transition: opacity .7s ease, transform .7s ease; transition-delay: var(--mk-appear-delay, 0ms); }
+        html.mk-appear-on .mk-appear-up { transform: translateY(28px); }
+        html.mk-appear-on .mk-appear.is-in { opacity: 1; transform: none; }
         /* MARKER-MKT-BG-CHAIN — sections sharing a gradient show no divider between them. */
         .mkw[data-bg-chain] > section { border-bottom-color: transparent !important; }
         @media (max-width: 768px) { .mkw-hide-m { display: none !important; } }
@@ -173,6 +180,9 @@
             color: var(--mk-accent-text);
         }
     </style>
+    <script>/* MARKER-MKT-APPEAR — hide appearing sections only when they can be shown again */
+      if (!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) && 'IntersectionObserver' in window) document.documentElement.classList.add('mk-appear-on');
+    </script>
 </head>
 <body>
 
@@ -196,7 +206,31 @@
   [data-pb-section].pb-flash::after { opacity: 1; }
   [data-pb-section].pb-flash::after { transition: opacity .35s; }
   [data-pb-section] { cursor: pointer; }
+  /* MARKER-PB-HIDDEN-LABEL */
+  [data-pb-section].pb-hidden-here::before {
+    content: attr(data-hidden-label); display: block; width: fit-content; margin: 6px auto;
+    padding: 4px 10px; border: 1px dashed rgba(255,255,255,.25); border-radius: 999px;
+    font: 500 11.5px/1.4 system-ui, sans-serif; color: rgba(255,255,255,.6); background: rgba(0,0,0,.35);
+  }
 </style>
+<script>
+(function () {
+  function label() {
+    var w = window.innerWidth, dev = w <= 768 ? 'Phone' : (w <= 1024 ? 'Tablet' : 'Desktop');
+    document.querySelectorAll('[data-pb-section]').forEach(function (s) {
+      var m = s.querySelector('.mkw');
+      var hidden = m && m.getClientRects().length === 0;
+      s.classList.toggle('pb-hidden-here', !!hidden);
+      if (hidden) {
+        var t = (s.dataset.pbType || 'section').replace(/_/g, ' ');
+        s.setAttribute('data-hidden-label', t.charAt(0).toUpperCase() + t.slice(1) + ' · hidden on ' + dev);
+      }
+    });
+  }
+  label(); window.addEventListener('resize', label); window.addEventListener('load', label);
+  if (window.MutationObserver) new MutationObserver(label).observe(document.body, { childList: true, subtree: true });
+})();
+</script>
 <script>
 (function () {
   function boot() {
@@ -351,6 +385,8 @@
             . (! empty($c['hide_on_desktop']) ? ' mkw-hide-d' : '')
             . (! empty($c['hide_on_tablet'])  && ! in_array((string) $c['hide_on_tablet'], ['0', 'false'], true) ? ' mkw-hide-t' : '')
             . ($mkwLast ? ' mkw-last' : '')
+            . (! empty($c['divider_below']) && ! in_array((string) $c['divider_below'], ['0', 'false'], true) ? ' mkw-divider' : '') // MARKER-MKT-DIVIDER
+            . (in_array($c['appear'] ?? '', ['fade', 'up'], true) ? ' mk-appear' . (($c['appear'] ?? '') === 'up' ? ' mk-appear-up' : '') : '') // MARKER-MKT-APPEAR
             . ($mkwExtra !== '' ? ' ' . $mkwExtra : ''));
     @endphp
 
@@ -371,7 +407,7 @@
           </style>
           <div class="{{ $pullId }}">
         @endif
-        <div class="{{ $mkwClass }}" @if($mkwAnchor !== '') id="{{ $mkwAnchor }}" @endif @isset($mkGradCss[(string) $section->id]) data-bg-grad="{{ $mkGradCss[(string) $section->id] }}" @endisset @if(! empty($c['bg_continue']) && ! in_array((string) $c['bg_continue'], ['0', 'false'], true)) data-bg-cont="1" @endif>
+        <div class="{{ $mkwClass }}" @if(in_array($c['appear'] ?? '', ['fade', 'up'], true)) style="--mk-appear-delay: {{ in_array((int) ($c['appear_delay'] ?? 0), [0, 150, 300], true) ? (int) $c['appear_delay'] : 0 }}ms" @endif @if($mkwAnchor !== '') id="{{ $mkwAnchor }}" @endif @isset($mkGradCss[(string) $section->id]) data-bg-grad="{{ $mkGradCss[(string) $section->id] }}" @endisset @if(! empty($c['bg_continue']) && ! in_array((string) $c['bg_continue'], ['0', 'false'], true)) data-bg-cont="1" @endif>
         @if($mkwTop !== null || $mkwBot !== null || $mkwHead || $mkwBody)
           <style>
             @if($mkwTop !== null) .{{ $mkwId }} > section, .{{ $mkwId }} > footer, .{{ $mkwId }} > div { padding-top: {{ $mkwTop }} !important; } @endif
@@ -401,12 +437,25 @@
 @endforeach
 
 <script>
+/* MARKER-MKT-APPEAR — reveal each section the first time it scrolls into view. */
+(function () {
+  if (!document.documentElement.classList.contains('mk-appear-on')) return;
+  var els = document.querySelectorAll('.mk-appear');
+  var io = new IntersectionObserver(function (es) {
+    es.forEach(function (e) { if (e.isIntersecting) { e.target.classList.add('is-in'); io.unobserve(e.target); } });
+  }, { threshold: 0.12 });
+  els.forEach(function (el) { io.observe(el); });
+  setTimeout(function () { els.forEach(function (el) { if (el.getBoundingClientRect().top < innerHeight) el.classList.add('is-in'); }); }, 2500);
+})();
+</script>
+<script>
 /* MARKER-MKT-BG-CHAIN — join each gradient with the VISIBLE sections that
    continue it (sections hidden on this screen size are skipped), and paint
    one gradient across them. Re-measured whenever sizes change. */
 (function () {
   var PROPS = ['background', 'background-size', 'background-position', 'background-repeat'];
   function sec(el) { return el.querySelector(':scope > section') || el.querySelector(':scope > footer'); }
+  function docTop(el) { var t = 0; while (el) { t += el.offsetTop; el = el.offsetParent; } return t; }
   function paint() {
     document.querySelectorAll('.mkw[data-bg-chain]').forEach(function (el) {
       el.removeAttribute('data-bg-chain');
@@ -420,14 +469,15 @@
       while (j < all.length && all[j].dataset.bgCont) j++;
       if (j === i + 1) continue;
       var chain = all.slice(i, j);
-      var top = chain[0].getBoundingClientRect().top;
-      var total = chain[chain.length - 1].getBoundingClientRect().bottom - top;
+      var top = docTop(chain[0]);
+      var lastEl = chain[chain.length - 1];
+      var total = docTop(lastEl) + lastEl.offsetHeight - top;
       chain.forEach(function (el) {
         var s = sec(el); if (!s) return;
         el.setAttribute('data-bg-chain', '1');
         s.style.setProperty('background', head.dataset.bgGrad, 'important');
         s.style.setProperty('background-size', '100% ' + total + 'px', 'important');
-        s.style.setProperty('background-position', '0 ' + (top - s.getBoundingClientRect().top) + 'px', 'important');
+        s.style.setProperty('background-position', '0 ' + (top - docTop(s)) + 'px', 'important');
         s.style.setProperty('background-repeat', 'no-repeat', 'important');
       });
       i = j - 1;
