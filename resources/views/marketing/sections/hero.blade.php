@@ -119,6 +119,20 @@
         .{{ $hid }} .mk-hero-pill .mk-btn { width: 100%; justify-content: center; text-align: center; }
     }
     .mk-hero-note { font-size: 12px; color: var(--mk-dim); }
+    /* MARKER-HERO-SPLIT — headline beside the copy */
+    .{{ $hid }} .mk-hsplit { display: flex; align-items: center; gap: clamp(28px, 5vw, 72px); text-align: left; }
+    .{{ $hid }} .mk-hsplit.is-flip { flex-direction: row-reverse; }
+    .{{ $hid }} .mk-hs-art { flex: 0 0 50%; min-width: 0; }
+    .{{ $hid }} .mk-hs-copy { flex: 1; min-width: 0; }
+    .{{ $hid }} .mk-hsplit h1 { max-width: none; margin-left: 0; margin-right: 0; text-align: left; margin-bottom: 0; }
+    .{{ $hid }} .mk-hs-copy .mk-hero-sub { margin-left: 0; margin-right: 0; text-align: left; }
+    .{{ $hid }} .mk-hs-copy .mk-hero-actions { justify-content: flex-start; }
+    @media (max-width: 860px) {
+        .{{ $hid }} .mk-hsplit, .{{ $hid }} .mk-hsplit.is-flip { flex-direction: column; align-items: stretch; text-align: {{ $align }}; gap: 18px; }
+        .{{ $hid }} .mk-hs-art { flex: none; }
+        .{{ $hid }} .mk-hsplit h1, .{{ $hid }} .mk-hs-copy .mk-hero-sub { text-align: {{ $align }}; @if($align === 'center') margin-left: auto; margin-right: auto; @endif }
+        .{{ $hid }} .mk-hs-copy .mk-hero-actions { justify-content: {{ $justify }}; }
+    }
 </style>
 
 @php
@@ -127,14 +141,21 @@
     $hfxF = max(0, min(100, (int) ($c['scroll_fade'] ?? 0)));
     $hfxB = max(0, min(20,  (int) ($c['scroll_blur'] ?? 0)));
     $hfxOn = $hfxP || $hfxF || $hfxB;
+    // MARKER-HERO-SPLIT
+    $hsLayout = in_array($c['hero_layout'] ?? 'stacked', ['stacked', 'split', 'split_flip'], true) ? ($c['hero_layout'] ?? 'stacked') : 'stacked';
+    $hsSplit  = $hsLayout !== 'stacked';
 @endphp
 <section class="mk-hero {{ $bgId }} {{ $hid }}">
     <div class="mk-container"><div class="mk-hero-fx" @if($hfxOn) data-hfx="{{ $hfxP }},{{ $hfxF }},{{ $hfxB }}" @endif>
-        @if(!empty($c['eyebrow']))
+        @if($hsSplit)<div class="mk-hsplit{{ $hsLayout === 'split_flip' ? ' is-flip' : '' }}"><div class="mk-hs-art">@endif
+        @if(!empty($c['eyebrow']) && ! $hsSplit)
             <div class="mk-eyebrow">{{ $c['eyebrow'] }}</div>
         @endif
 
         <h1>{!! $safeHeadline !!}</h1>
+        @if($hsSplit)</div><div class="mk-hs-copy">
+            @if(!empty($c['eyebrow']))<div class="mk-eyebrow">{{ $c['eyebrow'] }}</div>@endif
+        @endif
 
         @if(!empty($c['subheading']))
             <p class="mk-hero-sub">{{ $c['subheading'] }}</p>
@@ -156,6 +177,7 @@
         @if(!empty($c['note']))
             <p class="mk-hero-note">{{ $c['note'] }}</p>
         @endif
+        @if($hsSplit)</div></div>@endif
     </div></div>
 </section>
 @if($hfxOn)

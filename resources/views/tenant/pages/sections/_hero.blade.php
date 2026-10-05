@@ -237,6 +237,21 @@
     STYLE TAB
 ==================================================================--}}
 <div class="pb2-tab-panel" data-tab="style" hidden>
+  {{-- MARKER-HERO-SPLIT — intake.works only --}}
+  @if($isMarketing ?? false)
+  <div class="pb2-group">
+    <div class="pb2-group-title">Layout</div>
+    <div class="pb2-field">
+      <div class="pb2-seg" data-field-seg="hero_layout">
+        @foreach(['stacked' => 'Stacked', 'split' => 'Split', 'split_flip' => 'Split ⇄'] as $v => $n)
+          <button type="button" class="pb2-seg-btn {{ $get('hero_layout', 'stacked') === $v ? 'active' : '' }}" data-seg-value="{{ $v }}">{{ $n }}</button>
+        @endforeach
+      </div>
+      <input type="hidden" data-field="hero_layout" value="{{ $get('hero_layout', 'stacked') }}">
+      <div class="pb2-field-hint" style="text-align:left;display:block;margin-top:4px">Split puts the headline on one side and the eyebrow, text and buttons on the other. Stacks on phones, headline first.</div>
+    </div>
+  </div>
+  @endif
   {{-- MARKER-HERO-SCROLLFX — intake.works only (shop heroes don't read these yet) --}}
   @if($isMarketing ?? false)
   <div class="pb2-group">
