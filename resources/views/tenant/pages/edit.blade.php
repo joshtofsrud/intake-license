@@ -1977,6 +1977,227 @@ body.ia-theme-b .pb2-preview-frame-wrap {
       @endif
     </div>
 
+    {{-- MARKER-PAGE-SEARCH-SHARING — the page's title, description and share
+         image for Google and link previews. These live in the page head, so
+         nothing on the page shows them: the legend says so plainly. Saved by
+         its own op with its own Save button; section edits are untouched. --}}
+    @if(($page->kind ?? 'page') !== 'howto')
+    @php
+      $ssMkt     = $isMarketing ?? false;
+      $ssTenant  = \App\Models\Tenant::find($page->tenant_id);
+      $ssOwnImg  = \App\Support\Brand::storagePublicUrl($page->og_image_url);
+      $ssFallImg = $ssMkt ? \App\Support\Brand::url('og') : \App\Support\Seo::shareImageFallback($ssTenant);
+      $ssSite    = $ssMkt ? 'Intake' : (string) ($ssTenant->name ?? '');
+      $ssCustom  = filled($page->meta_title) || filled($page->meta_description) || filled($page->og_image_url);
+      $ssHost    = (string) parse_url($previewUrl ?? '', PHP_URL_HOST);
+      $ssPath    = $page->is_home ? '/' : '/' . $page->slug;
+    @endphp
+    <style>
+    .pb2-ss { border-bottom: 0.5px solid var(--pb2-border); flex: 0 0 auto; }
+    .pb2-ss-head { display: flex; align-items: center; gap: 8px; width: 100%; padding: 11px 18px;
+      background: none; border: none; cursor: pointer; font-family: inherit; color: var(--pb2-text); text-align: left; }
+    .pb2-ss-title { font-size: 12px; font-weight: 600; }
+    .pb2-ss-state { font-size: 10.5px; color: var(--pb2-text-faint); margin-left: auto; }
+    .pb2-ss-state.is-custom { color: var(--pb2-accent); }
+    body.ia-theme-b .pb2-ss-state.is-custom { color: #3F6212; }
+    .pb2-ss-chev { color: var(--pb2-text-faint); transition: transform .15s; flex: none; }
+    .pb2-ss-head[aria-expanded="true"] .pb2-ss-chev { transform: rotate(180deg); }
+    .pb2-ss-body { padding: 0 18px 14px; }
+    .pb2-ss-legend { font-size: 11px; color: var(--pb2-text-dim); line-height: 1.5; margin-bottom: 12px; }
+    .pb2-ss-field { margin-bottom: 11px; }
+    .pb2-ss-label { display: flex; justify-content: space-between; align-items: baseline; font-size: 11px;
+      font-weight: 500; color: var(--pb2-text-dim); margin-bottom: 5px; }
+    .pb2-ss-count, .pb2-ss-hint { font-family: var(--pb2-mono); font-size: 10px; color: var(--pb2-text-faint); }
+    .pb2-ss-count.is-over { color: #F0C46A; }
+    .pb2-ss-input { width: 100%; box-sizing: border-box; background: rgba(255,255,255,.07); border: .5px solid var(--pb2-border);
+      border-radius: 8px; color: var(--pb2-text); padding: 7px 10px; font-family: inherit; font-size: 12px; line-height: 1.45; }
+    body.ia-theme-b .pb2-ss-input { background: rgba(15,20,25,.04); }
+    .pb2-ss-input:focus { border-color: var(--pb2-accent); outline: none; }
+    .pb2-ss-input::placeholder { color: var(--pb2-text-faint); }
+    textarea.pb2-ss-input { resize: vertical; min-height: 58px; }
+    .pb2-ss-img { display: flex; gap: 10px; align-items: center; }
+    .pb2-ss-thumb { width: 96px; aspect-ratio: 1200 / 630; flex: none; border-radius: 6px; overflow: hidden;
+      border: .5px solid var(--pb2-border); background: rgba(127,127,127,.08); position: relative;
+      display: flex; align-items: center; justify-content: center; font-size: 10px; color: var(--pb2-text-faint); text-align: center; line-height: 1.3; }
+    .pb2-ss-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .pb2-ss-thumb.is-default img { opacity: .45; }
+    .pb2-ss-tag { position: absolute; left: 4px; bottom: 4px; font-size: 9px; padding: 1px 5px; border-radius: 4px;
+      background: rgba(0,0,0,.6); color: #fff; }
+    .pb2-ss-imgacts { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+    .pb2-ss-imgacts .pb2-status-btn { padding: 5px 10px; font-size: 11.5px; }
+    .pb2-ss-preview { margin-top: 12px; padding: 10px 11px; border-radius: 8px; background: rgba(127,127,127,.07); }
+    .pb2-ss-pv-cap { font-size: 9.5px; text-transform: uppercase; letter-spacing: .07em; font-weight: 650; color: var(--pb2-text-faint); margin-bottom: 6px; }
+    .pb2-ss-pv-url { font-family: var(--pb2-mono); font-size: 10.5px; color: var(--pb2-text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .pb2-ss-pv-title { font-size: 13px; font-weight: 600; color: var(--pb2-info); margin: 2px 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .pb2-ss-pv-desc { font-size: 11px; color: var(--pb2-text-dim); line-height: 1.45;
+      display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    .pb2-ss-pv-desc.is-empty { font-style: italic; color: var(--pb2-text-faint); }
+    .pb2-ss-foot { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
+    .pb2-ss-msg { font-size: 11px; color: var(--pb2-text-faint); flex: 1; min-width: 0; }
+    .pb2-ss-msg.is-error { color: var(--pb2-danger, #F87171); }
+    </style>
+    <div class="pb2-ss" id="pb2-ss"
+         data-update-url="{{ $updateUrl }}"
+         data-page-title="{{ $page->title }}"
+         data-site="{{ $ssSite }}"
+         data-mkt="{{ $ssMkt ? '1' : '0' }}"
+         data-fallback-img="{{ $ssFallImg }}">
+      <button type="button" class="pb2-ss-head" id="pb2-ss-toggle" aria-expanded="false" aria-controls="pb2-ss-body">
+        <span class="pb2-ss-title">Search &amp; sharing</span>
+        <span class="pb2-ss-state {{ $ssCustom ? 'is-custom' : '' }}" id="pb2-ss-state">{{ $ssCustom ? 'Custom' : 'Default' }}</span>
+        <svg class="pb2-ss-chev" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
+      <div class="pb2-ss-body" id="pb2-ss-body" hidden>
+        <div class="pb2-ss-legend">
+          What Google shows for this page, and the card people see when a link to it is shared.
+          Nothing on the page itself changes. Leave a field blank to use the default shown in grey.
+        </div>
+
+        <div class="pb2-ss-field">
+          <label class="pb2-ss-label" for="pb2-ss-mt">Title <span class="pb2-ss-count" id="pb2-ss-mt-count"></span></label>
+          <input class="pb2-ss-input" id="pb2-ss-mt" type="text" maxlength="120"
+                 value="{{ $page->meta_title }}" placeholder="{{ $page->title }}">
+        </div>
+
+        <div class="pb2-ss-field">
+          <label class="pb2-ss-label" for="pb2-ss-md">Description <span class="pb2-ss-count" id="pb2-ss-md-count"></span></label>
+          <textarea class="pb2-ss-input" id="pb2-ss-md" rows="3" maxlength="320"
+                    placeholder="None. Search engines pick text from the page.">{{ $page->meta_description }}</textarea>
+        </div>
+
+        <div class="pb2-ss-field">
+          <div class="pb2-ss-label">Share image <span class="pb2-ss-hint">best at 1200 × 630</span></div>
+          <div class="pb2-ss-img">
+            <div class="pb2-ss-thumb" id="pb2-ss-thumb"></div>
+            <div class="pb2-ss-imgacts">
+              <button type="button" class="pb2-status-btn" id="pb2-ss-pick">Choose from library</button>
+              <button type="button" class="pb2-status-btn" id="pb2-ss-clear">Use default</button>
+            </div>
+          </div>
+          <input type="hidden" id="pb2-ss-img" value="{{ $ssOwnImg }}">
+        </div>
+
+        <div class="pb2-ss-preview">
+          <div class="pb2-ss-pv-cap">In search results</div>
+          <div class="pb2-ss-pv-url">{{ $ssHost }}{{ $ssPath }}</div>
+          <div class="pb2-ss-pv-title" id="pb2-ss-pv-title"></div>
+          <div class="pb2-ss-pv-desc" id="pb2-ss-pv-desc"></div>
+        </div>
+
+        <div class="pb2-ss-foot">
+          <span class="pb2-ss-msg" id="pb2-ss-msg"></span>
+          <button type="button" class="pb2-status-btn pb2-status-btn--go" id="pb2-ss-save" disabled>Save</button>
+        </div>
+      </div>
+    </div>
+    <script>
+    (function () {
+      var root = document.getElementById('pb2-ss');
+      if (!root) return;
+      var $ = function (id) { return document.getElementById(id); };
+      var toggle = $('pb2-ss-toggle'), body = $('pb2-ss-body');
+      var mt = $('pb2-ss-mt'), md = $('pb2-ss-md'), img = $('pb2-ss-img');
+      var thumb = $('pb2-ss-thumb'), save = $('pb2-ss-save'), msg = $('pb2-ss-msg'), state = $('pb2-ss-state');
+      var pageTitle = root.dataset.pageTitle || '', site = root.dataset.site || '';
+      var isMkt = root.dataset.mkt === '1', fallbackImg = root.dataset.fallbackImg || '';
+      var saved = { mt: mt.value, md: md.value, img: img.value };
+
+      function esc(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+      function fullTitle() {
+        var t = mt.value.trim();
+        if (isMkt) return t || (pageTitle + ' \u2014 Intake');
+        return (t || pageTitle) + (site ? ' \u2014 ' + site : '');
+      }
+      function count(el, out, ideal) {
+        var n = el.value.trim().length;
+        out.textContent = n ? n + ' / ' + ideal : '';
+        out.classList.toggle('is-over', n > ideal);
+      }
+      function paintThumb() {
+        var own = img.value.trim();
+        var src = own || fallbackImg;
+        thumb.classList.toggle('is-default', !own);
+        $('pb2-ss-clear').style.display = own ? '' : 'none';
+        if (!src) { thumb.innerHTML = 'No image \u2014 links share without a picture'; return; }
+        thumb.innerHTML = '<img src="' + esc(src) + '" alt="">' + (own ? '' : '<span class="pb2-ss-tag">Default</span>');
+      }
+      function dirty() {
+        return mt.value !== saved.mt || md.value !== saved.md || img.value !== saved.img;
+      }
+      function paint() {
+        count(mt, $('pb2-ss-mt-count'), 60);
+        count(md, $('pb2-ss-md-count'), 155);
+        $('pb2-ss-pv-title').textContent = fullTitle();
+        var d = $('pb2-ss-pv-desc'), dv = md.value.trim();
+        d.textContent = dv || 'No description set. Google will choose text from the page.';
+        d.classList.toggle('is-empty', !dv);
+        paintThumb();
+        save.disabled = !dirty();
+        if (dirty()) { msg.textContent = 'Unsaved'; msg.classList.remove('is-error'); }
+      }
+
+      toggle.addEventListener('click', function () {
+        var open = toggle.getAttribute('aria-expanded') !== 'true';
+        toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+        body.hidden = !open;
+      });
+      mt.addEventListener('input', paint);
+      md.addEventListener('input', paint);
+      $('pb2-ss-clear').addEventListener('click', function () { img.value = ''; paint(); });
+      $('pb2-ss-pick').addEventListener('click', function () {
+        if (typeof window.pb2OpenMediaPicker !== 'function') return;
+        window.__sharePick = function (url) { img.value = url || ''; paint(); };
+        window.pb2OpenMediaPicker('__share_pick');
+      });
+
+      save.addEventListener('click', function () {
+        var tok = document.querySelector('#pb2-page-form input[name="_token"]');
+        var fd = new FormData();
+        fd.append('_token', tok ? tok.value : '');
+        fd.append('_method', 'PATCH');
+        fd.append('op', 'set_search_sharing');
+        fd.append('meta_title', mt.value.trim());
+        fd.append('meta_description', md.value.trim());
+        fd.append('og_image_url', img.value.trim());
+        save.disabled = true;
+        msg.classList.remove('is-error');
+        msg.textContent = 'Saving\u2026';
+        fetch(root.dataset.updateUrl, {
+          method: 'POST', body: fd,
+          headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }
+        }).then(function (r) {
+          return r.json().catch(function () { return null; }).then(function (d) { return { ok: r.ok, d: d }; });
+        }).then(function (res) {
+          if (!res.ok || !res.d || !res.d.ok) {
+            var e = res.d && (res.d.message || res.d.error);
+            if (res.d && res.d.errors) { var k = Object.keys(res.d.errors)[0]; if (k) e = res.d.errors[k][0]; }
+            throw new Error(e || 'Could not save. Please try again.');
+          }
+          mt.value = mt.value.trim(); md.value = md.value.trim();
+          img.value = res.d.image_url || '';
+          saved = { mt: mt.value, md: md.value, img: img.value };
+          var custom = !!(saved.mt || saved.md || saved.img);
+          state.textContent = custom ? 'Custom' : 'Default';
+          state.classList.toggle('is-custom', custom);
+          paint();
+          msg.textContent = 'Saved \u2713';
+        }).catch(function (err) {
+          msg.textContent = err.message;
+          msg.classList.add('is-error');
+          save.disabled = !dirty();
+        });
+      });
+
+      window.addEventListener('beforeunload', function (e) {
+        if (dirty()) { e.preventDefault(); e.returnValue = ''; }
+      });
+
+      paint();
+      msg.textContent = '';
+    })();
+    </script>
+    @endif
+
     {{-- MARKER-PATCH-276 — sections docked above the inspector --}}
     <div class="pb2-sections-docked" id="pb2-sections-pane">
       {{-- MARKER-PATCH-278 — collapsible header --}}
@@ -4327,6 +4548,7 @@ body.ia-theme-b .pb2-preview-frame-wrap {
         .catch(() => { __mediaCache = []; renderMediaGrid(); });
     }
   }
+  window.pb2OpenMediaPicker = openMediaPicker; // MARKER-PAGE-SEARCH-SHARING — the Search & sharing panel lives outside this scope
   function closeMediaPicker() {
     const m = document.getElementById('pb2-media-modal');
     if (m) m.style.display = 'none';
@@ -4352,6 +4574,12 @@ body.ia-theme-b .pb2-preview-frame-wrap {
         if (field === '__logo_pick' && window.__logoPick) { // MARKER-LOGOBAR-PICKER
           window.__logoPick(cell.dataset.url);
           window.__logoPick = null;
+          closeMediaPicker();
+          return;
+        }
+        if (field === '__share_pick' && window.__sharePick) { // MARKER-PAGE-SEARCH-SHARING
+          window.__sharePick(cell.dataset.url);
+          window.__sharePick = null;
           closeMediaPicker();
           return;
         }

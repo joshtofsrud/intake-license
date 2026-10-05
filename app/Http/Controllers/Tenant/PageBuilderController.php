@@ -1097,6 +1097,44 @@ class PageBuilderController extends Controller
             return back()->with('success', $msg);
         }
 
+        // MARKER-PAGE-SEARCH-SHARING — the builder's Search & sharing panel.
+        // Single-purpose like set_published: it writes these three fields and
+        // nothing else, so a stale value from another control can't ride along.
+        if ($op === 'set_search_sharing') {
+            $data = $request->validate([
+                'meta_title'       => ['nullable', 'string', 'max:120'],
+                'meta_description' => ['nullable', 'string', 'max:320'],
+                'og_image_url'     => ['nullable', 'string', 'max:500'],
+            ]);
+
+            $rawImg = trim((string) ($data['og_image_url'] ?? ''));
+            $img    = \App\Support\Brand::storageRelative($rawImg);
+            if ($rawImg !== '' && $img === null) {
+                $msg = 'That image address cannot be used. Choose an image from the library.';
+                if ($request->expectsJson()) return response()->json(['ok' => false, 'error' => $msg], 422);
+                return back()->with('error', $msg);
+            }
+
+            app(\App\Services\Tenant\PageRevisionService::class)
+                ->snapshot($page, 'Edited search & sharing');
+
+            $title = trim((string) ($data['meta_title'] ?? ''));
+            $desc  = trim((string) ($data['meta_description'] ?? ''));
+            $page->update([
+                'meta_title'       => $title !== '' ? $title : null,
+                'meta_description' => $desc !== '' ? $desc : null,
+                'og_image_url'     => $img,
+            ]);
+
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'ok'        => true,
+                    'image_url' => \App\Support\Brand::storagePublicUrl($page->og_image_url),
+                ]);
+            }
+            return back()->with('success', 'Search & sharing saved.');
+        }
+
         // MARKER-SHOP-NAV — set_in_nav removed: the menu is edited in the Nav section.
 
         if ($op === 'update_page') {

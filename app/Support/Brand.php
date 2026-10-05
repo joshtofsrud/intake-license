@@ -57,7 +57,42 @@ class Brand
     /** A builder page's own share image, else the Brand default. */
     public static function shareImageFor($page): string
     {
-        $own = trim((string) ($page->og_image_url ?? ''));
-        return $own !== '' ? url('/storage/' . ltrim($own, '/')) : self::url('og');
+        // MARKER-PAGE-SEARCH-SHARING — library picks are stored as full URLs when off-site.
+        return self::storagePublicUrl($page->og_image_url ?? null) ?? self::url('og');
+    }
+
+    /**
+     * MARKER-PAGE-SEARCH-SHARING — a stored image value as an absolute URL.
+     * Accepts a full URL, a site-relative path, or a path under /storage/
+     * (how Filament uploads store it). Blank means none.
+     */
+    public static function storagePublicUrl(?string $v): ?string
+    {
+        $v = trim((string) $v);
+        if ($v === '') return null;
+        if (preg_match('#^https?://#i', $v)) return $v;
+        if (str_starts_with($v, '//')) return 'https:' . $v;
+        if (str_starts_with($v, '/')) return url($v);
+        return url('/storage/' . ltrim($v, '/'));
+    }
+
+    /**
+     * MARKER-PAGE-SEARCH-SHARING — a picked image URL in the form it is stored:
+     * the path under /storage/ when the file lives on this site (matching the
+     * Filament upload format), otherwise the full http(s) URL. Null for
+     * anything that is not an image address we can serve.
+     */
+    public static function storageRelative(?string $v): ?string
+    {
+        $v = trim((string) $v);
+        if ($v === '') return null;
+        $isAbs = (bool) preg_match('#^https?://#i', $v);
+        if (! $isAbs && ! str_starts_with($v, '/') && ! str_contains($v, ':')) {
+            return ltrim($v, '/');   // already stored form
+        }
+        $path = $isAbs ? (string) parse_url($v, PHP_URL_PATH) : $v;
+        $own  = ! $isAbs || strcasecmp((string) parse_url($v, PHP_URL_HOST), (string) request()->getHost()) === 0;
+        if ($own && str_starts_with($path, '/storage/')) return substr($path, strlen('/storage/'));
+        return $isAbs ? $v : $path;   // site-relative path, kept as is
     }
 }

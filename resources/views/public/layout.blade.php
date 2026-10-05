@@ -8,10 +8,37 @@
   {{-- MARKER-PATCH-150 — analytics + funnel tracking --}}
   @include('public._funnel_tracker')
 
-  <title>{{ $page->meta_title ?? $page->title }} — {{ $currentTenant->name }}</title>
+  {{-- MARKER-PAGE-SEARCH-SHARING — title, description and link-preview tags,
+       from the builder's Search & sharing panel. --}}
+  @php
+    $ssTitle = ($page->meta_title ?: $page->title) . ' — ' . $currentTenant->name;
+    $ssDesc  = trim((string) $page->meta_description);
+    $ssImage = \App\Support\Seo::shareImage($page, $currentTenant);
+    $ssPath  = '/' . ltrim(request()->path(), '/');
+    $ssUrl   = rtrim($currentTenant->publicUrl(), '/') . ($ssPath === '/' ? '/' : $ssPath);
+  @endphp
+  <title>{{ $ssTitle }}</title>
 
-  @if($page->meta_description)
-    <meta name="description" content="{{ $page->meta_description }}">
+  @if($ssDesc !== '')
+    <meta name="description" content="{{ $ssDesc }}">
+  @endif
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="{{ $currentTenant->name }}">
+  <meta property="og:title" content="{{ $ssTitle }}">
+  @if($ssDesc !== '')
+    <meta property="og:description" content="{{ $ssDesc }}">
+  @endif
+  <meta property="og:url" content="{{ $ssUrl }}">
+  <meta name="twitter:title" content="{{ $ssTitle }}">
+  @if($ssDesc !== '')
+    <meta name="twitter:description" content="{{ $ssDesc }}">
+  @endif
+  @if($ssImage)
+    <meta property="og:image" content="{{ $ssImage }}">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:image" content="{{ $ssImage }}">
+  @else
+    <meta name="twitter:card" content="summary">
   @endif
 
   @if($currentTenant->favicon_url)

@@ -362,6 +362,24 @@ class Seo
         return $data;
     }
 
+    // MARKER-PAGE-SEARCH-SHARING ------------------------------- share image
+
+    /** A shop page's share image: its own, else the shop's fallback. Null = none. */
+    public static function shareImage(TenantPage $page, ?Tenant $tenant): ?string
+    {
+        return Brand::storagePublicUrl($page->og_image_url) ?? self::shareImageFallback($tenant);
+    }
+
+    /** The shop's logo, unless it is an SVG (link previews don't show SVGs). */
+    public static function shareImageFallback(?Tenant $tenant): ?string
+    {
+        if (! $tenant) return null;
+        $logo = Brand::storagePublicUrl($tenant->logo_url);
+        if (! $logo) return null;
+        $ext = strtolower(pathinfo((string) parse_url($logo, PHP_URL_PATH), PATHINFO_EXTENSION));
+        return $ext === 'svg' ? null : $logo;
+    }
+
     private static function absolute(?string $url, string $base): ?string
     {
         $url = trim((string) $url);
