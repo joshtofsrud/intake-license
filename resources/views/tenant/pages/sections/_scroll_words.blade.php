@@ -103,6 +103,21 @@
       </div>
       <input type="hidden" data-field="mode" value="{{ $get('mode', 'spotlight') }}">
     </div>
+    {{-- MARKER-SW-PACE --}}
+    @foreach([['pace', 'Pace', 30, 200, 60, '%', 'scroll to run through all the words — higher is slower'], ['smooth', 'Smoothing', 0, 100, 0, '', '0 = step by step; higher = the words glide with your scroll']] as [$mk, $ml, $mmin, $mmax, $mdef, $mu, $mh])
+      @php $mv = max($mmin, min($mmax, (int) ($c[$mk] ?? $mdef))); @endphp
+      <div class="pb2-field">
+        <label class="pb2-field-label">{{ $ml }} <span class="pb2-field-hint">{{ $mh }}</span></label>
+        <div style="display:flex;align-items:center;gap:12px">
+          <input type="range" min="{{ $mmin }}" max="{{ $mmax }}" step="1" value="{{ $mv }}" style="flex:1;min-width:0"
+                 oninput="this.nextElementSibling.textContent = ('{{ $mk }}' === 'smooth' && +this.value === 0) ? 'off' : this.value + '{{ $mu }}';
+                          var h = this.parentElement.parentElement.querySelector('[data-field={{ $mk }}]');
+                          h.value = this.value; h.dispatchEvent(new Event('change', { bubbles: true }));">
+          <span style="min-width:48px;text-align:right;font-variant-numeric:tabular-nums;font-size:12.5px;opacity:.75">{{ ($mk === 'smooth' && $mv === 0) ? 'off' : $mv . $mu }}</span>
+        </div>
+        <input type="hidden" data-field="{{ $mk }}" value="{{ $mv }}">
+      </div>
+    @endforeach
   </div>
   <div class="pb2-group">
     <div class="pb2-group-title">Text</div>

@@ -17,6 +17,9 @@
   $swPrefix = trim((string) ($c['prefix'] ?? 'One system for'));
   $swMode   = in_array($c['mode'] ?? 'spotlight', ['fade', 'spotlight', 'slide'], true) ? ($c['mode'] ?? 'spotlight') : 'spotlight';
   $swAlign  = ($c['align'] ?? 'left') === 'center' ? 'center' : 'left';
+  // MARKER-SW-PACE — pace = scroll needed for all words (% of screen); smooth 0 = stepped
+  $swPace   = max(30, min(200, (int) ($c['pace'] ?? 60)));
+  $swSmooth = max(0, min(100, (int) ($c['smooth'] ?? 0)));
   $swSize   = ['m' => 'clamp(30px,4.5vw,48px)', 'l' => 'clamp(36px,6vw,68px)', 'xl' => 'clamp(42px,8vw,96px)'][$c['size'] ?? 'l'] ?? 'clamp(36px,6vw,68px)';
   $swOk     = fn ($v) => is_string($v) && preg_match('/^#[0-9a-fA-F]{3,8}$/', trim($v)) ? trim($v) : null;
   $swText   = $swOk($c['text_color'] ?? null) ?: 'currentColor';
@@ -72,7 +75,7 @@
     .{{ $swId }}.sw-slide .sw-words { height: auto; }
   }
 </style>
-<section class="{{ $swId }} sw-{{ $swMode }} {{ $swCls }}" @if($swAnchor !== '') id="{{ $swAnchor }}" @endif @if($swBg !== '' || ! empty($inlineStyle)) style="{{ $swBg }}{{ $inlineStyle ?? '' }}" @endif aria-label="{{ $swSentence }}">
+<section class="{{ $swId }} sw-{{ $swMode }} {{ $swCls }}" @if($swAnchor !== '') id="{{ $swAnchor }}" @endif @if($swBg !== '' || ! empty($inlineStyle)) style="{{ $swBg }}{{ $inlineStyle ?? '' }}" @endif aria-label="{{ $swSentence }}" data-sw-pace="{{ $swPace }}" data-sw-smooth="{{ $swSmooth }}">
   <div class="sw-pin" @if($swFxOn) data-swfx="{{ $swFxP }},{{ $swFxF }},{{ $swFxB }}" @endif>
     <div class="sw-line" aria-hidden="true">
       @if($swPrefix !== '')<span class="sw-prefix">{{ $swPrefix }}</span>@endif
@@ -85,30 +88,58 @@
   </div>
 </section>
 <script>
+/* MARKER-SW-PACE — words follow the scroll; Pace and Smoothing from the editor */
 (function () {
   var el = document.querySelector('.{{ $swId }}');
   if (!el || el.dataset.swReady) return;
   el.dataset.swReady = '1';
   if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
   var words = el.querySelectorAll('.sw-w'), n = words.length, last = -1;
-  function tick() {
-    // 0 as the section's centre enters the lower part of the screen, 1 as it
-    // nears the top — the words run through while it's comfortably in view.
+  if (!n) return;
+  var pace = (+el.dataset.swPace || 60) / 100, sm = (+el.dataset.swSmooth || 0) / 100;
+  var mode = el.classList.contains('sw-fade') ? 'fade' : (el.classList.contains('sw-slide') ? 'slide' : 'spotlight');
+  function target() {
+    // 0 as the section's centre enters the lower part of the screen, 1 once it
+    // has travelled `pace` screen-heights — the words run through in between.
     var r = el.getBoundingClientRect(), vh = window.innerHeight || 1;
     var centre = r.top + r.height / 2;
-    var p = Math.min(1, Math.max(0, (vh * 0.8 - centre) / (vh * 0.6)));
-    var i = Math.min(n - 1, Math.floor(p * n));
-    if (i === last) return;
-    last = i;
-    el.style.setProperty('--sw-i', i);
-    for (var k = 0; k < n; k++) {
-      words[k].classList.toggle('on', k === i);
-      words[k].classList.toggle('past', k < i);
-    }
+    return Math.min(1, Math.max(0, (vh * 0.8 - centre) / (vh * pace)));
   }
-  window.addEventListener('scroll', tick, { passive: true });
-  window.addEventListener('resize', tick);
-  tick();
+  if (sm === 0) {                                   // stepped (original behaviour)
+    var tick = function () {
+      var i = Math.min(n - 1, Math.floor(target() * n));
+      if (i === last) return;
+      last = i;
+      el.style.setProperty('--sw-i', i);
+      for (var k = 0; k < n; k++) { words[k].classList.toggle('on', k === i); words[k].classList.toggle('past', k < i); }
+    };
+    window.addEventListener('scroll', tick, { passive: true });
+    window.addEventListener('resize', tick);
+    tick();
+    return;
+  }
+  // continuous: f runs 0 → n-1 with the scroll, eased towards its target each frame
+  for (var k = 0; k < n; k++) words[k].style.transition = 'none';
+  var f = target() * (n - 1), raf = 0;
+  var ease = 0.35 - sm * 0.27;                      // 0.35 crisp … 0.08 very soft
+  var width = 0.6 + sm * 1.2;                       // how many neighbouring words share the light
+  function draw() {
+    var goal = target() * (n - 1);
+    f += (goal - f) * ease;
+    if (Math.abs(goal - f) < 0.001) f = goal;
+    for (var k = 0; k < n; k++) {
+      var d = k - f, o;
+      if (mode === 'fade') o = 0.12 + 0.88 * Math.min(1, Math.max(0, 1 - d / width));
+      else o = 0.14 + 0.86 * Math.max(0, 1 - Math.abs(d) / width);
+      words[k].style.opacity = mode === 'slide' ? '' : o.toFixed(3);
+      if (mode === 'slide') words[k].style.transform = 'translateY(' + (-f * 1.1).toFixed(4) + 'em)';
+    }
+    raf = f === goal ? 0 : requestAnimationFrame(draw);
+  }
+  function kick() { if (!raf) raf = requestAnimationFrame(draw); }
+  window.addEventListener('scroll', kick, { passive: true });
+  window.addEventListener('resize', kick);
+  f = target() * (n - 1); draw();
 })();
 </script>
 @if($swFxOn)
