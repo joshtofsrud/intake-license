@@ -172,6 +172,8 @@ class MarketingPageController extends Controller
             'industry'       => null,
             'builderPreview' => true,
             'menuItems'      => \App\Support\MarketingNav::resolve($rows),
+            // MARKER-MKT-NAV-FLOAT — unsaved header style from the Navigation page.
+            'menuHeader'     => \App\Support\MarketingNav::cleanHeader((array) json_decode((string) base64_decode((string) $request->query('h', ''), true), true)),
         ]);
     }
 

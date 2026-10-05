@@ -65,6 +65,30 @@
         .mk-nav-links, .mk-nav-end .mk-nav-signin { display: none; }
         .mk-hamburger { display: flex; }
     }
+
+    /* MARKER-MKT-NAV-FLOAT — "Floating" header style (settings arrive as CSS variables) */
+    .mk-nav.is-float { background: transparent; border-bottom: 0; backdrop-filter: none; -webkit-backdrop-filter: none; padding: 14px var(--mk-gutter) 0; }
+    .mk-nav.is-float .mk-nav-inner {
+        background: color-mix(in srgb, var(--mkf-bg) var(--mkf-op), transparent);
+        backdrop-filter: blur(var(--mkf-blur)); -webkit-backdrop-filter: blur(var(--mkf-blur));
+        border: 0.5px solid rgba(255,255,255,.08); border-radius: 999px;
+        padding: 10px 12px 10px 22px; height: auto;
+    }
+    .mk-nav.is-float .mk-nav-links { flex: 0 1 auto; margin: 0 auto; background: var(--mkf-pill); border-radius: 999px; padding: 4px; gap: 2px; }
+    .mk-nav.is-float .mk-nav-link { padding: 7px 14px; border-radius: 999px; }
+    .mk-nav.is-float .mk-nav-link.active { background: rgba(255,255,255,.08); }
+    .mk-nav.is-float .mk-btn { border-radius: 999px; }
+    .mk-nav.is-float .mk-mobile-nav { margin: 8px auto 0; max-width: var(--mk-max); border-radius: 20px; border: 0.5px solid rgba(255,255,255,.08); background: color-mix(in srgb, var(--mkf-bg) 96%, transparent); }
+    @media (max-width: 860px) { .mk-nav.is-float { padding: 10px 12px 0; } .mk-nav.is-float .mk-nav-inner { padding: 8px 8px 8px 16px; } }
+
+    /* MARKER-MKT-HAMBURGER — three lines morph into an X */
+    .mk-hamburger { cursor: pointer; transition: transform .2s ease; }
+    .mk-hamburger:hover { transform: scale(1.06); }
+    .mk-hamburger span { transition: transform .25s ease, opacity .2s ease; }
+    .mk-hamburger.is-open span:nth-child(1) { transform: translateY(6.5px) rotate(45deg); }
+    .mk-hamburger.is-open span:nth-child(2) { opacity: 0; }
+    .mk-hamburger.is-open span:nth-child(3) { transform: translateY(-6.5px) rotate(-45deg); }
+    @media (prefers-reduced-motion: reduce) { .mk-hamburger, .mk-hamburger span { transition: none; } }
 </style>
 
 {{-- MARKER-MKT-NAV — drawn from master admin › Site & content › Navigation
@@ -73,6 +97,7 @@
      MARKER-MKT-LOGO — the Brand page's logo, sized by height only. --}}
 @php
     $mkMenu  = isset($menuItems) && is_array($menuItems) ? $menuItems : \App\Support\MarketingNav::items();
+    $mkHead  = \App\Support\MarketingNav::header(isset($menuHeader) && is_array($menuHeader) ? $menuHeader : null); // MARKER-MKT-NAV-FLOAT
     $mkHere  = '/' . ltrim(request()->path(), '/');
     $mkLeft  = array_values(array_filter($mkMenu, fn ($i) => $i['side'] === 'left'));
     $mkRight = array_values(array_filter($mkMenu, fn ($i) => $i['side'] === 'right'));
@@ -84,7 +109,7 @@
         return 'mk-nav-link' . ($path === (rtrim($mkHere, '/') ?: '/') && ! parse_url($i['url'], PHP_URL_HOST) ? ' active' : '');
     };
 @endphp
-<nav class="mk-nav">
+<nav class="mk-nav{{ $mkHead['style'] === 'float' ? ' is-float' : '' }}" style="--mkf-bg:{{ $mkHead['bg'] }};--mkf-op:{{ $mkHead['opacity'] }}%;--mkf-blur:{{ $mkHead['blur'] }}px;--mkf-pill:color-mix(in srgb, {{ $mkHead['pill'] }} {{ $mkHead['pill_strength'] }}%, transparent)">
     <div class="mk-nav-inner">
         <a href="{{ route('marketing.home') }}" class="mk-logo">
             <img src="{{ \App\Support\Brand::url('logo') }}" alt="Intake" style="display:block;height:26px;width:auto">
@@ -102,7 +127,8 @@
             @endforeach
         </div>
 
-        <button class="mk-hamburger" onclick="toggleMobileNav()" aria-label="Menu">
+        <button class="mk-hamburger" type="button" aria-label="Menu" aria-expanded="false" aria-controls="mk-mobile-nav"
+                onclick="this.classList.toggle('is-open'); this.setAttribute('aria-expanded', this.classList.contains('is-open')); toggleMobileNav()">
             <span></span><span></span><span></span>
         </button>
     </div>

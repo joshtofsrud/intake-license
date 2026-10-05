@@ -18,6 +18,30 @@ class MarketingNav
     public const STYLES = ['link', 'button', 'outline'];
     public const SIDES  = ['left', 'right'];
 
+    // MARKER-MKT-NAV-FLOAT — header style and its four Floating settings.
+    public const HEADER_DEFAULTS = ['style' => 'classic', 'bg' => '#0a0a0a', 'opacity' => 70, 'blur' => 14, 'pill' => '#ffffff', 'pill_strength' => 8];
+
+    public static function header(?array $override = null): array
+    {
+        $raw = $override ?? (self::platform()?->settings['marketing_header'] ?? []);
+        return self::cleanHeader(is_array($raw) ? $raw : []);
+    }
+
+    public static function cleanHeader(array $h): array
+    {
+        $d   = self::HEADER_DEFAULTS;
+        $hex = fn ($v, $fallback) => is_string($v) && preg_match('/^#[0-9a-fA-F]{6}$/', $v) ? strtolower($v) : $fallback;
+        $int = fn ($v, $fallback, $max) => max(0, min($max, is_numeric($v) ? (int) $v : $fallback));
+        return [
+            'style'         => in_array($h['style'] ?? '', ['classic', 'float'], true) ? $h['style'] : 'classic',
+            'bg'            => $hex($h['bg'] ?? null, $d['bg']),
+            'opacity'       => $int($h['opacity'] ?? null, $d['opacity'], 100),
+            'blur'          => $int($h['blur'] ?? null, $d['blur'], 30),
+            'pill'          => $hex($h['pill'] ?? null, $d['pill']),
+            'pill_strength' => $int($h['pill_strength'] ?? null, $d['pill_strength'], 30),
+        ];
+    }
+
     public static function platform(): ?Tenant
     {
         return Tenant::where('is_platform', true)->first();

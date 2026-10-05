@@ -9,7 +9,11 @@
   .snv-seg{display:inline-flex;background:rgba(127,127,127,.12);border-radius:8px;padding:2px;gap:2px}
   .snv-seg button{border:0;background:none;color:inherit;opacity:.65;font:inherit;font-size:12px;padding:4px 9px;border-radius:6px;cursor:pointer;white-space:nowrap}
   .snv-seg button.on{opacity:1;background:rgba(139,92,246,.22);font-weight:600}
-  .snv-frame{width:100%;height:78px;border:1px solid var(--snv-line);border-radius:10px;background:#0a0a0a;display:block;margin:0 auto}
+  .snv-ctl{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--snv-line);border-radius:8px;padding:4px 8px}
+  .snv-ctl input[type=color]{width:24px;height:20px;border:0;background:none;padding:0}
+  .snv-ctl input[type=range]{width:90px}
+  .snv-ctl b{min-width:34px;text-align:right;font-weight:500}
+  .snv-frame{width:100%;height:100px;border:1px solid var(--snv-line);border-radius:10px;background:#0a0a0a;display:block;margin:0 auto}
   .snv-frame.phone{width:390px;max-width:100%;height:520px}
   .snv-dim{font-size:12px;opacity:.6}
   .snv-cols,.snv-row{display:grid;grid-template-columns:22px minmax(140px,1fr) minmax(160px,1.2fr) auto auto 64px 26px;gap:10px;align-items:center}
@@ -38,17 +42,30 @@
 </style>
 
 <div class="snv" wire:ignore
-     x-data="snvEditor(@js($rows), @js($pages), @js($previewUrl))"
-     x-on:nav-saved.window="saved = JSON.stringify(rows)"
+     x-data="snvEditor(@js($rows), @js($pages), @js($previewUrl), @js($header))"
+     x-on:nav-saved.window="saved = snapshot()"
      x-on:beforeunload.window="if (dirty) { $event.preventDefault(); $event.returnValue = ''; }">
 
   <div class="snv-legend"><b>This list is the intake.works header</b> — on every marketing page, desktop and phone. Nothing else changes the menu. A page item hides itself while its page is unpublished and follows the page if its address changes. Changes go live when you press Save.</div>
 
   <div class="snv-card">
+    {{-- MARKER-MKT-NAV-FLOAT --}}
+    <div class="snv-head" style="flex-wrap:wrap;justify-content:flex-start">
+      <b style="margin-right:6px">Header style</b>
+      <span class="snv-seg"><button type="button" :class="header.style==='classic' && 'on'" @click="header.style='classic'; changed()">Classic</button><button type="button" :class="header.style==='float' && 'on'" @click="header.style='float'; changed()">Floating</button></span>
+      <template x-if="header.style==='float'">
+        <span style="display:inline-flex;gap:8px;flex-wrap:wrap;align-items:center;font-size:12px">
+          <label class="snv-ctl">Bar <input type="color" x-model="header.bg" @input="changed()"></label>
+          <label class="snv-ctl">Opacity <input type="range" min="0" max="100" x-model.number="header.opacity" @input="changed()"><b x-text="header.opacity + '%'"></b></label>
+          <label class="snv-ctl">Blur <input type="range" min="0" max="30" x-model.number="header.blur" @input="changed()"><b x-text="header.blur + 'px'"></b></label>
+          <label class="snv-ctl">Link pill <input type="color" x-model="header.pill" @input="changed()"><input type="range" min="0" max="30" x-model.number="header.pill_strength" @input="changed()" title="Pill strength"></label>
+        </span>
+      </template>
+    </div>
     <div class="snv-head"><b>Preview</b>
       <span class="snv-seg"><button type="button" :class="dev==='desktop' && 'on'" @click="dev='desktop'; refresh()">Desktop</button><button type="button" :class="dev==='phone' && 'on'" @click="dev='phone'; refresh()">Phone</button></span></div>
     <iframe class="snv-frame" :class="dev==='phone' && 'phone'" x-ref="frame" title="Header preview" @load="openPanel()"></iframe>
-    <div class="snv-dim" style="margin-top:8px">Drawn by the site's own header code from the list below, including unsaved changes.</div>
+    <div class="snv-dim" style="margin-top:8px">Drawn by the site's own header code from the list and style above, including unsaved changes. Scroll inside it to see Floating over the page.</div>
   </div>
 
   <div class="snv-card">
@@ -99,21 +116,23 @@
 
   <div class="snv-bar">
     <span class="snv-dim" x-text="dirty ? 'Unsaved changes — the live menu hasn\u2019t changed yet' : 'All changes saved'"></span>
-    <button type="button" class="snv-btn" :disabled="!dirty" @click="rows = JSON.parse(saved); changed()">Discard</button>
-    <button type="button" class="snv-btn snv-btn--pri" :disabled="!dirty" @click="$wire.save(JSON.parse(JSON.stringify(rows)))">Save</button>
+    <button type="button" class="snv-btn" :disabled="!dirty" @click="var s = JSON.parse(saved); rows = s.rows; header = s.header; changed()">Discard</button>
+    <button type="button" class="snv-btn snv-btn--pri" :disabled="!dirty" @click="$wire.save(JSON.parse(JSON.stringify(rows)), JSON.parse(JSON.stringify(header)))">Save</button>
   </div>
 </div>
 
 <script>
-  function snvEditor(rows, pages, previewUrl) {
+  function snvEditor(rows, pages, previewUrl, header) {
     return {
-      rows: rows, pages: pages, saved: JSON.stringify(rows), dev: 'desktop', pop: false, from: null, t: null,
-      get dirty() { return JSON.stringify(this.rows) !== this.saved; },
+      rows: rows, pages: pages, header: header, saved: JSON.stringify({rows: rows, header: header}), dev: 'desktop', pop: false, from: null, t: null,
+      snapshot() { return JSON.stringify({rows: this.rows, header: this.header}); },
+      get dirty() { return this.snapshot() !== this.saved; },
       init() { this.refresh(); },
       changed() { clearTimeout(this.t); this.t = setTimeout(() => this.refresh(), 200); },
       refresh() {
         var d = btoa(unescape(encodeURIComponent(JSON.stringify(this.rows))));
-        this.$refs.frame.src = previewUrl + '?d=' + encodeURIComponent(d);
+        var h = btoa(unescape(encodeURIComponent(JSON.stringify(this.header))));
+        this.$refs.frame.src = previewUrl + '?d=' + encodeURIComponent(d) + '&h=' + encodeURIComponent(h);
       },
       openPanel() {
         if (this.dev !== 'phone') return;

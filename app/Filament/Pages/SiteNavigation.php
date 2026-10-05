@@ -34,12 +34,13 @@ class SiteNavigation extends Page
         return [
             'rows'       => MarketingNav::rows(),
             'pages'      => MarketingNav::pages(),
+            'header'     => MarketingNav::header(), // MARKER-MKT-NAV-FLOAT
             'previewUrl' => url('/admin/navigation/preview'),
         ];
     }
 
     /** Called from the page with the whole list; replaces the menu in one go. */
-    public function save(array $rows): void
+    public function save(array $rows, array $header = []): void
     {
         $platform = MarketingNav::platform();
         if (! $platform) {
@@ -83,7 +84,14 @@ class SiteNavigation extends Page
             return;
         }
 
-        DB::transaction(function () use ($platform, $clean) {
+        DB::transaction(function () use ($platform, $clean, $header) {
+            // MARKER-MKT-NAV-FLOAT — header style and its settings save with the menu.
+            if ($header) {
+                $settings = $platform->settings ?? [];
+                $settings['marketing_header'] = MarketingNav::cleanHeader($header);
+                $platform->settings = $settings;
+                $platform->save();
+            }
             TenantNavItem::where('tenant_id', $platform->id)->delete();
             foreach ($clean as $i => $row) {
                 $item = new TenantNavItem();
