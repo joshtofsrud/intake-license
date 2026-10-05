@@ -87,15 +87,16 @@
         </summary>
         <div style="padding:0 0 14px">
           @foreach($monthEntries as $entry)
-            <div style="display:grid;grid-template-columns:58px 1fr;gap:14px;padding:10px 2px;{{ $loop->first ? '' : 'border-top:0.5px solid var(--mk-border);' }}">
+            <div style="display:grid;grid-template-columns:58px 1fr;gap:14px;padding:10px 2px;">
               <div style="font-size:12.5px;color:var(--mk-muted);padding-top:2px;font-variant-numeric:tabular-nums">
                 {{ $entry->shipped_on ? $entry->shipped_on->format('M j') : '' }}
               </div>
               <div>
                 <div style="font-weight:600;font-size:15px;line-height:1.35">
                   {{ $entry->title }}
-                  @if($entry->is_highlighted)
-                    <span style="font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--mk-accent);margin-left:7px">Highlight</span>
+                  {{-- MARKER-CL-CATEGORY-LABEL — featured: its own category, in the highlight color --}}
+                  @if($entry->is_highlighted && $entry->category)
+                    <span style="font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--mk-accent);margin-left:8px">{{ $entry->category }}</span>
                   @elseif($entry->category)
                     <span style="font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--mk-muted);margin-left:8px;font-weight:600">{{ $entry->category }}</span>
                   @endif
