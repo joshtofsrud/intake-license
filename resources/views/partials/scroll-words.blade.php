@@ -124,7 +124,9 @@
   fx.style.willChange = 'transform, opacity, filter';
   function paint() {
     raf = 0;
-    var r = sec.getBoundingClientRect(), gone = Math.max(0, -r.top), h = Math.max(1, r.height);
+    // MARKER-SW-SCROLLFX-START — begins when the top reaches a third of the way down the screen
+    var r = sec.getBoundingClientRect(), start = window.innerHeight / 3;
+    var gone = Math.max(0, start - r.top), h = Math.max(1, r.height + start);
     var t = Math.min(1, gone / h);
     fx.style.transform = P ? 'translate3d(0,' + (gone * P * 0.6).toFixed(1) + 'px,0)' : '';
     fx.style.opacity = F ? String(Math.max(0, 1 - t * F * 1.6)) : '';
