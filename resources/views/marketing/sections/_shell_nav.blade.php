@@ -132,6 +132,10 @@
                  'normal' => ['10px', '8px 8px 8px 16px'],
                  'roomy'  => ['14px', '10px 10px 10px 18px']][$mkHeadP['space']];
     $mkLinkP  = \App\Support\MarketingNav::linkColour($mkHeadP);
+    // MARKER-MKT-NAV-EDGEROOM — a chosen edge room replaces the preset's left/right padding.
+    $mkEdge   = function ($pad, $x) { if (! $x) return $pad; $p = explode(' ', $pad); $p[1] = $p[3] = $x . 'px'; return implode(' ', $p); };
+    $mkSpace[1]  = $mkEdge($mkSpace[1], $mkHead['pad_x']);
+    $mkSpaceP[1] = $mkEdge($mkSpaceP[1], $mkHeadP['pad_x']);
     $mkVars   = fn ($h, $out, $pad, $link) => '--mkf-bg:' . $h['bg'] . ';--mkf-op:' . $h['opacity'] . '%;--mkf-blur:' . $h['blur'] . 'px;'
         . '--mkf-pill:color-mix(in srgb, ' . $h['pill'] . ' ' . $h['pill_strength'] . '%, transparent);'
         . '--mkf-out:' . $out . ';--mkf-pad:' . $pad . ';--mkf-link:' . ($link ?: 'var(--mk-muted)') . ';'
