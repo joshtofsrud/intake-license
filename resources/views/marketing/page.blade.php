@@ -346,6 +346,26 @@
         $mkwLast   = collect($sections)->slice($loop->index + 1)->every(fn ($s) => in_array($s->section_type, ['nav', 'footer'], true));
         // MARKER-MKT-FLOAT-OVERLAP — the first drawn section can sit behind a Floating header.
         $mkwFirst  = collect($sections)->slice(0, $loop->index)->every(fn ($s) => in_array($s->section_type, ['nav', 'footer'], true));
+        // MARKER-MKT-BG-CONT-DEVICE — this section's end colour, and (if it continues)
+        // its gradient with {PREV} standing for the visible section above.
+        $mkCdHex  = fn ($v) => is_string($v) && preg_match('/^#[0-9a-fA-F]{3,8}$/', trim($v)) ? trim($v) : null;
+        $mkCdOp   = max(0, min(100, (int) ($c['bg_opacity'] ?? 100)));
+        $mkCdFade = fn ($col) => $mkCdOp >= 100 ? $col : 'color-mix(in srgb, ' . $col . ' ' . $mkCdOp . '%, transparent)';
+        $mkCdMode = $c['bg_mode'] ?? 'none';
+        $mkCdEnd  = '';
+        $mkCdTo   = 'var(--mk-bg, #0a0a0a)';
+        $mkCdPct  = 100;
+        if ($mkCdMode === 'gradient') {
+            $mkCdRaw = $mkCdHex($c['bg_gradient_to'] ?? null) ?: '#0a0a0a';
+            $mkCdOut = ! empty($c['bg_fade_out']) && ! in_array((string) $c['bg_fade_out'], ['0', 'false'], true);
+            $mkCdTo  = $mkCdOut ? 'color-mix(in srgb, ' . $mkCdRaw . ' 0%, transparent)' : $mkCdFade($mkCdRaw);
+            $mkCdEnd = $mkCdOut ? '' : $mkCdFade($mkCdRaw);
+            $mkCdPct = max(20, min(100, (int) ($c['bg_grad_end'] ?? 100)));
+        } elseif ($mkCdMode === 'color') {
+            $mkCdCol = $mkCdHex($c['bg_color'] ?? null) ?: $mkCdHex($section->bg_color ?? null);
+            if ($mkCdCol) { $mkCdTo = $mkCdFade($mkCdCol); $mkCdEnd = $mkCdTo; }
+        }
+        $mkCdCss = 'linear-gradient(180deg, {PREV} 0%, ' . $mkCdTo . ' ' . $mkCdPct . '%)';
         // MARKER-MKT-BG-BLEND — $mkBgPrev is the colour the section above ended on.
         $mkBgPrev  = $mkBgCarry ?? null;
         $mkBgOp    = max(0, min(100, (int) ($c['bg_opacity'] ?? 100)));
@@ -388,7 +408,7 @@
           </style>
           <div class="{{ $pullId }}">
         @endif
-        <div class="{{ $mkwClass }}" @if(in_array($c['appear'] ?? '', ['fade', 'up'], true)) style="--mk-appear-delay: {{ max(0, min(1000, (int) ($c['appear_delay'] ?? 0))) }}ms; --mk-appear-dur: {{ max(200, min(2000, (int) ($c['appear_duration'] ?? 700))) }}ms" @endif @if($mkwAnchor !== '') id="{{ $mkwAnchor }}" @endif @isset($mkGradCss[(string) $section->id]) data-bg-grad="{{ $mkGradCss[(string) $section->id] }}" @endisset @if(! empty($c['bg_continue']) && ! in_array((string) $c['bg_continue'], ['0', 'false'], true)) data-bg-cont="1" @endif>
+        <div class="{{ $mkwClass }}" @if(in_array($c['appear'] ?? '', ['fade', 'up'], true)) style="--mk-appear-delay: {{ max(0, min(1000, (int) ($c['appear_delay'] ?? 0))) }}ms; --mk-appear-dur: {{ max(200, min(2000, (int) ($c['appear_duration'] ?? 700))) }}ms" @endif @if($mkwAnchor !== '') id="{{ $mkwAnchor }}" @endif @isset($mkGradCss[(string) $section->id]) data-bg-grad="{{ $mkGradCss[(string) $section->id] }}" @endisset @if(! empty($c['bg_continue']) && ! in_array((string) $c['bg_continue'], ['0', 'false'], true)) data-bg-cont="1" data-bg-cont-css="{{ $mkCdCss }}" @endif data-bg-end="{{ $mkCdEnd }}">
         @if($mkwTop !== null || $mkwBot !== null || $mkwHead || $mkwBody)
           <style>
             @if($mkwTop !== null) .{{ $mkwId }} > section, .{{ $mkwId }} > footer, .{{ $mkwId }} > div { padding-top: {{ $mkwTop }} !important; } @endif
@@ -452,6 +472,7 @@
   function paint() {
     document.querySelectorAll('.mkw[data-bg-chain]').forEach(function (el) {
       el.removeAttribute('data-bg-chain');
+      el.removeAttribute('data-bg-end-eff');
       var s = sec(el); if (s) PROPS.forEach(function (p) { s.style.removeProperty(p); });
     });
     var all = Array.prototype.filter.call(document.querySelectorAll('.mkw'), function (el) { return el.getClientRects().length > 0; });
@@ -468,12 +489,24 @@
       chain.forEach(function (el) {
         var s = sec(el); if (!s) return;
         el.setAttribute('data-bg-chain', '1');
+        el.setAttribute('data-bg-end-eff', head.dataset.bgEnd || '');
         s.style.setProperty('background', head.dataset.bgGrad, 'important');
         s.style.setProperty('background-size', '100% ' + total + 'px', 'important');
         s.style.setProperty('background-position', '0 ' + (top - docTop(s)) + 'px', 'important');
         s.style.setProperty('background-repeat', 'no-repeat', 'important');
       });
       i = j - 1;
+    }
+    // MARKER-MKT-BG-CONT-DEVICE — continuing sections not in a run start from
+    // whatever is visibly above them on this screen.
+    for (var k = 1; k < all.length; k++) {
+      var el = all[k];
+      if (!el.dataset.bgCont || el.hasAttribute('data-bg-chain') || !el.dataset.bgContCss) continue;
+      var prev = all[k - 1];
+      var end = prev.hasAttribute('data-bg-end-eff') ? prev.getAttribute('data-bg-end-eff') : prev.dataset.bgEnd;
+      var s2 = sec(el); if (!s2) continue;
+      el.setAttribute('data-bg-chain', '1');
+      s2.style.setProperty('background', el.dataset.bgContCss.replace('{PREV}', end || 'var(--mk-bg, #0a0a0a)'), 'important');
     }
   }
   var t;
