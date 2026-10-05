@@ -40,6 +40,12 @@
   $customClass  = trim($c['custom_classes'] ?? '');
 @endphp
 
+{{-- MARKER-CAROUSEL-DEPTH --}}
+@if(($c['carousel_style'] ?? 'classic') === 'depth')
+  @include('partials.carousel-depth', ['images' => $images, 'c' => $c, 'uid' => $uid, 'aspect' => $aspect, 'radius' => $radius, 'customClass' => $customClass])
+  @php return; @endphp
+@endif
+
 <style>
 .{{ $uid }}-sec { @if($bgMode === 'color' && $bgColor !== '') background: {{ $bgColor }}; padding-top:48px; padding-bottom:48px; @endif }
 .{{ $uid }}-wrap { position:relative; }

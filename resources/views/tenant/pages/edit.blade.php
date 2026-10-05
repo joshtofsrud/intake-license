@@ -44,6 +44,7 @@
     'cta_banner'             => 'CTA banner',
     'image_gallery'          => 'Image gallery',
     'image_carousel'         => 'Image carousel', // MARKER-CAROUSEL-SECTION
+    'scroll_words'           => 'Scroll words', // MARKER-SCROLL-WORDS
     'contact_form'           => 'Contact form',
     'booking_embed'          => 'Booking form',
     'classes_embed'          => 'Classes schedule',
@@ -80,6 +81,7 @@
     'cta_banner'     => '<path d="M3 11l18-5v12L3 14z"/>',
     'image_gallery'  => '<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="11" r="1.2"/><polyline points="3 17 9 12 14 16 21 11"/>',
     'image_carousel' => '<rect x="7" y="5" width="10" height="14" rx="2"/><line x1="3" y1="9" x2="3" y2="15"/><line x1="21" y1="9" x2="21" y2="15"/>', // MARKER-CAROUSEL-SECTION
+    'scroll_words' => '<line x1="4" y1="7" x2="11" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="15" y2="17"/>', // MARKER-SCROLL-WORDS
     'contact_form'   => '<path d="M4 4h16v16H4z"/><polyline points="4 7 12 13 20 7"/>',
     'booking_embed'  => '<rect x="3" y="5" width="18" height="16" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="3" x2="8" y2="7"/><line x1="16" y1="3" x2="16" y2="7"/>',
     'classes_embed'  => '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1" fill="currentColor"/>',
@@ -114,6 +116,7 @@
     'cta_banner'    => 'Single call-to-action strip',
     'image_gallery' => 'Photo grid (Instagram-style)',
     'image_carousel' => 'Sliding photo carousel', // MARKER-CAROUSEL-SECTION
+    'scroll_words'   => 'Words that change as you scroll', // MARKER-SCROLL-WORDS
     'contact_form'  => 'Inbound contact form',
     'booking_embed' => 'Live booking widget',
     'classes_embed' => 'Class schedule widget',
@@ -141,7 +144,7 @@
   // Logical grouping for the gallery. Order matters — common ones first.
   $typeGroups = [
     'Layout'     => ['nav','hero','footer'],
-    'Content'    => ['text_image','feature_grid','feature_groups','step_timeline','image_gallery','image_carousel','faq_accordion','stats_row'], // MARKER-FEATURE-GROUPS
+    'Content'    => ['text_image','feature_grid','feature_groups','step_timeline','image_gallery','image_carousel','scroll_words','faq_accordion','stats_row'], // MARKER-FEATURE-GROUPS
     'Conversion' => ['services','cta_banner','booking_embed','contact_form','book_call','try_demo','pricing_table','rentals_showcase','rental_spotlight','rental_categories','rental_browse','products_showcase'], // MARKER-SCHED-SECTION book_call
     'Social'     => ['testimonial_carousel','logo_bar'],
     'Advanced'   => ['custom_html'], // MARKER-PATCH-306
@@ -2012,8 +2015,8 @@ body.ia-theme-b .pb2-preview-frame-wrap {
             $allowed = $isBookingExtras
               ? ['hero','cta_banner','feature_grid','custom_html','text_image','image_gallery','image_carousel','stats_row','testimonial_carousel','faq_accordion','logo_bar','step_timeline','pricing_table'] // MARKER-PATCH-603 — content sections; chrome/shop/nav excluded
               : ($isMarketing
-              ? ['nav','hero','text_image','cta_banner','image_gallery','image_carousel','contact_form','feature_grid','step_timeline','faq_accordion','footer','pricing_table','testimonial_carousel','logo_bar','stats_row','comparison_table','industry_pack_showcase','book_call','try_demo','custom_html','feature_groups'] /* MARKER-SCHED-SECTION / MARKER-DEMO-SECTION / MARKER-FEATURE-GROUPS (marketing only) */
-              : ['nav','hero','text_image','cta_banner','image_gallery','image_carousel','contact_form','booking_embed','classes_embed','feature_grid','step_timeline','faq_accordion','footer','testimonial_carousel','logo_bar','stats_row','pricing_table','rentals_showcase','rental_spotlight','rental_categories','rental_browse','products_showcase','custom_html']);
+              ? ['nav','hero','text_image','cta_banner','image_gallery','image_carousel','scroll_words','contact_form','feature_grid','step_timeline','faq_accordion','footer','pricing_table','testimonial_carousel','logo_bar','stats_row','comparison_table','industry_pack_showcase','book_call','try_demo','custom_html','feature_groups'] /* MARKER-SCHED-SECTION / MARKER-DEMO-SECTION / MARKER-FEATURE-GROUPS (marketing only) */
+              : ['nav','hero','text_image','cta_banner','image_gallery','image_carousel','scroll_words','contact_form','booking_embed','classes_embed','feature_grid','step_timeline','faq_accordion','footer','testimonial_carousel','logo_bar','stats_row','pricing_table','rentals_showcase','rental_spotlight','rental_categories','rental_browse','products_showcase','custom_html']);
           @endphp
 
           <div class="pb2-gallery">

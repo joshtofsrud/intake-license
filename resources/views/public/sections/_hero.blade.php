@@ -60,6 +60,7 @@
   $buttons = $c['buttons'] ?? [];
   if (is_string($buttons)) { $d = json_decode($buttons, true); $buttons = is_array($d) ? $d : []; }
   if (!is_array($buttons)) $buttons = [];
+  $heroPill = ($c['buttons_style'] ?? 'separate') === 'pill'; // MARKER-HERO-PILL
   if (empty($buttons) && !empty($c['cta_primary_label'] ?? '')) {
       $buttons[] = ['label' => $c['cta_primary_label'], 'url' => $c['cta_primary_url'] ?? '/', 'style' => 'primary'];
       if (!empty($c['cta_secondary_label'] ?? '')) {
@@ -259,6 +260,11 @@
   text-decoration: underline;
   text-underline-offset: 4px;
 }
+/* MARKER-HERO-PILL */
+.{{ $instId }} .p-hero-pill { display: inline-flex; flex-wrap: wrap; gap: 4px; padding: 5px; border-radius: 999px; max-width: 100%; background: rgba(10,10,10,.45); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border: 1px solid rgba(255,255,255,.14); }
+.{{ $instId }} .p-hero-pill .p-hero-btn { border-radius: 999px; }
+.{{ $instId }} .p-hero-btn--pilllink { background: transparent; color: {{ $textColor }}; opacity: .85; }
+.{{ $instId }} .p-hero-btn--pilllink:hover { opacity: 1; }
 .{{ $instId }} .p-hero-footnote {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 12px;
@@ -292,14 +298,16 @@
 
     @if(count($buttons) > 0)
       <div class="p-hero-actions">
+        @if($heroPill) <span class="p-hero-pill"> @endif
         @foreach($buttons as $btn)
-          @php $style = $btn['style'] ?? 'primary'; @endphp
+          @php $style = ($heroPill && ! $loop->first) ? 'pilllink' : ($btn['style'] ?? 'primary'); @endphp
           @if(!empty($btn['label']))
             <a href="{{ $btn['url'] ?? '#' }}" class="p-hero-btn p-hero-btn--{{ $style }}">
               {{ $btn['label'] }}
             </a>
           @endif
         @endforeach
+        @if($heroPill) </span> @endif
       </div>
     @endif
 

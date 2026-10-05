@@ -69,6 +69,7 @@
         }
     }
     $justify = ['left' => 'flex-start', 'center' => 'center', 'right' => 'flex-end'][$align];
+    $heroPill = ($c['buttons_style'] ?? 'separate') === 'pill'; // MARKER-HERO-PILL
 @endphp
 
 <style>
@@ -106,6 +107,12 @@
         justify-content: {{ $justify }};
     }
     .{{ $hid }} .mk-btn--link { background: transparent; border: 0; padding-left: 0; padding-right: 0; color: var(--mk-text); text-decoration: underline; }
+    /* MARKER-HERO-PILL */
+    .{{ $hid }} .mk-hero-pill { display: inline-flex; flex-wrap: wrap; gap: 4px; padding: 5px; border-radius: 999px; max-width: 100%;
+        background: rgba(10,10,10,.5); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border: 0.5px solid rgba(255,255,255,.14); }
+    .{{ $hid }} .mk-hero-pill .mk-btn { border-radius: 999px; }
+    .{{ $hid }} .mk-btn--pilllink { background: transparent; border: 0; color: var(--mk-text); opacity: .85; }
+    .{{ $hid }} .mk-btn--pilllink:hover { opacity: 1; }
     .mk-hero-note { font-size: 12px; color: var(--mk-dim); }
 </style>
 
@@ -123,12 +130,14 @@
 
         @if($buttons)
             <div class="mk-hero-actions">
+                @if($heroPill) <span class="mk-hero-pill"> @endif
                 @foreach($buttons as $b)
-                    @php $st = $b['style'] ?? 'primary'; @endphp
-                    <a href="{{ $b['url'] ?? '#' }}" class="mk-btn {{ $st === 'primary' ? 'mk-btn--primary' : ($st === 'link' ? 'mk-btn--link' : 'mk-btn--ghost') }}">
+                    @php $st = ($heroPill && ! $loop->first) ? 'pilllink' : ($b['style'] ?? 'primary'); @endphp
+                    <a href="{{ $b['url'] ?? '#' }}" class="mk-btn {{ $st === 'primary' ? 'mk-btn--primary' : ($st === 'link' ? 'mk-btn--link' : ($st === 'pilllink' ? 'mk-btn--pilllink' : 'mk-btn--ghost')) }}">
                         {{ $b['label'] }} @if($st === 'primary') → @endif
                     </a>
                 @endforeach
+                @if($heroPill) </span> @endif
             </div>
         @endif
 

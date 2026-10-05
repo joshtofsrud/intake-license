@@ -230,6 +230,9 @@ class PageBuilderController extends Controller
             'hide_on_mobile'  => false,
             'hide_on_desktop' => false,
         ],
+        // MARKER-SCROLL-WORDS
+        'scroll_words' => ['prefix' => 'One system for', 'words' => "booking\nservice\nretail\nrentals\nmarketing", 'mode' => 'spotlight', 'size' => 'l', 'align' => 'left',
+                           'text_color' => '', 'accent_color' => '', 'anchor_id' => '', 'custom_classes' => '', 'hide_on_mobile' => false, 'hide_on_desktop' => false],
         'image_gallery' => ['images'=>[],'columns'=>3],
         // MARKER-CAROUSEL-SECTION -- sliding image carousel.
         'image_carousel' => [

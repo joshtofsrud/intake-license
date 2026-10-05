@@ -96,6 +96,22 @@
       <input type="hidden" data-field="slides_per_view" value="{{ $get('slides_per_view',1) }}">
     </div>
 
+    {{-- MARKER-CAROUSEL-DEPTH --}}
+    <div class="pb2-field">
+      <label class="pb2-field-label">Carousel style</label>
+      <div class="pb2-seg" data-field-seg="carousel_style">
+        @foreach(['classic'=>'Classic','depth'=>'Depth'] as $v => $n)
+          <button type="button" class="pb2-seg-btn {{ $get('carousel_style', 'classic') === $v ? 'active' : '' }}" data-seg-value="{{ $v }}">{{ $n }}</button>
+        @endforeach
+      </div>
+      <input type="hidden" data-field="carousel_style" value="{{ $get('carousel_style', 'classic') }}">
+      <div class="pb2-field-hint" style="text-align:left;display:block;margin-top:4px">Depth: the centre card is large and in focus, neighbours sit smaller behind. Each image's caption becomes its title; its link adds a button.</div>
+    </div>
+    <div class="pb2-field">
+      <label class="pb2-field-label">Card button text <span class="pb2-field-hint">Depth</span></label>
+      <input type="text" class="pb2-input" data-field="depth_button" value="{{ $get('depth_button', 'View') }}" maxlength="24">
+    </div>
+
     <div class="pb2-field">
       <label class="pb2-field-label">Slide shape</label>
       <select class="pb2-input" data-field="aspect_ratio">

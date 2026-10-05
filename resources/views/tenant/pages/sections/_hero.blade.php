@@ -106,6 +106,18 @@
          picks it up via the standard [data-field] selector. --}}
     <input type="hidden" data-field="buttons" id="pb2-hero-buttons-json" value="{{ json_encode($buttons) }}">
 
+    {{-- MARKER-HERO-PILL --}}
+    <div class="pb2-field" style="margin-top:10px">
+      <label class="pb2-field-label">Button style</label>
+      <div class="pb2-seg" data-field-seg="buttons_style">
+        @foreach(['separate'=>'Separate','pill'=>'Pill bar'] as $v => $n)
+          <button type="button" class="pb2-seg-btn {{ $get('buttons_style', 'separate') === $v ? 'active' : '' }}" data-seg-value="{{ $v }}">{{ $n }}</button>
+        @endforeach
+      </div>
+      <input type="hidden" data-field="buttons_style" value="{{ $get('buttons_style', 'separate') }}">
+      <div class="pb2-field-hint" style="text-align:left;display:block;margin-top:4px">Pill bar groups the buttons in one rounded glass bar; the first stays filled.</div>
+    </div>
+
     {{-- Legacy CTA fields. We zero them out when buttons[] is populated so
          the renderer doesn't double-render. The renderer uses buttons[] if
          non-empty, falls back to cta_primary/secondary otherwise. --}}
