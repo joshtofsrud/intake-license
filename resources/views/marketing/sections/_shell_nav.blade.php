@@ -177,8 +177,11 @@
     #mk-nav .mk-mobile-cta { display: none; }
     @media (max-width: 860px) {
         /* MARKER-MKT-NAV-BUTTONS — in the bar, a set distance from ☰ */
-        #mk-nav[data-btnpos="bar"] .mk-nav-end { margin-left: auto; margin-right: var(--mkf-btn-dist, 0px); }
-        #mk-nav[data-btnpos="bar"] .mk-hamburger { margin-left: 8px; }
+        /* MARKER-MKT-NAV-BTNDIST-V2 — logo left, button + ☰ right, slider = gap between them */
+        #mk-nav[data-btnpos="bar"] .mk-nav-inner { gap: 0 !important; }
+        #mk-nav[data-btnpos="bar"] .mk-logo { margin-right: auto !important; }
+        #mk-nav[data-btnpos="bar"] .mk-nav-end { margin-left: 0 !important; margin-right: 0 !important; }
+        #mk-nav[data-btnpos="bar"] .mk-hamburger { margin-left: calc(6px + var(--mkf-btn-dist, 0px)) !important; }
         #mk-nav[data-btnpos="menu"] .mk-nav-end .mk-btn { display: none; }
         #mk-nav[data-btnpos="menu"] .mk-mobile-cta { display: flex; justify-content: center; width: 100%; box-sizing: border-box; margin: 4px 0 8px; border-bottom: 0; }
     }
