@@ -361,12 +361,13 @@
            before it, which is the whole point. --}}
       @php
         $pull   = max(0, min(240, (int) ($sc['overlap_top'] ?? 0)));
-        $pullId = 'pbpull-' . substr((string) $section->id, 0, 8);
+        $pullP  = max(0, min(240, (int) ($sc['overlap_top_phone'] ?? 0))); // MARKER-OVERLAP-PHONE
+        $pullId = 'pbpull-' . substr(md5((string) $section->id), 0, 10); // no short-id collisions
       @endphp
-      @if($pull > 0)
+      @if($pull > 0 || $pullP > 0)
         <style>
           .{{ $pullId }} { margin-top: -{{ $pull }}px; position: relative; z-index: 2; }
-          @media (max-width: 768px) { .{{ $pullId }} { margin-top: 0; } }
+          @media (max-width: 768px) { .{{ $pullId }} { margin-top: -{{ $pullP }}px; } }
         </style>
         <div class="{{ $pullId }}">
       @endif
@@ -379,7 +380,7 @@
         'tenant'   => $currentTenant,
       ])
       @if(!empty($builderPreview))</div>@endif
-      @if($pull > 0)</div>@endif
+      @if($pull > 0 || $pullP > 0)</div>@endif
     @elseif(config('app.debug'))
       <div style="padding:24px;margin:20px auto;max-width:800px;background:#fef3c7;border:1px solid #f59e0b;border-radius:8px;color:#78350f;font-family:monospace;font-size:13px;">
         <strong>⚠ Page builder section unsupported on public renderer:</strong> <code>{{ $section->section_type }}</code><br>

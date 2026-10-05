@@ -4,6 +4,7 @@
      padding as every other control and appears once, not under every tab. --}}
 @php
   $overlapValue = (int) ($section->content['overlap_top'] ?? 0);
+  $overlapPhone = (int) ($section->content['overlap_top_phone'] ?? 0); // MARKER-OVERLAP-PHONE
 @endphp
 
 <div class="pb2-group">
@@ -26,10 +27,21 @@
     </div>
 
     <input type="hidden" data-field="overlap_top" value="{{ $overlapValue }}">
+  </div>
+  <div class="pb2-field">
+    <label class="pb2-field-label">Phone overlap <span class="pb2-field-hint">0 = stack on phones</span></label>
+    <div style="display:flex;align-items:center;gap:12px">
+      <input type="range" min="0" max="240" step="4" value="{{ $overlapPhone }}" style="flex:1;min-width:0"
+             oninput="this.nextElementSibling.textContent = this.value + 'px';
+                      var h = this.parentElement.parentElement.querySelector('[data-field=overlap_top_phone]');
+                      h.value = this.value; h.dispatchEvent(new Event('change', { bubbles: true }));">
+      <span style="min-width:52px;text-align:right;font-variant-numeric:tabular-nums;font-size:12.5px;opacity:.75">{{ $overlapPhone }}px</span>
+    </div>
+    <input type="hidden" data-field="overlap_top_phone" value="{{ $overlapPhone }}">
 
     <div class="pb2-field-hint" style="margin-top:6px;display:block;text-align:left">
       Lifts this section over the one before it, so its background sits on top —
-      cards riding up over a hero, for instance. <b>Ignored on phones</b>, where an
+      cards riding up over a hero, for instance. <b>Phones use their own amount</b> (Phone overlap), where an
       overlap would cover the heading; the sections just stack.
     </div>
   </div>

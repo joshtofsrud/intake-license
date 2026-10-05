@@ -359,14 +359,15 @@
              intake.works and a shop's own site behave identically. --}}
         @php
           $pull   = max(0, min(240, (int) ($c['overlap_top'] ?? 0)));
+          $pullP  = max(0, min(240, (int) ($c['overlap_top_phone'] ?? 0))); // MARKER-OVERLAP-PHONE
           $pullId = 'pbpull-' . substr(md5((string) $section->id), 0, 10); // no short-id collisions
         @endphp
         {{-- MARKER-MKT-OVERLAP-LIVE — the preview's redrawn wrapper now holds the overlap too. --}}
         @if(!empty($builderPreview))<div data-pb-section="{{ $section->id }}" data-pb-type="{{ $section->section_type }}">@endif
-        @if($pull > 0)
+        @if($pull > 0 || $pullP > 0)
           <style>
             .{{ $pullId }} { margin-top: -{{ $pull }}px; position: relative; z-index: 2; }
-            @media (max-width: 768px) { .{{ $pullId }} { margin-top: 0; } }
+            @media (max-width: 768px) { .{{ $pullId }} { margin-top: -{{ $pullP }}px; } }
           </style>
           <div class="{{ $pullId }}">
         @endif
@@ -390,7 +391,7 @@
             'industry' => $industry,
         ])
         </div>
-        @if($pull > 0)</div>@endif
+        @if($pull > 0 || $pullP > 0)</div>@endif
         @if(!empty($builderPreview))</div>@endif
     @else
         <div style="background:#3b1d0b;color:#ffcc80;padding:12px 24px;font-size:13px;text-align:center;border-top:0.5px solid rgba(255,255,255,.08)">
