@@ -132,6 +132,7 @@
         /* MARKER-MKT-SECTION-LAYOUT — each section sits in a .mkw wrapper, so the
            last one is marked by the loop; :last-of-type would match them all. */
         .mkw-last > .mk-section { border-bottom: none; }
+        .mkw-noline > section { border-bottom-color: transparent !important; } /* MARKER-MKT-NO-LINE */
         /* MARKER-MKT-BG-SPAN — sections inside a run let the shared gradient show through. */
         .mk-bg-span { position: relative; }
         .mk-bg-span section[class], .mk-bg-span footer[class] { background: transparent !important; border-bottom-color: transparent; }
@@ -355,7 +356,9 @@
         } else {
             $mkBgCarry = null;
         }
-        $mkwClass  = trim('mkw ' . $mkwId . ($mkwFirst ? ' mkw-first' : '')
+        // MARKER-MKT-NO-LINE — a section with its own background needs no divider line.
+        $mkwNoLine = ($c['bg_mode'] ?? 'none') !== 'none' && ($c['bg_mode'] ?? '') !== 'color' || (($c['bg_mode'] ?? '') === 'color' && ! empty($section->bg_color));
+        $mkwClass  = trim('mkw ' . $mkwId . ($mkwNoLine ? ' mkw-noline' : '') . ($mkwFirst ? ' mkw-first' : '')
             . (! empty($c['hide_on_mobile'])  ? ' mkw-hide-m' : '')
             . (! empty($c['hide_on_desktop']) ? ' mkw-hide-d' : '')
             . ($mkwLast ? ' mkw-last' : '')
@@ -371,6 +374,8 @@
           $pull   = max(0, min(240, (int) ($c['overlap_top'] ?? 0)));
           $pullId = 'pbpull-' . substr(md5((string) $section->id), 0, 10); // MARKER-MKT-BG-SPAN — no short-id collisions
         @endphp
+        {{-- MARKER-MKT-OVERLAP-LIVE — the preview's redrawn wrapper now holds the overlap too. --}}
+        @if(!empty($builderPreview))<div data-pb-section="{{ $section->id }}" data-pb-type="{{ $section->section_type }}">@endif
         @if($pull > 0)
           <style>
             .{{ $pullId }} { margin-top: -{{ $pull }}px; position: relative; z-index: 2; }
@@ -378,7 +383,6 @@
           </style>
           <div class="{{ $pullId }}">
         @endif
-        @if(!empty($builderPreview))<div data-pb-section="{{ $section->id }}" data-pb-type="{{ $section->section_type }}">@endif
         <div class="{{ $mkwClass }}" @if($mkwAnchor !== '') id="{{ $mkwAnchor }}" @endif>
         @if($mkwTop !== null || $mkwBot !== null || $mkwHead || $mkwBody)
           <style>
@@ -399,8 +403,8 @@
             'industry' => $industry,
         ])
         </div>
-        @if(!empty($builderPreview))</div>@endif
         @if($pull > 0)</div>@endif
+        @if(!empty($builderPreview))</div>@endif
         @if($mkSpan['close']) </div> @endif
     @else
         <div style="background:#3b1d0b;color:#ffcc80;padding:12px 24px;font-size:13px;text-align:center;border-top:0.5px solid rgba(255,255,255,.08)">

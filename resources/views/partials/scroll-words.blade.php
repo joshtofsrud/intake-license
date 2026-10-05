@@ -26,7 +26,22 @@
   $swCls    = trim(preg_replace('/[^A-Za-z0-9_ -]/', '', (string) ($c['custom_classes'] ?? ''))
               . (! empty($c['hide_on_mobile']) ? ' sw-hide-m' : '') . (! empty($c['hide_on_desktop']) ? ' sw-hide-d' : ''));
   $swSentence = $swPrefix . ' ' . implode(', ', $swWords) . '.';
+  // MARKER-SCROLL-WORDS-BG — shop sites: draw the colour or gradient here.
+  // intake.works uses its shared background renderer (blend, fade, continue).
+  $swBg = '';
+  if (empty($mkBg)) {
+      $swHex = fn ($v, $d) => is_string($v) && preg_match('/^#[0-9a-fA-F]{3,8}$/', trim($v)) ? trim($v) : $d;
+      if (($c['bg_mode'] ?? '') === 'gradient') {
+          $swBg = 'background:linear-gradient(' . (int) ($c['bg_gradient_angle'] ?? 135) . 'deg,'
+              . $swHex($c['bg_gradient_from'] ?? null, '#0a0f1a') . ',' . $swHex($c['bg_gradient_to'] ?? null, '#0f1828') . ');';
+      } elseif (($c['bg_mode'] ?? '') === 'color') {
+          $swBg = 'background:' . $swHex($c['bg_color'] ?? ($section->bg_color ?? null), 'transparent') . ';';
+      }
+  }
 @endphp
+@if(!empty($mkBg))
+  @include('marketing.sections._section_bg', ['bgId' => $swId])
+@endif
 <style>
   /* MARKER-SCROLL-WORDS-V2 — a normal-height section: the words change while
      it crosses the screen, instead of pinning it over a very tall scroll. */
@@ -52,7 +67,7 @@
     .{{ $swId }}.sw-slide .sw-words { height: auto; }
   }
 </style>
-<section class="{{ $swId }} sw-{{ $swMode }} {{ $swCls }}" @if($swAnchor !== '') id="{{ $swAnchor }}" @endif aria-label="{{ $swSentence }}">
+<section class="{{ $swId }} sw-{{ $swMode }} {{ $swCls }}" @if($swAnchor !== '') id="{{ $swAnchor }}" @endif @if($swBg !== '' || ! empty($inlineStyle)) style="{{ $swBg }}{{ $inlineStyle ?? '' }}" @endif aria-label="{{ $swSentence }}">
   <div class="sw-pin">
     <div class="sw-line" aria-hidden="true">
       @if($swPrefix !== '')<span class="sw-prefix">{{ $swPrefix }}</span>@endif

@@ -27,6 +27,52 @@
 
 {{--=================== DESIGN ===================--}}
 <div class="pb2-tab-panel" data-tab="style" hidden>
+  {{-- MARKER-SCROLL-WORDS-BG — the standard Section background controls --}}
+  <div class="pb2-group">
+    <div class="pb2-group-title">Section background</div>
+    <div class="pb2-field">
+      <div class="pb2-seg" data-field-seg="bg_mode">
+        @foreach(['none'=>'None','color'=>'Color','gradient'=>'Gradient'] as $val => $name)
+          <button type="button" class="pb2-seg-btn {{ $get('bg_mode', 'none') === $val ? 'active' : '' }}" data-seg-value="{{ $val }}">{{ $name }}</button>
+        @endforeach
+      </div>
+      <input type="hidden" data-field="bg_mode" value="{{ $get('bg_mode', 'none') }}">
+    </div>
+    <div class="pb2-bg-pane" data-bg-mode="color">
+      <div class="pb2-field">
+        <label class="pb2-field-label">Background color</label>
+        <div class="pb2-color-row">
+          <input type="color" data-field="bg_color" value="{{ $get('bg_color', '#0a0f1a') }}" class="pb2-color-swatch">
+          <input type="text" class="pb2-input pb2-input-sm pb2-input-mono" data-field="bg_color_text" value="{{ $get('bg_color') }}">
+        </div>
+      </div>
+    </div>
+    <div class="pb2-bg-pane" data-bg-mode="gradient">
+      <div class="pb2-field">
+        <div class="pb2-slider-row">
+          <label class="pb2-field-label" style="margin:0">Angle</label>
+          <span class="pb2-slider-value pb2-grad-deg">{{ $get('bg_gradient_angle', 135) }}°</span>
+        </div>
+        <input type="range" min="0" max="360" value="{{ $get('bg_gradient_angle', 135) }}" data-field="bg_gradient_angle" oninput="this.parentNode.querySelector('.pb2-grad-deg').textContent=this.value+'°'">
+      </div>
+      <div class="pb2-field-row">
+        <div class="pb2-field">
+          <label class="pb2-field-label">From</label>
+          <div class="pb2-color-row">
+            <input type="color" data-field="bg_gradient_from" value="{{ $get('bg_gradient_from', '#0a0f1a') }}" class="pb2-color-swatch">
+            <input type="text" class="pb2-input pb2-input-sm pb2-input-mono" data-field="bg_gradient_from_text" value="{{ $get('bg_gradient_from') }}">
+          </div>
+        </div>
+        <div class="pb2-field">
+          <label class="pb2-field-label">To</label>
+          <div class="pb2-color-row">
+            <input type="color" data-field="bg_gradient_to" value="{{ $get('bg_gradient_to', '#0f1828') }}" class="pb2-color-swatch">
+            <input type="text" class="pb2-input pb2-input-sm pb2-input-mono" data-field="bg_gradient_to_text" value="{{ $get('bg_gradient_to') }}">
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
   <div class="pb2-group">
     <div class="pb2-group-title">Motion</div>
     <div class="pb2-field">
