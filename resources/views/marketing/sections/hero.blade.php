@@ -112,7 +112,8 @@
         background: rgba(10,10,10,.5); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border: 0.5px solid rgba(255,255,255,.14); }
     .{{ $hid }} .mk-hero-pill .mk-btn { border-radius: 999px; }
     .{{ $hid }} .mk-btn--pilllink { background: transparent; border: 0; color: var(--mk-text); opacity: .85; }
-    .{{ $hid }} .mk-btn--pilllink:hover { opacity: 1; }
+    .{{ $hid }} .mk-btn--pilllink { transition: background-color .2s ease, opacity .2s ease; } /* MARKER-HERO-PILL-HOVER */
+    .{{ $hid }} .mk-btn--pilllink:hover, .{{ $hid }} .mk-btn--pilllink:focus-visible { opacity: 1; background: rgba(255,255,255,.1); }
     /* MARKER-HERO-PILL-MOBILE */
     @media (max-width: 600px) {
         .{{ $hid }} .mk-hero-pill { display: flex; flex-direction: column; width: 100%; border-radius: 22px; gap: 2px; padding: 6px; }

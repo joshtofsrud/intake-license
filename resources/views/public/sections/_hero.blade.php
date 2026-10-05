@@ -264,6 +264,8 @@
 .{{ $instId }} .p-hero-pill { display: inline-flex; flex-wrap: wrap; gap: 4px; padding: 5px; border-radius: 999px; max-width: 100%; background: rgba(10,10,10,.45); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border: 1px solid rgba(255,255,255,.14); }
 .{{ $instId }} .p-hero-pill .p-hero-btn { border-radius: 999px; }
 .{{ $instId }} .p-hero-btn--pilllink { background: transparent; color: {{ $textColor }}; opacity: .85; }
+.{{ $instId }} .p-hero-btn--pilllink { transition: background-color .2s ease, opacity .2s ease; } /* MARKER-HERO-PILL-HOVER */
+.{{ $instId }} .p-hero-btn--pilllink:hover, .{{ $instId }} .p-hero-btn--pilllink:focus-visible { opacity: 1; background: color-mix(in srgb, {{ $textColor }} 12%, transparent); }
 .{{ $instId }} .p-hero-btn--pilllink:hover { opacity: 1; }
 /* MARKER-HERO-PILL-MOBILE */
 @media (max-width: 600px) {
