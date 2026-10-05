@@ -110,7 +110,7 @@
 @if($isMarketing ?? false)
 @php
   $apMode  = in_array($section->content['appear'] ?? 'none', ['none', 'fade', 'up'], true) ? ($section->content['appear'] ?? 'none') : 'none';
-  $apDelay = (string) (in_array((int) ($section->content['appear_delay'] ?? 0), [0, 150, 300], true) ? (int) ($section->content['appear_delay'] ?? 0) : 0); // MARKER-APPEAR-DELAY-FIX
+  $apDelay = max(0, min(1000, (int) ($section->content['appear_delay'] ?? 0))); // MARKER-APPEAR-DELAY-SLIDER
   $divOn   = ! empty($section->content['divider_below']) && ! in_array((string) $section->content['divider_below'], ['0', 'false'], true);
 @endphp
 <div class="pb2-group">
@@ -125,10 +125,12 @@
   </div>
   <div class="pb2-field">
     <label class="pb2-field-label">Delay</label>
-    <div class="pb2-seg" data-field-seg="appear_delay">
-      @foreach(['0' => 'None', '150' => '150ms', '300' => '300ms'] as $v => $n)
-        <button type="button" class="pb2-seg-btn {{ $apDelay === (string) $v ? 'active' : '' }}" data-seg-value="{{ $v }}">{{ $n }}</button>
-      @endforeach
+    <div style="display:flex;align-items:center;gap:12px">
+      <input type="range" min="0" max="1000" step="50" value="{{ $apDelay }}" style="flex:1;min-width:0"
+             oninput="this.nextElementSibling.textContent = this.value + 'ms';
+                      var h = this.parentElement.parentElement.querySelector('[data-field=appear_delay]');
+                      h.value = this.value; h.dispatchEvent(new Event('change', { bubbles: true }));">
+      <span style="min-width:56px;text-align:right;font-variant-numeric:tabular-nums;font-size:12.5px;opacity:.75">{{ $apDelay }}ms</span>
     </div>
     <input type="hidden" data-field="appear_delay" value="{{ $apDelay }}">
   </div>
