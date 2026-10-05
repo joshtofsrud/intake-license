@@ -22,6 +22,10 @@
     $bText   = $ok($c['btn_text'] ?? null)        ?: 'var(--mk-accent-text, #0a0a0a)';
     $italic  = ! in_array((string) ($c['accent_italic'] ?? '0'), ['0', 'false', ''], true);
     $pill    = ($c['buttons_style'] ?? 'separate') === 'pill';
+    // MARKER-MKT-CTA-V3 — optional fixed sizes (0 = automatic)
+    $hSize   = max(0, min(96, (int) ($c['headline_size'] ?? 0)));
+    $sSize   = max(0, min(28, (int) ($c['sub_size'] ?? 0)));
+    $nSize   = max(0, min(20, (int) ($c['note_size'] ?? 0)));
 
     $buttons = $c['buttons'] ?? [];
     if (is_string($buttons)) { $d = json_decode($buttons, true); $buttons = is_array($d) ? $d : []; }
@@ -41,9 +45,9 @@
     .{{ $ctId }} { padding: clamp(48px, 7vw, 88px) 0; text-align: {{ $align }}; color: {{ $txt }}; }
     .{{ $ctId }} .cta-in { max-width: {{ $maxW }}px; @if($align === 'center') margin: 0 auto; @elseif($align === 'right') margin-left: auto; @endif }
     .{{ $ctId }} .cta-eyebrow { font-size: 12px; letter-spacing: .14em; text-transform: uppercase; font-weight: 600; color: {{ $accent }}; margin-bottom: 14px; }
-    .{{ $ctId }} .cta-h { font-size: clamp(26px, 4vw, 48px); font-weight: 800; letter-spacing: -.03em; line-height: 1.05; margin: 0 0 12px; color: {{ $txt }}; }
+    .{{ $ctId }} .cta-h { font-size: {{ $hSize ? 'min(' . $hSize . 'px, 11vw)' : 'clamp(26px, 4vw, 48px)' }}; font-weight: 800; letter-spacing: -.03em; line-height: 1.05; margin: 0 0 12px; color: {{ $txt }}; }
     .{{ $ctId }} .cta-h em { color: {{ $accent }}; font-style: {{ $italic ? 'italic' : 'normal' }}; }
-    .{{ $ctId }} .cta-sub { font-size: 16px; line-height: 1.6; color: {{ $body }}; margin: 0 0 28px; }
+    .{{ $ctId }} .cta-sub { font-size: {{ $sSize ? $sSize . 'px' : '16px' }}; line-height: 1.6; color: {{ $body }}; margin: 0 0 28px; }
     .{{ $ctId }} .cta-acts { display: flex; flex-wrap: wrap; gap: 10px; justify-content: {{ $justify }}; }
     .{{ $ctId }} .cta-pill { display: inline-flex; flex-wrap: wrap; gap: 4px; padding: 5px; border-radius: 999px; background: rgba(10,10,10,.5); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border: 0.5px solid rgba(255,255,255,.14); }
     .{{ $ctId }} .cta-btn { display: inline-flex; align-items: center; gap: 6px; padding: 12px 22px; border-radius: {{ $pill ? '999px' : '10px' }}; font-weight: 600; font-size: 15px; text-decoration: none; transition: filter .15s, transform .15s; }
@@ -52,7 +56,7 @@
     .{{ $ctId }} .cta-btn--outline { border: 1px solid {{ $bFill }}; color: {{ $txt }}; }
     .{{ $ctId }} .cta-btn--ghost { background: rgba(255,255,255,.06); color: {{ $txt }}; }
     .{{ $ctId }} .cta-btn--link { color: {{ $accent }}; padding-left: 6px; padding-right: 6px; }
-    .{{ $ctId }} .cta-note { font-size: 13px; color: {{ $body }}; margin-top: 16px; opacity: .85; }
+    .{{ $ctId }} .cta-note { font-size: {{ $nSize ? $nSize . 'px' : '13px' }}; color: {{ $body }}; margin-top: 16px; opacity: .85; }
     @media (max-width: 600px) {
         .{{ $ctId }} .cta-acts, .{{ $ctId }} .cta-pill { flex-direction: column; align-items: stretch; width: 100%; }
         .{{ $ctId }} .cta-pill { border-radius: 22px; }

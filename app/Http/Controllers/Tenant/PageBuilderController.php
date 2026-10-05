@@ -949,6 +949,10 @@ class PageBuilderController extends Controller
             $section = TenantPageSection::where('page_id', $page->id)
                 ->where('id', $request->input('_inspector'))
                 ->firstOrFail();
+            // MARKER-KEEP-UNSAVED — redraw with this session's unsaved edits when asked.
+            if ($request->boolean('_draft')) {
+                \App\Support\BuilderDraft::apply(collect([$section]), (string) $page->id);
+            }
 
             $perType = 'tenant.pages.sections._' . $section->section_type;
             if (view()->exists($perType)) {

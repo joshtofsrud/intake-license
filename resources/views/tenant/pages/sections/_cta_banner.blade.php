@@ -159,13 +159,38 @@
     <div class="pb2-field-row">
       <div class="pb2-field">
         <label class="pb2-field-label">Button fill</label>
-        <input type="text" class="pb2-input pb2-input-sm pb2-input-mono" data-field="btn_fill" value="{{ $get('btn_fill') }}" placeholder="accent">
+        <div class="pb2-color-row">
+          <input type="color" data-field="btn_fill" value="{{ $get('btn_fill') ?: '#BEF264' }}" class="pb2-color-swatch">
+          <input type="text" class="pb2-input pb2-input-sm pb2-input-mono" data-field="btn_fill_text" value="{{ $get('btn_fill') }}" placeholder="accent">
+        </div>
       </div>
       <div class="pb2-field">
         <label class="pb2-field-label">Button text</label>
-        <input type="text" class="pb2-input pb2-input-sm pb2-input-mono" data-field="btn_text" value="{{ $get('btn_text') }}" placeholder="auto">
+        <div class="pb2-color-row">
+          <input type="color" data-field="btn_text" value="{{ $get('btn_text') ?: '#0a0a0a' }}" class="pb2-color-swatch">
+          <input type="text" class="pb2-input pb2-input-sm pb2-input-mono" data-field="btn_text_text" value="{{ $get('btn_text') }}" placeholder="auto">
+        </div>
       </div>
     </div>
+  </div>
+  {{-- MARKER-MKT-CTA-V3 — text sizes (0 = automatic, scales with the screen) --}}
+  <div class="pb2-group">
+    <div class="pb2-group-title">Text size</div>
+    @foreach([['headline_size', 'Headline', 20, 96], ['sub_size', 'Subheading', 12, 28], ['note_size', 'Note', 10, 20]] as [$fk, $fl, $fmin, $fmax])
+      @php $fv = (int) $get($fk, 0); @endphp
+      <div class="pb2-field">
+        <label class="pb2-field-label">{{ $fl }}</label>
+        <div style="display:flex;align-items:center;gap:12px">
+          <input type="range" min="{{ $fmin - 1 }}" max="{{ $fmax }}" step="1" value="{{ $fv ?: $fmin - 1 }}" style="flex:1;min-width:0"
+                 oninput="var v = +this.value < {{ $fmin }} ? 0 : this.value; this.nextElementSibling.textContent = v ? v + 'px' : 'auto';
+                          var h = this.parentElement.parentElement.querySelector('[data-field={{ $fk }}]');
+                          h.value = v; h.dispatchEvent(new Event('change', { bubbles: true }));">
+          <span style="min-width:48px;text-align:right;font-variant-numeric:tabular-nums;font-size:12.5px;opacity:.75">{{ $fv ? $fv . 'px' : 'auto' }}</span>
+        </div>
+        <input type="hidden" data-field="{{ $fk }}" value="{{ $fv }}">
+      </div>
+    @endforeach
+    <div class="pb2-field-hint" style="text-align:left;display:block">Slide fully left for automatic (scales with the screen). On phones, sizes over the screen's room shrink to fit.</div>
   </div>
   @endif
 

@@ -2509,6 +2509,25 @@ body.ia-theme-b .pb2-preview-frame-wrap {
   }
   window.pb2SaveNow = pb2SaveNow;
 
+  // MARKER-KEEP-UNSAVED — redraw the current section's panel WITHOUT losing
+  // unsaved edits: send them as the draft first, then redraw from the draft.
+  var pb2KeepDirty = false;
+  function pb2FlushDraft() {
+    if (!pb2Dirty || !selectedId) return Promise.resolve();
+    clearTimeout(pb2DraftTimer);
+    var c = pb2CollectContent(), fl = { section_op: 'draft', section_id: selectedId };
+    Object.keys(c).forEach(function (k) { fl['content[' + k + ']'] = c[k]; });
+    if (window.pb2NavPending && window.pb2NavRows) fl.nav_rows = JSON.stringify(window.pb2NavRows);
+    return pb2Post(fl).catch(function () {});
+  }
+  function pb2ReloadSame(item, idx) {
+    var keep = pb2Dirty;
+    return pb2FlushDraft().then(function () {
+      pb2KeepDirty = keep;
+      selectSection(selectedId, item.dataset.sectionType, idx, true);
+    });
+  }
+
   // MARKER-BUILDER-DRAFT — unsaved edits show in the preview straight away.
   // ~0.15s after a change the section's fields go to the session as a draft,
   // the preview is rendered with it, and only that section is swapped in the
@@ -2712,7 +2731,7 @@ body.ia-theme-b .pb2-preview-frame-wrap {
     if (name) name.textContent = label;
     if (sub)  sub.textContent  = `section · ${idx.toString().padStart(2, '0')}`;
 
-    fetch(`${UPDATE_URL}?_inspector=${sectionId}`, {
+    fetch(`${UPDATE_URL}?_inspector=${sectionId}` + (pb2KeepDirty ? '&_draft=1' : ''), { // MARKER-KEEP-UNSAVED
       headers: { 'Accept': 'text/html', 'X-Requested-With': 'XMLHttpRequest' },
     })
       .then(r => r.text())
@@ -2723,7 +2742,9 @@ body.ia-theme-b .pb2-preview-frame-wrap {
           attachAutosaveListeners(sectionId);
           // MARKER-PATCH-158-G19 — wire up new per-type controls
           initInspectorControls();
-          pb2SetClean(); // MARKER-EXPLICIT-SAVE — controls may fire change while wiring up
+          // MARKER-KEEP-UNSAVED — a redraw that carried unsaved edits stays unsaved
+          if (pb2KeepDirty) { pb2KeepDirty = false; pb2SetClean(); pb2MarkDirty(); }
+          else pb2SetClean(); // MARKER-EXPLICIT-SAVE — controls may fire change while wiring up
         }
       })
       .catch(err => console.error('inspector load failed', err));
@@ -3093,7 +3114,7 @@ body.ia-theme-b .pb2-preview-frame-wrap {
           const item = document.querySelector(`.pb2-section-item[data-section-id="${selectedId}"]`);
           if (item) {
             const idx = Array.from(document.querySelectorAll('.pb2-section-item')).indexOf(item) + 1;
-            setTimeout(() => selectSection(selectedId, item.dataset.sectionType, idx), 300);
+            setTimeout(() => pb2ReloadSame(item, idx), 300); // MARKER-KEEP-UNSAVED
           }
         }
       });
@@ -4267,7 +4288,7 @@ body.ia-theme-b .pb2-preview-frame-wrap {
       const item = document.querySelector(`.pb2-section-item[data-section-id="${selectedId}"]`);
       if (item) {
         const idx = Array.from(document.querySelectorAll('.pb2-section-item')).indexOf(item) + 1;
-        setTimeout(() => selectSection(selectedId, item.dataset.sectionType, idx), 350);
+        setTimeout(() => pb2ReloadSame(item, idx), 350); // MARKER-KEEP-UNSAVED
       }
     }
   }
@@ -4373,7 +4394,7 @@ body.ia-theme-b .pb2-preview-frame-wrap {
             const item = document.querySelector(`.pb2-section-item[data-section-id="${selectedId}"]`);
             if (item) {
               const idx = Array.from(document.querySelectorAll('.pb2-section-item')).indexOf(item) + 1;
-              setTimeout(() => selectSection(selectedId, item.dataset.sectionType, idx), 400);
+              setTimeout(() => pb2ReloadSame(item, idx), 400); // MARKER-KEEP-UNSAVED
             }
           }
         } else {
