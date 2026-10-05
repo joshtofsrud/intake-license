@@ -73,6 +73,25 @@
       </div>
     </div>
   </div>
+  {{-- MARKER-SW-SCROLLFX --}}
+  <div class="pb2-group">
+    <div class="pb2-group-title">Scroll effect</div>
+    @foreach([['scroll_parallax', 'Parallax', 100, '%'], ['scroll_fade', 'Fade', 100, '%'], ['scroll_blur', 'Blur', 20, 'px']] as [$sk, $sl, $smax, $su])
+      @php $sv = max(0, min($smax, (int) ($c[$sk] ?? 0))); @endphp
+      <div class="pb2-field">
+        <label class="pb2-field-label">{{ $sl }}</label>
+        <div style="display:flex;align-items:center;gap:12px">
+          <input type="range" min="0" max="{{ $smax }}" step="1" value="{{ $sv }}" style="flex:1;min-width:0"
+                 oninput="this.nextElementSibling.textContent = +this.value ? this.value + '{{ $su }}' : 'off';
+                          var h = this.parentElement.parentElement.querySelector('[data-field={{ $sk }}]');
+                          h.value = this.value; h.dispatchEvent(new Event('change', { bubbles: true }));">
+          <span style="min-width:48px;text-align:right;font-variant-numeric:tabular-nums;font-size:12.5px;opacity:.75">{{ $sv ? $sv . $su : 'off' }}</span>
+        </div>
+        <input type="hidden" data-field="{{ $sk }}" value="{{ $sv }}">
+      </div>
+    @endforeach
+    <div class="pb2-field-hint" style="text-align:left;display:block">As the section scrolls off the top, the words drift (Parallax), fade and blur; the background stays put. 0 = off.</div>
+  </div>
   <div class="pb2-group">
     <div class="pb2-group-title">Motion</div>
     <div class="pb2-field">

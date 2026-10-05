@@ -22,6 +22,11 @@
   $swText   = $swOk($c['text_color'] ?? null) ?: 'currentColor';
   $swAccent = $swOk($c['accent_color'] ?? null) ?: 'var(--mk-accent, var(--p-accent, #BEF264))';
   $swId     = 'sw' . substr(md5((string) ($section->id ?? uniqid())), 0, 8);
+  // MARKER-SW-SCROLLFX — 0 = off
+  $swFxP = max(0, min(100, (int) ($c['scroll_parallax'] ?? 0)));
+  $swFxF = max(0, min(100, (int) ($c['scroll_fade'] ?? 0)));
+  $swFxB = max(0, min(20,  (int) ($c['scroll_blur'] ?? 0)));
+  $swFxOn = $swFxP || $swFxF || $swFxB;
   $swAnchor = preg_replace('/[^A-Za-z0-9_-]/', '', (string) ($c['anchor_id'] ?? ''));
   $swCls    = trim(preg_replace('/[^A-Za-z0-9_ -]/', '', (string) ($c['custom_classes'] ?? ''))
               . (empty($mkBg) && ! empty($c['hide_on_mobile']) ? ' sw-hide-m' : '') . (empty($mkBg) && ! empty($c['hide_on_desktop']) ? ' sw-hide-d' : '')); // MARKER-MKT-HIDE-TABLET — intake.works wrapper hides
@@ -68,7 +73,7 @@
   }
 </style>
 <section class="{{ $swId }} sw-{{ $swMode }} {{ $swCls }}" @if($swAnchor !== '') id="{{ $swAnchor }}" @endif @if($swBg !== '' || ! empty($inlineStyle)) style="{{ $swBg }}{{ $inlineStyle ?? '' }}" @endif aria-label="{{ $swSentence }}">
-  <div class="sw-pin">
+  <div class="sw-pin" @if($swFxOn) data-swfx="{{ $swFxP }},{{ $swFxF }},{{ $swFxB }}" @endif>
     <div class="sw-line" aria-hidden="true">
       @if($swPrefix !== '')<span class="sw-prefix">{{ $swPrefix }}</span>@endif
       <span class="sw-words">
@@ -106,3 +111,29 @@
   tick();
 })();
 </script>
+@if($swFxOn)
+<script>
+/* MARKER-SW-SCROLLFX — words drift, fade and blur as the section leaves the top */
+(function () {
+  if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  var fx = document.querySelector('.{{ $swId }} [data-swfx]');
+  if (!fx || fx.dataset.swfxReady) return;
+  fx.dataset.swfxReady = '1';
+  var v = fx.dataset.swfx.split(',').map(Number), P = v[0] / 100, F = v[1] / 100, B = v[2];
+  var sec = fx.closest('section'), raf = 0;
+  fx.style.willChange = 'transform, opacity, filter';
+  function paint() {
+    raf = 0;
+    var r = sec.getBoundingClientRect(), gone = Math.max(0, -r.top), h = Math.max(1, r.height);
+    var t = Math.min(1, gone / h);
+    fx.style.transform = P ? 'translate3d(0,' + (gone * P * 0.6).toFixed(1) + 'px,0)' : '';
+    fx.style.opacity = F ? String(Math.max(0, 1 - t * F * 1.6)) : '';
+    fx.style.filter = B ? 'blur(' + (t * B).toFixed(2) + 'px)' : '';
+  }
+  function onScroll() { if (!raf) raf = requestAnimationFrame(paint); }
+  window.addEventListener('scroll', onScroll, { passive: true });
+  window.addEventListener('resize', onScroll);
+  paint();
+})();
+</script>
+@endif
