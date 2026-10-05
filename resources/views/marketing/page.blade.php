@@ -132,17 +132,17 @@
         /* MARKER-MKT-SECTION-LAYOUT — each section sits in a .mkw wrapper, so the
            last one is marked by the loop; :last-of-type would match them all. */
         .mkw-last > .mk-section { border-bottom: none; }
-        .mkw-noline > section { border-bottom-color: transparent !important; } /* MARKER-MKT-NO-LINE */
         /* MARKER-MKT-DIVIDER — no divider lines unless a section asks for one */
-        .mkw > section { border-bottom-color: transparent !important; }
-        .mkw.mkw-divider > section { border-bottom: 0.5px solid var(--mk-border) !important; }
+        /* MARKER-MKT-HAIRLINE-ROOT — no border at all (a transparent one shows the gradient's first row repeated) */
+        .mkw > section, .mkw > footer { border-bottom-width: 0 !important; border-top-width: 0 !important; }
+        .mkw.mkw-divider > section { border-bottom: 0.5px solid var(--mk-border) !important; background-origin: border-box !important; }
         /* MARKER-MKT-APPEAR */
         /* MARKER-MKT-APPEAR-CONTENT — the content appears; the background is always there */
         html.mk-appear-on .mk-appear > section > *, html.mk-appear-on .mk-appear > footer > * { opacity: 0; transition: opacity .7s ease, transform .7s ease; transition-delay: var(--mk-appear-delay, 0ms); }
         html.mk-appear-on .mk-appear-up > section > *, html.mk-appear-on .mk-appear-up > footer > * { transform: translateY(28px); }
         html.mk-appear-on .mk-appear.is-in > section > *, html.mk-appear-on .mk-appear.is-in > footer > * { opacity: 1; transform: none; }
         /* MARKER-MKT-BG-CHAIN — sections sharing a gradient show no divider between them. */
-        .mkw[data-bg-chain] > section { border-bottom-color: transparent !important; }
+        .mkw[data-bg-chain] > section { border-bottom-width: 0 !important; }
         @media (max-width: 768px) { .mkw-hide-m { display: none !important; } }
         /* MARKER-MKT-HIDE-TABLET — phone ≤768, tablet 769–1024, desktop ≥1025 */
         @media (min-width: 769px) and (max-width: 1024px) { .mkw-hide-t { display: none !important; } }
