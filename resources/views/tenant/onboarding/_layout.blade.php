@@ -56,11 +56,6 @@
       display: inline-flex; align-items: center; gap: 9px;
       font-weight: 700; font-size: 14px;
     }
-    .brand-mark {
-      background: var(--lime); color: var(--lime-text);
-      padding: 3px 7px; border-radius: 4px;
-      font-weight: 800; letter-spacing: -0.02em;
-    }
     .doctitle {
       font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em;
       color: var(--text-3); margin-top: 4px;
@@ -154,7 +149,7 @@
 
   <div class="top">
     <div>
-      <div class="brand"><span class="brand-mark">I</span> intake</div>
+      <div class="brand"><img src="{{ \App\Support\Brand::url('logo') }}" alt="Intake" style="display:block;height:22px;width:auto"></div> {{-- MARKER-PLATFORM-LOGO --}}
       <div class="doctitle">Setting up {{ $tenant->name }}</div>
     </div>
   </div>

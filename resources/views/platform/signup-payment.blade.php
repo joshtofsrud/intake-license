@@ -20,7 +20,6 @@
   .sp-wrap { max-width: 540px; margin: 0 auto; }
 
   .sp-brand { display: flex; align-items: center; gap: 10px; margin-bottom: 40px; }
-  .sp-brand .mark { width: 30px; height: 30px; background: var(--accent); color: #000; border-radius: 7px; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 17pt; }
   .sp-brand .name { font-weight: 500; font-size: 14pt; letter-spacing: -0.01em; }
 
   h1 { font-size: 26pt; font-weight: 700; letter-spacing: -0.03em; margin-bottom: 8px; line-height: 1.15; }
@@ -78,8 +77,7 @@
 <div class="sp-wrap">
 
   <div class="sp-brand">
-    <div class="mark">I</div>
-    <div class="name">intake</div>
+    <img src="{{ \App\Support\Brand::url('logo') }}" alt="Intake" style="display:block;height:24px;width:auto"> {{-- MARKER-PLATFORM-LOGO --}}
   </div>
 
   <h1>Almost there, <span class="accent">{{ explode(' ', $pending['name'])[0] }}</span>.</h1>

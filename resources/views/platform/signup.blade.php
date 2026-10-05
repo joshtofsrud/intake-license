@@ -14,7 +14,6 @@
     a{color:inherit;text-decoration:none}
     .su-nav{padding:16px 28px;border-bottom:0.5px solid var(--border);display:flex;align-items:center;justify-content:space-between}
     .su-logo{display:flex;align-items:center;gap:8px;font-size:15px;font-weight:700}
-    .su-logo-mark{width:24px;height:24px;background:var(--accent);border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:var(--accent-text)}
     .su-nav-signin{font-size:13px;color:var(--muted)}
     .su-nav-signin a{color:var(--accent)}
     .su-body{flex:1;display:flex;align-items:flex-start;justify-content:center;padding:40px 16px 60px;gap:48px;flex-wrap:wrap}
@@ -58,8 +57,7 @@
 
 <div class="su-nav">
   <a href="{{ route('marketing.home') }}" class="su-logo">
-    <div class="su-logo-mark">I</div>
-    intake
+    <img src="{{ \App\Support\Brand::url('logo') }}" alt="Intake" style="display:block;height:24px;width:auto"> {{-- MARKER-PLATFORM-LOGO --}}
   </a>
   <div class="su-nav-signin">Already have an account? <a href="{{ route('platform.login') }}">Sign in →</a></div>
 </div>

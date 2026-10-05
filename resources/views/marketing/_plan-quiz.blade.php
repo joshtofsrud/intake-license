@@ -24,7 +24,6 @@
 
   .pq-head { display: flex; justify-content: space-between; align-items: center; padding: 18px 24px 14px; border-bottom: 1px solid #1f1f1f; }
   .pq-head .pq-brand { display: flex; align-items: center; gap: 8px; font-weight: 500; font-size: 14px; }
-  .pq-head .pq-brand .mark { width: 22px; height: 22px; background: #BEF264; color: #000; border-radius: 5px; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 12pt; }
   .pq-close { background: transparent; border: none; color: #8a8a87; font-size: 20px; cursor: pointer; padding: 4px 8px; border-radius: 6px; line-height: 1; }
   .pq-close:hover { background: rgba(255,255,255,0.05); color: #fff; }
 
@@ -91,7 +90,7 @@
 <div class="pq-overlay" id="pq-overlay" role="dialog" aria-labelledby="pq-question" aria-modal="true">
   <div class="pq-modal">
     <div class="pq-head">
-      <div class="pq-brand"><div class="mark">I</div> Plan finder</div>
+      <div class="pq-brand"><img src="{{ \App\Support\Brand::url('icon') }}" alt="" style="display:block;height:22px;width:auto"> Plan finder</div> {{-- MARKER-PLATFORM-LOGO --}}
       <button type="button" class="pq-close" id="pq-close" aria-label="Close">×</button>
     </div>
 

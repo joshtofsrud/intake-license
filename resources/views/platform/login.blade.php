@@ -11,7 +11,6 @@
     body{font-family:'Inter',-apple-system,sans-serif;background:#0c0c0c;color:#f0f0f0;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;-webkit-font-smoothing:antialiased}
     :root{--accent:#BEF264;--accent-text:#0a0a0a;--bg2:#1a1a1a;--border:rgba(255,255,255,.1);--muted:rgba(255,255,255,.4)}
     .logo{display:flex;align-items:center;gap:8px;font-size:18px;font-weight:700;margin-bottom:32px}
-    .logo-mark{width:28px;height:28px;background:var(--accent);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;color:var(--accent-text)}
     .card{background:var(--bg2);border:0.5px solid var(--border);border-radius:16px;padding:36px;width:100%;max-width:400px}
     h1{font-size:22px;font-weight:700;margin-bottom:8px}
     p{font-size:14px;color:var(--muted);margin-bottom:24px;line-height:1.6}
@@ -30,8 +29,7 @@
 </head>
 <body>
   <div class="logo">
-    <div class="logo-mark">I</div>
-    intake
+    <img src="{{ \App\Support\Brand::url('logo') }}" alt="Intake" style="display:block;height:28px;width:auto"> {{-- MARKER-PLATFORM-LOGO --}}
   </div>
 
   <div class="card">
