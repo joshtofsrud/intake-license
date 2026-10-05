@@ -34,3 +34,33 @@
     </div>
   </div>
 </div>
+
+{{-- MARKER-MKT-BG-BLEND — intake.works only: shop sections don't read these yet. --}}
+@if($isMarketing ?? false)
+@php
+  $blendOp   = (int) ($section->content['bg_opacity'] ?? 100);
+  $blendCont = ! empty($section->content['bg_continue']);
+@endphp
+<div class="pb2-group">
+  <div class="pb2-group-title">Background blend</div>
+  <div class="pb2-field">
+    <label class="pb2-field-label">Opacity <span class="pb2-field-hint">colour and gradient</span></label>
+    <div style="display:flex;align-items:center;gap:12px">
+      <input type="range" min="0" max="100" step="5" value="{{ $blendOp }}" style="flex:1;min-width:0"
+             oninput="this.nextElementSibling.textContent = this.value + '%';
+                      var h = this.parentElement.parentElement.querySelector('[data-field=bg_opacity]');
+                      h.value = this.value; h.dispatchEvent(new Event('change', { bubbles: true }));">
+      <span style="min-width:44px;text-align:right;font-variant-numeric:tabular-nums;font-size:12.5px;opacity:.75">{{ $blendOp }}%</span>
+    </div>
+    <input type="hidden" data-field="bg_opacity" value="{{ $blendOp }}">
+  </div>
+  <label class="pb2-checkbox-row">
+    <input type="checkbox" data-field="bg_continue" value="1" {{ $blendCont ? 'checked' : '' }}>
+    <span>Continue gradient from the section above</span>
+  </label>
+  <div class="pb2-field-hint" style="text-align:left;display:block;margin-top:4px">
+    With a Gradient background: starts on the colour the section above ended on and runs top to bottom, so there's no seam.
+    Chain several sections for one long gradient.
+  </div>
+</div>
+@endif

@@ -14,6 +14,12 @@
   $imgUrl  = $c['bg_image_url'] ?? '';
   $isImage = $bgMode === 'image' && $imgUrl !== '';
   $isGrad  = $bgMode === 'gradient';
+  // MARKER-MKT-BG-BLEND — opacity and "continue from above".
+  $bgOp     = max(0, min(100, (int) ($c['bg_opacity'] ?? 100)));
+  $bgFadeFn = fn ($col) => $bgOp >= 100 ? $col : 'color-mix(in srgb, ' . $col . ' ' . $bgOp . '%, transparent)';
+  $bgCont   = $isGrad && ! empty($c['bg_continue']);
+  $bgSolid  = $bgMode === 'color' && $bgOp < 100 && is_string($section->bg_color ?? null)
+              && preg_match('/^#[0-9a-fA-F]{3,8}$/', trim((string) $section->bg_color));
 
   if ($isImage || $isGrad) {
       $bgColor  = $c['bg_color'] ?? '#0a0a0a';
@@ -36,6 +42,9 @@
       $needVeil = $isImage && ($overlayOpacity > 0 || $blurPx > 0);
   }
 @endphp
+@if($bgSolid)
+<style>.{{ $bgId }} { background: {{ $bgFadeFn(trim($section->bg_color)) }} !important; }</style>
+@endif
 @if($isImage || $isGrad)
 <style>
   .{{ $bgId }} { position: relative; }
@@ -49,7 +58,11 @@
   }
   @else
   .{{ $bgId }} {
-    background: linear-gradient({{ $gradDeg }}deg, {{ $gradFrom }} 0%, {{ $gradTo }} 100%) !important;
+    @if($bgCont)
+    background: linear-gradient(180deg, {{ $mkBgPrev ?? 'var(--mk-bg, #0a0a0a)' }} 0%, {{ $bgFadeFn($gradTo) }} 100%) !important;
+    @else
+    background: linear-gradient({{ $gradDeg }}deg, {{ $bgFadeFn($gradFrom) }} 0%, {{ $bgFadeFn($gradTo) }} 100%) !important;
+    @endif
   }
   @endif
   .{{ $bgId }} > * { position: relative; z-index: 1; }

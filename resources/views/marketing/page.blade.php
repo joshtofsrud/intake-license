@@ -298,6 +298,19 @@
         $mkwLast   = collect($sections)->slice($loop->index + 1)->every(fn ($s) => in_array($s->section_type, ['nav', 'footer'], true));
         // MARKER-MKT-FLOAT-OVERLAP — the first drawn section can sit behind a Floating header.
         $mkwFirst  = collect($sections)->slice(0, $loop->index)->every(fn ($s) => in_array($s->section_type, ['nav', 'footer'], true));
+        // MARKER-MKT-BG-BLEND — $mkBgPrev is the colour the section above ended on.
+        $mkBgPrev  = $mkBgCarry ?? null;
+        $mkBgOp    = max(0, min(100, (int) ($c['bg_opacity'] ?? 100)));
+        $mkBgFade  = fn ($col) => $mkBgOp >= 100 ? $col : 'color-mix(in srgb, ' . $col . ' ' . $mkBgOp . '%, transparent)';
+        $mkBgMode  = $c['bg_mode'] ?? 'color';
+        $mkBgHex   = fn ($v) => is_string($v) && preg_match('/^#[0-9a-fA-F]{3,8}$/', trim($v)) ? trim($v) : null;
+        if ($mkBgMode === 'gradient') {
+            $mkBgCarry = $mkBgFade($mkBgHex($c['bg_gradient_to'] ?? null) ?: '#0a0a0a');
+        } elseif ($mkBgMode === 'color' && $mkBgHex($section->bg_color ?? null)) {
+            $mkBgCarry = $mkBgFade($mkBgHex($section->bg_color));
+        } else {
+            $mkBgCarry = null;
+        }
         $mkwClass  = trim('mkw ' . $mkwId . ($mkwFirst ? ' mkw-first' : '')
             . (! empty($c['hide_on_mobile'])  ? ' mkw-hide-m' : '')
             . (! empty($c['hide_on_desktop']) ? ' mkw-hide-d' : '')
