@@ -218,6 +218,7 @@ class MarketingNav
             ],
             'legal'     => [$pg('privacy', 'Privacy'), $pg('terms', 'Terms'), $pg('cookies', 'Cookies'), $pg('acceptable-use', 'Acceptable use')],
             'copyright' => '© {year} Intake. All rights reserved.',
+            'phone'     => 'grid', // MARKER-MKT-FOOTER-PHONE
         ];
     }
 
@@ -246,6 +247,7 @@ class MarketingNav
             'columns'   => $cols,
             'legal'     => array_values(array_filter(array_map($row, array_slice((array) ($f['legal'] ?? []), 0, 8)))),
             'copyright' => $txt($f['copyright'] ?? '', 120),
+            'phone'     => in_array($f['phone'] ?? 'grid', ['grid', 'stack', 'accordion'], true) ? ($f['phone'] ?? 'grid') : 'grid', // MARKER-MKT-FOOTER-PHONE
         ];
     }
 

@@ -5,14 +5,12 @@
 <style>
     .mk-footer {
         padding: clamp(32px, 5vw, 64px) 0 clamp(24px, 3vw, 40px);
-        border-top: 0.5px solid var(--mk-border);
     }
     .mk-footer-inner {
         display: grid;
         grid-template-columns: 1.5fr 1fr 1fr 1fr;
         gap: 40px;
         padding-bottom: 40px;
-        border-bottom: 0.5px solid var(--mk-border);
         margin-bottom: 28px;
     }
     .mk-footer-brand-name {
@@ -39,10 +37,24 @@
     @media (max-width: 520px) {
         .mk-footer-inner { grid-template-columns: 1fr; }
         .mk-footer-bottom { flex-direction: column; gap: 10px; text-align: center; }
+        .mk-footer-legal { flex-wrap: wrap; justify-content: center; gap: 8px 18px; }
+    }
+    /* MARKER-MKT-FOOTER-PHONE — column titles are plain titles unless the accordion is on */
+    .mk-footer-col > summary { list-style: none; cursor: default; pointer-events: none; }
+    .mk-footer-col > summary::-webkit-details-marker { display: none; }
+    @media (max-width: 520px) {
+        .mk-ft-grid .mk-footer-inner { grid-template-columns: 1fr 1fr; gap: 28px 20px; }
+        .mk-ft-grid .mk-footer-inner > :first-child { grid-column: 1 / -1; }
+        .mk-ft-accordion .mk-footer-inner { gap: 4px; }
+        .mk-ft-accordion .mk-footer-inner > :first-child { margin-bottom: 18px; }
+        .mk-ft-accordion .mk-footer-col > summary { pointer-events: auto; cursor: pointer; display: flex; justify-content: space-between; align-items: center; padding: 12px 0; margin: 0; }
+        .mk-ft-accordion .mk-footer-col > summary::after { content: '+'; font-size: 18px; font-weight: 400; letter-spacing: 0; color: var(--mk-muted); transition: transform .2s; }
+        .mk-ft-accordion .mk-footer-col[open] > summary::after { transform: rotate(45deg); }
+        .mk-ft-accordion .mk-footer-col[open] { padding-bottom: 8px; }
     }
 </style>
 
-<footer class="mk-footer">
+<footer class="mk-footer mk-ft-{{ \App\Support\MarketingNav::footer(isset($menuFooter) && is_array($menuFooter) ? $menuFooter : null)['phone'] }}">
     <div class="mk-container">
         <div class="mk-footer-inner">
             <div>
@@ -59,15 +71,15 @@
                 @if($mkFt['tagline'] !== '')<p class="mk-footer-tagline">{{ $mkFt['tagline'] }}</p>@endif
             </div>
             @foreach($mkFt['columns'] as $mkCol)
-                <div>
-                    @if($mkCol['title'] !== '')<div class="mk-footer-col-title">{{ $mkCol['title'] }}</div>@endif
+                <details class="mk-footer-col" open>
+                    @if($mkCol['title'] !== '')<summary class="mk-footer-col-title">{{ $mkCol['title'] }}</summary>@else<summary class="mk-footer-col-title" aria-hidden="true"></summary>@endif
                     @foreach($mkCol['rows'] as $mkR)
                         @php $mkLk = $mkFtL($mkR); @endphp
                         @if($mkLk)
                             <a href="{{ $mkLk['url'] }}" class="mk-footer-link" @if($mkLk['quiz']) data-open-quiz @endif @if($mkLk['tab']) target="_blank" rel="noopener" @endif>{{ $mkLk['label'] }}</a>
                         @endif
                     @endforeach
-                </div>
+                </details>
             @endforeach
         </div>
         <div class="mk-footer-bottom">
@@ -83,3 +95,14 @@
         </div>
     </div>
 </footer>
+<script>
+/* MARKER-MKT-FOOTER-PHONE — accordion: closed on phones, always open on wider screens */
+(function () {
+  var ft = document.querySelector('footer.mk-ft-accordion');
+  if (!ft) return;
+  var mq = window.matchMedia('(max-width: 520px)');
+  function set() { ft.querySelectorAll('details.mk-footer-col').forEach(function (d) { d.open = !mq.matches; }); }
+  set();
+  if (mq.addEventListener) mq.addEventListener('change', set);
+})();
+</script>

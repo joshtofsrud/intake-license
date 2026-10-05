@@ -65,6 +65,11 @@
   .snv-fnewcol{align-self:start;justify-self:start}
   .snv-chipish{display:inline-flex;gap:4px;align-items:center;margin:0 8px 6px 0}
   .snv-ffr{height:300px}
+  /* MARKER-MKT-FOOTER-PREVIEW / -PHONE */
+  .ft-phone{display:flex;align-items:center;gap:12px;margin-top:14px;font-size:12.5px}.ft-phone>span:first-child{opacity:.75}
+  .ft-prev{display:flex;justify-content:center;background:rgba(127,127,127,.06);border-radius:12px;padding:10px}
+  .ft-prev .snv-ffr{width:100%;border:0;border-radius:8px;transition:width .25s ease;min-height:200px}
+  .ft-prev.is-phone .snv-ffr{width:390px;max-width:100%}
   .snv-frame{width:100%;height:100px;border:1px solid var(--snv-line);border-radius:10px;background:#0a0a0a;display:block;margin:0 auto}
   .snv-frame.phone{width:390px;max-width:100%;height:520px}
   .snv-dim{font-size:12px;opacity:.6}
@@ -239,8 +244,19 @@
       </template>
       <button type="button" class="ft-newcol" x-show="footer.columns.length < 4" @click="footer.columns.push({title: 'New column', rows: []}); changed()">+ Column</button>
     </div>
-    <div class="snv-head" style="margin-top:14px"><b>Footer preview</b></div>
-    <iframe class="snv-frame snv-ffr" x-ref="ffr" title="Footer preview"></iframe>
+    {{-- MARKER-MKT-FOOTER-PHONE --}}
+    <div class="ft-phone"><span>On phones</span>
+      <span class="snv-seg">
+        <template x-for="o in [['grid','Two columns'],['stack','One column'],['accordion','Accordion']]" :key="o[0]"><button type="button" :class="(footer.phone || 'grid') === o[0] && 'on'" @click="footer.phone = o[0]; changed()" x-text="o[1]"></button></template>
+      </span>
+    </div>
+    {{-- MARKER-MKT-FOOTER-PREVIEW --}}
+    <div class="snv-head" style="margin-top:16px"><b>Footer preview</b>
+      <span class="snv-seg"><button type="button" :class="fdev === 'desktop' && 'on'" @click="fdev = 'desktop'">Desktop</button><button type="button" :class="fdev === 'phone' && 'on'" @click="fdev = 'phone'">Phone</button></span>
+    </div>
+    <div class="ft-prev" :class="fdev === 'phone' && 'is-phone'">
+      <iframe class="snv-frame snv-ffr" x-ref="ffr" title="Footer preview" @load="fFit()"></iframe>
+    </div>
   </div>
 
   <div class="snv-bar">
@@ -253,11 +269,17 @@
 <script>
   function snvEditor(rows, pages, previewUrl, header, footer) {
     return {
-      rows: rows, pages: pages, header: header, footer: footer, saved: JSON.stringify({rows: rows, header: header, footer: footer}), dev: 'desktop', pop: false, from: null, t: null,
+      rows: rows, pages: pages, header: header, footer: Object.assign({ phone: 'grid' }, footer), saved: JSON.stringify({rows: rows, header: header, footer: footer}), dev: 'desktop', pop: false, from: null, t: null,
       snapshot() { return JSON.stringify({rows: this.rows, header: this.header, footer: this.footer}); },
       // MARKER-MKT-FOOTER
       fAdd(list, type) { var first = Object.keys(this.pages)[0] || null; list.push({type: type, page: type === 'page' ? first : null, label: '', url: '', tab: false}); this.changed(); },
       fMove(list, i, d) { var j = i + d; if (j < 0 || j >= list.length) return; var m = list.splice(i, 1)[0]; list.splice(j, 0, m); this.changed(); },
+      // MARKER-MKT-FOOTER-PREVIEW — the preview grows to fit the whole footer
+      fdev: 'desktop',
+      fFit() {
+        var fr = this.$refs.ffr;
+        try { var d = fr.contentDocument; if (d && d.documentElement) fr.style.height = Math.max(200, d.documentElement.scrollHeight) + 'px'; } catch (e) {}
+      },
       // MARKER-MKT-FOOTER-V2
       footerLists() {
         var out = this.footer.columns.map(function (c, i) { return { key: 'c' + i, ref: c, rows: c.rows, legal: false }; });
@@ -284,7 +306,7 @@
         this.changed();
       },
       get dirty() { return this.snapshot() !== this.saved; },
-      init() { this.refresh(); },
+      init() { this.refresh(); this.$watch('fdev', () => setTimeout(() => this.fFit(), 280)); }, // MARKER-MKT-FOOTER-PREVIEW
       changed() { clearTimeout(this.t); this.t = setTimeout(() => this.refresh(), 200); },
       refresh() {
         var d = btoa(unescape(encodeURIComponent(JSON.stringify(this.rows))));
