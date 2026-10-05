@@ -41,6 +41,11 @@
           round($overlayOpacity / 100, 3));
       $needVeil = $isImage && ($overlayOpacity > 0 || $blurPx > 0);
   }
+  // MARKER-MKT-BG-FADE — where the gradient finishes, and whether it fades out.
+  $bgEnd   = max(20, min(100, (int) ($c['bg_grad_end'] ?? 100)));
+  $bgToCss = $isGrad ? (! empty($c['bg_fade_out'])
+      ? 'color-mix(in srgb, ' . $gradTo . ' 0%, transparent)'
+      : $bgFadeFn($gradTo)) : '';
 @endphp
 @if($bgSolid)
 <style>.{{ $bgId }} { background: {{ $bgFadeFn(trim($section->bg_color)) }} !important; }</style>
@@ -59,9 +64,9 @@
   @else
   .{{ $bgId }} {
     @if($bgCont)
-    background: linear-gradient(180deg, {{ $mkBgPrev ?? 'var(--mk-bg, #0a0a0a)' }} 0%, {{ $bgFadeFn($gradTo) }} 100%) !important;
+    background: linear-gradient(180deg, {{ $mkBgPrev ?? 'var(--mk-bg, #0a0a0a)' }} 0%, {{ $bgToCss }} {{ $bgEnd }}%) !important;
     @else
-    background: linear-gradient({{ $gradDeg }}deg, {{ $bgFadeFn($gradFrom) }} 0%, {{ $bgFadeFn($gradTo) }} 100%) !important;
+    background: linear-gradient({{ $gradDeg }}deg, {{ $bgFadeFn($gradFrom) }} 0%, {{ $bgToCss }} {{ $bgEnd }}%) !important;
     @endif
   }
   @endif

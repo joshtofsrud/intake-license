@@ -252,7 +252,10 @@
             $mkF    = fn ($col) => $mkOp >= 100 ? $col : 'color-mix(in srgb, ' . $col . ' ' . $mkOp . '%, transparent)';
             $mkR['open'] = 'linear-gradient(' . (int) ($mkC['bg_gradient_angle'] ?? 135) . 'deg, '
                 . $mkF($mkHex($mkC['bg_gradient_from'] ?? null, '#1a1a1a')) . ' 0%, '
-                . $mkF($mkHex($mkC['bg_gradient_to'] ?? null, '#0a0a0a')) . ' 100%)';
+                . (! empty($mkC['bg_fade_out'])  // MARKER-MKT-BG-FADE
+                    ? 'color-mix(in srgb, ' . $mkHex($mkC['bg_gradient_to'] ?? null, '#0a0a0a') . ' 0%, transparent)'
+                    : $mkF($mkHex($mkC['bg_gradient_to'] ?? null, '#0a0a0a')))
+                . ' ' . max(20, min(100, (int) ($mkC['bg_grad_end'] ?? 100))) . '%)';
             $mkIn = true;
         } elseif ($mkIn && ! $mkNC) {
             $mkR['close'] = true;
@@ -336,7 +339,7 @@
         $mkBgMode  = $c['bg_mode'] ?? 'color';
         $mkBgHex   = fn ($v) => is_string($v) && preg_match('/^#[0-9a-fA-F]{3,8}$/', trim($v)) ? trim($v) : null;
         if ($mkBgMode === 'gradient') {
-            $mkBgCarry = $mkBgFade($mkBgHex($c['bg_gradient_to'] ?? null) ?: '#0a0a0a');
+            $mkBgCarry = ! empty($c['bg_fade_out']) ? null : $mkBgFade($mkBgHex($c['bg_gradient_to'] ?? null) ?: '#0a0a0a'); // faded out = page background
         } elseif ($mkBgMode === 'color' && $mkBgHex($section->bg_color ?? null)) {
             $mkBgCarry = $mkBgFade($mkBgHex($section->bg_color));
         } else {
