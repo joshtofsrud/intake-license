@@ -23,6 +23,20 @@ class MarketingNav
         return Tenant::where('is_platform', true)->first();
     }
 
+    /**
+     * MARKER-MKT-HOME — the slug of the page intake.works shows at /: the
+     * published page flagged Home, or the page with slug "home" if none is.
+     */
+    public static function homeSlug(): string
+    {
+        static $slug = null;
+        if ($slug !== null) return $slug;
+        $p = self::platform();
+        if (! $p) return $slug = 'home';
+        return $slug = (string) (TenantPage::where('tenant_id', $p->id)->where('is_home', true)
+            ->where('is_published', true)->value('slug') ?: 'home');
+    }
+
     /** Marketing pages a menu row can point at: [id => [title, path, published]]. */
     public static function pages(): array
     {
@@ -35,7 +49,7 @@ class MarketingNav
             ->get(['id', 'title', 'slug', 'is_home', 'is_published'])
             ->mapWithKeys(fn ($pg) => [(string) $pg->id => [
                 'title'     => (string) $pg->title,
-                'path'      => $pg->is_home ? '/' : '/' . $pg->slug,
+                'path'      => $pg->slug === self::homeSlug() ? '/' : '/' . $pg->slug, // MARKER-MKT-HOME
                 'published' => (bool) $pg->is_published,
             ]])->all();
     }

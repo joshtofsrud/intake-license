@@ -74,7 +74,7 @@ class MarketingPageResource extends Resource
 
                     Forms\Components\TextInput::make('slug')
                         ->required()
-                        ->helperText('URL path. "home" is root, others are /slug. Internal slugs starting with __ are hidden from visitors.')
+                        ->helperText('URL path: /slug. The page marked Home shows at / instead (use "Make home page" in the list). Internal slugs starting with __ are hidden from visitors.')
                         ->rule('regex:/^[a-z0-9_][a-z0-9_-]*$/')
                         ->disabled(fn ($record) => $record?->is_home || ($record?->slug && str_starts_with($record->slug, '__'))),
 
@@ -156,6 +156,25 @@ class MarketingPageResource extends Resource
                     ->url(fn (TenantPage $p) => static::urlForPage($p))
                     ->openUrlInNewTab()
                     ->visible(fn (TenantPage $p) => $p->is_published && ! str_starts_with($p->slug, '__')),
+
+                // MARKER-MKT-HOME — one click; moves the flag so there is only ever one home.
+                Tables\Actions\Action::make('make_home')
+                    ->label('Make home page')
+                    ->icon('heroicon-o-home')
+                    ->color('gray')
+                    ->visible(fn (TenantPage $p) => ! $p->is_home && $p->is_published && ! str_starts_with($p->slug, '__'))
+                    ->requiresConfirmation()
+                    ->modalHeading(fn (TenantPage $p) => 'Make “' . $p->title . '” the home page?')
+                    ->modalDescription(fn (TenantPage $p) => 'intake.works/ shows this page straight away, and /' . $p->slug . ' redirects to it. The current home page goes back to its own address.')
+                    ->modalSubmitActionLabel('Make home page')
+                    ->action(function (TenantPage $p) {
+                        \Illuminate\Support\Facades\DB::transaction(function () use ($p) {
+                            TenantPage::where('tenant_id', $p->tenant_id)->where('is_home', true)->update(['is_home' => false]);
+                            TenantPage::where('id', $p->id)->update(['is_home' => true]);
+                        });
+                        \Filament\Notifications\Notification::make()->success()
+                            ->title('“' . $p->title . '” is now the home page.')->send();
+                    }),
 
                 Tables\Actions\EditAction::make()
                     ->label('Settings'),

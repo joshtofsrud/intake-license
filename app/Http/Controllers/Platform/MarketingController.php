@@ -25,7 +25,7 @@ use Illuminate\Support\Facades\Validator;
  */
 class MarketingController extends Controller
 {
-    public function home()      { return $this->renderPage('home'); }
+    public function home()      { return $this->renderPage(\App\Support\MarketingNav::homeSlug()); } // MARKER-MKT-HOME
     public function pricing()   { return $this->renderPage('pricing'); }
     public function features()  { return $this->renderPage('features'); }
     public function whyIntake() { return $this->renderPage('why-intake'); }
@@ -133,6 +133,10 @@ class MarketingController extends Controller
     // Patch 45: CMS-only marketing — single render path.
     private function renderPage(string $slug)
     {
+        // MARKER-MKT-HOME — the home page lives at / only; its own address redirects.
+        if ($slug === \App\Support\MarketingNav::homeSlug() && request()->path() !== '/') {
+            return redirect('/', 301);
+        }
         $tenant = $this->platformTenant();
 
         $page = TenantPage::where('tenant_id', $tenant->id)

@@ -175,7 +175,7 @@ class Seo
         foreach ($pages as $p) {
             $slug = (string) $p->slug;
             if ($slug === '' || str_starts_with($slug, '__') || $slug === 'invest') continue;
-            $path = ($p->is_home || $slug === 'home') ? '/' : '/' . $slug;
+            $path = $slug === MarketingNav::homeSlug() ? '/' : '/' . $slug; // MARKER-MKT-HOME
             $urls[$path] = [self::marketingBase() . $path, $p->updated_at?->toAtomString()];
         }
         if (! isset($urls['/'])) $urls['/'] = [self::marketingBase() . '/', null];
