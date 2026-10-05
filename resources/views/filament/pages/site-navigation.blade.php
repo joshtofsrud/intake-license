@@ -35,6 +35,26 @@
   .snv-bar { background: rgba(10,10,10,.92); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); border-top: 1px solid var(--snv-line); padding: 12px 16px; margin: 0 -16px; z-index: 5; }
   html:not(.dark) .snv-bar { background: rgba(255,255,255,.94); }
   /* MARKER-MKT-FOOTER */
+  /* MARKER-MKT-FOOTER-V2 */
+  .ft-top{display:grid;grid-template-columns:2fr 1fr;gap:12px;margin:10px 0 14px}
+  .ft-lbl{display:grid;gap:5px;font-size:12px;opacity:.85}.ft-lbl small{opacity:.55;font-size:11px}
+  .ft-cols{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px;align-items:start}
+  .ft-col{border:1px solid var(--snv-line,rgba(127,127,127,.2));border-radius:12px;padding:10px 10px 8px;background:rgba(127,127,127,.03)}
+  .ft-col.is-legal{border-style:dashed}
+  .ft-colhead{display:flex;align-items:center;gap:6px;margin-bottom:4px}
+  .ft-title{flex:1;min-width:0;font:inherit;font-weight:600;font-size:13.5px;background:transparent;border:0;border-bottom:1px solid transparent;color:inherit;padding:4px 2px}
+  .ft-title:focus{outline:0;border-bottom-color:rgba(127,127,127,.4)}.ft-title.is-fixed{opacity:.7;font-size:12.5px}
+  .ft-row{display:grid;grid-template-columns:16px minmax(0,1fr) 20px;gap:6px;align-items:start;padding:7px 0;border-top:1px solid rgba(127,127,127,.12)}
+  .ft-move{display:grid;gap:0;padding-top:4px}.ft-move button{border:0;background:none;color:inherit;opacity:.45;cursor:pointer;font-size:11px;line-height:1.1;padding:0}.ft-move button:disabled{opacity:.12;cursor:default}
+  .ft-main{display:grid;gap:4px;min-width:0}
+  .ft-label,.ft-url{width:100%;box-sizing:border-box;font:inherit;font-size:13px;background:rgba(127,127,127,.06);border:1px solid rgba(127,127,127,.18);border-radius:7px;color:inherit;padding:6px 8px}
+  .ft-url{font-size:12px;font-family:ui-monospace,Menlo,monospace}
+  .ft-tgt select{width:100%;box-sizing:border-box;-webkit-appearance:none;appearance:none;font:inherit;font-size:12px;color:inherit;opacity:.8;background:transparent url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23999' stroke-width='1.4'/%3E%3C/svg%3E") no-repeat right 8px center;border:1px solid transparent;border-radius:7px;padding:4px 24px 4px 8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
+  .ft-tgt select:hover,.ft-tgt select:focus{border-color:rgba(127,127,127,.25);outline:0}
+  .ft-icon{border:0;background:none;color:inherit;opacity:.45;cursor:pointer;font-size:16px;line-height:1;padding:4px 0}.ft-icon:hover{opacity:1}
+  .ft-add{width:100%;margin-top:6px;font:inherit;font-size:12.5px;color:inherit;opacity:.75;background:none;border:1px dashed rgba(127,127,127,.3);border-radius:8px;padding:7px;cursor:pointer}.ft-add:hover{opacity:1}
+  .ft-newcol{min-height:120px;font:inherit;font-size:13px;color:inherit;opacity:.7;background:none;border:1px dashed rgba(127,127,127,.3);border-radius:12px;cursor:pointer}.ft-newcol:hover{opacity:1}
+  @media (max-width:700px){.ft-top{grid-template-columns:1fr}}
   .snv-fcols{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px;margin:12px 0}
   .snv-fhead{display:flex;gap:6px;align-items:center;margin-bottom:6px}
   .snv-ftitle{font-weight:600}
@@ -180,44 +200,46 @@
     </div>
   </div>
 
-  {{-- MARKER-MKT-FOOTER — the intake.works footer, saved with the menu --}}
+  {{-- MARKER-MKT-FOOTER-V2 — the intake.works footer, saved with the menu --}}
   <div class="snv-card">
-    <div class="snv-head"><b>Footer</b><span class="snv-dim">Columns of links under every marketing page. Page links follow their page and hide while it's unpublished.</span></div>
-    <div class="snv-crow" style="border-top:0"><span class="snv-k">Tagline</span><div class="snv-v"><input class="snv-in" x-model="footer.tagline" @input="changed()" maxlength="200" placeholder="One line under the logo"></div></div>
-    <div class="snv-fcols">
-      <template x-for="(col, ci) in footer.columns" :key="'c' + ci">
-        <section class="snv-group">
-          <div class="snv-fhead"><input class="snv-in snv-ftitle" x-model="col.title" @input="changed()" placeholder="Column title" maxlength="40"><button type="button" class="snv-x" title="Remove column" @click="footer.columns.splice(ci, 1); changed()">×</button></div>
-          <template x-for="(r, ri) in col.rows" :key="'r' + ci + '-' + ri">
-            <div class="snv-frow">
-              <div class="snv-fmove"><button type="button" @click="fMove(col.rows, ri, -1)" :disabled="ri === 0">↑</button><button type="button" @click="fMove(col.rows, ri, 1)" :disabled="ri === col.rows.length - 1">↓</button></div>
-              <div class="snv-fbody">
-                <input class="snv-in" x-model="r.label" @input="changed()" :placeholder="r.type === 'page' && pages[r.page] ? pages[r.page].title : 'Label'" maxlength="60">
-                <template x-if="r.type === 'page'"><select class="snv-in" x-model="r.page" @change="changed()"><template x-for="(p, id) in pages" :key="id"><option :value="id" x-text="p.title + ' · ' + p.path + (p.published ? '' : ' (unpublished)')"></option></template></select></template>
-                <template x-if="r.type === 'link'"><input class="snv-in" x-model="r.url" @input="changed()" placeholder="/path or https://…" maxlength="255"></template>
-                <template x-if="r.type === 'quiz'"><span class="snv-dim">Opens the plan finder</span></template>
+    <div class="snv-head"><b>Footer</b><span class="snv-dim">Under every marketing page. Page links follow their page and hide while it's unpublished.</span></div>
+    <div class="ft-top">
+      <label class="ft-lbl">Tagline<input class="snv-in" x-model="footer.tagline" @input="changed()" maxlength="200" placeholder="One line under the logo"></label>
+      <label class="ft-lbl">Copyright<input class="snv-in" x-model="footer.copyright" @input="changed()" maxlength="120"><small>{year} becomes the current year</small></label>
+    </div>
+    <div class="ft-cols">
+      <template x-for="(col, ci) in footerLists()" :key="col.key">
+        <section class="ft-col" :class="col.legal && 'is-legal'">
+          <div class="ft-colhead">
+            <template x-if="!col.legal"><input class="ft-title" x-model="col.ref.title" @input="changed()" placeholder="Column title" maxlength="40"></template>
+            <template x-if="col.legal"><span class="ft-title is-fixed">Legal · bottom bar</span></template>
+            <button type="button" class="ft-icon" x-show="!col.legal" title="Remove column" @click="footer.columns.splice(ci, 1); changed()">×</button>
+          </div>
+          <template x-for="(r, ri) in col.rows" :key="col.key + '-' + ri">
+            <div class="ft-row">
+              <div class="ft-move"><button type="button" @click="fMove(col.rows, ri, -1)" :disabled="ri === 0" title="Move up">↑</button><button type="button" @click="fMove(col.rows, ri, 1)" :disabled="ri === col.rows.length - 1" title="Move down">↓</button></div>
+              <div class="ft-main">
+                <input class="ft-label" x-model="r.label" @input="changed()" :placeholder="fPlaceholder(r)" maxlength="60">
+                <div class="ft-tgt">
+                  <select @change="fSetTarget(r, $event.target.value)">
+                    <optgroup label="Pages">
+                      <template x-for="(p, id) in pages" :key="id"><option :value="'page:' + id" :selected="r.type === 'page' && r.page === id" x-text="p.title + (p.published ? '' : ' (unpublished)')"></option></template>
+                    </optgroup>
+                    <option value="link" :selected="r.type === 'link'">Custom link…</option>
+                    <option value="quiz" :selected="r.type === 'quiz'">Plan finder</option>
+                  </select>
+                </div>
+                <template x-if="r.type === 'link'"><input class="ft-url" x-model="r.url" @input="changed()" placeholder="/path or https://…" maxlength="255"></template>
               </div>
-              <button type="button" class="snv-x" title="Remove" @click="col.rows.splice(ri, 1); changed()">×</button>
+              <button type="button" class="ft-icon" title="Remove" @click="col.rows.splice(ri, 1); changed()">×</button>
             </div>
           </template>
-          <div class="snv-fadd"><button type="button" class="snv-btn snv-mini" @click="fAdd(col.rows, 'page')">+ Page</button><button type="button" class="snv-btn snv-mini" @click="fAdd(col.rows, 'link')">+ Link</button></div>
+          <button type="button" class="ft-add" @click="fAdd(col.rows, 'page')">+ Add link</button>
         </section>
       </template>
-      <button type="button" class="snv-btn snv-fnewcol" x-show="footer.columns.length < 4" @click="footer.columns.push({title: 'New column', rows: []}); changed()">+ Column</button>
+      <button type="button" class="ft-newcol" x-show="footer.columns.length < 4" @click="footer.columns.push({title: 'New column', rows: []}); changed()">+ Column</button>
     </div>
-    <div class="snv-crow"><span class="snv-k">Legal row</span>
-      <div class="snv-v" style="flex-wrap:wrap">
-        <template x-for="(r, ri) in footer.legal" :key="'l' + ri">
-          <span class="snv-chipish"><input class="snv-in" style="width:120px" x-model="r.label" @input="changed()" :placeholder="r.type === 'page' && pages[r.page] ? pages[r.page].title : 'Label'">
-            <template x-if="r.type === 'page'"><select class="snv-in" style="width:150px" x-model="r.page" @change="changed()"><template x-for="(p, id) in pages" :key="id"><option :value="id" x-text="p.title"></option></template></select></template>
-            <template x-if="r.type === 'link'"><input class="snv-in" style="width:150px" x-model="r.url" @input="changed()" placeholder="/path or https://…"></template>
-            <button type="button" class="snv-x" @click="footer.legal.splice(ri, 1); changed()">×</button></span>
-        </template>
-        <button type="button" class="snv-btn snv-mini" @click="fAdd(footer.legal, 'page')">+ Page</button><button type="button" class="snv-btn snv-mini" @click="fAdd(footer.legal, 'link')">+ Link</button>
-      </div>
-    </div>
-    <div class="snv-crow"><span class="snv-k">Copyright</span><div class="snv-v"><input class="snv-in" x-model="footer.copyright" @input="changed()" maxlength="120"><i>{year} becomes the current year</i></div></div>
-    <div class="snv-head" style="margin-top:12px"><b>Footer preview</b></div>
+    <div class="snv-head" style="margin-top:14px"><b>Footer preview</b></div>
     <iframe class="snv-frame snv-ffr" x-ref="ffr" title="Footer preview"></iframe>
   </div>
 
@@ -236,6 +258,18 @@
       // MARKER-MKT-FOOTER
       fAdd(list, type) { var first = Object.keys(this.pages)[0] || null; list.push({type: type, page: type === 'page' ? first : null, label: '', url: '', tab: false}); this.changed(); },
       fMove(list, i, d) { var j = i + d; if (j < 0 || j >= list.length) return; var m = list.splice(i, 1)[0]; list.splice(j, 0, m); this.changed(); },
+      // MARKER-MKT-FOOTER-V2
+      footerLists() {
+        var out = this.footer.columns.map(function (c, i) { return { key: 'c' + i, ref: c, rows: c.rows, legal: false }; });
+        out.push({ key: 'legal', ref: null, rows: this.footer.legal, legal: true });
+        return out;
+      },
+      fPlaceholder(r) { return r.type === 'page' && this.pages[r.page] ? this.pages[r.page].title : (r.type === 'quiz' ? 'Which plan is right for me?' : 'Label'); },
+      fSetTarget(r, v) {
+        if (v.indexOf('page:') === 0) { r.type = 'page'; r.page = v.slice(5); r.url = ''; }
+        else { r.type = v; r.page = null; }
+        this.changed();
+      },
       // MARKER-MKT-NAV-PHONE — read/write the setting for the screen being edited.
       edit: 'desktop',
       val(k) { var p = this.header.phone || {}; return (this.edit === 'phone' && k in p) ? p[k] : this.header[k]; },
