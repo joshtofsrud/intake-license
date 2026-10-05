@@ -282,10 +282,12 @@
         // their own anchor or classes are left to do so.
         $mkwId     = 'mkw-' . substr(md5((string) $section->id), 0, 8);
         $mkwPad    = ['none' => '0', 'compact' => 'clamp(24px, 4vw, 48px)', 'spacious' => 'clamp(80px, 10vw, 140px)'];
-        $mkwLegacy = $c['padding_override'] ?? null;
+        // MARKER-MKT-LEGACY-PAD — sections on the older setting have no spacing of their own.
+        $mkwLegacy = $c['padding_override'] ?? (in_array($type, ['book_call', 'try_demo'], true) ? 'normal' : null);
+        $mkwPadL   = $mkwPad + ['normal' => 'clamp(48px, 7vw, 96px)'];
         // MARKER-MKT-HERO-PAD — the hero applies its own padding presets.
-        $mkwTop    = $type === 'hero' ? null : ($mkwPad[$c['padding_top'] ?? $mkwLegacy] ?? null);
-        $mkwBot    = $type === 'hero' ? null : ($mkwPad[$c['padding_bottom'] ?? $mkwLegacy] ?? null);
+        $mkwTop    = $type === 'hero' ? null : (isset($c['padding_top'])    ? ($mkwPad[$c['padding_top']] ?? null)    : ($mkwLegacy !== null ? ($mkwPadL[$mkwLegacy] ?? null) : null));
+        $mkwBot    = $type === 'hero' ? null : (isset($c['padding_bottom']) ? ($mkwPad[$c['padding_bottom']] ?? null) : ($mkwLegacy !== null ? ($mkwPadL[$mkwLegacy] ?? null) : null));
         $mkwAnchor = in_array($type, ['custom_html', 'image_carousel', 'book_call', 'feature_groups', 'try_demo'], true)
             ? '' : preg_replace('/[^A-Za-z0-9_-]/', '', (string) ($c['anchor_id'] ?? ''));
         $mkwExtra  = in_array($type, ['custom_html', 'image_carousel'], true)
