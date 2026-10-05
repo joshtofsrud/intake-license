@@ -490,6 +490,34 @@
         <div style="padding:26px 16px;text-align:center;opacity:.5;font-size:13px">Nobody is suppressed.</div>
       @endforelse
     </div>
+
+    {{-- MARKER-ALL-SHOPS-BLOCKS — blocks that apply to every shop's mail. --}}
+    <div class="pc-legend" style="margin-top:22px">
+      <b>Blocked for all shops ({{ $allShops->count() }}).</b> These addresses bounced from three or more shops,
+      so no shop's mail reaches them: campaigns, receipts, reminders, everything. Intake's own mail above is not
+      affected by this list. Each shop sees these on its own suppression list, marked All shops.
+    </div>
+
+    <div class="pc-list">
+      @forelse($allShops as $row)
+        <div class="pc-row" style="grid-template-columns:1fr 150px 1fr 110px">
+          <div>
+            <div class="t" style="font-size:13.5px">{{ $row->email }}</div>
+            <div class="d">since {{ $row->suppressed_at?->format('M j, Y') ?? '—' }}</div>
+          </div>
+          <div>
+            <span class="pc-pill pc-pill--custom">All shops</span>
+            <span class="pc-pill">{{ $row->reason === 'complaint' ? 'Marked as spam' : 'Bounced' }}</span>
+          </div>
+          <div class="fires">{{ \Illuminate\Support\Str::limit($row->notes ?: ($row->diagnostic ?: '—'), 90) }}</div>
+          <div style="text-align:right">
+            <button type="button" class="pc-edit" wire:click="unblockAllShops({{ (int) $row->id }})">Unblock</button>
+          </div>
+        </div>
+      @empty
+        <div style="padding:26px 16px;text-align:center;opacity:.5;font-size:13px">No address is blocked for all shops.</div>
+      @endforelse
+    </div>
   @endif
 </div>
 </x-filament-panels::page>

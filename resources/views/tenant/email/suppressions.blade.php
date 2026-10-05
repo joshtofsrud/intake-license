@@ -142,7 +142,7 @@
             <div>
               <span class="sup-mono">{{ $row->email }}</span>
               @if(is_null($row->tenant_id))
-                <span class="sup-platform-badge" title="Suppressed platform-wide — not just on your list">platform</span>
+                <span class="sup-platform-badge" title="Blocked for every shop on Intake, not just yours">All shops</span>{{-- MARKER-ALL-SHOPS-BLOCKS --}}
               @endif
             </div>
             <div>
@@ -169,8 +169,9 @@
                 <form method="POST" action="{{ route('tenant.suppressions.destroy', ['id' => $row->id]) }}" style="display: inline;">
                   @csrf
                   @method('DELETE')
-                  <button type="submit" class="ia-btn ia-btn--ghost" style="font-size: 11.5px; padding: 4px 10px;"
-                          onclick="return confirm('Remove {{ $row->email }} from your suppression list? They\'ll receive future mail again.')">
+                  {{-- MARKER-ALL-SHOPS-BLOCKS — in-app dialog, not the browser's confirm(). --}}
+                  <button type="button" class="ia-btn ia-btn--ghost" style="font-size: 11.5px; padding: 4px 10px;"
+                          data-sup-remove="{{ $row->email }}">
                     Remove
                   </button>
                 </form>
@@ -189,8 +190,21 @@
       <strong style="color: var(--ia-text);">How this works.</strong>
       When a customer's email bounces (mailbox doesn't exist) or they mark your mail as spam, they're automatically added here so you don't accidentally send them more — which would hurt your shop's sender reputation.
       Complaints are permanent. Bounces and manual entries can be removed once you've fixed the underlying issue.
-      Addresses marked <span class="sup-platform-badge">platform</span> are suppressed across all of Intake, usually because they bounced from multiple shops.
+      Addresses marked <span class="sup-platform-badge">All shops</span> are blocked for every shop on Intake because they bounced from several shops. Only Intake can lift those.
     </div>
+    <script>
+    // MARKER-ALL-SHOPS-BLOCKS
+    document.addEventListener('click', function (e) {
+      var btn = e.target.closest ? e.target.closest('[data-sup-remove]') : null;
+      if (!btn) return;
+      var form = btn.closest('form');
+      if (!form) return;
+      var msg = btn.getAttribute('data-sup-remove') + " will receive your mail again.";
+      if (!window.IntakeConfirm) { form.submit(); return; }
+      window.IntakeConfirm.show({ title: 'Remove from your list?', message: msg, confirmText: 'Remove', danger: true })
+        .then(function (ok) { if (ok) form.submit(); });
+    });
+    </script>
   </div>
 </div>
 @endsection

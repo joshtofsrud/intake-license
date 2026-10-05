@@ -76,6 +76,26 @@ class PlatformCommunication extends Page
             : 'messages';
     }
 
+    /**
+     * MARKER-ALL-SHOPS-BLOCKS — lift a block that stops every shop's mail to an
+     * address. Only the all-shops row goes; each shop's own block stays.
+     */
+    public function unblockAllShops(int $id): void
+    {
+        $row = \App\Models\Tenant\TenantEmailSuppression::whereNull('tenant_id')->whereKey($id)->first();
+        if (! $row) {
+            Notification::make()->warning()->title('Already unblocked')->send();
+            return;
+        }
+        $email = $row->email;
+        $row->delete();
+
+        Notification::make()->success()
+            ->title('Unblocked for all shops')
+            ->body($email . ' can get mail from shops again. Shops that blocked it themselves still do, and another bounce blocks it again.')
+            ->send();
+    }
+
     /** MARKER-PLATFORM-SENDLOG — let an address back in. */
     public function unsuppress(string $email): void
     {
@@ -140,6 +160,7 @@ class PlatformCommunication extends Page
         $activity = collect();
         $suppressions = collect();
         $suppressCounts = ['unsubscribe' => 0, 'bounce' => 0, 'complaint' => 0];
+        $allShops = collect(); // MARKER-ALL-SHOPS-BLOCKS
 
         try {
             $ones = \App\Models\PlatformEmailSend::latest()->limit(100)->get()->map(fn ($r) => [
@@ -161,6 +182,11 @@ class PlatformCommunication extends Page
             $activity = $ones->concat($camp)->sortByDesc('when')->take(100)->values();
 
             $suppressions = \App\Models\PlatformEmailOptout::latest('updated_at')->limit(200)->get();
+
+            // MARKER-ALL-SHOPS-BLOCKS — blocks with no shop attached stop every
+            // shop's mail to that address. They were only visible as a count.
+            $allShops = \App\Models\Tenant\TenantEmailSuppression::whereNull('tenant_id')
+                ->orderByDesc('suppressed_at')->limit(200)->get();
             foreach ($suppressions as $row) {
                 $k = $row->kind ?: 'unsubscribe';
                 $suppressCounts[$k] = ($suppressCounts[$k] ?? 0) + 1;
@@ -173,6 +199,7 @@ class PlatformCommunication extends Page
             'activity'       => $activity,
             'suppressions'   => $suppressions,
             'suppressCounts' => $suppressCounts,
+            'allShops'       => $allShops, // MARKER-ALL-SHOPS-BLOCKS
             'others'     => $others,
             'audiences'  => $audiences,
             'campaigns'  => $campaigns,
