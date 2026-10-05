@@ -133,9 +133,8 @@
            last one is marked by the loop; :last-of-type would match them all. */
         .mkw-last > .mk-section { border-bottom: none; }
         .mkw-noline > section { border-bottom-color: transparent !important; } /* MARKER-MKT-NO-LINE */
-        /* MARKER-MKT-BG-SPAN — sections inside a run let the shared gradient show through. */
-        .mk-bg-span { position: relative; }
-        .mk-bg-span section[class], .mk-bg-span footer[class] { background: transparent !important; border-bottom-color: transparent; }
+        /* MARKER-MKT-BG-CHAIN — sections sharing a gradient show no divider between them. */
+        .mkw[data-bg-chain] > section { border-bottom-color: transparent !important; }
         @media (max-width: 768px) { .mkw-hide-m { display: none !important; } }
         /* MARKER-MKT-HIDE-TABLET — phone ≤768, tablet 769–1024, desktop ≥1025 */
         @media (min-width: 769px) and (max-width: 1024px) { .mkw-hide-t { display: none !important; } }
@@ -247,34 +246,21 @@
 
 {{-- Page content --}}
 @php
-    // MARKER-MKT-BG-SPAN — find runs: a Gradient section followed by sections
-    // with "Continue gradient from the section above". Each run is wrapped in
-    // one background so the gradient covers all of it at its own angle.
-    $mkSeq  = collect($sections)->reject(fn ($s) => in_array($s->section_type, ['nav', 'footer'], true))->values();
-    $mkRole = [];
-    $mkIn   = false;
-    $mkHex  = fn ($v, $d) => is_string($v) && preg_match('/^#[0-9a-fA-F]{3,8}$/', trim($v)) ? trim($v) : $d;
-    foreach ($mkSeq as $mkK => $mkS) {
-        $mkC    = $mkS->content ?? [];
-        $mkNext = $mkSeq[$mkK + 1] ?? null;
-        $mkNC   = $mkNext && ! empty(($mkNext->content ?? [])['bg_continue']);
-        $mkIsC  = $mkK > 0 && ! empty($mkC['bg_continue']);
-        $mkR    = ['open' => null, 'close' => false];
-        if (! $mkIsC && ($mkC['bg_mode'] ?? '') === 'gradient' && $mkNC) {
-            $mkOp   = max(0, min(100, (int) ($mkC['bg_opacity'] ?? 100)));
-            $mkF    = fn ($col) => $mkOp >= 100 ? $col : 'color-mix(in srgb, ' . $col . ' ' . $mkOp . '%, transparent)';
-            $mkR['open'] = 'linear-gradient(' . (int) ($mkC['bg_gradient_angle'] ?? 135) . 'deg, '
-                . $mkF($mkHex($mkC['bg_gradient_from'] ?? null, '#1a1a1a')) . ' 0%, '
-                . (! empty($mkC['bg_fade_out'])  // MARKER-MKT-BG-FADE
-                    ? 'color-mix(in srgb, ' . $mkHex($mkC['bg_gradient_to'] ?? null, '#0a0a0a') . ' 0%, transparent)'
-                    : $mkF($mkHex($mkC['bg_gradient_to'] ?? null, '#0a0a0a')))
-                . ' ' . max(20, min(100, (int) ($mkC['bg_grad_end'] ?? 100))) . '%)';
-            $mkIn = true;
-        } elseif ($mkIn && ! $mkNC) {
-            $mkR['close'] = true;
-            $mkIn = false;
-        }
-        $mkRole[(string) $mkS->id] = $mkR;
+    // MARKER-MKT-BG-CHAIN — each Gradient section's gradient, handed to the
+    // painter below, which joins it with the visible sections continuing it.
+    $mkHex     = fn ($v, $d) => is_string($v) && preg_match('/^#[0-9a-fA-F]{3,8}$/', trim($v)) ? trim($v) : $d;
+    $mkGradCss = [];
+    foreach ($sections as $mkS) {
+        $mkC = $mkS->content ?? [];
+        if (($mkC['bg_mode'] ?? '') !== 'gradient') continue;
+        $mkOp = max(0, min(100, (int) ($mkC['bg_opacity'] ?? 100)));
+        $mkF  = fn ($col) => $mkOp >= 100 ? $col : 'color-mix(in srgb, ' . $col . ' ' . $mkOp . '%, transparent)';
+        $mkGradCss[(string) $mkS->id] = 'linear-gradient(' . (int) ($mkC['bg_gradient_angle'] ?? 135) . 'deg, '
+            . $mkF($mkHex($mkC['bg_gradient_from'] ?? null, '#1a1a1a')) . ' 0%, '
+            . (! empty($mkC['bg_fade_out'])
+                ? 'color-mix(in srgb, ' . $mkHex($mkC['bg_gradient_to'] ?? null, '#0a0a0a') . ' 0%, transparent)'
+                : $mkF($mkHex($mkC['bg_gradient_to'] ?? null, '#0a0a0a')))
+            . ' ' . max(20, min(100, (int) ($mkC['bg_grad_end'] ?? 100))) . '%)';
     }
 @endphp
 @foreach($sections as $section)
@@ -369,13 +355,11 @@
     @endphp
 
     @if(view()->exists($partial))
-        @php $mkSpan = $mkRole[(string) $section->id] ?? ['open' => null, 'close' => false]; @endphp
-        @if($mkSpan['open']) <div class="mk-bg-span" style="background: {{ $mkSpan['open'] }}"> @endif
         {{-- MARKER-SECTION-OVERLAP — same treatment as the tenant renderer, so
              intake.works and a shop's own site behave identically. --}}
         @php
           $pull   = max(0, min(240, (int) ($c['overlap_top'] ?? 0)));
-          $pullId = 'pbpull-' . substr(md5((string) $section->id), 0, 10); // MARKER-MKT-BG-SPAN — no short-id collisions
+          $pullId = 'pbpull-' . substr(md5((string) $section->id), 0, 10); // no short-id collisions
         @endphp
         {{-- MARKER-MKT-OVERLAP-LIVE — the preview's redrawn wrapper now holds the overlap too. --}}
         @if(!empty($builderPreview))<div data-pb-section="{{ $section->id }}" data-pb-type="{{ $section->section_type }}">@endif
@@ -386,7 +370,7 @@
           </style>
           <div class="{{ $pullId }}">
         @endif
-        <div class="{{ $mkwClass }}" @if($mkwAnchor !== '') id="{{ $mkwAnchor }}" @endif>
+        <div class="{{ $mkwClass }}" @if($mkwAnchor !== '') id="{{ $mkwAnchor }}" @endif @isset($mkGradCss[(string) $section->id]) data-bg-grad="{{ $mkGradCss[(string) $section->id] }}" @endisset @if(! empty($c['bg_continue']) && ! in_array((string) $c['bg_continue'], ['0', 'false'], true)) data-bg-cont="1" @endif>
         @if($mkwTop !== null || $mkwBot !== null || $mkwHead || $mkwBody)
           <style>
             @if($mkwTop !== null) .{{ $mkwId }} > section, .{{ $mkwId }} > footer, .{{ $mkwId }} > div { padding-top: {{ $mkwTop }} !important; } @endif
@@ -408,13 +392,54 @@
         </div>
         @if($pull > 0)</div>@endif
         @if(!empty($builderPreview))</div>@endif
-        @if($mkSpan['close']) </div> @endif
     @else
         <div style="background:#3b1d0b;color:#ffcc80;padding:12px 24px;font-size:13px;text-align:center;border-top:0.5px solid rgba(255,255,255,.08)">
             No renderer for section type: <code>{{ $type }}</code>
         </div>
     @endif
 @endforeach
+
+<script>
+/* MARKER-MKT-BG-CHAIN — join each gradient with the VISIBLE sections that
+   continue it (sections hidden on this screen size are skipped), and paint
+   one gradient across them. Re-measured whenever sizes change. */
+(function () {
+  var PROPS = ['background', 'background-size', 'background-position', 'background-repeat'];
+  function sec(el) { return el.querySelector(':scope > section') || el.querySelector(':scope > footer'); }
+  function paint() {
+    document.querySelectorAll('.mkw[data-bg-chain]').forEach(function (el) {
+      el.removeAttribute('data-bg-chain');
+      var s = sec(el); if (s) PROPS.forEach(function (p) { s.style.removeProperty(p); });
+    });
+    var all = Array.prototype.filter.call(document.querySelectorAll('.mkw'), function (el) { return el.getClientRects().length > 0; });
+    for (var i = 0; i < all.length; i++) {
+      var head = all[i];
+      if (!head.dataset.bgGrad || head.dataset.bgCont) continue;
+      var j = i + 1;
+      while (j < all.length && all[j].dataset.bgCont) j++;
+      if (j === i + 1) continue;
+      var chain = all.slice(i, j);
+      var top = chain[0].getBoundingClientRect().top;
+      var total = chain[chain.length - 1].getBoundingClientRect().bottom - top;
+      chain.forEach(function (el) {
+        var s = sec(el); if (!s) return;
+        el.setAttribute('data-bg-chain', '1');
+        s.style.setProperty('background', head.dataset.bgGrad, 'important');
+        s.style.setProperty('background-size', '100% ' + total + 'px', 'important');
+        s.style.setProperty('background-position', '0 ' + (top - s.getBoundingClientRect().top) + 'px', 'important');
+        s.style.setProperty('background-repeat', 'no-repeat', 'important');
+      });
+      i = j - 1;
+    }
+  }
+  var t;
+  function soon() { clearTimeout(t); t = setTimeout(paint, 60); }
+  paint();
+  window.addEventListener('load', paint);
+  window.addEventListener('resize', soon);
+  if (window.ResizeObserver) new ResizeObserver(soon).observe(document.body);
+})();
+</script>
 
 {{-- Footer (shell — always present) --}}
 @if(empty($hideFooter)) {{-- MARKER-MKT-NAV-POLISH --}}
