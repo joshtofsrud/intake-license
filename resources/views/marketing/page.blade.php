@@ -18,7 +18,7 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"> {{-- MARKER-MKT-NAV-EDGE --}}
     @include('partials.mobile-input-zoom') {{-- MARKER-MOBILE-INPUT-ZOOM --}}
 
     <title>{{ $page->meta_title ?? ($page->title . ' — Intake') }}</title>
@@ -39,7 +39,17 @@
     <link rel="icon" type="image/png" sizes="32x32" href="{{ \App\Support\Brand::url('favicon_32') }}">
     <link rel="icon" type="image/png" sizes="16x16" href="{{ \App\Support\Brand::url('favicon_16') }}">
     <link rel="apple-touch-icon" href="{{ \App\Support\Brand::url('apple') }}">
-    <meta name="theme-color" content="#0c0c0c">
+    @php
+        // MARKER-MKT-NAV-EDGE — the browser's top colour matches the first section.
+        $mkTop = '#0c0c0c';
+        $mkFirst = collect($sections ?? [])->first(fn ($s) => ! in_array($s->section_type, ['nav', 'footer'], true));
+        if ($mkFirst) {
+            $mkFc = $mkFirst->content ?? [];
+            $mkCand = ($mkFc['bg_mode'] ?? '') === 'gradient' ? ($mkFc['bg_gradient_from'] ?? null) : ($mkFirst->bg_color ?? null);
+            if (is_string($mkCand) && preg_match('/^#[0-9a-fA-F]{6}$/', $mkCand)) $mkTop = $mkCand;
+        }
+    @endphp
+    <meta name="theme-color" content="{{ $mkTop }}">
 
     {{-- OG/Twitter card --}}
     <meta property="og:image" content="{{ \App\Support\Brand::shareImageFor($page) }}">

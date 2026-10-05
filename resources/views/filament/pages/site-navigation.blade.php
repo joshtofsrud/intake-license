@@ -66,6 +66,7 @@
           <label class="snv-ctl">Blur <input type="range" min="0" max="30" :value="val('blur')" @input="set('blur', +$event.target.value)"><b x-text="val('blur') + 'px'"></b></label>
           <label class="snv-ctl">Link pill <input type="color" :value="val('pill')" @input="set('pill', $event.target.value)"><input type="range" min="0" max="30" :value="val('pill_strength')" @input="set('pill_strength', +$event.target.value)" title="Pill strength"></label>
           <span class="snv-seg" title="Room around and inside the bar"><template x-for="o in [['tight','Tight'],['normal','Normal'],['roomy','Roomy']]"><button type="button" :class="val('space')===o[0] && 'on'" @click="set('space', o[0])" x-text="o[1]"></button></template></span>
+          <label class="snv-ctl" title="Blur and fade the page as it scrolls up behind the bar"><input type="checkbox" :checked="!!val('fade')" @change="set('fade', $event.target.checked)"> Fade under</label>
         </span>
       </template>
       <span class="snv-ctl" style="font-size:12px">Links

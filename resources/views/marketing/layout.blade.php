@@ -6,7 +6,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"> {{-- MARKER-MKT-NAV-EDGE --}}
   @include('partials.mobile-input-zoom') {{-- MARKER-MOBILE-INPUT-ZOOM --}}
   <title>@yield('title', 'intake — Retail, booking, and classes — built for communication and efficiency.')</title>
   <meta name="description" content="@yield('meta_description', 'Retail, booking, and classes — built for communication and efficiency. For service, retail, fitness, and appointment-based businesses.')">

@@ -134,7 +134,8 @@
     $mkLinkP  = \App\Support\MarketingNav::linkColour($mkHeadP);
     $mkVars   = fn ($h, $out, $pad, $link) => '--mkf-bg:' . $h['bg'] . ';--mkf-op:' . $h['opacity'] . '%;--mkf-blur:' . $h['blur'] . 'px;'
         . '--mkf-pill:color-mix(in srgb, ' . $h['pill'] . ' ' . $h['pill_strength'] . '%, transparent);'
-        . '--mkf-out:' . $out . ';--mkf-pad:' . $pad . ';--mkf-link:' . ($link ?: 'var(--mk-muted)') . ';';
+        . '--mkf-out:' . $out . ';--mkf-pad:' . $pad . ';--mkf-link:' . ($link ?: 'var(--mk-muted)') . ';'
+    . '--mkf-fade:' . (! empty($h['fade']) ? '1' : '0') . ';'; // MARKER-MKT-NAV-EDGE
     $mkHere  = '/' . ltrim(request()->path(), '/');
     $mkLeft  = array_values(array_filter($mkMenu, fn ($i) => $i['side'] === 'left'));
     $mkRight = array_values(array_filter($mkMenu, fn ($i) => $i['side'] === 'right'));
@@ -147,6 +148,16 @@
     };
 @endphp
 <style>
+    /* MARKER-MKT-NAV-EDGE — clear the phone's status bar; soft fade behind the bar */
+    #mk-nav { padding-top: env(safe-area-inset-top, 0px); }
+    #mk-nav.is-float { padding-top: calc(var(--mkf-out) + env(safe-area-inset-top, 0px)) !important; }
+    #mk-nav.is-float::before {
+        content: ''; position: absolute; left: 0; right: 0; top: 0; height: calc(100% + 28px);
+        pointer-events: none; z-index: -1; opacity: var(--mkf-fade, 0); transition: opacity .2s;
+        background: linear-gradient(to bottom, color-mix(in srgb, var(--mk-bg, #0a0a0a) 55%, transparent), transparent);
+        backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+        mask-image: linear-gradient(to bottom, #000 45%, transparent); -webkit-mask-image: linear-gradient(to bottom, #000 45%, transparent);
+    }
     /* MARKER-MKT-NAV-PHONE — desktop and phone header settings */
     #mk-nav { {{ $mkVars($mkHead, $mkSpace[0], $mkSpace[1], $mkLink) }} }
     @media (max-width: 860px) {
