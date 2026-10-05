@@ -35,7 +35,7 @@
         ],
         'inventory' => [
           'label'  => 'Inventory',
-          'fields' => 'SKU · name · cost & price · reorder points · bin · size & colour · category · vendor · stock',
+          'fields' => 'SKU · name · cost & price · reorder points · bin · size & color · category · vendor · stock',
           'match'  => 'Matched on SKU',
           'extra'  => 'Creates categories & vendors',
           'noun'   => 'items',

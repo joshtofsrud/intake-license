@@ -83,7 +83,7 @@ class SiteTemplateController extends Controller
     {
         $tenant = tenant();
 
-        // MARKER-CZFIX — colours may be hex OR rgba (the seeded fallbacks).
+        // MARKER-CZFIX — colors may be hex OR rgba (the seeded fallbacks).
         $data = $request->validate([
             'accent'            => ['nullable', 'string', 'regex:/^(#[0-9a-fA-F]{6}|rgba?\([\d.,\s]+\))$/'],
             'text'              => ['nullable', 'string', 'regex:/^(#[0-9a-fA-F]{6}|rgba?\([\d.,\s]+\))$/'],

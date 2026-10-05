@@ -88,7 +88,7 @@
   <td class="inv-row-stock">
     <div class="inv-row-stock-num" style="color:{{ $stockColor }}">{{ $stock }}</div>
     {{-- MARKER-INV-LIST — "0" above "Out" said the same thing twice; the
-         coloured number carries it. The second line is kept only where it
+         colored number carries it. The second line is kept only where it
          adds something the number doesn't: a multi-location total. --}}
     @if($isMulti && $totalStock !== $hereStock)
       <div class="inv-row-stock-meta">{{ $totalStock }} total</div>

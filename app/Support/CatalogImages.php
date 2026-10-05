@@ -11,7 +11,7 @@ use App\Models\Tenant\TenantDistributorCatalogSubscription;
  * HLC and BTI store full URLs and pass straight through. QBP stores bare
  * filenames that mean nothing without this tenant's CLS prefix, which embeds
  * their own Image Service ID — it is read per tenant and never shared, and the
- * licence requires hotlinking those URLs rather than copying the files.
+ * license requires hotlinking those URLs rather than copying the files.
  *
  * This existed only inside the inventory view, so every other surface showing a
  * catalog photo either duplicated it or, as the item modal did, shipped a
@@ -48,7 +48,7 @@ class CatalogImages
                 }
 
                 // A bare filename (QBP) is only a URL once the tenant's CLS
-                // prefix is applied. Without a subscription there is no licence
+                // prefix is applied. Without a subscription there is no license
                 // to display it, so return nothing rather than a guess: a
                 // missing photo is honest, a broken one looks like bad data.
                 return $prefix
@@ -63,7 +63,7 @@ class CatalogImages
 
     /**
      * MARKER-BRAND-ECHO — public, so a page can tell "no images" apart from
-     * "images present but no CLS licence to display them".
+     * "images present but no CLS license to display them".
      */
     public static function qbpClsPrefix(?string $tenantId = null): ?string
     {

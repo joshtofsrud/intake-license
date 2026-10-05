@@ -274,7 +274,7 @@ class DistributorFieldMapResource extends Resource
             'alt_prices' => 'Other prices', 'uom' => 'Unit of measure',
             'case_quantity' => 'Case quantity', 'weight' => 'Weight',
             'dimensions' => 'Dimensions', 'item_group' => 'Item group',
-            'size_id' => 'Size', 'color_id' => 'Colour', 'config' => 'Configuration',
+            'size_id' => 'Size', 'color_id' => 'Color', 'config' => 'Configuration',
             'taxable' => 'Taxable', 'is_sellable' => 'Sellable',
             'canonical_status' => 'Status',
             'source_status_id' => 'Status code (distributor own)',

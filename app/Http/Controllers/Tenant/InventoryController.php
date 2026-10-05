@@ -497,7 +497,7 @@ class InventoryController extends Controller
 
         $posCap = $this->inventoryCapContext($tenant);
 
-        // MARKER-INV-LIST — colour and size are empty for most catalogs, and
+        // MARKER-INV-LIST — color and size are empty for most catalogs, and
         // two columns of "—" cost about a fifth of the table width. Decide
         // per result set rather than per tenant, so filtering to a category
         // that does use them still shows them.

@@ -94,7 +94,7 @@
         <h4>Bar</h4>
         <div class="snv-crow"><span class="snv-k">Style</span><div class="snv-v"><span class="snv-seg"><button type="button" :class="val('style')==='classic' && 'on'" @click="set('style','classic')">Classic</button><button type="button" :class="val('style')==='float' && 'on'" @click="set('style','float')">Floating</button></span></div></div>
         <template x-if="val('style')==='float'"><div>
-          <div class="snv-crow"><span class="snv-k">Colour</span><div class="snv-v"><input type="color" :value="val('bg')" @input="set('bg', $event.target.value)"></div></div>
+          <div class="snv-crow"><span class="snv-k">Color</span><div class="snv-v"><input type="color" :value="val('bg')" @input="set('bg', $event.target.value)"></div></div>
           <div class="snv-crow"><span class="snv-k">Opacity</span><div class="snv-v"><input type="range" min="0" max="100" :value="val('opacity')" @input="set('opacity', +$event.target.value)"><b x-text="val('opacity') + '%'"></b></div></div>
           <div class="snv-crow"><span class="snv-k">Blur</span><div class="snv-v"><input type="range" min="0" max="30" :value="val('blur')" @input="set('blur', +$event.target.value)"><b x-text="val('blur') + 'px'"></b></div></div>
           <div class="snv-crow"><span class="snv-k">Spacing</span><div class="snv-v"><span class="snv-seg"><template x-for="o in [['tight','Tight'],['normal','Normal'],['roomy','Roomy']]"><button type="button" :class="val('space')===o[0] && 'on'" @click="set('space', o[0])" x-text="o[1]"></button></template></span></div></div>
@@ -105,7 +105,7 @@
       </section>
       <section class="snv-group">
         <h4>Links</h4>
-        <div class="snv-crow"><span class="snv-k">Colour</span><div class="snv-v"><input type="color" :value="val('link') || '#cccccc'" @input="set('link', $event.target.value)"><button type="button" class="snv-btn snv-mini" x-show="val('link')" @click="set('link', '')">Auto</button><i x-show="!val('link')">Auto</i></div></div>
+        <div class="snv-crow"><span class="snv-k">Color</span><div class="snv-v"><input type="color" :value="val('link') || '#cccccc'" @input="set('link', $event.target.value)"><button type="button" class="snv-btn snv-mini" x-show="val('link')" @click="set('link', '')">Auto</button><i x-show="!val('link')">Auto</i></div></div>
         <template x-if="val('style')==='float'"><div>
           <div class="snv-crow"><span class="snv-k">Pill</span><div class="snv-v"><input type="color" :value="val('pill')" @input="set('pill', $event.target.value)"></div></div>
           <div class="snv-crow"><span class="snv-k">Pill strength</span><div class="snv-v"><input type="range" min="0" max="30" :value="val('pill_strength')" @input="set('pill_strength', +$event.target.value)"><b x-text="val('pill_strength') + '%'"></b></div></div>

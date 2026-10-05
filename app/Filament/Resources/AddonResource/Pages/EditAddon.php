@@ -21,7 +21,7 @@ class EditAddon extends EditRecord
         return [Actions\DeleteAction::make()
             ->label('Delete')
             ->requiresConfirmation()
-            ->modalDescription('Deleting removes it from the catalogue entirely. If shops are using it, close or retire it instead — that keeps their records intact.')];
+            ->modalDescription('Deleting removes it from the catalog entirely. If shops are using it, close or retire it instead — that keeps their records intact.')];
     }
 
     protected function mutateFormDataBeforeSave(array $data): array

@@ -57,7 +57,7 @@ class DuplicateItemMerger
             // Blanks on the kept item filled from the copies, in keep order.
             $fill = [];
             foreach ($losers as $id) {
-                // MARKER-DUP-PRICE-RULE — category, brand, colour and size too: a
+                // MARKER-DUP-PRICE-RULE — category, brand, color and size too: a
                 // catalog copy is often uncategorised while the shop's copy isn't.
                 foreach (['shop_bin_location', 'shop_reorder_threshold', 'shop_reorder_quantity', 'shop_case_quantity',
                           'category_id', 'shop_brand', 'color', 'size'] as $col) {

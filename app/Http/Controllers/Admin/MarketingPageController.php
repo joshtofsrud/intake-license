@@ -50,7 +50,7 @@ class MarketingPageController extends Controller
 
     // MARKER-MKT-PARITY — full builder parity for the marketing context.
     // Each endpoint binds the platform tenant, then delegates to the exact
-    // tenant controller the tenant routes use, so behaviour stays verbatim.
+    // tenant controller the tenant routes use, so behavior stays verbatim.
 
     /** Inspector partial (?_inspector={sid}); full editor without it. */
     public function edit(Request $request, string $pageId, PageBuilderController $builder)

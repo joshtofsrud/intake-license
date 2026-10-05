@@ -67,7 +67,7 @@ class MarketingNav
             'space'         => in_array($h['space'] ?? '', ['tight', 'normal', 'roomy'], true) ? $h['space'] : 'normal',
             'link'          => $hex($h['link'] ?? null, ''),
             'fade'          => filter_var($h['fade'] ?? false, FILTER_VALIDATE_BOOLEAN), // MARKER-MKT-NAV-EDGE
-            'btn_pos'       => ($h['btn_pos'] ?? '') === 'menu' ? 'menu' : 'bar', // MARKER-MKT-NAV-BUTTONS — old Beside/Centre become 'bar'
+            'btn_pos'       => ($h['btn_pos'] ?? '') === 'menu' ? 'menu' : 'bar', // MARKER-MKT-NAV-BUTTONS — old Beside/Center become 'bar'
             'btn_text'      => $hex($h['btn_text'] ?? null, ''),
             'btn_fill'      => $hex($h['btn_fill'] ?? null, ''),
             'btn_dist'      => $int($h['btn_dist'] ?? null, 0, 200),
@@ -78,7 +78,7 @@ class MarketingNav
         ];
     }
 
-    /** Link colour to use: the chosen one, or dark on a light floating bar. */
+    /** Link color to use: the chosen one, or dark on a light floating bar. */
     public static function linkColour(array $h): ?string
     {
         if ($h['link'] !== '') return $h['link'];

@@ -113,7 +113,7 @@
 
   // MARKER-CLS-RENDER — QBP gives file names, not URLs. The URL prefix
   // belongs to THIS tenant's CLS subscription (it embeds their Image Service
-  // ID), so it is read per tenant and never shared. Licence requires
+  // ID), so it is read per tenant and never shared. License requires
   // hotlinking: these URLs are the only permitted display mechanism.
   $catCode  = $item->distributorCatalog?->distributor_code;
   // MARKER-BRAND-ECHO — one copy of the URL logic lives in CatalogImages;
@@ -285,7 +285,7 @@
           // to PHP verbatim and the view then fails to compile.
           $imgSrcs = collect(\App\Support\CatalogImages::urls($catImages, $catCode));
 
-          // Names present but no licence to display them — worth saying,
+          // Names present but no license to display them — worth saying,
           // because "no image" and "no CLS key" have different fixes.
           $imagesNeedCls = $imgSrcs->isEmpty() && ! empty($catImages) && $catCode === 'QBP' && ! $clsPrefix;
         @endphp

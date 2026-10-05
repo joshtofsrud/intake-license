@@ -2,7 +2,7 @@
      claim made just above this. Core cards are hand-written because no
      registry of core modules exists; the pack counts are read live. --}}
 @php
-  // Grouped and counted from the live catalogue so the page cannot drift from
+  // Grouped and counted from the live catalog so the page cannot drift from
   // what is actually shipping. Category order is fixed rather than
   // alphabetical, so the list reads in the order a shop would meet them.
   $packs = \App\Models\Addon::query()
@@ -93,7 +93,7 @@
             </div>
           @endforeach
           <div class="srow tot">
-            <b>In the catalogue today</b>
+            <b>In the catalog today</b>
             <span class="note">Each one grantable per business, independently</span>
             <span class="amt">{{ $packTotal }}</span>
           </div>
@@ -104,7 +104,7 @@
           the list is long, but that adding to it costs one pack rather than one fork.
           {{-- MARKER-INVEST-PARITY2 --}}Bike is first because it is hardest; each trade after
           it lands as a proper fit rather than a generic tool bent into shape. Counts are read
-          from the live catalogue, not maintained by hand on this page.</p>
+          from the live catalog, not maintained by hand on this page.</p>
       </div>
     </details>
   @endif

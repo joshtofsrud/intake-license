@@ -801,7 +801,7 @@
     if (!t || !t.name) { return; }
 
     // The text box is not a filter picker: submitting here would fire on
-    // blur, which is the autosave behaviour we do not want.
+    // blur, which is the autosave behavior we do not want.
     if (t.name === 's') { return; }
 
     // Rows-per-page lives in its own form and submits itself.

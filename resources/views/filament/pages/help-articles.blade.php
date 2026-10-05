@@ -248,7 +248,7 @@
 </div>
 
 <script>
-// MARKER-HELP-ADMIN — drag to organise. Ordering writes as it happens.
+// MARKER-HELP-ADMIN — drag to organize. Ordering writes as it happens.
 document.addEventListener('DOMContentLoaded', function () {
   var dragArt = null, dragCat = null;
 

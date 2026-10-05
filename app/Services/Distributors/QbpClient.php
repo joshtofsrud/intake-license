@@ -20,7 +20,7 @@ use RuntimeException;
  * payload before any of it is relied on:
  *
  *   - Auth is a single key in an X-QBPAPI-KEY header.
- *   - A "model" groups related products (a size run, colour variants), which
+ *   - A "model" groups related products (a size run, color variants), which
  *     maps to our product/variant split: model -> distributor_product_no,
  *     sku -> distributor_variant_no.
  *   - Categories come back as a real tree, so category_path can be built
@@ -709,7 +709,7 @@ class QbpClient implements DistributorAdapter
         throw new RuntimeException(
             'QBP images require a Content License Service (API3) subscription. API1 returns image '
             . 'file names only. Product content, attributes, stock and dealer cost all come from '
-            . 'API1 and need no licence.'
+            . 'API1 and need no license.'
         );
     }
 

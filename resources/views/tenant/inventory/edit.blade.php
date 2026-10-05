@@ -95,7 +95,7 @@
       <div class="ia-input-grid-2">
         <div class="ia-form-group">
           <label class="ia-form-label">Color</label>
-          <input type="text" name="color" class="ia-input" maxlength="60" value="{{ old('color', $item->color ?? '') }}" placeholder="Colour or finish">
+          <input type="text" name="color" class="ia-input" maxlength="60" value="{{ old('color', $item->color ?? '') }}" placeholder="Color or finish">
         </div>
         <div class="ia-form-group">
           <label class="ia-form-label">Size</label>

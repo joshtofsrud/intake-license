@@ -48,7 +48,7 @@
 
   /* MARKER-REGPICKER-ALIGN — the picker is an .ia-input in a flex row, so it
      stretched to the bar's full height and sat below the tab underline.
-     Centre it and size it to the tab links instead. Scoped to the picker:
+     Center it and size it to the tab links instead. Scoped to the picker:
      .reg-tab-link needs the bar to stay stretch-aligned so its -0.5px bottom
      margin keeps the active underline on the border. */
   .reg-tabs-bar .reg-picker-wrap,
@@ -825,7 +825,7 @@
       <div style="font-size:11px;color:var(--ia-text-dim,rgba(255,255,255,.4));margin-top:8px">Confirm the payment arrived in your app, then continue — the sale records as paid by this method.</div>
     </div>
 
-      {{-- MARKER-SPLIT-TENDER — unchanged behaviour: a partial amount here
+      {{-- MARKER-SPLIT-TENDER — unchanged behavior: a partial amount here
            starts a split. Now labelled, and sitting under the tender it
            applies to, instead of being an unlabelled box meaning two things. --}}
       <div id="splitAmountRow" style="display:none;gap:8px;margin-bottom:12px">

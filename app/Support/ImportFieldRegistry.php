@@ -55,7 +55,7 @@ class ImportFieldRegistry
             'shop_reorder_quantity'  => ['label' => 'Reorder quantity','type' => 'int'],
             'shop_bin_location'      => ['label' => 'Bin location',    'type' => 'text', 'max' => 64],
             'stock'        => ['label' => 'Stock on hand',  'type' => 'int', 'stock' => true],
-            'color'        => ['label' => 'Colour',         'type' => 'text', 'max' => 64],
+            'color'        => ['label' => 'Color',         'type' => 'text', 'max' => 64],
             'size'         => ['label' => 'Size',           'type' => 'text', 'max' => 64],
             'upc'          => ['label' => 'UPC',            'type' => 'text', 'max' => 64],
             // MARKER-IMPORT-MPN-BRAND — MPN is matchable because in a

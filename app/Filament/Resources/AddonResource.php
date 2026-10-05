@@ -15,7 +15,7 @@ use Filament\Tables\Table;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
-// MARKER-ADDON-CATALOG — the add-on catalogue: what exists, what it costs,
+// MARKER-ADDON-CATALOG — the add-on catalog: what exists, what it costs,
 // who gets it free, and whether it is still offered.
 class AddonResource extends Resource
 {
@@ -44,7 +44,7 @@ class AddonResource extends Resource
                         ->disabledOn('edit'),
                     Forms\Components\Textarea::make('description')->rows(2),
                     Forms\Components\TextInput::make('tooltip')->maxLength(160)
-                        ->helperText('The one-liner shown beside it in the shop\'s catalogue.'),
+                        ->helperText('The one-liner shown beside it in the shop\'s catalog.'),
                 ])->columns(2),
 
             Forms\Components\Section::make('Price')

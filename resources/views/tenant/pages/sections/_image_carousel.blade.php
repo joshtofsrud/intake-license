@@ -105,7 +105,7 @@
         @endforeach
       </div>
       <input type="hidden" data-field="carousel_style" value="{{ $get('carousel_style', 'classic') }}">
-      <div class="pb2-field-hint" style="text-align:left;display:block;margin-top:4px">Depth: the centre card is large and in focus, neighbours sit smaller behind. Each image's caption becomes its title; its link adds a button.</div>
+      <div class="pb2-field-hint" style="text-align:left;display:block;margin-top:4px">Depth: the center card is large and in focus, neighbours sit smaller behind. Each image's caption becomes its title; its link adds a button.</div>
     </div>
     <div class="pb2-field">
       <label class="pb2-field-label">Card button text <span class="pb2-field-hint">Depth</span></label>

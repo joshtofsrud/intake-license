@@ -37,7 +37,7 @@ class SendBookingConfirmationJob implements ShouldQueue
     /**
      * MARKER-NOTIFY-CHOICE — which channels this dispatch may use.
      *
-     * null keeps the original behaviour: both channels, each still gated by
+     * null keeps the original behavior: both channels, each still gated by
      * the tenant's own notification settings. A staff member choosing "text
      * only" passes ['sms'], and the tenant setting can still veto it — this
      * narrows what may be sent, it never overrides a shop's own switch.

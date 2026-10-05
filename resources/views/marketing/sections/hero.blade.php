@@ -3,7 +3,7 @@
 {{--
     Hero (intake.works). MARKER-MKT-HERO-LAYOUT — reads the same editor
     settings as a shop's hero: height, vertical alignment, content width,
-    headline and subheading size, text colours and the buttons list.
+    headline and subheading size, text colors and the buttons list.
     Padding, hide on mobile/desktop, anchor and custom classes are applied
     to every section by the wrapper in marketing/page.blade.php.
 
@@ -11,7 +11,7 @@
     subheading, which keep the intake.works look.
 
     accent_words: any occurrence of that phrase in the headline is wrapped
-    in <em> and shown in the accent colour.
+    in <em> and shown in the accent color.
 --}}
 @php
     $headline = $c['headline'] ?? 'Your headline here';

@@ -2,10 +2,10 @@
 @include('marketing.sections._section_bg', ['bgId' => $bgId])
 {{--
     CTA banner (intake.works). MARKER-MKT-CTA-V2 — reads every editor setting:
-    eyebrow, headline with accent phrase (colour, italic), subheading, up to 4
+    eyebrow, headline with accent phrase (color, italic), subheading, up to 4
     buttons (Primary / Outline / Ghost / Link) shown separately or as a pill
     bar, a note under the buttons, alignment, content width (slider), text /
-    body / accent colours and button fill + text colours. Backgrounds (colour,
+    body / accent colors and button fill + text colors. Backgrounds (color,
     gradient, image, blend, continue) come from the shared renderer above.
     On phones the buttons stack full-width.
 --}}

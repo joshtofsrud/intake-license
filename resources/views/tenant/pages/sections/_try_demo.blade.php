@@ -112,7 +112,7 @@
   <div class="pb2-group">
     <div class="pb2-group-title">Button</div>
     <div class="pb2-field">
-      <label class="pb2-field-label">Accent colour</label>
+      <label class="pb2-field-label">Accent color</label>
       <div class="pb2-color-row">
         <input type="color" data-field="accent_color" value="{{ $get('accent_color') ?: '#BEF264' }}" class="pb2-color-swatch">
         <input type="text" class="pb2-input pb2-input-sm pb2-input-mono" data-field="accent_color_text" value="{{ $get('accent_color') }}" placeholder="theme default">

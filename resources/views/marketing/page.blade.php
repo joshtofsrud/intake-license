@@ -40,7 +40,7 @@
     <link rel="icon" type="image/png" sizes="16x16" href="{{ \App\Support\Brand::url('favicon_16') }}">
     <link rel="apple-touch-icon" href="{{ \App\Support\Brand::url('apple') }}">
     @php
-        // MARKER-MKT-NAV-EDGE — the browser's top colour matches the first section.
+        // MARKER-MKT-NAV-EDGE — the browser's top color matches the first section.
         $mkTop = '#0c0c0c';
         $mkFirst = collect($sections ?? [])->first(fn ($s) => ! in_array($s->section_type, ['nav', 'footer'], true));
         if ($mkFirst) {
@@ -348,7 +348,7 @@
         $mkwLast   = collect($sections)->slice($loop->index + 1)->every(fn ($s) => in_array($s->section_type, ['nav', 'footer'], true));
         // MARKER-MKT-FLOAT-OVERLAP — the first drawn section can sit behind a Floating header.
         $mkwFirst  = collect($sections)->slice(0, $loop->index)->every(fn ($s) => in_array($s->section_type, ['nav', 'footer'], true));
-        // MARKER-MKT-BG-CONT-DEVICE — this section's end colour, and (if it continues)
+        // MARKER-MKT-BG-CONT-DEVICE — this section's end color, and (if it continues)
         // its gradient with {PREV} standing for the visible section above.
         $mkCdHex  = fn ($v) => is_string($v) && preg_match('/^#[0-9a-fA-F]{3,8}$/', trim($v)) ? trim($v) : null;
         $mkCdOp   = max(0, min(100, (int) ($c['bg_opacity'] ?? 100)));
@@ -368,7 +368,7 @@
             if ($mkCdCol) { $mkCdTo = $mkCdFade($mkCdCol); $mkCdEnd = $mkCdTo; }
         }
         $mkCdCss = 'linear-gradient(180deg, {PREV} 0%, ' . $mkCdTo . ' ' . $mkCdPct . '%)';
-        // MARKER-MKT-BG-BLEND — $mkBgPrev is the colour the section above ended on.
+        // MARKER-MKT-BG-BLEND — $mkBgPrev is the color the section above ended on.
         $mkBgPrev  = $mkBgCarry ?? null;
         $mkBgOp    = max(0, min(100, (int) ($c['bg_opacity'] ?? 100)));
         $mkBgFade  = fn ($col) => $mkBgOp >= 100 ? $col : 'color-mix(in srgb, ' . $col . ' ' . $mkBgOp . '%, transparent)';

@@ -340,7 +340,7 @@
                          fn ($w) => mb_substr($w, 0, 1),
                          array_slice($ibParts, 0, 2)
                        ))) ?: '?';
-          // Stable per-customer colour: same person, same swatch every time.
+          // Stable per-customer color: same person, same swatch every time.
           $ibHue     = (crc32((string) ($t->customer_id ?? $t->id)) % 6) + 1;
           $ibUnread  = (int) $t->unread_count > 0 || $t->status === 'needs_reply';
           $ibOut     = ($t->latestMessage?->direction ?? null) === 'out';

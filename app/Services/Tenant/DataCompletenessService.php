@@ -13,7 +13,7 @@ use Illuminate\Support\Facades\DB;
  * How complete is the data, field by field.
  *
  * Counts only — never loads the records — so this stays cheap on a big
- * catalogue. "Missing" means NULL or empty string; a zero is a real value
+ * catalog. "Missing" means NULL or empty string; a zero is a real value
  * and is NOT treated as missing (a $0 item is a decision, not a gap).
  */
 class DataCompletenessService
@@ -54,7 +54,7 @@ class DataCompletenessService
 
     /**
      * One aggregate query for all fields rather than one per field: on a
-     * 40k-item catalogue that is the difference between instant and slow.
+     * 40k-item catalog that is the difference between instant and slow.
      */
     private function report(string $type, string $model, array $fields): array
     {

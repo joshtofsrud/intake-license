@@ -96,7 +96,7 @@ class SpecialOrderService
      *
      * Expected $data keys:
      *   tenant_id            (required)
-     *   inventory_item_id    (nullable - "not yet catalogued")
+     *   inventory_item_id    (nullable - "not yet cataloged")
      *   item_name_snapshot   (required - free text fallback when no item)
      *   quantity             (required, > 0)
      *   customer_id          (nullable)

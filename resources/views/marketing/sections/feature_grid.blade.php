@@ -5,9 +5,9 @@
     editor offers, like a shop's feature grid does:
       layout (grid | intro_split), columns 1–4, card style (card | minimal),
       show icons, heading alignment, accent phrase, content width, text /
-      body / accent / card background / card border colours, and per card:
+      body / accent / card background / card border colors, and per card:
       icon, title, price, body (line breaks kept), button label + link.
-    Empty colours fall back to the intake.works palette, so a grid that was
+    Empty colors fall back to the intake.works palette, so a grid that was
     never styled keeps its look. Styles are scoped to this section, so two
     grids with different column counts no longer overwrite each other.
     Padding, hide on mobile/desktop, anchor and classes come from the wrapper

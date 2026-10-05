@@ -471,7 +471,7 @@
 
       {{-- MARKER-BOOKING-OVERRIDE — a phone call or a walk-in is not an
            online booking, and until now the shop had no way to say so. --}}
-      {{-- MARKER-BOOKING-HIER-TOKENS — every colour here is a Theme Editor
+      {{-- MARKER-BOOKING-HIER-TOKENS — every color here is a Theme Editor
            token. The accent eyebrow and color-mix() rule it replaced were not,
            so a theme change would have left this card behind. --}}
       <div style="margin-top:24px;padding-top:20px;border-top:0.5px solid var(--ia-border)">

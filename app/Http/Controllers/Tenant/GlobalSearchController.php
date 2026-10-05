@@ -216,7 +216,7 @@ class GlobalSearchController extends Controller
      *
      * $total is the unlimited count. When it exceeds what was returned, the
      * modal shows "6 of 23" and offers the results page. Passing null keeps
-     * the old behaviour for groups where a count is not worth a second query.
+     * the old behavior for groups where a count is not worth a second query.
      */
     private function group(string $label, $rows, ?int $total = null): array
     {

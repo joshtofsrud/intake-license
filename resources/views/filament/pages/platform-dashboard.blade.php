@@ -204,7 +204,7 @@
         @endforeach
       @endif
 
-      {{-- MARKER-500-ALERT — switch + send-to for 5xx alert emails, behaviour unchanged. --}}
+      {{-- MARKER-500-ALERT — switch + send-to for 5xx alert emails, behavior unchanged. --}}
       <div class="alert500">
         <label style="display:flex;gap:8px;align-items:center;cursor:pointer">
           <input type="checkbox" wire:model="alert500Enabled" style="width:14px;height:14px">
@@ -258,10 +258,10 @@
   <div class="mt-two-up">
     {{-- wordpress plugin --}}
     <div class="mt-card">
-      <div class="card-h"><span class="t">WordPress plugin</span><span class="s">licence server</span></div>
+      <div class="card-h"><span class="t">WordPress plugin</span><span class="s">license server</span></div>
       <div class="res"><span class="k">Free</span><div class="bar"><span style="width:{{ $wp['freePct'] }}%"></span></div><span class="v">{{ number_format($wp['free']) }} installs</span></div>
       <div class="res"><span class="k">Premium</span><div class="bar"><span style="width:{{ $wp['premiumPct'] }}%"></span></div><span class="v">{{ number_format($wp['premium']) }} installs</span></div>
-      <div class="mt-legend" style="margin-top:8px">{{ number_format($wp['active']) }} of {{ number_format($wp['total']) }} installs reporting · {{ number_format($wp['activeLicenses']) }} active licences.</div>
+      <div class="mt-legend" style="margin-top:8px">{{ number_format($wp['active']) }} of {{ number_format($wp['total']) }} installs reporting · {{ number_format($wp['activeLicenses']) }} active licenses.</div>
     </div>
 
     {{-- tenant attention + recent activity --}}

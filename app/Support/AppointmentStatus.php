@@ -5,7 +5,7 @@ namespace App\Support;
 
 /**
  * AppointmentStatus — the single source of truth for what an appointment status
- * MEANS. The rest of the app keys behaviour (inventory, receipts, the sale
+ * MEANS. The rest of the app keys behavior (inventory, receipts, the sale
  * bridge, dashboards, scopes, revenue) off the ROLE, never the literal name, so
  * a shop can rename / add statuses later without breaking anything.
  *

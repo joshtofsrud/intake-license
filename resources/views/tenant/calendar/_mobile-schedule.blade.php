@@ -42,7 +42,7 @@
   $msAnchorDate = Cb::parse($msAnchorDateStr);
 
   // MARKER-SWIPE-STRIP — a long strip you can flick through, not seven fixed
-  // days: four weeks back, eight forward. The selected day is centred on load.
+  // days: four weeks back, eight forward. The selected day is centered on load.
   // MARKER-STRIP-MONTHS — a year back and three months forward; the month
   // label and the date picker above the strip reach anything further.
   $msStripStart = $msAnchorDate->copy()->subDays(365);
@@ -232,7 +232,7 @@
 
   @if($viewMode === 'month')
     {{-- MARKER-MONTH-PHONE — the month grid: one bar per appointment, in its
-         resource's colour, up to three, then "+N". Tap a day to list it below;
+         resource's color, up to three, then "+N". Tap a day to list it below;
          swipe sideways (or the arrows) for the next month. --}}
     @php
       $mmParams = function (string $date) use ($filterMode, $msVisibleResourceIds) {
@@ -280,7 +280,7 @@
         </a>
       @endforeach
     </div>
-    <div class="ia-mm-legend">One bar per appointment, in its resource's colour · swipe sideways for another month</div>
+    <div class="ia-mm-legend">One bar per appointment, in its resource's color · swipe sideways for another month</div>
 
     {{-- MARKER-MONTH-INPLACE — every day of the grid has its list on the page
          already (the month data is loaded anyway), so tapping a day swaps the
@@ -413,7 +413,7 @@
     @endforeach
   </div>
   <script>
-  // MARKER-SWIPE-STRIP — centre the selected day, without animating.
+  // MARKER-SWIPE-STRIP — center the selected day, without animating.
   (function () {
     var s = document.getElementById('msStrip');
     var a = s && s.querySelector('.is-active');

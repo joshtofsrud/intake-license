@@ -302,7 +302,7 @@ class BlockRenderer
             $img = '<a href="' . self::escape($link) . '" style="text-decoration:none;display:inline-block">' . $img . '</a>';
         }
 
-        // A block-level image can't be centred by text-align alone in every
+        // A block-level image can't be centered by text-align alone in every
         // client, so it sits in its own aligned wrapper table. Outlook honours
         // the align ATTRIBUTE; everything else uses the auto margins.
         $margin = match ($align) {
@@ -931,7 +931,7 @@ class BlockRenderer
     }
 
     /**
-     * MARKER-CAMPAIGN-V2E — a validated background colour for a block's
+     * MARKER-CAMPAIGN-V2E — a validated background color for a block's
      * wrapper cell, as an inline style fragment (empty when unset).
      */
     private static function bgStyle(array $data): string

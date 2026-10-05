@@ -34,7 +34,7 @@
   $swCls    = trim(preg_replace('/[^A-Za-z0-9_ -]/', '', (string) ($c['custom_classes'] ?? ''))
               . (empty($mkBg) && ! empty($c['hide_on_mobile']) ? ' sw-hide-m' : '') . (empty($mkBg) && ! empty($c['hide_on_desktop']) ? ' sw-hide-d' : '')); // MARKER-MKT-HIDE-TABLET — intake.works wrapper hides
   $swSentence = $swPrefix . ' ' . implode(', ', $swWords) . '.';
-  // MARKER-SCROLL-WORDS-BG — shop sites: draw the colour or gradient here.
+  // MARKER-SCROLL-WORDS-BG — shop sites: draw the color or gradient here.
   // intake.works uses its shared background renderer (blend, fade, continue).
   $swBg = '';
   if (empty($mkBg)) {
@@ -99,13 +99,13 @@
   var pace = (+el.dataset.swPace || 60) / 100, sm = (+el.dataset.swSmooth || 0) / 100;
   var mode = el.classList.contains('sw-fade') ? 'fade' : (el.classList.contains('sw-slide') ? 'slide' : 'spotlight');
   function target() {
-    // 0 as the section's centre enters the lower part of the screen, 1 once it
+    // 0 as the section's center enters the lower part of the screen, 1 once it
     // has travelled `pace` screen-heights — the words run through in between.
     var r = el.getBoundingClientRect(), vh = window.innerHeight || 1;
-    var centre = r.top + r.height / 2;
-    return Math.min(1, Math.max(0, (vh * 0.8 - centre) / (vh * pace)));
+    var center = r.top + r.height / 2;
+    return Math.min(1, Math.max(0, (vh * 0.8 - center) / (vh * pace)));
   }
-  if (sm === 0) {                                   // stepped (original behaviour)
+  if (sm === 0) {                                   // stepped (original behavior)
     var tick = function () {
       var i = Math.min(n - 1, Math.floor(target() * n));
       if (i === last) return;

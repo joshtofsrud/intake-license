@@ -200,7 +200,7 @@
     <form method="POST" id="tpl-confirm-form" action="">
       @csrf
       <div class="tpl-modal-body" style="padding:18px 20px;font-size:13.5px;line-height:1.6">
-        Switching to <strong id="tpl-confirm-name"></strong> restyles your <strong>published</strong> public site right away — colours, fonts and button styling. By default your pages and content stay exactly as they are.
+        Switching to <strong id="tpl-confirm-name"></strong> restyles your <strong>published</strong> public site right away — colors, fonts and button styling. By default your pages and content stay exactly as they are.
         <label class="tpl-seed-opt">
           <input type="checkbox" name="seed_layout" value="1">
           <span><strong>Also rebuild my homepage with this template’s layout.</strong> Replaces your current homepage sections with this template’s structure. Other pages and customer data are untouched.</span>

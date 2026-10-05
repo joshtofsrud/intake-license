@@ -15,7 +15,7 @@ use Illuminate\Console\Command;
  *
  * The prefix embeds an Image Service ID unique to one QBP account, so it is
  * stored per subscription and never shared. It changes rarely — asking CLS on
- * every page render would be a call per image, which the licence would allow
+ * every page render would be a call per image, which the license would allow
  * and common sense would not.
  */
 class QbpClsRefresh extends Command

@@ -30,7 +30,7 @@
 </div></div>
 
 <style>
-/* MARKER-INVEST-RAILMENU — the menu borrows the rail's own type and colours. */
+/* MARKER-INVEST-RAILMENU — the menu borrows the rail's own type and colors. */
 .rail-menu{position:relative;flex:0 0 auto}
 .rail-menu > button{all:unset;cursor:pointer;font-size:13px;font-weight:550;color:var(--body);
   white-space:nowrap;display:flex;align-items:center;gap:7px;transition:color .12s}

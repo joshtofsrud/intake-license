@@ -299,7 +299,7 @@
     w.addEventListener('mouseleave', function () { w.classList.remove('pb-hover'); });
 
     // Click selects the section in the builder. Links and form controls keep
-    // their own behaviour — the preview still has to be usable as a page.
+    // their own behavior — the preview still has to be usable as a page.
     w.addEventListener('click', function (e) {
       if (e.target.closest('a, button, input, select, textarea, label')) return;
       e.preventDefault();

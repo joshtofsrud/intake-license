@@ -5,9 +5,9 @@
      Emits nothing unless the section is in image or gradient mode, so a page
      that never touched the Design tab renders byte-for-byte as before.
 
-     Colour mode is deliberately NOT handled here: marketing/page.blade.php
+     Color mode is deliberately NOT handled here: marketing/page.blade.php
      already paints it from the section's bg_color column, and reading the
-     Design tab's colour instead would repaint the live site from seeded
+     Design tab's color instead would repaint the live site from seeded
      values. Parallax is not ported to the marketing template. --}}
 @php
   $bgMode  = $c['bg_mode'] ?? 'color';
@@ -18,7 +18,7 @@
   $bgOp     = max(0, min(100, (int) ($c['bg_opacity'] ?? 100)));
   $bgFadeFn = fn ($col) => $bgOp >= 100 ? $col : 'color-mix(in srgb, ' . $col . ' ' . $bgOp . '%, transparent)';
   $bgCont   = $isGrad && ! empty($c['bg_continue']);
-  // MARKER-MKT-BG-COLOUR — the colour lives in the section's settings (older sections: the column).
+  // MARKER-MKT-BG-COLOUR — the color lives in the section's settings (older sections: the column).
   $bgHexOk  = fn ($v) => is_string($v) && preg_match('/^#[0-9a-fA-F]{3,8}$/', trim($v)) ? trim($v) : null;
   $bgColour = $bgHexOk($c['bg_color'] ?? null) ?: $bgHexOk($section->bg_color ?? null);
   $bgSolid  = $bgMode === 'color' && $bgColour !== null;

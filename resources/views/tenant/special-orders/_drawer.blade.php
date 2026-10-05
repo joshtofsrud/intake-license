@@ -36,7 +36,7 @@
             </div>
           </div>
           <div class="ia-form-help">
-            Don't see it in the list? Type the item name freeform and submit — it'll be created as a "not yet catalogued" SO.
+            Don't see it in the list? Type the item name freeform and submit — it'll be created as a "not yet cataloged" SO.
           </div>
           <button type="button" id="so-item-freeform-btn" class="ia-btn ia-btn--ghost" style="margin-top:8px;display:none"
                   onclick="SoDrawer.useFreeformItem()">
@@ -151,7 +151,7 @@
         // Freeform item name (no catalog match)
         document.getElementById('so-item-id').value = '';
         document.getElementById('so-item-name').value = opts.item_name;
-        document.getElementById('so-selected-item-name').textContent = opts.item_name + ' (not catalogued)';
+        document.getElementById('so-selected-item-name').textContent = opts.item_name + ' (not cataloged)';
         document.getElementById('so-selected-item-sku').textContent = '';
         document.getElementById('so-item-selected').style.display = 'flex';
         document.getElementById('so-item-search').style.display = 'none';
@@ -223,7 +223,7 @@
       if (!label) return;
       document.getElementById('so-item-id').value = '';
       document.getElementById('so-item-name').value = label;
-      document.getElementById('so-selected-item-name').textContent = label + ' (not catalogued)';
+      document.getElementById('so-selected-item-name').textContent = label + ' (not cataloged)';
       document.getElementById('so-selected-item-sku').textContent = '';
       document.getElementById('so-item-selected').style.display = 'flex';
       document.getElementById('so-item-search').style.display = 'none';

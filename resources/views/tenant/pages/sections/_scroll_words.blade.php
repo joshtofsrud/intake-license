@@ -143,11 +143,11 @@
     </div>
     <div class="pb2-field-row">
       <div class="pb2-field">
-        <label class="pb2-field-label">Lead-in colour</label>
+        <label class="pb2-field-label">Lead-in color</label>
         <input type="text" class="pb2-input pb2-input-sm pb2-input-mono" data-field="text_color" value="{{ $get('text_color') }}" placeholder="theme default">
       </div>
       <div class="pb2-field">
-        <label class="pb2-field-label">Word colour</label>
+        <label class="pb2-field-label">Word color</label>
         <input type="text" class="pb2-input pb2-input-sm pb2-input-mono" data-field="accent_color" value="{{ $get('accent_color') }}" placeholder="accent">
       </div>
     </div>

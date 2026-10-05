@@ -94,7 +94,7 @@ class DesignTokens
 
         $out['accent_text'] = ColorHelper::accentTextColor($out['accent']);
 
-        // A template that doesn't state hero colours just uses the page's.
+        // A template that doesn't state hero colors just uses the page's.
         if ($out['hero_bg'] === '')   { $out['hero_bg']   = $out['bg']; }
         if ($out['hero_text'] === '') { $out['hero_text'] = $out['text']; }
 
@@ -143,7 +143,7 @@ class DesignTokens
     }
 
     /**
-     * MARKER-CZFIX — flatten a colour to a 6-digit hex for DISPLAY only.
+     * MARKER-CZFIX — flatten a color to a 6-digit hex for DISPLAY only.
      *
      * <input type="color"> can only hold hex, so an rgba() token (which is what
      * surface/muted/border fall back to) showed as white in the customizer.

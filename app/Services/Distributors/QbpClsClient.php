@@ -11,7 +11,7 @@ use RuntimeException;
  * QBP Content License Service (API3).
  *
  * Separate from QbpClient: a different host, a different key, and a different
- * licence. API1 is free and carries the catalog; CLS is licensed and carries
+ * license. API1 is free and carries the catalog; CLS is licensed and carries
  * the images.
  *
  * Only the image service is implemented. CLS also serves product detail,

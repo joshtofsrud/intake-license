@@ -110,7 +110,7 @@ class ResolveTenant
         // MARKER-PATCH-124 — Subdomain vs custom-domain enforcement
         //
         // Determine which match path produced the tenant. This drives two
-        // behaviours below: admin redirect on custom domain, and the
+        // behaviors below: admin redirect on custom domain, and the
         // session cookie Domain attribute.
         // ----------------------------------------------------------------
         $matchedViaSubdomain = str_ends_with($host, '.' . $rootDomain)

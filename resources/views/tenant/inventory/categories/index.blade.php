@@ -226,7 +226,7 @@
      so the Categories page rendered in quirks mode. It lives inside now. --}}
 {{-- MARKER-SSEL-BATCH1 — ssel-submit-handler. The native row select had
      onchange="this.form.submit()"; the component has no onchange, so the same
-     behaviour is bound to its hidden input's change event instead. --}}
+     behavior is bound to its hidden input's change event instead. --}}
 <script>
   document.addEventListener('change', function (e) {
     var host = e.target.closest && e.target.closest('[data-ssel-submit]');

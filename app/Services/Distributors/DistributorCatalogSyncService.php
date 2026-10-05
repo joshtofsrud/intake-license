@@ -65,7 +65,7 @@ class DistributorCatalogSyncService
         try {
             // MARKER-SYNC-PAGE-SIZE — per-distributor override, falling back to
             // the caller's value. HLC keeps 8000 (its API is asked for this
-            // number, so changing it is a live third-party behaviour change);
+            // number, so changing it is a live third-party behavior change);
             // BTI sets its own, because it reads a local file and 8000 leaves
             // barely 250 products of headroom.
             $pageSize = (int) config(
@@ -461,7 +461,7 @@ class DistributorCatalogSyncService
 
         // MARKER-CATALOG-COLORSIZE — compose() has always returned these two
         // alongside the title; nothing kept them, so every row resolved a
-        // colour and a size and then threw both away. A map row can still
+        // color and a size and then threw both away. A map row can still
         // override them by resolving canonical 'color'/'size' directly.
         $canonical['color'] = ($canonical['color'] ?? null) ?: (($composed['color'] ?? '') !== '' ? $composed['color'] : null);
         $canonical['size']  = ($canonical['size']  ?? null) ?: (($composed['size']  ?? '') !== '' ? $composed['size']  : null);

@@ -357,7 +357,7 @@ const shownCount = document.getElementById('hShownCount');
 
 // MARKER-HIST-MOBILE — render in chunks. Filtering, search and sorting all
 // run client-side over the rows already in the DOM, so this caps what is
-// PAINTED, never what is searched: every behaviour stays exact.
+// PAINTED, never what is searched: every behavior stays exact.
 const HIST_CHUNK = 25;
 let shownLimit = HIST_CHUNK;
 

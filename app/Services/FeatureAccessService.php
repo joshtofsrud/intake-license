@@ -110,7 +110,7 @@ class FeatureAccessService
                 'tooltip' => $addon->tooltip,
                 'category' => $addon->category,
                 // MARKER-ADDON-TENANT-LINK — the price master admin set, not the
-                // column. Otherwise a shop's own catalogue and its statement
+                // column. Otherwise a shop's own catalog and its statement
                 // quote different figures for the same add-on.
                 'price_cents' => \App\Support\AddonPricing::for($addon->code),
                 'price_display_override' => $addon->price_display_override,

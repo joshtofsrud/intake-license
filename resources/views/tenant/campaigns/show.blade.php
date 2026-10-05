@@ -1172,7 +1172,7 @@ window.CB = (function() {
     </div>`;
   }
 
-  // MARKER-CAMPAIGN-V2E — background colour, shared by most block types.
+  // MARKER-CAMPAIGN-V2E — background color, shared by most block types.
   function bgField(d) {
     const v = d.bg_color || '';
     return `<div class="cb-field">

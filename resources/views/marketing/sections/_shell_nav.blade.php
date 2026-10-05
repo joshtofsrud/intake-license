@@ -86,7 +86,7 @@
        transparent top border its background paints under. */
     .mk-nav.is-float { margin-bottom: calc(-1 * var(--mkf-h, 76px)); }
 
-    /* MARKER-MKT-NAV-POLISH — spacing presets, link colour, glass phone menu */
+    /* MARKER-MKT-NAV-POLISH — spacing presets, link color, glass phone menu */
     .mk-nav.is-float { padding-top: var(--mkf-out, 18px); }
     .mk-nav.is-float .mk-nav-inner { padding: var(--mkf-pad, 12px 14px 12px 24px); }
     .mk-nav.has-link .mk-nav-link, .mk-nav.has-link .mk-nav-signin, .mk-nav.has-link .mk-mobile-nav a { color: var(--mkf-link); opacity: .78; }
@@ -169,10 +169,10 @@
         backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
         mask-image: linear-gradient(to bottom, #000 45%, transparent); -webkit-mask-image: linear-gradient(to bottom, #000 45%, transparent);
     }
-    /* MARKER-MKT-NAV-BUTTONS — button colours, same in the bar and the ☰ menu */
+    /* MARKER-MKT-NAV-BUTTONS — button colors, same in the bar and the ☰ menu */
     #mk-nav .mk-btn--primary { background: var(--mkf-btn-fill, var(--mk-accent)); color: var(--mkf-btn-text, var(--mk-accent-text)); }
     #mk-nav .mk-btn--ghost { color: var(--mkf-btn-text, var(--mk-text)); border-color: var(--mkf-btn-fill, rgba(255,255,255,.2)); }
-    /* MARKER-MKT-NAV-MENU — the phone menu's own colours */
+    /* MARKER-MKT-NAV-MENU — the phone menu's own colors */
     #mk-nav .mk-mobile-nav a:not(.mk-btn) { color: var(--mkf-menu-link, var(--mkf-link, var(--mk-muted))); }
     #mk-nav .mk-mobile-nav { background-color: var(--mkf-menu-bg, var(--mk-bg, #0c0c0c)); }
     #mk-nav.is-float .mk-mobile-nav { background: color-mix(in srgb, var(--mkf-menu-bg, var(--mkf-bg)) var(--mkf-op), transparent); }

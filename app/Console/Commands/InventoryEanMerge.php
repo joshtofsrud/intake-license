@@ -32,7 +32,7 @@ use Illuminate\Support\Facades\DB;
  *
  * SURVIVOR: the member with the longest name. One feed writes full titles and
  * the other writes stubs; length is a blunt proxy for "the good feed", but the
- * useful name is the one carrying size, casing, colour and product line. Ties
+ * useful name is the one carrying size, casing, color and product line. Ties
  * go to the oldest row, so a re-run picks the same survivor.
  *
  * What a fold does, per cluster, in one transaction:

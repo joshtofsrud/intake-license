@@ -1,6 +1,6 @@
 {{--
   MARKER-CAROUSEL-DEPTH — the "Depth" style of the Image carousel, shared by
-  intake.works and shop sites. The centre card is large and in focus; the
+  intake.works and shop sites. The center card is large and in focus; the
   neighbours sit smaller and dimmed behind. Swipe or drag (native scroll
   snap), click a side card to bring it forward, arrows optional. Each
   image's caption is its title; its link adds a button.
@@ -69,7 +69,7 @@
   var track = root.querySelector('.cd-track'), cards = root.querySelectorAll('.cd-card');
   if (!track || !cards.length) return;
   var active = 0, raf = 0;
-  function centre(i) {
+  function center(i) {
     var c = cards[Math.max(0, Math.min(cards.length - 1, i))];
     track.scrollTo({ left: c.offsetLeft - (track.clientWidth - c.offsetWidth) / 2, behavior: 'smooth' });
   }
@@ -82,13 +82,13 @@
     cards.forEach(function (c, i) { c.classList.toggle('is-active', i === best); });
   }
   track.addEventListener('scroll', function () { if (!raf) raf = requestAnimationFrame(update); }, { passive: true });
-  cards.forEach(function (c, i) { c.addEventListener('click', function (e) { if (i !== active) { e.preventDefault(); centre(i); } }); });
+  cards.forEach(function (c, i) { c.addEventListener('click', function (e) { if (i !== active) { e.preventDefault(); center(i); } }); });
   var p = root.querySelector('.cd-prev'), n = root.querySelector('.cd-next');
-  if (p) p.addEventListener('click', function () { centre(active - 1); });
-  if (n) n.addEventListener('click', function () { centre(active + 1); });
+  if (p) p.addEventListener('click', function () { center(active - 1); });
+  if (n) n.addEventListener('click', function () { center(active + 1); });
   track.addEventListener('keydown', function (e) {
-    if (e.key === 'ArrowLeft')  { e.preventDefault(); centre(active - 1); }
-    if (e.key === 'ArrowRight') { e.preventDefault(); centre(active + 1); }
+    if (e.key === 'ArrowLeft')  { e.preventDefault(); center(active - 1); }
+    if (e.key === 'ArrowRight') { e.preventDefault(); center(active + 1); }
   });
   update();
 })();

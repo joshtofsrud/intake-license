@@ -44,7 +44,7 @@
 
   {{-- MARKER-NAV-SPACING — the uppercase header already separates groups;
        a divider on top of it stacked ~36px of dead space per boundary, and
-       with five groups that reads as gappy rather than organised. --}}
+       with five groups that reads as gappy rather than organized. --}}
   @if($item['group'] !== $lastGroup && $item['group'])
     <div class="ia-nav-section">{{ $groups[$item['group']] }}</div>
     @php $lastGroup = $item['group']; @endphp

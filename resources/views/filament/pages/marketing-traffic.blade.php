@@ -24,7 +24,7 @@
 
 <style>
 .mt-bar{display:flex;gap:6px;margin-bottom:18px}
-/* MARKER-TRAFFIC-POLISH — the pill centres its own label rather than relying
+/* MARKER-TRAFFIC-POLISH — the pill centers its own label rather than relying
    on the row's alignment, which left the text sitting low. */
 .mt-bar a{height:100%;display:inline-flex;align-items:center;justify-content:center;
   padding:0 14px;border-radius:99px;font-size:12.5px;text-decoration:none;
@@ -476,7 +476,7 @@
 </div>
 
 <script>
-  // MARKER-MKTSESSTYLE — same filter behaviour as the tenant explorer.
+  // MARKER-MKTSESSTYLE — same filter behavior as the tenant explorer.
   (function () {
     var wrap = document.getElementById('mktSessFilters');
     if (!wrap) { return; }

@@ -56,7 +56,7 @@
 <div class="pb2-group">
   <div class="pb2-group-title">Background blend</div>
   <div class="pb2-field">
-    <label class="pb2-field-label">Opacity <span class="pb2-field-hint">colour and gradient</span></label>
+    <label class="pb2-field-label">Opacity <span class="pb2-field-hint">color and gradient</span></label>
     <div style="display:flex;align-items:center;gap:12px">
       <input type="range" min="0" max="100" step="5" value="{{ $blendOp }}" style="flex:1;min-width:0"
              oninput="this.nextElementSibling.textContent = this.value + '%';
@@ -72,7 +72,7 @@
     $fadeOut = ! empty($section->content['bg_fade_out']);
   @endphp
   <div class="pb2-field">
-    <label class="pb2-field-label">Gradient ends at <span class="pb2-field-hint">then holds its end colour</span></label>
+    <label class="pb2-field-label">Gradient ends at <span class="pb2-field-hint">then holds its end color</span></label>
     <div style="display:flex;align-items:center;gap:12px">
       <input type="range" min="20" max="100" step="5" value="{{ $fadeEnd }}" style="flex:1;min-width:0"
              oninput="this.nextElementSibling.textContent = this.value + '%';
@@ -92,7 +92,7 @@
   </label>
   <div class="pb2-field-hint" style="text-align:left;display:block;margin-top:4px">
     If the section above has a gradient, it stretches across this section too, at its own angle — one surface, no seam.
-    Tick it on more sections below to extend it further. Above has a plain colour: this section's gradient starts from that colour.
+    Tick it on more sections below to extend it further. Above has a plain color: this section's gradient starts from that color.
   </div>
 </div>
 @endif

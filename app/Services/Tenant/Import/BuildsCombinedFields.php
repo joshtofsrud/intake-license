@@ -13,7 +13,7 @@ namespace App\Services\Tenant\Import;
  *       ['type' => 'col',  'idx' => 5],
  *   ]]
  *
- * Empty pieces are dropped along with their separator: a row with no colour
+ * Empty pieces are dropped along with their separator: a row with no color
  * yields "Nano Puff", never "Nano Puff / ". Literal text is kept even when
  * its neighbours are empty only if at least one column piece produced a
  * value — text with nothing around it would be a constant, not a combination.

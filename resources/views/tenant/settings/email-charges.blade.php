@@ -8,7 +8,7 @@
      totals and never said which was which. --}}
 @push('styles')
 <style>
-  /* MARKER-EMAIL-CHARGES-V3 — no private width and no hard-coded colours:
+  /* MARKER-EMAIL-CHARGES-V3 — no private width and no hard-coded colors:
      this page inherits the same container and theme variables as the rest. */
   .ec-stack > * + * { margin-top: 18px; }
   .ec-hero-n { font-size: 38px; font-weight: 700; letter-spacing: -.025em; line-height: 1; }

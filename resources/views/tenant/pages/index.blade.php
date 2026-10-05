@@ -244,7 +244,7 @@
             <div class="wl-prev-meta">{{ $currentTenant->name }}</div>
           </div>
         </div>
-        <div class="wl-hint">Uses your logo, colours and contact details automatically — nothing else to fill in.</div>
+        <div class="wl-hint">Uses your logo, colors and contact details automatically — nothing else to fill in.</div>
       </div>
     </div>
 

@@ -211,7 +211,7 @@ body.ia-theme-b .pb2-status-btn--go {
 }
 
 /* The preview frame stays dark: it contains the tenant's real site, and a
-   bright surround makes their own colours hard to judge. */
+   bright surround makes their own colors hard to judge. */
 body.ia-theme-b .pb2-preview-col,
 body.ia-theme-b .pb2-preview-bar {
   background: #131313;
@@ -1618,7 +1618,7 @@ body.ia-theme-b .pb2-preview-frame-wrap {
   background: rgba(255,255,255,.07);
   border: .5px solid var(--pb2-border);
   border-radius: 8px;
-  /* MARKER-INSP-TEXTAREA-COLOR — form controls don't inherit colour, so a
+  /* MARKER-INSP-TEXTAREA-COLOR — form controls don't inherit color, so a
      bare .pb2-textarea rendered black text on this dark panel. */
   color: var(--pb2-text);
 }

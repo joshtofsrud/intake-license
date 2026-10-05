@@ -417,7 +417,7 @@ class CatalogTitleComposer
      * MARKER-FIELD-INHERITANCE — resolve each field up the ladder on its own.
      *
      * A rule that sets only a title used to discard its parent's subtitle,
-     * search blob and colour priority, because the first matching ROW won
+     * search blob and color priority, because the first matching ROW won
      * outright. The review page writes title-only rules, so editing a
      * category silently replaced its descriptor with '{mpn}' and emptied
      * its search blob — search_template has no constant fallback.
