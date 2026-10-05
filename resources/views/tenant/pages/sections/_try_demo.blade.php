@@ -63,19 +63,56 @@
 </div>
 
 <div class="pb2-tab-panel" data-tab="style" hidden>
+  {{-- MARKER-TRY-DEMO-TIDY — the standard Section background controls --}}
   <div class="pb2-group">
-    <div class="pb2-group-title">Background</div>
+    <div class="pb2-group-title">Section background</div>
     <div class="pb2-field">
-      <div class="pb2-color-row">
-        <input type="color" data-field="bg_color" value="{{ $get('bg_color') ?: '#0a0a0a' }}" class="pb2-color-swatch">
-        <input type="text" class="pb2-input pb2-input-sm pb2-input-mono" data-field="bg_color_text" value="{{ $get('bg_color') }}" placeholder="transparent">
+      <div class="pb2-seg" data-field-seg="bg_mode">
+        @foreach(['none'=>'None','color'=>'Color','gradient'=>'Gradient'] as $val => $name)
+          <button type="button" class="pb2-seg-btn {{ $get('bg_mode', 'none') === $val ? 'active' : '' }}" data-seg-value="{{ $val }}">{{ $name }}</button>
+        @endforeach
+      </div>
+      <input type="hidden" data-field="bg_mode" value="{{ $get('bg_mode', 'none') }}">
+    </div>
+    <div class="pb2-bg-pane" data-bg-mode="color">
+      <div class="pb2-field">
+        <label class="pb2-field-label">Background color</label>
+        <div class="pb2-color-row">
+          <input type="color" data-field="bg_color" value="{{ $get('bg_color', '#0a0f1a') }}" class="pb2-color-swatch">
+          <input type="text" class="pb2-input pb2-input-sm pb2-input-mono" data-field="bg_color_text" value="{{ $get('bg_color') }}">
+        </div>
+      </div>
+    </div>
+    <div class="pb2-bg-pane" data-bg-mode="gradient">
+      <div class="pb2-field">
+        <div class="pb2-slider-row">
+          <label class="pb2-field-label" style="margin:0">Angle</label>
+          <span class="pb2-slider-value pb2-grad-deg">{{ $get('bg_gradient_angle', 135) }}°</span>
+        </div>
+        <input type="range" min="0" max="360" value="{{ $get('bg_gradient_angle', 135) }}" data-field="bg_gradient_angle" oninput="this.parentNode.querySelector('.pb2-grad-deg').textContent=this.value+'°'">
+      </div>
+      <div class="pb2-field-row">
+        <div class="pb2-field">
+          <label class="pb2-field-label">From</label>
+          <div class="pb2-color-row">
+            <input type="color" data-field="bg_gradient_from" value="{{ $get('bg_gradient_from', '#0a0f1a') }}" class="pb2-color-swatch">
+            <input type="text" class="pb2-input pb2-input-sm pb2-input-mono" data-field="bg_gradient_from_text" value="{{ $get('bg_gradient_from') }}">
+          </div>
+        </div>
+        <div class="pb2-field">
+          <label class="pb2-field-label">To</label>
+          <div class="pb2-color-row">
+            <input type="color" data-field="bg_gradient_to" value="{{ $get('bg_gradient_to', '#0f1828') }}" class="pb2-color-swatch">
+            <input type="text" class="pb2-input pb2-input-sm pb2-input-mono" data-field="bg_gradient_to_text" value="{{ $get('bg_gradient_to') }}">
+          </div>
+        </div>
       </div>
     </div>
   </div>
   <div class="pb2-group">
-    <div class="pb2-group-title">Colors</div>
+    <div class="pb2-group-title">Button</div>
     <div class="pb2-field">
-      <label class="pb2-field-label">Accent <span class="pb2-field-hint">button</span></label>
+      <label class="pb2-field-label">Accent colour</label>
       <div class="pb2-color-row">
         <input type="color" data-field="accent_color" value="{{ $get('accent_color') ?: '#BEF264' }}" class="pb2-color-swatch">
         <input type="text" class="pb2-input pb2-input-sm pb2-input-mono" data-field="accent_color_text" value="{{ $get('accent_color') }}" placeholder="theme default">
@@ -85,20 +122,31 @@
   <div class="pb2-group">
     <div class="pb2-group-title">Spacing</div>
     <div class="pb2-field">
-      <select class="pb2-input" data-field="padding_override">
+      <div class="pb2-seg" data-field-seg="padding_override">
         @foreach(['compact'=>'Compact','normal'=>'Normal','spacious'=>'Spacious'] as $v => $n)
-          <option value="{{ $v }}" {{ $get('padding_override', 'normal') === $v ? 'selected' : '' }}>{{ $n }}</option>
+          <button type="button" class="pb2-seg-btn {{ $get('padding_override', 'normal') === $v ? 'active' : '' }}" data-seg-value="{{ $v }}">{{ $n }}</button>
         @endforeach
-      </select>
+      </div>
+      <input type="hidden" data-field="padding_override" value="{{ $get('padding_override', 'normal') }}">
     </div>
   </div>
 </div>
 
 <div class="pb2-tab-panel" data-tab="advanced" hidden>
   <div class="pb2-group">
-    <div class="pb2-group-title">Anchor</div>
+    <div class="pb2-group-title">Anchor &amp; classes</div>
     <div class="pb2-field">
+      <label class="pb2-field-label">Anchor ID</label>
       <input type="text" class="pb2-input pb2-input-mono" data-field="anchor_id" value="{{ $get('anchor_id') }}" placeholder="demo">
     </div>
+    <div class="pb2-field">
+      <label class="pb2-field-label">Custom classes</label>
+      <input type="text" class="pb2-input pb2-input-mono" data-field="custom_classes" value="{{ $get('custom_classes') }}" placeholder="space-separated">
+    </div>
+  </div>
+  <div class="pb2-group">
+    <div class="pb2-group-title">Visibility</div>
+    <label class="pb2-checkbox-row"><input type="checkbox" data-field="hide_on_mobile" value="1" {{ $get('hide_on_mobile') ? 'checked' : '' }}><span>Hide on mobile</span></label>
+    <label class="pb2-checkbox-row"><input type="checkbox" data-field="hide_on_desktop" value="1" {{ $get('hide_on_desktop') ? 'checked' : '' }}><span>Hide on desktop</span></label>
   </div>
 </div>

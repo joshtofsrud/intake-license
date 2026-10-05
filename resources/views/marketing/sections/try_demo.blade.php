@@ -1,3 +1,5 @@
+@php $bgId = 'mkbg-' . substr(md5((string) ($section->id ?? uniqid())), 0, 10); @endphp {{-- MARKER-TRY-DEMO-TIDY --}}
+@include('marketing.sections._section_bg', ['bgId' => $bgId])
 {{-- MARKER-DEMO-SECTION — Try the demo. Content: demo_slug, layout (card|button),
      eyebrow, heading, subheading, button_label, accent_color, anchor_id --}}
 @php
@@ -18,7 +20,7 @@
     // never optional: the two things a visitor cannot see for themselves
     $promise = 'Everything resets on the hour, and emails and texts are never really sent.';
 @endphp
-<section class="{{ $padding }}" @if($style !== '') style="{{ $style }}" @endif @if(!empty($c['anchor_id'])) id="{{ $c['anchor_id'] }}" @endif>
+<section class="{{ $padding }} {{ $bgId }}" @if($style !== '') style="{{ $style }}" @endif @if(!empty($c['anchor_id'])) id="{{ $c['anchor_id'] }}" @endif>
     <div class="mk-container">
         @if(! $demo)
             @if($preview)
