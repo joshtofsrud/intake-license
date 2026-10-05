@@ -1230,6 +1230,10 @@ class PageBuilderController extends Controller
                     $content[$legacy] = '';
                 }
             }
+            // MARKER-MKT-CTA-V2 — same for the CTA banner's old single button.
+            if ($section->section_type === 'cta_banner' && array_key_exists('buttons', $content)) {
+                $content['cta_label'] = ''; $content['cta_url'] = '';
+            }
 
             $section->update([
                 'content'   => array_merge($section->content ?? [], $content),

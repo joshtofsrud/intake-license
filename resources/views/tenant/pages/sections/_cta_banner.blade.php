@@ -10,7 +10,7 @@
   if (!is_array($buttons)) $buttons = [];
 
   // Backward compat
-  if (empty($buttons) && !empty($c['cta_label'] ?? '')) {
+  if (empty($buttons) && ! array_key_exists('buttons', $c) && !empty($c['cta_label'] ?? '')) { // MARKER-MKT-CTA-V2 — never-saved lists only
       $buttons = [['label' => $c['cta_label'], 'url' => $c['cta_url'] ?? '#', 'style' => 'primary']];
   }
 @endphp
@@ -108,8 +108,15 @@
     </div>
 
     <div class="pb2-field">
-      <label class="pb2-field-label">Content max-width <span class="pb2-field-hint">px</span></label>
-      <input type="number" class="pb2-input" data-field="content_max_width" value="{{ $get('content_max_width', 640) }}" min="320" max="1200" step="20">
+      <label class="pb2-field-label">Content width <span class="pb2-field-hint">px</span></label>
+      <div style="display:flex;align-items:center;gap:12px">
+        <input type="range" min="320" max="1200" step="20" value="{{ $get('content_max_width', 640) }}" style="flex:1;min-width:0"
+               oninput="this.nextElementSibling.textContent = this.value + 'px';
+                        var h = this.parentElement.parentElement.querySelector('[data-field=content_max_width]');
+                        h.value = this.value; h.dispatchEvent(new Event('change', { bubbles: true }));">
+        <span style="min-width:56px;text-align:right;font-variant-numeric:tabular-nums;font-size:12.5px;opacity:.75">{{ $get('content_max_width', 640) }}px</span>
+      </div>
+      <input type="hidden" data-field="content_max_width" value="{{ $get('content_max_width', 640) }}">
     </div>
 
     <div class="pb2-field-row">
@@ -136,6 +143,31 @@
 
 {{--=================== STYLE ===================--}}
 <div class="pb2-tab-panel" data-tab="style" hidden>
+  {{-- MARKER-MKT-CTA-V2 — intake.works only (shop CTA banners don't read these yet) --}}
+  @if($isMarketing ?? false)
+  <div class="pb2-group">
+    <div class="pb2-group-title">Buttons</div>
+    <div class="pb2-field">
+      <label class="pb2-field-label">Button style</label>
+      <div class="pb2-seg" data-field-seg="buttons_style">
+        @foreach(['separate' => 'Separate', 'pill' => 'Pill bar'] as $v => $n)
+          <button type="button" class="pb2-seg-btn {{ $get('buttons_style', 'separate') === $v ? 'active' : '' }}" data-seg-value="{{ $v }}">{{ $n }}</button>
+        @endforeach
+      </div>
+      <input type="hidden" data-field="buttons_style" value="{{ $get('buttons_style', 'separate') }}">
+    </div>
+    <div class="pb2-field-row">
+      <div class="pb2-field">
+        <label class="pb2-field-label">Button fill</label>
+        <input type="text" class="pb2-input pb2-input-sm pb2-input-mono" data-field="btn_fill" value="{{ $get('btn_fill') }}" placeholder="accent">
+      </div>
+      <div class="pb2-field">
+        <label class="pb2-field-label">Button text</label>
+        <input type="text" class="pb2-input pb2-input-sm pb2-input-mono" data-field="btn_text" value="{{ $get('btn_text') }}" placeholder="auto">
+      </div>
+    </div>
+  </div>
+  @endif
 
   <div class="pb2-group">
     <div class="pb2-group-title">Background</div>
