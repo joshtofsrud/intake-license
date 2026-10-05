@@ -19,7 +19,7 @@ class MarketingNav
     public const SIDES  = ['left', 'right'];
 
     // MARKER-MKT-NAV-FLOAT — header style and its four Floating settings.
-    public const HEADER_DEFAULTS = ['style' => 'classic', 'bg' => '#0a0a0a', 'opacity' => 70, 'blur' => 14, 'pill' => '#ffffff', 'pill_strength' => 8, 'space' => 'normal', 'link' => '', 'fade' => false, 'btn_pos' => 'bar', 'pad_x' => 0, 'btn_text' => '', 'btn_fill' => '', 'btn_dist' => 0, 'menu_bg' => '', 'menu_link' => ''];
+    public const HEADER_DEFAULTS = ['style' => 'classic', 'bg' => '#0a0a0a', 'opacity' => 70, 'blur' => 14, 'pill' => '#ffffff', 'pill_strength' => 8, 'space' => 'normal', 'link' => '', 'fade' => false, 'btn_pos' => 'bar', 'pad_x' => 0, 'top_gap' => -1, 'btn_text' => '', 'btn_fill' => '', 'btn_dist' => 0, 'menu_bg' => '', 'menu_link' => ''];
 
     public static function header(?array $override = null): array
     {
@@ -74,6 +74,7 @@ class MarketingNav
             'menu_bg'       => $hex($h['menu_bg'] ?? null, ''),   // MARKER-MKT-NAV-MENU
             'menu_link'     => $hex($h['menu_link'] ?? null, ''),
             'pad_x'         => $int($h['pad_x'] ?? null, 0, 60), // MARKER-MKT-NAV-EDGEROOM — 0 = preset
+            'top_gap'       => (isset($h['top_gap']) && is_numeric($h['top_gap']) && (int) $h['top_gap'] >= 0) ? min(80, (int) $h['top_gap']) : -1, // MARKER-MKT-NAV-TOP — -1 = preset
         ];
     }
 

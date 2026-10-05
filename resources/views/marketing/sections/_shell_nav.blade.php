@@ -136,6 +136,9 @@
     $mkEdge   = function ($pad, $x) { if (! $x) return $pad; $p = explode(' ', $pad); $p[1] = $p[3] = $x . 'px'; return implode(' ', $p); };
     $mkSpace[1]  = $mkEdge($mkSpace[1], $mkHead['pad_x']);
     $mkSpaceP[1] = $mkEdge($mkSpaceP[1], $mkHeadP['pad_x']);
+    // MARKER-MKT-NAV-TOP — a chosen distance from the top replaces the preset's
+    if (($mkHead['top_gap'] ?? -1) >= 0)  $mkSpace[0]  = $mkHead['top_gap'] . 'px';
+    if (($mkHeadP['top_gap'] ?? -1) >= 0) $mkSpaceP[0] = $mkHeadP['top_gap'] . 'px';
     $mkVars   = fn ($h, $out, $pad, $link) => '--mkf-bg:' . $h['bg'] . ';--mkf-op:' . $h['opacity'] . '%;--mkf-blur:' . $h['blur'] . 'px;'
         . '--mkf-pill:color-mix(in srgb, ' . $h['pill'] . ' ' . $h['pill_strength'] . '%, transparent);'
         . '--mkf-out:' . $out . ';--mkf-pad:' . $pad . ';--mkf-link:' . ($link ?: 'var(--mk-muted)') . ';'
