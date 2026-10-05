@@ -67,6 +67,12 @@ class TeamController extends Controller
             return back()->with('error', 'Only an owner can invite another owner.');
         }
 
+        // MARKER-SEATS — the plan's team size is enforced here, server-side.
+        if (! $tenant->canAddSeat()) {
+            $lim = $tenant->seatLimit();
+            return back()->with('error', "Your plan includes {$lim} team " . ($lim === 1 ? 'member' : 'members') . '. Upgrade your plan to add more.');
+        }
+
         $exists = TenantUser::where('tenant_id', $tenant->id)
             ->where('email', $data['email'])->exists();
         if ($exists) {

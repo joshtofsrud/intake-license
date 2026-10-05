@@ -567,6 +567,26 @@ class Tenant extends Model
      * lands it becomes derived from the subscription quantity and this method
      * does not change.
      */
+    // MARKER-SEATS — team members included per plan (null = no limit).
+    public const PLAN_SEATS = ['starter' => 1, 'branded' => 3, 'scale' => 10];
+
+    public function seatLimit(): ?int
+    {
+        return self::PLAN_SEATS[$this->plan_tier ?? 'starter'] ?? null;
+    }
+
+    /** Everyone on the team, including invites not yet accepted. */
+    public function seatCount(): int
+    {
+        return \App\Models\Tenant\TenantUser::where('tenant_id', $this->id)->count();
+    }
+
+    public function canAddSeat(): bool
+    {
+        $limit = $this->seatLimit();
+        return $limit === null || $this->seatCount() < $limit;
+    }
+
     public function canAddLocation(): bool
     {
         return $this->activeLocationCount() < (int) ($this->licensed_locations ?? 1);

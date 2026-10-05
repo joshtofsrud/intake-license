@@ -36,7 +36,16 @@
       <a href="{{ route('tenant.team.policy') }}" class="ia-btn ia-btn--ghost">Sign-in policy</a>
     @endif
     @if($me->isManager())
-      <button type="button" class="ia-btn ia-btn--primary" id="invite-toggle">+ Invite member</button>
+      {{-- MARKER-SEATS — seats used, and no Invite button once the plan is full --}}
+      @php $seatLim = tenant()->seatLimit(); $seatUsed = tenant()->seatCount(); @endphp
+      @if($seatLim !== null)
+        <span style="font-size:12.5px;color:var(--ia-text-muted);align-self:center">{{ $seatUsed }} of {{ $seatLim }} team members</span>
+      @endif
+      @if(tenant()->canAddSeat())
+        <button type="button" class="ia-btn ia-btn--primary" id="invite-toggle">+ Invite member</button>
+      @else
+        <span style="font-size:12.5px;align-self:center">Your plan is full — upgrade to add more.</span>
+      @endif
     @endif
   </div>
 </div>
