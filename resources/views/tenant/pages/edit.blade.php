@@ -1484,8 +1484,10 @@ body.ia-theme-b .pb2-preview-frame-wrap {
   color: var(--pb2-text-faint);
   display: flex; align-items: center; gap: 10px;
 }
-/* MARKER-PB-HIDDEN-TAGS */
-.pb2-section-hidden{font-size:10px;color:var(--pb2-text-faint);border:.5px dashed var(--pb2-border-2);border-radius:99px;padding:0 6px;margin-left:auto;margin-right:6px;white-space:nowrap}
+/* MARKER-PB-HIDDEN-TAGS / -INLINE — one line: name, tag, number */
+.pb2-section-item:has(.pb2-section-hidden) { grid-template-columns: 14px 18px minmax(0, 1fr) auto auto; }
+.pb2-section-item .pb2-section-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pb2-section-hidden{font-size:10px;color:var(--pb2-text-faint);border:.5px dashed var(--pb2-border-2);border-radius:99px;padding:0 6px;white-space:nowrap;max-width:150px;overflow:hidden;text-overflow:ellipsis}
 /* MARKER-SHOP-NAV — menu rows in the Nav section */
 .sn-row.sn-new{box-shadow:0 0 0 2px var(--pb2-accent)}
 .sn-insp{flex:1;overflow-y:auto;min-height:0}

@@ -139,9 +139,11 @@
         .{{ $ptId }}.pt-tabs .mk-plan-tabs { display: flex; background: rgba(255,255,255,.06); border-radius: 999px; padding: 4px; gap: 2px; margin: 4px 0 22px; }
         .{{ $ptId }} .mk-plan-tabs button { flex: 1; border: 0; background: none; color: var(--mk-muted); font: inherit; font-size: 13px; font-weight: 600; padding: 9px 0; border-radius: 999px; cursor: pointer; transition: background .2s, color .2s; }
         .{{ $ptId }} .mk-plan-tabs button.on { background: var(--mk-accent); color: var(--mk-accent-text, #0a0a0a); }
-        .{{ $ptId }}.pt-tabs .mk-plan:not(.is-active) { display: none; }
-        .{{ $ptId }}.pt-tabs .mk-plan.is-active { animation: mkPtIn .3s ease; }
-        @keyframes mkPtIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+        /* MARKER-PRICING-TABS-SWIPE — a swipeable row under the pills */
+        .{{ $ptId }}.pt-tabs .mk-plan-grid { display: flex; grid-template-columns: none; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory;
+            margin: 0 calc(-1 * var(--mk-gutter, 20px)); padding: 14px 7% 6px; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+        .{{ $ptId }}.pt-tabs .mk-plan-grid::-webkit-scrollbar { display: none; }
+        .{{ $ptId }}.pt-tabs .mk-plan { flex: 0 0 86%; scroll-snap-align: center; }
     }
 </style>
 
@@ -199,18 +201,36 @@
     </div>
 </section>
 <script>
-/* MARKER-PRICING-PHONE-TABS — one plan at a time on phones */
+/* MARKER-PRICING-TABS-SWIPE — pills and swipe kept in sync on phones */
 (function () {
   var root = document.querySelector('.{{ $ptId }}');
   if (!root || root.dataset.ptReady) return;
   root.dataset.ptReady = '1';
-  var tabs = root.querySelectorAll('.mk-plan-tabs button'), cards = root.querySelectorAll('.mk-plan');
-  tabs.forEach(function (b) {
-    b.addEventListener('click', function () {
-      var i = +b.dataset.i;
-      tabs.forEach(function (t, k) { t.classList.toggle('on', k === i); t.setAttribute('aria-selected', k === i ? 'true' : 'false'); });
-      cards.forEach(function (c, k) { c.classList.toggle('is-active', k === i); });
+  var row = root.querySelector('.mk-plan-grid'), tabs = root.querySelectorAll('.mk-plan-tabs button'), cards = root.querySelectorAll('.mk-plan');
+  if (!row || !tabs.length) return;
+  var phone = window.matchMedia('(max-width: 860px)');
+  function mark(i) {
+    tabs.forEach(function (t, k) { t.classList.toggle('on', k === i); t.setAttribute('aria-selected', k === i ? 'true' : 'false'); });
+  }
+  function go(i, smooth) {
+    var c = cards[i]; if (!c) return;
+    var rr = row.getBoundingClientRect(), cr = c.getBoundingClientRect();
+    row.scrollTo({ left: row.scrollLeft + (cr.left + cr.width / 2) - (rr.left + rr.width / 2), behavior: smooth ? 'smooth' : 'auto' });
+    mark(i);
+  }
+  var raf = 0;
+  row.addEventListener('scroll', function () {
+    if (raf) return;
+    raf = requestAnimationFrame(function () {
+      raf = 0;
+      var rr = row.getBoundingClientRect(), mid = rr.left + rr.width / 2, best = 0, d = Infinity;
+      cards.forEach(function (c, k) { var cr = c.getBoundingClientRect(), m = Math.abs(cr.left + cr.width / 2 - mid); if (m < d) { d = m; best = k; } });
+      mark(best);
     });
-  });
+  }, { passive: true });
+  tabs.forEach(function (b) { b.addEventListener('click', function () { go(+b.dataset.i, true); }); });
+  function start() { if (phone.matches) go({{ $ptActive }}, false); }
+  window.addEventListener('load', function () { setTimeout(start, 30); });
+  start();
 })();
 </script>
