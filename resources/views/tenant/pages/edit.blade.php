@@ -2601,6 +2601,12 @@ body.ia-theme-b .pb2-preview-frame-wrap {
       s.textContent = old.textContent;
       old.parentNode.replaceChild(s, old);
     });
+    // MARKER-BUILDER-LIVE-REFRESH — re-run page-wide effects for the redrawn section
+    try {
+      var w = doc.defaultView;
+      if (w.mkAppearScan) w.mkAppearScan();
+      if (w.mkPaintBg) w.mkPaintBg();
+    } catch (e) {}
   }
   function pb2DraftClear() {
     return pb2Post({ section_op: 'draft_clear' }).catch(function () {});

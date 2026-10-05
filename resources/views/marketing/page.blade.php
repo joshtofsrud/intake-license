@@ -456,6 +456,15 @@
     if (!pending.length) { window.removeEventListener('scroll', onScroll); window.removeEventListener('resize', onScroll); }
   }
   function onScroll() { if (!raf) raf = requestAnimationFrame(check); }
+  // MARKER-BUILDER-LIVE-REFRESH — pick up sections redrawn by the builder preview
+  window.mkAppearScan = function () {
+    var fresh = Array.prototype.slice.call(document.querySelectorAll('.mk-appear:not(.is-in)'));
+    if (!fresh.length) return;
+    pending = fresh;
+    window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', onScroll);
+    check();
+  };
   window.addEventListener('scroll', onScroll, { passive: true });
   window.addEventListener('resize', onScroll);
   window.addEventListener('load', check);
@@ -519,6 +528,7 @@
   }
   var t;
   function soon() { clearTimeout(t); t = setTimeout(paint, 60); }
+  window.mkPaintBg = paint; // MARKER-BUILDER-LIVE-REFRESH
   paint();
   window.addEventListener('load', paint);
   window.addEventListener('resize', soon);
