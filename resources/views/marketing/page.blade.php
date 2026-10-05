@@ -137,9 +137,10 @@
         .mkw > section { border-bottom-color: transparent !important; }
         .mkw.mkw-divider > section { border-bottom: 0.5px solid var(--mk-border) !important; }
         /* MARKER-MKT-APPEAR */
-        html.mk-appear-on .mk-appear { opacity: 0; transition: opacity .7s ease, transform .7s ease; transition-delay: var(--mk-appear-delay, 0ms); }
-        html.mk-appear-on .mk-appear-up { transform: translateY(28px); }
-        html.mk-appear-on .mk-appear.is-in { opacity: 1; transform: none; }
+        /* MARKER-MKT-APPEAR-CONTENT — the content appears; the background is always there */
+        html.mk-appear-on .mk-appear > section > *, html.mk-appear-on .mk-appear > footer > * { opacity: 0; transition: opacity .7s ease, transform .7s ease; transition-delay: var(--mk-appear-delay, 0ms); }
+        html.mk-appear-on .mk-appear-up > section > *, html.mk-appear-on .mk-appear-up > footer > * { transform: translateY(28px); }
+        html.mk-appear-on .mk-appear.is-in > section > *, html.mk-appear-on .mk-appear.is-in > footer > * { opacity: 1; transform: none; }
         /* MARKER-MKT-BG-CHAIN — sections sharing a gradient show no divider between them. */
         .mkw[data-bg-chain] > section { border-bottom-color: transparent !important; }
         @media (max-width: 768px) { .mkw-hide-m { display: none !important; } }
