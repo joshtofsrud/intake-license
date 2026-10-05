@@ -19,9 +19,14 @@
   .ml-meta { padding:8px 10px; }
   .ml-name { font-size:11.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .ml-dims { font-size:10px; color:var(--ia-dim,rgba(255,255,255,.5)); font-family:ui-monospace,monospace; margin-top:2px; }
-  .ml-archive { position:absolute; top:7px; right:7px; width:24px; height:24px; border-radius:6px; border:none; background:rgba(0,0,0,.55); color:#fff; cursor:pointer; opacity:0; transition:opacity .12s; font-size:13px; line-height:1; }
-  .ml-card:hover .ml-archive { opacity:1; }
-  .ml-archive:hover { background:#d04444; }
+  /* MARKER-MEDIA-DELETE — tile actions sit together; on touch screens (no hover) they're always shown. */
+  .ml-acts { position:absolute; top:7px; right:7px; display:flex; gap:5px; opacity:0; transition:opacity .12s; }
+  .ml-card:hover .ml-acts, .ml-card:focus-within .ml-acts { opacity:1; }
+  @media (hover: none) { .ml-acts { opacity:1; } }
+  .ml-archive, .ml-del { width:24px; height:24px; border-radius:6px; border:none; background:rgba(0,0,0,.55); color:#fff; cursor:pointer; font-size:13px; line-height:1; display:flex; align-items:center; justify-content:center; padding:0; }
+  .ml-archive:hover { background:rgba(0,0,0,.8); }
+  .ml-del:hover { background:#d04444; }
+  .ml-chip--arch { margin-left:6px; }
   .ml-empty { border:.5px dashed var(--ia-border,rgba(255,255,255,.13)); border-radius:12px; padding:48px; text-align:center; color:var(--ia-dim,rgba(255,255,255,.5)); font-size:13.5px; }
   .ml-upload-btn { position:relative; overflow:hidden; }
   .ml-upload-btn input { position:absolute; inset:0; opacity:0; cursor:pointer; }
@@ -74,9 +79,10 @@
       <div class="ml-meter-bar"><i class="{{ $storage['state'] }}" style="width: {{ max($storage['pct'], $storage['used'] > 0 ? 1 : 0) }}%"></i></div>
     @endif
     <div class="ml-meter-legend">
-      Counts every image you've uploaded: this library ({{ $storage['library_h'] }}, including images you've removed,
-      since their files stay so pages using them keep working) and email campaign images ({{ $storage['campaign_h'] }}).
-      Uploads from the page builder, inventory and campaigns all draw from this one allowance.
+      Counts every image you've uploaded: this library ({{ $storage['library_h'] }}, archived images included)
+      and email campaign images ({{ $storage['campaign_h'] }}). Uploads from the page builder, inventory and campaigns
+      all draw from this one allowance. <b>Archive</b> (&times;) hides an image but keeps its file, so it still counts.
+      <b>Delete</b> removes the file and frees the space, and is refused while the image is used anywhere.
     </div>
   </div>
 
@@ -87,10 +93,12 @@
       @if($folder)<input type="hidden" name="folder" value="{{ $folder }}">@endif
     </form>
     <div class="ml-folders">
-      <a href="{{ route('tenant.media.index', array_filter(['q'=>$q])) }}" class="ml-chip {{ !$folder ? 'on' : '' }}">All</a>
+      <a href="{{ route('tenant.media.index', array_filter(['q'=>$q])) }}" class="ml-chip {{ !$folder && !$archived ? 'on' : '' }}">All</a>
       @foreach($folders as $f)
         <a href="{{ route('tenant.media.index', array_filter(['folder'=>$f,'q'=>$q])) }}" class="ml-chip {{ $folder === $f ? 'on' : '' }}">{{ ucfirst(str_replace('_',' ',$f)) }}</a>
       @endforeach
+      {{-- MARKER-MEDIA-DELETE --}}
+      <a href="{{ route('tenant.media.index', array_filter(['archived'=>1,'q'=>$q])) }}" class="ml-chip ml-chip--arch {{ $archived ? 'on' : '' }}">Archived</a>
     </div>
   </div>
 
@@ -103,7 +111,17 @@
       @foreach($media as $m)
         <div class="ml-card" data-id="{{ $m->id }}">
           <div class="ml-thumb" style="background-image:url('{{ $m->url }}')"></div>
-          <button class="ml-archive" title="Remove from library" onclick="mlArchive('{{ $m->id }}', this)">&times;</button>
+          {{-- MARKER-MEDIA-DELETE — Archive hides; Delete removes the file. --}}
+          <div class="ml-acts">
+            @if(! $archived)
+              <button type="button" class="ml-archive" title="Archive: hide from the library, keep the file" onclick="mlArchive('{{ $m->id }}', this)">&times;</button>
+            @endif
+            @if($canDelete)
+              <button type="button" class="ml-del" title="Delete: remove the file and free its space" data-ml-delete="{{ $m->id }}">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+              </button>
+            @endif
+          </div>
           <div class="ml-meta">
             <div class="ml-name" title="{{ $m->original_name }}">{{ $m->original_name }}</div>
             <div class="ml-dims">{{ $m->width ? $m->width.'×'.$m->height : strtoupper(pathinfo($m->filename, PATHINFO_EXTENSION)) }} · {{ $m->bytes ? round($m->bytes/1024).'KB' : '' }}</div>
@@ -144,6 +162,37 @@
                           : IntakeToast.error('Uploaded ' + ok + ' of ' + files.length + (firstErr ? '. ' + firstErr : ''));
     }
     setTimeout(() => window.location.reload(), 700);
+  });
+
+  // MARKER-MEDIA-DELETE — Delete: in-app dialog, server refuses if the image is in use.
+  document.addEventListener('click', async function (e) {
+    const btn = e.target.closest ? e.target.closest('[data-ml-delete]') : null;
+    if (!btn || !window.IntakeConfirm) return;
+    const ok = await IntakeConfirm.show({
+      title: 'Delete this image?',
+      message: 'The file is removed and its space freed. This can\'t be undone. If the image is used anywhere, it won\'t be deleted.',
+      confirmText: 'Delete', danger: true,
+    });
+    if (!ok) return;
+    try {
+      const r = await fetch('{{ url('admin/media') }}/' + btn.getAttribute('data-ml-delete'), {
+        method: 'DELETE', headers: { 'X-CSRF-TOKEN': csrf, 'Accept': 'application/json' },
+      });
+      const d = await r.json().catch(() => ({}));
+      if (d.ok) {
+        const card = btn.closest('.ml-card');
+        if (card) card.remove();
+        if (window.IntakeToast) IntakeToast.success('Deleted' + (d.freed ? ', ' + d.freed + ' freed' : ''));
+        return;
+      }
+      if (d.used_in && d.used_in.length) {
+        IntakeConfirm.alert({ title: 'Still in use', message: 'Used in: ' + d.used_in.join(', ') + '. Remove it from those places first, then delete it.' });
+      } else {
+        IntakeConfirm.alert({ title: 'Not deleted', message: d.message || 'Please try again.' });
+      }
+    } catch (err) {
+      IntakeConfirm.alert({ title: 'Not deleted', message: 'Check your connection and try again.' });
+    }
   });
 
   // Archive — soft-delete; file stays on disk so live pages keep rendering.

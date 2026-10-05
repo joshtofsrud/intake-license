@@ -19,8 +19,9 @@ class MediaLibraryController extends Controller
         $folder = $request->query('folder');
         $q      = trim((string) $request->query('q', ''));
 
+        $archived = $request->boolean('archived'); // MARKER-MEDIA-DELETE — archived images get their own view
         $media = TenantMedia::where('tenant_id', $tenant->id)
-            ->active()
+            ->when($archived, fn ($w) => $w->whereNotNull('archived_at'), fn ($w) => $w->active())
             ->folder(in_array($folder, self::FOLDERS, true) ? $folder : null)
             ->when($q !== '', function ($query) use ($q) {
                 $query->where(function ($w) use ($q) {
@@ -38,6 +39,8 @@ class MediaLibraryController extends Controller
             'folder'  => $folder,
             'q'       => $q,
             'storage' => \App\Support\MediaStorage::summary($tenant), // MARKER-MEDIA-STORAGE-METER
+            'archived'  => $archived, // MARKER-MEDIA-DELETE
+            'canDelete' => (bool) auth('tenant')->user()?->isManager(),
         ]);
     }
 
@@ -62,5 +65,44 @@ class MediaLibraryController extends Controller
         $media->update(['archived_at' => now()]);
 
         return response()->json(['ok' => true]);
+    }
+
+    /**
+     * MARKER-MEDIA-DELETE — remove the file and free its space. Refused while
+     * anything still uses the image (see App\Support\MediaUsage), and limited
+     * to owners and managers because it can't be undone.
+     */
+    public function destroy(Request $request, string $id)
+    {
+        if (! auth('tenant')->user()?->isManager()) {
+            return response()->json(['ok' => false, 'message' => 'Only an owner or manager can delete images.'], 403);
+        }
+
+        $media  = TenantMedia::where('tenant_id', tenant()->id)->findOrFail($id);
+        $usedIn = \App\Support\MediaUsage::find($media);
+        if ($usedIn) {
+            return response()->json([
+                'ok'      => false,
+                'used_in' => $usedIn,
+                'message' => 'This image is still in use, so it was not deleted.',
+            ], 422);
+        }
+
+        // Another library row pointing at the same file keeps the file.
+        $shared = TenantMedia::where('tenant_id', $media->tenant_id)
+            ->where('path', $media->path)->where('id', '!=', $media->id)->exists();
+        if (! $shared && $media->path) {
+            try {
+                \Illuminate\Support\Facades\Storage::disk('public')->delete($media->path);
+            } catch (\Throwable $e) {
+                report($e);
+                return response()->json(['ok' => false, 'message' => 'The file could not be removed, so nothing was deleted.'], 500);
+            }
+        }
+
+        $freed = (int) $media->bytes;
+        $media->delete();
+
+        return response()->json(['ok' => true, 'freed' => \App\Support\MediaStorage::human($freed)]);
     }
 }

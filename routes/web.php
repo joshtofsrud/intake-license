@@ -1122,6 +1122,7 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             Route::get('/media',            [TenantControllers\MediaLibraryController::class, 'index'])->name('media.index');
             Route::get('/media/feed',       [TenantControllers\MediaLibraryController::class, 'feed'])->name('media.feed');
             Route::post('/media/{id}/archive', [TenantControllers\MediaLibraryController::class, 'archive'])->name('media.archive');
+            Route::delete('/media/{id}',       [TenantControllers\MediaLibraryController::class, 'destroy'])->name('media.destroy'); // MARKER-MEDIA-DELETE
 
             Route::get('/help', [TenantControllers\HelpController::class, 'index'])->name('help.index');
             // MARKER-HELP-TENANT — gated articles under the existing help page.
