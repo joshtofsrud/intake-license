@@ -51,6 +51,9 @@
 .mk-bc-slots h4{font-size:13px;margin:0 0 10px;color:var(--mk-muted,rgba(255,255,255,.45));font-weight:500}
 .mk-bc-slot{display:block;width:100%;padding:9px;border:.5px solid var(--mk-border2,rgba(255,255,255,.14));background:none;color:var(--mk-text,#f0f0f0);border-radius:var(--mk-r,8px);margin-bottom:8px;text-align:center;font-weight:500;font:inherit;font-size:14px;cursor:pointer}
 .mk-bc-slot:hover{border-color:var(--mk-accent,#BEF264)}
+/* MARKER-BOOK-TIMES-GRID — compact buttons, as many across as fit */
+.mk-bc-slots [data-slots].mk-bc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(88px,1fr));gap:8px;align-content:start}
+.mk-bc-grid .mk-bc-slot{margin:0;padding:10px 4px;font-size:13.5px;white-space:nowrap}
 .mk-bc-slots [data-slots]{max-height:372px;overflow-y:auto;padding-right:2px} /* MARKER-SCHED-INVEST */
 .mk-bc-empty{font-size:13.5px;color:var(--mk-muted,rgba(255,255,255,.45))}
 .mk-bc-tz{margin-top:12px;font-size:12.5px;color:var(--mk-muted,rgba(255,255,255,.45))}
@@ -253,6 +256,7 @@
 
     function renderSlots() {
       slotsEl.innerHTML = '';
+      slotsEl.classList.remove('mk-bc-grid'); // MARKER-BOOK-TIMES-GRID
       if (!selectedDay) {
         dayLabel.textContent = 'Pick a day';
         var e = document.createElement('div'); e.className = 'mk-bc-empty';
@@ -261,6 +265,7 @@
       }
       var list = byDay[selectedDay] || [];
       dayLabel.textContent = longIn(list[0], viewerTz);
+      if (list.length) slotsEl.classList.add('mk-bc-grid');
       list.forEach(function (d) {
         var b = document.createElement('button'); b.type = 'button'; b.className = 'mk-bc-slot'; b.textContent = timeIn(d, viewerTz);
         b.addEventListener('click', function () { choose(d); });
