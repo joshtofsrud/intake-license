@@ -207,31 +207,11 @@
   [data-pb-section].pb-flash::after { opacity: 1; }
   [data-pb-section].pb-flash::after { transition: opacity .35s; }
   [data-pb-section] { cursor: pointer; }
-  /* MARKER-PB-HIDDEN-LABEL */
-  [data-pb-section].pb-hidden-here::before {
-    content: attr(data-hidden-label); display: block; width: fit-content; margin: 6px auto;
-    padding: 4px 10px; border: 1px dashed rgba(255,255,255,.25); border-radius: 999px;
-    font: 500 11.5px/1.4 system-ui, sans-serif; color: rgba(255,255,255,.6); background: rgba(0,0,0,.35);
-  }
+  /* MARKER-PB-HIDDEN-TAGS — a section hidden on the previewed screen takes no space (no stray outline) */
+  @media (max-width: 768px) { [data-pb-section]:has(.mkw-hide-m) { display: none; } }
+  @media (min-width: 769px) and (max-width: 1024px) { [data-pb-section]:has(.mkw-hide-t) { display: none; } }
+  @media (min-width: 1025px) { [data-pb-section]:has(.mkw-hide-d) { display: none; } }
 </style>
-<script>
-(function () {
-  function label() {
-    var w = window.innerWidth, dev = w <= 768 ? 'Phone' : (w <= 1024 ? 'Tablet' : 'Desktop');
-    document.querySelectorAll('[data-pb-section]').forEach(function (s) {
-      var m = s.querySelector('.mkw');
-      var hidden = m && m.getClientRects().length === 0;
-      s.classList.toggle('pb-hidden-here', !!hidden);
-      if (hidden) {
-        var t = (s.dataset.pbType || 'section').replace(/_/g, ' ');
-        s.setAttribute('data-hidden-label', t.charAt(0).toUpperCase() + t.slice(1) + ' · hidden on ' + dev);
-      }
-    });
-  }
-  label(); window.addEventListener('resize', label); window.addEventListener('load', label);
-  if (window.MutationObserver) new MutationObserver(label).observe(document.body, { childList: true, subtree: true });
-})();
-</script>
 <script>
 (function () {
   function boot() {

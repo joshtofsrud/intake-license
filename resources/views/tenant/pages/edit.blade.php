@@ -1484,6 +1484,8 @@ body.ia-theme-b .pb2-preview-frame-wrap {
   color: var(--pb2-text-faint);
   display: flex; align-items: center; gap: 10px;
 }
+/* MARKER-PB-HIDDEN-TAGS */
+.pb2-section-hidden{font-size:10px;color:var(--pb2-text-faint);border:.5px dashed var(--pb2-border-2);border-radius:99px;padding:0 6px;margin-left:auto;margin-right:6px;white-space:nowrap}
 /* MARKER-SHOP-NAV — menu rows in the Nav section */
 .sn-row.sn-new{box-shadow:0 0 0 2px var(--pb2-accent)}
 .sn-insp{flex:1;overflow-y:auto;min-height:0}
@@ -1998,6 +2000,15 @@ body.ia-theme-b .pb2-preview-frame-wrap {
               </svg>
             </span>
             <span class="pb2-section-name">{{ $typeLabels[$section->section_type] ?? $section->section_type }}</span>
+            {{-- MARKER-PB-HIDDEN-TAGS — which screens this section is hidden on --}}
+            @php
+              $pbHc  = (array) ($section->content ?? []);
+              $pbOn  = fn ($k) => ! empty($pbHc[$k]) && ! in_array((string) $pbHc[$k], ['0', 'false'], true);
+              $pbHid = array_keys(array_filter(['phone' => $pbOn('hide_on_mobile'), 'tablet' => $pbOn('hide_on_tablet'), 'desktop' => $pbOn('hide_on_desktop')]));
+            @endphp
+            @if($pbHid)
+              <span class="pb2-section-hidden" title="Hidden on {{ implode(', ', $pbHid) }}">Hidden: {{ implode(', ', $pbHid) }}</span>
+            @endif
             <span class="pb2-section-meta">{{ sprintf('%02d', $idx + 1) }}</span>
           </div>
         @endforeach
