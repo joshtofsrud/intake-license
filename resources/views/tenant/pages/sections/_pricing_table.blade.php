@@ -198,6 +198,21 @@
 
 {{--=================== STYLE ===================--}}
 <div class="pb2-tab-panel" data-tab="style" hidden>
+  {{-- MARKER-PRICING-PHONE-TABS — intake.works only for now (shop pricing tables don't read it yet) --}}
+  @if($isMarketing ?? false)
+  <div class="pb2-group">
+    <div class="pb2-group-title">Phone layout</div>
+    <div class="pb2-field">
+      <div class="pb2-seg" data-field-seg="phone_layout">
+        @foreach(['tabs' => 'Tabs', 'stack' => 'Stack'] as $v => $n)
+          <button type="button" class="pb2-seg-btn {{ $get('phone_layout', 'tabs') === $v ? 'active' : '' }}" data-seg-value="{{ $v }}">{{ $n }}</button>
+        @endforeach
+      </div>
+      <input type="hidden" data-field="phone_layout" value="{{ $get('phone_layout', 'tabs') }}">
+      <div class="pb2-field-hint" style="text-align:left;display:block;margin-top:4px">Tabs: a switcher with one plan at a time, opening on the featured plan. Stack: every plan in one column. Desktop is unaffected.</div>
+    </div>
+  </div>
+  @endif
 
   <div class="pb2-group">
     <div class="pb2-group-title">Section background</div>

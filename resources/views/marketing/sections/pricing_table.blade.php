@@ -42,6 +42,11 @@
         $plans = $c['plans'] ?? [];
     }
     $featured = $c['featured'] ?? 'branded';
+    // MARKER-PRICING-PHONE-TABS
+    $ptTabs   = ($c['phone_layout'] ?? 'tabs') !== 'stack';
+    $ptId     = 'mkpt-' . substr(md5((string) ($section->id ?? uniqid())), 0, 10);
+    $ptActive = 0;
+    foreach (array_values($plans) as $ptI => $ptP) { if (($ptP['slug'] ?? null) === $featured) { $ptActive = $ptI; break; } }
 @endphp
 
 <style>
@@ -128,9 +133,19 @@
     .mk-plan.featured .mk-plan-btn:hover { filter: brightness(.92); }
 
     @media(max-width: 860px) { .mk-plan-grid { grid-template-columns: 1fr; } }
+    /* MARKER-PRICING-PHONE-TABS */
+    .{{ $ptId }} .mk-plan-tabs { display: none; }
+    @media (max-width: 860px) {
+        .{{ $ptId }}.pt-tabs .mk-plan-tabs { display: flex; background: rgba(255,255,255,.06); border-radius: 999px; padding: 4px; gap: 2px; margin: 4px 0 22px; }
+        .{{ $ptId }} .mk-plan-tabs button { flex: 1; border: 0; background: none; color: var(--mk-muted); font: inherit; font-size: 13px; font-weight: 600; padding: 9px 0; border-radius: 999px; cursor: pointer; transition: background .2s, color .2s; }
+        .{{ $ptId }} .mk-plan-tabs button.on { background: var(--mk-accent); color: var(--mk-accent-text, #0a0a0a); }
+        .{{ $ptId }}.pt-tabs .mk-plan:not(.is-active) { display: none; }
+        .{{ $ptId }}.pt-tabs .mk-plan.is-active { animation: mkPtIn .3s ease; }
+        @keyframes mkPtIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+    }
 </style>
 
-<section class="mk-section">
+<section class="mk-section {{ $ptId }}{{ $ptTabs ? ' pt-tabs' : '' }}">
     <div class="mk-container">
         @if(!empty($c['eyebrow']))
             <div class="mk-eyebrow">{{ $c['eyebrow'] }}</div>
@@ -142,10 +157,17 @@
             <p class="mk-section-sub">{{ $c['subheading'] }}</p>
         @endif
 
+        @if($ptTabs && count($plans) > 1)
+            <div class="mk-plan-tabs" role="tablist" aria-label="Plans">
+                @foreach(array_values($plans) as $ptI => $ptP)
+                    <button type="button" role="tab" data-i="{{ $ptI }}" class="{{ $ptI === $ptActive ? 'on' : '' }}" aria-selected="{{ $ptI === $ptActive ? 'true' : 'false' }}">{{ $ptP['name'] ?? ('Plan ' . ($ptI + 1)) }}</button>
+                @endforeach
+            </div>
+        @endif
         <div class="mk-plan-grid">
             @foreach($plans as $plan)
                 @php $isFeatured = ($plan['slug'] ?? null) === $featured; @endphp
-                <div class="mk-plan {{ $isFeatured ? 'featured' : '' }}">
+                <div class="mk-plan {{ $isFeatured ? 'featured' : '' }}{{ $loop->index === $ptActive ? ' is-active' : '' }}">
                     @if($isFeatured)
                         <div class="mk-plan-badge">Most popular</div>
                     @endif
@@ -176,3 +198,19 @@
         @endif
     </div>
 </section>
+<script>
+/* MARKER-PRICING-PHONE-TABS — one plan at a time on phones */
+(function () {
+  var root = document.querySelector('.{{ $ptId }}');
+  if (!root || root.dataset.ptReady) return;
+  root.dataset.ptReady = '1';
+  var tabs = root.querySelectorAll('.mk-plan-tabs button'), cards = root.querySelectorAll('.mk-plan');
+  tabs.forEach(function (b) {
+    b.addEventListener('click', function () {
+      var i = +b.dataset.i;
+      tabs.forEach(function (t, k) { t.classList.toggle('on', k === i); t.setAttribute('aria-selected', k === i ? 'true' : 'false'); });
+      cards.forEach(function (c, k) { c.classList.toggle('is-active', k === i); });
+    });
+  });
+})();
+</script>
