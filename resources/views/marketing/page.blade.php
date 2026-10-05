@@ -122,6 +122,9 @@
         /* MARKER-MKT-SECTION-LAYOUT — each section sits in a .mkw wrapper, so the
            last one is marked by the loop; :last-of-type would match them all. */
         .mkw-last > .mk-section { border-bottom: none; }
+        /* MARKER-MKT-BG-SPAN — sections inside a run let the shared gradient show through. */
+        .mk-bg-span { position: relative; }
+        .mk-bg-span section[class], .mk-bg-span footer[class] { background: transparent !important; border-bottom-color: transparent; }
         @media (max-width: 768px) { .mkw-hide-m { display: none !important; } }
         @media (min-width: 769px) { .mkw-hide-d { display: none !important; } }
 
@@ -230,6 +233,34 @@
 @endif
 
 {{-- Page content --}}
+@php
+    // MARKER-MKT-BG-SPAN — find runs: a Gradient section followed by sections
+    // with "Continue gradient from the section above". Each run is wrapped in
+    // one background so the gradient covers all of it at its own angle.
+    $mkSeq  = collect($sections)->reject(fn ($s) => in_array($s->section_type, ['nav', 'footer'], true))->values();
+    $mkRole = [];
+    $mkIn   = false;
+    $mkHex  = fn ($v, $d) => is_string($v) && preg_match('/^#[0-9a-fA-F]{3,8}$/', trim($v)) ? trim($v) : $d;
+    foreach ($mkSeq as $mkK => $mkS) {
+        $mkC    = $mkS->content ?? [];
+        $mkNext = $mkSeq[$mkK + 1] ?? null;
+        $mkNC   = $mkNext && ! empty(($mkNext->content ?? [])['bg_continue']);
+        $mkIsC  = $mkK > 0 && ! empty($mkC['bg_continue']);
+        $mkR    = ['open' => null, 'close' => false];
+        if (! $mkIsC && ($mkC['bg_mode'] ?? '') === 'gradient' && $mkNC) {
+            $mkOp   = max(0, min(100, (int) ($mkC['bg_opacity'] ?? 100)));
+            $mkF    = fn ($col) => $mkOp >= 100 ? $col : 'color-mix(in srgb, ' . $col . ' ' . $mkOp . '%, transparent)';
+            $mkR['open'] = 'linear-gradient(' . (int) ($mkC['bg_gradient_angle'] ?? 135) . 'deg, '
+                . $mkF($mkHex($mkC['bg_gradient_from'] ?? null, '#1a1a1a')) . ' 0%, '
+                . $mkF($mkHex($mkC['bg_gradient_to'] ?? null, '#0a0a0a')) . ' 100%)';
+            $mkIn = true;
+        } elseif ($mkIn && ! $mkNC) {
+            $mkR['close'] = true;
+            $mkIn = false;
+        }
+        $mkRole[(string) $mkS->id] = $mkR;
+    }
+@endphp
 @foreach($sections as $section)
     @php
         $c = $section->content ?? [];
@@ -319,11 +350,13 @@
     @endphp
 
     @if(view()->exists($partial))
+        @php $mkSpan = $mkRole[(string) $section->id] ?? ['open' => null, 'close' => false]; @endphp
+        @if($mkSpan['open']) <div class="mk-bg-span" style="background: {{ $mkSpan['open'] }}"> @endif
         {{-- MARKER-SECTION-OVERLAP — same treatment as the tenant renderer, so
              intake.works and a shop's own site behave identically. --}}
         @php
           $pull   = max(0, min(240, (int) ($c['overlap_top'] ?? 0)));
-          $pullId = 'pbpull-' . substr((string) $section->id, 0, 8);
+          $pullId = 'pbpull-' . substr(md5((string) $section->id), 0, 10); // MARKER-MKT-BG-SPAN — no short-id collisions
         @endphp
         @if($pull > 0)
           <style>
@@ -355,6 +388,7 @@
         </div>
         @if(!empty($builderPreview))</div>@endif
         @if($pull > 0)</div>@endif
+        @if($mkSpan['close']) </div> @endif
     @else
         <div style="background:#3b1d0b;color:#ffcc80;padding:12px 24px;font-size:13px;text-align:center;border-top:0.5px solid rgba(255,255,255,.08)">
             No renderer for section type: <code>{{ $type }}</code>

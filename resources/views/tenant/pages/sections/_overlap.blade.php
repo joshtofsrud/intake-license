@@ -59,8 +59,8 @@
     <span>Continue gradient from the section above</span>
   </label>
   <div class="pb2-field-hint" style="text-align:left;display:block;margin-top:4px">
-    With a Gradient background: starts on the colour the section above ended on and runs top to bottom, so there's no seam.
-    Chain several sections for one long gradient.
+    If the section above has a gradient, it stretches across this section too, at its own angle — one surface, no seam.
+    Tick it on more sections below to extend it further. Above has a plain colour: this section's gradient starts from that colour.
   </div>
 </div>
 @endif
