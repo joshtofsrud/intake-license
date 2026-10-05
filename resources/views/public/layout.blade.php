@@ -13,7 +13,8 @@
   @php
     $ssTitle = ($page->meta_title ?: $page->title) . ' — ' . $currentTenant->name;
     $ssDesc  = trim((string) $page->meta_description);
-    $ssImage = \App\Support\Seo::shareImage($page, $currentTenant);
+    $ssOwnImg = \App\Support\Brand::storagePublicUrl($page->og_image_url);
+    $ssImage  = $ssOwnImg ?? \App\Support\Seo::shareImageFallback($currentTenant);
     $ssPath  = '/' . ltrim(request()->path(), '/');
     $ssUrl   = rtrim($currentTenant->publicUrl(), '/') . ($ssPath === '/' ? '/' : $ssPath);
   @endphp
@@ -35,7 +36,8 @@
   @endif
   @if($ssImage)
     <meta property="og:image" content="{{ $ssImage }}">
-    <meta name="twitter:card" content="summary_large_image">
+    {{-- MARKER-SHARE-CARD-LOGO — a logo fallback gets the square card, not the wide banner. --}}
+    <meta name="twitter:card" content="{{ $ssOwnImg ? 'summary_large_image' : 'summary' }}">
     <meta name="twitter:image" content="{{ $ssImage }}">
   @else
     <meta name="twitter:card" content="summary">
