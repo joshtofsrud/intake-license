@@ -438,15 +438,26 @@
 @endforeach
 
 <script>
-/* MARKER-MKT-APPEAR — reveal each section the first time it scrolls into view. */
+/* MARKER-MKT-APPEAR-VIEW — reveal each section when its top reaches 85% of the window. */
 (function () {
   if (!document.documentElement.classList.contains('mk-appear-on')) return;
-  var els = document.querySelectorAll('.mk-appear');
-  var io = new IntersectionObserver(function (es) {
-    es.forEach(function (e) { if (e.isIntersecting) { e.target.classList.add('is-in'); io.unobserve(e.target); } });
-  }, { threshold: 0.12 });
-  els.forEach(function (el) { io.observe(el); });
-  setTimeout(function () { els.forEach(function (el) { if (el.getBoundingClientRect().top < innerHeight) el.classList.add('is-in'); }); }, 2500);
+  var pending = Array.prototype.slice.call(document.querySelectorAll('.mk-appear'));
+  var raf = 0;
+  function check() {
+    raf = 0;
+    var line = window.innerHeight * 0.85;
+    pending = pending.filter(function (el) {
+      if (el.getClientRects().length === 0) return true;          // hidden on this screen size
+      if (el.getBoundingClientRect().top < line) { el.classList.add('is-in'); return false; }
+      return true;
+    });
+    if (!pending.length) { window.removeEventListener('scroll', onScroll); window.removeEventListener('resize', onScroll); }
+  }
+  function onScroll() { if (!raf) raf = requestAnimationFrame(check); }
+  window.addEventListener('scroll', onScroll, { passive: true });
+  window.addEventListener('resize', onScroll);
+  window.addEventListener('load', check);
+  check();
 })();
 </script>
 <script>
