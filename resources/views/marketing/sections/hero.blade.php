@@ -121,8 +121,15 @@
     .mk-hero-note { font-size: 12px; color: var(--mk-dim); }
 </style>
 
+@php
+    // MARKER-HERO-SCROLLFX — 0 = off
+    $hfxP = max(0, min(100, (int) ($c['scroll_parallax'] ?? 0)));
+    $hfxF = max(0, min(100, (int) ($c['scroll_fade'] ?? 0)));
+    $hfxB = max(0, min(20,  (int) ($c['scroll_blur'] ?? 0)));
+    $hfxOn = $hfxP || $hfxF || $hfxB;
+@endphp
 <section class="mk-hero {{ $bgId }} {{ $hid }}">
-    <div class="mk-container">
+    <div class="mk-container"><div class="mk-hero-fx" @if($hfxOn) data-hfx="{{ $hfxP }},{{ $hfxF }},{{ $hfxB }}" @endif>
         @if(!empty($c['eyebrow']))
             <div class="mk-eyebrow">{{ $c['eyebrow'] }}</div>
         @endif
@@ -149,5 +156,31 @@
         @if(!empty($c['note']))
             <p class="mk-hero-note">{{ $c['note'] }}</p>
         @endif
-    </div>
+    </div></div>
 </section>
+@if($hfxOn)
+<script>
+/* MARKER-HERO-SCROLLFX — content drifts, fades and blurs as the hero scrolls away */
+(function () {
+  if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  var fx = document.querySelector('.{{ $hid }} .mk-hero-fx[data-hfx]');
+  if (!fx || fx.dataset.hfxReady) return;
+  fx.dataset.hfxReady = '1';
+  var v = fx.dataset.hfx.split(',').map(Number), P = v[0] / 100, F = v[1] / 100, B = v[2];
+  var sec = fx.closest('section'), raf = 0;
+  fx.style.willChange = 'transform, opacity, filter';
+  function paint() {
+    raf = 0;
+    var r = sec.getBoundingClientRect(), gone = Math.max(0, -r.top), h = Math.max(1, r.height);
+    var t = Math.min(1, gone / h);
+    fx.style.transform = P ? 'translate3d(0,' + (gone * P * 0.6).toFixed(1) + 'px,0)' : '';
+    fx.style.opacity = F ? String(Math.max(0, 1 - t * F * 1.6)) : '';
+    fx.style.filter = B ? 'blur(' + (t * B).toFixed(2) + 'px)' : '';
+  }
+  function onScroll() { if (!raf) raf = requestAnimationFrame(paint); }
+  window.addEventListener('scroll', onScroll, { passive: true });
+  window.addEventListener('resize', onScroll);
+  paint();
+})();
+</script>
+@endif
