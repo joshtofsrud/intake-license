@@ -407,7 +407,7 @@
           </style>
           <div class="{{ $pullId }}">
         @endif
-        <div class="{{ $mkwClass }}" @if(in_array($c['appear'] ?? '', ['fade', 'up'], true)) style="--mk-appear-delay: {{ in_array((int) ($c['appear_delay'] ?? 0), [0, 150, 300], true) ? (int) $c['appear_delay'] : 0 }}ms" @endif @if($mkwAnchor !== '') id="{{ $mkwAnchor }}" @endif @isset($mkGradCss[(string) $section->id]) data-bg-grad="{{ $mkGradCss[(string) $section->id] }}" @endisset @if(! empty($c['bg_continue']) && ! in_array((string) $c['bg_continue'], ['0', 'false'], true)) data-bg-cont="1" @endif>
+        <div class="{{ $mkwClass }}" @if(in_array($c['appear'] ?? '', ['fade', 'up'], true)) style="--mk-appear-delay: {{ in_array((int) ($c['appear_delay'] ?? 0), [0, 150, 300], true) ? (int) ($c['appear_delay'] ?? 0) : 0 }}ms" @endif @if($mkwAnchor !== '') id="{{ $mkwAnchor }}" @endif @isset($mkGradCss[(string) $section->id]) data-bg-grad="{{ $mkGradCss[(string) $section->id] }}" @endisset @if(! empty($c['bg_continue']) && ! in_array((string) $c['bg_continue'], ['0', 'false'], true)) data-bg-cont="1" @endif>
         @if($mkwTop !== null || $mkwBot !== null || $mkwHead || $mkwBody)
           <style>
             @if($mkwTop !== null) .{{ $mkwId }} > section, .{{ $mkwId }} > footer, .{{ $mkwId }} > div { padding-top: {{ $mkwTop }} !important; } @endif

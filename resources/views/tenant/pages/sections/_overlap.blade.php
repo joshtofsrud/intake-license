@@ -110,7 +110,7 @@
 @if($isMarketing ?? false)
 @php
   $apMode  = in_array($section->content['appear'] ?? 'none', ['none', 'fade', 'up'], true) ? ($section->content['appear'] ?? 'none') : 'none';
-  $apDelay = (string) (in_array((int) ($section->content['appear_delay'] ?? 0), [0, 150, 300], true) ? (int) $section->content['appear_delay'] : 0);
+  $apDelay = (string) (in_array((int) ($section->content['appear_delay'] ?? 0), [0, 150, 300], true) ? (int) ($section->content['appear_delay'] ?? 0) : 0); // MARKER-APPEAR-DELAY-FIX
   $divOn   = ! empty($section->content['divider_below']) && ! in_array((string) $section->content['divider_below'], ['0', 'false'], true);
 @endphp
 <div class="pb2-group">
