@@ -69,6 +69,7 @@
           <label class="snv-ctl" title="Blur and fade the page as it scrolls up behind the bar"><input type="checkbox" :checked="!!val('fade')" @change="set('fade', $event.target.checked)"> Fade under</label>
         </span>
       </template>
+      <span class="snv-seg" x-show="edit==='phone'" title="Where the header buttons sit on phones"><template x-for="o in [['beside','Beside menu'],['centre','Centre'],['menu','In menu only']]"><button type="button" :class="val('btn_pos')===o[0] && 'on'" @click="set('btn_pos', o[0])" x-text="o[1]"></button></template></span>
       <span class="snv-ctl" style="font-size:12px">Links
         <input type="color" :value="val('link') || '#cccccc'" @input="set('link', $event.target.value)">
         <button type="button" class="snv-btn" style="padding:2px 8px;font-size:11.5px" x-show="val('link')" @click="set('link', '')">Auto</button>

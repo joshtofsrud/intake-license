@@ -19,7 +19,7 @@ class MarketingNav
     public const SIDES  = ['left', 'right'];
 
     // MARKER-MKT-NAV-FLOAT — header style and its four Floating settings.
-    public const HEADER_DEFAULTS = ['style' => 'classic', 'bg' => '#0a0a0a', 'opacity' => 70, 'blur' => 14, 'pill' => '#ffffff', 'pill_strength' => 8, 'space' => 'normal', 'link' => '', 'fade' => false];
+    public const HEADER_DEFAULTS = ['style' => 'classic', 'bg' => '#0a0a0a', 'opacity' => 70, 'blur' => 14, 'pill' => '#ffffff', 'pill_strength' => 8, 'space' => 'normal', 'link' => '', 'fade' => false, 'btn_pos' => 'centre'];
 
     public static function header(?array $override = null): array
     {
@@ -67,6 +67,7 @@ class MarketingNav
             'space'         => in_array($h['space'] ?? '', ['tight', 'normal', 'roomy'], true) ? $h['space'] : 'normal',
             'link'          => $hex($h['link'] ?? null, ''),
             'fade'          => filter_var($h['fade'] ?? false, FILTER_VALIDATE_BOOLEAN), // MARKER-MKT-NAV-EDGE
+            'btn_pos'       => in_array($h['btn_pos'] ?? '', ['beside', 'centre', 'menu'], true) ? $h['btn_pos'] : 'centre', // MARKER-MKT-NAV-BTNPOS
         ];
     }
 

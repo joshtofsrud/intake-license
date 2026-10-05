@@ -158,6 +158,16 @@
         backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
         mask-image: linear-gradient(to bottom, #000 45%, transparent); -webkit-mask-image: linear-gradient(to bottom, #000 45%, transparent);
     }
+    /* MARKER-MKT-NAV-BTNPOS — where the header buttons sit on phones */
+    #mk-nav .mk-mobile-cta { display: none; }
+    @media (max-width: 860px) {
+        #mk-nav[data-btnpos="centre"] .mk-nav-end { margin-left: auto; margin-right: auto; }
+        #mk-nav[data-btnpos="centre"] .mk-hamburger { margin-left: 0; }
+        #mk-nav[data-btnpos="beside"] .mk-nav-end { margin-left: auto; }
+        #mk-nav[data-btnpos="beside"] .mk-hamburger { margin-left: 8px; }
+        #mk-nav[data-btnpos="menu"] .mk-nav-end .mk-btn { display: none; }
+        #mk-nav[data-btnpos="menu"] .mk-mobile-cta { display: flex; justify-content: center; width: 100%; box-sizing: border-box; margin: 4px 0 8px; border-bottom: 0; }
+    }
     /* MARKER-MKT-NAV-PHONE — desktop and phone header settings */
     #mk-nav { {{ $mkVars($mkHead, $mkSpace[0], $mkSpace[1], $mkLink) }} }
     @media (max-width: 860px) {
@@ -167,7 +177,7 @@
     }
 </style>
 <nav id="mk-nav" class="mk-nav{{ $mkHead['style'] === 'float' ? ' is-float' : '' }}{{ ($mkLink || $mkLinkP) ? ' has-link' : '' }}"
-     data-style-desktop="{{ $mkHead['style'] }}" data-style-phone="{{ $mkHeadP['style'] }}">
+     data-style-desktop="{{ $mkHead['style'] }}" data-style-phone="{{ $mkHeadP['style'] }}" data-btnpos="{{ $mkHeadP['btn_pos'] }}">
     <div class="mk-nav-inner">
         <a href="{{ route('marketing.home') }}" class="mk-logo">
             <img src="{{ \App\Support\Brand::url('logo') }}" alt="Intake" style="display:block;height:26px;width:auto">
@@ -194,6 +204,12 @@
     {{-- Phone: links (and right-side links) live in the panel; right-side
          buttons stay in the bar above. --}}
     <div class="mk-mobile-nav" id="mk-mobile-nav">
+        {{-- MARKER-MKT-NAV-BTNPOS — the header buttons, shown here when "In menu only" --}}
+        @foreach($mkRight as $i)
+            @if($i['style'] !== 'link')
+                <a href="{{ $i['url'] }}" class="mk-btn {{ $i['style'] === 'button' ? 'mk-btn--primary' : 'mk-btn--ghost' }} mk-mobile-cta" @if($i['tab']) target="_blank" rel="noopener" @endif>{{ $i['label'] }}</a>
+            @endif
+        @endforeach
         @foreach($mkMenu as $i)
             @if($i['side'] === 'left' || $i['style'] === 'link')
                 <a href="{{ $i['url'] }}" @if($i['tab']) target="_blank" rel="noopener" @endif>{{ $i['label'] }}</a>
