@@ -1,8 +1,8 @@
 {{--
   MARKER-SCROLL-WORDS — shared renderer for the "Scroll words" section, used
   by intake.works (marketing.sections.scroll_words) and shop sites
-  (public.sections._scroll_words). A fixed lead-in with a word list that
-  changes as the visitor scrolls:
+  (public.sections._scroll_words). A lead-in with a word list that changes
+  as the section scrolls through the screen (normal height, no pinning):
     fade      — words appear in turn and stay
     spotlight — only the current word is lit
     slide     — one word at a time, sliding up
@@ -28,8 +28,10 @@
   $swSentence = $swPrefix . ' ' . implode(', ', $swWords) . '.';
 @endphp
 <style>
-  .{{ $swId }} { position: relative; height: calc({{ count($swWords) }} * 55vh + 45vh); color: {{ $swText }}; }
-  .{{ $swId }} .sw-pin { position: sticky; top: 0; height: 100vh; display: flex; align-items: center; justify-content: {{ $swAlign === 'center' ? 'center' : 'flex-start' }}; padding: 0 clamp(20px, 6vw, 80px); box-sizing: border-box; overflow: hidden; }
+  /* MARKER-SCROLL-WORDS-V2 — a normal-height section: the words change while
+     it crosses the screen, instead of pinning it over a very tall scroll. */
+  .{{ $swId }} { position: relative; color: {{ $swText }}; padding: clamp(48px, 7vw, 96px) 0; }
+  .{{ $swId }} .sw-pin { display: flex; align-items: center; justify-content: {{ $swAlign === 'center' ? 'center' : 'flex-start' }}; padding: 0 clamp(20px, 6vw, 80px); box-sizing: border-box; overflow: hidden; }
   .{{ $swId }} .sw-line { display: flex; flex-wrap: wrap; align-items: baseline; gap: .3em; font-size: {{ $swSize }}; font-weight: 800; letter-spacing: -.03em; line-height: 1.05; max-width: 1180px; width: 100%; {{ $swAlign === 'center' ? 'justify-content:center;text-align:center;' : '' }} }
   .{{ $swId }} .sw-prefix { opacity: .55; }
   .{{ $swId }} .sw-words { position: relative; display: inline-flex; flex-direction: column; }
@@ -46,8 +48,6 @@
   @media (max-width: 768px) { .sw-hide-m { display: none !important; } }
   @media (min-width: 769px) { .sw-hide-d { display: none !important; } }
   @media (prefers-reduced-motion: reduce) {
-    .{{ $swId }} { height: auto; }
-    .{{ $swId }} .sw-pin { position: static; height: auto; padding-top: 80px; padding-bottom: 80px; }
     .{{ $swId }} .sw-w { opacity: 1 !important; transform: none !important; transition: none; }
     .{{ $swId }}.sw-slide .sw-words { height: auto; }
   }
@@ -72,8 +72,11 @@
   if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
   var words = el.querySelectorAll('.sw-w'), n = words.length, last = -1;
   function tick() {
-    var r = el.getBoundingClientRect(), span = el.offsetHeight - window.innerHeight;
-    var p = span > 0 ? Math.min(1, Math.max(0, -r.top / span)) : 0;
+    // 0 as the section's centre enters the lower part of the screen, 1 as it
+    // nears the top — the words run through while it's comfortably in view.
+    var r = el.getBoundingClientRect(), vh = window.innerHeight || 1;
+    var centre = r.top + r.height / 2;
+    var p = Math.min(1, Math.max(0, (vh * 0.8 - centre) / (vh * 0.6)));
     var i = Math.min(n - 1, Math.floor(p * n));
     if (i === last) return;
     last = i;
