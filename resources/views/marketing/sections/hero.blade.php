@@ -60,7 +60,7 @@
     if (is_string($buttons)) { $d = json_decode($buttons, true); $buttons = is_array($d) ? $d : []; }
     if (! is_array($buttons)) $buttons = [];
     $buttons = array_values(array_filter($buttons, fn ($b) => is_array($b) && trim((string) ($b['label'] ?? '')) !== ''));
-    if (! $buttons) {
+    if (! $buttons && ! array_key_exists('buttons', $c)) { // MARKER-HERO-NO-LEGACY-CTA — only never-edited heroes
         if (! empty($c['cta_primary_label'])) {
             $buttons[] = ['label' => $c['cta_primary_label'], 'url' => $c['cta_primary_url'] ?? '#', 'style' => 'primary'];
         }
