@@ -506,7 +506,13 @@
       var end = prev.hasAttribute('data-bg-end-eff') ? prev.getAttribute('data-bg-end-eff') : prev.dataset.bgEnd;
       var s2 = sec(el); if (!s2) continue;
       el.setAttribute('data-bg-chain', '1');
-      s2.style.setProperty('background', el.dataset.bgContCss.replace('{PREV}', end || 'var(--mk-bg, #0a0a0a)'), 'important');
+      // MARKER-MKT-BG-CONT-OVERLAP — start where the section above ends, not at our own top
+      var startCol = end || 'var(--mk-bg, #0a0a0a)';
+      var over = prev.getBoundingClientRect().bottom - s2.getBoundingClientRect().top;
+      var css = over > 0.5
+        ? el.dataset.bgContCss.replace('{PREV} 0%', 'transparent 0px, transparent ' + over.toFixed(2) + 'px, ' + startCol + ' ' + over.toFixed(2) + 'px')
+        : el.dataset.bgContCss.replace('{PREV}', startCol);
+      s2.style.setProperty('background', css, 'important');
     }
   }
   var t;
