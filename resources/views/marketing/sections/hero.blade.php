@@ -127,6 +127,14 @@
     .{{ $hid }} .mk-hsplit h1 { max-width: none; margin-left: 0; margin-right: 0; text-align: left; margin-bottom: 0; }
     .{{ $hid }} .mk-hs-copy .mk-hero-sub { margin-left: 0; margin-right: 0; text-align: left; }
     .{{ $hid }} .mk-hs-copy .mk-hero-actions { justify-content: flex-start; }
+    /* MARKER-HERO-SPLIT-PILL — one line when it fits, a stacked panel when it doesn't */
+    .{{ $hid }} .mk-hs-copy { container-type: inline-size; }
+    .{{ $hid }} .mk-hs-copy .mk-hero-pill { flex-wrap: nowrap; }
+    .{{ $hid }} .mk-hs-copy .mk-hero-pill .mk-btn { white-space: nowrap; padding-left: 18px; padding-right: 18px; }
+    @container (max-width: 560px) {
+        .{{ $hid }} .mk-hs-copy .mk-hero-pill { display: flex; flex-direction: column; align-items: stretch; width: 100%; border-radius: 22px; }
+        .{{ $hid }} .mk-hs-copy .mk-hero-pill .mk-btn { justify-content: center; }
+    }
     @media (max-width: 860px) {
         .{{ $hid }} .mk-hsplit, .{{ $hid }} .mk-hsplit.is-flip { flex-direction: column; align-items: stretch; text-align: {{ $align }}; gap: 18px; }
         .{{ $hid }} .mk-hs-art { flex: none; }
