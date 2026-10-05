@@ -17,14 +17,23 @@
   .snv-groups{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px;margin:4px 0 16px}
   .snv-group{border:1px solid var(--snv-line);border-radius:10px;padding:12px 14px}
   .snv-group h4{margin:0 0 8px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;opacity:.6;font-weight:600}
-  .snv-row{display:flex;align-items:center;gap:8px;min-height:30px;font-size:12.5px}
-  .snv-row>span:first-child{flex:0 0 112px;opacity:.75}
-  .snv-row input[type=range]{flex:1;min-width:0}
-  .snv-row input[type=color]{width:26px;height:22px;border:0;background:none;padding:0}
-  .snv-row b{min-width:42px;text-align:right;font-weight:500}
-  .snv-row i{font-style:normal;opacity:.55}
-  .snv-mini{padding:2px 8px;font-size:11.5px}
-  .snv-note{margin:6px 0 0;font-size:11.5px;opacity:.55}
+  /* MARKER-MKT-NAV-CONTROLS-V2 — fixed label | value grid */
+  .snv-groups, .snv-groups * { box-sizing: border-box; }
+  .snv-group { min-width: 0; }
+  .snv-crow { display: grid; grid-template-columns: 104px minmax(0, 1fr); align-items: center; gap: 10px; min-height: 34px; font-size: 12.5px; border-top: 1px solid rgba(127,127,127,.12); padding: 4px 0; }
+  .snv-crow:first-of-type { border-top: 0; }
+  .snv-k { opacity: .75; line-height: 1.25; }
+  .snv-v { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .snv-v input[type=range] { flex: 1 1 auto; width: auto; min-width: 0; margin: 0; }
+  .snv-v input[type=color] { flex: none; width: 28px; height: 22px; border: 0; background: none; padding: 0; }
+  .snv-v input[type=checkbox] { flex: none; margin: 0; }
+  .snv-v b { flex: none; min-width: 44px; text-align: right; font-weight: 500; font-variant-numeric: tabular-nums; }
+  .snv-v i { font-style: normal; opacity: .55; margin-left: auto; }
+  .snv-v .snv-seg { flex-wrap: wrap; }
+  .snv-mini { padding: 2px 8px; font-size: 11.5px; margin-left: auto; }
+  .snv-note { margin: 8px 0 0; font-size: 11.5px; opacity: .55; line-height: 1.5; }
+  .snv-bar { background: rgba(10,10,10,.92); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); border-top: 1px solid var(--snv-line); padding: 12px 16px; margin: 0 -16px; z-index: 5; }
+  html:not(.dark) .snv-bar { background: rgba(255,255,255,.94); }
   .snv-frame{width:100%;height:100px;border:1px solid var(--snv-line);border-radius:10px;background:#0a0a0a;display:block;margin:0 auto}
   .snv-frame.phone{width:390px;max-width:100%;height:520px}
   .snv-dim{font-size:12px;opacity:.6}
@@ -72,39 +81,38 @@
     <div class="snv-groups">
       <section class="snv-group">
         <h4>Bar</h4>
-        <div class="snv-row"><span>Style</span>
-          <span class="snv-seg"><button type="button" :class="val('style')==='classic' && 'on'" @click="set('style','classic')">Classic</button><button type="button" :class="val('style')==='float' && 'on'" @click="set('style','float')">Floating</button></span></div>
+        <div class="snv-crow"><span class="snv-k">Style</span><div class="snv-v"><span class="snv-seg"><button type="button" :class="val('style')==='classic' && 'on'" @click="set('style','classic')">Classic</button><button type="button" :class="val('style')==='float' && 'on'" @click="set('style','float')">Floating</button></span></div></div>
         <template x-if="val('style')==='float'"><div>
-          <div class="snv-row"><span>Colour</span><input type="color" :value="val('bg')" @input="set('bg', $event.target.value)"></div>
-          <div class="snv-row"><span>Opacity</span><input type="range" min="0" max="100" :value="val('opacity')" @input="set('opacity', +$event.target.value)"><b x-text="val('opacity') + '%'"></b></div>
-          <div class="snv-row"><span>Blur</span><input type="range" min="0" max="30" :value="val('blur')" @input="set('blur', +$event.target.value)"><b x-text="val('blur') + 'px'"></b></div>
-          <div class="snv-row"><span>Spacing</span><span class="snv-seg"><template x-for="o in [['tight','Tight'],['normal','Normal'],['roomy','Roomy']]"><button type="button" :class="val('space')===o[0] && 'on'" @click="set('space', o[0])" x-text="o[1]"></button></template></span></div>
-          <div class="snv-row"><span>Edge room</span><input type="range" min="0" max="60" step="2" :value="val('pad_x')" @input="set('pad_x', +$event.target.value)"><b x-text="val('pad_x') ? val('pad_x') + 'px' : 'auto'"></b></div>
-          <div class="snv-row"><span>Fade under</span><input type="checkbox" :checked="!!val('fade')" @change="set('fade', $event.target.checked)"></div>
+          <div class="snv-crow"><span class="snv-k">Colour</span><div class="snv-v"><input type="color" :value="val('bg')" @input="set('bg', $event.target.value)"></div></div>
+          <div class="snv-crow"><span class="snv-k">Opacity</span><div class="snv-v"><input type="range" min="0" max="100" :value="val('opacity')" @input="set('opacity', +$event.target.value)"><b x-text="val('opacity') + '%'"></b></div></div>
+          <div class="snv-crow"><span class="snv-k">Blur</span><div class="snv-v"><input type="range" min="0" max="30" :value="val('blur')" @input="set('blur', +$event.target.value)"><b x-text="val('blur') + 'px'"></b></div></div>
+          <div class="snv-crow"><span class="snv-k">Spacing</span><div class="snv-v"><span class="snv-seg"><template x-for="o in [['tight','Tight'],['normal','Normal'],['roomy','Roomy']]"><button type="button" :class="val('space')===o[0] && 'on'" @click="set('space', o[0])" x-text="o[1]"></button></template></span></div></div>
+          <div class="snv-crow"><span class="snv-k">Edge room</span><div class="snv-v"><input type="range" min="0" max="60" step="2" :value="val('pad_x')" @input="set('pad_x', +$event.target.value)"><b x-text="val('pad_x') ? val('pad_x') + 'px' : 'auto'"></b></div></div>
+          <div class="snv-crow"><span class="snv-k">Fade under</span><div class="snv-v"><input type="checkbox" :checked="!!val('fade')" @change="set('fade', $event.target.checked)"></div></div>
         </div></template>
       </section>
       <section class="snv-group">
         <h4>Links</h4>
-        <div class="snv-row"><span>Colour</span><input type="color" :value="val('link') || '#cccccc'" @input="set('link', $event.target.value)"><button type="button" class="snv-btn snv-mini" x-show="val('link')" @click="set('link', '')">Auto</button><i x-show="!val('link')">Auto</i></div>
+        <div class="snv-crow"><span class="snv-k">Colour</span><div class="snv-v"><input type="color" :value="val('link') || '#cccccc'" @input="set('link', $event.target.value)"><button type="button" class="snv-btn snv-mini" x-show="val('link')" @click="set('link', '')">Auto</button><i x-show="!val('link')">Auto</i></div></div>
         <template x-if="val('style')==='float'"><div>
-          <div class="snv-row"><span>Pill</span><input type="color" :value="val('pill')" @input="set('pill', $event.target.value)"></div>
-          <div class="snv-row"><span>Pill strength</span><input type="range" min="0" max="30" :value="val('pill_strength')" @input="set('pill_strength', +$event.target.value)"><b x-text="val('pill_strength') + '%'"></b></div>
+          <div class="snv-crow"><span class="snv-k">Pill</span><div class="snv-v"><input type="color" :value="val('pill')" @input="set('pill', $event.target.value)"></div></div>
+          <div class="snv-crow"><span class="snv-k">Pill strength</span><div class="snv-v"><input type="range" min="0" max="30" :value="val('pill_strength')" @input="set('pill_strength', +$event.target.value)"><b x-text="val('pill_strength') + '%'"></b></div></div>
         </div></template>
       </section>
       <section class="snv-group">
         <h4>Buttons</h4>
-        <div class="snv-row"><span>Text</span><input type="color" :value="val('btn_text') || '#111111'" @input="set('btn_text', $event.target.value)"><button type="button" class="snv-btn snv-mini" x-show="val('btn_text')" @click="set('btn_text', '')">Auto</button><i x-show="!val('btn_text')">Auto</i></div>
-        <div class="snv-row"><span>Fill</span><input type="color" :value="val('btn_fill') || '#bef264'" @input="set('btn_fill', $event.target.value)"><button type="button" class="snv-btn snv-mini" x-show="val('btn_fill')" @click="set('btn_fill', '')">Auto</button><i x-show="!val('btn_fill')">Auto</i></div>
+        <div class="snv-crow"><span class="snv-k">Text</span><div class="snv-v"><input type="color" :value="val('btn_text') || '#111111'" @input="set('btn_text', $event.target.value)"><button type="button" class="snv-btn snv-mini" x-show="val('btn_text')" @click="set('btn_text', '')">Auto</button><i x-show="!val('btn_text')">Auto</i></div></div>
+        <div class="snv-crow"><span class="snv-k">Fill</span><div class="snv-v"><input type="color" :value="val('btn_fill') || '#bef264'" @input="set('btn_fill', $event.target.value)"><button type="button" class="snv-btn snv-mini" x-show="val('btn_fill')" @click="set('btn_fill', '')">Auto</button><i x-show="!val('btn_fill')">Auto</i></div></div>
         <template x-if="edit==='phone'"><div>
-          <div class="snv-row"><span>Position</span><span class="snv-seg"><button type="button" :class="val('btn_pos')!=='menu' && 'on'" @click="set('btn_pos','bar')">In the bar</button><button type="button" :class="val('btn_pos')==='menu' && 'on'" @click="set('btn_pos','menu')">In menu only</button></span></div>
-          <div class="snv-row" x-show="val('btn_pos')!=='menu'"><span>Distance from ☰</span><input type="range" min="0" max="200" step="2" :value="val('btn_dist')" @input="set('btn_dist', +$event.target.value)"><b x-text="val('btn_dist') + 'px'"></b></div>
+          <div class="snv-crow"><span class="snv-k">Position</span><div class="snv-v"><span class="snv-seg"><button type="button" :class="val('btn_pos')!=='menu' && 'on'" @click="set('btn_pos','bar')">In the bar</button><button type="button" :class="val('btn_pos')==='menu' && 'on'" @click="set('btn_pos','menu')">In menu only</button></span></div></div>
+          <div class="snv-crow" x-show="val('btn_pos')!=='menu'"><span class="snv-k">Distance from ☰</span><div class="snv-v"><input type="range" min="0" max="200" step="2" :value="val('btn_dist')" @input="set('btn_dist', +$event.target.value)"><b x-text="val('btn_dist') + 'px'"></b></div></div>
         </div></template>
         <p class="snv-note">Applies in the bar and inside the ☰ menu, so the button looks the same in both.</p>
       </section>
       <section class="snv-group">
         <h4>Phone menu</h4>
-        <div class="snv-row"><span>Panel</span><input type="color" :value="val('menu_bg') || val('bg')" @input="set('menu_bg', $event.target.value)"><button type="button" class="snv-btn snv-mini" x-show="val('menu_bg')" @click="set('menu_bg', '')">Auto</button><i x-show="!val('menu_bg')">Same as bar</i></div>
-        <div class="snv-row"><span>Links</span><input type="color" :value="val('menu_link') || '#cccccc'" @input="set('menu_link', $event.target.value)"><button type="button" class="snv-btn snv-mini" x-show="val('menu_link')" @click="set('menu_link', '')">Auto</button><i x-show="!val('menu_link')">Same as links</i></div>
+        <div class="snv-crow"><span class="snv-k">Panel</span><div class="snv-v"><input type="color" :value="val('menu_bg') || val('bg')" @input="set('menu_bg', $event.target.value)"><button type="button" class="snv-btn snv-mini" x-show="val('menu_bg')" @click="set('menu_bg', '')">Auto</button><i x-show="!val('menu_bg')">Same as bar</i></div></div>
+        <div class="snv-crow"><span class="snv-k">Links</span><div class="snv-v"><input type="color" :value="val('menu_link') || '#cccccc'" @input="set('menu_link', $event.target.value)"><button type="button" class="snv-btn snv-mini" x-show="val('menu_link')" @click="set('menu_link', '')">Auto</button><i x-show="!val('menu_link')">Same as links</i></div></div>
         <p class="snv-note">The panel that opens from ☰ on phones.</p>
       </section>
     </div>
