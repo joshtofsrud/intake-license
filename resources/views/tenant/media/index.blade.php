@@ -25,6 +25,19 @@
   .ml-empty { border:.5px dashed var(--ia-border,rgba(255,255,255,.13)); border-radius:12px; padding:48px; text-align:center; color:var(--ia-dim,rgba(255,255,255,.5)); font-size:13.5px; }
   .ml-upload-btn { position:relative; overflow:hidden; }
   .ml-upload-btn input { position:absolute; inset:0; opacity:0; cursor:pointer; }
+  /* MARKER-MEDIA-STORAGE-METER */
+  .ml-meter { border:.5px solid var(--ia-border,rgba(255,255,255,.13)); border-radius:11px; padding:12px 14px; margin-bottom:18px; background:var(--ia-surface,#1c1c1c); }
+  .ml-meter-row { display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; font-size:13px; }
+  .ml-meter-row b { font-weight:600; font-variant-numeric:tabular-nums; }
+  .ml-meter-plan { font-size:11.5px; color:var(--ia-dim,rgba(255,255,255,.55)); }
+  .ml-meter-state { margin-left:auto; font-size:11.5px; font-weight:600; }
+  .ml-meter-state.near { color:#F0C46A; }
+  .ml-meter-state.full { color:#F08A8A; }
+  .ml-meter-bar { height:6px; border-radius:3px; background:rgba(127,127,127,.18); overflow:hidden; margin-top:8px; }
+  .ml-meter-bar i { display:block; height:100%; background:var(--ia-accent,#BEF264); }
+  .ml-meter-bar i.near { background:#F0C46A; }
+  .ml-meter-bar i.full { background:#F08A8A; }
+  .ml-meter-legend { font-size:11.5px; color:var(--ia-dim,rgba(255,255,255,.55)); line-height:1.55; margin-top:8px; }
 </style>
 @endpush
 
@@ -39,6 +52,32 @@
       + Upload
       <input type="file" id="ml-upload" accept="image/*" multiple>
     </label>
+  </div>
+
+  {{-- MARKER-MEDIA-STORAGE-METER --}}
+  <div class="ml-meter">
+    <div class="ml-meter-row">
+      @if($storage['limit'] > 0)
+        <span><b>{{ $storage['used_h'] }}</b> of {{ $storage['limit_h'] }} used</span>
+        <span class="ml-meter-plan">{{ ucfirst($storage['tier']) }} plan</span>
+        @if($storage['state'] === 'full')
+          <span class="ml-meter-state full">Full: new uploads are refused</span>
+        @elseif($storage['state'] === 'near')
+          <span class="ml-meter-state near">{{ $storage['pct'] }}% used</span>
+        @endif
+      @else
+        <span><b>{{ $storage['used_h'] }}</b> used</span>
+        <span class="ml-meter-plan">No storage limit on this account</span>
+      @endif
+    </div>
+    @if($storage['limit'] > 0)
+      <div class="ml-meter-bar"><i class="{{ $storage['state'] }}" style="width: {{ max($storage['pct'], $storage['used'] > 0 ? 1 : 0) }}%"></i></div>
+    @endif
+    <div class="ml-meter-legend">
+      Counts every image you've uploaded: this library ({{ $storage['library_h'] }}, including images you've removed,
+      since their files stay so pages using them keep working) and email campaign images ({{ $storage['campaign_h'] }}).
+      Uploads from the page builder, inventory and campaigns all draw from this one allowance.
+    </div>
   </div>
 
   <div class="ml-controls">
@@ -86,22 +125,23 @@
     const files = Array.from(this.files || []);
     if (!files.length) return;
     if (window.IntakeToast) IntakeToast.info('Uploading ' + files.length + ' file' + (files.length>1?'s':'') + '…');
-    let ok = 0;
+    let ok = 0, firstErr = '';
     for (const file of files) {
       const fd = new FormData();
       fd.append('file', file);
       fd.append('type', '{{ $folder ?: 'general' }}');
       try {
         const r = await fetch('{{ route('tenant.uploads.store') }}', {
-          method: 'POST', headers: { 'X-CSRF-TOKEN': csrf }, body: fd,
+          method: 'POST', headers: { 'X-CSRF-TOKEN': csrf, 'Accept': 'application/json' }, body: fd,
         });
         const d = await r.json();
         if (d.ok) ok++;
+        else if (!firstErr) firstErr = d.message || (d.errors && Object.values(d.errors)[0] && Object.values(d.errors)[0][0]) || ''; // MARKER-MEDIA-STORAGE-METER
       } catch (e) { /* counted below */ }
     }
     if (window.IntakeToast) {
       ok === files.length ? IntakeToast.success('Uploaded ' + ok + ' file' + (ok>1?'s':''))
-                          : IntakeToast.error('Uploaded ' + ok + ' of ' + files.length);
+                          : IntakeToast.error('Uploaded ' + ok + ' of ' + files.length + (firstErr ? '. ' + firstErr : ''));
     }
     setTimeout(() => window.location.reload(), 700);
   });

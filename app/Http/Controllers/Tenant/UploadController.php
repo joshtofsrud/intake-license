@@ -26,6 +26,12 @@ class UploadController extends Controller
         $file   = $request->file('file');
         $type   = $request->input('type', 'general');
 
+        // MARKER-MEDIA-STORAGE-METER — builder and Media page uploads were never
+        // checked against the plan's storage allowance.
+        if ($refused = \App\Support\MediaStorage::refuse($tenant, (int) $file->getSize())) {
+            return response()->json(['ok' => false, 'message' => $refused], 422);
+        }
+
         // Build path: tenants/{tenant_id}/{type}/{filename}
         $ext      = $file->getClientOriginalExtension() ?: 'jpg';
         $filename = Str::slug(pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME));

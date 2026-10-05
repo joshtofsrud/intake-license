@@ -128,16 +128,10 @@ class CampaignImageController extends Controller
             ], 422);
         }
 
-        // Quota check — based on tenant's plan tier
-        $tierKey = $tenant->plan_tier ?? 'starter';
-        $tierLimit = (int) config("intake.image_quotas.tiers.{$tierKey}", 0);
-        $used = self::usedBytes($tenant->id);
-        if ($tierLimit > 0 && ($used + $file->getSize()) > $tierLimit) {
-            $limitMb = round($tierLimit / 1024 / 1024);
-            $usedMb  = round($used / 1024 / 1024, 1);
-            return response()->json([
-                'error' => "Storage full. Using {$usedMb} MB of {$limitMb} MB. Delete unused images or upgrade your plan.",
-            ], 422);
+        // MARKER-MEDIA-STORAGE-METER — one count for every upload path
+        // (this used to count campaign images only).
+        if ($refused = \App\Support\MediaStorage::refuse($tenant, (int) $file->getSize())) {
+            return response()->json(['error' => $refused], 422);
         }
 
         // Store file
@@ -212,7 +206,7 @@ class CampaignImageController extends Controller
 
         $used  = self::usedBytes($tenant->id);
         $tierKey = $tenant->plan_tier ?? 'starter';
-        $limit = (int) config("intake.image_quotas.tiers.{$tierKey}", 0);
+        $limit = \App\Support\MediaStorage::limitBytes($tenant); // MARKER-MEDIA-STORAGE-METER
         $count = TenantCampaignImage::where('tenant_id', $tenant->id)->count();
 
         return response()->json([
@@ -230,6 +224,6 @@ class CampaignImageController extends Controller
      */
     private static function usedBytes(string $tenantId): int
     {
-        return (int) TenantCampaignImage::where('tenant_id', $tenantId)->sum('bytes');
+        return \App\Support\MediaStorage::usedBytes($tenantId); // MARKER-MEDIA-STORAGE-METER — library + campaign
     }
 }

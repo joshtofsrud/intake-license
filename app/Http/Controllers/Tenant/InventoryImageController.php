@@ -64,16 +64,9 @@ class InventoryImageController extends Controller
             ], 422);
         }
 
-        $tierKey   = $tenant->plan_tier ?? 'starter';
-        $tierLimit = (int) config("intake.image_quotas.tiers.{$tierKey}", 0);
-        $used      = (int) TenantMedia::where('tenant_id', $tenant->id)
-            ->whereNull('archived_at')->sum('bytes');
-
-        if ($tierLimit > 0 && ($used + $file->getSize()) > $tierLimit) {
-            return response()->json([
-                'error' => 'Storage full — using ' . round($used / 1024 / 1024, 1)
-                    . ' MB of ' . round($tierLimit / 1024 / 1024) . ' MB.',
-            ], 422);
+        // MARKER-MEDIA-STORAGE-METER — one count for every upload path.
+        if ($refused = \App\Support\MediaStorage::refuse($tenant, (int) $file->getSize())) {
+            return response()->json(['error' => $refused], 422);
         }
 
         $path = $file->store("tenants/{$tenant->id}/items", 'public');

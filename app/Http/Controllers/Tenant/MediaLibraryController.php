@@ -37,6 +37,7 @@ class MediaLibraryController extends Controller
             'folders' => self::FOLDERS,
             'folder'  => $folder,
             'q'       => $q,
+            'storage' => \App\Support\MediaStorage::summary($tenant), // MARKER-MEDIA-STORAGE-METER
         ]);
     }
 
