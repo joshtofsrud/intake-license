@@ -69,7 +69,7 @@ class SiteNavigation extends Page
                 $pid = null;
                 $url = mb_substr(trim((string) ($r['url'] ?? '')), 0, 255);
                 if ($label === '')                                          { $problems[] = "Row $pos needs a label."; continue; }
-                if (! preg_match('#^(/|https?://|mailto:|tel:)#i', $url))  { $problems[] = "Row $pos needs an address starting with /, https://, mailto: or tel:."; continue; }
+                if (! preg_match('#^(/|\#|https?://|mailto:|tel:)#i', $url))  { $problems[] = "Row $pos needs an address starting with /, #, https://, mailto: or tel:."; continue; }
             }
 
             $host = parse_url($url, PHP_URL_HOST);

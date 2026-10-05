@@ -547,5 +547,6 @@
 @if(empty($builderPreview))
 @include('marketing._funnel_tracker')
 @endif
+@include('marketing._book_modal') {{-- MARKER-BOOK-MODAL --}}
 </body>
 </html>

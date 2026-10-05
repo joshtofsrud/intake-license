@@ -243,6 +243,8 @@
     }
   </style>
   @stack('styles')
+<script>/* MARKER-BOOK-MODAL — shown inside the pop-up: no site header/footer */ if (window.self !== window.top) document.documentElement.classList.add('in-frame');</script>
+<style>html.in-frame .mk-nav, html.in-frame .mk-footer { display: none !important; } html.in-frame body { background: transparent; }</style>
 </head>
 <body>
 
@@ -270,5 +272,6 @@ function toggleMobileNav() {
 @if(empty($builderPreview))
 @include('marketing._funnel_tracker')
 @endif
+@include('marketing._book_modal') {{-- MARKER-BOOK-MODAL --}}
 </body>
 </html>

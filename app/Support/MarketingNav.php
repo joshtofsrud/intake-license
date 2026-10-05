@@ -161,7 +161,7 @@ class MarketingNav
                 $label = trim((string) ($r['label'] ?? ''));
                 $url   = trim((string) ($r['url'] ?? ''));
                 if ($label === '' || $url === '') continue;
-                if (! preg_match('#^(/|https?://|mailto:|tel:)#i', $url)) continue;
+                if (! preg_match('#^(/|\#|https?://|mailto:|tel:)#i', $url)) continue;
             }
             $out[] = ['label' => $label, 'url' => $url, 'style' => $style, 'side' => $side, 'tab' => ! empty($r['tab'])];
         }
@@ -259,7 +259,7 @@ class MarketingNav
             if (! $p || ! $p['published']) return null;
             return ['label' => $r['label'] ?: $p['title'], 'url' => $p['path'], 'quiz' => false, 'tab' => $r['tab']];
         }
-        if ($r['label'] === '' || ! preg_match('#^(/|https?://|mailto:|tel:)#i', $r['url'])) return null;
+        if ($r['label'] === '' || ! preg_match('#^(/|\#|https?://|mailto:|tel:)#i', $r['url'])) return null;
         return ['label' => $r['label'], 'url' => $r['url'], 'quiz' => false, 'tab' => $r['tab']];
     }
 }
