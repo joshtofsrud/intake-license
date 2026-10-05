@@ -130,7 +130,7 @@
     .{{ $hid }} .mk-hs-copy .mk-hero-actions { justify-content: flex-start; }
     /* MARKER-HERO-SPLIT-PILL — one line when it fits, a stacked panel when it doesn't */
     .{{ $hid }} .mk-hs-copy { container-type: inline-size; }
-    .{{ $hid }} .mk-hs-copy .mk-hero-pill { flex-wrap: nowrap; }
+    .{{ $hid }} .mk-hs-copy .mk-hero-pill { flex-wrap: nowrap; width: max-content; max-width: none; } /* MARKER-PILL-FIT */
     .{{ $hid }} .mk-hs-copy .mk-hero-pill .mk-btn { white-space: nowrap; padding-left: 18px; padding-right: 18px; }
     /* MARKER-HERO-SPLIT-PILL-COMPACT — tighten before ever stacking */
     @container (max-width: 600px) {

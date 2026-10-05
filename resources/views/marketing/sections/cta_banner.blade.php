@@ -56,6 +56,10 @@
     .{{ $ctId }} .cta-btn--outline { border: 1px solid {{ $bFill }}; color: {{ $txt }}; }
     .{{ $ctId }} .cta-btn--ghost { background: rgba(255,255,255,.06); color: {{ $txt }}; }
     .{{ $ctId }} .cta-btn--link { color: {{ $accent }}; padding-left: 6px; padding-right: 6px; }
+    /* MARKER-CTA-PILL-HOVER — plain buttons inside the pill, highlight on hover */
+    .{{ $ctId }} .cta-pill .cta-btn { transition: background-color .2s ease, opacity .2s ease, transform .15s; white-space: nowrap; }
+    .{{ $ctId }} .cta-pill .cta-btn--ghost { background: transparent; opacity: .88; }
+    .{{ $ctId }} .cta-pill .cta-btn--ghost:hover, .{{ $ctId }} .cta-pill .cta-btn--ghost:focus-visible { background: rgba(255,255,255,.1); opacity: 1; transform: none; }
     .{{ $ctId }} .cta-note { font-size: {{ $nSize ? $nSize . 'px' : '13px' }}; color: {{ $body }}; margin-top: 16px; opacity: .85; }
     @media (max-width: 600px) {
         .{{ $ctId }} .cta-acts, .{{ $ctId }} .cta-pill { flex-direction: column; align-items: stretch; width: 100%; }
