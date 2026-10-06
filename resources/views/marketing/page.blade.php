@@ -280,6 +280,11 @@
             . ' ' . max(20, min(100, (int) ($mkC['bg_grad_end'] ?? 100))) . '%)';
     }
 @endphp
+@php
+    // MARKER-SECTION-ROWS — which sections share a row on this page.
+    $pbRows = \App\Support\SectionRows::plan($sections, fn ($s) => ! in_array($s->section_type, ['nav', 'footer'], true) && view()->exists('marketing.sections.' . $s->section_type));
+@endphp
+{!! \App\Support\SectionRows::css($pbRows, 'var(--mk-max, 1080px)', 'var(--mk-gutter, 24px)') !!}
 @foreach($sections as $section)
     @php
         $c = $section->content ?? [];
@@ -394,6 +399,7 @@
     @endphp
 
     @if(view()->exists($partial))
+        {!! \App\Support\SectionRows::open($pbRows, $section) !!}
         {{-- MARKER-SECTION-OVERLAP — same treatment as the tenant renderer, so
              intake.works and a shop's own site behave identically. --}}
         @php
@@ -432,6 +438,7 @@
         </div>
         @if($pull > 0 || $pullP > 0)</div>@endif
         @if(!empty($builderPreview))</div>@endif
+        {!! \App\Support\SectionRows::close($pbRows, $section) !!}
     @else
         <div style="background:#3b1d0b;color:#ffcc80;padding:12px 24px;font-size:13px;text-align:center;border-top:0.5px solid rgba(255,255,255,.08)">
             No renderer for section type: <code>{{ $type }}</code>

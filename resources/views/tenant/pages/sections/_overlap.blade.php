@@ -1,3 +1,45 @@
+{{-- MARKER-SECTION-ROWS — width and the row it sits in. Same control on every section type. --}}
+@php
+  $pbRc  = (array) ($section->content ?? []);
+  $pbRow = ! in_array($section->section_type, ['nav', 'footer'], true);
+  $pbW   = \App\Support\SectionRows::width($section);
+@endphp
+@if($pbRow)
+<div class="pb2-group">
+  <div class="pb2-group-title">Width</div>
+  <div class="pb2-field">
+    <div class="pb2-seg" data-field-seg="col_width">
+      @foreach(['full' => 'Full', 'half' => 'Half', 'third' => 'Third', 'twothirds' => '2/3'] as $val => $name)
+        <button type="button" class="pb2-seg-btn {{ $pbW === $val ? 'active' : '' }}" data-seg-value="{{ $val }}">{{ $name }}</button>
+      @endforeach
+    </div>
+    <input type="hidden" data-field="col_width" value="{{ $pbW }}">
+    <div class="pb2-field-hint" style="display:block;text-align:left;margin-top:6px">Neighbouring sections that fit share a row on wider screens; one that doesn't fit starts the next row. On phones every row stacks. A lime bar in the section list marks sections that share a row.</div>
+  </div>
+  <div class="pb2-field-row">
+    <div class="pb2-field">
+      <label class="pb2-field-label">Row gap</label>
+      <div class="pb2-seg" data-field-seg="row_gap">
+        @foreach(['s' => 'S', 'm' => 'M', 'l' => 'L'] as $val => $name)
+          <button type="button" class="pb2-seg-btn {{ ($pbRc['row_gap'] ?? 'm') === $val ? 'active' : '' }}" data-seg-value="{{ $val }}">{{ $name }}</button>
+        @endforeach
+      </div>
+      <input type="hidden" data-field="row_gap" value="{{ $pbRc['row_gap'] ?? 'm' }}">
+    </div>
+    <div class="pb2-field">
+      <label class="pb2-field-label">Row align</label>
+      <div class="pb2-seg" data-field-seg="row_align">
+        @foreach(['start' => 'Top', 'center' => 'Middle', 'stretch' => 'Equal'] as $val => $name)
+          <button type="button" class="pb2-seg-btn {{ ($pbRc['row_align'] ?? 'stretch') === $val ? 'active' : '' }}" data-seg-value="{{ $val }}">{{ $name }}</button>
+        @endforeach
+      </div>
+      <input type="hidden" data-field="row_align" value="{{ $pbRc['row_align'] ?? 'stretch' }}">
+    </div>
+  </div>
+  <div class="pb2-field-hint" style="display:block;text-align:left">Row gap and align are read from the first section in a row and apply to the whole row. Equal makes every section in the row the same height.</div>
+</div>
+@endif
+
 {{-- MARKER-SECTION-OVERLAP — shared by every section type.
      MARKER-OVERLAP-TAB — placed inside the Design tab by
      App\Support\InspectorOverlap, as a normal group so it gets the same

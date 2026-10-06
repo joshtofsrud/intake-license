@@ -415,6 +415,7 @@ body.ia-theme-b .pb2-preview-frame-wrap {
 .pb2-section-list::-webkit-scrollbar { width: 5px; }
 .pb2-section-list::-webkit-scrollbar-thumb { background: var(--pb2-border-2); border-radius: 2px; }
 
+.pb2-section-item.pb2-in-row { box-shadow: inset 2px 0 0 var(--pb2-accent); } /* MARKER-SECTION-ROWS */
 .pb2-section-item {
   display: grid;
   grid-template-columns: 14px 18px 1fr auto;
@@ -2214,6 +2215,7 @@ body.ia-theme-b .pb2-preview-frame-wrap {
           <div class="pb2-section-item @if($idx === 0) selected @endif @if(!$section->is_visible) hidden @endif"
                data-section-id="{{ $section->id }}"
                data-section-type="{{ $section->section_type }}"
+               data-w="{{ \App\Support\SectionRows::width($section) }}"
                draggable="false">
             <span class="pb2-drag-handle" title="Drag to reorder">⋮⋮</span>
             <span class="pb2-section-icon">
@@ -4880,6 +4882,36 @@ body.ia-theme-b .pb2-preview-frame-wrap {
     setStatus('Saved ✓', 1500);
   });
 })();
+</script>
+
+<script>
+  // MARKER-SECTION-ROWS — lime bar on sections that share a row, recomputed as widths change.
+  (function () {
+    var W = { half: 3, third: 2, twothirds: 4 };
+    function brackets() {
+      var items = Array.prototype.slice.call(document.querySelectorAll('#pb2-canvas .pb2-section-item'));
+      var row = [], sum = 0;
+      function flush() { row.forEach(function (it) { it.classList.add('pb2-in-row'); }); row = []; sum = 0; }
+      items.forEach(function (it) { it.classList.remove('pb2-in-row'); });
+      items.forEach(function (it) {
+        if (it.classList.contains('hidden')) return;
+        var w = it.getAttribute('data-w') || 'full';
+        if (!W[w]) { flush(); return; }
+        if (sum + W[w] > 6) flush();
+        row.push(it); sum += W[w];
+      });
+      flush();
+    }
+    document.addEventListener('change', function (e) {
+      if (!e.target || e.target.getAttribute('data-field') !== 'col_width') return;
+      var sel = document.querySelector('#pb2-canvas .pb2-section-item.selected');
+      if (sel) sel.setAttribute('data-w', e.target.value);
+      brackets();
+    });
+    document.addEventListener('DOMContentLoaded', brackets);
+    if (document.readyState !== 'loading') brackets();
+    window.pb2RowBrackets = brackets;
+  })();
 </script>
 @endpush
 

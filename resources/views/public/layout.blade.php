@@ -365,6 +365,11 @@
 @endif
 
 {{-- Page sections --}}
+@php
+  // MARKER-SECTION-ROWS — which sections share a row on this page.
+  $pbRows = \App\Support\SectionRows::plan($sections, fn ($s) => $s->is_visible && ! in_array($s->section_type, ['nav', 'footer'], true) && view()->exists('public.sections._' . $s->section_type));
+@endphp
+{!! \App\Support\SectionRows::css($pbRows, '1200px', 'clamp(16px, 4vw, 48px)') !!}
 @foreach($sections as $section)
   @if($section->is_visible)
     {{-- MARKER-PATCH-158-G14 — Guard against section types that exist in the
@@ -372,6 +377,7 @@
          this, an unknown type causes a ViewException → 500 for the whole page. --}}
     @php $partial = 'public.sections._' . $section->section_type; @endphp
     @if(view()->exists($partial))
+      {!! \App\Support\SectionRows::open($pbRows, $section) !!}
       {{-- MARKER-TOKENS — resolve an inheriting background here, once, rather
            than in 19 section partials. An explicit hex passes through
            untouched, so nothing a tenant chose in the builder changes. --}}
@@ -410,6 +416,7 @@
       ])
       @if(!empty($builderPreview))</div>@endif
       @if($pull > 0 || $pullP > 0)</div>@endif
+      {!! \App\Support\SectionRows::close($pbRows, $section) !!}
     @elseif(config('app.debug'))
       <div style="padding:24px;margin:20px auto;max-width:800px;background:#fef3c7;border:1px solid #f59e0b;border-radius:8px;color:#78350f;font-family:monospace;font-size:13px;">
         <strong>⚠ Page builder section unsupported on public renderer:</strong> <code>{{ $section->section_type }}</code><br>
