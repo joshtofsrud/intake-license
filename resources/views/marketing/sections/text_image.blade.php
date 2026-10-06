@@ -45,8 +45,9 @@
     $secs     = max(3, min(20, (int) ($c['acc_auto_secs'] ?? 6)));
     $icon     = ($c['acc_icon'] ?? 'plus') === 'arrow' ? 'arrow' : 'plus';
     $numbers  = ($c['acc_numbers'] ?? 'show') !== 'hide';
+    $lightbox = $flag('img_lightbox', false); // MARKER-TI-LIGHTBOX
 @endphp
-<section class="{{ $padding }} {{ $bgId }} {{ $tiId }}" @if(!empty($inlineStyle ?? '')) style="{{ $inlineStyle }}" @endif>
+<section class="{{ $padding }} {{ $bgId }} {{ $tiId }}" @if($lightbox) data-ti-lb @endif @if(!empty($inlineStyle ?? '')) style="{{ $inlineStyle }}" @endif>
 <style>
   .{{ $tiId }} .ti-wrap { max-width: {{ $maxW }}px; margin: 0 auto; }
   .{{ $tiId }} .ti-accent { color: {{ $accent }}; font-style: {{ ($c['accent_italic'] ?? true) && ! in_array((string) ($c['accent_italic'] ?? '1'), ['0', 'false'], true) ? 'italic' : 'normal' }}; }
@@ -56,6 +57,7 @@
   .{{ $tiId }} .ti-link { color: {{ $accent }}; font-weight: 600; font-size: 14px; align-self: center; }
   .{{ $tiId }} .ti-img { border-radius: {{ $radius }}; overflow: hidden; background: var(--mk-bg2); box-shadow: 0 20px 40px -12px rgba(0,0,0,.35); @if($aspect !== 'auto') aspect-ratio: {{ $aspect }}; @endif }
   .{{ $tiId }} .ti-img img { width: 100%; @if($aspect !== 'auto') height: 100%; object-fit: cover; @endif }
+  @if($lightbox) .{{ $tiId }} .ti-img img { cursor: zoom-in; } @endif
   .{{ $tiId }} .ti-ph { aspect-ratio: 4/3; display: flex; align-items: center; justify-content: center; color: var(--mk-dim); font-size: 14px; }
   .{{ $tiId }} .ti-grid { display: grid; grid-template-columns: {{ $cols }}; gap: clamp(28px, 5vw, 64px); align-items: {{ $style === 'accordion' ? 'start' : 'center' }}; }
   .{{ $tiId }} .ti-grid > .ti-side-img { order: {{ $imgRight ? 2 : 1 }}; }
@@ -105,6 +107,7 @@
   .{{ $tiId }} .ti-stage .ti-img { position: relative; }
   .{{ $tiId }} .ti-stage .ti-img img, .{{ $tiId }} .ti-stage .ti-img .ti-ph { position: absolute; inset: 0; opacity: 0; transform: scale(1.02); transition: opacity .45s ease, transform .6s ease; }
   .{{ $tiId }} .ti-stage .ti-img .is-on { opacity: 1; transform: none; }
+  .{{ $tiId }} .ti-stage .ti-img img:not(.is-on) { pointer-events: none; } /* MARKER-TI-LIGHTBOX — hidden stacked images mustn't catch the click */
   @media (max-width: 760px) {
     .{{ $tiId }} .ti-stage { display: none; }
     .{{ $tiId }} .ti-inner { padding-left: 0; }
@@ -166,7 +169,7 @@
                     @php $shown = false; @endphp
                     @foreach($items as $i => $it)
                         @if(!empty($it['image_url']))
-                            <img src="{{ $it['image_url'] }}" alt="{{ $it['image_alt'] ?? '' }}" data-i="{{ $i }}" class="{{ ! $shown ? 'is-on' : '' }}" loading="lazy">
+                            <img src="{{ $it['image_url'] }}" alt="{{ $it['image_alt'] ?? '' }}" data-i="{{ $i }}" data-cap="{{ $it['title'] ?? '' }}" class="{{ ! $shown ? 'is-on' : '' }}" loading="lazy">
                             @php $shown = true; @endphp
                         @endif
                     @endforeach
@@ -228,6 +231,92 @@
     window.__tiAcc = { scan: scan };
     scan();
     if (window.MutationObserver) new MutationObserver(scan).observe(document.body, { childList: true, subtree: true });
+  })();
+</script>
+@endif
+
+@if($lightbox)
+<script>
+  // MARKER-TI-LIGHTBOX — one lightbox for every Text + image section that has "Click image to enlarge" on.
+  (function () {
+    if (window.__tiLb) return;
+    var box, img, cap, prev, next, closeBtn, list = [], at = 0, lastFocus = null, x0 = null;
+    function build() {
+      box = document.createElement('div');
+      box.className = 'ti-lb'; box.setAttribute('role', 'dialog'); box.setAttribute('aria-modal', 'true'); box.setAttribute('aria-label', 'Image');
+      box.innerHTML = '<style>'
+        + '.ti-lb{position:fixed;inset:0;z-index:9999;background:rgba(5,5,5,.92);display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .25s ease}'
+        + '.ti-lb.on{opacity:1;pointer-events:auto}'
+        + '.ti-lb figure{margin:0;max-width:92vw;text-align:center;transform:scale(.97);transition:transform .25s ease}'
+        + '.ti-lb.on figure{transform:none}'
+        + '.ti-lb img{max-width:92vw;max-height:82vh;border-radius:10px;display:block;margin:0 auto;transition:opacity .2s ease}'
+        + '.ti-lb figcaption{color:rgba(255,255,255,.75);font-size:14px;margin-top:14px;font-family:inherit}'
+        + '.ti-lb button{position:absolute;background:rgba(255,255,255,.08);border:0;border-radius:50%;width:44px;height:44px;cursor:pointer;color:#fff}'
+        + '.ti-lb button:hover{background:rgba(255,255,255,.16)}'
+        + '.ti-lb .x{top:20px;right:20px}'
+        + '.ti-lb .x span{position:absolute;left:13px;top:21px;width:18px;height:2px;border-radius:2px;background:#fff;transition:transform .25s ease}'
+        + '.ti-lb .x span:nth-child(1){transform:translateY(-5px)}.ti-lb .x span:nth-child(2){transform:translateY(5px)}'
+        + '.ti-lb.on .x span:nth-child(1){transform:rotate(45deg)}.ti-lb.on .x span:nth-child(2){transform:rotate(-45deg)}'
+        + '.ti-lb .pv{left:20px;top:50%;margin-top:-22px}.ti-lb .nx{right:20px;top:50%;margin-top:-22px}'
+        + '.ti-lb .pv::before,.ti-lb .nx::before{content:"";position:absolute;left:17px;top:16px;width:10px;height:10px;border-left:2px solid #fff;border-bottom:2px solid #fff;transform:rotate(45deg)}'
+        + '.ti-lb .nx::before{left:14px;transform:rotate(-135deg)}'
+        + '@media (prefers-reduced-motion:reduce){.ti-lb,.ti-lb *{transition:none!important}}'
+        + '</style><button type="button" class="x" aria-label="Close"><span></span><span></span></button>'
+        + '<button type="button" class="pv" aria-label="Previous image"></button><button type="button" class="nx" aria-label="Next image"></button>'
+        + '<figure><img alt=""><figcaption></figcaption></figure>';
+      document.body.appendChild(box);
+      img = box.querySelector('img'); cap = box.querySelector('figcaption');
+      prev = box.querySelector('.pv'); next = box.querySelector('.nx'); closeBtn = box.querySelector('.x');
+      closeBtn.addEventListener('click', close);
+      prev.addEventListener('click', function () { go(at - 1); });
+      next.addEventListener('click', function () { go(at + 1); });
+      box.addEventListener('click', function (e) { if (e.target === box) close(); });
+      box.addEventListener('touchstart', function (e) { x0 = e.touches[0].clientX; }, { passive: true });
+      box.addEventListener('touchend', function (e) {
+        if (x0 === null) return; var dx = e.changedTouches[0].clientX - x0; x0 = null;
+        if (Math.abs(dx) > 40 && list.length > 1) go(at + (dx < 0 ? 1 : -1));
+      });
+      document.addEventListener('keydown', function (e) {
+        if (!box.classList.contains('on')) return;
+        if (e.key === 'Escape') close();
+        else if (e.key === 'ArrowLeft' && list.length > 1) go(at - 1);
+        else if (e.key === 'ArrowRight' && list.length > 1) go(at + 1);
+      });
+    }
+    function go(i) {
+      at = (i + list.length) % list.length;
+      img.src = list[at].src; img.alt = list[at].alt || '';
+      cap.textContent = list[at].cap || ''; cap.hidden = !list[at].cap;
+    }
+    function open(items, i) {
+      if (!box) build();
+      list = items; lastFocus = document.activeElement;
+      prev.hidden = next.hidden = list.length < 2;
+      go(i);
+      box.classList.add('on'); document.documentElement.style.overflow = 'hidden';
+      closeBtn.focus();
+    }
+    function close() {
+      box.classList.remove('on'); document.documentElement.style.overflow = '';
+      if (lastFocus && lastFocus.focus) lastFocus.focus();
+    }
+    document.addEventListener('click', function (e) {
+      var t = e.target.closest && e.target.closest('[data-ti-lb] img'); if (!t) return;
+      var sec = t.closest('[data-ti-lb]');
+      var stage = sec.querySelectorAll('.ti-stage img[data-i]');
+      var items, i = 0;
+      if (stage.length) {
+        items = Array.prototype.map.call(stage, function (im) { return { src: im.currentSrc || im.src, alt: im.alt, cap: im.getAttribute('data-cap') || '', i: +im.getAttribute('data-i') }; });
+        var item = t.closest('.ti-item');
+        var want = item ? +item.getAttribute('data-i') : +t.getAttribute('data-i');
+        items.forEach(function (it, k) { if (it.i === want) i = k; });
+      } else {
+        items = [{ src: t.currentSrc || t.src, alt: t.alt, cap: t.alt || '' }];
+      }
+      e.preventDefault();
+      open(items, i);
+    });
+    window.__tiLb = true;
   })();
 </script>
 @endif

@@ -250,6 +250,15 @@
   <div class="pb2-group">
     <div class="pb2-group-title">Image placement</div>
 
+    @if($tiMarketing ?? false)
+    {{-- MARKER-TI-LIGHTBOX --}}
+    <label class="pb2-checkbox-row">
+      <input type="checkbox" data-field="img_lightbox" value="1" {{ $tiFlag('img_lightbox', false) ? 'checked' : '' }}>
+      <span>Click image to enlarge</span>
+    </label>
+    <div class="pb2-field-hint" style="display:block;text-align:left;margin:-2px 0 10px">Opens the image full screen. In Accordion style, arrows (or a swipe) step through every item's image, with the item's title as the caption.</div>
+    @endif
+
     <div class="pb2-field">
       <label class="pb2-field-label">Image side</label>
       <div class="pb2-seg" data-field-seg="image_position">
