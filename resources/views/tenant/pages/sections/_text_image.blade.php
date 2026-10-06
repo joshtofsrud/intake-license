@@ -166,7 +166,9 @@
     <textarea class="pb2-input pb2-input-sm pb2-textarea" data-tiacc-field="body" rows="3" placeholder="Text">{{ $it['body'] ?? '' }}</textarea>
     <div style="display:flex;gap:10px;align-items:center">
       <div class="pb2-tiacc-thumb"></div>
-      <button type="button" class="pb2-textlink" data-tiacc-lib>Choose image</button>
+      <button type="button" class="pb2-textlink" data-tiacc-upload>Upload</button>{{-- MARKER-TI-UPLOAD --}}
+      <button type="button" class="pb2-textlink" data-tiacc-lib>Choose from library</button>
+      <span class="pb2-field-hint" data-tiacc-status></span>
       <button type="button" class="pb2-textlink pb2-textlink-danger" data-tiacc-clear>Remove</button>
     </div>
     <input type="hidden" data-tiacc-field="image_url" value="{{ $it['image_url'] ?? '' }}">
@@ -194,7 +196,9 @@
     <textarea class="pb2-input pb2-input-sm pb2-textarea" data-tiacc-field="body" rows="3" placeholder="Text">{{ $it['body'] ?? '' }}</textarea>
     <div style="display:flex;gap:10px;align-items:center">
       <div class="pb2-tiacc-thumb"></div>
-      <button type="button" class="pb2-textlink" data-tiacc-lib>Choose image</button>
+      <button type="button" class="pb2-textlink" data-tiacc-upload>Upload</button>{{-- MARKER-TI-UPLOAD --}}
+      <button type="button" class="pb2-textlink" data-tiacc-lib>Choose from library</button>
+      <span class="pb2-field-hint" data-tiacc-status></span>
       <button type="button" class="pb2-textlink pb2-textlink-danger" data-tiacc-clear>Remove</button>
     </div>
     <input type="hidden" data-tiacc-field="image_url" value="{{ $it['image_url'] ?? '' }}">

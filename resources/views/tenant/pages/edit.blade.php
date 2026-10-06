@@ -3553,6 +3553,41 @@ body.ia-theme-b .pb2-preview-frame-wrap {
       if (rm) rm.addEventListener('click', () => { row.remove(); serialize(); });
       const up = row.querySelector('[data-tiacc-up]');
       if (up) up.addEventListener('click', () => { const p = row.previousElementSibling; if (p) { root.insertBefore(row, p); serialize(); } });
+      // MARKER-TI-UPLOAD — upload straight into an item (same path as Logo bar rows); it lands in the library too.
+      const upl = row.querySelector('[data-tiacc-upload]');
+      const st  = row.querySelector('[data-tiacc-status]');
+      const say = (msg, ms) => { if (!st) return; st.textContent = msg; if (ms) setTimeout(() => { if (st.textContent === msg) st.textContent = ''; }, ms); };
+      if (upl) upl.addEventListener('click', () => {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = 'image/jpeg,image/png,image/gif,image/webp,image/avif,image/svg+xml';
+        input.style.display = 'none';
+        document.body.appendChild(input);
+        input.addEventListener('change', async () => {
+          const file = input.files && input.files[0];
+          input.remove();
+          if (!file) return;
+          say('Uploading\u2026');
+          const fd = new FormData();
+          fd.append('_token', getCsrf());
+          fd.append('file', file);
+          fd.append('type', 'general');
+          try {
+            const resp = await fetch(UPLOAD_URL, { method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' } });
+            const data = await resp.json();
+            if (data && data.ok && data.url) {
+              row.querySelector('[data-tiacc-field="image_url"]').value = data.url; thumb(row); serialize(); say('Uploaded \u2713', 1500);
+            } else {
+              say('');
+              IntakeConfirm.alert({ title: 'Upload failed', message: (data && data.message) || 'Please try again.' });
+            }
+          } catch (e) {
+            say(''); console.error(e);
+            IntakeConfirm.alert({ title: 'Upload failed', message: 'Please try again.' });
+          }
+        });
+        input.click();
+      });
       const lib = row.querySelector('[data-tiacc-lib]');
       if (lib) lib.addEventListener('click', () => {
         window.__tiAccPick = (url) => { row.querySelector('[data-tiacc-field="image_url"]').value = url || ''; thumb(row); serialize(); };
