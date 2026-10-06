@@ -6,7 +6,6 @@
 @endphp
 <x-filament-panels::page>
 <style>
-  body:has(.sx-root), body:has(.sx-root) .fi-main { background:#1f2024; }
   .sx-root { max-width:620px; font-size:14px; }
   .sx-root p { color:#a3a3ab; font-size:13.5px; line-height:1.55; margin:0 0 20px; }
   .sx-lab { display:block; font-size:12.5px; color:#a3a3ab; margin-bottom:6px; }

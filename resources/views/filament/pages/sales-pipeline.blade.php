@@ -18,7 +18,6 @@
 
 <x-filament-panels::page>
 <style>
-  body:has(.sx-root), body:has(.sx-root) .fi-main { background:#1f2024; }
   .sx-root, .spb-dr { --sx-line:rgba(255,255,255,.075); --sx-line-2:rgba(255,255,255,.14); --sx-dim:#a3a3ab; --sx-faint:#74747d;
     --sx-violet:#8b5cf6; --sx-vsoft:rgba(139,92,246,.17); --sx-vtext:#b4a0fb; --sx-lime:#BEF264; --sx-amber:#f5b942; --sx-red:#f47c7c; font-size:14px; }
   .sx-in { background:rgba(255,255,255,.04); border:1px solid var(--sx-line-2); border-radius:7px; padding:6px 10px; font-size:13px; color:inherit; }

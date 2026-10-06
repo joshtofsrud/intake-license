@@ -13,7 +13,6 @@
 @endphp
 
 <x-filament-panels::page>
-<style>body:has(.sx-findshops), body:has(.sx-findshops) .fi-main { background:#1f2024; }</style><span class="sx-findshops" hidden></span>{{-- MARKER-SALES-SETUP — same charcoal page as the other Sales pages --}}
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <style>
   .sfs-grid{display:grid;grid-template-columns:340px 1fr;gap:16px;align-items:start}
