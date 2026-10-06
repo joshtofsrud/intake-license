@@ -125,6 +125,7 @@ class ShopListImporter
                 'address'       => mb_substr($addr, 0, 255) ?: null,
                 'lat'           => $hasCoords ? (float) $lat : null,
                 'lng'           => $hasCoords ? (float) $lng : null,
+                'loop'          => $hasCoords ? LoopLocator::forPoint($state, $lat, $lng) : null, // MARKER-SALES-TERRITORY2
                 'website'       => mb_substr($web, 0, 255) ?: null,
                 'phone'         => mb_substr($col($row, 'phone'), 0, 64) ?: null,
                 'email'         => mb_substr($col($row, 'email'), 0, 191) ?: null,

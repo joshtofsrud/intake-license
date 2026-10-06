@@ -1,5 +1,6 @@
 <?php
 // MARKER-SALES-FIND
+// MARKER-SALES-TERRITORY2
 namespace App\Filament\Resources\SalesTerritoryResource\Pages;
 
 use App\Filament\Resources\SalesTerritoryResource;
@@ -10,5 +11,13 @@ class EditSalesTerritory extends EditRecord
 {
     protected static string $resource = SalesTerritoryResource::class;
     protected function getHeaderActions(): array { return [Actions\DeleteAction::make()]; }
-    protected function afterSave(): void { \App\Services\Sales\TerritoryResolver::forget(); }
+
+    protected function mutateFormDataBeforeSave(array $data): array
+    {
+        $out = SalesTerritoryResource::geocode($data, $this->record);
+        if ($out === null) $this->halt();
+        return $out;
+    }
+
+    protected function afterSave(): void { SalesTerritoryResource::afterWrite(); }
 }

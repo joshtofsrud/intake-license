@@ -95,7 +95,8 @@ class ShopFinder
             } elseif (isset($tenantNames[Str::lower($r['shop'])])) {
                 $r['status'] = 'tenant';
             }
-            $t = TerritoryResolver::resolve($r['state'], $r['lat']);
+            $r['loop'] = LoopLocator::forPoint($r['state'], $r['lat'], $r['lng'] ?? null); // MARKER-SALES-TERRITORY2
+            $t = TerritoryResolver::resolve($r['state'], $r['lat'], $r['lng'] ?? null, $r['loop']);
             $r['territory']       = $t?->name;
             $r['territory_owner'] = $t?->ownerLabel();
         }
@@ -118,6 +119,7 @@ class ShopFinder
             'address'         => $r['address'],
             'lat'             => $r['lat'],
             'lng'             => $r['lng'],
+            'loop'            => $r['loop'] ?? LoopLocator::forPoint($r['state'], $r['lat'], $r['lng']), // MARKER-SALES-TERRITORY2
             'google_place_id' => $r['place_id'],
             'google_maps_url' => $r['maps_url'],
             'website'         => $r['website'],
