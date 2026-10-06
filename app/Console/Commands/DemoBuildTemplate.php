@@ -687,6 +687,12 @@ class DemoBuildTemplate extends Command
                 $textCols[] = $col;
             }
         }
+        // MARKER-DEMO-IDENTITY-SAFE — the customers' own name, email and phone columns were already set
+        // by anonymiseCustomers(); sweeping them again let one customer's NEW name or number be mistaken for
+        // another's OLD one ("Wren" became "Lakeshore P"; "(509) 555-0019" became "((509) 555-0622) 555-0019").
+        if ($table === $this->customersTable()) {
+            $textCols = array_values(array_diff($textCols, ['first_name', 'last_name', 'name', 'email', 'phone']));
+        }
         if (! $textCols) return;
 
         // MARKER-DEMO-TEMPLATE-NAMES — catalog/product text: people's names do not
@@ -816,7 +822,11 @@ class DemoBuildTemplate extends Command
         if ($this->phoneMap) {
             $new = preg_replace_callback(
                 '/(?<![\d.])(?:\+?1[\s.\-]?)?\(?\d{3}\)?[\s.\-]?\d{3}[\s.\-]?\d{4}(?![\d.])/',
-                function ($m) { $d = self::phoneDigits($m[0]); return ($d !== null && isset($this->phoneMap[$d])) ? $this->phoneMap[$d] : $m[0]; },
+                function ($m) {
+                    $d = self::phoneDigits($m[0]);
+                    if ($d !== null && str_starts_with($d, '509555')) return $m[0]; // MARKER-DEMO-IDENTITY-SAFE — already a demo number
+                    return ($d !== null && isset($this->phoneMap[$d])) ? $this->phoneMap[$d] : $m[0];
+                },
                 $new);
         }
         if ($this->brandSweep) $new = strtr($new, $this->brandSweep); // two entries: shop name, subdomain
