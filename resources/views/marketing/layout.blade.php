@@ -248,6 +248,12 @@
 <style>/* MARKER-MENU-PANEL-OPAQUE — dropdown panels sit on a near-solid surface so the page doesn't read through */
 .mk-dd-panel{background:rgba(14,14,14,.97) !important;-webkit-backdrop-filter:blur(20px) saturate(1.2) !important;backdrop-filter:blur(20px) saturate(1.2) !important;box-shadow:0 24px 48px -12px rgba(0,0,0,.6),0 0 0 .5px rgba(255,255,255,.08) !important}
 </style>
+<style>/* MARKER-MKT-SECTION-PADDING — the spacing classes sections are given, now with real values */
+section.mk-section--none{padding-top:0;padding-bottom:0}
+section.mk-section--compact,section.mk-section--tight{padding-top:clamp(24px,4vw,48px);padding-bottom:clamp(24px,4vw,48px)}
+section.mk-section--normal{padding-top:clamp(48px,7vw,96px);padding-bottom:clamp(48px,7vw,96px)}
+section.mk-section--spacious,section.mk-section--wide{padding-top:clamp(80px,10vw,140px);padding-bottom:clamp(80px,10vw,140px)}
+</style>
 </head>
 <body>
 
