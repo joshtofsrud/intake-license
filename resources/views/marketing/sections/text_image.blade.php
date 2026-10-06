@@ -107,6 +107,10 @@
   .{{ $tiId }} .ti-stage .ti-img { position: relative; }
   .{{ $tiId }} .ti-stage .ti-img img, .{{ $tiId }} .ti-stage .ti-img .ti-ph { position: absolute; inset: 0; opacity: 0; transform: scale(1.02); transition: opacity .45s ease, transform .6s ease; }
   .{{ $tiId }} .ti-stage .ti-img .is-on { opacity: 1; transform: none; }
+@if($aspect === 'auto')
+  .{{ $tiId }} .ti-stage .ti-img .is-on { position: relative; display: block; } /* MARKER-TI-AUTO-ASPECT — the visible image sets the height */
+  .{{ $tiId }} .ti-stage .ti-img img { height: auto; }
+@endif
   .{{ $tiId }} .ti-stage .ti-img img:not(.is-on) { pointer-events: none; } /* MARKER-TI-LIGHTBOX — hidden stacked images mustn't catch the click */
   @media (max-width: 760px) {
     .{{ $tiId }} .ti-stage { display: none; }
