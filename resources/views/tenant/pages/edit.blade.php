@@ -3384,6 +3384,9 @@ body.ia-theme-b .pb2-preview-frame-wrap {
     // MARKER-PATCH-158-G33 — faq_accordion items list editor
     initFaqList(body);
 
+    // MARKER-TI-ACCORDION — text_image style switch + accordion items
+    initTiAccList(body);
+
     // MARKER-PATCH-158-G34 — step_timeline steps list editor
     initStepsList(body);
   }
@@ -3502,6 +3505,72 @@ body.ia-theme-b .pb2-preview-frame-wrap {
         row.querySelector('[data-step-field="title"]')?.focus();
       });
     }
+  }
+
+  // MARKER-TI-ACCORDION — Text + image: Classic/Accordion switch and the accordion's item list.
+  function initTiAccList(body) {
+    const styleIn = body.querySelector('input[type="hidden"][data-field="ti_style"]');
+    if (styleIn) {
+      const apply = () => {
+        const acc = styleIn.value === 'accordion';
+        body.querySelectorAll('[data-ti-classic]').forEach(g => { g.hidden = acc; });
+        body.querySelectorAll('[data-ti-acc]').forEach(g => { g.hidden = !acc; });
+      };
+      styleIn.addEventListener('change', apply);
+      apply();
+    }
+    const root = body.querySelector('#pb2-tiacc-list');
+    const json = body.querySelector('#pb2-tiacc-json');
+    if (!root || !json) return;
+    const MAX = 8;
+    const addBtn = body.querySelector('#pb2-tiacc-add');
+    const count  = body.querySelector('#pb2-tiacc-count');
+
+    function serialize() {
+      const out = [];
+      root.querySelectorAll('.pb2-tiaccrow').forEach((row, i) => {
+        const g = f => (row.querySelector('[data-tiacc-field="' + f + '"]') || {}).value || '';
+        const pos = row.querySelector('.pb2-faqrow-pos');
+        if (pos) pos.textContent = String(i + 1).padStart(2, '0');
+        const it = { title: g('title'), body: g('body'), image_url: g('image_url'), image_alt: g('image_alt'), cta_label: g('cta_label'), cta_url: g('cta_url') };
+        if (it.title.trim() === '' && it.body.trim() === '') return;
+        out.push(it);
+      });
+      json.value = JSON.stringify(out);
+      json.dispatchEvent(new Event('change', { bubbles: true }));
+      if (count) count.textContent = out.length + ' / ' + MAX;
+    }
+    function thumb(row) {
+      const u = row.querySelector('[data-tiacc-field="image_url"]').value;
+      const t = row.querySelector('.pb2-tiacc-thumb');
+      t.style.backgroundImage = u ? 'url("' + u.replace(/"/g, '%22') + '")' : '';
+      t.textContent = u ? '' : 'No image';
+      const clr = row.querySelector('[data-tiacc-clear]'); if (clr) clr.hidden = !u;
+    }
+    function wire(row) {
+      row.querySelectorAll('[data-tiacc-field]').forEach(inp => { inp.addEventListener('input', serialize); inp.addEventListener('change', serialize); });
+      const rm = row.querySelector('[data-tiacc-remove]');
+      if (rm) rm.addEventListener('click', () => { row.remove(); serialize(); });
+      const up = row.querySelector('[data-tiacc-up]');
+      if (up) up.addEventListener('click', () => { const p = row.previousElementSibling; if (p) { root.insertBefore(row, p); serialize(); } });
+      const lib = row.querySelector('[data-tiacc-lib]');
+      if (lib) lib.addEventListener('click', () => {
+        window.__tiAccPick = (url) => { row.querySelector('[data-tiacc-field="image_url"]').value = url || ''; thumb(row); serialize(); };
+        openMediaPicker('__tiacc_pick');
+      });
+      const clr = row.querySelector('[data-tiacc-clear]');
+      if (clr) clr.addEventListener('click', () => { row.querySelector('[data-tiacc-field="image_url"]').value = ''; thumb(row); serialize(); });
+      thumb(row);
+    }
+    root.querySelectorAll('.pb2-tiaccrow').forEach(wire);
+    if (addBtn) addBtn.addEventListener('click', () => {
+      if (root.querySelectorAll('.pb2-tiaccrow').length >= MAX) return;
+      const tpl = body.querySelector('#pb2-tiacc-tpl');
+      if (!tpl) return;
+      const row = tpl.content.firstElementChild.cloneNode(true);
+      root.appendChild(row); wire(row); serialize();
+      const t = row.querySelector('[data-tiacc-field="title"]'); if (t) t.focus();
+    });
   }
 
   function initFaqList(body) {
@@ -4571,6 +4640,12 @@ body.ia-theme-b .pb2-preview-frame-wrap {
       cell.addEventListener('click', () => {
         // MARKER-CAROUSEL-SECTION -- append mode hands the pick to the image
         // repeater and keeps the modal open so several can be added at once.
+        if (field === '__tiacc_pick' && window.__tiAccPick) { // MARKER-TI-ACCORDION
+          window.__tiAccPick(cell.dataset.url);
+          window.__tiAccPick = null;
+          closeMediaPicker();
+          return;
+        }
         if (field === '__logo_pick' && window.__logoPick) { // MARKER-LOGOBAR-PICKER
           window.__logoPick(cell.dataset.url);
           window.__logoPick = null;

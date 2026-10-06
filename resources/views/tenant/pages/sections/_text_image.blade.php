@@ -23,6 +23,34 @@
 {{--=================== CONTENT ===================--}}
 <div class="pb2-tab-panel" data-tab="content">
 
+  {{-- MARKER-TI-ACCORDION — Classic is the single block; Accordion is several items. Shop sites get Accordion in a later patch. --}}
+  @php
+    $tiMarketing = (bool) (tenant()?->is_platform ?? false);
+    $tiStyle = $tiMarketing && $get('ti_style', 'classic') === 'accordion' ? 'accordion' : 'classic';
+    $tiItems = $c['acc_items'] ?? [];
+    if (is_string($tiItems)) { $d = json_decode($tiItems, true); $tiItems = is_array($d) ? $d : []; }
+    if (! is_array($tiItems)) $tiItems = [];
+    $tiFlag = fn ($k, $d) => array_key_exists($k, $c) ? ! in_array((string) $c[$k], ['', '0', 'false'], true) : $d;
+  @endphp
+  <style>
+    .pb2-tiacc-thumb { width:56px; height:38px; border-radius:4px; background:var(--pb2-surface-3) center/cover no-repeat; font-size:10px; color:var(--pb2-text-faint); display:flex; align-items:center; justify-content:center; flex:none; }
+    .pb2-tiaccrow + .pb2-tiaccrow { margin-top:8px; }
+  </style>
+  @if($tiMarketing)
+  <div class="pb2-group">
+    <div class="pb2-group-title">Style</div>
+    <div class="pb2-field">
+      <div class="pb2-seg" data-field-seg="ti_style">
+        @foreach(['classic' => 'Classic', 'accordion' => 'Accordion'] as $val => $name)
+          <button type="button" class="pb2-seg-btn {{ $tiStyle === $val ? 'active' : '' }}" data-seg-value="{{ $val }}">{{ $name }}</button>
+        @endforeach
+      </div>
+      <input type="hidden" data-field="ti_style" value="{{ $tiStyle }}">
+      <div class="pb2-field-hint" style="display:block;text-align:left;margin-top:6px">Classic is one heading, text and image. Accordion is a list of items; opening one shows its text and switches the image. Switching keeps both sets of content.</div>
+    </div>
+  </div>
+  @endif
+
   <div class="pb2-group">
     <div class="pb2-group-title">Text</div>
 
@@ -50,12 +78,12 @@
     </div>
 
     <div class="pb2-field">
-      <label class="pb2-field-label">Body <span class="pb2-field-hint">line breaks preserved</span></label>
+      <label class="pb2-field-label">Body <span class="pb2-field-hint">line breaks preserved{{ $tiMarketing ? '; the intro in Accordion style' : '' }}</span></label>
       <textarea class="pb2-input pb2-textarea" data-field="body" rows="6" placeholder="Your content. Multiple lines welcome.">{{ $get('body') }}</textarea>
     </div>
   </div>
 
-  <div class="pb2-group">
+  <div class="pb2-group" data-ti-classic @if($tiStyle === 'accordion') hidden @endif>
     <div class="pb2-group-title">Image</div>
 
     <div class="pb2-field">
@@ -87,7 +115,7 @@
     </div>
   </div>
 
-  <div class="pb2-group">
+  <div class="pb2-group" data-ti-classic @if($tiStyle === 'accordion') hidden @endif>
     <div class="pb2-group-title">
       Buttons
       <span class="pb2-group-meta" id="pb2-ti-btn-count">{{ count($buttons) }} / 3</span>
@@ -117,6 +145,101 @@
     {{-- Legacy compat --}}
     <input type="hidden" data-field="cta_label" value="{{ $get('cta_label') }}">
     <input type="hidden" data-field="cta_url" value="{{ $get('cta_url') }}">
+  </div>
+
+  {{-- MARKER-TI-ACCORDION — items --}}
+  <div class="pb2-group" data-ti-acc @if($tiStyle !== 'accordion') hidden @endif>
+    <div class="pb2-group-title">Items <span class="pb2-group-meta" id="pb2-tiacc-count">{{ count($tiItems) }} / 8</span></div>
+    <div class="pb2-field-hint" style="display:block;text-align:left;margin-bottom:8px">The heading and body above become the intro. Each item has its own text and image; an item without an image keeps the previous one showing.</div>
+    <div id="pb2-tiacc-list">
+      @foreach($tiItems as $i => $it)
+<div class="pb2-tiaccrow pb2-faqrow">
+  <div class="pb2-faqrow-head">
+    <span class="pb2-navlist-handle">⋮⋮</span>
+    <span class="pb2-faqrow-pos">{{ str_pad((string) (($i ?? 0) + 1), 2, '0', STR_PAD_LEFT) }}</span>
+    <span style="flex:1"></span>
+    <button type="button" class="pb2-textlink" data-tiacc-up title="Move up" aria-label="Move up">↑</button>
+    <button type="button" class="pb2-navlist-remove" data-tiacc-remove title="Remove" aria-label="Remove">×</button>
+  </div>
+  <div class="pb2-faqrow-fields">
+    <input type="text" class="pb2-input pb2-input-sm" data-tiacc-field="title" value="{{ $it['title'] ?? '' }}" placeholder="Title">
+    <textarea class="pb2-input pb2-input-sm pb2-textarea" data-tiacc-field="body" rows="3" placeholder="Text">{{ $it['body'] ?? '' }}</textarea>
+    <div style="display:flex;gap:10px;align-items:center">
+      <div class="pb2-tiacc-thumb"></div>
+      <button type="button" class="pb2-textlink" data-tiacc-lib>Choose image</button>
+      <button type="button" class="pb2-textlink pb2-textlink-danger" data-tiacc-clear>Remove</button>
+    </div>
+    <input type="hidden" data-tiacc-field="image_url" value="{{ $it['image_url'] ?? '' }}">
+    <input type="text" class="pb2-input pb2-input-sm" data-tiacc-field="image_alt" value="{{ $it['image_alt'] ?? '' }}" placeholder="Image description (alt text)">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+      <input type="text" class="pb2-input pb2-input-sm" data-tiacc-field="cta_label" value="{{ $it['cta_label'] ?? '' }}" placeholder="Button label (optional)">
+      <input type="text" class="pb2-input pb2-input-sm" data-tiacc-field="cta_url" value="{{ $it['cta_url'] ?? '' }}" placeholder="Button link">
+    </div>
+  </div>
+</div>
+      @endforeach
+    </div>
+    <template id="pb2-tiacc-tpl">
+      @php $i = 0; $it = []; @endphp
+<div class="pb2-tiaccrow pb2-faqrow">
+  <div class="pb2-faqrow-head">
+    <span class="pb2-navlist-handle">⋮⋮</span>
+    <span class="pb2-faqrow-pos">{{ str_pad((string) (($i ?? 0) + 1), 2, '0', STR_PAD_LEFT) }}</span>
+    <span style="flex:1"></span>
+    <button type="button" class="pb2-textlink" data-tiacc-up title="Move up" aria-label="Move up">↑</button>
+    <button type="button" class="pb2-navlist-remove" data-tiacc-remove title="Remove" aria-label="Remove">×</button>
+  </div>
+  <div class="pb2-faqrow-fields">
+    <input type="text" class="pb2-input pb2-input-sm" data-tiacc-field="title" value="{{ $it['title'] ?? '' }}" placeholder="Title">
+    <textarea class="pb2-input pb2-input-sm pb2-textarea" data-tiacc-field="body" rows="3" placeholder="Text">{{ $it['body'] ?? '' }}</textarea>
+    <div style="display:flex;gap:10px;align-items:center">
+      <div class="pb2-tiacc-thumb"></div>
+      <button type="button" class="pb2-textlink" data-tiacc-lib>Choose image</button>
+      <button type="button" class="pb2-textlink pb2-textlink-danger" data-tiacc-clear>Remove</button>
+    </div>
+    <input type="hidden" data-tiacc-field="image_url" value="{{ $it['image_url'] ?? '' }}">
+    <input type="text" class="pb2-input pb2-input-sm" data-tiacc-field="image_alt" value="{{ $it['image_alt'] ?? '' }}" placeholder="Image description (alt text)">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+      <input type="text" class="pb2-input pb2-input-sm" data-tiacc-field="cta_label" value="{{ $it['cta_label'] ?? '' }}" placeholder="Button label (optional)">
+      <input type="text" class="pb2-input pb2-input-sm" data-tiacc-field="cta_url" value="{{ $it['cta_url'] ?? '' }}" placeholder="Button link">
+    </div>
+  </div>
+</div>
+    </template>
+    <button type="button" class="pb2-addrow" id="pb2-tiacc-add">+ Add item</button>
+    <input type="hidden" data-field="acc_items" id="pb2-tiacc-json" value="{{ json_encode($tiItems) }}">
+  </div>
+
+  <div class="pb2-group" data-ti-acc @if($tiStyle !== 'accordion') hidden @endif>
+    <div class="pb2-group-title">Accordion</div>
+    <div class="pb2-field-row">
+      <div class="pb2-field">
+        <label class="pb2-field-label">Icon</label>
+        <div class="pb2-seg" data-field-seg="acc_icon">
+          @foreach(['plus' => '+ to ×', 'arrow' => 'Arrow'] as $val => $name)
+            <button type="button" class="pb2-seg-btn {{ $get('acc_icon', 'plus') === $val ? 'active' : '' }}" data-seg-value="{{ $val }}">{{ $name }}</button>
+          @endforeach
+        </div>
+        <input type="hidden" data-field="acc_icon" value="{{ $get('acc_icon', 'plus') }}">
+      </div>
+      <div class="pb2-field">
+        <label class="pb2-field-label">Numbers</label>
+        <div class="pb2-seg" data-field-seg="acc_numbers">
+          @foreach(['show' => 'Show', 'hide' => 'Hide'] as $val => $name)
+            <button type="button" class="pb2-seg-btn {{ $get('acc_numbers', 'show') === $val ? 'active' : '' }}" data-seg-value="{{ $val }}">{{ $name }}</button>
+          @endforeach
+        </div>
+        <input type="hidden" data-field="acc_numbers" value="{{ $get('acc_numbers', 'show') }}">
+      </div>
+    </div>
+    <label class="pb2-checkbox-row"><input type="checkbox" data-field="acc_first_open" value="1" {{ $tiFlag('acc_first_open', true) ? 'checked' : '' }}><span>Open the first item on load</span></label>
+    <label class="pb2-checkbox-row"><input type="checkbox" data-field="acc_multi" value="1" {{ $tiFlag('acc_multi', false) ? 'checked' : '' }}><span>Allow several open at once</span></label>
+    <label class="pb2-checkbox-row"><input type="checkbox" data-field="acc_auto" value="1" {{ $tiFlag('acc_auto', false) ? 'checked' : '' }}><span>Move to the next item on its own</span></label>
+    <div class="pb2-field">
+      <label class="pb2-field-label">Every (seconds)</label>
+      <input type="number" class="pb2-input" min="3" max="20" data-field="acc_auto_secs" value="{{ (int) $get('acc_auto_secs', 6) }}">
+      <div class="pb2-field-hint" style="display:block;text-align:left;margin-top:6px">Moving on its own pauses while a visitor hovers the list, stops for good once they click an item, and is off when "several open" is on. Visitors who've turned motion off in their device settings get no animation.</div>
+    </div>
   </div>
 
 </div>
