@@ -20,7 +20,8 @@
 <style>
   .sx-root, .spb-dr { --sx-line:rgba(255,255,255,.075); --sx-line-2:rgba(255,255,255,.14); --sx-dim:#a3a3ab; --sx-faint:#74747d;
     --sx-violet:#8b5cf6; --sx-vsoft:rgba(139,92,246,.17); --sx-vtext:#b4a0fb; --sx-lime:#BEF264; --sx-amber:#f5b942; --sx-red:#f47c7c; font-size:14px; }
-  .sx-in { background:rgba(255,255,255,.04); border:1px solid var(--sx-line-2); border-radius:7px; padding:6px 10px; font-size:13px; color:inherit; }
+  .sx-in { background-color:rgba(255,255,255,.04); border:1px solid var(--sx-line-2); border-radius:7px; padding:6px 10px; font-size:13px; color:inherit; }
+  select.sx-in { padding-right:32px; background-repeat:no-repeat; } /* MARKER-SALES-SELECT-FIX */
   .sx-in option { background:#26272c; }
   .sx-head { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
   .sx-seg { display:inline-flex; border:1px solid var(--sx-line-2); border-radius:8px; padding:2px; }

@@ -9,7 +9,8 @@
   .sx-root { max-width:620px; font-size:14px; }
   .sx-root p { color:#a3a3ab; font-size:13.5px; line-height:1.55; margin:0 0 20px; }
   .sx-lab { display:block; font-size:12.5px; color:#a3a3ab; margin-bottom:6px; }
-  .sx-in { width:100%; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.14); border-radius:7px; padding:8px 11px; font-size:14px; color:inherit; }
+  .sx-in { width:100%; background-color:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.14); border-radius:7px; padding:8px 11px; font-size:14px; color:inherit; }
+  select.sx-in { padding-right:32px; background-repeat:no-repeat; } /* MARKER-SALES-SELECT-FIX */
   .sx-hint { font-size:12px; color:#74747d; margin-top:6px; }
   .sx-two { display:grid; grid-template-columns:1fr 160px; gap:16px; margin-top:22px; }
   .sx-btn { border:1px solid rgba(255,255,255,.14); background:none; border-radius:7px; padding:7px 13px; font-weight:500; font-size:13px; cursor:pointer; color:inherit; }
