@@ -1,109 +1,233 @@
 {{-- MARKER-SALES-BOARD --}}
+{{-- MARKER-SALES-PROSPECTS2 — one Prospects page: Board or List, scoped to an industry. No cards: lanes and rows sit on the page. --}}
 @php
-    $cols  = $this->columns();
-    $f     = $this->funnel();
     $cur   = $this->current();
     $today = now()->toDateString();
-    $card  = 'border-radius:12px;padding:14px 16px;border:1px solid rgba(127,127,127,.22)';
-    $muted = 'font-size:12px;opacity:.65';
-    $input = 'rounded-lg border-gray-300 dark:bg-white/5 dark:border-white/10 text-sm';
+    $st    = $this->stats();
+    $inds  = $this->industries();
+    $hidden = $this->hiddenCount();
+    $cols  = $mode === 'board' ? $this->columns() : [];
+    $list  = $mode === 'list' ? $this->listRows() : null;
+    $muted = 'font-size:12px;color:var(--sx-dim)';
+    $input = 'sx-in';
+    $card  = 'border:1px solid var(--sx-line-2);border-radius:10px;padding:12px 14px';
     $badge = 'display:inline-block;border-radius:4px;padding:1px 7px;font-size:11px;font-weight:600;';
-    $pri   = ['A' => 'background:rgba(248,113,113,.18);color:#f87171', 'B' => 'background:rgba(251,191,36,.18);color:#fbbf24', 'C' => 'background:rgba(154,154,163,.15);color:#9a9aa3', 'D' => 'background:rgba(154,154,163,.15);color:#9a9aa3'];
+    $pri   = ['A' => 'color:#f47c7c', 'B' => 'color:#f5b942', 'C' => 'color:#74747d', 'D' => 'color:#74747d'];
+    $curInd = $industryId ? $inds->firstWhere('id', $industryId) : null;
 @endphp
 
 <x-filament-panels::page>
 <style>
-  .spb-legend{border-radius:12px;padding:10px 14px;border:1px solid rgba(139,92,246,.35);background:rgba(139,92,246,.08);font-size:13px;margin-bottom:14px}
-  .spb-funnel{display:grid;grid-template-columns:repeat(auto-fit,minmax(96px,1fr));gap:6px;margin-bottom:14px}
-  .spb-funnel div{border:1px solid rgba(127,127,127,.22);border-radius:8px;padding:8px 10px;font-size:12px;opacity:.85}
-  .spb-funnel div b{display:block;font-size:18px;font-weight:600}
-  .spb-funnel div.lime{border-color:rgba(190,242,100,.4)}.spb-funnel div.lime b{color:#BEF264}
-  .spb-funnel div.due b{color:#f87171}
-  .spb-filters{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
-  .spb-filters select,.spb-filters input[type=text]{padding:5px 8px;font-size:13px}
-  .spb-chip{display:inline-flex;align-items:center;gap:6px;border:1px solid rgba(127,127,127,.35);border-radius:999px;padding:3px 10px;font-size:12px;cursor:pointer;opacity:.8}
-  .spb-chip.on{border-color:rgb(139,92,246);background:rgba(139,92,246,.16);opacity:1}
-  .spb-board{display:grid;grid-auto-flow:column;grid-auto-columns:232px;gap:12px;overflow-x:auto;padding-bottom:12px}
-  .spb-col{border:1px solid rgba(127,127,127,.22);border-radius:12px;min-height:360px;display:flex;flex-direction:column}
-  .spb-col h4{margin:0;padding:10px 12px;font-size:12px;font-weight:600;opacity:.7;display:flex;justify-content:space-between;border-bottom:1px solid rgba(127,127,127,.18)}
-  .spb-col.over{outline:2px dashed rgb(139,92,246);outline-offset:-4px}
-  .spb-drop{padding:8px;display:flex;flex-direction:column;gap:8px;flex:1}
-  .spb-card{border:1px solid rgba(127,127,127,.25);border-radius:8px;padding:9px 10px;cursor:grab;font-size:13px;background:rgba(127,127,127,.06)}
-  .spb-card:hover{border-color:rgba(139,92,246,.6)}
-  .spb-card .t{font-weight:600;display:flex;justify-content:space-between;gap:6px}
-  .spb-card .m{font-size:12px;opacity:.65;margin-top:2px}
-  .spb-card .f{display:flex;justify-content:space-between;margin-top:6px;font-size:11px;opacity:.65}
-  .spb-score{display:inline-block;min-width:26px;text-align:center;border-radius:4px;padding:0 5px;font-size:11px;font-weight:700;background:rgba(139,92,246,.2);color:#a78bfa}
-  .spb-score.hi{background:rgba(190,242,100,.2);color:#BEF264}
-  .spb-more{font-size:12px;opacity:.6;text-align:center;padding:6px}
-  .spb-ov{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:40}
-  .spb-dr{position:fixed;top:0;right:0;height:100vh;width:640px;max-width:100vw;background:rgb(24,24,27);color:#f4f4f5;border-left:1px solid rgba(127,127,127,.25);z-index:41;overflow:auto}
-  html:not(.dark) .spb-dr{background:#fff;color:#111}
-  .spb-dh{padding:16px 20px;border-bottom:1px solid rgba(127,127,127,.2);position:sticky;top:0;background:inherit;z-index:2}
-  .spb-tabs{display:flex;gap:2px;border-bottom:1px solid rgba(127,127,127,.2);padding:0 20px}
-  .spb-tabs button{background:none;border:0;border-bottom:2px solid transparent;padding:10px 12px;opacity:.65;cursor:pointer;font-size:13px}
-  .spb-tabs button.on{opacity:1;border-bottom-color:rgb(139,92,246)}
-  .spb-tp{padding:16px 20px}
-  .spb-kv{display:grid;grid-template-columns:120px 1fr;gap:4px 10px;font-size:13px}
-  .spb-kv b{font-weight:500;opacity:.6}
-  .spb-tl{border-left:2px solid rgba(127,127,127,.3);margin-left:6px;padding-left:16px}
-  .spb-tl .e{position:relative;padding-bottom:14px;font-size:13px}
-  .spb-tl .e:before{content:"";position:absolute;left:-22px;top:5px;width:9px;height:9px;border-radius:50%;background:rgba(127,127,127,.5)}
-  .spb-tl .e.hot:before{background:rgb(139,92,246)}
-  .spb-tl .w{font-size:12px;opacity:.6}
-  .spb-btn{border:1px solid rgba(127,127,127,.35);border-radius:6px;padding:6px 11px;font-size:13px;font-weight:500;cursor:pointer}
-  .spb-btn.p{background:rgb(139,92,246);border-color:rgb(139,92,246);color:#fff}
-  .spb-btn.sm{padding:4px 9px;font-size:12px}
-  .spb-stagebar{display:flex;gap:3px;margin:12px 0 4px}
-  .spb-stagebar div{flex:1;height:6px;border-radius:2px;background:rgba(127,127,127,.3)}
-  .spb-stagebar div.on{background:rgb(139,92,246)}.spb-stagebar div.won{background:#BEF264}
-  .spb-q{display:grid;grid-template-columns:1fr auto;gap:6px 12px;font-size:13px;align-items:center}
+  body:has(.sx-root), body:has(.sx-root) .fi-main { background:#1f2024; }
+  .sx-root, .spb-dr { --sx-line:rgba(255,255,255,.075); --sx-line-2:rgba(255,255,255,.14); --sx-dim:#a3a3ab; --sx-faint:#74747d;
+    --sx-violet:#8b5cf6; --sx-vsoft:rgba(139,92,246,.17); --sx-vtext:#b4a0fb; --sx-lime:#BEF264; --sx-amber:#f5b942; --sx-red:#f47c7c; font-size:14px; }
+  .sx-in { background:rgba(255,255,255,.04); border:1px solid var(--sx-line-2); border-radius:7px; padding:6px 10px; font-size:13px; color:inherit; }
+  .sx-in option { background:#26272c; }
+  .sx-head { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .sx-seg { display:inline-flex; border:1px solid var(--sx-line-2); border-radius:8px; padding:2px; }
+  .sx-seg button { background:none; border:0; padding:5px 13px; border-radius:6px; font-weight:500; font-size:13px; color:var(--sx-dim); cursor:pointer; }
+  .sx-seg button.on { background:var(--sx-vsoft); color:#fff; }
+  .sx-inds { display:flex; gap:18px; border-bottom:1px solid var(--sx-line); margin-top:4px; overflow-x:auto; }
+  .sx-inds button { background:none; border:0; border-bottom:2px solid transparent; padding:9px 0; color:var(--sx-dim); cursor:pointer; white-space:nowrap; font-weight:500; }
+  .sx-inds button.on { color:#fff; border-bottom-color:var(--sx-violet); }
+  .sx-inds button span { color:var(--sx-faint); font-weight:400; margin-left:4px; }
+  .sx-tally { display:flex; gap:30px; flex-wrap:wrap; margin-top:16px; font-size:13px; color:var(--sx-dim); }
+  .sx-tally b { display:block; font-size:22px; font-weight:650; color:#fff; letter-spacing:-.02em; font-variant-numeric:tabular-nums; }
+  .sx-tally .lime { color:var(--sx-lime); } .sx-tally .amber { color:var(--sx-amber); }
+  .sx-lede { color:var(--sx-faint); font-size:13px; line-height:1.55; margin:12px 0 0; max-width:80ch; }
+  .sx-bar { display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding:12px 0; margin-top:14px; border-top:1px solid var(--sx-line); border-bottom:1px solid var(--sx-line); }
+  .sx-tog { display:inline-flex; align-items:center; gap:6px; font-size:13px; color:var(--sx-dim); cursor:pointer; user-select:none; }
+  .sx-tog input { accent-color:var(--sx-violet); }
+  .sx-count { margin-left:auto; color:var(--sx-faint); font-size:12.5px; }
+  .sx-hidden { display:flex; gap:14px; align-items:center; padding:12px 0; border-bottom:1px solid var(--sx-line); font-size:13.5px; color:var(--sx-dim); }
+  .sx-hidden b { color:#fff; }
+  .sx-btn { border:1px solid var(--sx-line-2); background:none; border-radius:7px; padding:6px 12px; font-weight:500; font-size:13px; cursor:pointer; white-space:nowrap; }
+  .sx-btn.p { background:var(--sx-violet); border-color:var(--sx-violet); color:#fff; }
+  .sx-btn.sm { padding:4px 9px; font-size:12.5px; }
+  .sx-board { display:grid; overflow-x:auto; }
+  .spb-col { border-right:1px solid var(--sx-line); min-height:460px; min-width:180px; }
+  .spb-col:last-child { border-right:0; }
+  .spb-col.over { background:rgba(139,92,246,.07); }
+  .sx-lh { padding:14px 14px 10px; }
+  .sx-lh .n { font-size:24px; font-weight:650; letter-spacing:-.025em; line-height:1; font-variant-numeric:tabular-nums; }
+  .sx-lh .l { display:flex; justify-content:space-between; gap:6px; font-size:12.5px; color:var(--sx-dim); margin-top:5px; }
+  .sx-lh .l b { color:var(--sx-lime); font-weight:500; }
+  .spb-card { display:block; width:100%; text-align:left; background:none; border:0; border-top:1px solid var(--sx-line); padding:10px 14px; cursor:grab; position:relative; }
+  .spb-card:hover { background:rgba(255,255,255,.035); }
+  .spb-card.sel { background:var(--sx-vsoft); }
+  .spb-card .s { font-weight:550; font-size:13.5px; line-height:1.3; padding-right:30px; }
+  .spb-card .c, .spb-card .w { font-size:12px; color:var(--sx-faint); margin-top:2px; }
+  .spb-card .a { font-size:12px; color:var(--sx-dim); margin-top:5px; }
+  .spb-card .a.due { color:var(--sx-amber); }
+  .spb-card .sc { position:absolute; top:10px; right:12px; font-size:12px; font-weight:600; color:var(--sx-faint); font-variant-numeric:tabular-nums; }
+  .spb-card .sc.hi { color:var(--sx-lime); }
+  .spb-more { font-size:12px; color:var(--sx-faint); padding:10px 14px; border-top:1px solid var(--sx-line); }
+  .sx-t { width:100%; border-collapse:collapse; font-size:13.5px; }
+  .sx-t th { text-align:left; font-weight:500; color:var(--sx-faint); font-size:12.5px; padding:10px 10px; border-bottom:1px solid var(--sx-line-2); white-space:nowrap; }
+  .sx-t td { padding:10px; border-bottom:1px solid var(--sx-line); vertical-align:top; }
+  .sx-t tr.r { cursor:pointer; } .sx-t tr.r:hover td { background:rgba(255,255,255,.03); } .sx-t tr.r.sel td { background:var(--sx-vsoft); }
+  .sx-t input[type=checkbox] { accent-color:var(--sx-violet); }
+  .sx-t .num { text-align:right; font-variant-numeric:tabular-nums; }
+  .sx-bulk { display:flex; align-items:center; gap:8px; padding:10px 0; flex-wrap:wrap; font-size:13px; color:var(--sx-dim); }
+  .sx-pager { display:flex; align-items:center; gap:10px; padding:12px 0; color:var(--sx-faint); font-size:13px; }
+  /* drawer */
+  .spb-ov { position:fixed; inset:0; background:rgba(0,0,0,.42); z-index:40; }
+  .spb-dr { position:fixed; top:0; right:0; height:100vh; width:600px; max-width:100vw; background:#26272c; color:#ececee; z-index:41; overflow:auto; box-shadow:-30px 0 60px rgba(0,0,0,.35); }
+  html:not(.dark) .spb-dr { background:#fff; color:#111; }
+  .spb-dh { padding:20px 24px 14px; border-bottom:1px solid var(--sx-line); }
+  .spb-tabs { display:flex; gap:20px; border-bottom:1px solid var(--sx-line); padding:0 24px; }
+  .spb-tabs button { background:none; border:0; border-bottom:2px solid transparent; padding:10px 0; color:var(--sx-dim); cursor:pointer; font-size:13px; font-weight:500; }
+  .spb-tabs button.on { color:inherit; border-bottom-color:var(--sx-violet); }
+  .spb-tp { padding:18px 24px 26px; }
+  .spb-kv { display:grid; grid-template-columns:120px 1fr; gap:8px 12px; font-size:13.5px; }
+  .spb-kv b { font-weight:400; color:var(--sx-faint); }
+  .spb-tl { border-left:2px solid var(--sx-line-2); margin-left:6px; padding-left:16px; }
+  .spb-tl .e { position:relative; padding:0 0 14px; font-size:13px; }
+  .spb-tl .e:before { content:""; position:absolute; left:-22px; top:5px; width:9px; height:9px; border-radius:50%; background:var(--sx-faint); }
+  .spb-tl .e.hot:before { background:var(--sx-violet); }
+  .spb-btn { border:1px solid var(--sx-line-2); background:none; border-radius:7px; padding:6px 11px; font-size:13px; font-weight:500; cursor:pointer; }
+  .spb-btn.p { background:var(--sx-violet); border-color:var(--sx-violet); color:#fff; }
+  .spb-btn.sm { padding:3px 9px; font-size:12px; }
+  .spb-stagebar { display:flex; gap:3px; margin:14px 0 4px; }
+  .spb-stagebar div { flex:1; height:6px; border-radius:3px; background:rgba(255,255,255,.1); }
+  .spb-stagebar div.on { background:var(--sx-violet); } .spb-stagebar div.won { background:var(--sx-lime); }
+  .spb-q { display:grid; grid-template-columns:1fr auto; gap:6px 12px; font-size:13px; align-items:center; }
+  .sx-play { border-top:1px solid var(--sx-line); margin-top:18px; padding-top:14px; font-size:13px; }
+  .sx-play ol { margin:6px 0 0; padding-left:18px; color:var(--sx-dim); line-height:1.6; }
 </style>
 
-<div class="spb-legend">
-  <b>What this is.</b> Every prospect from the Prospects list, as a card in its stage. Drag a card to change its stage (logged on the timeline, same as the list's Set stage). Click a card to open it.
-  By default the board hides prospects nobody has touched yet — untick "Hide untouched" to see the whole imported list. Won and Lost columns are off unless "Show closed" is on.
-</div>
-
-<div class="spb-funnel">
-  @foreach(\App\Models\SalesProspect::STAGES as $k => $v)
-    <div><b>{{ $f['counts'][$k] ?? 0 }}</b>{{ $v }}</div>
-  @endforeach
-  <div class="due"><b>{{ $f['due'] }}</b>Due today</div>
-  <div class="lime"><b>${{ number_format($f['wonMrr']) }}</b>Won MRR (quoted) · {{ $f['tenants'] }} linked</div>
-</div>
-
-<div class="spb-filters">
-  <input type="text" class="{{ $input }}" wire:model.live.debounce.400ms="q" placeholder="Search shop or city" style="width:200px">
-  <select class="{{ $input }}" wire:model.live="territoryId"><option value="">All territories</option>@foreach($this->territories() as $t)<option value="{{ $t->id }}">{{ $t->name }}</option>@endforeach<option value="none">No territory</option></select>
-  <select class="{{ $input }}" wire:model.live="repId"><option value="">Any rep</option>@foreach($this->reps() as $r)<option value="{{ $r->id }}">{{ $r->name }} · {{ $r->agency?->name }}</option>@endforeach<option value="none">Unassigned</option></select>
-  <select class="{{ $input }}" wire:model.live="priority"><option value="">Any priority</option><option value="A">A</option><option value="B">B</option><option value="C">C</option><option value="D">D</option></select>
-  <span class="spb-chip {{ $dueOnly ? 'on' : '' }}" wire:click="$toggle('dueOnly')">Due today</span>
-  <span class="spb-chip {{ $hideUntouched ? 'on' : '' }}" wire:click="$toggle('hideUntouched')">Hide untouched</span>
-  <span class="spb-chip {{ $showClosed ? 'on' : '' }}" wire:click="$toggle('showClosed')">Show closed</span>
-  <span style="{{ $muted }};margin-left:auto">{{ array_sum(array_map(fn ($c) => $c['total'], $cols)) }} shown</span>
-</div>
-
-<div class="spb-board" id="spb-board">
-  @foreach($this->stages() as $key => $label)
-    <div class="spb-col" data-stage="{{ $key }}">
-      <h4>{{ $label }}<span>{{ $cols[$key]['total'] }}</span></h4>
-      <div class="spb-drop">
-        @foreach($cols[$key]['rows'] as $p)
-          @php $due = $p->next_action_on && $p->next_action_on->toDateString() <= $today; @endphp
-          <div class="spb-card" draggable="true" data-id="{{ $p->id }}" wire:key="c-{{ $p->id }}" wire:click="open('{{ $p->id }}')">
-            <div class="t"><span>{{ $p->shop }}</span><span class="spb-score {{ $p->lead_score >= 75 ? 'hi' : '' }}">{{ $p->lead_score }}</span></div>
-            <div class="m">{{ $p->city }}{{ $p->state ? ', ' . $p->state : '' }} · <span style="{{ $badge }}{{ $pri[$p->priority] ?? '' }}">{{ $p->priority }}</span>@if($p->quote_monthly) · ${{ number_format($p->quote_monthly) }}/mo @endif</div>
-            @if($p->next_action)<div class="m" style="margin-top:4px;{{ $due ? 'color:#f87171;opacity:1' : '' }}">{{ $due ? 'Due · ' : $p->next_action_on?->format('M j') . ' · ' }}{{ $p->next_action }}</div>@endif
-            <div class="f"><span>{{ $p->rep?->name ?? ($p->territory?->name ?? 'unassigned') }}</span><span>@if($p->tenant_id)<span style="{{ $badge }}background:rgba(190,242,100,.18);color:#BEF264">tenant</span>@endif</span></div>
-          </div>
-        @endforeach
-        @if($cols[$key]['total'] > count($cols[$key]['rows']))
-          <div class="spb-more">+{{ $cols[$key]['total'] - count($cols[$key]['rows']) }} more — narrow the filters</div>
-        @endif
-      </div>
+<div class="sx-root">
+  <div class="sx-head">
+    <div class="sx-seg" role="tablist" aria-label="View">
+      <button class="{{ $mode === 'board' ? 'on' : '' }}" wire:click="$set('mode', 'board')">Board</button>
+      <button class="{{ $mode === 'list' ? 'on' : '' }}" wire:click="$set('mode', 'list')">List</button>
     </div>
-  @endforeach
+    <span style="margin-left:auto"></span>
+    <a class="sx-btn" href="{{ \App\Filament\Pages\SalesFindShops::getUrl() }}">Find shops</a>
+    <a class="sx-btn p" href="{{ \App\Filament\Resources\SalesProspectResource::getUrl('create') }}">New prospect</a>
+  </div>
+
+  <div class="sx-inds" role="tablist" aria-label="Industry">
+    <button class="{{ $industryId === '' ? 'on' : '' }}" wire:click="$set('industryId', '')">All<span>{{ number_format(\App\Models\SalesProspect::count()) }}</span></button>
+    @foreach($inds as $ind)
+      <button class="{{ $industryId === $ind->id ? 'on' : '' }}" wire:click="$set('industryId', '{{ $ind->id }}')">{{ $ind->name }}<span>{{ number_format($ind->prospects_count) }}</span></button>
+    @endforeach
+  </div>
+
+  <div class="sx-tally">
+    <div><b>{{ number_format($st['total']) }}</b>prospects, {{ $st['a'] }} A-priority</div>
+    <div><b>{{ number_format($st['verified']) }}</b>verified, <span class="amber" style="color:var(--sx-amber)">{{ $st['total'] - $st['verified'] }} to check</span></div>
+    <div><b class="{{ $st['due'] ? 'amber' : '' }}">{{ $st['due'] }}</b>due today or overdue</div>
+    <div><b>{{ $st['trials'] }}</b>active trials, {{ $st['won'] }} won</div>
+    <div><b>{{ $st['tenants'] }}</b>linked to a tenant</div>
+    <div><b class="lime">${{ number_format($st['value']) }}</b>a month, A and B weighted</div>
+  </div>
+
+  <p class="sx-lede">
+    Board and List show the same prospects with the same filters{{ $curInd ? ', limited to ' . $curInd->name : '' }}.
+    On the board, drag a shop to another stage; the move is added to its timeline.
+    @if($hideUntouched) Shops nobody has worked yet are hidden. @endif
+    @if(! $showClosed) Won and lost are hidden. @endif
+  </p>
+
+  <div class="sx-bar">
+    <input type="text" class="sx-in" style="width:210px" wire:model.live.debounce.400ms="q" placeholder="Shop or city">
+    <select class="sx-in" wire:model.live="territoryId"><option value="">All territories</option><option value="none">No territory</option>@foreach($this->territories() as $t)<option value="{{ $t->id }}">{{ $t->name }}</option>@endforeach</select>
+    <select class="sx-in" wire:model.live="repId"><option value="">Any rep</option><option value="none">House (no rep)</option>@foreach($this->reps() as $r)<option value="{{ $r->id }}">{{ $r->name }}</option>@endforeach</select>
+    <select class="sx-in" wire:model.live="priority"><option value="">Any priority</option>@foreach(\App\Models\SalesProspect::PRIORITIES as $k => $v)<option value="{{ $k }}">{{ $v }}</option>@endforeach</select>
+    <label class="sx-tog"><input type="checkbox" wire:model.live="dueOnly"> Due today</label>
+    <label class="sx-tog"><input type="checkbox" wire:model.live="hideUntouched"> Hide untouched</label>
+    <label class="sx-tog"><input type="checkbox" wire:model.live="showClosed"> Show won and lost</label>
+  </div>
+
+  @if($hidden)
+    <div class="sx-hidden">
+      <span style="flex:1"><b>{{ number_format($hidden) }} {{ $hidden === 1 ? 'prospect is' : 'prospects are' }} hidden.</b> Nobody has worked {{ $hidden === 1 ? 'it' : 'them' }} yet, and "Hide untouched" is on. Log a call, set a stage, a rep or a next action and a shop shows here.</span>
+      <button class="sx-btn sm" wire:click="$set('hideUntouched', false)">Show them</button>
+    </div>
+  @endif
+
+  @if($mode === 'board')
+    <div class="sx-board" id="spb-board" style="grid-template-columns:repeat({{ count($cols) }}, minmax(180px, 1fr))">
+      @foreach($this->stages() as $key => $label)
+        @php $mrr = $cols[$key]['rows']->sum('quote_monthly'); @endphp
+        <div class="spb-col" data-stage="{{ $key }}">
+          <div class="sx-lh"><div class="n">{{ number_format($cols[$key]['total']) }}</div><div class="l"><span>{{ $label }}</span>@if($mrr)<b>${{ number_format($mrr) }}/mo</b>@endif</div></div>
+          @foreach($cols[$key]['rows'] as $p)
+            @php $due = $p->next_action_on && $p->next_action_on->toDateString() <= $today; @endphp
+            <button type="button" class="spb-card {{ $openId === $p->id ? 'sel' : '' }}" draggable="true" data-id="{{ $p->id }}" wire:key="c-{{ $p->id }}" wire:click="open('{{ $p->id }}')">
+              <div class="s">{{ $p->shop }}</div>
+              <span class="sc {{ $p->lead_score >= 75 ? 'hi' : '' }}" title="Lead score">{{ $p->lead_score }}</span>
+              <div class="c"><span style="{{ $pri[$p->priority] ?? '' }};font-weight:700;font-size:11px">{{ $p->priority }}</span> {{ $p->city }}{{ $p->state ? ', ' . $p->state : '' }}</div>
+              @if($p->next_action)<div class="a {{ $due ? 'due' : '' }}">{{ $due ? 'Due' : $p->next_action_on?->format('M j') }}{{ $p->next_action_on ? ', ' : '' }}{{ $p->next_action }}</div>@endif
+              <div class="w">{{ $p->rep?->name ?? 'House' }}{{ $p->tenant_id ? ', on a trial account' : '' }}</div>
+            </button>
+          @endforeach
+          @if($cols[$key]['total'] > count($cols[$key]['rows']))
+            <div class="spb-more">{{ number_format($cols[$key]['total'] - count($cols[$key]['rows'])) }} more. Narrow the filters or use List.</div>
+          @elseif($cols[$key]['total'] === 0)
+            <div class="spb-more">Nothing here</div>
+          @endif
+        </div>
+      @endforeach
+    </div>
+  @else
+    @php $pageIds = $list['rows']->pluck('id')->all(); @endphp
+    @if($selected)
+      <div class="sx-bulk">
+        <b style="color:#fff">{{ count($selected) }} selected</b>
+        <select class="sx-in" wire:model.live="bulkAction">
+          <option value="">Choose an action</option><option value="stage">Set stage</option><option value="rep">Assign rep</option>
+          <option value="industry">Set industry</option><option value="territory">Assign by territory rules</option>
+          <option value="verify">Mark verified</option><option value="pull">Pull details from Places</option>
+        </select>
+        @if($bulkAction === 'stage')<select class="sx-in" wire:model="bulkValue"><option value="">Stage…</option>@foreach(\App\Models\SalesProspect::STAGES as $k => $v)@if($k !== 'lost')<option value="{{ $k }}">{{ $v }}</option>@endif @endforeach</select>@endif
+        @if($bulkAction === 'rep')<select class="sx-in" wire:model="bulkValue"><option value="">House (no rep)</option>@foreach($this->reps() as $r)<option value="{{ $r->id }}">{{ $r->name }}</option>@endforeach</select>@endif
+        @if($bulkAction === 'industry')<select class="sx-in" wire:model="bulkValue"><option value="">None</option>@foreach($inds as $ind)<option value="{{ $ind->id }}">{{ $ind->name }}</option>@endforeach</select>@endif
+        @if($confirmPull)
+          <span style="color:var(--sx-amber)">This makes {{ count($selected) }} Places lookups, about ${{ number_format($this->pullCostCents() / 100, 2) }}.</span>
+          <button class="sx-btn p sm" wire:click="applyBulk">Pull details</button><button class="sx-btn sm" wire:click="cancelPull">Cancel</button>
+        @elseif($bulkAction)
+          <button class="sx-btn p sm" wire:click="applyBulk" wire:loading.attr="disabled">Apply</button>
+        @endif
+        <button class="sx-btn sm" style="margin-left:auto" wire:click="$set('selected', [])">Clear selection</button>
+      </div>
+    @endif
+    <table class="sx-t">
+      <thead><tr>
+        <th style="width:28px"><input type="checkbox" aria-label="Select this page" @checked($pageIds && ! array_diff($pageIds, $selected)) wire:click="toggleAllOnPage({{ json_encode($pageIds) }})"></th>
+        <th>Shop</th><th>Industry</th><th>Loop</th><th>Pri</th><th>Verified</th><th class="num">Score</th><th>Rep</th><th>Stage</th><th>Next action</th><th class="num">Quote</th>
+      </tr></thead>
+      <tbody>
+        @forelse($list['rows'] as $p)
+          @php $due = $p->next_action_on && $p->next_action_on->toDateString() <= $today; @endphp
+          <tr class="r {{ $openId === $p->id ? 'sel' : '' }}" wire:key="l-{{ $p->id }}">
+            <td wire:click.stop><input type="checkbox" value="{{ $p->id }}" wire:model.live="selected" aria-label="Select {{ $p->shop }}"></td>
+            <td wire:click="open('{{ $p->id }}')">{{ $p->shop }}<div style="{{ $muted }}">{{ $p->city }}{{ $p->state ? ', ' . $p->state : '' }}</div></td>
+            <td wire:click="open('{{ $p->id }}')" style="color:var(--sx-dim)">{{ $p->channel?->name ?? 'None' }}</td>
+            <td wire:click="open('{{ $p->id }}')" style="color:var(--sx-dim)">{{ $p->loop ? 'L' . $p->loop : '' }}</td>
+            <td wire:click="open('{{ $p->id }}')"><span style="{{ $pri[$p->priority] ?? '' }};font-weight:700;font-size:12px">{{ $p->priority }}</span></td>
+            <td wire:click="open('{{ $p->id }}')" style="color:{{ $p->verified ? 'var(--sx-lime)' : 'var(--sx-amber)' }}">{{ $p->verified ? 'Yes' : 'To check' }}</td>
+            <td wire:click="open('{{ $p->id }}')" class="num" style="{{ $p->lead_score >= 75 ? 'color:var(--sx-lime)' : '' }}">{{ $p->lead_score }}</td>
+            <td wire:click="open('{{ $p->id }}')" style="color:var(--sx-dim)">{{ $p->rep?->name ?? 'House' }}</td>
+            <td wire:click="open('{{ $p->id }}')">{{ \App\Models\SalesProspect::STAGES[$p->stage] ?? $p->stage }}</td>
+            <td wire:click="open('{{ $p->id }}')" style="color:{{ $due ? 'var(--sx-amber)' : 'var(--sx-dim)' }}">@if($p->next_action){{ $due ? 'Due' : $p->next_action_on?->format('M j') }}, {{ $p->next_action }}@endif</td>
+            <td wire:click="open('{{ $p->id }}')" class="num">{{ $p->quote_monthly ? '$' . number_format($p->quote_monthly) : '' }}</td>
+          </tr>
+        @empty
+          <tr><td colspan="11" style="color:var(--sx-dim);padding:22px 10px">No prospects match these filters.</td></tr>
+        @endforelse
+      </tbody>
+    </table>
+    <div class="sx-pager">
+      <span>{{ number_format($list['total']) }} prospects</span>
+      @if($list['pages'] > 1)
+        <span style="margin-left:auto">Page {{ $listPage }} of {{ $list['pages'] }}</span>
+        <button class="sx-btn sm" wire:click="$set('listPage', {{ max(1, $listPage - 1) }})" @disabled($listPage <= 1)>Previous</button>
+        <button class="sx-btn sm" wire:click="$set('listPage', {{ min($list['pages'], $listPage + 1) }})" @disabled($listPage >= $list['pages'])>Next</button>
+      @endif
+    </div>
+  @endif
 </div>
 
 @if($cur)
@@ -172,13 +296,22 @@
           <span style="{{ $muted }}">{{ $cur->enriched_at ? 'Details pulled ' . $cur->enriched_at->diffForHumans() : 'Phone and hours not yet pulled.' }}</span>
           <button class="spb-btn sm" wire:click="enrich" wire:loading.attr="disabled"><span wire:loading.remove wire:target="enrich">{{ $cur->enriched_at ? 'Refresh from Places' : 'Pull details from Places' }}</span><span wire:loading wire:target="enrich">Pulling…</span></button>
         </div>
+        {{-- MARKER-SALES-PROSPECTS2 — industry and contact are editable here; the email is what prospect email goes to. --}}
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 10px;margin-bottom:8px">
+          <div><div style="{{ $muted }}">Industry</div>
+            <select class="sx-in" style="width:100%" wire:change="setIndustry($event.target.value)"><option value="">None</option>@foreach($inds as $ind)<option value="{{ $ind->id }}" @selected($cur->channel_id === $ind->id)>{{ $ind->name }}</option>@endforeach</select></div>
+          <div></div>
+          <div><div style="{{ $muted }}">Contact name</div><input type="text" class="sx-in" style="width:100%" wire:model="contactName"></div>
+          <div><div style="{{ $muted }}">Email</div><input type="email" class="sx-in" style="width:100%" wire:model="contactEmail"></div>
+        </div>
+        @error('contactEmail')<div style="color:#f47c7c;font-size:12px;margin-bottom:6px">{{ $message }}</div>@enderror
+        <div style="text-align:right;margin-bottom:16px"><button class="spb-btn sm p" wire:click="saveContact">Save contact</button></div>
         <div class="spb-kv">
           <b>Address</b><span>{{ $cur->address ?: '—' }}{{ $cur->postcode ? ' ' . $cur->postcode : '' }}</span>
           <b>Phone</b><span>{{ $cur->phone ?: '—' }}</span>
           <b>Website</b><span>@if($cur->website)<a href="{{ $cur->website }}" target="_blank" rel="noopener" style="color:#a78bfa">{{ parse_url($cur->website, PHP_URL_HOST) ?: $cur->website }}</a>@else — @endif</span>
           <b>Hours</b><span>{{ $cur->hours ?: '—' }}</span>
           <b>Google</b><span>@if($cur->rating)★ {{ $cur->rating }} · {{ $cur->rating_count }} reviews @else — @endif @if($cur->business_status && $cur->business_status !== 'OPERATIONAL') · <span style="color:#f87171">{{ $cur->businessStatusLabel() }}</span>@endif @if($cur->google_maps_url) · <a href="{{ $cur->google_maps_url }}" target="_blank" rel="noopener" style="color:#a78bfa">map</a>@endif</span>
-          <b>Contact</b><span>{{ $cur->owner_contact ?: '—' }}{{ $cur->email ? ' · ' . $cur->email : '' }}</span>
           <b>Type</b><span>{{ $cur->type ?: ($cur->primary_type ? str_replace('_', ' ', $cur->primary_type) : '—') }}</span>
           <b>Rep</b><span>{{ $cur->rep?->name ?? 'Unassigned' }}{{ $cur->rep?->agency ? ' · ' . $cur->rep->agency->name : '' }}</span>
           <b>Next action</b><span>@if($cur->next_action_on){{ $cur->next_action_on->format('M j') }} · {{ $cur->next_action }} <button class="spb-btn sm" wire:click="clearNext" style="margin-left:6px">Clear</button>@else — @endif</span>
@@ -186,6 +319,12 @@
           <b>Source</b><span>{{ $cur->source ?: '—' }}</span>
           @if($cur->lost_reason)<b>Lost</b><span style="color:#f87171">{{ $cur->lost_reason }}</span>@endif
         </div>
+        @if($cur->channel)
+          <div class="sx-play"><b>{{ $cur->channel->name }} pitch</b>
+            @if($cur->channel->best_ask)<div style="margin-top:4px;color:var(--sx-dim)">Best opening ask: {{ $cur->channel->best_ask }}</div>@endif
+            @if($cur->channel->playbook)<ol>@foreach((array) $cur->channel->playbook as $step)<li>{{ is_array($step) ? implode(' ', array_map('strval', $step)) : $step }}</li>@endforeach</ol>@endif
+          </div>
+        @endif
       </div>
     @elseif($tab === 'timeline')
       <div class="spb-tp">
@@ -246,9 +385,11 @@
 <script>
   // MARKER-SALES-BOARD — drag/drop is delegated on the board container so it survives Livewire re-renders.
   (function () {
-    var board = document.getElementById('spb-board'); if (!board) { return; }
+    // MARKER-SALES-PROSPECTS2 — listen on the document: the board isn't on the page in List view.
+    if (window.__spbDrag) { return; } window.__spbDrag = true;
+    var board = document;
     var dragId = null;
-    function lw() { var c = board.closest('[wire\\:id]'); return (c && window.Livewire) ? Livewire.find(c.getAttribute('wire:id')) : null; }
+    function lw() { var r = document.querySelector('.sx-root'); var c = r ? r.closest('[wire\\:id]') : null; return (c && window.Livewire) ? Livewire.find(c.getAttribute('wire:id')) : null; }
     board.addEventListener('dragstart', function (e) { var c = e.target.closest('.spb-card'); if (!c) { return; } dragId = c.getAttribute('data-id'); e.dataTransfer.effectAllowed = 'move'; try { e.dataTransfer.setData('text/plain', dragId); } catch (x) {} });
     board.addEventListener('dragover', function (e) { var col = e.target.closest('.spb-col'); if (!col || !dragId) { return; } e.preventDefault(); board.querySelectorAll('.spb-col.over').forEach(function (x) { if (x !== col) { x.classList.remove('over'); } }); col.classList.add('over'); });
     board.addEventListener('dragleave', function (e) { var col = e.target.closest('.spb-col'); if (col && !col.contains(e.relatedTarget)) { col.classList.remove('over'); } });

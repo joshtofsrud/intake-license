@@ -31,6 +31,7 @@ class SalesProspectResource extends Resource
     protected static ?string $navigationIcon  = 'heroicon-o-flag';
     protected static ?string $navigationGroup = 'Sales';
     protected static ?string $navigationLabel = 'Prospects';
+    protected static bool $shouldRegisterNavigation = false; // MARKER-SALES-PROSPECTS2 — the Prospects page (SalesPipeline) replaces this list; edit/create stay
     protected static ?int    $navigationSort  = 20;
     protected static ?string $recordTitleAttribute = 'shop';
     protected static ?string $modelLabel       = 'prospect';

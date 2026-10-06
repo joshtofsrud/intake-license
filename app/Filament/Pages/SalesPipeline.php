@@ -20,13 +20,13 @@ use Illuminate\Support\Facades\DB;
 class SalesPipeline extends Page
 {
     use \App\Support\UsesAdminNav;
-    protected static ?string $navigationIcon  = 'heroicon-o-view-columns';
-    protected static ?string $navigationLabel = 'Pipeline';
+    protected static ?string $navigationIcon  = 'heroicon-o-flag';
+    protected static ?string $navigationLabel = 'Prospects'; // MARKER-SALES-PROSPECTS2 — Pipeline + the Prospects list, one page
     protected static ?string $navigationGroup = 'Sales';
     protected static ?int    $navigationSort  = 8;
     protected static string  $view            = 'filament.pages.sales-pipeline';
     protected static ?string $slug            = 'sales-pipeline';
-    protected static ?string $title           = 'Pipeline';
+    protected static ?string $title           = 'Prospects';
 
     public const PER_COLUMN = 80;
 
@@ -67,6 +67,9 @@ class SalesPipeline extends Page
     public function mount(): void
     {
         abort_unless(static::canAccess(), 403);
+        $this->mode       = in_array(session('sales.view'), ['board', 'list'], true) ? session('sales.view') : 'board';
+        $this->industryId = (string) session('sales.industry', '');
+        if ($this->industryId !== '' && ! \App\Models\SalesChannel::whereKey($this->industryId)->exists()) $this->industryId = '';
         if ($id = request()->query('open')) $this->open($id);
     }
 
@@ -81,6 +84,7 @@ class SalesPipeline extends Page
     protected function baseQuery()
     {
         return SalesProspect::query()->with(['rep', 'territory'])
+            ->when($this->industryId, fn ($q) => $q->where('channel_id', $this->industryId))
             ->when($this->territoryId === 'none', fn ($q) => $q->whereNull('territory_id'))
             ->when($this->territoryId && $this->territoryId !== 'none', fn ($q) => $q->where('territory_id', $this->territoryId))
             ->when($this->repId === 'none', fn ($q) => $q->whereNull('sales_rep_id'))
@@ -127,7 +131,7 @@ class SalesPipeline extends Page
 
     public function current(): ?SalesProspect
     {
-        return $this->openId ? SalesProspect::with(['rep.agency', 'territory', 'tenant', 'activities'])->find($this->openId) : null;
+        return $this->openId ? SalesProspect::with(['rep.agency', 'territory', 'tenant', 'activities', 'channel'])->find($this->openId) : null;
     }
 
     // ---------------------------------------------------------------- board actions
@@ -150,6 +154,7 @@ class SalesPipeline extends Page
         $this->notes = (string) $p->notes; $this->lostReason = (string) $p->lost_reason;
         $this->quoteTier = $p->quote_tier; $this->quoteAddons = array_values((array) $p->quote_addons);
         $this->logBody = ''; $this->logNext = null; $this->logNextAction = '';
+        $this->contactName = (string) $p->owner_contact; $this->contactEmail = (string) $p->email;
     }
 
     public function close(): void { $this->openId = null; $this->showInvite = false; }
@@ -281,6 +286,163 @@ class SalesPipeline extends Page
         } catch (\Throwable $e) {
             Notification::make()->title('Places failed')->body($e->getMessage())->danger()->send();
         }
+    }
+
+    // ---------------------------------------------------------------- MARKER-SALES-PROSPECTS2
+    // Pipeline and the Prospects list are one page now: Board or List, one set
+    // of filters, scoped to an industry. The old list (SalesProspectResource)
+    // stays only for its full-record edit and create pages.
+    public string $mode       = 'board';
+    public string $industryId = '';
+    public array  $selected   = [];
+    public int    $listPage   = 1;
+    public string $bulkAction = '';
+    public string $bulkValue  = '';
+    public bool   $confirmPull = false;
+    public string $contactName  = '';
+    public string $contactEmail = '';
+
+    public const LIST_PER_PAGE = 50;
+    public const PULL_LIMIT    = 100;
+
+    public function updatedMode(): void       { session(['sales.view' => $this->mode]); $this->selected = []; }
+    public function updatedIndustryId(): void { session(['sales.industry' => $this->industryId]); $this->listPage = 1; $this->selected = []; }
+    public function updated($name): void
+    {
+        if (in_array($name, ['q', 'territoryId', 'repId', 'priority', 'dueOnly', 'hideUntouched', 'showClosed'], true)) {
+            $this->listPage = 1; $this->selected = [];
+        }
+    }
+
+    /** Industries with how many prospects each has, for the switcher. */
+    public function industries()
+    {
+        return \App\Models\SalesChannel::query()->where('status', '!=', 'stub')
+            ->withCount('prospects')->orderByDesc('prospects_count')->orderBy('name')->get(['id', 'name', 'best_ask', 'playbook', 'status']);
+    }
+
+    public function stats(): array
+    {
+        $base = SalesProspect::query()->when($this->industryId, fn ($q) => $q->where('channel_id', $this->industryId));
+        $total = (clone $base)->count();
+        $plans = \App\Support\PlanPricing::all();
+        $floor = $plans ? min(array_filter($plans)) / 100 : 89;
+        return [
+            'total'    => $total,
+            'a'        => (clone $base)->where('priority', 'A')->count(),
+            'verified' => (clone $base)->where('verified', true)->count(),
+            'trials'   => (clone $base)->where('stage', 'trial')->count(),
+            'won'      => (clone $base)->where('stage', 'won')->count(),
+            'tenants'  => (clone $base)->whereNotNull('tenant_id')->count(),
+            'due'      => (clone $base)->open()->whereNotNull('next_action_on')->whereDate('next_action_on', '<=', now())->count(),
+            'value'    => (int) round((clone $base)->whereIn('priority', ['A', 'B'])->get(['lead_score'])->sum(fn ($p) => ($p->lead_score / 110) * $floor)),
+        ];
+    }
+
+    /** How many prospects "Hide untouched" is hiding right now. */
+    public function hiddenCount(): int
+    {
+        if (! $this->hideUntouched) return 0;
+        $was = $this->hideUntouched;
+        $this->hideUntouched = false;
+        $all = (clone $this->baseQuery())->when(! $this->showClosed, fn ($q) => $q->open())->count();
+        $this->hideUntouched = $was;
+        $shown = (clone $this->baseQuery())->when(! $this->showClosed, fn ($q) => $q->open())->count();
+        return max(0, $all - $shown);
+    }
+
+    public function listRows(): array
+    {
+        $q = (clone $this->baseQuery())->with(['channel'])->when(! $this->showClosed, fn ($w) => $w->open());
+        $total = (clone $q)->count();
+        $pages = max(1, (int) ceil($total / self::LIST_PER_PAGE));
+        $this->listPage = min(max(1, $this->listPage), $pages);
+        $rows = $q->orderByRaw('CASE WHEN next_action_on IS NOT NULL AND next_action_on <= CURDATE() THEN 0 ELSE 1 END')
+            ->orderByDesc('lead_score')->orderBy('shop')
+            ->forPage($this->listPage, self::LIST_PER_PAGE)->get();
+        return ['rows' => $rows, 'total' => $total, 'pages' => $pages];
+    }
+
+    public function toggleAllOnPage(array $ids): void
+    {
+        $allIn = ! array_diff($ids, $this->selected);
+        $this->selected = $allIn ? array_values(array_diff($this->selected, $ids)) : array_values(array_unique(array_merge($this->selected, $ids)));
+    }
+
+    public function applyBulk(): void
+    {
+        $ids = array_values(array_unique($this->selected));
+        if (! $ids || $this->bulkAction === '') return;
+        $by = Auth::user()?->name ?? 'staff';
+        $rows = SalesProspect::query()->whereIn('id', $ids)->get();
+        $n = 0;
+
+        switch ($this->bulkAction) {
+            case 'stage':
+                if (! isset(SalesProspect::STAGES[$this->bulkValue]) || $this->bulkValue === 'lost') {
+                    Notification::make()->title('Pick a stage. To mark a shop lost, open it and give the reason.')->warning()->send(); return;
+                }
+                foreach ($rows as $p) if ($p->stage !== $this->bulkValue) { $p->advanceTo($this->bulkValue, "Set in bulk by $by"); $n++; }
+                break;
+            case 'rep':
+                $rep = $this->bulkValue ? SalesRep::find($this->bulkValue) : null;
+                foreach ($rows as $p) {
+                    $p->update(['sales_rep_id' => $rep?->id, 'agency_id' => $rep?->agency_id]);
+                    $p->activities()->create(['type' => 'system', 'body' => $rep ? "Assigned to {$rep->name} by $by" : "Rep cleared by $by"]);
+                    $n++;
+                }
+                break;
+            case 'industry':
+                $c = $this->bulkValue ? \App\Models\SalesChannel::find($this->bulkValue) : null;
+                foreach ($rows as $p) { $p->update(['channel_id' => $c?->id]); $n++; }
+                break;
+            case 'territory':
+                \App\Services\Sales\TerritoryResolver::forget();
+                foreach ($rows as $p) if (\App\Services\Sales\TerritoryResolver::apply($p)) $n++;
+                break;
+            case 'verify':
+                foreach ($rows as $p) if (! $p->verified) { $p->update(['verified' => true]); $p->activities()->create(['type' => 'system', 'body' => "Marked verified by $by"]); $n++; }
+                break;
+            case 'pull':
+                if (count($ids) > self::PULL_LIMIT) {
+                    Notification::make()->title('Pull details for at most ' . self::PULL_LIMIT . ' shops at a time')->warning()->send(); return;
+                }
+                if (! $this->confirmPull) { $this->confirmPull = true; return; }
+                $this->confirmPull = false;
+                foreach ($rows as $p) {
+                    try { if (\App\Services\Sales\ProspectEnricher::enrich($p) !== 'no record') $n++; } catch (\Throwable $e) { report($e); }
+                }
+                break;
+            default:
+                return;
+        }
+
+        $this->selected = []; $this->bulkAction = ''; $this->bulkValue = '';
+        Notification::make()->title("$n of " . count($ids) . ' updated')->success()->send();
+    }
+
+    public function cancelPull(): void { $this->confirmPull = false; }
+
+    public function pullCostCents(): int
+    {
+        return count($this->selected) * \App\Models\SalesSetting::placesCostCents();
+    }
+
+    public function setIndustry(string $channelId): void
+    {
+        $p = $this->current(); if (! $p) return;
+        $c = $channelId ? \App\Models\SalesChannel::find($channelId) : null;
+        $p->update(['channel_id' => $c?->id]);
+        $p->activities()->create(['type' => 'system', 'body' => 'Industry: ' . ($c?->name ?? 'none')]);
+    }
+
+    public function saveContact(): void
+    {
+        $p = $this->current(); if (! $p) return;
+        $this->validate(['contactName' => ['nullable', 'string', 'max:191'], 'contactEmail' => ['nullable', 'email', 'max:191']],
+            ['contactEmail.email' => 'That email address doesn\'t look right.']);
+        $p->update(['owner_contact' => trim($this->contactName) ?: null, 'email' => strtolower(trim($this->contactEmail)) ?: null]);
+        Notification::make()->title('Contact saved')->success()->send();
     }
 
     public function editUrl(string $id): string
