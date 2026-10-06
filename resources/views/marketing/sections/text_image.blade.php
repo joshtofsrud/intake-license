@@ -46,6 +46,7 @@
     $icon     = ($c['acc_icon'] ?? 'plus') === 'arrow' ? 'arrow' : 'plus';
     $numbers  = ($c['acc_numbers'] ?? 'show') !== 'hide';
     $lightbox = $flag('img_lightbox', false); // MARKER-TI-LIGHTBOX
+    $accMid   = ($c['acc_img_valign'] ?? 'middle') !== 'top'; // MARKER-TI-VALIGN — image beside the list: middle (default) or top
 @endphp
 <section class="{{ $padding }} {{ $bgId }} {{ $tiId }}" @if($lightbox) data-ti-lb @endif @if(!empty($inlineStyle ?? '')) style="{{ $inlineStyle }}" @endif>
 <style>
@@ -59,7 +60,7 @@
   .{{ $tiId }} .ti-img img { width: 100%; @if($aspect !== 'auto') height: 100%; object-fit: cover; @endif }
   @if($lightbox) .{{ $tiId }} .ti-img img { cursor: zoom-in; } @endif
   .{{ $tiId }} .ti-ph { aspect-ratio: 4/3; display: flex; align-items: center; justify-content: center; color: var(--mk-dim); font-size: 14px; }
-  .{{ $tiId }} .ti-grid { display: grid; grid-template-columns: {{ $cols }}; gap: clamp(28px, 5vw, 64px); align-items: {{ $style === 'accordion' ? 'start' : 'center' }}; }
+  .{{ $tiId }} .ti-grid { display: grid; grid-template-columns: {{ $cols }}; gap: clamp(28px, 5vw, 64px); align-items: {{ $style === 'accordion' && ! $accMid ? 'start' : 'center' }}; }
   .{{ $tiId }} .ti-grid > .ti-side-img { order: {{ $imgRight ? 2 : 1 }}; }
   .{{ $tiId }} .ti-grid > .ti-side-text { order: {{ $imgRight ? 1 : 2 }}; }
   @media (max-width: 760px) {
@@ -103,7 +104,7 @@
   .{{ $tiId }} .ti-inner .ti-body { max-width: 46ch; }
   .{{ $tiId }} .ti-inner .mk-btn { margin-top: 18px; }
   .{{ $tiId }} .ti-inner .ti-img-in { display: none; }
-  .{{ $tiId }} .ti-stage { position: sticky; top: 24px; }
+  @if(! $accMid) .{{ $tiId }} .ti-stage { position: sticky; top: 24px; } @endif
   .{{ $tiId }} .ti-stage .ti-img { position: relative; }
   .{{ $tiId }} .ti-stage .ti-img img, .{{ $tiId }} .ti-stage .ti-img .ti-ph { position: absolute; inset: 0; opacity: 0; transform: scale(1.02); transition: opacity .45s ease, transform .6s ease; }
   .{{ $tiId }} .ti-stage .ti-img .is-on { opacity: 1; transform: none; }

@@ -236,6 +236,16 @@
         <input type="hidden" data-field="acc_numbers" value="{{ $get('acc_numbers', 'show') }}">
       </div>
     </div>
+    {{-- MARKER-TI-VALIGN --}}
+    <div class="pb2-field">
+      <label class="pb2-field-label">Image alignment <span class="pb2-field-hint">beside the list</span></label>
+      <div class="pb2-seg" data-field-seg="acc_img_valign">
+        @foreach(['middle' => 'Middle', 'top' => 'Top'] as $val => $name)
+          <button type="button" class="pb2-seg-btn {{ $get('acc_img_valign', 'middle') === $val ? 'active' : '' }}" data-seg-value="{{ $val }}">{{ $name }}</button>
+        @endforeach
+      </div>
+      <input type="hidden" data-field="acc_img_valign" value="{{ $get('acc_img_valign', 'middle') }}">
+    </div>
     <label class="pb2-checkbox-row"><input type="checkbox" data-field="acc_first_open" value="1" {{ $tiFlag('acc_first_open', true) ? 'checked' : '' }}><span>Open the first item on load</span></label>
     <label class="pb2-checkbox-row"><input type="checkbox" data-field="acc_multi" value="1" {{ $tiFlag('acc_multi', false) ? 'checked' : '' }}><span>Allow several open at once</span></label>
     <label class="pb2-checkbox-row"><input type="checkbox" data-field="acc_auto" value="1" {{ $tiFlag('acc_auto', false) ? 'checked' : '' }}><span>Move to the next item on its own</span></label>
