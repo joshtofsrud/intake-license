@@ -93,9 +93,41 @@ class PostmarkWebhookController extends Controller
      * via the send_id metadata, then recompute the campaign's counters from
      * the rows. Recomputing (not incrementing) makes replayed webhooks safe.
      */
+    /**
+     * MARKER-SALES-EMAIL — opens and clicks for platform campaign sends (tagged
+     * platform_send_id). Recounted, not incremented, so replays are safe. A
+     * prospect's first open and first click land on its timeline.
+     */
+    protected function handlePlatformEngagement(string $type, string $sendId)
+    {
+        $row = \App\Models\PlatformCampaignSend::find($sendId);
+        if (! $row) return response('OK', 200);
+
+        $first = $type === 'Open' ? ! $row->opened_at : ! $row->clicked_at;
+        $row->update($type === 'Open'
+            ? ['opened_at' => $row->opened_at ?: now()]
+            : ['clicked_at' => $row->clicked_at ?: now(), 'opened_at' => $row->opened_at ?: now()]);
+
+        $rows = \App\Models\PlatformCampaignSend::where('campaign_id', $row->campaign_id);
+        \App\Models\PlatformCampaign::whereKey($row->campaign_id)->update([
+            'total_opened'  => (clone $rows)->whereNotNull('opened_at')->count(),
+            'total_clicked' => (clone $rows)->whereNotNull('clicked_at')->count(),
+        ]);
+
+        if ($first && $row->source_type === 'prospects' && $row->source_id) {
+            $p = \App\Models\SalesProspect::find($row->source_id);
+            $name = (string) \App\Models\PlatformCampaign::whereKey($row->campaign_id)->value('name');
+            $p?->activities()->create(['type' => 'email', 'body' => ($type === 'Open' ? 'Opened: ' : 'Clicked a link in: ') . $name]);
+        }
+        return response('OK', 200);
+    }
+
     protected function handleEngagement(string $type, array $payload)
     {
         $meta   = $payload['Metadata'] ?? [];
+        if (! empty($meta['platform_send_id'])) { // MARKER-SALES-EMAIL
+            return $this->handlePlatformEngagement($type, (string) $meta['platform_send_id']);
+        }
         $sendId = $meta['send_id'] ?? null;
         if (! $sendId) {
             return response('OK', 200);

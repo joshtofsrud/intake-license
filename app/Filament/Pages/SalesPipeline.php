@@ -157,7 +157,7 @@ class SalesPipeline extends Page
         $this->contactName = (string) $p->owner_contact; $this->contactEmail = (string) $p->email;
     }
 
-    public function close(): void { $this->openId = null; $this->showInvite = false; }
+    public function close(): void { $this->openId = null; $this->showInvite = false; $this->showEmail = false; }
 
     // ---------------------------------------------------------------- MARKER-SALES-INVITE
     public function openInvite(): void
@@ -413,6 +413,9 @@ class SalesPipeline extends Page
                     try { if (\App\Services\Sales\ProspectEnricher::enrich($p) !== 'no record') $n++; } catch (\Throwable $e) { report($e); }
                 }
                 break;
+            case 'email': // MARKER-SALES-EMAIL
+                $this->emailSelected($ids);
+                return;
             default:
                 return;
         }
@@ -443,6 +446,93 @@ class SalesPipeline extends Page
             ['contactEmail.email' => 'That email address doesn\'t look right.']);
         $p->update(['owner_contact' => trim($this->contactName) ?: null, 'email' => strtolower(trim($this->contactEmail)) ?: null]);
         Notification::make()->title('Contact saved')->success()->send();
+    }
+
+    // ---------------------------------------------------------------- MARKER-SALES-EMAIL
+    // One-off email to a prospect, from the drawer. Goes out on the platform
+    // broadcast stream with the unsubscribe link and postal address, honours
+    // platform opt-outs, and lands on the prospect's timeline. Replies come
+    // back into the platform inbox.
+    public bool   $showEmail    = false;
+    public string $emailSubject = '';
+    public string $emailBody    = '';
+
+    public function openEmail(): void
+    {
+        $p = $this->current(); if (! $p) return;
+        $this->showEmail = true;
+        $this->emailSubject = '';
+        $first = trim(explode(' ', (string) $p->owner_contact)[0] ?? '');
+        $this->emailBody = ($first !== '' ? "Hi $first,\n\n" : "Hi,\n\n");
+    }
+
+    public function sendEmail(): void
+    {
+        $p = $this->current(); if (! $p) return;
+        $this->validate(['emailSubject' => ['required', 'string', 'max:191'], 'emailBody' => ['required', 'string', 'max:10000']],
+            ['emailSubject.required' => 'Add a subject.', 'emailBody.required' => 'Write the message.']);
+        $to = strtolower(trim((string) $p->email));
+        if (! filter_var($to, FILTER_VALIDATE_EMAIL)) {
+            Notification::make()->title('Add an email address for this shop first')->warning()->send(); return;
+        }
+        if (\App\Models\PlatformEmailOptout::has($to)) {
+            Notification::make()->title('Not sent: this address unsubscribed from Intake email')->warning()->send(); return;
+        }
+
+        $footer = '<p style="font-size:12px;color:#777;margin-top:28px">' . e(\App\Services\Platform\PlatformMailer::fromName())
+            . (\App\Services\Platform\PlatformMailer::postalAddress() ? ' · ' . e(\App\Services\Platform\PlatformMailer::postalAddress()) : '')
+            . '<br><a href="' . e(\App\Http\Controllers\Platform\PlatformUnsubscribeController::url($to)) . '" style="color:#777">Unsubscribe</a></p>';
+        $html = '<div style="font-family:Inter,Arial,sans-serif;font-size:15px;line-height:1.6;color:#111">' . nl2br(e(trim($this->emailBody))) . $footer . '</div>';
+
+        $thread = \App\Models\PlatformInboxMessage::create([
+            'kind'    => \App\Models\PlatformInboxMessage::KIND_CONTACT,
+            'status'  => 'archived',
+            'name'    => $p->owner_contact ?: $p->shop,
+            'email'   => $to,
+            'company' => $p->shop,
+            'subject' => trim($this->emailSubject),
+            'body'    => 'Emailed from Prospects: ' . trim($this->emailBody),
+            'meta'    => ['origin' => 'prospect_email', 'prospect' => $p->id],
+        ]);
+
+        try {
+            $ok = \App\Services\Platform\PlatformMailer::send($to, $p->owner_contact ?: null, trim($this->emailSubject), $html,
+                \App\Http\Controllers\Platform\PlatformUnsubscribeController::url($to), ['X-PM-Metadata-prospect' => $p->id], $thread->replyToken());
+        } catch (\Throwable $e) {
+            report($e);
+            \App\Services\Platform\PlatformMailer::log('prospect', $to, trim($this->emailSubject), ['status' => 'failed', 'error' => mb_substr($e->getMessage(), 0, 400)]);
+            Notification::make()->title('Not sent')->body($e->getMessage())->danger()->send(); return;
+        }
+        if (! $ok) {
+            $thread->delete();
+            Notification::make()->title('Not sent: platform email has no broadcast stream set')->body('Set it on Platform email, then try again.')->warning()->send(); return;
+        }
+
+        \App\Services\Platform\PlatformMailer::log('prospect', $to, trim($this->emailSubject));
+        $p->activities()->create(['type' => 'email', 'body' => 'Emailed: ' . trim($this->emailSubject) . ' (' . (Auth::user()?->name ?? 'staff') . ')']);
+        $changes = ['last_contacted_at' => now()];
+        if ($p->stage === 'prospect') $changes['stage'] = 'contacted';
+        $p->update($changes);
+        $this->showEmail = false; $this->emailSubject = ''; $this->emailBody = '';
+        Notification::make()->title('Sent to ' . $to)->success()->send();
+    }
+
+    /** "Email selected": an audience of exactly these shops, then on to Platform email to write the campaign. */
+    protected function emailSelected(array $ids): void
+    {
+        $withEmail = SalesProspect::query()->whereIn('id', $ids)->whereNotNull('email')->where('email', '!=', '')->count();
+        if ($withEmail === 0) {
+            Notification::make()->title('None of the selected shops has an email address')->warning()->send(); return;
+        }
+        $aud = \App\Models\PlatformAudience::create([
+            'name'   => 'Prospects: ' . count($ids) . ' selected, ' . now()->format('M j, g:ia'),
+            'source' => 'prospects',
+            'rules'  => [['field' => 'ids', 'op' => 'is', 'value' => implode(',', $ids)]],
+        ]);
+        $this->selected = []; $this->bulkAction = '';
+        Notification::make()->title("Audience \"{$aud->name}\" created")
+            ->body("$withEmail of " . count($ids) . ' have an email address. Pick this audience when you create the campaign.')->success()->send();
+        $this->redirect(\App\Filament\Pages\PlatformCommunication::getUrl() . '?tab=campaigns');
     }
 
     public function editUrl(string $id): string

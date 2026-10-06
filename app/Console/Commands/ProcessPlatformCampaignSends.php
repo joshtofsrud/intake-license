@@ -86,13 +86,16 @@ class ProcessPlatformCampaignSends extends Command
                     $this->merge((string) $campaign->subject, $row),
                     $html,
                     PlatformUnsubscribeController::url($row->email),
-                    ['X-PM-Metadata-platform_campaign' => $campaign->id],
+                    ['X-PM-Metadata-platform_campaign' => $campaign->id, 'X-PM-Metadata-platform_send_id' => $row->id], // MARKER-SALES-EMAIL
                     $thread->replyToken()
                 );
 
                 if ($ok) {
                     $row->update(['status' => 'sent', 'sent_at' => now()]);
                     $campaign->increment('total_sent');
+                    if ($row->source_type === 'prospects' && $row->source_id) { // MARKER-SALES-EMAIL
+                        \App\Models\SalesProspect::find($row->source_id)?->activities()->create(['type' => 'email', 'body' => 'Emailed: ' . $campaign->name]);
+                    }
                     $sent++;
                 } else {
                     $row->update(['status' => 'failed', 'error' => 'no stream configured']);

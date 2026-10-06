@@ -180,6 +180,7 @@
           <option value="">Choose an action</option><option value="stage">Set stage</option><option value="rep">Assign rep</option>
           <option value="industry">Set industry</option><option value="territory">Assign by territory rules</option>
           <option value="verify">Mark verified</option><option value="pull">Pull details from Places</option>
+          <option value="email">Email selected (opens Platform email)</option>
         </select>
         @if($bulkAction === 'stage')<select class="sx-in" wire:model="bulkValue"><option value="">Stage…</option>@foreach(\App\Models\SalesProspect::STAGES as $k => $v)@if($k !== 'lost')<option value="{{ $k }}">{{ $v }}</option>@endif @endforeach</select>@endif
         @if($bulkAction === 'rep')<select class="sx-in" wire:model="bulkValue"><option value="">House (no rep)</option>@foreach($this->reps() as $r)<option value="{{ $r->id }}">{{ $r->name }}</option>@endforeach</select>@endif
@@ -251,6 +252,25 @@
           <button class="spb-btn sm" style="margin-left:auto;background:#BEF264;border-color:#BEF264;color:#0a0a0a" wire:click="openInvite">{{ $cur->invited_at ? 'Re-send trial invite' : 'Invite to trial' }}</button>
         @endif
       </div>
+      {{-- MARKER-SALES-EMAIL --}}
+      <div style="display:flex;gap:8px;margin-top:10px;align-items:center">
+        @if($cur->email)
+          <button class="spb-btn sm" wire:click="openEmail">Email {{ $cur->email }}</button>
+        @else
+          <span style="{{ $muted }}">Add an email address on Profile to email this shop.</span>
+        @endif
+      </div>
+      @if($showEmail)
+        <div style="{{ $card }};margin-top:10px">
+          <div style="font-weight:600;font-size:13px;margin-bottom:4px">Email {{ $cur->owner_contact ?: $cur->shop }}</div>
+          <div style="{{ $muted }};margin-bottom:8px">Sent from Intake's platform email with an unsubscribe link and your postal address. Replies arrive in the platform inbox. It's added to this shop's timeline.</div>
+          <input type="text" class="sx-in" style="width:100%;margin-bottom:8px" wire:model="emailSubject" placeholder="Subject">
+          @error('emailSubject')<div style="color:#f47c7c;font-size:12px;margin:-4px 0 6px">{{ $message }}</div>@enderror
+          <textarea class="sx-in" rows="7" style="width:100%" wire:model="emailBody"></textarea>
+          @error('emailBody')<div style="color:#f47c7c;font-size:12px;margin-top:4px">{{ $message }}</div>@enderror
+          <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px"><button class="spb-btn" wire:click="$set('showEmail', false)">Cancel</button><button class="spb-btn p" wire:click="sendEmail" wire:loading.attr="disabled">Send</button></div>
+        </div>
+      @endif
       {{-- MARKER-SALES-INVITE --}}
       @if($cur->invited_at && ! $cur->tenant_id)
         <div style="{{ $muted }};margin-top:8px">Invite sent {{ $cur->invited_at->diffForHumans() }} to {{ $cur->invite_email }} · {{ ucfirst($cur->invite_plan) }} · <a href="{{ \App\Services\Sales\ProspectConversion::signupUrl($cur) }}" target="_blank" rel="noopener" style="color:#a78bfa">signup link</a></div>
