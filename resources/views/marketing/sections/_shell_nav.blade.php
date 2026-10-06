@@ -114,7 +114,7 @@
     @media (prefers-reduced-motion: reduce) { .mk-hamburger, .mk-hamburger span { transition: none; } }
     /* MARKER-MKT-MENU-GROUPS — dropdown panels (desktop) and accordion (phone) */
     .mk-dd { position: relative; }
-    .mk-dd-btn { display: inline-flex; align-items: center; gap: 6px; background: none; border: 0; font: inherit; cursor: pointer; }
+    .mk-dd-btn { display: inline-flex; align-items: center; gap: 6px; background: none; border: 0; font-family: inherit; cursor: pointer; } /* MARKER-NAV-DD-SIZE */
     .mk-dd-btn svg { transition: transform .2s; opacity: .7; }
     .mk-dd.on .mk-dd-btn svg { transform: rotate(180deg); }
     .mk-dd-panel { position: absolute; top: calc(100% + 14px); left: 50%; z-index: 60; transform: translateX(-50%) translateY(-6px); opacity: 0; visibility: hidden; pointer-events: none;
