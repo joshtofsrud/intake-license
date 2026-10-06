@@ -43,6 +43,7 @@ class SalesRouteDay extends Page
     /** @var array<int,string> ordered prospect ids */
     public array $route = [];
     public array $done  = [];
+    public bool  $showMap = false; // MARKER-TODAY-TIGHT — the map opens when a route is built
 
     public static function canAccess(): bool
     {
@@ -107,6 +108,7 @@ class SalesRouteDay extends Page
             $n = array_shift($pool); $route[] = $n->id; $cur = [(float) $n->lat, (float) $n->lng];
         }
         $this->route = $route; $this->done = [];
+        $this->showMap = true;
         $this->dispatch('route-updated');
         Notification::make()->title(count($route) . ' stops')->body(count($route) ? 'About ' . $this->totalMiles() . ' miles of driving.' : 'Nothing due with coordinates.')->success()->send();
     }
@@ -167,8 +169,8 @@ class SalesRouteDay extends Page
     // still to verify, and the drive for the visits — on one page.
     public string $industryId = '';
 
-    public function updatedIndustryId(): void { session(['sales.industry' => $this->industryId]); $this->route = []; }
-    public function updatedRepId(): void      { $this->route = []; }
+    public function updatedIndustryId(): void { session(['sales.industry' => $this->industryId]); $this->route = []; $this->showMap = false; }
+    public function updatedRepId(): void      { $this->route = []; $this->showMap = false; }
 
     public function industries()
     {
