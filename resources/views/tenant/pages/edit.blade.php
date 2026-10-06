@@ -66,6 +66,7 @@
     'book_call'              => 'Book a call', // MARKER-SCHED-SECTION
     'try_demo'               => 'Try the demo', // MARKER-DEMO-SECTION
     'roi'                    => 'ROI', // MARKER-ROI-SECTION
+    'feature_tiles'          => 'Feature tiles', // MARKER-FEATURE-TILES
     'stats_row'              => 'Stats row',
     'custom_html'            => 'Custom HTML', // MARKER-PATCH-306
   ];
@@ -105,6 +106,7 @@
     'book_call'      => '<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>', // MARKER-SCHED-SECTION
     'try_demo'       => '<polygon points="5 3 19 12 5 21 5 3"/>', // MARKER-DEMO-SECTION
     'roi'            => '<polyline points="4 17 9 12 13 15 20 7"/><polyline points="15 7 20 7 20 12"/>', // MARKER-ROI-SECTION
+    'feature_tiles'  => '<rect x="3" y="3" width="11" height="8" rx="1.5"/><rect x="16" y="3" width="5" height="8" rx="1.5"/><rect x="3" y="13" width="18" height="8" rx="1.5"/>', // MARKER-FEATURE-TILES
     'custom_html'    => '<polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>', // MARKER-PATCH-306
   ];
 
@@ -140,6 +142,7 @@
     'book_call'     => 'Let visitors book a call from your Scheduling calendar', // MARKER-SCHED-SECTION
     'try_demo'      => 'Send visitors into the live demo shop, signed in, no account', // MARKER-DEMO-SECTION
     'roi'           => 'Results with their sources, plus a rental extension calculator', // MARKER-ROI-SECTION
+    'feature_tiles' => 'Tiles that open a drawer with details and a screenshot', // MARKER-FEATURE-TILES
     'stats_row'     => 'Big-number stats row',
     'custom_html'   => 'Paste raw HTML, rendered as-is', // MARKER-PATCH-306
   ];
@@ -2254,7 +2257,7 @@ body.ia-theme-b .pb2-preview-frame-wrap {
             $allowed = $isBookingExtras
               ? ['hero','cta_banner','feature_grid','custom_html','text_image','image_gallery','image_carousel','stats_row','testimonial_carousel','faq_accordion','logo_bar','step_timeline','pricing_table'] // MARKER-PATCH-603 — content sections; chrome/shop/nav excluded
               : ($isMarketing
-              ? ['nav','hero','text_image','cta_banner','image_gallery','image_carousel','scroll_words','contact_form','feature_grid','step_timeline','faq_accordion','footer','pricing_table','testimonial_carousel','logo_bar','stats_row','comparison_table','industry_pack_showcase','book_call','try_demo','roi','custom_html','feature_groups'] /* MARKER-ROI-SECTION / MARKER-SCHED-SECTION / MARKER-DEMO-SECTION / MARKER-FEATURE-GROUPS (marketing only) */
+              ? ['nav','hero','text_image','cta_banner','image_gallery','image_carousel','scroll_words','contact_form','feature_grid','step_timeline','faq_accordion','footer','pricing_table','testimonial_carousel','logo_bar','stats_row','comparison_table','industry_pack_showcase','book_call','try_demo','roi','feature_tiles','custom_html','feature_groups'] /* MARKER-FEATURE-TILES / MARKER-ROI-SECTION / MARKER-SCHED-SECTION / MARKER-DEMO-SECTION / MARKER-FEATURE-GROUPS (marketing only) */
               : ['nav','hero','text_image','cta_banner','image_gallery','image_carousel','scroll_words','contact_form','booking_embed','classes_embed','feature_grid','step_timeline','faq_accordion','footer','testimonial_carousel','logo_bar','stats_row','pricing_table','rentals_showcase','rental_spotlight','rental_categories','rental_browse','products_showcase','custom_html']);
           @endphp
 
@@ -3392,6 +3395,12 @@ body.ia-theme-b .pb2-preview-frame-wrap {
     // MARKER-TI-ACCORDION — text_image style switch + accordion items
     initTiAccList(body);
 
+    // MARKER-FEATURE-TILES — feature tiles list
+    initFtList(body);
+
+    // MARKER-HERO-VIDEO — hero background video upload
+    initHeroVideo(body);
+
     // MARKER-PATCH-158-G34 — step_timeline steps list editor
     initStepsList(body);
   }
@@ -3513,6 +3522,99 @@ body.ia-theme-b .pb2-preview-frame-wrap {
   }
 
   // MARKER-TI-ACCORDION — Text + image: Classic/Accordion switch and the accordion's item list.
+  // MARKER-FEATURE-TILES — the Feature tiles list: edit, reorder, remove, add, images.
+  // MARKER-HERO-VIDEO — upload a background video into the hero's video field.
+  function initHeroVideo(body) {
+    const field = body.querySelector('input[data-field="bg_video_url"]');
+    const up = body.querySelector('[data-hero-video-upload]'), clr = body.querySelector('[data-hero-video-clear]'), st = body.querySelector('[data-hero-video-status]');
+    if (!field || !up) return;
+    const set = (v) => { field.value = v; field.dispatchEvent(new Event('input', { bubbles: true })); field.dispatchEvent(new Event('change', { bubbles: true })); };
+    if (clr) clr.addEventListener('click', () => set(''));
+    up.addEventListener('click', () => {
+      const input = document.createElement('input'); input.type = 'file'; input.accept = 'video/mp4,video/webm,video/quicktime,.mov'; input.style.display = 'none';
+      document.body.appendChild(input);
+      input.addEventListener('change', async () => {
+        const file = input.files && input.files[0]; input.remove(); if (!file) return;
+        if (file.size > 20 * 1024 * 1024) { IntakeConfirm.alert({ title: 'Video too large', message: 'Videos can be up to 20 MB. Shorten or compress it and try again.' }); return; }
+        if (st) st.textContent = 'Uploading\u2026';
+        const fd = new FormData(); fd.append('_token', getCsrf()); fd.append('file', file); fd.append('type', 'video');
+        try {
+          const resp = await fetch(UPLOAD_URL, { method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' } });
+          const data = await resp.json().catch(() => null);
+          if (data && data.ok && data.url) { set(data.url); if (st) st.textContent = 'Uploaded \u2713'; }
+          else {
+            if (st) st.textContent = '';
+            const msg = (data && (data.message || (data.errors && Object.values(data.errors)[0] && Object.values(data.errors)[0][0]))) || (resp.status === 413 ? 'The server refused a file this large. Its upload limit needs raising.' : 'Please try again.');
+            IntakeConfirm.alert({ title: 'Upload failed', message: msg });
+          }
+        } catch (e) { if (st) st.textContent = ''; IntakeConfirm.alert({ title: 'Upload failed', message: 'Please try again.' }); }
+      });
+      input.click();
+    });
+  }
+
+  function initFtList(body) {
+    const root = body.querySelector('#pb2-ft-list'), json = body.querySelector('#pb2-ft-json');
+    if (!root || !json) return;
+    const MAX = 12, count = body.querySelector('#pb2-ft-count'), addBtn = body.querySelector('#pb2-ft-add');
+    function serialize() {
+      const out = [];
+      root.querySelectorAll('.pb2-ftrow').forEach((row, i) => {
+        const it = {};
+        row.querySelectorAll('[data-ft-field]').forEach(el => { it[el.getAttribute('data-ft-field')] = el.type === 'checkbox' ? el.checked : el.value; });
+        const pos = row.querySelector('.pb2-faqrow-pos'); if (pos) pos.textContent = String(i + 1).padStart(2, '0');
+        const tt = row.querySelector('.pb2-ft-title'); if (tt) tt.textContent = it.title || 'Untitled';
+        if ((it.title || '').trim() === '') return;
+        out.push(it);
+      });
+      json.value = JSON.stringify(out);
+      json.dispatchEvent(new Event('change', { bubbles: true }));
+      if (count) count.textContent = out.length + ' / ' + MAX;
+    }
+    function thumb(row) {
+      const u = row.querySelector('[data-ft-field="d_image"]').value, t = row.querySelector('.pb2-tiacc-thumb');
+      t.style.backgroundImage = u ? 'url("' + u.replace(/"/g, '%22') + '")' : ''; t.textContent = u ? '' : 'No image';
+      const c = row.querySelector('[data-ft-clear]'); if (c) c.hidden = !u;
+    }
+    function wire(row) {
+      row.querySelectorAll('[data-ft-field]').forEach(el => { el.addEventListener('input', serialize); el.addEventListener('change', serialize); });
+      row.querySelector('[data-ft-toggle]').addEventListener('click', () => { const b = row.querySelector('[data-ft-body]'); b.hidden = !b.hidden; });
+      row.querySelector('[data-ft-remove]').addEventListener('click', () => { row.remove(); serialize(); });
+      row.querySelector('[data-ft-up]').addEventListener('click', () => { const p = row.previousElementSibling; if (p) { root.insertBefore(row, p); serialize(); } });
+      row.querySelector('[data-ft-clear]').addEventListener('click', () => { row.querySelector('[data-ft-field="d_image"]').value = ''; thumb(row); serialize(); });
+      row.querySelector('[data-ft-lib]').addEventListener('click', () => {
+        window.__tiAccPick = (url) => { row.querySelector('[data-ft-field="d_image"]').value = url || ''; thumb(row); serialize(); };
+        openMediaPicker('__tiacc_pick');
+      });
+      const st = row.querySelector('[data-ft-status]');
+      row.querySelector('[data-ft-upload]').addEventListener('click', () => {
+        const input = document.createElement('input'); input.type = 'file'; input.accept = 'image/jpeg,image/png,image/gif,image/webp,image/avif'; input.style.display = 'none';
+        document.body.appendChild(input);
+        input.addEventListener('change', async () => {
+          const file = input.files && input.files[0]; input.remove(); if (!file) return;
+          if (st) st.textContent = 'Uploading\u2026';
+          const fd = new FormData(); fd.append('_token', getCsrf()); fd.append('file', file); fd.append('type', 'general');
+          try {
+            const resp = await fetch(UPLOAD_URL, { method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' } });
+            const data = await resp.json();
+            if (data && data.ok && data.url) { row.querySelector('[data-ft-field="d_image"]').value = data.url; thumb(row); serialize(); if (st) st.textContent = 'Uploaded \u2713'; }
+            else { if (st) st.textContent = ''; IntakeConfirm.alert({ title: 'Upload failed', message: (data && data.message) || 'Please try again.' }); }
+          } catch (e) { if (st) st.textContent = ''; IntakeConfirm.alert({ title: 'Upload failed', message: 'Please try again.' }); }
+        });
+        input.click();
+      });
+      thumb(row);
+    }
+    root.querySelectorAll('.pb2-ftrow').forEach(wire);
+    if (addBtn) addBtn.addEventListener('click', () => {
+      if (root.querySelectorAll('.pb2-ftrow').length >= MAX) return;
+      const row = body.querySelector('#pb2-ft-tpl').content.firstElementChild.cloneNode(true);
+      root.appendChild(row); wire(row); row.querySelector('[data-ft-body]').hidden = false;
+      const t = row.querySelector('[data-ft-field="title"]'); if (t) { t.value = 'New tile'; t.focus(); t.select(); }
+      serialize();
+    });
+  }
+
   function initTiAccList(body) {
     const styleIn = body.querySelector('input[type="hidden"][data-field="ti_style"]');
     if (styleIn) {

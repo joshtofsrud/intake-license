@@ -24,6 +24,13 @@
   $gradFrom= $c['bg_gradient_from'] ?? '#1a1a1a';
   $gradTo  = $c['bg_gradient_to']   ?? '#0a0a0a';
   $gradDeg = (int)($c['bg_gradient_angle'] ?? 135);
+    // MARKER-HERO-VIDEO
+    $vidUrl  = trim((string) ($c['bg_video_url'] ?? ''));
+    if ($vidUrl !== '' && ! preg_match('#^(https?://|/)#i', $vidUrl)) $vidUrl = '';
+    $vidType = preg_match('/\.webm($|\?)/i', $vidUrl) ? 'video/webm' : 'video/mp4';
+    $vidDim  = max(0, min(85, (int) ($c['bg_video_dim'] ?? 40))) / 100;
+    $vidMob  = ! empty($c['bg_video_mobile']) && ! in_array((string) $c['bg_video_mobile'], ['0', 'false'], true);
+    $vidPoster = trim((string) ($c['bg_image_url'] ?? ''));
   $imgUrl  = $c['bg_image_url'] ?? '';
   $imgPos  = $c['bg_image_position'] ?? 'center';
   $imgSize = $c['bg_image_size'] ?? 'cover';
@@ -287,6 +294,20 @@
 </style>
 
 <section class="{{ $instId }} p-hero {{ $customClass }}" @if($anchorId) id="{{ $anchorId }}" @endif>
+@if($vidUrl !== '')
+{{-- MARKER-HERO-VIDEO — muted, looped, inline; the background image (if any) is the poster and the fallback --}}
+<style>
+  .{{ $instId }} { position: relative; overflow: hidden; isolation: isolate; }
+  .{{ $instId }} > .p-hero-video, .{{ $instId }} > .p-hero-vdim { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: -1; } /* behind everything in the hero, above its background */
+  .{{ $instId }} > .p-hero-video { object-fit: cover; }
+  .{{ $instId }} > .p-hero-vdim { background: rgba(0,0,0,{{ $vidDim }}); }
+  @if(! $vidMob) @media (max-width: 768px) { .{{ $instId }} > .p-hero-video { display: none; } } @endif
+  @media (prefers-reduced-motion: reduce) { .{{ $instId }} > .p-hero-video { display: none; } }
+</style>
+<video class="p-hero-video" autoplay muted loop playsinline preload="metadata" @if($vidPoster !== '') poster="{{ $vidPoster }}" @endif aria-hidden="true"><source src="{{ $vidUrl }}" type="{{ $vidType }}"></video>
+<div class="p-hero-vdim" aria-hidden="true"></div>
+@endif
+
   {{-- MARKER-PATCH-249 — layered background: bg (moves) under veil (overlay+blur) under content. --}}
   @if($parallaxOn)<div class="p-hero-bg" data-ia-parallax="{{ $pDepth }}"></div>@endif
   @if($useVeil)<div class="p-hero-veil"></div>@endif

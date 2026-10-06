@@ -15,12 +15,16 @@ class UploadController extends Controller
 
     public function store(Request $request)
     {
+        // MARKER-HERO-VIDEO — type "video" takes MP4/MOV/WebM up to 20 MB (hero backgrounds); everything else is unchanged.
+        $isVideo = $request->input('type') === 'video';
         $request->validate([
-            'file' => ['required', 'file', 'max:' . self::MAX_SIZE_KB, 'mimes:' . implode(',', self::ALLOWED)],
+            'file' => $isVideo
+                ? ['required', 'file', 'max:20480', 'mimes:mp4,webm,mov']
+                : ['required', 'file', 'max:' . self::MAX_SIZE_KB, 'mimes:' . implode(',', self::ALLOWED)],
             // MARKER-LOGOBAR-PICKER — partner_logo keeps logo-bar art out of
             // the 'logo' folder, which overwrites the tenant's own brand logo.
-            'type' => ['nullable', 'string', 'in:logo,logo_light,favicon,hero,gallery,general,partner_logo'],
-        ]);
+            'type' => ['nullable', 'string', 'in:logo,logo_light,favicon,hero,gallery,general,partner_logo,video'],
+        ], $isVideo ? ['file.max' => 'Videos can be up to 20 MB.', 'file.mimes' => 'Use an MP4, MOV or WebM video.'] : []);
 
         $tenant = tenant();
         $file   = $request->file('file');

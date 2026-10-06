@@ -30,6 +30,14 @@
     $align = in_array($c['text_align'] ?? 'center', ['left', 'center', 'right'], true) ? ($c['text_align'] ?? 'center') : 'center';
 
     $hid = 'mkh-' . substr(md5((string) ($section->id ?? uniqid())), 0, 8);
+    // MARKER-HERO-VIDEO
+    $vidUrl  = trim((string) ($c['bg_video_url'] ?? ''));
+    if ($vidUrl !== '' && ! preg_match('#^(https?://|/)#i', $vidUrl)) $vidUrl = '';
+    $vidType = preg_match('/\.webm($|\?)/i', $vidUrl) ? 'video/webm' : 'video/mp4';
+    $vidDim  = max(0, min(85, (int) ($c['bg_video_dim'] ?? 40))) / 100;
+    $vidMob  = ! empty($c['bg_video_mobile']) && ! in_array((string) $c['bg_video_mobile'], ['0', 'false'], true);
+    $vidPoster = trim((string) ($c['bg_image_url'] ?? ''));
+
 
     $heights   = ['small' => '380px', 'medium' => '520px', 'large' => '680px', 'fullscreen' => '100vh'];
     $minHeight = $heights[$c['height'] ?? ''] ?? null;
@@ -159,6 +167,20 @@
     $hsSplit  = $hsLayout !== 'stacked';
 @endphp
 <section class="mk-hero {{ $bgId }} {{ $hid }}">
+@if($vidUrl !== '')
+{{-- MARKER-HERO-VIDEO — muted, looped, inline; the background image (if any) is the poster and the fallback --}}
+<style>
+  .{{ $hid }} { position: relative; overflow: hidden; isolation: isolate; }
+  .{{ $hid }} > .mk-hero-video, .{{ $hid }} > .mk-hero-vdim { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: -1; } /* behind everything in the hero, above its background */
+  .{{ $hid }} > .mk-hero-video { object-fit: cover; }
+  .{{ $hid }} > .mk-hero-vdim { background: rgba(0,0,0,{{ $vidDim }}); }
+  @if(! $vidMob) @media (max-width: 768px) { .{{ $hid }} > .mk-hero-video { display: none; } } @endif
+  @media (prefers-reduced-motion: reduce) { .{{ $hid }} > .mk-hero-video { display: none; } }
+</style>
+<video class="mk-hero-video" autoplay muted loop playsinline preload="metadata" @if($vidPoster !== '') poster="{{ $vidPoster }}" @endif aria-hidden="true"><source src="{{ $vidUrl }}" type="{{ $vidType }}"></video>
+<div class="mk-hero-vdim" aria-hidden="true"></div>
+@endif
+
     <div class="mk-container"><div class="mk-hero-fx" @if($hfxOn) data-hfx="{{ $hfxP }},{{ $hfxF }},{{ $hfxB }}" @endif>
         @if($hsSplit)<div class="mk-hsplit{{ $hsLayout === 'split_flip' ? ' is-flip' : '' }}"><div class="mk-hs-art">@endif
         @if(!empty($c['eyebrow']) && ! $hsSplit)

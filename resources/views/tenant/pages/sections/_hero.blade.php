@@ -274,6 +274,27 @@
   </div>
   @endif
 
+  {{-- MARKER-HERO-VIDEO --}}
+  <div class="pb2-group">
+    <div class="pb2-group-title">Background video</div>
+    <div class="pb2-field">
+      <label class="pb2-field-label">Video <span class="pb2-field-hint">MP4, MOV or WebM, up to 20 MB</span></label>
+      <input type="text" class="pb2-input" data-field="bg_video_url" value="{{ $get('bg_video_url') }}" placeholder="Upload, or paste a video link">
+      <div style="display:flex;gap:10px;align-items:center;margin-top:6px">
+        <button type="button" class="pb2-textlink" data-hero-video-upload>Upload video</button>
+        <button type="button" class="pb2-textlink pb2-textlink-danger" data-hero-video-clear>Remove</button>
+        <span class="pb2-field-hint" data-hero-video-status></span>
+      </div>
+      <div class="pb2-field-hint" style="display:block;text-align:left;margin-top:6px">Plays muted and on a loop behind the text. From an iPhone, export as Most Compatible (H.264): High Efficiency (HEVC) videos won't play in Chrome or Firefox. The background image below, if you set one, shows while it loads and replaces it for visitors who have reduced motion turned on.</div>
+    </div>
+    <div class="pb2-field">
+      <div class="pb2-field-label-row"><label class="pb2-field-label">Darken</label><span class="pb2-slider-value" id="pb2-vdim-val">{{ $get('bg_video_dim', 40) }}%</span></div>
+      <input type="range" min="0" max="85" value="{{ $get('bg_video_dim', 40) }}" data-field="bg_video_dim" oninput="document.getElementById('pb2-vdim-val').textContent=this.value+'%'">
+    </div>
+    <label class="pb2-checkbox-row"><input type="checkbox" data-field="bg_video_mobile" value="1" {{ ! empty($c['bg_video_mobile']) && ! in_array((string) ($c['bg_video_mobile'] ?? ''), ['0', 'false'], true) ? 'checked' : '' }}><span>Play on phones too</span></label>
+    <div class="pb2-field-hint" style="display:block;text-align:left">Off saves visitors' mobile data: phones show the background image instead.</div>
+  </div>
+
   <div class="pb2-group">
     <div class="pb2-group-title">Background</div>
 

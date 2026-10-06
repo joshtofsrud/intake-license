@@ -230,6 +230,12 @@ class PageBuilderController extends Controller
             'hide_on_mobile'  => false,
             'hide_on_desktop' => false,
         ],
+        // MARKER-FEATURE-TILES
+        'feature_tiles' => [
+            'eyebrow' => '', 'heading' => 'Everything in one place', 'accent_words' => '', 'subheading' => '', 'tiles' => [],
+            'footer_text' => '', 'footer_cta_label' => '', 'footer_cta_url' => '',
+            'accent_color' => '', 'anchor_id' => '', 'custom_classes' => '', 'hide_on_mobile' => false, 'hide_on_desktop' => false,
+        ],
         // MARKER-ROI-SECTION — starting content uses the shop's real, conservative numbers
         'roi' => [
             'eyebrow' => 'The return', 'heading' => 'Tools that pay for themselves', 'accent_words' => 'pay for themselves',
