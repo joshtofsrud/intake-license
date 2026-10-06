@@ -213,7 +213,7 @@
       rec = 'scale';
       tags.push('enterprise-quiz');
       if (answers.volume === '200plus') reasons.push('200+ bookings a month — Scale is built for that volume.');
-      if (answers.locations === 'two_three' || answers.locations === 'four_plus') reasons.push('Multi-location support comes with Scale.');
+      if (answers.locations === 'two_three' || answers.locations === 'four_plus') reasons.push('Extra locations can be added on Scale.'); /* MARKER-CLAIMS-FIX */
       if (answers.branding === 'need_whitelabel') reasons.push('Full white-label is a Scale feature.');
       if (answers.setup === 'done_for_me') reasons.push('Scale includes onboarding assistance.');
     } else if (answers.branding === 'prefer_hide' || answers.website === 'replacing') {

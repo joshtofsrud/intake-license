@@ -67,7 +67,7 @@
   {{-- Left: value props --}}
   <div class="su-left">
     <h1>Start your free 14-day trial</h1>
-    <p>No credit card required. Your shop is live in minutes.</p>
+    <p>Your shop is live in minutes.</p>{{-- MARKER-CLAIMS-FIX — signup takes a card, so "No credit card required" was false --}}
     <div class="su-perks">
       @foreach([
         'Online booking form with payments',

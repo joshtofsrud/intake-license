@@ -18,7 +18,7 @@
                 'price_cents' => $prices['starter'] ?? 2900,
                 'period' => '/mo',
                 'desc'   => 'Everything you need to start taking bookings online.',
-                'features' => ['Booking form','Customer CRM','Work orders','intake.works subdomain','Stripe + PayPal'],
+                'features' => ['Booking form','Customer CRM','Work orders','Email campaigns','intake.works subdomain','Stripe + PayPal'], // MARKER-CLAIMS-FIX — every plan has email
                 'cta_label' => 'Start free trial',
             ],
             [
@@ -27,7 +27,7 @@
                 'price_cents' => $prices['branded'] ?? 7900,
                 'period' => '/mo',
                 'desc'   => 'Your own domain and brand — nothing that says "Intake".',
-                'features' => ['Everything in Starter','Custom domain','Remove Intake branding','Priority support','Email campaigns'],
+                'features' => ['Everything in Starter','Custom domain','Remove Intake branding','Priority support'],
                 'cta_label' => 'Start free trial',
             ],
             [
@@ -35,8 +35,8 @@
                 'name'  => 'Scale',
                 'price_cents' => $prices['scale'] ?? 19900,
                 'period' => '/mo',
-                'desc'   => 'Multi-location, full white-label, and advanced automations.',
-                'features' => ['Everything in Branded','Multi-location','Full white-label','Dedicated support','Advanced automations'],
+                'desc'   => 'Add more locations, full white-label, and advanced automations.',
+                'features' => ['Everything in Branded','Add more locations (add-on)','Full white-label','Dedicated support','Advanced automations'], // MARKER-CLAIMS-FIX — no plan includes extra locations; Scale can add them
                 'cta_label' => 'Start free trial',
             ],
         ];
