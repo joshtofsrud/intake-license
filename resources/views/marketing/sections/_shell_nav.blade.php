@@ -230,6 +230,14 @@
         #mk-nav.is-float .mk-nav-inner { padding: var(--mkf-pad); }
     }
 </style>
+{{-- MARKER-NAV-WEIGHT — link weight and brightness from the Navigation page --}}
+<style>
+  #mk-nav .mk-nav-link, #mk-nav .mk-nav-signin, #mk-nav .mk-dd-trigger { font-weight: {{ $mkHead['link_weight'] ?? '500' }}; }
+  @if(($mkHead['link_bright'] ?? 'soft') === 'bright')
+  #mk-nav:not(.has-link) .mk-nav-link, #mk-nav:not(.has-link) .mk-nav-signin { color: rgba(255,255,255,.9); }
+  #mk-nav.has-link .mk-nav-link, #mk-nav.has-link .mk-nav-signin { opacity: .96; }
+  @endif
+</style>
 <nav id="mk-nav" class="mk-nav{{ $mkHead['style'] === 'float' ? ' is-float' : '' }}{{ ($mkLink || $mkLinkP) ? ' has-link' : '' }}"
      data-style-desktop="{{ $mkHead['style'] }}" data-style-phone="{{ $mkHeadP['style'] }}" data-btnpos="{{ $mkHeadP['btn_pos'] === 'menu' ? 'menu' : 'bar' }}">
     <div class="mk-nav-inner">

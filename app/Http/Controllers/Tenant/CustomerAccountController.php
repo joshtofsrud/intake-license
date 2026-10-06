@@ -324,6 +324,31 @@ class CustomerAccountController extends Controller
     }
 
     /** MARKER-CUST-AUTH — bind this session to the tenant it was created on. */
+    /**
+     * MARKER-DEMO-BAR-LINKS — demo shops only: sign the visitor in as a sample customer so
+     * "View customer page" in the demo bar shows the portal, not a login form. Refused on
+     * every real shop.
+     */
+    public function demoSignIn(Request $request)
+    {
+        $tenant = $this->tenant();
+        abort_unless($tenant && ($tenant->is_demo ?? false), 404);
+
+        $customer = TenantCustomer::where('tenant_id', $tenant->id)
+            ->whereNotNull('email')->where('email', '!=', '')
+            ->orderByDesc('updated_at')->first()
+            ?? TenantCustomer::where('tenant_id', $tenant->id)->first();
+        if (! $customer) {
+            return redirect()->route('tenant.customer.login');
+        }
+
+        $request->session()->regenerate();
+        $this->guard()->login($customer);
+        $this->stampTenant($request, $tenant);
+
+        return redirect()->route('tenant.customer.portal');
+    }
+
     private function stampTenant(Request $request, $tenant): void
     {
         $request->session()->put(

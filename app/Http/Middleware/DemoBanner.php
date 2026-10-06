@@ -57,6 +57,13 @@ class DemoBanner
         $label = e(DemoSetting::get('label:' . ($tenant->subdomain ?: 'demo'), 'Bike shop demo'));
         $reset = (bool) request()->query('demo_reset');
         $note  = $reset ? '<b>Just reset — you are starting fresh.</b> ' : '';
+        // MARKER-DEMO-BAR-LINKS — see the same shop from every side, each in a new tab
+        $home  = \App\Models\Tenant\TenantPage::where('tenant_id', $tenant->id)->where('is_home', true)->value('id');
+        $edit  = $home ? '/admin/pages/' . $home : '/admin/pages';
+        $links = '<a href="/" target="_blank" rel="noopener">View live website</a>'
+               . '<a href="/book" target="_blank" rel="noopener">View booking page</a>'
+               . '<a href="/account/demo" target="_blank" rel="noopener">View customer page</a>'
+               . '<a href="' . e($edit) . '" target="_blank" rel="noopener">Edit the website</a>';
 
         return <<<HTML
 <style>
@@ -67,6 +74,14 @@ class DemoBanner
   .demo-bar b{color:#fff}
   .demo-bar .tag{background:#BEF264;color:#0a0a0a;font-weight:700;border-radius:5px;padding:2px 8px;font-size:11.5px;flex:none}
   .demo-bar .cd{margin-left:auto;font-variant-numeric:tabular-nums;opacity:.85;flex:none}
+  .demo-bar .lk{display:flex;gap:4px;flex:none}
+  .demo-bar .lk a{color:#f0f0f0;text-decoration:none;border:1px solid rgba(255,255,255,.18);border-radius:6px;padding:3px 9px;font-size:12px;white-space:nowrap}
+  .demo-bar .lk a:hover{border-color:#BEF264;color:#BEF264}
+  .demo-bar details{display:none;position:relative;flex:none}
+  .demo-bar summary{list-style:none;cursor:pointer;border:1px solid rgba(255,255,255,.18);border-radius:6px;padding:3px 9px;font-size:12px}
+  .demo-bar summary::-webkit-details-marker{display:none}
+  .demo-bar details .lk{position:absolute;top:calc(100% + 6px);left:0;flex-direction:column;background:#111;border:1px solid rgba(255,255,255,.18);border-radius:8px;padding:6px;gap:4px;z-index:1}
+  @media (max-width:1180px){ .demo-bar > .lk{display:none} .demo-bar details{display:block} }
   .demo-bar .cd.soon{color:#ffb4b4}
   @media (min-width:1024px){ body{padding-bottom:52px} }
   /* Phones and tablets: the bottom belongs to the app's own tab bar
@@ -83,6 +98,8 @@ class DemoBanner
 <div class="demo-bar" role="status">
   <span class="tag">{$label}</span>
   <span>{$note}This is a demo — emails and texts are never really sent. Everything resets on the hour.</span>
+  <span class="lk">{$links}</span>
+  <details><summary>View as…</summary><span class="lk">{$links}</span></details>
   <span class="cd" data-demo-countdown>calculating…</span>
 </div>
 <script>

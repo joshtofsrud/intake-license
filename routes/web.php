@@ -299,6 +299,7 @@ $tenantRoutes = function () {
     Route::get('/account/register',      [TenantControllers\CustomerAccountController::class, 'showRegister'])->name('tenant.customer.register');
     Route::post('/account/register',     [TenantControllers\CustomerAccountController::class, 'register'])->name('tenant.customer.register.submit')->middleware('throttle:6,1'); // MARKER-CUST-AUTH
     Route::get('/account/login',         [TenantControllers\CustomerAccountController::class, 'showLogin'])->name('tenant.customer.login');
+    Route::get('/account/demo',          [TenantControllers\CustomerAccountController::class, 'demoSignIn'])->name('tenant.customer.demo')->middleware('throttle:30,1'); // MARKER-DEMO-BAR-LINKS — demo shops only
     Route::post('/account/login',        [TenantControllers\CustomerAccountController::class, 'login'])->name('tenant.customer.login.submit')->middleware('throttle:10,1'); // MARKER-CUST-AUTH
     Route::post('/account/logout',       [TenantControllers\CustomerAccountController::class, 'logout'])->name('tenant.customer.logout');
     Route::get('/account/forgot',        [TenantControllers\CustomerAccountController::class, 'showForgot'])->name('tenant.customer.forgot');
