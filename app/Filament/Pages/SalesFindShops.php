@@ -29,7 +29,8 @@ class SalesFindShops extends Page
     protected static ?string $slug            = 'sales-find-shops';
     protected static ?string $title           = 'Find shops';
 
-    public string $industry    = 'bicycle_store';
+    public string $industry    = ''; // MARKER-SALES-INDUSTRY — an Industries id, or 'custom'
+    public string $uploadIndustry = '';
     public string $customQuery = '';
     public string $place       = '';
     public int    $radius      = 25;
@@ -68,9 +69,27 @@ class SalesFindShops extends Page
     {
         abort_unless(static::canAccess(), 403);
         $this->budgetDollars = (int) round(SalesSetting::placesBudgetCents() / 100);
+        $this->industry = (string) (array_key_first($this->industries()) ?? 'custom');
     }
 
-    public function industries(): array { return ShopFinder::INDUSTRIES; }
+    /** MARKER-SALES-INDUSTRY — chips come from the Industries page; active ones first. */
+    public function industries(): array
+    {
+        $out = [];
+        foreach (\App\Models\SalesChannel::query()
+            ->whereNotNull('places_query')->where('places_query', '!=', '')->where('status', '!=', 'stub')
+            ->orderByRaw("CASE WHEN status = 'active' THEN 0 ELSE 1 END")->orderBy('name')->get(['id', 'name']) as $c) {
+            $out[$c->id] = ['label' => $c->name];
+        }
+        $out['custom'] = ['label' => 'Custom…'];
+        return $out;
+    }
+
+    /** Industries a shop list can be loaded into. */
+    public function uploadIndustries(): array
+    {
+        return \App\Models\SalesChannel::query()->where('status', '!=', 'stub')->orderBy('name')->pluck('name', 'id')->all();
+    }
     public function configured(): bool  { return (bool) SalesSetting::placesKey(); }
     public function monthToDateCents(): int { return SalesPlacesSearch::monthToDateCents(); }
     public function estimateCents(): int { return (1 + max(1, (int) ceil($this->radius / 10))) * SalesSetting::placesCostCents(); }
@@ -78,7 +97,11 @@ class SalesFindShops extends Page
 
     public function search(): void
     {
-        $this->validate(['place' => ['required', 'string', 'max:191'], 'radius' => ['integer', 'min:5', 'max:30']]);
+        // MARKER-SALES-INDUSTRY — the message now shows under Where (it used to fail silently).
+        $this->validate(
+            ['place' => ['required', 'string', 'max:191'], 'radius' => ['integer', 'min:5', 'max:30']],
+            ['place.required' => 'Enter a city or address to search.']
+        );
         $this->error = null; $this->selected = []; $this->results = [];
 
         if ($this->monthToDateCents() >= SalesSetting::placesBudgetCents()) {
@@ -128,7 +151,7 @@ class SalesFindShops extends Page
         $n = 0;
         foreach ($this->results as &$r) {
             if (! in_array($r['place_id'], $ids, true) || $r['status'] !== 'new') continue;
-            $p = $finder->add($r, $this->autoAssign, $this->place, $by);
+            $p = $finder->add($r, $this->autoAssign, $this->place, $by, $this->industry !== 'custom' ? $this->industry : null);
             $r['status'] = 'prospect'; $r['prospect_id'] = $p->id; $r['stage'] = $p->stage;
             $n++;
         }
@@ -197,7 +220,7 @@ class SalesFindShops extends Page
         $this->validate(['shopList' => ['required', 'file', 'max:51200']]); // 50 MB
         $this->uploadResult = null;
         if ($this->mapProblem()) { Notification::make()->title($this->mapProblem())->warning()->send(); return; }
-        $this->uploadPreview = (new \App\Services\Sales\ShopListImporter())->import($this->shopList->getRealPath(), null, $this->uploadAssign, true, null, $this->columnMap);
+        $this->uploadPreview = (new \App\Services\Sales\ShopListImporter())->import($this->shopList->getRealPath(), null, $this->uploadAssign, true, null, $this->columnMap, $this->uploadIndustry ?: null);
         if ($this->uploadPreview['error']) Notification::make()->title($this->uploadPreview['error'])->danger()->send();
     }
 
@@ -205,7 +228,7 @@ class SalesFindShops extends Page
     {
         $this->validate(['shopList' => ['required', 'file', 'max:51200']]);
         if ($this->mapProblem()) { Notification::make()->title($this->mapProblem())->warning()->send(); return; }
-        $r = (new \App\Services\Sales\ShopListImporter())->import($this->shopList->getRealPath(), null, $this->uploadAssign, false, null, $this->columnMap);
+        $r = (new \App\Services\Sales\ShopListImporter())->import($this->shopList->getRealPath(), null, $this->uploadAssign, false, null, $this->columnMap, $this->uploadIndustry ?: null);
         try { $this->shopList->delete(); } catch (\Throwable $e) {}
         $this->shopList = null; $this->uploadPreview = null; $this->uploadResult = $r; $this->uploadHeaders = []; $this->uploadSample = []; $this->columnMap = [];
         if ($r['error']) { Notification::make()->title($r['error'])->danger()->send(); return; }

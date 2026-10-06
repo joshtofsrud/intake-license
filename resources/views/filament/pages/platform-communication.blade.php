@@ -424,7 +424,7 @@
         <div class="pc-f">
           <label>Optional rule</label>
           <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
-            <input type="text" wire:model="aField" placeholder="plan_tier / addon / status">
+            <input type="text" wire:model="aField" placeholder="e.g. plan_tier, status, stage, industry, state" title="Prospects: stage, industry, state, territory, rep, priority, verified, ids">
             <select wire:model="aOp" style="background:transparent;border:1px solid var(--pc-line);border-radius:8px;color:inherit;font:inherit;font-size:13.5px;padding:8px 10px">
               <option value="is">is</option>
               <option value="is_not">is not</option>

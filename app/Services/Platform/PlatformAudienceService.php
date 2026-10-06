@@ -127,31 +127,60 @@ class PlatformAudienceService
 
     protected function fromProspects(array $rules): Collection
     {
+        // MARKER-SALES-INDUSTRY — this used to filter on a "status" column that
+        // prospects don't have (it errored), read a "name" column that doesn't
+        // exist (so {shop_name} came out blank) and matched State against the
+        // address text. Rules now use the real columns.
         if (! \Illuminate\Support\Facades\Schema::hasTable('sales_prospects')) {
             return collect();
         }
 
-        $q = DB::table('sales_prospects')->whereNotNull('email');
+        $q = DB::table('sales_prospects')->whereNotNull('email')->where('email', '!=', '');
+
+        $byName = function (string $table, $value) {
+            return DB::table($table)->whereRaw('LOWER(name) = ?', [mb_strtolower(trim((string) $value))])->pluck('id');
+        };
 
         foreach ($rules as $rule) {
             $field = $rule['field'] ?? null;
-            $op    = $rule['op']    ?? 'is';
-            $value = $rule['value'] ?? null;
+            $not   = ($rule['op'] ?? 'is') === 'is_not';
+            $value = trim((string) ($rule['value'] ?? ''));
+            if ($value === '') continue;
 
-            match ($field) {
-                'status' => $q->where('status', $op === 'is_not' ? '!=' : '=', $value),
-                'state'  => $q->where('address', 'like', '%' . $value . '%'),
-                default  => null,
+            $column = match ($field) {
+                'stage', 'status' => ['stage', mb_strtolower(str_replace(' ', '_', $value))],
+                'state'           => ['state', mb_strtoupper($value)],
+                'priority'        => ['priority', mb_strtoupper($value)],
+                'verified'        => ['verified', in_array(mb_strtolower($value), ['1', 'yes', 'true', 'y'], true) ? 1 : 0],
+                default           => null,
             };
+            if ($column) {
+                $q->where($column[0], $not ? '!=' : '=', $column[1]);
+                continue;
+            }
+
+            $ids = match ($field) {
+                'industry'  => ['channel_id', $byName('sales_channels', $value)],
+                'territory' => ['territory_id', $byName('sales_territories', $value)],
+                'rep'       => ['sales_rep_id', $byName('sales_reps', $value)],
+                'ids'       => ['id', collect(preg_split('/[\s,]+/', $value))->filter()->values()],
+                default     => null,
+            };
+            if (! $ids) continue;
+            if ($not) {
+                $q->where(fn ($w) => $w->whereNull($ids[0])->orWhereNotIn($ids[0], $ids[1]));
+            } else {
+                $q->whereIn($ids[0], $ids[1]);
+            }
         }
 
         return collect($q->get())->map(fn ($p) => [
             'email'       => (string) $p->email,
-            'name'        => $p->name ?? null,
+            'name'        => $p->owner_contact ?: $p->shop,
             'source_type' => 'prospects',
             'source_id'   => (string) $p->id,
             'vars'        => [
-                'shop_name'  => $p->name ?? '',
+                'shop_name'  => (string) ($p->shop ?? ''),
                 'first_name' => $this->firstName($p->owner_contact ?? null) ?: $this->firstNameFromEmail($p->email),
             ],
         ]);

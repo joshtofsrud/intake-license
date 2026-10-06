@@ -23,14 +23,15 @@ class SalesChannelResource extends Resource
     protected static ?string $navigationIcon  = 'heroicon-o-megaphone';
     protected static ?string $navigationGroup = 'Sales';
     protected static ?int    $navigationSort  = 10;
-    protected static ?string $navigationLabel = 'Campaigns';
-    protected static ?string $modelLabel      = 'campaign';
+    protected static ?string $navigationLabel = 'Industries'; // MARKER-SALES-INDUSTRY — was "Campaigns", clashed with email campaigns
+    protected static ?string $modelLabel      = 'industry';
+    protected static ?string $pluralModelLabel = 'industries';
     protected static ?string $slug            = 'sales/campaigns';
 
     public static function form(Form $form): Form
     {
         return $form->schema([
-            Forms\Components\Section::make('Channel')->columns(2)->schema([
+            Forms\Components\Section::make('Industry')->columns(2)->schema([
                 Forms\Components\TextInput::make('name')->required()->maxLength(120),
                 Forms\Components\Select::make('status')
                     ->options(SalesChannel::STATUSES)->default('draft')
@@ -38,6 +39,10 @@ class SalesChannelResource extends Resource
                 Forms\Components\TextInput::make('best_ask')
                     ->label('Best first ask')->maxLength(255)->columnSpanFull()
                     ->placeholder('e.g. 15-min owner demo at the shop'),
+                Forms\Components\TextInput::make('places_query') // MARKER-SALES-INDUSTRY
+                    ->label('Places search phrase')->maxLength(120)->columnSpanFull()
+                    ->placeholder('e.g. bike shop')
+                    ->helperText('What Find shops searches Google for. Leave blank to keep this industry out of Find shops.'),
             ]),
 
             Forms\Components\Section::make('Targeting')->columns(2)->schema([

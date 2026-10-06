@@ -22,6 +22,7 @@ class SalesChannel extends Model
     protected $fillable = [
         'name', 'slug', 'status', 'categories', 'business_types',
         'criteria', 'playbook', 'best_ask', 'generated_by', 'notes',
+        'places_query', // MARKER-SALES-INDUSTRY
     ];
 
     protected $casts = [

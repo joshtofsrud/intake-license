@@ -3,6 +3,7 @@
 
 namespace App\Services\Sales;
 
+use App\Models\SalesChannel;
 use App\Models\SalesPlacesSearch;
 use App\Models\SalesProspect;
 use App\Models\SalesSetting;
@@ -12,15 +13,7 @@ use Illuminate\Support\Str;
 
 class ShopFinder
 {
-    public const INDUSTRIES = [
-        'bicycle_store'     => ['label' => 'Bike shops',        'query' => 'bike shop'],
-        'ski_store'         => ['label' => 'Ski & snowboard',   'query' => 'ski and snowboard shop'],
-        'gym'               => ['label' => 'Fitness studios',   'query' => 'fitness studio'],
-        'motorcycle_repair' => ['label' => 'Motorcycle',        'query' => 'motorcycle repair shop'],
-        'outdoor'           => ['label' => 'Outdoor specialty', 'query' => 'outdoor gear shop'],
-        'paddle'            => ['label' => 'Paddle & kayak',    'query' => 'kayak and paddleboard shop'],
-        'custom'            => ['label' => 'Custom…',           'query' => ''],
-    ];
+    // MARKER-SALES-INDUSTRY — the industry list lives on the Industries page (sales_channels.places_query).
 
     /**
      * @return array{located:?string, results:array<int,array>, requests:int, cost_cents:int, error:?string}
@@ -31,9 +24,11 @@ class ShopFinder
         if (! $client->configured()) {
             return ['located' => null, 'results' => [], 'requests' => 0, 'cost_cents' => 0, 'error' => 'Add a Google Places key first.'];
         }
-        $q = $industry === 'custom' ? trim($customQuery) : (self::INDUSTRIES[$industry]['query'] ?? 'bike shop');
+        $channel = $industry === 'custom' ? null : SalesChannel::find($industry);
+        $q = $industry === 'custom' ? trim($customQuery) : trim((string) $channel?->places_query);
         if ($q === '') {
-            return ['located' => null, 'results' => [], 'requests' => 0, 'cost_cents' => 0, 'error' => 'Type what to search for.'];
+            return ['located' => null, 'results' => [], 'requests' => 0, 'cost_cents' => 0,
+                'error' => $industry === 'custom' ? 'Type what to search for.' : 'Pick an industry. If none are listed, give one a Places search phrase on the Industries page.'];
         }
         try {
             $loc = $client->locate($place);
@@ -61,7 +56,7 @@ class ShopFinder
         $cost = $client->requests * SalesSetting::placesCostCents();
         SalesPlacesSearch::create([
             'user_id'      => $userId,
-            'industry'     => $industry === 'custom' ? mb_substr($q, 0, 80) : $industry,
+            'industry'     => mb_substr($channel?->name ?? $q, 0, 80),
             'place'        => mb_substr($place, 0, 191),
             'radius_miles' => $radiusMiles,
             'requests'     => $client->requests,
@@ -109,8 +104,9 @@ class ShopFinder
     }
 
     /** Creates a prospect from a normalised result. Returns the row (existing one if the place id already exists). */
-    public function add(array $r, bool $autoAssign, ?string $searchedPlace = null, ?string $by = null): SalesProspect
+    public function add(array $r, bool $autoAssign, ?string $searchedPlace = null, ?string $by = null, ?string $channelId = null): SalesProspect
     {
+        $channel = $channelId ? SalesChannel::find($channelId) : null; // MARKER-SALES-INDUSTRY
         if ($r['place_id'] && ($existing = SalesProspect::where('google_place_id', $r['place_id'])->first())) {
             return $existing;
         }
@@ -136,7 +132,8 @@ class ShopFinder
             'priority'        => ($r['rating'] ?? 0) >= 4.5 && ($r['rating_count'] ?? 0) >= 50 ? 'A' : 'B',
             'verified'        => false,
             'lead_score'      => self::score($r),
-            'best_ask'        => '15-min owner/service-manager demo',
+            'channel_id'      => $channel?->id,
+            'best_ask'        => $channel?->best_ask ?: '15-min owner/service-manager demo',
             'source'          => 'Google Places',
             'notes'           => 'Found in master admin' . ($searchedPlace ? " · search near $searchedPlace" : '') . ($by ? " · $by" : ''),
         ]);

@@ -69,8 +69,9 @@ class ShopListImporter
      * @param  array<string,string>|null $map  field => header (from guessMap or the mapping screen)
      * @return array{inserted:int, matched:int, blank:int, total:int, assigned:int, with_coords:int, batch:string, error:?string}
      */
-    public function import(string $path, ?string $batch = null, bool $assign = true, bool $dry = false, ?callable $progress = null, ?array $map = null): array
+    public function import(string $path, ?string $batch = null, bool $assign = true, bool $dry = false, ?callable $progress = null, ?array $map = null, ?string $channelId = null): array
     {
+        $channel = $channelId ? \App\Models\SalesChannel::find($channelId) : null; // MARKER-SALES-INDUSTRY
         $batch ??= 'list-' . now()->format('Ymd-Hi');
         $out = ['inserted' => 0, 'matched' => 0, 'blank' => 0, 'total' => 0, 'assigned' => 0, 'with_coords' => 0, 'batch' => $batch, 'error' => null];
 
@@ -132,7 +133,8 @@ class ShopListImporter
                 'priority'      => $ws ? 'A' : 'B',
                 'verified'      => false,
                 'lead_score'    => 20 + ($ws ? 25 : 0) + ($web ? 10 : 0),
-                'best_ask'      => '15-min owner/service-manager demo',
+                'channel_id'    => $channel?->id,
+                'best_ask'      => $channel?->best_ask ?: '15-min owner/service-manager demo',
                 'source'        => mb_substr($col($row, 'source'), 0, 120) ?: 'Shop list upload',
                 'import_batch'  => $batch,
                 'notes'         => $ws ? 'Verified dealer (per uploaded list)' : null,

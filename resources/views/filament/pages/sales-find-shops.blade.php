@@ -63,7 +63,8 @@
       @endif
 
       <div style="{{ $label }};margin-top:16px">Where</div>
-      <input type="text" wire:model="place" wire:keydown.enter="search" class="{{ $input }}" style="width:100%" placeholder="Spokane, WA">
+      <input type="text" wire:model="place" wire:keydown.enter="search" class="{{ $input }}" style="width:100%" placeholder="City or address">
+      @error('place')<div style="color:#f87171;font-size:12px;margin-top:4px">{{ $message }}</div>@enderror{{-- MARKER-SALES-INDUSTRY --}}
       <div style="{{ $muted }};margin-top:10px">Radius <b>{{ $radius }}</b> mi <span style="opacity:.6">(Places caps a search at about 30)</span></div>
       <input type="range" min="5" max="30" step="5" wire:model.live="radius" style="width:100%">
 
@@ -118,6 +119,11 @@
         @if($this->mapProblem())<div style="color:#fbbf24;font-size:12px;margin-top:6px">{{ $this->mapProblem() }}</div>@endif
       @endif
       @error('shopList')<div style="color:#f87171;font-size:12px;margin-top:4px">{{ $message }}</div>@enderror
+      <div style="font-size:13px;margin-top:10px">Industry for these shops</div>{{-- MARKER-SALES-INDUSTRY --}}
+      <select wire:model="uploadIndustry" class="{{ $input }}" style="width:100%;margin-top:4px">
+        <option value="">None</option>
+        @foreach($this->uploadIndustries() as $id => $name)<option value="{{ $id }}">{{ $name }}</option>@endforeach
+      </select>
       <label style="display:flex;gap:8px;font-size:13px;align-items:center;margin-top:8px"><input type="checkbox" wire:model="uploadAssign" class="rounded"> Assign to territory reps on load</label>
       <div style="display:flex;gap:8px;margin-top:10px">
         <button class="sfs-btn" wire:click="previewUpload" wire:loading.attr="disabled" @disabled(! $uploadHeaders || $this->mapProblem())><span wire:loading.remove wire:target="previewUpload">Preview</span><span wire:loading wire:target="previewUpload">Reading…</span></button>
@@ -153,7 +159,7 @@
       <div style="{{ $label }}">Recent searches</div>
       @forelse($this->recentSearches() as $s)
         <div style="font-size:12px;padding:4px 0;border-top:1px solid rgba(127,127,127,.12)">
-          <b>{{ \App\Services\Sales\ShopFinder::INDUSTRIES[$s->industry]['label'] ?? $s->industry }}</b> near {{ $s->place }} · {{ $s->radius_miles }} mi
+          <b>{{ ['bicycle_store' => 'Bike shops', 'ski_store' => 'Ski & snowboard', 'gym' => 'Fitness studios', 'motorcycle_repair' => 'Motorcycle', 'outdoor' => 'Outdoor specialty', 'paddle' => 'Paddle & kayak'][$s->industry] ?? $s->industry }}</b> near {{ $s->place }} · {{ $s->radius_miles }} mi
           <span style="opacity:.6">· {{ $s->found }} found, {{ $s->new_count }} new · {{ $this->money($s->cost_cents) }} · {{ $s->created_at->diffForHumans() }}</span>
         </div>
       @empty
