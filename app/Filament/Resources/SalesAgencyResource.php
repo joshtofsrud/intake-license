@@ -22,7 +22,7 @@ class SalesAgencyResource extends Resource
     protected static ?string $model = SalesAgency::class;
 
     protected static ?string $navigationIcon  = 'heroicon-o-user-group';
-    protected static ?string $navigationGroup = 'Sales';
+    protected static ?string $navigationGroup = 'Sales setup'; // MARKER-SALES-SETUP
     protected static ?int    $navigationSort  = 30;
     protected static ?string $navigationLabel = 'Reps & agencies';
     protected static ?string $modelLabel      = 'agency';

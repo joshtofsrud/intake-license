@@ -13,6 +13,7 @@
 @endphp
 
 <x-filament-panels::page>
+<style>body:has(.sx-findshops), body:has(.sx-findshops) .fi-main { background:#1f2024; }</style><span class="sx-findshops" hidden></span>{{-- MARKER-SALES-SETUP — same charcoal page as the other Sales pages --}}
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <style>
   .sfs-grid{display:grid;grid-template-columns:340px 1fr;gap:16px;align-items:start}
@@ -38,14 +39,9 @@
 </div>
 
 @unless($configured)
+  {{-- MARKER-SALES-SETUP — the key and budget live on Sales setup › Google Places now. --}}
   <div style="{{ $card }};margin-bottom:16px;border-color:rgba(251,191,36,.5)">
-    <div style="{{ $label }}">Setup — needed once</div>
-    <p style="font-size:13px;opacity:.75;margin:0 0 10px">Paste a Google Cloud API key with <b>Places API (New)</b> enabled. It is stored encrypted and never shown again.</p>
-    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:end">
-      <div style="flex:1;min-width:280px"><div style="{{ $muted }}">API key</div><input type="password" wire:model="placesKey" class="{{ $input }}" style="width:100%" autocomplete="off"></div>
-      <div><div style="{{ $muted }}">Monthly budget ($)</div><input type="number" wire:model="budgetDollars" class="{{ $input }}" style="width:120px"></div>
-      <button class="sfs-btn p" wire:click="saveSetup">Save</button>
-    </div>
+    Searching needs a Google Places key. Add it on <a href="{{ \App\Filament\Pages\SalesPlacesSettings::getUrl() }}" style="color:#a78bfa">Sales setup › Google Places</a>.
   </div>
 @endunless
 
@@ -167,17 +163,7 @@
       @endforelse
     </div>
 
-    @if($configured)
-      <details style="{{ $card }};margin-top:16px">
-        <summary style="cursor:pointer;font-size:13px;font-weight:600">Setup</summary>
-        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:end;margin-top:10px">
-          <div style="flex:1;min-width:200px"><div style="{{ $muted }}">Replace API key</div><input type="password" wire:model="placesKey" class="{{ $input }}" style="width:100%" autocomplete="off" placeholder="leave blank to keep"></div>
-          <div><div style="{{ $muted }}">Budget ($/mo)</div><input type="number" wire:model="budgetDollars" class="{{ $input }}" style="width:110px"></div>
-          <button class="sfs-btn" wire:click="saveSetup">Save</button>
-          <button class="sfs-btn" wire:click="testKey">Test</button>
-        </div>
-      </details>
-    @endif
+    <div style="{{ $muted }};margin-top:12px">Key and monthly budget: <a href="{{ \App\Filament\Pages\SalesPlacesSettings::getUrl() }}" style="color:#a78bfa">Sales setup › Google Places</a></div>{{-- MARKER-SALES-SETUP --}}
   </div>
 
   <div>

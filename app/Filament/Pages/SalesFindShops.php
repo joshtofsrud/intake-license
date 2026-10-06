@@ -43,9 +43,6 @@ class SalesFindShops extends Page
     public ?string $error   = null;
     public int    $lastCostCents = 0;
 
-    // setup card
-    public string $placesKey    = '';
-    public int    $budgetDollars = 50;
 
     // MARKER-SALES-UPLOAD — shop list upload
     public $shopList = null;
@@ -68,7 +65,6 @@ class SalesFindShops extends Page
     public function mount(): void
     {
         abort_unless(static::canAccess(), 403);
-        $this->budgetDollars = (int) round(SalesSetting::placesBudgetCents() / 100);
         $this->industry = (string) (array_key_first($this->industries()) ?? 'custom');
     }
 
@@ -161,28 +157,6 @@ class SalesFindShops extends Page
         Notification::make()->title("$n added to prospects")
             ->body($this->autoAssign ? 'Assigned by territory where a rule matched.' : 'Left unassigned.')
             ->success()->send();
-    }
-
-    public function saveSetup(): void
-    {
-        $this->validate(['placesKey' => ['nullable', 'string', 'max:200'], 'budgetDollars' => ['integer', 'min:0', 'max:100000']]);
-        $typed = trim($this->placesKey);
-        if ($typed !== '') { SalesSetting::putPlacesKey($typed); $this->placesKey = ''; }
-        SalesSetting::put('places_budget_cents', (string) ($this->budgetDollars * 100));
-        Notification::make()->title('Setup saved')->body($typed !== '' ? 'Key stored, encrypted.' : 'Key left unchanged.')->success()->send();
-    }
-
-    public function testKey(): void
-    {
-        try {
-            $loc = (new PlacesClient())->locate('Spokane, WA');
-            $ok = (bool) $loc;
-            Notification::make()->title($ok ? 'Places connected' : 'No result')
-                ->body($ok ? 'Located ' . $loc['label'] . ' · that call cost ~$0.00 (location only).' : 'The key answered but returned nothing.')
-                ->{$ok ? 'success' : 'warning'}()->send();
-        } catch (\Throwable $e) {
-            Notification::make()->title('Places failed')->body($e->getMessage())->danger()->send();
-        }
     }
 
     // ---------------------------------------------------------------- MARKER-SALES-UPLOAD

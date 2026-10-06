@@ -75,7 +75,7 @@ class AdminAccess
             'tenant-billing', 'billing-notices', 'sidebar', 'plan-prices', 'addons', 'scheduled-tasks'               => 'tenants', // MARKER-CUST-CLEANUP / MARKER-BILLING-DISCOUNTS / MARKER-TENANT-BILLING
             'tenant-domains'                                 => 'domains',
             'sales-channels', 'sales-prospects',
-            'sales-find-shops', 'sales-territories',
+            'sales-find-shops', 'sales-territories', 'sales-places', // MARKER-SALES-SETUP
             'sales-pipeline', 'sales-route-day'              => 'crm', // MARKER-SALES-FIND / MARKER-SALES-BOARD / MARKER-SALES-ROUTE
             'sales-agencies'                                 => 'reps',
             'marketing-pages', 'platform-nav-items',

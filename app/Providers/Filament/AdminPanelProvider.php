@@ -147,7 +147,7 @@ class AdminPanelProvider extends PanelProvider
                 \App\Filament\Pages\TenantBilling::class,     // MARKER-TENANT-BILLING
                 \App\Filament\Pages\SalesRouteDay::class,     // MARKER-SALES-ROUTE — explicit registration; this panel does NOT auto-discover
                 \App\Filament\Pages\SalesPipeline::class,     // MARKER-SALES-BOARD — explicit registration; this panel does NOT auto-discover
-                \App\Filament\Pages\SalesFindShops::class,    // MARKER-SALES-FIND — explicit registration; this panel does NOT auto-discover                   // MARKER-DEMO-ENTRY
+                \App\Filament\Pages\SalesFindShops::class, \App\Filament\Pages\SalesPlacesSettings::class, /* MARKER-SALES-SETUP */    // MARKER-SALES-FIND — explicit registration; this panel does NOT auto-discover                   // MARKER-DEMO-ENTRY
             ])
             ->widgets([
                 ServerHealthWidget::class,

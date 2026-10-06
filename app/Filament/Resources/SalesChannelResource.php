@@ -21,7 +21,7 @@ class SalesChannelResource extends Resource
     protected static ?string $model = SalesChannel::class;
 
     protected static ?string $navigationIcon  = 'heroicon-o-megaphone';
-    protected static ?string $navigationGroup = 'Sales';
+    protected static ?string $navigationGroup = 'Sales setup'; // MARKER-SALES-SETUP
     protected static ?int    $navigationSort  = 10;
     protected static ?string $navigationLabel = 'Industries'; // MARKER-SALES-INDUSTRY — was "Campaigns", clashed with email campaigns
     protected static ?string $modelLabel      = 'industry';
