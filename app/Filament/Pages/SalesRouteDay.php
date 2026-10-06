@@ -21,13 +21,13 @@ use Illuminate\Support\Facades\Auth;
 class SalesRouteDay extends Page
 {
     use \App\Support\UsesAdminNav;
-    protected static ?string $navigationIcon  = 'heroicon-o-truck';
-    protected static ?string $navigationLabel = 'Route day';
+    protected static ?string $navigationIcon  = 'heroicon-o-calendar-days';
+    protected static ?string $navigationLabel = 'Today'; // MARKER-SALES-TODAY — was Route day
     protected static ?string $navigationGroup = 'Sales';
-    protected static ?int    $navigationSort  = 9;
+    protected static ?int    $navigationSort  = 4;
     protected static string  $view            = 'filament.pages.sales-route-day';
     protected static ?string $slug            = 'sales-route-day';
-    protected static ?string $title           = 'Route day';
+    protected static ?string $title           = 'Today';
 
     public const MAX_STOPS = 12;
 
@@ -55,6 +55,8 @@ class SalesRouteDay extends Page
         $this->startLabel = (string) SalesSetting::get('route_start_label', '');
         $this->startLat   = SalesSetting::get('route_start_lat') !== null ? (float) SalesSetting::get('route_start_lat') : null;
         $this->startLng   = SalesSetting::get('route_start_lng') !== null ? (float) SalesSetting::get('route_start_lng') : null;
+        $this->industryId = (string) session('sales.industry', '');
+        if ($this->industryId !== '' && ! \App\Models\SalesChannel::whereKey($this->industryId)->exists()) $this->industryId = '';
     }
 
     public function reps() { return SalesRep::query()->with('agency')->where('status', 'active')->orderBy('name')->get(); }
@@ -62,8 +64,7 @@ class SalesRouteDay extends Page
     /** Candidates before ordering. */
     public function candidates()
     {
-        $q = SalesProspect::query()->open()->with('rep')
-            ->when($this->repId, fn ($q) => $q->where('sales_rep_id', $this->repId));
+        $q = $this->scoped();
         $due = (clone $q)->whereNotNull('next_action_on')
             ->when($this->includeOverdue, fn ($q) => $q->whereDate('next_action_on', '<=', now()), fn ($q) => $q->whereDate('next_action_on', now()))
             ->orderBy('next_action_on')->get();
@@ -147,7 +148,7 @@ class SalesRouteDay extends Page
         if (in_array($p->stage, ['prospect', 'verifying'], true)) $ch['stage'] = 'contacted';
         $p->update($ch);
         $this->done[] = $id;
-        Notification::make()->title('Visit logged · ' . $p->shop)->body('Set the next follow-up from the pipeline drawer.')->success()->send();
+        Notification::make()->title('Visit logged · ' . $p->shop)->body('Open the shop to set its next follow-up.')->success()->send();
     }
 
     public function placeOne(string $id): void
@@ -159,6 +160,93 @@ class SalesRouteDay extends Page
         } catch (\Throwable $e) {
             Notification::make()->title('Places failed')->body($e->getMessage())->danger()->send();
         }
+    }
+
+    // ---------------------------------------------------------------- MARKER-SALES-TODAY
+    // Route day became Today: one agenda (overdue, then due today), the shops
+    // still to verify, and the drive for the visits — on one page.
+    public string $industryId = '';
+
+    public function updatedIndustryId(): void { session(['sales.industry' => $this->industryId]); $this->route = []; }
+    public function updatedRepId(): void      { $this->route = []; }
+
+    public function industries()
+    {
+        return \App\Models\SalesChannel::query()->where('status', '!=', 'stub')->orderBy('name')->get(['id', 'name']);
+    }
+
+    protected function scoped()
+    {
+        return SalesProspect::query()->open()->with('rep')
+            ->when($this->repId === 'none', fn ($q) => $q->whereNull('sales_rep_id'))
+            ->when($this->repId && $this->repId !== 'none', fn ($q) => $q->where('sales_rep_id', $this->repId))
+            ->when($this->industryId, fn ($q) => $q->where('channel_id', $this->industryId));
+    }
+
+    /** Follow-ups due today or earlier: overdue first (oldest first), then today's. */
+    public function agenda()
+    {
+        return (clone $this->scoped())->whereNotNull('next_action_on')->whereDate('next_action_on', '<=', now())
+            ->orderBy('next_action_on')->orderByDesc('lead_score')->limit(60)->get();
+    }
+
+    /** Shops nobody has confirmed yet — a phone call each. */
+    public function verifyList()
+    {
+        return (clone $this->scoped())->where('verified', false)->whereIn('stage', ['prospect', 'verifying'])
+            ->whereNull('next_action_on')->orderByDesc('lead_score')->orderBy('shop')->limit(10)->get();
+    }
+
+    public function verifyTotal(): int
+    {
+        return (clone $this->scoped())->where('verified', false)->whereIn('stage', ['prospect', 'verifying'])->whereNull('next_action_on')->count();
+    }
+
+    public function tally(): array
+    {
+        $agenda = $this->agenda();
+        return [
+            'todo'    => $agenda->count(),
+            'overdue' => $agenda->filter(fn ($p) => $p->next_action_on->lt(now()->startOfDay()))->count(),
+            'trials'  => (int) (clone $this->scoped())->where('stage', 'trial')->sum('quote_monthly'),
+        ];
+    }
+
+    public function markDone(string $id): void
+    {
+        $p = SalesProspect::find($id); if (! $p) return;
+        $p->activities()->create(['type' => 'follow_up', 'body' => 'Done: ' . ($p->next_action ?: 'follow-up') . ' (from Today, ' . (Auth::user()?->name ?? 'staff') . ')']);
+        $p->update(['next_action_on' => null, 'next_action' => null, 'last_contacted_at' => now()]);
+        Notification::make()->title('Done · ' . $p->shop)->body('Open the shop to set its next follow-up.')->success()->send();
+    }
+
+    public function moveTomorrow(string $id): void
+    {
+        $p = SalesProspect::find($id); if (! $p) return;
+        $p->update(['next_action_on' => now()->addDay()->toDateString()]);
+        Notification::make()->title('Moved to tomorrow · ' . $p->shop)->success()->send();
+    }
+
+    public function verifyResult(string $id, string $result): void
+    {
+        $p = SalesProspect::find($id); if (! $p) return;
+        $by = Auth::user()?->name ?? 'staff';
+        match ($result) {
+            'open' => (function () use ($p, $by) {
+                $p->update(['verified' => true, 'last_contacted_at' => now(), 'stage' => $p->stage === 'prospect' ? 'verifying' : $p->stage]);
+                $p->activities()->create(['type' => 'system', 'body' => "Verified open by phone ($by)"]);
+            })(),
+            'closed' => (function () use ($p, $by) {
+                $p->update(['lost_reason' => 'Shop closed']);
+                $p->advanceTo('lost', "Shop closed, found while verifying ($by)");
+            })(),
+            'wrong' => (function () use ($p, $by) {
+                $p->activities()->create(['type' => 'system', 'body' => 'Wrong number: ' . ($p->phone ?: 'none') . " ($by)"]);
+                $p->update(['phone' => null]);
+            })(),
+            default => null,
+        };
+        Notification::make()->title($p->shop . ': ' . (['open' => 'verified', 'closed' => 'marked closed', 'wrong' => 'phone cleared'][$result] ?? 'updated'))->success()->send();
     }
 
     public function pipelineUrl(string $id): string
