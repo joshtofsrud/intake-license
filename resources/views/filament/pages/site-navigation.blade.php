@@ -89,8 +89,9 @@
   .snv-type{font-size:10.5px;display:flex;gap:6px;align-items:center;margin-bottom:4px}
   .snv-type b{background:rgba(127,127,127,.15);border-radius:4px;padding:1px 6px;font-weight:600}
   .snv-warn{font-size:10.5px;color:#d97706;border:1px solid rgba(217,119,6,.45);border-radius:99px;padding:0 7px}
-  .snv-in{width:100%;min-width:0;border:1px solid var(--snv-line);background:transparent;border-radius:7px;padding:6px 8px;font:inherit;font-size:12.5px;color:inherit}
+  .snv-in{width:100%;min-width:0;border:1px solid var(--snv-line);background-color:transparent;border-radius:7px;padding:6px 8px;font:inherit;font-size:12.5px;color:inherit}
   .snv-in:focus{outline:none;border-color:var(--snv-acc)}
+  select.snv-in{padding-right:30px;background-repeat:no-repeat} /* MARKER-SNV-SELECT-FIX */
   .snv-target{font-size:12.5px;opacity:.75;min-width:0}
   .snv-target code{font-size:11.5px}
   .snv-x{background:none;border:0;font-size:18px;opacity:.5;cursor:pointer;color:inherit}.snv-x:hover{opacity:1;color:#dc2626}
