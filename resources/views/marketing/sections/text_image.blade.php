@@ -47,6 +47,14 @@
     $numbers  = ($c['acc_numbers'] ?? 'show') !== 'hide';
     $lightbox = $flag('img_lightbox', false); // MARKER-TI-LIGHTBOX
     $accMid   = ($c['acc_img_valign'] ?? 'middle') !== 'top'; // MARKER-TI-VALIGN — image beside the list: middle (default) or top
+    // MARKER-TI-FRAME — none | panel | browser
+    $frame    = in_array($c['img_frame'] ?? 'none', ['panel', 'browser'], true) ? $c['img_frame'] : 'none';
+    $frameOpen = match ($frame) {
+        'panel'   => '<div class="ti-frame ti-frame-panel">',
+        'browser' => '<div class="ti-frame ti-frame-browser"><div class="ti-bar" aria-hidden="true"><i></i><i></i><i></i><span>' . e(trim((string) ($c['img_frame_url'] ?? '')) ?: request()->getHost()) . '</span></div>',
+        default   => '',
+    };
+    $frameClose = $frame === 'none' ? '' : '</div>';
 @endphp
 <section class="{{ $padding }} {{ $bgId }} {{ $tiId }}" @if($lightbox) data-ti-lb @endif @if(!empty($inlineStyle ?? '')) style="{{ $inlineStyle }}" @endif>
 <style>
@@ -59,6 +67,17 @@
   .{{ $tiId }} .ti-img { border-radius: {{ $radius }}; overflow: hidden; background: var(--mk-bg2); box-shadow: 0 20px 40px -12px rgba(0,0,0,.35); @if($aspect !== 'auto') aspect-ratio: {{ $aspect }}; @endif }
   .{{ $tiId }} .ti-img img { width: 100%; @if($aspect !== 'auto') height: 100%; object-fit: cover; @endif }
   @if($lightbox) .{{ $tiId }} .ti-img img { cursor: zoom-in; } @endif
+  @if($frame !== 'none')
+  {{-- MARKER-TI-FRAME --}}
+  .{{ $tiId }} .ti-frame { padding: 12px; border-radius: calc({{ $radius }} + 8px); background: linear-gradient(180deg, #181818, #0f0f0f); border: .5px solid rgba(255,255,255,.1); box-shadow: 0 30px 60px -24px rgba(0,0,0,.65), 0 0 90px -30px color-mix(in srgb, {{ $accent }} 35%, transparent); }
+  .{{ $tiId }} .ti-frame .ti-img { box-shadow: none; }
+  .{{ $tiId }} .ti-frame-browser { padding: 0 10px 10px; }
+  .{{ $tiId }} .ti-bar { display: flex; align-items: center; gap: 6px; height: 34px; padding: 0 4px; }
+  .{{ $tiId }} .ti-bar i { width: 9px; height: 9px; border-radius: 50%; background: rgba(255,255,255,.16); flex: none; }
+  .{{ $tiId }} .ti-bar span { margin: 0 auto; transform: translateX(-16px); font-size: 11px; color: var(--mk-muted); background: rgba(255,255,255,.05); border-radius: 6px; padding: 3px 14px; max-width: 60%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .{{ $tiId }} .ti-frame-browser .ti-img { border-radius: 0 0 {{ $radius }} {{ $radius }}; }
+  @media (max-width: 760px) { .{{ $tiId }} .ti-frame { padding: 8px; } .{{ $tiId }} .ti-frame-browser { padding: 0 6px 6px; } }
+  @endif
   .{{ $tiId }} .ti-ph { aspect-ratio: 4/3; display: flex; align-items: center; justify-content: center; color: var(--mk-dim); font-size: 14px; }
   .{{ $tiId }} .ti-grid { display: grid; grid-template-columns: {{ $cols }}; gap: clamp(28px, 5vw, 64px); align-items: {{ $style === 'accordion' && ! $accMid ? 'start' : 'center' }}; }
   .{{ $tiId }} .ti-grid > .ti-side-img { order: {{ $imgRight ? 2 : 1 }}; }
@@ -132,13 +151,13 @@
                     <div class="ti-btns">@foreach($buttons as $b)<a href="{{ $safeUrl($b['url'] ?? '#') }}" class="{{ $btnClass($b['style'] ?? 'primary') }}">{{ $b['label'] }}</a>@endforeach</div>
                 @endif
             </div>
-            <div class="ti-side-img">
+            <div class="ti-side-img">{!! $frameOpen !!}
                 @if(!empty($c['image_url']))
                     <div class="ti-img"><img src="{{ $c['image_url'] }}" alt="{{ $c['image_alt'] ?? '' }}" loading="lazy"></div>
                 @else
                     <div class="ti-img ti-ph">Image placeholder</div>
                 @endif
-            </div>
+            {!! $frameClose !!}</div>
         </div>
 @else
         @if(!empty($c['eyebrow']) || !empty($c['heading']) || trim((string) ($c['body'] ?? '')) !== '')
@@ -169,7 +188,7 @@
                     </div>
                 @endforeach
             </div>
-            <div class="ti-side-img ti-stage">
+            <div class="ti-side-img ti-stage">{!! $frameOpen !!}
                 <div class="ti-img">
                     @php $shown = false; @endphp
                     @foreach($items as $i => $it)
@@ -180,7 +199,7 @@
                     @endforeach
                     @if(! $shown)<div class="ti-ph is-on">Image placeholder</div>@endif
                 </div>
-            </div>
+            {!! $frameClose !!}</div>
         </div>
         @endif
 @endif

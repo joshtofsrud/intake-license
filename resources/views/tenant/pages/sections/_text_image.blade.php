@@ -265,6 +265,21 @@
     <div class="pb2-group-title">Image placement</div>
 
     @if($tiMarketing ?? false)
+    {{-- MARKER-TI-FRAME --}}
+    <div class="pb2-field">
+      <label class="pb2-field-label">Image frame</label>
+      <div class="pb2-seg" data-field-seg="img_frame">
+        @foreach(['none' => 'None', 'panel' => 'Panel', 'browser' => 'Browser'] as $val => $name)
+          <button type="button" class="pb2-seg-btn {{ $get('img_frame', 'none') === $val ? 'active' : '' }}" data-seg-value="{{ $val }}">{{ $name }}</button>
+        @endforeach
+      </div>
+      <input type="hidden" data-field="img_frame" value="{{ $get('img_frame', 'none') }}">
+      <div class="pb2-field-hint" style="display:block;text-align:left;margin-top:6px">Panel sets the image on a lighter surface with a hairline edge and a faint glow in your accent colour. Browser adds a slim window bar on top, so app screenshots read as the product.</div>
+    </div>
+    <div class="pb2-field">
+      <label class="pb2-field-label">Address in the bar <span class="pb2-field-hint">Browser frame only</span></label>
+      <input type="text" class="pb2-input" data-field="img_frame_url" value="{{ $get('img_frame_url') }}" placeholder="Leave blank to show this site's address">
+    </div>
     {{-- MARKER-TI-LIGHTBOX --}}
     <label class="pb2-checkbox-row">
       <input type="checkbox" data-field="img_lightbox" value="1" {{ $tiFlag('img_lightbox', false) ? 'checked' : '' }}>
