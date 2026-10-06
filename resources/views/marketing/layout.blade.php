@@ -245,6 +245,9 @@
   @stack('styles')
 <script>/* MARKER-BOOK-MODAL — shown inside the pop-up: no site header/footer */ if (window.self !== window.top) document.documentElement.classList.add('in-frame');</script>
 <style>html.in-frame .mk-nav, html.in-frame .mk-footer { display: none !important; } html.in-frame body { background: transparent; }</style>
+<style>/* MARKER-MENU-PANEL-OPAQUE — dropdown panels sit on a near-solid surface so the page doesn't read through */
+.mk-dd-panel{background:rgba(14,14,14,.97) !important;-webkit-backdrop-filter:blur(20px) saturate(1.2) !important;backdrop-filter:blur(20px) saturate(1.2) !important;box-shadow:0 24px 48px -12px rgba(0,0,0,.6),0 0 0 .5px rgba(255,255,255,.08) !important}
+</style>
 </head>
 <body>
 
