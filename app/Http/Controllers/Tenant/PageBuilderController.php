@@ -230,6 +230,17 @@ class PageBuilderController extends Controller
             'hide_on_mobile'  => false,
             'hide_on_desktop' => false,
         ],
+        // MARKER-ROI-SECTION — starting content uses the shop's real, conservative numbers
+        'roi' => [
+            'eyebrow' => 'The return', 'heading' => 'Tools that pay for themselves', 'accent_words' => 'pay for themselves',
+            'subheading' => 'Real results from our own shop, and a calculator for yours.',
+            's1_big' => '$8 → $3,000+', 's1_label' => 'One email campaign to 7,000 active customers.', 's1_source' => 'Our own shop, Ground Control', 's1_note' => 'Below our typical result for a single send.',
+            's2_big' => 'Regulars, back on their own', 's2_label' => 'Customers who have gone quiet are spotted and invited back automatically.', 's2_source' => 'Runs in the background', 's2_note' => '',
+            's3_big' => '', 's3_label' => '', 's3_source' => '', 's3_note' => '',
+            'calc_on' => true, 'calc_title' => 'Rentals that extend themselves', 'calc_intro' => '',
+            'calc_fleet' => 30, 'calc_rate' => 100, 'calc_idle' => 50, 'calc_length' => 1, 'calc_takeup' => 40, 'calc_discount' => 50, 'calc_note' => '',
+            'accent_color' => '', 'anchor_id' => '', 'custom_classes' => '', 'hide_on_mobile' => false, 'hide_on_desktop' => false,
+        ],
         // MARKER-SCROLL-WORDS
         'scroll_words' => ['prefix' => 'One system for', 'words' => "booking\nservice\nretail\nrentals\nmarketing", 'mode' => 'spotlight', 'size' => 'l', 'align' => 'left',
                            'text_color' => '', 'accent_color' => '', 'anchor_id' => '', 'custom_classes' => '', 'hide_on_mobile' => false, 'hide_on_desktop' => false],

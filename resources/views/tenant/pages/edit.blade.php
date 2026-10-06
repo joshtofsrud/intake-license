@@ -65,6 +65,7 @@
     'industry_pack_showcase' => 'Industries',
     'book_call'              => 'Book a call', // MARKER-SCHED-SECTION
     'try_demo'               => 'Try the demo', // MARKER-DEMO-SECTION
+    'roi'                    => 'ROI', // MARKER-ROI-SECTION
     'stats_row'              => 'Stats row',
     'custom_html'            => 'Custom HTML', // MARKER-PATCH-306
   ];
@@ -103,6 +104,7 @@
     'stats_row'      => '<polyline points="3 17 9 11 13 15 21 7"/><polyline points="17 7 21 7 21 11"/>',
     'book_call'      => '<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>', // MARKER-SCHED-SECTION
     'try_demo'       => '<polygon points="5 3 19 12 5 21 5 3"/>', // MARKER-DEMO-SECTION
+    'roi'            => '<polyline points="4 17 9 12 13 15 20 7"/><polyline points="15 7 20 7 20 12"/>', // MARKER-ROI-SECTION
     'custom_html'    => '<polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>', // MARKER-PATCH-306
   ];
 
@@ -137,6 +139,7 @@
     'industry_pack_showcase'=>'Showcase of industries served',
     'book_call'     => 'Let visitors book a call from your Scheduling calendar', // MARKER-SCHED-SECTION
     'try_demo'      => 'Send visitors into the live demo shop, signed in, no account', // MARKER-DEMO-SECTION
+    'roi'           => 'Results with their sources, plus a rental extension calculator', // MARKER-ROI-SECTION
     'stats_row'     => 'Big-number stats row',
     'custom_html'   => 'Paste raw HTML, rendered as-is', // MARKER-PATCH-306
   ];
@@ -145,7 +148,7 @@
   $typeGroups = [
     'Layout'     => ['nav','hero','footer'],
     'Content'    => ['text_image','feature_grid','feature_groups','step_timeline','image_gallery','image_carousel','scroll_words','faq_accordion','stats_row'], // MARKER-FEATURE-GROUPS
-    'Conversion' => ['services','cta_banner','booking_embed','contact_form','book_call','try_demo','pricing_table','rentals_showcase','rental_spotlight','rental_categories','rental_browse','products_showcase'], // MARKER-SCHED-SECTION book_call
+    'Conversion' => ['services','cta_banner','booking_embed','contact_form','book_call','try_demo','roi','pricing_table','rentals_showcase','rental_spotlight','rental_categories','rental_browse','products_showcase'], // MARKER-SCHED-SECTION book_call
     'Social'     => ['testimonial_carousel','logo_bar'],
     'Advanced'   => ['custom_html'], // MARKER-PATCH-306
   ];
@@ -2251,7 +2254,7 @@ body.ia-theme-b .pb2-preview-frame-wrap {
             $allowed = $isBookingExtras
               ? ['hero','cta_banner','feature_grid','custom_html','text_image','image_gallery','image_carousel','stats_row','testimonial_carousel','faq_accordion','logo_bar','step_timeline','pricing_table'] // MARKER-PATCH-603 — content sections; chrome/shop/nav excluded
               : ($isMarketing
-              ? ['nav','hero','text_image','cta_banner','image_gallery','image_carousel','scroll_words','contact_form','feature_grid','step_timeline','faq_accordion','footer','pricing_table','testimonial_carousel','logo_bar','stats_row','comparison_table','industry_pack_showcase','book_call','try_demo','custom_html','feature_groups'] /* MARKER-SCHED-SECTION / MARKER-DEMO-SECTION / MARKER-FEATURE-GROUPS (marketing only) */
+              ? ['nav','hero','text_image','cta_banner','image_gallery','image_carousel','scroll_words','contact_form','feature_grid','step_timeline','faq_accordion','footer','pricing_table','testimonial_carousel','logo_bar','stats_row','comparison_table','industry_pack_showcase','book_call','try_demo','roi','custom_html','feature_groups'] /* MARKER-ROI-SECTION / MARKER-SCHED-SECTION / MARKER-DEMO-SECTION / MARKER-FEATURE-GROUPS (marketing only) */
               : ['nav','hero','text_image','cta_banner','image_gallery','image_carousel','scroll_words','contact_form','booking_embed','classes_embed','feature_grid','step_timeline','faq_accordion','footer','testimonial_carousel','logo_bar','stats_row','pricing_table','rentals_showcase','rental_spotlight','rental_categories','rental_browse','products_showcase','custom_html']);
           @endphp
 
