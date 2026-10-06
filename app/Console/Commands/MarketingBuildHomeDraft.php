@@ -166,7 +166,7 @@ class MarketingBuildHomeDraft extends Command
             foreach (array_values(array_filter($plan)) as $i => $p) {
                 TenantPageSection::create([
                     'page_id' => $page->id, 'tenant_id' => $t->id, 'section_type' => $p['type'], 'content' => $p['content'],
-                    'bg_color' => $p['from']->bg_color ?? null, 'padding' => $p['from']->padding ?? null,
+                    'bg_color' => $p['from']->bg_color ?? null, 'padding' => ($p['from']->padding ?? null) ?: 'normal', // MARKER-HOME-DRAFT-PADDING
                     'is_visible' => true, 'sort_order' => ($i + 1) * 10,
                 ]);
             }
