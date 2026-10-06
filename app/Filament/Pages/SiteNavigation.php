@@ -35,13 +35,14 @@ class SiteNavigation extends Page
             'rows'       => MarketingNav::rows(),
             'pages'      => MarketingNav::pages(),
             'header'     => MarketingNav::header(), // MARKER-MKT-NAV-FLOAT
+            'groups'     => MarketingNav::menuGroups(), // MARKER-MKT-MENU-GROUPS
             'footer'     => MarketingNav::footer(),  // MARKER-MKT-FOOTER
             'previewUrl' => url('/admin/navigation/preview'),
         ];
     }
 
     /** Called from the page with the whole list; replaces the menu in one go. */
-    public function save(array $rows, array $header = [], array $footer = []): void
+    public function save(array $rows, array $header = [], array $footer = [], array $groups = []): void
     {
         $platform = MarketingNav::platform();
         if (! $platform) {
@@ -51,6 +52,7 @@ class SiteNavigation extends Page
 
         $pages = MarketingNav::pages();
         $clean = [];
+        $meta  = []; // MARKER-MKT-MENU-GROUPS — one entry per saved row, in order
         $problems = [];
 
         foreach (array_slice(array_values($rows), 0, self::MAX_ROWS) as $n => $r) {
@@ -72,6 +74,7 @@ class SiteNavigation extends Page
                 if (! preg_match('#^(/|\#|https?://|mailto:|tel:)#i', $url))  { $problems[] = "Row $pos needs an address starting with /, #, https://, mailto: or tel:."; continue; }
             }
 
+            $meta[] = MarketingNav::cleanMeta($r);
             $host = parse_url($url, PHP_URL_HOST);
             $clean[] = [
                 'page_id' => $pid, 'label' => $type === 'page' && $label === '' ? '' : $label, 'url' => $url,
@@ -85,7 +88,12 @@ class SiteNavigation extends Page
             return;
         }
 
-        DB::transaction(function () use ($platform, $clean, $header, $footer) {
+        DB::transaction(function () use ($platform, $clean, $header, $footer, $groups, $meta) {
+            // MARKER-MKT-MENU-GROUPS — groups and each row's group/icon/description
+            $settings = $platform->settings ?? [];
+            $settings['marketing_menu'] = ['groups' => MarketingNav::cleanGroups($groups), 'meta' => $meta];
+            $platform->settings = $settings;
+            $platform->save();
             // MARKER-MKT-FOOTER — the footer saves with the menu.
             if ($footer) {
                 $settings = $platform->settings ?? [];

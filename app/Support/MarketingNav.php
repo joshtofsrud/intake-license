@@ -128,8 +128,9 @@ class MarketingNav
     {
         $p = self::platform();
         if (! $p) return [];
-        return TenantNavItem::where('tenant_id', $p->id)->orderBy('sort_order')->get()
-            ->map(fn ($r) => [
+        $menuMeta = (array) (($p->settings['marketing_menu']['meta'] ?? []) ?: []); // MARKER-MKT-MENU-GROUPS
+        return TenantNavItem::where('tenant_id', $p->id)->orderBy('sort_order')->get()->values()
+            ->map(fn ($r, $idx) => self::cleanMeta($menuMeta[$idx] ?? []) + [
                 'type'  => $r->page_id ? 'page' : 'link',
                 'page'  => $r->page_id ? (string) $r->page_id : null,
                 'label' => (string) ($r->getRawOriginal('label') ?? ''), // MARKER-SHOP-NAV — raw, not the page title
@@ -163,7 +164,7 @@ class MarketingNav
                 if ($label === '' || $url === '') continue;
                 if (! preg_match('#^(/|\#|https?://|mailto:|tel:)#i', $url)) continue;
             }
-            $out[] = ['label' => $label, 'url' => $url, 'style' => $style, 'side' => $side, 'tab' => ! empty($r['tab'])];
+            $out[] = ['label' => $label, 'url' => $url, 'style' => $style, 'side' => $side, 'tab' => ! empty($r['tab'])] + self::cleanMeta($r); // MARKER-MKT-MENU-GROUPS
         }
         return $out;
     }
@@ -263,5 +264,90 @@ class MarketingNav
         }
         if ($r['label'] === '' || ! preg_match('#^(/|\#|https?://|mailto:|tel:)#i', $r['url'])) return null;
         return ['label' => $r['label'], 'url' => $r['url'], 'quiz' => false, 'tab' => $r['tab']];
+    }
+
+    // ===================== MARKER-MKT-MENU-GROUPS =====================
+    // Grouped menus: rows on the left can belong to a group; a group shows in
+    // the bar as one dropdown (at its first row's place) with each link's icon
+    // and one-line description, plus an optional featured action card. On
+    // phones groups become an accordion. Saved with the menu in
+    // settings.marketing_menu = {groups: [...], meta: [per-row {group,desc,icon}]}.
+
+    public const ICONS = [
+        'grid'   => '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
+        'tag'    => '<path d="M3 12V4h8l10 10-8 8L3 12z"/><circle cx="7.5" cy="7.5" r="1.5"/>',
+        'map'    => '<path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2z"/><path d="M9 4v14M15 6v14"/>',
+        'spark'  => '<path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M6 18l2.5-2.5M15.5 8.5 18 6"/>',
+        'wrench' => '<path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.6 2.6-2.4-.6-.6-2.4z"/>',
+        'user'   => '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
+        'pulse'  => '<path d="M3 12h4l3-8 4 16 3-8h4"/>',
+        'wp'     => '<circle cx="12" cy="12" r="9"/><path d="M4.5 8.5 9 19l3-8 3 8 4.5-10.5"/>',
+        'book'   => '<path d="M4 4h6a3 3 0 0 1 3 3v13a2 2 0 0 0-2-2H4z"/><path d="M20 4h-6a3 3 0 0 0-3 3v13a2 2 0 0 1 2-2h7z"/>',
+        'play'   => '<circle cx="12" cy="12" r="9"/><path d="m10 8 6 4-6 4z"/>',
+        'cal'    => '<rect x="3" y="4.5" width="18" height="16" rx="2.5"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4"/>',
+        'chat'   => '<path d="M4 5h16v11H8l-4 4z"/>',
+        'box'    => '<path d="M21 8 12 3 3 8v8l9 5 9-5V8z"/><path d="M3 8l9 5 9-5M12 13v8"/>',
+        'card'   => '<rect x="2.5" y="5" width="19" height="14" rx="2"/><path d="M2.5 10h19M6 15h4"/>',
+        'globe'  => '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>',
+        'mail'   => '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m4 7 8 6 8-6"/>',
+        'star'   => '<path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/>',
+    ];
+
+    public static function menuGroups(?array $override = null): array
+    {
+        $raw = $override ?? (self::platform()?->settings['marketing_menu']['groups'] ?? []);
+        return self::cleanGroups(is_array($raw) ? $raw : []);
+    }
+
+    public static function cleanGroups(array $groups): array
+    {
+        $out = [];
+        $txt = fn ($v, $n) => mb_substr(trim((string) $v), 0, $n);
+        foreach (array_slice(array_values($groups), 0, 6) as $i => $g) {
+            if (! is_array($g)) continue;
+            $key = preg_replace('/[^a-z0-9_-]/', '', strtolower((string) ($g['key'] ?? ''))) ?: 'g' . ($i + 1);
+            $f = is_array($g['feature'] ?? null) ? $g['feature'] : null;
+            $feature = null;
+            if ($f && trim((string) ($f['label'] ?? '')) !== '' && preg_match('#^(/|\#|https?://|mailto:|tel:)#i', trim((string) ($f['url'] ?? '')))) {
+                $feature = ['label' => $txt($f['label'], 40), 'desc' => $txt($f['desc'] ?? '', 80), 'url' => $txt($f['url'], 255),
+                            'icon' => isset(self::ICONS[$f['icon'] ?? '']) ? $f['icon'] : 'star'];
+            }
+            $out[] = ['key' => mb_substr($key, 0, 20), 'title' => $txt($g['title'] ?? '', 30) ?: 'Menu', 'feature' => $feature];
+        }
+        return $out;
+    }
+
+    public static function cleanMeta($m): array
+    {
+        $m = is_array($m) ? $m : [];
+        return [
+            'group' => mb_substr(preg_replace('/[^a-z0-9_-]/', '', strtolower((string) ($m['group'] ?? ''))), 0, 20),
+            'desc'  => mb_substr(trim((string) ($m['desc'] ?? '')), 0, 80),
+            'icon'  => isset(self::ICONS[$m['icon'] ?? '']) ? $m['icon'] : '',
+        ];
+    }
+
+    /**
+     * The left side of the bar, in order: plain links, and each group once (at
+     * its first link's place) with its links. Empty groups are left out.
+     */
+    public static function structure(array $leftItems, array $groups): array
+    {
+        $byKey = [];
+        foreach ($groups as $g) $byKey[$g['key']] = $g + ['items' => []];
+        foreach ($leftItems as $it) {
+            $k = $it['group'] ?? '';
+            if ($k !== '' && isset($byKey[$k])) $byKey[$k]['items'][] = $it;
+        }
+        $out = []; $placed = [];
+        foreach ($leftItems as $it) {
+            $k = $it['group'] ?? '';
+            if ($k !== '' && isset($byKey[$k])) {
+                if (! isset($placed[$k])) { $placed[$k] = true; $out[] = ['kind' => 'group', 'group' => $byKey[$k]]; }
+            } else {
+                $out[] = ['kind' => 'link', 'item' => $it];
+            }
+        }
+        return $out;
     }
 }

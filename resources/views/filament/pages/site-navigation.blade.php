@@ -65,6 +65,14 @@
   .snv-fnewcol{align-self:start;justify-self:start}
   .snv-chipish{display:inline-flex;gap:4px;align-items:center;margin:0 8px 6px 0}
   .snv-ffr{height:300px}
+  /* MARKER-MKT-MENU-GROUPS */
+  .mg-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;margin-top:10px;align-items:start}
+  .mg-card{border:1px solid rgba(127,127,127,.2);border-radius:12px;padding:10px;display:grid;gap:8px}
+  .mg-top{display:flex;align-items:center;gap:8px}.mg-title{flex:1;font-weight:600}
+  .mg-chk{display:flex;gap:6px;align-items:center;font-size:12.5px;opacity:.85}
+  .mg-feat{display:grid;gap:6px}
+  .mg-add{align-self:start;justify-self:start}
+  .mg-row{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}.mg-sel{width:auto;flex:0 1 150px;font-size:12px}.mg-desc{flex:1 1 180px;font-size:12px}
   /* MARKER-MKT-FOOTER-PREVIEW / -PHONE */
   .ft-phone{display:flex;align-items:center;gap:12px;margin-top:14px;font-size:12.5px}.ft-phone>span:first-child{opacity:.75}
   .ft-prev{display:flex;justify-content:center;background:rgba(127,127,127,.06);border-radius:12px;padding:10px}
@@ -99,7 +107,7 @@
 </style>
 
 <div class="snv" wire:ignore
-     x-data="snvEditor(@js($rows), @js($pages), @js($previewUrl), @js($header), @js($footer))"
+     x-data="snvEditor(@js($rows), @js($pages), @js($previewUrl), @js($header), @js($footer), @js($groups))"
      x-on:nav-saved.window="saved = snapshot()"
      x-on:beforeunload.window="if (dirty) { $event.preventDefault(); $event.returnValue = ''; }">
 
@@ -159,6 +167,35 @@
     <div class="snv-dim" style="margin-top:8px">Drawn by the site's own header code from the list and style above, including unsaved changes. Scroll inside it to see Floating over the page.</div>
   </div>
 
+  {{-- MARKER-MKT-MENU-GROUPS — groups turn several pages into one dropdown --}}
+  <div class="snv-card">
+    <div class="snv-head"><b>Menu groups</b><span class="snv-dim">Put pages into a group to show them as one dropdown. A group sits where its first page is in the list below.</span></div>
+    <div class="mg-list">
+      <template x-for="(g, gi) in groups" :key="'g' + gi">
+        <div class="mg-card">
+          <div class="mg-top">
+            <input class="snv-in mg-title" x-model="g.title" @input="changed()" maxlength="30" placeholder="Group name">
+            <span class="snv-dim" x-text="groupCount(g.key) + (groupCount(g.key) === 1 ? ' link' : ' links')"></span>
+            <button type="button" class="snv-x" title="Remove group (its pages stay in the menu)" @click="delGroup(gi)">×</button>
+          </div>
+          <label class="mg-chk"><input type="checkbox" :checked="!!g.feature" @change="toggleFeat(g, $event.target.checked)"> Featured action card</label>
+          <template x-if="g.feature">
+            <div class="mg-feat">
+              <input class="snv-in" x-model="g.feature.label" @input="changed()" maxlength="40" placeholder="Label, e.g. Book a call">
+              <input class="snv-in" x-model="g.feature.desc" @input="changed()" maxlength="80" placeholder="One line under it">
+              <input class="snv-in" x-model="g.feature.url" @input="changed()" maxlength="255" placeholder="/demo, #book or https://…">
+              <select class="snv-in" @change="g.feature.icon = $event.target.value; changed()">
+                <template x-for="k in iconKeys" :key="k"><option :value="k" :selected="g.feature.icon === k" x-text="k"></option></template>
+              </select>
+            </div>
+          </template>
+        </div>
+      </template>
+      <button type="button" class="snv-btn mg-add" x-show="groups.length < 6" @click="addGroup()">+ Group</button>
+    </div>
+    <div class="snv-dim" style="margin-top:8px" x-show="!groups.length">No groups yet — the menu shows every link in the bar, as now.</div>
+  </div>
+
   <div class="snv-card">
     <div class="snv-cols"><span></span><span>Item</span><span>Goes to</span><span>Style</span><span>Side</span><span>New tab</span><span></span></div>
 
@@ -174,6 +211,14 @@
             <template x-if="r.type === 'page' && !pages[r.page]"><span class="snv-warn">page deleted — remove this row</span></template>
           </div>
           <input class="snv-in" x-model="r.label" @input="changed()" :placeholder="r.type === 'page' && pages[r.page] ? pages[r.page].title : 'Label'" maxlength="40">
+          <div class="mg-row" x-show="r.side === 'left' && groups.length"> {{-- MARKER-MKT-MENU-GROUPS --}}
+            <select class="snv-in mg-sel" @change="r.group = $event.target.value; changed()">
+              <option value="" :selected="!r.group">No group</option>
+              <template x-for="g in groups" :key="g.key"><option :value="g.key" :selected="r.group === g.key" x-text="'In ' + (g.title || 'group')"></option></template>
+            </select>
+            <template x-if="r.group"><select class="snv-in mg-sel" @change="r.icon = $event.target.value; changed()"><option value="" :selected="!r.icon">No icon</option><template x-for="k in iconKeys" :key="k"><option :value="k" :selected="r.icon === k" x-text="k"></option></template></select></template>
+            <template x-if="r.group"><input class="snv-in mg-desc" x-model="r.desc" @input="changed()" maxlength="80" placeholder="One-line description"></template>
+          </div>
         </div>
         <div>
           <template x-if="r.type === 'page'"><div class="snv-target"><span x-text="pages[r.page] ? pages[r.page].title + ' page · ' : ''"></span><code x-text="pages[r.page] ? pages[r.page].path : ''"></code></div></template>
@@ -261,16 +306,22 @@
 
   <div class="snv-bar">
     <span class="snv-dim" x-text="dirty ? 'Unsaved changes — the live menu hasn\u2019t changed yet' : 'All changes saved'"></span>
-    <button type="button" class="snv-btn" :disabled="!dirty" @click="var s = JSON.parse(saved); rows = s.rows; header = s.header; footer = s.footer; changed()">Discard</button>
-    <button type="button" class="snv-btn snv-btn--pri" :disabled="!dirty" @click="$wire.save(JSON.parse(JSON.stringify(rows)), JSON.parse(JSON.stringify(header)), JSON.parse(JSON.stringify(footer)))">Save</button>
+    <button type="button" class="snv-btn" :disabled="!dirty" @click="var s = JSON.parse(saved); rows = s.rows; header = s.header; footer = s.footer; groups = s.groups || []; changed()">Discard</button>
+    <button type="button" class="snv-btn snv-btn--pri" :disabled="!dirty" @click="$wire.save(JSON.parse(JSON.stringify(rows)), JSON.parse(JSON.stringify(header)), JSON.parse(JSON.stringify(footer)), JSON.parse(JSON.stringify(groups)))">Save</button>
   </div>
 </div>
 
 <script>
-  function snvEditor(rows, pages, previewUrl, header, footer) {
+  function snvEditor(rows, pages, previewUrl, header, footer, groups) {
     return {
-      rows: rows, pages: pages, header: header, footer: Object.assign({ phone: 'grid' }, footer), saved: JSON.stringify({rows: rows, header: header, footer: footer}), dev: 'desktop', pop: false, from: null, t: null,
-      snapshot() { return JSON.stringify({rows: this.rows, header: this.header, footer: this.footer}); },
+      rows: rows, pages: pages, header: header, footer: Object.assign({ phone: 'grid' }, footer), groups: groups || [], saved: JSON.stringify({rows: rows, header: header, footer: footer, groups: groups || []}), dev: 'desktop', pop: false, from: null, t: null,
+      snapshot() { return JSON.stringify({rows: this.rows, header: this.header, footer: this.footer, groups: this.groups}); },
+      // MARKER-MKT-MENU-GROUPS
+      iconKeys: ['grid','tag','map','spark','wrench','user','pulse','wp','book','play','cal','chat','box','card','globe','mail','star'],
+      addGroup() { this.groups.push({ key: 'g' + Date.now().toString(36).slice(-6), title: 'New group', feature: null }); this.changed(); },
+      delGroup(gi) { var k = this.groups[gi].key; this.rows.forEach(function (r) { if (r.group === k) r.group = ''; }); this.groups.splice(gi, 1); this.changed(); },
+      groupCount(k) { return this.rows.filter(function (r) { return r.group === k && r.side === 'left'; }).length; },
+      toggleFeat(g, on) { g.feature = on ? { label: '', desc: '', url: '', icon: 'star' } : null; this.changed(); },
       // MARKER-MKT-FOOTER
       fAdd(list, type) { var first = Object.keys(this.pages)[0] || null; list.push({type: type, page: type === 'page' ? first : null, label: '', url: '', tab: false}); this.changed(); },
       fMove(list, i, d) { var j = i + d; if (j < 0 || j >= list.length) return; var m = list.splice(i, 1)[0]; list.splice(j, 0, m); this.changed(); },
@@ -311,7 +362,8 @@
       refresh() {
         var d = btoa(unescape(encodeURIComponent(JSON.stringify(this.rows))));
         var h = btoa(unescape(encodeURIComponent(JSON.stringify(this.header))));
-        this.$refs.frame.src = previewUrl + '?d=' + encodeURIComponent(d) + '&h=' + encodeURIComponent(h);
+        var gq = btoa(unescape(encodeURIComponent(JSON.stringify(this.groups || [])))); // MARKER-MKT-MENU-GROUPS
+        this.$refs.frame.src = previewUrl + '?d=' + encodeURIComponent(d) + '&h=' + encodeURIComponent(h) + '&g=' + encodeURIComponent(gq);
         var fb = btoa(unescape(encodeURIComponent(JSON.stringify(this.footer))));
         if (this.$refs.ffr) this.$refs.ffr.src = previewUrl + '?mode=footer&f=' + encodeURIComponent(fb); // MARKER-MKT-FOOTER
       },

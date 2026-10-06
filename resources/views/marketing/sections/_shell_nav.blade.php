@@ -112,6 +112,37 @@
     .mk-hamburger.is-open span:nth-child(2) { opacity: 0; }
     .mk-hamburger.is-open span:nth-child(3) { transform: translateY(-6.5px) rotate(-45deg); }
     @media (prefers-reduced-motion: reduce) { .mk-hamburger, .mk-hamburger span { transition: none; } }
+    /* MARKER-MKT-MENU-GROUPS — dropdown panels (desktop) and accordion (phone) */
+    .mk-dd { position: relative; }
+    .mk-dd-btn { display: inline-flex; align-items: center; gap: 6px; background: none; border: 0; font: inherit; cursor: pointer; }
+    .mk-dd-btn svg { transition: transform .2s; opacity: .7; }
+    .mk-dd.on .mk-dd-btn svg { transform: rotate(180deg); }
+    .mk-dd-panel { position: absolute; top: calc(100% + 14px); left: 50%; z-index: 60; transform: translateX(-50%) translateY(-6px); opacity: 0; visibility: hidden; pointer-events: none;
+        transition: opacity .18s ease, transform .18s ease, visibility .18s; display: flex; gap: 10px; padding: 10px; border-radius: 18px; width: max-content; max-width: min(720px, 92vw);
+        background: color-mix(in srgb, var(--mkf-menu-bg, var(--mk-bg, #0c0c0c)) 94%, transparent); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
+        border: .5px solid rgba(255,255,255,.12); box-shadow: 0 30px 60px rgba(0,0,0,.45); }
+    .mk-dd-panel::before { content: ''; position: absolute; left: 0; right: 0; top: -16px; height: 16px; }
+    .mk-dd.on .mk-dd-panel { opacity: 1; visibility: visible; transform: translateX(-50%); pointer-events: auto; }
+    .mk-dd-items { display: grid; grid-template-columns: 1fr; gap: 2px; min-width: 250px; }
+    .mk-dd-items.is-two { grid-template-columns: 1fr 1fr; width: 470px; }
+    .mk-dd-item, .mk-mg-item { display: flex; gap: 12px; align-items: flex-start; padding: 10px 12px; border-radius: 12px; text-decoration: none; color: var(--mk-text); }
+    .mk-dd-item:hover, .mk-dd-item:focus-visible { background: rgba(255,255,255,.06); outline: 0; }
+    .mk-dd-ic { flex: none; width: 32px; height: 32px; border-radius: 9px; background: color-mix(in srgb, var(--mk-accent) 12%, transparent); color: var(--mk-accent); display: flex; align-items: center; justify-content: center; }
+    .mk-dd-ic svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+    .mk-dd-item b, .mk-mg-item b { display: block; font-size: 14px; font-weight: 600; color: var(--mk-text); }
+    .mk-dd-item small, .mk-mg-item small { display: block; font-size: 12.5px; color: var(--mk-muted); margin-top: 2px; line-height: 1.4; }
+    .mk-dd-feat { position: relative; width: 190px; border-radius: 12px; padding: 14px; text-decoration: none; display: flex; flex-direction: column; gap: 6px;
+        background: linear-gradient(160deg, color-mix(in srgb, var(--mk-accent) 16%, transparent), color-mix(in srgb, var(--mk-accent) 4%, transparent)); }
+    .mk-dd-feat b { color: var(--mk-text); font-size: 14.5px; margin-top: auto; }
+    .mk-dd-feat small { color: var(--mk-muted); font-size: 12.5px; line-height: 1.4; padding-right: 14px; }
+    .mk-dd-feat i { position: absolute; right: 14px; bottom: 14px; font-style: normal; color: var(--mk-accent); }
+    .mk-mg summary { list-style: none; display: flex; justify-content: space-between; align-items: center; cursor: pointer; padding: 12px 4px; font-weight: 600; color: var(--mkf-menu-link, var(--mkf-link, var(--mk-text))); }
+    .mk-mg summary::-webkit-details-marker { display: none; }
+    .mk-mg summary i { font-style: normal; color: var(--mk-accent); font-size: 20px; transition: transform .2s; }
+    .mk-mg[open] summary i { transform: rotate(45deg); }
+    .mk-mg-in { display: grid; gap: 2px; padding-bottom: 6px; }
+    #mk-nav .mk-mobile-nav .mk-mg-item { border: 0; padding: 9px 6px; }
+    .mk-mg-feat b { color: var(--mk-accent) !important; }
 </style>
 
 {{-- MARKER-MKT-NAV — drawn from master admin › Site & content › Navigation
@@ -150,6 +181,9 @@
     $mkHere  = '/' . ltrim(request()->path(), '/');
     $mkLeft  = array_values(array_filter($mkMenu, fn ($i) => $i['side'] === 'left'));
     $mkRight = array_values(array_filter($mkMenu, fn ($i) => $i['side'] === 'right'));
+    // MARKER-MKT-MENU-GROUPS
+    $mkGroups = isset($menuGroups) && is_array($menuGroups) ? $menuGroups : \App\Support\MarketingNav::menuGroups();
+    $mkBar    = \App\Support\MarketingNav::structure($mkLeft, $mkGroups);
     $mkClass = function (array $i, string $where) use ($mkHere): string {
         if ($i['style'] === 'button')  return 'mk-btn mk-btn--primary mk-btn--sm';
         if ($i['style'] === 'outline') return 'mk-btn mk-btn--ghost mk-btn--sm';
@@ -204,8 +238,35 @@
         </a>
 
         <div class="mk-nav-links">
-            @foreach($mkLeft as $i)
-                <a href="{{ $i['url'] }}" class="{{ $mkClass($i, 'left') }}" @if($i['tab']) target="_blank" rel="noopener" @endif>{{ $i['label'] }}</a>
+            {{-- MARKER-MKT-MENU-GROUPS — plain links and grouped dropdowns --}}
+            @foreach($mkBar as $mkB)
+                @if($mkB['kind'] === 'link')
+                    @php $i = $mkB['item']; @endphp
+                    <a href="{{ $i['url'] }}" class="{{ $mkClass($i, 'left') }}" @if($i['tab']) target="_blank" rel="noopener" @endif>{{ $i['label'] }}</a>
+                @else
+                    @php $g = $mkB['group']; @endphp
+                    <div class="mk-dd">
+                        <button type="button" class="mk-nav-link mk-dd-btn" aria-expanded="false" aria-haspopup="true">{{ $g['title'] }}<svg viewBox="0 0 12 12" width="10" height="10" aria-hidden="true"><path d="m3 4.5 3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
+                        <div class="mk-dd-panel{{ $g['feature'] ? ' has-feat' : '' }}" role="menu">
+                            <div class="mk-dd-items{{ count($g['items']) > 3 ? ' is-two' : '' }}">
+                                @foreach($g['items'] as $i)
+                                    <a href="{{ $i['url'] }}" class="mk-dd-item" role="menuitem" @if($i['tab']) target="_blank" rel="noopener" @endif>
+                                        @if(($i['icon'] ?? '') !== '')<span class="mk-dd-ic"><svg viewBox="0 0 24 24" aria-hidden="true">{!! \App\Support\MarketingNav::ICONS[$i['icon']] !!}</svg></span>@endif
+                                        <span><b>{{ $i['label'] }}</b>@if(($i['desc'] ?? '') !== '')<small>{{ $i['desc'] }}</small>@endif</span>
+                                    </a>
+                                @endforeach
+                            </div>
+                            @if($g['feature'])
+                                <a href="{{ $g['feature']['url'] }}" class="mk-dd-feat" role="menuitem">
+                                    <span class="mk-dd-ic"><svg viewBox="0 0 24 24" aria-hidden="true">{!! \App\Support\MarketingNav::ICONS[$g['feature']['icon']] !!}</svg></span>
+                                    <b>{{ $g['feature']['label'] }}</b>
+                                    @if($g['feature']['desc'] !== '')<small>{{ $g['feature']['desc'] }}</small>@endif
+                                    <i aria-hidden="true">→</i>
+                                </a>
+                            @endif
+                        </div>
+                    </div>
+                @endif
             @endforeach
         </div>
 
@@ -230,8 +291,28 @@
                 <a href="{{ $i['url'] }}" class="mk-btn {{ $i['style'] === 'button' ? 'mk-btn--primary' : 'mk-btn--ghost' }} mk-mobile-cta" @if($i['tab']) target="_blank" rel="noopener" @endif>{{ $i['label'] }}</a>
             @endif
         @endforeach
-        @foreach($mkMenu as $i)
-            @if($i['side'] === 'left' || $i['style'] === 'link')
+        {{-- MARKER-MKT-MENU-GROUPS — groups as an accordion, plain links as rows --}}
+        @foreach($mkBar as $mkB)
+            @if($mkB['kind'] === 'link')
+                <a href="{{ $mkB['item']['url'] }}" @if($mkB['item']['tab']) target="_blank" rel="noopener" @endif>{{ $mkB['item']['label'] }}</a>
+            @else
+                @php $g = $mkB['group']; @endphp
+                <details class="mk-mg">
+                    <summary>{{ $g['title'] }}<i aria-hidden="true">+</i></summary>
+                    <div class="mk-mg-in">
+                        @foreach($g['items'] as $i)
+                            <a href="{{ $i['url'] }}" class="mk-mg-item" @if($i['tab']) target="_blank" rel="noopener" @endif>
+                                @if(($i['icon'] ?? '') !== '')<span class="mk-dd-ic"><svg viewBox="0 0 24 24" aria-hidden="true">{!! \App\Support\MarketingNav::ICONS[$i['icon']] !!}</svg></span>@endif
+                                <span><b>{{ $i['label'] }}</b>@if(($i['desc'] ?? '') !== '')<small>{{ $i['desc'] }}</small>@endif</span>
+                            </a>
+                        @endforeach
+                        @if($g['feature'])<a href="{{ $g['feature']['url'] }}" class="mk-mg-item mk-mg-feat"><span><b>{{ $g['feature']['label'] }} →</b>@if($g['feature']['desc'] !== '')<small>{{ $g['feature']['desc'] }}</small>@endif</span></a>@endif
+                    </div>
+                </details>
+            @endif
+        @endforeach
+        @foreach($mkRight as $i)
+            @if($i['style'] === 'link')
                 <a href="{{ $i['url'] }}" @if($i['tab']) target="_blank" rel="noopener" @endif>{{ $i['label'] }}</a>
             @endif
         @endforeach
@@ -257,5 +338,26 @@
     apply();
     if (phone.addEventListener) phone.addEventListener('change', apply); else phone.addListener(apply);
     window.addEventListener('resize', fit); window.addEventListener('load', fit);
+})();
+</script>
+<script>
+/* MARKER-MKT-MENU-GROUPS — dropdowns: hover or click, Esc / outside click closes; phone accordion one-at-a-time */
+(function () {
+  var dds = Array.prototype.slice.call(document.querySelectorAll('#mk-nav .mk-dd'));
+  if (!dds.length && !document.querySelector('#mk-nav .mk-mg')) return;
+  var hover = window.matchMedia('(hover: hover)'), t = null;
+  function close(except) { dds.forEach(function (d) { if (d !== except) { d.classList.remove('on'); d.querySelector('.mk-dd-btn').setAttribute('aria-expanded', 'false'); } }); }
+  function open(d) { close(d); d.classList.add('on'); d.querySelector('.mk-dd-btn').setAttribute('aria-expanded', 'true'); }
+  dds.forEach(function (d) {
+    var b = d.querySelector('.mk-dd-btn');
+    b.addEventListener('click', function (e) { e.preventDefault(); d.classList.contains('on') ? close() : open(d); });
+    d.addEventListener('mouseenter', function () { if (hover.matches) { clearTimeout(t); open(d); } });
+    d.addEventListener('mouseleave', function () { if (hover.matches) { t = setTimeout(function () { close(); }, 180); } });
+  });
+  document.addEventListener('click', function (e) { if (!e.target.closest || !e.target.closest('#mk-nav .mk-dd')) close(); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') close(); });
+  document.querySelectorAll('#mk-nav .mk-mg').forEach(function (g, i, all) {
+    g.addEventListener('toggle', function () { if (g.open) all.forEach(function (o) { if (o !== g) o.open = false; }); });
+  });
 })();
 </script>

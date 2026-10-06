@@ -175,6 +175,7 @@ class MarketingPageController extends Controller
             'footerOnly'     => $request->query('mode') === 'footer',
             'menuFooter'     => $request->query('mode') === 'footer' ? \App\Support\MarketingNav::cleanFooter((array) json_decode((string) base64_decode((string) $request->query('f', ''), true), true)) : null,
             'menuItems'      => \App\Support\MarketingNav::resolve($rows),
+            'menuGroups'     => \App\Support\MarketingNav::cleanGroups((array) json_decode((string) base64_decode((string) $request->query('g', ''), true), true)), // MARKER-MKT-MENU-GROUPS
             // MARKER-MKT-NAV-FLOAT — unsaved header style from the Navigation page.
             'menuHeader'     => \App\Support\MarketingNav::cleanHeader((array) json_decode((string) base64_decode((string) $request->query('h', ''), true), true)),
         ]);
