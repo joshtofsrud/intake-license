@@ -1920,6 +1920,8 @@ async function runSearch() {
     if (regBrand) { url.searchParams.set('brand', regBrand); }
     if (regSupplier) { url.searchParams.set('supplier', regSupplier); }
     const res = await fetch(url, {headers: {'Accept': 'application/json'}});
+    // MARKER-REG-GROUPED-FIX — a server error is not "No matches".
+    if (!res.ok) { throw new Error('Search failed (' + res.status + ')'); }
     const data = await res.json();
     renderResults(data, refundResult);
   } catch (e) {

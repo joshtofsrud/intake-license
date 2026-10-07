@@ -71,10 +71,14 @@ class RegisterProductSearch
 
         $sq = clone $query;
         $withBrand($sq);
-        $suppliers = $sq->reorder()->toBase()
-            ->join('tenant_inventory_item_vendors as iv_x', 'iv_x.inventory_item_id', '=', "{$t}.id")
+        // MARKER-REG-GROUPED-FIX — the matches as a subquery, not a join: the
+        // caller's where('tenant_id') / where('is_active') are unqualified,
+        // and tenant_vendors has both columns, so a join made them ambiguous.
+        $matchIds = $sq->reorder()->toBase()->select("{$t}.id");
+        $suppliers = DB::table('tenant_inventory_item_vendors as iv_x')
             ->join('tenant_vendors as v_x', 'v_x.id', '=', 'iv_x.vendor_id')
-            ->selectRaw("v_x.name as s, COUNT(DISTINCT {$t}.id) as n")
+            ->whereIn('iv_x.inventory_item_id', $matchIds)
+            ->selectRaw('v_x.name as s, COUNT(DISTINCT iv_x.inventory_item_id) as n')
             ->groupBy('v_x.name')->orderByDesc('n')->limit(60)->get()
             ->filter(fn ($r) => trim((string) $r->s) !== '')
             ->pluck('s')->map(fn ($s) => (string) $s)->sort(SORT_NATURAL | SORT_FLAG_CASE)->values()->all();
