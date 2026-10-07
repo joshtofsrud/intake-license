@@ -99,12 +99,12 @@
 @if($scroll)
   /* MARKER-TI-SCROLL — the line fills as you scroll through the open item */
   .{{ $tiId }} .ti-track { position: relative; }
-  .{{ $tiId }} .ti-pin { position: sticky; top: 0; min-height: 100vh; display: flex; align-items: center; }
+  .{{ $tiId }} .ti-pin { position: sticky; top: 80px; } /* MARKER-TI-SCROLL-TIGHT — top set by script to centre it */
   .{{ $tiId }} .ti-pin > .mk-container { width: 100%; }
   .{{ $tiId }} .ti-acc.is-scroll .ti-item.is-open::before { width: calc(var(--p, 0) * 100%); transition: none; }
   @media (max-width: 760px), (prefers-reduced-motion: reduce) {
     .{{ $tiId }} .ti-track { height: auto !important; }
-    .{{ $tiId }} .ti-pin { position: static; min-height: 0; display: block; }
+    .{{ $tiId }} .ti-pin { position: static; }
   }
 @endif
   .{{ $tiId }}.ti-auto .ti-item.is-open::before { width: 0; transition: none; }
@@ -155,7 +155,7 @@
   @media (prefers-reduced-motion: reduce) { .{{ $tiId }} * { transition: none !important; } }
 @endif
 </style>
-    @if($style === 'accordion' && $scroll && count($items) > 1)<div class="ti-track" style="height:calc({{ round(count($items) * $scrollLen * 100) }}vh + 100vh)"><div class="ti-pin">@endif{{-- MARKER-TI-SCROLL --}}
+    @if($style === 'accordion' && $scroll && count($items) > 1)<div class="ti-track" data-ti-len="{{ $scrollLen }}"><div class="ti-pin">@endif{{-- MARKER-TI-SCROLL --}}
     <div class="mk-container"><div class="ti-wrap">
 @if($style === 'classic')
         <div class="ti-grid">
@@ -264,15 +264,28 @@
     function drive() {
       raf = 0;
       scrollers.forEach(function (acc) {
-        if (!scrollOn(acc)) { acc.classList.remove('is-scroll'); return; }
+        if (!scrollOn(acc)) { acc.classList.remove('is-scroll'); var t0 = acc.closest('.ti-track'); if (t0) { t0.style.height = ''; } return; }
         acc.classList.add('is-scroll');
-        var track = acc.closest('.ti-track'), r = track.getBoundingClientRect();
-        var total = r.height - window.innerHeight; if (total <= 0) return;
-        var list = items(acc), n = list.length;
-        var prog = Math.min(Math.max(-r.top / total, 0), 0.9999), pos = prog * n, idx = Math.floor(pos);
+        var g = geo(acc), list = items(acc), n = list.length;
+        if (g.total <= 0) return;
+        var r = g.track.getBoundingClientRect();
+        var prog = Math.min(Math.max((g.top - r.top) / g.total, 0), 0.9999), pos = prog * n, idx = Math.floor(pos);
         if (acc.__tiCur !== idx) { acc.__tiCur = idx; setOpen(acc, idx, true); }
         list.forEach(function (it, k) { it.style.setProperty('--p', k === idx ? (pos - idx).toFixed(3) : '0'); });
       });
+    }
+    // MARKER-TI-SCROLL-TIGHT — size the track from the content: the block sticks
+    // centred on screen (below the nav), and the track is the block's own height
+    // plus one stretch of scrolling per item.
+    function geo(acc) {
+      var track = acc.closest('.ti-track'), pin = track.querySelector('.ti-pin');
+      var vh = window.innerHeight, h = pin.offsetHeight, n = items(acc).length;
+      var len = parseFloat(track.getAttribute('data-ti-len')) || 0.75;
+      var top = Math.max(80, Math.round((vh - h) / 2));
+      if (pin.__top !== top) { pin.style.top = top + 'px'; pin.__top = top; }
+      var want = Math.round(h + n * len * vh);
+      if (track.__h !== want) { track.style.height = want + 'px'; track.__h = want; }
+      return { track: track, top: top, total: want - h };
     }
     function queue() { if (!raf) raf = window.requestAnimationFrame(drive); }
     window.addEventListener('scroll', queue, { passive: true });
@@ -290,9 +303,9 @@
       var acc = h.closest('[data-ti-acc]'), it = h.closest('.ti-item');
       if (scrollOn(acc)) {
         // MARKER-TI-SCROLL — clicking an item scrolls to its stretch, so click and scroll never disagree.
-        var track = acc.closest('.ti-track'), n = items(acc).length;
-        var top = track.getBoundingClientRect().top + window.pageYOffset, total = track.offsetHeight - window.innerHeight;
-        window.scrollTo({ top: top + total * (+it.getAttribute('data-i') + 0.05) / n, behavior: 'smooth' });
+        var g = geo(acc), n = items(acc).length;
+        var top = g.track.getBoundingClientRect().top + window.pageYOffset - g.top;
+        window.scrollTo({ top: top + g.total * (+it.getAttribute('data-i') + 0.05) / n, behavior: 'smooth' });
         return;
       }
       acc.__tiStop = true; clearTimeout(acc.__tiT);
