@@ -468,13 +468,12 @@ class ReceiveShipmentController extends Controller
             return response()->json(['ok' => true, 'results' => []]);
         }
 
-        $results = TenantInventoryItem::where('tenant_id', $tenant->id)
-            ->where('is_active', true)
-            ->where(function ($w) use ($q) {
-                $w->where('sku', 'like', "{$q}%")
-                  ->orWhere('catalog_upc', $q)
-                  ->orWhere('name', 'like', "%{$q}%");
-            })
+        // MARKER-INV-SEARCH — the shared search, best match first.
+        $itemQuery = TenantInventoryItem::where('tenant_id', $tenant->id)
+            ->where('is_active', true);
+        $searchHit = \App\Support\InventorySearch::apply($itemQuery, $tenant->id, $q);
+        \App\Support\InventorySearch::rank($itemQuery, $searchHit['used']);
+        $results = $itemQuery
             ->with('category:id,name')
             ->limit(15)
             ->get(['id', 'sku', 'name', 'category_id', 'catalog_upc', 'shop_cost_cents', 'catalog_cost_cents']);

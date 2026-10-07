@@ -65,10 +65,59 @@ class BuildSearchTerms extends Command
                 if ($rows) DB::table('tenant_search_terms')->insert($rows);
             });
 
-            $this->info($tenant->id . ': ' . count($freq) . ' terms');
+            $staff = $this->buildStaffTerms($tenant->id); // MARKER-INV-SEARCH
+            $this->info($tenant->id . ': ' . count($freq) . ' terms, ' . $staff . ' staff terms');
         }
 
         return self::SUCCESS;
+    }
+
+    /**
+     * MARKER-INV-SEARCH — staff vocabulary: words from EVERY active item,
+     * online or not, for typo correction in staff searches.
+     */
+    private function buildStaffTerms(string $tenantId): int
+    {
+        $freq = [];
+
+        TenantInventoryItem::query()
+            ->where('tenant_id', $tenantId)
+            ->where('is_active', true)
+            ->with('distributorCatalog:id,manufacturer')
+            ->select(['id', 'tenant_id', 'name', 'display_subtitle', 'sku', 'shop_brand', 'color', 'size', 'distributor_catalog_id'])
+            ->chunkById(1000, function ($items) use (&$freq) {
+                foreach ($items as $i) {
+                    $text = mb_strtolower(implode(' ', array_filter([
+                        $i->name, $i->display_subtitle, $i->sku, $i->shop_brand,
+                        $i->color, $i->size, $i->distributorCatalog?->manufacturer,
+                    ])));
+                    foreach (preg_split('/[^a-z0-9]+/', $text) as $w) {
+                        if (mb_strlen($w) >= 3 && mb_strlen($w) <= 60 && ! ctype_digit($w)) {
+                            $freq[$w] = ($freq[$w] ?? 0) + 1;
+                        }
+                    }
+                }
+            });
+
+        DB::transaction(function () use ($tenantId, $freq) {
+            DB::table('tenant_staff_search_terms')->where('tenant_id', $tenantId)->delete();
+            $rows = [];
+            foreach ($freq as $term => $n) {
+                $rows[] = [
+                    'id'         => (string) \Illuminate\Support\Str::uuid(),
+                    'tenant_id'  => $tenantId,
+                    'term'       => $term,
+                    'soundex'    => soundex($term),
+                    'freq'       => $n,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ];
+                if (count($rows) >= 500) { DB::table('tenant_staff_search_terms')->insert($rows); $rows = []; }
+            }
+            if ($rows) { DB::table('tenant_staff_search_terms')->insert($rows); }
+        });
+
+        return count($freq);
     }
 }
 

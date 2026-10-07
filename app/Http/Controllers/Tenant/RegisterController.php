@@ -208,6 +208,7 @@ class RegisterController extends Controller
         $products = [];
         $services = [];
         $customers = [];
+        $searchCorrected = null; // MARKER-INV-SEARCH
 
         if ($type === 'all' || $type === 'product') {
             // patch-96 location stock — enrich each product with its on-hand
@@ -222,27 +223,15 @@ class RegisterController extends Controller
                 $registerLocationName = $loc?->name;
             }
 
-            $productItems = TenantInventoryItem::where('tenant_id', $tenant->id)
-                ->where('is_active', true)
-                // MARKER-PATCH-552 — every word must hit SOMEWHERE across the
-                // item's text: "Centerline Rotor 200mm" matches name+subtitle.
-                ->where(function ($w) use ($q) {
-                    foreach (array_filter(preg_split('/\s+/', $q)) as $t) {
-                        // MARKER-ITEM-ALIASES — each word must hit the item's
-                        // own text OR one of its old identifiers. A scanned
-                        // label from before a merge lands here.
-                        $w->where(function ($or) use ($t) {
-                            $or->whereRaw("CONCAT_WS(' ', name, display_subtitle, sku, catalog_upc, catalog_ean, catalog_mpn) LIKE ?", ['%' . $t . '%'])
-                               ->orWhereExists(function ($sub) use ($t) {
-                                   $sub->selectRaw('1')->from('tenant_inventory_item_aliases as al')
-                                       ->whereColumn('al.inventory_item_id', 'tenant_inventory_items.id')
-                                       ->where('al.code', 'like', '%' . $t . '%');
-                               });
-                        });
-                    }
-                })
-                ->limit(15)
-                ->get();
+            // MARKER-INV-SEARCH — the shared search: now also brand, colour,
+            // size and every supplier's part number, best match first (it was
+            // the first 15 in no particular order).
+            $productQuery = TenantInventoryItem::where('tenant_id', $tenant->id)
+                ->where('is_active', true);
+            $searchHit = \App\Support\InventorySearch::apply($productQuery, $tenant->id, $q);
+            $searchCorrected = $searchHit['corrected'];
+            \App\Support\InventorySearch::rank($productQuery, $searchHit['used']);
+            $productItems = $productQuery->orderBy('name')->limit(15)->get();
 
             // MARKER-REG-STOCK — counts for EVERY active location, not just
             // this register's. "None here" is a dead end at the counter;
@@ -377,7 +366,7 @@ class RegisterController extends Controller
                 ->toArray();
         }
 
-        return response()->json(compact('products', 'services', 'customers'));
+        return response()->json(compact('products', 'services', 'customers') + ['corrected' => $searchCorrected]); // MARKER-INV-SEARCH
     }
 
     public function storeSale(Request $request): JsonResponse

@@ -121,40 +121,17 @@ class GlobalSearchController extends Controller
             // carrying it in catalog_upc where it belongs.
             $bare = trim((string) $q);
 
-            $items = TenantInventoryItem::where('tenant_id', $tenant->id)
-                ->where(fn ($w) => $w
-                    ->where('name', 'like', $like)
-                    ->orWhere('sku', 'like', $like)
-                    ->orWhere('catalog_upc', 'like', $like)
-                    ->orWhere('catalog_ean', 'like', $like)
-                    ->orWhere('catalog_mpn', 'like', $like)
-                    // MARKER-ITEM-ALIASES
-                    ->orWhereExists(function ($sub) use ($like) {
-                        $sub->selectRaw('1')->from('tenant_inventory_item_aliases as al')
-                            ->whereColumn('al.inventory_item_id', 'tenant_inventory_items.id')
-                            ->where('al.code', 'like', $like);
-                    }))
-                // An exact identifier goes first: someone who just scanned is
-                // holding the answer, not browsing for it.
-                ->orderByRaw(
-                    'CASE WHEN sku = ? OR catalog_upc = ? OR catalog_ean = ? OR catalog_mpn = ? THEN 0 ELSE 1 END',
-                    [$bare, $bare, $bare, $bare]
-                )
-                ->limit($perGroup)->get();
+            // MARKER-INV-SEARCH — the shared search. The whole query used to
+            // have to appear as one phrase in the name.
+            $itemQuery = TenantInventoryItem::where('tenant_id', $tenant->id);
+            $searchHit = \App\Support\InventorySearch::apply($itemQuery, $tenant->id, $q);
+            // MARKER-SEARCH-ALL — counted on the same constraints as the rows.
+            $productTotal = (clone $itemQuery)->count();
+            \App\Support\InventorySearch::rank($itemQuery, $searchHit['used']);
+            $items = $itemQuery->orderBy('name')->limit($perGroup)->get();
 
             if ($items->count()) {
-                // MARKER-SEARCH-ALL — counted on the same constraints as the
-                // rows above, so the header cannot disagree with the list.
-                $productTotal = TenantInventoryItem::where('tenant_id', $tenant->id)
-                    ->where(fn ($w) => $w
-                        ->where('name', 'like', $like)
-                        ->orWhere('sku', 'like', $like)
-                        ->orWhere('catalog_upc', 'like', $like)
-                        ->orWhere('catalog_ean', 'like', $like)
-                        ->orWhere('catalog_mpn', 'like', $like))
-                    ->count();
-
-                $groups[] = $this->group('Products', $items->map(function ($i) use ($bare) {
+                $groups[] = $this->group($searchHit['corrected'] ? 'Products — showing “' . $searchHit['corrected'] . '”' : 'Products', $items->map(function ($i) use ($bare) {
                     // Say WHICH identifier matched. A row whose subtitle shows
                     // an unfamiliar SKU, when the person searched a barcode,
                     // reads as the wrong product.

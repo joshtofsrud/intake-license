@@ -1775,6 +1775,11 @@ function renderResults(data, refundResult) {
   let html = '';
   visibleResults = [];
 
+  // MARKER-INV-SEARCH — a misspelt word was swapped for the nearest real one.
+  if (data && data.corrected) {
+    html += '<div style="font-size:12px;opacity:.7;margin-bottom:8px">Showing results for <strong>' + escapeHtml(data.corrected) + '</strong></div>';
+  }
+
   // If a refund-eligible sale was matched, render it first as a distinctive card.
   if (refundResult) {
     html += '<div class="reg-refund-result" data-refund-sale="' + refundResult.id + '">';

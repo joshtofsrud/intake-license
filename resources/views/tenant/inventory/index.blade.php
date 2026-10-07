@@ -239,7 +239,7 @@
 {{-- MARKER-INV-AUTOFILTER — id so the change listener can find this form without depending on the class, which is styling. --}}
 <form method="get" action="{{ route('tenant.inventory.index') }}" class="ia-toolbar" id="inv-toolbar-form">
   <input type="search" name="s" class="ia-input" value="{{ $search }}"
-    placeholder="Search name, SKU, or UPC…" style="max-width:300px">
+    placeholder="Search name, brand, SKU or barcode…" style="max-width:300px">
 
   {{-- MARKER-CAT-TREE — parents first, children indented beneath them --}}
   {{-- MARKER-SSEL-FILTERS — our picker: the native popup is OS-drawn and
@@ -324,7 +324,7 @@
   <input type="hidden" name="distributor" value="{{ $distributor }}">
   <div class="inv-search-m">
     <svg class="inv-search-icon-m" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg>
-    <input type="search" name="s" value="{{ $search }}" placeholder="Search name, SKU, or UPC…">
+    <input type="search" name="s" value="{{ $search }}" placeholder="Search name, brand, SKU or barcode…">
   </div>
   @php
     $hasActiveFilters = ($category || $stock || $sort !== 'name_asc');
@@ -349,6 +349,13 @@
       <a href="{{ route('tenant.inventory.index', array_filter(['s'=>$search,'category'=>$category,'stock'=>$stock])) }}" class="inv-chip-m">{{ $sortLabels[$sort] ?? $sort }} <span class="x">×</span></a>
     @endif
     <button type="button" class="inv-chip-m muted" onclick="invOpenSheet()">+ Add filter</button>
+  </div>
+@endif
+
+{{-- MARKER-INV-SEARCH — a misspelt word was swapped for the nearest real one. --}}
+@if(!empty($searchCorrected))
+  <div style="margin:0 0 12px;font-size:13px;color:var(--ia-text-muted)">
+    Nothing matched <strong style="color:var(--ia-text)">{{ $search }}</strong> — showing results for <strong style="color:var(--ia-text)">{{ $searchCorrected }}</strong>.
   </div>
 @endif
 

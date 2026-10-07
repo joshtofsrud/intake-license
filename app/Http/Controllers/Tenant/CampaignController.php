@@ -708,7 +708,9 @@ class CampaignController extends Controller
 
         $products = \App\Models\Tenant\TenantInventoryItem::where('tenant_id', $tenant->id)
             ->where('is_active', true)
-            ->when($q !== '', fn ($b) => $b->where('name', 'like', '%' . $q . '%'))
+            ->when($q !== '', function ($b) use ($tenant, $q) {
+                \App\Support\InventorySearch::apply($b, $tenant->id, $q); // MARKER-INV-SEARCH
+            })
             ->with('distributorCatalog:id,images')
             ->orderBy('name')->limit(20)
             ->get();

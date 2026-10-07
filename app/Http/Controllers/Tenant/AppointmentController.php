@@ -2935,30 +2935,10 @@ class AppointmentController extends Controller
         $query = TenantInventoryItem::where('tenant_id', $tenant->id)
             ->where('is_active', true);
 
+        // MARKER-INV-SEARCH — the shared search (barcode twins included).
         if ($q !== '') {
-            // MARKER-APPT-PARTS-BARCODE - barcodes and part numbers too. A code
-            // of 12-14 digits also matches its 12/13-digit twin (UPC-A <-> EAN-13
-            // differ only by a leading zero).
-            $digits = preg_replace('/\\D/', '', $q);
-            $codes  = [];
-            if ($digits !== '' && $digits === preg_replace('/\\s+/', '', $q) && strlen($digits) >= 8 && strlen($digits) <= 14) {
-                $codes[] = $digits;
-                if (strlen($digits) === 12) { $codes[] = '0' . $digits; }
-                if (strlen($digits) === 13 && $digits[0] === '0') { $codes[] = substr($digits, 1); }
-                if (strlen($digits) === 14 && $digits[0] === '0') { $codes[] = substr($digits, 1); }
-            }
-            $query->where(function ($w) use ($q, $codes) {
-                $w->where('name', 'like', "%{$q}%")
-                  ->orWhere('sku',  'like', "%{$q}%")
-                  ->orWhere('catalog_mpn', 'like', "%{$q}%")
-                  ->orWhere('catalog_upc', 'like', "%{$q}%")
-                  ->orWhere('catalog_ean', 'like', "%{$q}%");
-                if ($codes) {
-                    $w->orWhereIn('catalog_upc', $codes)
-                      ->orWhereIn('catalog_ean', $codes)
-                      ->orWhereIn('sku', $codes);
-                }
-            });
+            $searchHit = \App\Support\InventorySearch::apply($query, $tenant->id, $q);
+            \App\Support\InventorySearch::rank($query, $searchHit['used']);
         }
 
         $items = $query->orderBy('name')->limit(15)->get(['id', 'name', 'sku', 'shop_sell_price_cents', 'catalog_msrp_cents', 'computed_stock_count', 'allow_oversell']);
