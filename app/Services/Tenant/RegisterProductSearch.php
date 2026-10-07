@@ -27,6 +27,9 @@ class RegisterProductSearch
     /** Matches considered per search. Past this, the screen says to narrow. */
     public const CANDIDATE_CAP = 600;
 
+    /** Matches read in the one pass, before brand / supplier filtering. */
+    public const SCAN_CAP = 2000;
+
     private const T = 'tenant_inventory_items';
 
     public function run(Builder $query, string $tenantId, ?string $locationId, string $q, array $opt = []): array
@@ -43,58 +46,47 @@ class RegisterProductSearch
 
         $brandSql = "COALESCE(NULLIF({$t}.shop_brand, ''), (SELECT pdc_b.manufacturer FROM platform_distributor_catalogs pdc_b WHERE pdc_b.id = {$t}.distributor_catalog_id))";
 
-        $withBrand = function (Builder $b) use ($brand, $brandSql) {
-            if ($brand !== '') {
-                $b->whereRaw("{$brandSql} = ?", [$brand]);
-            }
-        };
-        $withSupplier = function (Builder $b) use ($supplier, $t) {
-            if ($supplier !== '') {
-                $b->whereExists(function ($s) use ($supplier, $t) {
-                    $s->selectRaw('1')->from('tenant_inventory_item_vendors as iv_f')
-                      ->join('tenant_vendors as v_f', 'v_f.id', '=', 'iv_f.vendor_id')
-                      ->whereColumn('iv_f.inventory_item_id', "{$t}.id")
-                      ->where('v_f.name', $supplier);
-                });
-            }
-        };
-
-        // ---- facets: each list ignores its own filter, so picking a brand
-        // never empties the brand list.
-        $bq = clone $query;
-        $withSupplier($bq);
-        $brands = $bq->reorder()->toBase()
-            ->selectRaw("{$brandSql} as b, COUNT(*) as n")
-            ->groupBy('b')->orderByDesc('n')->limit(60)->get()
-            ->filter(fn ($r) => trim((string) $r->b) !== '')
-            ->pluck('b')->map(fn ($b) => (string) $b)->sort(SORT_NATURAL | SORT_FLAG_CASE)->values()->all();
-
-        $sq = clone $query;
-        $withBrand($sq);
-        // MARKER-REG-GROUPED-FIX — the matches as a subquery, not a join: the
-        // caller's where('tenant_id') / where('is_active') are unqualified,
-        // and tenant_vendors has both columns, so a join made them ambiguous.
-        $matchIds = $sq->reorder()->toBase()->select("{$t}.id");
-        $suppliers = DB::table('tenant_inventory_item_vendors as iv_x')
-            ->join('tenant_vendors as v_x', 'v_x.id', '=', 'iv_x.vendor_id')
-            ->whereIn('iv_x.inventory_item_id', $matchIds)
-            ->selectRaw('v_x.name as s, COUNT(DISTINCT iv_x.inventory_item_id) as n')
-            ->groupBy('v_x.name')->orderByDesc('n')->limit(60)->get()
-            ->filter(fn ($r) => trim((string) $r->s) !== '')
-            ->pluck('s')->map(fn ($s) => (string) $s)->sort(SORT_NATURAL | SORT_FLAG_CASE)->values()->all();
-
-        // ---- candidates, best match first (the caller ranked the query).
-        $cq = clone $query;
-        $withBrand($cq);
-        $withSupplier($cq);
-        $rows = $cq->toBase()
+        // MARKER-REG-FAST — ONE pass over the items. The brand and supplier
+        // lists and both filters are worked out from it here; they used to be
+        // three more full passes, which is most of why a search took seconds.
+        $all = (clone $query)->toBase()
             ->select(["{$t}.id", "{$t}.name", "{$t}.display_subtitle", "{$t}.sku", "{$t}.size", "{$t}.color", "{$t}.computed_stock_count"])
             ->selectRaw("{$brandSql} as brand")
             ->orderBy("{$t}.name")
-            ->limit(self::CANDIDATE_CAP + 1)
+            ->limit(self::SCAN_CAP + 1)
             ->get();
+        $scanCapped = $all->count() > self::SCAN_CAP;
+        $all = $all->take(self::SCAN_CAP);
 
-        $capped = $rows->count() > self::CANDIDATE_CAP;
+        // Suppliers per matched item: an indexed lookup on the ids just read.
+        $supOf = [];
+        foreach ($all->pluck('id')->chunk(1000) as $chunk) {
+            DB::table('tenant_inventory_item_vendors as iv_x')
+                ->join('tenant_vendors as v_x', 'v_x.id', '=', 'iv_x.vendor_id')
+                ->whereIn('iv_x.inventory_item_id', $chunk->values()->all())
+                ->get(['iv_x.inventory_item_id', 'v_x.name'])
+                ->each(function ($r) use (&$supOf) {
+                    if (trim((string) $r->name) !== '') { $supOf[$r->inventory_item_id][(string) $r->name] = true; }
+                });
+        }
+
+        $okBrand = fn ($r) => $brand === '' || trim((string) $r->brand) === $brand;
+        $okSup   = fn ($r) => $supplier === '' || isset($supOf[$r->id][$supplier]);
+
+        // Each list ignores its own filter, so picking a brand never empties
+        // the brand list.
+        $brands = $all->filter($okSup)->map(fn ($r) => trim((string) $r->brand))->filter()->unique()
+            ->sort(SORT_NATURAL | SORT_FLAG_CASE)->values()->all();
+        $supSet = [];
+        foreach ($all->filter($okBrand) as $r) {
+            foreach (array_keys($supOf[$r->id] ?? []) as $n) { $supSet[$n] = true; }
+        }
+        $suppliers = array_keys($supSet);
+        natcasesort($suppliers);
+        $suppliers = array_values($suppliers);
+
+        $rows   = $all->filter(fn ($r) => $okBrand($r) && $okSup($r))->values();
+        $capped = $scanCapped || $rows->count() > self::CANDIDATE_CAP;
         $rows   = $rows->take(self::CANDIDATE_CAP);
 
         // ---- stock: available here and elsewhere, per item.

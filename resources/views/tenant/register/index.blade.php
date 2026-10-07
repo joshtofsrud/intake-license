@@ -651,7 +651,7 @@
     <div class="reg-panel">
       {{-- MARKER-CAMERA-SCAN — wrapper so the camera button sits inside the box. --}}
       <div class="reg-search-wrap" style="position:relative">
-        <input type="text" class="reg-search" id="searchInput" placeholder="Search products and services…" autocomplete="off">
+        <input type="text" class="reg-search" id="searchInput" placeholder="Search products and services…" autocomplete="off" spellcheck="false" autocorrect="off" autocapitalize="off">{{-- MARKER-REG-FAST — no browser spelling pop-up; the search corrects spelling itself --}}
       </div>
 
       <div class="reg-tabs">
@@ -1720,6 +1720,7 @@ let regScope = 'here';
 let regBrand = '';
 let regSupplier = '';
 let regGroups = 25;
+let regFilterBase = ''; // MARKER-REG-FAST — the text a brand/supplier was picked for
 
 function regSselSet(id, labels, value) {
   const input = document.getElementById(id);
@@ -1748,9 +1749,9 @@ function regSselSet(id, labels, value) {
     searchInput.focus();
   }));
   const brand = document.getElementById('regBrand');
-  if (brand) brand.addEventListener('change', () => { regBrand = brand.value; regGroups = 25; runSearch(); });
+  if (brand) brand.addEventListener('change', () => { regBrand = brand.value; regFilterBase = searchInput.value.trim().toLowerCase(); regGroups = 25; runSearch(); });
   const sup = document.getElementById('regSupplier');
-  if (sup) sup.addEventListener('change', () => { regSupplier = sup.value; regGroups = 25; runSearch(); });
+  if (sup) sup.addEventListener('change', () => { regSupplier = sup.value; regFilterBase = searchInput.value.trim().toLowerCase(); regGroups = 25; runSearch(); });
   // Cleared search (typed away, item added, Esc): hide the row, drop filters.
   new MutationObserver(() => {
     if (searchInput.value.trim().length < 2) {
@@ -1865,7 +1866,7 @@ function regGroupsHtml(data, push, rowHtml) {
     html += `<button type="button" class="reg-more" id="regMore">Show more · ${ps.total - ps.shown} more</button>`;
   }
   if (ps.capped) {
-    html += '<div class="reg-note">Only the first 600 matches are grouped. Add a word, or pick a brand or supplier, to narrow.</div>';
+    html += '<div class="reg-note">Too many matches to show them all. Add a word, or pick a brand or supplier, to narrow.</div>';
   }
   return html + '</div>';
 }
@@ -1882,6 +1883,12 @@ document.querySelectorAll('.reg-tab').forEach(tab => {
 searchInput.addEventListener('input', () => {
   clearTimeout(searchTimer);
   regGroups = 25; // MARKER-REG-GROUPED
+  // MARKER-REG-FAST — a brand or supplier picked for one search does not
+  // follow you to a different one; refining the same search keeps it.
+  if ((regBrand || regSupplier) && !searchInput.value.trim().toLowerCase().startsWith(regFilterBase)) {
+    regBrand = '';
+    regSupplier = '';
+  }
   regDirty = true; // MARKER-REG-ENTER
   resultsArea.classList.add('is-stale');
   searchTimer = setTimeout(runSearch, 250);
