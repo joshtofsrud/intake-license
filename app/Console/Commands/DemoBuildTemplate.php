@@ -673,6 +673,14 @@ class DemoBuildTemplate extends Command
     /** MARKER-DEMO-SWEEP-FAST — 10-digit number => that customer's fake number */
     private array $phoneMap = [];
 
+    /** MARKER-DEMO-PHONE-HELPER — "(509) 555-1234", "+1 509.555.1234", "5095551234" … -> "5095551234"; anything else -> null */
+    private static function phoneDigits(string $s): ?string
+    {
+        $d = preg_replace('/\D+/', '', $s);
+        if (strlen($d) === 11 && $d[0] === '1') $d = substr($d, 1);
+        return strlen($d) === 10 ? $d : null;
+    }
+
     private function anonymiseStaff(string $demoId): void
     {
         $names = ['Sam Demo', 'Alex Wrench', 'Jamie Spoke', 'Toni Chain', 'Devon True', 'Robin Crank'];
