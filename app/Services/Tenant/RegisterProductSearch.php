@@ -1,8 +1,9 @@
 <?php
-// MARKER-REG-GROUPED
+// MARKER-REG-GROUPED · MARKER-SEARCH-ONE-PASS
 
 namespace App\Services\Tenant;
 
+use App\Support\InventorySearch;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 
@@ -44,38 +45,79 @@ class RegisterProductSearch
             $scope = 'all';
         }
 
-        $brandSql = "COALESCE(NULLIF({$t}.shop_brand, ''), (SELECT pdc_b.manufacturer FROM platform_distributor_catalogs pdc_b WHERE pdc_b.id = {$t}.distributor_catalog_id))";
-
-        // MARKER-REG-FAST — ONE pass over the items. The brand and supplier
-        // lists and both filters are worked out from it here; they used to be
-        // three more full passes, which is most of why a search took seconds.
-        $all = (clone $query)->toBase()
-            ->select(["{$t}.id", "{$t}.name", "{$t}.display_subtitle", "{$t}.sku", "{$t}.size", "{$t}.color", "{$t}.computed_stock_count"])
-            ->selectRaw("{$brandSql} as brand")
+        // MARKER-SEARCH-ONE-PASS — ONE read of the matching rows, with a sort
+        // key that is a plain column (so the database sorts thousands of
+        // matches in milliseconds). Everything else — ranking, brand and
+        // supplier lists and filters, grouping, scope — happens here in PHP
+        // on at most SCAN_CAP rows, which costs the database nothing more.
+        $all = (clone $query)->reorder()->toBase()
+            ->select(["{$t}.id", "{$t}.name", "{$t}.display_subtitle", "{$t}.sku", "{$t}.size", "{$t}.color",
+                      "{$t}.computed_stock_count", "{$t}.recent_sales", "{$t}.shop_brand", "{$t}.distributor_catalog_id",
+                      "{$t}.catalog_upc", "{$t}.catalog_ean", "{$t}.catalog_mpn", "{$t}.search_text"])
+            ->orderByDesc("{$t}.recent_sales")
             ->orderBy("{$t}.name")
             ->limit(self::SCAN_CAP + 1)
             ->get();
         $scanCapped = $all->count() > self::SCAN_CAP;
         $all = $all->take(self::SCAN_CAP);
+        $ids = $all->pluck('id')->all();
 
-        // Suppliers per matched item: an indexed lookup on the ids just read.
-        $supOf = [];
-        foreach ($all->pluck('id')->chunk(1000) as $chunk) {
+        // Catalog brand for rows without a shop brand: one lookup by key.
+        $catIds = $all->filter(fn ($r) => trim((string) $r->shop_brand) === '')
+            ->pluck('distributor_catalog_id')->filter()->unique()->values()->all();
+        $makers = $catIds
+            ? DB::table('platform_distributor_catalogs')->whereIn('id', $catIds)->pluck('manufacturer', 'id')->all()
+            : [];
+        foreach ($all as $r) {
+            $r->brand = trim((string) $r->shop_brand) !== ''
+                ? trim((string) $r->shop_brand)
+                : trim((string) ($makers[$r->distributor_catalog_id] ?? ''));
+        }
+
+        // Suppliers (and their part numbers) per matched item: one lookup.
+        $supOf  = [];
+        $vskuOf = [];
+        foreach (array_chunk($ids, 1000) as $chunk) {
             DB::table('tenant_inventory_item_vendors as iv_x')
                 ->join('tenant_vendors as v_x', 'v_x.id', '=', 'iv_x.vendor_id')
-                ->whereIn('iv_x.inventory_item_id', $chunk->values()->all())
-                ->get(['iv_x.inventory_item_id', 'v_x.name'])
-                ->each(function ($r) use (&$supOf) {
+                ->whereIn('iv_x.inventory_item_id', $chunk)
+                ->get(['iv_x.inventory_item_id', 'iv_x.vendor_sku', 'v_x.name'])
+                ->each(function ($r) use (&$supOf, &$vskuOf) {
                     if (trim((string) $r->name) !== '') { $supOf[$r->inventory_item_id][(string) $r->name] = true; }
+                    if (trim((string) $r->vendor_sku) !== '') { $vskuOf[$r->inventory_item_id][] = mb_strtolower(trim((string) $r->vendor_sku)); }
                 });
         }
 
-        $okBrand = fn ($r) => $brand === '' || trim((string) $r->brand) === $brand;
+        // ---- rank in PHP: exact code, then words that start a word, then
+        // what sells, then what is on a shelf (the query already put the
+        // best sellers first, so ties keep that order).
+        $used   = trim($q);
+        $codes  = array_map('mb_strtolower', InventorySearch::codes($used));
+        $wordsL = array_map(fn ($w) => ' ' . mb_strtolower($w), InventorySearch::words($used));
+        $usedL  = mb_strtolower($used);
+        $scored = [];
+        foreach ($all as $i => $r) {
+            $text = $r->search_text !== null && $r->search_text !== ''
+                ? $r->search_text
+                : ' ' . mb_strtolower(implode(' ', array_filter([$r->name, $r->display_subtitle, $r->sku, $r->catalog_upc, $r->catalog_ean, $r->catalog_mpn, $r->brand, $r->color, $r->size]))) . ' ';
+            $own = array_map('mb_strtolower', array_filter([$r->sku, $r->catalog_upc, $r->catalog_ean, $r->catalog_mpn]));
+            $exact = array_intersect($own, $codes) || in_array($usedL, $vskuOf[$r->id] ?? [], true)
+                || mb_strpos($text, ' ' . $usedL . ' ') !== false;
+            $starts = 0;
+            foreach ($wordsL as $w) {
+                if (mb_strpos($text, $w) !== false) { $starts++; }
+            }
+            $scored[] = [$exact ? 0 : 1, -$starts, -(int) $r->recent_sales, (int) $r->computed_stock_count > 0 ? 0 : 1, $i];
+        }
+        usort($scored, fn ($a, $b) => $a <=> $b);
+        $all = collect(array_map(fn ($s) => $all[$s[4]], $scored));
+
+        $okBrand = fn ($r) => $brand === '' || $r->brand === $brand;
         $okSup   = fn ($r) => $supplier === '' || isset($supOf[$r->id][$supplier]);
 
         // Each list ignores its own filter, so picking a brand never empties
         // the brand list.
-        $brands = $all->filter($okSup)->map(fn ($r) => trim((string) $r->brand))->filter()->unique()
+        $brands = $all->filter($okSup)->map(fn ($r) => $r->brand)->filter()->unique()
             ->sort(SORT_NATURAL | SORT_FLAG_CASE)->values()->all();
         $supSet = [];
         foreach ($all->filter($okBrand) as $r) {

@@ -231,7 +231,8 @@ class RegisterController extends Controller
                 ->where('is_active', true);
             $searchHit = \App\Support\InventorySearch::apply($productQuery, $tenant->id, $q);
             $searchCorrected = $searchHit['corrected'];
-            \App\Support\InventorySearch::rank($productQuery, $searchHit['used']);
+            // MARKER-SEARCH-ONE-PASS — no SQL rank here; RegisterProductSearch
+            // ranks the candidate rows in PHP, which costs the database nothing.
             // MARKER-REG-GROUPED — variants grouped into one entry, no
             // 15-row cap, stock scope and brand / supplier filters.
             $productSearch = app(\App\Services\Tenant\RegisterProductSearch::class)->run(
@@ -245,9 +246,13 @@ class RegisterController extends Controller
                     'groups'   => (int) $request->input('groups', 25),
                 ]
             );
+            // MARKER-SEARCH-ONE-PASS — the search ran as a bare query, not
+            // ranked in SQL; it ranks in PHP and hands back the rows it drew.
             $groupOrder = array_flip($productSearch['item_ids']);
-            $productItems = TenantInventoryItem::whereIn('id', $productSearch['item_ids'])->get()
-                ->sortBy(fn ($i) => $groupOrder[$i->id] ?? PHP_INT_MAX)->values();
+            $productItems = $productSearch['item_ids']
+                ? TenantInventoryItem::whereIn('id', $productSearch['item_ids'])->get()
+                    ->sortBy(fn ($i) => $groupOrder[$i->id] ?? PHP_INT_MAX)->values()
+                : collect();
             unset($productSearch['item_ids']);
 
             // MARKER-REG-STOCK — counts for EVERY active location, not just
@@ -275,7 +280,9 @@ class RegisterController extends Controller
                 // means go and recount the shelf.
                 $reservedHere = [];
                 $onHandHere   = [];
+                $reservedAll  = []; // MARKER-SEARCH-ONE-PASS — company-wide held, from the rows already read
                 foreach ($rows as $row) {
+                    $reservedAll[$row->inventory_item_id] = ($reservedAll[$row->inventory_item_id] ?? 0) + (int) $row->reserved_count;
                     if ($registerLocationId && $row->location_id === $registerLocationId) {
                         $reservedHere[$row->inventory_item_id] = (int) $row->reserved_count;
                         $onHandHere[$row->inventory_item_id]   = (int) $row->computed_stock_count;
@@ -336,9 +343,11 @@ class RegisterController extends Controller
                 'price_cents'            => (int) ($p->effectiveSellPriceCents() ?? 0),
                 'is_taxable'             => (($p->tax_class_code ?? null) !== 'exempt'),
                 'allow_oversell'         => (bool) $p->allow_oversell,
+                // MARKER-SEARCH-ONE-PASS — availableCount() was one query PER
+                // product; the held counts are already in $rows.
                 'current_location_stock' => $registerLocationId
                     ? (int) ($stockByItem[$p->id] ?? 0)
-                    : $p->availableCount(), // MARKER-RESERVE
+                    : (int) $p->computed_stock_count - (int) ($reservedAll[$p->id] ?? 0), // MARKER-RESERVE
                 'current_location_name'  => $registerLocationName,
                 // MARKER-RESERVE-VISIBLE
                 'reserved_here'          => (int) ($reservedHere[$p->id] ?? 0),

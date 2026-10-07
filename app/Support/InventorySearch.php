@@ -91,7 +91,15 @@ final class InventorySearch
         return ['used' => $raw, 'corrected' => null];
     }
 
-    /** Best match first. Call after apply(), before any other orderBy. */
+    /**
+     * Best match first. Call after apply(), before any other orderBy.
+     *
+     * MARKER-SEARCH-ONE-PASS — the sort key is computed for EVERY matching
+     * row before the limit applies, so it must be cheap: plain column
+     * compares and LIKEs on the stored text. The old key ran two EXISTS
+     * subqueries per matching row; "mi" matches thousands of rows while
+     * someone types, and that alone took seconds.
+     */
     public static function rank(Builder $q, string $used): void
     {
         $used = trim($used);
@@ -102,21 +110,19 @@ final class InventorySearch
         $codes = self::codes($used);
         $in    = implode(',', array_fill(0, count($codes), '?'));
 
-        // 1 — the exact identifier someone scanned or typed.
+        // 1 — the exact identifier someone scanned or typed. Supplier part
+        // numbers and old merged codes are tokens in search_text.
         $q->orderByRaw(
-            "CASE
-               WHEN {$t}.sku IN ({$in}) OR {$t}.catalog_upc IN ({$in}) OR {$t}.catalog_ean IN ({$in}) OR {$t}.catalog_mpn = ?
-                 OR EXISTS (SELECT 1 FROM tenant_inventory_item_aliases al_r WHERE al_r.inventory_item_id = {$t}.id AND al_r.code IN ({$in}))
-                 OR EXISTS (SELECT 1 FROM tenant_inventory_item_vendors iv_r WHERE iv_r.inventory_item_id = {$t}.id AND iv_r.vendor_sku = ?)
-               THEN 0 ELSE 1 END",
-            array_merge($codes, $codes, $codes, [$used], $codes, [$used])
+            "CASE WHEN {$t}.sku IN ({$in}) OR {$t}.catalog_upc IN ({$in}) OR {$t}.catalog_ean IN ({$in}) OR {$t}.catalog_mpn = ?
+                   OR {$t}.search_text LIKE ? THEN 0 ELSE 1 END",
+            array_merge($codes, $codes, $codes, [$used, '% ' . self::escape(mb_strtolower($used)) . ' %'])
         );
 
         // 2 — how many of the words start a word, not sit inside one.
         $parts = [];
         $binds = [];
         foreach (self::words($used) as $w) {
-            $parts[] = "CASE WHEN CONCAT(' ', COALESCE({$t}.search_text, LOWER({$t}.name))) LIKE ? THEN 1 ELSE 0 END";
+            $parts[] = "CASE WHEN COALESCE({$t}.search_text, CONCAT(' ', LOWER({$t}.name))) LIKE ? THEN 1 ELSE 0 END";
             $binds[] = '% ' . self::escape(mb_strtolower($w)) . '%';
         }
         if ($parts) {

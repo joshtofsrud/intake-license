@@ -1721,6 +1721,7 @@ let regBrand = '';
 let regSupplier = '';
 let regGroups = 25;
 let regFilterBase = ''; // MARKER-REG-FAST — the text a brand/supplier was picked for
+let regAbort = null;    // MARKER-SEARCH-ONE-PASS — the in-flight search, cancelled by the next one
 
 function regSselSet(id, labels, value) {
   const input = document.getElementById(id);
@@ -1940,7 +1941,9 @@ async function runSearch() {
     url.searchParams.set('groups', String(regGroups));
     if (regBrand) { url.searchParams.set('brand', regBrand); }
     if (regSupplier) { url.searchParams.set('supplier', regSupplier); }
-    const res = await fetch(url, {headers: {'Accept': 'application/json'}});
+    if (regAbort) { regAbort.abort(); }
+    regAbort = new AbortController();
+    const res = await fetch(url, {headers: {'Accept': 'application/json'}, signal: regAbort.signal});
     // MARKER-REG-GROUPED-FIX — a server error is not "No matches".
     if (!res.ok) { throw new Error('Search failed (' + res.status + ')'); }
     const data = await res.json();
@@ -1949,6 +1952,7 @@ async function runSearch() {
     renderResults(data, refundResult);
     regSettled();
   } catch (e) {
+    if (e && e.name === 'AbortError') { return; } // MARKER-SEARCH-ONE-PASS — superseded, not failed
     if (seq !== regSeq) { return; } // MARKER-REG-ENTER
     regSettled();
     if (q !== regLastQ) { highlighted = 0; regLastQ = q; }
