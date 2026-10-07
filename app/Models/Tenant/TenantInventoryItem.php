@@ -102,6 +102,21 @@ class TenantInventoryItem extends Model
         'is_stock_tracked' => 'boolean',
     ];
 
+    /**
+     * MARKER-SEARCH-TEXT — an edit to anything search reads clears the stored
+     * search text, so search falls back to checking the fields themselves
+     * until tonight's inventory:search-text rebuild. Never a stale match.
+     */
+    protected static function booted(): void
+    {
+        static::saving(function (self $item) {
+            if ($item->isDirty(['name', 'display_subtitle', 'sku', 'catalog_upc', 'catalog_ean', 'catalog_mpn',
+                                'shop_brand', 'color', 'size', 'distributor_catalog_id'])) {
+                $item->search_text = null;
+            }
+        });
+    }
+
     /** MARKER-RESERVE — on hand minus held, across every location. */
     public function availableCount(): int
     {

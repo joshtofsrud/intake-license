@@ -209,6 +209,15 @@ Schedule::command('search:build-terms')
     ->runInBackground();
 
 // ----------------------------------------------------------------
+// MARKER-SEARCH-TEXT — rebuild staff search text and recent sales,
+// after the per-shop distributor sync (06:30) has added part numbers.
+// ----------------------------------------------------------------
+Schedule::command('inventory:search-text')
+    ->dailyAt('07:15')
+    ->withoutOverlapping()
+    ->runInBackground();
+
+// ----------------------------------------------------------------
 // MARKER-REG-SETTINGS — reap stale register drafts/quotes nightly,
 // per each tenant's retention setting (default: keep forever).
 // ----------------------------------------------------------------

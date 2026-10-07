@@ -1,5 +1,5 @@
 <?php
-// MARKER-INV-SEARCH
+// MARKER-INV-SEARCH · MARKER-SEARCH-TEXT
 
 namespace App\Support;
 
@@ -27,8 +27,15 @@ use Illuminate\Database\Eloquent\Builder;
  *    nearest real word, then the search runs again. The caller says which
  *    words were used, so the screen can show "Showing results for …".
  *
- * Ranking (rank()): an exact identifier first, then names starting with the
- * query, then names containing it as a phrase, then everything else.
+ * Speed (MARKER-SEARCH-TEXT): each item carries search_text — every field
+ * above in one lowercase string, rebuilt nightly by inventory:search-text and
+ * cleared whenever the item is saved. A word is one LIKE on that column.
+ * Items whose search_text is empty (just saved, just imported) fall back to
+ * the full field-by-field check, so nothing goes missing between rebuilds.
+ *
+ * Ranking (rank()): an exact barcode / SKU / part number first; then items
+ * where more of the words start a word ("minion" beats "Dominion"); then
+ * what sold most in the last 90 days; then what is in stock; then A–Z.
  */
 final class InventorySearch
 {
@@ -94,19 +101,31 @@ final class InventorySearch
         $t     = self::T;
         $codes = self::codes($used);
         $in    = implode(',', array_fill(0, count($codes), '?'));
-        $esc   = self::escape($used);
 
+        // 1 — the exact identifier someone scanned or typed.
         $q->orderByRaw(
             "CASE
                WHEN {$t}.sku IN ({$in}) OR {$t}.catalog_upc IN ({$in}) OR {$t}.catalog_ean IN ({$in}) OR {$t}.catalog_mpn = ?
                  OR EXISTS (SELECT 1 FROM tenant_inventory_item_aliases al_r WHERE al_r.inventory_item_id = {$t}.id AND al_r.code IN ({$in}))
                  OR EXISTS (SELECT 1 FROM tenant_inventory_item_vendors iv_r WHERE iv_r.inventory_item_id = {$t}.id AND iv_r.vendor_sku = ?)
-               THEN 0
-               WHEN {$t}.name LIKE ? THEN 1
-               WHEN {$t}.name LIKE ? THEN 2
-               ELSE 3 END",
-            array_merge($codes, $codes, $codes, [$used], $codes, [$used], [$esc . '%', '%' . $esc . '%'])
+               THEN 0 ELSE 1 END",
+            array_merge($codes, $codes, $codes, [$used], $codes, [$used])
         );
+
+        // 2 — how many of the words start a word, not sit inside one.
+        $parts = [];
+        $binds = [];
+        foreach (self::words($used) as $w) {
+            $parts[] = "CASE WHEN CONCAT(' ', COALESCE({$t}.search_text, LOWER({$t}.name))) LIKE ? THEN 1 ELSE 0 END";
+            $binds[] = '% ' . self::escape(mb_strtolower($w)) . '%';
+        }
+        if ($parts) {
+            $q->orderByRaw('(' . implode(' + ', $parts) . ') DESC', $binds);
+        }
+
+        // 3 — what actually sells, then what is on a shelf.
+        $q->orderByDesc("{$t}.recent_sales")
+          ->orderByRaw("CASE WHEN {$t}.computed_stock_count > 0 THEN 0 ELSE 1 END");
     }
 
     /** @return string[] */
@@ -150,6 +169,40 @@ final class InventorySearch
         return str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $s);
     }
 
+    /**
+     * The field-by-field check: every column, the catalog brand, old merged
+     * codes and supplier part numbers. Only runs for items whose search_text
+     * has not been built yet.
+     */
+    private static function fieldMatch($w, string $t, string $like, bool $vendorSkus): void
+    {
+        $w->whereRaw(
+            "CONCAT_WS(' ', {$t}.name, {$t}.display_subtitle, {$t}.sku, {$t}.catalog_upc, {$t}.catalog_ean, {$t}.catalog_mpn, {$t}.shop_brand, {$t}.color, {$t}.size) LIKE ?",
+            [$like]
+        )
+        // The catalog's brand, for items whose name leaves it out.
+        ->orWhereExists(function ($s) use ($t, $like) {
+            $s->selectRaw('1')->from('platform_distributor_catalogs as pdc_s')
+              ->whereColumn('pdc_s.id', "{$t}.distributor_catalog_id")
+              ->where('pdc_s.manufacturer', 'like', $like);
+        })
+        // Old labels kept from a merge.
+        ->orWhereExists(function ($s) use ($t, $like) {
+            $s->selectRaw('1')->from('tenant_inventory_item_aliases as al_s')
+              ->whereColumn('al_s.inventory_item_id', "{$t}.id")
+              ->where('al_s.code', 'like', $like);
+        });
+
+        if ($vendorSkus) {
+            // Each supplier's own part number.
+            $w->orWhereExists(function ($s) use ($t, $like) {
+                $s->selectRaw('1')->from('tenant_inventory_item_vendors as iv_s')
+                  ->whereColumn('iv_s.inventory_item_id', "{$t}.id")
+                  ->where('iv_s.vendor_sku', 'like', $like);
+            });
+        }
+    }
+
     private static function constrain(Builder $q, array $words, array $opts): void
     {
         $t          = self::T;
@@ -161,31 +214,13 @@ final class InventorySearch
                 $codes = self::codes($w);
 
                 $all->where(function ($one) use ($t, $like, $codes, $vendorSkus) {
-                    $one->whereRaw(
-                        "CONCAT_WS(' ', {$t}.name, {$t}.display_subtitle, {$t}.sku, {$t}.catalog_upc, {$t}.catalog_ean, {$t}.catalog_mpn, {$t}.shop_brand, {$t}.color, {$t}.size) LIKE ?",
-                        [$like]
-                    )
-                    // The catalog's brand, for items whose name leaves it out.
-                    ->orWhereExists(function ($s) use ($t, $like) {
-                        $s->selectRaw('1')->from('platform_distributor_catalogs as pdc_s')
-                          ->whereColumn('pdc_s.id', "{$t}.distributor_catalog_id")
-                          ->where('pdc_s.manufacturer', 'like', $like);
-                    })
-                    // Old labels kept from a merge.
-                    ->orWhereExists(function ($s) use ($t, $like) {
-                        $s->selectRaw('1')->from('tenant_inventory_item_aliases as al_s')
-                          ->whereColumn('al_s.inventory_item_id', "{$t}.id")
-                          ->where('al_s.code', 'like', $like);
-                    });
-
-                    if ($vendorSkus) {
-                        // Each supplier's own part number.
-                        $one->orWhereExists(function ($s) use ($t, $like) {
-                            $s->selectRaw('1')->from('tenant_inventory_item_vendors as iv_s')
-                              ->whereColumn('iv_s.inventory_item_id', "{$t}.id")
-                              ->where('iv_s.vendor_sku', 'like', $like);
+                    // MARKER-SEARCH-TEXT — one LIKE on the stored text; the
+                    // field-by-field check only for items not indexed yet.
+                    $one->where("{$t}.search_text", 'like', $like)
+                        ->orWhere(function ($stale) use ($t, $like, $vendorSkus) {
+                            $stale->whereNull("{$t}.search_text")
+                                  ->where(fn ($old) => self::fieldMatch($old, $t, $like, $vendorSkus));
                         });
-                    }
 
                     if (count($codes) > 1) {
                         // A barcode in another length.
