@@ -238,6 +238,23 @@
   .reg-row .price{font-size:14px;font-weight:600;color:var(--ia-text);white-space:nowrap}
   /* MARKER-REG-ENTER — results that belong to older text, while the new search loads. */
   #resultsArea.is-stale{opacity:.55;transition:opacity .15s}
+  /* MARKER-REG-VEIL — searching card over the results */
+  .reg-results-wrap{position:relative}
+  .reg-veil{position:absolute;inset:0;display:none;align-items:flex-start;justify-content:center;
+    padding-top:48px;z-index:3;border-radius:var(--ia-r-md);background:rgba(13,13,13,.45);
+    backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px)}
+  .reg-veil.on{display:flex}
+  .reg-results-wrap.veiled #resultsArea{filter:blur(1.5px)}
+  .reg-veil-card{display:flex;align-items:center;gap:12px;padding:12px 16px 12px 12px;max-width:calc(100% - 32px);
+    background:var(--ia-surface);border:0.5px solid var(--ia-border-strong,var(--ia-border));
+    border-radius:var(--ia-r-lg);box-shadow:0 16px 40px rgba(0,0,0,.45)}
+  .reg-veil-card svg{width:34px;height:34px;flex:none;transform:rotate(-90deg)}
+  .reg-veil-card circle{fill:none;stroke-width:3}
+  .reg-veil-card .trk{stroke:var(--ia-border-strong,var(--ia-border))}
+  .reg-veil-card .fil{stroke:var(--ia-accent);stroke-dasharray:87.96;stroke-dashoffset:87.96;transition:stroke-dashoffset .12s linear}
+  .reg-veil-card .t1{font-size:13px;font-weight:500;color:var(--ia-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .reg-veil-card .t2{font-size:11.5px;color:var(--ia-text-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  @media (prefers-reduced-motion: reduce){ .reg-veil{backdrop-filter:none;-webkit-backdrop-filter:none} .reg-results-wrap.veiled #resultsArea{filter:none} }
 
   /* MARKER-REG-GROUPED — filter row, product groups and variant chips. */
   .reg-filters{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:-4px 0 10px}
@@ -688,8 +705,17 @@
         <span><kbd>esc</kbd> clear</span>
       </div>
 
+      {{-- MARKER-REG-VEIL — the card sits outside #resultsArea, which is redrawn on every search --}}
+      <div class="reg-results-wrap" id="regResultsWrap">
+        <div class="reg-veil" id="regVeil" aria-live="polite">
+          <div class="reg-veil-card">
+            <svg viewBox="0 0 34 34" aria-hidden="true"><circle class="trk" cx="17" cy="17" r="14"/><circle class="fil" id="regVeilFill" cx="17" cy="17" r="14"/></svg>
+            <div style="min-width:0"><div class="t1" id="regVeilT1">Searching…</div><div class="t2" id="regVeilT2"></div></div>
+          </div>
+        </div>
       <div id="resultsArea">
         <div class="reg-empty">Type to search products and services.</div>
+      </div>
       </div>
 
       {{-- MARKER-QUICK-ADD — the services a counter rings hourly, chosen per
@@ -1936,7 +1962,49 @@ function normalizeSaleNumber(q) {
 let regDirty = false;
 let regSeq = 0;
 let regLastQ = '';
-function regSettled() { regDirty = false; resultsArea.classList.remove('is-stale'); }
+function regSettled() { regDirty = false; resultsArea.classList.remove('is-stale'); regVeilHide(); }
+
+// MARKER-REG-VEIL — "Searching 'minion'…" with what it is searching across.
+let regVeilTimer = null;
+let regVeilTick = null;
+function regVeilShow(q) {
+  regVeilHide();
+  const wrap = document.getElementById('regResultsWrap');
+  const veil = document.getElementById('regVeil');
+  const fill = document.getElementById('regVeilFill');
+  if (!wrap || !veil || !fill) { return; }
+  const codeLike = /^\S*\d\S*$/.test(q) && q.length >= 4;
+  const scopeName = { here: 'in store', remote: 'at other locations', all: 'all items' }[regScope] || 'all items';
+  const sortName = { price_asc: 'price low to high', price_desc: 'price high to low', name: 'A to Z' }[regSort] || 'best match';
+  const what = searchType === 'service' ? 'services' : (searchType === 'product' ? 'products' : 'products and services');
+  const parts = [codeLike ? 'barcode, SKU or part number · all items' : what + ' · ' + scopeName];
+  if (regBrand) { parts.push(regBrand); }
+  if (regSupplier) { parts.push('from ' + regSupplier); }
+  parts.push(sortName);
+  document.getElementById('regVeilT1').textContent = 'Searching \u201C' + q + '\u201D\u2026';
+  document.getElementById('regVeilT2').textContent = parts.join(' \u00B7 ');
+  fill.style.transition = 'none';
+  fill.style.strokeDashoffset = '87.96';
+  const start = performance.now();
+  regVeilTimer = setTimeout(() => {
+    veil.classList.add('on');
+    wrap.classList.add('veiled');
+    fill.style.transition = '';
+    regVeilTick = setInterval(() => {
+      // Fills to 90% over about a second, completes when results land.
+      const p = Math.min(0.9, (performance.now() - start) / 1100 * 0.9);
+      fill.style.strokeDashoffset = String(87.96 * (1 - p));
+    }, 60);
+  }, 150);
+}
+function regVeilHide() {
+  clearTimeout(regVeilTimer);
+  clearInterval(regVeilTick);
+  const wrap = document.getElementById('regResultsWrap');
+  const veil = document.getElementById('regVeil');
+  if (veil) { veil.classList.remove('on'); }
+  if (wrap) { wrap.classList.remove('veiled'); }
+}
 
 async function runSearch() {
   const q = searchInput.value.trim();
@@ -1946,6 +2014,7 @@ async function runSearch() {
     resultsArea.innerHTML = '<div class="reg-empty">Type to search products and services.</div>';
     return;
   }
+  regVeilShow(q); // MARKER-REG-VEIL
 
   // Sale-number lookup runs in parallel with regular search.
   let refundResult = null;
