@@ -241,6 +241,7 @@ class RegisterController extends Controller
                 $q,
                 [
                     'scope'    => (string) $request->input('scope', 'here'),
+                    'sort'     => (string) $request->input('sort', ''), // MARKER-REG-SORT
                     'brand'    => (string) $request->input('brand', ''),
                     'supplier' => (string) $request->input('supplier', ''),
                     'groups'   => (int) $request->input('groups', 25),

@@ -40,6 +40,8 @@ class RegisterProductSearch
         $supplier = trim((string) ($opt['supplier'] ?? ''));
         $limit    = max(25, min(200, (int) ($opt['groups'] ?? 25)));
         $scope    = in_array($opt['scope'] ?? '', ['here', 'remote', 'all'], true) ? $opt['scope'] : 'here';
+        // MARKER-REG-SORT — best match unless asked otherwise.
+        $sort     = in_array($opt['sort'] ?? '', ['price_asc', 'price_desc', 'name'], true) ? $opt['sort'] : '';
         $codeLike = (bool) preg_match('/^\S*\d\S*$/u', trim($q)) && mb_strlen(trim($q)) >= 4;
         if ($codeLike) {
             $scope = 'all';
@@ -53,7 +55,8 @@ class RegisterProductSearch
         $all = (clone $query)->reorder()->toBase()
             ->select(["{$t}.id", "{$t}.name", "{$t}.display_subtitle", "{$t}.sku", "{$t}.size", "{$t}.color",
                       "{$t}.computed_stock_count", "{$t}.recent_sales", "{$t}.shop_brand", "{$t}.distributor_catalog_id",
-                      "{$t}.catalog_upc", "{$t}.catalog_ean", "{$t}.catalog_mpn", "{$t}.search_text"])
+                      "{$t}.catalog_upc", "{$t}.catalog_ean", "{$t}.catalog_mpn", "{$t}.search_text",
+                      "{$t}.shop_sell_price_cents", "{$t}.catalog_msrp_cents"]) // MARKER-REG-SORT
             ->orderByDesc("{$t}.recent_sales")
             ->orderBy("{$t}.name")
             ->limit(self::SCAN_CAP + 1)
@@ -183,6 +186,19 @@ class RegisterProductSearch
         ];
 
         $inScope = array_values(array_filter($groups, fn ($g) => $scope === 'all' || $g[$scope]));
+
+        // MARKER-REG-SORT — by a group's lowest price, or by its title; best
+        // match is the order the groups already have.
+        if ($sort !== '') {
+            $price = fn ($g) => min(array_map(fn ($r) => (int) ($r->shop_sell_price_cents ?? $r->catalog_msrp_cents ?? PHP_INT_MAX), $g['items']));
+            $title = fn ($g) => mb_strtolower((string) $g['items'][0]->name);
+            usort($inScope, match ($sort) {
+                'price_asc'  => fn ($a, $b) => $price($a) <=> $price($b),
+                'price_desc' => fn ($a, $b) => $price($b) <=> $price($a),
+                default      => fn ($a, $b) => strnatcmp($title($a), $title($b)),
+            });
+        }
+
         $page    = array_slice($inScope, 0, $limit);
 
         $out = [];
@@ -198,6 +214,7 @@ class RegisterProductSearch
             'item_ids'     => $ids,
             'groups'       => $out,
             'scope'        => $scope,
+            'sort'         => $sort, // MARKER-REG-SORT
             'scope_forced' => $codeLike,
             'scope_counts' => $counts,
             'multi_location' => $multi,

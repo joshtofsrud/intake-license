@@ -674,6 +674,12 @@
         <div class="reg-filter-sel" id="regSupplierWrap">
           <x-tenant.searchable-select name="reg_supplier" id="regSupplier" :options="[]" selected="" any="All suppliers" noun="suppliers" :searchable="true" />
         </div>
+        {{-- MARKER-REG-SORT --}}
+        <div class="reg-filter-sel" id="regSortWrap" style="min-width:150px">
+          <x-tenant.searchable-select name="reg_sort" id="regSort" :assoc="true"
+            :options="['price_asc' => 'Price: low to high', 'price_desc' => 'Price: high to low', 'name' => 'A to Z']"
+            selected="" any="Best match" noun="orders" :searchable="false" />
+        </div>
       </div>
 
       <div class="reg-hint" id="regHint" style="display:none">
@@ -1718,6 +1724,7 @@ let searchType = 'all';
 // supplier and "show more" reset when the search box is cleared.
 let regScope = 'here';
 let regBrand = '';
+let regSort = '';  // MARKER-REG-SORT
 let regSupplier = '';
 let regGroups = 25;
 let regFilterBase = ''; // MARKER-REG-FAST — the text a brand/supplier was picked for
@@ -1753,12 +1760,15 @@ function regSselSet(id, labels, value) {
   if (brand) brand.addEventListener('change', () => { regBrand = brand.value; regFilterBase = searchInput.value.trim().toLowerCase(); regGroups = 25; runSearch(); });
   const sup = document.getElementById('regSupplier');
   if (sup) sup.addEventListener('change', () => { regSupplier = sup.value; regFilterBase = searchInput.value.trim().toLowerCase(); regGroups = 25; runSearch(); });
+  const srt = document.getElementById('regSort'); // MARKER-REG-SORT
+  if (srt) srt.addEventListener('change', () => { regSort = srt.value; regFilterBase = searchInput.value.trim().toLowerCase(); regGroups = 25; runSearch(); });
   // Cleared search (typed away, item added, Esc): hide the row, drop filters.
   new MutationObserver(() => {
     if (searchInput.value.trim().length < 2) {
       bar.style.display = 'none';
       regBrand = '';
       regSupplier = '';
+      regSort = ''; // MARKER-REG-SORT
       regGroups = 25;
     }
   }).observe(resultsArea, { childList: true });
@@ -1781,6 +1791,22 @@ function regAfterRender(data) {
       });
       regSselSet('regBrand', ps.brands, ps.brand);
       regSselSet('regSupplier', ps.suppliers, ps.supplier);
+      // MARKER-REG-SORT — fixed options; only the shown value follows the state.
+      (function () {
+        const input = document.getElementById('regSort');
+        const root = input ? input.closest('.ssel') : null;
+        if (!root) { return; }
+        input.value = ps.sort || '';
+        const cur = root.querySelector('.ssel-cur');
+        let label = '';
+        root.querySelectorAll('.ssel-opt').forEach(o => {
+          const on = (o.getAttribute('data-v') || '') === input.value;
+          o.classList.toggle('is-sel', on);
+          if (on) { label = o.getAttribute('data-l') || ''; }
+        });
+        cur.textContent = label || 'Best match';
+        cur.classList.toggle('is-any', !input.value);
+      })();
       document.getElementById('regBrandWrap').style.display = '';
       document.getElementById('regSupplierWrap').style.display = '';
     }
@@ -1886,9 +1912,10 @@ searchInput.addEventListener('input', () => {
   regGroups = 25; // MARKER-REG-GROUPED
   // MARKER-REG-FAST — a brand or supplier picked for one search does not
   // follow you to a different one; refining the same search keeps it.
-  if ((regBrand || regSupplier) && !searchInput.value.trim().toLowerCase().startsWith(regFilterBase)) {
+  if ((regBrand || regSupplier || regSort) && !searchInput.value.trim().toLowerCase().startsWith(regFilterBase)) {
     regBrand = '';
     regSupplier = '';
+    regSort = ''; // MARKER-REG-SORT
   }
   regDirty = true; // MARKER-REG-ENTER
   resultsArea.classList.add('is-stale');
@@ -1941,6 +1968,7 @@ async function runSearch() {
     url.searchParams.set('groups', String(regGroups));
     if (regBrand) { url.searchParams.set('brand', regBrand); }
     if (regSupplier) { url.searchParams.set('supplier', regSupplier); }
+    if (regSort) { url.searchParams.set('sort', regSort); } // MARKER-REG-SORT
     if (regAbort) { regAbort.abort(); }
     regAbort = new AbortController();
     const res = await fetch(url, {headers: {'Accept': 'application/json'}, signal: regAbort.signal});
