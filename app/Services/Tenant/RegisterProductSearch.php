@@ -137,6 +137,7 @@ class RegisterProductSearch
         // ---- stock: available here and elsewhere, per item.
         $locNames = DB::table('tenant_locations')
             ->where('tenant_id', $tenantId)->where('is_active', true)
+            ->whereNull('deleted_at') // MARKER-REG-LIVE-LOCATIONS — a deleted location is not a location
             ->pluck('name', 'id')->all();
         $multi = count($locNames) > 1;
 
