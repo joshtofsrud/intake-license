@@ -144,7 +144,7 @@ class Seo
 
         if ($kind === 'marketing') {
             return "User-agent: *\n"
-                . "Disallow: /admin\nDisallow: /rep\nDisallow: /invest\nDisallow: /book/manage\nDisallow: /platform-email\n"
+                . "Disallow: /admin\nDisallow: /rep\nDisallow: /invest\nDisallow: /book/manage\nDisallow: /platform-email\nDisallow: /mkt/\n" // MARKER-ROBOTS-MKT — traffic beacon, not a page
                 . "\nSitemap: " . self::marketingBase() . "/sitemap.xml\n";
         }
 
