@@ -5,10 +5,10 @@
     <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
       <div style="flex:1;min-width:280px">
         <label style="display:block;font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;opacity:.6;margin-bottom:5px">
-          UPC, EAN, part number, variant number, product key or name
+          UPC, EAN, part number, product key or title
         </label>
         <input type="text" wire:model.live.debounce.400ms="q" autofocus
-               placeholder="e.g. 4717784012292 or TB29478000 or Holy Roller"
+               placeholder="e.g. 4717784012292, TB29478000 or dt swiss spoke 165"
                style="width:100%;padding:9px 12px;border-radius:8px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04);color:inherit;font-size:13.5px">
       </div>
       <div style="min-width:150px">
@@ -31,7 +31,7 @@
   @php $results = $this->results; @endphp
 
   @if($results->count())
-    <x-filament::section :heading="$results->count() . ' match' . ($results->count() === 1 ? '' : 'es')">
+    <x-filament::section :heading="($results->count() >= 50 ? 'First 50 matches — add a word to narrow' : $results->count() . ' match' . ($results->count() === 1 ? '' : 'es'))">
       <div style="overflow:auto">
         <table style="width:100%;border-collapse:collapse;font-size:13px">
           <thead>
@@ -48,7 +48,7 @@
             @foreach($results as $r)
               <tr style="border-top:1px solid rgba(255,255,255,.07);{{ $selected === $r->id ? 'background:rgba(217,164,65,.10)' : '' }}">
                 <td style="padding:9px 10px;font-weight:600">{{ $r->distributor_code }}</td>
-                <td style="padding:9px 10px">{{ \Illuminate\Support\Str::limit($r->name, 60) }}</td>
+                <td style="padding:9px 10px">{{ \Illuminate\Support\Str::limit($r->display_name ?: $r->name, 70) }}{{-- MARKER-LOOKUP-TITLE-SEARCH --}}</td>
                 <td style="padding:9px 10px;opacity:.75">{{ $r->manufacturer_sku ?: '—' }}</td>
                 <td style="padding:9px 10px;opacity:.75;font-variant-numeric:tabular-nums">{{ $r->upc ?: ($r->ean ? $r->ean . ' (EAN)' : '—') }}</td>
                 <td style="padding:9px 10px;text-align:right;font-variant-numeric:tabular-nums">

@@ -50,25 +50,44 @@ class CatalogItemLookup extends Page
             return collect();
         }
 
-        $like = '%' . str_replace(['%', '_'], ['\\%', '\\_'], $q) . '%';
+        // MARKER-LOOKUP-TITLE-SEARCH — a title matches word by word, in any
+        // order, against the feed name, the composed display title and the
+        // brand. "dt swiss spoke 165" finds "DT Swiss Champion Spoke: 2.0mm,
+        // 165mm, J-bend…". Before this the whole query had to appear as one
+        // unbroken phrase in the raw feed name only, so most titles missed.
+        $esc   = fn (string $s) => '%' . str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $s) . '%';
+        $words = array_values(array_filter(preg_split('/[\s,:\/|]+/u', $q) ?: [], fn ($w) => $w !== ''));
+        $words = array_slice($words, 0, 8);
 
         return PlatformDistributorCatalog::query()
             ->when($this->code !== '', fn ($b) => $b->where('distributor_code', $this->code))
-            ->where(function ($b) use ($q, $like) {
-                // Exact on the identifier columns first — a scanned number is
-                // exact, and a LIKE on it would drag in every longer barcode
-                // that happens to contain it.
+            ->where(function ($b) use ($q, $words, $esc) {
+                // Exact on the identifier columns — a scanned number is exact,
+                // and a LIKE on it would drag in every longer barcode that
+                // happens to contain it.
                 $b->where('upc', $q)
                   ->orWhere('ean', $q)
                   ->orWhere('manufacturer_sku', $q)
                   ->orWhere('distributor_product_no', $q)
                   ->orWhere('distributor_variant_no', $q)
                   ->orWhere('product_key', $q)
-                  ->orWhere('name', 'like', $like)
-                  ->orWhere('manufacturer_sku', 'like', $like);
+                  ->orWhere('manufacturer_sku', 'like', $esc($q))
+                  ->orWhere(function ($t) use ($words, $esc) {
+                      foreach ($words as $w) {
+                          $like = $esc($w);
+                          $t->where(fn ($c) => $c->where('name', 'like', $like)
+                              ->orWhere('display_name', 'like', $like)
+                              ->orWhere('manufacturer', 'like', $like));
+                      }
+                  });
             })
-            ->orderBy('distributor_code')
+            // Identifier hits first, then by title.
+            ->orderByRaw(
+                '(upc = ? OR ean = ? OR manufacturer_sku = ? OR distributor_product_no = ? OR distributor_variant_no = ? OR product_key = ?) DESC',
+                array_fill(0, 6, $q)
+            )
             ->orderBy('name')
+            ->orderBy('distributor_code')
             ->limit(50)
             ->get();
     }
