@@ -283,6 +283,9 @@
   .reg-chip.rem b{color:#6fb3f2}
   .reg-chip.out{opacity:.55}
   .reg-chip.out b{color:#f2777a}
+  /* MARKER-REG-SUPPLIER-STOCK — none on your shelves, but the supplier has it */
+  .reg-chip.sup{opacity:1}
+  .reg-chip.sup b{color:var(--ia-text-dim);font-weight:500}
   .reg-chip .vp{color:var(--ia-text-dim);font-size:11.5px}
   .reg-chip:hover,.reg-chip.highlighted{border-color:var(--ia-accent);opacity:1}
   .reg-jump{display:flex;gap:8px;justify-content:center;margin-top:10px;flex-wrap:wrap}
@@ -1856,6 +1859,9 @@ function regGroupsHtml(data, push, rowHtml) {
   (data.products || []).forEach(p => { byId[p.id] = p; });
   const away = p => (p.stock_elsewhere || []).reduce((a, e) => a + (e.n || 0), 0);
   const scope = ps.scope;
+  // MARKER-REG-SUPPLIER-STOCK
+  const sup = id => (ps.supplier_stock && ps.supplier_stock[id]) || null;
+  (data.products || []).forEach(p => { const s = sup(p.id); if (s) { p.sup_name = s.name; p.sup_avail = s.n; } });
 
   if (!ps.groups.length) {
     const names = { here: 'In store', remote: 'Other locations', all: 'All items' };
@@ -1872,7 +1878,7 @@ function regGroupsHtml(data, push, rowHtml) {
   let html = '<div class="reg-results-section"><h3>Products</h3>';
   if (ps.groups.some(g => g.rows.reduce((a, r) => a + r.items.length, 0) > 1)) {
     html += '<div class="reg-legend">Numbers are stock: <span class="g">green</span> here, '
-      + '<span class="b">blue</span> at another location, <span class="r">red</span> none (still tappable).</div>';
+      + '<span class="b">blue</span> at another location, grey at a supplier, <span class="r">red</span> none anywhere (still tappable).</div>';
   }
   ps.groups.forEach(g => {
     const items = [];
@@ -1889,6 +1895,15 @@ function regGroupsHtml(data, push, rowHtml) {
       ? ` <span class="reg-stock-chip is-in">${hereN} here</span>`
       : ` <span class="reg-stock-chip is-out">0 here</span>`;
     if (awayN > 0) { stock += ` <span class="reg-stock-chip is-elsewhere">${awayN} at other locations</span>`; }
+    // MARKER-REG-SUPPLIER-STOCK — nothing on your shelves: what the suppliers have.
+    if (hereN <= 0 && awayN <= 0) {
+      const bySup = {};
+      items.forEach(p => { if (p.sup_avail > 0) { bySup[p.sup_name] = (bySup[p.sup_name] || 0) + p.sup_avail; } });
+      const names = Object.keys(bySup).sort((a, b) => bySup[b] - bySup[a]);
+      if (names.length) {
+        stock += ` <span class="reg-stock-chip is-order">${names.slice(0, 2).map(n => bySup[n] + ' at ' + escapeHtml(n)).join(' · ')}</span>`;
+      }
+    }
 
     html += `<div class="reg-group"><div class="reg-group-head"><div>`
       + `<div class="name">${escapeHtml(g.title)}</div>`
@@ -1906,10 +1921,12 @@ function regGroupsHtml(data, push, rowHtml) {
         const n = scope === 'remote' ? a : (scope === 'all' ? h + a : h);
         let cls = 'reg-chip';
         if (h <= 0 && a > 0) { cls += ' rem'; }
-        if (n <= 0) { cls += ' out'; }
+        // MARKER-REG-SUPPLIER-STOCK — none on your shelves: the supplier's count, in grey.
+        const supTxt = (n <= 0 && p.sup_avail > 0) ? escapeHtml(p.sup_name) + ' ' + p.sup_avail : '';
+        if (n <= 0) { cls += supTxt ? ' sup' : ' out'; }
         const pp = lo !== hi ? ` <span class="vp">${fmt(p.price_cents || 0)}</span>` : '';
         html += `<button type="button" class="${cls}" data-i="${idx}" title="${escapeHtml(p.sku || '')}">`
-          + `${escapeHtml(it.label || p.sku || '')}${pp} <b>${n}</b></button>`;
+          + `${escapeHtml(it.label || p.sku || '')}${pp} <b>${supTxt || n}</b></button>`;
       });
       html += '</div>';
     });
@@ -2106,6 +2123,10 @@ function stockChip(p) {
 
   // Nowhere at all. A vendor turns a dead end into a special order.
   if (p.vendor_name) {
+    // MARKER-REG-SUPPLIER-STOCK — say how many the supplier has, when known.
+    if (p.sup_avail > 0) {
+      return ` <span class="reg-stock-chip is-order">None in stock · ${p.sup_avail} at ${escapeHtml(p.sup_name)}</span>`;
+    }
     return ` <span class="reg-stock-chip is-order">None in stock · order from ${escapeHtml(p.vendor_name)}</span>`;
   }
 

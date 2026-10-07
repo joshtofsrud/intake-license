@@ -83,13 +83,19 @@ class RegisterProductSearch
         // Suppliers (and their part numbers) per matched item: one lookup.
         $supOf  = [];
         $vskuOf = [];
+        $supStock = []; // MARKER-REG-SUPPLIER-STOCK
         foreach (array_chunk($ids, 1000) as $chunk) {
             DB::table('tenant_inventory_item_vendors as iv_x')
                 ->join('tenant_vendors as v_x', 'v_x.id', '=', 'iv_x.vendor_id')
                 ->whereIn('iv_x.inventory_item_id', $chunk)
-                ->get(['iv_x.inventory_item_id', 'iv_x.vendor_sku', 'v_x.name'])
-                ->each(function ($r) use (&$supOf, &$vskuOf) {
+                ->get(['iv_x.inventory_item_id', 'iv_x.vendor_sku', 'v_x.name', 'iv_x.live_avail'])
+                ->each(function ($r) use (&$supOf, &$vskuOf, &$supStock) {
                     if (trim((string) $r->name) !== '') { $supOf[$r->inventory_item_id][(string) $r->name] = true; }
+                    // MARKER-REG-SUPPLIER-STOCK — the supplier with the most on hand.
+                    $n = (int) ($r->live_avail ?? 0);
+                    if ($n > 0 && trim((string) $r->name) !== '' && $n > ($supStock[$r->inventory_item_id]['n'] ?? 0)) {
+                        $supStock[$r->inventory_item_id] = ['name' => (string) $r->name, 'n' => $n];
+                    }
                     if (trim((string) $r->vendor_sku) !== '') { $vskuOf[$r->inventory_item_id][] = mb_strtolower(trim((string) $r->vendor_sku)); }
                 });
         }
@@ -175,12 +181,30 @@ class RegisterProductSearch
         $groups = [];
         foreach ($rows as $r) {
             $key = self::groupKey((string) $r->name, $r->size, $r->color);
+            // MARKER-REG-SUPPLIER-STOCK — a family one generic word longer than
+            // another ("… DHF Tire" vs "… DHF") joins it, when both are families.
+            $isFam = self::family(self::strip((string) $r->name, $r->size, $r->color)) !== null;
             if (! isset($groups[$key])) {
-                $groups[$key] = ['items' => [], 'here' => false, 'remote' => false];
+                $groups[$key] = ['items' => [], 'here' => false, 'remote' => false, 'fam' => $isFam];
             }
             $groups[$key]['items'][] = $r;
             if (($here[$r->id] ?? 0) > 0) { $groups[$key]['here'] = true; }
             if (($away[$r->id] ?? 0) > 0) { $groups[$key]['remote'] = true; }
+        }
+
+        // MARKER-REG-SUPPLIER-STOCK — fold a family into the one a word shorter,
+        // whichever came first, keeping the earlier one's place in the list.
+        foreach (array_keys($groups) as $k) {
+            if (! isset($groups[$k]) || ! $groups[$k]['fam']) { continue; }
+            $shorter = preg_replace('/\s+\S+$/u', '', $k);
+            if ($shorter === $k || ! isset($groups[$shorter]) || ! $groups[$shorter]['fam']) { continue; }
+            $keys = array_keys($groups);
+            $keep = array_search($shorter, $keys, true) < array_search($k, $keys, true) ? $shorter : $k;
+            $drop = $keep === $k ? $shorter : $k;
+            $groups[$keep]['items']  = array_merge($groups[$keep]['items'], $groups[$drop]['items']);
+            $groups[$keep]['here']   = $groups[$keep]['here'] || $groups[$drop]['here'];
+            $groups[$keep]['remote'] = $groups[$keep]['remote'] || $groups[$drop]['remote'];
+            unset($groups[$drop]);
         }
 
         $counts = [
@@ -216,6 +240,8 @@ class RegisterProductSearch
 
         return [
             'item_ids'     => $ids,
+            // MARKER-REG-SUPPLIER-STOCK — supplier availability for the items shown
+            'supplier_stock' => (object) array_intersect_key($supStock, array_flip($ids)),
             'groups'       => $out,
             'scope'        => $scope,
             'sort'         => $sort, // MARKER-REG-SORT
@@ -254,14 +280,14 @@ class RegisterProductSearch
      */
     public static function family(string $name): ?string
     {
-        $words = preg_split('/\s+/u', trim($name)) ?: [];
+        $words = preg_split('/\s+/u', trim(self::joinSizes($name))) ?: [];
         foreach ($words as $i => $w) {
             $t = trim($w, ",;:()[]–-");
             if ($t === '') {
                 continue;
             }
             if (preg_match('/^\d+(\.\d+)?(\'\'|"|”|in|mm|cm|lb|lbs|g|kg|t|°|%)?$/iu', $t)
-                || preg_match('/^\d+(\.\d+)?(\'\'|"|”)?x\d/iu', $t)
+                || preg_match('/^\d+(\.\d+)?(\'\'|"|”)?[x×]\d/iu', $t)
                 || preg_match('/^\d+(\.\d+)?\/\d/u', $t)) {
                 if ($i < 2) {
                     return null;
@@ -271,6 +297,12 @@ class RegisterProductSearch
             }
         }
         return null;
+    }
+
+    /** MARKER-REG-SUPPLIER-STOCK — "24 × 2.4" and "29 x 2.5" read as one size token. */
+    private static function joinSizes(string $s): string
+    {
+        return (string) preg_replace('/(\d)\s*([x×])\s*(\d)/u', '$1$2$3', $s);
     }
 
     /** Remove size and colour as whole words; a size may carry its unit. */
@@ -349,8 +381,13 @@ class RegisterProductSearch
 
         if ($isFamily) {
             // MARKER-PRODUCT-FAMILY
+            $nameWords = [];
+            foreach ($items as $r) {
+                $f = self::family(self::strip((string) $r->name, $r->size, $r->color));
+                foreach (preg_split('/\s+/u', mb_strtolower((string) $f)) ?: [] as $w) { $nameWords[trim($w, ",;:–-")] = true; }
+            }
             $rows = [['label' => '', 'items' => array_map(
-                fn ($r) => ['id' => $r->id, 'label' => self::diffLabel($r, $items, 6)],
+                fn ($r) => ['id' => $r->id, 'label' => self::diffLabel($r, $items, 6, $nameWords)],
                 $items
             )]];
         }
@@ -411,7 +448,7 @@ class RegisterProductSearch
      * variants whose difference lives only in the name or subtitle
      * ("134mm 400 lb"). Falls back to the SKU.
      */
-    private static function diffLabel(object $r, array $items, int $max = 4): string
+    private static function diffLabel(object $r, array $items, int $max = 4, array $skip = []): string
     {
         // MARKER-CHIP-SPECS — specs, not part numbers: read the name and the
         // catalog's full title, and leave out anything that is an identifier
@@ -424,8 +461,9 @@ class RegisterProductSearch
             || preg_match('/^\d+(?:[.\-]\d+){2,}$/', trim($w, '()[],'))
             || preg_match('/^\d{8,}$/', trim($w, '()[],'));
         $words = fn ($x) => array_values(array_filter(
-            preg_split('/[\s,;·|]+/u', trim((string) $x->name . ' ' . (string) ($x->cat_title ?? ''))) ?: [],
-            fn ($w) => $w !== '' && ! $isCode($w, $x)
+            preg_split('/[\s,;·|]+/u', trim(self::joinSizes((string) $x->name . ' ' . (string) ($x->cat_title ?? '')))) ?: [],
+            fn ($w) => $w !== '' && ! $isCode($w, $x) && preg_match('/[\p{L}\p{N}]/u', $w)
+                && ! isset($skip[mb_strtolower(trim($w, ',;:–-'))])
         ));
         $common = null;
         foreach ($items as $x) {
