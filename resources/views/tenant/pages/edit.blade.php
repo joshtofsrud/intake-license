@@ -3535,7 +3535,7 @@ body.ia-theme-b .pb2-preview-frame-wrap {
       document.body.appendChild(input);
       input.addEventListener('change', async () => {
         const file = input.files && input.files[0]; input.remove(); if (!file) return;
-        if (file.size > 20 * 1024 * 1024) { IntakeConfirm.alert({ title: 'Video too large', message: 'Videos can be up to 20 MB. Shorten or compress it and try again.' }); return; }
+        if (file.size > 25 * 1024 * 1024) { IntakeConfirm.alert({ title: 'Video too large', message: 'Videos can be up to 25 MB. Shorten or compress it and try again.' }); return; }
         if (st) st.textContent = 'Uploading\u2026';
         const fd = new FormData(); fd.append('_token', getCsrf()); fd.append('file', file); fd.append('type', 'video');
         try {

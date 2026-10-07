@@ -278,7 +278,7 @@
   <div class="pb2-group">
     <div class="pb2-group-title">Background video</div>
     <div class="pb2-field">
-      <label class="pb2-field-label">Video <span class="pb2-field-hint">MP4, MOV or WebM, up to 20 MB</span></label>
+      <label class="pb2-field-label">Video <span class="pb2-field-hint">MP4, MOV or WebM, up to 25 MB</span></label>
       <input type="text" class="pb2-input" data-field="bg_video_url" value="{{ $get('bg_video_url') }}" placeholder="Upload, or paste a video link">
       <div style="display:flex;gap:10px;align-items:center;margin-top:6px">
         <button type="button" class="pb2-textlink" data-hero-video-upload>Upload video</button>
