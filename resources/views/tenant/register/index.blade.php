@@ -272,6 +272,42 @@
   .reg-group-head .name{font-weight:500;font-size:14px}
   .reg-group-head .meta{font-size:12px;color:var(--ia-text-dim)}
   .reg-group-head .price{font-size:14px;font-weight:600;color:var(--ia-text);white-space:nowrap}
+  /* MARKER-REG-PICKER — one line per product, options in a picker */
+  .reg-group-line{gap:10px}
+  .reg-opts-btn{flex:none;margin-left:auto;padding:4px 10px;border-radius:99px;border:0.5px solid var(--ia-border);
+    background:transparent;color:var(--ia-text-dim);font-size:12px;font-family:inherit;cursor:pointer;white-space:nowrap}
+  .reg-opts-btn:hover,.reg-group.is-open .reg-opts-btn{color:var(--ia-text);border-color:var(--ia-accent)}
+  .reg-opts-btn .chev{display:inline-block;font-size:10px;margin-left:3px;transition:transform .15s}
+  .reg-group.is-open .reg-opts-btn .chev{transform:rotate(180deg)}
+  .reg-quick{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:-4px 12px 6px}
+  .reg-quick[hidden],.reg-picker[hidden]{display:none}
+  .reg-quick-more{font-size:11.5px;color:var(--ia-text-dim)}
+  .reg-picker{margin:0 12px 10px;padding:10px;border:0.5px solid var(--ia-border);border-radius:var(--ia-r-md);background:var(--ia-surface-2)}
+  .reg-dds{display:flex;flex-wrap:wrap;gap:8px}
+  .reg-dd{position:relative;flex:1 1 150px;min-width:0}
+  .reg-dd-btn{width:100%;display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:var(--ia-r-md);
+    border:0.5px solid var(--ia-border);background:var(--ia-input-bg);color:var(--ia-text);font-size:12.5px;font-family:inherit;cursor:pointer;text-align:left}
+  .reg-dd-btn .k{color:var(--ia-text-dim);font-size:11px;flex:none}
+  .reg-dd-btn .v{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .reg-dd-btn .chev{font-size:10px;opacity:.5}
+  .reg-dd-list{position:absolute;z-index:6;top:calc(100% + 4px);left:0;min-width:100%;max-height:260px;overflow-y:auto;padding:4px;
+    background:var(--ia-surface);border:0.5px solid var(--ia-border-strong,var(--ia-border));border-radius:var(--ia-r-md);box-shadow:0 16px 40px rgba(0,0,0,.45)}
+  .reg-dd-list[hidden]{display:none}
+  .reg-dd-opt{display:flex;width:100%;justify-content:space-between;gap:14px;padding:6px 9px;border:0;border-radius:6px;background:transparent;
+    color:var(--ia-text);font-size:12.5px;font-family:inherit;cursor:pointer;text-align:left;white-space:nowrap}
+  .reg-dd-opt:hover{background:var(--ia-hover)}
+  .reg-dd-opt.is-sel{color:var(--ia-accent);font-weight:600}
+  .reg-dd-opt.is-other .t{opacity:.55}
+  .reg-dd-opt .s{font-size:11.5px;color:var(--ia-text-dim)}
+  .reg-dd-opt .s.in{color:#7ee081}.reg-dd-opt .s.rem{color:#6fb3f2}.reg-dd-opt .s.out{color:#f2777a}
+  .reg-pick-line{display:flex;align-items:center;gap:10px;margin-top:10px}
+  .reg-pick-line > div:first-child{flex:1}
+  .reg-pick-line .t{font-size:13px;font-weight:500}
+  .reg-pick-line .s{font-size:11.5px;color:var(--ia-text-dim)}
+  .reg-pick-line .price{font-size:14px;font-weight:600;white-space:nowrap}
+  .reg-pick-add{padding:7px 14px;border:0;border-radius:var(--ia-r-md);background:var(--ia-accent);color:var(--ia-accent-text);
+    font-weight:600;font-size:12.5px;font-family:inherit;cursor:pointer}
+  @media (max-width:640px){ .reg-dd{flex-basis:100%} .reg-opts-btn{padding:4px 8px} }
   .reg-group-head .reg-gright{display:flex;align-items:center;gap:10px} /* MARKER-REG-GROUP-INFO */
   .reg-vars{display:flex;flex-direction:column;gap:6px;margin-top:8px}
   .reg-vrow{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
@@ -1805,6 +1841,8 @@ function regSselSet(id, labels, value) {
 })();
 
 function regAfterRender(data) {
+  // MARKER-REG-PICKER — pickers that start open (a scanned code, or one product)
+  Object.keys(regPickers).forEach(gid => { if (regPickers[gid].open) { regPickerRender(gid); } });
   // MARKER-REG-GROUP-INFO — the group's i button follows the variant under the
   // pointer or the keyboard highlight.
   resultsArea.querySelectorAll('.reg-group').forEach(g => {
@@ -1864,16 +1902,36 @@ function regAfterRender(data) {
   }));
 }
 
-// One entry per product; a chip per variant. Single items keep the plain row.
+// MARKER-REG-PICKER — one compact line per product. Variants you have on the
+// shelf show as up to three quick buttons; the rest are chosen in a picker
+// with a dropdown per attribute (size, colour, version) that opens under
+// the line. Single items keep the plain row, with its i button.
+const REG_ATTR_NAME = { size: 'Size', color: 'Color', version: 'Version' };
+let regPickers = {};
+let regAllProducts = [];
+
+function regEntryOf(p) {
+  return {type:'product',source_id:p.id,name:p.name,price_cents:p.price_cents,is_taxable:p.is_taxable,current_location_stock:p.current_location_stock,current_location_name:p.current_location_name,allow_oversell:p.allow_oversell,stock_scope:p.stock_scope,stock_elsewhere:p.stock_elsewhere,vendor_name:p.vendor_name,reserved_here:p.reserved_here,on_hand_here:p.on_hand_here,codes:p.codes||[]};
+}
+
+function regStockOf(p) {
+  const h = Math.max(0, p.current_location_stock || 0);
+  const a = (p.stock_elsewhere || []).reduce((s, e) => s + (e.n || 0), 0);
+  if (h > 0) { return { cls: 'in', txt: h + ' here', n: h }; }
+  if (a > 0) { return { cls: 'rem', txt: a + ' elsewhere', n: a }; }
+  if (p.sup_avail > 0) { return { cls: 'sup', txt: p.sup_avail + ' at ' + p.sup_name, n: 0 }; }
+  return { cls: 'out', txt: 'none', n: 0 };
+}
+
 function regGroupsHtml(data, push, rowHtml) {
   const ps = data.product_search;
   const byId = {};
   (data.products || []).forEach(p => { byId[p.id] = p; });
-  const away = p => (p.stock_elsewhere || []).reduce((a, e) => a + (e.n || 0), 0);
   const scope = ps.scope;
-  // MARKER-REG-SUPPLIER-STOCK
   const sup = id => (ps.supplier_stock && ps.supplier_stock[id]) || null;
   (data.products || []).forEach(p => { const s = sup(p.id); if (s) { p.sup_name = s.name; p.sup_avail = s.n; } });
+  regPickers = {};
+  regAllProducts = (data.products || []).map(regEntryOf);
 
   if (!ps.groups.length) {
     const names = { here: 'In store', remote: 'Other locations', all: 'All items' };
@@ -1887,65 +1945,74 @@ function regGroupsHtml(data, push, rowHtml) {
       + '</div></div></div>';
   }
 
+  const q = (searchInput.value || '').trim();
+  const multi = ps.groups.filter(g => (g.variants || []).length > 1).length;
   let html = '<div class="reg-results-section"><h3>Products</h3>';
-  if (ps.groups.some(g => g.rows.reduce((a, r) => a + r.items.length, 0) > 1)) {
-    html += '<div class="reg-legend">Numbers are stock: <span class="g">green</span> here, '
-      + '<span class="b">blue</span> at another location, grey at a supplier, <span class="r">red</span> none anywhere (still tappable).</div>';
-  }
-  ps.groups.forEach(g => {
-    const items = [];
-    g.rows.forEach(r => r.items.forEach(it => { if (byId[it.id]) { items.push(byId[it.id]); } }));
-    if (!items.length) { return; }
-    if (items.length === 1) { html += rowHtml(items[0]); return; }
 
-    const prices = items.map(p => p.price_cents || 0);
-    const lo = Math.min(...prices);
-    const hi = Math.max(...prices);
-    const hereN = items.reduce((a, p) => a + Math.max(0, p.current_location_stock || 0), 0);
-    const awayN = items.reduce((a, p) => a + away(p), 0);
+  ps.groups.forEach((g, gi) => {
+    const vars = (g.variants || []).filter(v => byId[v.id]);
+    if (vars.length <= 1) {
+      const only = vars.length ? byId[vars[0].id] : null;
+      const first = only || (g.rows[0] && g.rows[0].items[0] && byId[g.rows[0].items[0].id]);
+      if (first) { html += rowHtml(first); }
+      return;
+    }
+    vars.forEach(v => { v.p = byId[v.id]; v.st = regStockOf(v.p); });
+
+    // Start on the variant someone scanned or typed, else the best stocked.
+    const same = (a, b) => a === b || a === '0' + b || '0' + a === b;
+    let start = vars.find(v => q && (v.p.codes || []).some(c => same(String(c), q)));
+    const exactHit = !!start;
+    if (!start) {
+      start = vars.slice().sort((a, b) =>
+        (b.st.cls === 'in') - (a.st.cls === 'in') || b.st.n - a.st.n
+        || (b.st.cls === 'sup') - (a.st.cls === 'sup'))[0];
+    }
+    const gid = 'g' + gi;
+    const state = { gid, title: g.title, vars, attrs: g.attrs.length ? g.attrs : ['version'], cur: start,
+                    open: exactHit || multi === 1 };
+    regPickers[gid] = state;
+
+    const prices = vars.map(v => v.p.price_cents || 0);
+    const lo = Math.min(...prices), hi = Math.max(...prices);
+    const hereN = vars.reduce((a, v) => a + Math.max(0, v.p.current_location_stock || 0), 0);
+    const awayN = vars.reduce((a, v) => a + (v.p.stock_elsewhere || []).reduce((s, e) => s + (e.n || 0), 0), 0);
     let stock = hereN > 0
       ? ` <span class="reg-stock-chip is-in">${hereN} here</span>`
       : ` <span class="reg-stock-chip is-out">0 here</span>`;
     if (awayN > 0) { stock += ` <span class="reg-stock-chip is-elsewhere">${awayN} at other locations</span>`; }
-    // MARKER-REG-SUPPLIER-STOCK — nothing on your shelves: what the suppliers have.
     if (hereN <= 0 && awayN <= 0) {
       const bySup = {};
-      items.forEach(p => { if (p.sup_avail > 0) { bySup[p.sup_name] = (bySup[p.sup_name] || 0) + p.sup_avail; } });
+      vars.forEach(v => { if (v.p.sup_avail > 0) { bySup[v.p.sup_name] = (bySup[v.p.sup_name] || 0) + v.p.sup_avail; } });
       const names = Object.keys(bySup).sort((a, b) => bySup[b] - bySup[a]);
       if (names.length) {
         stock += ` <span class="reg-stock-chip is-order">${names.slice(0, 2).map(n => bySup[n] + ' at ' + escapeHtml(n)).join(' · ')}</span>`;
       }
     }
 
-    html += `<div class="reg-group"><div class="reg-group-head"><div>`
-      + `<div class="name">${escapeHtml(g.title)}</div>`
-      + `<div class="meta">${g.brand ? escapeHtml(g.brand) + ' · ' : ''}${items.length} options${stock}</div>`
-      // MARKER-REG-GROUP-INFO — details for the variant last pointed at, else the first.
-      + `</div><div class="reg-gright"><button type="button" class="reg-info-btn reg-group-info" data-item-id="${items[0].id}" title="Item details" aria-label="Item details">i</button>`
-      + `<div class="price">${lo === hi ? fmt(lo) : fmt(lo) + '–' + fmt(hi)}</div></div></div><div class="reg-vars">`;
+    // The line itself: a keyboard stop that opens the picker, or adds the
+    // chosen variant once it is open.
+    const idx = push({ type: 'group', gid, get source_id() { return state.cur.id; }, get name() { return state.cur.p.name; } });
+    html += `<div class="reg-group${state.open ? ' is-open' : ''}" data-gid="${gid}">`
+      + `<div class="reg-row reg-group-line" data-i="${idx}">`
+      + `<div style="min-width:0"><div class="name">${escapeHtml(g.title)}</div>`
+      + `<div class="meta">${g.brand ? escapeHtml(g.brand) + ' · ' : ''}${stock}</div></div>`
+      + `<button type="button" class="reg-opts-btn" data-gid="${gid}" aria-expanded="${state.open}">${vars.length} options <span class="chev">▾</span></button>`
+      + `<button type="button" class="reg-info-btn reg-group-info" data-item-id="${state.cur.id}" title="Item details" aria-label="Item details">i</button>`
+      + `<div class="price">${lo === hi ? fmt(lo) : fmt(lo) + '–' + fmt(hi)}</div></div>`;
 
-    g.rows.forEach(r => {
-      html += '<div class="reg-vrow">' + (g.rows.length > 1 && r.label ? `<span class="lab">${escapeHtml(r.label)}</span>` : '');
-      r.items.forEach(it => {
-        const p = byId[it.id];
-        if (!p) { return; }
-        const idx = push(p);
-        const h = Math.max(0, p.current_location_stock || 0);
-        const a = away(p);
-        const n = scope === 'remote' ? a : (scope === 'all' ? h + a : h);
-        let cls = 'reg-chip';
-        if (h <= 0 && a > 0) { cls += ' rem'; }
-        // MARKER-REG-SUPPLIER-STOCK — none on your shelves: the supplier's count, in grey.
-        const supTxt = (n <= 0 && p.sup_avail > 0) ? escapeHtml(p.sup_name) + ' ' + p.sup_avail : '';
-        if (n <= 0) { cls += supTxt ? ' sup' : ' out'; }
-        const pp = lo !== hi ? ` <span class="vp">${fmt(p.price_cents || 0)}</span>` : '';
-        html += `<button type="button" class="${cls}" data-i="${idx}" title="${escapeHtml(p.sku || '')}">`
-          + `${escapeHtml(it.label || p.sku || '')}${pp} <b>${supTxt || n}</b></button>`;
-      });
-      html += '</div>';
-    });
-    html += '</div></div>';
+    // Up to three variants on the shelf here, one tap away.
+    const quick = vars.filter(v => v.st.cls === 'in').sort((a, b) => b.st.n - a.st.n).slice(0, 3);
+    if (quick.length && !state.open) {
+      html += '<div class="reg-quick">' + quick.map(v => {
+        const i2 = push(regEntryOf(v.p));
+        return `<button type="button" class="reg-chip" data-i="${i2}" title="${escapeHtml(v.p.sku || '')}">${escapeHtml(v.label)} <b>${v.st.n}</b></button>`;
+      }).join('') + (vars.length > quick.length ? `<span class="reg-quick-more">+${vars.length - quick.length} more in options</span>` : '') + '</div>';
+    }
+
+    html += `<div class="reg-picker" data-gid="${gid}"${state.open ? '' : ' hidden'}></div></div>`;
   });
+
   if (ps.has_more) {
     html += `<button type="button" class="reg-more" id="regMore">Show more · ${ps.total - ps.shown} more</button>`;
   }
@@ -1954,6 +2021,118 @@ function regGroupsHtml(data, push, rowHtml) {
   }
   return html + '</div>';
 }
+
+// Values for one attribute. The first attribute (usually size) lists every
+// value; each later one only what fits the choices above it.
+function regPickerOptions(state, attr) {
+  const others = state.attrs.slice(0, state.attrs.indexOf(attr));
+  const vals = {};
+  state.vars.forEach(v => {
+    const key = v[attr] || '—';
+    const fits = others.every(o => (v[o] || '') === (state.cur[o] || ''));
+    const o = vals[key] || (vals[key] = { value: key, fits: false, best: null });
+    if (fits) { o.fits = true; if (!o.best || v.st.n > o.best.st.n || (o.best.st.cls !== 'in' && v.st.cls === 'in')) { o.best = v; } }
+    if (!o.any) { o.any = v; }
+  });
+  return Object.values(vals);
+}
+
+function regPickerRender(gid) {
+  const state = regPickers[gid];
+  const el = resultsArea.querySelector(`.reg-picker[data-gid="${gid}"]`);
+  if (!state || !el) { return; }
+  const c = state.cur;
+  let html = '<div class="reg-dds">';
+  state.attrs.forEach(attr => {
+    const val = c[attr] || '—';
+    html += `<div class="reg-dd" data-attr="${attr}"><button type="button" class="reg-dd-btn" data-gid="${gid}" data-attr="${attr}">`
+      + `<span class="k">${REG_ATTR_NAME[attr]}</span><span class="v">${escapeHtml(val)}</span><span class="chev">▾</span></button>`
+      + `<div class="reg-dd-list" hidden>`
+      + regPickerOptions(state, attr).map(o => {
+          const v = o.best || o.any;
+          const st = o.fits ? v.st : null;
+          return `<button type="button" class="reg-dd-opt${o.value === val ? ' is-sel' : ''}${o.fits ? '' : ' is-other'}" data-gid="${gid}" data-attr="${attr}" data-val="${escapeHtml(o.value)}">`
+            + `<span class="t">${escapeHtml(o.value)}</span>`
+            + `<span class="s ${st ? st.cls : ''}">${st ? escapeHtml(st.txt) : 'other options'}</span></button>`;
+        }).join('')
+      + '</div></div>';
+  });
+  html += '</div>';
+  const st = c.st;
+  html += `<div class="reg-pick-line"><div style="min-width:0"><div class="t">${escapeHtml(c.label)}</div>`
+    + `<div class="s"><span class="reg-stock-chip is-${st.cls === 'in' ? 'in' : st.cls === 'rem' ? 'elsewhere' : st.cls === 'sup' ? 'order' : 'out'}">${escapeHtml(st.txt === 'none' ? 'none in stock' : st.txt)}</span> · ${escapeHtml(c.p.sku || '')}</div></div>`
+    + `<button type="button" class="reg-info-btn" data-item-id="${c.id}" title="Item details" aria-label="Item details">i</button>`
+    + `<div class="price">${fmt(c.p.price_cents || 0)}</div>`
+    + `<button type="button" class="reg-pick-add" data-gid="${gid}">Add</button></div>`;
+  el.innerHTML = html;
+  const head = resultsArea.querySelector(`.reg-group[data-gid="${gid}"] .reg-group-info`);
+  if (head) { head.dataset.itemId = c.id; }
+}
+
+function regPickerToggle(gid, open) {
+  const state = regPickers[gid];
+  const wrap = resultsArea.querySelector(`.reg-group[data-gid="${gid}"]`);
+  if (!state || !wrap) { return; }
+  state.open = open === undefined ? !state.open : open;
+  wrap.classList.toggle('is-open', state.open);
+  const el = wrap.querySelector('.reg-picker');
+  const quick = wrap.querySelector('.reg-quick');
+  const btn = wrap.querySelector('.reg-opts-btn');
+  if (btn) { btn.setAttribute('aria-expanded', String(state.open)); }
+  if (quick) { quick.hidden = state.open; }
+  if (el) { el.hidden = !state.open; if (state.open) { regPickerRender(gid); } }
+}
+
+function regPickerChoose(gid, attr, val) {
+  const state = regPickers[gid];
+  if (!state) { return; }
+  const want = Object.assign({}, state.cur, { [attr]: val === '—' ? '' : val });
+  const upto = state.attrs.slice(0, state.attrs.indexOf(attr) + 1);
+  const exact = state.vars.filter(v => state.attrs.every(a => (v[a] || '') === (want[a] || '')));
+  const loose = state.vars.filter(v => upto.every(a => (v[a] || '') === (want[a] || '')));
+  const pool = exact.length ? exact : loose;
+  if (!pool.length) { return; }
+  state.cur = pool.slice().sort((a, b) => (b.st.cls === 'in') - (a.st.cls === 'in') || b.st.n - a.st.n)[0];
+  regPickerRender(gid);
+}
+
+function regAddAndClear(entry) {
+  addToCart(entry);
+  searchInput.value = '';
+  visibleResults = [];
+  highlighted = 0;
+  resultsArea.innerHTML = '<div class="reg-empty">Type to search products and services.</div>';
+  const hint = document.getElementById('regHint');
+  if (hint) { hint.style.display = 'none'; }
+  searchInput.focus();
+}
+
+// One listener for every picker control (they are redrawn on each change).
+resultsArea.addEventListener('click', (e) => {
+  const opts = e.target.closest('.reg-opts-btn');
+  if (opts) { e.stopPropagation(); regPickerToggle(opts.dataset.gid); return; }
+  const ddb = e.target.closest('.reg-dd-btn');
+  if (ddb) {
+    e.stopPropagation();
+    const list = ddb.parentNode.querySelector('.reg-dd-list');
+    const wasOpen = !list.hidden;
+    resultsArea.querySelectorAll('.reg-dd-list').forEach(l => { l.hidden = true; });
+    list.hidden = wasOpen;
+    return;
+  }
+  const opt = e.target.closest('.reg-dd-opt');
+  if (opt) { e.stopPropagation(); regPickerChoose(opt.dataset.gid, opt.dataset.attr, opt.dataset.val); return; }
+  const add = e.target.closest('.reg-pick-add');
+  if (add) {
+    e.stopPropagation();
+    const st = regPickers[add.dataset.gid];
+    if (st) { regAddAndClear(regEntryOf(st.cur.p)); }
+    return;
+  }
+  const info = e.target.closest('.reg-pick-line .reg-info-btn');
+  if (info) { e.stopPropagation(); openItemInfo(info.dataset.itemId); return; }
+  if (!e.target.closest('.reg-dd')) { resultsArea.querySelectorAll('.reg-dd-list').forEach(l => { l.hidden = true; }); }
+}, true);
 let searchTimer = null;
 
 document.querySelectorAll('.reg-tab').forEach(tab => {
@@ -2154,6 +2333,7 @@ function stockChip(p) {
 function renderResults(data, refundResult) {
   let html = '';
   visibleResults = [];
+  regAllProducts = []; regPickers = {}; // MARKER-REG-PICKER
 
   // MARKER-INV-SEARCH — a misspelt word was swapped for the nearest real one.
   if (data && data.corrected) {
@@ -2230,6 +2410,8 @@ function renderResults(data, refundResult) {
   resultsArea.querySelectorAll('[data-i]').forEach(row => {
     row.addEventListener('click', () => {
       const i = parseInt(row.dataset.i, 10);
+      // MARKER-REG-PICKER — a product line opens its options instead of adding.
+      if (visibleResults[i] && visibleResults[i].type === 'group') { regPickerToggle(visibleResults[i].gid); return; }
       addToCart(visibleResults[i]);
       searchInput.value = '';
       visibleResults = [];
@@ -2288,9 +2470,9 @@ if (window.IntakeScan) {
     searchInput.value = code;
     await runSearch();
     const same = (a, b) => a === b || a === '0' + b || '0' + a === b;
-    const exact = visibleResults.filter(r => r.type === 'product'
+    const exact = (regAllProducts.length ? regAllProducts : visibleResults).filter(r => r.type === 'product' // MARKER-REG-PICKER — variants inside closed pickers too
       && (r.codes || []).some(c => same(String(c), code)));
-    const pick = exact.length === 1 ? exact[0] : (visibleResults.length === 1 ? visibleResults[0] : null);
+    const pick = exact.length === 1 ? exact[0] : ((visibleResults.length === 1 && visibleResults[0].type !== 'group') ? visibleResults[0] : null);
     if (pick) {
       addToCart(pick);
       searchInput.value = '';
@@ -2327,6 +2509,14 @@ searchInput.addEventListener('keydown', (e) => {
         }
       });
       return;
+    }
+    // MARKER-REG-PICKER — Enter on a product line opens its options; Enter
+    // again adds the variant chosen there.
+    const regLine = visibleResults[highlighted];
+    if (regLine && regLine.type === 'group') {
+      const st = regPickers[regLine.gid];
+      if (st && !st.open) { regPickerToggle(regLine.gid, true); return; }
+      if (st) { regAddAndClear(regEntryOf(st.cur.p)); return; }
     }
     if (visibleResults[highlighted]) {
       addToCart(visibleResults[highlighted]);

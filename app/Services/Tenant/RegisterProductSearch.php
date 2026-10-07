@@ -424,7 +424,57 @@ class RegisterProductSearch
             unset($row);
         }
 
-        return ['title' => $title, 'brand' => (string) ($first->brand ?? ''), 'rows' => $rows];
+        // MARKER-REG-PICKER — each variant as attributes (size / colour /
+        // version) for the register's dropdowns. Size and colour come from the
+        // item's own fields when set; otherwise the size is the first size or
+        // spec in the button label and the rest of the label is the version.
+        $byId = [];
+        foreach ($items as $r) { $byId[$r->id] = $r; }
+        $variants = [];
+        foreach ($rows as $row) {
+            foreach ($row['items'] as $it) {
+                $r = $byId[$it['id']] ?? null;
+                if (! $r) { continue; }
+                $label = trim((string) $it['label']);
+                $color = trim((string) $r->color);
+                $size  = trim((string) $r->size);
+                $rest  = $label;
+                if ($size === '') {
+                    foreach (preg_split('/\s+/u', $label) ?: [] as $w) {
+                        $t = trim($w, ",;:()[]–-");
+                        if ($t !== '' && (preg_match('/^\d+(\.\d+)?(\'\'|"|”|in|mm|cm|lb|lbs|g|kg|t|°|%)?$/iu', $t)
+                            || preg_match('/^\d+(\.\d+)?(\'\'|"|”)?[x×]\d/iu', $t)
+                            || preg_match('/^\d+(\.\d+)?\/\d/u', $t))) {
+                            $size = $t;
+                            break;
+                        }
+                    }
+                }
+                foreach ([$size, $color] as $x) {
+                    if ($x !== '') {
+                        $rest = preg_replace('/(?<![\p{L}\p{N}])' . preg_quote($x, '/') . '(?![\p{L}\p{N}])/iu', ' ', $rest);
+                    }
+                }
+                $rest = trim(preg_replace('/\s+/u', ' ', (string) $rest), " \t·,-–");
+                // One way of writing a size: 24''x2.40, 24x2.4 and 24 × 2.4 are the same.
+                if (preg_match('/^\d/', $size)) {
+                    $size = str_replace(["''", '"', '”'], '', $size);
+                    $size = preg_replace('/\s*[x×]\s*/u', '×', $size);
+                    $size = preg_replace('/(\.\d*?)0+(?=\D|$)/', '$1', $size);
+                    $size = preg_replace('/\.(?=\D|$)/', '', $size);
+                }
+                $variants[] = ['id' => $r->id, 'label' => $label, 'size' => $size, 'color' => $color,
+                               'version' => $rest, 'row' => (string) ($row['label'] ?? '')];
+            }
+        }
+        $attrs = [];
+        foreach (['size', 'color', 'version'] as $a) {
+            if (count(array_unique(array_map(fn ($v) => mb_strtolower($v[$a]), $variants))) > 1) { $attrs[] = $a; }
+        }
+        if (! $attrs && count($variants) > 1) { $attrs[] = 'version'; }
+
+        return ['title' => $title, 'brand' => (string) ($first->brand ?? ''), 'rows' => $rows,
+                'variants' => $variants, 'attrs' => $attrs];
     }
 
     private static function sizeOrder(string $label): array
