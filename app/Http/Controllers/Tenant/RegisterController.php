@@ -209,6 +209,7 @@ class RegisterController extends Controller
         $services = [];
         $customers = [];
         $searchCorrected = null; // MARKER-INV-SEARCH
+        $productSearch = null;   // MARKER-REG-GROUPED
 
         if ($type === 'all' || $type === 'product') {
             // patch-96 location stock — enrich each product with its on-hand
@@ -231,7 +232,23 @@ class RegisterController extends Controller
             $searchHit = \App\Support\InventorySearch::apply($productQuery, $tenant->id, $q);
             $searchCorrected = $searchHit['corrected'];
             \App\Support\InventorySearch::rank($productQuery, $searchHit['used']);
-            $productItems = $productQuery->orderBy('name')->limit(15)->get();
+            // MARKER-REG-GROUPED — variants grouped into one entry, no
+            // 15-row cap, stock scope and brand / supplier filters.
+            $productSearch = app(\App\Services\Tenant\RegisterProductSearch::class)->run(
+                $productQuery, $tenant->id,
+                $registerLocationId ? (string) $registerLocationId : null,
+                $q,
+                [
+                    'scope'    => (string) $request->input('scope', 'here'),
+                    'brand'    => (string) $request->input('brand', ''),
+                    'supplier' => (string) $request->input('supplier', ''),
+                    'groups'   => (int) $request->input('groups', 25),
+                ]
+            );
+            $groupOrder = array_flip($productSearch['item_ids']);
+            $productItems = TenantInventoryItem::whereIn('id', $productSearch['item_ids'])->get()
+                ->sortBy(fn ($i) => $groupOrder[$i->id] ?? PHP_INT_MAX)->values();
+            unset($productSearch['item_ids']);
 
             // MARKER-REG-STOCK — counts for EVERY active location, not just
             // this register's. "None here" is a dead end at the counter;
@@ -366,7 +383,7 @@ class RegisterController extends Controller
                 ->toArray();
         }
 
-        return response()->json(compact('products', 'services', 'customers') + ['corrected' => $searchCorrected]); // MARKER-INV-SEARCH
+        return response()->json(compact('products', 'services', 'customers') + ['corrected' => $searchCorrected, 'product_search' => $productSearch]); // MARKER-INV-SEARCH
     }
 
     public function storeSale(Request $request): JsonResponse

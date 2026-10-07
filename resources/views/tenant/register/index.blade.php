@@ -237,6 +237,43 @@
   .reg-stock-chip.is-out{color:#f2777a;border-color:rgba(242,119,122,.35)}
   .reg-row .price{font-size:14px;font-weight:600;color:var(--ia-text);white-space:nowrap}
 
+  /* MARKER-REG-GROUPED — filter row, product groups and variant chips. */
+  .reg-filters{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:-4px 0 10px}
+  .reg-scope{display:inline-flex;border:0.5px solid var(--ia-border);border-radius:99px;padding:2px}
+  .reg-scope button{background:none;border:0;padding:4px 10px;border-radius:99px;font-size:12px;
+    color:var(--ia-text-dim);cursor:pointer;font-family:inherit;white-space:nowrap}
+  .reg-scope button.on{background:var(--ia-surface-2);color:var(--ia-text)}
+  .reg-scope .c{margin-left:5px;font-size:11px;opacity:.75;font-variant-numeric:tabular-nums}
+  .reg-filter-sel{min-width:150px}
+  .reg-filter-sel .ssel-btn{padding:5px 10px;font-size:12px}
+  .reg-legend{font-size:11.5px;color:var(--ia-text-dim);margin:0 12px 6px}
+  .reg-legend .g{color:#7ee081}.reg-legend .b{color:#6fb3f2}.reg-legend .r{color:#f2777a}
+  .reg-group{padding:10px 12px;border-radius:var(--ia-r-md)}
+  .reg-group-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
+  .reg-group-head .name{font-weight:500;font-size:14px}
+  .reg-group-head .meta{font-size:12px;color:var(--ia-text-dim)}
+  .reg-group-head .price{font-size:14px;font-weight:600;color:var(--ia-text);white-space:nowrap}
+  .reg-vars{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+  .reg-vrow{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+  .reg-vrow .lab{font-size:12px;color:var(--ia-text-dim);width:130px;flex:none;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .reg-chip{border:0.5px solid var(--ia-border);background:var(--ia-input-bg);color:var(--ia-text);
+    border-radius:var(--ia-r-md);padding:4px 9px;font-size:12.5px;font-family:inherit;cursor:pointer;
+    display:inline-flex;gap:7px;align-items:baseline}
+  .reg-chip b{font-weight:600;font-variant-numeric:tabular-nums;color:#7ee081}
+  .reg-chip.rem b{color:#6fb3f2}
+  .reg-chip.out{opacity:.55}
+  .reg-chip.out b{color:#f2777a}
+  .reg-chip .vp{color:var(--ia-text-dim);font-size:11.5px}
+  .reg-chip:hover,.reg-chip.highlighted{border-color:var(--ia-accent);opacity:1}
+  .reg-jump{display:flex;gap:8px;justify-content:center;margin-top:10px;flex-wrap:wrap}
+  .reg-more{display:block;width:calc(100% - 24px);margin:8px 12px;padding:8px;background:transparent;
+    border:0.5px dashed var(--ia-border);border-radius:var(--ia-r-md);color:var(--ia-text-dim);
+    font-size:12.5px;font-family:inherit;cursor:pointer}
+  .reg-more:hover{color:var(--ia-text);border-color:var(--ia-border-strong,var(--ia-border))}
+  .reg-note{font-size:12px;color:var(--ia-text-dim);margin:6px 12px}
+  @media (max-width:640px){ .reg-vrow .lab{width:100%} .reg-filter-sel{min-width:0;flex:1 1 140px} }
+
   .reg-hint{
     display:flex;gap:14px;align-items:center;
     font-size:11px;color:var(--ia-text-dim);
@@ -619,6 +656,22 @@
         <button type="button" class="reg-tab active" data-type="all">All</button>
         <button type="button" class="reg-tab" data-type="product">Products</button>
         <button type="button" class="reg-tab" data-type="service">Services</button>
+      </div>
+
+      {{-- MARKER-REG-GROUPED — stock scope and brand / supplier. Filled in
+           after each search from what the matches actually contain. --}}
+      <div class="reg-filters" id="regFilters" style="display:none">
+        <div class="reg-scope" role="group" aria-label="Stock">
+          <button type="button" data-scope="here" class="on">In store<span class="c"></span></button>
+          <button type="button" data-scope="remote">Other locations<span class="c"></span></button>
+          <button type="button" data-scope="all">All items<span class="c"></span></button>
+        </div>
+        <div class="reg-filter-sel" id="regBrandWrap">
+          <x-tenant.searchable-select name="reg_brand" id="regBrand" :options="[]" selected="" any="All brands" noun="brands" :searchable="true" />
+        </div>
+        <div class="reg-filter-sel" id="regSupplierWrap">
+          <x-tenant.searchable-select name="reg_supplier" id="regSupplier" :options="[]" selected="" any="All suppliers" noun="suppliers" :searchable="true" />
+        </div>
       </div>
 
       <div class="reg-hint" id="regHint" style="display:none">
@@ -1658,6 +1711,162 @@ async function flushDraftSave(force) {
 const searchInput = document.getElementById('searchInput');
 const resultsArea = document.getElementById('resultsArea');
 let searchType = 'all';
+
+// MARKER-REG-GROUPED — filter state. Scope persists between searches; brand,
+// supplier and "show more" reset when the search box is cleared.
+let regScope = 'here';
+let regBrand = '';
+let regSupplier = '';
+let regGroups = 25;
+
+function regSselSet(id, labels, value) {
+  const input = document.getElementById(id);
+  const root = input ? input.closest('.ssel') : null;
+  if (!root || !root.__sselApi) { return; }
+  input.value = value || '';
+  root.__sselApi.setOptions(labels || []);
+  const cur = root.querySelector('.ssel-cur');
+  const any = root.querySelector('.ssel-any');
+  if (!input.value) {
+    cur.textContent = any ? any.getAttribute('data-l') : '';
+    cur.classList.add('is-any');
+  } else {
+    cur.textContent = input.value;
+    cur.classList.remove('is-any');
+  }
+}
+
+(function () {
+  const bar = document.getElementById('regFilters');
+  if (!bar) { return; }
+  bar.querySelectorAll('[data-scope]').forEach(b => b.addEventListener('click', () => {
+    regScope = b.dataset.scope;
+    regGroups = 25;
+    runSearch();
+    searchInput.focus();
+  }));
+  const brand = document.getElementById('regBrand');
+  if (brand) brand.addEventListener('change', () => { regBrand = brand.value; regGroups = 25; runSearch(); });
+  const sup = document.getElementById('regSupplier');
+  if (sup) sup.addEventListener('change', () => { regSupplier = sup.value; regGroups = 25; runSearch(); });
+  // Cleared search (typed away, item added, Esc): hide the row, drop filters.
+  new MutationObserver(() => {
+    if (searchInput.value.trim().length < 2) {
+      bar.style.display = 'none';
+      regBrand = '';
+      regSupplier = '';
+      regGroups = 25;
+    }
+  }).observe(resultsArea, { childList: true });
+})();
+
+function regAfterRender(data) {
+  const ps = data && data.product_search;
+  const bar = document.getElementById('regFilters');
+  if (bar) {
+    if (!ps || (!(ps.scope_counts && ps.scope_counts.all > 0) && !ps.brand && !ps.supplier)) {
+      bar.style.display = 'none';
+    } else {
+      bar.style.display = '';
+      ['here', 'remote', 'all'].forEach(s => {
+        const b = bar.querySelector('[data-scope="' + s + '"]');
+        if (!b) { return; }
+        b.classList.toggle('on', s === ps.scope);
+        b.querySelector('.c').textContent = ps.scope_counts[s] || 0;
+        if (s === 'remote') { b.style.display = ps.multi_location ? '' : 'none'; }
+      });
+      regSselSet('regBrand', ps.brands, ps.brand);
+      regSselSet('regSupplier', ps.suppliers, ps.supplier);
+      document.getElementById('regBrandWrap').style.display = (ps.brands.length > 1 || ps.brand) ? '' : 'none';
+      document.getElementById('regSupplierWrap').style.display = (ps.suppliers.length > 1 || ps.supplier) ? '' : 'none';
+    }
+  }
+  const more = document.getElementById('regMore');
+  if (more) {
+    more.addEventListener('click', (e) => { e.stopPropagation(); regGroups += 25; runSearch(); });
+  }
+  resultsArea.querySelectorAll('[data-scope-jump]').forEach(b => b.addEventListener('click', (e) => {
+    e.stopPropagation();
+    regScope = b.dataset.scopeJump;
+    regGroups = 25;
+    runSearch();
+  }));
+}
+
+// One entry per product; a chip per variant. Single items keep the plain row.
+function regGroupsHtml(data, push, rowHtml) {
+  const ps = data.product_search;
+  const byId = {};
+  (data.products || []).forEach(p => { byId[p.id] = p; });
+  const away = p => (p.stock_elsewhere || []).reduce((a, e) => a + (e.n || 0), 0);
+  const scope = ps.scope;
+
+  if (!ps.groups.length) {
+    const names = { here: 'In store', remote: 'Other locations', all: 'All items' };
+    const alt = ['here', 'remote', 'all'].filter(s => s !== scope
+      && (ps.scope_counts[s] || 0) > 0 && (s !== 'remote' || ps.multi_location));
+    if (!alt.length) { return ''; }
+    return '<div class="reg-results-section"><h3>Products</h3><div class="reg-empty">'
+      + (scope === 'here' ? 'None on the shelf here.' : 'None at other locations.')
+      + '<div class="reg-jump">'
+      + alt.map(s => `<button type="button" class="reg-chip" data-scope-jump="${s}">${names[s]} <b>${ps.scope_counts[s]}</b></button>`).join('')
+      + '</div></div></div>';
+  }
+
+  let html = '<div class="reg-results-section"><h3>Products</h3>';
+  if (ps.groups.some(g => g.rows.reduce((a, r) => a + r.items.length, 0) > 1)) {
+    html += '<div class="reg-legend">Numbers are stock: <span class="g">green</span> here, '
+      + '<span class="b">blue</span> at another location, <span class="r">red</span> none (still tappable).</div>';
+  }
+  ps.groups.forEach(g => {
+    const items = [];
+    g.rows.forEach(r => r.items.forEach(it => { if (byId[it.id]) { items.push(byId[it.id]); } }));
+    if (!items.length) { return; }
+    if (items.length === 1) { html += rowHtml(items[0]); return; }
+
+    const prices = items.map(p => p.price_cents || 0);
+    const lo = Math.min(...prices);
+    const hi = Math.max(...prices);
+    const hereN = items.reduce((a, p) => a + Math.max(0, p.current_location_stock || 0), 0);
+    const awayN = items.reduce((a, p) => a + away(p), 0);
+    let stock = hereN > 0
+      ? ` <span class="reg-stock-chip is-in">${hereN} here</span>`
+      : ` <span class="reg-stock-chip is-out">0 here</span>`;
+    if (awayN > 0) { stock += ` <span class="reg-stock-chip is-elsewhere">${awayN} at other locations</span>`; }
+
+    html += `<div class="reg-group"><div class="reg-group-head"><div>`
+      + `<div class="name">${escapeHtml(g.title)}</div>`
+      + `<div class="meta">${g.brand ? escapeHtml(g.brand) + ' · ' : ''}${items.length} options${stock}</div>`
+      + `</div><div class="price">${lo === hi ? fmt(lo) : fmt(lo) + '–' + fmt(hi)}</div></div><div class="reg-vars">`;
+
+    g.rows.forEach(r => {
+      html += '<div class="reg-vrow">' + (g.rows.length > 1 && r.label ? `<span class="lab">${escapeHtml(r.label)}</span>` : '');
+      r.items.forEach(it => {
+        const p = byId[it.id];
+        if (!p) { return; }
+        const idx = push(p);
+        const h = Math.max(0, p.current_location_stock || 0);
+        const a = away(p);
+        const n = scope === 'remote' ? a : (scope === 'all' ? h + a : h);
+        let cls = 'reg-chip';
+        if (h <= 0 && a > 0) { cls += ' rem'; }
+        if (n <= 0) { cls += ' out'; }
+        const pp = lo !== hi ? ` <span class="vp">${fmt(p.price_cents || 0)}</span>` : '';
+        html += `<button type="button" class="${cls}" data-i="${idx}" title="${escapeHtml(p.sku || '')}">`
+          + `${escapeHtml(it.label || p.sku || '')}${pp} <b>${n}</b></button>`;
+      });
+      html += '</div>';
+    });
+    html += '</div></div>';
+  });
+  if (ps.has_more) {
+    html += `<button type="button" class="reg-more" id="regMore">Show more · ${ps.total - ps.shown} more</button>`;
+  }
+  if (ps.capped) {
+    html += '<div class="reg-note">Only the first 600 matches are grouped. Add a word, or pick a brand or supplier, to narrow.</div>';
+  }
+  return html + '</div>';
+}
 let searchTimer = null;
 
 document.querySelectorAll('.reg-tab').forEach(tab => {
@@ -1670,6 +1879,7 @@ document.querySelectorAll('.reg-tab').forEach(tab => {
 });
 searchInput.addEventListener('input', () => {
   clearTimeout(searchTimer);
+  regGroups = 25; // MARKER-REG-GROUPED
   searchTimer = setTimeout(runSearch, 250);
 });
 
@@ -1704,6 +1914,11 @@ async function runSearch() {
     const url = new URL(ROUTES.search, window.location.origin);
     url.searchParams.set('q', q);
     url.searchParams.set('type', searchType);
+    // MARKER-REG-GROUPED
+    url.searchParams.set('scope', regScope);
+    url.searchParams.set('groups', String(regGroups));
+    if (regBrand) { url.searchParams.set('brand', regBrand); }
+    if (regSupplier) { url.searchParams.set('supplier', regSupplier); }
     const res = await fetch(url, {headers: {'Accept': 'application/json'}});
     const data = await res.json();
     renderResults(data, refundResult);
@@ -1790,19 +2005,28 @@ function renderResults(data, refundResult) {
     html += '</div>';
   }
 
-  if (data.products && data.products.length) {
-    html += '<div class="reg-results-section"><h3>Products</h3>';
-    data.products.forEach(p => {
-      visibleResults.push({type:'product',source_id:p.id,name:p.name,price_cents:p.price_cents,is_taxable:p.is_taxable,current_location_stock:p.current_location_stock,current_location_name:p.current_location_name,allow_oversell:p.allow_oversell,stock_scope:p.stock_scope,stock_elsewhere:p.stock_elsewhere,vendor_name:p.vendor_name,reserved_here:p.reserved_here,on_hand_here:p.on_hand_here,codes:p.codes||[]}); // MARKER-RESERVE-VISIBLE · MARKER-CAMERA-SCAN codes
-      const idx = visibleResults.length - 1;
-      // MARKER-REG-STOCK — answered in the row, rather than surfacing later as
-      // an oversell warning once the item is already in the cart.
-      html += `<div class="reg-row" data-i="${idx}">
+  // MARKER-REG-GROUPED — every product the person can add goes through
+  // regPush, in screen order, so arrows, Enter and the camera scan still work.
+  const regPush = (p) => {
+    visibleResults.push({type:'product',source_id:p.id,name:p.name,price_cents:p.price_cents,is_taxable:p.is_taxable,current_location_stock:p.current_location_stock,current_location_name:p.current_location_name,allow_oversell:p.allow_oversell,stock_scope:p.stock_scope,stock_elsewhere:p.stock_elsewhere,vendor_name:p.vendor_name,reserved_here:p.reserved_here,on_hand_here:p.on_hand_here,codes:p.codes||[]}); // MARKER-RESERVE-VISIBLE · MARKER-CAMERA-SCAN codes
+    return visibleResults.length - 1;
+  };
+  // MARKER-REG-STOCK — answered in the row, rather than surfacing later as
+  // an oversell warning once the item is already in the cart.
+  const regRow = (p) => {
+    const idx = regPush(p);
+    return `<div class="reg-row" data-i="${idx}">
         <div><div class="name">${escapeHtml(p.name)}</div><div class="meta">${escapeHtml(p.subtitle || p.sku || '')}${stockChip(p)}</div></div>
         <button type="button" class="reg-info-btn" data-item-id="${p.id}" title="Item details" aria-label="Item details">i</button>
         <div class="price">${fmt(p.price_cents)}</div>
       </div>`;
-    });
+  };
+  if (data.product_search) {
+    html += regGroupsHtml(data, regPush, regRow);
+  } else if (data.products && data.products.length) {
+    // Offline snapshot: a flat list, as before.
+    html += '<div class="reg-results-section"><h3>Products</h3>';
+    data.products.forEach(p => { html += regRow(p); });
     html += '</div>';
   }
   if (data.services && data.services.length) {
@@ -1819,6 +2043,7 @@ function renderResults(data, refundResult) {
   }
   if (!html) html = '<div class="reg-empty">No matches.</div>';
   resultsArea.innerHTML = html;
+  regAfterRender(data); // MARKER-REG-GROUPED
 
   // Show/hide keyboard hint based on whether results exist
   const hint = document.getElementById('regHint');
@@ -1869,7 +2094,7 @@ function renderResults(data, refundResult) {
 }
 
 function applyHighlight() {
-  resultsArea.querySelectorAll('.reg-row').forEach((row, i) => {
+  resultsArea.querySelectorAll('[data-i]').forEach((row, i) => { // MARKER-REG-GROUPED — chips too
     if (parseInt(row.dataset.i, 10) === highlighted) {
       row.classList.add('highlighted');
       // MARKER-RESULTS-SCROLL — the list is scrollable now, so keyboard
