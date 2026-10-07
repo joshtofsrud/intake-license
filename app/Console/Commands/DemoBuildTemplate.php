@@ -481,7 +481,7 @@ class DemoBuildTemplate extends Command
                 // something FKs to these ids, so the map has to be built row by row
                 $old = $row['id'];
                 unset($row['id']);
-                $newId = DB::table($table)->insertGetId($row);
+                $newId = $this->retryDeadlock(fn () => DB::table($table)->insertGetId($row)); // MARKER-DEMO-DEADLOCK-RETRY
                 $this->intMap["{$table}:{$old}"] = $newId;
             } elseif ($meta['pk'] === 'id') {
                 unset($row['id']); // MARKER-DEMO-TEMPLATE-BULK — nothing points here; batch it
@@ -490,13 +490,32 @@ class DemoBuildTemplate extends Command
                 $insert[] = $row;
             }
             if (count($insert) >= 200) {
-                DB::table($table)->insert($insert);
+                $this->retryDeadlock(fn () => DB::table($table)->insert($insert)); // MARKER-DEMO-DEADLOCK-RETRY
                 $insert = [];
             }
             $n++;
         }
-        if ($insert) DB::table($table)->insert($insert);
+        if ($insert) $this->retryDeadlock(fn () => DB::table($table)->insert($insert));
         return $n;
+    }
+
+    /**
+     * MARKER-DEMO-DEADLOCK-RETRY — the source shop stays live during a build, so a sync or a sale can
+     * lock the same table; MySQL then kills one side (1213 deadlock / 1205 lock wait). The killed insert
+     * wrote nothing, so it is safe to try again: up to 5 times, backing off, before giving up.
+     */
+    private function retryDeadlock(callable $fn)
+    {
+        for ($try = 1; ; $try++) {
+            try {
+                return $fn();
+            } catch (\Illuminate\Database\QueryException $e) {
+                $code = (int) ($e->errorInfo[1] ?? 0);
+                if (! in_array($code, [1213, 1205], true) || $try >= 5) throw $e;
+                $this->output->write('(locked, retrying) ');
+                usleep(250000 * $try);
+            }
+        }
     }
 
     /**
