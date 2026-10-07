@@ -65,16 +65,19 @@ class RegisterProductSearch
         $all = $all->take(self::SCAN_CAP);
         $ids = $all->pluck('id')->all();
 
-        // Catalog brand for rows without a shop brand: one lookup by key.
-        $catIds = $all->filter(fn ($r) => trim((string) $r->shop_brand) === '')
-            ->pluck('distributor_catalog_id')->filter()->unique()->values()->all();
-        $makers = $catIds
-            ? DB::table('platform_distributor_catalogs')->whereIn('id', $catIds)->pluck('manufacturer', 'id')->all()
+        // Catalog brand (for rows without a shop brand) and the catalog's full
+        // title (MARKER-CHIP-SPECS — where specs like "134mm 400 lb" live when
+        // the shop's own name leaves them out): one lookup by key.
+        $catIds = $all->pluck('distributor_catalog_id')->filter()->unique()->values()->all();
+        $cats = $catIds
+            ? DB::table('platform_distributor_catalogs')->whereIn('id', $catIds)->get(['id', 'manufacturer', 'display_name'])->keyBy('id')->all()
             : [];
         foreach ($all as $r) {
+            $cat = $cats[$r->distributor_catalog_id] ?? null;
             $r->brand = trim((string) $r->shop_brand) !== ''
                 ? trim((string) $r->shop_brand)
-                : trim((string) ($makers[$r->distributor_catalog_id] ?? ''));
+                : trim((string) ($cat->manufacturer ?? ''));
+            $r->cat_title = (string) ($cat->display_name ?? '');
         }
 
         // Suppliers (and their part numbers) per matched item: one lookup.
@@ -233,10 +236,41 @@ class RegisterProductSearch
     /** The name with its size and colour taken out, normalised. */
     public static function groupKey(string $name, ?string $size, ?string $color): string
     {
-        $n = mb_strtolower(self::strip($name, $size, $color));
+        // MARKER-PRODUCT-FAMILY — "Maxxis Minion DHF 27.5''x2.50 EXO…" and
+        // "Maxxis Minion DHF 29''x2.30 Dual…" are one product in different
+        // sizes: group on the words before the first size or spec.
+        $stripped = self::strip($name, $size, $color);
+        $n = mb_strtolower(self::family($stripped) ?? $stripped);
         $n = preg_replace('/(?<![\p{L}\p{N}])(ea|each|pr|pair)(?![\p{L}\p{N}])/u', ' ', $n);
         $n = preg_replace('/[^\p{L}\p{N}.+]+/u', ' ', $n);
         return trim(preg_replace('/\s+/u', ' ', $n));
+    }
+
+    /**
+     * MARKER-PRODUCT-FAMILY — the words before the first size or spec token
+     * (27.5''x2.50, 700x28, 165mm, 2.0/1.8/2.0mm, 400), or null when there is
+     * none or fewer than two words come before it. Model codes like M8100
+     * or 60TPI are not specs, so "Shimano Deore XT M8100 …" stays apart.
+     */
+    public static function family(string $name): ?string
+    {
+        $words = preg_split('/\s+/u', trim($name)) ?: [];
+        foreach ($words as $i => $w) {
+            $t = trim($w, ",;:()[]–-");
+            if ($t === '') {
+                continue;
+            }
+            if (preg_match('/^\d+(\.\d+)?(\'\'|"|”|in|mm|cm|lb|lbs|g|kg|t|°|%)?$/iu', $t)
+                || preg_match('/^\d+(\.\d+)?(\'\'|"|”)?x\d/iu', $t)
+                || preg_match('/^\d+(\.\d+)?\/\d/u', $t)) {
+                if ($i < 2) {
+                    return null;
+                }
+                $fam = trim(implode(' ', array_slice($words, 0, $i)), " \t,;:–-");
+                return $fam !== '' ? $fam : null;
+            }
+        }
+        return null;
     }
 
     /** Remove size and colour as whole words; a size may carry its unit. */
@@ -273,6 +307,17 @@ class RegisterProductSearch
             $title = (string) $first->name;
         }
 
+        // MARKER-PRODUCT-FAMILY — a group of differently named variants takes
+        // the shared product name as its title, and its buttons say what
+        // differs (size, casing, compound…) rather than one stored field.
+        $variantNames = array_unique(array_map(
+            fn ($r) => mb_strtolower(self::strip((string) $r->name, $r->size, $r->color)), $items
+        ));
+        $isFamily = count($items) > 1 && count($variantNames) > 1;
+        if ($isFamily) {
+            $title = self::family(self::strip((string) $first->name, $first->size, $first->color)) ?? $title;
+        }
+
         if (count($items) === 1) {
             return ['title' => $title, 'brand' => (string) ($first->brand ?? ''), 'rows' => [
                 ['label' => '', 'items' => [['id' => $first->id, 'label' => '']]],
@@ -302,8 +347,40 @@ class RegisterProductSearch
             )];
         }
 
+        if ($isFamily) {
+            // MARKER-PRODUCT-FAMILY
+            $rows = [['label' => '', 'items' => array_map(
+                fn ($r) => ['id' => $r->id, 'label' => self::diffLabel($r, $items, 6)],
+                $items
+            )]];
+        }
+        // A button label that two variants share tells staff nothing.
+        foreach ($rows as &$row) {
+            $seen = array_count_values(array_map(fn ($x) => $x['label'], $row['items']));
+            foreach ($row['items'] as &$it) {
+                if (($seen[$it['label']] ?? 0) > 1) {
+                    foreach ($items as $r) {
+                        if ($r->id === $it['id']) { $it['label'] = self::diffLabel($r, $items, 6); break; }
+                    }
+                }
+            }
+            unset($it);
+            // Still the same after reading the names and catalog titles: the
+            // SKU is the only thing left that tells them apart.
+            $seen = array_count_values(array_map(fn ($x) => $x['label'], $row['items']));
+            foreach ($row['items'] as &$it) {
+                if (($seen[$it['label']] ?? 0) > 1) {
+                    foreach ($items as $r) {
+                        if ($r->id === $it['id'] && (string) $r->sku !== '') { $it['label'] .= ' · ' . $r->sku; break; }
+                    }
+                }
+            }
+            unset($it);
+        }
+        unset($row);
+
         // Sizes in wearing order (S, M, L…) or numeric order, not A–Z.
-        if ($sizes) {
+        if ($sizes || $isFamily) {
             foreach ($rows as &$row) {
                 usort($row['items'], fn ($a, $b) => self::sizeOrder($a['label']) <=> self::sizeOrder($b['label']));
             }
@@ -334,9 +411,22 @@ class RegisterProductSearch
      * variants whose difference lives only in the name or subtitle
      * ("134mm 400 lb"). Falls back to the SKU.
      */
-    private static function diffLabel(object $r, array $items): string
+    private static function diffLabel(object $r, array $items, int $max = 4): string
     {
-        $words = fn ($x) => preg_split('/[\s,;·|]+/u', trim((string) $x->name . ' ' . (string) $x->display_subtitle)) ?: [];
+        // MARKER-CHIP-SPECS — specs, not part numbers: read the name and the
+        // catalog's full title, and leave out anything that is an identifier
+        // (this item's SKU, barcode or MPN, or a code-shaped token like
+        // 00.4118.200.079). The subtitle is skipped: it is usually the MPN.
+        $codes = fn ($x) => array_map('mb_strtolower', array_filter([
+            (string) $x->sku, (string) ($x->catalog_mpn ?? ''), (string) ($x->catalog_upc ?? ''), (string) ($x->catalog_ean ?? ''),
+        ]));
+        $isCode = fn ($w, $x) => in_array(mb_strtolower(trim($w, '()[],.')), $codes($x), true)
+            || preg_match('/^\d+(?:[.\-]\d+){2,}$/', trim($w, '()[],'))
+            || preg_match('/^\d{8,}$/', trim($w, '()[],'));
+        $words = fn ($x) => array_values(array_filter(
+            preg_split('/[\s,;·|]+/u', trim((string) $x->name . ' ' . (string) ($x->cat_title ?? ''))) ?: [],
+            fn ($w) => $w !== '' && ! $isCode($w, $x)
+        ));
         $common = null;
         foreach ($items as $x) {
             $set = array_flip(array_map('mb_strtolower', array_filter($words($x), fn ($w) => $w !== '')));
@@ -356,7 +446,7 @@ class RegisterProductSearch
             if (preg_match('/\d$/', $w) && preg_match('/^[\p{L}#"]{1,3}$/u', $next) && isset($common[mb_strtolower($next)])) {
                 $own[$lw] .= ' ' . $next;
             }
-            if (count($own) >= 4) {
+            if (count($own) >= $max) {
                 break;
             }
         }
