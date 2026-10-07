@@ -9,7 +9,7 @@
 
         <div style="display:flex;flex-direction:column;gap:8px">
             @foreach(($c['items'] ?? []) as $item)
-                <details style="
+                <details @if(! empty($item['open_default'])) open @endif style="
                     border: 0.5px solid var(--mk-border);
                     border-radius: 12px;
                     padding: 16px 20px;
@@ -26,11 +26,11 @@
                         font-size: 16px;
                         color: var(--mk-text);
                     ">
-                        <span>{{ $item['q'] ?? '' }}</span>
+                        <span>{{ $item['question'] ?? ($item['q'] ?? '') }}</span>{{-- MARKER-MKT-FAQ-FIELDS --}}
                         <span style="color: var(--mk-accent);font-size:20px;transition:transform .15s">+</span>
                     </summary>
                     <div style="margin-top:12px;color:var(--mk-muted);font-size:15px;line-height:1.65">
-                        {!! nl2br(e($item['a'] ?? '')) !!}
+                        {!! nl2br(e($item['answer'] ?? ($item['a'] ?? ''))) !!}
                     </div>
                 </details>
             @endforeach
