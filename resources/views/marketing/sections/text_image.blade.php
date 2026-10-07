@@ -41,7 +41,11 @@
     $flag     = fn ($k, $d) => array_key_exists($k, $c) ? ! in_array((string) $c[$k], ['', '0', 'false'], true) : $d;
     $firstOpen = $flag('acc_first_open', true);
     $multi    = $flag('acc_multi', false);
-    $auto     = $flag('acc_auto', false) && ! $multi;
+    // MARKER-TI-SCROLL — open items as the visitor scrolls: the section stays
+    // in place while they scroll through it, one stretch of scroll per item.
+    $scroll   = $flag('acc_scroll', false) && ! $multi;
+    $scrollLen = ['short' => 0.5, 'medium' => 0.75, 'long' => 1.1][$c['acc_scroll_len'] ?? 'medium'] ?? 0.75;
+    $auto     = $flag('acc_auto', false) && ! $multi && ! $scroll;
     $secs     = max(3, min(20, (int) ($c['acc_auto_secs'] ?? 6)));
     $icon     = ($c['acc_icon'] ?? 'plus') === 'arrow' ? 'arrow' : 'plus';
     $numbers  = ($c['acc_numbers'] ?? 'show') !== 'hide';
@@ -92,6 +96,17 @@
   .{{ $tiId }} .ti-item { border-bottom: .5px solid var(--mk-border2); position: relative; }
   .{{ $tiId }} .ti-item::before { content: ""; position: absolute; left: 0; top: -1px; height: 1.5px; width: 0; background: {{ $accent }}; }
   .{{ $tiId }} .ti-item.is-open::before { width: 100%; transition: width .45s ease; }
+@if($scroll)
+  /* MARKER-TI-SCROLL — the line fills as you scroll through the open item */
+  .{{ $tiId }} .ti-track { position: relative; }
+  .{{ $tiId }} .ti-pin { position: sticky; top: 0; min-height: 100vh; display: flex; align-items: center; }
+  .{{ $tiId }} .ti-pin > .mk-container { width: 100%; }
+  .{{ $tiId }} .ti-acc.is-scroll .ti-item.is-open::before { width: calc(var(--p, 0) * 100%); transition: none; }
+  @media (max-width: 760px), (prefers-reduced-motion: reduce) {
+    .{{ $tiId }} .ti-track { height: auto !important; }
+    .{{ $tiId }} .ti-pin { position: static; min-height: 0; display: block; }
+  }
+@endif
   .{{ $tiId }}.ti-auto .ti-item.is-open::before { width: 0; transition: none; }
   .{{ $tiId }}.ti-auto .ti-item.is-open.is-run::before { width: 100%; transition: width {{ $secs }}s linear; }
   .{{ $tiId }} .ti-head { display: flex; align-items: center; gap: 16px; width: 100%; background: none; border: 0; color: inherit; text-align: left; padding: 22px 0; font-size: clamp(17px, 1.9vw, 21px); font-weight: 600; letter-spacing: -.01em; font-family: inherit; }
@@ -140,6 +155,7 @@
   @media (prefers-reduced-motion: reduce) { .{{ $tiId }} * { transition: none !important; } }
 @endif
 </style>
+    @if($style === 'accordion' && $scroll && count($items) > 1)<div class="ti-track" style="height:calc({{ round(count($items) * $scrollLen * 100) }}vh + 100vh)"><div class="ti-pin">@endif{{-- MARKER-TI-SCROLL --}}
     <div class="mk-container"><div class="ti-wrap">
 @if($style === 'classic')
         <div class="ti-grid">
@@ -170,7 +186,7 @@
         @if(! $items)
             <div class="ti-body">Add items to this section in the editor.</div>
         @else
-        <div class="ti-grid ti-acc" data-ti-acc data-ti-multi="{{ $multi ? 1 : 0 }}" data-ti-auto="{{ $auto ? $secs : 0 }}">
+        <div class="ti-grid ti-acc" data-ti-acc data-ti-multi="{{ $multi ? 1 : 0 }}" data-ti-auto="{{ $auto ? $secs : 0 }}" data-ti-scroll="{{ $scroll && count($items) > 1 ? 1 : 0 }}">
             <div class="ti-side-text ti-list">
                 @foreach($items as $i => $it)
                     @php $open = $firstOpen && $i === 0; $pid = $tiId . '-p' . $i; @endphp
@@ -204,6 +220,7 @@
         @endif
 @endif
     </div></div>
+    @if($style === 'accordion' && $scroll && count($items) > 1)</div></div>@endif{{-- MARKER-TI-SCROLL --}}
 </section>
 @if($style === 'accordion')
 <script>
@@ -238,8 +255,31 @@
       var el = list[cur]; void el.offsetWidth; el.classList.add('is-run');
       acc.__tiT = setTimeout(function () { setOpen(acc, (cur + 1) % list.length, true); tick(acc); }, secs * 1000);
     }
+    // MARKER-TI-SCROLL — which item is open follows the scroll position.
+    var scrollers = [], raf = 0;
+    function scrollOn(acc) {
+      return acc.getAttribute('data-ti-scroll') === '1' && !reduce
+        && !(window.matchMedia && window.matchMedia('(max-width: 760px)').matches) && acc.closest('.ti-track');
+    }
+    function drive() {
+      raf = 0;
+      scrollers.forEach(function (acc) {
+        if (!scrollOn(acc)) { acc.classList.remove('is-scroll'); return; }
+        acc.classList.add('is-scroll');
+        var track = acc.closest('.ti-track'), r = track.getBoundingClientRect();
+        var total = r.height - window.innerHeight; if (total <= 0) return;
+        var list = items(acc), n = list.length;
+        var prog = Math.min(Math.max(-r.top / total, 0), 0.9999), pos = prog * n, idx = Math.floor(pos);
+        if (acc.__tiCur !== idx) { acc.__tiCur = idx; setOpen(acc, idx, true); }
+        list.forEach(function (it, k) { it.style.setProperty('--p', k === idx ? (pos - idx).toFixed(3) : '0'); });
+      });
+    }
+    function queue() { if (!raf) raf = window.requestAnimationFrame(drive); }
+    window.addEventListener('scroll', queue, { passive: true });
+    window.addEventListener('resize', queue);
     function init(acc) {
       if (acc.__tiReady) return; acc.__tiReady = true;
+      if (acc.getAttribute('data-ti-scroll') === '1') { scrollers.push(acc); queue(); }
       var sec = acc.closest('section'); if (sec && +acc.getAttribute('data-ti-auto')) sec.classList.add('ti-auto');
       acc.addEventListener('mouseenter', function () { acc.__tiPause = true; clearTimeout(acc.__tiT); items(acc).forEach(function (it) { it.classList.remove('is-run'); }); });
       acc.addEventListener('mouseleave', function () { acc.__tiPause = false; tick(acc); });
@@ -248,6 +288,13 @@
     document.addEventListener('click', function (e) {
       var h = e.target.closest && e.target.closest('[data-ti-acc] .ti-head'); if (!h) return;
       var acc = h.closest('[data-ti-acc]'), it = h.closest('.ti-item');
+      if (scrollOn(acc)) {
+        // MARKER-TI-SCROLL — clicking an item scrolls to its stretch, so click and scroll never disagree.
+        var track = acc.closest('.ti-track'), n = items(acc).length;
+        var top = track.getBoundingClientRect().top + window.pageYOffset, total = track.offsetHeight - window.innerHeight;
+        window.scrollTo({ top: top + total * (+it.getAttribute('data-i') + 0.05) / n, behavior: 'smooth' });
+        return;
+      }
       acc.__tiStop = true; clearTimeout(acc.__tiT);
       setOpen(acc, +it.getAttribute('data-i'), !it.classList.contains('is-open'));
     });

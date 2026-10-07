@@ -254,6 +254,20 @@
       <input type="number" class="pb2-input" min="3" max="20" data-field="acc_auto_secs" value="{{ (int) $get('acc_auto_secs', 6) }}">
       <div class="pb2-field-hint" style="display:block;text-align:left;margin-top:6px">Moving on its own pauses while a visitor hovers the list, stops for good once they click an item, and is off when "several open" is on. Visitors who've turned motion off in their device settings get no animation.</div>
     </div>
+    @if($isMarketing ?? false)
+    {{-- MARKER-TI-SCROLL — intake.works only for now; shop sites next. --}}
+    <label class="pb2-checkbox-row"><input type="checkbox" data-field="acc_scroll" value="1" {{ $tiFlag('acc_scroll', false) ? 'checked' : '' }}><span>Open items as visitors scroll</span></label>
+    <div class="pb2-field">
+      <label class="pb2-field-label">Scroll per item</label>
+      <div class="pb2-seg" data-field-seg="acc_scroll_len">
+        @foreach(['short' => 'Short', 'medium' => 'Medium', 'long' => 'Long'] as $val => $name)
+          <button type="button" class="pb2-seg-btn {{ $get('acc_scroll_len', 'medium') === $val ? 'active' : '' }}" data-seg-value="{{ $val }}">{{ $name }}</button>
+        @endforeach
+      </div>
+      <input type="hidden" data-field="acc_scroll_len" value="{{ $get('acc_scroll_len', 'medium') }}">
+      <div class="pb2-field-hint" style="display:block;text-align:left;margin-top:6px">The section stays in place while visitors scroll through it, opening one item at a time; clicking an item jumps to it. Overrides "move on its own" and "several open". Phones and visitors who've turned motion off get the normal click-to-open list. Works best with up to six items.</div>
+    </div>
+    @endif
   </div>
 
 </div>
