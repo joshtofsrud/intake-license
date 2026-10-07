@@ -145,10 +145,12 @@ class InventoryController extends Controller
         // every word anywhere on the item, barcode twins, typo fallback.
         $searchUsed = '';
         $searchCorrected = null;
+        $searchMissing = [];
         if ($search !== '') {
             $searchHit = \App\Support\InventorySearch::apply($q, $tenant->id, $search);
             $searchUsed = $searchHit['used'];
             $searchCorrected = $searchHit['corrected'];
+            $searchMissing = $searchHit['missing'] ?? []; // MARKER-SEARCH-MISSING
         }
 
         if ($category) {
@@ -497,7 +499,7 @@ class InventoryController extends Controller
             'showColor', 'showSize', // MARKER-INV-LIST
             'archived', // MARKER-ARCHIVE-MOVE
             'total', 'search', 'category', 'stock', 'sort', 'page', 'perPage',
-            'searchCorrected', // MARKER-INV-SEARCH
+            'searchCorrected', 'searchMissing', // MARKER-INV-SEARCH / MARKER-SEARCH-MISSING
             'perPageAllowed', // MARKER-INV-PAGER
             'canMergeItems', // MARKER-MERGE-UI
             'emptyReason', 'suggestBrands', 'suggestCategories', // MARKER-INV-EMPTY

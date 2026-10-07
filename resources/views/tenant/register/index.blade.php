@@ -238,6 +238,11 @@
   .reg-row .price{font-size:14px;font-weight:600;color:var(--ia-text);white-space:nowrap}
   /* MARKER-REG-ENTER — results that belong to older text, while the new search loads. */
   #resultsArea.is-stale{opacity:.55;transition:opacity .15s}
+  /* MARKER-SEARCH-MISSING */
+  .reg-missing{font-size:12px;color:var(--ia-text-dim);margin:0 0 8px}
+  .reg-missing-w{background:rgba(242,119,122,.12);border:0.5px solid rgba(242,119,122,.35);color:#f2777a;border-radius:6px;
+    padding:0 6px;font:inherit;text-decoration:line-through;cursor:pointer}
+  .reg-missing-w:hover{text-decoration:none}
   /* MARKER-REG-VEIL — searching card over the results */
   .reg-results-wrap{position:relative}
   .reg-veil{position:absolute;inset:0;display:none;align-items:flex-start;justify-content:center;
@@ -1848,6 +1853,14 @@ function regSselSet(id, labels, value) {
 })();
 
 function regAfterRender(data) {
+  // MARKER-SEARCH-MISSING — tap a struck-out word to take it out of the search.
+  resultsArea.querySelectorAll('.reg-missing-w').forEach(b => b.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const w = b.dataset.w.toLowerCase();
+    searchInput.value = searchInput.value.split(/\s+/).filter(x => x.toLowerCase() !== w).join(' ');
+    searchInput.dispatchEvent(new Event('input'));
+    searchInput.focus();
+  }));
   // MARKER-REG-PICKER — pickers that start open (a scanned code, or one product)
   Object.keys(regPickers).forEach(gid => { if (regPickers[gid].open) { regPickerRender(gid); } });
   // MARKER-REG-GROUP-INFO — the group's i button follows the variant under the
@@ -2367,7 +2380,12 @@ function renderResults(data, refundResult) {
   regAllProducts = []; regPickers = {}; // MARKER-REG-PICKER
 
   // MARKER-INV-SEARCH — a misspelt word was swapped for the nearest real one.
-  if (data && data.corrected) {
+  if (data && data.missing && data.missing.length) {
+    // MARKER-SEARCH-MISSING — the words that matched nothing, struck out; tap one to remove it from the search.
+    html += '<div class="reg-missing">No match for every word — showing results without '
+      + data.missing.map(w => '<button type="button" class="reg-missing-w" data-w="' + escapeHtml(w) + '" title="Remove from search">' + escapeHtml(w) + '</button>').join(' ')
+      + (data.corrected ? ' · showing <strong>' + escapeHtml(data.corrected) + '</strong>' : '') + '</div>';
+  } else if (data && data.corrected) {
     html += '<div style="font-size:12px;opacity:.7;margin-bottom:8px">Showing results for <strong>' + escapeHtml(data.corrected) + '</strong></div>';
   }
 

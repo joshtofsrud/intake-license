@@ -52,43 +52,60 @@ final class InventorySearch
         $raw   = trim($raw);
         $words = self::words($raw);
         if (! $words) {
-            return ['used' => '', 'corrected' => null];
+            return ['used' => '', 'corrected' => null, 'missing' => []];
         }
 
         $probe = clone $q;
         self::constrain($probe, $words, $opts);
         if ($probe->exists()) {
             self::constrain($q, $words, $opts);
-            return ['used' => $raw, 'corrected' => null];
+            return ['used' => $raw, 'corrected' => null, 'missing' => []];
         }
 
-        // Nothing matched — try the nearest real word for each one.
+        // MARKER-SEARCH-MISSING — nothing matched every word. Find the words
+        // that match nothing on their own: only those get spell-corrected
+        // (correcting a word that already matches, like "rock" in "rock shox
+        // metrci", swapped it for something else and lost the search), and
+        // if a word still matches nothing it is dropped and reported, so
+        // "rock shox metrci" shows RockShox with "metrci" marked as missing.
+        $hits = function (array $ws) use ($q, $opts) {
+            $p = clone $q;
+            self::constrain($p, $ws, $opts);
+            return $p->exists();
+        };
         $fixed   = [];
         $changed = false;
+        $missing = [];
         foreach ($words as $w) {
+            if ($hits([$w])) {
+                $fixed[] = $w;
+                continue;
+            }
             $c = self::looksLikeCode($w) ? null : TenantStaffSearchTerm::correct($tenantId, $w);
-            if ($c !== null && mb_strtolower($c) !== mb_strtolower($w)) {
+            if ($c !== null && mb_strtolower($c) !== mb_strtolower($w) && $hits([$c])) {
                 $fixed[] = $c;
                 $changed = true;
             } else {
-                $fixed[] = $w;
+                $missing[] = $w;
             }
         }
 
-        if ($changed) {
-            $probe = clone $q;
-            self::constrain($probe, $fixed, $opts);
-            if ($probe->exists()) {
-                self::constrain($q, $fixed, $opts);
-                $used = implode(' ', $fixed);
-                return ['used' => $used, 'corrected' => $used];
-            }
+        if (! $missing && $changed && $hits($fixed)) {
+            self::constrain($q, $fixed, $opts);
+            $used = implode(' ', $fixed);
+            return ['used' => $used, 'corrected' => $used, 'missing' => []];
+        }
+
+        if ($missing && $fixed && $hits($fixed)) {
+            self::constrain($q, $fixed, $opts);
+            $used = implode(' ', $fixed);
+            return ['used' => $used, 'corrected' => $changed ? $used : null, 'missing' => $missing];
         }
 
         // Still nothing: keep the original constraint so the result is an
         // honest "no matches" for what was typed.
         self::constrain($q, $words, $opts);
-        return ['used' => $raw, 'corrected' => null];
+        return ['used' => $raw, 'corrected' => null, 'missing' => []];
     }
 
     /**

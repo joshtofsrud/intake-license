@@ -209,6 +209,7 @@ class RegisterController extends Controller
         $services = [];
         $customers = [];
         $searchCorrected = null; // MARKER-INV-SEARCH
+        $searchMissing = [];     // MARKER-SEARCH-MISSING
         $productSearch = null;   // MARKER-REG-GROUPED
 
         if ($type === 'all' || $type === 'product') {
@@ -231,6 +232,7 @@ class RegisterController extends Controller
                 ->where('is_active', true);
             $searchHit = \App\Support\InventorySearch::apply($productQuery, $tenant->id, $q);
             $searchCorrected = $searchHit['corrected'];
+            $searchMissing = $searchHit['missing'] ?? [];
             // MARKER-SEARCH-ONE-PASS — no SQL rank here; RegisterProductSearch
             // ranks the candidate rows in PHP, which costs the database nothing.
             // MARKER-REG-GROUPED — variants grouped into one entry, no
@@ -393,7 +395,7 @@ class RegisterController extends Controller
                 ->toArray();
         }
 
-        return response()->json(compact('products', 'services', 'customers') + ['corrected' => $searchCorrected, 'product_search' => $productSearch]); // MARKER-INV-SEARCH
+        return response()->json(compact('products', 'services', 'customers') + ['corrected' => $searchCorrected, 'missing' => $searchMissing, 'product_search' => $productSearch]); // MARKER-INV-SEARCH
     }
 
     public function storeSale(Request $request): JsonResponse

@@ -353,7 +353,13 @@
 @endif
 
 {{-- MARKER-INV-SEARCH — a misspelt word was swapped for the nearest real one. --}}
-@if(!empty($searchCorrected))
+@if(!empty($searchMissing))
+  {{-- MARKER-SEARCH-MISSING --}}
+  <div style="margin:0 0 12px;font-size:13px;color:var(--ia-text-muted)">
+    No match for every word — showing results without
+    @foreach($searchMissing as $mw)<s style="color:#f2777a">{{ $mw }}</s>@if(! $loop->last), @endif @endforeach.
+  </div>
+@elseif(!empty($searchCorrected))
   <div style="margin:0 0 12px;font-size:13px;color:var(--ia-text-muted)">
     Nothing matched <strong style="color:var(--ia-text)">{{ $search }}</strong> — showing results for <strong style="color:var(--ia-text)">{{ $searchCorrected }}</strong>.
   </div>
