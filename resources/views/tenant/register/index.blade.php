@@ -236,6 +236,8 @@
   .reg-stock-chip.is-over{color:#f5c451;border-color:rgba(245,196,81,.35)}
   .reg-stock-chip.is-out{color:#f2777a;border-color:rgba(242,119,122,.35)}
   .reg-row .price{font-size:14px;font-weight:600;color:var(--ia-text);white-space:nowrap}
+  /* MARKER-REG-ENTER — results that belong to older text, while the new search loads. */
+  #resultsArea.is-stale{opacity:.55;transition:opacity .15s}
 
   /* MARKER-REG-GROUPED — filter row, product groups and variant chips. */
   .reg-filters{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:-4px 0 10px}
@@ -1764,7 +1766,7 @@ function regAfterRender(data) {
   const ps = data && data.product_search;
   const bar = document.getElementById('regFilters');
   if (bar) {
-    if (!ps || (!(ps.scope_counts && ps.scope_counts.all > 0) && !ps.brand && !ps.supplier)) {
+    if (!ps) { // MARKER-REG-ENTER — stays put while there is text to search
       bar.style.display = 'none';
     } else {
       bar.style.display = '';
@@ -1777,8 +1779,8 @@ function regAfterRender(data) {
       });
       regSselSet('regBrand', ps.brands, ps.brand);
       regSselSet('regSupplier', ps.suppliers, ps.supplier);
-      document.getElementById('regBrandWrap').style.display = (ps.brands.length > 1 || ps.brand) ? '' : 'none';
-      document.getElementById('regSupplierWrap').style.display = (ps.suppliers.length > 1 || ps.supplier) ? '' : 'none';
+      document.getElementById('regBrandWrap').style.display = '';
+      document.getElementById('regSupplierWrap').style.display = '';
     }
   }
   const more = document.getElementById('regMore');
@@ -1880,6 +1882,8 @@ document.querySelectorAll('.reg-tab').forEach(tab => {
 searchInput.addEventListener('input', () => {
   clearTimeout(searchTimer);
   regGroups = 25; // MARKER-REG-GROUPED
+  regDirty = true; // MARKER-REG-ENTER
+  resultsArea.classList.add('is-stale');
   searchTimer = setTimeout(runSearch, 250);
 });
 
@@ -1891,9 +1895,19 @@ function normalizeSaleNumber(q) {
   return q.trim().toUpperCase().replace(/\s+/g, '').replace(/^S(\d)/, 'S-$1').replace(/(\d{8})(\d)/, '$1-$2');
 }
 
+// MARKER-REG-ENTER — what is on screen may belong to older text: regDirty
+// says so, regSeq lets only the newest search draw, regLastQ resets the
+// highlight when the text (not just a filter) changed.
+let regDirty = false;
+let regSeq = 0;
+let regLastQ = '';
+function regSettled() { regDirty = false; resultsArea.classList.remove('is-stale'); }
+
 async function runSearch() {
   const q = searchInput.value.trim();
+  const seq = ++regSeq;
   if (q.length < 2) {
+    regSettled();
     resultsArea.innerHTML = '<div class="reg-empty">Type to search products and services.</div>';
     return;
   }
@@ -1923,8 +1937,14 @@ async function runSearch() {
     // MARKER-REG-GROUPED-FIX — a server error is not "No matches".
     if (!res.ok) { throw new Error('Search failed (' + res.status + ')'); }
     const data = await res.json();
+    if (seq !== regSeq) { return; } // MARKER-REG-ENTER — a newer search owns the screen
+    if (q !== regLastQ) { highlighted = 0; regLastQ = q; }
     renderResults(data, refundResult);
+    regSettled();
   } catch (e) {
+    if (seq !== regSeq) { return; } // MARKER-REG-ENTER
+    regSettled();
+    if (q !== regLastQ) { highlighted = 0; regLastQ = q; }
     // MARKER-OFFLINE-SYNC — offline: search the cached catalog snapshot.
     const snap = osSearchSnapshot(q);
     if (snap && (snap.products.length || snap.services.length)) {
@@ -2149,6 +2169,17 @@ searchInput.addEventListener('keydown', (e) => {
     if (highlighted > 0) { highlighted--; applyHighlight(); }
   } else if (e.key === 'Enter') {
     e.preventDefault();
+    // MARKER-REG-ENTER — never add from results that belong to older text:
+    // run the search now, then act on its own top match.
+    if (regDirty) {
+      clearTimeout(searchTimer);
+      runSearch().then(() => {
+        if (!regDirty && visibleResults.length) {
+          searchInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+        }
+      });
+      return;
+    }
     if (visibleResults[highlighted]) {
       addToCart(visibleResults[highlighted]);
       // Clear search and refocus for next item
