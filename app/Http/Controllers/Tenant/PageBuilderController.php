@@ -1240,10 +1240,25 @@ class PageBuilderController extends Controller
             return response()->json(['success' => true]);
         }
 
+        // MARKER-SECTION-COPY — copy a section to this person's clipboard
+        // (30 min), to paste on another page of the same site. Reads only.
+        if ($op === 'copy') {
+            $sid = (string) $request->input('section_id');
+            $section = TenantPageSection::where('page_id', $page->id)->where('id', $sid)->firstOrFail();
+            $label = $this->sectionLabel($page, $sid);
+            \App\Support\SectionClipboard::copy($page, $section, $label);
+            return response()->json([
+                'success'   => true,
+                'label'     => $label,
+                'from_page' => $page->title ?: ($page->slug ?: 'home'),
+                'minutes'   => \App\Support\SectionClipboard::TTL_MINUTES,
+            ]);
+        }
+
         // MARKER-REWIND — capture BEFORE the change, labelled with what is
         // about to happen. 'add' is skipped: adding a section is undone by
         // deleting it, and snapshotting every add buries the useful points.
-        if ($op !== 'add') {
+        if ($op !== 'add' && $op !== 'paste') {
             $label = match ($op) {
                 'delete'  => 'Deleted ' . $this->sectionLabel($page, $request->input('section_id')),
                 'reorder' => 'Reordered sections',
@@ -1265,6 +1280,30 @@ class PageBuilderController extends Controller
                 'sort_order' => TenantPageSection::where('page_id', $page->id)->max('sort_order') + 1,
             ]);
             return response()->json(['success' => true, 'id' => $section->id, 'type' => $type]);
+        }
+
+        // MARKER-SECTION-COPY — paste the clipboard section at the end of this
+        // page, as a fresh section. Same-site only; the clipboard stays, so
+        // the same section can be pasted on several pages.
+        if ($op === 'paste') {
+            $clip = \App\Support\SectionClipboard::peek((string) $tenant->id);
+            if (! $clip) {
+                return response()->json(['success' => false, 'error' => 'Nothing to paste — the copy has expired or came from another site.'], 422);
+            }
+            if (! array_key_exists($clip['section_type'], self::DEFAULTS)) {
+                return response()->json(['success' => false, 'error' => 'That section type cannot be added here.'], 422);
+            }
+            $section = TenantPageSection::create([
+                'page_id'      => $page->id,
+                'tenant_id'    => $tenant->id,
+                'section_type' => $clip['section_type'],
+                'content'      => $clip['content'] ?? [],
+                'bg_color'     => $clip['bg_color'] ?? null,
+                'padding'      => $clip['padding'] ?? 'normal',
+                'is_visible'   => (bool) ($clip['is_visible'] ?? true),
+                'sort_order'   => TenantPageSection::where('page_id', $page->id)->max('sort_order') + 1,
+            ]);
+            return response()->json(['success' => true, 'id' => $section->id, 'type' => $section->section_type]);
         }
 
         if ($op === 'update') {

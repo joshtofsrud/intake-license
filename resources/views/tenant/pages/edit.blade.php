@@ -506,6 +506,15 @@ body.ia-theme-b .pb2-preview-frame-wrap {
 .pb2-add-panel::-webkit-scrollbar-thumb { background: var(--pb2-border-2); border-radius: 2px; }
 
 /* MARKER-PATCH-158-G18 — Add-section gallery */
+.pb2-paste-card { /* MARKER-SECTION-COPY */
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  margin: 4px 0 10px; padding: 9px 10px; text-align: left;
+  background: transparent; color: var(--pb2-text);
+  border: 1px dashed var(--pb2-accent, #c6ff4a); border-radius: 6px; cursor: pointer; font: inherit;
+}
+.pb2-paste-card:hover { background: rgba(198, 255, 74, .06); }
+.pb2-paste-card .pb2-paste-name { font-weight: 600; font-size: 12.5px; }
+.pb2-paste-card .pb2-paste-sub { font-size: 11px; color: var(--pb2-text-dim); margin-top: 1px; }
 .pb2-gallery-group-label {
   font-family: var(--pb2-mono);
   font-size: 9.5px;
@@ -2262,6 +2271,19 @@ body.ia-theme-b .pb2-preview-frame-wrap {
           @endphp
 
           <div class="pb2-gallery">
+            {{-- MARKER-SECTION-COPY — the copied section, while the copy lasts --}}
+            @php $pbClip = \App\Support\SectionClipboard::peek((string) $page->tenant_id); @endphp
+            <div id="pb2-paste-slot">
+              @if($pbClip && in_array($pbClip['section_type'], $allowed, true))
+                <button type="button" class="pb2-paste-card" onclick="pasteSection()">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg>
+                  <span>
+                    <span class="pb2-paste-name">Paste {{ $pbClip['label'] }}</span>
+                    <span class="pb2-paste-sub">copied from {{ $pbClip['from_page'] }} · {{ $pbClip['age'] }} · keeps for {{ \App\Support\SectionClipboard::TTL_MINUTES }} min</span>
+                  </span>
+                </button>
+              @endif
+            </div>
             @foreach($typeGroups as $groupName => $groupTypes)
               @php $visibleTypes = array_intersect($groupTypes, $allowed); @endphp
               @if(count($visibleTypes) > 0)
@@ -2311,6 +2333,10 @@ body.ia-theme-b .pb2-preview-frame-wrap {
           <div class="pb2-insp-actions">
             <button class="pb2-icon-btn" id="pb2-toggle-visible" title="Toggle visibility">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+            {{-- MARKER-SECTION-COPY — copy to paste on another page --}}
+            <button class="pb2-icon-btn" id="pb2-copy-section" title="Copy section (paste it on another page within 30 min)">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg>
             </button>
             {{-- MARKER-PATCH-158-G18 — duplicate button --}}
             <button class="pb2-icon-btn" id="pb2-duplicate-section" title="Duplicate section">
@@ -3063,6 +3089,39 @@ body.ia-theme-b .pb2-preview-frame-wrap {
         .then(() => { location.reload(); })
         .catch(err => { console.error('delete failed', err); IntakeConfirm.alert({ title: 'Delete failed', message: 'Could not delete section.' }); });
       });
+    });
+  }
+
+  // MARKER-SECTION-COPY — copy the selected section to the clipboard, and
+  // show the Paste card here too, so the same page can take a copy.
+  const copyBtn = document.getElementById('pb2-copy-section');
+  if (copyBtn) {
+    copyBtn.addEventListener('click', () => {
+      if (!selectedId) return;
+      const fd = new FormData();
+      fd.append('_token', getCsrf());
+      fd.append('section_op', 'copy');
+      fd.append('page_id', PAGE_ID);
+      fd.append('section_id', selectedId);
+      setStatus('Copying…');
+      fetch(STORE_URL, {
+        method: 'POST', body: fd,
+        headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
+      })
+        .then(r => r.json())
+        .then(resp => {
+          if (!resp || !resp.success) { setStatus('Copy failed', 3000); return; }
+          setStatus('Copied — paste it from Add section on any page of this site', 5000);
+          const slot = document.getElementById('pb2-paste-slot');
+          if (slot) {
+            const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+            slot.innerHTML = '<button type="button" class="pb2-paste-card" onclick="pasteSection()">'
+              + '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg>'
+              + '<span><span class="pb2-paste-name">Paste ' + esc(resp.label) + '</span>'
+              + '<span class="pb2-paste-sub">copied from ' + esc(resp.from_page) + ' · just now · keeps for ' + esc(resp.minutes) + ' min</span></span></button>';
+          }
+        })
+        .catch(err => { setStatus('Copy failed', 3000); console.error('copy failed', err); });
     });
   }
 
@@ -4963,6 +5022,21 @@ body.ia-theme-b .pb2-preview-frame-wrap {
   window.toggleAddPanel = function() {
     const panel = document.getElementById('pb2-add-panel');
     if (panel) panel.classList.toggle('open');
+  };
+
+  // MARKER-SECTION-COPY — paste the clipboard section onto this page.
+  window.pasteSection = function() {
+    const fd = new FormData();
+    fd.append('_token', getCsrf());
+    fd.append('section_op', 'paste');
+    fd.append('page_id', PAGE_ID);
+    fetch(STORE_URL, { method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' } })
+      .then(r => r.json().catch(() => null))
+      .then(resp => {
+        if (resp && resp.success) { location.reload(); return; }
+        IntakeConfirm.alert({ title: 'Nothing to paste', message: (resp && resp.error) || 'The copy has expired.' });
+      })
+      .catch(err => console.error('paste failed', err));
   };
 
   window.addSection = function(type) {
