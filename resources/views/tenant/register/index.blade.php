@@ -285,6 +285,13 @@
   .reg-picker{margin:0 12px 10px;padding:10px;border:0.5px solid var(--ia-border);border-radius:var(--ia-r-md);background:var(--ia-surface-2)}
   .reg-dds{display:flex;flex-wrap:wrap;gap:8px}
   .reg-dd{position:relative;flex:1 1 150px;min-width:0}
+  .reg-dd .reg-dd-list{display:none !important} /* MARKER-REG-PICKER-FIX — templates; shown in the panel below */
+  .reg-dd-btn.is-active{border-color:var(--ia-accent)}
+  .reg-dd-panel{margin-top:8px;padding:6px;border:0.5px solid var(--ia-border);border-radius:var(--ia-r-md);background:var(--ia-surface)}
+  .reg-dd-panel[hidden]{display:none}
+  .reg-dd-filter{width:100%;margin-bottom:6px;padding:6px 9px;border-radius:6px;border:0.5px solid var(--ia-border);background:var(--ia-input-bg);color:var(--ia-text);font-size:12.5px;font-family:inherit}
+  .reg-dd-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:2px;max-height:260px;overflow-y:auto}
+  .reg-dd-grid .reg-dd-opt{white-space:normal}
   .reg-dd-btn{width:100%;display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:var(--ia-r-md);
     border:0.5px solid var(--ia-border);background:var(--ia-input-bg);color:var(--ia-text);font-size:12.5px;font-family:inherit;cursor:pointer;text-align:left}
   .reg-dd-btn .k{color:var(--ia-text-dim);font-size:11px;flex:none}
@@ -298,7 +305,7 @@
   .reg-dd-opt:hover{background:var(--ia-hover)}
   .reg-dd-opt.is-sel{color:var(--ia-accent);font-weight:600}
   .reg-dd-opt.is-other .t{opacity:.55}
-  .reg-dd-opt .s{font-size:11.5px;color:var(--ia-text-dim)}
+  .reg-dd-opt .s{font-size:11.5px;color:var(--ia-text-dim);white-space:nowrap}
   .reg-dd-opt .s.in{color:#7ee081}.reg-dd-opt .s.rem{color:#6fb3f2}.reg-dd-opt .s.out{color:#f2777a}
   .reg-pick-line{display:flex;align-items:center;gap:10px;margin-top:10px}
   .reg-pick-line > div:first-child{flex:1}
@@ -1992,7 +1999,7 @@ function regGroupsHtml(data, push, rowHtml) {
 
     // The line itself: a keyboard stop that opens the picker, or adds the
     // chosen variant once it is open.
-    const idx = push({ type: 'group', gid, get source_id() { return state.cur.id; }, get name() { return state.cur.p.name; } });
+    const idx = push({ type: 'group', gid, state, get source_id() { return state.cur.id; }, get name() { return state.cur.p.name; } });
     html += `<div class="reg-group${state.open ? ' is-open' : ''}" data-gid="${gid}">`
       + `<div class="reg-row reg-group-line" data-i="${idx}">`
       + `<div style="min-width:0"><div class="name">${escapeHtml(g.title)}</div>`
@@ -2034,7 +2041,7 @@ function regPickerOptions(state, attr) {
     if (fits) { o.fits = true; if (!o.best || v.st.n > o.best.st.n || (o.best.st.cls !== 'in' && v.st.cls === 'in')) { o.best = v; } }
     if (!o.any) { o.any = v; }
   });
-  return Object.values(vals);
+  return Object.values(vals).sort((a, b) => b.fits - a.fits); // MARKER-REG-PICKER-FIX — what fits the size first
 }
 
 function regPickerRender(gid) {
@@ -2057,7 +2064,7 @@ function regPickerRender(gid) {
         }).join('')
       + '</div></div>';
   });
-  html += '</div>';
+  html += '</div><div class="reg-dd-panel" hidden></div>'; // MARKER-REG-PICKER-FIX
   const st = c.st;
   html += `<div class="reg-pick-line"><div style="min-width:0"><div class="t">${escapeHtml(c.label)}</div>`
     + `<div class="s"><span class="reg-stock-chip is-${st.cls === 'in' ? 'in' : st.cls === 'rem' ? 'elsewhere' : st.cls === 'sup' ? 'order' : 'out'}">${escapeHtml(st.txt === 'none' ? 'none in stock' : st.txt)}</span> · ${escapeHtml(c.p.sku || '')}</div></div>`
@@ -2113,11 +2120,32 @@ resultsArea.addEventListener('click', (e) => {
   if (opts) { e.stopPropagation(); regPickerToggle(opts.dataset.gid); return; }
   const ddb = e.target.closest('.reg-dd-btn');
   if (ddb) {
+    // MARKER-REG-PICKER-FIX — show this attribute's values in the picker's panel.
     e.stopPropagation();
-    const list = ddb.parentNode.querySelector('.reg-dd-list');
-    const wasOpen = !list.hidden;
-    resultsArea.querySelectorAll('.reg-dd-list').forEach(l => { l.hidden = true; });
-    list.hidden = wasOpen;
+    const picker = ddb.closest('.reg-picker');
+    const panel = picker.querySelector('.reg-dd-panel');
+    const wasThis = !panel.hidden && panel.dataset.attr === ddb.dataset.attr;
+    picker.querySelectorAll('.reg-dd-btn').forEach(b => b.classList.remove('is-active'));
+    if (wasThis) { panel.hidden = true; return; }
+    const tpl = ddb.parentNode.querySelector('.reg-dd-list');
+    const n = tpl.querySelectorAll('.reg-dd-opt').length;
+    panel.dataset.attr = ddb.dataset.attr;
+    panel.innerHTML = (n > 12 ? '<input type="text" class="reg-dd-filter" placeholder="Filter ' + n + ' options…" autocomplete="off" spellcheck="false">' : '')
+      + '<div class="reg-dd-grid">' + tpl.innerHTML + '</div>';
+    panel.hidden = false;
+    ddb.classList.add('is-active');
+    const f = panel.querySelector('.reg-dd-filter');
+    if (f) {
+      f.addEventListener('input', () => {
+        const w = f.value.trim().toLowerCase().split(/\s+/).filter(Boolean);
+        panel.querySelectorAll('.reg-dd-opt').forEach(o => {
+          const t = (o.dataset.val || '').toLowerCase();
+          o.style.display = w.every(x => t.includes(x)) ? '' : 'none';
+        });
+      });
+      f.addEventListener('keydown', ev => { ev.stopPropagation(); if (ev.key === 'Escape') { panel.hidden = true; ddb.classList.remove('is-active'); } });
+      f.focus();
+    }
     return;
   }
   const opt = e.target.closest('.reg-dd-opt');
@@ -2131,7 +2159,10 @@ resultsArea.addEventListener('click', (e) => {
   }
   const info = e.target.closest('.reg-pick-line .reg-info-btn');
   if (info) { e.stopPropagation(); openItemInfo(info.dataset.itemId); return; }
-  if (!e.target.closest('.reg-dd')) { resultsArea.querySelectorAll('.reg-dd-list').forEach(l => { l.hidden = true; }); }
+  if (!e.target.closest('.reg-dd') && !e.target.closest('.reg-dd-panel')) {
+    resultsArea.querySelectorAll('.reg-dd-panel').forEach(p => { p.hidden = true; });
+    resultsArea.querySelectorAll('.reg-dd-btn.is-active').forEach(b => b.classList.remove('is-active'));
+  }
 }, true);
 let searchTimer = null;
 
@@ -2517,6 +2548,8 @@ searchInput.addEventListener('keydown', (e) => {
       const st = regPickers[regLine.gid];
       if (st && !st.open) { regPickerToggle(regLine.gid, true); return; }
       if (st) { regAddAndClear(regEntryOf(st.cur.p)); return; }
+      if (regLine.state) { regAddAndClear(regEntryOf(regLine.state.cur.p)); return; }
+      return;
     }
     if (visibleResults[highlighted]) {
       addToCart(visibleResults[highlighted]);
@@ -2544,6 +2577,16 @@ function escapeHtml(s) {
 }
 
 function addToCart(item) {
+  // MARKER-REG-PICKER-FIX — a product line is not a sellable item: resolve it
+  // to the variant chosen in its picker (this added a $NaN line once).
+  if (item && item.type === 'group') {
+    if (!item.state || !item.state.cur) { return; }
+    item = regEntryOf(item.state.cur.p);
+  }
+  if (!item) { return; }
+  if (typeof item.price_cents !== 'number' || isNaN(item.price_cents)) {
+    item = Object.assign({}, item, { price_cents: parseInt(item.price_cents, 10) || 0 }); // never a $NaN line
+  }
   // patch-96 cart-meta + patch-100a oversell-actions — store stock data
   // and any action-state (transfer / SO) on the cart line so it persists
   // through re-renders and draft saves.

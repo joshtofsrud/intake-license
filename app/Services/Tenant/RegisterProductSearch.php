@@ -437,9 +437,11 @@ class RegisterProductSearch
                 if (! $r) { continue; }
                 $label = trim((string) $it['label']);
                 $color = trim((string) $r->color);
-                $size  = trim((string) $r->size);
+                $size  = '';
                 $rest  = $label;
-                if ($size === '') {
+                // MARKER-REG-PICKER-FIX — the size written in the label wins;
+                // the size field only when the label has none.
+                if (true) {
                     foreach (preg_split('/\s+/u', $label) ?: [] as $w) {
                         $t = trim($w, ",;:()[]–-");
                         if ($t !== '' && (preg_match('/^\d+(\.\d+)?(\'\'|"|”|in|mm|cm|lb|lbs|g|kg|t|°|%)?$/iu', $t)
@@ -449,6 +451,7 @@ class RegisterProductSearch
                             break;
                         }
                     }
+                    if ($size === '') { $size = trim((string) $r->size); }
                 }
                 foreach ([$size, $color] as $x) {
                     if ($x !== '') {
@@ -468,9 +471,18 @@ class RegisterProductSearch
             }
         }
         $attrs = [];
-        foreach (['size', 'color', 'version'] as $a) {
-            if (count(array_unique(array_map(fn ($v) => mb_strtolower($v[$a]), $variants))) > 1) { $attrs[] = $a; }
+        foreach (['size', 'color'] as $a) {
+            $vals = array_filter(array_map(fn ($v) => mb_strtolower($v[$a]), $variants), fn ($x) => $x !== '');
+            if (count(array_unique($vals)) >= 2) {
+                $attrs[] = $a;
+            } else {
+                foreach ($variants as &$v) {
+                    if ($v[$a] !== '') { $v['version'] = trim($v['version'] . ' ' . $v[$a]); $v[$a] = ''; }
+                }
+                unset($v);
+            }
         }
+        if (count(array_unique(array_map(fn ($v) => mb_strtolower($v['version']), $variants))) > 1) { $attrs[] = 'version'; }
         if (! $attrs && count($variants) > 1) { $attrs[] = 'version'; }
 
         return ['title' => $title, 'brand' => (string) ($first->brand ?? ''), 'rows' => $rows,
