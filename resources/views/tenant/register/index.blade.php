@@ -272,6 +272,7 @@
   .reg-group-head .name{font-weight:500;font-size:14px}
   .reg-group-head .meta{font-size:12px;color:var(--ia-text-dim)}
   .reg-group-head .price{font-size:14px;font-weight:600;color:var(--ia-text);white-space:nowrap}
+  .reg-group-head .reg-gright{display:flex;align-items:center;gap:10px} /* MARKER-REG-GROUP-INFO */
   .reg-vars{display:flex;flex-direction:column;gap:6px;margin-top:8px}
   .reg-vrow{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
   .reg-vrow .lab{font-size:12px;color:var(--ia-text-dim);width:130px;flex:none;
@@ -1804,6 +1805,17 @@ function regSselSet(id, labels, value) {
 })();
 
 function regAfterRender(data) {
+  // MARKER-REG-GROUP-INFO — the group's i button follows the variant under the
+  // pointer or the keyboard highlight.
+  resultsArea.querySelectorAll('.reg-group').forEach(g => {
+    const info = g.querySelector('.reg-group-info');
+    if (!info) { return; }
+    g.querySelectorAll('.reg-chip[data-i]').forEach(ch => {
+      const point = () => { const r = visibleResults[parseInt(ch.dataset.i, 10)]; if (r) { info.dataset.itemId = r.source_id; } };
+      ch.addEventListener('mouseenter', point);
+      ch.addEventListener('focus', point);
+    });
+  });
   const ps = data && data.product_search;
   const bar = document.getElementById('regFilters');
   if (bar) {
@@ -1908,7 +1920,9 @@ function regGroupsHtml(data, push, rowHtml) {
     html += `<div class="reg-group"><div class="reg-group-head"><div>`
       + `<div class="name">${escapeHtml(g.title)}</div>`
       + `<div class="meta">${g.brand ? escapeHtml(g.brand) + ' · ' : ''}${items.length} options${stock}</div>`
-      + `</div><div class="price">${lo === hi ? fmt(lo) : fmt(lo) + '–' + fmt(hi)}</div></div><div class="reg-vars">`;
+      // MARKER-REG-GROUP-INFO — details for the variant last pointed at, else the first.
+      + `</div><div class="reg-gright"><button type="button" class="reg-info-btn reg-group-info" data-item-id="${items[0].id}" title="Item details" aria-label="Item details">i</button>`
+      + `<div class="price">${lo === hi ? fmt(lo) : fmt(lo) + '–' + fmt(hi)}</div></div></div><div class="reg-vars">`;
 
     g.rows.forEach(r => {
       html += '<div class="reg-vrow">' + (g.rows.length > 1 && r.label ? `<span class="lab">${escapeHtml(r.label)}</span>` : '');
@@ -2248,6 +2262,11 @@ function applyHighlight() {
   resultsArea.querySelectorAll('[data-i]').forEach((row, i) => { // MARKER-REG-GROUPED — chips too
     if (parseInt(row.dataset.i, 10) === highlighted) {
       row.classList.add('highlighted');
+      // MARKER-REG-GROUP-INFO
+      const g = row.closest('.reg-group');
+      const info = g ? g.querySelector('.reg-group-info') : null;
+      const r = visibleResults[highlighted];
+      if (info && r) { info.dataset.itemId = r.source_id; }
       // MARKER-RESULTS-SCROLL — the list is scrollable now, so keyboard
       // navigation has to bring its own row into view. block:'nearest'
       // means this is a no-op while the row is already visible.
