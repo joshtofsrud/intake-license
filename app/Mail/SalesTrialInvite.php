@@ -21,14 +21,14 @@ class SalesTrialInvite extends Mailable
         public ?string $ownerName,
         public ?string $message,
         public ?string $sentBy,
-        public ?string $replyTo,
+        public ?string $replyToEmail, // MARKER-INVITE-REPLYTO-FIX — $replyTo is a Mailable property; redeclaring it fatals
     ) {}
 
     public function envelope(): Envelope
     {
         $from = new Address(\App\Models\PlatformSettings::fromAddress() ?: 'hello@intake.works', \App\Models\PlatformSettings::fromName() ?: 'Intake');
         $env = new Envelope(from: $from, subject: 'Your Intake trial for ' . $this->prospect->shop);
-        return $this->replyTo ? $env->replyTo([new Address($this->replyTo, $this->sentBy ?: 'Intake')]) : $env;
+        return $this->replyToEmail ? $env->replyTo([new Address($this->replyToEmail, $this->sentBy ?: 'Intake')]) : $env;
     }
 
     public function content(): Content
