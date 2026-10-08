@@ -22,7 +22,7 @@ return new class extends Migration {
             $t->json('criteria')->nullable();              // [{label, note}, ...]
             $t->json('playbook')->nullable();              // ["Prospect","Verify",...] display-only
             $t->string('best_ask', 255)->nullable();
-            $t->string('generated_by', 40)->nullable();    // null | 'claude'
+            $t->string('generated_by', 40)->nullable();    // null, or the AI that drafted it
             $t->text('notes')->nullable();
             $t->timestamps();
             $t->index('status');

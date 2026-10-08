@@ -37,7 +37,7 @@ return new class extends Migration
 
             /*
              * Snapshot of tenant context at conversation start — injected into
-             * Claude's system prompt so it has relevant business info.
+             * the AI assistant's system prompt so it has relevant business info.
              * {
              *   "shop_name": "...",
              *   "services": [...],
@@ -47,11 +47,11 @@ return new class extends Migration
              */
             $table->json('context_snapshot')->nullable();
 
-            // Set when Claude flags it needs human help or staff takes over
+            // Set when the AI assistant flags it needs human help or staff takes over
             $table->boolean('needs_staff')->default(false);
             $table->foreignUuid('assigned_to')->nullable()->constrained('tenant_users')->nullOnDelete();
 
-            // For tracking Claude API usage per conversation
+            // For tracking AI usage per conversation
             $table->unsignedInteger('total_tokens_used')->default(0);
 
             $table->timestamp('last_message_at')->nullable();

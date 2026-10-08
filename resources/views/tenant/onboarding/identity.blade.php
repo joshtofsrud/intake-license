@@ -168,7 +168,7 @@
         @if($tenant->industry_pack)
           <div class="ai-meta-chip">📍 {{ ucfirst($tenant->industry_pack) }} context applied</div>
         @endif
-        <div class="ai-meta-chip">🤖 Powered by Claude</div>
+        <div class="ai-meta-chip">🤖 AI-assisted</div>
       </div>
       <div class="ai-banner-actions">
         <button type="button" class="btn btn-primary" id="ai-generate">✨ Generate setup</button>

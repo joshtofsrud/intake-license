@@ -52,12 +52,12 @@ class OnboardingAiQuickSetupService
      */
     public function run(Tenant $tenant, string $description): array
     {
-        $prefill = $this->callClaude($tenant, $description);
+        $prefill = $this->callAi($tenant, $description);
         $this->persist($tenant, $prefill);
         return $prefill;
     }
 
-    private function callClaude(Tenant $tenant, string $description): array
+    private function callAi(Tenant $tenant, string $description): array
     {
         $industryHint = $tenant->industry_pack
             ? "Industry: {$tenant->industry_pack}"

@@ -1,6 +1,6 @@
 {{-- MARKER-PATCH-309 — custom_html marketing renderer.
      Renders author markup raw ({!! !!}) — the whole point of the section is
-     dropping in HTML built elsewhere (e.g. in Claude). No sanitizer by design;
+     dropping in HTML built elsewhere (e.g. in a design tool). No sanitizer by design;
      marketing pages are authored by the platform admin only.
      Honors the same content keys the shared editor (tenant/pages/sections/
      _custom_html) exposes, so no inspector control is dead. --}}

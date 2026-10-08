@@ -101,7 +101,7 @@ class SalesChannelResource extends Resource
                     ->label('Prospects')->alignEnd()->sortable(),
                 Tables\Columns\TextColumn::make('generated_by')
                     ->label('Origin')->toggleable(isToggledHiddenByDefault: true)
-                    ->formatStateUsing(fn ($state) => $state === 'claude' ? '✦ Claude draft' : 'Manual')
+                    ->formatStateUsing(fn ($state) => filled($state) ? '✦ AI draft' : 'Manual')
                     ->placeholder('Manual'),
                 Tables\Columns\TextColumn::make('updated_at')->since()->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),

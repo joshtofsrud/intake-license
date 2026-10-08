@@ -23,7 +23,7 @@ use Illuminate\View\View;
  *   7. Payment   - processor intent (stripe / paypal / square / offline)
  *   8. Done      - review + booking URL + jobs-to-be-done CTAs
  *
- * AI Quick Setup: a special POST to saveAiPrefill() runs Claude API,
+ * AI Quick Setup: a special POST to saveAiPrefill() runs the AI model,
  * writes prefilled data across steps 3-6, and lands the user on step 3
  * (Booking) for review. Stub for now; wired in Phase 4.
  */
@@ -358,7 +358,7 @@ class OnboardingWizardController extends Controller
 
     /**
      * AI Quick Setup endpoint. Takes a free-text business description, calls
-     * Claude with the industry context, and writes prefilled state across
+     * the AI model with the industry context, and writes prefilled state across
      * steps 3-6. Lands the user on Booking (step 3) for review since that's
      * the most consequential AI-decided choice.
      */

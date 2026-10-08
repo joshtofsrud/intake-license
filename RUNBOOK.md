@@ -128,7 +128,6 @@ cat > resources/views/path/file.blade.php <<'EOF'
 EOF
 ```
 
-For brand-new files, use the `create_file` Claude tool, not heredoc — cleaner attribution in history.
 
 ---
 
