@@ -31,6 +31,14 @@
         control layout from inside your own HTML.
       </div>
     </div>
+    @if($isMarketing ?? false)
+    {{-- MARKER-PAGE-WIDTH --}}
+    <div class="pb2-field">
+      @php $fitOn = array_key_exists('fit_width', $c) ? ! in_array((string) $c['fit_width'], ['', '0', 'false'], true) : false; @endphp
+      <label class="pb2-checkbox-row"><input type="checkbox" data-field="fit_width" value="1" {{ $fitOn ? 'checked' : '' }}><span>Fit to page width</span></label>
+      <div class="pb2-field-hint">On: your markup stays inside the page width set in Page width. Off: it runs edge to edge of the browser.</div>
+    </div>
+    @endif
   </div>
 
 </div>

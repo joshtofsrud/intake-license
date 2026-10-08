@@ -79,7 +79,7 @@
             --mk-border2:     rgba(255,255,255,.14);
             --mk-r:           8px;
             --mk-r-lg:        12px;
-            --mk-max:         1080px;
+            --mk-max:         {{ in_array((int) ($page->page_width ?? 0), [960, 1280, 1440], true) ? (int) $page->page_width : 1080 }}px; /* MARKER-PAGE-WIDTH */
             --mk-gutter:      clamp(20px, 5vw, 64px);
         }
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }

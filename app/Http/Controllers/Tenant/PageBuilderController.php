@@ -602,7 +602,7 @@ class PageBuilderController extends Controller
         'screen_showcase'  => ['eyebrow'=>'','step_num'=>1,'heading'=>'Step heading','body'=>'Short body for this step.','points'=>[],'desktop_label'=>'Desktop','desktop_lines'=>[],'mobile_label'=>'Mobile','mobile_lines'=>[],'mobile_note'=>'','flip'=>false],
         'legal_doc'        => ['doc_title'=>'Document title','effective_date'=>'','updated_date'=>'','intro_paragraph'=>'','show_toc'=>true,'sections'=>[['heading'=>'Section heading','blocks'=>[['type'=>'paragraph','text'=>'']]]]],
         // MARKER-PATCH-306 — raw HTML block, rendered as-is on the public page.
-        'custom_html'      => ['html'=>'', 'bg_color'=>'', 'padding_y'=>'normal'],
+        'custom_html'      => ['html'=>'', 'bg_color'=>'', 'padding_y'=>'normal', 'fit_width'=>'1'], // MARKER-PAGE-WIDTH: new blocks sit inside the page width
         // MARKER-FEATURE-GROUPS — feature groups with an index (marketing pages).
         // (The custom_html default was listed twice; the duplicate is gone.)
         'feature_groups'   => ['eyebrow'=>'','heading'=>'','subheading'=>'','anchor_id'=>'','groups'=>[
@@ -1112,6 +1112,22 @@ class PageBuilderController extends Controller
 
             if ($request->expectsJson()) return response()->json(['ok' => true, 'is_published' => $want]);
             return back()->with('success', $msg);
+        }
+
+        // MARKER-PAGE-WIDTH — the widest any section on this page can go
+        // (marketing pages). null = the site default, 1080.
+        if ($op === 'set_page_width') {
+            $w = (int) $request->input('page_width', 0);
+            if (! in_array($w, [0, 960, 1080, 1280, 1440], true)) {
+                return response()->json(['ok' => false, 'error' => 'Pick one of the listed widths.'], 422);
+            }
+            $w = ($w === 0 || $w === 1080) ? null : $w;
+            if ((int) $page->page_width !== (int) $w) {
+                app(\App\Services\Tenant\PageRevisionService::class)
+                    ->snapshot($page, 'Changed page width');
+                $page->update(['page_width' => $w]);
+            }
+            return response()->json(['ok' => true, 'page_width' => $w ?? 1080]);
         }
 
         // MARKER-PAGE-SEARCH-SHARING — the builder's Search & sharing panel.

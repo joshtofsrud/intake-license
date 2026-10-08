@@ -18,6 +18,9 @@
   $padY      = $padTokens[$c['padding_y'] ?? 'normal'] ?? '56px';
 
   $instId = 'mk-html-' . ($section->id ?? uniqid());
+  // MARKER-PAGE-WIDTH — on: the markup sits inside the page width like every
+  // other section. Off (older blocks): full browser width, as before.
+  $fitWidth = ! in_array((string) ($c['fit_width'] ?? '0'), ['', '0', 'false'], true);
 @endphp
 
 <style>
@@ -37,5 +40,5 @@
 </style>
 
 <section class="{{ $instId }} mk-custom-html {{ $customClass }}" @if($anchorId) id="{{ $anchorId }}" @endif>
-  {!! $html !!}
+  @if($fitWidth)<div class="mk-container">{!! $html !!}</div>@else{!! $html !!}@endif
 </section>

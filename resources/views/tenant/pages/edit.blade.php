@@ -313,6 +313,12 @@ body.ia-theme-b .pb2-preview-frame-wrap {
   transition: all 0.12s;
 }
 .pb2-device-btn.active { background: var(--pb2-surface-3); color: var(--pb2-text); }
+/* MARKER-PAGE-WIDTH — Guides toggle beside the device switch */
+.pb2-guides-btn { background: var(--pb2-surface-2); border: 0; color: var(--pb2-text-dim); padding: 5px 11px; border-radius: 6px;
+  cursor: pointer; font: inherit; font-size: 11.5px; display: inline-flex; align-items: center; gap: 5px; }
+.pb2-guides-btn:hover { color: var(--pb2-text); }
+.pb2-guides-btn[aria-pressed="true"] { color: var(--pb2-accent); box-shadow: inset 0 0 0 .5px var(--pb2-accent); }
+body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shadow: inset 0 0 0 .5px #3F6212; }
 .pb2-device-btn:hover:not(.active) { color: var(--pb2-text); }
 
 .pb2-topbar-right {
@@ -1789,6 +1795,13 @@ body.ia-theme-b .pb2-preview-frame-wrap {
           Mobile
         </button>
       </div>
+      @if($isMarketing ?? false)
+      {{-- MARKER-PAGE-WIDTH — dashed lines at the page width, off by default --}}
+      <button class="pb2-guides-btn" id="pb2-guides-btn" type="button" aria-pressed="false" title="Show the page width on the preview">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-dasharray="3 3"><line x1="6" y1="2" x2="6" y2="22"/><line x1="18" y1="2" x2="18" y2="22"/></svg>
+        Guides
+      </button>
+      @endif
     </div>
 
     <div class="pb2-topbar-right">
@@ -2210,6 +2223,149 @@ body.ia-theme-b .pb2-preview-frame-wrap {
 
       paint();
       msg.textContent = '';
+    })();
+    </script>
+    @endif
+
+    @if($isMarketing ?? false)
+    {{-- MARKER-PAGE-WIDTH — the widest any section on this page can go.
+         Saves on click; sections and Content width sliders follow it. --}}
+    @php
+      $pwNow  = in_array((int) ($page->page_width ?? 0), [960, 1280, 1440], true) ? (int) $page->page_width : 1080;
+      $pwOpts = [960 => 'Narrow', 1080 => 'Standard', 1280 => 'Wide', 1440 => 'Extra wide'];
+    @endphp
+    <style>
+    .pb2-pw-opts { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+    .pb2-pw-opt { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; padding: 7px 9px; border-radius: 6px;
+      background: transparent; border: .5px solid var(--pb2-border); color: var(--pb2-text); cursor: pointer; font: inherit; text-align: left; }
+    .pb2-pw-opt:hover { border-color: var(--pb2-border-2); }
+    .pb2-pw-opt.is-on { border-color: var(--pb2-accent); box-shadow: inset 0 0 0 .5px var(--pb2-accent); }
+    .pb2-pw-opt b { font-size: 12px; font-weight: 600; }
+    .pb2-pw-opt span { font-family: var(--pb2-mono); font-size: 10px; color: var(--pb2-text-faint); }
+    </style>
+    <div class="pb2-ss" id="pb2-pw" data-update-url="{{ $updateUrl }}" data-width="{{ $pwNow }}">
+      <button type="button" class="pb2-ss-head" id="pb2-pw-toggle" aria-expanded="false" aria-controls="pb2-pw-body">
+        <span class="pb2-ss-title">Page width</span>
+        <span class="pb2-ss-state {{ $pwNow !== 1080 ? 'is-custom' : '' }}" id="pb2-pw-state">{{ $pwNow }}px</span>
+        <svg class="pb2-ss-chev" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
+      <div class="pb2-ss-body" id="pb2-pw-body" hidden>
+        <div class="pb2-ss-legend">
+          The widest any section on this page can go. Content width on a section can be narrower, never wider.
+          Backgrounds still run edge to edge.
+        </div>
+        <div class="pb2-pw-opts">
+          @foreach($pwOpts as $w => $name)
+            <button type="button" class="pb2-pw-opt {{ $w === $pwNow ? 'is-on' : '' }}" data-w="{{ $w }}"><b>{{ $name }}</b><span>{{ $w }}px{{ $w === 1080 ? ' · default' : '' }}</span></button>
+          @endforeach
+        </div>
+        <div class="pb2-ss-msg" id="pb2-pw-msg" style="margin-top:8px"></div>
+      </div>
+    </div>
+    <script>
+    (function () {
+      var root = document.getElementById('pb2-pw');
+      if (!root) return;
+      var head = document.getElementById('pb2-pw-toggle');
+      var body = document.getElementById('pb2-pw-body');
+      var state = document.getElementById('pb2-pw-state');
+      var msg = document.getElementById('pb2-pw-msg');
+      window.PB2_PAGE_WIDTH = parseInt(root.dataset.width, 10) || 1080;
+
+      head.addEventListener('click', function () {
+        var open = head.getAttribute('aria-expanded') !== 'true';
+        head.setAttribute('aria-expanded', open ? 'true' : 'false');
+        body.hidden = !open;
+      });
+
+      // Content width sliders never go past the page width.
+      function clamp(scope) {
+        (scope || document).querySelectorAll('[data-field="content_max_width"]').forEach(function (f) {
+          var range = f.type === 'range' ? f : (f.closest('.pb2-field, .pb2-group') || f.parentNode).querySelector('input[type="range"]');
+          if (!range) return;
+          if (!range.dataset.pwMax) range.dataset.pwMax = range.max;
+          var cap = Math.min(parseInt(range.dataset.pwMax, 10) || 9999, window.PB2_PAGE_WIDTH);
+          if (String(range.max) !== String(cap)) range.max = cap;
+        });
+      }
+      clamp();
+      try { new MutationObserver(function () { clamp(); }).observe(document.body, { childList: true, subtree: true }); } catch (e) {}
+
+      root.querySelectorAll('.pb2-pw-opt').forEach(function (b) {
+        b.addEventListener('click', function () {
+          var w = parseInt(b.dataset.w, 10);
+          if (w === window.PB2_PAGE_WIDTH) return;
+          var tok = document.querySelector('#pb2-page-form input[name="_token"]');
+          var fd = new FormData();
+          fd.append('_token', tok ? tok.value : '');
+          fd.append('_method', 'PATCH');
+          fd.append('op', 'set_page_width');
+          fd.append('page_width', String(w));
+          msg.classList.remove('is-error');
+          msg.textContent = 'Saving\u2026';
+          fetch(root.dataset.updateUrl, {
+            method: 'POST', body: fd,
+            headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }
+          }).then(function (r) {
+            return r.json().catch(function () { return null; }).then(function (d) { return { ok: r.ok, d: d }; });
+          }).then(function (res) {
+            if (!res.ok || !res.d || !res.d.ok) throw new Error((res.d && (res.d.error || res.d.message)) || 'Could not save. Please try again.');
+            window.PB2_PAGE_WIDTH = res.d.page_width;
+            root.querySelectorAll('.pb2-pw-opt').forEach(function (o) { o.classList.toggle('is-on', parseInt(o.dataset.w, 10) === res.d.page_width); });
+            state.textContent = res.d.page_width + 'px';
+            state.classList.toggle('is-custom', res.d.page_width !== 1080);
+            msg.textContent = 'Saved';
+            clamp();
+            var f = document.getElementById('pb2-preview');
+            if (f) { try { f.contentWindow.location.reload(); } catch (e) { f.src = f.src; } }
+          }).catch(function (e) {
+            msg.classList.add('is-error');
+            msg.textContent = e.message;
+          });
+        });
+      });
+
+      // Guides: dashed lines at the page width (and dotted at the text edge)
+      // drawn into the preview. Off by default; the choice is remembered here.
+      var gBtn = document.getElementById('pb2-guides-btn');
+      var frame = null;
+      var on = false;
+      try { on = localStorage.getItem('pb2-guides') === '1'; } catch (e) {}
+      function paintGuides() {
+        frame = frame || document.getElementById('pb2-preview');
+        if (!frame) return;
+        var doc; try { doc = frame.contentDocument; } catch (e) { return; }
+        if (!doc || !doc.body) return;
+        var g = doc.getElementById('pb2-guides');
+        if (!on) { if (g) g.remove(); return; }
+        if (g) return;
+        g = doc.createElement('div');
+        g.id = 'pb2-guides';
+        g.innerHTML = '<style>'
+          + '#pb2-guides{position:fixed;inset:0;pointer-events:none;z-index:2147483000}'
+          + '#pb2-guides .o{position:absolute;top:0;bottom:0;left:50%;width:min(100%,var(--mk-max,1080px));transform:translateX(-50%);border-left:1px dashed rgba(190,242,100,.75);border-right:1px dashed rgba(190,242,100,.75)}'
+          + '#pb2-guides .i{position:absolute;top:0;bottom:0;left:var(--mk-gutter,24px);right:var(--mk-gutter,24px);border-left:1px dotted rgba(190,242,100,.35);border-right:1px dotted rgba(190,242,100,.35)}'
+          + '#pb2-guides .t{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);font:600 10px/1 ui-monospace,Menlo,monospace;color:#0a0a0a;background:rgba(190,242,100,.9);padding:3px 6px;border-radius:4px}'
+          + '</style><div class="o"><div class="i"></div><span class="t"></span></div>';
+        doc.body.appendChild(g);
+        var t = g.querySelector('.t');
+        try { t.textContent = (frame.contentWindow.getComputedStyle(doc.documentElement).getPropertyValue('--mk-max').trim() || '1080px') + ' page width'; } catch (e) {}
+      }
+      function setOn(v) {
+        on = v;
+        if (gBtn) gBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
+        try { localStorage.setItem('pb2-guides', on ? '1' : '0'); } catch (e) {}
+        paintGuides();
+      }
+      if (gBtn) gBtn.addEventListener('click', function () { setOn(!on); });
+      function hook() {
+        var f = document.getElementById('pb2-preview');
+        if (!f) return false;
+        f.addEventListener('load', paintGuides);
+        return true;
+      }
+      if (!hook()) document.addEventListener('DOMContentLoaded', hook);
+      setOn(on);
     })();
     </script>
     @endif
