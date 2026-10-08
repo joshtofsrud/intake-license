@@ -156,7 +156,9 @@ class PlatformLetter
             . '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:' . $c['outer'] . ';padding:28px 12px"><tr><td align="center">'
             . '<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="width:100%;max-width:600px;background:' . $c['card'] . ';border-radius:10px">'
             . '<tr><td style="padding:34px 40px 0"><table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>'
-            . '<td style="font-weight:800;font-size:19px;letter-spacing:-.02em;color:' . $c['text'] . ';padding-bottom:18px;border-bottom:1px solid ' . $c['rule'] . '">intake<span style="display:inline-block;width:7px;height:7px;background:#BEF264;border-radius:2px;margin-left:3px"></span></td>'
+            // MARKER-LETTER-LOGO — the real logo from master admin › Brand: the email slot
+            // (dark wordmark) on light cards, the light wordmark on the dark theme.
+            . '<td style="padding-bottom:18px;border-bottom:1px solid ' . $c['rule'] . '"><img src="' . $e(\App\Support\Brand::url($dark ? 'logo' : 'email')) . '" alt="Intake" height="26" style="display:block;height:26px;width:auto;border:0;outline:none"></td>'
             . '</tr></table></td></tr>'
             . '<tr><td style="padding:26px 40px 12px;font-family:' . $font . '">' . $html . '</td></tr>'
             . '<tr><td style="padding:14px 40px 26px;border-top:1px solid ' . $c['rule'] . ';font-size:11.5px;line-height:1.6;color:' . $c['mut'] . '">'
