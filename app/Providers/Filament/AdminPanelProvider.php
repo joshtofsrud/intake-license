@@ -123,6 +123,7 @@ class AdminPanelProvider extends PanelProvider
                 \App\Filament\Pages\CatalogCoverage::class,
                 // same: no route without this line.
                 \App\Filament\Pages\CatalogItemLookup::class,
+                \App\Filament\Pages\VariantSplitRules::class, // MARKER-OPTION-SPLIT: no route without this line
                 ThemeEditor::class,
                 \App\Filament\Pages\BillingConfiguration::class,
                 \App\Filament\Pages\PasswordEditor::class,

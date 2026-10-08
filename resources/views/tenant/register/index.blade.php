@@ -317,6 +317,9 @@
   .reg-pick-add{padding:7px 14px;border:0;border-radius:var(--ia-r-md);background:var(--ia-accent);color:var(--ia-accent-text);
     font-weight:600;font-size:12.5px;font-family:inherit;cursor:pointer}
   @media (max-width:640px){ .reg-dd{flex-basis:100%} .reg-opts-btn{padding:4px 8px} }
+  /* MARKER-OPTION-SPLIT: split options sit two to a row on a phone */
+  @media (max-width:640px){ .reg-dds--many .reg-dd{flex-basis:calc(50% - 4px)} }
+  .reg-also{margin-top:8px;font-size:11.5px;color:var(--ia-text-dim)}
   .reg-group-head .reg-gright{display:flex;align-items:center;gap:10px}
   .reg-vars{display:flex;flex-direction:column;gap:6px;margin-top:8px}
   .reg-vrow{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
@@ -1974,6 +1977,7 @@ function regGroupsHtml(data, push, rowHtml) {
     }
     const gid = 'g' + gi;
     const state = { gid, title: g.title, vars, attrs: g.attrs.length ? g.attrs : ['version'], cur: start,
+                    names: Object.assign({}, REG_ATTR_NAME, g.attr_names || {}), /* MARKER-OPTION-SPLIT */
                     open: exactHit || multi === 1 };
     regPickers[gid] = state;
 
@@ -2046,11 +2050,11 @@ function regPickerRender(gid) {
   const el = resultsArea.querySelector(`.reg-picker[data-gid="${gid}"]`);
   if (!state || !el) { return; }
   const c = state.cur;
-  let html = '<div class="reg-dds">';
+  let html = '<div class="reg-dds' + (state.attrs.length > 2 ? ' reg-dds--many' : '') + '">';
   state.attrs.forEach(attr => {
     const val = c[attr] || '—';
     html += `<div class="reg-dd" data-attr="${attr}"><button type="button" class="reg-dd-btn" data-gid="${gid}" data-attr="${attr}">`
-      + `<span class="k">${REG_ATTR_NAME[attr]}</span><span class="v">${escapeHtml(val)}</span><span class="chev">▾</span></button>`
+      + `<span class="k">${escapeHtml((state.names || REG_ATTR_NAME)[attr] || attr)}</span><span class="v">${escapeHtml(val)}</span><span class="chev">▾</span></button>`
       + `<div class="reg-dd-list" hidden>`
       + regPickerOptions(state, attr).map(o => {
           const v = o.best || o.any;
@@ -2062,6 +2066,7 @@ function regPickerRender(gid) {
       + '</div></div>';
   });
   html += '</div><div class="reg-dd-panel" hidden></div>';
+  if (c.also) { html += '<div class="reg-also">Also in the name: ' + escapeHtml(c.also) + '</div>'; } /* MARKER-OPTION-SPLIT */
   const st = c.st;
   html += `<div class="reg-pick-line"><div style="min-width:0"><div class="t">${escapeHtml(c.label)}</div>`
     + `<div class="s"><span class="reg-stock-chip is-${st.cls === 'in' ? 'in' : st.cls === 'rem' ? 'elsewhere' : st.cls === 'sup' ? 'order' : 'out'}">${escapeHtml(st.txt === 'none' ? 'none in stock' : st.txt)}</span> · ${escapeHtml(c.p.sku || '')}</div></div>`

@@ -69,7 +69,7 @@ class RegisterProductSearch
         // the shop's own name leaves them out): one lookup by key.
         $catIds = $all->pluck('distributor_catalog_id')->filter()->unique()->values()->all();
         $cats = $catIds
-            ? DB::table('platform_distributor_catalogs')->whereIn('id', $catIds)->get(['id', 'manufacturer', 'display_name'])->keyBy('id')->all()
+            ? DB::table('platform_distributor_catalogs')->whereIn('id', $catIds)->get(['id', 'manufacturer', 'display_name', 'category_path'])->keyBy('id')->all()
             : [];
         foreach ($all as $r) {
             $cat = $cats[$r->distributor_catalog_id] ?? null;
@@ -77,6 +77,7 @@ class RegisterProductSearch
                 ? trim((string) $r->shop_brand)
                 : trim((string) ($cat->manufacturer ?? ''));
             $r->cat_title = (string) ($cat->display_name ?? '');
+            $r->cat_path  = (string) ($cat->category_path ?? ''); // MARKER-OPTION-SPLIT
         }
 
         // Suppliers (and their part numbers) per matched item: one lookup.
@@ -483,8 +484,14 @@ class RegisterProductSearch
         if (count(array_unique(array_map(fn ($v) => mb_strtolower($v['version']), $variants))) > 1) { $attrs[] = 'version'; }
         if (! $attrs && count($variants) > 1) { $attrs[] = 'version'; }
 
+        // MARKER-OPTION-SPLIT: carve Casing / Compound / Bead (master admin ›
+        // Option splitting) out of a run-together Version.
+        $catPath = '';
+        foreach ($items as $r) { if (($r->cat_path ?? '') !== '') { $catPath = (string) $r->cat_path; break; } }
+        [$variants, $attrs, $attrNames] = \App\Support\VariantSplitter::apply($variants, $attrs, $catPath);
+
         return ['title' => $title, 'brand' => (string) ($first->brand ?? ''), 'rows' => $rows,
-                'variants' => $variants, 'attrs' => $attrs];
+                'variants' => $variants, 'attrs' => $attrs, 'attr_names' => $attrNames];
     }
 
     private static function sizeOrder(string $label): array
