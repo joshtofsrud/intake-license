@@ -60,6 +60,60 @@
   </div>
 </div>
 
+{{-- Duplicate shops — review and merge --}}
+@php $dupN = $this->duplicateCount(); @endphp
+<div style="{{ $card }};margin-bottom:16px">
+  <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+    <span style="font-size:13px;font-weight:600">Duplicate shops</span>
+    <span style="{{ $badge }}{{ $dupN ? 'background:rgba(251,191,36,.18);color:#fbbf24' : 'background:rgba(74,222,128,.15);color:#4ade80' }}">{{ $dupN ? number_format($dupN) . ' ' . ($dupN === 1 ? 'set' : 'sets') : 'None' }}</span>
+    <span style="{{ $muted }}">Same phone number, or the same website at the same ZIP.</span>
+    @if($dupN)
+      <span style="margin-left:auto;display:flex;gap:8px;align-items:center">
+        @if($confirmMergeAll)
+          <span style="{{ $muted }}">Merge all {{ number_format($dupN) }} sets? This can't be undone.</span>
+          <button type="button" class="sfs-btn p" wire:click="mergeAll" wire:loading.attr="disabled">Merge all</button>
+          <button type="button" class="sfs-btn" wire:click="$set('confirmMergeAll', false)">Cancel</button>
+        @else
+          <button type="button" class="sfs-btn" wire:click="$set('confirmMergeAll', true)">Merge all</button>
+          <button type="button" class="sfs-btn" wire:click="$toggle('showDupes')">{{ $showDupes ? 'Hide' : 'Review' }}</button>
+        @endif
+      </span>
+    @endif
+  </div>
+  <div style="{{ $muted }};margin-top:8px">
+    Merging keeps the shop someone has worked (signed up, stage, calls, rep, notes; marked <b>keep</b>), fills its empty fields from the others, moves their timeline onto it and deletes the rest.
+    A chain's locations share a website but not a phone or ZIP, so they are not listed. "Not the same shop" hides a set for good.
+  </div>
+  @if($showDupes && $dupN)
+    <div style="margin-top:10px">
+      @foreach($this->duplicateSets() as $set)
+        <div style="border-top:1px solid rgba(127,127,127,.15);padding:10px 0" wire:key="dup-{{ md5(implode(',', $set['ids'])) }}">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+            <span style="{{ $muted }}">{{ $set['reason'] }}</span>
+            <span style="margin-left:auto;display:flex;gap:6px">
+              <button type="button" class="sfs-btn" wire:click="ignoreSet('{{ implode(',', $set['ids']) }}')">Not the same shop</button>
+              <button type="button" class="sfs-btn p" wire:click="mergeSet('{{ implode(',', $set['ids']) }}')" wire:loading.attr="disabled">Merge</button>
+            </span>
+          </div>
+          <table style="width:100%;font-size:12.5px;border-collapse:collapse">
+            @foreach($set['rows'] as $r)
+              <tr>
+                <td style="padding:3px 6px;width:42px">@if($r->id === $set['keeper'])<span style="{{ $badge }}background:rgba(139,92,246,.18);color:#a78bfa">keep</span>@endif</td>
+                <td style="padding:3px 6px;font-weight:{{ $r->id === $set['keeper'] ? 600 : 400 }}">{{ $r->shop }}</td>
+                <td style="padding:3px 6px;{{ $muted }}">{{ $r->city }}{{ $r->state ? ', ' . $r->state : '' }} {{ $r->postcode }}</td>
+                <td style="padding:3px 6px;{{ $muted }}">{{ $r->phone }}</td>
+                <td style="padding:3px 6px;{{ $muted }}">{{ $r->website ? parse_url((str_contains($r->website, '://') ? '' : 'https://') . $r->website, PHP_URL_HOST) : '' }}</td>
+                <td style="padding:3px 6px;{{ $muted }}">{{ \App\Models\SalesProspect::STAGES[$r->stage] ?? $r->stage }}</td>
+              </tr>
+            @endforeach
+          </table>
+        </div>
+      @endforeach
+      @if($dupN > 100)<div style="{{ $muted }};padding-top:8px">Showing the first 100 sets. Merge these and the rest appear.</div>@endif
+    </div>
+  @endif
+</div>
+
 @unless($configured)
   {{-- the key and budget live on Sales setup › Google Places now. --}}
   <div style="{{ $card }};margin-bottom:16px;border-color:rgba(251,191,36,.5)">

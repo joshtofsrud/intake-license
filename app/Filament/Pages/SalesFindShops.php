@@ -116,6 +116,53 @@ class SalesFindShops extends Page
         Notification::make()->title($paused ? 'Website pass resumed' : 'Website pass paused')->success()->send();
     }
 
+    // Duplicate shops — the same shop entered twice (same phone, or same website at the same place).
+    public bool $showDupes = false;
+    public bool $confirmMergeAll = false;
+
+    public function duplicateCount(): int
+    {
+        return (int) \Illuminate\Support\Facades\Cache::remember('sales:duplicate-shops:count', 300,
+            fn () => count((new \App\Services\Sales\DuplicateShops())->groups()));
+    }
+
+    /** Sets with their rows, for the review list (first 100). */
+    public function duplicateSets(): array
+    {
+        $sets = array_slice((new \App\Services\Sales\DuplicateShops())->groups(), 0, 100);
+        $rows = \App\Models\SalesProspect::whereIn('id', collect($sets)->pluck('ids')->flatten()->all())
+            ->get(['id', 'shop', 'city', 'state', 'postcode', 'phone', 'website', 'email', 'stage'])->keyBy('id');
+        foreach ($sets as &$s) {
+            $s['rows'] = collect($s['ids'])->map(fn ($id) => $rows[$id] ?? null)->filter()
+                ->sortBy(fn ($r) => $r->id === $s['keeper'] ? 0 : 1)->values()->all();
+        }
+        return $sets;
+    }
+
+    public function mergeSet(string $ids): void
+    {
+        $keeper = (new \App\Services\Sales\DuplicateShops())->merge(array_filter(explode(',', $ids)));
+        \Illuminate\Support\Facades\Cache::forget('sales:duplicate-shops:count');
+        Notification::make()->title('Merged into ' . $keeper->shop)->success()->send();
+    }
+
+    public function ignoreSet(string $ids): void
+    {
+        \App\Services\Sales\DuplicateShops::ignore(array_filter(explode(',', $ids)));
+        \Illuminate\Support\Facades\Cache::forget('sales:duplicate-shops:count');
+        Notification::make()->title('Kept as separate shops')->success()->send();
+    }
+
+    public function mergeAll(): void
+    {
+        $this->confirmMergeAll = false;
+        $svc = new \App\Services\Sales\DuplicateShops();
+        $n = 0;
+        foreach ($svc->groups() as $set) { $svc->merge($set['ids']); $n++; }
+        \Illuminate\Support\Facades\Cache::forget('sales:duplicate-shops:count');
+        Notification::make()->title("Merged {$n} " . ($n === 1 ? 'set' : 'sets') . ' of duplicates')->success()->send();
+    }
+
     public function search(): void
     {
         // the message now shows under Where (it used to fail silently).
