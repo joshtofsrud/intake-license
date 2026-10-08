@@ -35,7 +35,9 @@ class SalesPipeline extends Page
     public string $repId       = '';
     public string $priority    = '';
     public bool   $dueOnly     = false;
-    public bool   $hideUntouched = true;
+    public bool   $hideUntouched = false; // MARKER-PROSPECTS-SORT — off by default: imported shops show
+    public string $sortBy  = '';         // MARKER-PROSPECTS-SORT — List view column sort ('' = due first, then score)
+    public string $sortDir = 'asc';
     public string $site        = ''; // MARKER-SALES-SITE-FILTER — what the website pass found
     public bool   $showClosed  = false;
     public string $q           = '';
@@ -70,6 +72,8 @@ class SalesPipeline extends Page
         abort_unless(static::canAccess(), 403);
         $this->mode       = in_array(session('sales.view'), ['board', 'list'], true) ? session('sales.view') : 'board';
         $this->industryId = (string) session('sales.industry', '');
+        $this->sortBy  = (string) session('sales.sort', '');           // MARKER-PROSPECTS-SORT
+        $this->sortDir = session('sales.sort_dir') === 'desc' ? 'desc' : 'asc';
         if ($this->industryId !== '' && ! \App\Models\SalesChannel::whereKey($this->industryId)->exists()) $this->industryId = '';
         if ($id = request()->query('open')) $this->open($id);
     }
@@ -368,10 +372,40 @@ class SalesPipeline extends Page
         $total = (clone $q)->count();
         $pages = max(1, (int) ceil($total / self::LIST_PER_PAGE));
         $this->listPage = min(max(1, $this->listPage), $pages);
-        $rows = $q->orderByRaw('CASE WHEN next_action_on IS NOT NULL AND next_action_on <= CURDATE() THEN 0 ELSE 1 END')
-            ->orderByDesc('lead_score')->orderBy('shop')
-            ->forPage($this->listPage, self::LIST_PER_PAGE)->get();
+        // MARKER-PROSPECTS-SORT — a clicked column wins; blanks always sort last
+        $d = $this->sortDir === 'desc' ? 'desc' : 'asc';
+        $blankLast = fn (string $col) => $q->orderByRaw("CASE WHEN $col IS NULL OR $col = '' THEN 1 ELSE 0 END");
+        switch ($this->sortBy) {
+            case 'shop':     $q->orderBy('shop', $d); break;
+            case 'place':    $blankLast('state'); $q->orderBy('state', $d)->orderBy('city', $d); break;
+            case 'contact':  $q->orderByRaw("(CASE WHEN email IS NULL OR email = '' THEN 0 ELSE 2 END) + (CASE WHEN phone IS NULL OR phone = '' THEN 0 ELSE 1 END) " . ($d === 'asc' ? 'DESC' : 'ASC')); break;
+            case 'industry': $q->orderByRaw('CASE WHEN channel_id IS NULL THEN 1 ELSE 0 END')
+                                ->orderByRaw('(SELECT name FROM sales_channels WHERE sales_channels.id = sales_prospects.channel_id) ' . $d); break;
+            case 'loop':     $q->orderByRaw('CASE WHEN `loop` IS NULL THEN 1 ELSE 0 END')->orderBy('loop', $d); break; // loop is a MySQL keyword
+            case 'priority': $q->orderBy('priority', $d); break;
+            case 'verified': $q->orderBy('verified', $d === 'asc' ? 'desc' : 'asc'); break;
+            case 'score':    $q->orderBy('lead_score', $d === 'asc' ? 'desc' : 'asc'); break;
+            case 'rep':      $q->orderByRaw('CASE WHEN sales_rep_id IS NULL THEN 1 ELSE 0 END')
+                                ->orderByRaw('(SELECT name FROM sales_reps WHERE sales_reps.id = sales_prospects.sales_rep_id) ' . $d); break;
+            case 'stage':    $q->orderByRaw("FIELD(stage, '" . implode("','", array_map(fn ($s) => str_replace("'", '', $s), array_keys(SalesProspect::STAGES))) . "') " . strtoupper($d)); break;
+            case 'next':     $q->orderByRaw('CASE WHEN next_action_on IS NULL THEN 1 ELSE 0 END')->orderBy('next_action_on', $d); break;
+            case 'quote':    $q->orderByRaw('CASE WHEN quote_monthly IS NULL THEN 1 ELSE 0 END')->orderBy('quote_monthly', $d === 'asc' ? 'desc' : 'asc'); break;
+            default:         $q->orderByRaw('CASE WHEN next_action_on IS NOT NULL AND next_action_on <= CURDATE() THEN 0 ELSE 1 END')->orderByDesc('lead_score');
+        }
+        $rows = $q->orderBy('shop')->forPage($this->listPage, self::LIST_PER_PAGE)->get();
         return ['rows' => $rows, 'total' => $total, 'pages' => $pages];
+    }
+
+    /** MARKER-PROSPECTS-SORT — click a column: sort by it; click again: reverse; a third time: back to the default order. */
+    public function sortList(string $key): void
+    {
+        $keys = ['shop', 'place', 'contact', 'industry', 'loop', 'priority', 'verified', 'score', 'rep', 'stage', 'next', 'quote'];
+        if (! in_array($key, $keys, true)) return;
+        if ($this->sortBy !== $key)          { $this->sortBy = $key; $this->sortDir = 'asc'; }
+        elseif ($this->sortDir === 'asc')    { $this->sortDir = 'desc'; }
+        else                                 { $this->sortBy = ''; $this->sortDir = 'asc'; }
+        session(['sales.sort' => $this->sortBy, 'sales.sort_dir' => $this->sortDir]);
+        $this->listPage = 1;
     }
 
     public function toggleAllOnPage(array $ids): void

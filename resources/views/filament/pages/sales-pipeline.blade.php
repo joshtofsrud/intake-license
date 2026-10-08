@@ -68,6 +68,11 @@
   .sx-t tr.r { cursor:pointer; } .sx-t tr.r:hover td { background:rgba(255,255,255,.03); } .sx-t tr.r.sel td { background:var(--sx-vsoft); }
   .sx-t input[type=checkbox] { accent-color:var(--sx-violet); }
   .sx-t .num { text-align:right; font-variant-numeric:tabular-nums; }
+  /* MARKER-PROSPECTS-SORT */
+  .sx-t th.sx-sort { cursor:pointer; user-select:none; }
+  .sx-t th.sx-sort:hover { color:#fff; }
+  .sx-t th.sx-sort.on { color:#fff; }
+  .sx-t th .sx-arr { font-size:10px; margin-left:3px; opacity:.8; }
   .sx-bulk { display:flex; align-items:center; gap:8px; padding:10px 0; flex-wrap:wrap; font-size:13px; color:var(--sx-dim); }
   .sx-pager { display:flex; align-items:center; gap:10px; padding:12px 0; color:var(--sx-faint); font-size:13px; }
   /* drawer */
@@ -211,7 +216,10 @@
     <table class="sx-t">
       <thead><tr>
         <th style="width:28px"><input type="checkbox" aria-label="Select this page" @checked($pageIds && ! array_diff($pageIds, $selected)) wire:click="toggleAllOnPage({{ json_encode($pageIds) }})"></th>
-        <th>Shop</th><th>Contact</th><th>Industry</th><th>Loop</th><th>Pri</th><th>Verified</th><th class="num">Score</th><th>Rep</th><th>Stage</th><th>Next action</th><th class="num">Quote</th>
+        {{-- MARKER-PROSPECTS-SORT — click a heading to sort; again to reverse; a third time for the default (due first, then score) --}}
+        @foreach(['shop' => ['Shop', ''], 'contact' => ['Contact', ''], 'industry' => ['Industry', ''], 'loop' => ['Loop', ''], 'priority' => ['Pri', ''], 'verified' => ['Verified', ''], 'score' => ['Score', 'num'], 'rep' => ['Rep', ''], 'stage' => ['Stage', ''], 'next' => ['Next action', ''], 'quote' => ['Quote', 'num']] as $sk => [$sLabel, $sCls])
+          <th class="sx-sort {{ $sCls }} {{ $sortBy === $sk ? 'on' : '' }}" wire:click="sortList('{{ $sk }}')" title="Sort by {{ strtolower($sLabel) }}">{{ $sLabel }}@if($sortBy === $sk)<span class="sx-arr">{{ $sortDir === 'asc' ? '▲' : '▼' }}</span>@endif</th>
+        @endforeach
       </tr></thead>
       <tbody>
         @forelse($list['rows'] as $p)
