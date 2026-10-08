@@ -147,6 +147,7 @@ class AdminPanelProvider extends PanelProvider
                 \App\Filament\Pages\CustomerCleanup::class,
                 \App\Filament\Pages\TenantBilling::class,
                 \App\Filament\Pages\SalesRouteDay::class,     // explicit registration; this panel does NOT auto-discover
+                \App\Filament\Pages\SalesInstagramFollows::class, // MARKER-IG-QUEUE: explicit, no auto-discovery
                 \App\Filament\Pages\SalesPipeline::class,     // explicit registration; this panel does NOT auto-discover
                 \App\Filament\Pages\SalesFindShops::class, \App\Filament\Pages\SalesPlacesSettings::class,     // explicit registration; this panel does NOT auto-discover
             ])
