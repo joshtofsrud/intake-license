@@ -135,6 +135,7 @@ class ListTenants extends ListRecords
                 'mrr_cents' => $m['mrr_cents'],
                 'addon_count' => $m['addon_count'],
                 'bookings_30d' => $m['bookings_30d'],
+                'pulse' => $metrics->pulse($t), // MARKER-TENANT-PULSE
                 'initial' => $this->initialFor($t->name),
                 'avatar_color' => $this->avatarColorFor($t->name),
                 'is_platform' => $isPlatform,

@@ -2,6 +2,21 @@
 
     <link rel="stylesheet" href="{{ asset('css/admin/tenants-grid.css') }}?v={{ filemtime(public_path('css/admin/tenants-grid.css')) }}">
 
+    {{-- MARKER-TENANT-PULSE — the usage numbers on each card; hover any number for what it means and what to do --}}
+    <style>
+      .tg-pulse{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;margin:10px 0 2px;border-top:1px solid rgba(127,127,127,.15);padding-top:10px}
+      .tg-pulse__c{position:relative;padding:4px 2px;cursor:help;min-width:0}
+      .tg-pulse__l{font-size:10px;letter-spacing:.06em;text-transform:uppercase;opacity:.5}
+      .tg-pulse__v{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .tg-pulse__s{font-size:10.5px;opacity:.55;white-space:nowrap}
+      .tg-pulse .ok{color:#86efac}.tg-pulse .warn{color:#fbbf24}.tg-pulse .bad{color:#f87171}.tg-pulse .dim{opacity:.45}
+      .tg-pulse__c .tg-tip{display:none;position:absolute;bottom:calc(100% + 6px);left:0;z-index:30;width:240px;padding:9px 11px;border-radius:8px;
+        background:#18181b;border:1px solid rgba(255,255,255,.14);box-shadow:0 10px 30px rgba(0,0,0,.5);font-size:12px;line-height:1.45;font-weight:400;color:#e4e4e7;white-space:normal;text-transform:none;letter-spacing:0}
+      .tg-pulse__c:nth-child(4n) .tg-tip,.tg-pulse__c:nth-child(4n-1) .tg-tip{left:auto;right:0}
+      .tg-pulse__c:hover .tg-tip{display:block}
+      .tg-tip b{color:#fff}
+    </style>
+
     <div class="tg-page">
 
         {{-- Sticky control bar: search + lifecycle pills + plan/sub/sort selects --}}
@@ -232,6 +247,68 @@
                                 <div class="tg-stat__value">{{ $t->bookings_30d }}</div>
                             </div>
                         </div>
+
+                        {{-- MARKER-TENANT-PULSE --}}
+                        @php
+                          $pu = (array) ($t->pulse ?? []);
+                          $money = fn ($c) => '$' . ($c >= 100000 ? number_format($c / 100000, 1) . 'k' : number_format($c / 100, 0));
+                          $lastAt = !empty($pu['last_active']) ? \Illuminate\Support\Carbon::parse($pu['last_active']) : null;
+                          $idleDays = $lastAt ? (int) $lastAt->diffInDays(now()) : null;
+                        @endphp
+                        @if($pu)
+                        <div class="tg-pulse">
+                          <div class="tg-pulse__c">
+                            <div class="tg-pulse__l">Today</div>
+                            <div class="tg-pulse__v {{ $pu['today_count'] ? '' : 'dim' }}">{{ $money($pu['today_cents']) }}</div>
+                            <div class="tg-pulse__s">{{ $pu['today_count'] }} {{ $pu['today_count'] === 1 ? 'sale' : 'sales' }}</div>
+                            <span class="tg-tip"><b>Sales paid today</b>, in the shop's own time zone. Zero late on a day they're open? They may be ringing up somewhere else. Ask how checkout is going.</span>
+                          </div>
+                          <div class="tg-pulse__c">
+                            <div class="tg-pulse__l">7 days</div>
+                            <div class="tg-pulse__v">{{ $money($pu['week_cents']) }}
+                              @if($pu['week_change'] !== null)<span class="{{ $pu['week_change'] >= 0 ? 'ok' : ($pu['week_change'] <= -30 ? 'bad' : 'warn') }}" style="font-size:11px">{{ $pu['week_change'] >= 0 ? '↑' : '↓' }}{{ abs($pu['week_change']) }}%</span>@endif
+                            </div>
+                            <div class="tg-pulse__s">{{ $pu['week_count'] }} {{ $pu['week_count'] === 1 ? 'sale' : 'sales' }}</div>
+                            <span class="tg-tip"><b>Paid sales, last 7 days</b>, against the 7 days before. Down 30% or more (red): call and ask what changed, whether it's slow season, a problem, or staff working around Intake.</span>
+                          </div>
+                          <div class="tg-pulse__c">
+                            <div class="tg-pulse__l">Cust attach</div>
+                            <div class="tg-pulse__v {{ $pu['attach_pct'] === null ? 'dim' : ($pu['attach_pct'] >= 60 ? 'ok' : ($pu['attach_pct'] >= 40 ? 'warn' : 'bad')) }}">{{ $pu['attach_pct'] === null ? '—' : $pu['attach_pct'] . '%' }}</div>
+                            <div class="tg-pulse__s">of {{ $pu['sales_30d'] }} in 30d</div>
+                            <span class="tg-tip"><b>Sales with a customer on them</b>, last 30 days. Under 40%: staff are skipping the customer step, so reminders, recovery and marketing can't reach those people. Show them quick-add at the register.</span>
+                          </div>
+                          <div class="tg-pulse__c">
+                            <div class="tg-pulse__l">Last active</div>
+                            <div class="tg-pulse__v {{ $idleDays === null ? 'dim' : ($idleDays >= 7 ? 'bad' : ($idleDays >= 3 ? 'warn' : '')) }}">{{ $lastAt ? $lastAt->diffForHumans(['parts' => 1, 'short' => true, 'syntax' => \Carbon\CarbonInterface::DIFF_ABSOLUTE]) : 'never' }}</div>
+                            <div class="tg-pulse__s">{{ $lastAt ? 'ago' : '' }}</div>
+                            <span class="tg-tip"><b>Last time anyone at the shop</b> rang a sale, touched a job or signed in. 3+ days (amber) on an open shop: check in. 7+ days (red): they may have stopped using Intake. Call them.</span>
+                          </div>
+                          <div class="tg-pulse__c">
+                            <div class="tg-pulse__l">Open jobs</div>
+                            <div class="tg-pulse__v {{ $pu['open_jobs'] ? '' : 'dim' }}">{{ $pu['open_jobs'] }}</div>
+                            <div class="tg-pulse__s">&nbsp;</div>
+                            <span class="tg-tip"><b>Work orders</b> pending, confirmed or in progress. Zero at a service shop usually means jobs are tracked on paper or another tool. Offer to help move them in.</span>
+                          </div>
+                          <div class="tg-pulse__c">
+                            <div class="tg-pulse__l">Booked 7d</div>
+                            <div class="tg-pulse__v {{ $pu['week_bookings'] ? '' : 'dim' }}">{{ $pu['week_bookings'] }}</div>
+                            <div class="tg-pulse__s">&nbsp;</div>
+                            <span class="tg-tip"><b>Appointments booked</b> for today through the next 6 days. Low or zero: help them turn on online booking and put the link on their site and Google listing.</span>
+                          </div>
+                          <div class="tg-pulse__c">
+                            <div class="tg-pulse__l">Cards</div>
+                            <div class="tg-pulse__v {{ $pu['cards'] === 'yes' ? 'ok' : ($pu['cards'] === 'pending' ? 'warn' : 'bad') }}">{{ ['yes' => 'Connected', 'pending' => 'Pending', 'no' => 'No'][$pu['cards']] }}</div>
+                            <div class="tg-pulse__s">&nbsp;</div>
+                            <span class="tg-tip"><b>Card payments through Intake.</b> Pending: they started setup but didn't finish. Nudge them. No: they take cards on another system, so their sales here may be incomplete.</span>
+                          </div>
+                          <div class="tg-pulse__c">
+                            <div class="tg-pulse__l">Problems</div>
+                            <div class="tg-pulse__v {{ $pu['problems'] ? 'bad' : 'ok' }}">{{ $pu['problems'] ?: 'None' }}</div>
+                            <div class="tg-pulse__s">&nbsp;</div>
+                            <span class="tg-tip"><b>Unresolved errors</b> for this shop in the last 7 days (Debug logs). Above zero: look before they call you. Fix it, mark it resolved, and let them know it's handled.</span>
+                          </div>
+                        </div>
+                        @endif
 
                         <div class="tg-card__footer">
                             <span class="tg-card__footer-text">
