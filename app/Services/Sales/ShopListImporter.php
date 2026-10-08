@@ -13,7 +13,9 @@ use Illuminate\Support\Str;
 class ShopListImporter
 {
     /** Store locators and online retailers Overture sometimes attaches as a shop's website. */
-    public const NOT_A_SHOP_SITE = ['chainreactioncycles.com', 'wiggle.com', 'amazon.com', 'trekbikes.com', 'specialized.com', 'giant-bicycles.com', 'cannondale.com', 'rei.com', 'walmart.com', 'target.com', 'ebay.com', 'jensonusa.com', 'competitivecyclist.com', 'backcountry.com'];
+    public const NOT_A_SHOP_SITE = ['chainreactioncycles.com', 'wiggle.com', 'amazon.com', 'trekbikes.com', 'specialized.com', 'giant-bicycles.com', 'cannondale.com', 'rei.com', 'walmart.com', 'target.com', 'ebay.com', 'jensonusa.com', 'competitivecyclist.com', 'backcountry.com',
+        // MARKER-SALES-SITE-SCAN — brand dealer locators seen in the Oct 2026 Overture list
+        'pedegoelectricbikes.com', 'aventon.com', 'radpowerbikes.com', 'flyebike.com', 'electricbikecompany.com', 'super73.com', 'santacruzbicycles.com', 'yeticycles.com', 'electra.com'];
 
     /** Intake field => [label, required, header guesses in priority order]. */
     public const FIELDS = [
@@ -110,7 +112,7 @@ class ShopListImporter
             if ($hasCoords) $out['with_coords']++;
             $web  = $col($row, 'website');
             $host = $web ? strtolower((string) preg_replace('/^www\./', '', (string) parse_url(str_contains($web, '://') ? $web : "https://$web", PHP_URL_HOST))) : '';
-            if ($host && in_array($host, self::NOT_A_SHOP_SITE, true)) $web = '';
+            if ($host && SiteScanner::isNotShopSite($host)) $web = ''; // MARKER-SALES-SITE-SCAN — subdomains and booking/listing hosts too
             $ws = in_array(strtolower($col($row, 'workstand')), ['true', '1', 'yes', 'y'], true);
 
             $out['inserted']++;

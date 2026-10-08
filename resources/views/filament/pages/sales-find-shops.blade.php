@@ -37,6 +37,30 @@
   Nothing on this page changes an existing prospect.
 </div>
 
+{{-- MARKER-SALES-SITE-SCAN — the website pass runs on the server; this says what it is doing --}}
+@php $ss = $this->siteScanStats(); $ssDone = $ss['with_site'] ? (int) floor(($ss['with_site'] - $ss['left']) * 100 / $ss['with_site']) : 0; @endphp
+<div style="{{ $card }};margin-bottom:16px">
+  <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+    <span style="font-size:13px;font-weight:600">Website pass</span>
+    <span style="{{ $badge }}{{ $ss['paused'] ? 'background:rgba(251,191,36,.18);color:#fbbf24' : ($ss['left'] ? 'background:rgba(139,92,246,.18);color:#a78bfa' : 'background:rgba(74,222,128,.15);color:#4ade80') }}">{{ $ss['paused'] ? 'Paused' : ($ss['left'] ? 'Running' : 'Up to date') }}</span>
+    <span style="{{ $muted }}">{{ number_format($ss['with_site'] - $ss['left']) }} of {{ number_format($ss['with_site']) }} sites read ({{ $ssDone }}%)@if($ss['last']) · last {{ \Illuminate\Support\Carbon::parse($ss['last'])->diffForHumans() }}@endif</span>
+    <button type="button" class="sfs-btn" style="margin-left:auto" wire:click="toggleSiteScan">{{ $ss['paused'] ? 'Resume' : 'Pause' }}</button>
+  </div>
+  <div style="height:4px;border-radius:2px;background:rgba(127,127,127,.18);margin:10px 0 8px;overflow:hidden"><div style="height:100%;width:{{ $ssDone }}%;background:rgb(139,92,246)"></div></div>
+  <div style="{{ $muted }};display:flex;gap:16px;flex-wrap:wrap">
+    <span><b>{{ number_format($ss['emails']) }}</b> with an email</span>
+    <span><b>{{ number_format($ss['socials']) }}</b> with socials</span>
+    <span><b>{{ number_format($ss['brands']) }}</b> with brands</span>
+    <span>{{ number_format(($ss['by']['not_shop_site'] ?? 0) + ($ss['by']['name_mismatch'] ?? 0)) }} links that aren't the shop's own site</span>
+    <span>{{ number_format($ss['by']['unreachable'] ?? 0) }} sites that didn't answer</span>
+  </div>
+  <div style="{{ $muted }};margin-top:8px">
+    Runs on the server every five minutes, about 80 shops at a time, and reads each prospect's own website: home page plus a contact or about page.
+    It fills email and owner only when they are empty, and adds socials and the brands the site mentions. Nothing a person typed is changed.
+    Brand dealer pages, booking tools and sites that don't mention the shop's name are skipped and counted above. Signed-up shops are left alone.
+  </div>
+</div>
+
 @unless($configured)
   {{-- MARKER-SALES-SETUP — the key and budget live on Sales setup › Google Places now. --}}
   <div style="{{ $card }};margin-bottom:16px;border-color:rgba(251,191,36,.5)">

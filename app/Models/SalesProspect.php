@@ -33,6 +33,7 @@ class SalesProspect extends Model
         'postcode', 'territory_id', 'hours', 'enriched_at', // MARKER-SALES-FIND
         'invite_token', 'invite_email', 'invite_plan', 'invited_at', 'converted_at', // MARKER-SALES-INVITE
         'import_batch', // MARKER-SALES-ROUTE
+        'socials', 'brands', 'site_scanned_at', 'site_scan_status', // MARKER-SALES-SITE-SCAN
     ];
 
     protected $casts = [
@@ -47,6 +48,9 @@ class SalesProspect extends Model
         'next_action_on'    => 'date',
         'last_contacted_at' => 'datetime',
         'enriched_at'       => 'datetime', // MARKER-SALES-FIND
+        'socials'           => 'array',    // MARKER-SALES-SITE-SCAN
+        'brands'            => 'array',
+        'site_scanned_at'   => 'datetime',
         'invited_at'        => 'datetime', // MARKER-SALES-INVITE
         'converted_at'      => 'datetime', // MARKER-SALES-INVITE
         'lat'               => 'decimal:6',

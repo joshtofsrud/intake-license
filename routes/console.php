@@ -295,3 +295,9 @@ Schedule::command('platform:process-campaign-sends')
 Schedule::command('seo:check')
     ->dailyAt('04:15')
     ->withoutOverlapping();
+
+// MARKER-SALES-SITE-SCAN — website pass over prospects; Pause/Resume on Find shops.
+Schedule::command('sales:scan-sites --limit=80')
+    ->everyFiveMinutes()
+    ->withoutOverlapping(30)
+    ->runInBackground();

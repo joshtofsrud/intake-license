@@ -139,6 +139,25 @@ class SalesProspectResource extends Resource
                 Forms\Components\TextInput::make('address')->maxLength(255)->columnSpanFull(),
             ]),
 
+            // MARKER-SALES-SITE-SCAN — read-only: what the website pass found.
+            Forms\Components\Section::make('From their website')->collapsed()
+                ->description('Filled by the website pass. Email and owner above are only filled when they were empty.')
+                ->visible(fn (?SalesProspect $record) => $record?->site_scanned_at !== null)
+                ->schema([
+                    Forms\Components\Placeholder::make('site_scan_result')->label('Result')
+                        ->content(fn (?SalesProspect $record) => match ($record?->site_scan_status) {
+                            'ok' => 'Read', 'nothing_found' => 'Read — nothing to pull', 'unreachable' => "Site didn't answer",
+                            'not_shop_site' => "Link isn't the shop's own site", 'name_mismatch' => "Site doesn't mention this shop's name",
+                            'social_only' => 'Link is a social page', 'no_site' => 'No website', default => (string) $record?->site_scan_status,
+                        } . ' · ' . $record?->site_scanned_at?->diffForHumans()),
+                    Forms\Components\Placeholder::make('site_socials')->label('Socials')
+                        ->content(fn (?SalesProspect $record) => new \Illuminate\Support\HtmlString(collect($record?->socials ?? [])
+                            ->map(fn ($u, $net) => '<a href="' . e($u) . '" target="_blank" rel="noopener" style="color:#a78bfa">' . e(ucfirst($net)) . '</a>')
+                            ->implode(' · ') ?: '—')),
+                    Forms\Components\Placeholder::make('site_brands')->label('Brands mentioned')
+                        ->content(fn (?SalesProspect $record) => implode(', ', $record?->brands ?? []) ?: '—'),
+                ]),
+
             Forms\Components\Section::make('Google Places data')->columns(3)->collapsed()
                 ->description('Synced from the discovery pipeline. Refreshed on each import; safe to leave as-is.')
                 ->schema([

@@ -91,6 +91,32 @@ class SalesFindShops extends Page
     public function estimateCents(): int { return (1 + max(1, (int) ceil($this->radius / 10))) * SalesSetting::placesCostCents(); }
     public function recentSearches() { return SalesPlacesSearch::latest()->limit(6)->get(); }
 
+    // MARKER-SALES-SITE-SCAN — website pass progress and Pause/Resume.
+    public function siteScanStats(): array
+    {
+        $base = \App\Models\SalesProspect::query()->whereNull('tenant_id');
+        $site = (clone $base)->whereNotNull('website')->where('website', '!=', '');
+        $by = (clone $base)->whereNotNull('site_scanned_at')->selectRaw('site_scan_status s, COUNT(*) n')->groupBy('site_scan_status')->pluck('n', 's')->all();
+        return [
+            'with_site' => (clone $site)->count(),
+            'left'      => (clone $site)->whereNull('site_scanned_at')->count(),
+            'read'      => array_sum($by),
+            'by'        => $by,
+            'emails'    => (clone $base)->whereNotNull('site_scanned_at')->whereNotNull('email')->where('email', '!=', '')->count(),
+            'socials'   => (clone $base)->whereNotNull('socials')->count(),
+            'brands'    => (clone $base)->whereNotNull('brands')->count(),
+            'last'      => (clone $base)->max('site_scanned_at'),
+            'paused'    => \App\Models\SalesSetting::get('site_scan_paused') === '1',
+        ];
+    }
+
+    public function toggleSiteScan(): void
+    {
+        $paused = \App\Models\SalesSetting::get('site_scan_paused') === '1';
+        \App\Models\SalesSetting::put('site_scan_paused', $paused ? '0' : '1');
+        Notification::make()->title($paused ? 'Website pass resumed' : 'Website pass paused')->success()->send();
+    }
+
     public function search(): void
     {
         // MARKER-SALES-INDUSTRY — the message now shows under Where (it used to fail silently).
