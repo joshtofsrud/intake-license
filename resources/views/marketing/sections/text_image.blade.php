@@ -102,9 +102,19 @@
   .{{ $tiId }} .ti-pin { position: sticky; top: 80px; } /* MARKER-TI-SCROLL-TIGHT — top set by script to centre it */
   .{{ $tiId }} .ti-pin > .mk-container { width: 100%; }
   .{{ $tiId }} .ti-acc.is-scroll .ti-item.is-open::before { width: calc(var(--p, 0) * 100%); transition: none; }
-  @media (max-width: 760px), (prefers-reduced-motion: reduce) {
+  /* MARKER-TI-SCROLL-PHONE — phones scroll too. The open item's picture gets a
+     fixed height so the whole block fits on screen while it is held in place;
+     a block that still can't fit drops back to the tap-to-open accordion. */
+  @media (prefers-reduced-motion: reduce) {
     .{{ $tiId }} .ti-track { height: auto !important; }
     .{{ $tiId }} .ti-pin { position: static; }
+  }
+  .{{ $tiId }} .ti-track.ti-nofit { height: auto !important; }
+  .{{ $tiId }} .ti-track.ti-nofit .ti-pin { position: static; }
+  @media (max-width: 760px) {
+    .{{ $tiId }} .ti-acc.is-scroll .ti-img-in { aspect-ratio: auto; background: none; box-shadow: none; }
+    .{{ $tiId }} .ti-acc.is-scroll .ti-img-in img { width: 100%; height: min(32vh, 62vw); object-fit: contain; }
+    .{{ $tiId }} .ti-acc.is-scroll .ti-head { padding: 16px 0; }
   }
 @endif
   .{{ $tiId }}.ti-auto .ti-item.is-open::before { width: 0; transition: none; }
@@ -258,14 +268,22 @@
     // MARKER-TI-SCROLL — which item is open follows the scroll position.
     var scrollers = [], raf = 0;
     function scrollOn(acc) {
-      return acc.getAttribute('data-ti-scroll') === '1' && !reduce
-        && !(window.matchMedia && window.matchMedia('(max-width: 760px)').matches) && acc.closest('.ti-track');
+      // MARKER-TI-SCROLL-PHONE — no phone exclusion; only a block too tall for the screen is left out.
+      return acc.getAttribute('data-ti-scroll') === '1' && !reduce && !acc.__tiNoFit && acc.closest('.ti-track');
     }
     function drive() {
       raf = 0;
       scrollers.forEach(function (acc) {
-        if (!scrollOn(acc)) { acc.classList.remove('is-scroll'); var t0 = acc.closest('.ti-track'); if (t0) { t0.style.height = ''; } return; }
+        if (!scrollOn(acc)) { acc.classList.remove('is-scroll'); var t0 = acc.closest('.ti-track'); if (t0) { t0.style.height = ''; t0.__h = null; } return; }
         acc.classList.add('is-scroll');
+        // MARKER-TI-SCROLL-PHONE — the block must fit on screen with its tallest item open.
+        var tr = acc.closest('.ti-track'), pn = tr.querySelector('.ti-pin');
+        if (need(acc, pn) > window.innerHeight - 92) {
+          acc.__tiNoFit = true; tr.classList.add('ti-nofit');
+          acc.classList.remove('is-scroll'); tr.style.height = ''; tr.__h = null; pn.style.top = ''; pn.__top = null;
+          items(acc).forEach(function (it) { it.style.removeProperty('--p'); });
+          return;
+        }
         var g = geo(acc), list = items(acc), n = list.length;
         if (g.total <= 0) return;
         var r = g.track.getBoundingClientRect();
@@ -287,9 +305,26 @@
       if (track.__h !== want) { track.style.height = want + 'px'; track.__h = want; }
       return { track: track, top: top, total: want - h };
     }
+    // MARKER-TI-SCROLL-PHONE — block height with the TALLEST item open: the
+    // open panels are swapped for the biggest panel's full height.
+    function need(acc, pin) {
+      var cur = 0, max = 0;
+      acc.querySelectorAll('.ti-item .ti-panel > div').forEach(function (d) { cur += d.offsetHeight; max = Math.max(max, d.scrollHeight); });
+      return pin.offsetHeight - cur + max;
+    }
     function queue() { if (!raf) raf = window.requestAnimationFrame(drive); }
     window.addEventListener('scroll', queue, { passive: true });
-    window.addEventListener('resize', queue);
+    var rzT = 0;
+    window.addEventListener('resize', function () {
+      // a turned phone or resized window gets a fresh fit check
+      clearTimeout(rzT);
+      rzT = setTimeout(function () {
+        scrollers.forEach(function (acc) { acc.__tiNoFit = false; var t = acc.closest('.ti-track'); if (t) t.classList.remove('ti-nofit'); });
+        queue();
+      }, 150);
+    });
+    // a picture that loads late can make the block taller
+    document.addEventListener('load', function (e) { if (e.target && e.target.closest && e.target.closest('[data-ti-acc]')) queue(); }, true);
     function init(acc) {
       if (acc.__tiReady) return; acc.__tiReady = true;
       if (acc.getAttribute('data-ti-scroll') === '1') { scrollers.push(acc); queue(); }
