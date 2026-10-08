@@ -18,14 +18,14 @@ class AuthController extends Controller
 {
     public function showLogin()
     {
-        // MARKER-LOGIN-NO-TENANT — reserved hosts (api, www, app…) never get a
+        // reserved hosts (api, www, app…) never get a
         // tenant from ResolveTenant, and this view cannot render without one.
         // Send them to the platform sign-in rather than throwing.
         if (! tenant()) {
             return redirect()->away('https://' . config('intake.domain', 'intake.works') . '/login');
         }
 
-        // MARKER-DEMO-FIXES — nobody can sign in to the demo by hand.
+        // nobody can sign in to the demo by hand.
         $demoTenant = tenant();
         if ($demoTenant && $demoTenant->is_demo && ! Auth::guard('tenant')->check()) {
             return redirect('https://' . config('intake.domain') . '/demo');
@@ -70,7 +70,7 @@ class AuthController extends Controller
         $request->session()->regenerate();
         $user->forceFill(['last_login_at' => now()])->save();
 
-        // MARKER-PATCH-497 — a password sign-in is stronger auth than a PIN,
+        // a password sign-in is stronger auth than a PIN,
         // so stamp PIN freshness or EnsurePinFresh locks the very first page.
         $request->session()->put('last_pin_activity_at', now()->toIso8601String());
 
@@ -124,7 +124,7 @@ class AuthController extends Controller
             }
         }
 
-        // MARKER-DEMO-FIXES — on a demo tenant there is no password to log
+        // on a demo tenant there is no password to log
         // back in with, so a logout would break the demo until the next
         // reset. Send them through the front door again instead.
         $demoTenant = tenant();
@@ -141,7 +141,7 @@ class AuthController extends Controller
 
     public function showForgot()
     {
-        // MARKER-LOGIN-NO-TENANT — reserved hosts (api, www, app…) never get a
+        // reserved hosts (api, www, app…) never get a
         // tenant from ResolveTenant, and these views cannot render without one.
         // Send them to the platform sign-in rather than throwing.
         if (! tenant()) {
@@ -171,7 +171,6 @@ class AuthController extends Controller
 
             $resetUrl = route('tenant.reset') . '?token=' . $token;
 
-            // MARKER-LEDGER-STRAGGLERS
             $ledger = \App\Services\EmailLedger::begin($tenant->id, 'staff', $user->email, 'staff_password_reset');
             try {
                 Mail::to($user->email)->send(
@@ -189,7 +188,7 @@ class AuthController extends Controller
 
     public function showReset(Request $request)
     {
-        // MARKER-LOGIN-NO-TENANT — reserved hosts (api, www, app…) never get a
+        // reserved hosts (api, www, app…) never get a
         // tenant from ResolveTenant, and these views cannot render without one.
         // Send them to the platform sign-in rather than throwing.
         if (! tenant()) {
@@ -231,7 +230,7 @@ class AuthController extends Controller
         Cache::forget($cacheKey);
 
         Auth::guard('tenant')->login($user);
-        // MARKER-PATCH-497 — see login(): stamp PIN freshness on password auth.
+        // see login(): stamp PIN freshness on password auth.
         $request->session()->put('last_pin_activity_at', now()->toIso8601String());
 
         return redirect()->route('tenant.dashboard')

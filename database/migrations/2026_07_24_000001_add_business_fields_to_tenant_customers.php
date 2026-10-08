@@ -1,6 +1,6 @@
 <?php
 
-// MARKER-BIZ-CUSTOMER — business customers live on the customer record rather
+// business customers live on the customer record rather
 // than a separate entity: a business still has assets, appointments, sales,
 // history and a login, and splitting it would fork every query in the app.
 // customer_type defaults to 'individual', so every existing record and every

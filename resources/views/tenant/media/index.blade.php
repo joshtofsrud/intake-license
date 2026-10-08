@@ -1,5 +1,5 @@
 @extends('layouts.tenant.app')
-{{-- MARKER-PATCH-258 — media library --}}
+{{-- media library --}}
 @section('title', 'Media')
 
 @push('styles')
@@ -19,7 +19,7 @@
   .ml-meta { padding:8px 10px; }
   .ml-name { font-size:11.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .ml-dims { font-size:10px; color:var(--ia-dim,rgba(255,255,255,.5)); font-family:ui-monospace,monospace; margin-top:2px; }
-  /* MARKER-MEDIA-DELETE — tile actions sit together; on touch screens (no hover) they're always shown. */
+  /* tile actions sit together; on touch screens (no hover) they're always shown. */
   .ml-acts { position:absolute; top:7px; right:7px; display:flex; gap:5px; opacity:0; transition:opacity .12s; }
   .ml-card:hover .ml-acts, .ml-card:focus-within .ml-acts { opacity:1; }
   @media (hover: none) { .ml-acts { opacity:1; } }
@@ -30,7 +30,6 @@
   .ml-empty { border:.5px dashed var(--ia-border,rgba(255,255,255,.13)); border-radius:12px; padding:48px; text-align:center; color:var(--ia-dim,rgba(255,255,255,.5)); font-size:13.5px; }
   .ml-upload-btn { position:relative; overflow:hidden; }
   .ml-upload-btn input { position:absolute; inset:0; opacity:0; cursor:pointer; }
-  /* MARKER-MEDIA-STORAGE-METER */
   .ml-meter { border:.5px solid var(--ia-border,rgba(255,255,255,.13)); border-radius:11px; padding:12px 14px; margin-bottom:18px; background:var(--ia-surface,#1c1c1c); }
   .ml-meter-row { display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; font-size:13px; }
   .ml-meter-row b { font-weight:600; font-variant-numeric:tabular-nums; }
@@ -59,7 +58,6 @@
     </label>
   </div>
 
-  {{-- MARKER-MEDIA-STORAGE-METER --}}
   <div class="ml-meter">
     <div class="ml-meter-row">
       @if($storage['limit'] > 0)
@@ -97,7 +95,6 @@
       @foreach($folders as $f)
         <a href="{{ route('tenant.media.index', array_filter(['folder'=>$f,'q'=>$q])) }}" class="ml-chip {{ $folder === $f ? 'on' : '' }}">{{ ucfirst(str_replace('_',' ',$f)) }}</a>
       @endforeach
-      {{-- MARKER-MEDIA-DELETE --}}
       <a href="{{ route('tenant.media.index', array_filter(['archived'=>1,'q'=>$q])) }}" class="ml-chip ml-chip--arch {{ $archived ? 'on' : '' }}">Archived</a>
     </div>
   </div>
@@ -111,7 +108,7 @@
       @foreach($media as $m)
         <div class="ml-card" data-id="{{ $m->id }}">
           <div class="ml-thumb" style="background-image:url('{{ $m->url }}')"></div>
-          {{-- MARKER-MEDIA-DELETE — Archive hides; Delete removes the file. --}}
+          {{-- Archive hides; Delete removes the file. --}}
           <div class="ml-acts">
             @if(! $archived)
               <button type="button" class="ml-archive" title="Archive: hide from the library, keep the file" onclick="mlArchive('{{ $m->id }}', this)">&times;</button>
@@ -154,7 +151,7 @@
         });
         const d = await r.json();
         if (d.ok) ok++;
-        else if (!firstErr) firstErr = d.message || (d.errors && Object.values(d.errors)[0] && Object.values(d.errors)[0][0]) || ''; // MARKER-MEDIA-STORAGE-METER
+        else if (!firstErr) firstErr = d.message || (d.errors && Object.values(d.errors)[0] && Object.values(d.errors)[0][0]) || '';
       } catch (e) { /* counted below */ }
     }
     if (window.IntakeToast) {
@@ -164,7 +161,7 @@
     setTimeout(() => window.location.reload(), 700);
   });
 
-  // MARKER-MEDIA-DELETE — Delete: in-app dialog, server refuses if the image is in use.
+  // Delete: in-app dialog, server refuses if the image is in use.
   document.addEventListener('click', async function (e) {
     const btn = e.target.closest ? e.target.closest('[data-ml-delete]') : null;
     if (!btn || !window.IntakeConfirm) return;
@@ -197,7 +194,7 @@
 
   // Archive — soft-delete; file stays on disk so live pages keep rendering.
   window.mlArchive = async function (id, btn) {
-    if (!(await iaConfirm('Remove this from your library? Pages already using it keep working.'))) return; // MARKER-INLINE-CONFIRM-1
+    if (!(await iaConfirm('Remove this from your library? Pages already using it keep working.'))) return;
     try {
       const r = await fetch('{{ url('admin/media') }}/' + id + '/archive', {
         method: 'POST', headers: { 'X-CSRF-TOKEN': csrf },

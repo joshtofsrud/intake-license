@@ -7,7 +7,7 @@ use App\Models\Tenant\CatalogChangeItem;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * MARKER-CATALOG-HISTORY — records what a bulk action changed, so it can be
+ * records what a bulk action changed, so it can be
  * put back.
  *
  * Deliberately forgiving: every method swallows its own failure. A broken
@@ -109,7 +109,7 @@ class CatalogChangeRecorder
 
             return $this->batch->id;
         } catch (\Throwable $e) {
-            logger()->warning('MARKER-CATALOG-HISTORY could not record a batch', [
+            logger()->warning('catalog-history: could not record a batch', [
                 'action' => $this->action, 'error' => $e->getMessage(),
             ]);
             return null;

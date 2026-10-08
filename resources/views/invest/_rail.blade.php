@@ -1,4 +1,4 @@
-{{-- MARKER-INVEST-RAIL / MARKER-INVEST-RAILMENU
+{{--
      $rail:     [ ['#anchor', 'Label', 'section-id'|null] ] — a third value means
                 the item opens a collapsible section and carries a dot.
                 An item ['menu', 'Label', null] renders the dropdown below.
@@ -24,13 +24,13 @@
         </div>
       </div>
     @else
-      <a href="{{ $href }}"@if($sec) data-sec="{{ $sec }}"@endif @if($href === '#talk' || str_contains($href, '/book/') || str_contains($href, '/demo')) {{-- MARKER-INVEST-DEMO --}} style="color:var(--lime)"@endif>@if($sec)<i></i>@endif{{ $label }}</a>
+      <a href="{{ $href }}"@if($sec) data-sec="{{ $sec }}"@endif @if($href === '#talk' || str_contains($href, '/book/') || str_contains($href, '/demo'))  style="color:var(--lime)"@endif>@if($sec)<i></i>@endif{{ $label }}</a>
     @endif
   @endforeach
 </div></div>
 
 <style>
-/* MARKER-INVEST-RAILMENU — the menu borrows the rail's own type and colors. */
+/* the menu borrows the rail's own type and colors. */
 .rail-menu{position:relative;flex:0 0 auto}
 .rail-menu > button{all:unset;cursor:pointer;font-size:13px;font-weight:550;color:var(--body);
   white-space:nowrap;display:flex;align-items:center;gap:7px;transition:color .12s}
@@ -54,7 +54,7 @@
 
 <script>
 (function () {
-  // MARKER-INVEST-RAIL — a link that scrolls to a closed box reads as broken,
+  // a link that scrolls to a closed box reads as broken,
   // so opening the section is part of following the link. Applies to rail
   // links and menu links alike.
   document.querySelectorAll('.rail a[data-sec], .rail-pop a[data-sec]').forEach(function (a) {
@@ -68,7 +68,7 @@
     sync();
   });
 
-  // MARKER-INVEST-MOBILE-PASS — show a fade only on the side there is more to
+  // show a fade only on the side there is more to
   // see, so it never suggests scrolling that is not there.
   var rail = document.querySelector('.rail');
   var strip = rail && rail.querySelector('.wrap');
@@ -83,7 +83,7 @@
     sync();
   }
 
-  // MARKER-INVEST-RAILMENU — the dropdown itself.
+  // the dropdown itself.
   var menus = document.querySelectorAll('.rail-menu');
   menus.forEach(function (menu) {
     var btn = menu.querySelector('[data-rail-menu]');

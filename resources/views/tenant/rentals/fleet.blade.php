@@ -1,7 +1,7 @@
 @extends('layouts.tenant.app')
 @php $pageTitle = 'Fleet'; @endphp
 
-{{-- MARKER-PATCH-227 — scaled fleet: category -> model -> unit, rollups,
+{{-- scaled fleet: category -> model -> unit, rollups,
      search/filter/paginate, bulk add. Inline-edit reuses the fleet PATCH
      protocol ({field,value}). --}}
 
@@ -37,9 +37,8 @@
   .fl-chip b{font-weight:600}
   .fl-chip.season{background:rgba(224,168,46,.13);color:#E0A82E}
   .fl-mins{font-size:11.5px;opacity:.6;white-space:nowrap}
-  /* MARKER-PATCH-236 — pricing form is a drawer behind ✎ Edit, not the default view. */
+  /* pricing form is a drawer behind ✎ Edit, not the default view. */
   .fl-model-body{display:none;border-top:.5px solid var(--ia-border-strong,rgba(255,255,255,.22));padding:14px;background:rgba(255,255,255,.03)}
-  /* MARKER-RENTAL-MODEL-PHOTOS */
   .fl-photo{display:flex;align-items:center;gap:10px}
   .fl-photo-thumb{width:64px;height:48px;border-radius:8px;border:.5px solid var(--ia-border);background:rgba(255,255,255,.05) center/cover no-repeat}
   .fl-model.editing .fl-model-body{display:block;animation:fl-slide .14s ease}
@@ -49,17 +48,17 @@
   .fl-model.editing .fl-editbtn{background:var(--ia-accent,#BEF264);color:#0a0a0a;border-color:transparent}
   .fl-units{display:none;border-top:.5px solid var(--ia-border);background:rgba(255,255,255,.012);padding:4px}
   .fl-model.open .fl-units{display:block}
-  /* MARKER-PATCH-236 — roster grid: condition + last rented + utilization, whole row links to unit detail. */
+  /* roster grid: condition + last rented + utilization, whole row links to unit detail. */
   .fl-uhead{display:grid;grid-template-columns:120px 80px 1fr 130px 90px 70px 64px;gap:10px;padding:6px 12px;font-size:10px;text-transform:uppercase;letter-spacing:.05em;opacity:.5}
   .fl-uline{display:grid;grid-template-columns:120px 80px 1fr 130px 90px 70px 64px;gap:10px;align-items:center;padding:8px 12px;border-radius:var(--ia-r-sm);font-size:12.5px;text-decoration:none;color:inherit;cursor:pointer}
-  /* MARKER-PATCH-236B — constant button, not a hover reveal. */
+  /* constant button, not a hover reveal. */
   .fl-ulink{font-size:11.5px;font-weight:550;padding:4px 11px;border:.5px solid var(--ia-border);border-radius:6px;color:var(--ia-text-dim,rgba(255,255,255,.55));justify-self:end;white-space:nowrap;transition:all .1s}
   .fl-uline:hover .fl-ulink{color:#0a0a0a;background:var(--ia-accent,#BEF264);border-color:transparent}
   .fl-cond{display:flex;gap:8px;font-size:11.5px;align-items:center}
   .fl-uline:hover{background:var(--ia-hover,rgba(255,255,255,.05))}
   .fl-uline input,.fl-uline select{background:transparent;border:.5px solid transparent;border-radius:var(--ia-r-sm);padding:3px 6px;color:inherit;font:inherit;font-size:12.5px;width:100%}
   .fl-uline input:hover,.fl-uline select:hover{border-color:var(--ia-border)}
-  /* MARKER-FLEET-IDENT — axis help popover + identifier chips */
+  /* axis help popover + identifier chips */
   .fl-help{position:relative;display:inline-flex;margin-left:6px}
   .fl-help-dot{width:15px;height:15px;border-radius:50%;border:.5px solid var(--ia-border-strong,rgba(255,255,255,.22));color:var(--ia-text-dim,rgba(255,255,255,.55));background:none;font-size:10px;font-weight:700;line-height:1;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0}
   .fl-help-dot:hover,.fl-help.open .fl-help-dot{color:#0a0a0a;background:var(--ia-accent,#BEF264);border-color:transparent}
@@ -73,15 +72,15 @@
   .fl-idf-chip{display:inline-flex;align-items:center;gap:6px;background:var(--ia-surface-2,#262626);border:.5px solid var(--ia-border);border-radius:999px;padding:4px 6px 4px 12px;font-size:12.5px}
   .fl-idf-x{width:16px;height:16px;border:none;border-radius:50%;background:rgba(255,255,255,.1);color:var(--ia-text-dim,rgba(255,255,255,.55));font-size:10px;line-height:1;cursor:pointer;padding:0}
   .fl-idf-x:hover{background:#E0573E;color:#fff}
-  /* MARKER-FLEET-IDENT-UX — ✓ commit lives inside the input, shown with text */
+  /* ✓ commit lives inside the input, shown with text */
   .fl-idf-addwrap{position:relative;display:inline-flex;align-items:center}
   .fl-idf-ok{position:absolute;right:5px;width:20px;height:20px;border:none;border-radius:50%;background:var(--ia-accent,#BEF264);color:#0a0a0a;font-size:11px;font-weight:700;line-height:1;cursor:pointer;padding:0;display:none;align-items:center;justify-content:center}
   .fl-idf-addwrap.has-text .fl-idf-ok{display:flex}
-  /* MARKER-FLEET-PHOTOS — model photo strip, unit photo buttons, picker modal */
+  /* model photo strip, unit photo buttons, picker modal */
   .fl-pset{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
   .fl-pset-item{position:relative;width:56px;height:42px;border-radius:8px;border:.5px solid var(--ia-border);background:rgba(255,255,255,.05) center/cover no-repeat}
   .fl-pset-x{position:absolute;top:-6px;right:-6px;width:17px;height:17px;border:none;border-radius:50%;background:#E0573E;color:#fff;font-size:10px;line-height:1;cursor:pointer;padding:0}
-  /* MARKER-FLEET-PHOTOLIST — star marks the main photo; tabs in the picker */
+  /* star marks the main photo; tabs in the picker */
   .fl-pset-item{width:64px;height:48px}
   .fl-pset-item.is-main{border:1.5px solid var(--ia-accent,#BEF264)}
   .fl-pset-star{position:absolute;bottom:-6px;left:-6px;width:19px;height:19px;border:none;border-radius:50%;background:var(--ia-surface-2,#262626);color:rgba(255,255,255,.45);font-size:10px;line-height:1;cursor:pointer;padding:0;box-shadow:0 1px 4px rgba(0,0,0,.5)}
@@ -122,25 +121,25 @@
   .fl-pager a{padding:6px 11px;border-radius:var(--ia-r-md);border:.5px solid var(--ia-border);text-decoration:none;color:inherit;font-size:12.5px}
   .fl-pager a.cur{background:var(--ia-accent,#BEF264);color:#0a0a0a;border-color:transparent;font-weight:650}
   .fl-add-line{display:flex;gap:8px;align-items:center;padding:8px 12px}
-  /* MARKER-PATCH-242 — slim ghost add-forms, no native triangle. The +
+  /* slim ghost add-forms, no native triangle. The +
      is the affordance and rotates to x when open. */
   details.fl-section{border-style:dashed;background:transparent;transition:background var(--ia-t,.12s)}
   details.fl-section:hover{background:var(--ia-hover,rgba(255,255,255,.05))}
-  details.fl-section[open]{border-style:solid;background:var(--ia-surface,#1c1c1c);grid-column:1/-1} /* MARKER-PATCH-243 — open form gets the whole row */
+  details.fl-section[open]{border-style:solid;background:var(--ia-surface,#1c1c1c);grid-column:1/-1} /* open form gets the whole row */
   details.fl-section summary{cursor:pointer;font-size:12.5px;font-weight:550;color:var(--ia-text-dim,rgba(255,255,255,.55));padding:2px 0;display:flex;align-items:center;gap:9px;list-style:none}
   details.fl-section summary::-webkit-details-marker{display:none}
   details.fl-section summary::before{content:'+';font-size:15px;font-weight:600;width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;transition:transform .14s ease;flex-shrink:0}
   details.fl-section[open] summary::before{transform:rotate(45deg)}
   details.fl-section[open] summary{color:var(--ia-text,#f0f0f0)}
   details.fl-section summary:hover{color:var(--ia-text,#f0f0f0)}
-  /* MARKER-PATCH-243 — category inline edit + checklist manager rows. */
+  /* category inline edit + checklist manager rows. */
   .fl-cat-editbtn{font-size:11px;padding:2px 8px;border:.5px solid var(--ia-border);border-radius:5px;background:none;color:var(--ia-text-dim,rgba(255,255,255,.55));margin-left:10px;vertical-align:2px}
   .fl-cat-editbtn:hover{color:var(--ia-text,#f0f0f0);background:var(--ia-hover,rgba(255,255,255,.05))}
   .fl-cat-edit{display:none;gap:10px;align-items:end;padding:12px 18px;border-top:.5px solid var(--ia-border);background:rgba(255,255,255,.02);flex-wrap:wrap}
   .fl-cat-edit.open{display:flex}
   .fl-ct-row{border:.5px solid var(--ia-border);border-radius:var(--ia-r-md,8px);padding:10px 12px;margin-bottom:10px}
   .fl-ct-row textarea.fl-inp{min-height:74px;resize:vertical;font-size:12px;line-height:1.5;width:100%}
-  /* MARKER-PATCH-245 — edit rows fill their card; content stays readable. */
+  /* edit rows fill their card; content stays readable. */
   .fl-ct-row input[data-ctf=name]{flex:1;min-width:0}
   .fl-ct-wrap{max-width:660px}
 </style>
@@ -190,7 +189,7 @@
       <div class="fl-disc"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></div>
       <div>
         <div class="fl-cat-name"><span class="fl-cat-name-txt">{{ $cat->name }}</span>
-          {{-- MARKER-PATCH-243 — inline category edit. --}}
+          {{-- inline category edit. --}}
           <button type="button" class="fl-cat-editbtn" onclick="event.stopPropagation();this.closest('.fl-cat').querySelector('.fl-cat-edit').classList.toggle('open');this.closest('.fl-cat').classList.add('open')">✎</button>
         </div>
         <div class="fl-cat-axis"><span class="fl-cat-axis-txt">{{ $cat->size_axis ? 'Size axis: ' . $cat->size_axis . ' · ' : '' }}</span>{{ $r['models'] }} model{{ $r['models'] === 1 ? '' : 's' }}</div>
@@ -206,7 +205,7 @@
         <div class="fl-seg mt" style="width:{{ $r['maintenance']/$t*100 }}%"></div>
       </div>
     </div>
-    {{-- MARKER-PATCH-243 — category edit strip: same {field,value} auto-save
+    {{-- category edit strip: same {field,value} auto-save
          contract as everything else on this page. --}}
     <div class="fl-cat-edit" data-cat="{{ $cat->id }}">
       <div class="fl-fg" style="min-width:200px;flex:1"><span class="fl-lbl">Category name</span><input class="fl-inp" value="{{ $cat->name }}" data-cf="name"></div>
@@ -229,7 +228,7 @@
             <div class="fl-mins" data-unit-count>{{ $model->view_units->count() }} unit{{ $model->view_units->count() === 1 ? '' : 's' }}</div>
             <span style="display:flex;gap:8px;align-items:center">
               <span class="pill av" data-avail-count>{{ $model->avail_count }} free</span>
-              {{-- MARKER-PATCH-236 — pricing form opens on demand. --}}
+              {{-- pricing form opens on demand. --}}
               <button type="button" class="fl-editbtn" onclick="event.stopPropagation();this.closest('.fl-model').classList.toggle('editing');this.closest('.fl-model').classList.add('open')">✎ Edit</button>
             </span>
           </div>
@@ -237,11 +236,11 @@
           {{-- model edit drawer --}}
           <div class="fl-model-body" data-model="{{ $model->id }}">
             <div class="fl-fieldgrid">
-              {{-- MARKER-RENTAL-MODEL-PHOTOS — one marketing photo per model.
+              {{-- one marketing photo per model.
                    Uploads through the tenant uploads endpoint, then saves the
                    URL over the same data-mf autosave rail as every field. --}}
-              {{-- MARKER-FLEET-PHOTOS — the set units pick from.
-                   MARKER-FLEET-PHOTOLIST — one list; ★ marks the main photo
+              {{-- the set units pick from.
+                   one list; ★ marks the main photo
                    (saved to image_url, which the public pages read). Any
                    pre-existing main photo is merged in so nothing is lost. --}}
               @php
@@ -270,8 +269,8 @@
                   @foreach($conditionTemplates as $ct)<option value="{{ $ct->id }}" {{ $model->condition_template_id === $ct->id ? 'selected' : '' }}>{{ $ct->name }}</option>@endforeach
                 </select>
               </div>
-              {{-- MARKER-FLEET-IDENT — up to 3 per-model unit fields (Color, Wheel size…).
-                   MARKER-FLEET-IDENT-UX — ✓ commit in the input, reserved names
+              {{-- up to 3 per-model unit fields (Color, Wheel size…).
+                   ✓ commit in the input, reserved names
                    filtered at render so built-in columns can't be duplicated. --}}
               @php
                 $mIdents = array_values(array_filter($model->identifiers ?? [],
@@ -291,7 +290,7 @@
                 </div>
               </div>
               <div class="fl-fg" style="justify-content:end"><button type="button" class="ia-btn" onclick="flArchiveModel('{{ $model->id }}')">Archive model</button></div>
-              {{-- MARKER-FLEET-SAVE — explicit save, the app standard. --}}
+              {{-- explicit save, the app standard. --}}
               <div style="grid-column:1/5;display:flex;gap:12px;align-items:center;justify-content:flex-end;border-top:.5px solid var(--ia-border);padding-top:12px">
                 <span data-msave-note style="font-size:11.5px;color:var(--ia-accent,#BEF264);opacity:0;transition:opacity .25s">✓ Saved</span>
                 <button type="button" class="ia-btn ia-btn--primary" data-msave>Save model</button>
@@ -301,11 +300,11 @@
 
           {{-- units --}}
           <div class="fl-units">
-            {{-- MARKER-PATCH-236 — roster rows: condition and history are the
+            {{-- roster rows: condition and history are the
                  content; the whole row opens the unit detail page where
                  damage, photos, and per-unit edits live. --}}
             @php
-              // MARKER-FLEET-IDENT — identifier columns slot between Size and
+              // identifier columns slot between Size and
               // Condition. $mIdents is set (reserved-filtered) in the drawer above.
               $uGrid = count($mIdents)
                   ? '120px 70px ' . str_repeat('minmax(80px,140px) ', count($mIdents)) . '1fr 130px 90px 70px 64px'
@@ -345,7 +344,7 @@
             @endforeach
             <div class="fl-add-line">
               <button type="button" class="ia-btn ia-btn--sm" onclick="document.getElementById('bulk-{{ $model->id }}').style.display='flex';this.style.display='none'">+ Add units</button>
-              {{-- MARKER-FLEET-IDENT — labeled inputs (the headers above belong
+              {{-- labeled inputs (the headers above belong
                    to the unit list, not this form) + one input per model
                    identifier, applied to every unit in the batch. --}}
               <form method="POST" action="{{ route('tenant.rentals.fleet.units.bulk') }}" id="bulk-{{ $model->id }}" data-add-form style="display:none;gap:10px;align-items:flex-end;flex-wrap:wrap">
@@ -405,7 +404,7 @@
   <details class="ia-card fl-section" style="padding:11px 16px">
     <summary>Condition checklists{{ $conditionTemplates->isNotEmpty() ? ' (' . $conditionTemplates->count() . ')' : '' }}</summary>
 
-    {{-- MARKER-PATCH-243 — manage existing checklists: name + items edit
+    {{-- manage existing checklists: name + items edit
          in place (one item per line, same shape as creation), delete with
          confirm. Endpoints shipped in PATCH-218; this is their UI. --}}
     @if($conditionTemplates->isNotEmpty())
@@ -431,7 +430,7 @@
     </form>
   </details>
 
-  {{-- add model — MARKER-PATCH-242: lives in the same row now --}}
+  {{-- add model — lives in the same row now --}}
   <details class="ia-card fl-section" style="padding:11px 16px" id="fl-add-model-d">
     <summary id="fl-add-model">Add a model</summary>
   <form method="POST" action="{{ route('tenant.rentals.fleet.models.store') }}" style="margin-top:12px">
@@ -464,7 +463,7 @@
 <script>
 (function(){
   var csrf = '{{ csrf_token() }}';
-  // MARKER-PATCH-244 — every auto-save reports through one toast; errors
+  // every auto-save reports through one toast; errors
   // are no longer swallowed. Saving… → Saved ✓ / message.
   var toast = document.createElement('div');
   toast.id = 'fl-toast';
@@ -502,7 +501,7 @@
     }
   });
   // model field edits
-  // MARKER-FLEET-SAVE — the drawer commits on "Save model" (explicit save is
+  // the drawer commits on "Save model" (explicit save is
   // the app standard); fields mark dirty on change instead of auto-saving.
   document.querySelectorAll('.fl-model-body').forEach(function(body){
     var url = '{{ url('admin/rentals/fleet/models') }}/' + body.getAttribute('data-model');
@@ -523,13 +522,13 @@
         if (i >= fields.length) { done(true); return; }
         var f = fields[i++]; var el = dirty[f];
         patch(url, f, el.value, function(){
-          // MARKER-PATCH-246 — model head name follows the drawer edit.
+          // model head name follows the drawer edit.
           if (f === 'name') {
             var head = body.closest('.fl-model');
             var t = head ? head.querySelector('.fl-model-name') : null;
             if (t) t.textContent = el.value;
           }
-          // MARKER-FLEET-IDENT-UX — unit columns sync once identifiers save.
+          // unit columns sync once identifiers save.
           if (f === 'identifiers') {
             var idents = [];
             try { idents = JSON.parse(el.value || '[]') || []; } catch (e) {}
@@ -543,7 +542,7 @@
     });
   });
   // unit field edits
-  // MARKER-FLEET-IDENT-UX — identifier cells save the row's whole map;
+  // identifier cells save the row's whole map;
   // rebind-safe so live column rebuilds can call it again.
   function flUnitUrl(line){ return '{{ url('admin/rentals/fleet/units') }}/' + line.getAttribute('data-unit'); }
   function flBindIdentCells(line){
@@ -558,7 +557,7 @@
       });
     });
   }
-  // MARKER-FLEET-IDENT-UX — rebuild a model's unit columns + add-form fields
+  // rebuild a model's unit columns + add-form fields
   // in place when its identifiers change. No reload.
   function flSyncIdentCols(card, idents){
     var units = card.querySelector('.fl-units');
@@ -617,7 +616,7 @@
     });
     flBindIdentCells(line);
   });
-  // MARKER-PATCH-243 — category + checklist edit bindings (same patch()
+  // category + checklist edit bindings (same patch()
   // contract) and confirmed deletes.
   document.querySelectorAll('.fl-cat-edit').forEach(function(strip){
     var url = '{{ url('admin/rentals/fleet/categories') }}/' + strip.getAttribute('data-cat');
@@ -625,7 +624,7 @@
       el.addEventListener('change', function(){
         var f = el.getAttribute('data-cf');
         patch(url, f, el.value, function(){
-          // MARKER-PATCH-246 — the header shows what just saved.
+          // the header shows what just saved.
           var cat = strip.closest('.fl-cat');
           if (!cat) return;
           if (f === 'name') {
@@ -646,7 +645,7 @@
       el.addEventListener('change', function(){ patch(url, el.getAttribute('data-ctf'), el.value); });
     });
   });
-  // MARKER-FLEET-PHOTOS — photo set editing + the picker modal.
+  // photo set editing + the picker modal.
   var pmodal = document.createElement('div');
   pmodal.className = 'fl-pmodal';
   pmodal.innerHTML = '<div class="fl-pmodal-card">'
@@ -670,7 +669,7 @@
     try { var l = JSON.parse(wrap.querySelector('[data-mf="photos"]').value || '[]'); return Array.isArray(l) ? l : []; }
     catch (e) { return []; }
   }
-  // MARKER-FLEET-PHOTOLIST — two sources: this model's set, or the media library.
+  // two sources: this model's set, or the media library.
   var pTab = 'model', pModelId = null, libCache = null;
   function note(msg){
     var d = document.createElement('div');
@@ -853,7 +852,7 @@
     draw();
   });
 
-  // MARKER-FLEET-ADD-INLINE — add units without losing your place: post by
+  // add units without losing your place: post by
   // fetch, prepend the new rows, clear the inputs, keep the form open.
   document.querySelectorAll('[data-add-form]').forEach(function(form){
     var units = form.closest('.fl-units');
@@ -950,7 +949,7 @@
     });
   });
 
-  // MARKER-FLEET-IDENT — identifier chips in the model drawer (3 max).
+  // identifier chips in the model drawer (3 max).
   document.querySelectorAll('[data-idf-wrap]').forEach(function(wrap){
     var hidden = wrap.querySelector('[data-mf="identifiers"]');
     var chipsAt = wrap.querySelector('[data-idf-chips]');
@@ -976,7 +975,7 @@
       addBtn.style.display = full ? 'none' : '';
       maxNote.style.display = full ? '' : 'none';
     }
-    // MARKER-FLEET-IDENT-UX — inline errors + ✓ visibility.
+    // inline errors + ✓ visibility.
     var errEl = wrap.querySelector('[data-idf-err]');
     var addwrapEl = wrap.querySelector('[data-idf-addwrap]');
     var RESERVED = ['size', 'serial', 'tag', 'serial / tag', 'status', 'condition', 'identifier'];
@@ -1000,7 +999,7 @@
     });
     draw();
   });
-  // MARKER-FLEET-IDENT — size-axis help popovers (click toggles, outside closes).
+  // size-axis help popovers (click toggles, outside closes).
   document.querySelectorAll('[data-axis-help] .fl-help-dot').forEach(function(dot){
     dot.addEventListener('click', function(e){
       e.stopPropagation();
@@ -1012,7 +1011,7 @@
   document.addEventListener('click', function(){
     document.querySelectorAll('[data-axis-help].open').forEach(function(o){ o.classList.remove('open'); });
   });
-  // MARKER-FLEET-IDENT — in-app dialogs, no browser prompts.
+  // in-app dialogs, no browser prompts.
   window.flDeleteCategory = function(id){
     IntakeConfirm.show({ title: 'Delete this category?', message: 'It must be empty (no models) first.', confirmText: 'Delete', danger: true }).then(function(ok){
       if(!ok) return;

@@ -1,4 +1,3 @@
-{{-- MARKER-TENANT-BILLING --}}
 @php
     $tenant    = $this->tenant();
     $statement = $this->statement();
@@ -45,7 +44,6 @@
         @endif
     </div>
 
-    {{-- MARKER-STATEMENT-HISTORY --}}
     @if($tenant && $statement && ! ($statement['exists'] ?? true))
         <div style="{{ $card }};margin-top:16px">
             <div style="{{ $label }}">{{ $statement['period']['label'] }}</div>
@@ -81,7 +79,6 @@
                 @endif
             </div>
             <div style="{{ $card }}">
-                {{-- MARKER-ALLOWANCE-TIERS --}}
                 @php $allow = $this->allowanceState(); @endphp
                 <div style="{{ $label }}">Included each month</div>
                 <div style="font-size:24px;font-weight:700">{{ number_format($allow['effective']) }}</div>
@@ -107,7 +104,6 @@
         <div style="{{ $card }};margin-top:16px">
             <div style="{{ $label }}">Statement · {{ $statement['period']['label'] }}</div>
             @if($statement['usage_only'] ?? false)
-                {{-- MARKER-STATEMENT-HISTORY --}}
                 <p style="{{ $body }};margin-bottom:10px;opacity:.6">
                     Usage only. Plan and add-ons describe today's arrangement, and there is no record of what
                     this shop had that month, so showing them here would be a guess. Usage is exact — every
@@ -184,7 +180,6 @@
             </table>
         </div>
 
-        {{-- MARKER-BILLING-CONTROLS --}}
         @php $charging = $this->chargingState(); @endphp
 
         <div style="{{ $card }};margin-top:16px">
@@ -239,7 +234,7 @@
             @endif
         </div>
 
-        {{-- MARKER-BILLING-NOTICES — what the shop was told, and what happened after --}}
+        {{-- what the shop was told, and what happened after --}}
         <div style="{{ $card }};margin-top:16px">
             <div style="{{ $label }}">Billing notices sent</div>
             @php $notices = $this->notices(); @endphp
@@ -263,7 +258,7 @@
             </p>
         </div>
 
-        {{-- MARKER-BILLING-CONTROLS — the runs, and what can be done about them --}}
+        {{-- the runs, and what can be done about them --}}
         <div style="{{ $card }};margin-top:16px">
             <div style="{{ $label }}">Charge runs</div>
             @php $runs = $this->runs(); @endphp
@@ -318,7 +313,6 @@
 
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px;margin-top:16px">
             <div style="{{ $card }}">
-                {{-- MARKER-BILLING-CARD --}}
                 <div style="{{ $label }}">Card on file</div>
                 @php $cardState = app(\App\Services\Billing\BillingCardService::class)->cardState($tenant); @endphp
                 @if($cardState['has_card'])

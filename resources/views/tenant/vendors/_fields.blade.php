@@ -1,4 +1,4 @@
-{{-- MARKER-IMPORT-VENDOR-MODAL — the ONE vendor form. Rendered by the vendors
+{{-- the ONE vendor form. Rendered by the vendors
      page and by the import map's create-vendor modal. Nesting corrected from
      the original inline form, where the discount and feed groups sat inside
      the freight group. --}}
@@ -13,13 +13,11 @@
     <input type="text" name="account_number" class="ia-input" value="{{ old('account_number') }}"
            placeholder="Your account # with this vendor">
   </div>
-  {{-- MARKER-SO-PLACEMENT --}}
   <div class="ia-form-group">
     <label class="ia-form-label">Free freight over</label>
     <input type="number" step="0.01" min="0" name="free_freight" class="ia-input"
            placeholder="e.g. 500.00" value="{{ old('free_freight') }}">
   </div>
-  {{-- MARKER-VENDOR-NET-COST --}}
   <div class="ia-form-group">
     <label class="ia-form-label">Program discount %</label>
     <input type="number" step="0.01" min="0" max="100" name="program_discount_pct" class="ia-input"

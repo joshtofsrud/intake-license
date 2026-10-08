@@ -7,7 +7,7 @@ use Closure;
 use Illuminate\Http\Request;
 
 /**
- * MARKER-DEMO-RESET — everything a demo visitor cannot see for themselves, said
+ * everything a demo visitor cannot see for themselves, said
  * in plain words on every page: nothing they send actually sends, and the whole
  * thing resets on the hour. Appended globally so the staff side, the public
  * site and the booking flow all carry it without touching three layouts.
@@ -57,7 +57,7 @@ class DemoBanner
         $label = e(DemoSetting::get('label:' . ($tenant->subdomain ?: 'demo'), 'Bike shop demo'));
         $reset = (bool) request()->query('demo_reset');
         $note  = $reset ? '<b>Just reset — you are starting fresh.</b> ' : '';
-        // MARKER-DEMO-BAR-LINKS — see the same shop from every side, each in a new tab
+        // see the same shop from every side, each in a new tab
         $home  = \App\Models\Tenant\TenantPage::where('tenant_id', $tenant->id)->where('is_home', true)->value('id');
         $edit  = $home ? '/admin/pages/' . $home : '/admin/pages';
         $links = '<a href="/" target="_blank" rel="noopener">View live website</a>'
@@ -67,7 +67,7 @@ class DemoBanner
 
         return <<<HTML
 <style>
-  /* MARKER-DEMO-BAR-MOBILE — desktop: bottom, where nothing else sits. */
+  /* desktop: bottom, where nothing else sits. */
   .demo-bar{position:fixed;left:0;right:0;bottom:0;z-index:2147483000;background:#111;color:#f0f0f0;
     border-top:2px solid #BEF264;font:13px/1.4 Inter,system-ui,sans-serif;padding:9px 14px;
     display:flex;align-items:center;gap:10px;flex-wrap:wrap;box-shadow:0 -6px 24px rgba(0,0,0,.35)}

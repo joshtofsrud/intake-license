@@ -145,7 +145,7 @@
   }
 
   /**
-   * MARKER-AUDIENCE-POLISH — a text prompt in the app's own dialog, because
+   * a text prompt in the app's own dialog, because
    * every caller that wanted one was falling back to window.prompt.
    * Resolves with the trimmed string, or null if cancelled — same contract
    * callers were already coding against.
@@ -230,7 +230,7 @@
   window.IntakeConfirm = { show: show, alert: alert, prompt: prompt };
 }());
 
-// MARKER-CAMPAIGN-V2F — a one-field prompt in the app's own dialog styling,
+// a one-field prompt in the app's own dialog styling,
 // so nothing here has to fall back to window.prompt().
 window.IntakeConfirm = window.IntakeConfirm || {};
 window.IntakeConfirm.prompt = function (opts) {
@@ -280,7 +280,7 @@ window.IntakeConfirm.prompt = function (opts) {
   });
 };
 
-// MARKER-TENANT-CONFIRM — one interceptor for every attribute-based native
+// one interceptor for every attribute-based native
 // confirm in the tenant app.
 //
 //   onsubmit="return confirm('…')" and onclick="return confirm('…')" are
@@ -385,7 +385,7 @@ window.IntakeConfirm.prompt = function (opts) {
   }, true);
 })();
 
-// MARKER-INLINE-CONFIRM-1 — the one call every rewritten inline confirm uses.
+// the one call every rewritten inline confirm uses.
 // Same title, same button text, same danger heuristic, so a site converted
 // next month looks like one converted today.
 window.iaConfirm = function (msg) {

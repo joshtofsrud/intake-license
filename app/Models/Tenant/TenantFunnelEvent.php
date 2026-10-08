@@ -1,5 +1,4 @@
 <?php
-// MARKER-PATCH-149
 
 namespace App\Models\Tenant;
 
@@ -51,7 +50,7 @@ class TenantFunnelEvent extends Model
     public const TYPE_BOOKING_PAGE_VIEWED = 'booking_page_viewed';
     public const TYPE_BOOKING_STARTED     = 'booking_started';
     public const TYPE_BOOKING_COMPLETED   = 'booking_completed';
-    public const TYPE_BOOKING_STEP        = 'booking_step';   // MARKER-PATCH-452
+    public const TYPE_BOOKING_STEP        = 'booking_step';
 
     public const VALID_TYPES = [
         self::TYPE_PAGE_VIEW,

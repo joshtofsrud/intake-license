@@ -9,11 +9,10 @@ That's <span class="err-title-accent">on us</span>, not you.
 Something went sideways. We've been notified automatically and we'll dig into it. In the meantime, going back and trying again often works — most issues like this clear in seconds.
 @endsection
 @section('mini_links')
-  {{-- MARKER-ERROR-LINKS — there is no status page; help lives on intake.works --}}
+  {{-- there is no status page; help lives on intake.works --}}
   <a href="{{ error_help_url() }}">Help</a>
 @endsection
 @section('actions')
-  {{-- MARKER-ERR-HOME --}}
   <a href="{{ error_home_url() }}" class="btn btn-primary">← Back to dashboard</a>
   <a href="javascript:window.location.reload()" class="btn btn-secondary">Try this page again</a>
 @endsection

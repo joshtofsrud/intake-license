@@ -1,4 +1,4 @@
-{{-- MARKER-PATCH-148 — master-admin email health --}}
+{{-- master-admin email health --}}
 <x-filament-panels::page>
 
 <style>
@@ -132,7 +132,7 @@
     @endif
   </div>
 
-  {{-- ===== MARKETING (MARKER-MARKETING-OVERSIGHT) ===== --}}
+  {{-- ===== MARKETING ===== --}}
   <div class="eh-section">
     <div class="eh-section-head">
       <div class="eh-section-title">Marketing email · last 30 days</div>

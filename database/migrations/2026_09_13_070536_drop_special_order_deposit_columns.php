@@ -6,7 +6,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * MARKER-SO-DEPOSIT — remove the special order's private money columns.
+ * remove the special order's private money columns.
  *
  * Refuses rather than destroys: if any special order actually has a deposit
  * recorded, the number is real to whoever typed it, and dropping the column

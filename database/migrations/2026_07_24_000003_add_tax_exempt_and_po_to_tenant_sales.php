@@ -1,6 +1,6 @@
 <?php
 
-// MARKER-BIZ-CUSTOMER — the certificate is snapshotted onto the sale so a
+// the certificate is snapshotted onto the sale so a
 // later edit to the customer cannot rewrite what was true at the time of
 // sale, which is the whole point of an audit trail.
 

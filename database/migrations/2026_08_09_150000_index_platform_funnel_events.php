@@ -4,7 +4,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
-// MARKER-MKTTRAFFIC — marketing traffic lands in tenant_funnel_events under the
+// marketing traffic lands in tenant_funnel_events under the
 // platform tenant, so the report filters by (tenant_id, event_type, created_at)
 // exactly like the tenant one. Add the index only if it isn't already there.
 return new class extends Migration

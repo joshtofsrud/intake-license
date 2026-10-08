@@ -1,6 +1,5 @@
 @extends('public.account._shell')
 @php $pageTitle = 'Rentals'; @endphp
-{{-- MARKER-PORTAL-V2 --}}
 @push('styles')
   @include('public.account.portal._portal-css')
 @endpush
@@ -23,7 +22,7 @@
       <div style="display:flex;gap:18px;margin-top:14px;font-size:13px;flex-wrap:wrap">
         <div><div class="ac-chip-k">Due back</div><div style="font-weight:600">{{ tlocal_datetime($r->due_at, 'D, M j · g:i A') }}</div></div>
         <div><div class="ac-chip-k">Waiver</div><div style="font-weight:600">{{ $r->agreement_signed_at ? 'Signed ✓' : 'Not signed' }}</div></div>
-        {{-- MARKER-RENTAL-EXT-PORTAL — self-serve keep-it-longer --}}
+        {{-- self-serve keep-it-longer --}}
         @php $ext = ($extendable ?? [])[$r->id] ?? null; @endphp
         @if($ext)
           <div style="margin-top:10px">

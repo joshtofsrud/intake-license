@@ -20,7 +20,7 @@ class RequireTenantAuth
     {
         $tenant = app('tenant');
 
-        // MARKER-TENANT-AUTH-NO-TENANT — reserved hosts (api, www, app…) never
+        // reserved hosts (api, www, app…) never
         // resolve a tenant, so everything below would read properties on null.
         // There is no shop to sign into on a platform host; send them to the
         // platform sign-in rather than throwing a 500 at someone who is
@@ -40,7 +40,7 @@ class RequireTenantAuth
 
         // Verify the authenticated user belongs to this tenant
         if ($user->tenant_id !== $tenant->id) {
-            // MARKER-IMPERSONATE-CROSS — during impersonation this is a SWITCH,
+            // during impersonation this is a SWITCH,
             // not an intrusion. The tenant cookie is scoped to .intake.works so
             // it reaches every shop's host; wiping it here killed the shop the
             // operator was actually working in, and the way back with it.
@@ -60,7 +60,7 @@ class RequireTenantAuth
                     );
                 }
             } elseif (is_impersonating()) {
-                // MARKER-IMPERSONATE-NEVER-LOGOUT — impersonating and the
+                // impersonating and the
                 // switch could not happen (no owner, or the gate said no).
                 // Destroying the session here is what kept logging Josh out.
                 // Go back to master admin instead; the session survives.
@@ -87,7 +87,7 @@ class RequireTenantAuth
     }
 
     /**
-     * MARKER-IMPERSONATE-CROSS — is the operator behind this impersonation
+     * is the operator behind this impersonation
      * still a platform admin allowed to impersonate? The session says an
      * impersonation is in progress; this checks the person it belongs to,
      * so a stale session can never be used to walk between shops.

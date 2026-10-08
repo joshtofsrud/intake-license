@@ -76,7 +76,7 @@ class DomainProvisioningService
                 'cloudflare_hostname_id' => $cfResult['id'],
                 'last_check_at'          => now(),
                 'last_check_status'      => 'created',
-                // MARKER-PATCH-125 — persist gate-2 validation records emitted
+                // persist gate-2 validation records emitted
                 // at hostname creation time so the tenant sees them immediately.
                 'cf_validation_records'     => $cfResult['ssl_validation_records']     ?: null,
                 'cf_dcv_delegation_records' => $cfResult['ssl_dcv_delegation_records'] ?: null,
@@ -127,7 +127,7 @@ class DomainProvisioningService
             'last_check_status' => $cfData['status'] ?? 'unknown',
         ];
 
-        // MARKER-PATCH-126 — preserve captured DCV records across the
+        // preserve captured DCV records across the
         // cert-active transition. CF returns ssl.validation_records /
         // ssl.dcv_delegation_records only while validating; once
         // ssl.status flips to 'active' they disappear from the response.

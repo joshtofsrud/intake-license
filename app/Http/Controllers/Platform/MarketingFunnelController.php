@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers\Platform;
 
-// MARKER-MKTTRAFFIC — the marketing site's own funnel endpoint.
+// the marketing site's own funnel endpoint.
 //
 // The tenant tracker posts to /funnel/track, which is declared inside the
 // TENANT host group and resolves a tenant from the host. intake.works has no
@@ -14,8 +14,8 @@ use App\Http\Controllers\Controller;
 use App\Models\Tenant;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Cookie; // MARKER-MKTSID
-use Illuminate\Support\Str;             // MARKER-MKTSID
+use Illuminate\Support\Facades\Cookie;
+use Illuminate\Support\Str;
 
 class MarketingFunnelController extends Controller
 {
@@ -28,11 +28,11 @@ class MarketingFunnelController extends Controller
         'contact_submitted',
         'signup_started',    // reserved — self-serve signup not built yet
         'signup_completed',  // reserved
-        // MARKER-MKTCONV — demo and booking. The two recorded server-side
+        // demo and booking. The two recorded server-side
         // (demo_entered, booking_completed) are the honest ones; cta_click
         // and page_exit come from the browser and can be blocked.
         'demo_entered',
-        'booking_started', // MARKER-MKTTILES — matches the tile the service already counts
+        'booking_started', // matches the tile the service already counts
         'booking_completed',
         'cta_click',
         'page_exit',
@@ -41,7 +41,7 @@ class MarketingFunnelController extends Controller
     public function store(Request $request)
     {
         $data = $request->validate([
-            'session_id'   => ['nullable', 'string', 'max:64'], // MARKER-MKTSID
+            'session_id'   => ['nullable', 'string', 'max:64'],
             'event_type'   => ['required', 'string', 'max:32'],
             'path'         => ['nullable', 'string', 'max:255'],
             'referrer_url' => ['nullable', 'string', 'max:2048'],
@@ -56,7 +56,7 @@ class MarketingFunnelController extends Controller
             return response()->json(['ok' => false], 204);
         }
 
-        // MARKER-MKTBOTFIX -- classify from the User-Agent server-side (the
+        // classify from the User-Agent server-side (the
         // client's own guess is advisory) and drop crawler traffic before it
         // is written, exactly as the tenant tracker does. Every crawler page
         // hit was arriving with a fresh sessionStorage id, so each one
@@ -67,7 +67,7 @@ class MarketingFunnelController extends Controller
             return response()->json(['ok' => true, 'skipped' => 'bot']);
         }
 
-        // MARKER-MKTDONE -- is this someone coming back? The column has existed
+        // is this someone coming back? The column has existed
         // since the table was created and the marketing ingest never wrote it,
         // so it defaulted to true on every row and newVsReturning() could only
         // ever report 100% new. A valid mkt_sid cookie already on the request
@@ -75,7 +75,7 @@ class MarketingFunnelController extends Controller
         $prior = (string) $request->cookie('mkt_sid', '');
         $data['is_new_session'] = ($prior !== '' && preg_match('/^[a-zA-Z0-9]{12,64}$/', $prior)) ? 0 : 1;
 
-        // MARKER-MKTSID -- resolve the visitor's id, then persist it as a
+        // resolve the visitor's id, then persist it as a
         // cookie so it survives a tab close and a blocked sessionStorage.
         $data['session_id'] = $this->resolveSession($request);
 
@@ -87,13 +87,13 @@ class MarketingFunnelController extends Controller
     }
 
     /**
-     * MARKER-MKTSID -- anonymous session id, same shape as the tenant
+     * anonymous session id, same shape as the tenant
      * tracker's resolveSession().
      *
      * The COOKIE wins when present and well-formed (see the body). Several first-visit
      * beacons can be in flight before any Set-Cookie lands, and preferring
      * the cookie would mint a separate id for each of them (the bug the
-     * tenant side fixed in MARKER-FUNNEL-SESSION-FIX). The regex allows 12
+     * tenant side fixed in ). The regex allows 12
      * chars because this tracker mints base36 time + random (~18), shorter
      * than the tenant's 40-char ids -- and it rejects the old 'nostore'
      * literal, which used to merge every storage-blocked visitor into one
@@ -101,7 +101,7 @@ class MarketingFunnelController extends Controller
      */
     protected function resolveSession(Request $request): string
     {
-        // MARKER-TRAFFIC-IDENTITY -- COOKIE FIRST, then payload, then random.
+        // COOKIE FIRST, then payload, then random.
         //
         // The old order put the payload first, which made "visitors" mean
         // "sessions": sessionStorage dies with the tab, so the same person
@@ -128,7 +128,7 @@ class MarketingFunnelController extends Controller
     }
 
     /**
-     * MARKER-MKTBOTFIX -- same coarse buckets as the tenant tracker's
+     * same coarse buckets as the tenant tracker's
      * FunnelTrackController. Enough for the mobile/desktop/tablet split;
      * deliberately not fingerprinting.
      */
@@ -161,7 +161,7 @@ class MarketingFunnelController extends Controller
     public static function record(string $eventType, array $data = []): void
     {
         try {
-            // MARKER-MKTCONV — join server-side conversions to the browsing
+            // join server-side conversions to the browsing
             // that led to them. The tracker writes mkt_sid as a 90-day cookie.
             if (empty($data['session_id']) && request()) {
                 $cookie = request()->cookie('mkt_sid');
@@ -192,18 +192,18 @@ class MarketingFunnelController extends Controller
                 'utm_campaign'    => $data['utm_campaign'] ?? null,
                 'device'          => $data['device'] ?? null,
                 'step'            => $data['step'] ?? null,
-                // MARKER-MKTDONE -- server-side calls (contact, quiz, demo) carry no
+                // server-side calls (contact, quiz, demo) carry no
                 // flag of their own; a cookie on the request means not-new.
                 'is_new_session'  => $data['is_new_session']
                     ?? ((request() && request()->cookie('mkt_sid')) ? 0 : 1),
-                // MARKER-MKTFIX — this table has created_at ONLY (declared
+                // this table has created_at ONLY (declared
                 // useCurrent, no updated_at). Writing updated_at threw on every
                 // insert, and the catch below made it silent.
                 'created_at'      => now(),
             ]);
         } catch (\Throwable $e) {
             // Still swallowed on purpose — analytics must not break a page —
-            // but at error level so it surfaces in any log scan. MARKER-MKTFIX
+            // but at error level so it surfaces in any log scan.
             \Log::error('marketing funnel event failed', [
                 'event' => $eventType, 'error' => $e->getMessage(),
             ]);

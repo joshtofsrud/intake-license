@@ -1,4 +1,4 @@
-{{-- MARKER-PATCH-143 — Welcome email body --}}
+{{-- Welcome email body --}}
 <!DOCTYPE html>
 <html>
 <head>

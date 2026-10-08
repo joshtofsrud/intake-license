@@ -1,5 +1,4 @@
 <x-filament-panels::page>
-<!-- MARKER-SCHED-ADMIN -->
 @php
     $typeColor = function ($b) {
         return match ($b->type?->slug) {
@@ -23,7 +22,7 @@
     .sch-ev.is-moved { border-style:dashed; }
     .sch-now { position:absolute; left:0; right:0; height:0; border-top:2px solid #D4FF3F; z-index:2; pointer-events:none; }
     .sch-busy { position:absolute; left:3px; right:3px; border-radius:6px; border:1px solid rgba(127,127,127,.2); border-left:3px solid rgba(127,127,127,.5);
-                background:repeating-linear-gradient(135deg, rgba(127,127,127,.14) 0 6px, transparent 6px 12px); pointer-events:none; } /* MARKER-SCHED-GOOGLE */
+                background:repeating-linear-gradient(135deg, rgba(127,127,127,.14) 0 6px, transparent 6px 12px); pointer-events:none; }
     .sch-time { height:60px; font-size:10.5px; color:rgb(107 114 128); text-align:right; padding-right:6px; transform:translateY(-6px); }
     .sch-k { display:inline-block; width:10px; height:10px; border-radius:2px; vertical-align:-1px; margin-right:5px; }
 </style>

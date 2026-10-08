@@ -1,4 +1,4 @@
-{{-- MARKER-PATCH-158-G20 — text_image public renderer (v2) --}}
+{{-- text_image public renderer (v2) --}}
 @php
   $c = $c ?? [];
 

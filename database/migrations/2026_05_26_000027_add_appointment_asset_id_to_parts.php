@@ -1,5 +1,4 @@
 <?php
-// MARKER-PATCH-158-G4
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;

@@ -1,4 +1,4 @@
-{{-- MARKER-MANUAL-SAFE — the contribute block, invited-page version.
+{{-- the contribute block, invited-page version.
      Collapsed, below the commitment, and worded for someone who has decided
      against the round rather than someone still deciding. --}}
 @php

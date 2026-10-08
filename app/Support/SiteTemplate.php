@@ -1,5 +1,4 @@
 <?php
-// MARKER-PATCH-260
 
 namespace App\Support;
 

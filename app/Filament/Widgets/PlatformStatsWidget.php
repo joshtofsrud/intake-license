@@ -29,7 +29,7 @@ class PlatformStatsWidget extends BaseWidget
                 return $carry + ($cnt * (($plans[$tier] ?? 0) / 100));
             }, 0);
 
-        // MARKER-PATCH-132 — WP installs moved to WpPluginStatsWidget.
+        // WP installs moved to WpPluginStatsWidget.
 
         return [
             Stat::make('Total tenants', number_format($totalTenants))

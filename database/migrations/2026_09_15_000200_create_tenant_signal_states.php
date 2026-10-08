@@ -4,7 +4,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-/** MARKER-TENANT-SIGNALS — is each signal currently active, per tenant. */
+/** is each signal currently active, per tenant. */
 return new class extends Migration
 {
     public function up(): void

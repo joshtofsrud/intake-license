@@ -4,7 +4,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\DB;
 
 /**
- * MARKER-PATCH-563 — the online_store addon row. E-commerce gates through
+ * the online_store addon row. E-commerce gates through
  * the same addon framework as retail/pos: included with Branded and Scale
  * (floor decision: never available on Starter), price surface reserved so
  * it can become a paid Branded add-on later without a schema change.

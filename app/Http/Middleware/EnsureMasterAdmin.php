@@ -1,5 +1,5 @@
 <?php
-// MARKER-ADMIN-GATE — admits only master-admin `users` rows. Reps authenticate
+// admits only master-admin `users` rows. Reps authenticate
 // on the same web guard with is_admin=false, so 'auth' alone is not a gate.
 
 namespace App\Http\Middleware;

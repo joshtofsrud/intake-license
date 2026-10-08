@@ -4,7 +4,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-// MARKER-FLEET-PHOTOS — model photo set + the photo a unit uses.
+// model photo set + the photo a unit uses.
 return new class extends Migration
 {
     public function up(): void

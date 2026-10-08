@@ -12,7 +12,7 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
-        // MARKER-GUEST-REDIRECT — where an unauthenticated request goes. There
+        // where an unauthenticated request goes. There
         // is no route named 'login' in this app, so without this every `auth`
         // route 500'd with "Route [login] not defined" the moment a session
         // expired. Platform domain → Filament's login; anything else → the
@@ -37,12 +37,12 @@ return Application::configure(basePath: dirname(__DIR__))
         // in the stack so it sees the real response status.
         $middleware->append(\App\Http\Middleware\LogRequests::class);
 
-        // MARKER-CUST-AUTH — verify a signed-in customer belongs to the tenant
+        // verify a signed-in customer belongs to the tenant
         // being served. Appended globally rather than pinned to the account
         // routes so it also covers every portal page, present and future.
         $middleware->append(\App\Http\Middleware\EnsureCustomerTenant::class);
 
-        // MARKER-DEMO-SECTION — DemoBanner used to be appended here, but global
+        // DemoBanner used to be appended here, but global
         // middleware runs BEFORE route middleware, so ResolveTenant had not run
         // and tenant() was always null. It lives in the tenant route group now.
 
@@ -50,24 +50,24 @@ return Application::configure(basePath: dirname(__DIR__))
         // Tenant booking webhook (/webhooks/stripe) and addon subscription
         // webhook (/webhooks/stripe/subscriptions) both need this.
         $middleware->validateCsrfTokens(except: [
-            'mkt/track', // MARKER-MKTTRAFFIC — beacon from cached marketing pages
-            'email/unsubscribe/*', // MARKER-CAMPAIGN-DELIVERY — Gmail/Yahoo one-click POST; HMAC sig is the auth
-            'platform-email/unsubscribe/*', // MARKER-PLATFORM-EMAIL - one-click POST, HMAC is the auth
+            'mkt/track', // beacon from cached marketing pages
+            'email/unsubscribe/*', // Gmail/Yahoo one-click POST; HMAC sig is the auth
+            'platform-email/unsubscribe/*', // one-click POST, HMAC is the auth
             'webhooks/stripe',
             'webhooks/stripe/*',
-            'webhooks/dropbox-sign',   // MARKER-SIGNING-SEND
-            'webhooks/cloudflare', // MARKER-PATCH-118
-            'webhooks/ses-bounce',  // MARKER-PATCH-146
-            'webhooks/postmark',    // MARKER-PATCH-201
-            'webhooks/postmark/inbound', // MARKER-PATCH-403
-            'webhooks/twilio/inbound', // MARKER-PATCH-221
-            'webhooks/stripe-connect', // MARKER-PATCH-172D (Stripe Connect, patch 168)
-            'webhooks/stripe-direct/*', // MARKER-PATCH-172D (Direct Payments, patch 170)
+            'webhooks/dropbox-sign',
+            'webhooks/cloudflare',
+            'webhooks/ses-bounce',
+            'webhooks/postmark',
+            'webhooks/postmark/inbound',
+            'webhooks/twilio/inbound',
+            'webhooks/stripe-connect', // (Stripe Connect, patch 168)
+            'webhooks/stripe-direct/*', // (Direct Payments, patch 170)
             'api/plan-quiz/*',
-            'booking/abandon', // MARKER-RECOVERY — partial booking capture
-            'funnel/track', // MARKER-FUNNEL-CSRF — anonymous analytics beacon
-            'pay-display/*/agreement/sign', // MARKER-RENTAL-WAIVER-DISPLAY-BE
-            'book/release-hold', // MARKER-HOLD-RELEASE — payment-failure beacon; token-authenticated, capacity-freeing only
+            'booking/abandon', // partial booking capture
+            'funnel/track', // anonymous analytics beacon
+            'pay-display/*/agreement/sign',
+            'book/release-hold', // payment-failure beacon; token-authenticated, capacity-freeing only
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
@@ -111,7 +111,7 @@ return Application::configure(basePath: dirname(__DIR__))
                 'url'       => $request->fullUrl(),
             ]);
 
-            // MARKER-500-ALERT — email each 5xx to the address set on the
+            // email each 5xx to the address set on the
             // master admin dashboard, when the toggle there is on. Throttled
             // to one email per unique error site (class+file+line) per 15
             // minutes; sent synchronously (queued mail vanishes exactly when
@@ -144,7 +144,7 @@ return Application::configure(basePath: dirname(__DIR__))
                 \Illuminate\Support\Facades\Log::warning('500 alert email failed: ' . $mailFail->getMessage());
             }
 
-            // MARKER-JSON-500 — AJAX callers get JSON, not the HTML page.
+            // AJAX callers get JSON, not the HTML page.
             // Without this every fetch() in the app treats a server fault as
             // a network failure, because res.json() throws on an HTML body.
             // Shape matches what the register already reads: ok:false + error.

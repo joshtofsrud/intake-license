@@ -7,7 +7,7 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 /**
- * MARKER-SALES-INDUSTRY — Industries (sales_channels) become the one list.
+ * Industries (sales_channels) become the one list.
  * places_query is what Find shops searches Google for. The industries that
  * used to be hard-coded in Find shops are added as drafts so none disappear.
  */

@@ -19,10 +19,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  @include('partials.mobile-input-zoom') {{-- MARKER-MOBILE-INPUT-ZOOM --}}
+  @include('partials.mobile-input-zoom')
   <meta name="csrf-token" content="{{ csrf_token() }}">
   <title>Onboarding — {{ $tenant->name }} · Intake</title>
-  <link rel="stylesheet" href="{{ asset('css/fonts.css') }}">{{-- MARKER-SELFHOST-FONTS-2 --}}
+  <link rel="stylesheet" href="{{ asset('css/fonts.css') }}">
   <style>
     :root {
       --bg: #0a0a0a;
@@ -149,7 +149,7 @@
 
   <div class="top">
     <div>
-      <div class="brand"><img src="{{ \App\Support\Brand::url('logo') }}" alt="Intake" style="display:block;height:22px;width:auto"></div> {{-- MARKER-PLATFORM-LOGO --}}
+      <div class="brand"><img src="{{ \App\Support\Brand::url('logo') }}" alt="Intake" style="display:block;height:22px;width:auto"></div>
       <div class="doctitle">Setting up {{ $tenant->name }}</div>
     </div>
   </div>

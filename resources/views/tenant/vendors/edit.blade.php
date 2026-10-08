@@ -9,7 +9,7 @@
     </div>
     <h1 class="ia-page-title">
       Edit vendor
-      {{-- MARKER-VENDOR-CODE-BADGE — set by linking on Connection & sync, not
+      {{-- set by linking on Connection & sync, not
            editable here: a free-text field would let a shop claim a feed it has
            no credentials for. --}}
       @if($vendor->distributor_code)
@@ -47,7 +47,6 @@
           <input type="text" name="account_number" class="ia-input"
                  value="{{ old('account_number', $vendor->account_number) }}">
         </div>
-        {{-- MARKER-SO-PLACEMENT --}}
         <div class="ia-form-group">
           <label class="ia-form-label">Free freight over</label>
           <input type="number" step="0.01" min="0" name="free_freight" class="ia-input"
@@ -55,7 +54,6 @@
                  value="{{ old('free_freight', $vendor->free_freight_cents !== null ? number_format($vendor->free_freight_cents / 100, 2, '.', '') : '') }}">
           <div class="ia-form-hint">Order total that earns free shipping. Leave blank if this vendor has none — the placement board only shows a freight bar when it is set.</div>
         </div>
-        {{-- MARKER-VENDOR-NET-COST --}}
         <div class="ia-form-group">
           <label class="ia-form-label">Program discount %</label>
           <input type="number" step="0.01" min="0" max="100" name="program_discount_pct" class="ia-input"

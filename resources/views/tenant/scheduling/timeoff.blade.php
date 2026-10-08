@@ -1,6 +1,6 @@
 @extends('layouts.tenant.app')
 
-{{-- MARKER-PATCH-623 — Scheduling: time-off inbox (approver). --}}
+{{-- Scheduling: time-off inbox (approver). --}}
 
 @section('title', 'Scheduling · Time off')
 
@@ -20,7 +20,7 @@
 .to-pill { font-size:10px; text-transform:uppercase; letter-spacing:.04em; border-radius:999px; padding:2px 9px; font-weight:700; }
 .to-pill.g { background:rgba(190,242,100,.12); color:var(--ia-accent); }
 .to-empty { padding:24px 15px; text-align:center; color:var(--ia-text-muted); font-size:12px; }
-/* MARKER-SCHED-PHONE — tabs on one scrolling line on phones */
+/* tabs on one scrolling line on phones */
 @media (max-width: 700px) {
   .to-sub { overflow-x: auto; flex-wrap: nowrap; white-space: nowrap; scrollbar-width: none; gap: 16px; }
   .to-sub::-webkit-scrollbar { display: none; }

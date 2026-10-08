@@ -1,5 +1,4 @@
 <x-filament-panels::page>
-<!-- MARKER-RAISE-SETUP -->
 
 @php
     $usd = fn ($n) => '$' . number_format((int) $n);
@@ -37,7 +36,6 @@
     @error('target') <p class="text-sm text-danger-600 mt-2">{{ $message }}</p> @enderror
 </div>
 
-<!-- MARKER-INVEST-LANDING -->
 <div class="mt-6 rounded-xl border border-gray-200 dark:border-white/10 p-4">
     <div class="text-xs uppercase tracking-wide text-gray-500 mb-3">Public landing copy — /invest</div>
     <div class="grid gap-3">
@@ -54,7 +52,6 @@
             <textarea wire:model="landingFine" rows="3" placeholder="Leave blank to use the built-in wording"
                       class="mt-1 w-full rounded-lg border-gray-300 dark:bg-white/5 dark:border-white/10"></textarea></label>
     </div>
-    <!-- MARKER-CONTRIB-UI -->
     <label class="block mt-4"><span class="text-xs text-gray-500">Contribution buttons — three amounts, comma separated</span>
         <input wire:model="contributionPresets" placeholder="25, 100, 250"
                class="mt-1 w-full rounded-lg border-gray-300 dark:bg-white/5 dark:border-white/10"></label>
@@ -64,7 +61,6 @@
         always type their own amount instead.
     </p>
 
-    <!-- MARKER-INVEST-LIVE -->
     <label class="mt-3 flex items-center gap-2">
         <input type="checkbox" wire:model="showProgress" class="rounded border-gray-300 dark:bg-white/5 dark:border-white/10">
         <span class="text-sm">Show the progress bar on the gated proposal</span>
@@ -77,7 +73,7 @@
 
     <div class="mt-3"><x-filament::button wire:click="saveLanding">Save landing copy</x-filament::button></div>
     <p class="mt-3 text-xs text-gray-500">
-        MARKER-INVEST-V2: /invest states no terms at all — not the raise, not the cap, not progress.
+        /invest states no terms at all — not the raise, not the cap, not progress.
         Describing the company is not advertising the offering, and only the second is restricted, so
         everything about the round now lives behind the access code. These fields control the opening
         headline and paragraph; the headline accepts inline HTML so a word can be highlighted.
@@ -85,7 +81,6 @@
     @error('notifyEmail') <p class="text-sm text-danger-600 mt-2">{{ $message }}</p> @enderror
 </div>
 
-<!-- MARKER-SIGNING-CREDS -->
 <div class="mt-6 rounded-xl border border-gray-200 dark:border-white/10 p-4">
     <div class="text-xs uppercase tracking-wide text-gray-500 mb-3">Document signing — Dropbox Sign</div>
 
@@ -105,7 +100,6 @@
 
     <div class="grid gap-3 md:grid-cols-2 mt-3">
         <label class="flex items-end gap-2 pb-1">
-            {{-- MARKER-MANUAL-SAFE --}}
             <input type="checkbox" wire:model="signingAutomatic"
                    class="rounded border-gray-300 dark:bg-white/5 dark:border-white/10">
             <span class="text-sm">Send SAFEs automatically</span>
@@ -260,7 +254,6 @@
                     </td>
                     <td class="p-2 text-right">
                         <x-filament::button size="xs" color="gray" wire:click="editTemplate('{{ $key }}')">Edit</x-filament::button>
-                    {{-- MARKER-RAISE-HTML --}}
                     <x-filament::button size="xs" color="gray"
                         wire:click="sendTest('{{ $key }}')"
                         wire:loading.attr="disabled">Send test</x-filament::button>

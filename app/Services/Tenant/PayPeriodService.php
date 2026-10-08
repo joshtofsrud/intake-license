@@ -1,5 +1,5 @@
 <?php
-// MARKER-PATCH-616 — pay period boundary computation + materialization.
+// pay period boundary computation + materialization.
 //
 // TIMEZONE: every boundary is computed in the TENANT's timezone, then the
 // resulting instant is stored/compared as UTC. A "period start" of the 1st is

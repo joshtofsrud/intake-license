@@ -4,7 +4,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\DB;
 
 /**
- * MARKER-GIFTCARDS-GATE — gift cards become a gate-able add-on, included
+ * gift cards become a gate-able add-on, included
  * with Scale. Price deliberately 0: Josh sets pricing later (same call as
  * the ecommerce addon — inventing a number in a migration would be worse).
  * Selling is gated; redemption and the public balance check are not, so

@@ -1,4 +1,4 @@
-{{-- MARKER-TENANT-STANDING — escalating past-due notice. Deliberately quiet
+{{-- escalating past-due notice. Deliberately quiet
      on day one: a card fails for boring reasons most of the time, and a shop
      that gets shouted at immediately stops reading the banner by day four. --}}
 @php

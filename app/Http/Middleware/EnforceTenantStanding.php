@@ -1,5 +1,5 @@
 <?php
-// MARKER-TENANT-STANDING — stands in front of the tenant ADMIN app when a
+// stands in front of the tenant ADMIN app when a
 // shop is suspended or past grace. Registered on the admin group only, so
 // the booking page, customer portal and gift-card balance stay reachable in
 // every state by construction rather than by an exemption list.

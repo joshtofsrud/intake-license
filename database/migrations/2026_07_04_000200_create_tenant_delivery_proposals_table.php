@@ -4,7 +4,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-// MARKER-PATCH-527 — delivery window proposals: sent when work hits
+// delivery window proposals: sent when work hits
 // Completed; customer confirms via public token page; assume-first
 // fallback locks the first window at expires_at.
 return new class extends Migration

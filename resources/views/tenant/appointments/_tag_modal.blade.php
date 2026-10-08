@@ -1,4 +1,4 @@
-{{-- MARKER-PATCH-314 — service-tag print modal. Loads the slip in an iframe
+{{-- service-tag print modal. Loads the slip in an iframe
      (embed mode) so printing is isolated to the slip's own @page rules.
      Mirrors the invoice modal pattern. --}}
 <style>

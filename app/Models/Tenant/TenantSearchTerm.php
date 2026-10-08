@@ -1,5 +1,5 @@
 <?php
-// MARKER-PATCH-622 — vocabulary word for typo correction.
+// vocabulary word for typo correction.
 
 namespace App\Models\Tenant;
 

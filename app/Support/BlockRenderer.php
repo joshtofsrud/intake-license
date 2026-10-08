@@ -14,8 +14,8 @@ namespace App\Support;
  *
  * Supported block types:
  *   paragraph, heading, image, button, divider, footer,
- *   spacer, two_column, image_text, social  (MARKER-CAMPAIGN-V2B)
- *   catalog  (MARKER-CAMPAIGN-V2C — live service/product cards)
+ *   spacer, two_column, image_text, social
+ *   catalog  (live service/product cards)
  *
  * All blocks render inside a 600px-wide table layout for email client compatibility.
  */
@@ -49,21 +49,21 @@ class BlockRenderer
         $accent     = $options['accent']     ?? '#BEF264';
         $accentText = $options['accentText'] ?? '#0a0a0a';
         $preview    = $options['preview']    ?? false;
-        // MARKER-CAMPAIGN-V2A — preheader + token resolution.
+        // preheader + token resolution.
         $preheader  = trim((string) ($options['preheader'] ?? ''));
         $resolve    = (bool) ($options['resolveTokens'] ?? false);
-        // MARKER-CAMPAIGN-CHROME — the send path wraps this in the branded
+        // the send path wraps this in the branded
         // shell, so it must NOT get a second document of its own.
         $fragment   = (bool) ($options['fragment'] ?? false);
-        // MARKER-CAMPAIGN-CHROME — draw the branded header/footer in preview.
+        // draw the branded header/footer in preview.
         $chrome     = (bool) ($options['chrome'] ?? false);
-        $chromeHead = (bool) ($options['chromeHeader'] ?? true); // MARKER-CAMPAIGN-HDR
+        $chromeHead = (bool) ($options['chromeHeader'] ?? true);
 
         $inner = '';
         foreach ($blocks as $block) {
             $one = self::renderBlock($block, $variables, $accent, $accentText);
 
-            // MARKER-CAMPAIGN-V2D — in the composer only, tag the row so the
+            // in the composer only, tag the row so the
             // builder can hover/select it. Never present in a sent email.
             if ($preview && $one !== '' && ($block['id'] ?? '') !== '') {
                 $bid  = self::escape((string) $block['id']);
@@ -111,13 +111,12 @@ class BlockRenderer
             'button'    => self::renderButton($data, $accent, $accentText),
             'divider'   => self::renderDivider($data),
             'footer'    => self::renderFooter($data),
-            // MARKER-CAMPAIGN-V2B
             'spacer'     => self::renderSpacer($data),
             'two_column' => self::renderTwoColumn($data),
             'image_text' => self::renderImageText($data, $accent),
             'social'     => self::renderSocial($data),
-            'catalog'    => self::renderCatalog($data, $accent, $accentText), // MARKER-CAMPAIGN-V2C
-            'gallery'    => self::renderGallery($data), // MARKER-CAMPAIGN-V2F
+            'catalog'    => self::renderCatalog($data, $accent, $accentText),
+            'gallery'    => self::renderGallery($data),
             default     => '',
         };
 
@@ -141,7 +140,7 @@ class BlockRenderer
         ];
         [$style, $tag] = $sizes[$size] ?? $sizes['h1'];
 
-        $bg = self::bgStyle($data); // MARKER-CAMPAIGN-V2E
+        $bg = self::bgStyle($data);
 
         return <<<HTML
             <tr><td style="padding:16px 24px 8px;{$bg}text-align:{$align}">
@@ -170,7 +169,7 @@ class BlockRenderer
     }
 
     /**
-     * MARKER-CAMPAIGN-RICH-SPLIT — body text, the same wherever it appears:
+     * body text, the same wherever it appears:
      * a paragraph, the text beside an image, a column. Rich HTML when the
      * block has it (sanitized, anchors inline-styled because email clients
      * strip CSS classes); otherwise the legacy plain-text field with newlines
@@ -196,9 +195,9 @@ class BlockRenderer
     }
 
     /**
-     * MARKER-CAMPAIGN-RICH-SPLIT — the body-text type style, shared so a
+     * the body-text type style, shared so a
      * column or the text beside an image can't drift from a paragraph again.
-     * MARKER-CAMPAIGN-V2F: 16px default; 15 read small at reading distance.
+     * 16px default; 15 read small at reading distance.
      */
     private static function bodyStyle(array $data): string
     {
@@ -282,14 +281,14 @@ class BlockRenderer
         // Basic URL safety — must start with http(s) or /
         $url = filter_var($url, FILTER_SANITIZE_URL);
 
-        // MARKER-CAMPAIGN-V2E — size, alignment, link, rounding.
+        // size, alignment, link, rounding.
         $align  = self::safeAlign($data['align'] ?? 'left');
         [$wAttr, $wCss] = self::imageWidth((string) ($data['width'] ?? '100'));
         $radius = (string) ($data['radius'] ?? '4');
         $radius = preg_match('/^\d{1,2}$/', $radius) ? $radius : '4';
         $bg     = self::bgStyle($data);
 
-        // MARKER-CAMPAIGN-V2F — the width belongs on the WRAPPER TABLE, not the
+        // the width belongs on the WRAPPER TABLE, not the
         // image. A percentage on the <img> resolved against a shrink-to-fit
         // table, so it collapsed to the image's natural size and alignment had
         // nothing left to move.
@@ -331,7 +330,7 @@ class BlockRenderer
         $url   = self::escape($data['url']  ?? '#');
         $align = self::safeAlign($data['align'] ?? 'left');
 
-        // MARKER-CAMPAIGN-V2E — optional full-width button + block background.
+        // optional full-width button + block background.
         $bg   = self::bgStyle($data);
         $full = ($data['full_width'] ?? '0') === '1';
         $tblW = $full ? ' width="100%"' : '';
@@ -359,7 +358,7 @@ class BlockRenderer
             HTML;
     }
 
-    // MARKER-CAMPAIGN-V2B — four new blocks. Every one is table-based and
+    // four new blocks. Every one is table-based and
     // avoids media queries, because Outlook ignores them; the stacking here
     // comes from the width:100%/max-width float pattern instead.
 
@@ -376,13 +375,13 @@ class BlockRenderer
 
     private static function renderTwoColumn(array $data): string
     {
-        // MARKER-CAMPAIGN-RICH-SPLIT — rich text and paragraph type, not a
+        // rich text and paragraph type, not a
         // 14px plain-text caption.
         $left  = self::bodyText($data, 'left_html', 'left');
         $right = self::bodyText($data, 'right_html', 'right');
         $style = self::bodyStyle($data);
 
-        $bg = self::bgStyle($data); // MARKER-CAMPAIGN-V2E
+        $bg = self::bgStyle($data);
 
         return <<<HTML
             <tr><td style="padding:8px 24px;{$bg}">
@@ -400,10 +399,10 @@ class BlockRenderer
     {
         $url  = trim((string) ($data['url'] ?? ''));
         $alt  = self::escape($data['alt'] ?? '');
-        $text = self::bodyText($data, 'html', 'text'); // MARKER-CAMPAIGN-RICH-SPLIT
+        $text = self::bodyText($data, 'html', 'text');
         $side = ($data['side'] ?? 'left') === 'right' ? 'right' : 'left';
 
-        // MARKER-CAMPAIGN-V2E — split ratio drives both cell widths and the
+        // split ratio drives both cell widths and the
         // image's own width attribute (Outlook needs the attribute).
         $ratio = (string) ($data['ratio'] ?? '45');
         [$imgPct, $txtPct] = match ($ratio) {
@@ -418,7 +417,7 @@ class BlockRenderer
             ? '<img src="' . self::escape($url) . '" alt="' . $alt . '" width="' . $imgPx . '" style="width:100%;max-width:' . $imgPx . 'px;display:block;border:0;border-radius:6px">'
             : '<div style="border:1px dashed #ccc;padding:30px;text-align:center;color:#aaa;font-size:12px">No image selected</div>';
 
-        // MARKER-CAMPAIGN-RICH-SPLIT — the same type as a paragraph, so a
+        // the same type as a paragraph, so a
         // picture beside text reads as part of the letter, not a caption.
         $textCell = '<div style="' . self::bodyStyle($data) . '">' . $text . '</div>';
 
@@ -483,7 +482,7 @@ class BlockRenderer
     }
 
     /**
-     * MARKER-CAMPAIGN-V2C — service/product cards.
+     * service/product cards.
      * The block stores kind + id only; name, price and photo are resolved
      * HERE, at render time, so the email reflects the catalog as it stands
      * when the send actually goes out. Per-block overrides win when set.
@@ -540,7 +539,7 @@ class BlockRenderer
             $rows .= '<tr>' . $tds . '</tr>';
         }
 
-        $bg = self::bgStyle($data); // MARKER-CAMPAIGN-V2E
+        $bg = self::bgStyle($data);
 
         return <<<HTML
             <tr><td style="padding:10px 18px;{$bg}">
@@ -629,7 +628,7 @@ class BlockRenderer
             }
             // Same image resolution the storefront's product showcase uses.
             $ims   = (array) ($m->distributorCatalog->images ?? []);
-            // MARKER-QBP-IMAGES-EVERYWHERE — QBP stores filenames, not URLs.
+            // QBP stores filenames, not URLs.
             $photo = \App\Support\CatalogImages::urls(
                 $ims,
                 $m->distributorCatalog->distributor_code ?? null,
@@ -653,7 +652,7 @@ class BlockRenderer
     }
 
     /**
-     * MARKER-CAMPAIGN-V2F — 2–6 images, side by side or as a mosaic.
+     * 2–6 images, side by side or as a mosaic.
      * Fixed-width table cells rather than media queries, because Outlook
      * ignores the latter.
      */
@@ -754,7 +753,7 @@ class BlockRenderer
 
     /** Wrap block output in 600px centered email table. */
     /**
-     * MARKER-CAMPAIGN-CHROME — the header EmailService::renderHtml puts on
+     * the header EmailService::renderHtml puts on
      * every send, reproduced here so the builder shows the finished email.
      * Labelled and non-selectable: it isn't a block and can't be edited here.
      */
@@ -796,7 +795,7 @@ class BlockRenderer
     }
 
     /**
-     * MARKER-CAMPAIGN-CHROME — just the rows, for embedding in the branded
+     * just the rows, for embedding in the branded
      * shell EmailService::renderHtml builds. No doctype, no page background,
      * no second 600px card.
      */
@@ -819,7 +818,7 @@ class BlockRenderer
 
     private static function wrapDocument(string $inner, string $preheader = '', bool $preview = false): string
     {
-        // MARKER-CAMPAIGN-V2D — builder-only chrome. Kept inside the preview
+        // builder-only chrome. Kept inside the preview
         // document so a sent email carries none of it.
         $previewCss = '';
         if ($preview) {
@@ -839,7 +838,7 @@ class BlockRenderer
                 padding: 3px 6px; border-radius: 0 0 4px 0; pointer-events: none;
                 font-family: -apple-system, BlinkMacSystemFont, sans-serif;
               }
-              /* MARKER-CAMPAIGN-CHROME — system rows: not blocks, not editable */
+              /* system rows: not blocks, not editable */
               tr[data-cb-chrome] > td { position: relative; }
               tr[data-cb-chrome] > td::before {
                 content: 'Added automatically'; position: absolute; top: 3px; right: 4px;
@@ -861,7 +860,7 @@ class BlockRenderer
             CSS;
         }
 
-        // MARKER-CAMPAIGN-V2A — the hidden preview line inboxes show beside
+        // the hidden preview line inboxes show beside
         // the subject. Zero-size and colour-matched so it never renders, with
         // trailing entities so the client doesn't pad it with body copy.
         $pre = '';
@@ -888,7 +887,7 @@ class BlockRenderer
 
     /**
      * Replace {{token}} — and {{token|fallback}} — with the variable value.
-     * MARKER-CAMPAIGN-V2A: a token with a value wins; an empty or missing one
+     * a token with a value wins; an empty or missing one
      * falls back. Tokens with no match are left alone here so save-time
      * rendering keeps them raw; resolveLeftoverTokens() clears them at send.
      */
@@ -917,7 +916,7 @@ class BlockRenderer
     }
 
     /**
-     * MARKER-CAMPAIGN-V2A — anything still in {{token}} form at send time has
+     * anything still in {{token}} form at send time has
      * no value behind it: use its fallback, or drop it. Prevents literal
      * "{{first_name}}" and "Hi ," from reaching an inbox.
      */
@@ -931,7 +930,7 @@ class BlockRenderer
     }
 
     /**
-     * MARKER-CAMPAIGN-V2E — a validated background color for a block's
+     * a validated background color for a block's
      * wrapper cell, as an inline style fragment (empty when unset).
      */
     private static function bgStyle(array $data): string
@@ -943,7 +942,7 @@ class BlockRenderer
         return 'background:' . $c . ';';
     }
 
-    /** MARKER-CAMPAIGN-V2E — image width as [attributePx, cssWidth]. */
+    /** image width as [attributePx, cssWidth]. */
     private static function imageWidth(string $choice): array
     {
         // 600px content column minus 24px padding each side.

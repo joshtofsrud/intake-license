@@ -1,7 +1,6 @@
 @extends('layouts.tenant.app')
 @php $pageTitle = 'Import from a distributor'; @endphp
 
-{{-- MARKER-PATCH-HLC7B --}}
 
 @push('styles')
 <style>
@@ -29,10 +28,10 @@
 @endpush
 
 @section('content')
-<div class="ia-section">{{-- MARKER-SECTION-WIDTH --}}
+<div class="ia-section">
   <h1 style="font-size:20px;font-weight:600;margin-bottom:14px">Import from {{ $importCode }}</h1>
 
-  {{-- MARKER-IMPORTER-PER-CODE — brands, categories and counts are per
+  {{-- brands, categories and counts are per
        distributor, and there are thousands of each, so switching reloads
        rather than shipping every distributor's lists to filter in the
        browser. --}}
@@ -51,7 +50,7 @@
   @include('layouts.tenant._inventory-tabs')
 
   @if(session('error'))<div class="im-banner im-err">{{ session('error') }}</div>@endif
-  {{-- MARKER-CATALOG-IMPORT-ALL — errors set on the view, not only flashed. --}}
+  {{-- errors set on the view, not only flashed. --}}
   @if(!empty($error))<div class="im-banner im-err">{{ $error }}</div>@endif
   @if(!empty($queued))
     <div class="im-banner">
@@ -72,7 +71,7 @@
       <input type="hidden" name="mode" value="preview" id="im-mode">
       <div class="im-row">
         <div class="im-field"><label>Brand</label>
-          {{-- MARKER-SSEL — searchable picker, same field name --}}
+          {{-- searchable picker, same field name --}}
           <x-tenant.searchable-select name="brand" :options="$brands" :selected="$filters['brand'] ?? ''" any="Any brand" noun="brands" />
         </div>
         <div class="im-field"><label>Category</label>
@@ -84,7 +83,6 @@
       <div style="margin-top:16px;display:flex;gap:10px">
         <button class="im-btn primary" type="submit" onclick="document.getElementById('im-mode').value='preview'">Preview</button>
       </div>
-      {{-- MARKER-IMPORT-PREVIEW-TOTAL --}}
       <p class="im-sub" style="margin:10px 0 0">Leave both as “Any” to bring in the whole catalog. Importing runs in the background whatever the size — the bar at the top of the page tracks it, and it all lands on one batch you can undo in one go.</p>
     </form>
   </div>
@@ -98,7 +96,7 @@
       </p>
 
       @php
-        // MARKER-IMPORT-PREVIEW-TOTAL — when the preview only inspected a
+        // when the preview only inspected a
         // leading sample, the honest headline is the number that WILL be
         // imported, not the size of the sample.
         $sampled = (int) ($result['sampled'] ?? 0);
@@ -129,7 +127,6 @@
         @if(! $isSample && $result['created'] + $result['merged'] === 0)
           <div class="im-banner im-info">Nothing new to import for this filter — you already carry these, or none match.</div>
         @else
-          {{-- MARKER-IMPORT-PREVIEW-TOTAL --}}
           <div class="im-banner im-info">
             Preview only — nothing imported yet.
             @if($isSample)
@@ -138,16 +135,15 @@
               Confirm to add {{ number_format($result['created']) }} new item(s).
             @endif
           </div>
-          {{-- MARKER-BULK-WORKING --}}
           <form method="POST" action="{{ route('tenant.distributors.import.run') }}"
-                data-bulk-count="{{ (int) (isset($result['created']) ? ($result['created'] + ($result['merged'] ?? 0)) : ($catalogTotal ?? 0)) }}"{{-- MARKER-BULK-WORKING-TOUCHED — what will actually be written; candidate_total also counts rows you already carry --}}{{-- MARKER-BULK-WORKING-IMPORT — candidate_total only exists after a preview; fall back to the catalog count so a straight commit still shows it --}}>
+                data-bulk-count="{{ (int) (isset($result['created']) ? ($result['created'] + ($result['merged'] ?? 0)) : ($catalogTotal ?? 0)) }}"{{-- what will actually be written; candidate_total also counts rows you already carry --}}{{-- candidate_total only exists after a preview; fall back to the catalog count so a straight commit still shows it --}}>
             <input type="hidden" name="code" value="{{ $importCode }}">
             @csrf
             <input type="hidden" name="mode" value="commit">
             <input type="hidden" name="brand" value="{{ $filters['brand'] ?? '' }}">
             <input type="hidden" name="category" value="{{ $filters['category'] ?? '' }}">
             <input type="hidden" name="include_unsellable" value="{{ !empty($filters['include_unsellable']) ? '1' : '' }}">
-            {{-- MARKER-IMPORT-PREVIEW-TOTAL — the button must name what it does. --}}
+            {{-- the button must name what it does. --}}
             <button class="im-btn primary" type="submit">
               @if($isSample)
                 Import all {{ number_format($candTotal) }} items
@@ -162,7 +158,7 @@
   @endisset
 </div>
 
-{{-- MARKER-SSEL-SCOPE — picking a brand narrows the category list live --}}
+{{-- picking a brand narrows the category list live --}}
 <script>
   (function () {
     var brand = document.querySelector('.ssel[data-name="brand"]');

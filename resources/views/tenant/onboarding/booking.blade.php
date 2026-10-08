@@ -114,7 +114,7 @@
 
   {{-- Classes: independent toggle --}}
   <div class="booking-section">
-  {{-- MARKER-ONBOARD-PLAN — classes start at branded. Offering the toggle on a
+  {{-- classes start at branded. Offering the toggle on a
        starter plan invites someone to switch on something they do not have.
        Named rather than hidden, so nobody wonders where it went. --}}
   @if($canClasses ?? false)

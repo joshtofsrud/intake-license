@@ -4,7 +4,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-// MARKER-PATCH-546 — a service can be quick-flow-only: shown in the Simple
+// a service can be quick-flow-only: shown in the Simple
 // menu (when simple_enabled) but hidden from the full multi-step flow.
 return new class extends Migration
 {

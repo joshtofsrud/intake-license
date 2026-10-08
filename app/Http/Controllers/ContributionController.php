@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-// MARKER-CONTRIBUTIONS
 use App\Services\ContributionService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -18,7 +17,7 @@ class ContributionController extends Controller
             return redirect()->route('marketing.invest');
         }
 
-        // MARKER-CONTRIB-AMOUNT — the field carries a $ and people type commas.
+        // the field carries a $ and people type commas.
         // Strip both before validating, or "$1,000" fails for looking like money.
         $request->merge([
             'amount' => preg_replace('/[^0-9.]/', '', (string) $request->input('amount')),
@@ -27,7 +26,7 @@ class ContributionController extends Controller
         $data = $request->validate([
             'name'   => ['required', 'string', 'max:120'],
             'email'  => ['required', 'email', 'max:190'],
-            'phone'  => ['nullable', 'string', 'max:40'],   // MARKER-CONTRIB-UI
+            'phone'  => ['nullable', 'string', 'max:40'],
             'amount' => ['required', 'numeric', 'min:5', 'max:10000'],
         ], [
             'amount.required' => 'Enter an amount, or pick one of the buttons.',
@@ -52,7 +51,7 @@ class ContributionController extends Controller
                 route('marketing.invest') . '#support',
             );
         } catch (\Throwable $e) {
-            Log::error('MARKER-CONTRIBUTIONS checkout failed', ['error' => $e->getMessage()]);
+            Log::error('contributions: checkout failed', ['error' => $e->getMessage()]);
 
             return back()->withErrors(['amount' => 'Something went wrong starting the payment.']);
         }

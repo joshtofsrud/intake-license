@@ -5,7 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 
-/** MARKER-PLATFORM-EMAIL — rules over a source, never a fixed list of people. */
+/** rules over a source, never a fixed list of people. */
 class PlatformAudience extends Model
 {
     use HasUuids;
@@ -21,6 +21,6 @@ class PlatformAudience extends Model
         'prospects'     => 'Prospects',
         'wrote_in'      => 'Wrote in',
         'reps'          => 'Reps & agencies',
-        'investors'     => 'Investors', // MARKER-PLATFORM-LETTER
+        'investors'     => 'Investors',
     ];
 }

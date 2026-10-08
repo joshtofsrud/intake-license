@@ -1,6 +1,6 @@
 <?php
 
-// MARKER-DIST-MULTI — per-tenant data priority. Lower wins.
+// per-tenant data priority. Lower wins.
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;

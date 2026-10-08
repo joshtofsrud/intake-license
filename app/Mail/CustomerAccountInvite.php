@@ -2,7 +2,7 @@
 
 namespace App\Mail;
 
-// MARKER-CUST-ACCOUNT — staff-initiated "set up your account" email. Carries
+// staff-initiated "set up your account" email. Carries
 // the same token the customer reset flow validates, so one code path owns
 // token checking and expiry.
 
@@ -37,7 +37,7 @@ class CustomerAccountInvite extends Mailable
 
     public function content(): Content
     {
-        // MARKER-TENANT-LINK — the shop's own address, not whatever host
+        // the shop's own address, not whatever host
         // happened to render this email.
         $url = $this->tenant->urlTo('account/reset', [
             'token' => $this->token,

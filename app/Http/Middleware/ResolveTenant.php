@@ -37,8 +37,8 @@ class ResolveTenant
         // Determine if this is a platform domain — skip tenant resolution
         // ----------------------------------------------------------------
         if ($this->isPlatformHost($host, $rootDomain, $reserved)) {
-            // MARKER-APEX-ACCOUNT — a customer-account link with no shop in it.
-            // Emails built before MARKER-TENANT-LINK carry the platform address,
+            // a customer-account link with no shop in it.
+            // Emails built before carry the platform address,
             // and they sit in inboxes for months. These pages need a shop to
             // render, so they 500'd. Explain instead — and when a marketing page
             // with the slug "account-help" is published, show that, so the
@@ -79,7 +79,7 @@ class ResolveTenant
 
         // ----------------------------------------------------------------
         // Fall back to custom domain match
-        // MARKER-PATCH-116 - query tenant_domains first; legacy column second
+        // query tenant_domains first; legacy column second
         // ----------------------------------------------------------------
         if (! $tenant) {
             // New path: tenant_domains table. Only matches if the domain
@@ -107,7 +107,7 @@ class ResolveTenant
         }
 
         // ----------------------------------------------------------------
-        // MARKER-PATCH-124 — Subdomain vs custom-domain enforcement
+        // Subdomain vs custom-domain enforcement
         //
         // Determine which match path produced the tenant. This drives two
         // behaviors below: admin redirect on custom domain, and the

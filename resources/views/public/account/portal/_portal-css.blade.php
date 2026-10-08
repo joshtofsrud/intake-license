@@ -1,6 +1,6 @@
-{{-- MARKER-PORTAL-V2 — shared portal styles, pushed by each portal view --}}
+{{-- shared portal styles, pushed by each portal view --}}
 <style>
-/* MARKER-PORTAL-CSS — list primitives. These lived in the old single-page
+/* list primitives. These lived in the old single-page
    portal.blade.php, which v2 orphaned; every section uses them, so they
    belong here. Values carried over unchanged from that view. */
 .ac-section-title{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;opacity:.4;margin-bottom:10px}

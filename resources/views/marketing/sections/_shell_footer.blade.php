@@ -39,7 +39,7 @@
         .mk-footer-bottom { flex-direction: column; gap: 10px; text-align: center; }
         .mk-footer-legal { flex-wrap: wrap; justify-content: center; gap: 8px 18px; }
     }
-    /* MARKER-MKT-FOOTER-PHONE — column titles are plain titles unless the accordion is on */
+    /* column titles are plain titles unless the accordion is on */
     .mk-footer-col > summary { list-style: none; cursor: default; pointer-events: none; }
     .mk-footer-col > summary::-webkit-details-marker { display: none; }
     @media (max-width: 520px) {
@@ -59,11 +59,11 @@
         <div class="mk-footer-inner">
             <div>
                 <div class="mk-footer-brand-name">
-                    {{-- MARKER-BRAND-CANON — was a letter "I", not the mark --}}
+                    {{-- was a letter "I", not the mark --}}
                     <img src="{{ \App\Support\Brand::url('logo') }}" alt="Intake" style="display:block;height:22px;width:auto">
                 </div>
                 @php
-                    // MARKER-MKT-FOOTER — from Site & content › Navigation (preview may pass $menuFooter)
+                    // from Site & content › Navigation (preview may pass $menuFooter)
                     $mkFt    = \App\Support\MarketingNav::footer(isset($menuFooter) && is_array($menuFooter) ? $menuFooter : null);
                     $mkFtPgs = \App\Support\MarketingNav::pages();
                     $mkFtL   = fn ($r) => \App\Support\MarketingNav::footerLink($r, $mkFtPgs);
@@ -96,7 +96,7 @@
     </div>
 </footer>
 <script>
-/* MARKER-MKT-FOOTER-PHONE — accordion: closed on phones, always open on wider screens */
+/* accordion: closed on phones, always open on wider screens */
 (function () {
   var ft = document.querySelector('footer.mk-ft-accordion');
   if (!ft) return;

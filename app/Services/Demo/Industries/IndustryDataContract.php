@@ -102,7 +102,6 @@ interface IndustryDataContract
      */
     public function packProducts(): array;
 
-    // MARKER-PATCH-112-CONTRACT
 
     /**
      * Inventory categories to seed. Each entry: name, slug.

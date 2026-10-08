@@ -12,7 +12,7 @@ use Filament\Pages\Page;
 use Illuminate\Support\Facades\Auth;
 
 /**
- * MARKER-NAV-ARRANGE — arrange the sidebar without a deploy.
+ * arrange the sidebar without a deploy.
  *
  * Reads the live Filament registry rather than a stored list, so a page added
  * yesterday appears here today. Customisation rows are written only for items
@@ -112,7 +112,7 @@ class NavArrange extends Page
                 'renamed'   => (bool) ($row && $row->label),
                 'moved'     => (bool) ($row && $row->group),
                 'short'     => class_basename($class),
-                // MARKER-NAV-ARRANGE-KEYS — a backslash in a wire: expression
+                // a backslash in a wire: expression
                 // never survives the round trip, so the class never travels.
                 'key'       => substr(md5($class), 0, 12),
             ];
@@ -172,7 +172,7 @@ class NavArrange extends Page
     // ---- changes ----------------------------------------------------
 
     /**
-     * MARKER-NAV-ARRANGE-BLADE — a group's key. Group names contain spaces and
+     * a group's key. Group names contain spaces and
      * ampersands ("Site & content"), which is one more thing that can go wrong
      * inside an attribute. A hex key cannot.
      */
@@ -191,7 +191,7 @@ class NavArrange extends Page
         return null;
     }
 
-    /** MARKER-NAV-ARRANGE-KEYS — key back to class, from what is registered. */
+    /** key back to class, from what is registered. */
     private function classFor(string $key): ?string
     {
         foreach (array_keys($this->registered()) as $class) {

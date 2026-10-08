@@ -131,7 +131,7 @@
     <button type="button" class="btn btn-primary" id="ob-continue">
       {{ $existingServices->count() > 0 ? 'Add another → Team' : 'Continue → Team' }}
     </button>
-      {{-- MARKER-ONBOARD-PLAN — a real skip. The first service used to be
+      {{-- a real skip. The first service used to be
            mandatory with no way past, which is a hard stop on someone who just
            wants to look around before writing a price list. --}}
       <button type="button" class="btn-skip" id="skipServicesBtn"
@@ -171,7 +171,7 @@
     const dur   = parseInt(durEl.value, 10);
     const price = priceEl.value.trim();
 
-    // MARKER-ONBOARD-PLAN — SKIP_OK means "a service already exists", so this
+    // SKIP_OK means "a service already exists", so this
     // only ever let someone stop adding MORE. The first service had no way
     // past at all: blank gave the "give your first service a name" banner and
     // that was the end of it. The explicit Skip button below handles that.
@@ -224,7 +224,7 @@
   });
 })();
 
-  // MARKER-ONBOARD-PLAN — goes straight on. Nothing is created, so nothing has
+  // goes straight on. Nothing is created, so nothing has
   // to be cleaned up if they never come back to it.
   document.getElementById('skipServicesBtn')?.addEventListener('click', function () {
     this.disabled = true;

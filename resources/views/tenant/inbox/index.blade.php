@@ -1,7 +1,7 @@
 @extends('layouts.tenant.app')
 @php $pageTitle = 'Inbox'; @endphp
 
-{{-- MARKER-PATCH-221 — unified inbox: two-pane SMS conversations. --}}
+{{-- unified inbox: two-pane SMS conversations. --}}
 
 @push('styles')
 <style>
@@ -10,7 +10,6 @@
   @media (max-width: 980px) { .ib-wrap { grid-template-columns:1fr; } .ib-conv { display:none; } .ib-conv.has-sel { display:flex; } }
   .ib-list { border-right:.5px solid var(--ia-border); display:flex; flex-direction:column; }
   .ib-filters { display:flex; gap:6px; padding:12px; border-bottom:.5px solid var(--ia-border); }
-  /* MARKER-INBOX-SEARCH */
   .ib-search { padding:12px 12px 0; position:relative; }
   .ib-search input { width:100%; background:rgba(127,127,127,.10); border:0; border-radius:9px;
                      padding:9px 30px 9px 32px; font-size:13px; font-family:inherit; color:inherit; }
@@ -37,7 +36,7 @@
   .ib-conv { display:flex; flex-direction:column; min-width:0; }
   .ib-conv-head { display:flex; justify-content:space-between; align-items:center; gap:10px; padding:12px 16px; border-bottom:.5px solid var(--ia-border); }
   .ib-msgs { flex:1; overflow-y:auto; padding:16px; display:flex; flex-direction:column; gap:10px; }
-  /* MARKER-INBOX-POLISH — pre-wrap belongs on the body only. On the bubble it
+  /* pre-wrap belongs on the body only. On the bubble it
      rendered the template's own indentation as blank lines. */
   .ib-msg { position:relative; max-width:72%; padding:9px 24px 9px 12px; border-radius:12px;
             font-size:13px; line-height:1.45; word-break:break-word; }
@@ -58,7 +57,7 @@
   .ib-msg.note { align-self:stretch; max-width:none; background:#FAEEDA; color:#854F0B; font-size:12.5px; }
   .ib-msg.sys  { align-self:center; max-width:none; background:transparent; box-shadow:inset 0 0 0 .5px var(--ia-border); font-size:11.5px; opacity:.7; }
   .ib-msg-time { font-size:10px; opacity:.45; margin-top:5px; }
-  /* MARKER-INBOX-VIEWPORT — give the shell a ceiling so the inner scrollers
+  /* give the shell a ceiling so the inner scrollers
      (.ib-msgs and the thread-list wrapper) actually have somewhere to scroll.
      min-height:0 on each flex ancestor is the load-bearing part: without it a
      flex item refuses to shrink below its content and the overflow escapes
@@ -71,7 +70,7 @@
        takes the slack. Guards against a flash banner getting squashed. */
     .ia-content > * { flex:0 0 auto; }
     .ib-wrap { flex:1 1 auto; min-height:360px; }
-    /* MARKER-INBOX-GRID-ROWS — the grid's implicit row is `auto`, so it sizes
+    /* the grid's implicit row is `auto`, so it sizes
        to the tallest column and blows past the height we just gave .ib-wrap.
        minmax(0,1fr) pins it to the container AND allows it to shrink below
        its content; min-height:0 does the same for the two columns. Without
@@ -86,7 +85,7 @@
   }
   .ib-compose { border-top:.5px solid var(--ia-border); padding:12px 16px; }
   .ib-empty { display:flex; align-items:center; justify-content:center; flex:1; font-size:13px; opacity:.5; padding:40px; text-align:center; }
-  /* MARKER-PATCH-433 — mobile: full-screen conversation + back arrow */
+  /* mobile: full-screen conversation + back arrow */
   .ib-back { display:none; }
   @media (max-width: 980px) {
     .ib-conv.has-sel { position:fixed; inset:0; z-index:500; background:var(--ia-surface); border-radius:0; }
@@ -97,7 +96,7 @@
     .ib-back { display:inline-flex; align-items:center; justify-content:center; width:34px; height:34px; flex:0 0 auto; margin:-4px 2px -4px -6px; border-radius:8px; text-decoration:none; color:inherit; font-size:21px; line-height:1; opacity:.75; }
     .ib-back:active, .ib-back:hover { background:rgba(127,127,127,.12); opacity:1; }
   }
-  /* MARKER-PATCH-434 — mobile inbox styling to match the approved mockup */
+  /* mobile inbox styling to match the approved mockup */
   .ib-nr { display:none; }
   .ib-conv-name { font-size:14px; }
   .ib-compose-meta { display:flex; align-items:center; gap:14px; flex-wrap:wrap; margin-bottom:8px; }
@@ -118,7 +117,7 @@
     .ib-conv-name { font-size:17px; }
     .ib-msgs { padding:14px 16px; }
     .ib-msg { max-width:80%; padding:10px 24px 10px 13px; border-radius:15px; font-size:14px; }
-    /* MARKER-INBOX-POLISH — --ia-surface-2 does not exist in Intake's themes,
+    /* --ia-surface-2 does not exist in Intake's themes,
        so this resolved to nothing and inbound bubbles were transparent. */
     .ib-msg.in  { background:rgba(127,127,127,.14); border-bottom-left-radius:5px; }
     .ib-msg.out { background:#2a4a2a; color:#eafce0; box-shadow:none; border-bottom-right-radius:5px; }
@@ -131,7 +130,7 @@
     .ib-send-txt { display:none; }
     .ib-send-ar { display:inline; font-size:19px; line-height:1; }
   }
-  /* MARKER-PATCH-435 — mobile: hide the empty pane, edge-to-edge list, fix row overflow */
+  /* mobile: hide the empty pane, edge-to-edge list, fix row overflow */
   @media (max-width: 980px) {
     .ib-conv { display:none; }            /* empty "pick a conversation" pane stays hidden on phones */
     .ib-conv.has-sel { display:flex; }    /* a selected conversation still shows (full-screen overlay) */
@@ -139,7 +138,7 @@
     .ib-list { min-width:0; border-right:0; }
     .ib-thread-name { min-width:0; }
   }
-  /* MARKER-INBOX-NEW — start a conversation from the inbox */
+  /* start a conversation from the inbox */
   .ib-new { margin-bottom:16px; padding:14px 16px; border-radius:12px; background:var(--ia-surface);
             box-shadow:inset 0 0 0 .5px var(--ia-border); }
   .ib-new[hidden] { display:none; }
@@ -164,7 +163,7 @@
   .ib-new-chip button:hover { opacity:1; }
   .ib-new-meta { display:flex; align-items:center; gap:14px; flex-wrap:wrap; margin:10px 0 8px; }
 
-  /* MARKER-INBOX-MOBILE ---------------------------------------------- */
+  /* -------------------------------------------- */
   .ib-more { display:none; width:100%; margin:10px 0 4px; padding:12px;
     background:transparent; border:.5px solid var(--ia-border);
     border-radius:var(--ia-r-md); color:var(--ia-text); font-size:13px;
@@ -175,13 +174,13 @@
     text-align:center; line-height:1.5; }
   .ib-capnote.on { display:block; }
 
-  /* MARKER-INBOX-MOBILE-2 — the sticky controls and header overrides that
+  /* the sticky controls and header overrides that
      lived here are removed: they left a dead gap under the header and clipped
      the first conversation. The list keeps its original layout. */
 
-  /* MARKER-INBOX-AVATAR — style A. This block MUST remain the last thing in
+  /* style A. This block MUST remain the last thing in
      the stylesheet: media queries carry no specificity, so it has to
-     out-order MARKER-PATCH-434's .ib-thread rules above at equal weight. */
+     out-order 's .ib-thread rules above at equal weight. */
   .ib-av, .ib-count, .ib-you { display:none; }   /* desktop keeps its compact rows */
 
   @media (max-width: 980px) {
@@ -222,7 +221,7 @@
     /* the dot and the count say the same thing; the count is the richer one */
     .ib-thread.is-unread .ib-dot { display:none; }
   }
-  /* MARKER-INBOX-FRESHEN-A — desktop adopts the mobile "messages" styling
+  /* desktop adopts the mobile "messages" styling
      (option A). Appended last on purpose: at equal specificity these
      out-order the base rules above, including .ib-av's display:none. */
   #ib-scroll, .ib-msgs { scrollbar-width:thin; scrollbar-color:var(--ia-border) transparent; }
@@ -255,7 +254,6 @@
     <h1 class="ia-page-title">Inbox</h1>
     <p class="ia-page-subtitle">Every customer text in one place.<span class="ib-sub-more"> Replies, internal notes, and what needs your attention.</span></p>
   </div>
-  {{-- MARKER-INBOX-NEW --}}
   <div class="ia-page-actions">
     <button type="button" class="ia-btn ia-btn--primary" id="ib-new-btn">+ New conversation</button>
   </div>
@@ -264,7 +262,7 @@
 @if($errors->any())
   <div class="ia-flash ia-flash--error" style="margin-bottom:16px">{{ $errors->first() }}</div>
 @endif
-{{-- MARKER-INBOX-NEW — start a conversation with any customer. Posts to the
+{{-- start a conversation with any customer. Posts to the
      pre-existing inbox.start route; the picker reuses tenant.customers.search.
      from_new marks a failed submit as OURS so the panel reopens with the typed
      message intact, and so a failed REPLY's old('body') never leaks in here. --}}
@@ -305,7 +303,6 @@
 
 <div class="ib-wrap">
   <div class="ib-list">
-    {{-- MARKER-INBOX-SEARCH --}}
     <form class="ib-search" method="GET" action="{{ route('tenant.inbox.index') }}" id="ib-search-form">
       <span class="ib-search-ico">&#9906;</span>
       <input type="search" name="q" value="{{ $q ?? '' }}" autocomplete="off"
@@ -326,11 +323,10 @@
       <a class="ib-pill {{ $filter === 'closed' ? 'is-active' : '' }}" href="{{ route('tenant.inbox.index', ['filter' => 'closed']) }}">Closed</a>
     </div>
     @endif
-    {{-- MARKER-INBOX-MOBILE-2 — original container; the id is retained only
+    {{-- original container; the id is retained only
          so the chunking script can find it. --}}
     <div id="ib-scroll" style="overflow-y:auto;flex:1">
       @forelse($threads as $t)
-        {{-- MARKER-INBOX-AVATAR --}}
         @php
           $ibName    = trim((string) ($t->customer?->fullName() ?? ''));
           // Initials from the first two words; a business name gives its
@@ -344,7 +340,7 @@
           $ibHue     = (crc32((string) ($t->customer_id ?? $t->id)) % 6) + 1;
           $ibUnread  = (int) $t->unread_count > 0 || $t->status === 'needs_reply';
           $ibOut     = ($t->latestMessage?->direction ?? null) === 'out';
-          // MARKER-INBOX-FRESHEN-A — short relative time: 12m / 3h / 6d,
+          // short relative time: 12m / 3h / 6d,
           // older than a week shows the date.
           $ibWhen = '';
           if ($t->last_message_at) {
@@ -370,7 +366,7 @@
               </span>
               <span class="ib-thread-time">{{ $ibWhen }}</span>
             </div>
-            {{-- MARKER-INBOX-SEARCH — show the message that matched, not the newest --}}
+            {{-- show the message that matched, not the newest --}}
             @php $sc_hit = ($searchHits[$t->id] ?? null); @endphp
             <div class="ib-snippet">
               @if($sc_hit)
@@ -390,10 +386,9 @@
         </div>
       @endforelse
 
-      {{-- MARKER-INBOX-MOBILE --}}
       <button type="button" class="ib-more" id="ib-more"></button>
 
-      {{-- MARKER-INBOX-MOBILE — the controller stops at 100. Saying so beats
+      {{-- the controller stops at 100. Saying so beats
            a list that quietly ends. --}}
       @if($threads->count() >= 100)
         <div class="ib-capnote on">
@@ -420,7 +415,7 @@
         </div>
         </div>
         <form method="POST" action="{{ route('tenant.inbox.status', $selected->id) }}">@csrf
-          {{-- MARKER-INBOX-CLOSE — on a phone "Close" reads as "close this message",
+          {{-- on a phone "Close" reads as "close this message",
      which is the opposite of what it does. --}}
 <button type="submit" class="ia-btn" style="font-size:11.5px">{{ $selected->status === 'closed' ? 'Reopen ticket' : 'Close ticket' }}</button>
         </form>
@@ -437,7 +432,7 @@
             };
           @endphp
           <div class="ib-msg {{ $cls }}">
-            {{-- MARKER-PATCH-401 — delete a single message --}}
+            {{-- delete a single message --}}
             <form method="POST" action="{{ route('tenant.inbox.message.delete', $m->id) }}" onsubmit="return confirm('Delete this message? It will be hidden from the conversation.')" class="ib-msg-del">
               @csrf
               <button type="submit" title="Delete message">&times;</button>
@@ -451,7 +446,7 @@
       </div>
 
       @php
-        // MARKER-PATCH-397 — default the reply channel to the customer's last inbound.
+        // default the reply channel to the customer's last inbound.
         $lastIn = $selected->messages->where('direction', 'in')->last();
         $replyDefault = in_array($lastIn?->channel ?? '', ['web', 'email'], true) ? 'email' : 'sms';
       @endphp
@@ -482,7 +477,7 @@
 
 <script>
   (function () { var m = document.getElementById('ib-msgs'); if (m) m.scrollTop = m.scrollHeight; })();
-  // MARKER-INBOX-SEARCH — submit as you type, but not on every keystroke.
+  // submit as you type, but not on every keystroke.
   (function () {
     var f = document.getElementById('ib-search-form');
     var i = document.getElementById('ib-search-input');
@@ -498,7 +493,7 @@
 </script>
 
 <script>
-  // MARKER-INBOX-NEW — panel toggle + customer picker for starting a conversation.
+  // panel toggle + customer picker for starting a conversation.
   (function () {
     var panel = document.getElementById('ib-new');
     var openBtn = document.getElementById('ib-new-btn');
@@ -616,7 +611,7 @@
   })();
 </script>
 
-{{-- MARKER-INBOX-MOBILE — cap what is painted, not what is loaded. The
+{{-- cap what is painted, not what is loaded. The
      rows stay in the DOM (display:none) so every href and the selected-thread
      highlight keep working. --}}
 <script>

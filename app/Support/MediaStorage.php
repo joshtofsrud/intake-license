@@ -7,7 +7,7 @@ use App\Models\Tenant\TenantCampaignImage;
 use App\Models\Tenant\TenantMedia;
 
 /**
- * MARKER-MEDIA-STORAGE-METER — the one count of a shop's image storage.
+ * the one count of a shop's image storage.
  *
  * Before this, three upload paths each counted differently: campaign images
  * counted only campaign images, inventory photos counted only library images,

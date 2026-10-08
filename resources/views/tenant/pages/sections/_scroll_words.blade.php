@@ -1,5 +1,5 @@
 {{--
-  MARKER-SCROLL-WORDS — "Scroll words" editor (v2 inspector partial).
+  "Scroll words" editor (v2 inspector partial).
   A lead-in that stays put while a list of words changes as visitors scroll.
 --}}
 @php
@@ -27,7 +27,7 @@
 
 {{--=================== DESIGN ===================--}}
 <div class="pb2-tab-panel" data-tab="style" hidden>
-  {{-- MARKER-SCROLL-WORDS-BG — the standard Section background controls --}}
+  {{-- the standard Section background controls --}}
   <div class="pb2-group">
     <div class="pb2-group-title">Section background</div>
     <div class="pb2-field">
@@ -73,7 +73,6 @@
       </div>
     </div>
   </div>
-  {{-- MARKER-SW-SCROLLFX --}}
   <div class="pb2-group">
     <div class="pb2-group-title">Scroll effect</div>
     @foreach([['scroll_parallax', 'Parallax', 100, '%'], ['scroll_fade', 'Fade', 100, '%'], ['scroll_blur', 'Blur', 20, 'px']] as [$sk, $sl, $smax, $su])
@@ -103,7 +102,6 @@
       </div>
       <input type="hidden" data-field="mode" value="{{ $get('mode', 'spotlight') }}">
     </div>
-    {{-- MARKER-SW-PACE --}}
     @foreach([['pace', 'Pace', 30, 200, 60, '%', 'scroll to run through all the words — higher is slower'], ['smooth', 'Smoothing', 0, 100, 0, '', '0 = step by step; higher = the words glide with your scroll']] as [$mk, $ml, $mmin, $mmax, $mdef, $mu, $mh])
       @php $mv = max($mmin, min($mmax, (int) ($c[$mk] ?? $mdef))); @endphp
       <div class="pb2-field">

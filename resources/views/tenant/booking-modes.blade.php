@@ -49,7 +49,7 @@
   <div class="bm-flash">{{ session('status') }}</div>
 @endif
 
-{{-- MARKER-PATCH-523 — underline tabs: Booking mode | Pickup & delivery --}}
+{{-- underline tabs: Booking mode | Pickup & delivery --}}
 @if($currentTenant->deliveries_enabled)
 <div class="bm-tabs" role="tablist">
   <button type="button" class="bm-tab on" data-tab="mode">Booking mode</button>
@@ -63,8 +63,8 @@
   opens on a fork so they pick the path that fits. Simple and Advanced both create the same kind of booking — Simple is just a faster front door.
 </div>
 
-{{-- MARKER-PATCH-521 — P&D settings promoted above the mode form --}}
-{{-- MARKER-PATCH-510 — Pickup & delivery (route windows + behavior) --}}
+{{-- P&D settings promoted above the mode form --}}
+{{-- Pickup & delivery (route windows + behavior) --}}
 @if($currentTenant->deliveries_enabled)
 <div data-pane="pd" hidden style="max-width:760px;margin-top:8px">
   <p style="font-size:12.5px;color:var(--ia-text-muted);margin:0 0 18px">Route windows are the capacity customers book pickups against — pickups and deliveries share each window's stop count. Booking-flow integration is coming next; these settings take effect then.</p>
@@ -142,12 +142,11 @@
         <input type="number" name="pd_windows_offered" min="1" max="6" value="{{ $pd['windows_offered'] }}"
                style="display:block;margin-top:5px;width:90px;padding:8px 10px;background:var(--ia-surface-2);border:0.5px solid var(--ia-border);border-radius:8px;color:var(--ia-text);font-size:13px">
       </label>
-      <label style="font-size:12px;color:var(--ia-text-muted)">Flag as no-reply at (hour, 24h){{-- MARKER-PATCH-534 --}}
+      <label style="font-size:12px;color:var(--ia-text-muted)">Flag as no-reply at (hour, 24h)
         <input type="number" name="pd_assume_first_hour" min="12" max="23" value="{{ $pd['assume_first_hour'] }}"
                style="display:block;margin-top:5px;width:90px;padding:8px 10px;background:var(--ia-surface-2);border:0.5px solid var(--ia-border);border-radius:8px;color:var(--ia-text);font-size:13px">
       </label>
       <label style="font-size:12px;color:var(--ia-text-muted)">Pickup up to N days before the service date
-        {{-- MARKER-PATCH-520 --}}
         <input type="number" name="pd_pickup_lead_days" min="0" max="7"
                value="{{ (int) (((array) ($currentTenant->settings ?? []))['pd_pickup_lead_days'] ?? 1) }}"
                style="display:block;margin-top:5px;width:90px;padding:8px 10px;background:var(--ia-surface-2);border:0.5px solid var(--ia-border);border-radius:8px;color:var(--ia-text);font-size:13px">
@@ -175,7 +174,6 @@
         <input type="checkbox" name="pd_need_by_enabled" value="1" @checked($pd['need_by'])>
         Allow customers to add a "need it by" date
       </label>
-      {{-- MARKER-PATCH-524 --}}
       <label style="font-size:13px;display:flex;align-items:center;gap:9px;cursor:pointer">
         <input type="checkbox" name="pd_allow_day_of" value="1" @checked((bool) (((array) ($currentTenant->settings ?? []))['pd_allow_day_of'] ?? false))>
         Offer same-day pickup windows <span style="color:var(--ia-text-muted);font-size:11.5px">(off = pickups always land on an earlier route day)</span>
@@ -187,7 +185,7 @@
 </div>
 @endif
 
-{{-- MARKER-PATCH-516 styles --}}
+{{-- styles --}}
 <style>
   .bm-acc{border:0.5px solid var(--ia-border);border-radius:12px;background:var(--ia-surface-2);margin-bottom:10px;overflow:hidden}
   .bm-acc-h{display:flex;align-items:center;gap:10px;width:100%;padding:12px 16px;background:none;border:0;cursor:pointer;color:var(--ia-text);font-family:inherit;text-align:left}
@@ -198,7 +196,7 @@
   .bm-acc.open .bm-acc-chev{transform:rotate(180deg)}
   .bm-acc-b{display:none;border-top:0.5px solid var(--ia-border);padding:2px 16px 8px}
   .bm-acc.open .bm-acc-b{display:block}
-  /* MARKER-PATCH-521 — hard-clear the legacy card box on accordion rows */
+  /* hard-clear the legacy card box on accordion rows */
   .bm-acc .bm-item{display:flex;align-items:center;gap:12px;padding:9px 0;border:0;border-bottom:0.5px solid var(--ia-border);background:transparent;border-radius:0;margin:0;box-shadow:none}
   .bm-acc .bm-item:last-child{border-bottom:0}
   .bm-acc-b{padding-bottom:6px}
@@ -239,7 +237,7 @@
       service tile (defaults to the start of the service description if left blank). Only used by Simple and the Quick path.
     </div>
 
-    {{-- MARKER-PATCH-516 — collapse-in-place: accordions, badges, checked-only fields --}}
+    {{-- collapse-in-place: accordions, badges, checked-only fields --}}
     @forelse($categories as $cat)
       @if($cat->items->count())
         @php $bmShown = $cat->items->where('simple_enabled', true)->count(); @endphp
@@ -280,7 +278,7 @@
     @endforelse
   </div>
 
-  {{-- MARKER-PATCH-516 — sticky save with live shown count --}}
+  {{-- sticky save with live shown count --}}
   <div class="bm-save bm-save--sticky">
     <button type="submit" class="bm-btn">Save booking mode</button>
     <span class="bm-save-note"><b id="bm-shown-count">0</b> services shown to customers</span>
@@ -288,7 +286,7 @@
 
   <script>
   (function () {
-    // MARKER-PATCH-516 — checked-row fields, per-category badges, live count
+    // checked-row fields, per-category badges, live count
     function refresh() {
       var total = 0;
       document.querySelectorAll('.bm-acc').forEach(function (acc) {
@@ -327,7 +325,7 @@
   });
 </script>
 
-{{-- MARKER-PATCH-523 — tab styles + switcher --}}
+{{-- tab styles + switcher --}}
 <style>
   .bm-tabs{display:flex;gap:22px;border-bottom:0.5px solid var(--ia-border);margin:0 0 22px}
   .bm-tab{background:none;border:0;padding:0 2px 10px;margin-bottom:-0.5px;font-family:inherit;font-size:13px;font-weight:600;color:var(--ia-text-muted);cursor:pointer;border-bottom:2px solid transparent}

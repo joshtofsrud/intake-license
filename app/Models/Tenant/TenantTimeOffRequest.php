@@ -1,5 +1,5 @@
 <?php
-// MARKER-PATCH-612 — time-off request. Day boundaries tenant-local, stored UTC.
+// time-off request. Day boundaries tenant-local, stored UTC.
 
 namespace App\Models\Tenant;
 

@@ -11,7 +11,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
 /**
- * MARKER-PATCH-566 — Online Retail Wave 4: checkout + confirmation.
+ * Online Retail Wave 4: checkout + confirmation.
  * One staged page (contact -> fulfillment -> Payment Element), a place
  * endpoint that returns the PI client_secret, a return leg that verifies
  * with Stripe (never trusting the browser), and the /order/{token} receipt.
@@ -22,7 +22,7 @@ class CheckoutController extends Controller
     {
         abort_unless(
             app(\App\Services\FeatureAccessService::class)->hasAddon(tenant(), 'online_store')
-            && (bool) ((tenant()->settings['storefront']['enabled'] ?? true)), // MARKER-PATCH-569
+            && (bool) ((tenant()->settings['storefront']['enabled'] ?? true)),
             404
         );
     }
@@ -39,7 +39,7 @@ class CheckoutController extends Controller
         $orders = OrderService::forTenant($tenant);
         $pk = (new DirectPaymentsService($tenant))->publishableKey();
 
-        return \App\Services\Tenant\SiteChromeService::render($tenant, 'shop_checkout', [ // MARKER-PATCH-579
+        return \App\Services\Tenant\SiteChromeService::render($tenant, 'shop_checkout', [
             'tenant'   => $tenant,
             'cart'     => $cart->load('items'),
             'quotePickup'   => $orders->quote($cart, 'pickup'),
@@ -64,10 +64,10 @@ class CheckoutController extends Controller
             'address'          => ['nullable', 'string', 'max:300'],
             'notes'            => ['nullable', 'string', 'max:500'],
             'wants_install'    => ['nullable', 'boolean'],
-            'payment_method'   => ['nullable', 'string', 'max:40'], // MARKER-PATCH-631
+            'payment_method'   => ['nullable', 'string', 'max:40'],
         ]);
 
-        // MARKER-PATCH-631 — manual methods: validate against the tenant's
+        // manual methods: validate against the tenant's
         // enabled online methods; anything else falls through to card.
         $manualMethod = null;
         $pmKey = $data['payment_method'] ?? 'card';
@@ -104,13 +104,13 @@ class CheckoutController extends Controller
                 'address'       => filled($data['address'] ?? null) ? ['line' => $data['address']] : null,
                 'notes'         => $data['notes'] ?? null,
                 'wants_install' => (bool) ($data['wants_install'] ?? false),
-            ], $manualMethod); // MARKER-PATCH-631
+            ], $manualMethod);
         } catch (\Throwable $e) {
             Log::error('checkout.place_failed', ['tenant' => $tenant->id, 'error' => $e->getMessage()]);
             return response()->json(['ok' => false, 'message' => 'Could not start payment — try again or give us a call.'], 500);
         }
 
-        if ($manualMethod !== null) { // MARKER-PATCH-631 — no Stripe leg; straight to confirmation
+        if ($manualMethod !== null) { // no Stripe leg; straight to confirmation
             return response()->json([
                 'ok'       => true,
                 'manual'   => true,
@@ -168,7 +168,7 @@ class CheckoutController extends Controller
             ->with('items')
             ->firstOrFail();
 
-        return \App\Services\Tenant\SiteChromeService::render(tenant(), 'shop_confirmation', [ // MARKER-PATCH-579
+        return \App\Services\Tenant\SiteChromeService::render(tenant(), 'shop_confirmation', [
             'tenant' => tenant(),
             'order'  => $order,
         ]);

@@ -6,7 +6,7 @@ use App\Models\Tenant\TenantPendingBooking;
 use Illuminate\Console\Command;
 
 /**
- * MARKER-PATCH-387 — bookings:reap-holds.
+ * bookings:reap-holds.
  *
  * Clears out charge-then-create booking holds:
  *  - abandoned: status 'pending' AND expires_at more than 2h ago. The buffer
@@ -23,7 +23,7 @@ class BookingsReapHolds extends Command
 
     public function handle(): int
     {
-        // MARKER-FAILED-PAID — released holds reap on the same schedule as
+        // released holds reap on the same schedule as
         // abandoned ones; failed_paid rows are permanent evidence of a
         // charged customer and are NEVER deleted here.
         $abandoned = TenantPendingBooking::whereIn('status', ['pending', 'released'])

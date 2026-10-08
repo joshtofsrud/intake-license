@@ -1,6 +1,5 @@
 @extends('layouts.tenant.app')
 @php $pageTitle = 'Merge review'; @endphp
-{{-- MARKER-IMPORT-MERGE --}}
 
 @section('content')
 @include('tenant.imports._styles')

@@ -1,5 +1,4 @@
 <?php
-// MARKER-BRAND-ECHO
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\DB;
@@ -7,7 +6,7 @@ use Illuminate\Support\Facades\Log;
 
 /**
  * Strip a doubled leading brand from stored names. These rows predate the
- * composer's MARKER-TITLE-DEDUP (or came through the raw-name fallback), so
+ * composer's (or came through the raw-name fallback), so
  * the feed's own "Maxxis Maxxis Minion DHF Tire" is sitting on items today.
  * Scoped to names that literally begin with that row's brand twice, so a
  * shop's own naming is never touched. Idempotent: once stripped, the
@@ -32,7 +31,7 @@ return new class extends Migration
               AND LOWER(i.name) LIKE LOWER(CONCAT(TRIM(c.manufacturer), ' ', TRIM(c.manufacturer), ' %'))
         ");
 
-        Log::info("MARKER-BRAND-ECHO: de-echoed {$catalog} catalog display_names, {$items} tenant item names");
+        Log::info("brand-echo: de-echoed {$catalog} catalog display_names, {$items} tenant item names");
     }
 
     public function down(): void

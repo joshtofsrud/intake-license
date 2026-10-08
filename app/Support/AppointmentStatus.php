@@ -1,5 +1,4 @@
 <?php
-// MARKER-PATCH-283
 
 namespace App\Support;
 
@@ -41,7 +40,7 @@ class AppointmentStatus
     public const DEFAULT_SET = ['pending', 'confirmed', 'in_progress', 'completed', 'cancelled'];
 
     /**
-     * MARKER-PATCH-287 — the ONE transition map. Clean flow over the selectable
+     * the ONE transition map. Clean flow over the selectable
      * set; shipped/closed/refunded kept only as keys (legacy escape hatches),
      * never as targets. Controller + inline list dropdown both read this.
      */
@@ -96,7 +95,7 @@ class AppointmentStatus
     }
 
     /**
-     * MARKER-PATCH-286 — "Closed" is not a status; it's a Done job with a zero
+     * "Closed" is not a status; it's a Done job with a zero
      * balance (fully paid). A finished, paid job is finalized and drops out of
      * the pickup attention tiles. Used for both tile logic and display.
      */

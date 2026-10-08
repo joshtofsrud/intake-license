@@ -4,7 +4,6 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
-// MARKER-RAISE-SETUP
 class InvestDocument extends Model
 {
     protected $fillable = ['slug', 'label', 'path', 'sort', 'is_active'];

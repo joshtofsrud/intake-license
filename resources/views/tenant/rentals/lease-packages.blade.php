@@ -1,7 +1,7 @@
 @extends('layouts.tenant.app')
 @php $pageTitle = 'Lease Packages'; @endphp
 
-{{-- MARKER-PATCH-229 — lease package builder. A slot = category + size
+{{-- lease package builder. A slot = category + size
      filter + quantity; packages own no units (pulled from fleet at
      fulfillment, patch 230). --}}
 

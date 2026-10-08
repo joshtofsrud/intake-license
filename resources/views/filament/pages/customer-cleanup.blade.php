@@ -1,4 +1,3 @@
-{{-- MARKER-CUST-CLEANUP --}}
 @php
     $tenant  = $this->tenant();
     $summary = $this->summary();

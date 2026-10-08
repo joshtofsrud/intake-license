@@ -9,7 +9,7 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
 /**
- * MARKER-PATCH-178A — Clean up the two artifacts the old deposit-as-sale flow
+ * Clean up the two artifacts the old deposit-as-sale flow
  * produced:
  *
  *   1. ORPHAN deposit-sales: rows that are unpaid, have ZERO ledger payments,

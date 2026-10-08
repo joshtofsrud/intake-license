@@ -1,5 +1,4 @@
 <?php
-// MARKER-PATCH-258
 
 namespace App\Http\Controllers\Tenant;
 
@@ -11,7 +10,7 @@ use Illuminate\Support\Facades\Storage;
 class MediaLibraryController extends Controller
 {
     /** Folders surfaced as filters (matches UploadController::ALLOWED types). */
-    private const FOLDERS = ['general', 'hero', 'gallery', 'logo', 'logo_light', 'favicon', 'partner_logo']; // MARKER-LOGOBAR-PICKER
+    private const FOLDERS = ['general', 'hero', 'gallery', 'logo', 'logo_light', 'favicon', 'partner_logo'];
 
     public function index(Request $request)
     {
@@ -19,7 +18,7 @@ class MediaLibraryController extends Controller
         $folder = $request->query('folder');
         $q      = trim((string) $request->query('q', ''));
 
-        $archived = $request->boolean('archived'); // MARKER-MEDIA-DELETE — archived images get their own view
+        $archived = $request->boolean('archived'); // archived images get their own view
         $media = TenantMedia::where('tenant_id', $tenant->id)
             ->when($archived, fn ($w) => $w->whereNotNull('archived_at'), fn ($w) => $w->active())
             ->folder(in_array($folder, self::FOLDERS, true) ? $folder : null)
@@ -38,8 +37,8 @@ class MediaLibraryController extends Controller
             'folders' => self::FOLDERS,
             'folder'  => $folder,
             'q'       => $q,
-            'storage' => \App\Support\MediaStorage::summary($tenant), // MARKER-MEDIA-STORAGE-METER
-            'archived'  => $archived, // MARKER-MEDIA-DELETE
+            'storage' => \App\Support\MediaStorage::summary($tenant),
+            'archived'  => $archived,
             'canDelete' => (bool) auth('tenant')->user()?->isManager(),
         ]);
     }
@@ -68,7 +67,7 @@ class MediaLibraryController extends Controller
     }
 
     /**
-     * MARKER-MEDIA-DELETE — remove the file and free its space. Refused while
+     * remove the file and free its space. Refused while
      * anything still uses the image (see App\Support\MediaUsage), and limited
      * to owners and managers because it can't be undone.
      */

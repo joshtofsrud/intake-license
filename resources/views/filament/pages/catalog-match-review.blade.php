@@ -1,4 +1,3 @@
-{{-- MARKER-MATCH-REVIEW --}}
 <x-filament-panels::page>
 
   @php

@@ -1,7 +1,7 @@
 @extends('layouts.tenant.app')
 @php $pageTitle = 'Templates'; @endphp
 
-{{-- MARKER-PATCH-261 — website template gallery. --}}
+{{-- website template gallery. --}}
 
 @section('content')
 
@@ -32,7 +32,7 @@
   <span>ⓘ</span><span>Switching templates restyles your existing pages — it never deletes content. Each look ships with matching mobile layouts.</span>
 </div>
 
-{{-- MARKER-CUSTOMIZER — live customizer. The preview is the SAME _thumb
+{{-- live customizer. The preview is the SAME _thumb
      partial the cards use, so what you tune here is what a template promises.
      It repaints by setting --t-* on the preview root; nothing is saved until
      Save is pressed. --}}
@@ -47,7 +47,7 @@
   $czFonts = ['Inter','Poppins','DM Sans','Nunito','Lato','Raleway','Montserrat','Playfair Display','Merriweather'];
 @endphp
 
-{{-- MARKER-CZFIX — without this a validation failure was completely silent --}}
+{{-- without this a validation failure was completely silent --}}
 @if($errors->any())
   <div class="ia-flash ia-flash--error" style="margin-bottom:14px">
     Couldn't save your changes: {{ $errors->first() }}
@@ -96,7 +96,7 @@
             @foreach($czFields as [$czKey, $czLabel, $czType])
               @php
                 $czVal = $czTokens[$czKey] ?? '';
-                /* MARKER-CZFIX — with no template applied there is no
+                /* with no template applied there is no
                    template default, and reset had nothing to reset TO. The
                    pipeline fallback is the honest answer. */
                 $czDef = $czTemplate[$czKey] ?? (\App\Support\DesignTokens::FALLBACKS[$czKey] ?? null);
@@ -108,7 +108,7 @@
                 <div class="cz-ctl">
                   @if($czType === 'color')
                     <input type="text" class="cz-hex" value="{{ $czVal }}" data-role="hex" autocomplete="off">
-                    <input type="color" class="cz-sw" value="{{ \App\Support\DesignTokens::toHex($czVal, \App\Support\DesignTokens::toHex($czTokens['bg'] ?? '#ffffff')) }}" data-role="pick"> {{-- MARKER-CZFIX --}}
+                    <input type="color" class="cz-sw" value="{{ \App\Support\DesignTokens::toHex($czVal, \App\Support\DesignTokens::toHex($czTokens['bg'] ?? '#ffffff')) }}" data-role="pick">
                   @elseif($czType === 'font')
                     <select class="cz-select" data-role="val">
                       @foreach($czFonts as $czFont)
@@ -276,7 +276,7 @@
   .fs-cards { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
   .fs-cards > div { aspect-ratio:4/3; border-radius:8px; }
 
-  /* MARKER-PATCH-263 — blueprint block shapes */
+  /* blueprint block shapes */
   .fs-hero--split { display:flex; gap:18px; align-items:center; }
   .fs-hero--split .fs-hero-copy { flex:1; }
   .fs-hero-img { flex:1; align-self:stretch; min-height:120px; border-radius:10px; }
@@ -326,7 +326,6 @@
   .tpl-seed-opt input { margin-top:2px; flex:none; }
   .tpl-seed-opt span { opacity:.85; }
 
-/* MARKER-CUSTOMIZER */
 .cz-wrap{display:grid;grid-template-columns:1fr 330px;gap:18px;align-items:start;margin-bottom:30px}
 @media(max-width:1000px){.cz-wrap{grid-template-columns:1fr}}
 .cz-stage{background:var(--ia-surface);border-radius:var(--ia-r-lg);box-shadow:inset 0 0 0 .5px var(--ia-border);overflow:hidden}
@@ -363,10 +362,9 @@
 .tpl-section-head{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;opacity:.45;margin:0 0 12px}
 </style>
 
-{{-- MARKER-CZJS — this block used to sit past the end of the content
+{{-- this block used to sit past the end of the content
      section, where Blade discards it in an extending view, so the
      customizer had no JS at all. --}}
-{{-- MARKER-CUSTOMIZER --}}
 <script>
 (function () {
   var form = document.getElementById('cz-form');
@@ -445,7 +443,7 @@
 
     row.querySelector('.cz-reset').addEventListener('click', function () {
       var def = row.getAttribute('data-default');
-      if (def) { setRow(row, def); } // MARKER-CZFIX
+      if (def) { setRow(row, def); }
     });
 
     mark(row);
@@ -456,7 +454,7 @@
   document.getElementById('cz-reset-all').addEventListener('click', function () {
     document.querySelectorAll('.cz-row').forEach(function (row) {
       var def = row.getAttribute('data-default');
-      if (def) { setRow(row, def); } // MARKER-CZFIX
+      if (def) { setRow(row, def); }
     });
   });
 })();

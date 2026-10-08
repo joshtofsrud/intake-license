@@ -491,7 +491,7 @@
   }
 }
 
-/* MARKER-DASH-STATS-STRIP — the phone stats as a strip: no boxes, thin rules
+/* the phone stats as a strip: no boxes, thin rules
    between the figures, one hairline underneath. A modifier, so the original
    .ia-dash-m-stat rules are untouched. */
 .ia-dash-m-stats.ia-dash-m-stats--strip { gap: 0; padding: 2px 0 12px; margin-bottom: 14px;

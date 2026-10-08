@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 
 /**
- * MARKER-INBOX — the one door into the inbox. Feeds call these; nothing
+ * the one door into the inbox. Feeds call these; nothing
  * inserts into platform_inbox_messages directly.
  */
 class PlatformInbox

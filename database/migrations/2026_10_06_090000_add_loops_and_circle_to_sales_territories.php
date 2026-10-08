@@ -5,7 +5,7 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * MARKER-SALES-TERRITORY2 — a territory is any mix of loops, states (with the
+ * a territory is any mix of loops, states (with the
  * optional latitude band, which the Modus contract needs for northern
  * California and Nevada) and one map circle (center + miles).
  */

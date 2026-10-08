@@ -1,4 +1,3 @@
-{{-- MARKER-INVEST-FULL --}}
 <section><div class="wrap">
   <h2>What it costs to run.</h2>
   <p class="lede">Intake is software, so most of what it earns it keeps. The costs that scale with

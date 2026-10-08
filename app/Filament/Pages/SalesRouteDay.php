@@ -1,5 +1,4 @@
 <?php
-// MARKER-SALES-ROUTE
 
 namespace App\Filament\Pages;
 
@@ -22,7 +21,7 @@ class SalesRouteDay extends Page
 {
     use \App\Support\UsesAdminNav;
     protected static ?string $navigationIcon  = 'heroicon-o-calendar-days';
-    protected static ?string $navigationLabel = 'Today'; // MARKER-SALES-TODAY — was Route day
+    protected static ?string $navigationLabel = 'Today'; // was Route day
     protected static ?string $navigationGroup = 'Sales';
     protected static ?int    $navigationSort  = 4;
     protected static string  $view            = 'filament.pages.sales-route-day';
@@ -43,7 +42,7 @@ class SalesRouteDay extends Page
     /** @var array<int,string> ordered prospect ids */
     public array $route = [];
     public array $done  = [];
-    public bool  $showMap = false; // MARKER-TODAY-TIGHT — the map opens when a route is built
+    public bool  $showMap = false; // the map opens when a route is built
 
     public static function canAccess(): bool
     {
@@ -164,7 +163,7 @@ class SalesRouteDay extends Page
         }
     }
 
-    // ---------------------------------------------------------------- MARKER-SALES-TODAY
+    // ----------------------------------------------------------------
     // Route day became Today: one agenda (overdue, then due today), the shops
     // still to verify, and the drive for the visits — on one page.
     public string $industryId = '';

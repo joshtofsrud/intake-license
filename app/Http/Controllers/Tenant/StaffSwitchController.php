@@ -42,7 +42,7 @@ class StaffSwitchController extends Controller
             return redirect()->route('tenant.dashboard');
         }
 
-        // MARKER-IMPERSONATE-SWITCH — never wipe an impersonated session.
+        // never wipe an impersonated session.
         // The wipe below calls session()->invalidate(), which destroys
         // `impersonating_from` as well as the tenant login, so the master
         // admin loses both the shop and the way back to /admin/tenants.
@@ -139,7 +139,7 @@ class StaffSwitchController extends Controller
             ], 422);
         }
 
-        // MARKER-IMPERSONATE-SWITCH — the page is blocked above, but this is
+        // the page is blocked above, but this is
         // a POST endpoint in its own right and its no-location branch logs
         // the tenant guard out, which would end an impersonated session.
         if (is_impersonating()) {
@@ -219,7 +219,7 @@ class StaffSwitchController extends Controller
             return response()->json(['ok' => false, 'error' => 'pin_already_set'], 409);
         }
 
-        // MARKER-PATCH-459 — per-user credential, never the shop.
+        // per-user credential, never the shop.
         // Second factor: re-verify THIS user's OWN account password. The
         // previous check accepted ANY active user's password, so at
         // Who's-here anyone could tap the owner's card and set a PIN on it
@@ -237,7 +237,7 @@ class StaffSwitchController extends Controller
             ], 422);
         }
 
-        // MARKER-IMPERSONATE-SWITCH — same reasoning as verifyPin, and this
+        // same reasoning as verifyPin, and this
         // one would also write a PIN onto a real staff account.
         if (is_impersonating()) {
             return response()->json(['ok' => false, 'error' => 'impersonating'], 403);

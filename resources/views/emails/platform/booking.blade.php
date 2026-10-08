@@ -1,7 +1,6 @@
 <!doctype html>
 <html><head><meta charset="utf-8"><title>{{ $subject }}</title></head>
 <body style="margin:0;padding:0;background:#f4f4f2;font-family:Inter,-apple-system,Segoe UI,Helvetica,Arial,sans-serif;color:#111;">
-<!-- MARKER-SCHED-PUBLIC -->
 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f4f4f2;padding:28px 12px;">
 <tr><td align="center">
 <table role="presentation" width="560" cellspacing="0" cellpadding="0" style="max-width:560px;width:100%;background:#fff;border-radius:12px;border:1px solid #e6e6e2;">

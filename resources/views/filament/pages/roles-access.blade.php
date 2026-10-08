@@ -1,5 +1,4 @@
 <x-filament-panels::page>
-<!-- MARKER-ADMIN-NAV-GATE -->
 
 <x-filament::section>
   <x-slot name="heading">Fixed per role</x-slot>

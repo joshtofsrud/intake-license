@@ -1,6 +1,5 @@
 <?php
 
-// MARKER-CATALOG-IDENTIFIERS
 
 namespace App\Services\Distributors;
 
@@ -17,7 +16,7 @@ use App\Models\PlatformDistributorCatalog;
 class CatalogIdentifierService
 {
     /**
-     * MARKER-MPN-FLOOR — floors differ by type, on purpose.
+     * floors differ by type, on purpose.
      *
      * A barcode shorter than 4 digits is corrupt data. A part number shorter
      * than 4 is routine — "BR-3" is a real Wheels Manufacturing SKU — and it

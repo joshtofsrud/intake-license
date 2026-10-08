@@ -4,7 +4,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-// MARKER-SHARED-COMMIT — a record made by someone holding the shared link,
+// a record made by someone holding the shared link,
 // rather than one Josh invited. Same shape, different provenance, and the
 // difference has to be visible before anything is signed.
 return new class extends Migration

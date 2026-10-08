@@ -1,5 +1,5 @@
 <?php
-// MARKER-SALES-FIND — one row per Find-shops search, so spend is visible and auditable.
+// one row per Find-shops search, so spend is visible and auditable.
 
 namespace App\Models;
 

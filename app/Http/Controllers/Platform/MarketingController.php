@@ -25,7 +25,7 @@ use Illuminate\Support\Facades\Validator;
  */
 class MarketingController extends Controller
 {
-    public function home()      { return $this->renderPage(\App\Support\MarketingNav::homeSlug()); } // MARKER-MKT-HOME
+    public function home()      { return $this->renderPage(\App\Support\MarketingNav::homeSlug()); }
     public function pricing()   { return $this->renderPage('pricing'); }
     public function features()  { return $this->renderPage('features'); }
     public function whyIntake() { return $this->renderPage('why-intake'); }
@@ -80,7 +80,7 @@ class MarketingController extends Controller
 
         $thanks = back()->with('status', 'Thanks! We\'ll be in touch within 1 business day.');
 
-        // MARKER-INBOX — SPAM GATE, before anything is counted or stored.
+        // SPAM GATE, before anything is counted or stored.
         // Every submission from Sep 4 to Sep 15 was a bot; the form had no
         // protection and the funnel event fired before validation. A bot gets
         // the same thank-you as a person and leaves no trace — never tell it
@@ -120,7 +120,7 @@ class MarketingController extends Controller
             'ip'         => $request->ip(),
         ]);
 
-        // MARKER-MKTTRAFFIC — the funnel event, now only for a real person,
+        // the funnel event, now only for a real person,
         // after the gate and after validation.
         \App\Http\Controllers\Platform\MarketingFunnelController::record('contact_submitted', [
             'session_id' => (string) $request->input('session_id', 'server'),
@@ -133,7 +133,7 @@ class MarketingController extends Controller
     // Patch 45: CMS-only marketing — single render path.
     private function renderPage(string $slug)
     {
-        // MARKER-MKT-HOME — the home page lives at / only; its own address redirects.
+        // the home page lives at / only; its own address redirects.
         if ($slug === \App\Support\MarketingNav::homeSlug() && request()->path() !== '/') {
             return redirect('/', 301);
         }
@@ -142,7 +142,7 @@ class MarketingController extends Controller
         $page = TenantPage::where('tenant_id', $tenant->id)
             ->where('slug', $slug)
             ->where('is_published', true)
-            // MARKER-HELP-TENANT — help articles are platform pages too (kind
+            // help articles are platform pages too (kind
             // 'howto'). Without this, publishing one made it readable by anyone
             // at intake.works/<slug>, straight past the tier and add-on gate.
             ->where(function ($w) {

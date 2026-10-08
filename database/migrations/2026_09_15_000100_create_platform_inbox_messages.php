@@ -5,7 +5,7 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
-/** MARKER-INBOX — the master-admin inbox: messages and alerts, one table. */
+/** the master-admin inbox: messages and alerts, one table. */
 return new class extends Migration
 {
     public function up(): void

@@ -1,6 +1,6 @@
 {{--
     Dynamic section: renders the changelog list.
-    MARKER-CL-RM-LAYOUT — labelled highlights, then the timeline by month.
+    labelled highlights, then the timeline by month.
 
     Variables in scope:
       $c       — section content array (intro_text)
@@ -94,7 +94,7 @@
               <div>
                 <div style="font-weight:600;font-size:15px;line-height:1.35">
                   {{ $entry->title }}
-                  {{-- MARKER-CL-CATEGORY-LABEL — featured: its own category, in the highlight color --}}
+                  {{-- featured: its own category, in the highlight color --}}
                   @if($entry->is_highlighted && $entry->category)
                     <span style="font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--mk-accent);margin-left:8px">{{ $entry->category }}</span>
                   @elseif($entry->category)

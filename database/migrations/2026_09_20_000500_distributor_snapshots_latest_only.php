@@ -1,5 +1,5 @@
 <?php
-// MARKER-SNAPSHOT-OVERWRITE — one availability row per tenant + distributor +
+// one availability row per tenant + distributor +
 // variant. Keeps the newest row for each (highest id = last written), drops
 // the rest by swapping in a cleaned copy, and adds the unique key the sync's
 // upsert overwrites on. Not reversible: the dropped rows were unread history.

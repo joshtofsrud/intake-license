@@ -9,7 +9,7 @@ use Illuminate\Console\Events\ScheduledTaskStarting;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * MARKER-TASK-HEALTH — writes a row for every scheduled run.
+ * writes a row for every scheduled run.
  *
  * Recording must never be the reason a task fails, so every write is wrapped:
  * a broken health table would otherwise take the campaign worker down with it,
@@ -79,7 +79,7 @@ class RecordScheduledTask
         } catch (\Throwable $e) {
             // Deliberately swallowed: health recording is not worth failing a
             // real job over.
-            logger()->warning('MARKER-TASK-HEALTH could not record a run', ['error' => $e->getMessage()]);
+            logger()->warning('task-health: could not record a run', ['error' => $e->getMessage()]);
         }
     }
 }

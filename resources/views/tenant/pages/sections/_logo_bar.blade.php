@@ -1,5 +1,5 @@
 {{--
-  MARKER-PATCH-158-G32 — logo_bar editor (Phase 2)
+  logo_bar editor (Phase 2)
   Single consolidated logos list (each row: name + optional logo URL +
   optional link URL). Renders as a horizontal strip — static grid OR
   scrolling marquee. Falls back to a text "pill" when no logo URL given.
@@ -75,7 +75,7 @@
 
     <div id="pb2-logo-list">
       @foreach($logos as $i => $lg)
-        {{-- MARKER-LOGOBAR-PICKER — image via thumbnail + Upload / library. --}}
+        {{-- image via thumbnail + Upload / library. --}}
         <div class="pb2-logorow" data-logo-idx="{{ $i }}">
           <span class="pb2-navlist-handle">⋮⋮</span>
           <div class="pb2-logo-thumb" data-logo-thumb style="{{ ($lg['logo_url'] ?? '') ? "background-image:url('" . $lg['logo_url'] . "')" : '' }}"></div>
@@ -209,7 +209,7 @@
     </div>
 
     <div class="pb2-bg-pane" data-bg-mode="gradient">
-        {{-- MARKER-PATCH-269 — gradient angle --}}
+        {{-- gradient angle --}}
         <div class="pb2-field">
           <div class="pb2-slider-row">
             <label class="pb2-field-label" style="margin:0">Angle</label>

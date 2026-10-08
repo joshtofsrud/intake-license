@@ -1,4 +1,3 @@
-{{-- MARKER-NAV-ARRANGE --}}
 @php
     $a       = $this->arrangement();
     $counts  = $this->counts();
@@ -52,7 +51,7 @@
                             wire:click="moveDown('{{ $item['key'] }}', '{{ $this->groupKey($groupName) }}')">↓</x-filament::button>
                     </span>
 
-                    {{-- MARKER-NAV-ARRANGE — the label edits in place. House rule:
+                    {{-- the label edits in place. House rule:
                          no native browser dialogs, and a prompt() here would be
                          one. Enter or clicking away saves; empty restores the
                          page's own name. --}}
@@ -72,7 +71,7 @@
                             class="rounded-lg border-gray-300 dark:bg-white/5 dark:border-white/10 text-sm"
                             style="font-size:12px;padding:3px 6px">
                         @foreach(array_unique(array_merge($groups, ['(top level)'])) as $g)
-                            {{-- MARKER-NAV-ARRANGE-BLADE — value is a key, not a name --}}
+                            {{-- value is a key, not a name --}}
                             <option value="{{ $g === '(top level)' ? 'top' : $this->groupKey($g) }}"
                                     @selected($g === $groupName)>{{ $g }}</option>
                         @endforeach

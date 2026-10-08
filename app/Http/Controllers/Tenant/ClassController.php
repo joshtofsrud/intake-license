@@ -50,7 +50,7 @@ class ClassController extends Controller
             'duration_minutes'        => ['required', 'integer', 'min:5', 'max:480'],
             'default_capacity'        => ['required', 'integer', 'min:1', 'max:500'],
             'instructor_resource_id'  => ['nullable', 'uuid', \Illuminate\Validation\Rule::exists('tenant_resources', 'id')
-                ->where(fn ($q) => $q->where('tenant_id', $tenant->id))], // MARKER-EXISTS-TENANT-SCOPE
+                ->where(fn ($q) => $q->where('tenant_id', $tenant->id))],
             'price_cents'             => ['required', 'integer', 'min:0'],
             'is_active'               => ['boolean'],
         ]);
@@ -77,7 +77,7 @@ class ClassController extends Controller
             'duration_minutes'       => ['required', 'integer', 'min:5', 'max:480'],
             'default_capacity'       => ['required', 'integer', 'min:1', 'max:500'],
             'instructor_resource_id' => ['nullable', 'uuid', \Illuminate\Validation\Rule::exists('tenant_resources', 'id')
-                ->where(fn ($q) => $q->where('tenant_id', $tenant->id))], // MARKER-EXISTS-TENANT-SCOPE
+                ->where(fn ($q) => $q->where('tenant_id', $tenant->id))],
             'price_cents'            => ['required', 'integer', 'min:0'],
             'is_active'              => ['boolean'],
         ]);
@@ -134,7 +134,7 @@ class ClassController extends Controller
 
         $request->validate([
             'class_template_id' => ['required', 'uuid', \Illuminate\Validation\Rule::exists('tenant_class_templates', 'id')
-                ->where(fn ($q) => $q->where('tenant_id', $tenant->id))], // MARKER-EXISTS-TENANT-SCOPE
+                ->where(fn ($q) => $q->where('tenant_id', $tenant->id))],
             'starts_date'       => ['required', 'date', 'after_or_equal:today'],
             'starts_time'       => ['required', 'date_format:H:i'],
             'capacity_override' => ['nullable', 'integer', 'min:1', 'max:500'],
@@ -183,7 +183,7 @@ class ClassController extends Controller
 
         $created = 0;
         foreach ($dates as $date) {
-            // MARKER-TZ-WAVE3 — the entered time is tenant wall clock;
+            // the entered time is tenant wall clock;
             // parse it in the tenant timezone, store the UTC instant.
             // (Parsing in UTC made a 10:00 AM class display as 3:00 AM PT.)
             $startsAt = Carbon::parse($date->format('Y-m-d') . ' ' . $time, tenant()->timezone())->utc();
@@ -217,20 +217,20 @@ class ClassController extends Controller
             'capacity_snapshot'      => ['sometimes', 'integer', 'min:1', 'max:500'],
             'status'                 => ['sometimes', 'in:scheduled,confirmed,cancelled,completed'],
             'instructor_resource_id' => ['nullable', 'uuid', \Illuminate\Validation\Rule::exists('tenant_resources', 'id')
-                ->where(fn ($q) => $q->where('tenant_id', $tenant->id))], // MARKER-EXISTS-TENANT-SCOPE
+                ->where(fn ($q) => $q->where('tenant_id', $tenant->id))],
             'notes'                  => ['nullable', 'string', 'max:1000'],
             'session_notes_override' => ['nullable', 'string', 'max:2000'],
         ]);
 
         if (isset($data['starts_at'])) {
-            // MARKER-TZ-WAVE3 — same wall-clock parse fix as creation.
+            // same wall-clock parse fix as creation.
             $startsAt = Carbon::parse($data['starts_at'], tenant()->timezone())->utc();
             $data['starts_at'] = $startsAt;
             $data['ends_at'] = $startsAt->copy()->addMinutes($session->template->duration_minutes);
         }
 
         if (isset($data['instructor_resource_id'])) {
-            // MARKER-EXISTS-TENANT-SCOPE — this is the line that actually
+            // this is the line that actually
             // copied another tenant's resource name into the snapshot. The
             // rule above scopes the id now; scope the lookup as well.
             $resource = TenantResource::where('tenant_id', $tenant->id)
@@ -279,7 +279,7 @@ class ClassController extends Controller
 
         $data = $request->validate([
             'customer_id'    => ['required', 'uuid', \Illuminate\Validation\Rule::exists('tenant_customers', 'id')
-                ->where(fn ($q) => $q->where('tenant_id', $tenant->id))], // MARKER-EXISTS-TENANT-SCOPE
+                ->where(fn ($q) => $q->where('tenant_id', $tenant->id))],
             'payment_method' => ['required', 'in:membership,pack,per_class,cash'],
         ]);
 

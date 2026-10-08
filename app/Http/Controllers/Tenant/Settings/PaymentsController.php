@@ -10,7 +10,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
 /**
- * MARKER-PATCH-168 — Stripe Connect Session A.
+ * Stripe Connect Session A.
  *
  * Routes:
  *   GET  /admin/settings/payments              -> index

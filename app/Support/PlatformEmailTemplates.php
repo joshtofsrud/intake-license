@@ -6,7 +6,7 @@ use App\Models\PlatformEmailTemplate;
 use Illuminate\Support\Facades\View;
 
 /**
- * MARKER-PLATFORM-TEMPLATES — what Intake sends about itself.
+ * what Intake sends about itself.
  *
  * The registry is the single list. A Mailable asks it for a subject and a
  * body; if nobody has customised that key it hands back nulls and the Mailable
@@ -48,7 +48,7 @@ class PlatformEmailTemplates
     ];
 
     /**
-     * MARKER-PLATFORM-MSG-COMPLETE — every email the platform sends, including
+     * every email the platform sends, including
      * the ones this page cannot edit.
      *
      * A list that shows three rows while a dozen senders exist is worse than no

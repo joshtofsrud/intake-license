@@ -1,4 +1,4 @@
-{{-- MARKER-SCHED-SECTION — Book a call. Content: booking_type, layout (calendar|slots|button),
+{{-- Book a call. Content: booking_type, layout (calendar|slots|button),
      eyebrow, heading, subheading, button_label, slot_count, show_host, accent_color,
      text_color_body, anchor_id, hide_on_mobile, hide_on_desktop --}}
 @php

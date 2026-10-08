@@ -1,5 +1,4 @@
 <?php
-// MARKER-PLAN-PRICING
 namespace App\Filament\Resources\PlanPriceResource\Pages;
 
 use App\Filament\Resources\PlanPriceResource;

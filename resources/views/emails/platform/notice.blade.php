@@ -1,4 +1,4 @@
-{{-- MARKER-BILLING-NOTICE-MAIL — platform chrome for anything Intake sends a
+{{-- platform chrome for anything Intake sends a
      shop directly. Deliberately plain: a billing email that looks like a
      marketing email gets deleted, and one with no identity at all looks like
      a phishing attempt. --}}

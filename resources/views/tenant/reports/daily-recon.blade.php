@@ -1,6 +1,6 @@
 @extends('layouts.tenant.app')
 
-{{-- MARKER-PATCH-635 — Reports → Daily ops → Reconciliation. --}}
+{{-- Reports → Daily ops → Reconciliation. --}}
 
 @section('title', 'Reports · Reconciliation')
 

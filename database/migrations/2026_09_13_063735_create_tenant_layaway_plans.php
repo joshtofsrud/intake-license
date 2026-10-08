@@ -5,7 +5,7 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
-/** MARKER-LAYAWAY — one plan per layaway sale, plus the capability backfill. */
+/** one plan per layaway sale, plus the capability backfill. */
 return new class extends Migration
 {
     public function up(): void

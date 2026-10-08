@@ -1,4 +1,4 @@
-{{-- MARKER-PATCH-281 — dismissible staff announcement banner --}}
+{{-- dismissible staff announcement banner --}}
 @php
   $__bc = collect();
   try {

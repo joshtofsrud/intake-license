@@ -1,7 +1,7 @@
-@php $bgId = 'mkbg-' . substr(md5((string) ($section->id ?? uniqid())), 0, 10); @endphp {{-- MARKER-MKT-SECTION-BG --}}
+@php $bgId = 'mkbg-' . substr(md5((string) ($section->id ?? uniqid())), 0, 10); @endphp
 @include('marketing.sections._section_bg', ['bgId' => $bgId])
 {{--
-    MARKER-FEATURE-GROUPS — feature groups with an index.
+    feature groups with an index.
     Content: eyebrow, heading, subheading,
              groups[{label, heading, lead, features[{title, body}]}]
 

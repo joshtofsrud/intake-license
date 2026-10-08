@@ -15,7 +15,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 
 /**
- * MARKER-SERIAL-FOUNDATION — serial numbers: the category switch, adding a
+ * serial numbers: the category switch, adding a
  * serial to a piece already on hand, and serials on a draft receiving line.
  */
 class InventoryUnitController extends Controller

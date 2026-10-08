@@ -31,7 +31,7 @@ class Addon extends Model
         'sort_order',
         'status',
         'is_self_serve',
-        'visibility', // MARKER-ADDON-VISIBILITY
+        'visibility',
         'is_new',
     ];
 
@@ -63,7 +63,7 @@ class Addon extends Model
     }
 
     /**
-     * MARKER-ADDON-CATALOG — the three states.
+     * the three states.
      *
      * ACTIVE   offered to everyone, billed as normal.
      * CLOSED   not offered to new shops; shops that already have it keep it and
@@ -71,7 +71,7 @@ class Addon extends Model
      *          taking a feature away from someone paying for it.
      * RETIRED  off for everyone; existing activations stop.
      */
-    // MARKER-ADDON-TENANT-LINK — 'deprecated' is the closed-to-new state,
+    // 'deprecated' is the closed-to-new state,
     // because FeatureAccessService already treats it as one. Inventing a
     // synonym ('closed') meant an add-on matched neither branch of that query
     // and vanished for shops already paying for it.
@@ -80,7 +80,7 @@ class Addon extends Model
     public const RETIRED    = 'retired';
 
     /**
-     * MARKER-ADDON-VISIBILITY — what a shop sees.
+     * what a shop sees.
      *
      * SELF_SERVE  visible, and they can switch it on.
      * ASK         visible, but the button starts a conversation instead. For
@@ -108,7 +108,7 @@ class Addon extends Model
         self::RETIRED    => 'Retired — off for everyone, existing activations stop',
     ];
 
-    /** MARKER-ADDON-CATALOG — today's price, which may be newer than the column. */
+    /** today's price, which may be newer than the column. */
     public function currentPriceCents(): int
     {
         return \App\Support\AddonPricing::for($this->code);

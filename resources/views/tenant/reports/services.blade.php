@@ -76,7 +76,7 @@
   <h1 class="rep-h1">Reports</h1>
   <div class="rep-sub">{{ $today_label }}</div>
 
-  <div class="rep-controls">{{-- MARKER-PATCH-432 --}}
+  <div class="rep-controls">
   @include('tenant.reports._tab_subnav', ['active' => 'services'])
 
   <div class="rep-rangebar">

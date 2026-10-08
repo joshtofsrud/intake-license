@@ -1,4 +1,4 @@
-{{-- MARKER-PORTAL-V2 — portal section nav (underline pattern). $active = key --}}
+{{-- portal section nav (underline pattern). $active = key --}}
 <div class="ac-nav">
   <a href="{{ route('tenant.customer.portal') }}" class="{{ $active === 'home' ? 'on' : '' }}">Home</a>
   <a href="{{ route('tenant.customer.portal.bookings') }}" class="{{ $active === 'bookings' ? 'on' : '' }}">Bookings</a>

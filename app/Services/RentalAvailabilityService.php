@@ -1,5 +1,4 @@
 <?php
-// MARKER-PATCH-218
 
 namespace App\Services;
 
@@ -86,7 +85,7 @@ class RentalAvailabilityService
             }
         }
 
-        // MARKER-PATCH-230 — lease assignments share the fleet. An active
+        // lease assignments share the fleet. An active
         // lease whose season overlaps [start, end) blocks this unit exactly
         // like an out rental. Returned/cancelled leases (or returned
         // assignments) don't block.
@@ -98,7 +97,7 @@ class RentalAvailabilityService
     }
 
     /**
-     * MARKER-PATCH-230 — does an active lease assignment for this unit
+     * does an active lease assignment for this unit
      * overlap [start, end)? Overdue active leases (season_end past, not
      * returned) block forward to now, mirroring overdue rentals.
      */
@@ -153,7 +152,7 @@ class RentalAvailabilityService
             ->where('available_for_rent', true)
             ->when($categoryId, fn ($q) => $q->where('category_id', $categoryId))
             ->when($onlineOnly, fn ($q) => $q->where('online_booking', true))
-            ->with('model') // MARKER-PATCH-227 — avoid N+1 on effective*() rate reads
+            ->with('model') // avoid N+1 on effective*() rate reads
             ->orderBy('name')
             ->get();
 

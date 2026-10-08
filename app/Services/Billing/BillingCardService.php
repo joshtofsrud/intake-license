@@ -7,7 +7,7 @@ use App\Models\Tenant;
 use Stripe\StripeClient;
 
 /**
- * MARKER-BILLING-CARD — saving a card that can be charged later, unattended.
+ * saving a card that can be charged later, unattended.
  *
  * Two things this gets right on purpose:
  *
@@ -81,7 +81,7 @@ class BillingCardService
         $intent = $this->client()->setupIntents->retrieve($setupIntentId, []);
 
         if (($intent->metadata['tenant_id'] ?? null) !== $tenant->id) {
-            logger()->warning('MARKER-BILLING-CARD setup intent belongs to another tenant', [
+            logger()->warning('billing-card: setup intent belongs to another tenant', [
                 'tenant' => $tenant->id, 'intent' => $setupIntentId,
             ]);
             return false;
@@ -107,10 +107,10 @@ class BillingCardService
             'card_added_at'            => now(),
         ])->save();
 
-        // MARKER-BILLING-NOTICES — they did the thing we asked.
+        // they did the thing we asked.
         app(\App\Services\Billing\BillingNoticeService::class)->resolve($tenant, 'card_added');
 
-        logger()->info('MARKER-BILLING-CARD card saved', [
+        logger()->info('billing-card: card saved', [
             'tenant' => $tenant->id, 'brand' => $pm->card->brand ?? '?', 'last4' => $pm->card->last4 ?? '?',
         ]);
 
@@ -124,7 +124,7 @@ class BillingCardService
             try {
                 $this->client()->paymentMethods->detach($tenant->stripe_payment_method_id, []);
             } catch (\Throwable $e) {
-                logger()->warning('MARKER-BILLING-CARD detach failed', [
+                logger()->warning('billing-card: detach failed', [
                     'tenant' => $tenant->id, 'error' => $e->getMessage(),
                 ]);
             }
@@ -138,7 +138,7 @@ class BillingCardService
     }
 
     /**
-     * MARKER-BILLING-ADDRESS — Stripe holds the address any tax calculation
+     * Stripe holds the address any tax calculation
      * would be based on, so it is pushed on save rather than left to drift
      * from what the shop typed.
      */

@@ -1,5 +1,4 @@
 <?php
-// MARKER-AGENCIES-CORE
 
 namespace App\Filament\Resources\SalesAgencyResource\RelationManagers;
 
@@ -57,7 +56,7 @@ class RepsRelationManager extends RelationManager
             ])
             ->headerActions([Tables\Actions\CreateAction::make()])
             ->actions([
-                // MARKER-REPPANEL-INVITE — Team & access pattern: tokenized setup link
+                // Team & access pattern: tokenized setup link
                 Tables\Actions\Action::make('invite')
                     ->label(fn (SalesRep $record) => $record->invited_at ? 'Resend invite' : 'Invite')
                     ->icon('heroicon-o-envelope')

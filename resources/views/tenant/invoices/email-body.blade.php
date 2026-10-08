@@ -1,4 +1,4 @@
-{{-- MARKER-PATCH-204 / 208 — short email body; the invoice itself is the PDF attachment. --}}
+{{-- / 208 — short email body; the invoice itself is the PDF attachment. --}}
 @php
   $isPaid = $terms === 'paid';
   $callLine = $tenant->phone ? (' or call ' . $tenant->phone) : '';

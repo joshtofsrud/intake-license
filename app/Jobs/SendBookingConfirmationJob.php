@@ -35,7 +35,7 @@ class SendBookingConfirmationJob implements ShouldQueue
     public function __construct(public readonly string $appointmentId) {}
 
     /**
-     * MARKER-NOTIFY-CHOICE — which channels this dispatch may use.
+     * which channels this dispatch may use.
      *
      * null keeps the original behavior: both channels, each still gated by
      * the tenant's own notification settings. A staff member choosing "text
@@ -87,7 +87,7 @@ class SendBookingConfirmationJob implements ShouldQueue
                     'appointment_id' => $appointment->id,
                     'error'          => $e->getMessage(),
                 ]);
-                \App\Support\JobFailureReporter::report(self::class, 'Booking confirmation email did not send', $e,   // MARKER-JOB-ISSUES-2
+                \App\Support\JobFailureReporter::report(self::class, 'Booking confirmation email did not send', $e,
                     ['appointment_id' => $appointment->id], $appointment->tenant_id);
                 $this->log($tenant, $appointment, 'email', $customer->email, 'failed', $e->getMessage());
             }
@@ -106,7 +106,7 @@ class SendBookingConfirmationJob implements ShouldQueue
                     'appointment_id' => $appointment->id,
                     'error'          => $e->getMessage(),
                 ]);
-                \App\Support\JobFailureReporter::report(self::class, 'Booking confirmation text did not send', $e,   // MARKER-JOB-ISSUES-2
+                \App\Support\JobFailureReporter::report(self::class, 'Booking confirmation text did not send', $e,
                     ['appointment_id' => $appointment->id], $appointment->tenant_id);
                 $this->log($tenant, $appointment, 'sms', $customer->phone, 'failed', $e->getMessage());
             }

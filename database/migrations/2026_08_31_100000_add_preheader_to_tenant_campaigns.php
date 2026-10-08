@@ -4,7 +4,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-// MARKER-CAMPAIGN-V2A — inbox preview line.
+// inbox preview line.
 return new class extends Migration
 {
     public function up(): void

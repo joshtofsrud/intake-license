@@ -1,4 +1,4 @@
-{{-- MARKER-FEATURE-TILES — Feature tiles editor (intake.works only) --}}
+{{-- Feature tiles editor (intake.works only) --}}
 @php
   $c   = $c ?? ($section->content ?? []);
   $get = fn($k, $d = '') => $c[$k] ?? $d;
@@ -124,7 +124,7 @@
 </div>
 
 <div class="pb2-tab-panel" data-tab="style" hidden>
-  {{-- MARKER-FEATURE-TILES — the standard Section background controls --}}
+  {{-- the standard Section background controls --}}
   <div class="pb2-group">
     <div class="pb2-group-title">Section background</div>
     <div class="pb2-field">

@@ -6,7 +6,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * MARKER-RESERVE — stock held for someone.
+ * stock held for someone.
  *
  * Both enum changes read the live column definition and APPEND, the pattern
  * that fixed the merge migration: restating an enum from any one migration

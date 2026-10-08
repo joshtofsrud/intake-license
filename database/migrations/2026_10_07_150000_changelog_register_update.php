@@ -4,9 +4,9 @@ use App\Models\ChangelogEntry;
 use Illuminate\Database\Migrations\Migration;
 
 /**
- * MARKER-CHANGELOG-REGISTER-UPDATE — the Oct 7 register and search entries,
+ * the Oct 7 register and search entries,
  * rewritten to cover the whole day's work. Matched by title, so it updates
- * the entries added by MARKER-CHANGELOG-SEARCH or creates them if missing.
+ * the entries added by or creates them if missing.
  */
 return new class extends Migration
 {

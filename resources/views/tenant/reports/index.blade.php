@@ -234,7 +234,7 @@
   <div class="rep-sub">{{ $today_label }}</div>
 
   {{-- Tab subnav: Operations (this page) | Customers --}}
-  <div class="rep-controls">{{-- MARKER-PATCH-432 --}}
+  <div class="rep-controls">
   @include('tenant.reports._tab_subnav', ['active' => 'operations'])
 
   {{-- GLOBAL RANGE BAR --}}
@@ -322,7 +322,7 @@
       </div>
 
       <div>
-        {{-- MARKER-OPS-PANELS — this column used to hold "By service", which
+        {{-- this column used to hold "By service", which
              grouped every line type under a service heading and priced whole
              sales against a cash headline. The operating numbers live in their
              own zone below, on a single sale basis. --}}
@@ -340,7 +340,7 @@
     </div>
   </section>
 
-  {{-- ZONE: OPERATING NUMBERS — MARKER-OPS-PANELS --}}
+  {{-- ZONE: OPERATING NUMBERS --}}
   <section class="rep-zone">
     <div class="rep-zone-head">
       <div class="rep-zone-title">📊 Operating numbers</div>
@@ -459,7 +459,7 @@
     </div>
   </section>
 
-  {{-- ZONE: TARGETS — MARKER-OPS-PANELS --}}
+  {{-- ZONE: TARGETS --}}
   <section class="rep-zone">
     <div class="rep-zone-head">
       <div class="rep-zone-title">🎯 Targets</div>

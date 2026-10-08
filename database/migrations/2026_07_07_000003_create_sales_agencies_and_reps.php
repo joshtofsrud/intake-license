@@ -1,5 +1,5 @@
 <?php
-// MARKER-AGENCIES-CORE — Rep agencies and their reps.
+// Rep agencies and their reps.
 // Commission rates live PER AGENCY (not a global constant) so different groups
 // can carry different terms. The ledger build (chunk 2) reads these.
 

@@ -1,5 +1,4 @@
 <?php
-// MARKER-ITEM-IDENTIFIERS
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
@@ -29,7 +28,7 @@ return new class extends Migration
             WHERE i.distributor_catalog_id IS NOT NULL
         ");
 
-        Log::info("MARKER-ITEM-IDENTIFIERS: backfilled EAN/MPN on {$n} item(s)");
+        Log::info("item-identifiers: backfilled EAN/MPN on {$n} item(s)");
     }
 
     public function down(): void

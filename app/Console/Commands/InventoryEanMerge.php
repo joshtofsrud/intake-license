@@ -1,5 +1,4 @@
 <?php
-// MARKER-EAN-MERGE
 
 namespace App\Console\Commands;
 
@@ -382,7 +381,7 @@ class InventoryEanMerge extends Command
                         // audit trail goes to the log. The loser keeps its own
                         // EAN/UPC/MPN, so a reversal can find the survivor by
                         // the same identifiers that matched them.
-                        \Illuminate\Support\Facades\Log::info('MARKER-EAN-MERGE folded item', [
+                        \Illuminate\Support\Facades\Log::info('ean-merge: folded item', [
                             'tenant_id'   => $loser->tenant_id,
                             'loser_id'    => $loser->id,
                             'loser_sku'   => $loser->sku,

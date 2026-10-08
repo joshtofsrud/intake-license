@@ -1,4 +1,4 @@
-{{-- MARKER-PATCH-158-G22 — services public renderer (v2) --}}
+{{-- services public renderer (v2) --}}
 @php
   $c = $c ?? [];
 

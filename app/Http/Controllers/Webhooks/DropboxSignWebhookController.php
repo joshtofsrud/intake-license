@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers\Webhooks;
 
-// MARKER-SIGNING-SEND
 use App\Http\Controllers\Controller;
 use App\Models\Investor;
 use App\Models\InvestorDocument;
@@ -32,7 +31,7 @@ class DropboxSignWebhookController extends Controller
         $payload = is_string($raw) ? json_decode($raw, true) : null;
 
         if (! is_array($payload) || ! isset($payload['event'])) {
-            Log::warning('MARKER-SIGNING-SEND callback with no event payload');
+            Log::warning('signing-send: callback with no event payload');
 
             return response(self::ACK, 200);
         }
@@ -40,7 +39,7 @@ class DropboxSignWebhookController extends Controller
         $event = $payload['event'];
 
         if (! SigningService::callbackIsValid($event)) {
-            Log::warning('MARKER-SIGNING-SEND callback failed verification', [
+            Log::warning('signing-send: callback failed verification', [
                 'type' => $event['event_type'] ?? null,
             ]);
 
@@ -57,7 +56,7 @@ class DropboxSignWebhookController extends Controller
 
         if (! $investor) {
             if ($type !== 'callback_test') {
-                Log::info('MARKER-SIGNING-SEND callback for an unknown request', [
+                Log::info('signing-send: callback for an unknown request', [
                     'type' => $type, 'request' => $requestId,
                 ]);
             }
@@ -93,7 +92,7 @@ class DropboxSignWebhookController extends Controller
         $pdf = SigningService::downloadExecuted($requestId);
 
         if (! $pdf) {
-            Log::warning('MARKER-SIGNING-SEND executed PDF could not be downloaded', [
+            Log::warning('signing-send: executed PDF could not be downloaded', [
                 'investor' => $investor->id,
             ]);
 

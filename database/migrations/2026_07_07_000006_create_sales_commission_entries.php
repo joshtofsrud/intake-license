@@ -1,5 +1,5 @@
 <?php
-// MARKER-LEDGER-CORE — one row per collected platform invoice for an
+// one row per collected platform invoice for an
 // attributed tenant. stripe_invoice_id is UNIQUE: webhook retries and
 // replays can never double-accrue. rate + commission are snapshotted at
 // accrual time (design principle 13) — changing an agency's rate later

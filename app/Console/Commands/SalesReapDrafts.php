@@ -9,7 +9,7 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 
 /**
- * MARKER-REG-SETTINGS — reap stale register drafts and (optionally) quotes.
+ * reap stale register drafts and (optionally) quotes.
  *
  * Per tenant, driven by settings:
  *   register_draft_retention_days  (0 = keep forever, the default)

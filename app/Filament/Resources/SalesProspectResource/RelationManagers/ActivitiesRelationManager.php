@@ -1,5 +1,4 @@
 <?php
-// MARKER-SALES-ACTIVITY
 
 namespace App\Filament\Resources\SalesProspectResource\RelationManagers;
 

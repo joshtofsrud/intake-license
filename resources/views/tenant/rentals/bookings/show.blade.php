@@ -1,7 +1,7 @@
 @extends('layouts.tenant.app')
 @php $pageTitle = $rental->rental_number; @endphp
 
-{{-- MARKER-PATCH-219 — rental detail: lines, ledger, transitions. --}}
+{{-- rental detail: lines, ledger, transitions. --}}
 
 @section('content')
 
@@ -14,7 +14,7 @@
 <div class="ia-page-head">
   <div class="ia-page-head-left">
     <h1 class="ia-page-title" style="display:flex;align-items:center;gap:10px">{{ $rental->rental_number }}
-      {{-- MARKER-PATCH-234 — shared pill vocabulary. --}}
+      {{-- shared pill vocabulary. --}}
       @include('tenant.rentals._status-pill', ['rental' => $rental])
     </h1>
     <p class="ia-page-subtitle">{{ tlocal_datetime($rental->starts_at, 'M j, g:i A') }} → {{ tlocal_datetime($rental->due_at, 'M j, g:i A') }}</p>
@@ -29,7 +29,7 @@
   <div class="ia-flash ia-flash--error" style="margin-bottom:16px">{{ $errors->first() }}</div>
 @endif
 
-{{-- MARKER-PATCH-234 — pipeline stepper: real timestamps per stage, red
+{{-- pipeline stepper: real timestamps per stage, red
      missed-due, cancelled short-circuits. --}}
 @php
   $missedDue = $rental->due_at && $rental->due_at->isPast() && in_array($rental->status, ['out'], true);
@@ -45,7 +45,7 @@
         ['t' => 'Returned',    'at' => $rental->returned_at,    'state' => $rental->status === 'returned' ? 'hit' : 'next'],
       ];
 @endphp
-{{-- MARKER-RENTAL-EXT — eligibility panel: shows the live offer state or
+{{-- eligibility panel: shows the live offer state or
      why this rental can't get one, with a manual send. --}}
 @php
   $extPanel = null;
@@ -119,7 +119,6 @@
       @endforeach
       <div style="padding:12px 16px;font-size:13px">
         <div style="display:flex;justify-content:space-between"><span style="opacity:.65">Subtotal</span><span>{{ format_money($rental->subtotal_cents) }}</span></div>
-        {{-- MARKER-RENTAL-DISCOUNT --}}
         @if((int) ($rental->discount_cents ?? 0) > 0)
         <div style="display:flex;justify-content:space-between"><span style="opacity:.65">{{ $rental->discount_code ? 'Discount (' . $rental->discount_code . ')' : 'Discount' }}</span><span>&minus;{{ format_money($rental->discount_cents) }}</span></div>
         @endif
@@ -128,7 +127,6 @@
         <div style="display:flex;justify-content:space-between;margin-top:4px"><span style="opacity:.65">Paid (ledger)</span><span>{{ format_money($rental->paid_cents) }}</span></div>
         <div style="display:flex;justify-content:space-between;font-weight:700;{{ $balance > 0 ? 'color:#f59e0b' : '' }}"><span>Balance</span><span>{{ format_money(max(0, $balance)) }}</span></div>
 
-        {{-- MARKER-RENTAL-DISCOUNT --}}
         @if((int) ($rental->paid_cents ?? 0) === 0)
           <div style="margin-top:10px;display:flex;gap:8px">
             <button type="button" class="ia-btn ia-btn--ghost ia-btn--sm" onclick="RentalDiscount.open()">
@@ -150,7 +148,7 @@
       </div>
     </div>
 
-    {{-- MARKER-PATCH-219B — sales-as-money: payments flow through the register. --}}
+    {{-- sales-as-money: payments flow through the register. --}}
     <div class="ia-card" style="padding:0;overflow:hidden;margin-bottom:16px">
       <div style="padding:12px 16px;border-bottom:0.5px solid var(--ia-border)"><span class="ia-label">Payments — via register</span></div>
       @if($rental->sales->isEmpty())
@@ -176,7 +174,7 @@
       @if($rental->status !== 'cancelled' && $balance > 0)
       <form method="POST" action="{{ route('tenant.rentals.bookings.collect', $rental->id) }}" style="display:flex;gap:8px;padding:12px 16px;align-items:end">
         @csrf
-        {{-- MARKER-PATCH-232B — come back to this booking after payment. --}}
+        {{-- come back to this booking after payment. --}}
         <input type="hidden" name="return_to" value="{{ parse_url(route('tenant.rentals.bookings.show', $rental->id), PHP_URL_PATH) }}">
         <div>
           <label class="ia-label" style="display:block;margin-bottom:4px">Amount $</label>
@@ -188,7 +186,7 @@
       @endif
     </div>
 
-    {{-- MARKER-PATCH-234 — derived activity feed. --}}
+    {{-- derived activity feed. --}}
     <div class="ia-card" style="padding:0;overflow:hidden;margin-bottom:16px">
       <div style="padding:12px 16px;border-bottom:0.5px solid var(--ia-border)"><span class="ia-label">Activity</span></div>
       @if($feed->isEmpty())
@@ -226,7 +224,7 @@
       </div>
     </div>
 
-    {{-- MARKER-PATCH-220 — deposit hold panel --}}
+    {{-- deposit hold panel --}}
     <div class="ia-card" style="padding:16px;margin-bottom:16px">
       <span class="ia-label">Deposit</span>
       <div style="margin-top:10px;font-size:12.5px">
@@ -274,7 +272,7 @@
       <span class="ia-label">Actions</span>
       <div style="display:flex;flex-direction:column;gap:8px;margin-top:10px">
         @if($rental->status === 'reserved')
-          {{-- MARKER-PATCH-232 — guided flow is the front door; one-click stays as the escape hatch. --}}
+          {{-- guided flow is the front door; one-click stays as the escape hatch. --}}
           <a href="{{ route('tenant.rentals.bookings.checkout.flow', $rental->id) }}" class="ia-btn ia-btn--primary" style="width:100%;justify-content:center;text-decoration:none">Check out →</a>
           <form method="POST" action="{{ route('tenant.rentals.bookings.checkout', $rental->id) }}" onsubmit="return confirm('Skip the agreement, condition check, and deposit steps?')">@csrf
             <button type="submit" class="ia-btn" style="width:100%">Quick check out (skip flow)</button>
@@ -283,7 +281,7 @@
             <button type="submit" class="ia-btn" style="width:100%">Cancel reservation</button>
           </form>
         @elseif($rental->status === 'out')
-          {{-- MARKER-PATCH-233 — guided return is the front door; one-click stays as the escape hatch. --}}
+          {{-- guided return is the front door; one-click stays as the escape hatch. --}}
           <a href="{{ route('tenant.rentals.bookings.return.flow', $rental->id) }}" class="ia-btn ia-btn--primary" style="width:100%;justify-content:center;text-decoration:none">Start return →</a>
           <form method="POST" action="{{ route('tenant.rentals.bookings.checkin', $rental->id) }}" onsubmit="return confirm('Skip inspection and charges? A clean check-in auto-releases any deposit hold.')">@csrf
             <button type="submit" class="ia-btn" style="width:100%">Quick check in (skip flow)</button>
@@ -297,7 +295,7 @@
 
     </div>
 
-    {{-- MARKER-PATCH-234 — documents: signed agreement + check photos. --}}
+    {{-- documents: signed agreement + check photos. --}}
     @php
       $docChecks = $rental->conditionChecks->filter(fn ($c) => is_array($c->photos) && count($c->photos));
     @endphp
@@ -395,7 +393,7 @@
 @endif
 
 
-{{-- MARKER-RENTAL-DISCOUNT — in-app dialog, no browser prompts --}}
+{{-- in-app dialog, no browser prompts --}}
 @if((int) ($rental->paid_cents ?? 0) === 0)
 <div id="rental-disc-backdrop" style="position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:220;display:none;align-items:center;justify-content:center;padding:20px"
      onclick="if(event.target===this)RentalDiscount.close()">

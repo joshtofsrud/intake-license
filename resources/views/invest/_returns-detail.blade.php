@@ -1,4 +1,4 @@
-{{-- MARKER-INVEST-RETURNS-FOOT — collapsed at the foot of the page, next
+{{-- collapsed at the foot of the page, next
      to the legal note. Someone who wants to know how the instrument pays
      goes looking for it; someone who does not should not have to scroll
      past it to reach the commitment. Still on the page, still findable. --}}

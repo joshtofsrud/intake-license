@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  @include('partials.mobile-input-zoom') {{-- MARKER-MOBILE-INPUT-ZOOM --}}
-{{-- MARKER-PATCH-450 — booking finished: record completion + clear the abandoned-booking row --}}
+  @include('partials.mobile-input-zoom')
+{{-- booking finished: record completion + clear the abandoned-booking row --}}
 <script>
   // Both endpoints read the anonymous fnl_sid cookie server-side and are CSRF-exempt,
   // so these fire-and-forget beacons work without the funnel tracker being loaded here.
@@ -25,7 +25,7 @@
 </script>
   <title>Booking confirmed — {{ $currentTenant->name }}</title>
   @if($currentTenant->favicon_url)<link rel="icon" href="{{ $currentTenant->favicon_url }}">@endif
-  <link rel="stylesheet" href="{{ asset('css/fonts.css') }}">{{-- MARKER-SELFHOST-FONTS-2 --}}
+  <link rel="stylesheet" href="{{ asset('css/fonts.css') }}">
   <style>
     :root{
       --accent:      {{ $currentTenant->accent_color ?? '#BEF264' }};

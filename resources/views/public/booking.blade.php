@@ -2,10 +2,10 @@
 @php
   $pageTitle = 'Book online';
   $showBackLink = true;
-  // MARKER-PATCH-595 — theme flag needed by this view's pushed styles;
+  // theme flag needed by this view's pushed styles;
   // pushed stacks don't see the shell's php locals.
   $isDark = (($bk['theme'] ?? 'light') === 'dark');
-  // MARKER-PATCH-596 — view-local derivations restored (were dropped when the
+  // view-local derivations restored (were dropped when the
   // theme block moved to _booking-shell). These feed the stepper + multi-asset flow.
   $stepLabels = [
     $bk['step1_label'] ?? 'Services',
@@ -27,9 +27,9 @@
     .bk-cal-day.available:hover { background: rgba(255,255,255,.08) !important; }
     .bk-sidebar { background: rgba(255,255,255,.04) !important; border-color: rgba(255,255,255,.1) !important; }
     .bk-addon-row { border-color: rgba(255,255,255,.08) !important; }
-    /* MARKER-PATCH-380 — dark-theme contrast: service rows, add buttons, card field */
+    /* dark-theme contrast: service rows, add buttons, card field */
     .bk-service-row { border-color: rgba(255,255,255,.12) !important; background: rgba(255,255,255,.03) !important; }
-    .bk-service-add-btn { border-color: rgba(255,255,255,.30) !important; background: rgba(255,255,255,.06) !important; color: #f0f0f0 !important; } /* MARKER-PATCH-381 */
+    .bk-service-add-btn { border-color: rgba(255,255,255,.30) !important; background: rgba(255,255,255,.06) !important; color: #f0f0f0 !important; }
     .bk-service-row.is-selected .bk-service-add-btn { color: #0a0a0a !important; }
     .bk-service-addon:hover { background: rgba(255,255,255,.05) !important; }
     #bk-stripe-elements { background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.16); border-radius: 8px; padding: 13px 14px; }
@@ -61,10 +61,9 @@
 .bk-service-add-btn:hover{border-color:var(--p-accent,#BEF264)}
 .bk-service-row.is-selected .bk-service-add-btn{background:var(--p-accent,#BEF264);border-color:var(--p-accent,#BEF264);color:#0a0a0a}
 @media (max-width:600px){.bk-service-row{flex-direction:column}.bk-service-actions{width:100%}.bk-service-add-btn{width:100%}}
-  /* MARKER-BOOKING-RESET */
   .bk-progress-head{position:relative;display:flex;align-items:center;justify-content:space-between;gap:12px}
   .bk-progress-head .bk-progress{flex:1}
-  /* MARKER-RESET-PLACEMENT — the control docks on the active section's
+  /* the control docks on the active section's
      title row, right-aligned, instead of floating in the progress corner */
   .bk-title-row{display:flex;align-items:baseline;justify-content:space-between;gap:14px}
   .bk-title-row .bk-section-title{margin-bottom:0}
@@ -77,14 +76,14 @@
   .bk-reset-btns{display:flex;gap:8px}
   .bk-reset-btns button{flex:1;font-family:inherit;font-size:12px;font-weight:700;border-radius:8px;padding:8px;cursor:pointer;border:0.5px solid var(--bk-border,rgba(255,255,255,.15));background:transparent;color:inherit}
   .bk-reset-btns button.danger{background:rgba(240,90,90,.12);border-color:rgba(240,90,90,.4);color:#F09595}
-  /* MARKER-ITEMS-PICK — account items as explicit pick-cards */
+  /* account items as explicit pick-cards */
   .bk-pre-bike--pick{cursor:pointer;user-select:none;transition:border-color .12s,background .12s}
   .bk-pre-bike--pick:hover{border-color:color-mix(in srgb, var(--p-accent) 55%, transparent)}
   .bk-pre-pickcheck{width:21px;height:21px;border-radius:50%;border:2px solid color-mix(in srgb, var(--p-text) 28%, transparent);display:inline-flex;align-items:center;justify-content:center;flex:none;font-size:12px;font-weight:800;color:var(--p-accent-text)}
   .bk-pre-bike--sel{border-color:var(--p-accent) !important;background:color-mix(in srgb, var(--p-accent) 10%, transparent)}
   .bk-pre-bike--sel .bk-pre-pickcheck{background:var(--p-accent);border-color:var(--p-accent)}
   .bk-pre-bike--sel .bk-pre-pickcheck:after{content:"\2713"}
-  /* MARKER-WINDOW-MINISTEP — focused pickup-window chooser */
+  /* focused pickup-window chooser */
   .bk-pdw{margin-top:16px;border:1.5px solid color-mix(in srgb, var(--p-text) 12%, transparent);border-radius:var(--p-r);padding:16px}
   .bk-pdw-stepper{display:flex;gap:6px;margin-bottom:12px}
   .bk-pdw-s{flex:1;height:4px;border-radius:100px;background:color-mix(in srgb, var(--p-text) 14%, transparent)}
@@ -102,7 +101,6 @@
   .bk-pdw-spots{margin-left:auto;font-size:11px;font-weight:700;opacity:.7}
   .bk-pdw-skip{border-style:dashed}
   .bk-pdw-sub2{flex-basis:100%;font-size:12px;opacity:.6;margin-left:31px}
-  /* MARKER-NEEDBY-POLISH */
   .bk-pdw-needby{margin-top:14px;padding-top:14px;border-top:1px solid color-mix(in srgb, var(--p-text) 10%, transparent);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
   .bk-pdw-needby-l{font-size:13px;font-weight:600}
   .bk-pdw-needby-l span{font-weight:400;font-size:11px;opacity:.5;text-transform:uppercase;letter-spacing:.06em;margin-left:6px}
@@ -115,7 +113,7 @@
 @endpush
 
 @section('content')
-{{-- MARKER-BOOKING-RESET — quiet start-over control, visible past step 1 --}}
+{{-- quiet start-over control, visible past step 1 --}}
 <div class="bk-progress-head">
 <div class="bk-progress" id="bk-progress">
   @if($multiAsset)
@@ -147,7 +145,7 @@
 <div class="bk-body">
 
 @if($multiAsset)
-{{-- MARKER-PATCH-214 — multi-asset pre-flow: You + Bikes (before the numbered stepper) --}}
+{{-- multi-asset pre-flow: You + Bikes (before the numbered stepper) --}}
 <div id="bk-preflow" class="active">
 
   {{-- Intro --}}
@@ -189,7 +187,6 @@
     <div class="bk-pre-actions bk-pre-actions--split">
       <button type="button" class="bk-back" id="bk-pre-bikes-back">← Back</button>
       <button type="button" class="bk-next" id="bk-pre-bikes-continue" disabled>Continue → {{ $stepLabels[0] }}</button>
-      {{-- MARKER-ITEMS-PICK --}}
       <div id="bk-pre-pick-hint" style="font-size:12.5px;opacity:.55;text-align:center;margin-top:8px">Select at least one item to continue</div>
     </div>
   </div>
@@ -204,7 +201,7 @@
   <div class="bk-toolbar">
     <input type="search" class="bk-search" id="bk-search" placeholder="Search services…">
   </div>
-  {{-- MARKER-PATCH-265 — category pill rail (filters the catalog below) --}}
+  {{-- category pill rail (filters the catalog below) --}}
   @php
     $catsWithItems = collect($catalog)->filter(fn($c) => $c->items->count());
     $totalSvc = $catsWithItems->sum(fn($c) => $c->items->count());
@@ -314,7 +311,7 @@
 <div class="bk-section" id="bk-step-2">
   <h1 class="bk-section-title">{{ $bk['step2_heading'] ?? 'Pick a drop-off date' }}</h1>
   <p class="bk-section-sub">{{ $bk['step2_sub'] ?? 'Choose an available date for your service.' }}</p>
-  {{-- MARKER-PATCH-525 — split layout open --}}
+  {{-- split layout open --}}
   <div class="bk-details-layout bk-s2-layout">
   <div class="bk-s2-main">
   <button type="button" class="bk-earliest" id="bk-earliest" style="display:none">
@@ -341,7 +338,7 @@
     </div>
   </div>
   </div>{{-- /.bk-s2-main --}}
-  {{-- MARKER-PATCH-525 — schedule rail --}}
+  {{-- schedule rail --}}
   <div class="bk-s2-rail">
     <div class="bk-sidebar bk-s2-card">
       <div class="bk-sidebar-title">Your services</div>

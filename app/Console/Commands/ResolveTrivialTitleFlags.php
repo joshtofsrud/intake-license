@@ -2,7 +2,7 @@
 
 namespace App\Console\Commands;
 
-// MARKER-TITLE-RATIO — one-time drain: resolves open title_changed flags whose
+// one-time drain: resolves open title_changed flags whose
 // recorded old->new change is below the configured ratio. These are exactly the
 // flags the new sync-time gate would never have opened. Dry by default.
 // Baselines are not touched here; the next sync advances them silently through

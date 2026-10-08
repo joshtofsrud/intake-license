@@ -1,5 +1,4 @@
 @extends('marketing.layout')
-{{-- MARKER-SCHED-PUBLIC --}}
 @section('title', ($booking ?? null) ? 'Pick a new time — Intake' : $type->name . ' — Intake')
 @section('meta_description', $type->description ?: 'Book a time to talk with Intake.')
 

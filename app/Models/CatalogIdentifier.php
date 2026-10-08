@@ -1,6 +1,5 @@
 <?php
 
-// MARKER-CATALOG-IDENTIFIERS
 
 namespace App\Models;
 

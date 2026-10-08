@@ -11,10 +11,10 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
-// MARKER-GIFTCARDS-PUBLIC — public buy + balance-check pages.
+// public buy + balance-check pages.
 class GiftCardPublicController extends Controller
 {
-    /** MARKER-GIFTCARDS-GATE -- buy page rides the gift_cards addon (its own
+    /** buy page rides the gift_cards addon (its own
      * gate, independent of the product storefront: a shop can sell gift cards
      * online without running ecommerce). Balance check stays ungated. */
     protected function guardShop(): void
@@ -31,7 +31,7 @@ class GiftCardPublicController extends Controller
         return \App\Services\Tenant\SiteChromeService::render($tenant, 'gift_shop', [
             'tenant'    => $tenant,
             'stripePk'  => $pk,
-            'gift'      => GiftCardService::config($tenant), // MARKER-GC-SETTINGS
+            'gift'      => GiftCardService::config($tenant),
         ], ['title' => 'Gift cards', 'description' => 'Buy a ' . $tenant->name . ' gift card.']);
     }
 
@@ -57,7 +57,7 @@ class GiftCardPublicController extends Controller
             'deliver_on'      => 'nullable|date|required_if:deliver_mode,date|after_or_equal:today|before:+1 year',
         ]);
 
-        // MARKER-GC-SETTINGS -- the shop's own limits and channel switches,
+        // the shop's own limits and channel switches,
         // enforced server-side: the buy form is public, so its client checks
         // are a convenience, not a control.
         $cfg = GiftCardService::config($tenant);
@@ -151,7 +151,7 @@ class GiftCardPublicController extends Controller
                         \App\Jobs\DeliverGiftCardJob::dispatch($card->id);
                     }
 
-                    // MARKER-GC-EMAILS -- the buyer gets their own confirmation;
+                    // the buyer gets their own confirmation;
                     // before this, closing the thanks page left them with nothing.
                     \App\Jobs\SendGiftCardPurchaseReceiptJob::dispatch($card->id);
                 }
@@ -187,7 +187,7 @@ class GiftCardPublicController extends Controller
             'tenant' => $tenant,
             'result' => null,
             'error'  => null,
-            'gift'   => GiftCardService::config($tenant), // MARKER-GC-SETTINGS
+            'gift'   => GiftCardService::config($tenant),
         ], ['title' => 'Gift card balance']);
     }
 
@@ -210,7 +210,7 @@ class GiftCardPublicController extends Controller
             'tenant' => $tenant,
             'result' => $result,
             'error'  => $result ? null : 'No gift card found for that code.',
-            'gift'   => GiftCardService::config($tenant), // MARKER-GC-SETTINGS
+            'gift'   => GiftCardService::config($tenant),
         ], ['title' => 'Gift card balance']);
     }
 }

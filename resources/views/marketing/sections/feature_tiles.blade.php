@@ -1,7 +1,7 @@
-@php $bgId = 'mkbg-' . substr(md5((string) ($section->id ?? uniqid())), 0, 10); @endphp {{-- MARKER-MKT-SECTION-BG --}}
+@php $bgId = 'mkbg-' . substr(md5((string) ($section->id ?? uniqid())), 0, 10); @endphp
 @include('marketing.sections._section_bg', ['bgId' => $bgId])
 {{--
-  MARKER-FEATURE-TILES — tiles that open a drawer under their row, pushing the page down.
+  tiles that open a drawer under their row, pushing the page down.
   Each tile: icon, title, body, chips (one per line; "flow" joins them with arrows), wide.
   Its drawer: d_kicker, d_heading, d_body, d_points (one per line), d_image, d_address,
   d_cta1_label/_url, d_cta2_label/_url. A tile with no drawer text simply doesn't open.
@@ -157,7 +157,7 @@
     </div></div>
 </section>
 <script>
-  // MARKER-FEATURE-TILES — one listener for every tile grid on the page.
+  // one listener for every tile grid on the page.
   (function () {
     if (window.__ftTiles) return; window.__ftTiles = true;
     function close(grid) {

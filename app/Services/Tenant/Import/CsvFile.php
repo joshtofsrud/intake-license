@@ -3,7 +3,7 @@
 namespace App\Services\Tenant\Import;
 
 /**
- * MARKER-IMPORT1 — thin CSV reader.
+ * thin CSV reader.
  *
  * Streams with fgetcsv rather than loading the file, so a 50k-row export
  * doesn't sit in memory. Encoding is converted per line for the same reason.

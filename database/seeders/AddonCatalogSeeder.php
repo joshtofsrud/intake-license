@@ -118,7 +118,7 @@ class AddonCatalogSeeder extends Seeder
                 'code' => 'offline_sync',
                 'name' => 'Offline sync resilience',
                 'category' => 'operations',
-                // MARKER-OFFLINE-SYNC — add-on on every plan (Solo included), bundled nowhere for now
+                // add-on on every plan (Solo included), bundled nowhere for now
                 'description' => 'The register keeps selling through internet outages — cached catalog, queued sales, automatic sync on reconnect.',
                 'tooltip' => "Keep selling through network outages. Sales queue on-device and sync when you're back online.",
                 'price_cents' => 1900,
@@ -418,7 +418,7 @@ class AddonCatalogSeeder extends Seeder
                 'sort_order' => 530,
                 'is_self_serve' => false,
             ],
-            // MARKER-PATCH-217 — RENTALS STACK. Always a la carte:
+            // RENTALS STACK. Always a la carte:
             // included_in_plans stays null on all three, forever, per
             // decision 2026-06-09. rentals + rental_extensions carry a
             // min_plan_tier floor of 'branded' — not available on Starter,
@@ -462,12 +462,12 @@ class AddonCatalogSeeder extends Seeder
                 'price_cents' => 900,
                 'billing_cadence' => 'monthly',
                 'included_in_plans' => null,
-                'min_plan_tier' => 'branded', // MARKER-PATCH-272 — Starter never; Branded+ only
+                'min_plan_tier' => 'branded', // Starter never; Branded+ only
                 'sort_order' => 160,
                 'is_self_serve' => true,
                 'is_new' => true,
             ],
-            // MARKER-PATCH-HLC1 — DISTRIBUTOR SYNC. À la carte (included_in_plans
+            // DISTRIBUTOR SYNC. À la carte (included_in_plans
             // stays null forever) with a Scale floor enforced by
             // FeatureAccessService::min_plan_tier — not available on Starter or
             // Branded, even via a master-admin grant. Each tenant supplies their
@@ -496,7 +496,7 @@ class AddonCatalogSeeder extends Seeder
             $row['status'] = $row['status'] ?? 'active';
             $row['is_self_serve'] = $row['is_self_serve'] ?? true;
             $row['is_new'] = $row['is_new'] ?? false;
-            $row['min_plan_tier'] = $row['min_plan_tier'] ?? null; // MARKER-PATCH-217
+            $row['min_plan_tier'] = $row['min_plan_tier'] ?? null;
             $row['included_in_plans'] = isset($row['included_in_plans']) && $row['included_in_plans'] !== null
                 ? json_encode($row['included_in_plans'])
                 : null;

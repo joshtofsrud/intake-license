@@ -1,5 +1,4 @@
 <?php
-// MARKER-CAMPAIGN-DELIVERY
 
 namespace App\Console\Commands;
 
@@ -24,7 +23,7 @@ class ProcessCampaignSends extends Command
     protected $description = 'Send pending campaign emails (throttled, consent-checked)';
 
     /**
-     * MARKER-CAMPAIGN-SCHED — scheduled campaigns whose time has passed.
+     * scheduled campaigns whose time has passed.
      * The recipient list is built here, at fire time, for the same reason
      * send() builds it at click time: consent as it stands when the mail
      * actually goes out.
@@ -52,18 +51,18 @@ class ProcessCampaignSends extends Command
                 continue;
             }
 
-            // MARKER-BILLING-CHARGE — a failed card pauses campaigns. Receipts,
+            // a failed card pauses campaigns. Receipts,
             // reminders and confirmations are untouched: stopping those breaks
             // a shop's day over a few dollars.
             if ($tenant->campaigns_paused_at) {
-                \Illuminate\Support\Facades\Log::warning('MARKER-BILLING-CHARGE campaign held — billing needs attention', [
+                \Illuminate\Support\Facades\Log::warning('billing-charge: campaign held — billing needs attention', [
                     'tenant' => $tenant->id, 'campaign' => $campaign->id,
                 ]);
                 $campaign->update(['status' => 'draft', 'scheduled_at' => null]);
                 continue;
             }
 
-            // MARKER-CAMPAIGN-AUDIENCE — same resolver the composer and the
+            // same resolver the composer and the
             // pre-send panel use. Built at FIRE time, so rules see today's data.
             $mailable = app(\App\Services\Tenant\AudienceService::class)
                 ->mailable($tenant, $campaign->targeting)
@@ -107,7 +106,7 @@ class ProcessCampaignSends extends Command
             return self::SUCCESS;
         }
 
-        // MARKER-CAMPAIGN-SCHED — arm anything whose time has come, building
+        // arm anything whose time has come, building
         // the recipient list NOW so opt-outs since scheduling are respected.
         $this->fireDueCampaigns();
 
@@ -124,7 +123,7 @@ class ProcessCampaignSends extends Command
             $tenant = Tenant::find($campaign->tenant_id);
             if (! $tenant) continue;
 
-            // MARKER-EMAIL-BILLING — re-checked per campaign per run, so a
+            // re-checked per campaign per run, so a
             // limit set (or reached) mid-send stops the rest of the queue.
             $cap = \App\Services\EmailLedger::capState($tenant);
             if ($cap['capped'] && $cap['reached']) {
@@ -134,7 +133,7 @@ class ProcessCampaignSends extends Command
 
             $svc = EmailService::forTenant($tenant);
 
-            // MARKER-CAMPAIGN-ATTRIBUTION — {{discount_code}} in any block is
+            // {{discount_code}} in any block is
             // replaced with the campaign's attached code; the same for everyone.
             $baseVars = ['shop_name' => (string) $tenant->name];
             if ($campaign->discount_id) {
@@ -144,7 +143,7 @@ class ProcessCampaignSends extends Command
                 }
             }
 
-            // MARKER-CAMPAIGN-V2A — rendering moved INSIDE the recipient loop.
+            // rendering moved INSIDE the recipient loop.
             // It used to happen once here, so {{first_name}} could never be
             // personalised: every inbox got the literal token.
             $renderOpts = [
@@ -152,7 +151,7 @@ class ProcessCampaignSends extends Command
                 'accentText'    => '#0a0a0a',
                 'preheader'     => (string) ($campaign->preheader ?? ''),
                 'resolveTokens' => true,
-                'fragment'      => true, // MARKER-CAMPAIGN-CHROME
+                'fragment'      => true,
             ];
 
             $rows = TenantCampaignSend::where('campaign_id', $campaign->id)
@@ -176,7 +175,7 @@ class ProcessCampaignSends extends Command
                     continue;
                 }
 
-                // MARKER-CAMPAIGN-V2A — this recipient's own values.
+                // this recipient's own values.
                 $vars = $baseVars + [
                     'first_name' => (string) $customer->first_name,
                     'last_name'  => (string) $customer->last_name,
@@ -190,8 +189,8 @@ class ProcessCampaignSends extends Command
                     $html,
                     (string) $campaign->id,
                     ConsentService::unsubscribeUrl($tenant, $customer),
-                    (string) $row->id, // MARKER-CAMPAIGN-RESULTS
-                    (bool) ($campaign->show_header ?? true) // MARKER-CAMPAIGN-HDR
+                    (string) $row->id,
+                    (bool) ($campaign->show_header ?? true)
                 );
 
                 $row->update($ok

@@ -1,4 +1,4 @@
-{{-- MARKER-INVEST-V2 — one stylesheet for the gated surfaces. The palette is
+{{-- one stylesheet for the gated surfaces. The palette is
      the marketing site's; change it there and mirror here. 1080 like every
      other Intake surface, with the reading and entry columns held to a
      comfortable measure internally rather than by narrowing the page. --}}
@@ -28,7 +28,7 @@ h3{font-size:15px;font-weight:650}
 p{color:var(--body);line-height:1.65}
 b,strong{color:var(--text);font-weight:600}
 .lede{font-size:16px;max-width:62ch;margin-top:14px}
-/* MARKER-INVEST-RULES — no full-bleed dividers. Separation comes from the
+/* no full-bleed dividers. Separation comes from the
    space between sections; a rule across the whole viewport only slices the
    page up. The short rule under each .sub label is a different thing and
    stays — it belongs to the label, not to the page. */
@@ -96,9 +96,9 @@ input:focus,select:focus{border-color:var(--lime-line)}
 .ok{border:1px solid var(--lime-line);background:var(--lime-soft);border-radius:10px;padding:14px 16px;
   margin-top:16px;font-size:14px;color:var(--text)}
 .cerr{color:var(--red);font-size:13px;display:block;margin-top:6px}
-/* MARKER-INVEST-NOCODE — the request card stands alone now. Held to a readable
+/* the request card stands alone now. Held to a readable
    measure rather than stretched across the full width. */
-/* MARKER-ASK-FULLWIDTH — full width, like every section above it. The inputs
+/* full width, like every section above it. The inputs
    inside keep a sane measure; only the card stretches. */
 .onecard{max-width:none}
 .onecard .card{padding:26px 28px}
@@ -106,7 +106,7 @@ input:focus,select:focus{border-color:var(--lime-line)}
 .onecard .card > p{max-width:64ch}
 .onecard .fine{max-width:74ch}
 
-/* MARKER-INVEST-RAIL — sticky anchor rail. Plain text, no pills; the dot marks
+/* sticky anchor rail. Plain text, no pills; the dot marks
    a section that is OPEN. */
 .rail{position:sticky;top:0;z-index:30;background:rgba(12,12,12,.94);backdrop-filter:blur(12px);
   border-bottom:1px solid var(--line)}
@@ -120,7 +120,7 @@ input:focus,select:focus{border-color:var(--lime-line)}
   transition:background .12s}
 .rail a.open i{background:var(--lime)}
 
-/* MARKER-INVEST-CARDCSS — the proof cards and tick list used by _bike. These
+/* the proof cards and tick list used by _bike. These
    lived only in landing.blade.php, so the portal and the gated page rendered
    that section as unstyled text. A shared partial's CSS has to be shared too. */
 .grid3{display:grid;gap:14px;grid-template-columns:repeat(3,1fr);margin-top:22px}
@@ -137,7 +137,7 @@ ul.tick li{font-size:15px;color:var(--body);padding-left:24px;position:relative;
 ul.tick li::before{content:"\2192";position:absolute;left:0;color:var(--lime);font-weight:600}
 ul.tick li b{color:var(--text)}
 
-/* MARKER-INVEST-UNIFY — the bike section's mobile swipe rail. Moved here from
+/* the bike section's mobile swipe rail. Moved here from
    the landing page so every surface rendering that section gets it. The block
    below closes a media query opened in the source it came from, so it is kept
    verbatim rather than reflowed. */
@@ -167,7 +167,7 @@ ul.tick li b{color:var(--text)}
   .railhint{font-size:11px;color:var(--dim);letter-spacing:.4px;margin:0}
 }
 
-/* MARKER-INVEST-FULL — inside a panel, a card and a filled table are a box in
+/* inside a panel, a card and a filled table are a box in
    a box. Rules and alignment carry the structure instead. */
 .rows2{border-top:1px solid var(--line);margin-top:20px}
 .rows2 .r{display:grid;grid-template-columns:160px 1fr;gap:22px;padding:15px 0;
@@ -200,7 +200,7 @@ details.sec > summary .cap{font-size:13px;font-weight:400;color:var(--dim)}
 details.sec > summary::after{content:"+";margin-left:auto;color:var(--lime);font-size:19px;
   line-height:1;font-weight:400}
 details.sec[open] > summary::after{content:"\2013"}
-/* MARKER-SECTION-HEADINGS — inside a panel the summary is the heading, so the
+/* inside a panel the summary is the heading, so the
    section's own eyebrow would be the same words again. Scoped to details.sec:
    these partials also render standalone on the gated page, where the eyebrow
    is the only label present. */
@@ -220,7 +220,7 @@ details.sec .body section + section{padding-top:30px}
 @media(max-width:640px){
   .rail .wrap{gap:16px}
   details.sec > summary{font-size:15px;padding:17px 0}
-  /* MARKER-INVEST-MOBILE-PASS — the caption carries the argument, so it drops
+  /* the caption carries the argument, so it drops
      under the heading rather than disappearing. The "+" stays on the first
      line by spanning the grid. */
   details.sec > summary{display:grid;grid-template-columns:1fr auto;align-items:baseline;column-gap:12px}
@@ -228,7 +228,7 @@ details.sec .body section + section{padding-top:30px}
   details.sec > summary::after{grid-column:2;grid-row:1;margin-left:0}
 }
 
-/* MARKER-INVEST-BAR-CLASSES — the talk bar, in CSS rather than inline styles.
+/* the talk bar, in CSS rather than inline styles.
    Built inline first, which meant the narrow-width rules below could never win;
    this is the same bar with the styling where it belongs. */
 .talkbar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:14px 18px}
@@ -242,7 +242,7 @@ details.sec .body section + section{padding-top:30px}
 .talkbar-btn--ghost{background:none;color:var(--lime);border-color:var(--lime-line);font-weight:600;
   padding:0 18px}
 
-/* MARKER-INVEST-MOBILE-PASS — on a phone the avatar sits inline with the
+/* on a phone the avatar sits inline with the
    heading and the two actions share one row as equal halves. */
 @media(max-width:640px){
   .talkbar{padding:14px}
@@ -252,7 +252,7 @@ details.sec .body section + section{padding-top:30px}
   .talkbar-actions > .talkbar-btn{flex:1 1 0;min-width:0;padding:0 10px;height:44px;text-align:center}
 }
 
-/* MARKER-INVEST-MOBILE-PASS — the rail scrolls; without a scrollbar nothing
+/* the rail scrolls; without a scrollbar nothing
    says so, so items past the edge read as clipped. The fades are that signal. */
 .rail{position:relative}
 .rail::after,.rail::before{content:"";position:absolute;top:0;bottom:0;width:34px;pointer-events:none;z-index:2;
@@ -262,7 +262,7 @@ details.sec .body section + section{padding-top:30px}
 .rail.can-scroll-right::after{opacity:1}
 .rail.can-scroll-left::before{opacity:1}
 
-/* MARKER-INVEST-CONFIRM — the success message, where it will actually be read.
+/* the success message, where it will actually be read.
    A banner on a page this long lands below the fold after the reload. */
 .cf-back{position:fixed;inset:0;z-index:100;display:flex;align-items:center;justify-content:center;
   padding:24px;background:rgba(0,0,0,.68);backdrop-filter:blur(3px)}
@@ -272,7 +272,7 @@ details.sec .body section + section{padding-top:30px}
 .cf p{font-size:14.5px;line-height:1.65;margin-top:10px}
 .cf .btn{margin-top:20px}
 
-/* MARKER-RETENTION-MECH — the answer, set apart from the evidence for it. */
+/* the answer, set apart from the evidence for it. */
 .mech{background:var(--panel);border:1px solid var(--lime-line);border-radius:12px;padding:22px 24px;
   margin-top:20px}
 .mech p{font-size:16px;line-height:1.6;color:var(--text);margin:0;max-width:70ch}
@@ -282,7 +282,7 @@ details.sec .body section + section{padding-top:30px}
 .lede.founder{color:var(--text);font-size:17px;font-weight:600;letter-spacing:-.3px;
   border-left:2px solid var(--lime-line);padding-left:15px;margin-top:22px}
 
-/* MARKER-MANUAL-SAFE — the contribute block on the invited page. Quieter than
+/* the contribute block on the invited page. Quieter than
    the public one: it sits under a commitment form, so it must not read as an
    easier version of the thing above it. */
 #s-back .support{border:0;padding:0;margin:0}
@@ -302,13 +302,13 @@ details.sec .body section + section{padding-top:30px}
   #s-back .fields{grid-template-columns:1fr}
 }
 
-/* MARKER-HONEYPOT-FIX — the spam trap, off screen. Lived only in the landing
+/* the spam trap, off screen. Lived only in the landing
    page's own styles, so every other surface rendering the contribute form
    showed it as an empty input. A visible honeypot gets filled in, and a filled
    one throws the submission away. */
 .hp{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}
 
-/* MARKER-MARKET-FIVEPCT — four columns for the market table only. The five per
+/* four columns for the market table only. The five per
    cent column carries the lime, because it is the number that matters; the
    whole-market column is context beside it. */
 .stack.mkt .srow{grid-template-columns:minmax(0,1.5fr) minmax(0,1.2fr) 110px 100px}
@@ -327,7 +327,7 @@ details.sec .body section + section{padding-top:30px}
 }
 
 footer{border-top:1px solid var(--line);padding:28px 0;font-size:12px;color:var(--dim)}
-/* MARKER-INVEST-CONTEXT — cost stack and proof cards, shared by the gated
+/* cost stack and proof cards, shared by the gated
    page and the personal page. */
 .stack{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden}
 .srow{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr) 110px;gap:18px;padding:13px 18px;
@@ -340,7 +340,7 @@ footer{border-top:1px solid var(--line);padding:28px 0;font-size:12px;color:var(
 .srow.sum b,.srow.sum .amt{color:var(--text);font-weight:700}
 .srow.tot{background:var(--panel2);border-top:1px solid var(--line2)}
 .srow.tot b,.srow.tot .amt{color:var(--lime);font-weight:700}
-/* MARKER-INVEST-CAPABILITY — nine small groups, three across. Deliberately
+/* nine small groups, three across. Deliberately
    lighter than the proof cards above them: this is coverage, not argument. */
 .cap-core{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:22px}
 .cap-grp{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px}
@@ -350,7 +350,7 @@ footer{border-top:1px solid var(--line);padding:28px 0;font-size:12px;color:var(
 .cap-grp li::before{content:"";position:absolute;left:0;top:12px;width:5px;height:5px;border-radius:50%;
   background:var(--line2)}
 @media(max-width:900px){.cap-core{grid-template-columns:1fr 1fr}}
-/* MARKER-CAPABILITY-MOBILE — stays at two columns on a phone. One column meant
+/* stays at two columns on a phone. One column meant
    nine full-width cards, which is most of a minute of scrolling for something
    that is meant to be a glance. Type and padding tighten to suit the narrower
    card; no group and no item is dropped. */
@@ -375,7 +375,7 @@ footer{border-top:1px solid var(--line);padding:28px 0;font-size:12px;color:var(
   color:var(--dim);margin-top:8px}
 .ctx-card p{font-size:13.5px;margin-top:9px}
 @media(max-width:760px){.ctx-cards{grid-template-columns:1fr}}
-/* MARKER-STACK-MOBILE — the detail column moves to a second line rather than
+/* the detail column moves to a second line rather than
    being hidden. Hiding it left rows reading "Retail 5", which says nothing. */
 @media(max-width:700px){
   .srow{grid-template-columns:minmax(0,1fr) auto;gap:4px 12px;padding:11px 14px}
@@ -386,7 +386,7 @@ footer{border-top:1px solid var(--line);padding:28px 0;font-size:12px;color:var(
 
 @media(max-width:640px){.docs .doc{min-width:100%}}
 
-/* MARKER-INVEST-MOBILE — one column, bigger targets, and inputs at 16px so
+/* one column, bigger targets, and inputs at 16px so
    iOS doesn't zoom the whole page the moment someone taps a field. */
 @media(max-width:640px){
   .wrap{padding:0 20px}

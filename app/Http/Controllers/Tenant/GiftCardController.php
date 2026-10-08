@@ -8,7 +8,7 @@ use App\Models\Tenant\TenantGiftCardTransaction;
 use App\Services\Tenant\GiftCardService;
 use Illuminate\Http\Request;
 
-// MARKER-GIFTCARDS-ADMIN — staff-side gift card manager.
+// staff-side gift card manager.
 class GiftCardController extends Controller
 {
     public function __construct(protected GiftCardService $cards)
@@ -18,7 +18,7 @@ class GiftCardController extends Controller
     public function index(Request $request)
     {
         $tenant = tenant();
-        abort_unless($tenant->gift_cards_visible, 404); // MARKER-GIFTCARDS-GATE
+        abort_unless($tenant->gift_cards_visible, 404);
         $q      = trim((string) $request->query('q', ''));
         $status = $request->query('status');
         $type   = $request->query('type');
@@ -70,8 +70,8 @@ class GiftCardController extends Controller
     public function show(Request $request, string $cardId)
     {
         $tenant = tenant();
-        // MARKER-GC-LOCATION -- shown in the header when the shop has 2+ locations.
-        abort_unless($tenant->gift_cards_visible, 404); // MARKER-GIFTCARDS-GATE
+        // shown in the header when the shop has 2+ locations.
+        abort_unless($tenant->gift_cards_visible, 404);
         $card = TenantGiftCard::where('tenant_id', $tenant->id)->findOrFail($cardId);
         $card->load('transactions');
 
@@ -87,7 +87,7 @@ class GiftCardController extends Controller
     {
         abort_unless(auth('tenant')->user()?->can('giftcards.manage'), 403);
         $tenant = tenant();
-        abort_unless($tenant->gift_cards_enabled, 404); // MARKER-GIFTCARDS-GATE -- manual issue = selling
+        abort_unless($tenant->gift_cards_enabled, 404); // manual issue = selling
 
         $data = $request->validate([
             'type'            => 'required|in:physical,egift',
@@ -112,7 +112,7 @@ class GiftCardController extends Controller
             }
         }
 
-        // MARKER-GC-LOCATION -- a manual issue has no sale behind it, so
+        // a manual issue has no sale behind it, so
         // attribute it to wherever the staff member is working. Falls back to
         // the default location, then to none at all (single-location tenants
         // that never configured one).
@@ -131,7 +131,7 @@ class GiftCardController extends Controller
                 'recipient_name'    => $data['recipient_name'] ?? null,
                 'recipient_email'   => $data['recipient_email'] ?? null,
                 'issued_by_user_id' => auth('tenant')->id(),
-                'location_id'       => $issueLocationId, // MARKER-GC-LOCATION
+                'location_id'       => $issueLocationId,
             ]);
             TenantGiftCardTransaction::create([
                 'tenant_id'           => $tenant->id,
@@ -141,7 +141,7 @@ class GiftCardController extends Controller
                 'balance_after_cents' => $amount,
                 'note'                => 'Issued manually' . (filled($data['note'] ?? null) ? ' — ' . $data['note'] : ''),
                 'user_id'             => auth('tenant')->id(),
-                'location_id'         => $issueLocationId, // MARKER-GC-LOCATION
+                'location_id'         => $issueLocationId,
             ]);
             return $card;
         });
@@ -180,7 +180,7 @@ class GiftCardController extends Controller
         return back()->with('success', sprintf('Balance adjusted %s$%s — %s.', $verb, number_format(abs($delta) / 100, 2), $data['reason']));
     }
 
-    /** MARKER-GC-FUNCTIONS -- bind a preprinted card at pickup. */
+    /** bind a preprinted card at pickup. */
     public function bindCode(Request $request, string $cardId)
     {
         abort_unless(auth('tenant')->user()?->can('giftcards.manage'), 403);

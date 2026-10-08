@@ -1,10 +1,10 @@
-{{-- MARKER-REPPANEL-SETUP — standalone rep account setup page --}}
+{{-- standalone rep account setup page --}}
 <!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-@include('partials.mobile-input-zoom') {{-- MARKER-MOBILE-INPUT-ZOOM --}}
+@include('partials.mobile-input-zoom')
 <title>Set up your Intake rep account</title>
 <style>
 body{margin:0;background:#0a0c11;color:#e7e9f0;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;display:grid;place-items:center;min-height:100vh}

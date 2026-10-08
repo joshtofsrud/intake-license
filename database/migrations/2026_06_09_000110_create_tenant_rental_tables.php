@@ -1,5 +1,5 @@
 <?php
-// MARKER-PATCH-217 — rentals schema, full build-plan section 2.1.
+// rentals schema, full build-plan section 2.1.
 //
 // Conventions follow tenant_sales / tenant_appointments:
 //   - uuid PKs, foreignUuid tenant scoping, restrict on money-bearing FKs

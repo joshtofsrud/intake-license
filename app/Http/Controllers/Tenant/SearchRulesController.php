@@ -1,5 +1,5 @@
 <?php
-// MARKER-PATCH-622 — manage search rules (synonyms + redirects) from the
+// manage search rules (synonyms + redirects) from the
 // Traffic report's Search rules card.
 
 namespace App\Http\Controllers\Tenant;

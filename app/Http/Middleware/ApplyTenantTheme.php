@@ -35,7 +35,7 @@ class ApplyTenantTheme
             $theme    = in_array($stored, ['b', 'c']) ? $stored : 'c';
         }
 
-        // MARKER-USER-THEME-PREF — the signed-in person's own choice wins.
+        // the signed-in person's own choice wins.
         // Null means they have never picked, so they inherit the shop value
         // resolved above. This middleware also runs on the staff-switcher
         // group where nobody is authenticated yet; there the shop value is

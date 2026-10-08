@@ -13,7 +13,7 @@ class ListDebugLogs extends ListRecords
     protected static string $resource = DebugLogResource::class;
 
     /**
-     * MARKER-ERROR-PARITY — ?activeTab=errors is linked from the dashboard,
+     * ?activeTab=errors is linked from the dashboard,
      * Open issues, the platform inbox and every JobFailureReporter email.
      * Without tabs the param was ignored and the link opened the whole log.
      */

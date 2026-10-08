@@ -1,9 +1,8 @@
 @php
-  // MARKER-PATCH-158-G15
   $pageTitle = 'Edit: ' . $page->title;
   // Marketing-aware URL helpers (preserved from v1).
   $isMarketing = $isMarketing ?? false;
-  $isBookingExtras = $isBookingExtras ?? false; // MARKER-PATCH-602
+  $isBookingExtras = $isBookingExtras ?? false;
   $layoutName  = $isMarketing ? 'layouts.admin.page-editor' : 'layouts.tenant.app';
   $backUrl     = $isBookingExtras
       ? route('tenant.booking-editor.index')
@@ -11,16 +10,16 @@
   $previewUrl  = $isMarketing
       ? 'https://' . config('intake.domain', 'intake.works') . '/' . ($page->is_home ? '' : $page->slug)
       : tenant_url($page->is_home ? '' : $page->slug);
-  // MARKER-PATCH-267 — iframe/live-reload use an authenticated same-origin
+  // iframe/live-reload use an authenticated same-origin
   // route that renders drafts too; "Open live" keeps the public $previewUrl.
-  // MARKER-MKT-PARITY — marketing preview is a draft-capable routed page.
+  // marketing preview is a draft-capable routed page.
   $previewSrc  = $isMarketing
       ? url('/admin/marketing-pages/' . $page->id . '/preview')
       : route('tenant.pages.preview', $page->id);
   $storeUrl    = $isMarketing
       ? url('/admin/marketing-pages/store')
       : route('tenant.pages.store');
-  // MARKER-MKT-PARITY — endpoints that used to hardcode tenant routes, which
+  // endpoints that used to hardcode tenant routes, which
   // don't bind a tenant on the apex host. url() literals, matching G19A.
   $updateUrl = $isMarketing
       ? url('/admin/marketing-pages/' . $page->id . '/builder')
@@ -43,35 +42,35 @@
     'text_image'             => 'Text + image',
     'cta_banner'             => 'CTA banner',
     'image_gallery'          => 'Image gallery',
-    'image_carousel'         => 'Image carousel', // MARKER-CAROUSEL-SECTION
-    'scroll_words'           => 'Scroll words', // MARKER-SCROLL-WORDS
+    'image_carousel'         => 'Image carousel',
+    'scroll_words'           => 'Scroll words',
     'contact_form'           => 'Contact form',
     'booking_embed'          => 'Booking form',
     'classes_embed'          => 'Classes schedule',
     'footer'                 => 'Footer',
     'feature_grid'           => 'Feature grid',
-    'feature_groups'         => 'Feature groups with index', // MARKER-FEATURE-GROUPS
+    'feature_groups'         => 'Feature groups with index',
     'step_timeline'          => 'Step timeline',
     'pricing_table'          => 'Pricing table',
-    'rentals_showcase'       => 'Rentals showcase', // MARKER-PATCH-239
-    'rental_spotlight'       => 'Rental spotlight', // MARKER-RENTAL-SECTIONS
+    'rentals_showcase'       => 'Rentals showcase',
+    'rental_spotlight'       => 'Rental spotlight',
     'rental_categories'      => 'Rental categories',
     'rental_browse'          => 'Rental availability',
-    'products_showcase'      => 'Product showcase', // MARKER-PATCH-576
+    'products_showcase'      => 'Product showcase',
     'faq_accordion'          => 'FAQ accordion',
     'testimonial_carousel'   => 'Testimonials',
     'logo_bar'               => 'Logo bar',
     'comparison_table'       => 'Comparison table',
     'industry_pack_showcase' => 'Industries',
-    'book_call'              => 'Book a call', // MARKER-SCHED-SECTION
-    'try_demo'               => 'Try the demo', // MARKER-DEMO-SECTION
-    'roi'                    => 'ROI', // MARKER-ROI-SECTION
-    'feature_tiles'          => 'Feature tiles', // MARKER-FEATURE-TILES
+    'book_call'              => 'Book a call',
+    'try_demo'               => 'Try the demo',
+    'roi'                    => 'ROI',
+    'feature_tiles'          => 'Feature tiles',
     'stats_row'              => 'Stats row',
-    'custom_html'            => 'Custom HTML', // MARKER-PATCH-306
+    'custom_html'            => 'Custom HTML',
   ];
 
-  // MARKER-PATCH-158-G18 — Inline SVG icon paths per section type. Paths are
+  // Inline SVG icon paths per section type. Paths are
   // 24x24 viewBox; stroke-currentcolor; rendered identically in the section
   // list (left pane) and the add-section gallery so the icon is a reliable
   // visual anchor for each type.
@@ -82,32 +81,32 @@
     'text_image'     => '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="1.4"/><polyline points="3 17 9 12 21 19"/>',
     'cta_banner'     => '<path d="M3 11l18-5v12L3 14z"/>',
     'image_gallery'  => '<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="11" r="1.2"/><polyline points="3 17 9 12 14 16 21 11"/>',
-    'image_carousel' => '<rect x="7" y="5" width="10" height="14" rx="2"/><line x1="3" y1="9" x2="3" y2="15"/><line x1="21" y1="9" x2="21" y2="15"/>', // MARKER-CAROUSEL-SECTION
-    'scroll_words' => '<line x1="4" y1="7" x2="11" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="15" y2="17"/>', // MARKER-SCROLL-WORDS
+    'image_carousel' => '<rect x="7" y="5" width="10" height="14" rx="2"/><line x1="3" y1="9" x2="3" y2="15"/><line x1="21" y1="9" x2="21" y2="15"/>',
+    'scroll_words' => '<line x1="4" y1="7" x2="11" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="15" y2="17"/>',
     'contact_form'   => '<path d="M4 4h16v16H4z"/><polyline points="4 7 12 13 20 7"/>',
     'booking_embed'  => '<rect x="3" y="5" width="18" height="16" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="3" x2="8" y2="7"/><line x1="16" y1="3" x2="16" y2="7"/>',
     'classes_embed'  => '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1" fill="currentColor"/>',
     'footer'         => '<rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="16" x2="21" y2="16"/>',
     'feature_grid'   => '<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>',
-    'feature_groups' => '<line x1="4" y1="6" x2="8" y2="6"/><line x1="4" y1="12" x2="8" y2="12"/><line x1="4" y1="18" x2="8" y2="18"/><rect x="12" y="4" width="9" height="7" rx="1"/><rect x="12" y="13" width="9" height="7" rx="1"/>', // MARKER-FEATURE-GROUPS
+    'feature_groups' => '<line x1="4" y1="6" x2="8" y2="6"/><line x1="4" y1="12" x2="8" y2="12"/><line x1="4" y1="18" x2="8" y2="18"/><rect x="12" y="4" width="9" height="7" rx="1"/><rect x="12" y="13" width="9" height="7" rx="1"/>',
     'step_timeline'  => '<line x1="3" y1="6" x2="3" y2="6.01"/><line x1="3" y1="12" x2="3" y2="12.01"/><line x1="3" y1="18" x2="3" y2="18.01"/><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/>',
     'pricing_table'  => '<line x1="12" y1="2" x2="12" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>',
     'rentals_showcase' => '<circle cx="5.5" cy="17.5" r="3.5"/><circle cx="18.5" cy="17.5" r="3.5"/><path d="M15 6a1 1 0 1 0 0-2 1 1 0 0 0 0 2zm-3 11.5V14l-3-3 4-3 2 3h2"/>',
     'rental_spotlight' => '<path d="M12 3l2.5 5 5.5.8-4 3.9.9 5.5-4.9-2.6-4.9 2.6.9-5.5-4-3.9 5.5-.8z"/>',
     'rental_categories' => '<rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="3" width="8" height="8" rx="2"/><rect x="3" y="13" width="8" height="8" rx="2"/><rect x="13" y="13" width="8" height="8" rx="2"/>',
     'rental_browse' => '<rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/>',
-    'products_showcase' => '<path d="M4 7h16l-1.5 12.5a1 1 0 0 1-1 .9H6.5a1 1 0 0 1-1-.9L4 7zm4 0V6a4 4 0 0 1 8 0v1"/>', // MARKER-PATCH-576
+    'products_showcase' => '<path d="M4 7h16l-1.5 12.5a1 1 0 0 1-1 .9H6.5a1 1 0 0 1-1-.9L4 7zm4 0V6a4 4 0 0 1 8 0v1"/>',
     'faq_accordion'  => '<circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 0 1 5 0c0 1-1 1.5-2.5 2.5"/><line x1="12" y1="17" x2="12" y2="17.01"/>',
     'testimonial_carousel' => '<path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8z"/>',
     'logo_bar'       => '<rect x="2" y="9" width="4" height="6" rx="1"/><rect x="10" y="9" width="4" height="6" rx="1"/><rect x="18" y="9" width="4" height="6" rx="1"/>',
     'comparison_table'=>'<rect x="3" y="3" width="18" height="18" rx="1"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="12" y1="3" x2="12" y2="21"/>',
     'industry_pack_showcase'=>'<path d="M3 6l3-3h12l3 3v3a3 3 0 0 1-6 0 3 3 0 0 1-6 0 3 3 0 0 1-6 0V6z"/><path d="M5 12v9h14v-9"/>',
     'stats_row'      => '<polyline points="3 17 9 11 13 15 21 7"/><polyline points="17 7 21 7 21 11"/>',
-    'book_call'      => '<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>', // MARKER-SCHED-SECTION
-    'try_demo'       => '<polygon points="5 3 19 12 5 21 5 3"/>', // MARKER-DEMO-SECTION
-    'roi'            => '<polyline points="4 17 9 12 13 15 20 7"/><polyline points="15 7 20 7 20 12"/>', // MARKER-ROI-SECTION
-    'feature_tiles'  => '<rect x="3" y="3" width="11" height="8" rx="1.5"/><rect x="16" y="3" width="5" height="8" rx="1.5"/><rect x="3" y="13" width="18" height="8" rx="1.5"/>', // MARKER-FEATURE-TILES
-    'custom_html'    => '<polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>', // MARKER-PATCH-306
+    'book_call'      => '<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>',
+    'try_demo'       => '<polygon points="5 3 19 12 5 21 5 3"/>',
+    'roi'            => '<polyline points="4 17 9 12 13 15 20 7"/><polyline points="15 7 20 7 20 12"/>',
+    'feature_tiles'  => '<rect x="3" y="3" width="11" height="8" rx="1.5"/><rect x="16" y="3" width="5" height="8" rx="1.5"/><rect x="3" y="13" width="18" height="8" rx="1.5"/>',
+    'custom_html'    => '<polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>',
   ];
 
   // Add-section gallery descriptions (one-liners shown under the type label
@@ -119,51 +118,51 @@
     'text_image'    => 'Side-by-side text and image',
     'cta_banner'    => 'Single call-to-action strip',
     'image_gallery' => 'Photo grid (Instagram-style)',
-    'image_carousel' => 'Sliding photo carousel', // MARKER-CAROUSEL-SECTION
-    'scroll_words'   => 'Words that change as you scroll', // MARKER-SCROLL-WORDS
+    'image_carousel' => 'Sliding photo carousel',
+    'scroll_words'   => 'Words that change as you scroll',
     'contact_form'  => 'Inbound contact form',
     'booking_embed' => 'Live booking widget',
     'classes_embed' => 'Class schedule widget',
     'footer'        => 'Site footer with links + copyright',
     'feature_grid'  => 'Icon-led feature cards in a grid',
-    'feature_groups' => 'Grouped features with an index that stays on screen', // MARKER-FEATURE-GROUPS
+    'feature_groups' => 'Grouped features with an index that stays on screen',
     'step_timeline' => 'Numbered process steps',
     'faq_accordion' => 'Collapsible Q&A list',
     'pricing_table' => 'Side-by-side pricing tiers',
-    'rentals_showcase' => 'Live rental fleet with rates', // MARKER-PATCH-239
+    'rentals_showcase' => 'Live rental fleet with rates',
     'rental_spotlight' => 'Feature one rental model',
     'rental_categories' => 'Category grid — pick and order',
     'rental_browse' => 'Live date-picker availability browse',
-    'products_showcase' => 'Live products from your online store', // MARKER-PATCH-576
+    'products_showcase' => 'Live products from your online store',
     'testimonial_carousel' => 'Customer quotes carousel',
     'logo_bar'      => 'Trust bar with partner logos',
     'comparison_table'=>'Feature vs competitor matrix',
     'industry_pack_showcase'=>'Showcase of industries served',
-    'book_call'     => 'Let visitors book a call from your Scheduling calendar', // MARKER-SCHED-SECTION
-    'try_demo'      => 'Send visitors into the live demo shop, signed in, no account', // MARKER-DEMO-SECTION
-    'roi'           => 'Results with their sources, plus a rental extension calculator', // MARKER-ROI-SECTION
-    'feature_tiles' => 'Tiles that open a drawer with details and a screenshot', // MARKER-FEATURE-TILES
+    'book_call'     => 'Let visitors book a call from your Scheduling calendar',
+    'try_demo'      => 'Send visitors into the live demo shop, signed in, no account',
+    'roi'           => 'Results with their sources, plus a rental extension calculator',
+    'feature_tiles' => 'Tiles that open a drawer with details and a screenshot',
     'stats_row'     => 'Big-number stats row',
-    'custom_html'   => 'Paste raw HTML, rendered as-is', // MARKER-PATCH-306
+    'custom_html'   => 'Paste raw HTML, rendered as-is',
   ];
 
   // Logical grouping for the gallery. Order matters — common ones first.
   $typeGroups = [
     'Layout'     => ['nav','hero','footer'],
-    'Content'    => ['text_image','feature_grid','feature_groups','step_timeline','image_gallery','image_carousel','scroll_words','faq_accordion','stats_row'], // MARKER-FEATURE-GROUPS
-    'Conversion' => ['services','cta_banner','booking_embed','contact_form','book_call','try_demo','roi','pricing_table','rentals_showcase','rental_spotlight','rental_categories','rental_browse','products_showcase'], // MARKER-SCHED-SECTION book_call
+    'Content'    => ['text_image','feature_grid','feature_groups','step_timeline','image_gallery','image_carousel','scroll_words','faq_accordion','stats_row'],
+    'Conversion' => ['services','cta_banner','booking_embed','contact_form','book_call','try_demo','roi','pricing_table','rentals_showcase','rental_spotlight','rental_categories','rental_browse','products_showcase'], // book_call
     'Social'     => ['testimonial_carousel','logo_bar'],
-    'Advanced'   => ['custom_html'], // MARKER-PATCH-306
+    'Advanced'   => ['custom_html'],
   ];
 @endphp
 
 @extends($layoutName)
 
 @push('styles')
-<link rel="stylesheet" href="{{ asset('css/fonts.css') }}">{{-- MARKER-SELFHOST-FONTS-2 --}}
+<link rel="stylesheet" href="{{ asset('css/fonts.css') }}">
 <style>
 /* ============================================================================
-   MARKER-PATCH-158-G15 — Page builder v2 chrome
+   Page builder v2 chrome
    Three-pane layout matching the v2 mockup. Phase 1 ships the chrome only;
    field rendering still uses the existing _section.blade.php content (Phase
    2 will replace each section type's fields).
@@ -185,7 +184,7 @@
   --pb2-mono:        'JetBrains Mono', ui-monospace, monospace;
 }
 
-/* MARKER-BUILDER-THEME ------------------------------------------------------
+/* ----------------------------------------------------
    The builder used to hardcode a dark palette in :root, so it ignored the
    admin theme entirely — pick Light Premium and every screen turned light
    except this one. Values below are derived from theme-b's own --ia-*
@@ -228,7 +227,7 @@ body.ia-theme-b .pb2-preview-frame-wrap {
 }
 
 /* The editor takes over the full viewport, anchored past the tenant sidebar.
-   MARKER-PATCH-158-G17 — replaced the original negative-margin escape with
+   replaced the original negative-margin escape with
    position:fixed because the tenant layout's .ia-content uses padding 28px 32px
    (not 24px), so the old -24px escape left bands of leftover padding around
    the editor — visible as the cropped topbar + right pane bleeding off the
@@ -236,7 +235,7 @@ body.ia-theme-b .pb2-preview-frame-wrap {
 .pb2-shell {
   position: fixed;
   top: 0;
-  /* MARKER-SIDEBAR-WIDTH-VAR — was a hardcoded 220px, which meant collapsing
+  /* was a hardcoded 220px, which meant collapsing
      the sidebar left the builder exactly where it was. */
   left: var(--ia-sidebar-w, 220px);
   transition: left .16s ease;
@@ -260,7 +259,7 @@ body.ia-theme-b .pb2-preview-frame-wrap {
   height: 48px;
   border-bottom: 0.5px solid var(--pb2-border);
   display: grid;
-  /* MARKER-PATCH-251 — matches the two-pane layout; right column stays
+  /* matches the two-pane layout; right column stays
      aligned over the inspector. */
   grid-template-columns: auto 1fr 360px;
   align-items: center;
@@ -313,7 +312,7 @@ body.ia-theme-b .pb2-preview-frame-wrap {
   transition: all 0.12s;
 }
 .pb2-device-btn.active { background: var(--pb2-surface-3); color: var(--pb2-text); }
-/* MARKER-PAGE-WIDTH — Guides toggle beside the device switch */
+/* Guides toggle beside the device switch */
 .pb2-guides-btn { background: var(--pb2-surface-2); border: 0; color: var(--pb2-text-dim); padding: 5px 11px; border-radius: 6px;
   cursor: pointer; font: inherit; font-size: 11.5px; display: inline-flex; align-items: center; gap: 5px; }
 .pb2-guides-btn:hover { color: var(--pb2-text); }
@@ -365,7 +364,7 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
 /* MAIN LAYOUT */
 .pb2-layout {
   display: grid;
-  /* MARKER-PATCH-251 — single sidebar: preview + inspector. The section
+  /* single sidebar: preview + inspector. The section
      list lives in a slide-in panel now. */
   grid-template-columns: 1fr 360px;
   flex: 1;
@@ -380,7 +379,7 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
   display: flex; flex-direction: column;
   overflow: hidden;
 }
-/* MARKER-PATCH-276 — sections list docked atop the inspector column */
+/* sections list docked atop the inspector column */
 .pb2-sections-docked {
   flex: 0 0 auto;
   max-height: 40%;
@@ -391,7 +390,7 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
 }
 .pb2-sections-docked .pb2-section-list { flex: 1 1 auto; overflow-y: auto; }
 .pb2-sections-docked .pb2-pane-footer { flex: 0 0 auto; }
-/* MARKER-PATCH-278 — collapsible docked sections */
+/* collapsible docked sections */
 .pb2-sections-toggle { cursor: pointer; user-select: none; }
 .pb2-sections-head-right { display: flex; align-items: center; gap: 8px; }
 .pb2-sections-chevron { opacity: .55; transition: transform .15s ease; flex: 0 0 auto; }
@@ -427,7 +426,7 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
 .pb2-section-list::-webkit-scrollbar { width: 5px; }
 .pb2-section-list::-webkit-scrollbar-thumb { background: var(--pb2-border-2); border-radius: 2px; }
 
-.pb2-section-item.pb2-in-row { box-shadow: inset 2px 0 0 var(--pb2-accent); } /* MARKER-SECTION-ROWS */
+.pb2-section-item.pb2-in-row { box-shadow: inset 2px 0 0 var(--pb2-accent); }
 .pb2-section-item {
   display: grid;
   grid-template-columns: 14px 18px 1fr auto;
@@ -511,8 +510,8 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
 .pb2-add-panel::-webkit-scrollbar { width: 5px; }
 .pb2-add-panel::-webkit-scrollbar-thumb { background: var(--pb2-border-2); border-radius: 2px; }
 
-/* MARKER-PATCH-158-G18 — Add-section gallery */
-.pb2-paste-card { /* MARKER-SECTION-COPY */
+/* Add-section gallery */
+.pb2-paste-card {
   display: flex; align-items: center; gap: 10px; width: 100%;
   margin: 4px 0 10px; padding: 9px 10px; text-align: left;
   background: transparent; color: var(--pb2-text);
@@ -600,7 +599,6 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
   padding-bottom: 5px;
 }
 
-/* MARKER-PAGE-PUBLISH */
 .pb2-status {
   border-bottom: 0.5px solid var(--pb2-border);
   padding: 14px 18px;
@@ -847,14 +845,14 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
   background: var(--pb2-surface-2);
 }
 
-/* MARKER-PATCH-158-G17 — hide v1 _section.blade.php's footer when rendered
+/* hide v1 _section.blade.php's footer when rendered
    inside the v2 inspector. v1's `.pb-section-actions` had a duplicate
    "Delete section" button and an "Auto-saves as you type" hint that
    conflicted with the v2 inspector header's delete icon + footer status. */
 .pb2-insp-body .pb-section-actions { display: none; }
 
 /* ============================================================================
-   MARKER-PATCH-158-G19 — Phase 2 per-type editor partials (Hero first)
+   Phase 2 per-type editor partials (Hero first)
    Field framework used by resources/views/tenant/pages/sections/_*.blade.php.
    All [data-field] inputs are picked up by G16 autosave automatically.
 ============================================================================ */
@@ -1131,7 +1129,7 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
   color: white;
 }
 
-/* MARKER-PATCH-158-G25 — Nav link list (similar to btnlist but with
+/* Nav link list (similar to btnlist but with
    different fields layout + per-row meta column for open-in-new-tab) */
 .pb2-insp-body .pb2-navlist { display: flex; flex-direction: column; gap: 6px; }
 .pb2-insp-body .pb2-navlist-item {
@@ -1186,7 +1184,6 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
   background: var(--pb2-danger);
   color: white;
 }
-/* MARKER-NAVDRAG */
 .pb2-insp-body .pb2-navlist-handle { cursor: grab; user-select: none; }
 .pb2-insp-body .pb2-navlist-item.dragging { opacity: .45; }
 .pb2-insp-body .pb2-navlist-item.drag-over-top { box-shadow: inset 0 2px 0 var(--pb2-accent, #BEF264); }
@@ -1234,7 +1231,7 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
   text-align: left;
 }
 
-/* MARKER-PATCH-158-G26 — Footer link columns (nested list editor) */
+/* Footer link columns (nested list editor) */
 .pb2-insp-body .pb2-ftr-col {
   background: var(--pb2-surface-2);
   border-radius: 6px;
@@ -1267,7 +1264,7 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
   padding: 3px 8px;
 }
 
-/* MARKER-PATCH-158-G27 — Stats row list editor */
+/* Stats row list editor */
 .pb2-insp-body .pb2-statrow {
   display: grid;
   grid-template-columns: 14px 1fr auto;
@@ -1284,7 +1281,7 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
   gap: 6px;
 }
 
-/* MARKER-PATCH-158-G30 — Pricing table plans list editor */
+/* Pricing table plans list editor */
 .pb2-insp-body .pb2-plan {
   background: var(--pb2-surface-2);
   border-radius: 6px;
@@ -1360,14 +1357,14 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
   padding: 3px 8px;
 }
 
-/* MARKER-PATCH-158-G31 — feature_grid features list editor */
+/* feature_grid features list editor */
 .pb2-insp-body .pb2-feat {
   background: var(--pb2-surface-2);
   border-radius: 6px;
   padding: 10px;
   margin-bottom: 8px;
 }
-/* MARKER-FEAT-DRAG — while a card is being dragged the whole list collapses
+/* while a card is being dragged the whole list collapses
    to title rows so tall cards stay visible and droppable in the inspector. */
 .pb2-insp-body #pb2-feat-list.pb2-feat-compact .pb2-feat-fields { display: none; }
 .pb2-insp-body #pb2-feat-list.pb2-feat-compact .pb2-feat { padding: 6px 10px; }
@@ -1393,7 +1390,7 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
   gap: 6px;
 }
 
-/* MARKER-PATCH-158-G32 — logo_bar logos list editor */
+/* logo_bar logos list editor */
 .pb2-insp-body .pb2-logorow {
   display: grid;
   grid-template-columns: 14px 1fr auto;
@@ -1405,7 +1402,7 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
   margin-bottom: 6px;
 }
 .pb2-insp-body .pb2-logorow {
-  /* MARKER-LOGOBAR-POLISH — fields stack so Name/Link aren't slivers. */
+  /* fields stack so Name/Link aren't slivers. */
   grid-template-columns: 14px 46px 1fr auto;
   align-items: start;
 }
@@ -1421,7 +1418,6 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
 }
 .pb2-insp-body .pb2-logo-scale input[type=range] { width: 76px; accent-color: var(--pb2-accent, #BEF264); }
 .pb2-insp-body .pb2-logo-acts { flex-wrap: wrap; align-items: center; }
-/* MARKER-LOGOBAR-PICKER */
 .pb2-insp-body .pb2-logo-thumb {
   width: 46px; height: 32px; border-radius: 4px;
   background: var(--pb2-surface-3, rgba(255,255,255,.06)) center/contain no-repeat;
@@ -1435,7 +1431,7 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
 }
 .pb2-insp-body .pb2-logo-btn:hover { color: var(--pb2-text, #f0f0f0); background: rgba(255,255,255,.06); }
 
-/* MARKER-PATCH-158-G33 — FAQ accordion items list editor */
+/* FAQ accordion items list editor */
 .pb2-insp-body .pb2-faqrow {
   background: var(--pb2-surface-2);
   border-radius: 6px;
@@ -1473,7 +1469,7 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
   gap: 6px;
 }
 
-/* MARKER-PATCH-158-G34 — step_timeline steps list editor */
+/* step_timeline steps list editor */
 .pb2-insp-body .pb2-steprow {
   background: var(--pb2-surface-2);
   border-radius: 6px;
@@ -1506,11 +1502,11 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
   color: var(--pb2-text-faint);
   display: flex; align-items: center; gap: 10px;
 }
-/* MARKER-PB-HIDDEN-TAGS / -INLINE — one line: name, tag, number */
+/* / -INLINE — one line: name, tag, number */
 .pb2-section-item:has(.pb2-section-hidden) { grid-template-columns: 14px 18px minmax(0, 1fr) auto auto; }
 .pb2-section-item .pb2-section-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pb2-section-hidden{font-size:10px;color:var(--pb2-text-faint);border:.5px dashed var(--pb2-border-2);border-radius:99px;padding:0 6px;white-space:nowrap;max-width:150px;overflow:hidden;text-overflow:ellipsis}
-/* MARKER-SHOP-NAV — menu rows in the Nav section */
+/* menu rows in the Nav section */
 .sn-row.sn-new{box-shadow:0 0 0 2px var(--pb2-accent)}
 .sn-insp{flex:1;overflow-y:auto;min-height:0}
 .sn-row{border:.5px solid var(--pb2-border);border-radius:8px;padding:8px;margin-bottom:6px;background:var(--pb2-surface-2)}
@@ -1538,7 +1534,7 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
 .pb2-insp-body .sn-legend{font-size:12px;line-height:1.55;border:.5px dashed var(--pb2-border-2);border-radius:8px;padding:9px 11px;margin-bottom:10px}
 .pb2-insp-body .sn-legend b{color:var(--pb2-text);font-weight:600}
 .pb2-insp-body .sn-in{width:auto}
-/* MARKER-INSP-FIT — controls fit the panel; it never scrolls sideways. */
+/* controls fit the panel; it never scrolls sideways. */
 .pb2-insp-body { overflow-x: hidden; }
 .pb2-insp-body .pb2-field-row > * { min-width: 0; }
 .pb2-insp-body .pb2-field-row:has(.pb2-seg) { grid-template-columns: 1fr; }
@@ -1546,7 +1542,6 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
 .pb2-insp-body .pb2-seg-btn { min-width: 0; white-space: nowrap; }
 .pb2-insp-body input[type="range"] { min-width: 0; max-width: 100%; }
 
-/* MARKER-EXPLICIT-SAVE */
 .pb2-insp-footer .pb2-dirty-note { font-family: var(--pb2-mono); }
 .pb2-insp-footer .pb2-dirty-note.is-dirty { color: var(--pb2-accent); }
 .pb2-btn[data-pb2-save].is-dirty { box-shadow: 0 0 0 2px var(--pb2-accent); }
@@ -1563,7 +1558,7 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
 /* responsive collapse */
 @media (max-width: 1200px) {
   .pb2-topbar { grid-template-columns: 240px 1fr 320px; }
-  /* MARKER-BUILDER-NARROW-FIX — two columns since the section list became a
+  /* two columns since the section list became a
      slide-in panel; three left an empty 240px column under 1200px. */
   .pb2-layout { grid-template-columns: 1fr 320px; }
 }
@@ -1576,7 +1571,7 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
 }
 
 /* =====================================================================
-   MARKER-PATCH-251 — mockup reskin. Cascade-layer overrides on the
+   mockup reskin. Cascade-layer overrides on the
    existing pb2-* vocabulary; no selector renamed, no partial touched.
    ===================================================================== */
 :root {
@@ -1640,7 +1635,7 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
   background: rgba(255,255,255,.07);
   border: .5px solid var(--pb2-border);
   border-radius: 8px;
-  /* MARKER-INSP-TEXTAREA-COLOR — form controls don't inherit color, so a
+  /* form controls don't inherit color, so a
      bare .pb2-textarea rendered black text on this dark panel. */
   color: var(--pb2-text);
 }
@@ -1653,7 +1648,7 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
 /* --- sliders + checkboxes: lime ------------------------------------ */
 .pb2-insp-body input[type="range"] { accent-color: var(--pb2-accent); }
 .pb2-insp-body input[type="checkbox"] { accent-color: var(--pb2-accent); }
-/* MARKER-PATCH-253 — checkbox rows render as mockup toggle switches. */
+/* checkbox rows render as mockup toggle switches. */
 .pb2-insp-body .pb2-checkbox-row input[type="checkbox"] {
   appearance: none;
   -webkit-appearance: none;
@@ -1699,7 +1694,7 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
   outline: .5px solid rgba(190,242,100,.3);
 }
 
-/* --- 9-point anchor picker (MARKER-PATCH-252) ----------------------- */
+/* --- 9-point anchor picker ----------------------- */
 .pb2-anchor {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -1725,7 +1720,7 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
   background: var(--pb2-accent);
 }
 
-/* MARKER-PATCH-255 — hints read like the mockup */
+/* hints read like the mockup */
 .pb2-insp-body .pb2-field-hint {
   font-family: 'Inter', -apple-system, sans-serif;
   text-align: left;
@@ -1742,7 +1737,7 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
   background: #fff;
 }
 
-/* MARKER-PATCH-259 — media picker modal */
+/* media picker modal */
 #pb2-media-modal { display:none; position:fixed; inset:0; z-index:200; }
 .pb2-media-backdrop { position:absolute; inset:0; background:rgba(0,0,0,.6); }
 .pb2-media-dialog {
@@ -1796,7 +1791,7 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
         </button>
       </div>
       @if($isMarketing ?? false)
-      {{-- MARKER-PAGE-WIDTH — dashed lines at the page width, off by default --}}
+      {{-- dashed lines at the page width, off by default --}}
       <button class="pb2-guides-btn" id="pb2-guides-btn" type="button" aria-pressed="false" title="Show the page width on the preview">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-dasharray="3 3"><line x1="6" y1="2" x2="6" y2="22"/><line x1="18" y1="2" x2="18" y2="22"/></svg>
         Guides
@@ -1805,7 +1800,7 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
     </div>
 
     <div class="pb2-topbar-right">
-      {{-- MARKER-REWIND — replaces the phase-4 undo/redo placeholders --}}
+      {{-- replaces the phase-4 undo/redo placeholders --}}
       <button class="pb2-icon-btn" type="button" id="pb2-history-btn" title="History — rewind this page">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></svg>
       </button>
@@ -1822,7 +1817,7 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
   </div>
 
 @unless($isMarketing ?? false)
-  {{-- MARKER-PATCH-302 — Brand Kit floating reference card (copy-from palette) --}}
+  {{-- Brand Kit floating reference card (copy-from palette) --}}
   <style>
   #pb2-bk-card{position:fixed;top:64px;right:336px;width:300px;z-index:1200;background:#151515;border:0.5px solid rgba(255,255,255,.16);border-radius:12px;box-shadow:0 26px 64px -22px rgba(0,0,0,.85);color:#f1f1f1;font-size:13px}
   #pb2-bk-card[hidden]{display:none}
@@ -1919,14 +1914,14 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
   {{-- ============ MAIN LAYOUT ============ --}}
   <div class="pb2-layout">
 
-    {{-- LEFT: section list — MARKER-PATCH-251: now a slide-in panel
+    {{-- LEFT: section list — now a slide-in panel
          (same DOM, same Sortable/visibility/selection bindings). Clicking
          a section item closes it. --}}
 
     {{-- CENTER: live preview --}}
     <div class="pb2-preview-col">
       <div class="pb2-preview-bar">
-        {{-- MARKER-PATCH-276 — sections moved into the inspector column --}}
+        {{-- sections moved into the inspector column --}}
         <div class="pb2-url-bar">
           <div class="pb2-url-dot"></div>
           <span>{{ parse_url($previewUrl, PHP_URL_HOST) }}{{ $page->is_home ? '/' : '/' . $page->slug }}</span>
@@ -1943,7 +1938,7 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
 
     {{-- RIGHT: inspector --}}
     <aside class="pb2-pane pb2-pane-right" id="pb2-inspector">
-    {{-- MARKER-PAGE-PUBLISH — publishing had no control anywhere in the app.
+    {{-- publishing had no control anywhere in the app.
          This box states who can see the page right now, then offers the one
          action that changes it. --}}
     @php
@@ -1961,7 +1956,7 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
       </div>
 
       <div class="pb2-status-say">
-        {{-- MARKER-MKT-SECTION-BG — a guide never has a public URL. --}}
+        {{-- a guide never has a public URL. --}}
         @if(($page->kind ?? 'page') === 'howto')
           @if($page->is_published)
             Shops on a qualifying plan see this on their Help page. Others see it locked or not at all, per its gate.
@@ -2006,7 +2001,7 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
       @endif
     </div>
 
-    {{-- MARKER-PAGE-SEARCH-SHARING — the page's title, description and share
+    {{-- the page's title, description and share
          image for Google and link previews. These live in the page head, so
          nothing on the page shows them: the legend says so plainly. Saved by
          its own op with its own Save button; section edits are untouched. --}}
@@ -2228,7 +2223,7 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
     @endif
 
     @if($isMarketing ?? false)
-    {{-- MARKER-PAGE-WIDTH — the widest any section on this page can go.
+    {{-- the widest any section on this page can go.
          Saves on click; sections and Content width sliders follow it. --}}
     @php
       $pwNow  = in_array((int) ($page->page_width ?? 0), [960, 1280, 1440], true) ? (int) $page->page_width : 1080;
@@ -2370,9 +2365,9 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
     </script>
     @endif
 
-    {{-- MARKER-PATCH-276 — sections docked above the inspector --}}
+    {{-- sections docked above the inspector --}}
     <div class="pb2-sections-docked" id="pb2-sections-pane">
-      {{-- MARKER-PATCH-278 — collapsible header --}}
+      {{-- collapsible header --}}
       <div class="pb2-pane-header pb2-sections-toggle" onclick="toggleSectionsDock()" title="Collapse / expand the section list">
         <div class="pb2-pane-header-title">Sections</div>
         <div class="pb2-sections-head-right">
@@ -2390,13 +2385,13 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
                draggable="false">
             <span class="pb2-drag-handle" title="Drag to reorder">⋮⋮</span>
             <span class="pb2-section-icon">
-              {{-- MARKER-PATCH-158-G18 — per-type icon (was generic rect for all) --}}
+              {{-- per-type icon (was generic rect for all) --}}
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
                 {!! $typeIconPaths[$section->section_type] ?? '<rect x="3" y="3" width="18" height="18" rx="2"/>' !!}
               </svg>
             </span>
             <span class="pb2-section-name">{{ $typeLabels[$section->section_type] ?? $section->section_type }}</span>
-            {{-- MARKER-PB-HIDDEN-TAGS — which screens this section is hidden on --}}
+            {{-- which screens this section is hidden on --}}
             @php
               $pbHc  = (array) ($section->content ?? []);
               $pbOn  = fn ($k) => ! empty($pbHc[$k]) && ! in_array((string) $pbHc[$k], ['0', 'false'], true);
@@ -2415,19 +2410,19 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
         </div>
 
         <div class="pb2-add-panel" id="pb2-add-panel">
-          {{-- MARKER-PATCH-158-G18 — Add-section gallery. Grouped by purpose,
+          {{-- Add-section gallery. Grouped by purpose,
                each option shown as a card with icon + label + one-line desc.
                Marketing context shows different types than tenant context. --}}
           @php
             $allowed = $isBookingExtras
-              ? ['hero','cta_banner','feature_grid','custom_html','text_image','image_gallery','image_carousel','stats_row','testimonial_carousel','faq_accordion','logo_bar','step_timeline','pricing_table'] // MARKER-PATCH-603 — content sections; chrome/shop/nav excluded
+              ? ['hero','cta_banner','feature_grid','custom_html','text_image','image_gallery','image_carousel','stats_row','testimonial_carousel','faq_accordion','logo_bar','step_timeline','pricing_table'] // content sections; chrome/shop/nav excluded
               : ($isMarketing
-              ? ['nav','hero','text_image','cta_banner','image_gallery','image_carousel','scroll_words','contact_form','feature_grid','step_timeline','faq_accordion','footer','pricing_table','testimonial_carousel','logo_bar','stats_row','comparison_table','industry_pack_showcase','book_call','try_demo','roi','feature_tiles','custom_html','feature_groups'] /* MARKER-FEATURE-TILES / MARKER-ROI-SECTION / MARKER-SCHED-SECTION / MARKER-DEMO-SECTION / MARKER-FEATURE-GROUPS (marketing only) */
+              ? ['nav','hero','text_image','cta_banner','image_gallery','image_carousel','scroll_words','contact_form','feature_grid','step_timeline','faq_accordion','footer','pricing_table','testimonial_carousel','logo_bar','stats_row','comparison_table','industry_pack_showcase','book_call','try_demo','roi','feature_tiles','custom_html','feature_groups'] /* (marketing only) */
               : ['nav','hero','text_image','cta_banner','image_gallery','image_carousel','scroll_words','contact_form','booking_embed','classes_embed','feature_grid','step_timeline','faq_accordion','footer','testimonial_carousel','logo_bar','stats_row','pricing_table','rentals_showcase','rental_spotlight','rental_categories','rental_browse','products_showcase','custom_html']);
           @endphp
 
           <div class="pb2-gallery">
-            {{-- MARKER-SECTION-COPY — the copied section, while the copy lasts --}}
+            {{-- the copied section, while the copy lasts --}}
             @php $pbClip = \App\Support\SectionClipboard::peek((string) $page->tenant_id); @endphp
             <div id="pb2-paste-slot">
               @if($pbClip && in_array($pbClip['section_type'], $allowed, true))
@@ -2490,11 +2485,11 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
             <button class="pb2-icon-btn" id="pb2-toggle-visible" title="Toggle visibility">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
             </button>
-            {{-- MARKER-SECTION-COPY — copy to paste on another page --}}
+            {{-- copy to paste on another page --}}
             <button class="pb2-icon-btn" id="pb2-copy-section" title="Copy section (paste it on another page within 30 min)">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg>
             </button>
-            {{-- MARKER-PATCH-158-G18 — duplicate button --}}
+            {{-- duplicate button --}}
             <button class="pb2-icon-btn" id="pb2-duplicate-section" title="Duplicate section">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
             </button>
@@ -2506,18 +2501,18 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
 
         <div class="pb2-insp-tabs">
           <button class="pb2-insp-tab active" data-tab="content">Content</button>
-          {{-- MARKER-PATCH-255 — Layout merged into Content. --}}
-          <button class="pb2-insp-tab" data-tab="style">Design</button>{{-- MARKER-PATCH-253 — label only; data-tab unchanged --}}
+          {{-- Layout merged into Content. --}}
+          <button class="pb2-insp-tab" data-tab="style">Design</button>{{-- label only; data-tab unchanged --}}
           <button class="pb2-insp-tab" data-tab="advanced">Advanced</button>
         </div>
 
         <div class="pb2-insp-body" id="pb2-insp-body">
-          {{-- MARKER-PATCH-275 — render the per-type editor on initial load
+          {{-- render the per-type editor on initial load
                (with tab panels + full fields), mirroring the ?_inspector=
                click path; legacy _section is the fallback for un-migrated types. --}}
           @php $firstPerType = 'tenant.pages.sections._' . $firstSection->section_type; @endphp
           @if(view()->exists($firstPerType))
-            {{-- MARKER-OVERLAP-TAB — both captured, then the shared overlap control is
+            {{-- both captured, then the shared overlap control is
                  placed inside the Design tab rather than after every tab. --}}
             @php ob_start(); @endphp
             @include($firstPerType, ['section' => $firstSection, 'c' => $firstSection->content ?? [], 'navItems' => $navItems ?? collect(), 'availablePages' => $availablePages ?? collect(), 'isBookingExtras' => $isBookingExtras ?? false])
@@ -2530,7 +2525,6 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
           @endif
         </div>
 
-        {{-- MARKER-EXPLICIT-SAVE --}}
         <div class="pb2-insp-footer">
           <span id="pb2-dirty-note" class="pb2-dirty-note">All changes saved</span>
           <button type="button" class="pb2-btn" id="pb2-insp-revert" style="margin-left:auto" disabled>Revert</button>
@@ -2566,7 +2560,7 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
 </form>
 
 
-{{-- MARKER-REWIND — history drawer --}}
+{{-- history drawer --}}
 <style>
 #pb2-hist{position:fixed;top:0;right:0;bottom:0;width:352px;z-index:1300;background:#151515;
   border-left:.5px solid rgba(255,255,255,.16);box-shadow:-26px 0 64px -22px rgba(0,0,0,.85);
@@ -2607,7 +2601,7 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
     var form  = document.getElementById('pb2-hist-form');
     if (!btn || !panel) { return; }
 
-    var listUrl = @json($historyListUrl); {{-- MARKER-MKT-PARITY --}}
+    var listUrl = @json($historyListUrl);
     // Built from the named route so any group prefix is honoured.
     var restoreTpl = @json($historyRestoreTpl);
 
@@ -2676,7 +2670,7 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
         b.className = 'hbtn';
         b.textContent = i === 0 ? 'Restore' : 'Rewind';
         b.addEventListener('click', function () {
-          // MARKER-BUILDER-DIALOGS — in-app dialog, no browser prompts
+          // in-app dialog, no browser prompts
           IntakeConfirm.show({
             title: 'Rewind this page?',
             message: 'Rewind to \u201C' + r.label + '\u201D. Your current draft is saved first, so you can undo this.',
@@ -2698,8 +2692,8 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
 
 @push('scripts')
 <script>
-// MARKER-PATCH-158-G15 — page builder v2 chrome
-// MARKER-PATCH-158-G16 — autosave + live preview reload
+// page builder v2 chrome
+// autosave + live preview reload
 (function() {
   const PAGE_ID    = @json($page->id);
   const UPDATE_URL = @json($isMarketing
@@ -2711,11 +2705,11 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
   const ADD_SECTION_URL = @json($isMarketing
       ? url('/admin/marketing-pages/' . $page->id . '/sections')
       : url('/admin/pages/' . $page->id . '/sections'));
-  // MARKER-PATCH-158-G16 — STORE_URL is the endpoint that v1 used for section_op=update.
+  // STORE_URL is the endpoint that v1 used for section_op=update.
   // Same handler accepts the same payload here.
   const STORE_URL  = @json($storeUrl);
   const PREVIEW_URL = @json($previewSrc);
-  // MARKER-PATCH-158-G19 — upload endpoint  (revised by MARKER-PATCH-158-G19A). Built as a raw URL string
+  // upload endpoint  (revised by ). Built as a raw URL string
   // instead of route() to avoid RouteNotFoundException if the route cache
   // is stale post-deploy. The endpoint path is stable and tenant-scoped.
   const UPLOAD_URL = @json($isMarketing
@@ -2807,7 +2801,7 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
       }
     });
 
-    // MARKER-PATCH-158-G23 — bg_color used to be stripped from content[] and
+    // bg_color used to be stripped from content[] and
     // sent as a top-level form field for the section's own bg_color column.
     // That broke v2 partials where bg_color is just one of many fields inside
     // content[] (gated by bg_mode). Now we send the bg_color column ONLY if
@@ -2866,7 +2860,7 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
   // Called after the inspector body is populated (initial render + every
   // section selection swap).
   const saveTimers = {};
-  // MARKER-NAV-INTENT — arriving from "Add it in the menu" / "Edit menu" on
+  // arriving from "Add it in the menu" / "Edit menu" on
   // another page: open the Nav section; the menu editor finishes the job.
   (function () {
     var q = new URLSearchParams(location.search);
@@ -2880,7 +2874,7 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
       if (n && !n.classList.contains('selected')) n.click();
     });
   })();
-  // MARKER-EXPLICIT-SAVE — the inspector no longer saves on every keystroke.
+  // the inspector no longer saves on every keystroke.
   // Edits mark the section dirty; Save (top bar, or Cmd/Ctrl+S) writes them,
   // Revert reloads the saved version. Switching section with unsaved edits
   // asks first (in-app dialog), and leaving the page warns.
@@ -2898,12 +2892,12 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
   function pb2MarkDirty() {
     if (!pb2Dirty) { pb2Dirty = true; setStatus('Unsaved'); }
     pb2Paint();
-    pb2QueueDraft(); // MARKER-BUILDER-DRAFT
+    pb2QueueDraft();
   }
   window.pb2MarkDirty = pb2MarkDirty;
   function pb2SetClean() {
     pb2Dirty = false; window.pb2NavPending = false; window.pb2NavSaver = null;
-    clearTimeout(pb2DraftTimer); // MARKER-BUILDER-DRAFT
+    clearTimeout(pb2DraftTimer);
     pb2Paint();
   }
   function pb2SaveNow() {
@@ -2920,7 +2914,7 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
   }
   window.pb2SaveNow = pb2SaveNow;
 
-  // MARKER-KEEP-UNSAVED — redraw the current section's panel WITHOUT losing
+  // redraw the current section's panel WITHOUT losing
   // unsaved edits: send them as the draft first, then redraw from the draft.
   var pb2KeepDirty = false;
   function pb2FlushDraft() {
@@ -2939,7 +2933,7 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
     });
   }
 
-  // MARKER-BUILDER-DRAFT — unsaved edits show in the preview straight away.
+  // unsaved edits show in the preview straight away.
   // ~0.15s after a change the section's fields go to the session as a draft,
   // the preview is rendered with it, and only that section is swapped in the
   // frame: no reload, no scroll jump. Save still writes; Revert discards.
@@ -2981,7 +2975,7 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
     var sid = selectedId, seq = ++pb2DraftSeq, c = pb2CollectContent();
     var f = { section_op: 'draft', section_id: sid };
     Object.keys(c).forEach(function (k) { f['content[' + k + ']'] = c[k]; });
-    if (window.pb2NavPending && window.pb2NavRows) f.nav_rows = JSON.stringify(window.pb2NavRows); // MARKER-SHOP-NAV
+    if (window.pb2NavPending && window.pb2NavRows) f.nav_rows = JSON.stringify(window.pb2NavRows);
     pb2Post(f)
       .then(function (r) {
         if (!r.ok) throw new Error('draft ' + r.status);
@@ -3012,7 +3006,7 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
       s.textContent = old.textContent;
       old.parentNode.replaceChild(s, old);
     });
-    // MARKER-BUILDER-LIVE-REFRESH — re-run page-wide effects for the redrawn section
+    // re-run page-wide effects for the redrawn section
     try {
       var w = doc.defaultView;
       if (w.mkAppearScan) w.mkAppearScan();
@@ -3027,7 +3021,7 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
     if (!item) return;
     var items = Array.prototype.slice.call(document.querySelectorAll('.pb2-section-item'));
     pb2SetClean();
-    pb2DraftClear().then(function () { // MARKER-BUILDER-DRAFT
+    pb2DraftClear().then(function () {
       selectSection(item.dataset.sectionId, item.dataset.sectionType, items.indexOf(item) + 1, true);
       refreshPreview(true);
     });
@@ -3061,7 +3055,7 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
       // Skip our own non-field controls
       if (!input.hasAttribute('data-field') && input.name !== 'is_visible') return;
 
-      // MARKER-EXPLICIT-SAVE — mark unsaved; Save writes.
+      // mark unsaved; Save writes.
       input.addEventListener('input',  () => pb2MarkDirty());
       input.addEventListener('change', () => pb2MarkDirty());
     });
@@ -3071,7 +3065,7 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
   let selectedId = document.querySelector('.pb2-section-item.selected')?.dataset.sectionId;
   if (selectedId) attachAutosaveListeners(selectedId);
 
-  // MARKER-PATCH-253 — live preview bridge. Same-origin iframe + the
+  // live preview bridge. Same-origin iframe + the
   // deterministic instance class (p-hero-{id} / p-cta-{id}) lets design
   // fields apply INSTANTLY on input; autosave persistence is untouched and
   // the post-save reload converges preview to truth. Cross-origin (custom
@@ -3128,7 +3122,7 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
 
   // ─── Section selection (swap inspector body, re-attach autosave) ──────
   function selectSection(sectionId, type, idx, force) {
-    // MARKER-EXPLICIT-SAVE — never drop unsaved edits by clicking away.
+    // never drop unsaved edits by clicking away.
     if (!force && pb2Dirty && String(sectionId) !== String(selectedId)) {
       pb2AskUnsaved().then(function (save) {
         if (!save) return;
@@ -3148,7 +3142,7 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
     if (name) name.textContent = label;
     if (sub)  sub.textContent  = `section · ${idx.toString().padStart(2, '0')}`;
 
-    fetch(`${UPDATE_URL}?_inspector=${sectionId}` + (pb2KeepDirty ? '&_draft=1' : ''), { // MARKER-KEEP-UNSAVED
+    fetch(`${UPDATE_URL}?_inspector=${sectionId}` + (pb2KeepDirty ? '&_draft=1' : ''), {
       headers: { 'Accept': 'text/html', 'X-Requested-With': 'XMLHttpRequest' },
     })
       .then(r => r.text())
@@ -3157,11 +3151,11 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
         if (body) {
           body.innerHTML = html;
           attachAutosaveListeners(sectionId);
-          // MARKER-PATCH-158-G19 — wire up new per-type controls
+          // wire up new per-type controls
           initInspectorControls();
-          // MARKER-KEEP-UNSAVED — a redraw that carried unsaved edits stays unsaved
+          // a redraw that carried unsaved edits stays unsaved
           if (pb2KeepDirty) { pb2KeepDirty = false; pb2SetClean(); pb2MarkDirty(); }
-          else pb2SetClean(); // MARKER-EXPLICIT-SAVE — controls may fire change while wiring up
+          else pb2SetClean(); // controls may fire change while wiring up
         }
       })
       .catch(err => console.error('inspector load failed', err));
@@ -3178,7 +3172,7 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
     });
   });
 
-  // ─── MARKER-BUILDER-SYNC — keep the two panes pointed at the same thing ──
+  // ─── keep the two panes pointed at the same thing ──
   // postMessage rather than reaching into the iframe directly: the preview is
   // same-origin today, but this keeps working if it ever isn't.
   function scrollPreviewTo(sectionId) {
@@ -3228,7 +3222,7 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
   if (delBtn) {
     delBtn.addEventListener('click', () => {
       if (!selectedId) return;
-      // MARKER-BUILDER-DIALOGS — in-app dialog, no browser prompts
+      // in-app dialog, no browser prompts
       IntakeConfirm.show({
         title: 'Delete this section?',
         message: 'This cannot be undone.',
@@ -3248,7 +3242,7 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
     });
   }
 
-  // MARKER-SECTION-COPY — copy the selected section to the clipboard, and
+  // copy the selected section to the clipboard, and
   // show the Paste card here too, so the same page can take a copy.
   const copyBtn = document.getElementById('pb2-copy-section');
   if (copyBtn) {
@@ -3281,7 +3275,7 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
     });
   }
 
-  // MARKER-PATCH-158-G18 — duplicate section
+  // duplicate section
   const dupBtn = document.getElementById('pb2-duplicate-section');
   if (dupBtn) {
     dupBtn.addEventListener('click', () => {
@@ -3314,7 +3308,7 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
     });
   }
 
-  // MARKER-PATCH-158-G18 — drag-reorder via native HTML5 D&D, gated by the
+  // drag-reorder via native HTML5 D&D, gated by the
   // drag-handle. We set draggable=true on the row only while the user holds
   // the drag handle, so clicks elsewhere on the row still select normally.
   (function setupDragReorder() {
@@ -3420,7 +3414,7 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
   });
 
   // ─── Tab switching ────────────────────────────────────────────────────
-  // MARKER-PATCH-158-G19 — was cosmetic; now actually swaps visible
+  // was cosmetic; now actually swaps visible
   // .pb2-tab-panel sections. Per-type partials (e.g. _hero.blade.php) wrap
   // each tab's fields in <div class="pb2-tab-panel" data-tab="...">. The
   // legacy _section.blade.php has no tab panels so all fields stay in
@@ -3439,13 +3433,13 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
     t.addEventListener('click', () => showTab(t.dataset.tab));
   });
 
-  // MARKER-PATCH-158-G19 — Per-type interactive controls (segmented controls,
+  // Per-type interactive controls (segmented controls,
   // bg-mode pane toggling, image upload, button list editor). Called after
   // every inspector body swap so newly-injected controls work.
   function initInspectorControls() {
     const body = document.getElementById('pb2-insp-body');
     if (!body) return;
-    // MARKER-MKT-HIDE-TABLET — controls rendered elsewhere ask to sit after a field.
+    // controls rendered elsewhere ask to sit after a field.
     body.querySelectorAll('[data-move-after]').forEach(function (el) {
       var t = body.querySelector('[data-field="' + el.dataset.moveAfter + '"]');
       var row = t && (t.closest('label') || t.closest('.pb2-field'));
@@ -3459,7 +3453,7 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
     if (hasPanels) showTab(activeTab);
 
     // Segmented controls — clicking a button updates the hidden input it
-    // MARKER-PATCH-252 — 9-point anchor picker (.pb2-anchor). Each dot
+    // 9-point anchor picker (.pb2-anchor). Each dot
     // carries data-anchor="<text_align> <vertical_align>"; clicking writes
     // both hidden inputs and dispatches change so autosave fires — the
     // exact contract the seg binder uses below.
@@ -3529,7 +3523,7 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
       const fieldName = btn.dataset.imageReplace;
       btn.addEventListener('click', () => triggerImageUpload(fieldName));
     });
-    // MARKER-PATCH-259 — inject a "Choose from library" control next to
+    // inject a "Choose from library" control next to
     // every upload/replace trigger (once), wired to the picker modal.
     body.querySelectorAll('[data-image-upload],[data-image-replace]').forEach(btn => {
       const fieldName = btn.dataset.imageUpload || btn.dataset.imageReplace;
@@ -3564,7 +3558,7 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
           const item = document.querySelector(`.pb2-section-item[data-section-id="${selectedId}"]`);
           if (item) {
             const idx = Array.from(document.querySelectorAll('.pb2-section-item')).indexOf(item) + 1;
-            setTimeout(() => pb2ReloadSame(item, idx), 300); // MARKER-KEEP-UNSAVED
+            setTimeout(() => pb2ReloadSame(item, idx), 300);
           }
         }
       });
@@ -3573,54 +3567,54 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
     // Button list (Hero CTAs)
     initButtonList(body);
 
-    // MARKER-PATCH-158-G22 — Services category multi-select serializer
+    // Services category multi-select serializer
     initServiceCategoryList(body);
 
-    // MARKER-PATCH-158-G25 — Nav links editor (saves to update_nav op,
+    // Nav links editor (saves to update_nav op,
     // not into content[]. Nav items are a tenant-global resource.)
     initNavLinkList(body);
 
-    // MARKER-PATCH-158-G26 — Footer link columns + social links list editors.
+    // Footer link columns + social links list editors.
     // Both serialize to hidden JSON [data-field] inputs that autosave picks up.
     initFooterLinkColumns(body);
     initFooterSocialLinks(body);
 
-    // MARKER-PATCH-158-G27 — Stats row list editor
+    // Stats row list editor
     initStatsList(body);
 
-    // MARKER-PATCH-158-G30 — Pricing table plans list editor (nested:
+    // Pricing table plans list editor (nested:
     // plan rows + features sub-list per plan + radio-like featured toggle)
     initPlansList(body);
 
-    // MARKER-PATCH-158-G31 — feature_grid features list editor
+    // feature_grid features list editor
     initFeaturesList(body);
 
-    // MARKER-PATCH-297 — image gallery image-tile repeater
+    // image gallery image-tile repeater
     initGalleryList(body);
 
-    // MARKER-RENTAL-SECTIONS — rental_categories checkbox + drag-order list
+    // rental_categories checkbox + drag-order list
     initRentalCategoryList(body);
 
-    // MARKER-PATCH-158-G32 — logo_bar logos list editor
+    // logo_bar logos list editor
     initLogosList(body);
 
-    // MARKER-PATCH-158-G33 — faq_accordion items list editor
+    // faq_accordion items list editor
     initFaqList(body);
 
-    // MARKER-TI-ACCORDION — text_image style switch + accordion items
+    // text_image style switch + accordion items
     initTiAccList(body);
 
-    // MARKER-FEATURE-TILES — feature tiles list
+    // feature tiles list
     initFtList(body);
 
-    // MARKER-HERO-VIDEO — hero background video upload
+    // hero background video upload
     initHeroVideo(body);
 
-    // MARKER-PATCH-158-G34 — step_timeline steps list editor
+    // step_timeline steps list editor
     initStepsList(body);
   }
 
-  // MARKER-RENTAL-SECTIONS — every fleet category renders as a row with a
+  // every fleet category renders as a row with a
   // checkbox (include it?) and a drag handle (order it). Serializes the
   // checked ids, in DOM order, to the hidden category_ids JSON field.
   function initRentalCategoryList(body) {
@@ -3736,9 +3730,9 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
     }
   }
 
-  // MARKER-TI-ACCORDION — Text + image: Classic/Accordion switch and the accordion's item list.
-  // MARKER-FEATURE-TILES — the Feature tiles list: edit, reorder, remove, add, images.
-  // MARKER-HERO-VIDEO — upload a background video into the hero's video field.
+  // Text + image: Classic/Accordion switch and the accordion's item list.
+  // the Feature tiles list: edit, reorder, remove, add, images.
+  // upload a background video into the hero's video field.
   function initHeroVideo(body) {
     const field = body.querySelector('input[data-field="bg_video_url"]');
     const up = body.querySelector('[data-hero-video-upload]'), clr = body.querySelector('[data-hero-video-clear]'), st = body.querySelector('[data-hero-video-status]');
@@ -3875,7 +3869,7 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
       if (rm) rm.addEventListener('click', () => { row.remove(); serialize(); });
       const up = row.querySelector('[data-tiacc-up]');
       if (up) up.addEventListener('click', () => { const p = row.previousElementSibling; if (p) { root.insertBefore(row, p); serialize(); } });
-      // MARKER-TI-UPLOAD — upload straight into an item (same path as Logo bar rows); it lands in the library too.
+      // upload straight into an item (same path as Logo bar rows); it lands in the library too.
       const upl = row.querySelector('[data-tiacc-upload]');
       const st  = row.querySelector('[data-tiacc-status]');
       const say = (msg, ms) => { if (!st) return; st.textContent = msg; if (ms) setTimeout(() => { if (st.textContent === msg) st.textContent = ''; }, ms); };
@@ -4009,7 +4003,7 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
         const name     = row.querySelector('[data-logo-field="name"]')?.value || '';
         const logoUrl  = row.querySelector('[data-logo-field="logo_url"]')?.value || '';
         const linkUrl  = row.querySelector('[data-logo-field="link_url"]')?.value || '';
-        const scale    = parseInt(row.querySelector('[data-logo-field="scale"]')?.value || '100', 10); // MARKER-LOGOBAR-POLISH
+        const scale    = parseInt(row.querySelector('[data-logo-field="scale"]')?.value || '100', 10);
         // Skip totally empty rows
         if (name.trim() === '' && logoUrl.trim() === '') return;
         out.push({ name, logo_url: logoUrl, link_url: linkUrl, scale: scale });
@@ -4027,12 +4021,12 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
       const rm = row.querySelector('[data-logo-remove]');
       if (rm) rm.addEventListener('click', () => { row.remove(); serialize(); });
 
-      // MARKER-LOGOBAR-POLISH — live % readout beside the scale slider.
+      // live % readout beside the scale slider.
       const sc  = row.querySelector('[data-logo-field="scale"]');
       const out = row.querySelector('[data-logo-scale-out]');
       if (sc && out) sc.addEventListener('input', () => { out.textContent = sc.value + '%'; });
 
-      // MARKER-LOGOBAR-PICKER — image comes from an upload or the library,
+      // image comes from an upload or the library,
       // like every other image field in the builder.
       const hidden = row.querySelector('[data-logo-field="logo_url"]');
       const thumb  = row.querySelector('[data-logo-thumb]');
@@ -4116,7 +4110,7 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
     }
   }
 
-  // MARKER-FEATURE-GROUPS — the feature-groups editor. Delegated, so it works
+  // the feature-groups editor. Delegated, so it works
   // for editor bodies the builder injects later. Groups serialize into the
   // hidden data-field="groups" JSON, which the builder saves like any field.
   (function () {
@@ -4160,7 +4154,7 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
     if (!root || !json) return;
 
     const MAX_FEATS = 12;
-    let dragFeat = null; // MARKER-FEAT-DRAG
+    let dragFeat = null;
 
     function serialize() {
       const out = [];
@@ -4188,7 +4182,7 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
       const rm = featEl.querySelector('[data-feat-remove]');
       if (rm) rm.addEventListener('click', () => { featEl.remove(); serialize(); });
 
-      // MARKER-FEAT-DRAG — the ⋮⋮ handle was rendered but inert; same
+      // the ⋮⋮ handle was rendered but inert; same
       // handle-armed drag the gallery tiles use. Reorder persists via
       // serialize() on drop.
       const h = featEl.querySelector('.pb2-navlist-handle');
@@ -4216,7 +4210,7 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
         });
       }
 
-      // MARKER-PATCH-293 autofill — pick a service, fill the card from the catalog.
+      // autofill — pick a service, fill the card from the catalog.
       const svcSel = featEl.querySelector('[data-feat-field="service_id"]');
       if (svcSel) svcSel.addEventListener('change', () => {
         const opt = svcSel.options[svcSel.selectedIndex];
@@ -4262,7 +4256,7 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
     }
   }
 
-  // MARKER-PATCH-297 — image_gallery repeater: serializes tiles to the hidden
+  // image_gallery repeater: serializes tiles to the hidden
   // [data-field="images"] JSON, adds via the shared uploader, removes, reorders.
   function initGalleryList(body) {
     const root   = body.querySelector('#pb2-gimg-list');
@@ -4273,7 +4267,7 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
 
     const MAX_IMG = 24;
     let dragEl = null;
-    // MARKER-CAROUSEL-SECTION -- the carousel partial opts into a per-slide
+    // the carousel partial opts into a per-slide
     // link field; the gallery partial does not set the flag and is unchanged.
     const HAS_LINK = root.dataset.links === '1';
 
@@ -4287,7 +4281,7 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
           caption: tile.querySelector('[data-gimg-field="caption"]')?.value || '',
           alt:     tile.querySelector('[data-gimg-field="alt"]')?.value || '',
         };
-        if (HAS_LINK) rec.link = tile.querySelector('[data-gimg-field="link"]')?.value || ''; // MARKER-CAROUSEL-SECTION
+        if (HAS_LINK) rec.link = tile.querySelector('[data-gimg-field="link"]')?.value || '';
         out.push(rec);
       });
       json.value = JSON.stringify(out);
@@ -4340,7 +4334,7 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
             '<button type="button" class="pb2-navlist-remove" data-gimg-remove title="Remove">\u00D7</button>' +
           '</div>' +
           '<input type="text" class="pb2-input pb2-input-sm" data-gimg-field="alt" placeholder="Alt text (accessibility)">' +
-          (HAS_LINK ? '<input type="text" class="pb2-input pb2-input-sm" data-gimg-field="link" placeholder="Link URL (optional)">' : '') + // MARKER-CAROUSEL-SECTION
+          (HAS_LINK ? '<input type="text" class="pb2-input pb2-input-sm" data-gimg-field="link" placeholder="Link URL (optional)">' : '') +
           '<input type="hidden" data-gimg-field="url" value="' + url + '">' +
         '</div>';
       return tile;
@@ -4348,7 +4342,7 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
 
     root.querySelectorAll('.pb2-gimg').forEach(wireTile);
 
-    // MARKER-CAROUSEL-SECTION -- "+ From library" opens the media modal in
+    // "+ From library" opens the media modal in
     // append mode; each click adds a tile and the modal stays open.
     const libBtn = body.querySelector('#pb2-gimg-lib');
     if (libBtn && !libBtn.dataset.wired) {
@@ -4753,7 +4747,7 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
   // Nav link list editor. Each row has label + URL + open-in-new-tab toggle.
   // Saves via the existing tenant.pages.store endpoint with op=update_nav.
   // Auto-saves on input/change with the same 800/100ms debounce as content.
-// MARKER-SHOP-NAV — the menu editor inside the Nav section. Rows are pages
+// the menu editor inside the Nav section. Rows are pages
   // (follow their page) or links, each with a style and side. Changes mark
   // the section unsaved, show in the preview straight away (sent with the
   // section's draft), and are written by the section's Save button.
@@ -4862,7 +4856,7 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
         .catch(() => { pb2SaveOk = false; setStatus('The menu was not saved — check your connection.'); return false; });
     }
     render();
-    // MARKER-NAV-INTENT — finish what the link on another page started:
+    // finish what the link on another page started:
     // put that page in the list (unsaved), highlight it, explain in a dialog.
     // Deferred, because the builder marks everything clean right after load.
     const intent = window.pb2NavIntent;
@@ -4874,7 +4868,7 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
         if (p) {
           hl = intent.add;
           if (rows.some(r => r.type === 'page' && r.page === intent.add)) {
-            title = '\u201c' + p.t + '\u201d is already in your menu'; // MARKER-NAV-DIALOG-COPY
+            title = '\u201c' + p.t + '\u201d is already in your menu';
             msg = 'It\u2019s highlighted on the right. Drag to move it or change its style, then press Save.';
             render();
           } else {
@@ -4927,7 +4921,7 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
 
   // Image upload: opens a file picker, posts to /admin/uploads, injects URL
   // into the hidden input + triggers a section save + reloads the inspector.
-  // MARKER-PATCH-259 — single place that applies a chosen/uploaded URL to
+  // single place that applies a chosen/uploaded URL to
   // an image field: set value, fire change (autosave + live bridge), reload
   // the inspector so the tile reflects it. Shared by upload AND picker.
   function applyImageToField(fieldName, url) {
@@ -4936,17 +4930,17 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
     const hidden = body.querySelector(`input[data-field="${fieldName}"]`);
     if (!hidden) return;
     hidden.value = url;
-    hidden.dispatchEvent(new Event('change', { bubbles: true })); // MARKER-EXPLICIT-SAVE — now unsaved until Save
+    hidden.dispatchEvent(new Event('change', { bubbles: true })); // now unsaved until Save
     if (selectedId) {
       const item = document.querySelector(`.pb2-section-item[data-section-id="${selectedId}"]`);
       if (item) {
         const idx = Array.from(document.querySelectorAll('.pb2-section-item')).indexOf(item) + 1;
-        setTimeout(() => pb2ReloadSame(item, idx), 350); // MARKER-KEEP-UNSAVED
+        setTimeout(() => pb2ReloadSame(item, idx), 350);
       }
     }
   }
 
-  // MARKER-PATCH-259 — library picker modal. Lazy-loads media.feed once.
+  // library picker modal. Lazy-loads media.feed once.
   let __mediaCache = null;
   function openMediaPicker(fieldName) {
     let modal = document.getElementById('pb2-media-modal');
@@ -4974,7 +4968,7 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
         .catch(() => { __mediaCache = []; renderMediaGrid(); });
     }
   }
-  window.pb2OpenMediaPicker = openMediaPicker; // MARKER-PAGE-SEARCH-SHARING — the Search & sharing panel lives outside this scope
+  window.pb2OpenMediaPicker = openMediaPicker; // the Search & sharing panel lives outside this scope
   function closeMediaPicker() {
     const m = document.getElementById('pb2-media-modal');
     if (m) m.style.display = 'none';
@@ -4995,21 +4989,21 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
       '</button>').join('') + '</div>';
     body.querySelectorAll('.pb2-media-cell').forEach(cell => {
       cell.addEventListener('click', () => {
-        // MARKER-CAROUSEL-SECTION -- append mode hands the pick to the image
+        // append mode hands the pick to the image
         // repeater and keeps the modal open so several can be added at once.
-        if (field === '__tiacc_pick' && window.__tiAccPick) { // MARKER-TI-ACCORDION
+        if (field === '__tiacc_pick' && window.__tiAccPick) {
           window.__tiAccPick(cell.dataset.url);
           window.__tiAccPick = null;
           closeMediaPicker();
           return;
         }
-        if (field === '__logo_pick' && window.__logoPick) { // MARKER-LOGOBAR-PICKER
+        if (field === '__logo_pick' && window.__logoPick) {
           window.__logoPick(cell.dataset.url);
           window.__logoPick = null;
           closeMediaPicker();
           return;
         }
-        if (field === '__share_pick' && window.__sharePick) { // MARKER-PAGE-SEARCH-SHARING
+        if (field === '__share_pick' && window.__sharePick) {
           window.__sharePick(cell.dataset.url);
           window.__sharePick = null;
           closeMediaPicker();
@@ -5060,7 +5054,7 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
             const item = document.querySelector(`.pb2-section-item[data-section-id="${selectedId}"]`);
             if (item) {
               const idx = Array.from(document.querySelectorAll('.pb2-section-item')).indexOf(item) + 1;
-              setTimeout(() => pb2ReloadSame(item, idx), 400); // MARKER-KEEP-UNSAVED
+              setTimeout(() => pb2ReloadSame(item, idx), 400);
             }
           }
         } else {
@@ -5081,7 +5075,7 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
   // paired (within the same .pb2-group) with a hidden input[data-field="buttons"],
   // an "+ Add button" button matched by a wrapping .pb2-group, and an
   // optional count badge in the group title (matched by .pb2-group-meta).
-  // MARKER-PATCH-158-G20 — was hardcoded to #pb2-hero-* IDs; now class-based.
+  // was hardcoded to #pb2-hero-* IDs; now class-based.
   function initButtonList(body) {
     body.querySelectorAll('.pb2-btnlist').forEach(list => {
       // Find the group containing this list
@@ -5160,7 +5154,7 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
   // Initial wire-up — the first section's fields are already rendered
   initInspectorControls();
 
-  // MARKER-PATCH-278 — collapsible docked sections list (state persisted)
+  // collapsible docked sections list (state persisted)
   window.toggleSectionsDock = function() {
     const el = document.getElementById('pb2-sections-pane');
     if (!el) return;
@@ -5180,7 +5174,7 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
     if (panel) panel.classList.toggle('open');
   };
 
-  // MARKER-SECTION-COPY — paste the clipboard section onto this page.
+  // paste the clipboard section onto this page.
   window.pasteSection = function() {
     const fd = new FormData();
     fd.append('_token', getCsrf());
@@ -5208,8 +5202,8 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
   };
 
   // ─── Save (manual button in topbar) ───────────────────────────────────
-  window.savePageSettings = function() { return pb2SaveNow(); }; // MARKER-EXPLICIT-SAVE
-  window.addEventListener('load', function () { setTimeout(pb2SetClean, 50); pb2DraftClear(); }); // MARKER-BUILDER-DRAFT — no leftovers
+  window.savePageSettings = function() { return pb2SaveNow(); };
+  window.addEventListener('load', function () { setTimeout(pb2SetClean, 50); pb2DraftClear(); }); // no leftovers
 
   // ─── Listen for save events from inside inspector (future hook) ───────
   document.addEventListener('pb-section-saved', () => {
@@ -5220,7 +5214,7 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
 </script>
 
 <script>
-  // MARKER-SECTION-ROWS — lime bar on sections that share a row, recomputed as widths change.
+  // lime bar on sections that share a row, recomputed as widths change.
   (function () {
     var W = { half: 3, third: 2, twothirds: 4 };
     function brackets() {

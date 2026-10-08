@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 /**
- * MARKER-PATCH-566 — Online Retail Wave 4: place + finalize.
+ * Online Retail Wave 4: place + finalize.
  *
  * place():    cart -> pending_payment order + Stripe PaymentIntent.
  * finalize(): verified PI -> customer resolved/created -> TenantSale via
@@ -33,7 +33,7 @@ class OrderService
         return [
             'local_delivery'     => (bool) ($s['local_delivery'] ?? false),
             'delivery_fee_cents' => (int) ($s['delivery_fee_cents'] ?? 0),
-            'install_offer'      => (bool) ($s['install_offer'] ?? true), // MARKER-PATCH-569
+            'install_offer'      => (bool) ($s['install_offer'] ?? true),
         ];
     }
 
@@ -50,7 +50,7 @@ class OrderService
         // or the charged amount and the sale ledger diverge per line.
         $cart->loadMissing('items.inventoryItem:id,tax_class_code');
 
-        // MARKER-SHOP-DISCOUNT — a whole-cart discount reduces the taxable
+        // a whole-cart discount reduces the taxable
         // base, so spread it over the lines before taxing them. Largest
         // remainder, same as SaleService, so the parts sum to the discount
         // exactly and the Stripe charge matches the sale ledger to the cent.
@@ -91,7 +91,7 @@ class OrderService
 
         return [
             'subtotal_cents' => $subtotal,
-            'discount_cents' => $discount, // MARKER-SHOP-DISCOUNT
+            'discount_cents' => $discount,
             'discount_code'  => $cart->discount_code,
             'tax_cents'      => $tax,
             'shipping_cents' => $shipping,
@@ -131,14 +131,14 @@ class OrderService
                 'wants_install'       => (bool) ($fulfillment['wants_install'] ?? false),
                 'location_id'         => $this->tenant->defaultLocation?->id,
                 'subtotal_cents'      => $quote['subtotal_cents'],
-                'discount_cents'      => $quote['discount_cents'] ?? 0, // MARKER-SHOP-DISCOUNT
+                'discount_cents'      => $quote['discount_cents'] ?? 0,
                 'tax_cents'           => $quote['tax_cents'],
                 'shipping_cents'      => $quote['shipping_cents'],
                 'total_cents'         => $quote['total_cents'],
-                'payment_method'      => $manualMethod, // MARKER-PATCH-631 — null for card
+                'payment_method'      => $manualMethod, // null for card
             ])->save();
 
-            // MARKER-SHOP-DISCOUNT — redeem here, inside the same
+            // redeem here, inside the same
             // transaction as the order. A code held only in a cart never
             // consumed a use; this is the moment it is actually spent, and
             // if the limit ran out in the meantime the order fails rather
@@ -166,14 +166,14 @@ class OrderService
             return $cart;
         });
 
-        // MARKER-PATCH-631 — manual methods skip Stripe entirely: the order
+        // manual methods skip Stripe entirely: the order
         // stays pending_payment with instructions; staff mark it paid when
         // the money lands. No PaymentIntent, no client secret.
         if ($manualMethod !== null) {
             return [$order, null];
         }
 
-        // MARKER-SHOP-DISCOUNT — if payment setup fails the order never
+        // if payment setup fails the order never
         // happens, so the code must not stay spent.
         try {
             $pi = (new DirectPaymentsService($this->tenant))->createPaymentIntent(
@@ -201,7 +201,7 @@ class OrderService
      * caller (browser return or webhook) does the work; repeats no-op.
      */
     /**
-     * MARKER-PATCH-631 — staff-confirmed manual payment (Venmo/Cash App/custom):
+     * staff-confirmed manual payment (Venmo/Cash App/custom):
      * build the sale and mark the order paid, same shape as finalize() minus
      * the PaymentIntent. Idempotent under lock like finalize().
      */
@@ -337,7 +337,7 @@ class OrderService
             return $fresh;
         });
 
-        // MARKER-PATCH-574 — order confirmation email, outside the
+        // order confirmation email, outside the
         // transaction so mail latency/failures never touch the money path.
         if ($result->sale_id && filled($result->contact_email)) {
             try {

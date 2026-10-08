@@ -1,4 +1,4 @@
-{{-- MARKER-QUOTE-GROUPED — grouped add-ons + itemized quote summary.
+{{-- grouped add-ons + itemized quote summary.
      State binds to quote_addons; tier is entangled from the sibling field.
      All pricing resolved server-side here; grouping/totals live in Alpine. --}}
 @php

@@ -1,5 +1,4 @@
 <?php
-// MARKER-PROMO-TAGS
 
 namespace App\Services\Tenant;
 

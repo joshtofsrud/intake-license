@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-/** MARKER-LAYAWAY — the schedule and policy for one layaway sale. */
+/** the schedule and policy for one layaway sale. */
 class TenantLayawayPlan extends Model
 {
     use HasUuids;

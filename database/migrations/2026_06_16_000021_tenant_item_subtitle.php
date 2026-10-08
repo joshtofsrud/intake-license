@@ -1,5 +1,5 @@
 <?php
-// MARKER-PATCH-HLCC — display_subtitle on tenant items + expanded subtitle default.
+// display_subtitle on tenant items + expanded subtitle default.
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;

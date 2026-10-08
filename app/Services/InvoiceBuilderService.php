@@ -6,7 +6,7 @@ use App\Models\Tenant\TenantAppointment;
 use App\Models\Tenant\TenantAppointmentAsset;
 
 /**
- * MARKER-PATCH-204 — single source of truth for invoice data.
+ * single source of truth for invoice data.
  *
  * Assembles everything the PDF view AND the email body need from an
  * appointment, multi-asset aware: line items roll up under each asset
@@ -62,7 +62,7 @@ class InvoiceBuilderService
                     'cents' => (int) $ad->effectivePriceCents(),
                 ];
             }
-            // MARKER-PATCH-347 — parts (inventory parts AND custom one-offs, which
+            // parts (inventory parts AND custom one-offs, which
             // are stored as part rows with inventory_item_id = null) were never
             // projected, so they never showed on any document.
             foreach ($a->parts as $pt) {
@@ -78,17 +78,17 @@ class InvoiceBuilderService
                 ];
             }
             $assetGroups[] = [
-                'id'       => $a->id, // MARKER-PATCH-333
+                'id'       => $a->id,
                 'name'     => $a->asset_name_snapshot ?: 'Asset',
                 'lines'    => $lines,
-                // MARKER-PATCH-347 — derive from the rendered lines so the asset
+                // derive from the rendered lines so the asset
                 // subtotal always equals the sum of what's actually printed.
                 'subtotal' => array_sum(array_column($lines, 'cents')),
             ];
         }
 
         // ── loose (unpinned) items / add-ons / parts ──
-        // MARKER-PATCH-347 — loose parts now project. Legacy ad-hoc `charges`
+        // loose parts now project. Legacy ad-hoc `charges`
         // are intentionally excluded: they are not part of the billed total
         // (recalcAppointmentTotals sums items + add-ons + parts only), so
         // listing them would make the printed lines disagree with the totals.
@@ -126,7 +126,7 @@ class InvoiceBuilderService
         }
 
         $subtotal = (int) $appt->subtotal_cents;
-        // MARKER-DOC-DISCOUNT — without this the documents show a subtotal
+        // without this the documents show a subtotal
         // and a total that don't reconcile.
         $discount = (int) ($appt->discount_cents ?? 0);
         $tax      = (int) $appt->tax_cents;
@@ -149,8 +149,8 @@ class InvoiceBuilderService
             'assets'   => $assetGroups,
             'loose'    => $loose,
             'subtotal' => $subtotal,
-            'discount' => $discount,                             // MARKER-DOC-DISCOUNT
-            'discount_code' => $appt->discount_code ?? null,     // MARKER-DOC-DISCOUNT
+            'discount' => $discount,
+            'discount_code' => $appt->discount_code ?? null,
             'tax'      => $tax,
             'total'    => $total,
             'paid'     => $paid,

@@ -3,10 +3,10 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  @include('partials.mobile-input-zoom') {{-- MARKER-MOBILE-INPUT-ZOOM --}}
+  @include('partials.mobile-input-zoom')
   <meta name="csrf-token" content="{{ csrf_token() }}">
   <title>Start your free trial — Intake</title>
-  <link rel="stylesheet" href="{{ asset('css/fonts.css') }}">{{-- MARKER-SELFHOST-FONTS-2 --}}
+  <link rel="stylesheet" href="{{ asset('css/fonts.css') }}">
   <style>
     :root{--accent:#BEF264;--accent-text:#0a0a0a;--bg:#0c0c0c;--bg2:#141414;--bg3:#1a1a1a;--text:#f0f0f0;--muted:rgba(255,255,255,.45);--dim:rgba(255,255,255,.2);--border:rgba(255,255,255,.08);--border2:rgba(255,255,255,.14);--r:8px;--r-lg:12px}
     *{box-sizing:border-box;margin:0;padding:0}
@@ -35,7 +35,6 @@
     .su-subdomain-wrap input{margin-bottom:0;padding-right:140px}
     .su-subdomain-suffix{position:absolute;right:12px;top:50%;transform:translateY(-50%);font-size:13px;color:var(--muted);pointer-events:none;white-space:nowrap}
     .su-subdomain-status{font-size:12px;margin-top:5px;min-height:16px;transition:color .15s}
-    /* MARKER-SIGNUP-DOMAIN-TIP */
     .su-tip{position:relative;display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;margin-left:6px;border-radius:50%;
       border:1px solid currentColor;font-size:10px;font-weight:600;font-style:normal;text-transform:none;letter-spacing:0;cursor:help;vertical-align:1px;opacity:.75;outline:none}
     .su-tip:hover,.su-tip:focus{opacity:1}
@@ -64,7 +63,7 @@
 
 <div class="su-nav">
   <a href="{{ route('marketing.home') }}" class="su-logo">
-    <img src="{{ \App\Support\Brand::url('logo') }}" alt="Intake" style="display:block;height:24px;width:auto"> {{-- MARKER-PLATFORM-LOGO --}}
+    <img src="{{ \App\Support\Brand::url('logo') }}" alt="Intake" style="display:block;height:24px;width:auto">
   </a>
   <div class="su-nav-signin">Already have an account? <a href="{{ route('platform.login') }}">Sign in →</a></div>
 </div>
@@ -74,7 +73,7 @@
   {{-- Left: value props --}}
   <div class="su-left">
     <h1>Start your free 14-day trial</h1>
-    <p>Your shop is live in minutes.</p>{{-- MARKER-CLAIMS-FIX — signup takes a card, so "No credit card required" was false --}}
+    <p>Your shop is live in minutes.</p>{{-- signup takes a card, so "No credit card required" was false --}}
     <div class="su-perks">
       @foreach([
         'Online booking form with payments',
@@ -155,7 +154,7 @@
     </form>
 
     <p class="su-fine-print">
-      {{-- MARKER-SIGNUP-CARD-COPY — the trial needs a card (next step); the old line said it didn't. Terms and Privacy linked to "#". --}}
+      {{-- the trial needs a card (next step); the old line said it didn't. Terms and Privacy linked to "#". --}}
       Free for 14 days. A card starts the trial; nothing is charged until it ends.<br>
       By signing up you agree to our <a href="https://{{ config('intake.domain', 'intake.works') }}/terms" target="_blank" rel="noopener" style="color:var(--muted)">Terms</a> and <a href="https://{{ config('intake.domain', 'intake.works') }}/privacy" target="_blank" rel="noopener" style="color:var(--muted)">Privacy Policy</a>.
     </p>
@@ -192,7 +191,7 @@ document.getElementById('subdomain-input').addEventListener('input', function() 
   checkSubdomain(this.value);
 });
 
-// MARKER-SIGNUP-DOMAIN-TIP — a shop name already filled in (from an invite, or the
+// a shop name already filled in (from an invite, or the
 // form coming back with errors) suggests the URL straight away; before this the
 // URL box stayed empty until the shop name was edited.
 (function () {

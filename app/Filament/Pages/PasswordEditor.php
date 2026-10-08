@@ -17,8 +17,8 @@ use Illuminate\Support\Facades\Hash;
 
 class PasswordEditor extends Page implements HasForms
 {
-    use \App\Support\UsesAdminNav; // MARKER-NAV-ORDER
-    use \App\Support\GatedByAdminArea; // MARKER-ADMIN-NAV-GATE
+    use \App\Support\UsesAdminNav;
+    use \App\Support\GatedByAdminArea;
     protected static string $adminArea = 'tenants';
 
     use InteractsWithForms;

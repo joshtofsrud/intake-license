@@ -5,7 +5,7 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * MARKER-HOLD — the name someone gave a parked cart.
+ * the name someone gave a parked cart.
  *
  * Its presence is what separates a sale someone chose to keep from one the
  * autosave happened to leave behind. Null means recovered.

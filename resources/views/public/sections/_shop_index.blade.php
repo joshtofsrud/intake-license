@@ -1,4 +1,4 @@
-{{-- MARKER-PATCH-579 -- chrome-wrapped shop body (index); rendered
+{{-- chrome-wrapped shop body (index); rendered
      through public.layout via SiteChromeService between the tenant own
      nav + footer sections. Original standalone blade retired. --}}
 @php
@@ -60,7 +60,7 @@
     @if($activeCat)<input type="hidden" name="category" value="{{ $activeCat }}">@endif
     <input type="search" name="q" value="{{ $q }}" placeholder="Search the shop — brand, part, size…">
     <button>Search</button>
-    {{-- MARKER-PATCH-583 — sort --}}
+    {{-- sort --}}
     <select name="sort" onchange="this.form.submit()"
             style="font:inherit;font-size:13.5px;padding:10px 12px;border:1.5px solid rgba(0,0,0,.12);border-radius:10px;background:#fff">
       <option value="featured"   @selected(($sort ?? 'featured') === 'featured')>Featured</option>
@@ -70,7 +70,7 @@
     </select>
   </form>
 
-  {{-- MARKER-PATCH-583 — sidebar layout option --}}
+  {{-- sidebar layout option --}}
   @if(($browseLayout ?? 'chips') === 'sidebar' && $categories->isNotEmpty())
     <div style="display:grid;grid-template-columns:210px 1fr;gap:26px;align-items:start" class="spg-sb">
       <aside style="position:sticky;top:84px">

@@ -1,5 +1,5 @@
 {{--
-  MARKER-PATCH-158-G34 — step_timeline editor (Phase 2)
+  step_timeline editor (Phase 2)
   Numbered process steps with three layout modes: horizontal flow,
   vertical stack, or numbered cards. v1 had a "done" boolean for the
   Intake roadmap context; dropped in v2 as it's not useful for tenants.
@@ -149,7 +149,7 @@
           @endforeach
         </select>
       </div>
-      {{-- MARKER-PATCH-271 — content width (max content area; container stays centered with a side gutter) --}}
+      {{-- content width (max content area; container stays centered with a side gutter) --}}
       <div class="pb2-field">
         <div class="pb2-slider-row">
           <label class="pb2-field-label" style="margin:0">Content width</label>
@@ -188,7 +188,7 @@
     </div>
 
     <div class="pb2-bg-pane" data-bg-mode="gradient">
-        {{-- MARKER-PATCH-269 — gradient angle --}}
+        {{-- gradient angle --}}
         <div class="pb2-field">
           <div class="pb2-slider-row">
             <label class="pb2-field-label" style="margin:0">Angle</label>

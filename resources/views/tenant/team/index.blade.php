@@ -1,4 +1,4 @@
-{{-- MARKER-PATCH-129 — team list (replaces old team/index.blade.php) --}}
+{{-- team list (replaces old team/index.blade.php) --}}
 @extends('layouts.tenant.app')
 @php
   $pageTitle = 'Team';
@@ -30,13 +30,12 @@
   </div>
   <div class="ia-page-actions">
     @if($me->isOwner())
-      {{-- MARKER-PATCH-494 --}}
       <a href="{{ route('tenant.team.roles') }}" class="ia-btn ia-btn--ghost">Roles & access</a>
       <a href="{{ route('tenant.team.devices') }}" class="ia-btn ia-btn--ghost">All devices</a>
       <a href="{{ route('tenant.team.policy') }}" class="ia-btn ia-btn--ghost">Sign-in policy</a>
     @endif
     @if($me->isManager())
-      {{-- MARKER-SEATS — seats used, and no Invite button once the plan is full --}}
+      {{-- seats used, and no Invite button once the plan is full --}}
       @php $seatLim = tenant()->seatLimit(); $seatUsed = tenant()->seatCount(); @endphp
       @if($seatLim !== null)
         <span style="font-size:12.5px;color:var(--ia-text-muted);align-self:center">{{ $seatUsed }} of {{ $seatLim }} team members</span>
@@ -69,7 +68,7 @@
         <select name="role" class="ia-input">
           <option value="staff"   @selected(old('role') === 'staff')>Staff</option>
           <option value="manager" @selected(old('role') === 'manager')>Manager</option>
-          {{-- MARKER-OWNER-INVITE — a shop can have several owners; only an
+          {{-- a shop can have several owners; only an
                owner can create one. --}}
           @if($me->isOwner())
             <option value="owner" @selected(old('role') === 'owner')>Owner</option>
@@ -88,7 +87,7 @@
 </div>
 @endif
 
-{{-- MARKER-PATCH-479 — persistent, copyable invite link banner --}}
+{{-- persistent, copyable invite link banner --}}
 @if(session('invite_url'))
 <div style="border:0.5px solid rgba(123,191,106,.4);background:rgba(123,191,106,.10);border-radius:var(--ia-r-lg);padding:16px 20px;margin-bottom:24px">
   <div style="font-size:13px;font-weight:600;color:#7bbf6a;margin-bottom:6px">&#10003; Invite sent to {{ session('invite_name') }}</div>
@@ -116,7 +115,7 @@
         <th>Role</th>
         <th>Status</th>
         @if($pinModeOn)<th>PIN</th>@endif
-        {{-- MARKER-PATCH-130 — devices + last-seen columns removed --}}
+        {{-- devices + last-seen columns removed --}}
         <th></th>
       </tr>
     </thead>
@@ -157,7 +156,6 @@
           @endif
         </td>
         @endif
-        {{-- MARKER-PATCH-130 --}}
         <td style="text-align:right;color:var(--ia-text-dim);font-family:var(--ia-font-mono);font-size:14px">›</td>
       </tr>
       @endforeach

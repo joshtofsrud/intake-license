@@ -1,5 +1,4 @@
 <?php
-// MARKER-EAN-DUPES
 
 namespace App\Console\Commands;
 
@@ -9,7 +8,7 @@ use Illuminate\Support\Facades\DB;
 
 /**
  * Report inventory items that share an EAN — the duplicates the catalog
- * importer created before MARKER-IMPORT-EAN-MERGE taught it to match on one.
+ * importer created before taught it to match on one.
  *
  * READ ONLY. Nothing here writes, so it is safe during business hours.
  *

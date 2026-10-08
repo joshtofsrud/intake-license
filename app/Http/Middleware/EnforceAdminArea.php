@@ -1,5 +1,5 @@
 <?php
-// MARKER-ADMIN-ROLES — per-area enforcement for the admin panel and the
+// per-area enforcement for the admin panel and the
 // bridge routes. With no explicit :area parameter, the area is derived from
 // the URL; unmapped admin paths require owner/admin (safe-closed). Livewire's
 // panel endpoint passes through — its components are only reachable from

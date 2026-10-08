@@ -1,6 +1,5 @@
 <?php
 
-// MARKER-CATALOG-LOOKUP
 
 namespace App\Filament\Pages;
 
@@ -18,8 +17,8 @@ use Illuminate\Support\Facades\DB;
  */
 class CatalogItemLookup extends Page
 {
-    use \App\Support\UsesAdminNav; // MARKER-NAV-ORDER
-    use \App\Support\GatedByAdminArea; // MARKER-ADMIN-NAV-GATE
+    use \App\Support\UsesAdminNav;
+    use \App\Support\GatedByAdminArea;
     protected static string $adminArea = 'catalog';
 
     protected static ?string $navigationIcon  = 'heroicon-o-magnifying-glass';
@@ -50,7 +49,7 @@ class CatalogItemLookup extends Page
             return collect();
         }
 
-        // MARKER-LOOKUP-TITLE-SEARCH — a title matches word by word, in any
+        // a title matches word by word, in any
         // order, against the feed name, the composed display title and the
         // brand. "dt swiss spoke 165" finds "DT Swiss Champion Spoke: 2.0mm,
         // 165mm, J-bend…". Before this the whole query had to appear as one
@@ -168,7 +167,7 @@ class CatalogItemLookup extends Page
                 'category_id'   => $r->category_id,
                 'category_path' => $r->category_path,
                 'item_group'    => $r->item_group,
-                // MARKER-LOOKUP-COLORSIZE — resolved names, not distributor codes
+                // resolved names, not distributor codes
                 'color'         => $r->color,
                 'size'          => $r->size,
                 'size_id'       => $r->size_id,

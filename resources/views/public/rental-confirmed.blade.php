@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-{{-- MARKER-PATCH-240 — reservation confirmation. --}}
+{{-- reservation confirmation. --}}
 @php
   $accent = $currentTenant->accent_color ?? '#BEF264';
   $tname  = $currentTenant->name ?? 'Rentals';
@@ -9,7 +9,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-@include('partials.mobile-input-zoom') {{-- MARKER-MOBILE-INPUT-ZOOM --}}
+@include('partials.mobile-input-zoom')
 <title>Reserved — {{ $tname }}</title>
 <style>
   :root { --acc: {{ $accent }}; }
@@ -24,7 +24,7 @@
   .kv span:first-child { opacity: .55; }
   a.btn { display: inline-block; font-size: 14px; font-weight: 650; padding: 11px 26px; border-radius: 10px; background: var(--acc); color: #111; text-decoration: none; margin-top: 26px; }
 </style>
-  @include('public._ga4') {{-- MARKER-SHOP-GA4 --}}
+  @include('public._ga4')
 </head>
 <body>
 <div class="wrap">

@@ -6,7 +6,7 @@ use App\Models\Tenant\TenantEmailLedgerEntry;
 use App\Models\TenantChargeRun;
 
 /**
- * MARKER-BILLING-RECEIPT — the contents of one charge run's receipt.
+ * the contents of one charge run's receipt.
  *
  * Everything comes from the ledger rows the run claimed, grouped by what they
  * were and the rate they were charged at. Rows at different rates become
@@ -53,7 +53,7 @@ class ReceiptBuilder
             'lines'    => $lines,
             'period'   => $period,
             'subtotal' => $run->subtotalCents(),
-            // MARKER-BILLING-TAX-ROOM — a tax row appears only when tax was
+            // a tax row appears only when tax was
             // actually charged. A $0.00 tax line on a filed document is a
             // claim, and while none is collected it would be a false one.
             'tax'          => (int) $run->tax_cents,

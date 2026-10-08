@@ -1,5 +1,5 @@
 {{--
-  MARKER-PATCH-581 — inline site chrome for standalone documents.
+  inline site chrome for standalone documents.
   Usage: @include('public._chrome-inline', ['chromePos' => 'top'])   (after <body>)
          @include('public._chrome-inline', ['chromePos' => 'bottom']) (before </body>)
   Renders the tenant's builder nav/footer sections inside pages that keep
@@ -14,9 +14,9 @@
 
 @if(($chromePos ?? 'top') === 'top' && $ci['nav'])
   <style>
-    /* MARKER-PATCH-588 — scoped, NOT :root: booking pages own their vars */
+    /* scoped, NOT :root: booking pages own their vars */
     .p-chrome-scope {
-{!! \App\Support\DesignTokens::cssVars(\App\Support\DesignTokens::resolve($ciTenant)) !!} {{-- MARKER-TOKENS --}}
+{!! \App\Support\DesignTokens::cssVars(\App\Support\DesignTokens::resolve($ciTenant)) !!}
       --p-r: 8px; --p-r-lg: 12px; --p-max: 1160px;
       --p-gutter: clamp(16px, 5vw, 64px);
     }
@@ -36,7 +36,7 @@
 @if(($chromePos ?? 'top') === 'bottom' && $ci['footer'])
   <div class="p-chrome-scope">
   @include('public.sections._footer', [
-      'c' => (($hideBookingCta ?? false) ? array_merge($ci['footer']->content ?? [], ['cta_band' => false]) : ($ci['footer']->content ?? [])), 'section' => $ci['footer'], {{-- MARKER-PATCH-590 --}}
+      'c' => (($hideBookingCta ?? false) ? array_merge($ci['footer']->content ?? [], ['cta_band' => false]) : ($ci['footer']->content ?? [])), 'section' => $ci['footer'],
       'navItems' => $ci['navItems'], 'tenant' => $ciTenant, 'catalog' => collect(),
   ])
   </div>

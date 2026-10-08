@@ -5,7 +5,7 @@
   $money = fn ($c) => '$' . number_format($c / 100, 2);
 @endphp
 
-{{-- MARKER-LAYAWAY-NAV — the tab styles live per page in this app;
+{{-- the tab styles live per page in this app;
      copying the markup without them is why this rendered as plain text. --}}
 @push('styles')
 <style>
@@ -13,7 +13,7 @@
     display:flex;gap:4px;margin:0 0 18px;border-bottom:0.5px solid var(--ia-border);
     flex-wrap:wrap
   }
-  /* MARKER-REG-MOBILE ------------------------------------------------- */
+  /* ----------------------------------------------- */
   /* display:contents keeps the links as direct flex children of the bar on
      desktop, so nothing about the existing layout changes. */
   .reg-tabs-scroll{display:contents}
@@ -299,7 +299,7 @@
     </div>
 
     @if($plan->isOpen() && $canCancel)
-      {{-- MARKER-LAYAWAY-TAB — the arithmetic before the button, not after.
+      {{-- the arithmetic before the button, not after.
            Fee applies only to what is actually HELD: a special order that
            never arrived held nothing and carries no fee. --}}
       <div class="ia-card" style="margin-top:16px">

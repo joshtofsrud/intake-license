@@ -17,7 +17,7 @@ use Filament\Pages\Page;
 use Illuminate\Support\Facades\Auth;
 
 /**
- * MARKER-TENANT-BILLING — one shop's money, from the shop's own numbers.
+ * one shop's money, from the shop's own numbers.
  *
  * Deliberately reads through StatementService rather than querying directly:
  * two implementations of "what does this month cost" is how a support call
@@ -25,7 +25,7 @@ use Illuminate\Support\Facades\Auth;
  */
 class TenantBilling extends Page
 {
-    use \App\Support\UsesAdminNav; // MARKER-NAV-ORDER
+    use \App\Support\UsesAdminNav;
     protected static ?string $navigationIcon  = 'heroicon-o-banknotes';
     protected static ?string $navigationLabel = 'Tenant billing';
     protected static ?string $navigationGroup = 'Billing';
@@ -36,9 +36,8 @@ class TenantBilling extends Page
     public ?string $tenantId = null;
     public string  $month    = '';
 
-    // MARKER-BILLING-CONTROLS
     public string $thresholdDollars = '';
-    public string $allowanceOverride = '';   // MARKER-ALLOWANCE-TIERS
+    public string $allowanceOverride = '';
     public string $resolveReason    = '';
     public ?string $resolvingRunId  = null;
 
@@ -52,7 +51,7 @@ class TenantBilling extends Page
         abort_unless(static::canAccess(), 403);
         $this->tenantId = request()->query('tenant');
         $this->month    = now()->format('Y-m');
-        $this->syncThreshold(); // MARKER-BILLING-CONTROLS
+        $this->syncThreshold();
     }
 
     public function tenants()
@@ -66,7 +65,7 @@ class TenantBilling extends Page
     }
 
     /**
-     * MARKER-STATEMENT-HISTORY — months this shop actually existed for. Six
+     * months this shop actually existed for. Six
      * months from today would offer April to a shop created in August, and the
      * statement for it would be invented.
      */
@@ -144,7 +143,7 @@ class TenantBilling extends Page
             : 'Intake-provided — segments billed';
     }
 
-    // ---- MARKER-BILLING-CONTROLS ------------------------------------
+    // ---- ----------------------------------
 
     public function updatedTenantId(): void
     {
@@ -154,7 +153,7 @@ class TenantBilling extends Page
     private function syncThreshold(): void
     {
         $tenant = $this->tenant();
-        // MARKER-ALLOWANCE-TIERS — blank means "use whatever the tier includes".
+        // blank means "use whatever the tier includes".
         $this->allowanceOverride = $tenant && $tenant->email_free_monthly !== null
             ? (string) $tenant->email_free_monthly
             : '';
@@ -163,7 +162,7 @@ class TenantBilling extends Page
             : '';
     }
 
-    /** MARKER-ALLOWANCE-TIERS — what this shop gets, and where that came from. */
+    /** what this shop gets, and where that came from. */
     public function allowanceState(): array
     {
         $tenant = $this->tenant();
@@ -187,7 +186,7 @@ class TenantBilling extends Page
             'email_free_monthly' => $raw === '' ? null : max(0, (int) $raw),
         ])->save();
 
-        logger()->info('MARKER-ALLOWANCE-TIERS override set', [
+        logger()->info('allowance-tiers: override set', [
             'tenant' => $tenant->id, 'value' => $raw === '' ? null : (int) $raw,
             'by' => Auth::guard('web')->id(),
         ]);
@@ -217,7 +216,7 @@ class TenantBilling extends Page
         ];
     }
 
-    /** MARKER-BILLING-NOTICES — what we told them, and what they did next. */
+    /** what we told them, and what they did next. */
     public function notices()
     {
         $tenant = $this->tenant();
@@ -244,7 +243,7 @@ class TenantBilling extends Page
         $now = ! $tenant->charging_enabled;
         $tenant->forceFill(['charging_enabled' => $now])->save();
 
-        logger()->info('MARKER-BILLING-CONTROLS charging toggled', [
+        logger()->info('billing-controls: charging toggled', [
             'tenant' => $tenant->id, 'enabled' => $now, 'by' => Auth::guard('web')->id(),
         ]);
 

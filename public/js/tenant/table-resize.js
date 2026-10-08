@@ -1,4 +1,4 @@
-/* MARKER-TABLE-RESIZE — drag-to-resize columns for tables marked
+/* drag-to-resize columns for tables marked
    data-resizable-table="<key>". Widths persist per browser under that key.
 
    Notes for whoever reads this next:

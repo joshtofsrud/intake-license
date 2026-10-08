@@ -8,7 +8,7 @@ use Stripe\Exception\ApiErrorException;
 use Stripe\StripeClient;
 
 /**
- * MARKER-PATCH-170 — Direct Payments Session 2A.
+ * Direct Payments Session 2A.
  *
  * Tenant-scoped Stripe client + helpers for the hand-keyed card flow.
  *
@@ -89,7 +89,7 @@ class DirectPaymentsService
      * the charge succeeded — we always check Stripe.
      */
     /**
-     * MARKER-PATCH-220 — rental deposit holds. capture_method=manual: the
+     * rental deposit holds. capture_method=manual: the
      * card is authorized but NOT charged. Confirmed intents land in
      * requires_capture; we then either capture (damage) or cancel (clean
      * return). Holds Stripe-expire on their own (~7 days for most cards)
@@ -142,7 +142,7 @@ class DirectPaymentsService
      */
     public function extractCardDetails(\Stripe\PaymentIntent $pi): array
     {
-        // MARKER-PATCH-171 — handles two response shapes:
+        // handles two response shapes:
         //   1. Classic: PI.latest_charge.payment_method_details.card.{brand,last4,funding}
         //   2. Payment Element with automatic methods: same path, but charge
         //      may come back as a string ID until we explicitly expand it.
@@ -204,7 +204,7 @@ class DirectPaymentsService
     }
 
     /**
-     * MARKER-PATCH-172 — Create a Stripe Checkout Session for a customer-pays-
+     * Create a Stripe Checkout Session for a customer-pays-
      * remotely flow (send-payment-link). Customer pays from their own device
      * via a Stripe-hosted page.
      *
@@ -217,7 +217,7 @@ class DirectPaymentsService
     {
         $client = $this->client();
 
-        // MARKER-PATCH-379 — customer_email is optional and Stripe rejects an
+        // customer_email is optional and Stripe rejects an
         // explicit null, which broke no-customer walk-in sales. Pull it out and
         // only attach it when we actually have an address; keep it out of the
         // Stripe metadata bag too.
@@ -268,7 +268,7 @@ class DirectPaymentsService
     }
 
     /**
-     * MARKER-PATCH-171 — Refund a Stripe charge for a sale that was paid
+     * Refund a Stripe charge for a sale that was paid
      * via the direct-payments flow.
      *
      * $amountCents=null means full refund. Stripe handles partial.
@@ -296,7 +296,7 @@ class DirectPaymentsService
     }
 
     /**
-     * MARKER-PATCH-170B — auto-refund a PaymentIntent that succeeded but
+     * auto-refund a PaymentIntent that succeeded but
      * couldn\'t be committed to a sale. Used as defense in depth when
      * createSale throws AFTER the card already authorized.
      *
@@ -327,7 +327,7 @@ class DirectPaymentsService
     }
 
     /**
-     * MARKER-PATCH-196 — list succeeded PaymentIntents since a unix timestamp,
+     * list succeeded PaymentIntents since a unix timestamp,
      * for Stripe-vs-ledger reconciliation. Paginates (100/page, capped) so a
      * busy tenant doesn't blow the request. Returns an array of lightweight
      * rows: [id, amount_cents, created, customer_email, card].

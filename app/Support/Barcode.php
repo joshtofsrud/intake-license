@@ -1,5 +1,4 @@
 <?php
-// MARKER-BARCODE-IDENTITY
 
 namespace App\Support;
 

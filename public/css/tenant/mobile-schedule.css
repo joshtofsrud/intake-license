@@ -386,7 +386,7 @@
   }
 }
 
-/* MARKER-SWIPE-STRIP — the strip as a long, flickable row. Native overflow
+/* the strip as a long, flickable row. Native overflow
    scrolling gives the phone's own momentum (it glides, then eases to a stop);
    proximity snapping settles on a whole day without fighting a fast flick.
    Seven days fit the width, as before. Added as a modifier, so the original
@@ -410,7 +410,7 @@
 .ia-msched-strip-dots i { width: 4px; height: 4px; border-radius: 50%; background: var(--ia-accent); }
 .ia-msched-strip-chip.is-active .ia-msched-strip-dots i { background: var(--ia-accent-text); }
 
-/* MARKER-STRIP-MONTHS — the month above the strip, and the date picker laid
+/* the month above the strip, and the date picker laid
    invisibly over it so one tap opens the phone's own picker. */
 .ia-msched-month { position: relative; display: inline-flex; align-items: center; gap: 6px;
   font-size: 15px; font-weight: 600; margin: 2px 0 8px; color: var(--ia-text); }
@@ -421,7 +421,7 @@
 .ia-msched-strip-chip.is-month-start .ia-msched-strip-dow { color: var(--ia-accent); opacity: 1; font-weight: 700; }
 .ia-msched-strip-chip.is-month-start.is-active .ia-msched-strip-dow { color: var(--ia-accent-text); }
 
-/* MARKER-MONTH-PHONE — month grid on phones: small cells, one bar per
+/* month grid on phones: small cells, one bar per
    appointment in its resource's colour (up to three, then +N). */
 .ia-mm-head { display: flex; align-items: center; justify-content: space-between; margin: 2px 0 8px; }
 .ia-mm-head .ia-msched-month { margin: 0; }
@@ -447,7 +447,7 @@
 .ia-mm-day.is-sel .ia-mm-bars em { color: var(--ia-accent-text); }
 .ia-mm-legend { font-size: 11.5px; color: var(--ia-text-dim); margin: 8px 2px 14px; }
 
-/* MARKER-CAL-COMPACT — "collapse the top" on phones: the page title, New
+/* "collapse the top" on phones: the page title, New
    appointment bar, section tabs, date heading, view toggle and staff chips
    give way to one slim bar; the + button still starts a new appointment. */
 .ia-msched-compact-bar { display: none; }

@@ -1,5 +1,4 @@
 <?php
-// MARKER-PATCH-528
 
 namespace App\Http\Controllers\Tenant;
 
@@ -29,7 +28,7 @@ class DeliveryConfirmController extends Controller
             'tenant'   => $tenant,
             'proposal' => $proposal,
             'windows'  => $this->windowsWithAvailability($proposal),
-            'delivery' => $proposal->delivery_id ? $proposal->delivery : null, // MARKER-PATCH-540
+            'delivery' => $proposal->delivery_id ? $proposal->delivery : null,
             'error'    => session('dc_error'),
         ]);
     }
@@ -39,10 +38,10 @@ class DeliveryConfirmController extends Controller
         [$tenant, $proposal] = $this->resolve($token);
         if (!$proposal) abort(404);
 
-        // MARKER-DELIVERY-CALL — a customer who asked for a call can still
+        // a customer who asked for a call can still
         // pick a window afterwards; the call request is superseded.
         $canAnswer = $proposal->isPending()
-            || in_array($proposal->status, [TenantDeliveryProposal::STATUS_NO_REPLY, TenantDeliveryProposal::STATUS_CALL_REQUESTED], true); // MARKER-PATCH-534
+            || in_array($proposal->status, [TenantDeliveryProposal::STATUS_NO_REPLY, TenantDeliveryProposal::STATUS_CALL_REQUESTED], true);
         if (!$canAnswer) {
             return redirect()->route('tenant.delivery_confirm.show', $token);
         }
@@ -83,7 +82,7 @@ class DeliveryConfirmController extends Controller
             ]);
         }
 
-        // MARKER-DELIVERY-ALERTS — the customer was told; now tell the shop.
+        // the customer was told; now tell the shop.
         // Best-effort like the notification above: an alert failure must
         // never undo a confirmed delivery.
         try {
@@ -106,7 +105,7 @@ class DeliveryConfirmController extends Controller
     }
 
     /**
-     * MARKER-DELIVERY-CALL — POST /d/{token}/call. The customer would rather
+     * POST /d/{token}/call. The customer would rather
      * be phoned than pick a window. Counts as answered (the unanswered sweep
      * only touches pending), raises a staff alert, and leaves the link live
      * so they can still choose a window if they change their mind.

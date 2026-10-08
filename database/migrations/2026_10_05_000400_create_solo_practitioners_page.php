@@ -3,7 +3,7 @@
 use Illuminate\Database\Migrations\Migration;
 
 /**
- * MARKER-PAGE-SOLO — creates a DRAFT "For solo practitioners" page on intake.works (slug solo-practitioners,
+ * creates a DRAFT "For solo practitioners" page on intake.works (slug solo-practitioners,
  * unpublished). Review and publish it in Marketing pages. Never touches an
  * existing page with that address.
  */

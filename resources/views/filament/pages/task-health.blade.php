@@ -1,4 +1,3 @@
-{{-- MARKER-TASK-HEALTH --}}
 @php
     $tasks   = $this->tasks();
     $summary = $this->summary();

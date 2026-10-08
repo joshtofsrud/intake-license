@@ -13,7 +13,7 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 
-/** MARKER-IMPORT-QUEUE — the dry run, off the web request. */
+/** the dry run, off the web request. */
 class PreviewImportJob implements ShouldQueue, ShouldBeUnique
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
@@ -43,7 +43,7 @@ class PreviewImportJob implements ShouldQueue, ShouldBeUnique
 
             $result = $importer->preview();
 
-            // MARKER-IMPORT-STATUS-RACE — if a run started while this preview
+            // if a run started while this preview
             // was finishing, the run owns the status now. Writing 'previewed'
             // over 'running' is what made RunImportJob refuse itself in
             // silence.
@@ -54,7 +54,7 @@ class PreviewImportJob implements ShouldQueue, ShouldBeUnique
 
             $import->forceFill([
                 'status'         => $status,
-                // MARKER-IMPORT-CATS — the category tally rides with the counts
+                // the category tally rides with the counts
                 // so the review screen needs no second pass over the file.
                 'totals'         => array_merge((array) $import->totals, [
                     'preview'          => $result['counts'],

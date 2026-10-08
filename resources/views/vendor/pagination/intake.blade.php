@@ -1,4 +1,4 @@
-{{-- MARKER-PATCH-364 — themed Intake paginator (replaces unstyled default). --}}
+{{-- themed Intake paginator (replaces unstyled default). --}}
 @if ($paginator->hasPages())
   <style>
     .ia-pager{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:6px}

@@ -9,7 +9,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 
 /**
- * MARKER-PATCH-564 — Online Retail Wave 3: cart page + line mutations.
+ * Online Retail Wave 3: cart page + line mutations.
  * Plain form posts with redirects; no JS dependency. The same addon gate
  * as the storefront guards every entry point.
  */
@@ -19,7 +19,7 @@ class CartController extends Controller
     {
         abort_unless(
             app(\App\Services\FeatureAccessService::class)->hasAddon(tenant(), 'online_store')
-            && (bool) ((tenant()->settings['storefront']['enabled'] ?? true)), // MARKER-PATCH-569
+            && (bool) ((tenant()->settings['storefront']['enabled'] ?? true)),
             404
         );
     }
@@ -28,7 +28,7 @@ class CartController extends Controller
     {
         $this->guard();
         $cart = CartService::forTenant(tenant())->current();
-        return \App\Services\Tenant\SiteChromeService::render(tenant(), 'shop_cart', [ // MARKER-PATCH-579
+        return \App\Services\Tenant\SiteChromeService::render(tenant(), 'shop_cart', [
             'tenant' => tenant(),
             'cart'   => $cart?->load('items'),
         ]);
@@ -76,7 +76,7 @@ class CartController extends Controller
     }
 
     /**
-     * MARKER-SHOP-DISCOUNT — put a code on the cart.
+     * put a code on the cart.
      *
      * Validates only; nothing is redeemed until the order is placed. A code
      * left sitting in an abandoned cart must never hold one of its uses.
@@ -111,7 +111,7 @@ class CartController extends Controller
         return back()->with('shop_success', 'Discount applied.');
     }
 
-    /** MARKER-SHOP-DISCOUNT — take it back off. */
+    /** take it back off. */
     public function removeDiscount()
     {
         $tenant = tenant();

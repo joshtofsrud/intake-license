@@ -1,5 +1,4 @@
 <?php
-// MARKER-PATCH-146
 
 namespace App\Models\Tenant;
 
@@ -47,7 +46,7 @@ class TenantEmailSuppression extends Model
      * Returns true if EITHER a tenant-scoped or platform-wide suppression matches.
      */
     /**
-     * MARKER-WAITLIST-SUPPRESSION — suppressed for reasons that survive consent.
+     * suppressed for reasons that survive consent.
      *
      * A bounce means the mailbox is not there; a complaint means they told the
      * provider this shop's mail was spam. Neither is undone by someone asking

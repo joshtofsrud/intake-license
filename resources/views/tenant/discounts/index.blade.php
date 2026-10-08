@@ -1,7 +1,6 @@
 @extends('layouts.tenant.app')
 @php $pageTitle = 'Discounts'; @endphp
 
-{{-- MARKER-DISCOUNTS-ADMIN --}}
 @push('styles')
 <style>
   .dc-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px}
@@ -22,7 +21,6 @@
   .dc-pill.on{border-color:var(--ia-accent);color:var(--ia-accent)}
   .dc-flash{border:.5px solid rgba(120,200,120,.45);border-radius:var(--ia-r-md);padding:10px 14px;margin-bottom:16px;font-size:13px;color:var(--ia-text-dim)}
   .dc-flash.bad{border-color:rgba(220,120,120,.5)}
-  /* MARKER-PROMO-TAGS */
   .dc-tags{display:flex;flex-wrap:wrap;gap:4px;margin-top:5px}
   .dc-tag{font-size:10.5px;border:.5px solid var(--ia-border);border-radius:100px;padding:1px 7px;color:var(--ia-text-dim)}
   .dc-tagform{display:none;grid-column:1/-1;padding:8px 4px 4px}
@@ -109,7 +107,6 @@
         <div class="dc-hint">Needs a customer on the sale.</div>
       </div>
       <div class="dc-f" style="grid-column:1/-1">
-        {{-- MARKER-PROMO-TAGS --}}
         <label>Tag customers who use this</label>
         <input type="text" name="tags" placeholder="spring20, promo customer" maxlength="600">
         <div class="dc-hint">Comma-separated. New tags are created. Everyone who redeems this code gets them on their record, so a campaign can reach them later — a shared tag like <b>promo customer</b> on every code reaches everyone who's ever used one.</div>
@@ -140,7 +137,6 @@
         <div>
           <span class="dc-code">{{ $d->code }}</span>
           @if($d->label)<div style="font-size:11.5px;color:var(--ia-text-dim);margin-top:2px">{{ $d->label }}</div>@endif
-          {{-- MARKER-PROMO-TAGS --}}
           @php $tn = $tagNames[$d->id] ?? []; $anon = (int) ($anonByCode[$d->id] ?? 0); @endphp
           <div class="dc-tags">
             @foreach($tn as $name)<span class="dc-tag">{{ $name }}</span>@endforeach
@@ -163,7 +159,7 @@
         </div>
         <div>${{ number_format(($g->cents ?? 0) / 100, 2) }}</div>
         <div style="display:flex;gap:6px;justify-content:flex-end">
-          {{-- MARKER-PROMO-TAGS — only when there's a tag to target and someone to reach --}}
+          {{-- only when there's a tag to target and someone to reach --}}
           @if($tn && (($g->n ?? 0) - $anon) > 0)
             <form method="POST" action="{{ route('tenant.discounts.campaign', $d->id) }}">
               @csrf
@@ -182,7 +178,7 @@
             </form>
           @endif
         </div>
-        {{-- MARKER-PROMO-TAGS — inline tag editor for an existing code. Its own form, a sibling of the buttons, never nested. --}}
+        {{-- inline tag editor for an existing code. Its own form, a sibling of the buttons, never nested. --}}
         <form method="POST" action="{{ route('tenant.discounts.tags', $d->id) }}" class="dc-tagform" id="dc-tf-{{ $d->id }}">
           @csrf
           <input type="text" name="tags" value="{{ implode(', ', $tn) }}" placeholder="spring20, promo customer" maxlength="600">

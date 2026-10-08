@@ -1,6 +1,5 @@
 <?php
 
-// MARKER-QBP-ADAPTER
 
 namespace App\Services\Distributors;
 
@@ -29,7 +28,7 @@ use RuntimeException;
  *     combined to get the full set.
  *   - Images: API1 returns file NAMES; the files themselves need CLS.
  *
- * MARKER-QBP-API-SPLIT — settled against a live response:
+ * settled against a live response:
  *
  *   COST IS ON API1. dealerPrice comes back on product detail alongside
  *   basePrice, mapPrice and msrp. CLS's exclusion of "Your Price" turned out
@@ -55,7 +54,7 @@ class QbpClient implements DistributorAdapter
 
     public function __construct(string $apiKey, string $region = 'us')
     {
-        // MARKER-QBP-CLS-CREDS — the credential may carry both keys as
+        // the credential may carry both keys as
         // "api1:cls". API1 is the part before the colon. Splitting here means
         // nothing else has to know the packing.
         $apiKey = trim($apiKey);
@@ -73,7 +72,7 @@ class QbpClient implements DistributorAdapter
     }
 
     /**
-     * MARKER-QBP-SYNC — tells syncIdentity to page products() by brand
+     * tells syncIdentity to page products() by brand
      * rather than fetching the catalog in one call. One brand measured 7 MB
      * of XML; 892 brands in one array is an OOM, not a sync.
      */
@@ -93,7 +92,7 @@ class QbpClient implements DistributorAdapter
      */
     public function testConnection(): array
     {
-        // MARKER-QBP-TEST-SHAPE — ok/status/body, matching HlcClient and
+        // ok/status/body, matching HlcClient and
         // BtiClient. The page reads 'status'; returning only a message meant
         // it rendered "HTTP ?" and discarded the explanation.
         if ($this->apiKey === '') {
@@ -123,7 +122,7 @@ class QbpClient implements DistributorAdapter
             ];
         }
 
-        // MARKER-QBP-XML — parse the envelope, then the payload.
+        // parse the envelope, then the payload.
         $doc = $this->xml((string) $res->body());
 
         if ($doc === null) {
@@ -168,7 +167,7 @@ class QbpClient implements DistributorAdapter
     // ---------------------------------------------------------------- todo
 
     /**
-     * MARKER-QBP-BUILD — every brand QBP carries.
+     * every brand QBP carries.
      *
      * @return array<int,array{id:string,name:string}>
      */
@@ -191,7 +190,7 @@ class QbpClient implements DistributorAdapter
     }
 
     /**
-     * MARKER-QBP-BUILD — the category tree, assembled.
+     * the category tree, assembled.
      *
      * QBP returns a FLAT list where each node names its parent by id. Unlike
      * HLC there is no path on a node, so the path is walked here once and
@@ -244,7 +243,7 @@ class QbpClient implements DistributorAdapter
     }
 
     /**
-     * MARKER-QBP-BUILD — products, one page of BRANDS at a time.
+     * products, one page of BRANDS at a time.
      *
      * @param array{pageStartIndex?:int, pageSize?:int, brands?:array<int,string>} $opts
      *        pageStartIndex  1-based offset into the brand list
@@ -265,7 +264,7 @@ class QbpClient implements DistributorAdapter
         }
 
         $byModel = [];
-        // MARKER-QBP-VISIBILITY — a brand that fails is reported, not dropped.
+        // a brand that fails is reported, not dropped.
         $failures = [];
 
         foreach ($ids as $brandId) {
@@ -277,7 +276,7 @@ class QbpClient implements DistributorAdapter
             try {
                 $doc = $this->fetch('1/product/brand/id/' . rawurlencode($brandId));
             } catch (\Throwable $e) {
-                // MARKER-QBP-VISIBILITY — one bad brand still must not abandon
+                // one bad brand still must not abandon
                 // the page, but it no longer vanishes without trace. fetch()
                 // already puts the HTTP status and QBP's own error text in the
                 // message, so this is the whole reason.
@@ -300,7 +299,7 @@ class QbpClient implements DistributorAdapter
                     // the SKU stands alone, so it becomes its own group.
                     $model = $this->scalar($row['modelCode'] ?? '') ?: $sku;
 
-                    // MARKER-QBP-ROWFAIL — build the variant BEFORE creating
+                    // build the variant BEFORE creating
                     // the model entry. Creating it first meant a throwing
                     // variant() left a product with an empty Variants array,
                     // so the brand looked complete and wrote nothing.
@@ -315,7 +314,7 @@ class QbpClient implements DistributorAdapter
 
                     $byModel[$model]['Variants'][] = $builtVariant;
                 } catch (\Throwable $e) {
-                    // MARKER-QBP-ROWFAIL — a single malformed row still must
+                    // a single malformed row still must
                     // not lose the rest of the brand, but it no longer fails
                     // silently. This catch hid the whole QBP write failure.
                     $failures[] = $brandId . ' row ' . ($sku ?: '?') . ': ' . $e->getMessage();
@@ -333,13 +332,13 @@ class QbpClient implements DistributorAdapter
             unset($doc);
         }
 
-        // MARKER-QBP-VISIBILITY — Failures rides alongside Products so the
+        // Failures rides alongside Products so the
         // sync service can surface it. extractProducts() reads Products only.
         return ['Products' => array_values($byModel), 'Failures' => $failures];
     }
 
     /**
-     * MARKER-QBP-BUILD — one SKU row, shaped for the field map.
+     * one SKU row, shaped for the field map.
      *
      * The raw element names are kept so a map written against the payload
      * reads true, with a few flattened additions the resolver cannot reach on
@@ -354,9 +353,9 @@ class QbpClient implements DistributorAdapter
         unset($row['dealerPrice']);
 
         $row['Attributes']   = $this->attributes($row['classifications'] ?? null);
-        $row['CategoryName'] = $this->scalar($row['productCategories']['productCategory']['name'] ?? ''); // MARKER-QBP-SCALAR
+        $row['CategoryName'] = $this->scalar($row['productCategories']['productCategory']['name'] ?? '');
         $row['CategoryId']   = $this->scalar($row['productCategories']['productCategory']['id'] ?? '');
-        // MARKER-QBP-FIXES — images.image is an OBJECT for one image and a
+        // images.image is an OBJECT for one image and a
         // LIST for several. Reading ['fileName'] directly worked on
         // single-image products and returned nothing on the rest, silently.
         // Every collection here goes through asList() for exactly this.
@@ -371,7 +370,7 @@ class QbpClient implements DistributorAdapter
         $row['ImageFiles'] = $files;
         $row['ImageFile']  = $files[0] ?? '';
 
-        // MARKER-QBP-BULLETS — one bullet is an object, several are a list.
+        // one bullet is an object, several are a list.
         // Kept as both a joined string (the description column is text) and
         // the raw array, so a storefront can render them as bullets later
         // without re-parsing a paragraph.
@@ -386,7 +385,7 @@ class QbpClient implements DistributorAdapter
         $row['BulletPoints'] = $bullets;
         $row['Description']  = $bullets ? implode("\n", $bullets) : null;
 
-        // MARKER-QBP-DIMS — flattened here because a dotted path cannot
+        // flattened here because a dotted path cannot
         // assemble three elements into one JSON column, and zip_pipe zips
         // pipe strings, not element triples — checked, not assumed.
         $dims = [];
@@ -412,7 +411,7 @@ class QbpClient implements DistributorAdapter
         $row['BarcodeList']  = $codes;
         $row['FirstBarcode'] = $codes[0]['value'] ?? null;
 
-        // MARKER-BARCODE-TYPE — route by LENGTH, not by QBP's type code.
+        // route by LENGTH, not by QBP's type code.
         // 12 digits is a UPC-A, 13 an EAN-13. Y1 and Y3 both appear on real
         // rows and nobody has told us what they mean, so the standard is a
         // safer authority than a guess about a vendor's private codes.
@@ -435,7 +434,7 @@ class QbpClient implements DistributorAdapter
     }
 
     /**
-     * MARKER-QBP-BUILD — flatten QBP's attribute nest.
+     * flatten QBP's attribute nest.
      *
      *   classification -> features.feature -> featureValues.featureValue.value
      *
@@ -465,7 +464,7 @@ class QbpClient implements DistributorAdapter
 
                 $values = [];
                 foreach ($this->asList($feature['featureValues']['featureValue'] ?? null) as $fv) {
-                    // MARKER-QBP-ATTRVAL — ['value'] is itself an OBJECT for one
+                    // ['value'] is itself an OBJECT for one
                     // value and a LIST for several. Casting it straight to string
                     // threw "Array to string conversion" and lost the whole row.
                     $raw = is_array($fv) ? ($fv['value'] ?? $fv) : $fv;
@@ -480,7 +479,7 @@ class QbpClient implements DistributorAdapter
                     continue;
                 }
 
-                // MARKER-QBP-ATTRVAL — same nesting risk on every field here.
+                // same nesting risk on every field here.
                 $name = $this->scalar($feature['name'] ?? $cls['name'] ?? '');
                 if ($name === '') {
                     continue;
@@ -499,7 +498,7 @@ class QbpClient implements DistributorAdapter
     }
 
     /**
-     * MARKER-QBP-BUILD — stock for specific SKUs, tier 2.
+     * stock for specific SKUs, tier 2.
      *
      * Per SKU, because that response carries the per-warehouse breakdown and
      * estimatedArrivalDate. For a whole-catalog refresh use
@@ -548,7 +547,7 @@ class QbpClient implements DistributorAdapter
                 ];
             }
 
-            // MARKER-QBP-TIER2 — TotalQtyAvailable is the first key
+            // TotalQtyAvailable is the first key
             // normalizeInventory looks for; Warehouses is the array it would
             // fall back to summing. Both are provided so the per-warehouse
             // detail survives for anything that wants it, while the simple
@@ -571,7 +570,7 @@ class QbpClient implements DistributorAdapter
     }
 
     /**
-     * MARKER-QBP-BUILD — a whole warehouse in one call.
+     * a whole warehouse in one call.
      *
      * ~316k rows and ~39 MB per site, so this is a nightly instrument, not a
      * quarter-hourly one. Returns {sku => quantity} and nothing else; the
@@ -597,7 +596,7 @@ class QbpClient implements DistributorAdapter
     }
 
     /**
-     * MARKER-QBP-BUILD — cost and the price ladder, tier 2 ONLY.
+     * cost and the price ladder, tier 2 ONLY.
      *
      * dealerPrice is this account's negotiated price. It is returned here
      * because the per-tenant sync runs on the tenant's own credential, and
@@ -626,7 +625,7 @@ class QbpClient implements DistributorAdapter
                 continue;
             }
 
-            // MARKER-QBP-TIER2 — the service reads {Products:[...]} and keys
+            // the service reads {Products:[...]} and keys
             // rows by VariantNo. The raw price nodes ride along so the field
             // map resolves cost from dealerPrice.value exactly as tier 1
             // resolves msrp — one resolver, one definition of cost.
@@ -664,7 +663,7 @@ class QbpClient implements DistributorAdapter
     }
 
     /**
-     * MARKER-QBP-BUILD — GET, parse, and refuse an envelope that is not OK.
+     * GET, parse, and refuse an envelope that is not OK.
      *
      * A 200 can carry a failure in responseStatus. Letting that through would
      * write an empty page over good rows.
@@ -694,7 +693,7 @@ class QbpClient implements DistributorAdapter
         return $doc;
     }
     /**
-     * MARKER-QBP-API-SPLIT — the one method that is not API1.
+     * the one method that is not API1.
      *
      * Product detail gives a file NAME. Retrieving the file needs a Content
      * License Service subscription: an active QBP account with order
@@ -729,7 +728,7 @@ class QbpClient implements DistributorAdapter
     // ---------------------------------------------------------------- http
 
     /**
-     * MARKER-QBP-XML — Accept: application/xml.
+     * Accept: application/xml.
      *
      * Measured, not assumed: application/json returns 406 with an empty body
      * on every endpoint tried. XML is the only format the service actually
@@ -746,7 +745,7 @@ class QbpClient implements DistributorAdapter
     }
 
     /**
-     * MARKER-QBP-API-SPLIT — element paths confirmed on a live response, so
+     * element paths confirmed on a live response, so
      * the field map is written against real names rather than the guide.
      *
      *   TIER 1, shared catalog (no cost):
@@ -779,7 +778,7 @@ class QbpClient implements DistributorAdapter
      */
 
     /**
-     * MARKER-QBP-XML — XML body to a plain array.
+     * XML body to a plain array.
      *
      * Attributes are prefixed with @ so responseStatus type="OK" survives as
      * ['@type' => 'OK'] rather than being dropped, which is how the envelope
@@ -834,13 +833,13 @@ class QbpClient implements DistributorAdapter
     }
 
     /**
-     * MARKER-QBP-XML — SimpleXML gives an object for one child and a list for
+     * SimpleXML gives an object for one child and a list for
      * two. Every collection read goes through this so one-item and many-item
      * responses take the same path.
      *
      * @return array<int,mixed>
      */
-    // MARKER-QBP-SCALAR — QBP is XML-derived, so a leaf that carries an XML
+    // QBP is XML-derived, so a leaf that carries an XML
     // attribute (or repeats) arrives as an array, not a string; casting it
     // with (string) throws "Array to string conversion", and because that
     // happens outside the per-brand fetch try it kills a whole 10-brand
@@ -877,7 +876,7 @@ class QbpClient implements DistributorAdapter
         return [$value];
     }
 
-    /* MARKER-QBP-XML — the JSON-shaped listish() helper is gone; asList()
+    /* the JSON-shaped listish() helper is gone; asList()
        above replaces it, and the difference matters: listish() hunted for
        whichever key held an array, which is a JSON habit. XML names its
        collections, so the path is known and only the one-versus-many shape

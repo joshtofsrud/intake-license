@@ -1,5 +1,5 @@
 <?php
-// MARKER-AGENCIES-ATTR — Deal registration: which agency/rep owns a prospect.
+// Deal registration: which agency/rep owns a prospect.
 // Attribution lives on the prospect and follows it through conversion —
 // a won prospect's tenant_id + agency_id is the commission join (chunk 2).
 

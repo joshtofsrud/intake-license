@@ -55,15 +55,15 @@
 @endpush
 
 @section('content')
-<div class="ia-section">{{-- MARKER-SECTION-WIDTH — fluid, capped; see base.css --}}
+<div class="ia-section">{{-- fluid, capped; see base.css --}}
 
 <div class="ia-page-head">
   <div class="ia-page-head-left">
-    <h1 class="ia-page-title">Inventory</h1>{{-- MARKER-PATCH-HLC27-RECV-H1 --}}
+    <h1 class="ia-page-title">Inventory</h1>
     <p class="ia-page-subtitle">Shipments and stock receipts</p>
   </div>
   <div class="ia-page-actions">
-{{-- MARKER-PATCH-HLC27-RECV-BACK: back link replaced by inventory tabs --}}
+{{-- back link replaced by inventory tabs --}}
     <form method="POST" action="{{ route('tenant.inventory.receiving.create') }}" style="display:inline">
       @csrf
       <button type="submit" class="ia-btn ia-btn--primary">+ New shipment</button>
@@ -233,5 +233,5 @@
   </div>
 @endif
 
-</div>{{-- MARKER-SECTION-WIDTH --}}
+</div>
 @endsection

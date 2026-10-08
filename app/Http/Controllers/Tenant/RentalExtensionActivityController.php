@@ -7,7 +7,7 @@ use App\Models\Tenant\TenantRentalExtensionOffer;
 use Illuminate\Http\Request;
 
 /**
- * MARKER-RENTAL-EXT-P2 — Offers activity: did the robot make money?
+ * Offers activity: did the robot make money?
  * 30-day stats + the offer table, filterable, CSV export.
  */
 class RentalExtensionActivityController extends Controller

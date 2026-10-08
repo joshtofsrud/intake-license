@@ -1,6 +1,5 @@
 <?php
 
-// MARKER-BTI-ADAPTER
 
 namespace App\Services\Distributors;
 
@@ -35,7 +34,7 @@ class BtiClient implements DistributorAdapter
     private int $cacheHours;
 
     /**
-     * MARKER-CACHE-PER-RUN — feeds already downloaded by THIS adapter.
+     * feeds already downloaded by THIS adapter.
      *
      * The cache used to be time-based (six hours), which meant a manual sync
      * could import a file from hours earlier and, during an outage, succeed
@@ -83,7 +82,7 @@ class BtiClient implements DistributorAdapter
     public function testConnection(): array
     {
         try {
-            // MARKER-BTI-PROBE-TRUTH — measured, not inferred (Aug 1, from the
+            // measured, not inferred (Aug 1, from the
             // production server):
             //
             //     range      200, 3,848,122 bytes, ~22s
@@ -148,7 +147,7 @@ class BtiClient implements DistributorAdapter
         $name = 'bti-' . ($full ? 'full' : 'light') . '.csv';
         $path = $dir . '/' . $name;
 
-        // MARKER-CACHE-PER-RUN — reuse only within this run.
+        // reuse only within this run.
         //
         // Was: any file younger than cacheHours. That let a sync import a
         // stale copy, and let one "succeed" while the distributor was down.
@@ -184,7 +183,7 @@ class BtiClient implements DistributorAdapter
                 // Rename only after a complete download, so a failed attempt
                 // can never be served as a valid cache.
                 rename($tmp, $path);
-                $this->fetchedThisRun[$key] = true;   // MARKER-CACHE-PER-RUN
+                $this->fetchedThisRun[$key] = true;
                 return $path;
             } catch (\Throwable $e) {
                 @unlink($tmp);
@@ -237,7 +236,7 @@ class BtiClient implements DistributorAdapter
     }
 
     /**
-     * MARKER-BTI-ENCODING — BTI serves Windows-1252, not UTF-8.
+     * BTI serves Windows-1252, not UTF-8.
      *
      * Found via a single row whose vendor_item_id began with a bare 0xA0
      * (a Windows-1252 non-breaking space; the UTF-8 form is 0xC2 0xA0).
@@ -302,7 +301,7 @@ class BtiClient implements DistributorAdapter
      */
     public function products(array $opts = []): array
     {
-        // MARKER-BTI-PAGE-BY-PRODUCT — pageStartIndex is 1-BASED. That's HLC's
+        // pageStartIndex is 1-BASED. That's HLC's
         // API convention and it is literally what syncIdentity() sends
         // (['pageStartIndex' => 1]). Read as a 0-based offset it would skip
         // the first product on every sync — harmless when the window was
@@ -318,7 +317,7 @@ class BtiClient implements DistributorAdapter
         ));
         $filtered = $upcs || $parts;
 
-        // MARKER-BTI-PAGE-BY-PRODUCT — page by PRODUCT, not by row.
+        // page by PRODUCT, not by row.
         //
         // The caller's pageSize is HLC's contract: a count of products, each
         // carrying its own variants. Applying it to raw feed rows capped the
@@ -362,7 +361,6 @@ class BtiClient implements DistributorAdapter
     }
 
     /**
-     * MARKER-BTI-PRODUCT-SHAPE
      *
      * The sync layer is written around HLC's nested shape: it groups on
      * $product['Brand'] and iterates $product['Variants']. BTI ships flat
@@ -431,7 +429,7 @@ class BtiClient implements DistributorAdapter
             if ($want && ! isset($want[$id])) {
                 continue;
             }
-            // MARKER-BTI-SYNC-SHAPES — the platform's key names, not BTI's.
+            // the platform's key names, not BTI's.
             // TenantDistributorSyncService::normalizeInventory looks for
             // VariantNo and TotalQtyAvailable; lowercase 'sku'/'available'
             // matched nothing and every row was skipped without an error.
@@ -461,7 +459,7 @@ class BtiClient implements DistributorAdapter
             }
             $map = (float) ($r['map'] ?? 0);
 
-            // MARKER-BTI-PRICES-RAW — keep the raw feed row underneath.
+            // keep the raw feed row underneath.
             //
             // fetchCosts() does NOT read Prices[] directly; it runs the row
             // through DistributorMapResolver against BTI's field map, and
@@ -508,7 +506,7 @@ class BtiClient implements DistributorAdapter
                 continue;
             }
             $out[] = [
-                // MARKER-BTI-SYNC-SHAPES — consistent with the others.
+                // consistent with the others.
                 'VariantNo' => $id,
                 'sku'       => $id,
                 'images' => array_values(array_map(

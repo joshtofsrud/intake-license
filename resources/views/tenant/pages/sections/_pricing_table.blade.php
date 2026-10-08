@@ -1,5 +1,5 @@
 {{--
-  MARKER-PATCH-158-G30 — pricing_table editor (Phase 2)
+  pricing_table editor (Phase 2)
 
   Plans list editor: each plan is a card with eyebrow / title / price /
   suffix / features (sub-list) / featured toggle / optional CTA. Bespoke
@@ -183,7 +183,7 @@
           @endforeach
         </select>
       </div>
-      {{-- MARKER-PATCH-271 — content width (max content area; container stays centered with a side gutter) --}}
+      {{-- content width (max content area; container stays centered with a side gutter) --}}
       <div class="pb2-field">
         <div class="pb2-slider-row">
           <label class="pb2-field-label" style="margin:0">Content width</label>
@@ -198,7 +198,7 @@
 
 {{--=================== STYLE ===================--}}
 <div class="pb2-tab-panel" data-tab="style" hidden>
-  {{-- MARKER-PRICING-PHONE-TABS — intake.works only for now (shop pricing tables don't read it yet) --}}
+  {{-- intake.works only for now (shop pricing tables don't read it yet) --}}
   @if($isMarketing ?? false)
   <div class="pb2-group">
     <div class="pb2-group-title">Phone layout</div>
@@ -237,7 +237,7 @@
     </div>
 
     <div class="pb2-bg-pane" data-bg-mode="gradient">
-        {{-- MARKER-PATCH-269 — gradient angle --}}
+        {{-- gradient angle --}}
         <div class="pb2-field">
           <div class="pb2-slider-row">
             <label class="pb2-field-label" style="margin:0">Angle</label>

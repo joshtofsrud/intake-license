@@ -66,17 +66,17 @@ class CustomerTimelineService
             ->concat($this->loadClassRegistrations($tenantId, $customerId))
             ->concat($this->loadPackGrants($tenantId, $customerId))
             ->concat($this->loadMembershipGrants($tenantId, $customerId))
-            ->concat($this->loadRentals($tenantId, $customerId)) // MARKER-PATCH-219
-            ->concat($this->loadLeases($tenantId, $customerId)) // MARKER-PATCH-230
-            ->concat($this->loadThreads($tenantId, $customerId)) // MARKER-PATCH-221
-            ->concat($this->loadSignals($tenantId, $customerId)); // MARKER-PATCH-483
+            ->concat($this->loadRentals($tenantId, $customerId))
+            ->concat($this->loadLeases($tenantId, $customerId))
+            ->concat($this->loadThreads($tenantId, $customerId))
+            ->concat($this->loadSignals($tenantId, $customerId));
 
         // Single sort after merge — newest first.
         return $events->sortByDesc(fn ($e) => $e['date']->timestamp)->values();
     }
 
     /**
-     * MARKER-PATCH-483 — quality signals (late_completion, ...) as timeline notes.
+     * quality signals (late_completion, ...) as timeline notes.
      */
     protected function loadSignals(string $tenantId, string $customerId): Collection
     {
@@ -125,7 +125,7 @@ class CustomerTimelineService
     public function groupByMonth(Collection $events): Collection
     {
         $now = now();
-        // MARKER-PATCH-200 — expand the current month, last month, AND any
+        // expand the current month, last month, AND any
         // future month. Upcoming appointments are future-dated (e.g. a June
         // booking made in May); the old logic only expanded this/last month, so
         // scheduled-ahead appointments loaded but rendered collapsed (the month
@@ -158,7 +158,7 @@ class CustomerTimelineService
     // ------------------------------------------------------------------
 
     /**
-     * MARKER-PATCH-221 — Rail 3: one summary event per conversation. The
+     * Rail 3: one summary event per conversation. The
      * inbox is the conversational record; the timeline just points at it.
      */
     private function loadThreads(string $tenantId, string $customerId): Collection
@@ -189,7 +189,7 @@ class CustomerTimelineService
     }
 
     /**
-     * MARKER-PATCH-219 — Rail 3: rentals in the customer timeline.
+     * Rail 3: rentals in the customer timeline.
      * amount_cents is the LEDGER sum (paid_cents mirror), not the rental
      * total — unpaid rentals show as activity without inflating revenue.
      */
@@ -250,7 +250,7 @@ class CustomerTimelineService
                     'subtitle'     => $unitNames !== '' ? $unitNames : 'Rental booking',
                     'status'       => $label,
                     'status_tone'  => $tone,
-                    // MARKER-PATCH-219B — sales-as-money: the rental is a
+                    // sales-as-money: the rental is a
                     // service record; its money is carried by the linked
                     // sales, which appear in this timeline themselves.
                     // Anything else double-counts month rollups (174B rule).
@@ -293,7 +293,7 @@ class CustomerTimelineService
                     'subtitle'     => $subtitle,
                     'status'       => $statusLabel,
                     'status_tone'  => $statusTone,
-                    // MARKER-PATCH-174B — sales-as-money model: the appointment
+                    // sales-as-money model: the appointment
                     // is a service record, not a revenue row. Its money is
                     // carried by the linked deposit/balance sales (which sum to
                     // the appointment total). Counting the appointment total

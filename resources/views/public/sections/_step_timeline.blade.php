@@ -1,4 +1,4 @@
-{{-- MARKER-PATCH-158-G34 — step_timeline public renderer (v2) --}}
+{{-- step_timeline public renderer (v2) --}}
 @php
   $c = $c ?? [];
 

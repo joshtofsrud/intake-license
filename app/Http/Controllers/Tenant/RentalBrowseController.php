@@ -1,5 +1,4 @@
 <?php
-// MARKER-PATCH-239
 
 namespace App\Http\Controllers\Tenant;
 
@@ -51,7 +50,7 @@ class RentalBrowseController extends Controller
             $error = $startLocal->isToday() ? null : 'That pickup is in the past — pick a future date.';
         }
 
-        // MARKER-RENTAL-SECTIONS — category tiles land pre-filtered.
+        // category tiles land pre-filtered.
         $categoryId = null;
         if ($request->filled('category')) {
             $categoryId = TenantRentalCategory::where('tenant_id', $tenant->id)
@@ -101,7 +100,7 @@ class RentalBrowseController extends Controller
             'dueLocal'   => $dueLocal,
             'error'      => $error,
             'unitCount'  => $units->count(),
-            'activeCategory' => $categoryId ? $categories[$categoryId] ?? null : null, // MARKER-RENTAL-SECTIONS
+            'activeCategory' => $categoryId ? $categories[$categoryId] ?? null : null,
         ]);
     }
 }

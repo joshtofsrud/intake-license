@@ -5,7 +5,7 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * MARKER-IMPORT-MATCH — the ledger. One row per input row, per phase.
+ * the ledger. One row per input row, per phase.
  *
  * `phase` is preview or run. A preview writes what WOULD happen; a run writes
  * what DID. Both are kept so "the preview said 40 updates and the run did 38"

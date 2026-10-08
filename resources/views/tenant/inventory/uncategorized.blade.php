@@ -1,12 +1,11 @@
-{{-- MARKER-UNCAT-LABEL — cat:/src: are URL keys, not names --}}
+{{-- cat:/src: are URL keys, not names --}}
 @extends('layouts.tenant.app')
 @php $pageTitle = 'Uncategorized'; @endphp
-{{-- MARKER-PATCH-HLC24 --}}
 @section('content')
-@php $bucketLabel = $activeBucketLabel ?? ($activeBucket === '__none__' ? 'No catalog signal' : preg_replace('/^(src|cat):/', '', $activeBucket)); @endphp{{-- MARKER-UNCAT-LABEL3 — this recomputed the label from the raw key and overwrote the controller's --}}
+@php $bucketLabel = $activeBucketLabel ?? ($activeBucket === '__none__' ? 'No catalog signal' : preg_replace('/^(src|cat):/', '', $activeBucket)); @endphp{{-- this recomputed the label from the raw key and overwrote the controller's --}}
 <style>@media(max-width:880px){.uc-grid{grid-template-columns:1fr !important}}</style>
 
-<div class="ia-section ia-section--wide">{{-- MARKER-SECTION-WIDTH --}}
+<div class="ia-section ia-section--wide">
   <div class="ia-page-head">
     <div class="ia-page-head-left">
       <h1 class="ia-page-title">Inventory</h1>
@@ -23,7 +22,7 @@
   @if($total === 0)
     <div class="ia-card" style="text-align:center;padding:42px;color:var(--ia-text-dim)"><div style="font-size:30px">&#10003;</div>Everything's categorized.</div>
   @else
-    {{-- MARKER-CAT-UNDO — bucket tools: search + top/all switch, client-side
+    {{-- bucket tools: search + top/all switch, client-side
          over the chips already on the page. --}}
     <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
       <input type="text" id="ucBkSearch" class="ia-input" placeholder="Search buckets — e.g. tires, forks, gloves" style="width:300px">
@@ -46,7 +45,7 @@
            class="uc-chip" data-label="{{ strtolower($b['label']) }}" data-idx="{{ $loop->index }}" data-sug="{{ $sg ? 1 : 0 }}"
            style="display:flex;gap:9px;align-items:center;padding:9px 13px;border-radius:8px;text-decoration:none;font-size:13px;border:1px solid {{ $on ? 'var(--ia-accent)' : 'var(--ia-border)' }};background:{{ $on ? 'rgba(190,242,100,.13)' : 'var(--ia-surface)' }};color:var(--ia-text)">
           {{ $b['label'] }} <span style="font-family:var(--ia-mono);font-size:12px;color:{{ $on ? 'var(--ia-accent)' : 'var(--ia-text-dim)' }}">{{ $b['count'] }}</span>
-          {{-- MARKER-UNCAT-SOURCE — a sync and an import can use the same word;
+          {{-- a sync and an import can use the same word;
                say which this is. --}}
           @if(!empty($b['source']))
             <span style="font-size:10px;padding:1px 7px;border-radius:99px;border:.5px solid {{ ($b['kind'] ?? '') === 'import' ? 'rgba(240,196,106,.45)' : 'rgba(159,208,245,.35)' }};color:{{ ($b['kind'] ?? '') === 'import' ? '#F0C46A' : '#9fd0f5' }};white-space:nowrap">{{ $b['source'] }}</span>
@@ -62,10 +61,9 @@
         </a>
       @endif
     </div>
-    {{-- MARKER-UNCAT-SOURCE --}}
     <p style="font-size:12px;color:var(--ia-text-mute);margin:8px 0 12px">Buckets come from wherever the item came from &mdash; a distributor's catalog category, or the category a file you imported used. They gather like items; they don't decide the destination, that's your call.</p>
 
-    {{-- MARKER-CAT-RAIL2 — one collapsed line, not a card. Undo previews
+    {{-- one collapsed line, not a card. Undo previews
          the items it would put back before doing anything. --}}
     @if(($assignments ?? collect())->count())
       @php $live = $assignments->whereNull('undone_at'); @endphp
@@ -89,7 +87,7 @@
       </div>
 
       {{-- undo preview modal — in-app, never confirm() --}}
-      {{-- MARKER-CAT-UNDO-DLGFIX — `hidden` loses to display:flex, so the
+      {{-- `hidden` loses to display:flex, so the
            dialog rendered on page load with an empty list and a live Undo
            button. Visibility is a class now, and the button is disabled until
            the items have actually loaded. --}}
@@ -141,7 +139,7 @@
     </div>
 
     {{-- size sub-groups (touch of A) --}}
-{{-- MARKER-UNCAT-CARVE — narrow to a source, then carve by keyword. This
+{{-- narrow to a source, then carve by keyword. This
      bucket mixes an import with older stock, so a keyword alone sweeps both. --}}
 <div class="uc-carve">
   <form method="get" class="uc-carve-row">
@@ -169,7 +167,7 @@
 
   @if($keyword !== '' && $matchCount > 0)
     <div class="uc-carve-act">
-      {{-- MARKER-UNCAT-CARVE-SELECT — the page already ships uc-cb checkboxes
+      {{-- the page already ships uc-cb checkboxes
            and ucAll()/ucUpd(); use them so the assign panel's count updates. --}}
       <button type="button" class="ia-btn ia-btn--sm" onclick="ucAll(true)">
         Select all {{ number_format(min($matchCount, 500)) }} shown
@@ -208,12 +206,12 @@
   .uc-tried-chip:hover{border-color:var(--ia-border-strong)}
 </style>
 
-    {{-- MARKER-SPLIT-BY-CLIENT — the picker runs in the browser. Nothing is
+    {{-- the picker runs in the browser. Nothing is
          remembered; the default still comes from the server-side ranking. --}}
     @if(count($attrOptions))
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
         <span style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--ia-text-mute);font-weight:600">Split by</span>
-        {{-- MARKER-SSEL-SPLITBY — our picker. The id stays on the hidden input
+        {{-- our picker. The id stays on the hidden input
              so the split-by script reads .value exactly as before; ucLabel()
              is switched to the component's own label below. --}}
         @php
@@ -237,7 +235,7 @@
     <form method="POST" action="{{ route('tenant.inventory.uncategorized.assign') }}">
       @csrf
       <input type="hidden" name="category_id" id="catId">
-      {{-- MARKER-CAT-UNDO — scope + provenance for the suggestion buttons. --}}
+      {{-- scope + provenance for the suggestion buttons. --}}
       <input type="hidden" name="f_cat" value="{{ $activeBucket === '__none__' ? '' : $activeBucket }}">
       <input type="hidden" name="select_all" id="ucSelectAll" value="">
       <input type="hidden" name="source" id="ucSource" value="hand">
@@ -252,12 +250,12 @@
               </tr></thead>
               <tbody>
               @forelse($items as $it)
-                {{-- MARKER-ATTRS-QUOTING — double-quoted with {{ }} escaping. This was
+                {{-- double-quoted with {{ }} escaping. This was
                      single-quoted @json, and HLC writes inches as two apostrophes
                      (26''x2.30), which closed the attribute early and mangled the
                      tag on every tire row. --}}
                 <tr class="uc-row" data-attrs="{{ json_encode($it->_attrs, JSON_UNESCAPED_SLASHES) }}" style="border-top:.5px solid var(--ia-border)">
-                  {{-- MARKER-SPLIT-BY-CLIENT — values for every attribute ride on the row. --}}
+                  {{-- values for every attribute ride on the row. --}}
                   <td style="padding:11px 14px"><input type="checkbox" class="uc-cb" name="item_ids[]" value="{{ $it->id }}" onchange="ucUpd()"></td>
                   <td style="padding:11px 14px"><div style="font-weight:600">{{ $it->name }}</div><div style="font-size:11px;color:var(--ia-text-dim);font-family:var(--ia-mono)">{{ $it->sku }}</div></td>
                   <td style="padding:11px 14px">{{ optional($it->distributorCatalog)->manufacturer ?? '—' }}</td>
@@ -276,9 +274,9 @@
         {{-- destination --}}
         <div class="ia-card" style="position:sticky;top:16px;overflow:hidden">
           <div style="padding:13px 15px;border-bottom:1px solid var(--ia-border);font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--ia-text-dim);font-weight:700">Assign selected to&hellip;</div>
-          {{-- MARKER-CAT-UNDO — the suggestion, with its reason. Never applied
+          {{-- the suggestion, with its reason. Never applied
                on its own; two buttons, both explicit. --}}
-          {{-- MARKER-CAT-SUGGEST-TONE — a family match is a hint. Only an exact
+          {{-- a family match is a hint. Only an exact
                rule (this same bucket, assigned before) earns the green box and
                the assign-all button; bucket contents vary too much for less. --}}
           @if(!empty($activeSuggestion) && $activeSuggestion['kind'] !== 'rule')
@@ -299,7 +297,7 @@
               </div>
               <div style="display:flex;gap:8px;margin-top:11px;flex-wrap:wrap">
                 <button type="button" class="ia-btn ia-btn--sm ia-btn--primary"
-                        onclick="ucSuggestAll(@js($activeSuggestion['category_id']), @js($activeSuggestion['path']))">Assign all {{ number_format(collect($buckets)->firstWhere('key', $activeBucket)['count'] ?? $bucketTotal) }}</button>{{-- MARKER-CAT-RAIL2 — the bucket, not the page --}}
+                        onclick="ucSuggestAll(@js($activeSuggestion['category_id']), @js($activeSuggestion['path']))">Assign all {{ number_format(collect($buckets)->firstWhere('key', $activeBucket)['count'] ?? $bucketTotal) }}</button>{{-- the bucket, not the page --}}
                 <button type="button" class="ia-btn ia-btn--sm ia-btn--ghost"
                         onclick="ucPick(@js($activeSuggestion['category_id']), 0, @js($activeSuggestion['path']))">Only the selected</button>
               </div>
@@ -368,7 +366,7 @@
       document.getElementById('ucAdding').textContent = n ? ('+' + n) : '';
     }
   }
-  // MARKER-CAT-UNDO — assign the whole bucket to the suggestion, in one post.
+  // assign the whole bucket to the suggestion, in one post.
   function ucSuggestAll(cid, path){
     ucPick(cid, 0, path);
     document.getElementById('ucSelectAll').value = '1';
@@ -376,7 +374,7 @@
     document.getElementById('ucAssign').disabled = false;
     document.getElementById('ucAssign').closest('form').submit();
   }
-  // MARKER-CAT-UNDO — bucket search + top/all/with-suggestions.
+  // bucket search + top/all/with-suggestions.
   (function(){
     var chips = Array.prototype.slice.call(document.querySelectorAll('.uc-chip'));
     var mode = 'top';
@@ -449,7 +447,7 @@
     document.getElementById('ucNewName').value = '';
   }
 
-/* MARKER-SPLIT-BY-CLIENT ------------------------------------------------
+/* ----------------------------------------------
    Filtering happens here rather than on the server, so the page never
    reloads and never jumps to the top.
 
@@ -473,7 +471,7 @@ function ucAll(checked){
 }
 
 function ucLabel(){
-  // MARKER-SSEL-SPLITBY — no selectedOptions on a hidden input; the picker
+  // no selectedOptions on a hidden input; the picker
   // shows the chosen label in .ssel-cur, and the attribute name is the part
   // before the em dash.
   const host = document.getElementById('ucAttr');
@@ -560,18 +558,18 @@ function ucNote(){
     : 'nothing in this bucket groups usefully \u2014 pick one above if you disagree';
 }
 
-/* MARKER-UCSEL-COLLISION — was `const ucSel`, which collided with the
+/* was `const ucSel`, which collided with the
    existing `function ucSel()` above that counts checked rows. Duplicate
    identifiers are a parse-time SyntaxError, so the whole script block was
    thrown away and none of this ever ran. */
 const ucAttrSel = document.getElementById('ucAttr');
-// MARKER-CAT-SUGGEST-TONE — remember the split-by per bucket, so the reload
+// remember the split-by per bucket, so the reload
 // after Assign doesn't reset it to the default every time.
 const UC_SPLIT_KEY = 'uc-split:' + @json($activeBucket);
 if (ucAttrSel) {
   try {
     const saved = localStorage.getItem(UC_SPLIT_KEY);
-    // MARKER-SSEL-SPLITSTORE — a hidden input has no .options; read the
+    // a hidden input has no .options; read the
     // picker's own rendered options instead, or this threw and took the
     // change listener below with it.
     const root = ucAttrSel.closest('.ssel');

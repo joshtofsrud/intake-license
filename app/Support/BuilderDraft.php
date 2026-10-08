@@ -3,7 +3,7 @@
 namespace App\Support;
 
 /**
- * MARKER-BUILDER-DRAFT — unsaved inspector edits, held in the editor's own
+ * unsaved inspector edits, held in the editor's own
  * session so the builder preview can show them before Save. Nothing here is
  * ever written to the page: Save writes the section and forgets its draft,
  * Revert and opening the editor clear them. Visitors and other staff never
@@ -30,7 +30,7 @@ class BuilderDraft
         session()->put(self::KEY, $all);
     }
 
-    // MARKER-SHOP-NAV — unsaved menu rows for the builder preview.
+    // unsaved menu rows for the builder preview.
     public static function putNav(string $pageId, array $rows): void
     {
         self::put($pageId, '__nav', ['rows' => array_slice($rows, 0, 40)]);

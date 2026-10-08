@@ -11,8 +11,8 @@ use App\Models\Tenant\TenantCustomer;
 use App\Services\Tenant\SaleService;
 use App\Services\Tenant\SaleValidationException;
 use App\Services\Tenant\InventoryStockException;
-use App\Services\Tenant\DirectPaymentsService;  // MARKER-PATCH-170
-use Illuminate\Support\Facades\Log;  // MARKER-PATCH-172B — missing import broke patches 170/170b/171/172
+use App\Services\Tenant\DirectPaymentsService;
+use Illuminate\Support\Facades\Log;  // missing import broke patches 170/170b/171/172
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Carbon;
@@ -54,13 +54,13 @@ class RegisterController extends Controller
 
         return view('tenant.register.index', [
             'tenant'     => $tenant,
-            // MARKER-LINE-PRICE — the control is hidden without it, and
+            // the control is hidden without it, and
             // checkout refuses the values regardless.
             'canLinePrice' => (bool) optional(\Illuminate\Support\Facades\Auth::guard('tenant')->user())
                 ->can('register.line_price'),
             'canLayaway'   => (bool) optional(\Illuminate\Support\Facades\Auth::guard('tenant')->user())
-                ->can('register.layaway.create'), // MARKER-LAYAWAY-REGISTER
-            // MARKER-QUICK-ADD — capped at 6: past that it is a menu, and a
+                ->can('register.layaway.create'),
+            // capped at 6: past that it is a menu, and a
             // menu is what the search already is.
             'quickServices' => \App\Models\Tenant\TenantServiceItem::where('tenant_id', $tenant->id)
                 ->where('is_active', true)
@@ -69,16 +69,16 @@ class RegisterController extends Controller
                 ->limit(6)
                 ->get(['id', 'name', 'price_cents']),
             'canOverrideReserve' => (bool) optional(\Illuminate\Support\Facades\Auth::guard('tenant')->user())
-                ->can('register.layaway.override_reserve'), // MARKER-RESERVE-OVERRIDE
-            'offlineSyncEnabled' => app(\App\Services\FeatureAccessService::class)->hasAddon($tenant, 'offline_sync'), // MARKER-OFFLINE-SYNC
-            'registers'  => \App\Models\Tenant\TenantRegister::where('tenant_id', $tenant->id)->where('is_active', true)->orderBy('number')->get(['id','number','name']), // MARKER-REGISTER-RECON-DISPLAY
-            'currentRegisterId' => (int) $request->session()->get('current_register_id', 0), // MARKER-REGISTER-RECON-DISPLAY
-            'manualTenders' => \App\Models\Tenant\TenantPaymentMethod::registerManualTenders($tenant), // MARKER-PATCH-630
+                ->can('register.layaway.override_reserve'),
+            'offlineSyncEnabled' => app(\App\Services\FeatureAccessService::class)->hasAddon($tenant, 'offline_sync'),
+            'registers'  => \App\Models\Tenant\TenantRegister::where('tenant_id', $tenant->id)->where('is_active', true)->orderBy('number')->get(['id','number','name']),
+            'currentRegisterId' => (int) $request->session()->get('current_register_id', 0),
+            'manualTenders' => \App\Models\Tenant\TenantPaymentMethod::registerManualTenders($tenant),
             'preAttachCustomer' => $preAttachCustomer,
             'taxRate'    => (float) ($tenant->default_tax_rate ?? 0),
             'taxLabel'   => $this->taxLabel($tenant),
             'appointmentTrayCount' => $appointmentTrayCount,
-            // MARKER-PATCH-162 — hide "Request transfer" button on oversell rows for single-location tenants
+            // hide "Request transfer" button on oversell rows for single-location tenants
             'multiLocationActive' => (bool) $tenant->multi_location_active,
             'tipsConfig' => [
                 'enabled'      => (bool) $tenant->tips_enabled,
@@ -136,7 +136,7 @@ class RegisterController extends Controller
     }
 
     /**
-     * MARKER-PATCH-180 — dismiss a parked appointment draft sale from the
+     * dismiss a parked appointment draft sale from the
      * register tray. Voids the DRAFT sale (status=cancelled) so it leaves the
      * "ready for checkout" list. Non-destructive: only unpaid draft sales are
      * eligible; the appointment itself is untouched. The sale can be recreated
@@ -167,7 +167,7 @@ class RegisterController extends Controller
     }
 
     /**
-     * MARKER-REGISTER-DISCOUNT — check a code against the cart as it stands.
+     * check a code against the cart as it stands.
      * Read-only: nothing is redeemed here. The real redemption happens in the
      * sale transaction, where the code is locked and re-checked.
      */
@@ -208,9 +208,9 @@ class RegisterController extends Controller
         $products = [];
         $services = [];
         $customers = [];
-        $searchCorrected = null; // MARKER-INV-SEARCH
-        $searchMissing = [];     // MARKER-SEARCH-MISSING
-        $productSearch = null;   // MARKER-REG-GROUPED
+        $searchCorrected = null;
+        $searchMissing = [];
+        $productSearch = null;
 
         if ($type === 'all' || $type === 'product') {
             // patch-96 location stock — enrich each product with its on-hand
@@ -225,7 +225,7 @@ class RegisterController extends Controller
                 $registerLocationName = $loc?->name;
             }
 
-            // MARKER-INV-SEARCH — the shared search: now also brand, colour,
+            // the shared search: now also brand, colour,
             // size and every supplier's part number, best match first (it was
             // the first 15 in no particular order).
             $productQuery = TenantInventoryItem::where('tenant_id', $tenant->id)
@@ -233,9 +233,9 @@ class RegisterController extends Controller
             $searchHit = \App\Support\InventorySearch::apply($productQuery, $tenant->id, $q);
             $searchCorrected = $searchHit['corrected'];
             $searchMissing = $searchHit['missing'] ?? [];
-            // MARKER-SEARCH-ONE-PASS — no SQL rank here; RegisterProductSearch
+            // no SQL rank here; RegisterProductSearch
             // ranks the candidate rows in PHP, which costs the database nothing.
-            // MARKER-REG-GROUPED — variants grouped into one entry, no
+            // variants grouped into one entry, no
             // 15-row cap, stock scope and brand / supplier filters.
             $productSearch = app(\App\Services\Tenant\RegisterProductSearch::class)->run(
                 $productQuery, $tenant->id,
@@ -243,13 +243,13 @@ class RegisterController extends Controller
                 $q,
                 [
                     'scope'    => (string) $request->input('scope', 'here'),
-                    'sort'     => (string) $request->input('sort', ''), // MARKER-REG-SORT
+                    'sort'     => (string) $request->input('sort', ''),
                     'brand'    => (string) $request->input('brand', ''),
                     'supplier' => (string) $request->input('supplier', ''),
                     'groups'   => (int) $request->input('groups', 25),
                 ]
             );
-            // MARKER-SEARCH-ONE-PASS — the search ran as a bare query, not
+            // the search ran as a bare query, not
             // ranked in SQL; it ranks in PHP and hands back the rows it drew.
             $groupOrder = array_flip($productSearch['item_ids']);
             $productItems = $productSearch['item_ids']
@@ -258,7 +258,7 @@ class RegisterController extends Controller
                 : collect();
             unset($productSearch['item_ids']);
 
-            // MARKER-REG-STOCK — counts for EVERY active location, not just
+            // counts for EVERY active location, not just
             // this register's. "None here" is a dead end at the counter;
             // "none here, two at Oakridge" is something staff can act on.
             $stockByItem     = [];  // item id => count at THIS register
@@ -277,13 +277,13 @@ class RegisterController extends Controller
                     ->whereIn('location_id', array_keys($locNames))
                     ->get(['inventory_item_id', 'location_id', 'computed_stock_count', 'reserved_count']);
 
-                // MARKER-RESERVE-VISIBLE — keep the held figure, not just the
+                // keep the held figure, not just the
                 // difference. "short 1" and "1 is on someone's layaway" look
                 // identical once you have subtracted, and only one of them
                 // means go and recount the shelf.
                 $reservedHere = [];
                 $onHandHere   = [];
-                $reservedAll  = []; // MARKER-SEARCH-ONE-PASS — company-wide held, from the rows already read
+                $reservedAll  = []; // company-wide held, from the rows already read
                 foreach ($rows as $row) {
                     $reservedAll[$row->inventory_item_id] = ($reservedAll[$row->inventory_item_id] ?? 0) + (int) $row->reserved_count;
                     if ($registerLocationId && $row->location_id === $registerLocationId) {
@@ -293,7 +293,7 @@ class RegisterController extends Controller
                 }
 
                 foreach ($rows as $row) {
-                    // MARKER-RESERVE — the register sells from AVAILABLE. A unit
+                    // the register sells from AVAILABLE. A unit
                     // held on layaway is on the shelf and cannot be sold.
                     $n = (int) $row->computed_stock_count - (int) $row->reserved_count;
 
@@ -330,7 +330,7 @@ class RegisterController extends Controller
                 }
             }
 
-            // MARKER-REG-STOCK — with no register location in session the
+            // with no register location in session the
             // per-location lookup finds nothing and every product would report
             // 0: not "none in stock" but "we did not look". Fall back to the
             // item's own company-wide count and say which figure it is — the
@@ -341,18 +341,17 @@ class RegisterController extends Controller
                 'name'                   => $p->name ?? '',
                 'subtitle'               => $p->display_subtitle ?? '',
                 'sku'                    => $p->sku ?? '',
-                // MARKER-CAMERA-SCAN — so a scan can find its exact match.
+                // so a scan can find its exact match.
                 'codes'                  => array_values(array_filter([$p->sku, $p->catalog_upc, $p->catalog_ean])),
                 'price_cents'            => (int) ($p->effectiveSellPriceCents() ?? 0),
                 'is_taxable'             => (($p->tax_class_code ?? null) !== 'exempt'),
                 'allow_oversell'         => (bool) $p->allow_oversell,
-                // MARKER-SEARCH-ONE-PASS — availableCount() was one query PER
+                // availableCount() was one query PER
                 // product; the held counts are already in $rows.
                 'current_location_stock' => $registerLocationId
                     ? (int) ($stockByItem[$p->id] ?? 0)
-                    : (int) $p->computed_stock_count - (int) ($reservedAll[$p->id] ?? 0), // MARKER-RESERVE
+                    : (int) $p->computed_stock_count - (int) ($reservedAll[$p->id] ?? 0),
                 'current_location_name'  => $registerLocationName,
-                // MARKER-RESERVE-VISIBLE
                 'reserved_here'          => (int) ($reservedHere[$p->id] ?? 0),
                 'on_hand_here'           => (int) ($onHandHere[$p->id] ?? 0),
                 'stock_scope'            => $registerLocationId ? 'location' : 'company',
@@ -395,13 +394,13 @@ class RegisterController extends Controller
                 ->toArray();
         }
 
-        return response()->json(compact('products', 'services', 'customers') + ['corrected' => $searchCorrected, 'missing' => $searchMissing, 'product_search' => $productSearch]); // MARKER-INV-SEARCH
+        return response()->json(compact('products', 'services', 'customers') + ['corrected' => $searchCorrected, 'missing' => $searchMissing, 'product_search' => $productSearch]);
     }
 
     public function storeSale(Request $request): JsonResponse
     {
         $tenant = tenant();
-        $this->stripLinePricesUnlessAllowed($request); // MARKER-REGISTER-LINE-FIX
+        $this->stripLinePricesUnlessAllowed($request);
         $locationId = $request->session()->get('current_location_id');
 
         if (!$locationId) {
@@ -413,19 +412,19 @@ class RegisterController extends Controller
             'notes'            => 'nullable|string',
             'tip_cents'        => 'nullable|integer|min:0',
             'discount_cents'   => 'nullable|integer|min:0',
-            // MARKER-REGISTER-DISCOUNT — whole-sale discount + optional code
+            // whole-sale discount + optional code
             'sale_discount_cents' => 'nullable|integer|min:0',
             'discount_code'       => 'nullable|string|max:40',
-            'payment_method'   => $this->allowedTenders(), // MARKER-PATCH-630
+            'payment_method'   => $this->allowedTenders(),
             'payment_reference'=> 'nullable|string',
-            // MARKER-SPLIT-TENDER — optional multi-tender payments. When
+            // optional multi-tender payments. When
             // present, payment_method is 'split' and applied amounts must sum
             // to the authoritative server-side total (checked in SaleService).
             'payments'                     => 'nullable|array|max:6',
             'payments.*.method'            => str_replace('required|', '', $this->allowedTenders()),
             'payments.*.amount_cents'      => 'required|integer|min:1',
             'payments.*.reference'         => 'nullable|string|max:120',
-            'po_number'                    => 'nullable|string|max:64', // MARKER-BIZ-REGISTER
+            'po_number'                    => 'nullable|string|max:64',
             'items'            => 'required|array|min:1',
             'items.*.type'             => 'required|string|in:service,product,open_item,gift_card',
             'items.*.service_id'       => 'nullable|uuid',
@@ -435,7 +434,7 @@ class RegisterController extends Controller
             'items.*.quantity'         => 'nullable|numeric|min:0.001',
             'items.*.discount_cents'   => 'nullable|integer|min:0',
             'items.*.is_taxable'       => 'nullable|boolean',
-            // MARKER-GIFTCARDS -- gift line details, stored as line metadata
+            // gift line details, stored as line metadata
             'items.*.gift_card'                  => 'nullable|array',
             'items.*.gift_card.kind'             => 'nullable|string|in:physical,egift',
             'items.*.gift_card.code'             => 'nullable|string|max:40',
@@ -444,13 +443,13 @@ class RegisterController extends Controller
             'items.*.gift_card.gift_message'     => 'nullable|string|max:500',
             'items.*.assigned_staff_id'=> 'nullable|uuid',
             'items.*.notes'            => 'nullable|string',
-            // MARKER-PATCH-161 — per-sale receipt skip
+            // per-sale receipt skip
             'skip_receipt'             => 'nullable|boolean',
-            // MARKER-OFFLINE-SYNC — idempotency key for offline replay
+            // idempotency key for offline replay
             'client_uuid'              => 'nullable|uuid',
         ]);
 
-        // MARKER-OFFLINE-SYNC — replay dedupe: an offline queue may POST the
+        // replay dedupe: an offline queue may POST the
         // same sale more than once (retries, multiple tabs). Same client_uuid
         // returns the already-committed sale instead of double-selling.
         if (! empty($validated['client_uuid'])) {
@@ -469,7 +468,7 @@ class RegisterController extends Controller
             }
         }
 
-        // MARKER-REGISTER-DISCOUNT — redeem the code BEFORE the sale is built,
+        // redeem the code BEFORE the sale is built,
         // so a code that ran out between typing and tender stops the sale
         // instead of quietly charging full price. The redemption row is
         // released again if sale creation then fails.
@@ -481,7 +480,7 @@ class RegisterController extends Controller
             $lineSubtotal = 0;
             foreach ($validated['items'] as $it) {
                 $qty   = (float) ($it['quantity'] ?? 1);
-                $price = $this->linePriceCents($tenant->id, $it); // MARKER-REGISTER-LINE-FIX
+                $price = $this->linePriceCents($tenant->id, $it);
                 $lineSubtotal += max(0, (int) round($price * $qty) - (int) ($it['discount_cents'] ?? 0));
             }
 
@@ -503,7 +502,7 @@ class RegisterController extends Controller
         }
 
         try {
-            // MARKER-RESERVE-OVERRIDE — the browser asks; the server decides.
+            // the browser asks; the server decides.
             // Without the capability the flag is dropped and the sale is
             // refused by the normal rule, exactly as if it had never been set.
             $overrideReserved = $request->boolean('override_reserved')
@@ -511,20 +510,20 @@ class RegisterController extends Controller
                     ->can('register.layaway.override_reserve');
 
             $sale = $this->sales->createSale([
-                'override_reserved'  => $overrideReserved, // MARKER-RESERVE-OVERRIDE
+                'override_reserved'  => $overrideReserved,
                 'tenant_id'          => $tenant->id,
                 'rang_up_by_user_id' => auth('tenant')->id(),
                 'location_id'        => $locationId,
-                'register_id'        => $request->session()->get('current_register_id'), // MARKER-REGISTER-RECON-DISPLAY
-                'client_uuid'        => $validated['client_uuid'] ?? null, // MARKER-OFFLINE-SYNC
+                'register_id'        => $request->session()->get('current_register_id'),
+                'client_uuid'        => $validated['client_uuid'] ?? null,
                 'customer_id'        => $validated['customer_id'] ?? null,
                 'status'             => 'completed',
                 'payment_status'     => 'paid',
                 'payment_method'     => $validated['payment_method'],
-                'payments'           => $validated['payments'] ?? null, // MARKER-SPLIT-TENDER
-                'po_number'          => $validated['po_number'] ?? null, // MARKER-BIZ-REGISTER
+                'payments'           => $validated['payments'] ?? null,
+                'po_number'          => $validated['po_number'] ?? null,
                 'payment_reference'  => $validated['payment_reference'] ?? null,
-                // MARKER-PATCH-170 — Direct Payments Stripe fields (optional)
+                // Direct Payments Stripe fields (optional)
                 'stripe_payment_intent_id' => $request->input('stripe_payment_intent_id'),
                 'stripe_charge_id'         => $request->input('stripe_charge_id'),
                 'card_brand'               => $request->input('card_brand'),
@@ -534,7 +533,6 @@ class RegisterController extends Controller
                 'notes'              => $validated['notes'] ?? null,
                 'tip_cents'          => (int) ($validated['tip_cents'] ?? 0),
                 'discount_cents'     => (int) ($validated['discount_cents'] ?? 0),
-                // MARKER-REGISTER-DISCOUNT
                 'sale_discount_cents'    => $saleDiscountCents,
                 'discount_redemption_id' => $redemption?->id,
                 'items'              => $validated['items'],
@@ -553,8 +551,8 @@ class RegisterController extends Controller
                 }
             }
 
-            // MARKER-PATCH-160 — auto-send receipt (queued, fail-open)
-            // MARKER-PATCH-161 — skip if cashier opted out for this sale
+            // auto-send receipt (queued, fail-open)
+            // skip if cashier opted out for this sale
             if (! $request->boolean('skip_receipt')) {
                 \App\Jobs\SendSaleReceiptJob::dispatch($sale->id)->afterCommit();
             }
@@ -567,14 +565,14 @@ class RegisterController extends Controller
                 'redirect'    => route('tenant.register.index'),
             ]);
         } catch (SaleValidationException $e) {
-            // MARKER-REGISTER-DISCOUNT — the sale didn't happen, so the
+            // the sale didn't happen, so the
             // code must not stay burned.
             if (isset($redemption) && $redemption) {
                 app(\App\Services\Tenant\DiscountService::class)->releaseRedemption($redemption);
             }
             return response()->json(['ok' => false, 'error' => $e->getMessage()], 422);
         } catch (InventoryStockException $e) {
-            // MARKER-REGISTER-DISCOUNT — the sale didn't happen, so the
+            // the sale didn't happen, so the
             // code must not stay burned.
             if (isset($redemption) && $redemption) {
                 app(\App\Services\Tenant\DiscountService::class)->releaseRedemption($redemption);
@@ -588,11 +586,11 @@ class RegisterController extends Controller
      * Called on every cart change with debounce. First call creates,
      * subsequent calls include 'id' and update.
      */
-    // MARKER-LAYAWAY-GUARD-FIX — no assertRetailEnabled() here: that method
+    // no assertRetailEnabled() here: that method
     // belongs to InventoryController and never existed on this class. The
     // whole register route group is already behind RequireRetailCapability
     // middleware, so these actions cannot be reached without retail.
-    /** MARKER-LAYAWAY-TAB — the list. */
+    /** the list. */
     public function layawaysIndex(Request $request)
     {
         $tenant = tenant();
@@ -632,7 +630,7 @@ class RegisterController extends Controller
         ]);
     }
 
-    /** MARKER-LAYAWAY-TAB — one plan. */
+    /** one plan. */
     public function layawayShow(Request $request, string $planId)
     {
         $tenant = tenant();
@@ -662,7 +660,7 @@ class RegisterController extends Controller
         ]);
     }
 
-    /** MARKER-LAYAWAY-TAB — cancel, with the refund the preview promised. */
+    /** cancel, with the refund the preview promised. */
     public function layawayCancel(Request $request, string $planId)
     {
         $tenant = tenant();
@@ -697,7 +695,7 @@ class RegisterController extends Controller
         ]);
     }
 
-    /** MARKER-LAYAWAY-REGISTER — what this customer has open: layaways and work orders with a balance. */
+    /** what this customer has open: layaways and work orders with a balance. */
     public function customerOpen(Request $request, string $customerId): JsonResponse
     {
         $tenant = tenant();
@@ -734,7 +732,7 @@ class RegisterController extends Controller
             ->whereColumn('paid_cents', '<', 'total_cents')
             ->where('total_cents', '>', 0)
             ->whereNotIn('status', ['cancelled', 'no_show'])
-            ->orderBy('appointment_date') // MARKER-OVERNIGHT-FIX — scheduled_at does not exist; this 500'd every time
+            ->orderBy('appointment_date') // scheduled_at does not exist; this 500'd every time
             ->get() as $appt) {
             $out[] = [
                 'kind'          => 'appointment',
@@ -749,11 +747,11 @@ class RegisterController extends Controller
         return response()->json(['ok' => true, 'open' => $out]);
     }
 
-    /** MARKER-LAYAWAY-REGISTER — open a layaway from the cart. */
+    /** open a layaway from the cart. */
     public function openLayaway(Request $request): JsonResponse
     {
         $tenant = tenant();
-        $this->stripLinePricesUnlessAllowed($request); // MARKER-REGISTER-LINE-FIX
+        $this->stripLinePricesUnlessAllowed($request);
 
         $user = \Illuminate\Support\Facades\Auth::guard('tenant')->user();
         abort_unless($user && $user->can('register.layaway.create'), 403);
@@ -765,11 +763,11 @@ class RegisterController extends Controller
 
         $v = $request->validate([
             'customer_id'              => 'required|uuid',
-            'draft_id'                 => 'nullable|uuid', // MARKER-LAYAWAY-DRAFT
+            'draft_id'                 => 'nullable|uuid',
             'opening_amount_cents'     => 'nullable|integer|min:0',
             'payment_method'           => 'required|string|in:cash,check,store_credit,mark_paid',
             'payment_reference'        => 'nullable|string|max:120',
-            // MARKER-LAYAWAY-TENDERED — a split already taken at the register.
+            // a split already taken at the register.
             'payments'                       => 'nullable|array',
             'payments.*.method'              => 'required_with:payments|string|in:cash,check,store_credit,mark_paid',
             'payments.*.amount_cents'        => 'required_with:payments|integer|min:1',
@@ -795,7 +793,7 @@ class RegisterController extends Controller
             $result = app(\App\Services\Tenant\LayawayService::class)->open(
                 $tenant,
                 [
-                    // MARKER-LAYAWAY-DRAFT — the cart's existing draft, so the
+                    // the cart's existing draft, so the
                     // layaway takes it over instead of leaving it behind.
                     'id'                 => $v['draft_id'] ?? null,
                     'rang_up_by_user_id' => $user->id,
@@ -807,7 +805,7 @@ class RegisterController extends Controller
                 $v['payment_method'],
                 $v['payment_reference'] ?? null,
                 $user->id,
-                $v['payments'] ?? null, // MARKER-LAYAWAY-TENDERED
+                $v['payments'] ?? null,
             );
         } catch (\App\Services\Tenant\SaleValidationException | \App\Services\Tenant\InventoryStockException $e) {
             return response()->json(['ok' => false, 'error' => $e->getMessage()], 422);
@@ -830,12 +828,12 @@ class RegisterController extends Controller
         ]);
     }
 
-    /** MARKER-LAYAWAY-REGISTER — a payment against an open plan. */
+    /** a payment against an open plan. */
     public function payLayaway(Request $request, string $planId): JsonResponse
     {
         $tenant = tenant();
 
-        // MARKER-LAYAWAY-CARD — card joins the list. The charge itself has
+        // card joins the list. The charge itself has
         // already happened by the time this is called; this records it.
         $v = $request->validate([
             'amount_cents'             => 'required|integer|min:1',
@@ -847,7 +845,7 @@ class RegisterController extends Controller
         $plan = \App\Models\Tenant\TenantLayawayPlan::where('tenant_id', $tenant->id)->findOrFail($planId);
         $svc  = app(\App\Services\Tenant\LayawayService::class);
 
-        // MARKER-LAYAWAY-CARD — the reference carries the payment intent so a
+        // the reference carries the payment intent so a
         // plan payment reconciles against Stripe the same way a sale does.
         $reference = $v['payment_reference'] ?? null;
         if (! empty($v['stripe_payment_intent_id'])) {
@@ -862,7 +860,7 @@ class RegisterController extends Controller
             // would leave money in Stripe that no ledger knows about, so this
             // is logged with the intent id and the cashier is told plainly.
             if (! empty($v['stripe_payment_intent_id'])) {
-                \Illuminate\Support\Facades\Log::error('MARKER-LAYAWAY-CARD charged but not recorded', [
+                \Illuminate\Support\Facades\Log::error('layaway-card: charged but not recorded', [
                     'tenant'         => $tenant->id,
                     'plan'           => $plan->id,
                     'payment_intent' => $v['stripe_payment_intent_id'],
@@ -895,7 +893,7 @@ class RegisterController extends Controller
         ]);
     }
 
-    /** MARKER-LAYAWAY-REGISTER — handover: the layaway becomes a sale. */
+    /** handover: the layaway becomes a sale. */
     public function completeLayaway(Request $request, string $planId): JsonResponse
     {
         $tenant = tenant();
@@ -919,7 +917,7 @@ class RegisterController extends Controller
     }
 
     /**
-     * MARKER-PAY-PERSIST — record a payment against the cart's sale as it is
+     * record a payment against the cart's sale as it is
      * taken, rather than holding it in the browser until commit.
      *
      * Creates the sale if there is not one yet: the first payment is what
@@ -929,7 +927,7 @@ class RegisterController extends Controller
     public function recordCartPayment(Request $request): JsonResponse
     {
         $tenant = tenant();
-        $this->stripLinePricesUnlessAllowed($request); // MARKER-REGISTER-LINE-FIX
+        $this->stripLinePricesUnlessAllowed($request);
         $user   = \Illuminate\Support\Facades\Auth::guard('tenant')->user();
         $locationId = $request->session()->get('current_location_id');
 
@@ -994,7 +992,7 @@ class RegisterController extends Controller
             });
         } catch (\Throwable $e) {
             // The charge may already have happened. Never swallow this.
-            \Illuminate\Support\Facades\Log::error('MARKER-PAY-PERSIST could not record a payment', [
+            \Illuminate\Support\Facades\Log::error('pay-persist: could not record a payment', [
                 'tenant'         => $tenant->id,
                 'draft'          => $v['draft_id'] ?? null,
                 'amount_cents'   => $v['amount_cents'],
@@ -1024,7 +1022,7 @@ class RegisterController extends Controller
     }
 
     /**
-     * MARKER-VOID-PERSISTED — reverse a payment that is on the ledger.
+     * reverse a payment that is on the ledger.
      *
      * Looked up on the sale, never taken from the browser. A card leg is
      * refunded in Stripe first; if Stripe refuses, nothing is reversed and the
@@ -1072,7 +1070,7 @@ class RegisterController extends Controller
             $direct = new DirectPaymentsService($tenant);
             $refund = $direct->refundPaymentIntent($intent, 'split_leg_voided');
             if (! $refund) {
-                \Illuminate\Support\Facades\Log::error('MARKER-VOID-PERSISTED Stripe refund refused', [
+                \Illuminate\Support\Facades\Log::error('void-persisted: Stripe refund refused', [
                     'tenant' => $tenant->id, 'sale' => $sale->id, 'payment' => $payment->id, 'intent' => $intent,
                 ]);
                 return response()->json([
@@ -1100,7 +1098,7 @@ class RegisterController extends Controller
     }
 
     /**
-     * MARKER-NO-ORPHAN-MONEY — refund every payment on this sale, then void it.
+     * refund every payment on this sale, then void it.
      *
      * Used when the goods are gone and the money is not: the last line removed
      * from a part-paid cart, or a part-paid draft being thrown away. Each
@@ -1143,7 +1141,7 @@ class RegisterController extends Controller
                 if (! $refund) {
                     // Stop here. Half a refund is worse than none, and the
                     // cashier needs to know exactly which charge is stuck.
-                    \Illuminate\Support\Facades\Log::error('MARKER-NO-ORPHAN-MONEY Stripe refused a refund', [
+                    \Illuminate\Support\Facades\Log::error('no-orphan-money: Stripe refused a refund', [
                         'tenant' => $tenant->id, 'sale' => $sale->id, 'payment' => $payment->id, 'intent' => $intent,
                     ]);
 
@@ -1182,10 +1180,10 @@ class RegisterController extends Controller
         return response()->json(['ok' => true, 'refunded' => $refunded]);
     }
 
-    /** MARKER-PAY-PERSIST — the sale's payments, in the shape the register draws. */
+    /** the sale's payments, in the shape the register draws. */
     private function cartPaymentsFor(\App\Models\Tenant\TenantSale $sale): array
     {
-        // MARKER-VOID-PERSISTED — a voided payment and its reversal are both on
+        // a voided payment and its reversal are both on
         // the ledger (that is the point), but neither belongs on the register's
         // list of live tenders. Net them out here.
         $all = $sale->payments()->orderBy('created_at')->get();
@@ -1208,7 +1206,7 @@ class RegisterController extends Controller
     public function storeDraft(Request $request): JsonResponse
     {
         $tenant = tenant();
-        $this->stripLinePricesUnlessAllowed($request); // MARKER-REGISTER-LINE-FIX
+        $this->stripLinePricesUnlessAllowed($request);
         $locationId = $request->session()->get('current_location_id');
 
         if (!$locationId) {
@@ -1230,7 +1228,7 @@ class RegisterController extends Controller
             'items.*.quantity'         => 'nullable|numeric|min:0.001',
             'items.*.discount_cents'   => 'nullable|integer|min:0',
             'items.*.is_taxable'       => 'nullable|boolean',
-            // MARKER-GIFTCARDS -- gift line details, stored as line metadata
+            // gift line details, stored as line metadata
             'items.*.gift_card'                  => 'nullable|array',
             'items.*.gift_card.kind'             => 'nullable|string|in:physical,egift',
             'items.*.gift_card.code'             => 'nullable|string|max:40',
@@ -1239,7 +1237,7 @@ class RegisterController extends Controller
             'items.*.gift_card.gift_message'     => 'nullable|string|max:500',
             'items.*.assigned_staff_id'=> 'nullable|uuid',
             'items.*.notes'            => 'nullable|string',
-            // MARKER-SALE-DISCOUNT-PERSIST — a whole-sale discount belongs on
+            // a whole-sale discount belongs on
             // the draft; every register sale is committed from one.
             'sale_discount_cents'      => 'nullable|integer|min:0',
             'discount_code'            => 'nullable|string|max:40',
@@ -1248,7 +1246,7 @@ class RegisterController extends Controller
         try {
             $draft = $this->sales->saveDraft([
                 'id'                 => $validated['id'] ?? null,
-                'sale_discount_cents' => $validated['sale_discount_cents'] ?? null, // MARKER-SALE-DISCOUNT-PERSIST
+                'sale_discount_cents' => $validated['sale_discount_cents'] ?? null,
                 'tenant_id'          => $tenant->id,
                 'rang_up_by_user_id' => auth('tenant')->id(),
                 'location_id'        => $locationId,
@@ -1291,7 +1289,7 @@ class RegisterController extends Controller
             return response()->json(['ok' => false, 'error' => 'No location selected.'], 409);
         }
 
-        // MARKER-PATCH-162 — single-location tenants have nowhere to transfer FROM.
+        // single-location tenants have nowhere to transfer FROM.
         // Defense in depth against stale tabs or URL fuzzing. Client UI already
         // hides the button, so a normal user can't hit this branch.
         if (! $tenant->multi_location_active) {
@@ -1301,7 +1299,7 @@ class RegisterController extends Controller
             ], 422);
         }
 
-        // MARKER-TRANSFER-SCOPE — ownership enforced inside the query, not
+        // ownership enforced inside the query, not
         // merely existence: any tenant's id used to satisfy these rules.
         $validated = $request->validate([
             'inventory_item_id' => ['required', 'uuid', \Illuminate\Validation\Rule::exists('tenant_inventory_items', 'id')
@@ -1345,7 +1343,7 @@ class RegisterController extends Controller
     {
         $tenant = tenant();
 
-        // MARKER-TRANSFER-SCOPE — same hardening as the transfer endpoint.
+        // same hardening as the transfer endpoint.
         // customer_id was previously unscoped and passed straight through to
         // SpecialOrderService, so a foreign customer could be attached.
         $validated = $request->validate([
@@ -1354,7 +1352,7 @@ class RegisterController extends Controller
             'quantity'          => 'nullable|integer|min:1',
             'customer_id'       => ['nullable', 'uuid', \Illuminate\Validation\Rule::exists('tenant_customers', 'id')
                 ->where(fn ($q) => $q->where('tenant_id', $tenant->id))],
-            // MARKER-SO-SALE-LINK — the draft this request came from, so the
+            // the draft this request came from, so the
             // order can be cleaned up when that draft or line goes away.
             'sale_id'           => ['nullable', 'uuid', \Illuminate\Validation\Rule::exists('tenant_sales', 'id')
                 ->where(fn ($q) => $q->where('tenant_id', $tenant->id))],
@@ -1379,7 +1377,7 @@ class RegisterController extends Controller
                 'customer_id'        => $validated['customer_id'] ?? null,
                 'status'             => \App\Models\Tenant\TenantSpecialOrder::STATUS_NEEDED,
                 'created_from'       => 'register',
-                'sale_id'            => $validated['sale_id'] ?? null, // MARKER-SO-SALE-LINK
+                'sale_id'            => $validated['sale_id'] ?? null,
                 'notes'              => $validated['notes'] ?? null,
             ]);
 
@@ -1421,14 +1419,14 @@ class RegisterController extends Controller
                         ? trim(($d->rangUpBy->first_name ?? '') . ' ' . ($d->rangUpBy->last_name ?? ''))
                         : null,
                     'updated_at'   => $d->updated_at?->toIso8601String(),
-                    // MARKER-HOLD — a name means somebody chose to keep this.
+                    // a name means somebody chose to keep this.
                     'hold_label'   => $d->hold_label,
                     'held'         => filled($d->hold_label),
                     'held_at'      => $d->held_at?->toIso8601String(),
                 ];
             });
 
-        // MARKER-HOLD — held first, then the recovered ones by age. A cashier
+        // held first, then the recovered ones by age. A cashier
         // looking for a parked customer should not scroll past debris.
         $drafts = $drafts->sortBy(fn ($d) => $d['held'] ? 0 : 1)->values();
 
@@ -1439,7 +1437,7 @@ class RegisterController extends Controller
         ]);
     }
 
-    /** MARKER-HOLD — park this cart under a name. */
+    /** park this cart under a name. */
     public function holdDraft(Request $request, string $id): JsonResponse
     {
         $tenant = tenant();
@@ -1458,7 +1456,7 @@ class RegisterController extends Controller
         return response()->json(['ok' => true, 'label' => $sale->hold_label]);
     }
 
-    /** MARKER-HOLD — how long recovered carts are kept. */
+    /** how long recovered carts are kept. */
     public function saveDraftCleanup(Request $request)
     {
         $tenant = tenant();
@@ -1501,7 +1499,7 @@ class RegisterController extends Controller
                     'phone' => $draft->customer->phone ?? '',
                 ] : null,
                 'tip_cents'   => $draft->tip_cents,
-                // MARKER-PAY-PERSIST — without this, resuming restores the
+                // without this, resuming restores the
                 // items and silently drops the money, which is the failure
                 // this whole patch exists to stop.
                 'payments'    => $this->cartPaymentsFor($draft),
@@ -1519,7 +1517,7 @@ class RegisterController extends Controller
                     'is_taxable'        => (bool) $i->is_taxable,
                     'tax_cents'         => (int) $i->tax_cents,
                     'tax_rate_snapshot' => $i->tax_rate_snapshot,
-                    // MARKER-REGISTER-LINE-FIX — so a resumed line keeps its price edit.
+                    // so a resumed line keeps its price edit.
                     'catalog_price_cents' => match ($i->type) {
                         'product' => $i->inventoryItem ? (int) ($i->inventoryItem->effectiveSellPriceCents() ?? 0) : null,
                         'service' => $i->service ? (int) ($i->service->price_cents ?? 0) : null,
@@ -1539,7 +1537,7 @@ class RegisterController extends Controller
     {
         $tenant = tenant();
 
-        // MARKER-NO-ORPHAN-MONEY — a draft holding payments is not a draft any
+        // a draft holding payments is not a draft any
         // more; it is a customer's money. Deleting it here used to take the
         // money with it, with no check and no trace.
         $live = TenantSale::where('tenant_id', $tenant->id)->find($id);
@@ -1572,28 +1570,27 @@ class RegisterController extends Controller
         $tenant = tenant();
 
         $validated = $request->validate([
-            'payment_method'    => $this->allowedTenders(), // MARKER-PATCH-630
+            'payment_method'    => $this->allowedTenders(),
             'payment_reference' => 'nullable|string',
-            // MARKER-SPLIT-TENDER — optional multi-tender payments. When
+            // optional multi-tender payments. When
             // present, payment_method is 'split' and applied amounts must sum
             // to the authoritative server-side total (checked in SaleService).
             'payments'                     => 'nullable|array|max:6',
             'payments.*.method'            => str_replace('required|', '', $this->allowedTenders()),
             'payments.*.amount_cents'      => 'required|integer|min:1',
             'payments.*.reference'         => 'nullable|string|max:120',
-            'po_number'                    => 'nullable|string|max:64', // MARKER-BIZ-REGISTER
+            'po_number'                    => 'nullable|string|max:64',
             'tip_cents'         => 'nullable|integer|min:0',
             'customer_id'       => 'nullable|uuid',
             'notes'             => 'nullable|string',
-            // MARKER-PATCH-161 — per-sale receipt skip
+            // per-sale receipt skip
             'skip_receipt'      => 'nullable|boolean',
-            // MARKER-SALE-DISCOUNT-PERSIST
             'sale_discount_cents'  => 'nullable|integer|min:0',
             'discount_code'        => 'nullable|string|max:40',
             'expected_total_cents' => 'nullable|integer|min:0',
         ]);
 
-        // MARKER-SALE-DISCOUNT-PERSIST — apply the discount the register shows,
+        // apply the discount the register shows,
         // then refuse if the register's total and the sale's still disagree.
         // Recording a different number than the cashier and the customer saw is
         // how a $1,999 sale was booked for a $1,350 charge.
@@ -1622,10 +1619,10 @@ class RegisterController extends Controller
             $sale = $this->sales->commitDraft($tenant->id, $id, [
                 'payment_status'    => 'paid',
                 'payment_method'    => $validated['payment_method'],
-                'payments'           => $validated['payments'] ?? null, // MARKER-SPLIT-TENDER
-                'po_number'          => $validated['po_number'] ?? null, // MARKER-BIZ-REGISTER
+                'payments'           => $validated['payments'] ?? null,
+                'po_number'          => $validated['po_number'] ?? null,
                 'payment_reference' => $validated['payment_reference'] ?? null,
-                // MARKER-PATCH-170 — Direct Payments Stripe fields (optional)
+                // Direct Payments Stripe fields (optional)
                 'stripe_payment_intent_id' => $request->input('stripe_payment_intent_id'),
                 'stripe_charge_id'         => $request->input('stripe_charge_id'),
                 'card_brand'               => $request->input('card_brand'),
@@ -1646,8 +1643,8 @@ class RegisterController extends Controller
                 }
             }
 
-            // MARKER-PATCH-160 — auto-send receipt (queued, fail-open)
-            // MARKER-PATCH-161 — skip if cashier opted out for this sale
+            // auto-send receipt (queued, fail-open)
+            // skip if cashier opted out for this sale
             if (! $request->boolean('skip_receipt')) {
                 \App\Jobs\SendSaleReceiptJob::dispatch($sale->id)->afterCommit();
             }
@@ -1743,7 +1740,7 @@ class RegisterController extends Controller
     }
 
     /**
-     * MARKER-PATCH-177 — Standalone refund: money out with NO sale attached.
+     * Standalone refund: money out with NO sale attached.
      *
      * For refunds that aren't tied to a past sale in the system — e.g. refunding
      * a fee charged before Intake existed. Always carries a customer; sale_id is
@@ -1809,10 +1806,10 @@ class RegisterController extends Controller
     public function storeTransaction(Request $request): JsonResponse
     {
         $tenant = tenant();
-        $this->stripLinePricesUnlessAllowed($request); // MARKER-REGISTER-LINE-FIX
+        $this->stripLinePricesUnlessAllowed($request);
         $locationId = $request->session()->get('current_location_id');
 
-        // MARKER-GIFTCARDS -- gift-card tender is not wired into the mixed
+        // gift-card tender is not wired into the mixed
         // sale+refund transaction path yet; rejecting loudly beats accepting
         // a tender that never debits the card. Plain sales support it fully.
         $pm = (string) $request->input('payment_method', '');
@@ -1829,7 +1826,7 @@ class RegisterController extends Controller
         $validated = $request->validate([
             'customer_id'      => 'nullable|uuid',
             'tip_cents'        => 'nullable|integer|min:0',
-            'payment_method'   => $this->allowedTenders(['even_exchange']), // MARKER-PATCH-630
+            'payment_method'   => $this->allowedTenders(['even_exchange']),
             'payment_reference'=> 'nullable|string',
             'items'            => 'nullable|array',
             'items.*.type'             => 'required_with:items|string|in:service,product,open_item,gift_card',
@@ -1839,24 +1836,24 @@ class RegisterController extends Controller
             'items.*.unit_price_cents' => 'nullable|integer|min:0',
             'items.*.quantity'         => 'nullable|numeric|min:0.001',
             'items.*.is_taxable'       => 'nullable|boolean',
-            // MARKER-GIFTCARDS -- gift line details, stored as line metadata
+            // gift line details, stored as line metadata
             'items.*.gift_card'                  => 'nullable|array',
             'items.*.gift_card.kind'             => 'nullable|string|in:physical,egift',
             'items.*.gift_card.code'             => 'nullable|string|max:40',
             'items.*.gift_card.recipient_name'   => 'nullable|string|max:120',
             'items.*.gift_card.recipient_email'  => 'nullable|email|max:160',
             'items.*.gift_card.gift_message'     => 'nullable|string|max:500',
-            // MARKER-SPLIT-TENDER — optional multi-tender payments. When
+            // optional multi-tender payments. When
             // present, payment_method is 'split' and applied amounts must sum
             // to the authoritative server-side total (checked in SaleService).
             'payments'                     => 'nullable|array|max:6',
             'payments.*.method'            => str_replace('required|', '', $this->allowedTenders()),
             'payments.*.amount_cents'      => 'required|integer|min:1',
             'payments.*.reference'         => 'nullable|string|max:120',
-            'po_number'                    => 'nullable|string|max:64', // MARKER-BIZ-REGISTER
+            'po_number'                    => 'nullable|string|max:64',
             'refund'                       => 'required|array',
             'refund.original_sale_id'      => 'required|uuid',
-            // MARKER-REFUND-QTY — quantity- and disposition-aware refund lines.
+            // quantity- and disposition-aware refund lines.
             // item_ids stays accepted (read as "full remaining, restocked") so
             // an older tab mid-transaction still works.
             'refund.item_ids'              => 'required_without:refund.items|array|min:1',
@@ -1865,7 +1862,6 @@ class RegisterController extends Controller
             'refund.items.*.sale_item_id'  => 'required|uuid',
             'refund.items.*.quantity'      => 'required|numeric|min:0.001',
             'refund.items.*.disposition'   => 'nullable|string|in:' . implode(',', \App\Services\Tenant\SaleService::DISPOSITIONS),
-            // MARKER-GC-FUNCTIONS
             'refund.refund_method'         => 'required|string|in:cash,card,check,store_credit,mark_paid,even_exchange,gift_card',
             'refund.gift_card_code'        => 'nullable|string|max:40',
         ]);
@@ -1878,10 +1874,10 @@ class RegisterController extends Controller
                 'customer_id'        => $validated['customer_id'] ?? null,
                 'tip_cents'          => (int) ($validated['tip_cents'] ?? 0),
                 'payment_method'     => $validated['payment_method'],
-                'payments'           => $validated['payments'] ?? null, // MARKER-SPLIT-TENDER
-                'po_number'          => $validated['po_number'] ?? null, // MARKER-BIZ-REGISTER
+                'payments'           => $validated['payments'] ?? null,
+                'po_number'          => $validated['po_number'] ?? null,
                 'payment_reference'  => $validated['payment_reference'] ?? null,
-                // MARKER-PATCH-170 — Direct Payments Stripe fields (optional)
+                // Direct Payments Stripe fields (optional)
                 'stripe_payment_intent_id' => $request->input('stripe_payment_intent_id'),
                 'stripe_charge_id'         => $request->input('stripe_charge_id'),
                 'card_brand'               => $request->input('card_brand'),
@@ -1889,22 +1885,22 @@ class RegisterController extends Controller
                 'card_funding'             => $request->input('card_funding'),
                 'items'              => $validated['items'] ?? [],
                 'refund'             => $validated['refund'],
-                'payments'           => $validated['payments'] ?? null, // MARKER-SPLIT-TENDER
-                'po_number'          => $validated['po_number'] ?? null, // MARKER-BIZ-REGISTER
+                'payments'           => $validated['payments'] ?? null,
+                'po_number'          => $validated['po_number'] ?? null,
             ]);
 
             // Build a unified receipt response.
             $sale = $result['sale'];
             $refund = $result['refund'];
 
-            // MARKER-PATCH-171 — fire Stripe refund if refund half exists and
+            // fire Stripe refund if refund half exists and
             // refund_method=card. Mirrors storeRefund behavior for the mixed path.
             $stripeRefundError = null;
             if ($refund && ($validated['refund']['refund_method'] ?? null) === 'card') {
                 $stripeRefundError = $this->fireStripeRefund($tenant, $refund);
             }
 
-            // MARKER-GC-FUNCTIONS -- put the refund onto a gift card. A failure
+            // put the refund onto a gift card. A failure
             // here is loud: the refund row exists, so silently not crediting the
             // card would hand the customer nothing and tell them it worked.
             $giftRefundCard = null;
@@ -1942,13 +1938,13 @@ class RegisterController extends Controller
                 'total_cents'    => ($sale?->total_cents ?? 0) - ($refund?->total_cents ?? 0),
                 'sale_total'     => $sale?->total_cents ?? 0,
                 'refund_total'   => $refund?->total_cents ?? 0,
-                // MARKER-GC-FUNCTIONS -- the card to write on / hand back.
+                // the card to write on / hand back.
                 'gift_refund_card' => $giftRefundCard ? [
                     'code'          => $giftRefundCard->code,
                     'balance_cents' => (int) $giftRefundCard->balance_cents,
                     'is_new'        => (string) $giftRefundCard->issued_sale_id === (string) $refund?->id,
                 ] : null,
-                // MARKER-PATCH-171 — Stripe refund outcome
+                // Stripe refund outcome
                 'stripe_refund_error' => $stripeRefundError ?? null,
                 'stripe_refund_id'    => $refund?->fresh()?->stripe_refund_id,
                 'redirect'       => route('tenant.register.index'),
@@ -2011,7 +2007,7 @@ class RegisterController extends Controller
      * Read-only. Used by the history page and customer activity timeline.
      */
     /**
-     * MARKER-PATCH-231A — sale detail PAGE (the JSON sibling feeds the
+     * sale detail PAGE (the JSON sibling feeds the
      * register modal; this is a linkable page for search + history).
      */
     public function showSalePage(Request $request, string $id)
@@ -2028,7 +2024,7 @@ class RegisterController extends Controller
             ->orderBy('created_at')
             ->get(['id', 'sale_number', 'total_cents', 'created_at']);
 
-        // MARKER-PATCH-231 — linked context (rental/lease the sale belongs to).
+        // linked context (rental/lease the sale belongs to).
         $linkedRental = $sale->rental_id
             ? \App\Models\Tenant\TenantRental::where('tenant_id', $tenant->id)->find($sale->rental_id, ['id', 'rental_number'])
             : null;
@@ -2044,7 +2040,7 @@ class RegisterController extends Controller
         ]);
     }
 
-    // MARKER-PATCH-319 — render the printable 80mm sales receipt.
+    // render the printable 80mm sales receipt.
     public function printReceipt(Request $request, string $id)
     {
         $tenant = tenant();
@@ -2055,10 +2051,10 @@ class RegisterController extends Controller
             ->firstOrFail();
 
         $cfg   = (array) (($tenant->settings['work_order_tag'] ?? []));
-        $print = \App\Services\PrintIdentityService::forTenant($tenant); // MARKER-PATCH-332
+        $print = \App\Services\PrintIdentityService::forTenant($tenant);
         $embed = $request->boolean('embed');
 
-        // MARKER-DOC-STATE — a layaway has two documents: the agreement signed
+        // a layaway has two documents: the agreement signed
         // at creation, and a slip per payment. ?doc= picks; default is the
         // agreement for a plan that has just opened.
         $plan = $sale->payment_status === 'layaway'
@@ -2093,7 +2089,7 @@ class RegisterController extends Controller
 
         $sale = TenantSale::where('id', $id)
             ->where('tenant_id', $tenant->id)
-            // MARKER-SALE-LINE-IDS — the line's item, for its part number and
+            // the line's item, for its part number and
             // barcode. withTrashed: an item merged away or deleted since the
             // sale still identifies what was sold.
             ->with(['customer', 'rangUpBy', 'items.inventoryItem' => fn ($q) => $q->withTrashed(), 'location', 'refundOf:id,sale_number'])
@@ -2126,7 +2122,7 @@ class RegisterController extends Controller
                 'quantity'         => (float) $i->quantity,
                 'unit_price_cents' => (int) $i->unit_price_cents,
                 'discount_cents'   => (int) $i->discount_cents,
-                // MARKER-SALE-LINE-IDS — what was sold, in the numbers staff
+                // what was sold, in the numbers staff
                 // and customers quote back.
                 'sku'              => $i->inventoryItem?->sku,
                 'mpn'              => $i->inventoryItem?->catalog_mpn,
@@ -2136,7 +2132,7 @@ class RegisterController extends Controller
                 'line_total_cents' => (int) $i->line_total_cents,
             ]);
 
-        // MARKER-PATCH-191 — the payment ledger for this sale (each deposit /
+        // the payment ledger for this sale (each deposit /
         // balance / payment / refund row), so the modal shows exactly what was
         // paid, how, and when — not just the sale total.
         $payments = \App\Models\Tenant\TenantSalePayment::where('tenant_id', $tenant->id)
@@ -2144,7 +2140,7 @@ class RegisterController extends Controller
             ->orderBy('recorded_at')
             ->get()
             ->map(fn ($p) => [
-                'id'           => $p->id, // MARKER-PATCH-198 — targets delete
+                'id'           => $p->id, // targets delete
                 'amount_cents' => (int) $p->amount_cents,
                 'kind'         => $p->kind,
                 'method'       => $p->method,
@@ -2158,7 +2154,7 @@ class RegisterController extends Controller
             ->values();
         $paidCents = (int) $payments->sum('amount_cents');
 
-        // MARKER-PATCH-161 — email send log for this sale.
+        // email send log for this sale.
         $sendLog = \App\Models\Tenant\TenantNotificationLog::where('tenant_id', $tenant->id)
             ->where('related_type', 'sale')
             ->where('related_id', $sale->id)
@@ -2196,7 +2192,7 @@ class RegisterController extends Controller
                 'notes'          => $sale->notes,
                 'subtotal_cents' => (int) $sale->subtotal_cents,
                 'discount_cents' => (int) $sale->discount_cents,
-                // MARKER-DISCOUNT-VISIBLE — the field the server applies; the
+                // the field the server applies; the
                 // sale showed a subtotal and a smaller total with nothing
                 // between them to explain the difference.
                 'sale_discount_cents' => (int) ($sale->sale_discount_cents ?? 0),
@@ -2223,7 +2219,7 @@ class RegisterController extends Controller
                 'send_log'       => $sendLog,
                 'payments'       => $payments,
                 'paid_cents'     => $paidCents,
-                // MARKER-PATCH-195 — checkout link fields for the status view.
+                // checkout link fields for the status view.
                 'checkout_session_id' => $sale->checkout_session_id,
                 'sale_status'    => $sale->status,
                 'appointment_id' => $sale->appointment_id,
@@ -2346,7 +2342,7 @@ class RegisterController extends Controller
     public function storeQuote(Request $request): JsonResponse
     {
         $tenant = tenant();
-        $this->stripLinePricesUnlessAllowed($request); // MARKER-REGISTER-LINE-FIX
+        $this->stripLinePricesUnlessAllowed($request);
         $locationId = $request->session()->get('current_location_id');
 
         if (!$locationId) {
@@ -2367,7 +2363,7 @@ class RegisterController extends Controller
             'items.*.quantity'         => 'nullable|numeric|min:0.001',
             'items.*.discount_cents'   => 'nullable|integer|min:0',
             'items.*.is_taxable'       => 'nullable|boolean',
-            // MARKER-GIFTCARDS -- gift line details, stored as line metadata
+            // gift line details, stored as line metadata
             'items.*.gift_card'                  => 'nullable|array',
             'items.*.gift_card.kind'             => 'nullable|string|in:physical,egift',
             'items.*.gift_card.code'             => 'nullable|string|max:40',
@@ -2401,7 +2397,7 @@ class RegisterController extends Controller
     }
 
     /**
-     * MARKER-REGISTER-LINE-FIX — the per-line price gate (MARKER-LINE-PRICE).
+     * the per-line price gate.
      * On Sep 12 it landed in itemInfo(), where it never ran against a sale,
      * so no checkout path enforced it. Every endpoint that accepts register
      * lines calls this first. Without register.line_price, per-line discounts
@@ -2434,7 +2430,7 @@ class RegisterController extends Controller
     }
 
     /**
-     * MARKER-REGISTER-LINE-FIX — what the server will charge for a line, for
+     * what the server will charge for a line, for
      * pricing a discount code. The register sends a unit price only for open
      * items and price edits, so summing the payload alone priced every
      * product and service at $0: percentage codes came to nothing and
@@ -2459,7 +2455,7 @@ class RegisterController extends Controller
     }
 
     /**
-     * GET /register/item/{id}/info — MARKER-PATCH-552
+     * GET /register/item/{id}/info
      * Everything staff want to see about an item mid-sale: identity,
      * price, per-location stock, and the catalog image when linked.
      */
@@ -2477,12 +2473,12 @@ class RegisterController extends Controller
                 return ['location' => $loc?->name ?? '—', 'count' => (int) $row->computed_stock_count];
             })->values();
 
-        // MARKER-PATCH-553 — HLC stores images as objects; pull usable URLs.
-        // MARKER-MODAL-QBP-IMAGES — QBP stores bare filenames, not URLs. This
+        // HLC stores images as objects; pull usable URLs.
+        // QBP stores bare filenames, not URLs. This
         // read Url/url/src, found none, and passed the filename straight to an
         // <img src>, so every QBP photo drew a broken icon in the item modal
         // while the same item's photos loaded on the inventory page.
-        // MARKER-ITEM-IMAGES-EVERYWHERE — this one was already passing the
+        // this one was already passing the
         // right tenant; it moves onto displayImages() so a shop's own photo
         // shows at the till, and so a distributor image switched off on the
         // item page is not still sitting in the modal.
@@ -2506,8 +2502,8 @@ class RegisterController extends Controller
                 ->whereNotIn('payment_status', ['draft', 'quote']))
             ->sum('quantity');
 
-        // MARKER-PATCH-553 — cost/margin only for roles with the capability
-        $user = \Illuminate\Support\Facades\Auth::guard('tenant')->user(); // MARKER-PATCH-554
+        // cost/margin only for roles with the capability
+        $user = \Illuminate\Support\Facades\Auth::guard('tenant')->user();
 
         $costPayload = null;
         if ($user && $user->canAccessSection('cost_margins')) {
@@ -2519,7 +2515,7 @@ class RegisterController extends Controller
             ];
         }
 
-        // MARKER-MODAL-ALL-VENDORS — every distributor that carries this item,
+        // every distributor that carries this item,
         // not just the one supplying its product info.
         //
         // Was $item->distributorCatalog, a single row, so a matched item
@@ -2568,7 +2564,7 @@ class RegisterController extends Controller
 
             $vendor[] = [
                 'distributor' => $src->distributor_code,
-                // MARKER-SOURCING-TABLE — that vendor's OWN item number, which
+                // that vendor's OWN item number, which
                 // is what goes on a purchase order to them. The modal used to
                 // show a single SKU taken from the item's primary source, so
                 // on a matched item it was right for one vendor and absent
@@ -2578,7 +2574,7 @@ class RegisterController extends Controller
                 'avail'       => $avail === null ? null : (int) $avail,
                 'cost_cents'  => $src->live_cost_cents ?? $src->unit_cost_cents,
                 'checked_at'  => $checkedAt,
-                // MARKER-MODAL-BARCODES — never synced is not the same as
+                // never synced is not the same as
                 // "reported nothing". live_* are written per subscription by
                 // the tenant sync; a distributor with no tenant credentials
                 // has simply never been asked.
@@ -2589,7 +2585,7 @@ class RegisterController extends Controller
             ];
         }
 
-        // MARKER-MODAL-BARCODES — a barcode from whichever source has one.
+        // a barcode from whichever source has one.
         // $item->catalog_upc is a single value copied from the primary source
         // at import, and HLC has thousands of rows with no UPC (EAN only), so
         // it left items blank whose other distributor knows the number.
@@ -2676,7 +2672,7 @@ class RegisterController extends Controller
         return response()->json(['sales' => $sales]);
     }
 
-    // MARKER-PATCH-160 — re-send (or send to another email) a sale receipt
+    // re-send (or send to another email) a sale receipt
     public function resendReceipt(Request $request, string $id): JsonResponse
     {
         $tenant = tenant();
@@ -2698,7 +2694,7 @@ class RegisterController extends Controller
     }
 
     /**
-     * MARKER-PATCH-170 — Direct Payments Session 2A.
+     * Direct Payments Session 2A.
      *
      * Create a Stripe PaymentIntent for a cart. Returns the client_secret
      * which the front-end uses with Stripe.js to confirm the card.
@@ -2712,7 +2708,7 @@ class RegisterController extends Controller
     {
         $tenant = tenant();
 
-        // MARKER-PATCH-618 — tenant toggle gates NEW payments (refunds untouched).
+        // tenant toggle gates NEW payments (refunds untouched).
         if (! $tenant->direct_payments_enabled || ! ($tenant->settings['stripe_register_enabled'] ?? true)) {
             return response()->json(['error' => 'Card payments are turned off in Settings → Payments.'], 422);
         }
@@ -2720,7 +2716,7 @@ class RegisterController extends Controller
         $validated = $request->validate([
             'amount_cents'      => 'required|integer|min:50',
             'sale_id'           => 'nullable|uuid',
-            // MARKER-PATCH-170B — preflight payload so we can validate before charging
+            // preflight payload so we can validate before charging
             'customer_id'       => 'nullable|uuid',
             'has_service_line'  => 'nullable|boolean',
         ]);
@@ -2733,7 +2729,7 @@ class RegisterController extends Controller
             ], 422);
         }
 
-        // MARKER-PATCH-170B — pre-charge cart validation. Mirrors SaleService
+        // pre-charge cart validation. Mirrors SaleService
         // checks so we never authorize a card for a sale that won\'t commit.
         if (! empty($validated['has_service_line']) && empty($validated['customer_id'])) {
             return response()->json([
@@ -2815,7 +2811,7 @@ class RegisterController extends Controller
     }
 
     /**
-     * MARKER-PATCH-172 — Create a Stripe Checkout Session and a matching
+     * Create a Stripe Checkout Session and a matching
      * DRAFT sale that\'s waiting for the customer to pay remotely.
      *
      * Returns the Checkout URL (for QR + copy/share) and the draft sale ID
@@ -2825,7 +2821,7 @@ class RegisterController extends Controller
     {
         $tenant = tenant();
 
-        // MARKER-PATCH-618 — tenant toggle gates NEW payment links (refunds untouched).
+        // tenant toggle gates NEW payment links (refunds untouched).
         if (! $tenant->direct_payments_enabled || ! ($tenant->settings['stripe_register_enabled'] ?? true)) {
             return response()->json(['error' => 'Payment links are turned off in Settings → Payments.'], 422);
         }
@@ -2835,19 +2831,18 @@ class RegisterController extends Controller
             'customer_id'      => 'nullable|uuid',
             'has_service_line' => 'nullable|boolean',
             'description'      => 'nullable|string|max:255',
-            // MARKER-PATCH-178B — when present, bind the link to THIS existing
+            // when present, bind the link to THIS existing
             // sale instead of minting a new (appointment-less) one. This is the
             // resumed parked sale's id (cart.draft_id on the frontend).
             'sale_id'          => 'nullable|uuid',
             'items'            => 'required|array|min:1',
             'tip_cents'        => 'nullable|integer|min:0',
             'discount_cents'   => 'nullable|integer|min:0',
-            // MARKER-SALE-DISCOUNT-PERSIST
             'sale_discount_cents' => 'nullable|integer|min:0',
             'discount_code'       => 'nullable|string|max:40',
         ]);
 
-        // MARKER-SALE-DISCOUNT-PERSIST — this endpoint was missed when the
+        // this endpoint was missed when the
         // per-line price gate went in.
         $this->stripLinePricesUnlessAllowed($request);
 
@@ -2893,7 +2888,7 @@ class RegisterController extends Controller
             ], 500);
         }
 
-        // MARKER-PATCH-178B — bind the session to an EXISTING sale when sale_id
+        // bind the session to an EXISTING sale when sale_id
         // is given (resumed parked/appointment sale), instead of minting a new
         // appointment-less sale. This was the link-detach bug: link-paid
         // appointments stayed unpaid because the charge landed on a separate
@@ -2928,7 +2923,7 @@ class RegisterController extends Controller
                     'paid_at'            => null,
                     'tip_cents'          => (int) ($validated['tip_cents'] ?? 0),
                     'discount_cents'     => (int) ($validated['discount_cents'] ?? 0),
-                    // MARKER-SALE-DISCOUNT-PERSIST — the field the server applies.
+                    // the field the server applies.
                     'sale_discount_cents' => (int) ($validated['sale_discount_cents'] ?? 0),
                     'items'              => $validated['items'],
                     'checkout_session_id' => $session->id,
@@ -2951,7 +2946,7 @@ class RegisterController extends Controller
             ], 500);
         }
 
-        // MARKER-SALE-DISCOUNT-PERSIST — the link's amount and the sale must
+        // the link's amount and the sale must
         // agree. They didn't: Stripe was charged the browser's number while the
         // sale kept its own, so a discounted sale was booked at full price.
         if ((int) $draftSale->total_cents !== (int) $validated['amount_cents']) {
@@ -2978,7 +2973,7 @@ class RegisterController extends Controller
     }
 
     /**
-     * MARKER-PATCH-172 — Poll status of a Checkout Session. Frontend calls
+     * Poll status of a Checkout Session. Frontend calls
      * this every ~3 seconds while the payment-link modal is open.
      *
      * Returns one of: pending (still waiting), succeeded (payment_status
@@ -3037,7 +3032,7 @@ class RegisterController extends Controller
     }
 
     /**
-     * MARKER-PATCH-172 — Cancel a pending Checkout-Session-backed sale.
+     * Cancel a pending Checkout-Session-backed sale.
      * Used when the operator closes the payment-link modal manually.
      */
     public function cancelCheckoutSession(Request $request): JsonResponse
@@ -3049,7 +3044,7 @@ class RegisterController extends Controller
 
         $sale = \App\Models\Tenant\TenantSale::where('tenant_id', $tenant->id)
             ->where('id', $validated['sale_id'])
-            ->where('payment_status', 'unpaid')  // MARKER-PATCH-172C
+            ->where('payment_status', 'unpaid')
             ->first();
 
         if (! $sale) {
@@ -3083,7 +3078,7 @@ class RegisterController extends Controller
             }
         }
 
-        // MARKER-PATCH-172C — payment_status enum doesn't have 'cancelled'.
+        // payment_status enum doesn't have 'cancelled'.
         // status column already has 'cancelled'. payment_status stays 'unpaid'
         // (customer didn't pay; was never going to from this aborted attempt).
         $sale->status = 'cancelled';
@@ -3093,7 +3088,7 @@ class RegisterController extends Controller
     }
 
     /**
-     * MARKER-PATCH-173 — Customer-facing landing page after a successful
+     * Customer-facing landing page after a successful
      * Stripe Checkout payment (send-payment-link flow). PUBLIC route: the
      * paying customer is anonymous on their own device. Tenant is resolved by
      * ResolveTenant middleware and $currentTenant is shared to the view.
@@ -3121,7 +3116,7 @@ class RegisterController extends Controller
     }
 
     /**
-     * MARKER-PATCH-173 — Customer-facing landing page when the customer backs
+     * Customer-facing landing page when the customer backs
      * out of the Stripe Checkout page. Nothing was charged. PUBLIC route.
      */
     public function checkoutCancel(Request $request)
@@ -3130,7 +3125,7 @@ class RegisterController extends Controller
     }
 
     /**
-     * MARKER-PATCH-170B — auto-refund a PaymentIntent. Called by the client
+     * auto-refund a PaymentIntent. Called by the client
      * when commitTransaction fails after a charge already authorized.
      *
      * Idempotent: if the PI was already refunded, Stripe returns the existing
@@ -3192,7 +3187,7 @@ class RegisterController extends Controller
                 'item_ids'           => $validated['item_ids'],
             ]);
 
-            // MARKER-PATCH-171 — fire a Stripe refund when the refund is to card
+            // fire a Stripe refund when the refund is to card
             // AND the original sale was paid via direct-payments Stripe flow.
             // Failure here is REPORTED but doesn\'t roll back the Intake refund row —
             // the operator can retry from sale detail (or via Stripe dashboard).
@@ -3217,7 +3212,7 @@ class RegisterController extends Controller
     }
 
     /**
-     * MARKER-PATCH-171 — shared helper to fire a Stripe refund for a refund row.
+     * shared helper to fire a Stripe refund for a refund row.
      * Returns null on success, or an error message string on failure.
      *
      * The refund row\'s own stripe_payment_intent_id is copied from the original
@@ -3265,7 +3260,7 @@ class RegisterController extends Controller
     }
 
     /**
-     * MARKER-PATCH-461 — Record an overage refund against an appointment.
+     * Record an overage refund against an appointment.
      *
      * paid_cents > total_cents means the customer overpaid. This returns the
      * difference (or a portion of it): it writes a negative overage_refund row
@@ -3319,7 +3314,7 @@ class RegisterController extends Controller
             return response()->json(['ok' => false, 'error' => 'No sale found to refund against.'], 422);
         }
 
-        // MARKER-PATCH-462 — card refund: fire a real Stripe refund when the sale
+        // card refund: fire a real Stripe refund when the sale
         // has a charge to reverse; otherwise fall through and record a manual
         // 'card' refund (operator returned it out-of-band — terminal, manual key).
         $stripeRefundId = null;
@@ -3404,7 +3399,7 @@ class RegisterController extends Controller
 
 
     /**
-     * MARKER-PATCH-630 — allowed payment_method values: built-ins plus any
+     * allowed payment_method values: built-ins plus any
      * enabled manual method keys from tenant_payment_methods.
      */
     protected function allowedTenders(array $extra = []): string
@@ -3426,7 +3421,7 @@ class RegisterController extends Controller
     }
 
     /**
-     * MARKER-PATCH-197 — Stripe-vs-ledger reconciliation report. Lists succeeded
+     * Stripe-vs-ledger reconciliation report. Lists succeeded
      * Stripe payments with no matching ledger row ("paid in Stripe, unpaid in
      * Intake"). The safety net for any payment that slips past the webhook.
      */
@@ -3448,7 +3443,7 @@ class RegisterController extends Controller
     }
 
     /**
-     * MARKER-PATCH-197 — Reconcile a stranded Stripe payment by recording it
+     * Reconcile a stranded Stripe payment by recording it
      * against a sale through the ledger. Requires an explicit sale_id (the
      * operator picks the candidate) and the PI id. Idempotent: refuses if a
      * ledger row for this PI already exists.
@@ -3516,7 +3511,7 @@ class RegisterController extends Controller
             if ($sale->status === 'cancelled') $sale->status = 'completed';
             $sale->save();
 
-            // MARKER-PATCH-219C — appointment paid cache cascades
+            // appointment paid cache cascades
             // centrally in SalePaymentService::recalcStatus().
         } catch (\Throwable $e) {
             return response()->json(['ok' => false, 'error' => 'Could not record the payment: ' . $e->getMessage()], 500);
@@ -3526,7 +3521,7 @@ class RegisterController extends Controller
     }
 
     /**
-     * MARKER-PATCH-198 — Hard-delete a single payment row from a sale's ledger.
+     * Hard-delete a single payment row from a sale's ledger.
      * For correcting bad data (e.g. a duplicate deposit). After deletion the
      * sale's payment_status + paid_at and the linked appointment's paid_cents
      * are recomputed so totals stay consistent. Double-confirmed in the UI.
@@ -3562,7 +3557,7 @@ class RegisterController extends Controller
         $svc->recalcStatus($sale);
         $sale->refresh();
 
-        // MARKER-PATCH-219C — appointment paid cache cascades centrally in
+        // appointment paid cache cascades centrally in
         // SalePaymentService::recalcStatus() (called via recalcStatus above).
 
         \Illuminate\Support\Facades\Log::info('sale_payment.deleted', [
@@ -3581,7 +3576,7 @@ class RegisterController extends Controller
     }
 
     /**
-     * MARKER-PATCH-199 — Delete an empty sale (data correction for stray
+     * Delete an empty sale (data correction for stray
      * deposit-sales left after their payment was removed). REFUSES if the sale
      * still has any ledger payments — you must clear those first (patch-198).
      * Hard-deletes the sale + its line items, then refreshes the linked
@@ -3619,7 +3614,7 @@ class RegisterController extends Controller
             return response()->json(['ok' => false, 'error' => 'Refund records cannot be deleted here.'], 422);
         }
 
-        // MARKER-SALE-DELETE-STOCK — a refund already put this stock back once.
+        // a refund already put this stock back once.
         // Restoring again would double-count, so refuse and say why.
         $refund = \App\Models\Tenant\TenantSale::where('tenant_id', $tenant->id)
             ->where('refund_of_sale_id', $sale->id)->first();
@@ -3633,7 +3628,7 @@ class RegisterController extends Controller
 
         $apptId = $sale->appointment_id;
 
-        // MARKER-SALE-DELETE-STOCK — put the stock back. This used to delete the
+        // put the stock back. This used to delete the
         // lines and the sale and leave the units deducted, with the outgoing
         // movements pointing at a sale that no longer existed.
         $restored = [];
@@ -3681,7 +3676,7 @@ class RegisterController extends Controller
         });
 
         // Recompute the linked appointment's paid cache from the remaining ledger.
-        // MARKER-PATCH-219C — this block stays MANUAL by necessity: the sale
+        // this block stays MANUAL by necessity: the sale
         // row was just deleted, so SalePaymentService::recalcStatus() can
         // never run for it. Every other site cascades centrally.
         if ($apptId) {
@@ -3708,7 +3703,7 @@ class RegisterController extends Controller
         ]);
 
         return response()->json(['ok' => true,
-            // MARKER-SALE-DELETE-STOCK — say what came back.
+            // say what came back.
             'restored' => $restored,
             'restored_note' => $restored
                 ? collect($restored)->map(fn ($r) => $r['qty'] . ' × ' . $r['name'])->implode(', ') . ' returned to stock'
@@ -3717,7 +3712,7 @@ class RegisterController extends Controller
     }
 
     /**
-     * MARKER-OFFLINE-SYNC — catalog snapshot for offline register search.
+     * catalog snapshot for offline register search.
      * Top products by 90-day sale frequency plus all active services, shaped
      * like the live /register/search response so the offline path reuses
      * renderResults() unchanged.
@@ -3733,7 +3728,7 @@ class RegisterController extends Controller
             ->whereNotNull('tenant_sale_items.inventory_item_id')
             ->groupBy('tenant_sale_items.inventory_item_id')
             ->orderByRaw('COUNT(*) DESC')
-            ->limit(min(1000, max(100, (int) $request->query('limit', 500)))) // MARKER-OFFLINE-SYNC stage 2
+            ->limit(min(1000, max(100, (int) $request->query('limit', 500)))) // stage 2
             ->pluck('tenant_sale_items.inventory_item_id')
             ->all();
 
@@ -3745,7 +3740,7 @@ class RegisterController extends Controller
                 'name'                   => $p->name ?? '',
                 'subtitle'               => $p->display_subtitle ?? '',
                 'sku'                    => $p->sku ?? '',
-                // MARKER-CAMERA-SCAN — so a scan can find its exact match.
+                // so a scan can find its exact match.
                 'codes'                  => array_values(array_filter([$p->sku, $p->catalog_upc, $p->catalog_ean])),
                 'price_cents'            => (int) ($p->effectiveSellPriceCents() ?? 0),
                 'is_taxable'             => (($p->tax_class_code ?? null) !== 'exempt'),
@@ -3772,7 +3767,7 @@ class RegisterController extends Controller
         ]);
     }
 
-    // MARKER-REG-SETTINGS -- register settings tab (draft/quote retention)
+    // register settings tab (draft/quote retention)
 
     public function settingsPage(Request $request)
     {
@@ -3783,7 +3778,6 @@ class RegisterController extends Controller
             'tenant'         => $tenant,
             'draftRetention' => (int) ($cfg['register_draft_retention_days'] ?? 0),
             'quoteRetention' => (int) ($cfg['register_quote_retention_days'] ?? 0),
-            // MARKER-GC-SETTINGS
             'gift'           => \App\Services\Tenant\GiftCardService::config($tenant),
         ]);
     }
@@ -3795,7 +3789,7 @@ class RegisterController extends Controller
         $data = $request->validate([
             'register_draft_retention_days' => 'required|integer|in:0,7,14,30,90',
             'register_quote_retention_days' => 'required|integer|in:0,30,90,180,365',
-            // MARKER-GC-SETTINGS -- dollars in the form, cents in storage.
+            // dollars in the form, cents in storage.
             'gift_card_presets'                  => 'nullable|array|max:4',
             'gift_card_presets.*'                => 'nullable|numeric|min:0|max:20000',
             'gift_card_min'                      => 'nullable|numeric|min:1|max:20000',
@@ -3812,7 +3806,7 @@ class RegisterController extends Controller
         $settings['register_draft_retention_days'] = (int) $data['register_draft_retention_days'];
         $settings['register_quote_retention_days'] = (int) $data['register_quote_retention_days'];
 
-        // MARKER-GC-SETTINGS -- only written when the gift card section was on
+        // only written when the gift card section was on
         // the page. A shop without the add-on never renders those inputs, and a
         // blind write would silently reset its presets to nothing.
         if ($tenant->gift_cards_visible) {
@@ -3844,7 +3838,7 @@ class RegisterController extends Controller
         return redirect()->route('tenant.register.settings')->with('status', 'Register settings saved.');
     }
 
-    // MARKER-GIFTCARDS -- live balance check for the tender + sell modals.
+    // live balance check for the tender + sell modals.
 
     public function giftCardLookup(Request $request): JsonResponse
     {

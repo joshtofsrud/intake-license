@@ -1,5 +1,5 @@
 <?php
-// MARKER-REPPANEL-RESOURCE — creating a prospect IS deal registration.
+// creating a prospect IS deal registration.
 
 namespace App\Filament\Rep\Resources\RepProspectResource\Pages;
 

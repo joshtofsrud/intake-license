@@ -1,5 +1,4 @@
 <?php
-// MARKER-PATCH-217
 
 namespace App\Models\Tenant;
 
@@ -11,7 +10,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * A rental category (Mountain, E-bike, Kids…) — pure grouping for
- * browsing and filters. MARKER-PATCH-218B: rates live on the UNIT.
+ * browsing and filters. rates live on the UNIT.
  */
 class TenantRentalCategory extends Model
 {
@@ -20,7 +19,7 @@ class TenantRentalCategory extends Model
     protected $table = 'tenant_rental_categories';
 
     protected $fillable = [
-        'tenant_id', 'name', 'size_axis', 'sort_order', 'archived_at', // MARKER-PATCH-226
+        'tenant_id', 'name', 'size_axis', 'sort_order', 'archived_at',
     ];
 
     protected $casts = [
@@ -38,7 +37,7 @@ class TenantRentalCategory extends Model
         return $this->hasMany(TenantRentalUnit::class, 'category_id');
     }
 
-    public function models(): HasMany // MARKER-PATCH-226
+    public function models(): HasMany
     {
         return $this->hasMany(TenantRentalModel::class, 'category_id');
     }

@@ -1,4 +1,4 @@
-{{-- MARKER-SO-SCROLL — one special-order row, shared by the needs-a-vendor
+{{-- one special-order row, shared by the needs-a-vendor
      box and each vendor box. Item name gets its own line so long product
      names cannot collide with the vendor picker. --}}
 @php
@@ -10,7 +10,7 @@
     <span class="sog-cb on" data-sog-cb></span>
   @endif
 
-  {{-- MARKER-SO-OPENROW — the flat table opened the order on row click and
+  {{-- the flat table opened the order on row click and
        the grouped view lost it. The name is the link, so clicks on the
        picker, checkbox, and inline buttons stay put. --}}
   <div class="sog-ident">

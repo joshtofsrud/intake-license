@@ -1,5 +1,4 @@
 <?php
-// MARKER-PATCH-261
 
 namespace App\Http\Controllers\Tenant;
 
@@ -38,7 +37,7 @@ class SiteTemplateController extends Controller
         $name = SiteTemplate::name($key);
         $msg  = $name . ' applied. Your site has been restyled — page content is unchanged.';
 
-        // MARKER-REWIND — rebuilding the homepage replaces every section, so
+        // rebuilding the homepage replaces every section, so
         // take a labelled restore point first. This is what makes the rebuild
         // a safe action instead of a one-way door.
         if ($request->boolean('seed_layout')) {
@@ -50,7 +49,7 @@ class SiteTemplateController extends Controller
             }
         }
 
-        // MARKER-PATCH-264 — opt-in: also rebuild the home page from the blueprint.
+        // opt-in: also rebuild the home page from the blueprint.
         if ($request->boolean('seed_layout') && $this->templates->seedLayout(tenant(), $key)) {
             $msg = $name . ' applied. Your homepage was rebuilt with this template’s layout and restyled to match. Other pages are untouched.';
         }
@@ -70,7 +69,7 @@ class SiteTemplateController extends Controller
     }
 
     /**
-     * MARKER-CUSTOMIZER — save per-tenant token overrides.
+     * save per-tenant token overrides.
      *
      * Only values that differ from the active template's own token are stored,
      * so "reset to template default" is simply the absence of a key and a
@@ -83,7 +82,7 @@ class SiteTemplateController extends Controller
     {
         $tenant = tenant();
 
-        // MARKER-CZFIX — colors may be hex OR rgba (the seeded fallbacks).
+        // colors may be hex OR rgba (the seeded fallbacks).
         $data = $request->validate([
             'accent'            => ['nullable', 'string', 'regex:/^(#[0-9a-fA-F]{6}|rgba?\([\d.,\s]+\))$/'],
             'text'              => ['nullable', 'string', 'regex:/^(#[0-9a-fA-F]{6}|rgba?\([\d.,\s]+\))$/'],

@@ -1,4 +1,4 @@
-{{-- MARKER-PATCH-120-PART2 — tenant domain management, list view --}}
+{{-- tenant domain management, list view --}}
 @extends('layouts.tenant.app')
 
 @php

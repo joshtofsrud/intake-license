@@ -1,7 +1,7 @@
-@php $bgId = 'mkbg-' . substr(md5((string) ($section->id ?? uniqid())), 0, 10); @endphp {{-- MARKER-MKT-SECTION-BG --}}
+@php $bgId = 'mkbg-' . substr(md5((string) ($section->id ?? uniqid())), 0, 10); @endphp
 @include('marketing.sections._section_bg', ['bgId' => $bgId])
 {{--
-  Text + image. MARKER-TI-ACCORDION — two styles:
+  Text + image. two styles:
     classic   heading, body, one image, up to three buttons (today's block)
     accordion several items; opening one fades its text in and crossfades the image
   Both now honour the editor's eyebrow, highlight phrase, buttons, image ratio/aspect/corners,
@@ -41,7 +41,7 @@
     $flag     = fn ($k, $d) => array_key_exists($k, $c) ? ! in_array((string) $c[$k], ['', '0', 'false'], true) : $d;
     $firstOpen = $flag('acc_first_open', true);
     $multi    = $flag('acc_multi', false);
-    // MARKER-TI-SCROLL — open items as the visitor scrolls: the section stays
+    // open items as the visitor scrolls: the section stays
     // in place while they scroll through it, one stretch of scroll per item.
     $scroll   = $flag('acc_scroll', false) && ! $multi;
     $scrollLen = ['short' => 0.5, 'medium' => 0.75, 'long' => 1.1][$c['acc_scroll_len'] ?? 'medium'] ?? 0.75;
@@ -49,9 +49,9 @@
     $secs     = max(3, min(20, (int) ($c['acc_auto_secs'] ?? 6)));
     $icon     = ($c['acc_icon'] ?? 'plus') === 'arrow' ? 'arrow' : 'plus';
     $numbers  = ($c['acc_numbers'] ?? 'show') !== 'hide';
-    $lightbox = $flag('img_lightbox', false); // MARKER-TI-LIGHTBOX
-    $accMid   = ($c['acc_img_valign'] ?? 'middle') !== 'top'; // MARKER-TI-VALIGN — image beside the list: middle (default) or top
-    // MARKER-TI-FRAME — none | panel | browser
+    $lightbox = $flag('img_lightbox', false);
+    $accMid   = ($c['acc_img_valign'] ?? 'middle') !== 'top'; // image beside the list: middle (default) or top
+    // none | panel | browser
     $frame    = in_array($c['img_frame'] ?? 'none', ['panel', 'browser'], true) ? $c['img_frame'] : 'none';
     $frameOpen = match ($frame) {
         'panel'   => '<div class="ti-frame ti-frame-panel">',
@@ -72,7 +72,6 @@
   .{{ $tiId }} .ti-img img { width: 100%; @if($aspect !== 'auto') height: 100%; object-fit: cover; @endif }
   @if($lightbox) .{{ $tiId }} .ti-img img { cursor: zoom-in; } @endif
   @if($frame !== 'none')
-  {{-- MARKER-TI-FRAME --}}
   .{{ $tiId }} .ti-frame { padding: 12px; border-radius: calc({{ $radius }} + 8px); background: linear-gradient(180deg, #181818, #0f0f0f); border: .5px solid rgba(255,255,255,.1); box-shadow: 0 30px 60px -24px rgba(0,0,0,.65), 0 0 90px -30px color-mix(in srgb, {{ $accent }} 35%, transparent); }
   .{{ $tiId }} .ti-frame .ti-img { box-shadow: none; }
   .{{ $tiId }} .ti-frame-browser { padding: 0 10px 10px; }
@@ -97,12 +96,12 @@
   .{{ $tiId }} .ti-item::before { content: ""; position: absolute; left: 0; top: -1px; height: 1.5px; width: 0; background: {{ $accent }}; }
   .{{ $tiId }} .ti-item.is-open::before { width: 100%; transition: width .45s ease; }
 @if($scroll)
-  /* MARKER-TI-SCROLL — the line fills as you scroll through the open item */
+  /* the line fills as you scroll through the open item */
   .{{ $tiId }} .ti-track { position: relative; }
-  .{{ $tiId }} .ti-pin { position: sticky; top: 80px; } /* MARKER-TI-SCROLL-TIGHT — top set by script to centre it */
+  .{{ $tiId }} .ti-pin { position: sticky; top: 80px; } /* top set by script to centre it */
   .{{ $tiId }} .ti-pin > .mk-container { width: 100%; }
   .{{ $tiId }} .ti-acc.is-scroll .ti-item.is-open::before { width: calc(var(--p, 0) * 100%); transition: none; }
-  /* MARKER-TI-SCROLL-PHONE — phones scroll too. The open item's picture gets a
+  /* phones scroll too. The open item's picture gets a
      fixed height so the whole block fits on screen while it is held in place;
      a block that still can't fit drops back to the tap-to-open accordion. */
   @media (prefers-reduced-motion: reduce) {
@@ -153,10 +152,10 @@
   .{{ $tiId }} .ti-stage .ti-img img, .{{ $tiId }} .ti-stage .ti-img .ti-ph { position: absolute; inset: 0; opacity: 0; transform: scale(1.02); transition: opacity .45s ease, transform .6s ease; }
   .{{ $tiId }} .ti-stage .ti-img .is-on { opacity: 1; transform: none; }
 @if($aspect === 'auto')
-  .{{ $tiId }} .ti-stage .ti-img .is-on { position: relative; display: block; } /* MARKER-TI-AUTO-ASPECT — the visible image sets the height */
+  .{{ $tiId }} .ti-stage .ti-img .is-on { position: relative; display: block; } /* the visible image sets the height */
   .{{ $tiId }} .ti-stage .ti-img img { height: auto; }
 @endif
-  .{{ $tiId }} .ti-stage .ti-img img:not(.is-on) { pointer-events: none; } /* MARKER-TI-LIGHTBOX — hidden stacked images mustn't catch the click */
+  .{{ $tiId }} .ti-stage .ti-img img:not(.is-on) { pointer-events: none; } /* hidden stacked images mustn't catch the click */
   @media (max-width: 760px) {
     .{{ $tiId }} .ti-stage { display: none; }
     .{{ $tiId }} .ti-inner { padding-left: 0; }
@@ -165,7 +164,7 @@
   @media (prefers-reduced-motion: reduce) { .{{ $tiId }} * { transition: none !important; } }
 @endif
 </style>
-    @if($style === 'accordion' && $scroll && count($items) > 1)<div class="ti-track" data-ti-len="{{ $scrollLen }}"><div class="ti-pin">@endif{{-- MARKER-TI-SCROLL --}}
+    @if($style === 'accordion' && $scroll && count($items) > 1)<div class="ti-track" data-ti-len="{{ $scrollLen }}"><div class="ti-pin">@endif
     <div class="mk-container"><div class="ti-wrap">
 @if($style === 'classic')
         <div class="ti-grid">
@@ -230,11 +229,11 @@
         @endif
 @endif
     </div></div>
-    @if($style === 'accordion' && $scroll && count($items) > 1)</div></div>@endif{{-- MARKER-TI-SCROLL --}}
+    @if($style === 'accordion' && $scroll && count($items) > 1)</div></div>@endif
 </section>
 @if($style === 'accordion')
 <script>
-  // MARKER-TI-ACCORDION — one listener for every accordion on the page (and any the builder preview redraws).
+  // one listener for every accordion on the page (and any the builder preview redraws).
   (function () {
     if (window.__tiAcc) { window.__tiAcc.scan(); return; }
     var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -265,10 +264,10 @@
       var el = list[cur]; void el.offsetWidth; el.classList.add('is-run');
       acc.__tiT = setTimeout(function () { setOpen(acc, (cur + 1) % list.length, true); tick(acc); }, secs * 1000);
     }
-    // MARKER-TI-SCROLL — which item is open follows the scroll position.
+    // which item is open follows the scroll position.
     var scrollers = [], raf = 0;
     function scrollOn(acc) {
-      // MARKER-TI-SCROLL-PHONE — no phone exclusion; only a block too tall for the screen is left out.
+      // no phone exclusion; only a block too tall for the screen is left out.
       return acc.getAttribute('data-ti-scroll') === '1' && !reduce && !acc.__tiNoFit && acc.closest('.ti-track');
     }
     function drive() {
@@ -276,7 +275,7 @@
       scrollers.forEach(function (acc) {
         if (!scrollOn(acc)) { acc.classList.remove('is-scroll'); var t0 = acc.closest('.ti-track'); if (t0) { t0.style.height = ''; t0.__h = null; } return; }
         acc.classList.add('is-scroll');
-        // MARKER-TI-SCROLL-PHONE — the block must fit on screen with its tallest item open.
+        // the block must fit on screen with its tallest item open.
         var tr = acc.closest('.ti-track'), pn = tr.querySelector('.ti-pin');
         if (need(acc, pn) > window.innerHeight - 92) {
           acc.__tiNoFit = true; tr.classList.add('ti-nofit');
@@ -292,7 +291,7 @@
         list.forEach(function (it, k) { it.style.setProperty('--p', k === idx ? (pos - idx).toFixed(3) : '0'); });
       });
     }
-    // MARKER-TI-SCROLL-TIGHT — size the track from the content: the block sticks
+    // size the track from the content: the block sticks
     // centred on screen (below the nav), and the track is the block's own height
     // plus one stretch of scrolling per item.
     function geo(acc) {
@@ -305,7 +304,7 @@
       if (track.__h !== want) { track.style.height = want + 'px'; track.__h = want; }
       return { track: track, top: top, total: want - h };
     }
-    // MARKER-TI-SCROLL-PHONE — block height with the TALLEST item open: the
+    // block height with the TALLEST item open: the
     // open panels are swapped for the biggest panel's full height.
     function need(acc, pin) {
       var cur = 0, max = 0;
@@ -337,7 +336,7 @@
       var h = e.target.closest && e.target.closest('[data-ti-acc] .ti-head'); if (!h) return;
       var acc = h.closest('[data-ti-acc]'), it = h.closest('.ti-item');
       if (scrollOn(acc)) {
-        // MARKER-TI-SCROLL — clicking an item scrolls to its stretch, so click and scroll never disagree.
+        // clicking an item scrolls to its stretch, so click and scroll never disagree.
         var g = geo(acc), n = items(acc).length;
         var top = g.track.getBoundingClientRect().top + window.pageYOffset - g.top;
         window.scrollTo({ top: top + g.total * (+it.getAttribute('data-i') + 0.05) / n, behavior: 'smooth' });
@@ -356,7 +355,7 @@
 
 @if($lightbox)
 <script>
-  // MARKER-TI-LIGHTBOX — one lightbox for every Text + image section that has "Click image to enlarge" on.
+  // one lightbox for every Text + image section that has "Click image to enlarge" on.
   (function () {
     if (window.__tiLb) return;
     var box, img, cap, prev, next, closeBtn, list = [], at = 0, lastFocus = null, x0 = null;

@@ -1,5 +1,5 @@
 {{--
-  MARKER-PATCH-575 — products_showcase public render. Live pull from the
+  products_showcase public render. Live pull from the
   online store: show_online items in the chosen category. Renders nothing
   when the store is gated off (addon, master switch, or no matches) — a
   stale section never shows an empty shell or leaks a disabled feature.

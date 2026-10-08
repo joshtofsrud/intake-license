@@ -1,4 +1,4 @@
-{{-- MARKER-PATCH-228B — shared rental sub-nav. Pass $active with one of:
+{{-- shared rental sub-nav. Pass $active with one of:
      desk | fleet | bookings | availability | leases | settings.
      Consistent across every rental page so you can reach any page from
      any page. Page-specific actions live in the page, not here. --}}
@@ -10,10 +10,10 @@
     ['key' => 'availability', 'label' => 'Availability', 'route' => 'tenant.rentals.availability.timeline'],
   ];
   if (tenant()->leases_enabled) {
-    $rnTabs[] = ['key' => 'leases', 'label' => 'Leases', 'route' => 'tenant.rentals.leases.index']; // MARKER-PATCH-230
+    $rnTabs[] = ['key' => 'leases', 'label' => 'Leases', 'route' => 'tenant.rentals.leases.index'];
   }
   if (tenant()->rental_extensions_enabled) {
-    $rnTabs[] = ['key' => 'offers', 'label' => 'Offers', 'route' => 'tenant.rentals.extension.activity']; // MARKER-RENTAL-EXT-P2
+    $rnTabs[] = ['key' => 'offers', 'label' => 'Offers', 'route' => 'tenant.rentals.extension.activity'];
   }
   $rnTabs[] = ['key' => 'settings', 'label' => 'Settings', 'route' => 'tenant.rentals.settings'];
 @endphp

@@ -1,4 +1,4 @@
-{{-- MARKER-DEMO-ENTRY · MARKER-DEMO-WEEKCARDS · MARKER-DEMO-PAGEALIGN
+{{--
      One card shape throughout: same padding, same heading, body grows, actions
      pinned to the bottom so paired cards line up whatever their text length. --}}
 @php
@@ -61,7 +61,7 @@
 
         <div style="{{ $card }}">
             <div style="{{ $label }}">Visitors</div>
-            {{-- MARKER-DEMO-COUNTS — people first; raw hits are the footnote. --}}
+            {{-- people first; raw hits are the footnote. --}}
             <div style="font-size:15px;font-weight:600">
                 {{ number_format($s['people']) }} {{ \Illuminate\Support\Str::plural('person', $s['people']) }}
             </div>

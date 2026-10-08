@@ -7,7 +7,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * MARKER-CUST-CLEANUP — extracted from CustomerController so the master-admin
+ * extracted from CustomerController so the master-admin
  * sweep and the shop's own customer screen remove customers by the SAME rules.
  * Two copies of "is it safe to delete this person" is how one screen deletes
  * what the other would have preserved.

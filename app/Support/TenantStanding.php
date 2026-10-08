@@ -1,5 +1,5 @@
 <?php
-// MARKER-TENANT-STANDING — the single answer to "what state is this shop in".
+// the single answer to "what state is this shop in".
 // Middleware, banner and master admin all read this, so there is one rule.
 
 namespace App\Support;

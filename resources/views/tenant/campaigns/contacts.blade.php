@@ -1,7 +1,6 @@
 @extends('layouts.tenant.app')
 @php $pageTitle = 'Contacts & consent'; @endphp
 
-{{-- MARKER-CONSENT-SURFACES --}}
 @push('styles')
 <style>
   .cn-wrap{max-width:860px}

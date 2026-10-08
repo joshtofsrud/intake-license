@@ -1,5 +1,4 @@
 <?php
-// MARKER-DATA-COMPLETENESS
 
 namespace App\Services\Tenant;
 

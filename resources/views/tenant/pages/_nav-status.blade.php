@@ -1,7 +1,7 @@
-{{-- MARKER-SHOP-NAV — reads the shop's menu itself, so it can't disagree
+{{-- reads the shop's menu itself, so it can't disagree
      with it. Replaces the "Show in site navigation" checkbox, which saved a
      setting the site never read.
-     MARKER-NAV-INTENT — the links open the page holding the Nav section
+     the links open the page holding the Nav section
      (wherever it is) with that section selected; "Add it in the menu" also
      puts this page in the list, unsaved, and a dialog explains what to do. --}}
 @php

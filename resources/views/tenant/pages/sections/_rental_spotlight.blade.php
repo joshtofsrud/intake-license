@@ -1,5 +1,5 @@
 {{--
-  MARKER-RENTAL-SECTIONS — rental_spotlight editor.
+  rental_spotlight editor.
   One model, hero treatment. Rates/sizes/counts come live from the fleet;
   the image is section content (the fleet has no photos yet).
 --}}

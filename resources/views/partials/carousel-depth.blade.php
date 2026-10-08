@@ -1,5 +1,5 @@
 {{--
-  MARKER-CAROUSEL-DEPTH — the "Depth" style of the Image carousel, shared by
+  the "Depth" style of the Image carousel, shared by
   intake.works and shop sites. The center card is large and in focus; the
   neighbours sit smaller and dimmed behind. Swipe or drag (native scroll
   snap), click a side card to bring it forward, arrows optional. Each
@@ -12,7 +12,7 @@
   $cdBtn    = trim((string) ($c['depth_button'] ?? 'View')) ?: 'View';
   $cdArrows = ! in_array((string) ($c['show_arrows'] ?? '1'), ['0', 'false', ''], true);
   $cdAnchor = preg_replace('/[^A-Za-z0-9_-]/', '', (string) ($c['anchor_id'] ?? ''));
-  $cdCls    = trim($customClass . (empty($mkWrap) && ! empty($c['hide_on_mobile']) ? ' cd-hide-m' : '') . (empty($mkWrap) && ! empty($c['hide_on_desktop']) ? ' cd-hide-d' : '')); // MARKER-MKT-HIDE-TABLET
+  $cdCls    = trim($customClass . (empty($mkWrap) && ! empty($c['hide_on_mobile']) ? ' cd-hide-m' : '') . (empty($mkWrap) && ! empty($c['hide_on_desktop']) ? ' cd-hide-d' : ''));
 @endphp
 <style>
   .{{ $cdId }} { padding: clamp(48px, 7vw, 96px) 0; }

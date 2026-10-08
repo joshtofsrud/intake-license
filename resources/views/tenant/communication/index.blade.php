@@ -1,7 +1,7 @@
 @extends('layouts.tenant.app')
 @php $pageTitle = 'Communication'; @endphp
 
-{{-- MARKER-PATCH-404 — Communication Center --}}
+{{-- Communication Center --}}
 @push('styles')
 <style>
   .cc-wrap{max-width:1000px}
@@ -49,7 +49,7 @@
   .cc-sw.blk{background:#26262a;cursor:not-allowed}.cc-sw.blk::after{background:#4a4a52}
   .cc-blkwrap{display:inline-flex;flex-direction:column;align-items:center;gap:3px}
   .cc-blknote{font-size:9.5px;color:#e3b341;text-decoration:underline;text-underline-offset:2px}
-  .cc-edit{appearance:none;-webkit-appearance:none;background:none;border:none;cursor:pointer;padding:0;font-family:inherit;font-size:12px;font-weight:600;color:var(--ia-accent,#e0a82e);text-decoration:none;white-space:nowrap} /* MARKER-PATCH-443 cc-edit button reset */
+  .cc-edit{appearance:none;-webkit-appearance:none;background:none;border:none;cursor:pointer;padding:0;font-family:inherit;font-size:12px;font-weight:600;color:var(--ia-accent,#e0a82e);text-decoration:none;white-space:nowrap} /* cc-edit button reset */
 
   .cc-savebar{display:flex;align-items:center;gap:14px;margin-top:16px}
   .cc-dirty{font-size:12.5px;color:var(--ia-text-3,#74747a)}
@@ -91,7 +91,7 @@
 
   @media(max-width:760px){.cc-grid{grid-template-columns:1fr}.cc-lr{grid-template-columns:1fr;gap:3px}.cc-lr .tm{text-align:left}}
 
-  /* MARKER-PATCH-405 — editor drawer */
+  /* editor drawer */
   .cc-bd{position:fixed;inset:0;background:rgba(0,0,0,.55);opacity:0;pointer-events:none;transition:opacity .2s;z-index:60}
   .cc-bd.show{opacity:1;pointer-events:auto}
   .cc-drawer{position:fixed;top:0;right:0;height:100vh;width:min(820px,96vw);background:var(--ia-bg,#0b0b0c);
@@ -135,7 +135,7 @@
   .cc-ghost{background:none;border:1px solid var(--ia-border,#2a2a2e);color:var(--ia-text-2,#a6a6ac);border-radius:9px;font:inherit;font-size:13px;padding:10px 16px;cursor:pointer}
   .cc-dfoot .right{margin-left:auto}
 
-  /* MARKER-PATCH-407 — receipt options */
+  /* receipt options */
   .cc-opts{margin-top:18px;background:var(--ia-surface,#161619);border:1px solid var(--ia-border,#2a2a2e);border-radius:13px;padding:2px 18px}
   .cc-opt{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding:15px 0;border-bottom:1px solid rgba(255,255,255,.05)}
   .cc-opt:last-child{border-bottom:none}
@@ -146,13 +146,13 @@
   .cc-chk input{accent-color:var(--ia-accent,#e0a82e);margin:0}
   .cc-chk.locked{opacity:.6;cursor:default}
 
-  /* MARKER-PATCH-409 — send test row */
+  /* send test row */
   .cc-testrow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:13px 22px;border-top:1px solid var(--ia-border,#2a2a2e);background:rgba(255,255,255,.015)}
   .cc-testlbl{font-size:12.5px;font-weight:600;color:var(--ia-text-2,#a6a6ac)}
   .cc-testinp{width:auto;flex:1;min-width:170px;max-width:300px;padding:8px 11px}
   #ccTestStatus{font-size:12px;color:var(--ia-text-2,#a6a6ac)}
 
-  /* MARKER-PATCH-411 — email logo picker */
+  /* email logo picker */
   .cc-logoctrls{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px}
   .cc-logosel{width:auto;min-width:210px;padding:8px 11px}
   .cc-logourl{width:auto;flex:1;min-width:170px;max-width:300px;padding:8px 11px}
@@ -161,7 +161,7 @@
   .cc-logoprev img{max-height:42px;max-width:100%;display:block}
   .cc-logoprev .nm{color:#f0f0f0;font-weight:700;font-size:15px;font-family:-apple-system,sans-serif}
 
-  /* MARKER-PATCH-440 — Communication Center mobile: segmented tabs, Messages cards, stacked options */
+  /* Communication Center mobile: segmented tabs, Messages cards, stacked options */
   @media(max-width:760px){
     /* tabs -> full-width segmented control */
     .cc-tabs{background:var(--ia-surface,#161619);border:1px solid var(--ia-border,#2a2a2e);border-radius:13px;padding:4px;gap:3px;border-bottom:none;margin-bottom:18px}
@@ -202,7 +202,7 @@
     .cc-logosel,.cc-logourl{min-width:0;width:100%;max-width:none;flex:1 1 100%}
   }
 
-  /* MARKER-PATCH-444 — Communication mobile: Save bar surfaces only on unsaved changes; nav stays for an exit */
+  /* Communication mobile: Save bar surfaces only on unsaved changes; nav stays for an exit */
   @media(max-width:760px){
     /* nav hides only while there are unsaved changes or the full-screen editor is open */
     body.cc-dirty .ia-mobile-nav,
@@ -239,9 +239,8 @@
     <button class="cc-tab on" data-tab="messages" type="button">Messages</button>
     <button class="cc-tab" data-tab="inbound" type="button">Inbound</button>
     <button class="cc-tab" data-tab="activity" type="button">Activity</button>
-    {{-- MARKER-COMMS-ONE-HOME --}}
     <button class="cc-tab" data-tab="suppressions" type="button">Suppressions {{ $suppressionCount ? '(' . $suppressionCount . ')' : '' }}</button>
-    {{-- MARKER-CAMPAIGNS-MERGE — link, not a panel: campaigns live on their
+    {{-- link, not a panel: campaigns live on their
          own page and this tab navigates there. No data-tab on purpose. --}}
     <a class="cc-tab" href="{{ route('tenant.campaigns.index') }}" style="text-decoration:none;display:inline-block">Campaigns</a>
   </div>
@@ -317,9 +316,9 @@
         </tbody>
       </table>
 
-      {{-- MARKER-PATCH-407 — receipt options (single source) --}}
+      {{-- receipt options (single source) --}}
       <div class="cc-opts">
-        {{-- MARKER-PATCH-411 — email header logo --}}
+        {{-- email header logo --}}
         <div class="cc-opt">
           <div style="flex:1;min-width:0">
             <div class="cc-optt">Email header logo</div>
@@ -406,7 +405,7 @@
   </div>
 
   {{-- ================= SUPPRESSIONS ================= --}}
-  {{-- MARKER-COMMS-ONE-HOME — bounces and complaints. These addresses are
+  {{-- bounces and complaints. These addresses are
        refused at send time; the list is evidence, not a preference. --}}
   <div class="cc-view" id="cc-suppressions">
     <p style="font-size:13px;opacity:.6;margin:0 0 16px;max-width:70ch">
@@ -462,7 +461,7 @@
 
 </div>
 
-{{-- MARKER-PATCH-405 — editor drawer --}}
+{{-- editor drawer --}}
 <div class="cc-bd" id="ccBackdrop" onclick="ccCloseEd()"></div>
 <aside class="cc-drawer" id="ccDrawer" aria-hidden="true">
   <div class="cc-dh">
@@ -512,7 +511,7 @@
         </div>
       </div>
     </div>
-    {{-- MARKER-PATCH-409 — send test --}}
+    {{-- send test --}}
     <div class="cc-testrow">
       <span class="cc-testlbl">Send yourself a test</span>
       <input type="email" id="ccTestEmail" class="cc-inp cc-testinp" value="{{ $testEmail }}" placeholder="you@example.com" autocomplete="off">
@@ -531,7 +530,7 @@
 @push('scripts')
 <script>
   (function(){
-    // MARKER-DUP-CLEANUP — tabs are addressable. ?tab=suppressions opens that
+    // tabs are addressable. ?tab=suppressions opens that
     // tab (every "View suppressions" link redirects here with it), and a click
     // records the tab in the URL so a reload or a back() redirect — removing a
     // suppression, saving a form — returns to the tab you were on.
@@ -550,12 +549,12 @@
       }
     }
     document.querySelectorAll('.cc-tab').forEach(function(t){
-      if (!t.dataset.tab) return; // MARKER-CAMPAIGNS-MERGE — link tabs navigate
+      if (!t.dataset.tab) return; // link tabs navigate
       t.addEventListener('click', function(){ ccShowTab(t.dataset.tab, true); });
     });
     var ccStart = new URLSearchParams(window.location.search).get('tab');
     if (ccStart) { ccShowTab(ccStart, false); }
-    var ccForm = document.querySelector('#cc-messages form'); /* MARKER-PATCH-444 — any field change surfaces the Save bar */
+    var ccForm = document.querySelector('#cc-messages form'); /* any field change surfaces the Save bar */
     if(ccForm){ ccForm.addEventListener('change', function(){ document.body.classList.add('cc-dirty'); }); }
   })();
   function ccTog(btn){
@@ -564,13 +563,13 @@
     if(inp){ inp.value = btn.classList.contains('on') ? 1 : 0; }
     var d = document.getElementById('ccDirty');
     if(d){ d.textContent = 'Unsaved changes'; d.classList.add('on'); }
-    document.body.classList.add('cc-dirty'); /* MARKER-PATCH-444 — surface the Save bar */
+    document.body.classList.add('cc-dirty'); /* surface the Save bar */
   }
   function ccShake(btn){
     btn.animate([{transform:'translateX(0)'},{transform:'translateX(-3px)'},{transform:'translateX(3px)'},{transform:'translateX(0)'}],{duration:200});
   }
 
-  // MARKER-PATCH-405 — editor drawer
+  // editor drawer
   var ccTplUrl = "{{ route('tenant.communication.template', ['type' => '__TYPE__']) }}";
   var ccLastField = null;
   var ccCurrentType = '';
@@ -624,16 +623,16 @@
     ccPrev();
     document.getElementById('ccBackdrop').classList.add('show');
     document.getElementById('ccDrawer').classList.add('show');
-    document.body.classList.add('cc-editor-open'); /* MARKER-PATCH-441 */
+    document.body.classList.add('cc-editor-open');
   }
   function ccCloseEd(){
     document.getElementById('ccBackdrop').classList.remove('show');
     document.getElementById('ccDrawer').classList.remove('show');
-    document.body.classList.remove('cc-editor-open'); /* MARKER-PATCH-441 */
+    document.body.classList.remove('cc-editor-open');
   }
   document.addEventListener('keydown', function(e){ if(e.key === 'Escape') ccCloseEd(); });
 
-  // MARKER-PATCH-409 — send test (fetch; targets the saved message)
+  // send test (fetch; targets the saved message)
   function ccSendTest(){
     var email = (document.getElementById('ccTestEmail').value || '').trim();
     var status = document.getElementById('ccTestStatus');
@@ -653,7 +652,7 @@
       .then(function(){ btn.disabled = false; btn.textContent = label; });
   }
 
-  // MARKER-PATCH-411 — email header logo picker + live preview
+  // email header logo picker + live preview
   var ccLogoLight = @json($logoLight);
   var ccLogoMain  = @json($logoMain);
   var ccShopName  = @json($fromName);
@@ -687,9 +686,9 @@
   ccLogoPrev();
 </script>
 
-{{-- MARKER-COMMS-ONE-HOME / MARKER-DUP-CLEANUP — inside the scripts stack.
+{{-- inside the scripts stack.
      It sat below the scripts stack (twice), outside every section of a
-     view that extends a layout — the same fault MARKER-CAMPAIGN-SCRIPTS fixed. --}}
+     view that extends a layout — the same fault fixed. --}}
 <script>
 function ccRemoveSuppression(btn) {
   var form = btn.closest('[data-supp-remove]');

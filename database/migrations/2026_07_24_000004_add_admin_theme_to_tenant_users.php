@@ -1,6 +1,6 @@
 <?php
 
-// MARKER-USER-THEME-PREF — per-person light/dark. Nullable on purpose:
+// per-person light/dark. Nullable on purpose:
 // null means "no choice made", which inherits the tenant's stored theme, so
 // existing staff see exactly what they saw before this shipped.
 

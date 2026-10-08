@@ -86,7 +86,7 @@ chown -R www-data:www-data "$REL"
 cd "$REL"
 sudo -u www-data composer install --no-interaction --optimize-autoloader --no-scripts
 
-# MARKER-DEPLOY-FILAMENT-ASSETS — public/js/filament and public/css/filament are
+# public/js/filament and public/css/filament are
 # COPIES of what ships in vendor. Without this they keep whatever they were last
 # time anyone ran it by hand, while the PHP moves with every deploy — and the
 # browser then runs old JS against new components. That drift is invisible until

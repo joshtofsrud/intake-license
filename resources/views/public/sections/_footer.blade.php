@@ -1,4 +1,4 @@
-{{-- MARKER-PATCH-158-G26 — footer public renderer (v2) --}}
+{{-- footer public renderer (v2) --}}
 @php
   $c = $c ?? [];
 
@@ -34,7 +34,7 @@
   $footerBg = $bgMode === 'gradient' ? $gradF : $bgColor;
   $logoUrl  = $showLogo && isset($tenant) ? \App\Support\ColorHelper::pickLogo($tenant, $footerBg) : null;
 
-  // MARKER-PATCH-158-G28 — logo size control
+  // logo size control
   $logoSizeMap = [
       'small'  => '22px',
       'medium' => '28px',
@@ -53,7 +53,7 @@
   if (is_string($socialLinks)) { $d = json_decode($socialLinks, true); $socialLinks = is_array($d) ? $d : []; }
   if (!is_array($socialLinks)) $socialLinks = [];
 
-  // MARKER-PATCH-305 — contact info is editable in the footer (email falls back
+  // contact info is editable in the footer (email falls back
   // to the account email). Previously gated on $tenant->phone/address/hours,
   // which aren't tenant columns, so the toggles never did anything.
   $cPhone   = trim($c['contact_phone']   ?? '');
@@ -79,19 +79,19 @@
       $copyTpl
   );
 
-  // MARKER-PATCH-158-G26B — per-section "Powered by Intake" toggle restored.
+  // per-section "Powered by Intake" toggle restored.
   // Default true. The layout-level badge is suppressed when a footer section
   // exists (G26a), so this is the only place the badge would render on pages
   // that have a footer section.
   $showPoweredBy = (bool)($c['show_powered_by'] ?? true);
 
-  // MARKER-PATCH-158-G29 — inline contact form
+  // inline contact form
   $showForm        = (bool)($c['show_form'] ?? false);
   $formHeading     = $c['form_heading']      ?? 'Get in touch';
   $formDescription = $c['form_description']  ?? '';
   $formButton      = $c['form_button_label'] ?? 'Send';
   $formSuccess     = $c['form_success_text'] ?? "Thanks! We'll be in touch soon.";
-  $formShowPhone    = (bool)($c['form_show_phone']    ?? true);   // MARKER-PATCH-394
+  $formShowPhone    = (bool)($c['form_show_phone']    ?? true);
   $formRequirePhone = (bool)($c['form_require_phone'] ?? false);
 
   // Advanced
@@ -101,7 +101,7 @@
   $hideDesktop = !empty($c['hide_on_desktop']);
 
   $instId = 'p-ftr-' . ($section->id ?? uniqid());
-  // MARKER-PATCH-303B — define CTA accent vars BEFORE the <style> that uses them
+  // define CTA accent vars BEFORE the <style> that uses them
   $ctaAccent  = ($tenant->accent_color ?? '') ?: '#3FD16B';
   $ctaBtnText = \App\Support\ColorHelper::accentTextColor($ctaAccent);
 
@@ -254,7 +254,7 @@
   margin-bottom: 3px;
 }
 
-/* MARKER-PATCH-158-G29 — inline contact form */
+/* inline contact form */
 .{{ $instId }} .p-ftr-form {
   display: flex;
   flex-direction: column;
@@ -361,7 +361,7 @@
 @if($hideDesktop)
 @media (min-width: 769px) { .{{ $instId }} { display: none; } }
 @endif
-/* MARKER-PATCH-303 — pre-footer call-to-action band */
+/* pre-footer call-to-action band */
 .{{ $instId }} .p-ftr-cta { border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 36px; margin-bottom: 44px; }
 .{{ $instId }} .p-ftr-cta-inner { max-width: 1200px; margin: 0 auto; padding: 0 clamp(20px, 5vw, 48px); display: flex; align-items: center; justify-content: space-between; gap: 28px; flex-wrap: wrap; }
 .{{ $instId }} .p-ftr-cta-eyebrow { font-size: 11px; letter-spacing: .16em; text-transform: uppercase; color: {{ $ctaAccent }}; margin-bottom: 10px; font-weight: 600; }
@@ -499,7 +499,7 @@
           </div>
         @endif
 
-        {{-- MARKER-PATCH-158-G29 — inline contact form column --}}
+        {{-- inline contact form column --}}
         @if($showForm)
           <div class="p-ftr-col">
             @if($formHeading !== '')
@@ -515,15 +515,15 @@
 
               <form method="POST" action="/contact" class="p-ftr-form">
                 @csrf
-                {{-- MARKER-PATCH-399 honeypot — bots fill this; real users never see or focus it --}}
+                {{-- honeypot — bots fill this; real users never see or focus it --}}
                 <input type="text" name="company_website" tabindex="-1" autocomplete="off" aria-hidden="true"
                        style="position:absolute !important;left:-9999px !important;top:auto;width:1px;height:1px;opacity:0;pointer-events:none">
-                {{-- MARKER-CONTACT-SPAM — same timing check as the contact section. --}}
+                {{-- same timing check as the contact section. --}}
                 <input type="hidden" name="form_started_at" value="{{ encrypt(time()) }}">
                 @if($errors->any())
                   <div class="p-ftr-form-error">{{ $errors->first() }}</div>
                 @endif
-                {{-- MARKER-CONTACT-NAMES — two fields, both required: one
+                {{-- two fields, both required: one
                      combined field let people submit a first name only. --}}
                 <input type="text" name="first_name" placeholder="First name" value="{{ old('first_name') }}" required>
                 <input type="text" name="last_name" placeholder="Last name" value="{{ old('last_name') }}" required>

@@ -1,7 +1,7 @@
 @extends('layouts.tenant.app')
 @php $pageTitle = 'Email suppressions'; @endphp
 
-{{-- MARKER-PATCH-147 — tenant suppression list --}}
+{{-- tenant suppression list --}}
 
 @push('styles')
 <style>
@@ -142,7 +142,7 @@
             <div>
               <span class="sup-mono">{{ $row->email }}</span>
               @if(is_null($row->tenant_id))
-                <span class="sup-platform-badge" title="Blocked for every shop on Intake, not just yours">All shops</span>{{-- MARKER-ALL-SHOPS-BLOCKS --}}
+                <span class="sup-platform-badge" title="Blocked for every shop on Intake, not just yours">All shops</span>
               @endif
             </div>
             <div>
@@ -169,7 +169,7 @@
                 <form method="POST" action="{{ route('tenant.suppressions.destroy', ['id' => $row->id]) }}" style="display: inline;">
                   @csrf
                   @method('DELETE')
-                  {{-- MARKER-ALL-SHOPS-BLOCKS — in-app dialog, not the browser's confirm(). --}}
+                  {{-- in-app dialog, not the browser's confirm(). --}}
                   <button type="button" class="ia-btn ia-btn--ghost" style="font-size: 11.5px; padding: 4px 10px;"
                           data-sup-remove="{{ $row->email }}">
                     Remove
@@ -193,7 +193,6 @@
       Addresses marked <span class="sup-platform-badge">All shops</span> are blocked for every shop on Intake because they bounced from several shops. Only Intake can lift those.
     </div>
     <script>
-    // MARKER-ALL-SHOPS-BLOCKS
     document.addEventListener('click', function (e) {
       var btn = e.target.closest ? e.target.closest('[data-sup-remove]') : null;
       if (!btn) return;

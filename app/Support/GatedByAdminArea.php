@@ -1,5 +1,5 @@
 <?php
-// MARKER-ADMIN-NAV-GATE — shared gate for Filament pages (canAccess hides nav
+// shared gate for Filament pages (canAccess hides nav
 // AND 403s the route) and resources (canViewAny does the same). Each class
 // declares protected static string $adminArea; access follows the matrix.
 // 'view' and 'full' both grant entry — write-level distinctions live in the

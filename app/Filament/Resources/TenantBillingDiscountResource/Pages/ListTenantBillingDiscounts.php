@@ -1,5 +1,4 @@
 <?php
-// MARKER-BILLING-DISCOUNTS
 namespace App\Filament\Resources\TenantBillingDiscountResource\Pages;
 
 use App\Filament\Resources\TenantBillingDiscountResource;

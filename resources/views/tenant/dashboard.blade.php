@@ -1,12 +1,12 @@
 @extends('layouts.tenant.app')
 @push('styles')
   <link rel="stylesheet" href="{{ asset('css/tenant/dashboard.css') }}?v={{ filemtime(public_path('css/tenant/dashboard.css')) }}">
-  {{-- MARKER-PATCH-110-STEP-10a --}}
+  {{-- a --}}
   <link rel="stylesheet" href="{{ asset('css/tenant/dashboard-tiles.css') }}?v={{ filemtime(public_path('css/tenant/dashboard-tiles.css')) }}">
 @endpush
 @section('mobile-fab', 'walk-in')
 @push('styles')
-{{-- MARKER-DASH-LESS-CHROME — on phones the view switch shrinks to two icons
+{{-- on phones the view switch shrinks to two icons
      at the end of the greeting line, and the New sale / New appointment
      buttons give way to the round + button (which offers both). A shop
      without the + (retail off) keeps its buttons. --}}
@@ -36,7 +36,7 @@
 {{-- DASH-MOBILE v1 — mobile-only hero + at-a-glance stats. Hidden on desktop. --}}
 <div class="ia-dash-mobile-only">
   {{-- 3-stat row --}}
-  <div class="ia-dash-m-stats ia-dash-m-stats--strip">{{-- MARKER-DASH-STATS-STRIP --}}
+  <div class="ia-dash-m-stats ia-dash-m-stats--strip">
     <div class="ia-dash-m-stat">
       <div class="ia-dash-m-stat-num">{{ $today['today_count'] }}</div>
       <div class="ia-dash-m-stat-lbl">Today</div>
@@ -60,7 +60,7 @@
     $nuMinutesAway = null;
     if ($nuTime) {
       try {
-        // MARKER-PATCH-361 — appointment_time is naive tenant-local wall-clock;
+        // appointment_time is naive tenant-local wall-clock;
         // parse it in the tenant timezone so the countdown isn't offset by the
         // UTC delta (which made the banner appear/hide at the wrong times).
         $tz = tenant()?->timezone() ?? config('app.timezone', 'UTC');
@@ -105,7 +105,7 @@
 <div class="ia-page-head ia-dash-head {{ tenant()->retail_enabled ? 'has-fab' : '' }}">
   <div class="ia-page-head-left">
     <h1 class="ia-page-title">{{ $greetingLine }}</h1>
-    {{-- MARKER-PATCH-110-STEP-10c --}}
+    {{-- c --}}
     <p class="ia-page-subtitle">
       <strong>{{ $greeting['date_long'] }}</strong>
       @php $attentionCount = $attention['total_items'] ?? 0; @endphp
@@ -120,12 +120,12 @@
     <a href="{{ route('tenant.register.index') }}" class="ia-btn ia-btn--primary">
       + New sale
     </a>
-    {{-- MARKER-DASH-NEWAPPT — was a bare link to the list, which meant
+    {{-- was a bare link to the list, which meant
          hunting for the real button once you got there. --}}
     <a href="{{ route('tenant.appointments.index', ['new' => 1]) }}" class="ia-btn ia-btn--primary">
       + New appointment
     </a>
-    {{-- MARKER-DASH-HEAD-MATCH — toggle lives in the page head on both views --}}
+    {{-- toggle lives in the page head on both views --}}
     <div class="ia-viewseg" style="display:inline-flex;background:var(--ia-surface);border:1px solid var(--ia-border);border-radius:9px;padding:3px">
       <button type="button" class="on" title="Overview" aria-label="Overview" style="padding:6px 13px;font-size:12px;font-weight:600;border-radius:6px;background:var(--ia-surface-2);color:var(--ia-text);border:none;cursor:pointer;font-family:inherit"><svg class="vs-ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="3" y="5" width="14" height="14" rx="2"/><path d="M21 7v10"/></svg><span class="vs-lb">Overview</span></button>
       <form method="POST" action="{{ route('tenant.dashboard.view') }}" style="margin:0;display:inline">
@@ -168,8 +168,8 @@
 @endpush
 @endif
 
-{{-- MARKER-PATCH-110-STEP-10b --}}
-{{-- MARKER-DASH-HEAD-MATCH — toggle moved into the page head above --}}
+{{-- b --}}
+{{-- toggle moved into the page head above --}}
 
 @include('tenant.dashboard._zone_triage_tiles')
 @include('tenant.dashboard._zone_today_tile')

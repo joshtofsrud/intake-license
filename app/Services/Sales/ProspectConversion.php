@@ -1,5 +1,5 @@
 <?php
-// MARKER-SALES-INVITE — the prospect → tenant handoff, in one place.
+// the prospect → tenant handoff, in one place.
 
 namespace App\Services\Sales;
 

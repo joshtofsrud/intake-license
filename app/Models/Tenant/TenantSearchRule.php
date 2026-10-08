@@ -1,5 +1,5 @@
 <?php
-// MARKER-PATCH-622 — tenant-managed search rule (synonym or redirect).
+// tenant-managed search rule (synonym or redirect).
 
 namespace App\Models\Tenant;
 

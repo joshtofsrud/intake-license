@@ -1,4 +1,3 @@
-{{-- MARKER-SALES-FIND --}}
 @php
     $configured = $this->configured();
     $rows   = $this->visibleResults();
@@ -37,7 +36,7 @@
   Nothing on this page changes an existing prospect.
 </div>
 
-{{-- MARKER-SALES-SITE-SCAN — the website pass runs on the server; this says what it is doing --}}
+{{-- the website pass runs on the server; this says what it is doing --}}
 @php $ss = $this->siteScanStats(); $ssDone = $ss['with_site'] ? (int) floor(($ss['with_site'] - $ss['left']) * 100 / $ss['with_site']) : 0; @endphp
 <div style="{{ $card }};margin-bottom:16px">
   <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
@@ -62,7 +61,7 @@
 </div>
 
 @unless($configured)
-  {{-- MARKER-SALES-SETUP — the key and budget live on Sales setup › Google Places now. --}}
+  {{-- the key and budget live on Sales setup › Google Places now. --}}
   <div style="{{ $card }};margin-bottom:16px;border-color:rgba(251,191,36,.5)">
     Searching needs a Google Places key. Add it on <a href="{{ \App\Filament\Pages\SalesPlacesSettings::getUrl() }}" style="color:#a78bfa">Sales setup › Google Places</a>.
   </div>
@@ -83,7 +82,7 @@
 
       <div style="{{ $label }};margin-top:16px">Where</div>
       <input type="text" wire:model="place" wire:keydown.enter="search" class="{{ $input }}" style="width:100%" placeholder="City or address">
-      @error('place')<div style="color:#f87171;font-size:12px;margin-top:4px">{{ $message }}</div>@enderror{{-- MARKER-SALES-INDUSTRY --}}
+      @error('place')<div style="color:#f87171;font-size:12px;margin-top:4px">{{ $message }}</div>@enderror
       <div style="{{ $muted }};margin-top:10px">Radius <b>{{ $radius }}</b> mi <span style="opacity:.6">(Places caps a search at about 30)</span></div>
       <input type="range" min="5" max="30" step="5" wire:model.live="radius" style="width:100%">
 
@@ -99,8 +98,7 @@
       @if($error)<div style="color:#f87171;font-size:13px;margin-top:8px">{{ $error }}</div>@endif
     </div>
 
-    {{-- MARKER-SALES-UPLOAD --}}
-    {{-- MARKER-SALES-UPLOAD3 — not a <details>: Livewire's morph dropped the user's `open` attribute on every re-render --}}
+    {{-- not a <details>: Livewire's morph dropped the user's `open` attribute on every re-render --}}
     <div style="{{ $card }};margin-top:16px">
       <div style="display:flex;justify-content:space-between;align-items:center;cursor:pointer" wire:click="$toggle('showLoader')">
         <span style="font-size:13px;font-weight:600">Load a shop list (free base layer)</span>
@@ -108,7 +106,7 @@
       </div>
       <div style="{{ $showLoader ? '' : 'display:none' }}">
       <div style="{{ $muted }};margin:8px 0">A CSV like the Overture export: shop_name, address, city, state_code, postcode, website, verified_workstand, and latitude/longitude if you have them. Rows already present (same name, city and address) are skipped. Nothing is written until you confirm, and a batch can be undone below — only rows nobody has worked are removed.</div>
-      {{-- MARKER-SALES-UPLOAD2 — progress + errors are shown here; before this the page went quiet when the upload was rejected --}}
+      {{-- progress + errors are shown here; before this the page went quiet when the upload was rejected --}}
       <div x-data="{ up: false, pct: 0, err: '', stage: '' }"
            x-on:change="if ($event.target.type === 'file' && $event.target.files.length) { stage = 'Picked ' + $event.target.files[0].name + ' (' + Math.round($event.target.files[0].size / 1024) + ' KB) — waiting for the upload to start…'; err = ''; setTimeout(() => { if (!up && pct === 0 && !err) { err = 'The browser never started the upload. Reload the page and try again; if it repeats, tell Josh the file name and size.'; } }, 4000); }"
            x-on:livewire-upload-start="up = true; pct = 0; err = ''; stage = 'Uploading…'"
@@ -138,7 +136,7 @@
         @if($this->mapProblem())<div style="color:#fbbf24;font-size:12px;margin-top:6px">{{ $this->mapProblem() }}</div>@endif
       @endif
       @error('shopList')<div style="color:#f87171;font-size:12px;margin-top:4px">{{ $message }}</div>@enderror
-      <div style="font-size:13px;margin-top:10px">Industry for these shops</div>{{-- MARKER-SALES-INDUSTRY --}}
+      <div style="font-size:13px;margin-top:10px">Industry for these shops</div>
       <select wire:model="uploadIndustry" class="{{ $input }}" style="width:100%;margin-top:4px">
         <option value="">None</option>
         @foreach($this->uploadIndustries() as $id => $name)<option value="{{ $id }}">{{ $name }}</option>@endforeach
@@ -186,12 +184,12 @@
       @endforelse
     </div>
 
-    <div style="{{ $muted }};margin-top:12px">Key and monthly budget: <a href="{{ \App\Filament\Pages\SalesPlacesSettings::getUrl() }}" style="color:#a78bfa">Sales setup › Google Places</a></div>{{-- MARKER-SALES-SETUP --}}
+    <div style="{{ $muted }};margin-top:12px">Key and monthly budget: <a href="{{ \App\Filament\Pages\SalesPlacesSettings::getUrl() }}" style="color:#a78bfa">Sales setup › Google Places</a></div>
   </div>
 
   <div>
     <div wire:ignore class="sfs-map" id="sfs-map"></div>
-    {{-- MARKER-SALES-JSONFIX — not @json: that directive splits on commas --}}
+    {{-- not @json: that directive splits on commas --}}
     <script type="application/json" id="sfs-data">{!! json_encode(['rows' => $this->results, 'selected' => $this->selected, 'located' => $this->located], JSON_HEX_TAG | JSON_HEX_AMP) !!}</script>
 
     <div style="{{ $card }};margin-top:16px;padding:0">
@@ -254,7 +252,7 @@
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-  // MARKER-SALES-FIND — map is wire:ignore'd; it redraws from #sfs-data whenever the component says so.
+  // map is wire:ignore'd; it redraws from #sfs-data whenever the component says so.
   (function () {
     var map = null, layer = null;
     function draw() {
@@ -262,7 +260,7 @@
       var data; try { data = JSON.parse(document.getElementById('sfs-data').textContent); } catch (e) { return; }
       if (!map) {
         map = L.map(el, { zoomControl: true }).setView([47.66, -117.43], 9);
-        /* MARKER-ESRI-DARK-TILES */ var esri = 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/'; L.tileLayer(esri + 'World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, maxNativeZoom: 16, attribution: 'Tiles &copy; Esri &mdash; Esri, HERE, Garmin, &copy; OpenStreetMap contributors' }).addTo(map); L.tileLayer(esri + 'World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, maxNativeZoom: 16 }).addTo(map);
+         var esri = 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/'; L.tileLayer(esri + 'World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, maxNativeZoom: 16, attribution: 'Tiles &copy; Esri &mdash; Esri, HERE, Garmin, &copy; OpenStreetMap contributors' }).addTo(map); L.tileLayer(esri + 'World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, maxNativeZoom: 16 }).addTo(map);
       }
       if (layer) { layer.remove(); }
       layer = L.layerGroup().addTo(map);

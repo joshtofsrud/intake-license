@@ -6,7 +6,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
-// MARKER-PATCH-490 — tenant_roles + tenant_users.role_id + backfill
+// tenant_roles + tenant_users.role_id + backfill
 return new class extends Migration
 {
     public function up(): void

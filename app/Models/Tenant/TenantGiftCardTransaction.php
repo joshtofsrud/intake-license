@@ -6,7 +6,6 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-// MARKER-GIFTCARDS
 class TenantGiftCardTransaction extends Model
 {
     use HasUuids;
@@ -16,7 +15,7 @@ class TenantGiftCardTransaction extends Model
     protected $fillable = [
         'tenant_id', 'gift_card_id', 'kind', 'amount_cents',
         'balance_after_cents', 'sale_id', 'note', 'user_id',
-        'location_id', // MARKER-GC-LOCATION
+        'location_id',
     ];
 
     public function card(): BelongsTo

@@ -8,7 +8,6 @@ namespace App\Services;
  * paper width, feed, and header/footer, instead of a block copy-pasted into
  * each print method.
  *
- * MARKER-PATCH-332
  */
 class PrintIdentityService
 {

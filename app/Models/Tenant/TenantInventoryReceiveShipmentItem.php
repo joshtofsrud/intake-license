@@ -36,7 +36,7 @@ class TenantInventoryReceiveShipmentItem extends Model
         'unit_cost_cents',
         'total_cost_cents',
         'notes',
-        'serials', // MARKER-SERIAL-FOUNDATION — typed on a draft, become units on commit
+        'serials', // typed on a draft, become units on commit
     ];
 
     protected $casts = [

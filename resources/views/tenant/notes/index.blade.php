@@ -3,7 +3,6 @@
 
 @section('content')
 
-{{-- MARKER-OLD-SCHOOL --}}
 <div class="ia-page-head">
   <div class="ia-page-head-left">
     <h1 class="ia-page-title">The pad</h1>
@@ -25,7 +24,6 @@
      class="np-tab {{ $tab === 'open' ? 'on' : '' }}">Open {{ $openCount }}</a>
   <a href="{{ route('tenant.notes.index', ['tab' => 'done']) }}"
      class="np-tab {{ $tab === 'done' ? 'on' : '' }}">Crossed off {{ $doneCount }}</a>
-  {{-- MARKER-OLD-SCHOOL-REPORT --}}
   <a href="{{ route('tenant.notes.index', ['tab' => 'report']) }}"
      class="np-tab {{ $tab === 'report' ? 'on' : '' }}">How it's going</a>
 </div>
@@ -42,11 +40,10 @@
 
       <div class="np-body">
         <div class="np-text">{{ $n->body }}</div>
-        {{-- MARKER-OLD-SCHOOL-PHOTO --}}
         @if($n->photos)
           <div class="np-shots">
             @foreach($n->photoUrls() as $u)
-              {{-- MARKER-NOTEPHOTO — opens in the lightbox below, not a new tab --}}
+              {{-- opens in the lightbox below, not a new tab --}}
               <button type="button" class="np-shot" data-full="{{ $u }}" aria-label="Open photo">
                 <img src="{{ $u }}" alt="" loading="lazy">
               </button>
@@ -112,9 +109,7 @@
             text-decoration:none; }
   .np-age { color:#A8622A; font-weight:600; }
   .np-done-by { color:#5F7A55; }
-  /* MARKER-OLD-SCHOOL-PHOTO */
   .np-shots { display:flex; gap:6px; margin-top:7px; flex-wrap:wrap; }
-  /* MARKER-NOTEPHOTO */
   .np-shot { padding:0; border:0; background:none; cursor:zoom-in; line-height:0; border-radius:6px; }
   .np-shot:focus-visible { outline:2px solid #A8622A; outline-offset:2px; }
   .np-shots img { width:88px; height:88px; object-fit:cover; border-radius:6px; display:block;
@@ -144,7 +139,7 @@
 </style>
 
 
-{{-- MARKER-NOTEPHOTO — photo lightbox. Sits inside the content section: this
+{{-- photo lightbox. Sits inside the content section: this
      view extends a layout, so anything after @endsection would be discarded. --}}
 <div id="np-lb" hidden role="dialog" aria-modal="true" aria-label="Photo">
   <button type="button" class="np-lb-btn np-lb-x"    id="np-lb-x"    aria-label="Close">&times;</button>

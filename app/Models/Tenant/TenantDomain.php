@@ -36,7 +36,6 @@ class TenantDomain extends Model
         'status',
         'verification_token',
         'cloudflare_hostname_id',
-        // MARKER-PATCH-125
         'cf_validation_records',
         'cf_dcv_delegation_records',
         'cf_validation_synced_at',
@@ -56,7 +55,6 @@ class TenantDomain extends Model
         'verified_at'                => 'datetime',
         'activated_at'               => 'datetime',
         'suspended_at'               => 'datetime',
-        // MARKER-PATCH-125
         'cf_validation_records'      => 'array',
         'cf_dcv_delegation_records'  => 'array',
         'cf_validation_synced_at'    => 'datetime',
@@ -91,7 +89,7 @@ class TenantDomain extends Model
     }
 
     /**
-     * MARKER-PATCH-125 — domains stuck mid-validation for over 24 hours.
+     * domains stuck mid-validation for over 24 hours.
      * Almost always means the tenant added Intake's records but missed
      * Cloudflare's gate-2 DCV records, leaving the cert unable to issue.
      */
@@ -128,7 +126,7 @@ class TenantDomain extends Model
     }
 
     /**
-     * MARKER-PATCH-125 — preferred CF DCV record for the UI.
+     * preferred CF DCV record for the UI.
      * Returns ['type' => 'CNAME'|'TXT', 'name' => ..., 'value' => ...] or null.
      *
      * CNAME delegation is preferred — single record, no rotation on renewal.
@@ -159,7 +157,7 @@ class TenantDomain extends Model
     }
 
     /**
-     * MARKER-PATCH-125 — TXT fallback record when CNAME delegation is shown
+     * TXT fallback record when CNAME delegation is shown
      * as the primary recommendation. Returns the same shape as
      * preferredDcvRecord(), or null when no TXT fallback is available.
      */

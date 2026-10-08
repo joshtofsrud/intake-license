@@ -1,5 +1,4 @@
 <?php
-// MARKER-PATCH-HLC7A
 
 namespace App\Jobs;
 
@@ -51,7 +50,7 @@ class TenantDistributorSyncJob implements ShouldQueue, ShouldBeUnique
             $sub->last_sync_status = 'failed';
             $sub->last_sync_error = $e->getMessage();
             $sub->save();
-            // MARKER-JOB-ISSUES-2 — a sync failing nightly for a month was
+            // a sync failing nightly for a month was
             // visible only on the shop's connection page, to whoever looked.
             \App\Support\JobFailureReporter::report(self::class, ($sub->distributor_code ?? 'Distributor') . ' catalog sync failed', $e,
                 ['subscription_id' => $sub->id, 'code' => $sub->distributor_code ?? null], $sub->tenant_id);

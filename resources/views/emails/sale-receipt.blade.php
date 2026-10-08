@@ -1,6 +1,5 @@
 @extends('emails.layout')
 
-{{-- MARKER-PATCH-160 --}}
 {{-- Variables in scope:
      $tenant       App\Models\Tenant
      $sale         App\Models\Tenant\TenantSale (with items)
@@ -84,7 +83,7 @@
     <td style="padding:4px 0;font-size:13px;text-align:right">−{{ format_money($sale->discount_cents) }}</td>
   </tr>
   @endif
-  {{-- MARKER-DISCOUNT-VISIBLE — whole-sale discount, as the printed receipt
+  {{-- whole-sale discount, as the printed receipt
        already shows it; without it the emailed receipt doesn't add up. --}}
   @if((int) ($sale->sale_discount_cents ?? 0) > 0)
   <tr>

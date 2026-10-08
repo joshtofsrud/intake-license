@@ -69,7 +69,7 @@ class OnboardingWizardController extends Controller
     }
 
     /**
-     * MARKER-ONBOARD-PLAN — starter is one person, so there is nobody to add.
+     * starter is one person, so there is nobody to add.
      * Skipped rather than shown and then enforced later, which is how you get
      * someone inviting a colleague who cannot sign in.
      */
@@ -135,7 +135,7 @@ class OnboardingWizardController extends Controller
             'onboarding_step' => max(2, $tenant->onboarding_step ?? 0),
         ];
 
-        // MARKER-ONBOARD-PLAN — the workflow picked at stage 1 decides the
+        // the workflow picked at stage 1 decides the
         // booking mode. This used to run only when booking_mode was null, but
         // signup writes 'drop_off' at tenant creation, so it was never null and
         // the choice was silently thrown away — pick "book me a time", get
@@ -408,7 +408,7 @@ class OnboardingWizardController extends Controller
             'currentStep' => $stepNumber,
             'totalSteps'  => self::TOTAL_STEPS,
             'tenant'      => $tenant,
-            // MARKER-ONBOARD-PLAN — the wizard did not know what the tenant had
+            // the wizard did not know what the tenant had
             // just bought, so it offered everything to everybody.
             'planTier'    => $tenant->plan_tier ?? 'starter',
             'canClasses'  => $this->tierAtLeast($tenant, 'branded'),
@@ -417,7 +417,7 @@ class OnboardingWizardController extends Controller
     }
 
     /**
-     * MARKER-ONBOARD-PLAN — plan-tier floor, matching FeatureAccessService's
+     * plan-tier floor, matching FeatureAccessService's
      * ordering so onboarding and the app cannot disagree about what a tier is.
      */
     private function tierAtLeast($tenant, string $floor): bool

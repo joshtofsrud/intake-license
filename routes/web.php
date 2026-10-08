@@ -9,7 +9,7 @@ $domain = config('intake.domain', 'intake.works');
 // Platform routes — intake.works
 // =========================================================================
 
-Route::domain($domain)->middleware(\App\Http\Middleware\SeoSignals::class)->group(function () { // MARKER-SEO-SIGNALS
+Route::domain($domain)->middleware(\App\Http\Middleware\SeoSignals::class)->group(function () {
 
     Route::get('/robots.txt',  [\App\Http\Controllers\SeoController::class, 'robots'])->name('marketing.robots');
     Route::get('/sitemap.xml', [\App\Http\Controllers\SeoController::class, 'sitemap'])->name('marketing.sitemap');
@@ -34,7 +34,7 @@ Route::domain($domain)->middleware(\App\Http\Middleware\SeoSignals::class)->grou
         [\App\Http\Controllers\Webhooks\StripeWebhookController::class, 'handle']
     )->name('webhooks.stripe.subscriptions');
 
-    // --- Marketing funnel tracking (MARKER-MKTTRAFFIC) ---
+    // --- Marketing funnel tracking ---
     // The tenant tracker's /funnel/track lives in the TENANT host group and
     // resolves a tenant from the host, so intake.works could never reach it.
     Route::post('/mkt/track',
@@ -57,22 +57,22 @@ Route::domain($domain)->middleware(\App\Http\Middleware\SeoSignals::class)->grou
     Route::get('/why-intake', [Platform\MarketingController::class, 'whyIntake'])->name('marketing.why-intake');
     Route::get('/docs',     [Platform\MarketingController::class, 'docs'])->name('marketing.docs');
     Route::get('/contact',  [Platform\MarketingController::class, 'contact'])->name('marketing.contact');
-    // MARKER-INVEST-LANDING — /invest is a real route now, not a builder page.
+    // /invest is a real route now, not a builder page.
     // It must stay above the /{slug} fallback or the old page reclaims it.
     Route::get('/invest',  [\App\Http\Controllers\InvestController::class, 'landing'])->name('marketing.invest');
     Route::post('/invest/request', [\App\Http\Controllers\InvestController::class, 'requestAccess'])
         ->middleware('throttle:6,1')->name('invest.request');
 
-    // MARKER-CONTRIBUTIONS — backing the project, which is not investing in it.
+    // backing the project, which is not investing in it.
     Route::post('/invest/contribute', [\App\Http\Controllers\ContributionController::class, 'start'])
         ->middleware('throttle:6,1')->name('invest.contribute');
     Route::get('/invest/contributed', [\App\Http\Controllers\ContributionController::class, 'thanks'])
         ->name('invest.contribute.thanks');
     Route::post('/contact', [Platform\MarketingController::class, 'contact'])
-        ->middleware('throttle:5,1') // MARKER-INBOX — five posts a minute per IP is a person; bots burst
+        ->middleware('throttle:5,1') // five posts a minute per IP is a person; bots burst
         ->name('marketing.contact.submit');
 
-    // MARKER-PLATFORM-EMAIL — stateless unsubscribe for Intake's own
+    // stateless unsubscribe for Intake's own
     // marketing mail. GET asks, POST acts (scanners follow links), and the
     // POST is also what Gmail's one-click unsubscribe header calls.
     Route::get('/platform-email/unsubscribe/{e}/{sig}', [Platform\PlatformUnsubscribeController::class, 'show'])
@@ -80,12 +80,12 @@ Route::domain($domain)->middleware(\App\Http\Middleware\SeoSignals::class)->grou
     Route::post('/platform-email/unsubscribe/{e}/{sig}', [Platform\PlatformUnsubscribeController::class, 'store'])
         ->name('platform.unsubscribe.confirm');
 
-    // MARKER-DEMO-ENTRY — the public way in. Two steps because session cookies
+    // the public way in. Two steps because session cookies
     // are per-subdomain: this hop is signed, the sign-in happens on the demo host.
     Route::get('/demo/{slug?}', [\App\Http\Controllers\DemoEntryController::class, 'start'])
-        ->where('slug', '[a-z0-9-]+')->middleware('throttle:30,1')->name('demo.start'); // MARKER-DEMO-SECTION
+        ->where('slug', '[a-z0-9-]+')->middleware('throttle:30,1')->name('demo.start');
 
-    // MARKER-SCHED-PUBLIC — booking a call with Intake (master-admin scheduling).
+    // booking a call with Intake (master-admin scheduling).
     Route::get('/book/manage/{token}',              [Platform\BookController::class, 'manage'])->name('book.manage');
     Route::post('/book/manage/{token}/cancel',      [Platform\BookController::class, 'cancel'])->middleware('throttle:10,1')->name('book.cancel');
     Route::get('/book/manage/{token}/reschedule',   [Platform\BookController::class, 'rescheduleForm'])->name('book.reschedule.form');
@@ -101,17 +101,17 @@ Route::domain($domain)->middleware(\App\Http\Middleware\SeoSignals::class)->grou
         ->name('marketing.industry');
 
     // --- Impersonation (owner / admin / support) ---
-    // MARKER-ADMIN-ROLES — area check; the marketing bridge below stays
+    // area check; the marketing bridge below stays
     // owner/admin via EnsureMasterAdmin.
     Route::middleware(['auth', \App\Http\Middleware\EnforceAdminArea::class . ':impersonation'])->group(function () {
         Route::post('/admin/impersonate/{tenantId}', [\App\Http\Controllers\Admin\ImpersonationController::class, 'impersonate'])->name('admin.impersonate');
     });
-    // MARKER-GUEST-REDIRECT — stopping needs no admin session: it logs the
+    // stopping needs no admin session: it logs the
     // tenant guard out and goes back. Refusing it stranded people inside a
     // tenant they were trying to leave.
     Route::get('/admin/impersonate/stop', [\App\Http\Controllers\Admin\ImpersonationController::class, 'stop'])->name('admin.impersonate.stop');
 
-    // MARKER-SCHED-GOOGLE — Google Calendar OAuth for scheduling (scheduling area).
+    // Google Calendar OAuth for scheduling (scheduling area).
     Route::middleware(['auth', \App\Http\Middleware\EnforceAdminArea::class . ':scheduling'])->group(function () {
         Route::get('/admin/scheduling-google/connect',     [\App\Http\Controllers\Admin\SchedulingGoogleController::class, 'connect'])->name('admin.scheduling.google.connect');
         Route::get('/admin/scheduling-google/callback',    [\App\Http\Controllers\Admin\SchedulingGoogleController::class, 'callback'])->name('admin.scheduling.google.callback');
@@ -121,7 +121,7 @@ Route::domain($domain)->middleware(\App\Http\Middleware\SeoSignals::class)->grou
     // --- Marketing page editor bridge (admin only) ---
     // GET hands off to the tenant page builder view with platform tenant bound.
     // POST handles auto-save (section content, nav, page meta).
-    // MARKER-ADMIN-GATE — 'auth' alone also admits rep accounts.
+    // 'auth' alone also admits rep accounts.
     Route::middleware(['auth', \App\Http\Middleware\EnsureMasterAdmin::class])->group(function () {
         Route::get('/admin/marketing-pages/{pageId}/edit-content',
             [\App\Http\Controllers\Admin\MarketingPageController::class, 'editContent']
@@ -131,7 +131,7 @@ Route::domain($domain)->middleware(\App\Http\Middleware\SeoSignals::class)->grou
             [\App\Http\Controllers\Admin\MarketingPageController::class, 'store']
         )->name('admin.marketing-pages.store');
 
-        // MARKER-MKT-PARITY — full builder parity for the marketing context.
+        // full builder parity for the marketing context.
         // /builder (not bare {pageId}) so the Filament resource's own
         // /marketing-pages/{record}/... routes can never be shadowed.
         Route::get('/admin/marketing-pages/{pageId}/builder',
@@ -142,7 +142,7 @@ Route::domain($domain)->middleware(\App\Http\Middleware\SeoSignals::class)->grou
             [\App\Http\Controllers\Admin\MarketingPageController::class, 'update']
         )->name('admin.marketing-pages.builder.update');
 
-        Route::get('/admin/navigation/preview', // MARKER-MKT-NAV
+        Route::get('/admin/navigation/preview',
             [\App\Http\Controllers\Admin\MarketingPageController::class, 'navPreview']
         )->name('admin.navigation.preview');
 
@@ -179,7 +179,7 @@ Route::domain($domain)->middleware(\App\Http\Middleware\SeoSignals::class)->grou
 // Platform routes — app.intake.works
 // =========================================================================
 
-Route::domain('app.' . $domain)->middleware(\App\Http\Middleware\SeoSignals::class)->group(function () { // MARKER-SEO-SIGNALS
+Route::domain('app.' . $domain)->middleware(\App\Http\Middleware\SeoSignals::class)->group(function () {
 
     Route::get('/robots.txt', [\App\Http\Controllers\SeoController::class, 'robots'])->name('platform.robots');
 
@@ -196,7 +196,7 @@ Route::domain('app.' . $domain)->middleware(\App\Http\Middleware\SeoSignals::cla
 });
 
 // =========================================================================
-// Tenant routes (MARKER-PATCH-123)
+// Tenant routes
 //
 // Tenant-facing routes live inside the $tenantRoutes closure and are
 // registered once under the ResolveTenant middleware. The middleware
@@ -213,7 +213,7 @@ Route::domain('app.' . $domain)->middleware(\App\Http\Middleware\SeoSignals::cla
 $tenantRoutes = function () {
 
     Route::get('/',        [TenantControllers\PublicController::class, 'home'])->name('tenant.home');
-    // MARKER-SEO-SIGNALS — registered before the /{slug} catch-all at the end of this group.
+    // registered before the /{slug} catch-all at the end of this group.
     Route::get('/robots.txt',        [\App\Http\Controllers\SeoController::class, 'robots'])->name('tenant.seo.robots');
     Route::get('/sitemap.xml',       [\App\Http\Controllers\SeoController::class, 'sitemap'])->name('tenant.seo.sitemap');
     Route::get('/sitemap-pages.xml', [\App\Http\Controllers\SeoController::class, 'pages'])->name('tenant.seo.sitemap_pages');
@@ -222,47 +222,47 @@ $tenantRoutes = function () {
     Route::get('/contact', [TenantControllers\PublicController::class, 'contact'])->name('tenant.contact');
 
     Route::get('/book',                  [TenantControllers\BookingController::class, 'index'])->name('tenant.booking');
-    // MARKER-PATCH-528 — public delivery-window confirm page (token is the credential)
+    // public delivery-window confirm page (token is the credential)
     Route::get('/d/{token}',             [TenantControllers\DeliveryConfirmController::class, 'show'])->name('tenant.delivery_confirm.show');
     Route::post('/d/{token}',            [TenantControllers\DeliveryConfirmController::class, 'confirm'])->name('tenant.delivery_confirm.save');
-    Route::post('/d/{token}/call',       [TenantControllers\DeliveryConfirmController::class, 'requestCall'])->name('tenant.delivery_confirm.call'); // MARKER-DELIVERY-CALL
-    // MARKER-PATCH-149 — anonymous funnel event tracking from public pages
+    Route::post('/d/{token}/call',       [TenantControllers\DeliveryConfirmController::class, 'requestCall'])->name('tenant.delivery_confirm.call');
+    // anonymous funnel event tracking from public pages
     Route::post('/funnel/track',         [TenantControllers\FunnelTrackController::class, 'store'])->name('tenant.funnel.track');
-    // MARKER-REGISTER-RECON-DISPLAY — customer pay display (token is the credential)
-    // MARKER-OFFLINE-SYNC stage 2 — branded offline fallback, precached by the SW
+    // customer pay display (token is the credential)
+    // stage 2 — branded offline fallback, precached by the SW
     Route::get('/offline-fallback', fn () => view('tenant.offline-fallback'))->name('tenant.offline_fallback');
     Route::get('/pay-display/{token}',            [TenantControllers\RegisterDisplayController::class, 'display'])->name('tenant.pay_display.show');
     Route::get('/pay-display/{token}/state.json', [TenantControllers\RegisterDisplayController::class, 'displayPoll'])->name('tenant.pay_display.poll');
-    // MARKER-RENTAL-WAIVER-DISPLAY-BE — customer signs the rental waiver on
+    // customer signs the rental waiver on
     // the paired screen. Token + nonce are the credential (CSRF-exempt: the
     // tablet may sit for hours and a 419 would be an unclearable dead end).
     Route::post('/pay-display/{token}/agreement/sign', [TenantControllers\RegisterDisplayController::class, 'signAgreementFromDisplay'])->name('tenant.pay_display.agreement.sign');
-    Route::post('/booking/abandon',      [TenantControllers\AbandonedBookingController::class, 'store'])->name('tenant.booking.abandon'); // MARKER-RECOVERY
+    Route::post('/booking/abandon',      [TenantControllers\AbandonedBookingController::class, 'store'])->name('tenant.booking.abandon');
     Route::get('/book/availability',     [TenantControllers\BookingController::class, 'availability'])->name('tenant.booking.availability');
     Route::post('/book/submit',          [TenantControllers\BookingController::class, 'submit'])->name('tenant.booking.submit');
-    Route::post('/book/finalize',        [TenantControllers\BookingController::class, 'finalize'])->name('tenant.booking.finalize'); // MARKER-PATCH-385
-    Route::post('/book/release-hold',    [TenantControllers\BookingController::class, 'releaseHold'])->name('tenant.booking.release-hold'); // MARKER-HOLD-RELEASE
-    // MARKER-PATCH-213 — returning-customer lookup (pre-fills the Bikes step)
+    Route::post('/book/finalize',        [TenantControllers\BookingController::class, 'finalize'])->name('tenant.booking.finalize');
+    Route::post('/book/release-hold',    [TenantControllers\BookingController::class, 'releaseHold'])->name('tenant.booking.release-hold');
+    // returning-customer lookup (pre-fills the Bikes step)
     Route::post('/book/customer-lookup', [TenantControllers\BookingLookupController::class, 'lookup'])->name('tenant.booking.customer-lookup');
-    // MARKER-PATCH-239 — public rental availability browse.
-    // MARKER-PATCH-561 — Online Retail Wave 2: read-only storefront
+    // public rental availability browse.
+    // Online Retail Wave 2: read-only storefront
     Route::get('/shop',                  [TenantControllers\StorefrontController::class, 'index'])->name('tenant.shop.index');
-    Route::get('/shop/search.json',      [TenantControllers\StorefrontController::class, 'searchJson'])->name('tenant.shop.search'); // MARKER-PATCH-582
+    Route::get('/shop/search.json',      [TenantControllers\StorefrontController::class, 'searchJson'])->name('tenant.shop.search');
     Route::get('/shop/{id}',             [TenantControllers\StorefrontController::class, 'show'])->name('tenant.shop.show');
-    // MARKER-PATCH-564 — Online Retail Wave 3: cart
+    // Online Retail Wave 3: cart
     Route::get('/cart',                  [TenantControllers\CartController::class, 'show'])->name('tenant.cart.show');
     Route::post('/cart/items',           [TenantControllers\CartController::class, 'add'])->name('tenant.cart.add');
     Route::patch('/cart/items/{lineId}', [TenantControllers\CartController::class, 'update'])->name('tenant.cart.update');
     Route::delete('/cart/items/{lineId}',[TenantControllers\CartController::class, 'remove'])->name('tenant.cart.remove');
-    // MARKER-SHOP-DISCOUNT — validate-only; redemption happens at placement
+    // validate-only; redemption happens at placement
     Route::post('/cart/discount',        [TenantControllers\CartController::class, 'applyDiscount'])->name('tenant.cart.discount.apply');
     Route::delete('/cart/discount',      [TenantControllers\CartController::class, 'removeDiscount'])->name('tenant.cart.discount.remove');
-    // MARKER-PATCH-566 — Online Retail Wave 4: checkout + confirmation
+    // Online Retail Wave 4: checkout + confirmation
     Route::get('/checkout',              [TenantControllers\CheckoutController::class, 'show'])->name('tenant.checkout.show');
     Route::post('/checkout/place',       [TenantControllers\CheckoutController::class, 'place'])->name('tenant.checkout.place');
     Route::get('/checkout/return',       [TenantControllers\CheckoutController::class, 'returnLeg'])->name('tenant.checkout.return');
     Route::get('/order/{token}',         [TenantControllers\CheckoutController::class, 'confirmation'])->name('tenant.order.confirmation');
-    // MARKER-GIFTCARDS-PUBLIC -- public gift card pages
+    // public gift card pages
     Route::get('/gift-cards',                 [TenantControllers\GiftCardPublicController::class, 'buy'])->name('tenant.gift-cards.public.buy');
     Route::post('/gift-cards/purchase',       [TenantControllers\GiftCardPublicController::class, 'purchase'])->name('tenant.gift-cards.public.purchase')->middleware('throttle:10,1');
     Route::get('/gift-cards/return',          [TenantControllers\GiftCardPublicController::class, 'returnLeg'])->name('tenant.gift-cards.public.return');
@@ -270,7 +270,7 @@ $tenantRoutes = function () {
     Route::get('/gift-cards/balance',         [TenantControllers\GiftCardPublicController::class, 'balance'])->name('tenant.gift-cards.public.balance');
     Route::post('/gift-cards/balance',        [TenantControllers\GiftCardPublicController::class, 'balanceCheck'])->name('tenant.gift-cards.public.balance.check')->middleware('throttle:10,1');
     Route::get('/rentals',               [TenantControllers\RentalBrowseController::class, 'index'])->name('tenant.rentals.browse');
-    // MARKER-PATCH-240 — public reservation checkout.
+    // public reservation checkout.
     Route::get( '/rentals/reserve',          [TenantControllers\RentalReserveController::class, 'show'])->name('tenant.rentals.reserve');
     Route::post('/rentals/reserve',          [TenantControllers\RentalReserveController::class, 'store'])->name('tenant.rentals.reserve.store');
     Route::post('/rentals/reserve/confirm',  [TenantControllers\RentalReserveController::class, 'confirm'])->name('tenant.rentals.reserve.confirm');
@@ -280,7 +280,7 @@ $tenantRoutes = function () {
     Route::post('/waitlist/join',              [TenantControllers\WaitlistPublicController::class, 'submitJoin'])->name('tenant.waitlist.submit');
     Route::get('/waitlist/my',                 [TenantControllers\WaitlistPublicController::class, 'myEntries'])->name('tenant.waitlist.my');
     Route::post('/waitlist/remove',            [TenantControllers\WaitlistPublicController::class, 'removeEntry'])->name('tenant.waitlist.remove');
-    // MARKER-RENTAL-EXT — magic-link extension offer (token is the auth)
+    // magic-link extension offer (token is the auth)
     Route::get( '/x/{token}',          [TenantControllers\RentalExtensionOfferController::class, 'show'])->name('tenant.rentals.extension.show');
     Route::post('/x/{token}/decline',  [TenantControllers\RentalExtensionOfferController::class, 'decline'])->name('tenant.rentals.extension.decline');
     Route::post('/x/{token}/pay',      [TenantControllers\RentalExtensionOfferController::class, 'pay'])->name('tenant.rentals.extension.pay');
@@ -291,29 +291,29 @@ $tenantRoutes = function () {
     Route::get('/waitlist/offer/{token}/confirmed', [TenantControllers\WaitlistOfferController::class, 'confirmed'])->name('tenant.waitlist.offer.confirmed');
     Route::get('/book/paypal/return',    [TenantControllers\BookingController::class, 'paypalReturn'])->name('tenant.paypal.return');
 
-    // MARKER-EMAIL-CONSENT — public one-click unsubscribe (HMAC is the auth)
+    // public one-click unsubscribe (HMAC is the auth)
     Route::get('/email/unsubscribe/{customer}/{sig}',  [TenantControllers\EmailPreferencesController::class, 'show'])->name('tenant.email.unsubscribe');
     Route::post('/email/unsubscribe/{customer}/{sig}', [TenantControllers\EmailPreferencesController::class, 'unsubscribe'])->name('tenant.email.unsubscribe.submit')->middleware('throttle:12,1');
 
     // Customer account — register, login, logout, forgot, reset, portal
     Route::get('/account/register',      [TenantControllers\CustomerAccountController::class, 'showRegister'])->name('tenant.customer.register');
-    Route::post('/account/register',     [TenantControllers\CustomerAccountController::class, 'register'])->name('tenant.customer.register.submit')->middleware('throttle:6,1'); // MARKER-CUST-AUTH
+    Route::post('/account/register',     [TenantControllers\CustomerAccountController::class, 'register'])->name('tenant.customer.register.submit')->middleware('throttle:6,1');
     Route::get('/account/login',         [TenantControllers\CustomerAccountController::class, 'showLogin'])->name('tenant.customer.login');
-    Route::get('/account/demo',          [TenantControllers\CustomerAccountController::class, 'demoSignIn'])->name('tenant.customer.demo')->middleware('throttle:30,1'); // MARKER-DEMO-BAR-LINKS — demo shops only
-    Route::post('/account/login',        [TenantControllers\CustomerAccountController::class, 'login'])->name('tenant.customer.login.submit')->middleware('throttle:10,1'); // MARKER-CUST-AUTH
+    Route::get('/account/demo',          [TenantControllers\CustomerAccountController::class, 'demoSignIn'])->name('tenant.customer.demo')->middleware('throttle:30,1'); // demo shops only
+    Route::post('/account/login',        [TenantControllers\CustomerAccountController::class, 'login'])->name('tenant.customer.login.submit')->middleware('throttle:10,1');
     Route::post('/account/logout',       [TenantControllers\CustomerAccountController::class, 'logout'])->name('tenant.customer.logout');
     Route::get('/account/forgot',        [TenantControllers\CustomerAccountController::class, 'showForgot'])->name('tenant.customer.forgot');
-    Route::post('/account/forgot',       [TenantControllers\CustomerAccountController::class, 'sendReset'])->name('tenant.customer.forgot.submit')->middleware('throttle:6,1'); // MARKER-CUST-AUTH
+    Route::post('/account/forgot',       [TenantControllers\CustomerAccountController::class, 'sendReset'])->name('tenant.customer.forgot.submit')->middleware('throttle:6,1');
     Route::get('/account/reset',         [TenantControllers\CustomerAccountController::class, 'showReset'])->name('tenant.customer.reset');
-    Route::post('/account/reset',        [TenantControllers\CustomerAccountController::class, 'resetPassword'])->name('tenant.customer.reset.submit')->middleware('throttle:6,1'); // MARKER-CUST-AUTH
-    // MARKER-PORTAL-V2 — portal sections. The old single-page portal() is
+    Route::post('/account/reset',        [TenantControllers\CustomerAccountController::class, 'resetPassword'])->name('tenant.customer.reset.submit')->middleware('throttle:6,1');
+    // portal sections. The old single-page portal() is
     // superseded; tenant.customer.portal now lands on Home so every existing
     // login/redirect keeps working.
     Route::get('/account',                [TenantControllers\CustomerPortalController::class, 'home'])->name('tenant.customer.portal');
     Route::get('/account/bookings',       [TenantControllers\CustomerPortalController::class, 'bookings'])->name('tenant.customer.portal.bookings');
     Route::get('/account/orders',         [TenantControllers\CustomerPortalController::class, 'orders'])->name('tenant.customer.portal.orders');
     Route::get('/account/rentals',        [TenantControllers\CustomerPortalController::class, 'rentals'])->name('tenant.customer.portal.rentals');
-    Route::post('/account/rentals/{id}/extend', [TenantControllers\CustomerPortalController::class, 'extendRental'])->name('tenant.customer.portal.rentals.extend'); // MARKER-RENTAL-EXT-PORTAL
+    Route::post('/account/rentals/{id}/extend', [TenantControllers\CustomerPortalController::class, 'extendRental'])->name('tenant.customer.portal.rentals.extend');
     Route::get('/account/messages',       [TenantControllers\CustomerPortalController::class, 'messages'])->name('tenant.customer.portal.messages');
     Route::post('/account/messages',      [TenantControllers\CustomerPortalController::class, 'messagesSend'])->name('tenant.customer.portal.messages.send');
     Route::post('/account/profile',       [TenantControllers\CustomerPortalController::class, 'accountUpdate'])->name('tenant.customer.portal.profile');
@@ -327,18 +327,18 @@ $tenantRoutes = function () {
     Route::get('/classes/confirm/{id}',             [TenantControllers\CustomerClassController::class, 'confirm'])->name('tenant.customer.classes.confirm');
     Route::post('/classes/registrations/{id}/cancel', [TenantControllers\CustomerClassController::class, 'cancelRegistration'])->name('tenant.customer.classes.cancel');
 
-// MARKER-PATCH-118 - Cloudflare custom-hostname webhook
+// Cloudflare custom-hostname webhook
 Route::post('webhooks/cloudflare', [\App\Http\Controllers\Webhooks\CloudflareWebhookController::class, 'handle'])
     ->name('webhooks.cloudflare');
 
-// MARKER-PATCH-168 - Stripe Connect events (account.updated, etc.). Separate
+// Stripe Connect events (account.updated, etc.). Separate
 // from platform-billing webhooks; different signing secret.
-// MARKER-SIGNING-SEND — Dropbox Sign posts multipart form data, not JSON.
+// Dropbox Sign posts multipart form data, not JSON.
 Route::post('webhooks/dropbox-sign',
     [\App\Http\Controllers\Webhooks\DropboxSignWebhookController::class, 'handle']
 )->name('webhooks.dropbox-sign');
 
-// MARKER-CONTRIBUTIONS — its own endpoint and its own signing secret.
+// its own endpoint and its own signing secret.
 Route::post('webhooks/stripe/contributions',
     [\App\Http\Controllers\Webhooks\ContributionWebhookController::class, 'handle']
 )->name('webhooks.stripe.contributions');
@@ -347,35 +347,35 @@ Route::post('webhooks/stripe-connect',
     [\App\Http\Controllers\Webhooks\StripeConnectWebhookController::class, 'handle']
 )->name('webhooks.stripe-connect');
 
-// MARKER-PATCH-170 - Direct Payments webhook (per-tenant, path-scoped).
+// Direct Payments webhook (per-tenant, path-scoped).
 // Each tenant has their own Stripe account so we route by tenant_id in the
 // URL and verify against that tenant\'s webhook signing secret.
 Route::post('webhooks/stripe-direct/{tenantId}',
     [\App\Http\Controllers\Webhooks\DirectPaymentsWebhookController::class, 'handle']
 )->name('webhooks.stripe-direct');
 
-// MARKER-PATCH-146 — SES bounce/complaint webhook (signature-verified, public)
+// SES bounce/complaint webhook (signature-verified, public)
 Route::post('webhooks/ses-bounce', [\App\Http\Controllers\Webhooks\SesBounceController::class, 'handle'])
     ->name('webhooks.ses-bounce');
 
-// MARKER-PATCH-201 — Postmark bounce / spam-complaint webhook (replaces SES path).
+// Postmark bounce / spam-complaint webhook (replaces SES path).
 Route::post('webhooks/postmark', [\App\Http\Controllers\Webhooks\PostmarkWebhookController::class, 'handle'])
     ->name('webhooks.postmark');
 
-// MARKER-PATCH-403 — Postmark inbound email -> unified inbox. Routes by the
+// Postmark inbound email -> unified inbox. Routes by the
 // per-thread token carried in MailboxHash. Fail-open posture (always 2xx);
 // unroutable mail is logged and dropped. CSRF-exempt (external POST).
 Route::post('webhooks/postmark/inbound', [\App\Http\Controllers\Webhooks\PostmarkInboundController::class, 'handle'])
     ->name('webhooks.postmark.inbound');
 
-// MARKER-PATCH-221 — Twilio inbound SMS (unified inbox). Signature-validated,
+// Twilio inbound SMS (unified inbox). Signature-validated,
 // always answers 2xx (fail-open posture; unprocessable requests are skipped).
 Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInboundController::class, 'handle'])
     ->name('webhooks.twilio.inbound');
 
     Route::post('/webhooks/paypal',  [TenantControllers\BookingController::class, 'paypalWebhook'])->name('tenant.webhook.paypal');
 
-    // MARKER-CONTACT-SPAM — this was the only public POST without a limit;
+    // this was the only public POST without a limit;
     // gift cards, register and login have all had one.
     Route::post('/contact',  [TenantControllers\PublicController::class, 'contact'])->name('tenant.contact.submit')->middleware('throttle:5,1');
 
@@ -386,17 +386,17 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
         Route::get('/login',            [TenantControllers\AuthController::class, 'showLogin'])->name('login');
         Route::post('/login',           [TenantControllers\AuthController::class, 'login'])->name('login.submit');
         Route::get('/forgot-password',  [TenantControllers\AuthController::class, 'showForgot'])->name('forgot');
-        // MARKER-FORGOT-WIRING — every hit here sends mail, so it is the one
+        // every hit here sends mail, so it is the one
         // that most needed the limit it did not have. 3 per 10 minutes.
         Route::post('/forgot-password', [TenantControllers\AuthController::class, 'sendReset'])->name('forgot.submit')->middleware('throttle:3,10');
         Route::get('/reset-password',   [TenantControllers\AuthController::class, 'showReset'])->name('reset');
         Route::post('/reset-password',  [TenantControllers\AuthController::class, 'resetPassword'])->name('reset.submit');
-        // MARKER-PATCH-478 — team-member invite setup (public, tenant-resolved, token-gated)
+        // team-member invite setup (public, tenant-resolved, token-gated)
         Route::get('/team/setup',       [TenantControllers\TeamController::class, 'setupForm'])->name('team.setup');
         Route::post('/team/setup',      [TenantControllers\TeamController::class, 'completeSetup'])->name('team.setup.complete');
         Route::post('/logout',          [TenantControllers\AuthController::class, 'logout'])->name('logout');
 
-        // MARKER-PATCH-173 — Customer-facing return pages for the send-payment-
+        // Customer-facing return pages for the send-payment-
         // link (Stripe Checkout) flow. PUBLIC: the paying customer is anonymous
         // on their own phone, so these must sit OUTSIDE the auth middleware
         // sub-group below. Paths match the success_url/cancel_url baked into
@@ -420,10 +420,10 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             'App\Http\Middleware\ConsumeOnboardingToken',
             'App\Http\Middleware\EnsureTrustedDevice',
             'App\Http\Middleware\RequireTenantAuth',
-            // MARKER-TENANT-STANDING — after auth so a locked-out shop still
+            // after auth so a locked-out shop still
             // reaches the login screen and can sign out.
             'App\Http\Middleware\EnforceTenantStanding',
-            // MARKER-PATCH-492 — per-section role enforcement (Roles & access)
+            // per-section role enforcement (Roles & access)
             'App\Http\Middleware\EnforceSectionAccess',
             'App\Http\Middleware\EnsurePinFresh',
             'App\Http\Middleware\ApplyTenantTheme',
@@ -438,11 +438,11 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             // so they work even when the lock overlay is pending.
             Route::post('/pin/heartbeat',    [TenantControllers\PinGateController::class, 'heartbeat'])->name('pin.heartbeat');
             Route::post('/pin/unlock',       [TenantControllers\PinGateController::class, 'unlock'])->name('pin.unlock');
-            Route::get('/pin/context',       [TenantControllers\PinGateController::class, 'context'])->name('pin.context'); // MARKER-PATCH-545
-            // MARKER-PATCH-480 — first-time PIN setup from the lock overlay
+            Route::get('/pin/context',       [TenantControllers\PinGateController::class, 'context'])->name('pin.context');
+            // first-time PIN setup from the lock overlay
             Route::post('/pin/setup',        [TenantControllers\PinGateController::class, 'setupPin'])->name('pin.setup');
 
-            // MARKER-USER-THEME-PREF — per-person light/dark. Sits above the
+            // per-person light/dark. Sits above the
             // location gate so the toggle works before a location is picked.
             Route::post('/theme',            [TenantControllers\ThemeController::class, 'set'])->name('theme.set');
 
@@ -460,97 +460,93 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
                     // Register (POS) — walk-in retail + service jobs
                 Route::get('/register',                  [TenantControllers\RegisterController::class, 'index'])->name('register.index');
                 Route::get('/register/appointment-tray', [TenantControllers\RegisterController::class, 'appointmentTray'])->name('register.appointment-tray');
-                // MARKER-PATCH-180 — dismiss a parked appointment draft from the tray
+                // dismiss a parked appointment draft from the tray
                 Route::post('/register/appointment-tray/dismiss', [TenantControllers\RegisterController::class, 'dismissTraySale'])->name('register.appointment-tray.dismiss');
                 Route::get('/register/search',           [TenantControllers\RegisterController::class, 'search'])->name('register.search');
-                // MARKER-REGISTER-DISCOUNT — read-only code check against the live cart
+                // read-only code check against the live cart
                 Route::get('/register/discount/validate', [TenantControllers\RegisterController::class, 'validateDiscount'])->name('register.discount.validate');
-                Route::get('/register/item/{id}/info',   [TenantControllers\RegisterController::class, 'itemInfo'])->name('register.item_info'); // MARKER-PATCH-552
-                // MARKER-REGISTER-RECON-DISPLAY — register management + display mirroring
+                Route::get('/register/item/{id}/info',   [TenantControllers\RegisterController::class, 'itemInfo'])->name('register.item_info');
+                // register management + display mirroring
                 Route::get('/register/registers',                  [TenantControllers\RegisterDisplayController::class, 'registers'])->name('register.registers');
                 Route::post('/register/registers',                 [TenantControllers\RegisterDisplayController::class, 'storeRegister'])->name('register.registers.store');
                 Route::post('/register/registers/{id}/regenerate', [TenantControllers\RegisterDisplayController::class, 'regenerateToken'])->name('register.registers.regenerate');
                 Route::post('/register/registers/{id}/update',     [TenantControllers\RegisterDisplayController::class, 'updateRegister'])->name('register.registers.update');
                 Route::post('/register/select',                    [TenantControllers\RegisterDisplayController::class, 'selectRegister'])->name('register.select');
                 Route::post('/register/display-state',             [TenantControllers\RegisterDisplayController::class, 'displayState'])->name('register.display_state');
-                Route::get('/register/offline-catalog.json',       [TenantControllers\RegisterController::class, 'offlineCatalog'])->name('register.offline_catalog'); // MARKER-OFFLINE-SYNC
-                Route::post('/timeclock/sync', [TenantControllers\TimeClockController::class, 'punchSync'])->name('timeclock.sync'); // MARKER-OFFLINE-SYNC stage 2
+                Route::get('/register/offline-catalog.json',       [TenantControllers\RegisterController::class, 'offlineCatalog'])->name('register.offline_catalog');
+                Route::post('/timeclock/sync', [TenantControllers\TimeClockController::class, 'punchSync'])->name('timeclock.sync'); // stage 2
 
-                // MARKER-PATCH-567 — Online Retail Wave 5a: orders queue
+                // Online Retail Wave 5a: orders queue
                 Route::get('/orders',            [TenantControllers\OrdersController::class, 'index'])->name('orders.index');
                 Route::get('/orders/{id}',       [TenantControllers\OrdersController::class, 'show'])->name('orders.show');
                 Route::post('/orders/{id}',      [TenantControllers\OrdersController::class, 'update'])->name('orders.update');
 
-                // MARKER-PATCH-569 — Online Retail Wave 5b: storefront settings
+                // Online Retail Wave 5b: storefront settings
                 Route::get('/storefront',        [TenantControllers\StorefrontSettingsController::class, 'show'])->name('storefront.settings');
                 Route::post('/storefront',       [TenantControllers\StorefrontSettingsController::class, 'update'])->name('storefront.settings.update');
                 Route::post('/storefront/bulk',  [TenantControllers\StorefrontSettingsController::class, 'bulk'])->name('storefront.settings.bulk');
-                Route::post('/storefront/item/{id}', [TenantControllers\StorefrontSettingsController::class, 'toggleItem'])->name('storefront.item.toggle'); // MARKER-PATCH-569
+                Route::post('/storefront/item/{id}', [TenantControllers\StorefrontSettingsController::class, 'toggleItem'])->name('storefront.item.toggle');
                 Route::post('/register/sales',           [TenantControllers\RegisterController::class, 'storeSale'])->name('register.sales.store');
-                // MARKER-PATCH-170 — Direct Payments hand-keyed card endpoints
+                // Direct Payments hand-keyed card endpoints
                 Route::post('/register/payment-intent',   [TenantControllers\RegisterController::class, 'createPaymentIntent'])->name('register.payment_intent.create');
                 Route::post('/register/payment-intent/confirm', [TenantControllers\RegisterController::class, 'confirmPaymentIntent'])->name('register.payment_intent.confirm');
-                // MARKER-PATCH-170B — auto-refund when commit fails after charge succeeds
+                // auto-refund when commit fails after charge succeeds
                 Route::post('/register/payment-intent/auto-refund', [TenantControllers\RegisterController::class, 'autoRefundPaymentIntent'])->name('register.payment_intent.auto_refund');
-                // MARKER-PATCH-172 — send-payment-link (Stripe Checkout)
+                // send-payment-link (Stripe Checkout)
                 Route::post('/register/checkout-session',         [TenantControllers\RegisterController::class, 'createCheckoutSession'])->name('register.checkout_session.create');
                 Route::post('/register/checkout-session/check',   [TenantControllers\RegisterController::class, 'checkCheckoutSession'])->name('register.checkout_session.check');
                 Route::post('/register/checkout-session/cancel',  [TenantControllers\RegisterController::class, 'cancelCheckoutSession'])->name('register.checkout_session.cancel');
                 Route::get('/register/drafts',            [TenantControllers\RegisterController::class, 'listDrafts'])->name('register.drafts.index');
-                // MARKER-HOLD
                 Route::post('/register/drafts/{id}/hold',  [TenantControllers\RegisterController::class, 'holdDraft'])->name('register.drafts.hold');
                 Route::post('/register/drafts/cleanup',    [TenantControllers\RegisterController::class, 'saveDraftCleanup'])->name('register.drafts.cleanup');
-                // MARKER-PAY-PERSIST
                 Route::post('/register/payments',          [TenantControllers\RegisterController::class, 'recordCartPayment'])->name('register.payments.record');
-                Route::post('/register/payments/void',     [TenantControllers\RegisterController::class, 'voidCartPayment'])->name('register.payments.void'); // MARKER-VOID-PERSISTED
-                Route::post('/register/sale/void',         [TenantControllers\RegisterController::class, 'voidCartSale'])->name('register.sale.void'); // MARKER-NO-ORPHAN-MONEY
+                Route::post('/register/payments/void',     [TenantControllers\RegisterController::class, 'voidCartPayment'])->name('register.payments.void');
+                Route::post('/register/sale/void',         [TenantControllers\RegisterController::class, 'voidCartSale'])->name('register.sale.void');
                 Route::post('/register/drafts',           [TenantControllers\RegisterController::class, 'storeDraft'])->name('register.drafts.store');
                 Route::get('/register/drafts/{id}',        [TenantControllers\RegisterController::class, 'showDraft'])->name('register.drafts.show');
                 Route::delete('/register/drafts/{id}',     [TenantControllers\RegisterController::class, 'discardDraft'])->name('register.drafts.destroy');
                 Route::post('/register/drafts/{id}/commit',[TenantControllers\RegisterController::class, 'commitDraft'])->name('register.drafts.commit');
-                // MARKER-LAYAWAY-TAB
                 Route::get( '/register/layaways',                 [TenantControllers\RegisterController::class, 'layawaysIndex'])->name('register.layaways.index');
                 Route::get( '/register/layaways/{plan}',          [TenantControllers\RegisterController::class, 'layawayShow'])->name('register.layaways.show');
                 Route::post('/register/layaways/{plan}/cancel',   [TenantControllers\RegisterController::class, 'layawayCancel'])->name('register.layaways.cancel');
                 Route::get('/register/quotes',           [TenantControllers\RegisterController::class, 'quotesIndex'])->name('register.quotes.index');
                 Route::post('/register/quotes',          [TenantControllers\RegisterController::class, 'storeQuote'])->name('register.quotes.store');
-                // MARKER-REG-SETTINGS -- register settings tab
+                // register settings tab
                 Route::get('/register/settings',         [TenantControllers\RegisterController::class, 'settingsPage'])->name('register.settings');
                 Route::post('/register/settings',        [TenantControllers\RegisterController::class, 'settingsSave'])->name('register.settings.save');
                 Route::get('/register/lookup-sale',       [TenantControllers\RegisterController::class, 'lookupSaleForRefund'])->name('register.lookup-sale');
-                Route::get('/register/gift-cards/lookup', [TenantControllers\RegisterController::class, 'giftCardLookup'])->name('register.gift-cards.lookup'); // MARKER-GIFTCARDS
-                // MARKER-GIFTCARDS-ADMIN -- staff gift card manager
+                Route::get('/register/gift-cards/lookup', [TenantControllers\RegisterController::class, 'giftCardLookup'])->name('register.gift-cards.lookup');
+                // staff gift card manager
                 Route::get('/gift-cards',                     [TenantControllers\GiftCardController::class, 'index'])->name('gift-cards.index');
                 Route::post('/gift-cards',                    [TenantControllers\GiftCardController::class, 'store'])->name('gift-cards.store');
                 Route::get('/gift-cards/{cardId}',            [TenantControllers\GiftCardController::class, 'show'])->name('gift-cards.show');
                 Route::post('/gift-cards/{cardId}/adjust',    [TenantControllers\GiftCardController::class, 'adjust'])->name('gift-cards.adjust');
                 Route::post('/gift-cards/{cardId}/deactivate',[TenantControllers\GiftCardController::class, 'deactivate'])->name('gift-cards.deactivate');
-                // MARKER-GC-FUNCTIONS -- bind a preprinted card at pickup
+                // bind a preprinted card at pickup
                 Route::post('/gift-cards/{cardId}/bind-code', [TenantControllers\GiftCardController::class, 'bindCode'])->name('gift-cards.bind-code');
                 Route::post('/register/transactions',     [TenantControllers\RegisterController::class, 'storeTransaction'])->name('register.transactions.store');
-                // MARKER-LAYAWAY-REGISTER
                 Route::get( '/register/customers/{customer}/open',  [TenantControllers\RegisterController::class, 'customerOpen'])->name('register.customer.open');
                 Route::post('/register/layaway',                     [TenantControllers\RegisterController::class, 'openLayaway'])->name('register.layaway.open');
                 Route::post('/register/layaway/{plan}/pay',          [TenantControllers\RegisterController::class, 'payLayaway'])->name('register.layaway.pay');
                 Route::post('/register/layaway/{plan}/complete',     [TenantControllers\RegisterController::class, 'completeLayaway'])->name('register.layaway.complete');
                 Route::get('/register/history',          [TenantControllers\RegisterController::class, 'historyIndex'])->name('register.history.index');
                 Route::get('/register/sales/{id}/json',  [TenantControllers\RegisterController::class, 'showSaleJson'])->name('register.sales.show');
-                // MARKER-PATCH-319 — printable 80mm sales receipt
+                // printable 80mm sales receipt
                 Route::get('/register/sales/{id}/receipt', [TenantControllers\RegisterController::class, 'printReceipt'])->name('register.sales.receipt');
-                Route::get('/register/sales/{id}/view',  [TenantControllers\RegisterController::class, 'showSalePage'])->name('register.sales.page'); // MARKER-PATCH-231A
-                // MARKER-PATCH-197 — Stripe-vs-ledger reconciliation.
+                Route::get('/register/sales/{id}/view',  [TenantControllers\RegisterController::class, 'showSalePage'])->name('register.sales.page');
+                // Stripe-vs-ledger reconciliation.
                 Route::get('/register/reconciliation',   [TenantControllers\RegisterController::class, 'reconciliation'])->name('register.reconciliation');
                 Route::post('/register/reconciliation/record', [TenantControllers\RegisterController::class, 'reconcilePayment'])->name('register.reconciliation.record');
-                // MARKER-PATCH-198 — delete a single ledger payment (data correction).
+                // delete a single ledger payment (data correction).
                 Route::post('/register/sales/payment/delete', [TenantControllers\RegisterController::class, 'deleteSalePayment'])->name('register.sales.payment.delete');
-                // MARKER-PATCH-199 — delete an empty sale (data correction).
+                // delete an empty sale (data correction).
                 Route::post('/register/sales/delete', [TenantControllers\RegisterController::class, 'deleteSale'])->name('register.sales.delete');
                 Route::get('/register/refunds/search',   [TenantControllers\RegisterController::class, 'searchRefundables'])->name('register.refunds.search');
                 Route::post('/register/refunds',         [TenantControllers\RegisterController::class, 'storeRefund'])->name('register.refunds.store');
-                // MARKER-PATCH-177 — standalone refund (customer + amount, no sale)
+                // standalone refund (customer + amount, no sale)
                 Route::post('/register/refunds/standalone', [TenantControllers\RegisterController::class, 'storeStandaloneRefund'])->name('register.refunds.standalone');
 
-                // MARKER-PATCH-461 — record an appointment overage refund (overage_refund ledger row + paid-cache cascade)
+                // record an appointment overage refund (overage_refund ledger row + paid-cache cascade)
                 Route::post('/register/appointment-overage-refund', [TenantControllers\RegisterController::class, 'recordAppointmentOverageRefund'])->name('register.appointment-overage-refund');
 
                 // patch-100a oversell actions — register cart buttons that
@@ -571,13 +567,13 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
                 Route::post('/transfer-requests/{id}/cancel',       [TenantControllers\TransferRequestController::class, 'cancel'])->name('transfer-requests.cancel');
             }); // close RequireRetailCapability group
 
-            // MARKER-PATCH-217 — Rentals. Always a la carte (never tier-
+            // Rentals. Always a la carte (never tier-
             // included), tier floor branded. Group-level gate: every rental
             // route added inside inherits it by construction.
             Route::middleware([\App\Http\Middleware\RequireRentalCapability::class])->group(function () {
                 Route::get('/rentals', [TenantControllers\RentalDeskController::class, 'index'])->name('rentals.desk');
 
-                // MARKER-PATCH-218 — Fleet admin (categories, units,
+                // Fleet admin (categories, units,
                 // condition templates). Inline-edit protocol: PATCH with
                 // JSON {field, value}; archives, never hard-deletes.
                 Route::get('/rentals/fleet',                            [TenantControllers\RentalFleetController::class, 'index'])->name('rentals.fleet');
@@ -587,27 +583,27 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
                 Route::post('/rentals/fleet/units',                     [TenantControllers\RentalFleetController::class, 'storeUnit'])->name('rentals.fleet.units.store');
                 Route::patch('/rentals/fleet/units/{id}',               [TenantControllers\RentalFleetController::class, 'updateUnit'])->name('rentals.fleet.units.update');
                 Route::delete('/rentals/fleet/units/{id}',              [TenantControllers\RentalFleetController::class, 'destroyUnit'])->name('rentals.fleet.units.destroy');
-                // MARKER-PATCH-235 — unit detail page ('/detail' keeps clear of the inline-edit PATCH/DELETE URLs).
+                // unit detail page ('/detail' keeps clear of the inline-edit PATCH/DELETE URLs).
                 Route::get('/rentals/fleet/units/{id}/detail',          [TenantControllers\RentalFleetController::class, 'showUnit'])->name('rentals.fleet.units.show');
                 Route::post('/rentals/fleet/condition-templates',       [TenantControllers\RentalFleetController::class, 'storeConditionTemplate'])->name('rentals.fleet.ct.store');
                 Route::patch('/rentals/fleet/condition-templates/{id}', [TenantControllers\RentalFleetController::class, 'updateConditionTemplate'])->name('rentals.fleet.ct.update');
                 Route::delete('/rentals/fleet/condition-templates/{id}',[TenantControllers\RentalFleetController::class, 'destroyConditionTemplate'])->name('rentals.fleet.ct.destroy');
-                // MARKER-PATCH-227 — model layer + bulk add.
+                // model layer + bulk add.
                 Route::post('/rentals/fleet/models',           [TenantControllers\RentalFleetController::class, 'storeModel'])->name('rentals.fleet.models.store');
                 Route::patch('/rentals/fleet/models/{id}',     [TenantControllers\RentalFleetController::class, 'updateModel'])->name('rentals.fleet.models.update');
                 Route::delete('/rentals/fleet/models/{id}',    [TenantControllers\RentalFleetController::class, 'destroyModel'])->name('rentals.fleet.models.destroy');
                 Route::post('/rentals/fleet/units/bulk',       [TenantControllers\RentalFleetController::class, 'bulkAddUnits'])->name('rentals.fleet.units.bulk');
 
-                // MARKER-PATCH-219 — rental bookings. store/check-out/
+                // rental bookings. store/check-out/
                 // check-in/cancel mutate under the tenant rental write lock.
-                // MARKER-PATCH-228 — rentals settings (season window + leasing toggle).
-                Route::get('/rentals/extension-offers', [TenantControllers\RentalExtensionActivityController::class, 'index'])->name('rentals.extension.activity'); // MARKER-RENTAL-EXT-P2
+                // rentals settings (season window + leasing toggle).
+                Route::get('/rentals/extension-offers', [TenantControllers\RentalExtensionActivityController::class, 'index'])->name('rentals.extension.activity');
                 Route::get('/rentals/settings',  [TenantControllers\RentalSettingsController::class, 'index'])->name('rentals.settings');
                 Route::post('/rentals/settings', [TenantControllers\RentalSettingsController::class, 'save'])->name('rentals.settings.save');
-                // MARKER-PATCH-237 — versioned agreement templates (publish-only).
+                // versioned agreement templates (publish-only).
                 Route::post('/rentals/settings/agreement-templates', [TenantControllers\RentalSettingsController::class, 'storeAgreementTemplate'])->name('rentals.settings.agreements.store');
 
-                // MARKER-PATCH-229 — lease packages (the tier builder). Gated
+                // lease packages (the tier builder). Gated
                 // in-controller on leases_enabled.
                 Route::get( '/rentals/leases/packages',                 [TenantControllers\LeasePackageController::class, 'index'])->name('rentals.leases.packages');
                 Route::post('/rentals/leases/packages',                 [TenantControllers\LeasePackageController::class, 'store'])->name('rentals.leases.packages.store');
@@ -616,75 +612,74 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
                 Route::post('/rentals/leases/packages/{id}/slots',      [TenantControllers\LeasePackageController::class, 'addSlot'])->name('rentals.leases.packages.slots.add');
                 Route::delete('/rentals/leases/packages/{id}/slots/{slotId}', [TenantControllers\LeasePackageController::class, 'removeSlot'])->name('rentals.leases.packages.slots.remove');
 
-                // MARKER-PATCH-230 — lease transactions + fulfillment.
+                // lease transactions + fulfillment.
                 Route::get( '/rentals/leases',            [TenantControllers\LeaseController::class, 'index'])->name('rentals.leases.index');
                 Route::get( '/rentals/leases/new',        [TenantControllers\LeaseController::class, 'create'])->name('rentals.leases.create');
                 Route::post('/rentals/leases',            [TenantControllers\LeaseController::class, 'store'])->name('rentals.leases.store');
                 Route::get( '/rentals/leases/{id}',       [TenantControllers\LeaseController::class, 'show'])->name('rentals.leases.show');
 
-                // MARKER-PATCH-223 — fleet-wide availability timeline.
+                // fleet-wide availability timeline.
                 Route::get('/rentals/availability-timeline',     [TenantControllers\RentalAvailabilityTimelineController::class, 'index'])->name('rentals.availability.timeline');
                 Route::get('/rentals/bookings',                  [TenantControllers\RentalBookingController::class, 'index'])->name('rentals.bookings.index');
                 Route::get('/rentals/bookings/new',              [TenantControllers\RentalBookingController::class, 'create'])->name('rentals.bookings.create');
                 Route::post('/rentals/bookings',                 [TenantControllers\RentalBookingController::class, 'store'])->name('rentals.bookings.store');
                 Route::get('/rentals/availability-check',        [TenantControllers\RentalBookingController::class, 'availability'])->name('rentals.availability');
                 Route::get('/rentals/bookings/{id}',             [TenantControllers\RentalBookingController::class, 'show'])->name('rentals.bookings.show');
-                Route::post('/rentals/bookings/{id}/extension-offer', [TenantControllers\RentalBookingController::class, 'sendExtensionOffer'])->name('rentals.bookings.extension.send'); // MARKER-RENTAL-EXT
-                // MARKER-RENTAL-DISCOUNT
+                Route::post('/rentals/bookings/{id}/extension-offer', [TenantControllers\RentalBookingController::class, 'sendExtensionOffer'])->name('rentals.bookings.extension.send');
                 Route::post('/rentals/bookings/{id}/discount',   [TenantControllers\RentalBookingController::class, 'applyDiscount'])->name('rentals.bookings.discount.apply');
                 Route::delete('/rentals/bookings/{id}/discount', [TenantControllers\RentalBookingController::class, 'removeDiscount'])->name('rentals.bookings.discount.remove');
                 Route::post('/rentals/bookings/{id}/check-out',  [TenantControllers\RentalBookingController::class, 'checkOut'])->name('rentals.bookings.checkout');
-                // MARKER-PATCH-232 — guided check-out flow.
+                // guided check-out flow.
                 Route::get( '/rentals/bookings/{id}/check-out-flow',   [TenantControllers\RentalBookingController::class, 'checkOutFlow'])->name('rentals.bookings.checkout.flow');
                 Route::post('/rentals/bookings/{id}/agreement/sign',   [TenantControllers\RentalBookingController::class, 'signAgreement'])->name('rentals.bookings.agreement.sign');
-                // MARKER-RENTAL-WAIVER-DISPLAY-BE — waiver on the paired customer screen.
+                // waiver on the paired customer screen.
                 Route::post('/rentals/bookings/{id}/agreement/send-to-display', [TenantControllers\RentalBookingController::class, 'sendAgreementToDisplay'])->name('rentals.bookings.agreement.send_display');
                 Route::post('/rentals/bookings/{id}/agreement/recall-display',  [TenantControllers\RentalBookingController::class, 'recallAgreementFromDisplay'])->name('rentals.bookings.agreement.recall_display');
                 Route::get( '/rentals/bookings/{id}/agreement/status.json',     [TenantControllers\RentalBookingController::class, 'agreementStatus'])->name('rentals.bookings.agreement.status');
                 Route::post('/rentals/bookings/{id}/condition-check',  [TenantControllers\RentalBookingController::class, 'storeConditionCheck'])->name('rentals.bookings.condition.store');
                 Route::post('/rentals/bookings/{id}/check-out-complete', [TenantControllers\RentalBookingController::class, 'completeCheckOut'])->name('rentals.bookings.checkout.complete');
-                // MARKER-PATCH-233 — guided return flow.
+                // guided return flow.
                 Route::get( '/rentals/bookings/{id}/return-flow',     [TenantControllers\RentalBookingController::class, 'returnFlow'])->name('rentals.bookings.return.flow');
                 Route::post('/rentals/bookings/{id}/return-charges',  [TenantControllers\RentalBookingController::class, 'addReturnCharges'])->name('rentals.bookings.return.charges');
                 Route::post('/rentals/bookings/{id}/return-complete', [TenantControllers\RentalBookingController::class, 'completeReturn'])->name('rentals.bookings.return.complete');
                 Route::post('/rentals/bookings/{id}/check-in',   [TenantControllers\RentalBookingController::class, 'checkIn'])->name('rentals.bookings.checkin');
                 Route::post('/rentals/bookings/{id}/cancel',     [TenantControllers\RentalBookingController::class, 'cancel'])->name('rentals.bookings.cancel');
                 Route::post('/rentals/bookings/{id}/collect-payment', [TenantControllers\RentalBookingController::class, 'collectPayment'])->name('rentals.bookings.collect');
-                // MARKER-PATCH-220 — deposit holds (manual-capture intents).
+                // deposit holds (manual-capture intents).
                 Route::post('/rentals/bookings/{id}/deposit/intent',  [TenantControllers\RentalBookingController::class, 'createDepositIntent'])->name('rentals.bookings.deposit.intent');
                 Route::post('/rentals/bookings/{id}/deposit/confirm', [TenantControllers\RentalBookingController::class, 'confirmDepositIntent'])->name('rentals.bookings.deposit.confirm');
                 Route::post('/rentals/bookings/{id}/deposit/release', [TenantControllers\RentalBookingController::class, 'releaseDeposit'])->name('rentals.bookings.deposit.release');
                 Route::post('/rentals/bookings/{id}/deposit/capture', [TenantControllers\RentalBookingController::class, 'captureDeposit'])->name('rentals.bookings.deposit.capture');
             }); // close RequireRentalCapability group
 
-            // MARKER-PATCH-231 — global search.
+            // global search.
             Route::get('/search', [TenantControllers\GlobalSearchController::class, 'search'])->name('search');
-            // MARKER-SEARCH-ALL — the full results surface behind the modal.
+            // the full results surface behind the modal.
             Route::get('/search/all', [TenantControllers\GlobalSearchController::class, 'page'])->name('search.page');
 
-            // MARKER-PATCH-231 — notifications full page.
+            // notifications full page.
             Route::get('/notifications', [TenantControllers\StaffAlertController::class, 'page'])->name('notifications');
 
-            // MARKER-PATCH-225 — staff alerts: bell feed + per-user prefs.
+            // staff alerts: bell feed + per-user prefs.
             Route::get('/alerts/feed',           [TenantControllers\StaffAlertController::class, 'feed'])->name('alerts.feed');
             Route::post('/alerts/{id}/read',     [TenantControllers\StaffAlertController::class, 'markRead'])->name('alerts.read');
             Route::post('/alerts/read-all',      [TenantControllers\StaffAlertController::class, 'markAllRead'])->name('alerts.read-all');
-            // MARKER-PATCH-280 — shop-wide announcement send.
+            // shop-wide announcement send.
             Route::post('/alerts/broadcasts',    [TenantControllers\StaffAlertController::class, 'storeBroadcast'])->name('alerts.broadcasts.store');
             Route::post('/alerts/broadcasts/{id}/dismiss', [TenantControllers\StaffAlertController::class, 'dismissBroadcast'])->name('alerts.broadcasts.dismiss');
             Route::get('/settings/alerts',       [TenantControllers\StaffAlertController::class, 'prefs'])->name('alerts.prefs');
             Route::post('/settings/alerts',      [TenantControllers\StaffAlertController::class, 'savePrefs'])->name('alerts.prefs.save');
-            // MARKER-HOTFIX-K4Q6HGCC — restored: a substring match while
+            // restored: a substring match while
             // removing the EmailController routes deleted this one too.
             Route::post('/settings/email/test', [TenantControllers\TestEmailController::class, 'sendSettingsTest'])->name('settings.email.test');
 
-            // MARKER-PATCH-221 — unified inbox. Gated in the controller on
+            // unified inbox. Gated in the controller on
             // the unified_inbox addon (403 + nav hidden when absent).
             Route::get('/inbox',                        [TenantControllers\InboxController::class, 'index'])->name('inbox.index');
             Route::post('/inbox/start',                 [TenantControllers\InboxController::class, 'start'])->name('inbox.start');
             Route::post('/inbox/threads/{id}/messages', [TenantControllers\InboxController::class, 'send'])->name('inbox.send');
             Route::post('/inbox/threads/{id}/status',   [TenantControllers\InboxController::class, 'toggleStatus'])->name('inbox.status');
-            Route::post('/inbox/messages/{id}/delete',  [TenantControllers\InboxController::class, 'deleteMessage'])->name('inbox.message.delete'); // MARKER-PATCH-401
+            Route::post('/inbox/messages/{id}/delete',  [TenantControllers\InboxController::class, 'deleteMessage'])->name('inbox.message.delete');
 
             Route::post('/onboarding/branding', [TenantControllers\OnboardingModalController::class, 'saveBranding'])->name('onboarding.branding');
             Route::post('/onboarding/services', [TenantControllers\OnboardingModalController::class, 'saveServices'])->name('onboarding.services');
@@ -724,18 +719,18 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             // Calendar (admin) — day/week/month views of the tenant's schedule.
             Route::get('/calendar',             [TenantControllers\CalendarController::class, 'index'])->name('calendar.index');
 
-            // MARKER-PATCH-152A — Deliveries (internal pickup/dropoff schedule)
+            // Deliveries (internal pickup/dropoff schedule)
             Route::get('/deliveries',                           [TenantControllers\DeliveriesController::class, 'index'])->name('deliveries.index');
-            // MARKER-PATCH-321 — printable 80mm pickup/delivery slips for a day
+            // printable 80mm pickup/delivery slips for a day
             Route::get('/deliveries/slips',                     [TenantControllers\DeliveriesController::class, 'printSlips'])->name('deliveries.slips');
-            Route::get('/deliveries/customer-assets',           [TenantControllers\DeliveriesController::class, 'customerAssets'])->name('deliveries.customer-assets'); // MARKER-PATCH-427
-            // MARKER-PATCH-329 — single delivery receipt
+            Route::get('/deliveries/customer-assets',           [TenantControllers\DeliveriesController::class, 'customerAssets'])->name('deliveries.customer-assets');
+            // single delivery receipt
             Route::get('/deliveries/{id}/slip',                 [TenantControllers\DeliveriesController::class, 'printSlip'])->name('deliveries.slip');
-            // MARKER-PATCH-152B — create + edit + complete + cancel
+            // create + edit + complete + cancel
             Route::post('/deliveries',                           [TenantControllers\DeliveriesController::class, 'store'])->name('deliveries.store');
             Route::patch('/deliveries/{id}',                     [TenantControllers\DeliveriesController::class, 'update'])->name('deliveries.update');
             Route::patch('/deliveries/{id}/complete',            [TenantControllers\DeliveriesController::class, 'complete'])->name('deliveries.complete');
-            // MARKER-PATCH-515 — schedule the return leg from the appointment
+            // schedule the return leg from the appointment
             Route::post('/deliveries/schedule-return/{appointmentId}', [TenantControllers\DeliveriesController::class, 'scheduleReturn'])->name('deliveries.schedule_return');
             Route::patch('/deliveries/{id}/cancel',              [TenantControllers\DeliveriesController::class, 'cancel'])->name('deliveries.cancel');
             Route::get('/deliveries/resources',                 [TenantControllers\DeliveryResourcesController::class, 'index'])->name('deliveries.resources.index');
@@ -744,32 +739,30 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             Route::delete('/deliveries/resources/{id}',         [TenantControllers\DeliveryResourcesController::class, 'destroy'])->name('deliveries.resources.destroy');
 
             Route::get('/reports',              [TenantControllers\ReportsController::class, 'index'])->name('reports.index');
-            // MARKER-OPS-PANELS
             Route::post('/reports/targets', [TenantControllers\ReportsController::class, 'saveTargets'])->name('reports.targets');
             Route::get('/reports/customers',    [TenantControllers\ReportsController::class, 'customers'])->name('reports.customers');
             Route::get('/reports/services',     [TenantControllers\ReportsController::class, 'services'])->name('reports.services');
             Route::get('/reports/retail',       [TenantControllers\ReportsController::class, 'retail'])->name('reports.retail');
             Route::get('/reports/money',        [TenantControllers\ReportsController::class, 'money'])->name('reports.money');
             Route::get('/reports/staff',        [TenantControllers\ReportsController::class, 'staff'])->name('reports.staff');
-            // MARKER-DATA-COMPLETENESS
             Route::get('/reports/data-quality',        [TenantControllers\ReportsController::class, 'dataQuality'])->name('reports.data_quality');
             Route::get('/reports/data-quality/export', [TenantControllers\ReportsController::class, 'dataQualityExport'])->name('reports.data_quality.export');
-            // MARKER-PATCH-151A — Traffic tab
+            // Traffic tab
             Route::get('/reports/traffic',      [TenantControllers\ReportsController::class, 'traffic'])->name('reports.traffic');
-            // MARKER-PATCH-633 — Daily ops (end of day)
+            // Daily ops (end of day)
             Route::get('/reports/daily',                 [TenantControllers\DailyOpsController::class, 'endOfDay'])->name('reports.daily');
             Route::post('/reports/daily/drawer',         [TenantControllers\DailyOpsController::class, 'saveDrawer'])->name('reports.daily.drawer');
             Route::post('/reports/daily/close',          [TenantControllers\DailyOpsController::class, 'closeDay'])->name('reports.daily.close');
             Route::post('/reports/daily/reopen',         [TenantControllers\DailyOpsController::class, 'reopenDay'])->name('reports.daily.reopen');
             Route::get('/reports/daily/print',           [TenantControllers\DailyOpsController::class, 'printDay'])->name('reports.daily.print');
-            Route::get('/reports/daily/exports',         [TenantControllers\DailyOpsController::class, 'exports'])->name('reports.daily.exports'); // MARKER-PATCH-634
+            Route::get('/reports/daily/exports',         [TenantControllers\DailyOpsController::class, 'exports'])->name('reports.daily.exports');
             Route::get('/reports/daily/export/qb',       [TenantControllers\DailyOpsController::class, 'exportQbJournal'])->name('reports.daily.export.qb');
             Route::get('/reports/daily/export/detail',   [TenantControllers\DailyOpsController::class, 'exportDetail'])->name('reports.daily.export.detail');
             Route::get('/reports/daily/export/tax',      [TenantControllers\DailyOpsController::class, 'exportTax'])->name('reports.daily.export.tax');
-            Route::get('/reports/daily/recon',           [TenantControllers\DailyOpsController::class, 'reconciliation'])->name('reports.daily.recon'); // MARKER-PATCH-635
+            Route::get('/reports/daily/recon',           [TenantControllers\DailyOpsController::class, 'reconciliation'])->name('reports.daily.recon');
             Route::post('/reports/daily/recon/refresh',  [TenantControllers\DailyOpsController::class, 'reconciliationRefresh'])->name('reports.daily.recon.refresh');
             Route::get('/reports/daily/export/xero',     [TenantControllers\DailyOpsController::class, 'exportXero'])->name('reports.daily.export.xero');
-            Route::post('/reports/search-rules',            [TenantControllers\SearchRulesController::class, 'store'])->name('reports.search-rules.store'); // MARKER-PATCH-622
+            Route::post('/reports/search-rules',            [TenantControllers\SearchRulesController::class, 'store'])->name('reports.search-rules.store');
             Route::post('/reports/search-rules/{ruleId}/delete', [TenantControllers\SearchRulesController::class, 'destroy'])->name('reports.search-rules.delete');
             Route::post('/calendar/dropoff/reschedule', [TenantControllers\CalendarController::class, 'dropOffReschedule'])->name('calendar.dropoff.reschedule');
             Route::get('/calendar/quick-book',  [TenantControllers\QuickBookController::class, 'picker'])->name('calendar.quick-book.picker');
@@ -793,7 +786,7 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
 
             Route::get('/appointments',         [TenantControllers\AppointmentController::class, 'index'])->name('appointments.index');
             Route::get('/appointments/picker-data', [TenantControllers\AppointmentController::class, 'pickerData'])->name('appointments.picker-data');
-            Route::get('/appointments/customer-assets', [TenantControllers\AppointmentController::class, 'customerAssets'])->name('appointments.customer-assets'); // MARKER-APPT-ASSET
+            Route::get('/appointments/customer-assets', [TenantControllers\AppointmentController::class, 'customerAssets'])->name('appointments.customer-assets');
             Route::get('/appointments/day-strip',   [TenantControllers\AppointmentController::class, 'dayStrip'])->name('appointments.day-strip');
             // SEQUENTIAL-PICKER-ROUTES v1
             Route::get('/appointments/eligible-resources', [TenantControllers\AppointmentController::class, 'eligibleResources'])->name('appointments.eligible-resources');
@@ -801,30 +794,30 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             Route::get('/appointments/day-times',   [TenantControllers\AppointmentController::class, 'dayTimes'])->name('appointments.day-times');
             Route::get('/appointments/resolve-resource', [TenantControllers\AppointmentController::class, 'resolveResource'])->name('appointments.resolve-resource');
             Route::post('/appointments',        [TenantControllers\AppointmentController::class, 'store'])->name('appointments.store');
-            // MARKER-APPT-OVERRIDE — day capacity for the staff day picker.
+            // day capacity for the staff day picker.
             Route::get('/appointments/day-load', [TenantControllers\AppointmentController::class, 'dayLoad'])->name('appointments.day_load');
-            // MARKER-NOTIFY-CHOICE — send a confirmation deliberately, after the
+            // send a confirmation deliberately, after the
             // appointment has been saved and looked at.
             Route::post('/appointments/{id}/notify', [TenantControllers\AppointmentController::class, 'notify'])->name('appointments.notify');
             Route::get('/appointments/{id}',    [TenantControllers\AppointmentController::class, 'show'])->name('appointments.show');
             Route::patch('/appointments/{id}',  [TenantControllers\AppointmentController::class, 'update'])->name('appointments.update');
             Route::get('/appointments/{id}/drawer', [TenantControllers\AppointmentController::class, 'drawer'])->name('appointments.drawer');
-            // MARKER-PATCH-313 — printable work-order service tag (80mm thermal)
+            // printable work-order service tag (80mm thermal)
             Route::get('/appointments/{id}/tag', [TenantControllers\AppointmentController::class, 'printTag'])->name('appointments.tag');
-            // MARKER-PATCH-336 — unified print (parallel path)
+            // unified print (parallel path)
             Route::get('/print/appointment/{id}', [TenantControllers\PrintController::class, 'appointment'])->name('print.appointment');
             Route::get('/print/sale/{id}',        [TenantControllers\PrintController::class, 'sale'])->name('print.sale');
             Route::get('/print/{source}/{id}/meta', [TenantControllers\PrintController::class, 'meta'])->name('print.meta');
             Route::post('/print/{source}/{id}/email', [TenantControllers\PrintController::class, 'email'])->name('print.email');
-            // MARKER-PATCH-204 — work-order invoice export (PDF print + email)
+            // work-order invoice export (PDF print + email)
             Route::match(['get','post'], '/appointments/{id}/invoice/preview',  [TenantControllers\InvoiceExportController::class, 'preview'])->name('appointments.invoice.preview');
             Route::match(['get','post'], '/appointments/{id}/invoice/download', [TenantControllers\InvoiceExportController::class, 'download'])->name('appointments.invoice.download');
             Route::post('/appointments/{id}/invoice/email',                     [TenantControllers\InvoiceExportController::class, 'email'])->name('appointments.invoice.email');
-            // MARKER-PATCH-206 — live HTML preview for the composer pane (no PDF, no DB write)
+            // live HTML preview for the composer pane (no PDF, no DB write)
             Route::match(['get','post'], '/appointments/{id}/invoice/preview-html', [TenantControllers\InvoiceExportController::class, 'previewHtml'])->name('appointments.invoice.preview-html');
             Route::get('/appointments-inventory-search', [TenantControllers\AppointmentController::class, 'searchInventoryItems'])->name('appointments.inventory-search');
 
-            // MARKER-IMPORT1 — CSV import wizard (capability-gated in the controller)
+            // CSV import wizard (capability-gated in the controller)
             Route::get('/imports',                      [TenantControllers\ImportController::class, 'index'])->name('imports.index');
             Route::get('/imports/new',                  [TenantControllers\ImportController::class, 'create'])->name('imports.create');
             Route::post('/imports',                     [TenantControllers\ImportController::class, 'store'])->name('imports.store');
@@ -833,31 +826,31 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             Route::get('/imports/{id}/preview',         [TenantControllers\ImportController::class, 'preview'])->name('imports.preview');
             Route::post('/imports/{id}/run',            [TenantControllers\ImportController::class, 'run'])->name('imports.run');
             Route::get('/imports/template/{type}',      [TenantControllers\ImportController::class, 'template'])->name('imports.template');
-            // MARKER-IMPORT-MERGE — merge review. Declared above /imports/{id}
+            // merge review. Declared above /imports/{id}
             // or 'conflicts' is swallowed as an id, same trap as 'template'.
             Route::get('/imports/{id}/conflicts',              [TenantControllers\ImportController::class, 'conflicts'])->name('imports.conflicts');
             Route::post('/imports/{id}/conflicts',             [TenantControllers\ImportController::class, 'saveConflicts'])->name('imports.conflicts.save');
-            // MARKER-IMPORT-PRESETS — saved column mappings.
+            // saved column mappings.
             Route::post('/imports/{id}/preset/apply',          [TenantControllers\ImportController::class, 'applyPreset'])->name('imports.preset.apply');
             Route::post('/imports/{id}/preset/save',           [TenantControllers\ImportController::class, 'savePreset'])->name('imports.preset.save');
             Route::patch('/import-mappings/{mappingId}',       [TenantControllers\ImportController::class, 'renamePreset'])->name('imports.preset.rename');
             Route::delete('/import-mappings/{mappingId}',      [TenantControllers\ImportController::class, 'deletePreset'])->name('imports.preset.delete');
             Route::get('/imports/{id}/conflicts/{field}',      [TenantControllers\ImportController::class, 'conflictField'])->name('imports.conflict.field');
             Route::post('/imports/{id}/conflicts/{field}',     [TenantControllers\ImportController::class, 'saveConflictField'])->name('imports.conflict.field.save');
-    // MARKER-IMPORT-MATCH — possible-duplicate decisions and the row ledger.
+    // possible-duplicate decisions and the row ledger.
     Route::post('/imports/{id}/matches', [TenantControllers\ImportController::class, 'resolveMatches'])->name('imports.matches.save');
     Route::get('/imports/{id}/ledger',   [TenantControllers\ImportController::class, 'ledger'])->name('imports.ledger');
-    // MARKER-IMPORT-QUEUE — what the progress modal polls, and its cancel.
+    // what the progress modal polls, and its cancel.
     Route::get('/imports/{id}/progress', [TenantControllers\ImportController::class, 'progress'])->name('imports.progress');
     Route::post('/imports/{id}/cancel',  [TenantControllers\ImportController::class, 'cancelRun'])->name('imports.cancel');
-    // MARKER-IMPORT-CATS — create / map / leave off, per category path.
+    // create / map / leave off, per category path.
     Route::post('/imports/{id}/categories', [TenantControllers\ImportController::class, 'resolveCategories'])->name('imports.categories.save');
             Route::get('/imports/{id}',                 [TenantControllers\ImportController::class, 'show'])->name('imports.show');
-            // MARKER-IMPORT-DRILLDOWN — what's behind a result number
+            // what's behind a result number
             Route::get('/imports/{id}/detail',  [TenantControllers\ImportController::class, 'detail'])->name('imports.detail');
             Route::get('/imports/{id}/errors',          [TenantControllers\ImportController::class, 'errors'])->name('imports.errors');
-            Route::post('/imports/{id}/reverse',        [TenantControllers\ImportController::class, 'reverse'])->name('imports.reverse'); // MARKER-IMPORT2
-            // MARKER-IMPORT3 — template must be declared BEFORE /imports/{id},
+            Route::post('/imports/{id}/reverse',        [TenantControllers\ImportController::class, 'reverse'])->name('imports.reverse');
+            // template must be declared BEFORE /imports/{id},
             // or 'template' would be swallowed as an id.
             Route::delete('/imports/{id}',              [TenantControllers\ImportController::class, 'destroy'])->name('imports.destroy');
 
@@ -867,15 +860,13 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             Route::post('/customers',           [TenantControllers\CustomerController::class, 'store'])->name('customers.store');
             Route::patch('/customers/{id}',     [TenantControllers\CustomerController::class, 'update'])->name('customers.update');
 
-            // MARKER-PATCH-158-C — customer asset CRUD (gated by multi_asset_enabled in controller)
-            // MARKER-BIZ-CONTACTS — people at a business customer
-            // MARKER-CUST-ACCOUNT — capability-gated inside the controller.
+            // customer asset CRUD (gated by multi_asset_enabled in controller)
+            // people at a business customer
+            // capability-gated inside the controller.
             Route::post('/customers/{id}/account-link',                    [TenantControllers\CustomerController::class, 'sendAccountLink'])->name('customers.account_link');
-            Route::post('/customers/{id}/marketing-toggle', [TenantControllers\CustomerController::class, 'toggleMarketing'])->name('customers.marketing-toggle'); // MARKER-CONSENT-CLEANUP
-            // MARKER-TAGS-VISIBLE
+            Route::post('/customers/{id}/marketing-toggle', [TenantControllers\CustomerController::class, 'toggleMarketing'])->name('customers.marketing-toggle');
             Route::post('/customers/{id}/tags',              [TenantControllers\CustomerController::class, 'addTag'])->name('customers.tags.add');
             Route::post('/customers/{id}/tags/{tagId}/remove', [TenantControllers\CustomerController::class, 'removeTag'])->name('customers.tags.remove');
-            // MARKER-CUST-ADMIN
             Route::get('/customers/{id}/removal-preview', [TenantControllers\CustomerController::class, 'removalPreview'])->name('customers.removal-preview');
             Route::post('/customers/{id}/remove', [TenantControllers\CustomerController::class, 'remove'])->name('customers.remove');
             Route::post('/customers/{customerId}/contacts',                [TenantControllers\CustomerController::class, 'storeContact'])->name('customers.contacts.store');
@@ -889,27 +880,26 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             // Inventory (POS Phase 1) — gated by `retail` capability via FeatureAccessService
             Route::prefix('inventory')->name('inventory.')->group(function () {
                 Route::get('/',                  [TenantControllers\InventoryController::class, 'index'])->name('index');
-                // MARKER-INV-REPORTS — must precede /{id} below.
+                // must precede /{id} below.
                 Route::get('/reports',           [TenantControllers\InventoryReportController::class, 'index'])->name('reports');
                 Route::get('/create',            [TenantControllers\InventoryController::class, 'create'])->name('create');
-                // MARKER-ITEM-IDENT-ENTRY — scoped to the shop's own active
+                // scoped to the shop's own active
                 // subscriptions inside the controller.
                 Route::get('/catalog-lookup',    [TenantControllers\InventoryController::class, 'catalogLookup'])->name('catalog-lookup');
 
-                // MARKER-MERGE-UI — capability checked in the controller.
+                // capability checked in the controller.
                 Route::post('/merge/preview',    [TenantControllers\InventoryController::class, 'mergePreview'])->name('merge.preview');
                 Route::post('/merge',            [TenantControllers\InventoryController::class, 'mergeCommit'])->name('merge.commit');
-                // MARKER-LIVE-IDENTIFY — asked by the item forms as each identifier field is left.
+                // asked by the item forms as each identifier field is left.
                 Route::get('/identify',          [TenantControllers\ItemIdentifyController::class, 'check'])->name('identify');
 
-                // MARKER-DUP-MERGE — duplicate items; capability checked in the controller.
+                // duplicate items; capability checked in the controller.
                 Route::get('/duplicates',                [TenantControllers\DuplicateItemsController::class, 'index'])->name('duplicates');
                 Route::get('/duplicates/list.csv',       [TenantControllers\DuplicateItemsController::class, 'download'])->name('duplicates.download');
                 Route::post('/duplicates/merge-all',     [TenantControllers\DuplicateItemsController::class, 'mergeAll'])->name('duplicates.merge-all');
                 Route::post('/duplicates/{id}/merge',    [TenantControllers\DuplicateItemsController::class, 'merge'])->name('duplicates.merge');
                 Route::post('/duplicates/{id}/dismiss',  [TenantControllers\DuplicateItemsController::class, 'dismiss'])->name('duplicates.dismiss');
 
-                // MARKER-ITEM-IMAGES
                 Route::post('/{item}/images',                 [TenantControllers\InventoryImageController::class, 'upload'])->name('images.upload');
                 Route::delete('/{item}/images/{join}',        [TenantControllers\InventoryImageController::class, 'detach'])->name('images.detach');
                 Route::post('/{item}/images/reorder',         [TenantControllers\InventoryImageController::class, 'reorder'])->name('images.reorder');
@@ -919,17 +909,17 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
                 Route::post('/categories',       [TenantControllers\InventoryCategoryController::class, 'store'])->name('categories.store');
                 Route::post('/categories/quick',        [TenantControllers\InventoryCategoryController::class, 'quickStore'])->name('categories.quick');
                 Route::patch('/categories/{id}/parent', [TenantControllers\InventoryCategoryController::class, 'reparent'])->name('categories.reparent');
-                // MARKER-CAT-EDIT — capability-checked inside the controller,
+                // capability-checked inside the controller,
                 // because a hidden button is not a permission.
                 Route::patch('/categories/{id}',        [TenantControllers\InventoryCategoryController::class, 'rename'])->name('categories.rename');
                 Route::delete('/categories/{id}',       [TenantControllers\InventoryCategoryController::class, 'destroy'])->name('categories.destroy');
-                // MARKER-SERIAL-FOUNDATION — serial tracking on a category, and a serial for a piece already on hand
+                // serial tracking on a category, and a serial for a piece already on hand
                 Route::patch('/categories/{id}/serials', [TenantControllers\InventoryUnitController::class, 'categorySerials'])->name('categories.serials');
                 Route::post('/{item}/serials',          [TenantControllers\InventoryUnitController::class, 'store'])->name('units.store');
                 Route::get('/uncategorized',         [TenantControllers\InventoryController::class, 'uncategorized'])->name('uncategorized');
                 Route::post('/uncategorized/assign', [TenantControllers\InventoryController::class, 'uncategorizedAssign'])->name('uncategorized.assign');
-                Route::post('/uncategorized/undo/{id}', [TenantControllers\InventoryController::class, 'uncategorizedUndo'])->name('uncategorized.undo'); // MARKER-CAT-UNDO
-                Route::get('/uncategorized/assignments/{id}/items', [TenantControllers\InventoryController::class, 'uncategorizedAssignmentItems'])->name('uncategorized.assignment.items'); // MARKER-CAT-RAIL2
+                Route::post('/uncategorized/undo/{id}', [TenantControllers\InventoryController::class, 'uncategorizedUndo'])->name('uncategorized.undo');
+                Route::get('/uncategorized/assignments/{id}/items', [TenantControllers\InventoryController::class, 'uncategorizedAssignmentItems'])->name('uncategorized.assignment.items');
 // Receiving — POS Phase 1, gated by retail capability
                 Route::prefix('receiving')->name('receiving.')->group(function () {
                     Route::get('/',                              [TenantControllers\ReceiveShipmentController::class, 'index'])->name('index');
@@ -943,7 +933,7 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
                     Route::patch('/{id}/items/{itemId}',         [TenantControllers\ReceiveShipmentController::class, 'updateItem'])->name('items.update');
                     Route::delete('/{id}/items/{itemId}',        [TenantControllers\ReceiveShipmentController::class, 'removeItem'])->name('items.destroy');
                     Route::post('/{id}/commit',                  [TenantControllers\ReceiveShipmentController::class, 'commit'])->name('commit');
-                    // MARKER-SERIAL-FOUNDATION — serials on draft lines
+                    // serials on draft lines
                     Route::get('/{id}/serials',                     [TenantControllers\InventoryUnitController::class, 'receivingSerials'])->name('serials');
                     Route::post('/{id}/items/{itemId}/serials',     [TenantControllers\InventoryUnitController::class, 'receivingAddSerial'])->name('serials.add');
                     Route::delete('/{id}/items/{itemId}/serials',   [TenantControllers\InventoryUnitController::class, 'receivingRemoveSerial'])->name('serials.remove');
@@ -962,13 +952,13 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
                 Route::patch('/{id}',            [TenantControllers\InventoryController::class, 'update'])->name('update');
                 Route::post('/{id}/stock',       [TenantControllers\InventoryController::class, 'adjustStock'])->name('stock');
                 Route::delete('/{id}',           [TenantControllers\InventoryController::class, 'destroy'])->name('destroy');
-                Route::post('/{id}/restore',     [TenantControllers\InventoryController::class, 'restore'])->name('restore'); // MARKER-ARCHIVE-MOVE
+                Route::post('/{id}/restore',     [TenantControllers\InventoryController::class, 'restore'])->name('restore');
             });
 
             // Vendors — added in patch 86 (Special Orders Stage 4a).
             // Tenant-scoped vendor catalog. Distinct from
             // platform_distributor_catalogs which is the global sync source.
-            // MARKER-OLD-SCHOOL — the pad.
+            // the pad.
             Route::prefix('notes')->name('notes.')->group(function () {
                 Route::get('/',              [TenantControllers\NoteController::class, 'index'])->name('index');
                 Route::post('/',             [TenantControllers\NoteController::class, 'store'])->name('store');
@@ -990,7 +980,6 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             // through SpecialOrderService for validation + audit notes.
             Route::prefix('special-orders')->name('special-orders.')->group(function () {
                 Route::get('/',                                    [TenantControllers\SpecialOrderController::class, 'index'])->name('index');
-                // MARKER-SO-ORPHANS
                 Route::post('/cleanup',                            [TenantControllers\SpecialOrderController::class, 'saveCleanup'])->name('cleanup');
                 Route::post('/clear-orphans',                      [TenantControllers\SpecialOrderController::class, 'clearOrphans'])->name('clear-orphans');
                 Route::post('/',                                   [TenantControllers\SpecialOrderController::class, 'store'])->name('store');
@@ -1000,9 +989,9 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
                 Route::post('/{id}/mark-arrived',                  [TenantControllers\SpecialOrderController::class, 'markArrived'])->name('mark-arrived');
                 Route::post('/{id}/mark-pulled',                   [TenantControllers\SpecialOrderController::class, 'markPulled'])->name('mark-pulled');
                 Route::post('/{id}/cancel',                        [TenantControllers\SpecialOrderController::class, 'cancel'])->name('cancel');
-                Route::post('/{id}/confirm-source',                [TenantControllers\SpecialOrderController::class, 'confirmSource'])->name('confirm-source'); // MARKER-SO-ORIGIN
-                Route::post('/{id}/assign-vendor',                 [TenantControllers\SpecialOrderController::class, 'assignVendor'])->name('assign-vendor'); // MARKER-SO-PLACEMENT
-                Route::post('/placement/mark-ordered-batch',       [TenantControllers\SpecialOrderController::class, 'markOrderedBatch'])->name('mark-ordered-batch'); // MARKER-SO-PLACEMENT
+                Route::post('/{id}/confirm-source',                [TenantControllers\SpecialOrderController::class, 'confirmSource'])->name('confirm-source');
+                Route::post('/{id}/assign-vendor',                 [TenantControllers\SpecialOrderController::class, 'assignVendor'])->name('assign-vendor');
+                Route::post('/placement/mark-ordered-batch',       [TenantControllers\SpecialOrderController::class, 'markOrderedBatch'])->name('mark-ordered-batch');
                 Route::post('/{id}/notes',                         [TenantControllers\SpecialOrderController::class, 'addNote'])->name('notes.store');
             });
 
@@ -1065,7 +1054,6 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             Route::delete('/work-order-fields/{id}',     [TenantControllers\WorkOrderFieldsController::class, 'destroy'])->name('work-order-fields.destroy');
             Route::post('/dashboard/wof-banner/dismiss', [TenantControllers\DashboardController::class, 'dismissWorkOrderBanner'])->name('dashboard.wof-banner.dismiss');
             Route::get('/dashboard/day.json', [TenantControllers\DashboardController::class, 'dayJson'])->name('dashboard.day');
-            // MARKER-TILES
             Route::post('/dashboard/view',        [TenantControllers\DashboardController::class, 'setView'])->name('dashboard.view');
             Route::post('/dashboard/tiles',       [TenantControllers\DashboardController::class, 'saveTiles'])->name('dashboard.tiles.save');
             Route::post('/dashboard/tiles/reset', [TenantControllers\DashboardController::class, 'resetTiles'])->name('dashboard.tiles.reset');
@@ -1080,26 +1068,26 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             Route::get('/booking-editor',       [TenantControllers\BookingEditorController::class, 'index'])->name('booking-editor.index');
             Route::post('/booking-editor',      [TenantControllers\BookingEditorController::class, 'store'])->name('booking-editor.store');
 
-            // MARKER-PATCH-610 — time clock
+            // time clock
             Route::get('/timeclock',            [TenantControllers\TimeClockController::class, 'index'])->name('timeclock.index');
             Route::post('/timeclock/in',        [TenantControllers\TimeClockController::class, 'punchIn'])->name('timeclock.in');
             Route::post('/timeclock/out',       [TenantControllers\TimeClockController::class, 'punchOut'])->name('timeclock.out');
-            Route::get('/timeclock/timesheet',  [TenantControllers\TimeClockController::class, 'timesheet'])->name('timeclock.timesheet'); // MARKER-PATCH-613
+            Route::get('/timeclock/timesheet',  [TenantControllers\TimeClockController::class, 'timesheet'])->name('timeclock.timesheet');
             Route::post('/timeclock/timesheet/email', [TenantControllers\TimeClockController::class, 'emailTimesheet'])->name('timeclock.timesheet.email');
-            Route::get('/timeclock/team',       [TenantControllers\TimeClockController::class, 'team'])->name('timeclock.team'); // MARKER-PATCH-614
+            Route::get('/timeclock/team',       [TenantControllers\TimeClockController::class, 'team'])->name('timeclock.team');
             Route::post('/timeclock/punch',     [TenantControllers\TimeClockController::class, 'createPunch'])->name('timeclock.punch.create');
             Route::post('/timeclock/punch/{punchId}', [TenantControllers\TimeClockController::class, 'editPunch'])->name('timeclock.punch.edit');
-            Route::get('/timeclock/reports',       [TenantControllers\TimeClockController::class, 'reports'])->name('timeclock.reports'); // MARKER-PATCH-615
+            Route::get('/timeclock/reports',       [TenantControllers\TimeClockController::class, 'reports'])->name('timeclock.reports');
             Route::get('/timeclock/reports/csv',   [TenantControllers\TimeClockController::class, 'reportsCsv'])->name('timeclock.reports.csv');
             Route::get('/timeclock/reports/print', [TenantControllers\TimeClockController::class, 'reportPrint'])->name('timeclock.reports.print');
             Route::post('/timeclock/reports/email',[TenantControllers\TimeClockController::class, 'reportEmail'])->name('timeclock.reports.email');
-            Route::get('/timeclock/approvals',     [TenantControllers\TimeClockController::class, 'approvals'])->name('timeclock.approvals'); // MARKER-PATCH-616
+            Route::get('/timeclock/approvals',     [TenantControllers\TimeClockController::class, 'approvals'])->name('timeclock.approvals');
             Route::post('/timeclock/approve',      [TenantControllers\TimeClockController::class, 'approvePerson'])->name('timeclock.approve');
             Route::post('/timeclock/period/lock',  [TenantControllers\TimeClockController::class, 'lockPeriod'])->name('timeclock.period.lock');
             Route::post('/timeclock/period/reopen',[TenantControllers\TimeClockController::class, 'reopenPeriod'])->name('timeclock.period.reopen');
             Route::post('/timeclock/settings',     [TenantControllers\TimeClockController::class, 'saveSettings'])->name('timeclock.settings');
 
-            // MARKER-PATCH-623 — staff scheduling phase 1
+            // staff scheduling phase 1
             Route::get('/scheduling',                    [TenantControllers\SchedulingController::class, 'index'])->name('scheduling.index');
             Route::post('/scheduling/shift',             [TenantControllers\SchedulingController::class, 'storeShift'])->name('scheduling.shift.store');
             Route::post('/scheduling/shift/{shiftId}/delete', [TenantControllers\SchedulingController::class, 'deleteShift'])->name('scheduling.shift.delete');
@@ -1109,24 +1097,24 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             Route::post('/scheduling/timeoff',           [TenantControllers\SchedulingController::class, 'timeOffStore'])->name('scheduling.timeoff.store');
             Route::post('/scheduling/timeoff/{requestId}/review', [TenantControllers\SchedulingController::class, 'timeOffReview'])->name('scheduling.timeoff.review');
             Route::get('/scheduling/mine',               [TenantControllers\SchedulingController::class, 'mine'])->name('scheduling.mine');
-            Route::get('/scheduling/availability',       [TenantControllers\SchedulingController::class, 'availability'])->name('scheduling.availability'); // MARKER-PATCH-624
+            Route::get('/scheduling/availability',       [TenantControllers\SchedulingController::class, 'availability'])->name('scheduling.availability');
             Route::post('/scheduling/availability',      [TenantControllers\SchedulingController::class, 'availabilityStore'])->name('scheduling.availability.store');
             Route::get('/scheduling/settings',           [TenantControllers\SchedulingController::class, 'settingsPage'])->name('scheduling.settings');
             Route::post('/scheduling/settings',          [TenantControllers\SchedulingController::class, 'saveSettings'])->name('scheduling.settings.save');
             Route::post('/scheduling/template',          [TenantControllers\SchedulingController::class, 'saveTemplate'])->name('scheduling.template.save');
             Route::post('/scheduling/template/{templateId}/apply', [TenantControllers\SchedulingController::class, 'applyTemplate'])->name('scheduling.template.apply');
-            Route::delete('/scheduling/template/{templateId}', [TenantControllers\SchedulingController::class, 'deleteTemplate'])->name('scheduling.template.delete'); // MARKER-TPL-MANAGE
+            Route::delete('/scheduling/template/{templateId}', [TenantControllers\SchedulingController::class, 'deleteTemplate'])->name('scheduling.template.delete');
 
             Route::post('/uploads', [TenantControllers\UploadController::class, 'store'])->name('uploads.store');
 
-            // MARKER-PATCH-258 — media library
+            // media library
             Route::get('/media',            [TenantControllers\MediaLibraryController::class, 'index'])->name('media.index');
             Route::get('/media/feed',       [TenantControllers\MediaLibraryController::class, 'feed'])->name('media.feed');
             Route::post('/media/{id}/archive', [TenantControllers\MediaLibraryController::class, 'archive'])->name('media.archive');
-            Route::delete('/media/{id}',       [TenantControllers\MediaLibraryController::class, 'destroy'])->name('media.destroy'); // MARKER-MEDIA-DELETE
+            Route::delete('/media/{id}',       [TenantControllers\MediaLibraryController::class, 'destroy'])->name('media.destroy');
 
             Route::get('/help', [TenantControllers\HelpController::class, 'index'])->name('help.index');
-            // MARKER-HELP-TENANT — gated articles under the existing help page.
+            // gated articles under the existing help page.
             // Distinct names: help.index above already exists and is untouched.
             Route::get('/help/for/{key}',       [TenantControllers\HelpController::class, 'forKey'])->name('help.for');
             Route::get('/help/article/{slug}',  [TenantControllers\HelpController::class, 'show'])->name('help.article');
@@ -1136,87 +1124,82 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
 
             Route::get('/pages',                [TenantControllers\PageBuilderController::class, 'index'])->name('pages.index');
             Route::get('/pages/{id}',           [TenantControllers\PageBuilderController::class, 'edit'])->name('pages.edit');
-            Route::post('/pages/welcome',        [TenantControllers\PageBuilderController::class, 'saveWelcome'])->name('pages.welcome'); // MARKER-WELCOME
+            Route::post('/pages/welcome',        [TenantControllers\PageBuilderController::class, 'saveWelcome'])->name('pages.welcome');
             Route::get('/pages/welcome/preview', [TenantControllers\PageBuilderController::class, 'previewWelcome'])->name('pages.welcome.preview');
-            Route::get('/pages/{id}/preview',   [TenantControllers\PageBuilderController::class, 'preview'])->name('pages.preview'); // MARKER-PATCH-267
+            Route::get('/pages/{id}/preview',   [TenantControllers\PageBuilderController::class, 'preview'])->name('pages.preview');
             Route::post('/pages',               [TenantControllers\PageBuilderController::class, 'store'])->name('pages.store');
-            Route::post('/pages/brand-kit',     [TenantControllers\PageBuilderController::class, 'saveBrandKit'])->name('pages.brand-kit.save'); // MARKER-PATCH-302
-            Route::post('/pages/splash',        [TenantControllers\PageBuilderController::class, 'saveSplash'])->name('pages.splash.save'); // MARKER-SPLASH
+            Route::post('/pages/brand-kit',     [TenantControllers\PageBuilderController::class, 'saveBrandKit'])->name('pages.brand-kit.save');
+            Route::post('/pages/splash',        [TenantControllers\PageBuilderController::class, 'saveSplash'])->name('pages.splash.save');
             Route::patch('/pages/{id}',         [TenantControllers\PageBuilderController::class, 'update'])->name('pages.update');
             Route::delete('/pages/{id}',        [TenantControllers\PageBuilderController::class, 'destroy'])->name('pages.destroy');
             Route::post('/pages/{id}/sections',           [TenantControllers\PageBuilderController::class, 'addSection'])->name('pages.sections.add');
             Route::patch('/pages/{id}/sections/{sid}',    [TenantControllers\PageBuilderController::class, 'updateSection'])->name('pages.sections.update');
             Route::delete('/pages/{id}/sections/{sid}',   [TenantControllers\PageBuilderController::class, 'deleteSection'])->name('pages.sections.delete');
             Route::post('/pages/{id}/sections/reorder',   [TenantControllers\PageBuilderController::class, 'reorderSections'])->name('pages.sections.reorder');
-            // MARKER-REWIND
             Route::get('/pages/{id}/history',                        [TenantControllers\PageRevisionController::class, 'index'])->name('pages.history');
             Route::post('/pages/{id}/history/{revisionId}/restore',  [TenantControllers\PageRevisionController::class, 'restore'])->name('pages.history.restore');
 
-            // MARKER-PATCH-261 — site template gallery
+            // site template gallery
             Route::get('/website/templates',               [TenantControllers\SiteTemplateController::class, 'index'])->name('templates.index');
             Route::post('/website/templates/revert',       [TenantControllers\SiteTemplateController::class, 'revert'])->name('templates.revert');
-            Route::post('/website/templates/customize',    [TenantControllers\SiteTemplateController::class, 'customize'])->name('templates.customize'); // MARKER-CUSTOMIZER
+            Route::post('/website/templates/customize',    [TenantControllers\SiteTemplateController::class, 'customize'])->name('templates.customize');
             Route::post('/website/templates/{key}/apply',  [TenantControllers\SiteTemplateController::class, 'apply'])->where('key', '[a-z]+')->name('templates.apply');
 
-            // MARKER-PATCH-404 — Communication Center (unified comms surface)
+            // Communication Center (unified comms surface)
             Route::get('/communication',        [TenantControllers\CommunicationController::class, 'index'])->name('communication.index');
             Route::patch('/communication',      [TenantControllers\CommunicationController::class, 'updateToggles'])->name('communication.toggles');
-            Route::patch('/communication/template/{type}', [TenantControllers\CommunicationController::class, 'saveTemplate'])->name('communication.template'); // MARKER-PATCH-405
-            Route::post('/communication/test/{type}', [TenantControllers\CommunicationController::class, 'sendTest'])->name('communication.test'); // MARKER-PATCH-409
-            // MARKER-PATCH-160 — re-send a receipt from sale-detail (also accepts ?email= for "send to another")
+            Route::patch('/communication/template/{type}', [TenantControllers\CommunicationController::class, 'saveTemplate'])->name('communication.template');
+            Route::post('/communication/test/{type}', [TenantControllers\CommunicationController::class, 'sendTest'])->name('communication.test');
+            // re-send a receipt from sale-detail (also accepts ?email= for "send to another")
             Route::post('/sales/{id}/resend-receipt',
                 [TenantControllers\RegisterController::class, 'resendReceipt'])
                 ->name('sales.resend_receipt');
-            // MARKER-PATCH-407 — emails.settings.update route removed (receipt options in Communication Center)
-            // MARKER-CONSENT-SURFACES — MUST register before /campaigns/{id},
+            // emails.settings.update route removed (receipt options in Communication Center)
+            // MUST register before /campaigns/{id},
             // or the wildcard swallows /campaigns/contacts into show('contacts').
             Route::get('/campaigns/contacts',          [TenantControllers\ConsentAdminController::class, 'index'])->name('consent.index');
             Route::post('/campaigns/contacts/attest',  [TenantControllers\ConsentAdminController::class, 'attest'])->name('consent.attest');
             Route::post('/customers/{id}/consent',     [TenantControllers\ConsentAdminController::class, 'customerConsent'])->name('customers.consent');
-            // MARKER-APPT-DISCOUNT
             Route::post('/appointments/{id}/discount',        [TenantControllers\AppointmentController::class, 'applyDiscount'])->name('appointments.discount.apply');
             Route::delete('/appointments/{id}/discount',      [TenantControllers\AppointmentController::class, 'removeDiscount'])->name('appointments.discount.remove');
 
-            // MARKER-DISCOUNTS-ADMIN
             Route::get('/discounts',                [TenantControllers\DiscountAdminController::class, 'index'])->name('discounts.index');
             Route::post('/discounts',               [TenantControllers\DiscountAdminController::class, 'store'])->name('discounts.store');
             Route::patch('/discounts/{id}',         [TenantControllers\DiscountAdminController::class, 'update'])->name('discounts.update');
             Route::post('/discounts/{id}/toggle',   [TenantControllers\DiscountAdminController::class, 'toggle'])->name('discounts.toggle');
             Route::delete('/discounts/{id}',        [TenantControllers\DiscountAdminController::class, 'destroy'])->name('discounts.destroy');
-            Route::post('/discounts/{id}/tags',     [TenantControllers\DiscountAdminController::class, 'tags'])->name('discounts.tags');       // MARKER-PROMO-TAGS
-            Route::post('/discounts/{id}/campaign', [TenantControllers\DiscountAdminController::class, 'campaign'])->name('discounts.campaign'); // MARKER-PROMO-TAGS
+            Route::post('/discounts/{id}/tags',     [TenantControllers\DiscountAdminController::class, 'tags'])->name('discounts.tags');
+            Route::post('/discounts/{id}/campaign', [TenantControllers\DiscountAdminController::class, 'campaign'])->name('discounts.campaign');
 
             Route::get('/campaigns',            [TenantControllers\CampaignController::class, 'index'])->name('campaigns.index');
             Route::get('/campaigns/{id}',       [TenantControllers\CampaignController::class, 'show'])->name('campaigns.show');
             Route::post('/campaigns',           [TenantControllers\CampaignController::class, 'store'])->name('campaigns.store');
             Route::patch('/campaigns/{id}',     [TenantControllers\CampaignController::class, 'update'])->name('campaigns.update');
-            Route::get('/campaigns/{id}/results', [TenantControllers\CampaignController::class, 'results'])->name('campaigns.results'); // MARKER-CAMPAIGN-RESULTS
-            // MARKER-CAMPAIGN-ATTRIBUTION
+            Route::get('/campaigns/{id}/results', [TenantControllers\CampaignController::class, 'results'])->name('campaigns.results');
             Route::post('/campaigns/{id}/discount', [TenantControllers\CampaignController::class, 'setDiscount'])->name('campaigns.discount');
             Route::post('/campaigns/{id}/send', [TenantControllers\CampaignController::class, 'send'])->name('campaigns.send');
             Route::post('/campaigns/{id}/preview', [TenantControllers\CampaignController::class, 'preview'])->name('campaigns.preview');
-            Route::post('/campaigns/{id}/test', [TenantControllers\CampaignController::class, 'testSend'])->name('campaigns.test'); // MARKER-CAMPAIGN-V2A
-            // MARKER-CAMPAIGN-SCHED
-            Route::get('/campaigns/{id}/checks',      [TenantControllers\CampaignController::class, 'checks'])->name('campaigns.checks'); // MARKER-CAMPAIGN-CHECKS
+            Route::post('/campaigns/{id}/test', [TenantControllers\CampaignController::class, 'testSend'])->name('campaigns.test');
+            Route::get('/campaigns/{id}/checks',      [TenantControllers\CampaignController::class, 'checks'])->name('campaigns.checks');
             Route::post('/campaigns/{id}/schedule',   [TenantControllers\CampaignController::class, 'schedule'])->name('campaigns.schedule');
             Route::post('/campaigns/{id}/unschedule', [TenantControllers\CampaignController::class, 'unschedule'])->name('campaigns.unschedule');
-            Route::get('/campaign-catalog-search', [TenantControllers\CampaignController::class, 'catalogSearch'])->name('campaigns.catalog-search'); // MARKER-CAMPAIGN-V2C
-            // MARKER-CAMPAIGN-AUDIENCE — these sit under /campaign-audience, NOT
+            Route::get('/campaign-catalog-search', [TenantControllers\CampaignController::class, 'catalogSearch'])->name('campaigns.catalog-search');
+            // these sit under /campaign-audience, NOT
             // /campaigns/..., so the /campaigns/{id} wildcard cannot swallow them.
             Route::post('/campaign-audience/count',       [TenantControllers\CampaignController::class, 'audienceCount'])->name('campaigns.audience.count');
             Route::post('/campaign-audience/save',        [TenantControllers\CampaignController::class, 'audienceSave'])->name('campaigns.audience.save');
             Route::delete('/campaign-audience/{id}',      [TenantControllers\CampaignController::class, 'audienceDelete'])->name('campaigns.audience.delete');
 
-            // MARKER-PATCH-450 — Engage -> Recovery (abandoned-booking worklist + funnel)
+            // Engage -> Recovery (abandoned-booking worklist + funnel)
             Route::get('/recovery',         [TenantControllers\RecoveryController::class, 'index'])->name('recovery.index');
-            // MARKER-PATCH-486 — settings PATCH before the {id} PATCH so it matches first.
+            // settings PATCH before the {id} PATCH so it matches first.
             Route::patch('/recovery/settings', [TenantControllers\RecoveryController::class, 'updateSettings'])->name('recovery.settings.update');
             Route::patch('/recovery/{id}',  [TenantControllers\RecoveryController::class, 'updateStatus'])->name('recovery.update');
 
-            // MARKER-FLOW-6 — Booking Mode admin (flow mode + Simple-menu curation)
+            // Booking Mode admin (flow mode + Simple-menu curation)
             Route::get('/booking-modes',  [TenantControllers\BookingModesController::class, 'index'])->name('booking_modes.index');
             Route::post('/booking-modes', [TenantControllers\BookingModesController::class, 'save'])->name('booking_modes.save');
-            // MARKER-PATCH-510 — Pickup & delivery: route windows + knobs
+            // Pickup & delivery: route windows + knobs
             Route::post('/booking-modes/route-windows',              [TenantControllers\RouteWindowsController::class, 'store'])->name('route_windows.store');
             Route::patch('/booking-modes/route-windows/settings',    [TenantControllers\RouteWindowsController::class, 'saveSettings'])->name('route_windows.settings');
             Route::patch('/booking-modes/route-windows/{id}',        [TenantControllers\RouteWindowsController::class, 'update'])->name('route_windows.update');
@@ -1228,17 +1211,16 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             Route::post('/campaign-images',          [TenantControllers\CampaignImageController::class, 'upload'])->name('campaign-images.upload');
             Route::delete('/campaign-images/{id}',   [TenantControllers\CampaignImageController::class, 'destroy'])->name('campaign-images.destroy');
 
-            // MARKER-PATCH-HLC7A — tenant distributor surface
+            // tenant distributor surface
             Route::prefix('distributors')->name('distributors.')->group(function () {
-                // MARKER-VENDOR-MERGE — confirm before absorbing a vendor.
+                // confirm before absorbing a vendor.
                 Route::get('/vendor-merge',  [TenantControllers\DistributorController::class, 'vendorMerge'])->name('vendor_merge');
                 Route::post('/vendor-merge', [TenantControllers\DistributorController::class, 'vendorMergeRun'])->name('vendor_merge.run');
                 Route::get('/import',             [TenantControllers\DistributorController::class, 'import'])->name('import');
-                Route::get('/import/categories',  [TenantControllers\DistributorController::class, 'importCategories'])->name('import.categories'); // MARKER-SSEL-SCOPE
+                Route::get('/import/categories',  [TenantControllers\DistributorController::class, 'importCategories'])->name('import.categories');
                 Route::get('/attention',          [TenantControllers\DistributorController::class, 'attention'])->name('attention');
                 Route::post('/attention/resolve', [TenantControllers\DistributorController::class, 'attentionResolve'])->name('attention.resolve');
-                Route::post('/attention/sync',    [TenantControllers\DistributorController::class, 'attentionSync'])->name('attention.sync'); // MARKER-PATCH-555
-                // MARKER-CATALOG-UNDO
+                Route::post('/attention/sync',    [TenantControllers\DistributorController::class, 'attentionSync'])->name('attention.sync');
                 Route::get('/attention/history',                     [TenantControllers\DistributorController::class, 'catalogHistory'])->name('attention.history');
                 Route::get('/attention/history/{batchId}',           [TenantControllers\DistributorController::class, 'catalogHistoryShow'])->name('attention.history.show');
                 Route::post('/attention/history/{batchId}/undo',     [TenantControllers\DistributorController::class, 'catalogUndo'])->name('attention.history.undo');
@@ -1246,14 +1228,13 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
                 Route::post('/import/run',        [TenantControllers\DistributorController::class, 'importRun'])->name('import.run');
                 Route::get('/connection',         [TenantControllers\DistributorController::class, 'connection'])->name('connection');
                 Route::post('/connection/key',    [TenantControllers\DistributorController::class, 'saveKey'])->name('connection.key');
-                // MARKER-DIST-TOGGLE
                 Route::post('/connection/toggle', [TenantControllers\DistributorController::class, 'toggleDistributor'])->name('connection.toggle');
-                // MARKER-PRIORITY-ORDER — its own route so a reorder never
+                // its own route so a reorder never
                 // travels through the credential form, where a blank field
                 // means "keep the saved key".
                 Route::post('/connection/priority', [TenantControllers\DistributorController::class, 'movePriority'])->name('connection.priority');
                 Route::post('/connection/test',   [TenantControllers\DistributorController::class, 'testConnection'])->name('connection.test');
-                // MARKER-PRICE-SEED — the pricing rule and its check, per distributor.
+                // the pricing rule and its check, per distributor.
                 Route::post('/connection/pricing',       [TenantControllers\DistributorController::class, 'savePricing'])->name('connection.pricing');
                 Route::get('/connection/pricing-check',  [TenantControllers\DistributorController::class, 'pricingCheck'])->name('connection.pricing.check');
                 Route::post('/connection/pricing-sweep', [TenantControllers\DistributorController::class, 'pricingSweep'])->name('connection.pricing.sweep');
@@ -1262,38 +1243,36 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
 
             Route::get('/settings',             [TenantControllers\SettingsController::class, 'index'])->name('settings.index');
             Route::patch('/settings',           [TenantControllers\SettingsController::class, 'update'])->name('settings.update');
-            // MARKER-PATCH-629 — unified payment methods
+            // unified payment methods
             Route::post('/settings/payment-methods',                    [TenantControllers\PaymentMethodsController::class, 'storeCustom'])->name('settings.payment-methods.store');
             Route::post('/settings/payment-methods/{methodId}',         [TenantControllers\PaymentMethodsController::class, 'update'])->name('settings.payment-methods.update');
             Route::post('/settings/payment-methods/{methodId}/delete',  [TenantControllers\PaymentMethodsController::class, 'destroyCustom'])->name('settings.payment-methods.delete');
-            Route::post('/settings/payment-methods-qb',                 [TenantControllers\PaymentMethodsController::class, 'saveQbAccounts'])->name('settings.payment-methods.qb'); // MARKER-PATCH-636
+            Route::post('/settings/payment-methods-qb',                 [TenantControllers\PaymentMethodsController::class, 'saveQbAccounts'])->name('settings.payment-methods.qb');
 
-            // MARKER-PATCH-473 — verify a tenant's Square connection
+            // verify a tenant's Square connection
             Route::post('/settings/square/verify', [TenantControllers\SettingsController::class, 'verifySquareConnection'])->name('settings.square.verify');
 
-            // MARKER-PATCH-468 — toggle asset tracking from the Services-page banner
+            // toggle asset tracking from the Services-page banner
             Route::patch('/services/asset-tracking', [TenantControllers\SettingsController::class, 'toggleAssetTracking'])->name('services.asset-tracking.toggle');
 
-            // MARKER-PATCH-168 — Stripe Connect Session A: tenant payments settings
-            // MARKER-PATCH-224 — Settings -> Messaging (owns all tenant SMS config).
+            // Stripe Connect Session A: tenant payments settings
+            // Settings -> Messaging (owns all tenant SMS config).
             Route::get( '/settings/messaging',               [TenantControllers\Settings\MessagingController::class, 'index'])->name('settings.messaging');
-            // MARKER-EMAIL-BILLING
             Route::get( '/settings/email-charges',           [TenantControllers\Settings\EmailChargesController::class, 'index'])->name('settings.email_charges');
             Route::post('/settings/email-charges/cap',       [TenantControllers\Settings\EmailChargesController::class, 'updateCap'])->name('settings.email_charges.cap');
-            // MARKER-BILLING-CARD — saving a card for later, unattended charging.
+            // saving a card for later, unattended charging.
             Route::get( '/settings/billing-card',            [TenantControllers\Settings\BillingCardController::class, 'index'])->name('settings.billing_card');
             Route::post('/settings/billing-card/intent',     [TenantControllers\Settings\BillingCardController::class, 'intent'])->name('settings.billing_card.intent');
             Route::get( '/settings/billing-card/complete',   [TenantControllers\Settings\BillingCardController::class, 'complete'])->name('settings.billing_card.complete');
             Route::post('/settings/billing-card/forget',     [TenantControllers\Settings\BillingCardController::class, 'forget'])->name('settings.billing_card.forget');
             Route::post('/settings/billing-card/email',      [TenantControllers\Settings\BillingCardController::class, 'billingEmail'])->name('settings.billing_card.email');
-            Route::post('/settings/billing-card/address',    [TenantControllers\Settings\BillingCardController::class, 'billingAddress'])->name('settings.billing_card.address'); // MARKER-BILLING-ADDRESS
-            // MARKER-BILLING-RECEIPT — a receipt a bookkeeper will accept.
+            Route::post('/settings/billing-card/address',    [TenantControllers\Settings\BillingCardController::class, 'billingAddress'])->name('settings.billing_card.address');
+            // a receipt a bookkeeper will accept.
             Route::get('/settings/receipt/{run}', [TenantControllers\Settings\ChargeReceiptController::class, 'show'])->name('settings.charge_receipt');
             Route::post('/settings/messaging/search',        [TenantControllers\Settings\MessagingController::class, 'search'])->name('settings.messaging.search');
             Route::post('/settings/messaging/claim',         [TenantControllers\Settings\MessagingController::class, 'claim'])->name('settings.messaging.claim');
             Route::post('/settings/messaging/byo',           [TenantControllers\Settings\MessagingController::class, 'saveByo'])->name('settings.messaging.byo');
             Route::post('/settings/messaging/sync-webhook',  [TenantControllers\Settings\MessagingController::class, 'syncWebhook'])->name('settings.messaging.sync');
-            // MARKER-LAYAWAY
             Route::get( '/settings/layaway',             [TenantControllers\Settings\LayawayController::class, 'index'])->name('settings.layaway.index');
             Route::post('/settings/layaway',             [TenantControllers\Settings\LayawayController::class, 'save'])->name('settings.layaway.save');
             Route::get( '/settings/payments',            [TenantControllers\Settings\PaymentsController::class, 'index'])->name('settings.payments.index');
@@ -1301,7 +1280,7 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             Route::post('/settings/payments/resume',     [TenantControllers\Settings\PaymentsController::class, 'resume'])->name('settings.payments.resume');
             Route::post('/settings/payments/disconnect', [TenantControllers\Settings\PaymentsController::class, 'disconnect'])->name('settings.payments.disconnect');
 
-            // MARKER-PATCH-120 - Custom domain management
+            // Custom domain management
             Route::get('/settings/domains',                [TenantControllers\DomainController::class, 'index'])->name('domains.index');
             Route::post('/settings/domains',               [TenantControllers\DomainController::class, 'store'])->name('domains.store');
             Route::get('/settings/domains/{id}',           [TenantControllers\DomainController::class, 'show'])->name('domains.show');
@@ -1317,13 +1296,13 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             Route::post('/locations/{id}/toggle-active',  [TenantControllers\LocationController::class, 'toggleActive'])->name('locations.toggle-active');
             Route::delete('/locations/{id}',              [TenantControllers\LocationController::class, 'destroy'])->name('locations.destroy');
 
-            // MARKER-PATCH-129 — old /admin/security/* URLs redirect to /admin/team/*
+            // old /admin/security/* URLs redirect to /admin/team/*
             Route::get('/security',                  fn() => redirect()->route('tenant.team.index'))->name('security.index');
             Route::get('/security/devices',          fn() => redirect()->route('tenant.team.devices'));
             Route::get('/security/policy',           fn() => redirect()->route('tenant.team.policy'));
             Route::post('/settings/test-sms',   [TenantControllers\SettingsController::class, 'sendTestSms'])->name('settings.test-sms');
 
-            // MARKER-PATCH-129 — consolidated Team & Access
+            // consolidated Team & Access
             Route::get('/team',                            [TenantControllers\TeamController::class, 'index'])->name('team.index');
             Route::post('/team',                           [TenantControllers\TeamController::class, 'store'])->name('team.store');
             Route::get('/team/devices',                    [TenantControllers\TeamController::class, 'devices'])->name('team.devices');
@@ -1331,7 +1310,7 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             Route::post('/team/devices/revoke-all',        [TenantControllers\TeamController::class, 'revokeAllDevices'])->name('team.devices.revoke-all');
             Route::get('/team/policy',                     [TenantControllers\TeamController::class, 'policy'])->name('team.policy');
             Route::patch('/team/policy',                   [TenantControllers\TeamController::class, 'updatePolicy'])->name('team.policy.update');
-            // MARKER-PATCH-494 — Roles & access (custom named roles). Must sit
+            // Roles & access (custom named roles). Must sit
             // BEFORE /team/{id} or 'roles' gets swallowed as a member id.
             Route::get('/team/roles',                      [TenantControllers\TeamController::class, 'rolesIndex'])->name('team.roles');
             Route::post('/team/roles',                     [TenantControllers\TeamController::class, 'storeRole'])->name('team.roles.store');
@@ -1340,14 +1319,14 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             Route::get('/team/{id}',                       [TenantControllers\TeamController::class, 'show'])->name('team.show');
             Route::patch('/team/{id}',                     [TenantControllers\TeamController::class, 'update'])->name('team.update');
             Route::delete('/team/{id}',                    [TenantControllers\TeamController::class, 'destroy'])->name('team.destroy');
-            Route::post('/team/{id}/resend-invite',        [TenantControllers\TeamController::class, 'resendInvite'])->name('team.resend-invite'); // MARKER-INVITE-RESEND
+            Route::post('/team/{id}/resend-invite',        [TenantControllers\TeamController::class, 'resendInvite'])->name('team.resend-invite');
 
-            // MARKER-PATCH-143 — Test email send endpoint (settings card)
-            // MARKER-PATCH-150 — Web analytics settings (GA-4 etc)
+            // Test email send endpoint (settings card)
+            // Web analytics settings (GA-4 etc)
             Route::post('/settings/analytics', [TenantControllers\AnalyticsSettingsController::class, 'update'])->name('settings.analytics.update');
 
-            // MARKER-PATCH-147 — Tenant suppression list
-            // MARKER-NAV-REGROUP — it lives in the Communication Center now.
+            // Tenant suppression list
+            // it lives in the Communication Center now.
             Route::get('/email/suppressions', fn () => redirect()->route('tenant.communication.index', ['tab' => 'suppressions']))->name('suppressions.index');
             Route::post('/email/suppressions',        [TenantControllers\SuppressionController::class, 'store'])->name('suppressions.store');
             Route::delete('/email/suppressions/{id}', [TenantControllers\SuppressionController::class, 'destroy'])->name('suppressions.destroy');
@@ -1356,10 +1335,10 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             Route::get('/account',                         [TenantControllers\AccountController::class, 'index'])->name('account.index');
             Route::patch('/account/name',                  [TenantControllers\AccountController::class, 'updateName'])->name('account.name');
             Route::patch('/account/password',              [TenantControllers\AccountController::class, 'updatePassword'])->name('account.password');
-            Route::patch('/account/timeclock-exempt',      [TenantControllers\AccountController::class, 'updateTimeclockExempt'])->name('account.timeclock-exempt'); // MARKER-TIMECLOCK-EXEMPT
+            Route::patch('/account/timeclock-exempt',      [TenantControllers\AccountController::class, 'updateTimeclockExempt'])->name('account.timeclock-exempt');
             Route::patch('/account/pin',                   [TenantControllers\AccountController::class, 'setPin'])->name('account.pin');
             Route::patch('/account/pin/clear',             [TenantControllers\AccountController::class, 'clearPin'])->name('account.pin.clear');
-            // MARKER-PATCH-130 — per-user device + sign-out-everywhere routes removed
+            // per-user device + sign-out-everywhere routes removed
 
             // Stripe billing portal (card update, invoices, cancel).
             // Plan changes happen in-app, not via the portal.
@@ -1376,7 +1355,7 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
 };
 
 // ─────────────────────────────────────────────────────────────────────
-// MARKER-PATCH-123 — Single tenant route registration. ResolveTenant
+// Single tenant route registration. ResolveTenant
 // middleware identifies the tenant from the request host, supporting
 // both {slug}.intake.works subdomains and custom domains (Cloudflare
 // for SaaS). Routes carry no {subdomain} placeholder; controllers
@@ -1384,17 +1363,17 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
 // ─────────────────────────────────────────────────────────────────────
 Route::middleware([
         'App\Http\Middleware\ResolveTenant',
-        // MARKER-WELCOME — after tenant resolution, before anything renders.
+        // after tenant resolution, before anything renders.
         'App\Http\Middleware\ShowWelcomePage',
-        // MARKER-DEMO-SECTION — after ResolveTenant, so tenant() is available.
+        // after ResolveTenant, so tenant() is available.
         'App\Http\Middleware\DemoBanner',
-        // MARKER-SEO-SIGNALS — noindex / canonical / structured data on shop sites.
+        // noindex / canonical / structured data on shop sites.
         'App\Http\Middleware\SeoSignals',
     ])
     ->group($tenantRoutes);
 
 
-// MARKER-INVEST-SITE — shareable, rotatable investment page (not linked, not indexed)
+// shareable, rotatable investment page (not linked, not indexed)
 Route::prefix('invest/{token}')->group(function () {
     Route::get('/', [\App\Http\Controllers\InvestController::class, 'show'])->name('invest.show');
     Route::get('/doc/{doc}', [\App\Http\Controllers\InvestController::class, 'document'])->name('invest.doc');
@@ -1403,14 +1382,14 @@ Route::prefix('invest/{token}')->group(function () {
         ->name('invest.lead');
 });
 
-// MARKER-RAISE-PORTAL — one investor's own position, no login, token in the URL
+// one investor's own position, no login, token in the URL
 Route::get('/invest/i/{token}', [\App\Http\Controllers\InvestorPortalController::class, 'show'])
     ->name('invest.portal');
-// MARKER-INVEST-V2 — the round's shared documents, on the investor's own link.
+// the round's shared documents, on the investor's own link.
 Route::get('/invest/i/{token}/proposal/{doc}', [\App\Http\Controllers\InvestorPortalController::class, 'proposal'])
     ->name('invest.portal.proposal');
 
-// MARKER-RAISE-INVITE — the investor states their own amount and entity.
+// the investor states their own amount and entity.
 Route::post('/invest/i/{token}/commit', [\App\Http\Controllers\InvestorPortalController::class, 'commit'])
     ->middleware('throttle:12,1')
     ->name('invest.portal.commit');
@@ -1418,7 +1397,7 @@ Route::get('/invest/i/{token}/doc/{documentId}', [\App\Http\Controllers\Investor
     ->whereNumber('documentId')
     ->name('invest.portal.doc');
 
-// MARKER-DEMO-ENTRY — runs on the demo tenant's own host (demo.intake.works).
+// runs on the demo tenant's own host (demo.intake.works).
 // Signed, five-minute link minted by /demo on the marketing site. ResolveTenant
 // is required here: without it tenant() is null and the entry 404s.
 Route::middleware(['App\Http\Middleware\ResolveTenant'])->group(function () {

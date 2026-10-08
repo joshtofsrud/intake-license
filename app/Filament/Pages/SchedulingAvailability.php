@@ -6,10 +6,10 @@ use App\Models\PlatformBookingSetting;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 
-// MARKER-SCHED-ADMIN — hours, rules and blocked dates behind the public slots.
+// hours, rules and blocked dates behind the public slots.
 class SchedulingAvailability extends Page
 {
-    use \App\Support\UsesAdminNav; // MARKER-NAV-ORDER
+    use \App\Support\UsesAdminNav;
     use \App\Support\GatedByAdminArea;
     protected static string $adminArea = 'scheduling';
 
@@ -42,12 +42,12 @@ class SchedulingAvailability extends Page
     public string $newFrom = '';
     public string $newTo   = '';
     public string $newLabel = '';
-    public string $notifyEmail = ''; // MARKER-SCHED-PUBLIC
-    public string $hostName    = ''; // MARKER-SCHED-PUBLIC
-    public string $hostTitle   = ''; // MARKER-SCHED-PUBLIC
-    public bool   $googleBlock = true;  // MARKER-SCHED-GOOGLE
-    public bool   $googleWrite = true;  // MARKER-SCHED-GOOGLE
-    public bool   $googleMeet  = true;  // MARKER-SCHED-GOOGLE
+    public string $notifyEmail = '';
+    public string $hostName    = '';
+    public string $hostTitle   = '';
+    public bool   $googleBlock = true;
+    public bool   $googleWrite = true;
+    public bool   $googleMeet  = true;
 
     public function mount(): void
     {
@@ -66,10 +66,10 @@ class SchedulingAvailability extends Page
             ];
         }
         $this->blocked = array_values($r['blocked_dates']);
-        $this->notifyEmail = (string) PlatformBookingSetting::get('notify_email', ''); // MARKER-SCHED-PUBLIC
+        $this->notifyEmail = (string) PlatformBookingSetting::get('notify_email', '');
         $this->hostName    = (string) PlatformBookingSetting::get('host_name', '');
         $this->hostTitle   = (string) PlatformBookingSetting::get('host_title', '');
-        $this->googleBlock = PlatformBookingSetting::get('google_block_busy', '1') === '1';   // MARKER-SCHED-GOOGLE
+        $this->googleBlock = PlatformBookingSetting::get('google_block_busy', '1') === '1';
         $this->googleWrite = PlatformBookingSetting::get('google_write_events', '1') === '1';
         $this->googleMeet  = PlatformBookingSetting::get('google_create_meet', '1') === '1';
     }
@@ -82,7 +82,7 @@ class SchedulingAvailability extends Page
             'bufferMinutes'  => 'required|integer|min:0|max:180',
             'maxPerDay'      => 'required|integer|min:0|max:50',
             'windowWeeks'    => 'required|integer|min:1|max:26',
-            'notifyEmail'    => 'nullable|email|max:191', // MARKER-SCHED-PUBLIC
+            'notifyEmail'    => 'nullable|email|max:191',
             'hostName'       => 'nullable|string|max:80',
             'hostTitle'      => 'nullable|string|max:80',
             'hours.*.from'   => 'required|date_format:H:i',
@@ -105,10 +105,10 @@ class SchedulingAvailability extends Page
         PlatformBookingSetting::put('buffer_minutes', (string) $this->bufferMinutes);
         PlatformBookingSetting::put('max_per_day', (string) $this->maxPerDay);
         PlatformBookingSetting::put('window_weeks', (string) $this->windowWeeks);
-        PlatformBookingSetting::put('notify_email', trim($this->notifyEmail)); // MARKER-SCHED-PUBLIC
+        PlatformBookingSetting::put('notify_email', trim($this->notifyEmail));
         PlatformBookingSetting::put('host_name', trim($this->hostName));
         PlatformBookingSetting::put('host_title', trim($this->hostTitle));
-        PlatformBookingSetting::put('google_block_busy', $this->googleBlock ? '1' : '0');   // MARKER-SCHED-GOOGLE
+        PlatformBookingSetting::put('google_block_busy', $this->googleBlock ? '1' : '0');
         PlatformBookingSetting::put('google_write_events', $this->googleWrite ? '1' : '0');
         PlatformBookingSetting::put('google_create_meet', $this->googleMeet ? '1' : '0');
         PlatformBookingSetting::putJson('blocked_dates', array_values($this->blocked));
@@ -116,7 +116,6 @@ class SchedulingAvailability extends Page
         Notification::make()->title('Availability saved')->success()->send();
     }
 
-    // MARKER-SCHED-GOOGLE
     public function syncGoogle(): void
     {
         $g = app(\App\Services\Platform\GoogleCalendarService::class);

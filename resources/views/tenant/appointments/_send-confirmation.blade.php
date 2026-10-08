@@ -1,4 +1,4 @@
-{{-- MARKER-SEND-CONFIRMATION — shared by show + show-multi-asset.
+{{-- shared by show + show-multi-asset.
      Expects: $appointment, $confirmCanEmail, $confirmCanSms,
               $confirmSentAt, $confirmChannels, $confirmFailed --}}
 @php

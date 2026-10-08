@@ -8,7 +8,7 @@ use App\Models\Tenant\TenantGiftCard;
 use Illuminate\Console\Command;
 
 /**
- * MARKER-GIFTCARDS-PUBLIC — dispatch delivery for e-gifts that are due:
+ * dispatch delivery for e-gifts that are due:
  * scheduled deliver_on dates that have arrived (tenant-local), plus any
  * immediate delivery whose issue-time job failed. DeliverGiftCardJob is
  * idempotent via delivered_at, so re-dispatching is harmless.

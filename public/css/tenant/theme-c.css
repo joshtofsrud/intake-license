@@ -93,7 +93,7 @@ body.ia-theme-c {
 }
 
 .ia-nav-section {
-  padding: 14px 20px 4px; /* MARKER-NAV-SPACING */
+  padding: 14px 20px 4px;
   font-size: 10px;
   text-transform: uppercase;
   letter-spacing: .09em;
@@ -257,7 +257,7 @@ body.ia-theme-c .ia-flash--info    { background: rgba(56,138,221,.15); color: #8
   .ia-content { padding: 20px 16px; }
 }
 
-/* MARKER-PATCH-627 — dark form controls: makes the native date/time picker
+/* dark form controls: makes the native date/time picker
    indicator (the calendar icon in date switchers) render light on dark inputs,
    and the picker popup itself dark. */
 html.ia-theme-c input[type="date"]::-webkit-calendar-picker-indicator,

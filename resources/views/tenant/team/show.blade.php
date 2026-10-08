@@ -1,4 +1,4 @@
-{{-- MARKER-PATCH-129 — person detail --}}
+{{-- person detail --}}
 @extends('layouts.tenant.app')
 @php
   $pageTitle = $member->name;
@@ -9,7 +9,7 @@
 
 @push('styles')
 <style>
-  /* MARKER-TEAM-FORM-SEP — one visible block per action, so a button is
+  /* one visible block per action, so a button is
      never adjacent to fields it doesn't submit. */
   .tm-block { padding:14px 0; border-bottom:.5px solid var(--ia-border); }
   .tm-block:first-of-type { padding-top:0; }
@@ -23,7 +23,7 @@
 .pd-h2 { font-size:20px; font-weight:600; margin:0; }
 .pd-sub { font-size:12px; color:var(--ia-text-dim); margin-top:3px; }
 .pd-actions { display:flex; gap:6px; }
-/* MARKER-TEAM-CONTACT — mirrors .cmd-tile on the customer page. */
+/* mirrors .cmd-tile on the customer page. */
 .pd-contact-tiles { margin-left:auto; display:grid; grid-template-columns:repeat(3,1fr); gap:6px; min-width:240px; }
 .pd-tile { display:flex; flex-direction:column; align-items:center; gap:4px;
            background:var(--ia-surface); border:0.5px solid var(--ia-border);
@@ -35,7 +35,7 @@
 .pd-tile-label { font-size:11px; color:var(--ia-text-dim); font-weight:500; }
 .pd-tile.is-disabled { opacity:.32; cursor:not-allowed; pointer-events:none; }
 .pd-tile.is-disabled svg { color:var(--ia-text-dim); }
-/* MARKER-TEAM-MOBILE — widths live here, not inline, so the breakpoint
+/* widths live here, not inline, so the breakpoint
    below can override them. Inline styles beat media queries. */
 .pd-input { min-width:280px; max-width:100%; }
 .pd-input--wide { min-width:320px; }
@@ -55,7 +55,7 @@
 .pd-back { font-size:12px; color:var(--ia-text-dim); display:inline-flex; align-items:center; gap:4px; margin-bottom:12px; text-decoration:none; }
 .pd-back:hover { color:var(--ia-text-muted); }
 
-/* MARKER-TEAM-MOBILE-CASCADE — this block MUST stay last. A media query
+/* this block MUST stay last. A media query
    adds no specificity, so anything below it with equal specificity wins
    and these rules silently stop applying. */
 @media (max-width:720px) {
@@ -83,7 +83,7 @@
 @section('content')
 <a href="{{ route('tenant.team.index') }}" class="pd-back">← All team members</a>
 
-{{-- MARKER-INVITE-RESEND — activation banner: only for never-activated
+{{-- activation banner: only for never-activated
      members, on a page that is already manager-gated. --}}
 @if(! $member->is_active && $member->last_login_at === null && ($inviteStats ?? null))
   <div style="border:1px solid rgba(251,191,36,.4);background:rgba(251,191,36,.06);border-radius:12px;padding:14px 16px;margin:14px 0 20px;display:flex;gap:14px;align-items:flex-start">
@@ -125,7 +125,7 @@
       last seen {{ $member->last_login_at?->diffForHumans() ?? 'never' }}
     </div>
   </div>
-  {{-- MARKER-TEAM-CONTACT — same tiles as the customer page, so there is one
+  {{-- same tiles as the customer page, so there is one
        contact affordance in the product rather than two that drift. A tile
        with nothing behind it is disabled, not merely dead. --}}
   @php
@@ -184,7 +184,7 @@
   <div class="ia-card-head"><span class="ia-card-title">Account</span></div>
   <p style="font-size:12px;color:var(--ia-text-dim);margin:0 0 14px">Basic identity. The user cannot change their own email or role.</p>
 
-  {{-- MARKER-TEAM-FORM-SEP — these three forms used to sit stacked with no
+  {{-- these three forms used to sit stacked with no
        break, and the identity Save button rendered directly above the Role
        row. Changing the role and pressing that Save posted the ACCOUNT form:
        role_id was never sent, the modal said "Account updated." and the
@@ -203,7 +203,6 @@
         <div class="pd-field-label">Email</div>
         <div class="pd-field-value"><input class="ia-input pd-input pd-input--wide" type="email" name="email" value="{{ $member->email }}"></div>
       </div>
-      {{-- MARKER-TEAM-CONTACT --}}
       <div class="pd-field">
         <div class="pd-field-label">Phone</div>
         <div class="pd-field-value">
@@ -225,7 +224,7 @@
       <div class="pd-field">
         <div class="pd-field-label">Access level</div>
         <div class="pd-field-value" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-          {{-- MARKER-PATCH-494 — named roles --}}
+          {{-- named roles --}}
           <select name="role_id" class="ia-input" style="width:auto">
             @foreach($allRoles as $r)
               <option value="{{ $r->id }}" @selected($member->role_id === $r->id)>{{ $r->name }}</option>
@@ -238,7 +237,7 @@
     </form>
   </div>
 
-  {{-- MARKER-TIMECLOCK-EXEMPT — owners/salaried staff opt-out of the clock-in nudge --}}
+  {{-- owners/salaried staff opt-out of the clock-in nudge --}}
   <div class="tm-block tm-block--last">
     <form method="POST" action="{{ route('tenant.team.update', $member->id) }}">
       @csrf @method('PATCH')
@@ -313,7 +312,7 @@
   </div>
   @endif
 
-  {{-- MARKER-PATCH-130 — per-user sign-out-everywhere removed (devices are tenant-scoped) --}}
+  {{-- per-user sign-out-everywhere removed (devices are tenant-scoped) --}}
 </div>
 
 {{-- Locations --}}
@@ -339,5 +338,5 @@
   </form>
 </div>
 
-{{-- MARKER-PATCH-130 — per-user devices card removed (devices are tenant-scoped; see /admin/team/devices for full list) --}}
+{{-- per-user devices card removed (devices are tenant-scoped; see /admin/team/devices for full list) --}}
 @endsection

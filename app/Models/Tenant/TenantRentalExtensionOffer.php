@@ -6,7 +6,6 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-// MARKER-RENTAL-EXT
 class TenantRentalExtensionOffer extends Model
 {
     use HasUuids;

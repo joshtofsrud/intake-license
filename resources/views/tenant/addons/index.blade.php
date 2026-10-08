@@ -26,7 +26,7 @@
     </header>
 
     @php
-        // MARKER-ADDON-CATEGORIES — labels are a nicety, not the list of what
+        // labels are a nicety, not the list of what
         // exists. This used to loop over these keys alone, so an add-on in any
         // other category (retail, as it turned out) was never drawn and nothing
         // said so.
@@ -139,7 +139,7 @@
                                         Contact support to enable
                                     </span>
                                 @elseif($tierLocked)
-                                    {{-- MARKER-ADDON-VISIBILITY — say which plan
+                                    {{-- say which plan
                                          it needs. Hiding it entirely means the
                                          shop cannot want what it cannot see. --}}
                                     <span class="addon-card__state addon-card__state--locked">

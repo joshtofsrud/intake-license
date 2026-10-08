@@ -1,5 +1,5 @@
 {{--
-  MARKER-SCROLL-WORDS — shared renderer for the "Scroll words" section, used
+  shared renderer for the "Scroll words" section, used
   by intake.works (marketing.sections.scroll_words) and shop sites
   (public.sections._scroll_words). A lead-in with a word list that changes
   as the section scrolls through the screen (normal height, no pinning):
@@ -17,7 +17,7 @@
   $swPrefix = trim((string) ($c['prefix'] ?? 'One system for'));
   $swMode   = in_array($c['mode'] ?? 'spotlight', ['fade', 'spotlight', 'slide'], true) ? ($c['mode'] ?? 'spotlight') : 'spotlight';
   $swAlign  = ($c['align'] ?? 'left') === 'center' ? 'center' : 'left';
-  // MARKER-SW-PACE — pace = scroll needed for all words (% of screen); smooth 0 = stepped
+  // pace = scroll needed for all words (% of screen); smooth 0 = stepped
   $swPace   = max(30, min(200, (int) ($c['pace'] ?? 60)));
   $swSmooth = max(0, min(100, (int) ($c['smooth'] ?? 0)));
   $swSize   = ['m' => 'clamp(30px,4.5vw,48px)', 'l' => 'clamp(36px,6vw,68px)', 'xl' => 'clamp(42px,8vw,96px)'][$c['size'] ?? 'l'] ?? 'clamp(36px,6vw,68px)';
@@ -25,16 +25,16 @@
   $swText   = $swOk($c['text_color'] ?? null) ?: 'currentColor';
   $swAccent = $swOk($c['accent_color'] ?? null) ?: 'var(--mk-accent, var(--p-accent, #BEF264))';
   $swId     = 'sw' . substr(md5((string) ($section->id ?? uniqid())), 0, 8);
-  // MARKER-SW-SCROLLFX — 0 = off
+  // 0 = off
   $swFxP = max(0, min(100, (int) ($c['scroll_parallax'] ?? 0)));
   $swFxF = max(0, min(100, (int) ($c['scroll_fade'] ?? 0)));
   $swFxB = max(0, min(20,  (int) ($c['scroll_blur'] ?? 0)));
   $swFxOn = $swFxP || $swFxF || $swFxB;
   $swAnchor = preg_replace('/[^A-Za-z0-9_-]/', '', (string) ($c['anchor_id'] ?? ''));
   $swCls    = trim(preg_replace('/[^A-Za-z0-9_ -]/', '', (string) ($c['custom_classes'] ?? ''))
-              . (empty($mkBg) && ! empty($c['hide_on_mobile']) ? ' sw-hide-m' : '') . (empty($mkBg) && ! empty($c['hide_on_desktop']) ? ' sw-hide-d' : '')); // MARKER-MKT-HIDE-TABLET — intake.works wrapper hides
+              . (empty($mkBg) && ! empty($c['hide_on_mobile']) ? ' sw-hide-m' : '') . (empty($mkBg) && ! empty($c['hide_on_desktop']) ? ' sw-hide-d' : '')); // intake.works wrapper hides
   $swSentence = $swPrefix . ' ' . implode(', ', $swWords) . '.';
-  // MARKER-SCROLL-WORDS-BG — shop sites: draw the color or gradient here.
+  // shop sites: draw the color or gradient here.
   // intake.works uses its shared background renderer (blend, fade, continue).
   $swBg = '';
   if (empty($mkBg)) {
@@ -51,7 +51,7 @@
   @include('marketing.sections._section_bg', ['bgId' => $swId])
 @endif
 <style>
-  /* MARKER-SCROLL-WORDS-V2 — a normal-height section: the words change while
+  /* a normal-height section: the words change while
      it crosses the screen, instead of pinning it over a very tall scroll. */
   .{{ $swId }} { position: relative; color: {{ $swText }}; padding: clamp(48px, 7vw, 96px) 0; }
   .{{ $swId }} .sw-pin { display: flex; align-items: center; justify-content: {{ $swAlign === 'center' ? 'center' : 'flex-start' }}; padding: 0 clamp(20px, 6vw, 80px); box-sizing: border-box; overflow: hidden; }
@@ -88,7 +88,7 @@
   </div>
 </section>
 <script>
-/* MARKER-SW-PACE — words follow the scroll; Pace and Smoothing from the editor */
+/* words follow the scroll; Pace and Smoothing from the editor */
 (function () {
   var el = document.querySelector('.{{ $swId }}');
   if (!el || el.dataset.swReady) return;
@@ -144,7 +144,7 @@
 </script>
 @if($swFxOn)
 <script>
-/* MARKER-SW-SCROLLFX — words drift, fade and blur as the section leaves the top */
+/* words drift, fade and blur as the section leaves the top */
 (function () {
   if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
   var fx = document.querySelector('.{{ $swId }} [data-swfx]');
@@ -155,7 +155,7 @@
   fx.style.willChange = 'transform, opacity, filter';
   function paint() {
     raf = 0;
-    // MARKER-SW-SCROLLFX-START — begins when the top reaches a third of the way down the screen
+    // begins when the top reaches a third of the way down the screen
     var r = sec.getBoundingClientRect(), start = window.innerHeight / 3;
     var gone = Math.max(0, start - r.top), h = Math.max(1, r.height + start);
     var t = Math.min(1, gone / h);

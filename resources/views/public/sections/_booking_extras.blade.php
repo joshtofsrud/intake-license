@@ -1,5 +1,5 @@
 {{--
-  MARKER-PATCH-603 — booking marketing sections renderer.
+  booking marketing sections renderer.
   $bookingSections is ['before' => Collection, 'after' => Collection], split
   around the booking_embed pivot on the tenant's Booking page (slug "book",
   edited in the normal page builder). Rendered via the same public section

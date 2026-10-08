@@ -1,4 +1,4 @@
-{{-- MARKER-PATCH-297 — image_gallery public render (enriched). --}}
+{{-- image_gallery public render (enriched). --}}
 @php
   $images = $c['images'] ?? [];
   if (is_string($images)) { $dd = json_decode($images, true); $images = is_array($dd) ? $dd : []; }

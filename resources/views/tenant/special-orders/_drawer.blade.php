@@ -87,7 +87,7 @@
           </div>
         </div>
 
-        {{-- MARKER-SO-DEPOSIT — the deposit box is gone. It wrote to the SO
+        {{-- the deposit box is gone. It wrote to the SO
              row, where no report, refund or reconciliation could see it. If a
              customer is paying up front for goods that are not here, that is a
              layaway: ring it at the register and this order gets raised

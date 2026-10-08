@@ -1,4 +1,4 @@
-/* MARKER-TILES — the simplified tile dashboard.
+/* the simplified tile dashboard.
    Additive: nothing here overrides dashboard.css or dashboard-tiles.css,
    which continue to drive the Overview dashboard unchanged.
 
@@ -64,7 +64,7 @@
 .ia-tile--blue   { background: #1E3A8A; }
 .ia-tile--indigo { background: #312E81; }
 .ia-tile--plum   { background: #4C1D57; }
-.ia-tile--red    { background: #7F1D1D; } /* MARKER-TILES-CARDS-MATCH */
+.ia-tile--red    { background: #7F1D1D; }
 .ia-tile--rust   { background: #7C2D12; }
 .ia-tile--amber  { background: #78350F; }
 .ia-tile--slate  { background: #293548; }
@@ -113,7 +113,7 @@
 
 @media (max-width: 820px) { .ia-tiles-grid { grid-template-columns: repeat(2, 1fr); } }
 
-/* MARKER-TILES-NEEDSYOU-COLLAPSE — collapsed "needs you" bar */
+/* collapsed "needs you" bar */
 .ia-needsyou-bar {
   display: flex; align-items: center; gap: 10px; width: 100%;
   border: none; cursor: pointer; text-align: left; font-family: inherit;
@@ -132,14 +132,14 @@
 }
 .ia-needsyou-min:hover { color: var(--ia-text, #e7e7ea); }
 
-/* MARKER-NEEDSYOU-HIDDEN-FIX — hidden must beat display:flex */
+/* hidden must beat display:flex */
 .ia-needsyou-bar[hidden], .ia-needsyou-zone[hidden], #ia-needsyou-grid[hidden] { display: none !important; }
 
-/* MARKER-DASH-STATS-STRIP — Tiles' stats strip: phones only, a size smaller
+/* Tiles' stats strip: phones only, a size smaller
    than Overview's to keep the view tight. */
 .ia-tiles-stats { display: none; }
 @media (max-width: 1023px) {
-  /* MARKER-DASH-STATS-SAME — same size and spacing as Overview's strip */
+  /* same size and spacing as Overview's strip */
   .ia-tiles-stats { display: grid; grid-template-columns: repeat(3, 1fr); padding: 2px 0 12px; margin-bottom: 14px;
     border-bottom: 0.5px solid var(--ia-border); text-align: center; }
   .ia-tiles-stats > div { padding: 2px 6px; }

@@ -1,5 +1,4 @@
 <?php
-// MARKER-LIVE-IDENTIFY
 
 namespace App\Http\Controllers\Tenant;
 

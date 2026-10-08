@@ -1,5 +1,4 @@
 <?php
-// MARKER-REPPANEL-RESOURCE
 
 namespace App\Filament\Rep\Resources\RepProspectResource\Pages;
 

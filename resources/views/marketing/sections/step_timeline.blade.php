@@ -1,4 +1,4 @@
-@php $bgId = 'mkbg-' . substr(md5((string) ($section->id ?? uniqid())), 0, 10); @endphp {{-- MARKER-MKT-SECTION-BG --}}
+@php $bgId = 'mkbg-' . substr(md5((string) ($section->id ?? uniqid())), 0, 10); @endphp
 @include('marketing.sections._section_bg', ['bgId' => $bgId])
 {{--
     Step timeline. New section type for the "Up and running in minutes" block.

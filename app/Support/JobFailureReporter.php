@@ -1,5 +1,4 @@
 <?php
-// MARKER-JOB-ISSUES
 
 namespace App\Support;
 
@@ -31,7 +30,7 @@ class JobFailureReporter
         $site  = basename($e->getFile()) . ':' . $e->getLine();
         $fingerprint = substr(hash('sha256', $jobClass . '|' . get_class($e) . '|' . $site), 0, 64);
 
-        // MARKER-INBOX — the inbox's first alert feed. Same ref as the email
+        // the inbox's first alert feed. Same ref as the email
         // and the log line, so all three point at one thing.
         \App\Support\PlatformInbox::alert([
             'tenant_id' => $tenantId,

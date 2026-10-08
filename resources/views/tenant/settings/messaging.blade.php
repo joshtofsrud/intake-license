@@ -1,12 +1,11 @@
 @extends('layouts.tenant.app')
 @php $pageTitle = 'Messaging'; @endphp
 
-{{-- MARKER-PATCH-224 — Settings -> Messaging: Intake-managed numbers first,
+{{-- Settings -> Messaging: Intake-managed numbers first,
      BYO Twilio as the advanced path. --}}
 
 @section('content')
 
-{{-- MARKER-SETTINGS-BACKLINK --}}
 <a href="{{ route('tenant.settings.index') }}#communication" class="ia-back-link">&larr; Communication settings</a>
 <div class="ia-page-head">
   <div class="ia-page-head-left">
@@ -189,7 +188,7 @@
     document.getElementById('msg-results').addEventListener('click', async function (e) {
       var b = e.target.closest('.msg-claim');
       if (!b) return;
-      if (!(await iaConfirm('Claim ' + b.getAttribute('data-number') + ' as your business text number?'))) return; // MARKER-INLINE-CONFIRM-1
+      if (!(await iaConfirm('Claim ' + b.getAttribute('data-number') + ' as your business text number?'))) return;
       document.getElementById('msg-claim-number').value = b.getAttribute('data-number');
       document.getElementById('msg-claim-form').submit();
     });

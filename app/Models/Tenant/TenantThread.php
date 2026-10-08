@@ -1,5 +1,4 @@
 <?php
-// MARKER-PATCH-221
 
 namespace App\Models\Tenant;
 
@@ -31,7 +30,7 @@ class TenantThread extends Model
         'unread_count'    => 'integer',
     ];
 
-    // MARKER-PATCH-403 — every thread gets an unguessable inbound token at
+    // every thread gets an unguessable inbound token at
     // creation, regardless of who creates it. The token is what lets a
     // customer's email reply route back into this exact thread.
     protected static function booted(): void

@@ -10,7 +10,7 @@ use Filament\Pages\Page;
 use Illuminate\Support\Str;
 
 /**
- * MARKER-HELP-ADMIN — write the how-to articles shops read at /help.
+ * write the how-to articles shops read at /help.
  *
  * Organisation is drag-first: categories reorder, articles reorder inside a
  * category, and an article dropped on a category moves into it. Everything
@@ -101,7 +101,7 @@ class HelpArticles extends Page
             'reaches'  => $arts->mapWithKeys(fn ($a) => [$a->id => $this->reach($a, $tenants)])->all(),
             'sel'      => $selected,
             'selReach' => $selected ? $this->reach($selected, $tenants) : null,
-            // MARKER-HELP-PICKER — only add-ons that can gate a feature: recurring,
+            // only add-ons that can gate a feature: recurring,
             // not onboarding services, not retired. Grouped by category in the
             // table's own order so the picker reads like the pricing page.
             'addonGroups' => Addon::query()

@@ -1,5 +1,4 @@
 <?php
-// MARKER-PATCH-143
 
 namespace App\Mail;
 
@@ -33,7 +32,7 @@ class WelcomeEmail extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            // MARKER-MAIL-FROM — config('key', 'fallback') does NOT fall back when
+            // config('key', 'fallback') does NOT fall back when
             // the key exists and is wrong, and with no config/mail.php in this
             // repo it resolved to the framework placeholder. Every welcome email
             // was addressed from example.com, which has no sender signature.
@@ -41,7 +40,7 @@ class WelcomeEmail extends Mailable
                 \App\Models\PlatformSettings::fromAddress() ?: \App\Models\PlatformSettings::fromAddress(),
                 \App\Models\PlatformSettings::fromName() ?: 'Intake'
             ),
-            // MARKER-PLATFORM-TEMPLATES — a customised subject wins; with no
+            // a customised subject wins; with no
             // override this is exactly the string that shipped.
             subject: \App\Support\PlatformEmailTemplates::subject('welcome', $this->templateVars())
                 ?: 'Welcome to Intake — ' . $this->tenant->name,
@@ -51,7 +50,7 @@ class WelcomeEmail extends Mailable
     public function content(): Content
     {
         return new Content(
-            // MARKER-PLATFORM-TEMPLATES — htmlString only when customised,
+            // htmlString only when customised,
             // so an untouched template renders its shipped Blade unchanged.
             htmlString: \App\Support\PlatformEmailTemplates::html('welcome', $this->templateVars()),
             view: \App\Support\PlatformEmailTemplates::html('welcome', $this->templateVars()) ? null : 'emails.welcome',
@@ -72,7 +71,7 @@ class WelcomeEmail extends Mailable
         );
     }
 
-    /** MARKER-PLATFORM-TEMPLATES — values a customised template can use. */
+    /** values a customised template can use. */
     protected function templateVars(): array
     {
         $vars = [];

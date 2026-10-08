@@ -4,7 +4,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-// MARKER-PATCH-560 — Online Retail Wave 1: order lines. Name/image/variant
+// Online Retail Wave 1: order lines. Name/image/variant
 // are snapshots so a fulfilled order renders forever, even after catalog
 // churn or item deletion.
 return new class extends Migration

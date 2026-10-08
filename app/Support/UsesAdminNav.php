@@ -3,7 +3,7 @@
 namespace App\Support;
 
 /**
- * MARKER-NAV-ORDER — lets a page or resource take its group, label, order and
+ * lets a page or resource take its group, label, order and
  * visibility from the database, keeping whatever it declares as the fallback.
  *
  * Applied by overriding Filament's own accessors rather than by rewriting the

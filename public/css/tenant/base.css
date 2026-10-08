@@ -5,7 +5,7 @@
    ========================================================================== */
 
 /* --------------------------------------------------------------------------
-   MARKER-SELFHOST-FONTS-2 — the @font-face rules that were here moved to
+   the @font-face rules that were here moved to
    public/css/fonts.css so every template can share one declaration set.
    The tenant layout links it just before this file.
    -------------------------------------------------------------------------- */
@@ -30,7 +30,7 @@
 }
 
 /* --------------------------------------------------------------------------
-   MARKER-PATCH-128 — Legacy token aliases
+   Legacy token aliases
 
    These tokens are used in ~180 places across views and CSS but were
    never defined. CSS was either falling back to author-supplied inline
@@ -147,7 +147,7 @@ ul { list-style: none; }
    Tables
    -------------------------------------------------------------------------- */
 .ia-table-wrap { border-radius: var(--ia-r-lg); overflow: hidden; }
-.ia-table { width: 100%; border-collapse: collapse; font-size: var(--ia-fs-table, 13px); } /* MARKER-THEME-TEXT-SIZE */
+.ia-table { width: 100%; border-collapse: collapse; font-size: var(--ia-fs-table, 13px); }
 .ia-table thead tr { }
 .ia-table th {
   font-size: 11px;
@@ -267,7 +267,7 @@ ul { list-style: none; }
 }
 .ia-textarea { resize: vertical; min-height: 80px; }
 
-/* MARKER-DARK-SELECT — a dropdown's LIST is drawn by the OS, not by this
+/* a dropdown's LIST is drawn by the OS, not by this
    stylesheet. With near-white text and no colour-scheme declared, a browser
    in light mode painted a white popup and inherited white text: white on
    white, reported by a tenant. color-scheme tells the browser to render
@@ -287,7 +287,7 @@ body.ia-theme-c select optgroup {
   background-color: #1c1c1c;
   color: #f0f0f0;
 }
-/* MARKER-DARK-SELECT-OPAQUE — macOS ignores color-scheme on a control whose
+/* macOS ignores color-scheme on a control whose
    own background is translucent (--ia-input-bg is rgba white at 7%), and
    paints its default light popup instead. An opaque background that matches
    what the overlay resolves to over --ia-surface makes it honour dark. */
@@ -520,7 +520,7 @@ body.ia-theme-c .ia-schedule-pill.is-active {
   box-shadow: 0 0 0 0.5px rgba(255,255,255,.1);
 }
 
-/* MARKER-PATCH-437 — schedule section tabs fill the row on phones */
+/* schedule section tabs fill the row on phones */
 @media (max-width: 767px) {
   .ia-schedule-toggle { display: flex; width: 100%; }
   .ia-schedule-pill { flex: 1 1 0; min-width: 0; justify-content: center; padding: 7px 6px; gap: 5px; }
@@ -775,7 +775,7 @@ body.ia-theme-c .ia-schedule-pill.is-active {
 .ia-sb-user-name {
   font-size: 13px;
   font-weight: 600;
-  /* MARKER-PATCH-150-POLISH-C — sidebar is always dark, lock text colour */
+  /* sidebar is always dark, lock text colour */
   color: #f0f0f0;
   white-space: nowrap;
   overflow: hidden;
@@ -784,7 +784,7 @@ body.ia-theme-c .ia-schedule-pill.is-active {
 }
 .ia-sb-user-role {
   font-size: 11px;
-  /* MARKER-PATCH-150-POLISH-C — sidebar is always dark, lock text colour */
+  /* sidebar is always dark, lock text colour */
   color: rgba(255, 255, 255, .55);
   margin-top: 1px;
   white-space: nowrap;
@@ -804,7 +804,7 @@ body.ia-theme-c .ia-schedule-pill.is-active {
   top: calc(100% + 4px);
   left: 0;
   right: 0;
-  /* MARKER-PATCH-150-POLISH-C — sidebar dropdown matches sidebar (always dark) */
+  /* sidebar dropdown matches sidebar (always dark) */
   background: #1a1a1a;
   border: 1px solid rgba(255,255,255,.12);
   border-radius: var(--ia-r-md, 8px);
@@ -824,12 +824,12 @@ body.ia-theme-c .ia-schedule-pill.is-active {
   cursor: pointer;
   font-size: 13px;
   text-align: left;
-  /* MARKER-PATCH-150-POLISH-C — sidebar dropdown is always dark */
+  /* sidebar dropdown is always dark */
   color: #f0f0f0;
   font-family: inherit;
 }
 .ia-sb-user-menu-item:hover {
-  /* MARKER-PATCH-150-POLISH-D — dark sidebar, dark hover always */
+  /* dark sidebar, dark hover always */
   background: rgba(255, 255, 255, .08);
 }
 
@@ -869,7 +869,7 @@ body.ia-theme-c .ia-schedule-pill.is-active {
   min-width: 0;
 }
 
-/* MARKER-PATCH-150-POLISH-D — lock location-switcher colours when inside the dark sidebar */
+/* lock location-switcher colours when inside the dark sidebar */
 .ia-sb-location-wrap .ia-loc-switcher-details > summary {
   color: #f0f0f0;
 }
@@ -917,7 +917,7 @@ body.ia-theme-c .ia-schedule-pill.is-active {
   text-underline-offset: 2px;
 }
 
-/* MARKER-PATCH-150-POLISH-D — sidebar is always dark, theme-b overrides removed */
+/* sidebar is always dark, theme-b overrides removed */
 
 
 /* === Idle lock overlay (chunk 6) === */
@@ -1254,7 +1254,7 @@ body.ia-theme-c .ia-schedule-pill.is-active {
 }
 
 /* --------------------------------------------------------------------------
-   MARKER-IOFLASH — offline sync status pill.
+   offline sync status pill.
    These rules used to be assembled in JS and appended to <head> after the
    page had painted, which is half of why the pill visibly popped in. They
    are unchanged apart from living here now.
@@ -1290,7 +1290,7 @@ body.ia-theme-c .ia-schedule-pill.is-active {
 .io-mstat.io-loud.io-sync { border-color:rgba(190,242,100,.4); background:rgba(190,242,100,.06); color:#BEF264 }
 
 
-/* MARKER-IMPERSONATION-PIN — impersonation reads in the sidebar user block
+/* impersonation reads in the sidebar user block
    instead of a sticky bar that covered page headers and primary actions. */
 .ia-sb-user-row.is-impersonating {
   background: rgba(133,79,11,.22);
@@ -1330,10 +1330,10 @@ body.ia-theme-c .ia-schedule-pill.is-active {
 @media (max-width: 900px) { .ia-imp-chip { display: inline-flex; } }
 
 
-/* MARKER-SIDEBAR-COLLAPSE ---------------------------------------------------
+/* -------------------------------------------------
    220px of chrome is expensive in the page builder. Collapse to an icon rail.
    Everything keys off a class on <html> so the state applies before paint. */
-/* MARKER-SB-COLLAPSE-VISIBLE — this was opacity:0 until the sidebar was
+/* this was opacity:0 until the sidebar was
    hovered, so a finished feature was undiscoverable: a 22px chevron at 50%
    grey, revealed only by mousing over a region nobody mouses over on purpose.
    Always visible now, with a border so it reads as a control rather than a
@@ -1403,7 +1403,7 @@ html.ia-sb-collapsed .ia-sb-user-menu { left: 62px; right: auto; min-width: 210p
 }
 
 
-/* MARKER-SIDEBAR-COLLAPSE-POLISH -------------------------------------------
+/* -----------------------------------------
    The first pass clipped the obvious labels but left the rail cluttered:
    full-size logo mark, the account caret, the offline-sync row's text and
    chevron, the location switcher, the attention row. All of it is either
@@ -1460,16 +1460,16 @@ html.ia-sb-collapsed .ia-sb-user-row.is-impersonating .ia-sb-user-avatar {
 html.ia-sb-collapsed .ia-sidebar-logo { padding-top: 40px; padding-bottom: 4px; }
 
 
-/* MARKER-SIDEBAR-WIDTH-VAR — one source of truth for the sidebar's width.
+/* one source of truth for the sidebar's width.
    .pb2-shell (and anything else that escapes the layout with position:fixed)
    reads this instead of hardcoding 220px and silently breaking when the
    sidebar collapses. */
-/* MARKER-SECTION-WIDTH — one measure for a section's pages.
+/* one measure for a section's pages.
    Fluid, so an iPad or a 1280 laptop fills the window exactly as before; capped
    so a 27-inch screen doesn't stretch a table across two feet of glass. The
    pages used to set their own widths (880, 980, 1020, 1120, none), so content
    jumped as you moved between tabs. */
-/* MARKER-SECTION-LEFT — left-aligned, not centred: centring made a 1440-capped
+/* left-aligned, not centred: centring made a 1440-capped
    page and a 1680-capped one start at different left edges, so content slid
    sideways as you moved between tabs. Now every page starts in the same
    place and only the right edge differs. */
@@ -1477,7 +1477,7 @@ html.ia-sb-collapsed .ia-sidebar-logo { padding-top: 40px; padding-bottom: 4px; 
 .ia-section--wide{max-width:1680px}          /* table-heavy pages get more columns */
 .ia-section .ia-scroll-x{overflow-x:auto;-webkit-overflow-scrolling:touch}
 
-/* MARKER-SECTION-WIDTH — the tab bar keeps the current tab in view instead of
+/* the tab bar keeps the current tab in view instead of
    clipping it, and fades at the edge so it reads as scrollable. */
 .ia-tabs{position:relative;min-width:0}
 .ia-tabs::after{content:'';position:absolute;right:0;top:0;bottom:1px;width:28px;pointer-events:none;
@@ -1493,7 +1493,7 @@ html.ia-sb-collapsed { --ia-sidebar-w: 60px; }
 }
 
 
-/* MARKER-COLLAPSE-MARKER-FIX ------------------------------------------------
+/* ----------------------------------------------
    The impersonation stripe was position:fixed, so it left the sidebar and
    painted down the whole viewport. An inset shadow on the rail itself stays
    where it belongs and still reads at a glance. */
@@ -1516,7 +1516,7 @@ html.ia-sb-collapsed .ia-sidebar-logo {
   padding-right: 0;
 }
 
-/* MARKER-TENANT-STANDING — past-due notice above page content */
+/* past-due notice above page content */
 .ia-standing{display:flex;gap:10px;align-items:flex-start;margin:0 0 16px;padding:11px 13px;
   border:1px solid rgba(251,191,36,.4);background:rgba(251,191,36,.07);border-radius:9px}
 .ia-standing.is-urgent{border-color:rgba(252,165,165,.45);background:rgba(252,165,165,.07)}
@@ -1528,7 +1528,7 @@ html.ia-sb-collapsed .ia-sidebar-logo {
 .ia-standing.is-urgent .ia-standing-txt b{color:#fecaca}
 .ia-standing-cta{display:inline-block;margin-left:6px;color:inherit;text-decoration:underline;font-weight:600}
 
-/* MARKER-SETTINGS-BACKLINK — back navigation belongs top-left, above the
+/* back navigation belongs top-left, above the
    title, and should say where it goes. */
 .ia-back-link {
   display: inline-flex;

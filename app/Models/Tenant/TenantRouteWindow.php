@@ -6,9 +6,9 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Carbon\Carbon; // MARKER-PATCH-511B — base class accepts Illuminate's subclass too
+use Carbon\Carbon; // base class accepts Illuminate's subclass too
 
-// MARKER-PATCH-509 — a route window: "8–10 am, Mon–Sat, 3 stops".
+// a route window: "8–10 am, Mon–Sat, 3 stops".
 // Pickups and deliveries share the window's stop count (locked spec).
 // Times are tenant-local naive wall clock, per the patch-188 standard.
 class TenantRouteWindow extends Model
@@ -46,7 +46,7 @@ class TenantRouteWindow extends Model
      */
     public function bookedStops(Carbon $date): int
     {
-        // MARKER-PATCH-513 — scheduled_at values are UTC; build the window
+        // scheduled_at values are UTC; build the window
         // bounds as tenant-local wall clock and convert before comparing.
         $tz    = $this->tenant?->timezone() ?? config('app.timezone');
         $start = Carbon::parse($date->toDateString() . ' ' . (string) $this->starts_at, $tz)->utc();

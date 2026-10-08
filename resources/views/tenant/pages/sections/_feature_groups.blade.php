@@ -1,5 +1,5 @@
 {{--
-  MARKER-FEATURE-GROUPS — editor for "Feature groups with index".
+  editor for "Feature groups with index".
   Each group: index label, heading, lead line, and its features — one per
   line as "Title — what it does". The groups are kept in one hidden JSON
   field (data-field="groups") that the builder saves like any other field.

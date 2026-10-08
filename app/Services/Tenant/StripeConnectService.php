@@ -9,7 +9,7 @@ use Stripe\Exception\ApiErrorException;
 use Stripe\StripeClient;
 
 /**
- * MARKER-PATCH-168 — Stripe Connect Session A.
+ * Stripe Connect Session A.
  *
  * Lightweight service for managing tenant Connect accounts. Express
  * accounts only, US only for v1.

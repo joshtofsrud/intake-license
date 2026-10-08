@@ -7,7 +7,7 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 /**
- * MARKER-PATCH-175 — Payment ledger for SALES.
+ * Payment ledger for SALES.
  *
  * Part of the money-model unification: the sale becomes the single money
  * object, and every dollar in/out is a row here. Mirrors the proven

@@ -4,7 +4,7 @@ use Illuminate\Database\Migrations\Migration;
 use App\Models\ChangelogEntry as C;
 
 /**
- * MARKER-CHANGELOG-REWRITE — customer-facing changelog: seven highlights (one
+ * customer-facing changelog: seven highlights (one
  * from September), engineering detail rewritten as customer outcomes,
  * product-area categories, US spelling, the new intro, and a closing
  * call-to-action banner on the Changelog page. Hidden entries keep their text;

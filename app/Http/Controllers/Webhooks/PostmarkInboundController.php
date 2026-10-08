@@ -1,11 +1,10 @@
 <?php
-// MARKER-PATCH-403
 
 namespace App\Http\Controllers\Webhooks;
 
 use App\Http\Controllers\Controller;
-use App\Models\Tenant; // MARKER-INBOUND-COLD
-use App\Models\Tenant\TenantCustomer; // MARKER-INBOUND-COLD
+use App\Models\Tenant;
+use App\Models\Tenant\TenantCustomer;
 use App\Models\Tenant\TenantMessage;
 use App\Models\Tenant\TenantThread;
 use App\Services\Tenant\InboxService;
@@ -47,7 +46,7 @@ class PostmarkInboundController extends Controller
         $token = trim((string) ($payload['MailboxHash'] ?? ''));
         $msgId = trim((string) ($payload['MessageID'] ?? ''));
 
-        // MARKER-INBOUND-COLD — hoisted above routing so it guards both paths.
+        // hoisted above routing so it guards both paths.
         // The cold path can CREATE a customer, so a Postmark retry landing
         // twice would be worse here than it ever was on the token path.
         if ($msgId !== '' && TenantMessage::where('external_id', $msgId)->exists()) {
@@ -57,7 +56,7 @@ class PostmarkInboundController extends Controller
         $from = trim((string) ($payload['From'] ?? ($payload['FromFull']['Email'] ?? '')));
 
         // 1. Token is still the precise route when it resolves.
-        // 1a. MARKER-PLATFORM-INBOUND — a reply to Intake ITSELF, before any
+        // 1a. a reply to Intake ITSELF, before any
         //     tenant lookup. Platform tokens live in their own table, and this
         //     patch reserves the 'intake' subdomain so a tenant can never own
         //     the localpart the platform replies on.
@@ -72,7 +71,7 @@ class PostmarkInboundController extends Controller
             ? TenantThread::where('inbound_token', $token)->first()
             : null;
 
-        // 2. MARKER-INBOUND-COLD — otherwise route on the address it was sent
+        // 2. otherwise route on the address it was sent
         //    to. Reached by genuinely cold mail AND by a token that no longer
         //    matches (a deleted thread, or a customer composing fresh mail to
         //    grndctrl+something@, which Postmark reads as a MailboxHash).
@@ -114,7 +113,7 @@ class PostmarkInboundController extends Controller
     }
 
     /**
-     * MARKER-INBOUND-COLD — resolve a thread from the recipient address.
+     * resolve a thread from the recipient address.
      *
      * {subdomain}@reply.intake.works identifies the shop; the From address
      * identifies the customer. Returns null (having logged why) when the
@@ -229,7 +228,7 @@ class PostmarkInboundController extends Controller
     }
 
     /**
-     * MARKER-PLATFORM-INBOUND — record a reply to Intake's own mail.
+     * record a reply to Intake's own mail.
      *
      * Deliberately forgiving: an empty body still creates the turn, because a
      * person who hit reply and sent an image or a one-word answer has still

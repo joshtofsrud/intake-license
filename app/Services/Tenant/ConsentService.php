@@ -1,5 +1,4 @@
 <?php
-// MARKER-EMAIL-CONSENT
 
 namespace App\Services\Tenant;
 
@@ -56,7 +55,7 @@ class ConsentService
             $query->whereIn('id', $customerIds);
         }
 
-        // MARKER-CONSENT-IMPORT-FIX — marking customers consented and
+        // marking customers consented and
         // recording WHY must succeed or fail together. Previously the marking
         // ran first and a failed attestation insert left consent standing with
         // no evidence behind it — the exact thing this record exists to prove.
@@ -93,7 +92,7 @@ class ConsentService
     // ------------------------------------------------------------------
 
     /**
-     * MARKER-CONSENT-CLEANUP — mark one customer consented during the
+     * mark one customer consented during the
      * onboarding window. Deliberately still writes an attestation row: the
      * ceremony is lighter, the evidence is not.
      */

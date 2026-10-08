@@ -18,8 +18,8 @@ use Illuminate\Support\HtmlString;
 
 class BillingConfiguration extends Page implements HasForms
 {
-    use \App\Support\UsesAdminNav; // MARKER-NAV-ORDER
-    use \App\Support\GatedByAdminArea; // MARKER-ADMIN-NAV-GATE
+    use \App\Support\UsesAdminNav;
+    use \App\Support\GatedByAdminArea;
     protected static string $adminArea = 'config';
 
     use InteractsWithForms;
@@ -41,12 +41,11 @@ class BillingConfiguration extends Page implements HasForms
             'stripe_test_publishable_key' => $settings->stripe_test_publishable_key,
             'stripe_test_secret_key' => $settings->stripe_test_secret_key,
             'stripe_test_webhook_secret' => $settings->stripe_test_webhook_secret,
-            'stripe_test_contrib_webhook_secret' => $settings->stripe_test_contrib_webhook_secret,   // MARKER-CONTRIBUTIONS
+            'stripe_test_contrib_webhook_secret' => $settings->stripe_test_contrib_webhook_secret,
             'stripe_live_publishable_key' => $settings->stripe_live_publishable_key,
             'stripe_live_secret_key' => $settings->stripe_live_secret_key,
             'stripe_live_webhook_secret' => $settings->stripe_live_webhook_secret,
             'stripe_live_contrib_webhook_secret' => $settings->stripe_live_contrib_webhook_secret,
-            // MARKER-PRICING-ONE-PLACE
             'plan_prices' => collect(\App\Support\PlanPricing::all())->map(fn ($cents, $tier) => [
                 'tier'           => $tier,
                 'dollars'        => number_format($cents / 100, 2, '.', ''),
@@ -58,7 +57,6 @@ class BillingConfiguration extends Page implements HasForms
             'stripe_price_branded_annual' => $settings->stripe_price_branded_annual,
             'stripe_price_scale_monthly' => $settings->stripe_price_scale_monthly,
             'stripe_price_scale_annual' => $settings->stripe_price_scale_annual,
-            // MARKER-TENANT-STANDING-ADMIN
             'past_due_grace_days' => $settings->past_due_grace_days ?? 14,
             'past_due_action'     => $settings->past_due_action ?? 'lock',
         ]);
@@ -136,7 +134,7 @@ class BillingConfiguration extends Page implements HasForms
                             ->autocomplete('off'),
                     ]),
 
-                // MARKER-PRICING-ONE-PLACE — the list price, edited here rather
+                // the list price, edited here rather
                 // than on a page of its own, so it sits with the Stripe IDs it
                 // labels and there is one place to change a number.
                 Section::make('Plan prices')
@@ -201,7 +199,6 @@ class BillingConfiguration extends Page implements HasForms
                             ->autocomplete('off'),
                     ]),
 
-                // MARKER-TENANT-STANDING-ADMIN
                 Section::make('Past-due handling')
                     ->description('What happens when a shop\'s card fails. Grace is counted from the first failed invoice and clears the moment a payment succeeds.')
                     ->schema([
@@ -234,7 +231,7 @@ class BillingConfiguration extends Page implements HasForms
 
     public function save(): void
     {
-        // MARKER-PRICING-ONE-PLACE save — a row per tier, dated. Writing a row
+        // save — a row per tier, dated. Writing a row
         // rather than updating one keeps the history: a price that applied last
         // month stays in the table, which is what makes a scheduled change and
         // a later audit both possible.

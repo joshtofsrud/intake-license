@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-{{-- MARKER-PATCH-239 — public rental availability browse. Standalone page
+{{-- public rental availability browse. Standalone page
      in the public design language (same approach as booking.blade). The
      Reserve CTA points at /contact until PATCH-240 ships real checkout. --}}
 @php
@@ -10,7 +10,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-@include('partials.mobile-input-zoom') {{-- MARKER-MOBILE-INPUT-ZOOM --}}
+@include('partials.mobile-input-zoom')
 <title>Rentals — {{ $tname }}</title>
 <style>
   :root { --acc: {{ $accent }}; }
@@ -39,10 +39,10 @@
   .card .cta { margin-top: 14px; text-align: center; font-size: 13.5px; font-weight: 650; padding: 9px 0; border-radius: 9px; background: var(--acc); color: #111; }
   .empty { text-align: center; padding: 60px 20px; opacity: .55; font-size: 15px; }
 </style>
-  @include('public._ga4') {{-- MARKER-SHOP-GA4 --}}
+  @include('public._ga4')
 </head>
 <body>
-@include('public._chrome-inline', ['chromePos' => 'top']) {{-- MARKER-PATCH-581 --}}
+@include('public._chrome-inline', ['chromePos' => 'top'])
 <div class="wrap">
   <div class="top">
     <a class="home" href="/">{{ $tname }}</a>
@@ -64,7 +64,7 @@
     </div>
     <button type="submit">Check availability</button>
   </form>
-  {{-- MARKER-RENTAL-SECTIONS — active category chip --}}
+  {{-- active category chip --}}
   @if(!empty($activeCategory))
     <div style="margin:14px 0 0;font-size:13px">
       Showing <b>{{ $activeCategory->name }}</b> ·
@@ -93,7 +93,7 @@
                 @if($m->weekend_rate_cents)<span class="chip"><b>{{ format_money($m->weekend_rate_cents) }}</b>/weekend</span>@endif
               </div>
               <div class="meta">{{ $entry['count'] }} available{{ count($entry['sizes']) ? ' · sizes ' . implode(', ', $entry['sizes']) : '' }}</div>
-              {{-- MARKER-PATCH-240 — real online reservation. --}}
+              {{-- real online reservation. --}}
               <a class="cta" href="{{ route('tenant.rentals.reserve', ['model' => $m->id, 'starts' => $startLocal->format('Y-m-d\TH:i'), 'due' => $dueLocal->format('Y-m-d\TH:i')]) }}">Reserve</a>
             </div>
           @endforeach
@@ -103,6 +103,6 @@
     <p style="font-size:12px;opacity:.4;text-align:center;margin-top:10px">{{ $unitCount }} unit{{ $unitCount === 1 ? '' : 's' }} free for this window.</p>
   @endif
 </div>
-@include('public._chrome-inline', ['chromePos' => 'bottom']) {{-- MARKER-PATCH-581 --}}
+@include('public._chrome-inline', ['chromePos' => 'bottom'])
 </body>
 </html>

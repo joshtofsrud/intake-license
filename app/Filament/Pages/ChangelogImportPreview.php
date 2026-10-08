@@ -25,7 +25,7 @@ use Illuminate\Support\Facades\Storage;
  */
 class ChangelogImportPreview extends Page
 {
-    use \App\Support\GatedByAdminArea; // MARKER-ADMIN-NAV-GATE
+    use \App\Support\GatedByAdminArea;
     protected static string $adminArea = 'marketing';
 
     protected static string $view = 'filament.pages.changelog-import-preview';

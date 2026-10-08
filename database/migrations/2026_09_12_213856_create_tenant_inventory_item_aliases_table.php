@@ -5,7 +5,7 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * MARKER-ITEM-ALIASES — identifiers that USED to resolve to an item.
+ * identifiers that USED to resolve to an item.
  *
  * Written by merge: the merged-away item's SKU and barcodes become aliases of
  * the survivor, so a label already printed still scans. Kept separate from the

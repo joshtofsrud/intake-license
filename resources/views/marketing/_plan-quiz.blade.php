@@ -90,7 +90,7 @@
 <div class="pq-overlay" id="pq-overlay" role="dialog" aria-labelledby="pq-question" aria-modal="true">
   <div class="pq-modal">
     <div class="pq-head">
-      <div class="pq-brand"><img src="{{ \App\Support\Brand::url('icon') }}" alt="" style="display:block;height:22px;width:auto"> Plan finder</div> {{-- MARKER-PLATFORM-LOGO --}}
+      <div class="pq-brand"><img src="{{ \App\Support\Brand::url('icon') }}" alt="" style="display:block;height:22px;width:auto"> Plan finder</div>
       <button type="button" class="pq-close" id="pq-close" aria-label="Close">×</button>
     </div>
 
@@ -213,7 +213,7 @@
       rec = 'scale';
       tags.push('enterprise-quiz');
       if (answers.volume === '200plus') reasons.push('200+ bookings a month — Scale is built for that volume.');
-      if (answers.locations === 'two_three' || answers.locations === 'four_plus') reasons.push('Extra locations can be added on Scale.'); /* MARKER-CLAIMS-FIX */
+      if (answers.locations === 'two_three' || answers.locations === 'four_plus') reasons.push('Extra locations can be added on Scale.');
       if (answers.branding === 'need_whitelabel') reasons.push('Full white-label is a Scale feature.');
       if (answers.setup === 'done_for_me') reasons.push('Scale includes onboarding assistance.');
     } else if (answers.branding === 'prefer_hide' || answers.website === 'replacing') {

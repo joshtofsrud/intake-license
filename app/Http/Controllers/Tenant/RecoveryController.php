@@ -9,7 +9,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 /**
- * RecoveryController — Engage → Recovery. MARKER-PATCH-450.
+ * RecoveryController — Engage → Recovery. .
  *
  * Surfaces the booking funnel (anonymous sessions, last 30 days) and the
  * abandoned-booking worklist (people who left contact info but didn't finish),
@@ -63,7 +63,7 @@ class RecoveryController extends Controller
             ->orderBy('step')
             ->get();
 
-        // MARKER-PATCH-487 — scale bars against the busiest step (capped at 100%),
+        // scale bars against the busiest step (capped at 100%),
         // so the funnel reads proportionally instead of every bar clamping to full.
         $maxSessions = (int) ($stepRows->max('sessions') ?? 0);
         $prev  = null;
@@ -96,10 +96,10 @@ class RecoveryController extends Controller
             ->limit(25)
             ->get();
 
-        // MARKER-PATCH-484 — at-risk regulars (overdue vs. their own cadence).
+        // at-risk regulars (overdue vs. their own cadence).
         $atRisk = app(\App\Services\Tenant\AtRiskCustomerService::class)->forTenant($tenant->id);
 
-        // MARKER-PATCH-486 — current recovery knobs (defaults when unset).
+        // current recovery knobs (defaults when unset).
         $s = (array) ($tenant->settings ?? []);
         $recoverySettings = [
             'grace_days'     => (int) ($s['recovery_late_completion_grace_days'] ?? 1),
@@ -107,8 +107,7 @@ class RecoveryController extends Controller
             'min_visits'     => (int) ($s['recovery_min_visits'] ?? 3),
             'sig_late'       => (bool) ($s['recovery_signal_late_completion'] ?? true),
             'sig_reschedule' => (bool) ($s['recovery_signal_reschedule'] ?? true),
-            'sig_late_delivery' => (bool) ($s['recovery_signal_late_delivery'] ?? true), // MARKER-PATCH-530
-            // MARKER-PATCH-507
+            'sig_late_delivery' => (bool) ($s['recovery_signal_late_delivery'] ?? true),
             'prioritize'     => (bool) ($s['recovery_prioritize_flagged'] ?? true),
         ];
         $tab = request()->query('tab') === 'settings' ? 'settings' : 'main';
@@ -116,7 +115,7 @@ class RecoveryController extends Controller
         return view('tenant.recovery.index', compact('funnel', 'steps', 'open', 'handled', 'since', 'atRisk', 'recoverySettings', 'tab'));
     }
 
-    // MARKER-PATCH-486 — persist the recovery knobs to tenant settings.
+    // persist the recovery knobs to tenant settings.
     public function updateSettings(Request $request)
     {
         $tenant = tenant();
@@ -132,9 +131,9 @@ class RecoveryController extends Controller
         $settings['recovery_overdue_buffer']             = (float) $data['recovery_overdue_buffer'];
         $settings['recovery_min_visits']                 = (int) $data['recovery_min_visits'];
         $settings['recovery_signal_late_completion']     = (bool) $request->input('recovery_signal_late_completion');
-        $settings['recovery_signal_late_delivery']       = (bool) $request->input('recovery_signal_late_delivery'); // MARKER-PATCH-530
+        $settings['recovery_signal_late_delivery']       = (bool) $request->input('recovery_signal_late_delivery');
         $settings['recovery_signal_reschedule']          = (bool) $request->input('recovery_signal_reschedule');
-        $settings['recovery_prioritize_flagged']         = (bool) $request->input('recovery_prioritize_flagged'); // MARKER-PATCH-507
+        $settings['recovery_prioritize_flagged']         = (bool) $request->input('recovery_prioritize_flagged');
         $tenant->update(['settings' => $settings]);
 
         return redirect()->route('tenant.recovery.index', ['tab' => 'settings'])

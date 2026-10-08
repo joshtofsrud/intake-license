@@ -4,7 +4,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-// MARKER-PATCH-481 — actual completion instant (pairs with promised_at for
+// actual completion instant (pairs with promised_at for
 // late_completion). Nullable, UTC; stamped by the model on first transition into
 // a done state. No backfill — historical rows stay null on purpose.
 return new class extends Migration

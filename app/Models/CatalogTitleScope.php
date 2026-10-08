@@ -1,6 +1,5 @@
 <?php
 
-// MARKER-TITLE-SCOPES
 
 namespace App\Models;
 
@@ -32,7 +31,7 @@ class CatalogTitleScope extends Model
     ];
 
     /**
-     * MARKER-FLAG-TUNING — 'healthy' means nothing needs a human, so a
+     * 'healthy' means nothing needs a human, so a
      * scope carrying only info findings counts as healthy even though its
      * flags array isn't empty.
      */

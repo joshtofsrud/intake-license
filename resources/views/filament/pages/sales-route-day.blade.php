@@ -1,6 +1,4 @@
-{{-- MARKER-SALES-ROUTE --}}
-{{-- MARKER-SALES-TODAY --}}
-{{-- MARKER-TODAY-TIGHT — one full-width list; the route is one line until it's built, then the map opens. --}}
+{{-- one full-width list; the route is one line until it's built, then the map opens. --}}
 @php
     $agenda   = $this->agenda();
     $verify   = $this->verifyList();
@@ -22,7 +20,7 @@
   .sx-root { --sx-line:rgba(255,255,255,.075); --sx-line-2:rgba(255,255,255,.14); --sx-dim:#a3a3ab; --sx-faint:#74747d;
     --sx-violet:#8b5cf6; --sx-vsoft:rgba(139,92,246,.17); --sx-lime:#BEF264; --sx-amber:#f5b942; --sx-red:#f47c7c; font-size:14px; }
   .sx-in { background-color:rgba(255,255,255,.04); border:1px solid var(--sx-line-2); border-radius:7px; padding:6px 10px; font-size:13px; color:inherit; }
-  select.sx-in { padding-right:32px; background-repeat:no-repeat; } /* MARKER-SALES-SELECT-FIX */
+  select.sx-in { padding-right:32px; background-repeat:no-repeat; }
   .sx-in option { background:#18181b; }
   .sx-btn { border:1px solid var(--sx-line-2); background:none; border-radius:7px; padding:5px 11px; font-weight:500; font-size:12.5px; cursor:pointer; white-space:nowrap; color:inherit; text-decoration:none; display:inline-block; }
   .sx-btn.p { background:var(--sx-violet); border-color:var(--sx-violet); color:#fff; }
@@ -126,7 +124,7 @@
         @foreach($unplaced as $u)<span style="white-space:nowrap">{{ $u->shop }} <button class="sx-btn q" style="padding:1px 6px" wire:click="placeOne('{{ $u->id }}')" title="One Places lookup">Place</button></span>{{ ! $loop->last ? ',' : '' }} @endforeach
       </div>
     @endif
-    {{-- MARKER-SALES-JSONFIX — not @json: that directive splits on commas --}}
+    {{-- not @json: that directive splits on commas --}}
     <script type="application/json" id="srd-data">{!! json_encode(['start' => $startLat !== null ? ['lat' => $startLat, 'lng' => $startLng, 'label' => $startLabel] : null, 'stops' => $pts], JSON_HEX_TAG | JSON_HEX_AMP) !!}</script>
   </div>
 
@@ -190,7 +188,7 @@
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-  // MARKER-SALES-ROUTE — the map is wire:ignore'd and redraws from #srd-data once it's visible.
+  // the map is wire:ignore'd and redraws from #srd-data once it's visible.
   (function () {
     var map = null, layer = null;
     function draw() {
@@ -199,7 +197,7 @@
       var d; try { d = JSON.parse(document.getElementById('srd-data').textContent); } catch (e) { return; }
       if (!map) {
         map = L.map(el).setView([47.66, -117.43], 9);
-        /* MARKER-ESRI-DARK-TILES */ var esri = 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/';
+         var esri = 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/';
         L.tileLayer(esri + 'World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, maxNativeZoom: 16, attribution: 'Tiles &copy; Esri &mdash; Esri, HERE, Garmin, &copy; OpenStreetMap contributors' }).addTo(map);
         L.tileLayer(esri + 'World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, maxNativeZoom: 16 }).addTo(map);
       }

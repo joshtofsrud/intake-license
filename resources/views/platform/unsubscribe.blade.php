@@ -4,7 +4,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{{ $done ? 'Unsubscribed' : 'Unsubscribe' }} — Intake</title>
-{{-- MARKER-PLATFORM-EMAIL --}}
 <style>
   body{margin:0;background:#0c0c0c;color:#f0f0f0;font:16px/1.6 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Inter,sans-serif;
     display:flex;align-items:center;justify-content:center;min-height:100vh;padding:24px}

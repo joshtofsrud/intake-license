@@ -1,5 +1,4 @@
 <?php
-// MARKER-ATTENTION-QUEUE
 
 namespace App\Jobs;
 

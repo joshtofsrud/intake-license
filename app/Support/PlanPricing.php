@@ -6,7 +6,7 @@ use App\Models\PlanPrice;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * MARKER-PLAN-PRICING — what each plan costs, from the database.
+ * what each plan costs, from the database.
  *
  * The current price for a tier is the newest row whose effective_from is not
  * in the future. A price scheduled for next month sits in the table and is

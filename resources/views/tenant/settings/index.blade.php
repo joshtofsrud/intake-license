@@ -20,15 +20,15 @@
   $notifyBookingEmail = $currentTenant->notificationEnabled('booking_confirmation_email');
   $notifyBookingSms   = $currentTenant->notificationEnabled('booking_confirmation_sms');
 
-  // MARKER-PATCH-152C — delivery scheduled toggles
+  // delivery scheduled toggles
   $notifyDeliveryEmail = $currentTenant->notificationEnabled('delivery_scheduled_email');
   $notifyDeliverySms   = $currentTenant->notificationEnabled('delivery_scheduled_sms');
 
-  // MARKER-PATCH-154 — appointment reminder toggles
+  // appointment reminder toggles
   $notifyApptReminderEmail = $currentTenant->notificationEnabled('appointment_reminder_email');
   $notifyApptReminderSms   = $currentTenant->notificationEnabled('appointment_reminder_sms');
 
-  // MARKER-PATCH-155 — delivery reminder toggles
+  // delivery reminder toggles
   $notifyDeliveryReminderEmail = $currentTenant->notificationEnabled('delivery_reminder_email');
   $notifyDeliveryReminderSms   = $currentTenant->notificationEnabled('delivery_reminder_sms');
 
@@ -83,12 +83,12 @@
 .set-pane { display:none; }
 .set-pane.active { display:block; }
 
-/* MARKER-PATCH-150-POLISH-A — responsive card grid */
+/* responsive card grid */
 .set-section {
   display: block;
   max-width: 1200px;
 }
-/* MARKER-SETTINGS-SPACING — cards within a section are separated by the grid's
+/* cards within a section are separated by the grid's
    own gap; sections had nothing between them, so a card at the end of one sat
    flush against the card starting the next. Same 18px, so stacked and
    side-by-side cards are spaced identically. */
@@ -103,7 +103,7 @@
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
   gap: 18px;
-  /* MARKER-PATCH-150-POLISH-C — same-row cards match heights */
+  /* same-row cards match heights */
   align-items: stretch;
 }
 .set-section--grid > .ia-card { display: flex; flex-direction: column; }
@@ -279,7 +279,6 @@
 .sms-test-status.error   { display:block; background:rgba(240,149,149,.10); color:#F09595; border:0.5px solid rgba(240,149,149,.25); }
 </style>
 
-{{-- MARKER-BILLING-STATEMENT --}}
 <style>
   .bill-card{font-variant-numeric:tabular-nums}
   .bill-grp{font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;opacity:.45;margin:16px 0 6px}
@@ -323,7 +322,7 @@
   </a>
 </div>
 
-{{-- MARKER-PATCH-165 — success flash removed; the global layout renders it once at the top. --}}
+{{-- success flash removed; the global layout renders it once at the top. --}}
 @if($errors->any())
 <div style="padding:10px 14px;margin-bottom:16px;border-radius:var(--ia-r-md);background:rgba(240,149,149,.10);border:0.5px solid rgba(240,149,149,.25);font-size:13px;color:#F09595">
   @foreach($errors->all() as $err){{ $err }}<br>@endforeach
@@ -336,8 +335,8 @@
   <button type="button" class="set-tab"        data-tab="communication" role="tab">Communication</button>
   <button type="button" class="set-tab"        data-tab="account"       role="tab">Account</button>
   <button type="button" class="set-tab"        data-tab="payments"      role="tab">Payments</button>
-  <button type="button" class="set-tab"        data-tab="tags"          role="tab">Print &amp; receipts</button>{{-- MARKER-PATCH-315 / 339 --}}
-  <button type="button" class="set-tab"        data-tab="ordering"      role="tab">Ordering</button>{{-- MARKER-SO-AUTOVENDOR --}}
+  <button type="button" class="set-tab"        data-tab="tags"          role="tab">Print &amp; receipts</button>{{-- / 339 --}}
+  <button type="button" class="set-tab"        data-tab="ordering"      role="tab">Ordering</button>
 </div>
 
 {{-- =====================================================================
@@ -350,7 +349,7 @@
     <input type="hidden" name="tab" value="business">
 
     <div class="set-savebar" data-savebar>
-      <span class="set-savebar-msg"></span><!-- MARKER-PATCH-165 — populated by JS -->
+      <span class="set-savebar-msg"></span><!-- populated by JS -->
       <div class="set-savebar-actions">
         <button type="button" class="set-discard-btn" data-discard>Discard</button>
         <button type="submit" class="set-save-btn">Save business settings</button>
@@ -427,7 +426,7 @@
     {{-- Booking window --}}
     <div class="ia-card" style="margin-bottom:20px">
       <div class="ia-card-head"><span class="ia-card-title">Booking window</span></div>
-      {{-- MARKER-BOOKING-HIER-C — eyebrow and rule, the device the PDFs and
+      {{-- eyebrow and rule, the device the PDFs and
            the invest site use. The earlier pass styled section heads as field
            labels, so the card had six labels of equal weight. --}}
       <div>
@@ -437,11 +436,11 @@
             <label class="ia-form-label">How far ahead can they book?</label>
             <input type="number" name="booking_window_days" class="ia-input" min="1" max="365"
               value="{{ old('booking_window_days', $currentTenant->booking_window_days ?? 60) }}">
-            {{-- MARKER-BOOKING-HIER-C-FIX — restored whole; see the patch header. --}}
+            {{-- restored whole; see the patch header. --}}
             <p style="font-size:11px;opacity:.4;margin-top:4px">Days from today</p>
           </div>
           <div class="ia-form-group">
-            {{-- MARKER-NOTICE-UNIT — hours, beside a field in days. Say so. --}}
+            {{-- hours, beside a field in days. Say so. --}}
             <label class="ia-form-label">Minimum notice, in hours</label>
             <input type="number" name="min_notice_hours" class="ia-input" min="0" max="168"
               value="{{ old('min_notice_hours', $currentTenant->min_notice_hours ?? 24) }}">
@@ -469,9 +468,9 @@
         </div>
       </div>
 
-      {{-- MARKER-BOOKING-OVERRIDE — a phone call or a walk-in is not an
+      {{-- a phone call or a walk-in is not an
            online booking, and until now the shop had no way to say so. --}}
-      {{-- MARKER-BOOKING-HIER-TOKENS — every color here is a Theme Editor
+      {{-- every color here is a Theme Editor
            token. The accent eyebrow and color-mix() rule it replaced were not,
            so a theme change would have left this card behind. --}}
       <div style="margin-top:24px;padding-top:20px;border-top:0.5px solid var(--ia-border)">
@@ -497,7 +496,7 @@
           </div>
         </div>
 
-        {{-- MARKER-APPT-AUTOLOAD — about the screen, not about permission,
+        {{-- about the screen, not about permission,
              so it follows the pair rather than splitting it. --}}
         <div class="ia-form-group" style="margin-top:4px">
           <label class="ia-form-label">Keep availability up to date while booking</label>
@@ -515,7 +514,7 @@
       </div>
     </div>
 
-    {{-- MARKER-CLASSES-SETTINGS — a toggle that does nothing is worse than no
+    {{-- a toggle that does nothing is worse than no
          toggle. Since classes became a gated addon, switching this on without
          the entitlement produced no Classes section and no /classes page, with
          nothing on screen explaining why. --}}
@@ -547,7 +546,7 @@
       @endif
     </div>
 
-    {{-- MARKER-PATCH-156 — Deliveries --}}
+    {{-- Deliveries --}}
     <div class="ia-card" style="margin-bottom:20px">
       <div class="ia-card-head"><span class="ia-card-title">Deliveries</span></div>
       <div style="padding:6px 0;display:flex;align-items:center;justify-content:space-between;gap:16px">
@@ -565,7 +564,7 @@
       </div>
     </div>
 
-    {{-- MARKER-PATCH-158-B — Multi-asset --}}
+    {{-- Multi-asset --}}
     <div class="ia-card" style="margin-bottom:20px">
       <div class="ia-card-head"><span class="ia-card-title">Multi-asset appointments</span></div>
       <div style="padding:6px 0;display:flex;align-items:center;justify-content:space-between;gap:16px">
@@ -581,7 +580,7 @@
           <span class="ia-toggle-sr">{{ $currentTenant->multi_asset_enabled ? 'Enabled' : 'Disabled' }}</span>
         </button>
       </div>
-      {{-- MARKER-PATCH-215 — what this tenant calls its assets (drives customer booking copy) --}}
+      {{-- what this tenant calls its assets (drives customer booking copy) --}}
       <div class="ia-input-grid-2" style="margin-top:14px;padding-top:14px;border-top:1px solid var(--ia-border,rgba(255,255,255,.08))">
         <div class="ia-form-group">
           <label class="ia-form-label">What you call one (singular)</label>
@@ -597,8 +596,8 @@
       <div style="font-size:12px;opacity:.5;margin-top:8px">Shown on your customer booking page — e.g. “bike”, “vehicle”, “pet”. Leave blank for “item”.</div>
     </div>
 
-    {{-- MARKER-COST-METHOD-UI — how your cost is calculated when stock arrives --}}
-    @php $costMethod = (string) (((array) ($currentTenant->settings ?? []))['inventory_cost_method'] ?? 'average'); @endphp{{-- MARKER-COST-METHOD-FIX — the cast bound tighter than ?? and threw on a missing key --}}
+    {{-- how your cost is calculated when stock arrives --}}
+    @php $costMethod = (string) (((array) ($currentTenant->settings ?? []))['inventory_cost_method'] ?? 'average'); @endphp{{-- the cast bound tighter than ?? and threw on a missing key --}}
     <div class="ia-card" style="margin-bottom:20px">
       <div class="ia-card-head"><span class="ia-card-title">Inventory cost</span></div>
       <div class="ia-form-group">
@@ -751,7 +750,7 @@
     <input type="hidden" name="tab" value="branding">
 
     <div class="set-savebar" data-savebar>
-      <span class="set-savebar-msg"></span><!-- MARKER-PATCH-165 — populated by JS -->
+      <span class="set-savebar-msg"></span><!-- populated by JS -->
       <div class="set-savebar-actions">
         <button type="button" class="set-discard-btn" data-discard>Discard</button>
         <button type="submit" class="set-save-btn">Save branding</button>
@@ -930,7 +929,7 @@
     <input type="hidden" name="tab" value="communication">
 
     <div class="set-savebar" data-savebar>
-      <span class="set-savebar-msg"></span><!-- MARKER-PATCH-165 — populated by JS -->
+      <span class="set-savebar-msg"></span><!-- populated by JS -->
       <div class="set-savebar-actions">
         <button type="button" class="set-discard-btn" data-discard>Discard</button>
         <button type="submit" class="set-save-btn">Save communication settings</button>
@@ -951,7 +950,7 @@
           value="{{ old('email_from_name', $currentTenant->email_from_name) }}"
           placeholder="{{ $currentTenant->name }}">
       </div>
-      {{-- MARKER-FROM-REPLYABLE — reads emailFromAddress() rather than rebuilding
+      {{-- reads emailFromAddress() rather than rebuilding
            the string, so the field can't disagree with what actually sends --}}
       <div class="ia-input-grid-2">
         <div class="ia-form-group">
@@ -964,7 +963,7 @@
             back to it — replies land in your Inbox. Custom domains coming soon.
           </div>
         </div>
-        {{-- MARKER-TXN-THREADING — the shop's public inbound address --}}
+        {{-- the shop's public inbound address --}}
         @if($currentTenant->inboundAddress())
           <div class="ia-form-group">
             <label class="ia-form-label">Your inbox email address</label>
@@ -987,7 +986,7 @@
         </div>
       </div>
 
-      {{-- MARKER-PATCH-144 — Test send block (no nested form, uses fetch) --}}
+      {{-- Test send block (no nested form, uses fetch) --}}
       <div style="margin-top:14px;padding:14px;background:rgba(190,242,100,.06);border:1px solid rgba(190,242,100,.18);border-radius:var(--ia-r-md)" id="email-test-block">
         <div style="font-size:13px;font-weight:500;margin-bottom:6px">Test your email setup</div>
         <div style="font-size:12px;color:var(--ia-text-dim);margin-bottom:10px;line-height:1.55">
@@ -1058,7 +1057,7 @@
       </div>
     </div>
 
-    {{-- MARKER-PATCH-228B — Rentals pointer card --}}
+    {{-- Rentals pointer card --}}
     @if($currentTenant->rentals_enabled)
     <div class="ia-card" style="margin-bottom:20px">
       <div class="ia-card-head" style="display:flex;align-items:center;justify-content:space-between">
@@ -1074,7 +1073,7 @@
     </div>
     @endif
 
-    {{-- MARKER-PATCH-228B — Notifications/Alerts pointer card --}}
+    {{-- Notifications/Alerts pointer card --}}
     <div class="ia-card" style="margin-bottom:20px">
       <div class="ia-card-head"><span class="ia-card-title">Notifications</span></div>
       <p style="font-size:13px;opacity:.5;margin-bottom:12px;line-height:1.55">
@@ -1083,7 +1082,7 @@
       <a href="{{ route('tenant.alerts.prefs') }}" class="ia-btn ia-btn--primary">Open Notification settings</a>
     </div>
 
-    {{-- MARKER-PATCH-224 — SMS config moved to Settings -> Messaging --}}
+    {{-- SMS config moved to Settings -> Messaging --}}
     <div class="ia-card" style="margin-bottom:20px">
       <div class="ia-card-head" style="display:flex;align-items:center;justify-content:space-between">
         <span class="ia-card-title">Text messaging</span>
@@ -1097,7 +1096,7 @@
       <a href="{{ route('tenant.settings.messaging') }}" class="ia-btn ia-btn--primary">Open Messaging settings</a>
     </div>
 
-    {{-- MARKER-PATCH-406 — customer notifications moved to Communication Center --}}
+    {{-- customer notifications moved to Communication Center --}}
     <div class="ia-card set-card--wide" style="margin-bottom:20px">
       <div class="ia-card-head"><span class="ia-card-title">Customer notifications</span></div>
       <p style="font-size:13px;opacity:.6;margin:0;line-height:1.55">
@@ -1106,8 +1105,8 @@
       </p>
     </div>
   </form>
-  {{-- MARKER-PATCH-150-FIX — Web analytics card, outside parent form (HTML disallows nested forms) --}}
-  {{-- MARKER-PATCH-150-POLISH-C — wrap in grid section so set-card--wide applies --}}
+  {{-- Web analytics card, outside parent form (HTML disallows nested forms) --}}
+  {{-- wrap in grid section so set-card--wide applies --}}
   <div class="set-section set-section--grid">
   <div class="ia-card set-card--wide" style="margin-bottom: 20px;">
     <div class="ia-card-head">
@@ -1137,7 +1136,7 @@
       </div>
     </form>
   </div>
-  </div>{{-- MARKER-PATCH-150-POLISH-C close grid wrapper --}}
+  </div>{{-- close grid wrapper --}}
 
 </div>
 
@@ -1150,7 +1149,7 @@
     <input type="hidden" name="tab" value="account">
 
     <div class="set-savebar" data-savebar>
-      <span class="set-savebar-msg"></span><!-- MARKER-PATCH-165 — populated by JS -->
+      <span class="set-savebar-msg"></span><!-- populated by JS -->
       <div class="set-savebar-actions">
         <button type="button" class="set-discard-btn" data-discard>Discard</button>
         <button type="submit" class="set-save-btn">Save account</button>
@@ -1169,7 +1168,7 @@
       <div style="font-size:12px;opacity:.5">This is where customers go to book with you.</div>
     </div>
 
-    {{-- MARKER-PATCH-120 - Custom domains live on a dedicated page --}}
+    {{-- Custom domains live on a dedicated page --}}
     <div class="ia-card" style="margin-bottom:20px">
       <div class="ia-card-head">
         <span class="ia-card-title">Custom domains</span>
@@ -1186,15 +1185,15 @@
   </form>
 
   {{-- Subscription (read-only, separate from form) --}}
-    {{-- MARKER-EMAIL-CHARGES-V2 — its own card, outside the Stripe conditional:
+    {{-- its own card, outside the Stripe conditional:
        email is metered whether or not a shop has a subscription, and gifted
        shops could not reach this page at all. --}}
   <div class="set-section set-section--grid">
-    {{-- MARKER-SETTINGS-CARDS — same shape as the Rental / Notification /
+    {{-- same shape as the Rental / Notification /
          Messaging cards below: content directly in .ia-card (there is no
          .ia-card-body class), and a primary button, because --ghost is
          deliberately borderless muted text and read as plain copy. --}}
-    {{-- MARKER-BILLING-STATEMENT — plan, add-ons and usage are one bill; the
+    {{-- plan, add-ons and usage are one bill; the
          interesting part is the arithmetic between them, so it reads as a
          statement rather than a row of tiles. --}}
     <div class="ia-card set-card--wide bill-card">
@@ -1234,7 +1233,7 @@
       @endif
 
       <div class="bill-grp">Usage this month</div>
-      {{-- MARKER-EMAIL-RATES — named lines, not a blended range --}}
+      {{-- named lines, not a blended range --}}
       @if($statement['usage']['email']['free']['count'] > 0)
         <div class="bill-line">
           <div>Included emails
@@ -1320,7 +1319,7 @@
     </div>
   </div>
 
-{{-- MARKER-SUBSCRIPTION-CARD — only shown when there is a subscription to
+{{-- only shown when there is a subscription to
      manage. Without one the Billing card above already says everything this
      card used to, and an empty card reads like something is missing. --}}
 @if($currentTenant->stripe_customer_id)
@@ -1371,17 +1370,17 @@
     <input type="hidden" name="tab" value="payments">
 
     <div class="set-savebar" data-savebar>
-      <span class="set-savebar-msg"></span><!-- MARKER-PATCH-165 — populated by JS -->
+      <span class="set-savebar-msg"></span><!-- populated by JS -->
       <div class="set-savebar-actions">
         <button type="button" class="set-discard-btn" data-discard>Discard</button>
         <button type="submit" class="set-save-btn">Save payment settings</button>
       </div>
     </div>
 
-    {{-- MARKER-PATCH-169 — Direct Payments bridge feature.
+    {{-- Direct Payments bridge feature.
          Only renders when master admin flipped direct_payments_enabled on for this tenant.
          Tenant pastes their own Stripe keys here for register card-sales. --}}
-    {{-- MARKER-LAYAWAY-SETTINGS-TAB — the policy every layaway agreement is
+    {{-- the policy every layaway agreement is
          printed from. Shown with its two headline numbers so the terms can be
          checked without opening the page. --}}
     @php $lay = \App\Support\LayawaySettings::for($currentTenant); @endphp
@@ -1399,7 +1398,7 @@
     </div>
 
     @if($currentTenant->direct_payments_enabled ?? false)
-    {{-- MARKER-PATCH-618 — toggle-able (default on). Off hides card + payment-link tenders at the register; refunds of past charges still work. --}}
+    {{-- toggle-able (default on). Off hides card + payment-link tenders at the register; refunds of past charges still work. --}}
     <div class="provider-card {{ ($s['stripe_register_enabled'] ?? true) ? 'enabled' : '' }}" id="register-payments-card">
       <div class="provider-header">
         <div>
@@ -1457,7 +1456,7 @@
     </div>
     @endif
 
-    {{-- MARKER-PATCH-473 — Square (tenant-connected, paste-token). Same master-admin gate as Stripe. --}}
+    {{-- Square (tenant-connected, paste-token). Same master-admin gate as Stripe. --}}
     @if($currentTenant->direct_payments_enabled ?? false)
     <div class="provider-card {{ ($s['square_enabled'] ?? true) ? 'enabled' : '' }}" id="square-payments-card" style="margin-top:16px">
       <div class="provider-header">
@@ -1593,12 +1592,12 @@
 
   </form>
 
-  {{-- MARKER-PATCH-629 — unified payment methods list (replaces the 618 Venmo/Cash App cards) --}}
+  {{-- unified payment methods list (replaces the 618 Venmo/Cash App cards) --}}
   @include('tenant.settings._payment-methods')
 </div>
-{{-- MARKER-PATCH-315 — Work-order tag settings --}}
+{{-- Work-order tag settings --}}
 {{-- =====================================================================
-     ORDERING — how special orders pick a vendor      MARKER-SO-AUTOVENDOR
+     ORDERING — how special orders pick a vendor
      ===================================================================== --}}
 @php $soAuto = $s['special_orders']['auto_assign_vendor'] ?? 'preferred'; @endphp
 <div class="set-pane" id="pane-ordering" role="tabpanel">
@@ -1646,7 +1645,7 @@
       </label>
     </div>
 
-    {{-- MARKER-BIZ-SETTINGS — defaults for new business customers, so
+    {{-- defaults for new business customers, so
          payment terms and PO-required are not fields you have to remember
          to set one customer at a time. --}}
     @php $custDefaults = $s['customers'] ?? []; @endphp
@@ -1685,8 +1684,8 @@
     $wotPaper = ($wot['paper'] ?? '80mm') === '58mm' ? '58mm' : '80mm';
     $wotLogo  = $wot['logo_path'] ?? null;
     $wotFeed  = (int) ($wot['feed_mm'] ?? 0);
-    $wotHeader = (string) ($wot['header_text'] ?? ''); // MARKER-PATCH-330
-    $wotFooter = (string) ($wot['footer_text'] ?? ''); // MARKER-PATCH-330
+    $wotHeader = (string) ($wot['header_text'] ?? '');
+    $wotFooter = (string) ($wot['footer_text'] ?? '');
   @endphp
   <style>
     .wot-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 0;border-bottom:0.5px solid var(--ia-border);cursor:pointer}
@@ -1706,7 +1705,7 @@
   </style>
 
   <form method="POST" action="{{ route('tenant.settings.update') }}" enctype="multipart/form-data" class="set-section set-section--grid" data-dirty-form>
-    @csrf @method('PATCH') {{-- MARKER-PATCH-316 --}}
+    @csrf @method('PATCH')
     <input type="hidden" name="tab" value="tags">
 
     <div class="set-savebar" data-savebar>
@@ -1756,7 +1755,6 @@
             <label><input type="radio" name="wot_paper" value="58mm" {{ $wotPaper === '58mm' ? 'checked' : '' }}><span>58mm</span></label>
           </div>
         </div>
-        {{-- MARKER-PATCH-320 --}}
         <div class="ia-form-group">
           <label class="ia-form-label">Extra paper after cut</label>
           <div style="display:flex;align-items:center;gap:8px">
@@ -1768,7 +1766,6 @@
       </div>
     </div>
 
-    {{-- MARKER-PATCH-330 --}}
     <div class="ia-card">
       <div class="ia-card-head"><span class="ia-card-title">Header &amp; footer</span></div>
       <div class="ia-form-group">
@@ -1791,7 +1788,6 @@
           <input type="checkbox" name="wot_logo_remove" value="1"> Remove current logo
         </label>
       @endif
-      {{-- MARKER-PATCH-317 --}}
       <div class="ia-form-group" style="margin-bottom:12px;max-width:240px">
         <label class="ia-form-label">Logo size on tag</label>
         @php $wls = $wot['logo_size'] ?? 'medium'; @endphp
@@ -1836,7 +1832,7 @@
     t.addEventListener('click', function() { switchTab(t.dataset.tab); });
   });
 
-  // MARKER-REG-SETTINGS -- hash deep-links: /settings#payments opens that
+  // hash deep-links: /settings#payments opens that
   // pane. Only names that match a real pane switch; anything else ignored.
   (function() {
     var h = (window.location.hash || '').replace('#', '');
@@ -1846,7 +1842,7 @@
   /* -----------------------------------------------------------------------
    * Dirty tracking — per form, save bar dims when no changes
    * ----------------------------------------------------------------------- */
-  // MARKER-PATCH-166 — savebar shows ONLY the unsaved-changes warning.
+  // savebar shows ONLY the unsaved-changes warning.
   // Save confirmation lives in the top flash banner (one source of truth).
   document.querySelectorAll('[data-dirty-form]').forEach(function(form) {
     var savebar = form.querySelector('[data-savebar]');
@@ -1879,7 +1875,7 @@
       var dirty = nowSerialized !== initial;
       if (savebar) {
         savebar.classList.toggle('dirty', dirty);
-        // MARKER-PATCH-166 — savebar shows the warning only.
+        // savebar shows the warning only.
         // Save confirmation is handled by the global flash banner at the top
         // (layouts/tenant/app.blade.php). Dual confirmation was confusing.
         if (msg) {
@@ -1898,7 +1894,7 @@
     var discardBtn = form.querySelector('[data-discard]');
     if (discardBtn) {
       discardBtn.addEventListener('click', async function() {
-        if (await iaConfirm('Discard your unsaved changes?')) { // MARKER-INLINE-CONFIRM-2
+        if (await iaConfirm('Discard your unsaved changes?')) {
           window.location.reload();
         }
       });
@@ -1926,9 +1922,7 @@
     });
   }
   bindToggle('classes-toggle-btn',          'classes_enabled_input');
-  // MARKER-PATCH-156
   bindToggle('deliveries-toggle-btn',       'deliveries_enabled_input');
-  // MARKER-PATCH-158-B
   bindToggle('multi-asset-toggle-btn',      'multi_asset_enabled_input');
   bindToggle('tax-services-toggle-btn',     'tax_services_default_input');
   bindToggle('tax-exempt-toggle-btn',       'tax_supports_exempt_input');
@@ -1985,7 +1979,6 @@
           headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf, 'Accept': 'application/json' },
           body: JSON.stringify({ order: ids }),
         }).then(function(r) {
-          // MARKER-PATCH-248
           if (r.ok) { if (window.IntakeToast) IntakeToast.success('Order saved'); }
           else { if (window.IntakeToast) IntakeToast.error('Could not save the new order'); }
         }).catch(function() { if (window.IntakeToast) IntakeToast.error('Could not save the new order — check your connection'); });
@@ -2008,7 +2001,7 @@
         headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf, 'Accept': 'application/json' },
         body: JSON.stringify(body),
       }).then(function(r) {
-        // MARKER-PATCH-248 — saves speak.
+        // saves speak.
         if (r.ok) { if (window.IntakeToast) IntakeToast.success('Saved'); }
         else {
           row.style.outline = '1px solid #d04444';
@@ -2044,11 +2037,11 @@
         } else {
           row.style.outline = '1px solid #d04444';
           setTimeout(function() { row.style.outline = ''; }, 1500);
-          if (window.IntakeToast) IntakeToast.error('Could not update — try again'); // MARKER-PATCH-248
+          if (window.IntakeToast) IntakeToast.error('Could not update — try again');
         }
       }).catch(function() {
         btn.classList.remove('is-busy');
-        if (window.IntakeToast) IntakeToast.error('Could not update — check your connection'); // MARKER-PATCH-248
+        if (window.IntakeToast) IntakeToast.error('Could not update — check your connection');
       });
     });
   });

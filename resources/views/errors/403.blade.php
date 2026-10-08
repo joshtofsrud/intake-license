@@ -12,9 +12,8 @@ Either you're not signed in to this shop, or the owner hasn't granted you permis
   <a href="{{ url('/login') }}">Sign in with a different account</a>
 @endsection
 @section('actions')
-  {{-- MARKER-ERR-HOME --}}
   <a href="{{ error_home_url() }}" class="btn btn-primary">← Back to dashboard</a>
-  {{-- MARKER-ERROR-LINKS — sign-out only accepts a form submit --}}
+  {{-- sign-out only accepts a form submit --}}
   <form method="POST" action="{{ url('/admin/logout') }}" style="display:inline;margin:0">
     <input type="hidden" name="_token" value="{{ rescue(fn () => csrf_token(), '', false) }}">
     <button type="submit" class="btn btn-secondary">Sign out</button>

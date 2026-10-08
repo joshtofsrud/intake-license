@@ -27,12 +27,12 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | MARKER-PATCH-224B — config:cache-safe homes for runtime values
+    | config:cache-safe homes for runtime values
     |--------------------------------------------------------------------------
     */
     'admin_email' => env('ADMIN_EMAIL', ''),
 
-    // MARKER-CONFIG-PLAN-PRICES — DEAD BLOCK. 'plan_prices' is declared again
+    // DEAD BLOCK. 'plan_prices' is declared again
     // further down and PHP keeps the last one, so nothing here was ever read.
     // Commented rather than deleted so the values stay visible.
     /*
@@ -43,9 +43,9 @@ return [
             'custom'  => (int) env('PLAN_PRICE_CUSTOM', 0),
         ],
     */
-    // MARKER-TRAFFIC-V2 — the day visitor counting started meaning "people"
+    // the day visitor counting started meaning "people"
     // rather than "browser tabs". Windows spanning it mix two definitions, and
-    // the traffic page says so. Set to the date MARKER-TRAFFIC-IDENTITY shipped.
+    // the traffic page says so. Set to the date shipped.
     'traffic_identity_cutover' => env('TRAFFIC_IDENTITY_CUTOVER', '2026-09-03'),
 
 
@@ -65,7 +65,7 @@ return [
         'status',
         'health',
         'support',
-        'intake',  // MARKER-PLATFORM-INBOUND - the platform reply localpart
+        'intake',  // the platform reply localpart
     ],
 
     /*
@@ -173,7 +173,7 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Custom domain limits per plan tier (MARKER-PATCH-120)
+    | Custom domain limits per plan tier
     |--------------------------------------------------------------------------
     | Maximum domains a tenant can register per their plan tier.
     | null = unlimited.

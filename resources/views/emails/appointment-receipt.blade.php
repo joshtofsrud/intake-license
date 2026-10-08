@@ -1,6 +1,5 @@
 @extends('emails.layout')
 
-{{-- MARKER-PATCH-160 --}}
 {{-- Variables in scope:
      $tenant       App\Models\Tenant
      $appointment  App\Models\Tenant\TenantAppointment (with items, addons, charges, customer)

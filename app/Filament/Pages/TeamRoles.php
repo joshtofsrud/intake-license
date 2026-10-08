@@ -1,5 +1,4 @@
 <?php
-// MARKER-TEAM-ROLES
 
 namespace App\Filament\Pages;
 
@@ -15,7 +14,7 @@ use Illuminate\Support\Str;
 
 class TeamRoles extends Page
 {
-    use \App\Support\UsesAdminNav; // MARKER-NAV-ORDER
+    use \App\Support\UsesAdminNav;
     protected static ?string $navigationIcon  = 'heroicon-o-users';
     protected static ?string $navigationLabel = 'Team & roles';
     protected static ?string $navigationGroup = 'Team';
@@ -34,7 +33,7 @@ class TeamRoles extends Page
     public string $revealEmail    = '';
     public string $revealPassword = '';
 
-    // MARKER-TEAM-ROLES-V2 — open user record
+    // open user record
     public ?int $selectedId = null;
 
     public function selectUser(int $id): void
@@ -68,12 +67,12 @@ class TeamRoles extends Page
             ->sortBy(fn (User $u) => array_search($u->roleName(), AdminAccess::STAFF_ROLES, true) ?? 9)
             ->values();
 
-        // MARKER-TEAM-ROLES-V2 — open record + its audit trail
+        // open record + its audit trail
         $selected = $this->selectedId ? $staff->firstWhere('id', $this->selectedId) : null;
         $activity = collect();
         if ($selected) {
             $activity = \App\Models\DebugLog::query()
-                ->where('channel', 'audit') // MARKER-TEAM-ACTIVITY-CHANNEL-FIX
+                ->where('channel', 'audit')
                 ->where('subject_type', User::class)
                 ->where('subject_id', $selected->id)
                 ->latest()
@@ -146,7 +145,7 @@ class TeamRoles extends Page
         $target->role     = $role;
         $target->is_admin = $role === 'admin';
         $target->save();
-        $this->selectedId = $target->id; // MARKER-TEAM-ROLES-V2 — keep the record open
+        $this->selectedId = $target->id; // keep the record open
 
         debug_log()->audit('team.role_changed', "{$target->email}: {$old} → {$role}", $target);
         Notification::make()->title("Role changed to {$role}")->success()->send();
@@ -178,7 +177,7 @@ class TeamRoles extends Page
         $target = $this->editableTarget($id);
         debug_log()->audit('team.removed', "Removed {$target->email} (was {$target->roleName()})", $target);
         $target->delete();
-        $this->selectedId = null; // MARKER-TEAM-ROLES-V2
+        $this->selectedId = null;
         Notification::make()->title('User removed')->success()->send();
     }
 

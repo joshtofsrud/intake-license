@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-{{-- MARKER-PATCH-633 — printable end-of-day sheet. --}}
+{{-- printable end-of-day sheet. --}}
 <html lang="en">
 <head>
 <meta charset="utf-8">

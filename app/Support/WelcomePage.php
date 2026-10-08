@@ -5,7 +5,7 @@ namespace App\Support;
 use App\Models\Tenant;
 
 /**
- * MARKER-WELCOME — the site-wide holding page.
+ * the site-wide holding page.
  *
  * Distinct from Splash: a splash interrupts a visitor BEFORE a page they
  * are then allowed to see. Welcome REPLACES the site. When both are on,
@@ -34,7 +34,7 @@ class WelcomePage
             'cta_url'   => trim((string) ($s['welcome_cta_url'] ?? '')),
             // Default reflects what a not-yet-open shop still wants working.
             'logo'      => in_array($s['welcome_logo'] ?? null, ['auto', 'main', 'light', 'none'], true)
-                            ? $s['welcome_logo'] : 'auto', // MARKER-WELCOME-LOGO
+                            ? $s['welcome_logo'] : 'auto',
             'allow'     => is_array($s['welcome_allow'] ?? null)
                             ? $s['welcome_allow']
                             : ['book', 'account'],
@@ -42,7 +42,7 @@ class WelcomePage
     }
 
     /**
-     * MARKER-WELCOME-LOGO — which logo the holding page shows.
+     * which logo the holding page shows.
      * 'auto' prefers the light logo because the page is always dark.
      */
     public static function logoUrl(?Tenant $tenant): ?string

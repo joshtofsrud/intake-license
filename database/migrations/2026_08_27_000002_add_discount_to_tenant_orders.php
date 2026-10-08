@@ -1,5 +1,4 @@
 <?php
-// MARKER-SHOP-DISCOUNT
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;

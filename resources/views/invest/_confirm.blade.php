@@ -1,4 +1,4 @@
-{{-- MARKER-INVEST-CONFIRM — expects $confirmTitle and $confirmBody, and only
+{{-- expects $confirmTitle and $confirmBody, and only
      renders when one of the success flags is in the session. --}}
 @php
   $confirmShow = session('invest_lead_ok') || session('invest_request_ok') || session('commit_ok');

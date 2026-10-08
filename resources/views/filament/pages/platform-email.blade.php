@@ -1,6 +1,5 @@
 <x-filament-panels::page>
 
-    {{-- MARKER-PLATFORM-MAIL --}}
     @php
         $effective    = \App\Models\PlatformSettings::fromAddress();
         $effectiveNm  = \App\Models\PlatformSettings::fromName();

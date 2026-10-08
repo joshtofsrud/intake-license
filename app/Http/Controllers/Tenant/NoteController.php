@@ -1,6 +1,5 @@
 <?php
 
-// MARKER-OLD-SCHOOL
 
 namespace App\Http\Controllers\Tenant;
 
@@ -24,7 +23,7 @@ class NoteController extends Controller
             ? $request->input('tab')
             : 'open';
 
-        // MARKER-OLD-SCHOOL-REPORT — the report needs no note list.
+        // the report needs no note list.
         if ($tab === 'report') {
             return view('tenant.notes.report', $this->reportData() + [
                 'tab'       => $tab,
@@ -59,7 +58,7 @@ class NoteController extends Controller
     }
 
     /**
-     * MARKER-OLD-SCHOOL-REPORT — everything the report shows.
+     * everything the report shows.
      *
      * Computed in PHP from open notes and eight weeks of timestamps. A pad is
      * small, and grouping by week in SQL would mean MySQL-only date functions
@@ -173,7 +172,7 @@ class NoteController extends Controller
         $tenant = tenant();
 
         $data = $request->validate([
-            // MARKER-OLD-SCHOOL-PHOTO — a photo alone is a valid note, so the
+            // a photo alone is a valid note, so the
             // body is only required when no photo came with it.
             'body'        => ['required_without:photos', 'nullable', 'string', 'max:2000'],
             'photos'      => ['nullable', 'array', 'max:4'],
@@ -237,7 +236,7 @@ class NoteController extends Controller
     {
         $note = TenantNote::where('tenant_id', tenant()->id)->findOrFail($id);
 
-        // MARKER-OLD-SCHOOL-PHOTO — take the files with it. A scratch pad
+        // take the files with it. A scratch pad
         // that leaves images on disk forever is not a scratch pad.
         foreach ((array) ($note->photos ?? []) as $path) {
             try {
@@ -262,7 +261,7 @@ class NoteController extends Controller
     }
 
     /**
-     * MARKER-OLD-SCHOOL-PHOTO — store one photo, downscaled and upright.
+     * store one photo, downscaled and upright.
      *
      * A phone photo is 4-12 MB and records its rotation in EXIF rather than
      * in the pixels. Stored raw, a busy pad fills a disk and half the images

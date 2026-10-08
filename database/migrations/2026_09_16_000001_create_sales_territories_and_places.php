@@ -1,5 +1,5 @@
 <?php
-// MARKER-SALES-FIND — additive only (expand/contract rule).
+// additive only (expand/contract rule).
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;

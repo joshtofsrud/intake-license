@@ -1,4 +1,4 @@
-{{-- MARKER-SCHED-PUBLIC — the calendar + form. Self-contained on purpose so
+{{-- the calendar + form. Self-contained on purpose so
      the page-builder section and the invest page can @include it.
      $type      PlatformBookingType (required)
      $booking   PlatformBooking — present = reschedule mode (time only)
@@ -18,7 +18,7 @@
         'in_person' => 'In person',
         default     => 'Google Meet — link in your confirmation',
     };
-    $oldStart = old('start') ?: (string) request()->query('start', ''); // MARKER-SCHED-SECTION — ?start= from the next-slots pills
+    $oldStart = old('start') ?: (string) request()->query('start', ''); // ?start= from the next-slots pills
     $widgetId = 'bw' . substr(md5($action), 0, 6);
 @endphp
 
@@ -39,7 +39,7 @@
 .mk-bc-mh{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;font-size:14px;font-weight:600}
 .mk-bc-mh button{width:28px;height:28px;border-radius:6px;border:.5px solid var(--mk-border2,rgba(255,255,255,.14));background:none;color:var(--mk-muted,rgba(255,255,255,.45));cursor:pointer;font:inherit}
 .mk-bc-days{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;text-align:center}
-/* MARKER-SCHED-TALK-ENTRY — fully prefixed day classes: this partial embeds in
+/* fully prefixed day classes: this partial embeds in
    foreign pages (the invest site has its own global .ok), so generic state
    classes WILL collide. Cells are identical fixed boxes; open/selected differ
    only in color, never geometry, so a collision can't reflow the grid. */
@@ -51,10 +51,10 @@
 .mk-bc-slots h4{font-size:13px;margin:0 0 10px;color:var(--mk-muted,rgba(255,255,255,.45));font-weight:500}
 .mk-bc-slot{display:block;width:100%;padding:9px;border:.5px solid var(--mk-border2,rgba(255,255,255,.14));background:none;color:var(--mk-text,#f0f0f0);border-radius:var(--mk-r,8px);margin-bottom:8px;text-align:center;font-weight:500;font:inherit;font-size:14px;cursor:pointer}
 .mk-bc-slot:hover{border-color:var(--mk-accent,#BEF264)}
-/* MARKER-BOOK-TIMES-GRID — compact buttons, as many across as fit */
+/* compact buttons, as many across as fit */
 .mk-bc-slots [data-slots].mk-bc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(88px,1fr));gap:8px;align-content:start}
 .mk-bc-grid .mk-bc-slot{margin:0;padding:10px 4px;font-size:13.5px;white-space:nowrap}
-.mk-bc-slots [data-slots]{max-height:372px;overflow-y:auto;padding-right:2px} /* MARKER-SCHED-INVEST */
+.mk-bc-slots [data-slots]{max-height:372px;overflow-y:auto;padding-right:2px}
 .mk-bc-empty{font-size:13.5px;color:var(--mk-muted,rgba(255,255,255,.45))}
 .mk-bc-tz{margin-top:12px;font-size:12.5px;color:var(--mk-muted,rgba(255,255,255,.45))}
 .mk-bc-tz select{background:var(--mk-bg3,#1a1a1a);color:var(--mk-text,#f0f0f0);border:.5px solid var(--mk-border2,rgba(255,255,255,.14));border-radius:6px;padding:4px 8px;font:inherit;font-size:12.5px;margin-left:6px;max-width:100%}
@@ -256,7 +256,7 @@
 
     function renderSlots() {
       slotsEl.innerHTML = '';
-      slotsEl.classList.remove('mk-bc-grid'); // MARKER-BOOK-TIMES-GRID
+      slotsEl.classList.remove('mk-bc-grid');
       if (!selectedDay) {
         dayLabel.textContent = 'Pick a day';
         var e = document.createElement('div'); e.className = 'mk-bc-empty';

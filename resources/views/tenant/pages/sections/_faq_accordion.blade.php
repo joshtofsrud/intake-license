@@ -1,5 +1,5 @@
 {{--
-  MARKER-PATCH-158-G33 — faq_accordion editor (Phase 2)
+  faq_accordion editor (Phase 2)
   Q&A list with optional "single open at a time" behavior. Renders using
   native <details>/<summary> for accessibility; small JS adds single-open
   enforcement when that mode is selected.
@@ -183,7 +183,7 @@
     </div>
 
     <div class="pb2-bg-pane" data-bg-mode="gradient">
-        {{-- MARKER-PATCH-269 — gradient angle --}}
+        {{-- gradient angle --}}
         <div class="pb2-field">
           <div class="pb2-slider-row">
             <label class="pb2-field-label" style="margin:0">Angle</label>

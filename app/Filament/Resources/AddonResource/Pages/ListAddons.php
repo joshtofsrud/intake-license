@@ -1,5 +1,4 @@
 <?php
-// MARKER-ADDON-CATALOG
 namespace App\Filament\Resources\AddonResource\Pages;
 
 use App\Filament\Resources\AddonResource;

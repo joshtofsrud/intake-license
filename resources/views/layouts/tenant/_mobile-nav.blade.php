@@ -25,7 +25,7 @@
 
   // Conditionally show Inbox if messaging is shipped (route exists).
   if (\Illuminate\Support\Facades\Route::has('tenant.inbox.index')) {
-    // MARKER-PATCH-448 — unread count badge, matching the desktop attention row
+    // unread count badge, matching the desktop attention row
     $inboxUnread = 0;
     if (tenant()->unified_inbox_enabled) {
       $inboxUnread = (int) \App\Models\Tenant\TenantThread::where('tenant_id', tenant()->id)
@@ -40,7 +40,7 @@
     ];
   }
 
-  // MARKER-PATCH-493 — role section visibility on primary tabs.
+  // role section visibility on primary tabs.
   // A tab whose section is outside the user's role drops out; the
   // remaining tabs shift left and "More" still closes the row.
   if (!empty($authUser)) {

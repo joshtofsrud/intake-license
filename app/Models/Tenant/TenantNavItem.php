@@ -4,7 +4,7 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 
 /**
- * A row of a site's menu. MARKER-SHOP-NAV — a row either points at a page
+ * A row of a site's menu. a row either points at a page
  * (page_id: follows the page's address and title, hidden while the page is
  * unpublished) or is a custom link (label + url). style: link | button |
  * outline. side: left | right.

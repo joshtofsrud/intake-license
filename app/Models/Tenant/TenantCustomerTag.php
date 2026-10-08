@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 /**
- * MARKER-CUSTOMER-TAGS — a label a shop puts on people: an imported list, a
+ * a label a shop puts on people: an imported list, a
  * race team, wholesale accounts.
  *
  * Says nothing about permission to market. A tag is who someone is; consent is
@@ -24,7 +24,7 @@ class TenantCustomerTag extends Model
 
     public function customers(): BelongsToMany
     {
-        // MARKER-TAG-PIVOT-FIX — same pivot, same missing updated_at.
+        // same pivot, same missing updated_at.
         return $this->belongsToMany(
             TenantCustomer::class,
             'tenant_customer_tag_pivot',
@@ -44,7 +44,7 @@ class TenantCustomerTag extends Model
     {
         $name = trim(preg_replace('/\s+/', ' ', $name));
 
-        // MARKER-IMPORT-PROGRESS — match case-insensitively. firstOrCreate on
+        // match case-insensitively. firstOrCreate on
         // the exact name made "Newsletter" a SECOND tag beside "newsletter",
         // silently splitting the audience in two.
         $existing = static::where('tenant_id', $tenantId)

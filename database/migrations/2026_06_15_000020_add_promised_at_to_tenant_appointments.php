@@ -1,5 +1,5 @@
 <?php
-// MARKER-PATCH-311 — promised_at: when a job is promised back to the customer.
+// promised_at: when a job is promised back to the customer.
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;

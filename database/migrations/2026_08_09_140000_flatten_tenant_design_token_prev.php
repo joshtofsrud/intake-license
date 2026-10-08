@@ -3,7 +3,7 @@
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\DB;
 
-// MARKER-PREVFIX — one-time flatten of the recursive _prev chains already in
+// one-time flatten of the recursive _prev chains already in
 // the column. Keeps the top-level snapshot (the only one revert can reach) and
 // discards the nested history underneath it.
 return new class extends Migration

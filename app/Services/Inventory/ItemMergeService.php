@@ -7,7 +7,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 /**
- * MARKER-ITEM-MERGE — fold one inventory item into another.
+ * fold one inventory item into another.
  *
  * Everything happens in one transaction. A half-finished merge leaves two
  * records that disagree about who owns the stock, which is worse than the
@@ -20,7 +20,7 @@ use Illuminate\Support\Str;
 class ItemMergeService
 {
     /**
-     * MARKER-MERGE-UI — what merge() WOULD do, touching nothing.
+     * what merge() WOULD do, touching nothing.
      *
      * Counts the same rows and runs the same per-location signed arithmetic
      * as merge(), so the confirm screen cannot promise something different
@@ -101,7 +101,7 @@ class ItemMergeService
                 'survivor' => $survivor->effectiveSellPriceCents(),
                 'loser'    => $loser->effectiveSellPriceCents(),
             ],
-            // MARKER-MERGE-COMMITMENTS — what is promised to someone. These
+            // what is promised to someone. These
             // all survive a merge (every row is repointed at the survivor),
             // but a person about to make an irreversible change should know
             // something is in flight before making it.
@@ -225,7 +225,7 @@ class ItemMergeService
                         'cost_cents_at_time' => $m['item'] === $loser->id
                             ? $loser->effectiveCostCents()
                             : $survivor->effectiveCostCents(),
-                        // MARKER-MERGE-USERCOL — tenant_user_id, not user_id.
+                        // tenant_user_id, not user_id.
                         // The create migration declares user_id; a later one
                         // (fix_pos_user_fks_to_tenant_users) drops it and adds
                         // tenant_user_id. Reading only the first file gets this
@@ -237,7 +237,7 @@ class ItemMergeService
                     ]);
                 }
 
-                // MARKER-MERGE-RESULT — the name, not just the id: the
+                // the name, not just the id: the
                 // result panel has to say WHERE the stock landed, and an id
                 // tells a person nothing.
                 $report['locations'][] = [
@@ -380,7 +380,7 @@ class ItemMergeService
 
             $report['applied'] = $fill;
 
-            // MARKER-ITEM-ALIASES — every identifier the loser carried keeps
+            // every identifier the loser carried keeps
             // resolving, to the survivor. A code the survivor already has as
             // its OWN identifier is skipped: it already resolves. A code the
             // survivor already holds as an alias is skipped by the unique key.
@@ -446,7 +446,7 @@ class ItemMergeService
                 ->delete();
 
             // ---- and the loser goes -------------------------------------------
-            // MARKER-MERGE-AFTER — record the destination. Without this the
+            // record the destination. Without this the
             // loser is indistinguishable from an ordinary archived item, and
             // Restore would resurrect a husk whose stock and history now
             // belong to the survivor.

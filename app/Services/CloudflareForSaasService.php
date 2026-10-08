@@ -97,7 +97,7 @@ class CloudflareForSaasService
             'hostname'                   => (string) ($result['hostname'] ?? $hostname),
             'status'                     => (string) ($result['status'] ?? 'pending'),
             'ownership_verification'     => (array) ($result['ownership_verification'] ?? []),
-            // MARKER-PATCH-125 — gate-2 (cert authority) validation records.
+            // gate-2 (cert authority) validation records.
             // Returned even on first create when CF needs the tenant to prove
             // ownership to the CA before issuing the cert.
             'ssl_validation_records'     => (array) ($ssl['validation_records'] ?? []),
@@ -130,7 +130,7 @@ class CloudflareForSaasService
             'hostname'                   => (string) ($result['hostname'] ?? ''),
             'status'                     => (string) ($result['status'] ?? ''),
             'ssl'                        => $ssl,
-            // MARKER-PATCH-125 — gate-2 (cert authority) validation records.
+            // gate-2 (cert authority) validation records.
             // CF re-emits these whenever the cert is in pending_validation
             // or near renewal; persisted on every sync so the show view can
             // surface the latest set.

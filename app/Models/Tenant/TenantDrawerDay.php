@@ -1,5 +1,5 @@
 <?php
-// MARKER-PATCH-633 — a day's drawer reconciliation row.
+// a day's drawer reconciliation row.
 
 namespace App\Models\Tenant;
 

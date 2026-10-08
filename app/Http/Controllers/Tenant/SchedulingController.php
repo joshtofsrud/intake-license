@@ -1,5 +1,5 @@
 <?php
-// MARKER-PATCH-623 — staff scheduling phase 1: builder, time off, my schedule.
+// staff scheduling phase 1: builder, time off, my schedule.
 // Gates: scheduling.build (builder + shift writes), scheduling.timeoff
 // (approve/deny). Any staff can view their own schedule and request time off.
 // TIMEZONE: shift wall times are entered tenant-local, stored UTC, shown tlocal().
@@ -62,7 +62,7 @@ class SchedulingController extends Controller
         $pendingTimeOff = TenantTimeOffRequest::where('tenant_id', $tenant->id)
             ->where('status', 'pending')->count();
 
-        // MARKER-PATCH-624 — feature settings + demand overlay + templates
+        // feature settings + demand overlay + templates
         $set = $this->settings($tenant);
 
         $demand = [];
@@ -85,7 +85,7 @@ class SchedulingController extends Controller
             $demand = ['bands' => $demand, 'max' => $max];
         }
 
-        // MARKER-TPL-MANAGE — the pattern comes along so each row can say
+        // the pattern comes along so each row can say
         // what it holds; you can't choose which of two to delete otherwise.
         $templates = \App\Models\Tenant\TenantShiftTemplate::where('tenant_id', $tenant->id)
             ->orderBy('name')->get(['id', 'name', 'pattern', 'last_applied_at'])
@@ -97,8 +97,8 @@ class SchedulingController extends Controller
             });
 
         // Availability conflicts: mark each shift chip that overlaps a band the
-        // person marked unavailable (MARKER-PATCH-626 — inline ! with tooltip).
-        // MARKER-SCHED-PHONE — defined either way: compact() below names it, and
+        // person marked unavailable (inline ! with tooltip).
+        // defined either way: compact() below names it, and
         // with Staff availability switched off it was undefined, so the builder
         // page threw instead of loading.
         $availability = [];
@@ -131,7 +131,7 @@ class SchedulingController extends Controller
         return view('tenant.scheduling.index', compact('staff', 'grid', 'days', 'weekStart', 'draftCount', 'pendingTimeOff', 'set', 'demand', 'templates', 'availability'));
     }
 
-    /** MARKER-PATCH-624 — scheduling feature settings with defaults. */
+    /** scheduling feature settings with defaults. */
     private function settings($tenant): array
     {
         $s = $tenant->settings ?? [];
@@ -140,12 +140,12 @@ class SchedulingController extends Controller
             'availability'        => (bool) ($s['scheduling_availability'] ?? true),
             'notify_publish'      => (bool) ($s['scheduling_notify_publish'] ?? true),
             'timeoff_notice_days' => (int) ($s['scheduling_timeoff_notice_days'] ?? 0),
-            // MARKER-SCHED-PHONE — staffing guide; 0 = off.
+            // staffing guide; 0 = off.
             'bookings_per_staff'  => (int) ($s['scheduling_bookings_per_staff'] ?? 0),
         ];
     }
 
-    /** MARKER-PATCH-624 — settings page. */
+    /** settings page. */
     public function settingsPage(Request $request)
     {
         $tenant = tenant();
@@ -154,7 +154,7 @@ class SchedulingController extends Controller
         return view('tenant.scheduling.settings', ['set' => $this->settings($tenant)]);
     }
 
-    /** MARKER-PATCH-624 — save scheduling settings (Settings tab). */
+    /** save scheduling settings (Settings tab). */
     public function saveSettings(Request $request)
     {
         $tenant = tenant();
@@ -163,7 +163,7 @@ class SchedulingController extends Controller
 
         $data = $request->validate([
             'scheduling_timeoff_notice_days' => ['required', 'integer', 'min:0', 'max:60'],
-            'scheduling_bookings_per_staff'  => ['nullable', 'integer', 'min:0', 'max:50'], // MARKER-SCHED-PHONE
+            'scheduling_bookings_per_staff'  => ['nullable', 'integer', 'min:0', 'max:50'],
         ]);
 
         $settings = $tenant->settings ?? [];
@@ -171,13 +171,13 @@ class SchedulingController extends Controller
         $settings['scheduling_availability']   = (bool) $request->input('scheduling_availability');
         $settings['scheduling_notify_publish'] = (bool) $request->input('scheduling_notify_publish');
         $settings['scheduling_timeoff_notice_days'] = $data['scheduling_timeoff_notice_days'];
-        $settings['scheduling_bookings_per_staff']  = (int) ($data['scheduling_bookings_per_staff'] ?? 0); // MARKER-SCHED-PHONE
+        $settings['scheduling_bookings_per_staff']  = (int) ($data['scheduling_bookings_per_staff'] ?? 0);
         $tenant->update(['settings' => $settings]);
 
         return back()->with('success', 'Scheduling settings saved.');
     }
 
-    /** MARKER-PATCH-624 — save this week's shifts as a named template. */
+    /** save this week's shifts as a named template. */
     public function saveTemplate(Request $request)
     {
         $tenant = tenant();
@@ -190,7 +190,7 @@ class SchedulingController extends Controller
         ]);
         [$weekStart, , $fromUtc, $toUtc] = $this->week($request);
 
-        // MARKER-TPL-MANAGE — updateOrCreate on name used to replace an
+        // updateOrCreate on name used to replace an
         // existing template silently. Make the trade explicit instead.
         $existing = \App\Models\Tenant\TenantShiftTemplate::where('tenant_id', $tenant->id)
             ->where('name', trim($data['name']))->first();
@@ -228,7 +228,7 @@ class SchedulingController extends Controller
         return back()->with('success', 'Template "' . $data['name'] . '" saved (' . count($pattern) . ' shifts).');
     }
 
-    /** MARKER-TPL-MANAGE — remove a saved pattern. Shifts already on the
+    /** remove a saved pattern. Shifts already on the
      *  calendar are untouched; only the template row goes. */
     public function deleteTemplate(Request $request, string $templateId)
     {
@@ -244,7 +244,7 @@ class SchedulingController extends Controller
         return back()->with('success', 'Template "' . $name . '" deleted. Shifts on the calendar were not changed.');
     }
 
-    /** MARKER-PATCH-624 — apply a template onto the current week (skips conflicts). */
+    /** apply a template onto the current week (skips conflicts). */
     public function applyTemplate(Request $request, string $templateId)
     {
         $tenant = tenant();
@@ -284,7 +284,7 @@ class SchedulingController extends Controller
             $added++;
         }
 
-        $tpl->update(['last_applied_at' => now()]); // MARKER-TPL-MANAGE
+        $tpl->update(['last_applied_at' => now()]);
 
         return back()->with('success', 'Applied "' . $tpl->name . '" — ' . $added . ' shift(s) added (conflicts skipped).');
     }
@@ -301,7 +301,7 @@ class SchedulingController extends Controller
             'start_time'     => ['required', 'date_format:H:i'],
             'end_time'       => ['required', 'date_format:H:i'],
             'label'          => ['nullable', 'string', 'max:80'],
-            // MARKER-SCHED-PHONE — the phone sheet edits a shift by replacing it,
+            // the phone sheet edits a shift by replacing it,
             // and can pick the location when a shop has more than one.
             'replace_shift_id' => ['nullable', 'uuid'],
             'location_id'      => ['nullable', 'uuid'],
@@ -335,7 +335,7 @@ class SchedulingController extends Controller
             'created_by'     => $user->id,
         ]);
 
-        // MARKER-SCHED-PHONE — an edit replaces the old shift, only once the new
+        // an edit replaces the old shift, only once the new
         // one is saved (a refused save leaves the original untouched).
         if (! empty($data['replace_shift_id'])) {
             TenantShift::where('tenant_id', $tenant->id)
@@ -345,7 +345,7 @@ class SchedulingController extends Controller
             return back()->with('success', 'Shift updated (draft — publish when the week is ready).');
         }
 
-        // MARKER-PATCH-626 — conflicts now surface as an inline ! marker on the
+        // conflicts now surface as an inline ! marker on the
         // shift chip in the grid (see index()), not a flash.
         return back()->with('success', 'Shift added (draft — publish when the week is ready).');
     }
@@ -478,7 +478,7 @@ class SchedulingController extends Controller
 
         $tz = $tenant->timezone();
 
-        // MARKER-PATCH-624 — minimum-notice policy (0 = off).
+        // minimum-notice policy (0 = off).
         $notice = $this->settings($tenant)['timeoff_notice_days'];
         if ($notice > 0 && \Carbon\Carbon::parse($data['starts_on'], $tz)->lt(tnow()->addDays($notice)->startOfDay())) {
             return back()->with('error', "Time-off requests need at least {$notice} days' notice.");
@@ -545,7 +545,7 @@ class SchedulingController extends Controller
 
     /* ---------------------------------------------------------- availability */
 
-    /** MARKER-PATCH-624 — staff paint their recurring day/band availability. */
+    /** staff paint their recurring day/band availability. */
     public function availability(Request $request)
     {
         $tenant = tenant();

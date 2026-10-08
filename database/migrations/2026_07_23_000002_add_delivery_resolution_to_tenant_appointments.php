@@ -1,6 +1,6 @@
 <?php
 
-// MARKER-DELIVERY-RESOLUTION — a completed job leaves the "Awaiting delivery"
+// a completed job leaves the "Awaiting delivery"
 // queue because someone decided something, not because a 14-day window
 // forgot about it. Records what was decided, by whom, and when.
 

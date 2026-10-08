@@ -1,4 +1,4 @@
-/* MARKER-SIDEBAR-COLLAPSE — toggle + persistence.
+/* toggle + persistence.
    The pre-paint class is set inline in the layout; this only handles the
    click, the keyboard shortcut, and writing the choice back. */
 (function () {

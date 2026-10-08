@@ -37,7 +37,7 @@ class InventoryCategoryController extends Controller
             ->where('is_active', true)->whereNotNull('category_id')
             ->selectRaw('category_id, count(*) as n')->groupBy('category_id')->pluck('n', 'category_id');
 
-        // MARKER-CAT-EDIT — the same count WITHOUT is_active, because that is
+        // the same count WITHOUT is_active, because that is
         // what delete enforces. Showing only the active tally would let a
         // category read 0 here and still refuse to delete, which looks broken.
         $allCounts = \App\Models\Tenant\TenantInventoryItem::where('tenant_id', $tenant->id)
@@ -74,7 +74,7 @@ class InventoryCategoryController extends Controller
 
         $data = $request->validate([
             'name' => ['required', 'string', 'max:128'],
-            // MARKER-CAT-TREE — ownership, not mere existence (same hole closed on transfers)
+            // ownership, not mere existence (same hole closed on transfers)
             'parent_id' => ['nullable', 'uuid', \Illuminate\Validation\Rule::exists('tenant_inventory_categories', 'id')
                 ->where(fn ($q) => $q->where('tenant_id', $tenant->id))],
         ]);
@@ -92,7 +92,7 @@ class InventoryCategoryController extends Controller
             ->with('flash', ['type' => 'success', 'message' => "Category '{$data['name']}' added."]);
     }
 
-    /** MARKER-PATCH-HLC25 — inline create from the mapping worklist (no navigation). */
+    /** inline create from the mapping worklist (no navigation). */
     public function quickStore(Request $request): JsonResponse
     {
         $tenant = tenant();
@@ -100,7 +100,7 @@ class InventoryCategoryController extends Controller
 
         $data = $request->validate([
             'name' => ['required', 'string', 'max:128'],
-            // MARKER-CAT-TREE — ownership, not mere existence (same hole closed on transfers)
+            // ownership, not mere existence (same hole closed on transfers)
             'parent_id' => ['nullable', 'uuid', \Illuminate\Validation\Rule::exists('tenant_inventory_categories', 'id')
                 ->where(fn ($q) => $q->where('tenant_id', $tenant->id))],
         ]);
@@ -124,7 +124,7 @@ class InventoryCategoryController extends Controller
         ]);
     }
 
-    /** MARKER-PATCH-HLC25 — turn an existing category into a child (or move to top). */
+    /** turn an existing category into a child (or move to top). */
     public function reparent(Request $request, string $id): RedirectResponse
     {
         $tenant = tenant();
@@ -133,7 +133,7 @@ class InventoryCategoryController extends Controller
         $cat = TenantInventoryCategory::where('tenant_id', $tenant->id)->findOrFail($id);
 
         $data = $request->validate([
-            // MARKER-CAT-TREE — ownership, not mere existence (same hole closed on transfers)
+            // ownership, not mere existence (same hole closed on transfers)
             'parent_id' => ['nullable', 'uuid', \Illuminate\Validation\Rule::exists('tenant_inventory_categories', 'id')
                 ->where(fn ($q) => $q->where('tenant_id', $tenant->id))],
         ]);
@@ -152,7 +152,7 @@ class InventoryCategoryController extends Controller
     }
 
     /**
-     * MARKER-CAT-EDIT — rename only. The slug is deliberately NOT regenerated:
+     * rename only. The slug is deliberately NOT regenerated:
      * it is what storefront URLs are built from, and silently breaking every
      * existing link to fix a typo would be a worse bug than the typo.
      */
@@ -195,7 +195,7 @@ class InventoryCategoryController extends Controller
     }
 
     /**
-     * MARKER-CAT-EDIT — delete, but only when there is genuinely nothing in it.
+     * delete, but only when there is genuinely nothing in it.
      *
      * The item count is recomputed here WITHOUT the is_active filter that
      * index() uses. The page can legitimately show 0 for a category that still

@@ -1,5 +1,4 @@
 <?php
-// MARKER-DUP-MERGE
 
 namespace App\Http\Controllers\Tenant;
 

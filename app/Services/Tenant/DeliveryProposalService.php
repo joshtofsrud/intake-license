@@ -1,5 +1,4 @@
 <?php
-// MARKER-PATCH-527
 
 namespace App\Services\Tenant;
 
@@ -8,7 +7,7 @@ use App\Models\Tenant\TenantAppointment;
 use App\Models\Tenant\TenantDeliveryProposal;
 use App\Models\Tenant\TenantRouteWindow;
 use App\Services\Sms\SmsService;
-use App\Services\Tenant\TenantDeliveryNotificationService; // MARKER-PATCH-531
+use App\Services\Tenant\TenantDeliveryNotificationService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -75,7 +74,7 @@ class DeliveryProposalService
      * the confirm link. Returns null when nothing sendable (no phone, no
      * open windows, or a pending proposal already exists).
      */
-    public function proposeForAppointment(TenantAppointment $appointment, array $requestedChannels = ['sms']): ?TenantDeliveryProposal // MARKER-PATCH-536
+    public function proposeForAppointment(TenantAppointment $appointment, array $requestedChannels = ['sms']): ?TenantDeliveryProposal
     {
         $appointment->loadMissing('customer');
         $customer = $appointment->customer;
@@ -84,7 +83,7 @@ class DeliveryProposalService
         $wantEmail = in_array('email', $requestedChannels, true) && !empty($customer->email);
         if (!$wantSms && !$wantEmail) return null;
 
-        // MARKER-PATCH-538 — supersede rather than refuse: old link dies, new one rules
+        // supersede rather than refuse: old link dies, new one rules
         TenantDeliveryProposal::query()
             ->where('tenant_id', $this->tenant->id)
             ->where('appointment_id', $appointment->id)
@@ -130,7 +129,7 @@ class DeliveryProposalService
                 ]);
             }
         }
-        // MARKER-PATCH-536 — email flavor of the options link
+        // email flavor of the options link
         if ($wantEmail) {
             try {
                 \App\Services\EmailService::forTenant($this->tenant)->send('delivery_windows_ready', $customer->email, [
@@ -154,11 +153,11 @@ class DeliveryProposalService
     }
 
     /**
-     * MARKER-PATCH-531 — staff picked a window in the completion modal:
+     * staff picked a window in the completion modal:
      * schedule the dropoff directly (no proposal/text-link round trip)
      * and send the standard "scheduled" notification.
      */
-    public function scheduleDirect(TenantAppointment $appointment, string $windowId, string $date, array $channels = ['sms', 'email']): \App\Models\Tenant\TenantDelivery // MARKER-PATCH-534
+    public function scheduleDirect(TenantAppointment $appointment, string $windowId, string $date, array $channels = ['sms', 'email']): \App\Models\Tenant\TenantDelivery
     {
         $tz     = $this->tenant->timezone();
         $day    = Carbon::parse($date, $tz);
@@ -204,7 +203,7 @@ class DeliveryProposalService
             ->where('status', TenantDeliveryProposal::STATUS_PENDING)
             ->update(['status' => TenantDeliveryProposal::STATUS_CANCELLED]);
 
-        // MARKER-PATCH-534 — notify only on the channels staff chose in the modal
+        // notify only on the channels staff chose in the modal
         if (!empty($channels)) {
             try {
                 TenantDeliveryNotificationService::forTenant($this->tenant)->sendScheduled($delivery, $channels);
@@ -226,10 +225,10 @@ class DeliveryProposalService
     private function smsBody(TenantDeliveryProposal $proposal, string $firstName): string
     {
         $shop = $this->tenant->name;
-        $noun = $this->tenant->asset_label_singular ?: 'order'; // MARKER-PATCH-535
+        $noun = $this->tenant->asset_label_singular ?: 'order';
         $hi   = $firstName !== '' ? "{$firstName}, your" : 'Your';
 
-        // MARKER-PATCH-534 — no assume-first: the link just offers the windows.
+        // no assume-first: the link just offers the windows.
         return "{$shop}: {$hi} {$noun} is ready! Pick a delivery window that works: "
             . $this->confirmUrl($proposal)
             . " Reply STOP to opt out.";

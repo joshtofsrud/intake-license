@@ -1,4 +1,4 @@
-@php $bgId = 'mkbg-' . substr(md5((string) ($section->id ?? uniqid())), 0, 10); @endphp {{-- MARKER-MKT-SECTION-BG --}}
+@php $bgId = 'mkbg-' . substr(md5((string) ($section->id ?? uniqid())), 0, 10); @endphp
 @include('marketing.sections._section_bg', ['bgId' => $bgId])
 {{-- FAQ accordion. Content: heading, items[{q, a}] --}}
 <section class="{{ $padding }} {{ $bgId }}" @if(!empty($inlineStyle ?? \'\')) style="{{ $inlineStyle }}" @endif>
@@ -26,7 +26,7 @@
                         font-size: 16px;
                         color: var(--mk-text);
                     ">
-                        <span>{{ $item['question'] ?? ($item['q'] ?? '') }}</span>{{-- MARKER-MKT-FAQ-FIELDS --}}
+                        <span>{{ $item['question'] ?? ($item['q'] ?? '') }}</span>
                         <span style="color: var(--mk-accent);font-size:20px;transition:transform .15s">+</span>
                     </summary>
                     <div style="margin-top:12px;color:var(--mk-muted);font-size:15px;line-height:1.65">

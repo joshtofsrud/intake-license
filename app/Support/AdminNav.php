@@ -7,7 +7,7 @@ use App\Models\AdminNavItem;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * MARKER-NAV-ORDER — what the sidebar should look like, from the database,
+ * what the sidebar should look like, from the database,
  * falling back to what each class declares.
  *
  * Additive by design. This project has lost navigation items before, and a

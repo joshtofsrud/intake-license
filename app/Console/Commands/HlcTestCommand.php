@@ -1,5 +1,4 @@
 <?php
-// MARKER-PATCH-HLC1
 
 namespace App\Console\Commands;
 
@@ -93,7 +92,7 @@ class HlcTestCommand extends Command
             $this->warn('   Inventory failed: ' . $e->getMessage());
         }
 
-        // MARKER-PATCH-370 — image URL/path shape probe
+        // image URL/path shape probe
         $this->info('-> Catalog/Products/Images for ' . implode(', ', $skus) . ' (image URL/path shape)...');
         try {
             $this->line($this->pretty($client->images($skus)));

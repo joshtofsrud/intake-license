@@ -1,5 +1,4 @@
 <?php
-// MARKER-SALES-SETUP
 
 namespace App\Filament\Pages;
 

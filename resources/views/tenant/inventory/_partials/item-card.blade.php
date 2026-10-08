@@ -32,7 +32,7 @@
 <tr class="inv-row" onclick="window.location='{{ $detailUrl }}'" style="cursor:pointer" data-item-id="{{ $item->id }}">
   <td class="inv-row-bar" style="width:4px;padding:0;background:{{ $barColor }};border-radius:0"></td>
 
-  {{-- MARKER-MERGE-UI — stopPropagation because the whole row is a link to
+  {{-- stopPropagation because the whole row is a link to
        the item; without it, ticking a box navigates away. --}}
   @if(($canMergeItems ?? false))
     <td style="width:30px;padding-left:8px" onclick="event.stopPropagation()">
@@ -44,14 +44,14 @@
   @endif
 
   <td class="inv-row-identity">
-    {{-- MARKER-INV-LIST — distributor names run 90+ characters and wrapped
+    {{-- distributor names run 90+ characters and wrapped
          to eight lines. Two lines identifies the item; the full name is in
          the tooltip and on the item page. --}}
     <div class="inv-row-name" title="{{ $item->name }}">{{ $item->name }}</div>
     <div class="inv-row-meta">
       <code class="inv-row-sku">{{ $item->sku }}</code>
       @if($item->category)
-        {{-- MARKER-CAT-TREE — show the path so a child category reads in context --}}
+        {{-- show the path so a child category reads in context --}}
         <span class="inv-row-pill inv-catpath">@if($item->category->parent)<span class="par">{{ $item->category->parent->name }} › </span>@endif{{ $item->category->name }}</span>
       @endif
       @if($item->shop_bin_location)
@@ -59,7 +59,7 @@
       @endif
     </div>
     @if(($isMultiLocation ?? false) && !empty($locStocks ?? []))
-      {{-- MARKER-CAT-TREE — where this item is actually sitting --}}
+      {{-- where this item is actually sitting --}}
       <div class="inv-locs">
         @foreach(($allLocations ?? []) as $loc)
           @php $lq = (int) ($locStocks[$item->id][$loc->id] ?? 0); @endphp
@@ -77,7 +77,7 @@
     @endif
   </td>
 
-  {{-- MARKER-INV-LIST — only when something in this result set uses them. --}}
+  {{-- only when something in this result set uses them. --}}
   @if($showColor ?? false)
     <td class="inv-row-color">{{ $item->color ?? '—' }}</td>
   @endif
@@ -87,7 +87,7 @@
 
   <td class="inv-row-stock">
     <div class="inv-row-stock-num" style="color:{{ $stockColor }}">{{ $stock }}</div>
-    {{-- MARKER-INV-LIST — "0" above "Out" said the same thing twice; the
+    {{-- "0" above "Out" said the same thing twice; the
          colored number carries it. The second line is kept only where it
          adds something the number doesn't: a multi-location total. --}}
     @if($isMulti && $totalStock !== $hereStock)

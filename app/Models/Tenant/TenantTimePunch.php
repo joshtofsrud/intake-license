@@ -1,5 +1,5 @@
 <?php
-// MARKER-PATCH-610 — time clock punch model.
+// time clock punch model.
 
 namespace App\Models\Tenant;
 
@@ -16,7 +16,7 @@ class TenantTimePunch extends Model
     protected $fillable = [
         'tenant_id', 'tenant_user_id', 'location_id', 'pay_period_id',
         'clock_in_at', 'clock_out_at', 'break_minutes', 'source', 'note',
-        'client_uuid', // MARKER-OFFLINE-SYNC
+        'client_uuid',
         'created_by', 'auto_closed', 'edited_by', 'edit_reason', 'edited_at',
     ];
 
@@ -47,7 +47,7 @@ class TenantTimePunch extends Model
     {
         $end = $this->clock_out_at ?? now();
         $gross = (int) $this->clock_in_at->diffInMinutes($end);
-        return max(0, $gross - (int) ($this->break_minutes ?? 0)); // MARKER-PATCH-612 — net of breaks
+        return max(0, $gross - (int) ($this->break_minutes ?? 0)); // net of breaks
     }
 }
 

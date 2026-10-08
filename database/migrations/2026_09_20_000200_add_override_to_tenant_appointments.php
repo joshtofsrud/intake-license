@@ -5,7 +5,7 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * MARKER-APPT-OVERRIDE — an override that stays visible.
+ * an override that stays visible.
  *
  * Without these columns an over-capacity booking is indistinguishable from an
  * ordinary one the moment it is saved, and the day quietly reads as normal.

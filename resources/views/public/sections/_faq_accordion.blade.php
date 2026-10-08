@@ -1,4 +1,4 @@
-{{-- MARKER-PATCH-158-G33 — faq_accordion public renderer (v2) --}}
+{{-- faq_accordion public renderer (v2) --}}
 @php
   $c = $c ?? [];
 
@@ -236,7 +236,7 @@
 
       @if($openMode === 'single')
         <script>
-        // MARKER-PATCH-158-G33 — single-open enforcement. Closes other items when
+        // single-open enforcement. Closes other items when
         // one is opened. Scoped to this section instance to avoid bleed.
         (function() {
           var list = document.currentScript.previousElementSibling;

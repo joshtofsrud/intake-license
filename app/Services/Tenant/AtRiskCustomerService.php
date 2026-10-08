@@ -89,7 +89,7 @@ class AtRiskCustomerService
             return $c;
         });
 
-        // MARKER-PATCH-507 — flagged-first is now a setting (default on).
+        // flagged-first is now a setting (default on).
         $prioritize = (bool) ($settings['recovery_prioritize_flagged'] ?? true);
 
         return $atRisk

@@ -13,7 +13,7 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Str;
 
 /**
- * MARKER-PLATFORM-EMAIL — fires due campaigns and drains pending sends.
+ * fires due campaigns and drains pending sends.
  *
  * Two jobs, in order:
  *   1. a scheduled campaign whose time has come gets its recipient list built
@@ -63,7 +63,7 @@ class ProcessPlatformCampaignSends extends Command
 
             try {
                 $html = $this->renderFor($campaign, $row);
-                // MARKER-PLATFORM-INBOUND — every campaign email gets an inbox
+                // every campaign email gets an inbox
                 // message and its token up front, so a reply has somewhere to
                 // land. The message starts archived: a campaign send is not
                 // something you need to read, but the moment they answer, the
@@ -86,14 +86,14 @@ class ProcessPlatformCampaignSends extends Command
                     $this->merge((string) $campaign->subject, $row),
                     $html,
                     PlatformUnsubscribeController::url($row->email),
-                    ['X-PM-Metadata-platform_campaign' => $campaign->id, 'X-PM-Metadata-platform_send_id' => $row->id], // MARKER-SALES-EMAIL
+                    ['X-PM-Metadata-platform_campaign' => $campaign->id, 'X-PM-Metadata-platform_send_id' => $row->id],
                     $thread->replyToken()
                 );
 
                 if ($ok) {
                     $row->update(['status' => 'sent', 'sent_at' => now()]);
                     $campaign->increment('total_sent');
-                    if ($row->source_type === 'prospects' && $row->source_id) { // MARKER-SALES-EMAIL
+                    if ($row->source_type === 'prospects' && $row->source_id) {
                         \App\Models\SalesProspect::find($row->source_id)?->activities()->create(['type' => 'email', 'body' => 'Emailed: ' . $campaign->name]);
                     }
                     $sent++;
@@ -173,7 +173,7 @@ class ProcessPlatformCampaignSends extends Command
             'email'      => $row->email,
         ];
 
-        // MARKER-PLATFORM-LETTER — a campaign written as a letter renders in
+        // a campaign written as a letter renders in
         // Intake's palette, with investor tokens for investor rows.
         if (\App\Support\PlatformLetter::isLetter($campaign->blocks ?? [])) {
             if ($row->source_type === 'investors') {
@@ -187,7 +187,7 @@ class ProcessPlatformCampaignSends extends Command
             );
         }
 
-        // MARKER-PLATFORM-CAMPAIGNS-UI — one body format across the platform:
+        // one body format across the platform:
         // the composer writes text and it renders in the same Intake chrome the
         // template editor uses. Blocks remain supported, so a block-built
         // campaign still renders through BlockRenderer if one ever exists.
@@ -213,7 +213,7 @@ class ProcessPlatformCampaignSends extends Command
             [$first, $row->name ?: ''],
             $text
         );
-        // MARKER-PLATFORM-LETTER — single-brace tokens, and investor tokens, in subjects too.
+        // single-brace tokens, and investor tokens, in subjects too.
         $vars = ['first_name' => $first, 'shop_name' => $row->name ?: ''];
         if ($row->source_type === 'investors') {
             $vars += \App\Support\PlatformLetter::investorVars(\App\Models\Investor::find($row->source_id));

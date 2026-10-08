@@ -1,5 +1,5 @@
 {{--
-  MARKER-PATCH-158-G27 — stats_row editor (Phase 2)
+  stats_row editor (Phase 2)
   Repeatable list of stats, each with number + label + optional description.
   Uses a bespoke list editor since the shape differs from the button list
   (3 fields per row + reorderable + max 6).
@@ -148,7 +148,7 @@
           @endforeach
         </select>
       </div>
-      {{-- MARKER-PATCH-271 — content width (max content area; container stays centered with a side gutter) --}}
+      {{-- content width (max content area; container stays centered with a side gutter) --}}
       <div class="pb2-field">
         <div class="pb2-slider-row">
           <label class="pb2-field-label" style="margin:0">Content width</label>
@@ -187,7 +187,7 @@
     </div>
 
     <div class="pb2-bg-pane" data-bg-mode="gradient">
-        {{-- MARKER-PATCH-269 — gradient angle --}}
+        {{-- gradient angle --}}
         <div class="pb2-field">
           <div class="pb2-slider-row">
             <label class="pb2-field-label" style="margin:0">Angle</label>

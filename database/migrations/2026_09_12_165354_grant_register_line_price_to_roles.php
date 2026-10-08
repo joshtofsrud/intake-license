@@ -4,7 +4,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\DB;
 
 /**
- * MARKER-LINE-PRICE — grant register.line_price to every existing role.
+ * grant register.line_price to every existing role.
  *
  * TenantRole::allowsCapability() treats a NULL capability list as full access,
  * but an explicit list as exhaustive. Every role edited on the Roles page has

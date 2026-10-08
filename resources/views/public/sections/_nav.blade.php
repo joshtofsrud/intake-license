@@ -1,4 +1,4 @@
-{{-- MARKER-PATCH-158-G25 — nav public renderer (v2) --}}
+{{-- nav public renderer (v2) --}}
 @php
   $c = $c ?? [];
 
@@ -26,12 +26,12 @@
   // Sticky
   $sticky = (bool)($c['sticky'] ?? true);
 
-  // MARKER-SHOP-NAV — the header button is a menu item now (see the right-side loop).
+  // the header button is a menu item now (see the right-side loop).
 
   // Logo
   $showLogo = (bool)($c['show_logo'] ?? true);
   $navBg    = $bgMode === 'transparent' ? 'transparent' : $bgColor;
-  // MARKER-PATCH-274 — tenant picks the logo version explicitly. 'auto' keeps
+  // tenant picks the logo version explicitly. 'auto' keeps
   // the legacy contrast-based pick for back-compat; light = logo_light_url
   // (falls back to the primary logo), dark = the primary logo_url.
   $logoVariant = $c['logo_variant'] ?? 'auto';
@@ -45,7 +45,7 @@
       $logoUrl = $bgMode === 'transparent' ? $tenant->logo_url : \App\Support\ColorHelper::pickLogo($tenant, $bgColor);
   }
 
-  // MARKER-PATCH-158-G28 — independent logo size, no longer tied to nav height
+  // independent logo size, no longer tied to nav height
   $logoSizeMap = [
       'small'  => '22px',
       'medium' => '30px',
@@ -55,7 +55,7 @@
   $logoHeight = $logoSizeMap[$c['logo_size'] ?? 'medium'] ?? '30px';
 
   // Colors
-  // MARKER-PATCH-620 — content-aware default: when the tenant hasn't chosen a
+  // content-aware default: when the tenant hasn't chosen a
   // text color, derive black/white from the nav background's luminance so
   // icons and text stay visible on dark navs. Explicit choices always win.
   $autoText  = preg_match('/^#?[0-9a-fA-F]{3}([0-9a-fA-F]{3})?$/', (string) $bgColor)
@@ -184,9 +184,9 @@
 }
 @endif
 
-/* MARKER-PATCH-582 — nav instant search */
+/* nav instant search */
 .{{ $instId }} .p-nav-search { position: relative; display: flex; align-items: center; }
-.{{ $instId }} .p-nav-search-btn { background: none; border: 0; padding: 8px; display: flex; color: {{ $linkColor }}; opacity: .75; } /* MARKER-PATCH-620 — match nav link color */
+.{{ $instId }} .p-nav-search-btn { background: none; border: 0; padding: 8px; display: flex; color: {{ $linkColor }}; opacity: .75; } /* match nav link color */
 .{{ $instId }} .p-nav-search-btn:hover { opacity: 1; }
 .{{ $instId }} .p-nav-search-panel { display: none; position: absolute; top: calc(100% + 10px); right: 0; width: min(380px, 86vw); background: #fff; border: 1px solid rgba(0,0,0,.1); border-radius: 14px; box-shadow: 0 14px 44px rgba(0,0,0,.14); padding: 10px; z-index: 300; }
 .{{ $instId }} .p-nav-search.open .p-nav-search-panel { display: block; }
@@ -205,7 +205,7 @@
   flex-shrink: 0;
 }
 
-/* MARKER-NAV-ACCOUNT — reads as a nav link, not a second CTA */
+/* reads as a nav link, not a second CTA */
 .{{ $instId }} .p-nav-account {
   display: inline-flex;
   align-items: center;
@@ -281,7 +281,7 @@
       @endif
 
       <div class="p-nav-links">
-        @foreach(collect($navItems)->filter(fn ($i) => ($i->side ?? 'left') !== 'right') as $item) {{-- MARKER-SHOP-NAV --}}
+        @foreach(collect($navItems)->filter(fn ($i) => ($i->side ?? 'left') !== 'right') as $item)
           @php
             $itemUrl    = $item->url ?? '/';
             $itemPath   = parse_url($itemUrl, PHP_URL_PATH) ?? $itemUrl;
@@ -299,9 +299,9 @@
       </div>
 
       <div class="p-nav-end">
-        {{-- MARKER-PATCH-582 — instant shop search (store tenants only) --}}
+        {{-- instant shop search (store tenants only) --}}
         @php
-          $navSearchTenant = $tenant ?? $currentTenant ?? tenant(); // MARKER-PATCH-584
+          $navSearchTenant = $tenant ?? $currentTenant ?? tenant();
           $navShopSearch = $navSearchTenant
               && $navSearchTenant->online_store_enabled
               && (bool) (($navSearchTenant->settings['storefront']['enabled'] ?? true));
@@ -320,7 +320,7 @@
             </div>
           </div>
         @endif
-        {{-- MARKER-NAV-ACCOUNT — the only route into the customer portal --}}
+        {{-- the only route into the customer portal --}}
         @php
           $navShowAccount = (bool) ($c['show_account'] ?? true);
           $navCustomer    = \Illuminate\Support\Facades\Auth::guard('customer')->user();
@@ -332,7 +332,7 @@
             {{ $navCustomer ? $navCustomer->first_name : 'Sign in' }}
           </a>
         @endif
-        {{-- MARKER-SHOP-NAV — right-side menu items (the header button lives here now) --}}
+        {{-- right-side menu items (the header button lives here now) --}}
         @foreach(collect($navItems)->filter(fn ($i) => ($i->side ?? 'left') === 'right') as $item)
           <a href="{{ $item->url ?? '/' }}"
              class="{{ ($item->style ?? 'link') === 'button' ? 'p-nav-cta p-nav-cta--primary' : (($item->style ?? 'link') === 'outline' ? 'p-nav-cta p-nav-cta--outline' : 'p-nav-link') }}"
@@ -350,7 +350,7 @@
 @if($navShopSearch ?? false)
 @once
 <script>
-/* MARKER-PATCH-582 — nav instant search (shared across nav instances) */
+/* nav instant search (shared across nav instances) */
 var pNavSearchTimer;
 function pNavEsc(x) { var d = document.createElement('div'); d.textContent = x || ''; return d.innerHTML; }
 function pNavSearchOpen(id) {
@@ -366,7 +366,7 @@ function pNavSearchType(id, q) {
     fetch('/shop/search.json?q=' + encodeURIComponent(q), { headers: { 'Accept': 'application/json' } })
       .then(function (r) { return r.json(); })
       .then(function (d) {
-        if (d.redirect) { // MARKER-PATCH-622 — exact-phrase rule → straight to a page
+        if (d.redirect) { // exact-phrase rule → straight to a page
           out.innerHTML = '<a href="' + d.redirect.url + '" style="display:flex;gap:11px;align-items:center;padding:11px 8px;font-weight:600">↪ ' + pNavEsc(d.redirect.label) + '</a>';
           return;
         }

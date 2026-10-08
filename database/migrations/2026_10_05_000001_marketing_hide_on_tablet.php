@@ -4,7 +4,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\DB;
 
 /**
- * MARKER-MKT-HIDE-TABLET — "desktop" now starts at 1025px and tablets
+ * "desktop" now starts at 1025px and tablets
  * (769–1024px) get their own Hide switch. intake.works sections already
  * hidden on desktop were hidden on tablets too, so they get Hide on tablet
  * switched on and nothing reappears.

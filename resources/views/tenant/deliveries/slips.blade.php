@@ -1,12 +1,12 @@
-{{-- MARKER-PATCH-321 — 80mm pickup/delivery slips for a day. One slip per
+{{-- 80mm pickup/delivery slips for a day. One slip per
      stop: driver reference + customer hand-off. Shares the tag print identity
      and printable-width CSS. Auto-prints unless embed. --}}
 @php
   $pageMm  = ($print['paper'] ?? '80mm') === '58mm' ? '46mm' : '70mm';
   $logoMax = ['small'=>'12mm','medium'=>'18mm','large'=>'26mm','xl'=>'34mm'][$print['logo_size'] ?? 'medium'] ?? '18mm';
   $logoUrl = $print['logo_path'] ? asset('storage/' . ltrim($print['logo_path'], '/')) : null;
-  $headerText = trim((string) ($print['header_text'] ?? '')); // MARKER-PATCH-330
-  $footerText = trim((string) ($print['footer_text'] ?? '')); // MARKER-PATCH-330
+  $headerText = trim((string) ($print['header_text'] ?? ''));
+  $footerText = trim((string) ($print['footer_text'] ?? ''));
   $feedMm  = (int) ($print['feed_mm'] ?? 0) > 0 ? ((int) $print['feed_mm']) . 'mm' : null;
 @endphp
 <!DOCTYPE html>
@@ -71,7 +71,7 @@
         <div class="shop">{{ strtoupper($tenant->name ?? 'SHOP') }}</div>
       @endif
       @if($tenant->phone ?? null)<div style="font-size:10px;">{{ $tenant->phone }}</div>@endif
-      @if($headerText)<div style="font-size:10px;">{!! nl2br(e($headerText)) !!}</div>@endif{{-- MARKER-PATCH-330 --}}
+      @if($headerText)<div style="font-size:10px;">{!! nl2br(e($headerText)) !!}</div>@endif
     </div>
 
     <div class="type">{{ $slip['type'] }}</div>
@@ -108,9 +108,9 @@
 
     <div class="sig">Received by / signature</div>
 
-    @if($footerText)<div style="text-align:center;margin-top:6px;font-size:10px;">{!! nl2br(e($footerText)) !!}</div>@endif{{-- MARKER-PATCH-330 --}}
+    @if($footerText)<div style="text-align:center;margin-top:6px;font-size:10px;">{!! nl2br(e($footerText)) !!}</div>@endif
 
-    @php $feedRows = (int) ceil(((int) ($print['feed_mm'] ?? 0)) / 3); @endphp{{-- MARKER-PATCH-327 --}}
+    @php $feedRows = (int) ceil(((int) ($print['feed_mm'] ?? 0)) / 3); @endphp
     @if($feedRows > 0)<div aria-hidden="true" style="line-height:3mm;font-size:9px;color:#000">{!! str_repeat('&nbsp;<br>', $feedRows) !!}</div>@endif
   </div>
 @empty

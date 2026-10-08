@@ -1,5 +1,5 @@
 <?php
-// MARKER-PATCH-629 — manage the unified payment methods list (Settings → Payments).
+// manage the unified payment methods list (Settings → Payments).
 
 namespace App\Http\Controllers\Tenant;
 
@@ -32,7 +32,7 @@ class PaymentMethodsController extends Controller
             ];
         }
 
-        // MARKER-PATCH-636 — QB deposit account mapping
+        // QB deposit account mapping
         $qb = $m->qb ?? [];
         $qb['deposit_account'] = trim((string) $request->input('qb_deposit_account', '')) ?: null;
 
@@ -86,7 +86,7 @@ class PaymentMethodsController extends Controller
         return back()->with('success', '"' . $data['name'] . '" added — configure where it shows.')->withFragment('payments');
     }
 
-    /** MARKER-PATCH-636 — global QB credit accounts (income / tax / tips). */
+    /** global QB credit accounts (income / tax / tips). */
     public function saveQbAccounts(Request $request)
     {
         $tenant = tenant();

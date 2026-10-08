@@ -1,5 +1,5 @@
 <?php
-// MARKER-PATCH-612 — labor spine. One migration for the whole time-clock +
+// labor spine. One migration for the whole time-clock +
 // scheduling data model so we never re-migrate as stages ship.
 //
 // TIMEZONE CONTRACT (read before touching this):

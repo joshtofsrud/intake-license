@@ -3,7 +3,7 @@
 namespace App\Services\Sales;
 
 /**
- * MARKER-SALES-TERRITORY2 — gives a Washington shop its loop (L1–L9, see
+ * gives a Washington shop its loop (L1–L9, see
  * SalesProspect::LOOPS) from its coordinates: the nearest loop center wins.
  * Shops outside Washington, or without coordinates, get no loop.
  */

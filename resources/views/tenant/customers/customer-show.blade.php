@@ -172,7 +172,7 @@
         $historyMemberships = $customerMemberships->where('status', '!=', 'active');
         $historyPacks       = $customerPacks->where('status', '!=', 'active');
       @endphp
-      {{-- MARKER-BIZ-CONTACTS — only for businesses: an individual customer
+      {{-- only for businesses: an individual customer
            has no separate people to keep track of. --}}
       @if($customer->isBusiness())
         @php $bizContacts = $customer->contacts; @endphp
@@ -504,7 +504,6 @@
   </div>
 @endif
 
-{{-- MARKER-BIZ-CONTACTS --}}
 <style>
   .biz-contacts{display:flex;flex-direction:column;gap:8px}
   .biz-contact{display:flex;align-items:center;gap:12px;border:0.5px solid var(--ia-border);border-radius:var(--ia-r-md);padding:11px 13px;flex-wrap:wrap}
@@ -616,7 +615,7 @@
   function bindDel(btn) {
     if (!btn) return;
     btn.addEventListener('click', async function () {
-      if (!(await iaConfirm('Delete this note?'))) return; // MARKER-INLINE-CONFIRM-2
+      if (!(await iaConfirm('Delete this note?'))) return;
       var noteId = btn.getAttribute('data-note-id');
       post({ op: 'delete_note', note_id: noteId }, function (resp) {
         if (!resp.ok) return;

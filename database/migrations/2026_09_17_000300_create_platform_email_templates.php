@@ -5,7 +5,7 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * MARKER-PLATFORM-TEMPLATES — an override per template key.
+ * an override per template key.
  *
  * A row here MEANS "this one is customised". Absence means the shipped Blade
  * file renders, so reverting is a delete and the default can never drift out

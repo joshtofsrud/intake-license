@@ -4,17 +4,17 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
-/** MARKER-PLATFORM-EMAIL — one unsubscribe stops platform mail to that address. */
+/** one unsubscribe stops platform mail to that address. */
 class PlatformEmailOptout extends Model
 {
     protected $table      = 'platform_email_optouts';
     protected $primaryKey = 'email';
     public    $incrementing = false;
     protected $keyType    = 'string';
-    protected $fillable   = ['email', 'kind', 'reason', 'source', 'detail']; // MARKER-PLATFORM-SENDLOG
+    protected $fillable   = ['email', 'kind', 'reason', 'source', 'detail'];
 
     /**
-     * MARKER-PLATFORM-SENDLOG — one list, three reasons.
+     * one list, three reasons.
      *
      * An address lands here because the person asked (unsubscribe), because
      * their mail server refused it (bounce), or because they marked it as spam

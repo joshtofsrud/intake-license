@@ -7,7 +7,7 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
 /**
- * MARKER-COST-PRECEDENCE — repair sale lines stamped with no cost.
+ * repair sale lines stamped with no cost.
  *
  * Before the precedence fix, an item whose only cost was shop_cost_cents had no
  * effective cost, so every line sold from it recorded cost_cents_snapshot as null

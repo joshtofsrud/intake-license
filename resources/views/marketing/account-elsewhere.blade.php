@@ -1,6 +1,6 @@
-{{-- MARKER-APEX-ACCOUNT — a customer account link that arrived without a shop.
+{{-- a customer account link that arrived without a shop.
      Older emails built their links on the platform address (fixed by
-     MARKER-TENANT-LINK), and those links live in inboxes for months. The
+     ), and those links live in inboxes for months. The
      account pages need a shop to render, so explain instead of erroring.
      Editable: publish a marketing page with the slug "account-help" in master
      admin and it is shown instead of this. --}}

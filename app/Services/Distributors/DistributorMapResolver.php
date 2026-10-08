@@ -1,5 +1,4 @@
 <?php
-// MARKER-PATCH-HLC3A
 
 namespace App\Services\Distributors;
 
@@ -72,9 +71,8 @@ class DistributorMapResolver
             'coalesce'            => $this->coalesce($ctx, $args),
             'pick_category_level' => $this->pickLevel($this->path($ctx, $row->source_path), $args),
             'join_array'          => $this->joinArray($this->path($ctx, $row->source_path), $args),
-            // MARKER-PICK-ATTR — any attribute to any field.
+            // any attribute to any field.
             'pick_attribute'      => $this->pickAttribute($ctx, $row->source_path, $args),
-            // MARKER-BTI-TRANSFORMS
             'zip_pipe'            => $this->zipPipe($ctx, $args),
             'split_pipe'          => $this->splitPipe($this->path($ctx, $row->source_path), $args),
             default               => null,
@@ -215,7 +213,6 @@ class DistributorMapResolver
     }
 
     /**
-     * MARKER-BTI-TRANSFORMS
      *
      * Two parallel pipe-delimited strings zipped into [{Name,Value}, ...] —
      * the shape HLC's Attributes already arrive in, so everything downstream
@@ -228,7 +225,7 @@ class DistributorMapResolver
      * an attribute name or an empty value, and a shop reads these.
      */
     /**
-     * MARKER-PICK-ATTR — first matching attribute value, by priority.
+     * first matching attribute value, by priority.
      *
      * args:
      *   names:  ['Color', 'Primary Color']   priority order, case-insensitive
@@ -309,7 +306,7 @@ class DistributorMapResolver
     }
 
     /**
-     * MARKER-BTI-TRANSFORMS — pipe-delimited string to array. BTI's image
+     * pipe-delimited string to array. BTI's image
      * paths are host-relative, so `prefix` makes them fetchable.
      */
     private function splitPipe(mixed $raw, array $args): ?array
@@ -342,8 +339,6 @@ class DistributorMapResolver
         }
         return match ($cast) {
             'cents'  => (int) round(((float) $v) * 100),
-            // MARKER-BTI-TRANSFORMS
-            // MARKER-BTI-ENCODING
             // trim: BTI ships vendor_item_id as " SOX-6M", and at least one
             // row pads it with a NON-BREAKING space, which PHP's trim() does
             // not touch — it only strips ASCII whitespace. An MPN carrying an

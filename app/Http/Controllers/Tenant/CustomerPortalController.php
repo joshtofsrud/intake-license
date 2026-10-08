@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers\Tenant;
 
-// MARKER-PORTAL-V2 — customer portal, section per page. Auth stays in
+// customer portal, section per page. Auth stays in
 // CustomerAccountController; this only renders for a signed-in customer.
 
 use App\Http\Controllers\Controller;
@@ -37,7 +37,7 @@ class CustomerPortalController extends Controller
         }
         $tenant = tenant();
 
-        // MARKER-PORTAL-V2 — appointment_time is naive tenant-local wall
+        // appointment_time is naive tenant-local wall
         // clock (PATCH-361): compare dates against tenant-local today, never
         // shift the time.
         $nextAppointment = $customer->appointments()
@@ -168,7 +168,7 @@ class CustomerPortalController extends Controller
         $past     = (clone $base)->whereIn('status', ['returned', 'cancelled'])
             ->orderByDesc('returned_at')->orderByDesc('starts_at')->limit(15)->get();
 
-        // MARKER-RENTAL-EXT-PORTAL — per active rental: can the customer
+        // per active rental: can the customer
         // extend right now? Full price (discount 0). Reuse an open offer.
         $extendable = [];
         if ($tenant->rental_extensions_enabled) {
@@ -188,7 +188,7 @@ class CustomerPortalController extends Controller
         return view('public.account.portal.rentals', compact('customer', 'active', 'reserved', 'past', 'extendable'));
     }
 
-    // MARKER-RENTAL-EXT-PORTAL — mint (or reuse) an offer and land the
+    // mint (or reuse) an offer and land the
     // customer on the /x/{token} one-tap checkout. Full price, no SMS.
     public function extendRental(string $id)
     {
@@ -303,7 +303,7 @@ class CustomerPortalController extends Controller
             return redirect()->route('tenant.customer.login');
         }
 
-        // MARKER-EMAIL-CONSENT — unlike SMS, email marketing can be turned
+        // unlike SMS, email marketing can be turned
         // back on here: no carrier rule requires it come from the inbox.
         $wantsEmail = $request->boolean('email_marketing');
         $consent    = app(\App\Services\Tenant\ConsentService::class);

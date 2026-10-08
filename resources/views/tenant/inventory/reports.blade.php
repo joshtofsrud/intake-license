@@ -1,12 +1,12 @@
 @extends('layouts.tenant.app')
-{{-- MARKER-INV-REPORTS — what you're holding, what's moving, what's stuck.
+{{-- what you're holding, what's moving, what's stuck.
      Read-only: this page computes and displays, it never writes. --}}
 @section('title', 'Inventory reports')
 
 @section('content')
-<div class="ia-section ia-section--wide">{{-- MARKER-SECTION-WIDTH — fluid, capped; see base.css --}}
+<div class="ia-section ia-section--wide">{{-- fluid, capped; see base.css --}}
 
-{{-- MARKER-REPORTS-HEADER — the header goes above the tabs, as on every
+{{-- the header goes above the tabs, as on every
      other page in this section; this page had them the other way round. --}}
 <div class="ia-page-head">
   <div class="ia-page-head-left">
@@ -24,14 +24,14 @@
   </div>
 </div>
 
-{{-- MARKER-INV-REPORTS-TABS — the shared inventory tab bar. The first
+{{-- the shared inventory tab bar. The first
      version of this page rendered no tabs at all, so it read as a
      different app and Reports was unreachable from the other screens.
-     MARKER-REPORTS-HEADER-FIX — and it belongs AFTER the header, not inside
+     and it belongs AFTER the header, not inside
      it: nested in that flex row the tabs sat beside the title and clipped. --}}
 @include('layouts.tenant._inventory-tabs')
 
-{{-- MARKER-INV-REPORTS-POLISH — .ia-stats-grid / .ia-stat / .ia-stat-label
+{{-- .ia-stats-grid / .ia-stat / .ia-stat-label
      / .ia-stat-value / .ia-stat-delta are the app's real components. The
      first version invented its own and drifted on size, weight and
      tracking. --}}
@@ -153,12 +153,12 @@
     @endif
   </div>
 </div>
-</div>{{-- MARKER-SECTION-WIDTH --}}
+</div>
 @endsection
 
 @push('styles')
 <style>
-  /* MARKER-INV-REPORTS-POLISH — only what base.css doesn't already have.
+  /* only what base.css doesn't already have.
      Stat cards and tables now use .ia-stat / .ia-table, so their type,
      weights and spacing come from the app rather than from here. */
   .ivr-window{display:inline-flex;background:var(--ia-surface);border:1px solid var(--ia-border);border-radius:9px;padding:3px}

@@ -4,7 +4,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-// MARKER-GIFTCARDS — one row per card. balance_cents is a cache; the
+// one row per card. balance_cents is a cache; the
 // transactions ledger is the source of truth and can rebuild it.
 return new class extends Migration
 {

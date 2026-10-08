@@ -1,5 +1,4 @@
 <?php
-// MARKER-PATCH-224
 
 namespace App\Http\Controllers\Tenant\Settings;
 

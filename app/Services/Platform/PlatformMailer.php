@@ -6,7 +6,7 @@ use App\Models\PlatformSettings;
 use Illuminate\Support\Facades\Mail;
 
 /**
- * MARKER-PLATFORM-EMAIL — Intake's own sender.
+ * Intake's own sender.
  *
  * Its own Postmark stream, deliberately NOT the tenants' broadcast stream: a
  * complaint against one must never cost the other its reputation or eat its
@@ -22,7 +22,7 @@ class PlatformMailer
     }
 
     /**
-     * MARKER-PLATFORM-INBOUND — the sender already existed. The Platform email
+     * the sender already existed. The Platform email
      * page owns mail_from_address / mail_from_name and PlatformSettings
      * resolves them with their own config fallbacks; adding a second pair of
      * columns just created two places for one address to be wrong.
@@ -38,7 +38,7 @@ class PlatformMailer
     }
 
     /**
-     * MARKER-PLATFORM-INBOUND — where a reply should go.
+     * where a reply should go.
      *
      * intake+{token}@{inbound domain}, from the same POSTMARK_INBOUND_ADDRESS
      * the tenant side derives from, so there is one domain to change. Null
@@ -77,7 +77,7 @@ class PlatformMailer
         string $html,
         string $unsubscribeUrl,
         array $headers = [],
-        ?string $replyToken = null   // MARKER-PLATFORM-INBOUND
+        ?string $replyToken = null
     ): bool {
         $stream = self::stream();
         if (! $stream) {
@@ -87,7 +87,7 @@ class PlatformMailer
         $from     = self::fromAddress();
         $fromName = self::fromName();
 
-        // MARKER-PLATFORM-INBOUND — a tokenised Reply-To when inbound is
+        // a tokenised Reply-To when inbound is
         // configured, so an answer comes back into the inbox instead of
         // disappearing into a mailbox the app can't see.
         $replyTo = self::replyTo($replyToken) ?: $from;
@@ -112,7 +112,7 @@ class PlatformMailer
     }
 
     /**
-     * MARKER-PLATFORM-SENDLOG — record a non-campaign platform send.
+     * record a non-campaign platform send.
      *
      * Best-effort by design: a failure to write the log must never stop the
      * email, so every caller stays on its own path if this throws.

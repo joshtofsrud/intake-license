@@ -1,4 +1,4 @@
-{{-- MARKER-PATCH-205 / 206 — two-pane invoice composer with live preview. --}}
+{{-- / 206 — two-pane invoice composer with live preview. --}}
 @php
   $invPaid  = $appointment->isPaid();
   $invTerms = $appointment->invoice_terms ?? 'on_completion';

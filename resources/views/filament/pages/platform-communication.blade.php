@@ -1,5 +1,4 @@
 <x-filament-panels::page>
-{{-- MARKER-PLATFORM-TEMPLATES --}}
 <style>
   .pc{--pc-line:var(--ia-border,rgba(127,127,127,.22));--pc-accent:#8b7cf6;--pc-warn:#f0c46a}
   .pc-sender{border:1px solid var(--pc-line);border-radius:12px;padding:12px 16px;display:flex;gap:26px;
@@ -22,7 +21,6 @@
   .pc-pill{font-size:10.5px;padding:2px 8px;border-radius:99px;border:1px solid var(--pc-line);opacity:.75}
   .pc-pill--custom{background:rgba(139,124,246,.14);border-color:rgba(139,124,246,.4);color:#cfc7ff;opacity:1}
   .pc-edit{background:none;border:0;color:var(--pc-accent);font:inherit;font-size:13px;cursor:pointer;text-align:right}
-  /* MARKER-PLATFORM-MANAGE */
   .pc-acts-row{display:flex;gap:12px;justify-content:flex-end;align-items:center;font-size:13px;white-space:nowrap}
   .pc-del{background:none;border:0;color:var(--pc-warn, #f0c46a);font:inherit;font-size:13px;cursor:pointer;opacity:.8}
   .pc-del:hover{opacity:1}
@@ -46,10 +44,9 @@
     padding:7px 13px;border-radius:9px;cursor:pointer}
   .pc-btn--pri{background:var(--pc-accent);border-color:var(--pc-accent);color:#14121f;font-weight:600}
   .pc-btn--warn{color:var(--pc-warn);border-color:rgba(240,196,106,.4)}
-  .pc-btn:disabled{opacity:.4;cursor:not-allowed} /* MARKER-PLATFORM-LETTER-FIX */
+  .pc-btn:disabled{opacity:.4;cursor:not-allowed}
   .pl-file{position:relative;overflow:hidden;display:inline-block}
   .pl-file input{position:absolute;inset:0;opacity:0;cursor:pointer}
-  /* MARKER-PLATFORM-LETTER */
   .pl-seg{display:inline-flex;border:1px solid var(--pc-line);border-radius:8px;padding:2px}
   .pl-seg button{background:none;border:0;color:inherit;opacity:.6;padding:5px 11px;border-radius:6px;font:inherit;font-size:12.5px;cursor:pointer}
   .pl-seg button.on{opacity:1;background:rgba(255,255,255,.08);font-weight:600}
@@ -82,17 +79,14 @@
     </div>
   @endunless
 
-  {{-- MARKER-PLATFORM-CAMPAIGNS-UI --}}
   <div class="pc-tabs">
     <span class="{{ $tab === 'messages' ? 'on' : '' }}" style="cursor:pointer" wire:click="setTab('messages')">Messages</span>
     <span class="{{ $tab === 'campaigns' ? 'on' : '' }}" style="cursor:pointer" wire:click="setTab('campaigns')">Campaigns</span>
-    {{-- MARKER-PLATFORM-SENDLOG --}}
     <span class="{{ $tab === 'activity' ? 'on' : '' }}" style="cursor:pointer" wire:click="setTab('activity')">Activity</span>
     <span class="{{ $tab === 'suppressions' ? 'on' : '' }}" style="cursor:pointer" wire:click="setTab('suppressions')">Suppressions</span>
   </div>
 
   @if($tab === 'messages')
-  {{-- MARKER-PLATFORM-MSG-COMPLETE --}}
   <div class="pc-legend">
     <b>Every email Intake sends about itself is listed here</b> — not a shop's mail to its customers, which each
     shop controls on its own Communication page. Three of them edit on this page; billing notices and investor
@@ -170,7 +164,7 @@
       </div>
     @endforeach
 
-    {{-- MARKER-PLATFORM-MSG-COMPLETE — the rest of what the platform sends. --}}
+    {{-- the rest of what the platform sends. --}}
     @foreach($others as $group => $rows)
       <div class="pc-grp">{{ $group }}</div>
       <div class="pc-list">
@@ -229,7 +223,7 @@
               @endforeach
             </select>
           </div>
-          {{-- MARKER-PLATFORM-LETTER — plain text, or a letter built from blocks --}}
+          {{-- plain text, or a letter built from blocks --}}
           <div class="pc-f">
             <label>Content</label>
             <div class="pl-seg">
@@ -278,7 +272,7 @@
                     @if(! empty($blk['data']['url']))
                       <img src="{{ $blk['data']['url'] }}" alt="" style="max-width:100%;border-radius:6px;border:1px solid var(--pc-line);margin-bottom:6px">
                     @endif
-                    {{-- MARKER-PLATFORM-LETTER-FIX — an app button, not the browser's control --}}
+                    {{-- an app button, not the browser's control --}}
                     <label class="pc-btn pl-file">Choose image<input type="file" accept="image/*" wire:model="shotUploads.{{ $i }}"></label>
                     <span class="pc-note" wire:loading wire:target="shotUploads.{{ $i }}">Uploading…</span>
                     @if(! empty($shotUploads[$i]))
@@ -348,7 +342,7 @@
             <div class="pc-note">Pick an audience to see the reach.</div>
           @endif
 
-          {{-- MARKER-PLATFORM-LETTER — live preview, light / dark / phone --}}
+          {{-- live preview, light / dark / phone --}}
           @if($letterPreview)
             <div style="margin-top:18px;border-top:1px solid var(--pc-line);padding-top:14px">
               <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
@@ -371,7 +365,7 @@
               <div class="pc-grp" style="padding-top:0">Results</div>
               <div style="font-size:13.5px;line-height:1.9">
                 Sent <b>{{ $campaign->total_sent }}</b> of {{ $campaign->total_recipients }}<br>
-                Opened <b>{{ (int) $campaign->total_opened }}</b> · clicked <b>{{ (int) $campaign->total_clicked }}</b> · replies arrive in your inbox<br>{{-- MARKER-PLATFORM-LETTER --}}
+                Opened <b>{{ (int) $campaign->total_opened }}</b> · clicked <b>{{ (int) $campaign->total_clicked }}</b> · replies arrive in your inbox<br>
                 @if($campaign->sent_at)Finished {{ $campaign->sent_at->diffForHumans() }}@endif
               </div>
             </div>
@@ -395,7 +389,6 @@
               {{ optional($c->audience)->name ?: 'No audience' }}
               @if($c->total_sent) · {{ $c->total_sent }} sent @endif
             </div>
-            {{-- MARKER-PLATFORM-MANAGE --}}
             <div class="pc-acts-row">
               @if($confirmDel === 'c:' . $c->id)
                 <span style="opacity:.7">Delete?</span>
@@ -419,7 +412,6 @@
             <div><div class="t">{{ $a->name }}</div></div>
             <div><span class="pc-pill">{{ \App\Models\PlatformAudience::SOURCES[$a->source] ?? $a->source }}</span></div>
             <div class="fires">{{ count($a->rules ?? []) }} {{ count($a->rules ?? []) === 1 ? 'rule' : 'rules' }}</div>
-            {{-- MARKER-PLATFORM-MANAGE --}}
             <div class="pc-acts-row">
               @if($confirmDel === 'a:' . $a->id)
                 <span style="opacity:.7">Delete?</span>
@@ -439,7 +431,7 @@
       <div class="pc-card" style="margin-top:14px">
         <h3>{{ $aEditing ? 'Edit audience' : 'New audience' }}</h3>
         <div class="sub">Rules, not a fixed list — it re-resolves every time a campaign fires</div>
-        {{-- MARKER-PLATFORM-MANAGE — the rules this audience already has --}}
+        {{-- the rules this audience already has --}}
         @if($aEditing)
           <div class="pc-f">
             <label>Rules</label>
@@ -538,7 +530,7 @@
       @endforelse
     </div>
 
-    {{-- MARKER-ALL-SHOPS-BLOCKS — blocks that apply to every shop's mail. --}}
+    {{-- blocks that apply to every shop's mail. --}}
     <div class="pc-legend" style="margin-top:22px">
       <b>Blocked for all shops ({{ $allShops->count() }}).</b> These addresses bounced from three or more shops,
       so no shop's mail reaches them: campaigns, receipts, reminders, everything. Intake's own mail above is not

@@ -11,11 +11,10 @@ use Filament\Notifications\Notification;
 use Illuminate\Support\Str;
 use Livewire\WithFileUploads;
 
-// MARKER-RAISE-SETUP
 class RaiseSetup extends Page
 {
-    use \App\Support\UsesAdminNav; // MARKER-NAV-ORDER
-    use \App\Support\GatedByAdminArea; // MARKER-ADMIN-NAV-GATE
+    use \App\Support\UsesAdminNav;
+    use \App\Support\GatedByAdminArea;
     protected static string $adminArea = 'raise';
 
     use WithFileUploads;
@@ -44,20 +43,20 @@ class RaiseSetup extends Page
     public string $formDFiledAt  = '';
     public string $blueSkyNotes  = '';
 
-    // MARKER-INVEST-LANDING — public landing copy
+    // public landing copy
     public string $landingHeadline   = '';
     public string $landingLede       = '';
     public string $landingFine       = '';
     public string $notifyEmail       = '';
-    public bool   $showProgress     = true;   // MARKER-INVEST-LIVE
-    public string $contributionPresets = '';   // MARKER-CONTRIB-UI
+    public bool   $showProgress     = true;
+    public string $contributionPresets = '';
 
-    // MARKER-SIGNING-CREDS — never populated from storage, so the key does not
+    // never populated from storage, so the key does not
     // travel back to the browser and a blank save cannot wipe it.
     public string $signingKey      = '';
     public bool   $signingTestMode = true;
-    public string $signingTemplateId = '';   // MARKER-SIGNING-SEND
-    public bool   $signingAutomatic  = false;   // MARKER-MANUAL-SAFE
+    public string $signingTemplateId = '';
+    public bool   $signingAutomatic  = false;
 
     // template editor
     public string $templateKey  = '';
@@ -84,7 +83,7 @@ class RaiseSetup extends Page
         $this->formDFiledAt  = (string) RaiseSetting::get('form_d_filed_at');
         $this->blueSkyNotes  = (string) RaiseSetting::get('blue_sky_notes');
 
-        // MARKER-INVEST-LANDING — blank means the view's own default is used,
+        // blank means the view's own default is used,
         // so an untouched field is not an empty page.
         $this->landingHeadline   = (string) RaiseSetting::get('landing_headline');
         $this->landingLede       = (string) RaiseSetting::get('landing_lede');
@@ -97,7 +96,6 @@ class RaiseSetup extends Page
         $this->signingAutomatic = \App\Services\SigningService::isAutomatic();
     }
 
-    /** MARKER-INVEST-LANDING */
     public function saveLanding(): void
     {
         $this->validate([
@@ -121,7 +119,7 @@ class RaiseSetup extends Page
             ->send();
     }
 
-    /** MARKER-SIGNING-CREDS — an empty field means "leave it as it is". */
+    /** an empty field means "leave it as it is". */
     public function saveSigning(): void
     {
         $this->validate([
@@ -147,7 +145,6 @@ class RaiseSetup extends Page
             ->send();
     }
 
-    /** MARKER-SIGNING-CREDS */
     public function testSigning(): void
     {
         $result = \App\Services\SigningService::testConnection();
@@ -159,7 +156,7 @@ class RaiseSetup extends Page
             ->send();
     }
 
-    /** MARKER-SIGNING-CREDS — removing a key is deliberate, not a blank save. */
+    /** removing a key is deliberate, not a blank save. */
     public function clearSigningKey(): void
     {
         \App\Services\SigningService::putKey(null);
@@ -204,7 +201,7 @@ class RaiseSetup extends Page
     }
 
     /**
-     * MARKER-RAISE-HTML — send one template to yourself.
+     * send one template to yourself.
      *
      * Rendered against a sample investor that is never saved, so no record is
      * created and no event is logged against a real person. The wire details
@@ -213,7 +210,7 @@ class RaiseSetup extends Page
      */
     public function sendTest(string $key): void
     {
-        // MARKER-MAIL-FROM — the accessor, not raw config: with MAIL_FROM_ADDRESS
+        // the accessor, not raw config: with MAIL_FROM_ADDRESS
         // unset this used to resolve to hello@example.com and the test went to
         // a domain nobody owns.
         $to = RaiseSetting::get('notify_email') ?: \App\Models\PlatformSettings::fromAddress();

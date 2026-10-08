@@ -131,7 +131,7 @@ class StripeWebhookController extends Controller
             return;
         }
 
-        // MARKER-TENANT-STANDING — a successful payment ends grace.
+        // a successful payment ends grace.
         $updates = ['subscription_status' => 'active', 'past_due_since' => null];
         if ($subscriptionId && ! $tenant->stripe_subscription_id) {
             $updates['stripe_subscription_id'] = $subscriptionId;
@@ -139,7 +139,7 @@ class StripeWebhookController extends Controller
 
         $tenant->update($updates);
 
-        // MARKER-SALES-INVITE — a paid invoice closes the linked prospect as Won.
+        // a paid invoice closes the linked prospect as Won.
         try { \App\Services\Sales\ProspectConversion::onTenantActive($tenant); } catch (\Throwable $e) {
             Log::warning('[StripeWebhook] prospect won-flip failed', ['tenant' => $tenant->subdomain, 'error' => $e->getMessage()]);
         }
@@ -148,7 +148,7 @@ class StripeWebhookController extends Controller
             'tenant' => $tenant->subdomain,
         ]);
 
-        // MARKER-LEDGER-HOOK — accrue rep commission on collected revenue.
+        // accrue rep commission on collected revenue.
         // Fail open (principle 15): a ledger error never breaks billing.
         try {
             app(\App\Services\CommissionAccrualService::class)->recordInvoicePaid($tenant, $invoice);
@@ -180,7 +180,7 @@ class StripeWebhookController extends Controller
             return;
         }
 
-        // MARKER-TENANT-STANDING — stamp the FIRST failure only; grace is
+        // stamp the FIRST failure only; grace is
         // counted from it, and a later retry failure must not restart it.
         $tenant->update([
             'subscription_status' => 'past_due',

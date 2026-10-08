@@ -5,7 +5,7 @@ namespace App\Support;
 use App\Models\Tenant;
 
 /**
- * MARKER-LAYAWAY — the shop's policy, with Intake's defaults underneath.
+ * the shop's policy, with Intake's defaults underneath.
  *
  * Lives in tenants.settings['layaway'], the same place every other tenant
  * preference lives. Read through here so a missing key never becomes a null

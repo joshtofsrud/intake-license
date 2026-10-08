@@ -1,4 +1,4 @@
-{{-- MARKER-MKT-NAV — reads the intake.works menu itself, so it can't
+{{-- reads the intake.works menu itself, so it can't
      disagree with it. Replaces the "Show in site navigation" checkbox. --}}
 @php
   $mnPos = \App\Support\MarketingNav::positionFor((string) $page->id);

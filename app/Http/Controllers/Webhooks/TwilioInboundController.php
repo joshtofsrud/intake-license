@@ -1,5 +1,4 @@
 <?php
-// MARKER-PATCH-221
 
 namespace App\Http\Controllers\Webhooks;
 
@@ -85,7 +84,7 @@ class TwilioInboundController extends Controller
             return $this->twiml();
         }
 
-        // 3. MARKER-PATCH-221-OFFER-HOOK — the extension patch replaces this
+        // 3. the extension patch replaces this
         //    stub: YES/NO against a pending offer resolves the offer instead
         //    of landing as a plain thread message.
         if ($this->handleOfferIntent($tenant, $customer, $thread, $lower, $sid)) {
@@ -98,7 +97,7 @@ class TwilioInboundController extends Controller
         return $this->twiml();
     }
 
-    // MARKER-RENTAL-EXT — YES/NO against the customer's open extension
+    // YES/NO against the customer's open extension
     // offer. YES re-sends the pay link (payment still happens on the page —
     // a text can't take a card); NO declines. Both post a system event so
     // the thread tells the story. Anything else falls through to a plain
@@ -180,7 +179,7 @@ class TwilioInboundController extends Controller
      */
     private function signatureOk(Request $request, Tenant $tenant): bool
     {
-        $token = $tenant->twilio_auth_token ?: config('services.twilio.token'); // MARKER-PATCH-224B
+        $token = $tenant->twilio_auth_token ?: config('services.twilio.token');
         if (!$token) {
             return true;
         }

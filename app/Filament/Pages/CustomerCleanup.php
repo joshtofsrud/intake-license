@@ -12,7 +12,7 @@ use Filament\Pages\Page;
 use Illuminate\Support\Facades\Auth;
 
 /**
- * MARKER-CUST-CLEANUP — find the junk in a shop's customer list.
+ * find the junk in a shop's customer list.
  *
  * Nothing here happens automatically. Removing marketing consent is the default
  * action because it stops the harm (mailing and paying for junk) without
@@ -21,7 +21,7 @@ use Illuminate\Support\Facades\Auth;
  */
 class CustomerCleanup extends Page
 {
-    use \App\Support\UsesAdminNav; // MARKER-NAV-ORDER
+    use \App\Support\UsesAdminNav;
     protected static ?string $navigationIcon  = 'heroicon-o-sparkles';
     protected static ?string $navigationLabel = 'Customer cleanup';
     protected static ?string $navigationGroup = 'Operations';
@@ -138,7 +138,7 @@ class CustomerCleanup extends Page
                 }
             });
 
-        logger()->info('MARKER-CUST-CLEANUP bulk opt-out', [
+        logger()->info('cust-cleanup: bulk opt-out', [
             'tenant_id' => $tenant->id, 'group' => $this->group, 'count' => $n,
             'by' => Auth::guard('web')->id(),
         ]);
@@ -184,7 +184,7 @@ class CustomerCleanup extends Page
         $until = now()->addDays(10);
         $tenant->forceFill(['consent_cleanup_until' => $until])->save();
 
-        logger()->info('MARKER-CUST-CLEANUP window opened', [
+        logger()->info('cust-cleanup: window opened', [
             'tenant_id' => $tenant->id, 'until' => $until->toIso8601String(),
             'by' => Auth::guard('web')->id(),
         ]);

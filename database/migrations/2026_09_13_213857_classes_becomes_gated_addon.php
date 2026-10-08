@@ -4,7 +4,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\DB;
 
 /**
- * MARKER-CLASSES-ADDON — classes gets a plan floor it never had.
+ * classes gets a plan floor it never had.
  *
  * Before this, classes_enabled was a tenant flag with no plan check anywhere,
  * so a Starter could turn on a Branded feature from Settings and keep it.
@@ -75,7 +75,7 @@ return new class extends Migration
         }
 
         if ($granted > 0) {
-            echo "  MARKER-CLASSES-ADDON: grandfathered {$granted} tenant(s) already running classes\n";
+            echo "  grandfathered {$granted} tenant(s) already running classes\n";
         }
     }
 

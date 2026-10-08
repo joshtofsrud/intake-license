@@ -1,5 +1,5 @@
 {{--
-  MARKER-RENTAL-SECTIONS — rental_spotlight public render. One model,
+  rental_spotlight public render. One model,
   hero treatment. Live rates/sizes/unit count; renders nothing when
   rentals are hidden or the model is gone/archived.
 --}}
@@ -26,11 +26,11 @@
           ->whereNotNull('size')->distinct()->orderBy('size')->pluck('size')
       : collect();
   $spCta = !empty($c['cta_url']) ? $c['cta_url'] : ($spModel ? route('tenant.rentals.reserve', ['model' => $spModel->id]) : '/rentals');
-  // MARKER-RENTAL-MODEL-PHOTOS — section image wins; fleet photo is the fallback.
+  // section image wins; fleet photo is the fallback.
   $spImage = !empty($c['image_url']) ? $c['image_url'] : ($spModel->image_url ?? '');
   $spImgLeft = ($c['image_position'] ?? 'left') !== 'right';
   $spImgRad = (int) ($c['image_radius'] ?? 14);
-  // MARKER-RENTAL-STYLE — style + advanced resolution (feature_grid model).
+  // style + advanced resolution (feature_grid model).
   $stBgMode  = $c['bg_mode'] ?? (!empty($c['bg_color']) ? 'color' : 'none');
   $stText    = ($c['text_color'] ?? '') ?: 'inherit';
   $stBody    = ($c['text_color_body'] ?? '') ?: 'inherit';

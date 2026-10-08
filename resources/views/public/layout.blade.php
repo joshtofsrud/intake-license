@@ -3,12 +3,12 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  @include('partials.mobile-input-zoom') {{-- MARKER-MOBILE-INPUT-ZOOM --}}
+  @include('partials.mobile-input-zoom')
   <meta name="csrf-token" content="{{ csrf_token() }}">
-  {{-- MARKER-PATCH-150 — analytics + funnel tracking --}}
+  {{-- analytics + funnel tracking --}}
   @include('public._funnel_tracker')
 
-  {{-- MARKER-PAGE-SEARCH-SHARING — title, description and link-preview tags,
+  {{-- title, description and link-preview tags,
        from the builder's Search & sharing panel. --}}
   @php
     $ssTitle = ($page->meta_title ?: $page->title) . ' — ' . $currentTenant->name;
@@ -36,7 +36,7 @@
   @endif
   @if($ssImage)
     <meta property="og:image" content="{{ $ssImage }}">
-    {{-- MARKER-SHARE-CARD-LOGO — a logo fallback gets the square card, not the wide banner. --}}
+    {{-- a logo fallback gets the square card, not the wide banner. --}}
     <meta name="twitter:card" content="{{ $ssOwnImg ? 'summary_large_image' : 'summary' }}">
     <meta name="twitter:image" content="{{ $ssImage }}">
   @else
@@ -49,7 +49,7 @@
 
   {{-- Fonts --}}
   @php
-    // MARKER-TOKENS — one resolve for the whole page.
+    // one resolve for the whole page.
     $dt = \App\Support\DesignTokens::resolve($currentTenant);
     $headingFont = $dt['font_heading'];
     $bodyFont    = $dt['font_body'];
@@ -57,7 +57,7 @@
     $fontQuery = implode('&family=', array_map(fn($f) => str_replace(' ', '+', $f) . ':wght@400;500;600;700', $fontFamilies));
   @endphp
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>{{-- MARKER-SELFHOST-FONTS-2 — the font FILES come from gstatic; without this the browser pays a second DNS+TLS handshake --}}
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>{{-- the font FILES come from gstatic; without this the browser pays a second DNS+TLS handshake --}}
   <link href="https://fonts.googleapis.com/css2?family={{ $fontQuery }}&display=swap" rel="stylesheet">
 
   <style>
@@ -65,7 +65,7 @@
        Public site CSS — completely separate from admin themes
        ================================================================ */
     :root {
-{!! \App\Support\DesignTokens::cssVars($dt) !!} {{-- MARKER-TOKENS --}}
+{!! \App\Support\DesignTokens::cssVars($dt) !!}
       --p-r:            8px;
       --p-r-lg:         12px;
       --p-max:          1160px;
@@ -99,7 +99,7 @@
     h1,h2,h3,h4 {
       font-family: var(--p-font-heading);
       line-height: 1.2;
-      font-weight: var(--p-heading-weight, 700);      /* MARKER-TOKENS */
+      font-weight: var(--p-heading-weight, 700);
       text-transform: var(--p-heading-transform, none);
     }
 
@@ -109,7 +109,7 @@
       align-items: center;
       gap: 8px;
       padding: 12px 24px;
-      border-radius: var(--p-btn-r, var(--p-r));      /* MARKER-TOKENS */
+      border-radius: var(--p-btn-r, var(--p-r));
       font-size: 15px;
       font-weight: 600;
       border: 2px solid transparent;
@@ -122,7 +122,7 @@
       color: var(--p-accent-text);
       border-color: var(--p-accent);
     }
-    /* MARKER-TOKENS — template button styles. Outline and ghost keep the
+    /* template button styles. Outline and ghost keep the
        accent as the visible edge or fill hint rather than a solid slab. */
     body.p-btn-outline .p-btn--primary {
       background: transparent;
@@ -207,7 +207,6 @@
       gap: 8px;
     }
     .p-mobile-nav.open { display: flex; }
-    /* MARKER-NAV-ACCOUNT */
     .p-mobile-account { display: flex; align-items: center; gap: 10px; font-size: 17px; font-weight: 600; }
     .p-mobile-account small { display: block; font-size: 12.5px; font-weight: 400; opacity: .5; margin-top: 1px; }
     .p-mobile-nav a {
@@ -264,7 +263,7 @@
     style="position:absolute;top:20px;right:20px;background:none;border:none;font-size:28px;cursor:pointer;color:var(--p-text)">
     ×
   </button>
-  {{-- MARKER-NAV-ACCOUNT — first row, so the portal is reachable on a phone --}}
+  {{-- first row, so the portal is reachable on a phone --}}
   @php
     $mnNav          = $sections->firstWhere('section_type', 'nav');
     $mnShowAccount  = (bool) (($mnNav?->content['show_account']) ?? true);
@@ -289,9 +288,9 @@
   @endif
 </div>
 
-{{-- MARKER-SPLASH — drawn OVER the homepage, which is fully rendered below.
+{{-- drawn OVER the homepage, which is fully rendered below.
      Included before the sections so it exists even if a section throws. --}}
-{{-- MARKER-BUILDER-SYNC — hover highlight + click-to-select, and the
+{{-- hover highlight + click-to-select, and the
      scroll-to handler the builder calls. Builder preview only. --}}
 @if(!empty($builderPreview))
 <style>
@@ -310,7 +309,7 @@
 </style>
 <script>
 (function () {
-  // MARKER-BUILDER-SYNC-TIMING — this block sits above the section loop, so
+  // this block sits above the section loop, so
   // at parse time there are no wrappers to bind to. Wait for the document.
   function boot() {
   var wraps = Array.prototype.slice.call(document.querySelectorAll('[data-pb-section]'));
@@ -366,19 +365,19 @@
 
 {{-- Page sections --}}
 @php
-  // MARKER-SECTION-ROWS — which sections share a row on this page.
+  // which sections share a row on this page.
   $pbRows = \App\Support\SectionRows::plan($sections, fn ($s) => $s->is_visible && ! in_array($s->section_type, ['nav', 'footer'], true) && view()->exists('public.sections._' . $s->section_type));
 @endphp
 {!! \App\Support\SectionRows::css($pbRows, '1200px', 'clamp(16px, 4vw, 48px)') !!}
 @foreach($sections as $section)
   @if($section->is_visible)
-    {{-- MARKER-PATCH-158-G14 — Guard against section types that exist in the
+    {{-- Guard against section types that exist in the
          admin builder's DEFAULTS but have no matching public partial. Without
          this, an unknown type causes a ViewException → 500 for the whole page. --}}
     @php $partial = 'public.sections._' . $section->section_type; @endphp
     @if(view()->exists($partial))
       {!! \App\Support\SectionRows::open($pbRows, $section) !!}
-      {{-- MARKER-TOKENS — resolve an inheriting background here, once, rather
+      {{-- resolve an inheriting background here, once, rather
            than in 19 section partials. An explicit hex passes through
            untouched, so nothing a tenant chose in the builder changes. --}}
       @php
@@ -387,16 +386,16 @@
             $sc['bg_color'] ?? null, $section->section_type, $dt
         );
       @endphp
-      {{-- MARKER-BUILDER-SYNC — an addressable wrapper, builder-only. Section
+      {{-- an addressable wrapper, builder-only. Section
            partials render their own <section> elements with markup we don't
            control, so a wrapper is the only reliable anchor. --}}
-      {{-- MARKER-SECTION-OVERLAP — a scoped style block, not an inline style:
+      {{-- a scoped style block, not an inline style:
            the pull has to disappear on a phone and inline CSS cannot carry a
            media query. z-index lifts this section's background over the one
            before it, which is the whole point. --}}
       @php
         $pull   = max(0, min(240, (int) ($sc['overlap_top'] ?? 0)));
-        $pullP  = max(0, min(240, (int) ($sc['overlap_top_phone'] ?? 0))); // MARKER-OVERLAP-PHONE
+        $pullP  = max(0, min(240, (int) ($sc['overlap_top_phone'] ?? 0)));
         $pullId = 'pbpull-' . substr(md5((string) $section->id), 0, 10); // no short-id collisions
       @endphp
       @if($pull > 0 || $pullP > 0)
@@ -429,7 +428,7 @@
 {{-- Powered by intake — shown only when:
      (a) tenant plan tier permits the badge (show_intake_branding flag), AND
      (b) the page doesn't have its own footer section
-         (MARKER-PATCH-158-G26 — when a footer section is present, the
+         (when a footer section is present, the
          credit lives there; this layout-level badge is the fallback for
          pages without a footer section.) --}}
 @php

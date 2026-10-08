@@ -66,7 +66,7 @@
         .mk-hamburger { display: flex; }
     }
 
-    /* MARKER-MKT-NAV-FLOAT — "Floating" header style (settings arrive as CSS variables) */
+    /* "Floating" header style (settings arrive as CSS variables) */
     .mk-nav.is-float { background: transparent; border-bottom: 0; backdrop-filter: none; -webkit-backdrop-filter: none; padding: 14px var(--mk-gutter) 0; }
     .mk-nav.is-float .mk-nav-inner {
         background: color-mix(in srgb, var(--mkf-bg) var(--mkf-op), transparent);
@@ -81,12 +81,12 @@
     .mk-nav.is-float .mk-mobile-nav { margin: 8px auto 0; max-width: var(--mk-max); border-radius: 20px; border: 0.5px solid rgba(255,255,255,.08); background: color-mix(in srgb, var(--mkf-bg) 96%, transparent); }
     @media (max-width: 860px) { .mk-nav.is-float { padding: 10px 12px 0; } .mk-nav.is-float .mk-nav-inner { padding: 8px 8px 8px 16px; } }
 
-    /* MARKER-MKT-FLOAT-OVERLAP — the first section runs up behind the floating bar:
+    /* the first section runs up behind the floating bar:
        the header gives back its height, and that section gains the same space as a
        transparent top border its background paints under. */
     .mk-nav.is-float { margin-bottom: calc(-1 * var(--mkf-h, 76px)); }
 
-    /* MARKER-MKT-NAV-POLISH — spacing presets, link color, glass phone menu */
+    /* spacing presets, link color, glass phone menu */
     .mk-nav.is-float { padding-top: var(--mkf-out, 18px); }
     .mk-nav.is-float .mk-nav-inner { padding: var(--mkf-pad, 12px 14px 12px 24px); }
     .mk-nav.has-link .mk-nav-link, .mk-nav.has-link .mk-nav-signin, .mk-nav.has-link .mk-mobile-nav a { color: var(--mkf-link); opacity: .78; }
@@ -104,7 +104,7 @@
         .mk-nav.is-float .mk-nav-inner { padding: var(--mkf-pad-m, 8px 8px 8px 16px); }
     }
 
-    /* MARKER-MKT-HAMBURGER — three lines morph into an X */
+    /* three lines morph into an X */
     .mk-hamburger { cursor: pointer; transition: transform .2s ease; }
     .mk-hamburger:hover { transform: scale(1.06); }
     .mk-hamburger span { transition: transform .25s ease, opacity .2s ease; }
@@ -112,9 +112,9 @@
     .mk-hamburger.is-open span:nth-child(2) { opacity: 0; }
     .mk-hamburger.is-open span:nth-child(3) { transform: translateY(-6.5px) rotate(-45deg); }
     @media (prefers-reduced-motion: reduce) { .mk-hamburger, .mk-hamburger span { transition: none; } }
-    /* MARKER-MKT-MENU-GROUPS — dropdown panels (desktop) and accordion (phone) */
+    /* dropdown panels (desktop) and accordion (phone) */
     .mk-dd { position: relative; }
-    .mk-dd-btn { display: inline-flex; align-items: center; gap: 6px; background: none; border: 0; font-family: inherit; cursor: pointer; } /* MARKER-NAV-DD-SIZE */
+    .mk-dd-btn { display: inline-flex; align-items: center; gap: 6px; background: none; border: 0; font-family: inherit; cursor: pointer; }
     .mk-dd-btn svg { transition: transform .2s; opacity: .7; }
     .mk-dd.on .mk-dd-btn svg { transform: rotate(180deg); }
     .mk-dd-panel { position: absolute; top: calc(100% + 14px); left: 50%; z-index: 60; transform: translateX(-50%) translateY(-6px); opacity: 0; visibility: hidden; pointer-events: none;
@@ -145,43 +145,40 @@
     .mk-mg-feat b { color: var(--mk-accent) !important; }
 </style>
 
-{{-- MARKER-MKT-NAV — drawn from master admin › Site & content › Navigation
+{{-- drawn from master admin › Site & content › Navigation
      (App\Support\MarketingNav). The only source: no hard-coded links or
      buttons. $menuItems is passed only by the Navigation page's preview.
-     MARKER-MKT-LOGO — the Brand page's logo, sized by height only. --}}
+     the Brand page's logo, sized by height only. --}}
 @php
     $mkMenu  = isset($menuItems) && is_array($menuItems) ? $menuItems : \App\Support\MarketingNav::items();
-    $mkHead  = \App\Support\MarketingNav::header(isset($menuHeader) && is_array($menuHeader) ? $menuHeader : null); // MARKER-MKT-NAV-FLOAT
-    // MARKER-MKT-NAV-POLISH
+    $mkHead  = \App\Support\MarketingNav::header(isset($menuHeader) && is_array($menuHeader) ? $menuHeader : null);
     $mkSpace = ['tight'  => ['10px', '8px 10px 8px 18px',   '8px',  '6px 6px 6px 14px'],
                 'normal' => ['18px', '12px 14px 12px 24px', '10px', '8px 8px 8px 16px'],
                 'roomy'  => ['26px', '16px 18px 16px 30px', '14px', '10px 10px 10px 18px']][$mkHead['space']];
     $mkLink  = \App\Support\MarketingNav::linkColour($mkHead);
-    // MARKER-MKT-NAV-PHONE
     $mkHeadP  = \App\Support\MarketingNav::phoneHeader($mkHead);
     $mkSpaceP = ['tight'  => ['8px',  '6px 6px 6px 14px'],
                  'normal' => ['10px', '8px 8px 8px 16px'],
                  'roomy'  => ['14px', '10px 10px 10px 18px']][$mkHeadP['space']];
     $mkLinkP  = \App\Support\MarketingNav::linkColour($mkHeadP);
-    // MARKER-MKT-NAV-EDGEROOM — a chosen edge room replaces the preset's left/right padding.
+    // a chosen edge room replaces the preset's left/right padding.
     $mkEdge   = function ($pad, $x) { if (! $x) return $pad; $p = explode(' ', $pad); $p[1] = $p[3] = $x . 'px'; return implode(' ', $p); };
     $mkSpace[1]  = $mkEdge($mkSpace[1], $mkHead['pad_x']);
     $mkSpaceP[1] = $mkEdge($mkSpaceP[1], $mkHeadP['pad_x']);
-    // MARKER-MKT-NAV-TOP — a chosen distance from the top replaces the preset's
+    // a chosen distance from the top replaces the preset's
     if (($mkHead['top_gap'] ?? -1) >= 0)  $mkSpace[0]  = $mkHead['top_gap'] . 'px';
     if (($mkHeadP['top_gap'] ?? -1) >= 0) $mkSpaceP[0] = $mkHeadP['top_gap'] . 'px';
     $mkVars   = fn ($h, $out, $pad, $link) => '--mkf-bg:' . $h['bg'] . ';--mkf-op:' . $h['opacity'] . '%;--mkf-blur:' . $h['blur'] . 'px;'
         . '--mkf-pill:color-mix(in srgb, ' . $h['pill'] . ' ' . $h['pill_strength'] . '%, transparent);'
         . '--mkf-out:' . $out . ';--mkf-pad:' . $pad . ';--mkf-link:' . ($link ?: 'var(--mk-muted)') . ';'
-    . '--mkf-fade:' . (! empty($h['fade']) ? '1' : '0') . ';' // MARKER-MKT-NAV-EDGE
-    // MARKER-MKT-NAV-BUTTONS / MENU — unset values fall back ("initial" makes var() use its fallback)
+    . '--mkf-fade:' . (! empty($h['fade']) ? '1' : '0') . ';'
+    // / MENU — unset values fall back ("initial" makes var() use its fallback)
     . '--mkf-btn-text:' . ($h['btn_text'] ?: 'initial') . ';--mkf-btn-fill:' . ($h['btn_fill'] ?: 'initial') . ';'
     . '--mkf-btn-dist:' . (int) $h['btn_dist'] . 'px;'
     . '--mkf-menu-bg:' . ($h['menu_bg'] ?: 'initial') . ';--mkf-menu-link:' . ($h['menu_link'] ?: 'initial') . ';';
     $mkHere  = '/' . ltrim(request()->path(), '/');
     $mkLeft  = array_values(array_filter($mkMenu, fn ($i) => $i['side'] === 'left'));
     $mkRight = array_values(array_filter($mkMenu, fn ($i) => $i['side'] === 'right'));
-    // MARKER-MKT-MENU-GROUPS
     $mkGroups = isset($menuGroups) && is_array($menuGroups) ? $menuGroups : \App\Support\MarketingNav::menuGroups();
     $mkBar    = \App\Support\MarketingNav::structure($mkLeft, $mkGroups);
     $mkClass = function (array $i, string $where) use ($mkHere): string {
@@ -193,7 +190,7 @@
     };
 @endphp
 <style>
-    /* MARKER-MKT-NAV-EDGE — clear the phone's status bar; soft fade behind the bar */
+    /* clear the phone's status bar; soft fade behind the bar */
     #mk-nav { padding-top: env(safe-area-inset-top, 0px); }
     #mk-nav.is-float { padding-top: calc(var(--mkf-out) + env(safe-area-inset-top, 0px)) !important; }
     #mk-nav.is-float::before {
@@ -203,18 +200,18 @@
         backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
         mask-image: linear-gradient(to bottom, #000 45%, transparent); -webkit-mask-image: linear-gradient(to bottom, #000 45%, transparent);
     }
-    /* MARKER-MKT-NAV-BUTTONS — button colors, same in the bar and the ☰ menu */
+    /* button colors, same in the bar and the ☰ menu */
     #mk-nav .mk-btn--primary { background: var(--mkf-btn-fill, var(--mk-accent)); color: var(--mkf-btn-text, var(--mk-accent-text)); }
     #mk-nav .mk-btn--ghost { color: var(--mkf-btn-text, var(--mk-text)); border-color: var(--mkf-btn-fill, rgba(255,255,255,.2)); }
-    /* MARKER-MKT-NAV-MENU — the phone menu's own colors */
+    /* the phone menu's own colors */
     #mk-nav .mk-mobile-nav a:not(.mk-btn) { color: var(--mkf-menu-link, var(--mkf-link, var(--mk-muted))); }
     #mk-nav .mk-mobile-nav { background-color: var(--mkf-menu-bg, var(--mk-bg, #0c0c0c)); }
     #mk-nav.is-float .mk-mobile-nav { background: color-mix(in srgb, var(--mkf-menu-bg, var(--mkf-bg)) var(--mkf-op), transparent); }
-    /* MARKER-MKT-NAV-BTNPOS — where the header buttons sit on phones */
+    /* where the header buttons sit on phones */
     #mk-nav .mk-mobile-cta { display: none; }
     @media (max-width: 860px) {
-        /* MARKER-MKT-NAV-BUTTONS — in the bar, a set distance from ☰ */
-        /* MARKER-MKT-NAV-BTNDIST-V2 — logo left, button + ☰ right, slider = gap between them */
+        /* in the bar, a set distance from ☰ */
+        /* logo left, button + ☰ right, slider = gap between them */
         #mk-nav[data-btnpos="bar"] .mk-nav-inner { gap: 0 !important; }
         #mk-nav[data-btnpos="bar"] .mk-logo { margin-right: auto !important; }
         #mk-nav[data-btnpos="bar"] .mk-nav-end { margin-left: 0 !important; margin-right: 0 !important; }
@@ -222,7 +219,7 @@
         #mk-nav[data-btnpos="menu"] .mk-nav-end .mk-btn { display: none; }
         #mk-nav[data-btnpos="menu"] .mk-mobile-cta { display: flex; justify-content: center; width: 100%; box-sizing: border-box; margin: 4px 0 8px; border-bottom: 0; }
     }
-    /* MARKER-MKT-NAV-PHONE — desktop and phone header settings */
+    /* desktop and phone header settings */
     #mk-nav { {{ $mkVars($mkHead, $mkSpace[0], $mkSpace[1], $mkLink) }} }
     @media (max-width: 860px) {
         #mk-nav { {{ $mkVars($mkHeadP, $mkSpaceP[0], $mkSpaceP[1], $mkLinkP) }} }
@@ -230,7 +227,7 @@
         #mk-nav.is-float .mk-nav-inner { padding: var(--mkf-pad); }
     }
 </style>
-{{-- MARKER-NAV-WEIGHT — link weight and brightness from the Navigation page --}}
+{{-- link weight and brightness from the Navigation page --}}
 <style>
   #mk-nav .mk-nav-link, #mk-nav .mk-nav-signin, #mk-nav .mk-dd-trigger { font-weight: {{ $mkHead['link_weight'] ?? '500' }}; }
   @if(($mkHead['link_bright'] ?? 'soft') === 'bright')
@@ -246,7 +243,7 @@
         </a>
 
         <div class="mk-nav-links">
-            {{-- MARKER-MKT-MENU-GROUPS — plain links and grouped dropdowns --}}
+            {{-- plain links and grouped dropdowns --}}
             @foreach($mkBar as $mkB)
                 @if($mkB['kind'] === 'link')
                     @php $i = $mkB['item']; @endphp
@@ -293,13 +290,13 @@
     {{-- Phone: links (and right-side links) live in the panel; right-side
          buttons stay in the bar above. --}}
     <div class="mk-mobile-nav" id="mk-mobile-nav">
-        {{-- MARKER-MKT-NAV-BTNPOS — the header buttons, shown here when "In menu only" --}}
+        {{-- the header buttons, shown here when "In menu only" --}}
         @foreach($mkRight as $i)
             @if($i['style'] !== 'link')
                 <a href="{{ $i['url'] }}" class="mk-btn {{ $i['style'] === 'button' ? 'mk-btn--primary' : 'mk-btn--ghost' }} mk-mobile-cta" @if($i['tab']) target="_blank" rel="noopener" @endif>{{ $i['label'] }}</a>
             @endif
         @endforeach
-        {{-- MARKER-MKT-MENU-GROUPS — groups as an accordion, plain links as rows --}}
+        {{-- groups as an accordion, plain links as rows --}}
         @foreach($mkBar as $mkB)
             @if($mkB['kind'] === 'link')
                 <a href="{{ $mkB['item']['url'] }}" @if($mkB['item']['tab']) target="_blank" rel="noopener" @endif>{{ $mkB['item']['label'] }}</a>
@@ -326,14 +323,14 @@
         @endforeach
     </div>
 </nav>
-{{-- MARKER-MKT-NAV-POLISH — measure the floating bar so the page tucks under it exactly. --}}
+{{-- measure the floating bar so the page tucks under it exactly. --}}
 <script>
 (function () {
     var nav = document.getElementById('mk-nav');
     if (!nav) return;
     var inner = nav.querySelector('.mk-nav-inner');
     var phone = window.matchMedia('(max-width: 860px)');
-    // MARKER-MKT-NAV-PHONE — desktop and phone can use different styles.
+    // desktop and phone can use different styles.
     function apply() {
         var style = phone.matches ? nav.dataset.stylePhone : nav.dataset.styleDesktop;
         nav.classList.toggle('is-float', style === 'float');
@@ -349,7 +346,7 @@
 })();
 </script>
 <script>
-/* MARKER-MKT-MENU-GROUPS — dropdowns: hover or click, Esc / outside click closes; phone accordion one-at-a-time */
+/* dropdowns: hover or click, Esc / outside click closes; phone accordion one-at-a-time */
 (function () {
   var dds = Array.prototype.slice.call(document.querySelectorAll('#mk-nav .mk-dd'));
   if (!dds.length && !document.querySelector('#mk-nav .mk-mg')) return;

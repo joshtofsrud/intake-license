@@ -12,13 +12,13 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    @include('partials.mobile-input-zoom') {{-- MARKER-MOBILE-INPUT-ZOOM --}}
+    @include('partials.mobile-input-zoom')
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>{{ $pageTitle ?? 'Page editor' }} — Intake admin</title>
 
 
-    <link rel="stylesheet" href="{{ asset('css/fonts.css') }}">{{-- MARKER-SELFHOST-FONTS-2 --}}
-    <link rel="stylesheet" href="{{ asset('css/tenant/confirm.css') }}?v={{ filemtime(public_path('css/tenant/confirm.css')) }}">{{-- MARKER-BUILDER-DIALOGS --}}
+    <link rel="stylesheet" href="{{ asset('css/fonts.css') }}">
+    <link rel="stylesheet" href="{{ asset('css/tenant/confirm.css') }}?v={{ filemtime(public_path('css/tenant/confirm.css')) }}">
     <style>
         /* ================================================================
            Minimal admin chrome for the page editor.
@@ -137,10 +137,9 @@
         // Global the editor script expects — CSRF token for auto-save calls.
         window.IntakeAdmin = { csrfToken: '{{ csrf_token() }}' };
     </script>
-    <script src="{{ asset('js/tenant/confirm.js') }}?v={{ filemtime(public_path('js/tenant/confirm.js')) }}" defer></script>{{-- MARKER-BUILDER-DIALOGS --}}
+    <script src="{{ asset('js/tenant/confirm.js') }}?v={{ filemtime(public_path('js/tenant/confirm.js')) }}" defer></script>
 
     @stack('styles')
-    {{-- MARKER-EDITOR-SHELL-FIX --}}
     <link rel="icon" href="{{ \App\Support\Brand::url('favicon') }}">
     <style>
       /* This shell has no sidebar: the builder spans the full width and starts
@@ -153,7 +152,7 @@
 
 <div class="ia-topbar">
     <a href="/admin" class="ia-topbar-logo">
-        {{-- MARKER-EDITOR-SHELL-FIX — the Brand page's wordmark, not a hand-drawn mark --}}
+        {{-- the Brand page's wordmark, not a hand-drawn mark --}}
         <img src="{{ \App\Support\Brand::url('logo') }}" alt="Intake" class="ia-topbar-logo-img">
     </a>
     <div class="ia-topbar-breadcrumb">

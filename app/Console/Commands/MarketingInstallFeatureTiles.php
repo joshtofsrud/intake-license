@@ -9,7 +9,7 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
 /**
- * MARKER-FEATURE-TILES — puts a Feature tiles section on intake.works/features, filled with the
+ * puts a Feature tiles section on intake.works/features, filled with the
  * tiles from its Custom HTML section, and hides (does not delete) that Custom HTML section.
  * The footer line drops "No credit card to start" — signup takes a card.
  */

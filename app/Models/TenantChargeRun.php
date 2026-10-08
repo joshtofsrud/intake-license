@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-// MARKER-BILLING-CHARGE — one attempt to settle a balance, and what became of it.
+// one attempt to settle a balance, and what became of it.
 class TenantChargeRun extends Model
 {
     use HasUuids;
@@ -15,7 +15,7 @@ class TenantChargeRun extends Model
 
     protected $fillable = [
         'tenant_id', 'status', 'amount_cents', 'message_count', 'idempotency_key',
-        // MARKER-BILLING-TAX-ROOM — zero until tax is switched on, but the
+        // zero until tax is switched on, but the
         // shape is right so enabling it is not a migration against live money.
         'subtotal_cents', 'tax_cents', 'tax_jurisdiction', 'tax_rate',
         'stripe_payment_intent_id', 'failure_code', 'failure_message', 'attempts',
@@ -41,7 +41,7 @@ class TenantChargeRun extends Model
         return $this->belongsTo(Tenant::class);
     }
 
-    /** MARKER-BILLING-TAX-ROOM — true once anything is actually taxed. */
+    /** true once anything is actually taxed. */
     public function hasTax(): bool
     {
         return (int) $this->tax_cents > 0;

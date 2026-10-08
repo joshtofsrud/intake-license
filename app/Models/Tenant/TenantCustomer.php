@@ -14,16 +14,14 @@ class TenantCustomer extends Authenticatable
     protected $table    = 'tenant_customers';
     protected $fillable = [
         'tenant_id','first_name','last_name','email','phone',
-        'sms_opt_out_at','sms_consent_source', // MARKER-PATCH-221
-        // MARKER-EMAIL-CONSENT
+        'sms_opt_out_at','sms_consent_source',
         'email_marketing_consent_at','email_marketing_consent_source','email_marketing_opt_out_at',
         'address_line1','address_line2','city','state','postcode','country',
         'notes','stripe_customer_id','wp_source_url',
         'password','remember_token','email_verified_at',
         'password_reset_token','password_reset_sent_at',
         'is_vip',
-        'erased_at', // MARKER-CUST-ADMIN
-        // MARKER-BIZ-CUSTOMER
+        'erased_at',
         'customer_type', 'business_name',
         'tax_exempt', 'tax_exempt_certificate',
         'payment_terms', 'po_required',
@@ -32,27 +30,26 @@ class TenantCustomer extends Authenticatable
     protected $hidden = ['password','remember_token'];
 
     protected $casts = [
-        'tax_exempt'             => 'boolean', // MARKER-BIZ-CUSTOMER
-        'po_required'            => 'boolean', // MARKER-BIZ-CUSTOMER
+        'tax_exempt'             => 'boolean',
+        'po_required'            => 'boolean',
         'email_verified_at'      => 'datetime',
         'password_reset_sent_at' => 'datetime',
-        // MARKER-EMAIL-CONSENT
         'email_marketing_consent_at' => 'datetime',
         'email_marketing_opt_out_at' => 'datetime',
         'password'               => 'hashed',
     ];
 
-    // MARKER-EMAIL-CONSENT — mailable for MARKETING. Send-time suppression
+    // mailable for MARKETING. Send-time suppression
     // (bounce/complaint) is checked separately and blocks everything.
     public function emailMarketingMailable(): bool
     {
         return $this->email_marketing_consent_at !== null
             && $this->email_marketing_opt_out_at === null
-            && $this->erased_at === null; // MARKER-CUST-ADMIN
+            && $this->erased_at === null;
     }
 
     /**
-     * MARKER-CUST-ADMIN — erased customers stay in the table so their sales
+     * erased customers stay in the table so their sales
      * and bookings still resolve, but they are not people any more: keep them
      * out of every list, search, picker and audience.
      */
@@ -74,10 +71,9 @@ class TenantCustomer extends Authenticatable
     }
 
     public function tenant(): BelongsTo       { return $this->belongsTo(Tenant::class); }
-    // MARKER-CUSTOMER-TAGS
     public function tags(): \Illuminate\Database\Eloquent\Relations\BelongsToMany
     {
-        // MARKER-TAG-PIVOT-FIX — the pivot has created_at only. withTimestamps()
+        // the pivot has created_at only. withTimestamps()
         // also selects pivot_updated_at, which does not exist: 1054 on every
         // read of this relation.
         return $this->belongsToMany(TenantCustomerTag::class, 'tenant_customer_tag_pivot', 'customer_id', 'tag_id')->withPivot('created_at');
@@ -85,7 +81,7 @@ class TenantCustomer extends Authenticatable
     public function appointments(): HasMany   { return $this->hasMany(TenantAppointment::class, 'customer_id'); }
     public function specialOrders(): HasMany  { return $this->hasMany(TenantSpecialOrder::class, 'customer_id'); }
     public function notes(): HasMany          { return $this->hasMany(TenantCustomerNote::class, 'customer_id')->orderByDesc('created_at'); }
-    // MARKER-BIZ-CUSTOMER — one display name for the whole app. A business
+    // one display name for the whole app. A business
     // shows its business name; an individual is unchanged. Everything that
     // renders a customer name routes through here so a business record can
     // never surface a person's name by accident.
@@ -127,7 +123,7 @@ class TenantCustomer extends Authenticatable
         };
     }
 
-    /** MARKER-BIZ-CUSTOMER — people at a business customer. */
+    /** people at a business customer. */
     public function contacts()
     {
         return $this->hasMany(TenantCustomerContact::class, 'customer_id')
@@ -141,7 +137,6 @@ class TenantCustomer extends Authenticatable
             ->where('is_primary', true);
     }
 
-    // MARKER-PATCH-158-A
     public function assets(): HasMany         { return $this->hasMany(TenantCustomerAsset::class, 'customer_id'); }
     public function activeAssets(): HasMany   { return $this->hasMany(TenantCustomerAsset::class, 'customer_id')->whereNull('archived_at'); }
 

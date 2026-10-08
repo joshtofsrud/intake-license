@@ -1,6 +1,5 @@
 @extends('public.account._shell')
 @php $pageTitle = 'Orders'; @endphp
-{{-- MARKER-PORTAL-V2 --}}
 @push('styles')
   @include('public.account.portal._portal-css')
 @endpush
@@ -22,7 +21,7 @@
   @endforelse
 </div>
 
-{{-- MARKER-PORTAL-V2 — in-store purchase history off tenant_sales --}}
+{{-- in-store purchase history off tenant_sales --}}
 <div class="ac-section-title">In-store purchases</div>
 <div class="ac-list">
   @forelse($sales as $s)

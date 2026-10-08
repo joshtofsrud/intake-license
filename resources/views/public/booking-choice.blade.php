@@ -1,6 +1,6 @@
 @extends('public._booking-shell')
 @php
-  // MARKER-PATCH-598 — choice fork now extends _booking-shell. Theme/color vars
+  // choice fork now extends _booking-shell. Theme/color vars
   // come from the shell; keep view-local bits + recompute the theme flag for pushed CSS.
   $pageTitle = 'Book online';
   $showBackLink = true;
@@ -74,7 +74,7 @@
     document.querySelectorAll('.fcard').forEach(function(el){
       el.addEventListener('click', function(){
         try {
-          // MARKER-FUNNEL-SESSION-FIX — route through the shared tracker so
+          // route through the shared tracker so
           // every event carries the client-minted session id; the old
           // sessionStorage guard is gone (its tab lifetime disagreed with
           // session + report-window semantics — distinct-session counting

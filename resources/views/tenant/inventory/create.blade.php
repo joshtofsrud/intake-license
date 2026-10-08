@@ -22,11 +22,11 @@
 @endif
 
 <form method="POST" action="{{ route('tenant.inventory.store') }}"
-      data-identify-url="{{ route('tenant.inventory.identify') }}" data-identify-mode="create">{{-- MARKER-LIVE-IDENTIFY --}}
+      data-identify-url="{{ route('tenant.inventory.identify') }}" data-identify-mode="create">
   @csrf
   <input type="hidden" name="duplicate_ok" value="">
 
-  {{-- MARKER-BARCODE-IDENTITY — the barcode is already on an item. --}}
+  {{-- the barcode is already on an item. --}}
   @if(session('barcode_duplicate'))
     @php $bd = session('barcode_duplicate'); @endphp
     <div class="ia-flash" style="border:0.5px solid var(--ia-accent);margin-bottom:16px">
@@ -49,10 +49,10 @@
     <div class="ia-card-head"><span class="ia-card-title">Item details</span></div>
     <div class="ia-card-body">
 
-      {{-- MARKER-IDENT-ENTRY-FIX — first thing on the form: the question is
+      {{-- first thing on the form: the question is
            whether this product is already known, and every other field
            depends on the answer.
-           MARKER-ITEM-IDENT-ENTRY — look it up before typing it. Picking a row
+           look it up before typing it. Picking a row
            fills the fields below AND links the item, so it behaves like an
            imported one from then on: cost updates, rename flags, reordering. --}}
       <div class="ia-form-group" id="cat-lookup-wrap">
@@ -85,7 +85,7 @@
         </div>
       </div>
 
-      {{-- MARKER-ITEM-IDENT-ENTRY — these three are what link an item to a
+      {{-- these three are what link an item to a
            distributor catalog. Without them a hand-entered item matches
            nothing, never updates its cost, and cannot be reordered. --}}
       
@@ -115,11 +115,11 @@
 
       <div class="ia-form-group">
         <label class="ia-form-label">Category <span class="ia-required">*</span></label>
-        {{-- MARKER-SSEL-CATS — see edit.blade.php --}}
+        {{-- see edit.blade.php --}}
         @php
           $catOpts = [];
           foreach ($categories as $opt) {
-              // MARKER-CAT-DEPTH-INDENT — one marker per level, so a grandchild
+              // one marker per level, so a grandchild
               // reads as a grandchild instead of a sibling of its parent.
               $catOpts[$opt['cat']->id] = str_repeat("\u{00A0}\u{00A0}\u{00A0}", max(0, $opt['depth'] - 1))
                   . ($opt['depth'] ? '└ ' : '') . $opt['cat']->name;
@@ -228,9 +228,9 @@
 @endsection
 
 @push('scripts')
-<script src="{{ asset('js/tenant/item-identify.js') }}?v=1"></script>{{-- MARKER-LIVE-IDENTIFY --}}
+<script src="{{ asset('js/tenant/item-identify.js') }}?v=1"></script>
 <script>
-// MARKER-ITEM-IDENT-ENTRY — barcode scanners send Enter the moment they finish
+// barcode scanners send Enter the moment they finish
 // reading. On a form that submits on Enter this saves a half-filled item and
 // clears the screen, which is why WMM had been typing everything else FIRST and
 // scanning last. These fields swallow it and move on instead.
@@ -318,7 +318,7 @@ document.querySelectorAll('.ia-scan-field').forEach(function (el) {
 
     // Only ever fills blanks — anything already typed is the shop's own choice.
     setIfEmpty('name', r.name);
-    // MARKER-IDENT-ENTRY-FIX — not every catalog row carries a product_key, and
+    // not every catalog row carries a product_key, and
     // an empty SKU on a required field sends the user back to typing one.
     setIfEmpty('sku', r.product_key || r.variant_no || r.mpn);
     setIfEmpty('description', r.description);
@@ -332,7 +332,7 @@ document.querySelectorAll('.ia-scan-field').forEach(function (el) {
     setIfEmpty('shop_case_quantity', r.case_qty);
 
     hidden.value = r.id;
-    // MARKER-IDENT-ENTRY-FIX — the full title is already in the Name field
+    // the full title is already in the Name field
     // directly above; repeating it here and in the result row put the same
     // 90 characters on screen three times. Identify the LINK, not the product.
     label.textContent = 'Linked to ' + r.distributor

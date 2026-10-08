@@ -2,7 +2,7 @@
 @php $pageTitle = 'Orders'; @endphp
 
 @section('content')
-{{-- MARKER-PATCH-567 — online orders queue. Underline tabs per the tab rule. --}}
+{{-- online orders queue. Underline tabs per the tab rule. --}}
 <style>
   .od-tabs{display:flex;gap:24px;border-bottom:0.5px solid var(--ia-border);margin:4px 0 20px}
   .od-tab{padding:0 2px 11px;margin-bottom:-0.5px;font-weight:600;font-size:13px;color:var(--ia-text-muted);border-bottom:2px solid transparent;text-decoration:none}
@@ -25,7 +25,7 @@
 
 <div class="ia-page-head">
   <div class="ia-page-head-left"><h1 class="ia-page-title">Orders</h1></div>
-  <a class="ia-btn ia-btn--ghost ia-btn--sm" href="{{ route('tenant.storefront.settings') }}">Storefront settings</a>{{-- MARKER-PATCH-569 --}}
+  <a class="ia-btn ia-btn--ghost ia-btn--sm" href="{{ route('tenant.storefront.settings') }}">Storefront settings</a>
 </div>
 
 <div class="od-tabs">

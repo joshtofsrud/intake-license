@@ -67,7 +67,6 @@
   </div>
 @else
 
-{{-- MARKER-SO-ORIGIN --}}
 <style>
   .so-origin{font-size:10.5px;font-weight:700;border-radius:100px;padding:3px 9px;white-space:nowrap;border:0.5px solid var(--ia-border);color:var(--ia-text-muted)}
   .so-origin--live{border-color:rgba(143,184,240,.35);color:#8FB8F0;background:rgba(143,184,240,.08)}
@@ -81,9 +80,9 @@
   .so-oa[disabled]{opacity:.5;cursor:default}
 </style>
 
-{{-- MARKER-SO-ONESCREEN — grouped mode replaces both renderers, so the same
+{{-- grouped mode replaces both renderers, so the same
      orders are never shown twice, and it works on phones as well as desktop. --}}
-@if($grouped) {{-- MARKER-SO-SCROLL — open orders ARE the grouped screen --}}
+@if($grouped) {{-- open orders ARE the grouped screen --}}
   @include('tenant.special-orders._vendor_groups')
 @else
 
@@ -97,7 +96,7 @@
           <th>Qty</th>
           <th>For</th>
           <th>Vendor</th>
-          <th>Origin</th>{{-- MARKER-SO-ORIGIN --}}
+          <th>Origin</th>
           <th>Status</th>
           <th>ETA</th>
         </tr>
@@ -137,7 +136,7 @@
                 <span class="ia-text-muted" style="font-size:12px">TBD</span>
               @endif
             </td>
-            {{-- MARKER-SO-ORIGIN — where it came from, and whether that source
+            {{-- where it came from, and whether that source
                  still exists. Orphans carry their two honest choices inline. --}}
             @php $og = $origins[$so->id] ?? ['state' => 'manual', 'label' => '—']; @endphp
             <td onclick="event.stopPropagation()" style="cursor:default">
@@ -206,7 +205,7 @@
           @if($so->vendor) · {{ $so->vendor->name }} @endif
           @if($so->expected_arrival_date) · ETA {{ $so->expected_arrival_date->format('M j') }} @endif
         </div>
-        {{-- MARKER-SO-ORIGIN-MOBILE — the desktop table showed origin and its
+        {{-- the desktop table showed origin and its
              actions; the cards did not, which is where triage actually
              happens. Same data, same actions, thumb-sized. --}}
         @php $og = $origins[$so->id] ?? null; @endphp
@@ -228,9 +227,9 @@
       </a>
     @endforeach
   </div>
-@endif{{-- MARKER-SO-ONESCREEN --}}
+@endif
 
-  @if($totalPages > 1 && !$grouped) {{-- MARKER-SO-SCROLL — the open view scrolls instead of paging --}}
+  @if($totalPages > 1 && !$grouped) {{-- the open view scrolls instead of paging --}}
     <div class="ia-pagination">
       @for($p = 1; $p <= $totalPages; $p++)
         <a href="{{ route('tenant.special-orders.index', array_merge(request()->query(), ['page' => $p])) }}"
@@ -358,7 +357,7 @@
 </style>
 @endpush
 
-{{-- MARKER-SO-ORIGIN — resolve an orphaned request without leaving the list --}}
+{{-- resolve an orphaned request without leaving the list --}}
 <script>
 (function () {
   var confirmUrl = @json(route('tenant.special-orders.confirm-source', ['id' => '__ID__']));

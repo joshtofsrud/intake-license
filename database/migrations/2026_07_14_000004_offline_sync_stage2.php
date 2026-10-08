@@ -1,6 +1,6 @@
 <?php
 
-// MARKER-OFFLINE-SYNC — stage 2: idempotent time-clock punch replay.
+// stage 2: idempotent time-clock punch replay.
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;

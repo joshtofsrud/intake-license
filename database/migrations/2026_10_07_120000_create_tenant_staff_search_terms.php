@@ -1,5 +1,5 @@
 <?php
-// MARKER-INV-SEARCH — staff search vocabulary for typo correction.
+// staff search vocabulary for typo correction.
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;

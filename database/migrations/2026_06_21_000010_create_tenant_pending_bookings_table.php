@@ -4,7 +4,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-// MARKER-PATCH-382 — holds a booking slot while a deposit is being charged.
+// holds a booking slot while a deposit is being charged.
 // The appointment is materialized from this row only after payment succeeds.
 return new class extends Migration {
     public function up(): void

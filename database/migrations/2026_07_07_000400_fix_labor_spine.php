@@ -1,5 +1,5 @@
 <?php
-// MARKER-PATCH-612B — repair partial 612 migration:
+// repair partial 612 migration:
 //   • 612 died on the too-long auto index name for time_off_requests' second
 //     composite index (MySQL 64-char limit), leaving that index missing and
 //     tenant_availability uncreated. This adds both with short explicit names.

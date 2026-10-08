@@ -1,5 +1,4 @@
 <?php
-// MARKER-PATCH-152A
 
 namespace App\Models\Tenant;
 
@@ -10,7 +9,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class TenantDelivery extends Model
 {
-    // MARKER-PICKUP-OUTREACH — scheduling a pickup for an appointment
+    // scheduling a pickup for an appointment
     // resolves its "reach out about pickup" flag, whichever path created it.
     protected static function booted(): void
     {
@@ -35,8 +34,8 @@ class TenantDelivery extends Model
         'notes',
         'notified_at', 'notification_channels',
         'completed_at', 'cancelled_at',
-        'reminded_at', // MARKER-PATCH-155
-        'assets', // MARKER-PATCH-427 — snapshot of bikes on this run
+        'reminded_at',
+        'assets', // snapshot of bikes on this run
     ];
 
     protected $casts = [
@@ -45,8 +44,8 @@ class TenantDelivery extends Model
         'notified_at'    => 'datetime',
         'completed_at'   => 'datetime',
         'cancelled_at'   => 'datetime',
-        'reminded_at'    => 'datetime', // MARKER-PATCH-155
-        'assets'         => 'array', // MARKER-PATCH-427
+        'reminded_at'    => 'datetime',
+        'assets'         => 'array',
     ];
 
     public const TYPE_PICKUP  = 'pickup';

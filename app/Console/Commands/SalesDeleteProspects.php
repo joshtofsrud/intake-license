@@ -9,7 +9,7 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
 /**
- * MARKER-SALES-RESET — delete every sales prospect and its timeline.
+ * delete every sales prospect and its timeline.
  *
  * Keeps reps, agencies, industries, territories, Places search history and
  * spend. Commission entries keep their money lines; only their link to the

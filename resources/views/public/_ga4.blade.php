@@ -1,4 +1,4 @@
-{{-- MARKER-SHOP-GA4 — the shop's own GA4 tag (Settings › Analytics), shared by
+{{-- the shop's own GA4 tag (Settings › Analytics), shared by
      the funnel tracker and the standalone rental pages so every public shop
      page reports. --}}
 @php

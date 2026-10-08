@@ -1,5 +1,5 @@
 {{--
-  MARKER-PATCH-576 — products_showcase editor.
+  products_showcase editor.
   Content: copy + category filter + limits + display toggles + CTA.
   Style: background color. The public partial pulls live show_online items,
   so nothing is curated here — the storefront is the source of truth.

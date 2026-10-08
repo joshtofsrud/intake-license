@@ -1,5 +1,4 @@
 <?php
-// MARKER-PATCH-HLCC
 
 namespace App\Console\Commands;
 

@@ -1,4 +1,4 @@
-{{-- MARKER-INV-EMPTY — shared by the desktop card and the mobile list.
+{{-- shared by the desktop card and the mobile list.
      $emptyVariant is 'desk' or 'mobile' and only affects sizing. --}}
 @php
   $pad = $emptyVariant === 'mobile' ? '32px 18px' : '40px 20px';
@@ -70,7 +70,7 @@
     @endif
 
     @if(!empty($suggestBrands) || !empty($suggestCategories))
-      {{-- MARKER-INV-EMPTY — legend: these counts are across ALL stock levels
+      {{-- legend: these counts are across ALL stock levels
            and the links clear the stock filter. Without saying so, a count of
            42 next to a page showing 0 reads as a bug. --}}
       <div style="margin-top:12px;font-size:11px;color:var(--ia-text-dim)">

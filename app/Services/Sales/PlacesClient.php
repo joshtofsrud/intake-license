@@ -1,5 +1,5 @@
 <?php
-// MARKER-SALES-FIND — thin client over the Places API (New) Text Search endpoint.
+// thin client over the Places API (New) Text Search endpoint.
 
 namespace App\Services\Sales;
 
@@ -57,7 +57,7 @@ class PlacesClient
         return $out;
     }
 
-    /** MARKER-SALES-BOARD — one place by id (Place Details). */
+    /** one place by id (Place Details). */
     public function details(string $placeId): ?array
     {
         if (! $this->key) throw new \RuntimeException('Google Places key is not set.');
@@ -70,7 +70,7 @@ class PlacesClient
         return $res->json() ?: null;
     }
 
-    /** MARKER-SALES-BOARD — best single match for a free-text query (used when a prospect has no place id). */
+    /** best single match for a free-text query (used when a prospect has no place id). */
     public function findOne(string $query): ?array
     {
         $r = $this->post(['textQuery' => $query, 'pageSize' => 1], self::FIELDS);

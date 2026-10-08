@@ -13,12 +13,12 @@
   ];
   $stockLabels = [
     ''     => 'All stock levels',
-    // MARKER-INV-IN-STOCK — the common case, and first after "all": with
+    // the common case, and first after "all": with
     // catalog imports the list is mostly items the shop does not hold.
     'in'   => 'In stock only',
     'low'  => 'Low stock only',
     'out'  => 'Out of stock only',
-    // MARKER-INV-LIST — was a header button; it's a state, not a place.
+    // was a header button; it's a state, not a place.
     'archived' => 'Archived',
   ];
 @endphp
@@ -106,12 +106,11 @@
 .inv-row td { vertical-align: middle; }
 .inv-row-bar { padding: 0 !important; }
 .inv-row-identity { padding-left: 12px !important; }
-/* MARKER-INV-LIST — two lines, not eight. Row height falls from ~300px
+/* two lines, not eight. Row height falls from ~300px
    to ~64px, which is the whole point of this patch. */
 .inv-row-name { font-size: 14px; font-weight: 500; margin-bottom: 3px; color: var(--ia-text);
   display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
 .inv-row-meta { display: flex; align-items: center; gap: 8px; font-size: 12px; flex-wrap: wrap; }
-/* MARKER-CAT-TREE */
 .inv-split{display:flex;gap:16px;align-items:flex-start}
 .inv-cattree{width:230px;flex:none;background:var(--ia-surface);border:0.5px solid var(--ia-border);border-radius:var(--ia-r-lg);padding:10px}
 .inv-cattree .hd{font-size:10.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--ia-text-muted);padding:4px 8px 8px}
@@ -144,7 +143,7 @@
 @endpush
 
 @section('content')
-<div class="ia-section ia-section--wide">{{-- MARKER-SECTION-WIDTH — fluid, capped; see base.css --}}
+<div class="ia-section ia-section--wide">{{-- fluid, capped; see base.css --}}
 
 <div class="ia-page-head">
   <div class="ia-page-head-left">
@@ -152,7 +151,7 @@
     <p class="ia-page-subtitle">{{ number_format($total) }} {{ Str::plural('item', $total) }}</p>
   </div>
   <div class="ia-page-actions">
-    {{-- MARKER-INV-LIST — Categories, Receiving and Reports are tabs in
+    {{-- Categories, Receiving and Reports are tabs in
          _inventory-tabs; repeating them here was navigation twice over.
          Archived moved into the stock-level filter, where it belongs: it's
          a state, not a destination. --}}
@@ -164,7 +163,7 @@
   </div>
   {{-- Mobile-only action row (right-aligned icon buttons). --}}
   <div class="inv-head-m inv-actions-m" style="margin-left:auto">
-    {{-- MARKER-PATCH-158-G10 — Categories icon button on mobile too --}}
+    {{-- Categories icon button on mobile too --}}
     <a href="{{ route('tenant.inventory.categories.index') }}" class="inv-icon-btn-m" title="Categories" aria-label="Categories">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M3 7h18M3 12h18M3 17h18"/></svg>
     </a>
@@ -227,7 +226,7 @@
   </div>
 @else
 
-{{-- MARKER-ARCHIVE-MOVE — reachable, because nobody guesses a URL parameter
+{{-- reachable, because nobody guesses a URL parameter
      when an item goes missing. --}}
 @if($archived)
   <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;padding:10px 14px;border:.5px solid var(--ia-border);border-radius:var(--ia-r-md)">
@@ -236,13 +235,13 @@
   </div>
 @endif
 
-{{-- MARKER-INV-AUTOFILTER — id so the change listener can find this form without depending on the class, which is styling. --}}
+{{-- id so the change listener can find this form without depending on the class, which is styling. --}}
 <form method="get" action="{{ route('tenant.inventory.index') }}" class="ia-toolbar" id="inv-toolbar-form">
   <input type="search" name="s" class="ia-input" value="{{ $search }}"
     placeholder="Search name, brand, SKU or barcode…" style="max-width:300px">
 
-  {{-- MARKER-CAT-TREE — parents first, children indented beneath them --}}
-  {{-- MARKER-SSEL-FILTERS — our picker: the native popup is OS-drawn and
+  {{-- parents first, children indented beneath them --}}
+  {{-- our picker: the native popup is OS-drawn and
        ignores the dark theme. "All categories" stays, because here an empty
        value is a real choice rather than a placeholder. --}}
   @php
@@ -260,9 +259,7 @@
   </div>
   @unless($includeSubs)<input type="hidden" name="subs" value="0">@endunless
 
-  {{-- MARKER-INV-BRAND-DIST --}}
   @if($brandOptions->isNotEmpty())
-    {{-- MARKER-SSEL-FILTERS --}}
     <div style="min-width:170px">
       <x-tenant.searchable-select name="brand" :options="$brandOptions->values()->all()"
         :selected="(string) ($brand ?? '')" any="All brands" noun="brands"
@@ -271,8 +268,7 @@
   @endif
 
   @if($distributorOptions->count() > 1)
-    {{-- MARKER-SSEL-FILTERS --}}
-    {{-- MARKER-INV-FILTERS — vendors, not only catalog feeds: a shop's own
+    {{-- vendors, not only catalog feeds: a shop's own
          vendor could never appear while this listed distributor codes. --}}
     @php
       $sselDist = [];
@@ -285,7 +281,7 @@
     </div>
   @endif
 
-  {{-- MARKER-CAT-PLACEHOLDER — the list lands on in-stock, so say so. A
+  {{-- the list lands on in-stock, so say so. A
        default nobody can see is the same as a bug. --}}
   @if($stock === 'in')
     <span style="font-size:11.5px;color:var(--ia-text-dim);align-self:center">
@@ -294,14 +290,13 @@
          style="text-decoration:underline">show everything</a>
     </span>
   @endif
-  {{-- MARKER-SSEL-FILTERS — $stockLabels already has '' => 'All stock levels'
+  {{-- $stockLabels already has '' => 'All stock levels'
        as a real option, so no separate any row. --}}
   <div style="min-width:180px">
     <x-tenant.searchable-select name="stock" :options="$stockLabels" :assoc="true"
       :selected="(string) ($stock ?? '')" any="" noun="stock levels" :searchable="false" />
   </div>
 
-  {{-- MARKER-SSEL-FILTERS --}}
   <div style="min-width:180px">
     <x-tenant.searchable-select name="sort" :options="$sortLabels" :assoc="true"
       :selected="(string) ($sort ?? '')" any="" noun="sort orders" :searchable="false" />
@@ -352,9 +347,8 @@
   </div>
 @endif
 
-{{-- MARKER-INV-SEARCH — a misspelt word was swapped for the nearest real one. --}}
+{{-- a misspelt word was swapped for the nearest real one. --}}
 @if(!empty($searchMissing))
-  {{-- MARKER-SEARCH-MISSING --}}
   <div style="margin:0 0 12px;font-size:13px;color:var(--ia-text-muted)">
     No match for every word — showing results without
     @foreach($searchMissing as $mw)<s style="color:#f2777a">{{ $mw }}</s>@if(! $loop->last), @endif @endforeach.
@@ -365,14 +359,14 @@
   </div>
 @endif
 
-{{-- MARKER-CAT-TREE — the hierarchy the category admin already builds,
+{{-- the hierarchy the category admin already builds,
      finally visible where items are browsed. Plain links keep filters
      deep-linkable and need no JS. --}}
 @php
-  // MARKER-INV-PAGER — computed once, used by all three pager includes.
+  // computed once, used by all three pager includes.
   $pages = max(1, (int) ceil($total / max(1, $perPage)));
 
-  // MARKER-PAGER-FILTERS — brand and distributor were missing here, so paging
+  // brand and distributor were missing here, so paging
   // out of a filtered list landed on the unfiltered one. Every filter the page
   // reads lives in this one array; anything added to the form belongs here too,
   // and nowhere else. perPage is deliberately ABSENT: it lives in the session,
@@ -421,9 +415,9 @@
   <div class="hd">Categories</div>
   <a href="{{ route('tenant.inventory.index', array_filter(['s'=>$search,'stock'=>$stock,'sort'=>$sort!=='name_asc'?$sort:null])) }}"
      class="{{ $category ? '' : 'sel' }}">All items</a>
-  {{-- MARKER-CAT-DEPTH — one loop at any depth. Indent is capped at 3
+  {{-- one loop at any depth. Indent is capped at 3
        steps so a deep tree still fits the rail instead of sliding off.
-       MARKER-CAT-COLLAPSE — the tree is a DFS flat list, so every node after
+       the tree is a DFS flat list, so every node after
        a root and before the next root is that root's descendant. That lets
        one wrapper per root hold the whole branch without nesting the loop. --}}
   @php
@@ -486,7 +480,6 @@
 
 @push('styles')
 <style>
-  /* MARKER-CAT-COLLAPSE */
   .cat-row{display:flex;align-items:center;gap:2px}
   .cat-row > a{flex:1;min-width:0}
   .cat-toggle{flex:0 0 18px;width:18px;height:22px;padding:0;border:0;background:none;
@@ -500,7 +493,7 @@
 
 @push('scripts')
 <script>
-// MARKER-CAT-COLLAPSE — open set per tenant. A branch forced open server-side
+// open set per tenant. A branch forced open server-side
 // because it holds the selected category is left alone on load: the stored
 // state is a preference, not an instruction to hide what you just filtered by.
 (function () {
@@ -548,7 +541,7 @@
 
 <div style="flex:1;min-width:0">
 @php
-  // MARKER-CAT-DEPTH — firstWhere on a two-level array never matched a
+  // firstWhere on a two-level array never matched a
   // child, so picking one showed no scope chip even when it had children
   // of its own. The flat tree finds every node, and the count is the
   // whole subtree rather than just the direct children.
@@ -577,7 +570,6 @@
   </div>
 @endif
 
-{{-- MARKER-MERGE-UI --}}
 @if(($canMergeItems ?? false))
   <div id="inv-merge-bar" style="display:none;align-items:center;gap:12px;padding:10px 14px;margin-bottom:12px;
        background:rgba(190,242,100,.08);border:0.5px solid rgba(190,242,100,.3);border-radius:8px;font-size:12.5px">
@@ -612,7 +604,6 @@
 <div class="ia-card inv-desk-card">
   @include('tenant.inventory._partials.pager', ['pagerWhere' => 'top'])
   @if($items->isEmpty())
-    {{-- MARKER-INV-EMPTY --}}
     <div class="ia-card-body">
       @include('tenant.inventory._partials.empty-state', ['emptyVariant' => 'desk'])
     </div>
@@ -623,11 +614,10 @@
       <thead>
         <tr>
           <th style="width:4px;padding:0"></th>
-            {{-- MARKER-MERGE-UI — matches the cell added to item-card. --}}
+            {{-- matches the cell added to item-card. --}}
             @if(($canMergeItems ?? false))<th style="width:30px"></th>@endif
           <th>Item</th>
           <th>UPC</th>
-          {{-- MARKER-INV-LIST --}}
           @if($showColor ?? false)<th>Color</th>@endif
           @if($showSize ?? false)<th>Size</th>@endif
           <th style="text-align:right">{{ ($isMultiLocation ?? false) && ($currentLocation->name ?? null) ? 'Stock at ' . $currentLocation->name : 'Stock' }}</th>
@@ -646,12 +636,11 @@
   @include('tenant.inventory._partials.pager', ['pagerWhere' => 'bottom'])
 </div>
 </div>{{-- /flex:1 --}}
-</div>{{-- /inv-split MARKER-CAT-TREE --}}
+</div>{{-- /inv-split --}}
 
 {{-- Mobile card list (≤640px). Same data, different shape. --}}
 <div class="inv-mobile">
   @if($items->isEmpty())
-    {{-- MARKER-INV-EMPTY --}}
     <div class="inv-mobile-list">
       @include('tenant.inventory._partials.empty-state', ['emptyVariant' => 'mobile'])
     </div>
@@ -678,7 +667,7 @@
             <div class="inv-meta-m">
               <span class="inv-sku-m">{{ $item->sku }}</span>
               @if($item->category)
-                {{-- MARKER-CAT-TREE — full path, not a bare leaf name --}}
+                {{-- full path, not a bare leaf name --}}
                 <span class="inv-catpath">·
                   @if($item->category->parent)<span class="par">{{ $item->category->parent->name }} ›</span> @endif{{ $item->category->name }}
                 </span>
@@ -789,19 +778,19 @@
 </script>
 @endpush
 
-{{-- MARKER-INV-PAGER — the pager used to live here, outside the results
+{{-- the pager used to live here, outside the results
      column, so it rendered below whichever flex child was taller (the
      category rail) rather than under the table. It is now included inside
      the results card and under the mobile list instead. --}}
 
 @endif
 
-</div>{{-- MARKER-SECTION-WIDTH --}}
+</div>
 @endsection
 
 @push('scripts')
 <script>
-// MARKER-INV-AUTOFILTER — apply a filter the moment it is picked.
+// apply a filter the moment it is picked.
 // The pickers fire a bubbling 'change' on their hidden input, so one
 // delegated listener covers stock, brand, distributor, category and sort,
 // including any picker added to this toolbar later.
@@ -833,7 +822,6 @@
 
 @push('scripts')
 <script>
-// MARKER-MERGE-UI
 (function () {
   var picks = [];      // [{id, name, sku}]
   var flipped = false; // which of the two survives
@@ -942,7 +930,7 @@
     if (c.photos)    { rows.push(['Photos', c.photos + ' move over, after the kept item\'s']); }
     if ((d.adopts || []).length) { rows.push(['Adopted', d.adopts.map(esc).join(', ')]); }
 
-    // MARKER-MERGE-COMMITMENTS — surfaced above the choices, not buried under
+    // surfaced above the choices, not buried under
     // them: this is the part that should stop someone, and a warning below the
     // fold is a warning nobody read.
     var cm = d.commitments || {};
@@ -1012,7 +1000,7 @@
       + '<span style="flex:0 0 130px;color:var(--ia-text-dim)">Cost</span><span style="flex:1">' + money(d.cost ? d.cost.survivor : null) + costOpts + '</span></div>'
       + '</div>'
       + warn
-      // MARKER-ITEM-ALIASES — this used to warn that old labels would stop
+      // this used to warn that old labels would stop
       // scanning. They no longer do, so it says what happens instead.
       + '<div style="margin-top:13px;background:rgba(126,224,129,.06);border:0.5px solid rgba(126,224,129,.3);'
       + 'border-radius:8px;padding:11px 13px;font-size:12px;color:var(--ia-text-muted);line-height:1.5">'
@@ -1098,7 +1086,7 @@
     })
       .then(function (r) { return r.json(); })
       .then(function (d) {
-        // MARKER-MERGE-RESULT — report in place. Redirecting to the kept item
+        // report in place. Redirecting to the kept item
         // hid whether the merge matched what the preview promised, and threw
         // away the filtered list underneath.
         if (d.ok) { showResult(d); return; }
@@ -1109,7 +1097,6 @@
 })();
 </script>
 <style>
-  /* MARKER-MERGE-UI */
   .mg-opt{opacity:.55}
   .mg-opt.on{opacity:1;border-color:var(--ia-accent);color:var(--ia-accent)}
 </style>
@@ -1118,7 +1105,7 @@
 @push('scripts')
 <script src="{{ asset('js/intake-scan.js') }}?v=1"></script>
 <script>
-// MARKER-CAMERA-SCAN — a scan fills the search and runs it.
+// a scan fills the search and runs it.
 (function () {
   if (!window.IntakeScan) { return; }
   document.querySelectorAll('#inv-toolbar-form input[name="s"], #inv-mobile-search-form input[name="s"]').forEach(function (input) {

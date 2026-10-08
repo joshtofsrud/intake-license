@@ -1,4 +1,3 @@
-{{-- MARKER-CATALOG-COVERAGE --}}
 <x-filament-panels::page>
 
   @php $codes = $this->distributorCodes(); $t = $this->totals; @endphp

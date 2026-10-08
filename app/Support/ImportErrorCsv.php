@@ -6,7 +6,7 @@ use App\Models\Tenant\TenantImport;
 use Illuminate\Support\Facades\Storage;
 
 /**
- * MARKER-IMPORT-QUEUE-CLEAN — the rows that could not be written, as a CSV
+ * the rows that could not be written, as a CSV
  * shaped like the input so it can be fixed and re-imported.
  *
  * Lived as a private method on ImportController until the run moved to a job;

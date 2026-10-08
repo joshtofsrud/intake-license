@@ -1,5 +1,4 @@
 <?php
-// MARKER-PATCH-HLC3
 
 namespace App\Services\Distributors;
 
@@ -50,7 +49,7 @@ class DistributorCatalogSyncService
 
         $this->markProgress($code, 0, true);
 
-        // MARKER-QBP-SYNC — adapters with big catalogs page by brand instead
+        // adapters with big catalogs page by brand instead
         // of one giant fetch. The adapter declares it; nothing here names a
         // distributor.
         if (method_exists($adapter, 'pagesByBrand') && $adapter->pagesByBrand()) {
@@ -63,7 +62,7 @@ class DistributorCatalogSyncService
         // So pull once and process in chunks, checkpointing every 200 rows so the
         // live counter still climbs. ($maxPages is unused — offset paging is dead.)
         try {
-            // MARKER-SYNC-PAGE-SIZE — per-distributor override, falling back to
+            // per-distributor override, falling back to
             // the caller's value. HLC keeps 8000 (its API is asked for this
             // number, so changing it is a live third-party behavior change);
             // BTI sets its own, because it reads a local file and 8000 leaves
@@ -86,7 +85,7 @@ class DistributorCatalogSyncService
 
         if (count($products) >= $pageSize) {
             // Returned exactly the cap — the catalog may be larger than one pull.
-            // MARKER-SYNC-PAGE-SIZE — name the distributor and the env var that
+            // name the distributor and the env var that
             // actually applies. The old text said HLC_API_PAGE_SIZE whoever
             // tripped it, which sends the next reader to the wrong knob.
             $envVar = strtoupper($code) . '_SYNC_PAGE_SIZE';
@@ -107,14 +106,14 @@ class DistributorCatalogSyncService
         foreach ($byBrand as $brandName => $brandProducts) {
             $this->setBrandStatus($code, $brandName, 'syncing', null);
             $brandWritten = 0;
-            $brandSkipped = 0; // MARKER-BRAND-TOTALS
+            $brandSkipped = 0;
 
             foreach ($brandProducts as $product) {
                 foreach (($product['Variants'] ?? []) as $variant) {
                     $res['seen']++;
                     if ($since !== null && $this->isUnchanged($variant, $product, $since)) {
                         $res['skipped_delta']++;
-                        $brandSkipped++; // MARKER-BRAND-TOTALS
+                        $brandSkipped++;
                         continue;
                     }
                     try {
@@ -131,7 +130,7 @@ class DistributorCatalogSyncService
                 }
             }
 
-            // MARKER-BRAND-TOTALS — 'fresh' = delta looked and nothing changed.
+            // 'fresh' = delta looked and nothing changed.
             $this->setBrandStatus(
                 $code,
                 $brandName,
@@ -150,7 +149,7 @@ class DistributorCatalogSyncService
     }
 
     /**
-     * MARKER-QBP-SYNC — fetch, write, release, one small page of brands at a
+     * fetch, write, release, one small page of brands at a
      * time. Memory stays flat at a few brands' worth no matter how large the
      * catalog is; progress and per-brand status behave exactly like the
      * single-fetch path.
@@ -158,7 +157,7 @@ class DistributorCatalogSyncService
      * Chunk size 10: DRW measured 7 MB / ~1,000 products, so a page tops out
      * around 70 MB of XML before parsing — well inside a worker.
      */
-    // MARKER-BRAND-SYNC — refresh one brand. pagesByBrand adapters (QBP)
+    // refresh one brand. pagesByBrand adapters (QBP)
     // fetch only that brand; others pull the full feed and keep just this one.
     public function syncBrand(DistributorAdapter $adapter, string $brandName): array
     {
@@ -198,7 +197,7 @@ class DistributorCatalogSyncService
 
             $res['pages'] = 1;
 
-            // MARKER-BRAND-TOTALS — single-brand refresh writes the real
+            // single-brand refresh writes the real
             // denominator too, so one Sync click heals a 0-total row.
             $brandTotal = 0;
             foreach ($products as $p) {
@@ -265,7 +264,7 @@ class DistributorCatalogSyncService
                 continue;
             }
 
-            // MARKER-QBP-VISIBILITY — per-brand failures the adapter swallowed.
+            // per-brand failures the adapter swallowed.
             $chunkFailures = [];
             foreach ((array) ($batch['Failures'] ?? []) as $f) {
                 $res['errors'][] = 'brand fetch ' . $f;
@@ -283,7 +282,7 @@ class DistributorCatalogSyncService
             unset($products);
 
             foreach ($byBrand as $brandName => $brandProducts) {
-                // MARKER-BRAND-TOTALS — products for this brand are finally in
+                // products for this brand are finally in
                 // hand, so the denominator can be written. Seeding left it 0.
                 $brandTotal = 0;
                 foreach ($brandProducts as $p) {
@@ -298,7 +297,7 @@ class DistributorCatalogSyncService
                         $res['seen']++;
                         if ($since !== null && $this->isUnchanged($variant, $product, $since)) {
                             $res['skipped_delta']++;
-                            $brandSkipped++; // MARKER-BRAND-TOTALS
+                            $brandSkipped++;
                             continue;
                         }
                         try {
@@ -315,7 +314,7 @@ class DistributorCatalogSyncService
                     }
                 }
 
-                // MARKER-BRAND-TOTALS — 'fresh' = delta looked and nothing changed.
+                // 'fresh' = delta looked and nothing changed.
                 $this->setBrandStatus(
                     $code,
                     $brandName,
@@ -327,7 +326,7 @@ class DistributorCatalogSyncService
                 $this->markProgress($code, $res['written']);
             }
 
-            // MARKER-QBP-VISIBILITY — every brand in this chunk ends in a
+            // every brand in this chunk ends in a
             // terminal state. Without this a brand that returned nothing stays
             // 'pending' forever and reads as "never reached", which is what
             // made a half-finished catalog look like a mapping bug.
@@ -370,7 +369,7 @@ class DistributorCatalogSyncService
     {
         $ts = $variant['DateLastModified'] ?? $product['DateLastModified'] ?? null;
 
-        // MARKER-DELTA-REAL — QBP states its timestamp as milliseconds since
+        // QBP states its timestamp as milliseconds since
         // epoch under modifiedTime.iMillis. Without this the key was never
         // found, isUnchanged always returned false, and --delta wrote every
         // row on every run for every distributor.
@@ -440,7 +439,7 @@ class DistributorCatalogSyncService
             'category'      => $canonical['category'] ?? null,
             'category_path' => $canonical['category_path'] ?? null,
             'unit'          => $canonical['uom'] ?? null,
-            // MARKER-TITLE-TOKENS — mirrors CatalogTitleComposer::partsFromRow().
+            // mirrors CatalogTitleComposer::partsFromRow().
             // If these two drift, the editor preview and the real title differ.
             'item_group'    => $canonical['item_group'] ?? null,
             'size_id'       => $canonical['size_id'] ?? null,
@@ -459,17 +458,17 @@ class DistributorCatalogSyncService
         $canonical['display_subtitle'] = $composed['subtitle'] !== '' ? $composed['subtitle'] : null;
         $canonical['search_text']      = ($composed['search'] ?? '') !== '' ? $composed['search'] : null;
 
-        // MARKER-CATALOG-COLORSIZE — compose() has always returned these two
+        // compose() has always returned these two
         // alongside the title; nothing kept them, so every row resolved a
         // color and a size and then threw both away. A map row can still
         // override them by resolving canonical 'color'/'size' directly.
         $canonical['color'] = ($canonical['color'] ?? null) ?: (($composed['color'] ?? '') !== '' ? $composed['color'] : null);
         $canonical['size']  = ($canonical['size']  ?? null) ?: (($composed['size']  ?? '') !== '' ? $composed['size']  : null);
 
-        // MARKER-PATCH-372 — capture distributor product images. Public CDN URLs
+        // capture distributor product images. Public CDN URLs
         // ({Format,Url,Hash}) already embedded per-variant in the Products payload.
         //
-        // MARKER-IMAGES-OVERWRITE — but ONLY when the field map produced
+        // but ONLY when the field map produced
         // nothing. This line used to run unconditionally and wrote
         // $variant['Images'] over whatever the map had resolved. 'Images' is
         // HLC's key: QBP emits ImageFiles and BTI emits image_paths, so for
@@ -510,7 +509,7 @@ class DistributorCatalogSyncService
         }
     }
 
-    // MARKER-BRAND-TOTALS — total/skipped write only when known, so the
+    // total/skipped write only when known, so the
     // panel's denominator is real on the by-brand path and delta runs can
     // say "unchanged" instead of looking like a write failure.
     private function setBrandStatus(string $code, string $brandName, string $status, ?int $written, ?int $total = null, ?int $skipped = null): void

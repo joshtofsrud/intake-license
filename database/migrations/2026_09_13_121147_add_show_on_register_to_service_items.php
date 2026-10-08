@@ -5,7 +5,7 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * MARKER-QUICK-ADD — which services get a tap-to-add button at the register.
+ * which services get a tap-to-add button at the register.
  *
  * Separate from simple_enabled and quick_only, which govern the PUBLIC booking
  * flow. A service a cashier rings hourly is not necessarily one a shop wants on

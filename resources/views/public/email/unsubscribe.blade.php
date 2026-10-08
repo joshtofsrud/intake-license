@@ -1,4 +1,4 @@
-{{-- MARKER-EMAIL-CONSENT — public unsubscribe confirm / done / invalid --}}
+{{-- public unsubscribe confirm / done / invalid --}}
 <!DOCTYPE html>
 <html>
 <head>

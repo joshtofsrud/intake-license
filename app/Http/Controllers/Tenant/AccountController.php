@@ -1,5 +1,4 @@
 <?php
-// MARKER-PATCH-129
 
 namespace App\Http\Controllers\Tenant;
 
@@ -37,13 +36,13 @@ class AccountController extends Controller
         return back()->with('success', 'Name updated.');
     }
 
-    // MARKER-TIMECLOCK-EXEMPT — self-serve: owners and salaried staff turn
+    // self-serve: owners and salaried staff turn
     // off their own clock-in nudge (Team redirects self-edits here).
     public function updateTimeclockExempt(Request $request)
     {
         $me = Auth::guard('tenant')->user();
 
-        // MARKER-TC-EXEMPT-CAP — a hidden card is not a gate. Both surfaces
+        // a hidden card is not a gate. Both surfaces
         // that offer this post here, so this is the one place to stop it.
         abort_unless($me->can('timeclock.exempt_self'), 403);
 
@@ -91,5 +90,5 @@ class AccountController extends Controller
         return back()->with('success', 'PIN cleared. You will be prompted to set a new one next time.');
     }
 
-    // MARKER-PATCH-130 — per-user device methods removed; devices are tenant-scoped.
+    // per-user device methods removed; devices are tenant-scoped.
 }

@@ -1,5 +1,4 @@
 <?php
-// MARKER-PATCH-154
 
 namespace App\Console\Commands;
 
@@ -60,7 +59,7 @@ class SendAppointmentReminders extends Command
             $totalTenants++;
             $tz = $tenant->timezone ?? config('app.timezone', 'UTC');
 
-            // MARKER-PATCH-154-FIX1 — two reminder modes
+            // two reminder modes
             //
             //  Time-slot appointments (have appointment_time): fire 23-25h before
             //  the precise scheduled wall-clock time. Hourly cron + reminded_at
@@ -85,7 +84,7 @@ class SendAppointmentReminders extends Command
                 ->where('tenant_id', $tenant->id)
                 ->whereNotIn('status', ['cancelled', 'refunded'])
                 ->whereNull('reminded_at')
-                // MARKER-REMINDER-CONFIRMATION-GATE — only appointments the
+                // only appointments the
                 // customer was actually told about. Presence of a row is the
                 // whole test: status is ignored on purpose, because a failed
                 // confirmation should still get its reminder, and because
@@ -213,7 +212,7 @@ class SendAppointmentReminders extends Command
 
     private function buildVars(Tenant $tenant, TenantAppointment $row, string $tz): array
     {
-        // MARKER-PATCH-154-FIX1 — date-only appointments leave time blank
+        // date-only appointments leave time blank
         $isDropoff = empty($row->appointment_time);
 
         $dateOnly = Carbon::parse($row->appointment_date->toDateString(), $tz);
@@ -251,7 +250,7 @@ class SendAppointmentReminders extends Command
     private function renderSmsBody(Tenant $tenant, array $vars): string
     {
         $shop = $vars['shop_name'];
-        // MARKER-PATCH-154-FIX1 — use when_sms (handles both modes)
+        // use when_sms (handles both modes)
         return "{$shop}: Reminder, your appointment is tomorrow ({$vars['when_sms']}). Reply STOP to opt out.";
     }
 }

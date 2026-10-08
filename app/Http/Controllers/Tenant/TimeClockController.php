@@ -1,5 +1,5 @@
 <?php
-// MARKER-PATCH-610 / 613 — time clock: clock in/out, My Time history, print/email.
+// / 613 — time clock: clock in/out, My Time history, print/email.
 
 namespace App\Http\Controllers\Tenant;
 
@@ -34,7 +34,7 @@ class TimeClockController extends Controller
 
         $todayMinutes = $mine->sum(fn ($p) => $p->minutes());
 
-        // MARKER-PATCH-613 — My Time: history + rolling totals (pay-period-aware
+        // My Time: history + rolling totals (pay-period-aware
         // totals arrive with the pay-period settings in a later stage).
         $weekStart  = tnow()->startOfWeek()->utc();
         $monthStart = tnow()->startOfMonth()->utc();
@@ -48,18 +48,18 @@ class TimeClockController extends Controller
         $weekMinutes  = $history->where('clock_in_at', '>=', $weekStart)->sum(fn ($p) => $p->minutes());
         $monthMinutes = $history->where('clock_in_at', '>=', $monthStart)->sum(fn ($p) => $p->minutes());
 
-        // MARKER-TC-EDIT-SCOPE — My time can edit when either capability
+        // My time can edit when either capability
         // applies; the narrower one is enough for your own timesheet.
         $canEditMine = $this->mayEditPunchFor($user, $user->id);
 
         return view('tenant.timeclock.index', compact(
             'open', 'mine', 'onClock', 'todayMinutes',
             'history', 'weekMinutes', 'monthMinutes', 'canEditMine'
-        ))->with('offlineSyncEnabled', app(\App\Services\FeatureAccessService::class)->hasAddon(tenant(), 'offline_sync')); // MARKER-OFFLINE-SYNC
+        ))->with('offlineSyncEnabled', app(\App\Services\FeatureAccessService::class)->hasAddon(tenant(), 'offline_sync'));
     }
 
     /**
-     * MARKER-OFFLINE-SYNC — replay endpoint for punches queued offline.
+     * replay endpoint for punches queued offline.
      * Accepts the original punch time and a client_uuid; replaying the same
      * uuid is a no-op. Direction "in" opens a shift at punched_at; "out"
      * closes the open shift at punched_at.
@@ -110,7 +110,7 @@ class TimeClockController extends Controller
     }
 
     /**
-     * MARKER-TC-EDIT-SCOPE — who may touch a given punch. timeclock.edit is
+     * who may touch a given punch. timeclock.edit is
      * "anyone's"; timeclock.edit_own is "their own only". Both are role
      * settings in Roles & access, never role names in code.
      */
@@ -130,7 +130,7 @@ class TimeClockController extends Controller
         $tenant = tenant();
         $user   = Auth::guard('tenant')->user();
 
-        // MARKER-TC-EDIT-SCOPE — the exemption was cosmetic: it hid the nudge
+        // the exemption was cosmetic: it hid the nudge
         // and the sidebar item while this endpoint still accepted the punch.
         // A hidden button is not a gate. punchOut stays open so anyone
         // mid-shift when the flag is set can still close their shift.
@@ -171,7 +171,7 @@ class TimeClockController extends Controller
     }
 
     /**
-     * MARKER-PATCH-613 — printable timesheet (browser print → PDF).
+     * printable timesheet (browser print → PDF).
      * Range defaults to the current month; ?from=&to= override (tenant-local dates).
      */
     public function timesheet(Request $request)
@@ -200,7 +200,7 @@ class TimeClockController extends Controller
         ]);
     }
 
-    /** MARKER-PATCH-613 — email my timesheet through the branded Postmark rail. */
+    /** email my timesheet through the branded Postmark rail. */
     public function emailTimesheet(Request $request)
     {
         $tenant = tenant();
@@ -243,7 +243,7 @@ class TimeClockController extends Controller
     }
 
     /**
-     * MARKER-PATCH-614 — Team timesheet (manager grid). Gated by timeclock.manage.
+     * Team timesheet (manager grid). Gated by timeclock.manage.
      * Week of staff x days, with per-person totals and open/flag markers.
      */
     public function team(Request $request)
@@ -275,7 +275,7 @@ class TimeClockController extends Controller
         // Group by user, then by tenant-local day index (0..6 from weekStart).
         $byUser = [];
         foreach ($staff as $m) {
-            $byUser[$m->id] = ['name' => $m->name, 'role' => $m->role, 'days' => array_fill(0, 7, 0), 'flags' => array_fill(0, 7, null), 'total' => 0, 'sessions' => array_fill(0, 7, [])]; // MARKER-TIMECLOCK-DAY-DETAIL
+            $byUser[$m->id] = ['name' => $m->name, 'role' => $m->role, 'days' => array_fill(0, 7, 0), 'flags' => array_fill(0, 7, null), 'total' => 0, 'sessions' => array_fill(0, 7, [])];
         }
         foreach ($punches as $p) {
             if (!isset($byUser[$p->tenant_user_id])) continue;
@@ -284,7 +284,7 @@ class TimeClockController extends Controller
             $mins = $p->minutes();
             $byUser[$p->tenant_user_id]['days'][$idx] += $mins;
             $byUser[$p->tenant_user_id]['total'] += $mins;
-            // MARKER-TIMECLOCK-DAY-DETAIL — flags no longer overwrite each
+            // flags no longer overwrite each
             // other across multiple punches: 'open' wins over 'auto'.
             $curFlag = $byUser[$p->tenant_user_id]['flags'][$idx];
             if (!$p->clock_out_at)                            $byUser[$p->tenant_user_id]['flags'][$idx] = 'open';
@@ -301,7 +301,7 @@ class TimeClockController extends Controller
             ];
         }
 
-        $canEdit = $user->can('timeclock.edit'); // MARKER-TC-EDIT-SCOPE — the team grid is other people's punches, so it needs the wider one
+        $canEdit = $user->can('timeclock.edit'); // the team grid is other people's punches, so it needs the wider one
         $days = [];
         for ($i = 0; $i < 7; $i++) $days[] = $weekStart->copy()->addDays($i);
 
@@ -315,13 +315,13 @@ class TimeClockController extends Controller
         return view('tenant.timeclock.team', compact('byUser', 'days', 'weekStart', 'canEdit', 'audits'));
     }
 
-    /** MARKER-PATCH-614 — edit a punch (in/out/break) with a required reason. */
+    /** edit a punch (in/out/break) with a required reason. */
     public function editPunch(Request $request, string $punchId)
     {
         $tenant = tenant();
         $user   = Auth::guard('tenant')->user();
 
-        // MARKER-TC-EDIT-SCOPE — the punch is loaded first: whether this is
+        // the punch is loaded first: whether this is
         // allowed depends on WHOSE punch it is, not on the route.
         $punch = TenantTimePunch::where('tenant_id', $tenant->id)->where('id', $punchId)->firstOrFail();
         abort_unless($this->mayEditPunchFor($user, $punch->tenant_user_id), 403);
@@ -352,7 +352,7 @@ class TimeClockController extends Controller
         return back()->with('success', 'Punch updated.');
     }
 
-    /** MARKER-PATCH-614 — create a punch for someone (forgotten clock-in). */
+    /** create a punch for someone (forgotten clock-in). */
     public function createPunch(Request $request)
     {
         $tenant = tenant();
@@ -364,7 +364,7 @@ class TimeClockController extends Controller
             'reason'         => ['required', 'string', 'max:500'],
         ]);
 
-        // MARKER-TC-EDIT-SCOPE — validated first, so the subject is known
+        // validated first, so the subject is known
         // before deciding. Somebody with edit_own can only add to themselves.
         abort_unless($this->mayEditPunchFor($user, $data['tenant_user_id']), 403);
 
@@ -390,7 +390,7 @@ class TimeClockController extends Controller
     }
 
     /**
-     * MARKER-PATCH-615 — Reports: per-person hours with regular/OT split.
+     * Reports: per-person hours with regular/OT split.
      * OT is computed PER WEEK (tenant-local) against the threshold, then summed,
      * so a multi-week range doesn't wrongly treat 41h across two weeks as OT.
      */
@@ -414,7 +414,7 @@ class TimeClockController extends Controller
         return view('tenant.timeclock.reports', compact('rows', 'label', 'preset', 'totals'));
     }
 
-    /** MARKER-PATCH-615 — CSV of the same summary. */
+    /** CSV of the same summary. */
     public function reportsCsv(Request $request)
     {
         $tenant = tenant();
@@ -449,7 +449,7 @@ class TimeClockController extends Controller
         ]);
     }
 
-    /** MARKER-PATCH-615 — printable team report (browser print → PDF). */
+    /** printable team report (browser print → PDF). */
     public function reportPrint(Request $request)
     {
         $tenant = tenant();
@@ -467,7 +467,7 @@ class TimeClockController extends Controller
         ]);
     }
 
-    /** MARKER-PATCH-615 — email the team report through the branded rail. */
+    /** email the team report through the branded rail. */
     public function reportEmail(Request $request)
     {
         $tenant = tenant();
@@ -533,7 +533,7 @@ class TimeClockController extends Controller
     }
 
     /**
-     * MARKER-PATCH-616 — Approvals: pick a pay period, sign off per person, lock.
+     * Approvals: pick a pay period, sign off per person, lock.
      * Gated by timeclock.approve. A locked period is the payroll source of truth.
      */
     public function approvals(Request $request)
@@ -655,7 +655,7 @@ class TimeClockController extends Controller
         return back()->with('success', 'Period reopened.');
     }
 
-    /** MARKER-PATCH-616 — save time-clock policy settings. */
+    /** save time-clock policy settings. */
     public function saveSettings(Request $request)
     {
         $tenant = tenant();

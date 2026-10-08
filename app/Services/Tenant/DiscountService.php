@@ -1,5 +1,4 @@
 <?php
-// MARKER-DISCOUNTS
 
 namespace App\Services\Tenant;
 
@@ -146,7 +145,7 @@ class DiscountService
                 'redemption_count' => TenantDiscountRedemption::where('discount_id', $locked->id)->count(),
             ]);
 
-            // MARKER-PROMO-TAGS — the one place every surface passes through.
+            // the one place every surface passes through.
             app(DiscountTagService::class)->onRedeemed($locked, $customerId);
 
             return [
@@ -159,17 +158,17 @@ class DiscountService
     }
 
     /**
-     * MARKER-REGISTER-DISCOUNT — release ONE redemption row directly. Used
+     * release ONE redemption row directly. Used
      * when a sale fails after the code was redeemed but before the sale
      * exists, so there is no sale_id to look it up by.
      */
     public function releaseRedemption(TenantDiscountRedemption $redemption): void
     {
         $discountId = $redemption->discount_id;
-        $customerId = $redemption->customer_id; // MARKER-PROMO-TAGS
+        $customerId = $redemption->customer_id;
         $tenantId   = $redemption->tenant_id;
         $redemption->delete();
-        app(DiscountTagService::class)->onReleased($tenantId, $discountId, $customerId); // MARKER-PROMO-TAGS
+        app(DiscountTagService::class)->onReleased($tenantId, $discountId, $customerId);
 
         $d = TenantDiscount::find($discountId);
         if ($d) {
@@ -191,10 +190,10 @@ class DiscountService
         $released = 0;
         foreach ($rows as $row) {
             $discountId = $row->discount_id;
-            $customerId = $row->customer_id; // MARKER-PROMO-TAGS
+            $customerId = $row->customer_id;
             $row->delete();
             $released++;
-            app(DiscountTagService::class)->onReleased($tenantId, $discountId, $customerId); // MARKER-PROMO-TAGS
+            app(DiscountTagService::class)->onReleased($tenantId, $discountId, $customerId);
 
             $d = TenantDiscount::find($discountId);
             if ($d) {

@@ -52,7 +52,7 @@
 
         <form method="POST" action="{{ route('marketing.contact.submit') }}" style="display:flex;flex-direction:column;gap:14px">
             @csrf
-            {{-- MARKER-INBOX — spam gate. The 'website' field is off-screen, not
+            {{-- spam gate. The 'website' field is off-screen, not
                  display:none, because some bots skip hidden inputs; a person
                  never sees it. _t is when the form was rendered. --}}
             <div style="position:absolute;left:-9999px;top:-9999px;height:0;overflow:hidden" aria-hidden="true">

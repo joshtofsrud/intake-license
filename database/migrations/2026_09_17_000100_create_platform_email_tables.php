@@ -4,7 +4,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-/** MARKER-PLATFORM-EMAIL — Intake's own marketing email. */
+/** Intake's own marketing email. */
 return new class extends Migration
 {
     public function up(): void

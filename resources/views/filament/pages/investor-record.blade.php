@@ -1,5 +1,4 @@
 <x-filament-panels::page>
-<!-- MARKER-RAISE-RECORDS -->
 
 @php
     $usd = fn ($n) => '$' . number_format((int) $n);
@@ -105,7 +104,6 @@
             </p>
         </div>
 
-        <!-- MARKER-RAISE-MESSAGES -->
         <div class="rounded-xl border border-gray-200 dark:border-white/10 p-4">
             <div class="text-xs uppercase tracking-wide text-gray-500 mb-3">Messages</div>
 

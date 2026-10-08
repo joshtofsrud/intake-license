@@ -5,7 +5,7 @@ namespace App\Support;
 use App\Models\Investor;
 
 /**
- * MARKER-PLATFORM-LETTER — master-admin campaigns written as a letter.
+ * master-admin campaigns written as a letter.
  *
  * Five content-first blocks (Letter, Numbers table, Screenshot + caption, Ask,
  * Signature) rendered as a plain, table-based email in Intake's own palette:
@@ -156,7 +156,7 @@ class PlatformLetter
             . '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:' . $c['outer'] . ';padding:28px 12px"><tr><td align="center">'
             . '<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="width:100%;max-width:600px;background:' . $c['card'] . ';border-radius:10px">'
             . '<tr><td style="padding:34px 40px 0"><table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>'
-            // MARKER-LETTER-LOGO — the real logo from master admin › Brand: the email slot
+            // the real logo from master admin › Brand: the email slot
             // (dark wordmark) on light cards, the light wordmark on the dark theme.
             . '<td style="padding-bottom:18px;border-bottom:1px solid ' . $c['rule'] . '"><img src="' . $e(\App\Support\Brand::url($dark ? 'logo' : 'email')) . '" alt="Intake" height="26" style="display:block;height:26px;width:auto;border:0;outline:none"></td>'
             . '</tr></table></td></tr>'

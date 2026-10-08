@@ -33,7 +33,7 @@ class AddonCatalogController extends Controller
         $tenant = $this->currentTenant($request);
         $breakdown = $this->features->detailedFeatureBreakdown($tenant);
 
-        // MARKER-ADDON-VISIBILITY — visibility decides what is SHOWN;
+        // visibility decides what is SHOWN;
         // is_self_serve decides only whether the button activates. Filtering on
         // self-serve meant 27 add-ons were invisible to every shop, which is an
         // upsell nobody can discover.

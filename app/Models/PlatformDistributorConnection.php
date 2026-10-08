@@ -1,5 +1,4 @@
 <?php
-// MARKER-PATCH-HLC6
 
 namespace App\Models;
 

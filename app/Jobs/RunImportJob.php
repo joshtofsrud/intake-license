@@ -13,7 +13,7 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 
-/** MARKER-IMPORT-QUEUE — the real write, off the web request. */
+/** the real write, off the web request. */
 class RunImportJob implements ShouldQueue, ShouldBeUnique
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
@@ -30,7 +30,7 @@ class RunImportJob implements ShouldQueue, ShouldBeUnique
 
     public function handle(): void
     {
-        // MARKER-IMPORT-STATUS-RACE — every exit from here says why. This job
+        // every exit from here says why. This job
         // used to return on a status mismatch without a word, so a race
         // between the preview finishing and the run starting looked exactly
         // like nothing happening at all.
@@ -80,7 +80,7 @@ class RunImportJob implements ShouldQueue, ShouldBeUnique
 
             $result = $importer->run();
 
-            // MARKER-IMPORT-QUEUE-CLEAN — the failed rows, or the download link
+            // the failed rows, or the download link
             // on the finished screen has nothing behind it.
             $errorPath = ! empty($result['errorRows'])
                 ? \App\Support\ImportErrorCsv::write($import, $result['errorRows'])
@@ -90,7 +90,7 @@ class RunImportJob implements ShouldQueue, ShouldBeUnique
 
             $import->forceFill([
                 'status'           => $cancelled ? 'cancelled' : 'done',
-                'failure_reason'   => null, // MARKER-IMPORT-RESULTS
+                'failure_reason'   => null,
                 'totals'           => array_merge((array) $import->totals, ['run' => $result['counts'] ?? $result]),
                 'error_path'       => $errorPath,
                 'finished_at'      => now(),
@@ -98,7 +98,7 @@ class RunImportJob implements ShouldQueue, ShouldBeUnique
                 'progress_seen_at' => now(),
             ])->save();
 
-            // MARKER-DUP-MERGE — an inventory import can bring in copies of
+            // an inventory import can bring in copies of
             // products already here; look again straight away.
             if ($import->type === 'inventory') {
                 \App\Jobs\FindDuplicateItemsJob::dispatch($tenant->id);

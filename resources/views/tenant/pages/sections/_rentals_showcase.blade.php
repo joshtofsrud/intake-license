@@ -1,5 +1,5 @@
 {{--
-  MARKER-PATCH-239 — rentals_showcase editor.
+  rentals_showcase editor.
   Content tab: copy + category filter + limits + CTA.
   Style tab: background color (bg_color stays in content[] per G23).
   The public partial pulls live models, so there's nothing to curate here —

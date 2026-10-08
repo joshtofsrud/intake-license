@@ -4,7 +4,6 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
-/** MARKER-PLATFORM-TEMPLATES */
 class PlatformEmailTemplate extends Model
 {
     protected $table        = 'platform_email_templates';

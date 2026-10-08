@@ -1,5 +1,4 @@
 <?php
-// MARKER-PATCH-152A
 
 namespace App\Models\Tenant;
 

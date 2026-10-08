@@ -1,5 +1,4 @@
 <?php
-// MARKER-CAT-UNDO
 
 namespace App\Services\Tenant;
 
@@ -19,7 +18,7 @@ class CategorySuggestService
         $bucketKey = trim((string) $bucketKey);
         if ($bucketKey === '' || $bucketKey === '__none__') return;
 
-        // MARKER-CAT-MAP — one table for every source. A rule the user set
+        // one table for every source. A rule the user set
         // deliberately (on the mappings page or in an import) is never
         // overwritten by an inference from a bucket assignment.
         $key = ['tenant_id' => $tenantId, 'source_kind' => $sourceKind, 'source_name' => $sourceName, 'bucket_key' => $bucketKey];
@@ -47,7 +46,7 @@ class CategorySuggestService
         $rules = DB::table('tenant_bucket_rules as r')
             ->join('tenant_inventory_categories as c', 'c.id', '=', 'r.category_id')
             ->where('r.tenant_id', $tenantId)
-            ->where('r.source_kind', 'distributor')   // MARKER-CAT-MAP — the mapper's buckets are catalog categories
+            ->where('r.source_kind', 'distributor')   // the mapper's buckets are catalog categories
             ->get(['r.bucket_key', 'r.category_id', 'c.name as category_name']);
 
         if ($rules->isEmpty()) return [];

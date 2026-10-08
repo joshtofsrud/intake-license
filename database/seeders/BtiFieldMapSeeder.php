@@ -1,6 +1,5 @@
 <?php
 
-// MARKER-BTI-ADAPTER
 
 namespace Database\Seeders;
 
@@ -50,7 +49,7 @@ class BtiFieldMapSeeder extends Seeder
                 'sep'    => '|',
             ], null, 'Model|Color|Size + Snapback Hat|Gray|One Size'],
 
-            // MARKER-PICK-ATTR — colour and size out of the same two pipe
+            // colour and size out of the same two pipe
             // strings the attributes row zips. They're item fields a shop can
             // edit, so their source belongs here rather than being derived
             // silently by the title composer.
@@ -73,12 +72,12 @@ class BtiFieldMapSeeder extends Seeder
             ['map_cents', 'map', 'direct', ['cast' => 'cents_zero_null'], null, '0.0 means NO MAP'],
 
             // media
-            // MARKER-SOURCING-PLACEMENT — the column is `images`, not
+            // the column is `images`, not
             // `image_urls`. The resolver silently drops canonical fields that
             // aren't columns, so every BTI row imported with no images.
             ['images', 'image_paths', 'split_pipe', [
                 'sep'    => '|',
-                // MARKER-BTI-IMAGE-BASE — /images 404s; photos are under
+                // /images 404s; photos are under
                 // /images/pictures. Verified: bti-usa.com/images/pictures/ma/ma3512a.jpg
                 'prefix' => 'https://bti-usa.com/images/pictures',
             ], null, 'relative paths need a host'],

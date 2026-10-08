@@ -1,5 +1,5 @@
 <?php
-// MARKER-PATCH-622 — shop search stage 2 schema.
+// shop search stage 2 schema.
 // tenant_search_terms: per-tenant vocabulary (words from item names/brands/
 //   SKUs) used for typo correction. Rebuilt nightly + on demand.
 // tenant_search_rules: tenant-managed synonyms and redirects, edited from the

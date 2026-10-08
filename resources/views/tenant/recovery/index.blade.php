@@ -5,8 +5,8 @@
 <style>
   .rec-intro { font-size: 13px; color: var(--ia-text-muted); margin-bottom: 18px; line-height: 1.5; max-width: 640px; }
 
-  /* MARKER-PATCH-507 — subnav + settings tab */
-  /* MARKER-PATCH-508 — underline tabs, same pattern as cl-subnav / cc-tabs */
+  /* subnav + settings tab */
+  /* underline tabs, same pattern as cl-subnav / cc-tabs */
   .rec-subnav{display:flex;gap:2px;margin-bottom:22px;border-bottom:0.5px solid var(--ia-border)}
   .rec-subnav a{font-size:13px;color:var(--ia-text-muted);padding:9px 14px;border-bottom:2px solid transparent;margin-bottom:-0.5px;text-decoration:none;transition:color var(--ia-t),border-color var(--ia-t)}
   .rec-subnav a:hover{color:var(--ia-text)}
@@ -168,14 +168,14 @@
 
 @section('content')
 
-{{-- MARKER-PATCH-507 — Recovery / Settings subnav --}}
+{{-- Recovery / Settings subnav --}}
 <div class="rec-subnav">
   <a href="{{ route('tenant.recovery.index') }}" class="{{ $tab === 'main' ? 'on' : '' }}">Recovery</a>
   <a href="{{ route('tenant.recovery.index', ['tab' => 'settings']) }}" class="{{ $tab === 'settings' ? 'on' : '' }}">Settings</a>
 </div>
 
 @if($tab === 'main')
-{{-- MARKER-PATCH-484 — at-risk regulars --}}
+{{-- at-risk regulars --}}
 @if(!empty($atRisk) && count($atRisk))
 <div style="margin-bottom:26px">
   <h2 style="font-size:15px;font-weight:600;margin:0 0 4px">At-risk regulars</h2>
@@ -207,7 +207,7 @@
     <h2>Booking funnel</h2>
     <span>Last 30 days</span>
   </div>
-  {{-- MARKER-PATCH-488 — headline replaces the three redundant stage cards --}}
+  {{-- headline replaces the three redundant stage cards --}}
   <div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;padding:4px 0 2px">
     <div style="font-size:34px;font-weight:700;letter-spacing:-.02em;line-height:1">{{ $funnel['completed'] }}<span style="font-size:18px;color:var(--ia-text-muted);font-weight:500"> / {{ $funnel['viewed'] }}</span></div>
     <div style="font-size:12.5px;color:var(--ia-text-muted);flex:1;min-width:220px">completed &mdash; <strong style="color:var(--ia-accent)">{{ $funnel['pct_overall'] }}%</strong> of everyone who opened booking. The bars below show where the rest fall away.</div>
@@ -303,7 +303,7 @@
 @endif
 
 @else
-{{-- MARKER-PATCH-507 — settings tab (replaces the patch-486 inline form) --}}
+{{-- settings tab (replaces the patch-486 inline form) --}}
 
 <div class="rs-dep">
   <div class="di">&#9888;</div>
@@ -334,7 +334,7 @@
         <div class="rl"><div class="rt">Reschedule</div><div class="rd">You moved the appointment on the customer</div></div>
         <input type="checkbox" class="rs-tog" name="recovery_signal_reschedule" value="1" @checked($recoverySettings['sig_reschedule'])>
       </div>
-      {{-- MARKER-PATCH-530 — live with pickup & delivery --}}
+      {{-- live with pickup & delivery --}}
       <div class="rs-row">
         <div class="rl"><div class="rt">Late delivery</div><div class="rd">Drop-off happened after the delivery window</div></div>
         <input type="checkbox" class="rs-tog" name="recovery_signal_late_delivery" value="1" @checked($recoverySettings['sig_late_delivery'])>

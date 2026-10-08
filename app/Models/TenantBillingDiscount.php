@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
- * MARKER-BILLING-DISCOUNTS — what Intake charges a shop, and why it is less
+ * what Intake charges a shop, and why it is less
  * than list price.
  *
  * Not to be confused with App\Models\Tenant\TenantDiscount, which is a shop's

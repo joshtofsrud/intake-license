@@ -1,5 +1,4 @@
 <?php
-// MARKER-BILLING-TAX-ROOM
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;

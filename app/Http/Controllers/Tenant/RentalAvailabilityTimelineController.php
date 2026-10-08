@@ -1,5 +1,4 @@
 <?php
-// MARKER-PATCH-223
 
 namespace App\Http\Controllers\Tenant;
 
@@ -114,7 +113,7 @@ class RentalAvailabilityTimelineController extends Controller
             }
         }
 
-        // MARKER-PATCH-238 — active lease assignments as season-long bars.
+        // active lease assignments as season-long bars.
         // Same world view the conflict check (PATCH-230) already enforces;
         // zero rows when the tenant has no leases.
         $leaseAssignments = \App\Models\Tenant\LeaseAssignment::where('tenant_id', $tenant->id)

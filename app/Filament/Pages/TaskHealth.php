@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
 /**
- * MARKER-TASK-HEALTH — what ran, what failed, what is overdue.
+ * what ran, what failed, what is overdue.
  *
  * Leads with problems: with thirty scheduled commands, a list sorted by next
  * run is a list nobody reads.

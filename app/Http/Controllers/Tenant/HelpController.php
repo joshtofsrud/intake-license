@@ -12,7 +12,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 /**
- * MARKER-HELP-TENANT — the hand-written Help & Guides page stays as the
+ * the hand-written Help & Guides page stays as the
  * landing screen; articles written in master admin appear underneath it,
  * gated per shop. Articles live on the PLATFORM tenant; the current tenant is
  * only ever the subject of the gate, never the owner.

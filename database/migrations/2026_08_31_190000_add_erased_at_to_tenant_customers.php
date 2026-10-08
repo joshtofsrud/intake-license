@@ -4,7 +4,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-// MARKER-CUST-ADMIN — an erased customer keeps its id so sales and bookings
+// an erased customer keeps its id so sales and bookings
 // still resolve, but is hidden everywhere a person would be listed.
 return new class extends Migration
 {

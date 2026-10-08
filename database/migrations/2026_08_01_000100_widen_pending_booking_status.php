@@ -1,6 +1,6 @@
 <?php
 
-// MARKER-PENDING-STATUS-WIDEN — see apply-pending-booking-status-widen.sh.
+// see apply-pending-booking-status-widen.sh.
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;

@@ -1,4 +1,4 @@
-{{-- MARKER-INVEST-RETURNS · MARKER-MARKET-ORDER — nearest number first. The
+{{-- nearest number first. The
      whole-market total is context for the percentages, not the claim. --}}
 
 <section><div class="wrap">
@@ -20,7 +20,7 @@
     book it in, work on it, sell parts alongside the work, get the customer back. Those percentages are
     percentages of this:</p>
 
-  {{-- MARKER-MARKET-FIVEPCT — the five per cent column, so the $9.3M above is
+  {{-- the five per cent column, so the $9.3M above is
        arithmetic a reader can check rather than a number to take on trust. --}}
   <div class="stack mkt" style="margin-top:16px">
     <div class="srow head"><b>Category</b><span class="note">US businesses</span><span class="amt">Whole market</span><span class="amt five">5% of it</span></div>

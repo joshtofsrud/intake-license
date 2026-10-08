@@ -142,7 +142,7 @@
     </div>
 
     <div class="bke-field">
-      {{-- MARKER-PATCH-589 — page structure: what frames the booking page --}}
+      {{-- page structure: what frames the booking page --}}
       <div class="bke-field-label" style="margin-top:16px;letter-spacing:.08em">PAGE</div>
       <label style="display:flex;gap:8px;align-items:center;font-size:12.5px;cursor:pointer;padding:4px 0">
         <input type="checkbox" data-bke="booking_show_nav" value="1" {{ ($booking['booking_show_nav'] ?? ($booking['booking_show_chrome'] ?? '1')) === '1' ? 'checked' : '' }}>
@@ -159,10 +159,10 @@
       <label style="display:flex;gap:8px;align-items:center;font-size:12.5px;cursor:pointer;padding:4px 0 10px">
         <input type="checkbox" data-bke="booking_hide_cta" value="1" {{ ($booking['booking_hide_cta'] ?? '0') === '1' ? 'checked' : '' }}>
         Hide CTA band on this page
-      </label> {{-- MARKER-PATCH-590 --}}
+      </label>
       <div style="font-size:11px;color:var(--ia-text-muted);margin:-6px 0 12px">With the nav on, most sites turn the in-page logo off. Footer content itself (links, contact form, CTA band) is edited in Pages &rarr; your home page footer.</div>
 
-      {{-- MARKER-PATCH-589 — brand kit reference --}}
+      {{-- brand kit reference --}}
       <div class="bke-field-label">Brand kit</div>
       <div style="display:flex;flex-wrap:wrap;gap:7px;padding:2px 0 8px">
         @foreach(($brandKit ?? []) as $bkc)
@@ -342,7 +342,7 @@ function onThemeChange() {
 }
 
 async function resetDefaults() {
-  if (!(await iaConfirm('Reset all booking form settings to defaults?'))) return; // MARKER-INLINE-CONFIRM-2
+  if (!(await iaConfirm('Reset all booking form settings to defaults?'))) return;
   var theme = document.getElementById('bke-booking_theme').value;
   var defs = themeDefaults[theme] || themeDefaults['light'];
 
@@ -396,7 +396,7 @@ function saveBookingSettings() {
   fd.append('save_booking', '1');
 
   document.querySelectorAll('[data-bke]').forEach(function(el) {
-    // MARKER-PATCH-589 — checkboxes send their checked state, not value
+    // checkboxes send their checked state, not value
     fd.append(el.getAttribute('data-bke'),
       el.type === 'checkbox' ? (el.checked ? '1' : '0') : el.value);
   });

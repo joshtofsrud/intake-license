@@ -1,4 +1,4 @@
-{{-- MARKER-INVEST-V2 — one link that carries everything: the same round block
+{{-- one link that carries everything: the same round block
      the gated page shows, then this person's own commitment, signature and
      funding. Two URLs per investor was one too many. --}}
 <!DOCTYPE html>
@@ -10,7 +10,7 @@
 <link rel="icon" href="{{ \App\Support\Brand::url('favicon') }}" type="image/svg+xml">
 <link rel="icon" href="{{ \App\Support\Brand::url('favicon_32') }}" sizes="32x32">
 <link rel="apple-touch-icon" href="{{ \App\Support\Brand::url('apple') }}">
-{{-- MARKER-INVEST-RETURNS — no og:image here on purpose: a personal link
+{{-- no og:image here on purpose: a personal link
      pasted into a thread would unfurl the round to everyone in it. --}}
 <link rel="stylesheet" href="{{ asset('css/fonts.css') }}">
 @include('invest._styles')
@@ -21,9 +21,8 @@
   <span class="who"><b>{{ $investor->name }}</b> · your link</span>
 </div></nav>
 
-{{-- MARKER-INVEST-RAIL --}}
 @php
-  // MARKER-INVEST-RAILMENU — same menu as the proposal page, plus the two
+  // same menu as the proposal page, plus the two
   // sections only an investor who is already in sees.
   $rail = [
     ['#terms', 'Terms', null],
@@ -31,8 +30,8 @@
     ['menu', 'The case', null],
     ['#position', 'Your position', null],
     ['#s-back', 'Back the project', 's-back'],
-    [url('/book/investor'), 'Talk to Josh', null], // MARKER-SCHED-TALK-ALL
-    [url('/demo'), 'See the demo', null], // MARKER-INVEST-DEMO
+    [url('/book/investor'), 'Talk to Josh', null],
+    [url('/demo'), 'See the demo', null],
   ];
   $railMenu = [
     ['The problem', [
@@ -61,14 +60,13 @@
 
 @include('invest._round')
 
-@include('invest._talk-bar') {{-- MARKER-SCHED-TALK-ALL --}}
+@include('invest._talk-bar')
 
-{{-- MARKER-INVEST-CONTEXT — read first, decide second. --}}
-{{-- MARKER-INVEST-RAIL — collapsed by default. Everything is still on the
+{{-- read first, decide second. --}}
+{{-- collapsed by default. Everything is still on the
      page; none of it is between the reader and the commitment. --}}
 <section><div class="wrap">
 
-  {{-- MARKER-INVEST-RETENTION --}}
   <details class="sec" id="s-keep">
     <summary>Retention and recovery <span class="cap">&mdash; most shops don't market at all</span></summary>
     <div class="body">@include('invest._retention')</div>
@@ -92,7 +90,6 @@
     <div class="body">@include('invest._stack')</div>
   </details>
 
-  {{-- MARKER-INVEST-FULL --}}
   <details class="sec" id="s-rev">
     <summary>The model <span class="cap">&mdash; two lines, one set of shops</span></summary>
     <div class="body">@include('invest._model')</div>
@@ -262,12 +259,11 @@
 
 </div></section>
 
-{{-- MARKER-MANUAL-SAFE — after the commitment, never beside it. --}}
+{{-- after the commitment, never beside it. --}}
 <section><div class="wrap">
 @include('invest._contribute')
 </div></section>
 
-{{-- MARKER-INVEST-CONFIRM --}}
 @include('invest._confirm', [
   'confirmTitle' => 'Recorded.',
   'confirmBody'  => 'Nothing is binding yet — this is a statement of intent, and it is yours to change until the paperwork is signed.',

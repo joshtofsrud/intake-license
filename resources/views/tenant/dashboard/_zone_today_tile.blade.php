@@ -1,4 +1,4 @@
-{{-- MARKER-PATCH-110-STEP-6 - Today's schedule peek as a tile.
+{{-- Today's schedule peek as a tile.
      Renders the upcoming 5 appointments inline. "Now" highlight on the
      next-up entry. Tile is wrapped in a link to the calendar. --}}
 
@@ -14,7 +14,7 @@
 
   $dateLong = $greeting['date_long'] ?? \Carbon\Carbon::now()->format('l, F j');
 
-  // MARKER-DASH-NEXT-DAY — the next day with work, when today has none.
+  // the next day with work, when today has none.
   $nextDay        = $today['next_day'] ?? null;
   $nextDayAppts   = ($today['next_day_appointments'] ?? collect())->take(5);
   $nextDlvDay     = $today['next_delivery_day'] ?? null;
@@ -52,7 +52,7 @@
     </div>
 
     @if($shownAppts->isEmpty() && $todayCount === 0 && $nextDayAppts->isNotEmpty())
-      {{-- MARKER-DASH-NEXT-DAY — nothing today: show the next day's instead --}}
+      {{-- nothing today: show the next day's instead --}}
       <div class="empty" style="padding-bottom:6px">
         Nothing booked today. Next up, {{ $nextDayLabel }}:
       </div>
@@ -108,10 +108,10 @@
     @endif
   </div>
 
-  {{-- MARKER-PATCH-183B — today's deliveries, parallel to the appointments tile --}}
+  {{-- today's deliveries, parallel to the appointments tile --}}
   @php
     $todayDeliveries = $today['today_deliveries'] ?? collect();
-    // MARKER-DASH-NEXT-DAY — none today: show the next day's pickups and drop-offs.
+    // none today: show the next day's pickups and drop-offs.
     $dlvIsNext = $todayDeliveries->isEmpty() && $nextDayDlvs->isNotEmpty();
     $dlvShown  = $dlvIsNext ? $nextDayDlvs : $todayDeliveries;
   @endphp
@@ -130,7 +130,7 @@
     <div class="schedule-list">
       @foreach($dlvShown->take(5) as $d)
         @php
-          // MARKER-PATCH-189 — tenant-tz display via the canonical tlocal() helper.
+          // tenant-tz display via the canonical tlocal() helper.
           $dTime = $d->scheduled_at ? tlocal($d->scheduled_at) : 'Any time';
           $dWho  = $d->customer ? trim(($d->customer->first_name ?? '') . ' ' . ($d->customer->last_name ?? '')) : 'No customer';
           $dKind = $d->isPickup() ? 'Pickup' : 'Drop-off';

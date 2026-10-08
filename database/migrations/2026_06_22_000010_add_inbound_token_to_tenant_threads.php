@@ -5,7 +5,7 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
-// MARKER-PATCH-403 — per-thread inbound email token (unified inbox email replies).
+// per-thread inbound email token (unified inbox email replies).
 return new class extends Migration {
     public function up(): void
     {

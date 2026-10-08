@@ -8,11 +8,10 @@ use App\Models\InvestToken;
 use Filament\Pages\Page;
 use Filament\Notifications\Notification;
 
-// MARKER-RAISE-ADMIN
 class Raise extends Page
 {
-    use \App\Support\UsesAdminNav; // MARKER-NAV-ORDER
-    use \App\Support\GatedByAdminArea; // MARKER-ADMIN-NAV-GATE
+    use \App\Support\UsesAdminNav;
+    use \App\Support\GatedByAdminArea;
     protected static string $adminArea = 'raise';
 
     protected static ?string $navigationIcon  = 'heroicon-o-banknotes';
@@ -29,12 +28,12 @@ class Raise extends Page
     public string $entity = '';
     public $amount        = '';
 
-    // MARKER-RAISE-INVITE — invite form. Separate properties from the
+    // invite form. Separate properties from the
     // commitment form above: the two are different acts and sharing fields
     // would let a half-typed commitment leak into an invitation.
     public string $inviteName    = '';
     public string $inviteEmail   = '';
-    // MARKER-RAISE-COMPOSE — the invitation itself, editable per send.
+    // the invitation itself, editable per send.
     public string $inviteSubject = '';
     public string $inviteBody    = '';
 
@@ -49,7 +48,7 @@ class Raise extends Page
     public array  $invitePreview = [];
     public ?int   $confirmDeleteId = null;
 
-    // MARKER-RAISE-CONFIRM — which destructive action is currently asking.
+    // which destructive action is currently asking.
     // A string rather than an id because it has to distinguish the action as
     // well as the row: "funded:12" and "declined:12" are different questions
     // about the same investor. Null means nothing is pending.
@@ -71,7 +70,7 @@ class Raise extends Page
         $this->formDFiledAt  = (string) \App\Models\RaiseSetting::get('form_d_filed_at');
         $this->blueSkyNotes  = (string) \App\Models\RaiseSetting::get('blue_sky_notes');
 
-        // MARKER-RAISE-COMPOSE — start from the stored invitation template, then
+        // start from the stored invitation template, then
         // let it be edited for this send without changing the template itself.
         $template = \App\Models\RaiseMessageTemplate::merged()['invitation'] ?? [];
         $this->inviteSubject = (string) ($template['subject'] ?? 'Intake');
@@ -96,14 +95,14 @@ class Raise extends Page
         ]);
 
         \App\Models\InvestorEvent::log($investor->id, 'committed', 'Commitment recorded: $' . number_format($investor->amount));
-        \App\Services\InvestorMessenger::send('commitment', $investor); // MARKER-RAISE-MESSAGES
+        \App\Services\InvestorMessenger::send('commitment', $investor);
 
         $this->reset(['name', 'email', 'entity', 'amount']);
 
         Notification::make()->title('Investor added')->success()->send();
     }
 
-    /** MARKER-RAISE-INVITE — one person, one record, one token, one email. */
+    /** one person, one record, one token, one email. */
     public function inviteOne(): void
     {
         $data = $this->validate([
@@ -111,7 +110,7 @@ class Raise extends Page
             'inviteEmail'   => ['required', 'email', 'max:190'],
         ]);
 
-        // MARKER-RAISE-COMPOSE — nothing is created or sent here. The token is
+        // nothing is created or sent here. The token is
         // generated now and carried to the record, so the link in the preview is
         // the link that arrives; a preview showing a placeholder would be worse
         // than no preview at all.
@@ -124,7 +123,7 @@ class Raise extends Page
         $this->openPreview();
     }
 
-    /** MARKER-RAISE-COMPOSE — render the first pending recipient, exactly. */
+    /** render the first pending recipient, exactly. */
     private function openPreview(): void
     {
         $this->validate([
@@ -160,7 +159,7 @@ class Raise extends Page
         $this->pendingInvites = [];
     }
 
-    /** MARKER-RAISE-COMPOSE — send what the preview showed, to everyone pending. */
+    /** send what the preview showed, to everyone pending. */
     public function confirmSend(): void
     {
         $sent = 0;
@@ -195,7 +194,7 @@ class Raise extends Page
     }
 
     /**
-     * MARKER-RAISE-INVITE — parse only. Sends nothing, writes nothing.
+     * parse only. Sends nothing, writes nothing.
      *
      * Deliberately a separate step: a pasted list is the easiest place to
      * mail the wrong people, so the parse is shown before anything leaves.
@@ -242,7 +241,7 @@ class Raise extends Page
         }
     }
 
-    /** MARKER-RAISE-INVITE — only ever acts on rows already shown in the preview. */
+    /** only ever acts on rows already shown in the preview. */
     public function sendList(): void
     {
         if (! $this->invitePreview) {
@@ -255,7 +254,7 @@ class Raise extends Page
             return;
         }
 
-        // MARKER-RAISE-COMPOSE — still nothing sent here: this stages the list
+        // still nothing sent here: this stages the list
         // and opens the same preview the single invite uses.
         $this->pendingInvites = [];
 
@@ -277,7 +276,7 @@ class Raise extends Page
         $this->openPreview();
     }
 
-    /** MARKER-RAISE-INVITE — an invite nobody answered is not a cap-table line. */
+    /** an invite nobody answered is not a cap-table line. */
     public function askDelete(int $id): void
     {
         $this->confirmDeleteId = $id;
@@ -288,7 +287,7 @@ class Raise extends Page
         $this->confirmDeleteId = null;
     }
 
-    // MARKER-RAISE-CONFIRM — replaces wire:confirm, which relies on the
+    // replaces wire:confirm, which relies on the
     // browser's native confirm() and fails closed and silently when that is
     // suppressed. Asking in the row cannot be suppressed by the browser.
     public function askConfirm(string $key): void
@@ -326,23 +325,21 @@ class Raise extends Page
         Notification::make()->title($name . ' removed')->success()->send();
     }
 
-    // MARKER-MANUAL-SAFE — which investor's send-by-hand details are open.
+    // which investor's send-by-hand details are open.
     public ?int $manualFor = null;
 
-    /** MARKER-MANUAL-SAFE */
     public function showManual(int $id): void
     {
         $this->manualFor = $id;
     }
 
-    /** MARKER-MANUAL-SAFE */
     public function closeManual(): void
     {
         $this->manualFor = null;
     }
 
     /**
-     * MARKER-SIGNING-SEND — send the SAFE, filled from this investor's record.
+     * send the SAFE, filled from this investor's record.
      *
      * Sending does NOT mark anything signed. Only the callback does that.
      */
@@ -379,14 +376,14 @@ class Raise extends Page
         $investor = Investor::findOrFail($id);
         $investor->forceFill(['signed_at' => now(), 'declined_at' => null])->save();
         \App\Models\InvestorEvent::log($investor->id, 'signed', 'Marked signed');
-        \App\Services\InvestorMessenger::send('signed', $investor); // MARKER-RAISE-MESSAGES
+        \App\Services\InvestorMessenger::send('signed', $investor);
 
         Notification::make()->title($investor->name . ' marked signed')->success()->send();
     }
 
     public function markFunded(int $id): void
     {
-        $this->pendingConfirm = null; // MARKER-RAISE-CONFIRM
+        $this->pendingConfirm = null;
         $investor = Investor::findOrFail($id);
         $investor->forceFill([
             'funded_at'       => now(),
@@ -396,14 +393,14 @@ class Raise extends Page
         ])->save();
 
         \App\Models\InvestorEvent::log($investor->id, 'funded', 'Funds received: $' . number_format($investor->amount_received));
-        \App\Services\InvestorMessenger::send('funded', $investor); // MARKER-RAISE-MESSAGES
+        \App\Services\InvestorMessenger::send('funded', $investor);
 
         Notification::make()->title('Funds recorded for ' . $investor->name)->success()->send();
     }
 
     public function markDeclined(int $id): void
     {
-        $this->pendingConfirm = null; // MARKER-RAISE-CONFIRM
+        $this->pendingConfirm = null;
         $investor = Investor::findOrFail($id);
         $investor->forceFill(['declined_at' => now()])->save();
         \App\Models\InvestorEvent::log($investor->id, 'declined', 'Marked declined');
@@ -421,7 +418,7 @@ class Raise extends Page
 
     public function rotateInviteLink(): void
     {
-        $this->pendingConfirm = null; // MARKER-RAISE-CONFIRM
+        $this->pendingConfirm = null;
         $token = InvestToken::rotate('rotated from master admin');
 
         Notification::make()
@@ -431,7 +428,6 @@ class Raise extends Page
             ->send();
     }
 
-    // MARKER-RAISE-RECORDS
     public function saveWireInstructions(): void
     {
         \App\Models\RaiseSetting::put('wire_bank', $this->wireBank ?: null);
@@ -452,7 +448,7 @@ class Raise extends Page
 
         $active = $investors->whereNull('declined_at');
 
-        // MARKER-RAISE-INVITE — invited and silent is not a commitment, and
+        // invited and silent is not a commitment, and
         // showing the two together makes a pasted list look like a pipeline.
         $invited = $investors->filter(
             fn ($i) => $i->invited_at && ! $i->committed_at && ! $i->declined_at

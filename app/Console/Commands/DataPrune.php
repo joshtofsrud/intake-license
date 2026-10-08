@@ -1,5 +1,4 @@
 <?php
-// MARKER-DATA-RETENTION
 
 namespace App\Console\Commands;
 

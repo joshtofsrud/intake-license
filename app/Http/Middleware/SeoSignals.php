@@ -10,7 +10,7 @@ use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
- * MARKER-SEO-SIGNALS — adds search signals to public responses without
+ * adds search signals to public responses without
  * touching any view:
  *   - X-Robots-Tag: noindex on everything search engines should not index
  *   - <link rel="canonical"> on indexable HTML pages

@@ -3,7 +3,7 @@
 namespace App\Services\Tenant\Import;
 
 /**
- * MARKER-IMPORT1 — customer import.
+ * customer import.
  *
  * preview() and run() share buildRow(), so the preview is not an estimate:
  * it is the same decision the write path makes, just not persisted.
@@ -17,16 +17,16 @@ use Illuminate\Support\Facades\DB;
 
 class CustomerImporter
 {
-    // MARKER-IMPORT-MERGE — conflict analysis for the merge review screen.
+    // conflict analysis for the merge review screen.
     use AnalysesConflicts;
-    use BuildsCombinedFields; // MARKER-IMPORT-COMBINE
-    use MatchesRecords;       // MARKER-IMPORT-MATCH
-    use ReportsProgress;      // MARKER-IMPORT-QUEUE
+    use BuildsCombinedFields;
+    use MatchesRecords;
+    use ReportsProgress;
 
     public const CHUNK = 200;
 
     /**
-     * MARKER-CUSTOMER-TAGS — the tag for this import, made once and remembered.
+     * the tag for this import, made once and remembered.
      * firstOrCreate per row would be 13,000 lookups for one answer.
      */
     private ?string $tagIdMemo = null;
@@ -54,7 +54,7 @@ class CustomerImporter
     public function __construct(private Tenant $tenant, private TenantImport $import) {}
 
     /**
-     * MARKER-IMPORT-TAG-ALL — does this outcome earn the tag?
+     * does this outcome earn the tag?
      *
      *   created  — new customers only (the default)
      *   touched  — created or actually changed
@@ -76,7 +76,7 @@ class CustomerImporter
     }
 
     /**
-     * MARKER-IMPORT-TAG-ALL — one insert per batch rather than one per
+     * one insert per batch rather than one per
      * customer. insertOrIgnore keeps it idempotent, so re-running the same
      * file never duplicates a pivot row.
      */
@@ -164,7 +164,7 @@ class CustomerImporter
                 }
                 return [(int) $raw, null];
 
-            // MARKER-IMPORT-PHONE — store one shape, the same one every
+            // store one shape, the same one every
             // hand-entered number gets. Without this the table ends up with
             // (509) 555-1234 and 5095551234 as different-looking values.
             case 'phone':
@@ -205,7 +205,7 @@ class CustomerImporter
             $dirs[$m['field']]   = $this->rowDirection($m['field'], $dirs[$m['field']], $line);
         }
 
-        // MARKER-IMPORT-COMBINE — after the direct loop, so a combined field
+        // after the direct loop, so a combined field
         // wins over a direct mapping to the same target.
         $combinedExtra = [];
         $this->applyCombined($cells, $values, $dirs, $errors, $line, $combinedExtra);
@@ -291,11 +291,11 @@ class CustomerImporter
     {
         $csv = new CsvFile($this->import->stored_path, $this->import->delimiter, $this->import->encoding);
 
-        $this->ledgerStart('preview'); // MARKER-IMPORT-MATCH
-        $this->progressStart('previewing', $this->rowTotal()); // MARKER-IMPORT-QUEUE
+        $this->ledgerStart('preview');
+        $this->progressStart('previewing', $this->rowTotal());
         $counts = ['possible_duplicate' => 0, 'create' => 0, 'update' => 0, 'unchanged' => 0,
                    'skipped' => 0, 'unmatched' => 0, 'error' => 0,
-                   'will_tag' => 0]; // MARKER-PREVIEW-TAGS
+                   'will_tag' => 0];
         $sample = [];
         $seen   = [];
         $first  = true;
@@ -309,7 +309,7 @@ class CustomerImporter
         $batch = [];
         $flush = function () use (&$batch, &$counts, &$sample, $sampleLimit) {
             if (! $batch) { return; }
-            // MARKER-IMPORT-MATCH — email, then phone, then name+postcode; a
+            // email, then phone, then name+postcode; a
             // weak or disagreeing match becomes a possible duplicate, never a
             // silent merge. Every row is ledgered.
             $matches = $this->matchBatch($batch);
@@ -319,7 +319,7 @@ class CustomerImporter
                 $counts[$row['outcome']] = ($counts[$row['outcome']] ?? 0) + 1;
                 $this->ledgerRow('preview', $b['line'], $b['cells'], $row, $matches[$i]);
 
-                // MARKER-PREVIEW-TAGS — same rule the write path uses, so the
+                // same rule the write path uses, so the
                 // preview can't promise a tag run() won't apply. 'create' has
                 // no record yet but will have one; everything else needs a match.
                 if ($this->tagWants($row['outcome'])
@@ -363,16 +363,16 @@ class CustomerImporter
             $batch[] = ['line' => $line, 'cells' => $cells, 'key' => $key];
             if (count($batch) >= self::CHUNK) {
                 $flush();
-                // MARKER-IMPORT-QUEUE — progress and cancel, between chunks.
+                // progress and cancel, between chunks.
                 $this->progressTick(self::CHUNK, $counts);
                 if ($this->cancelRequested()) { break; }
             }
         }
         $flush();
-        $this->ledgerFlush(); // MARKER-IMPORT-MATCH
-        $this->progressDone($this->cancelRequested() ? 'cancelled' : 'finished'); // MARKER-IMPORT-QUEUE
+        $this->ledgerFlush();
+        $this->progressDone($this->cancelRequested() ? 'cancelled' : 'finished');
 
-        // MARKER-PREVIEW-TAGS — the name too, so the button can say it.
+        // the name too, so the button can say it.
         return ['counts' => $counts, 'sample' => $sample,
                 'tag_name' => trim((string) ($this->import->options['tag_name'] ?? '')) ?: null];
     }
@@ -380,13 +380,13 @@ class CustomerImporter
     /** Write it. Each chunk is its own transaction. */
     public function run(): array
     {
-        $this->ledgerStart('run'); // MARKER-IMPORT-MATCH
-        $this->progressStart('running', $this->rowTotal()); // MARKER-IMPORT-QUEUE
+        $this->ledgerStart('run');
+        $this->progressStart('running', $this->rowTotal());
         $csv = new CsvFile($this->import->stored_path, $this->import->delimiter, $this->import->encoding);
 
         $counts = ['created' => 0, 'updated' => 0, 'unchanged' => 0,
                    'skipped' => 0, 'unmatched' => 0, 'errors' => 0,
-                   'tagged' => 0]; // MARKER-IMPORT-TAG-ALL
+                   'tagged' => 0];
         $errorRows = [];
         $first = true;
         $seen  = [];
@@ -399,18 +399,18 @@ class CustomerImporter
         $batch = [];
         $flush = function () use (&$batch, &$counts, &$errorRows) {
             if (! $batch) { return; }
-            $matches = $this->matchBatch($batch); // MARKER-IMPORT-MATCH
+            $matches = $this->matchBatch($batch);
 
-            // MARKER-IMPORT-TAG-ALL — ids gathered here, written once below.
+            // ids gathered here, written once below.
             $toTag = [];
 
-            DB::transaction(function () use ($batch, $matches, /* MARKER-IMPORT-RUN-CLOSURE */ &$counts, &$errorRows, &$toTag) {
+            DB::transaction(function () use ($batch, $matches,  &$counts, &$errorRows, &$toTag) {
                 foreach ($batch as $i => $b) {
                     $row = $this->buildRow($b['cells'], $matches[$i]['record'], $b['line']);
-                    $row = $this->judge($row, $matches[$i], $b['line'], $b['cells']); // MARKER-IMPORT-MATCH
+                    $row = $this->judge($row, $matches[$i], $b['line'], $b['cells']);
                     $this->ledgerRow('run', $b['line'], $b['cells'], $row, $matches[$i]);
 
-                    // MARKER-IMPORT-MATCH — the controller refuses to run with
+                    // the controller refuses to run with
                     // unresolved possible duplicates; reaching here is a race.
                     // Never merge it: skip, count, and say so.
                     if ($row['outcome'] === 'possible_duplicate') {
@@ -419,7 +419,7 @@ class CustomerImporter
                         continue;
                     }
 
-                    // MARKER-IMPORT-TAG-ALL — decided once per row, for every
+                    // decided once per row, for every
                     // outcome, instead of inside two of the branches. 'create'
                     // has no id until it is made, so it is added there.
                     if ($row['outcome'] !== 'create' && $row['match'] && $this->tagWants($row['outcome'])) {
@@ -428,11 +428,11 @@ class CustomerImporter
 
                     switch ($row['outcome']) {
                         case 'create':
-                            // MARKER-IMPORT2 — ledger the creation so it can be undone
-                            // MARKER-CUSTOMER-EMAIL-NULLABLE — name the column
+                            // ledger the creation so it can be undone
+                            // name the column
                             // explicitly. Omitting it leans on a default the
                             // table does not have, which is what threw 1364.
-                            // MARKER-CONSENT-IMPORT-FIX — name EVERY column the
+                            // name EVERY column the
                             // table requires. 'email' was named; first_name and
                             // last_name were not, so a CSV without a last-name
                             // column threw 1364 and killed the whole run.
@@ -442,7 +442,6 @@ class CustomerImporter
                                 ['tenant_id' => $this->tenant->id],
                             ));
 
-                            // MARKER-CUSTOMER-TAGS / MARKER-IMPORT-TAG-ALL —
                             // collected with the rest of the batch and written
                             // in one insert after the transaction.
                             if ($this->tagWants('create')) {
@@ -457,12 +456,11 @@ class CustomerImporter
                             break;
 
                         case 'update':
-                            // MARKER-IMPORT2 — record prior values so they can be restored
+                            // record prior values so they can be restored
                             $before = [];
                             foreach ($row['changes'] as $k => $v) { $before[$k] = $row['match']->{$k}; }
                             $row['match']->update($row['changes']);
 
-                            // MARKER-IMPORT-TAG-CARD / MARKER-IMPORT-TAG-ALL —
                             // handled by the collector above, which covers
                             // unchanged and skipped rows too.
                             \App\Models\Tenant\TenantImportRow::create([
@@ -489,7 +487,7 @@ class CustomerImporter
                 }
             });
 
-            // MARKER-IMPORT-TAG-ALL — outside the transaction: a tag write must
+            // outside the transaction: a tag write must
             // never roll back the import it describes.
             $counts['tagged'] += $this->flushTags($toTag, $this->importTagId());
 
@@ -512,20 +510,20 @@ class CustomerImporter
             $batch[] = ['line' => $line, 'cells' => $cells, 'key' => $key];
             if (count($batch) >= self::CHUNK) {
                 $flush();
-                // MARKER-IMPORT-QUEUE — progress and cancel, between chunks.
+                // progress and cancel, between chunks.
                 $this->progressTick(self::CHUNK, $counts);
                 if ($this->cancelRequested()) { break; }
             }
         }
         $flush();
-        $this->ledgerFlush(); // MARKER-IMPORT-MATCH
-        $this->progressDone($this->cancelRequested() ? 'cancelled' : 'finished'); // MARKER-IMPORT-QUEUE
+        $this->ledgerFlush();
+        $this->progressDone($this->cancelRequested() ? 'cancelled' : 'finished');
 
         return ['counts' => $counts, 'errorRows' => $errorRows];
     }
 
     /**
-     * MARKER-IMPORT-QUEUE — the preview screen's data WITHOUT re-reading the
+     * the preview screen's data WITHOUT re-reading the
      * file. Counts come from the ledger the job wrote, so opening the page
      * costs one grouped query instead of a full pass.
      */
@@ -547,7 +545,7 @@ class CustomerImporter
         return [
             'counts'        => array_merge($counts, array_intersect_key($stored, ['will_tag' => 0])),
             'sample'        => [],
-            // MARKER-IMPORT-RESULTS — PreviewImportJob writes these at the top
+            // PreviewImportJob writes these at the top
             // of totals; totals['preview'] holds only counts. The tag name is
             // an option, not a total.
             'newCategories' => (array) (($this->import->totals ?? [])['newCategories'] ?? []),

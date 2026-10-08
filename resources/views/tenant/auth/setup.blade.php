@@ -3,16 +3,16 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  @include('partials.mobile-input-zoom') {{-- MARKER-MOBILE-INPUT-ZOOM --}}
+  @include('partials.mobile-input-zoom')
   <title>Set up your account — {{ $currentTenant->name }}</title>
   @if($currentTenant->favicon_url)<link rel="icon" href="{{ $currentTenant->favicon_url }}">@endif
-  <link rel="stylesheet" href="{{ asset('css/fonts.css') }}">{{-- MARKER-SELFHOST-FONTS-2 --}}
+  <link rel="stylesheet" href="{{ asset('css/fonts.css') }}">
   <style>
     *{box-sizing:border-box;margin:0;padding:0}
     body{font-family:'Inter',-apple-system,sans-serif;background:#0f0f0f;color:#f0f0f0;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;-webkit-font-smoothing:antialiased}
     :root{--accent:{{ $currentTenant->accent_color ?? '#BEF264' }};--accent-text:{{ \App\Support\ColorHelper::accentTextColor($currentTenant->accent_color ?? '#BEF264') }};--bg2:#1a1a1a;--border:rgba(255,255,255,.1);--muted:rgba(255,255,255,.4)}
     .card{background:var(--bg2);border:0.5px solid var(--border);border-radius:16px;padding:36px;width:100%;max-width:400px}
-    /* MARKER-PATCH-501 — match staff sign-in chrome */
+    /* match staff sign-in chrome */
     .logo-wrap{text-align:center;margin-bottom:24px}
     .logo-wrap img{height:40px;margin:0 auto 10px;display:block;border-radius:6px;margin-left:auto;margin-right:auto}
     .shop-name{font-size:18px;font-weight:600;color:#f0f0f0}
@@ -58,7 +58,7 @@
     <label>Confirm password</label>
     <input type="password" name="password_confirmation" required minlength="8" placeholder="Re-enter password">
 
-    {{-- MARKER-PATCH-499 — PIN created here, alongside the password --}}
+    {{-- PIN created here, alongside the password --}}
     @if($currentTenant->pin_tier_active)
       <label>4-digit PIN</label>
       <input type="password" name="pin" required inputmode="numeric" pattern="[0-9]{4}" maxlength="4"

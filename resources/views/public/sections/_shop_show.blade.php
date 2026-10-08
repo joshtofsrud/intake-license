@@ -1,8 +1,8 @@
-{{-- MARKER-PATCH-579 -- chrome-wrapped shop body (show); rendered
+{{-- chrome-wrapped shop body (show); rendered
      through public.layout via SiteChromeService between the tenant own
      nav + footer sections. Original standalone blade retired. --}}
 @php
-  // MARKER-PATCH-585 — layout's mobile-nav loop clobbers $item in scope;
+  // layout's mobile-nav loop clobbers $item in scope;
   // rebind from the alias before anything reads it.
   $item = $shopItem ?? $item;
   $accent = $tenant->accent_color ?? '#BEF264';
@@ -84,7 +84,7 @@
         {{ $inStock ? 'In stock — ready for pickup' : 'Special order — usually a few days' }}
       </div>
 
-      {{-- MARKER-PATCH-565 — qty + add-to-cart --}}
+      {{-- qty + add-to-cart --}}
       <form method="POST" action="/cart/items" style="display:flex;gap:10px;align-items:stretch">
         @csrf
         <input type="hidden" name="item_id" value="{{ $item->id }}">

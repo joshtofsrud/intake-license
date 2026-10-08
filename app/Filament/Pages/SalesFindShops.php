@@ -1,5 +1,4 @@
 <?php
-// MARKER-SALES-FIND
 
 namespace App\Filament\Pages;
 
@@ -20,7 +19,7 @@ use Illuminate\Support\Facades\Auth;
 class SalesFindShops extends Page
 {
     use \App\Support\UsesAdminNav;
-    use \Livewire\WithFileUploads; // MARKER-SALES-UPLOAD
+    use \Livewire\WithFileUploads;
     protected static ?string $navigationIcon  = 'heroicon-o-magnifying-glass-circle';
     protected static ?string $navigationLabel = 'Find shops';
     protected static ?string $navigationGroup = 'Sales';
@@ -29,7 +28,7 @@ class SalesFindShops extends Page
     protected static ?string $slug            = 'sales-find-shops';
     protected static ?string $title           = 'Find shops';
 
-    public string $industry    = ''; // MARKER-SALES-INDUSTRY — an Industries id, or 'custom'
+    public string $industry    = ''; // an Industries id, or 'custom'
     public string $uploadIndustry = '';
     public string $customQuery = '';
     public string $place       = '';
@@ -44,18 +43,18 @@ class SalesFindShops extends Page
     public int    $lastCostCents = 0;
 
 
-    // MARKER-SALES-UPLOAD — shop list upload
+    // shop list upload
     public $shopList = null;
     public ?array $uploadPreview = null;
     public bool   $uploadAssign  = true;
     public ?array $uploadResult  = null;
     public string $confirmUndo   = '';
-    // MARKER-SALES-UPLOAD2 — mapping step
+    // mapping step
     public array  $uploadHeaders = [];
     public array  $uploadSample  = [];
     public array  $columnMap     = [];
     public ?string $uploadError  = null;
-    public bool   $showLoader    = false; // MARKER-SALES-UPLOAD3 — panel open state lives here, not in a <details> the morph can close
+    public bool   $showLoader    = false; // panel open state lives here, not in a <details> the morph can close
 
     public static function canAccess(): bool
     {
@@ -68,7 +67,7 @@ class SalesFindShops extends Page
         $this->industry = (string) (array_key_first($this->industries()) ?? 'custom');
     }
 
-    /** MARKER-SALES-INDUSTRY — chips come from the Industries page; active ones first. */
+    /** chips come from the Industries page; active ones first. */
     public function industries(): array
     {
         $out = [];
@@ -91,7 +90,7 @@ class SalesFindShops extends Page
     public function estimateCents(): int { return (1 + max(1, (int) ceil($this->radius / 10))) * SalesSetting::placesCostCents(); }
     public function recentSearches() { return SalesPlacesSearch::latest()->limit(6)->get(); }
 
-    // MARKER-SALES-SITE-SCAN — website pass progress and Pause/Resume.
+    // website pass progress and Pause/Resume.
     public function siteScanStats(): array
     {
         $base = \App\Models\SalesProspect::query()->whereNull('tenant_id');
@@ -119,7 +118,7 @@ class SalesFindShops extends Page
 
     public function search(): void
     {
-        // MARKER-SALES-INDUSTRY — the message now shows under Where (it used to fail silently).
+        // the message now shows under Where (it used to fail silently).
         $this->validate(
             ['place' => ['required', 'string', 'max:191'], 'radius' => ['integer', 'min:5', 'max:30']],
             ['place.required' => 'Enter a city or address to search.']
@@ -185,12 +184,12 @@ class SalesFindShops extends Page
             ->success()->send();
     }
 
-    // ---------------------------------------------------------------- MARKER-SALES-UPLOAD
+    // ----------------------------------------------------------------
     public function updatedShopList(): void
     {
         $this->uploadPreview = null; $this->uploadResult = null; $this->uploadError = null;
         $this->uploadHeaders = []; $this->uploadSample = []; $this->columnMap = [];
-        $this->showLoader = true; // MARKER-SALES-UPLOAD3
+        $this->showLoader = true;
         if (! $this->shopList) return;
         try {
             $this->validate(['shopList' => ['file', 'max:51200']]);

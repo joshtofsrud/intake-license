@@ -1,5 +1,4 @@
 <?php
-// MARKER-INV-REPORTS
 
 namespace App\Http\Controllers\Tenant;
 

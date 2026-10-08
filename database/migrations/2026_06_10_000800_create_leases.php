@@ -1,5 +1,4 @@
 <?php
-// MARKER-PATCH-230
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
@@ -38,7 +37,7 @@ return new class extends Migration
             $t->index(['tenant_id', 'customer_id'], 'lease_tenant_customer');
         });
 
-        // MARKER-PATCH-230 — sales-as-money for leases: tenant_sales.lease_id
+        // sales-as-money for leases: tenant_sales.lease_id
         // (mirrors rental_id from 219b). The register bridge writes it; the
         // payment cascade reads it to update the lease paid_cents cache.
         Schema::table('tenant_sales', function (Blueprint $t) {

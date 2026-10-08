@@ -1,4 +1,4 @@
-{{-- MARKER-INVEST-V2 — the short gated page. The twelve-page proposal is a
+{{-- the short gated page. The twelve-page proposal is a
      PDF and stays one; this used to hold the whole deck in markup, which is
      how it ended up quoting a superseded cap while the PDF said otherwise.
      Git history has the old markup if any wording is wanted back. --}}
@@ -11,7 +11,7 @@
 <link rel="icon" href="{{ \App\Support\Brand::url('favicon') }}" type="image/svg+xml">
 <link rel="icon" href="{{ \App\Support\Brand::url('favicon_32') }}" sizes="32x32">
 <link rel="apple-touch-icon" href="{{ \App\Support\Brand::url('apple') }}">
-{{-- MARKER-INVEST-RETURNS — no og:image here on purpose: a personal link
+{{-- no og:image here on purpose: a personal link
      pasted into a thread would unfurl the round to everyone in it. --}}
 <link rel="stylesheet" href="{{ asset('css/fonts.css') }}">
 @include('invest._styles')
@@ -22,9 +22,9 @@
   <span class="who">Invitation only</span>
 </div></nav>
 
-{{-- MARKER-INVEST-FULL — same rail and same sections as the personal page. --}}
+{{-- same rail and same sections as the personal page. --}}
 @php
-  // MARKER-INVEST-RAILMENU — the sections move into one grouped menu so the
+  // the sections move into one grouped menu so the
   // rail stops clipping and the argument reads in order.
   $rail = [
     ['#terms', 'Terms', null],
@@ -32,8 +32,8 @@
     ['menu', 'The case', null],
     ['#interest', 'Commit', null],
     ['#s-back', 'Back the project', 's-back'],
-    [url('/book/investor'), 'Talk to Josh', null], // MARKER-SCHED-TALK-ALL
-    [url('/demo'), 'See the demo', null], // MARKER-INVEST-DEMO
+    [url('/book/investor'), 'Talk to Josh', null],
+    [url('/demo'), 'See the demo', null],
   ];
   $railMenu = [
     ['The problem', [
@@ -60,9 +60,8 @@
 
 @include('invest._round')
 
-@include('invest._talk-bar') {{-- MARKER-SCHED-TALK-ALL --}}
+@include('invest._talk-bar')
 
-{{-- MARKER-INVEST-CONTEXT --}}
 <section><div class="wrap">
 
   <details class="sec" id="s-keep">
@@ -118,7 +117,7 @@
 </div></section>
 
 <section id="interest"><div class="wrap">
-  {{-- MARKER-SHARED-COMMIT — commit here rather than asking to be set up. --}}
+  {{-- commit here rather than asking to be set up. --}}
   <p class="sub">Interested?</p>
   <h2>Say what you're thinking, and it's recorded.</h2>
   <p class="lede">Nothing binding — a statement of intent you can change or withdraw right up until the
@@ -159,7 +158,6 @@
     the same settings the documents are generated from.
   </div>
 
-  {{-- MARKER-INVEST-MOBILE --}}
   <details class="m">
     <summary>Legal</summary>
     <div class="inner"><p style="font-size:12.5px">Not an offer to sell or a solicitation of an offer to
@@ -169,13 +167,12 @@
   </details>
 </div></section>
 
-{{-- MARKER-INVEST-CONFIRM --}}
 @include('invest._confirm', [
   'confirmTitle' => 'Recorded.',
   'confirmBody'  => 'Your own page is on its way by email — the documents, the signature and the funding details all live there. Nothing is binding yet, and you can change or withdraw it any time before the paperwork is signed.',
 ])
 
-{{-- MARKER-CONTRIBUTE-SHARED — below the commit form, collapsed, never beside
+{{-- below the commit form, collapsed, never beside
      it: someone weighing a commitment should not meet a cheaper option in the
      same eyeline. --}}
 <section><div class="wrap">

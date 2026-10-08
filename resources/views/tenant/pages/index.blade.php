@@ -68,7 +68,7 @@
             <span style="font-size:13px;opacity:.5">{{ $page->is_in_nav ? 'Yes' : 'No' }}</span>
           </td>
           <td style="text-align:right;white-space:nowrap">
-            {{-- MARKER-PAGE-PUBLISH — flip status without opening the editor. --}}
+            {{-- flip status without opening the editor. --}}
             <form method="POST" action="{{ route('tenant.pages.update', $page->id) }}" style="display:inline">
               @csrf @method('PATCH')
               <input type="hidden" name="op" value="set_published">
@@ -94,7 +94,7 @@
   </table>
 </div>
 
-{{-- MARKER-WELCOME / MARKER-WELCOME-POLISH — the site-wide holding page.
+{{-- the site-wide holding page.
      Structure mirrors the splash card below (.ia-card + .ia-card-head) so
      the two line up; the first pass rolled its own padding and didn't. --}}
 @php $wAllowable = \App\Support\WelcomePage::ALLOWABLE; @endphp
@@ -115,7 +115,7 @@
       </label>
     </div>
 
-    {{-- MARKER-WELCOME-LIVE-BANNER — only when it is actually on. A warning
+    {{-- only when it is actually on. A warning
          that shows while nothing is happening trains people to ignore it. --}}
     @if($welcome['enabled'])
       <div class="wl-live">
@@ -149,7 +149,7 @@
                  value="{{ $welcome['cta_url'] }}" placeholder="tel:5095550142">
         </div>
 
-        {{-- MARKER-WELCOME-LOGO-UI — chosen against the real dark background,
+        {{-- chosen against the real dark background,
              not from a dropdown. --}}
         @php
           $wMain    = $currentTenant->logo_url ?: null;
@@ -232,7 +232,7 @@
         <div class="wl-prev">
           <div class="wl-prev-bar">{{ parse_url($currentTenant->publicUrl(), PHP_URL_HOST) }}</div>
           <div class="wl-prev-body">
-            {{-- MARKER-WELCOME-LOGO-UI — the saved choice, not the main logo --}}
+            {{-- the saved choice, not the main logo --}}
             @php $wPrevSrc = \App\Support\WelcomePage::logoUrl($currentTenant); @endphp
             <img class="wl-prev-logo" data-wl-preview="logo" src="{{ $wPrevSrc }}" alt=""
                  @unless($wPrevSrc) hidden @endunless>
@@ -258,7 +258,7 @@
 
 @push('scripts')
 <script>
-// MARKER-WELCOME-POLISH — live preview. Cheap enough to run on input; no
+// live preview. Cheap enough to run on input; no
 // fetch, no debounce needed.
 (function () {
   var map = {
@@ -281,7 +281,7 @@
 })();
 </script>
 <script>
-// MARKER-WELCOME-LOGO-UI — logo tiles drive the hidden input and the preview.
+// logo tiles drive the hidden input and the preview.
 // Deliberately its own IIFE: the block above owns the text fields, and one
 // duplicate identifier would take both features down.
 (function () {
@@ -301,7 +301,7 @@
     return light || main; // auto
   }
 
-  // MARKER-WELCOME-LOGO-SMART — measure each chip's artwork rather than
+  // measure each chip's artwork rather than
   // guessing from the filename. Mean luminance over non-transparent pixels;
   // below the threshold the artwork is dark, so the chip switches to a light
   // backdrop and the tile flags that the real page will hide it.
@@ -354,7 +354,7 @@
 </script>
 @endpush
 
-{{-- MARKER-SPLASH-2-UI — pairing table. Each row is a sentence: when
+{{-- pairing table. Each row is a sentence: when
      someone visits THIS page, show them THAT splash. --}}
 @php
   $splashablePages = $pages->where('is_published', true);
@@ -504,7 +504,7 @@
   .sp-foot{display:flex;align-items:center;gap:10px;padding:14px 20px;border-top:.5px solid var(--ia-border)}
   .sp-status{font-size:12px;color:var(--ia-text-dim);margin-left:auto}
 
-/* MARKER-WELCOME / MARKER-WELCOME-POLISH — inherits .ia-card padding so it
+/* inherits .ia-card padding so it
    sits on the same rhythm as the splash card below. */
 .wl-card{margin-top:22px}
 .wl-card.is-on{box-shadow:inset 3px 0 0 #FBBF24}
@@ -556,7 +556,6 @@
 
 .wl-foot{display:flex;justify-content:flex-end;gap:8px;
   margin-top:20px;padding-top:16px;border-top:.5px solid var(--ia-border)}
-/* MARKER-WELCOME-LOGO-UI */
 .lg-picker{display:grid;grid-template-columns:repeat(4,1fr);gap:9px}
 .lg-opt{display:block;width:100%;font-family:inherit;text-align:center;position:relative;cursor:pointer;
   border:1px solid var(--ia-border);background:var(--ia-surface-2);border-radius:11px;padding:9px;
@@ -579,8 +578,7 @@
   background:rgba(251,191,36,.05);border-radius:9px;padding:9px 12px;margin-top:9px;
   font-size:12px;color:#FBBF24}
 .lg-warnrow a{color:#FBBF24}
-/* MARKER-WELCOME-LIVE-BANNER */
-/* MARKER-WELCOME-LIVE-BANNER-FIT — no horizontal margin: the card's own
+/* no horizontal margin: the card's own
    padding is the gutter, same as .wl-head and .wl-grid. .ia-card-head brings
    margin-bottom:16px, so the banner only needs its own bottom gap. */
 .wl-live{display:flex;gap:10px;align-items:flex-start;margin:0 0 16px;padding:11px 13px;
@@ -596,10 +594,10 @@
 .wl-live-txt b{color:#FCD34D}
 .wl-live-txt a{color:#FCD34D;text-decoration:underline}
 @media (prefers-reduced-motion:reduce){ .wl-live-dot{animation:none} }
-/* MARKER-WELCOME-LOGO-SMART-FIX — author display beats the UA's
+/* author display beats the UA's
    [hidden]{display:none}, so the logo and the initials mark both rendered. */
 .wl-prev-logo[hidden], .wl-prev-mark[hidden]{display:none !important}
-/* MARKER-WELCOME-LOGO-SMART — dark artwork gets a light backdrop so it is
+/* dark artwork gets a light backdrop so it is
    visible at all, and says plainly that it won't be on the real page. */
 .lg-chip.is-dark-art{background:#e9eaec}
 .lg-flag{display:none;align-items:center;justify-content:center;gap:4px;margin-top:5px;
@@ -612,7 +610,7 @@
 
 @push('scripts')
 @php
-  // MARKER-SPLASH-2-JSONFIX — computed here so @json() receives a single
+  // computed here so @json() receives a single
   // variable. A multi-line array literal inside a Blade directive's
   // parentheses cannot be parsed and fatals the whole view.
   $spPagesJs = $splashablePages->map(function ($p) {
@@ -639,7 +637,7 @@
 @endphp
 <script>
 (function () {
-  // MARKER-SPLASH-2-UI — the table is edited client-side and submitted as
+  // the table is edited client-side and submitted as
   // rows[]; the server replaces the whole set, so a removed row really is
   // removed.
   var PAGES = @json($spPagesJs);

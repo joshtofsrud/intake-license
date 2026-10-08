@@ -1,5 +1,5 @@
 <?php
-// MARKER-PATCH-633 — Reports → Daily ops → End of day.
+// Reports → Daily ops → End of day.
 // All money from the sales-as-money ledger (tenant_sale_payments) bucketed by
 // tenant-local day; gross/tax/tips from the sale rows paid that day. Drawer
 // reconciliation lives in tenant_drawer_days; closing the day snapshots the
@@ -134,7 +134,7 @@ class DailyOpsController extends Controller
         return view('tenant.reports.daily-print', ['day' => $day, 'n' => $n, 'drawer' => $drawer, 'tenant' => $tenant]);
     }
 
-    /* ------------------------------------------------------------ reconciliation (MARKER-PATCH-635) */
+    /* ------------------------------------------------------------ reconciliation */
 
     public function reconciliation(Request $request)
     {
@@ -197,7 +197,7 @@ class DailyOpsController extends Controller
         return back()->with('success', $n . ' payout(s) fetched and matched.');
     }
 
-    /** MARKER-PATCH-635 — Xero bank statement CSV from cached payouts. */
+    /** Xero bank statement CSV from cached payouts. */
     public function exportXero(Request $request)
     {
         $tenant = tenant();
@@ -223,7 +223,7 @@ class DailyOpsController extends Controller
         }, 'xero-statement-' . $label . '.csv', ['Content-Type' => 'text/csv']);
     }
 
-    /* ------------------------------------------------------------ exports (MARKER-PATCH-634) */
+    /* ------------------------------------------------------------ exports */
 
     public function exports(Request $request)
     {
@@ -249,7 +249,7 @@ class DailyOpsController extends Controller
 
         $days = $this->dailyBreakdown($from, $to);
 
-        // MARKER-PATCH-636 — global credit accounts from settings
+        // global credit accounts from settings
         $st = $tenant->settings ?? [];
         $acctIncome = $st['qb_income_account'] ?? 'Sales';
         $acctTax    = $st['qb_tax_account'] ?? 'Sales Tax Payable';

@@ -1,7 +1,7 @@
 @extends('layouts.tenant.app')
 @php
   $pageTitle = $appointment->ra_number;
-  $statusLabels = \App\Support\AppointmentStatus::LABELS; // MARKER-PATCH-287 single source
+  $statusLabels = \App\Support\AppointmentStatus::LABELS; // single source
   $transitionLabels = [
     'confirmed'   => 'Confirm',
     'in_progress' => 'Start work',
@@ -531,7 +531,7 @@
 
 @section('content')
 
-{{-- MARKER-APPT-OVERRIDE — a bent rule says so on the record it produced. --}}
+{{-- a bent rule says so on the record it produced. --}}
 @if($appointment->isOverride())
   <div style="border:0.5px solid rgba(240,196,106,.35);background:rgba(240,196,106,.1);border-radius:8px;padding:11px 14px;margin-bottom:14px;font-size:13px;color:#f0c46a">
     <b>{{ $appointment->overrideLabel() }}.</b>
@@ -546,14 +546,14 @@
   // Banner state — drives the top-of-page status banner.
   // Three cases: open draft sale (amber, take payment), paid (green),
   // overage (amber warning, refund customer). Anything else = no banner.
-  $bannerPendingLink = $appointment->pendingPaymentLinkSale(); // MARKER-PATCH-194
+  $bannerPendingLink = $appointment->pendingPaymentLinkSale();
   $bannerSale     = $appointment->openRegisterSale();
   $bannerBalance  = max(0, (int)$appointment->total_cents - (int)$appointment->paid_cents);
   $bannerOverage  = max(0, (int)$appointment->paid_cents - (int)$appointment->total_cents);
   $bannerPaidFull = ($appointment->payment_status === 'paid');
 @endphp
 
-{{-- MARKER-OLD-SCHOOL-BANNER — above the payment banners: a note written
+{{-- above the payment banners: a note written
      about this person is context for everything below it, including whether
      to take the money yet. Also sets $noteCustomer so the pad button
      pre-attaches them. --}}
@@ -561,7 +561,7 @@
 @include('tenant._notes-banner', ['bannerCustomer' => $noteCustomer])
 
 @if($bannerPendingLink)
-  {{-- MARKER-PATCH-194 — a payment link is out and awaiting the customer. --}}
+  {{-- a payment link is out and awaiting the customer. --}}
   <div style="background:rgba(96,165,250,.10);border:0.5px solid rgba(96,165,250,.35);border-radius:var(--ia-r-md);padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:14px">
     <span style="font-size:20px;line-height:1">🔗</span>
     <div style="flex:1">
@@ -611,7 +611,7 @@
   </div>
 @endif
 
-{{-- MARKER-APPT-MOBILE — time-slot shops book a time, not a repair: drop-off
+{{-- time-slot shops book a time, not a repair: drop-off
      only sections (capacity slots, promised date, print tag) hide, and the page
      is an "Appointment", not a "Work order". --}}
 @php $apptIsTimeSlots = (tenant()->booking_mode ?? 'drop_off') === 'time_slots'; @endphp
@@ -632,7 +632,7 @@
   </div>
 </div>
 
-{{-- MARKER-APPT-MOBILE — the phone view: what you need first, on one screen.
+{{-- the phone view: what you need first, on one screen.
      Time, staff, customer with Call · Text · Email, services, total and paid.
      Everything else below becomes a row you tap open. Desktop is unchanged. --}}
 @php
@@ -652,7 +652,7 @@
   $amEmail = (string) $appointment->customer_email;
   $amTotal = (int) $appointment->total_cents;
   $amPaid  = (int) $appointment->paid_cents;
-  // MARKER-APPT-MOBILE-2 — the status as a chip, and the next step as a button.
+  // the status as a chip, and the next step as a button.
   $amStatus   = (string) $appointment->status;
   $amSteps    = \App\Support\AppointmentStatus::pipeline();
   $amTerminal = \App\Support\AppointmentStatus::isTerminal($amStatus);
@@ -660,7 +660,7 @@
   $amNext     = ($amIdx !== false && isset($amSteps[$amIdx + 1])) ? $amSteps[$amIdx + 1] : null;
   $amLabel    = fn ($st) => ($statusLabels ?? [])[$st] ?? ucwords(str_replace('_', ' ', (string) $st));
   $amVerb     = ['confirmed' => 'Confirm', 'in_progress' => 'Start', 'completed' => 'Complete'];
-  // MARKER-APPT-MOBILE-3 — only the moves the server allows from here, so a
+  // only the moves the server allows from here, so a
   // choice always sticks; cancelling keeps its own button and confirm.
   $amAllowed   = \App\Support\AppointmentStatus::TRANSITIONS[$amStatus] ?? [];
   $amCanCancel = ! $amTerminal && in_array('cancelled', $amAllowed, true);
@@ -746,7 +746,7 @@
   <div class="appt-m-ref">{{ $apptIsTimeSlots ? 'Appointment' : 'Work order' }} {{ $appointment->ra_number }}</div>
 </div>
 
-{{-- MARKER-APPT-MOBILE-3 — the same three buttons every time: next step,
+{{-- the same three buttons every time: next step,
      Reschedule, Cancel. One that doesn't apply is greyed out, not removed. --}}
 <div class="appt-m-actions">
   @if($amNext)
@@ -774,7 +774,7 @@
 @endunless
 
 <style>
-/* MARKER-APPT-MOBILE — phone summary and rows. Scoped to .appt-m-* and a
+/* phone summary and rows. Scoped to .appt-m-* and a
    phone breakpoint; the contact tiles copy the customer page's .cmd-tile look. */
 .appt-m-summary, .appt-m-actions, .appt-m-cancel { display: none; }
 @media (max-width: 900px) {
@@ -811,7 +811,7 @@
   .appt-m-pill.is-ok { background: rgba(190,242,100,.10); color: var(--ia-accent); border-color: rgba(190,242,100,.25); }
   .appt-m-ref { font-size: 11.5px; color: var(--ia-text-dim); margin-top: 12px; }
 
-  /* MARKER-APPT-MOBILE-2 — status lives in the chip; the pill row is hidden
+  /* status lives in the chip; the pill row is hidden
      (kept in the page, since the chip and the sheet drive it). */
   .appt-progress-card { display: none !important; }
   .appt-m-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
@@ -854,7 +854,7 @@
   .appt-m-opt.is-on::after { content: '✓'; float: right; color: var(--ia-accent); }
   .appt-m-sheet-note { font-size: 12px; color: var(--ia-text-dim); margin-top: 10px; }
 
-  /* MARKER-APPT-MOBILE-2 — one list, as in the mockup: sentence-case titles,
+  /* one list, as in the mockup: sentence-case titles,
      the answer on the right, each card's own buttons inside when opened. */
   .appt-m-rows { border: 0.5px solid var(--ia-border); border-radius: 14px; overflow: hidden;
     background: var(--ia-surface); margin: 12px 0 0; }
@@ -871,7 +871,7 @@
 }
 </style>
 <script>
-// MARKER-APPT-MOBILE-2 — the phone layout: status chip and sheet, the next-step
+// the phone layout: status chip and sheet, the next-step
 // and Reschedule buttons, and every card as a row in one list.
 document.addEventListener('DOMContentLoaded', function () {
   var q = function (s, r) { return (r || document).querySelector(s); };
@@ -880,7 +880,7 @@ document.addEventListener('DOMContentLoaded', function () {
   document.querySelectorAll('[data-am-proxy]').forEach(function (b) {
     b.addEventListener('click', function () { var t = q(b.dataset.amProxy); if (t) { t.click(); } });
   });
-  // MARKER-APPT-MOBILE-3 — straight to the server, not through the hidden
+  // straight to the server, not through the hidden
   // pill row (whose index logic misread legacy statuses, so picks didn't stick).
   var sheet = q('#amSheet');
   var amUrl = @json(route('tenant.appointments.update', $appointment->id));
@@ -986,7 +986,7 @@ document.addEventListener('DOMContentLoaded', function () {
   $pipelineSteps = \App\Support\AppointmentStatus::pipeline();
   // TODO: per-tenant extensions for 'shipped' and 'closed' once Workflow settings ship.
   $currentIndex = array_search($appointment->status, $pipelineSteps);
-  // MARKER-APPT-MOBILE-3 — legacy "done" statuses (shipped, closed) aren't in
+  // legacy "done" statuses (shipped, closed) aren't in
   // the pipeline; they were drawn as Pending, and a click then misfired.
   if ($currentIndex === false) {
       $doneAt = array_search('completed', $pipelineSteps);
@@ -1048,12 +1048,10 @@ document.addEventListener('DOMContentLoaded', function () {
         <div class="appt-b-when-dur">No time set</div>
       </div>
     @endif
-    {{-- MARKER-PATCH-311 --}}
-    @unless($apptIsTimeSlots){{-- MARKER-APPT-MOBILE — a booked time is the promise --}}
+    @unless($apptIsTimeSlots){{-- a booked time is the promise --}}
     <div style="margin-top:10px">@include('tenant.appointments._promised_editor')</div>
     @endunless
-    @include('tenant.appointments._delivery_propose_modal'){{-- MARKER-PATCH-527 --}}
-    {{-- MARKER-PATCH-514 --}}
+    @include('tenant.appointments._delivery_propose_modal')
     @include('tenant.appointments._route_trip')
 
     {{-- Status pipeline (markup is fed into vertical CSS by .appt-b-rail wrapper) --}}
@@ -1105,17 +1103,15 @@ document.addEventListener('DOMContentLoaded', function () {
     {{-- Action stack --}}
     @unless($isTerminal)
     <div class="appt-b-actions">
-      {{-- MARKER-PATCH-313 --}}
-      {{-- MARKER-PATCH-315 — gated on the tag enable toggle --}}
-      @if(! $apptIsTimeSlots && data_get(tenant()->settings, 'work_order_tag.enabled', true)){{-- MARKER-APPT-MOBILE --}}
+      {{-- gated on the tag enable toggle --}}
+      @if(! $apptIsTimeSlots && data_get(tenant()->settings, 'work_order_tag.enabled', true))
       <button type="button" class="ia-btn ia-btn--secondary" onclick="openTagModal()">&#9113; Print tag</button>
       @endif
       <div class="appt-b-actions-divider"></div>
-      {{-- MARKER-PATCH-285 — removed stray "Reschedule shipping tomorrow" cruft --}}
+      {{-- removed stray "Reschedule shipping tomorrow" cruft --}}
       <button type="button" class="ia-btn ia-btn--secondary appt-b-reschedule-btn">↻ Reschedule</button>
       <div class="appt-b-actions-divider"></div>
       <button type="button" class="ia-btn ia-btn--danger appt-b-cancel-btn">Cancel appointment</button>
-      {{-- MARKER-SEND-CONFIRMATION --}}
       <div class="appt-b-actions-divider"></div>
       @include('tenant.appointments._send-confirmation')
     </div>
@@ -1126,7 +1122,7 @@ document.addEventListener('DOMContentLoaded', function () {
       <div class="appt-section-label">Customer</div>
       <div style="font-weight:500;margin-bottom:4px">
         {{ $appointment->customerName() }}
-        {{-- MARKER-BIZ-WORKORDER — business context where the job is done --}}
+        {{-- business context where the job is done --}}
         @if($appointment->customer && $appointment->customer->isBusiness())
           <span class="biz-pill">Business</span>
         @endif
@@ -1216,7 +1212,7 @@ document.addEventListener('DOMContentLoaded', function () {
     </div>
 
     {{-- Capacity slots · LAYOUT-B-RAIL v1 (collapsible override) --}}
-    {{-- MARKER-APPT-MOBILE — drop-off capacity only; meaningless for a booked time --}}
+    {{-- drop-off capacity only; meaningless for a booked time --}}
     @unless($apptIsTimeSlots)
     <div class="ia-card ia-card--tight">
       <div style="font-size:11px;text-transform:uppercase;letter-spacing:.07em;font-weight:500;opacity:.4;margin-bottom:10px">
@@ -1494,7 +1490,7 @@ document.addEventListener('DOMContentLoaded', function () {
          Includes soft completion-block warning when appointment is
          in_progress and SOs aren't yet pulled.
          ════════════════════════════════════════════════════════════ --}}
-    {{-- MARKER-APPT-MOBILE — only for shops with retail on, as the Special Orders menu is --}}
+    {{-- only for shops with retail on, as the Special Orders menu is --}}
     @if(isset($specialOrdersForAppt) && tenant()->retail_enabled)
       @php
         $openAppointmentSos = $specialOrdersForAppt->whereIn('status', ['needed', 'ordered', 'arrived']);
@@ -1532,7 +1528,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 <th style="width:90px">ETA</th>
                 <th>Vendor</th>
                 <th style="width:80px">SO #</th>
-                <th style="width:70px"></th>{{-- MARKER-SO-APPT-CANCEL --}}
+                <th style="width:70px"></th>
               </tr>
             </thead>
             <tbody>
@@ -1554,7 +1550,7 @@ document.addEventListener('DOMContentLoaded', function () {
                   </td>
                   <td style="color:var(--ia-text-muted);font-size:12px">{{ $so->vendor?->name ?? 'TBD' }}</td>
                   <td style="font-size:11px;color:var(--ia-text-muted)">{{ $so->so_number }}</td>
-                  {{-- MARKER-SO-APPT-CANCEL — a special order attached here had
+                  {{-- a special order attached here had
                        no way off the work order: the only action was opening
                        it. A still-"needed" order can be retracted from the
                        row; placed ones cannot, since goods may be inbound. --}}
@@ -1575,7 +1571,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
       @include('tenant.special-orders._drawer', ['vendors' => $soVendors ?? collect()])
 
-      {{-- MARKER-SO-APPT-CANCEL — inside the section on purpose: a script
+      {{-- inside the section on purpose: a script
            placed after @endsection is silently discarded by Blade. --}}
       <script>
       (function () {
@@ -1589,7 +1585,7 @@ document.addEventListener('DOMContentLoaded', function () {
           e.stopPropagation();
 
           var num = btn.getAttribute('data-so-number') || 'this special order';
-          if (!(await iaConfirm('Cancel ' + num + '? The part is no longer needed for this work order.'))) return; // MARKER-INLINE-CONFIRM-2
+          if (!(await iaConfirm('Cancel ' + num + '? The part is no longer needed for this work order.'))) return;
 
           btn.disabled = true;
           fetch(url.replace('__ID__', btn.getAttribute('data-appt-so-cancel')), {
@@ -1799,7 +1795,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 {{ $note->user?->name ?? ($note->note_type === 'system' ? 'System' : 'Staff') }}
               </span>
               <span class="ia-note-time">
-                {{ tlocal($note->created_at, 'M j, g:i a') }}{{-- MARKER-PATCH-532 --}}
+                {{ tlocal($note->created_at, 'M j, g:i a') }}
               </span>
               @if($note->note_type !== 'system')
                 <button type="button" class="ia-note-delete"
@@ -1822,7 +1818,7 @@ document.addEventListener('DOMContentLoaded', function () {
       <div class="appt-section-label">Customer</div>
       <div style="font-weight:500;margin-bottom:4px">
         {{ $appointment->customerName() }}
-        {{-- MARKER-BIZ-WORKORDER — business context where the job is done --}}
+        {{-- business context where the job is done --}}
         @if($appointment->customer && $appointment->customer->isBusiness())
           <span class="biz-pill">Business</span>
         @endif
@@ -1888,7 +1884,6 @@ document.addEventListener('DOMContentLoaded', function () {
         <span class="sidebar-stat-label">Subtotal</span>
         <span class="sidebar-stat-value">{{ format_money($appointment->subtotal_cents) }}</span>
       </div>
-      {{-- MARKER-APPT-DISCOUNT --}}
       @if((int) ($appointment->discount_cents ?? 0) > 0)
       <div class="sidebar-stat">
         <span class="sidebar-stat-label">
@@ -1908,7 +1903,7 @@ document.addEventListener('DOMContentLoaded', function () {
         <span class="sidebar-stat-value" style="font-size:16px">{{ format_money($appointment->total_cents) }}</span>
       </div>
 
-      {{-- MARKER-APPT-DISCOUNT — the discount changes the balance the customer
+      {{-- the discount changes the balance the customer
            is asked for, so it lives beside the money, not in a menu. --}}
       @if((int) $appointment->paid_cents === 0)
         <div style="margin-top:10px;display:flex;gap:8px">
@@ -2007,7 +2002,7 @@ document.addEventListener('DOMContentLoaded', function () {
   </div>{{-- /.appt-b-main --}}
 
 </div>{{-- /.appt-b-shell --}}
-{{-- MARKER-APPT-MOBILE-3 — Cancel lives in the action row now. --}}
+{{-- Cancel lives in the action row now. --}}
 
 {{-- RESCHEDULE-MODAL v1 --}}
 @php
@@ -2135,16 +2130,14 @@ document.addEventListener('DOMContentLoaded', function () {
 </div>
 @endif
 
-{{-- MARKER-PATCH-314 --}}
 @include('tenant.appointments._tag_modal')
 
-{{-- MARKER-BIZ-WORKORDER --}}
 <style>
   .biz-pill{display:inline-block;font-size:9.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;border-radius:100px;padding:2px 7px;margin-left:6px;border:0.5px solid var(--ia-border);color:var(--ia-text-muted);vertical-align:1px}
 </style>
 
 
-{{-- MARKER-APPT-DISCOUNT — in-app dialog, no browser prompts --}}
+{{-- in-app dialog, no browser prompts --}}
 @if((int) $appointment->paid_cents === 0)
 <div id="appt-disc-backdrop" style="position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:220;display:none;align-items:center;justify-content:center;padding:20px"
      onclick="if(event.target===this)ApptDiscount.close()">
@@ -2303,7 +2296,7 @@ document.addEventListener('keydown', function (e) {
   function bindDeleteOnEl(btn) {
     if (!btn) return;
     btn.addEventListener('click', async function () {
-      if (!(await iaConfirm('Delete this note?'))) return; // MARKER-INLINE-CONFIRM-2
+      if (!(await iaConfirm('Delete this note?'))) return;
       var noteId = btn.getAttribute('data-note-id');
       var fd = new FormData();
       fd.append('_token', csrf);
@@ -2458,7 +2451,7 @@ document.addEventListener('keydown', function (e) {
       .then(function (res) {
         if (res.ok && res.body && res.body.ok) {
           window.IntakeToast.success(targetLabel || 'Saved');
-          // MARKER-PATCH-527 — completed + P&D: offer to text delivery windows
+          // completed + P&D: offer to text delivery windows
           if (res.body.propose_delivery && window.IntakeDeliveryPropose
               && IntakeDeliveryPropose.show(res.body.propose_delivery, { updateUrl: updateUrl, csrf: csrf })) {
             return true; // modal handles the reload
@@ -2767,7 +2760,7 @@ document.addEventListener('keydown', function (e) {
       var btn = e.target.closest('.part-remove');
       if (!btn) return;
       var partId = btn.getAttribute('data-part-id');
-      if (!(await iaConfirm('Remove this item?'))) return; // MARKER-INLINE-CONFIRM-2
+      if (!(await iaConfirm('Remove this item?'))) return;
       fetch(updateUrl, {
         method: 'PATCH',
         headers: { 'Content-Type':'application/json', 'X-CSRF-TOKEN': csrf, 'Accept':'application/json' },
@@ -2884,7 +2877,7 @@ document.addEventListener('keydown', function (e) {
      =================================================================== */
   document.querySelectorAll('.void-sale-btn').forEach(function (btn) {
     btn.addEventListener('click', async function () {
-      if (!(await iaConfirm('Void the draft register sale to edit this appointment?\n\nThe sale will be cancelled. After your edits, completing the appointment again creates a fresh draft.'))) { // MARKER-INLINE-CONFIRM-2
+      if (!(await iaConfirm('Void the draft register sale to edit this appointment?\n\nThe sale will be cancelled. After your edits, completing the appointment again creates a fresh draft.'))) {
         return;
       }
       btn.disabled = true;

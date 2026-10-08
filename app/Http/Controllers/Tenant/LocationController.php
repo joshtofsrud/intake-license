@@ -52,7 +52,7 @@ class LocationController extends Controller
             return back()->with('error', 'Owner only.');
         }
 
-        // MARKER-LOCGATE — the gate this comment used to defer. A location is
+        // the gate this comment used to defer. A location is
         // priced at the base subscription, so an ungated create is revenue
         // straight out the door. Server-side because hiding the button is not
         // a control.

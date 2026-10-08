@@ -5,7 +5,6 @@ namespace App\Console\Commands;
 use App\Models\InvestToken;
 use Illuminate\Console\Command;
 
-// MARKER-INVEST-SITE
 class InvestTokenCommand extends Command
 {
     protected $signature = 'intake:invest-token

@@ -122,7 +122,7 @@ class ReceiveShipmentController extends Controller
         $data = $request->validate([
             'shipment_number'    => ['required', 'string', 'max:30', 'regex:/^[A-Za-z0-9\-\/_.]+$/'],
             'location_id'        => ['required', 'uuid', \Illuminate\Validation\Rule::exists('tenant_locations', 'id')
-                ->where(fn ($q) => $q->where('tenant_id', $tenant->id))], // MARKER-EXISTS-TENANT-SCOPE
+                ->where(fn ($q) => $q->where('tenant_id', $tenant->id))],
             'received_date'      => ['required', 'date'],
             'distributor_name'   => ['nullable', 'string', 'max:128'],
             'distributor_code'   => ['nullable', 'string', 'max:32'],
@@ -468,7 +468,7 @@ class ReceiveShipmentController extends Controller
             return response()->json(['ok' => true, 'results' => []]);
         }
 
-        // MARKER-INV-SEARCH — the shared search, best match first.
+        // the shared search, best match first.
         $itemQuery = TenantInventoryItem::where('tenant_id', $tenant->id)
             ->where('is_active', true);
         $searchHit = \App\Support\InventorySearch::apply($itemQuery, $tenant->id, $q);
@@ -508,7 +508,7 @@ class ReceiveShipmentController extends Controller
             ]);
         }
 
-        // MARKER-SERIAL-OPTIONAL — serials are a tool, never a gate: a shipment
+        // serials are a tool, never a gate: a shipment
         // commits whatever was scanned. Units without a serial show as "needs a
         // serial" on the item, to be filled in whenever it's handy.
 
@@ -549,7 +549,7 @@ class ReceiveShipmentController extends Controller
                         notes: "Shipment {$shipment->shipment_number}",
                     );
 
-                    // MARKER-RECEIVED-COST — this is the number you paid,
+                    // this is the number you paid,
                     // rolled up onto the item. Catalog prefilled the line;
                     // whatever the receiver left on it is what committed.
                     if ($line->unit_cost_cents !== null) {
@@ -558,7 +558,7 @@ class ReceiveShipmentController extends Controller
                         );
                     }
 
-                    // MARKER-SERIAL-FOUNDATION — the line's serials become units in stock here.
+                    // the line's serials become units in stock here.
                     if (\App\Support\SerialTracking::isTracked($item)) {
                         foreach ((array) ($line->serials ?? []) as $sn) {
                             if ($there = \App\Support\SerialTracking::inStock($tenant->id, (string) $sn)) {

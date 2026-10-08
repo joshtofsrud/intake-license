@@ -10,16 +10,16 @@
     'spend_asc'    => 'Lowest spend',
     'last_service' => 'Last service',
     'vips_only'    => 'VIPs only',
-    'businesses_only' => 'Businesses only', // MARKER-BIZ-LIST
-    'has_account'  => 'Has portal account',   // MARKER-CUST-ACCOUNT
-    'no_account'   => 'No portal account',    // MARKER-CUST-ACCOUNT
+    'businesses_only' => 'Businesses only',
+    'has_account'  => 'Has portal account',
+    'no_account'   => 'No portal account',
   ];
   $currentSortLabel = $sortLabels[$sort] ?? 'Name A–Z';
 @endphp
 
 @section('content')
 
-{{-- MARKER-TAGS-VISIBLE — a chip click has to land somewhere that explains itself. --}}
+{{-- a chip click has to land somewhere that explains itself. --}}
 @if(!empty($tagFilter))
   <div class="ia-flash ia-flash--info" style="margin-bottom:12px">
     Showing customers tagged <b>{{ $tagFilter->name }}</b>.
@@ -61,7 +61,7 @@
   <form method="POST" action="{{ route('tenant.customers.store') }}" data-biz-form>
     @csrf
 
-    {{-- MARKER-BIZ-CUSTOMER — individual is the default, so this form opens
+    {{-- individual is the default, so this form opens
          exactly as it always has. Choosing Business reveals the extra fields
          and relaxes the person-name requirement. --}}
     @php $bizDefaults = tenant()->settings['customers'] ?? []; @endphp
@@ -169,7 +169,7 @@
 .cust-resource-clear:hover { color: var(--ia-accent, #BEF264); }
 </style>
 
-{{-- MARKER-PATCH-114 - created_after filter chip --}}
+{{-- created_after filter chip --}}
 @if(!empty($createdAfter))
   <div class="cust-resource-chip">
     Showing customers added since
@@ -263,7 +263,7 @@
   </div>
 @else
   {{-- ========== DESKTOP TABLE ========== --}}
-  {{-- MARKER-CONSENT-CLEANUP — say plainly which way the switch works today,
+  {{-- say plainly which way the switch works today,
        since "on" and "off" have different rules. --}}
   @if(tenant()->consentCleanupOpen())
     <div style="border:1px solid var(--ia-accent);background:var(--ia-accent-soft);border-radius:8px;padding:9px 12px;font-size:12.5px;margin-bottom:12px">
@@ -277,7 +277,7 @@
     </div>
   @endif
 
-  {{-- MARKER-TABLE-RESIZE — drag the border between any two headings to resize.
+  {{-- drag the border between any two headings to resize.
        The wrapper scrolls, so a column dragged past the screen edge is still
        reachable — before this, the right-hand columns were simply clipped. --}}
   <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
@@ -294,23 +294,21 @@
           <th>Last service</th>
           <th class="ia-num">Total spend</th>
           <th>Added</th>
-          <th title="Accepts marketing email">Marketing</th>{{-- MARKER-CONSENT-CLEANUP --}}
-          @if(tenant()->customerAdminOpen())<th></th>@endif{{-- MARKER-CUST-ADMIN --}}
+          <th title="Accepts marketing email">Marketing</th>
+          @if(tenant()->customerAdminOpen())<th></th>@endif
         </tr>
       </thead>
       <tbody>
         @foreach($customers as $c)
           @php $stat = $stats[$c->id] ?? null; @endphp
-          {{-- MARKER-PATCH-503 — straight to the customer page, no modal hop --}}
+          {{-- straight to the customer page, no modal hop --}}
           <tr style="cursor:pointer" onclick="window.location.href='{{ route('tenant.customers.show', $c->id) }}'">
             <td>
               <span style="font-weight:500">{{ $c->fullName() }}</span>@if($c->is_vip)<span class="vip-list-star" title="VIP">★</span>@endif
-              {{-- MARKER-BIZ-LIST --}}
               @if($c->isBusiness())
                 <span class="biz-pill">Business</span>
                 @if($c->tax_exempt)<span class="biz-pill exempt">Tax exempt</span>@endif
               @endif
-              {{-- MARKER-CUST-ACCOUNT --}}
               @if($c->password)<span class="biz-pill acct-pill" title="Has a portal account">Account</span>@endif
             </td>
             <td class="ia-muted-cell">{{ $c->email }}</td>
@@ -320,7 +318,7 @@
             </td>
             <td class="ia-num">{{ format_money((int)($stat?->total_spend_cents ?? 0)) }}</td>
             <td class="ia-muted-cell">{{ $c->created_at->format('M j, Y') }}</td>
-            {{-- MARKER-CONSENT-CLEANUP — the row is a link, so this cell swallows
+            {{-- the row is a link, so this cell swallows
                  its own clicks. --}}
             <td onclick="event.stopPropagation()">
               @php $accepts = $c->emailMarketingMailable(); @endphp
@@ -331,7 +329,6 @@
                 <span></span>
               </label>
             </td>
-            {{-- MARKER-CUST-ADMIN --}}
             @if(tenant()->customerAdminOpen())
               <td onclick="event.stopPropagation()">
                 <button type="button" class="cm-remove" title="Remove customer"
@@ -368,10 +365,10 @@
         <div class="cust-card-meta">
           @if($lastSvc)Last service {{ $lastSvc }} · @endif
           Added {{ $c->created_at->format('M j, Y') }}
-          @if($c->password) · Account @endif{{-- MARKER-CUST-ACCOUNT --}}
+          @if($c->password) · Account @endif
         </div>
       </button>
-      {{-- MARKER-CUST-ADMIN-FIX — these were desktop-only, with nothing on
+      {{-- these were desktop-only, with nothing on
            mobile saying so. Outside the card button: it navigates on click. --}}
       <div class="cust-card-admin">
         <label class="cm-toggle" title="{{ $c->emailMarketingMailable() ? 'Accepts marketing email' : 'Not opted in' }}">
@@ -390,7 +387,7 @@
   </div>
 
   @if($totalPages > 1)
-    {{-- MARKER-PATCH-368 — windowed pager (prev/next + ellipses) replaces the full 1..N wall. --}}
+    {{-- windowed pager (prev/next + ellipses) replaces the full 1..N wall. --}}
     @php
       $pgUrl     = fn($p) => route('tenant.customers.index', array_merge(request()->query(), ['page' => $p]));
       $winStart  = max(1, $page - 2);
@@ -430,7 +427,6 @@
 @endif
 
 @push('scripts')
-{{-- MARKER-TABLE-RESIZE --}}
 <style>
   .cust-table-scroll{overflow-x:auto;overflow-y:visible}
   .cust-table-scroll .ia-table th{position:relative}
@@ -723,7 +719,7 @@ body.ia-theme-b .cust-sort-row:active { background: rgba(0,0,0,.04); }
   .cust-sort-sheet-backdrop { display: none !important; }
 }
 
-/* MARKER-PATCH-368 — windowed pager extras */
+/* windowed pager extras */
 .ia-page-btn.is-disabled { opacity: .35; pointer-events: none; }
 .ia-page-ellipsis { display: inline-flex; align-items: center; padding: 0 4px; color: var(--ia-text-3, #888); font-size: 12px; }
 .cust-page-count { margin-top: 8px; font-size: 11.5px; color: var(--ia-text-3, #888); }
@@ -731,7 +727,7 @@ body.ia-theme-b .cust-sort-row:active { background: rgba(0,0,0,.04); }
 @endpush
 
 
-{{-- MARKER-BIZ-CUSTOMER — inside the section: Blade discards markup placed
+{{-- inside the section: Blade discards markup placed
      after @endsection. --}}
 <style>
   .biz-type-row{display:flex;gap:8px}
@@ -767,18 +763,15 @@ body.ia-theme-b .cust-sort-row:active { background: rgba(0,0,0,.04); }
 })();
 </script>
 
-{{-- MARKER-BIZ-LIST --}}
 <style>
   .biz-pill{display:inline-block;font-size:9.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;border-radius:100px;padding:2px 7px;margin-left:6px;border:0.5px solid var(--ia-border);color:var(--ia-text-muted);vertical-align:1px}
   .biz-pill.exempt{border-color:rgba(232,163,61,.4);color:#E8A33D}
-  /* MARKER-CUST-ACCOUNT */
   .biz-pill.acct-pill{border-color:var(--ia-accent);color:var(--ia-accent)}
 </style>
 
 @endsection
 
 
-{{-- MARKER-CONSENT-CLEANUP --}}
 <style>
   .cm-toggle { display:inline-flex; cursor:pointer; }
   .cm-toggle input { display:none; }
@@ -827,7 +820,6 @@ function cmToggle(el, id) {
 </script>
 
 
-{{-- MARKER-CUST-ADMIN --}}
 <style>
   .cm-remove {
     font-size: 11px; padding: 3px 9px; border-radius: 5px; cursor: pointer;
@@ -893,7 +885,6 @@ function cmRemove(id) {
 </script>
 
 
-{{-- MARKER-CUST-ADMIN-FIX --}}
 <style>
   .cust-card-admin {
     display: flex; align-items: center; gap: 8px;

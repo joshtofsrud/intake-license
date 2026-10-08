@@ -39,7 +39,7 @@ class PlanQuizController extends Controller
             'tags_applied.*' => ['string', 'max:32'],
         ]);
 
-        // MARKER-MKTTRAFFIC — the server is the honest place to record this:
+        // the server is the honest place to record this:
         // the row is about to be written, so the completion definitely happened.
         \App\Http\Controllers\Platform\MarketingFunnelController::record('quiz_completed', [
             'session_id' => $data['session_id'],

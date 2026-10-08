@@ -1,5 +1,4 @@
 <?php
-// MARKER-PATCH-231
 
 namespace App\Http\Controllers\Tenant;
 
@@ -23,13 +22,13 @@ class GlobalSearchController extends Controller
 {
     private const PER_GROUP = 6;
 
-    // MARKER-SEARCH-ALL — what the results page shows per group. Enough to be
+    // what the results page shows per group. Enough to be
     // the answer for a shop-sized search without becoming a report.
     private const PER_PAGE = 50;
 
     public function search(Request $request, ?int $limit = null)
     {
-        // MARKER-SEARCH-ALL — the results page calls this with a bigger limit
+        // the results page calls this with a bigger limit
         // rather than duplicating seven queries that would drift apart.
         $perGroup = $limit ?? self::PER_GROUP;
 
@@ -43,7 +42,7 @@ class GlobalSearchController extends Controller
         $like = '%' . $q . '%';
         $groups = [];
 
-        // ---- tags themselves. MARKER-TAGS-VISIBLE — for a tag of any size
+        // ---- tags themselves. for a tag of any size
         // the useful answer is the tag, not twenty arbitrary people carrying it.
         $tags = \App\Models\Tenant\TenantCustomerTag::where('tenant_id', $tenant->id)
             ->where('name', 'like', $like)
@@ -64,18 +63,18 @@ class GlobalSearchController extends Controller
                 ->orWhere('last_name', 'like', $like)
                 ->orWhere('email', 'like', $like)
                 ->orWhere('phone', 'like', $like)
-                // MARKER-TAGS-VISIBLE — carrying a searched-for tag is a match.
+                // carrying a searched-for tag is a match.
                 ->orWhereHas('tags', fn ($t) => $t->where('tenant_customer_tags.name', 'like', $like)))
             ->limit($perGroup)->get();
 
-            // MARKER-SEARCH-ALL — same constraints, unlimited count.
+            // same constraints, unlimited count.
             $customerTotal = TenantCustomer::where('tenant_id', $tenant->id)
             ->where(fn ($w) => $w
                 ->where('first_name', 'like', $like)
                 ->orWhere('last_name', 'like', $like)
                 ->orWhere('email', 'like', $like)
                 ->orWhere('phone', 'like', $like)
-                // MARKER-TAGS-VISIBLE — carrying a searched-for tag is a match.
+                // carrying a searched-for tag is a match.
                 ->orWhereHas('tags', fn ($t) => $t->where('tenant_customer_tags.name', 'like', $like)))->count();
         if ($customers->count()) {
             $groups[] = $this->group('Customers', $customers->map(fn ($c) => [
@@ -115,17 +114,17 @@ class GlobalSearchController extends Controller
 
         // ---- products (inventory items) — gated on retail
         if ($tenant->retail_enabled) {
-            // MARKER-SEARCH-IDENTIFIERS — barcodes too, not just name and sku.
+            // barcodes too, not just name and sku.
             // Matching sku alone meant a scanned barcode found the item that
             // had it typed into the SKU box by mistake, and missed the one
             // carrying it in catalog_upc where it belongs.
             $bare = trim((string) $q);
 
-            // MARKER-INV-SEARCH — the shared search. The whole query used to
+            // the shared search. The whole query used to
             // have to appear as one phrase in the name.
             $itemQuery = TenantInventoryItem::where('tenant_id', $tenant->id);
             $searchHit = \App\Support\InventorySearch::apply($itemQuery, $tenant->id, $q);
-            // MARKER-SEARCH-ALL — counted on the same constraints as the rows.
+            // counted on the same constraints as the rows.
             $productTotal = (clone $itemQuery)->count();
             \App\Support\InventorySearch::rank($itemQuery, $searchHit['used']);
             $items = $itemQuery->orderBy('name')->limit($perGroup)->get();
@@ -189,7 +188,7 @@ class GlobalSearchController extends Controller
     }
 
     /**
-     * MARKER-SEARCH-ALL — a group now says how many there really are.
+     * a group now says how many there really are.
      *
      * $total is the unlimited count. When it exceeds what was returned, the
      * modal shows "6 of 23" and offers the results page. Passing null keeps
@@ -207,7 +206,7 @@ class GlobalSearchController extends Controller
     }
 
     /**
-     * MARKER-SEARCH-ALL — the full results page. Same groups, same order, same
+     * the full results page. Same groups, same order, same
      * shapes as the modal; only the limit differs. Sharing the modal's grouping
      * means nothing has to be re-learned between the two.
      */

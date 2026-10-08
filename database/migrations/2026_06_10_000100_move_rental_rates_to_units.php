@@ -1,5 +1,5 @@
 <?php
-// MARKER-PATCH-218B — rates live on the unit, not the category.
+// rates live on the unit, not the category.
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;

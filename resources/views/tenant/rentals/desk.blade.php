@@ -1,7 +1,7 @@
 @extends('layouts.tenant.app')
 @php $pageTitle = 'Rental Desk'; @endphp
 
-{{-- MARKER-PATCH-217 / MARKER-PATCH-218 / MARKER-PATCH-219 / MARKER-PATCH-222
+{{--
      — the live view from the rental mockup (views.rentDash). --}}
 
 @push('styles')
@@ -109,7 +109,7 @@
               $mins = $r->due_at->diffInMinutes(now());
               $lateLabel = $mins >= 60 ? floor($mins / 60) . 'h overdue' : $mins . 'm overdue';
             }
-            // MARKER-RENTAL-EXT-P2 — extension chip
+            // extension chip
             $extChip = null;
             if (tenant()->rental_extensions_enabled && !$late) {
               $extOffer = \App\Models\Tenant\TenantRentalExtensionOffer::where('rental_id', $r->id)
@@ -138,7 +138,7 @@
               @endif
             </td>
             <td style="text-align:right">
-              {{-- MARKER-PATCH-233 — desk returns open the guided flow. --}}
+              {{-- desk returns open the guided flow. --}}
               <a href="{{ route('tenant.rentals.bookings.return.flow', $r->id) }}" onclick="event.stopPropagation()" class="ia-btn {{ $late ? 'ia-btn--primary' : '' }}" style="font-size:11.5px;padding:4px 10px;text-decoration:none">Start return</a>
             </td>
           </tr>
@@ -181,7 +181,7 @@
             <td>{{ $r->customer?->fullName() }}</td>
             <td>{{ $resLabel }}</td>
             <td style="text-align:right">
-              {{-- MARKER-PATCH-232 — desk pickups open the guided flow. --}}
+              {{-- desk pickups open the guided flow. --}}
               <a href="{{ route('tenant.rentals.bookings.checkout.flow', $r->id) }}" onclick="event.stopPropagation()" class="ia-btn ia-btn--primary" style="font-size:11.5px;padding:4px 10px;text-decoration:none">Check out</a>
             </td>
           </tr>

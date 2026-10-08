@@ -29,13 +29,13 @@ class SiteSettings extends Model
         'github_url',
         'plausible_domain',
         'gtm_id',
-        'ga4_id',         // MARKER-MKT-ANALYTICS
-        'brand',          // MARKER-BRAND
+        'ga4_id',
+        'brand',
         'brand_history',
     ];
 
     protected $casts = [
-        'brand'         => 'array', // MARKER-BRAND
+        'brand'         => 'array',
         'brand_history' => 'array',
     ];
 

@@ -5,7 +5,7 @@ namespace App\Support;
 use App\Models\Tenant\TenantDistributorCatalogSubscription;
 
 /**
- * MARKER-MODAL-QBP-IMAGES — turn a catalog's stored images into URLs a browser
+ * turn a catalog's stored images into URLs a browser
  * can load.
  *
  * HLC and BTI store full URLs and pass straight through. QBP stores bare
@@ -62,7 +62,7 @@ class CatalogImages
     }
 
     /**
-     * MARKER-BRAND-ECHO — public, so a page can tell "no images" apart from
+     * public, so a page can tell "no images" apart from
      * "images present but no CLS license to display them".
      */
     public static function qbpClsPrefix(?string $tenantId = null): ?string

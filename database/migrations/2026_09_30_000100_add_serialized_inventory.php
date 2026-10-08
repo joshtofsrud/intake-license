@@ -5,7 +5,7 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * MARKER-SERIAL-FOUNDATION — serialized inventory.
+ * serialized inventory.
  *
  * A category can track serial numbers (its subcategories inherit it). Each
  * serialized unit is a row here: its serial, where it is, what it cost, and

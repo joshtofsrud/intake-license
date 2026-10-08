@@ -41,15 +41,14 @@ class CampaignController extends Controller
 
         $customerCount = TenantCustomer::where('tenant_id', $tenant->id)->count();
 
-        // MARKER-CAMPAIGN-DELIVERY — the number that matters is who can
+        // the number that matters is who can
         // legally be emailed, not who exists.
         $mailableCount = TenantCustomer::where('tenant_id', $tenant->id)->emailMailable()->count();
 
-        // MARKER-CAMPAIGN-AUDIENCE
         $audienceSvc     = app(\App\Services\Tenant\AudienceService::class);
         $audienceFields  = \App\Services\Tenant\AudienceService::FIELDS;
         $audienceChoices = \App\Services\Tenant\AudienceService::CHOICES;
-        // MARKER-AUD-TAGPICK — the shop's tags for the Tag rule's picker.
+        // the shop's tags for the Tag rule's picker.
         $audienceTags = \App\Models\Tenant\TenantCustomerTag::where('tenant_id', $tenant->id)
             ->orderBy('name')->pluck('name', 'id')->all();
         $savedAudiences  = \App\Models\Tenant\TenantAudience::where('tenant_id', $tenant->id)
@@ -73,7 +72,7 @@ class CampaignController extends Controller
             ];
         }
 
-        // MARKER-CAMPAIGN-ATTRIBUTION — codes worth offering: active, and not
+        // codes worth offering: active, and not
         // already spent. An expired code in the dropdown is a trap.
         $discounts = \App\Models\Tenant\TenantDiscount::where('tenant_id', $tenant->id)
             ->where('is_active', true)
@@ -86,12 +85,12 @@ class CampaignController extends Controller
 
         return view('tenant.campaigns.show', compact(
             'campaign', 'customerCount', 'segments', 'blocks', 'discounts', 'attribution',
-            'audienceFields', 'audienceChoices', 'audienceTags', 'savedAudiences', 'audienceSummary' // MARKER-CAMPAIGN-AUDIENCE / MARKER-AUD-TAGPICK
+            'audienceFields', 'audienceChoices', 'audienceTags', 'savedAudiences', 'audienceSummary'
         ));
     }
 
     /**
-     * MARKER-CAMPAIGN-ATTRIBUTION — what the campaign's code actually did.
+     * what the campaign's code actually did.
      * Counts redemptions since the campaign was sent, so uses of the same
      * code before the email went out aren't credited to it.
      */
@@ -122,7 +121,7 @@ class CampaignController extends Controller
         ];
     }
 
-    /** MARKER-CAMPAIGN-ATTRIBUTION — attach or detach a code. */
+    /** attach or detach a code. */
     public function setDiscount(Request $request, string $id)
     {
         $tenant   = tenant();
@@ -197,7 +196,7 @@ class CampaignController extends Controller
 
         $name    = trim((string) $request->input('name', ''));
         $subject = trim((string) $request->input('subject', ''));
-        // MARKER-CAMPAIGN-AUDIENCE — the composer posts a targeting JSON now;
+        // the composer posts a targeting JSON now;
         // 'segment' is still read so an older cached form still saves.
         $targeting = $this->targetingFromRequest($request);
 
@@ -215,7 +214,7 @@ class CampaignController extends Controller
                 ->withInput();
         }
 
-        // MARKER-CAMPAIGN-V2A — tokens stay RAW here on purpose: the worker
+        // tokens stay RAW here on purpose: the worker
         // re-renders per recipient, so a stored copy with one person's name
         // baked in would be wrong for everyone else.
         $preheader = trim((string) $request->input('preheader', ''));
@@ -227,7 +226,7 @@ class CampaignController extends Controller
             'preheader'  => $preheader,
         ]);
 
-        // MARKER-CAMPAIGN-SCHED — editing something already aimed at customers
+        // editing something already aimed at customers
         // returns it to draft rather than quietly changing what will go out.
         $wasScheduled = $campaign->status === 'scheduled';
 
@@ -237,7 +236,7 @@ class CampaignController extends Controller
             'name'        => $name,
             'subject'     => $subject,
             'preheader'   => $preheader !== '' ? $preheader : null,
-            'show_header' => (bool) $request->boolean('show_header', true), // MARKER-CAMPAIGN-HDR
+            'show_header' => (bool) $request->boolean('show_header', true),
             'blocks'    => $blocks,
             'body_html' => $bodyHtml,
             'targeting' => $targeting,
@@ -249,7 +248,7 @@ class CampaignController extends Controller
     }
 
     /**
-     * MARKER-CAMPAIGN-RESULTS — per-recipient outcomes for one campaign.
+     * per-recipient outcomes for one campaign.
      * The aggregate counters live on the campaign; this is the detail behind
      * them, including WHY someone was skipped.
      */
@@ -295,25 +294,25 @@ class CampaignController extends Controller
             return back()->with('error', 'This campaign has already been sent or is in progress.');
         }
 
-        // MARKER-CAMPAIGN-CHECKS — the same checks the panel shows, enforced
+        // the same checks the panel shows, enforced
         // here too so posting the form directly can't skip them.
         $failed = collect($this->preSendChecks($campaign, $tenant))->where('level', 'fail');
         if ($failed->isNotEmpty()) {
             return back()->with('error', 'Not sent — ' . $failed->map(fn ($r) => strtolower($r['label']) . ': ' . $r['detail'])->implode(' '));
         }
 
-        // MARKER-CAMPAIGN-DELIVERY — sending, for real this time.
+        // sending, for real this time.
         if (\App\Services\EmailLedger::broadcastStream() === null) {
             return back()->with('error', 'Campaign sending isn\'t switched on for the platform yet — the broadcast sending lane is still being configured. Your draft is safe.');
         }
 
-        // MARKER-EMAIL-BILLING — refuse to queue over the shop's own limit.
+        // refuse to queue over the shop's own limit.
         $capState = \App\Services\EmailLedger::capState($tenant);
         if ($capState['capped'] && $capState['reached']) {
             return back()->with('error', 'This month\'s marketing limit ($' . number_format($capState['cap'], 2) . ') has been reached, so campaigns are paused. Raise or remove the limit in Settings → Email charges. Receipts and confirmations are unaffected.');
         }
 
-        // MARKER-CAMPAIGN-AUDIENCE — one resolver, shared with the pre-send
+        // one resolver, shared with the pre-send
         // panel and the scheduled-fire path, so all three agree on the list.
         $audience       = app(\App\Services\Tenant\AudienceService::class);
         $counts         = $audience->counts($tenant, $campaign->targeting);
@@ -352,7 +351,7 @@ class CampaignController extends Controller
     }
 
     /**
-     * MARKER-CAMPAIGN-CHECKS — what's wrong with this campaign, before it
+     * what's wrong with this campaign, before it
      * goes out. Returns rows of ['level' => ok|warn|fail, 'label', 'detail'].
      *
      * Blocking faults are the ones that reach every recipient and can't be
@@ -466,8 +465,8 @@ class CampaignController extends Controller
         return $rows;
     }
 
-    /** MARKER-CAMPAIGN-CHECKS — recipients and what the send will cost. */
-    /** MARKER-CAMPAIGN-AUDIENCE — read the posted audience, whatever its shape. */
+    /** recipients and what the send will cost. */
+    /** read the posted audience, whatever its shape. */
     private function targetingFromRequest(Request $request): array
     {
         $raw = $request->input('targeting_json');
@@ -491,7 +490,7 @@ class CampaignController extends Controller
         return ['segment' => $request->input('segment', 'all')];
     }
 
-    /** MARKER-CAMPAIGN-AUDIENCE — live count + sample for the builder. */
+    /** live count + sample for the builder. */
     public function audienceCount(Request $request)
     {
         $tenant    = tenant();
@@ -503,11 +502,11 @@ class CampaignController extends Controller
             'counts'   => $svc->counts($tenant, $targeting),
             'describe' => $svc->describe($tenant, $targeting),
             'sample'   => $request->boolean('with_sample') ? $svc->sample($tenant, $targeting) : [],
-            'rate'     => \App\Services\EmailLedger::marketingRate(), // MARKER-EMAIL-RATES
+            'rate'     => \App\Services\EmailLedger::marketingRate(),
         ]);
     }
 
-    /** MARKER-CAMPAIGN-AUDIENCE — save the current rules for reuse. */
+    /** save the current rules for reuse. */
     public function audienceSave(Request $request)
     {
         $tenant = tenant();
@@ -534,7 +533,6 @@ class CampaignController extends Controller
         ]);
     }
 
-    /** MARKER-CAMPAIGN-AUDIENCE */
     public function audienceDelete(Request $request, string $id)
     {
         $tenant = tenant();
@@ -544,10 +542,9 @@ class CampaignController extends Controller
 
     private function preSendAudience($campaign, $tenant): array
     {
-        // MARKER-CAMPAIGN-AUDIENCE
         $audience = app(\App\Services\Tenant\AudienceService::class);
         $counts   = $audience->counts($tenant, $campaign->targeting);
-        $rate     = \App\Services\EmailLedger::marketingRate(); // MARKER-EMAIL-RATES
+        $rate     = \App\Services\EmailLedger::marketingRate();
 
         return [
             'mailable'  => $counts['mailable'],
@@ -559,7 +556,7 @@ class CampaignController extends Controller
         ];
     }
 
-    /** MARKER-CAMPAIGN-CHECKS — the checks panel, fetched by the composer. */
+    /** the checks panel, fetched by the composer. */
     public function checks(Request $request, string $id)
     {
         $tenant   = tenant();
@@ -577,7 +574,7 @@ class CampaignController extends Controller
     }
 
     /**
-     * MARKER-CAMPAIGN-SCHED — arm a campaign for later.
+     * arm a campaign for later.
      *
      * Deliberately does NOT queue recipient rows now. The worker builds the
      * list when it fires, so a customer who unsubscribes between scheduling
@@ -592,7 +589,7 @@ class CampaignController extends Controller
             return back()->with('error', 'Only a draft can be scheduled.');
         }
 
-        // MARKER-CAMPAIGN-CHECKS — a scheduled send is one nobody is watching,
+        // a scheduled send is one nobody is watching,
         // so the same faults block here.
         $failed = collect($this->preSendChecks($campaign, $tenant))->where('level', 'fail');
         if ($failed->isNotEmpty()) {
@@ -627,7 +624,7 @@ class CampaignController extends Controller
         return back()->with('success', 'Scheduled for ' . $when->copy()->setTimezone($tenant->timezone())->format('M j, Y \a\t g:ia') . '. You can cancel any time before then.');
     }
 
-    /** MARKER-CAMPAIGN-SCHED — disarm, back to draft. */
+    /** disarm, back to draft. */
     public function unschedule(Request $request, string $id)
     {
         $tenant   = tenant();
@@ -660,7 +657,7 @@ class CampaignController extends Controller
         }
         $blocks = self::sanitizeBlocks($blocks);
 
-        // MARKER-CAMPAIGN-V2A — preview shows the preheader as typed (unsaved)
+        // preview shows the preheader as typed (unsaved)
         // and resolves tokens, so what you see is what recipients get.
         $sample = BlockRenderer::SAMPLE_VARS;
         if ($campaign = TenantCampaign::where('tenant_id', $tenant->id)->find($request->input('campaign_id'))) {
@@ -673,7 +670,7 @@ class CampaignController extends Controller
         }
         $sample['shop_name'] = (string) $tenant->name;
 
-        // MARKER-CAMPAIGN-CHROME — the preview used to show blocks alone on
+        // the preview used to show blocks alone on
         // white while the real email carries a branded header and footer, so
         // nothing in the builder revealed how the finished email looked.
         $html = BlockRenderer::render($blocks, $sample, [
@@ -682,7 +679,7 @@ class CampaignController extends Controller
             'preview'       => true,
             'preheader'     => trim((string) $request->input('preheader', '')),
             'resolveTokens' => true,
-            // MARKER-CAMPAIGN-HDR — preview follows the toggle as typed.
+            // preview follows the toggle as typed.
             'chrome'        => true,
             'chromeHeader'  => $request->boolean('show_header', true),
         ]);
@@ -691,7 +688,7 @@ class CampaignController extends Controller
     }
 
     /**
-     * MARKER-CAMPAIGN-V2C — one search across both catalogs for the block's
+     * one search across both catalogs for the block's
      * picker. Returns the display fields so the composer can show a preview
      * without re-implementing either lookup.
      */
@@ -709,7 +706,7 @@ class CampaignController extends Controller
         $products = \App\Models\Tenant\TenantInventoryItem::where('tenant_id', $tenant->id)
             ->where('is_active', true)
             ->when($q !== '', function ($b) use ($tenant, $q) {
-                \App\Support\InventorySearch::apply($b, $tenant->id, $q); // MARKER-INV-SEARCH
+                \App\Support\InventorySearch::apply($b, $tenant->id, $q);
             })
             ->with('distributorCatalog:id,images')
             ->orderBy('name')->limit(20)
@@ -727,7 +724,7 @@ class CampaignController extends Controller
         }
         foreach ($products as $pI) {
             $ims   = (array) ($pI->distributorCatalog->images ?? []);
-            // MARKER-QBP-IMAGES-EVERYWHERE — QBP stores filenames, not URLs.
+            // QBP stores filenames, not URLs.
             $photo = \App\Support\CatalogImages::urls(
                 $ims,
                 $m->distributorCatalog->distributor_code ?? null,
@@ -750,7 +747,7 @@ class CampaignController extends Controller
     }
 
     /**
-     * MARKER-CAMPAIGN-V2A — send this campaign to the signed-in user, so a
+     * send this campaign to the signed-in user, so a
      * draft can be checked in a real inbox before it goes to customers.
      * Goes through the normal ledger: it costs one email, like any send.
      */
@@ -759,7 +756,7 @@ class CampaignController extends Controller
         $tenant   = tenant();
         $campaign = TenantCampaign::where('tenant_id', $tenant->id)->findOrFail($id);
 
-        // MARKER-CAMPAIGN-V2F — send the test wherever you like (a phone, a
+        // send the test wherever you like (a phone, a
         // colleague), defaulting to the signed-in user.
         $user  = auth('tenant')->user();
         $email = trim((string) ($request->input('to') ?: ($user->email ?? '')));
@@ -793,7 +790,7 @@ class CampaignController extends Controller
             'accentText'    => '#0a0a0a',
             'preheader'     => (string) ($campaign->preheader ?? ''),
             'resolveTokens' => true,
-            'fragment'      => true, // MARKER-CAMPAIGN-CHROME
+            'fragment'      => true,
         ]);
 
         $ok = \App\Services\EmailService::forTenant($tenant)->sendCampaign(
@@ -803,7 +800,7 @@ class CampaignController extends Controller
             (string) $campaign->id,
             rtrim((string) $tenant->publicUrl(), '/') . '/email/unsubscribe/test',
             null,
-            (bool) ($campaign->show_header ?? true) // MARKER-CAMPAIGN-HDR
+            (bool) ($campaign->show_header ?? true)
         );
 
         return back()->with(
@@ -821,21 +818,20 @@ class CampaignController extends Controller
     private static function sanitizeBlocks(array $blocks): array
     {
         $allowed = [
-            // MARKER-CAMPAIGN-V2E — styling fields added to the existing shapes.
+            // styling fields added to the existing shapes.
             'heading'   => ['text', 'size', 'align', 'bg_color'],
-            'paragraph' => ['html', 'text', 'align', 'bg_color', 'size'], // MARKER-CAMPAIGN-V2F
+            'paragraph' => ['html', 'text', 'align', 'bg_color', 'size'],
             'image'     => ['url', 'alt', 'width', 'align', 'link', 'radius', 'bg_color'],
             'button'    => ['text', 'url', 'align', 'full_width', 'bg_color'],
             'divider'   => [],
             'footer'    => ['text'],
-            // MARKER-CAMPAIGN-V2B
             'spacer'     => ['height'],
-            // MARKER-CAMPAIGN-RICH-SPLIT — rich text + size, same as a paragraph.
+            // rich text + size, same as a paragraph.
             'two_column' => ['left', 'right', 'left_html', 'right_html', 'size', 'bg_color'],
             'image_text' => ['url', 'alt', 'text', 'html', 'size', 'side', 'ratio', 'bg_color'],
             'social'     => [], // links handled separately — it's an array
-            'catalog'    => ['show_price', 'show_photo', 'cta_text', 'per_row', 'bg_color'], // MARKER-CAMPAIGN-V2C
-            'gallery'    => ['layout', 'bg_color'], // MARKER-CAMPAIGN-V2F — images is an array
+            'catalog'    => ['show_price', 'show_photo', 'cta_text', 'per_row', 'bg_color'],
+            'gallery'    => ['layout', 'bg_color'], // images is an array
         ];
 
         $clean = [];
@@ -852,7 +848,7 @@ class CampaignController extends Controller
                         : (string) $block['data'][$field];
 
                     // Run HTML fields through the sanitizer before saving.
-                    // MARKER-CAMPAIGN-RICH-SPLIT — every rich field, any block.
+                    // every rich field, any block.
                     if (in_array($field, ['html', 'left_html', 'right_html'], true)) {
                         $value = \App\Support\BlockRenderer::sanitizeHtml($value);
                     }
@@ -860,7 +856,7 @@ class CampaignController extends Controller
                     $data[$field] = $value;
                 }
             }
-            // MARKER-CAMPAIGN-V2F — gallery keeps an array of {url,alt,link}.
+            // gallery keeps an array of {url,alt,link}.
             if ($type === 'gallery') {
                 $imgs = $block['data']['images'] ?? [];
                 if (is_string($imgs)) {
@@ -889,7 +885,7 @@ class CampaignController extends Controller
                 $data['images'] = $out;
             }
 
-            // MARKER-CAMPAIGN-V2C — catalog keeps an array of picked items.
+            // catalog keeps an array of picked items.
             // Only kind + id + optional overrides are stored: name, price and
             // photo are resolved at render time from the live catalog.
             if ($type === 'catalog') {
@@ -921,7 +917,7 @@ class CampaignController extends Controller
                 $data['items'] = $out;
             }
 
-            // MARKER-CAMPAIGN-V2B — social keeps an array of {label,url};
+            // social keeps an array of {label,url};
             // the loop above only handles scalar fields.
             if ($type === 'social') {
                 $links = $block['data']['links'] ?? [];

@@ -1,5 +1,5 @@
 {{--
-  MARKER-PATCH-158-G25 — nav editor (Phase 2)
+  nav editor (Phase 2)
   Nav is unique among section types: it has both per-section content
   (logo toggle, CTA, layout, style) AND a shared tenant resource (nav
   link items in tenant_nav_items table). The link list saves via the
@@ -27,7 +27,7 @@
       <span>Show logo</span>
     </label>
 
-    {{-- MARKER-PATCH-274 — tenant picks which logo shows; no background guessing --}}
+    {{-- tenant picks which logo shows; no background guessing --}}
     <div class="pb2-field" style="margin-top:10px">
       <label class="pb2-field-label">Logo <span class="pb2-field-hint">which version to show</span></label>
       <div class="pb2-seg" data-field-seg="logo_variant">
@@ -53,7 +53,7 @@
     </div>
   </div>
 
-  {{-- MARKER-SHOP-NAV — the one menu control for the whole site. Built by
+  {{-- the one menu control for the whole site. Built by
        initNavLinkList() in pages/edit.blade.php from the JSON below; saved
        with the section's Save button (op=update_nav). --}}
   @php
@@ -80,7 +80,6 @@
     <div class="pb2-navlist-status" id="pb2-nav-status" style="margin-top:8px"></div>
   </div>
 
-  {{-- MARKER-NAV-ACCOUNT --}}
   <div class="pb2-group">
     <div class="pb2-group-title">Customer account</div>
 
@@ -92,7 +91,7 @@
     <div class="pb2-field-hint" style="margin-top:6px">Lets customers sign in to see their bookings, orders, rentals and messages.</div>
   </div>
 
-  {{-- MARKER-SHOP-NAV — the header button is now an item in the Menu above
+  {{-- the header button is now an item in the Menu above
        (style: Button), not a separate setting. --}}
 
 </div>
@@ -122,7 +121,7 @@
       <input type="hidden" data-field="height" value="{{ $get('height', 'normal') }}">
     </div>
 
-    {{-- MARKER-PATCH-158-G28 — independent logo size control --}}
+    {{-- independent logo size control --}}
     <div class="pb2-field">
       <label class="pb2-field-label">Logo size</label>
       <select class="pb2-input" data-field="logo_size">

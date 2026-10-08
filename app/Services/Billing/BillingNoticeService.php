@@ -10,7 +10,7 @@ use App\Services\Tenant\StaffAlertService;
 use Illuminate\Support\Facades\Mail;
 
 /**
- * MARKER-BILLING-NOTICES — tells a shop something about their billing, once.
+ * tells a shop something about their billing, once.
  *
  * Every word comes from a template row, so master admin owns the wording and
  * the channels; this class owns only the timing and the record.
@@ -26,7 +26,7 @@ class BillingNoticeService
     {
         $template = BillingNoticeTemplate::find($event);
         if (! $template) {
-            logger()->warning('MARKER-BILLING-NOTICES no template', ['event' => $event]);
+            logger()->warning('billing-notices: no template', ['event' => $event]);
             return null;
         }
 
@@ -66,7 +66,7 @@ class BillingNoticeService
         }
 
         if ($template->send_email && $notice->email_to) {
-            // MARKER-BILLING-NOTICE-MAIL — branded as Intake, from the platform
+            // branded as Intake, from the platform
             // address, multipart. Raw text about somebody's card with no
             // identity on it reads exactly like a phishing attempt.
             $this->sendMail($notice->email_to, $subject, $body, $link, $tenant->name)
@@ -74,7 +74,7 @@ class BillingNoticeService
                 : null;
         }
 
-        logger()->info('MARKER-BILLING-NOTICES sent', [
+        logger()->info('billing-notices: sent', [
             'tenant' => $tenant->id, 'event' => $event,
             'alert' => $notice->alerted, 'email' => $notice->emailed,
         ]);
@@ -92,7 +92,7 @@ class BillingNoticeService
     }
 
     /**
-     * MARKER-BILLING-NOTICE-MAIL — platform chrome, platform sender, multipart.
+     * platform chrome, platform sender, multipart.
      * Public so the master-admin test send uses exactly this path rather than
      * a lookalike that could drift from what shops actually receive.
      */
@@ -105,7 +105,7 @@ class BillingNoticeService
                 'link'      => $link,
                 'linkLabel' => 'Open billing settings',
                 'shopName'  => $shopName,
-                'logoUrl'   => \App\Support\Brand::url('email'), // MARKER-BRAND
+                'logoUrl'   => \App\Support\Brand::url('email'),
             ])->render();
 
             $from     = \App\Models\PlatformSettings::fromAddress();
@@ -121,7 +121,7 @@ class BillingNoticeService
 
             return true;
         } catch (\Throwable $e) {
-            logger()->error('MARKER-BILLING-NOTICE-MAIL send failed', [
+            logger()->error('billing-notice-mail: send failed', [
                 'to' => $to, 'subject' => $subject, 'error' => $e->getMessage(),
             ]);
             return false;

@@ -8,7 +8,7 @@ use App\Models\Tenant\TenantOrder;
 use App\Models\Tenant\TenantOrderItem;
 
 /**
- * MARKER-PATCH-564 — Online Retail Wave 3: the cart.
+ * Online Retail Wave 3: the cart.
  *
  * A cart IS a TenantOrder in status 'cart', resolved by a token held in
  * the session. Nothing here touches stock or money movement — totals are
@@ -71,7 +71,6 @@ class CartService
             $line->save();
         } else {
             $images = (array) ($item->distributorCatalog?->images ?? []);
-            // MARKER-QBP-IMAGES-EVERYWHERE
             $imgUrl = \App\Support\CatalogImages::urls(
                 $images,
                 $item->distributorCatalog?->distributor_code ?? null,

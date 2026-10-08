@@ -5,7 +5,6 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-// MARKER-SCHED-FOUNDATION
 class PlatformBookingType extends Model
 {
     public const KIND_PUBLIC   = 'public';

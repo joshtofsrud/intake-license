@@ -598,7 +598,7 @@
   window.iaConfirmAction = async function(form, ev, opts){
     ev.preventDefault();
     if (!window.IntakeConfirm) {
-      if (await iaConfirm((opts && opts.title) || 'Are you sure?')) form.submit(); // MARKER-INLINE-CONFIRM-2
+      if (await iaConfirm((opts && opts.title) || 'Are you sure?')) form.submit();
       return false;
     }
     window.IntakeConfirm.show(opts || {}).then(function(ok){ if (ok) form.submit(); });
@@ -653,7 +653,7 @@
         if (!changed) { ev.preventDefault(); return; }
         if (upcoming <= 1) return;
         if (!window.IntakeConfirm) {
-          // MARKER-INLINE-CONFIRM-2 — a submit handler cannot await: the
+          // a submit handler cannot await: the
           // browser submits the moment this returns, so the form would go
           // while the question was still on screen. Prevent, ask, replay.
           if (ev.target.dataset.iaConfirmed !== '1') {

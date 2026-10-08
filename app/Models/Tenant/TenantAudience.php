@@ -5,7 +5,6 @@ namespace App\Models\Tenant;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 
-// MARKER-CAMPAIGN-AUDIENCE
 class TenantAudience extends Model
 {
     use HasUuids;

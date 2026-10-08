@@ -8,7 +8,7 @@ use Carbon\Carbon;
 
 class TenantAppointmentObserver
 {
-    // MARKER-PATCH-311 — prefill promised_at when not explicitly provided:
+    // prefill promised_at when not explicitly provided:
     // drop-off date + N business days at 5pm tenant-local, stored UTC. Lives
     // here so every create path (admin, public booking, walk-in) gets the same
     // default. An explicit value, or a record with no date, is left untouched.

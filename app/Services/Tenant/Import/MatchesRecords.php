@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 /**
- * MARKER-IMPORT-MATCH — multi-key matching, the possible-duplicate outcome,
+ * multi-key matching, the possible-duplicate outcome,
  * and the ledger. Shared by both importers.
  *
  * Match keys, strongest first. Which one hit is recorded on every row.
@@ -82,7 +82,7 @@ trait MatchesRecords
         $q = fn () => TenantInventoryItem::where('tenant_id', $this->tenant->id);
 
         $bySku = $by('sku') ? $q()->whereIn(DB::raw('LOWER(sku)'), $by('sku'))->get()->keyBy(fn ($r) => strtolower((string) $r->sku)) : collect();
-        // MARKER-BARCODE-IDENTITY — the barcode column used to be compared to
+        // the barcode column used to be compared to
         // catalog_ean only, exactly as typed. It now meets an item's UPC, EAN,
         // a barcode used as its SKU, or a code kept from a merge, with the
         // 12/13-digit forms treated as one. A SKU that is itself a barcode is
@@ -97,7 +97,7 @@ trait MatchesRecords
         $out = [];
         foreach ($ids as $i => $r) {
             $sku = isset($r['sku']) ? strtolower(trim((string) $r['sku'])) : '';
-            $bcHit = null; // MARKER-BARCODE-IDENTITY
+            $bcHit = null;
             foreach (\App\Support\Barcode::keys($r['upc'] ?? null, $r['sku'] ?? null) as $bk) {
                 if (isset($byBarcode[$bk])) { $bcHit = $byBarcode[$bk]; break; }
             }

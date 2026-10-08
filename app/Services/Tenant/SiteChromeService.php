@@ -8,7 +8,7 @@ use App\Models\Tenant\TenantPage;
 use App\Models\Tenant\TenantPageSection;
 
 /**
- * MARKER-PATCH-579 — one chrome, everywhere.
+ * one chrome, everywhere.
  *
  * Standalone public pages (shop, cart, checkout, …) render THROUGH the
  * page-builder layout by wrapping their body in a synthetic section
@@ -23,7 +23,7 @@ class SiteChromeService
      * partial sees its page data; $meta carries title/description.
      */
     /**
-     * MARKER-PATCH-581 — chrome pieces for standalone documents that keep
+     * chrome pieces for standalone documents that keep
      * their own <html> shell (booking family, rentals, portal): the home
      * page's nav/footer sections + global nav items, request-cached.
      */
@@ -43,7 +43,7 @@ class SiteChromeService
         return $cache[$tenant->id] = [
             'nav'      => $chrome->firstWhere('section_type', 'nav'),
             'footer'   => $chrome->firstWhere('section_type', 'footer'),
-            'navItems' => TenantNavItem::forSite((string) $tenant->id), // MARKER-SHOP-NAV
+            'navItems' => TenantNavItem::forSite((string) $tenant->id),
         ];
     }
 
@@ -74,7 +74,7 @@ class SiteChromeService
         $sections->push($body);
         if ($footer = $chrome->firstWhere('section_type', 'footer')) $sections->push($footer);
 
-        $navItems = TenantNavItem::forSite((string) $tenant->id); // MARKER-SHOP-NAV
+        $navItems = TenantNavItem::forSite((string) $tenant->id);
 
         // Layout titles come from a $page object; fake the fields it reads.
         $page = new TenantPage([

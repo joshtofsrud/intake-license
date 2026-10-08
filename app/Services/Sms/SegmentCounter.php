@@ -3,7 +3,7 @@
 namespace App\Services\Sms;
 
 /**
- * MARKER-SMS-METER — how many segments a message will actually cost.
+ * how many segments a message will actually cost.
  *
  * GSM-7 fits 160 characters in one segment, 153 per part once a message is
  * split (the header eats the difference). A single character outside GSM-7 —
@@ -20,7 +20,7 @@ class SegmentCounter
      * The GSM 03.38 basic alphabet — 127 characters (0x00-0x7F less ESC,
      * which is the escape into the extended table below).
      *
-     * MARKER-GSM-DOLLAR — the backslash in front of $ is load-bearing.
+     * the backslash in front of $ is load-bearing.
      * It is not a stray. Do not "tidy" it away.
      *
      * PHP identifiers accept bytes \x80-\xff, so every accented character

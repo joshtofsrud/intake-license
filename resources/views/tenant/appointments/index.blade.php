@@ -1,7 +1,7 @@
 @extends('layouts.tenant.app')
 @php
   $pageTitle = 'Appointments';
-  $statusLabels = \App\Support\AppointmentStatus::LABELS; // MARKER-PATCH-287 single source
+  $statusLabels = \App\Support\AppointmentStatus::LABELS; // single source
   $paymentLabels = [
     'unpaid'   => 'Unpaid',
     'partial'  => 'Partial',
@@ -10,7 +10,7 @@
   ];
   // Status transitions — must match AppointmentController::TRANSITIONS exactly.
   // Used to populate the inline-edit dropdown with only valid next states.
-  $statusTransitions = \App\Support\AppointmentStatus::TRANSITIONS; // MARKER-PATCH-287 single source
+  $statusTransitions = \App\Support\AppointmentStatus::TRANSITIONS; // single source
   $sortLabels = [
     'date_desc'  => 'Newest first',
     'date_asc'   => 'Oldest first',
@@ -147,7 +147,7 @@ td.ia-inline-cell { cursor: default; }
 
 @section('content')
 
-{{-- MARKER-APPT-LIST-PHONE — on phones the section tabs sit at the top, as on
+{{-- on phones the section tabs sit at the top, as on
      the calendar; the header's New appointment bar gives way to the + button. --}}
 <div class="appt-mobile-only appt-mtabs"><x-tenant.schedule-tabs active="appointments" /></div>
 <div class="ia-page-head">
@@ -181,7 +181,7 @@ td.ia-inline-cell { cursor: default; }
   }
 @endphp
 
-{{-- MARKER-PATCH-113 - resource filter chip --}}
+{{-- resource filter chip --}}
 @if(!empty($resourceFilter))
   <div class="appt-resource-chip">
     <span class="appt-resource-dot" style="background: {{ $resourceFilter->color_hex }}"></span>
@@ -191,7 +191,7 @@ td.ia-inline-cell { cursor: default; }
 @endif
 
 @if(!empty($attentionForBar['cards']))
-  {{-- MARKER-APPT-LIST-PHONE — the tiles stay on desktop; phones get chips. --}}
+  {{-- the tiles stay on desktop; phones get chips. --}}
   <div class="appt-desktop-only" style="margin-bottom: 24px;">
     @include('tenant.dashboard._attention_cards', [
       'cards' => $attentionForBar['cards'],
@@ -206,7 +206,7 @@ td.ia-inline-cell { cursor: default; }
 
   <select name="status" class="ia-input" style="width:auto">
     <option value="">All statuses</option>
-    {{-- MARKER-PATCH-285 — only the selectable set; \$statusLabels still resolves legacy rows below --}}
+    {{-- only the selectable set; \$statusLabels still resolves legacy rows below --}}
     @foreach(\App\Support\AppointmentStatus::selectable() as $val => $label)
       <option value="{{ $val }}" @selected($status === $val)>{{ $label }}</option>
     @endforeach
@@ -274,7 +274,7 @@ td.ia-inline-cell { cursor: default; }
   </button>
 </form>
 
-{{-- MARKER-APPT-LIST-PHONE — the attention tiles as one row of chips: each
+{{-- the attention tiles as one row of chips: each
      filters the list; tapping the active one clears it. Only filters of this
      list appear (Low stock, Win-back and the like live on their own pages),
      and pickup filters are left out for time-slot shops. --}}
@@ -383,8 +383,8 @@ td.ia-inline-cell { cursor: default; }
   </div>
 </div>
 
-{{-- MARKER-PATCH-439 — section tabs sit below the controls, right above the list --}}
-{{-- MARKER-APPT-LIST-PHONE — on phones they're at the top instead --}}
+{{-- section tabs sit below the controls, right above the list --}}
+{{-- on phones they're at the top instead --}}
 <div class="appt-desktop-only"><x-tenant.schedule-tabs active="appointments" /></div>
 
 {{-- Mobile result header --}}
@@ -422,7 +422,7 @@ td.ia-inline-cell { cursor: default; }
     @endif
   </div>
 @else
-  {{-- MARKER-DELIVERY-RESOLUTION — the awaiting-delivery queue gets a triage
+  {{-- the awaiting-delivery queue gets a triage
        panel with per-row reasons and resolution actions; the standard table
        is hidden for this filter so the same jobs are not listed twice. --}}
   @php $adTriage = (($filter ?? '') === 'awaiting_delivery'); @endphp
@@ -542,7 +542,7 @@ td.ia-inline-cell { cursor: default; }
         </div>
         <div class="appt-card-row3">
           <span class="appt-card-pill appt-card-pill--status appt-card-pill--{{ $statusTone }}">{{ $statusLabels[$statusKey] ?? $statusKey }}</span>
-          {{-- MARKER-APPT-LIST-PHONE — why it's in the Overdue / Running late chip --}}
+          {{-- why it's in the Overdue / Running late chip --}}
           @if(in_array($statusKey, ['pending', 'confirmed'], true) && $appt->appointment_date->toDateString() < $amlTodayStr)
             <span class="appt-card-pill appt-card-pill--danger">Overdue</span>
           @elseif($statusKey === 'in_progress' && $appt->appointment_date->toDateString() < $amlTodayStr)
@@ -566,7 +566,7 @@ td.ia-inline-cell { cursor: default; }
 
 @include('tenant.appointments._create_modal')
 
-{{-- MARKER-DASH-NEWAPPT — arriving with ?new=1 (from the dashboard, or any
+{{-- arriving with ?new=1 (from the dashboard, or any
      other "new appointment" entry point) opens the modal straight away. --}}
 @if(request()->query('new'))
   <script>
@@ -729,7 +729,7 @@ td.ia-inline-cell { cursor: default; }
       }
       // All ops succeeded
       setDirtyState(tr, false);
-      // MARKER-PATCH-179 — if this row no longer matches the active filter
+      // if this row no longer matches the active filter
       // (e.g. confirming a booking on the "Unconfirmed bookings" list), fade
       // it out and remove it, and decrement the result count — so the list
       // stays accurate without a manual refresh.
@@ -742,7 +742,7 @@ td.ia-inline-cell { cursor: default; }
     }
   }
 
-  // MARKER-PATCH-179 — remove a row that no longer belongs in the current
+  // remove a row that no longer belongs in the current
   // filtered view after an inline status change.
   function maybePruneRow(tr, dirty) {
     if (!('status' in dirty)) return; // only status changes can drop a row
@@ -756,7 +756,7 @@ td.ia-inline-cell { cursor: default; }
     //  - the "Unconfirmed bookings" attention filter (pending only)
     //  - the explicit status dropdown filter (must match exactly)
     let belongs = true;
-    // MARKER-PATCH-179B — the real attention-filter value is
+    // the real attention-filter value is
     // 'unconfirmed_bookings'; treat any 'unconfirmed'/'pending' variant as the
     // pending-only scope.
     if (activeFilter.indexOf('unconfirmed') !== -1 || activeFilter === 'pending') {
@@ -848,7 +848,7 @@ td.ia-inline-cell { cursor: default; }
   .appt-desktop-only { display: none !important; }
   .appt-mobile-only { display: block; }
 
-  /* MARKER-APPT-LIST-PHONE — tabs up top, no header button, chips not tiles */
+  /* tabs up top, no header button, chips not tiles */
   .appt-mtabs { margin-bottom: 12px; }
   .appt-mtabs ~ .ia-page-head .ia-page-actions { display: none !important; }
   .appt-mchips { display: flex !important; gap: 8px; overflow-x: auto; scrollbar-width: none;

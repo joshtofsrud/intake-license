@@ -7,7 +7,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
 /**
- * ThemeController — MARKER-USER-THEME-PREF
+ * ThemeController
  *
  * Writes the signed-in staff member's light/dark preference and nothing
  * else. Deliberately does NOT touch tenants.settings: that value is now

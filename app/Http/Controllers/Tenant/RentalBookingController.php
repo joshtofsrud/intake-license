@@ -1,5 +1,4 @@
 <?php
-// MARKER-PATCH-219
 
 namespace App\Http\Controllers\Tenant;
 
@@ -12,8 +11,8 @@ use App\Models\Tenant\TenantSaleItem;
 use App\Models\Tenant\TenantRentalUnit;
 use App\Models\Tenant\TenantRentalAgreementTemplate;
 use App\Models\Tenant\TenantRentalConditionCheck;
-use App\Models\Tenant\TenantRegister; // MARKER-RENTAL-WAIVER-DISPLAY-BE
-use App\Services\Tenant\RentalAgreementService; // MARKER-RENTAL-WAIVER-DISPLAY-BE
+use App\Models\Tenant\TenantRegister;
+use App\Services\Tenant\RentalAgreementService;
 use Illuminate\Support\Facades\Storage;
 use App\Services\RentalAvailabilityService;
 use App\Support\MySQLLock;
@@ -38,7 +37,7 @@ use RuntimeException;
  */
 class RentalBookingController extends Controller
 {
-    // MARKER-RENTAL-EXT — manual "Send offer now" from the rental detail.
+    // manual "Send offer now" from the rental detail.
     public function sendExtensionOffer(string $id)
     {
         $tenant = tenant();
@@ -64,7 +63,7 @@ class RentalBookingController extends Controller
     // ------------------------------------------------------------------ list
     public function index(Request $request)
     {
-        // MARKER-PATCH-234 — triage-first list. "Needs attention" = overdue,
+        // triage-first list. "Needs attention" = overdue,
         // or balance due on a reservation starting today. Search spans
         // rental #, customer name, and unit/line names; filters layer on
         // every tab.
@@ -161,18 +160,18 @@ class RentalBookingController extends Controller
 
         $units = $this->availability
             ->availableUnits($tenant->id, null, $start, $due)
-            ->load('model') // MARKER-PATCH-227 — effective*() reads through model
+            ->load('model') // effective*() reads through model
             ->map(fn (TenantRentalUnit $u) => [
                 'id'                 => $u->id,
                 'name'               => $u->name,
                 'identifier'         => $u->identifier,
                 'size'               => $u->size,
                 'category'           => $u->category?->name,
-                // MARKER-PATCH-227 — read through the model (rates moved up).
+                // read through the model (rates moved up).
                 'hourly_rate_cents'   => $u->effectiveHourlyCents(),
                 'daily_rate_cents'    => $u->effectiveDailyCents(),
                 'weekend_rate_cents'  => $u->effectiveWeekendCents(),
-                'seasonal_rate_cents' => $u->effectiveSeasonalCents(), // MARKER-PATCH-228
+                'seasonal_rate_cents' => $u->effectiveSeasonalCents(),
                 'deposit_cents'       => $u->effectiveDepositCents(),
             ])->values();
 
@@ -194,7 +193,7 @@ class RentalBookingController extends Controller
             'due_at'            => ['required', 'string'],
             'units'             => ['required', 'array', 'min:1', 'max:20'],
             'units.*.unit_id'   => ['required', 'string', 'uuid'],
-            'units.*.rate_mode' => ['required', 'in:hourly,daily,weekend,seasonal'], // MARKER-PATCH-228
+            'units.*.rate_mode' => ['required', 'in:hourly,daily,weekend,seasonal'],
             'notes'             => ['nullable', 'string', 'max:2000'],
         ]);
 
@@ -220,7 +219,7 @@ class RentalBookingController extends Controller
                     foreach ($request->input('units') as $sel) {
                         $unit = TenantRentalUnit::where('tenant_id', $tenant->id)
                             ->where('id', $sel['unit_id'])
-                            ->with('model') // MARKER-PATCH-227
+                            ->with('model')
                             ->first();
 
                         if (!$unit || !$this->availability->isUnitAvailable($unit, $start, $due)) {
@@ -300,15 +299,15 @@ class RentalBookingController extends Controller
             ->with([
                 'customer',
                 'lines',
-                // MARKER-PATCH-219B — money = linked register sales.
+                // money = linked register sales.
                 'sales' => fn ($q) => $q->orderBy('created_at')->with([
                     'payments' => fn ($p) => $p->orderBy('recorded_at'),
                 ]),
-                'conditionChecks' => fn ($q) => $q->with('unit')->orderBy('performed_at'), // MARKER-PATCH-234
+                'conditionChecks' => fn ($q) => $q->with('unit')->orderBy('performed_at'),
             ])
             ->firstOrFail();
 
-        // MARKER-PATCH-234 — derived activity feed. No events table: every
+        // derived activity feed. No events table: every
         // line is rebuilt from timestamps, checks, and ledger payments, so
         // it can never drift from the record.
         $feed = collect();
@@ -354,7 +353,7 @@ class RentalBookingController extends Controller
 
     // ------------------------------------------ check-out flow (PATCH-232)
     /**
-     * MARKER-PATCH-232 — the guided counter flow for reserved → out.
+     * the guided counter flow for reserved → out.
      * Verify → Agreement → Condition → Deposit & go. Each write step is its
      * own POST so the flow is resumable: reload the page and done steps
      * stay done. The quick one-click checkOut() above remains untouched as
@@ -403,7 +402,7 @@ class RentalBookingController extends Controller
      * the template later never changes what was signed (PATCH-217 intent).
      */
     /**
-     * MARKER-RENTAL-WAIVER-DISPLAY-BE — push the waiver to the screen paired
+     * push the waiver to the screen paired
      * with the staff member's current register.
      *
      * Every refusal returns a code the check-out page can act on, so the
@@ -464,7 +463,7 @@ class RentalBookingController extends Controller
     }
 
     /**
-     * MARKER-RENTAL-WAIVER-DISPLAY-BE — take the waiver back off the screen.
+     * take the waiver back off the screen.
      *
      * Clears every register pointing at this rental, not just the session's
      * one: staff can switch registers mid-flow, and a waiver left live on an
@@ -485,7 +484,7 @@ class RentalBookingController extends Controller
     }
 
     /**
-     * MARKER-RENTAL-WAIVER-DISPLAY-BE — status poll for the check-out page.
+     * status poll for the check-out page.
      *
      * Drives the live flip from "waiting" to "signed" without a reload, and
      * tells staff when a push has aged out so the screen state and the page
@@ -570,7 +569,7 @@ class RentalBookingController extends Controller
             'agreement_template_version' => $template->version,
             'agreement_signed_at'        => now(),
             'agreement_method'           => 'desk',
-            'agreement_signer_name'      => $request->input('signer_name'), // MARKER-RENTAL-WAIVER-DISPLAY-BE
+            'agreement_signer_name'      => $request->input('signer_name'),
             'agreement_pdf_path'         => $pdfPath,
             'notes'                      => trim(($rental->notes ? $rental->notes . "\n" : '')
                 . 'Agreement v' . $template->version . ' signed at desk by ' . $request->input('signer_name') . '.'),
@@ -669,14 +668,14 @@ class RentalBookingController extends Controller
         }
 
         return $this->transition($id, 'reserved', function (TenantRental $rental) {
-            $rental->update(['status' => 'out', 'checked_out_at' => now()]); // MARKER-PATCH-234
+            $rental->update(['status' => 'out', 'checked_out_at' => now()]);
             return 'Checked out — ' . $rental->rental_number . ' is on its way.';
         });
     }
 
     // -------------------------------------------- return flow (PATCH-233)
     /**
-     * MARKER-PATCH-233 — guided out → returned. Inspect (in-checks beside
+     * guided out → returned. Inspect (in-checks beside
      * the 232 out-checks) → Charges (policy-suggested late fee + damage,
      * collected through the register) → Close (deposit decision + per-unit
      * routing + the locked status flip).
@@ -821,7 +820,7 @@ class RentalBookingController extends Controller
                 'id'                 => (string) Str::uuid(),
                 'tenant_id'          => $tenant->id,
                 'sale_number'        => $this->generateRentalSaleNumber($tenant->id),
-                'sale_date'          => tnow()->toDateString(), // MARKER-TZ-WAVE1 — tenant-local business date
+                'sale_date'          => tnow()->toDateString(), // tenant-local business date
                 'status'             => 'pending',
                 'payment_status'     => 'draft',
                 'customer_id'        => $rental->customer_id,
@@ -935,7 +934,7 @@ class RentalBookingController extends Controller
     public function checkOut(Request $request, string $id)
     {
         return $this->transition($id, 'reserved', function (TenantRental $rental) {
-            $rental->update(['status' => 'out', 'checked_out_at' => now()]); // MARKER-PATCH-234
+            $rental->update(['status' => 'out', 'checked_out_at' => now()]);
             return 'Checked out.';
         });
     }
@@ -943,10 +942,10 @@ class RentalBookingController extends Controller
     public function checkIn(Request $request, string $id)
     {
         return $this->transition($id, 'out', function (TenantRental $rental) {
-            // MARKER-PATCH-220 — clean return auto-releases a live hold.
+            // clean return auto-releases a live hold.
             // Stripe failure does NOT block the return: holds self-expire,
             // and the panel keeps a Release button while status=authorized.
-            // MARKER-PATCH-237 — unless the tenant turned auto-release off.
+            // unless the tenant turned auto-release off.
             $autoRelease = (bool) ((tenant()->settings['rental_deposit_autorelease_quick'] ?? true));
             $message = 'Returned. Unit is available again.';
             if (!$autoRelease && $rental->deposit_status === 'authorized') {
@@ -975,7 +974,7 @@ class RentalBookingController extends Controller
     public function cancel(Request $request, string $id)
     {
         return $this->transition($id, 'reserved', function (TenantRental $rental) {
-            $rental->update(['status' => 'cancelled', 'cancelled_at' => now()]); // MARKER-PATCH-234
+            $rental->update(['status' => 'cancelled', 'cancelled_at' => now()]);
             return 'Reservation cancelled.';
         });
     }
@@ -1006,7 +1005,7 @@ class RentalBookingController extends Controller
 
     // ---------------------------------------------------- payments (Rail 2)
     /**
-     * MARKER-PATCH-219B — the sales-as-money bridge. Mirrors the
+     * the sales-as-money bridge. Mirrors the
      * appointment record_deposit flow byte-for-byte in spirit: creates a
      * one-line draft sale linked to this rental and sends staff to the
      * register to actually take the money (cash, card, Stripe link — every
@@ -1041,7 +1040,7 @@ class RentalBookingController extends Controller
                 'id'                 => (string) Str::uuid(),
                 'tenant_id'          => $tenant->id,
                 'sale_number'        => $this->generateRentalSaleNumber($tenant->id),
-                'sale_date'          => tnow()->toDateString(), // MARKER-TZ-WAVE1 — tenant-local business date
+                'sale_date'          => tnow()->toDateString(), // tenant-local business date
                 'status'             => 'pending',
                 'payment_status'     => 'draft',
                 'customer_id'        => $rental->customer_id,
@@ -1070,7 +1069,7 @@ class RentalBookingController extends Controller
             return $sale;
         });
 
-        // MARKER-PATCH-232B — round-trip: callers pass return_to so the
+        // round-trip: callers pass return_to so the
         // register hands staff back after payment. Local paths only.
         $returnTo = (string) $request->input('return_to', '');
         $suffix = '';
@@ -1256,7 +1255,7 @@ class RentalBookingController extends Controller
                 'id'                 => (string) Str::uuid(),
                 'tenant_id'          => $tenant->id,
                 'sale_number'        => $this->generateRentalSaleNumber($tenant->id),
-                'sale_date'          => tnow()->toDateString(), // MARKER-TZ-WAVE1 — tenant-local business date
+                'sale_date'          => tnow()->toDateString(), // tenant-local business date
                 'status'             => 'completed',
                 'payment_status'     => 'unpaid', // record() flips it via recalcStatus
                 'customer_id'        => $rental->customer_id,
@@ -1292,7 +1291,7 @@ class RentalBookingController extends Controller
             );
         });
 
-        // MARKER-PATCH-225 — critical staff alert (bypasses the addon gate).
+        // critical staff alert (bypasses the addon gate).
         app(\App\Services\Tenant\StaffAlertService::class)->emit($tenant, 'rental.damage_flagged', [
             'title' => 'Deposit captured — ' . $rental->rental_number,
             'body'  => format_money($captured) . ' captured: ' . $reason,
@@ -1306,7 +1305,7 @@ class RentalBookingController extends Controller
     /** Default hold = sum of deposit_cents across the rental's units. */
     private function defaultDepositCents(TenantRental $rental): int
     {
-        // MARKER-PATCH-227 — deposit lives on the model now.
+        // deposit lives on the model now.
         return (int) $rental->lines
             ->where('kind', 'unit')
             ->sum(fn ($line) => (int) ($line->unit?->effectiveDepositCents() ?? 0));
@@ -1315,7 +1314,7 @@ class RentalBookingController extends Controller
     /** RD-YYYYMMDD-NNN — same shape as the appointment DP- generator. */
     private function generateRentalSaleNumber(string $tenantId): string
     {
-        $prefix = 'RD-' . tnow()->format('Ymd') . '-'; // MARKER-TZ-WAVE1
+        $prefix = 'RD-' . tnow()->format('Ymd') . '-';
         $maxNumber = DB::table('tenant_sales')
             ->where('tenant_id', $tenantId)
             ->where('sale_number', 'like', $prefix . '%')
@@ -1386,7 +1385,7 @@ class RentalBookingController extends Controller
      */
     private function priceUnit(TenantRentalUnit $unit, string $mode, Carbon $start, Carbon $due): array
     {
-        // MARKER-PATCH-227 — model-backed rates. PATCH-228 adds seasonal
+        // model-backed rates. PATCH-228 adds seasonal
         // (flat for the whole window, like weekend).
         $rateCents = match ($mode) {
             'hourly'   => $unit->effectiveHourlyCents(),
@@ -1412,7 +1411,7 @@ class RentalBookingController extends Controller
     }
 
     /**
-     * MARKER-RENTAL-DISCOUNT — discount a whole rental, by code or manually.
+     * discount a whole rental, by code or manually.
      *
      * The discount is applied as a delta rather than by recomputing tax from
      * the subtotal: damage and late charges are added to a rental with zero
@@ -1478,7 +1477,7 @@ class RentalBookingController extends Controller
         return back()->with('success', 'Discount applied.');
     }
 
-    /** MARKER-RENTAL-DISCOUNT — remove it and give any code use back. */
+    /** remove it and give any code use back. */
     public function removeDiscount(string $id)
     {
         $rental = \App\Models\Tenant\TenantRental::where('tenant_id', tenant()->id)->findOrFail($id);

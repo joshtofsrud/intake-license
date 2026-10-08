@@ -4,7 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
-// MARKER-PLAN-PRICING — one price for one tier, from a date.
+// one price for one tier, from a date.
 class PlanPrice extends Model
 {
     protected $table = 'plan_prices';

@@ -1,7 +1,7 @@
 @extends('layouts.tenant.app')
 @php $pageTitle = 'Leases'; @endphp
 
-{{-- MARKER-PATCH-230 — the lease book. --}}
+{{-- the lease book. --}}
 
 @section('content')
 

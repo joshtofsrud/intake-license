@@ -11,7 +11,7 @@
 @endphp
 
 @section('content')
-{{-- MARKER-PATCH-567 — order detail: items, contact, fulfillment, linked
+{{-- order detail: items, contact, fulfillment, linked
      sale, and the one-button status advance. --}}
 <style>
   .od-grid{display:grid;grid-template-columns:1fr 340px;gap:18px;align-items:start}
@@ -90,7 +90,7 @@
         <h3>Move it along</h3>
         @if($advance)
           @if($order->status === \App\Models\Tenant\TenantOrder::STATUS_PENDING_PAYMENT && $order->payment_method)
-          {{-- MARKER-PATCH-631 — manual payment confirmation --}}
+          {{-- manual payment confirmation --}}
           <div style="border:1px solid rgba(245,158,11,.4);background:rgba(245,158,11,.08);border-radius:10px;padding:12px 14px;margin-bottom:12px;font-size:12.5px">
             Awaiting <b>{{ tender_label($order->payment_method) }}</b> — {{ number_format($order->total_cents / 100, 2) }} expected with note "{{ $order->order_number }}".
           </div>

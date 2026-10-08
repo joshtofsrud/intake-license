@@ -1,5 +1,4 @@
 <?php
-// MARKER-SALES-CORE
 
 namespace App\Models;
 
@@ -26,14 +25,14 @@ class SalesProspect extends Model
         'stage', 'next_action_on', 'next_action', 'last_contacted_at', 'lost_reason',
         'tenant_id',
         'channel_id', 'categories', 'quote_tier', 'quote_addons', 'quote_monthly',
-        'agency_id', 'sales_rep_id', // MARKER-AGENCIES-ATTR
+        'agency_id', 'sales_rep_id',
         'owner_contact', 'phone', 'email', 'website', 'address',
         'best_ask', 'source', 'source_url', 'google_maps_url', 'notes',
         'google_place_id', 'lat', 'lng',
-        'postcode', 'territory_id', 'hours', 'enriched_at', // MARKER-SALES-FIND
-        'invite_token', 'invite_email', 'invite_plan', 'invited_at', 'converted_at', // MARKER-SALES-INVITE
-        'import_batch', // MARKER-SALES-ROUTE
-        'socials', 'brands', 'site_scanned_at', 'site_scan_status', // MARKER-SALES-SITE-SCAN
+        'postcode', 'territory_id', 'hours', 'enriched_at',
+        'invite_token', 'invite_email', 'invite_plan', 'invited_at', 'converted_at',
+        'import_batch',
+        'socials', 'brands', 'site_scanned_at', 'site_scan_status',
     ];
 
     protected $casts = [
@@ -47,12 +46,12 @@ class SalesProspect extends Model
         'quote_monthly'     => 'integer',
         'next_action_on'    => 'date',
         'last_contacted_at' => 'datetime',
-        'enriched_at'       => 'datetime', // MARKER-SALES-FIND
-        'socials'           => 'array',    // MARKER-SALES-SITE-SCAN
+        'enriched_at'       => 'datetime',
+        'socials'           => 'array',
         'brands'            => 'array',
         'site_scanned_at'   => 'datetime',
-        'invited_at'        => 'datetime', // MARKER-SALES-INVITE
-        'converted_at'      => 'datetime', // MARKER-SALES-INVITE
+        'invited_at'        => 'datetime',
+        'converted_at'      => 'datetime',
         'lat'               => 'decimal:6',
         'lng'               => 'decimal:6',
     ];
@@ -107,7 +106,7 @@ class SalesProspect extends Model
         return $this->belongsTo(Tenant::class);
     }
 
-    // MARKER-CAMPAIGNS-QUOTE — channel + quote
+    // channel + quote
     public function channel(): BelongsTo
     {
         return $this->belongsTo(SalesChannel::class, 'channel_id');
@@ -123,13 +122,12 @@ class SalesProspect extends Model
         return $this->belongsTo(SalesRep::class, 'sales_rep_id');
     }
 
-    // MARKER-SALES-FIND
     public function territory(): BelongsTo
     {
         return $this->belongsTo(SalesTerritory::class, 'territory_id');
     }
 
-    // MARKER-QUOTE-REALPRICING — priced from the platform's real sources.
+    // priced from the platform's real sources.
     /** Reference rate; per-agency rates on sales_agencies supersede this. */
     public const COMMISSION_YEAR1 = 0.25;
 

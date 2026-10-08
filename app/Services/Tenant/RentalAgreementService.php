@@ -2,7 +2,7 @@
 
 namespace App\Services\Tenant;
 
-// MARKER-RENTAL-WAIVER-DISPLAY-BE — one place that turns "the customer
+// one place that turns "the customer
 // agreed" into the durable record: signature image, PDF, stamped columns.
 
 use App\Models\Tenant\TenantRental;

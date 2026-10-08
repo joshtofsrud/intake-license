@@ -8,7 +8,6 @@ use App\Models\RaiseSetting;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 
-// MARKER-RAISE-MESSAGES
 class InvestorMessenger
 {
     public static function templates(): array
@@ -16,7 +15,7 @@ class InvestorMessenger
         return \App\Models\RaiseMessageTemplate::merged();
     }
 
-    // MARKER-RAISE-INVITE — $extra carries ad-hoc tokens, currently the
+    // $extra carries ad-hoc tokens, currently the
     // personal note typed on the invite. Optional, so existing callers stand.
     public static function render(string $key, Investor $investor, array $extra = []): ?array
     {
@@ -45,7 +44,7 @@ class InvestorMessenger
             $replacements['{' . trim($token, '{}') . '}'] = (string) $value;
         }
 
-        // MARKER-RAISE-COMPOSE — the prepend that used to live here is gone. It
+        // the prepend that used to live here is gone. It
         // stacked a personal note on top of a template that already opened with
         // a greeting, so invitations said hello twice. Invitation text is now
         // authored in full on the invite form.
@@ -58,7 +57,7 @@ class InvestorMessenger
     }
 
     /**
-     * MARKER-RAISE-COMPOSE — substitute into text that isn't a stored template.
+     * substitute into text that isn't a stored template.
      *
      * The invite form composes its own subject and body, so the placeholder
      * substitution has to be available without going through templates().
@@ -87,7 +86,7 @@ class InvestorMessenger
     }
 
     /**
-     * MARKER-RAISE-HTML — the body, split into paragraphs and links.
+     * the body, split into paragraphs and links.
      *
      * A line that is nothing but a URL becomes a button; everything else
      * stays a paragraph of exactly the text that was typed. Nothing is
@@ -116,7 +115,7 @@ class InvestorMessenger
         return $out;
     }
 
-    /** MARKER-RAISE-HTML — the shell around a message, or null if it can't render. */
+    /** the shell around a message, or null if it can't render. */
     public static function html(string $subject, string $body): ?string
     {
         try {
@@ -125,13 +124,13 @@ class InvestorMessenger
                 'blocks'  => static::blocks($body),
             ])->render();
         } catch (\Throwable $e) {
-            Log::error('MARKER-RAISE-HTML render failed', ['error' => $e->getMessage()]);
+            Log::error('raise-html: render failed', ['error' => $e->getMessage()]);
 
             return null;
         }
     }
 
-    /** MARKER-RAISE-COMPOSE — send exactly what the preview showed. */
+    /** send exactly what the preview showed. */
     public static function sendRaw(Investor $investor, string $subject, string $body): bool
     {
         if (! $investor->email) {
@@ -142,13 +141,13 @@ class InvestorMessenger
 
         $message = static::renderRaw($subject, $body, $investor);
 
-        // MARKER-RAISE-HTML — multipart. The text part is what was typed; an
+        // multipart. The text part is what was typed; an
         // HTML-only message is a deliverability signal, and some people read
         // plain text on purpose.
         $html = static::html($message['subject'], $message['body']);
 
         try {
-            // MARKER-PLATFORM-MAIL-LOG — free record so this send is answerable.
+            // free record so this send is answerable.
             $__mailLog = \App\Services\EmailLedger::platform((string) ($investor->email ?? ''), 'investor_message');
             Mail::send([], [], function ($mail) use ($investor, $message, $html) {
                 $mail->to($investor->email, $investor->name)
@@ -159,7 +158,7 @@ class InvestorMessenger
             });
             if (isset($__mailLog) && $__mailLog) \App\Services\EmailLedger::markSent($__mailLog);
         } catch (\Throwable $e) {
-            Log::error('MARKER-RAISE-COMPOSE send failed', ['investor' => $investor->id, 'error' => $e->getMessage()]);
+            Log::error('raise-compose: send failed', ['investor' => $investor->id, 'error' => $e->getMessage()]);
 
             return false;
         }
@@ -184,11 +183,11 @@ class InvestorMessenger
             return false;
         }
 
-        // MARKER-RAISE-HTML — same shell and same multipart shape as sendRaw.
+        // same shell and same multipart shape as sendRaw.
         $html = static::html($message['subject'], $message['body']);
 
         try {
-            // MARKER-PLATFORM-MAIL-LOG — free record so this send is answerable.
+            // free record so this send is answerable.
             $__mailLog = \App\Services\EmailLedger::platform((string) ($investor->email ?? ''), 'investor_message');
             Mail::send([], [], function ($mail) use ($investor, $message, $html) {
                 $mail->to($investor->email, $investor->name)
@@ -199,7 +198,7 @@ class InvestorMessenger
             });
             if (isset($__mailLog) && $__mailLog) \App\Services\EmailLedger::markSent($__mailLog);
         } catch (\Throwable $e) {
-            Log::error('MARKER-RAISE-MESSAGES send failed', ['key' => $key, 'error' => $e->getMessage()]);
+            Log::error('raise-messages: send failed', ['key' => $key, 'error' => $e->getMessage()]);
             InvestorEvent::log($investor->id, 'message_failed', $message['label'] . ' failed to send');
 
             return false;

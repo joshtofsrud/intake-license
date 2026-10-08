@@ -1,5 +1,5 @@
 <?php
-// MARKER-SALES-SITE-SCAN — the website pass. Runs on the scheduler every five
+// the website pass. Runs on the scheduler every five
 // minutes; each run reads a batch of prospects' websites that haven't been
 // read yet. Pause/Resume lives on Find shops.
 

@@ -53,7 +53,7 @@ return [
             'unix_socket' => env('DB_SOCKET', ''),
             'charset' => env('DB_CHARSET', 'utf8mb4'),
             'collation' => env('DB_COLLATION', 'utf8mb4_unicode_ci'),
-            // MARKER-TZ-WAVE2 — pin the SQL session timezone to UTC so
+            // pin the SQL session timezone to UTC so
             // CURRENT_TIMESTAMP defaults and NOW() in SQL are UTC instants
             // regardless of the server or database global setting.
             'timezone' => env('DB_TIMEZONE', '+00:00'),
@@ -77,7 +77,7 @@ return [
             'unix_socket' => env('DB_SOCKET', ''),
             'charset' => env('DB_CHARSET', 'utf8mb4'),
             'collation' => env('DB_COLLATION', 'utf8mb4_unicode_ci'),
-            // MARKER-TZ-WAVE2 — pin the SQL session timezone to UTC so
+            // pin the SQL session timezone to UTC so
             // CURRENT_TIMESTAMP defaults and NOW() in SQL are UTC instants
             // regardless of the server or database global setting.
             'timezone' => env('DB_TIMEZONE', '+00:00'),

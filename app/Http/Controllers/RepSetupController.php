@@ -1,5 +1,5 @@
 <?php
-// MARKER-REPPANEL-SETUP — public tokenized setup page (Team & access pattern).
+// public tokenized setup page (Team & access pattern).
 // The raw token lives only in the email link; DB stores its sha256.
 
 namespace App\Http\Controllers;

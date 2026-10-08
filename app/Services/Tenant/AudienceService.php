@@ -9,7 +9,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
 /**
- * MARKER-CAMPAIGN-AUDIENCE — the ONE place an audience is resolved.
+ * the ONE place an audience is resolved.
  *
  * Before this, send(), the pre-send checks panel and the scheduled-fire path
  * each built their own copy of the query. Three copies is how a scheduled
@@ -40,7 +40,7 @@ class AudienceService
         'customer_type'  => ['label' => 'Business or individual',  'type' => 'choice'],
         'consent_source' => ['label' => 'Opted in via',            'type' => 'choice'],
         'special_order'  => ['label' => 'Special order',           'type' => 'flag'],
-        // MARKER-CUSTOMER-TAGS — the reason imports stay findable.
+        // the reason imports stay findable.
         'tag'            => ['label' => 'Tag',                      'type' => 'tag'],
     ];
 
@@ -60,7 +60,7 @@ class AudienceService
     {
         $q = TenantCustomer::where('tenant_id', $tenant->id);
 
-        // MARKER-AUDIENCE-EMPTY — an unresolved saved audience must select
+        // an unresolved saved audience must select
         // NOBODY. Falling through to "no rules" means everyone, which is how a
         // deleted list turns into a send to the entire customer base.
         if ($this->isUnresolvedSaved($tenant, $targeting)) {
@@ -74,7 +74,7 @@ class AudienceService
         return $q;
     }
 
-    /** MARKER-AUDIENCE-EMPTY — saved mode pointing at nothing we can find. */
+    /** saved mode pointing at nothing we can find. */
     public function isUnresolvedSaved(Tenant $tenant, ?array $targeting): bool
     {
         if (! is_array($targeting) || ($targeting['mode'] ?? null) !== 'saved') {
@@ -130,7 +130,7 @@ class AudienceService
         $mode = $targeting['mode'] ?? null;
 
         if ($mode === 'saved') {
-            // MARKER-AUDIENCE-EMPTY — never describe an unresolved list as
+            // never describe an unresolved list as
             // everyone; nobody is what it now selects.
             $id = $targeting['audience_id'] ?? '';
             if ($id === '' || $id === null) {
@@ -290,9 +290,8 @@ class AudienceService
                 $op === 'is_not' ? $q->doesntHave('specialOrders') : $q->has('specialOrders');
                 break;
 
-            // MARKER-CUSTOMER-TAGS
             case 'tag':
-                // MARKER-AUD-TAGPICK — one or many ids, comma-joined. Nothing
+                // one or many ids, comma-joined. Nothing
                 // picked matches NOBODY: an unfinished rule fails closed
                 // instead of silently widening to the whole list.
                 $tagIds = array_values(array_filter(array_map('trim', explode(',', (string) $rule['value']))));
@@ -325,7 +324,7 @@ class AudienceService
             'customer_type' => (self::CHOICES['customer_type'][$v] ?? $v) . ($rule['op'] === 'is_not' ? ' (excluded)' : ''),
             'consent_source'=> 'opted in via ' . (self::CHOICES['consent_source'][$v] ?? $v),
             'special_order' => $rule['op'] === 'is_not' ? 'no special orders' : 'has a special order',
-            'tag'           => (function () use ($rule) {   // MARKER-CUSTOMER-TAGS / MARKER-AUD-TAGPICK
+            'tag'           => (function () use ($rule) {
                 $ids   = array_values(array_filter(array_map('trim', explode(',', (string) $rule['value']))));
                 if (! $ids) return 'tagged (nothing picked — matches no one)';
                 $names = \App\Models\Tenant\TenantCustomerTag::whereIn('id', $ids)->pluck('name')->all();

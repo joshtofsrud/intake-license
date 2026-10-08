@@ -1,7 +1,7 @@
 @extends('layouts.tenant.app')
 @php $pageTitle = 'Alerts'; @endphp
 
-{{-- MARKER-PATCH-273 — Layer A: alerts inbox rebuilt to the staff-alerts mock. --}}
+{{-- Layer A: alerts inbox rebuilt to the staff-alerts mock. --}}
 
 @section('content')
 
@@ -11,7 +11,7 @@
     <p class="ia-page-subtitle">Everything that's needed your attention.</p>
   </div>
   @php $canBroadcast = tenant()->staff_alerts_enabled && optional(auth('tenant')->user())->isManager(); @endphp
-  {{-- MARKER-PATCH-280 — compose entry point --}}
+  {{-- compose entry point --}}
   <div class="sa-head-actions" style="display:flex;gap:8px;align-items:center">
     @if($canBroadcast)
       <button type="button" class="ia-btn ia-btn--primary" onclick="document.getElementById('bc-overlay').classList.add('open')">📣 New announcement</button>
@@ -37,9 +37,9 @@
     'offer.accepted'          => ['Offer', '🏷'],
     'inbox.needs_reply'       => ['Inbox', '💬'],
     'announcement'            => ['Announcement', '📣'],
-    'delivery.window_chosen'  => ['Delivery', '🚚'], // MARKER-DELIVERY-ALERTS
+    'delivery.window_chosen'  => ['Delivery', '🚚'],
     'delivery.no_reply'       => ['Delivery', '🚚'],
-    'delivery.call_requested' => ['Delivery', '🚚'], // MARKER-DELIVERY-CALL
+    'delivery.call_requested' => ['Delivery', '🚚'],
     'timeoff.requested'       => ['Time off', '🌴'],
     'timeoff.decided'         => ['Time off', '🌴'],
     'timeoff.withdrawn'       => ['Time off', '🌴'],
@@ -172,7 +172,7 @@
 </script>
 
 @if(!empty($canBroadcast) && $canBroadcast)
-{{-- MARKER-PATCH-280 — shop-wide announcement compose modal --}}
+{{-- shop-wide announcement compose modal --}}
 <div id="bc-overlay" class="bc-overlay" onclick="if(event.target===this)this.classList.remove('open')">
   <div class="bc-modal">
     <div class="bc-head">

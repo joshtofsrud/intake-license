@@ -1,6 +1,5 @@
 <?php
 
-// MARKER-MATCH-REVIEW
 
 namespace App\Filament\Pages;
 
@@ -18,8 +17,8 @@ use Livewire\WithPagination;
  */
 class CatalogMatchReview extends Page
 {
-    use \App\Support\UsesAdminNav; // MARKER-NAV-ORDER
-    use \App\Support\GatedByAdminArea; // MARKER-ADMIN-NAV-GATE
+    use \App\Support\UsesAdminNav;
+    use \App\Support\GatedByAdminArea;
     protected static string $adminArea = 'catalog';
 
     use WithPagination;
@@ -68,7 +67,7 @@ class CatalogMatchReview extends Page
     }
 
     /**
-     * MARKER-MATCH-REVIEW — how many OTHER pairs each of these rows appears
+     * how many OTHER pairs each of these rows appears
      * in. A held pair doesn't claim its rows, so the matcher's `ambiguous`
      * flag misses one-to-many cases like the two crank rows that differ only
      * by length. Computed here rather than by changing the matcher's

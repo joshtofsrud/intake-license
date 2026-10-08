@@ -8,7 +8,6 @@ use App\Services\Billing\ReceiptBuilder;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Auth;
 
-// MARKER-BILLING-RECEIPT
 class ChargeReceiptController extends Controller
 {
     public function show(string $runId, ReceiptBuilder $builder)

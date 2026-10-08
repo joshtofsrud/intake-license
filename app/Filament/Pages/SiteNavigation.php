@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 /**
- * MARKER-MKT-NAV — the one place that controls the intake.works header.
+ * the one place that controls the intake.works header.
  * Replaces the old Navigation resource (typed label + URL rows), the page
  * editor's "Show in site navigation" checkbox and the Marketing pages
  * "Show in navigation" toggle, none of which agreed with each other.
@@ -34,9 +34,9 @@ class SiteNavigation extends Page
         return [
             'rows'       => MarketingNav::rows(),
             'pages'      => MarketingNav::pages(),
-            'header'     => MarketingNav::header(), // MARKER-MKT-NAV-FLOAT
-            'groups'     => MarketingNav::menuGroups(), // MARKER-MKT-MENU-GROUPS
-            'footer'     => MarketingNav::footer(),  // MARKER-MKT-FOOTER
+            'header'     => MarketingNav::header(),
+            'groups'     => MarketingNav::menuGroups(),
+            'footer'     => MarketingNav::footer(),
             'previewUrl' => url('/admin/navigation/preview'),
         ];
     }
@@ -52,7 +52,7 @@ class SiteNavigation extends Page
 
         $pages = MarketingNav::pages();
         $clean = [];
-        $meta  = []; // MARKER-MKT-MENU-GROUPS — one entry per saved row, in order
+        $meta  = []; // one entry per saved row, in order
         $problems = [];
 
         foreach (array_slice(array_values($rows), 0, self::MAX_ROWS) as $n => $r) {
@@ -89,19 +89,19 @@ class SiteNavigation extends Page
         }
 
         DB::transaction(function () use ($platform, $clean, $header, $footer, $groups, $meta) {
-            // MARKER-MKT-MENU-GROUPS — groups and each row's group/icon/description
+            // groups and each row's group/icon/description
             $settings = $platform->settings ?? [];
             $settings['marketing_menu'] = ['groups' => MarketingNav::cleanGroups($groups), 'meta' => $meta];
             $platform->settings = $settings;
             $platform->save();
-            // MARKER-MKT-FOOTER — the footer saves with the menu.
+            // the footer saves with the menu.
             if ($footer) {
                 $settings = $platform->settings ?? [];
                 $settings['marketing_footer'] = MarketingNav::cleanFooter($footer);
                 $platform->settings = $settings;
                 $platform->save();
             }
-            // MARKER-MKT-NAV-FLOAT — header style and its settings save with the menu.
+            // header style and its settings save with the menu.
             if ($header) {
                 $settings = $platform->settings ?? [];
                 $settings['marketing_header'] = MarketingNav::cleanHeader($header);

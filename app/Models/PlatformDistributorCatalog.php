@@ -47,7 +47,7 @@ class PlatformDistributorCatalog extends Model
         'config',
         'size_id',
         'color_id',
-        'color', // MARKER-CATALOG-COLORSIZE — resolved name, not HLC's code
+        'color', // resolved name, not HLC's code
         'size',
         'category_id',
         'category_path',

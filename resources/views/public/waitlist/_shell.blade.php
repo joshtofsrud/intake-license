@@ -11,12 +11,12 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  @include('partials.mobile-input-zoom') {{-- MARKER-MOBILE-INPUT-ZOOM --}}
+  @include('partials.mobile-input-zoom')
   <meta name="csrf-token" content="{{ csrf_token() }}">
   <title>{{ $pageTitle ?? 'Waitlist' }} — {{ $currentTenant->name }}</title>
   @if($currentTenant->favicon_url)<link rel="icon" href="{{ $currentTenant->favicon_url }}">@endif
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>{{-- MARKER-SELFHOST-FONTS-2 — the font FILES come from gstatic; without this the browser pays a second DNS+TLS handshake --}}
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>{{-- the font FILES come from gstatic; without this the browser pays a second DNS+TLS handshake --}}
   <link href="https://fonts.googleapis.com/css2?family={{ $fontQuery }}&display=swap" rel="stylesheet">
   <style>
     :root {
@@ -74,7 +74,7 @@
     .w-offer-slot-time{font-size:22px;font-weight:700;margin-top:4px;font-family:var(--p-font-heading)}
     .w-offer-service{font-size:17px;color:var(--p-text);margin-top:4px}
   </style>
-  {{-- MARKER-PATCH-150 — analytics + funnel tracking --}}
+  {{-- analytics + funnel tracking --}}
   @include('public._funnel_tracker')
 </head>
 <body>

@@ -1,7 +1,6 @@
 @extends('layouts.tenant.app')
 @php $pageTitle = 'Campaign results'; @endphp
 
-{{-- MARKER-CAMPAIGN-RESULTS --}}
 @push('styles')
 <style>
   .cr-wrap{max-width:900px}

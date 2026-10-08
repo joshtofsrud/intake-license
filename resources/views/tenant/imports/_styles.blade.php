@@ -1,4 +1,4 @@
-{{-- MARKER-IMPORT1 — shared importer styling, all off the --ia-* theme vars --}}
+{{-- shared importer styling, all off the --ia-* theme vars --}}
 <style>
 .imp{width:100%;border-collapse:collapse;font-size:12.5px}
 .imp th{text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;
@@ -13,7 +13,6 @@
 .imp-drop{border:1.5px dashed var(--ia-border-strong);border-radius:var(--ia-r-lg);padding:30px 20px;
           text-align:center;background:rgba(255,255,255,.02);font-size:12.5px;color:var(--ia-text-dim)}
 .imp-two{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px}
-/* MARKER-IMPORT-TAG-CARD */
 .imp-three{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-top:16px}
 @media(max-width:1100px){.imp-three{grid-template-columns:1fr 1fr}}
 @media(max-width:760px){.imp-three{grid-template-columns:1fr}}
@@ -43,7 +42,7 @@
       background:rgba(255,255,255,.05);color:var(--ia-text-dim);border:.5px solid rgba(255,255,255,.1)}
 .mono{font-family:ui-monospace,monospace;font-size:12px}
 
-/* MARKER-IMPORT3 — hub hierarchy, type cards, richer history rows */
+/* hub hierarchy, type cards, richer history rows */
 .imp-sec{margin-bottom:30px}
 .imp-sec-h{display:flex;align-items:baseline;gap:10px;margin-bottom:4px}
 .imp-sec-n{font-size:10px;font-weight:800;letter-spacing:.09em;color:var(--ia-accent);
@@ -52,7 +51,7 @@
 .imp-sec-s{font-size:12.5px;color:var(--ia-text-dim);margin:0 0 14px}
 .imp-types{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 @media(max-width:760px){.imp-types{grid-template-columns:1fr}}
-/* MARKER-IMPORT-CTA — the card is the action, so it has to look like one. */
+/* the card is the action, so it has to look like one. */
 .imp-type{background:var(--ia-surface);border-radius:var(--ia-r-lg);
   box-shadow:inset 0 0 0 .5px var(--ia-border);padding:20px 24px;
   display:flex;flex-direction:column;transition:background .14s,box-shadow .14s}
@@ -114,7 +113,7 @@ details.imp-ref[open] summary::before{content:'\25BE'}
   border-left:2px solid var(--ia-border);padding-left:11px}
 .chip--reversed{background:rgba(255,255,255,.05);color:var(--ia-text-dim);border:.5px solid rgba(255,255,255,.12)}
 
-/* MARKER-IMPORT-MERGE — merge review: one decision per field, samples under it */
+/* merge review: one decision per field, samples under it */
 .imp-fg{padding:16px 18px;border-bottom:.5px solid var(--ia-border)}
 .imp-fg:last-child{border-bottom:0}
 .imp-fg-top{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
@@ -147,13 +146,12 @@ details.imp-ref[open] summary::before{content:'\25BE'}
 .imp-pager a{color:var(--ia-accent);text-decoration:none}
 .imp-pager span{color:var(--ia-text-dim)}
 
-/* MARKER-IMPORT-PRESETS — saved mapping rows */
+/* saved mapping rows */
 .preset-row{display:flex;align-items:center;gap:10px;padding:12px 16px;flex-wrap:wrap;
   border-bottom:.5px solid var(--ia-border)}
 .preset-row:last-of-type{border-bottom:0}
 .preset-rename{display:flex;gap:6px;align-items:center}
 .preset-row form{margin:0}
-/* MARKER-IMPORT-MATCH */
 .imp-tile.is-active{outline:2px solid var(--ia-accent);outline-offset:-2px}
 .imp-tile .v.warn{color:#f0c46a}
 .chip--possible_duplicate{background:rgba(240,196,106,.14);color:#f0c46a}

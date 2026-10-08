@@ -1,7 +1,7 @@
-@php $bgId = 'mkbg-' . substr(md5((string) ($section->id ?? uniqid())), 0, 10); @endphp {{-- MARKER-MKT-SECTION-BG --}}
+@php $bgId = 'mkbg-' . substr(md5((string) ($section->id ?? uniqid())), 0, 10); @endphp
 @include('marketing.sections._section_bg', ['bgId' => $bgId])
 {{--
-    CTA banner (intake.works). MARKER-MKT-CTA-V2 — reads every editor setting:
+    CTA banner (intake.works). reads every editor setting:
     eyebrow, headline with accent phrase (color, italic), subheading, up to 4
     buttons (Primary / Outline / Ghost / Link) shown separately or as a pill
     bar, a note under the buttons, alignment, content width (slider), text /
@@ -22,7 +22,7 @@
     $bText   = $ok($c['btn_text'] ?? null)        ?: 'var(--mk-accent-text, #0a0a0a)';
     $italic  = ! in_array((string) ($c['accent_italic'] ?? '0'), ['0', 'false', ''], true);
     $pill    = ($c['buttons_style'] ?? 'separate') === 'pill';
-    // MARKER-MKT-CTA-V3 — optional fixed sizes (0 = automatic)
+    // optional fixed sizes (0 = automatic)
     $hSize   = max(0, min(96, (int) ($c['headline_size'] ?? 0)));
     $sSize   = max(0, min(28, (int) ($c['sub_size'] ?? 0)));
     $nSize   = max(0, min(20, (int) ($c['note_size'] ?? 0)));
@@ -56,7 +56,7 @@
     .{{ $ctId }} .cta-btn--outline { border: 1px solid {{ $bFill }}; color: {{ $txt }}; }
     .{{ $ctId }} .cta-btn--ghost { background: rgba(255,255,255,.06); color: {{ $txt }}; }
     .{{ $ctId }} .cta-btn--link { color: {{ $accent }}; padding-left: 6px; padding-right: 6px; }
-    /* MARKER-CTA-PILL-HOVER — plain buttons inside the pill, highlight on hover */
+    /* plain buttons inside the pill, highlight on hover */
     .{{ $ctId }} .cta-pill .cta-btn { transition: background-color .2s ease, opacity .2s ease, transform .15s; white-space: nowrap; }
     .{{ $ctId }} .cta-pill .cta-btn--ghost { background: transparent; opacity: .88; }
     .{{ $ctId }} .cta-pill .cta-btn--ghost:hover, .{{ $ctId }} .cta-pill .cta-btn--ghost:focus-visible { background: rgba(255,255,255,.1); opacity: 1; transform: none; }

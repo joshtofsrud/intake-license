@@ -10,7 +10,7 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Http;
 
 /**
- * MARKER-SEO-SIGNALS — visits every live website the way a search engine
+ * visits every live website the way a search engine
  * would and checks the signals are actually there:
  *
  *   sites meant to be found  — robots.txt allows crawling and names the
@@ -129,7 +129,7 @@ class SeoCheck extends Command
             $p[] = 'robots.txt does not block the site';
         }
 
-        // MARKER-SEO-CHECK-REDIRECT — judge this host's own answer. A redirect
+        // judge this host's own answer. A redirect
         // passes: search engines index where it lands, not the redirect.
         $home = $this->fetch($site['base'] . '/', false); $n++;
         if ($home && $home->status() === 200 && ! $this->noindex($home)) {

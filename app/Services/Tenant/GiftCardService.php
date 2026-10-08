@@ -9,7 +9,7 @@ use App\Services\Tenant\Exceptions\SaleValidationException;
 use Illuminate\Support\Facades\DB;
 
 /**
- * MARKER-GIFTCARDS — internal gift card ledger. Every balance change writes
+ * internal gift card ledger. Every balance change writes
  * a transaction row; balance_cents is a cache the ledger can rebuild.
  *
  * All mutators expect to run INSIDE the caller's DB transaction (the sale
@@ -20,7 +20,7 @@ class GiftCardService
 {
     /** Generate a unique, unused code for this tenant: GC-####-####-####. */
     /**
-     * MARKER-GC-SETTINGS -- normalized gift card configuration. Every surface
+     * normalized gift card configuration. Every surface
      * (register modal, public buy page, and the validation behind both) reads
      * this, so a default lives in exactly one place. Values are clamped here
      * rather than trusted: settings rows predate the validation that now
@@ -54,7 +54,7 @@ class GiftCardService
         ];
     }
 
-    /** MARKER-GC-SETTINGS -- shared amount check for every sell path. */
+    /** shared amount check for every sell path. */
     public static function assertAmountAllowed(\App\Models\Tenant $tenant, int $cents): void
     {
         $cfg = self::config($tenant);
@@ -102,7 +102,7 @@ class GiftCardService
                 continue;
             }
 
-            // MARKER-GIFTCARDS-GATE -- selling requires the addon. Checked at
+            // selling requires the addon. Checked at
             // activation so it holds for every path (register, drafts, quotes
             // committed later). Redemption is deliberately NOT gated.
             $sellTenant = \App\Models\Tenant::find($sale->tenant_id);
@@ -110,7 +110,7 @@ class GiftCardService
                 throw new SaleValidationException('Gift cards are not enabled for this shop.');
             }
 
-            // MARKER-GC-SETTINGS -- the configured floor/ceiling, enforced at
+            // the configured floor/ceiling, enforced at
             // activation so it also covers a draft rung up before the limits
             // changed rather than only the modal that created the line.
             self::assertAmountAllowed($sellTenant, (int) round($line->unit_price_cents * (float) $line->quantity));
@@ -139,7 +139,7 @@ class GiftCardService
 
             $card = TenantGiftCard::create([
                 'tenant_id'             => $sale->tenant_id,
-                // MARKER-GC-LOCATION -- the register that rang the sale.
+                // the register that rang the sale.
                 'location_id'           => $sale->location_id,
                 'code'                  => $code,
                 'type'                  => $kind,
@@ -224,7 +224,7 @@ class GiftCardService
     }
 
     /**
-     * MARKER-GC-FUNCTIONS -- put a refund onto a gift card.
+     * put a refund onto a gift card.
      *
      * With a code: credits that card (must exist and not be deactivated; a
      * fully-used card comes back to life, which is the point of handing it
@@ -283,7 +283,7 @@ class GiftCardService
             'original_cents'  => $amount,
             'balance_cents'   => $amount,
             'issued_sale_id'  => $refund->id,
-            'location_id'     => $refund->location_id, // MARKER-GC-LOCATION
+            'location_id'     => $refund->location_id,
         ]);
 
         $this->ledger($card, 'issue', $amount, $refund->id, $note, $userId);
@@ -292,7 +292,7 @@ class GiftCardService
     }
 
     /**
-     * MARKER-GC-FUNCTIONS -- bind a preprinted card to an online physical
+     * bind a preprinted card to an online physical
      * purchase, replacing the generated code at pickup. Balance and history
      * are untouched; the swap itself is recorded, because a code changing
      * with no trace is exactly the kind of thing a manager needs to be able
@@ -370,7 +370,7 @@ class GiftCardService
 
     protected function ledger(TenantGiftCard $card, string $kind, int $amountCents, ?string $saleId, ?string $note, ?string $userId, ?string $locationId = null): void
     {
-        // MARKER-GC-LOCATION -- when the movement came from a sale, take that
+        // when the movement came from a sale, take that
         // sale's location rather than the staff member's current one: a
         // redemption belongs to the store that gave up the goods.
         if ($locationId === null && $saleId !== null) {
@@ -384,7 +384,7 @@ class GiftCardService
             'amount_cents'        => $amountCents,
             'balance_after_cents' => $card->balance_cents,
             'sale_id'             => $saleId,
-            'location_id'         => $locationId, // MARKER-GC-LOCATION
+            'location_id'         => $locationId,
             'note'                => $note,
             'user_id'             => $userId,
         ]);

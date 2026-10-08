@@ -115,7 +115,7 @@ class SpecialOrderService
      */
     public function create(array $data): TenantSpecialOrder
     {
-        // MARKER-SO-AUTOVENDOR — resolve the vendor once, up front, so the
+        // resolve the vendor once, up front, so the
         // rule that chose it can be recorded alongside it.
         $auto = empty($data['vendor_id'])
             ? self::autoAssignVendor($data['tenant_id'], $data['inventory_item_id'] ?? null)
@@ -163,13 +163,13 @@ class SpecialOrderService
                 'quantity'                  => (int) $data['quantity'],
                 'customer_id'               => $data['customer_id'] ?? null,
                 'appointment_id'            => $data['appointment_id'] ?? null,
-                'sale_id'                   => $data['sale_id'] ?? null,      // MARKER-SO-SALE-LINK
-                'sale_item_id'              => $data['sale_item_id'] ?? null, // MARKER-SO-SALE-LINK
-                // MARKER-SO-AUTOVENDOR — an order with no vendor cannot be
+                'sale_id'                   => $data['sale_id'] ?? null,
+                'sale_item_id'              => $data['sale_item_id'] ?? null,
+                // an order with no vendor cannot be
                 // grouped or placed, so one is chosen automatically by the
                 // tenant's rule unless the caller named one.
                 'vendor_id'                 => $data['vendor_id'] ?? ($auto['vendor_id'] ?? null),
-                // MARKER-SO-VENDOR-KEY — null-coalesce. The register creates an
+                // null-coalesce. The register creates an
                 // SO without naming a vendor (that is what the auto rule is
                 // for), and a bare $data['vendor_id'] threw "Undefined array
                 // key" on every one of those.
@@ -181,7 +181,7 @@ class SpecialOrderService
                 'unit_cost_cents_estimated' => $data['unit_cost_cents_estimated'] ?? null,
                 'expected_arrival_date'     => $data['expected_arrival_date'] ?? null,
                 'ordered_at'                => $status === TenantSpecialOrder::STATUS_ORDERED ? now() : null,
-                // MARKER-SO-DEPOSIT — not written any more.
+                // not written any more.
                 'batch_id'                  => $data['batch_id'] ?? null,
                 'parent_id'                 => $data['parent_id'] ?? null,
                 'created_by_user_id'        => $data['created_by_user_id'] ?? null,
@@ -208,7 +208,7 @@ class SpecialOrderService
     }
 
     // ────────────────────────────────────────────────────────
-    //  MARKER-PATCH-419 — appointment-part bridge
+    //  appointment-part bridge
     // ────────────────────────────────────────────────────────
 
     /**
@@ -636,7 +636,7 @@ class SpecialOrderService
     }
 
     /**
-     * MARKER-SO-SALE-LINK — the vendor this tenant would normally buy this
+     * the vendor this tenant would normally buy this
      * item from: the preferred row in the item-vendor catalog, else the most
      * recently ordered, else none.
      */
@@ -672,7 +672,7 @@ class SpecialOrderService
     }
 
     /**
-     * MARKER-SO-AUTOVENDOR — choose a vendor by the tenant's rule.
+     * choose a vendor by the tenant's rule.
      *
      *   off           — leave it blank
      *   preferred     — the is_preferred row, else most recently ordered
@@ -705,7 +705,7 @@ class SpecialOrderService
             return $none;
         }
 
-        // MARKER-VENDOR-NET-COST — keep the models, not just the ids: the
+        // keep the models, not just the ids: the
         // lowest-price rule needs each vendor's program discount to compare
         // net cost rather than list.
         $vendors = \App\Models\Tenant\TenantVendor::where('tenant_id', $tenantId)
@@ -732,7 +732,7 @@ class SpecialOrderService
                 $inStock = $priced->filter(fn ($r) => (int) ($r->live_avail ?? 0) > 0);
                 $pool    = $inStock->isNotEmpty() ? $inStock : $priced;
 
-                // MARKER-VENDOR-NET-COST — sort on what the shop actually
+                // sort on what the shop actually
                 // pays. Comparing list cost picked the wrong vendor whenever
                 // one of them had a program and another didn't.
                 $pick = $pool->sortBy(function ($r) use ($vendors) {

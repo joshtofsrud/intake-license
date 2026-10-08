@@ -1,5 +1,5 @@
 <?php
-// MARKER-SALES-CORE — Sales channel: prospect pipeline for the master admin.
+// Sales channel: prospect pipeline for the master admin.
 // Platform-level (NOT tenant-scoped). One row per shop you might sell Intake to.
 // The killer column is tenant_id: once a prospect signs up, link it and the
 // dashboard funnel + MRR roll-ups become real instead of guesses.

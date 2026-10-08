@@ -1,6 +1,6 @@
 @extends('layouts.tenant.app')
 @php $pageTitle = 'Import ' . $type; @endphp
-{{-- MARKER-IMPORT3 — upload step for ONE chosen type. --}}
+{{-- upload step for ONE chosen type. --}}
 
 @section('content')
 @include('tenant.imports._styles')
@@ -21,7 +21,7 @@
   @csrf
   <input type="hidden" name="type" value="{{ $type }}">
 
-  {{-- MARKER-IMPORT-PRESETS — chosen on the hub, applied on the map step. --}}
+  {{-- chosen on the hub, applied on the map step. --}}
   @if($preset ?? null)
     <input type="hidden" name="preset_id" value="{{ $preset->id }}">
     <div class="ia-flash ia-flash--info" style="margin-bottom:14px">
@@ -80,7 +80,7 @@
 </form>
 
 <script>
-  // MARKER-IMPORT3 — show what was actually chosen before it's uploaded.
+  // show what was actually chosen before it's uploaded.
   (function () {
     var input  = document.getElementById('imp-file');
     var drop   = document.getElementById('imp-drop');

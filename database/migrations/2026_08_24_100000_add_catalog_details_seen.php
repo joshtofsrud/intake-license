@@ -1,5 +1,5 @@
 <?php
-// MARKER-DETAILS-WATCH — baseline of the catalog's color/size/description as
+// baseline of the catalog's color/size/description as
 // last seen by this item, so the details watch flags changes, not backlog.
 
 use Illuminate\Database\Migrations\Migration;

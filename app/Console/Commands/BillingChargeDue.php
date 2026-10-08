@@ -9,7 +9,7 @@ use App\Services\Billing\ChargeService;
 use Illuminate\Console\Command;
 
 /**
- * MARKER-BILLING-CHARGE — the hourly pass: settle balances over the threshold,
+ * the hourly pass: settle balances over the threshold,
  * retry what failed, and reconcile anything left mid-flight.
  *
  * Does nothing at all while the master switch is off, which is its default.
@@ -50,7 +50,7 @@ class BillingChargeDue extends Command
 
             if ($balance < $threshold) continue;
 
-            // MARKER-BILLING-NOTICES — a balance over the threshold with no card
+            // a balance over the threshold with no card
             // is the moment worth telling them about; nothing else would.
             if (! $tenant->stripe_payment_method_id && ! $this->option('dry')) {
                 app(\App\Services\Billing\BillingNoticeService::class)->notify($tenant, 'no_card', [

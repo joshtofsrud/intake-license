@@ -1,7 +1,7 @@
 @extends('layouts.tenant.app')
 @php $pageTitle = 'Sale ' . $sale->sale_number; @endphp
 
-{{-- MARKER-PATCH-231 — full sale detail page. --}}
+{{-- full sale detail page. --}}
 
 @section('content')
 

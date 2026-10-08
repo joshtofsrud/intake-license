@@ -1,5 +1,4 @@
 <?php
-// MARKER-BILLING-NOTICES
 namespace App\Filament\Resources\BillingNoticeTemplateResource\Pages;
 
 use App\Filament\Resources\BillingNoticeTemplateResource;

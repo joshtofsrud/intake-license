@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-// MARKER-BILLING-NOTICES — one notice that was actually sent, and its outcome.
+// one notice that was actually sent, and its outcome.
 class BillingNotice extends Model
 {
     use HasUuids;

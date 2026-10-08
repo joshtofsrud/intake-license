@@ -3,7 +3,7 @@
 namespace App\Services\Tenant\Import;
 
 /**
- * MARKER-IMPORT-COMBINE — assemble a field from several columns and text.
+ * assemble a field from several columns and text.
  *
  * A combined field is stored in options.combined as:
  *

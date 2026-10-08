@@ -2,7 +2,7 @@
 
 namespace App\Http\Middleware;
 
-// MARKER-CUST-AUTH — bind a customer session to the tenant it was created on.
+// bind a customer session to the tenant it was created on.
 // Without this the customer guard trusts the session alone, which is only safe
 // while sessions stay host-scoped. Belt and braces: if SESSION_DOMAIN is ever
 // widened to share cookies across tenant subdomains, a login on one shop would
@@ -33,13 +33,13 @@ class EnsureCustomerTenant
                 || ($customer && $customer->tenant_id !== $tenant->id);
 
             if ($mismatch) {
-                // MARKER-CUSTOMER-SESSION-SCOPE — this is the CUSTOMER guard,
+                // this is the CUSTOMER guard,
                 // but invalidate() destroys the WHOLE session: the tenant
                 // guard's login and impersonating_from with it. A stale
                 // portal session id from another shop was logging staff and
                 // impersonating admins out of every admin page.
                 // Clear what is actually wrong, and nothing else.
-                // MARKER-CUSTOMER-SESSION-CSRF — log the customer out and drop
+                // log the customer out and drop
                 // their tenant stamp. The token is deliberately NOT regenerated:
                 // doing so invalidates the CSRF token of the page the visitor is
                 // already on, which showed up as a 419 on the next post. Nothing

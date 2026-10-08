@@ -1,4 +1,4 @@
-/* MARKER-OFFLINE-SYNC — stage 2 service worker.
+/* stage 2 service worker.
  * Network-first HTML caching for a whitelist of admin pages so an already-
  * visited register / calendar / time clock still opens during an outage,
  * plus a branded fallback for every other admin navigation.
@@ -54,7 +54,7 @@ self.addEventListener('fetch', (e) => {
     e.respondWith((async () => {
       try {
         const fresh = await fetch(req);
-        // MARKER-OFFLINE-SYNC-PIN — never cache a page rendered behind the PIN lock.
+        // never cache a page rendered behind the PIN lock.
         if (fresh.ok && isWhitelistedPage(url) && fresh.headers.get('X-Pin-Locked') !== '1') {
           const c = await caches.open(PAGE_CACHE);
           c.put(req, fresh.clone());

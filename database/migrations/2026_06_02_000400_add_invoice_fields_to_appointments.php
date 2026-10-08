@@ -5,7 +5,7 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * MARKER-PATCH-204 — customer-facing invoice fields on the work order.
+ * customer-facing invoice fields on the work order.
  *
  * invoice_note  : shop-authored note that prints ON the invoice. Distinct from
  *                 staff_notes (internal) and the customer's own note.

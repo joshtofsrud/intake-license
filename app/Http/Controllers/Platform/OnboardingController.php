@@ -48,7 +48,7 @@ class OnboardingController extends Controller
 
     public function signup(Request $request)
     {
-        // MARKER-SALES-INVITE — a signup link from the pipeline carries the prospect's token.
+        // a signup link from the pipeline carries the prospect's token.
         $invite = \App\Services\Sales\ProspectConversion::fromToken($request->query('invite'));
         if ($invite) {
             $request->session()->put(\App\Services\Sales\ProspectConversion::SESSION_KEY, $invite->id);
@@ -66,7 +66,7 @@ class OnboardingController extends Controller
         }
 
         return view('platform.signup', [
-            'invite'     => $invite, // MARKER-SALES-INVITE
+            'invite'     => $invite,
             'plan'       => $invite?->invite_plan ?: $request->query('plan', 'starter'),
             'planPrices' => \App\Support\PlanPricing::all(),
         ]);
@@ -345,7 +345,7 @@ class OnboardingController extends Controller
             'booking_mode'                => 'drop_off',
             'settings'                    => ['onboarding_step' => 'branding', 'admin_theme' => 'a'],
         ]);
-        \App\Services\Sales\ProspectConversion::linkFromSession($tenant); // MARKER-SALES-INVITE
+        \App\Services\Sales\ProspectConversion::linkFromSession($tenant);
 
         $user = TenantUser::create([
             'tenant_id'  => $tenant->id,
@@ -357,9 +357,9 @@ class OnboardingController extends Controller
             'is_active'  => true,
         ]);
 
-        // MARKER-PATCH-143 — fire welcome email on billing signup path
+        // fire welcome email on billing signup path
         try {
-            // MARKER-PLATFORM-MAIL-LOG — free record so this send is answerable.
+            // free record so this send is answerable.
             $__mailLog = \App\Services\EmailLedger::platform($user->email, 'welcome');
             \Illuminate\Support\Facades\Mail::to($user->email)->send(
                 new \App\Mail\WelcomeEmail($tenant, $user, null, 'signup')
@@ -394,7 +394,7 @@ class OnboardingController extends Controller
                     'booking_mode'        => 'drop_off',
                     'settings'            => ['onboarding_step' => 'branding', 'admin_theme' => 'a'],
                 ]);
-                \App\Services\Sales\ProspectConversion::linkFromSession($tenant); // MARKER-SALES-INVITE
+                \App\Services\Sales\ProspectConversion::linkFromSession($tenant);
 
                 $user = TenantUser::create([
                     'tenant_id'  => $tenant->id,
@@ -406,7 +406,7 @@ class OnboardingController extends Controller
                     'is_active'  => true,
                 ]);
 
-                // MARKER-PATCH-143 — fire welcome email on no-billing signup path
+                // fire welcome email on no-billing signup path
                 try {
                     \Illuminate\Support\Facades\Mail::to($user->email)->send(
                         new \App\Mail\WelcomeEmail($tenant, $user, null, 'signup')

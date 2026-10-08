@@ -1,5 +1,4 @@
 <?php
-// MARKER-PATCH-152C
 
 namespace App\Services\Tenant;
 
@@ -43,7 +42,7 @@ class TenantDeliveryNotificationService
      * Safe to call from a controller — catches all internal exceptions
      * so a notification failure never breaks the user-facing save flow.
      */
-    public function sendScheduled(TenantDelivery $delivery, ?array $only = null): array // MARKER-PATCH-608 — returns channels actually sent (was void)
+    public function sendScheduled(TenantDelivery $delivery, ?array $only = null): array // returns channels actually sent (was void)
     {
         $allow = fn (string $ch) => $only === null || in_array($ch, $only, true);
         $delivery->loadMissing('customer');
@@ -52,7 +51,7 @@ class TenantDeliveryNotificationService
             Log::warning('TenantDeliveryNotificationService: delivery has no customer', [
                 'delivery_id' => $delivery->id,
             ]);
-            return []; // MARKER-PATCH-608
+            return [];
         }
 
         $vars = $this->buildVars($delivery);
@@ -60,7 +59,7 @@ class TenantDeliveryNotificationService
 
         // EMAIL
         if (
-            $allow('email') // MARKER-PATCH-534
+            $allow('email')
             && $this->tenant->notificationEnabled('delivery_scheduled_email')
             && !empty($customer->email)
         ) {
@@ -84,7 +83,7 @@ class TenantDeliveryNotificationService
 
         // SMS
         if (
-            $allow('sms') // MARKER-PATCH-534
+            $allow('sms')
             && $this->tenant->notificationEnabled('delivery_scheduled_sms')
             && !empty($customer->phone)
         ) {
@@ -107,7 +106,7 @@ class TenantDeliveryNotificationService
             ]);
         }
 
-        return $channels; // MARKER-PATCH-608
+        return $channels;
     }
 
     /**
@@ -120,7 +119,6 @@ class TenantDeliveryNotificationService
      * stamps notified_at internally, since the cron needs the stamp
      * to land even on full-failure to prevent retries.
      *
-     * MARKER-PATCH-155
      */
     public function sendReminder(TenantDelivery $delivery): array
     {
@@ -198,7 +196,7 @@ class TenantDeliveryNotificationService
             'delivery_type'    => $delivery->type,
             'type_verb'        => $delivery->isPickup() ? 'pick up' : 'drop off',
             'type_noun'        => $delivery->isPickup() ? 'pickup'  : 'dropoff',
-            'asset_noun'       => $this->tenant->asset_label_singular ?: 'order', // MARKER-PATCH-535
+            'asset_noun'       => $this->tenant->asset_label_singular ?: 'order',
             'date_human'       => $start->format('l, F j'),
             'date_short'       => $start->format('M j'),
             'time_start'       => $start->format('g:i A'),
@@ -223,23 +221,22 @@ class TenantDeliveryNotificationService
         $verb = $vars['type_verb'];
         $when = $vars['date_short'] . ' at ' . $vars['time_start'];
         if ($delivery->isPickup()) {
-            return "{$shop}: We'll {$verb} your {$vars['asset_noun']} on {$when} ({$vars['window']}). Reply STOP to opt out."; // MARKER-PATCH-535
+            return "{$shop}: We'll {$verb} your {$vars['asset_noun']} on {$when} ({$vars['window']}). Reply STOP to opt out.";
         }
-        return "{$shop}: We'll {$verb} your {$vars['asset_noun']} on {$when} ({$vars['window']}) at {$vars['address']}. Reply STOP to opt out."; // MARKER-PATCH-535
+        return "{$shop}: We'll {$verb} your {$vars['asset_noun']} on {$when} ({$vars['window']}) at {$vars['address']}. Reply STOP to opt out.";
     }
 
     /**
      * SMS body for the 24-hour reminder. Tomorrow-framed.
-     * MARKER-PATCH-155
      */
     private function renderReminderSmsBody(TenantDelivery $delivery, array $vars): string
     {
         $shop = $vars['shop_name'];
         $verb = $vars['type_verb'];
         if ($delivery->isPickup()) {
-            return "{$shop}: Reminder \u{2014} we'll {$verb} your {$vars['asset_noun']} {$vars['when_sms']}. Reply STOP to opt out."; // MARKER-PATCH-535
+            return "{$shop}: Reminder \u{2014} we'll {$verb} your {$vars['asset_noun']} {$vars['when_sms']}. Reply STOP to opt out.";
         }
-        return "{$shop}: Reminder \u{2014} we'll {$verb} your {$vars['asset_noun']} {$vars['when_sms']} at {$vars['address']}. Reply STOP to opt out."; // MARKER-PATCH-535
+        return "{$shop}: Reminder \u{2014} we'll {$verb} your {$vars['asset_noun']} {$vars['when_sms']} at {$vars['address']}. Reply STOP to opt out.";
     }
 }
 

@@ -1,6 +1,6 @@
 <?php
 
-// MARKER-TZ-WAVE4 — timezone regression harness. Standalone PHPUnit (no
+// timezone regression harness. Standalone PHPUnit (no
 // Laravel boot, no DB): exercises the two helpers every day-boundary and
 // bucketing query is built on. If these fail, the whole timezone-correctness
 // story fails with them.

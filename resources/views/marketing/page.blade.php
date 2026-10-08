@@ -18,8 +18,8 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"> {{-- MARKER-MKT-NAV-EDGE --}}
-    @include('partials.mobile-input-zoom') {{-- MARKER-MOBILE-INPUT-ZOOM --}}
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    @include('partials.mobile-input-zoom')
 
     <title>{{ $page->meta_title ?? ($page->title . ' — Intake') }}</title>
 
@@ -40,7 +40,7 @@
     <link rel="icon" type="image/png" sizes="16x16" href="{{ \App\Support\Brand::url('favicon_16') }}">
     <link rel="apple-touch-icon" href="{{ \App\Support\Brand::url('apple') }}">
     @php
-        // MARKER-MKT-NAV-EDGE — the browser's top color matches the first section.
+        // the browser's top color matches the first section.
         $mkTop = '#0c0c0c';
         $mkFirst = collect($sections ?? [])->first(fn ($s) => ! in_array($s->section_type, ['nav', 'footer'], true));
         if ($mkFirst) {
@@ -59,7 +59,7 @@
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:image" content="{{ \App\Support\Brand::shareImageFor($page) }}">
 
-    <link rel="stylesheet" href="{{ asset('css/fonts.css') }}">{{-- MARKER-SELFHOST-FONTS-2 --}}
+    <link rel="stylesheet" href="{{ asset('css/fonts.css') }}">
     <style>
         /* ================================================================
            Intake Marketing Site
@@ -79,7 +79,7 @@
             --mk-border2:     rgba(255,255,255,.14);
             --mk-r:           8px;
             --mk-r-lg:        12px;
-            --mk-max:         {{ in_array((int) ($page->page_width ?? 0), [960, 1280, 1440], true) ? (int) $page->page_width : 1080 }}px; /* MARKER-PAGE-WIDTH */
+            --mk-max:         {{ in_array((int) ($page->page_width ?? 0), [960, 1280, 1440], true) ? (int) $page->page_width : 1080 }}px;
             --mk-gutter:      clamp(20px, 5vw, 64px);
         }
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -129,22 +129,21 @@
             padding: clamp(48px, 7vw, 96px) 0;
             border-bottom: 0.5px solid var(--mk-border);
         }
-        /* MARKER-MKT-SECTION-LAYOUT — each section sits in a .mkw wrapper, so the
+        /* each section sits in a .mkw wrapper, so the
            last one is marked by the loop; :last-of-type would match them all. */
         .mkw-last > .mk-section { border-bottom: none; }
-        /* MARKER-MKT-DIVIDER — no divider lines unless a section asks for one */
-        /* MARKER-MKT-HAIRLINE-ROOT — no border at all (a transparent one shows the gradient's first row repeated) */
+        /* no divider lines unless a section asks for one */
+        /* no border at all (a transparent one shows the gradient's first row repeated) */
         .mkw > section, .mkw > footer { border-bottom-width: 0 !important; border-top-width: 0 !important; }
         .mkw.mkw-divider > section { border-bottom: 0.5px solid var(--mk-border) !important; background-origin: border-box !important; }
-        /* MARKER-MKT-APPEAR */
-        /* MARKER-MKT-APPEAR-CONTENT — the content appears; the background is always there */
-        html.mk-appear-on .mk-appear > section > *, html.mk-appear-on .mk-appear > footer > * { opacity: 0; transition: opacity var(--mk-appear-dur, 700ms) ease, transform var(--mk-appear-dur, 700ms) ease; transition-delay: var(--mk-appear-delay, 0ms); } /* MARKER-APPEAR-DURATION */
+        /* the content appears; the background is always there */
+        html.mk-appear-on .mk-appear > section > *, html.mk-appear-on .mk-appear > footer > * { opacity: 0; transition: opacity var(--mk-appear-dur, 700ms) ease, transform var(--mk-appear-dur, 700ms) ease; transition-delay: var(--mk-appear-delay, 0ms); }
         html.mk-appear-on .mk-appear-up > section > *, html.mk-appear-on .mk-appear-up > footer > * { transform: translateY(28px); }
         html.mk-appear-on .mk-appear.is-in > section > *, html.mk-appear-on .mk-appear.is-in > footer > * { opacity: 1; transform: none; }
-        /* MARKER-MKT-BG-CHAIN — sections sharing a gradient show no divider between them. */
+        /* sections sharing a gradient show no divider between them. */
         .mkw[data-bg-chain] > section { border-bottom-width: 0 !important; }
         @media (max-width: 768px) { .mkw-hide-m { display: none !important; } }
-        /* MARKER-MKT-HIDE-TABLET — phone ≤768, tablet 769–1024, desktop ≥1025 */
+        /* phone ≤768, tablet 769–1024, desktop ≥1025 */
         @media (min-width: 769px) and (max-width: 1024px) { .mkw-hide-t { display: none !important; } }
         @media (min-width: 1025px) { .mkw-hide-d { display: none !important; } }
 
@@ -181,20 +180,20 @@
             color: var(--mk-accent-text);
         }
     </style>
-    <script>/* MARKER-MKT-APPEAR — hide appearing sections only when they can be shown again */
+    <script>/* hide appearing sections only when they can be shown again */
       if (!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) && 'IntersectionObserver' in window) document.documentElement.classList.add('mk-appear-on');
     </script>
 </head>
 <body>
 
 {{-- Nav (shell — always present) --}}
-@if(empty($footerOnly)) {{-- MARKER-MKT-FOOTER — the footer preview shows just the footer --}}
+@if(empty($footerOnly)) {{-- the footer preview shows just the footer --}}
 @include('marketing.sections._shell_nav', ['navItems' => $navItems])
 @endif
 
-{{-- MARKER-MKT-PARITY — hover highlight + click-to-select, and the scroll-to
+{{-- hover highlight + click-to-select, and the scroll-to
      handler the builder calls. Builder preview only; port of the tenant
-     MARKER-BUILDER-SYNC block in public/layout.blade.php. --}}
+     block in public/layout.blade.php. --}}
 @if(!empty($builderPreview))
 <style>
   [data-pb-section] { position: relative; }
@@ -209,7 +208,7 @@
   [data-pb-section].pb-flash::after { opacity: 1; }
   [data-pb-section].pb-flash::after { transition: opacity .35s; }
   [data-pb-section] { cursor: pointer; }
-  /* MARKER-PB-HIDDEN-TAGS — a section hidden on the previewed screen takes no space (no stray outline) */
+  /* a section hidden on the previewed screen takes no space (no stray outline) */
   @media (max-width: 768px) { [data-pb-section]:has(.mkw-hide-m) { display: none; } }
   @media (min-width: 769px) and (max-width: 1024px) { [data-pb-section]:has(.mkw-hide-t) { display: none; } }
   @media (min-width: 1025px) { [data-pb-section]:has(.mkw-hide-d) { display: none; } }
@@ -263,7 +262,7 @@
 
 {{-- Page content --}}
 @php
-    // MARKER-MKT-BG-CHAIN — each Gradient section's gradient, handed to the
+    // each Gradient section's gradient, handed to the
     // painter below, which joins it with the visible sections continuing it.
     $mkHex     = fn ($v, $d) => is_string($v) && preg_match('/^#[0-9a-fA-F]{3,8}$/', trim($v)) ? trim($v) : $d;
     $mkGradCss = [];
@@ -281,7 +280,7 @@
     }
 @endphp
 @php
-    // MARKER-SECTION-ROWS — which sections share a row on this page.
+    // which sections share a row on this page.
     $pbRows = \App\Support\SectionRows::plan($sections, fn ($s) => ! in_array($s->section_type, ['nav', 'footer'], true) && view()->exists('marketing.sections.' . $s->section_type));
 @endphp
 {!! \App\Support\SectionRows::css($pbRows, 'var(--mk-max, 1080px)', 'var(--mk-gutter, 24px)') !!}
@@ -330,17 +329,17 @@
             ? $radiusMap[$borderRadiusValue]
             : null;
 
-        // MARKER-MKT-SECTION-LAYOUT — the editor's shared Layout settings,
+        // the editor's shared Layout settings,
         // applied around every section so none of them silently does nothing.
         // "Normal" (the editor default) keeps the section's own spacing; only
         // None / Compact / Spacious override it. Sections that already handle
         // their own anchor or classes are left to do so.
         $mkwId     = 'mkw-' . substr(md5((string) $section->id), 0, 8);
         $mkwPad    = ['none' => '0', 'compact' => 'clamp(24px, 4vw, 48px)', 'spacious' => 'clamp(80px, 10vw, 140px)'];
-        // MARKER-MKT-LEGACY-PAD — sections on the older setting have no spacing of their own.
+        // sections on the older setting have no spacing of their own.
         $mkwLegacy = $c['padding_override'] ?? (in_array($type, ['book_call', 'try_demo'], true) ? 'normal' : null);
         $mkwPadL   = $mkwPad + ['normal' => 'clamp(48px, 7vw, 96px)'];
-        // MARKER-MKT-HERO-PAD — the hero applies its own padding presets.
+        // the hero applies its own padding presets.
         $mkwTop    = $type === 'hero' ? null : (isset($c['padding_top'])    ? ($mkwPad[$c['padding_top']] ?? null)    : ($mkwLegacy !== null ? ($mkwPadL[$mkwLegacy] ?? null) : null));
         $mkwBot    = $type === 'hero' ? null : (isset($c['padding_bottom']) ? ($mkwPad[$c['padding_bottom']] ?? null) : ($mkwLegacy !== null ? ($mkwPadL[$mkwLegacy] ?? null) : null));
         $mkwAnchor = in_array($type, ['custom_html', 'image_carousel', 'book_call', 'feature_groups', 'try_demo'], true)
@@ -351,9 +350,9 @@
         $mkwHead   = $type === 'hero' ? null : $mkwColor($c['text_color'] ?? null);
         $mkwBody   = $type === 'hero' ? null : $mkwColor($c['text_color_body'] ?? null);
         $mkwLast   = collect($sections)->slice($loop->index + 1)->every(fn ($s) => in_array($s->section_type, ['nav', 'footer'], true));
-        // MARKER-MKT-FLOAT-OVERLAP — the first drawn section can sit behind a Floating header.
+        // the first drawn section can sit behind a Floating header.
         $mkwFirst  = collect($sections)->slice(0, $loop->index)->every(fn ($s) => in_array($s->section_type, ['nav', 'footer'], true));
-        // MARKER-MKT-BG-CONT-DEVICE — this section's end color, and (if it continues)
+        // this section's end color, and (if it continues)
         // its gradient with {PREV} standing for the visible section above.
         $mkCdHex  = fn ($v) => is_string($v) && preg_match('/^#[0-9a-fA-F]{3,8}$/', trim($v)) ? trim($v) : null;
         $mkCdOp   = max(0, min(100, (int) ($c['bg_opacity'] ?? 100)));
@@ -373,7 +372,7 @@
             if ($mkCdCol) { $mkCdTo = $mkCdFade($mkCdCol); $mkCdEnd = $mkCdTo; }
         }
         $mkCdCss = 'linear-gradient(180deg, {PREV} 0%, ' . $mkCdTo . ' ' . $mkCdPct . '%)';
-        // MARKER-MKT-BG-BLEND — $mkBgPrev is the color the section above ended on.
+        // $mkBgPrev is the color the section above ended on.
         $mkBgPrev  = $mkBgCarry ?? null;
         $mkBgOp    = max(0, min(100, (int) ($c['bg_opacity'] ?? 100)));
         $mkBgFade  = fn ($col) => $mkBgOp >= 100 ? $col : 'color-mix(in srgb, ' . $col . ' ' . $mkBgOp . '%, transparent)';
@@ -381,33 +380,33 @@
         $mkBgHex   = fn ($v) => is_string($v) && preg_match('/^#[0-9a-fA-F]{3,8}$/', trim($v)) ? trim($v) : null;
         if ($mkBgMode === 'gradient') {
             $mkBgCarry = ! empty($c['bg_fade_out']) ? null : $mkBgFade($mkBgHex($c['bg_gradient_to'] ?? null) ?: '#0a0a0a'); // faded out = page background
-        } elseif ($mkBgMode === 'color' && ($mkBgHex($c['bg_color'] ?? null) || $mkBgHex($section->bg_color ?? null))) { // MARKER-MKT-BG-COLOUR
+        } elseif ($mkBgMode === 'color' && ($mkBgHex($c['bg_color'] ?? null) || $mkBgHex($section->bg_color ?? null))) {
             $mkBgCarry = $mkBgFade($mkBgHex($c['bg_color'] ?? null) ?: $mkBgHex($section->bg_color));
         } else {
             $mkBgCarry = null;
         }
-        // MARKER-MKT-NO-LINE — a section with its own background needs no divider line.
+        // a section with its own background needs no divider line.
         $mkwNoLine = ($c['bg_mode'] ?? 'none') !== 'none' && ($c['bg_mode'] ?? '') !== 'color' || (($c['bg_mode'] ?? '') === 'color' && ! empty($section->bg_color));
         $mkwClass  = trim('mkw ' . $mkwId . ($mkwNoLine ? ' mkw-noline' : '') . ($mkwFirst ? ' mkw-first' : '')
             . (! empty($c['hide_on_mobile'])  ? ' mkw-hide-m' : '')
             . (! empty($c['hide_on_desktop']) ? ' mkw-hide-d' : '')
             . (! empty($c['hide_on_tablet'])  && ! in_array((string) $c['hide_on_tablet'], ['0', 'false'], true) ? ' mkw-hide-t' : '')
             . ($mkwLast ? ' mkw-last' : '')
-            . (! empty($c['divider_below']) && ! in_array((string) $c['divider_below'], ['0', 'false'], true) ? ' mkw-divider' : '') // MARKER-MKT-DIVIDER
-            . (in_array($c['appear'] ?? '', ['fade', 'up'], true) ? ' mk-appear' . (($c['appear'] ?? '') === 'up' ? ' mk-appear-up' : '') : '') // MARKER-MKT-APPEAR
+            . (! empty($c['divider_below']) && ! in_array((string) $c['divider_below'], ['0', 'false'], true) ? ' mkw-divider' : '')
+            . (in_array($c['appear'] ?? '', ['fade', 'up'], true) ? ' mk-appear' . (($c['appear'] ?? '') === 'up' ? ' mk-appear-up' : '') : '')
             . ($mkwExtra !== '' ? ' ' . $mkwExtra : ''));
     @endphp
 
     @if(view()->exists($partial))
         {!! \App\Support\SectionRows::open($pbRows, $section) !!}
-        {{-- MARKER-SECTION-OVERLAP — same treatment as the tenant renderer, so
+        {{-- same treatment as the tenant renderer, so
              intake.works and a shop's own site behave identically. --}}
         @php
           $pull   = max(0, min(240, (int) ($c['overlap_top'] ?? 0)));
-          $pullP  = max(0, min(240, (int) ($c['overlap_top_phone'] ?? 0))); // MARKER-OVERLAP-PHONE
+          $pullP  = max(0, min(240, (int) ($c['overlap_top_phone'] ?? 0)));
           $pullId = 'pbpull-' . substr(md5((string) $section->id), 0, 10); // no short-id collisions
         @endphp
-        {{-- MARKER-MKT-OVERLAP-LIVE — the preview's redrawn wrapper now holds the overlap too. --}}
+        {{-- the preview's redrawn wrapper now holds the overlap too. --}}
         @if(!empty($builderPreview))<div data-pb-section="{{ $section->id }}" data-pb-type="{{ $section->section_type }}">@endif
         @if($pull > 0 || $pullP > 0)
           <style>
@@ -447,7 +446,7 @@
 @endforeach
 
 <script>
-/* MARKER-MKT-APPEAR-VIEW — reveal each section when its top reaches 85% of the window. */
+/* reveal each section when its top reaches 85% of the window. */
 (function () {
   if (!document.documentElement.classList.contains('mk-appear-on')) return;
   var pending = Array.prototype.slice.call(document.querySelectorAll('.mk-appear'));
@@ -463,7 +462,7 @@
     if (!pending.length) { window.removeEventListener('scroll', onScroll); window.removeEventListener('resize', onScroll); }
   }
   function onScroll() { if (!raf) raf = requestAnimationFrame(check); }
-  // MARKER-BUILDER-LIVE-REFRESH — pick up sections redrawn by the builder preview
+  // pick up sections redrawn by the builder preview
   window.mkAppearScan = function () {
     var fresh = Array.prototype.slice.call(document.querySelectorAll('.mk-appear:not(.is-in)'));
     if (!fresh.length) return;
@@ -479,13 +478,13 @@
 })();
 </script>
 <script>
-/* MARKER-MKT-BG-CHAIN — join each gradient with the VISIBLE sections that
+/* join each gradient with the VISIBLE sections that
    continue it (sections hidden on this screen size are skipped), and paint
    one gradient across them. Re-measured whenever sizes change. */
 (function () {
   var PROPS = ['background', 'background-size', 'background-position', 'background-repeat'];
   function sec(el) { return el.querySelector(':scope > section') || el.querySelector(':scope > footer'); }
-  // MARKER-MKT-BG-CHAIN-PRECISE — exact (sub-pixel) page position
+  // exact (sub-pixel) page position
   function docTop(el) { return el.getBoundingClientRect().top + window.scrollY; }
   function paint() {
     document.querySelectorAll('.mkw[data-bg-chain]').forEach(function (el) {
@@ -515,7 +514,7 @@
       });
       i = j - 1;
     }
-    // MARKER-MKT-BG-CONT-DEVICE — continuing sections not in a run start from
+    // continuing sections not in a run start from
     // whatever is visibly above them on this screen.
     for (var k = 1; k < all.length; k++) {
       var el = all[k];
@@ -524,7 +523,7 @@
       var end = prev.hasAttribute('data-bg-end-eff') ? prev.getAttribute('data-bg-end-eff') : prev.dataset.bgEnd;
       var s2 = sec(el); if (!s2) continue;
       el.setAttribute('data-bg-chain', '1');
-      // MARKER-MKT-BG-CONT-OVERLAP — start where the section above ends, not at our own top
+      // start where the section above ends, not at our own top
       var startCol = end || 'var(--mk-bg, #0a0a0a)';
       var over = prev.getBoundingClientRect().bottom - s2.getBoundingClientRect().top;
       var css = over > 0.5
@@ -535,7 +534,7 @@
   }
   var t;
   function soon() { clearTimeout(t); t = setTimeout(paint, 60); }
-  window.mkPaintBg = paint; // MARKER-BUILDER-LIVE-REFRESH
+  window.mkPaintBg = paint;
   paint();
   window.addEventListener('load', paint);
   window.addEventListener('resize', soon);
@@ -544,7 +543,7 @@
 </script>
 
 {{-- Footer (shell — always present) --}}
-@if(empty($hideFooter)) {{-- MARKER-MKT-NAV-POLISH --}}
+@if(empty($hideFooter))
 @include('marketing.sections._shell_footer', ['navItems' => $navItems])
 @endif
 
@@ -554,7 +553,7 @@
     }
 </script>
 @include('marketing._plan-quiz')
-{{-- MARKER-MKTREPAIR — the tracker has to be HERE. MARKER-MKTCONV moved it to
+{{-- the tracker has to be HERE. moved it to
      marketing/layout.blade.php, but every routed marketing page is rendered by
      MarketingController::renderPage into THIS file, which carries its own
      <html> and extends no layout. The include went somewhere nothing renders,
@@ -564,6 +563,6 @@
 @if(empty($builderPreview))
 @include('marketing._funnel_tracker')
 @endif
-@include('marketing._book_modal') {{-- MARKER-BOOK-MODAL --}}
+@include('marketing._book_modal')
 </body>
 </html>

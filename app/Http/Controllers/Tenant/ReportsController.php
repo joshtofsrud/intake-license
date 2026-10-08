@@ -17,7 +17,7 @@ use Illuminate\View\View;
  * ReportsController
  *
  * Phase 3: single global date range drives every zone.
- * MARKER-REPORTS-LOCAL-DATES — custom from/to are parsed in the tenant's
+ * custom from/to are parsed in the tenant's
  * timezone, the same as the preset ranges. Parsed as UTC they became the
  * previous local day once a zone shifted them into the tenant zone.
  *   /admin/reports                          (defaults to today)
@@ -28,7 +28,7 @@ use Illuminate\View\View;
  */
 class ReportsController extends Controller
 {
-    /** MARKER-OPS-PANELS — inline target edits from the reports page. */
+    /** inline target edits from the reports page. */
     public function saveTargets(Request $request)
     {
         $tenant = app('tenant');
@@ -86,7 +86,7 @@ class ReportsController extends Controller
             [$from, $to] = match ($range) {
                 'week'    => [$today->copy()->subDays(6), $today->copy()],
                 'month'   => [$today->copy()->startOfMonth(), $today->copy()],
-                'last_30' => [$today->copy()->subDays(29), $today->copy()], // MARKER-PATCH-114
+                'last_30' => [$today->copy()->subDays(29), $today->copy()],
                 default   => [$today->copy(), $today->copy()],
             };
         }
@@ -107,14 +107,13 @@ class ReportsController extends Controller
             'range_label' => $rangeLabel,
             'from'        => $from,
             'to'          => $to,
-            'kpis'        => $svc->topKpis($from, $to), // MARKER-REPORTS-RANGE-CARDS
+            'kpis'        => $svc->topKpis($from, $to),
             'revenue'     => $svc->zoneRevenue($from, $to),
             'bookings'    => $svc->zoneBookings($from, $to),
             'customers'   => $svc->zoneCustomers($from, $to),
             'services'    => $svc->zoneServices($from, $to),
             'staff'       => $svc->zoneStaff($from, $to),
             'capacity'    => $svc->zoneCapacity($from, $to),
-            // MARKER-OPS-PANELS
             'ops'         => $svc->zoneOps($from, $to),
             'targets'     => (array) ($tenant->settings['report_targets'] ?? []),
             'spotlight'   => $tenant->settings['report_spotlight_category'] ?? null,
@@ -131,7 +130,7 @@ class ReportsController extends Controller
      *   - highest LTV (top customers by lifetime value)
      */
     /**
-     * MARKER-DATA-COMPLETENESS — what's missing across the records as they
+     * what's missing across the records as they
      * stand, as opposed to what happened during any one import.
      */
     public function dataQuality(Request $request): View
@@ -147,7 +146,7 @@ class ReportsController extends Controller
         ]);
     }
 
-    /** MARKER-DATA-COMPLETENESS — the affected records, to fix in bulk. */
+    /** the affected records, to fix in bulk. */
     public function dataQualityExport(Request $request)
     {
         $tenant = tenant();
@@ -223,7 +222,7 @@ class ReportsController extends Controller
             [$from, $to] = match ($range) {
                 'week'    => [$today->copy()->subDays(6), $today->copy()],
                 'month'   => [$today->copy()->startOfMonth(), $today->copy()],
-                'last_30' => [$today->copy()->subDays(29), $today->copy()], // MARKER-PATCH-114
+                'last_30' => [$today->copy()->subDays(29), $today->copy()],
                 default   => [$today->copy(), $today->copy()],
             };
         }
@@ -277,7 +276,7 @@ class ReportsController extends Controller
             [$from, $to] = match ($range) {
                 'week'    => [$today->copy()->subDays(6), $today->copy()],
                 'month'   => [$today->copy()->startOfMonth(), $today->copy()],
-                'last_30' => [$today->copy()->subDays(29), $today->copy()], // MARKER-PATCH-114
+                'last_30' => [$today->copy()->subDays(29), $today->copy()],
                 default   => [$today->copy(), $today->copy()],
             };
         }
@@ -324,7 +323,7 @@ class ReportsController extends Controller
             [$from, $to] = match ($range) {
                 'week'    => [$today->copy()->subDays(6), $today->copy()],
                 'month'   => [$today->copy()->startOfMonth(), $today->copy()],
-                'last_30' => [$today->copy()->subDays(29), $today->copy()], // MARKER-PATCH-114
+                'last_30' => [$today->copy()->subDays(29), $today->copy()],
                 default   => [$today->copy(), $today->copy()],
             };
         }
@@ -355,13 +354,12 @@ class ReportsController extends Controller
     /**
      * Traffic tab — site usage analytics over tenant_funnel_events.
      * Free for all tenants. Window: 7d / 30d (default) / 90d.
-     * MARKER-PATCH-151A
      */
     public function traffic(Request $request): View
     {
         $tenant = tenant();
 
-        // MARKER-PATCH-475 — a custom date range (shared calendar picker) wins over
+        // a custom date range (shared calendar picker) wins over
         // the preset windows when both `from` and `to` are supplied and valid.
         $fromStr = trim((string) $request->query('from', ''));
         $toStr   = trim((string) $request->query('to', ''));
@@ -395,14 +393,14 @@ class ReportsController extends Controller
             'from'           => $fromStr,
             'to'             => $toStr,
             'topStats'       => $topStats = $svc->topStats(),
-            'sessions'       => $topStats['sessions'] ?? [], // MARKER-SESSIONS-EXPLORER
+            'sessions'       => $topStats['sessions'] ?? [],
             'dailyVisitors'  => $svc->dailyVisitors(),
             'dailyStart'     => $svc->curStart(),
-            'topSearches'    => $svc->topSearches(),      // MARKER-PATCH-621
+            'topSearches'    => $svc->topSearches(),
             'zeroSearches'   => $svc->zeroResultSearches(),
             'searchRules'    => \App\Models\Tenant\TenantSearchRule::where('tenant_id', tenant()->id)
-                                    ->orderBy('type')->orderBy('from_term')->get(), // MARKER-PATCH-622
-            // MARKER-PATCH-151B — additional panels
+                                    ->orderBy('type')->orderBy('from_term')->get(),
+            // additional panels
             'funnel'         => $bf['funnel'],
             'funnelDetail'   => $bf['detail'],
             'topSources'     => $svc->topSources(),
@@ -430,7 +428,7 @@ class ReportsController extends Controller
             [$from, $to] = match ($range) {
                 'week'    => [$today->copy()->subDays(6), $today->copy()],
                 'month'   => [$today->copy()->startOfMonth(), $today->copy()],
-                'last_30' => [$today->copy()->subDays(29), $today->copy()], // MARKER-PATCH-114
+                'last_30' => [$today->copy()->subDays(29), $today->copy()],
                 default   => [$today->copy(), $today->copy()],
             };
         }

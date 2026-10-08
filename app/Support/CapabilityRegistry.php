@@ -1,7 +1,7 @@
 <?php
 namespace App\Support;
 
-// MARKER-PATCH-611 — single source of truth for granular capabilities.
+// single source of truth for granular capabilities.
 // Consumed by: the Roles & access editor (renders the toggles),
 // TenantUser::can() (enforcement), and each feature's controllers.
 // Keys are stored in tenant_roles.capabilities, so treat them as durable
@@ -28,10 +28,10 @@ class CapabilityRegistry
     {
         return [
             // ---- Register ----
-            // MARKER-LINE-PRICE — covers both directions: discounting a line
+            // covers both directions: discounting a line
             // and overriding its price upward. Backfilled onto every existing
             // role by migration, so this changes nobody's access on deploy.
-            // MARKER-LAYAWAY — backfilled onto existing roles by migration.
+            // backfilled onto existing roles by migration.
             'register.layaway.create' => [
                 'label'   => 'Start a layaway',
                 'section' => 'register',
@@ -62,7 +62,7 @@ class CapabilityRegistry
             ],
 
             // ---- Inventory ----
-            // MARKER-ITEM-MERGE — quieter and less reversible than deleting a
+            // quieter and less reversible than deleting a
             // category: two records become one and the stock arithmetic is not
             // obvious afterwards. Manager by default.
             'inventory.items.merge' => [
@@ -73,7 +73,7 @@ class CapabilityRegistry
                 'default_roles' => ['Manager'],
             ],
 
-            // MARKER-CAT-EDIT — split in two deliberately. Renaming the
+            // split in two deliberately. Renaming the
             // category that thousands of items sit in is loud and reversible;
             // deleting is quiet and is not. A shop may well want the first
             // without the second.
@@ -107,7 +107,7 @@ class CapabilityRegistry
                 'gate'    => null,
                 'default_roles' => ['Manager'],
             ],
-            // MARKER-TC-EDIT-SCOPE — the narrower half. Someone can be trusted
+            // the narrower half. Someone can be trusted
             // to correct their own missed clock-out without being able to
             // touch the rest of the team's hours.
             'timeclock.edit_own' => [
@@ -117,7 +117,7 @@ class CapabilityRegistry
                 'gate'    => null,
                 'default_roles' => ['Manager'],
             ],
-            // MARKER-TC-EXEMPT-CAP — deciding you don't clock in is a payroll
+            // deciding you don't clock in is a payroll
             // decision, not a personal preference. Empty default_roles: nobody
             // has it until it is granted here. Owner passes implicitly.
             'timeclock.exempt_self' => [
@@ -135,7 +135,7 @@ class CapabilityRegistry
                 'default_roles' => ['Manager'],
             ],
 
-            // ---- Customers ---- MARKER-IMPORT1
+            // ---- Customers ----
             'customers.import' => [
                 'label'   => 'Import from a spreadsheet',
                 'section' => 'customers',
@@ -144,7 +144,7 @@ class CapabilityRegistry
                 'default_roles' => ['Manager'],
             ],
 
-            // ---- Customers ---- MARKER-CUST-ACCOUNT
+            // ---- Customers ----
             'customers.account_manage' => [
                 'label'   => 'Manage customer portal accounts',
                 'section' => 'customers',
@@ -153,7 +153,7 @@ class CapabilityRegistry
                 'default_roles' => ['Manager'],
             ],
 
-            // ---- Register ---- MARKER-GIFTCARDS-ADMIN
+            // ---- Register ----
             'giftcards.manage' => [
                 'label'   => 'Manage gift cards',
                 'section' => 'register',

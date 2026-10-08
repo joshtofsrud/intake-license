@@ -28,7 +28,7 @@ class TeamInvite extends Mailable
                 $this->tenant->emailFromAddress(),
                 $this->tenant->emailFromName()
             ),
-            // MARKER-PLATFORM-TEMPLATES — a customised subject wins; with no
+            // a customised subject wins; with no
             // override this is exactly the string that shipped.
             subject: \App\Support\PlatformEmailTemplates::subject('team_invite', $this->templateVars())
                 ?: "You're invited to " . $this->tenant->name,
@@ -38,7 +38,7 @@ class TeamInvite extends Mailable
     public function content(): Content
     {
         return new Content(
-            // MARKER-PLATFORM-TEMPLATES — htmlString only when customised,
+            // htmlString only when customised,
             // so an untouched template renders its shipped Blade unchanged.
             htmlString: \App\Support\PlatformEmailTemplates::html('team_invite', $this->templateVars()),
             view: \App\Support\PlatformEmailTemplates::html('team_invite', $this->templateVars()) ? null : 'emails.team-invite',
@@ -58,7 +58,7 @@ class TeamInvite extends Mailable
         );
     }
 
-    /** MARKER-PLATFORM-TEMPLATES — values a customised template can use. */
+    /** values a customised template can use. */
     protected function templateVars(): array
     {
         $vars = [];

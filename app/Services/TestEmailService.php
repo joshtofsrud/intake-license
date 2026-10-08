@@ -1,5 +1,4 @@
 <?php
-// MARKER-PATCH-143
 
 namespace App\Services;
 
@@ -68,7 +67,7 @@ class TestEmailService
      */
     protected function sendWith(callable $sendFn, string $recipient, string $kind, array $context = []): array
     {
-        // MARKER-LEDGER-STRAGGLERS — tests are metered as kind 'test' and
+        // tests are metered as kind 'test' and
         // never billed; without a row they'd be permanent reconciliation drift.
         $ledger = isset($context['tenant_id'])
             ? \App\Services\EmailLedger::begin((string) $context['tenant_id'], 'test', $recipient, $kind)

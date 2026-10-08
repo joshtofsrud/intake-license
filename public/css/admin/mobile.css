@@ -1,4 +1,4 @@
-/* MARKER-ADMIN-MOBILE — master admin on a phone.
+/* master admin on a phone.
    Loaded after every page's own <style>, so these win by order; !important is
    used only where the offending value is INLINE on the element. Nothing here
    applies above 640px. */
@@ -30,7 +30,7 @@
   .fi-page select[style*="min-width"] { width: 100%; }
   .fi-page code[style*="min-width"] { white-space: normal; word-break: break-all; }
 
-  /* ---- MARKER-ADMIN-MOBILE-2: the actual overflow mechanism ----------
+  /* ---- the actual overflow mechanism ----------
      A flex child will not shrink below its content unless it has min-width:0.
      The activity and leader rows are flex rows of nowrap text, so they grew
      past the card and the card grew past the page. Wrapping the text alone

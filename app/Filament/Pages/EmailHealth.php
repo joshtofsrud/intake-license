@@ -1,5 +1,4 @@
 <?php
-// MARKER-PATCH-148
 
 namespace App\Filament\Pages;
 
@@ -17,8 +16,8 @@ use Illuminate\Support\Facades\DB;
  */
 class EmailHealth extends Page
 {
-    use \App\Support\UsesAdminNav; // MARKER-NAV-ORDER
-    use \App\Support\GatedByAdminArea; // MARKER-ADMIN-NAV-GATE
+    use \App\Support\UsesAdminNav;
+    use \App\Support\GatedByAdminArea;
     protected static string $adminArea = 'config';
 
     protected static ?string $navigationIcon  = 'heroicon-o-envelope';
@@ -38,7 +37,6 @@ class EmailHealth extends Page
             'tiles'       => $this->buildTiles(),
             'byBounce'    => $this->tenantsByBounceRate(),
             'recent'      => $this->recentEvents(),
-            // MARKER-MARKETING-OVERSIGHT
             'marketing'     => $this->marketingTiles(),
             'byMarketing'   => $this->tenantsByMarketingVolume(),
             'attestations'  => $this->recentAttestations(),
@@ -49,7 +47,7 @@ class EmailHealth extends Page
     }
 
     /**
-     * MARKER-MARKETING-OVERSIGHT — platform marketing volume and spend.
+     * platform marketing volume and spend.
      * Spend sums the rate stamped on each ledger row, so a rate change
      * never rewrites history.
      */
@@ -71,7 +69,7 @@ class EmailHealth extends Page
     }
 
     /**
-     * MARKER-MARKETING-OVERSIGHT — per-tenant marketing volume, with the
+     * per-tenant marketing volume, with the
      * unsubscribe rate beside it. A high unsubscribe rate is the earliest
      * signal a shop is emailing people who never asked; complaints and
      * suppressions come later, when the damage is already shared.
@@ -121,10 +119,10 @@ class EmailHealth extends Page
         })->all();
     }
 
-    /** MARKER-MARKETING-OVERSIGHT — permission claims, newest first. */
+    /** permission claims, newest first. */
     protected function recentAttestations(): array
     {
-        // MARKER-DEMO-NO-MAIL — the demo shop's rows aren't real claims.
+        // the demo shop's rows aren't real claims.
         $rows = \App\Models\Tenant\TenantConsentAttestation::whereNotIn('tenant_id',
                 \App\Models\Tenant::where('is_demo', true)->pluck('id'))
             ->orderByDesc('created_at')

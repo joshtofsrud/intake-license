@@ -9,7 +9,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
 /**
- * MARKER-PATCH-567 — Online Retail Wave 5a: the admin Orders surface.
+ * Online Retail Wave 5a: the admin Orders surface.
  * Queue of paid online orders through fulfillment:
  *   paid -> fulfilling -> fulfilled -> completed  (cancel only pre-fulfillment)
  * Marking a pickup order fulfilled can text the customer it's ready.
@@ -75,7 +75,7 @@ class OrdersController extends Controller
             'notify_text' => ['nullable', 'boolean'],
         ]);
 
-        // MARKER-PATCH-631 — staff confirm a manual payment landed (Venmo etc.)
+        // staff confirm a manual payment landed (Venmo etc.)
         if ($data['op'] === 'mark_paid') {
             abort_unless($order->status === TenantOrder::STATUS_PENDING_PAYMENT && $order->payment_method, 422);
             \App\Services\Tenant\OrderService::forTenant($tenant)->finalizeManual($order, \Illuminate\Support\Facades\Auth::guard('tenant')->id());

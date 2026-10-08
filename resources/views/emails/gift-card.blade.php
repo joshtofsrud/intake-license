@@ -1,8 +1,8 @@
-{{-- MARKER-GC-EMAILS -- SUPERSEDED. Gift card delivery now renders from
+{{-- SUPERSEDED. Gift card delivery now renders from
      the 'gift_card_delivery' template (Communication Center / EmailService
      defaults). Editing this file changes nothing. Kept only so an older
      queued job that still references it does not fatal mid-deploy. --}}
-{{-- MARKER-GIFTCARDS — e-gift delivery email, per the approved mockup --}}
+{{-- e-gift delivery email, per the approved mockup --}}
 @php
   $accent = $tenant->accent_color ?: '#BEF264';
   $amount = '$' . number_format($card->original_cents / 100, 2);

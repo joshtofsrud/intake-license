@@ -137,7 +137,7 @@
   </div>
   @endif
 
-  {{-- MARKER-PATCH-183 — today's deliveries, mirrors the appointments block --}}
+  {{-- today's deliveries, mirrors the appointments block --}}
   @if(!empty($today['today_deliveries']) && $today['today_deliveries']->isNotEmpty())
   <div class="ia-card" style="margin-top:20px">
     <div class="ia-card-head">

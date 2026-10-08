@@ -4,7 +4,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-/** MARKER-PLATFORM-CAMPAIGNS-UI — campaigns are written as text, like templates. */
+/** campaigns are written as text, like templates. */
 return new class extends Migration
 {
     public function up(): void

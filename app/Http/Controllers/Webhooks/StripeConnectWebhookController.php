@@ -11,7 +11,7 @@ use Stripe\Exception\SignatureVerificationException;
 use Stripe\Webhook;
 
 /**
- * MARKER-PATCH-168 — Stripe Connect Session A.
+ * Stripe Connect Session A.
  *
  * Handles Connect-account events (account.updated, etc.). These come
  * through a separate webhook endpoint from platform-billing events.

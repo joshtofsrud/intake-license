@@ -1,5 +1,5 @@
 {{--
-  MARKER-PATCH-158-G20 — text_image editor (Phase 2)
+  text_image editor (Phase 2)
   4-tab editor reusing the Hero framework. Buttons list now supports
   multiple buttons (was a single cta_label/cta_url pair in v1).
 --}}
@@ -23,7 +23,7 @@
 {{--=================== CONTENT ===================--}}
 <div class="pb2-tab-panel" data-tab="content">
 
-  {{-- MARKER-TI-ACCORDION — Classic is the single block; Accordion is several items. Shop sites get Accordion in a later patch. --}}
+  {{-- Classic is the single block; Accordion is several items. Shop sites get Accordion in a later patch. --}}
   @php
     $tiMarketing = (bool) (tenant()?->is_platform ?? false);
     $tiStyle = $tiMarketing && $get('ti_style', 'classic') === 'accordion' ? 'accordion' : 'classic';
@@ -68,7 +68,7 @@
       <label class="pb2-field-label">Highlight phrase <span class="pb2-field-hint">accent color inside heading</span></label>
       <input type="text" class="pb2-input" data-field="accent_words" value="{{ $get('accent_words') }}" placeholder="Optional">
     </div>
-    {{-- MARKER-PATCH-294 — italic is optional; color always applies --}}
+    {{-- italic is optional; color always applies --}}
     <div class="pb2-field">
       <label class="pb2-checkbox-row">
         <input type="checkbox" data-field="accent_italic" value="1" {{ $get('accent_italic', true) ? 'checked' : '' }}>
@@ -147,7 +147,7 @@
     <input type="hidden" data-field="cta_url" value="{{ $get('cta_url') }}">
   </div>
 
-  {{-- MARKER-TI-ACCORDION — items --}}
+  {{-- items --}}
   <div class="pb2-group" data-ti-acc @if($tiStyle !== 'accordion') hidden @endif>
     <div class="pb2-group-title">Items <span class="pb2-group-meta" id="pb2-tiacc-count">{{ count($tiItems) }} / 8</span></div>
     <div class="pb2-field-hint" style="display:block;text-align:left;margin-bottom:8px">The heading and body above become the intro. Each item has its own text and image; an item without an image keeps the previous one showing.</div>
@@ -166,7 +166,7 @@
     <textarea class="pb2-input pb2-input-sm pb2-textarea" data-tiacc-field="body" rows="3" placeholder="Text">{{ $it['body'] ?? '' }}</textarea>
     <div style="display:flex;gap:10px;align-items:center">
       <div class="pb2-tiacc-thumb"></div>
-      <button type="button" class="pb2-textlink" data-tiacc-upload>Upload</button>{{-- MARKER-TI-UPLOAD --}}
+      <button type="button" class="pb2-textlink" data-tiacc-upload>Upload</button>
       <button type="button" class="pb2-textlink" data-tiacc-lib>Choose from library</button>
       <span class="pb2-field-hint" data-tiacc-status></span>
       <button type="button" class="pb2-textlink pb2-textlink-danger" data-tiacc-clear>Remove</button>
@@ -196,7 +196,7 @@
     <textarea class="pb2-input pb2-input-sm pb2-textarea" data-tiacc-field="body" rows="3" placeholder="Text">{{ $it['body'] ?? '' }}</textarea>
     <div style="display:flex;gap:10px;align-items:center">
       <div class="pb2-tiacc-thumb"></div>
-      <button type="button" class="pb2-textlink" data-tiacc-upload>Upload</button>{{-- MARKER-TI-UPLOAD --}}
+      <button type="button" class="pb2-textlink" data-tiacc-upload>Upload</button>
       <button type="button" class="pb2-textlink" data-tiacc-lib>Choose from library</button>
       <span class="pb2-field-hint" data-tiacc-status></span>
       <button type="button" class="pb2-textlink pb2-textlink-danger" data-tiacc-clear>Remove</button>
@@ -236,7 +236,6 @@
         <input type="hidden" data-field="acc_numbers" value="{{ $get('acc_numbers', 'show') }}">
       </div>
     </div>
-    {{-- MARKER-TI-VALIGN --}}
     <div class="pb2-field">
       <label class="pb2-field-label">Image alignment <span class="pb2-field-hint">beside the list</span></label>
       <div class="pb2-seg" data-field-seg="acc_img_valign">
@@ -255,7 +254,7 @@
       <div class="pb2-field-hint" style="display:block;text-align:left;margin-top:6px">Moving on its own pauses while a visitor hovers the list, stops for good once they click an item, and is off when "several open" is on. Visitors who've turned motion off in their device settings get no animation.</div>
     </div>
     @if($isMarketing ?? false)
-    {{-- MARKER-TI-SCROLL — intake.works only for now; shop sites next. --}}
+    {{-- intake.works only for now; shop sites next. --}}
     <label class="pb2-checkbox-row"><input type="checkbox" data-field="acc_scroll" value="1" {{ $tiFlag('acc_scroll', false) ? 'checked' : '' }}><span>Open items as visitors scroll</span></label>
     <div class="pb2-field">
       <label class="pb2-field-label">Scroll per item</label>
@@ -279,7 +278,6 @@
     <div class="pb2-group-title">Image placement</div>
 
     @if($tiMarketing ?? false)
-    {{-- MARKER-TI-FRAME --}}
     <div class="pb2-field">
       <label class="pb2-field-label">Image frame</label>
       <div class="pb2-seg" data-field-seg="img_frame">
@@ -294,7 +292,6 @@
       <label class="pb2-field-label">Address in the bar <span class="pb2-field-hint">Browser frame only</span></label>
       <input type="text" class="pb2-input" data-field="img_frame_url" value="{{ $get('img_frame_url') }}" placeholder="Leave blank to show this site's address">
     </div>
-    {{-- MARKER-TI-LIGHTBOX --}}
     <label class="pb2-checkbox-row">
       <input type="checkbox" data-field="img_lightbox" value="1" {{ $tiFlag('img_lightbox', false) ? 'checked' : '' }}>
       <span>Click image to enlarge</span>
@@ -360,7 +357,7 @@
           @endforeach
         </select>
       </div>
-      {{-- MARKER-PATCH-271 — content width (max content area; container stays centered with a side gutter) --}}
+      {{-- content width (max content area; container stays centered with a side gutter) --}}
       <div class="pb2-field">
         <div class="pb2-slider-row">
           <label class="pb2-field-label" style="margin:0">Content width</label>
@@ -409,7 +406,7 @@
     </div>
 
     <div class="pb2-bg-pane" data-bg-mode="gradient">
-        {{-- MARKER-PATCH-269 — gradient angle --}}
+        {{-- gradient angle --}}
         <div class="pb2-field">
           <div class="pb2-slider-row">
             <label class="pb2-field-label" style="margin:0">Angle</label>

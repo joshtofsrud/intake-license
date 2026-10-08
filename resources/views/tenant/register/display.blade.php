@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-{{-- MARKER-REGISTER-RECON-DISPLAY — full-screen customer display for one register.
+{{-- full-screen customer display for one register.
      Token in the URL is the credential; page is read-only and polls for state. --}}
 <html lang="en">
 <head>
@@ -43,7 +43,7 @@
   #payQr { background:#fff; border-radius:16px; padding:16px; width:min(46vh,300px); height:min(46vh,300px) }
   .pay .hint { color:#8A8A8A; font-size:15px }
 
-  /* MARKER-RENTAL-WAIVER-DISPLAY-UI — rental waiver + signature */
+  /* rental waiver + signature */
   .ag { flex:1; display:none; flex-direction:column; overflow:hidden }
   .ag-head { padding:20px 34px 10px; flex:none }
   .ag-title { font-size:25px; font-weight:800; letter-spacing:-.03em }
@@ -90,7 +90,7 @@
 
   <div class="main">
     <div class="idle" id="vIdle" style="display:flex">
-      {{-- MARKER-REGISTER-RECON-DISPLAY — Brand Kit logo (light variant for dark screen) --}}
+      {{-- Brand Kit logo (light variant for dark screen) --}}
       @php
         $displayLogo = match ($register->display_logo ?? 'auto') {
             'none'  => null,
@@ -119,7 +119,6 @@
       <div class="hint">Scan with your phone camera to pay</div>
     </div>
 
-    {{-- MARKER-RENTAL-WAIVER-DISPLAY-UI --}}
     <div class="ag" id="vAgree">
       <div class="ag-head">
         <div class="ag-title" id="agTitle"></div>
@@ -154,7 +153,7 @@
     </div>
   </div>
 
-{{-- MARKER-REGISTER-RECON-DISPLAY — fullscreen toggle --}}
+{{-- fullscreen toggle --}}
 <button id="fsBtn" style="position:fixed;bottom:18px;right:18px;z-index:10;background:#1E1E1E;color:#BEF264;border:1px solid #333;border-radius:10px;padding:10px 16px;font:600 14px -apple-system,'Inter',sans-serif;cursor:pointer">&#x26F6; Full screen</button>
 <script>
 (function () {
@@ -184,7 +183,7 @@ function show(which) {
 }
 
 function render(data) {
-  // MARKER-RENTAL-WAIVER-DISPLAY-UI — the waiver owns the screen while it is
+  // the waiver owns the screen while it is
   // up, and agHold keeps the local thank-you / closed message on screen for
   // its few seconds even though the server has already cleared the override.
   if (agHold) { return; }

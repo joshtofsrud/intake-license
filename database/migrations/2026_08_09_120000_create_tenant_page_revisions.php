@@ -4,7 +4,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-// MARKER-REWIND — one row per restore point. `snapshot` holds the page meta
+// one row per restore point. `snapshot` holds the page meta
 // plus every section, so a restore needs no other table.
 return new class extends Migration
 {

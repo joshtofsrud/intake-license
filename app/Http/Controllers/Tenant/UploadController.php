@@ -11,17 +11,17 @@ use Illuminate\Support\Str;
 class UploadController extends Controller
 {
     private const MAX_SIZE_KB = 5120; // 5MB
-    private const ALLOWED = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'avif', 'svg', 'ico']; // MARKER-LOGOBAR-POLISH — avif
+    private const ALLOWED = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'avif', 'svg', 'ico']; // avif
 
     public function store(Request $request)
     {
-        // MARKER-HERO-VIDEO — type "video" takes MP4/MOV/WebM up to 20 MB (hero backgrounds); everything else is unchanged.
+        // type "video" takes MP4/MOV/WebM up to 20 MB (hero backgrounds); everything else is unchanged.
         $isVideo = $request->input('type') === 'video';
         $request->validate([
             'file' => $isVideo
-                ? ['required', 'file', 'max:25600', 'mimes:mp4,webm,mov'] /* MARKER-HERO-VIDEO-25MB */
+                ? ['required', 'file', 'max:25600', 'mimes:mp4,webm,mov']
                 : ['required', 'file', 'max:' . self::MAX_SIZE_KB, 'mimes:' . implode(',', self::ALLOWED)],
-            // MARKER-LOGOBAR-PICKER — partner_logo keeps logo-bar art out of
+            // partner_logo keeps logo-bar art out of
             // the 'logo' folder, which overwrites the tenant's own brand logo.
             'type' => ['nullable', 'string', 'in:logo,logo_light,favicon,hero,gallery,general,partner_logo,video'],
         ], $isVideo ? ['file.max' => 'Videos can be up to 25 MB.', 'file.mimes' => 'Use an MP4, MOV or WebM video.'] : []);
@@ -30,7 +30,7 @@ class UploadController extends Controller
         $file   = $request->file('file');
         $type   = $request->input('type', 'general');
 
-        // MARKER-MEDIA-STORAGE-METER — builder and Media page uploads were never
+        // builder and Media page uploads were never
         // checked against the plan's storage allowance.
         if ($refused = \App\Support\MediaStorage::refuse($tenant, (int) $file->getSize())) {
             return response()->json(['ok' => false, 'message' => $refused], 422);
@@ -50,7 +50,7 @@ class UploadController extends Controller
 
         $url = asset('storage/' . $stored);
 
-        // MARKER-PATCH-257 — record the upload so it's browsable/reusable.
+        // record the upload so it's browsable/reusable.
         // Dimensions for raster images only (svg/ico have no meaningful px).
         $width = $height = null;
         if (!in_array($ext, ['svg', 'ico'], true)) {
@@ -85,7 +85,7 @@ class UploadController extends Controller
             'url'      => $url,
             'filename' => $filename,
             'path'     => $stored,
-            'media_id' => $media->id, // MARKER-PATCH-257 — picker reference
+            'media_id' => $media->id, // picker reference
         ]);
     }
 }

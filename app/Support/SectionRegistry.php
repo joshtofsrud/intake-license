@@ -1,7 +1,7 @@
 <?php
 namespace App\Support;
 
-// MARKER-PATCH-490 — single source of truth for admin sections.
+// single source of truth for admin sections.
 // Consumed by: nav rendering (_nav-items), EnforceSectionAccess
 // middleware, and the Roles & access editor. Keys are stored in
 // tenant_roles.sections, so treat them as durable identifiers —
@@ -18,8 +18,8 @@ class SectionRegistry
     {
         return [
             'dashboard'         => ['label' => 'Dashboard',          'group' => 'main',     'prefixes' => ['tenant.dashboard'],                            'gate' => null],
-            'timeclock'         => ['label' => 'Time clock',         'group' => 'manage',   'prefixes' => ['tenant.timeclock'],                            'gate' => null], // MARKER-PATCH-610
-            'scheduling'        => ['label' => 'Scheduling',         'group' => 'manage',   'prefixes' => ['tenant.scheduling'],                           'gate' => null], // MARKER-PATCH-611 (nav lands with the scheduling build)
+            'timeclock'         => ['label' => 'Time clock',         'group' => 'manage',   'prefixes' => ['tenant.timeclock'],                            'gate' => null],
+            'scheduling'        => ['label' => 'Scheduling',         'group' => 'manage',   'prefixes' => ['tenant.scheduling'],                           'gate' => null], // (nav lands with the scheduling build)
             'register'          => ['label' => 'Register',           'group' => 'main',     'prefixes' => ['tenant.register'],                             'gate' => 'retail_enabled'],
             'schedule'          => ['label' => 'Schedule',           'group' => 'main',     'prefixes' => ['tenant.calendar', 'tenant.appointments'],      'gate' => null],
             'rentals'           => ['label' => 'Rentals',            'group' => 'main',     'prefixes' => ['tenant.rentals'],                              'gate' => 'rentals_visible'],
@@ -32,7 +32,7 @@ class SectionRegistry
             'reports'           => ['label' => 'Reports',            'group' => 'main',     'prefixes' => ['tenant.reports'],                              'gate' => null],
 
             'team'              => ['label' => 'Team & access',      'group' => 'manage',   'prefixes' => ['tenant.team'],                                 'gate' => 'additional_users_enabled'],
-            // MARKER-PATCH-553 — capability, not a page: gates cost/margin
+            // capability, not a page: gates cost/margin
             // visibility (register item modal, future report columns).
             // Empty prefixes = never route-enforced, never in nav.
             'cost_margins'      => ['label' => 'Costs & margins',    'group' => 'manage',   'prefixes' => [],                                              'gate' => 'retail_enabled'],
@@ -45,7 +45,6 @@ class SectionRegistry
             'media'             => ['label' => 'Media',              'group' => 'website',   'prefixes' => ['tenant.media'],                                'gate' => null],
             'pages'             => ['label' => 'Pages',              'group' => 'website',   'prefixes' => ['tenant.pages'],                                'gate' => null],
             'templates'         => ['label' => 'Templates',          'group' => 'website',   'prefixes' => ['tenant.templates'],                            'gate' => null],
-            // MARKER-NAV-MESSAGES
             'inbox'             => ['label' => 'Inbox',              'group' => 'messages', 'prefixes' => ['tenant.inbox'],                                'gate' => 'unified_inbox_enabled'],
             'communication'     => ['label' => 'Communication',      'group' => 'messages',   'prefixes' => ['tenant.communication'],                        'gate' => null],
             'suppressions'      => ['label' => 'Suppressions',       'group' => 'messages',   'prefixes' => ['tenant.suppressions'],                         'gate' => null],
@@ -64,7 +63,7 @@ class SectionRegistry
 
     public static function groups(): array
     {
-        // MARKER-NAV-REGROUP — must match the sidebar, or editing a role shows
+        // must match the sidebar, or editing a role shows
         // groupings that no longer exist in the nav.
         return ['main' => 'Main', 'manage' => 'Manage', 'website' => 'Website', 'marketing' => 'Marketing', 'messages' => 'Messages', 'settings' => 'Settings'];
     }

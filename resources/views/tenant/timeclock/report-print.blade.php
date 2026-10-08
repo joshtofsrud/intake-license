@@ -1,4 +1,4 @@
-{{-- MARKER-PATCH-615 — team hours report (print + email). Self-contained HTML. --}}
+{{-- team hours report (print + email). Self-contained HTML. --}}
 <!DOCTYPE html>
 <html lang="en">
 <head>

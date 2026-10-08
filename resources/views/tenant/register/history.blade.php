@@ -8,7 +8,7 @@
     display:flex;gap:4px;margin:0 0 18px;border-bottom:0.5px solid var(--ia-border);
     flex-wrap:wrap
   }
-  /* MARKER-REG-MOBILE ------------------------------------------------- */
+  /* ----------------------------------------------- */
   /* display:contents keeps the links as direct flex children of the bar on
      desktop, so nothing about the existing layout changes. */
   .reg-tabs-scroll{display:contents}
@@ -120,8 +120,8 @@
   .h-empty-search{
     padding:40px 20px;text-align:center;color:var(--ia-text-dim);font-size:13px
   }
-  /* MARKER-HIST-MOBILE ------------------------------------------------ */
-  /* MARKER-HIST-CSSORDER — this block MUST stay last in the stylesheet:
+  /* ---------------------------------------------- */
+  /* this block MUST stay last in the stylesheet:
      media queries add no specificity, so it has to out-order the base
      .h-table tbody td rules above, and match their specificity. */
   .h-sortbar{display:none}
@@ -144,7 +144,7 @@
       font-family:inherit;color:var(--ia-text);background:var(--ia-input-bg);
       border:0.5px solid var(--ia-border);border-radius:var(--ia-r-md)}
 
-    /* MARKER-HIST-LEDGER — table -> ledger rows. No labels: a 3x2 grid over
+    /* table -> ledger rows. No labels: a 3x2 grid over
        the same <td>s, with status carried by a stripe on the row. Desktop
        markup, data attributes and the sort JS are all untouched. */
     .h-table-wrap{overflow:visible}
@@ -153,7 +153,7 @@
 
     .h-table tbody tr:last-child td{border-bottom:0}
     .h-table tbody tr{
-      /* MARKER-HIST-TIGHTEN — 3 columns so sale # and items share row 2
+      /* 3 columns so sale # and items share row 2
          instead of stacking into a third line. */
       display:grid;grid-template-columns:auto 1fr auto;
       column-gap:8px;row-gap:2px;align-items:baseline;
@@ -222,14 +222,13 @@
 </div>
 
 <div class="reg-tabs-bar">
-  <div class="reg-tabs-scroll">{{-- MARKER-REG-MOBILE --}}
+  <div class="reg-tabs-scroll">
   <a href="{{ route('tenant.register.index') }}" class="reg-tab-link">Transaction</a>
   <a href="{{ route('tenant.register.history.index') }}" class="reg-tab-link active">Transaction History</a>
   <a href="{{ route('tenant.register.quotes.index') }}" class="reg-tab-link">Quotes</a>
-  {{-- MARKER-LAYAWAY-TAB --}}
   <a href="{{ route('tenant.register.layaways.index') }}" class="reg-tab-link">Layaways</a>
-  <a href="{{ route('tenant.register.reconciliation') }}" class="reg-tab-link">Reconciliation</a> {{-- MARKER-REG-RECON-TAB --}}
-  <a href="{{ route('tenant.register.settings') }}" class="reg-tab-link">Settings</a> {{-- MARKER-REG-SETTINGS --}}
+  <a href="{{ route('tenant.register.reconciliation') }}" class="reg-tab-link">Reconciliation</a>
+  <a href="{{ route('tenant.register.settings') }}" class="reg-tab-link">Settings</a>
   </div>
 </div>
 
@@ -248,7 +247,7 @@
     <button type="button" class="h-chip" data-filter="refunded">Refunded</button>
   </div>
 
-  {{-- MARKER-HIST-MOBILE — the cards have no column headers to click --}}
+  {{-- the cards have no column headers to click --}}
   <div class="h-sortbar">
     <select id="hSortSelect" aria-label="Sort transactions">
       <option value="date:desc">Newest first</option>
@@ -291,7 +290,7 @@
               data-email="{{ strtolower($r['customer_email'] ?? '') }}"
               data-total="{{ $r['total_cents'] }}"
               data-date="{{ $r['paid_at'] ?? $r['updated_at'] }}">
-            <td data-label="Sale #">{{-- MARKER-HIST-MOBILE --}}
+            <td data-label="Sale #">
               @if($r['sale_number'])
                 <span class="h-sale-num">{{ $r['sale_number'] }}</span>
               @else
@@ -342,7 +341,6 @@
     </table>
   </div>
 
-  {{-- MARKER-HIST-MOBILE --}}
   <button type="button" class="h-more" id="hShowMore"></button>
 @endif
 
@@ -355,7 +353,7 @@ const allRows = tbody ? Array.from(tbody.querySelectorAll('tr[data-id]')) : [];
 const totalCount = allRows.length;
 const shownCount = document.getElementById('hShownCount');
 
-// MARKER-HIST-MOBILE — render in chunks. Filtering, search and sorting all
+// render in chunks. Filtering, search and sorting all
 // run client-side over the rows already in the DOM, so this caps what is
 // PAINTED, never what is searched: every behavior stays exact.
 const HIST_CHUNK = 25;
@@ -412,7 +410,7 @@ function applyFilters() {
     return 0;
   });
 
-  // Re-render — MARKER-HIST-MOBILE: only the current chunk lands in the DOM.
+  // Re-render — only the current chunk lands in the DOM.
   allRows.forEach(r => r.remove());
   const visible = filtered.slice(0, shownLimit);
   visible.forEach(r => tbody.appendChild(r));
@@ -442,12 +440,12 @@ function applyFilters() {
     emptyMsg.remove();
   }
 
-  // MARKER-HIST-MOBILE — the count reflects what is on screen, so it never
+  // the count reflects what is on screen, so it never
   // claims to be showing rows the chunk is holding back.
   if (shownCount) shownCount.textContent = Math.min(filtered.length, shownLimit);
 }
 
-// MARKER-HIST-MOBILE — any change to what matches starts the chunk over.
+// any change to what matches starts the chunk over.
 function resetChunk() { shownLimit = HIST_CHUNK; }
 
 document.getElementById('hShowMore')?.addEventListener('click', () => {
@@ -467,7 +465,7 @@ const searchInput = document.getElementById('hSearch');
 if (searchInput) {
   searchInput.addEventListener('input', (e) => {
     currentSearch = e.target.value;
-    resetChunk(); // MARKER-HIST-MOBILE
+    resetChunk();
     applyFilters();
   });
 }
@@ -494,7 +492,7 @@ document.querySelectorAll('.h-chip').forEach(chip => {
     document.querySelectorAll('.h-chip').forEach(c => {
       c.classList.toggle('active', activeFilters.has(c.dataset.filter));
     });
-    resetChunk(); // MARKER-HIST-MOBILE (chips)
+    resetChunk(); // (chips)
     applyFilters();
   });
 });

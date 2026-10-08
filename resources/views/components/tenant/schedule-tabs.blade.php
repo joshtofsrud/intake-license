@@ -2,7 +2,7 @@
   'active' => 'calendar',
 ])
 
-{{-- MARKER-PATCH-152A — added Deliveries pill --}}
+{{-- added Deliveries pill --}}
 
 <div class="ia-schedule-toggle">
   <a href="{{ route('tenant.calendar.index') }}"
@@ -30,7 +30,7 @@
     Classes
   </a>
   @endif
-  {{-- MARKER-PATCH-156 — gate Deliveries pill behind feature toggle --}}
+  {{-- gate Deliveries pill behind feature toggle --}}
   @if($currentTenant->deliveries_enabled)
   <a href="{{ route('tenant.deliveries.index') }}"
      class="ia-schedule-pill {{ $active === 'deliveries' ? 'is-active' : '' }}">

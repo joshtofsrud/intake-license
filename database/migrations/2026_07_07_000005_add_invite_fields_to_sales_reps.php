@@ -1,5 +1,5 @@
 <?php
-// MARKER-REPPANEL-INVITE — tokenized setup-link invites (Team & access pattern).
+// tokenized setup-link invites (Team & access pattern).
 // Token is stored sha256-hashed; the raw token only exists in the email link.
 
 use Illuminate\Database\Migrations\Migration;

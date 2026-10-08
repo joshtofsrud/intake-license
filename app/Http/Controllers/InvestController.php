@@ -3,18 +3,17 @@
 namespace App\Http\Controllers;
 
 use App\Models\InvestLead;
-use App\Models\Investor;          // MARKER-INVEST-LANDING
-use App\Models\RaiseSetting;      // MARKER-INVEST-LANDING
+use App\Models\Investor;
+use App\Models\RaiseSetting;
 use App\Models\InvestToken;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 
-// MARKER-INVEST-SITE
 class InvestController extends Controller
 {
     /**
-     * MARKER-INVEST-LANDING — the public door at /invest.
+     * the public door at /invest.
      *
      * Deliberately thin: what the round is, a way to ask, a way in. The
      * numbers shown are the two that describe the instrument, both read
@@ -24,7 +23,7 @@ class InvestController extends Controller
     public function landing()
     {
         return response()->view('invest.landing', [
-            // MARKER-INVEST-V2 — landing_headline_v2: the default changed with the
+            // landing_headline_v2: the default changed with the
             // page, and reusing the old key would have silently kept the old line
             // for anyone who never edited it.
             'headline'   => RaiseSetting::get('landing_headline',
@@ -38,16 +37,16 @@ class InvestController extends Controller
                 'This page is not an offer to sell or a solicitation of an offer to buy any security. '
                 . 'Any offering is made only to individually qualified persons, by delivery of the '
                 . 'offering documents, and only where lawful. Information provided on request.'),
-            // MARKER-INVEST-V2 — the public page states no terms, so it is handed
+            // the public page states no terms, so it is handed
             // none. Only whether the round is open, which changes what it says.
             'isOpen'     => RaiseSetting::get('round_status', 'open') === 'open',
-            // MARKER-CONTRIB-UI — the contribute presets, set in Raise setup.
+            // the contribute presets, set in Raise setup.
             'presets'    => \App\Services\ContributionService::presets(),
         ])->header('X-Robots-Tag', 'noindex, nofollow, noarchive');
     }
 
     /**
-     * MARKER-INVEST-LANDING — someone asking to be let in.
+     * someone asking to be let in.
      *
      * Writes a lead with no token attached, which is what distinguishes a
      * request from a lead left on the gated page. Nothing is sent back but
@@ -82,7 +81,7 @@ class InvestController extends Controller
                 . "How they say you know each other:\n" . $data['note']
                 . "\n\nIssue or decline it in Raise admin.",
                 function ($mail) {
-                    // MARKER-MAIL-FROM — never the framework placeholder: an access
+                    // never the framework placeholder: an access
                     // request landing at example.com is a request nobody sees.
                     $to = RaiseSetting::get('notify_email')
                         ?: \App\Models\PlatformSettings::fromAddress();
@@ -90,19 +89,19 @@ class InvestController extends Controller
                 }
             );
         } catch (\Throwable $e) {
-            Log::error('MARKER-INVEST-LANDING request notify failed', ['error' => $e->getMessage()]);
+            Log::error('invest-landing: request notify failed', ['error' => $e->getMessage()]);
         }
 
-        // MARKER-MAIL-FROM — the lead row is written above regardless, so a
+        // the lead row is written above regardless, so a
         // notification that could not be addressed loses the alert, not the
         // request itself. Worth saying out loud in the log.
         if (! (RaiseSetting::get('notify_email') ?: \App\Models\PlatformSettings::fromAddress())) {
-            Log::warning('MARKER-MAIL-FROM no notify address — access request saved but nobody was told', [
+            Log::warning('mail-from: no notify address — access request saved but nobody was told', [
                 'email' => $data['email'],
             ]);
         }
 
-        Log::info('MARKER-INVEST-LANDING access requested', ['email' => $data['email']]);
+        Log::info('invest-landing: access requested', ['email' => $data['email']]);
 
         return back()->with('invest_request_ok', true);
     }
@@ -116,7 +115,7 @@ class InvestController extends Controller
         $record->increment('views');
         $record->forceFill(['last_viewed_at' => now()])->save();
 
-        // MARKER-INVEST-LIVE — the proposal quotes the round as it stands now.
+        // the proposal quotes the round as it stands now.
         $target = (int) RaiseSetting::get('target', (string) Investor::TARGET);
         $cap    = (int) RaiseSetting::get('cap', (string) Investor::CAP);
 
@@ -133,7 +132,7 @@ class InvestController extends Controller
             'funded'     => (int) $investors->sum('amount_received'),
             'committed'  => (int) $investors->whereNotNull('committed_at')->sum('amount'),
             'showBar'    => RaiseSetting::get('show_progress', '1') === '1',
-            // MARKER-INVEST-V2 — the round block is shared, so it is handed the
+            // the round block is shared, so it is handed the
             // documents and a way to build their URLs rather than knowing which
             // surface it is rendering on.
             'docs'       => \App\Support\InvestDocuments::listed(),
@@ -146,7 +145,7 @@ class InvestController extends Controller
     {
         $this->resolve($token);
 
-        // MARKER-INVEST-V2 — one map, shared with the portal.
+        // one map, shared with the portal.
         $path = \App\Support\InvestDocuments::path($doc);
         abort_unless($path, 404);
 
@@ -185,7 +184,7 @@ class InvestController extends Controller
             'ip'              => $request->ip(),
         ]);
 
-        // MARKER-SHARED-COMMIT — the commitment creates the record, and the
+        // the commitment creates the record, and the
         // record IS their page. An existing investor on the same email is
         // updated rather than duplicated, so a second visit does not produce a
         // second cap-table line.
@@ -216,14 +215,14 @@ class InvestController extends Controller
         try {
             \App\Services\InvestorMessenger::send('commitment', $investor);
         } catch (\Throwable $e) {
-            Log::error('MARKER-SHARED-COMMIT confirmation failed', ['error' => $e->getMessage()]);
+            Log::error('shared-commit: confirmation failed', ['error' => $e->getMessage()]);
         }
 
-        Log::info('MARKER-SHARED-COMMIT commitment from the shared link', [
+        Log::info('shared-commit: commitment from the shared link', [
             'email' => $data['email'], 'amount' => $investor->amount, 'new' => $isNew,
         ]);
 
-        // MARKER-MONEY-ALERTS — the investor got their confirmation above; this
+        // the investor got their confirmation above; this
         // is the half that was missing. Same address resolution as the access
         // request handler. Never allowed to throw: they have already committed
         // and the record is already saved, so a mail failure must not 500 them.
@@ -247,19 +246,19 @@ class InvestController extends Controller
                     }
                 );
             } else {
-                Log::warning('MARKER-MONEY-ALERTS commitment saved but no notify address', [
+                Log::warning('money-alerts: commitment saved but no notify address', [
                     'investor' => $investor->id,
                 ]);
             }
         } catch (\Throwable $e) {
-            Log::error('MARKER-MONEY-ALERTS commitment notify failed', ['error' => $e->getMessage()]);
+            Log::error('money-alerts: commitment notify failed', ['error' => $e->getMessage()]);
         }
 
         return back()->with('invest_lead_ok', true);
     }
 
     /**
-     * MARKER-DEAD-LINK — returns the token, or NULL when the link is dead.
+     * returns the token, or NULL when the link is dead.
      *
      * Null rather than abort() on purpose: a helper that ends the request
      * hides the decision from every caller, which is how a rotated link came
@@ -276,7 +275,7 @@ class InvestController extends Controller
         return $record;
     }
 
-    /** MARKER-DEAD-LINK — where a dead shared link goes. */
+    /** where a dead shared link goes. */
     private function deadLink()
     {
         return redirect()

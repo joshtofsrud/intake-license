@@ -37,12 +37,12 @@ class EnsurePinFresh
     {
         $tenant = app('tenant') ?? null;
 
-        // MARKER-DEMO-FIXES — a demo visitor has no PIN and no way to set one.
+        // a demo visitor has no PIN and no way to set one.
         if (! $tenant || ! $tenant->pin_tier_active || $tenant->is_demo) {
             return $next($request);
         }
 
-        // MARKER-IMPERSONATION-PIN — impersonation signs you in as the tenant
+        // impersonation signs you in as the tenant
         // owner, whose PIN the platform operator does not have; enforcing it
         // would brick the session outright. Reaching this point already
         // required a master admin login, which is the stronger check. The
@@ -98,7 +98,7 @@ class EnsurePinFresh
             // Page render — flag the staleness; layout opens the overlay.
             view()->share('pinLockPending', true);
             $response = $next($request);
-            // MARKER-OFFLINE-SYNC-PIN — mark locked renders so the offline
+            // mark locked renders so the offline
             // service worker never caches a page that required a PIN.
             $response->headers->set('X-Pin-Locked', '1');
             return $response;
@@ -106,7 +106,7 @@ class EnsurePinFresh
 
         // Fresh — touch the activity timestamp, but cap at once a minute
         // so we don't write the session on every single request.
-        // MARKER-OFFLINE-SYNC-PIN — automated background requests (offline
+        // automated background requests (offline
         // snapshot refresh, queue replay) must NOT count as human activity,
         // or the idle lock never engages while a tab is open.
         $isBackground = $request->headers->get('X-Intake-Background') === '1';

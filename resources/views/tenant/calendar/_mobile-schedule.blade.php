@@ -30,7 +30,7 @@
     }
     $msAppointments = $msAppointments->sortBy('appointment_time')->values();
   } elseif ($viewMode === 'month') {
-    // MARKER-MONTH-PHONE — month mode: the chosen day's appointments list
+    // month mode: the chosen day's appointments list
     // under the grid, from the month data the controller already loads.
     $msAnchorDateStr = isset($monthAnchor) ? $monthAnchor->toDateString() : $todayStr;
     $msAppointments  = collect($byDate[$msAnchorDateStr] ?? [])->sortBy('appointment_time')->values();
@@ -41,9 +41,9 @@
 
   $msAnchorDate = Cb::parse($msAnchorDateStr);
 
-  // MARKER-SWIPE-STRIP — a long strip you can flick through, not seven fixed
+  // a long strip you can flick through, not seven fixed
   // days: four weeks back, eight forward. The selected day is centered on load.
-  // MARKER-STRIP-MONTHS — a year back and three months forward; the month
+  // a year back and three months forward; the month
   // label and the date picker above the strip reach anything further.
   $msStripStart = $msAnchorDate->copy()->subDays(365);
   $msStripDays = [];
@@ -74,12 +74,12 @@
     ? ($msResourceById[$msVisibleResourceIds[0]] ?? null)
     : null;
 
-  // MARKER-MONTH-PHONE — the month query carries no durations, so the day
+  // the month query carries no durations, so the day
   // list under the grid skips the gap rows it draws for one resource.
   if ($viewMode === 'month') { $msSingleResource = null; }
   $msCanMonth = (tenant()->booking_mode ?? 'drop_off') !== 'drop_off';
 
-  // MARKER-SWIPE-STRIP — how busy each day in the strip is, in one query.
+  // how busy each day in the strip is, in one query.
   // Dots are relative to this shop's busiest day in view (1-3), so they read
   // the same for a shop doing 4 a day or 40. They follow the staff filter.
   $msCounts = \App\Models\Tenant\TenantAppointment::where('tenant_id', tenant()->id)
@@ -173,7 +173,7 @@
 @endphp
 
 <div class="ia-msched">
-  {{-- MARKER-CAL-COMPACT — shown instead of the whole top when it's collapsed:
+  {{-- shown instead of the whole top when it's collapsed:
        what you're looking at, and one tap to open the top again. --}}
   @php
     $mcView = ['day' => 'Day', 'week' => 'Week', 'month' => 'Month'][$viewMode] ?? 'Day';
@@ -199,12 +199,12 @@
          class="ia-msched-mode-btn {{ $viewMode === 'day' ? 'is-active' : '' }}">Day</a>
       <a href="{{ route('tenant.calendar.index', ['view' => 'week', 'date' => $msAnchorDateStr, 'resources' => $filterMode === 'all' ? null : implode(',', $msVisibleResourceIds)]) }}"
          class="ia-msched-mode-btn {{ $viewMode === 'week' ? 'is-active' : '' }}">Week</a>
-      @if($msCanMonth){{-- MARKER-MONTH-PHONE --}}
+      @if($msCanMonth)
         <a href="{{ route('tenant.calendar.index', ['view' => 'month', 'date' => $msAnchorDateStr, 'resources' => $filterMode === 'all' ? null : implode(',', $msVisibleResourceIds)]) }}"
            class="ia-msched-mode-btn {{ $viewMode === 'month' ? 'is-active' : '' }}">Month</a>
       @endif
     </div>
-    <button type="button" class="ia-msched-collapse" id="mcCollapse" aria-label="Collapse the top" title="Collapse the top">⌃</button>{{-- MARKER-CAL-COMPACT --}}
+    <button type="button" class="ia-msched-collapse" id="mcCollapse" aria-label="Collapse the top" title="Collapse the top">⌃</button>
   </div>
 
   {{-- Resource filter chips --}}
@@ -231,7 +231,7 @@
   @endif
 
   @if($viewMode === 'month')
-    {{-- MARKER-MONTH-PHONE — the month grid: one bar per appointment, in its
+    {{-- the month grid: one bar per appointment, in its
          resource's color, up to three, then "+N". Tap a day to list it below;
          swipe sideways (or the arrows) for the next month. --}}
     @php
@@ -282,7 +282,7 @@
     </div>
     <div class="ia-mm-legend">One bar per appointment, in its resource's color · swipe sideways for another month</div>
 
-    {{-- MARKER-MONTH-INPLACE — every day of the grid has its list on the page
+    {{-- every day of the grid has its list on the page
          already (the month data is loaded anyway), so tapping a day swaps the
          list in place instead of reloading the page. --}}
     @foreach(($cells ?? []) as $mmCell)
@@ -328,7 +328,7 @@
       </div>
     @endforeach
     <script>
-    // MARKER-MONTH-PHONE — swipe the grid for the next/previous month; the
+    // swipe the grid for the next/previous month; the
     // month label opens the phone's date picker.
     (function () {
       var g = document.getElementById('mmGrid');
@@ -347,7 +347,7 @@
       var p = document.getElementById('mmPick');
       if (p) { p.addEventListener('change', function () { if (p.value) { window.location.href = p.dataset.url.replace('__DATE__', p.value); } }); }
 
-      // MARKER-MONTH-INPLACE — select a day without reloading: move the
+      // select a day without reloading: move the
       // highlight, show its list, update the heading and the address, and
       // point Day/Week at it.
       var title = document.querySelector('.ia-msched-title');
@@ -372,7 +372,7 @@
     })();
     </script>
   @else
-  {{-- MARKER-STRIP-MONTHS — which month you're looking at, updated as you swipe.
+  {{-- which month you're looking at, updated as you swipe.
        Tapping it opens the date picker (the input sits invisibly over the
        label so the phone's own picker opens on the first tap). --}}
   @php
@@ -388,7 +388,7 @@
            data-url="{{ route('tenant.calendar.index', $msPickParams) }}">
   </div>
 
-  {{-- MARKER-SWIPE-STRIP — swipe with the phone's own momentum; snaps gently to a day. --}}
+  {{-- swipe with the phone's own momentum; snaps gently to a day. --}}
   <div class="ia-msched-strip is-swipe" role="tablist" id="msStrip">
     @foreach($msStripDays as $sd)
       @php
@@ -401,7 +401,7 @@
          class="ia-msched-strip-chip {{ $sd['is_anchor'] ? 'is-active' : '' }} {{ $sd['is_today'] ? 'is-today' : '' }} {{ $sd['num'] === 1 ? 'is-month-start' : '' }}"
          data-month="{{ $sd['month'] }}"
          role="tab" aria-selected="{{ $sd['is_anchor'] ? 'true' : 'false' }}">
-        {{-- MARKER-STRIP-MONTHS — the 1st shows its month instead of its weekday. --}}
+        {{-- the 1st shows its month instead of its weekday. --}}
         <span class="ia-msched-strip-dow">{{ $sd['num'] === 1 ? $sd['mon'] : $sd['dow'] }}</span>
         <span class="ia-msched-strip-num">{{ $sd['num'] }}</span>
         <span class="ia-msched-strip-dots" aria-label="{{ $sd['count'] }} {{ \Illuminate\Support\Str::plural('appointment', $sd['count']) }}">
@@ -413,13 +413,13 @@
     @endforeach
   </div>
   <script>
-  // MARKER-SWIPE-STRIP — center the selected day, without animating.
+  // center the selected day, without animating.
   (function () {
     var s = document.getElementById('msStrip');
     var a = s && s.querySelector('.is-active');
     if (a) { s.scrollLeft = a.offsetLeft - (s.clientWidth - a.offsetWidth) / 2; }
 
-    // MARKER-STRIP-MONTHS — the label follows the day in the middle of the strip.
+    // the label follows the day in the middle of the strip.
     var label = document.getElementById('msMonth');
     var ticking = false;
     var update = function () {
@@ -466,11 +466,11 @@
     <a href="{{ route('tenant.calendar.index', $nextParams) }}" class="ia-msched-nav-btn">Next day ›</a>
   </div>
 
-  @endif{{-- MARKER-MONTH-PHONE: day strip and day nav are for Day/Week --}}
+  @endif{{-- day strip and day nav are for Day/Week --}}
 
   {{-- ─── Body ─── --}}
   @if($viewMode === 'month')
-    {{-- MARKER-MONTH-INPLACE — month mode's lists sit under the grid above --}}
+    {{-- month mode's lists sit under the grid above --}}
   @elseif($viewMode === 'week')
     {{-- WEEK MODE: grouped-by-day list (no gap rendering) --}}
     @php
@@ -616,7 +616,7 @@
 
 
 <script>
-// MARKER-CAL-COMPACT — collapse or open the top, and remember it on this phone.
+// collapse or open the top, and remember it on this phone.
 (function () {
   var set = function (on) {
     document.documentElement.classList.toggle('ia-cal-compact', on);

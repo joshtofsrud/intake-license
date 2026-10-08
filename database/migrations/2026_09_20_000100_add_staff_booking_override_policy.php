@@ -5,7 +5,7 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * MARKER-BOOKING-OVERRIDE — what staff may do that customers may not.
+ * what staff may do that customers may not.
  *
  * Defaults are chosen to change nothing on deploy: 'follow' keeps staff on the
  * customer notice rule, and 'block' keeps a full day full. A shop opts in.

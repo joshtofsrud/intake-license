@@ -1,4 +1,4 @@
-{{-- MARKER-CAROUSEL-SECTION — image_carousel public render. Scroll-snap
+{{-- image_carousel public render. Scroll-snap
      track, no dependencies. Arrows/dots/autoplay per section settings;
      autoplay pauses on hover/touch and respects prefers-reduced-motion. --}}
 @php
@@ -38,7 +38,6 @@
   $customClass  = trim($c['custom_classes'] ?? '');
 @endphp
 
-{{-- MARKER-CAROUSEL-DEPTH --}}
 @if(($c['carousel_style'] ?? 'classic') === 'depth')
   @include('partials.carousel-depth', ['images' => $images, 'c' => $c, 'uid' => $uid, 'aspect' => $aspect, 'radius' => $radius, 'customClass' => $customClass])
   @php return; @endphp

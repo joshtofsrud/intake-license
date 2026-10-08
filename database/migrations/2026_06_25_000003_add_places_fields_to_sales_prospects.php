@@ -1,5 +1,5 @@
 <?php
-// MARKER-SALES-PLACES — Make sales_prospects national-ready.
+// Make sales_prospects national-ready.
 // Adds the fields the Google Places pipeline produces (place id, business status,
 // rating, street address, state, route-loop label) so master.csv can be imported
 // directly. Additive + guarded: runs in timestamp order AFTER 000001 whether or

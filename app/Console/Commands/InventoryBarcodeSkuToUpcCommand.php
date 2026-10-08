@@ -7,7 +7,7 @@ use App\Models\Tenant\TenantInventoryItem;
 use Illuminate\Console\Command;
 
 /**
- * MARKER-IDENT-IN-SKU — copy barcode-shaped SKUs into catalog_upc.
+ * copy barcode-shaped SKUs into catalog_upc.
  *
  * The add-item form has a SKU field and no UPC field, so a shop entering stock
  * by hand puts the barcode in the SKU box. Those items then match nothing: no

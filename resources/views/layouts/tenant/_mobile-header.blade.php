@@ -27,7 +27,7 @@
   $mhdrLogoHeight = (int) ($currentTenant->logo_size_admin ?? 26);
   $mhdrLogoHeight = max(16, min(40, $mhdrLogoHeight)); // clamp to mobile-friendly size
 
-  // MARKER-PATCH-363 — unread alerts count for the mobile header bell
+  // unread alerts count for the mobile header bell
   // (per-user, mirrors StaffAlertController::feed). Server-rendered; refreshes
   // on each page load, like the inbox badge in the attention row.
   $mhdrAlertsUnread = 0;
@@ -59,12 +59,12 @@
     @endif
     @include('layouts.tenant._location-switcher')
 
-    {{-- MARKER-OFFLINE-SYNC stage 4 — status pill mount, in the header flow --}}
-    {{-- MARKER-IOFLASH — see the sidebar mount. Online renders as a bare dot
+    {{-- stage 4 — status pill mount, in the header flow --}}
+    {{-- see the sidebar mount. Online renders as a bare dot
          (renderMobilePill only shows a label when something is wrong). --}}
     <span id="ioMountMobile" style="position:absolute;right:102px;top:50%;transform:translateY(-50%);display:inline-flex;align-items:center">
       @php
-          // MARKER-IOFLASH — resolved here rather than inherited: these
+          // resolved here rather than inherited: these
           // partials render before the layout's $ioEnabled block runs.
           $ioStatusEnabled = app()->bound('tenant')
               && app(\App\Services\FeatureAccessService::class)->hasAddon(app('tenant'), 'offline_sync');
@@ -75,7 +75,7 @@
         </span>
       @endif
     </span>
-    {{-- MARKER-PATCH-363 — alerts bell -> full notifications page, with unread badge --}}
+    {{-- alerts bell -> full notifications page, with unread badge --}}
     <a href="{{ route('tenant.notifications') }}" class="ia-mobile-header-bell"
        aria-label="Notifications{{ $mhdrAlertsUnread > 0 ? ' — '.$mhdrAlertsUnread.' unread' : '' }}">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -84,7 +84,7 @@
       @if($mhdrAlertsUnread > 0)<span class="ia-mobile-header-bell-badge">{{ $mhdrAlertsUnread > 99 ? '99+' : $mhdrAlertsUnread }}</span>@endif
     </a>
 
-    {{-- MARKER-PAD-MOBILE-POS — after the bell in the markup and outermost on
+    {{-- after the bell in the markup and outermost on
          screen. These are absolutely positioned, so DOM order alone decides
          nothing; the offsets below do. --}}
     @include('layouts.tenant._notes-pad')

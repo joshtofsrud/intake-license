@@ -1302,7 +1302,7 @@
 
     var snapMin   = 15;
     var dragThreshold = 5;
-    var lastTouchTime = 0; // MARKER-PATCH-349B — set on touch; used to ignore synthesized mouse events
+    var lastTouchTime = 0; // set on touch; used to ignore synthesized mouse events
 
     var ghost      = document.getElementById('ia-cal-drag-ghost');
     var ghostName  = document.getElementById('ia-cal-drag-ghost-name');
@@ -1355,11 +1355,11 @@
 
     function onMouseDown(e) {
       if (e.button !== 0) return;
-      // MARKER-PATCH-505 — touch-primary devices never drag. Mobile browsers
+      // touch-primary devices never drag. Mobile browsers
       // synthesize mouse events from touch, which ran this desktop path on
       // phones with no hold. Device-class check beats event heuristics.
       if (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) return;
-      // MARKER-PATCH-349B — on touch devices the browser also fires a synthesized
+      // on touch devices the browser also fires a synthesized
       // mousedown; ignore it so only the press-and-hold touch path runs.
       if (Date.now() - lastTouchTime < 700) return;
       var block = e.currentTarget;
@@ -1559,11 +1559,11 @@
       });
     }
 
-    // ── TOUCH-DRAG-HOLD v1 (MARKER-PATCH-349) ──────────────────────────────
+    // ── TOUCH-DRAG-HOLD v1 ──────────────────────────────
     // Free drag works on touch too, but it requires a deliberate ~450ms
     // press-and-hold to ARM — so an ordinary swipe still scrolls the day grid
     // instead of grabbing an appointment. The mouse path above is unchanged.
-    var HOLD_MS = 700; // MARKER-PATCH-502 — was 450; too easy to grab while scrolling
+    var HOLD_MS = 700; // was 450; too easy to grab while scrolling
     var TOUCH_MOVE_TOLERANCE = 10; // px of movement before arming = it's a scroll, abort
     var holdTimer = null;
 
@@ -1602,7 +1602,7 @@
 
     function onTouchStart(e) {
       if (e.touches.length !== 1) return;
-      lastTouchTime = Date.now(); // MARKER-PATCH-349B
+      lastTouchTime = Date.now();
       var block = e.currentTarget;
       var apptId       = block.getAttribute('data-appt-id');
       var apptTime     = block.getAttribute('data-appt-time');
@@ -1658,7 +1658,7 @@
     }
 
     function onTouchEnd() {
-      lastTouchTime = Date.now(); // MARKER-PATCH-349B — covers the synthesized burst after touchend
+      lastTouchTime = Date.now(); // covers the synthesized burst after touchend
       clearHold();
       touchTeardown();
       document.body.classList.remove('ia-cal-dragging-active');
@@ -1685,7 +1685,7 @@
     // Bind to all appointment blocks on the day view
     document.querySelectorAll('.ia-cal-appt').forEach(function (block) {
       block.addEventListener('mousedown', onMouseDown);
-      // MARKER-PATCH-504 — touch drag disabled. Hold-to-drag fought scrolling
+      // touch drag disabled. Hold-to-drag fought scrolling
       // on phones; mobile reschedules from the appointment page instead.
       // Mouse drag (desktop) is unchanged. onTouchStart stays defined but
       // unbound so this is a one-line revert if we ever bring it back.

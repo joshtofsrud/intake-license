@@ -1,7 +1,7 @@
 @extends('layouts.tenant.app')
 @php $pageTitle = 'Check out ' . $rental->rental_number; @endphp
 
-{{-- MARKER-PATCH-232 — guided check-out: Verify → Agreement → Condition →
+{{-- guided check-out: Verify → Agreement → Condition →
      Deposit & go. Resumable: every write step is its own POST; done steps
      render done after reload. --}}
 
@@ -106,7 +106,7 @@
           <h2 class="ia-h3" style="margin-bottom:10px">{{ $agreementTemplate->title }} <span style="font-size:11px;opacity:.5;font-weight:400">v{{ $agreementTemplate->version }}</span></h2>
           <div class="co-agree-body">{{ $agreementTemplate->body }}</div>
 
-          {{-- MARKER-RENTAL-WAIVER-DISPLAY-UI — where does the customer sign? --}}
+          {{-- where does the customer sign? --}}
           <div id="ag-methods" style="display:grid;grid-template-columns:1fr 1fr;gap:11px;margin:14px 0 4px">
             <div class="ag-method on" data-method="display" style="border:1.5px solid var(--ia-accent);border-radius:10px;padding:13px;cursor:pointer;background:rgba(190,242,100,.05)">
               <div style="font-size:13px;font-weight:650;margin-bottom:4px">Send to customer display</div>
@@ -259,7 +259,7 @@
         <h2 class="ia-h3" style="margin-bottom:8px">Balance due — {{ format_money($balanceCents) }}</h2>
         <form method="POST" action="{{ route('tenant.rentals.bookings.collect', $rental->id) }}" style="display:flex;gap:8px;align-items:end;flex-wrap:wrap">
           @csrf
-          {{-- MARKER-PATCH-232B — come back to this flow after payment. --}}
+          {{-- come back to this flow after payment. --}}
           <input type="hidden" name="return_to" value="{{ parse_url(route('tenant.rentals.bookings.checkout.flow', $rental->id), PHP_URL_PATH) }}">
           <div>
             <label class="ia-label" style="display:block;margin-bottom:4px">Amount $</label>
@@ -379,7 +379,7 @@ document.querySelectorAll('.co-seg').forEach(function (seg) {
 </script>
 @endif
 
-{{-- MARKER-RENTAL-WAIVER-DISPLAY-UI — push, recall, and live status --}}
+{{-- push, recall, and live status --}}
 @if($agreementTemplate && !$agreementSigned)
 <script>
 (function () {

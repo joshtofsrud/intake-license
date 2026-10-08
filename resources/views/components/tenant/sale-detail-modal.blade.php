@@ -93,8 +93,8 @@
   .sd-pay-del:hover{color:#F87171;background:rgba(248,113,113,.10)}
   .sd-pay-del:disabled{opacity:.5;cursor:default}
   .sd-item-desc{font-size:12px;color:var(--ia-text-dim);margin-top:2px}
-  .sd-item-ids{font-size:11.5px;color:var(--ia-text-muted);margin-top:2px;font-variant-numeric:tabular-nums} /* MARKER-SALE-LINE-IDS */
-  /* MARKER-DESC-CLAMP — a distributor's marketing copy runs to hundreds of
+  .sd-item-ids{font-size:11.5px;color:var(--ia-text-muted);margin-top:2px;font-variant-numeric:tabular-nums}
+  /* a distributor's marketing copy runs to hundreds of
      words and pushed the totals off the screen. Two lines, then More. */
   .sd-item-desc.clamp{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
   .sd-item-desc.clamp.open{-webkit-line-clamp:unset;overflow:visible}
@@ -149,7 +149,7 @@
   }
   .sd-btn:hover{background:var(--ia-hover)}
   .sd-btn--primary{background:var(--ia-accent);color:var(--ia-accent-text);border-color:var(--ia-accent)}
-  .sd-btn--danger{background:transparent;color:#F87171;border-color:rgba(248,113,113,.4)} /* MARKER-PATCH-199 */
+  .sd-btn--danger{background:transparent;color:#F87171;border-color:rgba(248,113,113,.4)}
   .sd-btn--danger:hover{background:rgba(248,113,113,.10)}
   .sd-btn--danger:disabled{opacity:.5;cursor:default}
   .sd-btn--primary:hover{filter:brightness(1.1);background:var(--ia-accent)}
@@ -180,12 +180,11 @@
     </div>
     <div class="sd-actions" id="sdActions" style="display:none">
       <button type="button" class="sd-btn" id="sdCloseBtn">Close</button>
-      {{-- MARKER-PATCH-319 --}}
       <button type="button" class="sd-btn" id="sdPrintReceiptBtn" style="display:none">Print receipt</button>
       <button type="button" class="sd-btn sd-btn--primary" id="sdRefundBtn" style="display:none">
         Refund this sale
       </button>
-      {{-- MARKER-PATCH-199 — delete an empty sale (no payments). --}}
+      {{-- delete an empty sale (no payments). --}}
       <button type="button" class="sd-btn sd-btn--danger" id="sdDeleteSaleBtn" style="display:none">
         Delete sale
       </button>
@@ -204,14 +203,14 @@
   var actionsEl = document.getElementById('sdActions');
   var closeBtn  = document.getElementById('sdClose');
   var closeBtn2 = document.getElementById('sdCloseBtn');
-  var printReceiptBtn = document.getElementById('sdPrintReceiptBtn'); // MARKER-PATCH-319
+  var printReceiptBtn = document.getElementById('sdPrintReceiptBtn');
   var refundBtn = document.getElementById('sdRefundBtn');
-  var deleteSaleBtn = document.getElementById('sdDeleteSaleBtn'); // MARKER-PATCH-199
+  var deleteSaleBtn = document.getElementById('sdDeleteSaleBtn');
 
   var SHOW_URL_TEMPLATE = @json(route('tenant.register.sales.show', ['id' => '__ID__']));
-  var RECEIPT_URL_TEMPLATE = @json(route('tenant.register.sales.receipt', ['id' => '__ID__'])); // MARKER-PATCH-319
-  var DELETE_PAYMENT_URL = @json(route('tenant.register.sales.payment.delete')); {{-- MARKER-PATCH-198 --}}
-  var DELETE_SALE_URL    = @json(route('tenant.register.sales.delete')); {{-- MARKER-PATCH-199 --}}
+  var RECEIPT_URL_TEMPLATE = @json(route('tenant.register.sales.receipt', ['id' => '__ID__']));
+  var DELETE_PAYMENT_URL = @json(route('tenant.register.sales.payment.delete'));
+  var DELETE_SALE_URL    = @json(route('tenant.register.sales.delete'));
   var REGISTER_URL      = @json(route('tenant.register.index', []));
 
   function fmtMoney(cents) {
@@ -340,7 +339,7 @@
         html += '<tr>'
           + '<td>'
           + '<div class="sd-item-name">' + escapeHtml(it.name || '—') + typeBadge + '</div>'
-          // MARKER-SALE-LINE-IDS — part number and barcode, when the line has them.
+          // part number and barcode, when the line has them.
           + (function () {
               var ids = [];
               if (it.mpn) { ids.push('MPN ' + it.mpn); }
@@ -351,11 +350,11 @@
           + (it.description
               ? '<div class="sd-item-desc clamp">' + escapeHtml(it.description) + '</div>'
                 + (String(it.description).length > 140 ? '<button type="button" class="sd-desc-more">More</button>' : '')
-              : '') // MARKER-DESC-CLAMP
+              : '')
           + '</td>'
           + '<td class="num">' + escapeHtml(String(it.quantity)) + '</td>'
           + '<td class="num">' + escapeHtml(fmtMoney(it.unit_price_cents))
-            // MARKER-DISCOUNT-VISIBLE — a price edit on the line, said plainly.
+            // a price edit on the line, said plainly.
             + (it.discount_cents ? '<div class="sd-item-desc">less ' + escapeHtml(fmtMoney(it.discount_cents)) + '</div>' : '')
           + '</td>'
           + '<td class="num">' + escapeHtml(fmtMoney(it.line_total_cents)) + '</td>'
@@ -369,7 +368,7 @@
     // Totals
     html += '<div class="sd-totals">';
     html += '<div class="sd-totals-row"><span>Subtotal</span><span class="num">' + escapeHtml(fmtMoney(sale.subtotal_cents)) + '</span></div>';
-    // MARKER-DISCOUNT-VISIBLE — sale_discount_cents is what the server applies;
+    // sale_discount_cents is what the server applies;
     // discount_cents is the older field. Show whichever carries the discount.
     var sdDiscount = (sale.sale_discount_cents || 0) + (sale.discount_cents || 0);
     if (sdDiscount) {
@@ -387,7 +386,7 @@
     html += '<div class="sd-totals-row total"><span>Total</span><span class="num">' + escapeHtml(fmtMoney(sale.total_cents)) + '</span></div>';
     html += '</div>';
 
-    // MARKER-PATCH-191 — Payments ledger: show every payment against this sale
+    // Payments ledger: show every payment against this sale
     // (deposits, balance, refunds) with method, kind, date and amount, plus a
     // paid/balance summary. This is the detail that was missing.
     (function(){
@@ -404,7 +403,7 @@
           var meta = [label, kind].filter(Boolean).join(' · ');
           var amtClass = p.is_refund ? ' style="color:#F87171"' : '';
           var amtTxt = (p.is_refund ? '' : '') + fmtMoney(p.amount_cents);
-          // MARKER-PATCH-198 — per-row delete (data correction for bad/duplicate payments).
+          // per-row delete (data correction for bad/duplicate payments).
           var delBtn = p.id
             ? '<button type="button" class="sd-pay-del" title="Delete this payment"'
               + ' data-del-payment="' + escapeHtml(p.id) + '"'
@@ -447,7 +446,7 @@
         + '</div>';
     }
 
-    // MARKER-PATCH-161 — Email send log + re-send actions (only on committed, non-draft, non-quote sales)
+    // Email send log + re-send actions (only on committed, non-draft, non-quote sales)
     if (sale.sale_number && !sale.is_draft && !sale.is_quote) {
       var log = sale.send_log || [];
       var defaultEmail = (sale.customer && sale.customer.email) ? sale.customer.email : '';
@@ -512,7 +511,7 @@
 
     bodyEl.innerHTML = html;
 
-    // MARKER-DESC-CLAMP — More/Less on a clamped description.
+    // More/Less on a clamped description.
     bodyEl.querySelectorAll('.sd-desc-more').forEach(function(btn){
       btn.addEventListener('click', function(){
         var desc = btn.previousElementSibling;
@@ -530,7 +529,7 @@
       });
     });
 
-    // MARKER-PATCH-198 — per-payment delete (data correction). Double-confirmed:
+    // per-payment delete (data correction). Double-confirmed:
     // a window.confirm, then a typed "DELETE" prompt, before the row is removed.
     bodyEl.querySelectorAll('[data-del-payment]').forEach(function(btn){
       btn.addEventListener('click', function(){
@@ -562,7 +561,7 @@
       });
     });
 
-    // MARKER-PATCH-161 — Re-send wiring
+    // Re-send wiring
     var resendUrl = @json(route('tenant.sales.resend_receipt', ['id' => '__ID__']));
     var saleId    = sale.id;
     var defaultEmail = (sale.customer && sale.customer.email) ? sale.customer.email : '';
@@ -658,7 +657,7 @@
       refundBtn.dataset.saleNumber = '';
     }
 
-    // MARKER-PATCH-199 — offer "Delete sale" ONLY when the sale carries no
+    // offer "Delete sale" ONLY when the sale carries no
     // money (no payments) and isn't a refund record. This is the stray-sale
     // cleanup case: delete its payments first (patch-198), then the empty sale.
     var noMoney = (typeof sale.paid_cents === 'number')
@@ -672,7 +671,7 @@
       deleteSaleBtn.dataset.saleId = '';
     }
 
-    // MARKER-PATCH-319 — receipt available for committed sales (not drafts/quotes).
+    // receipt available for committed sales (not drafts/quotes).
     if (printReceiptBtn) {
       var ps = sale.payment_status;
       if (ps && ps !== 'draft' && ps !== 'quote') {
@@ -716,12 +715,12 @@
   });
 
   // Refund handoff: close modal, redirect to register with ?refund=NUM
-  // MARKER-PATCH-319 — print receipt via a hidden iframe (no tab, no nested dialog).
+  // print receipt via a hidden iframe (no tab, no nested dialog).
   if (printReceiptBtn) {
     printReceiptBtn.addEventListener('click', function () {
       var sid = printReceiptBtn.dataset.saleId;
       if (!sid) return;
-      if (window.openPrintComposer) { window.openPrintComposer('sale', sid, { type: 'receipt' }); return; } // MARKER-PATCH-339
+      if (window.openPrintComposer) { window.openPrintComposer('sale', sid, { type: 'receipt' }); return; }
       var url = RECEIPT_URL_TEMPLATE.replace('__ID__', encodeURIComponent(sid)) + '?embed=1';
       var f = document.createElement('iframe');
       f.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;';
@@ -743,7 +742,7 @@
     window.location.href = REGISTER_URL + sep + 'refund=' + encodeURIComponent(num);
   });
 
-  // MARKER-PATCH-199 — delete an empty sale. Double-confirmed (confirm + typed
+  // delete an empty sale. Double-confirmed (confirm + typed
   // DELETE). Server refuses if the sale still has payments.
   deleteSaleBtn.addEventListener('click', function(){
     var sid = deleteSaleBtn.dataset.saleId;

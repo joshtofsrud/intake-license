@@ -5,7 +5,7 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * MARKER-ITEM-IMAGES — a shop's own photos for an inventory item.
+ * a shop's own photos for an inventory item.
  *
  * A join rather than a column, because the same photo can legitimately serve
  * several items, and because TenantMedia already handles storage, bytes and

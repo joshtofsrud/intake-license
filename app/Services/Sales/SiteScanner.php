@@ -1,5 +1,5 @@
 <?php
-// MARKER-SALES-SITE-SCAN — reads a prospect's own website (home page plus up to
+// reads a prospect's own website (home page plus up to
 // two contact/about pages) and pulls what a shop publishes about itself:
 // email, social accounts, an owner when one is named, and the brands it mentions.
 // Only fills empty fields; never overwrites something a person typed.
@@ -161,15 +161,15 @@ class SiteScanner
         }
 
         $email   = $this->email($html, $text, $host);
-        $phone   = $this->phone($html, $text); // MARKER-SITE-SCAN-PHONE
+        $phone   = $this->phone($html, $text);
         $socials = $this->socials($html);
         $owner   = $this->owner($text);
-        $brands  = $this->brands($text, $p); // MARKER-BRAND-LIST — the industry's own brand list
+        $brands  = $this->brands($text, $p); // the industry's own brand list
 
         $changes = ['socials' => $socials ?: null, 'brands' => $brands ?: null];
         if ($email && blank($p->email)) $changes['email'] = $email;
         if ($owner && blank($p->owner_contact)) $changes['owner_contact'] = $owner;
-        if ($phone && blank($p->phone)) $changes['phone'] = $phone; // MARKER-SITE-SCAN-PHONE
+        if ($phone && blank($p->phone)) $changes['phone'] = $phone;
 
         $found = array_filter([
             isset($changes['email']) ? 'email' : null,
@@ -270,7 +270,7 @@ class SiteScanner
     }
 
     /**
-     * MARKER-SITE-SCAN-PHONE — the shop's phone: a tap-to-call link first (that's
+     * the shop's phone: a tap-to-call link first (that's
      * the number they want called), else the most repeated US number on the page.
      * Returned as (509) 555-0123.
      */
@@ -332,7 +332,7 @@ class SiteScanner
         $name = "([A-Z][a-z]+(?: [A-Z]\\.)?(?: (?:Mc|Mac|O')?[A-Z][a-zA-Z'\\-]+){1,2})";
         $role = '(?i:co-?owner|owner|co-?founder|founder|proprietor)s?';
         $pats = [
-            "/\\b{$role}\\b(?: and [a-z ]+)?[\\s:,\\-–—|]+(?:is\\s+)?{$name}/u", // MARKER-OWNER-CASE-FIX — names must be capitalised
+            "/\\b{$role}\\b(?: and [a-z ]+)?[\\s:,\\-–—|]+(?:is\\s+)?{$name}/u", // names must be capitalised
             "/{$name}\\s*[,\\-–—|(]\\s*(?:the\\s+)?{$role}\\b/u",
             "/{$name}\\s+(?i:is the|is our|, our)\\s+{$role}\\b/u",
             "/(?i:owned|founded|run) by {$name}/u",
@@ -350,7 +350,7 @@ class SiteScanner
     }
 
     /**
-     * MARKER-BRAND-LIST — brands from the prospect's industry list (Sales setup ›
+     * brands from the prospect's industry list (Sales setup ›
      * Industries › Brands to look for) that the site mentions, most-mentioned first.
      * An industry with no list gets no brands.
      */

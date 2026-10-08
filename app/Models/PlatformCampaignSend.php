@@ -5,7 +5,6 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 
-/** MARKER-PLATFORM-EMAIL */
 class PlatformCampaignSend extends Model
 {
     use HasUuids;

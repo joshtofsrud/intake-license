@@ -1,6 +1,6 @@
 <?php
 
-// MARKER-PICKUP-OUTREACH — bookings that skipped the pickup-window choice
+// bookings that skipped the pickup-window choice
 // carry a pending flag until staff arrange pickup (assigning a route window
 // or clearing it manually clears the flag).
 

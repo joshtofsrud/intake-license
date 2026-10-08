@@ -1,4 +1,4 @@
-{{-- MARKER-PATCH-348 — Branded graphical invoice. Table-based for dompdf
+{{-- Branded graphical invoice. Table-based for dompdf
      (no flex/grid/svg/shadow). Dark header band with embedded logo (base64,
      since dompdf has remote images disabled) and a wordmark fallback; asset
      work-cards with a parts & products rail; dark totals panel. Logo height is
@@ -246,7 +246,6 @@
           <div class="panel">
             <table>
               <tr><td>Subtotal</td><td class="v">{{ format_money($subtotal) }}</td></tr>
-              {{-- MARKER-DOC-DISCOUNT --}}
               @if((int) ($discount ?? 0) > 0)
               <tr><td>{{ !empty($discount_code) ? 'Discount (' . $discount_code . ')' : 'Discount' }}</td><td class="v">&minus;{{ format_money($discount) }}</td></tr>
               @endif

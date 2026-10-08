@@ -1,4 +1,4 @@
-{{-- MARKER-SX-MULTI — multi-pick dropdown for master admin filters, built to
+{{-- multi-pick dropdown for master admin filters, built to
      behave like the tenant admin's searchable select (x-tenant.searchable-select):
      a search box that filters as you type and highlights the match, ticks on
      picked rows, arrow keys + Enter, and a count in the footer. Alpine owns the
@@ -52,7 +52,7 @@
 </div>
 @once
 <style>
-/* MARKER-SX-MULTI — same shape as the tenant searchable select, in the Prospects page's colours */
+/* same shape as the tenant searchable select, in the Prospects page's colours */
 .sxm{position:relative}
 .sxm-btn{width:100%;display:flex;align-items:center;justify-content:space-between;gap:10px;background-color:rgba(255,255,255,.04);
   border:1px solid var(--sx-line-2,rgba(255,255,255,.14));border-radius:7px;padding:6px 10px;font-size:13px;color:inherit;cursor:pointer;text-align:left;font-family:inherit}

@@ -16,11 +16,11 @@ class BookingController extends Controller
     {
         $tenant = tenant();
 
-        // MARKER-PATCH-599 — prep extracted to BookingFormData so the
+        // prep extracted to BookingFormData so the
         // booking_embed page-builder section renders from the same source.
         extract(\App\Services\Tenant\BookingFormData::for($tenant));
 
-        // MARKER-FLOW-3 — booking flow mode (advanced | simple | choice).
+        // booking flow mode (advanced | simple | choice).
         // Simple and choice are lighter front-ends onto the same endpoints;
         // advanced is unchanged. A single-item Simple booking submits the exact
         // same payload as a one-item advanced booking, so no backend change.
@@ -29,7 +29,7 @@ class BookingController extends Controller
         $flow     = request()->query('flow');
 
         if ($flowSvc->showFork($flowMode, $flow)) {
-            return view('public.booking-choice', compact('bk', 'flowMode', 'bookingSections')); // MARKER-PATCH-604
+            return view('public.booking-choice', compact('bk', 'flowMode', 'bookingSections'));
         }
 
         $simpleServices = $flowSvc->simpleServices($tenant);
@@ -39,7 +39,7 @@ class BookingController extends Controller
             'catalog', 'formSections', 'receivingMethods',
             'stripeEnabled', 'paypalEnabled', 'stripePublishableKey', 'paypalClientId',
             'bookingMode', 'resources', 'bk', 'simpleServices', 'flowMode',
-            'bookingSections' // MARKER-PATCH-604
+            'bookingSections'
         ));
     }
 
@@ -58,7 +58,7 @@ class BookingController extends Controller
         $month      = (int) $request->input('month');
         $serviceId  = $request->input('service_id');
 
-        $capacityMap = []; // MARKER-PATCH-517
+        $capacityMap = [];
         $dates = $booking->availableDates($tenant, $year, $month, $serviceId, $capacityMap);
 
         $available   = array_flip($dates);
@@ -83,7 +83,7 @@ class BookingController extends Controller
             $earliest = ['date' => $dates[0], 'time' => null];
         }
 
-        // MARKER-PATCH-511 — Pickup & delivery: per-date route windows with
+        // Pickup & delivery: per-date route windows with
         // remaining stop counts. Only present when the tenant runs routes;
         // the P2b frontend renders it, older frontends ignore the key.
         $pdWindows = [];
@@ -171,11 +171,11 @@ class BookingController extends Controller
             'unavailable_dates' => $unavailable,
             'earliest'          => $earliest,
             'slots'             => $slots,
-            'pd_windows'        => $pdWindows, // MARKER-PATCH-511
-            'capacity'          => $capacityMap, // MARKER-PATCH-517
-            'pd_need_by'        => ! empty($pdWindows) && (bool) (((array) ($tenant->settings ?? []))['pd_need_by_enabled'] ?? true), // MARKER-PATCH-519
-            'pd_lead_days'      => (int) (((array) ($tenant->settings ?? []))['pd_pickup_lead_days'] ?? 1), // MARKER-PATCH-520
-            'pd_allow_day_of'   => (bool) (((array) ($tenant->settings ?? []))['pd_allow_day_of'] ?? false), // MARKER-PATCH-524
+            'pd_windows'        => $pdWindows,
+            'capacity'          => $capacityMap,
+            'pd_need_by'        => ! empty($pdWindows) && (bool) (((array) ($tenant->settings ?? []))['pd_need_by_enabled'] ?? true),
+            'pd_lead_days'      => (int) (((array) ($tenant->settings ?? []))['pd_pickup_lead_days'] ?? 1),
+            'pd_allow_day_of'   => (bool) (((array) ($tenant->settings ?? []))['pd_allow_day_of'] ?? false),
             'slot_resources'    => $slotResources,
             'mode'              => $mode,
         ]);
@@ -189,10 +189,10 @@ class BookingController extends Controller
             'email'                   => ['required', 'email', 'max:191'],
             'phone'                   => ['nullable', 'string', 'max:32'],
             'date'                    => ['required', 'date', 'after_or_equal:today'],
-            'route_window_id'         => ['nullable', 'uuid'], // MARKER-PATCH-512
-            'pickup_outreach'         => ['nullable', 'boolean'], // MARKER-PICKUP-OUTREACH
-            'pickup_date'             => ['nullable', 'date', 'after_or_equal:today', 'before_or_equal:date'], // MARKER-PATCH-520
-            'need_by'                 => ['nullable', 'date', 'after_or_equal:date'], // MARKER-PATCH-512
+            'route_window_id'         => ['nullable', 'uuid'],
+            'pickup_outreach'         => ['nullable', 'boolean'],
+            'pickup_date'             => ['nullable', 'date', 'after_or_equal:today', 'before_or_equal:date'],
+            'need_by'                 => ['nullable', 'date', 'after_or_equal:date'],
             'appointment_time'        => ['nullable', 'string'],
             'resource_id'             => ['nullable', 'string', 'uuid'],
             'receiving_method'        => ['nullable', 'string'],
@@ -203,7 +203,7 @@ class BookingController extends Controller
             'responses'               => ['nullable', 'array'],
             'response_labels'         => ['nullable', 'array'],
             'payment_method'          => ['required', 'in:stripe,paypal,none'],
-            // MARKER-PATCH-216 — multi-asset booking persistence
+            // multi-asset booking persistence
             'customer_id'                => ['nullable', 'string', 'uuid'],
             'items.*.asset_client_key'   => ['nullable', 'string', 'max:64'],
             'assets'                     => ['nullable', 'array', 'max:25'],
@@ -214,7 +214,7 @@ class BookingController extends Controller
 
         $tenant = tenant();
 
-        // MARKER-PATCH-385 — Card deposits use charge-then-create: reserve a slot
+        // Card deposits use charge-then-create: reserve a slot
         // and a PaymentIntent now, and materialize the appointment only after the
         // card clears (see finalize()). Non-card paths fall through to the
         // original create-then-charge flow below.
@@ -342,7 +342,7 @@ class BookingController extends Controller
             ]);
         }
 
-        // MARKER-PATCH-385 — card path is handled at the top of submit()
+        // card path is handled at the top of submit()
         // (charge-then-create); the old StripeService branch is retired.
 
         if ($paymentMethod === 'paypal') {
@@ -362,13 +362,13 @@ class BookingController extends Controller
     }
 
     /**
-     * MARKER-PATCH-385 — Materialize a paid booking hold into an appointment.
+     * Materialize a paid booking hold into an appointment.
      * Called by the browser after the card confirms. Verifies the PaymentIntent
      * actually succeeded against Stripe (never trusts the client), then writes
      * the appointment via BookingService::materialize (idempotent).
      */
     /**
-     * MARKER-HOLD-RELEASE — a failed payment releases its hold immediately,
+     * a failed payment releases its hold immediately,
      * so a retry can never collide with its own ghost. Token-authenticated
      * (same secret the browser holds for finalize); releasing is only ever
      * capacity-freeing, so the endpoint is safe to expose.
@@ -422,7 +422,7 @@ class BookingController extends Controller
             $appt = app(BookingService::class)->materialize($pending);
         } catch (RuntimeException $e) {
             \Illuminate\Support\Facades\Log::error('booking.materialize_failed', ['tenant_id' => $tenant->id, 'pending_id' => $pending->id, 'pi' => $pending->stripe_payment_intent_id, 'error' => $e->getMessage()]);
-            \App\Services\BookingService::recordFailedPaid($pending, $e->getMessage()); // MARKER-FAILED-PAID
+            \App\Services\BookingService::recordFailedPaid($pending, $e->getMessage());
             return response()->json(['success' => false, 'message' => 'Your payment went through but that time was just taken. We will reach out to reschedule.'], 409);
         }
 

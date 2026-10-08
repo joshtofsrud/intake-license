@@ -1,4 +1,4 @@
-{{-- MARKER-PATCH-158-G19 — Hero public renderer (Phase 2 v2 fields) --}}
+{{-- Hero public renderer (Phase 2 v2 fields) --}}
 @php
   // Height presets (Layout tab)
   $heights = ['small'=>'380px','medium'=>'520px','large'=>'680px','fullscreen'=>'100vh'];
@@ -24,7 +24,6 @@
   $gradFrom= $c['bg_gradient_from'] ?? '#1a1a1a';
   $gradTo  = $c['bg_gradient_to']   ?? '#0a0a0a';
   $gradDeg = (int)($c['bg_gradient_angle'] ?? 135);
-    // MARKER-HERO-VIDEO
     $vidUrl  = trim((string) ($c['bg_video_url'] ?? ''));
     if ($vidUrl !== '' && ! preg_match('#^(https?://|/)#i', $vidUrl)) $vidUrl = '';
     $vidType = preg_match('/\.webm($|\?)/i', $vidUrl) ? 'video/webm' : 'video/mp4';
@@ -38,7 +37,7 @@
   // Overlay
   $overlayOpacity = max(0, min(100, (int)($c['bg_overlay_opacity'] ?? 45)));
   $overlayColor   = $c['bg_overlay_color'] ?? '#000000';
-  // MARKER-PATCH-299 — bake overlay alpha into rgba so the veil keeps
+  // bake overlay alpha into rgba so the veil keeps
   // opacity:1; browsers drop backdrop-filter blur when the element's own
   // opacity is < 1, which silently disabled the Background blur control.
   $_ovh = ltrim($overlayColor, '#');
@@ -46,7 +45,7 @@
   if (strlen($_ovh) !== 6) { $_ovh = '000000'; }
   $overlayRgba = 'rgba('.hexdec(substr($_ovh,0,2)).','.hexdec(substr($_ovh,2,2)).','.hexdec(substr($_ovh,4,2)).','.round($overlayOpacity / 100, 3).')';
 
-  // MARKER-PATCH-249 — parallax + blur (image mode only; ?? everywhere,
+  // parallax + blur (image mode only; ?? everywhere,
   // pre-249 rows lack these keys).
   $hasImage   = $bgMode === 'image' && $imgUrl;
   $parallaxOn = $hasImage && (($c['bg_parallax'] ?? '0') === '1');
@@ -57,7 +56,7 @@
 
   // Colors
   $textColor     = $c['text_color']      ?? '#ffffff';
-  // MARKER-PATCH-158-G19B — Use ?? (null-coalesce) not ?: (truthy-or). Older
+  // Use ?? (null-coalesce) not ?: (truthy-or). Older
   // hero rows seeded before G19 don't have these keys, so ?: blows up on
   // "undefined array key". ?? checks for existence first.
   $textColorBody = ($c['text_color_body'] ?? '') ?: null;
@@ -67,8 +66,8 @@
   $buttons = $c['buttons'] ?? [];
   if (is_string($buttons)) { $d = json_decode($buttons, true); $buttons = is_array($d) ? $d : []; }
   if (!is_array($buttons)) $buttons = [];
-  $heroPill = ($c['buttons_style'] ?? 'separate') === 'pill'; // MARKER-HERO-PILL
-  if (empty($buttons) && ! array_key_exists('buttons', $c) && !empty($c['cta_primary_label'] ?? '')) { // MARKER-HERO-NO-LEGACY-CTA
+  $heroPill = ($c['buttons_style'] ?? 'separate') === 'pill';
+  if (empty($buttons) && ! array_key_exists('buttons', $c) && !empty($c['cta_primary_label'] ?? '')) {
       $buttons[] = ['label' => $c['cta_primary_label'], 'url' => $c['cta_primary_url'] ?? '/', 'style' => 'primary'];
       if (!empty($c['cta_secondary_label'] ?? '')) {
           $buttons[] = ['label' => $c['cta_secondary_label'], 'url' => $c['cta_secondary_url'] ?? '#', 'style' => 'outline'];
@@ -93,7 +92,7 @@
   $hideMobile  = !empty($c['hide_on_mobile']);
   $hideDesktop = !empty($c['hide_on_desktop']);
 
-  // MARKER-PATCH-158-G21 — typography size overrides. Auto preserves the
+  // typography size overrides. Auto preserves the
   // responsive clamp() default; named presets use fixed sizes.
   $headlineSizeMap = [
       'auto'   => 'clamp(32px, 6vw, 64px)',
@@ -131,7 +130,7 @@
   background-size: {{ $imgSize }};
   background-position: {{ $imgPos }};
   @elseif($parallaxOn)
-  background-color: {{ $bgColor }}; {{-- MARKER-PATCH-249 — image moves to .p-hero-bg --}}
+  background-color: {{ $bgColor }}; {{-- image moves to .p-hero-bg --}}
   @elseif($bgMode === 'gradient')
   background: linear-gradient({{ $gradDeg }}deg, {{ $gradFrom }} 0%, {{ $gradTo }} 100%);
   @else
@@ -148,7 +147,7 @@
 }
 @endif
 @if($parallaxOn)
-.{{ $instId }} .p-hero-bg { {{-- MARKER-PATCH-249 --}}
+.{{ $instId }} .p-hero-bg {
   position: absolute;
   left: 0; right: 0; top: -18%; bottom: -18%;
   background-color: {{ $bgColor }};
@@ -161,7 +160,7 @@
 }
 @endif
 @if($useVeil)
-.{{ $instId }} .p-hero-veil { {{-- MARKER-PATCH-249 --}}
+.{{ $instId }} .p-hero-veil {
   position: absolute; inset: 0;
   @if($overlayOpacity > 0)
   background: {{ $overlayRgba }};
@@ -182,7 +181,7 @@
   max-width: {{ $maxW }}px;
   padding: 0 clamp(20px, 5vw, 48px);
   text-align: {{ $hAlign }};
-  {{-- MARKER-PATCH-270 — always center the content area so it keeps its side
+  {{-- always center the content area so it keeps its side
        gutter at any alignment; text_align controls text only (matches
        cta_banner + the grid sections, instead of pinning left-aligned heroes
        to the viewport edge). --}}
@@ -207,7 +206,7 @@
   color: {{ $textColor }};
 }
 .{{ $instId }} .p-hero-accent {
-  /* MARKER-PATCH-158-G21A — color only; weight inherits from headline */
+  /* color only; weight inherits from headline */
   color: {{ $accentColor ?? '#BEF264' }};
 }
 .{{ $instId }} .p-hero-sub {
@@ -267,14 +266,12 @@
   text-decoration: underline;
   text-underline-offset: 4px;
 }
-/* MARKER-HERO-PILL */
 .{{ $instId }} .p-hero-pill { display: inline-flex; flex-wrap: wrap; gap: 4px; padding: 5px; border-radius: 999px; max-width: 100%; background: rgba(10,10,10,.45); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border: 1px solid rgba(255,255,255,.14); }
 .{{ $instId }} .p-hero-pill .p-hero-btn { border-radius: 999px; }
 .{{ $instId }} .p-hero-btn--pilllink { background: transparent; color: {{ $textColor }}; opacity: .85; }
-.{{ $instId }} .p-hero-btn--pilllink { transition: background-color .2s ease, opacity .2s ease; } /* MARKER-HERO-PILL-HOVER */
+.{{ $instId }} .p-hero-btn--pilllink { transition: background-color .2s ease, opacity .2s ease; }
 .{{ $instId }} .p-hero-btn--pilllink:hover, .{{ $instId }} .p-hero-btn--pilllink:focus-visible { opacity: 1; background: color-mix(in srgb, {{ $textColor }} 12%, transparent); }
 .{{ $instId }} .p-hero-btn--pilllink:hover { opacity: 1; }
-/* MARKER-HERO-PILL-MOBILE */
 @media (max-width: 600px) {
   .{{ $instId }} .p-hero-pill { display: flex; flex-direction: column; width: 100%; border-radius: 22px; gap: 2px; padding: 6px; }
   .{{ $instId }} .p-hero-pill .p-hero-btn { width: 100%; justify-content: center; text-align: center; box-sizing: border-box; }
@@ -295,7 +292,7 @@
 
 <section class="{{ $instId }} p-hero {{ $customClass }}" @if($anchorId) id="{{ $anchorId }}" @endif>
 @if($vidUrl !== '')
-{{-- MARKER-HERO-VIDEO — muted, looped, inline; the background image (if any) is the poster and the fallback --}}
+{{-- muted, looped, inline; the background image (if any) is the poster and the fallback --}}
 <style>
   .{{ $instId }} { position: relative; overflow: hidden; isolation: isolate; }
   .{{ $instId }} > .p-hero-video, .{{ $instId }} > .p-hero-vdim { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: -1; } /* behind everything in the hero, above its background */
@@ -308,7 +305,7 @@
 <div class="p-hero-vdim" aria-hidden="true"></div>
 @endif
 
-  {{-- MARKER-PATCH-249 — layered background: bg (moves) under veil (overlay+blur) under content. --}}
+  {{-- layered background: bg (moves) under veil (overlay+blur) under content. --}}
   @if($parallaxOn)<div class="p-hero-bg" data-ia-parallax="{{ $pDepth }}"></div>@endif
   @if($useVeil)<div class="p-hero-veil"></div>@endif
   <div class="p-hero-content">
@@ -346,7 +343,7 @@
 </section>
 
 @if($parallaxOn)
-{{-- MARKER-PATCH-249 — one shared rAF-throttled driver per page, bound once
+{{-- one shared rAF-throttled driver per page, bound once
      no matter how many parallax heroes render. transform-based (never
      background-attachment:fixed). prefers-reduced-motion disables entirely. --}}
 <script>

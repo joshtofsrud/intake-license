@@ -1,5 +1,4 @@
 <?php
-// MARKER-PATCH-226
 
 namespace App\Models\Tenant;
 
@@ -22,12 +21,12 @@ class TenantRentalModel extends Model
     protected $table = 'tenant_rental_models';
 
     protected $fillable = [
-        'tenant_id', 'category_id', 'name', 'subtitle', 'image_url', // MARKER-RENTAL-MODEL-PHOTOS
+        'tenant_id', 'category_id', 'name', 'subtitle', 'image_url',
         'hourly_rate_cents', 'daily_rate_cents', 'weekend_rate_cents',
         'seasonal_rate_cents', 'deposit_cents', 'condition_template_id',
         'sort_order', 'archived_at',
-        'identifiers', // MARKER-FLEET-IDENT
-        'photos',      // MARKER-FLEET-PHOTOS
+        'identifiers',
+        'photos',
     ];
 
     protected $casts = [
@@ -38,8 +37,8 @@ class TenantRentalModel extends Model
         'deposit_cents'       => 'integer',
         'sort_order'          => 'integer',
         'archived_at'         => 'datetime',
-        'identifiers'         => 'array', // MARKER-FLEET-IDENT
-        'photos'              => 'array', // MARKER-FLEET-PHOTOS
+        'identifiers'         => 'array',
+        'photos'              => 'array',
     ];
 
     public function tenant(): BelongsTo

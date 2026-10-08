@@ -1,14 +1,13 @@
 @extends('layouts.tenant.app')
 @php $pageTitle = 'Catalog Attention'; @endphp
 
-{{-- MARKER-PATCH-HLC7C --}}
 
 @push('styles')
 <style>
 .at-card{background:var(--ia-surface);border:.5px solid var(--ia-border);border-radius:var(--ia-r-lg);padding:20px;margin-bottom:18px}
 .at-chips{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px}
 .at-chip{background:var(--ia-surface-2);border:.5px solid var(--ia-border);border-radius:var(--ia-r-md);padding:11px 16px;min-width:120px}
-/* MARKER-ATTENTION-TILES — a tile is a control now, so it looks like one. */
+/* a tile is a control now, so it looks like one. */
 a.at-chip{display:block;text-decoration:none;color:inherit;cursor:pointer;transition:border-color .12s,background .12s}
 a.at-chip:hover{border-color:var(--ia-border-strong)}
 a.at-chip.on{border-color:var(--ia-accent);background:rgba(224,166,75,.10)}
@@ -21,14 +20,13 @@ a.at-chip.on .k{color:var(--ia-accent)}
 .at-tbl td{padding:11px 10px;border-bottom:.5px solid var(--ia-border);vertical-align:middle}
 .at-mono{font-family:var(--ia-mono)}
 .at-badge{display:inline-block;font-size:11px;font-weight:600;padding:2px 8px;border-radius:20px}
-/* MARKER-PATCH-558 */
 .at-sync{display:flex;align-items:stretch;background:var(--ia-surface);border:0.5px solid var(--ia-border);border-radius:14px;margin-bottom:20px;overflow:hidden}
 .at-sync-stat{padding:16px 20px;border-right:0.5px solid var(--ia-border);flex:1;min-width:0}
 .at-sync-stat .k{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ia-text-muted);font-weight:600}
 .at-sync-stat .v{font-size:15px;font-weight:700;margin-top:5px}
 .at-sync-stat .d{font-size:11.5px;color:var(--ia-text-muted);margin-top:2px}
 .at-sync-act{padding:14px 18px;display:flex;flex-direction:column;justify-content:center;gap:8px;flex:none;min-width:230px}
-/* MARKER-DUP-CALLOUT — the only new rules; fonts and everything else are the page's own. */
+/* the only new rules; fonts and everything else are the page's own. */
 .at-dup{border-color:var(--ia-accent);background:linear-gradient(0deg,var(--ia-accent-soft),var(--ia-accent-soft)),var(--ia-surface)}
 .at-dup-num{flex:0 0 auto;display:flex;flex-direction:column;justify-content:center}
 .at-dup-v{font-size:34px;font-weight:700;line-height:1;color:var(--ia-accent)}
@@ -41,21 +39,20 @@ a.at-chip.on .k{color:var(--ia-accent)}
 .at-chg{font-size:12.5px;line-height:1.6;max-width:430px}
 .at-chg .old{color:var(--ia-text-muted);text-decoration:line-through;text-decoration-color:rgba(242,109,109,.55)}
 .at-hl{background:rgba(205,233,138,.16);border-radius:3px;padding:0 2px;color:#cde98a}
-/* MARKER-ATTENTION-AUTOFILTER */
 .at-legend{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:11.5px;
   color:var(--ia-text-dim);margin:6px 2px 10px}
 .at-legend-more{background:none;border:0;padding:0;font:inherit;font-size:11.5px;
   color:var(--ia-text-muted);text-decoration:underline;cursor:pointer}
-/* MARKER-ATTENTION-FILTERROW — desktop keeps the toggle on its own line. */
+/* desktop keeps the toggle on its own line. */
 .at-filter{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
 .at-filter .at-seg{flex:0 0 100%;margin-top:2px}
-.at-pager-top{display:none} /* MARKER-ATTENTION-TIGHT — mobile only */
-/* MARKER-ATTENTION-ACTIONS — the same hook the Communication Center uses to get
+.at-pager-top{display:none} /* mobile only */
+/* the same hook the Communication Center uses to get
    the tab bar out of the way while something is being edited. */
 body.at-bar-open .ia-mobile-nav{display:none}
 .at-bar .at-btn[hidden]{display:none !important}
 
-/* MARKER-ATTENTION-MOBILE — below 720px the table becomes cards. The markup is
+/* below 720px the table becomes cards. The markup is
    unchanged: these rows live inside the bulk-action form and carry the
    checkboxes selection depends on, so this is done by changing how they are
    displayed rather than by rebuilding them. */
@@ -74,7 +71,7 @@ body.at-bar-open .ia-mobile-nav{display:none}
 .at-segbtn{padding:8px 16px;font-size:13px;font-weight:600;color:var(--ia-text-dim);text-decoration:none;border-right:1px solid var(--ia-border-strong)}
 .at-segbtn:last-child{border-right:0}
 .at-segbtn.active{background:var(--ia-accent);color:var(--ia-accent-text)}
-/* MARKER-ATTENTION-SLIM — hidden until something is selected. A sticky bar
+/* hidden until something is selected. A sticky bar
    that is always there covers the row you are reading, and on a phone it
    covered the diff you are being asked to judge. */
 .at-bar[hidden]{display:none !important}
@@ -89,7 +86,7 @@ body.at-bar-open .ia-mobile-nav{display:none}
 .at-toggle{font-size:12px;color:var(--ia-text-dim)}
 .at-toggle a{color:var(--ia-accent);text-decoration:none}
 
-/* MARKER-ATTENTION-CSSORDER — the mobile block lives at the END of the sheet.
+/* the mobile block lives at the END of the sheet.
    It was at the top, ahead of the base .at-btn and .at-sel rules; equal
    specificity means the later rule wins, so every button rule in here was
    silently discarded and three rounds of tuning changed nothing. An override
@@ -98,7 +95,7 @@ body.at-bar-open .ia-mobile-nav{display:none}
 
   /* the sync card: four across becomes one per row */
   .at-sync{flex-direction:column}
-  /* MARKER-ATTENTION-TIGHT — label and value share a line; this was three
+  /* label and value share a line; this was three
      stacked blocks and a button, which filled a phone screen on its own. */
   .at-sync-stat{border-right:0;border-bottom:.5px solid var(--ia-border);padding:8px 13px;
     display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
@@ -121,12 +118,12 @@ body.at-bar-open .ia-mobile-nav{display:none}
      toggle sharing the last line instead of taking two of their own */
   .at-filter{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
   .at-filter select{flex:1 1 46%;min-width:0}
-  /* MARKER-ATTENTION-ROWHEIGHT — one strip, one height. Clear sized itself from
+  /* one strip, one height. Clear sized itself from
      its padding and the toggle from its segment buttons, so the two sat at
      different heights beside each other and the row looked broken. Stretching
      the row and letting both fill it keeps them level whatever the padding or
      font does. */
-  /* MARKER-ATTENTION-ROWFIX — ONE height for everything in this strip. Trying
+  /* ONE height for everything in this strip. Trying
      to match paddings put Clear first taller than the toggle, then shorter:
      with no vertical padding it falls back to its line-height while the
      segment buttons keep theirs. A fixed height cannot drift. */
@@ -219,7 +216,7 @@ body.at-bar-open .ia-mobile-nav{display:none}
   /* the page title and the history link stop fighting for one line */
   .ia-page-head{flex-wrap:wrap}
 
-  /* MARKER-CLEARNAV-DIALOG — scroll room after the list. Without it the last
+  /* scroll room after the list. Without it the last
      card's own buttons sit behind the fixed tab bar — and behind the sticky
      bulk bar when a selection is active — with no way to scroll them clear. */
   .at-pager-bottom{padding-bottom:calc(88px + env(safe-area-inset-bottom, 0px))}
@@ -230,20 +227,20 @@ body.at-bar-open .ia-mobile-nav{display:none}
 @section('content')
 @php
   $fmt = fn($c) => $c !== null ? '$' . number_format($c/100, 2) : '—';
-  // MARKER-PATCH-558 — plain speech, not jargon
+  // plain speech, not jargon
   $badge = function($r){
     return match($r){
       'below_map'     => ['at-b-map','Below MAP'],
       'off_msrp'      => ['at-b-msrp','Off MSRP'],
       'title_changed' => ['at-b-title','Renamed by distributor'],
-      'details_changed' => ['at-b-title','Details updated'], // MARKER-DETAILS-WATCH
+      'details_changed' => ['at-b-title','Details updated'],
       'cost_vanished' => ['at-b-van','Cost removed'],
       'map_vanished'  => ['at-b-van','MAP removed'],
       'msrp_vanished' => ['at-b-van','MSRP removed'],
       default         => ['at-b-van', str_replace('_',' ', $r)],
     };
   };
-  // MARKER-PATCH-558 — highlight words in $new that aren't in $old
+  // highlight words in $new that aren't in $old
   $wordDiff = function(?string $old, ?string $new): string {
     if (blank($new)) return '—';
     $oldWords = array_map('mb_strtolower', preg_split('/\s+/', (string) $old) ?: []);
@@ -253,24 +250,23 @@ body.at-bar-open .ia-mobile-nav{display:none}
         ->implode(' ');
   };
 @endphp
-<div class="ia-section ia-section--wide">{{-- MARKER-SECTION-WIDTH --}}
-  {{-- MARKER-ATTENTION-PER-DIST — this queue spans every connected
+<div class="ia-section ia-section--wide">
+  {{-- this queue spans every connected
        distributor, so it can't be titled after one of them. --}}
   <h1 style="font-size:20px;font-weight:600;margin-bottom:14px">Distributor catalogs</h1>
-  {{-- MARKER-CATALOG-UNDO --}}
   <a href="{{ route('tenant.distributors.attention.history') }}" class="ia-back-link" style="margin-left:auto">
     Change history
   </a>
   @include('layouts.tenant._inventory-tabs')
 
-  {{-- MARKER-ATTENTION-QUEUE — a bulk action big enough to be queued. --}}
+  {{-- a bulk action big enough to be queued. --}}
   @if(cache()->has(\App\Jobs\ResolvePricingAttentionJob::runningKey(tenant()->id)))
     <div class="at-sync" style="padding:14px 18px;margin-bottom:14px">
       Applying your last bulk action in the background. This list empties as it finishes — refresh to see progress.
     </div>
   @endif
 
-  {{-- MARKER-DUP-CALLOUT — duplicates, laid out like the sync card below (its own
+  {{-- duplicates, laid out like the sync card below (its own
        .at-sync cells and .at-btn) so it belongs to the page; the accent border and
        tint put it above it. Only the .at-dup rules are new CSS. --}}
   @php
@@ -301,7 +297,7 @@ body.at-bar-open .ia-mobile-nav{display:none}
     </div>
   @endif
 
-  {{-- MARKER-PATCH-558 — sync status card (supersedes the 555 button row):
+  {{-- sync status card (supersedes the 555 button row):
      plain language for shop owners, not developers. --}}
   @php
     $srStats = $lastSyncRun ? (json_decode($lastSyncRun->stats ?? '[]', true) ?: []) : [];
@@ -350,13 +346,13 @@ body.at-bar-open .ia-mobile-nav{display:none}
     </div>
   </div>
 
-  {{-- MARKER-ATTENTION-TILES — the counts are the filter. Reading a tile then
+  {{-- the counts are the filter. Reading a tile then
        hunting for the same value in a dropdown was four steps to act on a
        number already on the screen. Brand, category and stock are carried
        through: a tile narrows by reason, it does not quietly drop the rest. --}}
   @php
     $tileHref = function (?string $reason) use ($filters, $stock) {
-        // MARKER-ATTENTION-TILES-FIX — the names the PAGE reads. f_brand and
+        // the names the PAGE reads. f_brand and
         // friends are the hidden inputs on the bulk-action POST form, and
         // nothing reads them from the query string, so tiles built with those
         // reloaded the page unchanged.
@@ -393,19 +389,16 @@ body.at-bar-open .ia-mobile-nav{display:none}
 
   <form method="GET" action="{{ route('tenant.distributors.attention') }}" class="at-filter" id="at-filter-form">
     @if($stock !== 'all')<input type="hidden" name="stock" value="{{ $stock }}">@endif
-    {{-- MARKER-SSEL-FILTERS --}}
     <div style="min-width:170px">
       <x-tenant.searchable-select name="brand" :options="collect($brandOptions ?? [])->values()->all()"
         :selected="(string) ($filters['brand'] ?? '')" any="All brands" noun="brands"
         :searchable="count($brandOptions ?? []) >= 12" />
     </div>
-    {{-- MARKER-SSEL-FILTERS --}}
     <div style="min-width:190px">
       <x-tenant.searchable-select name="category" :options="collect($categoryOptions ?? [])->values()->all()"
         :selected="(string) ($filters['category'] ?? '')" any="All categories" noun="categories"
         :searchable="count($categoryOptions ?? []) >= 12" />
     </div>
-    {{-- MARKER-SSEL-FILTERS --}}
     <div style="min-width:170px">
       <x-tenant.searchable-select name="reason" :assoc="true" :searchable="false"
         :options="[
@@ -416,13 +409,12 @@ body.at-bar-open .ia-mobile-nav{display:none}
         ]"
         :selected="(string) ($filters['reason'] ?? '')" any="All reasons" noun="reasons" />
     </div>
-    {{-- MARKER-SSEL-FILTERS / MARKER-ATTENTION-SCALE --}}
     <div style="min-width:120px">
       <x-tenant.searchable-select name="per" :assoc="true" :searchable="false"
         :options="['50' => '50 / page', '100' => '100 / page', '250' => '250 / page']"
         :selected="(string) ($perPage ?? 100)" any="" noun="page sizes" />
     </div>
-    {{-- MARKER-ATTENTION-AUTOFILTER — the dropdowns submit themselves. The
+    {{-- the dropdowns submit themselves. The
          button survives only where scripting does not: without this, turning
          off JS would leave the filters unusable rather than just clunkier. --}}
     <noscript><button class="at-btn primary" type="submit">Filter</button></noscript>
@@ -430,7 +422,7 @@ body.at-bar-open .ia-mobile-nav{display:none}
       <a class="at-btn" href="{{ route('tenant.distributors.attention', $stock !== 'all' ? ['stock' => $stock] : []) }}">Clear</a>
     @endif
 
-    {{-- MARKER-ATTENTION-FILTERROW — the stock toggle lives inside the filter
+    {{-- the stock toggle lives inside the filter
          form now, so it can share the button's line on a phone. It is links,
          not inputs: nothing about what the form submits changes. --}}
     @php
@@ -450,16 +442,16 @@ body.at-bar-open .ia-mobile-nav{display:none}
 
 
 
-  {{-- MARKER-TITLE-RATIO -- legend: name edits below the threshold never
+  {{-- legend: name edits below the threshold never
        reach this page; the stored baseline adopts them silently. --}}
-  {{-- MARKER-ATTENTION-AUTOFILTER — the count is the useful part and stays
+  {{-- the count is the useful part and stays
        visible; the explanation is worth reading once, not every visit. --}}
   @php
     $legend = 'Name changes under ' . ($titleThresholdPct ?? 15) . '% are treated as cosmetic feed edits and adopted silently — they never appear here and never touch your item names. The counts above cover all open flags.';
   @endphp
   <div class="at-legend">
     <span>Showing {{ $flags->count() }} of {{ $flags->total() }} matching the filter.</span>
-    {{-- MARKER-ATTENTION-ALWAYS — always on screen, whether or not anything
+    {{-- always on screen, whether or not anything
          is ticked. It was previously hidden until every row on the page was
          selected, which meant nobody found it. --}}
     @if($flags->total() > $flags->count())
@@ -480,10 +472,10 @@ body.at-bar-open .ia-mobile-nav{display:none}
   @if($flags->isEmpty())
     <div class="at-card"><div class="at-empty"><div class="big">✓</div>All clear — no pricing attention needed right now.</div></div>
   @else
-    {{-- MARKER-BULK-WORKING — 9,105 rows through one request looked like a
+    {{-- 9,105 rows through one request looked like a
          dead browser. --}}
     <form method="POST" action="{{ route('tenant.distributors.attention.resolve') }}"
-          data-bulk-count="auto" data-bulk-all="{{ $flags->total() }}"{{-- MARKER-BULK-WORKING-SCOPE --}}>
+          data-bulk-count="auto" data-bulk-all="{{ $flags->total() }}">
       @csrf
       <input type="hidden" name="action" id="at-action" value="">
       <input type="hidden" name="f_brand" value="{{ $filters['brand'] ?? '' }}">
@@ -491,35 +483,35 @@ body.at-bar-open .ia-mobile-nav{display:none}
       <input type="hidden" name="f_reason" value="{{ $filters['reason'] ?? '' }}">
       <input type="hidden" name="f_stock" value="{{ $stock }}">
       <script>function setAct(a){document.getElementById('at-action').value=a;}</script>
-      {{-- MARKER-ATTENTION-TIGHT — with 100 cards a page, the pager at the
+      {{-- with 100 cards a page, the pager at the
            bottom is a very long scroll away on a phone. --}}
       <div class="at-pager-top">{{ $flags->links() }}</div>
       <table class="at-tbl">
           <thead><tr>
-            {{-- MARKER-ATTENTION-SELECT — this takes the rows on THIS PAGE.
+            {{-- this takes the rows on THIS PAGE.
                  Everything matching the filter is a separate, stated choice. --}}
             <th style="width:28px"><input type="checkbox" id="at-all-page" onclick="atSelectPage(this.checked)"></th>
             <th style="width:24%">Item</th><th style="width:13%">What happened</th><th>The change</th><th style="text-align:right">Act on it</th>
           </tr></thead>
           <tbody>
-          {{-- MARKER-PATCH-558 — every row states the change itself --}}
+          {{-- every row states the change itself --}}
           @foreach($flags as $f)
             @php
               [$bc, $bl] = $badge($f->reason);
               $item = $f->item; $d = $f->detail ?? []; $cat = $item?->distributorCatalog;
-              // MARKER-ATTENTION-PER-DIST — which distributor raised this one.
+              // which distributor raised this one.
               $flagDist = $cat?->distributor_code;
               $sell = $item->shop_sell_price_cents ?? null;
             @endphp
             <tr>
-              {{-- MARKER-ATTENTION-ACTIONS — the reason travels with the row so
+              {{-- the reason travels with the row so
                    the bar can offer only what applies. --}}
               <td class="at-c-pick"><input class="at-cb" type="checkbox" name="flag_ids[]"
                   value="{{ $f->id }}" data-reason="{{ $f->reason }}"></td>
               <td class="at-c-item">
                 <div style="display:flex;align-items:center;gap:7px">
                   <div style="font-weight:600">{{ $item->name ?? '—' }}</div>
-                  {{-- MARKER-ATTENTION-ITEM-INFO — deciding on a rename needs to
+                  {{-- deciding on a rename needs to
                        see the item. Button, not a link: this row sits inside the
                        bulk-action form and a stray submit would act on other
                        flags. --}}
@@ -529,7 +521,7 @@ body.at-bar-open .ia-mobile-nav{display:none}
                             style="flex:none;width:18px;height:18px;border-radius:50%;border:1px solid var(--ia-border);background:none;color:var(--ia-text-dim);font-size:11px;font-weight:700;line-height:1;cursor:pointer;padding:0">i</button>
                   @endif
                 </div>
-                {{-- MARKER-BLADE-WORD-BOUNDARY — the directive must not touch the
+                {{-- the directive must not touch the
                      word before it. Blade's statement regex starts with \B@, so
                      a directive glued to the preceding word is left as literal
                      text while the matching
@@ -606,7 +598,7 @@ body.at-bar-open .ia-mobile-nav{display:none}
           </tbody>
       </table>
 
-      {{-- MARKER-ATTENTION-SELECT — the escalation, stated rather than ticked. --}}
+      {{-- the escalation, stated rather than ticked. --}}
       <div id="at-scope" class="at-scope" hidden>
         <span id="at-scope-text"></span>
         <a href="#" id="at-scope-link" onclick="return atScope(true)"></a>
@@ -622,20 +614,19 @@ body.at-bar-open .ia-mobile-nav{display:none}
         <button class="at-btn primary" type="submit" data-applies="price" onclick="setAct('raise_map')">Raise to MAP</button>
         <button class="at-btn" type="submit" data-applies="price" onclick="setAct('match_msrp')">Match MSRP</button>
         <button class="at-btn" type="submit" data-applies="any" onclick="setAct('acknowledge')">Dismiss</button>
-        {{-- MARKER-ATTENTION-SELECT — no longer a tick beside the buttons: the
+        {{-- no longer a tick beside the buttons: the
              scope is chosen above and shown in the label to the left. --}}
         <input type="checkbox" name="select_all" value="1" id="at-select-all" hidden>
       </div>
     </form>
-    <div style="margin-top:14px" class="at-pager-bottom">{{ $flags->links() }}</div> {{-- MARKER-ATTENTION-SCALE --}}
+    <div style="margin-top:14px" class="at-pager-bottom">{{ $flags->links() }}</div>
   @endif
 </div>
-{{-- MARKER-ATTENTION-ITEM-INFO — the same modal the register uses. --}}
+{{-- the same modal the register uses. --}}
 @include('tenant._item-detail-modal')
 
 @push('styles')
 <style>
-  /* MARKER-ATTENTION-SELECT */
   .at-scope{background:rgba(224,166,75,.10);border:.5px solid rgba(224,166,75,.4);
     border-radius:var(--ia-r-md);padding:10px 13px;margin-bottom:10px;font-size:12.5px;line-height:1.6}
   .at-scope.armed{background:rgba(240,138,138,.10);border-color:rgba(240,138,138,.45)}
@@ -649,13 +640,13 @@ body.at-bar-open .ia-mobile-nav{display:none}
 
 @push('scripts')
 <script>
-  // MARKER-ATTENTION-SELECT — two scopes, and the page always says which is in
+  // two scopes, and the page always says which is in
   // force. "This page" is what a checkbox can honestly mean when the rest are
   // not loaded; everything matching is a deliberate second step.
   (function () {
     var TOTAL = {{ (int) ($flags->total() ?? 0) }};
 
-    // MARKER-ATTENTION-SELECT-VISIBLE — count the checkboxes that are really
+    // count the checkboxes that are really
     // on the page, not the paginator's row count. They match today; if a row
     // ever renders without one, "every row ticked" would become unreachable
     // and the wider scope would vanish with it.
@@ -668,7 +659,7 @@ body.at-bar-open .ia-mobile-nav{display:none}
     };
 
     window.atScope = function (all) {
-      // MARKER-ATTENTION-RENDER — atRender() is what unhides the action bar.
+      // atRender() is what unhides the action bar.
       var box = document.getElementById('at-select-all');
       if (box) { box.checked = !!all; }
       if (all) {
@@ -696,7 +687,7 @@ body.at-bar-open .ia-mobile-nav{display:none}
         link.textContent = 'Select only this page instead';
         link.onclick = function () { return atScope(false); };
         if (label) { label.textContent = 'With all ' + TOTAL.toLocaleString() + ':'; }
-        // MARKER-ATTENTION-ARMED-BAR — this returned early, skipping the bar
+        // this returned early, skipping the bar
         // reveal and atActions() below. Cold Select-all ticked the rows and
         // showed nothing; the buttons never appeared.
         var barA = document.getElementById('at-bar');
@@ -710,7 +701,7 @@ body.at-bar-open .ia-mobile-nav{display:none}
 
       scope.classList.remove('armed');
 
-      // MARKER-ATTENTION-SELECT-VISIBLE — offered as soon as anything is
+      // offered as soon as anything is
       // selected. It used to need EVERY row on the page ticked first, so
       // nobody found it.
       var per = atPer();
@@ -728,14 +719,14 @@ body.at-bar-open .ia-mobile-nav{display:none}
         label.textContent = picked ? 'With ' + picked.toLocaleString() + ' selected:' : 'With selected:';
       }
 
-      // MARKER-ATTENTION-SLIM — the bar only exists when it has something to
+      // the bar only exists when it has something to
       // act on, so it never sits on top of the row being read.
       var bar = document.getElementById('at-bar');
       if (bar) {
         var show = !!(all || picked);
         bar.hidden = !show;
 
-        // MARKER-ATTENTION-ACTIONS — two fixed bars at the bottom of a phone
+        // two fixed bars at the bottom of a phone
         // leaves nothing to read. Same hook the Communication Center uses.
         document.body.classList.toggle('at-bar-open', show);
 
@@ -752,7 +743,7 @@ body.at-bar-open .ia-mobile-nav{display:none}
       }
     });
 
-    // MARKER-ATTENTION-ACTIONS — show only the buttons the selection can use,
+    // show only the buttons the selection can use,
     // with the number each will affect. Offering "Raise to MAP" for a rename
     // makes the bar a liar: the controller skips it and says nothing.
     function atActions(all, picked) {
@@ -794,12 +785,12 @@ body.at-bar-open .ia-mobile-nav{display:none}
       });
     }
 
-    // MARKER-ATTENTION-AUTOFILTER — a dropdown IS the filter. Only submit on a
+    // a dropdown IS the filter. Only submit on a
     // real change, so re-picking the same value does not reload the page.
     document.addEventListener('DOMContentLoaded', function () {
       var form = document.getElementById('at-filter-form');
       if (!form) { return; }
-      // MARKER-SSEL-FILTERS — the filters are components now, so there are no
+      // the filters are components now, so there are no
       // <select> elements to bind. Their hidden inputs dispatch the same
       // `change`, so listening on the form catches every one, including any
       // added later.

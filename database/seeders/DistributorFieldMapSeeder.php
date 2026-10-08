@@ -1,5 +1,4 @@
 <?php
-// MARKER-PATCH-HLC3A
 
 namespace Database\Seeders;
 
@@ -75,7 +74,7 @@ class DistributorFieldMapSeeder extends Seeder
 
             // open-ended specs + audit
             ['attributes', 'Attributes', 'json_passthrough', null, null, 'lossless; curate later'],
-            // MARKER-PICK-ATTR — the NAMES. size_id/color_id above are HLC's
+            // the NAMES. size_id/color_id above are HLC's
             // opaque codes, which the title templates use as tokens; these are
             // the human-readable values the item form shows.
             ['color', 'Attributes', 'pick_attribute', ['names' => ['Color', 'Colour', 'Primary Color']], null, null],

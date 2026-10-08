@@ -1,5 +1,4 @@
 <?php
-// MARKER-SALES-FIND
 namespace App\Filament\Resources\SalesTerritoryResource\Pages;
 
 use App\Filament\Resources\SalesTerritoryResource;

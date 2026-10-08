@@ -1,5 +1,5 @@
 <?php
-// MARKER-PATCH-614 — guardrail: close punches left open past a cap so a
+// guardrail: close punches left open past a cap so a
 // forgotten clock-out doesn't bill 14h. Flags for manager review + audits.
 
 namespace App\Console\Commands;
@@ -39,7 +39,7 @@ class AutoCloseTimePunches extends Command
             $count++;
         }
 
-        // MARKER-PATCH-628 — $capHours only exists inside the loop; with zero
+        // $capHours only exists inside the loop; with zero
         // open punches this line fataled every hour since ship.
         $this->info("Auto-closed {$count} open punch(es).");
         return self::SUCCESS;

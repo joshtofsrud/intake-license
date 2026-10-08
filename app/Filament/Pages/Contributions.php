@@ -2,13 +2,12 @@
 
 namespace App\Filament\Pages;
 
-// MARKER-CONTRIBUTIONS
 use App\Models\Contribution;
 use Filament\Pages\Page;
 
 class Contributions extends Page
 {
-    use \App\Support\UsesAdminNav; // MARKER-NAV-ORDER
+    use \App\Support\UsesAdminNav;
     protected static ?string $navigationIcon  = 'heroicon-o-hand-raised';
     protected static ?string $navigationGroup = 'Raise';
     protected static ?string $navigationLabel = 'Contributions';

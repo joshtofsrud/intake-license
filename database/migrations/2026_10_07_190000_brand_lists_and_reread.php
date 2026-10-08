@@ -1,5 +1,5 @@
 <?php
-// MARKER-BRAND-LIST — each industry gets its own "Brands to look for" list; the
+// each industry gets its own "Brands to look for" list; the
 // bike list is filled in. Owner names the old pattern got wrong ("here every
 // single") are cleared, and every shop the website pass has read is read again
 // so brands and owners come from the new rules.

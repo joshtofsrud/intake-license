@@ -12,7 +12,7 @@ class EditTenant extends EditRecord
     protected static string $resource = TenantResource::class;
 
     /**
-     * MARKER-TENANTS-POLISH — Impersonate from the tenant's own page, the same
+     * Impersonate from the tenant's own page, the same
      * POST the card's menu makes, so an accidental card click is one tap away.
      */
     protected function getHeaderActions(): array
@@ -33,7 +33,7 @@ class EditTenant extends EditRecord
     }
 
     /**
-     * MARKER-OWNER-FIELDS-SAVE — the owner_* fields are dehydrated(false)
+     * the owner_* fields are dehydrated(false)
      * because they are not columns on `tenants`. They were also never written
      * anywhere, so edits vanished. Write them to the owner's row here.
      */

@@ -1,5 +1,4 @@
 <?php
-// MARKER-SALES-CORE
 
 namespace App\Filament\Resources;
 
@@ -22,8 +21,8 @@ use Illuminate\Database\Eloquent\Builder;
  */
 class SalesProspectResource extends Resource
 {
-    use \App\Support\UsesAdminNav; // MARKER-NAV-ORDER
-    use \App\Support\GatedByAdminArea; // MARKER-ADMIN-NAV-GATE
+    use \App\Support\UsesAdminNav;
+    use \App\Support\GatedByAdminArea;
     protected static string $adminArea = 'crm';
 
     protected static ?string $model = SalesProspect::class;
@@ -31,7 +30,7 @@ class SalesProspectResource extends Resource
     protected static ?string $navigationIcon  = 'heroicon-o-flag';
     protected static ?string $navigationGroup = 'Sales';
     protected static ?string $navigationLabel = 'Prospects';
-    protected static bool $shouldRegisterNavigation = false; // MARKER-SALES-PROSPECTS2 — the Prospects page (SalesPipeline) replaces this list; edit/create stay
+    protected static bool $shouldRegisterNavigation = false; // the Prospects page (SalesPipeline) replaces this list; edit/create stay
     protected static ?int    $navigationSort  = 20;
     protected static ?string $recordTitleAttribute = 'shop';
     protected static ?string $modelLabel       = 'prospect';
@@ -123,7 +122,7 @@ class SalesProspectResource extends Resource
                             ->map(fn ($cents, $key) => ucfirst($key) . ' — $' . number_format($cents / 100) . '/mo')
                             ->all())
                         ->placeholder('— no quote yet —'),
-                    Forms\Components\ViewField::make('quote_addons') // MARKER-QUOTE-GROUPED
+                    Forms\Components\ViewField::make('quote_addons')
                         ->label('Add-ons')->columnSpanFull()->default([])
                         ->view('filament.forms.quote-grouped-addons', [
                             'rate'      => \App\Models\SalesProspect::COMMISSION_YEAR1,
@@ -139,7 +138,7 @@ class SalesProspectResource extends Resource
                 Forms\Components\TextInput::make('address')->maxLength(255)->columnSpanFull(),
             ]),
 
-            // MARKER-SALES-SITE-SCAN — read-only: what the website pass found.
+            // read-only: what the website pass found.
             Forms\Components\Section::make('From their website')->collapsed()
                 ->description('Filled by the website pass. Email and owner above are only filled when they were empty.')
                 ->visible(fn (?SalesProspect $record) => $record?->site_scanned_at !== null)
@@ -285,7 +284,7 @@ class SalesProspectResource extends Resource
                     ->label('Agency')
                     ->options(fn () => \App\Models\SalesAgency::query()->orderBy('name')->pluck('name', 'id')->all()),
                 Tables\Filters\SelectFilter::make('loop')->options(SalesProspect::LOOPS),
-                Tables\Filters\SelectFilter::make('territory_id')->label('Territory') // MARKER-SALES-FIND
+                Tables\Filters\SelectFilter::make('territory_id')->label('Territory')
                     ->options(fn () => \App\Models\SalesTerritory::query()->orderBy('priority')->pluck('name', 'id')->all()),
                 Tables\Filters\SelectFilter::make('state')
                     ->options(fn () => SalesProspect::query()
@@ -296,7 +295,7 @@ class SalesProspectResource extends Resource
                     ->label('Business status')->options(SalesProspect::BUSINESS_STATUSES),
                 Tables\Filters\Filter::make('operational')
                     ->label('Hide closed shops')
-                    ->query(fn (Builder $query) => $query->operational()) // MARKER-SALES-QUERYPARAM
+                    ->query(fn (Builder $query) => $query->operational())
                     ->toggle(),
                 Tables\Filters\TernaryFilter::make('verified'),
                 Tables\Filters\TernaryFilter::make('tenant_id')
@@ -306,7 +305,7 @@ class SalesProspectResource extends Resource
                     ->falseLabel('Not yet tenants'),
                 Tables\Filters\Filter::make('due')
                     ->label('Action due')
-                    ->query(fn (Builder $query) => $query->whereNotNull('next_action_on')->whereDate('next_action_on', '<=', now())) // MARKER-SALES-QUERYPARAM
+                    ->query(fn (Builder $query) => $query->whereNotNull('next_action_on')->whereDate('next_action_on', '<=', now()))
                     ->toggle(),
             ])
             ->actions([
@@ -335,7 +334,7 @@ class SalesProspectResource extends Resource
                 Tables\Actions\EditAction::make(),
             ])
             ->bulkActions([
-                // MARKER-SALES-ROUTE — bulk enrichment, capped so a stray select-all can't run up the Places bill.
+                // bulk enrichment, capped so a stray select-all can't run up the Places bill.
                 Tables\Actions\BulkAction::make('pullDetails')
                     ->label('Pull details from Places')->icon('heroicon-o-arrow-down-tray')
                     ->requiresConfirmation()
@@ -351,7 +350,7 @@ class SalesProspectResource extends Resource
                         Notification::make()->title("$ok updated" . ($none ? ", $none not found" : ''))->body($err ?: '')->{$err ? 'danger' : 'success'}()->send();
                     })
                     ->deselectRecordsAfterCompletion(),
-                // MARKER-SALES-FIND — bulk assignment; the /rep panel only shows a prospect once it has an agency or rep.
+                // bulk assignment; the /rep panel only shows a prospect once it has an agency or rep.
                 Tables\Actions\BulkAction::make('assignTerritory')
                     ->label('Assign by territory')->icon('heroicon-o-map')
                     ->requiresConfirmation()
@@ -392,7 +391,7 @@ class SalesProspectResource extends Resource
         return [ActivitiesRelationManager::class];
     }
 
-    // MARKER-SALES-WIDGETREG — registers the funnel widget as a Livewire component
+    // registers the funnel widget as a Livewire component
     public static function getWidgets(): array
     {
         return [

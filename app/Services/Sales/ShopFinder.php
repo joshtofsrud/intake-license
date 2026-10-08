@@ -1,5 +1,5 @@
 <?php
-// MARKER-SALES-FIND — search Places, mark each result against prospects and tenants, add the ones chosen.
+// search Places, mark each result against prospects and tenants, add the ones chosen.
 
 namespace App\Services\Sales;
 
@@ -13,7 +13,7 @@ use Illuminate\Support\Str;
 
 class ShopFinder
 {
-    // MARKER-SALES-INDUSTRY — the industry list lives on the Industries page (sales_channels.places_query).
+    // the industry list lives on the Industries page (sales_channels.places_query).
 
     /**
      * @return array{located:?string, results:array<int,array>, requests:int, cost_cents:int, error:?string}
@@ -95,7 +95,7 @@ class ShopFinder
             } elseif (isset($tenantNames[Str::lower($r['shop'])])) {
                 $r['status'] = 'tenant';
             }
-            $r['loop'] = LoopLocator::forPoint($r['state'], $r['lat'], $r['lng'] ?? null); // MARKER-SALES-TERRITORY2
+            $r['loop'] = LoopLocator::forPoint($r['state'], $r['lat'], $r['lng'] ?? null);
             $t = TerritoryResolver::resolve($r['state'], $r['lat'], $r['lng'] ?? null, $r['loop']);
             $r['territory']       = $t?->name;
             $r['territory_owner'] = $t?->ownerLabel();
@@ -107,7 +107,7 @@ class ShopFinder
     /** Creates a prospect from a normalised result. Returns the row (existing one if the place id already exists). */
     public function add(array $r, bool $autoAssign, ?string $searchedPlace = null, ?string $by = null, ?string $channelId = null): SalesProspect
     {
-        $channel = $channelId ? SalesChannel::find($channelId) : null; // MARKER-SALES-INDUSTRY
+        $channel = $channelId ? SalesChannel::find($channelId) : null;
         if ($r['place_id'] && ($existing = SalesProspect::where('google_place_id', $r['place_id'])->first())) {
             return $existing;
         }
@@ -119,7 +119,7 @@ class ShopFinder
             'address'         => $r['address'],
             'lat'             => $r['lat'],
             'lng'             => $r['lng'],
-            'loop'            => $r['loop'] ?? LoopLocator::forPoint($r['state'], $r['lat'], $r['lng']), // MARKER-SALES-TERRITORY2
+            'loop'            => $r['loop'] ?? LoopLocator::forPoint($r['state'], $r['lat'], $r['lng']),
             'google_place_id' => $r['place_id'],
             'google_maps_url' => $r['maps_url'],
             'website'         => $r['website'],

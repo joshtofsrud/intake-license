@@ -11,7 +11,7 @@ use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
 
-// MARKER-PLAN-PRICING — plan prices, and prices scheduled ahead.
+// plan prices, and prices scheduled ahead.
 class PlanPriceResource extends Resource
 {
     use \App\Support\GatedByAdminArea;

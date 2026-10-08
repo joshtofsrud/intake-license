@@ -4,7 +4,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-// MARKER-TILES — both nullable and additive. A null dashboard_view means
+// both nullable and additive. A null dashboard_view means
 // the existing Overview dashboard, which is what every current user gets
 // until they choose otherwise.
 return new class extends Migration {

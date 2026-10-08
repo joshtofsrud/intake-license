@@ -351,7 +351,6 @@ class FitnessData implements IndustryDataContract
 
     public function bookingMode(): string { return 'time_slots'; }
 
-    // MARKER-PATCH-112-FITNESS
     public function inventoryCategories(): array
     {
         return [

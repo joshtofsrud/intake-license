@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
- * MARKER-PATCH-175 — One row per money event against a SALE.
+ * One row per money event against a SALE.
  *
  * The sale is the single money object; this ledger is the source of truth for
  * "how much has been paid on this sale." tenant_sales.payment_status is a
@@ -39,7 +39,7 @@ class TenantSalePayment extends Model
     protected $fillable = [
         'tenant_id',
         'sale_id',
-        'customer_id', // MARKER-PATCH-176 — always set for standalone refunds
+        'customer_id', // always set for standalone refunds
         'amount_cents',
         'kind',
         'source',
@@ -61,7 +61,7 @@ class TenantSalePayment extends Model
         return $this->belongsTo(TenantSale::class, 'sale_id');
     }
 
-    // MARKER-PATCH-176C — back-compat alias. The old appointment-payment model
+    // back-compat alias. The old appointment-payment model
     // exposed registerSale() (the sale that produced the payment, via
     // register_sale_id). On the sale ledger that IS the sale (via sale_id), so
     // registerSale() aliases sale(). Keeps the appointment detail view + the
@@ -72,7 +72,7 @@ class TenantSalePayment extends Model
         return $this->belongsTo(TenantSale::class, 'sale_id');
     }
 
-    // MARKER-PATCH-176 — a refund always has a customer; sale is optional.
+    // a refund always has a customer; sale is optional.
     public function customer(): BelongsTo
     {
         return $this->belongsTo(TenantCustomer::class, 'customer_id');
@@ -108,20 +108,20 @@ class TenantSalePayment extends Model
         return match ($this->method) {
             'cash'          => 'Cash',
             'card_terminal' => 'Card terminal',
-            'card'          => 'Card', // MARKER-PATCH-463 — manual/recorded card refunds & payments
+            'card'          => 'Card', // manual/recorded card refunds & payments
             'check'         => 'Check',
             'store_credit'  => 'Store credit',
             'mark_paid'     => 'Marked paid (no charge)',
             'stripe'        => 'Stripe',
             'paypal'        => 'PayPal',
-            'gift_card'     => 'Gift card',   // MARKER-TENDERFIX
-            'split'         => 'Split tender', // MARKER-TENDERFIX -- only appears if legs failed to record
+            'gift_card'     => 'Gift card',
+            'split'         => 'Split tender', // only appears if legs failed to record
             default         => $this->manualMethodLabel(),
         };
     }
 
     /**
-     * MARKER-TENDERFIX -- manual tenders are tenant-defined: any method_key,
+     * manual tenders are tenant-defined: any method_key,
      * any display name ('custom_zelle' shown as 'Zelle — shop account'), so
      * the name has to come from the shop's own row, not from prettifying the
      * key. Deliberately NOT filtered on `enabled` — a shop that retires a

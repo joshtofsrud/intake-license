@@ -1,4 +1,3 @@
-{{-- MARKER-TITLE-CONTROL --}}
 <x-filament-panels::page>
 
 <style>

@@ -5,7 +5,7 @@ namespace App\Services\Tenant\Import;
 use App\Support\ImportFieldRegistry;
 
 /**
- * MARKER-IMPORT-MERGE — conflict analysis, shared by both importers.
+ * conflict analysis, shared by both importers.
  *
  * Answers "which fields does this file disagree with us about, and on how
  * many rows" BEFORE any direction rule is applied — which is the whole
@@ -235,7 +235,7 @@ trait AnalysesConflicts
     }
 
     /**
-     * MARKER-IMPORT-MERGE — a decision made on one row in the merge review
+     * a decision made on one row in the merge review
      * beats the rule set for the whole field. Called from buildRow(), which
      * is why it lives here rather than in the screen.
      */

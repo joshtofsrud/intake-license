@@ -32,7 +32,7 @@ class CalendarController extends Controller
             ? ['day', 'week', 'month']
             : ['day', 'week'];
 
-        // MARKER-PATCH-181 — remember the last Day/Week/Month choice. If ?view=
+        // remember the last Day/Week/Month choice. If ?view=
         // is given explicitly, honor it and persist it in a 1-year cookie. If
         // not (e.g. arriving from the nav), fall back to the remembered view,
         // then to 'day'.
@@ -282,7 +282,7 @@ class CalendarController extends Controller
             }
         }
 
-                // MARKER-APPT-PICKER — days holding an appointment staff added over
+                // days holding an appointment staff added over
         // the limit, with the real numbers so the banner can say 7 of 6.
         $overCapacityDays = [];
         $overDates = \App\Models\Tenant\TenantAppointment::where('tenant_id', tenant()->id)
@@ -576,7 +576,7 @@ return view('tenant.calendar.index', [
         $records = TenantCalendarBreak::where('tenant_id', $tenantId)
             ->where(function ($q) use ($date) {
                 $q->where(function ($q2) use ($date) {
-                    // MARKER-TZ-WAVE1 — starts_at is UTC; bound by the
+                    // starts_at is UTC; bound by the
                     // tenant day's UTC range instead of whereDate.
                     [$dS, $dE] = tenant_day_utc_range($date);
                     $q2->where('is_recurring', false)
@@ -606,7 +606,7 @@ return view('tenant.calendar.index', [
             })
             ->where(function ($q) use ($date) {
                 $q->where(function ($q2) use ($date) {
-                    // MARKER-TZ-WAVE1 — starts_at is UTC; bound by the
+                    // starts_at is UTC; bound by the
                     // tenant day's UTC range instead of whereDate.
                     [$dS, $dE] = tenant_day_utc_range($date);
                     $q2->where('is_recurring', false)

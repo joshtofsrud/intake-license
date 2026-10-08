@@ -4,7 +4,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-// MARKER-CAMPAIGN-HDR — per-campaign shop header toggle. Default true so
+// per-campaign shop header toggle. Default true so
 // existing campaigns keep the header they were built with.
 return new class extends Migration
 {

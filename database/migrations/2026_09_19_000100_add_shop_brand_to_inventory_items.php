@@ -5,7 +5,7 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * MARKER-IMPORT-MPN-BRAND — a brand the shop owns.
+ * a brand the shop owns.
  *
  * Brand has only ever come from a linked distributor catalog row, so an item
  * typed in by hand or loaded from a CSV had none — and sorted last under

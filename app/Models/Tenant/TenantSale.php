@@ -15,27 +15,27 @@ class TenantSale extends Model
     protected $table = 'tenant_sales';
 
     protected $fillable = [
-        'tenant_id', 'sale_number', 'client_uuid', 'sale_date', // MARKER-OFFLINE-SYNC client_uuid
+        'tenant_id', 'sale_number', 'client_uuid', 'sale_date', // client_uuid
         'status', 'payment_status',
         'customer_id', 'assigned_staff_id', 'appointment_id',
-        'tax_exempt_applied', 'tax_exempt_certificate', 'po_number', // MARKER-BIZ-TAX
-        'rental_id', // MARKER-PATCH-219B — sales-as-money for rentals
-        'lease_id',  // MARKER-PATCH-230 — sales-as-money for leases
+        'tax_exempt_applied', 'tax_exempt_certificate', 'po_number',
+        'rental_id', // sales-as-money for rentals
+        'lease_id',  // sales-as-money for leases
         'rang_up_by_user_id', 'refund_of_sale_id',
         'transaction_id',
         'was_quote',
         'notes',
         'metadata',
         'subtotal_cents', 'discount_cents', 'tax_cents',
-        'sale_discount_cents', 'discount_redemption_id', // MARKER-SALE-DISCOUNT
+        'sale_discount_cents', 'discount_redemption_id',
         'surcharge_cents', 'tip_cents', 'total_cents',
         'tax_locked',
         'paid_at', 'payment_method', 'payment_reference',
-        // MARKER-PATCH-170 — Direct Payments card metadata
+        // Direct Payments card metadata
         'stripe_payment_intent_id', 'stripe_charge_id',
         'card_brand', 'card_last4', 'card_funding',
         'checkout_session_id',
-        // MARKER-PATCH-171 — Stripe refund ID for refund-direction rows
+        // Stripe refund ID for refund-direction rows
         'stripe_refund_id',
         'register_id',
         'location_id',
@@ -46,7 +46,7 @@ class TenantSale extends Model
         'sale_date'      => 'date',
         'paid_at'        => 'datetime',
         'quote_expires_at' => 'datetime',
-        'held_at'        => 'datetime', // MARKER-HOLD
+        'held_at'        => 'datetime',
         'subtotal_cents' => 'integer',
         'discount_cents' => 'integer',
         'tax_cents'      => 'integer',
@@ -63,12 +63,12 @@ class TenantSale extends Model
     public function assignedStaff(): BelongsTo { return $this->belongsTo(TenantUser::class, 'assigned_staff_id'); }
     public function appointment(): BelongsTo   { return $this->belongsTo(TenantAppointment::class, 'appointment_id'); }
     public function location(): BelongsTo      { return $this->belongsTo(TenantLocation::class, 'location_id'); }
-    public function register(): BelongsTo      { return $this->belongsTo(TenantRegister::class, 'register_id'); } // MARKER-REGISTER-RECON-DISPLAY
+    public function register(): BelongsTo      { return $this->belongsTo(TenantRegister::class, 'register_id'); }
     public function rangUpBy(): BelongsTo      { return $this->belongsTo(TenantUser::class, 'rang_up_by_user_id'); }
     public function refundOf(): BelongsTo      { return $this->belongsTo(TenantSale::class, 'refund_of_sale_id'); }
     public function refunds(): HasMany         { return $this->hasMany(TenantSale::class, 'refund_of_sale_id'); }
     public function items(): HasMany           { return $this->hasMany(TenantSaleItem::class, 'sale_id'); }
-    // MARKER-PATCH-175 — sale payment ledger (source of truth for amount paid).
+    // sale payment ledger (source of truth for amount paid).
     public function payments(): HasMany        { return $this->hasMany(TenantSalePayment::class, 'sale_id'); }
 
     public function scopeActive($q)            { return $q->whereNotIn('status', ['cancelled']); }

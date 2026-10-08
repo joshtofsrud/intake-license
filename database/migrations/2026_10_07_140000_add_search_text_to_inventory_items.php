@@ -1,5 +1,5 @@
 <?php
-// MARKER-SEARCH-TEXT — stored search text and recent sales for staff search.
+// stored search text and recent sales for staff search.
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;

@@ -1,5 +1,5 @@
 <?php
-// MARKER-PATCH-219B — rentals adopt the sales-as-money model.
+// rentals adopt the sales-as-money model.
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;

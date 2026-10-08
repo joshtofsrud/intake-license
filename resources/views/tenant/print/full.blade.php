@@ -1,4 +1,4 @@
-{{-- MARKER-PATCH-341 — plain full-page renderer. Same section model as the
+{{-- plain full-page renderer. Same section model as the
      thermal view, laid out for a letter page on any office printer: black on
      white, larger type, real tables. Receives $identity, $doc, $embed. --}}
 @php

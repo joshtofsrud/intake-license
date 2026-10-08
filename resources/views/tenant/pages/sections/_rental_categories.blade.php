@@ -1,5 +1,5 @@
 {{--
-  MARKER-RENTAL-SECTIONS — rental_categories editor.
+  rental_categories editor.
   Every fleet category is a row: checkbox = include, drag handle = order.
   Saved as an ordered JSON array of category ids in content.category_ids.
 --}}
@@ -50,7 +50,7 @@
             <span>{{ $cat->name }}</span>
             <span style="margin-left:auto;font-size:11px;opacity:.5">{{ $cat->live_unit_count ?? 0 }} rentable</span>
           </label>
-          {{-- MARKER-RENTAL-SECTIONS — tile photo, picked from the fleet --}}
+          {{-- tile photo, picked from the fleet --}}
           @php $catModels = $rentalModelPhotos[$cat->id] ?? collect(); @endphp
           @if($catModels->isNotEmpty())
             <select class="pb2-input pb2-input-sm" data-rcat-photo style="max-width:150px" title="Tile photo">

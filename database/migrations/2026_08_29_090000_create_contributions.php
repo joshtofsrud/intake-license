@@ -4,7 +4,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-// MARKER-CONTRIBUTIONS — money given to the project, buying nothing.
+// money given to the project, buying nothing.
 // Deliberately NOT on the investors table: a contributor is not an investor
 // and must never appear on a cap table, in a total, or in a progress bar.
 return new class extends Migration

@@ -1,5 +1,5 @@
 <?php
-// MARKER-PATCH-610 — time clock: staff punches. clock_out_at nullable = on the clock.
+// time clock: staff punches. clock_out_at nullable = on the clock.
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;

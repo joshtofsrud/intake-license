@@ -1,5 +1,4 @@
 <?php
-// MARKER-AGENCIES-CORE
 
 namespace App\Models;
 

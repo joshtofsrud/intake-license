@@ -1,4 +1,4 @@
-{{-- MARKER-MKT-ANALYTICS — GA4, Google Tag Manager and Plausible for intake.works,
+{{-- GA4, Google Tag Manager and Plausible for intake.works,
      set in master admin › Site settings › Analytics. Loaded on every public
      intake.works page that carries the marketing tracker; never on booking
      management links or investor pages. Values are re-checked here so a bad

@@ -1,4 +1,4 @@
-{{-- MARKER-PATCH-514 — Round trip: the appointment's route legs.
+{{-- Round trip: the appointment's route legs.
      Renders nothing unless this appointment has pickup/delivery rows. --}}
 @php
   $rtLegs = \App\Models\Tenant\TenantDelivery::where('tenant_id', $appointment->tenant_id)
@@ -40,7 +40,7 @@
         <span style="font-weight:600">{{ tlocal_datetime($rtDropoff->scheduled_at, 'D M j · g:i A') }}</span>
         <span style="color:var(--ia-text-muted);font-size:11.5px">· {{ $rtDropoff->status }}</span>
       @elseif($appointment->status === 'completed' && $rtPickup)
-        {{-- MARKER-PATCH-515 — inline return scheduler at Ready --}}
+        {{-- inline return scheduler at Ready --}}
         @php
           $rtOptions = [];
           $rtWindows = \App\Models\Tenant\TenantRouteWindow::where('tenant_id', $appointment->tenant_id)->active()->get();

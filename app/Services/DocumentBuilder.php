@@ -16,7 +16,6 @@ use App\Support\DocumentOptions;
  * ordered list of typed sections. Header/footer/feed come from the print
  * identity (rendered by the shell), not from these sections.
  *
- * MARKER-PATCH-333 / MARKER-PATCH-335
  */
 class DocumentBuilder
 {
@@ -204,7 +203,7 @@ class DocumentBuilder
     private function totalRows(array $base): array
     {
         $rows = [['Subtotal', (int) $base['subtotal'], false]];
-        // MARKER-DOC-DISCOUNT — the discount already came off the total, so
+        // the discount already came off the total, so
         // omitting this row makes the document fail to add up.
         if ((int) ($base['discount'] ?? 0) > 0) {
             $label = ! empty($base['discount_code'])
@@ -224,7 +223,7 @@ class DocumentBuilder
         if ((int) $sale->discount_cents > 0) {
             $rows[] = ['Discount', (int) $sale->discount_cents, true];
         }
-        // MARKER-DOC-DISCOUNT — whole-sale discount (separate from the sum of
+        // whole-sale discount (separate from the sum of
         // item discounts above), which reduces the total and must be shown.
         if ((int) ($sale->sale_discount_cents ?? 0) > 0) {
             $rows[] = ['Discount', (int) $sale->sale_discount_cents, true];

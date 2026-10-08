@@ -1,5 +1,4 @@
 <?php
-// MARKER-DUP-MERGE
 
 namespace App\Services\Inventory;
 
@@ -57,7 +56,7 @@ class DuplicateItemMerger
             // Blanks on the kept item filled from the copies, in keep order.
             $fill = [];
             foreach ($losers as $id) {
-                // MARKER-DUP-PRICE-RULE — category, brand, color and size too: a
+                // category, brand, color and size too: a
                 // catalog copy is often uncategorised while the shop's copy isn't.
                 foreach (['shop_bin_location', 'shop_reorder_threshold', 'shop_reorder_quantity', 'shop_case_quantity',
                           'category_id', 'shop_brand', 'color', 'size'] as $col) {
@@ -75,7 +74,7 @@ class DuplicateItemMerger
                 $survivor->forceFill($fill)->save();
             }
 
-            // MARKER-DUP-PRICE-RULE — the kept (catalog) item carries the import's
+            // the kept (catalog) item carries the import's
             // seed price; a price the shop chose on another copy replaces it.
             $hasShopPrice = DuplicateItemFinder::isShopPrice($survivor);
 

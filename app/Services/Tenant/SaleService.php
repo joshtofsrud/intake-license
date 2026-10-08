@@ -25,7 +25,7 @@ class SaleService
      */
     public function nextSaleNumber(string $tenantId, ?string $saleDate = null): string
     {
-        // MARKER-PATCH-159 — tenant-local "today" for date-only sale_number generation
+        // tenant-local "today" for date-only sale_number generation
         $tenant = \App\Models\Tenant::find($tenantId);
         $tz = $tenant ? $tenant->timezone() : 'UTC';
         $date = $saleDate ? Carbon::parse($saleDate, $tz) : Carbon::today($tz);
@@ -77,7 +77,7 @@ class SaleService
 
         return DB::transaction(function () use ($data, $items) {
             $tenantId = $data['tenant_id'];
-            // MARKER-PATCH-159 — tenant-local today, not UTC
+            // tenant-local today, not UTC
             $saleDate = $data['sale_date'] ?? \App\Models\Tenant::find($data['tenant_id'])?->localToday()->toDateString() ?? Carbon::today()->toDateString();
 
             $sale = TenantSale::create([
@@ -87,22 +87,22 @@ class SaleService
                 'status'             => $data['status'] ?? 'pending',
                 'payment_status'     => $data['payment_status'] ?? 'unpaid',
                 'customer_id'        => $data['customer_id'] ?? null,
-                'po_number'          => $data['po_number'] ?? null, // MARKER-BIZ-PO
+                'po_number'          => $data['po_number'] ?? null,
                 'assigned_staff_id'  => $data['assigned_staff_id'] ?? null,
                 'appointment_id'     => $data['appointment_id'] ?? null,
                 'rang_up_by_user_id' => $data['rang_up_by_user_id'],
                 'location_id'        => $data['location_id'],
-                'register_id'        => $data['register_id'] ?? null, // MARKER-REGISTER-RECON-DISPLAY
-                'client_uuid'        => $data['client_uuid'] ?? null, // MARKER-OFFLINE-SYNC
+                'register_id'        => $data['register_id'] ?? null,
+                'client_uuid'        => $data['client_uuid'] ?? null,
                 'payment_method'     => $data['payment_method'] ?? null,
                 'payment_reference'  => $data['payment_reference'] ?? null,
-                // MARKER-PATCH-170 — Direct Payments card metadata
+                // Direct Payments card metadata
                 'stripe_payment_intent_id' => $data['stripe_payment_intent_id'] ?? null,
                 'stripe_charge_id'         => $data['stripe_charge_id']         ?? null,
                 'card_brand'               => $data['card_brand']               ?? null,
                 'card_last4'               => $data['card_last4']               ?? null,
                 'card_funding'             => $data['card_funding']             ?? null,
-                // MARKER-PATCH-172E — Checkout Session ID for send-payment-link flow.
+                // Checkout Session ID for send-payment-link flow.
                 // Missing this passthrough broke patch 172's draft-sale linkage.
                 'checkout_session_id'      => $data['checkout_session_id']      ?? null,
                 'paid_at'            => $data['paid_at'] ?? null,
@@ -113,7 +113,7 @@ class SaleService
                 'surcharge_cents'    => 0,
                 'tip_cents'          => (int) ($data['tip_cents'] ?? 0),
                 'total_cents'        => 0,
-                // MARKER-SALE-DISCOUNT — whole-sale discount. recalculate()
+                // whole-sale discount. recalculate()
                 // clamps it to the subtotal once the lines exist.
                 'sale_discount_cents'    => max(0, (int) ($data['sale_discount_cents'] ?? 0)),
                 'discount_redemption_id' => $data['discount_redemption_id'] ?? null,
@@ -129,7 +129,7 @@ class SaleService
             $sale->load('items');
             foreach ($sale->items as $line) {
                 if ($line->type === 'product') {
-                    // MARKER-RESERVE-OVERRIDE — only ever true when the
+                    // only ever true when the
                     // controller verified the capability.
                     $this->inventory->decrementForSaleItem(
                         $sale, $line, $data['location_id'], (bool) ($data['override_reserved'] ?? false)
@@ -139,7 +139,7 @@ class SaleService
 
             $finalSale = $this->recalculate($sale->fresh('items'));
 
-            // MARKER-GIFTCARDS -- inside the sale transaction, BEFORE the
+            // inside the sale transaction, BEFORE the
             // fail-open payment-ledger block: debit any gift-card tenders
             // (throws on unknown code / short balance, rolling everything
             // back) and activate any gift cards sold on this sale. Paid
@@ -150,7 +150,7 @@ class SaleService
                 $gifts->issueForSale($finalSale);
             }
 
-            // MARKER-PATCH-176 — record payment on the SALE ledger (createSale
+            // record payment on the SALE ledger (createSale
             // path). Mirrors the commit path; appointment reads it through its
             // sale. Refresh appointment paid_cents cache afterward.
             if ($finalSale->payment_status === 'paid') {
@@ -164,9 +164,9 @@ class SaleService
                         $kind = \App\Models\Tenant\TenantSalePayment::KIND_BALANCE;
                     }
 
-                    $this->recordRegisterPayments($finalSale, $data, $kind); // MARKER-SPLIT-TENDER
+                    $this->recordRegisterPayments($finalSale, $data, $kind);
 
-                    // MARKER-PATCH-219C — appointment paid cache cascades
+                    // appointment paid cache cascades
                     // centrally in SalePaymentService::recalcStatus().
                 } catch (\Throwable $e) {
                     \Illuminate\Support\Facades\Log::error('Sale payment ledger write failed (createSale)', [
@@ -224,7 +224,7 @@ class SaleService
                     'appointment_id'     => $data['appointment_id']     ?? $draft->appointment_id,
                     'location_id'        => $data['location_id'],
                     'tip_cents'          => (int) ($data['tip_cents'] ?? $draft->tip_cents),
-                    // MARKER-SALE-DISCOUNT-PERSIST — recalculate() clamps it to the sale.
+                    // recalculate() clamps it to the sale.
                     'sale_discount_cents' => (int) ($data['sale_discount_cents'] ?? $draft->sale_discount_cents),
                     'notes'              => $data['notes']              ?? $draft->notes,
                     'metadata'           => $data['metadata']           ?? $draft->metadata,
@@ -233,7 +233,7 @@ class SaleService
                 // Nuke-and-rebuild items. Drafts are transient; IDs don't matter.
                 $draft->items()->delete();
             } else {
-                // MARKER-PATCH-159 — tenant-local today, not UTC
+                // tenant-local today, not UTC
                 $saleDate = $data['sale_date'] ?? \App\Models\Tenant::find($data['tenant_id'])?->localToday()->toDateString() ?? Carbon::today()->toDateString();
                 $draft = TenantSale::create([
                     'tenant_id'          => $data['tenant_id'],
@@ -310,11 +310,11 @@ class SaleService
         }
 
         DB::transaction(function () use ($sale) {
-            // MARKER-SO-SALE-LINK — discarding a draft or quote retracts the
+            // discarding a draft or quote retracts the
             // special orders it requested. Orders already placed with a
             // vendor are left alone: goods may be inbound. Same rule as
             // removing a part from an appointment.
-            // MARKER-DISCARD-TENANT-SCOPE — was $tenantId, which is method
+            // was $tenantId, which is method
             // scope and was never imported into this closure; the row itself
             // carries the tenant, so read it from there.
             $orphans = \App\Models\Tenant\TenantSpecialOrder::where('tenant_id', $sale->tenant_id)
@@ -382,13 +382,13 @@ class SaleService
                 'customer_id'       => $customerId,
                 'payment_method'    => $data['payment_method']    ?? null,
                 'payment_reference' => $data['payment_reference'] ?? null,
-                // MARKER-PATCH-170 — Direct Payments card metadata
+                // Direct Payments card metadata
                 'stripe_payment_intent_id' => $data['stripe_payment_intent_id'] ?? null,
                 'stripe_charge_id'         => $data['stripe_charge_id']         ?? null,
                 'card_brand'               => $data['card_brand']               ?? null,
                 'card_last4'               => $data['card_last4']               ?? null,
                 'card_funding'             => $data['card_funding']             ?? null,
-                // MARKER-PATCH-172E — Checkout Session ID for send-payment-link flow.
+                // Checkout Session ID for send-payment-link flow.
                 // Missing this passthrough broke patch 172's draft-sale linkage.
                 'checkout_session_id'      => $data['checkout_session_id']      ?? null,
                 'paid_at'           => $paidAt,
@@ -403,13 +403,13 @@ class SaleService
                 if ($line->type === 'product') {
                     $this->inventory->decrementForSaleItem(
                         $sale, $line, $sale->location_id, (bool) ($data['override_reserved'] ?? false)
-                    ); // MARKER-RESERVE-OVERRIDE
+                    );
                 }
             }
 
             $finalSale = $this->recalculate($sale->fresh('items'));
 
-            // MARKER-GIFTCARDS -- same as createSale, but only when this
+            // same as createSale, but only when this
             // commit is actually taking payment (quotes/drafts committing to
             // unpaid states neither debit nor activate).
             if ($newPaymentStatus === 'paid') {
@@ -431,7 +431,7 @@ class SaleService
             // ledger write fails for some reason, the sale is still real
             // money and committed, and an admin can manually record the
             // payment row later. Logging surfaces the issue.
-            // MARKER-PATCH-176 — record the payment on the SALE ledger
+            // record the payment on the SALE ledger
             // (sales-as-money). Every paid sale gets a payment row here; if the
             // sale is appointment-linked, the appointment reads it THROUGH its
             // sale (see TenantAppointment::payments()). We then refresh the
@@ -453,9 +453,9 @@ class SaleService
                         $kind = \App\Models\Tenant\TenantSalePayment::KIND_BALANCE;
                     }
 
-                    $this->recordRegisterPayments($finalSale, $data, $kind); // MARKER-SPLIT-TENDER
+                    $this->recordRegisterPayments($finalSale, $data, $kind);
 
-                    // MARKER-PATCH-219C — appointment paid cache cascades
+                    // appointment paid cache cascades
                     // centrally in SalePaymentService::recalcStatus().
                 } catch (\Throwable $e) {
                     \Illuminate\Support\Facades\Log::error('Sale payment ledger write failed', [
@@ -522,7 +522,7 @@ class SaleService
         $inventoryItemId= $data['inventory_item_id'] ?? null;
         $giftCardId     = $data['gift_card_id'] ?? null;
 
-        // MARKER-GIFTCARDS -- gift lines carry their gift details in metadata
+        // gift lines carry their gift details in metadata
         // (survives drafts/quotes; commitDraft activates from the row). Tax
         // is charged when the card is SPENT, never when it is sold.
         $metadata = null;
@@ -539,7 +539,7 @@ class SaleService
         }
 
         // Snapshot from source records when available
-        // MARKER-REGISTER-LINE-FIX — these ids arrive from the browser. Looked
+        // these ids arrive from the browser. Looked
         // up unscoped, another shop's item could land on this sale and its
         // stock movement would hit that shop's inventory. Scoped to the
         // sale's shop, and an id that isn't this shop's refuses the line.
@@ -594,7 +594,7 @@ class SaleService
             'service_id'          => $serviceId,
             'inventory_item_id'   => $inventoryItemId,
             'gift_card_id'        => $giftCardId,
-            'metadata'            => $metadata ?? null, // MARKER-GIFTCARDS
+            'metadata'            => $metadata ?? null,
             'name_snapshot'       => $name,
             'description_snapshot'=> $description,
             'cost_cents_snapshot' => $costCents,
@@ -623,7 +623,7 @@ class SaleService
         $taxRate = (float) ($tenant->default_tax_rate ?? 0);
         $taxServicesByDefault = (bool) ($tenant->tax_services_default ?? true);
 
-        // MARKER-BIZ-TAX — a tax-exempt customer pays no line tax, and the
+        // a tax-exempt customer pays no line tax, and the
         // certificate is snapshotted onto the sale so a later edit to the
         // customer cannot rewrite what was true when it was rung up.
         // tax_locked sales are deliberately untouched: they carry
@@ -641,7 +641,7 @@ class SaleService
         $discount = 0;
         $tax      = 0;
 
-        // MARKER-SALE-DISCOUNT — a whole-sale discount reduces the taxable
+        // a whole-sale discount reduces the taxable
         // base, so it has to be spread over the lines before tax is figured.
         // Allocation is proportional to line_total with largest-remainder for
         // the odd cents, so the parts always sum to exactly the discount.
@@ -691,12 +691,12 @@ class SaleService
                 continue;
             }
 
-            $shouldTax = ! $isExempt // MARKER-BIZ-TAX
+            $shouldTax = ! $isExempt
                 && $item->is_taxable
                 && ($item->type !== 'service' || $taxServicesByDefault);
 
             if ($shouldTax && $taxRate > 0) {
-                // MARKER-SALE-DISCOUNT — tax the discounted base, not the gross.
+                // tax the discounted base, not the gross.
                 $lineTax = (int) round($taxableBase * ($taxRate / 100));
                 if ($lineTax !== $item->tax_cents
                     || (string) $taxRate !== (string) $item->tax_rate_snapshot) {
@@ -716,7 +716,7 @@ class SaleService
             }
         }
 
-        // MARKER-SALE-DISCOUNT — the whole-sale discount comes off the total.
+        // the whole-sale discount comes off the total.
         // subtotal_cents stays the gross of the lines, so a receipt can show
         // subtotal, then the discount, then tax.
         $total = max(0, $subtotal - $saleDiscount) + $tax + $sale->tip_cents + $sale->surcharge_cents;
@@ -729,7 +729,7 @@ class SaleService
             'total_cents'         => $total,
         ];
 
-        // MARKER-BIZ-TAX — audit stamp. Only written when this pass actually
+        // audit stamp. Only written when this pass actually
         // decided the tax (tax_locked sales keep whatever they carried).
         if (! $taxLocked) {
             $saleUpdate['tax_exempt_applied']     = $isExempt;
@@ -758,7 +758,7 @@ class SaleService
      *   notes (optional)
      *   item_ids (required, array of original sale_item ids to refund)
      */
-    /** MARKER-REFUND-QTY — where returned goods went. */
+    /** where returned goods went. */
     public const DISPOSITION_DEFAULT = 'restock';
     public const DISPOSITIONS = [
         'restock', 'open_box', 'damaged', 'defective',
@@ -783,7 +783,7 @@ class SaleService
         if ($original->refund_of_sale_id !== null) {
             throw new SaleValidationException('Cannot refund a refund row.');
         }
-        // MARKER-REFUND-QTY — the payload is now authoritative per line:
+        // the payload is now authoritative per line:
         //   items: [{sale_item_id, quantity, disposition}]
         // Legacy item_ids is still accepted and read as "the full remaining
         // quantity, restocked" so nothing in flight breaks.
@@ -840,7 +840,7 @@ class SaleService
         return DB::transaction(function () use ($data, $original, $itemsToRefund, $refundLocationId, $requested) {
             $tenantId = $data['tenant_id'];
 
-            // MARKER-REFUND-QTY — serialize concurrent refunds of the same
+            // serialize concurrent refunds of the same
             // sale: two registers must not both spend the same remainder.
             TenantSale::whereKey($original->id)->lockForUpdate()->first();
 
@@ -870,7 +870,7 @@ class SaleService
                     }
                 }
             }
-            // MARKER-PATCH-159 — tenant-local today for refund sale_date
+            // tenant-local today for refund sale_date
             $today = \App\Models\Tenant::find($tenantId)?->localToday()->toDateString() ?? Carbon::today()->toDateString();
             $reason = trim((string) ($data['reason'] ?? ''));
             $notes  = trim((string) ($data['notes'] ?? ''));
@@ -895,7 +895,7 @@ class SaleService
                 'surcharge_cents'    => 0,
                 'tip_cents'          => 0,
                 'total_cents'        => 0,
-                // MARKER-SALE-DISCOUNT — set below, once the refunded lines
+                // set below, once the refunded lines
                 // are known and the share of the sale discount can be figured.
                 'sale_discount_cents' => 0,
                 'paid_at'            => Carbon::now(),
@@ -905,7 +905,7 @@ class SaleService
             $position = 0;
             $appliedNow = [];
             foreach ($itemsToRefund as $orig) {
-                // MARKER-REFUND-QTY — the backend, not the browser, decides
+                // the backend, not the browser, decides
                 // how much may come back on this line.
                 $origQty   = (float) $orig->quantity;
                 $already   = (float) ($prior[$orig->id] ?? 0);
@@ -959,13 +959,13 @@ class SaleService
                     'assigned_staff_id'   => null,
                     'position'            => $position++,
                     'notes'               => null,
-                    'original_sale_item_id' => $orig->id,   // MARKER-REFUND-QTY
-                    'disposition'           => $dispo,      // MARKER-REFUND-QTY
+                    'original_sale_item_id' => $orig->id,
+                    'disposition'           => $dispo,
                 ]);
 
                 $appliedNow[$orig->id] = ($appliedNow[$orig->id] ?? 0) + $qty;
 
-                // MARKER-REFUND-QTY — only sellable dispositions put goods
+                // only sellable dispositions put goods
                 // back on the shelf. The rest record where the item went; the
                 // vendor-return / warranty workflows consume that data later.
                 if ($line->type === 'product' && in_array($dispo, self::DISPOSITIONS_RESTOCK, true)) {
@@ -977,7 +977,7 @@ class SaleService
                 throw new SaleValidationException('No refundable quantity selected.');
             }
 
-            // MARKER-REFUND-QTY — 'refunded' only when EVERY original line has
+            // 'refunded' only when EVERY original line has
             // been fully returned across all refunds; otherwise 'partial'.
             $allRefunded = true;
             foreach ($original->items as $o) {
@@ -991,7 +991,7 @@ class SaleService
                 'payment_status' => $allRefunded ? 'refunded' : 'partial',
             ]);
 
-            // MARKER-SALE-DISCOUNT — a refund gives back the same proportion of
+            // a refund gives back the same proportion of
             // the whole-sale discount as of the value being returned, so a
             // partial refund can't hand back more than was actually paid.
             $origSaleDiscount = (int) ($original->sale_discount_cents ?? 0);
@@ -1025,7 +1025,7 @@ class SaleService
             // Phase 1 limitation: refunds against a single inbound payment.
             // If refund amount exceeds that one row, we log and bail rather
             // than half-implementing a cascade across deposit + balance.
-            // MARKER-PATCH-176 — refund row on the SALE ledger. Identical-but-
+            // refund row on the SALE ledger. Identical-but-
             // repointed from the appointment ledger (the standalone/simplified
             // refund redesign is patch-177). We record a NEGATIVE row against
             // the ORIGINAL sale so its net paid drops and recalcStatus reflects
@@ -1066,7 +1066,7 @@ class SaleService
                             notes:              "Refund via sale {$finalRefund->sale_number}",
                         );
 
-                        // MARKER-PATCH-219C — appointment paid cache cascades
+                        // appointment paid cache cascades
                         // centrally in SalePaymentService::recalcStatus().
                     }
                 }
@@ -1116,7 +1116,7 @@ class SaleService
     public function createTransaction(array $data): array
     {
         $hasNewSale = !empty($data['items']);
-        $hasRefund  = !empty($data['refund']) && (!empty($data['refund']['item_ids']) || !empty($data['refund']['items'])); // MARKER-REFUND-QTY
+        $hasRefund  = !empty($data['refund']) && (!empty($data['refund']['item_ids']) || !empty($data['refund']['items']));
 
         if (!$hasNewSale && !$hasRefund) {
             throw new SaleValidationException(
@@ -1140,7 +1140,7 @@ class SaleService
                     'reason'             => $refundData['reason'] ?? null,
                     'notes'              => $refundData['notes'] ?? null,
                     'item_ids'           => $refundData['item_ids'] ?? null,
-                    'items'              => $refundData['items'] ?? null, // MARKER-REFUND-QTY
+                    'items'              => $refundData['items'] ?? null,
                 ]);
                 $refundRow->update(['transaction_id' => $transactionId]);
             }
@@ -1151,7 +1151,7 @@ class SaleService
                     'rang_up_by_user_id' => $data['rang_up_by_user_id'],
                     'location_id'        => $data['location_id'],
                     'customer_id'        => $data['customer_id'] ?? null,
-                'po_number'          => $data['po_number'] ?? null, // MARKER-BIZ-PO
+                'po_number'          => $data['po_number'] ?? null,
                     'status'             => 'completed',
                     'payment_status'     => $data['payment_status'] ?? 'paid',
                     'payment_method'     => $data['payment_method'] ?? null,
@@ -1174,7 +1174,7 @@ class SaleService
     }
 
     /**
-     * MARKER-SPLIT-TENDER — record register payments for a paid sale: one
+     * record register payments for a paid sale: one
      * ledger row per tender when a payments[] array was supplied (amounts
      * must sum to the sale total), else the single-tender row as before.
      */

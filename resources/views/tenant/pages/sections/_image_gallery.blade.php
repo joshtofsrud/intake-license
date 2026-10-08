@@ -1,5 +1,5 @@
 {{--
-  MARKER-PATCH-297 — image_gallery editor (v2 inspector partial).
+  image_gallery editor (v2 inspector partial).
   Previously absent, so the inspector fell back to the legacy _section.blade.php
   branch (columns/shape only, no way to add images). This is the full
   Content / Design / Advanced editor with an image-tile repeater.
@@ -75,7 +75,7 @@
     </div>
 
     <button type="button" class="pb2-addrow" id="pb2-gimg-add">+ Upload image</button>
-    <button type="button" class="pb2-addrow" id="pb2-gimg-lib" style="margin-top:6px">+ From library</button> {{-- MARKER-CAROUSEL-SECTION --}}
+    <button type="button" class="pb2-addrow" id="pb2-gimg-lib" style="margin-top:6px">+ From library</button>
     <div class="pb2-field-hint" style="margin-top:6px">JPG, PNG, WebP, or SVG &middot; 5 MB max each</div>
 
     <input type="hidden" data-field="images" id="pb2-gimg-json" value="{{ json_encode($images) }}">

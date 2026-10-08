@@ -4,7 +4,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-// MARKER-TIMECLOCK-EXEMPT — owners/salaried staff who never clock in
+// owners/salaried staff who never clock in
 // shouldn't see the persistent clock-in nudge on every page load.
 return new class extends Migration {
     public function up(): void

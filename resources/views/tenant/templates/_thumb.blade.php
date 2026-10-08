@@ -1,9 +1,9 @@
-{{-- MARKER-PATCH-263 — blueprint-driven mini-site preview. Renders the
+{{-- blueprint-driven mini-site preview. Renders the
      template's $layout (ordered blocks) using its $tokens, so each template
      draws its own SHAPE, not just its own colors. Same markup serves the
      card crop and the big modal (block CSS lives in templates/index). --}}
 @php
-  /* MARKER-CUSTOMIZER — every value is now a CSS variable read off this
+  /* every value is now a CSS variable read off this
      preview's own root, so the same markup serves the static template cards
      and the live customizer (which repaints by setting those variables).
      $tokenVars below is what declares them. */

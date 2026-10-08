@@ -1,5 +1,4 @@
 <?php
-// MARKER-EMAIL-LEDGER
 
 namespace App\Models\Tenant;
 
@@ -18,10 +17,10 @@ class TenantEmailLedgerEntry extends Model
     protected $fillable = [
         'tenant_id', 'kind', 'template_key', 'to_email',
         'rate', 'stream', 'status', 'campaign_id',
-        // MARKER-SMS-METER — the SMS half of the same ledger
+        // the SMS half of the same ledger
         'channel', 'segments', 'to_phone',
-        'is_free', // MARKER-EMAIL-RATES
-        'charge_run_id', // MARKER-BILLING-CHARGE
+        'is_free',
+        'charge_run_id',
     ];
 
     protected $casts = [

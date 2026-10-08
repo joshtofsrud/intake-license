@@ -1,10 +1,10 @@
 @php
   $current = request()->route()?->getName() ?? '';
-  // MARKER-NAV-ONE-LIST — one list for the sidebar and the phone drawer.
+  // one list for the sidebar and the phone drawer.
   $navItems = \App\Support\TenantNav::items();
 
-  // MARKER-NAV-REGROUP — Engage split into the three jobs it was doing.
-  // MARKER-NAV-MESSAGES — identical to _attention-row, so the sidebar count
+  // Engage split into the three jobs it was doing.
+  // identical to _attention-row, so the sidebar count
   // and the top-row count are the same number, not two guesses.
   $navInboxUnread = 0;
   if (tenant()->unified_inbox_enabled) {
@@ -36,13 +36,13 @@
     @continue
   @endif
 
-  {{-- MARKER-PATCH-493 — Roles & access: hide sections outside the user's role --}}
+  {{-- Roles & access: hide sections outside the user's role --}}
   @php $navSec = \App\Support\SectionRegistry::sectionForRoute($item['route']); @endphp
   @if($navSec && !empty($authUser) && !$authUser->canAccessSection($navSec))
     @continue
   @endif
 
-  {{-- MARKER-NAV-SPACING — the uppercase header already separates groups;
+  {{-- the uppercase header already separates groups;
        a divider on top of it stacked ~36px of dead space per boundary, and
        with five groups that reads as gappy rather than organized. --}}
   @if($item['group'] !== $lastGroup && $item['group'])
@@ -50,13 +50,13 @@
     @php $lastGroup = $item['group']; @endphp
   @endif
 
-  {{-- MARKER-SIDEBAR-COLLAPSE — title carries the label when collapsed; the
+  {{-- title carries the label when collapsed; the
        text itself stays in the DOM for screen readers rather than being
        display:none'd away. --}}
   <a href="{{ $url }}" class="ia-nav-item {{ $isActive ? 'active' : '' }}" title="{{ $item['label'] }}">
     {!! $item['icon'] !!}
     <span class="ia-nav-label">{{ $item['label'] }}</span>
-    {{-- MARKER-NAV-MESSAGES — inbox count is server-rendered; alerts is filled
+    {{-- inbox count is server-rendered; alerts is filled
          by the same feed the bell polls, so the two never disagree. --}}
     @if(($item['badge'] ?? null) === 'inbox' && $navInboxUnread > 0)
       <span class="ia-nav-badge">{{ $navInboxUnread > 99 ? '99+' : $navInboxUnread }}</span>
@@ -69,7 +69,6 @@
 
 
 
-{{-- MARKER-NAV-MESSAGES --}}
 <style>
   .ia-nav-item { position: relative; }
   .ia-nav-badge {

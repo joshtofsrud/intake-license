@@ -8,7 +8,7 @@ use App\Models\Tenant\TenantInventoryItem;
 use Illuminate\Console\Command;
 
 /**
- * MARKER-AUTOLINK — link already-created items to the catalog by identifier.
+ * link already-created items to the catalog by identifier.
  *
  * Calls the same method the save path uses, so the rules cannot drift: never
  * overwrites an existing link, requires exactly one match, active

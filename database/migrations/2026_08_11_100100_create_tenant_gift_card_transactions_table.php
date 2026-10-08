@@ -4,7 +4,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-// MARKER-GIFTCARDS — the ledger. amount_cents is signed (+credit / −debit);
+// the ledger. amount_cents is signed (+credit / −debit);
 // balance_after_cents lets the detail screen render running balances without
 // re-summing on every row.
 return new class extends Migration

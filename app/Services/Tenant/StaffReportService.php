@@ -88,7 +88,7 @@ class StaffReportService
         // tenant_users has only `name` — no first_name/last_name. When a resource
         // is staff-linked we surface the user name; otherwise fall back to the
         // resource name; otherwise the user is "Unassigned".
-        // MARKER-PATCH-185 — per-staff revenue = payments received (sale ledger),
+        // per-staff revenue = payments received (sale ledger),
         // attributed via payment -> sale -> appointment -> resource -> staff_user.
         // appt_count stays appointment-based (delivered jobs). recorded_at is UTC.
         $tzSt = $this->tenant->timezone();

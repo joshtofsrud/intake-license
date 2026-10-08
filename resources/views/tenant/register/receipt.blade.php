@@ -1,18 +1,18 @@
-{{-- MARKER-PATCH-319 — standalone 80mm sales receipt. Shares the work-order
+{{-- standalone 80mm sales receipt. Shares the work-order
      tag's print identity (logo, size, paper) and the same printable-width CSS
      so it never clips. Reads the sale off the record. Auto-prints unless embed. --}}
 @php
   $pageMm   = ($print['paper'] ?? '80mm') === '58mm' ? '46mm' : '70mm';
   $logoMax  = ['small'=>'12mm','medium'=>'18mm','large'=>'26mm','xl'=>'34mm'][$print['logo_size'] ?? 'medium'] ?? '18mm';
   $logoUrl  = $print['logo_path'] ? asset('storage/' . ltrim($print['logo_path'], '/')) : null;
-  $headerText = trim((string) ($print['header_text'] ?? '')); // MARKER-PATCH-330
-  $footerText = trim((string) ($print['footer_text'] ?? '')); // MARKER-PATCH-330
-  $feedMm   = (int) ($print['feed_mm'] ?? 0) > 0 ? ((int) $print['feed_mm']) . 'mm' : null; // MARKER-PATCH-320
+  $headerText = trim((string) ($print['header_text'] ?? ''));
+  $footerText = trim((string) ($print['footer_text'] ?? ''));
+  $feedMm   = (int) ($print['feed_mm'] ?? 0) > 0 ? ((int) $print['feed_mm']) . 'mm' : null;
   $sym      = $tenant->currency_symbol ?: '$';
   $m        = fn($c) => $sym . number_format(((int) $c) / 100, 2);
   $qfmt     = fn($q) => rtrim(rtrim(number_format((float) $q, 3), '0'), '.');
   $when     = $sale->paid_at ?? $sale->created_at;
-  // MARKER-BIZ-RECEIPT — a business is billed by its business name
+  // a business is billed by its business name
   $custName = $sale->customer
                 ? trim($sale->customer->fullName())
                 : null;
@@ -22,7 +22,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-{{-- MARKER-DOC-STATE — the browser tab and the print header say the same
+{{-- the browser tab and the print header say the same
      thing the document does. --}}
 <title>{{ ($plan ?? null) ? (($doc ?? '') === 'payment' ? 'Layaway payment' : 'Layaway agreement') : ($sale->payment_status === 'quote' ? 'Quote' : ($sale->payment_status === 'draft' ? 'Working copy' : 'Receipt')) }} {{ $sale->sale_number }}</title>
 <style>
@@ -77,10 +77,10 @@
       <div class="shop">{{ strtoupper($tenant->name ?? 'SHOP') }}</div>
     @endif
     @if($tenant->phone ?? null)<div class="meta">{{ $tenant->phone }}</div>@endif
-    @if($headerText)<div class="meta">{!! nl2br(e($headerText)) !!}</div>@endif{{-- MARKER-PATCH-330 --}}
+    @if($headerText)<div class="meta">{!! nl2br(e($headerText)) !!}</div>@endif
   </div>
 
-  {{-- MARKER-DOC-STATE — say what this document IS. Printing "RECEIPT" on a
+  {{-- say what this document IS. Printing "RECEIPT" on a
        draft, a quote or a layaway asserts a transaction that has not
        happened. --}}
   @php
@@ -130,14 +130,14 @@
     @if((int) $sale->discount_cents > 0)
       <tr><td>Discount</td><td class="r">&minus;{{ $m($sale->discount_cents) }}</td></tr>
     @endif
-    {{-- MARKER-DOC-DISCOUNT — whole-sale discount, separate from the sum of
+    {{-- whole-sale discount, separate from the sum of
          item discounts above; without it the receipt doesn't add up. --}}
     @if((int) ($sale->sale_discount_cents ?? 0) > 0)
       <tr><td>Discount</td><td class="r">&minus;{{ $m($sale->sale_discount_cents) }}</td></tr>
     @endif
     @if((int) $sale->tax_cents > 0)
       <tr><td>Tax</td><td class="r">{{ $m($sale->tax_cents) }}</td></tr>
-      {{-- MARKER-BIZ-RECEIPT — an accounts-payable clerk needs to see WHY tax
+      {{-- an accounts-payable clerk needs to see WHY tax
            is zero, and needs the PO reference to process the invoice. --}}
       @if($sale->tax_exempt_applied)
         <tr><td colspan="2" style="font-size:11px;opacity:.7">
@@ -160,7 +160,7 @@
   <hr class="hr2">
   <table class="grand"><tr><td>TOTAL</td><td class="r">{{ $m($sale->total_cents) }}</td></tr></table>
 
-  {{-- MARKER-DOC-STATE — the layaway money picture. A total alone tells the
+  {{-- the layaway money picture. A total alone tells the
        customer nothing about what they still owe or when. --}}
   @if($plan ?? null)
     <hr class="hr">
@@ -225,7 +225,7 @@
   @endif
 
   <div class="foot">
-    {{-- MARKER-DOC-STATE — "Thank you!" belongs on a completed sale. On a
+    {{-- "Thank you!" belongs on a completed sale. On a
          quote or a working copy it reads as confirmation of something that
          has not happened. --}}
     @if($sale->payment_status === 'draft')
@@ -240,10 +240,10 @@
       {!! nl2br(e($footerText)) !!}
     @else
       Thank you!<br>{{ $tenant->name }}
-    @endif{{-- MARKER-PATCH-330 --}}
+    @endif
   </div>
 
-  @php $feedRows = (int) ceil(((int) ($print['feed_mm'] ?? 0)) / 3); @endphp{{-- MARKER-PATCH-327 --}}
+  @php $feedRows = (int) ceil(((int) ($print['feed_mm'] ?? 0)) / 3); @endphp
   @if($feedRows > 0)<div aria-hidden="true" style="line-height:3mm;font-size:9px;color:#000">{!! str_repeat('&nbsp;<br>', $feedRows) !!}</div>@endif
 </div>
 

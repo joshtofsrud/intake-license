@@ -9,7 +9,7 @@ use App\Services\Tenant\BookingFlowService;
 use Illuminate\Http\Request;
 
 /**
- * MARKER-FLOW-5 — Booking Mode admin.
+ * Booking Mode admin.
  * Sets the tenant's booking flow (advanced | simple | choice) and curates the
  * Simple-mode menu (which service items appear, in what order, with what tagline).
  */
@@ -28,7 +28,7 @@ class BookingModesController extends Controller
             }])
             ->get();
 
-        // MARKER-PATCH-510 — Pickup & delivery section data
+        // Pickup & delivery section data
         $routeWindows = $tenant->deliveries_enabled
             ? \App\Models\Tenant\TenantRouteWindow::where('tenant_id', $tenant->id)
                 ->orderBy('sort_order')->orderBy('starts_at')->get()

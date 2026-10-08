@@ -1,5 +1,5 @@
 <?php
-// MARKER-PATCH-221 — unified inbox (threads + messages) + SMS opt-out.
+// unified inbox (threads + messages) + SMS opt-out.
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;

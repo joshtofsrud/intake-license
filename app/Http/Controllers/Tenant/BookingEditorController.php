@@ -15,10 +15,10 @@ class BookingEditorController extends Controller
         'booking_progress_bg'    => '',
         'booking_progress_text'  => '#000000',
         'booking_body_text'      => '',
-        'booking_show_nav'       => '1', // MARKER-PATCH-589 — site nav
-        'booking_show_footer'    => '1', // MARKER-PATCH-589 — site footer
-        'booking_show_logo'      => '1', // MARKER-PATCH-589 — page's own logo header
-        'booking_hide_cta'       => '0', // MARKER-PATCH-590 — hide pre-footer CTA band on booking page
+        'booking_show_nav'       => '1', // site nav
+        'booking_show_footer'    => '1', // site footer
+        'booking_show_logo'      => '1', // page's own logo header
+        'booking_hide_cta'       => '0', // hide pre-footer CTA band on booking page
         'booking_step1_label'    => 'Services',
         'booking_step2_label'    => 'Schedule',
         'booking_step3_label'    => 'Details',
@@ -44,7 +44,7 @@ class BookingEditorController extends Controller
             $booking[$key] = $settings[$key] ?? $default;
         }
 
-        // MARKER-PATCH-589 — brand kit palette (same source as page builder)
+        // brand kit palette (same source as page builder)
         $saved = tenant()->settings['brand_kit'] ?? null;
         $brandKit = is_array($saved) && count($saved)
             ? array_values(array_map(fn ($c) => [
@@ -57,7 +57,7 @@ class BookingEditorController extends Controller
                 ['name' => 'Background', 'value' => tenant()->bg_color     ?: '#FFFFFF'],
               ];
 
-        // MARKER-PATCH-603 — the Booking page (a real builder page, slug "book");
+        // the Booking page (a real builder page, slug "book");
         // the "Edit marketing sections" button opens it in the page builder.
         $extrasPageId = \App\Services\Tenant\BookingFormData::bookingPage($tenant)->id;
 

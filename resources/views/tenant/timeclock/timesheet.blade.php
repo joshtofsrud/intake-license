@@ -1,4 +1,4 @@
-{{-- MARKER-PATCH-613 — timesheet (print + email). Self-contained HTML so it
+{{-- timesheet (print + email). Self-contained HTML so it
      renders identically in the browser print view and in the emailed body. --}}
 <!DOCTYPE html>
 <html lang="en">

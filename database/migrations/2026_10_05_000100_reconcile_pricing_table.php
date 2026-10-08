@@ -3,7 +3,7 @@
 use Illuminate\Database\Migrations\Migration;
 
 /**
- * MARKER-PRICING-RECONCILE — bring the intake.works Pricing page's comparison
+ * bring the intake.works Pricing page's comparison
  * table in line with what each plan really includes (and now enforces):
  *   Starter  — just you; no POS or inventory; classes are an add-on
  *   Branded  — up to 3 team members; POS + inventory up to 120 items

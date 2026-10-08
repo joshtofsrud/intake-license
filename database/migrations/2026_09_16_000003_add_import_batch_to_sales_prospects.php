@@ -1,5 +1,5 @@
 <?php
-// MARKER-SALES-ROUTE — additive only.
+// additive only.
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;

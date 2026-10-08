@@ -2,7 +2,7 @@
 
 namespace App\Support;
 
-// MARKER-TOKENS — the single source of truth for what a tenant's public site
+// the single source of truth for what a tenant's public site
 // looks like. Everything that renders public chrome asks this, so the shells
 // can't drift apart the way surface/muted did (three hardcoded copies).
 
@@ -143,7 +143,7 @@ class DesignTokens
     }
 
     /**
-     * MARKER-CZFIX — flatten a color to a 6-digit hex for DISPLAY only.
+     * flatten a color to a 6-digit hex for DISPLAY only.
      *
      * <input type="color"> can only hold hex, so an rgba() token (which is what
      * surface/muted/border fall back to) showed as white in the customizer.

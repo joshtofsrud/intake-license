@@ -1,5 +1,4 @@
 <?php
-// MARKER-PRICE-SEED
 
 namespace App\Support;
 

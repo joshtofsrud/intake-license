@@ -2,7 +2,6 @@
 
 namespace App\Models;
 
-// MARKER-CONTRIBUTIONS
 use Illuminate\Database\Eloquent\Model;
 
 class Contribution extends Model

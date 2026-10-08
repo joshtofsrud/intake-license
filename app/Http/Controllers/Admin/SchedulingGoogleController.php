@@ -7,7 +7,7 @@ use App\Services\Platform\GoogleCalendarService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
-// MARKER-SCHED-GOOGLE — the OAuth round trip. Gated to the scheduling area in routes.
+// the OAuth round trip. Gated to the scheduling area in routes.
 class SchedulingGoogleController extends Controller
 {
     public function connect(Request $request, GoogleCalendarService $google)

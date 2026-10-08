@@ -4,11 +4,10 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
-// MARKER-RAISE-ADMIN
 class Investor extends Model
 {
     /** The SAFE cap the round is priced against. Change here and the cap table follows. */
-    // MARKER-RAISE-SETUP — constants are now DEFAULTS; the live values come from raise_settings.
+    // constants are now DEFAULTS; the live values come from raise_settings.
     public const CAP    = 1000000;
     public const TARGET = 100000;
 
@@ -28,7 +27,6 @@ class Investor extends Model
         'funding_method', 'notes',
     ];
 
-    // MARKER-RAISE-RECORDS
     protected static function booted(): void
     {
         static::creating(function (self $investor) {
@@ -52,8 +50,8 @@ class Investor extends Model
     }
 
     protected $casts = [
-        'safe_sent_at' => 'datetime',   // MARKER-SIGNING-SEND
-        'self_declared' => 'boolean',   // MARKER-SHARED-COMMIT
+        'safe_sent_at' => 'datetime',
+        'self_declared' => 'boolean',
         'invited_at'     => 'datetime',
         'opened_at'      => 'datetime',
         'portal_seen_at' => 'datetime',

@@ -1,5 +1,4 @@
 <?php
-// MARKER-PATCH-221
 
 namespace App\Services\Tenant;
 
@@ -19,7 +18,7 @@ class InboxService
     /** Find the customer's thread for a channel, creating it if needed. */
     public function threadFor(Tenant $tenant, TenantCustomer $customer, string $channel = 'sms'): TenantThread
     {
-        // MARKER-PATCH-396 — one thread per customer; channels live on messages.
+        // one thread per customer; channels live on messages.
         // Match per customer (ignore channel); $channel only seeds a new thread.
         $thread = TenantThread::where('tenant_id', $tenant->id)
             ->where('customer_id', $customer->id)
@@ -41,7 +40,7 @@ class InboxService
     /** Inbound customer message: needs_reply + unread bump. */
     public function postInbound(TenantThread $thread, string $body, ?string $externalId = null, array $meta = [], ?string $channel = null): TenantMessage
     {
-        // MARKER-PATCH-403 — explicit channel (email inbound passes 'email');
+        // explicit channel (email inbound passes 'email');
         // falls back to the thread seed for the existing SMS caller.
         $message = TenantMessage::create([
             'thread_id'   => $thread->id,
@@ -73,9 +72,9 @@ class InboxService
     {
         $customer = $thread->customer;
 
-        // MARKER-PATCH-396 — reply channel: explicit choice, else the customer's
+        // reply channel: explicit choice, else the customer's
         // last inbound channel, else the thread's seed channel.
-        // MARKER-INBOX-NEW — the last inbound also decides the email subject
+        // the last inbound also decides the email subject
         // below: "Re:" is only honest when the customer actually wrote first.
         $lastIn = TenantMessage::where('thread_id', $thread->id)
             ->where('direction', 'in')
@@ -93,9 +92,9 @@ class InboxService
             $mailer  = \App\Services\EmailService::forTenant($tenant);
             $subject = $lastIn
                 ? 'Re: your message to ' . $tenant->emailFromName()
-                : 'Message from ' . $tenant->emailFromName(); // MARKER-INBOX-NEW
+                : 'Message from ' . $tenant->emailFromName();
             $html    = $mailer->renderHtml(nl2br(e($body)));
-            // MARKER-PATCH-403 — stamp the thread's inbound token into Reply-To so the
+            // stamp the thread's inbound token into Reply-To so the
             // customer's reply routes back into THIS thread via the Postmark inbound webhook.
             $replyTo = \App\Services\EmailService::inboundReplyAddress($thread->inbound_token);
             if (! $mailer->sendRendered('inbox_reply', $customer->email, $subject, $html, $replyTo)) {
@@ -119,7 +118,7 @@ class InboxService
             'body'            => $body,
             'channel'         => $channel,
             'sent_by_user_id' => $userId,
-            'meta'            => $tenant->is_demo ? ['demo_suppressed' => true] : null, // MARKER-DEMO-COMMS
+            'meta'            => $tenant->is_demo ? ['demo_suppressed' => true] : null,
             'delivered_at'    => now(), // best-effort; delivery receipts are a later enhancement
         ]);
 
@@ -134,7 +133,7 @@ class InboxService
 
     /** Internal note — visible to staff only, never sent. */
     /**
-     * MARKER-TXN-THREADING — record an email the system sent, without sending.
+     * record an email the system sent, without sending.
      *
      * postOutbound() is the staff reply path and actually dispatches the
      * message; calling it from EmailService would loop. This is record-only.
@@ -153,7 +152,7 @@ class InboxService
             'meta'         => array_filter([
                 'template'        => $templateKey,
                 'via'             => 'system_email',
-                'demo_suppressed' => $thread->tenant?->is_demo ? true : null, // MARKER-DEMO-COMMS
+                'demo_suppressed' => $thread->tenant?->is_demo ? true : null,
             ]),
             'channel'      => 'email',
             'delivered_at' => now(),

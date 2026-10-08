@@ -15,43 +15,39 @@ class Tenant extends Model
     use HasUuids, SoftDeletes;
 
     protected $fillable = [
-        // MARKER-TENANT-STANDING
         'past_due_since', 'suspended_at', 'suspended_reason',
         'license_id', 'subdomain', 'custom_domain', 'plan_tier', 'licensed_locations', 'name',
         'is_active', 'settings',
-        'consent_cleanup_until', // MARKER-CONSENT-CLEANUP
+        'consent_cleanup_until',
         'logo_url', 'logo_light_url', 'favicon_url', 'accent_color', 'text_color', 'bg_color',
         'logo_size_admin', 'logo_size_booking',
         'font_heading', 'font_body', 'tagline',
-        'site_template', 'design_tokens', // MARKER-PATCH-260
+        'site_template', 'design_tokens',
         'email_from_name', 'email_from_address', 'email_reply_to',
-        'email_spend_cap_cents', // MARKER-EMAIL-BILLING
-        'email_free_monthly',    // MARKER-EMAIL-RATES
-        // MARKER-BILLING-CARD
-        'charge_threshold_cents', 'charging_enabled', 'campaigns_paused_at', // MARKER-BILLING-CHARGE
-        // MARKER-BILLING-ADDRESS
+        'email_spend_cap_cents',
+        'email_free_monthly',
+        'charge_threshold_cents', 'charging_enabled', 'campaigns_paused_at',
         'billing_address_line1', 'billing_address_line2', 'billing_city',
         'billing_state', 'billing_postcode', 'billing_country',
         'stripe_payment_method_id', 'card_brand', 'card_last4',
         'card_exp_month', 'card_exp_year', 'card_added_at', 'billing_email',
         'sms_enabled', 'sms_from_number', 'twilio_account_sid', 'twilio_auth_token',
-        'twilio_number_sid', // MARKER-PATCH-224
-        'direct_payments_enabled', // MARKER-PATCH-169B
+        'twilio_number_sid',
+        'direct_payments_enabled',
         'onboarding_status', 'onboarded_at', 'onboarding_step', 'industry_pack',
         'payment_processor', 'payment_processor_status',
         'payment_processor_account_id', 'payment_processor_connected_at',
         'notification_email', 'currency', 'currency_symbol', 'timezone',
         'booking_window_days', 'min_notice_hours',
-        // MARKER-TENANT-FILLABLE-FIX — these six were commented out by a
+        // these six were commented out by a
         // marker placed at the end of a line it did not own. Mass assignment
         // drops unknown keys silently, so booking mode and the Classes,
         // Deliveries and Multi-asset toggles stopped saving without an error.
         'booking_mode', 'booking_flow_mode', 'last_booking_mode_switch_at',
         'classes_enabled', 'deliveries_enabled', 'multi_asset_enabled',
         'staff_notice_policy', 'staff_capacity_policy',
-        // MARKER-APPT-AUTOLOAD
         'availability_auto_refresh',
-        'asset_label_singular', 'asset_label_plural', // MARKER-PATCH-215
+        'asset_label_singular', 'asset_label_plural',
         'stripe_customer_id', 'stripe_subscription_id', 'stripe_subscription_cadence',
         'trial_ends_at', 'subscription_status',
         // Tax (Path B onboarding)
@@ -65,31 +61,31 @@ class Tenant extends Model
     ];
 
     protected $casts = [
-        'availability_auto_refresh' => 'boolean', // MARKER-APPT-AUTOLOAD
-        'consent_cleanup_until' => 'datetime', // MARKER-CONSENT-CLEANUP
-        'past_due_since' => 'datetime', // MARKER-TENANT-STANDING
+        'availability_auto_refresh' => 'boolean',
+        'consent_cleanup_until' => 'datetime',
+        'past_due_since' => 'datetime',
         'suspended_at'   => 'datetime',
         'last_booking_mode_switch_at' => 'datetime',
         'is_active'           => 'boolean',
         'sms_enabled'         => 'boolean',
         'settings'            => 'array',
-        'design_tokens'       => 'array', // MARKER-PATCH-260
+        'design_tokens'       => 'array',
         'onboarded_at'        => 'datetime',
         'booking_window_days' => 'integer',
         'min_notice_hours'    => 'integer',
         'booking_mode'        => 'string',
         'booking_flow_mode'   => 'string',
         'classes_enabled'     => 'boolean',
-        // MARKER-PATCH-169 — Direct Payments bridge toggle
+        // Direct Payments bridge toggle
         'direct_payments_enabled' => 'boolean',
-        // MARKER-PATCH-168 — Stripe Connect casts
+        // Stripe Connect casts
         'stripe_connect_charges_enabled'        => 'boolean',
         'stripe_connect_payouts_enabled'        => 'boolean',
         'stripe_connect_details_submitted_at'   => 'datetime',
         'stripe_connect_requirements_due'       => 'array',
         'stripe_connect_last_synced_at'         => 'datetime',
-        'deliveries_enabled'  => 'boolean', // MARKER-PATCH-156
-        'multi_asset_enabled' => 'boolean', // MARKER-PATCH-158-B
+        'deliveries_enabled'  => 'boolean',
+        'multi_asset_enabled' => 'boolean',
         'trial_ends_at'       => 'datetime',
         'payment_processor_connected_at' => 'datetime',
         // Logo display heights (px)
@@ -217,7 +213,7 @@ class Tenant extends Model
         return (bool) ($settings[$settingsKey] ?? true);
     }
 
-    // MARKER-PATCH-116 — multi-domain support
+    // multi-domain support
     /**
      * All domains attached to this tenant.
      */
@@ -258,7 +254,7 @@ class Tenant extends Model
     }
 
     /**
-     * MARKER-TENANT-LINK — an absolute link to one of THIS shop's pages.
+     * an absolute link to one of THIS shop's pages.
      *
      * route() builds from the host that happens to be generating it, and
      * falls back to APP_URL (intake.works) when there isn't one — a queued
@@ -290,7 +286,7 @@ class Tenant extends Model
 
     public function emailFromAddress(): string
     {
-        // MARKER-FROM-REPLYABLE — prefer the inbound domain so the From is an
+        // prefer the inbound domain so the From is an
         // address customers can actually write to. The old apex fallback
         // stays last: it keeps sending working if inbound is unconfigured,
         // and it is the address Postmark is already verified for.
@@ -300,7 +296,7 @@ class Tenant extends Model
     }
 
     /**
-     * MARKER-TXN-THREADING — this shop's public inbound address.
+     * this shop's public inbound address.
      *
      * {subdomain}@{inbound domain}, derived from POSTMARK_INBOUND_ADDRESS so
      * there is one place to change the domain. Mail here routes by localpart
@@ -320,16 +316,16 @@ class Tenant extends Model
     }
 
     /**
-     * MARKER-PATCH-411 — the logo shown on the dark header of every email.
+     * the logo shown on the dark header of every email.
      * Single source driving both render paths (EmailService::renderHtml and the
      * emails/layout Blade). Defaults to the light logo (the header is dark),
      * falling back to the main logo, then to null (the text shop name renders).
      */
     /**
-     * MARKER-CONSENT-CLEANUP — is the onboarding consent window open?
+     * is the onboarding consent window open?
      * Expiry is checked at read time, so it lapses on its own with no job.
      */
-    /** MARKER-CUST-ADMIN — the window now covers removal too. */
+    /** the window now covers removal too. */
     public function customerAdminOpen(): bool
     {
         return $this->consentCleanupOpen();
@@ -419,13 +415,13 @@ class Tenant extends Model
         return app(\App\Services\FeatureAccessService::class)->hasAddon($this, 'extended_reports');
     }
 
-    // MARKER-PATCH-567 — online store gate (nav + blades)
+    // online store gate (nav + blades)
     public function getOnlineStoreEnabledAttribute(): bool
     {
         return app(\App\Services\FeatureAccessService::class)->hasAddon($this, 'online_store');
     }
 
-    // MARKER-GIFTCARDS-GATE -- selling is gated by the addon; the manager
+    // selling is gated by the addon; the manager
     // and the tender stay visible while any card exists, so a revoked
     // tenant can still honor and administer outstanding balances.
     public function getGiftCardsEnabledAttribute(): bool
@@ -439,13 +435,13 @@ class Tenant extends Model
             || \App\Models\Tenant\TenantGiftCard::where('tenant_id', $this->id)->exists();
     }
 
-    // MARKER-PATCH-HLC7A — distributor catalog/sync addon gate.
+    // distributor catalog/sync addon gate.
     public function getDistributorSyncEnabledAttribute(): bool
     {
         return app(\App\Services\FeatureAccessService::class)->hasAddon($this, 'bike_distributor_sync');
     }
 
-    // MARKER-PATCH-217 — rentals-stack capability accessors. Same delegation
+    // rentals-stack capability accessors. Same delegation
     // pattern; FeatureAccessService memoizes per request.
     public function getRentalsEnabledAttribute(): bool
     {
@@ -463,12 +459,12 @@ class Tenant extends Model
     }
 
     /**
-     * MARKER-PATCH-226 — leasing is a PLAN-TIER capability (floor: Scale),
+     * leasing is a PLAN-TIER capability (floor: Scale),
      * not an addon, and it depends on rentals being active. "Available"
      * means the shop *could* turn it on; "enabled" means they have.
      */
     /**
-     * MARKER-CLASSES-ADDON — classes_enabled is what the SHOP asked for;
+     * classes_enabled is what the SHOP asked for;
      * this is whether they are entitled to it. Both have to be true.
      *
      * The column keeps its own meaning so that a tenant who upgrades gets
@@ -501,7 +497,7 @@ class Tenant extends Model
     }
 
     /**
-     * MARKER-PATCH-228B — rentals visibility toggle. Entitlement (rentals
+     * rentals visibility toggle. Entitlement (rentals
      * addon) is the hard gate; this is the shop's on/off preference on top.
      * Defaults ON so existing shops are unaffected.
      */
@@ -560,14 +556,14 @@ class Tenant extends Model
     }
 
     /**
-     * MARKER-LOCGATE — can this tenant create another location?
+     * can this tenant create another location?
      *
      * Counts ACTIVE locations only, so archiving one frees a slot. The
      * allowance is hand-set in master admin today; when per-location billing
      * lands it becomes derived from the subscription quantity and this method
      * does not change.
      */
-    // MARKER-SEATS — team members included per plan (null = no limit).
+    // team members included per plan (null = no limit).
     public const PLAN_SEATS = ['starter' => 1, 'branded' => 3, 'scale' => 10];
 
     public function seatLimit(): ?int
@@ -592,14 +588,13 @@ class Tenant extends Model
         return $this->activeLocationCount() < (int) ($this->licensed_locations ?? 1);
     }
 
-    /** MARKER-LOCGATE */
     public function activeLocationCount(): int
     {
         return (int) $this->locations()->where('is_active', true)->count();
     }
 
     /**
-     * MARKER-PATCH-162 — multi_location_active
+     * multi_location_active
      * True when the tenant can meaningfully operate across locations:
      * retail capability is on AND there are 2+ active locations to move
      * stock between. Used to gate the Transfer Requests UI.
@@ -616,7 +611,7 @@ class Tenant extends Model
     }
 
     /**
-     * MARKER-PATCH-168 — Stripe Connect state.
+     * Stripe Connect state.
      *
      * stripe_connect_status returns one of:
      *   not_connected      — no account_id stored
@@ -699,7 +694,7 @@ class Tenant extends Model
 
 
     /**
-     * MARKER-BOOKING-OVERRIDE — staff exceptions to the booking rules.
+     * staff exceptions to the booking rules.
      *
      * Two rules, kept apart on purpose. Notice is about WHEN: a job asked for
      * sooner than the shop normally accepts. Capacity is about HOW MANY: a day

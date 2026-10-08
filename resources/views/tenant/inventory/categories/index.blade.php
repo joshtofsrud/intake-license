@@ -2,7 +2,7 @@
 @php $pageTitle = 'Inventory categories'; @endphp
 
 @section('content')
-<div class="ia-section">{{-- MARKER-SECTION-WIDTH — fluid, capped; see base.css --}}
+<div class="ia-section">{{-- fluid, capped; see base.css --}}
 
 <div class="ia-page-head">
   <div class="ia-page-head-left">
@@ -35,7 +35,7 @@
       </div>
       <div class="ia-form-group">
         <label class="ia-form-label">Parent category</label>
-        {{-- MARKER-SSEL-BATCH1 — our picker: the native popup is drawn by the
+        {{-- our picker: the native popup is drawn by the
              OS and ignored the dark theme, so this list read white on white
              for a tenant in light mode. --}}
         @php
@@ -63,7 +63,7 @@
       No categories yet. Add your first one above.
     </div>
   @else
-{{-- MARKER-SERIAL-FOUNDATION — what the switch does, since nothing on this
+{{-- what the switch does, since nothing on this
      page changes to show it. --}}
 <div class="ser-legend">
   <b>Serial numbers.</b> Switch on for a category and its items — and its subcategories' — can carry a serial per unit. It's a tool,
@@ -85,20 +85,19 @@
           <th>Name</th>
           <th>Parent (move)</th>
           <th>Items</th>
-          <th>Serial numbers</th>{{-- MARKER-SERIAL-FOUNDATION --}}
-            {{-- MARKER-CAT-EDIT --}}
+          <th>Serial numbers</th>
             <th style="width:210px">Actions</th>
         </tr>
       </thead>
       <tbody>
         @foreach($tree as $node)
           <tr>
-            <td style="padding-left:{{ 12 + $node['depth'] * 22 }}px">@if($node['depth'] > 0)<span style="color:var(--ia-text-muted)">└&nbsp;</span>@endif<a href="{{ route('tenant.inventory.index', ['category' => $node['id']]) }}" style="color:var(--ia-text);text-decoration:none" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'"><strong>{{ $node['name'] }}</strong></a>{{-- MARKER-PATCH-HLC28-NAME --}}</td>
+            <td style="padding-left:{{ 12 + $node['depth'] * 22 }}px">@if($node['depth'] > 0)<span style="color:var(--ia-text-muted)">└&nbsp;</span>@endif<a href="{{ route('tenant.inventory.index', ['category' => $node['id']]) }}" style="color:var(--ia-text);text-decoration:none" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'"><strong>{{ $node['name'] }}</strong></a></td>
             <td>
               <form method="POST" action="{{ route('tenant.inventory.categories.reparent', $node['id']) }}" style="margin:0">
                 @csrf
                 @method('PATCH')
-                {{-- MARKER-SSEL-BATCH1 — one of these per row; on 291
+                {{-- one of these per row; on 291
                      categories it is the worst instance of the OS popup. The
                      component fires `change` on its hidden input, and the
                      handler at the foot of this page submits the form, so
@@ -116,8 +115,8 @@
                 </div>
               </form>
             </td>
-            <td>@if($node['count'] > 0)<a href="{{ route('tenant.inventory.index', ['category' => $node['id']]) }}" style="color:var(--ia-accent);text-decoration:none;font-weight:600" title="View these items">{{ $node['count'] }}</a>@else<span style="color:var(--ia-text-muted)">0</span>@endif{{-- MARKER-PATCH-HLC28-COUNT --}}</td>
-            {{-- MARKER-SERIAL-FOUNDATION — on, inherited, or off --}}
+            <td>@if($node['count'] > 0)<a href="{{ route('tenant.inventory.index', ['category' => $node['id']]) }}" style="color:var(--ia-accent);text-decoration:none;font-weight:600" title="View these items">{{ $node['count'] }}</a>@else<span style="color:var(--ia-text-muted)">0</span>@endif</td>
+            {{-- on, inherited, or off --}}
             @php
               $serOwn = (bool) ($serById[$node['id']]->track_serials ?? false);
               $serFrom = null;
@@ -152,7 +151,7 @@
                 <span class="ser-from">{{ $serOwn ? 'On' : 'Off' }}</span>
               @endif
             </td>
-            {{-- MARKER-CAT-EDIT — rename is inline; delete only appears when the
+            {{-- rename is inline; delete only appears when the
                  category is genuinely empty, counting ARCHIVED items too. The
                  disabled state carries its reason rather than failing on click. --}}
             @php
@@ -220,11 +219,11 @@
   @endif
 </div>
 
-</div>{{-- MARKER-SECTION-WIDTH --}}
-{{-- MARKER-SERIAL-FOUNDATION — this handler used to sit after @endsection,
+</div>
+{{-- this handler used to sit after @endsection,
      which Blade prints ahead of the layout — before the page's <!DOCTYPE> —
      so the Categories page rendered in quirks mode. It lives inside now. --}}
-{{-- MARKER-SSEL-BATCH1 — ssel-submit-handler. The native row select had
+{{-- ssel-submit-handler. The native row select had
      onchange="this.form.submit()"; the component has no onchange, so the same
      behavior is bound to its hidden input's change event instead. --}}
 <script>
@@ -248,7 +247,7 @@
   .ser-tog.on i { left: 20px; background: var(--ia-accent); }
 </style>
 <script>
-  // MARKER-SERIAL-FOUNDATION — the switch asks first, in the app's own dialog.
+  // the switch asks first, in the app's own dialog.
   document.addEventListener('submit', function (e) {
     var f = e.target;
     if (!f.classList || !f.classList.contains('ser-form') || f.dataset.serOk === '1') { return; }
@@ -261,7 +260,7 @@
 
 @push('scripts')
 <script>
-// MARKER-CAT-EDIT — swap a row between its buttons and one of its two forms.
+// swap a row between its buttons and one of its two forms.
 // No native confirm(): deleting asks inside the row, which the browser cannot
 // suppress, and rename needs no confirmation at all because it is reversible.
 (function () {

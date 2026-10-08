@@ -1,4 +1,4 @@
-{{-- MARKER-GIFTCARDS-PUBLIC — purchase confirmation. Never shows the code:
+{{-- purchase confirmation. Never shows the code:
      e-gifts go to the recipient; physical cards are read out at pickup. --}}
 @php
   $accent = $tenant->accent_color ?? '#BEF264';

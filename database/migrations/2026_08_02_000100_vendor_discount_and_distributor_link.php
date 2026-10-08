@@ -1,6 +1,6 @@
 <?php
 
-// MARKER-VENDOR-NET-COST — see apply-vendor-discount-and-distributor-link.sh
+// see apply-vendor-discount-and-distributor-link.sh
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;

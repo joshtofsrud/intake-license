@@ -13,15 +13,15 @@ use Filament\Pages\Page;
 use Illuminate\Support\Facades\Mail;
 
 /**
- * MARKER-PLATFORM-MAIL — master-admin control of the platform email sender.
+ * master-admin control of the platform email sender.
  *
  * Applies to platform mail (signups, admin notices) that does not set its
  * own From. Tenant mail continues to use each tenant's configured sender.
  */
 class PlatformEmail extends Page implements HasForms
 {
-    use \App\Support\UsesAdminNav; // MARKER-NAV-ORDER
-    use \App\Support\GatedByAdminArea; // MARKER-ADMIN-NAV-GATE
+    use \App\Support\UsesAdminNav;
+    use \App\Support\GatedByAdminArea;
     protected static string $adminArea = 'config';
 
     use InteractsWithForms;
@@ -41,22 +41,19 @@ class PlatformEmail extends Page implements HasForms
 
         $this->form->fill([
             'mail_from_address' => $settings->mail_from_address,
-            'support_email'      => $settings->support_email,   // MARKER-SUPPORT-EMAIL
+            'support_email'      => $settings->support_email,
             'mail_from_name'    => $settings->mail_from_name,
-            // MARKER-MARKETING-ADMIN
             'email_broadcast_stream' => $settings->email_broadcast_stream,
             'email_rate'             => $settings->email_rate !== null ? (string) $settings->email_rate : '0.002',
-            // MARKER-EMAIL-RATES
             'email_rate_marketing'   => $settings->email_rate_marketing !== null ? (string) $settings->email_rate_marketing : '0.0035',
             'email_free_monthly'     => (string) ($settings->email_free_monthly ?? 0),
-            // MARKER-ALLOWANCE-TIERS — one row per tier, so a plan can include
+            // one row per tier, so a plan can include
             // more than the next one down.
             'email_free_by_tier'     => collect(\App\Services\EmailLedger::tiers())
                 ->map(fn ($t) => [
                     'tier'  => $t,
                     'count' => (string) (($settings->email_free_by_tier[$t] ?? null) ?? ($settings->email_free_monthly ?? 0)),
                 ])->values()->all(),
-            // MARKER-BILLING-CONTROLS
             'charging_enabled'               => (bool) ($settings->charging_enabled ?? false),
             'charge_threshold_default_cents' => number_format((($settings->charge_threshold_default_cents ?? 2500) / 100), 2, '.', ''),
             'test_recipient'    => auth()->user()?->email,
@@ -77,7 +74,7 @@ class PlatformEmail extends Page implements HasForms
                             ->helperText('Must be a verified sender signature (or on a verified domain) in Postmark, or delivery will fail.')
                             ->autocomplete('off'),
 
-                        // MARKER-SUPPORT-EMAIL — shown to shops on error pages,
+                        // shown to shops on error pages,
                         // the locked page, the help page, and the add-on "ask us"
                         // button. Blank uses the sending address above.
                         TextInput::make('support_email')
@@ -91,7 +88,7 @@ class PlatformEmail extends Page implements HasForms
                             ->autocomplete('off'),
                     ]),
 
-                // MARKER-MARKETING-ADMIN — the campaign sending switch + rate.
+                // the campaign sending switch + rate.
                 Section::make('Marketing email')
                     ->description('Campaign sending for every tenant hinges on the stream below. Empty: campaign sending is OFF platform-wide — shops can draft and queue, nothing goes out, transactional mail is unaffected. Set: the worker drains queues onto that Postmark stream within a minute.')
                     ->schema([
@@ -101,14 +98,14 @@ class PlatformEmail extends Page implements HasForms
                             ->maxLength(64)
                             ->helperText('Create a Broadcasts-type stream in Postmark first, then put its ID here. Marketing must never ride the transactional stream — one spam complaint there can suspend receipts for every shop.')
                             ->autocomplete('off'),
-                        // MARKER-EMAIL-RATES — two rates: campaigns are a revenue
+                        // two rates: campaigns are a revenue
                         // tool, receipts are the cost of operating.
                         TextInput::make('email_rate_marketing')
                             ->label('Campaign rate, per email')
                             ->numeric()->step('0.00001')->prefix('$')
                             ->helperText('Charged for campaigns. Stamped onto each row at send time, so changing it never rewrites a past month.'),
 
-                        // MARKER-BILLING-CONTROLS — the master switch. Off is the
+                        // the master switch. Off is the
                         // safe state and the default; a shop's own setting cannot
                         // override it.
                         \Filament\Forms\Components\Toggle::make('charging_enabled')
@@ -120,7 +117,6 @@ class PlatformEmail extends Page implements HasForms
                             ->numeric()->step('0.01')->prefix('$')
                             ->helperText('The default for shops without their own figure. A lower number means smaller, more frequent charges. It does not stop anything sending — that is the shop\'s own spend limit.'),
 
-                        // MARKER-ALLOWANCE-TIERS
                         \Filament\Forms\Components\Repeater::make('email_free_by_tier')
                             ->label('Free emails included, by plan')
                             ->schema([
@@ -165,18 +161,14 @@ class PlatformEmail extends Page implements HasForms
         PlatformSettings::current()->update([
             'mail_from_address' => trim((string) ($state['mail_from_address'] ?? '')) ?: null,
             'mail_from_name'    => trim((string) ($state['mail_from_name'] ?? '')) ?: null,
-            // MARKER-MARKETING-ADMIN
             'email_broadcast_stream' => trim((string) ($state['email_broadcast_stream'] ?? '')) ?: null,
             'email_rate'             => is_numeric($state['email_rate'] ?? null) ? (float) $state['email_rate'] : 0.002,
-            // MARKER-EMAIL-RATES
             'email_rate_marketing'   => is_numeric($state['email_rate_marketing'] ?? null) ? (float) $state['email_rate_marketing'] : 0.0035,
             'email_free_monthly'     => is_numeric($state['email_free_monthly'] ?? null) ? (int) $state['email_free_monthly'] : 0,
-            // MARKER-ALLOWANCE-TIERS
             'email_free_by_tier'     => collect($state['email_free_by_tier'] ?? [])
                 ->filter(fn ($r) => ! empty($r['tier']))
                 ->mapWithKeys(fn ($r) => [$r['tier'] => is_numeric($r['count'] ?? null) ? (int) $r['count'] : 0])
                 ->all(),
-            // MARKER-BILLING-CONTROLS
             'charging_enabled'               => (bool) ($state['charging_enabled'] ?? false),
             'charge_threshold_default_cents' => is_numeric($state['charge_threshold_default_cents'] ?? null)
                 ? (int) round(((float) $state['charge_threshold_default_cents']) * 100)

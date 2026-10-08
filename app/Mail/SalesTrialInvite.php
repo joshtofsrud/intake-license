@@ -1,5 +1,4 @@
 <?php
-// MARKER-SALES-INVITE
 
 namespace App\Mail;
 
@@ -21,7 +20,7 @@ class SalesTrialInvite extends Mailable
         public ?string $ownerName,
         public ?string $message,
         public ?string $sentBy,
-        public ?string $replyToEmail, // MARKER-INVITE-REPLYTO-FIX — $replyTo is a Mailable property; redeclaring it fatals
+        public ?string $replyToEmail, // $replyTo is a Mailable property; redeclaring it fatals
     ) {}
 
     public function envelope(): Envelope

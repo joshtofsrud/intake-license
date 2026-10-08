@@ -6,7 +6,7 @@ use App\Models\PlatformBooking;
 use App\Services\Platform\BookingMailer;
 use Illuminate\Console\Command;
 
-// MARKER-SCHED-PUBLIC — one reminder per booking, per the type's setting.
+// one reminder per booking, per the type's setting.
 class BookingsSendReminders extends Command
 {
     protected $signature   = 'bookings:send-reminders';

@@ -2,7 +2,7 @@
 
 namespace App\Services\Platform;
 
-// MARKER-MKTSESSIONS — per-session marketing activity, mirroring the tenant
+// per-session marketing activity, mirroring the tenant
 // admin's booking sessions explorer. Derived entirely from events already
 // being recorded, so it works on rows collected before this shipped.
 
@@ -23,7 +23,7 @@ class MarketingSessionsService
     /** Friendly label for a named event; page views show their path instead. */
     private static function label(string $eventType, ?string $path, ?string $step = null): string
     {
-        // MARKER-MKTDONE — MARKER-MKTCONV added five event types and never taught
+        // added five event types and never taught
         // this match about them, so timelines printed raw 'cta_click' / 'page_exit'.
         return match ($eventType) {
             'page_view'         => $path ?: '/',
@@ -68,7 +68,7 @@ class MarketingSessionsService
             ->where('tenant_id', $tenant->id)
             ->where('created_at', '>=', $this->start)
             ->where('created_at', '<',  $this->end)
-            // MARKER-MKTBOTFIX -- rows written before the ingest-side skip
+            // rows written before the ingest-side skip
             // existed. Filtering here (not in PHP) also means EVENT_LIMIT is
             // spent on real traffic instead of crawler noise.
             ->where(function ($w) {
@@ -76,7 +76,7 @@ class MarketingSessionsService
             })
             ->orderBy('created_at')
             ->limit(self::EVENT_LIMIT)
-            ->get(['session_id', 'event_type', 'path', 'device', 'referrer_domain', 'utm_source', 'step', 'created_at']); // MARKER-MKTDONE — step labels the click
+            ->get(['session_id', 'event_type', 'path', 'device', 'referrer_domain', 'utm_source', 'step', 'created_at']); // step labels the click
 
         $sessions = [];
 
@@ -116,7 +116,7 @@ class MarketingSessionsService
                 $s['pages'][] = $path;
             }
 
-            // MARKER-MKTDONE — a demo entry or a booked call is a conversion too.
+            // a demo entry or a booked call is a conversion too.
             // Without these, a session that booked a call read as "browsed".
             if (in_array($e->event_type, [
                 'quiz_completed', 'contact_submitted', 'signup_completed',
@@ -136,7 +136,7 @@ class MarketingSessionsService
         $out = [];
         foreach ($sessions as $s) {
             $pageCount = count($s['pages']);
-            // MARKER-MKTBOTFIX -- first -> last. Carbon 3 diffs are SIGNED,
+            // first -> last. Carbon 3 diffs are SIGNED,
             // so the old last -> first returned a negative and every session
             // rendered as 0:00. Cast: Carbon 3 returns a float.
             $seconds   = (int) $s['first_at']->diffInSeconds($s['last_at']);

@@ -9,7 +9,6 @@ use App\Models\RaiseSetting;
 use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 
-// MARKER-RAISE-PORTAL
 class InvestorPortalController extends Controller
 {
     public function show(string $token)
@@ -25,7 +24,7 @@ class InvestorPortalController extends Controller
 
         $investor->forceFill(['portal_seen_at' => now()])->save();
 
-        // MARKER-INVEST-V2 — the portal now carries the round as well as the
+        // the portal now carries the round as well as the
         // person, so an investor has one link rather than two.
         $target = Investor::target();
         $cap    = Investor::cap();
@@ -50,7 +49,7 @@ class InvestorPortalController extends Controller
     }
 
     /**
-     * MARKER-RAISE-INVITE — the investor states their own commitment.
+     * the investor states their own commitment.
      *
      * The same state the admin form sets: an amount and committed_at. It
      * stays editable until the paperwork is signed, because until then
@@ -96,7 +95,7 @@ class InvestorPortalController extends Controller
         return back()->with('commit_ok', true);
     }
 
-    /** MARKER-INVEST-V2 — the round's shared documents, served on this link too. */
+    /** the round's shared documents, served on this link too. */
     public function proposal(string $token, string $doc)
     {
         $investor = $this->resolve($token);
@@ -129,14 +128,14 @@ class InvestorPortalController extends Controller
         return Storage::disk('local')->download($doc->path, $doc->original_name);
     }
 
-    /** MARKER-DEAD-LINK — null when the link no longer belongs to anyone. */
+    /** null when the link no longer belongs to anyone. */
     private function resolve(string $token): ?Investor
     {
         return Investor::where('token', $token)->first();
     }
 
     /**
-     * MARKER-DEAD-LINK — a withdrawn personal link.
+     * a withdrawn personal link.
      *
      * Deliberately NOT the request form: someone whose access was ended should
      * not be invited to ask again for the thing that was just taken away.

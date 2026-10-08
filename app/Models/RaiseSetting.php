@@ -4,7 +4,6 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
-// MARKER-RAISE-RECORDS
 class RaiseSetting extends Model
 {
     protected $primaryKey = 'key';
@@ -15,7 +14,7 @@ class RaiseSetting extends Model
 
     public static function get(string $key, ?string $default = null): ?string
     {
-        // MARKER-MONEY-ALERTS — ?-> because find() returns null on a missing
+        // ?-> because find() returns null on a missing
         // key and ?? does not save you from calling ->value on null.
         return static::find($key)?->value ?? $default;
     }

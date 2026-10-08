@@ -1,4 +1,4 @@
-{{-- MARKER-MKT-SECTION-BG — image and gradient backgrounds for marketing
+{{-- image and gradient backgrounds for marketing
      sections, from the same Design-tab keys the tenant public renderers read.
 
      Include with ['bgId' => $bgId] and put {{ $bgId }} on the section's class.
@@ -14,11 +14,11 @@
   $imgUrl  = $c['bg_image_url'] ?? '';
   $isImage = $bgMode === 'image' && $imgUrl !== '';
   $isGrad  = $bgMode === 'gradient';
-  // MARKER-MKT-BG-BLEND — opacity and "continue from above".
+  // opacity and "continue from above".
   $bgOp     = max(0, min(100, (int) ($c['bg_opacity'] ?? 100)));
   $bgFadeFn = fn ($col) => $bgOp >= 100 ? $col : 'color-mix(in srgb, ' . $col . ' ' . $bgOp . '%, transparent)';
   $bgCont   = $isGrad && ! empty($c['bg_continue']);
-  // MARKER-MKT-BG-COLOUR — the color lives in the section's settings (older sections: the column).
+  // the color lives in the section's settings (older sections: the column).
   $bgHexOk  = fn ($v) => is_string($v) && preg_match('/^#[0-9a-fA-F]{3,8}$/', trim($v)) ? trim($v) : null;
   $bgColour = $bgHexOk($c['bg_color'] ?? null) ?: $bgHexOk($section->bg_color ?? null);
   $bgSolid  = $bgMode === 'color' && $bgColour !== null;
@@ -43,7 +43,7 @@
           round($overlayOpacity / 100, 3));
       $needVeil = $isImage && ($overlayOpacity > 0 || $blurPx > 0);
   }
-  // MARKER-MKT-BG-FADE — where the gradient finishes, and whether it fades out.
+  // where the gradient finishes, and whether it fades out.
   $bgEnd   = max(20, min(100, (int) ($c['bg_grad_end'] ?? 100)));
   $bgToCss = $isGrad ? (! empty($c['bg_fade_out'])
       ? 'color-mix(in srgb, ' . $gradTo . ' 0%, transparent)'

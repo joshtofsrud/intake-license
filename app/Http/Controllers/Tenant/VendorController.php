@@ -90,7 +90,7 @@ class VendorController extends Controller
         $tenant = tenant();
         $data   = $this->validatedPayload($request, $tenant->id);
 
-        // MARKER-IMPORT-VENDOR-MODAL — a name that already exists is that
+        // a name that already exists is that
         // vendor, not a second one; same rule the import select applies.
         $vendor = TenantVendor::where('tenant_id', $tenant->id)
             ->whereRaw('LOWER(name) = ?', [mb_strtolower(trim((string) $data['name']))])->first();
@@ -231,25 +231,24 @@ class VendorController extends Controller
             'contact_phone'     => ['nullable', 'string', 'max:32'],
             'website'           => ['nullable', 'string', 'max:255'],
             'account_number'    => ['nullable', 'string', 'max:64'],
-            // MARKER-SO-PLACEMENT — entered in dollars, stored in cents. Blank
+            // entered in dollars, stored in cents. Blank
             // means "no threshold", and the placement board simply shows no
             // freight bar for this vendor rather than inventing one.
             'free_freight'      => ['nullable', 'numeric', 'min:0', 'max:100000'],
-            // MARKER-VENDOR-NET-COST
             'program_discount_pct' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'distributor_code'     => ['nullable', 'string', 'max:32'],
             'notes'             => ['nullable', 'string'],
             'is_active'         => ['nullable'],
         ]);
 
-        // MARKER-SO-PLACEMENT — dollars in, cents stored.
+        // dollars in, cents stored.
         $freight = $request->input('free_freight');
         $data['free_freight_cents'] = ($freight === null || $freight === '')
             ? null
             : (int) round(((float) $freight) * 100);
         unset($data['free_freight']);
 
-        // MARKER-VENDOR-NET-COST — blank means "no program", not zero.
+        // blank means "no program", not zero.
         $pct = $request->input('program_discount_pct');
         $data['program_discount_pct'] = ($pct === null || $pct === '') ? null : (float) $pct;
 

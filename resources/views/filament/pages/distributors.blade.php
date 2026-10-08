@@ -1,4 +1,3 @@
-{{-- MARKER-PATCH-HLC6 --}}
 <x-filament-panels::page>
 
     @php
@@ -11,7 +10,6 @@
                 background:{{ $ok ? 'rgba(99,153,34,.15)' : 'rgba(186,117,23,.15)' }};
                 border:1px solid {{ $ok ? 'rgba(99,153,34,.4)' : 'rgba(186,117,23,.4)' }};">
         <div style="font-weight:600;font-size:14px">
-            {{-- MARKER-PAGE-FOLLOWS-CODE --}}
             {{ $ok ? '● ' . $conn->distributor_code . ' connected' : '○ ' . $conn->distributor_code . ' not verified' }}
         </div>
         <div style="font-size:12px;opacity:.8">
@@ -62,7 +60,7 @@
                 <div style="max-height:340px;overflow:auto;border:1px solid rgba(255,255,255,.1);border-radius:8px">
                     <table style="width:100%;border-collapse:collapse;font-size:12.5px">
                         @foreach($brandStatuses as $b)
-                            @php /* MARKER-BRAND-TOTALS — skipped-unchanged is part of the truth */ $done = $b->status === 'done'; $sync = $b->status === 'syncing'; $bSkipped = (int) ($b->skipped ?? 0); @endphp
+                            @php /* skipped-unchanged is part of the truth */ $done = $b->status === 'done'; $sync = $b->status === 'syncing'; $bSkipped = (int) ($b->skipped ?? 0); @endphp
                             <tr style="border-bottom:.5px solid rgba(255,255,255,.07)">
                                 <td style="padding:7px 12px;font-weight:600">{{ $b->brand_name }}</td>
                                 <td style="padding:7px 12px;font-family:ui-monospace,monospace;opacity:.85">{{ number_format($b->written) }} / {{ number_format($b->total) }} @if($bSkipped > 0)<span style="opacity:.55">&middot; {{ number_format($bSkipped) }} unchanged</span> @endif</td>
@@ -81,7 +79,7 @@
                                         <span style="opacity:.5">pending</span>
                                     @endif
                                 </td>
-                                {{-- MARKER-BRAND-SYNC — inline single-brand refresh --}}
+                                {{-- inline single-brand refresh --}}
                                 <td style="padding:7px 12px;text-align:right">
                                     <button type="button" wire:click="syncBrand(@js($b->brand_name))" wire:loading.attr="disabled"
                                             style="font-size:11px;padding:3px 10px;border:.5px solid rgba(255,255,255,.2);border-radius:6px;background:transparent;color:#BEF264;cursor:pointer">Sync</button>
@@ -97,7 +95,7 @@
         @endif
     </x-filament::section>
 
-    {{-- MARKER-PAGE-FOLLOWS-CODE — the mapping test runs hardcoded HLC variant
+    {{-- the mapping test runs hardcoded HLC variant
          shapes through the resolver, so it can say nothing about another
          distributor. Hidden rather than shown with data that cannot apply. --}}
     @if (strtoupper($conn->distributor_code) === 'HLC')

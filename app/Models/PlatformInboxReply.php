@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-/** MARKER-PLATFORM-INBOUND — one turn of a platform conversation. */
+/** one turn of a platform conversation. */
 class PlatformInboxReply extends Model
 {
     use HasUuids;

@@ -4,7 +4,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-// MARKER-SIGNING-SEND — which Dropbox Sign request belongs to which investor.
+// which Dropbox Sign request belongs to which investor.
 return new class extends Migration
 {
     public function up(): void

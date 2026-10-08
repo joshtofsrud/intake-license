@@ -1,7 +1,7 @@
-@php $bgId = 'mkbg-' . substr(md5((string) ($section->id ?? uniqid())), 0, 10); @endphp {{-- MARKER-MKT-SECTION-BG --}}
+@php $bgId = 'mkbg-' . substr(md5((string) ($section->id ?? uniqid())), 0, 10); @endphp
 @include('marketing.sections._section_bg', ['bgId' => $bgId])
 {{--
-  MARKER-ROI-SECTION — results with their sources, plus an optional rental-extension calculator.
+  results with their sources, plus an optional rental-extension calculator.
   Content: eyebrow, heading, accent_words, subheading,
            s{1..3}_big / _label / _source / _note  (blank big line hides that result),
            calc_on, calc_title, calc_intro, calc_fleet, calc_rate, calc_idle, calc_length,
@@ -131,7 +131,7 @@
 </section>
 @if($calcOn)
 <script>
-  // MARKER-ROI-SECTION — rental extension calculator; one listener for every calculator on the page.
+  // rental extension calculator; one listener for every calculator on the page.
   (function () {
     if (window.__roiCalc) { window.__roiCalc(); return; }
     var fmt = function (n) { return '$' + Math.round(n).toLocaleString('en-US'); };

@@ -1,5 +1,5 @@
 <?php
-// MARKER-DUP-MERGE — one row per set of items that are the same product.
+// one row per set of items that are the same product.
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;

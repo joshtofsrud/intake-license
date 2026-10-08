@@ -1,6 +1,6 @@
 @extends('layouts.tenant.app')
 
-{{-- MARKER-PATCH-616 — Approvals + pay periods + settings. --}}
+{{-- Approvals + pay periods + settings. --}}
 
 @section('title', 'Time clock · Approvals')
 

@@ -100,7 +100,7 @@ class ListTenants extends ListRecords
 
         $tenants = $query->get();
 
-        // MARKER-DEMO-BUILD-CLEANUP — demo tenants are not customers. They were
+        // demo tenants are not customers. They were
         // counted in the header and in MRR because the filter tested
         // is_platform and not is_demo, which overstated both.
         $demoCount = $tenants->where('is_demo', true)->count();
@@ -122,7 +122,7 @@ class ListTenants extends ListRecords
                 'subdomain' => $t->subdomain,
                 'plan_tier' => $t->plan_tier,
                 'onboarding_status' => $t->onboarding_status,
-                // MARKER-TENANT-STANDING-ROWFIX — the row is a stdClass built
+                // the row is a stdClass built
                 // here; anything the view reads must be listed in this payload.
                 'suspended_at' => $t->suspended_at ?? null,
                 'suspended_reason' => $t->suspended_reason ?? null,
@@ -135,11 +135,11 @@ class ListTenants extends ListRecords
                 'mrr_cents' => $m['mrr_cents'],
                 'addon_count' => $m['addon_count'],
                 'bookings_30d' => $m['bookings_30d'],
-                'pulse' => $metrics->pulse($t), // MARKER-TENANT-PULSE
+                'pulse' => $metrics->pulse($t),
                 'initial' => $this->initialFor($t->name),
                 'avatar_color' => $this->avatarColorFor($t->name),
                 'is_platform' => $isPlatform,
-                'is_demo'     => (bool) $t->is_demo, // MARKER-DEMO-BUILD-CLEANUP
+                'is_demo'     => (bool) $t->is_demo,
                 'is_protected' => $isPlatform, // can expand later (e.g. Intake employees)
             ];
         });
@@ -164,8 +164,8 @@ class ListTenants extends ListRecords
             'past_due' => $tenants->filter(fn ($t) => $this->resolveLifecycle($t, $metrics->forTenant($t)['is_trial']) === 'past_due')->count(),
         ];
 
-        // MARKER-DEMO-BUILD-CLEANUP — real money only.
-        // MARKER-TENANTLIST-OBJFIX — these rows are stdClass (the map above
+        // real money only.
+        // these rows are stdClass (the map above
         // returns `(object) [...]`), so array access fatals. Object syntax.
         $totalMrr = $tenantData->reject(fn ($t) => ! empty($t->is_demo))->sum('mrr_cents');
 
@@ -178,7 +178,7 @@ class ListTenants extends ListRecords
             'tenants' => $tenantData,
             'counts' => $counts,
             'totalMrr' => $totalMrr,
-            'demoCount' => $demoCount, // MARKER-DEMO-BUILD-CLEANUP
+            'demoCount' => $demoCount,
             'filterStatus' => $this->filterStatus,
             'filterPlan' => $this->filterPlan,
             'filterSubscription' => $this->filterSubscription,
@@ -193,7 +193,7 @@ class ListTenants extends ListRecords
     protected function resolveLifecycle(Tenant $t, bool $isTrial): string
     {
         if (($t->onboarding_status ?? null) === 'suspended') return 'suspended';
-        // MARKER-PATCH-402 — surface failed-payment tenants distinctly.
+        // surface failed-payment tenants distinctly.
         if (($t->subscription_status ?? null) === 'past_due') return 'past_due';
         if ($isTrial) return 'trial';
         return 'active';
@@ -239,7 +239,7 @@ class ListTenants extends ListRecords
         $this->deleteConfirmText = '';
     }
 
-    // MARKER-TENANT-STANDING-ADMIN — suspension state lives on the tenant and
+    // suspension state lives on the tenant and
     // is now enforced by EnforceTenantStanding, so these actually do something.
     public ?string $pendingSuspendId = null;
     public string $suspendReason = '';
@@ -348,7 +348,7 @@ class ListTenants extends ListRecords
             return;
         }
 
-        // MARKER-TENANT-STANDING-ADMIN — cancel billing BEFORE deleting.
+        // cancel billing BEFORE deleting.
         // Deleting a tenant we keep charging is worse than a refused delete,
         // so a Stripe failure aborts rather than half-completing.
         if ($tenant->stripe_subscription_id) {

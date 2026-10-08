@@ -1,6 +1,5 @@
 <?php
-// MARKER-INVITE-DURABLE
-// MARKER-INVITE-SCOPE — consume is tenant-scoped; the legacy cache key is gone.
+// consume is tenant-scoped; the legacy cache key is gone.
 
 namespace App\Support;
 

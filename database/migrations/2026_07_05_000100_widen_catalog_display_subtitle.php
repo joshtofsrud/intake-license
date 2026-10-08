@@ -4,7 +4,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-// MARKER-PATCH-544 — display_subtitle on the platform catalog was VARCHAR(128);
+// display_subtitle on the platform catalog was VARCHAR(128);
 // composed subtitles (e.g. with {allattr} or several attrs) overflow it and the
 // 1406 "Data too long" error killed every recompose run. TEXT to match the
 // tenant items column.

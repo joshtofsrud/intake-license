@@ -1,5 +1,5 @@
 <?php
-// MARKER-SALES-SITE-SCAN — what the website pass found, and when it last read the site.
+// what the website pass found, and when it last read the site.
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;

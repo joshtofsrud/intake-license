@@ -1,4 +1,4 @@
-{{-- MARKER-GIFTCARDS-PUBLIC — public balance check, per the approved mockup.
+{{-- public balance check, per the approved mockup.
      Rate-limited at the route; result shows balance + masked code ONLY. --}}
 @php
   $accent = $tenant->accent_color ?? '#BEF264';

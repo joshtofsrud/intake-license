@@ -9,7 +9,7 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
 /**
- * MARKER-SO-ORPHANS — cancel special orders whose reason for existing has gone.
+ * cancel special orders whose reason for existing has gone.
  *
  * CANCELS rather than deletes, for the reason the board states: one that
  * reached a vendor may have money against it, and its history is the only

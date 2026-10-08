@@ -1,6 +1,6 @@
 <?php
 
-// MARKER-REGISTER-RECON-DISPLAY — per-register display logo choice.
+// per-register display logo choice.
 // auto = light logo, falling back to main; main/light force one; none hides it.
 
 use Illuminate\Database\Migrations\Migration;

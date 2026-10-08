@@ -3,7 +3,7 @@
 use Illuminate\Database\Migrations\Migration;
 
 /**
- * MARKER-PAGE-BIKE-SHOPS — creates a DRAFT "For bike shops" page on
+ * creates a DRAFT "For bike shops" page on
  * intake.works (slug bike-shops, unpublished) built from existing sections:
  * split hero, what it does for a bike shop, a repair start to finish, beyond
  * the service desk, questions, and a closing call to action. Review and

@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 /**
- * MARKER-PATCH-174B — One-shot correction for appointments whose ledger shows a
+ * One-shot correction for appointments whose ledger shows a
  * false overage caused by the deposit-double-count bug.
  *
  * Root cause (fixed forward in AppointmentRegisterBridgeService): the

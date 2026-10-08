@@ -1,5 +1,5 @@
 <?php
-// MARKER-PATCH-635 — fetch Stripe payouts + their charges and match each
+// fetch Stripe payouts + their charges and match each
 // charge to the sales-as-money ledger by PaymentIntent id
 // (tenant_sale_payments.external_reference holds the PI for card rows).
 

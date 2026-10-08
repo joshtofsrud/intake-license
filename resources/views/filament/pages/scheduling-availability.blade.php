@@ -1,5 +1,4 @@
 <x-filament-panels::page>
-<!-- MARKER-SCHED-ADMIN -->
 @php $days = \App\Filament\Pages\SchedulingAvailability::DAYS; $zones = \App\Filament\Pages\SchedulingAvailability::TIMEZONES; @endphp
 
 <div class="grid gap-4 lg:grid-cols-2">
@@ -72,7 +71,6 @@
 
         <div class="rounded-xl border border-gray-200 dark:border-white/10 p-4">
             <div class="text-xs uppercase tracking-wide text-gray-500 mb-2">Google Calendar</div>
-            {{-- MARKER-SCHED-GOOGLE --}}
             @if(session('google_error'))<div class="mb-2 text-sm text-danger-600">{{ session('google_error') }}</div>@endif
             @if(session('google_ok'))<div class="mb-2 text-sm text-success-600">{{ session('google_ok') }}</div>@endif
             @if(!$google['configured'])

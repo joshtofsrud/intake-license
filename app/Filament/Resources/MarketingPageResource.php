@@ -22,8 +22,8 @@ use Illuminate\Database\Eloquent\Model;
  */
 class MarketingPageResource extends Resource
 {
-    use \App\Support\UsesAdminNav; // MARKER-NAV-ORDER
-    use \App\Support\GatedByAdminArea; // MARKER-ADMIN-NAV-GATE
+    use \App\Support\UsesAdminNav;
+    use \App\Support\GatedByAdminArea;
     protected static string $adminArea = 'marketing';
 
     protected static ?string $model = TenantPage::class;
@@ -53,7 +53,7 @@ class MarketingPageResource extends Resource
             return parent::getEloquentQuery()->whereRaw('1 = 0');
         }
 
-        // MARKER-HELP-ADMIN — help articles are platform pages too (kind 'howto').
+        // help articles are platform pages too (kind 'howto').
         // Without this they would appear in the marketing page list, where
         // publishing one would put it on intake.works.
         return parent::getEloquentQuery()
@@ -81,7 +81,7 @@ class MarketingPageResource extends Resource
                     Forms\Components\Toggle::make('is_published')
                         ->helperText('Visitors only see published pages.'),
 
-                    // MARKER-MKT-NAV — menu membership lives on Site & content › Navigation.
+                    // menu membership lives on Site & content › Navigation.
                 ])->columns(2),
 
             Forms\Components\Section::make('SEO')
@@ -95,7 +95,7 @@ class MarketingPageResource extends Resource
                         ->maxLength(300)
                         ->helperText('Shows under the title in Google results. Aim for 150–160 characters.'),
 
-                    // MARKER-BRAND — this page's own share image; empty uses Brand's default.
+                    // this page's own share image; empty uses Brand's default.
                     Forms\Components\FileUpload::make('og_image_url')
                         ->label('Share image')
                         ->image()
@@ -157,7 +157,7 @@ class MarketingPageResource extends Resource
                     ->openUrlInNewTab()
                     ->visible(fn (TenantPage $p) => $p->is_published && ! str_starts_with($p->slug, '__')),
 
-                // MARKER-MKT-HOME — one click; moves the flag so there is only ever one home.
+                // one click; moves the flag so there is only ever one home.
                 Tables\Actions\Action::make('make_home')
                     ->label('Make home page')
                     ->icon('heroicon-o-home')

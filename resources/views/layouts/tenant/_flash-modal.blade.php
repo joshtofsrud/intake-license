@@ -1,4 +1,4 @@
-{{-- MARKER-FLASH-MODAL — one confirmation surface for success and failure.
+{{-- one confirmation surface for success and failure.
      Success dismisses itself; an error waits to be acknowledged, which is
      why errors were a blocking alert before this and still behave that way. --}}
 @php

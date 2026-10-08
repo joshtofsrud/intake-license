@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-/** MARKER-ITEM-IMAGES — joins a TenantMedia row to an inventory item. */
+/** joins a TenantMedia row to an inventory item. */
 class TenantInventoryItemImage extends Model
 {
     use HasUuids;

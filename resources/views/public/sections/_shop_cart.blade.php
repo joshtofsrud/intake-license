@@ -1,4 +1,4 @@
-{{-- MARKER-PATCH-579 -- chrome-wrapped shop body (cart); rendered
+{{-- chrome-wrapped shop body (cart); rendered
      through public.layout via SiteChromeService between the tenant own
      nav + footer sections. Original standalone blade retired. --}}
 @php
@@ -93,7 +93,6 @@
       <span>Subtotal</span>
       <b>{{ $money($cart->subtotal_cents) }}</b>
     </div>
-    {{-- MARKER-SHOP-DISCOUNT --}}
     @if((int) ($cart->discount_cents ?? 0) > 0)
       <div class="sum-row" style="display:flex;justify-content:space-between;align-items:center">
         <span>Discount{{ $cart->discount_code ? ' (' . $cart->discount_code . ')' : '' }}</span>
@@ -119,7 +118,7 @@
 
     <div class="sum-note">Tax and any delivery fee are calculated at checkout.</div>
 
-    {{-- MARKER-PATCH-566 — checkout is live --}}
+    {{-- checkout is live --}}
     <a class="cta" href="/checkout" style="cursor:pointer;opacity:1;text-decoration:none">Checkout</a>
     <div class="cta-note">Secure payment · pickup or local delivery</div>
   @endif

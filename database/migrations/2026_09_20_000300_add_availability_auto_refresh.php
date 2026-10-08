@@ -4,7 +4,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-/** MARKER-APPT-AUTOLOAD — keep the booking screen's day counts current. */
+/** keep the booking screen's day counts current. */
 return new class extends Migration
 {
     public function up(): void

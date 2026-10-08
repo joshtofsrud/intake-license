@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers\Webhooks;
 
-// MARKER-CONTRIBUTIONS
 use App\Http\Controllers\Controller;
 use App\Models\BillingSettings;
 use App\Models\Contribution;
@@ -27,7 +26,7 @@ class ContributionWebhookController extends Controller
         $secret = BillingSettings::current()->activeContribWebhookSecret();
 
         if (! $secret) {
-            Log::warning('MARKER-CONTRIBUTIONS webhook hit with no signing secret configured');
+            Log::warning('contributions: webhook hit with no signing secret configured');
 
             return response('not configured', 500);
         }
@@ -39,7 +38,7 @@ class ContributionWebhookController extends Controller
                 $secret
             );
         } catch (\Throwable $e) {
-            Log::warning('MARKER-CONTRIBUTIONS webhook verification failed', ['error' => $e->getMessage()]);
+            Log::warning('contributions: webhook verification failed', ['error' => $e->getMessage()]);
 
             return response('invalid signature', 400);
         }
@@ -59,7 +58,7 @@ class ContributionWebhookController extends Controller
             // Only a duplicate key should land here. Anything else is a real
             // fault and must be visible rather than silently 200'd.
             if (! str_contains($e->getMessage(), 'Duplicate') && $e->getCode() !== '23000') {
-                Log::error('MARKER-CONTRIBUTIONS dedupe insert failed', ['error' => $e->getMessage()]);
+                Log::error('contributions: dedupe insert failed', ['error' => $e->getMessage()]);
 
                 return response('dedupe failed', 500);
             }
@@ -78,7 +77,7 @@ class ContributionWebhookController extends Controller
                 ?: Contribution::find($session->client_reference_id ?? 0);
 
             if (! $contribution) {
-                Log::warning('MARKER-CONTRIBUTIONS paid session with no row', ['session' => $session->id]);
+                Log::warning('contributions: paid session with no row', ['session' => $session->id]);
 
                 return response('no matching row', 200);
             }
@@ -91,12 +90,12 @@ class ContributionWebhookController extends Controller
                 'paid_at'               => now(),
             ]);
 
-            Log::info('MARKER-CONTRIBUTIONS paid', [
+            Log::info('contributions: paid', [
                 'contribution' => $contribution->id,
                 'amount'       => $contribution->amount_cents,
             ]);
 
-            // MARKER-MONEY-ALERTS — money landed and nothing here told anyone.
+            // money landed and nothing here told anyone.
             // Both sends are wrapped and swallowed: this handler must reach its
             // 2xx or Stripe retries the event, and a retry that got past the
             // dedupe insert would notify twice for one payment.
@@ -120,12 +119,12 @@ class ContributionWebhookController extends Controller
                         }
                     );
                 } else {
-                    Log::warning('MARKER-MONEY-ALERTS contribution paid but no notify address', [
+                    Log::warning('money-alerts: contribution paid but no notify address', [
                         'contribution' => $contribution->id,
                     ]);
                 }
             } catch (\Throwable $e) {
-                Log::error('MARKER-MONEY-ALERTS contribution notify failed', ['error' => $e->getMessage()]);
+                Log::error('money-alerts: contribution notify failed', ['error' => $e->getMessage()]);
             }
 
             // The person who just paid gets an acknowledgement rather than a
@@ -147,7 +146,7 @@ class ContributionWebhookController extends Controller
                     );
                 }
             } catch (\Throwable $e) {
-                Log::error('MARKER-MONEY-ALERTS contribution receipt failed', ['error' => $e->getMessage()]);
+                Log::error('money-alerts: contribution receipt failed', ['error' => $e->getMessage()]);
             }
         }
 

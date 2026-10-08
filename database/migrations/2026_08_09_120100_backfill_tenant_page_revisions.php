@@ -4,7 +4,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
-// MARKER-REWIND — live tenants already have sites built. Give every one of
+// live tenants already have sites built. Give every one of
 // them a restore point the moment rewind ships, rather than only protecting
 // edits made from here on. Chunked so a large install doesn't load every
 // section into memory at once.

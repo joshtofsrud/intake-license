@@ -1,7 +1,7 @@
 @extends('layouts.tenant.app')
 @php $pageTitle = 'Lease ' . $lease->lease_number; @endphp
 
-{{-- MARKER-PATCH-230 — lease detail. Returns/condition checks land in 231. --}}
+{{-- lease detail. Returns/condition checks land in 231. --}}
 
 @section('content')
 

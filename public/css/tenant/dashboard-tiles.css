@@ -1,4 +1,4 @@
-/* MARKER-PATCH-110-STEP-9
+/*
    Dashboard tiles refactor. Additive to dashboard.css — does not modify
    or replace existing rules. Uses Intake's existing CSS vars from theme.
 */
@@ -62,7 +62,7 @@
   margin-bottom: 12px;
 }
 .ia-dash-tile-label {
-  font-size: var(--ia-fs-tile-label, 11.5px); /* MARKER-THEME-TEXT-SIZE */
+  font-size: var(--ia-fs-tile-label, 11.5px);
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--ia-text-dim);
@@ -70,7 +70,7 @@
 }
 
 .ia-dash-tile-count {
-  font-size: var(--ia-fs-tile-count, 32px); /* MARKER-THEME-TEXT-SIZE */
+  font-size: var(--ia-fs-tile-count, 32px);
   font-weight: 800;
   letter-spacing: -0.02em;
   line-height: 1;
@@ -83,7 +83,7 @@
 .ia-dash-tile-count--violet { color: #A78BFA; }
 
 .ia-dash-tile-desc {
-  font-size: var(--ia-fs-tile-desc, 12.5px); /* MARKER-THEME-TEXT-SIZE */
+  font-size: var(--ia-fs-tile-desc, 12.5px);
   color: var(--ia-text);
   line-height: 1.45;
   margin-bottom: 12px;
@@ -425,7 +425,7 @@
 .ia-dash-launcher-tile .nudge--rose  { background: #F87171; color: #fff; }
 
 /* ─────────────────────────────────────────────── */
-/*   MARKER-PATCH-350 — mobile home polish         */
+/*   mobile home polish         */
 /*   triage carousel · launcher icons · FAB room   */
 /* ─────────────────────────────────────────────── */
 
@@ -470,5 +470,5 @@
   .ia-dash-launcher-block { padding-bottom: 92px; }
 }
 
-/* MARKER-PATCH-351 — grid columns use minmax(0,1fr) above to stop nowrap subs
+/* grid columns use minmax(0,1fr) above to stop nowrap subs
    from blowing the grid past the viewport (fixes 'pinches small' + uneven cols). */

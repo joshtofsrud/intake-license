@@ -10,7 +10,7 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
 /**
- * MARKER-PATCH-176B — Backfill ledger rows for paid sales that never got one.
+ * Backfill ledger rows for paid sales that never got one.
  *
  * Cause: sales rung up while php-fpm was serving stale (pre-patch-176) opcache
  * never ran the create-hook, so they have payment_status=paid but zero rows in

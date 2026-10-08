@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 
 /**
- * MARKER-SCHED-PUBLIC — every email the scheduling feature sends.
+ * every email the scheduling feature sends.
  * Never throws into a controller or Livewire action: a mail failure is
  * logged and recorded as a booking event, the booking itself stands.
  */
@@ -94,7 +94,7 @@ class BookingMailer
     {
         $to = PlatformBookingSetting::get('notify_email', '') ?: PlatformSettings::fromAddress();
         if (! $to) {
-            Log::warning('MARKER-SCHED-PUBLIC no notify address — booking saved, nobody told', ['id' => $b->id]);
+            Log::warning('sched-public: no notify address — booking saved, nobody told', ['id' => $b->id]);
             return false;
         }
         $verb = match ($event) {
@@ -131,7 +131,7 @@ class BookingMailer
             $html = view('emails.platform.booking', $data + ['subject' => $subject])->render();
             $from = PlatformSettings::fromAddress();
             $name = PlatformSettings::fromName() ?: 'Intake';
-            // MARKER-PLATFORM-MAIL-LOG — free record so this send is answerable.
+            // free record so this send is answerable.
             $__mailLog = \App\Services\EmailLedger::platform((string) ($to ?? ''), 'platform_booking');
             Mail::send([], [], function ($m) use ($to, $subject, $html, $ics, $from, $name) {
                 $m->to($to)->subject($subject)->html($html);
@@ -145,7 +145,7 @@ class BookingMailer
             if (isset($__mailLog) && $__mailLog) \App\Services\EmailLedger::markSent($__mailLog);
             return true;
         } catch (\Throwable $e) {
-            Log::error('MARKER-SCHED-PUBLIC mail failed', ['to' => $to, 'subject' => $subject, 'error' => $e->getMessage()]);
+            Log::error('sched-public: mail failed', ['to' => $to, 'subject' => $subject, 'error' => $e->getMessage()]);
             return false;
         }
     }

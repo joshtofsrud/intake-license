@@ -1,5 +1,5 @@
 {{--
-  MARKER-RENTAL-SECTIONS — rental_browse public render. The /rentals
+  rental_browse public render. The /rentals
   browse experience as an embeddable section: window picker (GET back to
   the same page, #rental-browse anchor) + grouped live availability.
   Same RentalAvailabilityService the reserve lock re-verifies.
@@ -39,7 +39,7 @@
   $rbBtn = '';
   if (!empty($c['button_bg']))   $rbBtn .= 'background:' . $c['button_bg'] . ';border-color:' . $c['button_bg'] . ';';
   if (!empty($c['button_text'])) $rbBtn .= 'color:' . $c['button_text'] . ';';
-  // MARKER-RENTAL-STYLE — style + advanced resolution (feature_grid model).
+  // style + advanced resolution (feature_grid model).
   $stBgMode  = $c['bg_mode'] ?? (!empty($c['bg_color']) ? 'color' : 'none');
   $stText    = ($c['text_color'] ?? '') ?: 'inherit';
   $stBody    = ($c['text_color_body'] ?? '') ?: 'inherit';

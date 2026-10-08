@@ -1,4 +1,4 @@
-{{-- MARKER-IMPORT-PRESETS — in-app confirm. Any form carrying data-confirm
+{{-- in-app confirm. Any form carrying data-confirm
      is intercepted; no native confirm() anywhere in Intake UI. --}}
 <style>
 .imp-cf-back{position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;

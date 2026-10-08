@@ -1,5 +1,4 @@
 <?php
-// MARKER-PATCH-HLC5
 
 namespace App\Filament\Resources;
 
@@ -19,8 +18,8 @@ use Illuminate\Database\Eloquent\Builder;
  */
 class DistributorFieldMapResource extends Resource
 {
-    use \App\Support\UsesAdminNav; // MARKER-NAV-ORDER
-    use \App\Support\GatedByAdminArea; // MARKER-ADMIN-NAV-GATE
+    use \App\Support\UsesAdminNav;
+    use \App\Support\GatedByAdminArea;
     protected static string $adminArea = 'catalog';
 
     protected static ?string $model = DistributorFieldMap::class;
@@ -45,7 +44,7 @@ class DistributorFieldMapResource extends Resource
         'pick_category_level' => 'pick_category_level — choose a level',
         'join_array'          => 'join_array — join a list',
         'json_passthrough'    => 'json_passthrough — store the whole value',
-        // MARKER-PICK-ATTR — these three were in the resolver but not here,
+        // these three were in the resolver but not here,
         // so rows using them couldn't be edited through this form.
         'pick_attribute'      => 'pick_attribute — first matching attribute by name',
         'zip_pipe'            => 'zip_pipe — two pipe strings → {Name,Value} pairs',
@@ -70,7 +69,7 @@ class DistributorFieldMapResource extends Resource
                             ->required()->native(false)->searchable()
                             ->options(fn () => self::canonicalFieldOptions())
                             ->helperText('What this becomes inside Intake'),
-                        // MARKER-FIELDMAP-PICKERS2 — a real dropdown. Nested
+                        // a real dropdown. Nested
                         // paths are flattened into the options, and rows with
                         // no path (coalesce, computed) pick "none" explicitly
                         // instead of being left to guess at an empty box.
@@ -91,7 +90,7 @@ class DistributorFieldMapResource extends Resource
                     ]),
                 ]),
 
-            // MARKER-FIELDMAP-PROBE — what does this feed actually send?
+            // what does this feed actually send?
             Forms\Components\Section::make('See real values from this feed')
                 ->description('Enter any product identifier to list every column this distributor sends for it, with its value and whether it is mapped yet.')
                 ->collapsible()
@@ -114,7 +113,7 @@ class DistributorFieldMapResource extends Resource
                         )),
                 ]),
 
-            // MARKER-TRANSFORM-LEGEND — was one dense run-on line naming four
+            // was one dense run-on line naming four
             // of the eleven transforms. The legend below replaces it; keeping
             // both would guarantee they drift.
             Forms\Components\Section::make('What the transforms do')
@@ -218,7 +217,7 @@ class DistributorFieldMapResource extends Resource
     }
 
     /**
-     * MARKER-FIELDMAP-PICKERS2 — codes that already have maps, plus every code
+     * codes that already have maps, plus every code
      * the registry supports, so a newly registered adapter is selectable
      * before it has a single mapping row.
      *
@@ -239,7 +238,7 @@ class DistributorFieldMapResource extends Resource
     }
 
     /**
-     * MARKER-FIELDMAP-PICKERS2 — the Intake fields a map may fill, labelled in
+     * the Intake fields a map may fill, labelled in
      * plain language. The list is read from the model's fillable so it cannot
      * drift from the schema; the labels are ours, because the column name told
      * you what it is called and nothing about what it does.
@@ -293,7 +292,7 @@ class DistributorFieldMapResource extends Resource
     }
 
     /**
-     * MARKER-FIELDMAP-PICKERS2 — the feed's own columns, as a real list.
+     * the feed's own columns, as a real list.
      *
      * A distributor's column names are written down nowhere in Intake except
      * inside the rows they produced, so this reads source_raw — the untouched
@@ -353,7 +352,7 @@ class DistributorFieldMapResource extends Resource
     }
 
     /**
-     * MARKER-FIELDMAP-PROBE — every column this distributor sends for one
+     * every column this distributor sends for one
      * product, with its value and its current mapping.
      *
      * Reads source_raw, the untouched feed row stored on every catalog row,
@@ -362,7 +361,7 @@ class DistributorFieldMapResource extends Resource
      * column picker offers, so what you see here is what you can select.
      */
     /**
-     * MARKER-TRANSFORM-LEGEND — the reference table.
+     * the reference table.
      *
      * Examples are lifted from the seeded maps rather than invented, so a
      * reader can find the same row in the list and see it working.

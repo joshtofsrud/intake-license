@@ -4,7 +4,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-// MARKER-IMPORT2 — what each imported row actually did, so it can be undone.
+// what each imported row actually did, so it can be undone.
 // One row per record touched. `before` holds ONLY the fields that changed,
 // with their prior values — enough to restore, small enough to keep.
 return new class extends Migration

@@ -1,6 +1,5 @@
 <?php
 
-// MARKER-CATALOG-MATCHES
 
 namespace App\Console\Commands;
 
@@ -173,7 +172,7 @@ class MatchCatalogRows extends Command
             from catalog_identifiers a
             join catalog_identifiers b
               on (
-                   -- MARKER-BARCODE-TYPE: upc and ean label the SAME barcode.
+                   -- upc and ean label the SAME barcode.
                    -- One distributor files 4717784034485 as ean and another
                    -- as upc; joining on the label made identical products
                    -- invisible to each other. mpn must still meet mpn.

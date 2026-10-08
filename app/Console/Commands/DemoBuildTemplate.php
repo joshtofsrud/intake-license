@@ -2,7 +2,7 @@
 
 namespace App\Console\Commands;
 
-use App\Models\DemoSetting; // MARKER-DEMO-BUILD-SAFE
+use App\Models\DemoSetting;
 use App\Models\Tenant;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 /**
- * MARKER-DEMO-TEMPLATE — build the frozen "Intake Bike Works" demo template
+ * build the frozen "Intake Bike Works" demo template
  * from a real tenant. Run rarely, by hand, when the demo should pick up a
  * fresher slice of life. The hourly job never runs this; it restores the
  * frozen output (storage/app/demo/).
@@ -30,7 +30,7 @@ class DemoBuildTemplate extends Command
     private const DEMO_SUBDOMAIN = 'demo';
     private const DEMO_NAME      = 'Intake Bike Works';
 
-    // MARKER-DEMO-RESET — resolved per run so a second vertical can be built
+    // resolved per run so a second vertical can be built
     // with the same command instead of a forked copy.
     private string $slug = self::DEMO_SUBDOMAIN;
     private string $demoName = self::DEMO_NAME;
@@ -41,16 +41,16 @@ class DemoBuildTemplate extends Command
     private const EXCLUDE = '/session|debug_log|password_reset|failed_job|webhook|_export|telescope/i';
 
     /**
-     * MARKER-DEMO-TEMPLATE-BULK — bulk derived data: enormous, regenerable, and
+     * bulk derived data: enormous, regenerable, and
      * of no demo value. Distributor availability alone is six figures for a
      * shop with live syncs, and it would bloat the frozen template past what
      * the hourly restore can finish.
      */
     /**
-     * MARKER-DEMO-FIXES — internal staff notes are private chatter, not demo
+     * internal staff notes are private chatter, not demo
      * texture. Anonymising names does not make the content fit to publish.
      */
-    // MARKER-DEMO-BILLING-SKIP — billing terms are between Intake and a real
+    // billing terms are between Intake and a real
     // shop; copied into the demo they would show a stranger's arrangement.
     private const PRIVATE_TABLES = '/^tenant_notes$|^tenant_billing_discounts$/i';
 
@@ -60,7 +60,7 @@ class DemoBuildTemplate extends Command
     private const SECRET_COLS = '/password|pin_hash|remember_token|secret|api_key|_token$/i';
 
     /**
-     * MARKER-DEMO-TEMPLATE-FIX — anything credential-shaped, by column name or
+     * anything credential-shaped, by column name or
      * by key inside a JSON blob. Live Stripe keys were found riding inside
      * tenants.settings; nothing matching this may reach the demo copy.
      */
@@ -69,10 +69,10 @@ class DemoBuildTemplate extends Command
     private array $uuidMap = [];   // old uuid => new uuid (every copied row, all tables)
     private array $intMap  = [];   // "table:oldId" => newId (rare bigint-PK tables)
     private array $sweep      = []; // exact-match map: emails (looked up by the email regex)
-    private array $brandSweep = []; // MARKER-DEMO-SWEEP-FAST — shop name + subdomain, the only strtr left
-    private array $nameSweep = []; // MARKER-DEMO-TEMPLATE-NAMES — people's names, whole words only
+    private array $brandSweep = []; // shop name + subdomain, the only strtr left
+    private array $nameSweep = []; // people's names, whole words only
     private array $leakSamples = []; // real emails that must NOT survive
-    private ?array $referencedTables = null; // MARKER-DEMO-TEMPLATE-BULK
+    private ?array $referencedTables = null;
 
     public function handle(): int
     {
@@ -99,7 +99,7 @@ class DemoBuildTemplate extends Command
             return self::FAILURE;
         }
         $existing = Tenant::withTrashed()->where('subdomain', $this->slug)->first();
-        $building = $this->slug . '-building'; // MARKER-DEMO-BUILD-SWAP — the new copy lives here until it is safe to serve
+        $building = $this->slug . '-building'; // the new copy lives here until it is safe to serve
         $leftover = Tenant::withTrashed()->where('subdomain', $building)->first();
         if ($existing && ! $existing->is_demo) {
             $this->error("Subdomain '{$this->slug}' belongs to a real tenant — refusing.");
@@ -111,9 +111,9 @@ class DemoBuildTemplate extends Command
 
         $tables = $this->discoverTables();
         $this->info('Tenant-scoped tables: ' . count($tables));
-        $this->line('Customers table: ' . $this->customersTable()); // MARKER-DEMO-TEMPLATE-CUSTTABLE
+        $this->line('Customers table: ' . $this->customersTable());
 
-        // MARKER-DEMO-BUILD-SWAP — the live demo keeps serving during the build; it goes offline only for the swap
+        // the live demo keeps serving during the build; it goes offline only for the swap
         $wasOffline = DemoSetting::get('offline:' . $this->slug) === '1';
         $t0 = microtime(true);
         $el = fn () => sprintf('%5.1fs', microtime(true) - $t0);
@@ -121,7 +121,7 @@ class DemoBuildTemplate extends Command
         // ---- 1. clear the old demo ------------------------------------
         DB::statement('SET FOREIGN_KEY_CHECKS=0');
         try {
-            if ($leftover) { // MARKER-DEMO-BUILD-SWAP
+            if ($leftover) {
                 foreach ($tables as $t) {
                     DB::table($t)->where('tenant_id', $leftover->id)->delete();
                 }
@@ -136,19 +136,19 @@ class DemoBuildTemplate extends Command
             $row = (array) DB::table('tenants')->where('id', $src->id)->first();
             $row['id']            = $demoId;
             $row['name']          = $this->demoName;
-            $row['subdomain']     = $building; // MARKER-DEMO-BUILD-SWAP — renamed to the real slug at the swap
+            $row['subdomain']     = $building; // renamed to the real slug at the swap
             $row['custom_domain'] = null;
             $row['is_demo']       = 1;
             $row['is_active']     = 1;
             $row['deleted_at']    = null;
             $row['created_at']    = now();
             $row['updated_at']    = now();
-            $tenantsMeta = $this->tableMeta('tenants'); // MARKER-DEMO-TEMPLATE-FIX
+            $tenantsMeta = $this->tableMeta('tenants');
             foreach ($row as $col => $v) {
                 if (preg_match(self::CREDENTIAL, $col)) {
                     $row[$col] = $this->blankSecret($col, $tenantsMeta);
                 }
-                // MARKER-DEMO-WORDMARK — the wordmark, and the right one per surface:
+                // the wordmark, and the right one per surface:
                 // logo.svg has light text (dark backgrounds), logo-dark.svg is its twin.
                 if ($col === 'logo_url')       $row[$col] = '/logo-dark.svg';
                 if ($col === 'logo_light_url') $row[$col] = '/logo.svg';
@@ -160,9 +160,9 @@ class DemoBuildTemplate extends Command
             }
             // sms stays off however the columns are named
             if (array_key_exists('sms_enabled', $row)) $row['sms_enabled'] = 0;
-            // MARKER-DEMO-TEMPLATE-UNIQUE — globally unique, not credential-shaped
+            // globally unique, not credential-shaped
             if (array_key_exists('sms_from_number', $row)) $row['sms_from_number'] = null;
-            // MARKER-DEMO-TEMPLATE-FIX — live Stripe keys were found inside this
+            // live Stripe keys were found inside this
             // JSON; strip every credential-keyed value before the row exists.
             foreach ($row as $col => $v) {
                 if (is_string($v) && ($tenantsMeta['cols'][$col] ?? '') === 'json') {
@@ -176,14 +176,14 @@ class DemoBuildTemplate extends Command
             $this->info("demo tenant: {$demoId}");
 
             // brand sweep: every mention of the source shop becomes the demo shop
-            $this->brandSweep[$src->name] = $this->demoName; // MARKER-DEMO-SWEEP-FAST
+            $this->brandSweep[$src->name] = $this->demoName;
             $this->brandSweep[$fromSub . '.'] = $this->slug . '.';
 
             // ---- 3. copy ----------------------------------------------
             $meta = [];
             $cap  = (int) $this->option('max-rows');
 
-            // MARKER-DEMO-TEMPLATE-UNIQUE — every new uuid is known BEFORE the
+            // every new uuid is known BEFORE the
             // first insert, so FK columns can be rewritten inline and composite
             // uniques over FK pairs never collide with the source's rows.
             $this->line('Mapping ids…');
@@ -198,7 +198,7 @@ class DemoBuildTemplate extends Command
             $this->line('  ' . count($this->uuidMap) . ' ids mapped');
             foreach ($tables as $t) {
                 $meta[$t] = $this->tableMeta($t);
-                // MARKER-DEMO-TEMPLATE-BULK — count first: the operator sees which
+                // count first: the operator sees which
                 // table is running BEFORE the wait, not after it.
                 $expect = DB::table($t)->where('tenant_id', $src->id)->count();
                 if ($expect === 0) continue;
@@ -218,11 +218,11 @@ class DemoBuildTemplate extends Command
             }
 
             // ---- 5. anonymise -----------------------------------------
-            $this->scrubPrivateContent($demoId); // MARKER-DEMO-FIXES
-            $this->demoBranding($demoId);        // MARKER-DEMO-FIXES
+            $this->scrubPrivateContent($demoId);
+            $this->demoBranding($demoId);
             $this->anonymiseCustomers($demoId);
             $this->anonymiseStaff($demoId);
-            $this->line('Anonymise sweep (every text column of every table — the long part):'); // MARKER-DEMO-BUILD-SWAP
+            $this->line('Anonymise sweep (every text column of every table — the long part):');
             foreach ($tables as $t) {
                 $rows = DB::table($t)->where('tenant_id', $demoId)->count();
                 if ($rows === 0) continue;
@@ -237,13 +237,13 @@ class DemoBuildTemplate extends Command
             foreach ($tRow as $col => $v) {
                 if (is_string($v) && $v !== '' && ! preg_match(self::SECRET_COLS, $col)
                     && ! in_array($col, ['id', 'subdomain', 'name'], true)) {
-                    $new = $this->scrubAny($v, true, null); // MARKER-DEMO-JSON-SCRUB — tenants.settings is JSON
+                    $new = $this->scrubAny($v, true, null); // tenants.settings is JSON
                     if ($new !== $v) $tUpd[$col] = $new;
                 }
             }
             if ($tUpd) DB::table('tenants')->where('id', $demoId)->update($tUpd);
 
-            // MARKER-DEMO-BUILD-SWAP — leak check BEFORE anything is exposed; a dirty copy never replaces the live demo
+            // leak check BEFORE anything is exposed; a dirty copy never replaces the live demo
             $leaks = $this->leakCheck($demoId, $tables);
             if ($leaks > 0) {
                 throw new \RuntimeException("LEAK CHECK FAILED: {$leaks} real address(es) still present in the new copy. Live demo left untouched; the -building tenant is cleared on the next run.");
@@ -264,7 +264,7 @@ class DemoBuildTemplate extends Command
             DB::table('tenants')->where('id', $demoId)->update(['subdomain' => $this->slug]);
             $this->info("swapped in: {$this->slug} now serves {$demoId} " . $el());
         } catch (\Throwable $e) {
-            // MARKER-DEMO-BUILD-SAFE — a half-built demo with a stale manifest 500s the hourly reset
+            // a half-built demo with a stale manifest 500s the hourly reset
             \App\Support\JobFailureReporter::report(self::class, "demo:build-template crashed for '{$this->slug}' — the live demo was left as it was; re-run demo:build-template --from=… --force", $e, ['slug' => $this->slug, 'from' => $src->subdomain]);
             throw $e;
         } finally {
@@ -272,12 +272,12 @@ class DemoBuildTemplate extends Command
         }
 
         // ---- 6. media files + freeze ----------------------------------
-        try { // MARKER-DEMO-BUILD-SWAP — past the swap the demo is offline, so a failure here must be loud too
+        try { // past the swap the demo is offline, so a failure here must be loud too
             $this->copyMedia($src->id, $demoId);
             $this->line('Freezing template … ' . $el());
             $this->freeze($demoId, $tables);
 
-        // MARKER-DEMO-BUILD-CLEANUP - the clone was scaffolding. The manifest
+        // the clone was scaffolding. The manifest
         // records the LIVE demo's id and demo:reset restores from the files on
         // disk, so nothing reads this tenant again. Leaving it behind put a
         // fake shop in the tenants list and $199 of imaginary MRR on the
@@ -285,7 +285,7 @@ class DemoBuildTemplate extends Command
         if ($this->slug !== $fromSub) {
             $clone = \App\Models\Tenant::where('subdomain', $this->slug)->first();
             if ($clone && $clone->is_demo && (string) $clone->id !== (string) $demoId) {
-                // MARKER-DEMO-SCAFFOLD-PURGE - a tenant row cannot be deleted
+                // a tenant row cannot be deleted
                 // while its children exist: several constraints are RESTRICT.
                 // $tables is the same tenant-scoped list this command cleared
                 // the previous demo with a few hundred lines above.
@@ -307,9 +307,9 @@ class DemoBuildTemplate extends Command
             throw $e;
         }
         $this->info("Template frozen at storage/app/demo/{$this->slug}/. demo:reset restores it hourly. Total " . $el());
-        if (! $wasOffline) { DemoSetting::put('offline:' . $this->slug, '0'); DemoSetting::put('offline_reason:' . $this->slug, null); $this->info('demo switched back on'); } // MARKER-DEMO-BUILD-SAFE
+        if (! $wasOffline) { DemoSetting::put('offline:' . $this->slug, '0'); DemoSetting::put('offline_reason:' . $this->slug, null); $this->info('demo switched back on'); }
 
-        // MARKER-DEMO-TIMELINE — building as root writes files the web user
+        // building as root writes files the web user
         // cannot read, and the admin page then just says "no frozen template",
         // which looks like a bug in entirely the wrong place.
         $manifestPath = storage_path('app/demo/' . $this->slug . '/manifest.json');
@@ -338,13 +338,12 @@ class DemoBuildTemplate extends Command
             array_map(fn ($r) => $r->t, $rows),
             fn ($t) => ! preg_match(self::EXCLUDE, $t) && $t !== 'tenants'
         ));
-        // MARKER-DEMO-TEMPLATE-BULK — say out loud what is being left behind
+        // say out loud what is being left behind
         $skipped = array_values(array_filter($all, fn ($t) => preg_match(self::BULK, $t)));
         if ($skipped) {
             $this->line('Skipping bulk/derived tables (regenerable, not demo data):');
             foreach ($skipped as $t) $this->line('  - ' . $t);
         }
-        // MARKER-DEMO-FIXES
         $private = array_values(array_filter($all, fn ($t) => preg_match(self::PRIVATE_TABLES, $t)));
         if ($private) {
             $this->line('Skipping private staff content (never suitable for a public demo):');
@@ -353,7 +352,7 @@ class DemoBuildTemplate extends Command
         return array_values(array_filter($all, fn ($t) => ! preg_match(self::BULK, $t) && ! preg_match(self::PRIVATE_TABLES, $t)));
     }
 
-    /** MARKER-DEMO-TEMPLATE-UNIQUE — uuid-shaped FK columns on this table. */
+    /** uuid-shaped FK columns on this table. */
     private function uuidFkCols(array $meta): array
     {
         $out = [];
@@ -367,7 +366,7 @@ class DemoBuildTemplate extends Command
     }
 
     /**
-     * MARKER-DEMO-TEMPLATE-UNIQUE — single-column UNIQUE string columns whose
+     * single-column UNIQUE string columns whose
      * index does not include tenant_id: copying them verbatim collides with
      * the tenant we copied from. Tokens, codes, public slugs.
      */
@@ -393,7 +392,7 @@ class DemoBuildTemplate extends Command
     }
 
     /**
-     * MARKER-DEMO-TEMPLATE-BULK — does anything actually point at this table's
+     * does anything actually point at this table's
      * ids? If not, the per-row insertGetId map is dead weight and the copy can
      * batch like every other table.
      */
@@ -412,7 +411,7 @@ class DemoBuildTemplate extends Command
     private function tableMeta(string $table): array
     {
         $db = DB::getDatabaseName();
-        $cols = []; $nullable = []; $defaults = []; $lengths = []; // MARKER-DEMO-TEMPLATE-NAMES
+        $cols = []; $nullable = []; $defaults = []; $lengths = [];
         foreach (DB::select(
             "SELECT COLUMN_NAME c, DATA_TYPE d, IS_NULLABLE n, COLUMN_DEFAULT df, CHARACTER_MAXIMUM_LENGTH len
              FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?", [$db, $table]) as $r) {
@@ -445,12 +444,12 @@ class DemoBuildTemplate extends Command
         // cursor(), not chunk(): offset pagination without a unique order
         // (pivot tables have none) can skip or repeat rows.
         $n = 0; $insert = [];
-        $uuidCols   = $this->uuidFkCols($meta);            // MARKER-DEMO-TEMPLATE-UNIQUE
+        $uuidCols   = $this->uuidFkCols($meta);
         $uniqueCols = $this->unscopedUniqueCols($table, $meta);
         foreach (DB::table($table)->where('tenant_id', $srcId)->cursor() as $r) {
             $row = (array) $r;
             $row['tenant_id'] = $demoId;
-            // MARKER-DEMO-TEMPLATE-FIX — credentials never cross into the copy
+            // credentials never cross into the copy
             foreach ($row as $col => $v) {
                 if ($v !== null && $col !== 'tenant_id' && $col !== 'id' && preg_match(self::CREDENTIAL, $col)) {
                     $row[$col] = $this->blankSecret($col, $meta);
@@ -459,7 +458,7 @@ class DemoBuildTemplate extends Command
                     if (is_array($decoded)) $row[$col] = json_encode($this->stripJsonSecrets($decoded));
                 }
             }
-            // MARKER-DEMO-TEMPLATE-UNIQUE — rewrite FK uuids inline, then any
+            // rewrite FK uuids inline, then any
             // tenant-unscoped unique string, before this row reaches an index
             foreach ($uuidCols as $col) {
                 $v = $row[$col] ?? null;
@@ -481,16 +480,16 @@ class DemoBuildTemplate extends Command
                 // something FKs to these ids, so the map has to be built row by row
                 $old = $row['id'];
                 unset($row['id']);
-                $newId = $this->retryDeadlock(fn () => DB::table($table)->insertGetId($row)); // MARKER-DEMO-DEADLOCK-RETRY
+                $newId = $this->retryDeadlock(fn () => DB::table($table)->insertGetId($row));
                 $this->intMap["{$table}:{$old}"] = $newId;
             } elseif ($meta['pk'] === 'id') {
-                unset($row['id']); // MARKER-DEMO-TEMPLATE-BULK — nothing points here; batch it
+                unset($row['id']); // nothing points here; batch it
                 $insert[] = $row;
             } else {
                 $insert[] = $row;
             }
             if (count($insert) >= 200) {
-                $this->retryDeadlock(fn () => DB::table($table)->insert($insert)); // MARKER-DEMO-DEADLOCK-RETRY
+                $this->retryDeadlock(fn () => DB::table($table)->insert($insert));
                 $insert = [];
             }
             $n++;
@@ -500,7 +499,7 @@ class DemoBuildTemplate extends Command
     }
 
     /**
-     * MARKER-DEMO-DEADLOCK-RETRY — the source shop stays live during a build, so a sync or a sale can
+     * the source shop stays live during a build, so a sync or a sale can
      * lock the same table; MySQL then kills one side (1213 deadlock / 1205 lock wait). The killed insert
      * wrote nothing, so it is safe to try again: up to 5 times, backing off, before giving up.
      */
@@ -519,7 +518,7 @@ class DemoBuildTemplate extends Command
     }
 
     /**
-     * MARKER-DEMO-TEMPLATE-UNIQUE — uuid FKs are rewritten inline during the
+     * uuid FKs are rewritten inline during the
      * copy now, so only int FKs (whose ids don't exist until insert time) need
      * a second pass.
      */
@@ -553,7 +552,7 @@ class DemoBuildTemplate extends Command
     private const LAST  = ['Alder','Birchwood','Cardinal','Driftwood','Eastman','Fernhill','Granite','Hollis','Ironwood','Juniper','Kestrel','Larkspur','Merritt','Northgate','Oakhurst','Pinecrest','Quarry','Ridgeway','Sandpoint','Timberline','Underhill','Vantage','Westbrook','Yarrow','Ashford','Bristlecone','Cascade','Deerfield','Elkhorn','Foxglove','Glacier','Harborview','Inlet','Jetty','Kettle','Lakeshore','Meridian','Nightingale','Overlook','Palisade'];
 
     /**
-     * MARKER-DEMO-TEMPLATE-CUSTTABLE — the shop's customers. App\Models\Customer
+     * the shop's customers. App\Models\Customer
      * is the licensing-level model ('customers', no tenant_id); the tenant one
      * is App\Models\Tenant\TenantCustomer. Checked against the schema so a
      * wrong name fails at the top of the run, not after the copy.
@@ -568,7 +567,7 @@ class DemoBuildTemplate extends Command
     }
 
     /**
-     * MARKER-DEMO-FIXES — internal-note messages carry the same private chatter
+     * internal-note messages carry the same private chatter
      * tenant_notes did. Dropped rather than rewritten: there is no safe way to
      * decide which internal remark is fit for strangers to read.
      */
@@ -593,13 +592,13 @@ class DemoBuildTemplate extends Command
     }
 
     /**
-     * MARKER-DEMO-FIXES — the nav and footer sections carry logo_size from the
+     * the nav and footer sections carry logo_size from the
      * source shop, so a hand change inside the demo was wiped by the next
      * restore. The wordmark is wide; small is the size that fits.
      */
     private function demoBranding(string $demoId): void
     {
-        // MARKER-DEMO-TIMELINE — the demo is not a PIN-tier shop. Clearing the
+        // the demo is not a PIN-tier shop. Clearing the
         // staff PINs is what turns the tier off, so nothing PIN-shaped renders
         // after a reset either.
         DB::table('tenant_users')->where('tenant_id', $demoId)->update([
@@ -638,15 +637,15 @@ class DemoBuildTemplate extends Command
                     foreach (['first_name' => $first, 'last_name' => $last, 'name' => trim($first . ' ' . $last)] as $col => $new) {
                         if (array_key_exists($col, $old)) {
                             $v = trim((string) $old[$col]);
-                            if (mb_strlen($v) >= 4) $this->nameSweep[$v] = $new; // MARKER-DEMO-TEMPLATE-NAMES
+                            if (mb_strlen($v) >= 4) $this->nameSweep[$v] = $new;
                             $upd[$col] = $new;
                         }
                     }
                     if (! empty($old['email'])) { $this->sweep[$old['email']] = $email; if ($seen < 40) { $this->leakSamples[] = $old['email']; $seen++; } }
-                    // MARKER-DEMO-TEMPLATE-PHONE — the same number appears in notes
+                    // the same number appears in notes
                     // and messages in whatever shape someone typed it; map them all
                     // to this customer's fake number.
-                    if (! empty($old['phone'])) { // MARKER-DEMO-SWEEP-FAST
+                    if (! empty($old['phone'])) {
                         $d = self::phoneDigits((string) $old['phone']);
                         if ($d !== null) $this->phoneMap[$d] = $phone;
                     }
@@ -667,13 +666,13 @@ class DemoBuildTemplate extends Command
     }
 
     /**
-     * MARKER-DEMO-TEMPLATE-PHONE — common written forms of one 10-digit number:
+     * common written forms of one 10-digit number:
      * (509) 555-1234 · 509-555-1234 · 509.555.1234 · 5095551234 · +1 509 555 1234
      */
-    /** MARKER-DEMO-SWEEP-FAST — 10-digit number => that customer's fake number */
+    /** 10-digit number => that customer's fake number */
     private array $phoneMap = [];
 
-    /** MARKER-DEMO-PHONE-HELPER — "(509) 555-1234", "+1 509.555.1234", "5095551234" … -> "5095551234"; anything else -> null */
+    /** "(509) 555-1234", "+1 509.555.1234", "5095551234" … -> "5095551234"; anything else -> null */
     private static function phoneDigits(string $s): ?string
     {
         $d = preg_replace('/\D+/', '', $s);
@@ -688,7 +687,7 @@ class DemoBuildTemplate extends Command
         foreach (DB::table('tenant_users')->where('tenant_id', $demoId)->orderBy('created_at')->get() as $u) {
             $name  = $names[$i % count($names)] . ($i >= count($names) ? ' ' . ($i + 1) : '');
             $email = 'staff' . ($i + 1) . '@intakebikeworks.example';
-            if (mb_strlen(trim((string) $u->name)) >= 4) $this->nameSweep[trim($u->name)] = $name; // MARKER-DEMO-TEMPLATE-NAMES
+            if (mb_strlen(trim((string) $u->name)) >= 4) $this->nameSweep[trim($u->name)] = $name;
             if (! empty($u->email)) { $this->sweep[$u->email] = $email; }
             DB::table('tenant_users')->where('id', $u->id)->update([
                 'name'           => $name,
@@ -714,7 +713,7 @@ class DemoBuildTemplate extends Command
                 $textCols[] = $col;
             }
         }
-        // MARKER-DEMO-IDENTITY-SAFE — the customers' own name, email and phone columns were already set
+        // the customers' own name, email and phone columns were already set
         // by anonymiseCustomers(); sweeping them again let one customer's NEW name or number be mistaken for
         // another's OLD one ("Wren" became "Lakeshore P"; "(509) 555-0019" became "((509) 555-0622) 555-0019").
         if ($table === $this->customersTable()) {
@@ -722,7 +721,7 @@ class DemoBuildTemplate extends Command
         }
         if (! $textCols) return;
 
-        // MARKER-DEMO-TEMPLATE-NAMES — catalog/product text: people's names do not
+        // catalog/product text: people's names do not
         // belong there, and a false hit corrupts the demo's most visible data
         $namesHere = ! preg_match('/inventory|catalog|order_item|sale_item|product|vendor|distributor|pricing/i', $table);
         // prose-ish columns additionally get the names sweep; every text column
@@ -739,7 +738,7 @@ class DemoBuildTemplate extends Command
                 foreach ($textCols as $col) {
                     $v = $r->{$col} ?? null;
                     if ($v === null || $v === '') continue;
-                    $new = $this->scrubAny((string) $v, $namesHere && in_array($col, $proseCols, true), $meta['lengths'][$col] ?? null); // MARKER-DEMO-JSON-SCRUB
+                    $new = $this->scrubAny((string) $v, $namesHere && in_array($col, $proseCols, true), $meta['lengths'][$col] ?? null);
                     if ($new !== $v) $upd[$col] = $new;
                 }
                 if ($upd) DB::table($table)->where($pk, $r->{$pk})->update($upd);
@@ -751,7 +750,7 @@ class DemoBuildTemplate extends Command
                     ->whereNotNull($col)->distinct()->pluck($col);
                 foreach ($values as $v) {
                     if ($v === '') continue;
-                    $new = $this->scrubAny((string) $v, $namesHere && in_array($col, $proseCols, true), $meta['lengths'][$col] ?? null); // MARKER-DEMO-JSON-SCRUB
+                    $new = $this->scrubAny((string) $v, $namesHere && in_array($col, $proseCols, true), $meta['lengths'][$col] ?? null);
                     if ($new !== $v) {
                         DB::table($table)->where('tenant_id', $demoId)->where($col, $v)
                             ->update([$col => $new]);
@@ -768,7 +767,7 @@ class DemoBuildTemplate extends Command
      * prose can hide a name.
      */
     /**
-     * MARKER-DEMO-TEMPLATE-FIX — null a flat value that lives in a
+     * null a flat value that lives in a
      * credential-looking column, honoring NOT NULL via the schema default.
      */
     private function blankSecret(string $col, array $meta): mixed
@@ -794,7 +793,7 @@ class DemoBuildTemplate extends Command
         return $node;
     }
 
-    /** MARKER-DEMO-JSON-SCRUB — anything that parses as a JSON object/array is scrubbed value-by-value, never as one string. */
+    /** anything that parses as a JSON object/array is scrubbed value-by-value, never as one string. */
     private function scrubAny(string $v, bool $names, ?int $maxLen): string
     {
         $c = ltrim($v)[0] ?? '';
@@ -831,7 +830,7 @@ class DemoBuildTemplate extends Command
                 return preg_match('/@(example\.com|intakebikeworks\.example|intake\.works)$/i', $m[0]) ? $m[0] : 'visitor@example.com';
             },
             $new);
-        // MARKER-DEMO-TEMPLATE-NAMES — whole words only: a name that sits inside
+        // whole words only: a name that sits inside
         // a product word ("Maxx" in "Maxxis") must never be rewritten.
         if ($names && $this->nameSweep) {
             $new = preg_replace_callback(
@@ -839,19 +838,19 @@ class DemoBuildTemplate extends Command
                 fn ($m) => $this->nameSweep[$m[0]] ?? $m[0],
                 $new);
         }
-        // MARKER-DEMO-TEMPLATE-PHONE — identities BEFORE the catch-all, or each
+        // identities BEFORE the catch-all, or each
         // customer's own fake number gets flattened into the fallback. Cheap on
         // short columns too, so it is no longer gated on $prose.
-        // MARKER-DEMO-BUILD-SAFE — bare digit runs only as whole numbers, never inside
+        // bare digit runs only as whole numbers, never inside
         // a longer number or a decimal (the 10-digit form once landed inside 7.2298622366…)
-        // MARKER-DEMO-SWEEP-FAST — one regex finds every written form; the digits index a small map.
+        // one regex finds every written form; the digits index a small map.
         // Bare digit runs must stand alone (never inside a longer number or a decimal).
         if ($this->phoneMap) {
             $new = preg_replace_callback(
                 '/(?<![\d.])(?:\+?1[\s.\-]?)?\(?\d{3}\)?[\s.\-]?\d{3}[\s.\-]?\d{4}(?![\d.])/',
                 function ($m) {
                     $d = self::phoneDigits($m[0]);
-                    if ($d !== null && str_starts_with($d, '509555')) return $m[0]; // MARKER-DEMO-IDENTITY-SAFE — already a demo number
+                    if ($d !== null && str_starts_with($d, '509555')) return $m[0]; // already a demo number
                     return ($d !== null && isset($this->phoneMap[$d])) ? $this->phoneMap[$d] : $m[0];
                 },
                 $new);
@@ -863,7 +862,7 @@ class DemoBuildTemplate extends Command
             '/(?<!\d)\(?\+?1?[\s.\-)]{0,2}\d{3}[\s.\-)]{1,2}\d{3}[\s.\-]\d{4}(?!\d)/',
             fn ($m) => str_contains(preg_replace('/[^0-9]/', '', $m[0]), '509555') ? $m[0] : self::DEMO_PHONE,
             $new);
-        // MARKER-DEMO-TEMPLATE-NAMES — a replacement never overflows its column
+        // a replacement never overflows its column
         if ($maxLen !== null && mb_strlen($new) > $maxLen) $new = mb_substr($new, 0, $maxLen);
         return $new;
     }
@@ -875,7 +874,7 @@ class DemoBuildTemplate extends Command
         $disk = Storage::disk('public');
         $n = 0;
         $files = $disk->allFiles('tenants/' . $srcId);
-        $this->output->write('Copying media: ' . count($files) . ' files … '); // MARKER-DEMO-BUILD-SWAP
+        $this->output->write('Copying media: ' . count($files) . ' files … ');
         foreach ($files as $file) {
             $disk->copy($file, str_replace('tenants/' . $srcId, 'tenants/' . $demoId, $file));
             if (++$n % 250 === 0) $this->output->write($n . ' ');
@@ -887,7 +886,7 @@ class DemoBuildTemplate extends Command
     private function freeze(string $demoId, array $tables): void
     {
         $local = Storage::disk('local');
-        $dir   = 'demo/' . $this->slug; // MARKER-DEMO-RESET
+        $dir   = 'demo/' . $this->slug;
         $local->deleteDirectory($dir);
         $local->makeDirectory($dir);
 
@@ -910,7 +909,7 @@ class DemoBuildTemplate extends Command
             $local->put($dir . '/files/' . substr($file, strlen('tenants/' . $demoId) + 1), $public->get($file));
         }
 
-        // MARKER-DEMO-RESET — activity per calendar week, so the reset can anchor
+        // activity per calendar week, so the reset can anchor
         // the demo on a genuinely busy one instead of whatever week it was built.
         $weeks = $this->weekActivity($demoId);
         arsort($weeks);
@@ -933,7 +932,7 @@ class DemoBuildTemplate extends Command
     }
 
     /**
-     * MARKER-DEMO-RESET — count dated activity per week (Monday key). Used to
+     * count dated activity per week (Monday key). Used to
      * pick, and later to let someone choose, which week the demo sits in.
      */
     private function weekActivity(string $demoId): array
@@ -959,7 +958,7 @@ class DemoBuildTemplate extends Command
 
     private function leakCheck(string $demoId, array $tables): int
     {
-        // MARKER-DEMO-TEMPLATE-CUSTOMERS — no samples means the anonymiser never
+        // no samples means the anonymiser never
         // saw a customer with an email. That is a broken run, not a clean one.
         if (! $this->leakSamples) {
             $count = DB::table($this->customersTable())->where('tenant_id', $demoId)->count();

@@ -1,4 +1,4 @@
-{{-- MARKER-PATCH-158-G24 — contact_form public renderer (v2) --}}
+{{-- contact_form public renderer (v2) --}}
 @php
   $c = $c ?? [];
 
@@ -235,7 +235,7 @@
 
     <form method="POST" action="/contact">
       @csrf
-      {{-- MARKER-CONTACT-SPAM — the honeypot the controller has always
+      {{-- the honeypot the controller has always
            checked for. This form never rendered it, so PATCH-399's check
            did nothing here; the footer form had it all along. --}}
       <input type="text" name="company_website" tabindex="-1" autocomplete="off" aria-hidden="true"
@@ -250,7 +250,7 @@
 
       <div class="p-cf-form-group">
         <label class="p-cf-label">{{ $labelName }} *</label>
-        {{-- MARKER-CONTACT-NAMES — split into first and last, both required --}}
+        {{-- split into first and last, both required --}}
         <input type="text" name="first_name" class="p-cf-input" value="{{ old('first_name') }}" required placeholder="First name">
         <input type="text" name="last_name" class="p-cf-input" value="{{ old('last_name') }}" required placeholder="Last name" style="margin-top:8px">
       </div>

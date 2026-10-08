@@ -31,8 +31,8 @@ use Illuminate\Support\Facades\Schema;
  */
 class ThemeEditor extends Page implements HasForms
 {
-    use \App\Support\UsesAdminNav; // MARKER-NAV-ORDER
-    use \App\Support\GatedByAdminArea; // MARKER-ADMIN-NAV-GATE
+    use \App\Support\UsesAdminNav;
+    use \App\Support\GatedByAdminArea;
     protected static string $adminArea = 'config';
 
     use InteractsWithForms;
@@ -79,7 +79,6 @@ class ThemeEditor extends Page implements HasForms
     ];
 
     /**
-     * MARKER-THEME-TEXT-SIZE
      *
      * SIZE_TOKENS: text sizing, deliberately NOT split per theme. The
      * storage schema is (theme, token_key), so these are written to both
@@ -142,7 +141,7 @@ class ThemeEditor extends Page implements HasForms
             // Prefer draft_value if it exists, otherwise published.
             $byTheme[$r->theme][$r->token_key] = $r->draft_value ?? $r->published_value;
         }
-        // MARKER-THEME-TEXT-SIZE — sizes live under both themes but are
+        // sizes live under both themes but are
         // edited once; read 'b' as the source of truth, fall back to the
         // hardcoded CSS value so the field is never blank.
         $sizes = [];
@@ -169,7 +168,7 @@ class ThemeEditor extends Page implements HasForms
                             ->icon('heroicon-o-moon')
                             ->schema($this->themeFields('c')),
 
-                        // MARKER-THEME-TEXT-SIZE — applies to both themes.
+                        // applies to both themes.
                         Tabs\Tab::make('Text sizes')
                             ->icon('heroicon-o-language')
                             ->schema($this->sizeFields()),
@@ -213,7 +212,7 @@ class ThemeEditor extends Page implements HasForms
     }
 
     /**
-     * MARKER-THEME-TEXT-SIZE — one set of size fields, applied to both
+     * one set of size fields, applied to both
      * themes. Values must be a plain px length; anything else is rejected
      * before it can reach the emitted <style> block.
      */
@@ -255,14 +254,14 @@ class ThemeEditor extends Page implements HasForms
         $userId = auth()->id();
         $changes = 0;
 
-        // MARKER-THEME-PUBLISH-COUNT — what the banner is showing right
+        // what the banner is showing right
         // now, read before the fan-out below rewrites $this->data. This is
         // a count of FIELDS the user edited; $service->publish() returns a
         // count of ROWS, and a size field is two rows. Reporting the row
         // count made the toast contradict the banner.
         $reported = $this->getDirtyCountProperty();
 
-        // MARKER-THEME-TEXT-SIZE — copy the single size tab into both
+        // copy the single size tab into both
         // themes before the normal write loop picks the data up. Doing it
         // here (rather than a separate loop) means dirty-count, audit rows
         // and publish all treat sizes exactly like any other token.
@@ -293,7 +292,7 @@ class ThemeEditor extends Page implements HasForms
 
         $published = $service->publish(null, $userId);
 
-        // MARKER-THEME-PUBLISH-COUNT — prefer the field count; fall back
+        // prefer the field count; fall back
         // to rows if it somehow came back empty so the toast still reads.
         $shown = $reported > 0 ? $reported : $published;
 
@@ -323,7 +322,7 @@ class ThemeEditor extends Page implements HasForms
         foreach ($rows as $r) {
             $published[$r->theme][$r->token_key] = $r->published_value;
         }
-        // MARKER-THEME-TEXT-SIZE-DIRTY — size tokens are counted below,
+        // size tokens are counted below,
         // once each. Skipping them here matters after a publish, which
         // copies them into both themes and would otherwise double-count.
         $sizeDefaults = self::sizeDefaults();
@@ -341,7 +340,7 @@ class ThemeEditor extends Page implements HasForms
             }
         }
 
-        // MARKER-THEME-TEXT-SIZE-DIRTY — one field, one count. A token
+        // one field, one count. A token
         // that has never been published has no row, so the CSS default is
         // the thing being changed away from; without this the first edit
         // on a fresh install reads as no change at all.

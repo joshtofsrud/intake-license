@@ -1,6 +1,5 @@
 <?php
 
-// MARKER-RAISE-MESSAGES
 // The eight messages. Placeholders are replaced at send time:
 //   {name} {amount} {percent} {cap} {portal} {bank} {account} {routing} {reference} {sender}
 return [

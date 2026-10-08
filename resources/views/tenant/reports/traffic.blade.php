@@ -1,7 +1,7 @@
 @extends('layouts.tenant.app')
 @section('title', 'Reports · Traffic')
 
-{{-- MARKER-PATCH-151A — traffic reports tab --}}
+{{-- traffic reports tab --}}
 
 @push('styles')
 <style>
@@ -89,7 +89,7 @@
     display: block;
     margin-top: 8px;
   }
-  /* MARKER-PATCH-454 — chart hover */
+  /* chart hover */
   .rep-chart-wrap { position: relative; }
   .rep-chart-guide { position: absolute; top: 0; bottom: 0; width: 1px; background: rgba(255,255,255,.18); opacity: 0; pointer-events: none; transition: opacity .1s; }
   .rep-chart-dot { position: absolute; width: 8px; height: 8px; border-radius: 50%; background: #BEF264; box-shadow: 0 0 0 3px rgba(190,242,100,.2); transform: translate(-50%, -50%); opacity: 0; pointer-events: none; transition: opacity .1s; }
@@ -121,7 +121,7 @@
     line-height: 1.6;
   }
 
-  /* MARKER-PATCH-151B — panel-specific styles */
+  /* panel-specific styles */
   .rep-two-col {
     display: grid;
     grid-template-columns: 1.4fr 1fr;
@@ -220,7 +220,7 @@
     border-radius: 99px;
   }
 
-  /* MARKER-PATCH-151C — link-out panel CTAs */
+  /* link-out panel CTAs */
   .rep-link-out { display: flex; flex-direction: column; }
   .rep-link-out p { flex: 1; }
   .rep-link-out-btn {
@@ -252,17 +252,17 @@
     border-color: rgba(255, 255, 255, 0.16);
   }
 
-  /* MARKER-PATCH-432 — range controls handled centrally in mobile-nav.css */
+  /* range controls handled centrally in mobile-nav.css */
 </style>
 @endpush
 
 @section('content')
-{{-- MARKER-PATCH-164 — match the other reports tabs' padding wrapper --}}
+{{-- match the other reports tabs' padding wrapper --}}
 <div style="padding: 32px 40px;">
   <h1 class="rep-h1">Reports</h1>
   <div class="rep-sub">How your business is performing.</div>
 
-  {{-- MARKER-PATCH-431 — report picker + range share one row on phones --}}
+  {{-- report picker + range share one row on phones --}}
   <div class="rep-controls">
     @include('tenant.reports._tab_subnav', ['active' => 'traffic'])
 
@@ -271,7 +271,7 @@
       <div class="rep-showing" style="font-size: 13px; color: var(--ia-text-dim, rgba(255,255,255,.42));">
         Showing <strong style="color: var(--ia-text);">{{ $rangeText ?? $window }}</strong> · compared to prior {{ $window }}
       </div>
-      {{-- MARKER-PATCH-475 — preset windows + shared calendar picker for custom ranges --}}
+      {{-- preset windows + shared calendar picker for custom ranges --}}
       <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
         <div class="rep-window">
           <a href="?window=1d"  class="{{ (empty($isCustom) && $window === '1d')  ? 'active' : '' }}">Today</a>
@@ -342,7 +342,7 @@
 
     {{-- Daily visitors chart --}}
     <div style="margin-top: 22px;">
-      @php $isHourly = (bool) ($dailyVisitors['hourly'] ?? false); /* MARKER-PATCH-619 */ @endphp
+      @php $isHourly = (bool) ($dailyVisitors['hourly'] ?? false);  @endphp
       <div style="font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--ia-text-dim, rgba(255,255,255,.42)); font-weight: 700; margin-bottom: 6px;">
         {{ $isHourly ? 'Visitors by hour' : 'Daily visitors' }}
       </div>
@@ -373,10 +373,10 @@
           $padT + ($h / 2),               // 50%
           $padT,                          // top
         ];
-        // MARKER-PATCH-454 — per-point data for hover tooltips
+        // per-point data for hover tooltips
         $points = [];
         foreach ($cur as $i => $v) {
-            // MARKER-PATCH-619 — hour labels for single-day windows (tenant-local)
+            // hour labels for single-day windows (tenant-local)
             if ($isHourly) {
                 $label = isset($dailyStart) ? tlocal($dailyStart->addHours($i), 'g A') : ('Hour ' . $i);
             } else {
@@ -439,7 +439,7 @@
     </div>
   </div>
 
-  {{-- MARKER-PATCH-151B — full panel set --}}
+  {{-- full panel set --}}
 
   {{-- Booking funnel --}}
   <div class="rep-zone">
@@ -455,7 +455,7 @@
     </div>
 
     @php
-      // MARKER-PATCH-151B-FIX1 — max() of step counts, with 1 as floor
+      // max() of step counts, with 1 as floor
       $stepCounts = array_map(fn ($s) => (int) $s['count'], $funnel['steps']);
       $maxFunnel = !empty($stepCounts) ? max($stepCounts) : 0;
       $maxFunnel = max($maxFunnel, 1);
@@ -483,7 +483,7 @@
     </div>
   </div>
 
-  {{-- MARKER-SESSIONS-EXPLORER — per-session booking activity --}}
+  {{-- per-session booking activity --}}
   <style>
     .rse-scroll{max-height:430px;overflow-y:auto;border:.5px solid var(--ia-border);border-radius:12px;background:rgba(0,0,0,.18)}
     .rse-row{display:flex;align-items:center;gap:13px;padding:12px 15px;border-bottom:.5px solid rgba(255,255,255,.05);cursor:pointer;flex-wrap:wrap}
@@ -576,7 +576,7 @@
     })();
   </script>
 
-  {{-- MARKER-PATCH-453 — per-step drop diagnosis --}}
+  {{-- per-step drop diagnosis --}}
   <style>
    .rep-seg-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:4px}
    .rep-seg{background:rgba(255,255,255,.03);border:.5px solid var(--ia-border);border-radius:10px;padding:13px 15px}
@@ -636,7 +636,7 @@
       var html = '<div class="rep-diag-sum"><b>'+d.left+'</b> '+word+' reached <b class="s">'+d.label+'</b> and left here</div>';
       html += '<div class="rep-seg-grid">'+seg('By device', d.device, hot)+seg('By source', d.source, false)+seg('New vs returning', d.newret, false)+'</div>';
       if(d.insight){ html += '<div class="rep-ins">'+ICON_WARN+'<span>'+d.insight+'</span></div>'; }
-      {{-- MARKER-TRAFFIC-RECOVERY-LINK — URL from the router, so re-prefixing
+      {{-- URL from the router, so re-prefixing
            the route can't silently break this link again. --}}
       html += '<div class="rep-diag-foot"><a href="{{ route('tenant.recovery.index') }}">Follow up with people who left contact info →</a></div>';
       box.innerHTML = html;
@@ -653,7 +653,7 @@
   </script>
 
 
-  {{-- MARKER-PATCH-621 — shop search analytics: top + zero-result searches --}}
+  {{-- shop search analytics: top + zero-result searches --}}
   @if(!empty($topSearches) || !empty($zeroSearches))
   <div class="rep-two-col">
     <div class="rep-zone">
@@ -694,7 +694,7 @@
   </div>
   @endif
 
-  {{-- MARKER-PATCH-622 — Search rules: synonyms + redirects, managed here --}}
+  {{-- Search rules: synonyms + redirects, managed here --}}
   <div class="rep-zone" id="rep-search-rules">
     <div class="rep-zone-head">
       <div>
@@ -884,7 +884,7 @@
     @endif
   </div>
 
-  {{-- MARKER-PATCH-151C — link-out panels for data we deliberately don't track --}}
+  {{-- link-out panels for data we deliberately don't track --}}
   <div class="rep-two-col">
     {{-- Top search terms — Search Console link --}}
     <div class="rep-zone rep-link-out">

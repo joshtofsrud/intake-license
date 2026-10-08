@@ -5,7 +5,7 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * MARKER-PATCH-171 — Direct Payments Session 2C.
+ * Direct Payments Session 2C.
  *
  * Stores the Stripe Refund ID (re_xxx) on a refund-direction sale row
  * after a successful refunds.create call. Used for:

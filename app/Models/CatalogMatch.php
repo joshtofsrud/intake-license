@@ -1,6 +1,5 @@
 <?php
 
-// MARKER-CATALOG-MATCHES
 
 namespace App\Models;
 

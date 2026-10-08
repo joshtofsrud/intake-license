@@ -1,5 +1,4 @@
 <?php
-// MARKER-INV-SEARCH
 
 namespace App\Models\Tenant;
 

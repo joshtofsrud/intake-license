@@ -1,4 +1,4 @@
-{{-- MARKER-ASSET-NOUN — asset labels read tenant()->asset_label_* --}}
+{{-- asset labels read tenant()->asset_label_* --}}
 @extends('layouts.tenant.app')
 @php
   $pageTitle = 'Work Order Fields';
@@ -521,7 +521,7 @@
   }
 
   async function deleteField(id) {
-    if (!(await iaConfirm('Delete this field? Existing work-order values will remain on their appointments but can no longer be edited.'))) return; // MARKER-INLINE-CONFIRM-2
+    if (!(await iaConfirm('Delete this field? Existing work-order values will remain on their appointments but can no longer be edited.'))) return;
     var fd = new FormData();
     fd.append('_token', csrf);
     fd.append('_method', 'DELETE');

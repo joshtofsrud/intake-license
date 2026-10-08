@@ -1,6 +1,5 @@
 <?php
 
-// MARKER-QBP-CLS
 
 namespace App\Services\Distributors;
 
@@ -36,7 +35,7 @@ class QbpClsClient
     }
 
     /**
-     * MARKER-QBP-CLS — the account's image URL prefix and available sizes.
+     * the account's image URL prefix and available sizes.
      *
      * The prefix embeds an Image Service ID unique to this QBP account, so
      * the result belongs to one tenant and must not be shared between them.
@@ -95,7 +94,7 @@ class QbpClsClient
     }
 
     /**
-     * MARKER-QBP-CLS — assemble one image URL.
+     * assemble one image URL.
      *
      * {imageUrl}/{size}/{FILENAME}
      *

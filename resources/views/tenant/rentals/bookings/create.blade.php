@@ -1,7 +1,7 @@
 @extends('layouts.tenant.app')
 @php $pageTitle = 'New Rental'; @endphp
 
-{{-- MARKER-PATCH-219 — desk reservation flow: customer -> window -> units. --}}
+{{-- desk reservation flow: customer -> window -> units. --}}
 
 @section('content')
 
@@ -128,7 +128,7 @@
   var startsEl = document.getElementById('nr-starts');
   var dueEl    = document.getElementById('nr-due');
 
-  // MARKER-PATCH-223 — availability-timeline handoff: ?starts=&due=&unit=
+  // availability-timeline handoff: ?starts=&due=&unit=
   // prefills the window, auto-runs the availability check, and pre-checks
   // the dragged unit.
   var params = new URLSearchParams(window.location.search);
@@ -218,7 +218,7 @@
 
   unitsEl.addEventListener('change', refreshSummary);
 
-  // MARKER-PATCH-223 — finish the timeline handoff after wiring is in place.
+  // finish the timeline handoff after wiring is in place.
   if (qsStarts && qsDue) {
     document.getElementById('nr-find').click();
     if (qsUnit) {

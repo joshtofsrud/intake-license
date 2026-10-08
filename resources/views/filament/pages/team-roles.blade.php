@@ -1,6 +1,4 @@
 <x-filament-panels::page>
-<!-- MARKER-TEAM-ROLES -->
-<!-- MARKER-TEAM-ROLES-V2 -->
 
 @php
     $badge = function (?string $r): string {
@@ -132,7 +130,7 @@
 @endif
 
 @if($canManage)
-  {{-- MARKER-TEAM-INVITE-MODAL — mockup screen 2: modal with role cards --}}
+  {{-- mockup screen 2: modal with role cards --}}
   <div>
     <x-filament::modal id="invite-user" width="lg">
       <x-slot name="trigger">
@@ -150,7 +148,7 @@
         </x-filament::input.wrapper>
       </div>
 
-      {{-- MARKER-INVITE-CARDS-ALPINE — client-side selection, entangled --}}
+      {{-- client-side selection, entangled --}}
       <div class="mt-4 space-y-2" x-data="{ role: @entangle('inviteRole') }">
         @foreach([
           'admin'   => ['Admin', 'Everything except the raise and the owner controls on Team. For a future right hand, not day-one hires.'],

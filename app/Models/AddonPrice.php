@@ -4,7 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
-// MARKER-ADDON-CATALOG — one price for one add-on, from a date.
+// one price for one add-on, from a date.
 class AddonPrice extends Model
 {
     protected $table = 'addon_prices';

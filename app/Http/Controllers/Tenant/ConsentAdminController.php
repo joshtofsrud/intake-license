@@ -1,5 +1,4 @@
 <?php
-// MARKER-CONSENT-SURFACES
 
 namespace App\Http\Controllers\Tenant;
 

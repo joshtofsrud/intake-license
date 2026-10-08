@@ -1,7 +1,7 @@
 @extends('layouts.tenant.app')
 @php $pageTitle = 'Rental Bookings'; @endphp
 
-{{-- MARKER-PATCH-219, rebuilt by MARKER-PATCH-234 — triage-first list:
+{{-- , rebuilt by triage-first list:
      search + filters on every tab, "Needs attention" pinned first. --}}
 
 @section('content')

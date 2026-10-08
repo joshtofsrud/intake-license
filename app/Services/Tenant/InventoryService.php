@@ -32,7 +32,7 @@ class InventoryService
      * item does not allow_oversell.
      */
     /**
-     * MARKER-RESERVE-OVERRIDE — $overrideReserved lets an owner sell a unit
+     * $overrideReserved lets an owner sell a unit
      * held for someone else's layaway. It releases the blocking reservations
      * (a real, attributable movement on the other plan's history) rather than
      * quietly ignoring them, so the other plan's line is visibly without stock
@@ -75,7 +75,7 @@ class InventoryService
             $loc = TenantInventoryItemLocation::where('id', $loc->id)->lockForUpdate()->first();
         }
 
-        // MARKER-RESERVE — a unit held for someone else is not available. If
+        // a unit held for someone else is not available. If
         // this very line holds a reservation (a layaway completing), consume it
         // first so it does not block itself; then check against what remains
         // held for others. This is the one place the rule is enforced for
@@ -88,7 +88,7 @@ class InventoryService
         $heldForOthers = (int) $loc->reserved_count;
         $newLocStock   = $loc->computed_stock_count - $qty;
 
-        // MARKER-RESERVE-OVERRIDE — take the hold off someone else's plan,
+        // take the hold off someone else's plan,
         // on purpose, with a movement row that says so. Only ever reached when
         // the capability was checked and the person confirmed the consequence.
         if ($overrideReserved && ($newLocStock - $heldForOthers) < 0 && $heldForOthers > 0) {
@@ -112,7 +112,7 @@ class InventoryService
                 $affected[] = $res->sale_id;
             }
 
-            \Illuminate\Support\Facades\Log::warning('MARKER-RESERVE-OVERRIDE reserved stock sold to another customer', [
+            \Illuminate\Support\Facades\Log::warning('reserve-override: reserved stock sold to another customer', [
                 'tenant'        => $sale->tenant_id,
                 'item'          => $invItem->id,
                 'item_name'     => $invItem->name,
@@ -277,7 +277,7 @@ class InventoryService
             $loc = TenantInventoryItemLocation::where('id', $loc->id)->lockForUpdate()->first();
         }
 
-        // MARKER-RESERVE — a job pulling a part cannot take a unit that is
+        // a job pulling a part cannot take a unit that is
         // held for a layaway. Same rule as sales; parts hold nothing of their
         // own so there is nothing to consume first.
         $heldForOthers = (int) $loc->reserved_count;

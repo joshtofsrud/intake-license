@@ -4,7 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
-// MARKER-NAV-ORDER — order and label for one sidebar group.
+// order and label for one sidebar group.
 class AdminNavGroup extends Model
 {
     protected $table = 'admin_nav_groups';

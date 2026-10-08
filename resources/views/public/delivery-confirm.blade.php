@@ -1,19 +1,19 @@
-{{-- MARKER-PATCH-528 — public delivery window confirm page (/d/{token}) --}}
+{{-- public delivery window confirm page (/d/{token}) --}}
 @php
   $accent = $tenant->accent_color ?? '#BEF264';
   $accentText = \App\Support\ColorHelper::accentTextColor($accent);
   $tz = $tenant->timezone();
-  $isPending = $proposal->isPending() || $proposal->status === 'no_reply'; // MARKER-PATCH-534 — link keeps working after the no-reply flag
-  $calledIn  = $proposal->status === 'call_requested'; // MARKER-DELIVERY-CALL — answered, but still allowed to pick a window
+  $isPending = $proposal->isPending() || $proposal->status === 'no_reply'; // link keeps working after the no-reply flag
+  $calledIn  = $proposal->status === 'call_requested'; // answered, but still allowed to pick a window
   $deadline = $proposal->expires_at?->copy()->setTimezone($tz);
-  $noun = $tenant->asset_label_singular ?: 'order'; // MARKER-PATCH-535
+  $noun = $tenant->asset_label_singular ?: 'order';
 @endphp
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-@include('partials.mobile-input-zoom') {{-- MARKER-MOBILE-INPUT-ZOOM --}}
+@include('partials.mobile-input-zoom')
 <title>{{ $tenant->name }} — Delivery</title>
 <style>
   :root { --accent: {{ $accent }}; --accent-text: {{ $accentText }}; }
@@ -21,9 +21,9 @@
   body { font: 15px/1.55 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #101010; color: #f0f0f0; -webkit-font-smoothing: antialiased; }
   .wrap { max-width: 460px; margin: 0 auto; padding: 40px 20px 60px; }
   .shop { font-size: 18px; font-weight: 700; margin-bottom: 26px; }
-  .shop-logo { max-height: 72px; max-width: 300px; display: block; margin: 0 auto 30px; } /* MARKER-PATCH-542 — bigger, centered */
-  .shop { text-align: center; } /* MARKER-PATCH-542 */
-  /* MARKER-PATCH-542 — check + headline share a row */
+  .shop-logo { max-height: 72px; max-width: 300px; display: block; margin: 0 auto 30px; } /* bigger, centered */
+  .shop { text-align: center; }
+  /* check + headline share a row */
   .done-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin: 8px 0 18px; }
   .done-row .done-ic { margin: 0; flex: none; }
   .done-row .done-txt { text-align: right; }
@@ -45,13 +45,11 @@
   .done { text-align: center; padding: 30px 0 10px; }
   .done-ic { width: 58px; height: 58px; border-radius: 50%; background: var(--accent); color: var(--accent-text); font-size: 26px; display: flex; align-items: center; justify-content: center; margin: 0 auto 18px; }
   .done-when { font-size: 19px; font-weight: 700; margin-top: 4px; }
-  /* MARKER-PATCH-540 */
   .card { background: rgba(255,255,255,.04); border: 1.5px solid rgba(255,255,255,.12); border-radius: 14px; padding: 4px 18px; margin: 6px 0 18px; }
   .card-row { display: flex; gap: 16px; padding: 13px 0; border-bottom: 1px solid rgba(255,255,255,.08); }
   .card-k { flex: none; width: 54px; font-size: 12px; opacity: .55; padding-top: 2px; }
   .card-v { font-size: 14.5px; line-height: 1.45; }
   .btn--ghost { background: none; border: 1.5px solid rgba(255,255,255,.18); color: #f0f0f0; }
-  /* MARKER-DELIVERY-CALL */
   .or { display:flex; align-items:center; gap:12px; margin:18px 0 12px; font-size:12px; opacity:.5; }
   .or::before, .or::after { content:""; flex:1; height:1px; background:rgba(255,255,255,.12); }
   .call { display:none; margin-top:10px; }
@@ -65,7 +63,7 @@
 <div class="wrap">
   @php $logo = $tenant->emailLogoUrl(); @endphp
   @if($logo)
-    <img class="shop-logo" src="{{ $logo }}" alt="{{ $tenant->name }}">{{-- MARKER-PATCH-541 --}}
+    <img class="shop-logo" src="{{ $logo }}" alt="{{ $tenant->name }}">
   @else
     <div class="shop">{{ $tenant->name }}</div>
   @endif
@@ -73,7 +71,7 @@
   @if($isPending || $calledIn)
     <h1>Your {{ $noun }} is ready! 🎉</h1>
     @if($calledIn)
-      {{-- MARKER-DELIVERY-CALL — they asked for a call; the windows stay in case they change their mind --}}
+      {{-- they asked for a call; the windows stay in case they change their mind --}}
       <div class="ok">Got it — {{ $tenant->name }} will give you a call{{ $proposal->call_note ? ' (' . $proposal->call_note . ')' : '' }}. If a window below works after all, you can still pick it.</div>
     @else
       <p class="sub">Pick the delivery window that works — we'll bring it to you.</p>
@@ -98,7 +96,7 @@
     </form>
 
     @unless($calledIn)
-    {{-- MARKER-DELIVERY-CALL — the other answer. Its own form, never nested. --}}
+    {{-- the other answer. Its own form, never nested. --}}
     <div class="or">or</div>
     <button class="btn btn--ghost" type="button" id="dc-call-toggle">Rather talk? Ask us to call</button>
     <form method="POST" action="{{ route('tenant.delivery_confirm.call', $proposal->token) }}" class="call" id="dc-call">
@@ -128,7 +126,7 @@
     </script>
 
   @elseif(in_array($proposal->status, ['confirmed', 'assumed']))
-    {{-- MARKER-PATCH-540 — confirmation card with add-to-calendar + next steps --}}
+    {{-- confirmation card with add-to-calendar + next steps --}}
     @php
       $win = collect($proposal->windows)->first(fn ($w) => $w['window_id'] === $proposal->confirmed_window_id && $w['date'] === $proposal->confirmed_date?->toDateString());
       $start = $delivery?->scheduled_at?->copy()->setTimezone($tz);
@@ -144,7 +142,7 @@
           ]);
       }
     @endphp
-    <div class="done">{{-- MARKER-PATCH-543 — centered stack restored --}}
+    <div class="done">{{-- centered stack restored --}}
       <div class="done-ic">✓</div>
       <h1>You're all set!</h1>
       <p class="sub">Your {{ $noun }} is on the schedule</p>

@@ -1,6 +1,4 @@
 <?php
-// MARKER-SALES-FIND
-// MARKER-SALES-TERRITORY2
 
 namespace App\Models;
 

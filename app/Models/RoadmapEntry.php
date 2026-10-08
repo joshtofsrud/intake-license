@@ -67,7 +67,7 @@ class RoadmapEntry extends Model
     }
 
     /**
-     * MARKER-ROADMAP-STATUS — becoming shipped stamps the date and drops the
+     * becoming shipped stamps the date and drops the
      * forward-looking timeframe. One hook, so the list dropdown, the bulk
      * action, the edit form and the YAML importer cannot disagree.
      */

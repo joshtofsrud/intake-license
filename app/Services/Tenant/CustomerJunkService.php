@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * MARKER-CUST-CLEANUP — what looks like junk in a shop's customer list.
+ * what looks like junk in a shop's customer list.
  *
  * Every group is a judgement, not a fact, so nothing here removes anything:
  * it reports, the operator decides. Groups are ordered by how confident the

@@ -133,7 +133,7 @@ class AppointmentRegisterBridgeService
                 'appointment_id'      => $appointment->id,
                 'location_id'         => $locationId,
                 'rang_up_by_user_id'  => Auth::guard('tenant')->id() ?? $this->fallbackUserId($appointment),
-                // MARKER-PATCH-174B — sales-as-money model: this balance-
+                // sales-as-money model: this balance-
                 // collection sale stores the OUTSTANDING balance, not the full
                 // job. The appointment holds the itemization and is the service
                 // record; sales carry the money. One positive "Service balance"
@@ -149,7 +149,7 @@ class AppointmentRegisterBridgeService
 
             // Build the line spec list first so we know subtotal-without-tax
             // and can distribute the appointment's tax proportionally.
-            // MARKER-PATCH-174B — single positive "Service balance" line for
+            // single positive "Service balance" line for
             // the outstanding amount. We deliberately do NOT re-itemize the job:
             // the appointment already holds the full itemization and is the
             // service-record of truth, and re-listing it on the sale is what

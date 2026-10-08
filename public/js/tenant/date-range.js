@@ -154,7 +154,7 @@
             this.pop.hidden = false;
             this.render();
 
-            // MARKER-PATCH-476 — flip to right-align when the popover would spill
+            // flip to right-align when the popover would spill
             // off the right edge of the viewport (trigger sitting far right).
             this.pop.classList.remove('is-flip-right');
             const _r = this.pop.getBoundingClientRect();

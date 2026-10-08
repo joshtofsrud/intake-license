@@ -137,7 +137,7 @@
             },
             body: JSON.stringify(body),
           }).then(function (r) {
-            // MARKER-PATCH-248 — saves speak.
+            // saves speak.
             if (r.ok) { if (window.IntakeToast) IntakeToast.success('Saved'); }
             else {
               row.style.outline = '1px solid #d04444';
@@ -177,11 +177,11 @@
             } else {
               row.style.outline = '1px solid #d04444';
               setTimeout(function () { row.style.outline = ''; }, 1500);
-              if (window.IntakeToast) IntakeToast.error('Could not update — try again'); // MARKER-PATCH-248
+              if (window.IntakeToast) IntakeToast.error('Could not update — try again');
             }
           }).catch(function () {
             btn.classList.remove('is-busy');
-            if (window.IntakeToast) IntakeToast.error('Could not update — check your connection'); // MARKER-PATCH-248
+            if (window.IntakeToast) IntakeToast.error('Could not update — check your connection');
           });
         });
       });
@@ -198,7 +198,7 @@
           },
           body: JSON.stringify({ color_hex: color }),
         }).then(function (r) {
-          // MARKER-PATCH-248 — was fire-and-forget with zero error handling.
+          // was fire-and-forget with zero error handling.
           if (r.ok) { if (window.IntakeToast) IntakeToast.success('Color saved'); }
           else { if (window.IntakeToast) IntakeToast.error('Could not save color'); }
         }).catch(function () { if (window.IntakeToast) IntakeToast.error('Could not save color — check your connection'); });
@@ -206,7 +206,7 @@
 
       // ---- Deactivate ----
       window.deactivateResource = async function (id) {
-        if (!(await iaConfirm('Deactivate this resource? Past appointments stay visible. New appointments cannot be assigned to it.'))) return; // MARKER-INLINE-CONFIRM-2
+        if (!(await iaConfirm('Deactivate this resource? Past appointments stay visible. New appointments cannot be assigned to it.'))) return;
         fetch("{{ url('admin/resources') }}/" + id, {
           method: 'DELETE',
           headers: {

@@ -1,5 +1,5 @@
 <?php
-// MARKER-PATCH-226 — model layer between category and unit + leasing axis.
+// model layer between category and unit + leasing axis.
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
@@ -27,7 +27,7 @@ return new class extends Migration
             $t->unsignedInteger('hourly_rate_cents')->nullable();
             $t->unsignedInteger('daily_rate_cents')->nullable();
             $t->unsignedInteger('weekend_rate_cents')->nullable();
-            $t->unsignedInteger('seasonal_rate_cents')->nullable(); // MARKER-PATCH-226 — 4th mode
+            $t->unsignedInteger('seasonal_rate_cents')->nullable(); // 4th mode
             $t->unsignedInteger('deposit_cents')->default(0);
             $t->foreignUuid('condition_template_id')->nullable()
               ->constrained('tenant_rental_condition_templates')->nullOnDelete();

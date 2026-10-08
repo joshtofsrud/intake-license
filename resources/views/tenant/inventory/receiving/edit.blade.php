@@ -163,7 +163,7 @@
 </table>
 </div>
 
-{{-- MARKER-SERIAL-FOUNDATION — serial numbers for serialized lines. Scan each
+{{-- serial numbers for serialized lines. Scan each
      unit; the shipment commits only when every serialized line has one serial
      per unit received. Filled from /serials so lines added on the page appear. --}}
 <div id="rcv-serials" class="ia-card" style="margin-top:14px" hidden>
@@ -185,7 +185,7 @@
     background: var(--ia-surface-2, rgba(255,255,255,.05)); border: .5px solid var(--ia-border); border-radius: 99px; padding: 3px 4px 3px 10px; }
   .rcvs-chip button { background: none; border: 0; color: var(--ia-text-muted); cursor: pointer; font-size: 13px; padding: 0 4px; }
   .rcvs-ok { color: var(--ia-accent); font-size: 12px; font-weight: 600; }
-  .rcvs-short { color: var(--ia-text-muted); font-size: 12px; font-weight: 500; } /* MARKER-SERIAL-OPTIONAL — not a warning */
+  .rcvs-short { color: var(--ia-text-muted); font-size: 12px; font-weight: 500; } /* not a warning */
 </style>
 <script>
 (function () {
@@ -574,7 +574,7 @@
   });
 
   window.rcvRemoveLine = async function (lineId) {
-    if (!(await iaConfirm('Remove this line?'))) return; // MARKER-INLINE-CONFIRM-1
+    if (!(await iaConfirm('Remove this line?'))) return;
     jsonReq('DELETE', urls.removeItem(lineId)).then(function (res) {
       if (res.ok && res.body && res.body.ok) {
         var row = document.querySelector('#rcv-tbody tr[data-line-id="' + lineId + '"]');
@@ -668,7 +668,7 @@
     }
   }
 
-  // MARKER-INLINE-CONFIRM-1 — was a synchronous onsubmit returning true or
+  // was a synchronous onsubmit returning true or
   // false from a native confirm(). Now always prevents the submit, asks in
   // app, and re-submits with a flag set so this handler lets it through.
   // Commit writes stock movements and cannot be undone: exactly the place a

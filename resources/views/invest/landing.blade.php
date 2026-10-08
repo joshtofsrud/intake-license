@@ -1,4 +1,4 @@
-{{-- MARKER-INVEST-V2 — the public door. Leads with the problem and what a
+{{-- the public door. Leads with the problem and what a
      shop actually pays, because describing the company is not advertising the
      offering — and only the second is restricted. Terms, progress and the
      documents stay behind the code. --}}
@@ -11,14 +11,13 @@
 <link rel="icon" href="{{ \App\Support\Brand::url('favicon') }}" type="image/svg+xml">
 <link rel="icon" href="{{ \App\Support\Brand::url('favicon_32') }}" sizes="32x32">
 <link rel="apple-touch-icon" href="{{ \App\Support\Brand::url('apple') }}">
-{{-- MARKER-INVEST-RETURNS — no og:image here on purpose: a personal link
+{{-- no og:image here on purpose: a personal link
      pasted into a thread would unfurl the round to everyone in it. --}}
 <link rel="stylesheet" href="{{ asset('css/fonts.css') }}">
 @include('invest._styles')
 <style>
 h1.big{font-size:clamp(34px,5.4vw,60px);letter-spacing:-2.3px;line-height:1.04}
 h1.big .l{color:var(--lime)}
-/* MARKER-INVEST-RULES */
 section.hero{padding:84px 0 60px}
 .lede.wide{font-size:clamp(16px,1.9vw,19px);margin-top:20px}
 .grid3{display:grid;gap:14px;grid-template-columns:repeat(3,1fr);margin-top:22px}
@@ -44,7 +43,7 @@ textarea:focus{border-color:var(--lime-line)}
 .invite{margin-left:auto;font-size:10px;font-weight:600;letter-spacing:1.6px;text-transform:uppercase;
   color:var(--lime);border:1px solid var(--lime-line);background:var(--lime-soft);border-radius:5px;padding:4px 9px}
 .hp{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}
-/* MARKER-CONTRIBUTIONS · MARKER-CONTRIB-UNIFORM — an aside, not a third way to
+/* an aside, not a third way to
    take part in the round, so it stays quieter than the two cards above it.
 
    EVERY control below is 46px tall with an 8px radius and the page's own
@@ -78,7 +77,7 @@ textarea:focus{border-color:var(--lime-line)}
 
 /* the $ sits inside the amount field and hides while the placeholder shows,
    so the two can never overlap */
-/* MARKER-CONTRIB-NOWRAP — the amount field is a grid child like the buttons,
+/* the amount field is a grid child like the buttons,
    with no wrapper of its own. The $ lives in the value, not in an overlay,
    so there is no positioned parent left to knock it out of line. */
 .support #c-amt{text-align:center;font-weight:650}
@@ -86,7 +85,7 @@ textarea:focus{border-color:var(--lime-line)}
 .support .btn{height:46px;padding:0 24px;border-radius:8px;font-size:15px;margin-top:14px}
 .support .fine{margin-top:18px;padding-top:14px;border-top:1px solid var(--line)}
 
-/* MARKER-INVEST-MOBILE — the proof cards as a snap rail below 640. Stacked,
+/* the proof cards as a snap rail below 640. Stacked,
    they are three screens of scroll for what is one glance. The rail only
    works if it is obviously a rail, hence the peek, chevrons, dots and count. */
 .railwrap{position:relative}
@@ -130,7 +129,7 @@ textarea:focus{border-color:var(--lime-line)}
 .dock .a1{background:var(--lime);color:#0a0a0a}
 .dock .a2{border:1px solid var(--line2);color:var(--text)}
 
-/* MARKER-INVEST-DOCK-FIX — last, on purpose. This has the same specificity as
+/* last, on purpose. This has the same specificity as
    the display:none above it, so it only wins by coming after. Moving it back
    up among the other narrow-width rules would silently hide the dock again. */
 @media(max-width:640px){
@@ -144,16 +143,15 @@ textarea:focus{border-color:var(--lime-line)}
   <span class="invite">By introduction</span>
 </div></nav>
 
-{{-- MARKER-INVEST-RAIL --}}
 @php
-  // MARKER-INVEST-RAILMENU — only four sections here, so one flat menu.
+  // only four sections here, so one flat menu.
   $rail = [
     ['#top', 'The problem', null],
     ['menu', 'The case', null],
     ['#ask', 'Ask for the proposal', null],
     ['#support', 'Back the project', null],
-    ['#talk', 'Talk to Josh', null], // MARKER-SCHED-TALK-ENTRY — rendered lime in _rail
-    [url('/demo'), 'See the demo', null], // MARKER-INVEST-DEMO
+    ['#talk', 'Talk to Josh', null], // rendered lime in _rail
+    [url('/demo'), 'See the demo', null],
   ];
   $railMenu = [
     [null, [
@@ -166,7 +164,7 @@ textarea:focus{border-color:var(--lime-line)}
 @endphp
 @include('invest._rail')
 
-{{-- MARKER-DEAD-LINK — someone arrived here from a link that no longer works.
+{{-- someone arrived here from a link that no longer works.
      Say so plainly rather than letting them wonder why they are on a different
      page than the one they clicked. --}}
 @if(session('invest_link_dead') || session('invest_access_ended'))
@@ -187,11 +185,10 @@ textarea:focus{border-color:var(--lime-line)}
   <span class="eyebrow">Built by a shop owner</span>
   <h1 class="big">{!! $headline !!}</h1>
   <p class="lede wide">{{ $lede }}</p>
-  {{-- MARKER-SCHED-TALK-ENTRY — a conversation is the lowest-friction ask on the
+  {{-- a conversation is the lowest-friction ask on the
        page; offer it before the form. Renders only while the type is bookable. --}}
   @php
     $talkType = \App\Models\PlatformBookingType::where('slug', 'investor')->first();
-    // MARKER-INVEST-DEMO
     $investDemo   = \App\Models\Tenant::where('subdomain', 'demo')->where('is_demo', true)->first();
     $investDemoOn = $investDemo && \App\Models\DemoSetting::get('offline:demo') !== '1';
   @endphp
@@ -199,7 +196,7 @@ textarea:focus{border-color:var(--lime-line)}
   <div class="ok talkbar" style="margin-top:26px">
     <div class="talkbar-av">J</div>
     <p class="talkbar-copy"><b>Questions first? Talk to Josh.</b><br>{{ $talkType->length_min }} minutes, one on one — no proposal, no code, no commitment.</p>
-    {{-- MARKER-INVEST-BAR-ALIGN — matches the shared bar on the other pages --}}
+    {{-- matches the shared bar on the other pages --}}
     <div class="talkbar-actions">
       @if($investDemoOn)
         <a class="talkbar-btn talkbar-btn--ghost" href="{{ url('/demo') }}">See the demo</a>
@@ -210,11 +207,11 @@ textarea:focus{border-color:var(--lime-line)}
   @endif
 </div></section>
 
-{{-- MARKER-INVEST-RAIL — platform first: it is the strongest of the three,
+{{-- platform first: it is the strongest of the three,
      and the invoice stack reads better as evidence than as the opening. --}}
 <section><div class="wrap">
 
-  {{-- MARKER-INVEST-RETENTION — the retention argument leads; the invoice
+  {{-- the retention argument leads; the invoice
        stack drops to last, where it is evidence rather than the opening. --}}
   <details class="sec" id="s-keep">
     <summary>Retention and recovery <span class="cap">&mdash; most shops don't market at all</span></summary>
@@ -224,9 +221,8 @@ textarea:focus{border-color:var(--lime-line)}
   <details class="sec" id="s-bike">
     <summary>Why bike first <span class="cap">&mdash; the hardest version of the problem</span></summary>
     <div class="body">
-{{-- MARKER-INVEST-UNIFY --}}
 @include('invest._bike')
-{{-- MARKER-INVEST-CAPABILITY --}}</div>
+</div>
   </details>
 
   <details class="sec" id="s-cap">
@@ -245,7 +241,7 @@ textarea:focus{border-color:var(--lime-line)}
 
 
 <section><div class="wrap">
-  {{-- MARKER-INVEST-NOCODE — one card now, not two. --}}
+  {{-- one card now, not two. --}}
   <div class="onecard">
 
     <div class="card hi" id="ask">
@@ -284,13 +280,13 @@ textarea:focus{border-color:var(--lime-line)}
         <p class="fine">That last question isn't a formality. This round is raised under an exemption that
           depends on a pre-existing relationship, so your answer in your own words is part of the record.
           Requests from people I don't know get a polite no rather than a code.</p>
-        {{-- MARKER-SCHED-SECTION — a conversation first, if that's easier --}}
+        {{-- a conversation first, if that's easier --}}
         @php $investCall = \App\Models\PlatformBookingType::where('slug', 'investor')->first(); @endphp
         @if($investCall && $investCall->isBookable())
           <p class="fine" style="margin-top:10px">Prefer to talk first? <a href="#talk" style="color:var(--lime)">Book a {{ $investCall->length_min }}-minute call below</a> — no proposal, no code, just questions.</p>
         @endif
 
-      {{-- MARKER-INVEST-NOCODE — kept from the card that used to sit beside this
+      {{-- kept from the card that used to sit beside this
            one; they are the only place saying what is being asked for. --}}
       <div style="margin-top:26px;padding-top:20px;border-top:1px solid var(--line)">
         <h3>What's behind it</h3>
@@ -309,7 +305,7 @@ textarea:focus{border-color:var(--lime-line)}
 
   </div>
 
-  {{-- MARKER-CONTRIBUTIONS — after the two cards, never beside them. --}}
+  {{-- after the two cards, never beside them. --}}
   <div class="support" id="support">
     <h3>Can't invest, but want to back it?</h3>
     <p>Some people want to put something behind the project without buying into the round. You can, and
@@ -319,13 +315,13 @@ textarea:focus{border-color:var(--lime-line)}
       @csrf
       <div class="hp"><input type="text" name="company_website" tabindex="-1" autocomplete="off"></div>
 
-      {{-- MARKER-CONTRIB-UI — amounts come from Raise setup. --}}
+      {{-- amounts come from Raise setup. --}}
       <div class="amts">
         @foreach($presets as $preset)
           <button type="button" class="amt-btn" data-amt="{{ $preset }}">${{ number_format($preset) }}</button>
         @endforeach
 
-        {{-- MARKER-CONTRIB-NOWRAP — fourth cell, same box as the buttons. --}}
+        {{-- fourth cell, same box as the buttons. --}}
         <input type="text" name="amount" id="c-amt" value="{{ old('amount') }}"
                inputmode="decimal" placeholder="Other" required
                autocomplete="off" aria-label="Amount in dollars">
@@ -354,7 +350,7 @@ textarea:focus{border-color:var(--lime-line)}
   <p class="fine">{{ $fine }}</p>
 </div></section>
 
-{{-- MARKER-SCHED-INVEST — talk first: the scheduling calendar, investor type. The
+{{-- talk first: the scheduling calendar, investor type. The
      widget styles itself from --mk-* vars, mapped here onto the invest palette. --}}
 @php $investCall = \App\Models\PlatformBookingType::where('slug', 'investor')->first(); @endphp
 @if($investCall && $investCall->isBookable())
@@ -367,14 +363,14 @@ textarea:focus{border-color:var(--lime-line)}
 @endif
 
 <script>
-// MARKER-CONTRIBUTIONS — the preset buttons only fill the amount field; the
+// the preset buttons only fill the amount field; the
 // field is what submits, so a typed amount always wins.
 (function () {
   var field = document.getElementById('c-amt');
   var btns  = document.querySelectorAll('.amt-btn');
   if (!field || !btns.length) { return; }
 
-  // MARKER-CONTRIB-AMOUNT — compare on the number, not the string, so "250",
+  // compare on the number, not the string, so "250",
   // "$250" and "250.00" all light the same button.
   function mark(val) {
     var n = parseFloat(String(val).replace(/[^0-9.]/g, ''));
@@ -383,7 +379,7 @@ textarea:focus{border-color:var(--lime-line)}
     }
   }
 
-  // MARKER-CONTRIB-NOWRAP — the $ is written into the value rather than
+  // the $ is written into the value rather than
   // floated over the field, so the input needs no wrapper to position it.
   // The server strips $ and commas before validating.
   function withSymbol(v) {
@@ -414,7 +410,6 @@ textarea:focus{border-color:var(--lime-line)}
 })();
 </script>
 
-{{-- MARKER-INVEST-CONFIRM --}}
 @include('invest._confirm', [
   'confirmTitle' => 'Thanks — that is with me.',
   'confirmBody'  => 'I will come back to you directly rather than automatically, so give it a day or so.',
@@ -422,9 +417,9 @@ textarea:focus{border-color:var(--lime-line)}
 
 <footer><div class="wrap">intake · intake.works</div></footer>
 
-{{-- MARKER-INVEST-MOBILE — the two things this page exists for, always one tap
+{{-- the two things this page exists for, always one tap
      away. Hidden above 640 where both cards are already on screen. --}}
-{{-- MARKER-INVEST-NOCODE — one action now, so the dock carries one button. --}}
+{{-- one action now, so the dock carries one button. --}}
 <div class="dock">
   <a class="a1" href="#ask">Request the proposal</a>
 </div>

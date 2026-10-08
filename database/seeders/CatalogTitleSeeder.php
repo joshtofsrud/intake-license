@@ -1,5 +1,4 @@
 <?php
-// MARKER-PATCH-HLC16
 
 namespace Database\Seeders;
 

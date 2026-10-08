@@ -1,5 +1,4 @@
-{{-- MARKER-SALES-BOARD --}}
-{{-- MARKER-SALES-PROSPECTS2 — one Prospects page: Board or List, scoped to an industry. No cards: lanes and rows sit on the page. --}}
+{{-- one Prospects page: Board or List, scoped to an industry. No cards: lanes and rows sit on the page. --}}
 @php
     $cur   = $this->current();
     $today = now()->toDateString();
@@ -8,7 +7,7 @@
     $hidden = $this->hiddenCount();
     $cols  = $mode === 'board' ? $this->columns() : [];
     $list  = $mode === 'list' ? $this->listRows() : null;
-    // MARKER-PROSPECTS-TIDY — columns that say nothing on this page are left out
+    // columns that say nothing on this page are left out
     $hasLoop = $list ? $list['rows']->contains(fn ($p) => ! empty($p->loop)) : false;
     $muted = 'font-size:12px;color:var(--sx-dim)';
     $input = 'sx-in';
@@ -23,7 +22,7 @@
   .sx-root, .spb-dr { --sx-line:rgba(255,255,255,.075); --sx-line-2:rgba(255,255,255,.14); --sx-dim:#a3a3ab; --sx-faint:#74747d;
     --sx-violet:#8b5cf6; --sx-vsoft:rgba(139,92,246,.17); --sx-vtext:#b4a0fb; --sx-lime:#BEF264; --sx-amber:#f5b942; --sx-red:#f47c7c; font-size:14px; }
   .sx-in { background-color:rgba(255,255,255,.04); border:1px solid var(--sx-line-2); border-radius:7px; padding:6px 10px; font-size:13px; color:inherit; }
-  select.sx-in { padding-right:32px; background-repeat:no-repeat; } /* MARKER-SALES-SELECT-FIX */
+  select.sx-in { padding-right:32px; background-repeat:no-repeat; }
   .sx-in option { background:#26272c; }
   .sx-head { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
   .sx-seg { display:inline-flex; border:1px solid var(--sx-line-2); border-radius:8px; padding:2px; }
@@ -40,7 +39,7 @@
   .sx-bar { display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding:12px 0; margin-top:14px; border-top:1px solid var(--sx-line); border-bottom:1px solid var(--sx-line); }
   .sx-tog { display:inline-flex; align-items:center; gap:6px; font-size:13px; color:var(--sx-dim); cursor:pointer; user-select:none; }
   .sx-tog input { accent-color:var(--sx-violet); }
-  /* MARKER-PROSPECTS-TIDY — the page's own checkbox, not the browser's white box */
+  /* the page's own checkbox, not the browser's white box */
   .sx-root input[type=checkbox] { -webkit-appearance:none; appearance:none; width:16px; height:16px; margin:0; flex:none;
     border:1px solid var(--sx-line-2); border-radius:4px; background:rgba(255,255,255,.04); display:inline-grid; place-content:center;
     cursor:pointer; vertical-align:middle; box-shadow:none; transition:background .12s, border-color .12s; }
@@ -50,12 +49,12 @@
     background:#fff; clip-path:polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0%, 43% 62%); }
   .sx-root input[type=checkbox]:checked { background:var(--sx-violet); border-color:var(--sx-violet); }
   .sx-root input[type=checkbox]:checked::before { transform:scale(1); }
-  /* MARKER-PROSPECTS-TIDY — one line per value; only the shop name wraps */
+  /* one line per value; only the shop name wraps */
   .sx-t td { white-space:nowrap; }
   .sx-t td.sx-shop { white-space:normal; min-width:170px; max-width:260px; }
   .sx-t td.sx-contact { line-height:1.55; }
   .sx-t td.sx-contact a { margin-right:10px; }
-  /* MARKER-PROSPECTS-WEB — globe that opens the shop's website */
+  /* globe that opens the shop's website */
   .sx-t td.sx-web { width:34px; padding-left:4px; padding-right:4px; }
   .sx-t td.sx-web a { display:inline-flex; width:26px; height:26px; align-items:center; justify-content:center; border-radius:6px; color:var(--sx-dim); }
   .sx-t td.sx-web a:hover { color:#fff; background:rgba(255,255,255,.08); }
@@ -89,7 +88,6 @@
   .sx-t tr.r { cursor:pointer; } .sx-t tr.r:hover td { background:rgba(255,255,255,.03); } .sx-t tr.r.sel td { background:var(--sx-vsoft); }
   .sx-t input[type=checkbox] { accent-color:var(--sx-violet); }
   .sx-t .num { text-align:right; font-variant-numeric:tabular-nums; }
-  /* MARKER-PROSPECTS-SORT */
   .sx-t th.sx-sort { cursor:pointer; user-select:none; }
   .sx-t th.sx-sort:hover { color:#fff; }
   .sx-t th.sx-sort.on { color:#fff; }
@@ -162,14 +160,13 @@
     <select class="sx-in" wire:model.live="territoryId"><option value="">All territories</option><option value="none">No territory</option>@foreach($this->territories() as $t)<option value="{{ $t->id }}">{{ $t->name }}</option>@endforeach</select>
     <select class="sx-in" wire:model.live="repId"><option value="">Any rep</option><option value="none">House (no rep)</option>@foreach($this->reps() as $r)<option value="{{ $r->id }}">{{ $r->name }}</option>@endforeach</select>
     <select class="sx-in" wire:model.live="priority"><option value="">Any priority</option>@foreach(\App\Models\SalesProspect::PRIORITIES as $k => $v)<option value="{{ $k }}">{{ $v }}</option>@endforeach</select>
-    {{-- MARKER-PROSPECTS-PLACE · MARKER-SX-MULTI — states and brands use the shared multi-pick dropdown --}}
+    {{-- states and brands use the shared multi-pick dropdown --}}
     @include('filament.partials.sx-multi', ['model' => 'states', 'any' => 'All states', 'noun' => 'states', 'width' => 120,
       'opts' => collect($this->stateCounts())->map(fn ($n, $code) => [$code, $code, $n])->values()->all()])
     @include('filament.partials.sx-multi', ['model' => 'brandsSel', 'any' => 'All brands', 'noun' => 'brands', 'width' => 130, 'key' => $industryId,
       'opts' => collect($this->brandCounts())->map(fn ($n, $b) => [$b, $b, $n])->values()->all()])
     <input type="text" class="sx-in" style="width:150px" wire:model.live.debounce.500ms="zip" placeholder="ZIP, e.g. 992, 83814" title="One or more ZIP codes, or their first digits, separated by commas">
 
-    {{-- MARKER-SALES-SITE-FILTER --}}
     <select class="sx-in" wire:model.live="site">
       <option value="">Any contact info</option>
       <option value="found">Website pass found something</option>
@@ -244,7 +241,7 @@
     <table class="sx-t">
       <thead><tr>
         <th style="width:28px"><input type="checkbox" aria-label="Select this page" @checked($pageIds && ! array_diff($pageIds, $selected)) wire:click="toggleAllOnPage({{ json_encode($pageIds) }})"></th>
-        {{-- MARKER-PROSPECTS-SORT — click a heading to sort; again to reverse; a third time for the default (due first, then score) --}}
+        {{-- click a heading to sort; again to reverse; a third time for the default (due first, then score) --}}
         @foreach(['shop' => ['Shop', ''], 'web' => ['', ''], 'place' => ['Location', ''], 'contact' => ['Contact', ''], 'brands' => ['Brands', ''], 'industry' => ['Industry', ''], 'loop' => ['Loop', ''], 'priority' => ['Pri', ''], 'verified' => ['Verified', ''], 'score' => ['Score', 'num'], 'rep' => ['Rep', ''], 'stage' => ['Stage', ''], 'next' => ['Next action', ''], 'quote' => ['Quote', 'num']] as $sk => [$sLabel, $sCls])
           @continue(($sk === 'loop' && ! $hasLoop) || ($sk === 'industry' && $industryId))
           @if($sk === 'brands')
@@ -264,11 +261,10 @@
           <tr class="r {{ $openId === $p->id ? 'sel' : '' }}" wire:key="l-{{ $p->id }}">
             <td wire:click.stop><input type="checkbox" value="{{ $p->id }}" wire:model.live="selected" aria-label="Select {{ $p->shop }}"></td>
             <td wire:click="open('{{ $p->id }}')" class="sx-shop">{{ $p->shop }}</td>
-            {{-- MARKER-PROSPECTS-WEB — opens in a new tab; doesn't open the shop's panel --}}
+            {{-- opens in a new tab; doesn't open the shop's panel --}}
             <td class="sx-web">@if($p->website)<a href="{{ preg_match('#^https?://#i', $p->website) ? $p->website : 'https://' . $p->website }}" target="_blank" rel="noopener noreferrer" title="Open {{ parse_url(preg_match('#^https?://#i', $p->website) ? $p->website : 'https://' . $p->website, PHP_URL_HOST) ?: 'website' }}" onclick="event.stopPropagation()"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/></svg></a>@endif</td>
-            {{-- MARKER-PROSPECTS-PLACE --}}
             <td wire:click="open('{{ $p->id }}')" style="white-space:nowrap">{{ $p->city }}{{ $p->state ? ', ' . $p->state : '' }}<div style="{{ $muted }}">{{ $p->postcode }}</div></td>
-            {{-- MARKER-SALES-SITE-FILTER — email, phone and socials at a glance; links don't open the drawer --}}
+            {{-- email, phone and socials at a glance; links don't open the drawer --}}
             <td wire:click="open('{{ $p->id }}')" class="sx-contact" style="font-size:12.5px">
               @if($p->email)<a href="mailto:{{ $p->email }}" onclick="event.stopPropagation()" style="color:#a78bfa">{{ $p->email }}</a><br>@endif
               @if($p->phone)<span>{{ $p->phone }}</span><br>@endif
@@ -278,7 +274,7 @@
               @endforeach
               @if(! $p->email && ! $p->phone && empty($soc['instagram']) && empty($soc['facebook']))<span style="color:var(--sx-dim)">—</span>@endif
             </td>
-            {{-- MARKER-PROSPECTS-BRANDS — first three, then +N --}}
+            {{-- first three, then +N --}}
             @php $pb = array_values(array_filter((array) ($p->brands ?? []), 'is_string')); @endphp
             <td wire:click="open('{{ $p->id }}')" style="font-size:12.5px;color:var(--sx-dim)" title="{{ implode(', ', $pb) }}">@if($pb){{ implode(', ', array_slice($pb, 0, 3)) }}@if(count($pb) > 3) <span style="color:var(--sx-faint)">+{{ count($pb) - 3 }}</span>@endif @else <span style="color:var(--sx-faint)">—</span>@endif</td>
             @unless($industryId)<td wire:click="open('{{ $p->id }}')" style="color:var(--sx-dim)">{{ $p->channel?->name ?? 'None' }}</td>@endunless
@@ -328,7 +324,6 @@
           <button class="spb-btn sm" style="margin-left:auto;background:#BEF264;border-color:#BEF264;color:#0a0a0a" wire:click="openInvite">{{ $cur->invited_at ? 'Re-send trial invite' : 'Invite to trial' }}</button>
         @endif
       </div>
-      {{-- MARKER-SALES-EMAIL --}}
       <div style="display:flex;gap:8px;margin-top:10px;align-items:center">
         @if($cur->email)
           <button class="spb-btn sm" wire:click="openEmail">Email {{ $cur->email }}</button>
@@ -347,7 +342,6 @@
           <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px"><button class="spb-btn" wire:click="$set('showEmail', false)">Cancel</button><button class="spb-btn p" wire:click="sendEmail" wire:loading.attr="disabled">Send</button></div>
         </div>
       @endif
-      {{-- MARKER-SALES-INVITE --}}
       @if($cur->invited_at && ! $cur->tenant_id)
         <div style="{{ $muted }};margin-top:8px">Invite sent {{ $cur->invited_at->diffForHumans() }} to {{ $cur->invite_email }} · {{ ucfirst($cur->invite_plan) }} · <a href="{{ \App\Services\Sales\ProspectConversion::signupUrl($cur) }}" target="_blank" rel="noopener" style="color:#a78bfa">signup link</a></div>
       @endif
@@ -392,7 +386,7 @@
           <span style="{{ $muted }}">{{ $cur->enriched_at ? 'Details pulled ' . $cur->enriched_at->diffForHumans() : 'Phone and hours not yet pulled.' }}</span>
           <button class="spb-btn sm" wire:click="enrich" wire:loading.attr="disabled"><span wire:loading.remove wire:target="enrich">{{ $cur->enriched_at ? 'Refresh from Places' : 'Pull details from Places' }}</span><span wire:loading wire:target="enrich">Pulling…</span></button>
         </div>
-        {{-- MARKER-SALES-PROSPECTS2 — industry and contact are editable here; the email is what prospect email goes to. --}}
+        {{-- industry and contact are editable here; the email is what prospect email goes to. --}}
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 10px;margin-bottom:8px">
           <div><div style="{{ $muted }}">Industry</div>
             <select class="sx-in" style="width:100%" wire:change="setIndustry($event.target.value)"><option value="">None</option>@foreach($inds as $ind)<option value="{{ $ind->id }}" @selected($cur->channel_id === $ind->id)>{{ $ind->name }}</option>@endforeach</select></div>
@@ -406,7 +400,7 @@
           <b>Address</b><span>{{ $cur->address ?: '—' }}{{ $cur->postcode ? ' ' . $cur->postcode : '' }}</span>
           <b>Phone</b><span>{{ $cur->phone ?: '—' }}</span>
           <b>Website</b><span>@if($cur->website)<a href="{{ $cur->website }}" target="_blank" rel="noopener" style="color:#a78bfa">{{ parse_url($cur->website, PHP_URL_HOST) ?: $cur->website }}</a>@else — @endif</span>
-          {{-- MARKER-SALES-SITE-FILTER — what the website pass found --}}
+          {{-- what the website pass found --}}
           <b>Socials</b><span>@php $curSoc = (array) ($cur->socials ?? []); @endphp
             @forelse($curSoc as $net => $url)<a href="{{ $url }}" target="_blank" rel="noopener" style="color:#a78bfa;margin-right:10px">{{ ['instagram' => 'Instagram', 'facebook' => 'Facebook', 'strava' => 'Strava', 'youtube' => 'YouTube', 'tiktok' => 'TikTok', 'x' => 'X'][$net] ?? ucfirst($net) }}</a>@empty — @endforelse</span>
           <b>Brands</b><span>{{ $cur->brands ? implode(', ', (array) $cur->brands) : '—' }}</span>
@@ -484,9 +478,9 @@
 @endif
 
 <script>
-  // MARKER-SALES-BOARD — drag/drop is delegated on the board container so it survives Livewire re-renders.
+  // drag/drop is delegated on the board container so it survives Livewire re-renders.
   (function () {
-    // MARKER-SALES-PROSPECTS2 — listen on the document: the board isn't on the page in List view.
+    // listen on the document: the board isn't on the page in List view.
     if (window.__spbDrag) { return; } window.__spbDrag = true;
     var board = document;
     var dragId = null;

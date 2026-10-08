@@ -1,5 +1,5 @@
 {{--
-  MARKER-PATCH-158-G24 — contact_form editor (Phase 2)
+  contact_form editor (Phase 2)
   Editor controls form *presentation*. The /contact backend endpoint
   accepts a fixed set of fields (name, email, phone, message); we can
   show/hide and re-label but not add new fields without backend work.
@@ -181,7 +181,7 @@
     </div>
 
     <div class="pb2-bg-pane" data-bg-mode="gradient">
-        {{-- MARKER-PATCH-269 — gradient angle --}}
+        {{-- gradient angle --}}
         <div class="pb2-field">
           <div class="pb2-slider-row">
             <label class="pb2-field-label" style="margin:0">Angle</label>

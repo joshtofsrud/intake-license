@@ -2,7 +2,7 @@
 
 namespace App\Services\Tenant;
 
-// MARKER-REWIND — capture, restore, prune.
+// capture, restore, prune.
 
 use App\Models\Tenant\TenantPage;
 use App\Models\Tenant\TenantPageRevision;
@@ -49,7 +49,7 @@ class PageRevisionService
                     'slug'             => $page->slug,
                     'meta_title'       => $page->meta_title,
                     'meta_description' => $page->meta_description,
-                    'og_image_url'     => $page->og_image_url, // MARKER-PAGE-SEARCH-SHARING
+                    'og_image_url'     => $page->og_image_url,
                     'is_home'          => (bool) $page->is_home,
                     'is_in_nav'        => (bool) $page->is_in_nav,
                     'nav_order'        => (int) $page->nav_order,
@@ -111,7 +111,7 @@ class PageRevisionService
             $page->slug             = $meta['slug'] ?? $page->slug ?? 'page';
             $page->meta_title       = $meta['meta_title'] ?? null;
             $page->meta_description = $meta['meta_description'] ?? null;
-            if (array_key_exists('og_image_url', $meta)) { // MARKER-PAGE-SEARCH-SHARING — older revisions don't carry it
+            if (array_key_exists('og_image_url', $meta)) { // older revisions don't carry it
                 $page->og_image_url = $meta['og_image_url'];
             }
             $page->is_home          = (bool) ($meta['is_home'] ?? $page->is_home ?? false);

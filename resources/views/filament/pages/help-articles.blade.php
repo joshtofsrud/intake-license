@@ -1,6 +1,5 @@
 <x-filament-panels::page>
 @php
-  // MARKER-HELP-ADMIN
   $sellable = fn ($a) => $a->price_cents > 0 || $a->price_display_override;
 @endphp
 
@@ -156,7 +155,7 @@
 
           <div class="hc-f">
             <label>Add-ons the shop must have</label>
-            {{-- MARKER-HELP-PICKER — grouped, filtered, and the unpriced ones
+            {{-- grouped, filtered, and the unpriced ones
                  tucked behind a disclosure so the list reads at a glance. --}}
             @php
               $chosen  = $sel->help_addons ?? [];
@@ -248,7 +247,7 @@
 </div>
 
 <script>
-// MARKER-HELP-ADMIN — drag to organize. Ordering writes as it happens.
+// drag to organize. Ordering writes as it happens.
 document.addEventListener('DOMContentLoaded', function () {
   var dragArt = null, dragCat = null;
 

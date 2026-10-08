@@ -1,6 +1,5 @@
 @extends('public.account._shell')
 @php $pageTitle = 'My Account'; @endphp
-{{-- MARKER-PORTAL-V2 --}}
 @push('styles')
   @include('public.account.portal._portal-css')
 @endpush
@@ -33,7 +32,7 @@
   </div>
 @endif
 
-{{-- MARKER-PORTAL-V2 — rental banners --}}
+{{-- rental banners --}}
 @if($activeRental)
   @php $overdue = $activeRental->due_at && $activeRental->due_at->isPast(); @endphp
   <div class="ac-banner {{ $overdue ? 'ac-banner--overdue' : 'ac-banner--due' }}">

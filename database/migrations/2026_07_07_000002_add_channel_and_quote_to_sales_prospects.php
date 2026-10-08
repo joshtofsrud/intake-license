@@ -1,5 +1,5 @@
 <?php
-// MARKER-CAMPAIGNS-QUOTE — Prospects join a channel and carry a built quote.
+// Prospects join a channel and carry a built quote.
 // quote_monthly is a snapshot-on-write derived from tier + addons at save time
 // (design principle 13), so list/funnel reads never re-price.
 

@@ -14,7 +14,7 @@ class ExpireWaitlistEntries extends Command
 
     public function handle(): int
     {
-        // MARKER-TZ-WAVE3 — date_range_end is a tenant-local business date;
+        // date_range_end is a tenant-local business date;
         // expire per tenant against that tenant's local today, not UTC's.
         $entryCount = 0;
         foreach (\App\Console\Commands\MembershipsTickCommand::tenantLocalDates() as $tenantId => $localToday) {

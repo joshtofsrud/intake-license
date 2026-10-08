@@ -15,13 +15,13 @@ class EmailService
         $this->tenant = $tenant;
     }
 
-    // MARKER-DEMO-COMMS — demo tenants never reach a real transport. The
+    // demo tenants never reach a real transport. The
     // send "succeeds" (callers behave exactly as live and record the
     // message); the record carries meta.demo_suppressed via InboxService.
     private function deliver(\Closure $build): void
     {
         if ($this->tenant && $this->tenant->is_demo) {
-            \Illuminate\Support\Facades\Log::info('MARKER-DEMO-COMMS email suppressed (demo tenant)', ['tenant' => $this->tenant->id]);
+            \Illuminate\Support\Facades\Log::info('demo-comms: email suppressed (demo tenant)', ['tenant' => $this->tenant->id]);
             return;
         }
         Mail::send([], [], $build);
@@ -52,12 +52,12 @@ class EmailService
 
         $fromName  = $this->tenant->emailFromName();
         $fromEmail = $this->tenant->emailFromAddress();
-        // MARKER-TXN-THREADING — thread it and reply into Intake; the old
+        // thread it and reply into Intake; the old
         // fallback pointed at {subdomain}@intake.works, which receives nothing.
         $replyTo   = $this->threadedReplyTo($toEmail, $templateKey, $subject)
                   ?: ($this->tenant->email_reply_to ?? $fromEmail);
 
-        // MARKER-PATCH-146 — suppression gate
+        // suppression gate
         if (\App\Models\Tenant\TenantEmailSuppression::isSuppressed($this->tenant->id, $toEmail)) {
             logger()->info("EmailService skipped (suppressed) [{$templateKey}]", [
                 'tenant_id' => $this->tenant->id,
@@ -66,14 +66,14 @@ class EmailService
             return;
         }
 
-        // MARKER-PATCH-410 — wrap the body in the same branded chrome (header +
+        // wrap the body in the same branded chrome (header +
         // logo, footer) that receipts and inbox replies use, so every customer
         // email is one consistent system instead of bare text. body_html is the
         // content INSIDE the frame, exactly like the receipt greeting sits inside
         // the receipt layout.
         $html = $this->renderHtml($body);
 
-        // MARKER-EMAIL-LEDGER — row first, voided on failure.
+        // row first, voided on failure.
         $ledger = \App\Services\EmailLedger::begin(
             $this->tenant->id, \App\Services\EmailLedger::kindFor($templateKey), $toEmail, $templateKey
         );
@@ -89,23 +89,23 @@ class EmailService
                     ->replyTo($replyTo)
                     ->subject($subject)
                     ->html($html);
-                // MARKER-PATCH-146 — header lets the bounce webhook map events back to tenants.
-                // MARKER-PATCH-201 — also set Postmark Metadata (X-PM-Metadata-*) so the
+                // header lets the bounce webhook map events back to tenants.
+                // also set Postmark Metadata (X-PM-Metadata-*) so the
                 // Postmark bounce/complaint webhook can map events back to the tenant
                 // (Postmark surfaces Metadata, not arbitrary custom headers, in webhooks).
                 $h = $message->getHeaders();
                 $h->addTextHeader('X-Tenant-Id', $tenantId);
                 $h->addTextHeader('X-PM-Metadata-tenant_id', $tenantId);
             });
-            \App\Services\EmailLedger::markSent($ledger); // MARKER-EMAIL-LEDGER
+            \App\Services\EmailLedger::markSent($ledger);
         } catch (\Throwable $e) {
-            \App\Services\EmailLedger::void($ledger); // MARKER-EMAIL-LEDGER
+            \App\Services\EmailLedger::void($ledger);
             logger()->error("EmailService send failed [{$templateKey}]: {$e->getMessage()}");
         }
     }
 
     // ----------------------------------------------------------------
-    // MARKER-PATCH-403 — build the per-thread inbound Reply-To address.
+    // build the per-thread inbound Reply-To address.
     // The thread's random inbound_token rides in the localpart as a "+tag";
     // Postmark surfaces it as MailboxHash on the inbound webhook, which the
     // PostmarkInboundController decodes back to the thread. Returns null when
@@ -113,7 +113,7 @@ class EmailService
     // to the tenant's normal Reply-To — fail-safe).
     // ----------------------------------------------------------------
     /**
-     * MARKER-TXN-THREADING — thread this send and hand back its Reply-To.
+     * thread this send and hand back its Reply-To.
      *
      * Returns null when the recipient is not a customer of this tenant, which
      * is the guard that keeps staff mail (schedule publishes, announcements,
@@ -164,10 +164,10 @@ class EmailService
     }
 
     // ----------------------------------------------------------------
-    // MARKER-PATCH-160 — send pre-rendered HTML
+    // send pre-rendered HTML
     // Used by receipts which need Blade-level looping for line items.
     // Mirrors send(): suppression-gated, X-Tenant-Id header, from/reply-to.
-    // MARKER-PATCH-403 — optional $replyToOverride lets the inbox reply inject a
+    // optional $replyToOverride lets the inbox reply inject a
     // token-bearing Reply-To; all other callers keep the tenant's normal one.
     // ----------------------------------------------------------------
     public function sendRendered(
@@ -179,7 +179,7 @@ class EmailService
     ): bool {
         $fromName  = $this->tenant->emailFromName();
         $fromEmail = $this->tenant->emailFromAddress();
-        // MARKER-TXN-THREADING — an override means the inbox already owns this
+        // an override means the inbox already owns this
         // send (postOutbound records it itself), so don't thread it twice.
         $replyTo   = $replyToOverride
                   ?: $this->threadedReplyTo($toEmail, $templateKey, $subject)
@@ -193,7 +193,7 @@ class EmailService
             return false;
         }
 
-        // MARKER-EMAIL-LEDGER — row first, voided on failure.
+        // row first, voided on failure.
         $ledger = \App\Services\EmailLedger::begin(
             $this->tenant->id, \App\Services\EmailLedger::kindFor($templateKey), $toEmail, $templateKey
         );
@@ -212,20 +212,20 @@ class EmailService
                 $headers = $message->getHeaders();
                 $headers->addTextHeader('X-Tenant-Id', $tenantId);
                 $headers->addTextHeader('X-Mail-Template', $templateKey);
-                // MARKER-PATCH-201 — Postmark Metadata for webhook tenant mapping.
+                // Postmark Metadata for webhook tenant mapping.
                 $headers->addTextHeader('X-PM-Metadata-tenant_id', $tenantId);
             });
-            \App\Services\EmailLedger::markSent($ledger); // MARKER-EMAIL-LEDGER
+            \App\Services\EmailLedger::markSent($ledger);
             return true;
         } catch (\Throwable $e) {
-            \App\Services\EmailLedger::void($ledger); // MARKER-EMAIL-LEDGER
+            \App\Services\EmailLedger::void($ledger);
             logger()->error("EmailService::sendRendered failed [{$templateKey}]: {$e->getMessage()}");
             return false;
         }
     }
 
     // ----------------------------------------------------------------
-    // MARKER-PATCH-204 — send a rendered HTML email WITH a PDF attachment.
+    // send a rendered HTML email WITH a PDF attachment.
     // Mirrors sendRendered(): suppression check, tenant from/reply-to,
     // Postmark metadata header for bounce-to-tenant mapping.
     // ----------------------------------------------------------------
@@ -239,7 +239,7 @@ class EmailService
     ): bool {
         $fromName  = $this->tenant->emailFromName();
         $fromEmail = $this->tenant->emailFromAddress();
-        // MARKER-TXN-THREADING — invoices go to customers, same as receipts.
+        // invoices go to customers, same as receipts.
         $replyTo   = $this->threadedReplyTo($toEmail, $templateKey, $subject)
                   ?: ($this->tenant->email_reply_to ?? $fromEmail);
 
@@ -251,7 +251,7 @@ class EmailService
             return false;
         }
 
-        // MARKER-EMAIL-LEDGER — row first, voided on failure.
+        // row first, voided on failure.
         $ledger = \App\Services\EmailLedger::begin(
             $this->tenant->id, \App\Services\EmailLedger::kindFor($templateKey), $toEmail, $templateKey
         );
@@ -273,10 +273,10 @@ class EmailService
                 $headers->addTextHeader('X-Mail-Template', $templateKey);
                 $headers->addTextHeader('X-PM-Metadata-tenant_id', $tenantId);
             });
-            \App\Services\EmailLedger::markSent($ledger); // MARKER-EMAIL-LEDGER
+            \App\Services\EmailLedger::markSent($ledger);
             return true;
         } catch (\Throwable $e) {
-            \App\Services\EmailLedger::void($ledger); // MARKER-EMAIL-LEDGER
+            \App\Services\EmailLedger::void($ledger);
             logger()->error("EmailService::sendRenderedWithPdf failed [{$templateKey}]: {$e->getMessage()}");
             return false;
         }
@@ -299,7 +299,7 @@ class EmailService
     // Render a template body as full HTML email
     // ----------------------------------------------------------------
     /**
-     * MARKER-TRAFFIC-IDENTITY -- tag links that point at our own marketing site
+     * tag links that point at our own marketing site
      * so campaign clicks are attributable.
      *
      * Postmark rewrites every link through its click tracker, so by the time
@@ -343,14 +343,14 @@ class EmailService
 
     public function renderHtml(string $body, bool $withHeader = true): string
     {
-        // MARKER-CAMPAIGN-HDR — a campaign can drop the shop header so it can
+        // a campaign can drop the shop header so it can
         // lead with its own hero instead of stacking one under a logo.
         $accent     = $this->tenant->accent_color     ?? '#BEF264';
         $accentText = \App\Support\ColorHelper::accentTextColor($accent);
         $name       = htmlspecialchars($this->tenant->name);
-        $logo       = $this->tenant->emailLogoUrl(); // MARKER-PATCH-411
+        $logo       = $this->tenant->emailLogoUrl();
 
-        // MARKER-CAMPAIGN-CHROME — a width attribute too: Outlook ignores
+        // a width attribute too: Outlook ignores
         // height-only sizing and falls back to the image's native size.
         $header = $logo
             ? "<img src=\"{$logo}\" alt=\"{$name}\" width=\"150\" style=\"width:auto;max-width:150px;height:36px;display:block;margin:0 auto 8px;border:0\">"
@@ -429,7 +429,7 @@ HTML;
 <p>We'll be in touch when your work is ready.</p>
 <p>— The {$shop} team</p>",
             ],
-            // MARKER-GC-EMAILS -- the card visual sits INSIDE the editable body
+            // the card visual sits INSIDE the editable body
             // so a shop that customizes the copy keeps the design, and one that
             // never opens the editor still sends something that looks made.
             'gift_card_delivery' => [
@@ -481,8 +481,8 @@ HTML;
 <p>— The {$shop} team</p>",
             ],
 
-            // MARKER-PATCH-154 — 24-hour appointment reminder
-            // MARKER-PATCH-154-FIX1 — uses when_human to handle drop-off mode
+            // 24-hour appointment reminder
+            // uses when_human to handle drop-off mode
             'appointment_reminder' => [
                 'subject'   => 'Reminder: your appointment is tomorrow',
                 'body_html' => "<p>Hi {{first_name}},</p>
@@ -495,8 +495,8 @@ HTML;
 <p>— The {$shop} team</p>",
             ],
 
-            // MARKER-PATCH-536 — "your work is ready, pick a window" options email
-            // MARKER-PATCH-574 — online store order confirmation
+            // "your work is ready, pick a window" options email
+            // online store order confirmation
             'order_confirmation' => [
                 'subject'   => 'Order confirmed — {{order_number}}',
                 'body_html' => "<p>Hi {{first_name}},</p>
@@ -519,7 +519,7 @@ HTML;
 <p>— The {$shop} team</p>",
             ],
 
-            // MARKER-PATCH-152C — internal delivery scheduling notifications
+            // internal delivery scheduling notifications
             'delivery_pickup_scheduled' => [
                 'subject'   => 'Pickup scheduled — {{date_short}} at {{time_start}}',
                 'body_html' => "<p>Hi {{first_name}},</p>
@@ -545,7 +545,7 @@ HTML;
 <p>— The {$shop} team</p>",
             ],
 
-            // MARKER-PATCH-155 — 24-hour delivery reminders
+            // 24-hour delivery reminders
             'delivery_pickup_reminder' => [
                 'subject'   => 'Reminder: pickup tomorrow at {{time_start}}',
                 'body_html' => "<p>Hi {{first_name}},</p>
@@ -571,7 +571,7 @@ HTML;
 <p>— The {$shop} team</p>",
             ],
 
-            // MARKER-PATCH-160 — POS sale receipt (rendered via Blade, not string interpolation)
+            // POS sale receipt (rendered via Blade, not string interpolation)
             // Tenant edits subject + greeting + footer through the existing templates editor;
             // the Blade view reads body_html as a 'greeting' block + footer line.
             'sale_receipt' => [
@@ -579,7 +579,7 @@ HTML;
                 'body_html' => "Thanks for your purchase, {{first_name}}. Here's your receipt for the visit on {{date}}. We appreciate your business and hope to see you again soon.",
             ],
 
-            // MARKER-PATCH-160 — appointment work-order receipt
+            // appointment work-order receipt
             'appointment_receipt' => [
                 'subject'   => 'Your {{shop_name}} work is complete — #{{ra_number}}',
                 'body_html' => "Hi {{first_name}} — we finished the work on your service request. Here's everything we did and what it cost. Reply to this email or call us with any questions.",
@@ -593,7 +593,7 @@ HTML;
     // Static helper for one-off sends without a service instance
     // ----------------------------------------------------------------
     // ----------------------------------------------------------------
-    // MARKER-CAMPAIGN-DELIVERY — marketing sends. Three hard rules that
+    // marketing sends. Three hard rules that
     // invert the transactional path:
     //   1. no broadcast stream configured -> no send, ever
     //   2. no ledger row -> no send (transactional is the other way round)
@@ -605,8 +605,8 @@ HTML;
         string $bodyHtml,
         string $campaignId,
         string $unsubscribeUrl,
-        ?string $sendId = null, // MARKER-CAMPAIGN-RESULTS — recipient row id
-        bool $withHeader = true // MARKER-CAMPAIGN-HDR
+        ?string $sendId = null, // recipient row id
+        bool $withHeader = true
     ): bool {
         $stream = \App\Services\EmailLedger::broadcastStream();
         if ($stream === null) {
@@ -635,7 +635,7 @@ HTML;
             . '<a href="' . e($unsubscribeUrl) . '" style="color:#8a8a8e">Unsubscribe</a> from marketing email — '
             . 'receipts and booking confirmations are unaffected.</p>';
 
-        // MARKER-TRAFFIC-IDENTITY — tag before the chrome wraps it, so the
+        // tag before the chrome wraps it, so the
         // footer's own links are left alone.
         $bodyHtml = $this->tagMarketingLinks($bodyHtml, $campaign->name ?? null);
         $html = $this->renderHtml($bodyHtml . $footer, $withHeader);
@@ -659,7 +659,7 @@ HTML;
                 $h->addTextHeader('X-Tenant-Id', $tenantId);
                 $h->addTextHeader('X-PM-Metadata-tenant_id', $tenantId);
                 $h->addTextHeader('X-PM-Message-Stream', $stream);
-                // MARKER-CAMPAIGN-RESULTS — Postmark echoes Metadata back on
+                // Postmark echoes Metadata back on
                 // Open/Click/Bounce, which is how events find the right row.
                 $h->addTextHeader('X-PM-Metadata-campaign_id', $campaignId);
                 if ($sendId !== null) {

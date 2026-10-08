@@ -1,4 +1,4 @@
-{{-- MARKER-PATCH-129 — your own account --}}
+{{-- your own account --}}
 @extends('layouts.tenant.app')
 @php
   $pageTitle = 'Your account';
@@ -35,7 +35,7 @@
     <h2 class="ac-h2">Your account</h2>
     <div class="ac-sub">{{ $me->name }} · {{ ucfirst($me->role) }} · signed in {{ $me->last_login_at?->diffForHumans() ?? 'just now' }}</div>
   </div>
-  {{-- MARKER-PATCH-130 — sign-out-everywhere removed (devices are tenant-scoped) --}}
+  {{-- sign-out-everywhere removed (devices are tenant-scoped) --}}
 </div>
 
 {{-- Account --}}
@@ -67,8 +67,8 @@
 </div>
 
 {{-- Password --}}
-{{-- MARKER-TIMECLOCK-EXEMPT — self-serve clock-in nudge opt-out.
-     MARKER-TC-EXEMPT-CAP — only for whoever holds the capability. --}}
+{{-- self-serve clock-in nudge opt-out.
+     only for whoever holds the capability. --}}
 @if($me->can('timeclock.exempt_self'))
 <div class="ia-card" style="margin-bottom:14px">
   <div class="ia-card-head"><span class="ia-card-title">Time clock</span></div>
@@ -158,6 +158,6 @@
 </div>
 @endif
 
-{{-- MARKER-PATCH-130 — "Your devices" removed; devices are tenant-scoped --}}
+{{-- "Your devices" removed; devices are tenant-scoped --}}
 
 @endsection

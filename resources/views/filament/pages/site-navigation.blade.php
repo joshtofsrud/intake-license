@@ -1,5 +1,5 @@
 <x-filament-panels::page>
-{{-- MARKER-MKT-NAV — see App\Filament\Pages\SiteNavigation --}}
+{{-- see App\Filament\Pages\SiteNavigation --}}
 <style>
   .snv{--snv-line:rgba(127,127,127,.22);--snv-acc:rgb(139,92,246)}
   .snv-legend{border:1px solid rgba(139,92,246,.3);background:rgba(139,92,246,.07);border-radius:12px;padding:12px 16px;font-size:13px;line-height:1.65;margin-bottom:16px}
@@ -13,11 +13,10 @@
   .snv-ctl input[type=color]{width:24px;height:20px;border:0;background:none;padding:0}
   .snv-ctl input[type=range]{width:90px}
   .snv-ctl b{min-width:34px;text-align:right;font-weight:500}
-  /* MARKER-MKT-NAV-CONTROLS */
   .snv-groups{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px;margin:4px 0 16px}
   .snv-group{border:1px solid var(--snv-line);border-radius:10px;padding:12px 14px}
   .snv-group h4{margin:0 0 8px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;opacity:.6;font-weight:600}
-  /* MARKER-MKT-NAV-CONTROLS-V2 — fixed label | value grid */
+  /* fixed label | value grid */
   .snv-groups, .snv-groups * { box-sizing: border-box; }
   .snv-group { min-width: 0; }
   .snv-crow { display: grid; grid-template-columns: 104px minmax(0, 1fr); align-items: center; gap: 10px; min-height: 34px; font-size: 12.5px; border-top: 1px solid rgba(127,127,127,.12); padding: 4px 0; }
@@ -34,8 +33,6 @@
   .snv-note { margin: 8px 0 0; font-size: 11.5px; opacity: .55; line-height: 1.5; }
   .snv-bar { background: rgba(10,10,10,.92); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); border-top: 1px solid var(--snv-line); padding: 12px 16px; margin: 0 -16px; z-index: 5; }
   html:not(.dark) .snv-bar { background: rgba(255,255,255,.94); }
-  /* MARKER-MKT-FOOTER */
-  /* MARKER-MKT-FOOTER-V2 */
   .ft-top{display:grid;grid-template-columns:2fr 1fr;gap:12px;margin:10px 0 14px}
   .ft-lbl{display:grid;gap:5px;font-size:12px;opacity:.85}.ft-lbl small{opacity:.55;font-size:11px}
   .ft-cols{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px;align-items:start}
@@ -65,7 +62,6 @@
   .snv-fnewcol{align-self:start;justify-self:start}
   .snv-chipish{display:inline-flex;gap:4px;align-items:center;margin:0 8px 6px 0}
   .snv-ffr{height:300px}
-  /* MARKER-MKT-MENU-GROUPS */
   .mg-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;margin-top:10px;align-items:start}
   .mg-card{border:1px solid rgba(127,127,127,.2);border-radius:12px;padding:10px;display:grid;gap:8px}
   .mg-top{display:flex;align-items:center;gap:8px}.mg-title{flex:1;font-weight:600}
@@ -73,7 +69,7 @@
   .mg-feat{display:grid;gap:6px}
   .mg-add{align-self:start;justify-self:start}
   .mg-row{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}.mg-sel{width:auto;flex:0 1 150px;font-size:12px}.mg-desc{flex:1 1 180px;font-size:12px}
-  /* MARKER-MKT-FOOTER-PREVIEW / -PHONE */
+  /* / -PHONE */
   .ft-phone{display:flex;align-items:center;gap:12px;margin-top:14px;font-size:12.5px}.ft-phone>span:first-child{opacity:.75}
   .ft-prev{display:flex;justify-content:center;background:rgba(127,127,127,.06);border-radius:12px;padding:10px}
   .ft-prev .snv-ffr{width:100%;border:0;border-radius:8px;transition:width .25s ease;min-height:200px}
@@ -91,7 +87,7 @@
   .snv-warn{font-size:10.5px;color:#d97706;border:1px solid rgba(217,119,6,.45);border-radius:99px;padding:0 7px}
   .snv-in{width:100%;min-width:0;border:1px solid var(--snv-line);background-color:transparent;border-radius:7px;padding:6px 8px;font:inherit;font-size:12.5px;color:inherit}
   .snv-in:focus{outline:none;border-color:var(--snv-acc)}
-  select.snv-in{padding-right:30px;background-repeat:no-repeat} /* MARKER-SNV-SELECT-FIX */
+  select.snv-in{padding-right:30px;background-repeat:no-repeat}
   .snv-target{font-size:12.5px;opacity:.75;min-width:0}
   .snv-target code{font-size:11.5px}
   .snv-x{background:none;border:0;font-size:18px;opacity:.5;cursor:pointer;color:inherit}.snv-x:hover{opacity:1;color:#dc2626}
@@ -115,7 +111,7 @@
   <div class="snv-legend"><b>This list is the intake.works header</b> — on every marketing page, desktop and phone. Nothing else changes the menu. A page item hides itself while its page is unpublished and follows the page if its address changes. Changes go live when you press Save.</div>
 
   <div class="snv-card">
-    {{-- MARKER-MKT-NAV-CONTROLS — header settings in four titled groups; every
+    {{-- header settings in four titled groups; every
          control follows the Desktop | Phone switch (val / set). --}}
     <div class="snv-head" style="flex-wrap:wrap;justify-content:flex-start;gap:10px">
       <b>Header</b>
@@ -140,7 +136,6 @@
       <section class="snv-group">
         <h4>Links</h4>
         <div class="snv-crow"><span class="snv-k">Color</span><div class="snv-v"><input type="color" :value="val('link') || '#cccccc'" @input="set('link', $event.target.value)"><button type="button" class="snv-btn snv-mini" x-show="val('link')" @click="set('link', '')">Auto</button><i x-show="!val('link')">Auto</i></div></div>
-        {{-- MARKER-NAV-WEIGHT --}}
         <div class="snv-crow"><span class="snv-k">Weight</span><div class="snv-v"><span class="snv-seg"><template x-for="o in [['400','Regular'],['500','Medium'],['600','Semibold']]"><button type="button" :class="(val('link_weight') || '500')===o[0] && 'on'" @click="set('link_weight', o[0])" x-text="o[1]"></button></template></span></div></div>
         <div class="snv-crow"><span class="snv-k">Brightness</span><div class="snv-v"><span class="snv-seg"><template x-for="o in [['soft','Soft'],['bright','Bright']]"><button type="button" :class="(val('link_bright') || 'soft')===o[0] && 'on'" @click="set('link_bright', o[0])" x-text="o[1]"></button></template></span></div></div>
         <template x-if="val('style')==='float'"><div>
@@ -171,7 +166,7 @@
     <div class="snv-dim" style="margin-top:8px">Drawn by the site's own header code from the list and style above, including unsaved changes. Scroll inside it to see Floating over the page.</div>
   </div>
 
-  {{-- MARKER-MKT-MENU-GROUPS — groups turn several pages into one dropdown --}}
+  {{-- groups turn several pages into one dropdown --}}
   <div class="snv-card">
     <div class="snv-head"><b>Menu groups</b><span class="snv-dim">Put pages into a group to show them as one dropdown. A group sits where its first page is in the list below.</span></div>
     <div class="mg-list">
@@ -215,7 +210,7 @@
             <template x-if="r.type === 'page' && !pages[r.page]"><span class="snv-warn">page deleted — remove this row</span></template>
           </div>
           <input class="snv-in" x-model="r.label" @input="changed()" :placeholder="r.type === 'page' && pages[r.page] ? pages[r.page].title : 'Label'" maxlength="40">
-          <div class="mg-row" x-show="r.side === 'left' && groups.length"> {{-- MARKER-MKT-MENU-GROUPS --}}
+          <div class="mg-row" x-show="r.side === 'left' && groups.length">
             <select class="snv-in mg-sel" @change="r.group = $event.target.value; changed()">
               <option value="" :selected="!r.group">No group</option>
               <template x-for="g in groups" :key="g.key"><option :value="g.key" :selected="r.group === g.key" x-text="'In ' + (g.title || 'group')"></option></template>
@@ -254,7 +249,7 @@
     </div>
   </div>
 
-  {{-- MARKER-MKT-FOOTER-V2 — the intake.works footer, saved with the menu --}}
+  {{-- the intake.works footer, saved with the menu --}}
   <div class="snv-card">
     <div class="snv-head"><b>Footer</b><span class="snv-dim">Under every marketing page. Page links follow their page and hide while it's unpublished.</span></div>
     <div class="ft-top">
@@ -293,13 +288,11 @@
       </template>
       <button type="button" class="ft-newcol" x-show="footer.columns.length < 4" @click="footer.columns.push({title: 'New column', rows: []}); changed()">+ Column</button>
     </div>
-    {{-- MARKER-MKT-FOOTER-PHONE --}}
     <div class="ft-phone"><span>On phones</span>
       <span class="snv-seg">
         <template x-for="o in [['grid','Two columns'],['stack','One column'],['accordion','Accordion']]" :key="o[0]"><button type="button" :class="(footer.phone || 'grid') === o[0] && 'on'" @click="footer.phone = o[0]; changed()" x-text="o[1]"></button></template>
       </span>
     </div>
-    {{-- MARKER-MKT-FOOTER-PREVIEW --}}
     <div class="snv-head" style="margin-top:16px"><b>Footer preview</b>
       <span class="snv-seg"><button type="button" :class="fdev === 'desktop' && 'on'" @click="fdev = 'desktop'">Desktop</button><button type="button" :class="fdev === 'phone' && 'on'" @click="fdev = 'phone'">Phone</button></span>
     </div>
@@ -320,22 +313,19 @@
     return {
       rows: rows, pages: pages, header: header, footer: Object.assign({ phone: 'grid' }, footer), groups: groups || [], saved: JSON.stringify({rows: rows, header: header, footer: footer, groups: groups || []}), dev: 'desktop', pop: false, from: null, t: null,
       snapshot() { return JSON.stringify({rows: this.rows, header: this.header, footer: this.footer, groups: this.groups}); },
-      // MARKER-MKT-MENU-GROUPS
       iconKeys: ['grid','tag','map','spark','wrench','user','pulse','wp','book','play','cal','chat','box','card','globe','mail','star'],
       addGroup() { this.groups.push({ key: 'g' + Date.now().toString(36).slice(-6), title: 'New group', feature: null }); this.changed(); },
       delGroup(gi) { var k = this.groups[gi].key; this.rows.forEach(function (r) { if (r.group === k) r.group = ''; }); this.groups.splice(gi, 1); this.changed(); },
       groupCount(k) { return this.rows.filter(function (r) { return r.group === k && r.side === 'left'; }).length; },
       toggleFeat(g, on) { g.feature = on ? { label: '', desc: '', url: '', icon: 'star' } : null; this.changed(); },
-      // MARKER-MKT-FOOTER
       fAdd(list, type) { var first = Object.keys(this.pages)[0] || null; list.push({type: type, page: type === 'page' ? first : null, label: '', url: '', tab: false}); this.changed(); },
       fMove(list, i, d) { var j = i + d; if (j < 0 || j >= list.length) return; var m = list.splice(i, 1)[0]; list.splice(j, 0, m); this.changed(); },
-      // MARKER-MKT-FOOTER-PREVIEW — the preview grows to fit the whole footer
+      // the preview grows to fit the whole footer
       fdev: 'desktop',
       fFit() {
         var fr = this.$refs.ffr;
         try { var d = fr.contentDocument; if (d && d.documentElement) fr.style.height = Math.max(200, d.documentElement.scrollHeight) + 'px'; } catch (e) {}
       },
-      // MARKER-MKT-FOOTER-V2
       footerLists() {
         var out = this.footer.columns.map(function (c, i) { return { key: 'c' + i, ref: c, rows: c.rows, legal: false }; });
         out.push({ key: 'legal', ref: null, rows: this.footer.legal, legal: true });
@@ -347,7 +337,7 @@
         else { r.type = v; r.page = null; }
         this.changed();
       },
-      // MARKER-MKT-NAV-PHONE — read/write the setting for the screen being edited.
+      // read/write the setting for the screen being edited.
       edit: 'desktop',
       val(k) { var p = this.header.phone || {}; return (this.edit === 'phone' && k in p) ? p[k] : this.header[k]; },
       set(k, v) {
@@ -361,15 +351,15 @@
         this.changed();
       },
       get dirty() { return this.snapshot() !== this.saved; },
-      init() { this.refresh(); this.$watch('fdev', () => setTimeout(() => this.fFit(), 280)); }, // MARKER-MKT-FOOTER-PREVIEW
+      init() { this.refresh(); this.$watch('fdev', () => setTimeout(() => this.fFit(), 280)); },
       changed() { clearTimeout(this.t); this.t = setTimeout(() => this.refresh(), 200); },
       refresh() {
         var d = btoa(unescape(encodeURIComponent(JSON.stringify(this.rows))));
         var h = btoa(unescape(encodeURIComponent(JSON.stringify(this.header))));
-        var gq = btoa(unescape(encodeURIComponent(JSON.stringify(this.groups || [])))); // MARKER-MKT-MENU-GROUPS
+        var gq = btoa(unescape(encodeURIComponent(JSON.stringify(this.groups || []))));
         this.$refs.frame.src = previewUrl + '?d=' + encodeURIComponent(d) + '&h=' + encodeURIComponent(h) + '&g=' + encodeURIComponent(gq);
         var fb = btoa(unescape(encodeURIComponent(JSON.stringify(this.footer))));
-        if (this.$refs.ffr) this.$refs.ffr.src = previewUrl + '?mode=footer&f=' + encodeURIComponent(fb); // MARKER-MKT-FOOTER
+        if (this.$refs.ffr) this.$refs.ffr.src = previewUrl + '?mode=footer&f=' + encodeURIComponent(fb);
       },
       openPanel() {
         if (this.dev !== 'phone') return;

@@ -31,7 +31,7 @@ class TransferRequestController extends Controller
         //   cancelled     — cancelled
         $tenant = tenant();
 
-        // MARKER-PATCH-162 — single-location tenants with no historical rows
+        // single-location tenants with no historical rows
         // get bounced to inventory. If they have orphan rows (created before
         // this patch), we still let them in so they can cancel them out.
         if (! $tenant->multi_location_active) {

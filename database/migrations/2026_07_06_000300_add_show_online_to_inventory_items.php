@@ -4,7 +4,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-// MARKER-PATCH-561 — Online Retail Wave 2: per-item storefront visibility.
+// Online Retail Wave 2: per-item storefront visibility.
 // Opt-IN by default (a tenant should never wake up to their whole inventory
 // published online). Bulk enable arrives with storefront settings (Wave 5);
 // until then one UPDATE opts a catalog in.

@@ -1,5 +1,4 @@
 <?php
-// MARKER-SALES-BOARD
 
 namespace App\Filament\Pages;
 
@@ -21,7 +20,7 @@ class SalesPipeline extends Page
 {
     use \App\Support\UsesAdminNav;
     protected static ?string $navigationIcon  = 'heroicon-o-flag';
-    protected static ?string $navigationLabel = 'Prospects'; // MARKER-SALES-PROSPECTS2 — Pipeline + the Prospects list, one page
+    protected static ?string $navigationLabel = 'Prospects'; // Pipeline + the Prospects list, one page
     protected static ?string $navigationGroup = 'Sales';
     protected static ?int    $navigationSort  = 8;
     protected static string  $view            = 'filament.pages.sales-pipeline';
@@ -35,13 +34,13 @@ class SalesPipeline extends Page
     public string $repId       = '';
     public string $priority    = '';
     public bool   $dueOnly     = false;
-    public bool   $hideUntouched = false; // MARKER-PROSPECTS-SORT — off by default: imported shops show
-    public string $sortBy  = '';         // MARKER-PROSPECTS-SORT — List view column sort ('' = due first, then score)
+    public bool   $hideUntouched = false; // off by default: imported shops show
+    public string $sortBy  = '';         // List view column sort ('' = due first, then score)
     public string $sortDir = 'asc';
-    public array  $states  = [];         // MARKER-PROSPECTS-PLACE — any of these states
+    public array  $states  = [];         // any of these states
     public string $zip     = '';
-    public array  $brandsSel = [];       // MARKER-PROSPECTS-BRANDS — shops carrying any of these         // MARKER-PROSPECTS-PLACE — ZIPs or ZIP starts, comma separated
-    public string $site        = ''; // MARKER-SALES-SITE-FILTER — what the website pass found
+    public array  $brandsSel = [];       // shops carrying any of these         // ZIPs or ZIP starts, comma separated
+    public string $site        = ''; // what the website pass found
     public bool   $showClosed  = false;
     public string $q           = '';
 
@@ -57,7 +56,6 @@ class SalesPipeline extends Page
     public ?string $quoteTier = null;
     public array   $quoteAddons = [];
 
-    // MARKER-SALES-INVITE
     public bool   $showInvite  = false;
     public string $inviteEmail = '';
     public string $inviteName  = '';
@@ -75,7 +73,7 @@ class SalesPipeline extends Page
         abort_unless(static::canAccess(), 403);
         $this->mode       = in_array(session('sales.view'), ['board', 'list'], true) ? session('sales.view') : 'board';
         $this->industryId = (string) session('sales.industry', '');
-        $this->sortBy  = (string) session('sales.sort', '');           // MARKER-PROSPECTS-SORT
+        $this->sortBy  = (string) session('sales.sort', '');
         $this->sortDir = session('sales.sort_dir') === 'desc' ? 'desc' : 'asc';
         if ($this->industryId !== '' && ! \App\Models\SalesChannel::whereKey($this->industryId)->exists()) $this->industryId = '';
         if ($id = request()->query('open')) $this->open($id);
@@ -99,7 +97,7 @@ class SalesPipeline extends Page
             ->when($this->repId && $this->repId !== 'none', fn ($q) => $q->where('sales_rep_id', $this->repId))
             ->when($this->priority, fn ($q) => $q->where('priority', $this->priority))
             ->when($this->dueOnly, fn ($q) => $q->whereNotNull('next_action_on')->whereDate('next_action_on', '<=', now()))
-            // MARKER-SALES-SITE-FILTER — a Website pass filter shows untouched shops too; that's the point of it
+            // a Website pass filter shows untouched shops too; that's the point of it
             ->when($this->site === 'found', fn ($q) => $q->where(fn ($w) => $w->where(fn ($e) => $e->whereNotNull('email')->where('email', '!=', ''))->orWhereNotNull('socials')->orWhereNotNull('brands')))
             ->when($this->site === 'email', fn ($q) => $q->whereNotNull('email')->where('email', '!=', ''))
             ->when($this->site === 'phone', fn ($q) => $q->whereNotNull('phone')->where('phone', '!=', ''))
@@ -109,8 +107,7 @@ class SalesPipeline extends Page
             ->when($this->site === 'brands', fn ($q) => $q->whereNotNull('brands'))
             ->when($this->site === 'nothing', fn ($q) => $q->whereIn('site_scan_status', ['nothing_found', 'unreachable', 'not_shop_site', 'name_mismatch']))
             ->when($this->site === 'unread', fn ($q) => $q->whereNull('site_scanned_at')->whereNotNull('website')->where('website', '!=', ''))
-            // MARKER-PROSPECTS-PLACE
-            ->when($this->brandsSel, fn ($q) => $q->where(function ($w) {  // MARKER-PROSPECTS-BRANDS
+            ->when($this->brandsSel, fn ($q) => $q->where(function ($w) {
                 foreach (array_slice(array_values(array_filter(array_map('strval', $this->brandsSel))), 0, 40) as $b) $w->orWhereJsonContains('brands', $b);
             }))
             ->when($this->states, fn ($q) => $q->whereIn('state', array_values(array_filter(array_map(fn ($s) => strtoupper(substr((string) $s, 0, 2)), $this->states)))))
@@ -185,7 +182,7 @@ class SalesPipeline extends Page
 
     public function close(): void { $this->openId = null; $this->showInvite = false; $this->showEmail = false; }
 
-    // ---------------------------------------------------------------- MARKER-SALES-INVITE
+    // ----------------------------------------------------------------
     public function openInvite(): void
     {
         $p = $this->current(); if (! $p) return;
@@ -302,7 +299,7 @@ class SalesPipeline extends Page
         return (int) ($tmp->computeQuoteMonthly() ?? 0);
     }
 
-    /** MARKER-SALES-ROUTE — shared with the bulk action and Route day. */
+    /** shared with the bulk action and Route day. */
     public function enrich(): void
     {
         $p = $this->current(); if (! $p) return;
@@ -314,7 +311,7 @@ class SalesPipeline extends Page
         }
     }
 
-    // ---------------------------------------------------------------- MARKER-SALES-PROSPECTS2
+    // ----------------------------------------------------------------
     // Pipeline and the Prospects list are one page now: Board or List, one set
     // of filters, scoped to an industry. The old list (SalesProspectResource)
     // stays only for its full-record edit and create pages.
@@ -368,7 +365,7 @@ class SalesPipeline extends Page
     /** How many prospects "Hide untouched" is hiding right now. */
     public function hiddenCount(): int
     {
-        if (! $this->hideUntouched || $this->site !== '') return 0; // MARKER-SALES-SITE-FILTER
+        if (! $this->hideUntouched || $this->site !== '') return 0;
         $was = $this->hideUntouched;
         $this->hideUntouched = false;
         $all = (clone $this->baseQuery())->when(! $this->showClosed, fn ($q) => $q->open())->count();
@@ -383,7 +380,7 @@ class SalesPipeline extends Page
         $total = (clone $q)->count();
         $pages = max(1, (int) ceil($total / self::LIST_PER_PAGE));
         $this->listPage = min(max(1, $this->listPage), $pages);
-        // MARKER-PROSPECTS-SORT — a clicked column wins; blanks always sort last
+        // a clicked column wins; blanks always sort last
         $d = $this->sortDir === 'desc' ? 'desc' : 'asc';
         $blankLast = fn (string $col) => $q->orderByRaw("CASE WHEN $col IS NULL OR $col = '' THEN 1 ELSE 0 END");
         switch ($this->sortBy) {
@@ -407,7 +404,7 @@ class SalesPipeline extends Page
         return ['rows' => $rows, 'total' => $total, 'pages' => $pages];
     }
 
-    /** MARKER-PROSPECTS-PLACE — "992, 83814" → ['992', '83814']; digits only, 2 to 5 of them. */
+    /** "992, 83814" → ['992', '83814']; digits only, 2 to 5 of them. */
     public function zipTokens(): array
     {
         return array_values(array_unique(array_filter(array_map(
@@ -423,7 +420,7 @@ class SalesPipeline extends Page
             ->select('state', DB::raw('COUNT(*) n'))->groupBy('state')->orderBy('state')->pluck('n', 'state')->all();
     }
 
-    /** MARKER-PROSPECTS-BRANDS — brands the website pass found, most common first, for the picker. Cached 10 minutes. */
+    /** brands the website pass found, most common first, for the picker. Cached 10 minutes. */
     public function brandCounts(): array
     {
         $key = 'sales:brand-counts:' . ($this->industryId ?: 'all');
@@ -443,7 +440,7 @@ class SalesPipeline extends Page
 
     public function clearStates(): void { $this->states = []; $this->listPage = 1; $this->selected = []; }
 
-    /** MARKER-PROSPECTS-SORT — click a column: sort by it; click again: reverse; a third time: back to the default order. */
+    /** click a column: sort by it; click again: reverse; a third time: back to the default order. */
     public function sortList(string $key): void
     {
         $keys = ['shop', 'place', 'contact', 'industry', 'loop', 'priority', 'verified', 'score', 'rep', 'stage', 'next', 'quote'];
@@ -505,7 +502,7 @@ class SalesPipeline extends Page
                     try { if (\App\Services\Sales\ProspectEnricher::enrich($p) !== 'no record') $n++; } catch (\Throwable $e) { report($e); }
                 }
                 break;
-            case 'email': // MARKER-SALES-EMAIL
+            case 'email':
                 $this->emailSelected($ids);
                 return;
             default:
@@ -540,7 +537,7 @@ class SalesPipeline extends Page
         Notification::make()->title('Contact saved')->success()->send();
     }
 
-    // ---------------------------------------------------------------- MARKER-SALES-EMAIL
+    // ----------------------------------------------------------------
     // One-off email to a prospect, from the drawer. Goes out on the platform
     // broadcast stream with the unsubscribe link and postal address, honours
     // platform opt-outs, and lands on the prospect's timeline. Replies come

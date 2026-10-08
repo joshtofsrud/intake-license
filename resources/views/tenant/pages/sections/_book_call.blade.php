@@ -1,4 +1,4 @@
-{{-- MARKER-SCHED-SECTION — book_call editor (marketing site only) --}}
+{{-- book_call editor (marketing site only) --}}
 @php
   $c   = $c ?? ($section->content ?? []);
   $get = fn($k, $d = '') => $c[$k] ?? $d;

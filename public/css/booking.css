@@ -29,7 +29,7 @@
   justify-content: center;
   font-size: 12px;
   font-weight: 600;
-  color: var(--bk-progress-text, rgba(255,255,255,.4)); /* MARKER-BK-PROGRESS */
+  color: var(--bk-progress-text, rgba(255,255,255,.4));
   flex-shrink: 0;
   transition: all .2s;
   background: var(--p-bg);
@@ -596,7 +596,7 @@
 }
 
 
-/* ===== MARKER-PATCH-214 — multi-asset pre-flow (You + Bikes) ===== */
+/* ===== multi-asset pre-flow (You + Bikes) ===== */
 #bk-preflow { display: none; }
 #bk-preflow.active { display: block; }
 .bk-pre-panel { display: none; }
@@ -645,7 +645,7 @@
 .bk-pre-add-txt small { display: block; font-size: 12px; opacity: .55; margin-top: 1px; }
 
 
-/* ===== MARKER-PATCH-214b — per-asset service tabs + grouped review ===== */
+/* ===== b — per-asset service tabs + grouped review ===== */
 .bk-asset-tabs { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 6px; margin: 4px 0 10px; }
 .bk-asset-tab { flex: 0 0 auto; min-width: 124px; text-align: left; padding: 9px 13px; border: 1px solid var(--p-border, rgba(0,0,0,.12)); border-radius: var(--p-r, 10px); background: none; color: var(--p-text); cursor: pointer; font-family: inherit; }
 .bk-asset-tab.on { border-color: var(--p-accent); background: var(--p-accent); color: var(--p-accent-text); }
@@ -657,19 +657,19 @@
 .bk-review-asset-name { font-size: 13px; font-weight: 600; margin-bottom: 5px; }
 
 
-/* MARKER-PATCH-214f — per-bike label in the cart */
+/* f — per-bike label in the cart */
 .bk-sidebar-asset { font-size: 11px; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; opacity: .55; margin: 12px 0 4px; }
 .bk-sidebar-asset:first-child { margin-top: 0; }
 
 
-/* ===== MARKER-PATCH-214g — numbered per-bike cart (treatment C) ===== */
+/* ===== g — numbered per-bike cart (treatment C) ===== */
 .bk-cart-bike { padding: 13px 0; border-top: 1px solid var(--p-border, rgba(0,0,0,.1)); }
 .bk-cart-bike:first-child { border-top: none; padding-top: 0; }
 .bk-cart-head { display: flex; align-items: center; gap: 9px; margin-bottom: 6px; }
 .bk-cart-idx { width: 22px; height: 22px; border-radius: 6px; background: var(--p-accent); color: var(--p-accent-text); display: grid; place-items: center; font-size: 12px; font-weight: 700; flex-shrink: 0; }
 .bk-cart-name { font-size: 13.5px; font-weight: 700; }
 .bk-cart-sub { margin-left: auto; font-size: 13.5px; font-weight: 700; color: var(--p-text); font-variant-numeric: tabular-nums; }
-/* MARKER-PATCH-214h — line items sit quieter than the bike's headline subtotal */
+/* h — line items sit quieter than the bike's headline subtotal */
 .bk-cart-line { font-weight: 400; }
 .bk-cart-line span:last-child { opacity: .85; }
 .bk-cart-line { display: flex; justify-content: space-between; gap: 12px; font-size: 13.5px; padding: 3px 0 3px 31px; }
@@ -680,17 +680,17 @@
 .bk-cart-total span:last-child { font-size: 19px; font-weight: 800; font-variant-numeric: tabular-nums; }
 
 
-/* MARKER-PATCH-214i — locked Details fields + returning-customer note */
+/* i — locked Details fields + returning-customer note */
 .bk-input.bk-locked { background: rgba(0,0,0,.045); cursor: not-allowed; opacity: .9; }
 .bk-input.bk-locked:focus { outline: none; box-shadow: none; }
 .bk-returning-note { background: var(--p-accent); color: var(--p-accent-text); border-radius: var(--p-r, 10px); padding: 11px 14px; font-size: 13.5px; line-height: 1.5; margin-bottom: 18px; }
 
 
-/* MARKER-PATCH-214k — fixed (account) asset display in the Bikes step */
+/* k — fixed (account) asset display in the Bikes step */
 .bk-pre-bike-fixed { font-size: 15px; font-weight: 600; padding: 5px 2px; }
 
 
-/* MARKER-PATCH-525 — schedule step split layout */
+/* schedule step split layout */
 .bk-s2-layout { margin-top: 4px; }
 .bk-s2-main { min-width: 0; }
 .bk-s2-rail { position: sticky; top: 80px; }

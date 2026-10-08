@@ -1,6 +1,6 @@
 <?php
 
-// MARKER-SO-PLACEMENT — the threshold at which a vendor ships free. Optional:
+// the threshold at which a vendor ships free. Optional:
 // the placement board only shows a freight bar for vendors that have one set,
 // rather than inventing a number.
 

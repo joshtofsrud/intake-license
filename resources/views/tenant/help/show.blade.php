@@ -1,6 +1,6 @@
 @extends('layouts.tenant.app')
 
-{{-- MARKER-HELP-TENANT — an article body is page-builder sections, rendered
+{{-- an article body is page-builder sections, rendered
      through the SAME public partials the builder writes, inside a wrapper that
      carries the platform tenant's design tokens. That reuse is the reason an
      article is a page rather than a second content system. --}}

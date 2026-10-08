@@ -6,7 +6,7 @@ use App\Models\Tenant\TenantNavItem;
 use App\Models\Tenant\TenantPage;
 
 /**
- * MARKER-SHOP-NAV — a shop's menu, edited in one place: the Nav section in
+ * a shop's menu, edited in one place: the Nav section in
  * the page builder. Rows for the editor, the pages a row can point at, and
  * a preview collection built from unsaved rows.
  */

@@ -1,5 +1,5 @@
 {{--
-  MARKER-PATCH-158-G19 — Hero section editor (Phase 2)
+  Hero section editor (Phase 2)
   Replaces the v1 _section.blade.php hero branch with a 4-tab editor:
     Content   — eyebrow, headline (multi-line), accent phrase, sub, footnote, buttons
     Layout    — height, alignment (h+v), max-width, padding
@@ -24,7 +24,7 @@
   // Backward compat: if buttons[] is empty AND legacy cta_primary_label is set,
   // synthesize a buttons[] view so the editor shows them as editable rows. The
   // first save with the new editor writes buttons[] proper.
-  if (empty($buttons) && ! array_key_exists('buttons', $c) && !empty($c['cta_primary_label'] ?? '')) { // MARKER-HERO-LEGACY-CLEAR — never-saved lists only
+  if (empty($buttons) && ! array_key_exists('buttons', $c) && !empty($c['cta_primary_label'] ?? '')) { // never-saved lists only
       $buttons = [
           ['label' => $c['cta_primary_label'], 'url' => $c['cta_primary_url'] ?? '/', 'style' => 'primary'],
       ];
@@ -106,7 +106,6 @@
          picks it up via the standard [data-field] selector. --}}
     <input type="hidden" data-field="buttons" id="pb2-hero-buttons-json" value="{{ json_encode($buttons) }}">
 
-    {{-- MARKER-HERO-PILL --}}
     <div class="pb2-field" style="margin-top:10px">
       <label class="pb2-field-label">Button style</label>
       <div class="pb2-seg" data-field-seg="buttons_style">
@@ -139,7 +138,7 @@
 
     <div class="pb2-field">
       <label class="pb2-field-label">Section height</label>
-      {{-- MARKER-PATCH-254 — mockup seg; same values, same save contract. --}}
+      {{-- mockup seg; same values, same save contract. --}}
       <div class="pb2-seg" data-field-seg="height">
         @foreach(['small'=>'S','medium'=>'M','large'=>'L','fullscreen'=>'Full'] as $val => $name)
           <button type="button" class="pb2-seg-btn {{ $get('height', 'large') === $val ? 'active' : '' }}" data-seg-value="{{ $val }}" title="{{ ['small'=>'~380px','medium'=>'~520px','large'=>'~680px','fullscreen'=>'100vh'][$val] }}">{{ $name }}</button>
@@ -151,7 +150,6 @@
     <div class="pb2-field-row">
       <div class="pb2-field">
         <label class="pb2-field-label">Padding top</label>
-        {{-- MARKER-PATCH-254 --}}
         <div class="pb2-seg" data-field-seg="padding_top">
           @foreach(['none'=>'None','compact'=>'Tight','normal'=>'Normal','spacious'=>'Airy'] as $v => $n)
             <button type="button" class="pb2-seg-btn {{ $get('padding_top', 'normal') === $v ? 'active' : '' }}" data-seg-value="{{ $v }}">{{ $n }}</button>
@@ -161,7 +159,6 @@
       </div>
       <div class="pb2-field">
         <label class="pb2-field-label">Padding bottom</label>
-        {{-- MARKER-PATCH-254 --}}
         <div class="pb2-seg" data-field-seg="padding_bottom">
           @foreach(['none'=>'None','compact'=>'Tight','normal'=>'Normal','spacious'=>'Airy'] as $v => $n)
             <button type="button" class="pb2-seg-btn {{ $get('padding_bottom', 'normal') === $v ? 'active' : '' }}" data-seg-value="{{ $v }}">{{ $n }}</button>
@@ -175,7 +172,7 @@
   <div class="pb2-group">
     <div class="pb2-group-title">Alignment</div>
 
-    {{-- MARKER-PATCH-252 — 9-point content anchor: one picker, same two
+    {{-- 9-point content anchor: one picker, same two
          fields (text_align x vertical_align), same save contract. --}}
     <div class="pb2-field">
       <label class="pb2-field-label">Content position</label>
@@ -197,7 +194,7 @@
       <input type="hidden" data-field="vertical_align" value="{{ $get('vertical_align', 'center') }}">
     </div>
 
-    {{-- MARKER-PATCH-253 — slider like the mockup; range fires input
+    {{-- slider like the mockup; range fires input
          continuously so the live bridge moves the hero under your cursor. --}}
     <div class="pb2-field">
       <div class="pb2-slider-row">
@@ -208,7 +205,7 @@
     </div>
   </div>
 
-  {{-- MARKER-PATCH-158-G21 — Typography sizing overrides --}}
+  {{-- Typography sizing overrides --}}
   <div class="pb2-group">
     <div class="pb2-group-title">Typography</div>
 
@@ -237,7 +234,7 @@
     STYLE TAB
 ==================================================================--}}
 <div class="pb2-tab-panel" data-tab="style" hidden>
-  {{-- MARKER-HERO-SPLIT — intake.works only --}}
+  {{-- intake.works only --}}
   @if($isMarketing ?? false)
   <div class="pb2-group">
     <div class="pb2-group-title">Layout</div>
@@ -252,7 +249,7 @@
     </div>
   </div>
   @endif
-  {{-- MARKER-HERO-SCROLLFX — intake.works only (shop heroes don't read these yet) --}}
+  {{-- intake.works only (shop heroes don't read these yet) --}}
   @if($isMarketing ?? false)
   <div class="pb2-group">
     <div class="pb2-group-title">Scroll effect</div>
@@ -274,7 +271,6 @@
   </div>
   @endif
 
-  {{-- MARKER-HERO-VIDEO --}}
   <div class="pb2-group">
     <div class="pb2-group-title">Background video</div>
     <div class="pb2-field">
@@ -378,7 +374,7 @@
         </div>
       </div>
 
-      {{-- MARKER-PATCH-249 — motion + blur (apply when background is an image). --}}
+      {{-- motion + blur (apply when background is an image). --}}
       <div class="pb2-field">
         <label class="pb2-checkbox-row">
           <input type="checkbox" data-field="bg_parallax" value="1" {{ $get('bg_parallax', '0') === '1' ? 'checked' : '' }}>

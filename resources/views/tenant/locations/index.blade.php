@@ -86,7 +86,7 @@
     <h1 class="ia-page-title">Locations</h1>
     <p class="ia-page-subtitle">{{ $locations->count() }} {{ Str::plural('location', $locations->count()) }}</p>
   </div>
-  {{-- MARKER-LOCGATE — at the cap the button goes away and says why, rather
+  {{-- at the cap the button goes away and says why, rather
        than letting someone fill in a form that the server will refuse. --}}
   <div class="ia-page-actions">
     @if($currentTenant->canAddLocation())
@@ -119,7 +119,7 @@
         <label class="ia-form-label">Email</label>
         <input type="email" name="email" class="ia-input" value="{{ old('email') }}">
       </div>
-      {{-- MARKER-TZ-WAVE3 — timezone field removed from the form: nothing
+      {{-- timezone field removed from the form: nothing
            consumes it yet (effectiveTimezone() is unwired). Column and
            validation retained for the future multi-location tz feature. --}}
     </div>

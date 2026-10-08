@@ -2,7 +2,6 @@
 
 namespace App\Models\Tenant;
 
-// MARKER-IMPORT2
 use Illuminate\Database\Eloquent\Model;
 
 class TenantImportRow extends Model

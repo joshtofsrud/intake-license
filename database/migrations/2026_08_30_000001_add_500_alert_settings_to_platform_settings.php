@@ -4,7 +4,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-// MARKER-500-ALERT — dashboard-controlled 500 alert emails.
+// dashboard-controlled 500 alert emails.
 return new class extends Migration
 {
     public function up(): void

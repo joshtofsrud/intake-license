@@ -1,6 +1,6 @@
 <?php
 
-// MARKER-FLAG-TUNING — denormalized worst severity, so the page can filter
+// denormalized worst severity, so the page can filter
 // "needs attention" on an index instead of unpacking a json column per row.
 
 use Illuminate\Database\Migrations\Migration;

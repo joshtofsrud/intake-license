@@ -1,5 +1,5 @@
 <?php
-// MARKER-PATCH-633 — end-of-day drawer reconciliation. One row per
+// end-of-day drawer reconciliation. One row per
 // tenant-local day (per location when set): float + cash movement = expected,
 // staff count the drawer, over/short recorded, day closed with a snapshot of
 // the EOD numbers so the report is immutable history after close.

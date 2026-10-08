@@ -11,10 +11,10 @@ use App\Services\Platform\BookingMailer;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use App\Http\Controllers\Platform\MarketingFunnelController; // MARKER-MKTCONV
+use App\Http\Controllers\Platform\MarketingFunnelController;
 use Illuminate\Support\Facades\Log;
 
-// MARKER-SCHED-PUBLIC — public booking on intake.works.
+// public booking on intake.works.
 class BookController extends Controller
 {
     public function __construct(
@@ -32,7 +32,7 @@ class BookController extends Controller
     public function show(string $slug)
     {
         $type = $this->type($slug);
-        MarketingFunnelController::record('booking_started', ['step' => $slug]); // MARKER-MKTCONV / MARKER-MKTTILES
+        MarketingFunnelController::record('booking_started', ['step' => $slug]);
         return view('marketing.book', [
             'type'   => $type,
             'closed' => ! $type->is_active,
@@ -161,8 +161,8 @@ class BookController extends Controller
 
         $this->mailer->confirmation($booking);
         $this->mailer->notifyAdmin($booking, 'created');
-        MarketingFunnelController::record('booking_completed', ['step' => $type->slug]); // MARKER-MKTCONV
-        Log::info('MARKER-SCHED-PUBLIC booked', ['id' => $booking->id, 'type' => $type->slug]);
+        MarketingFunnelController::record('booking_completed', ['step' => $type->slug]);
+        Log::info('sched-public: booked', ['id' => $booking->id, 'type' => $type->slug]);
 
         return redirect()->route('book.manage', ['token' => $booking->token, 'new' => 1]);
     }

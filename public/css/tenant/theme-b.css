@@ -100,7 +100,7 @@ body.ia-theme-b {
 }
 
 .ia-nav-section {
-  padding: 14px 20px 4px; /* MARKER-NAV-SPACING */
+  padding: 14px 20px 4px;
   font-size: 10px;
   text-transform: uppercase;
   letter-spacing: .09em;
@@ -248,7 +248,7 @@ body.ia-theme-b {
   .ia-content { padding: 20px 16px; }
 }
 
-/* MARKER-PATCH-627 — the sidebar stays dark in the light theme, but descendants
+/* the sidebar stays dark in the light theme, but descendants
    (search, inbox, alerts bell, borders) consume PAGE tokens, which flip light.
    Re-scope the page tokens inside the sidebar by MAPPING them to the sidebar
    tokens — so the master-admin Theme Editor's "Sidebar" group governs these

@@ -11,7 +11,7 @@ use App\Models\Tenant\TenantServiceCategory;
  * form needs to render (catalog, form sections, receiving methods, payment
  * config, resources, and the $bk display-settings array).
  *
- * MARKER-PATCH-599 — extracted verbatim from BookingController@index so that
+ * extracted verbatim from BookingController@index so that
  * both the dedicated /book route AND the booking_embed page-builder section
  * render from the same prep. Request-specific flow routing (?flow=, showFork,
  * which view) stays in the controller; this returns pure data only.
@@ -31,7 +31,7 @@ class BookingFormData
             ->where('is_active', true)
             ->orderBy('sort_order')
             ->with(['items' => function ($q) {
-                $q->where('is_active', true)->where('quick_only', false)->orderBy('sort_order') // MARKER-PATCH-546 — quick-only services never appear in the full flow
+                $q->where('is_active', true)->where('quick_only', false)->orderBy('sort_order') // quick-only services never appear in the full flow
                   ->with(['serviceAddons' => function ($sa) { $sa->orderBy('sort_order')->with('addon'); }]);
             }])
             ->get();
@@ -45,7 +45,7 @@ class BookingFormData
             ->where('is_active', true)->orderBy('sort_order')->get();
 
         $s = $tenant->settings ?? [];
-        // MARKER-PATCH-385 — booking deposits run on Direct Payments now, so the
+        // booking deposits run on Direct Payments now, so the
         // publishable key must match the account that creates the PaymentIntent
         // in submit(). Same keys as the register.
         $direct = new \App\Services\Tenant\DirectPaymentsService($tenant);
@@ -77,10 +77,10 @@ class BookingFormData
             'progress_bg'    => $s['booking_progress_bg'] ?? '',
             'progress_text'  => $s['booking_progress_text'] ?? '#000000',
             'body_text'      => $s['booking_body_text'] ?? '',
-            'show_nav'       => $s['booking_show_nav'] ?? ($s['booking_show_chrome'] ?? '1'),    // MARKER-PATCH-589
-            'show_footer'    => $s['booking_show_footer'] ?? ($s['booking_show_chrome'] ?? '1'), // MARKER-PATCH-589
-            'hide_cta'       => ($s['booking_hide_cta'] ?? '0') === '1', // MARKER-PATCH-590
-            'show_logo'      => $s['booking_show_logo'] ?? '1',                                   // MARKER-PATCH-589
+            'show_nav'       => $s['booking_show_nav'] ?? ($s['booking_show_chrome'] ?? '1'),
+            'show_footer'    => $s['booking_show_footer'] ?? ($s['booking_show_chrome'] ?? '1'),
+            'hide_cta'       => ($s['booking_hide_cta'] ?? '0') === '1',
+            'show_logo'      => $s['booking_show_logo'] ?? '1',
             'step1_label'    => $s['booking_step1_label'] ?? 'Services',
             'step2_label'    => $s['booking_step2_label'] ?? 'Schedule',
             'step3_label'    => $s['booking_step3_label'] ?? 'Details',
@@ -95,7 +95,7 @@ class BookingFormData
             'step4_sub'      => $s['booking_step4_sub'] ?? 'Confirm everything looks good.',
         ];
 
-        // MARKER-PATCH-603 — marketing sections live on the real Booking page,
+        // marketing sections live on the real Booking page,
         // split around the booking_embed pivot by drag order.
         $bookingSections = self::bookingPageSections($tenant);
 
@@ -107,7 +107,7 @@ class BookingFormData
     }
 
     /**
-     * MARKER-PATCH-603 — the Booking page: a real page in the builder (slug
+     * the Booking page: a real page in the builder (slug
      * "book") holding marketing sections around a booking_embed pivot. The
      * public /book route renders pre-pivot sections, the live form, then
      * post-pivot sections. Created lazily with the pivot seeded.
@@ -120,7 +120,7 @@ class BookingFormData
         );
 
         // Seed the pivot once so the builder always shows where the form sits.
-        // MARKER-PATCH-606 — if the page pre-existed (adopted at slug "book"),
+        // if the page pre-existed (adopted at slug "book"),
         // heal it: the pivot must exist AND be visible or the split breaks.
         $pivot = $page->sections()->where('section_type', 'booking_embed')->first();
         if (! $pivot) {

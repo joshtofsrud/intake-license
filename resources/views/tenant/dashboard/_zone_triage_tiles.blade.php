@@ -1,4 +1,4 @@
-{{-- MARKER-PATCH-110-STEP-5 - Dashboard triage tiles.
+{{-- Dashboard triage tiles.
      Renders cards from zoneAttention as tile grid. Shows top N tiles by
      priority (tone weight: red > amber > violet > blue), with a "show all"
      disclosure for the rest. Clear-state tile renders when zero cards. --}}

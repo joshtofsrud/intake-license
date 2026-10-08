@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * MARKER-MEDIA-DELETE — where a library image is used, so Delete can refuse
+ * where a library image is used, so Delete can refuse
  * while anything still shows it.
  *
  * Searches the shop's own records for the file's stored name (unique per

@@ -3,15 +3,14 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  @include('partials.mobile-input-zoom') {{-- MARKER-MOBILE-INPUT-ZOOM --}}
-  {{-- MARKER-LOGIN-NO-TENANT — this view can be reached on a host with no
+  @include('partials.mobile-input-zoom')
+  {{-- this view can be reached on a host with no
      tenant; every tenant field is optional here on purpose. --}}
-{{-- MARKER-LOGIN-PAREN-FIX --}}
 <title>Sign in{{ isset($currentTenant) ? ' — ' . ($currentTenant->name ?? null) : '' }}</title>
   @if(isset($currentTenant) && ($currentTenant->favicon_url ?? null))
     <link rel="icon" href="{{ ($currentTenant->favicon_url ?? null) }}">
   @endif
-  <link rel="stylesheet" href="{{ asset('css/fonts.css') }}">{{-- MARKER-SELFHOST-FONTS-2 --}}
+  <link rel="stylesheet" href="{{ asset('css/fonts.css') }}">
   <style>
     *{box-sizing:border-box;margin:0;padding:0}
     body{font-family:'Inter',-apple-system,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;-webkit-font-smoothing:antialiased}
@@ -90,7 +89,7 @@
   </form>
 
   <div class="links">
-    {{-- MARKER-FORGOT-WIRING — was route('tenant.login') . '?forgot=1',
+    {{-- was route('tenant.login') . '?forgot=1',
          which reloaded this same page. Nothing reads forgot=1. --}}
     <a href="{{ route('tenant.forgot') }}">Forgot password?</a>
     <a href="/">← Back to site</a>

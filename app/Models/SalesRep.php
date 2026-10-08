@@ -1,5 +1,4 @@
 <?php
-// MARKER-AGENCIES-CORE
 
 namespace App\Models;
 
@@ -16,7 +15,7 @@ class SalesRep extends Model
 
     protected $fillable = [
         'agency_id', 'name', 'role', 'email', 'phone', 'user_id', 'status',
-        'invite_token', 'invited_at', // MARKER-REPPANEL-INVITE
+        'invite_token', 'invited_at',
     ];
 
     protected $casts = [

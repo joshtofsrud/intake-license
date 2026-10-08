@@ -44,10 +44,10 @@ class TenantSpecialOrder extends Model
         'quantity',
         'customer_id',
         'appointment_id',
-        'sale_id',      // MARKER-SO-SALE-LINK
-        'sale_item_id', // MARKER-SO-SALE-LINK
-        'source_confirmed_at', 'source_confirmed_by_user_id', // MARKER-SO-ORIGIN
-        'vendor_assigned_rule', // MARKER-SO-AUTOVENDOR
+        'sale_id',
+        'sale_item_id',
+        'source_confirmed_at', 'source_confirmed_by_user_id',
+        'vendor_assigned_rule',
         'vendor_id',
         'vendor_reference',
         'po_number',
@@ -62,7 +62,7 @@ class TenantSpecialOrder extends Model
         'arrived_at',
         'pulled_at',
         'cancelled_at',
-        // MARKER-SO-DEPOSIT — money lives on the sale ledger, not here.
+        // money lives on the sale ledger, not here.
         'batch_id',
         'parent_id',
         'cancellation_reason',
@@ -79,7 +79,7 @@ class TenantSpecialOrder extends Model
         'arrived_at'                => 'datetime',
         'pulled_at'                 => 'datetime',
         'cancelled_at'              => 'datetime',
-        // MARKER-SO-DEPOSIT — columns removed; nothing to cast.
+        // columns removed; nothing to cast.
     ];
 
     public const STATUS_NEEDED    = 'needed';
@@ -215,7 +215,7 @@ class TenantSpecialOrder extends Model
     }
 
     /**
-     * MARKER-SO-DEPOSIT — the estimated total. This used to subtract a
+     * the estimated total. This used to subtract a
      * deposit held on the SO row; that column is gone, and what a customer
      * has paid is on their layaway's ledger. Returns 0 if no estimate set.
      */
@@ -224,7 +224,7 @@ class TenantSpecialOrder extends Model
         if ($this->unit_cost_cents_estimated === null) {
             return 0;
         }
-        // MARKER-SO-DEPOSIT — this used to subtract a deposit held on the SO
+        // this used to subtract a deposit held on the SO
         // row. What a customer has paid lives on the layaway's ledger, and a
         // special order with no layaway has no customer money against it, so
         // the estimate is simply the estimate.

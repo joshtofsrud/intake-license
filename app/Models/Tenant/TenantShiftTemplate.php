@@ -1,5 +1,5 @@
 <?php
-// MARKER-PATCH-624 — reusable week pattern for the schedule builder.
+// reusable week pattern for the schedule builder.
 // pattern = [{day_offset, start:"HH:MM", end:"HH:MM", user_id, label}, ...]
 // (tenant-local wall times, resolved to UTC at apply time).
 
@@ -13,7 +13,7 @@ class TenantShiftTemplate extends Model
     use HasUuids;
 
     protected $table = 'tenant_shift_templates';
-    protected $fillable = ['tenant_id', 'name', 'pattern', 'created_by', 'last_applied_at']; // MARKER-TPL-MANAGE
+    protected $fillable = ['tenant_id', 'name', 'pattern', 'created_by', 'last_applied_at'];
     protected $casts = ['pattern' => 'array', 'last_applied_at' => 'datetime'];
 }
 

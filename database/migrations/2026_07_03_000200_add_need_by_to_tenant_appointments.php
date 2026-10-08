@@ -4,7 +4,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-// MARKER-PATCH-511 — customer "need it by" deadline (naive tenant-local date).
+// customer "need it by" deadline (naive tenant-local date).
 return new class extends Migration
 {
     public function up(): void

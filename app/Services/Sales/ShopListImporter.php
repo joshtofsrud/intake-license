@@ -1,5 +1,5 @@
 <?php
-// MARKER-SALES-UPLOAD · MARKER-SALES-UPLOAD2 — one importer for shop-list CSVs,
+// one importer for shop-list CSVs,
 // used by the browser upload on Find shops and by intake:import-overture.
 // Columns are resolved through a field→header map; when none is given the
 // guesses below are used, which cover the Overture export exactly.
@@ -14,7 +14,7 @@ class ShopListImporter
 {
     /** Store locators and online retailers Overture sometimes attaches as a shop's website. */
     public const NOT_A_SHOP_SITE = ['chainreactioncycles.com', 'wiggle.com', 'amazon.com', 'trekbikes.com', 'specialized.com', 'giant-bicycles.com', 'cannondale.com', 'rei.com', 'walmart.com', 'target.com', 'ebay.com', 'jensonusa.com', 'competitivecyclist.com', 'backcountry.com',
-        // MARKER-SALES-SITE-SCAN — brand dealer locators seen in the Oct 2026 Overture list
+        // brand dealer locators seen in the Oct 2026 Overture list
         'pedegoelectricbikes.com', 'aventon.com', 'radpowerbikes.com', 'flyebike.com', 'electricbikecompany.com', 'super73.com', 'santacruzbicycles.com', 'yeticycles.com', 'electra.com'];
 
     /** Intake field => [label, required, header guesses in priority order]. */
@@ -73,7 +73,7 @@ class ShopListImporter
      */
     public function import(string $path, ?string $batch = null, bool $assign = true, bool $dry = false, ?callable $progress = null, ?array $map = null, ?string $channelId = null): array
     {
-        $channel = $channelId ? \App\Models\SalesChannel::find($channelId) : null; // MARKER-SALES-INDUSTRY
+        $channel = $channelId ? \App\Models\SalesChannel::find($channelId) : null;
         $batch ??= 'list-' . now()->format('Ymd-Hi');
         $out = ['inserted' => 0, 'matched' => 0, 'blank' => 0, 'total' => 0, 'assigned' => 0, 'with_coords' => 0, 'batch' => $batch, 'error' => null];
 
@@ -112,7 +112,7 @@ class ShopListImporter
             if ($hasCoords) $out['with_coords']++;
             $web  = $col($row, 'website');
             $host = $web ? strtolower((string) preg_replace('/^www\./', '', (string) parse_url(str_contains($web, '://') ? $web : "https://$web", PHP_URL_HOST))) : '';
-            if ($host && SiteScanner::isNotShopSite($host)) $web = ''; // MARKER-SALES-SITE-SCAN — subdomains and booking/listing hosts too
+            if ($host && SiteScanner::isNotShopSite($host)) $web = ''; // subdomains and booking/listing hosts too
             $ws = in_array(strtolower($col($row, 'workstand')), ['true', '1', 'yes', 'y'], true);
 
             $out['inserted']++;
@@ -127,7 +127,7 @@ class ShopListImporter
                 'address'       => mb_substr($addr, 0, 255) ?: null,
                 'lat'           => $hasCoords ? (float) $lat : null,
                 'lng'           => $hasCoords ? (float) $lng : null,
-                'loop'          => $hasCoords ? LoopLocator::forPoint($state, $lat, $lng) : null, // MARKER-SALES-TERRITORY2
+                'loop'          => $hasCoords ? LoopLocator::forPoint($state, $lat, $lng) : null,
                 'website'       => mb_substr($web, 0, 255) ?: null,
                 'phone'         => mb_substr($col($row, 'phone'), 0, 64) ?: null,
                 'email'         => mb_substr($col($row, 'email'), 0, 191) ?: null,

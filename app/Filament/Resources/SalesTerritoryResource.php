@@ -1,6 +1,4 @@
 <?php
-// MARKER-SALES-FIND
-// MARKER-SALES-TERRITORY2
 
 namespace App\Filament\Resources;
 
@@ -23,7 +21,7 @@ class SalesTerritoryResource extends Resource
     use \App\Support\UsesAdminNav;
     protected static ?string $model = SalesTerritory::class;
     protected static ?string $navigationIcon  = 'heroicon-o-map';
-    protected static ?string $navigationGroup = 'Sales setup'; // MARKER-SALES-SETUP
+    protected static ?string $navigationGroup = 'Sales setup';
     protected static ?int    $navigationSort  = 35;
     protected static ?string $navigationLabel = 'Territories';
     protected static ?string $slug            = 'sales-territories';

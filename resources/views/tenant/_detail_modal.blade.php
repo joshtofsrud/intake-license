@@ -328,7 +328,7 @@ var DM = {
       h += '</tbody></table></div>';
     }
 
-    // MARKER-PATCH-289 addons+parts — line items must reconcile to subtotal
+    // addons+parts — line items must reconcile to subtotal
     if (a.addons && a.addons.length > 0) {
       h += '<div style="margin-top:16px"><div class="dm-section-label">Add-ons</div>';
       h += '<table class="dm-table"><tbody>';
@@ -524,7 +524,7 @@ var DM = {
   },
 
   deleteApptNote: async function(noteId) {
-    if (!(await iaConfirm('Delete this note?'))) return; // MARKER-INLINE-CONFIRM-2
+    if (!(await iaConfirm('Delete this note?'))) return;
     this.activeTab = 'dm-tab-notes';
     this.updateAppt('delete_note', { note_id: noteId });
   },
@@ -626,7 +626,7 @@ var DM = {
   },
 
   deleteCustNote: async function(noteId) {
-    if (!(await iaConfirm('Delete this note?'))) return; // MARKER-INLINE-CONFIRM-2
+    if (!(await iaConfirm('Delete this note?'))) return;
     this.activeTab = 'dm-tab-custnotes';
     var url = '/admin/customers?update=' + encodeURIComponent(this.currentId);
     this.post(url, { op: 'delete_note', note_id: noteId }, function() { DM.reload(); });

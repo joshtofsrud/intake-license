@@ -5,7 +5,7 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * MARKER-BRAND — Intake's own brand assets, set from master admin › Brand,
+ * Intake's own brand assets, set from master admin › Brand,
  * plus a per-page share image for builder pages.
  */
 return new class extends Migration

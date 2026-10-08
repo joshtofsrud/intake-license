@@ -36,7 +36,7 @@ class BookingService
      * fires rarely enough that contention is a non-issue.
      */
     /**
-     * MARKER-NOTIFY-CHOICE — $notify.
+     * $notify.
      *
      * This method serves two situations that look identical in code and are
      * nothing alike in practice: a customer booking themselves, who expects
@@ -168,7 +168,7 @@ class BookingService
                 }
             }
 
-            // MARKER-APPT-OVERRIDE — the shop may allow staff to add to a day
+            // the shop may allow staff to add to a day
             // that is already full. Take the first candidate in sort order
             // rather than inventing spare capacity: the day really is over its
             // limit, and the appointment is marked so it reads that way.
@@ -190,7 +190,7 @@ class BookingService
             $tenant, $mode, $data, $tenantId, $plan,
             $totalCents, $totalDuration, $customerFacingDur, $slotWeight,
             $appointmentTime, $appointmentEndTime, $resourceId,
-            $notify // MARKER-NOTIFY-CLOSURE-SCOPE — must pass through here
+            $notify // must pass through here
                     // for the nested transaction closure to be able to take it.
         ) {
             // Re-check availability inside the lock. This is the read-your-writes
@@ -214,13 +214,13 @@ class BookingService
             // problem we add a re-check here similar to the time-slot path.
 
             return DB::transaction(function () use (
-                $tenant, // MARKER-BOOKING-TENANT-USE — the need_by check below
+                $tenant, // the need_by check below
                          // reads $tenant->settings; without this capture any
                          // booking carrying a need_by threw "Undefined variable".
                 $data, $tenantId, $plan,
                 $totalCents, $totalDuration, $slotWeight,
                 $appointmentTime, $appointmentEndTime, $resourceId,
-                $notify // MARKER-NOTIFY-CLOSURE-SCOPE — consumed at the
+                $notify // consumed at the
                         // SendBookingConfirmationJob dispatch below.
             ) {
                 $customer = $this->upsertCustomer($data, $tenantId);
@@ -238,7 +238,7 @@ class BookingService
                 }
 
                 $appointment = TenantAppointment::create([
-                    // MARKER-APPT-OVERRIDE — carried onto the row so the day
+                    // carried onto the row so the day
                     // can be counted honestly later.
                     'override_short_notice' => (bool) ($data['override_short_notice'] ?? false),
                     'override_capacity'     => (bool) ($data['allow_overbook'] ?? false),
@@ -271,7 +271,7 @@ class BookingService
                     'paid_cents'               => 0,
                 ]);
 
-                // MARKER-PATCH-216 — multi-asset persistence. Create the
+                // multi-asset persistence. Create the
                 // appointment-asset rows first so each item/addon can be
                 // tagged with appointment_asset_id at insert time. Empty map
                 // in single-asset mode -> $rowAssetId stays null and the
@@ -291,7 +291,7 @@ class BookingService
                     }
 
                     TenantAppointmentItem::create([
-                        'appointment_asset_id'           => $rowAssetId, // MARKER-PATCH-216
+                        'appointment_asset_id'           => $rowAssetId,
                         'id'                             => (string) Str::uuid(),
                         'appointment_id'                 => $appointment->id,
                         'service_item_id'                => $service->id,
@@ -306,7 +306,7 @@ class BookingService
                         TenantAppointmentAddon::create([
                             'id'                        => (string) Str::uuid(),
                             'appointment_id'            => $appointment->id,
-                            'appointment_asset_id'      => $rowAssetId, // MARKER-PATCH-216
+                            'appointment_asset_id'      => $rowAssetId,
                             'addon_id'                  => $addonRow['addon']->id,
                             'addon_name_snapshot'       => $addonRow['addon']->name,
                             'price_cents'               => $addonRow['effective_price_cents'],
@@ -315,7 +315,7 @@ class BookingService
                     }
                 }
 
-                // MARKER-PATCH-216 — denormalized per-asset rollups for the
+                // denormalized per-asset rollups for the
                 // admin right-rail. Small N (bikes on one booking), in-txn.
                 foreach ($assetMap as $aa) {
                     $aa->refreshSubtotal();
@@ -327,12 +327,12 @@ class BookingService
                 // afterCommit() ensures the job only fires if the DB transaction
                 // actually commits — never send a confirmation for a phantom
                 // appointment that got rolled back by a later error in the chain.
-                // MARKER-NOTIFY-CHOICE — only when the caller asked for it.
+                // only when the caller asked for it.
                 if ($notify) {
                     SendBookingConfirmationJob::dispatch($appointment->id)->afterCommit();
                 }
 
-                // MARKER-PATCH-225 — staff alert. emit() defers its own work
+                // staff alert. emit() defers its own work
                 // to afterCommit, so a rolled-back booking emits nothing.
                 $tenantModel = \App\Models\Tenant::find($tenantId);
                 if ($tenantModel) {
@@ -349,16 +349,16 @@ class BookingService
                     ]);
                 }
 
-                // MARKER-PATCH-512 — Pickup & delivery: the booked pickup stop.
+                // Pickup & delivery: the booked pickup stop.
                 // Runs for both public paths (direct + pending->materialize) since
                 // both funnel the raw payload through createAppointment.
                 if (!empty($data['route_window_id'])) {
                     $this->createPickupStop($appointment, (string) $data['route_window_id'], (array) $data);
                 } elseif (!empty($data['pickup_outreach'])) {
-                    // MARKER-PICKUP-OUTREACH — customer skipped the window
+                    // customer skipped the window
                     // choice and asked to be contacted about pickup.
                     $appointment->forceFill(['pickup_outreach_pending' => true])->save();
-                    // MARKER-BOOKING-OUTREACH-CLEAN — $tenant is captured by this
+                    // $tenant is captured by this
                     // closure now, so the second lookup this used to do is gone.
                     $outreachName = trim(($appointment->customer->first_name ?? '') . ' ' . ($appointment->customer->last_name ?? '')) ?: 'A customer';
                     app(\App\Services\Tenant\StaffAlertService::class)->emit($tenant, 'booking.pickup_outreach', [
@@ -378,7 +378,7 @@ class BookingService
     }
 
     /**
-     * MARKER-PATCH-384 — Reserve a slot with a pending hold (charge-then-create
+     * Reserve a slot with a pending hold (charge-then-create
      * step). Mirrors createAppointment's prep exactly, via the same helpers, but
      * writes a TenantPendingBooking instead of an appointment. The appointment is
      * only materialized after payment succeeds.
@@ -452,7 +452,7 @@ class BookingService
                 $used = $this->resourceUsedSlotsForDate($tenantId, $cand->id, $data['date']);
                 if (($used + $slotWeight) <= (int) $cand->max_appointments_per_day) { $picked = $cand->id; break; }
             }
-            // MARKER-APPT-OVERRIDE — the shop may allow staff to add to a day
+            // the shop may allow staff to add to a day
             // that is already full. Take the first candidate in sort order
             // rather than inventing spare capacity: the day really is over its
             // limit, and the appointment is marked so it reads that way.
@@ -502,7 +502,7 @@ class BookingService
     }
 
     /**
-     * MARKER-PATCH-384 — Materialize a paid hold into a real appointment. Wraps
+     * Materialize a paid hold into a real appointment. Wraps
      * the unchanged createAppointment so the appointment write stays on the
      * battle-tested path. Idempotent: a hold already materialized returns its
      * appointment. The hold is flipped to 'materialized' before the write so the
@@ -510,7 +510,7 @@ class BookingService
      * as a conflict; a failed write rolls the flip back.
      */
     /**
-     * MARKER-PATCH-512 — create the pickup route stop for a public booking.
+     * create the pickup route stop for a public booking.
      * Capacity re-checked under an advisory lock keyed tenant+window+date;
      * a full window throws (surfaces as booking failed, same as slot_taken).
      */
@@ -523,14 +523,14 @@ class BookingService
             throw new RuntimeException('That pickup window is no longer available.');
         }
 
-        // MARKER-PATCH-520 — the stop lands on pickup_date (a lead day),
+        // the stop lands on pickup_date (a lead day),
         // falling back to the service date for older payloads.
         $date = \Carbon\Carbon::parse($data['pickup_date'] ?? $data['date']);
         if (! $window->runsOn($date)) {
             throw new RuntimeException('That pickup window does not run on the selected day.');
         }
 
-        // MARKER-PATCH-524 — same-day pickups are opt-in; reject a pickup dated
+        // same-day pickups are opt-in; reject a pickup dated
         // on the service day itself when the tenant hasn't enabled them.
         $tenantSettings = (array) (\App\Models\Tenant::find($appointment->tenant_id)?->settings ?? []);
         $allowDayOf = (bool) ($tenantSettings['pd_allow_day_of'] ?? false);
@@ -548,7 +548,7 @@ class BookingService
                 'tenant_id'      => $appointment->tenant_id,
                 'type'           => 'pickup',
                 'status'         => 'scheduled',
-                // MARKER-PATCH-513 — scheduled_at is a UTC instant; build the
+                // scheduled_at is a UTC instant; build the
                 // wall-clock moment in the tenant tz, then convert.
                 'scheduled_at'   => \Carbon\Carbon::parse($date->toDateString() . ' ' . (string) $window->starts_at,
                                         \App\Models\Tenant::find($appointment->tenant_id)?->timezone() ?? config('app.timezone'))->utc(),
@@ -570,7 +570,7 @@ class BookingService
         }
 
         return DB::transaction(function () use ($pending) {
-            // MARKER-PATCH-474 — lock the hold row so the browser finalize() and the
+            // lock the hold row so the browser finalize() and the
             // Stripe payment_intent.succeeded webhook can't both materialize the same
             // booking. Without this row lock, two concurrent calls each read status
             // 'pending' and each write an appointment (the double-booking bug).
@@ -586,7 +586,7 @@ class BookingService
             $appointment = $this->createAppointment((array) $locked->payload, $locked->tenant_id);
             $locked->update(['appointment_id' => $appointment->id]);
 
-            // MARKER-PATCH-474 — record the prepaid card charge through the same path a
+            // record the prepaid card charge through the same path a
             // backend appointment uses, so booking revenue reconciles into the one ledger.
             $this->recordPrepaidDeposit($locked, $appointment);
 
@@ -595,7 +595,7 @@ class BookingService
     }
 
     /**
-     * MARKER-PATCH-474 — Record a booking's prepaid card charge as a sale payment on
+     * Record a booking's prepaid card charge as a sale payment on
      * the appointment's balance sale, mirroring a backend-created appointment exactly:
      * AppointmentRegisterBridgeService builds the linked balance sale and
      * SalePaymentService writes the payment into tenant_sale_payments (the single
@@ -649,7 +649,7 @@ class BookingService
             return;
         }
 
-        // MARKER-PREPAY-FK-FIX — $piId was passed positionally into
+        // $piId was passed positionally into
         // referencePaymentId (a self-FK to tenant_sale_payments.id). Harmless
         // until the overage-refund FK constraint landed; after it, EVERY
         // card-prepaid booking failed materialize with an FK violation and
@@ -696,14 +696,14 @@ class BookingService
         return "intake:{$tenantShort}:drop:{$dayKey}";
     }
 
-    // MARKER-PATCH-517 — optional $capacity out-param: per-date ['left','max'] (null = unbounded)
+    // optional $capacity out-param: per-date ['left','max'] (null = unbounded)
     public function availableDates(Tenant $tenant, int $year, int $month, ?string $serviceId = null, ?array &$capacity = null): array
     {
         $windowDays     = $tenant->booking_window_days ?? 60;
         $minNoticeHours = $tenant->min_notice_hours    ?? 24;
         $mode           = $tenant->booking_mode        ?? 'drop_off';
 
-        // MARKER-TZ-WAVE1 — availability math runs on the TENANT's clock.
+        // availability math runs on the TENANT's clock.
         // Bare now() (UTC) cut Pacific tenants off from the current business
         // day at 5 PM local and mis-rolled the min-notice boundary.
         $bkTz = $tenant->timezone();
@@ -762,7 +762,7 @@ class BookingService
                 : null;
 
             if ($mode === 'drop_off') {
-                // MARKER-APPT-DAYLOAD — shared with dayLoad(); one derivation.
+                // shared with dayLoad(); one derivation.
                 $effectiveCap = self::effectiveDayCap($shopOverride, $resourceCapSum);
                 // Cap of 0 means closed for this day.
                 if ($effectiveCap === 0) { $cursor->addDay(); continue; }
@@ -777,7 +777,6 @@ class BookingService
                 // null effectiveCap = unbounded, which keeps the day available.
                 if ($effectiveCap === null || $used < $effectiveCap) {
                     $available[] = $dateStr;
-                    // MARKER-PATCH-517
                     if ($capacity !== null) {
                         $capacity[$dateStr] = [
                             'left' => $effectiveCap === null ? null : max(0, $effectiveCap - $used),
@@ -793,7 +792,7 @@ class BookingService
                 $slots = $this->availableSlotsForDate($tenant, $dateStr, null, 0, $rule);
                 if (!empty($slots)) {
                     $available[] = $dateStr;
-                    // MARKER-PATCH-517 — for slot mode, "left" = open times that day
+                    // for slot mode, "left" = open times that day
                     if ($capacity !== null) {
                         $capacity[$dateStr] = ['left' => count($slots), 'max' => null];
                     }
@@ -851,7 +850,7 @@ class BookingService
      */
     public function resourceUsedSlotsForDate(string $tenantId, string $resourceId, string $date): int
     {
-        // MARKER-PATCH-383 — count committed appointments plus active holds.
+        // count committed appointments plus active holds.
         $appt = (int) TenantAppointment::where('tenant_id', $tenantId)
             ->where('resource_id', $resourceId)
             ->where('appointment_date', $date)
@@ -922,7 +921,7 @@ class BookingService
             'cleanup_after_minutes_snapshot',
         ]);
 
-        // MARKER-PATCH-383 — active pending holds occupy their slot during the
+        // active pending holds occupy their slot during the
         // card window. Shape them like booked rows (end derived from duration,
         // no prep/cleanup tail) and fold them into the overlap set.
         $holdQuery = \App\Models\Tenant\TenantPendingBooking::where('tenant_id', $tenant->id)
@@ -1070,7 +1069,7 @@ class BookingService
         }
 
         $minNoticeHours = (int) ($tenant->min_notice_hours ?? 0);
-        $earliest = now($tenant->timezone())->addHours($minNoticeHours); // MARKER-TZ-WAVE1
+        $earliest = now($tenant->timezone())->addHours($minNoticeHours);
 
         $cursor = $earliest->copy()->startOfDay();
         $stopAt = $earliest->copy()->addDays($maxDaysAhead);
@@ -1564,7 +1563,7 @@ class BookingService
             $effectivePrice = $override ?? (int) $service->price_cents;
 
             $plan[] = [
-                // MARKER-PATCH-216 — which bike/asset this item belongs to.
+                // which bike/asset this item belongs to.
                 'asset_client_key'       => isset($sel['asset_client_key']) && $sel['asset_client_key'] !== ''
                                                 ? (string) $sel['asset_client_key'] : null,
                 'service'                => $service,
@@ -1577,7 +1576,7 @@ class BookingService
     }
 
     /**
-     * MARKER-PATCH-216 — persist the multi-asset payload for a public booking.
+     * persist the multi-asset payload for a public booking.
      *
      * For each entry in assets[]:
      *   - customer_asset_id present -> verify ownership (this tenant + this
@@ -1642,7 +1641,7 @@ class BookingService
                     'tenant_id'           => $tenantId,
                     'customer_id'         => $customer->id,
                     'name'                => $name,
-                    'identifier'          => (isset($entry['identifier']) && $entry['identifier'] !== '') ? (string) $entry['identifier'] : null, // MARKER-APPT-ASSET
+                    'identifier'          => (isset($entry['identifier']) && $entry['identifier'] !== '') ? (string) $entry['identifier'] : null,
                     'last_seen_at'        => now(),
                     'last_appointment_id' => $appointment->id,
                 ]);
@@ -1666,13 +1665,13 @@ class BookingService
 
     protected function upsertCustomer(array $data, string $tenantId): TenantCustomer
     {
-        // MARKER-PATCH-392 — standardize the phone once so every write below stores E.164.
+        // standardize the phone once so every write below stores E.164.
         $data['phone'] = \App\Support\PhoneNumber::normalize($data['phone'] ?? null);
 
         $email = strtolower(trim($data['email'] ?? ''));
         if ($email === '') throw new RuntimeException('Customer email is required.');
 
-        // MARKER-PATCH-216 — returning-customer path. The pre-flow lookup
+        // returning-customer path. The pre-flow lookup
         // hands the client a customer_id; verify it belongs to this tenant
         // before trusting it. Failed verification falls through to the email
         // canon below — the claimed id alone proves nothing.
@@ -1699,7 +1698,7 @@ class BookingService
                 'first_name' => $data['first_name'] ?? $customer->first_name,
                 'last_name'  => $data['last_name']  ?? $customer->last_name,
                 'phone'      => $data['phone']      ?? $customer->phone,
-                // MARKER-CUST-ADDR — a supplied address fills a BLANK one and
+                // a supplied address fills a BLANK one and
                 // never overwrites what is already on file.
                 'address_line1' => $customer->address_line1 ?: ($data['address_line1'] ?? null),
                 'city'          => $customer->city          ?: ($data['city']          ?? null),
@@ -1715,7 +1714,6 @@ class BookingService
             'last_name'  => $data['last_name']  ?? '',
             'email'      => $email,
             'phone'      => $data['phone']      ?? null,
-            // MARKER-CUST-ADDR
             'address_line1' => $data['address_line1'] ?? null,
             'city'          => $data['city']          ?? null,
             'state'         => $data['state']         ?? null,
@@ -1742,7 +1740,7 @@ class BookingService
     }
 
     /**
-     * MARKER-FAILED-PAID — a verified-paid pending that could not
+     * a verified-paid pending that could not
      * materialize becomes a PERMANENT record plus a staff alert, whatever
      * the failure reason. Status transition is guarded so the browser and
      * webhook racing the same failure produce exactly one alert, and the
@@ -1786,7 +1784,7 @@ class BookingService
     }
 
     /**
-     * MARKER-APPT-DAYLOAD — the one place a day's cap is decided.
+     * the one place a day's cap is decided.
      *
      * Effective cap = min(shop override, resource cap sum) when both are set;
      * whichever is set when only one is; null when neither, meaning unbounded.
@@ -1809,7 +1807,7 @@ class BookingService
     }
 
     /**
-     * MARKER-APPT-DAYLOAD — how loaded each day in a window is, for STAFF.
+     * how loaded each day in a window is, for STAFF.
      *
      * Unlike availableDates() this reports every day, including the ones a
      * customer can never have: a day that is full, and a day inside the
@@ -1916,7 +1914,7 @@ class BookingService
     }
 
     /**
-     * MARKER-APPT-DAYLOAD — the schedule rules for a date range, as
+     * the schedule rules for a date range, as
      * availableDates() loads them: weekday defaults keyed by day-of-week, and
      * date overrides keyed by date.
      */

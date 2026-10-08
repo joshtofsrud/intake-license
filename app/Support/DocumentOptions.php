@@ -8,7 +8,6 @@ use Illuminate\Http\Request;
  * Choices made in the Print & Send composer at print time, plus the shop's
  * standing tag display toggles (which pass through as defaults).
  *
- * MARKER-PATCH-333 / MARKER-PATCH-335
  */
 class DocumentOptions
 {

@@ -1,7 +1,7 @@
 @extends('layouts.tenant.app')
 @section('title', 'Delivery resources')
 
-{{-- MARKER-PATCH-152A — Delivery resources management. --}}
+{{-- Delivery resources management. --}}
 
 @section('content')
 <div class="ia-page-head">

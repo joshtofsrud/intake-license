@@ -7,7 +7,7 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Facades\File;
 
 /**
- * MARKER-NAV-INVENTORY — every item the admin sidebar will render, listed.
+ * every item the admin sidebar will render, listed.
  *
  * Written because nav items have disappeared before without anything failing.
  * A regrouping patch, a renamed class, a permission gate that got stricter —

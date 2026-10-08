@@ -51,7 +51,7 @@ class CampaignImageController extends Controller
      * Upload a new image to the library.
      */
     /**
-     * MARKER-UPLOAD-LIMITS — "6M" and "8M" as bytes. PHP's shorthand only ever
+     * "6M" and "8M" as bytes. PHP's shorthand only ever
      * carries one suffix, so this stays deliberately small; an unsuffixed value
      * is already bytes, and anything unparseable returns 0 so the caller treats
      * the limit as unknown rather than as zero.
@@ -80,7 +80,7 @@ class CampaignImageController extends Controller
         $tenant = tenant();
 
         if (! $request->hasFile('image')) {
-            // MARKER-UPLOAD-LIMITS — an empty $_FILES alongside a large request
+            // an empty $_FILES alongside a large request
             // body is not a missing file: PHP discarded an oversized upload
             // before Laravel ran, so the app's own per-file limit never got a
             // say. Reporting both as "no file provided" is what made a 4 MB
@@ -91,7 +91,7 @@ class CampaignImageController extends Controller
 
             if ($posted > 0 && $iniMax > 0 && $posted >= $iniMax) {
                 \Illuminate\Support\Facades\Log::warning(
-                    'MARKER-UPLOAD-LIMITS server rejected an upload before PHP parsed it',
+                    'upload-limits: server rejected an upload before PHP parsed it',
                     ['posted_bytes' => $posted, 'ini_limit_bytes' => $iniMax,
                      'app_limit_bytes' => (int) config('intake.image_quotas.per_file_bytes'),
                      'tenant' => $tenant->id]
@@ -128,7 +128,7 @@ class CampaignImageController extends Controller
             ], 422);
         }
 
-        // MARKER-MEDIA-STORAGE-METER — one count for every upload path
+        // one count for every upload path
         // (this used to count campaign images only).
         if ($refused = \App\Support\MediaStorage::refuse($tenant, (int) $file->getSize())) {
             return response()->json(['error' => $refused], 422);
@@ -206,7 +206,7 @@ class CampaignImageController extends Controller
 
         $used  = self::usedBytes($tenant->id);
         $tierKey = $tenant->plan_tier ?? 'starter';
-        $limit = \App\Support\MediaStorage::limitBytes($tenant); // MARKER-MEDIA-STORAGE-METER
+        $limit = \App\Support\MediaStorage::limitBytes($tenant);
         $count = TenantCampaignImage::where('tenant_id', $tenant->id)->count();
 
         return response()->json([
@@ -224,6 +224,6 @@ class CampaignImageController extends Controller
      */
     private static function usedBytes(string $tenantId): int
     {
-        return \App\Support\MediaStorage::usedBytes($tenantId); // MARKER-MEDIA-STORAGE-METER — library + campaign
+        return \App\Support\MediaStorage::usedBytes($tenantId); // library + campaign
     }
 }

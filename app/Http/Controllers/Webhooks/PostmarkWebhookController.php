@@ -10,7 +10,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
 /**
- * MARKER-PATCH-201 — Postmark bounce / spam-complaint webhook.
+ * Postmark bounce / spam-complaint webhook.
  *
  * Replaces the SES/SNS path (SesBounceController) now that transactional mail
  * sends through Postmark. Postmark posts a flat JSON body (no SNS envelope, no
@@ -37,7 +37,7 @@ class PostmarkWebhookController extends Controller
      * Soft/Transient/etc. are logged only (a follow-up can promote after N).
      */
     /**
-     * MARKER-STREAM-ASSERT — types that mean the MAILBOX is gone, not that
+     * types that mean the MAILBOX is gone, not that
      * one sender was refused. A mailbox that does not exist does not exist
      * for every shop, so these suppress platform-wide on first hit instead
      * of waiting for the 3-tenant escalation.
@@ -45,7 +45,7 @@ class PostmarkWebhookController extends Controller
     protected array $platformWideBounceTypes = [
         'HardBounce',
         'BadEmailAddress',
-        // MARKER-MANUALLY-DEACTIVATED — not ManuallyDeactivated: that only
+        // not ManuallyDeactivated: that only
         // echoes Postmark's own list (often a marketing unsubscribe), not a
         // dead mailbox. See handleBounce().
     ];
@@ -72,12 +72,12 @@ class PostmarkWebhookController extends Controller
             return $this->handleComplaint($payload);
         }
 
-        // MARKER-CAMPAIGN-RESULTS — campaign engagement.
+        // campaign engagement.
         if ($recordType === 'Open' || $recordType === 'Click') {
             return $this->handleEngagement($recordType, $payload);
         }
 
-        // MARKER-POSTMARK-UNSUB — an unsubscribe recorded by Postmark (its own
+        // an unsubscribe recorded by Postmark (its own
         // link, or a mail app's one-click button) now reaches Intake.
         if ($recordType === 'SubscriptionChange') {
             return $this->handleSubscriptionChange($payload);
@@ -89,12 +89,12 @@ class PostmarkWebhookController extends Controller
     }
 
     /**
-     * MARKER-CAMPAIGN-RESULTS — map an Open/Click back to its recipient row
+     * map an Open/Click back to its recipient row
      * via the send_id metadata, then recompute the campaign's counters from
      * the rows. Recomputing (not incrementing) makes replayed webhooks safe.
      */
     /**
-     * MARKER-SALES-EMAIL — opens and clicks for platform campaign sends (tagged
+     * opens and clicks for platform campaign sends (tagged
      * platform_send_id). Recounted, not incremented, so replays are safe. A
      * prospect's first open and first click land on its timeline.
      */
@@ -125,7 +125,7 @@ class PostmarkWebhookController extends Controller
     protected function handleEngagement(string $type, array $payload)
     {
         $meta   = $payload['Metadata'] ?? [];
-        if (! empty($meta['platform_send_id'])) { // MARKER-SALES-EMAIL
+        if (! empty($meta['platform_send_id'])) {
             return $this->handlePlatformEngagement($type, (string) $meta['platform_send_id']);
         }
         $sendId = $meta['send_id'] ?? null;
@@ -178,7 +178,7 @@ class PostmarkWebhookController extends Controller
      */
     protected function handleBounce(array $payload)
     {
-        // MARKER-CAMPAIGN-RESULTS — if this bounce belongs to a campaign send,
+        // if this bounce belongs to a campaign send,
         // record it on that row as well. Suppression handling continues below
         // unchanged; this only adds per-campaign visibility.
         $bounceSendId = $payload['Metadata']['send_id'] ?? null;
@@ -204,7 +204,7 @@ class PostmarkWebhookController extends Controller
             return response('OK', 200);
         }
 
-        // MARKER-PLATFORM-SENDLOG — a bounce with NO tenant metadata is platform
+        // a bounce with NO tenant metadata is platform
         // mail: EmailService stamps tenant_id on every tenant send and
         // PlatformMailer deliberately does not. Suppress it on our own list so
         // the next campaign skips the address.
@@ -227,7 +227,7 @@ class PostmarkWebhookController extends Controller
             'payload'           => $payload,
         ]);
 
-        // MARKER-MANUALLY-DEACTIVATED — Postmark reports a send to an address it
+        // Postmark reports a send to an address it
         // has already deactivated on that stream. On the marketing stream that
         // is usually an unsubscribe there: the shop's customer is opted out of
         // marketing, nothing is blocked. On the transactional stream the shop
@@ -249,7 +249,7 @@ class PostmarkWebhookController extends Controller
         if (in_array($type, $this->suppressOnBounceTypes, true)) {
             $this->suppress($tenantId, $email, 'bounce', $type, $msgId, $detail);
 
-            // MARKER-STREAM-ASSERT — mailbox-gone types block everywhere at
+            // mailbox-gone types block everywhere at
             // once (the tenant row above stays for their suppression page);
             // sender-specific types keep the 3-tenant escalation.
             if (in_array($type, $this->platformWideBounceTypes, true)) {
@@ -287,7 +287,7 @@ class PostmarkWebhookController extends Controller
             'payload'           => $payload,
         ]);
 
-        // MARKER-PLATFORM-SENDLOG — a complaint against platform mail is
+        // a complaint against platform mail is
         // permanent and immediate. No soft handling: someone who marked it as
         // spam has said everything they need to.
         if ($email !== '') {
@@ -305,7 +305,7 @@ class PostmarkWebhookController extends Controller
      * tenant send; platform mail omits it → null. Validates the tenant exists.
      */
     /**
-     * MARKER-POSTMARK-UNSUB — mirror a Postmark unsubscribe into Intake.
+     * mirror a Postmark unsubscribe into Intake.
      *
      * A shop's campaign carries tenant_id in its metadata: that shop's customers
      * with the address are opted out of marketing, exactly as Intake's own

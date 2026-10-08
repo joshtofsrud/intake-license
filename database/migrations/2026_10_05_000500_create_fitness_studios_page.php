@@ -3,7 +3,7 @@
 use Illuminate\Database\Migrations\Migration;
 
 /**
- * MARKER-PAGE-FITNESS — creates a DRAFT "For fitness studios" page on intake.works (slug fitness-studios,
+ * creates a DRAFT "For fitness studios" page on intake.works (slug fitness-studios,
  * unpublished). Review and publish it in Marketing pages. Never touches an
  * existing page with that address.
  */

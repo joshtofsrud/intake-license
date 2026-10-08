@@ -9,7 +9,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 /**
- * MARKER-PLATFORM-EMAIL — turn an audience's rules into recipients.
+ * turn an audience's rules into recipients.
  *
  * FOUR SOURCES, AND tenant_customers IS NOT ONE. A shop's customer list belongs
  * to the shop. There is no rule, flag or setting in this class that reaches it,
@@ -31,7 +31,7 @@ class PlatformAudienceService
             'prospects'                => $this->fromProspects($rules),
             'wrote_in'                 => $this->fromInbox($rules),
             'reps'                     => $this->fromReps($rules),
-            'investors'                => $this->fromInvestors(), // MARKER-PLATFORM-LETTER
+            'investors'                => $this->fromInvestors(),
             default                    => collect(),
         };
 
@@ -62,7 +62,7 @@ class PlatformAudienceService
 
     // ------------------------------------------------------------- sources
 
-    /** MARKER-PLATFORM-LETTER — everyone on the investor record who hasn't declined. */
+    /** everyone on the investor record who hasn't declined. */
     protected function fromInvestors(): Collection
     {
         return \App\Models\Investor::whereNull('declined_at')->whereNotNull('email')->get()
@@ -127,7 +127,7 @@ class PlatformAudienceService
 
     protected function fromProspects(array $rules): Collection
     {
-        // MARKER-SALES-INDUSTRY — this used to filter on a "status" column that
+        // this used to filter on a "status" column that
         // prospects don't have (it errored), read a "name" column that doesn't
         // exist (so {shop_name} came out blank) and matched State against the
         // address text. Rules now use the real columns.

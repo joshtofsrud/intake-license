@@ -8,7 +8,7 @@ use App\Services\RentalExtensionOfferService;
 use Illuminate\Console\Command;
 
 /**
- * MARKER-RENTAL-EXT — rentals:extension-offer-scan. Every 15 minutes:
+ * rentals:extension-offer-scan. Every 15 minutes:
  * for tenants with the add-on active AND the setting on, find out
  * rentals due within the send window whose unit sits empty afterward,
  * and fire the SMS magic-link offer. Quiet hours skip the tenant for

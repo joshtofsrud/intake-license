@@ -1,5 +1,4 @@
 <?php
-// MARKER-PATCH-HLC2
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;

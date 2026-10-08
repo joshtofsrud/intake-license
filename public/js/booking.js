@@ -15,8 +15,8 @@
     step:       1,
     // Services
     selections: {},   // { serviceId: {...} } — multi-asset: the ACTIVE bike's set
-    assetSel: {},     // MARKER-PATCH-214b — multi-asset: { assetKey: { serviceId: {...} } }
-    activeAsset: null,// MARKER-PATCH-214b — multi-asset: active bike clientKey
+    assetSel: {},     // b — multi-asset: { assetKey: { serviceId: {...} } }
+    activeAsset: null,// b — multi-asset: active bike clientKey
     // Schedule
     date:       null,
     appointmentTime: null,
@@ -35,20 +35,20 @@
 
   // Calendar state
   var calYear, calMonth, calAvailable = {}, calUnavailable = {}, calEarliest = null, calTimeSlots = {}, calSlotResources = {};
-  var calPdWindows = {}; // MARKER-PATCH-512 — pickup & delivery route windows per date
-  var calCapacity = {}, calView = 'month'; // MARKER-PATCH-518 — day/week/month
-  var calPdNeedBy = false; // MARKER-PATCH-519
-  var calPdLead = 1, calWeekStart = null; // MARKER-PATCH-520
-  var calPdAllowDayOf = false; // MARKER-PATCH-524
+  var calPdWindows = {}; // pickup & delivery route windows per date
+  var calCapacity = {}, calView = 'month'; // day/week/month
+  var calPdNeedBy = false;
+  var calPdLead = 1, calWeekStart = null;
+  var calPdAllowDayOf = false;
   var bookingMode = d.bookingMode || 'drop_off';
   var today = new Date();
   calYear  = today.getFullYear();
   calMonth = today.getMonth() + 1;
 
-  // MARKER-PATCH-526 — refresh persistence
+  // refresh persistence
   var bkStoreKey = 'bk-state:' + location.host + ':' + location.pathname + ':' + (location.search || '');
 
-  // MARKER-FUNNEL-SESSION-FIX — entering the flow (directly or after the
+  // entering the flow (directly or after the
   // choice page) emits started with the shared client-minted session id;
   // duplicate events per session are fine — the tile counts distinct sessions.
   try {
@@ -72,7 +72,7 @@
         receivingMethod: state.receivingMethod,
         pdWindowId: state.pdWindowId || null,
         pdPickupDate: state.pdPickupDate || null,
-        pdOutreach: state.pdOutreach || false, // MARKER-WINDOW-MINISTEP
+        pdOutreach: state.pdOutreach || false,
         needBy: state.needBy || null,
         step: state.step,
       }));
@@ -96,7 +96,7 @@
       if (snap.assets && snap.assets.length) { window.BkAssets = snap.assets; }
       if (snap.customer) {
         window.BkCustomer = snap.customer;
-        // MARKER-RETURNING-PREFILL — a mid-flow refresh restored the customer
+        // a mid-flow refresh restored the customer
         // for submit but left the Details fields blank; re-apply the prefill.
         if (typeof window.bkApplyReturningCustomer === 'function') window.bkApplyReturningCustomer(snap.customer);
       }
@@ -106,7 +106,7 @@
       state.receivingMethod = snap.receivingMethod || null;
       state.pdWindowId = snap.pdWindowId || null;
       state.pdPickupDate = snap.pdPickupDate || null;
-      state.pdOutreach = snap.pdOutreach || false; // MARKER-WINDOW-MINISTEP
+      state.pdOutreach = snap.pdOutreach || false;
       state.needBy = snap.needBy || null;
 
       // Skip the preflow when it was already completed.
@@ -134,7 +134,7 @@
           time: snap.appointmentTime || null,
           resourceId: snap.resourceId || null,
           winId: snap.pdWindowId || null,
-          outreach: snap.pdOutreach || false, // MARKER-WINDOW-MINISTEP
+          outreach: snap.pdOutreach || false,
           winDate: snap.pdPickupDate || null,
         };
       }
@@ -156,7 +156,7 @@
     if (!calAvailable[pend.date]) { bkSnap(); return; }
     selectDate(pend.date);
     if (pend.winId) {
-      // MARKER-WINDOW-MINISTEP — windows are cards (divs) now, not buttons
+      // windows are cards (divs) now, not buttons
       var wb = document.querySelector('#bk-pd-windows [data-win-id="' + pend.winId + '"][data-win-date="' + (pend.winDate || '') + '"]');
       if (wb && !wb.classList.contains('full')) wb.click();
     } else if (pend.outreach) {
@@ -187,10 +187,10 @@
     bindCatPills();
     bindCalNav();
     bindReceiving();
-    bkRestore(); // MARKER-PATCH-526 — before initCalendar so the fetch targets the saved month
+    bkRestore(); // before initCalendar so the fetch targets the saved month
     initCalendar();
-    initS2Rail(); // MARKER-PATCH-525
-    if (d.multiAsset) window.__bkInitAssetServices = initAssetServices; // MARKER-PATCH-214c (run at pre-flow handoff, not boot)
+    initS2Rail();
+    if (d.multiAsset) window.__bkInitAssetServices = initAssetServices; // c (run at pre-flow handoff, not boot)
     if (d.stripeEnabled && d.stripePk) initStripe();
     if (d.paypalEnabled && window.paypal) initPayPal();
   });
@@ -223,7 +223,7 @@
     if (el) el.classList.add('active');
 
     if (step === 3) populateStep3Recap();
-    bkSnap(); // MARKER-PATCH-526
+    bkSnap();
 
     // Progress dots
     document.querySelectorAll('.bk-step').forEach(function (dot) {
@@ -235,12 +235,12 @@
 
     window.scrollTo({ top: 0, behavior: 'smooth' });
 
-    // MARKER-RESET-PLACEMENT — dock beside the active step's title. Any
+    // dock beside the active step's title. Any
     // main step counts as progress (pre-steps or services already chosen).
     window.bkResetDock(document.getElementById('bk-step-' + step), true);
   }
 
-  // MARKER-RESET-PLACEMENT — dock the start-over control on the active
+  // dock the start-over control on the active
   // panel's title row; visible on every screen past the first.
   window.bkResetDock = function (panelEl, visible) {
     var rst = document.getElementById('bk-reset');
@@ -262,7 +262,6 @@
     if (conf && conf.parentElement !== row) { row.style.position = 'relative'; row.appendChild(conf); }
   };
 
-  // MARKER-BOOKING-RESET
   window.bkResetToggle = function (e) {
     if (e) e.stopPropagation();
     var c = document.getElementById('bk-reset-confirm');
@@ -353,7 +352,7 @@
     updateSidebar();
   }
 
-  // MARKER-PATCH-265 — category pills + search share one filter.
+  // category pills + search share one filter.
   var bkActiveCat = 'all';
 
   function applyCatalogFilter() {
@@ -416,7 +415,7 @@
   function bindCalNav() {
     var prev = document.getElementById('cal-prev');
     var next = document.getElementById('cal-next');
-    // MARKER-PATCH-520 — arrows follow the active view
+    // arrows follow the active view
     function stepMonth(dir) {
       calMonth += dir;
       if (calMonth < 1)  { calMonth = 12; calYear--; }
@@ -487,7 +486,7 @@
     var metaParts = [];
     if (state.receivingMethod) metaParts.push(state.receivingMethod);
     if (d.multiAsset) {
-      // MARKER-PATCH-214e — aggregate across all bikes, not just the active one
+      // e — aggregate across all bikes, not just the active one
       var bikeCount = (window.BkAssets || []).length;
       var svcCount = 0;
       Object.keys(state.assetSel).forEach(function (k) { svcCount += Object.keys(state.assetSel[k]).length; });
@@ -656,15 +655,15 @@
       (resp.unavailable_dates || []).forEach(function (dt) { calUnavailable[dt] = true; });
       calEarliest = resp.earliest || null;
       calTimeSlots = resp.slots || {};
-      calPdWindows = resp.pd_windows || {}; // MARKER-PATCH-512
-      calCapacity  = resp.capacity || {};   // MARKER-PATCH-518
-      calPdNeedBy  = !!resp.pd_need_by;     // MARKER-PATCH-519
-      calPdLead    = (resp.pd_lead_days === undefined) ? 1 : (resp.pd_lead_days | 0); // MARKER-PATCH-520
-      calPdAllowDayOf = !!resp.pd_allow_day_of; // MARKER-PATCH-524
+      calPdWindows = resp.pd_windows || {};
+      calCapacity  = resp.capacity || {};
+      calPdNeedBy  = !!resp.pd_need_by;
+      calPdLead    = (resp.pd_lead_days === undefined) ? 1 : (resp.pd_lead_days | 0);
+      calPdAllowDayOf = !!resp.pd_allow_day_of;
       calSlotResources = resp.slot_resources || {};
       renderCalendar();
       renderEarliestPill();
-      bkApplyPending(); // MARKER-PATCH-526
+      bkApplyPending();
     })
     .catch(function () {
       if (loading) loading.style.display = 'none';
@@ -673,7 +672,7 @@
   }
 
   // ======================================================================
-  // MARKER-PATCH-518 — Day / Week / Month customer views
+  // Day / Week / Month customer views
   // ======================================================================
   function capLabel(ds) {
     var c = calCapacity[ds];
@@ -733,7 +732,7 @@
   function renderWeekView() {
     var alt = altContainer();
     alt.innerHTML = '';
-    // MARKER-PATCH-520 — stable week anchor; only the arrows move it
+    // stable week anchor; only the arrows move it
     if (!calWeekStart) {
       var a0 = state.date ? new Date(state.date + 'T12:00:00') : new Date();
       if (a0 < today) a0 = new Date();
@@ -820,7 +819,7 @@
       if (calAvailable[dateStr]) {
         cell.classList.add('available');
         if (dateStr === state.date) cell.classList.add('selected');
-        // MARKER-PATCH-518 — capacity chip
+        // capacity chip
         var capInfo = capLabel(dateStr);
         if (capInfo) {
           var chip = document.createElement('span');
@@ -838,7 +837,7 @@
       grid.appendChild(cell);
     }
 
-    // MARKER-PATCH-518 — view routing: month shows the grid, week/day swap it out
+    // view routing: month shows the grid, week/day swap it out
     ensureViewBar();
     var altEl = document.getElementById('bk-altview');
     if (calView === 'month') {
@@ -860,17 +859,17 @@
       c.classList.toggle('selected', c.textContent == parseInt(dateStr.split('-')[2], 10) && calAvailable[dateStr]);
     });
     renderCalendar();
-    renderRailDay(dateStr); // MARKER-PATCH-525
+    renderRailDay(dateStr);
 
     // Time slot mode — show time picker
     if (bookingMode === 'time_slots') {
       renderTimeSlots(dateStr);
     }
 
-    // MARKER-PATCH-512 — pickup & delivery: window picker on drop_off dates
+    // pickup & delivery: window picker on drop_off dates
     state.pdWindowId = null;
-    state.pdPickupDate = null; // MARKER-PATCH-520
-    state.pdOutreach = false; // MARKER-WINDOW-MINISTEP
+    state.pdPickupDate = null;
+    state.pdOutreach = false;
     var pdExisting = document.getElementById('bk-pd-windows');
     if (pdExisting) pdExisting.remove();
     if (bookingMode === 'drop_off' && (calPdWindows[dateStr] || []).length) {
@@ -881,14 +880,14 @@
     updateNext2();
   }
 
-  // MARKER-PATCH-512 — pickup window picker (mirrors renderTimeSlots)
+  // pickup window picker (mirrors renderTimeSlots)
   function renderPdWindows(dateStr) {
-    // MARKER-PATCH-520 — windows from (dateStr - lead) through dateStr
+    // windows from (dateStr - lead) through dateStr
     var windows = [];
     (function () {
       var end = new Date(dateStr + 'T12:00:00');
       var todayMid = new Date(); todayMid.setHours(0,0,0,0);
-      for (var off = calPdLead; off >= (calPdAllowDayOf ? 0 : 1); off--) { // MARKER-PATCH-524
+      for (var off = calPdLead; off >= (calPdAllowDayOf ? 0 : 1); off--) {
         var d = new Date(end.getFullYear(), end.getMonth(), end.getDate() - off);
         if (d < todayMid) continue;
         var ds = d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
@@ -900,7 +899,7 @@
         });
       }
     })();
-    // MARKER-WINDOW-MINISTEP-EMPTYFIX — a date can be gated on pickup (its
+    // a date can be gated on pickup (its
     // own windows exist) while having NO usable lead-day windows (e.g. the
     // earliest bookable day). Rendering nothing used to deadlock Continue;
     // now the mini-step renders with just the reach-out option.
@@ -908,7 +907,7 @@
       && bookingMode === 'drop_off'
       && ((calPdWindows[dateStr] || []).length > 0);
     if (!windows.length && !gatedNoWindows) return;
-    // MARKER-WINDOW-MINISTEP — the window choice is its own focused mini-step:
+    // the window choice is its own focused mini-step:
     // stepper (date done -> window pending), radio cards, and a "reach out to
     // me" skip that satisfies the requirement and flags outreach for staff.
     var wrap = document.createElement('div');
@@ -942,14 +941,14 @@
     windows.forEach(function (w) {
       var card = document.createElement('div');
       card.className = 'bk-pdw-card' + (w.full ? ' full' : '');
-      card.dataset.winId = w.id; card.dataset.winDate = w.date; // MARKER-PATCH-526
+      card.dataset.winId = w.id; card.dataset.winDate = w.date;
       card.setAttribute('role', 'radio');
       card.innerHTML = '<span class="bk-pdw-radio"></span>'
         + '<span class="bk-pdw-d">' + w.dayLabel + ' · ' + w.label + '</span>'
         + '<span class="bk-pdw-spots">' + (w.full ? 'full' : w.remaining + (w.remaining === 1 ? ' stop left' : ' stops left')) + '</span>';
       if (!w.full) card.addEventListener('click', function () {
         state.pdWindowId = w.id;
-        state.pdPickupDate = w.date; // MARKER-PATCH-520
+        state.pdPickupDate = w.date;
         state.pdOutreach = false;
         clearCards(); card.classList.add('sel');
         markDone(); updateNext2();
@@ -973,9 +972,9 @@
     wrap.appendChild(skip);
     markDone();
 
-    // MARKER-PATCH-519 — optional "need it back by" under the window picker
+    // optional "need it back by" under the window picker
     if (calPdNeedBy) {
-      // MARKER-NEEDBY-POLISH — styled to match the mini-step cards
+      // styled to match the mini-step cards
       var nb = document.createElement('div');
       nb.className = 'bk-pdw-needby';
       var nbl = document.createElement('label');
@@ -993,7 +992,7 @@
       wrap.appendChild(nb);
     }
 
-    // MARKER-PATCH-525 — mount in the schedule rail when present, else legacy anchor
+    // mount in the schedule rail when present, else legacy anchor
     var mnt = s2Mount();
     if (mnt) {
       mnt.appendChild(wrap);
@@ -1031,7 +1030,7 @@
     slots.forEach(function(slot) {
       var btn = document.createElement('button');
       btn.type = 'button';
-      btn.dataset.slot = slot; // MARKER-PATCH-526
+      btn.dataset.slot = slot;
       btn.textContent = formatTime(slot);
       btn.style.cssText = 'padding:8px 14px;border:1.5px solid rgba(0,0,0,.12);border-radius:var(--p-r);font-size:13px;font-weight:500;cursor:pointer;transition:all .12s;background:transparent;color:var(--p-text)';
       btn.addEventListener('click', function() {
@@ -1051,7 +1050,7 @@
     });
 
     wrap.appendChild(grid);
-    var mntTs = s2Mount(); // MARKER-PATCH-525
+    var mntTs = s2Mount();
     if (mntTs) mntTs.appendChild(wrap); else document.getElementById('bk-calendar').after(wrap);
   }
 
@@ -1113,12 +1112,12 @@
     if (timeSlotsEl) {
       timeSlotsEl.after(wrap);
     } else {
-      var mntRp = s2Mount(); // MARKER-PATCH-525
+      var mntRp = s2Mount();
       if (mntRp) mntRp.appendChild(wrap); else document.getElementById('bk-calendar').after(wrap);
     }
   }
 
-  // MARKER-RETURNING-PREFILL — prefill + lock Details for a returning
+  // prefill + lock Details for a returning
   // customer. Called from the items-step continue AND from snapshot restore.
   window.bkApplyReturningCustomer = function (cust) {
     if (!cust || !cust.id) return;
@@ -1136,7 +1135,7 @@
       note.id = 'bk-returning-note';
       note.className = 'bk-returning-note';
       note.innerHTML = '<strong>Welcome back' + (cust.firstName ? ', ' + esc(cust.firstName) : '') + '!</strong> Your contact details are filled in from your account.';
-      var grid = fn.closest('.bk-field-grid-2'); // MARKER-PATCH-214j — note above the grid, not inside it
+      var grid = fn.closest('.bk-field-grid-2'); // j — note above the grid, not inside it
       if (grid && grid.parentElement) grid.parentElement.insertBefore(note, grid);
       else if (fn.parentElement && fn.parentElement.parentElement) fn.parentElement.parentElement.insertBefore(note, fn.parentElement);
     }
@@ -1165,8 +1164,8 @@
   function canProceedStep2() {
     if (!state.date) return false;
     if (bookingMode === 'time_slots' && !state.appointmentTime) return false;
-    // MARKER-PATCH-512 — a date with route windows requires picking one
-    if (bookingMode === 'drop_off' && (calPdWindows[state.date] || []).length && !state.pdWindowId && !state.pdOutreach) return false; // MARKER-WINDOW-MINISTEP
+    // a date with route windows requires picking one
+    if (bookingMode === 'drop_off' && (calPdWindows[state.date] || []).length && !state.pdWindowId && !state.pdOutreach) return false;
     if (bookingMode === 'time_slots' && (d.resources || []).length >= 2 && !state.resourceId) return false;
     if (d.hasReceiving) {
       var sel = document.getElementById('bk-receiving');
@@ -1178,7 +1177,7 @@
   function updateNext2() {
     var btn = document.getElementById('bk-next-2');
     if (btn) btn.disabled = !canProceedStep2();
-    bkSnap(); // MARKER-PATCH-526
+    bkSnap();
   }
 
   // =========================================================================
@@ -1223,7 +1222,7 @@
   // =========================================================================
   // Sidebar
   // =========================================================================
-  // MARKER-PATCH-525 — schedule-rail helpers
+  // schedule-rail helpers
   function s2Mount() { return document.getElementById('bk-rail-mounts'); }
 
   function initS2Rail() {
@@ -1248,12 +1247,12 @@
   }
 
   function updateSidebar() {
-    if (d.multiAsset && state.activeAsset) { state.assetSel[state.activeAsset] = cloneSel(state.selections); renderAssetTabs(); } // MARKER-PATCH-214b/d
-    bkSnap(); // MARKER-PATCH-526
+    if (d.multiAsset && state.activeAsset) { state.assetSel[state.activeAsset] = cloneSel(state.selections); renderAssetTabs(); } // b/d
+    bkSnap();
     var container = document.getElementById('bk-sidebar-items');
     if (!container) return;
     if (d.multiAsset) {
-      // MARKER-PATCH-214g — numbered per-bike groups (treatment C), prominent grand total
+      // g — numbered per-bike groups (treatment C), prominent grand total
       var mHtml = '', mTotal = 0, anySvc = false, bikeNum = 0;
       (window.BkAssets || []).forEach(function (a) {
         var sels = state.assetSel[a.clientKey] || {};
@@ -1455,7 +1454,7 @@
         payment_method: { card: stripeCard }
       }).then(function (result) {
         if (result.error) {
-          // MARKER-HOLD-RELEASE — declined/typo'd/failed card: free the
+          // declined/typo'd/failed card: free the
           // hold instantly so the retry can't collide with its own ghost.
           try {
             navigator.sendBeacon(d.releaseHoldUrl || '/book/release-hold',
@@ -1464,7 +1463,7 @@
           showError(result.error.message);
           resetSubmitBtn();
         } else {
-          // MARKER-PATCH-385 — card cleared; materialize the appointment server-side.
+          // card cleared; materialize the appointment server-side.
           fetch(d.finalizeUrl, {
             method:  'POST',
             headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf, 'X-Requested-With': 'XMLHttpRequest' },
@@ -1504,7 +1503,7 @@
 
     promise.then(function (resp) {
       if (!resp.success) { showError(resp.message || 'Booking failed.'); resetSubmitBtn(); return; }
-      if (typeof window.__bkClearSnap === 'function') window.__bkClearSnap(); // MARKER-PATCH-526
+      if (typeof window.__bkClearSnap === 'function') window.__bkClearSnap();
       if (resp.redirect) { window.location.href = resp.redirect; return; }
       if (resp.payment === 'paypal' && resp.approve_url) { window.location.href = resp.approve_url; return; }
     }).catch(function () {
@@ -1515,7 +1514,7 @@
     return promise;
   };
 
-  // ===== MARKER-PATCH-214b — per-asset service machinery =====
+  // ===== b — per-asset service machinery =====
   function cloneSel(map) {
     var o = {};
     Object.keys(map || {}).forEach(function (k) {
@@ -1581,7 +1580,7 @@
     if (!assets.length) return;
     assets.forEach(function (a) { if (!state.assetSel[a.clientKey]) state.assetSel[a.clientKey] = {}; });
     var live = {}; assets.forEach(function (a) { live[a.clientKey] = true; });
-    Object.keys(state.assetSel).forEach(function (k) { if (!live[k]) delete state.assetSel[k]; }); // MARKER-PATCH-214c prune removed bikes
+    Object.keys(state.assetSel).forEach(function (k) { if (!live[k]) delete state.assetSel[k]; }); // c prune removed bikes
     if (!live[state.activeAsset]) state.activeAsset = assets[0].clientKey;
     state.activeAsset = state.activeAsset || assets[0].clientKey;
     state.selections = cloneSel(state.assetSel[state.activeAsset]);
@@ -1621,10 +1620,10 @@
       first_name: state.firstName, last_name: state.lastName,
       email: state.email, phone: state.phone,
       date: state.date, appointment_time: state.appointmentTime || null,
-      route_window_id: state.pdWindowId || null, // MARKER-PATCH-512
-      pickup_outreach: state.pdOutreach ? 1 : 0, // MARKER-WINDOW-MINISTEP
-      need_by: state.needBy || null, // MARKER-PATCH-519
-      pickup_date: state.pdPickupDate || null, // MARKER-PATCH-520
+      route_window_id: state.pdWindowId || null,
+      pickup_outreach: state.pdOutreach ? 1 : 0,
+      need_by: state.needBy || null,
+      pickup_date: state.pdPickupDate || null,
       resource_id: state.resourceId || null,
       receiving_method: state.receivingMethod,
       items: items,
@@ -1702,7 +1701,7 @@
 }());
 
 
-/* ===== MARKER-PATCH-214 — multi-asset pre-flow (You + Bikes) ===== */
+/* ===== multi-asset pre-flow (You + Bikes) ===== */
 (function () {
   var d = window.BkData || {};
   if (!d.multiAsset) return;
@@ -1732,7 +1731,7 @@
     }
     window.scrollTo({ top: 0, behavior: 'smooth' });
 
-    // MARKER-RESET-PLACEMENT — items screen is past the first screen.
+    // items screen is past the first screen.
     if (typeof window.bkResetDock === 'function') {
       window.bkResetDock(which === 'bikes' ? panelBikes : null, which === 'bikes');
     }
@@ -1752,7 +1751,7 @@
 
   // new customer -> bikes (one empty card)
   el('bk-pre-new-continue').addEventListener('click', function () {
-    if (!assets.length) assets = [{ clientKey: nk(), name: '', customerAssetId: null, fromAccount: false, selected: true }]; // MARKER-ITEMS-PICK
+    if (!assets.length) assets = [{ clientKey: nk(), name: '', customerAssetId: null, fromAccount: false, selected: true }];
     renderBikes(); showPanel('bikes');
   });
 
@@ -1774,7 +1773,7 @@
           lastName = res.last_name || ''; custPhone = res.phone || '';
           st.className = 'bk-pre-status show found';
           st.textContent = 'Welcome back' + (firstName ? (', ' + firstName) : '') + '! We pulled your ' + (d.assetPlural || 'items') + ' below.';
-          // MARKER-ITEMS-PICK — account items start unselected; the customer
+          // account items start unselected; the customer
           // explicitly picks what's coming in. Deselect is the new "remove",
           // so nothing is ever unrecoverable.
           assets = (res.assets || []).map(function (a) {
@@ -1789,7 +1788,7 @@
           st.innerHTML = "We didn't find that email. <button type='button' id='bk-pre-asnew' style='text-decoration:underline;background:none;border:none;color:inherit;cursor:pointer;font:inherit;padding:0'>Continue as new →</button>";
           var asNew = el('bk-pre-asnew');
           if (asNew) asNew.addEventListener('click', function () {
-            assets = [{ clientKey: nk(), name: '', customerAssetId: null, fromAccount: false, selected: true }]; // MARKER-ITEMS-PICK
+            assets = [{ clientKey: nk(), name: '', customerAssetId: null, fromAccount: false, selected: true }];
             renderBikes(); showPanel('bikes');
           });
         }
@@ -1799,7 +1798,7 @@
 
   // bikes
   function findAsset(k) { for (var i = 0; i < assets.length; i++) if (assets[i].clientKey === k) return assets[i]; return null; }
-  function namedCount() { return assets.filter(function (b) { return b.selected !== false && (b.name || '').trim() !== ''; }).length; } // MARKER-ITEMS-PICK
+  function namedCount() { return assets.filter(function (b) { return b.selected !== false && (b.name || '').trim() !== ''; }).length; }
   function updateContinue() {
     var n = namedCount();
     el('bk-pre-bikes-continue').disabled = n === 0;
@@ -1812,7 +1811,7 @@
     var html = '';
     var shownIdx = 0;
     assets.forEach(function (b) {
-      // MARKER-ITEMS-PICK — account items are toggleable pick-cards (214k
+      // account items are toggleable pick-cards (214k
       // read-only names retained); manual items are editable and removable.
       if (b.fromAccount) {
         var on = b.selected !== false;
@@ -1849,25 +1848,25 @@
   }
 
   el('bk-pre-add').addEventListener('click', function () {
-    assets.push({ clientKey: nk(), name: '', customerAssetId: null, fromAccount: false, selected: true }); renderBikes(); // MARKER-ITEMS-PICK
+    assets.push({ clientKey: nk(), name: '', customerAssetId: null, fromAccount: false, selected: true }); renderBikes();
   });
   el('bk-pre-bikes-back').addEventListener('click', function () { showPanel('intro'); });
 
   el('bk-pre-bikes-continue').addEventListener('click', function () {
     var picked = assets
-      .filter(function (b) { return b.selected !== false && (b.name || '').trim() !== ''; }) // MARKER-ITEMS-PICK
+      .filter(function (b) { return b.selected !== false && (b.name || '').trim() !== ''; })
       .map(function (b) { return { clientKey: b.clientKey, name: b.name.trim(), customerAssetId: b.customerAssetId || null }; });
     if (!picked.length) return;
 
     // Hand off to the rest of booking.js (214b consumes these).
     window.BkAssets = picked;
     window.BkCustomer = { id: customerId, firstName: firstName, lastName: lastName, email: custEmail, phone: custPhone };
-    // MARKER-RETURNING-PREFILL — shared with the refresh-restore path (214i logic lives there now)
+    // shared with the refresh-restore path (214i logic lives there now)
     if (typeof window.bkApplyReturningCustomer === 'function') window.bkApplyReturningCustomer(window.BkCustomer);
 
     pre.classList.remove('active');
     document.querySelectorAll('.bk-step--pre').forEach(function (dot) { dot.classList.remove('active'); dot.classList.add('done'); });
     if (typeof window.goTo === 'function') window.goTo(1);
-    if (typeof window.__bkInitAssetServices === 'function') window.__bkInitAssetServices(); // MARKER-PATCH-214c
+    if (typeof window.__bkInitAssetServices === 'function') window.__bkInitAssetServices(); // c
   });
 })();

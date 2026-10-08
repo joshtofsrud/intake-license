@@ -1,6 +1,6 @@
 {{--
     Dynamic section: renders the roadmap grid.
-    MARKER-CL-RM-LAYOUT — forward-looking first, shipped collapsed.
+    forward-looking first, shipped collapsed.
 
     Variables in scope:
       $c       — section content array (intro_text)

@@ -1,6 +1,5 @@
 <?php
 
-// MARKER-TITLE-CONTROL
 
 namespace App\Filament\Pages;
 
@@ -23,8 +22,8 @@ use Livewire\WithPagination;
  */
 class CatalogTitleControl extends Page
 {
-    use \App\Support\UsesAdminNav; // MARKER-NAV-ORDER
-    use \App\Support\GatedByAdminArea; // MARKER-ADMIN-NAV-GATE
+    use \App\Support\UsesAdminNav;
+    use \App\Support\GatedByAdminArea;
     protected static string $adminArea = 'catalog';
 
     use WithPagination;

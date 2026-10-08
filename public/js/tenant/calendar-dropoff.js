@@ -28,7 +28,7 @@
       return;
     }
 
-    // MARKER-PATCH-506 — touch-primary devices never drag. SortableJS grabs
+    // touch-primary devices never drag. SortableJS grabs
     // cards on touch with no hold, which made accidental reschedules from a
     // phone trivially easy. Taps still open the drawer; mobile reschedules
     // from the appointment page. Desktop drag unchanged.
@@ -129,12 +129,10 @@
     } );
   }
 
-  // MARKER-PATCH-113
   // Helpers for the empty-state ghost ("No appointments yet"). The column
   // body already contains the placeholder DIV (rendered by Blade when the
   // column is empty), but SortableJS just shuffles cards in/out without
   // touching the placeholder. We toggle it imperatively here.
-  // MARKER-WEEK-DROPSTATE
   //
   // Called for both views. It used to assume the day view: it looked for
   // `.cal-dropoff-card` children, which week cells never have, so hasCards

@@ -3,11 +3,11 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  @include('partials.mobile-input-zoom') {{-- MARKER-MOBILE-INPUT-ZOOM --}}
-  {{-- MARKER-PATCH-173 — customer-facing landing after Stripe Checkout success. --}}
+  @include('partials.mobile-input-zoom')
+  {{-- customer-facing landing after Stripe Checkout success. --}}
   <title>Payment received — {{ $currentTenant->name }}</title>
   @if($currentTenant->favicon_url)<link rel="icon" href="{{ $currentTenant->favicon_url }}">@endif
-  <link rel="stylesheet" href="{{ asset('css/fonts.css') }}">{{-- MARKER-SELFHOST-FONTS-2 --}}
+  <link rel="stylesheet" href="{{ asset('css/fonts.css') }}">
   <style>
     :root{
       --accent:      {{ $currentTenant->accent_color ?? '#BEF264' }};

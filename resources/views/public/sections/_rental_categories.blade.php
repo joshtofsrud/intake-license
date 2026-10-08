@@ -1,11 +1,11 @@
 {{--
-  MARKER-RENTAL-SECTIONS — rental_categories public render. Tiles for the
+  rental_categories public render. Tiles for the
   tenant's checked categories in their chosen order, each linking to the
   browse page pre-filtered. Empty/archived categories drop out silently.
 --}}
 @php
   $rcTenant = $tenant ?? $currentTenant ?? null;
-  // MARKER-RENTAL-SECTIONS hotfix — content cast may hand us a decoded
+  // hotfix — content cast may hand us a decoded
   // array; the editor writes a JSON string. Accept both.
   $rcRaw = $c['category_ids'] ?? [];
   $rcIds = is_array($rcRaw) ? $rcRaw : (json_decode((string) $rcRaw, true) ?: []);
@@ -20,7 +20,7 @@
               ->where('status', '!=', 'retired')
               ->where('available_for_rent', true)])
           ->get()->keyBy('id');
-      // MARKER-RENTAL-SECTIONS — tile photos: chosen model per category,
+      // tile photos: chosen model per category,
       // else the category's first model with a photo.
       $rcPhotoModels = \App\Models\Tenant\TenantRentalModel::where('tenant_id', $rcTenant->id)
           ->whereNull('archived_at')
@@ -42,7 +42,7 @@
   $rcCols = $c['columns'] ?? 'auto';
   $rcGrid = $rcCols === 'auto' ? 'repeat(auto-fill,minmax(220px,1fr))' : 'repeat(' . max(2, min(4, (int) $rcCols)) . ',1fr)';
   $rcPhotoTiles = ($c['tile_style'] ?? 'photo') !== 'compact';
-  // MARKER-RENTAL-STYLE — style + advanced resolution (feature_grid model).
+  // style + advanced resolution (feature_grid model).
   $stBgMode  = $c['bg_mode'] ?? (!empty($c['bg_color']) ? 'color' : 'none');
   $stText    = ($c['text_color'] ?? '') ?: 'inherit';
   $stBody    = ($c['text_color_body'] ?? '') ?: 'inherit';

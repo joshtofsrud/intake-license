@@ -5,7 +5,7 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
-// MARKER-LOCGATE — how many locations a tenant is licensed for.
+// how many locations a tenant is licensed for.
 // Hand-set by master admin today; derived from the base subscription quantity
 // once per-location billing lands (Aug 6 decision).
 return new class extends Migration

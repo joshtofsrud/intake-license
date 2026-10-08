@@ -1,5 +1,4 @@
 <?php
-// MARKER-PATCH-149
 
 namespace App\Http\Controllers\Tenant;
 
@@ -45,7 +44,7 @@ class FunnelTrackController extends Controller
         RateLimiter::hit($key, 60);
 
         $data = $request->validate([
-            'session_id'   => ['nullable', 'string', 'regex:/^[a-zA-Z0-9]{20,64}$/'], // MARKER-FUNNEL-SESSION-FIX
+            'session_id'   => ['nullable', 'string', 'regex:/^[a-zA-Z0-9]{20,64}$/'],
             'event_type'   => ['required', 'string', 'in:' . implode(',', TenantFunnelEvent::VALID_TYPES)],
             'path'         => ['nullable', 'string', 'max:255'],
             'referrer_url' => ['nullable', 'string', 'max:2048'],
@@ -109,7 +108,7 @@ class FunnelTrackController extends Controller
      */
     protected function resolveSession(Request $request): array
     {
-        // MARKER-FUNNEL-SESSION-FIX — prefer the client-minted id from the
+        // prefer the client-minted id from the
         // payload: simultaneous first-visit beacons used to race the cookie
         // and each get a fresh server-minted id, fragmenting one visitor
         // into several phantom sessions. Cookie is the fallback; server

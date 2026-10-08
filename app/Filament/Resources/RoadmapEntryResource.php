@@ -17,8 +17,8 @@ use Filament\Tables\Table;
  */
 class RoadmapEntryResource extends Resource
 {
-    use \App\Support\UsesAdminNav; // MARKER-NAV-ORDER
-    use \App\Support\GatedByAdminArea; // MARKER-ADMIN-NAV-GATE
+    use \App\Support\UsesAdminNav;
+    use \App\Support\GatedByAdminArea;
     protected static string $adminArea = 'marketing';
 
     protected static ?string $model = RoadmapEntry::class;
@@ -123,7 +123,7 @@ class RoadmapEntryResource extends Resource
                         default => 'gray',
                     })
                     ->sortable(),
-                // MARKER-ROADMAP-STATUS — change status in place, like Publish.
+                // change status in place, like Publish.
                 // Becoming shipped stamps the date via the model's saving hook.
                 Tables\Columns\SelectColumn::make('status')
                     ->options(RoadmapEntry::STATUSES)
@@ -185,7 +185,7 @@ class RoadmapEntryResource extends Resource
                     ->color('gray')
                     ->requiresConfirmation()
                     ->action(fn ($records) => $records->each->update(['is_published' => false])),
-                // MARKER-ROADMAP-STATUS — move several rows at once.
+                // move several rows at once.
                 Tables\Actions\BulkAction::make('change_status')
                     ->label('Change status')
                     ->icon('heroicon-o-arrow-path')

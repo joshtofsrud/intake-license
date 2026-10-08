@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers\Tenant;
 
-// MARKER-REWIND — history drawer backend.
+// history drawer backend.
 
 use App\Http\Controllers\Controller;
 use App\Models\Tenant\TenantPage;

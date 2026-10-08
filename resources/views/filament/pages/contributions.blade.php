@@ -1,4 +1,3 @@
-{{-- MARKER-CONTRIBUTIONS --}}
 <x-filament-panels::page>
 
 <div class="rounded-xl border border-gray-200 dark:border-white/10 overflow-hidden">

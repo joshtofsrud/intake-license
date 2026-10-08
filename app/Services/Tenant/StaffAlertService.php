@@ -1,5 +1,4 @@
 <?php
-// MARKER-PATCH-225
 
 namespace App\Services\Tenant;
 
@@ -27,7 +26,7 @@ use Illuminate\Support\Facades\Log;
 class StaffAlertService
 {
     /** Events that reach staff even without the staff_alerts addon. */
-    // MARKER-PATCH-247 — link completions and external refunds are money
+    // link completions and external refunds are money
     // events staff must never miss; same class as payment.failed.
     private const CRITICAL = ['payment.failed', 'rental.overdue', 'rental.damage_flagged', 'payment.link_completed', 'payment.refund_external'];
 
@@ -39,18 +38,16 @@ class StaffAlertService
         'payment.failed'        => ['in_app' => true,  'sms' => false],
         'offer.accepted'        => ['in_app' => true,  'sms' => false],
         'inbox.needs_reply'     => ['in_app' => true,  'sms' => false],
-        // MARKER-PATCH-247 — coverage sweep.
+        // coverage sweep.
         'payment.link_completed' => ['in_app' => true,  'sms' => false],
         'payment.link_expired'   => ['in_app' => true,  'sms' => false],
         'payment.refund_external'=> ['in_app' => true,  'sms' => false],
         'rental.reserved_online' => ['in_app' => true,  'sms' => false],
         'lease.created'          => ['in_app' => true,  'sms' => false],
         'announcement'           => ['in_app' => true,  'sms' => false],
-        // MARKER-DELIVERY-ALERTS
         'delivery.window_chosen' => ['in_app' => true,  'sms' => false],
         'delivery.no_reply'      => ['in_app' => true,  'sms' => false],
-        'delivery.call_requested'=> ['in_app' => true,  'sms' => false], // MARKER-DELIVERY-CALL
-        // MARKER-TOFF-ALERTS
+        'delivery.call_requested'=> ['in_app' => true,  'sms' => false],
         'timeoff.requested'      => ['in_app' => true,  'sms' => false],
         'timeoff.decided'        => ['in_app' => true,  'sms' => false],
         'timeoff.withdrawn'      => ['in_app' => true,  'sms' => false],
@@ -136,7 +133,7 @@ class StaffAlertService
     }
 
     /**
-     * MARKER-PATCH-279 — Shop-wide announcement (Layer B). Persists the
+     * Shop-wide announcement (Layer B). Persists the
      * broadcast, then fans it out to the in-app inbox via emit() so per-user
      * prefs and the addon gate are reused. Email + banner are handled by the
      * broadcast UI layer (patches 280/281).
@@ -178,7 +175,7 @@ class StaffAlertService
     }
 
     /**
-     * MARKER-PATCH-282 — email an announcement to every active staff member.
+     * email an announcement to every active staff member.
      * Best-effort: reuses EmailService (suppression gate, tenant from-address,
      * Postmark metadata) and its branded shell; failures are logged only.
      */

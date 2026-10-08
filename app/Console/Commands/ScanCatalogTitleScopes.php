@@ -1,6 +1,5 @@
 <?php
 
-// MARKER-TITLE-SCOPES
 
 namespace App\Console\Commands;
 
@@ -77,7 +76,6 @@ class ScanCatalogTitleScopes extends Command
                     'resolved_rule_scope' => $ruleScope,
                     'has_own_rule'        => $own,
                     'flags'               => $flags,
-                    // MARKER-FLAG-TUNING
                     'severity'            => CatalogTitleHealthService::worstSeverity($flags),
                     'sample_ids'          => $sampleIds,
                     'sample_title'        => $sampleTitle,
@@ -99,7 +97,7 @@ class ScanCatalogTitleScopes extends Command
 
         foreach ($stale as $s) { $s->delete(); }
 
-        // MARKER-FLAG-TUNING — only warn/bad counts as needing review.
+        // only warn/bad counts as needing review.
         $base = fn () => CatalogTitleScope::query()
             ->when($code, fn ($q) => $q->where('distributor_code', $code));
 
@@ -112,7 +110,7 @@ class ScanCatalogTitleScopes extends Command
     }
 
     /**
-     * MARKER-ONE-RESOLVER — delegates to the composer instead of walking
+     * delegates to the composer instead of walking
      * the candidate ladder again. The previous local copy compared category
      * keys with exact string equality while the composer normalises them,
      * so a scope could resolve to "no rule" here and to a real rule at

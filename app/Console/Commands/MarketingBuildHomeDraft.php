@@ -10,7 +10,7 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
 /**
- * MARKER-HOME-DRAFT — builds "Home (new)": an UNPUBLISHED intake.works page made from the current
+ * builds "Home (new)": an UNPUBLISHED intake.works page made from the current
  * home page plus the new sections, written for three buyers: the one who wants better service
  * and tools, the one who wants a return, and the one afraid of switching.
  *
@@ -166,7 +166,7 @@ class MarketingBuildHomeDraft extends Command
             foreach (array_values(array_filter($plan)) as $i => $p) {
                 TenantPageSection::create([
                     'page_id' => $page->id, 'tenant_id' => $t->id, 'section_type' => $p['type'], 'content' => $p['content'],
-                    'bg_color' => $p['from']->bg_color ?? null, 'padding' => ($p['from']->padding ?? null) ?: 'normal', // MARKER-HOME-DRAFT-PADDING
+                    'bg_color' => $p['from']->bg_color ?? null, 'padding' => ($p['from']->padding ?? null) ?: 'normal',
                     'is_visible' => true, 'sort_order' => ($i + 1) * 10,
                 ]);
             }

@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
- * MARKER-SERIAL-FOUNDATION — one serialized unit of an inventory item.
+ * one serialized unit of an inventory item.
  *
  * Quantities still come from the movement ledger; a unit is the identity
  * behind one of those counted pieces. On-hand pieces without a unit row are

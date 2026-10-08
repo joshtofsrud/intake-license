@@ -1,5 +1,4 @@
 <?php
-// MARKER-PATCH-HLC5
 
 namespace App\Filament\Resources\DistributorFieldMapResource\Pages;
 

@@ -1,4 +1,4 @@
-{{-- MARKER-DASH-REFACTOR — master admin dashboard in the Marketing traffic page's vocabulary.
+{{-- master admin dashboard in the Marketing traffic page's vocabulary.
      .mt-* rules are copied from marketing-traffic.blade.php so the two pages read as one. --}}
 <x-filament-panels::page>
 
@@ -18,19 +18,19 @@
   .mt-tile-v{font-size:24px;font-weight:700;margin-top:2px}
   .mt-tile-d{font-size:11.5px;margin-top:2px;opacity:.6}
   .mt-legend{font-size:11px;opacity:.42;margin-top:2px}
-  /* MARKER-DASH-LEADERS — the right column held a funnel and a title that
+  /* the right column held a funnel and a title that
      needed room; at 1fr it wrapped "of signups" mid-phrase. */
   .mt-two-up{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(300px,1fr);gap:14px;margin-top:20px}
   @media(max-width:900px){.mt-two-up{grid-template-columns:1fr}}
   .mt-card{border:1px solid rgba(127,127,127,.22);border-radius:12px;padding:14px 16px}
   .mt-bar-row{position:relative;display:flex;align-items:center;gap:10px;padding:7px 8px;font-size:13px;color:inherit;text-decoration:none}
-  /* MARKER-DASH-LEADERS — joins a short label to a value on a card whose width
+  /* joins a short label to a value on a card whose width
      is whatever the window leaves it. Without it the two sat at opposite ends
      of the row with nothing relating them. */
   .mt-lead{flex:1;border-bottom:1px dotted rgba(255,255,255,.13);transform:translateY(-3px);min-width:12px}
   .mt-bar-row .mt-bar-label{white-space:nowrap;overflow:visible;text-overflow:clip}
   .mt-bar-row .mt-bar-n{margin-left:0;white-space:nowrap}
-  /* MARKER-DASH-ROWFIX — .mt-fill deleted, not just unused: dead styling is
+  /* .mt-fill deleted, not just unused: dead styling is
      how decoration creeps back into a row that shouldn't have it. */
   .iss-row{display:flex;align-items:flex-start;gap:9px;padding:8px 8px;border-radius:6px;color:inherit;text-decoration:none}
   .iss-row:hover{background:rgba(127,127,127,.08)}
@@ -56,7 +56,7 @@
   .mt-metric .d.up{color:var(--pd-ok);opacity:1}.mt-metric .d.down{color:var(--pd-bad);opacity:1}
   .mt-chartwrap{padding:14px 16px 8px}
   .mt-axis{display:flex;justify-content:space-between;font-size:11px;opacity:.45;margin-top:4px}
-  /* MARKER-DASH-LEADERS — one row per step. As boxes in a grid they had no
+  /* one row per step. As boxes in a grid they had no
      room in a 300px column and the arrows fell between lines. */
   .mt-tiles{display:flex;flex-direction:column;gap:8px}
   .mt-tiles .mt-gap{display:none}
@@ -162,7 +162,7 @@
     @endforeach
   </div>
 
-  {{-- MARKER-DASH-ROWFIX — this said the same thing as the tile and the
+  {{-- this said the same thing as the tile and the
        health row: three times on one screen for one unwired script. The row
        carries the explanation now. --}}
 
@@ -172,21 +172,21 @@
       <div class="card-h"><span class="t">Operational health</span><span class="s"><a href="/admin/debug-logs">Full system log →</a></span></div>
       @foreach($health as $row)
         <a class="mt-bar-row" href="{{ $row['href'] ?? '#' }}">
-          {{-- MARKER-DASH-ROWFIX — no fill. Its width meant severity, not a
+          {{-- no fill. Its width meant severity, not a
                quantity, so it drew a box behind the label that looked like a
                button. The pill carries the state instead. --}}
           <span class="mt-bar-label">{{ $row['name'] }}</span>
           <span class="pill {{ $row['state'] }}">{{ ['ok' => 'ok', 'warn' => 'watch', 'bad' => 'action', 'idle' => 'n/a'][$row['state']] ?? $row['state'] }}</span>
-          <span class="mt-lead"></span>{{-- MARKER-DASH-LEADERS --}}
+          <span class="mt-lead"></span>
           <span class="mt-bar-n">{!! $row['value'] !!}</span>
         </a>
       @endforeach
-      {{-- MARKER-JOB-ISSUES — the unresolved errors, not just their count.
+      {{-- the unresolved errors, not just their count.
            One line per distinct failure; the row above stays the headline. --}}
       @if(!empty($issues))
         <div class="card-h" style="margin-top:14px"><span class="t">Open issues</span><span class="s"><a href="/admin/debug-logs?activeTab=errors">all unresolved →</a></span></div>
         @foreach($issues as $i)
-          {{-- MARKER-DASH-ROWFIX — an exception message is not a short label.
+          {{-- an exception message is not a short label.
                One line, truncated, full text on hover; everything else on a
                muted second line. --}}
           <a class="iss-row" href="{{ $i['href'] }}" title="{{ $i['title'] }}{{ $i['detail'] ? ' — ' . $i['detail'] : '' }}">
@@ -204,7 +204,7 @@
         @endforeach
       @endif
 
-      {{-- MARKER-500-ALERT — switch + send-to for 5xx alert emails, behavior unchanged. --}}
+      {{-- switch + send-to for 5xx alert emails, behavior unchanged. --}}
       <div class="alert500">
         <label style="display:flex;gap:8px;align-items:center;cursor:pointer">
           <input type="checkbox" wire:model="alert500Enabled" style="width:14px;height:14px">

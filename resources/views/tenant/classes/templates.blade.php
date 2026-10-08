@@ -337,7 +337,7 @@
     var changed  = (newNotes !== _originalClassNotes);
     if (!changed || _upcomingSessions === 0) return;
     if (!window.IntakeConfirm) {
-      // MARKER-INLINE-CONFIRM-2 — submit handler: prevent, ask, replay.
+      // submit handler: prevent, ask, replay.
       if (ev.target.dataset.iaConfirmed !== '1') {
         ev.preventDefault();
         iaConfirm('Update class notes on ' + _upcomingSessions + ' upcoming session(s)?').then(function (ok) {
@@ -365,7 +365,7 @@
   window.closeEditModal = function(){ editModal.classList.remove('is-open'); }
 
   window.confirmDelete = async function(id, name){
-    if(!(await iaConfirm('Delete "' + name + '"? This cannot be undone.'))) return; // MARKER-INLINE-CONFIRM-2
+    if(!(await iaConfirm('Delete "' + name + '"? This cannot be undone.'))) return;
     deleteForm.action = baseUrl + '/' + id;
     deleteForm.submit();
   }

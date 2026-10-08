@@ -1,5 +1,5 @@
 <?php
-// MARKER-ADMIN-ROLES — the fixed role/area matrix from the approved mockup.
+// the fixed role/area matrix from the approved mockup.
 // Levels: 'full', 'view', or absent (no access). Fixed per role — no custom
 // permission editor in v1.
 
@@ -18,7 +18,7 @@ class AdminAccess
             'crm' => 'full', 'reps' => 'full', 'marketing' => 'full',
             'analytics' => 'full', 'logs' => 'full', 'config' => 'full',
             'raise' => 'full', 'team' => 'full',
-            'scheduling' => 'full', // MARKER-SCHED-ADMIN
+            'scheduling' => 'full',
         ],
         'admin' => [
             'dashboard' => 'full', 'tenants' => 'full', 'impersonation' => 'full',
@@ -26,7 +26,7 @@ class AdminAccess
             'crm' => 'full', 'reps' => 'full', 'marketing' => 'full',
             'analytics' => 'full', 'logs' => 'full', 'config' => 'full',
             'team' => 'view',
-            'scheduling' => 'full', // MARKER-SCHED-ADMIN
+            'scheduling' => 'full',
         ],
         'support' => [
             'dashboard' => 'view', 'tenants' => 'full', 'impersonation' => 'full',
@@ -36,7 +36,7 @@ class AdminAccess
         'sales' => [
             'dashboard' => 'view', 'tenants' => 'view',
             'crm' => 'full', 'reps' => 'full', 'analytics' => 'view',
-            'scheduling' => 'full', // MARKER-SCHED-ADMIN
+            'scheduling' => 'full',
         ],
     ];
 
@@ -72,11 +72,11 @@ class AdminAccess
         return match ($segment) {
             'tenants', 'password-editor',
             'customer-cleanup', 'billing-discounts',
-            'tenant-billing', 'billing-notices', 'sidebar', 'plan-prices', 'addons', 'scheduled-tasks'               => 'tenants', // MARKER-CUST-CLEANUP / MARKER-BILLING-DISCOUNTS / MARKER-TENANT-BILLING
+            'tenant-billing', 'billing-notices', 'sidebar', 'plan-prices', 'addons', 'scheduled-tasks'               => 'tenants',
             'tenant-domains'                                 => 'domains',
             'sales-channels', 'sales-prospects',
-            'sales-find-shops', 'sales-territories', 'sales-places', // MARKER-SALES-SETUP
-            'sales-pipeline', 'sales-route-day'              => 'crm', // MARKER-SALES-FIND / MARKER-SALES-BOARD / MARKER-SALES-ROUTE
+            'sales-find-shops', 'sales-territories', 'sales-places',
+            'sales-pipeline', 'sales-route-day'              => 'crm',
             'sales-agencies'                                 => 'reps',
             'marketing-pages', 'platform-nav-items',
             'changelog-entries', 'roadmap-entries',
@@ -91,7 +91,7 @@ class AdminAccess
             'team-roles'                                     => 'team',
             'scheduling', 'scheduling-availability',
             'scheduling-types', 'scheduling-google',
-            'demo'                                           => 'scheduling', // MARKER-SCHED-ADMIN / MARKER-SCHED-GOOGLE / MARKER-DEMO-ENTRY
+            'demo'                                           => 'scheduling',
             // roles-access is a read-only reference every staff role may
             // open; dashboard is the one area all four roles hold.
             'roles-access'                                   => 'dashboard',

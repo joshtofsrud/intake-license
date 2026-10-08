@@ -1,4 +1,4 @@
-{{-- MARKER-PATCH-143 — Test email body --}}
+{{-- Test email body --}}
 <!DOCTYPE html>
 <html>
 <head>

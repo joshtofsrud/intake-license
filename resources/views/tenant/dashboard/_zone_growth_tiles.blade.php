@@ -1,4 +1,4 @@
-{{-- MARKER-PATCH-110-STEP-7 - Growth tiles: revenue, customers, health. --}}
+{{-- Growth tiles: revenue, customers, health. --}}
 
 @php
   $sparkline = function(array $series, int $width = 240, int $height = 36) {
@@ -44,7 +44,7 @@
 
   <div class="ia-dash-growth-tiles-grid">
 
-    {{-- MARKER-PATCH-114 - tile links now apply matching filters --}}
+    {{-- tile links now apply matching filters --}}
     <a href="{{ route('tenant.reports.index', ['range' => 'last_30']) }}" class="ia-dash-growth-tile">
       <div class="label">Revenue · last 30d</div>
       <div class="value">{{ format_money($rev['current_cents']) }}</div>

@@ -36,14 +36,14 @@ class TenantVendor extends Model
         'distributor_catalog_id',
         'notes',
         'is_active',
-        'free_freight_cents', // MARKER-SO-PLACEMENT
-        'program_discount_pct', 'distributor_code', // MARKER-VENDOR-NET-COST
+        'free_freight_cents',
+        'program_discount_pct', 'distributor_code',
     ];
 
     protected $casts = [
         'is_active' => 'boolean',
-        'free_freight_cents' => 'integer', // MARKER-SO-PLACEMENT
-        'program_discount_pct' => 'decimal:2', // MARKER-VENDOR-NET-COST
+        'free_freight_cents' => 'integer',
+        'program_discount_pct' => 'decimal:2',
     ];
 
     public function tenant(): BelongsTo
@@ -52,7 +52,7 @@ class TenantVendor extends Model
     }
 
     /**
-     * MARKER-VENDOR-NET-COST — apply this vendor's program discount.
+     * apply this vendor's program discount.
      *
      * Null cost stays null: "we don't know what this costs" must not become
      * "it's free", which would make it win every lowest-price comparison.

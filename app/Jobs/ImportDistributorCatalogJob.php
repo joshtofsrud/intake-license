@@ -1,5 +1,4 @@
 <?php
-// MARKER-CATALOG-IMPORT-ALL
 
 namespace App\Jobs;
 
@@ -51,10 +50,10 @@ class ImportDistributorCatalogJob implements ShouldQueue, ShouldBeUnique
             return;
         }
 
-        $totals = ['created' => 0, 'merged' => 0, 'skipped' => 0, 'matched_catalog' => 0, 'errors' => 0]; // MARKER-IMPORT-SKU-MERGE
+        $totals = ['created' => 0, 'merged' => 0, 'skipped' => 0, 'matched_catalog' => 0, 'errors' => 0];
         $offset = 0;
 
-        // MARKER-CATALOG-PROGRESS-HOLD — the import service rewrites this same
+        // the import service rewrites this same
         // batch row each page as its undo ledger, resetting status and
         // progress_total. Keep the total here and re-assert state per page.
         $total = (int) $batch->progress_total
@@ -93,10 +92,10 @@ class ImportDistributorCatalogJob implements ShouldQueue, ShouldBeUnique
                 'item_count'     => $totals['created'] + $totals['merged'],
             ]);
 
-            // MARKER-DUP-MERGE — look for duplicates straight after an import.
+            // look for duplicates straight after an import.
             \App\Jobs\FindDuplicateItemsJob::dispatch($this->tenantId);
         } catch (\Throwable $e) {
-            // MARKER-JOB-ISSUES — reported, not just logged: master admin
+            // reported, not just logged: master admin
             // sees it, the alert address gets it, and it carries a refId.
             $ref = \App\Support\JobFailureReporter::report(
                 self::class,

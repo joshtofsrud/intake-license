@@ -79,7 +79,7 @@
   color: inherit;
 }
 .cb-block-remove:hover { opacity: .8; color: #ff6b6b; }
-/* MARKER-CAMPAIGN-V2D — reorder handle, move/duplicate buttons */
+/* reorder handle, move/duplicate buttons */
 .cb-block-row.dragging { opacity: .45; }
 .cb-block-row.drop-target { border-color: var(--ia-accent); border-style: dashed; }
 .cb-block-handle {
@@ -152,7 +152,6 @@
   font-size: 11px;
   opacity: .5;
 }
-/* MARKER-CAMPAIGN-HDR */
 .cb-hdr-toggle {
   display: flex; align-items: center; gap: 8px; cursor: pointer;
   background: var(--ia-surface-2); border: 0.5px solid var(--ia-border);
@@ -160,9 +159,9 @@
 }
 .cb-hdr-toggle input { accent-color: var(--ia-accent); cursor: pointer; }
 .cb-hdr-hint { margin-left: auto; font-size: 10.5px; opacity: .45; }
-/* MARKER-CAMPAIGN-V2A — viewport toggle + merge-tag chips */
+/* viewport toggle + merge-tag chips */
 .cb-preview-stage { background: #f4f4f2; display: flex; justify-content: center; overflow: hidden; }
-/* MARKER-CAMPAIGN-MOBILEFIX — the email's inner table is a fixed 600px, so
+/* the email's inner table is a fixed 600px, so
    narrowing the iframe clipped it. Scale the whole thing down instead. */
 .cb-preview-stage.mobile { padding: 10px 0; }
 .cb-preview-stage.mobile .cb-preview-iframe {
@@ -460,7 +459,7 @@
       @if($campaign->status === 'draft')
         Draft — not yet sent
       @elseif($campaign->status === 'scheduled')
-        {{-- MARKER-CAMPAIGN-SCHED — shown in the shop's timezone, since that
+        {{-- shown in the shop's timezone, since that
              is the clock the person scheduling it is reading. --}}
         Scheduled for {{ $campaign->scheduled_at?->setTimezone(tenant()->timezone())->format('M j, Y \a\t g:ia') }}
       @elseif($campaign->status === 'sending')
@@ -494,7 +493,7 @@
     </div>
   </div>
 
-  {{-- MARKER-CAMPAIGN-CHROME — the header bar is near-black, so a dark logo
+  {{-- the header bar is near-black, so a dark logo
        disappears into it. This is exactly how WMM's went out invisible. --}}
   @php
     $emailLogo  = tenant()->emailLogoUrl();
@@ -508,7 +507,7 @@
     </div>
   @endif
 
-  {{-- MARKER-CAMPAIGN-V2A — inbox preview line. --}}
+  {{-- inbox preview line. --}}
   <div class="ia-form-group" style="margin-bottom:14px">
     <label class="ia-form-label">Preheader</label>
     <input type="text" name="preheader" class="ia-input" id="cb-preheader" maxlength="200"
@@ -523,7 +522,7 @@
 
     {{-- LEFT: blocks list + add palette --}}
     <div class="cb-col">
-      {{-- MARKER-CAMPAIGN-HDR — pinned above the blocks: the shop header is
+      {{-- pinned above the blocks: the shop header is
            added by the system, so its switch belongs with the blocks, not
            buried in settings. --}}
       <label class="cb-hdr-toggle">
@@ -548,15 +547,13 @@
         <button type="button" class="cb-add-btn" onclick="CB.addBlock('footer')">Footer</button>
       </div>
 
-      {{-- MARKER-CAMPAIGN-V2B --}}
       <div class="cb-add-heading">Layout</div>
       <div class="cb-add-grid">
         <button type="button" class="cb-add-btn" onclick="CB.addBlock('spacer')">Spacer</button>
         <button type="button" class="cb-add-btn" onclick="CB.addBlock('two_column')">Two column</button>
         <button type="button" class="cb-add-btn" onclick="CB.addBlock('image_text')">Image + text</button>
         <button type="button" class="cb-add-btn" onclick="CB.addBlock('social')">Social links</button>
-        {{-- MARKER-CAMPAIGN-V2C --}}
-        <button type="button" class="cb-add-btn" onclick="CB.addBlock('gallery')">Image gallery</button>{{-- MARKER-CAMPAIGN-V2F --}}
+        <button type="button" class="cb-add-btn" onclick="CB.addBlock('gallery')">Image gallery</button>
         <button type="button" class="cb-add-btn" onclick="CB.addBlock('catalog')">Service / product</button>
       </div>
     </div>
@@ -565,7 +562,6 @@
     <div class="cb-col cb-preview-wrap">
       <div class="cb-preview-bar">
         <span>Live preview · sample data</span>
-        {{-- MARKER-CAMPAIGN-V2A --}}
         <span class="cb-vp">
           <button type="button" class="cb-vp-btn on" data-vp="desktop" onclick="CB.setViewport('desktop')">Desktop</button>
           <button type="button" class="cb-vp-btn" data-vp="mobile" onclick="CB.setViewport('mobile')">Mobile</button>
@@ -589,14 +585,14 @@
 
   <input type="hidden" name="blocks_json" id="cb-blocks-json" value="">
   <input type="hidden" name="segment" id="cb-segment" value="{{ $campaign->targeting['segment'] ?? 'all' }}">
-  {{-- MARKER-CAMPAIGN-AUDIENCE — the audience travels with Save draft --}}
+  {{-- the audience travels with Save draft --}}
   <input type="hidden" name="targeting_json" id="cb-targeting-json" value="{{ json_encode($campaign->targeting ?? ['mode' => 'all']) }}">
 
   {{-- Action row --}}
   @if($campaign->status === 'draft')
     <div style="display:flex;gap:10px;align-items:center;margin-top:16px">
       <button type="submit" class="ia-btn ia-btn--primary">Save draft</button>
-      {{-- MARKER-CAMPAIGN-V2A — test send posts on its own, so save first. --}}
+      {{-- test send posts on its own, so save first. --}}
       <button type="button" class="ia-btn" onclick="CB.testSend()">Send test…</button>
       <span style="font-size:11px;opacity:.45">Test uses the last saved draft and counts as one email.</span>
     </div>
@@ -608,7 +604,6 @@
 
   <div class="cb-col">
     <div class="cb-col-title">Audience</div>
-    {{-- MARKER-CAMPAIGN-AUDIENCE --}}
     @if($campaign->status === 'draft')
       @php
         $t0 = $campaign->targeting ?? [];
@@ -661,7 +656,6 @@
     @endif
   </div>
 
-  {{-- MARKER-CAMPAIGN-ATTRIBUTION --}}
   <div class="cb-col">
     <div class="cb-col-title">Discount code</div>
     @if($campaign->status === 'draft')
@@ -694,19 +688,19 @@
   @if($campaign->status === 'draft')
     <div class="cb-col">
       <div class="cb-col-title">Send</div>
-      {{-- MARKER-CAMPAIGN-DELIVERY — live sending. Only customers with
+      {{-- live sending. Only customers with
            marketing permission receive it; each email carries an
            unsubscribe link and goes out on the broadcast stream. --}}
       <p style="font-size:12px;opacity:.55;line-height:1.5;margin-bottom:12px">
         Goes only to customers with marketing permission, in batches, with an
         unsubscribe link in every email. Once sent, content cannot be edited.
       </p>
-      {{-- MARKER-CAMPAIGN-CHECKS — what's wrong, before it goes out. --}}
+      {{-- what's wrong, before it goes out. --}}
       <div id="cb-checks" style="margin-bottom:14px">
         <div style="font-size:11px;opacity:.45">Checking…</div>
       </div>
 
-      {{-- MARKER-CAMPAIGN-SCHED — house rule: no native dialogs. --}}
+      {{-- house rule: no native dialogs. --}}
       <form method="POST" action="{{ route('tenant.campaigns.send', $campaign->id) }}" id="cb-send-form">
         @csrf
         <button type="button" class="ia-btn ia-btn--primary" style="width:100%" onclick="cbConfirmSend()">Send now</button>
@@ -728,7 +722,6 @@
       </div>
     </div>
   @elseif($campaign->status === 'scheduled')
-    {{-- MARKER-CAMPAIGN-SCHED --}}
     <div class="cb-col">
       <div class="cb-col-title">Scheduled</div>
       <p style="font-size:13px;margin:0 0 4px">
@@ -752,11 +745,10 @@
       <div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0"><span style="opacity:.5">Delivered</span><strong>{{ $campaign->total_sent }}</strong></div>
       <div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0"><span style="opacity:.5">Opened</span><strong>{{ $campaign->total_opened }}</strong></div>
       <div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0"><span style="opacity:.5">Clicked</span><strong>{{ $campaign->total_clicked }}</strong></div>
-      {{-- MARKER-CAMPAIGN-RESULTS --}}
       <a href="{{ route('tenant.campaigns.results', $campaign->id) }}" class="ia-btn ia-btn--ghost ia-btn--sm" style="text-decoration:none;display:block;text-align:center;margin-top:10px">See every recipient</a>
     </div>
 
-    {{-- MARKER-CAMPAIGN-ATTRIBUTION — what the code did, with an honest
+    {{-- what the code did, with an honest
          statement of what these numbers can and can't tell you. --}}
     @if($attribution)
     <div class="cb-col">
@@ -781,7 +773,7 @@
 </div>
 
 {{-- Image picker modal --}}
-{{-- MARKER-CAMPAIGN-V2C — catalog picker (services + products in one list) --}}
+{{-- catalog picker (services + products in one list) --}}
 <div class="cb-modal" id="cb-catalog-modal" style="display:none">
   <div class="cb-modal-backdrop" onclick="CB.closeCatalogPicker()"></div>
   <div class="cb-modal-panel">
@@ -815,7 +807,7 @@
 
     <div class="cb-modal-body">
       <div class="cb-modal-actions">
-        {{-- MARKER-UPLOAD-LIMITS — the limit is rendered from the same config
+        {{-- the limit is rendered from the same config
              the server enforces, so the two cannot drift apart. avif was in
              this accept list but is not in allowed_mime, and mail clients do
              not render it reliably, so it is no longer offered. --}}
@@ -863,10 +855,10 @@ window.CB = (function() {
   // ---- State ----
   const initialBlocks = @json($blocks);
   const previewUrl    = @js(route('tenant.campaigns.preview', $campaign->id));
-  const testUrl       = @js(route('tenant.campaigns.test', $campaign->id)); // MARKER-CAMPAIGN-V2A
+  const testUrl       = @js(route('tenant.campaigns.test', $campaign->id));
   const campaignId    = @js($campaign->id);
-  const catalogSearchUrl = @js(route('tenant.campaigns.catalog-search')); // MARKER-CAMPAIGN-V2C
-  const defaultTestTo    = @js(optional(auth('tenant')->user())->email ?? ''); // MARKER-CAMPAIGN-V2F
+  const catalogSearchUrl = @js(route('tenant.campaigns.catalog-search'));
+  const defaultTestTo    = @js(optional(auth('tenant')->user())->email ?? '');
   const csrfToken     = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
   const readOnly      = @json($campaign->status !== 'draft');
 
@@ -882,30 +874,27 @@ window.CB = (function() {
     button:    { label: 'Button',    icon: '▭' },
     divider:   { label: 'Divider',   icon: '—' },
     footer:    { label: 'Footer',    icon: '⨮' },
-    // MARKER-CAMPAIGN-V2B
     spacer:     { label: 'Spacer',       icon: '↕' },
     two_column: { label: 'Two column',   icon: '▥' },
     image_text: { label: 'Image + text', icon: '▤' },
     social:     { label: 'Social links', icon: '◎' },
-    catalog:    { label: 'Service / product', icon: '▤' }, // MARKER-CAMPAIGN-V2C
-    gallery:    { label: 'Image gallery', icon: '⊞' }, // MARKER-CAMPAIGN-V2F
+    catalog:    { label: 'Service / product', icon: '▤' },
+    gallery:    { label: 'Image gallery', icon: '⊞' },
   };
 
   const DEFAULTS = {
     heading:   { text: 'Your headline here', size: 'h1', align: 'left' },
     paragraph: { text: '', align: 'left' },
-    image:     { url: '', alt: '', width: '100', align: 'left', link: '', radius: '4' }, // MARKER-CAMPAIGN-V2E
+    image:     { url: '', alt: '', width: '100', align: 'left', link: '', radius: '4' },
     button:    { text: 'Click here', url: 'https://', align: 'left', full_width: '0' },
     divider:   {},
     footer:    { text: 'You received this because you are a customer. Reply STOP to unsubscribe.' },
-    // MARKER-CAMPAIGN-V2B
     spacer:     { height: '24' },
     two_column: { left: '', right: '' },
-    image_text: { url: '', alt: '', text: '', side: 'left', ratio: '45' }, // MARKER-CAMPAIGN-V2E
+    image_text: { url: '', alt: '', text: '', side: 'left', ratio: '45' },
     social:     { links: [] },
-    // MARKER-CAMPAIGN-V2C
     catalog:    { items: [], show_price: '1', show_photo: '1', cta_text: 'Book now', per_row: '2' },
-    gallery:    { images: [], layout: '2' }, // MARKER-CAMPAIGN-V2F
+    gallery:    { images: [], layout: '2' },
   };
 
   function uuid() {
@@ -926,7 +915,7 @@ window.CB = (function() {
     container.innerHTML = blocks.map(function(b, i) {
       const type = TYPES[b.type] || { label: b.type, icon: '?' };
       const selected = (b.id === selectedId) ? ' selected' : '';
-      // MARKER-CAMPAIGN-V2D — handle, move up/down, duplicate.
+      // handle, move up/down, duplicate.
       const first = i === 0, last = i === blocks.length - 1;
       const acts = readOnly ? '' : `
           <span class="cb-block-acts">
@@ -974,15 +963,15 @@ window.CB = (function() {
           <option value="h3" ${d.size==='h3'?'selected':''}>Small (H3)</option>
         </select>`);
       html += alignField(d.align);
-      html += bgField(d); // MARKER-CAMPAIGN-V2E
-      html += mergeChips(); // MARKER-CAMPAIGN-V2A
+      html += bgField(d);
+      html += mergeChips();
     } else if (t === 'paragraph') {
-      html += richField('html', 'text', 'Text (tokens like first_name supported)', d); // MARKER-CAMPAIGN-RICH-SPLIT
+      html += richField('html', 'text', 'Text (tokens like first_name supported)', d);
       html += alignField(d.align);
-      html += sizeField(d); // MARKER-CAMPAIGN-V2F
-      html += bgField(d); // MARKER-CAMPAIGN-V2E
-      html += mergeChips(); // MARKER-CAMPAIGN-V2A
-    } else if (t === 'spacer') { // MARKER-CAMPAIGN-V2B
+      html += sizeField(d);
+      html += bgField(d);
+      html += mergeChips();
+    } else if (t === 'spacer') {
       html += field('height', 'Height', `
         <select class="cb-field-select" onchange="CB.updateData('height', this.value)">
           <option value="8"  ${String(d.height)==='8' ?'selected':''}>Tiny (8px)</option>
@@ -992,11 +981,11 @@ window.CB = (function() {
           <option value="64" ${String(d.height)==='64'?'selected':''}>Huge (64px)</option>
         </select>`);
     } else if (t === 'two_column') {
-      // MARKER-CAMPAIGN-RICH-SPLIT — rich text in each column, paragraph type.
+      // rich text in each column, paragraph type.
       html += richField('left_html', 'left', 'Left column', d);
       html += richField('right_html', 'right', 'Right column', d);
       html += sizeField(d);
-      html += bgField(d); // MARKER-CAMPAIGN-V2E
+      html += bgField(d);
       html += mergeChips();
       html += '<p style="font-size:10.5px;opacity:.45;margin:6px 0 0">Columns sit side by side on desktop and stack on narrow phones.</p>';
     } else if (t === 'image_text') {
@@ -1012,14 +1001,13 @@ window.CB = (function() {
         </button>`;
       }
       html += field('alt', 'Alt text', `<input type="text" class="cb-field-input" value="${escapeAttr(d.alt || '')}" oninput="CB.updateData('alt', this.value)">`);
-      html += richField('html', 'text', 'Text', d); // MARKER-CAMPAIGN-RICH-SPLIT
+      html += richField('html', 'text', 'Text', d);
       html += sizeField(d);
       html += field('side', 'Image on', `
         <select class="cb-field-select" onchange="CB.updateData('side', this.value)">
           <option value="left"  ${d.side!=='right'?'selected':''}>Left</option>
           <option value="right" ${d.side==='right'?'selected':''}>Right</option>
         </select>`);
-      // MARKER-CAMPAIGN-V2E
       html += field('ratio', 'Split', `
         <select class="cb-field-select" onchange="CB.updateData('ratio', this.value)">
           <option value="40" ${String(d.ratio)==='40'?'selected':''}>40 / 60 — image smaller</option>
@@ -1044,7 +1032,7 @@ window.CB = (function() {
         html += `<button type="button" class="cb-add-btn" style="width:100%;margin-top:4px" onclick="CB.addSocial()">+ Add link</button>`;
       }
       html += `<p style="font-size:10.5px;opacity:.45;margin:6px 0 0">Links need a full URL (https://…) or they're dropped when saved.</p></div>`;
-    } else if (t === 'gallery') { // MARKER-CAMPAIGN-V2F
+    } else if (t === 'gallery') {
       const imgs = Array.isArray(d.images) ? d.images : [];
       let rows = '';
       imgs.forEach(function (im, i) {
@@ -1069,7 +1057,7 @@ window.CB = (function() {
           <option value="mosaic" ${d.layout==='mosaic'?'selected':''}>Mosaic — one large, rest beneath</option>
         </select>`);
       html += bgField(d);
-    } else if (t === 'catalog') { // MARKER-CAMPAIGN-V2C
+    } else if (t === 'catalog') {
       const items = Array.isArray(d.items) ? d.items : [];
       let rows = '';
       items.forEach(function (it, i) {
@@ -1100,7 +1088,7 @@ window.CB = (function() {
           <option value="0" ${String(d.show_photo)==='0'?'selected':''}>No</option>
         </select>`);
       html += field('cta_text', 'Button text', `<input type="text" class="cb-field-input" value="${escapeAttr(d.cta_text || '')}" placeholder="Leave empty for no button" oninput="CB.updateData('cta_text', this.value)">`);
-      html += bgField(d); // MARKER-CAMPAIGN-V2E
+      html += bgField(d);
     } else if (t === 'image') {
       const hasImage = !!(d.url && d.url.length > 0);
       if (hasImage) {
@@ -1115,7 +1103,7 @@ window.CB = (function() {
         </button>`;
       }
       html += field('alt', 'Alt text (for screen readers)', `<input type="text" class="cb-field-input" value="${escapeAttr(d.alt || '')}" placeholder="Describe the image" oninput="CB.updateData('alt', this.value)">`);
-      // MARKER-CAMPAIGN-V2E — size and placement.
+      // size and placement.
       html += field('width', 'Width', `
         <select class="cb-field-select" onchange="CB.updateData('width', this.value)">
           <option value="100"  ${String(d.width || '100')==='100'?'selected':''}>Full width</option>
@@ -1142,7 +1130,6 @@ window.CB = (function() {
       html += field('text', 'Button label', `<input type="text" class="cb-field-input" value="${escapeAttr(d.text || '')}" oninput="CB.updateData('text', this.value)">`);
       html += field('url', 'Link URL', `<input type="text" class="cb-field-input" value="${escapeAttr(d.url || '')}" placeholder="https://..." oninput="CB.updateData('url', this.value)">`);
       html += alignField(d.align);
-      // MARKER-CAMPAIGN-V2E
       html += field('full_width', 'Width', `
         <select class="cb-field-select" onchange="CB.updateData('full_width', this.value)">
           <option value="0" ${String(d.full_width || '0')==='0'?'selected':''}>Fit to text</option>
@@ -1172,7 +1159,7 @@ window.CB = (function() {
     </div>`;
   }
 
-  // MARKER-CAMPAIGN-V2E — background color, shared by most block types.
+  // background color, shared by most block types.
   function bgField(d) {
     const v = d.bg_color || '';
     return `<div class="cb-field">
@@ -1185,7 +1172,7 @@ window.CB = (function() {
     </div>`;
   }
 
-  // MARKER-CAMPAIGN-V2A — merge tags, viewport, test send.
+  // merge tags, viewport, test send.
   const MERGE_TAGS = [
     ['first_name', 'there'],
     ['last_name', ''],
@@ -1227,14 +1214,14 @@ window.CB = (function() {
     });
   }
 
-  // MARKER-CAMPAIGN-V2F — choose where the test goes; defaults to you, and
+  // choose where the test goes; defaults to you, and
   // remembers the last address used on this device.
   function testSend() {
     let last = '';
     try { last = window.localStorage.getItem('cb-test-to') || ''; } catch (e) {}
     const to = last || defaultTestTo;
 
-    // MARKER-AUDIENCE-POLISH — the fallback is gone; prompt() is real now.
+    // the fallback is gone; prompt() is real now.
     IntakeConfirm.prompt({
       title: 'Send a test of this campaign',
       message: 'It uses the last saved draft, with sample values in place of merge tags, and counts as one email.',
@@ -1264,9 +1251,9 @@ window.CB = (function() {
   function escapeHtml(s) { return String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
   function escapeAttr(s) { return String(s).replace(/"/g, '&quot;'); }
 
-  // MARKER-CAMPAIGN-V2D — drag to reorder the block list.
+  // drag to reorder the block list.
   let dragId = null;
-  let galleryPending = false; // MARKER-CAMPAIGN-V2F
+  let galleryPending = false;
   function wireBlockDrag() {
     document.querySelectorAll('#cb-blocks .cb-block-row').forEach(function (row) {
       row.addEventListener('dragstart', function (e) {
@@ -1302,7 +1289,7 @@ window.CB = (function() {
     });
   }
 
-  // MARKER-CAMPAIGN-V2D — preview ↔ builder highlighting. The iframe is
+  // preview ↔ builder highlighting. The iframe is
   // same-origin, so listeners attach straight to its document; nothing is
   // injected into the email itself.
   function wirePreviewHighlight() {
@@ -1342,7 +1329,7 @@ window.CB = (function() {
     setTimeout(function () { el.classList.remove('cb-flash'); }, 900);
   }
 
-  // MARKER-CAMPAIGN-V2A — preheader changes refresh the preview too.
+  // preheader changes refresh the preview too.
   document.addEventListener('DOMContentLoaded', function () {
     var ph = document.getElementById('cb-preheader');
     if (ph) ph.addEventListener('input', requestPreview);
@@ -1365,9 +1352,8 @@ window.CB = (function() {
           },
           body: JSON.stringify({
             blocks: blocks,
-            // MARKER-CAMPAIGN-V2A — preview the preheader as typed.
+            // preview the preheader as typed.
             preheader: (document.getElementById('cb-preheader') || {}).value || '',
-            // MARKER-CAMPAIGN-HDR
             show_header: (document.getElementById('cb-show-header') || {}).checked ? 1 : 0,
             campaign_id: campaignId,
           }),
@@ -1378,7 +1364,7 @@ window.CB = (function() {
           const doc = iframe.contentDocument || iframe.contentWindow.document;
           doc.open(); doc.write(html); doc.close();
         }
-        wirePreviewHighlight(); // MARKER-CAMPAIGN-V2D
+        wirePreviewHighlight();
         if (status) status.textContent = 'Ready';
       } catch (err) {
         if (status) status.textContent = 'Preview failed';
@@ -1392,7 +1378,7 @@ window.CB = (function() {
   }
 
   // ---- TipTap editor mount/destroy ----
-  // MARKER-CAMPAIGN-RICH-SPLIT — any number of rich-text boxes per block (a
+  // any number of rich-text boxes per block (a
   // paragraph has one, two-column has two). Each .cb-tt-editor names the
   // field it writes (data-tt-key) and the legacy plain-text field it
   // replaces (data-tt-legacy); its toolbar is the element just before it.
@@ -1486,7 +1472,7 @@ window.CB = (function() {
     toolbar.innerHTML = `
       <button type="button" class="cb-tt-btn" data-cmd="bold"    title="Bold"><b>B</b></button>
       <button type="button" class="cb-tt-btn" data-cmd="italic"  title="Italic"><i>I</i></button>
-      <button type="button" class="cb-tt-btn" data-cmd="link"    title="Link">🔗</button>{{-- MARKER-CAMPAIGN-V2F --}}
+      <button type="button" class="cb-tt-btn" data-cmd="link"    title="Link">🔗</button>
       <button type="button" class="cb-tt-btn" data-cmd="bullet"  title="Bullet list">•</button>
       <button type="button" class="cb-tt-btn" data-cmd="ordered" title="Numbered list">1.</button>
     `;
@@ -1499,7 +1485,7 @@ window.CB = (function() {
         if (cmd === 'bullet')  editor.chain().focus().toggleBulletList().run();
         if (cmd === 'ordered') editor.chain().focus().toggleOrderedList().run();
         if (cmd === 'link') {
-          // MARKER-AUDIENCE-POLISH — was window.prompt; the app has its own now.
+          // was window.prompt; the app has its own now.
           const prev = editor.getAttributes('link').href || '';
           IntakeConfirm.prompt({
             title: prev ? 'Edit this link' : 'Add a link',
@@ -1552,12 +1538,11 @@ window.CB = (function() {
 
   // ---- Public API ----
   return {
-    // MARKER-CAMPAIGN-V2A
     insertTag, setViewport, testSend,
-    toggleHeader() { requestPreview(); }, // MARKER-CAMPAIGN-HDR
-    renderSettingsPublic: renderSettings, // MARKER-CAMPAIGN-V2E — bg clear redraw
+    toggleHeader() { requestPreview(); },
+    renderSettingsPublic: renderSettings, // bg clear redraw
 
-    // MARKER-CAMPAIGN-V2F — gallery images reuse the existing image picker.
+    // gallery images reuse the existing image picker.
     addGalleryImage() {
       const block = blocks.find(b => b.id === selectedId);
       if (!block || block.type !== 'gallery') return;
@@ -1580,7 +1565,7 @@ window.CB = (function() {
       renderSettings(); syncHiddenInput(); requestPreview();
     },
 
-    // MARKER-CAMPAIGN-V2C — catalog picker.
+    // catalog picker.
     openCatalogPicker() {
       const m = document.getElementById('cb-catalog-modal');
       if (m) m.style.display = 'flex';
@@ -1638,7 +1623,7 @@ window.CB = (function() {
       renderSettings(); syncHiddenInput(); requestPreview();
     },
 
-    // MARKER-CAMPAIGN-V2B — social link repeater.
+    // social link repeater.
     addSocial() {
       const block = blocks.find(b => b.id === selectedId);
       if (!block || block.type !== 'social') return;
@@ -1670,7 +1655,7 @@ window.CB = (function() {
     addBlock(type) {
       if (readOnly) return;
       const block = { id: uuid(), type: type, data: Object.assign({}, DEFAULTS[type] || {}) };
-      // MARKER-CAMPAIGN-V2D — drop it after the selected block, not always last.
+      // drop it after the selected block, not always last.
       const at = blocks.findIndex(b => b.id === selectedId);
       if (at >= 0) {
         blocks.splice(at + 1, 0, block);
@@ -1686,7 +1671,7 @@ window.CB = (function() {
 
     remove(id) {
       if (readOnly) return;
-      // MARKER-CAMPAIGN-SCHED — in-app dialog, no browser prompts.
+      // in-app dialog, no browser prompts.
       IntakeConfirm.show({
         title: 'Remove this block?',
         message: 'It comes out of the email. You can add it again from the palette.',
@@ -1707,10 +1692,10 @@ window.CB = (function() {
       selectedId = id;
       renderBlocksList();
       renderSettings();
-      revealInPreview(id); // MARKER-CAMPAIGN-V2D
+      revealInPreview(id);
     },
 
-    // MARKER-CAMPAIGN-V2D — reorder + duplicate.
+    // reorder + duplicate.
     move(id, delta) {
       if (readOnly) return;
       const i = blocks.findIndex(b => b.id === id);
@@ -1758,7 +1743,7 @@ window.CB = (function() {
 
     selectImage(url) {
       const block = blocks.find(b => b.id === selectedId);
-      // MARKER-CAMPAIGN-V2F — a gallery pick appends instead of replacing.
+      // a gallery pick appends instead of replacing.
       if (block && block.type === 'gallery' && galleryPending) {
         galleryPending = false;
         block.data = block.data || {};
@@ -1768,7 +1753,7 @@ window.CB = (function() {
         renderSettings(); syncHiddenInput(); requestPreview();
         return;
       }
-      // MARKER-CAMPAIGN-V2B — image_text uses the same picker.
+      // image_text uses the same picker.
       if (!block || (block.type !== 'image' && block.type !== 'image_text')) return;
       block.data = block.data || {};
       block.data.url = url;
@@ -1782,7 +1767,7 @@ window.CB = (function() {
       if (!file) return;
       const status = document.getElementById('cb-upload-status');
 
-      // MARKER-UPLOAD-LIMITS — checked here because the size is known the
+      // checked here because the size is known the
       // moment the file is chosen. Uploading it only to be refused wastes
       // the wait, and if it is over the SERVER's ceiling rather than the
       // app's, PHP discards it and the failure cannot be described properly.
@@ -1831,7 +1816,7 @@ window.CB = (function() {
 
     async deleteImage(id, ev) {
       if (ev) ev.stopPropagation();
-      // MARKER-CAMPAIGN-SCHED — in-app dialog, no browser prompts.
+      // in-app dialog, no browser prompts.
       const ok = await IntakeConfirm.show({
         title: 'Delete this image?',
         message: 'It is removed from your campaign library. Emails already sent keep it; drafts using it will show a gap.',
@@ -1891,10 +1876,9 @@ window.CB = (function() {
 document.addEventListener('DOMContentLoaded', CB.init);
 </script>
 
-{{-- MARKER-CAMPAIGN-SCRIPTS — these were outside every @push, so Blade
+{{-- these were outside every @push, so Blade
      discarded them: the pre-send checks panel never initialised and the
      send confirmation was undefined. Moved inside the scripts stack. --}}
-{{-- MARKER-CAMPAIGN-SCHED --}}
 <script>
 function cbConfirmSend() {
   IntakeConfirm.show({
@@ -1909,7 +1893,6 @@ function cbConfirmSend() {
 </script>
 
 
-{{-- MARKER-CAMPAIGN-CHECKS --}}
 <style>
   .cbk-row { display:flex; gap:8px; align-items:flex-start; font-size:12px; padding:5px 0; }
   .cbk-dot { width:6px; height:6px; border-radius:50%; margin-top:6px; flex:0 0 auto; }
@@ -1966,9 +1949,8 @@ function cbConfirmSend() {
 })();
 </script>
 
-{{-- MARKER-CAMPAIGN-SCRIPTS — audience panel; was landing in the styles
+{{-- audience panel; was landing in the styles
      stack, so it ran in <head> before the panel existed. --}}
-{{-- MARKER-CAMPAIGN-AUDIENCE --}}
 <style>
   .aud-mode{display:flex;gap:6px;margin-bottom:10px}
   .aud-mode button{flex:1;background:none;border:.5px solid var(--ia-border);border-radius:var(--ia-r-sm);
@@ -1976,13 +1958,13 @@ function cbConfirmSend() {
   .aud-mode button.on{background:var(--ia-surface-2);color:var(--ia-text);border-color:var(--ia-border-strong)}
   .aud-note{font-size:11px;opacity:.5;line-height:1.45;margin:8px 0 0}
   .aud-join{font-size:11px;color:var(--ia-text-dim);text-transform:uppercase;letter-spacing:.06em;margin:2px 0 6px}
-  /* MARKER-AUDIENCE-POLISH — one rule should read as one line, not a card. */
+  /* one rule should read as one line, not a card. */
   .aud-rule{padding:8px 0;border-bottom:.5px solid var(--ia-border)}
   .aud-rule:first-child{padding-top:2px}
   .aud-rule-top{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr) auto;gap:6px;align-items:center}
   .aud-rule-val{display:grid;grid-template-columns:80px minmax(0,1fr);gap:6px;margin-top:6px}
   .aud-rule .cb-field-select,.aud-rule .cb-field-input{padding:6px 8px;font-size:12px}
-  /* MARKER-AUD-TAGPICK — tag chips */
+  /* tag chips */
   .aud-tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
   .aud-tag{display:inline-flex;align-items:center;gap:6px;font-size:12px;padding:4px 10px;border-radius:100px;border:.5px solid var(--ia-border);cursor:pointer;color:var(--ia-text-muted);user-select:none}
   .aud-tag input{display:none}
@@ -2011,7 +1993,7 @@ function cbConfirmSend() {
 
   var FIELDS  = @json($audienceFields);
   var CHOICES = @json($audienceChoices);
-  var TAGS    = @json($audienceTags ?? []); // MARKER-AUD-TAGPICK
+  var TAGS    = @json($audienceTags ?? []);
   var saved0  = @json($campaign->targeting ?? ['mode' => 'all']);
 
   var hidden = document.getElementById('cb-targeting-json');
@@ -2029,7 +2011,7 @@ function cbConfirmSend() {
     flag:   [['is', 'yes'], ['is_not', 'no']],
     text:   [['is', 'is'], ['is_not', 'is not']],
     choice: [['is', 'is'], ['is_not', 'is not']],
-    tag:    [['is', 'has any of'], ['is_not', 'has none of']] // MARKER-AUD-TAGPICK
+    tag:    [['is', 'has any of'], ['is_not', 'has none of']]
   };
 
   function sel(options, value, cls) {
@@ -2075,7 +2057,7 @@ function cbConfirmSend() {
       num.className = 'cb-field-input'; num.type = 'number'; num.min = '0';
       num.value = rule.value || '6';
       num.addEventListener('input', function () { rules[i].value = num.value; refresh(); });
-      // MARKER-AUDIENCE-POLISH — "more than 6 months" is not what the rule
+      // "more than 6 months" is not what the rule
       // means; it means more than 6 months AGO.
       var suffix = (rule.op === 'longer_ago') ? ' ago' : '';
       var unit = sel([
@@ -2105,7 +2087,7 @@ function cbConfirmSend() {
       c.addEventListener('change', function () { rules[i].value = c.value; refresh(); });
       wrap.appendChild(c);
     } else if (type === 'tag') {
-      // MARKER-AUD-TAGPICK — chips, several allowed; value is ids joined by commas.
+      // chips, several allowed; value is ids joined by commas.
       var ids = Object.keys(TAGS);
       if (!ids.length) {
         var none = document.createElement('div');
@@ -2155,7 +2137,7 @@ function cbConfirmSend() {
     return { mode: 'all' };
   }
 
-  // MARKER-AUDIENCE-EMPTY — with nothing chosen there is no number to show, and
+  // with nothing chosen there is no number to show, and
   // leaving the previous mode's count on screen reads as if it still applies.
   function unresolvedSaved() {
     return mode === 'saved' && !document.querySelector('input[name="aud_saved"]:checked');
@@ -2168,7 +2150,6 @@ function cbConfirmSend() {
     var payload = targeting();
     if (hidden) hidden.value = JSON.stringify(payload);
 
-    // MARKER-AUDIENCE-EMPTY
     var sampleBox = document.querySelector('[data-aud-sample]');
     if (unresolvedSaved()) {
       root.hidden = true;
@@ -2253,7 +2234,7 @@ function cbConfirmSend() {
       IntakeConfirm.alert({ title: 'Nothing to save', message: 'Build a list first, then save it.' });
       return;
     }
-    // MARKER-AUDIENCE-POLISH — IntakeConfirm.prompt exists now, so no
+    // IntakeConfirm.prompt exists now, so no
     // window.prompt fallback: house rule is no native dialogs.
     IntakeConfirm.prompt({
       title: 'Save this audience',

@@ -1,4 +1,4 @@
-{{-- MARKER-ITEM-MODAL-SHARED
+{{--
      Item detail modal, shared by the register and the appointment part
      picker. Lifted out of register/index.blade.php so the two surfaces
      cannot drift.
@@ -34,7 +34,7 @@
   #rim .rim-sec{padding:14px 0;border-bottom:0.5px solid var(--ia-border)}
   #rim .rim-sec:last-child{border-bottom:0}
   #rim .rim-sec h3{font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--ia-text-muted);margin-bottom:9px;font-weight:600}
-  /* MARKER-SPECS-GRID-PAIR — one grid child per attribute. Emitting the
+  /* one grid child per attribute. Emitting the
      label and the value as separate children let an odd column count
      offset every pair by one. */
   #rim .rim-attrs{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:6px 22px;font-size:12.5px}
@@ -71,8 +71,7 @@
     <div class="rim-body">
       <div class="rim-sec" id="rim-sec-desc" style="display:none"><h3>Description</h3><div id="rim-desc" style="font-size:12.5px;color:var(--ia-text-muted);line-height:1.55"></div></div>
       <div class="rim-sec" id="rim-sec-attrs" style="display:none"><h3>Specs</h3><div class="rim-attrs" id="rim-attrs"></div></div>
-      {{-- MARKER-ITEM-MODAL-VENDOR --}}
-      {{-- MARKER-SOURCING-TABLE — vendors, then the shop's own stock, then the
+      {{-- vendors, then the shop's own stock, then the
            identifiers that belong to the product rather than to a vendor. --}}
       <div class="rim-sec"><h3>Sourcing &amp; stock</h3>
         <table id="rim-vendor"></table>
@@ -157,7 +156,7 @@
     } );
   }
 
-  // MARKER-MODAL-ALL-VENDORS — one line per distributor that carries the item.
+  // one line per distributor that carries the item.
   // Cost comes from the per-tenant pivot, so it's this shop's cost, not a
   // list price. "info" marks which source supplies the product data, which is
   // a separate question from which is cheapest.
@@ -166,7 +165,7 @@
     var rows = '', newest = null;
 
     vendor.forEach( function ( v, i ) {
-      // MARKER-MODAL-BARCODES — distinguish "asked, got nothing" from
+      // distinguish "asked, got nothing" from
       // "never asked". A distributor with no tenant credentials has never
       // been synced for this shop and shouldn't read as unresponsive.
       var qty = ( v.avail === null || v.avail === undefined )
@@ -261,7 +260,7 @@
 
       paintVendor( d.vendor );
 
-      // MARKER-SOURCING-TABLE — the shop's own stock and the identifiers that
+      // the shop's own stock and the identifiers that
       // belong to the PRODUCT. A vendor's item number is per vendor and now
       // lives in the row above; UPC and category are the same whoever
       // supplies it, so they stay here.
@@ -270,7 +269,7 @@
         rows.push( '<td class="k">' + esc( s.location ) + '</td><td class="n">' + s.count + '</td>' );
       } );
       if ( d.upc )      rows.push( '<td class="k">UPC</td><td class="n" style="font-family:ui-monospace,monospace;font-size:12px">' + esc( d.upc ) + '</td>' );
-      // MARKER-MODAL-BARCODES — thousands of HLC rows carry an EAN and no
+      // thousands of HLC rows carry an EAN and no
       // UPC, so hiding it left those items looking like they had no barcode.
       if ( d.ean )      rows.push( '<td class="k">EAN</td><td class="n" style="font-family:ui-monospace,monospace;font-size:12px">' + esc( d.ean ) + '</td>' );
       if ( d.category ) rows.push( '<td class="k">Category</td><td class="n">' + esc( d.category ) + '</td>' );

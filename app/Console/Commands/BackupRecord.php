@@ -1,5 +1,4 @@
 <?php
-// MARKER-BACKUP-RECORD
 
 namespace App\Console\Commands;
 

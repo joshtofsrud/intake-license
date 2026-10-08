@@ -3,7 +3,7 @@
 namespace App\Services\Tenant\Import;
 
 /**
- * MARKER-IMPORT2 — undo an import.
+ * undo an import.
  *
  * Created rows are deleted, updated fields restored, stock reversed with a
  * counter-movement. History is never deleted: a stock movement is corrected by
@@ -46,7 +46,7 @@ class ImportReverser
     ];
 
     /**
-     * MARKER-IMPORT-PROGRESS — usable ref tables, resolved ONCE per run.
+     * usable ref tables, resolved ONCE per run.
      * These were five Schema::hasTable + five Schema::hasColumn probes PER
      * ROW, each one hitting information_schema.
      */
@@ -67,7 +67,7 @@ class ImportReverser
     }
 
     /**
-     * MARKER-IMPORT-PROGRESS — one grouped query per ref table for a whole
+     * one grouped query per ref table for a whole
      * chunk of ids, instead of a COUNT per row per table.
      *
      * @param  array<string,int>  $ownMovements  record_id => movements this import made
@@ -105,7 +105,7 @@ class ImportReverser
         return $this->blockedForBatch($type, [$id], [$id => (int) $ownMovements])[$id] ?? null;
     }
 
-    /** MARKER-IMPORT-PROGRESS — per-chunk progress callback, set by the job. */
+    /** per-chunk progress callback, set by the job. */
     public $onProgress = null;
 
     private function tick(int $done): void
@@ -122,7 +122,7 @@ class ImportReverser
         $inventory = app(InventoryService::class);
         $user      = auth('tenant')->user();
 
-        // MARKER-IMPORT-PROGRESS — the whole ledger used to load at once.
+        // the whole ledger used to load at once.
         // Chunked so memory is flat whatever the file size, and so progress
         // can be reported as it goes.
         $base = TenantImportRow::where('import_id', $this->import->id)
@@ -144,7 +144,7 @@ class ImportReverser
     }
 
     /**
-     * MARKER-IMPORT-PROGRESS — the original body, now per chunk. Reference
+     * the original body, now per chunk. Reference
      * checks for the whole chunk are resolved up front in one pass.
      */
     private function reverseChunk($rows, array &$result, $inventory, $user): void
@@ -189,7 +189,7 @@ class ImportReverser
         }
 
         // 3) delete created records, unless something now points at them
-        // MARKER-IMPORT-PROGRESS — batch the "is this still referenced?"
+        // batch the "is this still referenced?"
         // question for every created row in the chunk, before touching any.
         $createdRows = $rows->where('action', 'created');
         $createdIds  = $createdRows->pluck('record_id')->all();
@@ -208,7 +208,7 @@ class ImportReverser
         $blockedCusts = $this->blockedForBatch('customer', $createdRows->where('record_type', 'customer')->pluck('record_id')->all());
 
         foreach ($createdRows as $row) {
-            // MARKER-IMPORT-PROGRESS — both answers were computed for the
+            // both answers were computed for the
             // whole chunk above; this was a COUNT plus fifteen queries per row.
             $blocked = $row->record_type === 'item'
                 ? ($blockedItems[$row->record_id] ?? null)

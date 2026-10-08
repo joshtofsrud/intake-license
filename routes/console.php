@@ -12,15 +12,15 @@ Artisan::command('inspire', function () {
 // Debug log retention — prune old rows nightly per config/debug.php.
 // ----------------------------------------------------------------
 // ----------------------------------------------------------------
-// MARKER-PATCH-247 — overdue rentals sweep: emits the rental.overdue
+// overdue rentals sweep: emits the rental.overdue
 // staff alert (derived state, so it must be polled). Idempotent.
 // ----------------------------------------------------------------
-// MARKER-CAMPAIGN-DELIVERY — drain pending campaign sends, 120/min.
+// drain pending campaign sends, 120/min.
 Schedule::command('campaigns:process-sends')
     ->everyMinute()
     ->withoutOverlapping();
 
-// MARKER-QBP-CLS-AUTO — keep each QBP subscription's image service prefix
+// keep each QBP subscription's image service prefix
 // fresh. Without it the catalog still syncs and only images go missing, which
 // is exactly why it went unnoticed until a shop asked where their photos were.
 Schedule::command('qbp:cls-refresh')
@@ -29,7 +29,7 @@ Schedule::command('qbp:cls-refresh')
     ->runInBackground();
 
 Schedule::command('rentals:extension-offer-scan')
-    ->everyFifteenMinutes(); // MARKER-RENTAL-EXT
+    ->everyFifteenMinutes();
 
 Schedule::command('rentals:overdue-sweep')
     ->everyFifteenMinutes()
@@ -42,7 +42,7 @@ Schedule::command('debug-log:prune')
     ->runInBackground();
 
 // ----------------------------------------------------------------
-// MARKER-DATA-RETENTION — task runs 14d, resolved attention flags 30d,
+// task runs 14d, resolved attention flags 30d,
 // catalog undo history 90d, import ledger 30d after finish. After the
 // debug log prune, before memberships:tick at 04:00.
 // ----------------------------------------------------------------
@@ -52,7 +52,7 @@ Schedule::command('data:prune')
     ->runInBackground();
 
 // ----------------------------------------------------------------
-// MARKER-DUP-MERGE — refresh every shop's duplicate items (also refreshed
+// refresh every shop's duplicate items (also refreshed
 // straight after each distributor or CSV inventory import).
 // ----------------------------------------------------------------
 Schedule::command('inventory:find-duplicates')
@@ -70,7 +70,7 @@ Schedule::command('memberships:tick')
     ->runInBackground();
 
 // ----------------------------------------------------------------
-// MARKER-PATCH-151C — Prune tenant_funnel_events older than 90 days.
+// Prune tenant_funnel_events older than 90 days.
 // Cheap (single composite-indexed delete in chunks). Runs at 03:00 so
 // it finishes well before debug-log:prune at 03:30.
 // ----------------------------------------------------------------
@@ -80,7 +80,7 @@ Schedule::command('funnel:prune')
     ->runInBackground();
 
 // ----------------------------------------------------------------
-// MARKER-PATCH-118 - Custom domain state polling
+// Custom domain state polling
 // Cheap (per-row API call to Cloudflare, only for domains past their
 // backoff). Failures per-domain don't kill the batch.
 // ----------------------------------------------------------------
@@ -90,7 +90,7 @@ Schedule::command('domains:poll')
     ->runInBackground();
 
 // ----------------------------------------------------------------
-// MARKER-PATCH-154 — 24-hour appointment reminders
+// 24-hour appointment reminders
 // Hourly cron with a 23-25h window. reminded_at column on the row is
 // the idempotence guard so each appointment is reminded once.
 // ----------------------------------------------------------------
@@ -100,7 +100,7 @@ Schedule::command('appointments:remind')
     ->runInBackground();
 
 // ----------------------------------------------------------------
-// MARKER-PATCH-155 — 24-hour delivery reminders
+// 24-hour delivery reminders
 // Same hourly cadence as appointments:remind. reminded_at column
 // is the idempotence guard.
 // ----------------------------------------------------------------
@@ -110,22 +110,22 @@ Schedule::command('deliveries:remind')
     ->runInBackground();
 
 // ----------------------------------------------------------------
-// MARKER-PATCH-529 — assume-first delivery windows. Pending proposals
+// assume-first delivery windows. Pending proposals
 // past their deadline get the first open window locked in. Status
 // transition is the idempotence guard.
 // ----------------------------------------------------------------
 // ----------------------------------------------------------------
-// MARKER-PATCH-555 — two-tier distributor sync, nightly. Tier 1 pulls
+// two-tier distributor sync, nightly. Tier 1 pulls
 // the HLC catalog delta; tier 2 reconciles every tenant's linked items
 // (cost, availability, vanish + title flags) an hour later.
 // ----------------------------------------------------------------
-// MARKER-PATCH-574 — abandoned-cart hygiene, nightly
+// abandoned-cart hygiene, nightly
 Schedule::command('orders:reap-abandoned')
     ->dailyAt('03:30')
     ->withoutOverlapping()
     ->runInBackground();
 
-// MARKER-CATALOG-SCHEDULE — the catalog chain. Order matters: each step
+// the catalog chain. Order matters: each step
 // reads what the one before it wrote, and a step that runs early produces a
 // half-built index rather than an error.
 
@@ -134,7 +134,7 @@ Schedule::command('distributors:sync-catalog HLC --delta')
     ->withoutOverlapping()
     ->runInBackground();
 
-// MARKER-DELTA-REAL — QBP pages by brand: 892 calls regardless, so --delta
+// QBP pages by brand: 892 calls regardless, so --delta
 // saves database writes rather than fetches. It carries modifiedTime.iMillis,
 // which isUnchanged now reads, so unchanged rows are skipped on write.
 Schedule::command('distributors:sync-catalog QBP --delta')
@@ -142,7 +142,7 @@ Schedule::command('distributors:sync-catalog QBP --delta')
     ->withoutOverlapping()
     ->runInBackground();
 
-// MARKER-DELTA-REAL — BTI was never scheduled at all; its catalog last moved
+// BTI was never scheduled at all; its catalog last moved
 // by hand. Full, not delta: BTI supplies no per-row timestamp, and its feed
 // regenerates whole on every request anyway.
 Schedule::command('distributors:sync-catalog BTI')
@@ -178,7 +178,7 @@ Schedule::command('deliveries:assume-windows')
     ->runInBackground();
 
 // ----------------------------------------------------------------
-// MARKER-PATCH-387 — reap abandoned booking holds (charge-then-create).
+// reap abandoned booking holds (charge-then-create).
 // Cheap indexed delete. Hourly is plenty; holds expire in 20 min and are
 // only deleted 2h past expiry so a lagging webhook can still materialize a
 // genuinely-paid hold first.
@@ -190,7 +190,7 @@ Schedule::command('bookings:reap-holds')
 
 
 // ----------------------------------------------------------------
-// MARKER-PATCH-614 — auto-close time punches left open past the cap.
+// auto-close time punches left open past the cap.
 // Hourly so a forgotten clock-out is capped within the hour rather
 // than billing overnight. auto_closed flag + audit row guard it.
 // ----------------------------------------------------------------
@@ -200,7 +200,7 @@ Schedule::command('timeclock:auto-close')
     ->runInBackground();
 
 // ----------------------------------------------------------------
-// MARKER-PATCH-622 — rebuild shop-search typo vocabulary nightly,
+// rebuild shop-search typo vocabulary nightly,
 // after the distributor syncs (4/5AM) so new catalog words land.
 // ----------------------------------------------------------------
 Schedule::command('search:build-terms')
@@ -209,7 +209,7 @@ Schedule::command('search:build-terms')
     ->runInBackground();
 
 // ----------------------------------------------------------------
-// MARKER-SEARCH-TEXT — rebuild staff search text and recent sales,
+// rebuild staff search text and recent sales,
 // after the per-shop distributor sync (06:30) has added part numbers.
 // ----------------------------------------------------------------
 Schedule::command('inventory:search-text')
@@ -218,7 +218,7 @@ Schedule::command('inventory:search-text')
     ->runInBackground();
 
 // ----------------------------------------------------------------
-// MARKER-REG-SETTINGS — reap stale register drafts/quotes nightly,
+// reap stale register drafts/quotes nightly,
 // per each tenant's retention setting (default: keep forever).
 // ----------------------------------------------------------------
 Schedule::command('sales:reap-drafts')
@@ -226,7 +226,7 @@ Schedule::command('sales:reap-drafts')
     ->withoutOverlapping()
     ->runInBackground();
 // ----------------------------------------------------------------
-// MARKER-GIFTCARDS-PUBLIC — e-gift delivery: scheduled deliver_on
+// e-gift delivery: scheduled deliver_on
 // dates plus a backstop for failed issue-time sends. Idempotent.
 // ----------------------------------------------------------------
 Schedule::command('gift-cards:deliver')
@@ -234,7 +234,7 @@ Schedule::command('gift-cards:deliver')
     ->withoutOverlapping()
     ->runInBackground();
 // ----------------------------------------------------------------
-// MARKER-GC-FUNCTIONS — clear abandoned (never paid) online gift card
+// clear abandoned (never paid) online gift card
 // purchases per each shop's retention setting. Rows with any ledger
 // history are never in scope.
 // ----------------------------------------------------------------
@@ -243,60 +243,60 @@ Schedule::command('gift-cards:reap-pending')
     ->withoutOverlapping()
     ->runInBackground();
 
-// MARKER-SCHED-PUBLIC — reminder emails for booked calls. The command stamps
+// reminder emails for booked calls. The command stamps
 // before sending, so overlap can't double-send.
 Schedule::command('bookings:send-reminders')
     ->everyFiveMinutes()
     ->withoutOverlapping();
 
-// MARKER-SCHED-GOOGLE — pull Google busy time for the booking window.
+// pull Google busy time for the booking window.
 Schedule::command('bookings:sync-google')
     ->everyFifteenMinutes()
     ->withoutOverlapping();
 
-// MARKER-DEMO-RESET — the demo tenant goes back to its frozen state every hour,
+// the demo tenant goes back to its frozen state every hour,
 // on the hour. The banner counts down to this.
-// MARKER-DEMO-IDLE — the command itself skips idle hours; when it does run, keep it off the app's CPU/IO
+// the command itself skips idle hours; when it does run, keep it off the app's CPU/IO
 Schedule::exec('nice -n 15 ionice -c2 -n7 ' . PHP_BINARY . ' ' . base_path('artisan') . ' demo:reset')
     ->hourly()
     ->withoutOverlapping();
 
-// MARKER-BILLING-CHARGE — settle balances over the threshold, retry failures,
+// settle balances over the threshold, retry failures,
 // reconcile anything mid-flight. Does nothing while the master switch is off.
 Schedule::command('billing:charge-due')
     ->hourly()
     ->withoutOverlapping();
 
-// MARKER-SO-ORPHANS — nightly, after the day's work is done. Each tenant's own
+// nightly, after the day's work is done. Each tenant's own
 // interval decides what it takes; a tenant set to 0 is skipped entirely.
 Schedule::command('special-orders:clear-orphans --apply')
     ->dailyAt('03:10')
     ->withoutOverlapping();
 
-// MARKER-HOLD — nightly. Held carts are never touched; neither is one with a
+// nightly. Held carts are never touched; neither is one with a
 // payment against it. Each tenant's own interval decides the rest.
 Schedule::command('register:clear-recovered --apply')
     ->dailyAt('03:20')
     ->withoutOverlapping();
 
-// MARKER-TENANT-SIGNALS — nightly, after the register sweep. Raises an inbox
+// nightly, after the register sweep. Raises an inbox
 // alert once when a tenant crosses a line; silent while it stays crossed.
 Schedule::command('tenants:signals')
     ->dailyAt('06:10')
     ->withoutOverlapping();
 
-// MARKER-PLATFORM-EMAIL — fires due platform campaigns and drains pending
+// fires due platform campaigns and drains pending
 // sends. Harmless when no stream is configured: it returns immediately.
 Schedule::command('platform:process-campaign-sends')
     ->everyMinute()
     ->withoutOverlapping();
 
-// MARKER-SEO-SIGNALS — nightly search check; problems go to Issues.
+// nightly search check; problems go to Issues.
 Schedule::command('seo:check')
     ->dailyAt('04:15')
     ->withoutOverlapping();
 
-// MARKER-SALES-SITE-SCAN — website pass over prospects; Pause/Resume on Find shops.
+// website pass over prospects; Pause/Resume on Find shops.
 Schedule::command('sales:scan-sites --limit=80')
     ->everyFiveMinutes()
     ->withoutOverlapping(30)

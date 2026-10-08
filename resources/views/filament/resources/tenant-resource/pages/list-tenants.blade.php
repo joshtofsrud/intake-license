@@ -2,7 +2,7 @@
 
     <link rel="stylesheet" href="{{ asset('css/admin/tenants-grid.css') }}?v={{ filemtime(public_path('css/admin/tenants-grid.css')) }}">
 
-    {{-- MARKER-TENANT-PULSE — the usage numbers on each card; hover any number for what it means and what to do --}}
+    {{-- the usage numbers on each card; hover any number for what it means and what to do --}}
     <style>
       .tg-pulse{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;margin:10px 0 2px;border-top:1px solid rgba(127,127,127,.15);padding-top:10px}
       .tg-pulse__c{position:relative;padding:4px 2px;cursor:help;min-width:0}
@@ -30,7 +30,7 @@
                     @if($counts['suspended']) · {{ $counts['suspended'] }} suspended @endif
                     @if($counts['past_due'] ?? 0) · {{ $counts['past_due'] }} past due @endif
                     · ${{ number_format($totalMrr / 100, 0) }}/mo MRR
-                    {{-- MARKER-DEMO-BUILD-CLEANUP — say it, or the number looks
+                    {{-- say it, or the number looks
                          wrong to anyone who counts the cards. --}}
                     @if(($demoCount ?? 0) > 0)
                       <span style="opacity:.55">· excludes {{ $demoCount }} demo {{ $demoCount === 1 ? 'tenant' : 'tenants' }}</span>
@@ -192,7 +192,6 @@
                                            f.submit();
                                        ">Impersonate</a>
                                     <a href="{{ $editUrl }}" class="tg-card__menu-item">Edit</a>
-                                    {{-- MARKER-TENANT-STANDING-ADMIN --}}
                                     @if($t->suspended_at ?? null)
                                       <button type="button" class="tg-card__menu-item"
                                         @click.stop.prevent="open = false; $wire.unsuspend('{{ $t->id }}')">
@@ -248,7 +247,6 @@
                             </div>
                         </div>
 
-                        {{-- MARKER-TENANT-PULSE --}}
                         @php
                           $pu = (array) ($t->pulse ?? []);
                           $money = fn ($c) => '$' . ($c >= 100000 ? number_format($c / 100000, 1) . 'k' : number_format($c / 100, 0));
@@ -374,7 +372,7 @@
     @endif
 
 
-{{-- MARKER-TENANT-STANDING-ADMIN — suspend confirm --}}
+{{-- suspend confirm --}}
 @if($pendingSuspendId)
   @php $suspendTarget = \App\Models\Tenant::find($pendingSuspendId); @endphp
   <div style="position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:900;display:flex;
@@ -400,7 +398,7 @@
   </div>
 @endif
 
-{{-- MARKER-TENANT-STANDING-ADMIN — LEGEND. These badges stopped being
+{{-- LEGEND. These badges stopped being
      decorative the moment enforcement shipped; say what each one now does. --}}
 <div style="margin-top:18px;border:1px solid rgb(63 63 70 / .6);border-radius:11px;padding:13px 15px">
   <div style="font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;color:rgb(113 113 122);margin-bottom:9px">

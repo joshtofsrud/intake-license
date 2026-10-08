@@ -7,7 +7,6 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-/** MARKER-PLATFORM-EMAIL */
 class PlatformCampaign extends Model
 {
     use HasUuids;
@@ -18,7 +17,7 @@ class PlatformCampaign extends Model
     // a fillable array comments out the rest of it, which has bitten campaigns
     // once already (scheduled_at and sent_at silently un-fillable).
     protected $fillable = [
-        'name', 'subject', 'preheader', 'body', // MARKER-PLATFORM-CAMPAIGNS-UI
+        'name', 'subject', 'preheader', 'body',
         'from_name', 'from_email',
         'audience_id', 'blocks', 'status', 'scheduled_at', 'sent_at',
         'total_recipients', 'total_sent', 'total_opened', 'total_clicked',

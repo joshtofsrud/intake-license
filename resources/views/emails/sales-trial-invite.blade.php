@@ -1,4 +1,3 @@
-{{-- MARKER-SALES-INVITE --}}
 <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,sans-serif;font-size:15px;line-height:1.6;color:#111">
   <p>Hi {{ $ownerName ?: 'there' }},</p>
 

@@ -7,7 +7,6 @@ use App\Services\Billing\BillingCardService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
-// MARKER-BILLING-CARD
 class BillingCardController extends Controller
 {
     private function guardManager()
@@ -41,7 +40,7 @@ class BillingCardController extends Controller
         try {
             return response()->json(['success' => true] + $cards->createSetupIntent(tenant()));
         } catch (\Throwable $e) {
-            logger()->error('MARKER-BILLING-CARD setup intent failed', ['error' => $e->getMessage()]);
+            logger()->error('billing-card: setup intent failed', ['error' => $e->getMessage()]);
             return response()->json(['success' => false, 'error' => 'Could not start card setup.'], 500);
         }
     }
@@ -74,7 +73,6 @@ class BillingCardController extends Controller
             ->with('success', 'Card removed.');
     }
 
-    /** MARKER-BILLING-ADDRESS */
     public function billingAddress(Request $request, BillingCardService $cards)
     {
         $this->guardManager();
@@ -95,7 +93,7 @@ class BillingCardController extends Controller
         try {
             $cards->syncAddress($tenant);
         } catch (\Throwable $e) {
-            logger()->warning('MARKER-BILLING-ADDRESS stripe sync failed', [
+            logger()->warning('billing-address: stripe sync failed', [
                 'tenant' => $tenant->id, 'error' => $e->getMessage(),
             ]);
         }

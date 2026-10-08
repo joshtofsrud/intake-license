@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 /**
- * MARKER-RESERVE — the only thing allowed to change reserved_count.
+ * the only thing allowed to change reserved_count.
  *
  * Every method must be called inside the caller's DB::transaction(), the
  * same contract InventoryService already has: a reservation that outlives a

@@ -1,6 +1,5 @@
 <?php
 
-// MARKER-QBP-MAP
 
 namespace Database\Seeders;
 
@@ -37,7 +36,7 @@ class QbpFieldMapSeeder extends Seeder
             // the first entry. Length cannot separate UPC from EAN (leading
             // zeros), so if QBP ships both types this becomes a lookup on
             // BarcodeList — for now every observed row carried a single Y3.
-            // MARKER-BARCODE-TYPE — routed by length in the adapter. Mapping
+            // routed by length in the adapter. Mapping
             // every barcode to upc put 13-digit EANs in the UPC column, which
             // is how a Maxxis tyre BTI files as ean failed to match QBP's
             // identical number.
@@ -47,7 +46,7 @@ class QbpFieldMapSeeder extends Seeder
             // descriptive ------------------------------------------------
             ['name', 'name', 'direct', null, null,
                 'carries real detail like BTI, unlike HLC bare names'],
-            // MARKER-QBP-BULLETS — real copy, e.g. "The maximum allowable rim
+            // real copy, e.g. "The maximum allowable rim
             // thickness at the valve hole is 18mm". Adapter joins the bullets
             // with newlines; BulletPoints holds the array if a list render is
             // wanted later.
@@ -73,13 +72,13 @@ class QbpFieldMapSeeder extends Seeder
             // attributes -------------------------------------------------
             ['attributes', 'Attributes', 'json_passthrough', null, null,
                 'adapter flattens classifications 3 levels deep into {Name,Value,Code,Unit}; multiple featureValues joined'],
-            // MARKER-PICK-ATTR — QBP's flattened classifications already carry
+            // QBP's flattened classifications already carry
             // {Name,Value}, so this reads them directly.
             ['color', 'Attributes', 'pick_attribute', ['names' => ['Color', 'Colour', 'Primary Color']], null, null],
             ['size',  'Attributes', 'pick_attribute', ['names' => ['Size', 'Frame Size', 'Length']], null, null],
 
             // money — value is numeric; formattedValue is "$8.40" ---------
-            // MARKER-QBP-TIER2 — cost_cents belongs here after all. Tier 1
+            // cost_cents belongs here after all. Tier 1
             // sets it to null unconditionally after resolving (see
             // DistributorCatalogSyncService: "Shared catalog never holds
             // tenant cost"), so this row cannot reach the shared catalog.
@@ -100,7 +99,7 @@ class QbpFieldMapSeeder extends Seeder
             // media ------------------------------------------------------
             // File NAMES from API1. The files themselves are CLS/API3 —
             // fetched lazily when something displays them, never bulk.
-            // MARKER-QBP-FIXES — ImageFiles (plural). ImageFile held only the
+            // ImageFiles (plural). ImageFile held only the
             // first, and before the multi-image fix it held none at all on
             // any product carrying more than one.
             ['images', 'ImageFiles', 'json_passthrough', null, null,

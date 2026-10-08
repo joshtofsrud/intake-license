@@ -1,5 +1,5 @@
 <?php
-// MARKER-AGENCIES-SEEDER — Modus Sport Group + roster. Idempotent.
+// Modus Sport Group + roster. Idempotent.
 
 namespace Database\Seeders;
 

@@ -1,5 +1,5 @@
 <?php
-// MARKER-LEDGER-REPWIDGET — the rep's book at a glance.
+// the rep's book at a glance.
 // Principal: agency-wide numbers. Rep: their own.
 
 namespace App\Filament\Rep\Widgets;

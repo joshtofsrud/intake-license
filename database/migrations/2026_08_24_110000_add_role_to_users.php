@@ -1,5 +1,5 @@
 <?php
-// MARKER-ADMIN-ROLES — staff roles + suspension on platform users.
+// staff roles + suspension on platform users.
 // Backfill: is_admin=1 → admin, rep-linked users → rep, ADMIN_EMAIL → owner.
 
 use Illuminate\Database\Migrations\Migration;

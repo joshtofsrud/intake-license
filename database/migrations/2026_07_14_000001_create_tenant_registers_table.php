@@ -1,6 +1,6 @@
 <?php
 
-// MARKER-REGISTER-RECON-DISPLAY — physical register entities + customer displays.
+// physical register entities + customer displays.
 // Registers are the sticky anchor for pay-station displays: each register owns
 // a permanent display_token; an iPad pairs once by opening the token URL and
 // then mirrors whatever cart is active on that register.

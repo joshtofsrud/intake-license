@@ -1,5 +1,4 @@
 <?php
-// MARKER-DISCOUNTS
 
 namespace App\Models\Tenant;
 

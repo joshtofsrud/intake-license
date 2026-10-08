@@ -1,7 +1,7 @@
 @extends('layouts.tenant.app')
 @php $pageTitle = 'Layaways'; @endphp
 
-{{-- MARKER-LAYAWAY-NAV — the tab styles live per page in this app;
+{{-- the tab styles live per page in this app;
      copying the markup without them is why this rendered as plain text. --}}
 @push('styles')
 <style>
@@ -9,7 +9,7 @@
     display:flex;gap:4px;margin:0 0 18px;border-bottom:0.5px solid var(--ia-border);
     flex-wrap:wrap
   }
-  /* MARKER-REG-MOBILE ------------------------------------------------- */
+  /* ----------------------------------------------- */
   /* display:contents keeps the links as direct flex children of the bar on
      desktop, so nothing about the existing layout changes. */
   .reg-tabs-scroll{display:contents}
@@ -180,18 +180,17 @@
 </div>
 
 <div class="reg-tabs-bar">
-  <div class="reg-tabs-scroll">{{-- MARKER-REG-MOBILE --}}
+  <div class="reg-tabs-scroll">
   <a href="{{ route('tenant.register.index') }}" class="reg-tab-link">Transaction</a>
   <a href="{{ route('tenant.register.history.index') }}" class="reg-tab-link">Transaction History</a>
   <a href="{{ route('tenant.register.quotes.index') }}" class="reg-tab-link">Quotes</a>
-  {{-- MARKER-LAYAWAY-TAB --}}
   <a href="{{ route('tenant.register.layaways.index') }}" class="reg-tab-link active">Layaways</a>
-  <a href="{{ route('tenant.register.reconciliation') }}" class="reg-tab-link">Reconciliation</a> {{-- MARKER-REG-RECON-TAB --}}
-  <a href="{{ route('tenant.register.settings') }}" class="reg-tab-link">Settings</a> {{-- MARKER-REG-SETTINGS --}}
+  <a href="{{ route('tenant.register.reconciliation') }}" class="reg-tab-link">Reconciliation</a>
+  <a href="{{ route('tenant.register.settings') }}" class="reg-tab-link">Settings</a>
   </div>
 </div>
 
-{{-- MARKER-LAYAWAY-TAB — legend. Two things here are invisible without being
+{{-- legend. Two things here are invisible without being
      said: held stock is on the shelf but unsellable, and money taken is a
      liability rather than revenue until the goods leave. --}}
 <div style="background:rgba(111,179,242,.07);border:0.5px solid rgba(111,179,242,.3);border-radius:8px;

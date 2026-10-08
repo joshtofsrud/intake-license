@@ -6,7 +6,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * MARKER-GC-LOCATION — which location issued a card, and which location a
+ * which location issued a card, and which location a
  * redemption happened at.
  *
  * Nullable on purpose: a card bought online has no location until the

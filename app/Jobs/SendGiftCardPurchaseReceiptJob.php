@@ -13,7 +13,7 @@ use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
 
 /**
- * MARKER-GC-EMAILS — confirmation to whoever BOUGHT a gift card online.
+ * confirmation to whoever BOUGHT a gift card online.
  * Deliberately never contains the code: for an e-gift the code belongs to
  * the recipient, and for a pickup card it is read out in store.
  */
@@ -65,7 +65,7 @@ class SendGiftCardPurchaseReceiptJob implements ShouldQueue
                 'gift_card_id' => $card->id,
                 'error'        => $e->getMessage(),
             ]);
-            \App\Support\JobFailureReporter::report(self::class, 'Gift card purchase receipt did not send', $e,   // MARKER-JOB-ISSUES-2
+            \App\Support\JobFailureReporter::report(self::class, 'Gift card purchase receipt did not send', $e,
                 ['gift_card_id' => $card->id], $card->tenant_id);
         }
     }

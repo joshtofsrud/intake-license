@@ -34,7 +34,7 @@ class TenantMetricsService
      */
     public function planPriceCents(string $tier): int
     {
-        // MARKER-PATCH-224B — config:cache-safe.
+        // config:cache-safe.
         return match ($tier) {
             'starter' => (int) config('intake.plan_prices.starter', 2900),
             'branded' => (int) config('intake.plan_prices.branded', 7900),
@@ -126,7 +126,7 @@ class TenantMetricsService
     }
 
     /**
-     * MARKER-TENANT-PULSE — is this shop actually using Intake? Quick numbers
+     * is this shop actually using Intake? Quick numbers
      * for the master admin tenant cards. Cached 2 minutes per tenant.
      */
     public function pulse(Tenant $tenant): array

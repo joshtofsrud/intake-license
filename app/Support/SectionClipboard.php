@@ -1,5 +1,4 @@
 <?php
-// MARKER-SECTION-COPY
 
 namespace App\Support;
 

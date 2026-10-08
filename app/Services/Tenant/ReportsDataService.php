@@ -31,7 +31,7 @@ class ReportsDataService
     /**
      * Top KPI row.
      *
-     * MARKER-REPORTS-RANGE-CARDS — the cards follow the selected range. They
+     * the cards follow the selected range. They
      * used to show today whatever range was picked, under labels such as
      * "Bookings" that didn't say so, which read as a report not updating.
      *   One day   — compared with the same weekday a week earlier.
@@ -115,7 +115,7 @@ class ReportsDataService
     /** Zone 1: Revenue. */
     public function zoneRevenue(Carbon $from, Carbon $to): array
     {
-        // MARKER-PATCH-184 — revenue now reads the SALE PAYMENT LEDGER
+        // revenue now reads the SALE PAYMENT LEDGER
         // ("Payments Received", cash-basis), not appointment totals. Payments
         // are signed (refunds negative) so the ledger nets correctly. recorded_at
         // is stored UTC; we bound by the tenant-local day window converted to UTC,
@@ -126,7 +126,7 @@ class ReportsDataService
         $winStart = $from->copy()->setTimezone($tz)->startOfDay()->utc();
         $winEnd   = $to->copy()->setTimezone($tz)->endOfDay()->utc();
 
-        // MARKER-TZ-WAVE4 — DST-correct per-row offset (a fixed "today"
+        // DST-correct per-row offset (a fixed "today"
         // offset shifted historical rows across DST changes).
         [$tzExpr, $tzBind] = tenant_tz_offset_expr('recorded_at', $tz, $winStart, $winEnd);
 
@@ -180,7 +180,7 @@ class ReportsDataService
             ->distinct()
             ->pluck('sale_id');
 
-        // MARKER-OPS-PANELS — by_service is retired. It grouped EVERY line type
+        // by_service is retired. It grouped EVERY line type
         // under a service heading, called sales "bookings", and summed whole
         // sale totals against a cash headline. zoneOps() answers this properly
         // and on one basis. Kept as an empty array so an older cached view
@@ -215,7 +215,7 @@ class ReportsDataService
         ];
     }
     /**
-     * MARKER-OPS-PANELS — the operating numbers, all on ONE basis.
+     * the operating numbers, all on ONE basis.
      *
      * SALE basis: sales dated in the range, cancelled excluded, refund sales
      * subtracted. NOT the cash basis used by zoneRevenue() above — that one
@@ -348,7 +348,7 @@ class ReportsDataService
             'margin_pct'       => $productNet > 0 ? round((($productNet - $cogs) / $productNet) * 100, 1) : 0,
             'uncosted_lines'   => $uncosted,
 
-            // MARKER-OPS-PANELS — whichever category this shop chose to watch.
+            // whichever category this shop chose to watch.
             'spotlight_name'   => $this->tenant->settings['report_spotlight_category'] ?? null,
             'units'            => $units,
             'avg_ticket_cents' => count($signOf) > 0 ? (int) round($allSales / count($signOf)) : 0,
@@ -500,7 +500,7 @@ class ReportsDataService
             ];
         }
 
-        // MARKER-PATCH-184C — top customers by SPEND now read the sale payment
+        // top customers by SPEND now read the sale payment
         // ledger (payments received in window), attributed via the sale's
         // customer. "visits" = distinct sales paid in the window. recorded_at is
         // UTC; bound by the tenant-local window converted to UTC.
@@ -513,7 +513,7 @@ class ReportsDataService
                 $j->on('tsp.sale_id', '=', 'ts.id')
                   ->whereBetween('tsp.recorded_at', [$winStart, $winEnd]);
             })
-            // MARKER-BIZ-NAME — raw rows carry no model methods, so the
+            // raw rows carry no model methods, so the
             // business name is selected and chosen inline.
             ->selectRaw('tenant_customers.id, tenant_customers.first_name, tenant_customers.last_name, tenant_customers.business_name, tenant_customers.customer_type, tenant_customers.created_at, SUM(tsp.amount_cents) as cents, COUNT(DISTINCT ts.id) as visits')
             ->groupBy('tenant_customers.id', 'tenant_customers.first_name', 'tenant_customers.last_name', 'tenant_customers.business_name', 'tenant_customers.customer_type', 'tenant_customers.created_at')
@@ -523,7 +523,7 @@ class ReportsDataService
             ->map(fn($r) => [
                 'name'             => ($r->customer_type === 'business' && trim((string) $r->business_name) !== '')
                     ? trim($r->business_name)
-                    : trim($r->first_name . ' ' . $r->last_name), // MARKER-BIZ-NAME
+                    : trim($r->first_name . ' ' . $r->last_name),
                 'cents'            => (int) $r->cents,
                 'visits'           => (int) $r->visits,
                 'is_new_in_period' => Carbon::parse($r->created_at)->between($from, $to->copy()->endOfDay()),
@@ -584,7 +584,7 @@ class ReportsDataService
             ->get()
             ->keyBy('resource_id');
 
-        // MARKER-PATCH-184D — per-resource revenue from the sale payment ledger
+        // per-resource revenue from the sale payment ledger
         // (payments received in window), attributed via payment -> sale ->
         // appointment -> resource_id. Walk-in retail sales (no appointment) carry
         // no resource and are correctly excluded from per-staff revenue.
@@ -775,10 +775,10 @@ class ReportsDataService
 
     private function revenueForRange(Carbon $from, Carbon $to): int
     {
-        // MARKER-PATCH-184B — payments received (ledger) for the tenant-local
+        // payments received (ledger) for the tenant-local
         // days, replacing appointment totals. recorded_at is UTC; bound by the
         // local-day window converted to UTC. Signed amounts net refunds.
-        // MARKER-REPORTS-RANGE-CARDS — widened from one day to a range.
+        // widened from one day to a range.
         $tz = $this->tenant->timezone();
         $start = $from->copy()->setTimezone($tz)->startOfDay()->utc();
         $end   = $to->copy()->setTimezone($tz)->endOfDay()->utc();
@@ -790,7 +790,7 @@ class ReportsDataService
 
     private function bookingCountForRange(Carbon $from, Carbon $to): int
     {
-        // MARKER-REPORTS-RANGE-CARDS — widened from one day to a range.
+        // widened from one day to a range.
         return TenantAppointment::where('tenant_id', $this->tenant->id)
             ->whereBetween('appointment_date', [$from->toDateString(), $to->toDateString()])
             ->whereNotIn('status', array_merge(self::CANCELLED_STATUSES, self::REFUNDED_STATUSES))
@@ -869,9 +869,9 @@ class ReportsDataService
 
     private function newCustomerCountForRange(Carbon $from, Carbon $to): int
     {
-        // MARKER-TZ-WAVE1 — created_at is UTC; bucket by the tenant days'
+        // created_at is UTC; bucket by the tenant days'
         // UTC range so evening signups land on the right local day.
-        // MARKER-REPORTS-RANGE-CARDS — widened from one day to a range.
+        // widened from one day to a range.
         [$s]     = tenant_day_utc_range($from, $this->tenant->timezone());
         [, $e]   = tenant_day_utc_range($to, $this->tenant->timezone());
         return TenantCustomer::where('tenant_id', $this->tenant->id)

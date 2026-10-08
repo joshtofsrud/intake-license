@@ -1,5 +1,4 @@
 <?php
-// MARKER-RECEIVED-COST
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
@@ -31,7 +30,7 @@ return new class extends Migration
                 'received_cost_at'     => now(),
             ]);
 
-        Log::info("MARKER-RECEIVED-COST: seeded received cost from shop_cost_cents on {$n} item(s)");
+        Log::info("received-cost: seeded received cost from shop_cost_cents on {$n} item(s)");
     }
 
     public function down(): void

@@ -1,5 +1,4 @@
 <?php
-// MARKER-PATCH-217
 
 namespace App\Models\Tenant;
 
@@ -23,10 +22,10 @@ class TenantRentalUnit extends Model
 
     protected $fillable = [
         'tenant_id', 'location_id', 'category_id',
-        'model_id', // MARKER-PATCH-226
+        'model_id',
         'name', 'identifier', 'size', 'status',
-        'identifier_values', // MARKER-FLEET-IDENT
-        'photo_url',         // MARKER-FLEET-PHOTOS
+        'identifier_values',
+        'photo_url',
         'available_for_rent', 'online_booking', 'buffer_minutes',
         'condition_template_id',
         'hourly_rate_cents', 'daily_rate_cents',
@@ -38,7 +37,7 @@ class TenantRentalUnit extends Model
         'available_for_rent'           => 'boolean',
         'online_booking'               => 'boolean',
         'buffer_minutes'               => 'integer',
-        'identifier_values'            => 'array', // MARKER-FLEET-IDENT
+        'identifier_values'            => 'array',
         'hourly_rate_cents'            => 'integer',
         'daily_rate_cents'             => 'integer',
         'weekend_rate_cents'           => 'integer',
@@ -58,7 +57,7 @@ class TenantRentalUnit extends Model
         return $this->belongsTo(TenantRentalCategory::class, 'category_id');
     }
 
-    public function model(): BelongsTo // MARKER-PATCH-226
+    public function model(): BelongsTo
     {
         return $this->belongsTo(TenantRentalModel::class, 'model_id');
     }
@@ -84,7 +83,7 @@ class TenantRentalUnit extends Model
     }
 
     /**
-     * MARKER-PATCH-226 — rates live on the MODEL now. These methods stay
+     * rates live on the MODEL now. These methods stay
      * the seam every caller (pricing, availability, public site,
      * extensions) reads through, so moving rates up required no caller
      * changes. Read through the loaded model; fall back to the unit's own
@@ -106,7 +105,7 @@ class TenantRentalUnit extends Model
         return $this->model?->weekend_rate_cents ?? $this->weekend_rate_cents;
     }
 
-    public function effectiveSeasonalCents(): ?int // MARKER-PATCH-226
+    public function effectiveSeasonalCents(): ?int
     {
         return $this->model?->seasonal_rate_cents;
     }

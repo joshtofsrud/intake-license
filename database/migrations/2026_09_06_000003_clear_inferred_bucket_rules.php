@@ -1,5 +1,4 @@
 <?php
-// MARKER-SOURCE-CAT
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\DB;
@@ -14,7 +13,7 @@ return new class extends Migration
         // source_name UNKNOWN so one rule spoke for every distributor. Nothing
         // reads them after this patch; leaving them would only mislead.
         $n = DB::table('tenant_bucket_rules')->where('set_by', 'mapper')->delete();
-        Log::info("MARKER-SOURCE-CAT: removed {$n} inferred rule(s)");
+        Log::info("source-cat: removed {$n} inferred rule(s)");
     }
 
     public function down(): void

@@ -11,7 +11,7 @@
     <p class="ia-page-subtitle">Drop-off mode · Week of {{ $weekStart->format('M j') }} – {{ $weekEnd->format('M j, Y') }}</p>
   </div>
     <div class="ia-page-actions" style="margin-left:auto;display:flex;gap:10px;align-items:center">
-      {{-- MARKER-PATCH-182B — legend trigger, matches time-slot mode --}}
+      {{-- legend trigger, matches time-slot mode --}}
       <button type="button" class="ia-cal-legend-trigger" id="ia-cal-legend-trigger"
               aria-label="Show calendar legend" aria-expanded="false">
         <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
@@ -22,7 +22,7 @@
         </svg>
         <span class="ia-cal-legend-trigger-label">Legend</span>
       </button>
-      {{-- MARKER-PATCH-163 — canonical new-appointment entry point on calendar header --}}
+      {{-- canonical new-appointment entry point on calendar header --}}
       <button type="button" class="ia-btn ia-btn--primary" onclick="openApptModal()">
         + New appointment
       </button>
@@ -40,10 +40,10 @@
   </div>
 </div>
 
-{{-- MARKER-PATCH-152A — capacity-mode was missing the schedule sub-toggle --}}
+{{-- capacity-mode was missing the schedule sub-toggle --}}
 <x-tenant.schedule-tabs active="calendar" />
 
-{{-- MARKER-PATCH-182C — legend sits ABOVE the calendar, not nested inside it --}}
+{{-- legend sits ABOVE the calendar, not nested inside it --}}
 <div class="ia-cal-legend" id="ia-cal-legend" hidden style="margin-bottom:16px">
   <div class="ia-cal-legend-section">
     <div class="ia-cal-legend-heading">Appointment status</div>
@@ -113,7 +113,7 @@
             $cap   = $r->max_appointments_per_day;
             $atCap = ($cap !== null && $count >= $cap);
           @endphp
-          {{-- MARKER-WEEK-DROPSTATE — data-cap so the drag handler can rebuild the
+          {{-- data-cap so the drag handler can rebuild the
                count badge after a drop. The cap used to live only inside the
                badge's own text, which is gone the moment a cell empties. --}}
           <div class="cal-week-cell {{ $atCap ? 'is-full' : '' }} {{ $day->isToday() ? 'is-today' : '' }}"
@@ -140,13 +140,13 @@
 
 @include('tenant._appt-drawer')
 
-{{-- MARKER-PATCH-163 — defines window.openApptModal() --}}
+{{-- defines window.openApptModal() --}}
 @include('tenant.appointments._create_modal')
 
 @endsection
 
 @push('styles')
-{{-- MARKER-PATCH-182B — shared calendar CSS for the legend component --}}
+{{-- shared calendar CSS for the legend component --}}
 <link rel="stylesheet" href="{{ asset('css/tenant/calendar.css') }}?v={{ filemtime(public_path('css/tenant/calendar.css')) }}">
 <style>
 .cal-view-toggle{display:inline-flex;background:var(--ia-surface);border:0.5px solid var(--ia-border);border-radius:6px;padding:2px;gap:2px}
@@ -154,11 +154,11 @@
 .cal-view-tab:hover{color:var(--ia-text)}
 .cal-view-tab.is-active{background:var(--ia-accent-soft);color:var(--ia-accent)}
 .cal-date-nav{display:inline-flex;align-items:center;gap:4px}
-.cal-date-btn{padding:5px 12px;border-radius:6px;font-size:13px;color:var(--ia-text-muted);text-decoration:none;border:0.5px solid var(--ia-border);background:var(--ia-surface);white-space:nowrap;display:inline-flex;align-items:center;justify-content:center;min-height:34px;box-sizing:border-box}/* MARKER-PATCH-346 */
+.cal-date-btn{padding:5px 12px;border-radius:6px;font-size:13px;color:var(--ia-text-muted);text-decoration:none;border:0.5px solid var(--ia-border);background:var(--ia-surface);white-space:nowrap;display:inline-flex;align-items:center;justify-content:center;min-height:34px;box-sizing:border-box}
 .cal-date-btn:hover{color:var(--ia-text);border-color:var(--ia-border-strong)}
 .cal-date-today{font-weight:600}
 
-.cal-week-wrap{background:var(--ia-surface);border:0.5px solid var(--ia-border);border-radius:8px;overflow-x:auto}/* MARKER-PATCH-345 */
+.cal-week-wrap{background:var(--ia-surface);border:0.5px solid var(--ia-border);border-radius:8px;overflow-x:auto}
 .cal-week-grid{display:grid;gap:0}
 .cal-week-corner{background:var(--ia-surface-2,rgba(255,255,255,0.02));border-bottom:0.5px solid var(--ia-border);border-right:0.5px solid var(--ia-border)}
 .cal-week-day-head{text-align:center;padding:10px 8px;border-bottom:0.5px solid var(--ia-border);border-right:0.5px solid var(--ia-border);background:var(--ia-surface-2,rgba(255,255,255,0.02))}
@@ -186,7 +186,7 @@
 .cal-week-card.sortable-chosen{cursor:grabbing}
 .cal-week-card-ra{font-size:9.5px;font-weight:600;color:var(--ia-text-3);font-feature-settings:"tnum"}
 .cal-week-card-name{font-size:11px;font-weight:500;color:var(--ia-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-/* MARKER-PATCH-182 — status visuals on capacity/drop-off week cards, matching
+/* status visuals on capacity/drop-off week cards, matching
    the time-slot status system. Left border carries the status color; pending
    uses a dashed left border (booked-not-confirmed). */
 .cal-week-card{border-left-width:3px;border-left-style:solid;border-left-color:var(--ia-border)}
@@ -196,7 +196,7 @@
 .cal-week-card[data-status="completed"]{border-left-color:#6C6C6C;opacity:0.7}
 .cal-week-card[data-status="completed"] .cal-week-card-name::after{content:" ✓";color:#6C6C6C}
 
-/* MARKER-PATCH-428 — mobile: full-width controls. Day/Week toggle and the
+/* mobile: full-width controls. Day/Week toggle and the
    date selector share one full-width row; schedule pill spans full width.
    Scoped here so the shared pill (Appointments/Deliveries pages) is unaffected. */
 @media (max-width: 640px) {
@@ -206,7 +206,7 @@
   .ia-page-actions .ia-btn { flex:1; }
   .ia-page-head-right { width:100%; flex-wrap:wrap; justify-content:flex-start !important; }
   .cal-date-btn { padding:8px 14px; font-size:13.5px; min-height:36px; }
-  /* MARKER-PATCH-430 — compact Day/Week toggle; date nav fills to the right edge. */
+  /* compact Day/Week toggle; date nav fills to the right edge. */
   .cal-view-toggle { flex:0 0 auto; }
   .cal-date-nav { display:flex; flex:1; }
   .cal-date-today { flex:1; }
@@ -217,7 +217,7 @@
 @endpush
 
 @push('scripts')
-{{-- MARKER-PATCH-182B — legend toggle (same behavior + storage key as time-slot mode) --}}
+{{-- legend toggle (same behavior + storage key as time-slot mode) --}}
 <script>
 (function () {
   var KEY = 'intake.calendar.legend.open';

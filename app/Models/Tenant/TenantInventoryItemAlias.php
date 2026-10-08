@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-/** MARKER-ITEM-ALIASES — an identifier that used to belong to this item. */
+/** an identifier that used to belong to this item. */
 class TenantInventoryItemAlias extends Model
 {
     use HasUuids;

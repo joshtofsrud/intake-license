@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
- * MARKER-BIZ-CUSTOMER — a person at a business customer. Exactly one contact
+ * a person at a business customer. Exactly one contact
  * per customer is primary; the primary is what the app uses wherever it needs
  * a single email or phone for a business.
  */

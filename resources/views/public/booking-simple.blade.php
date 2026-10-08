@@ -1,6 +1,6 @@
 @extends('public._booking-shell')
 @php
-  // MARKER-PATCH-597 — simple flow now extends _booking-shell. Theme/color vars
+  // simple flow now extends _booking-shell. Theme/color vars
   // are computed in the shell; keep only view-local derivations here.
   $pageTitle = 'Book online';
   $showBackLink = true;
@@ -52,7 +52,7 @@
     .svc-check svg{ width:12px; height:12px; opacity:0; }
     .svc.sel .svc-check svg{ opacity:1; }
 
-    /* MARKER-SIMPLE-CATS — category rail + groups */
+    /* category rail + groups */
     .bk-cat-rail{ display:flex; gap:8px; overflow-x:auto; padding:2px 0 16px; margin:0 -2px; scrollbar-width:none; -webkit-overflow-scrolling:touch; }
     .bk-cat-rail::-webkit-scrollbar{ display:none; }
     .bk-cat-pill{ flex:none; padding:8px 15px; border-radius:99px; border:1px solid var(--p-border); background:transparent; color:var(--p-text); opacity:.72; font-size:13px; font-weight:600; white-space:nowrap; cursor:pointer; font-family:inherit; transition:opacity .12s, border-color .12s, background .12s; }
@@ -131,7 +131,7 @@
       <div class="bk-section-title">{{ $h1 }}</div>
       <div class="bk-section-sub">{{ $bk['step1_sub'] ?? 'Choose the service you need.' }}</div>
       @php
-        // MARKER-SIMPLE-CATS — group the curated menu by category. Group order
+        // group the curated menu by category. Group order
         // follows first appearance in $simpleServices, which BookingFlowService
         // already sorts by simple_sort then sort_order, so the tenant's own
         // curation still drives the page rather than an alphabetical re-sort.
@@ -295,7 +295,6 @@
 @endsection
 
 @push('scripts')
-  <!-- MARKER-SIMPLE-STRIPE-JS -->
   @if($stripeEnabled)<script src="https://js.stripe.com/v3/"></script>@endif
   <script>
   (function(){
@@ -326,7 +325,7 @@
     }
     $all('[data-back]').forEach(function(b){ b.addEventListener('click', function(){ go(+b.dataset.back); }); });
 
-    /* MARKER-SIMPLE-CATS — pill rail filters the groups below. Absent when the
+    /* pill rail filters the groups below. Absent when the
        menu has one group, so bail out rather than assume the rail is there. */
     (function(){
       var rail = $('#bk-cat-rail');
@@ -495,7 +494,7 @@
     });
 
     function confirmCard(clientSecret, token){
-      // MARKER-SIMPLE-STRIPE-JS — reset the button. Every other error path
+      // reset the button. Every other error path
       // does; without it the customer is stuck on a disabled "Booking..."
       // with no way to retry.
       if (!stripe || !card){

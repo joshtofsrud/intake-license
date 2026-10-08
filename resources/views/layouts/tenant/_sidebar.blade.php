@@ -9,7 +9,6 @@
 
 <aside class="ia-sidebar {{ is_impersonating() ? 'is-impersonating' : '' }}">
 
-  {{-- MARKER-SIDEBAR-COLLAPSE --}}
   <button type="button" class="ia-sb-collapse-btn" id="ia-sb-collapse"
           aria-label="Collapse sidebar" aria-expanded="true" title="Collapse sidebar  [">
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -18,7 +17,7 @@
     </svg>
   </button>
 
-  {{-- MARKER-SB-HINT-REMOVE — a one-time hint lived here. It used
+  {{-- a one-time hint lived here. It used
        @push('styles') from inside this partial, but the layout renders those
        stacks before it includes the sidebar, so the markup appeared with no
        CSS: bare text in the corner of every page. The visible bordered button
@@ -47,7 +46,7 @@
         <div class="ia-sb-user-text">
           <div class="ia-sb-user-name">{{ $authUser->name }}</div>
           <div class="ia-sb-user-role">{{ ucfirst($authUser->role) }}</div>
-          {{-- MARKER-IMPERSONATION-PIN — persistent chrome, so the state is
+          {{-- persistent chrome, so the state is
                always visible without a bar sitting on top of the page. --}}
           @if(is_impersonating())
             <div class="ia-sb-imp-badge">Impersonating</div>
@@ -70,7 +69,7 @@
           </a>
         @endif
 
-        {{-- MARKER-SIDEBAR-CLOCK — punch without leaving the page. Hidden for
+        {{-- punch without leaving the page. Hidden for
              anyone exempt from the clock; shows elapsed time when on shift. --}}
         @if(!$authUser->exempt_from_timeclock)
           @php
@@ -95,7 +94,7 @@
           </form>
         @endif
 
-        {{-- MARKER-USER-THEME-PREF — theme toggle writes THIS person's
+        {{-- theme toggle writes THIS person's
              preference only. It used to POST to Settings->appearance, which
              stored the theme on the tenant and flipped it for the whole shop. --}}
         <form method="POST" action="{{ route('tenant.theme.set') }}" id="theme-toggle-form" style="margin:0">
@@ -117,11 +116,11 @@
           </button>
         </form>
 
-        {{-- MARKER-PATCH-496 — switch user (PIN tier only) --}}
-        {{-- MARKER-DEMO-FIXES — never on the demo: it asks for a PIN and a
+        {{-- switch user (PIN tier only) --}}
+        {{-- never on the demo: it asks for a PIN and a
              password no visitor can know, and drops them at a login they
              cannot pass. --}}
-        {{-- MARKER-IMPERSONATE-SWITCH — hidden while impersonating: the
+        {{-- hidden while impersonating: the
              page refuses, and offering a dead end is worse than omitting it. --}}
         @if($currentTenant->pin_tier_active && ! $currentTenant->is_demo && ! is_impersonating())
         <a href="{{ route('tenant.switch') }}" class="ia-sb-user-menu-item" role="menuitem">
@@ -150,8 +149,8 @@
       </div>
     </details>
 
-    {{-- MARKER-OFFLINE-SYNC stage 6 — status row just below the user block --}}
-    {{-- MARKER-IOFLASH — rendered server-side in the online state, identical
+    {{-- stage 6 — status row just below the user block --}}
+    {{-- rendered server-side in the online state, identical
          to renderSidebarBlock()'s output, so the pill is present at first
          paint instead of appearing once the script runs. offline-sync.js
          replaces this with the same markup on init; if the connection is
@@ -159,7 +158,7 @@
          Gated on the same addon check renderMounts() uses. --}}
     <div id="ioMountSidebar">
       @php
-          // MARKER-IOFLASH — resolved here rather than inherited: these
+          // resolved here rather than inherited: these
           // partials render before the layout's $ioEnabled block runs.
           $ioStatusEnabled = app()->bound('tenant')
               && app(\App\Services\FeatureAccessService::class)->hasAddon(app('tenant'), 'offline_sync');

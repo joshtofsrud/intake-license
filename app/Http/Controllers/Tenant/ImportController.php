@@ -2,12 +2,12 @@
 
 namespace App\Http\Controllers\Tenant;
 
-// MARKER-IMPORT1 — the import wizard. Customers in patch 1; the pipeline is
+// the import wizard. Customers in patch 1; the pipeline is
 // shaped so inventory drops in beside it.
 
 use App\Http\Controllers\Controller;
 use App\Models\Tenant\TenantImport;
-use App\Models\Tenant\TenantImportMapping;   // MARKER-IMPORT-PRESETS
+use App\Models\Tenant\TenantImportMapping;
 use App\Services\Tenant\Import\CsvFile;
 use App\Services\Tenant\Import\CustomerImporter;
 use App\Support\ImportFieldRegistry;
@@ -21,7 +21,7 @@ class ImportController extends Controller
         abort_unless(auth('tenant')->user()?->can('customers.import'), 403);
     }
 
-    /** MARKER-IMPORT2 — one importer per type, same contract. */
+    /** one importer per type, same contract. */
     private function importer(TenantImport $import)
     {
         return $import->type === 'inventory'
@@ -43,7 +43,7 @@ class ImportController extends Controller
         $imports = TenantImport::where('tenant_id', $tenant->id)
             ->orderByDesc('created_at')->limit(25)->get();
 
-        // MARKER-IMPORT3 — who ran each one, resolved in one query rather than
+        // who ran each one, resolved in one query rather than
         // per row.
         $actors = \App\Models\Tenant\TenantUser::where('tenant_id', $tenant->id)
             ->whereIn('id', $imports->pluck('created_by_user_id')->filter()->unique())
@@ -56,7 +56,7 @@ class ImportController extends Controller
 
         $total = TenantImport::where('tenant_id', $tenant->id)->count();
 
-        // MARKER-IMPORT-PRESETS — the hub section held back until something
+        // the hub section held back until something
         // could fill it. Renders only when at least one preset exists.
         $presets = TenantImportMapping::where('tenant_id', $tenant->id)
             ->orderByDesc('last_used_at')->orderBy('name')->get();
@@ -66,7 +66,7 @@ class ImportController extends Controller
     }
 
     /**
-     * MARKER-IMPORT3 — a starter CSV, generated FROM the field registry.
+     * a starter CSV, generated FROM the field registry.
      *
      * Header row plus one example row, so it can never drift from what the
      * importer actually accepts: add a field to the registry and it appears
@@ -104,7 +104,7 @@ class ImportController extends Controller
         ]);
     }
 
-    /** MARKER-IMPORT3 — throw away an upload that never got mapped. */
+    /** throw away an upload that never got mapped. */
     public function destroy(string $id)
     {
         $this->guard();
@@ -126,14 +126,14 @@ class ImportController extends Controller
     {
         $this->guard();
 
-        // MARKER-IMPORT3 — the type is chosen on the hub, so this page is the
+        // the type is chosen on the hub, so this page is the
         // upload step for one type rather than a type picker plus a file box.
         $type = $request->query('type');
         if (! in_array($type, ['customers', 'inventory'], true)) {
             return redirect()->route('tenant.imports.index');
         }
 
-        // MARKER-IMPORT-PRESETS — "Use" on the hub lands here; the preset is
+        // "Use" on the hub lands here; the preset is
         // carried through the upload and applied on the map step.
         $presetId = $request->query('preset');
         $preset   = $presetId
@@ -153,7 +153,7 @@ class ImportController extends Controller
         $this->guard();
 
         $data = $request->validate([
-            'type' => ['required', 'in:customers,inventory'], // MARKER-IMPORT2
+            'type' => ['required', 'in:customers,inventory'],
             'file' => ['required', 'file', 'mimes:csv,txt', 'max:20480'],
         ]);
 
@@ -173,14 +173,14 @@ class ImportController extends Controller
             'created_by_user_id'=> auth('tenant')->id(),
         ]);
 
-        // MARKER-IMPORT3 — count once, here, so the hub and the upload summary
+        // count once, here, so the hub and the upload summary
         // don't each re-read the file.
         try {
             $stats = (new CsvFile($abs, $import->delimiter, $import->encoding))->stats(true);
             $import->update(['options' => array_filter([
                 'row_count' => $stats['rows'],
                 'ragged'    => $stats['ragged'],
-                // MARKER-IMPORT-PRESETS — applied on the map step, not here,
+                // applied on the map step, not here,
                 // because that is where the header is read.
                 'preset_id' => $request->input('preset_id'),
             ], fn ($v) => $v !== null)]);
@@ -202,7 +202,7 @@ class ImportController extends Controller
 
         $fields  = ImportFieldRegistry::for($import->type);
 
-        // MARKER-IMPORT-PRESETS — a preset the person picked, then a preset
+        // a preset the person picked, then a preset
         // whose headers match exactly, then the per-column guess. Only ever
         // on a fresh import: once someone has chosen, that choice stands.
         $hash    = TenantImportMapping::hashHeader($preview['header']);
@@ -244,16 +244,16 @@ class ImportController extends Controller
         $presets = TenantImportMapping::where('tenant_id', tenant()->id)
             ->where('type', $import->type)->orderBy('name')->get();
 
-        // MARKER-IMPORT2 — inventory needs a location to count stock at
+        // inventory needs a location to count stock at
         $locations = \App\Models\Tenant\TenantLocation::where('tenant_id', tenant()->id)
             ->where('is_active', true)->orderBy('name')->get();
 
-        // MARKER-IMPORT-LEGEND — the screen is shared by both types, so the
+        // the screen is shared by both types, so the
         // match key it names has to come from the registry, not a hardcoded
         // "email". saveMapping() blocks on this same field.
         $matchField = ImportFieldRegistry::matchField($import->type);
 
-        // MARKER-IMPORT-MPN-BRAND — the vendor list for the import-level select.
+        // the vendor list for the import-level select.
         $vendors = \App\Models\Tenant\TenantVendor::where('tenant_id', tenant()->id)
             ->orderBy('name')->get(['id', 'name']);
 
@@ -279,7 +279,7 @@ class ImportController extends Controller
             ];
         }
 
-        // MARKER-IMPORT-COMBINE — parse combined fields. Kept alongside the
+        // parse combined fields. Kept alongside the
         // direct map (not inside it) because they are a different kind of
         // source; presets save options, so they ride along.
         $combined = [];
@@ -310,40 +310,40 @@ class ImportController extends Controller
         $import->update([
             'mapping' => $map,
             'options' => array_merge((array) $import->options, [
-                'combined'          => $combined, // MARKER-IMPORT-COMBINE
+                'combined'          => $combined,
                 'mode'      => in_array($request->input('mode'), ['upsert', 'insert', 'update'], true)
                                ? $request->input('mode') : 'upsert',
                 'direction' => in_array($request->input('direction'), ['csv', 'keep', 'blank'], true)
                                ? $request->input('direction') : 'csv',
-                // MARKER-IMPORT2 — inventory only
+                // inventory only
                 'location_id'       => $request->input('location_id'),
                 'stock_mode'        => in_array($request->input('stock_mode'), ['set', 'add', 'leave'], true)
                                        ? $request->input('stock_mode') : 'set',
-                // MARKER-IMPORT-MAP-CLEAN - 'create_categories' removed: the
+                // 'create_categories' removed: the
                 // category review decides this per path now, so storing a
                 // blanket flag only invites someone to honour it later.
-                // MARKER-IMPORT-VENDOR-ONCE — the only place a vendor is chosen
+                // the only place a vendor is chosen
                 // or created for an import. "__new" with a name creates one,
                 // once, matched on name first so a retyped existing vendor is
                 // not duplicated either.
                 'import_vendor_id'  => $this->importVendorId($request),
-                // MARKER-CUSTOMER-TAGS — tag every customer this import
+                // tag every customer this import
                 // CREATES. Updates and skips are not tagged: those people
                 // did not come from this file.
                 'tag_name'          => trim((string) $request->input('tag_name', '')) ?: null,
-                // MARKER-IMPORT-TAG-CARD — 'created' (default) or 'touched',
+                // 'created' (default) or 'touched',
                 // which also tags rows that matched an existing customer.
-                'tag_scope'         => in_array($request->input('tag_scope'), ['created', 'touched', 'all'], true) // MARKER-IMPORT-TAG-ALL
+                'tag_scope'         => in_array($request->input('tag_scope'), ['created', 'touched', 'all'], true)
                                        ? $request->input('tag_scope') : 'created',
             ]),
         ]);
 
-        // MARKER-IMPORT-MERGE — the review decides what preview is previewing.
+        // the review decides what preview is previewing.
         return redirect()->route('tenant.imports.conflicts', $import->id);
     }
 
     /**
-     * MARKER-IMPORT-MERGE — conflicts grouped by field. Skipped entirely when
+     * conflicts grouped by field. Skipped entirely when
      * the file doesn't disagree with anything we already have.
      */
     public function conflicts(string $id)
@@ -366,7 +366,7 @@ class ImportController extends Controller
             compact('import', 'importer', 'analysis', 'overrideCount'));
     }
 
-    /** MARKER-IMPORT-MERGE — write the per-field choices back into the mapping. */
+    /** write the per-field choices back into the mapping. */
     public function saveConflicts(Request $request, string $id)
     {
         $this->guard();
@@ -390,7 +390,7 @@ class ImportController extends Controller
         return redirect()->route('tenant.imports.preview', $import->id);
     }
 
-    /** MARKER-IMPORT-MERGE — every differing row for one field. */
+    /** every differing row for one field. */
     public function conflictField(Request $request, string $id, string $field)
     {
         $this->guard();
@@ -430,7 +430,7 @@ class ImportController extends Controller
         ]);
     }
 
-    /** MARKER-IMPORT-MERGE — merge this page's row decisions into the import. */
+    /** merge this page's row decisions into the import. */
     public function saveConflictField(Request $request, string $id, string $field)
     {
         $this->guard();
@@ -461,7 +461,7 @@ class ImportController extends Controller
         ])->with('success', 'Row choices saved.');
     }
 
-    /** MARKER-IMPORT-PRESETS — apply a chosen preset over the current mapping. */
+    /** apply a chosen preset over the current mapping. */
     public function applyPreset(Request $request, string $id)
     {
         $this->guard();
@@ -482,7 +482,7 @@ class ImportController extends Controller
     }
 
     /**
-     * MARKER-IMPORT-PRESETS — save the current mapping for reuse.
+     * save the current mapping for reuse.
      *
      * Saving under a name that already exists for this tenant and type
      * updates it, which is what "save" means to the person doing it.
@@ -514,7 +514,6 @@ class ImportController extends Controller
         return back()->with('success', 'Saved "' . trim($data['name']) . '".');
     }
 
-    /** MARKER-IMPORT-PRESETS */
     public function renamePreset(Request $request, string $mappingId)
     {
         $this->guard();
@@ -527,7 +526,7 @@ class ImportController extends Controller
         return back()->with('success', 'Renamed.');
     }
 
-    /** MARKER-IMPORT-PRESETS — deletes the mapping only; imports are untouched. */
+    /** deletes the mapping only; imports are untouched. */
     public function deletePreset(string $mappingId)
     {
         $this->guard();
@@ -544,19 +543,19 @@ class ImportController extends Controller
         $this->guard();
         $import = $this->find($id);
 
-        // MARKER-IMPORT-QUEUE — the dry run happens on the queue. An 18k-row
+        // the dry run happens on the queue. An 18k-row
         // file cannot finish inside a web request, and a 504 halfway through
         // leaves the operator with nothing at all.
         $hasLedger = \App\Models\Tenant\TenantImportLedgerRow::where('import_id', $import->id)
             ->where('phase', 'preview')->exists();
 
         if (! $hasLedger && ! in_array($import->progress_stage, ['previewing'], true)) {
-            // MARKER-IMPORT-RESULTS — no preview ledger means nothing has run,
+            // no preview ledger means nothing has run,
             // so a 'failed' here is a failed PREVIEW. Retrying it starts clean;
             // otherwise the job keeps 'failed' and the import is stuck there.
             $import->forceFill([
                 'progress_stage' => 'previewing', 'progress_done' => 0,
-                'progress_total' => $import->rowCount() /* MARKER-IMPORT-PROGRESS-FIX */,
+                'progress_total' => $import->rowCount() ,
                 'progress_seen_at' => now(), 'cancel_requested_at' => null,
                 'failure_reason' => null,
                 'status' => $import->status === 'failed' ? 'draft' : $import->status,
@@ -566,7 +565,7 @@ class ImportController extends Controller
 
         $result = $this->importer($import)->previewSummary();
 
-        // MARKER-IMPORT-STATUS-RACE — only claim 'previewed' from a state that
+        // only claim 'previewed' from a state that
         // means "not doing anything else". This line used to run on EVERY load
         // of this page, so refreshing it while a run was queued overwrote
         // 'running' and the run job then quietly refused to start.
@@ -574,7 +573,7 @@ class ImportController extends Controller
             $import->update(['status' => 'previewed']);
         }
 
-        // MARKER-IMPORT-MATCH — the review list and the ledger behind the tiles.
+        // the review list and the ledger behind the tiles.
         $dupes = \App\Models\Tenant\TenantImportLedgerRow::where('import_id', $import->id)
             ->where('phase', 'preview')->where('outcome', 'possible_duplicate')
             ->orderBy('line')->limit(500)->get();
@@ -584,7 +583,7 @@ class ImportController extends Controller
             ? \App\Models\Tenant\TenantImportLedgerRow::where('import_id', $import->id)
                 ->where('phase', 'preview')->where('outcome', $showOutcome)->orderBy('line')->limit(500)->get()
             : collect();
-        // MARKER-IMPORT-CATS — the tally, the decisions, and the tenant's own
+        // the tally, the decisions, and the tenant's own
         // categories for the "map to existing" picker.
         $catRows      = (array) (($import->totals ?? [])['categories'] ?? []);
         $catCapped    = (bool) (($import->totals ?? [])['categoriesCapped'] ?? false);
@@ -608,7 +607,7 @@ class ImportController extends Controller
         $this->guard();
         $import = $this->find($id);
 
-        // MARKER-IMPORT-MATCH — no silent merges: a run cannot start while any
+        // no silent merges: a run cannot start while any
         // possible duplicate from the preview is unresolved.
         $decided   = ($import->row_overrides ?? [])['__match'] ?? [];
         $unresolved = \App\Models\Tenant\TenantImportLedgerRow::where('import_id', $import->id)
@@ -623,14 +622,14 @@ class ImportController extends Controller
         $import->forceFill([
             'status' => 'running', 'started_at' => now(),
             'progress_stage' => 'running', 'progress_done' => 0,
-            'progress_total' => $import->rowCount() /* MARKER-IMPORT-PROGRESS-FIX */,
+            'progress_total' => $import->rowCount() ,
             'progress_seen_at' => now(), 'cancel_requested_at' => null,
-            // MARKER-IMPORT-RESULTS — a retry must not inherit the last
+            // a retry must not inherit the last
             // attempt's reason, finish time or error file.
             'failure_reason' => null, 'finished_at' => null, 'error_path' => null,
         ])->save();
 
-        // MARKER-IMPORT-QUEUE-CLEAN — off the request; the modal watches it.
+        // off the request; the modal watches it.
         // The old synchronous body was deleted, not commented out: the job
         // is the record of what happens now.
         \App\Jobs\RunImportJob::dispatch(tenant()->id, $import->id);
@@ -641,7 +640,7 @@ class ImportController extends Controller
 
     /** Original columns + a reason column, so it can be fixed and re-imported. */
     /**
-     * MARKER-IMPORT-DRILLDOWN — what is actually behind one of the numbers.
+     * what is actually behind one of the numbers.
      * Returns JSON so the result page can open it without a page load.
      *
      * created/updated come from the row ledger; errors are read back out of
@@ -702,7 +701,7 @@ class ImportController extends Controller
         ]);
     }
 
-    /** MARKER-IMPORT-DRILLDOWN — read the error CSV back for on-screen display. */
+    /** read the error CSV back for on-screen display. */
     private function readErrorCsv(TenantImport $import, int $limit): array
     {
         if (! $import->error_path) return [];
@@ -730,7 +729,7 @@ class ImportController extends Controller
         return $out;
     }
 
-    /** MARKER-IMPORT-QUEUE-CLEAN — one writer, shared with RunImportJob. */
+    /** one writer, shared with RunImportJob. */
     private function writeErrorCsv(TenantImport $import, array $rows): string
     {
         return \App\Support\ImportErrorCsv::write($import, $rows);
@@ -755,7 +754,7 @@ class ImportController extends Controller
     }
 
     /**
-     * MARKER-IMPORT2 — reverse an import.
+     * reverse an import.
      *
      * Anything that has been used since is kept rather than deleted, and the
      * result says so plainly. Undoing twice is harmless: reversed rows are
@@ -772,7 +771,7 @@ class ImportController extends Controller
             return back()->with('error', 'Only a finished import can be reversed.');
         }
 
-        // MARKER-IMPORT-PROGRESS — queued. This used to run inline: every row
+        // queued. This used to run inline: every row
         // undone in the web request, with fifteen unbatched queries apiece.
         $pending = \App\Models\Tenant\TenantImportRow::where('import_id', $import->id)
             ->where('tenant_id', tenant()->id)->whereNull('reversed_at')->count();
@@ -795,7 +794,7 @@ class ImportController extends Controller
     }
 
     /**
-     * MARKER-IMPORT-MATCH — record merge / create / skip for possible
+     * record merge / create / skip for possible
      * duplicates. Stored alongside per-field conflict decisions so one place
      * holds every choice made about this file.
      */
@@ -824,7 +823,7 @@ class ImportController extends Controller
     }
 
     /**
-     * MARKER-IMPORT-MATCH — the ledger as a CSV: the input columns as they
+     * the ledger as a CSV: the input columns as they
      * were, with Outcome / Reason / Matched / Match key appended. Every input
      * row gets an output row.
      */
@@ -852,7 +851,7 @@ class ImportController extends Controller
         }, $name, ['Content-Type' => 'text/csv']);
     }
 
-    /** MARKER-IMPORT-VENDOR-ONCE — resolve the import-level vendor choice. */
+    /** resolve the import-level vendor choice. */
     private function importVendorId(Request $request): ?string
     {
         $choice = (string) $request->input('import_vendor_id', '');
@@ -860,7 +859,7 @@ class ImportController extends Controller
             return null;
         }
 
-        // MARKER-IMPORT-VENDOR-MODAL — creation moved to the modal, which
+        // creation moved to the modal, which
         // posts to VendorController::store and puts a real id in the select
         // before the mapping is saved. "__new" can only arrive if the modal
         // was cancelled mid-way; treat it as no vendor rather than guess.
@@ -872,14 +871,14 @@ class ImportController extends Controller
     }
 
     /**
-     * MARKER-IMPORT-QUEUE — what the modal polls. Deliberately cheap: four
+     * what the modal polls. Deliberately cheap: four
      * columns and a count, no file work.
      */
     public function progress(string $id)
     {
         $import = $this->find($id);
 
-        // MARKER-IMPORT-PROGRESS-500 — parse rather than assume. A cast can go
+        // parse rather than assume. A cast can go
         // missing again on the next column; a status endpoint that fatals is
         // worse than one that is briefly vague, because the screen it feeds
         // is the only thing telling the operator anything.
@@ -891,13 +890,13 @@ class ImportController extends Controller
         $stalled = in_array($import->progress_stage, ['previewing', 'running'], true)
                    && $seen && $seen->lt(now()->subSeconds(30));
 
-        // MARKER-IMPORT-STATUS-RACE — stage says running, status disagrees:
+        // stage says running, status disagrees:
         // the job was dispatched and refused itself. That is a different thing
         // from slow, and the modal must not call it stalled.
         $orphaned = $import->progress_stage === 'running' && $import->status !== 'running'
                     && ! in_array($import->status, ['done', 'cancelled', 'failed'], true);
 
-        // MARKER-IMPORT-PROGRESS-FIX-ELAPSED — elapsed is a server fact. The
+        // elapsed is a server fact. The
         // browser was timing from page load, so a restored tab reported 356
         // minutes on a run that had just started.
         $from = $import->started_at ?: $import->updated_at;
@@ -914,14 +913,14 @@ class ImportController extends Controller
             'live'      => ($import->totals ?? [])['live'] ?? null,
             'seen_ago'  => $seen ? $seen->diffInSeconds(now()) : null,
             'stalled'   => $stalled,
-            'orphaned'  => $orphaned, // MARKER-IMPORT-STATUS-RACE
+            'orphaned'  => $orphaned,
             'cancelled' => (bool) $import->cancel_requested_at,
             'reason'    => $import->failure_reason,
             'finished'  => in_array($import->progress_stage, ['finished', 'failed', 'cancelled'], true),
         ]);
     }
 
-    /** MARKER-IMPORT-QUEUE — a cancel the job honours between chunks. */
+    /** a cancel the job honours between chunks. */
     public function cancelRun(string $id)
     {
         $import = $this->find($id);
@@ -931,7 +930,7 @@ class ImportController extends Controller
     }
 
     /**
-     * MARKER-IMPORT-CATS — record create / map / leave off per category path.
+     * record create / map / leave off per category path.
      * Stored beside the duplicate decisions so one place holds every choice
      * made about this file.
      */

@@ -5,7 +5,7 @@ namespace App\Support;
 use App\Models\Tenant;
 
 /**
- * MARKER-SO-ORPHANS — how long an orphaned special order is kept.
+ * how long an orphaned special order is kept.
  *
  * An orphan is one whose sale, work order or line has gone. It cannot be
  * fulfilled and nobody is waiting for it, but it is not deleted on sight:

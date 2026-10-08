@@ -1,6 +1,6 @@
 @extends('layouts.tenant.app')
 
-{{-- MARKER-PATCH-614 — Team timesheet (manager). Week grid + edits + audit. --}}
+{{-- Team timesheet (manager). Week grid + edits + audit. --}}
 
 @section('title', 'Time clock · Team')
 
@@ -24,7 +24,6 @@
 .tt-flag.open { background:rgba(190,242,100,.14); color:var(--ia-accent); }
 .tt-flag.auto { background:rgba(245,158,11,.14); color:#F59E0B; }
 .tt-c .z { color:var(--ia-text-muted); opacity:.4; }
-/* MARKER-TIMECLOCK-DAY-DETAIL */
 .tt-c.day.has { cursor:pointer; }
 .tt-c.day.has:hover { background:color-mix(in srgb,var(--ia-accent) 7%,transparent); }
 .tt-cnt { display:inline-block; font-size:9.5px; font-weight:700; padding:1px 6px; border-radius:9px; margin-left:4px; background:color-mix(in srgb,var(--ia-accent) 18%,transparent); color:var(--ia-accent); }
@@ -86,7 +85,7 @@
         @for($i = 0; $i < 7; $i++)
           @php
             $m = $u['days'][$i]; $flag = $u['flags'][$i]; $sess = $u['sessions'][$i];
-            // MARKER-TIMECLOCK-DAY-DETAIL — payload precomputed here; inline
+            // payload precomputed here; inline
             // @json() with a nested array breaks Blade's directive parser.
             $dayPayload = count($sess) ? json_encode([
                 'name' => $u['name'],
@@ -95,7 +94,7 @@
                 'sessions' => $sess,
             ]) : null;
           @endphp
-          {{-- MARKER-TIMECLOCK-DAY-DETAIL — clickable cell + session count --}}
+          {{-- clickable cell + session count --}}
           <div class="tt-c day {{ count($sess) ? 'has' : '' }}"
                @if($dayPayload)
                  onclick="ttDayOpen(JSON.parse(this.dataset.day))" data-day="{{ $dayPayload }}"
@@ -125,7 +124,7 @@
   </div>
 </div>
 
-{{-- MARKER-TIMECLOCK-DAY-DETAIL — per-day session breakdown --}}
+{{-- per-day session breakdown --}}
 <div class="tt-mov" id="tt-day">
   <div class="tt-modal">
     <div class="tt-mh"><span id="tt-day-title">Day detail</span><span style="cursor:pointer" onclick="document.getElementById('tt-day').classList.remove('on')">×</span></div>

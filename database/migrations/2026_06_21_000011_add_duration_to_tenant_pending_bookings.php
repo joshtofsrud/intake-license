@@ -4,7 +4,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-// MARKER-PATCH-383 — a hold needs its occupied duration to block the right window.
+// a hold needs its occupied duration to block the right window.
 return new class extends Migration {
     public function up(): void
     {

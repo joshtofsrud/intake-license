@@ -1,5 +1,5 @@
 <?php
-// MARKER-PATCH-612 — recurring day-of-week availability band.
+// recurring day-of-week availability band.
 
 namespace App\Models\Tenant;
 

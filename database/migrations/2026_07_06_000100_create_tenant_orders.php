@@ -4,7 +4,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-// MARKER-PATCH-560 — Online Retail Wave 1: orders. Cart and order are ONE
+// Online Retail Wave 1: orders. Cart and order are ONE
 // row with a status lifecycle (cart -> pending_payment -> paid ->
 // fulfilling -> fulfilled -> completed; cancelled/abandoned terminal),
 // mirroring how sales carry draft/quote states. Stock is never touched by

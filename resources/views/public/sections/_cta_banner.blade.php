@@ -1,4 +1,4 @@
-{{-- MARKER-PATCH-158-G20 — cta_banner public renderer (v2) --}}
+{{-- cta_banner public renderer (v2) --}}
 @php
   $c = $c ?? [];
 
@@ -18,7 +18,7 @@
   $imgUrl  = $c['bg_image_url'] ?? '';
   $overlayOpacity = max(0, min(100, (int)($c['bg_overlay_opacity'] ?? 50)));
   $overlayColor   = $c['bg_overlay_color'] ?? '#000000';
-  // MARKER-PATCH-299 — bake overlay alpha into rgba so the veil keeps
+  // bake overlay alpha into rgba so the veil keeps
   // opacity:1; browsers drop backdrop-filter blur when the element's own
   // opacity is < 1, which silently disabled the Background blur control.
   $_ovh = ltrim($overlayColor, '#');
@@ -26,7 +26,7 @@
   if (strlen($_ovh) !== 6) { $_ovh = '000000'; }
   $overlayRgba = 'rgba('.hexdec(substr($_ovh,0,2)).','.hexdec(substr($_ovh,2,2)).','.hexdec(substr($_ovh,4,2)).','.round($overlayOpacity / 100, 3).')';
 
-  // MARKER-PATCH-250 — parallax + blur (image mode only, ?? everywhere).
+  // parallax + blur (image mode only, ?? everywhere).
   $hasImage   = $bgMode === 'image' && $imgUrl;
   $parallaxOn = $hasImage && (($c['bg_parallax'] ?? '0') === '1');
   $pDepth     = max(0, min(70, (int)($c['bg_parallax_depth'] ?? 35))) / 100;
@@ -79,7 +79,7 @@
   background-size: cover;
   background-position: center;
   @elseif($parallaxOn)
-  background-color: {{ $bgColor }}; {{-- MARKER-PATCH-250 — image moves to .p-cta-bg --}}
+  background-color: {{ $bgColor }}; {{-- image moves to .p-cta-bg --}}
   @elseif($bgMode === 'gradient')
   background: linear-gradient({{ (int)($c['bg_gradient_angle'] ?? 135) }}deg, {{ $gradF }} 0%, {{ $gradT }} 100%);
   @else
@@ -96,7 +96,7 @@
 }
 @endif
 @if($parallaxOn)
-.{{ $instId }} .p-cta-bg { {{-- MARKER-PATCH-250 --}}
+.{{ $instId }} .p-cta-bg {
   position: absolute;
   left: 0; right: 0; top: -18%; bottom: -18%;
   background-color: {{ $bgColor }};
@@ -109,7 +109,7 @@
 }
 @endif
 @if($useVeil)
-.{{ $instId }} .p-cta-veil { {{-- MARKER-PATCH-250 --}}
+.{{ $instId }} .p-cta-veil {
   position: absolute; inset: 0;
   @if($overlayOpacity > 0)
   background: {{ $overlayRgba }};
@@ -205,7 +205,7 @@
 </style>
 
 <section class="{{ $instId }} p-cta-banner {{ $customClass }}" @if($anchorId) id="{{ $anchorId }}" @endif>
-  {{-- MARKER-PATCH-250 — layered background: bg (moves) under veil under content. --}}
+  {{-- layered background: bg (moves) under veil under content. --}}
   @if($parallaxOn)<div class="p-cta-bg" data-ia-parallax="{{ $pDepth }}"></div>@endif
   @if($useVeil)<div class="p-cta-veil"></div>@endif
   <div class="p-cta-inner">
@@ -235,7 +235,7 @@
 </section>
 
 @if($parallaxOn)
-{{-- MARKER-PATCH-250 — same shared driver as the hero; the window guard
+{{-- same shared driver as the hero; the window guard
      ensures exactly one scroll listener no matter which partial loads first. --}}
 <script>
 (function () {

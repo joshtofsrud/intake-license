@@ -5,7 +5,7 @@
 
 @push('styles')
 <style>
-  /* MARKER-REG-RECON-TAB — the Register tab bar, as the other Register pages
+  /* the Register tab bar, as the other Register pages
      draw it; this page had none, so it could only be reached from an alert. */
   .reg-tabs-bar{display:flex;gap:4px;margin:0 0 18px;border-bottom:0.5px solid var(--ia-border);flex-wrap:wrap}
   .reg-tabs-scroll{display:contents}
@@ -129,7 +129,7 @@
     btn.addEventListener('click', async function(){
       var pi = btn.getAttribute('data-reconcile');
       var saleId = btn.getAttribute('data-sale');
-      if (!(await iaConfirm('Record this Stripe payment against the candidate sale? This writes a ledger entry.'))) return; // MARKER-INLINE-CONFIRM-1
+      if (!(await iaConfirm('Record this Stripe payment against the candidate sale? This writes a ledger entry.'))) return;
       btn.disabled = true; btn.textContent = 'Recording…';
       try {
         var res = await fetch(RECORD_URL, {

@@ -36,8 +36,8 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
-        // MARKER-PATCH-116 — enforce one primary domain per tenant
-        // MARKER-PAGER-DEFAULT -- every bare ->links() renders the themed
+        // enforce one primary domain per tenant
+        // every bare ->links() renders the themed
         // paginator (PATCH-364) instead of Laravel's unstyled tailwind default.
         \Illuminate\Pagination\Paginator::defaultView('vendor.pagination.intake');
 
@@ -54,21 +54,21 @@ class AppServiceProvider extends ServiceProvider
         Event::subscribe(LogAuthEvents::class);
         Event::subscribe(LogMailEvents::class);
 
-        // MARKER-PLATFORM-MAIL — fill the platform sender on mail that has
+        // fill the platform sender on mail that has
         // not set its own From (was falling through to hello@example.com).
         Event::listen(
             \Illuminate\Mail\Events\MessageSending::class,
             \App\Listeners\ApplyPlatformMailFrom::class
         );
 
-        // MARKER-DEMO-NO-MAIL — nothing from a demo shop, and nothing to a
+        // nothing from a demo shop, and nothing to a
         // reserved fake domain, ever leaves Intake (returns false = not sent).
         Event::listen(
             \Illuminate\Mail\Events\MessageSending::class,
             \App\Listeners\BlockDemoAndReservedMail::class
         );
 
-        // MARKER-STREAM-ASSERT — every send declares its Postmark stream;
+        // every send declares its Postmark stream;
         // unstamped mail is transactional and gets 'outbound' explicitly.
         Event::listen(
             \Illuminate\Mail\Events\MessageSending::class,
@@ -76,7 +76,7 @@ class AppServiceProvider extends ServiceProvider
         );
         Event::subscribe(LogQueueEvents::class);
 
-        // MARKER-TASK-HEALTH — record every scheduled run so a job that stops
+        // record every scheduled run so a job that stops
         // working is visible before a shop reports it.
         Event::listen(\Illuminate\Console\Events\ScheduledTaskStarting::class,
             [\App\Listeners\RecordScheduledTask::class, 'starting']);
@@ -88,7 +88,7 @@ class AppServiceProvider extends ServiceProvider
         // Model observers
         Tenant::observe(TenantObserver::class);
         TenantUser::observe(TenantUserObserver::class);
-        \App\Models\Tenant\TenantAppointment::observe(\App\Observers\TenantAppointmentObserver::class); // MARKER-PATCH-311
+        \App\Models\Tenant\TenantAppointment::observe(\App\Observers\TenantAppointmentObserver::class);
         \App\Models\Tenant\TenantLocation::observe(TenantLocationObserver::class);
     }
 }

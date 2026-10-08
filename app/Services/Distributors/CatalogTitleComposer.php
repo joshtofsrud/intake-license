@@ -1,5 +1,4 @@
 <?php
-// MARKER-PATCH-HLC16
 
 namespace App\Services\Distributors;
 
@@ -20,7 +19,7 @@ class CatalogTitleComposer
     private array $settingCache = [];
     /** @var array<string,array<int,string>> keyed "distributor|categoryPath" */
     private array $patternCache = [];
-    /** MARKER-TITLE-CATEGORY-SCOPE — whole tables, read once per instance.
+    /** whole tables, read once per instance.
      *  Both are small and every row is a candidate now that matching happens
      *  in PHP, so per-scope queries would be strictly more work. */
     private ?array $settingRows = null;
@@ -37,7 +36,7 @@ class CatalogTitleComposer
      */
     public function compose(string $distributorCode, array $parts): array
     {
-        // MARKER-TITLE-CATEGORY-SCOPE — this used to carry its own copy of
+        // this used to carry its own copy of
         // the whole token-building block that makeResolver() already had.
         // Two copies meant the editor preview and the real sync could drift.
         $categoryPath = (string) ($parts['category_path'] ?? '');
@@ -54,7 +53,7 @@ class CatalogTitleComposer
         ];
     }
 
-    // MARKER-TITLE-DEDUP -- collapse immediately repeated words ("Silver
+    // collapse immediately repeated words ("Silver
     // Silver EA" -> "Silver EA") after rendering. Case-insensitive, adjacent
     // repeats only, so legitimate non-adjacent recurrences are untouched.
     public static function collapseRepeats(string $s): string
@@ -77,11 +76,11 @@ class CatalogTitleComposer
             $setting->color_attribute_priority ?: self::FALLBACK_COLOR_PRIORITY
         );
 
-        // MARKER-TITLE-CATEGORY-SCOPE — a named attribute beats scraping the
+        // a named attribute beats scraping the
         // description. On tires the description says "TPI 60x2TPI" before it
         // ever says "Labeled Size 27.5''x2.40", so the regex path returned
         // the thread count as the size.
-        // MARKER-REVIEW-PAGE — the editor previews an UNSAVED size attribute,
+        // the editor previews an UNSAVED size attribute,
         // so an override wins over the stored priority when one is passed.
         $sizePriority = $sizeAttrOverride !== null
             ? $sizeAttrOverride
@@ -102,7 +101,7 @@ class CatalogTitleComposer
             $model = rtrim(substr($model, 0, -strlen($mpn)), " -,");
         }
 
-        // MARKER-TITLE-DEDUP -- some feeds ship model strings that already
+        // some feeds ship model strings that already
         // begin with the brand, so a "{brand} {model}" template renders
         // "RockShox RockShox ...". Strip the duplicate prefix here rather than
         // per template, so every distributor benefits.
@@ -123,7 +122,7 @@ class CatalogTitleComposer
         }
         $unit = trim((string) ($parts['unit'] ?? ''));
 
-        // MARKER-TITLE-TOKENS — everything the parts array carries is
+        // everything the parts array carries is
         // reachable. Anything added to $parts must be added here too, or it
         // silently resolves to empty.
         $tokens = [
@@ -195,7 +194,7 @@ class CatalogTitleComposer
             'category'      => $row->category,
             'category_path' => $row->category_path,
             'unit'          => $row->uom,
-            // MARKER-TITLE-TOKENS — must mirror the sync's parts array below,
+            // must mirror the sync's parts array below,
             // or the preview shows something the sync will not produce.
             'item_group'    => $row->item_group,
             'size_id'       => $row->size_id,
@@ -213,7 +212,7 @@ class CatalogTitleComposer
     private function render(string $template, callable $resolve): string
     {
         if ($template === '') { return ''; }
-        // MARKER-TITLE-TOKENS — a token may be a chain: {size|attr:Width|desc}
+        // a token may be a chain: {size|attr:Width|desc}
         // takes the first part that resolves to something. Lets one rule cope
         // with a distributor that files the same fact under different names,
         // instead of needing a category rule for each.
@@ -250,12 +249,12 @@ class CatalogTitleComposer
 
     /** First size-shaped token in the description, by configured pattern order. */
     /**
-     * MARKER-TITLE-SCOPES — the effective title template for a distributor's
+     * the effective title template for a distributor's
      * catch-all scope, so the health scan knows which tokens to check for
      * emptiness without re-deriving the template itself.
      */
     /**
-     * MARKER-ONE-RESOLVER — pass the item's FULL category path here, not a
+     * pass the item's FULL category path here, not a
      * pre-resolved scope. The ladder is this method's job.
      */
     public function titleTemplateFor(string $distributorCode, string $categoryPath = ''): string
@@ -280,7 +279,6 @@ class CatalogTitleComposer
     }
 
     /**
-     * MARKER-TITLE-CATEGORY-SCOPE
      *
      * Category keys for a path, most specific first, always ending in ''
      * (any category). "Tires > Mountain > Tubeless Ready" yields the full
@@ -326,13 +324,13 @@ class CatalogTitleComposer
      * the distributor loop is the outer one.
      */
     /**
-     * MARKER-ONE-RESOLVER — THE rule ladder. Anything that needs to know
+     * THE rule ladder. Anything that needs to know
      * which rule applies to a category calls this; nothing re-implements it.
      * Returns the matched row, or null when only the built-in fallback
      * applies. Callers that want a usable object should use setting().
      */
     /**
-     * MARKER-TITLE-CONTROL — which rule supplied EACH field, not just the row
+     * which rule supplied EACH field, not just the row
      * that matched first.
      *
      * setting() already fills every field from the first rule that has a
@@ -414,7 +412,7 @@ class CatalogTitleComposer
     }
 
     /**
-     * MARKER-FIELD-INHERITANCE — resolve each field up the ladder on its own.
+     * resolve each field up the ladder on its own.
      *
      * A rule that sets only a title used to discard its parent's subtitle,
      * search blob and color priority, because the first matching ROW won
@@ -487,7 +485,7 @@ class CatalogTitleComposer
     }
 
     /**
-     * MARKER-TITLE-CATEGORY-SCOPE — patterns resolve by the same ladder as
+     * patterns resolve by the same ladder as
      * templates, and the FIRST scope with any rows wins outright. They are
      * not merged: a tire list that inherited the generic NNxNN pattern
      * would keep matching the TPI, which is the bug this exists to stop.

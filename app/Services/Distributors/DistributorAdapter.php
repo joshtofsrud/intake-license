@@ -1,5 +1,4 @@
 <?php
-// MARKER-PATCH-HLC1
 
 namespace App\Services\Distributors;
 

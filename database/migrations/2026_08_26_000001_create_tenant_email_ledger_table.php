@@ -1,5 +1,4 @@
 <?php
-// MARKER-EMAIL-LEDGER
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;

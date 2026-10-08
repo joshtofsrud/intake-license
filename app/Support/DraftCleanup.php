@@ -5,7 +5,7 @@ namespace App\Support;
 use App\Models\Tenant;
 
 /**
- * MARKER-HOLD — how long an unnamed recovered cart is kept.
+ * how long an unnamed recovered cart is kept.
  *
  * Held carts are never swept: someone said they wanted them. 0 means never
  * sweep anything.

@@ -1,5 +1,4 @@
 <?php
-// MARKER-BRAND-SYNC
 
 namespace App\Jobs;
 

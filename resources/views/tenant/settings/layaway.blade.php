@@ -2,10 +2,10 @@
 @php $pageTitle = 'Layaway'; @endphp
 
 @section('content')
-{{-- MARKER-LAYAWAY — the shop's policy. Every number here is snapshotted onto
+{{-- the shop's policy. Every number here is snapshotted onto
      a plan the day it opens, so changing this never rewrites an existing
      agreement. --}}
-{{-- MARKER-LAYAWAY-NAV — Settings is a tabbed page and this is a separate
+{{-- Settings is a tabbed page and this is a separate
      route; without this you land here with no tabs and no way back. Every
      other settings sub-page does exactly this. --}}
 <a href="{{ route('tenant.settings.index') }}#payments" class="ia-back-link">&larr; Payments settings</a>

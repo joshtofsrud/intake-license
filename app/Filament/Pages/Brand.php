@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\Storage;
 use Livewire\WithFileUploads;
 
 /**
- * MARKER-BRAND — master admin › Brand: Intake's own logo, icon and share image.
+ * master admin › Brand: Intake's own logo, icon and share image.
  * Uploads wait until Save; the set they replace is kept (last five) so it can
  * be switched back. Shops' own logos are not touched.
  */

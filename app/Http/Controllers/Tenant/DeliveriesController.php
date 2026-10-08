@@ -1,5 +1,4 @@
 <?php
-// MARKER-PATCH-152B
 
 namespace App\Http\Controllers\Tenant;
 
@@ -20,7 +19,7 @@ use Illuminate\View\View;
  */
 class DeliveriesController extends Controller
 {
-    // MARKER-PATCH-427 — list a customer's saved bikes (+ composed address) for the delivery drawer.
+    // list a customer's saved bikes (+ composed address) for the delivery drawer.
     public function customerAssets(Request $request): \Illuminate\Http\JsonResponse
     {
         $tenant = tenant();
@@ -49,7 +48,7 @@ class DeliveriesController extends Controller
         return response()->json(['assets' => $assets, 'address' => $address ?: null]);
     }
 
-    // MARKER-PATCH-427 — snapshot the selected customer bikes onto the delivery (name + identifier).
+    // snapshot the selected customer bikes onto the delivery (name + identifier).
     private function snapshotAssets(array $data): array
     {
         $ids = array_values(array_filter((array) ($data['assets'] ?? [])));
@@ -67,7 +66,7 @@ class DeliveriesController extends Controller
             ->values()->all();
     }
 
-    // MARKER-PATCH-329 — render one pickup/dropoff slip on demand.
+    // render one pickup/dropoff slip on demand.
     public function printSlip(Request $request, string $id): View
     {
         $tenant = tenant();
@@ -106,14 +105,14 @@ class DeliveriesController extends Controller
         ]];
 
         $cfg   = (array) (($tenant->settings['work_order_tag'] ?? []));
-        $print = \App\Services\PrintIdentityService::forTenant($tenant); // MARKER-PATCH-332
+        $print = \App\Services\PrintIdentityService::forTenant($tenant);
         $embed     = $request->boolean('embed');
         $dateLabel = tlocal($d->scheduled_at, 'D M j, Y');
 
         return view('tenant.deliveries.slips', compact('tenant', 'slips', 'print', 'embed', 'dateLabel'));
     }
 
-    // MARKER-PATCH-321 — render the day's pickup/delivery slips (80mm stack).
+    // render the day's pickup/delivery slips (80mm stack).
     public function printSlips(Request $request): View
     {
         $tenant = tenant();
@@ -164,7 +163,7 @@ class DeliveriesController extends Controller
         }
 
         $cfg   = (array) (($tenant->settings['work_order_tag'] ?? []));
-        $print = \App\Services\PrintIdentityService::forTenant($tenant); // MARKER-PATCH-332
+        $print = \App\Services\PrintIdentityService::forTenant($tenant);
         $embed     = $request->boolean('embed');
         $dateLabel = $start->format('D M j, Y');
 
@@ -174,7 +173,7 @@ class DeliveriesController extends Controller
     public function index(Request $request): View
     {
         $tenant = tenant();
-        // MARKER-PATCH-156 — gate behind feature toggle
+        // gate behind feature toggle
         abort_unless($tenant->deliveries_enabled, 404);
         $view   = $request->query('view', 'week');
         if (!in_array($view, ['day', 'week'], true)) $view = 'week';
@@ -194,7 +193,7 @@ class DeliveriesController extends Controller
             'date'        => $date,
             'is_timeslot' => $isTimeSlot,
             'resources'   => $isTimeSlot ? $svc->activeResources() : collect(),
-            // MARKER-PATCH-153 — customer list now loads on demand via customer-search component
+            // customer list now loads on demand via customer-search component
         ];
 
         if ($view === 'week') {
@@ -203,10 +202,10 @@ class DeliveriesController extends Controller
             $payload['deliveries'] = $svc->forDay($date);
         }
 
-        // MARKER-PATCH-514 — map deliveries to route windows for the chip.
-        // MARKER-PATCH-514B — day view only; the week path doesn't build $deliveries.
+        // map deliveries to route windows for the chip.
+        // day view only; the week path doesn't build $deliveries.
         $windowChips = [];
-        $deliveries = $payload['deliveries'] ?? null; // MARKER-PATCH-532 — chips never rendered: local var was never set
+        $deliveries = $payload['deliveries'] ?? null; // chips never rendered: local var was never set
         $rw = isset($deliveries)
             ? \App\Models\Tenant\TenantRouteWindow::where('tenant_id', $tenant->id)->active()->get()
             : collect();
@@ -232,10 +231,10 @@ class DeliveriesController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $tenant = tenant();
-        abort_unless($tenant->deliveries_enabled, 404); // MARKER-PATCH-156
+        abort_unless($tenant->deliveries_enabled, 404);
         $data = $this->validateInput($request);
 
-        $start = CarbonImmutable::parse($data['scheduled_at'], $tenant->timezone ?? 'UTC')->utc(); // MARKER-PATCH-158 — explicit UTC conversion; Eloquent datetime cast does not convert.
+        $start = CarbonImmutable::parse($data['scheduled_at'], $tenant->timezone ?? 'UTC')->utc(); // explicit UTC conversion; Eloquent datetime cast does not convert.
 
         // Conflict check on the delivery resource (if any)
         $svc = new TenantDeliveryService($tenant);
@@ -266,15 +265,15 @@ class DeliveriesController extends Controller
             'appointment_id'        => $data['appointment_id'] ?? null,
             'delivery_resource_id'  => $data['delivery_resource_id'] ?? null,
             'notes'                 => $data['notes'] ?? null,
-            'assets'                => $this->snapshotAssets($data), // MARKER-PATCH-427 (create)
+            'assets'                => $this->snapshotAssets($data), // (create)
         ]);
 
-        // MARKER-PATCH-157 — notification is now opt-in per click.
+        // notification is now opt-in per click.
         // "Save & Notify" sends; plain "Save" doesn't.
         $notify = (bool) $request->input('notify', false);
         $flash  = ucfirst($data['type']) . ' scheduled.';
         if ($notify) {
-            // MARKER-PATCH-608 — report what actually went out; disabled channel
+            // report what actually went out; disabled channel
             // toggles or a missing email/phone previously failed silently as "notified".
             $sent = \App\Services\Tenant\TenantDeliveryNotificationService::forTenant($tenant)
                 ->sendScheduled($delivery);
@@ -289,7 +288,7 @@ class DeliveriesController extends Controller
     }
 
     /**
-     * MARKER-PATCH-515 — schedule the return (dropoff) leg for a completed
+     * schedule the return (dropoff) leg for a completed
      * appointment, against route-window capacity. Value format: "windowId|Y-m-d".
      */
     public function scheduleReturn(Request $request, string $appointmentId): RedirectResponse
@@ -354,14 +353,14 @@ class DeliveriesController extends Controller
     public function update(Request $request, string $id): RedirectResponse
     {
         $tenant = tenant();
-        abort_unless($tenant->deliveries_enabled, 404); // MARKER-PATCH-156
+        abort_unless($tenant->deliveries_enabled, 404);
         $delivery = TenantDelivery::query()
             ->where('tenant_id', $tenant->id)
             ->where('id', $id)
             ->firstOrFail();
 
         $data = $this->validateInput($request);
-        $start = CarbonImmutable::parse($data['scheduled_at'], $tenant->timezone ?? 'UTC')->utc(); // MARKER-PATCH-158 — explicit UTC conversion; Eloquent datetime cast does not convert.
+        $start = CarbonImmutable::parse($data['scheduled_at'], $tenant->timezone ?? 'UTC')->utc(); // explicit UTC conversion; Eloquent datetime cast does not convert.
 
         $svc = new TenantDeliveryService($tenant);
         if (!empty($data['delivery_resource_id'])) {
@@ -388,15 +387,15 @@ class DeliveriesController extends Controller
             'appointment_id'        => $data['appointment_id'] ?? null,
             'delivery_resource_id'  => $data['delivery_resource_id'] ?? null,
             'notes'                 => $data['notes'] ?? null,
-            'assets'                => $this->snapshotAssets($data), // MARKER-PATCH-427 (update)
+            'assets'                => $this->snapshotAssets($data), // (update)
         ]);
 
-        // MARKER-PATCH-157 — opt-in notify on update.
+        // opt-in notify on update.
         // "Update & Notify" re-sends scheduled-notification with latest details.
         $notify = (bool) $request->input('notify', false);
         $flash  = 'Delivery updated.';
         if ($notify) {
-            // MARKER-PATCH-608 — report what actually went out; disabled channel
+            // report what actually went out; disabled channel
             // toggles or a missing email/phone previously failed silently as "notified".
             $sent = \App\Services\Tenant\TenantDeliveryNotificationService::forTenant($tenant)
                 ->sendScheduled($delivery);
@@ -413,7 +412,7 @@ class DeliveriesController extends Controller
     public function complete(string $id): RedirectResponse
     {
         $tenant = tenant();
-        abort_unless($tenant->deliveries_enabled, 404); // MARKER-PATCH-156
+        abort_unless($tenant->deliveries_enabled, 404);
         $delivery = TenantDelivery::query()
             ->where('tenant_id', $tenant->id)
             ->where('id', $id)
@@ -424,7 +423,7 @@ class DeliveriesController extends Controller
             'completed_at' => now(),
         ]);
 
-        // MARKER-PATCH-530 — recovery signal: drop-off landed after the window
+        // recovery signal: drop-off landed after the window
         try {
             app(\App\Services\Tenant\RecoverySignalService::class)->lateDelivery($delivery->fresh());
         } catch (\Throwable $e) {
@@ -439,7 +438,7 @@ class DeliveriesController extends Controller
     public function cancel(string $id): RedirectResponse
     {
         $tenant = tenant();
-        abort_unless($tenant->deliveries_enabled, 404); // MARKER-PATCH-156
+        abort_unless($tenant->deliveries_enabled, 404);
         $delivery = TenantDelivery::query()
             ->where('tenant_id', $tenant->id)
             ->where('id', $id)
@@ -465,9 +464,9 @@ class DeliveriesController extends Controller
             'work_order_id'         => ['nullable', 'uuid'],
             'appointment_id'        => ['nullable', 'uuid'],
             'notes'                 => ['nullable', 'string', 'max:5000'],
-            'assets'                => ['nullable', 'array'], // MARKER-PATCH-427
+            'assets'                => ['nullable', 'array'],
             'assets.*'              => ['uuid'],
-            'notify'                => ['nullable'], // MARKER-PATCH-157 — checkbox or 0/1
+            'notify'                => ['nullable'], // checkbox or 0/1
         ]);
     }
 }

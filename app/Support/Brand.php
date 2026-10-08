@@ -3,7 +3,7 @@
 namespace App\Support;
 
 /**
- * MARKER-BRAND — the one source for Intake's own logo, icon, favicons and
+ * the one source for Intake's own logo, icon, favicons and
  * share image. Every page and email asks this class for a URL; master admin
  * › Brand sets what it returns. Anything not uploaded falls back to the file
  * shipped in public/, so nothing breaks before the first upload.
@@ -57,12 +57,12 @@ class Brand
     /** A builder page's own share image, else the Brand default. */
     public static function shareImageFor($page): string
     {
-        // MARKER-PAGE-SEARCH-SHARING — library picks are stored as full URLs when off-site.
+        // library picks are stored as full URLs when off-site.
         return self::storagePublicUrl($page->og_image_url ?? null) ?? self::url('og');
     }
 
     /**
-     * MARKER-PAGE-SEARCH-SHARING — a stored image value as an absolute URL.
+     * a stored image value as an absolute URL.
      * Accepts a full URL, a site-relative path, or a path under /storage/
      * (how Filament uploads store it). Blank means none.
      */
@@ -77,7 +77,7 @@ class Brand
     }
 
     /**
-     * MARKER-PAGE-SEARCH-SHARING — a picked image URL in the form it is stored:
+     * a picked image URL in the form it is stored:
      * the path under /storage/ when the file lives on this site (matching the
      * Filament upload format), otherwise the full http(s) URL. Null for
      * anything that is not an image address we can serve.

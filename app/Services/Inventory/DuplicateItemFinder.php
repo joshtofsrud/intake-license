@@ -1,5 +1,4 @@
 <?php
-// MARKER-DUP-MERGE
 
 namespace App\Services\Inventory;
 
@@ -37,7 +36,7 @@ class DuplicateItemFinder
     private const JUNK_MPN = ['NA', 'NONE', 'NULL', 'TBD', '0000', 'XXXX'];
 
     /**
-     * MARKER-DUP-PRICE-RULE — a price the SHOP chose, as opposed to the seed the
+     * a price the SHOP chose, as opposed to the seed the
      * distributor import writes into shop_sell_price_cents (MAP, else MSRP) on
      * every item it creates. Treating the seed as the shop's own price flagged
      * hundreds of "different prices" that were two list prices, and let a
@@ -158,7 +157,7 @@ class DuplicateItemFinder
             $key = sha1(implode(',', $sorted));
             $seen[$key] = true;
 
-            // MARKER-DUP-PRICE-RULE — only prices the shop chose can disagree.
+            // only prices the shop chose can disagree.
             $shopPrices = array_values(array_unique(array_map(fn ($id) => (int) $items[$id]->shop_sell_price_cents,
                 array_filter($g, fn ($id) => self::isShopPrice($items[$id])))));
             $withStock  = array_values(array_filter($g, fn ($id) => ($stock[$id] ?? 0) !== 0));
@@ -170,7 +169,7 @@ class DuplicateItemFinder
 
             // What the merged item would be: the kept record, the shop's price
             // (the first copy in keep order that has one), stock added up.
-            // MARKER-DUP-PRICE-RULE — the shop's own price wins (first in keep
+            // the shop's own price wins (first in keep
             // order); otherwise the kept item's price, seed included.
             $resultPrice = null;
             foreach ($g as $id) {
@@ -190,7 +189,7 @@ class DuplicateItemFinder
                     'from'        => array_keys($vend[$id] ?? []),
                     'catalog'     => $linked($id),
                     'shop_price'  => $items[$id]->shop_sell_price_cents !== null ? (int) $items[$id]->shop_sell_price_cents : null,
-                    'shop_set'    => self::isShopPrice($items[$id]), // MARKER-DUP-PRICE-RULE
+                    'shop_set'    => self::isShopPrice($items[$id]),
                     'list_price'  => $items[$id]->catalog_msrp_cents !== null ? (int) $items[$id]->catalog_msrp_cents : null,
                     'stock'       => $stock[$id] ?? 0,
                     'sales'       => $sales[$id] ?? 0,

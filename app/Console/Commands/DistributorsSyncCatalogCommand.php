@@ -1,5 +1,4 @@
 <?php
-// MARKER-PATCH-HLC3
 
 namespace App\Console\Commands;
 
@@ -67,7 +66,7 @@ class DistributorsSyncCatalogCommand extends Command
             collect($res)->except('errors')->map(fn ($v, $k) => [$k, is_array($v) ? json_encode($v) : $v])->values()->all()
         );
 
-        // MARKER-QBP-VISIBILITY — a per-brand breakdown, so a run that reports
+        // a per-brand breakdown, so a run that reports
         // "done" cannot hide four hundred brands that returned nothing.
         $byStatus = DB::table('distributor_brand_sync_status')
             ->where('distributor_code', $code)

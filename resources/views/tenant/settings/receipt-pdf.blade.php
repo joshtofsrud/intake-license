@@ -1,4 +1,4 @@
-{{-- MARKER-BILLING-RECEIPT — print styling only; dompdf ignores most modern CSS,
+{{-- print styling only; dompdf ignores most modern CSS,
      so this is tables and inline styles on purpose. --}}
 <!doctype html>
 <html><head><meta charset="utf-8">
@@ -80,7 +80,7 @@
         <td class="r">${{ number_format($l['cents'] / 100, 2) }}</td>
       </tr>
     @endforeach
-    {{-- MARKER-BILLING-TAX-ROOM — only shown when tax was actually charged --}}
+    {{-- only shown when tax was actually charged --}}
     @if($tax > 0)
       <tr>
         <td colspan="3" class="r muted">Subtotal</td>

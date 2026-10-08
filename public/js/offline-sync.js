@@ -1,4 +1,4 @@
-/* MARKER-OFFLINE-SYNC stage 3 — global offline module.
+/* stage 3 — global offline module.
  * Loaded on EVERY tenant admin page when the offline_sync add-on is active.
  * No arming ritual: the service worker installs, the catalog snapshot
  * refreshes, and any queued work replays in the background from whatever
@@ -171,7 +171,7 @@
     if (IO.phase === 'syncing') return { dot: '#BEF264', label: 'Syncing…', off: false };
     return { dot: '#7FD98F', label: 'Online', off: false };
   }
-  // MARKER-IOFLASH — the pill's CSS now lives in base.css, parsed with the
+  // the pill's CSS now lives in base.css, parsed with the
   // rest of the stylesheet instead of being appended to <head> after paint.
   // Kept as a no-op so the existing call sites need no changes.
   function injectStyles() {}

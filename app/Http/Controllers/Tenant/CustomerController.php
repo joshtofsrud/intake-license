@@ -20,7 +20,7 @@ class CustomerController extends Controller
         }
 
         $search        = $request->input('s', '');
-        $createdAfter  = $request->input('created_after', ''); // MARKER-PATCH-114
+        $createdAfter  = $request->input('created_after', '');
         // When the dashboard's "new customers" tile links here, default sort
         // to newest-first so the new arrivals are immediately visible.
         $defaultSort   = $createdAfter ? 'added_desc' : 'name_asc';
@@ -28,7 +28,7 @@ class CustomerController extends Controller
         $page          = max(1, (int) $request->input('page', 1));
         $perPage       = 25;
 
-        $q = TenantCustomer::where('tenant_id', $tenant->id)->notErased(); // MARKER-CUST-ADMIN
+        $q = TenantCustomer::where('tenant_id', $tenant->id)->notErased();
         if ($createdAfter) {
             try {
                 $q->where('created_at', '>=', \Carbon\Carbon::parse($createdAfter)->startOfDay());
@@ -43,12 +43,12 @@ class CustomerController extends Controller
                    ->orWhere('last_name',  'like', "%{$search}%")
                    ->orWhere('email',      'like', "%{$search}%")
                    ->orWhere('phone',      'like', "%{$search}%")
-                   // MARKER-TAGS-VISIBLE — a tag name is a thing people search for.
+                   // a tag name is a thing people search for.
                    ->orWhereHas('tags', fn ($t) => $t->where('tenant_customer_tags.name', 'like', "%{$search}%"));
             });
         }
 
-        // MARKER-TAGS-VISIBLE — ?tag={id}, where a chip on the record links to.
+        // ?tag={id}, where a chip on the record links to.
         $tagId     = (string) $request->input('tag', '');
         $tagFilter = null;
         if ($tagId !== '') {
@@ -67,7 +67,7 @@ class CustomerController extends Controller
             $q->where('is_vip', true);
         }
 
-        // MARKER-CUST-ACCOUNT — same pseudo-sort pattern. A portal account
+        // same pseudo-sort pattern. A portal account
         // is exactly "has set a password".
         if ($sort === 'has_account') {
             $q->whereNotNull('password');
@@ -76,7 +76,7 @@ class CustomerController extends Controller
             $q->whereNull('password');
         }
 
-        // MARKER-BIZ-LIST — same pattern as VIPs. Also the practical route to
+        // same pattern as VIPs. Also the practical route to
         // finding records where a business was typed into a person's name.
         if ($sort === 'businesses_only') {
             $q->where('customer_type', \App\Models\Tenant\TenantCustomer::TYPE_BUSINESS);
@@ -117,7 +117,7 @@ class CustomerController extends Controller
                 ->get()
                 ->keyBy('customer_email');
 
-            // MARKER-PATCH-184F — lifetime spend from the sale payment ledger,
+            // lifetime spend from the sale payment ledger,
             // keyed by the sale's customer_id (payments received).
             $spendByCustomer = \App\Models\Tenant\TenantSalePayment::where('tenant_sale_payments.tenant_id', $tenant->id)
                 ->join('tenant_sales as ts', 'ts.id', '=', 'tenant_sale_payments.sale_id')
@@ -147,7 +147,7 @@ class CustomerController extends Controller
         $totalPages = max(1, ceil($total / $perPage));
 
         return view('tenant.customers.index', compact(
-            'tagFilter', // MARKER-TAGS-VISIBLE
+            'tagFilter',
             'customers', 'stats', 'total', 'page', 'totalPages', 'search', 'sort', 'createdAfter'
         ));
     }
@@ -162,7 +162,7 @@ class CustomerController extends Controller
      * convenience for clicking through without typing.
      */
     /**
-     * MARKER-CONSENT-CLEANUP — flip one customer's marketing consent.
+     * flip one customer's marketing consent.
      * OFF always works: someone asking to stop is never gated on a setting.
      * ON needs the onboarding window open, otherwise consent would be set
      * with nothing recorded about why.
@@ -192,7 +192,7 @@ class CustomerController extends Controller
     }
 
     /**
-     * MARKER-CUST-ADMIN — what would removing this customer actually do?
+     * what would removing this customer actually do?
      * Answered BEFORE the confirm, because the two outcomes are different
      * enough that a generic "are you sure" would be misleading.
      */
@@ -214,7 +214,7 @@ class CustomerController extends Controller
     }
 
     /**
-     * MARKER-CUST-CLEANUP — delegated. The master-admin cleanup page removes
+     * delegated. The master-admin cleanup page removes
      * customers too, and two copies of these rules would eventually disagree.
      */
     private function customerLinkCounts(string $customerId): array
@@ -223,7 +223,7 @@ class CustomerController extends Controller
     }
 
     /**
-     * MARKER-CUST-ADMIN — delete outright when nothing references the
+     * delete outright when nothing references the
      * customer; otherwise erase the personal data and hide the row, because
      * deleting it would break sales and bookings that must stay intact.
      */
@@ -241,7 +241,7 @@ class CustomerController extends Controller
         $customer = \App\Models\Tenant\TenantCustomer::where('tenant_id', $tenant->id)->findOrFail($id);
         $by       = auth('tenant')->user();
 
-        // MARKER-CUST-CLEANUP — same service the master-admin sweep uses.
+        // same service the master-admin sweep uses.
         $result = app(\App\Services\Tenant\CustomerRemovalService::class)
             ->remove($customer, $by?->id, 'shop');
 
@@ -258,7 +258,7 @@ class CustomerController extends Controller
         $q      = trim((string) $request->input('q', ''));
         $limit  = 12;
 
-        $query = TenantCustomer::where('tenant_id', $tenant->id)->notErased(); // MARKER-CUST-ADMIN
+        $query = TenantCustomer::where('tenant_id', $tenant->id)->notErased();
 
         if ($q !== '') {
             $query->where(function ($qb) use ($q) {
@@ -266,7 +266,7 @@ class CustomerController extends Controller
                    ->orWhere('last_name', 'like', "%{$q}%")
                    ->orWhere('email',     'like', "%{$q}%")
                    ->orWhere('phone',     'like', "%{$q}%")
-                   // MARKER-BIZ-SEARCH — searching "Spokane Public" has to
+                   // searching "Spokane Public" has to
                    // find the business, and its contacts are searchable too.
                    ->orWhere('business_name', 'like', "%{$q}%")
                    ->orWhereExists(function ($sub) use ($q) {
@@ -297,7 +297,7 @@ class CustomerController extends Controller
             ->get([
                 'id', 'first_name', 'last_name', 'email', 'phone',
                 'customer_type', 'business_name', 'tax_exempt',
-                'tax_exempt_certificate', 'po_required', 'payment_terms', // MARKER-BIZ-SEARCH
+                'tax_exempt_certificate', 'po_required', 'payment_terms',
             ])
             ->map(fn($c) => [
                 'id'         => $c->id,
@@ -305,7 +305,7 @@ class CustomerController extends Controller
                 'last_name'  => $c->last_name,
                 'email'      => $c->email,
                 'phone'      => $c->phone,
-                // MARKER-BIZ-SEARCH — the register renders `name`/`label`, so
+                // the register renders `name`/`label`, so
                 // a business must present as its business name here or it will
                 // show a person's name on the ticket.
                 'name'       => $c->fullName(),
@@ -340,7 +340,7 @@ class CustomerController extends Controller
         // Note: $customer->notes is a fillable string column on TenantCustomer.
         // The relationship is on notes() — call explicitly to get the collection.
         $notes       = $customer->notes()->orderByDesc('created_at')->get();
-        // MARKER-PATCH-184F — lifetime spend from the sale payment ledger
+        // lifetime spend from the sale payment ledger
         // (payments received, attributed via the sale's customer), not appt totals.
         $totalSpend  = (int) \App\Models\Tenant\TenantSalePayment::where('tenant_sale_payments.tenant_id', $tenant->id)
             ->join('tenant_sales as ts', 'ts.id', '=', 'tenant_sale_payments.sale_id')
@@ -384,7 +384,7 @@ class CustomerController extends Controller
                 ->get(['id', 'name', 'credit_count', 'expiry_days', 'price_cents']);
         }
 
-        // MARKER-PATCH-158-C — load customer assets when multi_asset is on
+        // load customer assets when multi_asset is on
         $customerActiveAssets   = collect();
         $customerArchivedAssets = collect();
         if ($tenant->multi_asset_enabled) {
@@ -416,13 +416,13 @@ class CustomerController extends Controller
             ->orderBy('name')
             ->get(['id', 'name']);
 
-        // MARKER-BIZ-CONTACTS — the panel reads contacts and the primary;
+        // the panel reads contacts and the primary;
         // load them once rather than per row.
         if ($customer->isBusiness()) {
             $customer->load('contacts', 'primaryContact');
         }
 
-        // MARKER-TAGS-VISIBLE — this customer's tags, and every tag the shop
+        // this customer's tags, and every tag the shop
         // has, for the picker.
         $customerTags = $customer->tags()->orderBy('name')->get();
         $allTags = \App\Models\Tenant\TenantCustomerTag::where('tenant_id', $tenant->id)
@@ -435,11 +435,11 @@ class CustomerController extends Controller
             'customerMemberships', 'customerPacks',
             'membershipProducts', 'packProducts',
             'timelineMonths', 'timelineCount', 'specialOrdersOpen', 'specialOrdersClosed', 'soVendors',
-            'customerActiveAssets', 'customerArchivedAssets')); // MARKER-PATCH-158-C
+            'customerActiveAssets', 'customerArchivedAssets'));
     }
 
     /**
-     * MARKER-TAGS-VISIBLE — add a tag to one customer. Existing tag by id, or
+     * add a tag to one customer. Existing tag by id, or
      * a new one by name; matching is case-insensitive so "Newsletter" never
      * becomes a second "newsletter".
      */
@@ -482,7 +482,7 @@ class CustomerController extends Controller
         return back()->with('success', 'Tagged ' . $tag->name . '.');
     }
 
-    /** MARKER-TAGS-VISIBLE — take a tag off one customer. */
+    /** take a tag off one customer. */
     public function removeTag(Request $request, string $id, string $tagId)
     {
         $tenant   = tenant();
@@ -542,10 +542,10 @@ class CustomerController extends Controller
         $notes = TenantCustomerNote::where('customer_id', $customer->id)->orderByDesc('created_at')->get();
 
         $appointments = TenantAppointment::where('tenant_id', $tenant->id)
-            ->where('customer_id', $customer->id) // MARKER-PATCH-421 — stable id, not the mutable email snapshot
+            ->where('customer_id', $customer->id) // stable id, not the mutable email snapshot
             ->orderByDesc('appointment_date')->orderByDesc('created_at')->get();
 
-        // MARKER-PATCH-184F — lifetime spend from the sale payment ledger.
+        // lifetime spend from the sale payment ledger.
         $totalSpend = (int) \App\Models\Tenant\TenantSalePayment::where('tenant_sale_payments.tenant_id', $tenant->id)
             ->join('tenant_sales as ts', 'ts.id', '=', 'tenant_sale_payments.sale_id')
             ->where('ts.customer_id', $customer->id)
@@ -584,7 +584,7 @@ class CustomerController extends Controller
         $op = $request->input('op');
 
         if ($op === 'update_info') {
-            // MARKER-PATCH-423 — capture the pre-edit email; it's the legacy join
+            // capture the pre-edit email; it's the legacy join
             // key for appointment snapshots created before id-linking.
             $oldEmail = $customer->email;
             $data = $this->validated($request, $customer->email);
@@ -630,7 +630,7 @@ class CustomerController extends Controller
     }
 
     /**
-     * MARKER-BIZ-CONTACTS — people at a business customer. Kept on this
+     * people at a business customer. Kept on this
      * controller rather than a new one: they are part of the customer record,
      * and every action already runs through this controller's tenant scoping.
      */
@@ -712,7 +712,7 @@ class CustomerController extends Controller
         $wasPrimary = (bool) $contact->is_primary;
         $contact->delete();
 
-        // MARKER-BIZ-CONTACTS — never leave a business with contacts but no
+        // never leave a business with contacts but no
         // primary: promote the next one rather than silently losing the
         // address the app uses.
         if ($wasPrimary) {
@@ -729,7 +729,7 @@ class CustomerController extends Controller
     {
         $emailRules = $existingEmail ? ['nullable','email','max:191'] : ['required','email','max:191'];
 
-        // MARKER-BIZ-CUSTOMER — a business is identified by its business name,
+        // a business is identified by its business name,
         // so the person's name stops being required there (the contact people
         // live in tenant_customer_contacts). Individuals are unchanged.
         $isBusiness = $request->input('customer_type') === \App\Models\Tenant\TenantCustomer::TYPE_BUSINESS;
@@ -754,7 +754,7 @@ class CustomerController extends Controller
             'country' => strtoupper($request->input('country', 'US')),
         ], fn($v) => $v !== null && $v !== '');
 
-        // MARKER-BIZ-CUSTOMER — only touch the business fields when the form
+        // only touch the business fields when the form
         // actually submitted a customer_type. Several edit forms post a subset
         // of fields; without this guard, saving a phone number from one of
         // them would flip a business back to individual and wipe its tax
@@ -791,7 +791,7 @@ class CustomerController extends Controller
     }
 
     /**
-     * MARKER-CUST-ACCOUNT — email the customer a link to set (or reset) their
+     * email the customer a link to set (or reset) their
      * portal password. Staff never see or choose the password; this issues the
      * same token the customer-facing reset flow already validates.
      */
@@ -815,7 +815,6 @@ class CustomerController extends Controller
             'password_reset_sent_at' => now(),
         ]);
 
-        // MARKER-LEDGER-STRAGGLERS
         $ledger = \App\Services\EmailLedger::begin(
             $tenant->id, 'other', $customer->email,
             $isInvite ? 'customer_account_invite' : 'customer_password_reset'

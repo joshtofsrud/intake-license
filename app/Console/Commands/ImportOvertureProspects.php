@@ -1,5 +1,5 @@
 <?php
-// MARKER-SALES-ROUTE · MARKER-SALES-UPLOAD — thin wrapper over ShopListImporter,
+// thin wrapper over ShopListImporter,
 // which is the same code the Find shops upload uses.
 
 namespace App\Console\Commands;

@@ -1,4 +1,4 @@
-{{-- MARKER-MOBILE-INPUT-ZOOM
+{{--
      iOS Safari auto-zooms any focused input whose font-size is under 16px.
      Pin form fields to 16px on phones so the zoom never triggers.
      Scoped to <=767px: desktop and iPad layouts are unchanged. --}}

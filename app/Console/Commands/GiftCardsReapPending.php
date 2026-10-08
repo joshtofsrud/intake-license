@@ -9,7 +9,7 @@ use App\Services\Tenant\GiftCardService;
 use Illuminate\Console\Command;
 
 /**
- * MARKER-GC-FUNCTIONS — clear abandoned online gift card purchases.
+ * clear abandoned online gift card purchases.
  *
  * A card row is created before payment so the Stripe intent has something to
  * point at; a checkout the customer walks away from leaves it pending

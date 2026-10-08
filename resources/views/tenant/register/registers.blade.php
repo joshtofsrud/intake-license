@@ -1,12 +1,12 @@
 @extends('layouts.tenant.app')
 
-{{-- MARKER-REGISTER-RECON-DISPLAY — manage physical registers + pair customer displays --}}
+{{-- manage physical registers + pair customer displays --}}
 
 @php $pageTitle = 'Registers'; @endphp
 
 @push('styles')
 <style>
-  {{-- MARKER-OFFLINE-SYNC stage 3b — mobile-friendly registers page --}}
+  {{-- stage 3b — mobile-friendly registers page --}}
   @media (max-width: 760px) {
     .rr-card{flex-direction:column}
     .rr-card > div[id^="qr-"]{align-self:center;width:200px !important;height:200px !important}
@@ -44,12 +44,12 @@
         <div style="font-size:12.5px;color:var(--ia-muted);margin-bottom:12px;word-break:break-all">
           Display link: {{ url('/pay-display/' . $r->display_token) }}
         </div>
-        {{-- MARKER-REGISTER-RECON-DISPLAY — welcome-screen logo choice --}}
+        {{-- welcome-screen logo choice --}}
         <form method="POST" action="{{ route('tenant.register.registers.update', ['id' => $r->id]) }}"
               style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
           @csrf
           <label style="font-size:12.5px;color:var(--ia-muted)">Welcome-screen logo</label>
-          {{-- MARKER-SSEL-BATCH2 — the native select submitted on change; the
+          {{-- the native select submitted on change; the
                component has no onchange, so the handler at the foot of this
                page listens for its hidden input instead. --}}
           <div style="max-width:210px" data-ssel-submit>
@@ -81,7 +81,7 @@
   </form>
 </div>
 
-{{-- MARKER-OFFLINE-SYNC stage 3 — per-device controls moved to the global
+{{-- stage 3 — per-device controls moved to the global
      status pill (top right of every admin page, gear icon). --}}
 @php $osEnabled = app(\App\Services\FeatureAccessService::class)->hasAddon(app('tenant'), 'offline_sync'); @endphp
 @if ($osEnabled)
@@ -110,7 +110,7 @@ function toggleQr(id) {
 </script>
 @endsection
 
-{{-- MARKER-SSEL-BATCH2 — ssel-submit-handler. Replaces the native select's
+{{-- ssel-submit-handler. Replaces the native select's
      onchange="this.form.submit()": the component fires `change` on its hidden
      input, so the logo choice still saves the moment it is picked. --}}
 <script>

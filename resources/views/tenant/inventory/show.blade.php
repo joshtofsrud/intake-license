@@ -1,6 +1,6 @@
 @extends('layouts.tenant.app')
 @php
-  // MARKER-PATCH-375 — Option A (buy-box) item page, now live. Media + specs
+  // Option A (buy-box) item page, now live. Media + specs
   // left, sticky summary (status / price / margin / stock / identity) right,
   // tabbed Activity / Special orders / Sourced from below.
   $pageTitle = $item->name;
@@ -30,12 +30,12 @@
     'receive' => 'Received', 'adjustment' => 'Adjustment',
     'transfer_out' => 'Transfer out', 'transfer_in' => 'Transfer in',
     'initial' => 'Initial stock',
-    // MARKER-MERGE-AFTER — a movement with no label renders blank on the one
+    // a movement with no label renders blank on the one
     // page someone opens when a count looks wrong. merge_in / merge_out are
     // new; appointment / appointment_refund have been missing since they were
     // added to the enum.
     'merge_in' => 'Merged in', 'merge_out' => 'Merged out',
-    'reserve' => 'Held for layaway', 'release' => 'Released from layaway', // MARKER-RESERVE
+    'reserve' => 'Held for layaway', 'release' => 'Released from layaway',
     'appointment' => 'Used on a job', 'appointment_refund' => 'Returned from a job',
   ];
 
@@ -57,14 +57,14 @@
   $otherLocations = $locations->filter(fn ($l) => !$currentLocation || $l->id !== $currentLocation->id);
   $totalAcrossLocations = (int) $item->computed_stock_count;
 
-  // MARKER-ITEM-SOURCING — every distributor that can supply this item.
+  // every distributor that can supply this item.
   //
   // This used to pick the FIRST vendor whose distributor_code was 'HLC' and
   // treat it as the item's cost and availability. On a BTI item that found
   // nothing, so the page showed blanks while Identity said "Source BTI".
   $infoCatalogId = $item->distributor_catalog_id;
 
-  // MARKER-SOURCING-MANUAL — no filter. This used to keep only rows with a
+  // no filter. This used to keep only rows with a
   // distributor_code, which silently hid every hand-added vendor and left an
   // item sourced only from those with no Sourcing card at all.
   $sources = $item->vendors
@@ -73,7 +73,7 @@
           return (object) [
               'vendor'    => $v,
               'code'      => $v->pivot->distributor_code,
-              // MARKER-SOURCING-MANUAL — what to show in the first column, and
+              // what to show in the first column, and
               // whether tier-2 owns this row's cost.
               'label'     => filled($v->pivot->distributor_code ?? null)
                   ? $v->pivot->distributor_code
@@ -111,16 +111,16 @@
   // --- catalog image + specs ---
   $catImages = $item->distributorCatalog?->images ?? [];
 
-  // MARKER-CLS-RENDER — QBP gives file names, not URLs. The URL prefix
+  // QBP gives file names, not URLs. The URL prefix
   // belongs to THIS tenant's CLS subscription (it embeds their Image Service
   // ID), so it is read per tenant and never shared. License requires
   // hotlinking: these URLs are the only permitted display mechanism.
   $catCode  = $item->distributorCatalog?->distributor_code;
-  // MARKER-BRAND-ECHO — one copy of the URL logic lives in CatalogImages;
+  // one copy of the URL logic lives in CatalogImages;
   // this page only keeps the prefix lookup for its "needs a CLS key" notice.
   $clsPrefix = $catCode === 'QBP' ? \App\Support\CatalogImages::qbpClsPrefix() : null;
   $catAttrs  = $item->distributorCatalog?->attributes ?? [];
-  // MARKER-ITEM-SOURCING — BTI ships \n in group_text as LITERAL characters,
+  // BTI ships \n in group_text as LITERAL characters,
   // so the specs card rendered "\n - Redesigned Trail…". Repaired at display;
   // the durable fix is an unescape transform in the field map.
   $catDesc   = $item->distributorCatalog?->description;
@@ -138,7 +138,7 @@
   $closedSos = $item->specialOrders->whereIn('status', ['pulled', 'cancelled'])->sortByDesc('updated_at')->take(5);
   $onOrderQty = $openSos->sum('quantity');
 
-  // MARKER-IMPORT-MPN-BRAND — the shop's own brand wins over the catalog's,
+  // the shop's own brand wins over the catalog's,
   // the same precedence cost uses. Before this, an item with no catalog link
   // simply had no brand.
   $brand = $item->shop_brand ?: $item->distributorCatalog?->manufacturer;
@@ -154,10 +154,10 @@
       &nbsp;·&nbsp;
       <code>{{ $item->sku }}</code>
       @if($item->category)&nbsp;·&nbsp; {{ $item->category->name }}@endif
-      @php $mpn = $item->distributorCatalog?->manufacturer_sku; @endphp {{-- MARKER-PATCH-587 --}}
+      @php $mpn = $item->distributorCatalog?->manufacturer_sku; @endphp
       @if($mpn)&nbsp;·&nbsp; MPN <code>{{ $mpn }}</code>@endif
     </p>
-    {{-- MARKER-ITEM-ALIASES — old identifiers that still resolve here. Said
+    {{-- old identifiers that still resolve here. Said
          out loud, because a label that scans to a differently-named item
          looks like a bug unless the page explains it. --}}
     @if($item->aliases->isNotEmpty())
@@ -171,9 +171,9 @@
     @endif
   </div>
   <div class="ia-page-actions">
-    {{-- MARKER-ARCHIVE-MOVE — archiving belongs here, away from Save. --}}
+    {{-- archiving belongs here, away from Save. --}}
     @if($item->trashed() && $item->merged_into_id)
-      {{-- MARKER-MERGE-AFTER — merged, not archived. Restoring would bring
+      {{-- merged, not archived. Restoring would bring
            back an empty record: its stock, history and vendors belong to the
            survivor now, and its SKU may have been reused since. --}}
       <a href="{{ route('tenant.inventory.show', $item->merged_into_id) }}"
@@ -236,7 +236,7 @@
           <input type="number" min="0" name="new_count" class="ia-input" required value="{{ old('new_count') }}">
           <div class="ia-form-hint">The actual count on hand right now. We'll calculate the difference.</div>
         </div>
-        {{-- MARKER-RECEIVED-COST — stock coming in at a known price feeds your
+        {{-- stock coming in at a known price feeds your
              received cost, same as a receive. Leave blank to move quantity only. --}}
         <div class="ia-form-group">
           <label class="ia-form-label">Cost per unit ($)</label>
@@ -280,7 +280,7 @@
     <div class="ia-card">
       <div class="ia-card-body">
         @php
-          // MARKER-BRAND-ECHO / MARKER-BLADE-COMMENT-FIX — a slash comment, not
+          // a slash comment, not
           // a Blade one. Inside a @php block a Blade comment is passed through
           // to PHP verbatim and the view then fails to compile.
           $imgSrcs = collect(\App\Support\CatalogImages::urls($catImages, $catCode));
@@ -289,7 +289,7 @@
           // because "no image" and "no CLS key" have different fixes.
           $imagesNeedCls = $imgSrcs->isEmpty() && ! empty($catImages) && $catCode === 'QBP' && ! $clsPrefix;
         @endphp
-        {{-- MARKER-ITEM-IMAGES-UI — one strip for both sources. displayImages()
+        {{-- one strip for both sources. displayImages()
              is the single definition of the order, so this page, the storefront
              and the register cannot disagree about which photo comes first. --}}
         @php $allImgs = $item->displayImages(); @endphp
@@ -332,9 +332,9 @@
               $theirs = collect($allImgs)->where('source', 'distributor')->count();
               $off    = collect($allImgs)->where('hidden', true)->count();
             @endphp
-            {{-- MARKER-ITEM-IMAGES-UI — legend, because none of this is visible
+            {{-- legend, because none of this is visible
                  from looking at the pictures. --}}
-            {{-- MARKER-ITEM-IMAGES-GLUE — @endif on its own line. Written inline
+            {{-- @endif on its own line. Written inline
                  as "off@endif" it was not a directive at all: Blade requires a
                  non-word character before the @, so it compiled as literal text
                  and left the @if open to the end of the file. --}}
@@ -350,7 +350,7 @@
           </div>
 
         @elseif($imagesNeedCls)
-          {{-- MARKER-QBP-CLS-AUTO — this used to blame a missing CLS key, which
+          {{-- this used to blame a missing CLS key, which
                sent people to a field that was already filled. The key is
                platform-wide; what's missing here is THIS shop's image URL
                prefix, which is fetched from QBP, not typed in. --}}
@@ -363,7 +363,7 @@
           <div class="ia-media-empty">No pictures yet — add one below.</div>
         @endif
 
-        {{-- MARKER-ITEM-IMAGES-ADD — outside the branch above on purpose. It
+        {{-- outside the branch above on purpose. It
              used to live inside the has-images case, so an item with no
              pictures showed "add one below" and then nothing to add with. --}}
         <div class="ia-img-add">
@@ -381,10 +381,10 @@
       </div>
     </div>
 
-    {{-- MARKER-SOURCING-PLACEMENT — directly under the hero, above Specs.
+    {{-- directly under the hero, above Specs.
          Sourcing is the question this page exists to answer, so it comes
          before the descriptive material rather than after it. --}}
-    {{-- MARKER-ITEM-SOURCING — one table answering every vendor question:
+    {{-- one table answering every vendor question:
          who has it, your cost, how many, where, and their part number for
          the purchase order. --}}
     @if($sources->count())
@@ -489,7 +489,7 @@
         </table>
 
         <table class="ia-key-value" style="margin-top:16px">
-          {{-- MARKER-ITEM-SOURCING — cost and availability belong to a source,
+          {{-- cost and availability belong to a source,
                not to the item, so they live in the Sourcing card. --}}
           <tr><td>Cost checked</td><td>{{ $liveChecked?->diffForHumans() ?? 'never' }}</td></tr>
           <tr><td>UPC</td><td><code>{{ $item->catalog_upc ?? '—' }}</code></td></tr>
@@ -508,7 +508,7 @@
       </div>
       <div class="ia-card-body">
         <table class="ia-table">
-          {{-- MARKER-RESERVE — three numbers, not one. On hand is what you count;
+          {{-- three numbers, not one. On hand is what you count;
                reserved is held for a layaway; available is what the register sells. --}}
           <thead><tr><th>Location</th><th style="text-align:right">On hand</th><th style="text-align:right">Reserved</th><th style="text-align:right">Available</th><th style="text-align:right">Reorder at</th><th>Bin</th></tr></thead>
           <tbody>
@@ -530,7 +530,7 @@
             @endforeach
           </tbody>
         </table>
-        {{-- MARKER-RESERVE — legend, because three numbers with no explanation
+        {{-- legend, because three numbers with no explanation
              read as a discrepancy. --}}
         <div style="font-size:11.5px;color:var(--ia-text-dim);margin-top:8px;line-height:1.5">
           <strong>On hand</strong> is what is physically here and what a stock count checks against.
@@ -586,7 +586,7 @@
 
     <div class="ia-card">
       <div class="ia-card-head"><span class="ia-card-title">Identity</span>
-        {{-- MARKER-PATCH-569 — per-item storefront publish toggle --}}
+        {{-- per-item storefront publish toggle --}}
         @if(tenant()->online_store_enabled)
           <form method="POST" action="{{ route('tenant.storefront.item.toggle', $item->id) }}" style="margin-left:auto">
             @csrf
@@ -600,7 +600,7 @@
         <table class="ia-key-value">
           @if($brand)<tr><td>Brand</td><td>{{ $brand }}</td></tr>@endif
           @if($item->category)<tr><td>Category</td><td>{{ $item->category->name }}</td></tr>@endif
-          {{-- MARKER-ITEM-SOURCING — only what belongs to the PRODUCT. A part
+          {{-- only what belongs to the PRODUCT. A part
                number is per distributor and now sits on that distributor's row
                in Sourcing; showing one unlabelled MPN meant it was right for
                at most one of them. --}}
@@ -616,7 +616,7 @@
 
 </div>
 
-{{-- MARKER-SERIAL-FOUNDATION — serialized items get a Units tab. --}}
+{{-- serialized items get a Units tab. --}}
 @php
   $serIsTracked = \App\Support\SerialTracking::isTracked($item);
   $serNeed = $serIsTracked ? \App\Support\SerialTracking::needsSerialByLocation($item) : [];
@@ -631,9 +631,9 @@
 <div class="ia-card ia-show-tabs" style="margin-top:4px">
   <div class="ia-tabbar">
     <button type="button" class="ia-tab is-active" data-tab="activity">Recent activity</button>
-    @if($serIsTracked)<button type="button" class="ia-tab" data-tab="units">Units @if($serNeedTotal)<span class="ia-tab-badge" title="Need a serial">{{ $serNeedTotal }}</span>@endif</button>@endif{{-- MARKER-SERIAL-FOUNDATION --}}
+    @if($serIsTracked)<button type="button" class="ia-tab" data-tab="units">Units @if($serNeedTotal)<span class="ia-tab-badge" title="Need a serial">{{ $serNeedTotal }}</span>@endif</button>@endif
     <button type="button" class="ia-tab" data-tab="so">Special orders @if($openSos->count())<span class="ia-tab-badge">{{ $openSos->count() }}</span>@endif</button>
-    {{-- MARKER-ITEM-SOURCING — the Sourced from tab is now a card above. --}}
+    {{-- the Sourced from tab is now a card above. --}}
   </div>
 
   {{-- Activity --}}
@@ -660,7 +660,7 @@
 
   {{-- Special orders --}}
   @if($serIsTracked)
-  {{-- MARKER-SERIAL-FOUNDATION — every unit of this item by serial --}}
+  {{-- every unit of this item by serial --}}
   <div class="ia-tabpanel" data-panel="units" hidden>
     <div style="font-size:12.5px;color:var(--ia-text-muted);line-height:1.6;margin-bottom:12px">
       Stock here is counted as usual; each unit below is one of those pieces, by serial. <b style="color:var(--ia-text)">Needs a serial</b> means pieces
@@ -820,7 +820,7 @@
   function iaPickImage(btn){var h=document.getElementById('ia-media-hero');if(h){h.src=btn.getAttribute('data-src');}var p=btn.parentElement;if(p){p.querySelectorAll('.ia-media-thumb').forEach(function(t){t.classList.toggle('is-active',t===btn);});}}
   function iaShowAdjust(){var c=document.getElementById('adjust-stock-card');if(c){c.style.display='block';c.scrollIntoView({behavior:'smooth',block:'nearest'});}}
   function iaHideAdjust(){var c=document.getElementById('adjust-stock-card');if(c){c.style.display='none';}}
-  // MARKER-BARCODE-IDENTITY — "Add stock" from the duplicate prompt lands here ready to count.
+  // "Add stock" from the duplicate prompt lands here ready to count.
   if (new URLSearchParams(window.location.search).get('adjust') === '1') { setTimeout(iaShowAdjust, 0); }
   (function(){
     document.querySelectorAll('.ia-show-tabs .ia-tab').forEach(function(btn){
@@ -838,7 +838,6 @@
 
 @push('styles')
 <style>
-  /* MARKER-ITEM-IMAGES-UI */
   .ia-img-cell{position:relative;display:inline-block}
   .ia-img-cell.is-off{opacity:.35}
   .ia-img-cell[draggable="true"]{cursor:grab}
@@ -854,7 +853,6 @@
 
 @push('scripts')
 <script>
-// MARKER-ITEM-IMAGES-UI
 (function () {
   var strip  = document.getElementById('ia-img-strip');
   var status = document.getElementById('ia-img-status');

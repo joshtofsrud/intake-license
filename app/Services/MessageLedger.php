@@ -8,7 +8,7 @@ use App\Models\Tenant\TenantEmailLedgerEntry;
 use App\Services\Sms\SegmentCounter;
 
 /**
- * MARKER-SMS-METER — the SMS half of the ledger.
+ * the SMS half of the ledger.
  *
  * Same table and same contract as EmailLedger: a row is written BEFORE the
  * send and marked sent afterwards, so a crash mid-send leaves a pending row

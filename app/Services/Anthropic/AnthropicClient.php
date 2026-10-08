@@ -25,7 +25,7 @@ class AnthropicClient
 
     public function __construct()
     {
-        $key = (string) config('services.anthropic.key', ''); // MARKER-PATCH-224B
+        $key = (string) config('services.anthropic.key', '');
         if ($key === '') {
             throw new RuntimeException('ANTHROPIC_API_KEY is not set (services.anthropic.key).');
         }

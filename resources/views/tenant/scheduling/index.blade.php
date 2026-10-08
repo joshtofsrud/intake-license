@@ -1,6 +1,6 @@
 @extends('layouts.tenant.app')
 
-{{-- MARKER-PATCH-623 — Scheduling: builder (manager). --}}
+{{-- Scheduling: builder (manager). --}}
 
 @section('title', 'Scheduling')
 
@@ -44,7 +44,6 @@
 .sc-mb label { display:block; font-size:10px; text-transform:uppercase; letter-spacing:.05em; color:var(--ia-text-muted); margin:0 0 5px; font-weight:600; }
 .sc-mb input, .sc-mb select { width:100%; padding:9px 11px; margin-bottom:13px; background:var(--ia-surface-2,#1a1a1a); border:1px solid var(--ia-border); border-radius:7px; color:var(--ia-text); font-size:13px; }
 .sc-mb .two { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
-/* MARKER-TPL-MANAGE */
 .sc-tpl { display:flex; align-items:center; gap:8px; border-radius:7px; padding:7px 8px; }
 .sc-tpl:hover { background:var(--ia-surface-2,#1a1a1a); }
 .sc-tpl-main { display:block; width:100%; text-align:left; background:none; border:none; padding:0; cursor:pointer; color:var(--ia-text); font-family:inherit; }
@@ -62,13 +61,13 @@
 .sc-xs { background:none; border:1px solid var(--ia-border-2,rgba(255,255,255,.2)); color:var(--ia-text); border-radius:6px; padding:4px 10px; font-size:11px; font-weight:600; cursor:pointer; font-family:inherit; }
 .sc-xs--danger { background:#E88B8B; border-color:#E88B8B; color:#160b0b; }
 .sc-mf { padding:13px 18px; border-top:.5px solid var(--ia-border); display:flex; justify-content:flex-end; gap:9px; }
-/* MARKER-SCHED-PHONE — tabs on one scrolling line on phones */
+/* tabs on one scrolling line on phones */
 @media (max-width: 700px) {
   .sc-sub { overflow-x: auto; flex-wrap: nowrap; white-space: nowrap; scrollbar-width: none; gap: 16px; }
   .sc-sub::-webkit-scrollbar { display: none; }
   .sc-sub a { flex: none; }
 }
-/* MARKER-SCHED-PHONE — the builder on phones: one day at a time. */
+/* the builder on phones: one day at a time. */
 .scm, .scm-sheet { display: none; }
 @media (max-width: 700px) {
   .sc-grid, .sc-grid ~ p { display: none !important; }
@@ -125,7 +124,7 @@
   .scm-sheet input, .scm-sheet select { width: 100%; background: rgba(255,255,255,.07); border: 1px solid var(--ia-border); border-radius: 10px;
     padding: 10px 11px; color: var(--ia-text); font: inherit; font-size: 14px; margin-bottom: 12px; }
   .scm-two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; }
-  /* MARKER-SCHED-PHONE-2 — iOS gives time inputs an intrinsic minimum width,
+  /* iOS gives time inputs an intrinsic minimum width,
      so without these the End box ran off the sheet and overlapped Start. */
   .scm-two > div { min-width: 0; }
   .scm-sheet input[type="time"] { min-width: 0; max-width: 100%; display: block; -webkit-appearance: none; appearance: none; text-align: center; }
@@ -161,16 +160,16 @@
       <form method="POST" action="{{ route('tenant.scheduling.copy-week', ['week' => $weekStart->toDateString()]) }}">@csrf
         <button class="sc-btn" type="submit">Copy last week</button>
       </form>
-      {{-- MARKER-PATCH-624 — templates --}}
+      {{-- templates --}}
       <span style="position:relative">
         <button class="sc-btn" type="button" onclick="document.getElementById('sc-tpl-menu').classList.toggle('on')">Templates ▾</button>
-        {{-- MARKER-TPL-MANAGE — reopen the menu after a rejected save so the
+        {{-- reopen the menu after a rejected save so the
              overwrite prompt isn't hidden behind a closed dropdown. --}}
         @if(session('tpl_overwrite'))
           <script>document.addEventListener('DOMContentLoaded',function(){var m=document.getElementById('sc-tpl-menu');if(m)m.classList.add('on');});</script>
         @endif
         <span id="sc-tpl-menu" style="display:none;position:absolute;right:0;top:36px;z-index:20;background:var(--ia-bg,#0c0c0c);border:1px solid var(--ia-border-2,rgba(255,255,255,.2));border-radius:9px;min-width:340px;padding:5px">
-          {{-- MARKER-TPL-MANAGE — each row says what it holds, so two similar
+          {{-- each row says what it holds, so two similar
                names can be told apart before one gets deleted. --}}
           <div style="font-size:10px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:var(--ia-text-muted);padding:6px 9px 3px">Apply to this week</div>
           @forelse($templates as $tpl)
@@ -204,7 +203,7 @@
             <span style="display:block;font-size:11.5px;color:var(--ia-text-muted);padding:7px 9px">No templates yet</span>
           @endforelse
 
-          {{-- MARKER-TPL-MANAGE — the name already exists: show the trade. --}}
+          {{-- the name already exists: show the trade. --}}
           @if(session('tpl_overwrite'))
             @php $ow = session('tpl_overwrite'); @endphp
             <div class="sc-tpl-warn">
@@ -230,7 +229,7 @@
         </span>
       </span>
       <form method="POST" action="{{ route('tenant.scheduling.publish', ['week' => $weekStart->toDateString()]) }}"
-            onsubmit="event.preventDefault(); var f = this; iaConfirm('Publish this week? Staff will see their shifts and get notified.').then(function (ok) { if (ok) { f.submit(); } });">@csrf{{-- MARKER-SCHED-PHONE: in-app dialog --}}
+            onsubmit="event.preventDefault(); var f = this; iaConfirm('Publish this week? Staff will see their shifts and get notified.').then(function (ok) { if (ok) { f.submit(); } });">@csrf{{-- in-app dialog --}}
         <button class="sc-btn p" type="submit">Publish week →</button>
       </form>
     </span>
@@ -238,7 +237,7 @@
 
   <div class="sc-grid">
     @if($set['demand_overlay'] && !empty($demand))
-      {{-- MARKER-PATCH-624 — booking demand from the appointment calendar --}}
+      {{-- booking demand from the appointment calendar --}}
       <div class="sc-row" style="min-height:auto">
         <div class="sc-c" style="min-height:auto;padding:6px 10px;font-size:9px;text-transform:uppercase;letter-spacing:.05em;color:var(--ia-text-muted);display:flex;align-items:center">Booking demand</div>
         @for($i = 0; $i < 7; $i++)
@@ -282,7 +281,7 @@
     @endforeach
   </div>
 
-  {{-- MARKER-SCHED-PHONE — the builder on phones: a day strip (shifts, booking
+  {{-- the builder on phones: a day strip (shifts, booking
        demand, short-staffed days in red), then that day's staff as rows. Tap a
        person to add or change their shift. The week bar above is the same one
        desktop uses, laid out for a phone. --}}
@@ -336,7 +335,7 @@
                   [$scmDow, $scmBand] = array_pad(explode(':', $scmKey, 2), 2, '');
                   if ((int) $scmDow === (int) $d->dayOfWeek) { $scmUnavail[] = $scmBand; }
               }
-              // MARKER-SCHED-PHONE-2 — in the day's order, and "all day" when
+              // in the day's order, and "all day" when
               // every part of the day is marked.
               $scmUnavail = array_values(array_intersect(['morning', 'afternoon', 'evening'], array_unique($scmUnavail)));
               $scmUnavail = count($scmUnavail) === 3 ? ['all day'] : array_map(fn ($b) => $scmBandWord[$b] ?? $b, $scmUnavail);
@@ -405,7 +404,7 @@
     </div>
   </div>
   <script>
-  // MARKER-SCHED-PHONE — day strip and the shift sheet.
+  // day strip and the shift sheet.
   document.addEventListener('DOMContentLoaded', function () {
     document.querySelectorAll('[data-scm-day]').forEach(function (b) {
       b.addEventListener('click', function () {

@@ -1,4 +1,4 @@
-{{-- MARKER-FLEET-IDENT — "?" examples popover for the size-axis field.
+{{-- "?" examples popover for the size-axis field.
      Click toggles; outside click closes (wired in fleet.blade.php JS). --}}
 <span class="fl-help" data-axis-help>
   <button type="button" class="fl-help-dot" aria-label="Size axis examples">?</button>

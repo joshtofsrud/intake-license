@@ -7,7 +7,7 @@ use App\Models\Tenant\TenantSale;
 use App\Models\Tenant\TenantSalePayment;
 
 /**
- * MARKER-PATCH-196 — Stripe-vs-ledger reconciliation.
+ * Stripe-vs-ledger reconciliation.
  *
  * Finds money that Stripe took but Intake never recorded: succeeded
  * PaymentIntents over a window that have NO matching ledger row

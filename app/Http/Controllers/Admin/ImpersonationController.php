@@ -36,7 +36,7 @@ class ImpersonationController extends Controller
             'return_url' => 'https://' . config('intake.domain') . '/admin/tenants',
         ]);
 
-        // MARKER-IMPERSONATE-CROSS — end any impersonation already running
+        // end any impersonation already running
         // before starting this one. Logging the new owner in on top of the old
         // left two overlapping states, and which won depended on request order.
         if (Auth::guard('tenant')->check()) {
@@ -77,7 +77,7 @@ class ImpersonationController extends Controller
             debug_log()->impersonation('end', $tenant, $target);
         }
 
-        // MARKER-GUEST-REDIRECT — if there is no admin session to go back to,
+        // if there is no admin session to go back to,
         // the guest redirect will take over on the next auth route; send them
         // to the tenant list and let it decide.
         $returnUrl = $from['return_url'] ?? url('/admin/tenants');

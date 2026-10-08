@@ -25,7 +25,7 @@ class TenantAppointmentPart extends Model
     protected $fillable = [
         'appointment_id',
         'inventory_item_id',
-        'appointment_asset_id', // MARKER-PATCH-158-G4 — pins this part to a specific asset card
+        'appointment_asset_id', // pins this part to a specific asset card
         'item_name_snapshot',
         'item_sku_snapshot',
         'quantity',
@@ -34,8 +34,8 @@ class TenantAppointmentPart extends Model
         'cost_cents_at_time',
         'is_taxable',
         'committed_at',
-        'is_special_order',   // MARKER-PATCH-419 — per-line "add to special orders" (default on)
-        'special_order_id',   // MARKER-PATCH-419 — link to the needed SO this line spawned
+        'is_special_order',   // per-line "add to special orders" (default on)
+        'special_order_id',   // link to the needed SO this line spawned
     ];
 
     protected $casts = [
@@ -45,7 +45,7 @@ class TenantAppointmentPart extends Model
         'cost_cents_at_time'        => 'integer',
         'is_taxable'                => 'boolean',
         'committed_at'              => 'datetime',
-        'is_special_order'          => 'boolean', // MARKER-PATCH-419
+        'is_special_order'          => 'boolean',
     ];
 
     public function appointment(): BelongsTo
@@ -58,13 +58,13 @@ class TenantAppointmentPart extends Model
         return $this->belongsTo(TenantInventoryItem::class, 'inventory_item_id');
     }
 
-    // MARKER-PATCH-419 — the needed special order this line spawned, if any.
+    // the needed special order this line spawned, if any.
     public function specialOrder(): BelongsTo
     {
         return $this->belongsTo(\App\Models\Tenant\TenantSpecialOrder::class, 'special_order_id');
     }
 
-    // MARKER-PATCH-158-G4 — nullable; null means "loose" on the appointment
+    // nullable; null means "loose" on the appointment
     public function appointmentAsset(): BelongsTo
     {
         return $this->belongsTo(TenantAppointmentAsset::class, 'appointment_asset_id');

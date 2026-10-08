@@ -7,7 +7,7 @@ use App\Models\Tenant\TenantRouteWindow;
 use Illuminate\Http\Request;
 
 /**
- * MARKER-PATCH-510 — Pickup & delivery admin knobs.
+ * Pickup & delivery admin knobs.
  * Route windows CRUD + behavior settings. Consumed by the P2 booking
  * flow and P4 Ready→propose flow; until then this is inert config.
  */
@@ -85,9 +85,9 @@ class RouteWindowsController extends Controller
         $settings['pd_pay_before_delivery']   = (bool) $request->input('pd_pay_before_delivery');
         $settings['pd_online_pay_at_booking'] = (bool) $request->input('pd_online_pay_at_booking');
         $settings['pd_need_by_enabled']       = (bool) $request->input('pd_need_by_enabled');
-        // MARKER-PATCH-520 — how many days before the service date pickup can happen
+        // how many days before the service date pickup can happen
         $settings['pd_pickup_lead_days']      = max(0, min(7, (int) $request->input('pd_pickup_lead_days', 1)));
-        $settings['pd_allow_day_of']          = (bool) $request->input('pd_allow_day_of'); // MARKER-PATCH-524
+        $settings['pd_allow_day_of']          = (bool) $request->input('pd_allow_day_of');
         $tenant->update(['settings' => $settings]);
 
         return back()->with('success', 'Pickup & delivery settings saved.');

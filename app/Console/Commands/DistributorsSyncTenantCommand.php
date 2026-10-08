@@ -1,5 +1,4 @@
 <?php
-// MARKER-PATCH-HLC3B
 
 namespace App\Console\Commands;
 
@@ -41,7 +40,7 @@ class DistributorsSyncTenantCommand extends Command
                 $res = $service->sync($sub, $dry);
             } catch (\Throwable $e) {
                 $this->error('  ' . $e->getMessage());
-                // MARKER-SYNC-CHUNKED — the scheduler discards this command's
+                // the scheduler discards this command's
                 // output, so a nightly failure printed only here was silent.
                 \App\Support\JobFailureReporter::report(self::class,
                     'Nightly ' . strtoupper((string) $sub->distributor_code) . ' sync failed', $e,

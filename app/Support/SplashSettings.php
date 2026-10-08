@@ -7,7 +7,7 @@ use App\Models\Tenant\TenantPage;
 use Illuminate\Http\Request;
 
 /**
- * MARKER-SPLASH-2 — answers one question: does THIS visited page show a
+ * answers one question: does THIS visited page show a
  * splash to THIS visitor, and with what settings.
  *
  * Every value is clamped on the way out. A bad stored value must never be

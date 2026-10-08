@@ -170,7 +170,6 @@
 .sv-addon-row-usage{text-align:right;font-size:12px;color:var(--ia-text-muted)}
 .sv-addon-row-usage b{color:#60A5FA;font-weight:500}
 .sv-empty{padding:60px 20px;text-align:center;color:var(--ia-text-muted);font-size:13px}
-/* MARKER-SVC-CAT */
 .sv-cat-grouphead{position:relative}
 .sv-cat-grouphead.is-hidden-cat{opacity:.6}
 .sv-cat-hidden-pill{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;
@@ -188,7 +187,6 @@
 .sv-cat-menu button:hover{background:var(--ia-surface-2,#1a1a1a)}
 .sv-cat-menu button.danger{color:#F0999B}
 .sv-cat-menu-sep{height:.5px;background:var(--ia-border);margin:4px 0}
-/* MARKER-SVC-CAT-FIX */
 .sv-cat-emptyrow{padding:14px;font-size:13px;color:var(--ia-text-muted);border-bottom:0.5px solid var(--ia-border)}
 .sv-cat-rename{flex:1;min-width:0;background:var(--ia-input-bg);border:1px solid var(--ia-accent);
   color:var(--ia-text);border-radius:var(--ia-r-sm,6px);padding:5px 8px;font-size:13px;font-family:inherit}
@@ -198,7 +196,7 @@
 .sv-cat-mini.primary{background:var(--ia-accent);border-color:var(--ia-accent);color:var(--ia-accent-text,#0d0d0d)}
 .sv-cat-mini.danger{background:#E88B8B;border-color:#E88B8B;color:#160b0b}
 .sv-cat-mini:disabled{opacity:.5;cursor:not-allowed}
-/* MARKER-SVC-CAT-FLUSH — full-bleed inside the list so it reads as a
+/* full-bleed inside the list so it reads as a
    highlighted row, not a card floating between two others. */
 .sv-cat-confirm{margin:0;padding:10px 14px;border-radius:0;font-size:11.5px;line-height:1.5;
   border:0;border-top:1px solid rgba(251,191,36,.35);border-bottom:1px solid rgba(251,191,36,.35);

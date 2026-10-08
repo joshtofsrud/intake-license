@@ -8,7 +8,7 @@ use App\Models\Tenant\TenantInventoryItem;
 use Illuminate\Support\Facades\Auth;
 
 /**
- * MARKER-CATALOG-HISTORY — puts a batch back.
+ * puts a batch back.
  *
  * The rule is the importer's: anything CHANGED SINCE the batch is kept, not
  * overwritten, and the count is reported. Undo that silently discards newer

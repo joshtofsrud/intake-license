@@ -1,13 +1,11 @@
 <x-filament-panels::page>
 
-{{-- MARKER-RAISE-HEIGHT --}}
 <style>
   .rz-invite > summary::-webkit-details-marker{display:none}
   .rz-invite[open] > summary .rz-mark::before{content:"\2013"}
   .rz-invite:not([open]) > summary .rz-mark::before{content:"+"}
   .rz-invite > summary .rz-mark::before{font-size:19px}
 </style>
-<!-- MARKER-RAISE-ADMIN -->
 
 @php
     $pct = fn ($n) => $cap > 0 ? number_format($n / $cap * 100, 2) . '%' : '0%';
@@ -15,7 +13,7 @@
     $progress = $target > 0 ? min(100, round($committed / $target * 100)) : 0;
 @endphp
 
-{{-- MARKER-RAISE-HEIGHT — inline grid: md:grid-cols-4 is not in this
+{{-- inline grid: md:grid-cols-4 is not in this
      panel's compiled CSS and rendered as a stack. --}}
 <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
     <div class="rounded-xl border border-gray-200 dark:border-white/10" style="padding:14px 16px">
@@ -36,7 +34,7 @@
     </div>
 </div>
 
-<!-- MARKER-RAISE-INVITE · MARKER-RAISE-COMPOSE-UI · MARKER-RAISE-COMPOSE-FIX · MARKER-RAISE-PANEL · MARKER-RAISE-PANEL-PAD
+<!--
      Stock Tailwind utilities only in this file. Filament's CSS is
      precompiled, so arbitrary values like grid-cols-[1fr,1fr,auto] are
      never generated and fail silently — use a style attribute instead.
@@ -49,7 +47,7 @@
      divider that stopped short of the panel edge. -->
 <div class="mt-6 rounded-xl border border-gray-200 dark:border-white/10 overflow-hidden">
 
-    {{-- MARKER-RAISE-HEIGHT — closed unless you are actually sending, or a
+    {{-- closed unless you are actually sending, or a
          preview is waiting to be confirmed. --}}
     <details class="rz-invite" @if ($invitePreview || $showPreview) open @endif>
       <summary style="padding:18px 22px;cursor:pointer;list-style:none;display:flex;align-items:center;gap:10px">
@@ -58,7 +56,7 @@
           <span class="block text-sm text-gray-500 mt-1">Write the email once, then send it to one
             person or a list. Everyone gets their own link.</span>
         </span>
-        {{-- MARKER-RAISE-MARKER — empty on purpose: the character comes from
+        {{-- empty on purpose: the character comes from
              ::before so it can flip on open. A literal here shows twice. --}}
         <span style="margin-left:auto;color:#BEF264;line-height:1" class="rz-mark"></span>
       </summary>
@@ -173,7 +171,7 @@
     @error('amount') <p class="text-sm text-danger-600 mt-2">{{ $message }}</p> @enderror
 </div>
 
-<!-- MARKER-RAISE-INVITE — invited and silent, kept apart from commitments -->
+<!-- invited and silent, kept apart from commitments -->
 @if ($invited->isNotEmpty())
 <div class="mt-6 overflow-x-auto rounded-xl border border-gray-200 dark:border-white/10">
     <div class="p-3 text-xs uppercase tracking-wide text-gray-500 border-b border-gray-200 dark:border-white/10">
@@ -231,7 +229,7 @@
                 <td class="p-3">
                     <a class="font-medium hover:underline"
                        href="{{ \App\Filament\Pages\InvestorRecord::getUrl() }}?investor={{ $investor->id }}">{{ $investor->name }}</a>
-                        {{-- MARKER-SHARED-COMMIT — a record made from the shared
+                        {{-- a record made from the shared
                              link, not one you invited. Worth knowing before
                              anything is signed. --}}
                         @if ($investor->self_declared)
@@ -247,11 +245,11 @@
                     @if ($investor->declined_at)
                         <x-filament::button size="xs" color="gray" wire:click="reopen({{ $investor->id }})">Reopen</x-filament::button>
                     @else
-                        {{-- MARKER-SIGNING-SEND — only once there is an amount to put in
+                        {{-- only once there is an amount to put in
                              the document, and only until it is signed. --}}
                         @unless ($investor->signed_at)
                             @if ($investor->committed_at && $investor->amount)
-                                {{-- MARKER-RAISE-BUTTON-FIX — the conditional wraps the whole
+                                {{-- the conditional wraps the whole
                                      tag. Blade parses a component's attribute area separately, so
                                      control flow between attributes does not compile. --}}
                                 @if (\App\Services\SigningService::isAutomatic())
@@ -270,7 +268,7 @@
                             <x-filament::button size="xs" color="gray" wire:click="markSigned({{ $investor->id }})">Signed</x-filament::button>
                         @endunless
                         @unless ($investor->funded_at)
-                            {{-- MARKER-RAISE-CONFIRM — was wire:confirm (native confirm(),
+                            {{-- was wire:confirm (native confirm(),
                                  fails silently when the browser suppresses dialogs). --}}
                             @if ($pendingConfirm === 'funded:' . $investor->id)
                                 <span class="text-xs text-gray-500 mr-2">Record {{ $usd($investor->amount) }} received?</span>
@@ -324,7 +322,7 @@
                 <div class="text-sm text-gray-500">No link issued yet.</div>
             @endif
         </div>
-        {{-- MARKER-RAISE-CONFIRM — a suppressed native dialog here meant the
+        {{-- a suppressed native dialog here meant the
              button appeared to do nothing while every old link kept working. --}}
         @if ($pendingConfirm === 'rotate')
             <div class="flex items-center gap-2">
@@ -371,7 +369,6 @@
 @endif
 
 
-<!-- MARKER-RAISE-SETUP -->
 <div class="mt-6 rounded-xl border border-gray-200 dark:border-white/10 p-4">
     <div class="text-xs uppercase tracking-wide text-gray-500 mb-1">Round settings</div>
     <p class="text-sm text-gray-500">Cap, target, wire details, documents and message wording live on
@@ -379,7 +376,7 @@
 </div>
 
 
-{{-- MARKER-RAISE-COMPOSE-UI — exactly what will hit the inbox, laid out like
+{{-- exactly what will hit the inbox, laid out like
      a mail client. The body sets overflow-wrap:anywhere because a 40-character
      token has no spaces in it and will otherwise run off the panel — which is
      precisely the line worth checking. --}}
@@ -441,7 +438,7 @@
 @endif
 
 
-{{-- MARKER-MANUAL-SAFE — everything needed to send the document by hand, read
+{{-- everything needed to send the document by hand, read
      off the record. The amount especially: typing it from memory is how a
      signed SAFE ends up disagreeing with what was committed. --}}
 @if ($manualFor)

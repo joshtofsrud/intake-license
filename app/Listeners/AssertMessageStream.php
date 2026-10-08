@@ -1,5 +1,4 @@
 <?php
-// MARKER-STREAM-ASSERT
 
 namespace App\Listeners;
 

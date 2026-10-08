@@ -1,4 +1,4 @@
-{{-- MARKER-PATCH-494 — Roles & access: custom named roles, per-section visibility --}}
+{{-- Roles & access: custom named roles, per-section visibility --}}
 @extends('layouts.tenant.app')
 @php
   $pageTitle = 'Roles & access';
@@ -11,7 +11,7 @@
       ? array_values(array_intersect($visibleKeys, $selected->sections))
       : $visibleKeys;
   $selIsOwner = $selected && $selected->is_system && $selected->name === 'Owner';
-  // MARKER-PATCH-611 — selected role's capabilities (null = all).
+  // selected role's capabilities (null = all).
   $selCaps = $selected ? $selected->capabilities : null;
 @endphp
 
@@ -71,7 +71,7 @@
 .ra-cap { font-size:11.5px; color:var(--ia-text-dim); max-width:240px; margin-top:6px; }
 .ra-cap b { color:var(--ia-accent); }
 
-/* MARKER-TC-EXEMPT-CAP — capability rows. .ra-tog-cap had NO styling, so the
+/* capability rows. .ra-tog-cap had NO styling, so the
    browser drew a raw native checkbox next to the section switches. Scoped
    under .ra-caps on purpose: .ra-cap is also used for a paragraph in the nav
    preview below, which must stay a paragraph. */
@@ -167,7 +167,7 @@
           <div class="ra-secs">
             @foreach($gSections as $key => $def)
               @php $on = $selIsOwner || in_array($key, $selChecked, true); @endphp
-              {{-- MARKER-TC-EXEMPT-CAP — the section and its capabilities are
+              {{-- the section and its capabilities are
                    ONE grid item. As direct children of the two-column grid the
                    capability block landed in the next COLUMN, floating beside
                    an unrelated section instead of under its own. --}}
@@ -179,7 +179,7 @@
                 <input type="checkbox" class="ra-tog" name="sections[]" value="{{ $key }}"
                        @checked($on) @if($selIsOwner) disabled @endif>
               </label>
-              {{-- MARKER-PATCH-611 — capabilities nested under their section --}}
+              {{-- capabilities nested under their section --}}
               @if(!empty($caps))
                 <div class="ra-caps {{ $on ? '' : 'ra-caps-dim' }}">
                   @foreach($caps as $ck => $cd)
@@ -232,7 +232,7 @@
 
 <script>
 (function () {
-  {{-- MARKER-PATCH-494B — @json splits on commas; precompute instead --}}
+  {{-- @json splits on commas; precompute instead --}}
   @php
     $raSectionsJs = [];
     foreach ($sections as $raKey => $raDef) {
@@ -274,7 +274,7 @@
   editor.addEventListener('change', e => {
     if (!e.target.classList.contains('ra-tog')) return;
     e.target.closest('.ra-sec').classList.toggle('off', !e.target.checked);
-    // MARKER-TC-EXEMPT-CAP — the dim state was server-rendered only, so
+    // the dim state was server-rendered only, so
     // switching a section off left its capabilities looking live.
     const wrap = e.target.closest('.ra-secwrap');
     const caps = wrap ? wrap.querySelector('.ra-caps') : null;

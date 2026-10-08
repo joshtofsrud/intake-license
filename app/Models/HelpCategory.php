@@ -5,7 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 
-/** MARKER-HELP-ADMIN — a named, orderable group of help articles. */
+/** a named, orderable group of help articles. */
 class HelpCategory extends Model
 {
     use HasUuids;

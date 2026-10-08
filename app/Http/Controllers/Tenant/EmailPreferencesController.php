@@ -1,5 +1,4 @@
 <?php
-// MARKER-EMAIL-CONSENT
 
 namespace App\Http\Controllers\Tenant;
 

@@ -580,7 +580,7 @@
     ev.preventDefault();
     if (!window.IntakeConfirm) {
       // Fallback if confirm.js hasn't loaded — keep the action working.
-      if (await iaConfirm('Cancel this registration?')) form.submit(); // MARKER-INLINE-CONFIRM-2
+      if (await iaConfirm('Cancel this registration?')) form.submit();
       return false;
     }
     window.IntakeConfirm.show({

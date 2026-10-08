@@ -1,5 +1,5 @@
 <?php
-// MARKER-PATCH-616 — per-person per-period approval (sign-off).
+// per-person per-period approval (sign-off).
 
 namespace App\Models\Tenant;
 

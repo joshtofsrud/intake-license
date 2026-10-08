@@ -49,8 +49,8 @@
       cleanup_after_minutes: s.cleanup_after_minutes|0,
       slot_weight: s.slot_weight|0 || 1,
       is_active: !!s.is_active,
-      quick_only: !!s.quick_only, // MARKER-PATCH-546
-      show_on_register: !!s.show_on_register, // MARKER-QUICK-ADD
+      quick_only: !!s.quick_only,
+      show_on_register: !!s.show_on_register,
       sort_order: s.sort_order|0,
       eligible_resource_ids: Array.isArray(s.eligible_resource_ids) ? s.eligible_resource_ids.slice() : [],
       addons: (s.addons || []).map(normalizeAttachedAddon),
@@ -252,7 +252,7 @@
   }
 
   function svGroupHead(name, count, catId, warn, isActive) {
-    // MARKER-SVC-CAT — rename / hide / delete were implemented server-side
+    // rename / hide / delete were implemented server-side
     // but had no control anywhere in the UI.
     var hidden = (isActive === false);
     return '<div class="sv-cat-grouphead' + (warn ? ' is-warn' : '') + (hidden ? ' is-hidden-cat' : '') + '"'
@@ -280,7 +280,7 @@
       return;
     }
     var html = '';
-    // MARKER-SVC-CAT-FIX — an empty category still renders its head, or it
+    // an empty category still renders its head, or it
     // has no ⋯ button and can never be renamed, hidden or deleted. Skipped
     // while filtering, where empty groups would just be noise.
     var isFiltering = visible.length !== flatServices().length;
@@ -408,7 +408,7 @@
         + '</div>'
       + '</div>'
       + (state.resources.length >= 2 ? renderEligibilityField(s) : '')
-      // MARKER-PATCH-546 — quick-only visibility flag
+      // quick-only visibility flag
       + '<div class="sv-drawer-field">'
         + '<label class="sv-drawer-label" style="display:flex;align-items:center;gap:9px;cursor:pointer;text-transform:none;letter-spacing:normal">'
           + '<input type="checkbox" data-drawer-field="quick_only" data-drawer-check="1" data-service="' + esc(s.id) + '"' + (s.quick_only ? ' checked' : '') + ' style="accent-color:var(--ia-accent)">'
@@ -416,7 +416,7 @@
         + '</label>'
         + '<div class="sv-time-hint">Hidden from the full multi-step flow. Still needs to be in the Simple menu (Booking Mode page) to appear anywhere.</div>'
       + '</div>'
-      // MARKER-QUICK-ADD — the register button. Deliberately its own flag: the
+      // the register button. Deliberately its own flag: the
       // two above are the public booking flow, and a till button should never
       // publish a service to customers as a side effect.
       + '<div class="sv-drawer-field">'
@@ -545,7 +545,7 @@
   // H4: Drawer field bindings (blur-to-save for inputs, change for selects/textarea)
   // ====================================================================
 
-  // MARKER-PATCH-300 — explicit drawer Save + status pill.
+  // explicit drawer Save + status pill.
   function setDrawerStatus(serviceId, text, cls) {
     var el = document.querySelector('[data-save-status="' + serviceId + '"]');
     if (!el) return;
@@ -574,7 +574,7 @@
       var field = el.getAttribute('data-drawer-field');
       var isMoney = el.getAttribute('data-drawer-money') === '1';
       var value = el.value;
-      if (el.getAttribute('data-drawer-check') === '1') { payload[field] = el.checked ? 1 : 0; return; } // MARKER-PATCH-546
+      if (el.getAttribute('data-drawer-check') === '1') { payload[field] = el.checked ? 1 : 0; return; }
       if (isMoney) {
         var parsed = parseFloat(value);
         value = isNaN(parsed) ? 0 : Math.round(parsed * 100);
@@ -593,7 +593,7 @@
       }
       var d = r.json.data || {};
       var catChanged = d.category_id && (!curCat || d.category_id !== curCat.id);
-      // MARKER-SERVICE-FLAGS-ROUNDTRIP - copy back EVERY key the server sent,
+      // copy back EVERY key the server sent,
       // not a hard-coded seven. The old list omitted quick_only and
       // show_on_register, so the drawer redrew those checkboxes from the stale
       // local object and they appeared to reset even though the save worked.
@@ -613,7 +613,7 @@
     document.querySelectorAll('[data-drawer-field]').forEach(function (el) {
       if (el.__svBound) return;
       el.__svBound = true;
-      // MARKER-PATCH-300 dirty — surface pending edits the moment a field changes.
+      // dirty — surface pending edits the moment a field changes.
       el.addEventListener('input', function () {
         setDrawerStatus(el.getAttribute('data-service'), 'Unsaved changes', 'dirty');
       });
@@ -649,7 +649,7 @@
             moveServiceToCategory(serviceId, r.json.data.value);
           }
           renderAll();
-          setDrawerStatus(serviceId, 'Saved \u2713', 'saved'); // MARKER-PATCH-300
+          setDrawerStatus(serviceId, 'Saved \u2713', 'saved');
         });
       });
     });
@@ -1397,7 +1397,7 @@
     renderInlineServiceCreator(state.categories[0].id);
   }
 
-  // MARKER-PATCH-167 — inline service creator UX:
+  // inline service creator UX:
   //   - Explicit "Save & edit details ->" button (was hidden behind keyboard shortcut)
   //   - Visible keyboard hint
   //   - Plain Enter / blur saves WITHOUT auto-opening the drawer (no surprise jump)
@@ -1526,8 +1526,8 @@
     saveEditBtn.addEventListener('click', function () { commit(true); });
   }
 
-  // ─── MARKER-SVC-CAT — category management ────────────────────────────
-  // MARKER-SVC-CAT-FIX — the menu lives on <body> now, so teardown also
+  // ─── category management ────────────────────────────
+  // the menu lives on <body> now, so teardown also
   // drops the listeners that keep it glued to its button.
   var _catMenuReflow = null;
 
@@ -1561,7 +1561,7 @@
       + '<div class="sv-cat-menu-sep"></div>'
       + '<button type="button" class="danger" data-cat-act="delete">Delete category…</button>';
 
-    // MARKER-SVC-CAT-FIX — .sv-list-wrap has overflow:hidden for its rounded
+    // .sv-list-wrap has overflow:hidden for its rounded
     // corners, so an absolutely-positioned child is CLIPPED, not merely
     // stacked behind something. Escape the wrapper entirely.
     menu.style.position = 'fixed';
@@ -1604,7 +1604,7 @@
       if (act === 'delete') confirmDeleteCategory(catId);
     });
 
-    document.addEventListener('keydown', function esc(ev) { // MARKER-SVC-CAT-FIX
+    document.addEventListener('keydown', function esc(ev) {
       if (ev.key === 'Escape') { closeCatMenus(); document.removeEventListener('keydown', esc); }
     });
   }
@@ -1694,7 +1694,7 @@
         return '<option value="' + esc(c.id) + '">' + esc(c.name) + '</option>';
       }).join('');
 
-      // MARKER-SVC-CAT-COMPACT — names inline, actions on one row. This is a
+      // names inline, actions on one row. This is a
       // confirmation, not an inventory of the category.
       var names = mine.slice(0, 3).map(function (s) { return esc(s.name); }).join(', ');
       if (mine.length > 3) names += ' +' + (mine.length - 3) + ' more';
@@ -1800,7 +1800,7 @@
       committed = true;
       nameInput.disabled = true;
       ajax(D.urls.servicesBase, 'POST', { op: 'save_category', name: name }).then(function (r) {
-        // MARKER-SVC-CAT — keep the row on failure so the typing isn't lost,
+        // keep the row on failure so the typing isn't lost,
         // and say what went wrong instead of leaving a frozen input.
         if (!serviceResponseOk(r)) {
           committed = false;

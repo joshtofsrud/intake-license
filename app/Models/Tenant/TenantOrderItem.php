@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
- * MARKER-PATCH-560 — Online Retail Wave 1. Order lines carry snapshots
+ * Online Retail Wave 1. Order lines carry snapshots
  * (name/image/variant/price) so history renders forever regardless of
  * catalog churn; inventory_item_id stays for the sale bridge and stock.
  */

@@ -1,6 +1,5 @@
 <?php
 
-// MARKER-APPLY-PRIORITY
 
 namespace App\Console\Commands;
 

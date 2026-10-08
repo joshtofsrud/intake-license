@@ -5,7 +5,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 /**
- * MARKER-SHOP-NAV — shop menus move to page rows + style/side (columns were
+ * shop menus move to page rows + style/side (columns were
  * added by the intake.works navigation migration). Per shop, so the header
  * looks the same on day one:
  *   - a link whose address is one of the shop's pages becomes a page row;

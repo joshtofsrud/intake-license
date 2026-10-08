@@ -16,7 +16,7 @@
   <link rel="icon" type="image/png" sizes="16x16" href="{{ \App\Support\Brand::url('favicon_16') }}">
   <link rel="apple-touch-icon" href="{{ \App\Support\Brand::url('apple') }}">
   <meta name="theme-color" content="#0c0c0c">
-  <link rel="stylesheet" href="{{ asset('css/fonts.css') }}">{{-- MARKER-SELFHOST-FONTS-2 --}}
+  <link rel="stylesheet" href="{{ asset('css/fonts.css') }}">
   <style>
     :root {
       --mk-accent:      #BEF264;

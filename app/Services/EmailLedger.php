@@ -1,5 +1,4 @@
 <?php
-// MARKER-EMAIL-LEDGER
 
 namespace App\Services;
 
@@ -18,7 +17,7 @@ class EmailLedger
 {
 
     /**
-     * MARKER-PLATFORM-MAIL-LOG — record a platform send, free of charge.
+     * record a platform send, free of charge.
      *
      * Invites, resets, welcome mail and investor messages are Intake speaking,
      * not a shop speaking to its customers. They should not be billed to
@@ -57,7 +56,7 @@ class EmailLedger
 
             return $entry;
         } catch (\Throwable $e) {
-            logger()->warning('MARKER-PLATFORM-MAIL-LOG could not record a send', [
+            logger()->warning('platform-mail-log: could not record a send', [
                 'to' => $toEmail, 'error' => $e->getMessage(),
             ]);
             return null;
@@ -79,7 +78,7 @@ class EmailLedger
                 'kind'         => $kind,
                 'template_key' => $templateKey,
                 'to_email'     => strtolower(trim($toEmail)),
-                // MARKER-EMAIL-RATES — marketing and transactional are priced
+                // marketing and transactional are priced
                 // differently, and the first N of the month are free.
                 'rate'         => $isFree ? 0 : self::rateFor($kind),
                 'is_free'      => $isFree,
@@ -154,7 +153,7 @@ class EmailLedger
     }
 
     // ------------------------------------------------------------------
-    // MARKER-EMAIL-BILLING — spend and caps.
+    // spend and caps.
     // Spend always SUMS THE STAMPED RATE on each row. Never count × current
     // rate: a rate change would silently rewrite last month's invoice.
     // ------------------------------------------------------------------
@@ -215,13 +214,13 @@ class EmailLedger
     }
 
     /** Dollars per email, master-admin editable, never hardcoded at call sites. */
-    /** MARKER-EMAIL-RATES — transactional: receipts, reminders, confirmations. */
+    /** transactional: receipts, reminders, confirmations. */
     public static function rate(): float
     {
         return (float) (PlatformSettings::current()->email_rate ?? 0.002);
     }
 
-    /** MARKER-EMAIL-RATES — marketing: campaigns a shop chooses to send. */
+    /** marketing: campaigns a shop chooses to send. */
     public static function marketingRate(): float
     {
         return (float) (PlatformSettings::current()->email_rate_marketing ?? 0.0035);
@@ -242,7 +241,7 @@ class EmailLedger
     public static function freeAllowance(string $tenantId): int
     {
         if (! array_key_exists($tenantId, self::$allowance)) {
-            // MARKER-ALLOWANCE-TIERS — one resolution order, here only:
+            // one resolution order, here only:
             //   this shop's override → its tier's allowance → platform default
             // A shop set to 0 deliberately gets none; null means "use the tier".
             $row = \App\Models\Tenant::whereKey($tenantId)->first(['email_free_monthly', 'plan_tier']);
@@ -256,7 +255,7 @@ class EmailLedger
         return self::$allowance[$tenantId];
     }
 
-    /** MARKER-ALLOWANCE-TIERS — what a tier includes, before any override. */
+    /** what a tier includes, before any override. */
     public static function tierAllowance(?string $tier): int
     {
         $settings = PlatformSettings::current();
@@ -284,7 +283,7 @@ class EmailLedger
     }
 
     /**
-     * MARKER-EMAIL-RATES — how many of this month's emails have been metered.
+     * how many of this month's emails have been metered.
      *
      * Seeded from the database once per process and incremented in memory, so a
      * 1,500-recipient campaign does not run 1,500 COUNT queries. Two workers

@@ -1,5 +1,5 @@
 <?php
-// MARKER-PATCH-618 — build peer-to-peer pay links for manual tenders.
+// build peer-to-peer pay links for manual tenders.
 // These open the customer's Venmo/Cash App to pay the tenant's handle. Neither
 // has a payment API, so there is NO confirmation callback — the sale stays a
 // manual "mark paid" tender. Money lands in the tenant's OWN Venmo/Cash App

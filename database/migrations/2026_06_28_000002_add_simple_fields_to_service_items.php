@@ -4,7 +4,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-// MARKER-FLOW-2 — which service items appear in Simple mode's curated menu.
+// which service items appear in Simple mode's curated menu.
 return new class extends Migration
 {
     public function up(): void

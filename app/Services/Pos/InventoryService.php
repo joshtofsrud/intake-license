@@ -77,7 +77,7 @@ class InventoryService
         ?TenantUser $tenantUser = null,
         ?string $reason = null,
         ?string $notes = null,
-        // MARKER-TRANSFER-MOVEMENTS — callers that are not sales (transfers)
+        // callers that are not sales (transfers)
         // can label their own movement. Defaults to the historical 'sale'.
         ?string $movementType = 'sale',
     ): TenantInventoryMovement {
@@ -103,7 +103,7 @@ class InventoryService
                 item: $item,
                 location: $location,
                 quantityDelta: -$quantity,
-                movementType: $movementType ?: 'sale', // MARKER-TRANSFER-MOVEMENTS
+                movementType: $movementType ?: 'sale',
                 referenceType: $referenceType,
                 referenceId: $referenceId,
                 tenantUser: $tenantUser,
@@ -285,7 +285,7 @@ class InventoryService
      * Reason is REQUIRED for audit clarity ("damaged in transit", "found in storeroom").
      */
     /**
-     * MARKER-RECEIVED-COST — the ONE place received cost is written.
+     * the ONE place received cost is written.
      *
      * $units arrived at $unitCostCents each. How that folds into the item's
      * received cost depends on the shop's method:
@@ -306,7 +306,7 @@ class InventoryService
             return;
         }
 
-        $method = (string) (((array) ($tenant->settings ?? []))['inventory_cost_method'] ?? 'average'); // MARKER-COST-METHOD-FIX
+        $method = (string) (((array) ($tenant->settings ?? []))['inventory_cost_method'] ?? 'average');
         if ($method === 'manual') {
             return;
         }
@@ -337,7 +337,7 @@ class InventoryService
         string $reason,
         ?TenantUser $tenantUser = null,
         ?string $notes = null,
-        ?int $unitCostCents = null,   // MARKER-RECEIVED-COST — stock coming IN at a known price
+        ?int $unitCostCents = null,   // stock coming IN at a known price
     ): TenantInventoryMovement {
         $this->assertTenantOwnsResources($tenant, $item, $location);
 
@@ -364,7 +364,7 @@ class InventoryService
                 referenceType: 'manual',
                 referenceId: null,
                 tenantUser: $tenantUser,
-                costCentsAtTime: $unitCostCents ?? $item->effectiveCostCents(),  // MARKER-RECEIVED-COST
+                costCentsAtTime: $unitCostCents ?? $item->effectiveCostCents(),
                 reason: $reason,
                 notes: $notes,
             );
@@ -373,7 +373,7 @@ class InventoryService
 
             event(new InventoryStockChanged($movement));
 
-            // MARKER-RECEIVED-COST — an adjustment IN with a cost is stock
+            // an adjustment IN with a cost is stock
             // arriving at a known price, same as a receive. Out, or no cost,
             // leaves received cost alone.
             if ($delta > 0 && $unitCostCents !== null) {

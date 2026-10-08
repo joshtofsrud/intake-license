@@ -1,4 +1,4 @@
-{{-- MARKER-RENTAL-EXT — one screen, one tap. States: open / paid / dead. --}}
+{{-- one screen, one tap. States: open / paid / dead. --}}
 <!DOCTYPE html>
 <html lang="en">
 <head>

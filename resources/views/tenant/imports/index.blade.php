@@ -1,6 +1,6 @@
 @extends('layouts.tenant.app')
 @php $pageTitle = 'Import'; @endphp
-{{-- MARKER-IMPORT3 — the hub IS the landing: numbered sections, type cards
+{{-- the hub IS the landing: numbered sections, type cards
      that carry their own context, and history that shows outcomes. --}}
 
 @section('content')
@@ -60,7 +60,7 @@
             @if($t['extra'])<span class="imp-tag">{{ $t['extra'] }}</span>@endif
           </div>
         </a>
-        {{-- MARKER-IMPORT-CTA — explicit primary action; starter CSV is the aside. --}}
+        {{-- explicit primary action; starter CSV is the aside. --}}
         <div class="imp-type-go">
           <a href="{{ route('tenant.imports.create', ['type' => $impKey]) }}" class="ia-btn ia-btn--primary ia-btn--sm">
             Import {{ strtolower($t['label']) }}
@@ -134,7 +134,7 @@
                   @endif
                   @if(in_array($imp->status, ['draft', 'previewed'], true))
                     <a href="{{ route('tenant.imports.map', $imp->id) }}" class="ia-btn ia-btn--secondary ia-btn--sm">Resume</a>
-                    {{-- MARKER-IMPORT-PRESETS — in-app dialog, not confirm(). --}}
+                    {{-- in-app dialog, not confirm(). --}}
                     <form method="POST" action="{{ route('tenant.imports.destroy', $imp->id) }}"
                           data-confirm="Discard this upload? Nothing was written, so nothing is lost."
                           data-confirm-label="Discard">
@@ -158,7 +158,7 @@
   @endif
 </div>
 
-{{-- MARKER-IMPORT-PRESETS — section 3, rendered only once a preset exists. --}}
+{{-- section 3, rendered only once a preset exists. --}}
 @if($presets->isNotEmpty())
 <div class="imp-sec">
   <div class="imp-sec-h"><span class="imp-sec-n">3</span><span class="imp-sec-t">Saved mappings</span></div>

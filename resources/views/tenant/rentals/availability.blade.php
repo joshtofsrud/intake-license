@@ -1,7 +1,7 @@
 @extends('layouts.tenant.app')
 @php $pageTitle = 'Availability'; @endphp
 
-{{-- MARKER-PATCH-223 — fleet-wide availability timeline (mockup rentAvail). --}}
+{{-- fleet-wide availability timeline (mockup rentAvail). --}}
 
 @push('styles')
 <style>
@@ -27,7 +27,7 @@
   .avail-bar.reserved { background:#B8801A; }
   .avail-bar.overdue  { background:#A32D2D; }
   .avail-bar.maint    { background:#534AB7; }
-  .avail-bar.lease    { background:#3d6b2f; } /* MARKER-PATCH-238 */
+  .avail-bar.lease    { background:#3d6b2f; }
   .avail-pills { display:flex; gap:6px; flex-wrap:wrap; }
   .avail-pill { font-size:11.5px; padding:4px 10px; border-radius:999px; box-shadow:inset 0 0 0 .5px var(--ia-border);
                 cursor:pointer; text-decoration:none; color:inherit; opacity:.7; }
@@ -110,7 +110,7 @@
 
 <script>
 (function () {
-  // MARKER-PATCH-223 — drag across empty days on a unit row -> New Rental
+  // drag across empty days on a unit row -> New Rental
   // prefilled with the unit + window (pickup 9:00 AM, return 5:00 PM).
   var createUrl = '{{ route('tenant.rentals.bookings.create') }}';
   var winStart  = document.getElementById('avail-timeline').getAttribute('data-win-start');

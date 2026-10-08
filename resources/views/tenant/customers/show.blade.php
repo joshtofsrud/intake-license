@@ -1,4 +1,4 @@
-{{-- MARKER-ASSET-NOUN — asset labels read tenant()->asset_label_* --}}
+{{-- asset labels read tenant()->asset_label_* --}}
 @extends('layouts.tenant.app')
 @php
   $pageTitle  = $customer->fullName();
@@ -220,18 +220,18 @@
   background: rgba(245,158,11,.06) !important;
 }
 
-/* MARKER-CUST-ACCOUNT — portal account state on the detail header */
+/* portal account state on the detail header */
 .cust-acct-row{display:flex;align-items:center;gap:10px;margin-top:8px;flex-wrap:wrap}
 .cust-acct-badge{display:inline-flex;align-items:center;font-size:10px;font-weight:800;letter-spacing:.07em;
   text-transform:uppercase;border-radius:100px;padding:3px 9px;border:.5px solid var(--ia-border);color:var(--ia-text-dim)}
 .cust-acct-badge.on{border-color:var(--ia-accent);color:var(--ia-accent)}
-/* MARKER-CONSENT-CHIP — marketing consent state, same pill shape.
+/* marketing consent state, same pill shape.
    A chip that can be changed is a <button>; a fixed state stays a <span>. */
 .cust-mk-chip{display:inline-flex;align-items:center;font:inherit;font-size:10px;font-weight:800;
   letter-spacing:.07em;text-transform:uppercase;border-radius:100px;padding:3px 9px;
   border:.5px solid var(--ia-border);color:var(--ia-text-dim);background:none}
 button.cust-mk-chip{cursor:pointer}
-/* MARKER-TAGS-VISIBLE — customer tags, same pill shape as the consent chips
+/* customer tags, same pill shape as the consent chips
    but lower-case and accented, so a tag never reads as a status. */
 .cust-tag{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;
   border-radius:100px;padding:3px 9px;border:.5px solid var(--ia-border);
@@ -247,7 +247,7 @@ a.cust-tag:hover{color:var(--ia-text);border-color:var(--ia-accent)}
 .cust-tagform select,.cust-tagform input{background:var(--ia-surface-2);border:.5px solid var(--ia-border);
   border-radius:var(--ia-r-md);color:var(--ia-text);padding:6px 9px;font:inherit;font-size:12.5px}
 button.cust-mk-chip:hover{color:var(--ia-text);border-color:var(--ia-text-muted)}
-/* MARKER-CONSENT-DIALOG — in-app confirm, matching the edit sheet's scrim. */
+/* in-app confirm, matching the edit sheet's scrim. */
 .mk-dlg-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:210;opacity:0;
   pointer-events:none;transition:opacity 160ms ease;display:flex;align-items:center;justify-content:center;padding:20px}
 .mk-dlg-backdrop.is-open{opacity:1;pointer-events:auto}
@@ -784,7 +784,7 @@ body.ia-theme-b .cust-edit-handle { background: rgba(0,0,0,.18); }
   .cust-edit-backdrop { display: none !important; }
 }
 
-/* ============ MARKER-PATCH-158-C — Customer assets ============ */
+/* ============ Customer assets ============ */
 .asset-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
@@ -919,7 +919,7 @@ body.ia-theme-b .cust-edit-handle { background: rgba(0,0,0,.18); }
 
 <x-tenant.sale-detail-modal />
 
-{{-- MARKER-CUST-ACCOUNT — this page had no flash render at all --}}
+{{-- this page had no flash render at all --}}
 @if(session('success'))
   <div class="ia-flash ia-flash--success" style="margin-bottom:14px">{{ session('success') }}</div>
 @endif
@@ -945,7 +945,7 @@ body.ia-theme-b .cust-edit-handle { background: rgba(0,0,0,.18); }
       @if($customer->phone) · {{ $customer->phone }} @endif
       · Added {{ $customer->created_at->format('M j, Y') }}
     </p>
-    {{-- MARKER-CUST-ACCOUNT — portal account state + staff actions. The
+    {{-- portal account state + staff actions. The
          button emails a link; staff never set a customer's password. --}}
     @php
       $caHasAccount = $customer->password !== null;
@@ -955,7 +955,7 @@ body.ia-theme-b .cust-edit-handle { background: rgba(0,0,0,.18); }
       <span class="cust-acct-badge {{ $caHasAccount ? 'on' : '' }}">
         {{ $caHasAccount ? 'Portal account' : 'No portal account' }}
       </span>
-      {{-- MARKER-CONSENT-DIALOG — marketing consent state. The chip opens an
+      {{-- marketing consent state. The chip opens an
            in-app dialog; consent is a record, so it never flips on a stray
            click, and never through a browser confirm(). --}}
       @if($customer->email)
@@ -992,7 +992,7 @@ body.ia-theme-b .cust-edit-handle { background: rgba(0,0,0,.18); }
           @endif
         @endif
       @endif
-      {{-- MARKER-TAGS-VISIBLE — what this customer is tagged with, and a way
+      {{-- what this customer is tagged with, and a way
            to change it. Each chip opens the list filtered to that tag. --}}
       @foreach($customerTags ?? [] as $tg)
         <span class="cust-tag">
@@ -1015,7 +1015,7 @@ body.ia-theme-b .cust-edit-handle { background: rgba(0,0,0,.18); }
         </form>
       @endif
 
-      {{-- MARKER-TAGS-VISIBLE — pick an existing tag or type a new one. Its
+      {{-- pick an existing tag or type a new one. Its
            own form, a sibling of the chips, never nested inside one. --}}
       <form method="POST" action="{{ route('tenant.customers.tags.add', $customer->id) }}" class="cust-tagform" id="cust-tagform">
         @csrf
@@ -1267,7 +1267,7 @@ body.ia-theme-b .cust-edit-handle { background: rgba(0,0,0,.18); }
 {{-- CUST-EDIT-SHEET v1 — mobile-only bottom sheet for editing customer info.
      Posts to the same PATCH endpoint as the desktop form (op=update_info).
      Hidden on desktop via CSS @media (min-width: 601px). --}}
-{{-- MARKER-CONSENT-DIALOG — one dialog, driven by MkConsent.open() --}}
+{{-- one dialog, driven by MkConsent.open() --}}
 @if($customer->email && auth('tenant')->user()?->isManager())
 <div class="mk-dlg-backdrop" id="mk-dlg-backdrop" onclick="if(event.target===this)MkConsent.close()" aria-hidden="true">
   <div class="mk-dlg" role="dialog" aria-modal="true" aria-labelledby="mk-dlg-title">
@@ -1301,7 +1301,6 @@ body.ia-theme-b .cust-edit-handle { background: rgba(0,0,0,.18); }
     @csrf @method('PATCH')
     <input type="hidden" name="op" value="update_info">
 
-    {{-- MARKER-BIZ-CUSTOMER --}}
     <div class="cust-edit-field">
       <label class="cust-edit-label">Customer type</label>
       <div class="biz-type-row">
@@ -1485,7 +1484,7 @@ body.ia-theme-b .cust-edit-handle { background: rgba(0,0,0,.18); }
       </form>
     </div>
 
-    {{-- MARKER-PATCH-158-C — Assets (multi-asset-enabled tenants only) --}}
+    {{-- Assets (multi-asset-enabled tenants only) --}}
     @if($currentTenant->multi_asset_enabled)
       <div class="ia-card" style="margin-bottom:24px" id="cust-assets-card">
         <div class="ia-card-head">
@@ -1596,7 +1595,7 @@ body.ia-theme-b .cust-edit-handle { background: rgba(0,0,0,.18); }
       </div>
 
       <script>
-        // MARKER-PATCH-158-C — asset modal open/close + populate for edit
+        // asset modal open/close + populate for edit
         function openAssetModal(id, name, identifier, notes) {
           const form  = document.getElementById('asset-form');
           const title = document.getElementById('asset-modal-title');
@@ -2141,7 +2140,7 @@ body.ia-theme-b .cust-edit-handle { background: rgba(0,0,0,.18); }
 
 @push('scripts')
 <script>
-// MARKER-CONSENT-DIALOG — in-app confirm for the marketing consent chip.
+// in-app confirm for the marketing consent chip.
 (function () {
   window.MkConsent = {
     open: function (action, title, body, cta) {
@@ -2260,7 +2259,7 @@ body.ia-theme-b .cust-edit-handle { background: rgba(0,0,0,.18); }
 @endpush
 
 
-{{-- MARKER-BIZ-CUSTOMER — inside the section on purpose; Blade discards
+{{-- inside the section on purpose; Blade discards
      anything after @endsection. --}}
 <style>
   .biz-type-row{display:flex;gap:8px}
@@ -2390,7 +2389,7 @@ body.ia-theme-b .cust-edit-handle { background: rgba(0,0,0,.18); }
   function bindDel(btn) {
     if (!btn) return;
     btn.addEventListener('click', async function () {
-      if (!(await iaConfirm('Delete this note?'))) return; // MARKER-INLINE-CONFIRM-2
+      if (!(await iaConfirm('Delete this note?'))) return;
       var noteId = btn.getAttribute('data-note-id');
       post({ op: 'delete_note', note_id: noteId }, function (resp) {
         if (!resp.ok) return;

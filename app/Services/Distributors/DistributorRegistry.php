@@ -1,5 +1,4 @@
 <?php
-// MARKER-PATCH-HLC2
 
 namespace App\Services\Distributors;
 
@@ -18,17 +17,17 @@ class DistributorRegistry
     /** distributor_code => adapter class */
     private const ADAPTERS = [
         'HLC' => HlcClient::class,
-        // MARKER-BTI-ADAPTER — credentials ride in api_key as
+        // credentials ride in api_key as
         // "username:password"; BtiClient splits on the first colon, so the
         // shared (apiKey, region) constructor shape still holds.
         'BTI' => BtiClient::class,
-        // MARKER-QBP-ADAPTER — present so master admin can hold the key and
+        // present so master admin can hold the key and
         // test it. Only testConnection() works; the data methods throw.
         'QBP' => QbpClient::class,
     ];
 
     /**
-     * MARKER-DIST-MULTI — what each distributor asks a shop for.
+     * what each distributor asks a shop for.
      *
      * HLC issues one API key. BTI issues a username and a password for HTTP
      * Basic. Both end up in the api_key credential slot (BTI's joined with a
@@ -46,7 +45,7 @@ class DistributorRegistry
                 ['name' => 'password', 'label' => 'BTI password', 'type' => 'password',
                  'hint' => 'The long code on the same page.'],
             ],
-            // MARKER-QBP-CLS-CREDS — two services, two keys, one header name.
+            // two services, two keys, one header name.
             'QBP' => [
                 ['name' => 'api_key', 'label' => 'API1 key (Point-of-Sale)', 'type' => 'password',
                  'hint' => 'Free from QBP. Supplies the catalog, dealer cost and stock.'],
@@ -61,7 +60,7 @@ class DistributorRegistry
     }
 
     /**
-     * MARKER-QBP-CLS-CREDS — pull the CLS half out of a stored credential.
+     * pull the CLS half out of a stored credential.
      *
      * Stored as "api1:cls". Returns '' when no CLS key has been given, which
      * is a supported state: everything except images still works.
@@ -93,7 +92,7 @@ class DistributorRegistry
      * @param  array<string,string> $input
      */
     /**
-     * MARKER-PARTIAL-CREDS — merge submitted fields over what is stored.
+     * merge submitted fields over what is stored.
      *
      * This used to require BOTH BTI fields and return null otherwise. The
      * form tells the user a blank field keeps the saved value, so typing
@@ -125,7 +124,7 @@ class DistributorRegistry
             return ($u === '' || $p === '') ? null : $u . ':' . $p;
         }
 
-        // MARKER-QBP-CLS-CREDS — same colon packing BTI uses. A blank field
+        // same colon packing BTI uses. A blank field
         // keeps whatever is stored, so saving one key never wipes the other.
         if (strtoupper($code) === 'QBP') {
             $curApi = $stored;
@@ -148,7 +147,7 @@ class DistributorRegistry
     }
 
     /**
-     * MARKER-PARTIAL-CREDS — placeholder per credential field.
+     * placeholder per credential field.
      *
      * Both BTI fields used to show the same masked string, which is the
      * username and password joined with a colon, so the username box hinted
@@ -172,7 +171,7 @@ class DistributorRegistry
             ];
         }
 
-        // MARKER-CLS-HINT — QBP packs "api1:cls". Without this the API1 box
+        // QBP packs "api1:cls". Without this the API1 box
         // showed a mask of the JOINED string and the CLS box showed nothing,
         // so a saved license key looked like an empty field on every reload.
         if (strtoupper($code) === 'QBP') {

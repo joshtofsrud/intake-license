@@ -1,14 +1,13 @@
 @php
-  // MARKER-PATCH-360 — the More drawer renders the SAME nav item set as the
+  // the More drawer renders the SAME nav item set as the
   // desktop sidebar (_nav-items.blade.php), grouped into sections. Sharing the
   // full list guarantees nothing is dropped and that plan tiers (Starter vs
   // Scale) surface exactly the items their feature gates allow.
   $current = request()->route()?->getName() ?? '';
 
-  // MARKER-NAV-ONE-LIST — one list for the sidebar and the phone drawer.
+  // one list for the sidebar and the phone drawer.
   $navItems = \App\Support\TenantNav::items();
 
-  // MARKER-NAV-REGROUP
   $drawerSections = ['workspace' => 'Workspace', 'manage' => 'Manage', 'website' => 'Website', 'marketing' => 'Marketing', 'messages' => 'Messages', 'settings' => 'Settings'];
   // Already in the bottom tab bar — don't repeat them in the drawer:
   $drawerSkip = ['tenant.dashboard', 'tenant.calendar.index', 'tenant.customers.index', 'tenant.inbox.index'];
@@ -32,7 +31,7 @@
         @continue(in_array($navItem['route'], $drawerSkip, true))
         @continue(!empty($navItem['gate']) && !$currentTenant->{$navItem['gate']})
         @continue(!\Illuminate\Support\Facades\Route::has($navItem['route']))
-        {{-- MARKER-PATCH-493 — role section visibility --}}
+        {{-- role section visibility --}}
         @php $dSec = \App\Support\SectionRegistry::sectionForRoute($navItem['route']); @endphp
         @continue($dSec && !empty($authUser) && !$authUser->canAccessSection($dSec))
         @php $sect = $navItem['group'] ?? 'workspace'; @endphp
@@ -58,9 +57,9 @@
         <div class="ia-user-role">{{ ucfirst($authUser->role ?? 'Member') }}</div>
       </div>
     </div>
-    {{-- MARKER-PATCH-496 — switch user (PIN tier only) --}}
-    {{-- MARKER-DEMO-FIXES — see _sidebar: no switch user on a demo tenant --}}
-    {{-- MARKER-IMPERSONATE-SWITCH — see _sidebar --}}
+    {{-- switch user (PIN tier only) --}}
+    {{-- see _sidebar: no switch user on a demo tenant --}}
+    {{-- see _sidebar --}}
     @if($currentTenant->pin_tier_active && ! $currentTenant->is_demo && ! is_impersonating())
     <a href="{{ route('tenant.switch') }}" class="ia-drawer-signout" style="text-decoration:none">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -72,7 +71,7 @@
     @endif
     <button type="button"
             class="ia-drawer-signout"
-            onclick="iaConfirm('Sign out of {{ addslashes($currentTenant->name) }}?').then(function (ok) { if (ok) { document.getElementById('logout-form-mobile').submit(); } })"{{-- MARKER-NAV-ONE-LIST: in-app dialog, not the browser's --}}>
+            onclick="iaConfirm('Sign out of {{ addslashes($currentTenant->name) }}?').then(function (ok) { if (ok) { document.getElementById('logout-form-mobile').submit(); } })"{{-- in-app dialog, not the browser's --}}>
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
         <polyline points="16 17 21 12 16 7"/>

@@ -3,7 +3,7 @@
 namespace App\Support;
 
 /**
- * MARKER-NAV-ONE-LIST — the tenant menu, defined once.
+ * the tenant menu, defined once.
  *
  * The desktop sidebar (_nav-items) and the phone's More drawer (_more-drawer)
  * both read this. The drawer used to keep its own copy, which drifted and
@@ -37,21 +37,21 @@ class TenantNav
           'match_alt' => 'tenant.appointments',
         ],
         [
-          // MARKER-PATCH-217 — Rentals desk. Gated on the rentals addon
+          // Rentals desk. Gated on the rentals addon
           // (a la carte, tier floor branded). match covers future
           // tenant.rentals.* surfaces automatically via route-name prefix.
           'route'  => 'tenant.rentals.desk',
           'label'  => 'Rentals',
           'icon'   => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="3.4" cy="9.8" r="2.1" stroke="currentColor" stroke-width="1.2"/><circle cx="10.6" cy="9.8" r="2.1" stroke="currentColor" stroke-width="1.2"/><path d="M3.4 9.8L5.6 5.2h3.2M10.6 9.8L8.6 4.4M5 3.2h2.4M8.6 4.4l-.4-1.2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
           'group'  => null,
-          'gate'   => 'rentals_visible', // MARKER-PATCH-228B — visibility toggle
+          'gate'   => 'rentals_visible', // visibility toggle
         ],
         [
           'route'  => 'tenant.classes.sessions',
           'label'  => 'Classes',
           'icon'   => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1" y="3" width="12" height="8" rx="1.2" stroke="currentColor" stroke-width="1.2"/><path d="M5.5 5.5l3 1.5-3 1.5V5.5z" fill="currentColor"/></svg>',
           'group'  => null,
-          'gate'   => 'classes_active', // MARKER-CLASSES-ADDON
+          'gate'   => 'classes_active',
           'match_alt' => 'tenant.classes',
         ],
         [
@@ -68,7 +68,7 @@ class TenantNav
           'match_alt' => 'tenant.distributors',
           'gate'   => 'retail_enabled',
         ],
-        // MARKER-PATCH-HLC22 HLC22-REMOVED-DISTRIBUTORS: distributor surfaces now
+        // HLC22-REMOVED-DISTRIBUTORS: distributor surfaces now
         // live as tabs under Inventory (see _inventory-tabs).
         [
           // patch-94 SO nav entry — added in Stage 9. Retail-gated, top-level.
@@ -79,7 +79,7 @@ class TenantNav
           'group'  => null,
           'gate'   => 'retail_enabled',
         ],
-        // MARKER-PATCH-567/568 — online orders queue
+        // /568 — online orders queue
         [
           'route'  => 'tenant.orders.index',
           'label'  => 'Orders',
@@ -87,19 +87,18 @@ class TenantNav
           'group'  => null,
           'gate'   => 'online_store_enabled',
         ],
-        // MARKER-GIFTCARDS-ADMIN
         [
           'route'  => 'tenant.gift-cards.index',
           'label'  => 'Gift Cards',
           'icon'   => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1.5" y="4" width="11" height="7.5" rx="1.2" stroke="currentColor" stroke-width="1.2"/><path d="M1.5 6.8h11M7 4v7.5M7 4c-.8-1.6-3.2-2.1-3.2-.6C3.8 4.6 5.8 4 7 4zm0 0c.8-1.6 3.2-2.1 3.2-.6C10.2 4.6 8.2 4 7 4z" stroke="currentColor" stroke-width="1.1"/></svg>',
           'group'  => null,
-          'gate'   => 'gift_cards_visible', // MARKER-GIFTCARDS-GATE
+          'gate'   => 'gift_cards_visible',
         ],
         [
           // patch-100b transfer-requests nav — between SOs and Vendors
           // since transfer requests are operationally similar to SOs
           // (both are "we need stock somewhere else").
-          // MARKER-PATCH-162 — gated on multi_location_active, not just retail.
+          // gated on multi_location_active, not just retail.
           // Single-location tenants have nowhere to transfer from.
           'route'  => 'tenant.transfer-requests.index',
           'label'  => 'Transfer Requests',
@@ -123,21 +122,21 @@ class TenantNav
           'icon'   => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1.5" y="8" width="2.5" height="4.5" rx="0.5" fill="currentColor"/><rect x="5.75" y="5" width="2.5" height="7.5" rx="0.5" fill="currentColor"/><rect x="10" y="2" width="2.5" height="10.5" rx="0.5" fill="currentColor"/></svg>',
           'group'  => null,
         ],
-        // MARKER-PATCH-610 — Time clock
+        // Time clock
         [
           'route'  => 'tenant.timeclock.index',
           'label'  => 'Time clock',
           'icon'   => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="5.5" stroke="currentColor" stroke-width="1.2"/><path d="M7 4v3l2 1.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>',
           'group'  => 'manage',
         ],
-        // MARKER-PATCH-623 — Scheduling
+        // Scheduling
         [
           'route'  => 'tenant.scheduling.mine',
           'label'  => 'Scheduling',
           'icon'   => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1.5" y="2.5" width="11" height="10" rx="1.5" stroke="currentColor" stroke-width="1.2"/><path d="M1.5 5.5h11M4.5 1v3M9.5 1v3" stroke="currentColor" stroke-width="1.2"/></svg>',
           'group'  => 'manage',
         ],
-        // MARKER-PATCH-129 — Team & Access (consolidated from Team + Security)
+        // Team & Access (consolidated from Team + Security)
         [
           'route'  => 'tenant.team.index',
           'label'  => 'Team & access',
@@ -187,16 +186,16 @@ class TenantNav
           'icon'   => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1" y="2" width="12" height="10" rx="1.5" stroke="currentColor" stroke-width="1.2"/><path d="M4 6h6M4 8.5h4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>',
           'group'  => 'website',
         ],
-        // MARKER-PATCH-261 — site template gallery
+        // site template gallery
         [
           'route'  => 'tenant.templates.index',
           'label'  => 'Templates',
           'icon'   => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1.5" y="1.5" width="11" height="11" rx="1.5" stroke="currentColor" stroke-width="1.2"/><path d="M1.5 5h11M5 5v7.5" stroke="currentColor" stroke-width="1.2"/></svg>',
           'group'  => 'website',
         ],
-        // MARKER-PATCH-404 — Communication Center
+        // Communication Center
         [
-          // MARKER-NAV-MESSAGES — the real message work, where people look for
+          // the real message work, where people look for
           // it. Same destinations and same counts as the top attention row.
           'route'  => 'tenant.inbox.index',
           'label'  => 'Inbox',
@@ -206,7 +205,7 @@ class TenantNav
           'badge'  => 'inbox',
         ],
         [
-          // MARKER-ALERTS-GATE — the add-on gates the feature; without this the nav
+          // the add-on gates the feature; without this the nav
           // entry, the bell and an empty "you're all caught up" page showed to
           // shops that never bought it, reading as broken rather than unsold.
           'gate'   => 'staff_alerts_enabled',
@@ -222,7 +221,7 @@ class TenantNav
           'icon'   => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 3.5h10a1 1 0 0 1 1 1V9a1 1 0 0 1-1 1H6l-3 2.5V10H2a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><path d="M4.5 6h5M4.5 7.8h3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>',
           'group'  => 'messages',
         ],
-        // MARKER-PATCH-147 — tenant-facing suppression list
+        // tenant-facing suppression list
         [
           'route'  => 'tenant.waitlist.index',
           'label'  => 'Waitlist',
@@ -230,7 +229,6 @@ class TenantNav
           'group'  => 'marketing',
         ],
             [
-          // MARKER-DISCOUNTS-ADMIN
           'route'  => 'tenant.discounts.index',
           'label'  => 'Discounts',
           'icon'   => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M10.5 3.5l-7 7" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><circle cx="4.75" cy="4.75" r="1.4" stroke="currentColor" stroke-width="1.2"/><circle cx="9.25" cy="9.25" r="1.4" stroke="currentColor" stroke-width="1.2"/></svg>',
@@ -242,7 +240,7 @@ class TenantNav
           'icon'   => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 7h10M9 4l3 3-3 3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
           'group'  => 'marketing',
         ],
-        // MARKER-PATCH-450 — Engage -> Recovery (abandoned-booking follow-up)
+        // Engage -> Recovery (abandoned-booking follow-up)
         [
           'route'  => 'tenant.recovery.index',
           'label'  => 'Recovery',
@@ -273,14 +271,14 @@ class TenantNav
           'icon'   => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1.5C4.8 1.5 3 3.3 3 5.5c0 3 4 7 4 7s4-4 4-7c0-2.2-1.8-4-4-4z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><circle cx="7" cy="5.5" r="1.3" stroke="currentColor" stroke-width="1.2"/></svg>',
           'group'  => 'settings',
         ],
-        // MARKER-IMPORT1 — CSV import lives with the other setup surfaces
+        // CSV import lives with the other setup surfaces
         [
           'route'  => 'tenant.imports.index',
           'label'  => 'Import',
           'icon'   => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1.5v7M4.5 6L7 8.5 9.5 6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 10.5v1a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-1" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>',
           'group'  => 'settings',
         ],
-        // MARKER-PATCH-570 — storefront settings (online store control panel)
+        // storefront settings (online store control panel)
         [
           'route'  => 'tenant.storefront.settings',
           'label'  => 'Storefront',
@@ -308,7 +306,7 @@ class TenantNav
         ],
       ];
 
-      // MARKER-PATCH-549 — nav restructure (547 hotfix): runs inside the existing
+      // nav restructure (547 hotfix): runs inside the existing
       // @php block; Email+Suppressions live in Communication, What's New/Coming
       // in Help & Guides, Capacity -> Settings.
         $navOrder547 = [
@@ -320,9 +318,9 @@ class TenantNav
           // manage
           'tenant.team.index', 'tenant.services.index', 'tenant.resources.index',
           'tenant.work-order-fields.index', 'tenant.booking-editor.index',
-          // MARKER-NAV-REGROUP — website, then marketing, then messages
+          // website, then marketing, then messages
           'tenant.pages.index', 'tenant.templates.index', 'tenant.media.index',
-          'tenant.storefront.settings', 'tenant.booking_modes.index', // MARKER-NAV-WEBSITE-MOVES
+          'tenant.storefront.settings', 'tenant.booking_modes.index',
           'tenant.campaigns.index', 'tenant.discounts.index', 'tenant.recovery.index',
           'tenant.waitlist.index',
           'tenant.inbox.index', 'tenant.notifications', 'tenant.communication.index',
@@ -331,7 +329,7 @@ class TenantNav
           'tenant.capacity.index', 'tenant.settings.index', 'tenant.feature_addons.index',
         ];
         $navDrop547  = ['tenant.whats_new.changelog', 'tenant.whats_new.roadmap'];
-        // MARKER-NAV-REGROUP — sort weights follow the new group order.
+        // sort weights follow the new group order.
         $gw547       = ['manage' => 1, 'website' => 2, 'marketing' => 3, 'messages' => 4, 'settings' => 5];
         $navItems = collect($navItems)
             ->reject(fn ($i) => in_array($i['route'], $navDrop547))

@@ -1,4 +1,4 @@
-{{-- MARKER-PATCH-579 -- chrome-wrapped shop body (confirmation); rendered
+{{-- chrome-wrapped shop body (confirmation); rendered
      through public.layout via SiteChromeService between the tenant own
      nav + footer sections. Original standalone blade retired. --}}
 @php
@@ -44,7 +44,7 @@
       <h1>Order confirmed</h1>
       <div class="sub">{{ $order->order_number }} · a receipt is on its way to {{ $order->contact_email }}</div>
     @elseif($order->payment_method)
-      {{-- MARKER-PATCH-631 — manual payment: order received, show how to pay --}}
+      {{-- manual payment: order received, show how to pay --}}
       <div class="ic" style="background:rgba(0,0,0,.07)">⏳</div>
       <h1>Order received — one step left</h1>
       <div class="sub">{{ $order->order_number }} · we'll confirm as soon as your payment lands</div>

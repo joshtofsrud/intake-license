@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-// MARKER-CONTRIBUTIONS
 use App\Models\BillingSettings;
 use App\Models\Contribution;
 use Illuminate\Support\Facades\Log;
@@ -22,7 +21,7 @@ class ContributionService
     public const DEFAULT_PRESETS = [25, 100, 250];
 
     /**
-     * MARKER-CONTRIB-UI — the three buttons, from Raise setup.
+     * the three buttons, from Raise setup.
      *
      * Forgiving on purpose and always returns something: a typo in that field
      * must not leave the public page with no buttons on it. Anything unusable
@@ -107,7 +106,7 @@ class ContributionService
 
         $contribution->update(['stripe_session_id' => $session->id]);
 
-        Log::info('MARKER-CONTRIBUTIONS checkout started', [
+        Log::info('contributions: checkout started', [
             'contribution' => $contribution->id,
             'amount'       => $contribution->amount_cents,
         ]);

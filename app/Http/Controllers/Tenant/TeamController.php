@@ -1,5 +1,4 @@
 <?php
-// MARKER-PATCH-129
 
 namespace App\Http\Controllers\Tenant;
 
@@ -33,7 +32,7 @@ class TeamController extends Controller
 
     // ───────────────────────────── List ─────────────────────────────
 
-    // MARKER-PATCH-130 — devices are tenant-scoped, no per-user counts.
+    // devices are tenant-scoped, no per-user counts.
     public function index()
     {
         $tenant = tenant();
@@ -60,14 +59,14 @@ class TeamController extends Controller
             'location_ids.*' => ['uuid'],
         ]);
 
-        // MARKER-OWNER-INVITE — several owners have always been supported (see
+        // several owners have always been supported (see
         // the "cannot remove the last owner" guard); the form just never
         // offered it. Granting Owner stays owner-only, matching change_role.
         if ($data['role'] === 'owner' && ! Auth::guard('tenant')->user()->isOwner()) {
             return back()->with('error', 'Only an owner can invite another owner.');
         }
 
-        // MARKER-SEATS — the plan's team size is enforced here, server-side.
+        // the plan's team size is enforced here, server-side.
         if (! $tenant->canAddSeat()) {
             $lim = $tenant->seatLimit();
             return back()->with('error', "Your plan includes {$lim} team " . ($lim === 1 ? 'member' : 'members') . '. Upgrade your plan to add more.');
@@ -79,10 +78,10 @@ class TeamController extends Controller
             return back()->with('error', 'A team member with that email already exists.');
         }
 
-        // MARKER-PATCH-478 — invite flow: create the member INACTIVE with an
+        // invite flow: create the member INACTIVE with an
         // unusable password. They set their own password via a single-use setup
         // link, which activates the account (is_active=false blocks login).
-        // MARKER-PATCH-495 — new members carry a role_id from day one.
+        // new members carry a role_id from day one.
         TenantRole::ensureDefaults($tenant->id);
         $systemRole = TenantRole::where('tenant_id', $tenant->id)
             ->where('is_system', true)
@@ -111,7 +110,7 @@ class TeamController extends Controller
         }
         $this->syncLocations($newUser, $locationIds);
 
-        // MARKER-INVITE-DURABLE — single-use setup token in a real table.
+        // single-use setup token in a real table.
         // Cache was wiped by every deploy's optimize:clear, killing invites.
         $token = Str::random(64);
         \Illuminate\Support\Facades\DB::table('tenant_team_invites')->insert([
@@ -122,11 +121,10 @@ class TeamController extends Controller
             'created_at'     => now(),
             'updated_at'     => now(),
         ]);
-        // MARKER-TENANT-LINK — the shop's own address (see Tenant::urlTo).
+        // the shop's own address (see Tenant::urlTo).
         $setupUrl = $tenant->urlTo('team/setup', ['token' => $token]);
 
         // Best-effort email; the link is always shown to the inviter as a fallback.
-        // MARKER-LEDGER-STRAGGLERS
         $ledger = \App\Services\EmailLedger::begin($tenant->id, 'staff', $newUser->email, 'team_invite');
         try {
             $inviter = (string) (\Illuminate\Support\Facades\Auth::guard('tenant')->user()?->name ?? '');
@@ -139,7 +137,7 @@ class TeamController extends Controller
             \Illuminate\Support\Facades\Log::error('Team invite mail failed: ' . $e->getMessage());
         }
 
-        // MARKER-PATCH-479 — structured flash so the team page can render a
+        // structured flash so the team page can render a
         // persistent, copyable link banner (not just a fading toast).
         return back()
             ->with('success', "Invite sent to {$newUser->name}.")
@@ -148,11 +146,11 @@ class TeamController extends Controller
             ->with('invite_email', $newUser->email);
     }
 
-    // MARKER-PATCH-478 — public setup page for an invited member (token-gated).
+    // public setup page for an invited member (token-gated).
     public function setupForm(Request $request)
     {
         $token  = (string) $request->query('token', '');
-        $userId = $token !== '' ? $this->inviteUserId($token) : null; // MARKER-INVITE-DURABLE
+        $userId = $token !== '' ? $this->inviteUserId($token) : null;
         if (! $userId) {
             return redirect()->route('tenant.login')
                 ->withErrors(['email' => 'This setup link is invalid or has expired.']);
@@ -164,8 +162,8 @@ class TeamController extends Controller
                 ->withErrors(['email' => 'This setup link is no longer valid.']);
         }
 
-        // MARKER-INVITE-RESEND — first-open stamp for the banner.
-        // MARKER-INVITE-SCOPE — tenant-scoped, and only once the user resolved.
+        // first-open stamp for the banner.
+        // tenant-scoped, and only once the user resolved.
         \Illuminate\Support\Facades\DB::table('tenant_team_invites')
             ->where('tenant_id', tenant()->id)
             ->where('token', $token)->whereNull('opened_at')
@@ -174,10 +172,10 @@ class TeamController extends Controller
         return view('tenant.auth.setup', ['user' => $user, 'token' => $token]);
     }
 
-    // MARKER-PATCH-478 — complete setup: set password, activate, consume token.
+    // complete setup: set password, activate, consume token.
     public function completeSetup(Request $request)
     {
-        // MARKER-PATCH-499 — PIN is set here, with the password. Required
+        // PIN is set here, with the password. Required
         // whenever the PIN tier is on (an invite implies 2+ users, so it
         // will be for any Branded/Scale tenant).
         $request->validate([
@@ -189,7 +187,7 @@ class TeamController extends Controller
         ]);
 
         $token  = $request->input('token');
-        $userId = $this->inviteUserId($token); // MARKER-INVITE-DURABLE
+        $userId = $this->inviteUserId($token);
         if (! $userId) {
             return back()->withErrors(['password' => 'This setup link is invalid or has expired.']);
         }
@@ -204,13 +202,13 @@ class TeamController extends Controller
             'is_active' => true,
         ]);
 
-        // MARKER-PATCH-499 — see validate() above.
+        // see validate() above.
         if ($request->filled('pin')) {
             $this->pins->setPin($user, $request->input('pin'));
         }
-        \App\Support\TeamInvites::consume(tenant()->id, $token); // MARKER-INVITE-SCOPE
+        \App\Support\TeamInvites::consume(tenant()->id, $token);
 
-        // MARKER-PATCH-498 — they just proved who they are by consuming a
+        // they just proved who they are by consuming a
         // single-use token and setting a password; making them sign in again
         // (and run the PIN gauntlet) is friction with no security upside.
         Auth::guard('tenant')->login($user);
@@ -245,11 +243,11 @@ class TeamController extends Controller
 
         $this->requireManager();
 
-        // MARKER-PATCH-130 — devices are tenant-scoped, not per-user.
+        // devices are tenant-scoped, not per-user.
         $allLocations = $tenant->locations()->orderBy('sort_order')->get();
         $memberLocationIds = $member->locations()->pluck('tenant_locations.id')->all();
 
-        // MARKER-PATCH-494 — named roles for the role select
+        // named roles for the role select
         TenantRole::ensureDefaults($tenant->id);
         $allRoles = TenantRole::where('tenant_id', $tenant->id)
             ->orderByDesc('is_system')
@@ -257,7 +255,7 @@ class TeamController extends Controller
             ->orderBy('created_at')
             ->get();
 
-        // MARKER-INVITE-RESEND — activation-banner data for never-activated members
+        // activation-banner data for never-activated members
         $pendingInvite = null;
         $inviteStats   = null;
         if (! $member->is_active && $member->last_login_at === null) {
@@ -284,7 +282,7 @@ class TeamController extends Controller
         ]);
     }
 
-    // MARKER-INVITE-RESEND — mint a fresh activation link for a member who
+    // mint a fresh activation link for a member who
     // never completed setup; expires every older link.
     public function resendInvite(string $id)
     {
@@ -297,7 +295,7 @@ class TeamController extends Controller
         }
 
         \Illuminate\Support\Facades\DB::table('tenant_team_invites')
-            ->where('tenant_id', $tenant->id) // MARKER-INVITE-SCOPE
+            ->where('tenant_id', $tenant->id)
             ->where('tenant_user_id', $member->id)
             ->whereNull('accepted_at')
             ->update(['expires_at' => now(), 'updated_at' => now()]);
@@ -311,10 +309,9 @@ class TeamController extends Controller
             'created_at'     => now(),
             'updated_at'     => now(),
         ]);
-        // MARKER-TENANT-LINK — the shop's own address (see Tenant::urlTo).
+        // the shop's own address (see Tenant::urlTo).
         $setupUrl = $tenant->urlTo('team/setup', ['token' => $token]);
 
-        // MARKER-LEDGER-STRAGGLERS
         $ledger = \App\Services\EmailLedger::begin($tenant->id, 'staff', $member->email, 'team_invite');
         try {
             $inviter = (string) (\Illuminate\Support\Facades\Auth::guard('tenant')->user()?->name ?? '');
@@ -346,7 +343,7 @@ class TeamController extends Controller
 
         switch ($op) {
             case 'update_account': {
-                // MARKER-TEAM-CONTACT — phone was fillable and already used by
+                // phone was fillable and already used by
                 // staff SMS alerts, but no admin screen ever exposed it.
                 // Loose validation on purpose: people type numbers however
                 // they like; digits are stripped only for tel:/sms: links.
@@ -368,7 +365,7 @@ class TeamController extends Controller
             }
 
             case 'change_role': {
-                // MARKER-PATCH-494 — roles are tenant_roles rows now. The legacy
+                // roles are tenant_roles rows now. The legacy
                 // enum shadows the named role (Owner->owner, Manager->manager,
                 // everything else->staff) so isOwner()/isManager() keep working.
                 if ($member->role === 'owner' && $me->role !== 'owner') {
@@ -380,7 +377,7 @@ class TeamController extends Controller
                 if ($newRole->isOwnerRole() && $me->role !== 'owner') {
                     return back()->with('error', 'Only owners can grant the Owner role.');
                 }
-                // MARKER-TEAM-FORM-SEP — don't claim a write that didn't happen.
+                // don't claim a write that didn't happen.
                 if ($member->role_id === $newRole->id) {
                     return back()->with('success', $member->name . ' already has the ' . $newRole->name . ' role — nothing changed.');
                 }
@@ -398,7 +395,6 @@ class TeamController extends Controller
             }
 
             case 'toggle_timeclock_exempt': {
-                // MARKER-TIMECLOCK-EXEMPT
                 $member->update(['exempt_from_timeclock' => ! $member->exempt_from_timeclock]);
                 return back()->with('success', $member->exempt_from_timeclock
                     ? $member->name . ' will no longer be prompted to clock in.'
@@ -452,14 +448,14 @@ class TeamController extends Controller
         }
         $member->delete();
 
-        // MARKER-PATCH-490 — go to the roster, not back(): back() is the member's
+        // go to the roster, not back(): back() is the member's
         // own (now-deleted) page, which 404s.
         return redirect()->route('tenant.team.index')->with('success', 'Team member removed.');
     }
 
     // ─────────────────────────── Devices ────────────────────────────
 
-    // MARKER-PATCH-131 — no tenantUser relation; devices are tenant-scoped.
+    // no tenantUser relation; devices are tenant-scoped.
     public function devices()
     {
         $this->requireOwner();
@@ -525,7 +521,7 @@ class TeamController extends Controller
     // ──────────────────────────── Helpers ───────────────────────────
 
     // ─────────────────────── Roles & access ─────────────────────────
-    // MARKER-PATCH-494 — custom named roles with per-section visibility.
+    // custom named roles with per-section visibility.
     // Owner-only surface: viewing and editing roles shapes what every
     // other member can open, so it stays with the account owner.
 
@@ -589,14 +585,14 @@ class TeamController extends Controller
             'name'           => ['required', 'string', 'max:60'],
             'sections'       => ['array'],
             'sections.*'     => ['string'],
-            'capabilities'   => ['array'],   // MARKER-PATCH-611
+            'capabilities'   => ['array'],
             'capabilities.*' => ['string'],
         ]);
 
         $registry = \App\Support\SectionRegistry::all();
         $checked  = array_values(array_intersect(array_keys($registry), $data['sections'] ?? []));
 
-        // MARKER-PATCH-611 — granular capabilities, validated against the registry.
+        // granular capabilities, validated against the registry.
         $capKeys  = \App\Support\CapabilityRegistry::keys();
         $capsChecked = array_values(array_intersect($capKeys, $data['capabilities'] ?? []));
 
@@ -675,8 +671,8 @@ class TeamController extends Controller
         }
     }
 
-    // MARKER-INVITE-DURABLE — resolve a token to a tenant_user id.
-    // MARKER-INVITE-SCOPE — only this tenant's invites; legacy cache path removed.
+    // resolve a token to a tenant_user id.
+    // only this tenant's invites; legacy cache path removed.
     private function inviteUserId(string $token): ?string
     {
         if ($token === '') {

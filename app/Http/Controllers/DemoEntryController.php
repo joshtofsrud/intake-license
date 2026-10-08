@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\URL;
 
 /**
- * MARKER-DEMO-ENTRY — one link, no account, no password.
+ * one link, no account, no password.
  *
  * Two steps on purpose: session cookies are scoped per subdomain, so a sign-in
  * performed on intake.works would not travel to demo.intake.works. /demo just
@@ -25,7 +25,7 @@ class DemoEntryController extends Controller
     /** GET /demo/{slug?} — from the marketing site, an email, anywhere. */
     public function start(Request $request, ?string $slug = null)
     {
-        // MARKER-DEMO-SECTION — one route for every demo vertical.
+        // one route for every demo vertical.
         $slug   = $slug ?: self::SLUG;
         $tenant = Tenant::where('subdomain', $slug)->where('is_demo', true)->first();
         if (! $tenant) {
@@ -54,7 +54,7 @@ class DemoEntryController extends Controller
         if (! $tenant || ! $tenant->is_demo) {
             abort(404);
         }
-        $slug = $tenant->subdomain ?: self::SLUG; // MARKER-DEMO-SECTION
+        $slug = $tenant->subdomain ?: self::SLUG;
         if (DemoSetting::get('offline:' . $slug) === '1') {
             return response()->view('platform.demo-unavailable', [
                 'reason' => DemoSetting::get('offline_reason:' . $slug) ?: 'The demo is temporarily switched off.',
@@ -66,7 +66,7 @@ class DemoEntryController extends Controller
             ->orderByRaw("FIELD(role, 'owner', 'manager', 'staff')")
             ->first();
         if (! $user) {
-            Log::warning('MARKER-DEMO-ENTRY no staff user in the demo tenant', ['tenant' => $tenant->id]);
+            Log::warning('demo-entry: no staff user in the demo tenant', ['tenant' => $tenant->id]);
             return response()->view('platform.demo-unavailable', ['reason' => 'The demo is being rebuilt right now.'], 503);
         }
 
@@ -80,7 +80,7 @@ class DemoEntryController extends Controller
             $request->session()->put('current_location_id', $location->id);
         }
 
-        // MARKER-MKTCONV — recorded here, not from a click: this is the moment
+        // recorded here, not from a click: this is the moment
         // someone actually got into the demo.
         \App\Http\Controllers\Platform\MarketingFunnelController::record('demo_entered', ['step' => $slug]);
 

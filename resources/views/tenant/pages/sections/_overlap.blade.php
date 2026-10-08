@@ -1,4 +1,4 @@
-{{-- MARKER-SECTION-ROWS — width and the row it sits in. Same control on every section type. --}}
+{{-- width and the row it sits in. Same control on every section type. --}}
 @php
   $pbRc  = (array) ($section->content ?? []);
   $pbRow = ! in_array($section->section_type, ['nav', 'footer'], true);
@@ -40,13 +40,13 @@
 </div>
 @endif
 
-{{-- MARKER-SECTION-OVERLAP — shared by every section type.
-     MARKER-OVERLAP-TAB — placed inside the Design tab by
+{{-- shared by every section type.
+     placed inside the Design tab by
      App\Support\InspectorOverlap, as a normal group so it gets the same
      padding as every other control and appears once, not under every tab. --}}
 @php
   $overlapValue = (int) ($section->content['overlap_top'] ?? 0);
-  $overlapPhone = (int) ($section->content['overlap_top_phone'] ?? 0); // MARKER-OVERLAP-PHONE
+  $overlapPhone = (int) ($section->content['overlap_top_phone'] ?? 0);
 @endphp
 
 <div class="pb2-group">
@@ -89,7 +89,7 @@
   </div>
 </div>
 
-{{-- MARKER-MKT-BG-BLEND — intake.works only: shop sections don't read these yet. --}}
+{{-- intake.works only: shop sections don't read these yet. --}}
 @if($isMarketing ?? false)
 @php
   $blendOp   = (int) ($section->content['bg_opacity'] ?? 100);
@@ -108,7 +108,6 @@
     </div>
     <input type="hidden" data-field="bg_opacity" value="{{ $blendOp }}">
   </div>
-  {{-- MARKER-MKT-BG-FADE --}}
   @php
     $fadeEnd = (int) ($section->content['bg_grad_end'] ?? 100);
     $fadeOut = ! empty($section->content['bg_fade_out']);
@@ -139,7 +138,7 @@
 </div>
 @endif
 
-{{-- MARKER-MKT-HIDE-TABLET — moved beside "Hide on desktop" by the inspector (data-move-after). --}}
+{{-- moved beside "Hide on desktop" by the inspector (data-move-after). --}}
 @if($isMarketing ?? false)
   @php $hideTab = ! empty($section->content['hide_on_tablet']) && ! in_array((string) $section->content['hide_on_tablet'], ['0', 'false'], true); @endphp
   <label class="pb2-checkbox-row" data-move-after="hide_on_desktop">
@@ -148,12 +147,12 @@
   </label>
 @endif
 
-{{-- MARKER-MKT-APPEAR / MARKER-MKT-DIVIDER — intake.works only. --}}
+{{-- intake.works only. --}}
 @if($isMarketing ?? false)
 @php
   $apMode  = in_array($section->content['appear'] ?? 'none', ['none', 'fade', 'up'], true) ? ($section->content['appear'] ?? 'none') : 'none';
-  $apDelay = max(0, min(1000, (int) ($section->content['appear_delay'] ?? 0))); // MARKER-APPEAR-DELAY-SLIDER
-  $apDur   = max(200, min(2000, (int) ($section->content['appear_duration'] ?? 700))); // MARKER-APPEAR-DURATION
+  $apDelay = max(0, min(1000, (int) ($section->content['appear_delay'] ?? 0)));
+  $apDur   = max(200, min(2000, (int) ($section->content['appear_duration'] ?? 700)));
   $divOn   = ! empty($section->content['divider_below']) && ! in_array((string) $section->content['divider_below'], ['0', 'false'], true);
 @endphp
 <div class="pb2-group">

@@ -1,14 +1,14 @@
-{{-- MARKER-ASSET-NOUN — asset labels read tenant()->asset_label_* --}}
-{{-- MARKER-PATCH-313 — standalone 80mm thermal service-tag print view.
+{{-- asset labels read tenant()->asset_label_* --}}
+{{-- standalone 80mm thermal service-tag print view.
      Its own minimal HTML document (not the admin layout) for clean output.
      Auto-fires the print dialog. Reads appointment_date and promised_at off
      the record — nothing computed here. --}}
 @php
-  // MARKER-PATCH-317 — lay out at the PRINTABLE width, not the roll width,
+  // lay out at the PRINTABLE width, not the roll width,
   // so nothing reaches the printer's unprintable right edge.
-  $pageMm    = ($tag['paper'] ?? '80mm') === '58mm' ? '46mm' : '70mm'; // MARKER-PATCH-318 — safety margin vs clip
+  $pageMm    = ($tag['paper'] ?? '80mm') === '58mm' ? '46mm' : '70mm'; // safety margin vs clip
   $logoMax   = ['small'=>'12mm','medium'=>'18mm','large'=>'26mm','xl'=>'34mm'][$tag['logo_size'] ?? 'medium'] ?? '18mm';
-  $feedMm    = (int) ($tag['feed_mm'] ?? 0) > 0 ? ((int) $tag['feed_mm']) . 'mm' : null; // MARKER-PATCH-320
+  $feedMm    = (int) ($tag['feed_mm'] ?? 0) > 0 ? ((int) $tag['feed_mm']) . 'mm' : null;
   $name      = method_exists($appointment, 'customerName')
                  ? $appointment->customerName()
                  : trim(($appointment->customer_first_name ?? '') . ' ' . ($appointment->customer_last_name ?? ''));
@@ -17,8 +17,8 @@
   $apptTime  = $appointment->appointment_time ? \Carbon\Carbon::parse($appointment->appointment_time)->format('g:ia') : '';
   $promised  = $appointment->promised_at ? tlocal_date($appointment->promised_at, 'D M j') : null;
   $logoUrl   = $tag['logo_path'] ? asset('storage/' . ltrim($tag['logo_path'], '/')) : null;
-  $headerText = trim((string) ($tag['header_text'] ?? '')); // MARKER-PATCH-330
-  $footerText = trim((string) ($tag['footer_text'] ?? '')); // MARKER-PATCH-330
+  $headerText = trim((string) ($tag['header_text'] ?? ''));
+  $footerText = trim((string) ($tag['footer_text'] ?? ''));
 @endphp
 <!DOCTYPE html>
 <html lang="en">
@@ -89,7 +89,7 @@
         @if(($tenant->phone ?? null))
           <div>{{ $tenant->phone }}</div>
         @endif
-        @if($headerText)<div style="font-size:11px;">{!! nl2br(e($headerText)) !!}</div>@endif{{-- MARKER-PATCH-330 --}}
+        @if($headerText)<div style="font-size:11px;">{!! nl2br(e($headerText)) !!}</div>@endif
       </div>
     @endif
 
@@ -147,8 +147,8 @@
       </div>
     @endif
 
-    @if($footerText)<div class="ctr" style="margin-top:8px;border-top:1px dashed #000;padding-top:6px;font-size:11px;">{!! nl2br(e($footerText)) !!}</div>@endif{{-- MARKER-PATCH-330 --}}
-    @php $feedRows = (int) ceil(((int) ($tag['feed_mm'] ?? 0)) / 3); @endphp{{-- MARKER-PATCH-327 --}}
+    @if($footerText)<div class="ctr" style="margin-top:8px;border-top:1px dashed #000;padding-top:6px;font-size:11px;">{!! nl2br(e($footerText)) !!}</div>@endif
+    @php $feedRows = (int) ceil(((int) ($tag['feed_mm'] ?? 0)) / 3); @endphp
     @if($feedRows > 0)<div aria-hidden="true" style="line-height:3mm;font-size:9px;color:#000">{!! str_repeat('&nbsp;<br>', $feedRows) !!}</div>@endif
   </div>
 @endforeach

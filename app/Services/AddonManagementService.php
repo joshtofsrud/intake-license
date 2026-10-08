@@ -29,7 +29,7 @@ class AddonManagementService
             throw new \InvalidArgumentException("Unknown addon code: {$addonCode}");
         }
 
-        // MARKER-PATCH-217 — tier floor: refuse activation below min_plan_tier.
+        // tier floor: refuse activation below min_plan_tier.
         // FeatureAccessService also enforces this at read time; refusing here
         // prevents charging a tenant for an addon they can't use.
         if (!empty($addon->min_plan_tier ?? null)) {

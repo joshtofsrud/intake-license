@@ -12,7 +12,7 @@ use Illuminate\Support\Facades\Mail;
 use Livewire\Attributes\Url;
 
 /**
- * MARKER-PLATFORM-TEMPLATES — one place for every message Intake itself sends.
+ * one place for every message Intake itself sends.
  *
  * Built in the tenant Communication page's vocabulary deliberately: sender line
  * on top, messages grouped, per-message Edit. Only the tabs that work exist —
@@ -21,7 +21,7 @@ use Livewire\Attributes\Url;
 class PlatformCommunication extends Page
 {
     use \App\Support\UsesAdminNav;
-    use \Livewire\WithFileUploads; // MARKER-PLATFORM-LETTER — screenshots
+    use \Livewire\WithFileUploads; // screenshots
 
     protected static ?string $navigationIcon  = 'heroicon-o-chat-bubble-left-right';
     protected static ?string $navigationLabel = 'Communication';
@@ -30,7 +30,6 @@ class PlatformCommunication extends Page
     protected static string  $view            = 'filament.pages.platform-communication';
     protected static ?string $slug            = 'communication';
 
-    // MARKER-PLATFORM-CAMPAIGNS-UI
     #[Url(as: 'tab', keep: true)]
     public string $tab = 'messages';        // messages | campaigns
 
@@ -45,7 +44,7 @@ class PlatformCommunication extends Page
     public string $cBody = '';
     public string $cAudience = '';
     public string $cSchedule = '';
-    // MARKER-PLATFORM-LETTER — a campaign is plain text (body) or letter blocks
+    // a campaign is plain text (body) or letter blocks
     public string $cMode = 'body';
     public array $cBlocks = [];
     public string $cTheme = 'light';
@@ -56,7 +55,7 @@ class PlatformCommunication extends Page
     public string $aField = '';
     public string $aOp = 'is';
     public string $aValue = '';
-    // MARKER-PLATFORM-MANAGE — open an audience to edit it; delete audiences and campaigns
+    // open an audience to edit it; delete audiences and campaigns
     public ?string $aEditing = null;
     public array   $aRules   = [];
     public ?string $confirmDel = null; // 'a:<id>' or 'c:<id>' while the inline "Delete?" is showing
@@ -74,14 +73,14 @@ class PlatformCommunication extends Page
 
     public function setTab(string $tab): void
     {
-        // MARKER-PLATFORM-SENDLOG — four tabs now, all of them real.
+        // four tabs now, all of them real.
         $this->tab = in_array($tab, ['messages', 'campaigns', 'activity', 'suppressions'], true)
             ? $tab
             : 'messages';
     }
 
     /**
-     * MARKER-ALL-SHOPS-BLOCKS — lift a block that stops every shop's mail to an
+     * lift a block that stops every shop's mail to an
      * address. Only the all-shops row goes; each shop's own block stays.
      */
     public function unblockAllShops(int $id): void
@@ -100,7 +99,7 @@ class PlatformCommunication extends Page
             ->send();
     }
 
-    /** MARKER-PLATFORM-SENDLOG — let an address back in. */
+    /** let an address back in. */
     public function unsuppress(string $email): void
     {
         \App\Models\PlatformEmailOptout::whereKey($email)->delete();
@@ -125,7 +124,7 @@ class PlatformCommunication extends Page
             $groups[$meta['group']][$key] = $meta + ['override' => $overrides[$key] ?? null];
         }
 
-        // MARKER-PLATFORM-CAMPAIGNS-UI — campaign data, and the reach figure
+        // campaign data, and the reach figure
         // computed by the SAME resolver the worker uses, so the number on the
         // screen is the number that gets mailed.
         $audiences = collect();
@@ -152,19 +151,19 @@ class PlatformCommunication extends Page
             // migration not run yet
         }
 
-        // MARKER-PLATFORM-MSG-COMPLETE — the senders this page cannot edit,
+        // the senders this page cannot edit,
         // grouped the same way so the list reads as one thing.
         $others = [];
         foreach (PlatformEmailTemplates::OTHER_SENDERS as $row) {
             $others[$row['group']][] = $row;
         }
 
-        // MARKER-PLATFORM-SENDLOG — the log is campaign sends and one-off sends
+        // the log is campaign sends and one-off sends
         // read together, newest first, rather than a second copy of either.
         $activity = collect();
         $suppressions = collect();
         $suppressCounts = ['unsubscribe' => 0, 'bounce' => 0, 'complaint' => 0];
-        $allShops = collect(); // MARKER-ALL-SHOPS-BLOCKS
+        $allShops = collect();
 
         try {
             $ones = \App\Models\PlatformEmailSend::latest()->limit(100)->get()->map(fn ($r) => [
@@ -187,7 +186,7 @@ class PlatformCommunication extends Page
 
             $suppressions = \App\Models\PlatformEmailOptout::latest('updated_at')->limit(200)->get();
 
-            // MARKER-ALL-SHOPS-BLOCKS — blocks with no shop attached stop every
+            // blocks with no shop attached stop every
             // shop's mail to that address. They were only visible as a count.
             $allShops = \App\Models\Tenant\TenantEmailSuppression::whereNull('tenant_id')
                 ->orderByDesc('suppressed_at')->limit(200)->get();
@@ -203,14 +202,14 @@ class PlatformCommunication extends Page
             'activity'       => $activity,
             'suppressions'   => $suppressions,
             'suppressCounts' => $suppressCounts,
-            'allShops'       => $allShops, // MARKER-ALL-SHOPS-BLOCKS
+            'allShops'       => $allShops,
             'others'     => $others,
             'audiences'  => $audiences,
             'campaigns'  => $campaigns,
             'campaign'   => $campaign,
             'reach'      => $reach,
             'blockers'   => $campaign ? $this->blockers($campaign, $reach) : [],
-            // MARKER-PLATFORM-LETTER — the preview uses sample values, in the chosen theme
+            // the preview uses sample values, in the chosen theme
             'letterPreview' => ($campaign && $this->cMode === 'letter')
                 ? \App\Support\PlatformLetter::render($this->cBlocks, \App\Support\PlatformLetter::sampleVars(),
                     $this->cTheme === 'dark' ? 'dark' : 'light',
@@ -332,7 +331,7 @@ class PlatformCommunication extends Page
     {
         $vars = PlatformEmailTemplates::sampleVars((string) $this->editing);
 
-        // MARKER-PLATFORM-MSG-COMPLETE — empty-body placeholder. Chrome wrapped
+        // empty-body placeholder. Chrome wrapped
         // around nothing looked broken rather than empty, which sent Josh
         // looking for a bug that wasn't there.
         if (trim($this->body) === '') {
@@ -350,7 +349,7 @@ class PlatformCommunication extends Page
     }
 
     // ------------------------------------------------------------------
-    // MARKER-PLATFORM-CAMPAIGNS-UI — audiences and campaigns
+    // audiences and campaigns
     // ------------------------------------------------------------------
 
     /**
@@ -364,7 +363,7 @@ class PlatformCommunication extends Page
         if (! PlatformMailer::stream()) {
             $out[] = 'No platform broadcast stream is set, so nothing can send.';
         }
-        // MARKER-PLATFORM-LETTER-FIX — judged on what's in the editor now, not the
+        // judged on what's in the editor now, not the
         // last saved draft (Send saves first, so the two agree when it matters).
         if (! ($this->cAudience ?: $c->audience_id)) {
             $out[] = 'Pick an audience.';
@@ -401,7 +400,7 @@ class PlatformCommunication extends Page
             return;
         }
 
-        // MARKER-PLATFORM-MANAGE — editing keeps the rules already there (minus any removed)
+        // editing keeps the rules already there (minus any removed)
         $rules = $this->aEditing ? array_values($this->aRules) : [];
         if (trim($this->aField) !== '' && trim($this->aValue) !== '') {
             $rules[] = ['field' => $this->aField, 'op' => $this->aOp, 'value' => trim($this->aValue)];
@@ -423,7 +422,7 @@ class PlatformCommunication extends Page
         Notification::make()->success()->title($existing ? 'Audience updated' : 'Audience saved')->send();
     }
 
-    // MARKER-PLATFORM-MANAGE ------------------------------------------------
+    // ----------------------------------------------
     public function openAudience(string $id): void
     {
         $a = \App\Models\PlatformAudience::find($id);
@@ -543,7 +542,7 @@ class PlatformCommunication extends Page
             return;
         }
 
-        // MARKER-PLATFORM-LETTER — uploaded screenshots land in public storage and
+        // uploaded screenshots land in public storage and
         // the block keeps an absolute URL, since a mail client has no site to be
         // relative to.
         foreach ($this->shotUploads as $i => $file) {
@@ -600,7 +599,7 @@ class PlatformCommunication extends Page
             ->send();
     }
 
-    // ------------------------------------------------------ MARKER-PLATFORM-LETTER
+    // ------------------------------------------------------
 
     public function useLetter(): void
     {

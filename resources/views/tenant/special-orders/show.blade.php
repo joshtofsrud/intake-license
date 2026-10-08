@@ -124,7 +124,7 @@
       </div>
     </div>
 
-    {{-- MARKER-SO-DEPOSIT — replaces the deposit card. Money is read from the
+    {{-- replaces the deposit card. Money is read from the
          layaway's ledger, never stored here. The shop needs to know a customer
          has paid, because that changes how hard you chase the vendor; it does
          not take payments on this page. --}}

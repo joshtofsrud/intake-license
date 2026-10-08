@@ -5,7 +5,7 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * MARKER-SPLASH — marks the one page a tenant uses as its splash.
+ * marks the one page a tenant uses as its splash.
  *
  * Deliberately a flag on pages rather than a separate table: a splash IS a
  * page — same sections, same builder, same revisions, and a shop can link a

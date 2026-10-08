@@ -14,8 +14,8 @@ use Illuminate\Database\Eloquent\Builder;
 
 class TenantResource extends Resource
 {
-    use \App\Support\UsesAdminNav; // MARKER-NAV-ORDER
-    use \App\Support\GatedByAdminArea; // MARKER-ADMIN-NAV-GATE
+    use \App\Support\UsesAdminNav;
+    use \App\Support\GatedByAdminArea;
     protected static string $adminArea = 'tenants';
 
     protected static ?string $model = Tenant::class;
@@ -38,7 +38,7 @@ class TenantResource extends Resource
                         'custom' => 'Custom (enterprise)',
                     ])
                     ->required(),
-                // MARKER-LOCGATE — the allowance. A location bills at the base
+                // the allowance. A location bills at the base
                 // subscription rate, so raising this is a pricing decision.
                 Forms\Components\TextInput::make('licensed_locations')
                     ->label('Licensed locations')
@@ -53,7 +53,7 @@ class TenantResource extends Resource
                     ->required(),
             ])->columns(2),
 
-            // MARKER-PATCH-169 — Direct Payments bridge feature.
+            // Direct Payments bridge feature.
             // Single toggle that exposes the tenant-side keys panel. Tenant
             // pastes their own Stripe keys; nothing in this resource handles
             // the keys themselves.
@@ -66,7 +66,7 @@ class TenantResource extends Resource
                 ])
                 ->collapsed(),
 
-            // MARKER-CONSENT-CLEANUP — onboarding window. Time-boxed on purpose:
+            // onboarding window. Time-boxed on purpose:
             // a permanent free-toggle would let consent be set with no record of
             // why, which is the one thing the attestation trail exists to stop.
             Forms\Components\Section::make('Customer admin mode')
@@ -81,7 +81,7 @@ class TenantResource extends Resource
                         ->label('Window open until')
                         ->helperText('Empty means off — the normal state. The buttons below save immediately.')
                         ->seconds(false),
-                    // MARKER-CUST-ADMIN-FIX — these used to only $set() the form,
+                    // these used to only $set() the form,
                     // so the window looked open in master admin while the column
                     // stayed null and the shop saw nothing. Write it now.
                     Forms\Components\Actions::make([
@@ -114,7 +114,7 @@ class TenantResource extends Resource
                 ])
                 ->collapsed(),
 
-            // MARKER-OWNER-FIELDS-SAVE — these write to the owner's tenant_users
+            // these write to the owner's tenant_users
             // row in EditTenant::afterSave, not to the tenants table.
             Forms\Components\Section::make('Owner account')
                 ->description('Saved to the owner\'s login. Changing the email changes what they sign in with.')
@@ -312,7 +312,7 @@ class TenantResource extends Resource
         ];
     }
 
-    // MARKER-PATCH-142 — wire up Create route for the gift-tenant flow.
+    // wire up Create route for the gift-tenant flow.
     public static function getPages(): array
     {
         return [

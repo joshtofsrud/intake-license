@@ -1,5 +1,4 @@
 <?php
-// MARKER-PATCH-404
 
 namespace App\Http\Controllers\Tenant;
 
@@ -28,7 +27,7 @@ class CommunicationController extends Controller
         return [
             ['group'=>'Transactional','key'=>'sale_receipt','label'=>'Sale receipt','desc'=>'Itemized POS receipt with totals','fires'=>'A register sale is paid','channels'=>['email'],'template'=>'sale_receipt','editor'=>'receipt','vars'=>['first_name','shop_name','sale_number','date','total'],'def_subject'=>'Receipt from {{shop_name}} — #{{sale_number}}','def_body'=>'Thanks for your purchase, {{first_name}}. Your receipt for {{date}} is below.'],
             ['group'=>'Transactional','key'=>'appointment_receipt','label'=>'Work-order receipt','desc'=>'“Your work is complete” plus what it cost','fires'=>'Appointment hits Completed','channels'=>['email'],'template'=>'appointment_receipt','editor'=>'receipt','vars'=>['first_name','shop_name','ra_number','date','total'],'def_subject'=>'Your {{shop_name}} work is complete — #{{ra_number}}','def_body'=>'Hi {{first_name}} — we finished the work on your service request. Here is what we did and what it cost.'],
-            // MARKER-GC-EMAILS -- only listed for shops that actually have gift
+            // only listed for shops that actually have gift
             // cards; the catalog drives the toggles, the editor and the test
             // send, so a shop without them never sees dead switches.
             ['group'=>'Transactional','key'=>'gift_card_delivery','label'=>'Gift card delivery','desc'=>'The card itself, sent to whoever it is for','fires'=>'An e-gift is paid for, or its delivery date arrives','channels'=>['email'],'template'=>'gift_card_delivery','editor'=>'body','vars'=>['recipient_name','shop_name','card_amount','card_code','gift_message','gift_policy','balance_url'],'def_subject'=>'You\'ve received a {{shop_name}} gift card','def_body'=>'{{recipient_name}}, you\'ve been sent a gift card for {{shop_name}}.'],
@@ -38,7 +37,7 @@ class CommunicationController extends Controller
             ['group'=>'Lifecycle','key'=>'appointment_reminder','label'=>'Appointment reminder','desc'=>'24 hours before the appointment','fires'=>'Daily — 24h before','channels'=>['email','sms'],'template'=>'appointment_reminder','editor'=>'body','vars'=>['first_name','shop_name','date'],'def_subject'=>'Reminder: your {{shop_name}} appointment is tomorrow','def_body'=>'Hi {{first_name}}, a reminder that your appointment with {{shop_name}} is tomorrow, {{date}}.'],
             ['group'=>'Lifecycle','key'=>'delivery_reminder','label'=>'Delivery reminder','desc'=>'24 hours before a pickup or dropoff','fires'=>'Daily — 24h before','channels'=>['email','sms'],'template'=>'delivery_reminder','editor'=>'body','vars'=>['first_name','shop_name','date'],'def_subject'=>'Reminder: {{shop_name}} pickup or dropoff tomorrow','def_body'=>'Hi {{first_name}}, a reminder that your {{shop_name}} pickup or dropoff is tomorrow, {{date}}.'],
 
-            // MARKER-COMMS-ONE-HOME — these two lived ONLY on /admin/emails,
+            // these two lived ONLY on /admin/emails,
             // which was hidden from the nav. They still send from saved rows,
             // so until now a shop could not word them at all.
             ['group'=>'Staff & status','key'=>'status_update','label'=>'Work-order status update','desc'=>'Tells the customer their work order moved','fires'=>'You change a work order status','channels'=>['email'],'template'=>'status_update','editor'=>'body','vars'=>['first_name','ra_number','status','status_note','shop_name'],'def_subject'=>'Your work order {{ra_number}} has been updated','def_body'=>'Hi {{first_name}}, your work order {{ra_number}} has been updated. New status: {{status}}. {{status_note}}'],
@@ -56,7 +55,6 @@ class CommunicationController extends Controller
         $tenant  = tenant();
         $catalog = $this->catalog();
 
-        // MARKER-GC-EMAILS
         if (! $tenant->gift_cards_visible) {
             $catalog = array_values(array_filter(
                 $catalog,
@@ -96,7 +94,7 @@ class CommunicationController extends Controller
             'trackOpens'    => (bool) ($tenant->settings['email_track_opens'] ?? true),
             'triggerStates' => (array) ($tenant->settings['receipt_appointment_trigger_states'] ?? ['completed']),
             'testEmail'     => optional(auth()->user())->email ?? '',
-            // MARKER-COMMS-ONE-HOME — suppressions belong with the rest of
+            // suppressions belong with the rest of
             // the email surface, not on their own hidden page.
             'suppressions'       => \App\Models\Tenant\TenantEmailSuppression::where('tenant_id', $tenant->id)
                                         ->orderByDesc('created_at')->limit(200)->get(),
@@ -105,7 +103,7 @@ class CommunicationController extends Controller
             'emailLogoCustomUrl' => $tenant->settings['email_logo_custom_url'] ?? '',
             'logoLight'          => $tenant->logo_light_url ?? '',
             'logoMain'           => $tenant->logo_url ?? '',
-            // MARKER-PATCH-412 — tenant tz for converting UTC instants in the Activity feed.
+            // tenant tz for converting UTC instants in the Activity feed.
             'tz'                 => $tenant->timezone ?? config('app.timezone', 'UTC'),
         ]);
     }
@@ -117,7 +115,7 @@ class CommunicationController extends Controller
 
         $settings = $tenant->settings ?? [];
         foreach ($this->catalog() as $m) {
-            // MARKER-GC-EMAILS -- skip gift messages the shop cannot send.
+            // skip gift messages the shop cannot send.
             if (str_starts_with($m['key'], 'gift_card_') && ! $tenant->gift_cards_visible) {
                 continue;
             }
@@ -131,7 +129,7 @@ class CommunicationController extends Controller
             }
         }
 
-        // MARKER-PATCH-407 — receipt options (moved from the Email page).
+        // receipt options (moved from the Email page).
         $settings['email_track_opens'] = (bool) $request->input('email_track_opens');
         $states = array_values(array_intersect(
             (array) $request->input('receipt_appointment_trigger_states', []),
@@ -142,7 +140,7 @@ class CommunicationController extends Controller
         }
         $settings['receipt_appointment_trigger_states'] = array_values(array_unique($states));
 
-        // MARKER-PATCH-411 — email header logo choice.
+        // email header logo choice.
         $choice = (string) $request->input('email_logo_choice', 'light');
         $settings['email_logo_choice'] = in_array($choice, ['light', 'main', 'custom', 'none'], true) ? $choice : 'light';
         $settings['email_logo_custom_url'] = trim((string) $request->input('email_logo_custom_url', ''));
@@ -193,7 +191,7 @@ class CommunicationController extends Controller
     }
 
     /**
-     * MARKER-PATCH-409 — send a test of any message to a chosen address.
+     * send a test of any message to a chosen address.
      * Reuses each message's real send path so the test matches what a customer
      * would receive. Receipts use the tenant's most recent real record; body
      * messages render the saved template (or built-in default) with sample data.
@@ -240,7 +238,7 @@ class CommunicationController extends Controller
                     'delivery_reminder'    => 'delivery_pickup_reminder',
                 ][$type] ?? $type;
 
-                // MARKER-COMMS-ONE-HOME — a test reset would need a real,
+                // a test reset would need a real,
                 // working token; issuing one by email button is not something
                 // a preview should do.
                 if ($type === 'password_reset') {
@@ -271,7 +269,6 @@ class CommunicationController extends Controller
             'shop_name'        => $tenant->name,
             'ra_number'        => 'ITO-TEST-0001',
             'sale_number'      => 'S-TEST-0001',
-            // MARKER-GC-EMAILS
             'recipient_name'   => 'Sam',
             'card_amount'      => '$50.00',
             'card_code'        => 'GC-TEST-0000-0000',

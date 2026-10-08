@@ -4,7 +4,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-// MARKER-IMPORT-MERGE — per-row merge decisions, keyed field => line => csv|keep|blank.
+// per-row merge decisions, keyed field => line => csv|keep|blank.
 // Kept with the import rather than in the session, so leaving the screen and
 // coming back doesn't lose them.
 return new class extends Migration

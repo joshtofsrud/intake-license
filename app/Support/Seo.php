@@ -9,7 +9,7 @@ use App\Models\Tenant\TenantPage;
 use Illuminate\Http\Request;
 
 /**
- * MARKER-SEO-SIGNALS — one place that decides, for any public request, whether
+ * one place that decides, for any public request, whether
  * search engines may index it, what its canonical address is and what
  * structured data it carries. The middleware, robots.txt, the sitemaps and the
  * nightly seo:check all read from here, so they cannot disagree.
@@ -144,7 +144,7 @@ class Seo
 
         if ($kind === 'marketing') {
             return "User-agent: *\n"
-                . "Disallow: /admin\nDisallow: /rep\nDisallow: /invest\nDisallow: /book/manage\nDisallow: /platform-email\nDisallow: /mkt/\n" // MARKER-ROBOTS-MKT — traffic beacon, not a page
+                . "Disallow: /admin\nDisallow: /rep\nDisallow: /invest\nDisallow: /book/manage\nDisallow: /platform-email\nDisallow: /mkt/\n" // traffic beacon, not a page
                 . "\nSitemap: " . self::marketingBase() . "/sitemap.xml\n";
         }
 
@@ -175,7 +175,7 @@ class Seo
         foreach ($pages as $p) {
             $slug = (string) $p->slug;
             if ($slug === '' || str_starts_with($slug, '__') || $slug === 'invest') continue;
-            $path = $slug === MarketingNav::homeSlug() ? '/' : '/' . $slug; // MARKER-MKT-HOME
+            $path = $slug === MarketingNav::homeSlug() ? '/' : '/' . $slug;
             $urls[$path] = [self::marketingBase() . $path, $p->updated_at?->toAtomString()];
         }
         if (! isset($urls['/'])) $urls['/'] = [self::marketingBase() . '/', null];
@@ -362,7 +362,7 @@ class Seo
         return $data;
     }
 
-    // MARKER-PAGE-SEARCH-SHARING ------------------------------- share image
+    // ----------------------------- share image
 
     /** A shop page's share image: its own, else the shop's fallback. Null = none. */
     public static function shareImage(TenantPage $page, ?Tenant $tenant): ?string

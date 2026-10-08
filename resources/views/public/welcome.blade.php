@@ -1,4 +1,4 @@
-{{-- MARKER-WELCOME — the holding page. Uses the tenant's own logo,
+{{-- the holding page. Uses the tenant's own logo,
      accent and contact details, so there is nothing to design. --}}
 @php
   $t      = $currentTenant ?? tenant();
@@ -36,7 +36,7 @@
 </head>
 <body>
   <div class="w">
-    {{-- MARKER-WELCOME-LOGO — resolved from the welcome setting, not the
+    {{-- resolved from the welcome setting, not the
          main logo alone: this page is always dark. --}}
     @php $wLogo = \App\Support\WelcomePage::logoUrl($t); @endphp
     @if($wLogo)

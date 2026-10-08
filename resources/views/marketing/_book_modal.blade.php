@@ -1,4 +1,4 @@
-{{-- MARKER-BOOK-MODAL — any link or button whose address is "#book" opens the
+{{-- any link or button whose address is "#book" opens the
      call scheduler in a pop-up instead of leaving the page. "#book" uses the
      first active booking type; "#book:slug" picks one (e.g. #book:demo).
      The scheduler page is the normal /book/… page, shown without the site

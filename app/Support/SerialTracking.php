@@ -7,7 +7,7 @@ use App\Models\Tenant\TenantInventoryItem;
 use App\Models\Tenant\TenantInventoryUnit;
 
 /**
- * MARKER-SERIAL-FOUNDATION — which items track serial numbers, and how many
+ * which items track serial numbers, and how many
  * on-hand pieces still need one.
  *
  * A category tracks serials when it, or any category above it, is switched

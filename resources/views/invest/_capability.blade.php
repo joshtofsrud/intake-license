@@ -1,4 +1,4 @@
-{{-- MARKER-INVEST-CAPABILITY — the evidence for the "one core, packs on top"
+{{-- the evidence for the "one core, packs on top"
      claim made just above this. Core cards are hand-written because no
      registry of core modules exists; the pack counts are read live. --}}
 @php
@@ -30,7 +30,7 @@
 @endphp
 
 <section><div class="wrap">
-  {{-- MARKER-CAPABILITY-COPY — the claim is about the platform, not about
+  {{-- the claim is about the platform, not about
        every account: Starter has no POS, no rentals, no multi-location. Saying
        "every account gets all of it" would be plainly false to anyone who has
        seen the pricing. --}}
@@ -102,7 +102,7 @@
         <p class="fine">The number matters more than the names: every one of these is switched on or off
           for a single business without a branch, a build or a migration. That is the claim — not that
           the list is long, but that adding to it costs one pack rather than one fork.
-          {{-- MARKER-INVEST-PARITY2 --}}Bike is first because it is hardest; each trade after
+          Bike is first because it is hardest; each trade after
           it lands as a proper fit rather than a generic tool bent into shape. Counts are read
           from the live catalog, not maintained by hand on this page.</p>
       </div>

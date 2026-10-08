@@ -3,7 +3,7 @@
 namespace App\Support;
 
 /**
- * MARKER-SECTION-ROWS — sections side by side.
+ * sections side by side.
  *
  * Each section has a width (content.col_width): full, half, third or
  * twothirds. Consecutive narrower sections that fit share a row; one that
@@ -91,7 +91,7 @@ class SectionRows
     public static function css(array $plan, string $max, string $gutter): string
     {
         if (! $plan) return '';
-        return '<style>/* MARKER-SECTION-ROWS */'
+        return '<style>'
             . '.pbrow{display:grid;gap:var(--pbrow-gap,24px);max-width:calc(' . $max . ' + 2 * ' . $gutter . ');margin:0 auto;padding:var(--pbrow-gap,24px) ' . $gutter . ';box-sizing:border-box}'
             . '.pbrow-al-start{align-items:start}.pbrow-al-center{align-items:center}.pbrow-al-stretch{align-items:stretch}'
             . '.pbrow-cell{min-width:0;border-radius:14px;overflow:hidden;position:relative}'

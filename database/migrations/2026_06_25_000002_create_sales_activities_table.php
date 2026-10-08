@@ -1,5 +1,5 @@
 <?php
-// MARKER-SALES-ACTIVITY — Sales channel: per-prospect activity log (the playbook in motion).
+// Sales channel: per-prospect activity log (the playbook in motion).
 // Every note / email / call / demo / stage change is one row. This is what a
 // spreadsheet can't do: a timestamped trail per shop that also auto-stamps the
 // next follow-up date back onto sales_prospects.

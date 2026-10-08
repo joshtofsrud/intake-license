@@ -3,11 +3,11 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  @include('partials.mobile-input-zoom') {{-- MARKER-MOBILE-INPUT-ZOOM --}}
+  @include('partials.mobile-input-zoom')
   <meta name="csrf-token" content="{{ csrf_token() }}">
   <title>{{ $pageTitle ?? 'Dashboard' }} — {{ $currentTenant->name }}</title>
 
-  {{-- Fonts — MARKER-SELFHOST-FONTS. Self-hosted from public/fonts; the
+  {{-- Fonts — Self-hosted from public/fonts; the
        @font-face rules live in base.css. Preloading the two weights that
        carry almost all of the UI means they are normally decoded before
        first paint, so there is no metric swap to watch. crossorigin is
@@ -24,7 +24,7 @@
     <link rel="icon" href="{{ $currentTenant->favicon_url }}">
   @endif
 
-  <link rel="stylesheet" href="{{ asset('css/fonts.css') }}">{{-- MARKER-SELFHOST-FONTS-2 --}}
+  <link rel="stylesheet" href="{{ asset('css/fonts.css') }}">
 
   {{-- Base + theme CSS --}}
   <link rel="stylesheet" href="{{ asset('css/tenant/base.css') }}?v={{ filemtime(public_path('css/tenant/base.css')) }}">
@@ -53,7 +53,7 @@
 </head>
 
 <body class="ia-theme-{{ $adminTheme }}">
-{{-- MARKER-PATCH-498 — invite setup success: check draws, circle wraps it, dashboard fades in --}}
+{{-- invite setup success: check draws, circle wraps it, dashboard fades in --}}
 @if(session('setup_complete'))
 <div id="ia-setup-success" aria-hidden="true">
   <svg viewBox="0 0 72 72" width="88" height="88">
@@ -80,7 +80,7 @@
 
 @include('layouts.tenant._mobile-header')
 
-{{-- MARKER-SIDEBAR-COLLAPSE — applied to <html> before first paint. A
+{{-- applied to <html> before first paint. A
      deferred script would let the expanded sidebar flash on every load. --}}
 <script>
   try {
@@ -103,7 +103,7 @@
        ================================================================ --}}
   <div class="ia-main">
 
-    {{-- MARKER-IMPERSONATION-PIN — the sticky bar sat at top:0 over page
+    {{-- the sticky bar sat at top:0 over page
          headers and primary actions, and a second copy rendered inside the
          content area below. Both are gone; the state now lives in the
          sidebar user block, with a fixed chip on mobile. --}}
@@ -121,12 +121,12 @@
            Success → inline green banner (non-blocking, just confirms an action).
            Error   → IntakeConfirm.alert() modal (blocks until acknowledged so
            it can't be missed when the page is long, e.g. class session list). --}}
-      {{-- MARKER-FLASH-MODAL — the inline success bar pushed the page down and
+      {{-- the inline success bar pushed the page down and
            stacked with the clock-in nudge. Both success and error now render
            through one animated modal. --}}
       @include('layouts.tenant._flash-modal')
 
-      {{-- MARKER-PATCH-613 — clock-in prompt. Off-the-clock staff get a gentle,
+      {{-- clock-in prompt. Off-the-clock staff get a gentle,
            dismissible nudge (dismissal is per page-load, not persisted — it
            reappears next visit so a forgotten clock-in gets caught). --}}
       @if(!empty($authUser) && empty($pinLockPending) && !$authUser->exempt_from_timeclock)
@@ -147,13 +147,13 @@
           <script>if(sessionStorage.getItem('tc_nudge_dismissed')){var n=document.getElementById('tc-clockin-nudge');if(n)n.remove();}</script>
         @endif
       @endif
-      {{-- MARKER-PATCH-445 — single global flash; per-page success/error banners removed across tenant views --}}
-      {{-- MARKER-FLASH-MODAL — errors used a blocking IntakeConfirm.alert so they
+      {{-- single global flash; per-page success/error banners removed across tenant views --}}
+      {{-- errors used a blocking IntakeConfirm.alert so they
            couldn't be missed on a long page. The modal keeps that: it waits for
            acknowledgement, while a success dismisses itself. --}}
 
       @include('layouts.tenant._staff-broadcast-banner')
-      @include('layouts.tenant._standing-banner') {{-- MARKER-TENANT-STANDING --}}
+      @include('layouts.tenant._standing-banner')
       @yield('content')
 
     </main>
@@ -179,7 +179,7 @@
     theme:      '{{ $adminTheme }}',
     currency:   '{{ $currentTenant->currency_symbol ?? "$" }}',
     ajaxUrl:    '{{ url("/admin/ajax") }}',
-    {{-- MARKER-PIN-THRESHOLD — must be the POLICY value, not the raw config.
+    {{-- must be the POLICY value, not the raw config.
          The server enforces TenantAuthPolicy::idleThresholdSec(), which honours
          the per-tenant settings.security.pin_idle_threshold_sec override. Reading
          config() here made the client lock earlier than the server considered the
@@ -195,13 +195,13 @@
 <script src="{{ asset('js/tenant/sidebar-collapse.js') }}?v={{ filemtime(public_path('js/tenant/sidebar-collapse.js')) }}" defer></script>
 <script src="{{ asset('js/tenant/mobile-nav.js') }}?v={{ filemtime(public_path('js/tenant/mobile-nav.js')) }}" defer></script>
 <script src="{{ asset('js/tenant/location-switcher.js') }}?v={{ filemtime(public_path('js/tenant/location-switcher.js')) }}" defer></script>
-@unless($currentTenant->is_demo ?? false) {{-- MARKER-DEMO-IDLELOCK --}}
+@unless($currentTenant->is_demo ?? false)
 <script src="{{ asset('js/tenant/idle-lock.js') }}?v={{ filemtime(public_path('js/tenant/idle-lock.js')) }}" defer></script>
 @endunless
 
-{{-- MARKER-IMPERSONATION-PIN — omitted while impersonating so the client
+{{-- omitted while impersonating so the client
      idle timer has nothing to open. --}}
-{{-- MARKER-DEMO-IDLELOCK — and on a demo tenant, where a visitor has no PIN
+{{-- and on a demo tenant, where a visitor has no PIN
      and creating one would lock the demo behind a number only they know. --}}
 @unless(session()->has('impersonating_from') || ($currentTenant->is_demo ?? false))
   @include('layouts.tenant._lock-overlay')
@@ -209,7 +209,7 @@
 @include('layouts.tenant._action-gate-modal')
 @include('layouts.tenant._location-welcome')
 
-{{-- MARKER-OFFLINE-SYNC stage 3 — global module: SW install, background
+{{-- stage 3 — global module: SW install, background
      snapshot refresh, queue replay, and the status pill live on EVERY admin
      page. No arming ritual. --}}
 @php
@@ -228,7 +228,6 @@ window.IntakeOfflineConfig = {
 <script src="{{ asset('js/offline-sync.js') }}?v=nogear2"></script>
 
 
-{{-- MARKER-BULK-WORKING --}}
 <x-tenant.bulk-working />
 
 @stack('scripts')
@@ -236,7 +235,7 @@ window.IntakeOfflineConfig = {
 @include('tenant._onboarding_modal')
 
   <script defer src="{{ asset('js/tenant/cl-subnav-hint.js') }}"></script>
-@include('tenant.print._composer') {{-- MARKER-PATCH-337 --}}
+@include('tenant.print._composer')
 </body>
 </html>
 

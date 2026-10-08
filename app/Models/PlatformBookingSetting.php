@@ -4,7 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
-// MARKER-SCHED-FOUNDATION — key/value, same shape as RaiseSetting.
+// key/value, same shape as RaiseSetting.
 class PlatformBookingSetting extends Model
 {
     protected $primaryKey = 'key';

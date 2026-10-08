@@ -15,17 +15,17 @@ class TenantSaleItem extends Model
 
     protected $fillable = [
         'tenant_id', 'sale_id', 'type',
-        'service_id', 'inventory_item_id', 'gift_card_id', 'metadata', // MARKER-GIFTCARDS
+        'service_id', 'inventory_item_id', 'gift_card_id', 'metadata',
         'name_snapshot', 'description_snapshot', 'cost_cents_snapshot',
         'quantity', 'unit_price_cents', 'discount_cents',
         'tax_rate_snapshot', 'is_taxable', 'tax_cents',
         'tip_cents', 'line_total_cents',
         'assigned_staff_id', 'position', 'notes',
-        'original_sale_item_id', 'disposition', // MARKER-REFUND-QTY
+        'original_sale_item_id', 'disposition',
     ];
 
     protected $casts = [
-        'metadata' => 'array', // MARKER-GIFTCARDS
+        'metadata' => 'array',
         'quantity'            => 'decimal:3',
         'unit_price_cents'    => 'integer',
         'discount_cents'      => 'integer',

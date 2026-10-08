@@ -1,5 +1,5 @@
 <?php
-// MARKER-DETAILS-WATCH — one-time backfill: copy catalog color/size/description
+// one-time backfill: copy catalog color/size/description
 // into linked items where the item's field is blank, and seed the
 // catalog_details_seen baseline so the details watch flags changes, not backlog.
 

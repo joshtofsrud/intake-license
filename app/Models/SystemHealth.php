@@ -1,5 +1,4 @@
 <?php
-// MARKER-PATCH-132
 
 namespace App\Models;
 

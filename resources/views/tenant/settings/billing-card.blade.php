@@ -1,7 +1,7 @@
 @extends('layouts.tenant.app')
 @php $pageTitle = 'Payment method'; @endphp
 
-{{-- MARKER-BILLING-CARD — the card is entered in Stripe's own element; the
+{{-- the card is entered in Stripe's own element; the
      number never reaches Intake, and nothing here charges anything. --}}
 @section('content')
 
@@ -80,7 +80,7 @@
     </div>
   </div>
 
-  {{-- MARKER-BILLING-ADDRESS — where the shop is registered. Used on receipts,
+  {{-- where the shop is registered. Used on receipts,
        and it is what a tax calculation would be based on if tax is ever
        switched on. None is charged today. --}}
   <div class="ia-card">
@@ -123,7 +123,7 @@
 <script src="https://js.stripe.com/v3/"></script>
 <script>
 (function () {
-  // MARKER-BILLING-CARD — Stripe's element, so no card data touches this app.
+  // Stripe's element, so no card data touches this app.
   var stripe   = Stripe(@json($pubKey));
   var elements = null, card = null, clientSecret = null;
 

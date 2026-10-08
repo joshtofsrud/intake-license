@@ -1,4 +1,4 @@
-{{-- MARKER-CATALOG-UNDO — inside one batch. --}}
+{{-- inside one batch. --}}
 @extends('layouts.tenant')
 @section('title', 'Catalog change')
 

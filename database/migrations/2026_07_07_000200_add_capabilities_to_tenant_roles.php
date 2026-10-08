@@ -1,5 +1,5 @@
 <?php
-// MARKER-PATCH-611 — capability layer: granular per-role permissions alongside
+// capability layer: granular per-role permissions alongside
 // section visibility. NULL = full access (mirrors the sections convention).
 
 use Illuminate\Database\Migrations\Migration;

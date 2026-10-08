@@ -1,5 +1,4 @@
 <?php
-// MARKER-BILLING-NOTICES / MARKER-BILLING-NOTICE-MAIL
 namespace App\Filament\Resources\BillingNoticeTemplateResource\Pages;
 
 use App\Filament\Resources\BillingNoticeTemplateResource;
@@ -17,7 +16,7 @@ class EditBillingNoticeTemplate extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
-            // MARKER-BILLING-NOTICE-MAIL — see it before a shop does. Uses the
+            // see it before a shop does. Uses the
             // same send path as the real thing, so a test cannot look different
             // from what actually arrives.
             Actions\Action::make('sendTest')

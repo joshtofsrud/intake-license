@@ -1,4 +1,4 @@
-{{-- MARKER-PATCH-629 — unified payment methods list (Settings → Payments).
+{{-- unified payment methods list (Settings → Payments).
      Renders from tenant_payment_methods; every card is its own form.
      Expects: $paymentMethods (ordered collection). --}}
 
@@ -100,7 +100,7 @@
           </div>
         @endif
 
-        {{-- MARKER-PATCH-636 — QB mapping: where this method's money deposits --}}
+        {{-- QB mapping: where this method's money deposits --}}
         <div class="pmx-row"><label>QB deposit account</label>
           <input class="pmx-inp" type="text" name="qb_deposit_account" maxlength="120"
                  value="{{ $pm->qb['deposit_account'] ?? '' }}"
@@ -131,7 +131,7 @@
   </form>
 </details>
 
-{{-- MARKER-PATCH-636 — global QuickBooks accounts (the journal's credit side) --}}
+{{-- global QuickBooks accounts (the journal's credit side) --}}
 <div class="pmx" style="margin-top:14px">
   <div class="pmx-h" onclick="this.parentNode.classList.toggle('open')">
     <div class="pmx-ic">QB</div>

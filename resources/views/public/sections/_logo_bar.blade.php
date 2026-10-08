@@ -1,4 +1,4 @@
-{{-- MARKER-PATCH-158-G32 — logo_bar public renderer (v2) --}}
+{{-- logo_bar public renderer (v2) --}}
 @php
   $c = $c ?? [];
 
@@ -26,7 +26,7 @@
           $name    = trim($lg['name'] ?? '');
           $logoUrl = trim($lg['logo_url'] ?? '');
           if ($name === '' && $logoUrl === '') continue;
-          // MARKER-LOGOBAR-POLISH — per-logo scale, 60–140%, default 100.
+          // per-logo scale, 60–140%, default 100.
           $sc = (int) ($lg['scale'] ?? 100);
           if ($sc < 60 || $sc > 140) $sc = 100;
           $logos[] = ['name' => $name, 'logo_url' => $logoUrl, 'link_url' => trim($lg['link_url'] ?? ''), 'scale' => $sc];

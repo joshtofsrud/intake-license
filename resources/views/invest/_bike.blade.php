@@ -1,4 +1,4 @@
-{{-- MARKER-INVEST-UNIFY — the one copy of this section. Rendered by the public
+{{-- the one copy of this section. Rendered by the public
      page, the gated page and the investor portal, so they cannot drift apart
      again.
 
@@ -6,7 +6,7 @@
      page's footer — that is what made this hard to share before. --}}
 <section><div class="wrap">
   <p class="sub">Why bike first</p>
-  {{-- MARKER-BIKE-HEADING — no inline size: this sits inside a collapsed
+  {{-- no inline size: this sits inside a collapsed
        panel now, at the same weight as every other section heading. --}}
   <h2>The hardest version of the problem.</h2>
   <p class="lede">Specialty bike is a service business, a retail business and a rental business at

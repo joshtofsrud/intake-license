@@ -7,7 +7,7 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 /**
- * MARKER-MKT-NAV — menu rows can point at a page and carry a style and side.
+ * menu rows can point at a page and carry a style and side.
  * Additive columns (shop sites ignore them). For intake.works the existing
  * rows are converted so the header looks the same on day one:
  *   - a row whose address matches a marketing page becomes a page row;

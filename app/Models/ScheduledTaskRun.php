@@ -4,7 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
-// MARKER-TASK-HEALTH — one execution of one scheduled command.
+// one execution of one scheduled command.
 class ScheduledTaskRun extends Model
 {
     protected $table = 'scheduled_task_runs';

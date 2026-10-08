@@ -205,7 +205,6 @@ class BikeShopData implements IndustryDataContract
         ];
     }
 
-    // MARKER-PATCH-112-BIKESHOP
     public function classTemplates(): array
     {
         return [

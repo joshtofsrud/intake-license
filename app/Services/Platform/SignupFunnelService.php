@@ -2,7 +2,7 @@
 
 namespace App\Services\Platform;
 
-// MARKER-MKTTRAFFIC — the signup/intent funnel.
+// the signup/intent funnel.
 //
 // Deliberately NOT modelled on the tenant booking funnel, because the shape is
 // different: a booking is one session end to end, whereas signup spans anonymous
@@ -27,7 +27,7 @@ class SignupFunnelService
         return Tenant::where('is_platform', true)->value('id');
     }
 
-    // MARKER-FUNNEL-SCOPED — one row of stage flags per session, summed
+    // one row of stage flags per session, summed
     // cumulatively: a session counts at a step only if it also hit every
     // step before it. Monotonic by construction, so the funnel can only
     // fall. One grouped query replaces five independent distinct-counts.
@@ -47,7 +47,7 @@ class SignupFunnelService
                 'contact_submitted', 'signup_started',
             ])
             ->whereBetween('created_at', [$this->start, $this->end])
-            // MARKER-MKTREPAIR — the tiles exclude bots and this did not, so the
+            // the tiles exclude bots and this did not, so the
             // funnel's first step could sit ABOVE the Visitors tile beside it.
             // Historical crawler rows predate the ingest-side skip.
             ->where(function ($w) { $w->whereNull('device')->orWhere('device', '!=', 'bot'); })
@@ -72,7 +72,7 @@ class SignupFunnelService
     }
 
     /**
-     * MARKER-MKTDONE — BROWSING only, and only the steps that really are a
+     * BROWSING only, and only the steps that really are a
      * sequence. These stay cumulative: a session counts at a step only if it
      * also hit every step before it, so the funnel can only fall.
      *
@@ -96,7 +96,7 @@ class SignupFunnelService
     }
 
     /**
-     * MARKER-MKTDONE — the things that actually count as a result, each measured
+     * the things that actually count as a result, each measured
      * independently of the others and of the browsing funnel. None of these
      * requires any of the rest: someone can book a call without ever opening
      * pricing, and frequently does.
@@ -164,7 +164,7 @@ class SignupFunnelService
                 ->where('event_type', 'page_view')
                 ->where('path', 'like', '/for/%')
                 ->whereBetween('created_at', [$this->start, $this->end])
-                ->where(function ($w) { $w->whereNull('device')->orWhere('device', '!=', 'bot'); }) // MARKER-MKTREPAIR
+                ->where(function ($w) { $w->whereNull('device')->orWhere('device', '!=', 'bot'); })
                 ->select('path', DB::raw('COUNT(DISTINCT session_id) as sessions'))
                 ->groupBy('path')->orderByDesc('sessions')->limit(10)
                 ->pluck('sessions', 'path')->all();

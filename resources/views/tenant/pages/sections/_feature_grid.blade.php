@@ -1,5 +1,5 @@
 {{--
-  MARKER-PATCH-158-G31 — feature_grid editor (Phase 2)
+  feature_grid editor (Phase 2)
   Two layouts: standard 'grid' and 'intro_split' (large intro left,
   compact cards right). Per-feature fields: icon, title, price, body,
   optional CTA.
@@ -90,7 +90,7 @@
 
     <input type="hidden" data-field="features" id="pb2-feat-json" value="{{ json_encode($features) }}">
 
-    {{-- MARKER-PATCH-293 — option source cloned into new cards by the add-JS --}}
+    {{-- option source cloned into new cards by the add-JS --}}
     <select id="pb2-feat-service-template" style="display:none">
       <option value="">— Link a service (optional) —</option>
       @foreach(($services ?? []) as $svc)
@@ -177,7 +177,7 @@
           @endforeach
         </select>
       </div>
-      {{-- MARKER-PATCH-271 — content width (max content area; container stays centered with a side gutter) --}}
+      {{-- content width (max content area; container stays centered with a side gutter) --}}
       <div class="pb2-field">
         <div class="pb2-slider-row">
           <label class="pb2-field-label" style="margin:0">Content width</label>
@@ -216,7 +216,7 @@
     </div>
 
     <div class="pb2-bg-pane" data-bg-mode="gradient">
-        {{-- MARKER-PATCH-269 — gradient angle --}}
+        {{-- gradient angle --}}
         <div class="pb2-field">
           <div class="pb2-slider-row">
             <label class="pb2-field-label" style="margin:0">Angle</label>

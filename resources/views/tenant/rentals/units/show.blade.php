@@ -1,7 +1,7 @@
 @extends('layouts.tenant.app')
 @php $pageTitle = ($unit->identifier ?: 'Unit') . ' — ' . ($unit->model?->name ?? 'Fleet'); @endphp
 
-{{-- MARKER-PATCH-235 — unit detail: the serial's whole story. --}}
+{{-- unit detail: the serial's whole story. --}}
 
 @section('content')
 
@@ -80,10 +80,9 @@
   </div>
 
   <div>
-    {{-- MARKER-PATCH-236 — per-instance fields edit here now (roster rows
+    {{-- per-instance fields edit here now (roster rows
          are read-first). Saves field-by-field via the fleet updateUnit
          endpoint. --}}
-    {{-- MARKER-UNIT-DETAIL --}}
     <style>
       .up-tile{width:74px;height:56px;border-radius:8px;border:1.5px solid var(--ia-border);background:rgba(255,255,255,.05) center/cover no-repeat;cursor:pointer;padding:0}
       .up-tile.sel{border-color:var(--ia-accent,#BEF264)}
@@ -107,12 +106,12 @@
             <option value="0" {{ $unit->available_for_rent ? '':'selected' }}>Off — hidden from booking</option>
           </select>
         </div>
-        {{-- MARKER-UNIT-DETAIL — the same per-model identifier fields the
+        {{-- the same per-model identifier fields the
              fleet roster shows for this unit. --}}
         @foreach($mIdents as $in)
           <div><div style="font-size:11px;opacity:.5;margin-bottom:4px">{{ $in }}</div><input class="ia-input" style="width:100%" value="{{ ($unit->identifier_values ?? [])[$in] ?? '' }}" data-ui="{{ $in }}" placeholder="—"></div>
         @endforeach
-        {{-- MARKER-UNIT-DETAIL — photo, picked from this model's set. --}}
+        {{-- photo, picked from this model's set. --}}
         <div style="grid-column:1/3">
           <div style="font-size:11px;opacity:.5;margin-bottom:4px">Photo</div>
           @if(count($mPhotos))
@@ -166,9 +165,9 @@
 
 <style>@media(max-width:980px){.unit-cols{grid-template-columns:1fr !important}}</style>
 
-{{-- MARKER-PATCH-236 — field-by-field save to the fleet updateUnit endpoint. --}}
+{{-- field-by-field save to the fleet updateUnit endpoint. --}}
 <script>
-// MARKER-UNIT-DETAIL — explicit save, matching the fleet model drawer.
+// explicit save, matching the fleet model drawer.
 (function () {
   var wrap = document.getElementById('unit-edit');
   if (!wrap) return;

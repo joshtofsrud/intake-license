@@ -1,4 +1,3 @@
-{{-- MARKER-INVEST-FULL --}}
 <section><div class="wrap">
   <h2>$100,000. A twelve-month growth plan.</h2>
   <p class="lede">The $100k is what carries Intake from one founding shop to 210 accounts — the level

@@ -11,10 +11,9 @@ use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
 
-// MARKER-BILLING-DISCOUNTS
 class TenantBillingDiscountResource extends Resource
 {
-    use \App\Support\UsesAdminNav; // MARKER-NAV-ORDER
+    use \App\Support\UsesAdminNav;
     use \App\Support\GatedByAdminArea;
     protected static string $adminArea = 'tenants';
 

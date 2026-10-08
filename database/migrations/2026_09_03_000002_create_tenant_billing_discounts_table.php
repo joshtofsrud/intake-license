@@ -1,5 +1,4 @@
 <?php
-// MARKER-BILLING-DISCOUNTS / MARKER-BILLING-DISCOUNTS-RENAME
 //
 // NOT `tenant_discounts` — that name belongs to the customer discount-codes
 // feature and has since Aug 26. This is the billing arrangement between Intake

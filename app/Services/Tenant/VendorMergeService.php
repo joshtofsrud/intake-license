@@ -2,7 +2,7 @@
 
 namespace App\Services\Tenant;
 
-// MARKER-VENDOR-MERGE — absorb one vendor into another, wholesale.
+// absorb one vendor into another, wholesale.
 
 use App\Models\Tenant\TenantInventoryItem;
 use App\Models\Tenant\TenantInventoryItemVendor;
@@ -139,7 +139,7 @@ class VendorMergeService
             TenantInventoryItem::where('default_vendor_id', $source->id)
                 ->update(['default_vendor_id' => $target->id]);
 
-            // 3. MARKER-MERGE-CODE-RELEASE — hand the code over before the
+            // 3. hand the code over before the
             //    target claims it. (tenant_id, distributor_code) is unique, so
             //    two rows holding 'bti' for even one statement is rejected.
             //    The source cannot be deleted first to free it:

@@ -1,5 +1,5 @@
 <?php
-// MARKER-LEDGER-SERVICE — turns a collected platform invoice into a ledger
+// turns a collected platform invoice into a ledger
 // entry when the tenant traces to a deal-registered agency.
 
 namespace App\Services;

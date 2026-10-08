@@ -4,7 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
-// MARKER-BILLING-NOTICES — what a billing notice says. Editable, never hard-coded.
+// what a billing notice says. Editable, never hard-coded.
 class BillingNoticeTemplate extends Model
 {
     protected $table = 'billing_notice_templates';

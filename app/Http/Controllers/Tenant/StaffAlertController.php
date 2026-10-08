@@ -1,5 +1,4 @@
 <?php
-// MARKER-PATCH-225
 
 namespace App\Http\Controllers\Tenant;
 
@@ -21,23 +20,20 @@ class StaffAlertController extends Controller
         'payment.failed'        => 'Payment failed',
         'offer.accepted'        => 'Extension offer accepted',
         'inbox.needs_reply'     => 'Inbox needs a reply',
-        // MARKER-PATCH-247
         'payment.link_completed' => 'Payment link completed',
         'payment.link_expired'   => 'Payment link expired unpaid',
         'payment.refund_external'=> 'Refund issued outside Intake',
         'rental.reserved_online' => 'New online rental reservation',
         'lease.created'          => 'New lease',
-        // MARKER-DELIVERY-ALERTS
         'delivery.window_chosen' => 'Customer chose a delivery window',
         'delivery.no_reply'      => 'Delivery window unanswered — call the customer',
-        'delivery.call_requested'=> 'Customer asked for a call about delivery', // MARKER-DELIVERY-CALL
-        // MARKER-TOFF-ALERTS
+        'delivery.call_requested'=> 'Customer asked for a call about delivery',
         'timeoff.requested'      => 'New time-off request (reviewers)',
         'timeoff.decided'        => 'Your time-off request was decided',
         'timeoff.withdrawn'      => 'Time-off request withdrawn (reviewers)',
     ];
 
-    /** MARKER-PATCH-231 — full notifications page (grouped, paginated). */
+    /** full notifications page (grouped, paginated). */
     public function page(Request $request)
     {
         $userId = auth('tenant')->id();
@@ -103,7 +99,7 @@ class StaffAlertController extends Controller
 
     public function prefs()
     {
-        // MARKER-PATCH-272 prefs gate — config requires the Branded+ addon.
+        // prefs gate — config requires the Branded+ addon.
         if (!tenant()->staff_alerts_enabled) {
             return redirect()->route('tenant.notifications')
                 ->with('flash', 'Staff alert preferences are available on the Branded plan and above.');
@@ -134,7 +130,7 @@ class StaffAlertController extends Controller
 
     public function savePrefs(Request $request)
     {
-        // MARKER-PATCH-272 savePrefs gate.
+        // savePrefs gate.
         if (!tenant()->staff_alerts_enabled) {
             abort(403, 'Staff alerts is not available on your plan.');
         }
@@ -155,7 +151,7 @@ class StaffAlertController extends Controller
         return redirect()->route('tenant.alerts.prefs')->with('flash', 'Notification preferences saved.');
     }
 
-    /** MARKER-PATCH-280 — send a shop-wide announcement (managers + addon only). */
+    /** send a shop-wide announcement (managers + addon only). */
     public function storeBroadcast(Request $request, StaffAlertService $alerts)
     {
         $user = auth('tenant')->user();
@@ -183,7 +179,7 @@ class StaffAlertController extends Controller
         return redirect()->route('tenant.notifications')->with('success', 'Announcement sent to your staff.');
     }
 
-    /** MARKER-PATCH-281 — dismiss an announcement banner for the current user. */
+    /** dismiss an announcement banner for the current user. */
     public function dismissBroadcast(Request $request, string $id)
     {
         $user = auth('tenant')->user();

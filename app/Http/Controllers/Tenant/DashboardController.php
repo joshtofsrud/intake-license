@@ -42,7 +42,7 @@ class DashboardController extends Controller
         $workOrderBannerDismissed = (bool) $request->cookie('wof_banner_dismissed');
         $workOrderBanner = $service->workOrderBanner($workOrderBannerDismissed);
 
-        // MARKER-PATCH-110-STEP-4 — compute zones in order, then
+        // compute zones in order, then
         // pass today + attention into zoneLauncher so it can reuse already-
         // computed counts (low stock, SO counts) without re-querying.
         $today     = $service->zoneToday();
@@ -58,7 +58,7 @@ class DashboardController extends Controller
             'workOrderBanner' => $workOrderBanner,
         ];
 
-        // MARKER-TILES — a second view for people who want a way in rather
+        // a second view for people who want a way in rather
         // than a report. Overview is unchanged and remains the default.
         $user = \Illuminate\Support\Facades\Auth::guard('tenant')->user();
         if (($user->dashboard_view ?? 'overview') === 'tiles') {
@@ -69,7 +69,7 @@ class DashboardController extends Controller
         return view('tenant.dashboard', $data);
     }
 
-    /** MARKER-TILES — flip between Overview and Tiles. */
+    /** flip between Overview and Tiles. */
     public function setView(\Illuminate\Http\Request $request)
     {
         $data = $request->validate(['view' => 'required|in:overview,tiles']);
@@ -79,7 +79,7 @@ class DashboardController extends Controller
         return redirect()->route('tenant.dashboard');
     }
 
-    /** MARKER-TILES — save one user's tile arrangement. */
+    /** save one user's tile arrangement. */
     public function saveTiles(\Illuminate\Http\Request $request)
     {
         $data = $request->validate([
@@ -103,7 +103,7 @@ class DashboardController extends Controller
         return response()->json(['ok' => true]);
     }
 
-    /** MARKER-TILES — back to the registry's own order, everything shown. */
+    /** back to the registry's own order, everything shown. */
     public function resetTiles()
     {
         \Illuminate\Support\Facades\Auth::guard('tenant')->user()

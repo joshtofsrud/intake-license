@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\Log;
 use Symfony\Component\Mime\Address;
 
 /**
- * MARKER-PLATFORM-MAIL — stamps the platform sender onto outgoing mail that
+ * stamps the platform sender onto outgoing mail that
  * has not set its own From.
  *
  * Why an event listener rather than boot-time config: this only runs when a

@@ -1,5 +1,5 @@
 <?php
-// MARKER-CAMPAIGNS-CORE — Campaign/channel definitions per vertical.
+// Campaign/channel definitions per vertical.
 // A channel carries the categories, business types, qualification criteria,
 // and outreach playbook for one vertical (bike shops, salons, grooming...).
 // Prospects belong to a channel; the pipeline mechanics (SalesProspect::STAGES)

@@ -1,4 +1,4 @@
-{{-- MARKER-PATCH-129 — owner all-devices audit --}}
+{{-- owner all-devices audit --}}
 @extends('layouts.tenant.app')
 @php $pageTitle = 'All devices'; @endphp
 
@@ -42,7 +42,7 @@
   @foreach($devices as $d)
     <div class="td-row">
       <div>
-        {{-- MARKER-PATCH-131 — no per-device user; devices are tenant-scoped --}}
+        {{-- no per-device user; devices are tenant-scoped --}}
         <div class="td-label">{{ $d->label ?: 'Unnamed device' }}</div>
         <div class="td-meta">
           Last used {{ $d->last_used_at?->diffForHumans() ?? '—' }}

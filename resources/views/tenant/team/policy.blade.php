@@ -1,4 +1,4 @@
-{{-- MARKER-PATCH-129 — sign-in policy (was tab on /admin/security) --}}
+{{-- sign-in policy (was tab on /admin/security) --}}
 @extends('layouts.tenant.app')
 @php $pageTitle = 'Sign-in policy'; @endphp
 

@@ -24,7 +24,6 @@ use App\Models\Tenant\TenantServiceAddon;
 use App\Models\Tenant\TenantServiceCategory;
 use App\Models\Tenant\TenantServiceItem;
 use App\Models\Tenant\TenantUser;
-// MARKER-PATCH-112-IMPORTS
 use App\Models\Tenant\TenantInventoryCategory;
 use App\Models\Tenant\TenantInventoryItem;
 use App\Models\Tenant\TenantInventoryItemLocation;
@@ -79,7 +78,6 @@ class DemoSeeder
         // return [] from classTemplates/membershipProducts/packProducts.
         $this->seedClasses($tenant, $customers);
 
-        // MARKER-PATCH-112-WIRING
         // Set classes_enabled from override or auto-derive from classTemplates.
         $override = $this->industry->classesEnabledOverride();
         $classesEnabled = $override !== null
@@ -638,7 +636,7 @@ class DemoSeeder
                 $appointment->addons()->create($addon);
             }
 
-            // MARKER-DEMO-SALE-LEDGER — a paid appointment carries the sale and
+            // a paid appointment carries the sale and
             // payment behind it, as the app records them. Without these the page
             // read "Paid in full — 0 payments on file" in every demo.
             if ($paidCents > 0) {
@@ -728,7 +726,6 @@ class DemoSeeder
     }
 
 
-    // MARKER-PATCH-112-INVENTORY-METHOD
 
     /**
      * Seed inventory categories + items + per-location stock rows.
@@ -845,7 +842,6 @@ class DemoSeeder
         $this->log("  Inventory: " . count($items) . " items across " . count($categories) . " categories, distributed across {$locationCount} location(s).");
     }
 
-    // MARKER-PATCH-112-QUOTES-METHOD
 
     /**
      * Seed quote-status and draft-status sales rows. These appear in the
@@ -956,7 +952,7 @@ class DemoSeeder
         if ($date->greaterThan($today)) {
             return $this->weightedPick(['confirmed' => 70, 'pending' => 30]);
         }
-        // MARKER-PATCH-112-PICKSTATUS - same-day appointments are still in the
+        // same-day appointments are still in the
         // future at the moment of seeding; never assign 'completed' to them.
         if ($date->isSameDay($today)) {
             return $this->weightedPick(['in_progress' => 40, 'confirmed' => 40, 'pending' => 20]);
@@ -966,9 +962,9 @@ class DemoSeeder
             return $this->weightedPick(['completed' => 45, 'closed' => 45, 'in_progress' => 5, 'cancelled' => 5]);
         }
         if ($daysAgo <= 14) {
-            return $this->weightedPick(['closed' => 91, 'cancelled' => 6, 'refunded' => 3]); // MARKER-APPT-MOBILE-3 — no legacy 'shipped'
+            return $this->weightedPick(['closed' => 91, 'cancelled' => 6, 'refunded' => 3]); // no legacy 'shipped'
         }
-        return $this->weightedPick(['closed' => 94, 'cancelled' => 4, 'refunded' => 2]); // MARKER-APPT-MOBILE-3
+        return $this->weightedPick(['closed' => 94, 'cancelled' => 4, 'refunded' => 2]);
     }
 
     private function pickPaymentStatus(string $status): string

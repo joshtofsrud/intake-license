@@ -13,7 +13,6 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 /**
- * MARKER-SCHED-GOOGLE
  *
  * One connected Google account (settings-backed), used for two things:
  *   - freebusy on the primary calendar → platform_booking_busy, which
@@ -325,7 +324,7 @@ class GoogleCalendarService
 
     private function fail(string $msg): void
     {
-        Log::warning('MARKER-SCHED-GOOGLE ' . $msg);
+        Log::warning('sched-google: ' . $msg);
         PlatformBookingSetting::put('google_last_error', Str::limit($msg, 500));
     }
 }

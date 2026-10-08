@@ -1,7 +1,7 @@
-@php $bgId = 'mkbg-' . substr(md5((string) ($section->id ?? uniqid())), 0, 10); @endphp {{-- MARKER-MKT-SECTION-BG --}}
+@php $bgId = 'mkbg-' . substr(md5((string) ($section->id ?? uniqid())), 0, 10); @endphp
 @include('marketing.sections._section_bg', ['bgId' => $bgId])
 {{--
-    Hero (intake.works). MARKER-MKT-HERO-LAYOUT — reads the same editor
+    Hero (intake.works). reads the same editor
     settings as a shop's hero: height, vertical alignment, content width,
     headline and subheading size, text colors and the buttons list.
     Padding, hide on mobile/desktop, anchor and custom classes are applied
@@ -14,7 +14,7 @@
     in <em> and shown in the accent color.
 --}}
 @php
-    $headline = array_key_exists('headline', $c) ? (string) $c['headline'] : 'Your headline here'; // MARKER-CLEARED-FIELDS
+    $headline = array_key_exists('headline', $c) ? (string) $c['headline'] : 'Your headline here';
     $safeHeadline = e($headline);
     if (!empty($c['accent_words'])) {
         // Escape first, then wrap the escaped phrase, so no XSS hole opens.
@@ -30,7 +30,6 @@
     $align = in_array($c['text_align'] ?? 'center', ['left', 'center', 'right'], true) ? ($c['text_align'] ?? 'center') : 'center';
 
     $hid = 'mkh-' . substr(md5((string) ($section->id ?? uniqid())), 0, 8);
-    // MARKER-HERO-VIDEO
     $vidUrl  = trim((string) ($c['bg_video_url'] ?? ''));
     if ($vidUrl !== '' && ! preg_match('#^(https?://|/)#i', $vidUrl)) $vidUrl = '';
     $vidType = preg_match('/\.webm($|\?)/i', $vidUrl) ? 'video/webm' : 'video/mp4';
@@ -47,7 +46,7 @@
     if ($maxW < 320 || $maxW > 1600) $maxW = 720;
     $subW = (int) round($maxW * 0.7);
 
-    // MARKER-MKT-HERO-PAD — editor padding presets, same scale as a shop hero.
+    // editor padding presets, same scale as a shop hero.
     // A hero saved before these fields existed keeps its original padding.
     $padTokens = ['none' => '0', 'compact' => 'clamp(24px, 4vw, 40px)', 'normal' => 'clamp(48px, 7vw, 80px)', 'spacious' => 'clamp(72px, 10vw, 120px)'];
     $padTop    = $padTokens[$c['padding_top'] ?? ''] ?? 'clamp(64px, 10vw, 120px)';
@@ -68,7 +67,7 @@
     if (is_string($buttons)) { $d = json_decode($buttons, true); $buttons = is_array($d) ? $d : []; }
     if (! is_array($buttons)) $buttons = [];
     $buttons = array_values(array_filter($buttons, fn ($b) => is_array($b) && trim((string) ($b['label'] ?? '')) !== ''));
-    if (! $buttons && ! array_key_exists('buttons', $c)) { // MARKER-HERO-NO-LEGACY-CTA — only never-edited heroes
+    if (! $buttons && ! array_key_exists('buttons', $c)) { // only never-edited heroes
         if (! empty($c['cta_primary_label'])) {
             $buttons[] = ['label' => $c['cta_primary_label'], 'url' => $c['cta_primary_url'] ?? '#', 'style' => 'primary'];
         }
@@ -77,7 +76,7 @@
         }
     }
     $justify = ['left' => 'flex-start', 'center' => 'center', 'right' => 'flex-end'][$align];
-    $heroPill = ($c['buttons_style'] ?? 'separate') === 'pill'; // MARKER-HERO-PILL
+    $heroPill = ($c['buttons_style'] ?? 'separate') === 'pill';
 @endphp
 
 <style>
@@ -115,20 +114,18 @@
         justify-content: {{ $justify }};
     }
     .{{ $hid }} .mk-btn--link { background: transparent; border: 0; padding-left: 0; padding-right: 0; color: var(--mk-text); text-decoration: underline; }
-    /* MARKER-HERO-PILL */
     .{{ $hid }} .mk-hero-pill { display: inline-flex; flex-wrap: wrap; gap: 4px; padding: 5px; border-radius: 999px; max-width: 100%;
         background: rgba(10,10,10,.5); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border: 0.5px solid rgba(255,255,255,.14); }
     .{{ $hid }} .mk-hero-pill .mk-btn { border-radius: 999px; }
     .{{ $hid }} .mk-btn--pilllink { background: transparent; border: 0; color: var(--mk-text); opacity: .85; }
-    .{{ $hid }} .mk-btn--pilllink { transition: background-color .2s ease, opacity .2s ease; } /* MARKER-HERO-PILL-HOVER */
+    .{{ $hid }} .mk-btn--pilllink { transition: background-color .2s ease, opacity .2s ease; }
     .{{ $hid }} .mk-btn--pilllink:hover, .{{ $hid }} .mk-btn--pilllink:focus-visible { opacity: 1; background: rgba(255,255,255,.1); }
-    /* MARKER-HERO-PILL-MOBILE */
     @media (max-width: 600px) {
         .{{ $hid }} .mk-hero-pill { display: flex; flex-direction: column; width: 100%; border-radius: 22px; gap: 2px; padding: 6px; }
         .{{ $hid }} .mk-hero-pill .mk-btn { width: 100%; justify-content: center; text-align: center; }
     }
     .mk-hero-note { font-size: 12px; color: var(--mk-dim); }
-    /* MARKER-HERO-SPLIT — headline beside the copy */
+    /* headline beside the copy */
     .{{ $hid }} .mk-hsplit { display: flex; align-items: center; gap: clamp(28px, 5vw, 72px); text-align: left; }
     .{{ $hid }} .mk-hsplit.is-flip { flex-direction: row-reverse; }
     .{{ $hid }} .mk-hs-art { flex: 0 0 50%; min-width: 0; }
@@ -136,11 +133,11 @@
     .{{ $hid }} .mk-hsplit h1 { max-width: none; margin-left: 0; margin-right: 0; text-align: left; margin-bottom: 0; }
     .{{ $hid }} .mk-hs-copy .mk-hero-sub { margin-left: 0; margin-right: 0; text-align: left; }
     .{{ $hid }} .mk-hs-copy .mk-hero-actions { justify-content: flex-start; }
-    /* MARKER-HERO-SPLIT-PILL — one line when it fits, a stacked panel when it doesn't */
+    /* one line when it fits, a stacked panel when it doesn't */
     .{{ $hid }} .mk-hs-copy { container-type: inline-size; }
-    .{{ $hid }} .mk-hs-copy .mk-hero-pill { flex-wrap: nowrap; width: max-content; max-width: none; } /* MARKER-PILL-FIT */
+    .{{ $hid }} .mk-hs-copy .mk-hero-pill { flex-wrap: nowrap; width: max-content; max-width: none; }
     .{{ $hid }} .mk-hs-copy .mk-hero-pill .mk-btn { white-space: nowrap; padding-left: 18px; padding-right: 18px; }
-    /* MARKER-HERO-SPLIT-PILL-COMPACT — tighten before ever stacking */
+    /* tighten before ever stacking */
     @container (max-width: 600px) {
         .{{ $hid }} .mk-hs-copy .mk-hero-pill .mk-btn { padding: 10px 13px; font-size: 13.5px; }
     }
@@ -157,18 +154,17 @@
 </style>
 
 @php
-    // MARKER-HERO-SCROLLFX — 0 = off
+    // 0 = off
     $hfxP = max(0, min(100, (int) ($c['scroll_parallax'] ?? 0)));
     $hfxF = max(0, min(100, (int) ($c['scroll_fade'] ?? 0)));
     $hfxB = max(0, min(20,  (int) ($c['scroll_blur'] ?? 0)));
     $hfxOn = $hfxP || $hfxF || $hfxB;
-    // MARKER-HERO-SPLIT
     $hsLayout = in_array($c['hero_layout'] ?? 'stacked', ['stacked', 'split', 'split_flip'], true) ? ($c['hero_layout'] ?? 'stacked') : 'stacked';
     $hsSplit  = $hsLayout !== 'stacked';
 @endphp
 <section class="mk-hero {{ $bgId }} {{ $hid }}">
 @if($vidUrl !== '')
-{{-- MARKER-HERO-VIDEO — muted, looped, inline; the background image (if any) is the poster and the fallback --}}
+{{-- muted, looped, inline; the background image (if any) is the poster and the fallback --}}
 <style>
   .{{ $hid }} { position: relative; overflow: hidden; isolation: isolate; }
   .{{ $hid }} > .mk-hero-video, .{{ $hid }} > .mk-hero-vdim { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: -1; } /* behind everything in the hero, above its background */
@@ -217,7 +213,7 @@
 </section>
 @if($hfxOn)
 <script>
-/* MARKER-HERO-SCROLLFX — content drifts, fades and blurs as the hero scrolls away */
+/* content drifts, fades and blurs as the hero scrolls away */
 (function () {
   if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
   var fx = document.querySelector('.{{ $hid }} .mk-hero-fx[data-hfx]');

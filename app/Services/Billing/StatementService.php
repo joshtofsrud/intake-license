@@ -9,7 +9,7 @@ use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * MARKER-BILLING-STATEMENT — one month's charges for one shop, assembled once
+ * one month's charges for one shop, assembled once
  * so every surface shows the same number.
  *
  * Deliberately does NOT decide what to charge a card. It states what a period
@@ -24,7 +24,7 @@ class StatementService
         $start = ($monthStart ?? CarbonImmutable::now())->startOfMonth();
         $end   = $start->endOfMonth();
 
-        // MARKER-STATEMENT-HISTORY — a month that finished before the shop
+        // a month that finished before the shop
         // existed has no statement. Anything else would be fiction.
         $createdAt = $tenant->created_at ? CarbonImmutable::parse($tenant->created_at) : null;
         if ($createdAt && $end->lt($createdAt)) {
@@ -36,7 +36,7 @@ class StatementService
             ];
         }
 
-        // MARKER-STATEMENT-HISTORY — plan and add-ons describe TODAY'S
+        // plan and add-ons describe TODAY'S
         // arrangement; there is no record of what a shop had last April, so a
         // past month shows usage only, which is genuinely historical because
         // every ledger row keeps its own rate and date.
@@ -55,7 +55,7 @@ class StatementService
 
         return [
             'exists'          => true,
-            'usage_only'      => ! $isCurrentMonth,   // MARKER-STATEMENT-HISTORY
+            'usage_only'      => ! $isCurrentMonth,
             'period'          => ['start' => $start, 'end' => $end, 'label' => $start->format('F Y')],
             'plan'            => $plan,
             'addons'          => $addons,
@@ -117,7 +117,7 @@ class StatementService
             $out[] = [
                 'code'      => $row->addon_code,
                 'name'      => $addon->name,
-                // MARKER-ADDON-CATALOG — the dated price, not the column, so a price
+                // the dated price, not the column, so a price
                 //  change does not rewrite what an older statement said.
                 'cents'     => ($included || ! $recurring) ? 0 : \App\Support\AddonPricing::for($row->addon_code),
                 'note'      => $included ? 'included in ' . ucfirst((string) $tenant->plan_tier)
@@ -144,7 +144,7 @@ class StatementService
             ->where('status', TenantEmailLedgerEntry::STATUS_SENT)
             ->whereBetween('created_at', [$start, $end]);
 
-        // MARKER-EMAIL-RATES — campaigns, transactional and free are three
+        // campaigns, transactional and free are three
         // different answers; one blended range read as a bug.
         $marketing = (clone $base('email'))->where('kind', 'campaign')->where('is_free', false)
             ->selectRaw('COUNT(*) n, SUM(rate) spend, MIN(rate) lo, MAX(rate) hi')->first();
@@ -168,7 +168,6 @@ class StatementService
                 'count' => (int) ($email->n ?? 0),
                 'cents' => $emailCents,
                 'rate'  => $this->rateLabel($email->lo ?? null, $email->hi ?? null),
-                // MARKER-EMAIL-RATES
                 'marketing' => [
                     'count' => (int) ($marketing->n ?? 0),
                     'cents' => (int) round(((float) ($marketing->spend ?? 0)) * 100),

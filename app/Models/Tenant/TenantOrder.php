@@ -10,7 +10,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Str;
 
 /**
- * MARKER-PATCH-560 — Online Retail Wave 1.
+ * Online Retail Wave 1.
  *
  * Cart and order are one row: `status` walks
  *   cart -> pending_payment -> paid -> fulfilling -> fulfilled -> completed
@@ -44,7 +44,7 @@ class TenantOrder extends Model
         'fulfillment_type', 'fulfillment_address', 'fulfillment_notes', 'wants_install',
         'location_id', 'sale_id',
         'payment_status', 'stripe_payment_intent_id', 'card_brand', 'card_last4', 'paid_at',
-        // MARKER-TENANT-FILLABLE-FIX — tax, shipping and total were behind a
+        // tax, shipping and total were behind a
         // marker comment placed mid-line. Writes go through forceFill() today
         // so nothing is broken, but the next update() would drop them.
         'subtotal_cents', 'discount_cents', 'discount_code', 'discount_redemption_id',

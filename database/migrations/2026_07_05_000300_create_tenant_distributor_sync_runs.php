@@ -4,7 +4,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-// MARKER-PATCH-555 — audit trail for tenant distributor syncs (manual +
+// audit trail for tenant distributor syncs (manual +
 // scheduled) so "did it run, what changed" is a glance not a DB query.
 return new class extends Migration
 {

@@ -5,7 +5,7 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * MARKER-UNCAT-CARVE — what the operator searched for when they assigned.
+ * what the operator searched for when they assigned.
  *
  * Lets the screen show which keywords have already been worked through in a
  * bucket, and how many each one took, without a second table.

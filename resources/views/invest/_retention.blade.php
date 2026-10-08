@@ -1,4 +1,4 @@
-{{-- MARKER-INVEST-RETENTION · MARKER-RETENTION-MECH — the mechanism first, the
+{{-- the mechanism first, the
      evidence after. The pad is the smallest of four tools, not the headline. --}}
 <section><div class="wrap">
   <p class="sub">Retention and recovery</p>
@@ -37,7 +37,6 @@
     patch the holes in the ship.</p>
 
   <div class="legend">
-    {{-- MARKER-PAYS-FOR-ITSELF --}}
     <b>Intake pays for itself.</b> Recovery signals bring back customers who stopped
     coming. Rental extensions fill slots that would have been empty. Waitlists put someone in the spot a
     cancellation left. Each of those is money the shop wouldn't otherwise have taken — which is why

@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-/** MARKER-RESERVE — a quantity of an item held for a sale line, at a location. */
+/** a quantity of an item held for a sale line, at a location. */
 class TenantInventoryReservation extends Model
 {
     use HasUuids;

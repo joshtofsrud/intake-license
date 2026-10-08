@@ -2,7 +2,7 @@
   Shared subnav partial for the Reports tabs.
   Usage:  @include('tenant.reports._tab_subnav', ['active' => 'services'])
   Active: traffic | operations | customers | services | retail | money | staff
-  MARKER-PATCH-355 — desktop tab row + native mobile report picker.
+  desktop tab row + native mobile report picker.
 --}}
 @php
   $repTabs = [
@@ -12,9 +12,9 @@
     ['key' => 'services',   'label' => 'Services',   'url' => route('tenant.reports.services')],
     ['key' => 'retail',     'label' => 'Retail',     'url' => route('tenant.reports.retail')],
     ['key' => 'money',      'label' => 'Money',      'url' => route('tenant.reports.money')],
-    ['key' => 'daily',      'label' => 'Daily ops',  'url' => route('tenant.reports.daily')], // MARKER-PATCH-633
+    ['key' => 'daily',      'label' => 'Daily ops',  'url' => route('tenant.reports.daily')],
     ['key' => 'staff',      'label' => 'Staff',      'url' => route('tenant.reports.staff')],
-    ['key' => 'data',       'label' => 'Data quality', 'url' => route('tenant.reports.data_quality')], // MARKER-DATA-COMPLETENESS
+    ['key' => 'data',       'label' => 'Data quality', 'url' => route('tenant.reports.data_quality')],
   ];
   $repActive = $active ?? '';
 @endphp

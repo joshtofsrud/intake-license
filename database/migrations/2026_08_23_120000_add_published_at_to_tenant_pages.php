@@ -4,7 +4,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-// MARKER-PAGE-PUBLISH — when a page went live, so the status box can say
+// when a page went live, so the status box can say
 // so instead of implying it.
 return new class extends Migration {
     public function up(): void

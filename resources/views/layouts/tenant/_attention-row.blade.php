@@ -1,4 +1,4 @@
-{{-- MARKER-PATCH-231 — attention row: Search · Inbox · Alerts. Things that
+{{-- attention row: Search · Inbox · Alerts. Things that
      demand attention right now (each with a live count), not destinations. --}}
 @php
   $inboxUnread = 0;
@@ -21,12 +21,12 @@
     </a>
   @endif
 
-  {{-- MARKER-OLD-SCHOOL — the pad. Sits with the things that want attention
+  {{-- the pad. Sits with the things that want attention
        now, because an open note is exactly that. --}}
   @include('layouts.tenant._notes-pad')
 
   {{-- alerts bell (existing dropdown, rebuilt) --}}
-  {{-- MARKER-ALERTS-GATE — the bell is the feature too. Without this a shop
+  {{-- the bell is the feature too. Without this a shop
        that never bought staff alerts kept a bell opening an empty page. --}}
   @if(optional(tenant())->staff_alerts_enabled)
     @include('layouts.tenant._staff-alerts-bell')
@@ -71,19 +71,19 @@
   var modal = document.querySelector('[data-ar-modal]');
   if (!modal || modal.dataset.arInit) return;
   modal.dataset.arInit = '1';
-  // MARKER-PATCH-231C — move the modal to <body> (escape sidebar stacking)
+  // move the modal to <body> (escape sidebar stacking)
   // and hide it via inline display, because the modal's display:flex rule
   // overrides the [hidden] attribute. DOM/behavior changes, not stylesheet CSS.
   if (modal.parentNode !== document.body) { document.body.appendChild(modal); }
   modal.style.display = 'none';
-  // MARKER-PATCH-231C — move the modal out of the sidebar subtree to <body>,
+  // move the modal out of the sidebar subtree to <body>,
   // so position:fixed escapes the sidebar's stacking/transform context and
   // the modal paints above the dashboard tiles. DOM move, not a style change.
   if (modal.parentNode !== document.body) { document.body.appendChild(modal); }
   var input = modal.querySelector('[data-ar-input]');
   var results = modal.querySelector('[data-ar-results]');
   var searchUrl = '{{ route('tenant.search') }}';
-  // MARKER-SEARCH-ALL-FIX — declared here rather than inlined inside a nested
+  // declared here rather than inlined inside a nested
   // string further down, matching the line above it.
   var searchAllUrl = '{{ route('tenant.search.page') }}';
   var t, lastReq = 0;
@@ -103,7 +103,7 @@
 
   function render(groups){
     if (!groups || !groups.length){ results.innerHTML='<div class="ar-empty">No matches.</div>'; return; }
-    // MARKER-SEARCH-ALL — say when a group is cut short. Six rows with nothing
+    // say when a group is cut short. Six rows with nothing
     // to indicate a seventh reads as "that is all of them", which in a shop
     // with thousands of customers is usually false.
     var lastQuery = (input.value || '').trim();
@@ -135,7 +135,7 @@
       fetch(searchUrl + '?q=' + encodeURIComponent(q), { headers:{'Accept':'application/json'} })
         .then(function(r){ return r.json(); })
         .then(function(d){ if (myReq === lastReq) render(d.groups); })
-        // MARKER-SEARCH-ALL-FIX — without this, a failed search left the hint
+        // without this, a failed search left the hint
         // text sitting there and looked exactly like a dead input.
         .catch(function(err){
           console.error('search failed', err);

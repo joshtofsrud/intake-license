@@ -1,7 +1,7 @@
 @extends('layouts.tenant.app')
 @php $pageTitle = 'Rental Settings'; @endphp
 
-{{-- MARKER-PATCH-228 — season window + leasing visibility toggle. --}}
+{{-- season window + leasing visibility toggle. --}}
 
 @section('content')
 
@@ -24,7 +24,7 @@
 <form method="POST" action="{{ route('tenant.rentals.settings.save') }}">
   @csrf
 
-  {{-- MARKER-PATCH-228B — Rentals on/off --}}
+  {{-- Rentals on/off --}}
   <div class="ia-card" style="padding:18px 20px;margin-bottom:16px">
     <div class="ia-card-head"><span class="ia-card-title">Rentals</span></div>
     <p style="font-size:12.5px;opacity:.55;margin:6px 0 14px;line-height:1.5">
@@ -36,7 +36,7 @@
     </label>
   </div>
 
-  {{-- MARKER-PATCH-228B — Leasing (season window merged in) --}}
+  {{-- Leasing (season window merged in) --}}
   <div class="ia-card" style="padding:18px 20px;margin-bottom:16px">
     <div class="ia-card-head" style="display:flex;align-items:center;justify-content:space-between">
       <span class="ia-card-title">Season-long leasing</span>
@@ -74,7 +74,7 @@
     @endif
   </div>
 
-  {{-- MARKER-PATCH-233 — late & overdue policy. Suggested automatically
+  {{-- late & overdue policy. Suggested automatically
        in the return flow; always editable per return. --}}
   <div class="ia-card" style="padding:18px 20px;margin-bottom:16px">
     <div class="ia-card-head"><span class="ia-card-title">Late &amp; overdue policy</span></div>
@@ -86,7 +86,7 @@
         <label class="ia-label" style="display:block;margin-bottom:5px">Grace period (minutes)</label>
         <input type="number" name="late_grace_minutes" value="{{ $lateGraceMinutes }}" min="0" max="1440" class="ia-input" style="width:120px">
 
-        {{-- MARKER-RENTAL-EXT — last-minute extension offers --}}
+        {{-- last-minute extension offers --}}
         @php $extS = app(\App\Services\RentalExtensionOfferService::class)->settings(tenant()); @endphp
         @if(tenant()->rental_extensions_enabled)
           <div style="border-top:.5px solid var(--ia-border);margin-top:18px;padding-top:16px">
@@ -139,7 +139,7 @@
     <p style="font-size:11.5px;opacity:.45;margin-top:10px">Within the grace period nothing is suggested. Past it, full hours from the due time are billed. Set $0/hour to turn suggestions off.</p>
   </div>
 
-  {{-- MARKER-PATCH-237 — deposit behavior. --}}
+  {{-- deposit behavior. --}}
   <div class="ia-card" style="padding:18px 20px;margin-bottom:16px">
     <div class="ia-card-head"><span class="ia-card-title">Deposits</span></div>
     <label style="display:flex;gap:10px;align-items:flex-start;margin-top:10px;cursor:pointer">
@@ -153,7 +153,7 @@
   <button type="submit" class="ia-btn ia-btn--primary">Save settings</button>
 </form>
 
-{{-- MARKER-PATCH-237 — versioned agreement templates. Own form: publishing
+{{-- versioned agreement templates. Own form: publishing
      is separate from saving settings. --}}
 <div class="ia-card" style="padding:18px 20px;margin-top:16px">
   <div class="ia-card-head"><span class="ia-card-title">Rental agreement</span></div>

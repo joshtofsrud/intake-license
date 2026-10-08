@@ -5,7 +5,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * MARKER-SALES-SETUP — Sales menu becomes Today, Prospects; the rest moves to a
+ * Sales menu becomes Today, Prospects; the rest moves to a
  * collapsed "Sales setup" group. The menu is stored (NavArrange), so the
  * stored rows are updated; you can still rearrange it there afterwards.
  * Stale custom labels for renamed pages (Pipeline, Route day, Campaigns) are

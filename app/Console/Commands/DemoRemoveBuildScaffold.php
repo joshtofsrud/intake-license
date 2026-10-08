@@ -7,7 +7,7 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Storage;
 
 /**
- * MARKER-DEMO-BUILD-CLEANUP — remove a leftover demo build scaffold.
+ * remove a leftover demo build scaffold.
  *
  * Dry run by default. It refuses to touch anything that isn't obviously
  * scaffolding: the tenant must be flagged is_demo AND must not be the tenant
@@ -63,7 +63,7 @@ class DemoRemoveBuildScaffold extends Command
     }
 
     /**
-     * MARKER-DEMO-SCAFFOLD-PURGE — remove a tenant and everything it owns.
+     * remove a tenant and everything it owns.
      *
      * A tenant row cannot be deleted on its own: several child tables carry
      * ON DELETE RESTRICT, which is what made forceDelete() fail. This mirrors

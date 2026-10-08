@@ -1,4 +1,4 @@
-{{-- MARKER-PATCH-158-G2 — Shared reschedule modal partial.
+{{-- Shared reschedule modal partial.
 
      Extracted from show.blade.php so both the legacy view and the new
      multi-asset view (show-multi-asset.blade.php) can render the same

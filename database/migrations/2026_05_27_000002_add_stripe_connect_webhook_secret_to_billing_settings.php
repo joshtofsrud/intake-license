@@ -5,7 +5,7 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * MARKER-PATCH-168 — separate webhook secret for Connect events.
+ * separate webhook secret for Connect events.
  *
  * Platform billing webhooks (subscription renewals etc.) and Connect
  * webhooks (tenant onboarding state, future payment intent events) use

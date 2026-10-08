@@ -1,5 +1,5 @@
 <?php
-// MARKER-IMPORT-RESULTS — imports that finished 'done' but still carry the
+// imports that finished 'done' but still carry the
 // failure reason from an earlier attempt. Platform-wide data repair across
 // every tenant, deliberately not tenant-filtered. Data only; nothing to undo.
 

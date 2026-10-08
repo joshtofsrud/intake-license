@@ -1,9 +1,8 @@
 @extends('layouts.tenant.app')
 @php $pageTitle = 'Import result'; @endphp
-{{-- MARKER-IMPORT1 --}}
 
 @section('content')
-{{-- MARKER-IMPORT-MATCH — per-type nouns; this screen serves both importers. --}}
+{{-- per-type nouns; this screen serves both importers. --}}
 @php $nouns = \App\Support\ImportFieldRegistry::nouns($import->type ?? 'customers'); @endphp
 @include('tenant.imports._styles')
 @include('tenant.imports._progress')
@@ -24,7 +23,7 @@
 </div>
 
 @if($import->status === 'failed')
-  {{-- MARKER-CONSENT-IMPORT-FIX — a failed run with no recorded reason used to
+  {{-- a failed run with no recorded reason used to
        render an empty box, which tells nobody anything. --}}
   <div class="ia-flash ia-flash--error">
     @if(trim((string) $import->failure_reason) !== '')
@@ -38,13 +37,13 @@
 @elseif($import->status === 'done')
   <div class="ia-flash ia-flash--success">
     {{ number_format($import->total('created') + $import->total('updated')) }} rows imported.
-    {{-- MARKER-IMPORT-TAG-ALL — tagging is often the whole point of the run. --}}
+    {{-- tagging is often the whole point of the run. --}}
     @if($import->total('tagged') > 0)
       {{ number_format($import->total('tagged')) }} {{ $nouns['plural'] }} tagged
       <b>{{ $import->options['tag_name'] ?? '' }}</b>.
     @endif
   </div>
-  {{-- MARKER-CONSENT-IMPORT-FIX — the next step nobody would otherwise know about. --}}
+  {{-- the next step nobody would otherwise know about. --}}
   @if($import->type === 'customers' && $import->total('created') > 0)
     <div class="ia-flash ia-flash--info" style="margin-top:10px">
       <b>These customers can't receive campaigns yet.</b> Imported contacts start
@@ -54,7 +53,7 @@
   @endif
 @endif
 
-{{-- MARKER-IMPORT-DRILLDOWN — the three tiles with records behind them open
+{{-- the three tiles with records behind them open
      a detail panel; the rest are counts with nothing stored per row, and say
      so on hover rather than pretending to be clickable. --}}
 <div class="imp-tiles">
@@ -83,7 +82,7 @@
   </div>
 </div>
 
-{{-- MARKER-IMPORT2 — reverse this import --}}
+{{-- reverse this import --}}
 @if($import->status === 'done')
   @php $rev = ($import->totals['reversal'] ?? null); @endphp
   <div class="ia-card">
@@ -94,7 +93,7 @@
         <b>used since</b> — sold, transferred, put on a ticket — is kept rather than deleted, and
         you'll be told which. Stock is corrected with a counter-movement, so the history stays intact.
       </p>
-      {{-- MARKER-CLEARNAV-DIALOG — in-app dialog, not confirm(). --}}
+      {{-- in-app dialog, not confirm(). --}}
       <form method="POST" action="{{ route('tenant.imports.reverse', $import->id) }}"
             data-confirm="Reverse this import? Records that have been used since will be kept."
             data-confirm-label="Reverse import">
@@ -132,7 +131,6 @@
   </div>
 @endif
 
-{{-- MARKER-IMPORT-DRILLDOWN --}}
 @push('styles')
 <style>
   button.imp-tile{font:inherit;text-align:left;cursor:pointer;width:100%}

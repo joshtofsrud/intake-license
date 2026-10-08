@@ -5,7 +5,7 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * MARKER-PATCH-168 — Stripe Connect Session A.
+ * Stripe Connect Session A.
  *
  * Adds the columns needed for a tenant to have a Connect account, track
  * its state (charges enabled, payouts enabled, restricted, etc.), and

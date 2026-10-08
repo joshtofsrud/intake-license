@@ -1,25 +1,25 @@
-{{-- MARKER-SSEL — reusable searchable select. Renders a hidden input under
+{{-- reusable searchable select. Renders a hidden input under
      `name`, so any form using a native <select> can swap in without touching
      its controller. Options are server-rendered; JS only filters/highlights.
      Styling reads the app CSS vars, so it follows the tenant theme. --}}
-{{-- MARKER-SSEL-CATS — `options` may be a flat list (value === label, as the
+{{-- `options` may be a flat list (value === label, as the
      import screen uses) or an associative array of value => label, which a
      category needs: a uuid value with a readable name. `searchable` turns the
      filter box off for short lists; it also hides itself on a phone. --}}
-@props(['name', 'options' => [], 'selected' => '', 'any' => 'Any', 'noun' => 'options', 'searchable' => true, 'required' => false, 'id' => null, 'assoc' => null]){{-- MARKER-SSEL-ID — the hidden input can carry a caller's id; scripts that used to read the native select by id still find it --}}
+@props(['name', 'options' => [], 'selected' => '', 'any' => 'Any', 'noun' => 'options', 'searchable' => true, 'required' => false, 'id' => null, 'assoc' => null]){{-- the hidden input can carry a caller's id; scripts that used to read the native select by id still find it --}}
 @php
   // A list is 0,1,2… in order; anything else is a value => label map, even
   // when its keys happen to be numeric.
-  // MARKER-SSEL-ASSOC — array_is_list() cannot tell ['0' => 'None'] from a
+  // array_is_list() cannot tell ['0' => 'None'] from a
   // one-item list: PHP casts the key to 0 either way. Callers passing a map
   // say so instead of it being guessed from the shape.
-  // MARKER-SSEL-COLLECTION — callers pass Collections as often as arrays
+  // callers pass Collections as often as arrays
   // (the import screen does); array_is_list() only accepts an array.
   $sselItems = $options instanceof \Illuminate\Support\Collection ? $options->all() : (array) $options;
   $sselAssoc = $assoc ?? ! array_is_list($sselItems);
   $sselOpts = [];
   foreach ($sselItems as $k => $v) {
-      // MARKER-SSEL-NUMKEY — PHP casts numeric string keys back to integers,
+      // PHP casts numeric string keys back to integers,
       // so ['0' => 'Forever'] arrives with $k === 0 and the old is_int() test
       // read it as a FLAT list: value became "Forever", nothing matched the
       // selected "0", and the button rendered blank.
@@ -32,7 +32,7 @@
       if ($o['v'] === (string) $selected) { $sselCur = $o['l']; break; }
   }
 @endphp
-<div class="ssel" data-noun="{{ $noun }}" data-name="{{ $name }}">{{-- MARKER-SSEL-SCOPE --}}
+<div class="ssel" data-noun="{{ $noun }}" data-name="{{ $name }}">
   <input type="hidden" name="{{ $name }}" value="{{ $selected }}" class="ssel-val" @if($id) id="{{ $id }}" @endif>
   <button type="button" class="ssel-btn" aria-haspopup="listbox">
     <span class="ssel-cur {{ (string) $selected === '' ? 'is-any' : '' }}">{{ $sselCur !== '' ? $sselCur : $any }}</span>
@@ -43,7 +43,7 @@
       <div class="ssel-search"><input type="text" placeholder="Type to filter&hellip;" autocomplete="off"></div>
     @endif
     <div class="ssel-list" role="listbox">
-      {{-- MARKER-SSEL-NOBLANK — this row was rendered whatever $any held, so
+      {{-- this row was rendered whatever $any held, so
            any="" produced an empty option in every picker. It exists only when
            there is something to say, e.g. "Any brand" on a filter. --}}
       @if($any !== '')
@@ -53,13 +53,12 @@
         <div class="ssel-opt {{ (string) $selected === $o['v'] ? 'is-sel' : '' }}" data-v="{{ $o['v'] }}" data-l="{{ $o['l'] }}" role="option"><span class="t">{!! nl2br(e($o['l'])) !!}</span><span class="ssel-tick">&#10003;</span></div>
       @endforeach
     </div>
-    <div class="ssel-foot"><span class="ssel-cnt"></span>{{-- MARKER-SSEL-NOHINT — keyboard hint removed --}}</div>
+    <div class="ssel-foot"><span class="ssel-cnt"></span>{{-- keyboard hint removed --}}</div>
   </div>
 </div>
 @once
   @push('styles')
 <style>
-/* MARKER-SSEL */
 .ssel{position:relative}
 .ssel-btn{width:100%;display:flex;align-items:center;justify-content:space-between;gap:10px;
   background:var(--ia-input-bg);border:1px solid var(--ia-border);border-radius:var(--ia-r-md);
@@ -92,7 +91,7 @@
 </style>
   @endpush
 <script>
-// MARKER-SSEL — one initializer for every .ssel on the page.
+// one initializer for every .ssel on the page.
 (function () {
   if (window.__iaSselInit) { return; }
   window.__iaSselInit = true;
@@ -120,7 +119,7 @@
 
     function open() {
       panel.hidden = false;
-      // MARKER-SSEL-NOSEARCH — there is no search box when :searchable=false;
+      // there is no search box when :searchable=false;
       // this threw and the panel never opened.
       if (input) { input.value = ''; }
       filter('');
@@ -175,7 +174,7 @@
       opts.forEach(function (x) { x.classList.toggle('is-sel', x === o); });
       close();
       btn.focus();
-      // MARKER-SSEL-SCOPE — behave like a native select for listeners.
+      // behave like a native select for listeners.
       val.dispatchEvent(new Event('change', { bubbles: true }));
     }
 
@@ -195,7 +194,7 @@
       if (!root.contains(e.target)) { close(); }
     });
 
-    // MARKER-SSEL-SCOPE — replace the option list in place. Keeps the current
+    // replace the option list in place. Keeps the current
     // value when it survives the new list; otherwise resets to the Any row
     // WITHOUT dispatching change (the caller initiated this, no loops).
     function setOptions(labels) {
@@ -250,7 +249,7 @@
 </script>
 @endonce
 
-{{-- MARKER-SSEL-CATS-PHONE — a filter box on a phone raises the keyboard over
+{{-- a filter box on a phone raises the keyboard over
      the list it is meant to filter. Below 640px the list stands on its own. --}}
 <style>
   @media (max-width: 640px) { .ssel-search { display: none !important; } }

@@ -6,9 +6,9 @@ use App\Http\Controllers\Controller;
 use App\Models\Tenant\TenantPage;
 use App\Models\Tenant\TenantPageSection;
 use App\Models\Tenant\TenantNavItem;
-use App\Models\Tenant\TenantServiceCategory; // MARKER-PATCH-267
+use App\Models\Tenant\TenantServiceCategory;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB; // MARKER-SPLASH-2
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 class PageBuilderController extends Controller
@@ -20,25 +20,25 @@ class PageBuilderController extends Controller
      */
     private const ARRAY_FIELDS = [
         'features', 'steps', 'plans', 'items', 'testimonials',
-        'groups', // MARKER-FEATURE-GROUPS
+        'groups',
         'shop_names', 'logos', 'competitors', 'rows', 'stats', 'images',
-        // MARKER-PATCH-158-G19 — Hero buttons list (Phase 2 field)
+        // Hero buttons list (Phase 2 field)
         'buttons',
-        // MARKER-PATCH-158-G22 — services category filter (multi-select)
+        // services category filter (multi-select)
         'category_ids',
-        // MARKER-PATCH-158-G26 — footer link columns + social links
+        // footer link columns + social links
         'link_columns', 'social_links',
     ];
 
     private const DEFAULTS = [
-        // MARKER-PATCH-158-G25 — nav v2 fields (Phase 2)
+        // nav v2 fields (Phase 2)
         'nav'           => [
             // Logo
             'show_logo'       => true,
-            'logo_variant'    => 'auto',     // auto (contrast) | light | dark — MARKER-PATCH-274
+            'logo_variant'    => 'auto',     // auto (contrast) | light | dark
             'logo_alignment'  => 'left',     // left | center
             'logo_size'       => 'medium',   // small | medium | large | xl
-            // Customer account — MARKER-NAV-ACCOUNT
+            // Customer account
             'show_account'    => true,
             // CTA
             'show_cta'        => true,
@@ -66,7 +66,7 @@ class PageBuilderController extends Controller
             // Legacy compat
             'bg_style'        => 'solid',
         ],
-        // MARKER-PATCH-158-G19 — Phase 2 Hero fields (v2)
+        // Phase 2 Hero fields (v2)
         // Legacy fields (eyebrow/headline/accent_words/subheading/bg_color/text_color/
         // text_align/cta_primary_*/cta_secondary_*/note/height) are preserved for
         // backward compat. New fields below extend the editor: background image
@@ -84,7 +84,7 @@ class PageBuilderController extends Controller
             // Legacy CTAs (kept for v1 content; new edits use buttons[])
             'cta_primary_label'   => 'Book Now',
             'cta_primary_url'     => '/book',
-            // MARKER-PATCH-249 — Design series: motion + blur (image mode).
+            // Design series: motion + blur (image mode).
             'bg_parallax'         => '0',
             'bg_parallax_depth'   => 35,
             'bg_blur'             => 0,
@@ -97,7 +97,7 @@ class PageBuilderController extends Controller
             'content_max_width'   => 680,
             'padding_top'         => 'normal',
             'padding_bottom'      => 'normal',
-            // MARKER-PATCH-158-G21 — typography
+            // typography
             'headline_size'       => 'auto',
             'subheading_size'     => 'medium',
             // Style
@@ -120,7 +120,7 @@ class PageBuilderController extends Controller
             'hide_on_mobile'      => false,
             'hide_on_desktop'     => false,
         ],
-        // MARKER-PATCH-158-G22 — services v2 fields (Phase 2)
+        // services v2 fields (Phase 2)
         'services'      => [
             // Content
             'eyebrow'         => '',
@@ -158,7 +158,7 @@ class PageBuilderController extends Controller
             'hide_on_mobile'  => false,
             'hide_on_desktop' => false,
         ],
-        // MARKER-PATCH-158-G20 — text_image v2 fields (Phase 2)
+        // text_image v2 fields (Phase 2)
         'text_image'    => [
             'eyebrow'         => '',
             'heading'         => 'About us',
@@ -193,7 +193,7 @@ class PageBuilderController extends Controller
             'hide_on_desktop' => false,
         ],
 
-        // MARKER-PATCH-158-G20 — cta_banner v2 fields (Phase 2)
+        // cta_banner v2 fields (Phase 2)
         'cta_banner'    => [
             'eyebrow'         => '',
             'headline'        => 'Ready to book?',
@@ -204,7 +204,7 @@ class PageBuilderController extends Controller
             // Legacy
             'cta_label'       => 'Book Now',
             'cta_url'         => '/book',
-            // MARKER-PATCH-250 — Design series: motion + blur (image mode).
+            // Design series: motion + blur (image mode).
             'bg_parallax'     => '0',
             'bg_parallax_depth' => 35,
             'bg_blur'         => 0,
@@ -230,13 +230,12 @@ class PageBuilderController extends Controller
             'hide_on_mobile'  => false,
             'hide_on_desktop' => false,
         ],
-        // MARKER-FEATURE-TILES
         'feature_tiles' => [
             'eyebrow' => '', 'heading' => 'Everything in one place', 'accent_words' => '', 'subheading' => '', 'tiles' => [],
             'footer_text' => '', 'footer_cta_label' => '', 'footer_cta_url' => '',
             'accent_color' => '', 'anchor_id' => '', 'custom_classes' => '', 'hide_on_mobile' => false, 'hide_on_desktop' => false,
         ],
-        // MARKER-ROI-SECTION — starting content uses the shop's real, conservative numbers
+        // starting content uses the shop's real, conservative numbers
         'roi' => [
             'eyebrow' => 'The return', 'heading' => 'Tools that pay for themselves', 'accent_words' => 'pay for themselves',
             'subheading' => 'Real results from our own shop, and a calculator for yours.',
@@ -247,11 +246,10 @@ class PageBuilderController extends Controller
             'calc_fleet' => 30, 'calc_rate' => 100, 'calc_idle' => 50, 'calc_length' => 1, 'calc_takeup' => 40, 'calc_discount' => 50, 'calc_note' => '',
             'accent_color' => '', 'anchor_id' => '', 'custom_classes' => '', 'hide_on_mobile' => false, 'hide_on_desktop' => false,
         ],
-        // MARKER-SCROLL-WORDS
         'scroll_words' => ['prefix' => 'One system for', 'words' => "booking\nservice\nretail\nrentals\nmarketing", 'mode' => 'spotlight', 'size' => 'l', 'align' => 'left',
                            'text_color' => '', 'accent_color' => '', 'anchor_id' => '', 'custom_classes' => '', 'hide_on_mobile' => false, 'hide_on_desktop' => false],
         'image_gallery' => ['images'=>[],'columns'=>3],
-        // MARKER-CAROUSEL-SECTION -- sliding image carousel.
+        // sliding image carousel.
         'image_carousel' => [
             // Content
             'heading'          => '',
@@ -278,7 +276,7 @@ class PageBuilderController extends Controller
             'hide_on_mobile'   => false,
             'hide_on_desktop'  => false,
         ],
-        // MARKER-PATCH-158-G24 — contact_form v2 fields (Phase 2)
+        // contact_form v2 fields (Phase 2)
         'contact_form'  => [
             // Content
             'eyebrow'         => '',
@@ -320,19 +318,19 @@ class PageBuilderController extends Controller
             'hide_on_desktop' => false,
         ],
         'booking_embed'  => ['heading'=>'Book online'],
-        // MARKER-PATCH-239 — live fleet showcase with rates + browse CTA.
+        // live fleet showcase with rates + browse CTA.
         'rentals_showcase' => ['eyebrow'=>'','heading'=>'Rent the good stuff','body'=>'','category_id'=>'','max_models'=>6,'show_rates'=>'1','show_deposit'=>'0','cta_label'=>'Check availability','cta_url'=>'/rentals','bg_color'=>'','bg_mode'=>'none','bg_gradient_from'=>'','bg_gradient_to'=>'','bg_gradient_angle'=>135,'text_color'=>'','text_color_body'=>'','accent_color'=>'','card_bg'=>'','card_border'=>'','anchor_id'=>'','custom_classes'=>'','hide_on_mobile'=>false,'hide_on_desktop'=>false],
-        // MARKER-RENTAL-SECTIONS — tenant-composed rental pages: single-model
+        // tenant-composed rental pages: single-model
         // spotlight, checkbox+drag category grid, embeddable live browse.
         'rental_spotlight'  => ['eyebrow'=>'','heading'=>'','body'=>'','model_id'=>'','image_url'=>'','image_alt'=>'','show_rates'=>'1','show_deposit'=>'0','cta_label'=>'Reserve','cta_url'=>'','bg_color'=>'','image_position'=>'left','image_radius'=>14,'bg_mode'=>'none','bg_gradient_from'=>'','bg_gradient_to'=>'','bg_gradient_angle'=>135,'text_color'=>'','text_color_body'=>'','accent_color'=>'','card_bg'=>'','card_border'=>'','anchor_id'=>'','custom_classes'=>'','hide_on_mobile'=>false,'hide_on_desktop'=>false],
         'rental_categories' => ['eyebrow'=>'','heading'=>'Rent by category','body'=>'','category_ids'=>'[]','category_images'=>'{}','show_counts'=>'1','bg_color'=>'','columns'=>'auto','tile_style'=>'photo','bg_mode'=>'none','bg_gradient_from'=>'','bg_gradient_to'=>'','bg_gradient_angle'=>135,'text_color'=>'','text_color_body'=>'','accent_color'=>'','card_bg'=>'','card_border'=>'','anchor_id'=>'','custom_classes'=>'','hide_on_mobile'=>false,'hide_on_desktop'=>false],
         'rental_browse'     => ['eyebrow'=>'','heading'=>'Check availability','body'=>'','show_deposit'=>'0','bg_color'=>'','button_bg'=>'','button_text'=>'','bg_mode'=>'none','bg_gradient_from'=>'','bg_gradient_to'=>'','bg_gradient_angle'=>135,'text_color'=>'','text_color_body'=>'','accent_color'=>'','card_bg'=>'','card_border'=>'','anchor_id'=>'','custom_classes'=>'','hide_on_mobile'=>false,'hide_on_desktop'=>false],
-        // MARKER-PATCH-576 — online store product showcase
+        // online store product showcase
         'products_showcase' => ['eyebrow'=>'','heading'=>'From the shop','body'=>'','category_id'=>'','max_items'=>8,'in_stock_only'=>'0','show_prices'=>'1','show_search'=>'0','search_placeholder'=>'','cta_label'=>'Browse the shop','cta_url'=>'/shop','bg_color'=>''],
         'classes_embed'  => ['heading'=>'Upcoming classes','show_filters'=>true,'weeks_ahead'=>2],
         'roadmap_grid'  => ['intro_text'=>'An honest look at where Intake is heading. Plans change as we learn from shops using the product.'],
         'changelog_list'=> ['intro_text'=>'Everything we shipped lately, reverse-chronological.'],
-        // MARKER-PATCH-158-G26 — footer v2 fields (Phase 2)
+        // footer v2 fields (Phase 2)
         'footer'        => [
             // Brand
             'show_logo'       => true,
@@ -346,13 +344,13 @@ class PageBuilderController extends Controller
             'show_email'      => true,
             'show_address'    => false,
             'show_hours'      => false,
-            // MARKER-PATCH-158-G29 — inline contact form
+            // inline contact form
             'show_form'       => false,
             'form_heading'    => 'Get in touch',
             'form_description'=> '',
             'form_button_label' => 'Send',
             'form_success_text' => "Thanks! We'll be in touch soon.",
-            // MARKER-PATCH-394 — contact-form phone field control
+            // contact-form phone field control
             'form_show_phone'   => true,
             'form_require_phone'=> false,
             // Copyright
@@ -382,7 +380,7 @@ class PageBuilderController extends Controller
             'show_copyright'  => true,
         ],
 
-        // MARKER-PATCH-158-G30 — pricing_table v2 fields (Phase 2)
+        // pricing_table v2 fields (Phase 2)
         'pricing_table' => [
             // Content
             'eyebrow'          => '',
@@ -418,7 +416,7 @@ class PageBuilderController extends Controller
             'hide_on_mobile'   => false,
             'hide_on_desktop'  => false,
         ],
-        // MARKER-PATCH-158-G31 — feature_grid v2 fields (Phase 2)
+        // feature_grid v2 fields (Phase 2)
         'feature_grid' => [
             // Content
             'eyebrow'          => '',
@@ -454,7 +452,7 @@ class PageBuilderController extends Controller
             'hide_on_mobile'   => false,
             'hide_on_desktop'  => false,
         ],
-        // MARKER-PATCH-158-G34 — step_timeline v2 fields (Phase 2)
+        // step_timeline v2 fields (Phase 2)
         'step_timeline' => [
             // Content
             'eyebrow'          => '',
@@ -493,7 +491,7 @@ class PageBuilderController extends Controller
             'eyebrow' => '', 'heading' => 'What customers say', 'subheading' => '',
             'testimonials' => [['quote' => 'This changed how we run the shop.', 'author' => 'Name', 'role' => 'Owner']],
         ],
-        // MARKER-PATCH-158-G32 — logo_bar v2 fields (Phase 2)
+        // logo_bar v2 fields (Phase 2)
         'logo_bar'         => [
             // Content
             'eyebrow'          => '',
@@ -527,7 +525,7 @@ class PageBuilderController extends Controller
             // Legacy compat (v1 parallel array)
             'shop_names'       => [],
         ],
-        // MARKER-PATCH-158-G33 — faq_accordion v2 fields (Phase 2)
+        // faq_accordion v2 fields (Phase 2)
         'faq_accordion'    => [
             // Content
             'eyebrow'          => '',
@@ -561,11 +559,11 @@ class PageBuilderController extends Controller
         ],
         'comparison_table' => ['eyebrow'=>'','heading'=>'How we compare','subheading'=>'','competitors'=>['Intake','Other'],'rows'=>[['feature'=>'Feature','values'=>['yes','no']]]],
         'industry_pack_showcase' => ['eyebrow'=>'','heading'=>'Built for your industry','subheading'=>'Pick your industry, get pre-configured services, pricing, and content.','limit'=>12,'show_all_link'=>true],
-        // MARKER-SCHED-SECTION — marketing-only; heading/subheading blank = the booking type's own name/description
+        // marketing-only; heading/subheading blank = the booking type's own name/description
         'book_call' => ['eyebrow'=>'Book a call','heading'=>'','subheading'=>'','booking_type'=>'demo','layout'=>'calendar','button_label'=>'Book a call','slot_count'=>5,'show_host'=>1],
-        // MARKER-DEMO-SECTION — marketing-only; the reset/no-send line is fixed copy
+        // marketing-only; the reset/no-send line is fixed copy
         'try_demo' => ['eyebrow'=>'See it working','heading'=>'','subheading'=>'','demo_slug'=>'demo','layout'=>'card','button_label'=>'Try the demo'],
-        // MARKER-PATCH-158-G27 — stats_row v2 fields (Phase 2)
+        // stats_row v2 fields (Phase 2)
         'stats_row'        => [
             // Content
             'eyebrow'         => '',
@@ -601,9 +599,9 @@ class PageBuilderController extends Controller
         ],
         'screen_showcase'  => ['eyebrow'=>'','step_num'=>1,'heading'=>'Step heading','body'=>'Short body for this step.','points'=>[],'desktop_label'=>'Desktop','desktop_lines'=>[],'mobile_label'=>'Mobile','mobile_lines'=>[],'mobile_note'=>'','flip'=>false],
         'legal_doc'        => ['doc_title'=>'Document title','effective_date'=>'','updated_date'=>'','intro_paragraph'=>'','show_toc'=>true,'sections'=>[['heading'=>'Section heading','blocks'=>[['type'=>'paragraph','text'=>'']]]]],
-        // MARKER-PATCH-306 — raw HTML block, rendered as-is on the public page.
-        'custom_html'      => ['html'=>'', 'bg_color'=>'', 'padding_y'=>'normal', 'fit_width'=>'1'], // MARKER-PAGE-WIDTH: new blocks sit inside the page width
-        // MARKER-FEATURE-GROUPS — feature groups with an index (marketing pages).
+        // raw HTML block, rendered as-is on the public page.
+        'custom_html'      => ['html'=>'', 'bg_color'=>'', 'padding_y'=>'normal', 'fit_width'=>'1'], // new blocks sit inside the page width
+        // feature groups with an index (marketing pages).
         // (The custom_html default was listed twice; the duplicate is gone.)
         'feature_groups'   => ['eyebrow'=>'','heading'=>'','subheading'=>'','anchor_id'=>'','groups'=>[
             ['label'=>'Booking','heading'=>'Bookings that fit the shop.','lead'=>'','features'=>[['title'=>'Your booking page','body'=>'On your own domain.']]],
@@ -631,18 +629,16 @@ class PageBuilderController extends Controller
             $pages = TenantPage::where('tenant_id', $tenant->id)->get();
         }
 
-        // MARKER-SPLASH-2
         $splashEnabled = \App\Support\SplashSettings::enabled($tenant);
         $splashRows = $pages->whereNotNull('splash_page_id')->values();
 
-        // MARKER-WELCOME
         $welcome = \App\Support\WelcomePage::settings($tenant);
 
         return view('tenant.pages.index', compact('pages', 'splashEnabled', 'splashRows', 'welcome'));
     }
 
     /**
-     * MARKER-WELCOME — the site-wide holding page settings.
+     * the site-wide holding page settings.
      */
     public function saveWelcome(Request $request)
     {
@@ -654,7 +650,7 @@ class PageBuilderController extends Controller
             'welcome_message'   => 'nullable|string|max:400',
             'welcome_cta_label' => 'nullable|string|max:40',
             'welcome_cta_url'   => 'nullable|string|max:255',
-            'welcome_logo'      => 'nullable|string|in:auto,main,light,none', // MARKER-WELCOME-LOGO
+            'welcome_logo'      => 'nullable|string|in:auto,main,light,none',
             'welcome_allow'     => 'nullable|array',
             'welcome_allow.*'   => 'string|in:' . implode(',', array_keys(\App\Support\WelcomePage::ALLOWABLE)),
         ]);
@@ -665,7 +661,7 @@ class PageBuilderController extends Controller
         $settings['welcome_message']   = $data['welcome_message'] ?? null;
         $settings['welcome_cta_label'] = $data['welcome_cta_label'] ?? null;
         $settings['welcome_cta_url']   = $data['welcome_cta_url'] ?? null;
-        $settings['welcome_logo']      = $data['welcome_logo'] ?? 'auto'; // MARKER-WELCOME-LOGO
+        $settings['welcome_logo']      = $data['welcome_logo'] ?? 'auto';
         $settings['welcome_allow']     = array_values($data['welcome_allow'] ?? []);
         $tenant->settings = $settings;
         $tenant->save();
@@ -675,7 +671,7 @@ class PageBuilderController extends Controller
             : 'Welcome page is off — your published pages are reachable again.');
     }
 
-    /** MARKER-WELCOME — see it as a visitor would, without switching it on. */
+    /** see it as a visitor would, without switching it on. */
     public function previewWelcome()
     {
         $tenant = tenant();
@@ -683,7 +679,7 @@ class PageBuilderController extends Controller
     }
 
     /**
-     * MARKER-SPLASH-2 — save the pairing table.
+     * save the pairing table.
      *
      * Rows are "when someone visits page A, show them splash B". The whole
      * set is replaced on save: anything not submitted is cleared, which is
@@ -770,7 +766,7 @@ class PageBuilderController extends Controller
         $navItems = TenantNavItem::where('tenant_id', $tenant->id)->orderBy('sort_order')->get();
         $sectionTypes = array_keys(self::DEFAULTS);
 
-        // MARKER-PATCH-275 — published pages for the nav editor's
+        // published pages for the nav editor's
         // "Add from existing pages" picker on the initial server render.
         $availablePages = TenantPage::where('tenant_id', $tenant->id)
             ->where('is_published', true)
@@ -779,7 +775,7 @@ class PageBuilderController extends Controller
 
         $brandKit = $this->brandKitFor($tenant);
 
-        // MARKER-PATCH-603 — the Booking page (slug "book") gets a marketing-scoped
+        // the Booking page (slug "book") gets a marketing-scoped
         // gallery; its booking_embed pivot is protected in the delete handler.
         $isBookingExtras = ($page->slug === 'book');
 
@@ -787,7 +783,7 @@ class PageBuilderController extends Controller
     }
 
     /**
-     * MARKER-PATCH-267 — Render the page being edited inside the builder's
+     * Render the page being edited inside the builder's
      * preview iframe. Authenticated + same-origin (lives in the admin group),
      * and it does NOT filter is_published, so DRAFT pages preview correctly.
      * Mirrors PublicController::renderPage()'s data so public.page renders
@@ -804,7 +800,7 @@ class PageBuilderController extends Controller
         $sections = $page->sections()->where('is_visible', true)->get();
         $sections = TenantPageSection::withInheritedChrome($sections, $page->tenant_id, $page->id);
 
-        // MARKER-PATCH-606 — the Booking page's builder preview mirrors /book:
+        // the Booking page's builder preview mirrors /book:
         // when the booking editor's "Hide CTA band" is on, suppress it on the
         // inherited footer chrome so preview and live match.
         if ($page->slug === 'book' && (($tenant->settings['booking_hide_cta'] ?? '0') === '1')) {
@@ -816,7 +812,7 @@ class PageBuilderController extends Controller
             });
         }
 
-        $navItems = TenantNavItem::forSite((string) $tenant->id); // MARKER-SHOP-NAV
+        $navItems = TenantNavItem::forSite((string) $tenant->id);
         $navDraft = \App\Support\BuilderDraft::navRows((string) $page->id);
         if ($navDraft !== null) $navItems = \App\Support\ShopNav::previewItems((string) $tenant->id, $navDraft);
 
@@ -829,7 +825,7 @@ class PageBuilderController extends Controller
             }])
             ->get();
 
-        // MARKER-SPLASH-2 -- ?over=1 composites this page's splash on top, so
+        // ?over=1 composites this page's splash on top, so
         // the settings screen previews what a visitor actually gets rather
         // than the splash page in isolation. Ignores the cookie and the date
         // window on purpose: the shop is asking to see it.
@@ -858,8 +854,8 @@ class PageBuilderController extends Controller
             }
         }
 
-        $sections = \App\Support\BuilderDraft::apply($sections, (string) $page->id); // MARKER-BUILDER-DRAFT
-        // MARKER-BUILDER-SYNC — only the builder preview gets the section
+        $sections = \App\Support\BuilderDraft::apply($sections, (string) $page->id);
+        // only the builder preview gets the section
         // anchors and the click-to-select bridge; the public page stays clean.
         $builderPreview = true;
 
@@ -873,15 +869,15 @@ class PageBuilderController extends Controller
     {
         $tenant = tenant();
 
-        // MARKER-NAVFIX — nav-link save lands here (op=update_nav, no `update`
+        // nav-link save lands here (op=update_nav, no `update`
         // field), so handle it before the new-page validator below 422s on the
         // missing title. Empty-list guard prevents a bad save wiping the nav.
         if ($request->input('op') === 'update_nav') {
-            // MARKER-MKT-NAV — intake.works' menu is edited on Navigation only.
+            // intake.works' menu is edited on Navigation only.
             if ($tenant && ($tenant->is_platform ?? false)) {
                 return response()->json(['success' => false, 'error' => 'The intake.works menu is edited on Site & content › Navigation.'], 409);
             }
-            // MARKER-SHOP-NAV — rows may be pages; each has a style and side.
+            // rows may be pages; each has a style and side.
             $snPages = \App\Support\ShopNav::pages((string) $tenant->id);
             $posted  = array_values(array_filter((array) $request->input('nav_items', []), 'is_array'));
             $items   = collect($posted)->map(fn ($it) => \App\Support\ShopNav::clean($it, $snPages));
@@ -940,19 +936,19 @@ class PageBuilderController extends Controller
             'nav_order' => TenantPage::where('tenant_id', $tenant->id)->max('nav_order') + 1,
         ]);
 
-        // MARKER-PATCH-268 — open new pages with an editable starter layout.
+        // open new pages with an editable starter layout.
         $this->seedStarterSections($page);
 
         return redirect()->route('tenant.pages.index', ['edit' => $page->id])
             ->with('success', 'Page created with a starter layout — edit each section, then publish.');
     }
 
-    // MARKER-PATCH-158-G15 — edit() renders the v2 chrome directly.
+    // edit() renders the v2 chrome directly.
     // Also serves the inspector partial when called with ?_inspector={section_id} —
     // the v2 right pane fetches just the rendered _section.blade.php for the
     // selected section via AJAX so we don't reload the whole page on selection.
     //
-    // MARKER-PATCH-158-G19 — Phase 2: per-type editor partials at
+    // Phase 2: per-type editor partials at
     //   resources/views/tenant/pages/sections/_{type}.blade.php
     // take precedence when they exist. The legacy _section.blade.php is the
     // fallback for types we haven't migrated yet. This lets us rebuild one
@@ -966,23 +962,23 @@ class PageBuilderController extends Controller
             $section = TenantPageSection::where('page_id', $page->id)
                 ->where('id', $request->input('_inspector'))
                 ->firstOrFail();
-            // MARKER-KEEP-UNSAVED — redraw with this session's unsaved edits when asked.
+            // redraw with this session's unsaved edits when asked.
             if ($request->boolean('_draft')) {
                 \App\Support\BuilderDraft::apply(collect([$section]), (string) $page->id);
             }
 
             $perType = 'tenant.pages.sections._' . $section->section_type;
             if (view()->exists($perType)) {
-                // MARKER-PATCH-158-G22 — extra context per section type. The
+                // extra context per section type. The
                 // services editor needs a list of available service categories
                 // to populate its category filter. Other types pass through
                 // with no extras (keeps the contract minimal).
                 $extras = [];
-                // MARKER-PATCH-602 — booking-extras context enables the slot picker.
-                $extras['isBookingExtras'] = ($page->slug === 'book'); // MARKER-PATCH-603
-                // MARKER-PATCH-239 — rentals showcase editor needs the
+                // booking-extras context enables the slot picker.
+                $extras['isBookingExtras'] = ($page->slug === 'book');
+                // rentals showcase editor needs the
                 // rental categories for its filter select.
-                // MARKER-PATCH-576 — products showcase editor needs the
+                // products showcase editor needs the
                 // inventory categories that actually contain published items.
                 if ($section->section_type === 'products_showcase') {
                     $extras['productCategories'] = \App\Models\Tenant\TenantInventoryCategory::where('tenant_id', $tenant->id)
@@ -998,7 +994,7 @@ class PageBuilderController extends Controller
                         ->orderBy('sort_order')->orderBy('name')
                         ->get(['id', 'name']);
                 }
-                // MARKER-RENTAL-SECTIONS — spotlight picks a model; categories
+                // spotlight picks a model; categories
                 // section lists every category (with live unit counts) as
                 // checkboxes the tenant toggles + drags into order.
                 if ($section->section_type === 'rental_spotlight') {
@@ -1016,7 +1012,7 @@ class PageBuilderController extends Controller
                             ->where('available_for_rent', true)])
                         ->orderBy('sort_order')->orderBy('name')
                         ->get(['id', 'name']);
-                    // MARKER-RENTAL-SECTIONS — tile photos come from the fleet:
+                    // tile photos come from the fleet:
                     // per category, the models that actually have a photo.
                     $extras['rentalModelPhotos'] = \App\Models\Tenant\TenantRentalModel::where('tenant_id', $tenant->id)
                         ->whereNull('archived_at')
@@ -1031,14 +1027,14 @@ class PageBuilderController extends Controller
                         ->orderBy('sort_order')
                         ->get(['id', 'name', 'slug']);
                 }
-                // MARKER-PATCH-293 — feature_grid cards can link to a service.
+                // feature_grid cards can link to a service.
                 if ($section->section_type === 'feature_grid') {
                     $extras['services'] = \App\Models\Tenant\TenantServiceItem::where('tenant_id', $tenant->id)
                         ->where('is_active', true)
                         ->orderBy('sort_order')->orderBy('name')
                         ->get(['id', 'name', 'description', 'price_cents']);
                 }
-                // MARKER-PATCH-158-G25 — nav editor needs the current tenant
+                // nav editor needs the current tenant
                 // nav items (global, not per-page) so the link list editor
                 // can render. Saved via the existing update_nav op.
                 if ($section->section_type === 'nav') {
@@ -1052,10 +1048,10 @@ class PageBuilderController extends Controller
                         ->orderBy('nav_order')
                         ->get(['id', 'title', 'slug', 'is_home']);
                 }
-                // MARKER-SECTION-OVERLAP — the shared control is appended to
+                // the shared control is appended to
                 // the fragment too, or it would vanish the moment you clicked
                 // a different section (this response replaces the body).
-                // MARKER-OVERLAP-TAB — placed inside the Design tab.
+                // placed inside the Design tab.
                 return \App\Support\InspectorOverlap::place(
                     view($perType, array_merge(
                         ['section' => $section, 'c' => $section->content ?? []],
@@ -1082,12 +1078,12 @@ class PageBuilderController extends Controller
         $page = TenantPage::where('tenant_id', $tenant->id)->where('id', $id)->firstOrFail();
         $op = $request->input('op', 'update_page');
 
-        if ($op === 'update_page') { // MARKER-REWIND
+        if ($op === 'update_page') {
             app(\App\Services\Tenant\PageRevisionService::class)
                 ->snapshot($page, 'Edited page settings');
         }
 
-        // MARKER-PAGE-PUBLISH — a single-purpose op so a publish click can't
+        // a single-purpose op so a publish click can't
         // carry stale title/meta values from a form the user never opened.
         if ($op === 'set_published') {
             $want = (bool) $request->input('is_published', 0);
@@ -1114,7 +1110,7 @@ class PageBuilderController extends Controller
             return back()->with('success', $msg);
         }
 
-        // MARKER-PAGE-WIDTH — the widest any section on this page can go
+        // the widest any section on this page can go
         // (marketing pages). null = the site default, 1080.
         if ($op === 'set_page_width') {
             $w = (int) $request->input('page_width', 0);
@@ -1130,7 +1126,7 @@ class PageBuilderController extends Controller
             return response()->json(['ok' => true, 'page_width' => $w ?? 1080]);
         }
 
-        // MARKER-PAGE-SEARCH-SHARING — the builder's Search & sharing panel.
+        // the builder's Search & sharing panel.
         // Single-purpose like set_published: it writes these three fields and
         // nothing else, so a stale value from another control can't ride along.
         if ($op === 'set_search_sharing') {
@@ -1168,7 +1164,7 @@ class PageBuilderController extends Controller
             return back()->with('success', 'Search & sharing saved.');
         }
 
-        // MARKER-SHOP-NAV — set_in_nav removed: the menu is edited in the Nav section.
+        // set_in_nav removed: the menu is edited in the Nav section.
 
         if ($op === 'update_page') {
             $page->update([
@@ -1177,7 +1173,7 @@ class PageBuilderController extends Controller
                 'meta_description' => $request->input('meta_description'),
                 'is_published'     => (bool) $request->input('is_published', 0),
                 'published_at'     => (bool) $request->input('is_published', 0)
-                                        ? ($page->published_at ?? now()) : null, // MARKER-PAGE-PUBLISH
+                                        ? ($page->published_at ?? now()) : null,
                 'is_in_nav'        => (bool) $request->input('is_in_nav', 1),
             ]);
 
@@ -1186,7 +1182,7 @@ class PageBuilderController extends Controller
         }
 
         if ($op === 'update_nav') {
-            // MARKER-PATCH-158-G25 — extended to save is_external + open_in_new_tab
+            // extended to save is_external + open_in_new_tab
             // (model already supports these; v1 update_nav was just dropping them).
             TenantNavItem::where('tenant_id', $tenant->id)->delete();
             foreach ($request->input('nav_items', []) as $i => $item) {
@@ -1212,9 +1208,9 @@ class PageBuilderController extends Controller
     {
         $page = TenantPage::where('tenant_id', $tenant->id)->where('id', $id)->firstOrFail();
         if ($page->is_home) return back()->with('error', 'Cannot delete the home page.');
-        if ($page->slug === 'book') return back()->with('error', 'The Booking page cannot be deleted.'); // MARKER-PATCH-603
+        if ($page->slug === 'book') return back()->with('error', 'The Booking page cannot be deleted.');
 
-        // MARKER-REWIND — the revision outlives the page (no FK on page_id),
+        // the revision outlives the page (no FK on page_id),
         // so History can rebuild a deleted page.
         app(\App\Services\Tenant\PageRevisionService::class)
             ->snapshot($page, 'Deleted page "' . $page->title . '"', true);
@@ -1229,14 +1225,14 @@ class PageBuilderController extends Controller
         $pageId = $request->input('page_id');
         $page = TenantPage::where('tenant_id', $tenant->id)->where('id', $pageId)->firstOrFail();
 
-        // MARKER-BUILDER-DRAFT — unsaved edits for the builder preview only.
+        // unsaved edits for the builder preview only.
         // Session, not database; no revision snapshot.
         if ($op === 'draft') {
             $sid = (string) $request->input('section_id');
             TenantPageSection::where('page_id', $page->id)->where('id', $sid)->firstOrFail();
             $content = $request->input('content', []);
             if (! is_array($content)) $content = [];
-            $content = array_map(fn ($v) => $v === null ? '' : $v, $content); // MARKER-CLEARED-FIELDS — emptied stays emptied
+            $content = array_map(fn ($v) => $v === null ? '' : $v, $content); // emptied stays emptied
             foreach (self::ARRAY_FIELDS as $fld) {
                 if (isset($content[$fld]) && is_string($content[$fld])) {
                     $decoded = json_decode($content[$fld], true);
@@ -1244,7 +1240,7 @@ class PageBuilderController extends Controller
                 }
             }
             \App\Support\BuilderDraft::put((string) $page->id, $sid, $content);
-            // MARKER-SHOP-NAV — the menu list rides along so the preview shows it unsaved.
+            // the menu list rides along so the preview shows it unsaved.
             if ($request->filled('nav_rows')) {
                 $navRows = json_decode((string) $request->input('nav_rows'), true);
                 if (is_array($navRows)) \App\Support\BuilderDraft::putNav((string) $page->id, $navRows);
@@ -1256,7 +1252,7 @@ class PageBuilderController extends Controller
             return response()->json(['success' => true]);
         }
 
-        // MARKER-SECTION-COPY — copy a section to this person's clipboard
+        // copy a section to this person's clipboard
         // (30 min), to paste on another page of the same site. Reads only.
         if ($op === 'copy') {
             $sid = (string) $request->input('section_id');
@@ -1271,7 +1267,7 @@ class PageBuilderController extends Controller
             ]);
         }
 
-        // MARKER-REWIND — capture BEFORE the change, labelled with what is
+        // capture BEFORE the change, labelled with what is
         // about to happen. 'add' is skipped: adding a section is undone by
         // deleting it, and snapshotting every add buries the useful points.
         if ($op !== 'add' && $op !== 'paste') {
@@ -1298,7 +1294,7 @@ class PageBuilderController extends Controller
             return response()->json(['success' => true, 'id' => $section->id, 'type' => $type]);
         }
 
-        // MARKER-SECTION-COPY — paste the clipboard section at the end of this
+        // paste the clipboard section at the end of this
         // page, as a fresh section. Same-site only; the clipboard stays, so
         // the same section can be pasted on several pages.
         if ($op === 'paste') {
@@ -1327,7 +1323,7 @@ class PageBuilderController extends Controller
             $section = TenantPageSection::where('page_id', $page->id)->where('id', $sid)->firstOrFail();
             $content = $request->input('content', []);
             if (!is_array($content)) $content = [];
-            $content = array_map(fn ($v) => $v === null ? '' : $v, $content); // MARKER-CLEARED-FIELDS — emptied stays emptied
+            $content = array_map(fn ($v) => $v === null ? '' : $v, $content); // emptied stays emptied
 
             // Decode JSON strings for known array fields. The editor uses JSON
             // textareas for array-of-objects fields (features, steps, plans,
@@ -1339,14 +1335,14 @@ class PageBuilderController extends Controller
                 }
             }
 
-            // MARKER-HERO-LEGACY-CLEAR — a saved button list replaces the old
+            // a saved button list replaces the old
             // single-button fields for good, so nothing can rebuild a removed button.
             if ($section->section_type === 'hero' && array_key_exists('buttons', $content)) {
                 foreach (['cta_primary_label', 'cta_primary_url', 'cta_secondary_label', 'cta_secondary_url'] as $legacy) {
                     $content[$legacy] = '';
                 }
             }
-            // MARKER-MKT-CTA-V2 — same for the CTA banner's old single button.
+            // same for the CTA banner's old single button.
             if ($section->section_type === 'cta_banner' && array_key_exists('buttons', $content)) {
                 $content['cta_label'] = ''; $content['cta_url'] = '';
             }
@@ -1357,13 +1353,13 @@ class PageBuilderController extends Controller
                 'padding'   => $request->input('padding', 'normal'),
                 'is_visible'=> (bool) $request->input('is_visible', 1),
             ]);
-            \App\Support\BuilderDraft::forget((string) $page->id, (string) $sid); // MARKER-BUILDER-DRAFT
+            \App\Support\BuilderDraft::forget((string) $page->id, (string) $sid);
             return response()->json(['success' => true]);
         }
 
         if ($op === 'delete') {
             $sid = $request->input('section_id');
-            // MARKER-PATCH-603 — the booking_embed pivot on the Booking page anchors
+            // the booking_embed pivot on the Booking page anchors
             // the before/after split for /book; it cannot be deleted.
             if ($page->slug === 'book') {
                 $target = TenantPageSection::where('page_id', $page->id)->where('id', $sid)->first();
@@ -1375,7 +1371,7 @@ class PageBuilderController extends Controller
             return response()->json(['success' => true]);
         }
 
-        // MARKER-PATCH-158-G18 — section duplicate. Clones the source section's
+        // section duplicate. Clones the source section's
         // content + meta and inserts it right after the source in sort order.
         // Subsequent sections get bumped down by 1 so the new clone slots in.
         if ($op === 'duplicate') {
@@ -1413,7 +1409,7 @@ class PageBuilderController extends Controller
     }
 
     /**
-     * MARKER-PATCH-268 — Seed a universal starter layout for a brand-new page
+     * Seed a universal starter layout for a brand-new page
      * so it opens editable instead of blank. Content comes from DEFAULTS, so
      * every seeded section already shows example copy the tenant can replace.
      */
@@ -1430,7 +1426,7 @@ class PageBuilderController extends Controller
     }
 
     // ════════════════════════════════════════════════════════════════════
-    // MARKER-PATCH-302 — Brand Kit (storage-only reference palette).
+    // Brand Kit (storage-only reference palette).
     // Saved per-tenant in settings['brand_kit']; surfaced as a floating card in
     // the builder to copy from. Does not theme sections. Seeded from the
     // tenant's existing brand colors when nothing has been saved yet.
@@ -1500,7 +1496,7 @@ class PageBuilderController extends Controller
         return self::DEFAULTS;
     }
 
-    /** MARKER-REWIND — human label for a section, for the history list. */
+    /** human label for a section, for the history list. */
     private function sectionLabel(TenantPage $page, $sectionId): string
     {
         if (! $sectionId) {

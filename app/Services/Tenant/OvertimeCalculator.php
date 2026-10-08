@@ -1,5 +1,5 @@
 <?php
-// MARKER-PATCH-617 — jurisdiction-aware overtime engine.
+// jurisdiction-aware overtime engine.
 //
 // Splits a set of punches (already net of breaks) into regular / overtime (1.5x)
 // / doubletime (2x) minutes, honoring both DAILY and WEEKLY thresholds and the

@@ -49,7 +49,7 @@ class InventoryController extends Controller
 
         $search   = trim((string) $request->input('s', ''));
         $category = $request->input('category');
-        // MARKER-INV-STOCK-MEMORY — the landing state is what this user last
+        // the landing state is what this user last
         // chose, not a hardcoded 'in'. An explicit ?stock= (including the empty
         // "All stock levels") is still honoured and is what gets remembered;
         // only an ABSENT parameter falls back, and to 'in' on a first visit.
@@ -65,13 +65,12 @@ class InventoryController extends Controller
         } else {
             $stock = (string) $request->session()->get($stockMemoryKey, 'in');
         }
-        // '', 'in', 'low', 'out', 'archived' — MARKER-INV-IN-STOCK
+        // '', 'in', 'low', 'out', 'archived'
         $sort     = $request->input('sort', 'name_asc');
-        // MARKER-INV-BRAND-DIST
         $brand       = trim((string) $request->input('brand', ''));
         $distributor = trim((string) $request->input('distributor', ''));
         $page     = max(1, (int) $request->input('page', 1));
-        // MARKER-INV-PAGER — was hardcoded 25 and ignored the request.
+        // was hardcoded 25 and ignored the request.
         // Allowlisted, because this value goes straight into forPage():
         // ?perPage=100000 would otherwise be a free full-table read. Kept in
         // the session per tenant, like the stock filter above.
@@ -102,7 +101,7 @@ class InventoryController extends Controller
         }
         $hereLocId = $currentLocation?->id;
 
-        // MARKER-CAT-TREE — categories already support parents (the category
+        // categories already support parents (the category
         // admin builds a real tree) but this list matched category_id
         // exactly, so selecting a parent returned NOTHING when items were
         // filed on its children. Load the tree up front and expand.
@@ -112,12 +111,12 @@ class InventoryController extends Controller
             ->orderBy('name')
             ->get();
 
-        // MARKER-ARCHIVE-MOVE — an archived item is soft-deleted AND
+        // an archived item is soft-deleted AND
         // is_active=false, so it is invisible twice over. This is the only
         // way back to it.
-        // MARKER-INV-LIST — reachable as a stock level now, with the old
+        // reachable as a stock level now, with the old
         // ?archived=1 links still honoured so nothing bookmarked breaks.
-        // MARKER-INV-STOCK-MEMORY — was $request->query('stock'), the RAW
+        // was $request->query('stock'), the RAW
         // parameter. With $stock able to come from the session the two could
         // disagree — $stock === 'archived' while $archived stayed false — and
         // the filter block below has NO 'archived' branch, so the list fell
@@ -129,7 +128,7 @@ class InventoryController extends Controller
             $stock = 'archived';
         }
 
-        $q = TenantInventoryItem::with(['category.parent']) // MARKER-CAT-TREE — path without N+1
+        $q = TenantInventoryItem::with(['category.parent']) // path without N+1
             ->where('tenant_id', $tenant->id);
 
         if ($archived) {
@@ -138,10 +137,10 @@ class InventoryController extends Controller
             $q->where('is_active', true);
         }
 
-        // MARKER-ITEM-IDENTIFIERS — the four identifiers a shop actually
+        // the four identifiers a shop actually
         // quotes: SKU, UPC, EAN and MPN. The last two were not even stored
         // before this patch, so searching them returned nothing.
-        // MARKER-INV-SEARCH — the shared search (App\Support\InventorySearch):
+        // the shared search (App\Support\InventorySearch):
         // every word anywhere on the item, barcode twins, typo fallback.
         $searchUsed = '';
         $searchCorrected = null;
@@ -150,11 +149,11 @@ class InventoryController extends Controller
             $searchHit = \App\Support\InventorySearch::apply($q, $tenant->id, $search);
             $searchUsed = $searchHit['used'];
             $searchCorrected = $searchHit['corrected'];
-            $searchMissing = $searchHit['missing'] ?? []; // MARKER-SEARCH-MISSING
+            $searchMissing = $searchHit['missing'] ?? [];
         }
 
         if ($category) {
-            // MARKER-CAT-TREE — a parent includes everything beneath it
+            // a parent includes everything beneath it
             // unless the viewer narrowed to direct items only.
             $catIds = $includeSubs
                 ? self::descendantCategoryIds($allCats, $category)
@@ -166,7 +165,7 @@ class InventoryController extends Controller
         // when multi-location, falls back to item-level total otherwise.
         if ($stock === 'low') {
             if ($hereLocId) {
-                // MARKER-PATCH-277 — match the dashboard low-stock count. An item is
+                // match the dashboard low-stock count. An item is
                 // low at this location if its location row's stock is <= the EFFECTIVE
                 // threshold (location override, else item-level), OR — when it has no
                 // row at this location yet — it qualifies at the item level. The old
@@ -199,7 +198,7 @@ class InventoryController extends Controller
                 $q->where('computed_stock_count', '<=', 0);
             }
         } elseif ($stock === 'in') {
-            // MARKER-INV-IN-STOCK — what the shop actually holds. Mirrors the
+            // what the shop actually holds. Mirrors the
             // 'out' branch: with a location in scope the question is about
             // THAT location's shelf, not the sum across the company. An item
             // with no row at this location has never been stocked here, so it
@@ -214,9 +213,9 @@ class InventoryController extends Controller
             }
         }
 
-        // MARKER-INV-BRAND-DIST — brand lives on the linked catalog row.
+        // brand lives on the linked catalog row.
         if ($brand !== '') {
-            // MARKER-INV-FILTERS — a brand can come from the shop's own value
+            // a brand can come from the shop's own value
             // or from the linked catalog. Matching only the catalog hid every
             // imported item that had a brand.
             $q->where(function ($w) use ($brand) {
@@ -226,12 +225,12 @@ class InventoryController extends Controller
             });
         }
 
-        // MARKER-INV-BRAND-DIST — "available from", not "created by". An item
+        // "available from", not "created by". An item
         // matched across distributors carries several sources, and a shop
         // asking what BTI can supply means all of it. whereExists keeps the
         // row unique — a join would list a two-source item twice.
         if ($distributor !== '') {
-            // MARKER-INV-FILTERS-VENDOR — this filters by VENDOR now. A
+            // this filters by VENDOR now. A
             // distributor is a vendor with a feed attached, so listing only
             // distributor_code meant a vendor like Patagonia could never
             // appear however many of its items you held. An old ?distributor=
@@ -261,11 +260,11 @@ class InventoryController extends Controller
               ->orderByRaw('COALESCE(iil_sort.computed_stock_count, 0) ' . $dir)
               ->select('tenant_inventory_items.*');
         } elseif (in_array($sort, ['brand_asc', 'brand_desc'], true)) {
-            // MARKER-INV-BRAND-DIST — LEFT join, and the select is pinned back
+            // LEFT join, and the select is pinned back
             // to the items table: a hand-created item has no catalog row and
             // must not disappear from the list because someone sorted by
             // brand. Those sort last instead.
-            // MARKER-IMPORT-MPN-BRAND - the shop's own brand wins over the
+            // the shop's own brand wins over the
             // catalog's, so an imported item with a brand sorts among the
             // others instead of falling into the 'zzzz' bucket with the
             // genuinely brandless ones.
@@ -283,7 +282,7 @@ class InventoryController extends Controller
                 case 'stock_desc':$q->orderBy('computed_stock_count', 'desc'); break;
                 case 'name_asc':
                 default:
-                    // MARKER-INV-SEARCH — while searching, best match first.
+                    // while searching, best match first.
                     if ($searchUsed !== '') {
                         \App\Support\InventorySearch::rank($q, $searchUsed);
                     }
@@ -291,7 +290,7 @@ class InventoryController extends Controller
             }
         }
 
-        // MARKER-MERGE-UI — the checkbox column only exists for people who can
+        // the checkbox column only exists for people who can
         // actually merge; the endpoints check the same capability themselves.
         $canMergeItems = (bool) optional(\Illuminate\Support\Facades\Auth::guard('tenant')->user())
             ->can('inventory.items.merge');
@@ -299,7 +298,7 @@ class InventoryController extends Controller
         $total = (clone $q)->count();
         $items = $q->forPage($page, $perPage)->get();
 
-        // MARKER-INV-EMPTY — a blank filtered list is a dead end unless it
+        // a blank filtered list is a dead end unless it
         // says what WOULD work. These run only when the result is empty.
         //
         // They deliberately ignore the stock filter: scoping suggestions to
@@ -323,7 +322,7 @@ class InventoryController extends Controller
                         ? self::descendantCategoryIds($allCats, $category)
                         : [$category];
 
-                    // MARKER-INV-FILTERS-SUGGEST — shop brand first, catalog as
+                    // shop brand first, catalog as
                     // the fallback, LEFT joined so an item with no catalog row
                     // still counts toward its brand.
                     $suggestBrands = \Illuminate\Support\Facades\DB::table('tenant_inventory_items as it')
@@ -384,7 +383,7 @@ class InventoryController extends Controller
                 ->toArray();
         }
 
-        // MARKER-CAT-TREE — per-location stock for every shown item, so a row
+        // per-location stock for every shown item, so a row
         // can say WHERE it is sitting instead of only how many are here.
         $locStocks = [];
         if ($isMultiLocation && $items->isNotEmpty()) {
@@ -394,9 +393,9 @@ class InventoryController extends Controller
             }
         }
 
-        // MARKER-INV-BRAND-DIST — built from what this tenant carries, not the
+        // built from what this tenant carries, not the
         // whole shared catalog, so the dropdown stays usable.
-        // MARKER-INV-PAGER — 1.9s cold / 867ms warm on a 55k-item tenant,
+        // 1.9s cold / 867ms warm on a 55k-item tenant,
         // recomputed on every click. Indexes are already present; the cost is
         // genuine work, so the fix is not doing it 60 times a minute.
         $brandOptions = \Illuminate\Support\Facades\Cache::remember(
@@ -411,7 +410,7 @@ class InventoryController extends Controller
                 })
                 ->whereNotNull('manufacturer')->where('manufacturer', '!=', '')
                 ->distinct()->orderBy('manufacturer')->pluck('manufacturer')
-                // MARKER-INV-FILTERS — plus the shop's own brands, which no
+                // plus the shop's own brands, which no
                 // catalog knows about. Union, sorted, deduplicated case-wise.
                 ->concat(
                     \App\Models\Tenant\TenantInventoryItem::where('tenant_id', tenant()->id)
@@ -423,11 +422,11 @@ class InventoryController extends Controller
                 ->values()
         );
 
-        // MARKER-INV-PAGER — ~1.1s to return two values.
+        // ~1.1s to return two values.
         $distributorOptions = \Illuminate\Support\Facades\Cache::remember(
             'inv:vendors:v2:' . $tenant->id,
             60,
-            // MARKER-INV-FILTERS-VENDOR — every vendor that has items, not
+            // every vendor that has items, not
             // only the ones with a catalog feed. Keyed by id, labelled by
             // name, so the option value is stable if a vendor is renamed.
             fn () => \Illuminate\Support\Facades\DB::table('tenant_inventory_item_vendors as iv')
@@ -441,14 +440,14 @@ class InventoryController extends Controller
         $categories    = $allCats;
         $hasCategories = $categories->isNotEmpty();
 
-        // MARKER-CAT-TREE — roots with their children and rolled-up counts.
-        // MARKER-INV-PAGER — cached with the other two; the rail counts do not
+        // roots with their children and rolled-up counts.
+        // cached with the other two; the rail counts do not
         // need to be second-accurate.
         $catCounts = \Illuminate\Support\Facades\Cache::remember(
             'inv:catcounts:' . $tenant->id,
             60,
             fn () => TenantInventoryItem::where('tenant_id', $tenant->id)
-                ->where('is_active', true) // MARKER-CAT-TREE — matches the list's own active filter
+                ->where('is_active', true) // matches the list's own active filter
                 ->whereNotNull('category_id')
                 ->selectRaw('category_id, COUNT(*) as c')
                 ->groupBy('category_id')
@@ -456,7 +455,7 @@ class InventoryController extends Controller
                 ->toArray()
         );
 
-        // MARKER-CAT-DEPTH — this used to walk roots and their direct
+        // this used to walk roots and their direct
         // children ONLY, so anything nested deeper was invisible in the
         // sidebar and absent from the filter even though it held items.
         // Flat-with-depth (not nested) because a <select> can't nest, and
@@ -486,7 +485,7 @@ class InventoryController extends Controller
 
         $posCap = $this->inventoryCapContext($tenant);
 
-        // MARKER-INV-LIST — color and size are empty for most catalogs, and
+        // color and size are empty for most catalogs, and
         // two columns of "—" cost about a fifth of the table width. Decide
         // per result set rather than per tenant, so filtering to a category
         // that does use them still shows them.
@@ -495,22 +494,22 @@ class InventoryController extends Controller
 
         return view('tenant.inventory.index', compact(
             'items', 'categories', 'hasCategories',
-            'categoryTree', 'includeSubs', 'locStocks', 'allLocations', // MARKER-CAT-TREE
-            'showColor', 'showSize', // MARKER-INV-LIST
-            'archived', // MARKER-ARCHIVE-MOVE
+            'categoryTree', 'includeSubs', 'locStocks', 'allLocations',
+            'showColor', 'showSize',
+            'archived',
             'total', 'search', 'category', 'stock', 'sort', 'page', 'perPage',
-            'searchCorrected', 'searchMissing', // MARKER-INV-SEARCH / MARKER-SEARCH-MISSING
-            'perPageAllowed', // MARKER-INV-PAGER
-            'canMergeItems', // MARKER-MERGE-UI
-            'emptyReason', 'suggestBrands', 'suggestCategories', // MARKER-INV-EMPTY
-            'brand', 'distributor', 'brandOptions', 'distributorOptions', // MARKER-INV-BRAND-DIST
+            'searchCorrected', 'searchMissing',
+            'perPageAllowed',
+            'canMergeItems',
+            'emptyReason', 'suggestBrands', 'suggestCategories',
+            'brand', 'distributor', 'brandOptions', 'distributorOptions',
             'posCap',
             'currentLocation', 'isMultiLocation', 'hereStocks'
         ));
     }
 
     /**
-     * MARKER-CAT-TREE — a category id plus every id beneath it, at any depth.
+     * a category id plus every id beneath it, at any depth.
      * Walks the already-loaded collection, so no extra queries and no
      * recursion into another tenant's rows.
      */
@@ -533,13 +532,13 @@ class InventoryController extends Controller
     }
 
     /**
-     * MARKER-PATCH-HLC23 — items with no category, for bulk assignment.
+     * items with no category, for bulk assignment.
      */
     /**
-     * MARKER-PATCH-HLC24 — bucket worklist + size sub-groups + destination tree.
+     * bucket worklist + size sub-groups + destination tree.
      */
     /**
-     * MARKER-ITEM-CAT-TREE — categories as roots with their children, for a
+     * categories as roots with their children, for a
      * select that shows nesting instead of a flat alphabetical jumble.
      *
      * Returns a flat list of ['cat' => model, 'depth' => 0|1] so the view
@@ -551,7 +550,7 @@ class InventoryController extends Controller
      */
     public static function categoryOptions(string $tenantId): array
     {
-        // MARKER-CAT-DEPTH2 — walks the whole tree. This emitted roots and
+        // walks the whole tree. This emitted roots and
         // their direct children, then appended anything unseen to the END, so
         // a grandchild ("27.5 / 650b" under "tires" under "Parts") landed in a
         // clump at the bottom instead of nested under its parent.
@@ -594,12 +593,12 @@ class InventoryController extends Controller
         $catTable = 'platform_distributor_catalogs';
 
         $bucket = trim((string) $request->query('bucket', ''));
-        // MARKER-SPLIT-BY — attr '' means "not chosen, use the default";
+        // attr '' means "not chosen, use the default";
         // 'none' means the user turned the row off. Neither is remembered.
         $attrKey = trim((string) $request->query('attr', ''));
         $attrVal = trim((string) $request->query('val', '')) ?: null;
 
-        // MARKER-UNCAT-SOURCE — buckets group by the item's SOURCE, whichever
+        // buckets group by the item's SOURCE, whichever
         // kind it has: a distributor's catalog category, or the category string
         // a CSV import kept. One list, one flow — an imported item used to
         // appear here AND on a separate mappings tab, with two ways to assign
@@ -650,7 +649,7 @@ class InventoryController extends Controller
 
         if ($bucket === '') { $bucket = $buckets[0]['key'] ?? '__none__'; }
 
-        // MARKER-UNCAT-SOURCE — a key is "cat:<catalog category>" or
+        // a key is "cat:<catalog category>" or
         // "src:<import string>". Bare keys from an older link still resolve as
         // catalog, so a bookmarked URL does not 404 into an empty bucket.
         $bucketKind = 'catalog';
@@ -672,7 +671,7 @@ class InventoryController extends Controller
         } else {
             $wq->whereHas('distributorCatalog', fn ($x) => $x->where('category', $bucketName));
         }
-        // MARKER-UNCAT-CARVE — narrow to one source, then carve by keyword.
+        // narrow to one source, then carve by keyword.
         // The big bucket mixes tonight's import with everything that never had
         // a catalog category, so a keyword alone would sweep both.
         $sourceKey = trim((string) $request->query('src', ''));
@@ -681,7 +680,7 @@ class InventoryController extends Controller
 
         // Which sources are present in THIS bucket, with counts. Vendors and
         // imports both, because an item arrives by one or the other.
-        // MARKER-UNCAT-CARVE-SQL — aggregate over a SUBQUERY of the bucket's
+        // aggregate over a SUBQUERY of the bucket's
         // ids rather than cloning the bucket query and joining onto it. The
         // base query's predicates are unqualified (tenant_id, category_id,
         // source_category), and tenant_vendors carries tenant_id too, so the
@@ -755,8 +754,8 @@ class InventoryController extends Controller
             ->groupBy('keyword')->orderByDesc('last')->limit(12)->get();
 
         $all = $wq->orderBy('name')->limit(500)->get();
-        // MARKER-UNCAT-LABEL — the view shows the name, never the prefixed key.
-        // MARKER-UNCAT-LABEL2 — $bucketLabel feeds the heading and predates the
+        // the view shows the name, never the prefixed key.
+        // $bucketLabel feeds the heading and predates the
         // cat:/src: keys, so it was printing "cat:Crankset".
         $activeBucketLabel  = $bucket === '__none__' ? 'No catalog signal' : $bucketName;
         $bucketLabel        = $activeBucketLabel;
@@ -765,7 +764,7 @@ class InventoryController extends Controller
 
         $bucketTotal = $all->count();
 
-        // MARKER-SPLIT-BY — tally every attribute across the bucket, then
+        // tally every attribute across the bucket, then
         // rank them. Coverage alone is not enough: on Wheels, Position
         // (100%/3) and Rim Color (100%/4) beat Wheel Diameter on coverage
         // and would win a coverage-only race, giving a three-way split
@@ -838,7 +837,7 @@ class InventoryController extends Controller
             if ($o['key'] === $activeAttr) { $activeAttrLabel = $o['label']; break; }
         }
 
-        // MARKER-SPLIT-BY-CLIENT — every attribute's value counts, and every
+        // every attribute's value counts, and every
         // row's values, go to the browser so switching attribute and picking a
         // value are both instant. The bucket is capped at 500 rows, so this is
         // a few tens of KB, not a page weight problem.
@@ -885,7 +884,7 @@ class InventoryController extends Controller
             $c->_count = (int) ($countsByCat[$c->id] ?? 0);
         });
 
-        // MARKER-CAT-UNDO — recent assignments for the rail, and a suggestion
+        // recent assignments for the rail, and a suggestion
         // per bucket from this shop's own history.
         $assignments = \Illuminate\Support\Facades\DB::table('tenant_category_assignments')
             ->where('tenant_id', $tenant->id)->orderByDesc('created_at')->limit(6)->get();
@@ -901,12 +900,10 @@ class InventoryController extends Controller
             'activeBucketLabel' => $activeBucketLabel, 'activeBucketKind' => $activeBucketKind, 'activeBucketSource' => $activeBucketSource,
             'buckets' => $buckets, 'noneCount' => $noneCount, 'total' => $total,
             'activeBucket' => $bucket, 'items' => $items,
-            // MARKER-SPLIT-BY
             'attrOptions' => $attrOptions, 'activeAttr' => $activeAttr,
             'activeAttrLabel' => $activeAttrLabel, 'valuesByAttr' => $valuesByAttr,
             'bucketTotal' => $bucketTotal,
             'tree' => $tree, 'recent' => $recent,
-            // MARKER-UNCAT-CARVE
             'sourceOptions' => $sourceOptions, 'activeSource' => $sourceKey,
             'keyword' => $keyword, 'kwSku' => $kwSku,
             'matchCount' => $matchCount, 'narrowedTotal' => $narrowedTotal,
@@ -931,11 +928,11 @@ class InventoryController extends Controller
     }
 
     /**
-     * MARKER-CAT-UNDO — reverse one assignment. Restores each item's prior
+     * reverse one assignment. Restores each item's prior
      * category; an item whose category has since been changed by hand is
      * kept and counted, not clobbered.
      */
-    /** MARKER-CAT-RAIL2 — what an assignment touched, for the undo preview. */
+    /** what an assignment touched, for the undo preview. */
     public function uncategorizedAssignmentItems(Request $request, string $id)
     {
         $tenant = tenant();
@@ -1015,7 +1012,7 @@ class InventoryController extends Controller
 
         $data = $request->validate([
             'category_id' => ['required', 'uuid', \Illuminate\Validation\Rule::exists('tenant_inventory_categories', 'id')
-                ->where(fn ($q) => $q->where('tenant_id', $tenant->id))], // MARKER-EXISTS-TENANT-SCOPE
+                ->where(fn ($q) => $q->where('tenant_id', $tenant->id))],
             'item_ids'    => ['nullable', 'array'],
             'item_ids.*'  => ['uuid'],
             'select_all'  => ['nullable', 'boolean'],
@@ -1039,7 +1036,7 @@ class InventoryController extends Controller
                 $q->whereHas('distributorCatalog', fn ($w) => $w->where('manufacturer', $data['f_brand']));
             }
             if (filled($data['f_cat'] ?? null)) {
-                // MARKER-UNCAT-SOURCE — "assign all in this bucket" must follow
+                // "assign all in this bucket" must follow
                 // the bucket's KIND. Scoping an import bucket as a catalog
                 // category matched nothing, so select-all silently assigned
                 // only the ticked rows.
@@ -1051,9 +1048,9 @@ class InventoryController extends Controller
             }
             if (filled($data['f_q'] ?? null)) {
                 $s = $data['f_q'];
-                $q->where(function ($w) use ($s) { // MARKER-PATCH-552 — tokenized
+                $q->where(function ($w) use ($s) { // tokenized
                     foreach (array_filter(preg_split('/\s+/', $s)) as $t) {
-                        // MARKER-ITEM-IDENTIFIERS — same four identifiers as the list.
+                        // same four identifiers as the list.
                         $w->whereRaw("CONCAT_WS(' ', name, display_subtitle, sku, catalog_upc, catalog_ean, catalog_mpn) LIKE ?", ['%' . $t . '%']);
                     }
                 });
@@ -1062,11 +1059,11 @@ class InventoryController extends Controller
             $q->whereIn('id', $data['item_ids'] ?? []);
         }
 
-        // MARKER-CAT-UNDO — record what each item had BEFORE, so this can be
+        // record what each item had BEFORE, so this can be
         // undone. One batch row, one ledger row per item.
         $rows = (clone $q)->get(['id', 'category_id']);
         $assignmentId = (string) \Illuminate\Support\Str::uuid();
-        // MARKER-UNCAT-SOURCE — the scope carries its kind; the ledger keeps
+        // the scope carries its kind; the ledger keeps
         // the bare string, as before.
         $rawBucket = trim((string) ($data['f_cat'] ?? $request->input('bucket', '')));
         $bucketKind = str_starts_with($rawBucket, 'src:') ? 'import' : 'catalog';
@@ -1074,7 +1071,7 @@ class InventoryController extends Controller
 
         \Illuminate\Support\Facades\DB::transaction(function () use ($rows, $assignmentId, $tenant, $category, $bucketKey, $request, $q) {
             \Illuminate\Support\Facades\DB::table('tenant_category_assignments')->insert([
-            // MARKER-UNCAT-CARVE-RECORD — what was searched, so the screen can
+            // what was searched, so the screen can
             // show which words have been worked through in this bucket.
             'keyword'    => trim((string) $request->input('kw', '')) ?: null,
             'source_key' => trim((string) $request->input('src', '')) ?: null,
@@ -1095,12 +1092,12 @@ class InventoryController extends Controller
 
         $count = $q->update(['category_id' => $category->id]);
 
-        // MARKER-CAT-UNDO — learn the rule. Picking something else next time
+        // learn the rule. Picking something else next time
         // overwrites it, so a wrong first guess never sticks.
-        // MARKER-CAT-RAIL2 — only a WHOLE-bucket assignment teaches a rule. A
+        // only a WHOLE-bucket assignment teaches a rule. A
         // partial one (47 of 1,839, split by size) says nothing about the
         // bucket, and learning from it produced "assign all 1,839 to 27.5".
-        // MARKER-SOURCE-CAT — no learning. A bucket almost never maps whole:
+        // no learning. A bucket almost never maps whole:
         // assigning one size out of "Tires" taught "all Tires -> 27.5 / 650b",
         // and against no distributor in particular, so it spoke for every
         // catalog at once. Mapping is something the shop does deliberately on
@@ -1133,23 +1130,23 @@ class InventoryController extends Controller
                 ]);
         }
 
-        // MARKER-ITEM-CAT-TREE — same parent/children shape the index filter
+        // same parent/children shape the index filter
         // uses, so the picker reads like the rest of inventory.
         $categories = self::categoryOptions($tenant->id);
 
-        // MARKER-ITEM-SOURCES-EDIT — an item can come from several vendors,
+        // an item can come from several vendors,
         // same as everywhere else in the system.
         $vendors = \App\Models\Tenant\TenantVendor::where('tenant_id', $tenant->id)
             ->where('is_active', true)->orderBy('name')->get();
 
-        // MARKER-ERR-HOME — categoryOptions() is declared `: array` and returns
+        // categoryOptions() is declared `: array` and returns
         // one. Calling ->isEmpty() on it fataled every visit to Add Item.
         if (empty($categories)) {
             return redirect()->route('tenant.inventory.categories.index')
                 ->with('flash', ['type' => 'info', 'message' => 'Create at least one category before adding items.']);
         }
 
-        // MARKER-ITEM-SOURCES-COMPACT — _sources.blade.php loops $vendors.
+        // _sources.blade.php loops $vendors.
         return view('tenant.inventory.create', compact('categories', 'vendors'));
     }
 
@@ -1170,10 +1167,10 @@ class InventoryController extends Controller
 
         $data = $request->validate([
             'category_id'           => ['required', 'uuid', \Illuminate\Validation\Rule::exists('tenant_inventory_categories', 'id')
-                ->where(fn ($q) => $q->where('tenant_id', $tenant->id))], // MARKER-EXISTS-TENANT-SCOPE
+                ->where(fn ($q) => $q->where('tenant_id', $tenant->id))],
             'sku'                   => ['required', 'string', 'max:64'],
             'name'                  => ['required', 'string', 'max:255'],
-            // MARKER-ITEM-IDENT-ENTRY — stored as typed, trimmed only. No
+            // stored as typed, trimmed only. No
             // check-digit rule: a supplier's own 8-digit code in the barcode
             // box is better saved than argued with.
             'catalog_upc'            => ['nullable', 'string', 'max:32'],
@@ -1197,7 +1194,7 @@ class InventoryController extends Controller
             ->where('id', $data['category_id'])
             ->firstOrFail();
 
-        // MARKER-BARCODE-IDENTITY — a barcode already in inventory (as UPC,
+        // a barcode already in inventory (as UPC,
         // EAN, a barcode-SKU or a merged-away code) is the same product. Stop
         // and say which item, instead of creating a second copy. "It's a
         // different product" resubmits with duplicate_ok and is logged.
@@ -1215,7 +1212,7 @@ class InventoryController extends Controller
                 ]);
             }
             if ($hits) {
-                \Illuminate\Support\Facades\Log::info('MARKER-BARCODE-IDENTITY duplicate barcode saved on purpose', [
+                \Illuminate\Support\Facades\Log::info('barcode-identity: duplicate barcode saved on purpose', [
                     'tenant_id' => $tenant->id, 'barcode' => (string) key($hits),
                     'existing_item_id' => reset($hits)->id, 'user_id' => optional(Auth::guard('tenant')->user())->id,
                 ]);
@@ -1248,7 +1245,6 @@ class InventoryController extends Controller
             'shop_bin_location'      => $data['shop_bin_location'] ?? null,
             'allow_oversell'         => (bool) ($data['allow_oversell'] ?? true),
             'is_active'              => true,
-            // MARKER-ITEM-IDENT-ENTRY
             'catalog_upc'            => filled($data['catalog_upc'] ?? null) ? trim($data['catalog_upc']) : null,
             'catalog_ean'            => filled($data['catalog_ean'] ?? null) ? trim($data['catalog_ean']) : null,
             'catalog_mpn'            => filled($data['catalog_mpn'] ?? null) ? trim($data['catalog_mpn']) : null,
@@ -1268,20 +1264,20 @@ class InventoryController extends Controller
             }
         }
 
-        $this->linkChosenCatalogRow($request, $item); // MARKER-ITEM-IDENT-ENTRY
+        $this->linkChosenCatalogRow($request, $item);
 
-        // MARKER-AUTOLINK — belt and braces. If the hidden field did not make
+        // belt and braces. If the hidden field did not make
         // it, the identifiers still will. This is what turns a lost link from
         // likely into impossible.
         self::autoLinkByIdentifiers($item->refresh());
-        $this->syncItemSources($request, $item);      // MARKER-ITEM-SOURCES-EDIT
+        $this->syncItemSources($request, $item);
 
         return redirect()->route('tenant.inventory.show', $item->id)
             ->with('flash', ['type' => 'success', 'message' => "Item '{$item->name}' created."]);
     }
 
     /**
-     * MARKER-ITEM-SOURCES-EDIT — write the manual vendor rows from the form.
+     * write the manual vendor rows from the form.
      *
      * Only touches rows with a NULL distributor_code. Anything the importer
      * owns is left alone: tier-2 refreshes its cost and availability, so a
@@ -1291,7 +1287,7 @@ class InventoryController extends Controller
      * UI actually removes it.
      */
     /**
-     * MARKER-ITEM-IDENT-ENTRY — search the catalogs this shop subscribes to.
+     * search the catalogs this shop subscribes to.
      *
      * Scoped to ACTIVE subscriptions only: the platform catalog is shared, and
      * a shop must not be able to browse a distributor it has no relationship
@@ -1348,10 +1344,10 @@ class InventoryController extends Controller
             'subtitle'     => $c->display_subtitle,
             'manufacturer' => $c->manufacturer,
             'product_key'  => $c->product_key,
-            // MARKER-IDENT-ENTRY-FIX — SKU was left empty whenever a row had no
+            // SKU was left empty whenever a row had no
             // product_key, and the description was never sent at all.
             'variant_no'   => $c->distributor_variant_no,
-            // MARKER-AUTOLINK — QBP leaves description empty and puts the specs
+            // QBP leaves description empty and puts the specs
             // in display_subtitle, so a linked QBP item showed a blank
             // description and looked half-imported.
             'description'  => $c->description ?: $c->display_subtitle,
@@ -1368,12 +1364,12 @@ class InventoryController extends Controller
     }
 
     /**
-     * MARKER-ITEM-IDENT-ENTRY — attach the chosen catalog row to a new item and
+     * attach the chosen catalog row to a new item and
      * give it a vendor source, so a hand-added item is reorderable from the
      * start rather than being a dead end the first time it runs out.
      */
     /**
-     * MARKER-AUTOLINK — link an item to the catalog by its identifiers.
+     * link an item to the catalog by its identifiers.
      *
      * The hidden field from the lookup is a convenience, not the mechanism.
      * An item carrying a barcode that matches exactly one catalog row from a
@@ -1495,7 +1491,7 @@ class InventoryController extends Controller
     }
 
     /**
-     * MARKER-MERGE-AFTER — a hidden button is not a permission. Restoring a
+     * a hidden button is not a permission. Restoring a
      * merged item would produce a record with no stock, no history and a SKU
      * that may since have been reused.
      */
@@ -1508,7 +1504,7 @@ class InventoryController extends Controller
         );
     }
 
-    /** MARKER-MERGE-UI — what a merge would do. Read-only. */
+    /** what a merge would do. Read-only. */
     public function mergePreview(Request $request): \Illuminate\Http\JsonResponse
     {
         [$loser, $survivor] = $this->mergePair($request);
@@ -1518,7 +1514,7 @@ class InventoryController extends Controller
         );
     }
 
-    /** MARKER-MERGE-UI — do it. */
+    /** do it. */
     public function mergeCommit(Request $request): \Illuminate\Http\JsonResponse
     {
         [$loser, $survivor] = $this->mergePair($request);
@@ -1533,7 +1529,7 @@ class InventoryController extends Controller
             \Illuminate\Support\Facades\Auth::guard('tenant')->id(),
         );
 
-        \Illuminate\Support\Facades\Log::info('MARKER-ITEM-MERGE completed', [
+        \Illuminate\Support\Facades\Log::info('item-merge: completed', [
             'tenant'   => $survivor->tenant_id,
             'merge_id' => $report['merge_id'],
             'loser'    => $loser->id,
@@ -1541,7 +1537,7 @@ class InventoryController extends Controller
             'by'       => \Illuminate\Support\Facades\Auth::guard('tenant')->id(),
         ]);
 
-        // MARKER-MERGE-RESULT — hand back what actually happened, not just a
+        // hand back what actually happened, not just a
         // place to go. These are post-transaction figures, so a difference
         // between them and the preview is visible rather than invisible.
         return response()->json([
@@ -1643,7 +1639,7 @@ class InventoryController extends Controller
         $tenant = tenant();
         $this->assertRetailEnabled($tenant);
 
-        // MARKER-ARCHIVE-MOVE — withTrashed, otherwise the archived list links
+        // withTrashed, otherwise the archived list links
         // to a 404 and Restore is unreachable.
         $item = TenantInventoryItem::withTrashed()
             ->with(['category', 'distributorCatalog', 'locations.location', 'specialOrders.vendor', 'specialOrders.customer', 'specialOrders.appointment', 'vendors'])
@@ -1703,16 +1699,15 @@ class InventoryController extends Controller
             ->where('tenant_id', $tenant->id)
             ->findOrFail($id);
 
-        // MARKER-ITEM-CAT-TREE — same parent/children shape the index filter
+        // same parent/children shape the index filter
         // uses, so the picker reads like the rest of inventory.
         $categories = self::categoryOptions($tenant->id);
 
-        // MARKER-ITEM-SOURCES-EDIT — an item can come from several vendors,
+        // an item can come from several vendors,
         // same as everywhere else in the system.
         $vendors = \App\Models\Tenant\TenantVendor::where('tenant_id', $tenant->id)
             ->where('is_active', true)->orderBy('name')->get();
 
-        // MARKER-ITEM-SOURCES-COMPACT
         return view('tenant.inventory.edit', compact('item', 'categories', 'vendors'));
     }
 
@@ -1725,10 +1720,10 @@ class InventoryController extends Controller
 
         $data = $request->validate([
             'category_id'             => ['required', 'uuid', \Illuminate\Validation\Rule::exists('tenant_inventory_categories', 'id')
-                ->where(fn ($q) => $q->where('tenant_id', $tenant->id))], // MARKER-EXISTS-TENANT-SCOPE
+                ->where(fn ($q) => $q->where('tenant_id', $tenant->id))],
             'sku'                     => ['required', 'string', 'max:64'],
             'name'                    => ['required', 'string', 'max:255'],
-            // MARKER-ITEM-IDENT-ENTRY — stored as typed, trimmed only. No
+            // stored as typed, trimmed only. No
             // check-digit rule: a supplier's own 8-digit code in the barcode
             // box is better saved than argued with.
             'catalog_upc'              => ['nullable', 'string', 'max:32'],
@@ -1752,7 +1747,7 @@ class InventoryController extends Controller
             ->where('id', $data['category_id'])
             ->firstOrFail();
 
-        // MARKER-BARCODE-IDENTITY — editing an item onto a barcode another
+        // editing an item onto a barcode another
         // item already carries would make two copies of one product.
         $dupKeys = \App\Support\Barcode::keys($data['sku'], $data['catalog_upc'] ?? null, $data['catalog_ean'] ?? null);
         if ($dupKeys && ($hits = \App\Support\Barcode::itemsFor($tenant->id, $dupKeys, $item->id))) {
@@ -1788,7 +1783,7 @@ class InventoryController extends Controller
             'shop_bin_location'      => $data['shop_bin_location'] ?? null,
             'allow_oversell'         => (bool) ($data['allow_oversell'] ?? true),
             'is_active'              => (bool) ($data['is_active'] ?? true),
-            // MARKER-ITEM-IDENT-ENTRY — update() validated these three without
+            // update() validated these three without
             // ever writing them, which would have silently discarded whatever
             // was typed into the new fields.
             'catalog_upc'            => filled($data['catalog_upc'] ?? null) ? trim($data['catalog_upc']) : null,
@@ -1796,9 +1791,9 @@ class InventoryController extends Controller
             'catalog_mpn'            => filled($data['catalog_mpn'] ?? null) ? trim($data['catalog_mpn']) : null,
         ]);
 
-        $this->syncItemSources($request, $item); // MARKER-ITEM-SOURCES-EDIT
+        $this->syncItemSources($request, $item);
 
-        // MARKER-AUTOLINK — typing a barcode into an existing item is the other
+        // typing a barcode into an existing item is the other
         // way a link becomes possible, so try again on every save.
         self::autoLinkByIdentifiers($item->refresh());
 
@@ -1822,12 +1817,12 @@ class InventoryController extends Controller
 
         $data = $request->validate([
             'location_id' => ['required', 'uuid', \Illuminate\Validation\Rule::exists('tenant_locations', 'id')
-                ->where(fn ($q) => $q->where('tenant_id', $tenant->id))], // MARKER-EXISTS-TENANT-SCOPE
+                ->where(fn ($q) => $q->where('tenant_id', $tenant->id))],
             'new_count'   => ['required', 'integer', 'min:0'],
             'reason_code' => ['required', 'string', 'in:damaged,expired,theft_shrinkage,count_correction,found,vendor_credit,donation,internal_use,display,sample,other'],
             'reason_text' => ['nullable', 'string', 'max:500'],
             'notes'       => ['nullable', 'string', 'max:1000'],
-            'unit_cost'   => ['nullable', 'numeric', 'min:0'], // MARKER-RECEIVED-COST
+            'unit_cost'   => ['nullable', 'numeric', 'min:0'],
         ]);
 
         // 'other' requires a reason_text
@@ -1854,7 +1849,7 @@ class InventoryController extends Controller
                 tenantUser: Auth::guard('tenant')->user(),
                 notes: $data['notes'] ?? null,
                 unitCostCents: isset($data['unit_cost']) && $data['unit_cost'] !== '' && $data['unit_cost'] !== null
-                    ? (int) round(((float) $data['unit_cost']) * 100) : null, // MARKER-RECEIVED-COST
+                    ? (int) round(((float) $data['unit_cost']) * 100) : null,
             );
         } catch (InvalidQuantityException $e) {
             return back()->withInput()->withErrors(['reason_code' => $e->getMessage()]);
@@ -1865,7 +1860,7 @@ class InventoryController extends Controller
     }
 
     /**
-     * MARKER-ARCHIVE-MOVE — undo an archive.
+     * undo an archive.
      *
      * destroy() does two things, so this undoes both: the soft delete and
      * the is_active flag. Nothing else is touched by either, so the item
@@ -1880,7 +1875,7 @@ class InventoryController extends Controller
         $item = TenantInventoryItem::withTrashed()
             ->where('tenant_id', $tenant->id)->findOrFail($id);
 
-        $this->assertNotMerged($item); // MARKER-MERGE-AFTER
+        $this->assertNotMerged($item);
 
         $item->restore();
         $item->update(['is_active' => true]);

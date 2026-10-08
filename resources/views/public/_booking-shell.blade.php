@@ -1,5 +1,5 @@
 {{--
-  MARKER-PATCH-594 — shared booking shell.
+  shared booking shell.
   The three booking front-ends (advanced/full, simple, choice) @extends this
   layout so the themed chrome — head, :root vars, background + tint overlay,
   logo header, nav/footer site chrome — lives in ONE place. Each view supplies
@@ -50,14 +50,14 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  @include('partials.mobile-input-zoom') {{-- MARKER-MOBILE-INPUT-ZOOM --}}
+  @include('partials.mobile-input-zoom')
   <meta name="csrf-token" content="{{ csrf_token() }}">
-  {{-- MARKER-PATCH-150 — analytics + funnel tracking --}}
+  {{-- analytics + funnel tracking --}}
   @include('public._funnel_tracker')
   <title>{{ $pageTitle ?? 'Book online' }} — {{ $currentTenant->name }}</title>
   @if($currentTenant->favicon_url)<link rel="icon" href="{{ $currentTenant->favicon_url }}">@endif
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>{{-- MARKER-SELFHOST-FONTS-2 — the font FILES come from gstatic; without this the browser pays a second DNS+TLS handshake --}}
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>{{-- the font FILES come from gstatic; without this the browser pays a second DNS+TLS handshake --}}
   <link href="https://fonts.googleapis.com/css2?family={{ str_replace(' ', '+', $currentTenant->font_heading ?? 'Inter') }}:wght@400;500;600;700&family={{ str_replace(' ', '+', $currentTenant->font_body ?? 'Inter') }}:wght@400;500;600&display=swap" rel="stylesheet">
   <style>
     :root {
@@ -115,9 +115,9 @@
   @stack('styles')
 </head>
 <body>
-@if(($bk['show_nav'] ?? '1') === '1')@include('public._chrome-inline', ['chromePos' => 'top'])@endif {{-- MARKER-PATCH-589 --}}
+@if(($bk['show_nav'] ?? '1') === '1')@include('public._chrome-inline', ['chromePos' => 'top'])@endif
 
-@if(($bk['show_logo'] ?? '1') === '1') {{-- MARKER-PATCH-594 --}}
+@if(($bk['show_logo'] ?? '1') === '1')
 <div class="bk-top-bar">
   <div class="bk-top-logo">
     @if($logoUrl)
@@ -128,16 +128,16 @@
   </div>
   @if($showBackLink ?? false)<a href="/" class="bk-top-back">← Back to site</a>@endif
 </div>
-@endif {{-- MARKER-PATCH-594 --}}
+@endif
 
-@include('public.sections._booking_extras', ['slot' => 'before']) {{-- MARKER-PATCH-601 --}}
+@include('public.sections._booking_extras', ['slot' => 'before'])
 
 @yield('content')
 
-@include('public.sections._booking_extras', ['slot' => 'after']) {{-- MARKER-PATCH-601 --}}
+@include('public.sections._booking_extras', ['slot' => 'after'])
 
 @stack('scripts')
-@if(($bk['show_footer'] ?? '1') === '1')@include('public._chrome-inline', ['chromePos' => 'bottom', 'hideBookingCta' => ($bk['hide_cta'] ?? false)])@endif {{-- MARKER-PATCH-594 --}}
+@if(($bk['show_footer'] ?? '1') === '1')@include('public._chrome-inline', ['chromePos' => 'bottom', 'hideBookingCta' => ($bk['hide_cta'] ?? false)])@endif
 </body>
 </html>
 

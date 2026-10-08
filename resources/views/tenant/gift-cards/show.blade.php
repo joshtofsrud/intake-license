@@ -1,6 +1,6 @@
 @extends('layouts.tenant.app')
 
-{{-- MARKER-GIFTCARDS-ADMIN — card detail + ledger, per the approved mockup --}}
+{{-- card detail + ledger, per the approved mockup --}}
 
 @php
   $pageTitle = 'Gift card';
@@ -14,7 +14,7 @@
     'redeem' => ['partial', 'Redeemed'],
     'adjust' => ['shipped', 'Adjustment'],
     'deactivate' => ['cancelled', 'Deactivated'],
-    'refund' => ['completed', 'Refunded'], // MARKER-GC-FUNCTIONS
+    'refund' => ['completed', 'Refunded'],
     default => ['pending', ucfirst($k)],
   };
 @endphp
@@ -44,8 +44,8 @@
       {{ $card->type === 'egift' ? 'E-gift' : 'Physical' }}
       @if($card->purchaser) · Purchased by {{ $card->purchaser->fullName() }}
       @elseif($card->purchaser_name) · Purchased by {{ $card->purchaser_name }} @endif
-      · Issued {{ tlocal_date($card->created_at) }}{{-- MARKER-GC-TLOCAL --}}
-      {{-- MARKER-GC-LOCATION -- pointless noise for a single-location shop --}}
+      · Issued {{ tlocal_date($card->created_at) }}
+      {{-- pointless noise for a single-location shop --}}
       @if(tenant()->multi_location_active && $card->location) · at {{ $card->location->name }} @endif
       @if($card->recipient_email) · To {{ $card->recipient_email }} @endif
     </div>
@@ -123,7 +123,7 @@
   </div>
 </div>
 
-{{-- MARKER-GC-FUNCTIONS -- physical cards bought online carry a generated
+{{-- physical cards bought online carry a generated
      code until a preprinted card is handed over at pickup. --}}
 @if($card->type === 'physical' && $card->status !== 'deactivated')
 <div class="ia-card" style="margin-bottom:18px">
@@ -155,7 +155,7 @@
           · <a href="{{ route('tenant.register.sales.receipt', ['id' => $t->sale_id]) }}" style="color:var(--ia-text);border-bottom:1px dotted var(--ia-border-strong)" onclick="event.stopPropagation()">View sale</a>
         @endif
       </span>
-      <span class="gcd-when">{{ tlocal($t->created_at, 'M j, g:i A') }}{{-- MARKER-GC-TLOCAL --}}</span>
+      <span class="gcd-when">{{ tlocal($t->created_at, 'M j, g:i A') }}</span>
       <span class="gcd-amt {{ $t->amount_cents >= 0 ? 'credit' : 'debit' }}">{{ $t->amount_cents >= 0 ? '+' : '−' }}{{ $money(abs($t->amount_cents)) }}</span>
       <span class="gcd-bal">{{ $money($t->balance_after_cents) }}</span>
     </div>

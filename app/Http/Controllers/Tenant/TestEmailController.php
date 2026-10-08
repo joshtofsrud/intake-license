@@ -1,5 +1,4 @@
 <?php
-// MARKER-PATCH-143
 
 namespace App\Http\Controllers\Tenant;
 
@@ -21,7 +20,7 @@ class TestEmailController extends Controller
      *
      * Permissioned to manager+ to avoid staff spamming themselves.
      */
-    // MARKER-PATCH-144 — JSON response for XHR, fallback redirect for non-XHR
+    // JSON response for XHR, fallback redirect for non-XHR
     public function sendSettingsTest(Request $request)
     {
         $me = Auth::guard('tenant')->user();

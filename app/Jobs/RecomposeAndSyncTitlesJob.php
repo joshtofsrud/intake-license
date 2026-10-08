@@ -1,5 +1,4 @@
 <?php
-// MARKER-PATCH-HLCE
 
 namespace App\Jobs;
 

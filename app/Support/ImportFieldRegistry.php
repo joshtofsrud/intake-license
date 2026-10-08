@@ -3,7 +3,7 @@
 namespace App\Support;
 
 /**
- * MARKER-IMPORT1 — what a CSV is allowed to write.
+ * what a CSV is allowed to write.
  *
  * An ALLOW-LIST, not "every column on the table". Deliberately absent for
  * customers: password / remember_token / password_reset_* (credentials),
@@ -19,13 +19,13 @@ class ImportFieldRegistry
     {
         return match ($importType) {
             'customers' => self::customers(),
-            'inventory' => self::inventory(),   // MARKER-IMPORT2
+            'inventory' => self::inventory(),
             default     => [],
         };
     }
 
     /**
-     * MARKER-IMPORT2 — inventory fields.
+     * inventory fields.
      *
      * Absent on purpose: computed_stock_count and committed_count (maintained
      * by InventoryService under locks — stock arrives as a MOVEMENT, see the
@@ -44,7 +44,7 @@ class ImportFieldRegistry
             'display_subtitle' => ['label' => 'Subtitle',   'type' => 'text', 'max' => 255],
             'description'  => ['label' => 'Description',    'type' => 'text', 'max' => 5000],
             'category'     => ['label' => 'Category (by name)', 'type' => 'resolve'],
-            // MARKER-IMPORT-VENDOR-ONCE — 'vendor' is no longer mappable. A
+            // 'vendor' is no longer mappable. A
             // vendor is chosen or created once per import on the map screen.
             // Resolving a name per row created a vendor per distinct value,
             // and the Brand column was auto-matching to it.
@@ -58,7 +58,7 @@ class ImportFieldRegistry
             'color'        => ['label' => 'Color',         'type' => 'text', 'max' => 64],
             'size'         => ['label' => 'Size',           'type' => 'text', 'max' => 64],
             'upc'          => ['label' => 'UPC',            'type' => 'text', 'max' => 64],
-            // MARKER-IMPORT-MPN-BRAND — MPN is matchable because in a
+            // MPN is matchable because in a
             // distributor file it is often the only stable key; SKU is
             // frequently the shop's own invention and absent from the feed.
             'catalog_mpn'  => ['label' => 'MPN (mfr part no.)', 'type' => 'text', 'max' => 64, 'match' => true],
@@ -98,7 +98,7 @@ class ImportFieldRegistry
 
     /** The field a row is matched on for this import type. */
     /**
-     * MARKER-IMPORT-MATCH — the words a screen uses for this import type, so
+     * the words a screen uses for this import type, so
      * an inventory import never says "customers". One place, used by every
      * import view.
      */
@@ -128,7 +128,7 @@ class ImportFieldRegistry
      */
     public static function guess(string $importType, string $header): ?string
     {
-        if ($importType === 'inventory') {          // MARKER-IMPORT2
+        if ($importType === 'inventory') {
             return self::guessInventory($header);
         }
 
@@ -165,7 +165,7 @@ class ImportFieldRegistry
         return null;
     }
 
-    /** MARKER-IMPORT2 — header guesses for inventory exports. */
+    /** header guesses for inventory exports. */
     private static function guessInventory(string $header): ?string
     {
         $norm = preg_replace('/[^a-z0-9]+/', '', strtolower($header));
@@ -178,7 +178,7 @@ class ImportFieldRegistry
             'name'         => ['name', 'itemname', 'description', 'title', 'product'],
             'description'  => ['longdescription', 'longdesc', 'details', 'detail'],
             'category'     => ['category', 'dept', 'department', 'group', 'class'],
-            // MARKER-IMPORT-VENDOR-ONCE — brand words go to Brand now; vendor
+            // brand words go to Brand now; vendor
             // words match nothing, because vendor is not a column.
             'shop_brand'   => ['brand', 'manufacturer', 'make', 'maker'],
             'shop_cost_cents'       => ['cost', 'unitcost', 'wholesale', 'buyprice'],

@@ -30,8 +30,8 @@ class SettingsController extends Controller
             ->orderBy('name')
             ->get();
 
-        $paymentMethods = \App\Models\Tenant\TenantPaymentMethod::bootstrapFor($tenant); // MARKER-PATCH-629
-        // MARKER-BILLING-STATEMENT — one composer, shared with master admin.
+        $paymentMethods = \App\Models\Tenant\TenantPaymentMethod::bootstrapFor($tenant);
+        // one composer, shared with master admin.
         $statement = app(\App\Services\Billing\StatementService::class)->for(tenant());
 
         return view('tenant.settings.index', compact('statement', 'receivingMethods', 'paymentMethods'));
@@ -49,14 +49,14 @@ class SettingsController extends Controller
             'account'       => $this->updateAccount($request, $tenant),
             'appearance'    => $this->updateAppearance($request, $tenant),
             'payments'      => $this->updatePayments($request, $tenant),
-            'tags'          => $this->updateTags($request, $tenant), // MARKER-PATCH-315
-            'ordering'      => $this->updateOrdering($request, $tenant), // MARKER-SO-AUTOVENDOR
+            'tags'          => $this->updateTags($request, $tenant),
+            'ordering'      => $this->updateOrdering($request, $tenant),
             default         => back()->with('error', 'Unknown tab.'),
         };
     }
 
     // -------------------------------------------------------------------
-    // MARKER-SO-AUTOVENDOR — how special orders choose a vendor.
+    // how special orders choose a vendor.
     // -------------------------------------------------------------------
     private function updateOrdering(Request $request, $tenant)
     {
@@ -64,7 +64,7 @@ class SettingsController extends Controller
             'so_auto_assign_vendor' => ['required', 'in:preferred,lowest_price,off'],
         ]);
 
-        // MARKER-BIZ-SETTINGS — business-customer defaults share this tab.
+        // business-customer defaults share this tab.
         $request->validate([
             'cust_default_payment_terms' => ['nullable', 'in:' . implode(',', \App\Models\Tenant\TenantCustomer::PAYMENT_TERMS)],
         ]);
@@ -85,7 +85,7 @@ class SettingsController extends Controller
     }
 
     // -------------------------------------------------------------------
-    // MARKER-PATCH-315 — Work-order tag settings (toggles, lead time,
+    // Work-order tag settings (toggles, lead time,
     // paper width, thermal logo). Stored in the tenant settings JSON.
     // -------------------------------------------------------------------
     private function updateTags(Request $request, $tenant)
@@ -93,8 +93,8 @@ class SettingsController extends Controller
         $request->validate([
             'wot_lead_days' => ['nullable', 'integer', 'min:0', 'max:30'],
             'wot_paper'     => ['nullable', 'in:80mm,58mm'],
-            'wot_header_text' => ['nullable', 'string', 'max:500'], // MARKER-PATCH-330
-            'wot_footer_text' => ['nullable', 'string', 'max:500'], // MARKER-PATCH-330
+            'wot_header_text' => ['nullable', 'string', 'max:500'],
+            'wot_footer_text' => ['nullable', 'string', 'max:500'],
             'wot_logo'      => ['nullable', 'image', 'max:2048'],
         ]);
 
@@ -111,10 +111,10 @@ class SettingsController extends Controller
         $wot['show_stub']     = (bool) $request->input('wot_show_stub');
         $wot['lead_days']     = $request->filled('wot_lead_days') ? (int) $request->input('wot_lead_days') : 3;
         $wot['paper']         = $request->input('wot_paper', '80mm');
-        $wot['logo_size']     = in_array($request->input('wot_logo_size'), ['small', 'medium', 'large', 'xl'], true) ? $request->input('wot_logo_size') : 'medium'; // MARKER-PATCH-317
-        $wot['feed_mm']       = max(0, min(40, (int) $request->input('wot_feed_mm', 0))); // MARKER-PATCH-320
-        $wot['header_text']   = trim((string) $request->input('wot_header_text', '')); // MARKER-PATCH-330
-        $wot['footer_text']   = trim((string) $request->input('wot_footer_text', '')); // MARKER-PATCH-330
+        $wot['logo_size']     = in_array($request->input('wot_logo_size'), ['small', 'medium', 'large', 'xl'], true) ? $request->input('wot_logo_size') : 'medium';
+        $wot['feed_mm']       = max(0, min(40, (int) $request->input('wot_feed_mm', 0)));
+        $wot['header_text']   = trim((string) $request->input('wot_header_text', ''));
+        $wot['footer_text']   = trim((string) $request->input('wot_footer_text', ''));
 
         if ($request->hasFile('wot_logo')) {
             $wot['logo_path'] = $request->file('wot_logo')->store("tenants/{$tenant->id}/work-order-tag", 'public');
@@ -139,17 +139,16 @@ class SettingsController extends Controller
             'timezone'             => ['required', 'string', 'max:64'],
             'booking_window_days'  => ['required', 'integer', 'min:1', 'max:365'],
             'min_notice_hours'     => ['required', 'integer', 'min:0', 'max:168'],
-            // MARKER-BOOKING-OVERRIDE
             'staff_notice_policy'   => ['nullable', 'in:follow,warn,silent'],
             'staff_capacity_policy' => ['nullable', 'in:block,marked'],
-            'availability_auto_refresh' => ['nullable', 'boolean'], // MARKER-APPT-AUTOLOAD
+            'availability_auto_refresh' => ['nullable', 'boolean'],
             'classes_enabled'      => ['nullable', 'boolean'],
-            'deliveries_enabled'   => ['nullable', 'boolean'], // MARKER-PATCH-156
-            'multi_asset_enabled'  => ['nullable', 'boolean'], // MARKER-PATCH-158-B
-            'asset_label_singular' => ['nullable', 'string', 'max:30'], // MARKER-PATCH-215
-            'asset_label_plural'   => ['nullable', 'string', 'max:30'], // MARKER-PATCH-215
+            'deliveries_enabled'   => ['nullable', 'boolean'],
+            'multi_asset_enabled'  => ['nullable', 'boolean'],
+            'asset_label_singular' => ['nullable', 'string', 'max:30'],
+            'asset_label_plural'   => ['nullable', 'string', 'max:30'],
             'default_tax_rate'     => ['nullable', 'numeric', 'min:0', 'max:25'],
-            'inventory_cost_method' => ['nullable', 'in:average,last,manual'], // MARKER-COST-METHOD-UI
+            'inventory_cost_method' => ['nullable', 'in:average,last,manual'],
             'tax_services_default' => ['nullable', 'boolean'],
             'tax_supports_exempt'  => ['nullable', 'boolean'],
         ]);
@@ -160,12 +159,12 @@ class SettingsController extends Controller
             'timezone'             => $request->input('timezone'),
             'booking_window_days'  => (int) $request->input('booking_window_days'),
             'min_notice_hours'     => (int) $request->input('min_notice_hours'),
-            // MARKER-BOOKING-OVERRIDE — absent means the safe value, not null.
+            // absent means the safe value, not null.
             'staff_notice_policy'   => $request->input('staff_notice_policy', 'follow'),
             'staff_capacity_policy' => $request->input('staff_capacity_policy', 'block'),
-            // MARKER-APPT-AUTOLOAD — an unchecked box posts nothing, so absent means off.
+            // an unchecked box posts nothing, so absent means off.
             'availability_auto_refresh' => $request->boolean('availability_auto_refresh'),
-            // MARKER-CLASSES-SETTINGS — a hidden button is not a gate. Without
+            // a hidden button is not a gate. Without
             // the entitlement this field is ignored entirely, so a crafted
             // request cannot set a flag the plan does not include. The stored
             // value is preserved rather than cleared: it means "the shop wants
@@ -174,16 +173,16 @@ class SettingsController extends Controller
             'classes_enabled'      => $tenant->classes_available
                 ? (bool) $request->input('classes_enabled')
                 : (bool) $tenant->getRawOriginal('classes_enabled'),
-            'deliveries_enabled'   => (bool) $request->input('deliveries_enabled'), // MARKER-PATCH-156
-            'multi_asset_enabled'  => (bool) $request->input('multi_asset_enabled'), // MARKER-PATCH-158-B
-            'asset_label_singular' => $request->filled('asset_label_singular') ? trim($request->input('asset_label_singular')) : 'item',  // MARKER-PATCH-215
-            'asset_label_plural'   => $request->filled('asset_label_plural')   ? trim($request->input('asset_label_plural'))   : 'items', // MARKER-PATCH-215
+            'deliveries_enabled'   => (bool) $request->input('deliveries_enabled'),
+            'multi_asset_enabled'  => (bool) $request->input('multi_asset_enabled'),
+            'asset_label_singular' => $request->filled('asset_label_singular') ? trim($request->input('asset_label_singular')) : 'item',
+            'asset_label_plural'   => $request->filled('asset_label_plural')   ? trim($request->input('asset_label_plural'))   : 'items',
             'default_tax_rate'     => $request->filled('default_tax_rate')
                 ? (float) $request->input('default_tax_rate')
                 : null,
             'tax_services_default' => (bool) $request->input('tax_services_default'),
             'tax_supports_exempt'  => (bool) $request->input('tax_supports_exempt'),
-            // MARKER-COST-METHOD-UI — lives in the settings JSON, where
+            // lives in the settings JSON, where
             // InventoryService::recordReceivedCost() reads it.
             'settings'             => array_merge((array) ($tenant->settings ?? []), [
                 'inventory_cost_method' => in_array($request->input('inventory_cost_method'), ['average', 'last', 'manual'], true)
@@ -253,12 +252,12 @@ class SettingsController extends Controller
             'email_reply_to'     => ['nullable', 'email', 'max:255'],
             'notification_email' => ['nullable', 'email', 'max:255'],
             // SMS
-            // MARKER-PATCH-224 — sms_* moved to Settings\MessagingController.
-            // MARKER-PATCH-406 — notification toggles moved to Communication Center
+            // sms_* moved to Settings\MessagingController.
+            // notification toggles moved to Communication Center
         ]);
 
         // Don't overwrite an existing token with empty input — the form posts
-        // MARKER-PATCH-224 — sms_*/twilio_* are owned by
+        // sms_*/twilio_* are owned by
         // Settings\MessagingController now. Writing them here would null
         // the messaging config on every unrelated settings save.
         $tenant->update([
@@ -268,7 +267,7 @@ class SettingsController extends Controller
             'notification_email' => $request->input('notification_email'),
         ]);
 
-        // MARKER-PATCH-406 — notification toggles now owned by CommunicationController
+        // notification toggles now owned by CommunicationController
 
         return back()->with('success', 'Communication settings saved.');
     }
@@ -281,11 +280,11 @@ class SettingsController extends Controller
     {
         if (in_array($tenant->plan_tier, ['branded', 'scale', 'custom'])) {
             $request->validate([
-                // MARKER-PATCH-120-SETTINGS-CONTROLLER - tenant_domains is the new source of truth
+                // tenant_domains is the new source of truth
                 // 'custom_domain' => ['nullable', 'string', 'max:253',
                 //     'regex:/^([a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$/'],
             ]);
-            // $tenant->update(['custom_domain' => $request->input('custom_domain') ?: null]); // MARKER-PATCH-120-SETTINGS-CONTROLLER
+            // $tenant->update(['custom_domain' => $request->input('custom_domain') ?: null]);
         }
         return back()->with('success', 'Account settings saved.');
     }
@@ -311,17 +310,17 @@ class SettingsController extends Controller
     {
         $settings = $tenant->settings ?? [];
 
-        // MARKER-PATCH-388 — legacy booking-deposit stripe_* keys retired.
+        // legacy booking-deposit stripe_* keys retired.
         // Booking deposits now run on Direct Payments (register_payments_* keys).
 
-        // MARKER-PATCH-169 — Direct Payments bridge feature.
+        // Direct Payments bridge feature.
         // Register card-sale keys, namespaced separately from the booking-deposit
         // Stripe keys above (which power BookingController via App\Services\StripeService).
         // Only saved if the tenant has direct_payments_enabled set by master admin;
         // otherwise the form fields don\'t render and the inputs come back empty,
         // which is fine.
         if ($tenant->direct_payments_enabled) {
-            // MARKER-PATCH-618 — tenant-level on/off for card + payment-link tenders
+            // tenant-level on/off for card + payment-link tenders
             // (master flag stays the capability gate; this is the tenant's switch).
             $settings['stripe_register_enabled'] = (bool) $request->input('stripe_register_enabled');
             $settings['square_enabled']          = (bool) $request->input('square_enabled');
@@ -333,7 +332,7 @@ class SettingsController extends Controller
             $settings['register_payments_live_sk']        = $request->input('register_payments_live_sk', '');
             $settings['register_payments_webhook_secret'] = $request->input('register_payments_webhook_secret', '');
 
-            // MARKER-PATCH-473 — Square (tenant-connected) credentials
+            // Square (tenant-connected) credentials
             $settings['square_payments_mode']           = $request->input('square_payments_mode', 'sandbox');
             $settings['square_sandbox_app_id']          = $request->input('square_sandbox_app_id', '');
             $settings['square_sandbox_location_id']     = $request->input('square_sandbox_location_id', '');
@@ -351,9 +350,9 @@ class SettingsController extends Controller
         $settings['paypal_live_client_id'] = $request->input('paypal_live_client_id', '');
         $settings['paypal_live_secret']    = $request->input('paypal_live_secret', '');
 
-        // MARKER-PATCH-618 — Venmo / Cash App manual tenders (peer-to-peer pay links).
+        // Venmo / Cash App manual tenders (peer-to-peer pay links).
         // Handles are stored bare (no @ / $); the link helper adds the scheme.
-        // MARKER-PATCH-629 — venmo/cashapp keys retired here: owned by
+        // venmo/cashapp keys retired here: owned by
         // tenant_payment_methods and written back via syncLegacyKeys().
 
         $tenant->update(['settings' => $settings]);
@@ -364,7 +363,7 @@ class SettingsController extends Controller
     // POST endpoint: send a test SMS to verify Twilio configuration.
     // Uses the tenant's *saved* credentials, so user must save before testing.
     // -------------------------------------------------------------------
-    // MARKER-PATCH-468 — toggle asset tracking from the Services-page banner
+    // toggle asset tracking from the Services-page banner
     public function toggleAssetTracking(Request $request): JsonResponse
     {
         $tenant = tenant();
@@ -373,7 +372,7 @@ class SettingsController extends Controller
         return response()->json(['ok' => true, 'enabled' => $enabled]);
     }
 
-    // MARKER-PATCH-473 — verify the tenant's pasted Square credentials
+    // verify the tenant's pasted Square credentials
     public function verifySquareConnection(Request $request): JsonResponse
     {
         $tenant = tenant();
@@ -392,10 +391,10 @@ class SettingsController extends Controller
 
         $tenant = tenant();
 
-        // MARKER-PATCH-224 — managed numbers send on platform creds; only
+        // managed numbers send on platform creds; only
         // require tenant creds when no platform fallback exists.
         $hasCreds = ($tenant->twilio_account_sid && $tenant->twilio_auth_token)
-            || (config('services.twilio.sid') && config('services.twilio.token')); // MARKER-PATCH-224B
+            || (config('services.twilio.sid') && config('services.twilio.token'));
         if (! $tenant->sms_enabled || ! $tenant->sms_from_number || ! $hasCreds) {
             return response()->json([
                 'ok'    => false,

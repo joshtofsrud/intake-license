@@ -1,4 +1,4 @@
-{{-- MARKER-DUP-MERGE — products that are in the inventory more than once. --}}
+{{-- products that are in the inventory more than once. --}}
 @extends('layouts.tenant.app')
 @php $pageTitle = 'Duplicate items'; @endphp
 @section('content')
@@ -23,7 +23,7 @@
   @media(max-width:720px){.dp-row{grid-template-columns:1fr}.dp-row .dp-arrow{display:none}}
 </style>
 
-<div class="ia-section">{{-- MARKER-SECTION-WIDTH --}}
+<div class="ia-section">
   <div class="ia-page-head">
     <div class="ia-page-head-left">
       <h1 class="ia-page-title">Duplicate items</h1>
@@ -97,7 +97,7 @@
         @php
           $c = $g->preview['copies'] ?? [];
           $reasons = (array) $g->reasons;
-          $prices = collect($c)->filter(fn ($x) => ($x['shop_set'] ?? $x['shop_price'] !== null) && $x['shop_price'] !== null)->unique('shop_price')->values(); // MARKER-DUP-PRICE-RULE
+          $prices = collect($c)->filter(fn ($x) => ($x['shop_set'] ?? $x['shop_price'] !== null) && $x['shop_price'] !== null)->unique('shop_price')->values();
           $stockLoc = $g->preview['stock_location'] ?? null;
           $stockVals = collect($c)->pluck('stock')->filter(fn ($n) => $n > 0)->unique()->values();
         @endphp
@@ -169,7 +169,7 @@
 
 @push('scripts')
 <script>
-// MARKER-DUP-MERGE — Merge all asks first, in the app's own dialog.
+// Merge all asks first, in the app's own dialog.
 (function () {
   var form = document.getElementById('dp-merge-all');
   if (!form) { return; }

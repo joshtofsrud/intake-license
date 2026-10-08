@@ -1,5 +1,4 @@
 <?php
-// MARKER-PATCH-224
 
 namespace App\Services\Sms;
 
@@ -19,7 +18,7 @@ class TwilioProvisioningService
 {
     public function platformConfigured(): bool
     {
-        // MARKER-PATCH-224B — config(), never env(): survives config:cache.
+        // config(), never env(): survives config:cache.
         return (bool) (config('services.twilio.sid') && config('services.twilio.token'));
     }
 
@@ -135,6 +134,6 @@ class TwilioProvisioningService
             throw new \RuntimeException('Twilio SDK not installed.');
         }
 
-        return new \Twilio\Rest\Client(config('services.twilio.sid'), config('services.twilio.token')); // MARKER-PATCH-224B
+        return new \Twilio\Rest\Client(config('services.twilio.sid'), config('services.twilio.token'));
     }
 }

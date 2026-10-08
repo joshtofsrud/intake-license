@@ -1,6 +1,5 @@
 @extends('public.account._shell')
 @php $pageTitle = 'Messages'; @endphp
-{{-- MARKER-PORTAL-V2 --}}
 @push('styles')
   @include('public.account.portal._portal-css')
 @endpush

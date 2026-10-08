@@ -4,7 +4,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\DB;
 
 /**
- * MARKER-ECOMADDON — online_store stops being bundled with a plan.
+ * online_store stops being bundled with a plan.
  *
  * The gate (Tenant::online_store_enabled -> hasAddon) already governs the nav
  * entry, the settings page, Orders, and the whole public storefront. Removing

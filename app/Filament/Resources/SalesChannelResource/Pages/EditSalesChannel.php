@@ -1,5 +1,4 @@
 <?php
-// MARKER-CAMPAIGNS-CORE
 
 namespace App\Filament\Resources\SalesChannelResource\Pages;
 

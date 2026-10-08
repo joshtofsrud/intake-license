@@ -1,7 +1,7 @@
 @extends('layouts.tenant.app')
 @php $pageTitle = 'Payments'; @endphp
 
-{{-- MARKER-PATCH-168 — Stripe Connect Session A. --}}
+{{-- Stripe Connect Session A. --}}
 
 @push('styles')
 <style>
@@ -51,7 +51,7 @@
 
 <div class="ia-page-head">
   <div class="ia-page-head-left">
-    {{-- MARKER-EMAIL-CHARGES-V3 — this is the Payments page; it was titled
+    {{-- this is the Payments page; it was titled
          "Settings" with the index page's subtitle. --}}
     <h1 class="ia-page-title">Payments</h1>
     <p class="ia-page-subtitle">How money reaches you — card processing, payouts and the methods your customers can use.</p>

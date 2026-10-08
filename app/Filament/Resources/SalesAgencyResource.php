@@ -1,5 +1,4 @@
 <?php
-// MARKER-AGENCIES-CORE
 
 namespace App\Filament\Resources;
 
@@ -15,14 +14,14 @@ use Illuminate\Database\Eloquent\Builder;
 
 class SalesAgencyResource extends Resource
 {
-    use \App\Support\UsesAdminNav; // MARKER-NAV-ORDER
-    use \App\Support\GatedByAdminArea; // MARKER-ADMIN-NAV-GATE
+    use \App\Support\UsesAdminNav;
+    use \App\Support\GatedByAdminArea;
     protected static string $adminArea = 'reps';
 
     protected static ?string $model = SalesAgency::class;
 
     protected static ?string $navigationIcon  = 'heroicon-o-user-group';
-    protected static ?string $navigationGroup = 'Sales setup'; // MARKER-SALES-SETUP
+    protected static ?string $navigationGroup = 'Sales setup';
     protected static ?int    $navigationSort  = 30;
     protected static ?string $navigationLabel = 'Reps & agencies';
     protected static ?string $modelLabel      = 'agency';

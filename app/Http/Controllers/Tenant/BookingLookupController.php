@@ -8,7 +8,7 @@ use App\Models\Tenant\TenantCustomerAsset;
 use Illuminate\Http\Request;
 
 /**
- * MARKER-PATCH-213 — returning-customer lookup for the public booking flow.
+ * returning-customer lookup for the public booking flow.
  *
  * The "You" step (returning path) calls this with an email; if we recognize it
  * in this tenant, we hand back the customer's saved assets so the "Bikes" step

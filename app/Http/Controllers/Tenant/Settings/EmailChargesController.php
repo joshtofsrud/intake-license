@@ -1,5 +1,4 @@
 <?php
-// MARKER-EMAIL-BILLING
 
 namespace App\Http\Controllers\Tenant\Settings;
 
@@ -27,7 +26,7 @@ class EmailChargesController extends Controller
 
         $mtd = EmailLedger::monthToDate($tenant->id);
 
-        // MARKER-EMAIL-CHARGES-V3 — the same composer the Account tab uses, so
+        // the same composer the Account tab uses, so
         // the two screens can never disagree about this month's figures.
         $statement = app(\App\Services\Billing\StatementService::class)->for($tenant);
         $cap = EmailLedger::capState($tenant);
@@ -48,7 +47,7 @@ class EmailChargesController extends Controller
         $names = \App\Models\Tenant\TenantCampaign::whereIn('id', $campaigns->pluck('campaign_id'))
             ->pluck('name', 'id');
 
-        // MARKER-EMAIL-CHARGES-V2 —————————————————————————————————————
+        // ————————————————————————————————————
         // Everything metered and not yet invoiced. Nothing bills through
         // Stripe yet, so this is stated as accrued, never as "due".
         // There is no invoiced_at column yet — nothing bills this through
@@ -100,8 +99,8 @@ class EmailChargesController extends Controller
             'rate'       => EmailLedger::rate(),
             'campaigns'  => $campaigns,
             'names'      => $names,
-            'statement'  => $statement,    // MARKER-EMAIL-CHARGES-V3
-            'balance'    => $balance,      // MARKER-EMAIL-CHARGES-V2
+            'statement'  => $statement,
+            'balance'    => $balance,
             'sends'      => $sends,
             'sendNames'  => $sendNames,
             'other'      => $other,

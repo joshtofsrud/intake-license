@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 class TenantPageSection extends Model
 {
     /**
-     * MARKER-PATCH-PB1 — Inherit the home page's nav + footer for any page that
+     * Inherit the home page's nav + footer for any page that
      * doesn't define its own, so chrome is authored once (on home) and shared.
      * Returns an ordered collection: [inherited nav?] + page sections + [footer?].
      *

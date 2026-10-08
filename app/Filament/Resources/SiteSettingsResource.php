@@ -19,8 +19,8 @@ use Illuminate\Support\Facades\Schema;
  */
 class SiteSettingsResource extends Resource
 {
-    use \App\Support\UsesAdminNav; // MARKER-NAV-ORDER
-    use \App\Support\GatedByAdminArea; // MARKER-ADMIN-NAV-GATE
+    use \App\Support\UsesAdminNav;
+    use \App\Support\GatedByAdminArea;
     protected static string $adminArea = 'marketing';
 
     protected static ?string $model = SiteSettings::class;
@@ -77,7 +77,7 @@ class SiteSettingsResource extends Resource
                         ->helperText('Small text shown under the logo in the marketing footer.'),
                 ]),
 
-            // MARKER-BRAND-FOLD - logo, favicon and share image moved to the Brand page
+            // logo, favicon and share image moved to the Brand page
             // (master admin > Brand), where they are uploaded and used everywhere. The
             // old URL fields here were read by nothing; the columns stay, unused.
             Forms\Components\Section::make('Brand assets')
@@ -98,7 +98,7 @@ class SiteSettingsResource extends Resource
                     Forms\Components\TextInput::make('github_url')->label('GitHub URL')->url(),
                 ]),
 
-            // MARKER-MKT-ANALYTICS — these now load (they were read by nothing).
+            // these now load (they were read by nothing).
             Forms\Components\Section::make('Analytics')
                 ->description('Loaded on every public intake.works page. Not loaded in master admin, the rep panel, investor pages or booking-management links.')
                 ->collapsed()

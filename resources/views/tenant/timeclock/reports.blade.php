@@ -1,6 +1,6 @@
 @extends('layouts.tenant.app')
 
-{{-- MARKER-PATCH-615 — Time clock reports. Hours summary + OT + exports. --}}
+{{-- Time clock reports. Hours summary + OT + exports. --}}
 
 @section('title', 'Time clock · Reports')
 

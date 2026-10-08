@@ -20,8 +20,8 @@
     'logo_bar'               => 'Logo / trust bar',
     'comparison_table'       => 'Comparison table',
     'industry_pack_showcase' => 'Industry showcase',
-    'book_call'              => 'Book a call', // MARKER-SCHED-SECTION
-    'try_demo'               => 'Try the demo', // MARKER-DEMO-SECTION
+    'book_call'              => 'Book a call',
+    'try_demo'               => 'Try the demo',
     'stats_row'              => 'Stats row',
     'custom_html'            => 'Custom HTML',
   ];

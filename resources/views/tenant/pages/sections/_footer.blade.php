@@ -1,5 +1,5 @@
 {{--
-  MARKER-PATCH-158-G26 — footer editor (Phase 2)
+  footer editor (Phase 2)
 
   Footer has two repeatable lists:
     - Link columns: [{ heading, links: [{label, url}, ...] }]
@@ -48,7 +48,7 @@
 {{--=================== CONTENT ===================--}}
 <div class="pb2-tab-panel" data-tab="content">
 
-  {{-- MARKER-PATCH-303 — pre-footer call-to-action band --}}
+  {{-- pre-footer call-to-action band --}}
   <div class="pb2-group">
     <div class="pb2-group-title">Call-to-action band</div>
     <label class="pb2-checkbox-row">
@@ -91,7 +91,7 @@
       <span>Show logo</span>
     </label>
 
-    {{-- MARKER-PATCH-158-G28 — logo size control --}}
+    {{-- logo size control --}}
     <div class="pb2-field" style="margin-top:10px">
       <label class="pb2-field-label">Logo size</label>
       <select class="pb2-input" data-field="logo_size">
@@ -212,7 +212,7 @@
     </div>
   </div>
 
-  {{-- MARKER-PATCH-158-G29 — inline footer contact form --}}
+  {{-- inline footer contact form --}}
   <div class="pb2-group">
     <div class="pb2-group-title">Contact form</div>
 
@@ -348,7 +348,7 @@
     </div>
 
     <div class="pb2-bg-pane" data-bg-mode="gradient">
-        {{-- MARKER-PATCH-269 — gradient angle --}}
+        {{-- gradient angle --}}
         <div class="pb2-field">
           <div class="pb2-slider-row">
             <label class="pb2-field-label" style="margin:0">Angle</label>

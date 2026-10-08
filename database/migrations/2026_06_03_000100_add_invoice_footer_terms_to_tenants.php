@@ -5,7 +5,7 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * MARKER-PATCH-209 — tenant-controlled invoice footer terms.
+ * tenant-controlled invoice footer terms.
  * Nullable, no default. Nothing prints unless the tenant sets it.
  */
 return new class extends Migration {

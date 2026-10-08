@@ -1,5 +1,5 @@
 <?php
-// MARKER-PATCH-614 — immutable audit row for time punch changes.
+// immutable audit row for time punch changes.
 
 namespace App\Models\Tenant;
 

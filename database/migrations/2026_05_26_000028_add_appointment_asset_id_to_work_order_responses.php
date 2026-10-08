@@ -1,6 +1,6 @@
 <?php
-// MARKER-PATCH-158-G5 — original
-// MARKER-PATCH-168B — fixed FK name length + made idempotent
+// original
+// fixed FK name length + made idempotent
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;

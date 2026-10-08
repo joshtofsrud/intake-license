@@ -2,22 +2,22 @@
 
 namespace App\Filament\Pages;
 
-// MARKER-MKTTRAFFIC — intake.works traffic + signup funnel, master admin.
+// intake.works traffic + signup funnel, master admin.
 // Reuses the tenant TrafficReportService against the platform tenant rather
 // than reimplementing windows, comparisons and daily series.
 
 use App\Models\Tenant;
-use App\Services\Platform\MarketingSessionsService; // MARKER-MKTSESSIONS
+use App\Services\Platform\MarketingSessionsService;
 use App\Services\Platform\SignupFunnelService;
 use App\Services\Tenant\TrafficReportService;
 use Carbon\CarbonImmutable;
 use Filament\Pages\Page;
-use Livewire\Attributes\Url; // MARKER-MKTDONE
+use Livewire\Attributes\Url;
 
 class MarketingTraffic extends Page
 {
-    use \App\Support\UsesAdminNav; // MARKER-NAV-ORDER
-    use \App\Support\GatedByAdminArea; // MARKER-ADMIN-NAV-GATE
+    use \App\Support\UsesAdminNav;
+    use \App\Support\GatedByAdminArea;
     protected static string $adminArea = 'analytics';
 
     protected static ?string $title           = 'Marketing Traffic';
@@ -28,14 +28,14 @@ class MarketingTraffic extends Page
 
     protected static string $view = 'filament.pages.marketing-traffic';
 
-    // MARKER-MKTDONE — every one of these is in the URL now. A metric click is a
+    // every one of these is in the URL now. A metric click is a
     // Livewire round trip, and before this the chosen date range lived only in
     // component state: the range survived the click but was absent from the
     // address bar, so a refresh or a copied link silently reverted to the preset.
     #[Url(as: 'window', keep: true)]
     public string $window = '30d';
 
-    // MARKER-TRAFFIC-V2 — a real date range, and which metric the chart draws.
+    // a real date range, and which metric the chart draws.
     #[Url(as: 'from', keep: true)]
     public ?string $from   = null;
     #[Url(as: 'to', keep: true)]
@@ -43,22 +43,21 @@ class MarketingTraffic extends Page
     #[Url(as: 'metric', keep: true)]
     public string  $metric = 'visitors';
     #[Url(as: 'compare')]
-    public bool    $compare = true;   // MARKER-TRAFFIC-V3 — the ghost line
+    public bool    $compare = true;   // the ghost line
 
     public function mount(): void
     {
         $this->window = request()->query('window', '30d');
-        // MARKER-TRAFFIC-V2
         $this->from = request()->query('from');
         $this->to   = request()->query('to');
-        // MARKER-MKTSID -- '1d' is TrafficReportService's existing today window.
+        // '1d' is TrafficReportService's existing today window.
         if (! in_array($this->window, ['1d', '7d', '30d', '90d'], true)) {
             $this->window = '30d';
         }
     }
 
     /**
-     * MARKER-MKTDONE — ONE report object for the page. conversions() used to build
+     * ONE report object for the page. conversions() used to build
      * its own rolling window from now(), so the Conversions tab answered a
      * different question than the tab beside it whenever a custom range was set.
      */
@@ -69,7 +68,7 @@ class MarketingTraffic extends Page
             return null;
         }
 
-        // MARKER-TRAFFIC-V2 — a custom range wins over the preset. The service
+        // a custom range wins over the preset. The service
         // has always accepted from/to; only the page never offered it.
         return $this->from && $this->to
             ? (new TrafficReportService($platform, $this->window, $this->from, $this->to))->excludeBots()
@@ -98,10 +97,10 @@ class MarketingTraffic extends Page
             'daily'      => $report->dailyVisitors(),
             'stages'     => $funnel->stages(),
             'intent'     => $funnel->intent(),
-            'metric'     => $this->metric,          // MARKER-TRAFFIC-V2
-            'sources'    => $report->topSources(6), // MARKER-TRAFFIC-V3
+            'metric'     => $this->metric,
+            'sources'    => $report->topSources(6),
             'pages'      => $report->topPages(6),
-            // MARKER-MKTDONE — the Pages & sources tab had two lists' worth of
+            // the Pages & sources tab had two lists' worth of
             // room and one list's worth of content.
             'allSources' => $report->topSources(20),
             'allPages'   => $report->topPages(20),
@@ -111,20 +110,20 @@ class MarketingTraffic extends Page
             'compare'    => $this->compare,
             'series'     => $this->series($report),
             'identityCutover' => $this->identityCutover($report),
-            'sessions'   => (new MarketingSessionsService( // MARKER-MKTSESSIONS
+            'sessions'   => (new MarketingSessionsService(
                 CarbonImmutable::instance($report->curStart()),
                 CarbonImmutable::instance($report->curEnd())
-            ))->recent(200), // MARKER-MKTSESSTYLE — the scroll box bounds height now
+            ))->recent(200), // the scroll box bounds height now
         ];
     }
 
     /**
-     * MARKER-TRAFFIC-V2 — the chart's points for whichever metric is selected,
+     * the chart's points for whichever metric is selected,
      * plus the same window a period earlier so the comparison is drawable.
      */
     private function series($report): array
     {
-        // MARKER-TRAFFIC-V3 — draw the metric that is actually selected.
+        // draw the metric that is actually selected.
         if ($this->metric !== 'visitors') {
             $cur  = $report->dailyMetricSeries($this->metric,
                         \Carbon\CarbonImmutable::instance($report->curStart()),
@@ -136,7 +135,7 @@ class MarketingTraffic extends Page
             return [
                 'current'  => $cur,
                 'previous' => $prev,
-                // MARKER-MKTREPAIR — a 1-day window is bucketed hourly for every
+                // a 1-day window is bucketed hourly for every
                 // metric now, not only for visitors.
                 'hourly'   => $report->isHourly(),
                 'peak'     => max(1, (int) max([0, ...$cur, ...$prev])),
@@ -160,13 +159,13 @@ class MarketingTraffic extends Page
             'hourly'  => (bool) ($daily['hourly'] ?? false),
             'peak'    => max(1, (int) max([0, ...$cur, ...$prev])),
             'points'  => count($cur),
-            'labels'  => $report->dayLabels(),   // MARKER-TRAFFIC-V3
+            'labels'  => $report->dayLabels(),
         ];
     }
 
     /**
-     * MARKER-TRAFFIC-V2 — visitor counting changed meaning on the day
-     * MARKER-TRAFFIC-IDENTITY deployed: before it, one person returning counted
+     * visitor counting changed meaning on the day
+     * deployed: before it, one person returning counted
      * twice. A window spanning that date mixes two definitions, and a chart that
      * does not say so invites a conclusion about a trend that is partly an
      * artefact of the fix.
@@ -189,7 +188,7 @@ class MarketingTraffic extends Page
     }
 
     /**
-     * MARKER-MKTDONE — is the tracker alive? Browser-sent events stopped for weeks
+     * is the tracker alive? Browser-sent events stopped for weeks
      * when an include moved to a layout nothing renders, and NOTHING on this page
      * looked different: the tiles read zero, which is also what a quiet week looks
      * like. This reports the last browser-sent event regardless of window, so a
@@ -213,7 +212,7 @@ class MarketingTraffic extends Page
     }
 
     /**
-     * MARKER-MKTCONV — what the window actually converted. Sessions, not raw
+     * what the window actually converted. Sessions, not raw
      * events, so a page reloaded five times counts once.
      */
     public function conversions(): array
@@ -223,7 +222,7 @@ class MarketingTraffic extends Page
 
         $tenant = \App\Models\Tenant::where('is_platform', true)->first();
 
-        // MARKER-MKTDONE — the page's window, including a custom from/to range.
+        // the page's window, including a custom from/to range.
         // This used to be its own rolling now()-minus-N and ignored from/to.
         $rows = \Illuminate\Support\Facades\DB::table('tenant_funnel_events')
             ->where('tenant_id', $tenant->id)

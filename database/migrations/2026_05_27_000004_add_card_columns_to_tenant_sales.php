@@ -5,7 +5,7 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * MARKER-PATCH-170 — Direct Payments Session 2A.
+ * Direct Payments Session 2A.
  *
  * Columns to record card-charge metadata when a sale is paid via the
  * Direct Payments flow (tenant\'s own Stripe account, not Connect).

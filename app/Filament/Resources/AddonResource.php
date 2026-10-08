@@ -15,7 +15,7 @@ use Filament\Tables\Table;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
-// MARKER-ADDON-CATALOG — the add-on catalog: what exists, what it costs,
+// the add-on catalog: what exists, what it costs,
 // who gets it free, and whether it is still offered.
 class AddonResource extends Resource
 {
@@ -85,7 +85,7 @@ class AddonResource extends Resource
                         ->required()
                         ->helperText('Closed keeps existing shops working and billed; retired turns it off for them too.'),
 
-                    // MARKER-ADDON-VISIBILITY — what shops see, on the add-on.
+                    // what shops see, on the add-on.
                     Forms\Components\Select::make('visibility')
                         ->label('Shops see it as')
                         ->options(Addon::VISIBILITIES)

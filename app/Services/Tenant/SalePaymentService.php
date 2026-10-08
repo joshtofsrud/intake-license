@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
 /**
- * MARKER-PATCH-175 — Owns all money writes against a sale.
+ * Owns all money writes against a sale.
  *
  * Mirrors AppointmentPaymentService. The sale's payment ledger
  * (tenant_sale_payments) is the source of truth; tenant_sales.payment_status
@@ -107,7 +107,7 @@ class SalePaymentService
     }
 
     /**
-     * MARKER-PATCH-177 — Record a standalone refund (no sale attached).
+     * Record a standalone refund (no sale attached).
      *
      * Always carries a customer; sale_id stays null. Stored as a negative
      * 'refund' row so it nets into money-out reporting like any other refund.
@@ -153,7 +153,7 @@ class SalePaymentService
         $paid  = $this->paidCents($sale);
         $total = (int) $sale->total_cents;
 
-        // MARKER-PATCH-219B — sales-as-money cascade for rentals. Runs on
+        // sales-as-money cascade for rentals. Runs on
         // every payment write AND the delete-payment correction tool, before
         // the draft early-return, so a linked rental's paid cache can never
         // go stale. (Appointments do this at call sites for legacy reasons;
@@ -167,7 +167,7 @@ class SalePaymentService
                 ->update(['paid_cents' => max(0, $rentalPaid), 'updated_at' => now()]);
         }
 
-        // MARKER-PATCH-230 — same cascade for leases.
+        // same cascade for leases.
         if (!empty($sale->lease_id)) {
             $leasePaid = (int) TenantSalePayment::query()
                 ->whereIn('sale_id', TenantSale::where('lease_id', $sale->lease_id)->select('id'))
@@ -177,7 +177,7 @@ class SalePaymentService
                 ->update(['paid_cents' => max(0, $leasePaid), 'updated_at' => now()]);
         }
 
-        // MARKER-PATCH-219C — appointment cascade, centralized. Replaces
+        // appointment cascade, centralized. Replaces
         // the recomputes that lived at 6 call sites with 3 logic variants;
         // this is the complete superset (full up/down payment_status,
         // including the 'unpaid' downgrade from the patch-198 tool). The
@@ -199,7 +199,7 @@ class SalePaymentService
             }
         }
 
-        // MARKER-LAYAWAY — a layaway stays 'layaway' until handover, however
+        // a layaway stays 'layaway' until handover, however
         // much has been paid. Without this, the first payment would flip it to
         // 'partial' and paying it off would flip it to 'paid' — a completed
         // sale with the goods still on the shelf. The plan owns paid/balance.

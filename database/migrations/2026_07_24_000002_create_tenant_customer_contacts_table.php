@@ -1,6 +1,6 @@
 <?php
 
-// MARKER-BIZ-CUSTOMER — the fleet manager who books, the rider who drops off,
+// the fleet manager who books, the rider who drops off,
 // and accounts payable are three different people. One email field on the
 // customer cannot hold them.
 

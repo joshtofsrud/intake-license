@@ -1,5 +1,4 @@
 <?php
-// MARKER-PATCH-151A
 
 namespace App\Services\Tenant;
 
@@ -43,7 +42,7 @@ class TrafficReportService
     /** @var CarbonImmutable */
     protected $prevEnd;
 
-    // MARKER-PATCH-475 — true when an explicit from/to range is in effect.
+    // true when an explicit from/to range is in effect.
     protected bool $isCustom = false;
 
     public function __construct(Tenant $tenant, string $window = '30d', $from = null, $to = null)
@@ -53,7 +52,7 @@ class TrafficReportService
         $tz        = $tenant->timezone ?? config('app.timezone', 'UTC');
         $this->now = CarbonImmutable::now($tz)->utc();
 
-        // MARKER-PATCH-475 — an explicit from/to range (from the shared calendar
+        // an explicit from/to range (from the shared calendar
         // picker) overrides the preset window. Days are tenant-local and inclusive
         // of both ends; the prior period is the same-length span immediately before,
         // so every "vs prior" delta on the report stays meaningful.
@@ -75,13 +74,13 @@ class TrafficReportService
         }
 
         $this->days   = match ($window) {
-            '1d'  => 1, // MARKER-TRAFFIC-TODAY
+            '1d'  => 1,
             '7d'  => 7,
             '90d' => 90,
             default => 30,
         };
 
-        // MARKER-PATCH-400 — day-aligned to the tenant's local calendar, so "1d"
+        // day-aligned to the tenant's local calendar, so "1d"
         // means "since local midnight today" rather than a rolling 24h window.
         // Current = [local midnight (today - (days-1)), now); prior = same length before.
         $localStartToday = CarbonImmutable::now($tz)->startOfDay();
@@ -96,13 +95,12 @@ class TrafficReportService
         return $this->days . 'd';
     }
 
-    // MARKER-PATCH-475
     public function isCustom(): bool
     {
         return $this->isCustom;
     }
 
-    // MARKER-PATCH-475 — human label for the "Showing …" line.
+    // human label for the "Showing …" line.
     public function rangeLabel(): string
     {
         $tz = $this->tenant->timezone ?? config('app.timezone', 'UTC');
@@ -131,10 +129,10 @@ class TrafficReportService
      * % change. Each tile returns: [label, value, prev, delta_pct].
      */
     /**
-     * MARKER-MKTCONV — opt-in, and off by default so tenant reports are
+     * opt-in, and off by default so tenant reports are
      * untouched. Tenant events never contained bots (FunnelTrackController
      * drops them server-side), but the marketing endpoint did until
-     * MARKER-MKTBOTFIX, so the platform tenant still carries historical
+     * , so the platform tenant still carries historical
      * crawler rows that inflate its visitor counts.
      */
     protected bool $excludeBots = false;
@@ -167,7 +165,7 @@ class TrafficReportService
         $prevPV = $this->eventCount('page_view', $this->prevStart, $this->prevEnd);
 
         // Bookings started = DISTINCT SESSIONS that fired booking_started.
-        // MARKER-PATCH-632B — the choice-page beacon (patch-632) fires per
+        // the choice-page beacon (patch-632) fires per
         // click, so raw event counts inflate when a shopper backs up and
         // picks the other path. Matches the funnel section's semantics.
         $curStart  = $this->sessionEventCount('booking_started', $this->curStart, $this->curEnd);
@@ -178,7 +176,7 @@ class TrafficReportService
         $prevDone = $this->eventCount('booking_completed', $this->prevStart, $this->prevEnd);
 
         return [
-            'sessions'   => $this->bookingSessions(), // MARKER-SESSIONS-EXPLORER
+            'sessions'   => $this->bookingSessions(),
             'visitors'   => $this->tile('Visitors',           $curVisitors,  $prevVisitors),
             'page_views' => $this->tile('Page views',         $curPV,        $prevPV),
             'started'    => $this->tile('Bookings started',   $curStart,     $prevStartCount),
@@ -192,7 +190,7 @@ class TrafficReportService
      * Each list has exactly $this->days entries (one per day).
      */
     /**
-     * MARKER-PATCH-621 — top searches in the current window: query, count,
+     * top searches in the current window: query, count,
      * and average result count (a low avg on a popular query = weak catalog fit).
      */
     public function topSearches(int $limit = 8): array
@@ -210,7 +208,7 @@ class TrafficReportService
             ->all();
     }
 
-    /** MARKER-PATCH-621 — zero-result searches: what customers wanted and missed. */
+    /** zero-result searches: what customers wanted and missed. */
     public function zeroResultSearches(int $limit = 8): array
     {
         return \App\Models\Tenant\TenantSearchQuery::query()
@@ -229,7 +227,7 @@ class TrafficReportService
 
     public function dailyVisitors(): array
     {
-        // MARKER-PATCH-619 — a 1-day window renders as a single point on a daily
+        // a 1-day window renders as a single point on a daily
         // chart (one dot, empty plot). Bucket single-day windows by HOUR instead:
         // 24 tenant-local hours, today vs the same hours yesterday.
         if ($this->days === 1) {
@@ -248,7 +246,7 @@ class TrafficReportService
     }
 
     /**
-     * MARKER-PATCH-619 — per-hour distinct sessions over a single day.
+     * per-hour distinct sessions over a single day.
      * Hour index is computed as offset from the window start (which is
      * tenant-local midnight stored as UTC), so buckets align to the tenant's
      * clock without CONVERT_TZ.
@@ -256,7 +254,7 @@ class TrafficReportService
     protected function hourlySessionSeries(CarbonImmutable $start, CarbonImmutable $end): array
     {
         $rows = TenantFunnelEvent::query()
-            ->tap(fn ($q) => $this->applyBotFilter($q)) // MARKER-MKTCONV
+            ->tap(fn ($q) => $this->applyBotFilter($q))
             ->where('tenant_id', $this->tenant->id)
             ->where('created_at', '>=', $start)
             ->where('created_at', '<',  $end)
@@ -279,7 +277,7 @@ class TrafficReportService
     protected function distinctSessions(CarbonImmutable $start, CarbonImmutable $end): int
     {
         return (int) TenantFunnelEvent::query()
-            ->tap(fn ($q) => $this->applyBotFilter($q)) // MARKER-MKTCONV
+            ->tap(fn ($q) => $this->applyBotFilter($q))
             ->where('tenant_id', $this->tenant->id)
             ->where('created_at', '>=', $start)
             ->where('created_at', '<',  $end)
@@ -287,11 +285,11 @@ class TrafficReportService
             ->count('session_id');
     }
 
-    // MARKER-PATCH-632B — distinct-session count for intent metrics.
+    // distinct-session count for intent metrics.
     protected function sessionEventCount(string $eventType, CarbonImmutable $start, CarbonImmutable $end): int
     {
         return (int) TenantFunnelEvent::query()
-            ->tap(fn ($q) => $this->applyBotFilter($q)) // MARKER-MKTREPAIR
+            ->tap(fn ($q) => $this->applyBotFilter($q))
             ->where('tenant_id', $this->tenant->id)
             ->where('event_type', $eventType)
             ->where('created_at', '>=', $start)
@@ -303,7 +301,7 @@ class TrafficReportService
     protected function eventCount(string $eventType, CarbonImmutable $start, CarbonImmutable $end): int
     {
         return (int) TenantFunnelEvent::query()
-            ->tap(fn ($q) => $this->applyBotFilter($q)) // MARKER-MKTCONV
+            ->tap(fn ($q) => $this->applyBotFilter($q))
             ->where('tenant_id', $this->tenant->id)
             ->where('event_type', $eventType)
             ->where('created_at', '>=', $start)
@@ -319,7 +317,7 @@ class TrafficReportService
      * still show up as 0 rather than missing entries.
      */
     /**
-     * MARKER-TRAFFIC-V3 — the same daily buckets, for a chosen metric.
+     * the same daily buckets, for a chosen metric.
      *
      * visitors    distinct sessions        (what the old series always drew)
      * page_views  page_view events
@@ -354,7 +352,7 @@ class TrafficReportService
                 break;
         }
 
-        // MARKER-MKTREPAIR — same tenant-local bucketing as dailySessionSeries,
+        // same tenant-local bucketing as dailySessionSeries,
         // and an HOURLY mode for a 1-day window. Without it, Today + any metric
         // other than Visitors returned a single bucket and the view fell through
         // to "Not enough buckets in this window to draw a line".
@@ -371,10 +369,10 @@ class TrafficReportService
         return $series;
     }
 
-    /** MARKER-TRAFFIC-V3 — labels for the chart's x axis. */
+    /** labels for the chart's x axis. */
     public function dayLabels(): array
     {
-        // MARKER-MKTREPAIR — labels were formatted in UTC, so the axis could name
+        // labels were formatted in UTC, so the axis could name
         // a different day than the bucket it sits under. A 1-day window is
         // bucketed by hour, so it gets hour labels rather than one repeated date.
         $tz  = $this->tenant->timezone ?? config('app.timezone', 'UTC');
@@ -393,7 +391,7 @@ class TrafficReportService
         return $out;
     }
 
-    /** MARKER-MKTREPAIR — a 1-day window is bucketed by hour, not by day. */
+    /** a 1-day window is bucketed by hour, not by day. */
     public function isHourly(): bool
     {
         return $this->days === 1;
@@ -401,7 +399,7 @@ class TrafficReportService
 
     protected function dailySessionSeries(CarbonImmutable $start, CarbonImmutable $end): array
     {
-        // MARKER-MKTREPAIR — bucket by DAY OFFSET FROM THE WINDOW START, which is
+        // bucket by DAY OFFSET FROM THE WINDOW START, which is
         // tenant-local midnight held as UTC, exactly as hourlySessionSeries()
         // already does. DATE(created_at) grouped in UTC: for an America/Los_Angeles
         // tenant every event after 5pm local landed on the NEXT day's bar, and the
@@ -409,7 +407,7 @@ class TrafficReportService
         // counting in the tiles above it. A DST change inside a long window shifts
         // a boundary by an hour, which is a far smaller error than a whole day.
         $rows = TenantFunnelEvent::query()
-            ->tap(fn ($q) => $this->applyBotFilter($q)) // MARKER-MKTCONV
+            ->tap(fn ($q) => $this->applyBotFilter($q))
             ->where('tenant_id', $this->tenant->id)
             ->where('created_at', '>=', $start)
             ->where('created_at', '<',  $end)
@@ -444,7 +442,7 @@ class TrafficReportService
     }
 
     // ------------------------------------------------------------------
-    // MARKER-PATCH-151B — funnel + sources + devices + pages + new/returning
+    // funnel + sources + devices + pages + new/returning
     // ------------------------------------------------------------------
 
     /**
@@ -460,7 +458,7 @@ class TrafficReportService
      */
     public function funnel(): array
     {
-        // MARKER-PATCH-357 — cumulative cohort counts: distinct sessions that
+        // cumulative cohort counts: distinct sessions that
         // reached a stage OR BEYOND. Guarantees a monotonic funnel
         // (viewed >= started >= completed) even when a session fires a later
         // event without the earlier one (tracking gap). Previously this
@@ -499,7 +497,7 @@ class TrafficReportService
     }
 
     /**
-     * MARKER-PATCH-453 — granular booking funnel + per-step drop diagnosis.
+     * granular booking funnel + per-step drop diagnosis.
      *
      * One pass over the window's booking events builds, per session, the
      * furthest stage it reached plus its device / source / new-or-returning.
@@ -533,7 +531,7 @@ class TrafficReportService
                 $sessions[$sid] = [
                     'stage'  => 0,
                     'device' => $r->device ?: 'unknown',
-                    // MARKER-TRAFFIC-POLISH — our own host is not a referral.
+                    // our own host is not a referral.
                     // Someone moving from /pricing to /features arrives with a
                     // referrer of intake.works, and counting that as a source
                     // inflates a channel that does not exist.
@@ -560,7 +558,7 @@ class TrafficReportService
         }
 
         // Stage labels.
-        // MARKER-PATCH-619 — stage 0 includes booking_page_viewed sessions, so
+        // stage 0 includes booking_page_viewed sessions, so
         // name it what it is. 'Opened booking' read like the 'Bookings started'
         // tile (booking_started events) and the two showed different numbers.
         $labels = ['Viewed booking page'];
@@ -709,7 +707,7 @@ class TrafficReportService
         $sourceExpr = "COALESCE(NULLIF(utm_source, ''), NULLIF(referrer_domain, ''), '(direct)')";
 
         $visits = TenantFunnelEvent::query()
-            ->tap(fn ($q) => $this->applyBotFilter($q)) // MARKER-MKTREPAIR
+            ->tap(fn ($q) => $this->applyBotFilter($q))
             ->where('tenant_id', $this->tenant->id)
             ->where('created_at', '>=', $this->curStart)
             ->where('created_at', '<',  $this->curEnd)
@@ -724,7 +722,7 @@ class TrafficReportService
 
         // Conversions by source (booking_completed sessions)
         $conv = TenantFunnelEvent::query()
-            ->tap(fn ($q) => $this->applyBotFilter($q)) // MARKER-MKTREPAIR
+            ->tap(fn ($q) => $this->applyBotFilter($q))
             ->where('tenant_id', $this->tenant->id)
             ->where('event_type', 'booking_completed')
             ->where('created_at', '>=', $this->curStart)
@@ -788,7 +786,7 @@ class TrafficReportService
     public function topPages(int $limit = 8): array
     {
         return TenantFunnelEvent::query()
-            ->tap(fn ($q) => $this->applyBotFilter($q)) // MARKER-MKTREPAIR
+            ->tap(fn ($q) => $this->applyBotFilter($q))
             ->where('tenant_id', $this->tenant->id)
             ->where('event_type', 'page_view')
             ->where('created_at', '>=', $this->curStart)
@@ -871,7 +869,7 @@ class TrafficReportService
     }
 
     /**
-     * MARKER-SESSIONS-EXPLORER — per-session booking activity for the
+     * per-session booking activity for the
      * explorer panel under the funnel. Groups this window's booking events
      * by session; times are returned pre-formatted in the tenant timezone.
      */
@@ -906,7 +904,7 @@ class TrafficReportService
             $sess['last_at'] = $e->created_at;
             if ($e->device && ! $sess['device'])     $sess['device']   = $e->device;
             if ($e->referrer_domain && ! $sess['referrer']) $sess['referrer'] = $e->referrer_domain;
-            // MARKER-FUNNEL-SESSION-FIX — started now fires for every entry;
+            // started now fires for every entry;
             // "via choice page" means the session clicked a fork card.
             if ($e->event_type === 'booking_step' && str_starts_with((string) $e->step, '00 Chose')) $sess['via_choice'] = true;
             if ($e->event_type === 'booking_completed') $sess['booked'] = true;

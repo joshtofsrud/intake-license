@@ -6,7 +6,6 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-// MARKER-GIFTCARDS
 class TenantGiftCard extends Model
 {
     use HasUuids;
@@ -20,7 +19,7 @@ class TenantGiftCard extends Model
         'recipient_name', 'recipient_email', 'gift_message',
         'deliver_on', 'delivered_at',
         'issued_sale_id', 'issued_by_user_id', 'stripe_payment_intent_id',
-        'location_id', // MARKER-GC-LOCATION
+        'location_id',
         'deactivated_at', 'deactivated_reason',
     ];
 
@@ -30,7 +29,7 @@ class TenantGiftCard extends Model
         'deactivated_at' => 'datetime',
     ];
 
-    // MARKER-GC-LOCATION -- issuing location; null for online buys until the
+    // issuing location; null for online buys until the
     // checkout-level pickup choice exists.
     public function location()
     {

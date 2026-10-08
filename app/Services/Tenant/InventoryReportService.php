@@ -7,7 +7,7 @@ use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 
 /**
- * MARKER-INV-REPORTS — what you're holding, what's moving, what's stuck.
+ * what you're holding, what's moving, what's stuck.
  *
  * Read-only. Also the local half of Sell Through: unitsByWeek() produces
  * the (item x week) sparse grain distro wants for the cross-shop rollup,
@@ -16,7 +16,7 @@ use Illuminate\Support\Facades\DB;
  * NOTHING here ships data anywhere. The push to distro is consent-gated
  * per tenant->rep relationship and is a separate piece of work.
  */
-// MARKER-COST-PRECEDENCE — these valuations used COALESCE(shop, catalog) while
+// these valuations used COALESCE(shop, catalog) while
 // TenantInventoryItem::effectiveCostCents() used received ?? catalog. Two
 // different orders over the same three columns, so stock valuation and the
 // register could disagree about the cost of the same item. Both now read
@@ -104,7 +104,7 @@ class InventoryReportService
     /** What the shelf is worth right now. */
     public function valuation(): array
     {
-        // MARKER-INV-REPORTS-NEG — oversell is allowed, so an item sold but
+        // oversell is allowed, so an item sold but
         // never received carries a NEGATIVE computed_stock_count. Multiplying
         // that by unit cost produced negative money on screen, which means
         // nothing. Value math floors on-hand at zero; the negatives are
@@ -232,7 +232,7 @@ class InventoryReportService
             $key = $it->category ?: 'Uncategorized';
             $rows[$key] ??= ['category' => $key, 'skus' => 0, 'units' => 0, 'cost_cents' => 0, 'sold_units' => 0.0];
             $rows[$key]['skus']++;
-            // MARKER-INV-REPORTS-NEG — floor here too, or a category with
+            // floor here too, or a category with
             // oversold items reports negative units and negative cost.
             $onHand = max(0, (int) $it->computed_stock_count);
             $rows[$key]['units']      += $onHand;

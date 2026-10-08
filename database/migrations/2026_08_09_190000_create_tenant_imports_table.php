@@ -4,7 +4,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-// MARKER-IMPORT1 — one row per import attempt. Keeps the file, the mapping and
+// one row per import attempt. Keeps the file, the mapping and
 // the outcome so a bad run can be diagnosed instead of guessed at.
 return new class extends Migration
 {

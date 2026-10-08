@@ -1,5 +1,4 @@
 <?php
-// MARKER-REG-GROUPED · MARKER-SEARCH-ONE-PASS
 
 namespace App\Services\Tenant;
 
@@ -40,14 +39,14 @@ class RegisterProductSearch
         $supplier = trim((string) ($opt['supplier'] ?? ''));
         $limit    = max(25, min(200, (int) ($opt['groups'] ?? 25)));
         $scope    = in_array($opt['scope'] ?? '', ['here', 'remote', 'all'], true) ? $opt['scope'] : 'here';
-        // MARKER-REG-SORT — best match unless asked otherwise.
+        // best match unless asked otherwise.
         $sort     = in_array($opt['sort'] ?? '', ['price_asc', 'price_desc', 'name'], true) ? $opt['sort'] : '';
         $codeLike = (bool) preg_match('/^\S*\d\S*$/u', trim($q)) && mb_strlen(trim($q)) >= 4;
         if ($codeLike) {
             $scope = 'all';
         }
 
-        // MARKER-SEARCH-ONE-PASS — ONE read of the matching rows, with a sort
+        // ONE read of the matching rows, with a sort
         // key that is a plain column (so the database sorts thousands of
         // matches in milliseconds). Everything else — ranking, brand and
         // supplier lists and filters, grouping, scope — happens here in PHP
@@ -56,7 +55,7 @@ class RegisterProductSearch
             ->select(["{$t}.id", "{$t}.name", "{$t}.display_subtitle", "{$t}.sku", "{$t}.size", "{$t}.color",
                       "{$t}.computed_stock_count", "{$t}.recent_sales", "{$t}.shop_brand", "{$t}.distributor_catalog_id",
                       "{$t}.catalog_upc", "{$t}.catalog_ean", "{$t}.catalog_mpn", "{$t}.search_text",
-                      "{$t}.shop_sell_price_cents", "{$t}.catalog_msrp_cents"]) // MARKER-REG-SORT
+                      "{$t}.shop_sell_price_cents", "{$t}.catalog_msrp_cents"])
             ->orderByDesc("{$t}.recent_sales")
             ->orderBy("{$t}.name")
             ->limit(self::SCAN_CAP + 1)
@@ -66,7 +65,7 @@ class RegisterProductSearch
         $ids = $all->pluck('id')->all();
 
         // Catalog brand (for rows without a shop brand) and the catalog's full
-        // title (MARKER-CHIP-SPECS — where specs like "134mm 400 lb" live when
+        // title (where specs like "134mm 400 lb" live when
         // the shop's own name leaves them out): one lookup by key.
         $catIds = $all->pluck('distributor_catalog_id')->filter()->unique()->values()->all();
         $cats = $catIds
@@ -83,7 +82,7 @@ class RegisterProductSearch
         // Suppliers (and their part numbers) per matched item: one lookup.
         $supOf  = [];
         $vskuOf = [];
-        $supStock = []; // MARKER-REG-SUPPLIER-STOCK
+        $supStock = [];
         foreach (array_chunk($ids, 1000) as $chunk) {
             DB::table('tenant_inventory_item_vendors as iv_x')
                 ->join('tenant_vendors as v_x', 'v_x.id', '=', 'iv_x.vendor_id')
@@ -91,7 +90,7 @@ class RegisterProductSearch
                 ->get(['iv_x.inventory_item_id', 'iv_x.vendor_sku', 'v_x.name', 'iv_x.live_avail'])
                 ->each(function ($r) use (&$supOf, &$vskuOf, &$supStock) {
                     if (trim((string) $r->name) !== '') { $supOf[$r->inventory_item_id][(string) $r->name] = true; }
-                    // MARKER-REG-SUPPLIER-STOCK — the supplier with the most on hand.
+                    // the supplier with the most on hand.
                     $n = (int) ($r->live_avail ?? 0);
                     if ($n > 0 && trim((string) $r->name) !== '' && $n > ($supStock[$r->inventory_item_id]['n'] ?? 0)) {
                         $supStock[$r->inventory_item_id] = ['name' => (string) $r->name, 'n' => $n];
@@ -146,7 +145,7 @@ class RegisterProductSearch
         // ---- stock: available here and elsewhere, per item.
         $locNames = DB::table('tenant_locations')
             ->where('tenant_id', $tenantId)->where('is_active', true)
-            ->whereNull('deleted_at') // MARKER-REG-LIVE-LOCATIONS — a deleted location is not a location
+            ->whereNull('deleted_at') // a deleted location is not a location
             ->pluck('name', 'id')->all();
         $multi = count($locNames) > 1;
 
@@ -181,7 +180,7 @@ class RegisterProductSearch
         $groups = [];
         foreach ($rows as $r) {
             $key = self::groupKey((string) $r->name, $r->size, $r->color);
-            // MARKER-REG-SUPPLIER-STOCK — a family one generic word longer than
+            // a family one generic word longer than
             // another ("… DHF Tire" vs "… DHF") joins it, when both are families.
             $isFam = self::family(self::strip((string) $r->name, $r->size, $r->color)) !== null;
             if (! isset($groups[$key])) {
@@ -192,7 +191,7 @@ class RegisterProductSearch
             if (($away[$r->id] ?? 0) > 0) { $groups[$key]['remote'] = true; }
         }
 
-        // MARKER-REG-SUPPLIER-STOCK — fold a family into the one a word shorter,
+        // fold a family into the one a word shorter,
         // whichever came first, keeping the earlier one's place in the list.
         foreach (array_keys($groups) as $k) {
             if (! isset($groups[$k]) || ! $groups[$k]['fam']) { continue; }
@@ -215,7 +214,7 @@ class RegisterProductSearch
 
         $inScope = array_values(array_filter($groups, fn ($g) => $scope === 'all' || $g[$scope]));
 
-        // MARKER-REG-SORT — by a group's lowest price, or by its title; best
+        // by a group's lowest price, or by its title; best
         // match is the order the groups already have.
         if ($sort !== '') {
             $price = fn ($g) => min(array_map(fn ($r) => (int) ($r->shop_sell_price_cents ?? $r->catalog_msrp_cents ?? PHP_INT_MAX), $g['items']));
@@ -240,11 +239,11 @@ class RegisterProductSearch
 
         return [
             'item_ids'     => $ids,
-            // MARKER-REG-SUPPLIER-STOCK — supplier availability for the items shown
+            // supplier availability for the items shown
             'supplier_stock' => (object) array_intersect_key($supStock, array_flip($ids)),
             'groups'       => $out,
             'scope'        => $scope,
-            'sort'         => $sort, // MARKER-REG-SORT
+            'sort'         => $sort,
             'scope_forced' => $codeLike,
             'scope_counts' => $counts,
             'multi_location' => $multi,
@@ -262,7 +261,7 @@ class RegisterProductSearch
     /** The name with its size and colour taken out, normalised. */
     public static function groupKey(string $name, ?string $size, ?string $color): string
     {
-        // MARKER-PRODUCT-FAMILY — "Maxxis Minion DHF 27.5''x2.50 EXO…" and
+        // "Maxxis Minion DHF 27.5''x2.50 EXO…" and
         // "Maxxis Minion DHF 29''x2.30 Dual…" are one product in different
         // sizes: group on the words before the first size or spec.
         $stripped = self::strip($name, $size, $color);
@@ -273,7 +272,7 @@ class RegisterProductSearch
     }
 
     /**
-     * MARKER-PRODUCT-FAMILY — the words before the first size or spec token
+     * the words before the first size or spec token
      * (27.5''x2.50, 700x28, 165mm, 2.0/1.8/2.0mm, 400), or null when there is
      * none or fewer than two words come before it. Model codes like M8100
      * or 60TPI are not specs, so "Shimano Deore XT M8100 …" stays apart.
@@ -299,7 +298,7 @@ class RegisterProductSearch
         return null;
     }
 
-    /** MARKER-REG-SUPPLIER-STOCK — "24 × 2.4" and "29 x 2.5" read as one size token. */
+    /** "24 × 2.4" and "29 x 2.5" read as one size token. */
     private static function joinSizes(string $s): string
     {
         return (string) preg_replace('/(\d)\s*([x×])\s*(\d)/u', '$1$2$3', $s);
@@ -339,7 +338,7 @@ class RegisterProductSearch
             $title = (string) $first->name;
         }
 
-        // MARKER-PRODUCT-FAMILY — a group of differently named variants takes
+        // a group of differently named variants takes
         // the shared product name as its title, and its buttons say what
         // differs (size, casing, compound…) rather than one stored field.
         $variantNames = array_unique(array_map(
@@ -380,7 +379,6 @@ class RegisterProductSearch
         }
 
         if ($isFamily) {
-            // MARKER-PRODUCT-FAMILY
             $nameWords = [];
             foreach ($items as $r) {
                 $f = self::family(self::strip((string) $r->name, $r->size, $r->color));
@@ -424,7 +422,7 @@ class RegisterProductSearch
             unset($row);
         }
 
-        // MARKER-REG-PICKER — each variant as attributes (size / colour /
+        // each variant as attributes (size / colour /
         // version) for the register's dropdowns. Size and colour come from the
         // item's own fields when set; otherwise the size is the first size or
         // spec in the button label and the rest of the label is the version.
@@ -439,7 +437,7 @@ class RegisterProductSearch
                 $color = trim((string) $r->color);
                 $size  = '';
                 $rest  = $label;
-                // MARKER-REG-PICKER-FIX — the size written in the label wins;
+                // the size written in the label wins;
                 // the size field only when the label has none.
                 if (true) {
                     foreach (preg_split('/\s+/u', $label) ?: [] as $w) {
@@ -512,7 +510,7 @@ class RegisterProductSearch
      */
     private static function diffLabel(object $r, array $items, int $max = 4, array $skip = []): string
     {
-        // MARKER-CHIP-SPECS — specs, not part numbers: read the name and the
+        // specs, not part numbers: read the name and the
         // catalog's full title, and leave out anything that is an identifier
         // (this item's SKU, barcode or MPN, or a code-shaped token like
         // 00.4118.200.079). The subtitle is skipped: it is usually the MPN.

@@ -1,5 +1,5 @@
 <?php
-// MARKER-PATCH-217 / MARKER-PATCH-219 / MARKER-PATCH-222 — Rental Desk.
+// Rental Desk.
 // 222 rewrote this controller to power the mockup's live view.
 
 namespace App\Http\Controllers\Tenant;
@@ -57,7 +57,7 @@ class RentalDeskController extends Controller
             ->orderBy('starts_at')
             ->value('starts_at');
 
-        // MTD revenue from the ledger (sales-as-money, MARKER-PATCH-219B),
+        // MTD revenue from the ledger (sales-as-money, ),
         // compared against the SAME elapsed span of last month.
         $monthStart     = Carbon::now($tz)->startOfMonth()->utc();
         $prevMonthStart = Carbon::now($tz)->subMonthNoOverflow()->startOfMonth()->utc();

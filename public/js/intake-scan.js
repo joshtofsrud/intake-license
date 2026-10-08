@@ -1,5 +1,5 @@
 /*
- * MARKER-CAMERA-SCAN — read a barcode with the device camera.
+ * read a barcode with the device camera.
  *
  *   IntakeScan.attach(input, onCode, { inset, placeholder })
  *     Adds a camera button to a search box when this device has a camera

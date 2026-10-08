@@ -5,7 +5,7 @@ namespace App\Models\Tenant;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 
-/** MARKER-IMPORT-MATCH — one input row's fate, per phase. */
+/** one input row's fate, per phase. */
 class TenantImportLedgerRow extends Model
 {
     use HasUuids;

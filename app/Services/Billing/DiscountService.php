@@ -7,7 +7,7 @@ use App\Models\TenantBillingDiscount;
 use Carbon\CarbonInterface;
 
 /**
- * MARKER-BILLING-DISCOUNTS — apply a shop's discounts to a period's charges.
+ * apply a shop's discounts to a period's charges.
  *
  * Order matters and is fixed: percentages first, then fixed amounts, and a
  * discount can never take a line below zero. Two 60% discounts do not make a

@@ -52,7 +52,7 @@
   </div>
   <form method="POST" action="{{ route('tenant.vendors.store') }}">
     @csrf
-    {{-- MARKER-IMPORT-VENDOR-MODAL — one form, shared with the import modal. --}}
+    {{-- one form, shared with the import modal. --}}
     @include('tenant.vendors._fields')
     <div style="display:flex;gap:8px;margin-top:4px">
       <button type="submit" class="ia-btn ia-btn--primary">Save vendor</button>
@@ -126,7 +126,7 @@
           <tr style="cursor:pointer" onclick="window.location.href='{{ route('tenant.vendors.show', ['id' => $v->id]) }}'">
             <td>
               <strong>{{ $v->name }}</strong>
-              {{-- MARKER-VENDOR-CODE-BADGE — which feed this vendor IS. Survives
+              {{-- which feed this vendor IS. Survives
                    any rename, which a name-based convention could not. --}}
               @if($v->distributor_code)
                 <span class="ia-badge" style="margin-left:6px"
@@ -174,7 +174,6 @@
          class="vendor-card">
         <div class="vendor-card-top">
           <span class="vendor-card-name">{{ $v->name }}</span>
-          {{-- MARKER-VENDOR-CODE-BADGE --}}
           @if($v->distributor_code)
             <span class="ia-badge" style="margin-left:6px">{{ strtoupper($v->distributor_code) }}</span>
           @endif

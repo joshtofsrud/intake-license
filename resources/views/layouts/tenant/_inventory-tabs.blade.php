@@ -1,8 +1,8 @@
-{{-- MARKER-PATCH-HLC22 — unified Inventory tab bar.
+{{-- unified Inventory tab bar.
      Items is always present; distributor tabs appear only when the
      bike_distributor_sync addon is enabled. Mobile: scrolls horizontally. --}}
 @php
-  // MARKER-PATCH-HLC27 — section-level inventory nav. Each tab carries an
+  // section-level inventory nav. Each tab carries an
   // explicit match prefix so exactly one highlights (Items no longer lights up
   // on categories/receiving/uncategorized, which all start with tenant.inventory).
   $cur = Route::currentRouteName() ?? '';
@@ -14,21 +14,21 @@
   if ($uncatCount > 0) {
       $invTabs[] = ['route' => 'tenant.inventory.uncategorized', 'label' => 'Uncategorized (' . $uncatCount . ')', 'match' => 'tenant.inventory.uncategorized'];
   }
-  // MARKER-DUP-MERGE — for every shop, not only ones with a distributor.
+  // for every shop, not only ones with a distributor.
   $dupCount = \App\Models\Tenant\TenantDuplicateGroup::openCount($currentTenant->id);
   if ($dupCount > 0) {
       $invTabs[] = ['route' => 'tenant.inventory.duplicates', 'label' => 'Duplicates (' . number_format($dupCount) . ')', 'match' => 'tenant.inventory.duplicates'];
   }
   $invTabs[] = ['route' => 'tenant.inventory.categories.index', 'label' => 'Categories',        'match' => 'tenant.inventory.categories'];
   $invTabs[] = ['route' => 'tenant.inventory.receiving.index',  'label' => 'Receiving',         'match' => 'tenant.inventory.receiving'];
-  $invTabs[] = ['route' => 'tenant.inventory.reports',          'label' => 'Reports',           'match' => 'tenant.inventory.reports']; // MARKER-INV-REPORTS-TABS
+  $invTabs[] = ['route' => 'tenant.inventory.reports',          'label' => 'Reports',           'match' => 'tenant.inventory.reports'];
   if ($distOn) {
       $invTabs[] = ['route' => 'tenant.distributors.import',     'label' => 'Import',            'match' => 'tenant.distributors.import'];
       $invTabs[] = ['route' => 'tenant.distributors.attention',  'label' => 'Catalog attention', 'match' => 'tenant.distributors.attention'];
       $invTabs[] = ['route' => 'tenant.distributors.connection', 'label' => 'Connection & sync', 'match' => 'tenant.distributors.connection'];
   }
 @endphp
-{{-- MARKER-SECTION-WIDTH — the bar scrolls, and the current tab is scrolled
+{{-- the bar scrolls, and the current tab is scrolled
      into view: on Catalog attention the first tab was cut off, and on Import
      and Connection the last one sat off-screen. --}}
 <div class="ia-tabs">
@@ -42,7 +42,7 @@
 </div>
 </div>
 <script>
-// MARKER-SECTION-WIDTH — keep the current tab visible, and drop the right-hand
+// keep the current tab visible, and drop the right-hand
 // fade once the bar is scrolled to its end.
 (function () {
   var wrap = document.currentScript.previousElementSibling;

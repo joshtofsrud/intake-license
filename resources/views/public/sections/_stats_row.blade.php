@@ -1,4 +1,4 @@
-{{-- MARKER-PATCH-158-G27 — stats_row public renderer (v2) --}}
+{{-- stats_row public renderer (v2) --}}
 @php
   $c = $c ?? [];
 

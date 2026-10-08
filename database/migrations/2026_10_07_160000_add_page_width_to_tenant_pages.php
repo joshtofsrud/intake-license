@@ -1,5 +1,5 @@
 <?php
-// MARKER-PAGE-WIDTH — the widest any section on a page can go. null = site default.
+// the widest any section on a page can go. null = site default.
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;

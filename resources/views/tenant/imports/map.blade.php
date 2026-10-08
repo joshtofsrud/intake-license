@@ -1,9 +1,8 @@
 @extends('layouts.tenant.app')
 @php $pageTitle = 'Map fields'; @endphp
-{{-- MARKER-IMPORT1 --}}
 
 @section('content')
-{{-- MARKER-IMPORT-MATCH — per-type nouns; this screen serves both importers. --}}
+{{-- per-type nouns; this screen serves both importers. --}}
 @php $nouns = \App\Support\ImportFieldRegistry::nouns($import->type ?? 'customers'); @endphp
 @include('tenant.imports._styles')
 
@@ -24,7 +23,7 @@
   </div>
 @endif
 
-{{-- MARKER-IMPORT-LEGEND — the match key, named from the registry, with the
+{{-- the match key, named from the registry, with the
      consequence that is actually true for THIS import type. --}}
 @php
   $matchLabel = $fields[$matchField]['label'] ?? $matchField;
@@ -42,7 +41,7 @@
   Anything you leave unmapped is ignored.
 </div>
 
-{{-- MARKER-CONSENT-IMPORT-FIX — legend: importing does NOT grant permission
+{{-- legend: importing does NOT grant permission
      to market to these people, and nothing on this screen would say so. --}}
 @if($import->type === 'customers')
 <div class="ia-flash ia-flash--info" style="margin-bottom:14px">
@@ -54,7 +53,7 @@
 </div>
 @endif
 
-{{-- MARKER-IMPORT-PRESETS — preset bar. These are SEPARATE forms rendered
+{{-- preset bar. These are SEPARATE forms rendered
      after the main one and reached with the HTML5 form attribute: a nested
      form silently reroutes the outer submit, which has bitten us before. --}}
 @if($presets->isNotEmpty() || $import->mapping)
@@ -133,14 +132,14 @@
     </div>
   </div>
 
-  {{-- MARKER-IMPORT-COMBINE — build a field from several columns and text.
+  {{-- build a field from several columns and text.
        A second kind of source, not a replacement for the direct mapping. --}}
   @php
     $combinedDefs = (array) (($import->options['combined'] ?? []));
     $sampleRow    = $preview['sample'][0] ?? [];
   @endphp
   <style>
-    /* MARKER-IMPORT-COMBINE-2 — the separator segment */
+    /* the separator segment */
     .imp-seg{display:inline-flex;background:var(--ia-surface-2);border:0.5px solid var(--ia-border);border-radius:var(--ia-r-md);padding:2px;gap:2px}
     .imp-seg-btn{padding:4px 10px;border-radius:6px;font-size:12px;color:var(--ia-text-muted);background:none;border:none;cursor:pointer;font-family:inherit;transition:all var(--ia-t)}
     .imp-seg-btn.on{background:var(--ia-accent-soft);color:var(--ia-accent)}
@@ -152,7 +151,6 @@
       <span style="margin-left:auto;font-size:11.5px;color:var(--ia-text-dim)">optional</span>
     </div>
     <div class="ia-card-body">
-      {{-- MARKER-IMPORT-COMBINE-2 --}}
       <div class="imp-hint" style="margin-bottom:12px">
         Assign the field you will target before building the combined field — we'll show you where it lands.
         A combined field replaces whatever is mapped directly to that field.
@@ -193,7 +191,7 @@
         + '</span>';
     }
 
-    // MARKER-IMPORT-COMBINE-2 — the row reads as a sentence: pieces, then how
+    // the row reads as a sentence: pieces, then how
     // they are joined, then what they become, then the first-row result.
     var SEPS = [['Space',' '],['Dash',' - '],['Slash',' / '],['Comma',', '],['None',''],['Custom',null]];
 
@@ -206,7 +204,7 @@
       var parts = (def && def.parts && def.parts.length) ? def.parts : [{type:'col', idx:0}, {type:'col', idx:1}];
       var sep   = (def && typeof def.sep === 'string') ? def.sep : ' ';
       var choice = sepChoice(sep);
-      // MARKER-IMPORT-COMBINE-3 — target first: you choose where it lands
+      // target first: you choose where it lands
       // before you build what lands there.
       var LAB = 'font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--ia-text-dim);min-width:90px';
       var html = '<div class="imp-combine-row" data-row="' + i + '" style="border:0.5px solid var(--ia-border);border-radius:var(--ia-r-md);padding:14px 16px;margin-bottom:10px">'
@@ -221,7 +219,7 @@
         + '<span style="' + LAB + '">Built from</span>'
         + '<span class="imp-parts" style="display:flex;flex-wrap:wrap;align-items:center;gap:2px 0">';
       parts.forEach(function (p, k) { html += partHtml(i, k, p); });
-      // MARKER-IMPORT-MAP-CLEAN-BTNS — outside .imp-parts, so a new piece is
+      // outside .imp-parts, so a new piece is
       // appended to the pieces and the buttons stay at the end of the row.
       // Inside, they held the position they were rendered at and pieces
       // appeared after them.
@@ -304,7 +302,7 @@
       if (e.target.classList.contains('imp-add-text')) { parts.insertAdjacentHTML('beforeend', partHtml(i, k, {type:'text', value:''})); computePreview(row); }
       if (e.target.classList.contains('imp-part-x'))   { e.target.closest('.imp-part').remove(); computePreview(row); }
       if (e.target.classList.contains('imp-combine-remove')) { row.remove(); markOverrides(); }
-      // MARKER-IMPORT-COMBINE-2 — named separator choice
+      // named separator choice
       var segBtn = e.target.closest('[data-sep-choice]');
       if (segBtn) {
         row.querySelectorAll('[data-sep-choice]').forEach(function (b) { b.classList.toggle('on', b === segBtn); });
@@ -324,7 +322,7 @@
   })();
   </script>
 
-  {{-- MARKER-IMPORT-TAG-CARD — three settings decide what this run does, so
+  {{-- three settings decide what this run does, so
        they sit together at the same size. --}}
   <div class="{{ $import->type === 'customers' ? 'imp-three' : 'imp-two' }}">
     <div class="ia-card">
@@ -352,7 +350,6 @@
       </div>
     </div>
 
-    {{-- MARKER-IMPORT-TAG-CARD / MARKER-CUSTOMER-TAGS --}}
     @if($import->type === 'customers')
     <div class="ia-card">
       <div class="ia-card-head"><span class="ia-card-title">Tag</span></div>
@@ -372,7 +369,6 @@
                  {{ ($import->options['tag_scope'] ?? 'created') === 'touched' ? 'checked' : '' }}>
           <span><b>New and updated</b><span>Adds the tag to people this file creates or changes. A row that matches someone and changes nothing is left untagged.</span></span>
         </label>
-        {{-- MARKER-IMPORT-TAG-ALL --}}
         <label class="imp-radio">
           <input type="radio" name="tag_scope" value="all"
                  {{ ($import->options['tag_scope'] ?? 'created') === 'all' ? 'checked' : '' }}>
@@ -389,7 +385,7 @@
   </div>
 
   @if($import->type === 'inventory')
-    {{-- MARKER-IMPORT2 — stock is a movement at a location, so it needs one --}}
+    {{-- stock is a movement at a location, so it needs one --}}
     <div class="ia-card" style="margin-top:16px">
       <div class="ia-card-head"><span class="ia-card-title">Stock &amp; records</span></div>
       <div class="ia-card-body">
@@ -414,11 +410,11 @@
               <span><b>Leave stock alone</b></span></label>
           </div>
         </div>
-        {{-- MARKER-SOURCE-CAT — an import no longer creates categories. Rows
+        {{-- an import no longer creates categories. Rows
              that don't match one you already have land uncategorized, keeping
              the file's category so you can map them on Inventory > Category
              mappings whenever you like. --}}
-        {{-- MARKER-IMPORT-MAP-CLEAN — the "create categories" checkbox was
+        {{-- the "create categories" checkbox was
              removed, not hidden: it governed nothing after the category review
              landed, and offering to create categories beside a feature built
              so that none are created unseen is a contradiction on the page. --}}
@@ -428,11 +424,11 @@
           have, and which to leave off. Nothing is created from this file without you seeing it first.
         </div>
 
-        {{-- MARKER-IMPORT-MPN-BRAND — one vendor for the whole file. --}}
+        {{-- one vendor for the whole file. --}}
         @if(($import->type ?? '') === 'inventory' && isset($vendors))
           <div style="margin-top:12px">
             <label for="import_vendor_id" style="display:block;font-size:13px;font-weight:600;margin-bottom:5px">Vendor for this whole import</label>
-            {{-- MARKER-IMPORT-VENDOR-ONCE — the only place a vendor is chosen or
+            {{-- the only place a vendor is chosen or
                  created for an import. Never from a column. --}}
             @php $curVendor = $import->options['import_vendor_id'] ?? ''; @endphp
             <select name="import_vendor_id" id="import_vendor_id" class="imp-sel" style="max-width:340px;width:100%"
@@ -443,7 +439,7 @@
               @endforeach
               <option value="__new">Create a new vendor…</option>
             </select>
-            {{-- MARKER-IMPORT-VENDOR-MODAL — creating opens the real vendor form. --}}
+            {{-- creating opens the real vendor form. --}}
             <div class="imp-hint" style="margin-top:6px">
               This is the <b>only</b> way a vendor is set by an import — never from a column, so a file
               can never create one vendor per row. Map the column that names the maker to <b>Brand</b>.
@@ -469,11 +465,11 @@
   </div>
 </form>
 
-{{-- MARKER-IMPORT-PRESETS — outside the mapping form on purpose. --}}
+{{-- outside the mapping form on purpose. --}}
 <form method="POST" action="{{ route('tenant.imports.preset.apply', $import->id) }}" id="imp-preset-apply">@csrf</form>
 <form method="POST" action="{{ route('tenant.imports.preset.save', $import->id) }}" id="imp-preset-save">@csrf</form>
 @include('tenant.imports._confirm')
-{{-- MARKER-IMPORT-VENDOR-MODAL — the real vendor form, in the register's modal
+{{-- the real vendor form, in the register's modal
      vocabulary. Submits to VendorController::store by XHR and drops the new
      vendor into the select. --}}
 <style>

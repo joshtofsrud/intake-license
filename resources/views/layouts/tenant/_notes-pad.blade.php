@@ -1,4 +1,4 @@
-{{-- MARKER-OLD-SCHOOL — the pad button and its panel.
+{{-- the pad button and its panel.
 
      Adding and ticking are plain form posts that return to the current page,
      so capture works with no JavaScript at all. The only script here opens
@@ -25,14 +25,14 @@
   </button>
 
   <div class="pad-panel" data-pad-panel hidden>
-    {{-- MARKER-OLD-SCHOOL-PHOTO — enctype is required or the files are
+    {{-- enctype is required or the files are
          silently dropped and the note saves without them. --}}
     <form method="POST" action="{{ route('tenant.notes.store') }}" class="pad-new"
           enctype="multipart/form-data">
       @csrf
       <input type="hidden" name="back" value="{{ request()->getRequestUri() }}">
       <textarea name="body" rows="3" placeholder="Write it down…" required></textarea>
-      {{-- MARKER-PAD-CUSTOMER — the hidden field is the single source of
+      {{-- the hidden field is the single source of
            truth for who the note is about. The chip and the search only ever
            write to it. --}}
       <input type="hidden" name="customer_id" data-pad-cid value="{{ $padCustomer->id ?? '' }}">
@@ -49,7 +49,7 @@
           <button type="button" data-pad-chip-clear aria-label="Detach">×</button>
         </span>
         <span class="pad-hint" data-pad-hint @if($padCustomer) hidden @endif>no customer</span>
-        {{-- MARKER-OLD-SCHOOL-PHOTO — capture="environment" makes a phone
+        {{-- capture="environment" makes a phone
              open the rear camera rather than the photo library. --}}
         <label class="pad-cam" title="Add a photo">
           <input type="file" name="photos[]" accept="image/*" capture="environment" multiple hidden data-pad-photos>
@@ -94,7 +94,7 @@
   </div>
 </div>
 
-{{-- MARKER-PAD-MOBILE — markup renders per instance; these do not. --}}
+{{-- markup renders per instance; these do not. --}}
 @once
 <style>
   .pad { position:relative; }
@@ -107,7 +107,7 @@
                border-radius:999px; background:#B8860B; color:#fff; font-size:10px; font-weight:700;
                display:flex; align-items:center; justify-content:center; }
 
-  /* MARKER-OLD-SCHOOL-BANNER — 9990: above page furniture, below the 9999
+  /* 9990: above page furniture, below the 9999
      that real modals use, so a dialog still covers the pad. The number alone
      is not enough; see the reparent in the script below. */
   .pad-panel { position:fixed; width:320px; z-index:9990; border-radius:12px; overflow:hidden;
@@ -122,7 +122,6 @@
   .pad-new-foot { display:flex; align-items:center; gap:8px; margin-top:8px; }
   .pad-chip { background:#DBE6D5; color:#33452C; border-radius:5px; padding:2px 8px; font-size:11px; font-weight:600; }
   .pad-hint { font-size:11px; color:#7A7159; }
-  /* MARKER-PAD-CUSTOMER */
   .pad-pick { position:relative; margin-top:8px; }
   .pad-search { width:100%; border:1px solid #D9CDB0; border-radius:8px; padding:7px 10px;
                 font-family:inherit; font-size:12.5px; background:#FBF7EC; color:#2A2419; }
@@ -140,7 +139,6 @@
   .pad-chip button { background:none; border:0; color:#33452C; cursor:pointer; font-size:13px;
                      line-height:1; padding:0 0 0 5px; opacity:.6; }
   .pad-chip button:hover { opacity:1; }
-  /* MARKER-OLD-SCHOOL-PHOTO */
   .pad-cam { margin-left:auto; display:inline-flex; align-items:center; gap:5px; cursor:pointer;
              border:1px solid #D9CDB0; border-radius:8px; padding:6px 9px; color:#5A5343;
              background:#FBF7EC; font-size:11.5px; }
@@ -163,7 +161,7 @@
               border-top:1px solid #D9CDB0; background:#EDE3CC; }
   .pad-foot:hover { background:#E5DAC0; }
 
-  /* MARKER-PAD-MOBILE-POS — below 1024px the mobile header is the one on
+  /* below 1024px the mobile header is the one on
      screen (the desktop attention row is hidden), so this only ever restyles
      the visible instance. Matched to .ia-mobile-header-bell: 38x38, 10px
      radius, 20px icon, and the same absolute anchoring from the right edge —
@@ -199,14 +197,14 @@
 </style>
 
 <script>
-/* MARKER-PAD-MOBILE — the partial renders in BOTH headers, so there are two
+/* the partial renders in BOTH headers, so there are two
    instances in the DOM and CSS decides which is visible. querySelector bound
    only the first, which left the mobile button dead while a hidden desktop
    panel held all the wiring. Bind each one. */
 ( function () {
-  /* MARKER-PAD-READY — wait for the document.
+  /* wait for the document.
 
-     MARKER-PAD-COMMENT-DIRECTIVE — the once-directive emits this block at
+     the once-directive emits this block at
      the FIRST include (the mobile header), and the desktop attention row is
      further down the page. Running immediately meant querySelectorAll found
      only the instance already parsed, leaving the desktop button with no
@@ -245,7 +243,7 @@
     panel.style.left = Math.max( 10, left ) + 'px';
   }
 
-  // MARKER-OLD-SCHOOL-BANNER — move the panel to <body> before it is ever
+  // move the panel to <body> before it is ever
   // shown. A fixed element inside an ancestor that has position + z-index is
   // trapped in that ancestor's stacking context, so it can be painted behind
   // page content that declares no z-index at all. Reparenting escapes every
@@ -287,7 +285,7 @@
     if ( !panel.hasAttribute( 'hidden' ) ) { place(); }
   } );
 
-  /* MARKER-OLD-SCHOOL-PHOTO — a hidden file input gives no feedback that
+  /* a hidden file input gives no feedback that
      anything was picked, so say how many. */
   var photos = panel.querySelector( '[data-pad-photos]' );
   var pcount = panel.querySelector( '[data-pad-photo-count]' );
@@ -303,7 +301,7 @@
     } );
   }
 
-  /* MARKER-PAD-CUSTOMER — a small picker against the same endpoint the
+  /* a small picker against the same endpoint the
      shared component uses. Kept inside this IIFE so nothing it declares can
      collide with another script on the page. */
   var cid     = panel.querySelector( '[data-pad-cid]' );
@@ -339,7 +337,7 @@
 
     chipX.addEventListener( 'click', detach );
 
-    /* MARKER-PAD-PICKER-SHAPE — the endpoint wraps its rows in a key
+    /* the endpoint wraps its rows in a key
        ("customers" today). Hunting for the first array rather than naming
        the key means a rename upstream cannot silently turn every search into
        "No match", which is exactly what happened. */

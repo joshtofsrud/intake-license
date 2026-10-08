@@ -4,7 +4,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-// MARKER-BRAND-TOTALS — additive only (expand/contract rule): delta runs need
+// additive only (expand/contract rule): delta runs need
 // somewhere truthful to put "seen but unchanged".
 return new class extends Migration
 {

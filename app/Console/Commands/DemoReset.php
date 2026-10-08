@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 
 /**
- * MARKER-DEMO-RESET — restore a demo tenant from its frozen template.
+ * restore a demo tenant from its frozen template.
  *
  * Runs hourly on the hour, and on demand. Everything visitors did is discarded;
  * the template is never modified. Dates are shifted by whole weeks so the demo
@@ -38,7 +38,7 @@ class DemoReset extends Command
         $dir   = "demo/{$slug}";
         if (! $local->exists("{$dir}/manifest.json") || ! $local->exists("{$dir}/template.jsonl")) {
             $this->error("No frozen template at storage/app/{$dir} — run demo:build-template first.");
-            $this->reportRefusal("No frozen template at storage/app/{$dir}", $slug); // MARKER-DEMO-ALERT
+            $this->reportRefusal("No frozen template at storage/app/{$dir}", $slug);
             return self::FAILURE;
         }
         $manifest = json_decode($local->get("{$dir}/manifest.json"), true);
@@ -46,11 +46,11 @@ class DemoReset extends Command
         $tables   = $manifest['tables'] ?? [];
         if (! $tenantId || ! $tables) {
             $this->error('Manifest is missing tenant_id or tables.');
-            $this->reportRefusal('Manifest is missing tenant_id or tables', $slug); // MARKER-DEMO-ALERT
+            $this->reportRefusal('Manifest is missing tenant_id or tables', $slug);
             return self::FAILURE;
         }
 
-        // MARKER-DEMO-BUILD-SWAP — the subdomain must belong to the manifest's tenant (or nobody), never to a stray
+        // the subdomain must belong to the manifest's tenant (or nobody), never to a stray
         $holder = Tenant::withTrashed()->where('subdomain', $slug)->where('id', '!=', $tenantId)->first();
         if ($holder) {
             $this->error("Refusing: tenant {$holder->id} holds subdomain '{$slug}' but the manifest expects {$tenantId}. Rebuild the template (demo:build-template --from=… --force).");
@@ -61,14 +61,14 @@ class DemoReset extends Command
         $tenant = Tenant::withTrashed()->find($tenantId);
         if ($tenant && ! $tenant->is_demo) {
             $this->error('Refusing: the manifest tenant is not flagged is_demo.');
-            $this->reportRefusal('Manifest tenant is not flagged is_demo', $slug, $tenantId); // MARKER-DEMO-ALERT
+            $this->reportRefusal('Manifest tenant is not flagged is_demo', $slug, $tenantId);
             return self::FAILURE;
         }
 
         $shiftDays = $this->shiftDays($manifest, $slug);
         $started   = microtime(true);
 
-        // MARKER-DEMO-IDLE — nothing to undo when nobody has been in since the last reset
+        // nothing to undo when nobody has been in since the last reset
         if (! $this->option('force')) {
             $lastEntry = DemoSetting::get("last_entry_at:{$slug}");
             $lastReset = DemoSetting::get("last_reset_at:{$slug}");
@@ -82,7 +82,7 @@ class DemoReset extends Command
         try {
             // wipe: child tables first is unnecessary with checks off, and the
             // manifest order is the copy order anyway
-            // MARKER-DEMO-RESET-TENANTS — the manifest lists 'tenants' too (the
+            // the manifest lists 'tenants' too (the
             // freeze records the tenant row under that name), but it has no
             // tenant_id column and is removed by id just below.
             foreach (array_reverse($tables) as $t) {
@@ -99,7 +99,7 @@ class DemoReset extends Command
                 $entry = json_decode($line, true);
                 if (! $entry) continue;
                 $table = $entry['table'];
-                // MARKER-DEMO-NO-MAIL — permission claims are a legal record of who
+                // permission claims are a legal record of who
                 // confirmed what; the demo's copy of the source shop's claims (its
                 // owner's IPs under a made-up name) is never loaded.
                 if ($table === 'tenant_consent_attestations') continue;
@@ -120,14 +120,14 @@ class DemoReset extends Command
             fclose($fh);
             if ($buffer) $this->flush($current, $buffer);
         } catch (\Throwable $e) {
-            // MARKER-DEMO-ALERT — the demo is now WIPED and not restored: loudest possible.
+            // the demo is now WIPED and not restored: loudest possible.
             \App\Support\JobFailureReporter::report(self::class, "demo:reset failed mid-restore — the '{$slug}' demo is DOWN until it succeeds", $e, ['slug' => $slug, 'rows_before_failure' => $rows ?? 0], $tenantId);
             throw $e;
         } finally {
             DB::statement('SET FOREIGN_KEY_CHECKS=1');
         }
 
-        // MARKER-DEMO-NO-MAIL — every communication switch off after each rebuild
+        // every communication switch off after each rebuild
         // (the template carries the source shop's settings). The mail guard
         // stops anything that ignores these switches anyway.
         DB::table('tenant_consent_attestations')->where('tenant_id', $tenantId)->delete();
@@ -152,7 +152,7 @@ class DemoReset extends Command
             $public->put('tenants/' . $tenantId . '/' . $rel, $local->get($file));
         }
 
-        $this->realignAppointments($tenantId); // MARKER-DEMO-TIMELINE
+        $this->realignAppointments($tenantId);
 
         // sessions from before this moment are stale; the banner middleware
         // compares against this and ejects them
@@ -162,12 +162,12 @@ class DemoReset extends Command
 
         $secs = round(microtime(true) - $started, 1);
         $this->info("demo '{$slug}' reset: {$rows} rows, dates shifted {$shiftDays} days, {$secs}s");
-        Log::info('MARKER-DEMO-RESET complete', ['slug' => $slug, 'rows' => $rows, 'shift_days' => $shiftDays, 'seconds' => $secs]);
+        Log::info('demo-reset: complete', ['slug' => $slug, 'rows' => $rows, 'shift_days' => $shiftDays, 'seconds' => $secs]);
         return self::SUCCESS;
     }
 
     /**
-     * MARKER-DEMO-TIMELINE — status follows the calendar, not the source data.
+     * status follows the calendar, not the source data.
      *
      * The shift moves dates but not meaning: an appointment that was finished
      * in the source can land three days from now and still say "completed".
@@ -220,14 +220,14 @@ class DemoReset extends Command
     /** @var array<string, true> "table.column" already reported */
     private array $driftReported = [];
 
-    /** MARKER-DEMO-ALERT — pre-flight refusals have no exception, so build one for the reporter. */
-    private function reportRefusal(string $why, string $slug, ?string $tenantId = null): void // MARKER-DEMO-ALERT-FIX — not alert(): that name is Command::alert()
+    /** pre-flight refusals have no exception, so build one for the reporter. */
+    private function reportRefusal(string $why, string $slug, ?string $tenantId = null): void // not alert(): that name is Command::alert()
     {
         \App\Support\JobFailureReporter::report(self::class, "demo:reset refused — the '{$slug}' demo will not restore: {$why}", new \RuntimeException($why), ['slug' => $slug], $tenantId);
     }
 
     /**
-     * MARKER-DEMO-DRIFT — the frozen template can carry columns a later
+     * the frozen template can carry columns a later
      * migration dropped; keep only what the live table has, and say so once.
      */
     private function flush(string $table, array $rows): void
@@ -268,7 +268,7 @@ class DemoReset extends Command
     private function shiftRow(string $table, array $row, int $days): array
     {
         if ($days === 0) return $row;
-        // MARKER-TENANTS-POLISH — the tenant's own row keeps its real dates: shifting
+        // the tenant's own row keeps its real dates: shifting
         // it put the demo's "Joined" date in the future and sorted it first.
         if ($table === 'tenants') return $row;
         if (! isset($this->dateCols[$table])) {
@@ -288,7 +288,7 @@ class DemoReset extends Command
                 // unparseable: leave it exactly as frozen
             }
         }
-        // MARKER-TENANTS-POLISH / MARKER-DEMO-NO-MAIL — bookings and schedules may
+        // bookings and schedules may
         // land ahead, but nothing can have already happened in the future: any
         // "…_at" stamp that isn't a plan for later is pulled back to now.
         $now = CarbonImmutable::now()->format('Y-m-d H:i:s');

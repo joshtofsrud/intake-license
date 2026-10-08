@@ -1,5 +1,4 @@
 <?php
-// MARKER-PATCH-142
 
 namespace App\Filament\Resources\TenantResource\Pages;
 
@@ -153,13 +152,13 @@ class CreateTenant extends CreateRecord
         $stash = session('gift_tenant_password');
         if (! $stash) return;
 
-        // MARKER-PATCH-143 — also send the welcome email with the temp password.
+        // also send the welcome email with the temp password.
         try {
             $tenant = \App\Models\Tenant::find($this->record->id);
             $owner = \App\Models\Tenant\TenantUser::where('tenant_id', $tenant->id)
                 ->where('role', 'owner')->first();
             if ($tenant && $owner) {
-                // MARKER-PLATFORM-MAIL-LOG — free record so this send is answerable.
+                // free record so this send is answerable.
                 $__mailLog = \App\Services\EmailLedger::platform($owner->email, 'tenant_welcome');
                 \Illuminate\Support\Facades\Mail::to($owner->email)->send(
                     new \App\Mail\WelcomeEmail($tenant, $owner, $stash['password'], 'gift')

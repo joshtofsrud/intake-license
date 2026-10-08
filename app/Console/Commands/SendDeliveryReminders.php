@@ -1,5 +1,4 @@
 <?php
-// MARKER-PATCH-155
 
 namespace App\Console\Commands;
 
@@ -44,13 +43,13 @@ class SendDeliveryReminders extends Command
         $totalTenants = 0;
 
         foreach ($tenants->cursor() as $tenant) {
-            // MARKER-PATCH-156 — skip tenants without deliveries enabled
+            // skip tenants without deliveries enabled
             if (!$tenant->deliveries_enabled) continue;
 
             $totalTenants++;
             $tz = $tenant->timezone ?? config('app.timezone', 'UTC');
 
-            // MARKER-PATCH-408 — scheduled_at is a UTC instant, so the window
+            // scheduled_at is a UTC instant, so the window
             // bounds must be UTC. A Carbon carrying the tenant TZ serializes to a
             // LOCAL wall-clock string in the query binding (Laravel formats bindings
             // in the object's own TZ, no auto UTC conversion), so without ->utc()

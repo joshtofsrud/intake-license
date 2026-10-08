@@ -11,7 +11,7 @@ use Stripe\Exception\SignatureVerificationException;
 use Stripe\Webhook;
 
 /**
- * MARKER-PATCH-170 — Direct Payments Session 2A.
+ * Direct Payments Session 2A.
  *
  * Path-scoped webhook: /webhooks/stripe-direct/{tenantId}
  *
@@ -86,7 +86,7 @@ class DirectPaymentsWebhookController extends Controller
                 $this->onPaymentIntentSucceeded($event, $tenant);
                 break;
 
-            // MARKER-PATCH-171 — refunds initiated outside Intake (Stripe
+            // refunds initiated outside Intake (Stripe
             // dashboard, direct API call, our own refundCharge) all emit
             // charge.refunded. Sync state so a sale paid via card can\'t
             // show "paid" in Intake when Stripe says it\'s been refunded.
@@ -94,7 +94,7 @@ class DirectPaymentsWebhookController extends Controller
                 $this->onChargeRefunded($event, $tenant);
                 break;
 
-            // MARKER-PATCH-172 — send-payment-link flow. When the customer
+            // send-payment-link flow. When the customer
             // completes payment via the Stripe Checkout URL, we promote the
             // matching draft sale to paid.
             case 'checkout.session.completed':
@@ -106,7 +106,7 @@ class DirectPaymentsWebhookController extends Controller
                 $this->onCheckoutSessionCompleted($event, $tenant);
                 break;
 
-            // MARKER-PATCH-193 — the link lapsed without payment. Mark the still-
+            // the link lapsed without payment. Mark the still-
             // unpaid sale expired so it stops showing as a live pending link.
             case 'checkout.session.expired':
                 $this->onCheckoutSessionExpired($event, $tenant);
@@ -136,7 +136,7 @@ class DirectPaymentsWebhookController extends Controller
         $pi = $event->data->object;
         $piId = $pi->id;
 
-        // MARKER-PATCH-566 — online store orders: the browser return leg
+        // online store orders: the browser return leg
         // usually finalizes first; this is the backstop for closed tabs.
         // finalize() is lock-guarded idempotent, so double-delivery is safe.
         if (!empty($pi->metadata->intake_order_id ?? null)) {
@@ -154,7 +154,7 @@ class DirectPaymentsWebhookController extends Controller
             return; // online-order PIs never fall into the register/booking logic
         }
 
-        // MARKER-PATCH-386 — Booking deposit backstop. If the card confirmed but
+        // Booking deposit backstop. If the card confirmed but
         // the browser never reached finalize() (closed tab, dropped network), the
         // appointment was never written. The PI carries pending_booking_id in
         // metadata; materialize the held booking here. Idempotent, and booking
@@ -183,7 +183,7 @@ class DirectPaymentsWebhookController extends Controller
                     'tenant_id' => $tenant->id, 'pi' => $piId, 'pending_id' => $pending->id,
                     'error'     => $e->getMessage(),
                 ]);
-                \App\Services\BookingService::recordFailedPaid($pending, $e->getMessage()); // MARKER-FAILED-PAID
+                \App\Services\BookingService::recordFailedPaid($pending, $e->getMessage());
             }
             return; // booking handled — not a sale
         }
@@ -212,7 +212,7 @@ class DirectPaymentsWebhookController extends Controller
     }
 
     /**
-     * MARKER-PATCH-171 — charge.refunded fires for every refund, whether
+     * charge.refunded fires for every refund, whether
      * initiated from Intake or from the Stripe dashboard.
      *
      * Intake-initiated refunds already have the refund row + stripe_refund_id
@@ -264,7 +264,7 @@ class DirectPaymentsWebhookController extends Controller
         // original as refunded so it doesn\'t look paid anymore.
         $refundedAmount = (int) ($charge->amount_refunded ?? 0);
         $totalAmount    = (int) ($charge->amount ?? 0);
-        // MARKER-PATCH-172C — 'partial' is in the enum; 'partial_refund' is not.
+        // 'partial' is in the enum; 'partial_refund' is not.
         $original->payment_status = ($refundedAmount >= $totalAmount) ? 'refunded' : 'partial';
         $original->save();
 
@@ -276,7 +276,7 @@ class DirectPaymentsWebhookController extends Controller
             'total_amount'    => $totalAmount,
         ]);
 
-        // MARKER-PATCH-247 — money left via the Stripe dashboard with no
+        // money left via the Stripe dashboard with no
         // Intake action. Critical: staff must reconcile.
         app(\App\Services\Tenant\StaffAlertService::class)->emit($tenant, 'payment.refund_external', [
             'title' => 'Refund issued outside Intake — ' . $original->sale_number,
@@ -288,7 +288,7 @@ class DirectPaymentsWebhookController extends Controller
     }
 
     /**
-     * MARKER-PATCH-172 — promote a draft sale to paid when its Checkout
+     * promote a draft sale to paid when its Checkout
      * Session completes.
      *
      * Idempotent: if the sale is already paid (duplicate webhook delivery,
@@ -306,7 +306,7 @@ class DirectPaymentsWebhookController extends Controller
             ? $session->payment_intent
             : ($session->payment_intent?->id ?? null);
 
-        // MARKER-PATCH-193 — match the sale by checkout_session_id first, then
+        // match the sale by checkout_session_id first, then
         // FALL BACK to the PaymentIntent id. The session-only match stranded
         // payments when a sale's checkout_session_id was null/mismatched (e.g.
         // after a premature cancel) even though the money landed in Stripe.
@@ -357,7 +357,7 @@ class DirectPaymentsWebhookController extends Controller
             }
         }
 
-        // MARKER-SALE-DISCOUNT-PERSIST — what Stripe actually captured, not what
+        // what Stripe actually captured, not what
         // the sale believes it is worth. When they differ the sale is left short
         // (SalePaymentService works the status out from the ledger) and the
         // difference is reported, instead of showing settled in full.
@@ -379,7 +379,7 @@ class DirectPaymentsWebhookController extends Controller
         $sale->payment_reference         = ($brand && $last4) ? ($brand . ' ····' . $last4) : 'Paid via link';
         $sale->save();
 
-        // MARKER-PATCH-178B — record the payment on the SALE ledger (this was
+        // record the payment on the SALE ledger (this was
         // missing: the webhook flipped status=paid but never wrote a ledger
         // row, so link-paid sales never reconciled). Idempotent: skip if a
         // payment row for this charge already exists. Then refresh the linked
@@ -392,7 +392,7 @@ class DirectPaymentsWebhookController extends Controller
                 $hasPrior = $sale->payments()->count() > 0;
                 app(\App\Services\Tenant\SalePaymentService::class)->record(
                     sale:               $sale,
-                    amountCents:        $captured > 0 ? $captured : (int) $sale->total_cents, // MARKER-SALE-DISCOUNT-PERSIST
+                    amountCents:        $captured > 0 ? $captured : (int) $sale->total_cents,
                     kind:               $hasPrior
                         ? \App\Models\Tenant\TenantSalePayment::KIND_BALANCE
                         : ($sale->appointment_id
@@ -403,7 +403,7 @@ class DirectPaymentsWebhookController extends Controller
                     externalReference:  $piId,
                     notes:              'Paid via payment link',
                 );
-                // MARKER-PATCH-219C — appointment paid cache cascades
+                // appointment paid cache cascades
                 // centrally in SalePaymentService::recalcStatus().
             }
         } catch (\Throwable $e) {
@@ -414,7 +414,7 @@ class DirectPaymentsWebhookController extends Controller
             ]);
         }
 
-        // MARKER-SALE-DISCOUNT-PERSIST — payment_status is worked out from the
+        // payment_status is worked out from the
         // ledger now; with no PaymentIntent there is no ledger row, so settle it
         // here rather than leave a paid sale looking unpaid.
         if ($sale->fresh()->payment_status !== 'paid' && $captured > 0 && $captured >= (int) $sale->total_cents) {
@@ -427,18 +427,18 @@ class DirectPaymentsWebhookController extends Controller
             'session_id' => $sessionId,
         ]);
 
-        // MARKER-PATCH-247 — the register has long since moved on; the bell
+        // the register has long since moved on; the bell
         // is how staff find out the money landed and fulfillment can happen.
         app(\App\Services\Tenant\StaffAlertService::class)->emit($tenant, 'payment.link_completed', [
             'title' => 'Payment link completed — ' . $sale->sale_number,
-            'body'  => format_money($captured > 0 ? $captured : (int) $sale->total_cents) . ' paid by card via link.', // MARKER-SALE-DISCOUNT-PERSIST
+            'body'  => format_money($captured > 0 ? $captured : (int) $sale->total_cents) . ' paid by card via link.',
             'link'  => '/admin/register/history',
             'meta'  => ['sale_id' => $sale->id, 'amount_cents' => $captured > 0 ? $captured : (int) $sale->total_cents],
         ]);
     }
 
     /**
-     * MARKER-PATCH-193 — checkout.session.expired. Stripe fires this when a
+     * checkout.session.expired. Stripe fires this when a
      * Checkout Session lapses (default 24h) without completing. Mark the
      * matching sale expired ONLY if it's still unpaid — never touch a sale that
      * was already paid (a completed event may race ahead of expiry).
@@ -476,7 +476,7 @@ class DirectPaymentsWebhookController extends Controller
             'session_id' => $sessionId,
         ]);
 
-        // MARKER-PATCH-247 — the customer never paid; staff should follow up.
+        // the customer never paid; staff should follow up.
         app(\App\Services\Tenant\StaffAlertService::class)->emit($tenant, 'payment.link_expired', [
             'title' => 'Payment link expired — ' . $sale->sale_number,
             'body'  => format_money((int) $sale->total_cents) . ' was never paid; the sale auto-cancelled.',

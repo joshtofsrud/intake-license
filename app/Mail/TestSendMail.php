@@ -1,5 +1,4 @@
 <?php
-// MARKER-PATCH-143
 
 namespace App\Mail;
 
@@ -24,7 +23,7 @@ class TestSendMail extends Mailable
 {
     use Queueable, SerializesModels;
 
-    // MARKER-PATCH-145 — renamed $replyTo to $testReplyTo to avoid Mailable parent collision.
+    // renamed $replyTo to $testReplyTo to avoid Mailable parent collision.
     public function __construct(
         public string $fromEmail,
         public string $fromName,
@@ -52,7 +51,7 @@ class TestSendMail extends Mailable
         return new Content(
             view: 'emails.test-send',
             with: [
-                // MARKER-PATCH-145 — $replyTo -> $testReplyTo; view variable name unchanged.
+                // $replyTo -> $testReplyTo; view variable name unchanged.
                 'fromEmail' => $this->fromEmail,
                 'fromName'  => $this->fromName,
                 'replyTo'   => $this->testReplyTo,

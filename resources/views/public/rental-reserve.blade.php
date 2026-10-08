@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-{{-- MARKER-PATCH-240 — public reservation checkout. Standalone page in the
+{{-- public reservation checkout. Standalone page in the
      public design language. Card flow: submit → rental+PI created → Payment
      Element → confirm endpoint → confirmation. --}}
 @php
@@ -10,7 +10,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-@include('partials.mobile-input-zoom') {{-- MARKER-MOBILE-INPUT-ZOOM --}}
+@include('partials.mobile-input-zoom')
 <title>Reserve {{ $model->name }} — {{ $tname }}</title>
 <style>
   :root { --acc: {{ $accent }}; }
@@ -33,7 +33,7 @@
   .hint { font-size: 12px; opacity: .45; margin-top: 10px; text-align: center; }
   #pay-wrap { display: none; margin-top: 16px; }
 </style>
-  @include('public._ga4') {{-- MARKER-SHOP-GA4 --}}
+  @include('public._ga4')
 </head>
 <body>
 <div class="wrap">

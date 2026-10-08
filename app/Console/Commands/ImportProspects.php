@@ -1,5 +1,5 @@
 <?php
-// MARKER-SALES-IMPORT — Import the Google Places pipeline output into sales_prospects.
+// Import the Google Places pipeline output into sales_prospects.
 //
 //   php artisan intake:import-prospects output/intake_bike_shop_prospects_master.csv
 //   php artisan intake:import-prospects master.csv --operational-only --dry-run

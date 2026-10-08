@@ -8,7 +8,7 @@ use App\Services\Tenant\DirectPaymentsService;
 use Illuminate\Console\Command;
 
 /**
- * MARKER-PATCH-172E — One-shot reconcile for sales paid via Stripe Checkout
+ * One-shot reconcile for sales paid via Stripe Checkout
  * Sessions where the session_id linkage to the Intake sale row didn\'t persist
  * (root cause: SaleService didn\'t accept checkout_session_id before this patch).
  *

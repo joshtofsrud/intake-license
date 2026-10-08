@@ -1,5 +1,5 @@
 {{--
-  MARKER-PATCH-158-G20 — cta_banner editor (Phase 2)
+  cta_banner editor (Phase 2)
 --}}
 @php
   $c   = $c ?? ($section->content ?? []);
@@ -10,7 +10,7 @@
   if (!is_array($buttons)) $buttons = [];
 
   // Backward compat
-  if (empty($buttons) && ! array_key_exists('buttons', $c) && !empty($c['cta_label'] ?? '')) { // MARKER-MKT-CTA-V2 — never-saved lists only
+  if (empty($buttons) && ! array_key_exists('buttons', $c) && !empty($c['cta_label'] ?? '')) { // never-saved lists only
       $buttons = [['label' => $c['cta_label'], 'url' => $c['cta_url'] ?? '#', 'style' => 'primary']];
   }
 @endphp
@@ -38,7 +38,7 @@
       <label class="pb2-field-label">Highlight phrase</label>
       <input type="text" class="pb2-input" data-field="accent_words" value="{{ $get('accent_words') }}" placeholder="Optional accent">
     </div>
-    {{-- MARKER-PATCH-294 — italic is optional; color always applies --}}
+    {{-- italic is optional; color always applies --}}
     <div class="pb2-field">
       <label class="pb2-checkbox-row">
         <input type="checkbox" data-field="accent_italic" value="1" {{ $get('accent_italic', true) ? 'checked' : '' }}>
@@ -143,7 +143,7 @@
 
 {{--=================== STYLE ===================--}}
 <div class="pb2-tab-panel" data-tab="style" hidden>
-  {{-- MARKER-MKT-CTA-V2 — intake.works only (shop CTA banners don't read these yet) --}}
+  {{-- intake.works only (shop CTA banners don't read these yet) --}}
   @if($isMarketing ?? false)
   <div class="pb2-group">
     <div class="pb2-group-title">Buttons</div>
@@ -173,7 +173,7 @@
       </div>
     </div>
   </div>
-  {{-- MARKER-MKT-CTA-V3 — text sizes (0 = automatic, scales with the screen) --}}
+  {{-- text sizes (0 = automatic, scales with the screen) --}}
   <div class="pb2-group">
     <div class="pb2-group-title">Text size</div>
     @foreach([['headline_size', 'Headline', 20, 96], ['sub_size', 'Subheading', 12, 28], ['note_size', 'Note', 10, 20]] as [$fk, $fl, $fmin, $fmax])
@@ -255,7 +255,7 @@
         </div>
       </div>
 
-      {{-- MARKER-PATCH-250 — motion + blur (image backgrounds). --}}
+      {{-- motion + blur (image backgrounds). --}}
       <div class="pb2-field">
         <label class="pb2-checkbox-row">
           <input type="checkbox" data-field="bg_parallax" value="1" {{ $get('bg_parallax', '0') === '1' ? 'checked' : '' }}>
@@ -280,7 +280,7 @@
     </div>
 
     <div class="pb2-bg-pane" data-bg-mode="gradient">
-        {{-- MARKER-PATCH-269 — gradient angle --}}
+        {{-- gradient angle --}}
         <div class="pb2-field">
           <div class="pb2-slider-row">
             <label class="pb2-field-label" style="margin:0">Angle</label>

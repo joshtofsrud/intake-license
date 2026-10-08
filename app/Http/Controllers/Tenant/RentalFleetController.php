@@ -1,5 +1,4 @@
 <?php
-// MARKER-PATCH-217 / MARKER-PATCH-218 / MARKER-PATCH-226 / MARKER-PATCH-227
 // Fleet admin. 227 rebuilt this onto the model layer: category -> model ->
 // unit, with rollups, search/filter/pagination and bulk add.
 
@@ -124,7 +123,7 @@ class RentalFleetController extends Controller
             ->whereNull('archived_at')->where('status', '!=', 'retired')->count();
         $modelTotal = TenantRentalModel::where('tenant_id', $tenant->id)->whereNull('archived_at')->count();
 
-        // MARKER-PATCH-236 — per-unit roster meta in four grouped
+        // per-unit roster meta in four grouped
         // queries: last rented, 30d utilization overlap, in-check flags,
         // photo'd checks. Keyed by unit_id; blade falls back gracefully.
         $unitMeta = [];
@@ -198,7 +197,7 @@ class RentalFleetController extends Controller
         }
 
         return view('tenant.rentals.fleet', [
-            'unitMeta'           => $unitMeta, // MARKER-PATCH-236
+            'unitMeta'           => $unitMeta,
             'categories'         => $categories,
             'modelsByCat'        => $modelsByCat,
             'rollups'            => $rollups,
@@ -218,7 +217,7 @@ class RentalFleetController extends Controller
 
     // ---------------------------------------------- unit detail (PATCH-235)
     /**
-     * MARKER-PATCH-235 — the serial's whole story: utilization, revenue,
+     * the serial's whole story: utilization, revenue,
      * rental history, maintenance notes, recent check photos. Everything is
      * derived — no new tables.
      */
@@ -292,7 +291,7 @@ class RentalFleetController extends Controller
             ->limit(6)
             ->get();
 
-        // MARKER-UNIT-DETAIL — the model's identifier names and photo set, so
+        // the model's identifier names and photo set, so
         // this page edits the same fields the fleet roster does.
         $mIdents = array_values(array_filter($unit->model?->identifiers ?? [],
             fn ($n) => ! in_array(mb_strtolower($n), ['size', 'serial', 'tag', 'serial / tag', 'status', 'condition', 'identifier'], true)));
@@ -437,7 +436,7 @@ class RentalFleetController extends Controller
                 $request->validate(['value' => ['nullable', 'string', 'max:120']]);
                 $model->update(['subtitle' => ($value === '' ? null : $value)]);
                 break;
-            case 'image_url': // MARKER-RENTAL-MODEL-PHOTOS
+            case 'image_url':
                 $request->validate(['value' => ['nullable', 'string', 'max:500']]);
                 $model->update(['image_url' => ($value === '' ? null : $value)]);
                 break;
@@ -465,7 +464,7 @@ class RentalFleetController extends Controller
             case 'condition_template_id':
                 $model->update(['condition_template_id' => $this->verifyTemplate($tenant->id, $value)]);
                 break;
-            case 'photos': // MARKER-FLEET-PHOTOS — the model's photo set (max 8)
+            case 'photos': // the model's photo set (max 8)
                 $urls = json_decode((string) $value, true);
                 if (! is_array($urls)) $urls = [];
                 $urls = array_values(array_unique(array_filter(array_map(
@@ -475,14 +474,14 @@ class RentalFleetController extends Controller
                 if (count($urls) > 8) $urls = array_slice($urls, 0, 8);
                 $model->update(['photos' => $urls ?: null]);
                 break;
-            case 'identifiers': // MARKER-FLEET-IDENT — up to 3 per-model unit fields
+            case 'identifiers': // up to 3 per-model unit fields
                 $list = json_decode((string) $value, true);
                 if (! is_array($list)) $list = [];
                 $list = array_values(array_unique(array_filter(array_map(
                     fn ($n) => is_string($n) ? trim(mb_substr($n, 0, 30)) : '',
                     $list
                 ), fn ($n) => $n !== '')));
-                // MARKER-FLEET-IDENT-UX — built-in columns can't be identifiers.
+                // built-in columns can't be identifiers.
                 $reserved = ['size', 'serial', 'tag', 'serial / tag', 'status', 'condition', 'identifier'];
                 $list = array_values(array_filter($list, fn ($n) => ! in_array(mb_strtolower($n), $reserved, true)));
                 if (count($list) > 3) {
@@ -552,8 +551,8 @@ class RentalFleetController extends Controller
             'tag_prefix'  => ['nullable', 'string', 'max:40'],
             'start_number'=> ['nullable', 'integer', 'min:0', 'max:100000'],
             'size'        => ['nullable', 'string', 'max:40'],
-            'ident'       => ['nullable', 'array', 'max:3'], // MARKER-FLEET-IDENT
-            'photo_url'   => ['nullable', 'string', 'max:500'],  // MARKER-FLEET-PHOTOS
+            'ident'       => ['nullable', 'array', 'max:3'],
+            'photo_url'   => ['nullable', 'string', 'max:500'],
             'ident.*'     => ['nullable', 'string', 'max:60'],
         ]);
 
@@ -566,11 +565,11 @@ class RentalFleetController extends Controller
         $size   = $request->input('size') ?: null;
         $locId  = $request->session()->get('current_location_id');
 
-        // MARKER-FLEET-PHOTOS — batch photo, only if it's one of this model's.
+        // batch photo, only if it's one of this model's.
         $photo = trim((string) $request->input('photo_url'));
         if ($photo !== '' && ! in_array($photo, (array) ($model->photos ?? []), true)) $photo = '';
 
-        // MARKER-FLEET-IDENT — one value per model identifier, applied to the batch.
+        // one value per model identifier, applied to the batch.
         $identVals = [];
         foreach ((array) ($model->identifiers ?? []) as $iname) {
             $v = trim((string) ($request->input('ident.' . $iname) ?? ''));
@@ -591,8 +590,8 @@ class RentalFleetController extends Controller
                     'name'               => $model->name,
                     'identifier'         => $tag,
                     'size'               => $size,
-                    'identifier_values'  => $identVals ? json_encode($identVals) : null, // MARKER-FLEET-IDENT
-                    'photo_url'          => $photo !== '' ? $photo : null, // MARKER-FLEET-PHOTOS
+                    'identifier_values'  => $identVals ? json_encode($identVals) : null,
+                    'photo_url'          => $photo !== '' ? $photo : null,
                     'status'             => 'available',
                     'available_for_rent' => true,
                     'online_booking'     => true,
@@ -608,7 +607,7 @@ class RentalFleetController extends Controller
             $created = $rows;
         });
 
-        // MARKER-FLEET-ADD-INLINE — XHR callers render the new rows in place
+        // XHR callers render the new rows in place
         // instead of reloading the page. Plain form POSTs redirect as before.
         if ($request->expectsJson() || $request->ajax()) {
             $totals = TenantRentalUnit::where('tenant_id', $tenant->id)
@@ -643,7 +642,7 @@ class RentalFleetController extends Controller
         $unit = TenantRentalUnit::where('tenant_id', $tenant->id)->where('id', $id)->firstOrFail();
         [$field, $value] = $this->fieldValue($request);
 
-        // MARKER-PATCH-227 — rates/deposit/checklist are MODEL fields now;
+        // rates/deposit/checklist are MODEL fields now;
         // units only carry per-instance attributes.
         switch ($field) {
             case 'identifier':
@@ -666,7 +665,7 @@ class RentalFleetController extends Controller
                 $request->validate(['value' => ['nullable', 'integer', 'min:0', 'max:1440']]);
                 $unit->update(['buffer_minutes' => (int) ($value ?: 0)]);
                 break;
-            case 'photo_url': // MARKER-FLEET-PHOTOS — must be one of the model's photos
+            case 'photo_url': // must be one of the model's photos
                 $val = trim((string) $value);
                 if ($val === '') { $unit->update(['photo_url' => null]); break; }
                 $pool = $unit->model_id
@@ -677,7 +676,7 @@ class RentalFleetController extends Controller
                 }
                 $unit->update(['photo_url' => $val]);
                 break;
-            case 'identifier_values': // MARKER-FLEET-IDENT — whole map per save; keys must be defined on the model
+            case 'identifier_values': // whole map per save; keys must be defined on the model
                 $map = json_decode((string) $value, true);
                 if (! is_array($map)) $map = [];
                 $allowed = $unit->model_id

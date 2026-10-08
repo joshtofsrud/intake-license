@@ -4,7 +4,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
-// MARKER-MKTFIX — tenant_funnel_events already carried an index on
+// tenant_funnel_events already carried an index on
 // (tenant_id, event_type, created_at) named tfe_tenant_event_time. The earlier
 // migration checked for an index by NAME, not by columns, so it created a
 // second identical one. Drop the duplicate; keep the original.

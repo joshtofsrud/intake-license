@@ -1,6 +1,6 @@
 <?php
 
-// MARKER-CATALOG-IDENTIFIERS — one row per (catalog row, identifier type,
+// one row per (catalog row, identifier type,
 // normalised value). Cross-distributor matching joins this table to itself.
 
 use Illuminate\Database\Migrations\Migration;

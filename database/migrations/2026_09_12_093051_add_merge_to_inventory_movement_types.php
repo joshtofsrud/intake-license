@@ -4,7 +4,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\DB;
 
 /**
- * MARKER-ITEM-MERGE — merge_out / merge_in on the movement_type enum.
+ * merge_out / merge_in on the movement_type enum.
  *
  * Reads the column's CURRENT definition rather than restating it. The first
  * version of this migration listed the values from the create migration and

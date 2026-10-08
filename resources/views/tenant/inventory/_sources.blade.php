@@ -1,4 +1,4 @@
-{{-- MARKER-ITEM-SOURCES-EDIT — shared by create and edit.
+{{-- shared by create and edit.
      Expects $vendors, and $item when editing. --}}
 @php
   // TenantInventoryItem has only vendors() (BelongsToMany), so read the

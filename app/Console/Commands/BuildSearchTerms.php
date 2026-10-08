@@ -1,5 +1,5 @@
 <?php
-// MARKER-PATCH-622 — build per-tenant search vocabulary from visible items.
+// build per-tenant search vocabulary from visible items.
 // Words from names, subtitles, brands, SKUs → tenant_search_terms with soundex
 // + frequency. Nightly (catalogs change via distributor sync) and on demand.
 
@@ -65,7 +65,7 @@ class BuildSearchTerms extends Command
                 if ($rows) DB::table('tenant_search_terms')->insert($rows);
             });
 
-            $staff = $this->buildStaffTerms($tenant->id); // MARKER-INV-SEARCH
+            $staff = $this->buildStaffTerms($tenant->id);
             $this->info($tenant->id . ': ' . count($freq) . ' terms, ' . $staff . ' staff terms');
         }
 
@@ -73,7 +73,7 @@ class BuildSearchTerms extends Command
     }
 
     /**
-     * MARKER-INV-SEARCH — staff vocabulary: words from EVERY active item,
+     * staff vocabulary: words from EVERY active item,
      * online or not, for typo correction in staff searches.
      */
     private function buildStaffTerms(string $tenantId): int

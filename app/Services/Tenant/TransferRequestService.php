@@ -31,7 +31,7 @@ class TransferRequestService
         }
 
         return DB::transaction(function () use ($data) {
-            // MARKER-TRANSFER-SCOPE — every id crossing a request boundary
+            // every id crossing a request boundary
             // proves ownership before anything reads or writes through it.
             // Previously only presence was checked, so a foreign item id
             // could seed a transfer whose source auto-suggest then selected
@@ -49,7 +49,7 @@ class TransferRequestService
             // Auto-suggest a source location: any OTHER location with positive stock.
             $fromLocationId = $data['from_location_id'] ?? null;
             if (!$fromLocationId) {
-                $candidate = TenantInventoryItemLocation::where('tenant_id', $tenantId) // MARKER-TRANSFER-SCOPE
+                $candidate = TenantInventoryItemLocation::where('tenant_id', $tenantId)
                     ->where('inventory_item_id', $data['inventory_item_id'])
                     ->where('location_id', '!=', $data['to_location_id'])
                     ->where('computed_stock_count', '>', 0)
@@ -88,7 +88,7 @@ class TransferRequestService
             if ($quantitySent < 1) {
                 throw new InvalidArgumentException('Quantity sent must be at least 1.');
             }
-            // MARKER-TRANSFER-MOVEMENTS — a request for 1 could be dispatched
+            // a request for 1 could be dispatched
             // as 100. Sending less than requested is a legitimate partial.
             if ($quantitySent > (int) $tr->quantity) {
                 throw new InvalidArgumentException(sprintf(
@@ -101,7 +101,7 @@ class TransferRequestService
                 throw new InvalidArgumentException('Transfer request has no source location set.');
             }
 
-            // MARKER-TRANSFER-SCOPE — the tenant comes from the transfer row
+            // the tenant comes from the transfer row
             // itself, never inferred from a related record, and both the item
             // and the source location must belong to it. Defense in depth: a
             // row poisoned before this fix can no longer move foreign stock.
@@ -132,7 +132,7 @@ class TransferRequestService
                 tenantUser: $byUserId ? \App\Models\Tenant\TenantUser::find($byUserId) : null,
                 reason: 'Transfer out',
                 notes: "To {$tr->toLocation?->name}",
-                movementType: 'transfer_out', // MARKER-TRANSFER-MOVEMENTS — was recorded as a SALE
+                movementType: 'transfer_out', // was recorded as a SALE
             );
 
             $tr->status = TenantTransferRequest::STATUS_IN_TRANSIT;
@@ -157,7 +157,7 @@ class TransferRequestService
                 throw new InvalidArgumentException("Transfer request is not in transit (status={$tr->status}).");
             }
 
-            // MARKER-TRANSFER-SCOPE — see markSent.
+            // see markSent.
             $tr->load('inventoryItem', 'toLocation');
             $item = $tr->inventoryItem;
             $toLoc = $tr->toLocation;
@@ -183,7 +183,7 @@ class TransferRequestService
                 referenceType: 'transfer_request',
                 referenceId: $tr->id,
                 tenantUser: $byUserId ? \App\Models\Tenant\TenantUser::find($byUserId) : null,
-                // MARKER-TRANSFER-MOVEMENTS — incrementStock has no $reason
+                // incrementStock has no $reason
                 // parameter: this call threw "Unknown named parameter $reason"
                 // every time, so receiving a transfer ALWAYS fataled. The
                 // reason now rides in notes, and the movement is typed.
@@ -216,7 +216,7 @@ class TransferRequestService
                 throw new InvalidArgumentException('Already fulfilled, cannot cancel.');
             }
 
-            // MARKER-TRANSFER-MOVEMENTS — cancelling an IN-TRANSIT transfer
+            // cancelling an IN-TRANSIT transfer
             // used to silently strand the stock: it had already been deducted
             // from the source and was never given back. The goods return to
             // the source location with their own transfer_in movement.
@@ -257,7 +257,7 @@ class TransferRequestService
     }
 
     /**
-     * MARKER-TRANSFER-SCOPE — assert a record exists AND belongs to the given
+     * assert a record exists AND belongs to the given
      * tenant. Existence alone is not authorization: unguessable ids leak
      * through shared browsers, screenshots, and support threads.
      */
@@ -269,7 +269,7 @@ class TransferRequestService
         }
     }
 
-    /** MARKER-TRANSFER-SCOPE — compare a loaded row's tenant against the expected one. */
+    /** compare a loaded row's tenant against the expected one. */
     protected static function assertRowTenant(?string $rowTenantId, ?string $expectedTenantId, string $label): void
     {
         if (! $rowTenantId || ! $expectedTenantId || $rowTenantId !== $expectedTenantId) {

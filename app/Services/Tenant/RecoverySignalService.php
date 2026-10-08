@@ -20,7 +20,7 @@ class RecoverySignalService
     }
 
     /**
-     * MARKER-PATCH-530 — a drop-off completed after its window ended
+     * a drop-off completed after its window ended
      * (plus grace minutes). Called from DeliveriesController::complete.
      * Requires an appointment link (proposal-created deliveries have one)
      * so the idempotence key stays one-signal-per-appointment-per-type.

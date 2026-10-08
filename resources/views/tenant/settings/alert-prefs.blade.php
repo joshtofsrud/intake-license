@@ -1,11 +1,10 @@
 @extends('layouts.tenant.app')
 @php $pageTitle = 'Notifications'; @endphp
 
-{{-- MARKER-PATCH-225 — per-user staff alert preferences. --}}
+{{-- per-user staff alert preferences. --}}
 
 @section('content')
 
-{{-- MARKER-SETTINGS-BACKLINK --}}
 <a href="{{ route('tenant.settings.index') }}" class="ia-back-link">&larr; All settings</a>
 <div class="ia-page-head">
   <div class="ia-page-head-left">

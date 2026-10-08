@@ -1,6 +1,6 @@
 <?php
 
-// MARKER-RENTAL-WAIVER-DISPLAY — signature evidence on rentals + a persistent
+// signature evidence on rentals + a persistent
 // display override on registers.
 
 use Illuminate\Database\Migrations\Migration;

@@ -60,7 +60,7 @@ class MembershipsTickCommand extends Command
     {
         $count = 0;
 
-        // MARKER-TZ-WAVE3 — period_end is a tenant-local business date; the
+        // period_end is a tenant-local business date; the
         // job runs on UTC hours (early UTC morning = the previous evening in
         // the US), so comparing against the UTC date rolled memberships the
         // night before their period actually ended. Compare per tenant
@@ -70,7 +70,7 @@ class MembershipsTickCommand extends Command
             ->whereNotNull('current_period_end')
             ->cursor()
             ->each(function (TenantCustomerMembership $m) use (&$count, $now, $tenantToday) {
-                $localToday = $tenantToday[$m->tenant_id] ?? $now->toDateString(); // MARKER-TZ-WAVE3
+                $localToday = $tenantToday[$m->tenant_id] ?? $now->toDateString();
                 if ($m->current_period_end->toDateString() >= $localToday) return;
                 try {
                     DB::transaction(function () use ($m, $now) {
@@ -116,7 +116,7 @@ class MembershipsTickCommand extends Command
      */
     private function expirePacks(Carbon $now): int
     {
-        // MARKER-TZ-WAVE3 — same per-tenant local-date treatment as rollover.
+        // same per-tenant local-date treatment as rollover.
         $count = 0;
         foreach (self::tenantLocalDates() as $tenantId => $localToday) {
             $count += TenantCustomerPack::where('tenant_id', $tenantId)
@@ -129,7 +129,7 @@ class MembershipsTickCommand extends Command
     }
 
     /**
-     * MARKER-TZ-WAVE3 — map of tenant_id => that tenant's local "today"
+     * map of tenant_id => that tenant's local "today"
      * (Y-m-d). One query; used by daily jobs so business-date comparisons
      * respect each tenant's timezone instead of the UTC calendar.
      */

@@ -51,7 +51,7 @@ class ClassRegistrationService
                 $session = TenantClassSession::where('tenant_id', $tenantId)
                     ->findOrFail($sessionId);
 
-                // MARKER-EXISTS-TENANT-SCOPE — the session was scoped to the
+                // the session was scoped to the
                 // tenant and the customer was not, so a foreign customer_id
                 // reached resolvePayment() and the registration row itself.
                 // Scope it the same way, in the same place.

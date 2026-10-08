@@ -1,5 +1,4 @@
 <?php
-// MARKER-LEDGER-CORE
 
 namespace App\Models;
 

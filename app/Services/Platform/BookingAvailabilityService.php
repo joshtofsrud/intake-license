@@ -10,7 +10,6 @@ use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 
 /**
- * MARKER-SCHED-FOUNDATION
  *
  * Which slots a public page may offer. Everything is computed in the HOST
  * timezone (the Availability page's setting) and returned as UTC instants;
@@ -28,7 +27,7 @@ use Carbon\CarbonInterface;
  */
 class BookingAvailabilityService
 {
-    /** Minutes between candidate starts — clean half-hours unless the call itself is tiny. MARKER-SCHED-INVEST */
+    /** Minutes between candidate starts — clean half-hours unless the call itself is tiny. */
     private function step(PlatformBookingType $type): int
     {
         return $type->length_min <= 15 ? 15 : 30;
@@ -176,7 +175,7 @@ class BookingAvailabilityService
      */
     public function busy(CarbonInterface $fromUtc, CarbonInterface $toUtc): array
     {
-        // MARKER-SCHED-GOOGLE — synced blocks from the connected calendar.
+        // synced blocks from the connected calendar.
         if (\App\Models\PlatformBookingSetting::get('google_block_busy', '1') !== '1') {
             return [];
         }

@@ -1,5 +1,5 @@
 <?php
-// MARKER-PATCH-621 — shop search analytics: every instant-search query logs
+// shop search analytics: every instant-search query logs
 // here (query, results count, session) so the Traffic report can surface top
 // searches and zero-result searches. Keystroke prefixes collapse per session.
 

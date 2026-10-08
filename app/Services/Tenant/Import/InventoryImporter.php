@@ -3,7 +3,7 @@
 namespace App\Services\Tenant\Import;
 
 /**
- * MARKER-IMPORT2 — inventory import.
+ * inventory import.
  *
  * Same contract as CustomerImporter: preview() and run() share buildRow(), so
  * the preview is the write path's own decision rather than an estimate.
@@ -28,11 +28,11 @@ use Illuminate\Support\Str;
 
 class InventoryImporter
 {
-    // MARKER-IMPORT-MERGE — conflict analysis for the merge review screen.
+    // conflict analysis for the merge review screen.
     use AnalysesConflicts;
-    use BuildsCombinedFields; // MARKER-IMPORT-COMBINE
-    use MatchesRecords;       // MARKER-IMPORT-MATCH
-    use ReportsProgress;      // MARKER-IMPORT-QUEUE
+    use BuildsCombinedFields;
+    use MatchesRecords;
+    use ReportsProgress;
 
     public const CHUNK = 100;
 
@@ -44,7 +44,7 @@ class InventoryImporter
 
     public function __construct(private Tenant $tenant, private TenantImport $import) {}
 
-    /** MARKER-SOURCE-CAT — what to call this file on the mappings page. */
+    /** what to call this file on the mappings page. */
     private function sourceName(): string
     {
         $n = trim((string) ($this->import->original_filename ?? ''));
@@ -202,7 +202,7 @@ class InventoryImporter
             $dirs[$f]   = $this->rowDirection($f, $dirs[$f], $line);
         }
 
-        // MARKER-IMPORT-COMBINE — after the direct loop, so a combined field
+        // after the direct loop, so a combined field
         // wins over a direct mapping to the same target.
         $this->applyCombined($cells, $values, $dirs, $errors, $line, $extra);
 
@@ -287,15 +287,15 @@ class InventoryImporter
         $counts = ['create' => 0, 'update' => 0, 'unchanged' => 0, 'possible_duplicate' => 0,
                    'skipped' => 0, 'unmatched' => 0, 'error' => 0];
         $sample = []; $seen = []; $first = true;
-        $this->ledgerStart('preview'); // MARKER-IMPORT-MATCH
-        $this->progressStart('previewing', $this->rowTotal()); // MARKER-IMPORT-QUEUE
-        $newCats = []; $newVendors = []; $catTally = []; // MARKER-IMPORT-CATS
+        $this->ledgerStart('preview');
+        $this->progressStart('previewing', $this->rowTotal());
+        $newCats = []; $newVendors = []; $catTally = [];
         $skuIdx  = $this->skuIndex();
 
         $batch = [];
         $flush = function () use (&$batch, &$counts, &$sample, $sampleLimit, &$newCats, &$newVendors, &$catTally) {
             if (! $batch) { return; }
-            // MARKER-IMPORT-MATCH — three keys, strongest first, and a judge
+            // three keys, strongest first, and a judge
             // step that turns a weak or disagreeing match into a possible
             // duplicate rather than a silent merge. Every row is ledgered.
             $matches = $this->matchBatch($batch);
@@ -309,7 +309,7 @@ class InventoryImporter
                 // Which categories/vendors WOULD be created — resolve read-only.
                 if (! empty($row['extra']['category'])) {
                     $name = $row['extra']['category'];
-                    // MARKER-IMPORT-CATS — count the rows behind each path, and
+                    // count the rows behind each path, and
                     // whether it already exists, so the review screen can sort
                     // by weight and show what is genuinely new.
                     $catTally[$name] = ($catTally[$name] ?? 0) + 1;
@@ -349,7 +349,7 @@ class InventoryImporter
                                  'errors' => $dupErr,
                                  'sku' => $key, 'name' => '—', 'changes' => [], 'stock' => null];
                 }
-                $this->ledgerRow('preview', $line, $cells, ['outcome' => 'error', 'errors' => $dupErr, 'changes' => []]); // MARKER-IMPORT-MATCH
+                $this->ledgerRow('preview', $line, $cells, ['outcome' => 'error', 'errors' => $dupErr, 'changes' => []]);
                 continue;
             }
             if ($key !== '') { $seen[$key] = $line; }
@@ -357,16 +357,16 @@ class InventoryImporter
             $batch[] = ['line' => $line, 'cells' => $cells, 'key' => $key];
             if (count($batch) >= self::CHUNK) {
                 $flush();
-                // MARKER-IMPORT-QUEUE — progress and cancel, between chunks.
+                // progress and cancel, between chunks.
                 $this->progressTick(self::CHUNK, $counts);
                 if ($this->cancelRequested()) { break; }
             }
         }
         $flush();
-        $this->ledgerFlush(); // MARKER-IMPORT-MATCH
-        $this->progressDone($this->cancelRequested() ? 'cancelled' : 'finished'); // MARKER-IMPORT-QUEUE
+        $this->ledgerFlush();
+        $this->progressDone($this->cancelRequested() ? 'cancelled' : 'finished');
 
-        // MARKER-IMPORT-CATS — biggest first; capped because a file with more
+        // biggest first; capped because a file with more
         // than two thousand distinct paths does not have a category column,
         // it has a description column, and a wall of rows would say nothing.
         arsort($catTally);
@@ -383,8 +383,8 @@ class InventoryImporter
 
     public function run(): array
     {
-        $this->ledgerStart('run'); // MARKER-IMPORT-MATCH
-        $this->progressStart('running', $this->rowTotal()); // MARKER-IMPORT-QUEUE
+        $this->ledgerStart('run');
+        $this->progressStart('running', $this->rowTotal());
         $csv = new CsvFile($this->import->stored_path, $this->import->delimiter, $this->import->encoding);
         $inventory = app(InventoryService::class);
 
@@ -393,9 +393,9 @@ class InventoryImporter
                 ->where('id', $this->option('location_id'))->first()
             : null;
 
-        // MARKER-SOURCE-CAT — kept for the reverser's signature only; imports
+        // kept for the reverser's signature only; imports
         // no longer create categories under any option.
-        // MARKER-IMPORT-CATS-DEAD — removed: category creation is decided per
+        // removed: category creation is decided per
         // path on the preview screen now (decidedCategoryId), so a blanket
         // flag governs nothing and only reads as though it does.
         $createVendors = (bool) $this->option('create_vendors', true);
@@ -411,16 +411,16 @@ class InventoryImporter
         $flush = function () use (&$batch, &$counts, &$errorRows, $inventory, $location,
                                  $createVendors, $stockMode, $user) {
             if (! $batch) { return; }
-            $matches = $this->matchBatch($batch); // MARKER-IMPORT-MATCH
+            $matches = $this->matchBatch($batch);
 
-            DB::transaction(function () use ($batch, $matches, /* MARKER-IMPORT-RUN-CLOSURE */ &$counts, &$errorRows, $inventory,
+            DB::transaction(function () use ($batch, $matches,  &$counts, &$errorRows, $inventory,
                                             $location, $createVendors, $stockMode, $user) {
                 foreach ($batch as $i => $b) {
                     $row = $this->buildRow($b['cells'], $matches[$i]['record'], $b['line']);
-                    $row = $this->judge($row, $matches[$i], $b['line'], $b['cells']); // MARKER-IMPORT-MATCH
+                    $row = $this->judge($row, $matches[$i], $b['line'], $b['cells']);
                     $this->ledgerRow('run', $b['line'], $b['cells'], $row, $matches[$i]);
 
-                    // MARKER-IMPORT-MATCH — the controller refuses to run with
+                    // the controller refuses to run with
                     // unresolved possible duplicates, so reaching here means a
                     // race. Never merge it: skip, count, and say so.
                     if ($row['outcome'] === 'possible_duplicate') {
@@ -446,7 +446,7 @@ class InventoryImporter
 
                     $made = [];
 
-                    // MARKER-SOURCE-CAT — an import never creates categories.
+                    // an import never creates categories.
                     // An exact name match is filed; anything else lands
                     // uncategorized WITH THE FILE'S STRING KEPT, so it can be
                     // mapped later on the Category mappings page.
@@ -454,7 +454,7 @@ class InventoryImporter
                     $sourceCategory = null;
                     if (! empty($row['extra']['category'])) {
                         $sourceCategory = trim((string) $row['extra']['category']);
-                        // MARKER-IMPORT-CATS — your decision, or nothing. A path
+                        // your decision, or nothing. A path
                         // you never approved resolves to null and the item goes
                         // to Uncategorised with its source words intact; it is
                         // never quietly created.
@@ -465,10 +465,10 @@ class InventoryImporter
 
                     if ($row['outcome'] === 'create') {
                         $item = TenantInventoryItem::create(array_merge($row['values'], [
-                            // MARKER-SOURCE-CAT — what the file called it.
+                            // what the file called it.
                             'source_category' => $sourceCategory,
                             'source_name'     => $this->sourceName(),
-                            // MARKER-IMPORT-UPC-WRITE - a mapped UPC used to be
+                            // a mapped UPC used to be
                             // collected and silently dropped.
                             'catalog_ean'     => $row['extra']['upc'] ?? null,
                         ], array_filter([
@@ -489,7 +489,7 @@ class InventoryImporter
                         if ($changes) {
                             $before = [];
                             foreach ($changes as $k => $v) { $before[$k] = $item->{$k}; }
-                            // MARKER-IMPORT-UPC-WRITE - fill a missing UPC on update
+                            // fill a missing UPC on update
                             // too; never overwrite one the shop already has.
                             if (! empty($row['extra']['upc']) && empty($item->catalog_ean)) {
                                 $changes['catalog_ean'] = $row['extra']['upc'];
@@ -505,11 +505,11 @@ class InventoryImporter
                     }
 
                     // vendor link through the pivot (no tenant_id — scope via item)
-                    // MARKER-IMPORT-MPN-BRAND — a mapped vendor column wins for
+                    // a mapped vendor column wins for
                     // its row (a value in the file is more specific than a
                     // setting on the screen); otherwise the whole import shares
                     // the vendor chosen on the map screen.
-                    // MARKER-IMPORT-VENDOR-ONCE — a row can no longer carry a
+                    // a row can no longer carry a
                     // vendor: the field left the registry. Kept as a hard null
                     // so a stale mapping can never resurrect per-row creation.
                     $rowVendorName = null;
@@ -525,7 +525,7 @@ class InventoryImporter
                     if (! empty($rowVendorName)) {
                         $vendor = $this->resolveVendor($rowVendorName, $createVendors, $made);
                         if ($vendor) {
-                            // MARKER-IMPORT-PIVOT-UUID - same helper as the
+                            // same helper as the
                             // import-level path: one insert to keep correct.
                             $this->linkVendor($item, $vendor, $row['values']['shop_cost_cents'] ?? null);
                         }
@@ -588,20 +588,20 @@ class InventoryImporter
             $batch[] = ['line' => $line, 'cells' => $cells, 'key' => $key];
             if (count($batch) >= self::CHUNK) {
                 $flush();
-                // MARKER-IMPORT-QUEUE — progress and cancel, between chunks.
+                // progress and cancel, between chunks.
                 $this->progressTick(self::CHUNK, $counts);
                 if ($this->cancelRequested()) { break; }
             }
         }
         $flush();
-        $this->ledgerFlush(); // MARKER-IMPORT-MATCH
-        $this->progressDone($this->cancelRequested() ? 'cancelled' : 'finished'); // MARKER-IMPORT-QUEUE
+        $this->ledgerFlush();
+        $this->progressDone($this->cancelRequested() ? 'cancelled' : 'finished');
 
         return ['counts' => $counts, 'errorRows' => $errorRows];
     }
 
     /**
-     * MARKER-IMPORT-MPN-BRAND — the import-level vendor, looked up once.
+     * the import-level vendor, looked up once.
      *
      * By id, not name: it was chosen from the tenant's own list, so there is
      * nothing to resolve and nothing to accidentally create.
@@ -617,7 +617,7 @@ class InventoryImporter
         return $this->vendorCache['__import__'] = $vendor;
     }
 
-    /** MARKER-IMPORT-MPN-BRAND — idempotent pivot link, shared by both paths. */
+    /** idempotent pivot link, shared by both paths. */
     private function linkVendor($item, $vendor, $costCents = null): void
     {
         $linked = DB::table('tenant_inventory_item_vendors')
@@ -628,7 +628,7 @@ class InventoryImporter
             return;
         }
 
-        // MARKER-IMPORT-PIVOT-UUID - the pivot's key is uuid('id')->primary()
+        // the pivot's key is uuid('id')->primary()
         // with no database default, so a query-builder insert must supply it.
         // Eloquent would have; DB::table() does not.
         DB::table('tenant_inventory_item_vendors')->insert([
@@ -642,7 +642,7 @@ class InventoryImporter
     }
 
     /**
-     * MARKER-IMPORT-QUEUE — the preview screen's data WITHOUT re-reading the
+     * the preview screen's data WITHOUT re-reading the
      * file. Counts come from the ledger the job wrote, so opening the page
      * costs one grouped query instead of a full pass.
      */
@@ -664,7 +664,7 @@ class InventoryImporter
         return [
             'counts'        => array_merge($counts, array_intersect_key($stored, ['will_tag' => 0])),
             'sample'        => [],
-            // MARKER-IMPORT-RESULTS — PreviewImportJob writes these at the top
+            // PreviewImportJob writes these at the top
             // of totals; totals['preview'] holds only counts. The tag name is
             // an option, not a total.
             'newCategories' => (array) (($this->import->totals ?? [])['newCategories'] ?? []),
@@ -676,7 +676,7 @@ class InventoryImporter
     }
 
     /**
-     * MARKER-IMPORT-CATS — resolve a category path through the decisions made
+     * resolve a category path through the decisions made
      * on the preview screen.
      *
      *   create      make it (and its parents), once

@@ -16,7 +16,7 @@ class TenantUser extends Authenticatable
 
     public function tenant(): BelongsTo { return $this->belongsTo(Tenant::class); }
 
-    // MARKER-PATCH-490 — named access role (custom roles & per-section visibility)
+    // named access role (custom roles & per-section visibility)
     public function accessRole(): BelongsTo { return $this->belongsTo(TenantRole::class, 'role_id'); }
 
     /**
@@ -34,7 +34,7 @@ class TenantUser extends Authenticatable
     }
 
     /**
-     * MARKER-PATCH-611 — granular capability check for the current user.
+     * granular capability check for the current user.
      * Owner enum always passes; users without a role fall back to full access
      * (pre-roles behavior) so nothing locks out unexpectedly.
      */

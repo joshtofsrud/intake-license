@@ -4,7 +4,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-// MARKER-PATCH-509 — route windows: the capacity unit for pickup & delivery.
+// route windows: the capacity unit for pickup & delivery.
 return new class extends Migration
 {
     public function up(): void

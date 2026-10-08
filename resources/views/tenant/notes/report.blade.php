@@ -3,7 +3,6 @@
 
 @section('content')
 
-{{-- MARKER-OLD-SCHOOL-REPORT --}}
 <div class="ia-page-head">
   <div class="ia-page-head-left">
     <h1 class="ia-page-title">The pad — how it's going</h1>

@@ -1,5 +1,4 @@
 <?php
-// MARKER-SYNC-CHUNKED
 
 namespace App\Jobs;
 
@@ -18,7 +17,7 @@ use Illuminate\Queue\SerializesModels;
  * pivot id in (after, upto]. Planned by RunTenantDistributorSyncJob.
  *
  * A distributor that throws is recorded and marked failed, and its remaining
- * slices skip — the other distributors still run (MARKER-SYNC-ISOLATE). Only a
+ * slices skip — the other distributors still run. Only a
  * slice that dies outright (timeout, killed worker) ends the chain, and then
  * failed() closes the run with the reason.
  */
@@ -61,7 +60,7 @@ class SyncDistributorSliceJob implements ShouldQueue
         } catch (\Throwable $e) {
             DistributorSyncRuns::merge($this->tenantId, $this->runId,
                 ['slices_done' => 1, 'errors' => [$e->getMessage()]], $this->code, true);
-            JobFailureReporter::report(self::class, $this->code . ' sync failed inside a "Sync now" run', $e,   // MARKER-JOB-ISSUES-2
+            JobFailureReporter::report(self::class, $this->code . ' sync failed inside a "Sync now" run', $e,
                 ['code' => $this->code, 'slice' => $this->slice . '/' . $this->slices], $this->tenantId);
             return;
         }

@@ -14,14 +14,14 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 
 /**
- * MARKER-DEMO-ENTRY — the demo's control room.
+ * the demo's control room.
  *
  * Everything here is reversible and fast. Rebuilding the template is not: it
  * reads live tenant data and takes minutes, so it stays on the CLI.
  */
 class Demo extends Page
 {
-    use \App\Support\UsesAdminNav; // MARKER-NAV-ORDER
+    use \App\Support\UsesAdminNav;
     protected static ?string $navigationIcon  = 'heroicon-o-play-circle';
     protected static ?string $navigationLabel = 'Demo';
     protected static ?string $navigationGroup = 'Operations';
@@ -36,7 +36,7 @@ class Demo extends Page
 
     public static function canAccess(): bool
     {
-        // MARKER-DEMO-FIXES — allows() is ($user, $area). Passing the area
+        // allows() is ($user, $area). Passing the area
         // alone threw inside the nav render, so every admin page 500'd.
         return AdminAccess::allows(Auth::guard('web')->user(), 'scheduling');
     }
@@ -83,7 +83,7 @@ class Demo extends Page
             'live_rows'   => $tenant ? DB::table('tenant_appointments')->where('tenant_id', $tenant->id)->count() : 0,
             'last_reset'  => DemoSetting::get('last_reset_at:' . self::SLUG),
             'shift_days'  => DemoSetting::get('shift_days:' . self::SLUG),
-            // MARKER-DEMO-COUNTS — raw hits since launch: every entry, including
+            // raw hits since launch: every entry, including
             // repeats and crawlers, and the only record of entries from before
             // the funnel table worked. Kept as-is; people are counted below.
             'entries'     => (int) DemoSetting::get('entries:' . self::SLUG, '0'),
@@ -97,7 +97,7 @@ class Demo extends Page
     }
 
     /**
-     * MARKER-DEMO-COUNTS — how many DIFFERENT people walked in, ignoring bots.
+     * how many DIFFERENT people walked in, ignoring bots.
      * This is the number worth quoting; the raw counter is not.
      */
     private function distinctVisitors(): int

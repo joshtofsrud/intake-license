@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
- * MARKER-PATCH-382 — A held booking slot awaiting deposit payment. Materializes
+ * A held booking slot awaiting deposit payment. Materializes
  * into a TenantAppointment only after the PaymentIntent succeeds; otherwise it
  * expires and the reaper drops it, so a declined or abandoned card never leaves
  * an appointment behind.

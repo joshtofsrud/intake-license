@@ -41,7 +41,7 @@ class SendWaitlistOfferNotificationJob implements ShouldQueue
         $emailError = null;
         $smsError   = null;
 
-        // MARKER-WAITLIST-SUPPRESSION — a waitlist entry is a request to be
+        // a waitlist entry is a request to be
         // told, so a marketing unsubscribe does not cancel it. A bounce or a
         // complaint does: one is a mailbox that is not there, the other is
         // someone who reported this shop for spam.
@@ -53,7 +53,6 @@ class SendWaitlistOfferNotificationJob implements ShouldQueue
             ]);
             $emailError = 'suppressed: undeliverable';
         } elseif ($settings->notify_email && $customer->email) {
-            // MARKER-LEDGER-STRAGGLERS
             $ledger = \App\Services\EmailLedger::begin($tenant->id, 'reminder', $customer->email, 'waitlist_offer');
             try {
                 Mail::to($customer->email)->send(new WaitlistOfferMail($tenant, $offer));
@@ -62,7 +61,7 @@ class SendWaitlistOfferNotificationJob implements ShouldQueue
             } catch (\Throwable $e) {
                 \App\Services\EmailLedger::void($ledger);
                 $emailError = $e->getMessage();
-                \App\Support\JobFailureReporter::report(self::class, 'Waitlist offer email did not send', $e,   // MARKER-JOB-ISSUES-2
+                \App\Support\JobFailureReporter::report(self::class, 'Waitlist offer email did not send', $e,
                     ['offer_id' => $offer->id], $offer->tenant_id ?? null);
                 Log::error('Waitlist email failed', [
                     'offer_id' => $offer->id,
@@ -77,7 +76,7 @@ class SendWaitlistOfferNotificationJob implements ShouldQueue
                 $smsOk = true;
             } catch (\Throwable $e) {
                 $smsError = $e->getMessage();
-                \App\Support\JobFailureReporter::report(self::class, 'Waitlist offer text did not send', $e,   // MARKER-JOB-ISSUES-2
+                \App\Support\JobFailureReporter::report(self::class, 'Waitlist offer text did not send', $e,
                     ['offer_id' => $offer->id], $offer->tenant_id ?? null);
                 Log::error('Waitlist SMS failed', [
                     'offer_id' => $offer->id,

@@ -1,5 +1,5 @@
 <?php
-// MARKER-REPPANEL-RESOURCE — Prospects, scoped to the signed-in rep.
+// Prospects, scoped to the signed-in rep.
 // Principal -> whole agency book. Rep -> their own prospects.
 // Creating a prospect here IS deal registration: attribution is stamped
 // automatically and cannot be pointed at another agency.
@@ -85,7 +85,7 @@ class RepProspectResource extends Resource
                             ->map(fn ($cents, $key) => ucfirst($key) . ' — $' . number_format($cents / 100) . '/mo')
                             ->all())
                         ->placeholder('— no quote yet —'),
-                    Forms\Components\ViewField::make('quote_addons') // MARKER-QUOTE-GROUPED
+                    Forms\Components\ViewField::make('quote_addons')
                         ->label('Add-ons')->columnSpanFull()->default([])
                         ->view('filament.forms.quote-grouped-addons', [
                             'rateLabel' => 'your yr-1 commission',

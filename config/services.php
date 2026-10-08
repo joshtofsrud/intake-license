@@ -8,7 +8,7 @@ return [
         'from'   => env('TWILIO_FROM'),
     ],
 
-    // MARKER-PATCH-403 — Postmark inbound (unified inbox email replies).
+    // Postmark inbound (unified inbox email replies).
     // inbound_address is the base address of your Postmark inbound stream,
     // e.g. "1a2b3c4d@inbound.postmarkapp.com" to start (zero DNS), or a
     // branded "replies@reply.intake.works" once the MX points at Postmark.
@@ -18,18 +18,17 @@ return [
         'inbound_address' => env('POSTMARK_INBOUND_ADDRESS'),
     ],
 
-    // MARKER-SCHED-GOOGLE — OAuth client for master-admin scheduling's calendar sync.
+    // OAuth client for master-admin scheduling's calendar sync.
     'google' => [
         'client_id'     => env('GOOGLE_CLIENT_ID'),
         'client_secret' => env('GOOGLE_CLIENT_SECRET'),
     ],
 
-    // MARKER-PATCH-224B
     'anthropic' => [
         'key' => env('ANTHROPIC_API_KEY'),
     ],
 
-    // MARKER-PATCH-117 - Cloudflare for SaaS custom hostnames
+    // Cloudflare for SaaS custom hostnames
     'cloudflare' => [
         // API token scoped to (SSL and Certificates: Edit, Zone: Read) on
         // the intake.works zone. Generated in Cloudflare dashboard.

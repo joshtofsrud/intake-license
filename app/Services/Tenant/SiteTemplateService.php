@@ -1,5 +1,4 @@
 <?php
-// MARKER-PATCH-260
 
 namespace App\Services\Tenant;
 
@@ -44,7 +43,7 @@ class SiteTemplateService
 
         return DB::transaction(function () use ($tenant, $key, $tokens) {
             // Snapshot current design so a switch is reversible.
-            // MARKER-PREVFIX — drop the existing _prev before storing. Without
+            // drop the existing _prev before storing. Without
             // this the snapshot contains the previous snapshot, which contains
             // the one before it: the column doubles on every apply and revert
             // still only ever reads the top level.

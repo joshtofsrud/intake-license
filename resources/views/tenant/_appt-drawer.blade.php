@@ -1,6 +1,6 @@
-{{-- MARKER-ASSET-NOUN — asset labels read tenant()->asset_label_* --}}
+{{-- asset labels read tenant()->asset_label_* --}}
 {{--
-  Shared appointment drawer. (MARKER-PATCH-212 — enriched)
+  Shared appointment drawer. (enriched)
   Public API: window.ApptDrawer.open(apptId, fullUrl) / .close()
 --}}
 
@@ -80,7 +80,6 @@
   </div>
   <div class="appt-drawer-foot">
     <a href="#" class="ia-btn ia-btn--primary" id="drawer-fullview">Open full view</a>
-    {{-- MARKER-PATCH-328 --}}
     @if(data_get(tenant()->settings, 'work_order_tag.enabled', true))
     <button type="button" class="ia-btn ia-btn--ghost" id="drawer-printtag">&#9113; Print tag</button>
     @endif
@@ -97,8 +96,8 @@
   var closeBtn = document.getElementById('drawer-close');
   var closeBtn2= document.getElementById('drawer-close-2');
   var fullLink = document.getElementById('drawer-fullview');
-  var printTagBtn = document.getElementById('drawer-printtag'); // MARKER-PATCH-328
-  var currentApptId = null; // MARKER-PATCH-328
+  var printTagBtn = document.getElementById('drawer-printtag');
+  var currentApptId = null;
   var raEl     = document.getElementById('drawer-ra');
   var titleEl  = document.getElementById('drawer-title');
   var bodyEl   = document.getElementById('drawer-body');
@@ -109,10 +108,10 @@
   backdrop.addEventListener('click', closeDrawer);
   closeBtn.addEventListener('click', closeDrawer);
   closeBtn2.addEventListener('click', closeDrawer);
-  // MARKER-PATCH-328 — print the current job's tag via a hidden iframe.
+  // print the current job's tag via a hidden iframe.
   if (printTagBtn) printTagBtn.addEventListener('click', function(){
     if (!currentApptId) return;
-    if (window.openPrintComposer) { window.openPrintComposer('appointment', currentApptId, { type: 'tag', format: 't80' }); return; } // MARKER-PATCH-338
+    if (window.openPrintComposer) { window.openPrintComposer('appointment', currentApptId, { type: 'tag', format: 't80' }); return; }
     var url = window.location.origin + '/admin/appointments/' + currentApptId + '/tag?embed=1';
     var f = document.createElement('iframe');
     f.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;';
@@ -131,7 +130,7 @@
 
   function loadDrawer(apptId, fullUrlOverride){
     openDrawer();
-    currentApptId = apptId; // MARKER-PATCH-328
+    currentApptId = apptId;
     raEl.textContent = 'Loading…'; titleEl.textContent = '';
     bodyEl.innerHTML = '<div class="appt-drawer-loading">Loading…</div>';
 

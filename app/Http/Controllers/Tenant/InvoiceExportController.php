@@ -10,7 +10,7 @@ use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 
 /**
- * MARKER-PATCH-204 / 206 — work-order invoice export.
+ * / 206 — work-order invoice export.
  *
  * preview / download / email  -> real dompdf PDF (Print style).
  * previewHtml                 -> lightweight HTML for the live composer pane
@@ -48,12 +48,12 @@ class InvoiceExportController extends Controller
             'terms' => $r->input('terms'),
             'note'  => $r->input('note', $appt->invoice_note),
         ]);
-        $data = $this->decorateIdentity($data, $appt, $r); // MARKER-PATCH-348
+        $data = $this->decorateIdentity($data, $appt, $r);
         return Pdf::loadView('tenant.invoices.pdf-print', $data)->setPaper('letter');
     }
 
     /**
-     * MARKER-PATCH-348 — attach the print logo (base64-embedded, because dompdf
+     * attach the print logo (base64-embedded, because dompdf
      * has remote images disabled) and the chosen logo size to the view data.
      * logo_size comes from the Print & Send window per-print; it falls back to
      * the tenant's saved print-identity size.
@@ -134,7 +134,7 @@ class InvoiceExportController extends Controller
     }
 
     /**
-     * MARKER-PATCH-206 — live preview pane. Returns rendered HTML (NOT a PDF)
+     * live preview pane. Returns rendered HTML (NOT a PDF)
      * for the composer iframe. Never writes to the DB — keystroke-safe.
      */
     public function previewHtml(Request $r, string $id)
@@ -148,7 +148,7 @@ class InvoiceExportController extends Controller
         ]);
         $view = $style === 'branded' ? 'tenant.invoices.web-branded' : 'tenant.invoices.pdf-print';
         if ($view === 'tenant.invoices.pdf-print') {
-            $data = $this->decorateIdentity($data, $appt, $r); // MARKER-PATCH-348
+            $data = $this->decorateIdentity($data, $appt, $r);
         }
 
         return response(view($view, $data)->render())

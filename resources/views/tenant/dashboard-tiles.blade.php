@@ -1,11 +1,11 @@
 @extends('layouts.tenant.app')
-{{-- MARKER-TILES — the simplified dashboard. A second view alongside the
+{{-- the simplified dashboard. A second view alongside the
      Overview dashboard, which is unchanged and stays the default. --}}
 @section('title', 'Dashboard')
-{{-- MARKER-DASH-LESS-CHROME — the round + button shows here too, as on Overview --}}
+{{-- the round + button shows here too, as on Overview --}}
 @section('mobile-fab', 'walk-in')
 @push('styles')
-{{-- MARKER-DASH-LESS-CHROME — on phones the view switch shrinks to two icons
+{{-- on phones the view switch shrinks to two icons
      at the end of the greeting line, and the New sale / New appointment
      buttons give way to the round + button (which offers both). A shop
      without the + (retail off) keeps its buttons. --}}
@@ -34,7 +34,7 @@
   $L        = $launcher ?? [];
   $visible  = $tiles['visible'] ?? [];
   $hiddenT  = $tiles['hidden'] ?? [];
-  // MARKER-TILES-CARDS-MATCH — same sort as _zone_triage_tiles: red first,
+  // same sort as _zone_triage_tiles: red first,
   // then amber, violet, blue; stable within a tone.
   $toneWeight = ['red' => 0, 'amber' => 1, 'violet' => 2, 'blue' => 3];
   $cards    = collect($attention['cards'] ?? [])
@@ -43,7 +43,7 @@
       ->values();
 @endphp
 
-{{-- MARKER-DASH-STATS-STRIP — the same three figures as Overview, on phones,
+{{-- the same three figures as Overview, on phones,
      a size smaller so Tiles stays tight. --}}
 <div class="ia-tiles-stats" aria-label="This week">
   <div><b>{{ $today['today_count'] ?? 0 }}</b><span>Today</span></div>
@@ -51,7 +51,7 @@
   <div><b>{{ $today['week_new_customers'] ?? 0 }}</b><span>New cust.</span></div>
 </div>
 
-{{-- MARKER-DASH-HEAD-MATCH — identical head to the Overview view: same
+{{-- identical head to the Overview view: same
      greeting construction, same bold long date, same amber attention count
      (attention total, not the visible-card count), same action buttons. --}}
 <div class="ia-page-head ia-tiles-head ia-dash-head {{ tenant()->retail_enabled ? 'has-fab' : '' }}">
@@ -87,10 +87,9 @@
 {{-- Needs you today: kept deliberately. Simple shouldn't mean blind to a
      booking that's waiting. --}}
 @if($cards->count())
-  {{-- MARKER-TILES-NEEDSYOU-COLLAPSE --}}
   @php $worstTone = $cards->contains(fn ($c) => ($c['tone'] ?? '') === 'red') ? 'red' : 'amber'; @endphp
   <button type="button" id="ia-needsyou-bar" class="ia-needsyou-bar ia-needsyou-bar--{{ $worstTone }}" hidden>
-    {{-- MARKER-DASH-LESS-CHROME — the same count as the greeting (things that
+    {{-- the same count as the greeting (things that
          need you), not every card's inner count added up. --}}
     <span class="ia-needsyou-count">{{ $attention['total_items'] ?? $cards->count() }}</span>
     <span class="ia-needsyou-label">need you</span>
@@ -159,7 +158,7 @@
 
 @push('scripts')
 <script>
-/* MARKER-TILES-NEEDSYOU-COLLAPSE — own scope, deliberately separate from the
+/* own scope, deliberately separate from the
    edit-tiles script below (shared blocks die whole on one duplicate const). */
 (function () {
   var KEY  = 'ia-needsyou-collapsed';
@@ -182,7 +181,7 @@
 })();
 </script>
 <script>
-// MARKER-TILES — reorder, hide, restore. Saves on Done rather than on every
+// reorder, hide, restore. Saves on Done rather than on every
 // drag, so a reorder is one request instead of a dozen.
 (function () {
   var grid = document.getElementById('ia-tiles-grid');

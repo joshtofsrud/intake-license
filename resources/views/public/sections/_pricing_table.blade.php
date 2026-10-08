@@ -1,4 +1,4 @@
-{{-- MARKER-PATCH-158-G30 — pricing_table public renderer (v2) --}}
+{{-- pricing_table public renderer (v2) --}}
 @php
   $c = $c ?? [];
 

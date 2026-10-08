@@ -11,7 +11,7 @@ use App\Models\Tenant\TenantResource;
 use App\Models\Tenant\TenantServiceItem;
 use App\Models\Tenant\TenantUser;
 use App\Models\Tenant\TenantWaitlistEntry;
-use App\Models\Tenant\TenantInventoryItem;  // MARKER-PATCH-110-STEP-1
+use App\Models\Tenant\TenantInventoryItem;
 use App\Services\Tenant\CustomersReportService;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -66,7 +66,7 @@ class DashboardDataService
 
         $nextUp = $todayAppointments->first(function ($a) {
             if (!$a->appointment_time) return false;
-            // MARKER-PATCH-362 — appointment_time is naive tenant-local wall-clock;
+            // appointment_time is naive tenant-local wall-clock;
             // parse it in the tenant timezone so "is it still upcoming?" compares
             // real instants against tnow() (was ~7h early, which hid the next-up
             // banner for genuinely upcoming appointments).
@@ -88,7 +88,7 @@ class DashboardDataService
             ->whereBetween('appointment_date', [$weekStart, $today]);
 
         $weekBookings = (clone $weekBase)->count();
-        // MARKER-PATCH-185 — week revenue = payments received (sale ledger).
+        // week revenue = payments received (sale ledger).
         $tzW = $this->tenant->timezone();
         // $weekStart is a Y-m-d string; parse in tenant tz for the UTC window.
         $weekRevenue = (int) \App\Models\Tenant\TenantSalePayment::where('tenant_id', $this->tenant->id)
@@ -103,7 +103,7 @@ class DashboardDataService
             ->where('created_at', '>=', $weekStart)
             ->count();
 
-        // MARKER-PATCH-183 — today's deliveries for the dashboard mini-section.
+        // today's deliveries for the dashboard mini-section.
         $todayDeliveries = collect();
         try {
             $todayDeliveries = (new \App\Services\Tenant\TenantDeliveryService($this->tenant))
@@ -112,7 +112,7 @@ class DashboardDataService
             $todayDeliveries = collect();
         }
 
-        // MARKER-DASH-NEXT-DAY — an empty today points at the next day that
+        // an empty today points at the next day that
         // has work (within 30 days), for appointments and for pickups/drop-offs
         // separately, so the dashboard says what's coming instead of "nothing".
         $tz = $this->tenant->timezone();
@@ -184,7 +184,6 @@ class DashboardDataService
             ->whereDate('appointment_date', '>=', $today)
             ->count();
 
-        // MARKER-PICKUP-OUTREACH
         $pickupOutreachCount = TenantAppointment::where('tenant_id', $tenantId)
             ->where('pickup_outreach_pending', true)
             ->count();
@@ -215,7 +214,7 @@ class DashboardDataService
             }
         }
 
-        // MARKER-PATCH-539 — completed jobs with no scheduled drop-off (P&D tenants).
+        // completed jobs with no scheduled drop-off (P&D tenants).
         // No-reply proposals (customer never picked from the options link) called out.
         $awaitingDeliveryCount = 0;
         $awaitingNoReplyCount  = 0;
@@ -225,7 +224,7 @@ class DashboardDataService
                 ->where('tenant_appointments.status', 'completed')
                 ->whereNotNull('tenant_appointments.completed_at')
                 ->where('tenant_appointments.completed_at', '>=', now()->subDays(14))
-                // MARKER-DELIVERY-RESOLUTION — a decided job is gone from the
+                // a decided job is gone from the
                 // queue; a snoozed one is hidden until its wake time.
                 ->whereNull('tenant_appointments.delivery_resolution')
                 ->where(function ($q) {
@@ -249,7 +248,7 @@ class DashboardDataService
                             ->where('tenant_delivery_proposals.tenant_id', $tenantId)
                             ->where('tenant_delivery_proposals.status', 'no_reply');
                     })->count();
-                // MARKER-DELIVERY-CALL — asked to be phoned instead.
+                // asked to be phoned instead.
                 $awaitingCallCount = (clone $base)
                     ->whereExists(function ($q) use ($tenantId) {
                         $q->selectRaw('1')
@@ -264,7 +263,7 @@ class DashboardDataService
         $cards = [];
 
         if ($awaitingDeliveryCount > 0) {
-            $singular = $this->tenant->asset_label_singular ?: 'job';   // MARKER-PATCH-539
+            $singular = $this->tenant->asset_label_singular ?: 'job';
             $plural   = $this->tenant->asset_label_plural ?: 'jobs';
             $cards[] = [
                 'count' => $awaitingDeliveryCount,
@@ -275,7 +274,7 @@ class DashboardDataService
                         ? "1 completed {$singular} with no drop-off scheduled"
                         : "{$awaitingDeliveryCount} completed {$plural} with no drop-off scheduled")
                     . ($awaitingNoReplyCount > 0 ? " — {$awaitingNoReplyCount} never replied to the options link" : '')
-                    . (($awaitingCallCount ?? 0) > 0 ? " — {$awaitingCallCount} asked for a call" : ''), // MARKER-DELIVERY-CALL
+                    . (($awaitingCallCount ?? 0) > 0 ? " — {$awaitingCallCount} asked for a call" : ''),
                 'tone'  => 'amber',
                 'link'  => route('tenant.appointments.index', ['filter' => 'awaiting_delivery']),
             ];
@@ -295,7 +294,7 @@ class DashboardDataService
             ];
         }
 
-        // MARKER-PICKUP-OUTREACH — bookings that asked for pickup outreach
+        // bookings that asked for pickup outreach
         if ($pickupOutreachCount > 0) {
             $cards[] = [
                 'count' => $pickupOutreachCount,
@@ -413,7 +412,7 @@ class DashboardDataService
         // Arrived: status=arrived (waiting on staff to pull from bench).
         // Overdue: status=ordered AND expected_arrival_date past today
         //   (vendor missed promised date, chase them).
-        // MARKER-PATCH-422 — Needed: status=needed (soft request, not yet ordered from a vendor).
+        // Needed: status=needed (soft request, not yet ordered from a vendor).
         $soNeededCount = \App\Models\Tenant\TenantSpecialOrder::where('tenant_id', $tenantId)
             ->where('status', \App\Models\Tenant\TenantSpecialOrder::STATUS_NEEDED)
             ->count();
@@ -515,7 +514,7 @@ class DashboardDataService
             }
         }
 
-        // MARKER-PATCH-110-STEP-2 — Low stock + Win-back triage rules
+        // Low stock + Win-back triage rules
         // Both rules are tenant-scoped and use existing indexed columns.
 
         // Low stock: items at or below shop_reorder_threshold. Mirrors the
@@ -541,7 +540,7 @@ class DashboardDataService
             ];
         }
 
-        // MARKER-PATCH-609 — catalog attention: open pricing/MAP/MSRP flags from
+        // catalog attention: open pricing/MAP/MSRP flags from
         // distributor sync. Same count as the Catalog attention page header.
         try {
             $catalogAttn = \App\Models\Tenant\TenantPricingAttentionFlag::query()
@@ -600,7 +599,7 @@ class DashboardDataService
 
     public function zoneGrowth(): array
     {
-        // MARKER-PATCH-115 — match Reports' revenue definition:
+        // match Reports' revenue definition:
         //   - status IN ('completed','closed') so only delivered work counts
         //   - 30-day window inclusive of today (Reports' last_30 uses the
         //     same subDays(29) bound).
@@ -609,7 +608,7 @@ class DashboardDataService
         $thirtyAgo = $this->tnow()->subDays(29)->startOfDay();   // start of current 30d window
         $sixtyAgo  = $this->tnow()->subDays(59)->startOfDay();   // start of prior 30d window
 
-        // MARKER-PATCH-185 — revenue = payments received (sale ledger), matching
+        // revenue = payments received (sale ledger), matching
         // Reports. recorded_at is UTC; bound by tenant-local windows -> UTC.
         $tzG = $this->tenant->timezone();
         $curStart = $thirtyAgo->copy()->setTimezone($tzG)->startOfDay()->utc();
@@ -740,7 +739,6 @@ class DashboardDataService
     }
 
     /**
-     * MARKER-PATCH-110-STEP-3
      * Launcher tile sub-stats. One DB hit per stat where the data isn't
      * already in zoneToday/zoneAttention. Order matters — tiles render
      * in array order.
@@ -754,7 +752,7 @@ class DashboardDataService
         $todayStr = $this->tnow()->toDateString();
 
         // Today's register total. Sums tenant_sales paid today.
-        // MARKER-TZ-WAVE1 — paid_at is a UTC instant; whereDate() compared
+        // paid_at is a UTC instant; whereDate() compared
         // its UTC date to the tenant-local date, so evening sales vanished
         // from today's tile. Compare against the tenant day's UTC range.
         [$dayStartUtc, $dayEndUtc] = tenant_day_utc_range($this->tnow());
@@ -852,10 +850,10 @@ class DashboardDataService
 
     private function dailyRevenueSeries(string $tenantId, Carbon $from, Carbon $to): array
     {
-        // MARKER-PATCH-185 — daily revenue spark = payments received (ledger),
+        // daily revenue spark = payments received (ledger),
         // bucketed by recorded_at in tenant tz.
         $tzS = $this->tenant->timezone();
-        // MARKER-TZ-WAVE4 — DST-correct per-row offset.
+        // DST-correct per-row offset.
         $sparkStart = $from->copy()->setTimezone($tzS)->startOfDay()->utc();
         $sparkEnd   = $to->copy()->setTimezone($tzS)->endOfDay()->utc();
         [$tzExpr, $tzBind] = tenant_tz_offset_expr('recorded_at', $tzS, $sparkStart, $sparkEnd);

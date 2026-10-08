@@ -1,5 +1,4 @@
 <?php
-// MARKER-ATTENTION-QUEUE
 
 namespace App\Services\Tenant;
 
@@ -57,7 +56,7 @@ class PricingAttentionResolver
         $skipped = 0;
         
 
-        // MARKER-CATALOG-HISTORY — capture what these items look like before we
+        // capture what these items look like before we
         // touch them, so the batch can be put back.
         $recorder = new \App\Services\Tenant\CatalogChangeRecorder(
             $tenantId,
@@ -71,11 +70,11 @@ class PricingAttentionResolver
             $userEmail,
         );
         $titleReason = \App\Models\Tenant\TenantPricingAttentionFlag::REASON_TITLE_CHANGED;
-        $detailsReason = \App\Models\Tenant\TenantPricingAttentionFlag::REASON_DETAILS_CHANGED; // MARKER-DETAILS-WATCH
+        $detailsReason = \App\Models\Tenant\TenantPricingAttentionFlag::REASON_DETAILS_CHANGED;
 
         foreach ($flags as $flag) {
             $isTitle = $flag->reason === $titleReason;
-            $isDetails = $flag->reason === $detailsReason; // MARKER-DETAILS-WATCH
+            $isDetails = $flag->reason === $detailsReason;
             $item = $flag->item;
 
             // Type guards — an action only applies to the matching flag kind.
@@ -100,7 +99,7 @@ class PricingAttentionResolver
                     $skipped++;
                     continue;
                 }
-                $recorder->capture($item);          // MARKER-CATALOG-HISTORY
+                $recorder->capture($item);
                 $item->shop_sell_price_cents = (int) $target;
                 $item->save();
                 $recorder->captured($item);
@@ -110,11 +109,11 @@ class PricingAttentionResolver
                     $skipped++;
                     continue;
                 }
-                $recorder->capture($item);          // MARKER-CATALOG-HISTORY
+                $recorder->capture($item);
                 $item->name = $cat->display_name;
                 $item->catalog_title_seen = $cat->display_name; // snapshot so it won't re-flag
                 $item->save();
-                $recorder->captured($item);          // MARKER-CATALOG-HISTORY
+                $recorder->captured($item);
             } elseif ($action === 'keep_title') {
                 // Keep the tenant's name; just acknowledge the catalog's new title
                 // so the watch stops flagging it.
@@ -124,14 +123,14 @@ class PricingAttentionResolver
                     $item->save();
                 }
             } elseif ($action === 'adopt_details') {
-                // MARKER-DETAILS-WATCH — copy only non-blank catalog values;
+                // copy only non-blank catalog values;
                 // the feed dropping a field never blanks the shop's own.
                 $cat = $item?->distributorCatalog;
                 if (! $item || ! $cat) {
                     $skipped++;
                     continue;
                 }
-                $recorder->capture($item);          // MARKER-CATALOG-HISTORY
+                $recorder->capture($item);
                 foreach (['color', 'size', 'description'] as $fld) {
                     if (filled($cat->{$fld})) {
                         $item->{$fld} = $cat->{$fld};
@@ -143,7 +142,7 @@ class PricingAttentionResolver
                     'description' => $cat->description,
                 ];
                 $item->save();
-                $recorder->captured($item);          // MARKER-CATALOG-HISTORY
+                $recorder->captured($item);
             } elseif ($action === 'keep_details') {
                 // Keep the tenant's values; snapshot the catalog's so the
                 // watch stops flagging this change.
@@ -166,7 +165,7 @@ class PricingAttentionResolver
             $applied++;
         }
 
-        $batchId = $recorder->finish(); // MARKER-CATALOG-HISTORY — one batch per bulk action
+        $batchId = $recorder->finish(); // one batch per bulk action
 
         return ['applied' => $applied, 'skipped' => $skipped, 'batch_id' => $batchId];
     }

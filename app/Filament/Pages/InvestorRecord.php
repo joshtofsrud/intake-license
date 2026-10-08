@@ -10,10 +10,9 @@ use Filament\Pages\Page;
 use Illuminate\Support\Facades\Storage;
 use Livewire\WithFileUploads;
 
-// MARKER-RAISE-RECORDS
 class InvestorRecord extends Page
 {
-    use \App\Support\GatedByAdminArea; // MARKER-ADMIN-NAV-GATE
+    use \App\Support\GatedByAdminArea;
     protected static string $adminArea = 'raise';
 
     use WithFileUploads;
@@ -103,7 +102,7 @@ class InvestorRecord extends Page
 
         InvestorEvent::log($investor->id, 'document', 'Document added: ' . $this->docLabel);
 
-        // MARKER-RAISE-PORTAL — the document is now visible on their page, so tell them
+        // the document is now visible on their page, so tell them
         \App\Services\InvestorMessenger::send('document_ready', $investor);
 
         $this->reset(['docLabel', 'upload']);
@@ -150,7 +149,6 @@ class InvestorRecord extends Page
         Notification::make()->title('Document removed')->send();
     }
 
-    // MARKER-RAISE-MESSAGES
     public string $previewKey = '';
 
     public function previewMessage(string $key): void

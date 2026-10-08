@@ -11,7 +11,7 @@
     <p class="ia-page-subtitle">Drop-off mode · {{ $date->format('l, F j, Y') }}</p>
   </div>
     <div class="ia-page-actions" style="margin-left:auto;display:flex;gap:10px;align-items:center">
-      {{-- MARKER-PATCH-430 — legend trigger (ported from week view) --}}
+      {{-- legend trigger (ported from week view) --}}
       <button type="button" class="ia-cal-legend-trigger" id="ia-cal-legend-trigger"
               aria-label="Show calendar legend" aria-expanded="false">
         <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
@@ -22,7 +22,7 @@
         </svg>
         <span class="ia-cal-legend-trigger-label">Legend</span>
       </button>
-      {{-- MARKER-PATCH-163 — canonical new-appointment entry point on calendar header --}}
+      {{-- canonical new-appointment entry point on calendar header --}}
       <button type="button" class="ia-btn ia-btn--primary" onclick="openApptModal()">
         + New appointment
       </button>
@@ -40,10 +40,10 @@
   </div>
 </div>
 
-{{-- MARKER-PATCH-152A — capacity-mode was missing the schedule sub-toggle --}}
+{{-- capacity-mode was missing the schedule sub-toggle --}}
 <x-tenant.schedule-tabs active="calendar" />
 
-{{-- MARKER-PATCH-430 — legend panel (ported from week view) --}}
+{{-- legend panel (ported from week view) --}}
 <div class="ia-cal-legend" id="ia-cal-legend" hidden style="margin-bottom:16px">
   <div class="ia-cal-legend-section">
     <div class="ia-cal-legend-heading">Appointment status</div>
@@ -85,7 +85,7 @@
     </div>
   </div>
 @else
-  {{-- MARKER-DROPOFF-POLISH — auto-fill wraps to a new row instead of
+  {{-- auto-fill wraps to a new row instead of
        running off the right edge; the cap keeps 1–2 resources from
        stretching a column across the whole page. --}}
   <div class="cal-dropoff-grid"
@@ -98,7 +98,7 @@
         $cap      = $r->max_appointments_per_day;
         $atCap    = ($cap !== null && $count >= $cap);
       @endphp
-      {{-- MARKER-DROPOFF-POLISH — head is one flex row at a fixed height so
+      {{-- head is one flex row at a fixed height so
            every column starts its cards on the same line, with or without a
            subtitle. The count pill is the link to this person's list. --}}
       @php
@@ -154,7 +154,7 @@
 
 @include('tenant._appt-drawer')
 
-{{-- MARKER-PATCH-163 — defines window.openApptModal() --}}
+{{-- defines window.openApptModal() --}}
 @include('tenant.appointments._create_modal')
 
 @endsection
@@ -201,7 +201,6 @@
 .cal-date-btn:hover { color: var(--ia-text); border-color: var(--ia-border-strong); }
 .cal-date-today { font-weight: 600; }
 
-/* MARKER-DROPOFF-POLISH */
 .cal-dropoff-grid {
   display: grid;
   gap: 12px;
@@ -421,12 +420,12 @@
     align-items: center;
   }
 
-  /* MARKER-PATCH-428 — full-width controls on mobile, aligned to the
+  /* full-width controls on mobile, aligned to the
      "+ New appointment" button. Day/Week + date nav each take their own
      full-width row; the schedule toggle pill spans the width too.
      Scoped here so the shared pill (Appointments/Deliveries pages) is
      unaffected. */
-  /* MARKER-PATCH-430 — compact Day/Week toggle; date nav fills to the right
+  /* compact Day/Week toggle; date nav fills to the right
      edge (single row, not stacked). Actions row holds Legend + New appointment. */
   .ia-page-actions { width: 100%; }
   .ia-page-actions .ia-btn { flex: 1; }
@@ -465,7 +464,7 @@
   }
   .cal-dropoff-empty-hint-desktop { display: none; }
   .cal-dropoff-empty-hint-mobile  { display: block; margin-top: 4px; color: var(--ia-text-3); }
-  /* MARKER-DROPOFF-POLISH — no hover on touch, and the width cap must go. */
+  /* no hover on touch, and the width cap must go. */
   .cal-dropoff-grid[style*="grid-template-columns"] { max-width: none !important; }
   .cal-dropoff-col-head { min-height: 0; }
 
@@ -476,7 +475,7 @@
 @endpush
 
 @push('scripts')
-{{-- MARKER-PATCH-430 — legend toggle (ported from week view) --}}
+{{-- legend toggle (ported from week view) --}}
 <script>
 (function () {
   var KEY = 'intake.calendar.legend.open';

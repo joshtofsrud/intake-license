@@ -1,6 +1,6 @@
 @extends('layouts.tenant.app')
 
-@php $gcCfg = \App\Services\Tenant\GiftCardService::config(tenant()); @endphp {{-- MARKER-GC-SETTINGS --}}
+@php $gcCfg = \App\Services\Tenant\GiftCardService::config(tenant()); @endphp
 
 @php $pageTitle = 'Register'; @endphp
 
@@ -12,7 +12,7 @@
     display:flex;gap:4px;margin:0 0 18px;border-bottom:0.5px solid var(--ia-border);
     flex-wrap:wrap
   }
-  /* MARKER-REG-MOBILE ------------------------------------------------- */
+  /* ----------------------------------------------- */
   /* display:contents keeps the links as direct flex children of the bar on
      desktop, so nothing about the existing layout changes. */
   .reg-tabs-scroll{display:contents}
@@ -29,7 +29,7 @@
     .reg-tab-link{white-space:nowrap;flex:0 0 auto;padding:10px 14px}
   }
 
-  /* MARKER-REG-MOBILE — these three were inline on the <select>, which meant
+  /* these three were inline on the <select>, which meant
      no media query could override them and the stage-3b mobile rule below
      silently did nothing. */
   .reg-tabs-bar .reg-picker-wrap,
@@ -46,7 +46,7 @@
     #appointment-tray-banner > button{flex:1 1 100%}
   }
 
-  /* MARKER-REGPICKER-ALIGN — the picker is an .ia-input in a flex row, so it
+  /* the picker is an .ia-input in a flex row, so it
      stretched to the bar's full height and sat below the tab underline.
      Center it and size it to the tab links instead. Scoped to the picker:
      .reg-tab-link needs the bar to stay stretch-aligned so its -0.5px bottom
@@ -56,7 +56,7 @@
     align-self:center;height:30px;padding:0 10px;line-height:1
   }
 
-  /* MARKER-OFFLINE-SYNC stage 3b — mobile: picker on its own full-width row
+  /* stage 3b — mobile: picker on its own full-width row
      instead of floating beside wrapped tabs */
   @media (max-width: 760px) {
     .reg-tabs-bar .reg-picker-wrap,
@@ -102,13 +102,13 @@
     border-radius: var(--ia-r-xs);
     font-weight: 500;
   }
-  /* MARKER-RESERVE-VISIBLE — held stock reads differently from missing stock. */
+  /* held stock reads differently from missing stock. */
   .reg-stock-chip.is-held{
     color:#f5c451;
     border-color:rgba(245,196,81,.4);
   }
 
-  /* MARKER-TENDER-LAYOUT ------------------------------------------------- */
+  /* ----------------------------------------------- */
   .reg-tender-modal{max-width:460px;padding:0;overflow:hidden}
   .tend-head{padding:18px 22px 16px;border-bottom:0.5px solid var(--ia-border)}
   .tend-eyebrow{display:flex;align-items:center;justify-content:space-between;
@@ -141,7 +141,7 @@
     font-variant-numeric:tabular-nums;background:var(--ia-input-bg);color:var(--ia-text);
     border:0.5px solid var(--ia-border);border-radius:var(--ia-r)}
   .tend-quick{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:10px}
-  /* MARKER-CASH-SIMPLE — .reg-modal input[type=text] (padding:10px) outranked
+  /* .reg-modal input[type=text] (padding:10px) outranked
      .tend-cash-input input, so the "$" sat on top of the typed amount. */
   .reg-modal .tend-cash-input input[type=text]{padding:13px 13px 13px 30px;font-size:18px}
   .tend-quick button.on{border-color:var(--ia-accent);color:var(--ia-accent)}
@@ -161,7 +161,6 @@
     cursor:pointer;padding:2px}
   .tend-link:hover{color:var(--ia-text);text-decoration:underline}
 
-  /* MARKER-QUICK-ADD */
   .reg-quick-btn{display:flex;align-items:center;justify-content:space-between;gap:10px;
     background:var(--ia-surface-2);border:0.5px solid var(--ia-border);border-radius:var(--ia-r);
     padding:12px 14px;color:var(--ia-text);cursor:pointer;font-family:inherit;text-align:left}
@@ -201,7 +200,7 @@
   }
   .reg-tab.active{background:var(--ia-accent);color:var(--ia-accent-text);border-color:var(--ia-accent)}
 
-  /* MARKER-RESULTS-SCROLL — cap the list and give it its own scroller, so a
+  /* cap the list and give it its own scroller, so a
      broad search doesn't run off the bottom of the screen. overscroll-behavior
      keeps a trackpad flick inside the list instead of scrolling the page. */
   #resultsArea{max-height:min(52vh,560px);overflow-y:auto;overscroll-behavior:contain}
@@ -223,11 +222,10 @@
   .reg-results-section.mouse-active .reg-row.highlighted:not(:hover){background:transparent}
   .reg-row .name{font-weight:500;font-size:14px}
   .reg-row .meta{font-size:12px;color:var(--ia-text-dim)}
-  /* MARKER-DESC-CLAMP — search rows show the catalog subtitle, which for some
+  /* search rows show the catalog subtitle, which for some
      distributors is the whole marketing description. Two lines, so a result
      stays a row. The item's own page has the full text. */
   .reg-row .meta{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-  /* MARKER-REG-STOCK */
   .reg-stock-chip{display:inline-block;margin-left:6px;padding:1px 7px;border-radius:999px;
     font-size:11px;font-weight:600;border:0.5px solid transparent;white-space:nowrap}
   .reg-stock-chip.is-in{color:#7ee081;border-color:rgba(126,224,129,.35)}
@@ -236,14 +234,13 @@
   .reg-stock-chip.is-over{color:#f5c451;border-color:rgba(245,196,81,.35)}
   .reg-stock-chip.is-out{color:#f2777a;border-color:rgba(242,119,122,.35)}
   .reg-row .price{font-size:14px;font-weight:600;color:var(--ia-text);white-space:nowrap}
-  /* MARKER-REG-ENTER — results that belong to older text, while the new search loads. */
+  /* results that belong to older text, while the new search loads. */
   #resultsArea.is-stale{opacity:.55;transition:opacity .15s}
-  /* MARKER-SEARCH-MISSING */
   .reg-missing{font-size:12px;color:var(--ia-text-dim);margin:0 0 8px}
   .reg-missing-w{background:rgba(242,119,122,.12);border:0.5px solid rgba(242,119,122,.35);color:#f2777a;border-radius:6px;
     padding:0 6px;font:inherit;text-decoration:line-through;cursor:pointer}
   .reg-missing-w:hover{text-decoration:none}
-  /* MARKER-REG-VEIL — searching card over the results */
+  /* searching card over the results */
   .reg-results-wrap{position:relative}
   .reg-veil{position:absolute;inset:0;display:none;align-items:flex-start;justify-content:center;
     padding-top:48px;z-index:3;border-radius:var(--ia-r-md);background:rgba(13,13,13,.45);
@@ -261,7 +258,7 @@
   .reg-veil-card .t2{font-size:11.5px;color:var(--ia-text-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   @media (prefers-reduced-motion: reduce){ .reg-veil{backdrop-filter:none;-webkit-backdrop-filter:none} .reg-results-wrap.veiled #resultsArea{filter:none} }
 
-  /* MARKER-REG-GROUPED — filter row, product groups and variant chips. */
+  /* filter row, product groups and variant chips. */
   .reg-filters{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:-4px 0 10px}
   .reg-scope{display:inline-flex;border:0.5px solid var(--ia-border);border-radius:99px;padding:2px}
   .reg-scope button{background:none;border:0;padding:4px 10px;border-radius:99px;font-size:12px;
@@ -277,7 +274,7 @@
   .reg-group-head .name{font-weight:500;font-size:14px}
   .reg-group-head .meta{font-size:12px;color:var(--ia-text-dim)}
   .reg-group-head .price{font-size:14px;font-weight:600;color:var(--ia-text);white-space:nowrap}
-  /* MARKER-REG-PICKER — one line per product, options in a picker */
+  /* one line per product, options in a picker */
   .reg-group-line{gap:10px}
   .reg-opts-btn{flex:none;margin-left:auto;padding:4px 10px;border-radius:99px;border:0.5px solid var(--ia-border);
     background:transparent;color:var(--ia-text-dim);font-size:12px;font-family:inherit;cursor:pointer;white-space:nowrap}
@@ -290,7 +287,7 @@
   .reg-picker{margin:0 12px 10px;padding:10px;border:0.5px solid var(--ia-border);border-radius:var(--ia-r-md);background:var(--ia-surface-2)}
   .reg-dds{display:flex;flex-wrap:wrap;gap:8px}
   .reg-dd{position:relative;flex:1 1 150px;min-width:0}
-  .reg-dd .reg-dd-list{display:none !important} /* MARKER-REG-PICKER-FIX — templates; shown in the panel below */
+  .reg-dd .reg-dd-list{display:none !important} /* templates; shown in the panel below */
   .reg-dd-btn.is-active{border-color:var(--ia-accent)}
   .reg-dd-panel{margin-top:8px;padding:6px;border:0.5px solid var(--ia-border);border-radius:var(--ia-r-md);background:var(--ia-surface)}
   .reg-dd-panel[hidden]{display:none}
@@ -320,7 +317,7 @@
   .reg-pick-add{padding:7px 14px;border:0;border-radius:var(--ia-r-md);background:var(--ia-accent);color:var(--ia-accent-text);
     font-weight:600;font-size:12.5px;font-family:inherit;cursor:pointer}
   @media (max-width:640px){ .reg-dd{flex-basis:100%} .reg-opts-btn{padding:4px 8px} }
-  .reg-group-head .reg-gright{display:flex;align-items:center;gap:10px} /* MARKER-REG-GROUP-INFO */
+  .reg-group-head .reg-gright{display:flex;align-items:center;gap:10px}
   .reg-vars{display:flex;flex-direction:column;gap:6px;margin-top:8px}
   .reg-vrow{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
   .reg-vrow .lab{font-size:12px;color:var(--ia-text-dim);width:130px;flex:none;
@@ -332,7 +329,7 @@
   .reg-chip.rem b{color:#6fb3f2}
   .reg-chip.out{opacity:.55}
   .reg-chip.out b{color:#f2777a}
-  /* MARKER-REG-SUPPLIER-STOCK — none on your shelves, but the supplier has it */
+  /* none on your shelves, but the supplier has it */
   .reg-chip.sup{opacity:1}
   .reg-chip.sup b{color:var(--ia-text-dim);font-weight:500}
   .reg-chip .vp{color:var(--ia-text-dim);font-size:11.5px}
@@ -416,7 +413,7 @@
   .reg-totals-row{display:flex;justify-content:space-between;padding:5px 0;color:var(--ia-text-muted)}
   .reg-totals-row.grand{font-size:18px;font-weight:600;color:var(--ia-text);padding-top:10px;margin-top:6px;border-top:0.5px solid var(--ia-border)}
 
-  /* MARKER-HOLD-ROW — three buttons now, not two. Hold and Save quote share
+  /* three buttons now, not two. Hold and Save quote share
      the top row; Collect payment spans the full width beneath, which is both
      the fix and the right hierarchy: the primary action should not be fighting
      two occasional ones for horizontal space. */
@@ -443,7 +440,7 @@
     background:var(--reg-danger-bg);
     border:0.5px solid var(--reg-danger);
   }
-  /* MARKER-PATCH-161 — receipt indicator */
+  /* receipt indicator */
   .reg-cust-receipt{
     display:flex;
     justify-content:space-between;
@@ -479,7 +476,7 @@
   }
 
   .reg-err{background:var(--reg-danger-bg);color:var(--reg-danger);border-radius:var(--ia-r-sm);padding:10px 12px;font-size:13px;margin-bottom:12px;border:0.5px solid rgba(248,113,113,.30)}
-  /* MARKER-PATCH-170C — shake animation for errors. Triggered by toggling .reg-err--shake. */
+  /* shake animation for errors. Triggered by toggling .reg-err--shake. */
   @keyframes reg-shake {
     0%,100% { transform: translateX(0); }
     15%     { transform: translateX(-6px); }
@@ -521,7 +518,6 @@
     font-family:inherit;cursor:pointer;transition:all var(--ia-t);text-align:left
   }
   .reg-tender-btn:hover{border-color:var(--ia-accent)}
-  /* MARKER-SPLIT-TENDER */
   .reg-split-remaining{display:flex;justify-content:space-between;font-size:13.5px;padding:8px 2px;border-bottom:1px solid var(--ia-border);margin-bottom:10px}
   .reg-split-remaining b{font-variant-numeric:tabular-nums;color:#F5C56B}
   .reg-split-remaining.zero b{color:var(--ia-accent)}
@@ -530,7 +526,7 @@
   .reg-split-row .x{color:var(--ia-text-dim);cursor:pointer;padding:2px 6px;border-radius:6px}
   .reg-split-row .x:hover{color:#F09595}
   .reg-split-row .chg{flex-basis:100%;font-size:11px;color:var(--ia-accent)}
-  /* MARKER-TENDERUX — no pointer-events:none: it kills the title tooltip and
+  /* no pointer-events:none: it kills the title tooltip and
      swallows the tap, leaving a touchscreen user no way to learn why. */
   .reg-tender-btn.split-disabled{opacity:.35;cursor:not-allowed}
   .reg-tender-btn.selected{border-color:var(--ia-accent);background:var(--ia-accent-soft)}
@@ -554,7 +550,7 @@
   .reg-btn-primary:hover:not(:disabled){filter:brightness(.93)}
   .reg-btn-primary:disabled{opacity:.4;cursor:not-allowed}
 
-  /* MARKER-GC-FIELDSTYLE -- email + textarea joined by the gift card modal */
+  /* email + textarea joined by the gift card modal */
   .reg-modal input[type=text],.reg-modal input[type=email],.reg-modal textarea{width:100%;padding:10px;background:var(--ia-input-bg);border:0.5px solid var(--ia-border);border-radius:var(--ia-r-sm);color:var(--ia-text);font-size:14px;font-family:inherit}
   .reg-modal textarea{resize:vertical;min-height:64px}
   .reg-modal input[type=text]:focus,.reg-modal input[type=email]:focus,.reg-modal textarea:focus{outline:none;border-color:var(--ia-accent)}
@@ -563,7 +559,7 @@
   .reg-receipt h2{font-size:24px;margin-bottom:6px}
   .reg-receipt .num{font-size:13px;color:var(--ia-text-dim);margin-bottom:18px;font-family:var(--ia-font-mono)}
   .reg-receipt .total{font-size:36px;font-weight:700;margin:14px 0}
-  /* MARKER-PATCH-187 — auto-reset countdown line */
+  /* auto-reset countdown line */
   .reg-receipt-auto{margin-top:14px;font-size:12px;color:var(--ia-text-dim)}
   .reg-receipt-auto span{font-variant-numeric:tabular-nums;color:var(--ia-text)}
 
@@ -658,27 +654,26 @@
 </div>
 
 <div class="reg-tabs-bar">
-  <div class="reg-tabs-scroll">{{-- MARKER-REG-MOBILE --}}
+  <div class="reg-tabs-scroll">
   <a href="{{ route('tenant.register.index') }}" class="reg-tab-link active">Transaction</a>
   <a href="{{ route('tenant.register.history.index') }}" class="reg-tab-link">Transaction History</a>
   <a href="{{ route('tenant.register.quotes.index') }}" class="reg-tab-link">Quotes</a>
-  {{-- MARKER-LAYAWAY-TAB --}}
   <a href="{{ route('tenant.register.layaways.index') }}" class="reg-tab-link">Layaways</a>
-  <a href="{{ route('tenant.register.registers') }}" class="reg-tab-link">Registers</a> {{-- MARKER-REGISTER-RECON-DISPLAY --}}
-  <a href="{{ route('tenant.register.reconciliation') }}" class="reg-tab-link">Reconciliation</a> {{-- MARKER-REG-RECON-TAB --}}
-  <a href="{{ route('tenant.register.settings') }}" class="reg-tab-link">Settings</a> {{-- MARKER-REG-SETTINGS --}}
-  </div>{{-- /reg-tabs-scroll MARKER-REG-MOBILE — the picker sits OUTSIDE the
+  <a href="{{ route('tenant.register.registers') }}" class="reg-tab-link">Registers</a>
+  <a href="{{ route('tenant.register.reconciliation') }}" class="reg-tab-link">Reconciliation</a>
+  <a href="{{ route('tenant.register.settings') }}" class="reg-tab-link">Settings</a>
+  </div>{{-- /reg-tabs-scroll the picker sits OUTSIDE the
         scroller so it can take its own row on a phone. --}}
-  {{-- MARKER-REGISTER-RECON-DISPLAY — register picker (only when registers exist) --}}
+  {{-- register picker (only when registers exist) --}}
   @if (($registers ?? collect())->isNotEmpty())
-    {{-- MARKER-REG-MOBILE — margin/max-width/font-size moved to CSS so the
+    {{-- margin/max-width/font-size moved to CSS so the
          mobile rule can override them. --}}
-    {{-- MARKER-SSEL-REGPICKER — our picker, not the OS-drawn native popup.
+    {{-- our picker, not the OS-drawn native popup.
          The hidden input keeps the id "registerPicker" so the pairing script
          below reads it exactly as before, and the component fires `change`
          on it, which is the event that script already listens for. --}}
     @php
-      // MARKER-SSEL-REGBASE — "No register / display" is the base option with
+      // "No register / display" is the base option with
       // value 0, and it is what a session with nothing paired selects. There
       // is no separate placeholder row: any="" keeps the list to real options.
       $sselRegs = ['0' => 'No register / display'];
@@ -688,10 +683,10 @@
       $sselRegCur = (string) ($currentRegisterId ?? 0);
       if (! array_key_exists($sselRegCur, $sselRegs)) { $sselRegCur = '0'; }
     @endphp
-    <div class="reg-picker-wrap" style="margin-left:auto;width:220px;flex:0 0 220px;margin-bottom:8px">{{-- MARKER-SSEL-REGCLEAR — the tab bar has a bottom border; without this the button outline sat exactly on it --}}{{-- MARKER-SSEL-REGWIDTH — the old CSS sized #registerPicker itself; that id is now the hidden input, so the wrapper needs a real width or it collapses --}}
+    <div class="reg-picker-wrap" style="margin-left:auto;width:220px;flex:0 0 220px;margin-bottom:8px">{{-- the tab bar has a bottom border; without this the button outline sat exactly on it --}}{{-- the old CSS sized #registerPicker itself; that id is now the hidden input, so the wrapper needs a real width or it collapses --}}
       <x-tenant.searchable-select name="register_picker" id="registerPicker" :searchable="false" :assoc="true"
         :options="$sselRegs" :selected="$sselRegCur"
-        any="" noun="registers" />{{-- MARKER-SSEL-DEFAULT — "0" is already the first option --}}
+        any="" noun="registers" />{{-- "0" is already the first option --}}
     </div>
   @endif
 </div>
@@ -718,9 +713,9 @@
   <div class="reg-grid">
 
     <div class="reg-panel">
-      {{-- MARKER-CAMERA-SCAN — wrapper so the camera button sits inside the box. --}}
+      {{-- wrapper so the camera button sits inside the box. --}}
       <div class="reg-search-wrap" style="position:relative">
-        <input type="text" class="reg-search" id="searchInput" placeholder="Search products and services…" autocomplete="off" spellcheck="false" autocorrect="off" autocapitalize="off">{{-- MARKER-REG-FAST — no browser spelling pop-up; the search corrects spelling itself --}}
+        <input type="text" class="reg-search" id="searchInput" placeholder="Search products and services…" autocomplete="off" spellcheck="false" autocorrect="off" autocapitalize="off">{{-- no browser spelling pop-up; the search corrects spelling itself --}}
       </div>
 
       <div class="reg-tabs">
@@ -729,7 +724,7 @@
         <button type="button" class="reg-tab" data-type="service">Services</button>
       </div>
 
-      {{-- MARKER-REG-GROUPED — stock scope and brand / supplier. Filled in
+      {{-- stock scope and brand / supplier. Filled in
            after each search from what the matches actually contain. --}}
       <div class="reg-filters" id="regFilters" style="display:none">
         <div class="reg-scope" role="group" aria-label="Stock">
@@ -743,7 +738,6 @@
         <div class="reg-filter-sel" id="regSupplierWrap">
           <x-tenant.searchable-select name="reg_supplier" id="regSupplier" :options="[]" selected="" any="All suppliers" noun="suppliers" :searchable="true" />
         </div>
-        {{-- MARKER-REG-SORT --}}
         <div class="reg-filter-sel" id="regSortWrap" style="min-width:150px">
           <x-tenant.searchable-select name="reg_sort" id="regSort" :assoc="true"
             :options="['price_asc' => 'Price: low to high', 'price_desc' => 'Price: high to low', 'name' => 'A to Z']"
@@ -757,7 +751,7 @@
         <span><kbd>esc</kbd> clear</span>
       </div>
 
-      {{-- MARKER-REG-VEIL — the card sits outside #resultsArea, which is redrawn on every search --}}
+      {{-- the card sits outside #resultsArea, which is redrawn on every search --}}
       <div class="reg-results-wrap" id="regResultsWrap">
         <div class="reg-veil" id="regVeil" aria-live="polite">
           <div class="reg-veil-card">
@@ -770,7 +764,7 @@
       </div>
       </div>
 
-      {{-- MARKER-QUICK-ADD — the services a counter rings hourly, chosen per
+      {{-- the services a counter rings hourly, chosen per
            service in Services, ordered by the list's own sort order. --}}
       <div id="quickAddWrap" style="display:none;margin:14px 0 10px">
         <div style="font-size:10.5px;letter-spacing:.09em;color:var(--ia-text-dim);margin-bottom:8px">QUICK ADD</div>
@@ -778,7 +772,7 @@
       </div>
 
       <button type="button" class="reg-open-item" id="addOpenItemBtn">+ Add custom item</button>
-      @if(tenant()->gift_cards_enabled)<button type="button" class="reg-open-item" id="sellGiftCardBtn">+ Sell gift card</button>@endif {{-- MARKER-GIFTCARDS-GATE --}}
+      @if(tenant()->gift_cards_enabled)<button type="button" class="reg-open-item" id="sellGiftCardBtn">+ Sell gift card</button>@endif
     </div>
 
     <div class="reg-panel">
@@ -803,14 +797,14 @@
         <div class="reg-totals-row"><span>Subtotal</span><span id="subVal">$0.00</span></div>
         <div class="reg-totals-row" id="discountRow" style="display:none"><span>Discount</span><span id="discVal">-$0.00</span></div>
         <div class="reg-totals-row"><span>Tax</span><span id="taxVal">$0.00</span></div>
-        {{-- MARKER-BIZ-REGISTER — never leave a $0.00 tax line unexplained --}}
+        {{-- never leave a $0.00 tax line unexplained --}}
         <div class="reg-totals-row" id="taxExemptRow" style="display:none;font-size:11.5px;opacity:.75">
           <span id="taxExemptLabel">Tax exempt</span><span></span>
         </div>
         <div class="reg-totals-row" id="surchargeRow" style="display:none"><span id="surchLabel">Surcharge</span><span id="surchVal">$0.00</span></div>
         <div class="reg-totals-row" id="tipRow" style="display:none"><span>Tip</span><span id="tipVal">$0.00</span></div>
         <div class="reg-totals-row grand"><span>Total</span><span id="totalVal">$0.00</span></div>
-        {{-- MARKER-PAID-VISIBLE — shown only when the sale has money on it, so
+        {{-- shown only when the sale has money on it, so
              an ordinary cart looks exactly as it did. --}}
         <div class="reg-totals-row" id="cartPaidRow" style="display:none">
           <span>Paid</span><span id="cartPaidAmt" style="color:#7ee081">$0.00</span>
@@ -820,12 +814,11 @@
         </div>
       </div>
 
-      {{-- MARKER-REGISTER-DISCOUNT --}}
       <button type="button" class="reg-btn-secondary" id="discountBtn"
               style="width:100%;margin-top:10px;padding:9px;font-size:13px">Discount or code</button>
 
       <div class="reg-pay-row">
-        {{-- MARKER-HOLD — parking a cart deliberately, as opposed to the autosave
+        {{-- parking a cart deliberately, as opposed to the autosave
              that happens anyway. The name is what tells them apart later. --}}
         <button type="button" class="reg-quote-btn" id="holdSaleBtn">Hold sale</button>
         <button type="button" class="reg-quote-btn" id="quoteBtn" disabled>Save quote</button>
@@ -846,12 +839,10 @@
       <button type="button" class="reg-tender-btn" data-refund-tender="cash">Cash from drawer</button>
       <button type="button" class="reg-tender-btn" data-refund-tender="check">Check</button>
       <button type="button" class="reg-tender-btn" data-refund-tender="store_credit">Store credit</button>
-      {{-- MARKER-GC-FUNCTIONS --}}
       @if(tenant()->gift_cards_enabled && $gcCfg['refund_to_card'])
       <button type="button" class="reg-tender-btn" data-refund-tender="gift_card">Gift card</button>
       @endif
     </div>
-    {{-- MARKER-GC-FUNCTIONS --}}
     <div id="refundGiftRow" style="display:none;margin-top:12px">
       <label style="display:block;font-size:12px;color:var(--ia-text-muted);margin-bottom:6px;font-weight:500">Existing card code <span style="font-weight:400;color:var(--ia-text-dim)">(optional)</span></label>
       <input type="text" id="refundGiftCode" placeholder="Scan the customer's card, or leave blank" style="font-family:var(--ia-font-mono)">
@@ -864,7 +855,7 @@
   </div>
 </div>
 
-{{-- MARKER-TENDER-LAYOUT — rearranged, not rewired. Every id below is the
+{{-- rearranged, not rewired. Every id below is the
      one the existing JS already looks for; only the order, grouping and
      wording have changed. --}}
 <div class="reg-modal-bg" id="tenderModal">
@@ -900,15 +891,15 @@
       </button>
 
       <div class="reg-tender-grid tend-other" id="tenderOtherGrid" style="display:none">
-        {{-- MARKER-PATCH-172 — payment-link tender (hidden when direct payments off) --}}
+        {{-- payment-link tender (hidden when direct payments off) --}}
         <button type="button" class="reg-tender-btn" data-tender="payment_link" id="tenderPaymentLinkBtn" style="display:none">
           Send payment link
           <div style="font-size:11px;opacity:.55;font-weight:400;margin-top:2px">Customer pays from their phone</div>
         </button>
         <button type="button" class="reg-tender-btn" data-tender="check">Check</button>
         <button type="button" class="reg-tender-btn" data-tender="store_credit">Store credit</button>
-        @if(tenant()->gift_cards_visible)<button type="button" class="reg-tender-btn" data-tender="gift_card">Gift card</button>@endif {{-- MARKER-GIFTCARDS-GATE --}}
-        {{-- MARKER-PATCH-630 — manual tenders from tenant_payment_methods (Venmo, Cash App, custom) --}}
+        @if(tenant()->gift_cards_visible)<button type="button" class="reg-tender-btn" data-tender="gift_card">Gift card</button>@endif
+        {{-- manual tenders from tenant_payment_methods (Venmo, Cash App, custom) --}}
       @foreach(($manualTenders ?? []) as $mt)
         <button type="button" class="reg-tender-btn" data-tender="{{ $mt['key'] }}"
                 data-manual="1" data-name="{{ $mt['name'] }}"
@@ -918,11 +909,11 @@
           @if($mt['hint'])<div style="font-size:11px;opacity:.55;font-weight:400;margin-top:2px">{{ $mt['hint'] }}</div>@endif
         </button>
       @endforeach
-        {{-- MARKER-CASH-SIMPLE — "Already paid" lives with the other methods. --}}
+        {{-- "Already paid" lives with the other methods. --}}
         <button type="button" class="reg-tender-btn" data-tender="mark_paid">Already paid</button>
       </div>
 
-      {{-- MARKER-TENDER-LAYOUT — cash received and change. The calculation
+      {{-- cash received and change. The calculation
            already existed but only surfaced if you went through Add payment;
            here it is part of the cash tender, where a counter needs it. --}}
       <div id="tenderCashRow" style="display:none">
@@ -964,7 +955,7 @@
       <div style="font-size:11px;color:var(--ia-text-dim,rgba(255,255,255,.4));margin-top:8px">Confirm the payment arrived in your app, then continue — the sale records as paid by this method.</div>
     </div>
 
-      {{-- MARKER-SPLIT-TENDER — unchanged behavior: a partial amount here
+      {{-- unchanged behavior: a partial amount here
            starts a split. Now labelled, and sitting under the tender it
            applies to, instead of being an unlabelled box meaning two things. --}}
       <div id="splitAmountRow" style="display:none;gap:8px;margin-bottom:12px">
@@ -979,8 +970,8 @@
         Type a partial amount to split tenders — cash above the remainder computes change.
       </div>
 
-      {{-- MARKER-SPLIT-TENDER — running remaining + recorded split payments.
-         MARKER-TENDERUX — moved BELOW the tender grid: stacking legs above it
+      {{-- running remaining + recorded split payments.
+         moved BELOW the tender grid: stacking legs above it
          pushed the grid and the action buttons down as payments were added,
          moving the target under the cashier's finger mid-transaction. --}}
     <div id="splitPayList"></div>
@@ -998,7 +989,7 @@
       <button type="button" class="reg-btn-primary tend-go" id="tenderConfirmBtn" disabled>Continue</button>
       <div class="tend-links">
         <button type="button" class="tend-link" id="layawayBtn" style="display:none">Move to layaway</button>
-        {{-- MARKER-CASH-SIMPLE — splitting is asked for, not always on screen.
+        {{-- splitting is asked for, not always on screen.
              A cash amount under the total is already a partial payment. --}}
         <button type="button" class="tend-link" id="tenderSplitLink">Split payment</button>
       </div>
@@ -1007,7 +998,7 @@
   </div>
 </div>
 
-{{-- MARKER-PATCH-170C — Pre-flight blocker modal. Shown when the Charge
+{{-- Pre-flight blocker modal. Shown when the Charge
      button is pressed but the cart isn't commit-able. Replaces hidden inline
      errors that were easy to miss. --}}
 <div class="reg-modal-bg" id="preflightModal">
@@ -1028,7 +1019,7 @@
   </div>
 </div>
 
-{{-- MARKER-PATCH-170 — Direct Payments card-entry modal --}}
+{{-- Direct Payments card-entry modal --}}
 <div class="reg-modal-bg" id="cardPaymentModal">
   <div class="reg-modal">
     <h2>Card payment</h2>
@@ -1052,7 +1043,7 @@
   </div>
 </div>
 
-{{-- MARKER-PATCH-172 — Send-payment-link modal --}}
+{{-- Send-payment-link modal --}}
 <div class="reg-modal-bg" id="paymentLinkModal">
   <div class="reg-modal" style="max-width:520px">
     <h2>Send payment link</h2>
@@ -1076,7 +1067,7 @@
       <span id="paymentLinkStatusText">Waiting for customer to pay…</span>
     </div>
 
-    {{-- MARKER-PATCH-192 — two distinct actions: "Done" keeps the link live
+    {{-- two distinct actions: "Done" keeps the link live
          (sale stays pending, trackable from the appointment); "Cancel link" is
          the explicit destructive action that expires the Stripe session. --}}
     <div class="reg-modal-actions" style="display:flex;gap:10px;justify-content:space-between">
@@ -1086,7 +1077,7 @@
   </div>
 </div>
 
-{{-- MARKER-PATCH-195 — Payment-link status view. Opened from the appointment
+{{-- Payment-link status view. Opened from the appointment
      banner (?status=<sale_id>) to show a live picture of an outstanding link. --}}
 <div class="reg-modal-bg" id="linkStatusModal">
   <div class="reg-modal" style="max-width:560px">
@@ -1142,7 +1133,6 @@
   </div>
 </div>
 
-{{-- MARKER-REGISTER-DISCOUNT --}}
 <div class="reg-modal-bg" id="discountModal">
   <div class="reg-modal">
     <h2>Discount this sale</h2>
@@ -1198,7 +1188,7 @@
   </div>
 </div>
 
-{{-- MARKER-GIFTCARDS -- sell a gift card. Card is issued & activated when the
+{{-- sell a gift card. Card is issued & activated when the
      sale COMPLETES, not when the line is added. --}}
 <div class="reg-modal-bg" id="gcSellModal">
   <div class="reg-modal">
@@ -1211,7 +1201,7 @@
     </div>
 
     <label style="display:block;font-size:12px;color:var(--ia-text-muted);margin:12px 0 6px;font-weight:500">Amount</label>
-    {{-- MARKER-GC-SETTINGS -- presets come from register settings --}}
+    {{-- presets come from register settings --}}
     @if(count($gcCfg['presets']))
     <div style="display:grid;grid-template-columns:repeat({{ count($gcCfg['presets']) }},1fr);gap:8px;margin-bottom:10px" id="gcAmountGrid">
       @foreach($gcCfg['presets'] as $gcAmt)
@@ -1253,7 +1243,7 @@
       <input type="text" id="customerSearchInput" placeholder="Name, email, or phone" autocomplete="off">
       <div class="reg-cust-results" id="customerResults" style="display:none"></div>
     </div>
-    {{-- MARKER-REG-CUSTPICK — no match: the same inline create the appointment
+    {{-- no match: the same inline create the appointment
          modal has. Name already split from what was typed. --}}
     <div id="custNewFields" style="display:none;margin-bottom:12px">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
@@ -1264,7 +1254,7 @@
         <input type="email" id="custNewEmail" placeholder="Email *" autocomplete="off">
         <input type="text"  id="custNewPhone" placeholder="Phone" autocomplete="off" inputmode="tel">
       </div>
-      {{-- MARKER-CUST-ADDR — optional, but asked for up front so the record
+      {{-- optional, but asked for up front so the record
            doesn't start life failing data health. --}}
       <div style="margin-top:8px">
         <input type="text" id="custNewAddr" placeholder="Street address" autocomplete="off">
@@ -1338,11 +1328,11 @@
     <h2>Sale complete</h2>
     <div class="num" id="receiptNum"></div>
     <div class="total" id="receiptTotal"></div>
-    {{-- MARKER-REGISTER-LINE-FIX — the change stays on screen after the tender closes. --}}
+    {{-- the change stays on screen after the tender closes. --}}
     <div id="receiptChange" style="display:none;text-align:center;margin:2px 0 8px;font-size:15px">
       Change due <b id="receiptChangeAmt" style="color:#7ee081;font-variant-numeric:tabular-nums"></b>
     </div>
-    {{-- MARKER-PATCH-322 — print + email the receipt for this sale --}}
+    {{-- print + email the receipt for this sale --}}
     <div class="reg-receipt-actions" style="display:flex;gap:8px;justify-content:center;margin:6px 0 2px">
       <button type="button" class="reg-btn-secondary" id="receiptPrintBtn">Print receipt</button>
       <button type="button" class="reg-btn-secondary" id="receiptEmailBtn">Email receipt</button>
@@ -1354,11 +1344,11 @@
     </div>
     <div id="receiptEmailMsg" style="display:none;text-align:center;font-size:12px;margin-top:6px;color:var(--ia-text-dim)"></div>
     <div class="reg-modal-actions">
-      {{-- MARKER-PATCH-232B — shown only when the register was opened with a return_to. --}}
+      {{-- shown only when the register was opened with a return_to. --}}
       <a id="receiptBackTo" class="reg-btn-primary" style="display:none;text-decoration:none" href="#">Back</a>
       <button type="button" class="reg-btn-primary" id="receiptNewSale">New sale</button>
     </div>
-    {{-- MARKER-PATCH-187 — auto-reset countdown --}}
+    {{-- auto-reset countdown --}}
     <div class="reg-receipt-auto" id="receiptAutoReset">Returning to a fresh register in <span id="receiptCountdown">45</span>s</div>
   </div>
 </div>
@@ -1378,14 +1368,14 @@
 </script>
 @endif
 
-{{-- MARKER-PATCH-553 — item detail modal v2 (supersedes the 552 modal):
+{{-- item detail modal v2 (supersedes the 552 modal):
      gallery, brand header, permissioned cost/margin, badges, specs grid,
      stock table, action footer. --}}
-{{-- MARKER-ITEM-MODAL-SHARED — the item modal moved to a shared partial so
+{{-- the item modal moved to a shared partial so
      the appointment part picker can use the same one. --}}
 @include('tenant._item-detail-modal')
 <script>
-// MARKER-LINE-PRICE-COND — declared HERE because this block is unconditional.
+// declared HERE because this block is unconditional.
 // Its previous home was inside the pre-attach-customer conditional, which only
 // renders when the register is opened from a walk-in with a customer already
 // attached — so on a normal load the flag was never defined and the control
@@ -1395,11 +1385,11 @@
 // wherever it finds them, including inside a JS comment, so writing the
 // condition out literally here would inject a real unclosed directive.
 window.CAN_LINE_PRICE = @json($canLinePrice ?? false);
-window.CAN_LAYAWAY = @json($canLayaway ?? false); // MARKER-LAYAWAY-REGISTER
-window.QUICK_SERVICES = @json($quickServices ?? []); // MARKER-QUICK-ADD
-window.CAN_OVERRIDE_RESERVE = @json($canOverrideReserve ?? false); // MARKER-RESERVE-OVERRIDE
+window.CAN_LAYAWAY = @json($canLayaway ?? false);
+window.QUICK_SERVICES = @json($quickServices ?? []);
+window.CAN_OVERRIDE_RESERVE = @json($canOverrideReserve ?? false);
 
-// MARKER-ITEM-MODAL-SHARED — thin shim. The register's info button already
+// thin shim. The register's info button already
 // calls openItemInfo(); keeping the name means that call site is untouched.
 function openItemInfo( id ) {
   window.IntakeItemModal.open( id, {
@@ -1409,11 +1399,11 @@ function openItemInfo( id ) {
 }
 </script>
 
-{{-- MARKER-LINE-PRICE-PLACE — inside the content section on purpose. This
+{{-- inside the content section on purpose. This
      block used to sit after the final @endpush, and a view that extends a
      layout renders nothing outside a section or a push: the modal was in the
      source and absent from every page. --}}
-{{-- MARKER-LINE-PRICE — in-app, because native dialogs get suppressed and then
+{{-- in-app, because native dialogs get suppressed and then
      fail closed without telling anyone. --}}
 @if(($canLinePrice ?? false))
 <div id="reg-lineprice" style="display:none;position:fixed;inset:0;z-index:80;
@@ -1455,27 +1445,25 @@ function openItemInfo( id ) {
 @endsection
 
 @push('scripts')
-<script src="{{ asset('js/intake-scan.js') }}?v=1"></script>{{-- MARKER-CAMERA-SCAN --}}
+<script src="{{ asset('js/intake-scan.js') }}?v=1"></script>
 <script>
 const ROUTES = {
-  giftCardLookup: '{{ route('tenant.register.gift-cards.lookup') }}', // MARKER-GIFTCARDS
+  giftCardLookup: '{{ route('tenant.register.gift-cards.lookup') }}',
   search:      @json(route('tenant.register.search')),
-  discountValidate: @json(route('tenant.register.discount.validate')), // MARKER-REGISTER-DISCOUNT
+  discountValidate: @json(route('tenant.register.discount.validate')),
   storeSale:   @json(route('tenant.register.sales.store')),
-  // MARKER-LAYAWAY-REGISTER
   customerOpen:    @json(route('tenant.register.customer.open', ['customer' => '__ID__'])),
   layawayOpen:     @json(route('tenant.register.layaway.open')),
   layawayPay:      @json(route('tenant.register.layaway.pay', ['plan' => '__ID__'])),
   layawayComplete: @json(route('tenant.register.layaway.complete', ['plan' => '__ID__'])),
-  offlineCatalog: @json(route('tenant.register.offline_catalog')), // MARKER-OFFLINE-SYNC
-  offlineSyncEnabled: {{ ($offlineSyncEnabled ?? false) ? 'true' : 'false' }}, // MARKER-OFFLINE-SYNC
+  offlineCatalog: @json(route('tenant.register.offline_catalog')),
+  offlineSyncEnabled: {{ ($offlineSyncEnabled ?? false) ? 'true' : 'false' }},
   storeDraft:  @json(route('tenant.register.drafts.store')),
   listDrafts:  @json(route('tenant.register.drafts.index')),
-  // MARKER-HOLD
   holdDraft:    @json(route('tenant.register.drafts.hold', ['id' => '__ID__'])),
-  recordPayment: @json(route('tenant.register.payments.record')), // MARKER-PAY-PERSIST
-  voidPayment:   @json(route('tenant.register.payments.void')),   // MARKER-VOID-PERSISTED
-  voidSale:      @json(route('tenant.register.sale.void')),       // MARKER-NO-ORPHAN-MONEY
+  recordPayment: @json(route('tenant.register.payments.record')),
+  voidPayment:   @json(route('tenant.register.payments.void')),
+  voidSale:      @json(route('tenant.register.sale.void')),
   draftCleanup: @json(route('tenant.register.drafts.cleanup')),
   draftBase:   @json(url('/admin/register/drafts')),
   commitDraft: @json(url('/admin/register/drafts')),
@@ -1483,28 +1471,24 @@ const ROUTES = {
   quotesIndex: @json(route('tenant.register.quotes.index')),
   lookupSale:  @json(route('tenant.register.lookup-sale')),
   commitTxn:   @json(route('tenant.register.transactions.store')),
-  // MARKER-PATCH-161
   customerBase: @json(url('/admin/customers')),
-  // MARKER-PATCH-162
   multiLocationActive: {{ $multiLocationActive ? 'true' : 'false' }},
-  // MARKER-PATCH-170 — Direct Payments
-  directPaymentsEnabled: {{ (($tenant->direct_payments_enabled ?? false) && ($tenant->settings['stripe_register_enabled'] ?? true)) ? 'true' : 'false' }}, {{-- MARKER-PATCH-618 --}}
+  // Direct Payments
+  directPaymentsEnabled: {{ (($tenant->direct_payments_enabled ?? false) && ($tenant->settings['stripe_register_enabled'] ?? true)) ? 'true' : 'false' }},
   directPaymentsPk: @json((($tenant->direct_payments_enabled ?? false) && ($tenant->settings['stripe_register_enabled'] ?? true)) ? (($tenant->settings['register_payments_mode'] ?? 'test') === 'live' ? ($tenant->settings['register_payments_live_pk'] ?? '') : ($tenant->settings['register_payments_test_pk'] ?? '')) : ''),
   paymentIntentCreate: @json(url('/admin/register/payment-intent')),
   paymentIntentConfirm: @json(url('/admin/register/payment-intent/confirm')),
-  // MARKER-PATCH-170B
   paymentIntentAutoRefund: @json(url('/admin/register/payment-intent/auto-refund')),
-  // MARKER-PATCH-172
   checkoutSessionCreate: @json(url('/admin/register/checkout-session')),
   checkoutSessionCheck:  @json(url('/admin/register/checkout-session/check')),
-  saleShow:              @json(route('tenant.register.sales.show', ['id' => '__ID__'])), {{-- MARKER-PATCH-195 --}}
-  saleReceipt:           @json(route('tenant.register.sales.receipt', ['id' => '__ID__'])), {{-- MARKER-PATCH-322 --}}
-  resendReceipt:         @json(route('tenant.sales.resend_receipt', ['id' => '__ID__'])), {{-- MARKER-PATCH-322 --}}
+  saleShow:              @json(route('tenant.register.sales.show', ['id' => '__ID__'])),
+  saleReceipt:           @json(route('tenant.register.sales.receipt', ['id' => '__ID__'])),
+  resendReceipt:         @json(route('tenant.sales.resend_receipt', ['id' => '__ID__'])),
   checkoutSessionCancel: @json(url('/admin/register/checkout-session/cancel')),
 };
 const CSRF = document.querySelector('meta[name=csrf-token]').content;
 
-// MARKER-REGISTER-RECON-DISPLAY — customer display mirroring.
+// customer display mirroring.
 // Debounced snapshots of the cart are pushed to the currently selected
 // register; a paired iPad polls that register's snapshot and renders it.
 const DisplayMirror = {
@@ -1547,7 +1531,7 @@ function queueDisplayMirror(immediate = false) {
   }, immediate ? 0 : 400);
 }
 
-// MARKER-OFFLINE-SYNC stage 3 — register-specific offline behavior.
+// stage 3 — register-specific offline behavior.
 // Core (outbox, snapshot, replay, SW registration, status pill) lives in the
 // global /js/offline-sync.js module loaded by the layout on every admin page;
 // this block only handles what's unique to the register: queueing a commit,
@@ -1587,12 +1571,12 @@ async function osTryQueueCommit(){
   if (!cart.items.length) return false;
   await io.queueSale(osBuildSalePayload());
   cart.items = []; cart.refund_lines = []; cart.refund_meta = null;
-  cart.customer = null; cart.tipCents = 0; cart.discountCents = 0; cart.discountCode = null; // MARKER-REGISTER-DISCOUNT
-  cart.override_reserved = false; // MARKER-RESERVE-OVERRIDE — never carries into the next sale
-  cart.po_number = null; // MARKER-BIZ-REGISTER
+  cart.customer = null; cart.tipCents = 0; cart.discountCents = 0; cart.discountCode = null;
+  cart.override_reserved = false; // never carries into the next sale
+  cart.po_number = null;
   (function(){ var r = document.getElementById('taxExemptRow'); if (r) r.style.display = 'none'; })();
-  cart.payment_method = null; cart.payments = []; if (typeof renderSplit === 'function') renderSplit(); /* MARKER-SPLIT-TENDER */ cart.payment_reference = null;
-  if (typeof resetGiftTender === 'function') resetGiftTender(); // MARKER-TENDERFIX
+  cart.payment_method = null; cart.payments = []; if (typeof renderSplit === 'function') renderSplit();  cart.payment_reference = null;
+  if (typeof resetGiftTender === 'function') resetGiftTender();
   cart.draft_id = null; cart.skipReceipt = false;
   renderCart();
   showError('Saved offline — this sale will sync automatically when the connection returns.');
@@ -1660,12 +1644,12 @@ const cart = {
   refund_lines: [],     // refund lines, each: {key, original_sale_id, original_item_id, name, qty, price_cents, type}
   refund_meta: null,    // {original_sale_id, original_sale_number, refund_method} — set when first refund line added
   tipCents: 0, discountCents: 0,
-  discountCode: null, // MARKER-REGISTER-DISCOUNT
+  discountCode: null,
   payment_method: null, payment_reference: null,
-  payments: [], // MARKER-SPLIT-TENDER
-  po_number: null, // MARKER-BIZ-REGISTER
+  payments: [],
+  po_number: null,
   tax_locked: false,    // when true, calcTax sums per-line tax_cents instead of computing from rate
-  skipReceipt: false,   // MARKER-PATCH-161 — cashier opted out of receipt for this sale
+  skipReceipt: false,   // cashier opted out of receipt for this sale
 };
 const fmt = (cents) => '$' + (cents / 100).toFixed(2);
 const fmtNeg = (cents) => '-$' + (cents / 100).toFixed(2);
@@ -1684,7 +1668,7 @@ function buildDraftPayload() {
     id: cart.draft_id,
     customer_id: cart.customer ? cart.customer.id : null,
     tip_cents: cart.tipCents,
-    // MARKER-SALE-DISCOUNT-PERSIST — a whole-sale discount never left the
+    // a whole-sale discount never left the
     // browser: this payload didn't carry it, and the commit sends no items
     // or totals, so the sale was always built at full price.
     sale_discount_cents: cart.discountCents || 0,
@@ -1702,7 +1686,7 @@ function buildDraftPayload() {
         out.name_snapshot = i.name;
         out.unit_price_cents = i.price_cents;
       }
-      return linePriceFields(i, out); // MARKER-REGISTER-LINE-FIX
+      return linePriceFields(i, out);
     }),
   };
 }
@@ -1738,7 +1722,7 @@ async function fireDraftSave() {
   return draftSaveInFlight;
 }
 
-// MARKER-INTENT-DRAFTS — a cart is not a record until someone means it to be.
+// a cart is not a record until someone means it to be.
 // Without this, every price lookup left a draft behind: scan, walk away, and
 // the list fills up with carts nobody started on purpose.
 //
@@ -1762,7 +1746,7 @@ function setSaveStatus(state) {
   const el = document.getElementById('saveStatus');
   if (!el) return;
   clearTimeout(saveStatusTimer);
-  // MARKER-INTENT-DRAFTS — say what is actually true. A cart that is not saved
+  // say what is actually true. A cart that is not saved
   // anywhere must not imply it is.
   if (state === 'local') {
     el.textContent = 'Not saved — hold this sale to keep it';
@@ -1781,7 +1765,7 @@ function setSaveStatus(state) {
   }
 }
 
-// MARKER-INTENT-DRAFTS — force=true is the deliberate act: Hold, Add to
+// force=true is the deliberate act: Hold, Add to
 // order, Put on layaway. Those three need a sale row to exist and say so.
 // Everything else only flushes a draft that is already there.
 async function flushDraftSave(force) {
@@ -1798,15 +1782,15 @@ const searchInput = document.getElementById('searchInput');
 const resultsArea = document.getElementById('resultsArea');
 let searchType = 'all';
 
-// MARKER-REG-GROUPED — filter state. Scope persists between searches; brand,
+// filter state. Scope persists between searches; brand,
 // supplier and "show more" reset when the search box is cleared.
 let regScope = 'here';
 let regBrand = '';
-let regSort = '';  // MARKER-REG-SORT
+let regSort = '';
 let regSupplier = '';
 let regGroups = 25;
-let regFilterBase = ''; // MARKER-REG-FAST — the text a brand/supplier was picked for
-let regAbort = null;    // MARKER-SEARCH-ONE-PASS — the in-flight search, cancelled by the next one
+let regFilterBase = ''; // the text a brand/supplier was picked for
+let regAbort = null;    // the in-flight search, cancelled by the next one
 
 function regSselSet(id, labels, value) {
   const input = document.getElementById(id);
@@ -1838,7 +1822,7 @@ function regSselSet(id, labels, value) {
   if (brand) brand.addEventListener('change', () => { regBrand = brand.value; regFilterBase = searchInput.value.trim().toLowerCase(); regGroups = 25; runSearch(); });
   const sup = document.getElementById('regSupplier');
   if (sup) sup.addEventListener('change', () => { regSupplier = sup.value; regFilterBase = searchInput.value.trim().toLowerCase(); regGroups = 25; runSearch(); });
-  const srt = document.getElementById('regSort'); // MARKER-REG-SORT
+  const srt = document.getElementById('regSort');
   if (srt) srt.addEventListener('change', () => { regSort = srt.value; regFilterBase = searchInput.value.trim().toLowerCase(); regGroups = 25; runSearch(); });
   // Cleared search (typed away, item added, Esc): hide the row, drop filters.
   new MutationObserver(() => {
@@ -1846,14 +1830,14 @@ function regSselSet(id, labels, value) {
       bar.style.display = 'none';
       regBrand = '';
       regSupplier = '';
-      regSort = ''; // MARKER-REG-SORT
+      regSort = '';
       regGroups = 25;
     }
   }).observe(resultsArea, { childList: true });
 })();
 
 function regAfterRender(data) {
-  // MARKER-SEARCH-MISSING — tap a struck-out word to take it out of the search.
+  // tap a struck-out word to take it out of the search.
   resultsArea.querySelectorAll('.reg-missing-w').forEach(b => b.addEventListener('click', (e) => {
     e.stopPropagation();
     const w = b.dataset.w.toLowerCase();
@@ -1861,9 +1845,9 @@ function regAfterRender(data) {
     searchInput.dispatchEvent(new Event('input'));
     searchInput.focus();
   }));
-  // MARKER-REG-PICKER — pickers that start open (a scanned code, or one product)
+  // pickers that start open (a scanned code, or one product)
   Object.keys(regPickers).forEach(gid => { if (regPickers[gid].open) { regPickerRender(gid); } });
-  // MARKER-REG-GROUP-INFO — the group's i button follows the variant under the
+  // the group's i button follows the variant under the
   // pointer or the keyboard highlight.
   resultsArea.querySelectorAll('.reg-group').forEach(g => {
     const info = g.querySelector('.reg-group-info');
@@ -1877,7 +1861,7 @@ function regAfterRender(data) {
   const ps = data && data.product_search;
   const bar = document.getElementById('regFilters');
   if (bar) {
-    if (!ps) { // MARKER-REG-ENTER — stays put while there is text to search
+    if (!ps) { // stays put while there is text to search
       bar.style.display = 'none';
     } else {
       bar.style.display = '';
@@ -1890,7 +1874,7 @@ function regAfterRender(data) {
       });
       regSselSet('regBrand', ps.brands, ps.brand);
       regSselSet('regSupplier', ps.suppliers, ps.supplier);
-      // MARKER-REG-SORT — fixed options; only the shown value follows the state.
+      // fixed options; only the shown value follows the state.
       (function () {
         const input = document.getElementById('regSort');
         const root = input ? input.closest('.ssel') : null;
@@ -1922,7 +1906,7 @@ function regAfterRender(data) {
   }));
 }
 
-// MARKER-REG-PICKER — one compact line per product. Variants you have on the
+// one compact line per product. Variants you have on the
 // shelf show as up to three quick buttons; the rest are chosen in a picker
 // with a dropdown per attribute (size, colour, version) that opens under
 // the line. Single items keep the plain row, with its i button.
@@ -2054,7 +2038,7 @@ function regPickerOptions(state, attr) {
     if (fits) { o.fits = true; if (!o.best || v.st.n > o.best.st.n || (o.best.st.cls !== 'in' && v.st.cls === 'in')) { o.best = v; } }
     if (!o.any) { o.any = v; }
   });
-  return Object.values(vals).sort((a, b) => b.fits - a.fits); // MARKER-REG-PICKER-FIX — what fits the size first
+  return Object.values(vals).sort((a, b) => b.fits - a.fits); // what fits the size first
 }
 
 function regPickerRender(gid) {
@@ -2077,7 +2061,7 @@ function regPickerRender(gid) {
         }).join('')
       + '</div></div>';
   });
-  html += '</div><div class="reg-dd-panel" hidden></div>'; // MARKER-REG-PICKER-FIX
+  html += '</div><div class="reg-dd-panel" hidden></div>';
   const st = c.st;
   html += `<div class="reg-pick-line"><div style="min-width:0"><div class="t">${escapeHtml(c.label)}</div>`
     + `<div class="s"><span class="reg-stock-chip is-${st.cls === 'in' ? 'in' : st.cls === 'rem' ? 'elsewhere' : st.cls === 'sup' ? 'order' : 'out'}">${escapeHtml(st.txt === 'none' ? 'none in stock' : st.txt)}</span> · ${escapeHtml(c.p.sku || '')}</div></div>`
@@ -2133,7 +2117,7 @@ resultsArea.addEventListener('click', (e) => {
   if (opts) { e.stopPropagation(); regPickerToggle(opts.dataset.gid); return; }
   const ddb = e.target.closest('.reg-dd-btn');
   if (ddb) {
-    // MARKER-REG-PICKER-FIX — show this attribute's values in the picker's panel.
+    // show this attribute's values in the picker's panel.
     e.stopPropagation();
     const picker = ddb.closest('.reg-picker');
     const panel = picker.querySelector('.reg-dd-panel');
@@ -2189,15 +2173,15 @@ document.querySelectorAll('.reg-tab').forEach(tab => {
 });
 searchInput.addEventListener('input', () => {
   clearTimeout(searchTimer);
-  regGroups = 25; // MARKER-REG-GROUPED
-  // MARKER-REG-FAST — a brand or supplier picked for one search does not
+  regGroups = 25;
+  // a brand or supplier picked for one search does not
   // follow you to a different one; refining the same search keeps it.
   if ((regBrand || regSupplier || regSort) && !searchInput.value.trim().toLowerCase().startsWith(regFilterBase)) {
     regBrand = '';
     regSupplier = '';
-    regSort = ''; // MARKER-REG-SORT
+    regSort = '';
   }
-  regDirty = true; // MARKER-REG-ENTER
+  regDirty = true;
   resultsArea.classList.add('is-stale');
   searchTimer = setTimeout(runSearch, 250);
 });
@@ -2210,7 +2194,7 @@ function normalizeSaleNumber(q) {
   return q.trim().toUpperCase().replace(/\s+/g, '').replace(/^S(\d)/, 'S-$1').replace(/(\d{8})(\d)/, '$1-$2');
 }
 
-// MARKER-REG-ENTER — what is on screen may belong to older text: regDirty
+// what is on screen may belong to older text: regDirty
 // says so, regSeq lets only the newest search draw, regLastQ resets the
 // highlight when the text (not just a filter) changed.
 let regDirty = false;
@@ -2218,7 +2202,7 @@ let regSeq = 0;
 let regLastQ = '';
 function regSettled() { regDirty = false; resultsArea.classList.remove('is-stale'); regVeilHide(); }
 
-// MARKER-REG-VEIL — "Searching 'minion'…" with what it is searching across.
+// "Searching 'minion'…" with what it is searching across.
 let regVeilTimer = null;
 let regVeilTick = null;
 function regVeilShow(q) {
@@ -2268,7 +2252,7 @@ async function runSearch() {
     resultsArea.innerHTML = '<div class="reg-empty">Type to search products and services.</div>';
     return;
   }
-  regVeilShow(q); // MARKER-REG-VEIL
+  regVeilShow(q);
 
   // Sale-number lookup runs in parallel with regular search.
   let refundResult = null;
@@ -2286,28 +2270,27 @@ async function runSearch() {
     const url = new URL(ROUTES.search, window.location.origin);
     url.searchParams.set('q', q);
     url.searchParams.set('type', searchType);
-    // MARKER-REG-GROUPED
     url.searchParams.set('scope', regScope);
     url.searchParams.set('groups', String(regGroups));
     if (regBrand) { url.searchParams.set('brand', regBrand); }
     if (regSupplier) { url.searchParams.set('supplier', regSupplier); }
-    if (regSort) { url.searchParams.set('sort', regSort); } // MARKER-REG-SORT
+    if (regSort) { url.searchParams.set('sort', regSort); }
     if (regAbort) { regAbort.abort(); }
     regAbort = new AbortController();
     const res = await fetch(url, {headers: {'Accept': 'application/json'}, signal: regAbort.signal});
-    // MARKER-REG-GROUPED-FIX — a server error is not "No matches".
+    // a server error is not "No matches".
     if (!res.ok) { throw new Error('Search failed (' + res.status + ')'); }
     const data = await res.json();
-    if (seq !== regSeq) { return; } // MARKER-REG-ENTER — a newer search owns the screen
+    if (seq !== regSeq) { return; } // a newer search owns the screen
     if (q !== regLastQ) { highlighted = 0; regLastQ = q; }
     renderResults(data, refundResult);
     regSettled();
   } catch (e) {
-    if (e && e.name === 'AbortError') { return; } // MARKER-SEARCH-ONE-PASS — superseded, not failed
-    if (seq !== regSeq) { return; } // MARKER-REG-ENTER
+    if (e && e.name === 'AbortError') { return; } // superseded, not failed
+    if (seq !== regSeq) { return; }
     regSettled();
     if (q !== regLastQ) { highlighted = 0; regLastQ = q; }
-    // MARKER-OFFLINE-SYNC — offline: search the cached catalog snapshot.
+    // offline: search the cached catalog snapshot.
     const snap = osSearchSnapshot(q);
     if (snap && (snap.products.length || snap.services.length)) {
       renderResults(snap, null);
@@ -2323,7 +2306,7 @@ async function runSearch() {
 let highlighted = 0;
 let visibleResults = [];
 
-// MARKER-REG-STOCK — always ends on something the person at the counter can
+// always ends on something the person at the counter can
 // DO: sell it, fetch it from the other shop, or order it. Kept short, because
 // anything longer gets skipped with a customer waiting.
 function stockChip(p) {
@@ -2335,7 +2318,7 @@ function stockChip(p) {
     ? ' at ' + escapeHtml(p.current_location_name)
     : '';
 
-  // MARKER-RESERVE-VISIBLE — name the reason. A unit held on a layaway is on
+  // name the reason. A unit held on a layaway is on
   // the shelf and cannot be sold; saying only "none here" sends someone to
   // look for stock that is sitting right in front of them.
   const heldHere = (typeof p.reserved_here === 'number') ? p.reserved_here : 0;
@@ -2360,7 +2343,7 @@ function stockChip(p) {
 
   // Nowhere at all. A vendor turns a dead end into a special order.
   if (p.vendor_name) {
-    // MARKER-REG-SUPPLIER-STOCK — say how many the supplier has, when known.
+    // say how many the supplier has, when known.
     if (p.sup_avail > 0) {
       return ` <span class="reg-stock-chip is-order">None in stock · ${p.sup_avail} at ${escapeHtml(p.sup_name)}</span>`;
     }
@@ -2377,11 +2360,11 @@ function stockChip(p) {
 function renderResults(data, refundResult) {
   let html = '';
   visibleResults = [];
-  regAllProducts = []; regPickers = {}; // MARKER-REG-PICKER
+  regAllProducts = []; regPickers = {};
 
-  // MARKER-INV-SEARCH — a misspelt word was swapped for the nearest real one.
+  // a misspelt word was swapped for the nearest real one.
   if (data && data.missing && data.missing.length) {
-    // MARKER-SEARCH-MISSING — the words that matched nothing, struck out; tap one to remove it from the search.
+    // the words that matched nothing, struck out; tap one to remove it from the search.
     html += '<div class="reg-missing">No match for every word — showing results without '
       + data.missing.map(w => '<button type="button" class="reg-missing-w" data-w="' + escapeHtml(w) + '" title="Remove from search">' + escapeHtml(w) + '</button>').join(' ')
       + (data.corrected ? ' · showing <strong>' + escapeHtml(data.corrected) + '</strong>' : '') + '</div>';
@@ -2399,13 +2382,13 @@ function renderResults(data, refundResult) {
     html += '</div>';
   }
 
-  // MARKER-REG-GROUPED — every product the person can add goes through
+  // every product the person can add goes through
   // regPush, in screen order, so arrows, Enter and the camera scan still work.
   const regPush = (p) => {
-    visibleResults.push({type:'product',source_id:p.id,name:p.name,price_cents:p.price_cents,is_taxable:p.is_taxable,current_location_stock:p.current_location_stock,current_location_name:p.current_location_name,allow_oversell:p.allow_oversell,stock_scope:p.stock_scope,stock_elsewhere:p.stock_elsewhere,vendor_name:p.vendor_name,reserved_here:p.reserved_here,on_hand_here:p.on_hand_here,codes:p.codes||[]}); // MARKER-RESERVE-VISIBLE · MARKER-CAMERA-SCAN codes
+    visibleResults.push({type:'product',source_id:p.id,name:p.name,price_cents:p.price_cents,is_taxable:p.is_taxable,current_location_stock:p.current_location_stock,current_location_name:p.current_location_name,allow_oversell:p.allow_oversell,stock_scope:p.stock_scope,stock_elsewhere:p.stock_elsewhere,vendor_name:p.vendor_name,reserved_here:p.reserved_here,on_hand_here:p.on_hand_here,codes:p.codes||[]}); // codes
     return visibleResults.length - 1;
   };
-  // MARKER-REG-STOCK — answered in the row, rather than surfacing later as
+  // answered in the row, rather than surfacing later as
   // an oversell warning once the item is already in the cart.
   const regRow = (p) => {
     const idx = regPush(p);
@@ -2437,7 +2420,7 @@ function renderResults(data, refundResult) {
   }
   if (!html) html = '<div class="reg-empty">No matches.</div>';
   resultsArea.innerHTML = html;
-  regAfterRender(data); // MARKER-REG-GROUPED
+  regAfterRender(data);
 
   // Show/hide keyboard hint based on whether results exist
   const hint = document.getElementById('regHint');
@@ -2447,7 +2430,7 @@ function renderResults(data, refundResult) {
   if (highlighted >= visibleResults.length) highlighted = 0;
   applyHighlight();
 
-  // MARKER-PATCH-552 — info buttons open the item modal; stop the row's add-to-cart
+  // info buttons open the item modal; stop the row's add-to-cart
   resultsArea.querySelectorAll('.reg-info-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -2459,7 +2442,7 @@ function renderResults(data, refundResult) {
   resultsArea.querySelectorAll('[data-i]').forEach(row => {
     row.addEventListener('click', () => {
       const i = parseInt(row.dataset.i, 10);
-      // MARKER-REG-PICKER — a product line opens its options instead of adding.
+      // a product line opens its options instead of adding.
       if (visibleResults[i] && visibleResults[i].type === 'group') { regPickerToggle(visibleResults[i].gid); return; }
       addToCart(visibleResults[i]);
       searchInput.value = '';
@@ -2490,15 +2473,14 @@ function renderResults(data, refundResult) {
 }
 
 function applyHighlight() {
-  resultsArea.querySelectorAll('[data-i]').forEach((row, i) => { // MARKER-REG-GROUPED — chips too
+  resultsArea.querySelectorAll('[data-i]').forEach((row, i) => { // chips too
     if (parseInt(row.dataset.i, 10) === highlighted) {
       row.classList.add('highlighted');
-      // MARKER-REG-GROUP-INFO
       const g = row.closest('.reg-group');
       const info = g ? g.querySelector('.reg-group-info') : null;
       const r = visibleResults[highlighted];
       if (info && r) { info.dataset.itemId = r.source_id; }
-      // MARKER-RESULTS-SCROLL — the list is scrollable now, so keyboard
+      // the list is scrollable now, so keyboard
       // navigation has to bring its own row into view. block:'nearest'
       // means this is a no-op while the row is already visible.
       if (typeof row.scrollIntoView === 'function') {
@@ -2511,7 +2493,7 @@ function applyHighlight() {
 }
 
 // Keyboard navigation on the search input
-// MARKER-CAMERA-SCAN — the phone camera as a scanner gun. The code goes into
+// the phone camera as a scanner gun. The code goes into
 // the search; one match (preferring an exact barcode or SKU) goes straight
 // into the cart, several leave the list open for a tap, none says so.
 if (window.IntakeScan) {
@@ -2519,7 +2501,7 @@ if (window.IntakeScan) {
     searchInput.value = code;
     await runSearch();
     const same = (a, b) => a === b || a === '0' + b || '0' + a === b;
-    const exact = (regAllProducts.length ? regAllProducts : visibleResults).filter(r => r.type === 'product' // MARKER-REG-PICKER — variants inside closed pickers too
+    const exact = (regAllProducts.length ? regAllProducts : visibleResults).filter(r => r.type === 'product' // variants inside closed pickers too
       && (r.codes || []).some(c => same(String(c), code)));
     const pick = exact.length === 1 ? exact[0] : ((visibleResults.length === 1 && visibleResults[0].type !== 'group') ? visibleResults[0] : null);
     if (pick) {
@@ -2548,7 +2530,7 @@ searchInput.addEventListener('keydown', (e) => {
     if (highlighted > 0) { highlighted--; applyHighlight(); }
   } else if (e.key === 'Enter') {
     e.preventDefault();
-    // MARKER-REG-ENTER — never add from results that belong to older text:
+    // never add from results that belong to older text:
     // run the search now, then act on its own top match.
     if (regDirty) {
       clearTimeout(searchTimer);
@@ -2559,7 +2541,7 @@ searchInput.addEventListener('keydown', (e) => {
       });
       return;
     }
-    // MARKER-REG-PICKER — Enter on a product line opens its options; Enter
+    // Enter on a product line opens its options; Enter
     // again adds the variant chosen there.
     const regLine = visibleResults[highlighted];
     if (regLine && regLine.type === 'group') {
@@ -2595,7 +2577,7 @@ function escapeHtml(s) {
 }
 
 function addToCart(item) {
-  // MARKER-REG-PICKER-FIX — a product line is not a sellable item: resolve it
+  // a product line is not a sellable item: resolve it
   // to the variant chosen in its picker (this added a $NaN line once).
   if (item && item.type === 'group') {
     if (!item.state || !item.state.cur) { return; }
@@ -2614,7 +2596,7 @@ function addToCart(item) {
     is_taxable: item.is_taxable !== false,
     current_location_stock: (typeof item.current_location_stock === 'number')
       ? item.current_location_stock : null,
-    reserved_here: (typeof item.reserved_here === 'number') ? item.reserved_here : 0, // MARKER-RESERVE-VISIBLE
+    reserved_here: (typeof item.reserved_here === 'number') ? item.reserved_here : 0,
     on_hand_here:  (typeof item.on_hand_here  === 'number') ? item.on_hand_here  : null,
     current_location_name: item.current_location_name || null,
     transfer_request_id: null,
@@ -2653,17 +2635,17 @@ function requestTransferForLine(key) {
       renderCart();
       queueDraftSave();
     } else {
-      IntakeConfirm.alert({ title: 'Couldn\'t request transfer', message: (data.error || 'Unknown error') }); // MARKER-SO-CUSTOMER
+      IntakeConfirm.alert({ title: 'Couldn\'t request transfer', message: (data.error || 'Unknown error') });
     }
   })
-  .catch(err => IntakeConfirm.alert({ title: 'Couldn\'t request transfer', message: err.message })); // MARKER-SO-CUSTOMER
+  .catch(err => IntakeConfirm.alert({ title: 'Couldn\'t request transfer', message: err.message }));
 }
 
 function addToOrderForLine(key, retried) {
   const line = cart.items.find(i => i.key === key);
   if (!line || line.special_order_id) return;
 
-  // MARKER-SO-CUSTOMER — a special order is a promise to a person. With no
+  // a special order is a promise to a person. With no
   // customer on the sale, open the picker and finish this click once one is
   // chosen. The picker's row handler looks for afterCustomerPick.
   if (!cart.customer) {
@@ -2673,11 +2655,11 @@ function addToOrderForLine(key, retried) {
     return;
   }
 
-  // MARKER-SO-DRAFT-RACE — draft saving is debounced, so a fast click could
+  // draft saving is debounced, so a fast click could
   // create the order before cart.draft_id existed, leaving it with no sale
   // link — exactly the orphan class this feature exists to prevent. Flush
   // the draft first and wait for its id.
-  // MARKER-INTENT-DRAFTS — a special order must link to a sale, so this path
+  // a special order must link to a sale, so this path
   // creates one deliberately.
   if (!cart.draft_id && !retried && typeof fireDraftSave === 'function') {
     Promise.resolve(fireDraftSave())
@@ -2695,9 +2677,9 @@ function addToOrderForLine(key, retried) {
     body: JSON.stringify({
       inventory_item_id: line.source_id,
       quantity: Math.max(1, Math.ceil(line.qty)),
-      // MARKER-SO-CUSTOMER — cart.customer_id never existed; this was always null.
+      // cart.customer_id never existed; this was always null.
       customer_id: cart.customer ? cart.customer.id : null,
-      sale_id: cart.draft_id || null, // MARKER-SO-SALE-LINK — lets the server clean up later
+      sale_id: cart.draft_id || null, // lets the server clean up later
     }),
   })
   .then(r => r.json())
@@ -2708,13 +2690,13 @@ function addToOrderForLine(key, retried) {
       renderCart();
       queueDraftSave();
     } else {
-      IntakeConfirm.alert({ title: 'Couldn\'t add to order', message: (data.error || 'Unknown error') }); // MARKER-SO-CUSTOMER
+      IntakeConfirm.alert({ title: 'Couldn\'t add to order', message: (data.error || 'Unknown error') });
     }
   })
-  .catch(err => IntakeConfirm.alert({ title: 'Couldn\'t add to order', message: err.message })); // MARKER-SO-CUSTOMER
+  .catch(err => IntakeConfirm.alert({ title: 'Couldn\'t add to order', message: err.message }));
 }
 
-// MARKER-NO-ORPHAN-MONEY — refund everything on this sale and void it.
+// refund everything on this sale and void it.
 async function refundAndVoidSale() {
   const paid = (cart.payments || []).reduce((n, p) => n + (p.amount_cents || 0), 0);
 
@@ -2747,7 +2729,7 @@ async function refundAndVoidSale() {
 }
 
 function removeLine(key) {
-  // MARKER-NO-ORPHAN-MONEY — taking the last line out of a part-paid cart
+  // taking the last line out of a part-paid cart
   // leaves the shop holding a customer's money against nothing: Total $0.00,
   // Paid $129.00, and no way to give it back. Removing the goods does not
   // remove the obligation, so this asks instead of quietly doing it.
@@ -2757,7 +2739,7 @@ function removeLine(key) {
     return;
   }
 
-  // MARKER-SO-SALE-LINK — a line that requested a special order takes that
+  // a line that requested a special order takes that
   // request with it. Only retracts orders still in "needed"; anything already
   // placed with a vendor is left alone and reported, since goods may be
   // inbound. Same rule as removing a part from an appointment.
@@ -2795,7 +2777,7 @@ function updateQty(key, qty) {
   queueDraftSave();
 }
 
-// MARKER-LINE-PRICE — one place decides what a typed price MEANS.
+// one place decides what a typed price MEANS.
   //
   //   below the original → discount: the line keeps its real price and the
   //     difference is recorded, so the concession survives into reporting
@@ -2944,14 +2926,14 @@ function renderCart() {
           const overBy = i.qty - i.current_location_stock;
           const locLabel = i.current_location_name ? ' at ' + escapeHtml(i.current_location_name) : '';
 
-          // MARKER-RESERVE-VISIBLE — if the shortfall is explained by units
+          // if the shortfall is explained by units
           // held on a layaway, say that instead of "short". The stock is
           // there; it belongs to someone. Telling staff it is short sends
           // them to recount a shelf that is correct.
           const heldHere = (typeof i.reserved_here === 'number') ? i.reserved_here : 0;
 
           if (heldHere > 0 && heldHere >= overBy) {
-            // MARKER-RESERVE-OVERRIDE — the door, for whoever holds the key.
+            // the door, for whoever holds the key.
             const sellAnyway = (window.CAN_OVERRIDE_RESERVE === true && !cart.override_reserved)
               ? ` <button type="button" class="reg-oversell-btn" data-action="override-reserve" data-key="${i.key}">Sell anyway…</button>`
               : (cart.override_reserved ? ' <span class="reg-oversell-pill">✓ Selling anyway — their plan loses this item</span>' : '');
@@ -2961,7 +2943,7 @@ function renderCart() {
           }
 
           // Action row: each button is either active (button) or already-fired (pill).
-          // MARKER-PATCH-162 — transfer button only renders when the tenant
+          // transfer button only renders when the tenant
           // has 2+ active locations to move stock between. Single-location
           // tenants still see the pill if a transfer was previously created
           // (orphan rows pre-patch), but can't create new ones.
@@ -2985,7 +2967,7 @@ function renderCart() {
           }
         }
 
-        // MARKER-LINE-PRICE — effective price is what the line actually
+        // effective price is what the line actually
         // charges. Below the original it is a discount and the original stays
         // visible struck through; above it is simply the new price.
         const orig = i.price_cents;
@@ -3036,8 +3018,7 @@ function renderCart() {
   lines.querySelectorAll('[data-remove]').forEach(btn => {
     btn.addEventListener('click', () => removeLine(parseInt(btn.dataset.remove, 10)));
   });
-  // MARKER-LINE-PRICE
-  // MARKER-RESERVE-OVERRIDE — the consequence is stated before the click, and
+  // the consequence is stated before the click, and
   // it is another customer's, which is why this asks rather than toggles.
   lines.querySelectorAll('[data-action="override-reserve"]').forEach(btn => {
     btn.addEventListener('click', async () => {
@@ -3070,7 +3051,7 @@ function renderCart() {
       renderCart();
     });
   });
-  // MARKER-REFUND-QTY — where the returned goods go, per line.
+  // where the returned goods go, per line.
   lines.querySelectorAll('[data-dispo]').forEach(sel => {
     sel.addEventListener('change', () => {
       const key = parseInt(sel.dataset.dispo, 10);
@@ -3082,7 +3063,7 @@ function renderCart() {
   const slot = document.getElementById('customerSlot');
   if (cart.customer) {
     const c = cart.customer;
-    // MARKER-BIZ-REGISTER — a zero tax line and a missing PO are both things
+    // a zero tax line and a missing PO are both things
     // staff should see at the counter, not discover at invoicing time.
     (function () {
       const row = document.getElementById('taxExemptRow');
@@ -3105,7 +3086,7 @@ function renderCart() {
     const metaInner = (emailRow || phoneRow)
       ? `<div class="meta">${emailRow}${phoneRow}</div>`
       : '';
-    // MARKER-PATCH-161 — receipt indicator
+    // receipt indicator
     const hasEmail = !!c.email;
     const skipChecked = cart.skipReceipt ? 'checked' : '';
     const receiptRow = hasEmail
@@ -3136,7 +3117,7 @@ function renderCart() {
         </div>
         <div id="custOpen"></div>
       </div>`;
-    loadCustomerOpen(c.id); // MARKER-LAYAWAY-REGISTER
+    loadCustomerOpen(c.id);
     var skipChk = document.getElementById('skipReceiptChk');
     if (skipChk) {
       skipChk.addEventListener('change', function(){
@@ -3145,7 +3126,7 @@ function renderCart() {
     }
     document.getElementById('clearCust').addEventListener('click', () => {
       cart.customer = null;
-      cart.skipReceipt = false; // MARKER-PATCH-161
+      cart.skipReceipt = false;
       renderCart();
       queueDraftSave();
     });
@@ -3160,7 +3141,7 @@ function renderCart() {
   renderTotals();
 }
 
-// MARKER-LAYAWAY-CARD — set when a card charge is for a plan rather than the
+// set when a card charge is for a plan rather than the
 // cart. Cleared on every outcome, so a later cart sale can never be mistaken
 // for a plan payment.
 const LayawayCard = { planId: null, amountCents: 0 };
@@ -3213,7 +3194,7 @@ async function recordLayawayCardPayment(conf) {
   }
 }
 
-// MARKER-LAYAWAY-REGISTER ---------------------------------------------------
+// -------------------------------------------------
 async function loadCustomerOpen(customerId) {
   const box = document.getElementById('custOpen');
   if (!box || !customerId) return;
@@ -3252,9 +3233,9 @@ function openTenderForPlan() {
   { const amt = document.getElementById('splitAmountInput'); if (amt) amt.value = ((t.scheduled_cents || t.balance_cents) / 100).toFixed(2); }
   document.getElementById('tenderConfirmBtn').disabled = true;
   document.querySelectorAll('#tenderModal .reg-tender-btn').forEach(b => b.classList.remove('selected'));
-  resetCashTender(); // MARKER-REGISTER-LINE-FIX
-  cart.splitOpen = false; // MARKER-CASH-SIMPLE
-  if (typeof tenderPaint === 'function') { tenderPaint(); } // MARKER-TENDER-LAYOUT
+  resetCashTender();
+  cart.splitOpen = false;
+  if (typeof tenderPaint === 'function') { tenderPaint(); }
   resetGiftTender();
   tenderModalError('');
   const lb = document.getElementById('layawayBtn'); if (lb) lb.style.display = 'none';
@@ -3266,7 +3247,7 @@ function openTenderForPlan() {
       <span style="color:var(--ia-text-dim)">Enter any amount up to the balance, then pick how they are paying.</span></div>`;
   }
   openModal('tenderModal');
-  if (typeof tenderPaint === 'function') { tenderPaint(); } // MARKER-TENDER-LAYOUT
+  if (typeof tenderPaint === 'function') { tenderPaint(); }
 }
 
 async function payOnLayaway() {
@@ -3275,7 +3256,7 @@ async function payOnLayaway() {
   const typed = amtEl && amtEl.value ? Math.round(parseFloat(String(amtEl.value).replace(/[^0-9.]/g, '')) * 100) : (t.scheduled_cents || t.balance_cents);
   if (!typed || isNaN(typed) || typed <= 0) { tenderModalError('Enter an amount.'); return; }
   if (typed > t.balance_cents) { tenderModalError('That is more than the ' + fmt(t.balance_cents) + ' owed.'); return; }
-  // MARKER-LAYAWAY-CARD — a card goes through the terminal first and comes
+  // a card goes through the terminal first and comes
   // back to payOnLayaway via the card modal's success path.
   if (cart.payment_method === 'card' && ROUTES.directPaymentsEnabled && ROUTES.directPaymentsPk) {
     LayawayCard.planId = t.id;
@@ -3328,7 +3309,7 @@ async function handOverLayaway(planId) {
 document.getElementById('layawayBtn')?.addEventListener('click', async () => {
   if (!cart.customer) { tenderModalError('Attach a customer first — a layaway holds goods for someone.'); return; }
 
-  // MARKER-LAYAWAY-NO-GIFTCARD — refuse, do not filter. This used to strip
+  // refuse, do not filter. This used to strip
   // gift-card lines out of the payload silently, so the plan quietly covered
   // less than the cart on screen. Name the line and let the person decide.
   const gcLines = cart.items.filter(i => i.type === 'gift_card');
@@ -3341,7 +3322,7 @@ document.getElementById('layawayBtn')?.addEventListener('click', async () => {
     return;
   }
 
-  // MARKER-LAYAWAY-TENDERED — legs already added ARE the opening payment.
+  // legs already added ARE the opening payment.
   // Adding a split leg clears cart.payment_method so the next tender can be
   // picked, so checking that field told someone who had just paid $500 to
   // pick how they were paying.
@@ -3370,7 +3351,7 @@ document.getElementById('layawayBtn')?.addEventListener('click', async () => {
   }
   const btn = document.getElementById('layawayBtn'); btn.disabled = true;
 
-  // MARKER-INTENT-DRAFTS — the plan converts the cart's draft, so make sure
+  // the plan converts the cart's draft, so make sure
   // one exists. Opening a layaway is as deliberate as it gets.
   try { await flushDraftSave(true); } catch (e) {}
 
@@ -3379,14 +3360,14 @@ document.getElementById('layawayBtn')?.addEventListener('click', async () => {
       method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF, Accept: 'application/json' },
       body: JSON.stringify({
         customer_id: cart.customer.id,
-        draft_id: cart.draft_id || null, // MARKER-LAYAWAY-DRAFT
-        // MARKER-LAYAWAY-TENDERED — legs when a split has begun, otherwise
+        draft_id: cart.draft_id || null,
+        // legs when a split has begun, otherwise
         // the single typed amount as before.
         payments: legs.length ? legs : null,
         opening_amount_cents: legs.length ? null : typed,
         payment_method: legs.length ? legs[0].method : cart.payment_method,
         payment_reference: legs.length ? null : (document.getElementById('tenderRefInput').value.trim() || null),
-        // MARKER-LAYAWAY-NO-GIFTCARD — no filter here any more. A gift card in
+        // no filter here any more. A gift card in
         // the cart is refused above, with a reason; silently sending fewer
         // lines than the cart shows is how a total stops matching the goods.
         items: cart.items.map(serializeLine),
@@ -3394,7 +3375,7 @@ document.getElementById('layawayBtn')?.addEventListener('click', async () => {
     });
     const d = await r.json();
     if (!d.ok) { tenderModalError(d.error || 'Could not open the layaway.'); btn.disabled = false; return; }
-    // MARKER-LAYAWAY-DRAFT — clear the failed-attempt error. It was sitting
+    // clear the failed-attempt error. It was sitting
     // above the success panel saying the opening payment was too small, on a
     // layaway that had just opened.
     tenderModalError('');
@@ -3411,7 +3392,7 @@ document.getElementById('layawayBtn')?.addEventListener('click', async () => {
     btn.textContent = 'Done'; btn.disabled = false;
     btn.onclick = () => {
       closeModal('tenderModal');
-      // MARKER-LAYAWAY-DRAFT — a full reset. The customer stayed attached, so
+      // a full reset. The customer stayed attached, so
       // the next sale silently began as theirs; and draft_id still pointed at
       // the layaway's own sale row, so the next autosave would have written
       // into it.
@@ -3427,7 +3408,7 @@ document.getElementById('layawayBtn')?.addEventListener('click', async () => {
 });
 // ---------------------------------------------------------------------------
 
-// MARKER-TENDER-LAYOUT — presentation only. Nothing here records a payment;
+// presentation only. Nothing here records a payment;
 // it fills in the figures the old modal never showed and keeps the action
 // button honest about what it is about to do.
 function tenderPaint() {
@@ -3463,7 +3444,7 @@ function splitPaid() {
 function tenderQuickKeys(due) {
   const box = document.getElementById('tenderQuickKeys');
   if (!box) { return; }
-  // MARKER-CASH-SIMPLE — Exact, then the next three amounts a person hands
+  // Exact, then the next three amounts a person hands
   // over. Rounding up to $5/$10/$20 gave only "Exact" on a round total ($20
   // due → every step is $20); a note that exactly matches steps to the next.
   const opts = [];
@@ -3483,7 +3464,7 @@ function tenderQuickKeys(due) {
   }));
 }
 
-// MARKER-REGISTER-LINE-FIX — the cash box was never cleared, and whatever sat
+// the cash box was never cleared, and whatever sat
 // in it is copied into the payment amount, so last sale's $5 would record a
 // $5 payment on this sale's $40. Cleared on every open and every tender change.
 function resetCashTender() {
@@ -3502,7 +3483,7 @@ function tenderChange() {
   const got = Math.round((parseFloat(String(input.value).replace(/[^0-9.]/g, '')) || 0) * 100);
   window.cashChangeCents = Math.max(0, got - due); // shown again on the receipt
 
-  // MARKER-CASH-SIMPLE — short cash is a partial payment: say what's still owed.
+  // short cash is a partial payment: say what's still owed.
   const short = got > 0 && got < due;
   const lab = document.getElementById('tenderChangeLabel');
   if (lab) { lab.textContent = short ? 'Still owed' : 'Change due'; }
@@ -3531,7 +3512,7 @@ function tenderButtonLabel(due) {
   })();
   const amount = (typed !== null && typed < due) ? typed : due;
 
-  // MARKER-CASH-SIMPLE — short cash says so on the button.
+  // short cash says so on the button.
   if (cart.payment_method === 'cash' && amount < due) {
     btn.textContent = 'Take ' + fmt(amount) + ' cash · ' + fmt(due - amount) + ' still owed';
     return;
@@ -3561,7 +3542,7 @@ document.getElementById('tenderCashInput')?.addEventListener('input', function (
   tenderChange();
 });
 
-// MARKER-CASH-SIMPLE — Split payment: show the amount field for the tender
+// Split payment: show the amount field for the tender
 // picked (or the next one picked). Add payment records each part as before.
 document.getElementById('tenderSplitLink')?.addEventListener('click', function () {
   cart.splitOpen = true;
@@ -3581,7 +3562,7 @@ document.getElementById('splitAmountInput')?.addEventListener('input', function 
   tenderButtonLabel(cart.payments.length > 0 ? splitRemaining() : tenderDueCents());
 });
 
-// MARKER-QUICK-ADD — a button per chosen service. Adds through addToCart, the
+// a button per chosen service. Adds through addToCart, the
 // same path the search results use, so a quick-added line is indistinguishable
 // from a searched one everywhere downstream.
 (function () {
@@ -3613,11 +3594,11 @@ document.getElementById('splitAmountInput')?.addEventListener('input', function 
   });
 })();
 
-// MARKER-HOLD ---------------------------------------------------------------
+// -------------------------------------------------------------
 document.getElementById('holdSaleBtn')?.addEventListener('click', async function () {
   if (!cart.items.length) { showError('Nothing to hold — the cart is empty.'); return; }
 
-  // MARKER-INTENT-DRAFTS — this is the act that creates the record.
+  // this is the act that creates the record.
   await flushDraftSave(true);
   if (!cart.draft_id) { showError('Could not park this cart. Try again.'); return; }
 
@@ -3654,7 +3635,7 @@ document.getElementById('holdSaleBtn')?.addEventListener('click', async function
   } catch (e) { showError('Could not hold this sale.'); }
 });
 
-// MARKER-PAY-PERSIST — record a payment on the sale, then mirror what the sale
+// record a payment on the sale, then mirror what the sale
 // holds. The ledger is the truth; cart.payments is a copy of it for drawing.
 async function persistPayment(leg) {
   const optimistic = Object.assign({}, leg, { pending: true });
@@ -3693,7 +3674,7 @@ async function persistPayment(leg) {
     renderSplit();
     if (typeof tenderPaint === 'function') { tenderPaint(); }
 
-    // MARKER-PAID-REPAINT — the panel too. Its Paid / Still owed rows live in
+    // the panel too. Its Paid / Still owed rows live in
     // the total-writing routine, and its "Not saved" line is only touched by
     // the autosave path, which a payment does not go through. Without these
     // two calls the panel kept saying nothing had happened.
@@ -3723,7 +3704,7 @@ function calcTax() {
     return cart.items.reduce((s, i) => s + (i.tax_cents || 0), 0);
   }
   if (!CFG.taxRate) return 0;
-  // MARKER-REGISTER-DISCOUNT — the server spreads a whole-sale discount over
+  // the server spreads a whole-sale discount over
   // the lines before taxing them, so the client must do the same or the
   // displayed total won't match what gets charged.
   const gross = calcSubtotal();
@@ -3762,7 +3743,7 @@ function renderTotals() {
   document.getElementById('taxVal').textContent = fmt(netTax);
   document.getElementById('totalVal').textContent = fmt(total);
 
-  // MARKER-PAID-VISIBLE — a panel reading "Total $929.00" while $387 has been
+  // a panel reading "Total $929.00" while $387 has been
   // taken tells a cashier something untrue. Same maths the tender modal uses,
   // so the two cannot disagree.
   (function () {
@@ -3783,7 +3764,7 @@ function renderTotals() {
   else { document.getElementById('surchargeRow').style.display = 'none'; }
   if (tip > 0) { document.getElementById('tipRow').style.display = ''; document.getElementById('tipVal').textContent = fmt(tip); }
   else { document.getElementById('tipRow').style.display = 'none'; }
-  queueDisplayMirror(); // MARKER-REGISTER-RECON-DISPLAY
+  queueDisplayMirror();
 }
 
 document.getElementById('addOpenItemBtn').addEventListener('click', () => {
@@ -3801,7 +3782,7 @@ document.getElementById('openItemAddBtn').addEventListener('click', () => {
   closeModal('openItemModal');
 });
 
-// MARKER-GIFTCARDS -- sell-modal + tender balance check --------------------
+// sell-modal + tender balance check --------------------
 window.gcTender = null;
 const gcSell = { kind: 'physical', cents: null };
 
@@ -3813,7 +3794,7 @@ if (document.getElementById('sellGiftCardBtn')) document.getElementById('sellGif
   document.getElementById('gcEgiftFields').style.display = 'none';
   document.querySelectorAll('#gcAmountGrid .reg-tender-btn').forEach(b => b.classList.remove('selected'));
   ['gcCustomAmount','gcSellCode','gcSellEmail','gcSellMessage'].forEach(id => { document.getElementById(id).value = ''; });
-  document.getElementById('gcSellMessage').value = GC_CFG.default_message || ''; // MARKER-GC-SETTINGS
+  document.getElementById('gcSellMessage').value = GC_CFG.default_message || '';
   document.getElementById('gcSellErr').style.display = 'none';
   openModal('gcSellModal');
 });
@@ -3841,10 +3822,10 @@ document.getElementById('gcCustomAmount').addEventListener('input', () => {
   gcSell.cents = null;
 });
 
-// MARKER-GC-SETTINGS -- limits + default message from register settings.
+// limits + default message from register settings.
 const GC_CFG = @json(['min' => $gcCfg['min_cents'], 'max' => $gcCfg['max_cents'], 'default_message' => $gcCfg['default_message']]);
 
-// MARKER-TENDERFIX -- clear every trace of a checked gift card. The balance
+// clear every trace of a checked gift card. The balance
 // shown in this modal is a snapshot taken at Check time; carrying it into the
 // next sale shows a cashier money that may already be spent.
 function resetGiftTender() {
@@ -3861,7 +3842,7 @@ function resetGiftTender() {
   if (err) { err.textContent = ''; err.style.display = 'none'; }
 }
 
-// MARKER-TENDERFIX -- errors raised while the tender modal is open must land
+// errors raised while the tender modal is open must land
 // INSIDE it. showError() writes to #errBanner on the page behind the dialog,
 // where it is invisible to whoever is looking at the modal.
 function tenderModalError(msg) {
@@ -3884,7 +3865,7 @@ document.getElementById('gcSellAddBtn').addEventListener('click', async () => {
     const f = parseFloat(custom.replace(/[^0-9.]/g, ''));
     if (!isNaN(f) && f > 0) cents = Math.round(f * 100);
   }
-  // MARKER-GC-SETTINGS -- same floor/ceiling the server enforces at activation.
+  // same floor/ceiling the server enforces at activation.
   if (!cents) { gcSellError('Pick or enter an amount.'); return; }
   if (cents < GC_CFG.min || cents > GC_CFG.max) {
     gcSellError('Gift card amounts must be between $' + (GC_CFG.min / 100).toFixed(2) + ' and $' + (GC_CFG.max / 100).toFixed(2) + '.');
@@ -3936,33 +3917,33 @@ document.getElementById('gcTenderCheckBtn').addEventListener('click', async () =
     bal.style.display = 'flex';
     const inp = document.getElementById('splitAmountInput');
     if (inp) { inp.value = (Math.min(data.balance_cents, splitRemaining()) / 100).toFixed(2); }
-    // MARKER-TENDERFIX -- if the card can't cover what's left, say so on the
+    // if the card can't cover what's left, say so on the
     // button itself and make pressing it start the split.
     gcSyncTenderButton();
   } catch (e) {
     err.textContent = 'Could not check the card — network error.'; err.style.display = '';
   }
 });
-// MARKER-GIFTCARDS end ------------------------------------------------------
+// end ------------------------------------------------------
 
 function openCustomerModal() {
-  // MARKER-SO-CUSTOMER — a fresh open with no pending action clears any
+  // a fresh open with no pending action clears any
   // stale one, so an abandoned prompt can't fire on a later, unrelated pick.
   if (!window.__custPickArmed) { window.afterCustomerPick = null; }
   window.__custPickArmed = false;
-  custNewReset(); // MARKER-REG-CUSTPICK
+  custNewReset();
   document.getElementById('customerSearchInput').value = '';
   document.getElementById('customerResults').style.display = 'none';
   openModal('customerModal');
   setTimeout(() => document.getElementById('customerSearchInput').focus(), 50);
 }
-// MARKER-REG-CUSTPICK — create on no match ----------------------------------
-let custNewTouched = false; // MARKER-CUST-ADDR — the user has typed in a field
+// create on no match ----------------------------------
+let custNewTouched = false; // the user has typed in a field
 function custNewShow(q) {
   const wrap = document.getElementById('custNewFields');
   const first = document.getElementById('custNewFirst');
   const last  = document.getElementById('custNewLast');
-  // MARKER-CUST-ADDR — keep splitting the typed name until the user edits a
+  // keep splitting the typed name until the user edits a
   // field themselves. Splitting only on first show froze the last name at
   // its first letter while the search box kept being typed into.
   if (!custNewTouched) {
@@ -3985,7 +3966,7 @@ function custNewHide() {
 }
 function custNewReset() {
   custNewHide();
-  custNewTouched = false; // MARKER-CUST-ADDR
+  custNewTouched = false;
   ['custNewFirst', 'custNewLast', 'custNewEmail', 'custNewPhone',
    'custNewAddr', 'custNewCity', 'custNewState', 'custNewPost'].forEach(id => { document.getElementById(id).value = ''; });
   const err = document.getElementById('custNewErr'); err.style.display = 'none'; err.textContent = '';
@@ -3993,7 +3974,7 @@ function custNewReset() {
 function custNewError(msg) {
   const err = document.getElementById('custNewErr'); err.textContent = msg; err.style.display = '';
 }
-// MARKER-CUST-ADDR — once a field is typed in, the search box stops driving it.
+// once a field is typed in, the search box stops driving it.
 ['custNewFirst', 'custNewLast', 'custNewEmail', 'custNewPhone'].forEach(id => {
   document.getElementById(id).addEventListener('input', () => { custNewTouched = true; });
 });
@@ -4002,7 +3983,7 @@ document.getElementById('custNewAttachBtn').addEventListener('click', async () =
   const last  = document.getElementById('custNewLast').value.trim();
   const email = document.getElementById('custNewEmail').value.trim();
   const phone = document.getElementById('custNewPhone').value.trim();
-  const addr  = document.getElementById('custNewAddr').value.trim();   // MARKER-CUST-ADDR
+  const addr  = document.getElementById('custNewAddr').value.trim();
   const city  = document.getElementById('custNewCity').value.trim();
   const st    = document.getElementById('custNewState').value.trim();
   const post  = document.getElementById('custNewPost').value.trim();
@@ -4020,7 +4001,7 @@ document.getElementById('custNewAttachBtn').addEventListener('click', async () =
       },
       body: JSON.stringify({
         first_name: first, last_name: last, email: email, phone: phone || null,
-        address_line1: addr || null, city: city || null, state: st || null, postcode: post || null, // MARKER-CUST-ADDR
+        address_line1: addr || null, city: city || null, state: st || null, postcode: post || null,
       }),
     });
     const data = await res.json().catch(() => ({}));
@@ -4055,7 +4036,7 @@ document.getElementById('customerSearchInput').addEventListener('input', () => {
 async function searchCustomers() {
   const q = document.getElementById('customerSearchInput').value.trim();
   const box = document.getElementById('customerResults');
-  if (q.length < 2) { box.style.display = 'none'; custNewHide(); return; } // MARKER-REG-CUSTPICK
+  if (q.length < 2) { box.style.display = 'none'; custNewHide(); return; }
   const url = new URL(ROUTES.search, window.location.origin);
   url.searchParams.set('q', q);
   url.searchParams.set('type', 'customer');
@@ -4063,14 +4044,14 @@ async function searchCustomers() {
     const res = await fetch(url, {headers:{'Accept':'application/json'}});
     const data = await res.json();
     if (!data.customers || !data.customers.length) {
-      // MARKER-REG-CUSTPICK — the results give way to the create fields, as
+      // the results give way to the create fields, as
       // the appointment modal does. A two-word query with no @ or digits is
       // almost always a name, so pre-split it.
       box.style.display = 'none';
       custNewShow(q);
       return;
     }
-    custNewHide(); // MARKER-REG-CUSTPICK
+    custNewHide();
     box.innerHTML = data.customers.map(c => `
       <div class="row" data-cust='${JSON.stringify(c)}'>
         <div style="font-weight:500">${escapeHtml(c.name || '(no name)')}</div>
@@ -4083,7 +4064,7 @@ async function searchCustomers() {
         closeModal('customerModal');
         renderCart();
         queueDraftSave();
-        // MARKER-SO-CUSTOMER — resume the action that needed a customer.
+        // resume the action that needed a customer.
         if (typeof window.afterCustomerPick === 'function') {
           const resume = window.afterCustomerPick;
           window.afterCustomerPick = null;
@@ -4157,7 +4138,7 @@ document.getElementById('quoteSaveBtn').addEventListener('click', async () => {
         out.name_snapshot = i.name;
         out.unit_price_cents = i.price_cents;
       }
-      return linePriceFields(i, out); // MARKER-REGISTER-LINE-FIX
+      return linePriceFields(i, out);
     }),
   };
 
@@ -4180,7 +4161,7 @@ document.getElementById('quoteSaveBtn').addEventListener('click', async () => {
     cart.items = [];
     cart.tipCents = 0;
     cart.discountCents = 0;
-    cart.payment_method = null; cart.payments = []; if (typeof renderSplit === 'function') renderSplit(); /* MARKER-SPLIT-TENDER */
+    cart.payment_method = null; cart.payments = []; if (typeof renderSplit === 'function') renderSplit();
     cart.payment_reference = null;
     renderCart();
     refreshDraftsBanner(await loadDrafts());
@@ -4193,7 +4174,7 @@ document.getElementById('quoteSaveBtn').addEventListener('click', async () => {
 });
 
 document.getElementById('payBtn').addEventListener('click', () => {
-  // MARKER-PATCH-170C — pre-flight validation FIRST. If the cart can't
+  // pre-flight validation FIRST. If the cart can't
   // be committed (e.g. service line without customer), block the tender
   // modal entirely and show a focused dialog explaining what to fix.
   const blocker = preflightCheck();
@@ -4223,7 +4204,7 @@ document.getElementById('payBtn').addEventListener('click', () => {
 
   if (net < 0) {
     // Refund-direction transaction.
-    cart.payment_method = null; cart.payments = []; if (typeof renderSplit === 'function') renderSplit(); /* MARKER-SPLIT-TENDER */
+    cart.payment_method = null; cart.payments = []; if (typeof renderSplit === 'function') renderSplit();
     document.getElementById('refundTenderConfirmBtn').disabled = true;
     document.querySelectorAll('#refundTenderModal .reg-tender-btn').forEach(b => b.classList.remove('selected'));
     document.getElementById('refundTenderLede').textContent =
@@ -4233,25 +4214,25 @@ document.getElementById('payBtn').addEventListener('click', () => {
   }
 
   // Standard sale-direction tender flow (net > 0).
-  // MARKER-TENDER-KEEPS-PAID — do NOT wipe cart.payments here. They are rows on
+  // do NOT wipe cart.payments here. They are rows on
   // the sale's ledger now, not a scratch list for this open; clearing them made
   // the modal show the full total on a sale that was already part-paid, and
   // "Remaining" overstate the balance by exactly what had been taken. The
   // in-browser state that is safe to reset on open still resets below.
   cart.payment_method = null;
-  if (typeof renderSplit === 'function') renderSplit(); /* MARKER-SPLIT-TENDER */
+  if (typeof renderSplit === 'function') renderSplit();
   cart.payment_reference = null;
   document.getElementById('tenderRefRow').style.display = 'none';
-  document.getElementById('tenderManualRow').style.display = 'none'; // MARKER-PATCH-630
+  document.getElementById('tenderManualRow').style.display = 'none';
   document.getElementById('tenderRefInput').value = '';
-  // MARKER-TENDER-AMOUNT — everything else here was cleared per sale; the
+  // everything else here was cleared per sale; the
   // amount was not, so the last customer's partial figure greeted the next.
   { const amt = document.getElementById('splitAmountInput'); if (amt) amt.value = ''; }
   document.getElementById('tenderConfirmBtn').disabled = true;
   document.querySelectorAll('#tenderModal .reg-tender-btn').forEach(b => b.classList.remove('selected'));
-  resetGiftTender();          // MARKER-TENDERFIX -- fresh card check every sale
+  resetGiftTender();          // fresh card check every sale
   tenderModalError('');
-  // MARKER-LAYAWAY-REGISTER — opened from the cart: no plan target. The
+  // opened from the cart: no plan target. The
   // button shows when this could be a layaway: a customer, product lines,
   // no refunds, no split already started.
   cart.layaway_target = null;
@@ -4263,10 +4244,10 @@ document.getElementById('payBtn').addEventListener('click', () => {
       lb.style.display = eligible ? '' : 'none';
     }
   }
-  resetCashTender(); // MARKER-REGISTER-LINE-FIX
-  cart.splitOpen = false; // MARKER-CASH-SIMPLE
+  resetCashTender();
+  cart.splitOpen = false;
   openModal('tenderModal');
-  if (typeof tenderPaint === 'function') { tenderPaint(); } // MARKER-TENDER-LAYOUT
+  if (typeof tenderPaint === 'function') { tenderPaint(); }
 });
 
 // Refund-tender modal handlers
@@ -4275,7 +4256,7 @@ document.querySelectorAll('#refundTenderModal .reg-tender-btn').forEach(btn => {
     document.querySelectorAll('#refundTenderModal .reg-tender-btn').forEach(b => b.classList.remove('selected'));
     btn.classList.add('selected');
     cart.payment_method = btn.dataset.refundTender;
-    // MARKER-GC-FUNCTIONS -- reveal the code box only for the gift tender.
+    // reveal the code box only for the gift tender.
     const rgr = document.getElementById('refundGiftRow');
     if (rgr) rgr.style.display = cart.payment_method === 'gift_card' ? '' : 'none';
     document.getElementById('refundTenderConfirmBtn').disabled = false;
@@ -4288,18 +4269,18 @@ document.getElementById('refundTenderConfirmBtn').addEventListener('click', () =
   commitTransaction({});
 });
 
-// MARKER-SPLIT-TENDER — split-tender engine. Zero recorded payments = the
+// split-tender engine. Zero recorded payments = the
 // classic single-tender flow, unchanged. Split only activates via "Add
 // payment". Stripe card / payment-link / mark_paid stay full-amount-only
 // until stage 2 and grey out mid-split.
-const SplitCard = { pendingAmountCents: null }; // MARKER-SPLIT-ANYORDER
+const SplitCard = { pendingAmountCents: null };
 function splitDueCents() {
   const t = computeTotalsForCommit();
   return Math.max(0, t.total_cents + (cart.tipCents || 0) - (calcRefundSubtotal() + calcRefundTax()));
 }
 function splitPaidCents() { return cart.payments.reduce((s, p) => s + p.amount_cents, 0); }
 function splitRemaining() { return Math.max(0, splitDueCents() - splitPaidCents()); }
-// MARKER-TENDERUX -- why a tender can't join a split that still owes money.
+// why a tender can't join a split that still owes money.
 const SPLIT_BLOCK_REASON = {
   payment_link: "The customer pays this from their phone later, after they've left — it can't cover the rest of a split here. Take the remainder another way, or clear the payments above and send the link for the whole sale.",
   mark_paid:    "This records the sale as already paid elsewhere, so it can't cover a balance the register is still asking for. Clear the payments above to use it for the whole sale.",
@@ -4315,7 +4296,7 @@ function renderSplit() {
   cart.payments.forEach((p, i) => {
     const row = document.createElement('div');
     row.className = 'reg-split-row';
-    // MARKER-SPLIT-ANYORDER — charged card rows are locked: removing one
+    // charged card rows are locked: removing one
     // refunds real money, so it's an explicit Void, never a quiet ✕.
     const removeCtl = p.locked
       ? '<span class="x" style="font-size:11px;font-weight:700">Void</span>'
@@ -4328,7 +4309,7 @@ function renderSplit() {
       // A leg that is not on the ledger yet is only in this tab: drop it.
       if (!p.locked && !p.id) { cart.payments.splice(i, 1); renderSplit(); return; }
 
-      // MARKER-VOID-PERSISTED — a ledger row is reversed on the server. The
+      // a ledger row is reversed on the server. The
       // old path posted straight to the Stripe refund endpoint, which for a
       // cash leg meant asking Stripe to refund "undefined". The server now
       // decides what a void means for this method, and the register mirrors
@@ -4362,11 +4343,11 @@ function renderSplit() {
   remRow.classList.toggle('zero', rem === 0);
   document.querySelectorAll('#tenderModal .reg-tender-btn').forEach(b => {
     const t = b.dataset.tender;
-    // MARKER-SPLIT-STRIPE — Stripe card now joins a split as the FINAL leg
+    // Stripe card now joins a split as the FINAL leg
     // (it charges exactly the remaining balance). Link + mark_paid wait.
     const stage2 = t === 'payment_link' || t === 'mark_paid';
     b.classList.toggle('split-disabled', active && stage2);
-    // MARKER-TENDERUX — say why, on hover and on tap.
+    // say why, on hover and on tap.
     if (active && stage2) {
       b.setAttribute('title', SPLIT_BLOCK_REASON[t] || '');
     } else {
@@ -4391,7 +4372,7 @@ document.getElementById('splitAddBtn').addEventListener('click', () => {
   let change = 0;
   if (cart.payment_method === 'cash' && c > rem) { change = c - rem; c = rem; }
   if (c > rem) c = rem;
-  // MARKER-SPLIT-ANYORDER — a Stripe card leg charges immediately for the
+  // a Stripe card leg charges immediately for the
   // typed amount; on success the row lands locked (real money moved).
   if (cart.payment_method === 'card' && ROUTES.directPaymentsEnabled && ROUTES.directPaymentsPk) {
     SplitCard.pendingAmountCents = c;
@@ -4399,20 +4380,20 @@ document.getElementById('splitAddBtn').addEventListener('click', () => {
     openCardPaymentModal();
     return;
   }
-  // MARKER-GIFTCARDS -- gift leg needs a checked card; cap at its balance
+  // gift leg needs a checked card; cap at its balance
   if (cart.payment_method === 'gift_card') {
     if (!window.gcTender || !gcTender.code) { showError('Check the gift card first.'); return; }
     if (c > gcTender.balance) c = gcTender.balance;
     if (c <= 0) return;
   }
-  // MARKER-PAID-VISIBLE — wipe the previous message before the numbers move.
+  // wipe the previous message before the numbers move.
   // A stale "$800 still to collect" sitting under a correct "$542 remaining"
   // is worse than no message: at a till the red number wins.
   tenderModalError('');
 
   const selBtn = document.querySelector('#tenderModal .reg-tender-btn.selected');
 
-  // MARKER-PAY-PERSIST — to the ledger, not to a list in this tab. A refresh
+  // to the ledger, not to a list in this tab. A refresh
   // between two legs used to lose the first one along with the whole cart.
   persistPayment({
     method: cart.payment_method,
@@ -4429,14 +4410,14 @@ document.getElementById('splitAddBtn').addEventListener('click', () => {
   document.getElementById('splitHint').style.display = 'none';
   document.getElementById('tenderRefRow').style.display = 'none';
   document.getElementById('tenderRefInput').value = '';
-  resetGiftTender();   // MARKER-TENDERFIX -- the leg holds the code now
+  resetGiftTender();   // the leg holds the code now
   tenderModalError('');
   renderSplit();
 });
 
 document.querySelectorAll('#tenderModal .reg-tender-btn').forEach(btn => {
   btn.addEventListener('click', () => {
-    // MARKER-TENDERUX — the button stays clickable so a tap can explain
+    // the button stays clickable so a tap can explain
     // itself; a touchscreen has no hover to reveal the title.
     if (btn.classList.contains('split-disabled')) {
       tenderModalError(SPLIT_BLOCK_REASON[btn.dataset.tender] || 'That tender is not available while a split is open.');
@@ -4444,18 +4425,18 @@ document.querySelectorAll('#tenderModal .reg-tender-btn').forEach(btn => {
     }
     document.querySelectorAll('#tenderModal .reg-tender-btn').forEach(b => b.classList.remove('selected'));
     btn.classList.add('selected');
-    // MARKER-REGISTER-LINE-FIX — a different tender starts with an empty cash box.
+    // a different tender starts with an empty cash box.
     if (btn.dataset.tender !== cart.payment_method) { resetCashTender(); }
     cart.payment_method = btn.dataset.tender;
-    // MARKER-SPLIT-ANYORDER — no ordering rules: any number of payments,
+    // no ordering rules: any number of payments,
     // any order, any amount. Card gets the same amount field as everything.
-    // MARKER-SPLIT-TENDER — amount entry for splittable tenders
+    // amount entry for splittable tenders
     (function () {
       const t = btn.dataset.tender;
-      const splittable = !(t === 'payment_link' || t === 'mark_paid'); // MARKER-SPLIT-ANYORDER
+      const splittable = !(t === 'payment_link' || t === 'mark_paid');
       const rowEl = document.getElementById('splitAmountRow');
       const hintEl = document.getElementById('splitHint');
-      // MARKER-CASH-SIMPLE — the amount field keeps its value (Collect reads
+      // the amount field keeps its value (Collect reads
       // it) but only shows once a split is asked for or already under way.
       const showRow = splittable && (cart.splitOpen || cart.payments.length > 0);
       if (rowEl && splittable) {
@@ -4469,7 +4450,7 @@ document.querySelectorAll('#tenderModal .reg-tender-btn').forEach(btn => {
         rowEl.style.display = 'none'; if (hintEl) hintEl.style.display = 'none';
       }
     })();
-    // MARKER-TENDERFIX -- do NOT force-enable: while a split is open,
+    // do NOT force-enable: while a split is open,
     // renderSplit() owns this button (disabled until the remainder is
     // covered). Force-enabling it produced a button that looked ready and
     // then did nothing when pressed.
@@ -4480,14 +4461,14 @@ document.querySelectorAll('#tenderModal .reg-tender-btn').forEach(btn => {
       document.getElementById('tenderConfirmBtn').textContent = 'Confirm';
     }
     tenderModalError('');
-    // MARKER-PATCH-170C — reference field only meaningful for checks now.
+    // reference field only meaningful for checks now.
     // Card no longer needs a hand-typed reference (with direct payments the
     // brand+last4 becomes the reference automatically; without direct payments
     // the field was always low-value friction).
     const showRef = ['check'].includes(cart.payment_method);
     document.getElementById('tenderRefRow').style.display = showRef ? '' : 'none';
 
-    // MARKER-PATCH-630 — manual tenders: show instructions + amount-prefilled link
+    // manual tenders: show instructions + amount-prefilled link
     const manualRow = document.getElementById('tenderManualRow');
     if (btn.dataset.manual) {
       const total = ((calcSubtotal() - cart.discountCents + calcTax() + calcSurcharge() + cart.tipCents) - (calcRefundSubtotal() + calcRefundTax())) / 100;
@@ -4505,7 +4486,7 @@ document.querySelectorAll('#tenderModal .reg-tender-btn').forEach(btn => {
     } else {
       manualRow.style.display = 'none';
     }
-    // MARKER-GIFTCARDS -- gift tender: code row + block on refund carts
+    // gift tender: code row + block on refund carts
     (function () {
       const isGift = btn.dataset.tender === 'gift_card';
       const gr = document.getElementById('gcTenderRow');
@@ -4516,19 +4497,19 @@ document.querySelectorAll('#tenderModal .reg-tender-btn').forEach(btn => {
       if (!isGift) { window.gcTender = null; const b = document.getElementById('gcTenderBalance'); if (b) b.style.display = 'none'; }
     })();
     renderTotals();
-    // MARKER-REGISTER-LINE-FIX — choosing a tender never repainted the panel,
+    // choosing a tender never repainted the panel,
     // so Cash received / Change due only appeared as the sale completed.
     if (typeof tenderPaint === 'function') { tenderPaint(); }
   });
 });
 
-// MARKER-PATCH-630 — copy the manual payment link
+// copy the manual payment link
 document.getElementById('tenderManualCopy').addEventListener('click', function () {
   const t = document.getElementById('tenderManualLink').textContent;
   navigator.clipboard.writeText(t).then(() => { this.textContent = 'Copied ✓'; setTimeout(() => { this.textContent = 'Copy link'; }, 1400); });
 });
 
-// MARKER-PATCH-170 — Direct Payments hand-keyed card flow
+// Direct Payments hand-keyed card flow
 // When the card tender is selected AND the tenant has direct payments
 // enabled, intercept to run the Stripe Payment Element BEFORE commit.
 // Other tender types (cash, check, etc.) flow unchanged.
@@ -4541,7 +4522,7 @@ let DirectPay = {
   inFlight: false,
 };
 
-// MARKER-PATCH-172 — Send-payment-link state
+// Send-payment-link state
 let PaymentLink = {
   saleId: null,
   sessionId: null,
@@ -4556,7 +4537,7 @@ if (ROUTES.directPaymentsEnabled && ROUTES.directPaymentsPk) {
 }
 
 async function openCardPaymentModal() {
-  // MARKER-PATCH-170B + 170C — pre-charge validation. The Charge button
+  // + 170C — pre-charge validation. The Charge button
   // pre-flight modal already catches this upstream, but defense-in-depth
   // in case openCardPaymentModal is reached via some other path.
   const hasServiceLine = cart.items.some(i => i.type === 'service');
@@ -4578,9 +4559,9 @@ async function openCardPaymentModal() {
   document.getElementById('cardPaymentSpinner').style.display = 'none';
 
   const totals = computeTotalsForCommit();
-  // MARKER-SPLIT-ANYORDER — a pending split card leg charges the typed
+  // a pending split card leg charges the typed
   // amount; otherwise (single-tender card) the full total as always.
-  // MARKER-LAYAWAY-CARD — a plan payment charges the plan's amount. This has
+  // a plan payment charges the plan's amount. This has
   // to be decided HERE: the line below is the single source of the charge, and
   // anything set before this function runs is overwritten by it.
   const amountCents = LayawayCard.planId
@@ -4611,7 +4592,7 @@ async function openCardPaymentModal() {
       headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': CSRF },
       body: JSON.stringify({
         amount_cents: amountCents,
-        // MARKER-PATCH-170B — preflight context
+        // preflight context
         customer_id: cart.customer ? cart.customer.id : null,
         has_service_line: cart.items.some(i => i.type === 'service'),
       }),
@@ -4727,7 +4708,7 @@ async function confirmCardPayment() {
     ? (conf.card_brand + ' ····' + conf.card_last4)
     : null;
 
-  // MARKER-SPLIT-ANYORDER — a split card charge lands as a LOCKED row (the
+  // a split card charge lands as a LOCKED row (the
   // charge is live; removal is an explicit Void). Remainder left → reopen
   // the tender modal and keep taking payments, any order. Covered → commit.
   if (SplitCard.pendingAmountCents != null) {
@@ -4747,10 +4728,10 @@ async function confirmCardPayment() {
     DirectPay.inFlight = false;
     if (splitRemaining() > 0) {
       renderSplit();
-      resetGiftTender();      // MARKER-TENDERFIX
+      resetGiftTender();
       tenderModalError('');
       openModal('tenderModal');
-  if (typeof tenderPaint === 'function') { tenderPaint(); } // MARKER-TENDER-LAYOUT
+  if (typeof tenderPaint === 'function') { tenderPaint(); }
       return;
     }
     cart.payment_method = 'split';
@@ -4758,7 +4739,7 @@ async function confirmCardPayment() {
     return;
   }
 
-  // MARKER-LAYAWAY-CARD — pointed at a plan there is no cart to commit: the
+  // pointed at a plan there is no cart to commit: the
   // charge belongs on an existing sale's ledger. Same card, same Stripe
   // metadata, different destination.
   if (LayawayCard.planId) {
@@ -4769,7 +4750,7 @@ async function confirmCardPayment() {
   }
 
   // Close modal and run the existing commit pipeline.
-  // MARKER-PATCH-170B — wrap commit in our own try; if commitTransaction
+  // wrap commit in our own try; if commitTransaction
   // shows the failure banner, we still hold the PI in cart.stripe_payment_intent_id.
   // commitTransaction itself calls autoRefundOnCommitFailure() if its commit fails.
   closeModal('cardPaymentModal');
@@ -4777,7 +4758,7 @@ async function confirmCardPayment() {
   if (CFG.tipsEnabled) openTipModal(); else commitTransaction({});
 }
 
-// MARKER-PATCH-170B — called by commitTransaction's error path when the
+// called by commitTransaction's error path when the
 // charge has already authorized but the commit step failed. Refunds the
 // PaymentIntent server-side and clears the Stripe metadata from the cart
 // so the user doesn\'t double-charge.
@@ -4831,15 +4812,15 @@ function computeTotalsForCommit() {
   return { subtotal_cents: sub, tax_cents: tax, total_cents: Math.max(0, total) };
 }
 
-// MARKER-TENDERFIX -- what is the sale still asking for right now?
+// what is the sale still asking for right now?
 function tenderDueCents() {
-  // MARKER-LAYAWAY-REGISTER — pointed at a plan, the amount due is the plan's.
+  // pointed at a plan, the amount due is the plan's.
   if (cart.layaway_target) { return cart.layaway_target.scheduled_cents || cart.layaway_target.balance_cents; }
   return (calcSubtotal() - cart.discountCents + calcTax() + calcSurcharge() + cart.tipCents)
        - (calcRefundSubtotal() + calcRefundTax());
 }
 
-// MARKER-TENDERFIX -- a checked card that can't cover the remainder is not an
+// a checked card that can't cover the remainder is not an
 // error, it's a split waiting to happen. Label the button with the action.
 function gcSyncTenderButton() {
   const btn = document.getElementById('tenderConfirmBtn');
@@ -4857,10 +4838,10 @@ function gcSyncTenderButton() {
 }
 
 document.getElementById('tenderConfirmBtn').addEventListener('click', () => {
-  // MARKER-BIZ-REGISTER — a PO-required customer is asked once, here, rather
+  // a PO-required customer is asked once, here, rather
   // than the invoice being rejected weeks later for a missing reference.
   if (cart.customer && cart.customer.po_required && !cart.po_number) {
-    // MARKER-TENANT-CONFIRM — was window.prompt. This gates completing a sale
+    // was window.prompt. This gates completing a sale
     // for a PO-required customer, so a suppressed dialog here meant a sale
     // that could not be rung through, with nothing on screen to say why.
     // In-app prompt; on a value, the same click is resumed.
@@ -4886,7 +4867,7 @@ document.getElementById('tenderConfirmBtn').addEventListener('click', () => {
     return;
   }
 
-  // MARKER-TENDER-AMOUNT — a typed amount that does not cover what is due is
+  // a typed amount that does not cover what is due is
   // a split leg, not a full payment. Collect used to ignore this field and
   // complete for the whole total on the selected tender; now it does what Add
   // payment does and keeps the modal open for the rest. It can never charge
@@ -4906,13 +4887,13 @@ document.getElementById('tenderConfirmBtn').addEventListener('click', () => {
 
   cart.payment_reference = document.getElementById('tenderRefInput').value.trim() || null;
 
-  // MARKER-LAYAWAY-REGISTER — paying on a plan is not a sale. Record it and
+  // paying on a plan is not a sale. Record it and
   // stop; nothing below this line applies to a layaway payment.
   if (cart.layaway_target) { payOnLayaway(); return; }
 
-  // MARKER-GIFTCARDS -- single gift tender: require a checked card whose
+  // single gift tender: require a checked card whose
   // balance covers the full total; otherwise it belongs in a split.
-  // MARKER-TENDERFIX -- gift tender. A short balance now STARTS the split
+  // gift tender. A short balance now STARTS the split
   // (the button already said it would) instead of erroring behind the modal.
   if (cart.payment_method === 'gift_card') {
     if (!window.gcTender || !gcTender.code) { tenderModalError('Check the gift card balance first.'); return; }
@@ -4929,10 +4910,10 @@ document.getElementById('tenderConfirmBtn').addEventListener('click', () => {
     }
   }
 
-  // MARKER-SPLIT-TENDER — split path: tenders recorded row by row; the tip
+  // split path: tenders recorded row by row; the tip
   // modal is skipped (set tips before splitting so remaining math is stable).
   if (cart.payments.length > 0) {
-    // MARKER-TENDERFIX -- was a bare `return`: the button did nothing and
+    // was a bare `return`: the button did nothing and
     // never said why, so the split got abandoned and re-rung as one tender.
     if (splitRemaining() !== 0) {
       tenderModalError(fmt(splitRemaining()) + ' still to collect — add a payment for the rest, or remove a line above.');
@@ -4945,14 +4926,14 @@ document.getElementById('tenderConfirmBtn').addEventListener('click', () => {
     return;
   }
 
-  // MARKER-PATCH-170 — Direct Payments path
+  // Direct Payments path
   if (cart.payment_method === 'card' && ROUTES.directPaymentsEnabled && ROUTES.directPaymentsPk) {
     closeModal('tenderModal');
     openCardPaymentModal();
     return;
   }
 
-  // MARKER-PATCH-172 — Send-payment-link path
+  // Send-payment-link path
   if (cart.payment_method === 'payment_link' && ROUTES.directPaymentsEnabled && ROUTES.directPaymentsPk) {
     closeModal('tenderModal');
     openPaymentLinkModal();
@@ -4964,7 +4945,7 @@ document.getElementById('tenderConfirmBtn').addEventListener('click', () => {
   if (CFG.tipsEnabled) openTipModal(); else commitTransaction({});
 });
 
-// MARKER-PATCH-172 — Send-payment-link modal flow
+// Send-payment-link modal flow
 async function openPaymentLinkModal() {
   const statusText = document.getElementById('paymentLinkStatusText');
   statusText.textContent = 'Creating payment link…';
@@ -4988,7 +4969,7 @@ async function openPaymentLinkModal() {
         description: 'Purchase at ' + document.title,
         items: cart.items.map(serializeLine),
         tip_cents: cart.tipCents || 0,
-        // MARKER-SALE-DISCOUNT-PERSIST — the field the server applies.
+        // the field the server applies.
         sale_discount_cents: cart.discountCents || 0,
         discount_code: cart.discountCode || null,
         discount_cents: cart.discountCents || 0,
@@ -4998,7 +4979,7 @@ async function openPaymentLinkModal() {
     resp = await res.json();
     if (!resp.ok) throw new Error(resp.error || 'Could not create payment link.');
   } catch (e) {
-    closeModal('paymentLinkModal'); DisplayMirror.payUrl = null; queueDisplayMirror(true); // MARKER-REGISTER-RECON-DISPLAY
+    closeModal('paymentLinkModal'); DisplayMirror.payUrl = null; queueDisplayMirror(true);
     showError(e.message);
     return;
   }
@@ -5006,7 +4987,7 @@ async function openPaymentLinkModal() {
   PaymentLink.saleId = resp.sale_id;
   PaymentLink.sessionId = resp.session_id;
   PaymentLink.checkoutUrl = resp.checkout_url;
-  DisplayMirror.payUrl = resp.checkout_url; // MARKER-REGISTER-RECON-DISPLAY
+  DisplayMirror.payUrl = resp.checkout_url;
   queueDisplayMirror(true);
 
   // Render QR code
@@ -5055,9 +5036,9 @@ async function checkPaymentLinkStatus() {
 
     if (data.status === 'succeeded') {
       stopPaymentLinkPolling();
-      closeModal('paymentLinkModal'); DisplayMirror.payUrl = null; queueDisplayMirror(true); // MARKER-REGISTER-RECON-DISPLAY
+      closeModal('paymentLinkModal'); DisplayMirror.payUrl = null; queueDisplayMirror(true);
       // Show the receipt screen using the existing flow
-      showReceipt({ sale_number: data.sale_number, total_cents: data.total_cents, sale_id: data.sale_id }); // MARKER-PATCH-322
+      showReceipt({ sale_number: data.sale_number, total_cents: data.total_cents, sale_id: data.sale_id });
       // Clear cart since the sale completed
       cart.draft_id = null;
       cart.customer = null;
@@ -5091,10 +5072,10 @@ document.getElementById('paymentLinkCopyBtn').addEventListener('click', () => {
   });
 });
 
-// MARKER-PATCH-192 — "Cancel link": explicit destructive action. Expires the
+// "Cancel link": explicit destructive action. Expires the
 // Stripe session and marks the sale cancelled. Only fires on deliberate click.
 document.getElementById('paymentLinkCancelBtn').addEventListener('click', async () => {
-  if (!(await iaConfirm('Cancel this payment link? The customer will no longer be able to pay it.'))) return; // MARKER-INLINE-CONFIRM-1
+  if (!(await iaConfirm('Cancel this payment link? The customer will no longer be able to pay it.'))) return;
   stopPaymentLinkPolling();
   if (PaymentLink.saleId) {
     try {
@@ -5108,10 +5089,10 @@ document.getElementById('paymentLinkCancelBtn').addEventListener('click', async 
   PaymentLink.saleId = null;
   PaymentLink.sessionId = null;
   PaymentLink.checkoutUrl = null;
-  closeModal('paymentLinkModal'); DisplayMirror.payUrl = null; queueDisplayMirror(true); // MARKER-REGISTER-RECON-DISPLAY
+  closeModal('paymentLinkModal'); DisplayMirror.payUrl = null; queueDisplayMirror(true);
 });
 
-// MARKER-PATCH-192 — "Done — keep link live": the operator steps away while the
+// "Done — keep link live": the operator steps away while the
 // customer pays on their own time. Stops the foreground poll and closes the
 // modal, but leaves the sale PENDING and the Stripe session active. The webhook
 // will promote it when the customer pays; the appointment surfaces the pending
@@ -5121,7 +5102,7 @@ document.getElementById('paymentLinkDoneBtn').addEventListener('click', () => {
   PaymentLink.saleId = null;
   PaymentLink.sessionId = null;
   PaymentLink.checkoutUrl = null;
-  closeModal('paymentLinkModal'); DisplayMirror.payUrl = null; queueDisplayMirror(true); // MARKER-REGISTER-RECON-DISPLAY
+  closeModal('paymentLinkModal'); DisplayMirror.payUrl = null; queueDisplayMirror(true);
 });
 
 function openTipModal() {
@@ -5154,7 +5135,7 @@ function openTipModal() {
   openModal('tipModal');
 }
 
-// MARKER-REGISTER-DISCOUNT — whole-sale discount handlers.
+// whole-sale discount handlers.
 document.getElementById('discountBtn').addEventListener('click', () => {
   document.getElementById('discCodeMsg').textContent = '';
   document.getElementById('discCodeInput').value = cart.discountCode || '';
@@ -5276,19 +5257,19 @@ async function commitTransaction(opts = {}) {
         tip_cents: cart.tipCents,
         payment_method: cart.payment_method,
         payment_reference: cart.payment_reference,
-        po_number: cart.po_number || null, // MARKER-BIZ-REGISTER
-        payments: cart.payments.length ? cart.payments.map(p => ({ method: p.method, amount_cents: p.amount_cents, reference: p.stripe_payment_intent_id ? ((p.reference || 'card') + ' · ' + p.stripe_payment_intent_id) : p.reference })) : null, // MARKER-SPLIT-TENDER + ANYORDER
-        // MARKER-PATCH-170 — Stripe metadata if Direct Payments fired
+        po_number: cart.po_number || null,
+        payments: cart.payments.length ? cart.payments.map(p => ({ method: p.method, amount_cents: p.amount_cents, reference: p.stripe_payment_intent_id ? ((p.reference || 'card') + ' · ' + p.stripe_payment_intent_id) : p.reference })) : null, // + ANYORDER
+        // Stripe metadata if Direct Payments fired
         stripe_payment_intent_id: cart.stripe_payment_intent_id || null,
         stripe_charge_id: cart.stripe_charge_id || null,
         card_brand: cart.card_brand || null,
         card_last4: cart.card_last4 || null,
         card_funding: cart.card_funding || null,
-        override_reserved: !!cart.override_reserved, // MARKER-RESERVE-OVERRIDE
+        override_reserved: !!cart.override_reserved,
         items: hasNewSale ? cart.items.map(serializeLine) : [],
         refund: {
           original_sale_id: cart.refund_meta.original_sale_id,
-          // MARKER-REFUND-QTY — the quantity the cashier chose is now sent and
+          // the quantity the cashier chose is now sent and
           // is authoritative on the server, along with where the goods went.
           items: cart.refund_lines.map(r => ({
             sale_item_id: r.original_item_id,
@@ -5297,7 +5278,6 @@ async function commitTransaction(opts = {}) {
           })),
           item_ids: cart.refund_lines.map(r => r.original_item_id),
           refund_method: cart.payment_method,
-          // MARKER-GC-FUNCTIONS
           gift_card_code: (cart.payment_method === 'gift_card'
             ? (document.getElementById('refundGiftCode')?.value || '').trim() || null
             : null),
@@ -5307,7 +5287,7 @@ async function commitTransaction(opts = {}) {
       // Draft-backed pure sale — promote draft to paid (existing path).
       url = ROUTES.commitDraft + '/' + cart.draft_id + '/commit';
       payload = {
-        // MARKER-SALE-DISCOUNT-PERSIST — sent again at commit, so a discount
+        // sent again at commit, so a discount
         // applied after the last autosave still counts, and the register's
         // own total is checked against the server's before money is taken.
         sale_discount_cents: cart.discountCents || 0,
@@ -5315,12 +5295,12 @@ async function commitTransaction(opts = {}) {
         expected_total_cents: computeTotalsForCommit().total_cents,
         payment_method: cart.payment_method,
         payment_reference: cart.payment_reference,
-        po_number: cart.po_number || null, // MARKER-BIZ-REGISTER
-        payments: cart.payments.length ? cart.payments.map(p => ({ method: p.method, amount_cents: p.amount_cents, reference: p.stripe_payment_intent_id ? ((p.reference || 'card') + ' · ' + p.stripe_payment_intent_id) : p.reference })) : null, // MARKER-SPLIT-TENDER + ANYORDER
+        po_number: cart.po_number || null,
+        payments: cart.payments.length ? cart.payments.map(p => ({ method: p.method, amount_cents: p.amount_cents, reference: p.stripe_payment_intent_id ? ((p.reference || 'card') + ' · ' + p.stripe_payment_intent_id) : p.reference })) : null, // + ANYORDER
         tip_cents: cart.tipCents,
         customer_id: cart.customer ? cart.customer.id : null,
-        skip_receipt: cart.skipReceipt ? 1 : 0, // MARKER-PATCH-161
-        // MARKER-PATCH-170 — Stripe metadata if Direct Payments fired
+        skip_receipt: cart.skipReceipt ? 1 : 0,
+        // Stripe metadata if Direct Payments fired
         stripe_payment_intent_id: cart.stripe_payment_intent_id || null,
         stripe_charge_id: cart.stripe_charge_id || null,
         card_brand: cart.card_brand || null,
@@ -5334,16 +5314,16 @@ async function commitTransaction(opts = {}) {
         customer_id: cart.customer ? cart.customer.id : null,
         tip_cents: cart.tipCents,
         discount_cents: cart.discountCents,
-        // MARKER-REGISTER-DISCOUNT — the field the server actually applies
+        // the field the server actually applies
         sale_discount_cents: cart.discountCents || 0,
         discount_code: cart.discountCode || null,
         payment_method: cart.payment_method,
         payment_reference: cart.payment_reference,
-        po_number: cart.po_number || null, // MARKER-BIZ-REGISTER
-        payments: cart.payments.length ? cart.payments.map(p => ({ method: p.method, amount_cents: p.amount_cents, reference: p.stripe_payment_intent_id ? ((p.reference || 'card') + ' · ' + p.stripe_payment_intent_id) : p.reference })) : null, // MARKER-SPLIT-TENDER + ANYORDER
+        po_number: cart.po_number || null,
+        payments: cart.payments.length ? cart.payments.map(p => ({ method: p.method, amount_cents: p.amount_cents, reference: p.stripe_payment_intent_id ? ((p.reference || 'card') + ' · ' + p.stripe_payment_intent_id) : p.reference })) : null, // + ANYORDER
         items: cart.items.map(serializeLine),
-        skip_receipt: cart.skipReceipt ? 1 : 0, // MARKER-PATCH-161
-        // MARKER-PATCH-170 — Stripe metadata if Direct Payments fired
+        skip_receipt: cart.skipReceipt ? 1 : 0,
+        // Stripe metadata if Direct Payments fired
         stripe_payment_intent_id: cart.stripe_payment_intent_id || null,
         stripe_charge_id: cart.stripe_charge_id || null,
         card_brand: cart.card_brand || null,
@@ -5359,7 +5339,7 @@ async function commitTransaction(opts = {}) {
     });
     const data = await res.json();
     if (!data.ok) {
-      // MARKER-PATCH-170B — auto-refund the card if we authorized one
+      // auto-refund the card if we authorized one
       if (cart.stripe_payment_intent_id) {
         await autoRefundOnCommitFailure(data.error || 'commit_failed');
       }
@@ -5368,7 +5348,7 @@ async function commitTransaction(opts = {}) {
     }
     showReceipt(data);
   } catch (e) {
-    // MARKER-OFFLINE-SYNC — network failure: queue the sale on-device when eligible.
+    // network failure: queue the sale on-device when eligible.
     if (await osTryQueueCommit()) return;
     showError('Network error. Please try again.');
   } finally {
@@ -5384,15 +5364,15 @@ function serializeLine(i) {
     out.name_snapshot = i.name;
     out.unit_price_cents = i.price_cents;
   }
-  if (i.type === 'gift_card') { // MARKER-GIFTCARDS
+  if (i.type === 'gift_card') {
     out.name_snapshot = i.name;
     out.unit_price_cents = i.price_cents;
     out.gift_card = i.gift || {};
   }
-  return linePriceFields(i, out); // MARKER-REGISTER-LINE-FIX
+  return linePriceFields(i, out);
 }
 
-// MARKER-REGISTER-LINE-FIX — a line's price edit (MARKER-LINE-PRICE) on the
+// a line's price edit on the
 // wire. Since Sep 12 these fields never left the browser: the screen showed
 // the edited price and the sale recorded the full one. Discount is per unit
 // on screen and per line on the wire; an override is a new unit price. The
@@ -5405,7 +5385,7 @@ function linePriceFields(i, out) {
   return out;
 }
 
-// MARKER-REGISTER-LINE-FIX — a resumed held sale gets its price edit back.
+// a resumed held sale gets its price edit back.
 // The server returns the stored unit price, the item's catalog price and the
 // per-unit discount; the same rule as applyLinePrice() rebuilds the line.
 function restoreLinePrice(i, line) {
@@ -5432,7 +5412,7 @@ function showError(msg) {
   const el = document.getElementById('errBanner');
   el.textContent = msg;
   el.style.display = '';
-  // MARKER-PATCH-170C — shake to draw attention, even on repeat errors.
+  // shake to draw attention, even on repeat errors.
   // Re-trigger by removing then re-adding the class on the next frame.
   el.classList.remove('reg-err--shake');
   requestAnimationFrame(() => {
@@ -5440,7 +5420,7 @@ function showError(msg) {
   });
 }
 
-// MARKER-PATCH-170C — pre-flight cart validation.
+// pre-flight cart validation.
 // Returns null if the cart is commit-able, or a blocker object
 // { title, message, actionLabel, actionFn } describing what's wrong.
 // Order matters: surface the most-actionable problem first.
@@ -5451,7 +5431,7 @@ function preflightCheck() {
   const hasServiceLine = cart.items.some(i => i.type === 'service');
   if (hasServiceLine && !cart.customer) {
     return {
-      // MARKER-REGISTER-LINE-FIX — two line-price fields sat here (put in the
+      // two line-price fields sat here (put in the
       // wrong function on Sep 12). They referenced a line that doesn't exist
       // in this scope, so Collect payment threw on every cart with a service
       // and no customer. They live in linePriceFields() now.
@@ -5478,15 +5458,15 @@ function openPreflightModal(blocker) {
   fresh.addEventListener('click', blocker.actionFn);
   openModal('preflightModal');
 }
-// MARKER-PATCH-187 — after a completed sale the receipt sits briefly, then the
+// after a completed sale the receipt sits briefly, then the
 // register auto-resets to a fresh state. A visible countdown shows it coming;
 // clicking "New sale" (or any cart interaction) resets immediately and cancels
 // the timer.
 const RECEIPT_AUTO_RESET_SECONDS = 45;
 let receiptResetTimer = null;
 let receiptCountdownTimer = null;
-let receiptSaleId = null;        // MARKER-PATCH-322
-let receiptCustomerEmail = null; // MARKER-PATCH-322
+let receiptSaleId = null;
+let receiptCustomerEmail = null;
 
 function clearReceiptTimers() {
   if (receiptResetTimer) { clearTimeout(receiptResetTimer); receiptResetTimer = null; }
@@ -5500,9 +5480,9 @@ async function resetRegisterToFresh() {
   cart.items = [];
   cart.refund_lines = [];
   cart.refund_meta = null;
-  cart.tipCents = 0; cart.discountCents = 0; cart.discountCode = null; // MARKER-REGISTER-DISCOUNT
-  cart.payment_method = null; cart.payments = []; if (typeof renderSplit === 'function') renderSplit(); /* MARKER-SPLIT-TENDER */ cart.payment_reference = null;
-  if (typeof resetGiftTender === 'function') resetGiftTender(); // MARKER-TENDERFIX
+  cart.tipCents = 0; cart.discountCents = 0; cart.discountCode = null;
+  cart.payment_method = null; cart.payments = []; if (typeof renderSplit === 'function') renderSplit();  cart.payment_reference = null;
+  if (typeof resetGiftTender === 'function') resetGiftTender();
   closeModal('receiptModal');
   renderCart();
   searchInput.value = '';
@@ -5513,7 +5493,7 @@ async function resetRegisterToFresh() {
 function showReceipt(data) {
   document.getElementById('receiptNum').textContent = data.sale_number;
   document.getElementById('receiptTotal').textContent = fmt(data.total_cents);
-  // MARKER-REGISTER-LINE-FIX — cash change, from the Cash received box.
+  // cash change, from the Cash received box.
   { const row = document.getElementById('receiptChange');
     const chg = (cart && cart.payment_method === 'cash') ? (window.cashChangeCents || 0) : 0;
     if (row) {
@@ -5523,7 +5503,7 @@ function showReceipt(data) {
     window.cashChangeCents = 0; }
   openModal('receiptModal');
 
-  // MARKER-PATCH-322 — capture the sale for print/email before the cart clears.
+  // capture the sale for print/email before the cart clears.
   receiptSaleId = data.sale_id || null;
   receiptCustomerEmail = (typeof cart !== 'undefined' && cart && cart.customer && cart.customer.email) ? cart.customer.email : null;
   var _rPrint = document.getElementById('receiptPrintBtn');
@@ -5535,7 +5515,7 @@ function showReceipt(data) {
   if (_rPrompt) _rPrompt.style.display = 'none';
   if (_rMsg) { _rMsg.style.display = 'none'; _rMsg.textContent = ''; }
 
-  // MARKER-PATCH-232B — round-trip receipts: when the register was opened
+  // round-trip receipts: when the register was opened
   // with a return_to, the receipt offers (and the countdown takes) the way
   // back instead of resetting to a fresh register.
   const backBtn = document.getElementById('receiptBackTo');
@@ -5569,7 +5549,7 @@ function showReceipt(data) {
 
 document.getElementById('receiptNewSale').addEventListener('click', () => { resetRegisterToFresh(); });
 
-// MARKER-PATCH-322 — print + email the just-completed receipt.
+// print + email the just-completed receipt.
 (function () {
   var printBtn = document.getElementById('receiptPrintBtn');
   var emailBtn = document.getElementById('receiptEmailBtn');
@@ -5588,7 +5568,7 @@ document.getElementById('receiptNewSale').addEventListener('click', () => { rese
   if (printBtn) printBtn.addEventListener('click', function () {
     if (!receiptSaleId) return;
     holdReset();
-    if (window.openPrintComposer) { window.openPrintComposer('sale', receiptSaleId, { type: 'receipt', format: 't80' }); return; } // MARKER-PATCH-338
+    if (window.openPrintComposer) { window.openPrintComposer('sale', receiptSaleId, { type: 'receipt', format: 't80' }); return; }
     if (!ROUTES.saleReceipt) return;
     var url = ROUTES.saleReceipt.replace('__ID__', encodeURIComponent(receiptSaleId)) + '?embed=1';
     var f = document.createElement('iframe');
@@ -5662,7 +5642,7 @@ function refreshDraftsBanner(drafts) {
   // Filter out the current cart's own draft from the count.
   const others = drafts.filter(d => d.id !== cart.draft_id);
   if (!others.length) { banner.style.display = 'none'; return; }
-  // MARKER-INTENT-DRAFTS — these are sales somebody chose to keep, so say so.
+  // these are sales somebody chose to keep, so say so.
   // "open drafts" described a thing that happened to you; "held" describes a
   // thing you did.
   const held = others.filter(d => d.held);
@@ -5746,7 +5726,7 @@ async function resumeDraft(id) {
     cart.customer = data.draft.customer;
     cart.tipCents = data.draft.tip_cents || 0;
     cart.tax_locked = !!data.draft.tax_locked;
-    // MARKER-PAY-PERSIST — the money comes back with the cart. This is the
+    // the money comes back with the cart. This is the
     // whole point: take $300, refresh, and the $300 is still there.
     cart.payments = data.draft.payments || [];
     cart.items = (data.draft.items || []).map(i => restoreLinePrice(i, {
@@ -5762,7 +5742,7 @@ async function resumeDraft(id) {
     }));
     closeModal('draftsModal');
     renderCart();
-    // MARKER-PAID-VISIBLE — renderSplit draws the legs; it does not touch the
+    // renderSplit draws the legs; it does not touch the
     // panel totals or the modal header. Resuming a part-paid sale showed the
     // full total until a tender was clicked.
     if (typeof renderSplit === 'function') { renderSplit(); }
@@ -5774,7 +5754,7 @@ async function resumeDraft(id) {
   }
 }
 
-// MARKER-NO-ORPHAN-MONEY — the drafts list reaches the same hole: discarding
+// the drafts list reaches the same hole: discarding
 // a part-paid sale used to delete the money with it, server-side, with no
 // check at all. The server now refuses; this turns that refusal into a choice.
 async function discardDraftFromList(id) {
@@ -5791,7 +5771,7 @@ async function discardDraftFromList(id) {
     });
     const data = await res.json();
 
-    // MARKER-NO-ORPHAN-MONEY — the server refuses a draft holding payments.
+    // the server refuses a draft holding payments.
     // Turn that into the one action that resolves it.
     if (!data.ok && data.needs_refund) {
       const go = await iaConfirm('This sale is holding ' + fmt(data.paid_cents)
@@ -5842,7 +5822,7 @@ renderCart();
   resumeDraft(draftId);
 })();
 
-// MARKER-PATCH-195 — Payment-link status view. Opened from the appointment
+// Payment-link status view. Opened from the appointment
 // "Payment link sent" banner via ?status=<sale_id>. Shows a live timeline of
 // the outstanding link, polls for resolution, and offers copy / cancel.
 const LinkStatus = { saleId: null, sessionId: null, url: null, poll: null };
@@ -5939,7 +5919,7 @@ function lsClose() {
 document.getElementById('lsCloseBtn').addEventListener('click', lsClose);
 document.getElementById('lsCancelLinkBtn').addEventListener('click', async () => {
   if (!LinkStatus.saleId) return;
-  if (!(await iaConfirm('Cancel this payment link? The customer will no longer be able to pay it.'))) return; // MARKER-INLINE-CONFIRM-1
+  if (!(await iaConfirm('Cancel this payment link? The customer will no longer be able to pay it.'))) return;
   try {
     await fetch(ROUTES.checkoutSessionCancel, {
       method: 'POST',
@@ -6115,7 +6095,7 @@ loadDrafts().then(refreshDraftsBanner);
 // load that quote into the cart automatically.
 (function () {
   const params = new URLSearchParams(window.location.search);
-  // MARKER-PATCH-232B — capture return_to BEFORE replaceState wipes the
+  // capture return_to BEFORE replaceState wipes the
   // query string. Local paths only; anything else is ignored.
   const rawReturnTo = params.get('return_to') || '';
   window.registerReturnTo = (rawReturnTo.startsWith('/') && !rawReturnTo.startsWith('//')) ? rawReturnTo : null;
@@ -6151,7 +6131,7 @@ loadDrafts().then(refreshDraftsBanner);
             return;
           }
           listEl.innerHTML = data.sales.map(function (s) {
-            // MARKER-PATCH-180 — row carries data-sale-id; a × dismiss button
+            // row carries data-sale-id; a × dismiss button
             // removes the parked draft from the tray. Resume happens on the
             // row body (not the buttons), wired via delegation below.
             return '<div class="appt-tray-row" data-sale-id="' + escapeHtml(s.id) + '" style="display:grid;grid-template-columns:1fr auto auto auto;gap:14px;align-items:center;padding:10px 12px;background:var(--ia-bg);border:0.5px solid var(--ia-border);border-radius:var(--ia-r-md);margin:4px 0">'
@@ -6180,7 +6160,7 @@ loadDrafts().then(refreshDraftsBanner);
       .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
   }
 
-  // MARKER-PATCH-180 — wire resume/pay/dismiss on tray rows.
+  // wire resume/pay/dismiss on tray rows.
   function wireTrayRowActions() {
     listEl.querySelectorAll('.appt-tray-row').forEach(function (row) {
       var saleId = row.getAttribute('data-sale-id');
@@ -6228,9 +6208,9 @@ loadDrafts().then(refreshDraftsBanner);
 </script>
 
 @if(($tenant->direct_payments_enabled ?? false) && ($tenant->settings['stripe_register_enabled'] ?? true))
-{{-- MARKER-PATCH-170 — Stripe.js for Direct Payments hand-keyed flow --}}
+{{-- Stripe.js for Direct Payments hand-keyed flow --}}
 <script src="https://js.stripe.com/v3/"></script>
-{{-- MARKER-PATCH-172 — QR code library for send-payment-link --}}
+{{-- QR code library for send-payment-link --}}
 <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
 @endif
 @endpush

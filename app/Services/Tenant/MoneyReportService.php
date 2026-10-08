@@ -29,7 +29,7 @@ class MoneyReportService
      */
     public function revenueSummary(Carbon $from, Carbon $to, bool $aggregatesOnly = false): array
     {
-        // MARKER-PATCH-186 — Revenue = payments received (ledger) in window,
+        // Revenue = payments received (ledger) in window,
         // categorized by the ACTUAL ITEMS that created the sum, not by the
         // payment artifact. Deposit/balance lines are "where it was paid" and
         // are ignored for categorization. For an appointment-linked sale we read

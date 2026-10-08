@@ -14,7 +14,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\View;
 
 /**
- * MARKER-PATCH-160 — Sends an appointment work-order receipt.
+ * Sends an appointment work-order receipt.
  *
  * Dispatched from:
  *  - AppointmentController::handleUpdate (when status enters a configured
@@ -112,7 +112,7 @@ class SendAppointmentReceiptJob implements ShouldQueue
                 'appointment_id' => $appt->id,
                 'error'          => $e->getMessage(),
             ]);
-            \App\Support\JobFailureReporter::report(self::class, 'Appointment receipt did not send', $e,   // MARKER-JOB-ISSUES-2
+            \App\Support\JobFailureReporter::report(self::class, 'Appointment receipt did not send', $e,
                 ['appointment_id' => $appt->id], $appt->tenant_id);
             $this->log($appt, $to, 'failed', $e->getMessage());
         }

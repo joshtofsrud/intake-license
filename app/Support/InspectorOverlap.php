@@ -3,7 +3,7 @@
 namespace App\Support;
 
 /**
- * MARKER-OVERLAP-TAB — places the shared "Pull up over the section above"
+ * places the shared "Pull up over the section above"
  * control inside the section editor's Design tab. It used to be appended
  * after all the tab panels, so it showed under Content, Design and Advanced
  * alike, outside the panels' padding (slider against the edge).

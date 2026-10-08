@@ -1,6 +1,6 @@
 @extends('layouts.tenant.app')
 
-{{-- MARKER-PATCH-623 — Scheduling: my schedule (all staff). --}}
+{{-- Scheduling: my schedule (all staff). --}}
 
 @section('title', 'My schedule')
 
@@ -25,7 +25,7 @@
 .ms-f label { display:block; font-size:10px; text-transform:uppercase; letter-spacing:.05em; color:var(--ia-text-muted); margin:0 0 5px; font-weight:600; }
 .ms-f input, .ms-f select { width:100%; padding:9px 11px; margin-bottom:12px; background:var(--ia-surface-2,#1a1a1a); border:1px solid var(--ia-border); border-radius:7px; color:var(--ia-text); font-size:13px; }
 .ms-empty { padding:22px 15px; text-align:center; color:var(--ia-text-muted); font-size:12px; }
-/* MARKER-SCHED-PHONE — tabs on one scrolling line on phones */
+/* tabs on one scrolling line on phones */
 @media (max-width: 700px) {
   .ms-sub { overflow-x: auto; flex-wrap: nowrap; white-space: nowrap; scrollbar-width: none; gap: 16px; }
   .ms-sub::-webkit-scrollbar { display: none; }
@@ -59,7 +59,7 @@
     <a class="ms-btn" href="{{ route('tenant.scheduling.mine', ['week' => $weekStart->copy()->addWeek()->toDateString()]) }}">▶</a>
   </div>
 
-  {{-- MARKER-SCHED-PHONE — the next published shift, whichever week it's in --}}
+  {{-- the next published shift, whichever week it's in --}}
   @php
     $msNext = \App\Models\Tenant\TenantShift::where('tenant_id', tenant()->id)
         ->where('tenant_user_id', auth('tenant')->id())
@@ -76,7 +76,7 @@
   <div class="ms-cols">
     <div class="ms-card">
       <div class="ms-h">This week <span class="m">{{ intdiv($weekMinutes, 60) }}h {{ $weekMinutes % 60 }}m scheduled</span></div>
-      {{-- MARKER-SCHED-PHONE — every day of the week, so a day off reads as
+      {{-- every day of the week, so a day off reads as
            "Off" rather than a gap, and approved time off says so. --}}
       @foreach($days as $msD)
         @php

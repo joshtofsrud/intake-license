@@ -48,7 +48,7 @@ class CustomerAccountController extends Controller
             ->where('email', $data['email'])
             ->first();
 
-        // MARKER-CUST-AUTH — an email already on file is NEVER claimed from
+        // an email already on file is NEVER claimed from
         // this form. Existing customers get a link to their own inbox instead,
         // and both branches return the same screen so the form can't be used
         // to enumerate who has an account.
@@ -68,7 +68,7 @@ class CustomerAccountController extends Controller
             'password'   => $data['password'],
         ]);
 
-        $request->session()->regenerate(); // MARKER-CUST-AUTH — fixation
+        $request->session()->regenerate(); // fixation
         $this->guard()->login($customer, true);
         $this->stampTenant($request, $tenant);
 
@@ -105,7 +105,7 @@ class CustomerAccountController extends Controller
             return back()->withErrors(['email' => 'These credentials do not match our records.'])->withInput();
         }
 
-        $request->session()->regenerate(); // MARKER-CUST-AUTH — fixation
+        $request->session()->regenerate(); // fixation
         $this->guard()->login($customer, $request->boolean('remember'));
         $this->stampTenant($request, $tenant);
 
@@ -155,7 +155,7 @@ class CustomerAccountController extends Controller
         ]);
 
         // Send email — uses existing email infrastructure
-        // MARKER-LEDGER-STRAGGLERS — no try here by design: an exception
+        // no try here by design: an exception
         // propagates and the row stays 'pending' (unknown outcome, unbilled).
         $ledger = \App\Services\EmailLedger::begin($tenant->id, 'other', $customer->email, 'customer_password_reset');
         \Mail::to($customer->email)->send(
@@ -211,7 +211,7 @@ class CustomerAccountController extends Controller
             'password_reset_sent_at' => null,
         ]);
 
-        $request->session()->regenerate(); // MARKER-CUST-AUTH — fixation
+        $request->session()->regenerate(); // fixation
         $this->guard()->login($customer, true);
         $this->stampTenant($request, $tenant);
 
@@ -261,7 +261,7 @@ class CustomerAccountController extends Controller
             ->limit(10)
             ->get();
 
-        // MARKER-PATCH-574 — online order history for the portal
+        // online order history for the portal
         $onlineOrders = \App\Models\Tenant\TenantOrder::query()
             ->where('tenant_id', $tenant->id)
             ->where('customer_id', $customer->id)
@@ -280,14 +280,14 @@ class CustomerAccountController extends Controller
             'pastClasses',
             'upcomingAppointments',
             'pastAppointments',
-            'onlineOrders', // MARKER-PATCH-574
+            'onlineOrders',
             'activeMembership',
             'activePacks'
         ));
     }
 
     /**
-     * MARKER-CUST-AUTH — email an existing customer a link to claim or reset
+     * email an existing customer a link to claim or reset
      * their account. Uses the SAME token the reset flow already validates, so
      * there is exactly one token path and no password is ever chosen by anyone
      * but the customer. Failures are swallowed on purpose: the caller shows an
@@ -307,7 +307,6 @@ class CustomerAccountController extends Controller
                 ? new \App\Mail\CustomerPasswordReset($customer, $token, $tenant)
                 : new \App\Mail\CustomerAccountInvite($customer, $token, $tenant);
 
-            // MARKER-LEDGER-STRAGGLERS
             $ledger = \App\Services\EmailLedger::begin(
                 $tenant->id, 'other', $customer->email,
                 $customer->password ? 'customer_password_reset' : 'customer_account_invite'
@@ -323,9 +322,9 @@ class CustomerAccountController extends Controller
         }
     }
 
-    /** MARKER-CUST-AUTH — bind this session to the tenant it was created on. */
+    /** bind this session to the tenant it was created on. */
     /**
-     * MARKER-DEMO-BAR-LINKS — demo shops only: sign the visitor in as a sample customer so
+     * demo shops only: sign the visitor in as a sample customer so
      * "View customer page" in the demo bar shows the portal, not a login form. Refused on
      * every real shop.
      */

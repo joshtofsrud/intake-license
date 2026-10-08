@@ -1,4 +1,4 @@
-{{-- MARKER-PATCH-206 — Branded invoice, PREVIEW ONLY (browser/iframe). --}}
+{{-- Branded invoice, PREVIEW ONLY (browser/iframe). --}}
 @php
   $isPaid = $terms === 'paid';
   $acc    = $tenant->accent_color ?? '#D94F1E';
@@ -7,7 +7,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<link rel="stylesheet" href="{{ asset('css/fonts.css') }}">{{-- MARKER-SELFHOST-FONTS-2 --}}
+<link rel="stylesheet" href="{{ asset('css/fonts.css') }}">
 <style>
   :root{ --acc:{{ $acc }}; --acc-deep:#9c3a14; --acc-tint:#FBEDE7; --ink:#111; --ink2:#444; --ink3:#666; --ink4:#8a8a8a; --line:#f0f0ee; --line2:#e8e8e4; --paper2:#f8f8f6; }
   *{margin:0;padding:0;box-sizing:border-box}
@@ -118,7 +118,6 @@
 
       <div class="tot">
         <div class="tr"><span>Subtotal</span><span class="num">{{ format_money($subtotal) }}</span></div>
-        {{-- MARKER-DOC-DISCOUNT --}}
         @if((int) ($discount ?? 0) > 0)
         <div class="tr"><span>{{ !empty($discount_code) ? 'Discount (' . $discount_code . ')' : 'Discount' }}</span><span class="num">&minus;{{ format_money($discount) }}</span></div>
         @endif

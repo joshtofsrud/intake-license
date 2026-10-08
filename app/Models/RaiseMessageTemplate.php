@@ -4,7 +4,6 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
-// MARKER-RAISE-SETUP
 class RaiseMessageTemplate extends Model
 {
     protected $primaryKey = 'key';

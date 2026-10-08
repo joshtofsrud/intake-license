@@ -35,8 +35,8 @@ class TenantInventoryItem extends Model
     protected $table = 'tenant_inventory_items';
 
     protected $fillable = [
-        'merged_into_id', // MARKER-MERGE-AFTER
-        'hidden_catalog_images', // MARKER-ITEM-IMAGES
+        'merged_into_id',
+        'hidden_catalog_images',
         'tenant_id',
         'category_id',
         'sku',
@@ -51,16 +51,16 @@ class TenantInventoryItem extends Model
         'catalog_map_cents',
         'catalog_case_quantity',
         'catalog_upc',
-        'catalog_ean',   // MARKER-ITEM-IDENTIFIERS
+        'catalog_ean',
         'catalog_mpn',
-        'shop_brand', // MARKER-IMPORT-MPN-BRAND — the shop's own brand value
+        'shop_brand', // the shop's own brand value
         'catalog_title_seen',
-        'catalog_details_seen', // MARKER-DETAILS-WATCH
+        'catalog_details_seen',
         'catalog_synced_at',
         'price_ack_at',
         'price_ack_by',
         'shop_cost_cents',
-        'received_cost_cents',   // MARKER-RECEIVED-COST
+        'received_cost_cents',
         'received_cost_units',
         'received_cost_at',
         'received_cost_source',
@@ -72,24 +72,24 @@ class TenantInventoryItem extends Model
         'computed_stock_count',
         'allow_oversell',
         'is_active',
-        'show_online', // MARKER-PATCH-561
+        'show_online',
         'is_stock_tracked',
         'tax_class_code',
         'default_vendor_id',
     ];
 
     protected $casts = [
-        'hidden_catalog_images' => 'array', // MARKER-ITEM-IMAGES
-        'show_online' => 'boolean', // MARKER-PATCH-561
+        'hidden_catalog_images' => 'array',
+        'show_online' => 'boolean',
         'catalog_cost_cents' => 'integer',
         'catalog_msrp_cents' => 'integer',
         'catalog_map_cents' => 'integer',
         'catalog_case_quantity' => 'integer',
         'catalog_synced_at' => 'datetime',
-        'catalog_details_seen' => 'array', // MARKER-DETAILS-WATCH
+        'catalog_details_seen' => 'array',
         'price_ack_at' => 'datetime',
         'shop_cost_cents' => 'integer',
-        'received_cost_cents' => 'integer',   // MARKER-RECEIVED-COST
+        'received_cost_cents' => 'integer',
         'received_cost_units' => 'integer',
         'received_cost_at'    => 'datetime',
         'shop_sell_price_cents' => 'integer',
@@ -103,7 +103,7 @@ class TenantInventoryItem extends Model
     ];
 
     /**
-     * MARKER-SEARCH-TEXT — an edit to anything search reads clears the stored
+     * an edit to anything search reads clears the stored
      * search text, so search falls back to checking the fields themselves
      * until tonight's inventory:search-text rebuild. Never a stale match.
      */
@@ -117,7 +117,7 @@ class TenantInventoryItem extends Model
         });
     }
 
-    /** MARKER-RESERVE — on hand minus held, across every location. */
+    /** on hand minus held, across every location. */
     public function availableCount(): int
     {
         $reserved = (int) $this->locations()->sum('reserved_count');
@@ -125,14 +125,14 @@ class TenantInventoryItem extends Model
         return (int) $this->computed_stock_count - $reserved;
     }
 
-    /** MARKER-ITEM-ALIASES — identifiers that used to resolve to this item. */
+    /** identifiers that used to resolve to this item. */
     public function aliases()
     {
         return $this->hasMany(TenantInventoryItemAlias::class, 'inventory_item_id')
             ->orderBy('created_at');
     }
 
-    /** MARKER-ITEM-IMAGES — the shop's own photos, in the order they set. */
+    /** the shop's own photos, in the order they set. */
     public function itemImages()
     {
         return $this->hasMany(TenantInventoryItemImage::class, 'inventory_item_id')
@@ -140,7 +140,7 @@ class TenantInventoryItem extends Model
     }
 
     /**
-     * MARKER-ITEM-IMAGES — every picture for this item, in display order:
+     * every picture for this item, in display order:
      * the shop's own first, then the distributor's that have not been switched
      * off. ONE definition of that order, so the item page, the storefront, the
      * register and a future merge cannot disagree about which photo is first.
@@ -230,7 +230,7 @@ class TenantInventoryItem extends Model
     // Effective value = shop value if set, else catalog value.
 
     /**
-     * MARKER-RECEIVED-COST — the cost margin should use.
+     * the cost margin should use.
      *
      * Received cost is yours: what stock actually arrived at. Catalog cost is
      * theirs, and fills the gap only until you have a real number. The old
@@ -239,7 +239,7 @@ class TenantInventoryItem extends Model
      * costSource() says which this is.
      */
     /**
-     * MARKER-COST-PRECEDENCE — received, then what the shop entered, then catalog.
+     * received, then what the shop entered, then catalog.
      *
      * shop_cost_cents was missing from this chain entirely, so an item created by
      * hand with a cost typed in had NO effective cost: the margin read as a dash,
@@ -262,7 +262,7 @@ class TenantInventoryItem extends Model
     public function costSource(): ?string
     {
         if ($this->received_cost_cents !== null) return 'received';
-        if ($this->shop_cost_cents !== null)     return 'shop';   // MARKER-COST-PRECEDENCE
+        if ($this->shop_cost_cents !== null)     return 'shop';
         if ($this->catalog_cost_cents !== null)  return 'catalog';
         return null;
     }

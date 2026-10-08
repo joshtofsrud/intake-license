@@ -4,7 +4,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-// MARKER-IMPORT-PRESETS — a reusable column mapping. Stores the map and the
+// a reusable column mapping. Stores the map and the
 // conflict rules only: never the file, never a row of anyone's data.
 return new class extends Migration
 {

@@ -5,7 +5,7 @@ namespace App\Models\Tenant;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 
-// MARKER-CATALOG-HISTORY — one bulk catalog action, and the way back from it.
+// one bulk catalog action, and the way back from it.
 class CatalogChangeBatch extends Model
 {
     use HasUuids;

@@ -1,6 +1,6 @@
 @extends('layouts.tenant.app')
 
-{{-- MARKER-PATCH-624 — Scheduling: my availability (all staff). --}}
+{{-- Scheduling: my availability (all staff). --}}
 
 @section('title', 'Scheduling · Availability')
 
@@ -20,7 +20,7 @@
 .av-leg { display:flex; gap:16px; margin-top:14px; font-size:11px; color:var(--ia-text-muted); align-items:center; flex-wrap:wrap; }
 .av-leg i { display:inline-block; width:13px; height:13px; border-radius:4px; vertical-align:-2px; margin-right:5px; }
 .av-btn { padding:8px 15px; border-radius:7px; font-size:12.5px; font-weight:600; cursor:pointer; border:none; background:var(--ia-accent); color:var(--ia-accent-text); }
-/* MARKER-SCHED-PHONE — tabs on one scrolling line on phones */
+/* tabs on one scrolling line on phones */
 @media (max-width: 700px) {
   .av-sub { overflow-x: auto; flex-wrap: nowrap; white-space: nowrap; scrollbar-width: none; gap: 16px; }
   .av-sub::-webkit-scrollbar { display: none; }

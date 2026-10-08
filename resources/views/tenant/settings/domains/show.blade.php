@@ -1,4 +1,4 @@
-{{-- MARKER-PATCH-120-PART2 — tenant domain detail (state-aware) --}}
+{{-- tenant domain detail (state-aware) --}}
 @extends('layouts.tenant.app')
 
 @php
@@ -10,7 +10,7 @@
 <style>
   .ds-page-head { padding-bottom:16px; border-bottom:1px solid var(--ia-border); margin-bottom:24px; display:flex; justify-content:space-between; align-items:flex-end; }
   .ds-crumb { font-size:11px; color:var(--ia-text-4,#555); text-transform:uppercase; letter-spacing:0.1em; margin-bottom:6px; }
-  /* MARKER-PATCH-128 — mono reserved for code/data; titles inherit Inter from body. Weight reduced to 600 because Inter is only loaded in 400/500/600 (heavier renders synthetic). */
+  /* mono reserved for code/data; titles inherit Inter from body. Weight reduced to 600 because Inter is only loaded in 400/500/600 (heavier renders synthetic). */
   .ds-title { font-size:22px; font-weight:600; letter-spacing:-0.01em; }
   .ds-sub { font-size:13px; color:var(--ia-text-3,#888); margin-top:4px; }
   .ds-sub.error { color:#F87171; }
@@ -158,7 +158,7 @@
   </div>
 @endif
 
-{{-- ───────────── DNS RECORDS — 3-STEP SETUP (MARKER-PATCH-127) ───────────── --}}
+{{-- ───────────── DNS RECORDS — 3-STEP SETUP ───────────── --}}
 @if($statusKey !== 'suspended')
   @php
     $instructionsPresentation = $statusKey === 'active' ? 'collapsed' : 'prominent';
@@ -277,7 +277,7 @@
   @endif
 @endif
 
-{{-- ───────────── CERT VALIDATION (MARKER-PATCH-125) ───────────── --}}
+{{-- ───────────── CERT VALIDATION ───────────── --}}
 {{-- Cloudflare for SaaS gate-2 records. Cert can't issue until tenant adds these. --}}
 @php
   $preferredDcv = $domain->preferredDcvRecord();

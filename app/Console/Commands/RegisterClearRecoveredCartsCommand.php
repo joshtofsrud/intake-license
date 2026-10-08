@@ -9,7 +9,7 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
 /**
- * MARKER-HOLD — discard unnamed recovered carts after the tenant's interval.
+ * discard unnamed recovered carts after the tenant's interval.
  *
  * Never touches:
  *   · a HELD cart — someone named it and said they wanted it

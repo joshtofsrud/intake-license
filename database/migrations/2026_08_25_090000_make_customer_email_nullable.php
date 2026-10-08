@@ -1,5 +1,5 @@
 <?php
-// MARKER-CUSTOMER-EMAIL-NULLABLE — a walk-in has no email. The unique index
+// a walk-in has no email. The unique index
 // on (tenant_id, email) is unaffected: MySQL allows repeated NULLs under a
 // unique index, so email-less customers coexist and real emails stay unique.
 

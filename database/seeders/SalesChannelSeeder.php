@@ -1,5 +1,5 @@
 <?php
-// MARKER-CAMPAIGNS-SEEDER — Bike shops channel (active) + Salons (draft).
+// Bike shops channel (active) + Salons (draft).
 // Idempotent on slug. Also folds all channel-less prospects into the bike
 // channel, so the existing WA/national book lands in the right campaign.
 

@@ -1,6 +1,6 @@
 <?php
 
-// MARKER-PLATFORM-MAIL — single-row platform settings, same shape as
+// single-row platform settings, same shape as
 // billing_settings. First occupant: the platform email sender, which was
 // falling through to Laravel's framework default (hello@example.com)
 // because no config/mail.php is published and no MAIL_FROM_* env is set.

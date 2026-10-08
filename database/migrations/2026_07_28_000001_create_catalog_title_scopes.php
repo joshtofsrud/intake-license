@@ -1,6 +1,5 @@
 <?php
 
-// MARKER-TITLE-SCOPES / MARKER-SCOPES-INDEX-FIX
 //
 // Materialized coverage + health index for the Catalog Titles page. One row
 // per (distributor, distributor category path).

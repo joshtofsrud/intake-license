@@ -1,4 +1,4 @@
-{{-- MARKER-TENANT-STANDING — replaces the admin app, never the public site. --}}
+{{-- replaces the admin app, never the public site. --}}
 @php
   $suspended = ($standing['state'] ?? '') === 'suspended';
 @endphp

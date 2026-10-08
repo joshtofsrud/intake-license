@@ -11,7 +11,7 @@ class User extends Authenticatable implements FilamentUser
 {
     use Notifiable;
 
-    protected $fillable = ['name', 'email', 'password', 'is_admin', 'role', 'suspended_at']; // MARKER-ADMIN-ROLES
+    protected $fillable = ['name', 'email', 'password', 'is_admin', 'role', 'suspended_at'];
 
     protected $hidden = ['password', 'remember_token'];
 
@@ -19,7 +19,7 @@ class User extends Authenticatable implements FilamentUser
         'email_verified_at' => 'datetime',
         'password'          => 'hashed',
         'is_admin'          => 'boolean',
-        'suspended_at'      => 'datetime', // MARKER-ADMIN-ROLES
+        'suspended_at'      => 'datetime',
     ];
 
     /**
@@ -31,19 +31,19 @@ class User extends Authenticatable implements FilamentUser
      *   3. Fallback: allow when the `is_admin` column doesn't exist yet
      *      (safety valve for servers that haven't run the new migration)
      */
-    // MARKER-REPPANEL-GATE — the /rep panel admits linked reps ONLY, and rep
+    // the /rep panel admits linked reps ONLY, and rep
     // accounts (is_admin=false) can never pass the admin checks below.
     public function salesRep()
     {
         return $this->hasOne(\App\Models\SalesRep::class, 'user_id');
     }
 
-    // MARKER-ADMIN-GATE — the same admin test canAccessPanel applies, callable
+    // the same admin test canAccessPanel applies, callable
     // from route middleware. Bridge routes (impersonation, marketing pages)
     // MUST use this: 'auth' alone also admits rep accounts.
     public function isMasterAdmin(): bool
     {
-        // MARKER-ADMIN-ROLES — now role-based: owner or admin, never suspended.
+        // now role-based: owner or admin, never suspended.
         if (($this->suspended_at ?? null) !== null) {
             return false;
         }
@@ -51,7 +51,7 @@ class User extends Authenticatable implements FilamentUser
     }
 
     /**
-     * MARKER-ADMIN-ROLES — the user's effective role. Bootstrap ADMIN_EMAIL is
+     * the user's effective role. Bootstrap ADMIN_EMAIL is
      * always owner. Pre-migration fallback keeps the old is_admin semantics.
      */
     public function roleName(): ?string
@@ -77,7 +77,7 @@ class User extends Authenticatable implements FilamentUser
             return $this->salesRep()->where('status', 'active')->exists();
         }
 
-        // MARKER-ADMIN-ROLES — the admin panel admits all four staff roles;
+        // the admin panel admits all four staff roles;
         // per-area access inside it is enforced by EnforceAdminArea.
         // Suspension blocks the panel outright.
         if (($this->suspended_at ?? null) !== null) {

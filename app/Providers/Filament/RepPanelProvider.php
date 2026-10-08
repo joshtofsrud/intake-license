@@ -1,5 +1,5 @@
 <?php
-// MARKER-REPPANEL-PANEL — the /rep panel. Same users table, same 'web' guard;
+// the /rep panel. Same users table, same 'web' guard;
 // isolation comes from canAccessPanel (panel-aware) + this panel only
 // registering rep-scoped resources. Reps physically cannot reach Tenants,
 // Licensing, or Distribution because those resources don't exist here.
@@ -31,7 +31,7 @@ class RepPanelProvider extends PanelProvider
             ->path('rep')
             ->login()
             ->brandName('Intake · Rep')
-            // MARKER-PANEL-BRAND — the Brand page's logos and favicon, not hand-set text.
+            // the Brand page's logos and favicon, not hand-set text.
             // Closures, so the Brand row is read per request rather than at boot.
             ->brandLogo(fn () => \App\Support\Brand::url('logo_light'))
             ->darkModeBrandLogo(fn () => \App\Support\Brand::url('logo'))

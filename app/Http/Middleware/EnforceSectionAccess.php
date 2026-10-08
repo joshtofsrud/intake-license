@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\Route;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
- * MARKER-PATCH-492 — EnforceSectionAccess
+ * EnforceSectionAccess
  *
  * Runs after RequireTenantAuth. Maps the current route name to a
  * SectionRegistry key and blocks users whose role doesn't include it.
@@ -62,7 +62,7 @@ class EnforceSectionAccess
             if ($def['gate'] && !$tenant->{$def['gate']}) continue;
             if (!$user->canAccessSection($key)) continue;
 
-            if (empty($def['prefixes'])) continue; // MARKER-PATCH-553 — capability keys have no pages
+            if (empty($def['prefixes'])) continue; // capability keys have no pages
             foreach ([$def['prefixes'][0] . '.index', $def['prefixes'][0]] as $routeName) {
                 if (Route::has($routeName)) {
                     return route($routeName);

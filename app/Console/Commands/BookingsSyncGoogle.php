@@ -5,7 +5,6 @@ namespace App\Console\Commands;
 use App\Services\Platform\GoogleCalendarService;
 use Illuminate\Console\Command;
 
-// MARKER-SCHED-GOOGLE
 class BookingsSyncGoogle extends Command
 {
     protected $signature   = 'bookings:sync-google';

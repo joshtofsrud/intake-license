@@ -1,5 +1,5 @@
 <?php
-// MARKER-PATCH-629 — unified payment methods. One list governs register
+// unified payment methods. One list governs register
 // tenders, customer checkout surfaces, and (later) QB mapping. Built-ins are
 // seeded per tenant on first read, importing the legacy per-provider settings
 // keys; tenants can add custom manual methods (Zelle, house account, ...).

@@ -53,7 +53,7 @@ class FeatureAccessService
     public function detailedFeatureBreakdown(Tenant $tenant): Collection
     {
         $addons = DB::table('addons')
-            // MARKER-ADDON-TENANT-LINK — 'deprecated' is closed to new shops but
+            // 'deprecated' is closed to new shops but
             // still works for those who have it, so it belongs here. 'retired'
             // is absent on purpose: that is what turns it off for everyone.
             ->whereIn('status', ['active', 'deprecated'])
@@ -84,7 +84,7 @@ class FeatureAccessService
             $tenantAddon = $tenantAddons->get($addon->code);
             $suppression = $suppressions->get($addon->code);
 
-            // MARKER-PATCH-217 — tier floor mirrors resolveAccessMap so the
+            // tier floor mirrors resolveAccessMap so the
             // master-admin breakdown shows the truth.
             $tierLocked = !empty($addon->min_plan_tier)
                 && self::tierRank($planTier) < self::tierRank($addon->min_plan_tier);
@@ -109,7 +109,7 @@ class FeatureAccessService
                 'description' => $addon->description,
                 'tooltip' => $addon->tooltip,
                 'category' => $addon->category,
-                // MARKER-ADDON-TENANT-LINK — the price master admin set, not the
+                // the price master admin set, not the
                 // column. Otherwise a shop's own catalog and its statement
                 // quote different figures for the same add-on.
                 'price_cents' => \App\Support\AddonPricing::for($addon->code),
@@ -118,11 +118,11 @@ class FeatureAccessService
                 'included_in_plans' => $includedPlans,
                 'sort_order' => $addon->sort_order,
                 'is_self_serve' => (bool) $addon->is_self_serve,
-                // MARKER-ADDON-VISIBILITY — what the shop may see and do.
+                // what the shop may see and do.
                 'visibility'    => $addon->visibility ?? 'self_serve',
                 'is_new' => (bool) $addon->is_new,
-                'min_plan_tier' => $addon->min_plan_tier ?? null, // MARKER-PATCH-217
-                'tier_locked' => $tierLocked,                     // MARKER-PATCH-217
+                'min_plan_tier' => $addon->min_plan_tier ?? null,
+                'tier_locked' => $tierLocked,
                 'status' => $addon->status,
 
                 'has_access' => $hasAccess,
@@ -152,7 +152,7 @@ class FeatureAccessService
     }
 
     /**
-     * MARKER-PATCH-217 — plan-tier ordering for min_plan_tier floors.
+     * plan-tier ordering for min_plan_tier floors.
      * Unknown tiers rank as starter (most restrictive read).
      */
     protected static function tierRank(?string $tier): int
@@ -206,7 +206,7 @@ class FeatureAccessService
             $map[$code] = false;
         }
 
-        // MARKER-PATCH-217 — hard tier floor. min_plan_tier denies access on
+        // hard tier floor. min_plan_tier denies access on
         // lower tiers even when an active grant row exists ("not available on
         // Starter" is absolute — upgrade the plan to unlock, don't grant).
         foreach ($addons as $addon) {

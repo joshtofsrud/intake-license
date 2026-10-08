@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-{{-- MARKER-PATCH-232 — rendered + stored at signature; never re-rendered. --}}
+{{-- rendered + stored at signature; never re-rendered. --}}
 <html>
 <head>
 <meta charset="utf-8">
@@ -19,7 +19,7 @@
   <div class="body">{{ $template->body }}</div>
   <div class="sig">
     @php
-      // MARKER-RENTAL-WAIVER-DISPLAY-UI — inline the drawn signature. Base64
+      // inline the drawn signature. Base64
       // rather than a path so DomPDF never depends on filesystem access.
       $sigPath = $signaturePath ?? null;
       $sigData = null;

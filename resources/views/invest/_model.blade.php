@@ -1,4 +1,4 @@
-{{-- MARKER-INVEST-FULL — from the deck's Subscription, Payments and Together
+{{-- from the deck's Subscription, Payments and Together
      pages. The tier counts read as a sentence; only the money is tabular. --}}
 <section><div class="wrap">
   <h2>Two lines, one set of shops.</h2>

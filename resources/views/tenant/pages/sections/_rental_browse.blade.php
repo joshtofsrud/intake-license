@@ -1,5 +1,5 @@
 {{--
-  MARKER-RENTAL-SECTIONS — rental_browse editor. The section embeds the
+  rental_browse editor. The section embeds the
   live date-picker availability browse; nothing to curate beyond copy.
 --}}
 @php

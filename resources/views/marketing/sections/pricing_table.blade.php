@@ -1,4 +1,4 @@
-@php $bgId = 'mkbg-' . substr(md5((string) ($section->id ?? uniqid())), 0, 10); @endphp {{-- MARKER-MKT-BG-COLOUR --}}
+@php $bgId = 'mkbg-' . substr(md5((string) ($section->id ?? uniqid())), 0, 10); @endphp
 @include('marketing.sections._section_bg', ['bgId' => $bgId])
 {{--
     Pricing. Content: eyebrow, heading, subheading, source ('config'|'manual'),
@@ -18,7 +18,7 @@
                 'price_cents' => $prices['starter'] ?? 2900,
                 'period' => '/mo',
                 'desc'   => 'Everything you need to start taking bookings online.',
-                'features' => ['Booking form','Customer CRM','Work orders','Email campaigns','intake.works subdomain','Stripe + PayPal'], // MARKER-CLAIMS-FIX — every plan has email
+                'features' => ['Booking form','Customer CRM','Work orders','Email campaigns','intake.works subdomain','Stripe + PayPal'], // every plan has email
                 'cta_label' => 'Start free trial',
             ],
             [
@@ -36,7 +36,7 @@
                 'price_cents' => $prices['scale'] ?? 19900,
                 'period' => '/mo',
                 'desc'   => 'Add more locations, full white-label, and advanced automations.',
-                'features' => ['Everything in Branded','Add more locations (add-on)','Full white-label','Dedicated support','Advanced automations'], // MARKER-CLAIMS-FIX — no plan includes extra locations; Scale can add them
+                'features' => ['Everything in Branded','Add more locations (add-on)','Full white-label','Dedicated support','Advanced automations'], // no plan includes extra locations; Scale can add them
                 'cta_label' => 'Start free trial',
             ],
         ];
@@ -44,7 +44,6 @@
         $plans = $c['plans'] ?? [];
     }
     $featured = $c['featured'] ?? 'branded';
-    // MARKER-PRICING-PHONE-TABS
     $ptTabs   = ($c['phone_layout'] ?? 'tabs') !== 'stack';
     $ptId     = 'mkpt-' . substr(md5((string) ($section->id ?? uniqid())), 0, 10);
     $ptActive = 0;
@@ -135,13 +134,12 @@
     .mk-plan.featured .mk-plan-btn:hover { filter: brightness(.92); }
 
     @media(max-width: 860px) { .mk-plan-grid { grid-template-columns: 1fr; } }
-    /* MARKER-PRICING-PHONE-TABS */
     .{{ $ptId }} .mk-plan-tabs { display: none; }
     @media (max-width: 860px) {
         .{{ $ptId }}.pt-tabs .mk-plan-tabs { display: flex; background: rgba(255,255,255,.06); border-radius: 999px; padding: 4px; gap: 2px; margin: 4px 0 22px; }
         .{{ $ptId }} .mk-plan-tabs button { flex: 1; border: 0; background: none; color: var(--mk-muted); font: inherit; font-size: 13px; font-weight: 600; padding: 9px 0; border-radius: 999px; cursor: pointer; transition: background .2s, color .2s; }
         .{{ $ptId }} .mk-plan-tabs button.on { background: var(--mk-accent); color: var(--mk-accent-text, #0a0a0a); }
-        /* MARKER-PRICING-TABS-SWIPE — a swipeable row under the pills */
+        /* a swipeable row under the pills */
         .{{ $ptId }}.pt-tabs .mk-plan-grid { display: flex; grid-template-columns: none; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory;
             margin: 0 calc(-1 * var(--mk-gutter, 20px)); padding: 14px 7% 6px; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
         .{{ $ptId }}.pt-tabs .mk-plan-grid::-webkit-scrollbar { display: none; }
@@ -203,7 +201,7 @@
     </div>
 </section>
 <script>
-/* MARKER-PRICING-TABS-SWIPE — pills and swipe kept in sync on phones */
+/* pills and swipe kept in sync on phones */
 (function () {
   var root = document.querySelector('.{{ $ptId }}');
   if (!root || root.dataset.ptReady) return;

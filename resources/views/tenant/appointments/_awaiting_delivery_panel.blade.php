@@ -1,4 +1,4 @@
-{{-- MARKER-DELIVERY-RESOLUTION — triage panel for the Awaiting delivery queue.
+{{-- triage panel for the Awaiting delivery queue.
      Every row states WHY it is still here and carries the actions that
      resolve it, so jobs leave this list because someone decided something
      rather than because the 14-day window forgot them. --}}
@@ -37,7 +37,7 @@
   @foreach($appointments as $appt)
     @php
       $why = $deliveryWhy[$appt->id] ?? null;
-      // MARKER-DELIVERY-CALL — call_requested is its own state: answered, but by phone.
+      // call_requested is its own state: answered, but by phone.
       $whyKey = $why === null ? 'none' : ($why === 'call_requested' ? 'call' : ($why === 'no_reply' ? 'sent' : ($why === 'sent' ? 'sent' : 'replied')));
       $whyLabel = [
         'none'    => 'no contact yet',

@@ -1,4 +1,4 @@
-{{-- MARKER-GIFTCARDS-PUBLIC — chrome-wrapped gift card buy page, per the
+{{-- chrome-wrapped gift card buy page, per the
      approved mockup. Same scoped-style pattern as _shop_checkout. --}}
 @php
   $accent = $tenant->accent_color ?? '#BEF264';
@@ -45,10 +45,9 @@
 <div class="spg-gift">
   <div class="wrap">
     <h1>Gift cards</h1>
-    {{-- MARKER-GC-SETTINGS --}}
     <div class="sub">Good for anything — service, parts, rentals.@if($gift['policy_line']) {{ $gift['policy_line'] }}@endif <a href="/gift-cards/balance" style="text-decoration:underline">Check a balance</a></div>
 
-    {{-- MARKER-GC-SETTINGS -- both channels off is a deliberate "register only"
+    {{-- both channels off is a deliberate "register only"
          setting, so say so plainly instead of showing a dead form. --}}
     @if(!$stripePk || (!$gift['online_egift'] && !$gift['online_physical']))
       <div class="panel" style="margin-top:24px;max-width:560px">
@@ -151,7 +150,6 @@
 </div>
 @if($stripePk)
 @php
-  // MARKER-GC-JSONFIX
   $gcShopCfg = [
       'presets'         => $gift['presets'],
       'min'             => $gift['min_cents'],
@@ -163,10 +161,10 @@
 @endphp
 <script>
 (function () {
-  // MARKER-GC-SETTINGS -- shop config drives the defaults and the client checks.
-  // MARKER-GC-COMMENTFIX -- never write the directive's name in a JS comment:
+  // shop config drives the defaults and the client checks.
+  // never write the directive's name in a JS comment:
   // Blade compiles it there too.
-  // MARKER-GC-JSONFIX -- the array is built above and passed as ONE variable:
+  // the array is built above and passed as ONE variable:
   // Blade splits that directive's argument on commas and keeps only three parts, so an
   // inline array literal here silently truncated and fataled the page.
   var CFG = @json($gcShopCfg);

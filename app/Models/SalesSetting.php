@@ -1,5 +1,5 @@
 <?php
-// MARKER-SALES-FIND — key/value settings for the sales workspace (same shape as RaiseSetting).
+// key/value settings for the sales workspace (same shape as RaiseSetting).
 
 namespace App\Models;
 

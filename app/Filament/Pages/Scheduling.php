@@ -5,17 +5,17 @@ namespace App\Filament\Pages;
 use App\Models\PlatformBooking;
 use App\Models\PlatformBookingSetting;
 use App\Models\PlatformBookingType;
-use App\Services\Platform\BookingMailer; // MARKER-SCHED-PUBLIC
+use App\Services\Platform\BookingMailer;
 use App\Support\AdminAccess;
 use Carbon\CarbonImmutable;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Illuminate\Support\Facades\Auth;
 
-// MARKER-SCHED-ADMIN — week calendar + upcoming list + booking actions.
+// week calendar + upcoming list + booking actions.
 class Scheduling extends Page
 {
-    use \App\Support\UsesAdminNav; // MARKER-NAV-ORDER
+    use \App\Support\UsesAdminNav;
     use \App\Support\GatedByAdminArea;
     protected static string $adminArea = 'scheduling';
 
@@ -38,12 +38,12 @@ class Scheduling extends Page
 
     // cancel modal
     public string $cancelMessage = '';
-    public bool   $cancelNotify  = true; // MARKER-SCHED-PUBLIC
+    public bool   $cancelNotify  = true;
 
     // reschedule modal
     public string $rsDate = '';
     public string $rsTime = '';
-    public bool   $rsNotify = true; // MARKER-SCHED-PUBLIC
+    public bool   $rsNotify = true;
 
     // new appointment modal
     public string $nType    = '';
@@ -58,7 +58,7 @@ class Scheduling extends Page
     public string $nDetail  = '';
     public string $nMessage = '';
     public string $nNotes   = '';
-    public bool   $nNotify  = true; // MARKER-SCHED-PUBLIC
+    public bool   $nNotify  = true;
 
     public function mount(): void
     {
@@ -138,7 +138,7 @@ class Scheduling extends Page
     {
         if ($b = $this->current()) {
             $b->cancel('admin', trim($this->cancelMessage) ?: null);
-            if ($this->cancelNotify && $b->email) { app(BookingMailer::class)->cancelled($b, 'admin'); } // MARKER-SCHED-PUBLIC
+            if ($this->cancelNotify && $b->email) { app(BookingMailer::class)->cancelled($b, 'admin'); }
             Notification::make()->title('Call cancelled')->body('The slot is open again.')->success()->send();
             $this->dispatch('close-modal', id: 'booking-cancel');
             $this->dispatch('close-modal', id: 'booking-detail');
@@ -155,7 +155,7 @@ class Scheduling extends Page
         $tz    = PlatformBookingSetting::get('timezone');
         $start = CarbonImmutable::createFromFormat('Y-m-d H:i', $this->rsDate . ' ' . $this->rsTime, $tz)->utc();
         $b->reschedule($start, 'admin');
-        if ($this->rsNotify && $b->email) { app(BookingMailer::class)->rescheduled($b->fresh('type'), 'admin'); } // MARKER-SCHED-PUBLIC
+        if ($this->rsNotify && $b->email) { app(BookingMailer::class)->rescheduled($b->fresh('type'), 'admin'); }
         Notification::make()->title('Moved to ' . $start->setTimezone($tz)->format('D M j, g:i a'))->success()->send();
         $this->dispatch('close-modal', id: 'booking-reschedule');
         $this->dispatch('close-modal', id: 'booking-detail');
@@ -206,7 +206,7 @@ class Scheduling extends Page
             'notes_internal'  => trim($this->nNotes) ?: null,
         ]);
         $b->logEvent('created', 'admin', ['manual' => true]);
-        if ($this->nNotify && $b->email) { app(BookingMailer::class)->confirmation($b->fresh('type')); } // MARKER-SCHED-PUBLIC
+        if ($this->nNotify && $b->email) { app(BookingMailer::class)->confirmation($b->fresh('type')); }
 
         Notification::make()->title('Appointment saved')->success()->send();
         $this->dispatch('close-modal', id: 'booking-new');
@@ -258,7 +258,7 @@ class Scheduling extends Page
         $gridStart = max(0, $gridStart - 1);
         $gridEnd   = min(24, $gridEnd);
 
-        $busyRows = app(\App\Services\Platform\BookingAvailabilityService::class)->busy($start->utc(), $end->utc()); // MARKER-SCHED-GOOGLE
+        $busyRows = app(\App\Services\Platform\BookingAvailabilityService::class)->busy($start->utc(), $end->utc());
         $days = [];
         for ($i = 0; $i < 7; $i++) {
             $d = $start->addDays($i);
@@ -268,7 +268,7 @@ class Scheduling extends Page
                 $len = max(20, (int) abs($s->diffInMinutes($e)));
                 return ['b' => $b, 'top' => $top, 'height' => $len];
             })->values();
-            // MARKER-SCHED-GOOGLE — synced busy blocks, clipped to the grid
+            // synced busy blocks, clipped to the grid
             $busy = collect($busyRows)->filter(fn ($r) => $r[0]->copy()->setTimezone($tz)->isSameDay($d) || $r[1]->copy()->setTimezone($tz)->isSameDay($d))
                 ->map(function ($r) use ($d, $tz, $gridStart, $gridEnd) {
                     $s = $r[0]->copy()->setTimezone($tz); $e = $r[1]->copy()->setTimezone($tz);
@@ -297,7 +297,7 @@ class Scheduling extends Page
             'upcoming'    => $list->get(),
             'types'       => PlatformBookingType::orderBy('sort_order')->get(),
             'booking'     => $this->current(),
-            'googleOn'    => app(\App\Services\Platform\GoogleCalendarService::class)->connected(), // MARKER-SCHED-GOOGLE
+            'googleOn'    => app(\App\Services\Platform\GoogleCalendarService::class)->connected(),
             'nowTop'      => ($now->gte($start) && $now->lt($end)) ? (((int) $now->format('G') - $gridStart) * 60 + (int) $now->format('i')) : null,
             'nowDayIndex' => (int) $now->diffInDays($start, true) < 7 && $now->gte($start) ? (int) $start->diffInDays($now) : null,
         ];

@@ -13,30 +13,28 @@ class TenantAppointment extends Model
     use HasUuids;
     protected $table    = 'tenant_appointments';
     protected $fillable = [
-        // MARKER-APPT-OVERRIDE
         'override_short_notice', 'override_capacity', 'override_reason', 'override_by_user_id',
         'tenant_id','customer_id','resource_id','location_id','ra_number',
         'customer_first_name','customer_last_name','customer_email','customer_phone',
         'appointment_date','appointment_time','appointment_end_time',
-        'promised_at', // MARKER-PATCH-311
-        'pickup_outreach_pending', // MARKER-PICKUP-OUTREACH
-        'delivery_resolution', 'delivery_resolved_at',            // MARKER-DELIVERY-RESOLUTION
-        'delivery_resolved_by_user_id', 'delivery_snooze_until',  // MARKER-DELIVERY-RESOLUTION
+        'promised_at',
+        'pickup_outreach_pending',
+        'delivery_resolution', 'delivery_resolved_at',
+        'delivery_resolved_by_user_id', 'delivery_snooze_until',
         'total_duration_minutes','prep_before_minutes_snapshot','cleanup_after_minutes_snapshot',
         'slot_weight','slot_weight_auto','slot_weight_overridden',
         'receiving_method_snapshot','receiving_time_snapshot','tracking_number',
         'status','payment_status','payment_method',
         'stripe_payment_intent_id','paypal_order_id',
         'subtotal_cents','tax_cents','total_cents','paid_cents','staff_notes',
-        // MARKER-APPT-DISCOUNT
         'discount_cents','discount_code','discount_redemption_id',
-        'invoice_note','invoice_terms', // MARKER-PATCH-204
+        'invoice_note','invoice_terms',
         'needs_time_review',
-        'reminded_at', // MARKER-PATCH-154
-        'completed_at', // MARKER-PATCH-481
+        'reminded_at',
+        'completed_at',
     ];
     protected $casts = [
-        'override_short_notice' => 'boolean', // MARKER-APPT-OVERRIDE
+        'override_short_notice' => 'boolean',
         'override_capacity'     => 'boolean',
         'appointment_date'         => 'date',
         'total_duration_minutes'         => 'integer',
@@ -47,16 +45,16 @@ class TenantAppointment extends Model
         'slot_weight_overridden'   => 'boolean',
         'needs_time_review'        => 'boolean',
         'subtotal_cents'           => 'integer',
-        'discount_cents'           => 'integer', // MARKER-APPT-DISCOUNT
+        'discount_cents'           => 'integer',
         'tax_cents'                => 'integer',
         'total_cents'              => 'integer',
         'paid_cents'               => 'integer',
-        'reminded_at'              => 'datetime', // MARKER-PATCH-154
-        'promised_at'              => 'datetime', // MARKER-PATCH-311
-        'completed_at'             => 'datetime', // MARKER-PATCH-481
+        'reminded_at'              => 'datetime',
+        'promised_at'              => 'datetime',
+        'completed_at'             => 'datetime',
     ];
 
-    // MARKER-PATCH-481 — stamp the actual completion instant once, on the first
+    // stamp the actual completion instant once, on the first
     // transition into a done state, from any write path. Pairs with promised_at to
     // measure late_completion; never overwritten (records the first completion).
     protected static function booted(): void
@@ -69,7 +67,7 @@ class TenantAppointment extends Model
             }
         });
 
-        // MARKER-PATCH-482 — once a completion is stamped, evaluate quality signals
+        // once a completion is stamped, evaluate quality signals
         // (late_completion) for the customer's recovery history.
         static::saved(function (self $appt) {
             if ($appt->wasChanged('completed_at') && $appt->completed_at && $appt->customer_id) {
@@ -77,7 +75,7 @@ class TenantAppointment extends Model
             }
         });
 
-        // MARKER-PATCH-485 — a shop-side date move on a live appointment (one the
+        // a shop-side date move on a live appointment (one the
         // customer was already expecting) is a reschedule signal. New bookings and
         // pending/cancelled rows don't count.
         static::saved(function (self $appt) {
@@ -98,7 +96,7 @@ class TenantAppointment extends Model
     public function items(): HasMany       { return $this->hasMany(TenantAppointmentItem::class, 'appointment_id'); }
     public function addons(): HasMany      { return $this->hasMany(TenantAppointmentAddon::class, 'appointment_id'); }
 
-    // MARKER-PATCH-158-A — multi-asset support
+    // multi-asset support
     public function assets(): HasMany
     {
         return $this->hasMany(TenantAppointmentAsset::class, 'appointment_id')->orderBy('sort_order');
@@ -107,7 +105,7 @@ class TenantAppointment extends Model
     public function responses(): HasMany   { return $this->hasMany(TenantAppointmentResponse::class, 'appointment_id'); }
     public function notes(): HasMany       { return $this->hasMany(TenantAppointmentNote::class, 'appointment_id')->orderBy('created_at'); }
     public function charges(): HasMany     { return $this->hasMany(TenantAppointmentCharge::class, 'appointment_id'); }
-    // MARKER-PATCH-176 — payments now live on the linked SALE ledger (sales-as-
+    // payments now live on the linked SALE ledger (sales-as-
     // money). An appointment reaches its payments THROUGH its sale(s):
     // appointment_id on tenant_sales, sale_id on tenant_sale_payments. Same row
     // shape (kind/amount_cents/recorded_at) so existing reads keep working.
@@ -128,7 +126,7 @@ class TenantAppointment extends Model
     public function scopeActive($q)        { return $q->whereNotIn('status', AppointmentStatus::terminalStatuses()); }
     public function customerName(): string
     {
-        // MARKER-PATCH-421 — live customer via customer_id is the source of truth;
+        // live customer via customer_id is the source of truth;
         // the snapshot is only a fallback for a deleted customer record.
         return $this->customer
             ? trim($this->customer->fullName())
@@ -230,7 +228,7 @@ class TenantAppointment extends Model
     }
 
     /**
-     * MARKER-PATCH-194 — a live payment-link sale awaiting the customer:
+     * a live payment-link sale awaiting the customer:
      * has a Stripe checkout session, not yet paid, not cancelled. Drives the
      * "payment pending" banner so a link sent from this appointment is visible
      * and trackable instead of floating until it resolves.
@@ -246,7 +244,7 @@ class TenantAppointment extends Model
     }
 
 
-    /** MARKER-APPT-OVERRIDE — was any rule bent to make this booking exist? */
+    /** was any rule bent to make this booking exist? */
     public function isOverride(): bool
     {
         return (bool) ($this->override_short_notice || $this->override_capacity);

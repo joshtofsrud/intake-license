@@ -1,5 +1,5 @@
 <?php
-// MARKER-PATCH-629 — a payment method row. Source of truth for tenders and
+// a payment method row. Source of truth for tenders and
 // checkout options. Legacy settings keys are imported on bootstrap and synced
 // back on every save so surfaces not yet on the table keep working.
 
@@ -104,7 +104,7 @@ class TenantPaymentMethod extends Model
     }
 
     /**
-     * MARKER-PATCH-630 — manual tenders for the register beyond the built-in
+     * manual tenders for the register beyond the built-in
      * buttons: venmo, cash_app (manual mode only), and custom methods that are
      * enabled with the register surface on.
      */

@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\Mail;
 use Livewire\Attributes\Url;
 
 /**
- * MARKER-INBOX — messages and alerts, one place.
+ * messages and alerts, one place.
  *
  * Messages come from people and expect a reply. Alerts come from the
  * platform and expect a dismiss. Both live in one table so there is one
@@ -172,7 +172,7 @@ class PlatformInbox extends Page
                 Log::error('Inbox reply to tenant failed', ['id' => $row->id, 'error' => $e->getMessage()]);
             }
         } elseif ($row->email) {
-            // MARKER-PLATFORM-INBOUND — Reply-To is now a tokenised platform
+            // Reply-To is now a tokenised platform
             // address, so their answer comes back into this thread instead of
             // a mailbox the app can't read. Falls back to the from address
             // when inbound isn't configured.
@@ -199,10 +199,10 @@ class PlatformInbox extends Page
                 'status'          => 'read',
                 'replied_at'      => now(),
                 'reply_body'      => $text,
-                'last_message_at' => now(), // MARKER-PLATFORM-INBOUND
+                'last_message_at' => now(),
             ]);
 
-            // MARKER-PLATFORM-INBOUND — record our side of the conversation too,
+            // record our side of the conversation too,
             // so the thread reads in order rather than as one stored last reply.
             \App\Models\PlatformInboxReply::create([
                 'message_id' => $row->id,

@@ -3,14 +3,13 @@
 namespace App\Models;
 
 use Carbon\Carbon;
-use Carbon\CarbonInterface; // MARKER-SCHED-CARBON-FIX
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Str;
 
-// MARKER-SCHED-FOUNDATION
 class PlatformBooking extends Model
 {
     public const STATUS_CONFIRMED   = 'confirmed';
@@ -56,17 +55,17 @@ class PlatformBooking extends Model
                 $b->token = Str::random(48);
             }
         });
-        // MARKER-SCHED-GOOGLE — mirror to the connected calendar. Runs inline
+        // mirror to the connected calendar. Runs inline
         // so a Meet link exists before the confirmation email is built.
         static::created(function (self $b) {
-            try { app(\App\Services\Platform\GoogleCalendarService::class)->onBookingCreated($b); } catch (\Throwable $e) { \Illuminate\Support\Facades\Log::warning('MARKER-SCHED-GOOGLE created hook: ' . $e->getMessage()); }
+            try { app(\App\Services\Platform\GoogleCalendarService::class)->onBookingCreated($b); } catch (\Throwable $e) { \Illuminate\Support\Facades\Log::warning('sched-google: created hook: ' . $e->getMessage()); }
         });
         static::deleted(function (self $b) {
             if ($b->google_event_id) { try { app(\App\Services\Platform\GoogleCalendarService::class)->onBookingUpdated($b->forceFill(['status' => 'cancelled'])); } catch (\Throwable) {} }
         });
         static::updated(function (self $b) {
             if ($b->wasChanged(['starts_at', 'ends_at', 'status'])) {
-                try { app(\App\Services\Platform\GoogleCalendarService::class)->onBookingUpdated($b); } catch (\Throwable $e) { \Illuminate\Support\Facades\Log::warning('MARKER-SCHED-GOOGLE updated hook: ' . $e->getMessage()); }
+                try { app(\App\Services\Platform\GoogleCalendarService::class)->onBookingUpdated($b); } catch (\Throwable $e) { \Illuminate\Support\Facades\Log::warning('sched-google: updated hook: ' . $e->getMessage()); }
             }
         });
     }

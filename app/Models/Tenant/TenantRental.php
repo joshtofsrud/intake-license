@@ -1,5 +1,4 @@
 <?php
-// MARKER-PATCH-217
 
 namespace App\Models\Tenant;
 
@@ -35,7 +34,6 @@ class TenantRental extends Model
         'rental_number', 'status', 'source',
         'starts_at', 'due_at', 'original_due_at', 'returned_at',
         'subtotal_cents', 'tax_cents', 'total_cents', 'paid_cents',
-        // MARKER-RENTAL-DISCOUNT
         'discount_cents', 'discount_code', 'discount_redemption_id',
         'deposit_hold_cents', 'deposit_status', 'stripe_deposit_intent_id',
         'agreement_template_version', 'agreement_signed_at',
@@ -48,11 +46,11 @@ class TenantRental extends Model
         'due_at'                     => 'datetime',
         'original_due_at'            => 'datetime',
         'returned_at'                => 'datetime',
-        'checked_out_at'             => 'datetime', // MARKER-PATCH-234
-        'cancelled_at'               => 'datetime', // MARKER-PATCH-234
+        'checked_out_at'             => 'datetime',
+        'cancelled_at'               => 'datetime',
         'agreement_signed_at'        => 'datetime',
         'subtotal_cents'             => 'integer',
-        'discount_cents'             => 'integer', // MARKER-RENTAL-DISCOUNT
+        'discount_cents'             => 'integer',
         'tax_cents'                  => 'integer',
         'total_cents'                => 'integer',
         'paid_cents'                 => 'integer',
@@ -87,7 +85,7 @@ class TenantRental extends Model
     }
 
     /**
-     * MARKER-PATCH-219B — sales-as-money: the rental's money is carried by
+     * sales-as-money: the rental's money is carried by
      * linked register sales. Exact mirror of TenantAppointment::payments().
      */
     public function sales(): HasMany
@@ -122,7 +120,7 @@ class TenantRental extends Model
 
     /**
      * Recompute paid_cents from the ledger (tenant_sale_payments through
-     * linked sales — the ledger is canon). MARKER-PATCH-219B.
+     * linked sales — the ledger is canon). .
      */
     public function refreshPaidCents(): void
     {

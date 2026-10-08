@@ -1,4 +1,4 @@
-{{-- MARKER-PATCH-225 — staff alerts bell. In-app alerts always render the
+{{-- staff alerts bell. In-app alerts always render the
      bell (critical events reach even non-addon tenants); the feed itself
      is empty when nothing has been emitted. --}}
 <div class="sa-bell" data-sa-bell>
@@ -87,13 +87,13 @@
   }
 
   function load() {
-    // MARKER-OFFLINE-SYNC-PIN — the 60s poll is not human activity; without
+    // the 60s poll is not human activity; without
     // this flag it kept the idle PIN lock from ever engaging server-side.
     fetch(feedUrl, { headers: { 'Accept': 'application/json', 'X-Intake-Background': '1' } })
       .then(function (r) { return r.json(); }).then(render).catch(function () {});
   }
 
-  // MARKER-PATCH-231F — portal the panel to <body> so position:fixed escapes
+  // portal the panel to <body> so position:fixed escapes
   // the sidebar's stacking/overflow trap, then place it next to the bell.
   function positionPanel() {
     var r = toggle.getBoundingClientRect();

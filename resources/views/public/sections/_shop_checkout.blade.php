@@ -1,4 +1,4 @@
-{{-- MARKER-PATCH-579 -- chrome-wrapped shop body (checkout); rendered
+{{-- chrome-wrapped shop body (checkout); rendered
      through public.layout via SiteChromeService between the tenant own
      nav + footer sections. Original standalone blade retired. --}}
 @php
@@ -89,7 +89,7 @@
         @else<input type="checkbox" id="f-install" style="display:none">@endif
       </div>
 
-      {{-- MARKER-PATCH-631 — payment method selection (settings-driven) --}}
+      {{-- payment method selection (settings-driven) --}}
       @php
         $onlineMethods = \App\Models\Tenant\TenantPaymentMethod::where('tenant_id', $tenant->id)
             ->where('enabled', true)->where('kind', 'manual')
@@ -133,7 +133,7 @@
         </div>
       @endforeach
       <div class="sum-line"><span>Subtotal</span><span id="s-sub">{{ $money($quotePickup['subtotal_cents']) }}</span></div>
-      {{-- MARKER-SHOP-DISCOUNT — the discount is already in the total, so it
+      {{-- the discount is already in the total, so it
            has to be shown or the numbers don't add up on screen. --}}
       @if((int) ($quotePickup['discount_cents'] ?? 0) > 0)
         <div class="sum-line"><span>{{ !empty($quotePickup['discount_code']) ? 'Discount (' . $quotePickup['discount_code'] . ')' : 'Discount' }}</span><span id="s-disc">&minus;{{ $money($quotePickup['discount_cents']) }}</span></div>
@@ -190,7 +190,7 @@
       };
       if (!body.first_name || !body.last_name || !body.email) return fail('Name and email are required.');
       if (ful === 'local_delivery' && !body.address) return fail('Delivery needs an address.');
-      // MARKER-PATCH-631 — manual methods don't need Stripe
+      // manual methods don't need Stripe
       var pmEl = document.querySelector('input[name="pm"]:checked');
       body.payment_method = pmEl ? pmEl.value : 'card';
       if (body.payment_method === 'card' && !PK) return fail('Online payments are not enabled yet — call us and we\'ll take care of it.');
@@ -207,7 +207,7 @@
       } catch (e) { return fail('Network hiccup — try again.'); }
       if (!data || !data.ok) return fail((data && data.message) || 'Could not start payment.');
 
-      // MARKER-PATCH-631 — manual method: order placed pending, go to instructions
+      // manual method: order placed pending, go to instructions
       if (data.manual && data.redirect) { window.location = data.redirect; return; }
 
       stripe = Stripe(PK);

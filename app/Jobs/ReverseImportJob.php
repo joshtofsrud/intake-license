@@ -1,5 +1,4 @@
 <?php
-// MARKER-IMPORT-PROGRESS
 
 namespace App\Jobs;
 
@@ -53,7 +52,6 @@ class ReverseImportJob implements ShouldQueue, ShouldBeUnique
                 'progress_seen_at' => null,
             ]);
         } catch (\Throwable $e) {
-            // MARKER-JOB-ISSUES
             \App\Support\JobFailureReporter::report(
                 self::class, 'Import reverse stopped', $e,
                 ['import_id' => $import->id], $tenant->id

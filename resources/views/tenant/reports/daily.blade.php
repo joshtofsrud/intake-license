@@ -1,6 +1,6 @@
 @extends('layouts.tenant.app')
 
-{{-- MARKER-PATCH-633 — Reports → Daily ops → End of day. --}}
+{{-- Reports → Daily ops → End of day. --}}
 
 @section('title', 'Reports · End of day')
 
@@ -38,7 +38,7 @@
   <div style="font-size:12.5px;color:var(--ia-text-muted);margin-bottom:14px">How your business is performing.</div>
   @include('tenant.reports._tab_subnav', ['active' => 'daily'])
 
-  {{-- MARKER-PATCH-634 — daily ops inner subnav --}}
+  {{-- daily ops inner subnav --}}
   <div style="display:flex;gap:18px;border-bottom:.5px solid var(--ia-border);margin-bottom:16px">
     <a href="{{ route('tenant.reports.daily') }}" style="padding:10px 2px;font-size:12.5px;color:var(--ia-text);border-bottom:2px solid var(--ia-accent);margin-bottom:-.5px;text-decoration:none;font-weight:600">End of day</a>
     <a href="{{ route('tenant.reports.daily.recon') }}" style="padding:10px 2px;font-size:12.5px;color:var(--ia-text-muted);border-bottom:2px solid transparent;margin-bottom:-.5px;text-decoration:none">Reconciliation</a>

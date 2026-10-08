@@ -6,7 +6,7 @@ use App\Models\Tenant;
 use App\Models\Tenant\TenantUser;
 
 /**
- * MARKER-TILES — tile definitions for the simplified dashboard.
+ * tile definitions for the simplified dashboard.
  *
  * Deliberately separate from _zone_launcher.blade.php, which stays
  * hardcoded and untouched: the Overview dashboard is staying permanently,

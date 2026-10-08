@@ -1,5 +1,4 @@
 <?php
-// MARKER-SEARCH-TEXT
 
 namespace App\Support;
 

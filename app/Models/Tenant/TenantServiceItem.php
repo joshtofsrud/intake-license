@@ -15,9 +15,9 @@ class TenantServiceItem extends Model
         'tenant_id','category_id','name','slug','description','image_url',
         'price_cents','prep_before_minutes','duration_minutes','cleanup_after_minutes',
         'slot_weight','is_active','sort_order',
-        'simple_enabled','simple_sort','simple_tagline', // MARKER-FLOW-4
-        'quick_only', // MARKER-PATCH-546
-        'show_on_register', // MARKER-QUICK-ADD
+        'simple_enabled','simple_sort','simple_tagline',
+        'quick_only',
+        'show_on_register',
     ];
     protected $casts = [
         'is_active'             => 'boolean',
@@ -28,8 +28,8 @@ class TenantServiceItem extends Model
         'slot_weight'           => 'integer',
         'sort_order'            => 'integer',
         'simple_enabled'        => 'boolean',
-        'quick_only'            => 'boolean', // MARKER-PATCH-546
-        'show_on_register'      => 'boolean', // MARKER-QUICK-ADD
+        'quick_only'            => 'boolean',
+        'show_on_register'      => 'boolean',
         'simple_sort'           => 'integer',
     ];
 

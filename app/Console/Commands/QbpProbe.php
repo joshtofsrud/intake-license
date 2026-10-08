@@ -1,6 +1,5 @@
 <?php
 
-// MARKER-QBP-ADAPTER
 
 namespace App\Console\Commands;
 
@@ -43,17 +42,17 @@ class QbpProbe extends Command
 
         $this->base = rtrim((string) config('distributors.qbp.base_url'), '/') . '/';
 
-        // MARKER-QBP-NEGOTIATE — run this when the normal probe 406s.
+        // run this when the normal probe 406s.
         if ($this->option('negotiate')) {
             return $this->negotiate();
         }
 
-        // MARKER-QBP-BULK — run this before designing the sync.
+        // run this before designing the sync.
         if ($this->option('bulk')) {
             return $this->bulk();
         }
 
-        // MARKER-QBP-BRAND — the likely tier-1 path.
+        // the likely tier-1 path.
         if ($this->option('brand')) {
             return $this->byBrand((string) $this->option('brand'));
         }
@@ -62,7 +61,7 @@ class QbpProbe extends Command
         $this->line('Key: from master admin (' . strlen($this->key) . ' chars, not shown)');
         $this->newLine();
 
-        // MARKER-QBP-PATHS — brands.brand, by name.
+        // brands.brand, by name.
         $brands = $this->probeGet('1/brand', 'Brands');
         if (is_array($brands)) {
             $list = $this->asList($brands['brands']['brand'] ?? null);
@@ -73,7 +72,7 @@ class QbpProbe extends Command
         }
         $this->newLine();
 
-        // MARKER-QBP-PATHS — a FLAT list of nodes, each naming its parent and
+        // a FLAT list of nodes, each naming its parent and
         // its children by id. Not a nested tree, so category_path has to be
         // assembled by walking parent links rather than read off a node.
         $cats = $this->probeGet('1/category', 'Categories');
@@ -87,7 +86,7 @@ class QbpProbe extends Command
         }
         $this->newLine();
 
-        // MARKER-QBP-PATHS — skus.sku is a list of plain strings.
+        // skus.sku is a list of plain strings.
         $sku  = (string) $this->argument('sku');
         $skus = $this->probeGet('1/product/skulist', 'SKU list');
         if (is_array($skus)) {
@@ -145,14 +144,14 @@ class QbpProbe extends Command
     }
 
     /**
-     * MARKER-QBP-PROBE-CLASH — NOT named call(). Illuminate\Console\Command
+     * NOT named call(). Illuminate\Console\Command
      * declares a public call() for invoking other artisan commands, and a
      * private override is a fatal at class load.
      *
      * A 404 here is information, not a failure — this never throws.
      */
     /**
-     * MARKER-QBP-BRAND — one brand's products.
+     * one brand's products.
      *
      * Reports the shape rather than the payload: how many products, and what
      * fields the first one carries. A field list is what the map is written
@@ -218,7 +217,7 @@ class QbpProbe extends Command
     }
 
     /**
-     * MARKER-QBP-BULK — measure the three endpoints a sync would live on.
+     * measure the three endpoints a sync would live on.
      *
      * Prints sizes and the first slice of each, not whole payloads: the
      * question is shape and volume, and a full model list is megabytes.
@@ -305,7 +304,7 @@ class QbpProbe extends Command
     }
 
     /**
-     * MARKER-QBP-BULK — every list in a payload, with its path.
+     * every list in a payload, with its path.
      *
      * Used only for exploration. Production code names its collections; this
      * exists precisely because the names are what is being discovered.
@@ -333,7 +332,7 @@ class QbpProbe extends Command
     }
 
     /**
-     * MARKER-QBP-NEGOTIATE — the same call with different headers.
+     * the same call with different headers.
      *
      * A 406 means content negotiation failed, so the variable is the headers
      * and nothing else. Printing every combination's status side by side
@@ -402,7 +401,7 @@ class QbpProbe extends Command
         $this->line('--- ' . $label . '  (' . $path . ')');
 
         try {
-            // MARKER-QBP-XML — XML, measured. JSON 406s on every endpoint.
+            // XML, measured. JSON 406s on every endpoint.
             $res = Http::withHeaders([
                     'X-QBPAPI-KEY' => $this->key,
                     'Accept'       => 'application/xml',
@@ -421,7 +420,7 @@ class QbpProbe extends Command
             return null;
         }
 
-        // MARKER-QBP-XML — dump the RAW XML, not a converted array. The field
+        // dump the RAW XML, not a converted array. The field
         // map is written against QBP's own element names, and a conversion
         // step between what they send and what is on screen is exactly the
         // gap a mapping bug hides in.
@@ -444,7 +443,7 @@ class QbpProbe extends Command
         return $arr;
     }
 
-    /** MARKER-QBP-XML — indent the XML so a nested product is readable. */
+    /** indent the XML so a nested product is readable. */
     private function prettyXml(string $body): string
     {
         $prev = libxml_use_internal_errors(true);
@@ -458,7 +457,7 @@ class QbpProbe extends Command
         return $ok ? (string) $doc->saveXML() : $body;
     }
 
-    /** MARKER-QBP-XML — attributes kept, prefixed with @. */
+    /** attributes kept, prefixed with @. */
     private function xmlToArray(string $body): ?array
     {
         if (trim($body) === '') {
@@ -499,7 +498,7 @@ class QbpProbe extends Command
     }
 
     /**
-     * MARKER-QBP-PATHS — one child or many.
+     * one child or many.
      *
      * SimpleXML hands back an object for a single child and a list for two,
      * so every collection read goes through this. Replaces listish(), which

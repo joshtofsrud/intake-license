@@ -4,7 +4,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-// MARKER-TPL-MANAGE — "last applied" is the fact that tells you which of
+// "last applied" is the fact that tells you which of
 // two similarly-named templates is the dead one.
 return new class extends Migration {
     public function up(): void

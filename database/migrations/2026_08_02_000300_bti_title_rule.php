@@ -1,6 +1,6 @@
 <?php
 
-// MARKER-BTI-TITLE-RULE — a distributor-level title recipe for BTI.
+// a distributor-level title recipe for BTI.
 //
 // Additive and idempotent: one row in catalog_title_settings, keyed on
 // (distributor_code, category_key). The composer walks distributor rules

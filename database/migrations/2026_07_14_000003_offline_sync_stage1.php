@@ -1,6 +1,6 @@
 <?php
 
-// MARKER-OFFLINE-SYNC — stage 1: idempotent sale replay + add-on availability.
+// stage 1: idempotent sale replay + add-on availability.
 // client_uuid lets offline-queued sales replay safely (same uuid = same sale).
 // The offline_sync addon becomes purchasable on every plan, Solo included —
 // not bundled into any tier for now.

@@ -1,6 +1,5 @@
 @extends('public.account._shell')
 @php $pageTitle = 'Account'; @endphp
-{{-- MARKER-PORTAL-V2 --}}
 @push('styles')
   @include('public.account.portal._portal-css')
 @endpush
@@ -48,7 +47,6 @@
 <div class="ac-card" style="padding:20px">
   <form method="POST" action="{{ route('tenant.customer.portal.notifications') }}">
     @csrf
-    {{-- MARKER-EMAIL-CONSENT --}}
     <div class="ac-check-row" style="margin-bottom:14px">
       <input type="checkbox" name="email_marketing" value="1" id="n-em" {{ $customer->emailMarketingMailable() ? 'checked' : '' }}>
       <label for="n-em">Email me news and offers</label>

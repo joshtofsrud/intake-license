@@ -1,9 +1,9 @@
-{{-- MARKER-ASSET-NOUN — asset labels read tenant()->asset_label_* --}}
-{{-- MARKER-PATCH-158-D — Multi-asset appointment show view (read-only) --}}
+{{-- asset labels read tenant()->asset_label_* --}}
+{{-- Multi-asset appointment show view (read-only) --}}
 @extends('layouts.tenant.app')
 @php
   $pageTitle = $appointment->ra_number;
-  $statusLabels = \App\Support\AppointmentStatus::LABELS; // MARKER-PATCH-287 single source
+  $statusLabels = \App\Support\AppointmentStatus::LABELS; // single source
 
   // Totals computed from the asset rollups + any loose (unpinned) items.
   $assetsSubtotal = $appointmentAssets->sum('subtotal_cents');
@@ -19,7 +19,7 @@
 
   $updateUrl = route('tenant.appointments.update', $appointment->id);
 
-  // MARKER-PATCH-158-E2 — status pipeline (mirrors legacy show.blade.php)
+  // status pipeline (mirrors legacy show.blade.php)
   $isTerminal    = \App\Support\AppointmentStatus::isTerminal($appointment->status);
   $pipelineSteps = \App\Support\AppointmentStatus::pipeline();
   if ($appointment->status === 'shipped') $pipelineSteps[] = 'shipped';
@@ -40,7 +40,7 @@
   .ma-layout { grid-template-columns: 1fr; }
 }
 
-/* ============== MARKER-PATCH-158-G3 — Top row (status | customer tile) ============== */
+/* ============== Top row (status | customer tile) ============== */
 .ma-top-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -51,13 +51,13 @@
 @media (max-width: 900px) {
   .ma-top-row { grid-template-columns: 1fr; }
 }
-/* MARKER-PATCH-413 — phone: stack header so the long RA number isn't squeezed */
+/* phone: stack header so the long RA number isn't squeezed */
 @media (max-width: 640px) {
   .ma-page-head { flex-direction: column; gap: 14px; }
   .ma-page-title { font-size: 19px; gap: 10px; }
 }
 
-/* ===== MARKER-PATCH-414 — mobile B: summary hero + segmented tabs ===== */
+/* ===== mobile B: summary hero + segmented tabs ===== */
 .ma-mhero, .ma-mtabs { display: none; }
 .ma-mhero { background: var(--ia-surface, rgba(255,255,255,0.02)); border: 1px solid var(--ia-border); border-radius: 14px; padding: 15px 16px; margin-bottom: 13px; }
 .ma-mhero-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
@@ -71,7 +71,7 @@
 .ma-mtabs button { flex: 1; border: none; background: none; font: inherit; font-size: 12px; font-weight: 600; color: var(--ia-text-dim); padding: 8px 3px; border-radius: 8px; cursor: pointer; }
 .ma-mtabs button.on { background: rgba(255,255,255,0.07); color: var(--ia-text); }
 .ma-mhero-ra { font-family: ui-monospace, Menlo, monospace; font-size: 11.5px; letter-spacing: 0.02em; color: var(--ia-text-dim); margin-bottom: 9px; }
-.ma-mbar { display: none; gap: 8px; margin-top: 13px; } /* MARKER-PATCH-417 — in-hero action row */
+.ma-mbar { display: none; gap: 8px; margin-top: 13px; } /* in-hero action row */
 .ma-mbar .ia-btn { flex: 1; }
 
 @media (max-width: 640px) {
@@ -86,15 +86,15 @@
   #ma-appt[data-mtab="items"] .ma-assets-group { display: block; }
   #ma-appt[data-mtab="notes"] #ma-notes-card { display: block; }
   #ma-appt[data-mtab="pay"] .ma-rail { display: flex; }
-  /* MARKER-PATCH-415 — match the mockup */
-  #ma-appt .ma-page-head { display: none !important; } /* MARKER-PATCH-417 — beat the later base .ma-page-head rule */
+  /* match the mockup */
+  #ma-appt .ma-page-head { display: none !important; } /* beat the later base .ma-page-head rule */
   .ma-mbar { display: flex; }
-  .ia-page#ma-appt { padding: 14px 14px 60px !important; } /* MARKER-PATCH-416/417 — gutter + nav clearance */
+  .ia-page#ma-appt { padding: 14px 14px 60px !important; } /* /417 — gutter + nav clearance */
   .ma-layout { gap: 0; }
   #ma-appt[data-mtab] .ma-sale-banner { display: none; }
   #ma-appt[data-mtab="pay"] .ma-sale-banner { display: flex; }
 
-  /* MARKER-PATCH-418 — even up the mobile card family: one radius + one gutter
+  /* even up the mobile card family: one radius + one gutter
      so hero / tabs / tiles line up; minmax(0,1fr) + min-width:0 keep a long
      status label or email from pushing a tile past the gutter on a narrow phone. */
   #ma-appt .ma-mhero,
@@ -104,7 +104,7 @@
   #ma-appt .ma-top-row { grid-template-columns: minmax(0, 1fr); }
   #ma-appt .ma-progress-step { min-width: 0; }
 }
-/* MARKER-PATCH-211 — subtle card separation: stronger edges + a small lift */
+/* subtle card separation: stronger edges + a small lift */
 .ma-layout { --ia-border: rgba(255,255,255,0.17); }
 .ma-layout .ma-top-tile,
 .ma-layout .ma-asset { box-shadow: 0 1px 2px rgba(0,0,0,0.5); }
@@ -269,7 +269,7 @@
   border: 1px solid var(--ia-border);
   border-radius: 10px;
   margin-bottom: 12px;
-  /* MARKER-PATCH-158-G11 — Removed overflow:hidden; was clipping the
+  /* Removed overflow:hidden; was clipping the
      per-asset part-picker autocomplete dropdown (positioned absolute
      below the input, extending past the card edge). The defensive
      clipping wasn't actually needed — child backgrounds don't bleed
@@ -284,7 +284,6 @@
   padding: 14px 18px;
   border-bottom: 1px solid var(--ia-border);
 }
-/* MARKER-PATCH-158-E1 */
 .ma-asset-detach {
   background: transparent; border: 0;
   color: var(--ia-text-faint, #52525b);
@@ -367,7 +366,7 @@
 .ma-asset-services { padding: 8px 18px 14px; }
 .ma-service-row {
   display: grid;
-  grid-template-columns: 1fr 78px 104px 26px; /* MARKER-PATCH-344 */
+  grid-template-columns: 1fr 78px 104px 26px;
   gap: 10px;
   align-items: center;
   padding: 10px 12px;
@@ -413,7 +412,7 @@
   font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em;
   color: var(--ia-text-dim); margin-bottom: 12px;
 }
-/* MARKER-PATCH-470 — assign-later holding state */
+/* assign-later holding state */
 .ma-loose-card--needs { border-color: rgba(245,158,11,.38); background: rgba(245,158,11,.06); }
 .ma-loose-title--row { display:flex; align-items:center; gap:8px; text-transform:none; letter-spacing:0; }
 .ma-loose-count { display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:rgba(255,255,255,.08);color:var(--ia-text-dim);font-size:11px;font-weight:600;margin-left:4px; }
@@ -472,7 +471,7 @@
   align-self: center;
 }
 
-/* ============== MARKER-PATCH-158-F — Empty state ============== */
+/* ============== Empty state ============== */
 .ma-empty {
   text-align: center;
   padding: 48px 20px;
@@ -498,7 +497,7 @@
   line-height: 1.5;
 }
 
-/* ============== MARKER-PATCH-158-E2 — Status pipeline (mirrors legacy) ============== */
+/* ============== Status pipeline (mirrors legacy) ============== */
 .ma-progress-card {
   background: var(--ia-surface, rgba(255,255,255,0.02));
   border: 1px solid var(--ia-border);
@@ -526,7 +525,7 @@
   top: 12px; left: 12px;
   height: 2px; background: var(--ia-accent, #BEF264);
   z-index: 0;
-  /* MARKER-PATCH-158-G1 — fixed overshoot: legacy uses fraction (0..1) of
+  /* fixed overshoot: legacy uses fraction (0..1) of
      (100% - 24px) to account for the 12px padding on each side. */
   width: calc((100% - 24px) * var(--progress, 0));
   transition: width 0.3s;
@@ -609,7 +608,7 @@
   font-variant-numeric: tabular-nums;
   -webkit-appearance: none; -moz-appearance: textfield; appearance: textfield; margin: 0;
 }
-/* MARKER-PATCH-344 — no spinner arrows, fields sized to content */
+/* no spinner arrows, fields sized to content */
 .ma-service-edit::-webkit-outer-spin-button,
 .ma-service-edit::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 .ma-service-edit[data-field="duration_minutes"] { width: 46px; }
@@ -631,7 +630,7 @@
 }
 .ma-service-remove:hover { color: #f87171; background: rgba(248,113,113,0.08); }
 
-/* ============== MARKER-PATCH-158-E3 — Charges + Payment ============== */
+/* ============== Charges + Payment ============== */
 .ma-charges-card {
   background: var(--ia-surface, rgba(255,255,255,0.02));
   border: 1px solid var(--ia-border);
@@ -656,7 +655,7 @@
 }
 .ma-charge-row:last-child { border-bottom: 0; }
 
-/* ============== MARKER-PATCH-158-G4 — Per-asset Parts section ============== */
+/* ============== Per-asset Parts section ============== */
 
 /* The collapsible Parts section lives inside each asset card, just below
    the services list. <details> drives the open/closed state with no JS. */
@@ -664,10 +663,10 @@
   border-top: 0.5px solid var(--ia-border);
   margin-top: 8px;
 }
-/* MARKER-PATCH-158-G6 — Horizontal padding so the collapsible content
+/* Horizontal padding so the collapsible content
    doesn't sit flush against the asset card edges. Matches .ma-asset-head's
    18px so labels/inputs align vertically with the card title above. */
-/* MARKER-PATCH-158-G7 — Symmetric vertical padding + explicit min-height
+/* Symmetric vertical padding + explicit min-height
    so the Parts head and the Work order head render exactly the same
    height when stacked. */
 .ma-asset-parts-head {
@@ -712,7 +711,7 @@
   opacity: .4;
   margin: 4px 0 12px;
 }
-/* MARKER-PARTS-EMPTY — real empty state for the per-asset parts block */
+/* real empty state for the per-asset parts block */
 .ma-parts-blank {
   display: flex; align-items: center; gap: 16px;
   padding: 14px 16px; margin: 2px 0 4px;
@@ -772,14 +771,14 @@
   align-items: end;
 }
 
-/* ============== MARKER-PATCH-158-G5 — Per-asset Work order section ============== */
+/* ============== Per-asset Work order section ============== */
 .ma-asset-wo {
   border-top: 0.5px solid var(--ia-border);
   margin-top: 8px;
 }
 .ma-asset-wo .ma-asset-parts-head { /* reuse parts head styles */ }
 .ma-asset-wo-body {
-  /* MARKER-PATCH-158-G6 — Horizontal padding so form fields don't touch
+  /* Horizontal padding so form fields don't touch
      the asset card edges. Matches .ma-asset-parts-body. */
   padding: 4px 18px 12px;
 }
@@ -826,7 +825,7 @@
   margin-left: 6px;
 }
 
-/* ============== MARKER-PATCH-158-E4 — Parts card + table (reused by G4 Unassigned section) ============== */
+/* ============== Parts card + table (reused by G4 Unassigned section) ============== */
 .ma-parts-card {
   background: var(--ia-surface, rgba(255,255,255,0.02));
   border: 1px solid var(--ia-border);
@@ -919,7 +918,7 @@
   color: var(--ia-text-dim);
 }
 
-/* ============== MARKER-PATCH-158-E5 — Work order + Notes ============== */
+/* ============== Work order + Notes ============== */
 .ma-wo-card,
 .ma-notes-card {
   background: var(--ia-surface, rgba(255,255,255,0.02));
@@ -993,7 +992,7 @@
   margin: 0;
 }
 
-/* ============== MARKER-PATCH-158-E6 — Special orders + polish ============== */
+/* ============== Special orders + polish ============== */
 .ma-so-card {
   background: var(--ia-surface, rgba(255,255,255,0.02));
   border: 1px solid var(--ia-border);
@@ -1080,7 +1079,7 @@
   color: var(--ia-text-dim);
 }
 
-/* ============== MARKER-PATCH-158-G1 — Sale callout banners ============== */
+/* ============== Sale callout banners ============== */
 .ma-sale-banner {
   display: flex;
   align-items: center;
@@ -1117,7 +1116,7 @@
   border: 0.5px solid rgba(251, 191, 36, 0.45);
 }
 
-/* MARKER-PATCH-158-G2 — Rail action stack (reschedule + cancel) */
+/* Rail action stack (reschedule + cancel) */
 .ma-rail-actions {
   display: flex;
   flex-direction: column;
@@ -1125,7 +1124,7 @@
   margin-top: 4px;
 }
 
-/* MARKER-PATCH-158-G3 — Cancel button dark-red theme (mirrors legacy CANCEL-RED-DARK).
+/* Cancel button dark-red theme (mirrors legacy CANCEL-RED-DARK).
    Without this, ia-btn--danger renders too light against the dark surface. */
 .ma-cancel-btn.ia-btn--danger,
 button.ma-cancel-btn {
@@ -1170,7 +1169,7 @@ button.ma-cancel-btn:hover {
 }
 
 /* Asset name inline edit */
-/* MARKER-PATCH-158-E4 — fixed CSS specificity so input doesn't pick up
+/* fixed CSS specificity so input doesn't pick up
    browser/ia-input default white background. Higher specificity + !important
    on the visual properties because ia-input wins generic selectors. */
 .ma-asset .ma-asset-name-edit,
@@ -1201,7 +1200,7 @@ input.ma-asset-name-edit:focus {
   background: var(--ia-surface-2, rgba(255,255,255,0.02)) !important;
 }
 
-/* ============== MARKER-PATCH-158-E1 — Modals ============== */
+/* ============== Modals ============== */
 .ma-modal-backdrop {
   position: fixed; inset: 0;
   background: rgba(0,0,0,0.6);
@@ -1333,12 +1332,12 @@ input.ma-asset-name-edit:focus {
   color: var(--ia-text-dim);
   margin-bottom: 5px;
 }
-/* MARKER-PATCH-419 — per-line special-order checkbox */
+/* per-line special-order checkbox */
 .ma-part-so { display: inline-flex; align-items: center; gap: 6px; margin-top: 6px; font-size: 11px; color: var(--ia-text-dim); cursor: pointer; user-select: none; }
 .ma-part-so input { width: 13px; height: 13px; accent-color: var(--ia-accent, #BEF264); cursor: pointer; margin: 0; }
 .ma-part-so-badge { font-family: ui-monospace, 'SF Mono', monospace; font-size: 10px; letter-spacing: .02em; color: var(--ia-accent, #BEF264); opacity: .85; }
 .ma-part-so-badge:empty { display: none; }
-/* MARKER-PATCH-424 — mobile contact actions in the appointment customer tile */
+/* mobile contact actions in the appointment customer tile */
 .ma-mcontact { display: none; grid-template-columns: repeat(3, 1fr); gap: 6px; }
 .ma-mcontact-tile { display: flex; flex-direction: column; align-items: center; gap: 4px; background: var(--ia-surface); border: 0.5px solid var(--ia-border); border-radius: 10px; padding: 12px 6px; color: var(--ia-text); text-decoration: none; -webkit-tap-highlight-color: transparent; }
 .ma-mcontact-tile svg { color: var(--ia-accent); }
@@ -1353,7 +1352,7 @@ input.ma-asset-name-edit:focus {
   #ma-appt .ma-mcontact { display: grid; }
   #ma-appt .ma-mcontact-view { display: block; }
 }
-/* MARKER-PATCH-425 — mobile: single full-width Cancel; reschedule lives in the hero */
+/* mobile: single full-width Cancel; reschedule lives in the hero */
 @media (max-width: 640px) {
   #ma-appt .ma-top-actions .appt-b-reschedule-btn { display: none; }
 }
@@ -1363,8 +1362,8 @@ input.ma-asset-name-edit:focus {
 @section('mobile-back', 'Appointments|' . route('tenant.appointments.index'))
 
 @section('content')
-{{-- MARKER-PATCH-158-G8 — Removed max-width:1400px + margin:0 auto. No other tenant page uses centered wrapper; this one shouldn't either. --}}
-{{-- MARKER-OLD-SCHOOL-BANNER-MA — this view renders whenever the appointment
+{{-- Removed max-width:1400px + margin:0 auto. No other tenant page uses centered wrapper; this one shouldn't either. --}}
+{{-- this view renders whenever the appointment
      has assets, which is most of them. $noteCustomer also makes the pad
      button pre-attach this customer. --}}
 @php $noteCustomer = $appointment->customer ?? null; @endphp
@@ -1390,22 +1389,20 @@ input.ma-asset-name-edit:focus {
         <span>{{ $appointmentAssets->count() }} {{ \Illuminate\Support\Str::plural('asset', $appointmentAssets->count()) }} · {{ $serviceCount + $addonCount }} {{ \Illuminate\Support\Str::plural('service', $serviceCount + $addonCount) }}</span>
       </div>
     </div>
-    {{-- MARKER-PATCH-205 — invoice export trigger --}}
+    {{-- invoice export trigger --}}
     <div class="ma-page-actions">
-      {{-- MARKER-PATCH-313 --}}
-      {{-- MARKER-PATCH-315 — gated on the tag enable toggle --}}
+      {{-- gated on the tag enable toggle --}}
       @if(data_get(tenant()->settings, 'work_order_tag.enabled', true))
-      <button type="button" class="ia-btn ia-btn--secondary" onclick="window.openPrintComposer ? openPrintComposer('appointment', '{{ $appointment->id }}', {type:'tag', number:'{{ $appointment->ra_number }}'}) : openTagModal()">&#9113; Print &amp; Send</button>{{-- MARKER-PATCH-339 --}}
+      <button type="button" class="ia-btn ia-btn--secondary" onclick="window.openPrintComposer ? openPrintComposer('appointment', '{{ $appointment->id }}', {type:'tag', number:'{{ $appointment->ra_number }}'}) : openTagModal()">&#9113; Print &amp; Send</button>
       @endif
-      {{-- MARKER-PATCH-347 — Invoice button removed; Print & Send (Invoice → "Graphical invoice") covers this. --}}
+      {{-- Invoice button removed; Print & Send (Invoice → "Graphical invoice") covers this. --}}
     </div>
   </div>
 
-  {{-- MARKER-PATCH-347 — _invoice-modal include removed with the Invoice button. --}}
-  {{-- MARKER-PATCH-314 --}}
+  {{-- _invoice-modal include removed with the Invoice button. --}}
   @include('tenant.appointments._tag_modal')
 
-  {{-- MARKER-PATCH-414 — mobile summary hero (phone only) --}}
+  {{-- mobile summary hero (phone only) --}}
   @php $mBalance = max(0, (int) $appointment->total_cents - (int) $appointment->paid_cents); @endphp
   <div class="ma-mhero">
     <div class="ma-mhero-ra">{{ $appointment->ra_number }}</div>
@@ -1421,7 +1418,7 @@ input.ma-asset-name-edit:focus {
     @elseif((int) $appointment->total_cents > 0)
       <div class="ma-mhero-bal ma-mhero-bal--paid"><span class="l">Paid in full</span><span class="a">{{ format_money($appointment->total_cents) }}</span></div>
     @endif
-    {{-- MARKER-PATCH-417 — primary actions inside the hero (app has its own bottom nav) --}}
+    {{-- primary actions inside the hero (app has its own bottom nav) --}}
     <div class="ma-mbar">
       @if(data_get(tenant()->settings, 'work_order_tag.enabled', true))
       <button type="button" class="ia-btn ia-btn--primary" onclick="window.openPrintComposer ? openPrintComposer('appointment', '{{ $appointment->id }}', {type:'tag', number:'{{ $appointment->ra_number }}'}) : openTagModal()">&#9113; Print &amp; Send</button>
@@ -1432,7 +1429,7 @@ input.ma-asset-name-edit:focus {
     </div>
   </div>
 
-  {{-- MARKER-PATCH-414 — segmented control (phone only) --}}
+  {{-- segmented control (phone only) --}}
   <div class="ma-mtabs">
     <button type="button" class="on" onclick="maTab(this,'overview')">Overview</button>
     <button type="button" onclick="maTab(this,'items')">Items</button>
@@ -1448,13 +1445,13 @@ input.ma-asset-name-edit:focus {
     }
   </script>
 
-  {{-- MARKER-PATCH-158-G1 — Sale callout banners (mirrors legacy bannerSale) --}}
+  {{-- Sale callout banners (mirrors legacy bannerSale) --}}
   @php
-    $bannerPendingLink = $appointment->pendingPaymentLinkSale(); // MARKER-PATCH-196
+    $bannerPendingLink = $appointment->pendingPaymentLinkSale();
     $bannerSale     = $appointment->openRegisterSale();
     $bannerBalance  = max(0, (int)$appointment->total_cents - (int)$appointment->paid_cents);
     $bannerOverage  = max(0, (int)$appointment->paid_cents - (int)$appointment->total_cents);
-    // MARKER-PATCH-158-G12 — Derive "paid in full" from actual cents, not the
+    // Derive "paid in full" from actual cents, not the
     // payment_status column. The column gets set when a deposit equals the
     // total at that moment, but new charges/parts/tax can push total higher
     // without the column ever being updated. Only show "Paid in full" when
@@ -1462,12 +1459,12 @@ input.ma-asset-name-edit:focus {
     $bannerPaidFull = ((int)$appointment->total_cents > 0)
                       && ((int)$appointment->paid_cents >= (int)$appointment->total_cents)
                       && ($bannerOverage === 0);
-    // MARKER-PATCH-461 — a real Stripe charge means a 'card' overage refund is
+    // a real Stripe charge means a 'card' overage refund is
     // possible; otherwise the refund is cash/check/store-credit/mark-paid only.
     $bannerHasStripeCharge = $appointment->sales()->whereNotNull('stripe_payment_intent_id')->exists();
   @endphp
   @if($bannerPendingLink)
-    {{-- MARKER-PATCH-196 — a payment link is out and awaiting the customer. --}}
+    {{-- a payment link is out and awaiting the customer. --}}
     <div class="ma-sale-banner" style="background:rgba(96,165,250,.10);border:0.5px solid rgba(96,165,250,.35)">
       <span class="ma-sale-banner-icon">🔗</span>
       <div class="ma-sale-banner-body">
@@ -1513,11 +1510,11 @@ input.ma-asset-name-edit:focus {
         <div class="ma-sale-banner-title">Customer overpaid — ${{ number_format($bannerOverage / 100, 2) }}</div>
         <div class="ma-sale-banner-sub">Refund the overage or adjust the total.</div>
       </div>
-      {{-- MARKER-PATCH-461 — record an overage refund (writes overage_refund row + cascades paid cache) --}}
+      {{-- record an overage refund (writes overage_refund row + cascades paid cache) --}}
       <button type="button" class="ia-btn ia-btn--primary ia-btn--sm" onclick="maOpenOverageRefund()">Record refund</button>
     </div>
 
-    {{-- MARKER-PATCH-461 — overage refund modal (only present when an overage exists) --}}
+    {{-- overage refund modal (only present when an overage exists) --}}
     <div id="ma-overage-modal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.6);align-items:center;justify-content:center;padding:20px;" onclick="if(event.target===this)maCloseOverageRefund()">
       <div style="background:#1a1a1a;border:0.5px solid rgba(255,255,255,.12);border-radius:14px;max-width:420px;width:100%;padding:22px;font-family:inherit;color:#f0f0f0;">
         <div style="font-size:16px;font-weight:600;margin-bottom:4px;">Record overage refund</div>
@@ -1592,7 +1589,7 @@ input.ma-asset-name-edit:focus {
     </script>
   @endif
 
-  {{-- MARKER-PATCH-158-G3 — Top row: status pipeline (left) + customer/resource/actions tile (right) --}}
+  {{-- Top row: status pipeline (left) + customer/resource/actions tile (right) --}}
   @php
     $maCurrentResource = $availableResources->firstWhere('id', $appointment->resource_id);
     $maInitials = $appointment->customer
@@ -1660,7 +1657,7 @@ input.ma-asset-name-edit:focus {
           <a href="{{ route('tenant.customers.show', $appointment->customer->id) }}"
              class="ma-top-view-link">View →</a>
         </div>
-        {{-- MARKER-PATCH-424 — mobile contact actions (replace the hero-repeat on phones) --}}
+        {{-- mobile contact actions (replace the hero-repeat on phones) --}}
         <div class="ma-mcontact">
           <a href="{{ $appointment->customer->phone ? 'tel:' . preg_replace('/[^0-9+]/', '', $appointment->customer->phone) : '#' }}" class="ma-mcontact-tile {{ $appointment->customer->phone ? '' : 'is-disabled' }}" {{ $appointment->customer->phone ? '' : 'aria-disabled=true' }}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
@@ -1707,7 +1704,6 @@ input.ma-asset-name-edit:focus {
           <button type="button" class="ia-btn ia-btn--secondary ia-btn--sm appt-b-reschedule-btn" style="flex: 1;">↻ Reschedule</button>
           <button type="button" class="ia-btn ia-btn--danger ia-btn--sm ma-cancel-btn" style="flex: 1;">Cancel</button>
         </div>
-        {{-- MARKER-SEND-CONFIRMATION --}}
         <div style="margin-top:8px">
           @include('tenant.appointments._send-confirmation')
         </div>
@@ -1721,7 +1717,7 @@ input.ma-asset-name-edit:focus {
     {{-- LEFT: assets + services --}}
     <main>
 
-      {{-- MARKER-PATCH-414 — assets group wrapper (mobile Items tab target) --}}
+      {{-- assets group wrapper (mobile Items tab target) --}}
       <div class="ma-assets-group">
 
       <div class="ma-section-head">
@@ -1732,7 +1728,7 @@ input.ma-asset-name-edit:focus {
       </div>
       <p class="ma-section-sub">Each asset has its own services and add-ons. Subtotals roll up to the total on the right.</p>
 
-      {{-- MARKER-PATCH-158-F — empty state when no assets attached yet --}}
+      {{-- empty state when no assets attached yet --}}
       @if($appointmentAssets->isEmpty())
         <div class="ma-empty">
           <div class="ma-empty-icon">⊕</div>
@@ -1752,7 +1748,7 @@ input.ma-asset-name-edit:focus {
       @foreach($appointmentAssets as $idx => $aa)
         @php
           $isExistingAsset = $aa->customerAsset !== null && $aa->customer_asset_id;
-          // MARKER-PATCH-460 — per-asset subtotal must include parts. The stored
+          // per-asset subtotal must include parts. The stored
           // appointment_asset.subtotal_cents column is initialised to 0 and never
           // recomputed when parts/services change (recalcAppointmentTotals only
           // maintains the appointment-level total), so it always rendered $0.00.
@@ -1767,7 +1763,7 @@ input.ma-asset-name-edit:focus {
             <span class="ma-asset-num">{{ $idx + 1 }}</span>
             <div>
               <div class="ma-asset-name">
-                {{-- MARKER-PATCH-158-E2 — inline rename --}}
+                {{-- inline rename --}}
                 <input type="text"
                        class="ma-asset-name-edit asset-name-edit"
                        data-aa-id="{{ $aa->id }}"
@@ -1791,7 +1787,7 @@ input.ma-asset-name-edit:focus {
               <div class="ma-asset-subtotal-label">Subtotal</div>
               <div>${{ number_format($aaSubtotalCents / 100, 2) }}</div>
             </div>
-            {{-- MARKER-PATCH-158-E1 — detach button --}}
+            {{-- detach button --}}
             <button type="button" class="ma-asset-detach"
                     onclick="maDetachAsset('{{ $aa->id }}', '{{ addslashes($aa->asset_name_snapshot) }}')"
                     title="Remove this asset (services stay on appointment)">
@@ -1801,7 +1797,7 @@ input.ma-asset-name-edit:focus {
 
           <div class="ma-asset-services">
             @forelse($aa->items as $item)
-              {{-- MARKER-PATCH-158-E2 — inline edits + remove --}}
+              {{-- inline edits + remove --}}
               <div class="ma-service-row line-row" data-kind="service" data-item-id="{{ $item->id }}">
                 <div>
                   <div class="ma-service-name">{{ $item->item_name_snapshot }}</div>
@@ -1862,8 +1858,8 @@ input.ma-asset-name-edit:focus {
             </button>
           </div>
 
-          {{-- MARKER-PATCH-158-G4 — Parts section per asset (collapsible) --}}
-          {{-- MARKER-PARTS-EMPTY — empty parts blocks open with no count chip --}}
+          {{-- Parts section per asset (collapsible) --}}
+          {{-- empty parts blocks open with no count chip --}}
           <details class="ma-asset-parts" data-aa-id="{{ $aa->id }}" open>
             <summary class="ma-asset-parts-head">
               <span class="ma-asset-parts-title">Parts &amp; products</span>
@@ -1914,7 +1910,7 @@ input.ma-asset-name-edit:focus {
                             </div>
                           @endif
                           @if($part->inventory_item_id)
-                            {{-- MARKER-PATCH-419 — per-line "add to special orders" --}}
+                            {{-- per-line "add to special orders" --}}
                             <label class="ma-part-so">
                               <input type="checkbox" class="ma-part-so-toggle" data-part-id="{{ $part->id }}" {{ $part->is_special_order ? 'checked' : '' }}>
                               <span>Special order</span>
@@ -1939,7 +1935,6 @@ input.ma-asset-name-edit:focus {
                   </tbody>
                 </table>
               @else
-                {{-- MARKER-PARTS-EMPTY --}}
                 <div class="ma-parts-blank">
                   <div class="ma-parts-blank-txt">
                     <b>No parts on this {{ tenant()->asset_label_singular ?: 'item' }} yet</b>
@@ -1991,7 +1986,7 @@ input.ma-asset-name-edit:focus {
             </div>
           </details>
 
-          {{-- MARKER-PATCH-158-G5 — Work order details section per asset (collapsible).
+          {{-- Work order details section per asset (collapsible).
                Renders only when the tenant has work-order fields configured.
                Responses are keyed by (appointment_id, field_id, appointment_asset_id). --}}
           @if($appointment->workOrderFields && $appointment->workOrderFields->isNotEmpty())
@@ -2001,7 +1996,7 @@ input.ma-asset-name-edit:focus {
               $aaIdentifierValue  = $aaIdentifierField ? ($aaResponses[$aaIdentifierField->id]->response_value ?? null) : null;
               $aaNonIdentifier    = $appointment->workOrderFields->filter(fn($f) => !$f->is_identifier);
               $aaFilledCount      = $appointment->workOrderFields->filter(fn($f) => !empty($aaResponses[$f->id]->response_value ?? null))->count();
-              // MARKER-PARTS-EMPTY — prose instead of "0/4"
+              // prose instead of "0/4"
               $aaWoTotal          = $appointment->workOrderFields->count();
               $aaWoLabel          = $aaFilledCount === 0
                                       ? $aaWoTotal . ($aaWoTotal === 1 ? ' field, none filled' : ' fields, none filled')
@@ -2098,7 +2093,7 @@ input.ma-asset-name-edit:focus {
           $looseCount = $looseItems->count() + $looseAddons->count();
           $hasAssets = $appointmentAssets->isNotEmpty();
         @endphp
-        {{-- MARKER-PATCH-470 — assign-later holding state --}}
+        {{-- assign-later holding state --}}
         <div class="ma-loose-card ma-loose-card--needs">
           <div class="ma-loose-title ma-loose-title--row">
             <span>Unassigned <span class="ma-loose-count">{{ $looseCount }}</span></span>
@@ -2160,19 +2155,19 @@ input.ma-asset-name-edit:focus {
         </div>
       @endif
 
-      {{-- MARKER-PATCH-472 — service-first add (primary path, always available) --}}
+      {{-- service-first add (primary path, always available) --}}
       <button type="button" class="ma-add-asset-btn" onclick="maOpenAddServiceFirst()" style="border-color:var(--ia-accent,#BEF264);color:var(--ia-accent,#BEF264);margin-bottom:8px;">
         + Add a service
       </button>
 
-      {{-- MARKER-PATCH-158-E1 — real Attach asset button (only when assets already exist; empty state has its own) --}}
+      {{-- real Attach asset button (only when assets already exist; empty state has its own) --}}
       @if($appointmentAssets->isNotEmpty())
         <button type="button" class="ma-add-asset-btn" onclick="maOpenAttachAssetModal()">
           + Attach asset to this appointment
         </button>
       @endif
 
-      {{-- MARKER-PATCH-158-E3 — Additional charges card --}}
+      {{-- Additional charges card --}}
       <div class="ma-charges-card">
         <div class="ma-charges-head">
           <div class="ma-section-title">Additional charges</div>
@@ -2226,7 +2221,7 @@ input.ma-asset-name-edit:focus {
         @endif
       </div>
 
-      {{-- MARKER-PATCH-158-G4 — Unassigned parts (only shown if any parts are unpinned).
+      {{-- Unassigned parts (only shown if any parts are unpinned).
            Parts pinned to an asset live in that asset's collapsible Parts section above. --}}
       @if($looseParts->isNotEmpty())
         <div class="ma-parts-card">
@@ -2277,7 +2272,7 @@ input.ma-asset-name-edit:focus {
                       </div>
                     @endif
                     @if($part->inventory_item_id)
-                      {{-- MARKER-PATCH-419 — per-line "add to special orders" --}}
+                      {{-- per-line "add to special orders" --}}
                       <label class="ma-part-so">
                         <input type="checkbox" class="ma-part-so-toggle" data-part-id="{{ $part->id }}" {{ $part->is_special_order ? 'checked' : '' }}>
                         <span>Special order</span>
@@ -2304,7 +2299,7 @@ input.ma-asset-name-edit:focus {
         </div>
       @endif
 
-      {{-- MARKER-PATCH-158-E6 — Special-order parts --}}
+      {{-- Special-order parts --}}
       @isset($specialOrdersForAppt)
         @php
           $unArrivedSos = $specialOrdersForAppt->whereIn('status', ['needed', 'ordered']);
@@ -2368,11 +2363,11 @@ input.ma-asset-name-edit:focus {
         @include('tenant.special-orders._drawer', ['vendors' => $soVendors ?? collect()])
       @endisset
 
-      {{-- MARKER-PATCH-158-G5 — Bottom work-order card removed; now per-asset inside each asset card --}}
+      {{-- Bottom work-order card removed; now per-asset inside each asset card --}}
 
-      </div>{{-- MARKER-PATCH-414 — /ma-assets-group --}}
+      </div>{{-- /ma-assets-group --}}
 
-      {{-- MARKER-PATCH-158-E5 — Notes card --}}
+      {{-- Notes card --}}
       <div class="ma-notes-card" id="ma-notes-card">
         <div class="ma-charges-head">
           <div class="ma-section-title">Notes</div>
@@ -2408,7 +2403,7 @@ input.ma-asset-name-edit:focus {
                   <span class="ma-note-visibility ma-note-visibility--customer">Customer-visible</span>
                 @endif
                 <span class="ma-note-time">
-                  {{ tlocal($note->created_at, 'M j, g:i a') }}{{-- MARKER-PATCH-532 --}}
+                  {{ tlocal($note->created_at, 'M j, g:i a') }}
                 </span>
                 @if($note->note_type !== 'system')
                   <button type="button" class="ma-note-delete"
@@ -2437,7 +2432,7 @@ input.ma-asset-name-edit:focus {
         $hasOpenSale   = $openSale !== null;
       @endphp
 
-      {{-- MARKER-PATCH-158-G12 — Totals + Payment merged into one card.
+      {{-- Totals + Payment merged into one card.
            Previously two separate cards duplicated Subtotal/Tax/Total and
            used different sources (one recomputed from live items, one from
            snapshot columns), so they could disagree. Now: snapshot is the
@@ -2458,7 +2453,6 @@ input.ma-asset-name-edit:focus {
           <span class="k">Subtotal</span>
           <span class="v">${{ number_format(($appointment->subtotal_cents ?? 0) / 100, 2) }}</span>
         </div>
-        {{-- MARKER-APPT-DISCOUNT-MULTI --}}
         @if((int) ($appointment->discount_cents ?? 0) > 0)
           <div class="ma-rail-row">
             <span class="k">Discount @if($appointment->discount_code)<span style="opacity:.7">· {{ $appointment->discount_code }}</span>@endif</span>
@@ -2476,7 +2470,7 @@ input.ma-asset-name-edit:focus {
           <span class="v">${{ number_format(($appointment->total_cents ?? 0) / 100, 2) }}</span>
         </div>
 
-        {{-- MARKER-APPT-DISCOUNT-MULTI — same controls as the single-asset view. --}}
+        {{-- same controls as the single-asset view. --}}
         @if((int) ($appointment->paid_cents ?? 0) === 0)
           <div style="margin-top:10px;display:flex;gap:8px">
             <button type="button" class="ia-btn ia-btn--ghost ia-btn--sm" onclick="ApptDiscount.open()">
@@ -2578,7 +2572,7 @@ input.ma-asset-name-edit:focus {
         </div>
       </div>
 
-      {{-- MARKER-PATCH-158-G12 — Old separate Payment card removed (merged into Totals above). --}}
+      {{-- Old separate Payment card removed (merged into Totals above). --}}
 
       <div class="ma-rail-card">
         <div class="ma-rail-card-title">Schedule</div>
@@ -2586,9 +2580,7 @@ input.ma-asset-name-edit:focus {
           <span class="lbl">Date</span>
           <span>{{ $appointment->appointment_date->format('D M j, Y') }}</span>
         </div>
-        {{-- MARKER-PATCH-311 --}}
         @include('tenant.appointments._promised_editor')
-        {{-- MARKER-PATCH-514 --}}
         @include('tenant.appointments._route_trip')
         @if($appointment->appointment_time)
           <div class="ma-schedule-row">
@@ -2618,14 +2610,14 @@ input.ma-asset-name-edit:focus {
       @endif
 
 
-      {{-- MARKER-PATCH-158-G3 — Resource card + Action buttons moved to top tile (G3) --}}
+      {{-- Resource card + Action buttons moved to top tile (G3) --}}
 
     </aside>
 
   </div>
 </div>
 
-{{-- ============== MARKER-PATCH-158-E1 — Modals + JS ============== --}}
+{{-- ============== Modals + JS ============== --}}
 
 {{-- Attach asset modal --}}
 <div class="ma-modal-backdrop" id="ma-attach-modal" onclick="if(event.target===this) maCloseModal('ma-attach-modal')">
@@ -2701,7 +2693,7 @@ input.ma-asset-name-edit:focus {
 </div>
 
 {{-- Add service-to-asset modal --}}
-{{-- MARKER-PATCH-470 — assign-loose picker --}}
+{{-- assign-loose picker --}}
 <script>
   window.maApptAssets = @json($appointmentAssets->map(fn ($a) => ['id' => $a->id, 'name' => $a->asset_name_snapshot])->values());
   window.maPickerAssets = @json($pickerAssets->map(fn ($a) => ['id' => $a->id, 'name' => $a->name, 'identifier' => $a->identifier])->values());
@@ -2746,10 +2738,10 @@ input.ma-asset-name-edit:focus {
         </button>
       </div>
 
-      {{-- MARKER-PATCH-467 — live filter of the catalog --}}
+      {{-- live filter of the catalog --}}
       <input type="text" id="ma-svc-search" class="ia-input" placeholder="Search services & add-ons…" autocomplete="off" oninput="maFilterServices()" style="width:100%;margin:0 0 12px;">
 
-      {{-- MARKER-PATCH-469 — category pill rail (filters the services list) --}}
+      {{-- category pill rail (filters the services list) --}}
       <style>
         .ma-cat-rail{display:flex;gap:8px;overflow-x:auto;padding:0 0 12px;margin:0;scrollbar-width:none}
         .ma-cat-rail::-webkit-scrollbar{display:none}
@@ -2824,7 +2816,6 @@ input.ma-asset-name-edit:focus {
 </div>
 
 <script>
-// MARKER-PATCH-158-E1
 (function() {
   const APPT_URL = {!! json_encode(route('tenant.appointments.update', $appointment->id)) !!};
   const CSRF     = {!! json_encode(csrf_token()) !!};
@@ -2901,8 +2892,8 @@ input.ma-asset-name-edit:focus {
   };
 
   // ---------------------- Add service to asset ----------------------
-  // MARKER-PATCH-471 — unified assign picker: appointment assets + customer's saved assets + add-new, one path
-  // MARKER-PATCH-472 — generalized to two modes: 'move' an existing loose line vs 'add' a new service
+  // unified assign picker: appointment assets + customer's saved assets + add-new, one path
+  // generalized to two modes: 'move' an existing loose line vs 'add' a new service
   let maAssignTarget = null;
   let maPickerMode = 'move';
   let maPickerService = null;
@@ -2985,7 +2976,7 @@ input.ma-asset-name-edit:focus {
     document.getElementById('ma-assign-loose-list').style.display = '';
     openModal('ma-assign-loose-modal');
   };
-  // MARKER-PATCH-472 — service-first: pick a service, then choose which asset (or assign later)
+  // service-first: pick a service, then choose which asset (or assign later)
   window.maPickServiceTarget = function(svc) {
     maPickerMode = 'add';
     maPickerService = svc;
@@ -3012,7 +3003,7 @@ input.ma-asset-name-edit:focus {
     });
   })();
 
-  // MARKER-PATCH-472 — service-first entry: pick the service first, then choose the asset
+  // service-first entry: pick the service first, then choose the asset
   window.maOpenAddServiceFirst = function() {
     currentAssetId = null;
     maServiceFirst = true;
@@ -3031,14 +3022,14 @@ input.ma-asset-name-edit:focus {
 
   window.maOpenAddServiceModal = function(appointmentAssetId, assetName) {
     currentAssetId = appointmentAssetId;
-    maServiceFirst = false; // MARKER-PATCH-472 — asset-first add
+    maServiceFirst = false; // asset-first add
     document.getElementById('ma-add-svc-submit').textContent = 'Add';
     document.getElementById('ma-add-svc-title').textContent = 'Add to ' + assetName;
     document.querySelectorAll('input[name="svc_choice"]').forEach(r => r.checked = false);
-    // MARKER-PATCH-467 — reset + focus the catalog search on open
+    // reset + focus the catalog search on open
     const svcSearch = document.getElementById('ma-svc-search');
     if (svcSearch) svcSearch.value = '';
-    const catRail = document.getElementById('ma-cat-rail'); // MARKER-PATCH-469 — reset to All
+    const catRail = document.getElementById('ma-cat-rail'); // reset to All
     if (catRail) { catRail.dataset.active = ''; catRail.querySelectorAll('.ma-cat-pill').forEach((p, i) => p.classList.toggle('on', i === 0)); }
     maFilterServices();
     maSwitchSvcTab('service');
@@ -3053,11 +3044,11 @@ input.ma-asset-name-edit:focus {
     document.querySelectorAll('#ma-add-svc-modal .ma-tab-panel').forEach(p => {
       p.classList.toggle('is-active', p.dataset.panel === tab);
     });
-    const rail = document.getElementById('ma-cat-rail'); // MARKER-PATCH-469
+    const rail = document.getElementById('ma-cat-rail');
     if (rail) rail.style.display = (tab === 'service') ? 'flex' : 'none';
   };
 
-  // MARKER-PATCH-469 — category pill selection
+  // category pill selection
   window.maPickCat = function(btn) {
     const rail = document.getElementById('ma-cat-rail');
     rail.querySelectorAll('.ma-cat-pill').forEach(p => p.classList.toggle('on', p === btn));
@@ -3065,7 +3056,7 @@ input.ma-asset-name-edit:focus {
     maFilterServices();
   };
 
-  // MARKER-PATCH-469 — filter by category (services) + search text (both panels)
+  // filter by category (services) + search text (both panels)
   window.maFilterServices = function() {
     const box = document.getElementById('ma-svc-search');
     const q = (box ? box.value : '').trim().toLowerCase();
@@ -3104,7 +3095,7 @@ input.ma-asset-name-edit:focus {
     if (!sel) { alert('Pick a service or add-on first.'); return; }
     const [kind, id] = sel.value.split(':');
     if (maServiceFirst) {
-      // MARKER-PATCH-472 — service-first: capture the service, then ask which asset
+      // service-first: capture the service, then ask which asset
       const row = sel.closest('.ma-catalog-row');
       const nameEl = row ? row.querySelector('.ma-catalog-name') : null;
       const name = nameEl ? nameEl.textContent.trim() : (kind === 'addon' ? 'add-on' : 'service');
@@ -3125,16 +3116,16 @@ input.ma-asset-name-edit:focus {
 
   // ---------------------- Detach asset ----------------------
   window.maDetachAsset = async function(appointmentAssetId, assetName) {
-    if (!(await iaConfirm('Detach "' + assetName + '" from this appointment?\n\nServices on this asset will move to "Unassigned services" rather than being deleted.'))) return; // MARKER-INLINE-CONFIRM-1
+    if (!(await iaConfirm('Detach "' + assetName + '" from this appointment?\n\nServices on this asset will move to "Unassigned services" rather than being deleted.'))) return;
     const result = await post({ op: 'detach_asset', appointment_asset_id: appointmentAssetId });
     if (!result.ok) { alert('Detach failed: ' + result.message); return; }
     location.reload();
   };
 
-  // ---------------------- MARKER-PATCH-158-E2 ----------------------
+  // ---------------------- --------------------
 
   // Status pipeline click → transition.
-  // MARKER-PATCH-158-G1 — Forward moves go silently. Backward moves prompt
+  // Forward moves go silently. Backward moves prompt
   // via IntakeConfirm (matches legacy view's behavior). Falls back to native
   // confirm() if IntakeConfirm isn't loaded for some reason.
   (function() {
@@ -3162,7 +3153,7 @@ input.ma-asset-name-edit:focus {
             return;
           }
           if (window.IntakeToast) IntakeToast.success(label);
-          // MARKER-PATCH-527 — completed + P&D: offer to text delivery windows
+          // completed + P&D: offer to text delivery windows
           if (result.data && result.data.propose_delivery && window.IntakeDeliveryPropose
               && IntakeDeliveryPropose.show(result.data.propose_delivery, { updateUrl: APPT_URL, csrf: CSRF })) {
             return; // modal handles the reload
@@ -3180,7 +3171,7 @@ input.ma-asset-name-edit:focus {
             });
             if (ok) go();
           } else {
-            if (await iaConfirm('Move back to ' + label + '?')) go(); // MARKER-INLINE-CONFIRM-2
+            if (await iaConfirm('Move back to ' + label + '?')) go();
           }
         } else {
           go();
@@ -3190,7 +3181,7 @@ input.ma-asset-name-edit:focus {
   })();
 
   // Reopen button (terminal state)
-  // MARKER-PATCH-158-G1 — Use IntakeConfirm to match legacy
+  // Use IntakeConfirm to match legacy
   const reopenBtn = document.getElementById('ma-reopen-btn');
   if (reopenBtn) {
     reopenBtn.addEventListener('click', async function() {
@@ -3203,7 +3194,7 @@ input.ma-asset-name-edit:focus {
           cancelText:  'Keep closed',
         });
       } else {
-        proceed = await iaConfirm('Reopen this appointment? Status will return to pending.'); // MARKER-INLINE-CONFIRM-1
+        proceed = await iaConfirm('Reopen this appointment? Status will return to pending.');
       }
       if (!proceed) return;
       const result = await post({ op: 'status', status: 'pending' });
@@ -3257,7 +3248,7 @@ input.ma-asset-name-edit:focus {
       if (!row) return;
       const kind = row.dataset.kind;
       const id   = row.dataset.itemId;
-      if (!(await iaConfirm('Remove this ' + (kind === 'addon' ? 'add-on' : 'service') + '?'))) return; // MARKER-INLINE-CONFIRM-1
+      if (!(await iaConfirm('Remove this ' + (kind === 'addon' ? 'add-on' : 'service') + '?'))) return;
       const result = await post({
         op: kind === 'addon' ? 'remove_addon' : 'remove_service',
         [kind === 'addon' ? 'addon_id' : 'item_id']: id,
@@ -3300,7 +3291,7 @@ input.ma-asset-name-edit:focus {
     });
   });
 
-  // ---------------------- MARKER-PATCH-158-E3 ----------------------
+  // ---------------------- --------------------
 
   // Add-charge form toggle
   (function() {
@@ -3371,7 +3362,7 @@ input.ma-asset-name-edit:focus {
     });
   })();
 
-  // ---------------------- MARKER-PATCH-158-E4 — Inventory parts ----------------------
+  // ---------------------- Inventory parts ----------------------
 
   // Part quantity inline edit
   document.querySelectorAll('.ma-part-qty-edit').forEach(function(input) {
@@ -3393,7 +3384,7 @@ input.ma-asset-name-edit:focus {
         else alert('Could not update quantity: ' + result.message);
         return;
       }
-      // MARKER-PATCH-158-G12 — Reload so the Totals card recomputes from the
+      // Reload so the Totals card recomputes from the
       // updated snapshot. Inline line-total update alone left the rail stale.
       if (window.IntakeToast) IntakeToast.success('Quantity updated');
       setTimeout(function() { location.reload(); }, 400);
@@ -3407,7 +3398,7 @@ input.ma-asset-name-edit:focus {
   // Part remove button
   document.querySelectorAll('.ma-part-remove').forEach(function(btn) {
     btn.addEventListener('click', async function() {
-      if (!(await iaConfirm('Remove this part from the appointment?'))) return; // MARKER-INLINE-CONFIRM-1
+      if (!(await iaConfirm('Remove this part from the appointment?'))) return;
       const partId = btn.dataset.partId;
       const result = await post({ op: 'remove_part', part_id: partId });
       if (!result.ok) {
@@ -3419,7 +3410,7 @@ input.ma-asset-name-edit:focus {
     });
   });
 
-  // MARKER-PATCH-419 — per-line "add to special orders" toggle
+  // per-line "add to special orders" toggle
   document.querySelectorAll('.ma-part-so-toggle').forEach(function(box) {
     box.addEventListener('change', async function() {
       const partId = box.dataset.partId;
@@ -3466,7 +3457,7 @@ input.ma-asset-name-edit:focus {
         html = '<div class="ma-part-picker-empty">No matching items.</div>';
       } else {
         items.forEach(function(it) {
-          // MARKER-ITEM-MODAL-SHARED — "i" opens the shared item modal.
+          // "i" opens the shared item modal.
           html += '<div class="ma-part-picker-result" data-id="' + it.id + '">' +
                   '  <div style="display:flex;align-items:center;gap:8px">' +
                   '    <div style="flex:1;min-width:0">' +
@@ -3486,7 +3477,7 @@ input.ma-asset-name-edit:focus {
       results.innerHTML = html;
       results.style.display = 'block';
 
-      // MARKER-ITEM-MODAL-SHARED — stopPropagation matters: the button sits
+      // stopPropagation matters: the button sits
       // inside the row, and the row's own click is what adds the part.
       results.querySelectorAll('.item-info-btn').forEach(function(btn) {
         btn.addEventListener('click', function(ev) {
@@ -3588,7 +3579,7 @@ input.ma-asset-name-edit:focus {
     });
   })();
 
-  // ---------------------- MARKER-PATCH-158-G4 — Per-asset part pickers ----------------------
+  // ---------------------- Per-asset part pickers ----------------------
   //
   // Same UI/UX as the loose picker above, but scoped to each asset card via
   // data-aa-id. Each asset gets its own input + results dropdown + custom-item
@@ -3629,7 +3620,7 @@ input.ma-asset-name-edit:focus {
           html = '<div class="ma-part-picker-empty">No matching items.</div>';
         } else {
           items.forEach(function(it) {
-            // MARKER-ITEM-MODAL-SHARED — "i" opens the shared item modal.
+            // "i" opens the shared item modal.
             html += '<div class="ma-part-picker-result" data-id="' + it.id + '">' +
                     '  <div style="display:flex;align-items:center;gap:8px">' +
                     '    <div style="flex:1;min-width:0">' +
@@ -3649,7 +3640,6 @@ input.ma-asset-name-edit:focus {
         results.innerHTML = html;
         results.hidden = false;
 
-        // MARKER-ITEM-MODAL-SHARED
         results.querySelectorAll('.item-info-btn').forEach(function(btn) {
           btn.addEventListener('click', function(ev) {
             ev.stopPropagation();
@@ -3670,7 +3660,7 @@ input.ma-asset-name-edit:focus {
               op: 'add_part',
               inventory_item_id: id,
               quantity: 1,
-              appointment_asset_id: aaId, // MARKER-PATCH-158-G4
+              appointment_asset_id: aaId,
             });
             if (!result.ok) {
               if (window.IntakeToast) IntakeToast.error('Could not add: ' + result.message);
@@ -3735,7 +3725,7 @@ input.ma-asset-name-edit:focus {
           name: name,
           unit_price_cents: Math.round(price * 100),
           quantity: qty,
-          appointment_asset_id: aaId, // MARKER-PATCH-158-G4
+          appointment_asset_id: aaId,
         });
         saveBtn.disabled = false;
         if (!result.ok) {
@@ -3748,7 +3738,7 @@ input.ma-asset-name-edit:focus {
     });
   })();
 
-  // ---------------------- MARKER-PATCH-158-G5 — Per-asset work order forms ----------------------
+  // ---------------------- Per-asset work order forms ----------------------
   //
   // Each asset card has its own work-order details section. The display/edit
   // toggle and save submission are scoped to that asset via data-aa-id. The
@@ -3817,7 +3807,7 @@ input.ma-asset-name-edit:focus {
     });
   })();
 
-  // ---------------------- MARKER-PATCH-158-E5 — Notes + Work order ----------------------
+  // ---------------------- Notes + Work order ----------------------
 
   // Work order: Edit / display toggle
   (function() {
@@ -3894,7 +3884,7 @@ input.ma-asset-name-edit:focus {
   // Notes: delete
   document.querySelectorAll('.ma-note-delete').forEach(function(btn) {
     btn.addEventListener('click', async function() {
-      if (!(await iaConfirm('Delete this note?'))) return; // MARKER-INLINE-CONFIRM-1
+      if (!(await iaConfirm('Delete this note?'))) return;
       const noteId = btn.dataset.noteId;
       const result = await post({ op: 'delete_note', note_id: noteId });
       if (!result.ok) {
@@ -3917,15 +3907,15 @@ input.ma-asset-name-edit:focus {
 })();
 </script>
 
-{{-- MARKER-PATCH-158-G2 — Shared reschedule modal partial (markup + JS) --}}
+{{-- Shared reschedule modal partial (markup + JS) --}}
 @include('tenant.appointments._reschedule_modal')
-@include('tenant.appointments._delivery_propose_modal'){{-- MARKER-PATCH-527 --}}
+@include('tenant.appointments._delivery_propose_modal')
 
-{{-- MARKER-PATCH-158-G2 — Resource picker save handler (shared with legacy view) --}}
+{{-- Resource picker save handler (shared with legacy view) --}}
 @push('scripts')
 <script src="{{ asset('js/tenant/appointment-resource.js') }}?v={{ filemtime(public_path('js/tenant/appointment-resource.js')) }}" defer></script>
 <script>
-// MARKER-PATCH-158-G2 — Cancel-appointment handler (mirrors legacy)
+// Cancel-appointment handler (mirrors legacy)
 (function() {
   const cancelBtn = document.querySelector('.ma-cancel-btn');
   if (!cancelBtn) return;
@@ -3938,7 +3928,7 @@ input.ma-asset-name-edit:focus {
           cancelText:  'Keep it',
           danger:      true,
         })
-      : await iaConfirm('Cancel this appointment?'); // MARKER-INLINE-CONFIRM-1
+      : await iaConfirm('Cancel this appointment?');
     if (!proceed) return;
     const fd = new FormData();
     fd.append('_token', {!! json_encode(csrf_token()) !!});
@@ -3963,11 +3953,10 @@ input.ma-asset-name-edit:focus {
 </script>
 @endpush
 
-{{-- MARKER-ITEM-MODAL-SHARED --}}
 @include('tenant._item-detail-modal')
 
 
-{{-- MARKER-APPT-DISCOUNT-MULTI — in-app dialog, no browser prompts --}}
+{{-- in-app dialog, no browser prompts --}}
 @if((int) ($appointment->paid_cents ?? 0) === 0)
 <div id="appt-disc-backdrop" style="position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:220;display:none;align-items:center;justify-content:center;padding:20px"
      onclick="if(event.target===this)ApptDiscount.close()">

@@ -1,5 +1,5 @@
 /*
- * MARKER-LIVE-IDENTIFY — the moment someone tabs out of SKU, barcode, EAN or
+ * the moment someone tabs out of SKU, barcode, EAN or
  * part number on the Add or Edit item form, ask whether that product is
  * already in inventory, and say so right under the field.
  *

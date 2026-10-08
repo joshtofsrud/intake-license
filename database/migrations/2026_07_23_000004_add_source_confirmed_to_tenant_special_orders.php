@@ -1,6 +1,6 @@
 <?php
 
-// MARKER-SO-ORIGIN — "still needed" is a decision, so it has to persist.
+// "still needed" is a decision, so it has to persist.
 // Without it the queue would re-flag the same orphaned order every time
 // someone looked at it.
 

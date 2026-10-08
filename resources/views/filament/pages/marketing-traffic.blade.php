@@ -1,6 +1,5 @@
-{{-- MARKER-MKTTRAFFIC --}}
 <x-filament-panels::page>
-{{-- MARKER-MKTCONV — tabs instead of one growing column. Panels are the
+{{-- tabs instead of one growing column. Panels are the
      existing blocks, wrapped; Conversions is new. Plain JS, no Livewire round
      trip, so switching tabs never refetches. --}}
 <style>
@@ -24,7 +23,7 @@
 
 <style>
 .mt-bar{display:flex;gap:6px;margin-bottom:18px}
-/* MARKER-TRAFFIC-POLISH — the pill centers its own label rather than relying
+/* the pill centers its own label rather than relying
    on the row's alignment, which left the text sitting low. */
 .mt-bar a{height:100%;display:inline-flex;align-items:center;justify-content:center;
   padding:0 14px;border-radius:99px;font-size:12.5px;text-decoration:none;
@@ -35,7 +34,6 @@
 .mt-tile-k{font-size:11px;opacity:.55}
 .mt-tile-v{font-size:24px;font-weight:700;margin-top:2px}
 .mt-tile-d{font-size:11.5px;margin-top:2px;opacity:.6}
-/* MARKER-TRAFFIC-V3 */
 .mt-range{display:inline-flex;align-items:center;gap:6px;border:1px solid rgba(127,127,127,.3);border-radius:999px;padding:4px 10px;margin-left:6px}
 .mt-range input{background:none;border:0;color:inherit;font:inherit;font-size:12.5px;width:120px}
 .mt-range input::-webkit-calendar-picker-indicator{filter:invert(.6);cursor:pointer}
@@ -46,12 +44,11 @@
 @media(max-width:900px){.mt-two-up{grid-template-columns:1fr}}
 .mt-card{border:1px solid rgba(127,127,127,.22);border-radius:12px;padding:14px 16px}
 .mt-bar-row{position:relative;display:flex;align-items:center;gap:10px;padding:7px 8px;font-size:13px}
-/* MARKER-TRAFFIC-V3-FIX — .mt-bar is the PRESETS toolbar; reusing the name
+/* .mt-bar is the PRESETS toolbar; reusing the name
    here as an absolutely-positioned fill pulled that toolbar out of flow. */
 .mt-fill{position:absolute;left:0;top:2px;bottom:2px;background:rgba(139,124,246,.16);border-radius:6px}
 .mt-bar-label{position:relative;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .mt-bar-n{position:relative;margin-left:auto;opacity:.6;font-variant-numeric:tabular-nums}
-/* MARKER-TRAFFIC-V2 */
 .mt-note{border-radius:10px;padding:11px 14px;font-size:12.5px;line-height:1.55;margin-bottom:14px}
 .mt-note--warn{background:rgba(240,196,106,.08);border:1px solid rgba(240,196,106,.3)}
 .mt-headline{display:grid;grid-template-columns:210px 1fr;border:1px solid rgba(127,127,127,.22);border-radius:12px;overflow:hidden}
@@ -66,7 +63,6 @@
 .mt-metric .d.up{color:#7FD98F;opacity:1}.mt-metric .d.down{color:#F08A8A;opacity:1}
 .mt-chartwrap{padding:14px 16px 8px}
 .mt-axis{display:flex;justify-content:space-between;font-size:11px;opacity:.45;margin-top:4px}
-/* MARKER-FUNNEL-TILES */
 .mt-tiles{display:flex;align-items:stretch;gap:0;flex-wrap:wrap}
 .mt-tile{flex:1 1 0;min-width:104px;padding:14px 12px;border-radius:12px;
   background:rgba(139,124,246,.10);border:1px solid rgba(139,124,246,.22);text-align:center}
@@ -101,7 +97,7 @@
 .mt-empty{padding:18px;text-align:center;font-size:12.5px;opacity:.4}
 </style>
 
-{{-- MARKER-MKTDONE — LEGEND. Two different things produce a page of zeroes:
+{{-- LEGEND. Two different things produce a page of zeroes:
      a quiet week, and a tracker that has stopped reporting. Those looked
      identical here for weeks. This says which. --}}
 <div class="mt-note {{ $health['stale'] ? 'mt-note--warn' : '' }}" style="margin-bottom:14px">
@@ -122,11 +118,10 @@
 </div>
 
 <div class="mt-bar">
-  {{-- MARKER-MKTSID --}}
   @foreach(['1d' => 'Today', '7d' => 'Last 7 days', '30d' => 'Last 30 days', '90d' => 'Last 90 days'] as $wKey => $wLabel)
     <a href="?window={{ $wKey }}" class="{{ $window === $wKey ? 'on' : '' }}">{{ $wLabel }}</a>
   @endforeach
-  {{-- MARKER-TRAFFIC-V3 — a real range. TrafficReportService always accepted
+  {{-- a real range. TrafficReportService always accepted
        from/to; only the page never offered it. --}}
   <form method="GET" class="mt-range">
     <input type="hidden" name="window" value="{{ $window }}">
@@ -146,10 +141,10 @@
   <span style="margin-left:auto;font-size:12px;opacity:.45;align-self:center">{{ $rangeLabel }}</span>
 </div>
 
-{{-- MARKER-INVEST-SHARE — Overview carries the tiles, the funnel and the
+{{-- Overview carries the tiles, the funnel and the
      chart; Pages & sources keeps the tables. --}}
 <div class="mkt-panel" data-mkt-panel="overview">
-{{-- MARKER-TRAFFIC-V2 — the tiles pick which metric the chart draws, so one
+{{-- the tiles pick which metric the chart draws, so one
      large chart answers four questions instead of four tiles answering none. --}}
 @if($identityCutover)
   <div class="mt-note mt-note--warn">
@@ -197,7 +192,7 @@
           <polyline fill="none" stroke="rgba(127,127,127,.45)" stroke-width="1.5" stroke-dasharray="3 3"
                     points="{{ $line($series['previous']) }}"/>
         @endif
-        {{-- MARKER-TRAFFIC-V3 — the fill is what makes a sparse line read as a
+        {{-- the fill is what makes a sparse line read as a
              quantity rather than a squiggle. --}}
         <defs>
           <linearGradient id="mtfill" x1="0" y1="0" x2="0" y2="1">
@@ -210,7 +205,7 @@
                   points="{{ $line($series['current']) }}"/>
       </svg>
       <div class="mt-axis">
-        {{-- MARKER-TRAFFIC-V3 — real dates, not "start of window" --}}
+        {{-- real dates, not "start of window" --}}
         @php $lbl = $series['labels'] ?? []; @endphp
         <span>{{ $lbl[0] ?? '' }}</span>
         @if(count($lbl) > 3)<span>{{ $lbl[intdiv(count($lbl), 3)] }}</span>@endif
@@ -231,7 +226,7 @@
   $steps = collect($stages ?? [])->values();
 @endphp
 @if($steps->count())
-  {{-- MARKER-FUNNEL-TILES — equal tiles. At 39 → 1 → 0 the widths of a
+  {{-- equal tiles. At 39 → 1 → 0 the widths of a
        proportional bar say nothing, and a floor under them says less. The
        count is the message; the gap carries the fall-off. --}}
   <div class="mt-tiles">
@@ -271,7 +266,7 @@
   <p class="mt-empty">No browsing activity in this window.</p>
 @endif
 
-{{-- MARKER-MKTDONE — OUTCOMES, counted independently. These used to sit on the
+{{-- OUTCOMES, counted independently. These used to sit on the
      cumulative line above, which meant a visitor who arrived straight at
      /contact and wrote to you was never counted as having got in touch. None of
      these depends on any of the others, so none of them gates another. --}}
@@ -293,7 +288,7 @@
   They do not add up to the funnel above and are not meant to.
 </p>
 
-{{-- MARKER-MKTREPAIR — this whole region was mis-nested. The Pages panel
+{{-- this whole region was mis-nested. The Pages panel
      opened INSIDE the Overview panel, so hiding Overview hid it too and the
      tab rendered blank; the industry list sat loose in Overview's grid with
      no heading; and its @forelse reused $sessions as the loop variable,
@@ -307,7 +302,7 @@
     @forelse($sources as $src)
       <div class="mt-bar-row">
         <span class="mt-fill" style="width:{{ max(6, round((($src['visits'] ?? 0) / $srcMax) * 100)) }}%"></span>
-        {{-- MARKER-TRAFFIC-V3-FIX — topSources() emits 'name'; reading 'source'
+        {{-- topSources() emits 'name'; reading 'source'
              made every row read "unknown". --}}
         <span class="mt-bar-label">{{ $src['name'] ?: '(direct)' }}</span>
         <span class="mt-bar-n">{{ number_format($src['visits'] ?? 0) }}</span>
@@ -334,7 +329,7 @@
 </div>{{-- /overview panel --}}
 
 <div class="mkt-panel" data-mkt-panel="intent" hidden>
-  {{-- MARKER-MKTDONE — Overview carries the top six of each; this is the whole
+  {{-- Overview carries the top six of each; this is the whole
        list, plus the device split, which the service has always computed and
        no surface has ever shown. --}}
   <div class="mt-two-up">
@@ -388,7 +383,7 @@
 
     <div class="mt-card">
       <div class="mt-sec" style="margin-top:0">Industry pages</div>
-      {{-- MARKER-MKTREPAIR — $industrySessions, NOT $sessions. --}}
+      {{-- $industrySessions, NOT $sessions. --}}
       @forelse($intent['industry_pages'] as $path => $industrySessions)
         <div class="mt-row"><span>{{ $path }}</span><b>{{ number_format($industrySessions) }}</b></div>
       @empty
@@ -476,7 +471,7 @@
 </div>
 
 <script>
-  // MARKER-MKTSESSTYLE — same filter behavior as the tenant explorer.
+  // same filter behavior as the tenant explorer.
   (function () {
     var wrap = document.getElementById('mktSessFilters');
     if (!wrap) { return; }
@@ -486,7 +481,7 @@
       wrap.querySelectorAll('.rse-chip').forEach(function (c) { c.classList.remove('on'); });
       chip.classList.add('on');
       var f = chip.getAttribute('data-f');
-      // MARKER-MKTDONE — remembered, so a re-render doesn't silently reset it.
+      // remembered, so a re-render doesn't silently reset it.
       try { sessionStorage.setItem('intake_mkt_sess_filter', f); } catch (e) {}
       document.querySelectorAll('.rse-row').forEach(function (r) {
         r.style.display = (f === 'all' || r.getAttribute('data-status') === f) ? 'flex' : 'none';
@@ -498,7 +493,7 @@
 @endif
 </div>
 
-{{-- MARKER-MKTCONV — the two conversions that matter, plus click intent --}}
+{{-- the two conversions that matter, plus click intent --}}
 <div class="mkt-panel" data-mkt-panel="conversions" hidden>
     @php $cv = $this->conversions(); @endphp
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px">
@@ -550,7 +545,7 @@
 </div>
 
 <script>
-// MARKER-MKTDONE — the tab and the session filter survive a Livewire re-render.
+// the tab and the session filter survive a Livewire re-render.
 // Clicking a metric tile or the compare box re-renders this component, which
 // re-ran show('overview') and threw you back to the first tab every time, and
 // reset the session chips with it. The tab is in the URL hash so a reload and a

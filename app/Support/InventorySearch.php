@@ -1,5 +1,4 @@
 <?php
-// MARKER-INV-SEARCH · MARKER-SEARCH-TEXT
 
 namespace App\Support;
 
@@ -27,7 +26,7 @@ use Illuminate\Database\Eloquent\Builder;
  *    nearest real word, then the search runs again. The caller says which
  *    words were used, so the screen can show "Showing results for …".
  *
- * Speed (MARKER-SEARCH-TEXT): each item carries search_text — every field
+ * Speed: each item carries search_text — every field
  * above in one lowercase string, rebuilt nightly by inventory:search-text and
  * cleared whenever the item is saved. A word is one LIKE on that column.
  * Items whose search_text is empty (just saved, just imported) fall back to
@@ -62,7 +61,7 @@ final class InventorySearch
             return ['used' => $raw, 'corrected' => null, 'missing' => []];
         }
 
-        // MARKER-SEARCH-MISSING — nothing matched every word. Find the words
+        // nothing matched every word. Find the words
         // that match nothing on their own: only those get spell-corrected
         // (correcting a word that already matches, like "rock" in "rock shox
         // metrci", swapped it for something else and lost the search), and
@@ -111,7 +110,7 @@ final class InventorySearch
     /**
      * Best match first. Call after apply(), before any other orderBy.
      *
-     * MARKER-SEARCH-ONE-PASS — the sort key is computed for EVERY matching
+     * the sort key is computed for EVERY matching
      * row before the limit applies, so it must be cheap: plain column
      * compares and LIKEs on the stored text. The old key ran two EXISTS
      * subqueries per matching row; "mi" matches thousands of rows while
@@ -237,7 +236,7 @@ final class InventorySearch
                 $codes = self::codes($w);
 
                 $all->where(function ($one) use ($t, $like, $codes, $vendorSkus) {
-                    // MARKER-SEARCH-TEXT — one LIKE on the stored text; the
+                    // one LIKE on the stored text; the
                     // field-by-field check only for items not indexed yet.
                     $one->where("{$t}.search_text", 'like', $like)
                         ->orWhere(function ($stale) use ($t, $like, $vendorSkus) {

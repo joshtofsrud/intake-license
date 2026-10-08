@@ -1,5 +1,5 @@
 <?php
-// MARKER-PATCH-635 — cached Stripe payout with charge breakdown.
+// cached Stripe payout with charge breakdown.
 
 namespace App\Models\Tenant;
 

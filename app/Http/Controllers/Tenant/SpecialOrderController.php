@@ -31,7 +31,7 @@ class SpecialOrderController extends Controller
      * a different scope chain on the underlying TenantSpecialOrder
      * query — counts are cheap to compute alongside.
      */
-    /** MARKER-SO-ORPHANS — how long orphans are kept before the sweep. */
+    /** how long orphans are kept before the sweep. */
     public function saveCleanup(Request $request)
     {
         $tenant = tenant();
@@ -44,7 +44,7 @@ class SpecialOrderController extends Controller
     }
 
     /**
-     * MARKER-SO-ORPHANS — clear them now, rather than waiting for the sweep.
+     * clear them now, rather than waiting for the sweep.
      *
      * CANCELS, does not delete. One that reached a vendor may have money
      * against it, and its history is the only record of that. Cancelled is
@@ -121,7 +121,7 @@ class SpecialOrderController extends Controller
                 break;
         }
 
-        // MARKER-SO-SCROLL — the open view is one scrollable list, not pages:
+        // the open view is one scrollable list, not pages:
         // the footer total ("13 open across 3 vendors") is only ever true when
         // the whole set is on screen. Capped so a pathological backlog cannot
         // render forever; the cap is surfaced in the footer when hit.
@@ -146,7 +146,7 @@ class SpecialOrderController extends Controller
             ->orderBy('name')
             ->get(['id', 'name']);
 
-        // MARKER-SO-SCROLL — grouping is not a mode. Open orders are grouped by
+        // grouping is not a mode. Open orders are grouped by
         // vendor because that is how they get placed; the other tabs stay flat,
         // since vendor grouping means nothing once an order has been placed.
         $vendorData = ['groups' => [], 'vendors' => collect(), 'options' => [], 'checkedAt' => null];
@@ -155,12 +155,12 @@ class SpecialOrderController extends Controller
             $vendorData = $this->vendorGroups($tenant, $needed);
         }
 
-        // MARKER-SO-ORIGIN — for each listed order: where did it come from,
+        // for each listed order: where did it come from,
         // and does that source still exist? Two lookups, no N+1.
         $origins = [];
         if ($sos->isNotEmpty()) {
             $saleIds = $sos->pluck('sale_id')->filter()->unique();
-            // MARKER-SO-HELD — a draft has no sale_number until it is paid, and
+            // a draft has no sale_number until it is paid, and
             // isset() on a null value is false, so a HELD sale read as deleted
             // and its order sat under No longer needed waiting for the sweep to
             // cancel it. Key by id, label by number, and test presence with
@@ -172,7 +172,7 @@ class SpecialOrderController extends Controller
                     ? ('Sale ' . $sale->sale_number)
                     : ($sale->payment_status === 'draft' ? 'Held sale' : 'Sale (unnumbered)')]);
 
-            // MARKER-SO-LINEGONE — a live sale does not mean the request is
+            // a live sale does not mean the request is
             // live: the LINE that asked for it may have been removed while the
             // draft survived. sale_item_id is not populated on older rows, so
             // match on the inventory item still being present on that sale.
@@ -190,7 +190,7 @@ class SpecialOrderController extends Controller
             $liveAppts = $apptIds->isEmpty() ? collect() : \App\Models\Tenant\TenantAppointment::where('tenant_id', $tenant->id)
                 ->whereIn('id', $apptIds)->pluck('ra_number', 'id');
 
-            // MARKER-SO-PARTGONE — same trap as a live sale with a dead line:
+            // same trap as a live sale with a dead line:
             // the work order survives while the PART that requested the order
             // is removed. Parts carry special_order_id, so this is exact.
             $partAlive = [];
@@ -202,7 +202,7 @@ class SpecialOrderController extends Controller
                     ->all();
             }
 
-            // MARKER-SO-ORPHANS — collected as we resolve origins, so the
+            // collected as we resolve origins, so the
             // board can show them apart from work that still needs a decision.
             $orphanIds = [];
 
@@ -211,16 +211,14 @@ class SpecialOrderController extends Controller
                     if (! isset($liveAppts[$so->appointment_id])) {
                         $origins[$so->id] = ['state' => 'orphan', 'label' => 'Work order deleted'];
                     } elseif (! isset($partAlive[$so->id])) {
-                        // MARKER-SO-PARTGONE
                         $origins[$so->id] = ['state' => 'orphan', 'label' => 'Part removed from work order'];
                     } else {
                         $origins[$so->id] = ['state' => 'live', 'label' => $liveAppts[$so->appointment_id]];
                     }
                 } elseif ($so->sale_id) {
-                    if (! $liveSales->has($so->sale_id)) { // MARKER-SO-HELD — has(), not isset()
+                    if (! $liveSales->has($so->sale_id)) { // has(), not isset()
                         $origins[$so->id] = ['state' => 'orphan', 'label' => 'Sale removed'];
                     } elseif ($so->inventory_item_id && empty($hasLine[$so->sale_id][$so->inventory_item_id])) {
-                        // MARKER-SO-LINEGONE
                         $origins[$so->id] = ['state' => 'orphan', 'label' => 'Line removed from sale'];
                     } else {
                         $origins[$so->id] = ['state' => 'live', 'label' => $liveSales[$so->sale_id]];
@@ -228,10 +226,10 @@ class SpecialOrderController extends Controller
                 }
 
                 if (($origins[$so->id]['state'] ?? null) === 'orphan') {
-                    $orphanIds[] = $so->id; // MARKER-SO-ORPHANS
+                    $orphanIds[] = $so->id;
                 }
 
-                // MARKER-SO-HELD — this used to run for EVERY order and overwrite
+                // this used to run for EVERY order and overwrite
                 // the live/orphan result above, so a register order linked to a
                 // perfectly good sale still wore "Origin not recorded". Only an
                 // order with no sale and no appointment has nothing to say.
@@ -252,17 +250,16 @@ class SpecialOrderController extends Controller
         }
 
         return view('tenant.special-orders.index', [
-            // MARKER-SO-ORPHANS
             'orphanIds'     => $orphanIds ?? [],
             'cleanupDays'   => \App\Support\SpecialOrderCleanup::days($tenant),
             'cleanupLabel'  => \App\Support\SpecialOrderCleanup::describe($tenant),
-            'origins'    => $origins, // MARKER-SO-ORIGIN
-            'grouped'    => $grouped,                  // MARKER-SO-SCROLL
-            'scrollCap'  => $scrollCap,                // MARKER-SO-SCROLL
-            'vgroups'    => $vendorData['groups'],     // MARKER-SO-ONESCREEN
-            'vvendors'   => $vendorData['vendors'],    // MARKER-SO-ONESCREEN
-            'voptions'   => $vendorData['options'],    // MARKER-SO-ONESCREEN
-            'vcheckedAt' => $vendorData['checkedAt'],  // MARKER-SO-ONESCREEN
+            'origins'    => $origins,
+            'grouped'    => $grouped,
+            'scrollCap'  => $scrollCap,
+            'vgroups'    => $vendorData['groups'],
+            'vvendors'   => $vendorData['vendors'],
+            'voptions'   => $vendorData['options'],
+            'vcheckedAt' => $vendorData['checkedAt'],
             'sos'        => $sos,
             'view'       => $view,
             'counts'     => $counts,
@@ -463,7 +460,7 @@ class SpecialOrderController extends Controller
             ->with('flash', ['type' => 'success', 'message' => 'Marked pulled.']);
     }
 
-    // MARKER-SO-SALE-LINK — returns JSON for the register's inline cleanup,
+    // returns JSON for the register's inline cleanup,
     // and keeps redirecting for the normal admin form post.
     public function cancel(Request $request, string $id): RedirectResponse|\Illuminate\Http\JsonResponse
     {
@@ -494,12 +491,12 @@ class SpecialOrderController extends Controller
     }
 
     /**
-     * MARKER-SO-PLACEMENT — the vendor placement board. Every needed order
+     * the vendor placement board. Every needed order
      * with the vendors that actually carry it, grouped by where it is
      * currently assigned, so a whole day's ordering is one screen.
      */
     /**
-     * MARKER-SO-ONESCREEN — vendor grouping data for the special-orders
+     * vendor grouping data for the special-orders
      * screen. This used to be a separate placement page; it is now a mode of
      * the one list, so there is no second screen to remember.
      *
@@ -530,7 +527,7 @@ class SpecialOrderController extends Controller
                 $options[$p->inventory_item_id][] = [
                     'vendor_id' => $p->vendor_id,
                     'name'      => $vendors[$p->vendor_id]->name,
-                    // MARKER-SO-COPY-EXPORT — THEIR part number. The export is
+                    // THEIR part number. The export is
                     // per vendor because this number is too.
                     'sku'       => $p->vendor_sku,
                     'cost'      => $p->live_cost_cents ?? $p->unit_cost_cents,
@@ -563,7 +560,7 @@ class SpecialOrderController extends Controller
     }
 
     /**
-     * MARKER-SO-PLACEMENT — move an order to a vendor. Assignment is not
+     * move an order to a vendor. Assignment is not
      * ordering: it sets vendor_id and nothing else, and is reversible.
      */
     public function assignVendor(Request $request, string $id): \Illuminate\Http\JsonResponse
@@ -588,7 +585,7 @@ class SpecialOrderController extends Controller
     }
 
     /**
-     * MARKER-SO-PLACEMENT — mark a whole vendor batch ordered in one action,
+     * mark a whole vendor batch ordered in one action,
      * sharing a PO number and expected date. Partial failures are reported
      * rather than silently swallowed.
      */
@@ -630,7 +627,7 @@ class SpecialOrderController extends Controller
     }
 
     /**
-     * MARKER-SO-ORIGIN — "yes, this is still needed" for an order whose
+     * "yes, this is still needed" for an order whose
      * source is gone. Persisted so the queue stops asking.
      */
     public function confirmSource(Request $request, string $id): \Illuminate\Http\JsonResponse
@@ -692,7 +689,7 @@ class SpecialOrderController extends Controller
 
         $appts = TenantAppointment::where('tenant_id', $tenant->id)
             ->where('customer_id', $customerId)
-            ->whereDate('appointment_date', '>=', tnow()->toDateString()) // MARKER-TZ-WAVE1 — appointment_date is a naive tenant-local DATE
+            ->whereDate('appointment_date', '>=', tnow()->toDateString()) // appointment_date is a naive tenant-local DATE
             ->whereDate('appointment_date', '<=', tnow()->addDays(60)->toDateString())
             ->whereNotIn('status', ['cancelled', 'refunded'])
             ->orderBy('appointment_date')

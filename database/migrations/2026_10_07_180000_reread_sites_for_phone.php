@@ -1,5 +1,5 @@
 <?php
-// MARKER-SITE-SCAN-PHONE — the website pass now pulls phone numbers. Shops it
+// the website pass now pulls phone numbers. Shops it
 // already read without finding a phone are queued to be read once more; the
 // scheduler picks them up like any unread shop. Data only, no schema change.
 use Illuminate\Database\Migrations\Migration;

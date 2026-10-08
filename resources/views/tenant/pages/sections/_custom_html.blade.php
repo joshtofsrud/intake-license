@@ -1,4 +1,4 @@
-{{-- MARKER-PATCH-306 — custom_html editor --}}
+{{-- custom_html editor --}}
 @php
   $c   = $c ?? ($section->content ?? []);
   $get = fn($k, $d = '') => $c[$k] ?? $d;
@@ -32,7 +32,6 @@
       </div>
     </div>
     @if($isMarketing ?? false)
-    {{-- MARKER-PAGE-WIDTH --}}
     <div class="pb2-field">
       @php $fitOn = array_key_exists('fit_width', $c) ? ! in_array((string) $c['fit_width'], ['', '0', 'false'], true) : false; @endphp
       <label class="pb2-checkbox-row"><input type="checkbox" data-field="fit_width" value="1" {{ $fitOn ? 'checked' : '' }}><span>Fit to page width</span></label>

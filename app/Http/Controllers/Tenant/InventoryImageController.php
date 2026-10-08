@@ -12,7 +12,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 
 /**
- * MARKER-ITEM-IMAGES — a shop's own photos for an inventory item.
+ * a shop's own photos for an inventory item.
  *
  * Uploads become TenantMedia rows in the 'items' folder, so the library, the
  * byte accounting and the plan quota all work without a second pipeline. The
@@ -27,7 +27,7 @@ class InventoryImageController extends Controller
         $item   = TenantInventoryItem::where('tenant_id', $tenant->id)->findOrFail($itemId);
 
         if (! $request->hasFile('image')) {
-            // MARKER-UPLOAD-LIMITS applies here too: an empty $_FILES with a
+            // applies here too: an empty $_FILES with a
             // large body means PHP discarded the file before Laravel ran.
             $posted = (int) ($request->server('CONTENT_LENGTH') ?: 0);
             $iniMax = min(self::iniBytes(ini_get('upload_max_filesize')),
@@ -64,7 +64,7 @@ class InventoryImageController extends Controller
             ], 422);
         }
 
-        // MARKER-MEDIA-STORAGE-METER — one count for every upload path.
+        // one count for every upload path.
         if ($refused = \App\Support\MediaStorage::refuse($tenant, (int) $file->getSize())) {
             return response()->json(['error' => $refused], 422);
         }

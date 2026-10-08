@@ -1,4 +1,3 @@
-<!-- MARKER-REPO-CLEANUP -->
 # Intake
 
 Multi-tenant SaaS for independent service businesses — booking, register/POS,

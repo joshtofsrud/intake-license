@@ -1,5 +1,4 @@
 <?php
-// MARKER-PATCH-247
 
 namespace App\Console\Commands;
 

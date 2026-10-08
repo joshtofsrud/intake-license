@@ -1,5 +1,5 @@
 {{--
-  MARKER-PATCH-239 — rentals_showcase public render. Live fleet pull:
+  rentals_showcase public render. Live fleet pull:
   models (+ rates) in the chosen category, only rentable units counted.
   Renders nothing when rentals are hidden or no models match — a stale
   section can never show an empty shell or leak a disabled feature.
@@ -24,7 +24,7 @@
   }
   $rsShowRates   = ($c['show_rates'] ?? '1') === '1';
   $rsShowDeposit = ($c['show_deposit'] ?? '0') === '1';
-  // MARKER-RENTAL-STYLE — style + advanced resolution (feature_grid model).
+  // style + advanced resolution (feature_grid model).
   $stBgMode  = $c['bg_mode'] ?? (!empty($c['bg_color']) ? 'color' : 'none');
   $stText    = ($c['text_color'] ?? '') ?: 'inherit';
   $stBody    = ($c['text_color_body'] ?? '') ?: 'inherit';

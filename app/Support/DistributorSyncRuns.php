@@ -1,5 +1,4 @@
 <?php
-// MARKER-SYNC-CHUNKED
 
 namespace App\Support;
 

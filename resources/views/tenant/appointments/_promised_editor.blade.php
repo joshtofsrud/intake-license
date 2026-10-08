@@ -1,4 +1,4 @@
-{{-- MARKER-PATCH-312 — shared promised-date row: display value + inline edit.
+{{-- shared promised-date row: display value + inline edit.
      Self-styled to match .ma-schedule-row so it looks native in both
      work-order views. Only one renders per request, so fixed ids are safe. --}}
 @php

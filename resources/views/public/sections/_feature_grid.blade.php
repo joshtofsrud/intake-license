@@ -1,4 +1,4 @@
-{{-- MARKER-PATCH-158-G31 — feature_grid public renderer (v2) --}}
+{{-- feature_grid public renderer (v2) --}}
 @php
   $c = $c ?? [];
 
@@ -197,7 +197,7 @@
   color: {{ $textColorBody }};
   margin: 0;
   flex: 1;
-  white-space: pre-line; /* MARKER-PATCH-301 — honor line breaks typed in the card body */
+  white-space: pre-line; /* honor line breaks typed in the card body */
 }
 .{{ $instId }} .p-fg-card-cta {
   display: inline-flex;

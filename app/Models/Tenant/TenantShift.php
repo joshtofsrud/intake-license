@@ -1,5 +1,5 @@
 <?php
-// MARKER-PATCH-612 — scheduled shift. starts_at/ends_at are UTC instants
+// scheduled shift. starts_at/ends_at are UTC instants
 // resolved from the tenant-local wall time at write; display via tlocal().
 
 namespace App\Models\Tenant;

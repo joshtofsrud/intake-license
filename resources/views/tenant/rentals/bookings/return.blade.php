@@ -1,7 +1,7 @@
 @extends('layouts.tenant.app')
 @php $pageTitle = 'Return ' . $rental->rental_number; @endphp
 
-{{-- MARKER-PATCH-233 — guided return: Inspect → Charges → Close. In-checks
+{{-- guided return: Inspect → Charges → Close. In-checks
      render beside the 232 out-checks; charges collect through the register
      (232B round-trip); deposit + routing decisions close it out. --}}
 

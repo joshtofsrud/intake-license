@@ -1,5 +1,5 @@
 {{--
-  MARKER-CAROUSEL-SECTION — image_carousel editor (v2 inspector partial).
+  image_carousel editor (v2 inspector partial).
   Content / Design / Advanced tabs. The image repeater reuses the gallery's
   #pb2-gimg-* contract (initGalleryList in edit.blade.php wires it), opting
   into the per-slide link field via data-links="1".
@@ -96,7 +96,6 @@
       <input type="hidden" data-field="slides_per_view" value="{{ $get('slides_per_view',1) }}">
     </div>
 
-    {{-- MARKER-CAROUSEL-DEPTH --}}
     <div class="pb2-field">
       <label class="pb2-field-label">Carousel style</label>
       <div class="pb2-seg" data-field-seg="carousel_style">

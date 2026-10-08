@@ -1,4 +1,4 @@
-{{-- MARKER-PATCH-309 — custom_html marketing renderer.
+{{-- custom_html marketing renderer.
      Renders author markup raw ({!! !!}) — the whole point of the section is
      dropping in HTML built elsewhere (e.g. in a design tool). No sanitizer by design;
      marketing pages are authored by the platform admin only.
@@ -18,7 +18,7 @@
   $padY      = $padTokens[$c['padding_y'] ?? 'normal'] ?? '56px';
 
   $instId = 'mk-html-' . ($section->id ?? uniqid());
-  // MARKER-PAGE-WIDTH — on: the markup sits inside the page width like every
+  // on: the markup sits inside the page width like every
   // other section. Off (older blocks): full browser width, as before.
   $fitWidth = ! in_array((string) ($c['fit_width'] ?? '0'), ['', '0', 'false'], true);
 @endphp

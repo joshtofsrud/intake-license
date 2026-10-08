@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-{{-- MARKER-OFFLINE-SYNC — branded offline fallback, precached by the service
+{{-- branded offline fallback, precached by the service
      worker and served for any admin navigation that isn't cached. --}}
 <html lang="en">
 <head>

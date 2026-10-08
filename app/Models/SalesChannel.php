@@ -1,5 +1,4 @@
 <?php
-// MARKER-CAMPAIGNS-CORE
 
 namespace App\Models;
 
@@ -22,8 +21,8 @@ class SalesChannel extends Model
     protected $fillable = [
         'name', 'slug', 'status', 'categories', 'business_types',
         'criteria', 'playbook', 'best_ask', 'generated_by', 'notes',
-        'places_query', // MARKER-SALES-INDUSTRY
-        'brand_list',   // MARKER-BRAND-LIST
+        'places_query',
+        'brand_list',
     ];
 
     protected $casts = [

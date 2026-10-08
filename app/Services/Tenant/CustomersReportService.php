@@ -134,14 +134,14 @@ class CustomersReportService
             ->whereDate('l.last_appt', '<', $lapsedCutoff->toDateString())
             ->orderBy('l.last_appt', 'asc') // longest-lapsed first — most urgent
             ->limit(self::LIST_LIMIT_LAPSED)
-            // MARKER-BIZ-NAME — raw rows: select what the display name needs
+            // raw rows: select what the display name needs
             ->select('c.id', 'c.first_name', 'c.last_name', 'c.business_name', 'c.customer_type', 'c.email', 'c.phone', 'l.last_appt')
             ->get()
             ->map(fn($r) => [
                 'id'         => $r->id,
                 'name'       => ($r->customer_type === 'business' && trim((string) $r->business_name) !== '')
                     ? trim($r->business_name)
-                    : trim($r->first_name . ' ' . $r->last_name), // MARKER-BIZ-NAME
+                    : trim($r->first_name . ' ' . $r->last_name),
                 'email'      => $r->email,
                 'phone'      => $r->phone,
                 'last_visit' => $r->last_appt,
@@ -180,7 +180,7 @@ class CustomersReportService
             ];
         }
 
-        // MARKER-PATCH-185 — LTV = payments received (sale ledger) per customer,
+        // LTV = payments received (sale ledger) per customer,
         // attributed via the sale's customer. Single source of truth; no more
         // appt+sale double-count. Signed amounts net refunds automatically.
         $ledgerLtv = DB::table('tenant_sale_payments as tsp')

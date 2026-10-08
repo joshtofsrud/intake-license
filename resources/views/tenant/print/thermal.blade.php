@@ -1,4 +1,4 @@
-{{-- MARKER-PATCH-336 — single data-driven 80/58mm thermal renderer.
+{{-- single data-driven 80/58mm thermal renderer.
      Receives the print identity ($identity), the section model ($doc), and
      $embed. Renders a page shell (header/footer/feed from identity) and walks
      each slip's ordered sections by type. It never branches on document type —

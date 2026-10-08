@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers\Tenant;
 
-// MARKER-REGISTER-RECON-DISPLAY — register management + customer-facing pay displays.
+// register management + customer-facing pay displays.
 //
 // Admin side (authed, register-guarded):
 //   registers()        — manage page: list, pairing QR per register
@@ -17,9 +17,9 @@ namespace App\Http\Controllers\Tenant;
 
 use App\Http\Controllers\Controller;
 use App\Models\Tenant\TenantRegister;
-use App\Models\Tenant\TenantRental; // MARKER-RENTAL-WAIVER-DISPLAY-BE
-use App\Models\Tenant\TenantRentalAgreementTemplate; // MARKER-RENTAL-WAIVER-DISPLAY-BE
-use App\Services\Tenant\RentalAgreementService; // MARKER-RENTAL-WAIVER-DISPLAY-BE
+use App\Models\Tenant\TenantRental;
+use App\Models\Tenant\TenantRentalAgreementTemplate;
+use App\Services\Tenant\RentalAgreementService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -164,7 +164,7 @@ class RegisterDisplayController extends Controller
                       ->where('is_active', true)
                       ->firstOrFail();
 
-        // MARKER-RENTAL-WAIVER-DISPLAY-BE — a live waiver owns the screen.
+        // a live waiver owns the screen.
         // Checked before the cart because the register page keeps pushing
         // snapshots while this is up; those writes land in display_cart and
         // simply aren't read until the waiver clears.
@@ -193,7 +193,7 @@ class RegisterDisplayController extends Controller
     }
 
     /**
-     * MARKER-RENTAL-WAIVER-DISPLAY-BE — build the waiver payload, or clear
+     * build the waiver payload, or clear
      * the override and return null when it can no longer be honoured.
      *
      * Self-healing is the point: any reason the waiver shouldn't be up ends
@@ -230,7 +230,7 @@ class RegisterDisplayController extends Controller
     }
 
     /**
-     * MARKER-RENTAL-WAIVER-DISPLAY-BE — the customer's signature comes back
+     * the customer's signature comes back
      * here. Token is the credential; the nonce binds this POST to the push
      * that put the waiver on screen.
      *

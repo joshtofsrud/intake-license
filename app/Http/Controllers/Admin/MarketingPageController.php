@@ -48,7 +48,7 @@ class MarketingPageController extends Controller
         return $builder->store($request);
     }
 
-    // MARKER-MKT-PARITY — full builder parity for the marketing context.
+    // full builder parity for the marketing context.
     // Each endpoint binds the platform tenant, then delegates to the exact
     // tenant controller the tenant routes use, so behavior stays verbatim.
 
@@ -82,7 +82,7 @@ class MarketingPageController extends Controller
 
         $sections = $page->sections()->where('is_visible', true)->get();
 
-        // MARKER-MKT-SECTION-BG — a help article previews in its own shell,
+        // a help article previews in its own shell,
         // through the public partials a shop's Help page uses. The marketing
         // template wrapped it in intake.works nav and footer, which is not what
         // any shop will ever see.
@@ -94,7 +94,7 @@ class MarketingPageController extends Controller
             ]);
         }
 
-        $sections = \App\Support\BuilderDraft::apply($sections, (string) $page->id); // MARKER-BUILDER-DRAFT
+        $sections = \App\Support\BuilderDraft::apply($sections, (string) $page->id);
 
         $navItems = TenantNavItem::where('tenant_id', $platform->id)
             ->orderBy('sort_order')->get();
@@ -155,7 +155,7 @@ class MarketingPageController extends Controller
         return Tenant::where('is_platform', true)->firstOrFail();
     }
 
-    /** MARKER-MKT-NAV — the real header, drawn from unsaved rows, for the Navigation page. */
+    /** the real header, drawn from unsaved rows, for the Navigation page. */
     public function navPreview(Request $request)
     {
         $platform = $this->platform();
@@ -171,12 +171,12 @@ class MarketingPageController extends Controller
             'tenant'         => $platform,
             'industry'       => null,
             'builderPreview' => true,
-            'hideFooter'     => $request->query('mode') !== 'footer', // MARKER-MKT-NAV-POLISH / MARKER-MKT-FOOTER
+            'hideFooter'     => $request->query('mode') !== 'footer',
             'footerOnly'     => $request->query('mode') === 'footer',
             'menuFooter'     => $request->query('mode') === 'footer' ? \App\Support\MarketingNav::cleanFooter((array) json_decode((string) base64_decode((string) $request->query('f', ''), true), true)) : null,
             'menuItems'      => \App\Support\MarketingNav::resolve($rows),
-            'menuGroups'     => \App\Support\MarketingNav::cleanGroups((array) json_decode((string) base64_decode((string) $request->query('g', ''), true), true)), // MARKER-MKT-MENU-GROUPS
-            // MARKER-MKT-NAV-FLOAT — unsaved header style from the Navigation page.
+            'menuGroups'     => \App\Support\MarketingNav::cleanGroups((array) json_decode((string) base64_decode((string) $request->query('g', ''), true), true)),
+            // unsaved header style from the Navigation page.
             'menuHeader'     => \App\Support\MarketingNav::cleanHeader((array) json_decode((string) base64_decode((string) $request->query('h', ''), true), true)),
         ]);
     }

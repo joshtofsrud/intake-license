@@ -2,7 +2,7 @@
 @php $pageTitle = 'Search'; @endphp
 
 @section('content')
-{{-- MARKER-SEARCH-ALL — grouped, matching the modal, so the two read the same
+{{-- grouped, matching the modal, so the two read the same
      way. The modal is for jumping to something you already have in mind; this
      is for when six was not enough. --}}
 <div class="ia-page-head">

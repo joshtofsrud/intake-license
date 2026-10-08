@@ -1,5 +1,4 @@
 <?php
-// MARKER-PATCH-HLC6
 
 namespace App\Filament\Pages;
 
@@ -25,8 +24,8 @@ use Illuminate\Support\Facades\DB;
  */
 class Distributors extends Page implements HasForms
 {
-    use \App\Support\UsesAdminNav; // MARKER-NAV-ORDER
-    use \App\Support\GatedByAdminArea; // MARKER-ADMIN-NAV-GATE
+    use \App\Support\UsesAdminNav;
+    use \App\Support\GatedByAdminArea;
     protected static string $adminArea = 'catalog';
 
     use InteractsWithForms;
@@ -42,13 +41,13 @@ class Distributors extends Page implements HasForms
     public string $testSample = 'kenda';
 
     /**
-     * MARKER-MASTER-DIST-PER-CODE — which distributor this page is acting on.
+     * which distributor this page is acting on.
      * Every connection field, the test button and the sync button follow it.
      */
     public string $code = 'HLC';
 
     /**
-     * MARKER-CODE-SOURCE — the distributor actually selected on screen.
+     * the distributor actually selected on screen.
      *
      * $code used to be maintained solely by the Select's afterStateUpdated
      * callback. When that didn't fire, the dropdown said BTI while every
@@ -122,7 +121,7 @@ class Distributors extends Page implements HasForms
     }
 
     /**
-     * MARKER-MASTER-DIST-PER-CODE — refill the form from the selected
+     * refill the form from the selected
      * distributor's connection row. Called on mount and whenever the
      * selector changes, so switching distributor never shows another one's
      * stored values.
@@ -139,7 +138,7 @@ class Distributors extends Page implements HasForms
             [$user, $pass] = explode(':', (string) $conn->api_key, 2);
         }
 
-        // MARKER-CLS-FIELD-ADMIN — QBP packs "api1:cls" in the same slot.
+        // QBP packs "api1:cls" in the same slot.
         // API1 is free and carries the catalog; CLS is licensed and carries
         // only the images.
         $apiKeyShown = (string) $conn->api_key;
@@ -149,7 +148,7 @@ class Distributors extends Page implements HasForms
         }
 
         $this->form->fill([
-            // MARKER-DIST-FORM-FILL — without this the selector rendered
+            // without this the selector rendered
             // "Select an option" and every field under it looked empty,
             // including a stored key and an active connection.
             'code'       => $this->code,
@@ -175,11 +174,10 @@ class Distributors extends Page implements HasForms
     {
         return $form
             ->schema([
-                // MARKER-MASTER-DIST-PER-CODE
                 Section::make('Platform connection')
                     ->description('The master-admin credentials that build the shared catalog (identity, MAP, MSRP). Tenants use their own for cost & availability.')
                     ->schema([
-                        // MARKER-DIST-FORM-FILL — explicit spans. Two equal
+                        // explicit spans. Two equal
                         // columns with six fields dropped in put the API key
                         // beside Auth style and stranded Region next to a
                         // toggle.
@@ -201,7 +199,7 @@ class Distributors extends Page implements HasForms
                             ->visible(fn () => strtoupper($this->currentCode()) !== 'BTI')
                             ->columnSpanFull(),
 
-                        // MARKER-CLS-FIELD-ADMIN — QBP's second key. Optional:
+                        // QBP's second key. Optional:
                         // without it the catalog, cost and stock all still
                         // work and only images stop.
                         TextInput::make('cls_key')->label('API3 key (Content License Service)')
@@ -239,7 +237,7 @@ class Distributors extends Page implements HasForms
     }
 
     /**
-     * MARKER-MASTER-DIST-PER-CODE — saves the selected distributor's row.
+     * saves the selected distributor's row.
      *
      * Credentials are packed through the registry so a stored value means
      * the same thing here as on the tenant page: BTI's username and password
@@ -270,7 +268,7 @@ class Distributors extends Page implements HasForms
         Notification::make()->success()
             ->title($this->currentCode() . ' connection saved')->send();
 
-        // MARKER-QBP-CLS-AUTO — the image service prefix is per subscription
+        // the image service prefix is per subscription
         // and fetched from CLS, not typed. Refresh it now so a shop never sits
         // with images it cannot display, which is what happened to Oakridge.
         if (strtoupper($this->currentCode()) === 'QBP') {
@@ -296,7 +294,7 @@ class Distributors extends Page implements HasForms
         return [
             Action::make('save')->label('Save connection')->action('save'),
 
-            // MARKER-TEST-CONNECTION-COPY — a 30s wait with no explanation reads
+            // a 30s wait with no explanation reads
             // as a hung button. Confirming first turns it into an informed
             // choice, and matches runFull below.
             Action::make('test')->label('Test connection')->color('gray')
@@ -322,7 +320,7 @@ class Distributors extends Page implements HasForms
                 ->modalDescription('Queues a full catalog pull from the selected distributor. Runs in the background.')
                 ->action(fn () => $this->dispatchSync(false)),
 
-            // MARKER-PAGE-FOLLOWS-CODE — BTI has no delta: the client always
+            // BTI has no delta: the client always
             // downloads the whole feed and the --since watermark has nothing
             // to filter on. Offering the button would imply an incremental
             // pull that doesn't exist and quietly run a full one.
@@ -336,7 +334,7 @@ class Distributors extends Page implements HasForms
     {
         $conn = PlatformDistributorConnection::forCode($this->currentCode());
 
-        // MARKER-TEST-PACKS-CREDS — persist what's on screen, packed the same
+        // persist what's on screen, packed the same
         // way save() does. This used to be $conn->update($form->getState()),
         // which for BTI wrote `username` and `password` (not columns) and no
         // api_key at all — so the test ran against the PREVIOUSLY stored
@@ -362,7 +360,7 @@ class Distributors extends Page implements HasForms
             $res = $adapter->testConnection();
             $ok = (bool) ($res['ok'] ?? false);
 
-            // MARKER-QBP-TEST-SHAPE — show the adapter's own words. Every
+            // show the adapter's own words. Every
             // adapter already returns a 'body' explaining what happened, and
             // this used to discard it for a bare status code — which is
             // useless when the request never completed and there is no code.
@@ -388,7 +386,7 @@ class Distributors extends Page implements HasForms
         }
     }
 
-    // MARKER-BRAND-SYNC — queue a single-brand refresh from the brand list.
+    // queue a single-brand refresh from the brand list.
     public function syncBrand(string $brand): void
     {
         $code = $this->currentCode();

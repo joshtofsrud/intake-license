@@ -7,7 +7,7 @@ use App\Models\TenantBillingDiscount;
 use Illuminate\Console\Command;
 
 /**
- * MARKER-BILLING-DISCOUNTS — write down the deals that already exist.
+ * write down the deals that already exist.
  *
  * Gifted shops are identified by settings.signup_path === 'gift' (set when the
  * account was given rather than bought). Nothing is invented: the command
@@ -26,7 +26,7 @@ class BackfillTenantDiscounts extends Command
         $skippedDemo = 0;
 
         foreach (Tenant::where('is_platform', false)->get() as $tenant) {
-            // MARKER-DEMO-BILLING-SKIP — a demo tenant is rebuilt from a copy
+            // a demo tenant is rebuilt from a copy
             // and wiped hourly; a discount record on it means nothing.
             if ($tenant->is_demo) {
                 $skippedDemo++;

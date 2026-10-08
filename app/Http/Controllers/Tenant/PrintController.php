@@ -15,7 +15,6 @@ use Illuminate\Http\Request;
  * DocumentBuilder and renders it through the one data-driven thermal view.
  * Parallel to the legacy tag/receipt routes until the cutover.
  *
- * MARKER-PATCH-336
  */
 class PrintController extends Controller
 {
@@ -33,7 +32,7 @@ class PrintController extends Controller
             $opt->type = 'receipt';
         }
 
-        // MARKER-PATCH-341 — graphical invoice reuses the existing DomPDF stack
+        // graphical invoice reuses the existing DomPDF stack
         if ($opt->format === 'invoice') {
             return redirect()->route('tenant.appointments.invoice.preview', ['id' => $appt->id]);
         }
@@ -54,7 +53,7 @@ class PrintController extends Controller
         $sale = TenantSale::where('tenant_id', $tenant->id)->where('id', $id)->firstOrFail();
 
         $opt = DocumentOptions::fromRequest($request);
-        $view = $opt->format === 'full' ? 'tenant.print.full' : 'tenant.print.thermal'; // MARKER-PATCH-341
+        $view = $opt->format === 'full' ? 'tenant.print.full' : 'tenant.print.thermal';
 
         return view($view, [
             'tenant'     => $tenant,

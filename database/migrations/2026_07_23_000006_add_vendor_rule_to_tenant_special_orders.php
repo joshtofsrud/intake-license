@@ -1,6 +1,6 @@
 <?php
 
-// MARKER-SO-AUTOVENDOR — records WHICH rule chose a vendor, so an automatic
+// records WHICH rule chose a vendor, so an automatic
 // assignment is explainable on the row rather than mysterious, and so
 // hand-picked choices are distinguishable from automatic ones.
 

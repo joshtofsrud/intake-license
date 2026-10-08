@@ -1,6 +1,5 @@
 <?php
 
-// MARKER-DESC-PREVIEW
 
 namespace App\Services\Distributors;
 

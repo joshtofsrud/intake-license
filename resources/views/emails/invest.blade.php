@@ -1,4 +1,4 @@
-{{-- MARKER-RAISE-HTML — structure only. Every word in the body came from the
+{{-- structure only. Every word in the body came from the
      compose box; this file adds none. $blocks is the message already split
      into paragraphs and link buttons by InvestorMessenger. --}}
 <!DOCTYPE html>

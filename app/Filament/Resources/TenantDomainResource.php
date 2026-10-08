@@ -21,8 +21,8 @@ use Illuminate\Database\Eloquent\Builder;
  */
 class TenantDomainResource extends Resource
 {
-    use \App\Support\UsesAdminNav; // MARKER-NAV-ORDER
-    use \App\Support\GatedByAdminArea; // MARKER-ADMIN-NAV-GATE
+    use \App\Support\UsesAdminNav;
+    use \App\Support\GatedByAdminArea;
     protected static string $adminArea = 'domains';
 
     protected static ?string $model = TenantDomain::class;
@@ -182,7 +182,6 @@ class TenantDomainResource extends Resource
                         ->where('last_check_at', '<=', now()->subHours(24)))
                     ->toggle(),
 
-                // MARKER-PATCH-125
                 Tables\Filters\Filter::make('stuck_verifying')
                     ->label('Stuck in verifying/issuing >24h')
                     ->query(fn (Builder $q) => $q->stuckVerifying())

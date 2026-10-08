@@ -1,7 +1,7 @@
 @extends('layouts.tenant.app')
 @php $pageTitle = 'New Lease'; @endphp
 
-{{-- MARKER-PATCH-230 — fulfillment counter: pick package, fill slots from
+{{-- fulfillment counter: pick package, fill slots from
      live fleet (auto or by serial), season window, deposit. --}}
 
 @section('content')

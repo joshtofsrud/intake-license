@@ -2,7 +2,7 @@
 @php $pageTitle = 'Storefront'; @endphp
 
 @section('content')
-{{-- MARKER-PATCH-569 — storefront settings: master switch, delivery,
+{{-- storefront settings: master switch, delivery,
      install offer, bulk publish. --}}
 <style>
   .sf-card{background:var(--ia-surface);border:0.5px solid var(--ia-border);border-radius:12px;padding:18px 20px;margin-bottom:14px;max-width:640px}

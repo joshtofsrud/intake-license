@@ -1,6 +1,5 @@
 <?php
 
-// MARKER-CATALOG-COVERAGE
 
 namespace App\Filament\Pages;
 
@@ -16,8 +15,8 @@ use Illuminate\Support\Facades\DB;
  */
 class CatalogCoverage extends Page
 {
-    use \App\Support\UsesAdminNav; // MARKER-NAV-ORDER
-    use \App\Support\GatedByAdminArea; // MARKER-ADMIN-NAV-GATE
+    use \App\Support\UsesAdminNav;
+    use \App\Support\GatedByAdminArea;
     protected static string $adminArea = 'catalog';
 
     protected static ?string $navigationIcon  = 'heroicon-o-scale';

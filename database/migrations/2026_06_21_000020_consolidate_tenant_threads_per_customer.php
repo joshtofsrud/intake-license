@@ -3,7 +3,7 @@
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\DB;
 
-// MARKER-PATCH-396 — collapse per-channel threads into one thread per customer.
+// collapse per-channel threads into one thread per customer.
 // Messages already carry their own channel, so the conversation is preserved.
 return new class extends Migration {
     public function up(): void

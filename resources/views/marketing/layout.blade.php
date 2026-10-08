@@ -6,8 +6,8 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"> {{-- MARKER-MKT-NAV-EDGE --}}
-  @include('partials.mobile-input-zoom') {{-- MARKER-MOBILE-INPUT-ZOOM --}}
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  @include('partials.mobile-input-zoom')
   <title>@yield('title', 'intake — Retail, booking, and classes — built for communication and efficiency.')</title>
   <meta name="description" content="@yield('meta_description', 'Retail, booking, and classes — built for communication and efficiency. For service, retail, fitness, and appointment-based businesses.')">
 
@@ -31,7 +31,7 @@
   <meta name="twitter:title" content="@yield('og_title', 'intake — Retail, booking, and classes — built for communication and efficiency.')">
   <meta name="twitter:description" content="@yield('og_description', 'For service, retail, fitness, and appointment-based businesses.')">
   <meta name="twitter:image" content="{{ \App\Support\Brand::url('og') }}">
-  <link rel="stylesheet" href="{{ asset('css/fonts.css') }}">{{-- MARKER-SELFHOST-FONTS-2 --}}
+  <link rel="stylesheet" href="{{ asset('css/fonts.css') }}">
   <style>
     /* ================================================================
        Intake Marketing Site
@@ -243,12 +243,12 @@
     }
   </style>
   @stack('styles')
-<script>/* MARKER-BOOK-MODAL — shown inside the pop-up: no site header/footer */ if (window.self !== window.top) document.documentElement.classList.add('in-frame');</script>
+<script>/* shown inside the pop-up: no site header/footer */ if (window.self !== window.top) document.documentElement.classList.add('in-frame');</script>
 <style>html.in-frame .mk-nav, html.in-frame .mk-footer { display: none !important; } html.in-frame body { background: transparent; }</style>
-<style>/* MARKER-MENU-PANEL-OPAQUE — dropdown panels sit on a near-solid surface so the page doesn't read through */
+<style>/* dropdown panels sit on a near-solid surface so the page doesn't read through */
 .mk-dd-panel{background:rgba(14,14,14,.97) !important;-webkit-backdrop-filter:blur(20px) saturate(1.2) !important;backdrop-filter:blur(20px) saturate(1.2) !important;box-shadow:0 24px 48px -12px rgba(0,0,0,.6),0 0 0 .5px rgba(255,255,255,.08) !important}
 </style>
-<style>/* MARKER-MKT-SECTION-PADDING — the spacing classes sections are given, now with real values */
+<style>/* the spacing classes sections are given, now with real values */
 section.mk-section--none{padding-top:0;padding-bottom:0}
 section.mk-section--compact,section.mk-section--tight{padding-top:clamp(24px,4vw,48px);padding-bottom:clamp(24px,4vw,48px)}
 section.mk-section--normal{padding-top:clamp(48px,7vw,96px);padding-bottom:clamp(48px,7vw,96px)}
@@ -257,14 +257,14 @@ section.mk-section--spacious,section.mk-section--wide{padding-top:clamp(80px,10v
 </head>
 <body>
 
-{{-- MARKER-MKT-NAV — the one header, from Navigation --}}
+{{-- the one header, from Navigation --}}
 @include('marketing.sections._shell_nav')
 
 {{-- Page content --}}
 @yield('content')
 
 {{-- Footer --}}
-{{-- MARKER-MKT-FOOTER — the one footer, from Navigation --}}
+{{-- the one footer, from Navigation --}}
 @include('marketing.sections._shell_footer')
 
 <script>
@@ -275,12 +275,12 @@ function toggleMobileNav() {
 @include('marketing._plan-quiz')
 
 @stack('scripts')
-{{-- MARKER-MKTCONV — one include for the whole marketing site: any page that
+{{-- one include for the whole marketing site: any page that
      extends this layout is tracked, including pages added later. Builder
-     previews still skip it (MARKER-MKT-PARITY). --}}
+     previews still skip it. --}}
 @if(empty($builderPreview))
 @include('marketing._funnel_tracker')
 @endif
-@include('marketing._book_modal') {{-- MARKER-BOOK-MODAL --}}
+@include('marketing._book_modal')
 </body>
 </html>

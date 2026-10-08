@@ -4,7 +4,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-// MARKER-MKT-ANALYTICS — GA4 measurement ID for intake.works.
+// GA4 measurement ID for intake.works.
 return new class extends Migration
 {
     public function up(): void

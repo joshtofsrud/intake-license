@@ -1,7 +1,6 @@
 @extends('layouts.tenant.app')
 @php $pageTitle = 'Data quality'; @endphp
 
-{{-- MARKER-DATA-COMPLETENESS --}}
 @include('tenant.reports._tab_styles')
 @push('styles')
 <style>

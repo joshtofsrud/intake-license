@@ -1,6 +1,6 @@
 @extends('layouts.tenant.app')
 
-{{-- MARKER-GIFTCARDS-ADMIN — gift card manager list, per the approved mockup --}}
+{{-- gift card manager list, per the approved mockup --}}
 
 @php
   $pageTitle = 'Gift cards';
@@ -144,7 +144,7 @@
               @endphp
               <span class="ia-badge ia-badge--{{ $badge }}">{{ ucfirst($r->status) }}</span>
             </td>
-            <td style="opacity:.55">{{ tlocal_date($r->updated_at) }}{{-- MARKER-GC-TLOCAL --}}</td>
+            <td style="opacity:.55">{{ tlocal_date($r->updated_at) }}</td>
           </tr>
         @endforeach
       </tbody>
@@ -157,7 +157,7 @@
 
 @push('scripts')
 <script>
-  // MARKER-GIFTCARDS-ADMIN — issue panel field toggle
+  // issue panel field toggle
   (function () {
     var sel = document.getElementById('gcIssueType');
     if (!sel) return;

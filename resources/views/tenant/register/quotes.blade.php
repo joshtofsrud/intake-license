@@ -8,7 +8,7 @@
     display:flex;gap:4px;margin:0 0 18px;border-bottom:0.5px solid var(--ia-border);
     flex-wrap:wrap
   }
-  /* MARKER-REG-MOBILE ------------------------------------------------- */
+  /* ----------------------------------------------- */
   /* display:contents keeps the links as direct flex children of the bar on
      desktop, so nothing about the existing layout changes. */
   .reg-tabs-scroll{display:contents}
@@ -180,14 +180,13 @@
 </div>
 
 <div class="reg-tabs-bar">
-  <div class="reg-tabs-scroll">{{-- MARKER-REG-MOBILE --}}
+  <div class="reg-tabs-scroll">
   <a href="{{ route('tenant.register.index') }}" class="reg-tab-link">Transaction</a>
   <a href="{{ route('tenant.register.history.index') }}" class="reg-tab-link">Transaction History</a>
   <a href="{{ route('tenant.register.quotes.index') }}" class="reg-tab-link active">Quotes</a>
-  {{-- MARKER-LAYAWAY-TAB --}}
   <a href="{{ route('tenant.register.layaways.index') }}" class="reg-tab-link">Layaways</a>
-  <a href="{{ route('tenant.register.reconciliation') }}" class="reg-tab-link">Reconciliation</a> {{-- MARKER-REG-RECON-TAB --}}
-  <a href="{{ route('tenant.register.settings') }}" class="reg-tab-link">Settings</a> {{-- MARKER-REG-SETTINGS --}}
+  <a href="{{ route('tenant.register.reconciliation') }}" class="reg-tab-link">Reconciliation</a>
+  <a href="{{ route('tenant.register.settings') }}" class="reg-tab-link">Settings</a>
   </div>
 </div>
 

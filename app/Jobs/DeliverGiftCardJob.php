@@ -14,11 +14,11 @@ use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
 
 /**
- * MARKER-GIFTCARDS — email an e-gift card to its recipient and stamp
+ * email an e-gift card to its recipient and stamp
  * delivered_at. Dispatched at issue time and by gift-cards:deliver.
  * Idempotent via the delivered_at check.
  *
- * MARKER-GC-EMAILS — now renders through EmailService::send() against the
+ * now renders through EmailService::send() against the
  * 'gift_card_delivery' template, so edits made in the Communication Center
  * actually reach customers, and the shop's on/off toggle is honored.
  * delivered_at is only stamped when the send is attempted, so a card
@@ -67,7 +67,7 @@ class DeliverGiftCardJob implements ShouldQueue
 
             $card->update(['delivered_at' => now()]);
         } catch (\Throwable $e) {
-            \App\Support\JobFailureReporter::report(self::class, 'Gift card was not delivered to the recipient', $e,   // MARKER-JOB-ISSUES-2
+            \App\Support\JobFailureReporter::report(self::class, 'Gift card was not delivered to the recipient', $e,
                 ['gift_card_id' => $card->id], $card->tenant_id);
             Log::warning('gift_card.delivery_failed', [
                 'gift_card_id' => $card->id,

@@ -1,5 +1,5 @@
 <?php
-// MARKER-PATCH-614 — time punch audit log. Every create/edit/auto-close writes
+// time punch audit log. Every create/edit/auto-close writes
 // a row here so the team timesheet has a permanent, immutable trail (the
 // on-punch edited_* fields only hold the LAST edit; payroll truth needs all).
 

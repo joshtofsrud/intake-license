@@ -1,5 +1,5 @@
 <?php
-// MARKER-PATCH-HLCA — search blob column + search template + chosen defaults.
+// search blob column + search template + chosen defaults.
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;

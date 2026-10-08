@@ -1,5 +1,4 @@
 <?php
-// MARKER-TC-EDIT-SCOPE
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\DB;
@@ -36,7 +35,7 @@ return new class extends Migration
                 $n++;
             });
 
-        Log::info("MARKER-TC-EDIT-SCOPE: granted timeclock.edit_own to {$n} role(s)");
+        Log::info("tc-edit-scope: granted timeclock.edit_own to {$n} role(s)");
     }
 
     public function down(): void

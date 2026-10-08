@@ -1,6 +1,5 @@
 <?php
 
-// MARKER-OLD-SCHOOL
 
 namespace App\Models\Tenant;
 
@@ -27,7 +26,7 @@ class TenantNote extends Model
 
     protected $casts = [
         'completed_at' => 'datetime',
-        // MARKER-OLD-SCHOOL-PHOTO — storage paths, not URLs. A stored URL
+        // storage paths, not URLs. A stored URL
         // breaks the day the disk or domain changes.
         'photos'       => 'array',
     ];

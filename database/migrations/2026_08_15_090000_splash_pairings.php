@@ -6,7 +6,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * MARKER-SPLASH-2 — a splash is attached to the page it appears BEFORE.
+ * a splash is attached to the page it appears BEFORE.
  *
  * Columns live on tenant_pages rather than in a join table because a visited
  * page has at most one splash: the pairing is a property of that page, and

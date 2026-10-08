@@ -1,5 +1,5 @@
 <?php
-// MARKER-PATCH-621 — logged shop search query.
+// logged shop search query.
 
 namespace App\Models\Tenant;
 

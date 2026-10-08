@@ -5,7 +5,7 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * MARKER-PATCH-234 — pipeline timestamps. checked_out_at and cancelled_at
+ * pipeline timestamps. checked_out_at and cancelled_at
  * give the booking-detail stepper real times for every stage. Nullable on
  * purpose: rentals that moved before this patch simply show no time.
  * "Overdue" remains derived (status=out AND due_at < now) — never stored.

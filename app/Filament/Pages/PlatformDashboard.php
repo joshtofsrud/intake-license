@@ -1,5 +1,4 @@
 <?php
-// MARKER-PATCH-135
 
 namespace App\Filament\Pages;
 
@@ -25,8 +24,8 @@ use Throwable;
  */
 class PlatformDashboard extends Page
 {
-    use \App\Support\UsesAdminNav; // MARKER-NAV-ORDER
-    use \App\Support\GatedByAdminArea; // MARKER-ADMIN-NAV-GATE
+    use \App\Support\UsesAdminNav;
+    use \App\Support\GatedByAdminArea;
     protected static string $adminArea = 'dashboard';
 
     protected static ?string $title           = 'Dashboard';
@@ -37,7 +36,7 @@ class PlatformDashboard extends Page
 
     protected static string $view = 'filament.pages.platform-dashboard';
 
-    // MARKER-500-ALERT — dashboard switch for 5xx alert emails.
+    // dashboard switch for 5xx alert emails.
     public bool $alert500Enabled = false;
     public ?string $alert500Email = null;
 
@@ -73,15 +72,15 @@ class PlatformDashboard extends Page
             'wp'         => $this->buildWp(),
             'domains'    => $this->buildDomains(),
             'activity'   => $this->buildActivity(),
-            'series'     => $this->buildSeries(),        // MARKER-DASH-REFACTOR
-            'recentAlerts' => $this->buildRecentAlerts(), // MARKER-DASH-REFACTOR
-            'issues'     => $this->buildIssues(),        // MARKER-JOB-ISSUES
+            'series'     => $this->buildSeries(),
+            'recentAlerts' => $this->buildRecentAlerts(),
+            'issues'     => $this->buildIssues(),
             'generatedAt'=> now(),
         ];
     }
 
     // ─────────────────────────────────────────────────────────
-    // MARKER-DASH-REFACTOR — headline series + cross-tenant activity
+    // headline series + cross-tenant activity
     // ─────────────────────────────────────────────────────────
 
     /**
@@ -116,7 +115,7 @@ class PlatformDashboard extends Page
 
         // Est. MRR (list) as of each day: active tenants that existed then.
         $plans  = \App\Support\PlanPricing::all() ?? [];
-        // MARKER-DEMO-BUILD-CLEANUP — a demo shop is not revenue.
+        // a demo shop is not revenue.
         $active = Tenant::where('subscription_status', 'active')
             ->where('is_demo', false)
             ->get(['created_at', 'plan_tier', 'licensed_locations']);
@@ -165,13 +164,13 @@ class PlatformDashboard extends Page
     }
 
     /**
-     * MARKER-JOB-ISSUES — unresolved errors grouped by fingerprint: one line
+     * unresolved errors grouped by fingerprint: one line
      * per distinct failure, not one per occurrence. Top five, newest first.
      */
     protected function buildIssues(): array
     {
         $rows = DebugLog::query()
-            ->issues()->where('is_resolved', false) // MARKER-ERROR-PARITY
+            ->issues()->where('is_resolved', false)
             ->whereNotNull('fingerprint')
             ->where('created_at', '>=', now()->subDays(7))
             ->selectRaw('fingerprint, COUNT(*) as n, MAX(created_at) as last_at, MIN(created_at) as first_at, MAX(id) as last_id')
@@ -219,7 +218,7 @@ class PlatformDashboard extends Page
     // HERO
     // ─────────────────────────────────────────────────────────
 
-    // MARKER-PATCH-141 — hero shows real numbers with units, sourced from ServerHealthService.
+    // hero shows real numbers with units, sourced from ServerHealthService.
     protected function buildHero(): array
     {
         $snap = app(\App\Services\Admin\ServerHealthService::class)->snapshot();
@@ -280,7 +279,7 @@ class PlatformDashboard extends Page
                'state'=>$pending > 50 ? 'bad' : ($pending > 5 ? 'warn' : 'ok')]
             : ['label'=>'Queue','value'=>'n/a','meta'=>'redis unreachable','pct'=>0,'state'=>'bad'];
 
-        // Backup — MARKER-BACKUP-RECORD: written by `artisan backup:record`,
+        // Backup — written by `artisan backup:record`,
         // which /usr/local/bin/intake-backup.sh calls at the end of every run.
         $bk = \App\Support\BackupStatus::read();
         if ($bk['state'] === 'none') {
@@ -347,7 +346,7 @@ class PlatformDashboard extends Page
         return ucfirst($verb) . ': ' . implode(', ', $names) . ' and ' . $last;
     }
 
-    // MARKER-PATCH-141 — pulse helpers replaced; mapStatus + headlineWith live in buildHero block above.
+    // pulse helpers replaced; mapStatus + headlineWith live in buildHero block above.
 
     // ─────────────────────────────────────────────────────────
     // HEALTH ROWS
@@ -358,7 +357,7 @@ class PlatformDashboard extends Page
         $rows = [];
 
         // Unresolved errors
-        // MARKER-ERROR-PARITY — exactly what Debug Logs can resolve.
+        // exactly what Debug Logs can resolve.
         $unresolved = DebugLog::issues()->where('is_resolved', false)->count();
         $last7 = DebugLog::issues()->where('created_at', '>=', now()->subDays(7))->count();
         $recent = DebugLog::issues()->orderByDesc('created_at')->first();
@@ -391,7 +390,7 @@ class PlatformDashboard extends Page
             ? ['name' => 'Failed jobs', 'meta' => 'failed_jobs table not yet created', 'value' => 'n/a', 'state' => 'idle', 'href' => null]
             : ['name' => 'Failed jobs', 'meta' => 'trailing 24h', 'value' => "<b>{$failed}</b> in 24h", 'state' => $failed > 0 ? 'bad' : 'ok', 'href' => null];
 
-        // MARKER-JOB-ISSUES — jobs that caught their own failure and reported
+        // jobs that caught their own failure and reported
         // it. These never reach failed_jobs; before this row they reached
         // nothing at all.
         $caught = (int) DebugLog::where('event', 'job.failed')->where('created_at', '>=', now()->subDay())->count();
@@ -455,7 +454,7 @@ class PlatformDashboard extends Page
             'href'  => null,
         ];
 
-        // Backups — MARKER-BACKUP-RECORD
+        // Backups
         $bk = \App\Support\BackupStatus::read();
         if ($bk['state'] === 'none') {
             $rows[] = ['name' => 'Last backup', 'meta' => 'intake-backup.sh has not reported yet',
@@ -497,16 +496,16 @@ class PlatformDashboard extends Page
     protected function buildSaas(): array
     {
         $totalTenants = Tenant::count();
-        $newThisWeek  = Tenant::where('is_demo', false)->where('created_at', '>=', now()->subDays(7))->count(); // MARKER-DEMO-BUILD-CLEANUP
-        $newLastWeek  = Tenant::where('is_demo', false)->whereBetween('created_at', [now()->subDays(14), now()->subDays(7)])->count(); // MARKER-DEMO-BUILD-CLEANUP
+        $newThisWeek  = Tenant::where('is_demo', false)->where('created_at', '>=', now()->subDays(7))->count();
+        $newLastWeek  = Tenant::where('is_demo', false)->whereBetween('created_at', [now()->subDays(14), now()->subDays(7)])->count();
         $weekDelta    = $newLastWeek > 0
             ? (int) round((($newThisWeek - $newLastWeek) / $newLastWeek) * 100)
             : ($newThisWeek > 0 ? 100 : 0);
-        // MARKER-PATCH-136 — precompute trend so the view doesn't need inline @elseif comparisons.
+        // precompute trend so the view doesn't need inline @elseif comparisons.
         $weekTrend       = $weekDelta > 0 ? 'up' : ($weekDelta < 0 ? 'down' : 'flat');
         $weekDeltaLabel  = $weekDelta > 0 ? "+{$weekDelta}%" : ($weekDelta < 0 ? "{$weekDelta}%" : 'flat');
 
-        // MARKER-REAL-MRR — what is actually being charged, not list price by
+        // what is actually being charged, not list price by
         // tier. Gifted shops carry subscription_status 'active', so the old sum
         // reported five free shops as $875 of revenue.
         $plans = \App\Support\PlanPricing::all() ?? [];
@@ -519,7 +518,7 @@ class PlatformDashboard extends Page
 
         $mrrCents  = 0;   // after discounts: money
         $listCents = 0;   // before discounts: potential
-        $byTier    = [];  // MARKER-DASH-REFACTOR
+        $byTier    = [];
         $giftedCount = 0;
         $payingCount = 0;
 
@@ -540,7 +539,7 @@ class PlatformDashboard extends Page
             $mrrCents += $net;
             $net > 0 ? $payingCount++ : $giftedCount++;
 
-            // MARKER-DASH-REFACTOR — per-tier rollup for the SaaS card.
+            // per-tier rollup for the SaaS card.
             $tier = (string) ($t->plan_tier ?: 'other');
             $byTier[$tier] = $byTier[$tier] ?? ['tenants' => 0, 'cents' => 0];
             $byTier[$tier]['tenants']++;
@@ -570,7 +569,7 @@ class PlatformDashboard extends Page
             $weekly[] = Tenant::whereBetween('created_at', [$start, $end])->count();
         }
 
-        // MARKER-RENTAL-EXT-P2 — platform-wide last-minute extension line.
+        // platform-wide last-minute extension line.
         $extSince    = now()->subDays(30);
         $extSent     = \App\Models\Tenant\TenantRentalExtensionOffer::where('sent_at', '>=', $extSince)->count();
         $extAccepted = \App\Models\Tenant\TenantRentalExtensionOffer::where('status', 'paid')->where('sent_at', '>=', $extSince)->count();
@@ -581,22 +580,21 @@ class PlatformDashboard extends Page
             'totalTenants'      => $totalTenants,
             'newThisWeek'       => $newThisWeek,
             'weekDelta'         => $weekDelta,
-            'weekTrend'         => $weekTrend,        // MARKER-PATCH-136
-            'weekDeltaLabel'    => $weekDeltaLabel,   // MARKER-PATCH-136
+            'weekTrend'         => $weekTrend,
+            'weekDeltaLabel'    => $weekDeltaLabel,
             'mrr'               => $mrr,
-            // MARKER-REAL-MRR
             'mrrList'      => $mrrList,
             'payingCount'  => $payingCount,
             'giftedCount'  => $giftedCount,
-            'paidCount'         => $payingCount,   // MARKER-REAL-MRR — shops actually paying
+            'paidCount'         => $payingCount,   // shops actually paying
             'inTrial'           => $inTrial,
             'trialPotential'    => $trialPotential,
             'weekly'            => $weekly,
-            'extSent'           => $extSent,     // MARKER-RENTAL-EXT-P2
+            'extSent'           => $extSent,
             'extAccepted'       => $extAccepted,
             'extRevenue'        => $extRevenue,
             'extTenants'        => $extTenants,
-            'byTier'            => $byTier,      // MARKER-DASH-REFACTOR
+            'byTier'            => $byTier,
         ];
     }
 
@@ -604,7 +602,7 @@ class PlatformDashboard extends Page
     // FUNNEL
     // ─────────────────────────────────────────────────────────
 
-    // MARKER-PATCH-140 — Signed-up row becomes a chart; downstream stays as bars.
+    // Signed-up row becomes a chart; downstream stays as bars.
     protected function buildFunnel(): array
     {
         $window = now()->subDays(30);

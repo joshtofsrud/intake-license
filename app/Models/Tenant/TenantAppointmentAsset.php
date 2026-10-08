@@ -1,5 +1,4 @@
 <?php
-// MARKER-PATCH-158-A
 
 namespace App\Models\Tenant;
 
@@ -76,7 +75,7 @@ class TenantAppointmentAsset extends Model
     }
 
     /**
-     * MARKER-PATCH-158-G4 — Parts (inventory items) pinned to this asset
+     * Parts (inventory items) pinned to this asset
      * on this appointment. Parts are tracked separately from services and
      * don't roll up into subtotal_cents (that's services + addons only);
      * parts roll up into the appointment's parts_subtotal_cents instead.
@@ -87,7 +86,7 @@ class TenantAppointmentAsset extends Model
     }
 
     /**
-     * MARKER-PATCH-158-G5 — Work-order responses scoped to this asset.
+     * Work-order responses scoped to this asset.
      * Lets each asset card carry its own intake answers (serial, brand,
      * what's wrong, etc.) instead of one form for the whole appointment.
      */

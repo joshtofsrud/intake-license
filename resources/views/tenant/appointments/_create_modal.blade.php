@@ -197,12 +197,11 @@
     .appt-sp-week-btn:hover:not(:disabled) { background: rgba(255,255,255,.08); }
     .appt-sp-week-btn:disabled { opacity: .35; cursor: not-allowed; }
     .appt-sp-week-label { opacity: .65; min-width: 100px; text-align: center; }
-    /* MARKER-APPT-AUTOLOAD */
     .appt-sp-refresh-state { font-size:11px; color:var(--ia-text-dim); margin-left:8px; }
     .appt-sp-refresh-state a { color:var(--ia-text-muted); text-decoration:underline; }
     .appt-day-changed { margin-top:10px; font-size:12px; color:#f0c46a; border-left:2px solid rgba(240,196,106,.5); padding-left:9px; }
 
-    /* MARKER-APPT-TILES — a short list of choices, shown rather than hidden */
+    /* a short list of choices, shown rather than hidden */
     .appt-tiles-grid { display:grid; gap:7px; }
     .appt-tile { text-align:left; background:var(--ia-surface-2); border:0.5px solid var(--ia-border); border-radius:8px; padding:10px 12px; cursor:pointer; font-family:inherit; color:var(--ia-text); transition:all .12s ease; display:flex; flex-direction:column; gap:2px; }
     .appt-tile:hover { border-color:var(--ia-border-strong); }
@@ -213,7 +212,7 @@
     .appt-tile.on .appt-tile-s { color:var(--ia-text-muted); }
     .appt-tiles-filter { font-size:12.5px; padding:7px 10px; }
 
-    /* MARKER-APPT-PICKER — day cards for capacity mode */
+    /* day cards for capacity mode */
     .appt-day-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(116px,1fr)); gap:8px; }
     .appt-day { position:relative; border:0.5px solid var(--ia-border); border-radius:8px; padding:10px 11px; cursor:pointer; background:var(--ia-surface-2); transition:all .12s ease; }
     .appt-day:hover { border-color:var(--ia-border-strong); }
@@ -244,7 +243,7 @@
       border-radius: 8px;
       background: rgba(255,255,255,.02);
     }
-    /* MARKER-APPT-PICKER-CHROME — the day grid brings its own cards, so the
+    /* the day grid brings its own cards, so the
        panel that frames a list of times is a box around boxes. It also has to
        lose the 240px scroll, which clips a two-row grid for no reason. */
     .appt-sp-times-list.is-days {
@@ -303,7 +302,7 @@
                 <input type="email" id="appt-email" class="appt-input" placeholder="Email *">
                 <input type="tel"   id="appt-phone" class="appt-input" placeholder="Phone">
               </div>
-              {{-- MARKER-CUST-ADDR — optional address at creation, so the
+              {{-- optional address at creation, so the
                    record doesn't start life failing data health. --}}
               <div style="margin-top:8px">
                 <input type="text" id="appt-addr" class="appt-input" placeholder="Street address" autocomplete="off">
@@ -325,13 +324,13 @@
           </div>
         </div>
 
-        {{-- MARKER-APPT-ASSET — single-asset select/create; multi lives on the work order page --}}
+        {{-- single-asset select/create; multi lives on the work order page --}}
         @if($currentTenant->multi_asset_enabled)
         @php $aSing = strtolower($currentTenant->asset_label_singular ?: 'item'); $aPlur = strtolower($currentTenant->asset_label_plural ?: ($aSing.'s')); @endphp
         <div class="appt-section" id="appt-asset-section">
           <div class="appt-section-h">{{ ucfirst($aSing) }}</div>
           <div id="appt-asset-need-customer" style="font-size:11px;opacity:.55">Choose a customer to pick or add a {{ $aSing }}.</div>
-          {{-- MARKER-APPT-TILES — the select stays as the value holder; the
+          {{-- the select stays as the value holder; the
                tiles above it are what people actually touch. --}}
           <div id="appt-asset-tiles" class="appt-tiles" style="display:none"></div>
           <select id="appt-asset-select" class="appt-input" style="display:none"
@@ -370,7 +369,6 @@
 
         <div class="appt-section" id="appt-sp-resource-section" style="display:none">
           <div class="appt-section-h">Resource</div>
-          {{-- MARKER-APPT-TILES --}}
           <div id="appt-sp-resource-tiles" class="appt-tiles" style="display:none"></div>
           <select id="appt-sp-resource" class="appt-input">
             <option value="">Select a resource…</option>
@@ -390,7 +388,6 @@
               <button type="button" class="appt-sp-week-btn" id="appt-sp-prev-week" disabled>← Prev week</button>
               <span class="appt-sp-week-label" id="appt-sp-week-label">—</span>
               <button type="button" class="appt-sp-week-btn" id="appt-sp-next-week">Next week →</button>
-              {{-- MARKER-APPT-AUTOLOAD --}}
               <span class="appt-sp-refresh-state" id="appt-sp-refresh-state"></span>
             </div>
           </div>
@@ -405,7 +402,7 @@
           <textarea id="appt-notes" class="appt-input appt-textarea" placeholder="Internal notes about this appointment…"></textarea>
         </div>
 
-        {{-- MARKER-PATCH-519 — pickup window + need-by (route tenants only) --}}
+        {{-- pickup window + need-by (route tenants only) --}}
         @php
           $pdModalWindows = $currentTenant->deliveries_enabled
               ? \App\Models\Tenant\TenantRouteWindow::where('tenant_id', $currentTenant->id)->active()->get()
@@ -429,7 +426,7 @@
         </div>
         <script>
         (function () {
-          // MARKER-PATCH-519 — grey window options that don't run on the picked date
+          // grey window options that don't run on the picked date
           window.apptPdFilter = function (dateStr) {
             var sel = document.getElementById('appt-pd-window');
             if (!sel || !dateStr) return;
@@ -452,7 +449,7 @@
 
       <div class="appt-foot">
         <button type="button" class="appt-btn appt-btn--cancel" onclick="ApptModal.close()">Cancel</button>
-        {{-- MARKER-NOTIFY-MODAL — "Save" says what the person is doing; the
+        {{-- "Save" says what the person is doing; the
              old label described what the software did and gave no hint that a
              message might follow. --}}
         <button type="button" class="appt-btn appt-btn--create" id="appt-submit" onclick="ApptModal.submit()">Save appointment</button>
@@ -472,8 +469,8 @@ window.ApptModal = (function () {
     customerId: null,
     pickerOpen: false,
     selectedSlot: null,     // {date, time, resource_id}
-    dayLoad: [],            // MARKER-APPT-PICKER — [{date,state,left,max,…}]
-    selectedDay: null,      // MARKER-APPT-PICKER — {date,state,left,max}
+    dayLoad: [],            // [{date,state,left,max,…}]
+    selectedDay: null,      // {date,state,left,max}
     selectedServiceId: null,
     selectedResourceId: null,
     selectedResourceName: '',
@@ -487,21 +484,20 @@ window.ApptModal = (function () {
     store:      "{{ route('tenant.appointments.store') }}",
     eligibleResources: "{{ route('tenant.appointments.eligible-resources') }}",
     weekTimes:         "{{ route('tenant.appointments.week-times') }}",
-    dayLoad:           "{{ route('tenant.appointments.day_load') }}", // MARKER-APPT-PICKER
+    dayLoad:           "{{ route('tenant.appointments.day_load') }}",
   };
 
-  // MARKER-APPT-PICKER — a drop_off shop takes a number of jobs a day, so the
+  // a drop_off shop takes a number of jobs a day, so the
   // question is which DAY, not which minute. The mode decides which picker
   // runs; everything else in this modal is the same either way.
   var bookingMode = @json($currentTenant->booking_mode ?? 'drop_off');
   var dayPolicy = { short_notice: false, warns: true, overbook: false, notice_hours: 0 };
 
-  // MARKER-APPT-AUTOLOAD
   var autoRefresh = @json((bool) ($currentTenant->availability_auto_refresh ?? true));
   var settingsUrl = @json(route('tenant.settings.index'));
   var refreshTimer = null;
 
-  // MARKER-APPT-ASSET — asset picker config (label + endpoint from the tenant)
+  // asset picker config (label + endpoint from the tenant)
   var assetsCfg = {
     enabled: {{ $currentTenant->multi_asset_enabled ? 'true' : 'false' }},
     singular: @json(strtolower($currentTenant->asset_label_singular ?: 'item')),
@@ -611,7 +607,7 @@ window.ApptModal = (function () {
     el('appt-sp-service-wrap').style.display = 'block';
     hideServiceResults();
     el('appt-sp-resource').innerHTML = '<option value="">Select a resource…</option>';
-    var rt = el('appt-sp-resource-tiles'); if (rt) { rt.innerHTML = ''; rt.style.display = 'none'; } // MARKER-APPT-TILES
+    var rt = el('appt-sp-resource-tiles'); if (rt) { rt.innerHTML = ''; rt.style.display = 'none'; }
     el('appt-sp-resource-section').style.display = 'none';
     el('appt-sp-find-section').style.display = 'none';
     el('appt-sp-times-section').style.display = 'none';
@@ -628,7 +624,7 @@ window.ApptModal = (function () {
   }
 
   function close() {
-    stopAutoRefresh(); // MARKER-APPT-AUTOLOAD — no timer outlives its screen.
+    stopAutoRefresh(); // no timer outlives its screen.
     el('new-appt-modal').style.display = 'none';
   }
 
@@ -665,7 +661,7 @@ window.ApptModal = (function () {
     customers.forEach(function (c) {
       var row = document.createElement('div');
       row.className = 'appt-cust-row';
-      row.innerHTML = '<div>' + escapeHtml(c.name || (c.first_name + ' ' + c.last_name)) + '</div>' // MARKER-BIZ-NAME
+      row.innerHTML = '<div>' + escapeHtml(c.name || (c.first_name + ' ' + c.last_name)) + '</div>'
         + '<div class="meta">' + escapeHtml(c.email || c.phone || '') + '</div>';
       row.addEventListener('click', function () { attachCustomer(c); });
       box.appendChild(row);
@@ -676,7 +672,7 @@ window.ApptModal = (function () {
 
   function attachCustomer(c) {
     state.customerId = c.id;
-    el('appt-cust-attached-name').textContent = (c.name || (c.first_name + ' ' + c.last_name)).trim(); // MARKER-BIZ-NAME
+    el('appt-cust-attached-name').textContent = (c.name || (c.first_name + ' ' + c.last_name)).trim();
     el('appt-cust-attached-meta').textContent = c.email || c.phone || '';
     el('appt-cust-attached').style.display = 'flex';
     el('appt-cust-search-wrap').style.display = 'none';
@@ -684,7 +680,7 @@ window.ApptModal = (function () {
   }
 
   function clearCustomer() {
-    ['appt-addr', 'appt-city', 'appt-state', 'appt-post'].forEach(function (id) { var n = el(id); if (n) n.value = ''; }); // MARKER-CUST-ADDR
+    ['appt-addr', 'appt-city', 'appt-state', 'appt-post'].forEach(function (id) { var n = el(id); if (n) n.value = ''; });
     state.customerId = null;
     el('appt-cust-attached').style.display = 'none';
     el('appt-cust-search-wrap').style.display = 'block';
@@ -693,13 +689,13 @@ window.ApptModal = (function () {
     assetReset();
   }
 
-  // ── MARKER-APPT-ASSET — single asset select/create ──
+  // ── single asset select/create ──
   function assetOpt(v, label){ var o=document.createElement('option'); o.value=v; o.textContent=label; return o; }
   function assetReset(){
     if(!assetsCfg.enabled) return;
     var need=el('appt-asset-need-customer'); if(need) need.style.display='block';
     var sel=el('appt-asset-select'); if(sel){ sel.innerHTML=''; sel.style.display='none'; }
-    var at=el('appt-asset-tiles'); if(at){ at.innerHTML=''; at.style.display='none'; } // MARKER-APPT-TILES
+    var at=el('appt-asset-tiles'); if(at){ at.innerHTML=''; at.style.display='none'; }
     var nw=el('appt-asset-new'); if(nw) nw.style.display='none';
     var nm=el('appt-asset-name'); if(nm) nm.value='';
     var ni=el('appt-asset-id'); if(ni) ni.value='';
@@ -724,7 +720,7 @@ window.ApptModal = (function () {
           sel.appendChild(assetOpt('', 'Select ' + assetsCfg.singular + '\u2026'));
           assets.forEach(function(a){ sel.appendChild(assetOpt(a.id, a.name + (a.identifier ? ' \u00b7 ' + a.identifier : ''))); });
           sel.appendChild(assetOpt('__new__', '+ Add new ' + assetsCfg.singular));
-          sel.style.display='none'; // MARKER-APPT-TILES — tiles are the control
+          sel.style.display='none'; // tiles are the control
           renderTiles('appt-asset-tiles', 'appt-asset-select',
             assets.map(function (a) { return { value: a.id, label: a.name, sub: a.identifier || '' }; })
               .concat([{ value: '__new__', label: '+ Add new ' + assetsCfg.singular, isAdd: true }]), '');
@@ -862,7 +858,6 @@ window.ApptModal = (function () {
           opt.textContent = r.name + (r.subtitle ? ' · ' + r.subtitle : '');
           rsel.appendChild(opt);
         });
-        // MARKER-APPT-TILES
         rsel.style.display = 'none';
         renderTiles('appt-sp-resource-tiles', 'appt-sp-resource',
           resources.map(function (r) { return { value: r.id, label: r.name, sub: r.subtitle || '' }; }), '');
@@ -877,7 +872,7 @@ window.ApptModal = (function () {
     state.selectedResourceName = sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].text : '';
     state.selectedSlot = null;
     el('appt-sp-times-section').style.display = 'none';
-    // MARKER-APPT-AUTOLOAD — service and resource are both chosen by now, so
+    // service and resource are both chosen by now, so
     // there is nothing left for a button to ask. The button stays in the DOM
     // as the manual refresh for when someone wants to force it.
     el('appt-sp-find-section').style.display = 'none';
@@ -892,7 +887,6 @@ window.ApptModal = (function () {
   function onFindTimes() {
     if (!state.selectedServiceId || !state.selectedResourceId) return;
     state.weekStartDate = state.weekStartDate || todayStr();
-    // MARKER-APPT-PICKER
     if (bookingMode === 'drop_off') { fetchDayLoad(); } else { fetchWeekTimes(); }
   }
 
@@ -1038,7 +1032,7 @@ window.ApptModal = (function () {
     listEl.innerHTML = '<div class="appt-sp-times-empty">Loading…</div>';
     el('appt-sp-times-section').style.display = 'block';
     el('appt-sp-times-head-label').textContent = 'Which day';
-    listEl.classList.add('is-days'); // MARKER-APPT-PICKER-CHROME
+    listEl.classList.add('is-days');
     el('appt-sp-week-label').textContent = formatWeekLabel(state.weekStartDate);
     el('appt-sp-prev-week').disabled = (state.weekStartDate <= todayStr());
 
@@ -1056,7 +1050,7 @@ window.ApptModal = (function () {
         state.dayLoad = data.days || [];
         dayPolicy = data.policy || dayPolicy;
         renderDayLoad();
-        if (typeof after === 'function') { after(); } // MARKER-APPT-AUTOLOAD
+        if (typeof after === 'function') { after(); }
       })
       .catch(function (e) {
         listEl.innerHTML = '<div class="appt-sp-times-empty error">Could not read the days ('
@@ -1156,13 +1150,13 @@ window.ApptModal = (function () {
   }
 
   function reloadWhenWeekChanges() {
-    // MARKER-APPT-PICKER — same nav, either picker.
+    // same nav, either picker.
     if (bookingMode === 'drop_off') { fetchDayLoad(); } else { fetchWeekTimes(); }
   }
 
   function fetchWeekTimes(after) {
     var listEl = el('appt-sp-times-list');
-    listEl.classList.remove('is-days'); // MARKER-APPT-PICKER-CHROME
+    listEl.classList.remove('is-days');
     listEl.innerHTML = '<div class="appt-sp-times-empty">Loading…</div>';
     el('appt-sp-times-section').style.display = 'block';
     state.availLoading = true;
@@ -1178,7 +1172,6 @@ window.ApptModal = (function () {
       .then(function (data) {
         state.availLoading = false;
         state.availSlots = data.slots || [];
-        // MARKER-BOOKING-OVERRIDE
         state.shortNoticeWarns = !!data.short_notice_warns;
         renderTimes();
       })
@@ -1202,7 +1195,7 @@ window.ApptModal = (function () {
       html += '<div class="appt-sp-time-row' + (isSel ? ' selected' : '') + '" data-idx="' + idx + '">'
         + '<span class="appt-sp-time-date">' + escapeHtml(slot.date_label) + '</span>'
         + '<span class="appt-sp-time-time">' + escapeHtml(slot.time_label) + '</span>'
-        // MARKER-BOOKING-OVERRIDE — a time inside the notice window is offered
+        // a time inside the notice window is offered
         // to staff, but it says what it is. Silent policy offers it unmarked.
         + (slot.short_notice && state.shortNoticeWarns
             ? '<span class="appt-sp-short">short notice</span>' : '')
@@ -1218,7 +1211,7 @@ window.ApptModal = (function () {
           time: slot.time,
           resource_id: state.selectedResourceId,
         };
-        if (window.apptPdFilter) window.apptPdFilter(slot.date); // MARKER-PATCH-519
+        if (window.apptPdFilter) window.apptPdFilter(slot.date);
         renderTimes();
       });
     });
@@ -1231,7 +1224,7 @@ window.ApptModal = (function () {
     var ymd = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
     if (ymd < todayStr()) ymd = todayStr();
     state.weekStartDate = ymd;
-    reloadWhenWeekChanges(); // MARKER-APPT-PICKER-NAV
+    reloadWhenWeekChanges();
   }
 
   function onNextWeek() {
@@ -1239,7 +1232,7 @@ window.ApptModal = (function () {
     var d = new Date(state.weekStartDate + 'T00:00:00');
     d.setDate(d.getDate() + 7);
     state.weekStartDate = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
-    reloadWhenWeekChanges(); // MARKER-APPT-PICKER-NAV
+    reloadWhenWeekChanges();
   }
 
   function formatWeekLabel(startDate) {
@@ -1279,7 +1272,7 @@ window.ApptModal = (function () {
   })();
 
   // ── Submit ──
-  // MARKER-NOTIFY-MODAL-REMOVED — askNotify() lived here and is gone.
+  // askNotify() lived here and is gone.
   // Creating an appointment redirects to the appointment page; the
   // Send confirmation action belongs there, not in a stacked overlay.
 
@@ -1306,11 +1299,11 @@ window.ApptModal = (function () {
       appointment_time: state.selectedSlot.time,
       resource_id: state.selectedResourceId,
       staff_notes: el('appt-notes').value || null,
-      // MARKER-APPT-PICKER — asked for here, granted by the tenant policy server-side.
+      // asked for here, granted by the tenant policy server-side.
       override_short_notice: !!(document.querySelector('.appt-ov-notice') || {}).checked,
       override_capacity:     !!(document.querySelector('.appt-ov-cap') || {}).checked,
       override_reason:       (el('appt-ov-reason') && el('appt-ov-reason').value) || null,
-      route_window_id: (el('appt-pd-window') && el('appt-pd-window').value) || null, // MARKER-PATCH-519
+      route_window_id: (el('appt-pd-window') && el('appt-pd-window').value) || null,
       need_by: (el('appt-pd-needby') && el('appt-pd-needby').value) || null,
       items: [
         { service_item_id: state.selectedServiceId, price_override_cents: null },
@@ -1321,7 +1314,6 @@ window.ApptModal = (function () {
       payload.customer_last_name  = el('appt-last').value.trim();
       payload.customer_email      = el('appt-email').value.trim();
       payload.customer_phone      = el('appt-phone').value.trim();
-      // MARKER-CUST-ADDR
       payload.customer_address_line1 = el('appt-addr').value.trim();
       payload.customer_city          = el('appt-city').value.trim();
       payload.customer_state         = el('appt-state').value.trim();
@@ -1358,7 +1350,7 @@ window.ApptModal = (function () {
     .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, body: j }; }); })
     .then(function (res) {
       if (res.ok && res.body.ok) {
-        // MARKER-NOTIFY-MODAL-REMOVED — saved, and nobody has been told.
+        // saved, and nobody has been told.
         // Straight to the appointment; notifying is a deliberate action
         // there, never a side effect of creating the record.
         if (res.body.redirect) { window.location.href = res.body.redirect; }

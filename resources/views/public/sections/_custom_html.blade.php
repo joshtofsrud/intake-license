@@ -1,4 +1,4 @@
-{{-- MARKER-PATCH-306 — custom_html public renderer.
+{{-- custom_html public renderer.
      Deliberately renders author markup raw ({!! !!}). This is the entire
      purpose of the section: tenant-authored HTML on the tenant's own page.
      No sanitizer by design — treat tenant page authors as trusted. --}}

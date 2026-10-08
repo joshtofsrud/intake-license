@@ -6,7 +6,7 @@
 @include('tenant.imports._styles')
 @include('tenant.imports._progress')
 
-{{-- MARKER-IMPORT-MATCH — rebuilt around the ledger. Every tile opens the
+{{-- rebuilt around the ledger. Every tile opens the
      rows behind it; possible duplicates are reviewed here and the run will
      not start until each has a decision. Wording follows the import type. --}}
 @php
@@ -39,7 +39,7 @@
   ];
 @endphp
 
-{{-- MARKER-IMPORT-PROGRESS-FIX — a preview that has not finished must not
+{{-- a preview that has not finished must not
      render as a file full of nothing. Until the job writes its ledger, the
      screen says so and the run button stays disabled. --}}
 @php
@@ -112,7 +112,7 @@
 @endif
 
 <style>
-  /* MARKER-IMPORT-CATS — same modal vocabulary as the vendor modal. */
+  /* same modal vocabulary as the vendor modal. */
   .imp-modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.7);display:none;align-items:center;justify-content:center;z-index:1000;padding:20px}
   .imp-modal-bg.open{display:flex}
   .imp-modal{background:var(--ia-surface);border:0.5px solid var(--ia-border);border-radius:var(--ia-r-lg);width:100%}
@@ -120,7 +120,7 @@
 </style>
 
 {{-- ==================================================== categories --}}
-{{-- MARKER-IMPORT-MAP-CLEAN — render whenever a category column is mapped,
+{{-- render whenever a category column is mapped,
      even with nothing to show. A card that disappears reads as a missing
      feature; one that says "nothing to review" reads as an answer. --}}
 @php

@@ -1,5 +1,4 @@
 @extends('marketing.layout')
-{{-- MARKER-SCHED-PUBLIC --}}
 @section('title', 'Your call — Intake')
 @php
     $s = $booking->startsForBooker();

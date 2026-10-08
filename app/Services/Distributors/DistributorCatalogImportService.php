@@ -1,5 +1,4 @@
 <?php
-// MARKER-PATCH-HLC4A
 
 namespace App\Services\Distributors;
 
@@ -34,9 +33,8 @@ class DistributorCatalogImportService
         }
 
         $vendor = $dryRun ? null : $this->vendorFor($tenantId, $code);
-        [$byKey, $byUpc, $linkedCatalog, $bySku, $byEan, $byBarcode] = $this->existingIndexes($tenantId); // MARKER-IMPORT-SKU-MERGE, MARKER-IMPORT-EAN-MERGE, MARKER-BARCODE-IDENTITY
+        [$byKey, $byUpc, $linkedCatalog, $bySku, $byEan, $byBarcode] = $this->existingIndexes($tenantId);
 
-        // MARKER-IMPORT-MATCHES
         $matchedRows = $this->matchedRows($candidates->pluck('id')->all());
 
         foreach ($candidates as $cat) {
@@ -46,7 +44,6 @@ class DistributorCatalogImportService
                 continue;
             }
 
-            // MARKER-IMPORT-MATCHES
             // 2) a catalog row LINKED to this one is already carried.
             //
             // Checked before product_key and UPC because it is the only test
@@ -70,7 +67,7 @@ class DistributorCatalogImportService
                     : (($cat->upc && isset($byUpc[$cat->upc])) ? $byUpc[$cat->upc] : null);
             }
 
-            // MARKER-IMPORT-EAN-MERGE — same product, different distributor,
+            // same product, different distributor,
             // no UPC on either side. Two rows for one Schwalbe tyre (SW21041
             // and TR00641, EAN 4026495969444) each created their own item
             // because the EAN sat on the row and on the item but was never a
@@ -83,7 +80,7 @@ class DistributorCatalogImportService
                 }
             }
 
-            // MARKER-IMPORT-SKU-MERGE — the shop already has an item with the
+            // the shop already has an item with the
             // SKU this row would be created under. The database will refuse
             // a duplicate; treat it as the match it is, same as a UPC hit.
             if ($matchId === null) {
@@ -93,7 +90,7 @@ class DistributorCatalogImportService
                 }
             }
 
-            // MARKER-IDENT-IN-SKU — the shop typed a barcode into the SKU box.
+            // the shop typed a barcode into the SKU box.
             // With no UPC field on the add-item form that is the only place it
             // could go, so a hand-entered item carries the product's identifier
             // as its SKU and nothing in catalog_upc or catalog_ean. None of the
@@ -110,7 +107,7 @@ class DistributorCatalogImportService
                 }
             }
 
-            // MARKER-BARCODE-IDENTITY — the checks above compare UPC to UPC and
+            // the checks above compare UPC to UPC and
             // EAN to EAN, exactly as typed. A UPC sitting in an item's EAN
             // column, an EAN in its UPC column, or the same number with and
             // without the leading zero never met. One normalised pool, any
@@ -128,7 +125,7 @@ class DistributorCatalogImportService
                 if (! $dryRun) {
                     $this->addSource($matchId, $vendor, $code, $cat);
 
-                    // MARKER-IDENT-IN-SKU — fill the identifier columns that were
+                    // fill the identifier columns that were
                     // empty, so the next import matches on UPC or EAN like every
                     // other item and the SKU fallback above is needed once per
                     // item rather than on every run. Only ever fills a blank —
@@ -151,7 +148,7 @@ class DistributorCatalogImportService
                             if (isset($fill['catalog_ean'])) {
                                 $byEan[$fill['catalog_ean']] = $matchId;
                             }
-                            foreach (\App\Support\Barcode::keys($fill['catalog_upc'] ?? null, $fill['catalog_ean'] ?? null) as $bk) { // MARKER-BARCODE-IDENTITY
+                            foreach (\App\Support\Barcode::keys($fill['catalog_upc'] ?? null, $fill['catalog_ean'] ?? null) as $bk) {
                                 $byBarcode[$bk] = $byBarcode[$bk] ?? $matchId;
                             }
                         }
@@ -169,11 +166,11 @@ class DistributorCatalogImportService
                     $this->addSource($item->id, $vendor, $code, $cat);
                     $id = $item->id;
                 } catch (\Throwable $e) {
-                    // MARKER-IMPORT-SKU-MERGE — one odd row must not end a
+                    // one odd row must not end a
                     // 39,000-row import. Count it, log it, move on.
                     $res['errors'] = ($res['errors'] ?? 0) + 1;
                     $res['error_samples'][] = ['catalog_id' => $cat->id, 'error' => \Illuminate\Support\Str::limit($e->getMessage(), 200)];
-                    // MARKER-JOB-ISSUES — first skipped row of this run is
+                    // first skipped row of this run is
                     // reported (with the row); the rest are counted.
                     if ($res['errors'] === 1) {
                         \App\Support\JobFailureReporter::report(
@@ -193,13 +190,13 @@ class DistributorCatalogImportService
             if ($cat->upc) {
                 $byUpc[$cat->upc] = $id;
             }
-            // MARKER-IMPORT-EAN-MERGE — without this, two rows sharing an EAN
+            // without this, two rows sharing an EAN
             // inside one run would both create an item. The index has to learn
             // as it goes, exactly as product_key, UPC and SKU do above.
             if ($cat->ean && trim((string) $cat->ean) !== '') {
                 $byEan[trim((string) $cat->ean)] = $id;
             }
-            foreach (\App\Support\Barcode::keys($cat->upc, $cat->ean) as $bk) { // MARKER-BARCODE-IDENTITY
+            foreach (\App\Support\Barcode::keys($cat->upc, $cat->ean) as $bk) {
                 $byBarcode[$bk] = $byBarcode[$bk] ?? $id;
             }
             $linkedCatalog[$cat->id] = $id;
@@ -210,7 +207,7 @@ class DistributorCatalogImportService
     }
 
     /**
-     * MARKER-CATALOG-IMPORT-ALL — ordered and offsettable.
+     * ordered and offsettable.
      *
      * This query had no ORDER BY. limit/offset over an unordered result is
      * undefined in MySQL, so the paged import job could have skipped or
@@ -237,7 +234,7 @@ class DistributorCatalogImportService
         if (! empty($filters['brand'])) {
             $q->where('manufacturer', 'like', '%' . $filters['brand'] . '%');
         }
-        $q->orderBy('id');   // MARKER-CATALOG-IMPORT-ALL — required for paging
+        $q->orderBy('id');   // required for paging
 
         if ($limit > 0) {
             $q->limit($limit);
@@ -250,12 +247,12 @@ class DistributorCatalogImportService
     }
 
     /**
-     * MARKER-CATALOG-IMPORT-ALL — how many rows the filters match, counted in
+     * how many rows the filters match, counted in
      * the database. Preview needs the true number without hydrating 47,000
      * models to find it.
      */
     /**
-     * MARKER-PREVIEW-EXACT — how many matching catalog rows this shop already
+     * how many matching catalog rows this shop already
      * carries, counted in SQL against the item and vendor-pivot links.
      */
     public function linkedCandidateCount(string $tenantId, string $distributorCode, array $filters = []): int
@@ -310,7 +307,7 @@ class DistributorCatalogImportService
     {
         $items = TenantInventoryItem::query()
             ->where('tenant_id', $tenantId)
-            ->get(['id', 'sku', 'catalog_upc', 'catalog_ean', 'distributor_catalog_id']); // MARKER-IMPORT-SKU-MERGE, MARKER-IMPORT-EAN-MERGE
+            ->get(['id', 'sku', 'catalog_upc', 'catalog_ean', 'distributor_catalog_id']);
 
         $itemIds = $items->pluck('id');
         $pivots = TenantInventoryItemVendor::query()
@@ -327,16 +324,16 @@ class DistributorCatalogImportService
 
         $byKey = [];
         $byUpc = [];
-        $bySku = [];   // MARKER-IMPORT-SKU-MERGE
-        $byEan = [];   // MARKER-IMPORT-EAN-MERGE
-        $byBarcode = []; // MARKER-BARCODE-IDENTITY — UPC, EAN and barcode-SKUs, normalised
+        $bySku = [];
+        $byEan = [];
+        $byBarcode = []; // UPC, EAN and barcode-SKUs, normalised
         $linked = [];
 
         foreach ($items as $it) {
             if ($it->catalog_upc) {
                 $byUpc[$it->catalog_upc] = $it->id;
             }
-            // MARKER-IMPORT-EAN-MERGE — trim only, matching how the identifier
+            // trim only, matching how the identifier
             // backfill normalised the column: NULLIF(TRIM(COALESCE(...)), '').
             if ($it->catalog_ean && trim($it->catalog_ean) !== '') {
                 $byEan[trim($it->catalog_ean)] = $it->id;
@@ -344,7 +341,7 @@ class DistributorCatalogImportService
             if ($it->sku) {
                 $bySku[strtoupper(trim($it->sku))] = $it->id;
             }
-            foreach (\App\Support\Barcode::keys($it->catalog_upc, $it->catalog_ean, $it->sku) as $bk) { // MARKER-BARCODE-IDENTITY
+            foreach (\App\Support\Barcode::keys($it->catalog_upc, $it->catalog_ean, $it->sku) as $bk) {
                 $byBarcode[$bk] = $byBarcode[$bk] ?? $it->id;
             }
             if ($it->distributor_catalog_id) {
@@ -365,11 +362,11 @@ class DistributorCatalogImportService
             }
         }
 
-        return [$byKey, $byUpc, $linked, $bySku, $byEan, $byBarcode]; // MARKER-IMPORT-SKU-MERGE, MARKER-IMPORT-EAN-MERGE, MARKER-BARCODE-IDENTITY
+        return [$byKey, $byUpc, $linked, $bySku, $byEan, $byBarcode];
     }
 
     /**
-     * MARKER-IMPORT-MATCHES — catalog rows linked to each of these rows.
+     * catalog rows linked to each of these rows.
      *
      * Only `auto` and `confirmed` links are honoured. A `held` pair is a
      * question nobody has answered and a `rejected` pair is someone having
@@ -408,7 +405,7 @@ class DistributorCatalogImportService
 
     private function vendorFor(string $tenantId, string $code): TenantVendor
     {
-        // MARKER-VENDOR-NET-COST — prefer the explicit link.
+        // prefer the explicit link.
         //
         // This used to match on NAME alone, so the vendor ended up literally
         // called "BTI" and a shop that already had "Bicycle Technologies
@@ -445,13 +442,13 @@ class DistributorCatalogImportService
         return TenantInventoryItem::create([
             'tenant_id'              => $tenantId,
             'sku'                    => $cat->product_key ?: $cat->distributor_variant_no,
-            // MARKER-BRAND-ECHO — the raw-name fallback can carry the feed's
+            // the raw-name fallback can carry the feed's
             // doubled brand; composed display_names are already deduped.
             'name'                   => \App\Services\Distributors\CatalogTitleComposer::collapseRepeats(
                                             $cat->display_name ?: ($cat->name ?: $cat->distributor_variant_no)
                                         ),
             'display_subtitle'       => $cat->display_subtitle,
-            // MARKER-IMPORT-DESC — vendor copy, on create only. HLC and BTI
+            // vendor copy, on create only. HLC and BTI
             // rarely supply it; QBP's bullet points do. Never written on a
             // merge: a shop's own description outranks a distributor's.
             'description'            => $cat->description ?: null,
@@ -461,18 +458,18 @@ class DistributorCatalogImportService
             'catalog_map_cents'      => $cat->map_cents,
             'catalog_case_quantity'  => $cat->case_quantity,
             'catalog_upc'            => $cat->upc,
-            // MARKER-ITEM-IDENTIFIERS — a lot of HLC rows carry an EAN and no
+            // a lot of HLC rows carry an EAN and no
             // UPC; without these two the item is unfindable by barcode or by
             // manufacturer part number.
             'catalog_ean'            => $cat->ean ?: null,
             'catalog_mpn'            => $cat->manufacturer_sku ?: null,
-            // MARKER-CATALOG-COLORSIZE — the columns added in May finally get
+            // the columns added in May finally get
             // a value. On CREATE only: a shop's own edit outranks the feed,
             // same rule the description above follows.
             'color'                  => $cat->color ?: null,
             'size'                   => $cat->size ?: null,
             'catalog_title_seen'     => $cat->display_name, // baseline for the title-change watch
-            // MARKER-PRICE-SEED — the shop's choice for this distributor, and a
+            // the shop's choice for this distributor, and a
             // zero is no price at all (some feeds send MSRP 0.00).
             'shop_sell_price_cents'  => \App\Support\PriceSeed::for($tenantId, (string) $cat->distributor_code, $cat->msrp_cents, $cat->map_cents),
             'computed_stock_count'   => 0,

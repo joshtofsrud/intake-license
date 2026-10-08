@@ -4,7 +4,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-// MARKER-RENTAL-MODEL-PHOTOS — one marketing photo per rental model,
+// one marketing photo per rental model,
 // rendered on every public rental surface.
 return new class extends Migration {
     public function up(): void

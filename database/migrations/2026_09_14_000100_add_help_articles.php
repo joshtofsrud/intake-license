@@ -5,7 +5,7 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * MARKER-HELP-ADMIN — help articles are pages, so they get the builder free.
+ * help articles are pages, so they get the builder free.
  *
  * Additive only: new columns default to the existing behaviour (kind 'page'),
  * so every row already in tenant_pages keeps working untouched while the old

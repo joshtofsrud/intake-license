@@ -21,11 +21,11 @@
   </div>
 @endif
 
-{{-- MARKER-BLADE-GLUE-FIX — the Archive form used to be nested INSIDE this
+{{-- the Archive form used to be nested INSIDE this
      one. Nested forms are invalid HTML and the inner submit can post to the
      outer action. The two are siblings now; Save reaches this form by id. --}}
 <form method="POST" action="{{ route('tenant.inventory.update', $item->id) }}"
-      data-identify-url="{{ route('tenant.inventory.identify') }}" data-identify-mode="edit" data-identify-except="{{ $item->id }}">{{-- MARKER-LIVE-IDENTIFY --}}
+      data-identify-url="{{ route('tenant.inventory.identify') }}" data-identify-mode="edit" data-identify-except="{{ $item->id }}">
   @csrf
   @method('PATCH')
 
@@ -44,7 +44,7 @@
         </div>
       </div>
 
-      {{-- MARKER-ITEM-IDENT-ENTRY — these three are what link an item to a
+      {{-- these three are what link an item to a
            distributor catalog. Without them a hand-entered item matches
            nothing, never updates its cost, and cannot be reordered. --}}
       <div class="ia-form-row">
@@ -73,14 +73,14 @@
 
       <div class="ia-form-group">
         <label class="ia-form-label">Category <span class="ia-required">*</span></label>
-        {{-- MARKER-SSEL-CATS — our picker, not a native select: macOS draws
+        {{-- our picker, not a native select: macOS draws
              the native popup itself and ignored two attempts to make it dark,
              so a tenant on a light-mode machine got white on white. This one
              renders in our CSS. `required` is enforced server-side. --}}
         @php
           $catOpts = [];
           foreach ($categories as $opt) {
-              // MARKER-CAT-DEPTH-INDENT — one marker per level, so a grandchild
+              // one marker per level, so a grandchild
               // reads as a grandchild instead of a sibling of its parent.
               $catOpts[$opt['cat']->id] = str_repeat("\u{00A0}\u{00A0}\u{00A0}", max(0, $opt['depth'] - 1))
                   . ($opt['depth'] ? '└ ' : '') . $opt['cat']->name;
@@ -125,7 +125,6 @@
           <tr><td>MSRP</td><td>{{ $item->catalog_msrp_cents !== null ? '$' . number_format($item->catalog_msrp_cents / 100, 2) : '—' }}</td></tr>
           <tr><td>Case quantity</td><td>{{ $item->catalog_case_quantity ?? '—' }}</td></tr>
           <tr><td>UPC</td><td><code>{{ $item->catalog_upc ?? '—' }}</code></td></tr>
-          {{-- MARKER-DETAILS-WATCH --}}
           <tr><td>Color</td><td>{{ $item->distributorCatalog?->color ?? '—' }}</td></tr>
           <tr><td>Size</td><td>{{ $item->distributorCatalog?->size ?? '—' }}</td></tr>
           <tr><td>Description</td><td>{{ blank($item->distributorCatalog?->description) ? '—' : \Illuminate\Support\Str::limit($item->distributorCatalog->description, 160) }}</td></tr>
@@ -199,7 +198,7 @@
     </div>
   </div>
 
-  {{-- MARKER-ARCHIVE-MOVE — Archive lives on the item page now. A
+  {{-- Archive lives on the item page now. A
        destructive control next to Save is what turned a save into a delete. --}}
   @include('tenant.inventory._sources')
 
@@ -212,9 +211,9 @@
 @endsection
 
 @push('scripts')
-<script src="{{ asset('js/tenant/item-identify.js') }}?v=1"></script>{{-- MARKER-LIVE-IDENTIFY --}}
+<script src="{{ asset('js/tenant/item-identify.js') }}?v=1"></script>
 <script>
-// MARKER-ITEM-IDENT-ENTRY — see create.blade.php. A scanner's Enter moves on
+// see create.blade.php. A scanner's Enter moves on
 // instead of submitting a half-edited item.
 document.querySelectorAll('.ia-scan-field').forEach(function (el) {
   el.addEventListener('keydown', function (e) {

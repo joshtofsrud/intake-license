@@ -89,7 +89,7 @@ class DebugLog extends Model
     // ----------------------------------------------------------------
 
     /**
-     * MARKER-ERROR-PARITY — an "issue": an error somebody can act on and
+     * an "issue": an error somebody can act on and
      * resolve. Request rows are excluded: every 5xx writes one beside the
      * exception row, so counting both doubled every failure.
      */
@@ -105,7 +105,7 @@ class DebugLog extends Model
         return in_array($this->severity, self::ISSUE_SEVERITIES, true) && $this->channel !== 'request';
     }
 
-    /** MARKER-ERROR-PARITY — is_resolved is the truth; resolved_at follows it. */
+    /** is_resolved is the truth; resolved_at follows it. */
     protected static function booted(): void
     {
         static::saving(function (DebugLog $log) {

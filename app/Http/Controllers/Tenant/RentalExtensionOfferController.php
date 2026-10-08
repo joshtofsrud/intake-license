@@ -17,7 +17,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 /**
- * MARKER-RENTAL-EXT — the magic-link surface. The token IS the auth:
+ * the magic-link surface. The token IS the auth:
  * no login, one screen, one tap. Payment rides the exact reserve-flow
  * rails (PI -> draft sale -> confirm records ledger payment), and the
  * rental's due_at moves only after Stripe says succeeded.
@@ -201,7 +201,7 @@ class RentalExtensionOfferController extends Controller
             });
 
             $customer = $rental->customer;
-            // MARKER-RENTAL-EXT-P2 — paid event on the thread.
+            // paid event on the thread.
             if ($customer) {
                 try {
                     $inbox  = app(\App\Services\Tenant\InboxService::class);

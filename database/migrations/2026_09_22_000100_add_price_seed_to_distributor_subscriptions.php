@@ -1,5 +1,5 @@
 <?php
-// MARKER-PRICE-SEED — which list price a distributor's new items start at.
+// which list price a distributor's new items start at.
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;

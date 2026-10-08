@@ -1,6 +1,6 @@
 <?php
 
-// MARKER-REFUND-QTY — refund lines now link to the exact original sale line
+// refund lines now link to the exact original sale line
 // (instead of being matched by name) and record where the returned goods
 // went. Both nullable: legacy refund rows keep working, and the service
 // falls back to best-effort matching when original_sale_item_id is absent.

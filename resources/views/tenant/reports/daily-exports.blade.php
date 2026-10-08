@@ -1,6 +1,6 @@
 @extends('layouts.tenant.app')
 
-{{-- MARKER-PATCH-634 — Reports → Daily ops → Bookkeeping exports. --}}
+{{-- Reports → Daily ops → Bookkeeping exports. --}}
 
 @section('title', 'Reports · Exports')
 

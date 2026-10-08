@@ -1,5 +1,4 @@
 <?php
-// MARKER-PATCH-221
 
 namespace App\Http\Controllers\Tenant;
 
@@ -32,7 +31,7 @@ class InboxController extends Controller
         $filter = in_array($request->query('filter'), ['all', 'unread', 'closed'], true)
             ? $request->query('filter') : 'all';
 
-        // MARKER-INBOX-SEARCH — a search spans every bucket. Narrowing by the
+        // a search spans every bucket. Narrowing by the
         // status pill while someone is hunting for a conversation is how you
         // get "it's not there" for a thread that is simply closed.
         $q = trim((string) $request->query('q', ''));
@@ -61,7 +60,7 @@ class InboxController extends Controller
             ->limit(100)
             ->get();
 
-        // MARKER-INBOX-SEARCH — when the hit was in a message, show that
+        // when the hit was in a message, show that
         // message rather than the newest one. One query for the page.
         $searchHits = [];
         if ($searching && $threads->isNotEmpty()) {
@@ -121,7 +120,7 @@ class InboxController extends Controller
         return redirect()->route('tenant.inbox.index', ['thread' => $thread->id]);
     }
 
-    // MARKER-PATCH-401 — soft-delete a single message, scoped to this tenant.
+    // soft-delete a single message, scoped to this tenant.
     public function deleteMessage(string $id)
     {
         $tenant = tenant();
@@ -154,13 +153,13 @@ class InboxController extends Controller
         $request->validate([
             'customer_id' => ['required', 'string', 'uuid'],
             'body'        => ['required', 'string', 'max:1200'],
-            'channel'     => ['nullable', 'in:sms,email'], // MARKER-INBOX-NEW
+            'channel'     => ['nullable', 'in:sms,email'],
         ]);
 
         $customer = TenantCustomer::where('tenant_id', $tenant->id)
             ->where('id', $request->input('customer_id'))->firstOrFail();
 
-        // MARKER-INBOX-NEW — channel comes from the compose panel; it seeds the
+        // channel comes from the compose panel; it seeds the
         // thread when new and is passed explicitly so postOutbound can't infer.
         $channel = $request->input('channel', 'sms');
 

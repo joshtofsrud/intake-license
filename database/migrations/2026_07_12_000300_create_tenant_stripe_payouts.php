@@ -1,5 +1,5 @@
 <?php
-// MARKER-PATCH-635 — cached Stripe payouts for reconciliation. Each row is one
+// cached Stripe payouts for reconciliation. Each row is one
 // payout with its charge breakdown (from balance transactions) and how many
 // charges couldn't be matched to a ledger payment by PaymentIntent id.
 

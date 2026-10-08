@@ -1,4 +1,4 @@
-{{-- MARKER-PATCH-HLC7B — distributor area tabs --}}
+{{-- distributor area tabs --}}
 @php $cur = Route::currentRouteName(); @endphp
 <div style="display:flex;gap:4px;border-bottom:1px solid var(--ia-border);margin-bottom:22px">
   @php

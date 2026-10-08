@@ -1,4 +1,4 @@
-{{-- MARKER-ROI-SECTION — ROI editor (intake.works only) --}}
+{{-- ROI editor (intake.works only) --}}
 @php
   $c   = $c ?? ($section->content ?? []);
   $get = fn($k, $d = '') => $c[$k] ?? $d;
@@ -148,7 +148,7 @@
 </div>
 
 <div class="pb2-tab-panel" data-tab="style" hidden>
-  {{-- MARKER-ROI-SECTION — the standard Section background controls --}}
+  {{-- the standard Section background controls --}}
   <div class="pb2-group">
     <div class="pb2-group-title">Section background</div>
     <div class="pb2-field">

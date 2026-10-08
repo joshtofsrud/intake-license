@@ -54,7 +54,7 @@
         </div>
 
         @php
-            /* MARKER-FGCATS — this list used to be the ONLY thing rendered, so
+            /* this list used to be the ONLY thing rendered, so
                any addon in another category (e.g. 'retail', which is where
                online_store lives) was invisible here and could not be granted
                or revoked at all. Curated labels and order are kept for the

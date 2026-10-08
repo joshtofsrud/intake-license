@@ -1,5 +1,5 @@
 <?php
-// MARKER-SALES-ROUTE — one place that merges a Places record into a prospect.
+// one place that merges a Places record into a prospect.
 
 namespace App\Services\Sales;
 

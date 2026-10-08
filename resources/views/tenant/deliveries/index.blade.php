@@ -1,8 +1,8 @@
-{{-- MARKER-ASSET-NOUN — asset labels read tenant()->asset_label_* --}}
+{{-- asset labels read tenant()->asset_label_* --}}
 @extends('layouts.tenant.app')
 @section('title', 'Schedule · Deliveries')
 
-{{-- MARKER-PATCH-152B — Day + Week views, drawer, create/edit. --}}
+{{-- Day + Week views, drawer, create/edit. --}}
 
 @push('styles')
 <style>
@@ -197,7 +197,7 @@
     background: var(--ia-surface);
     border: 0.5px solid var(--ia-border);
     border-radius: 8px;
-    overflow-x: auto; /* MARKER-PATCH-345 — scroll instead of crush */
+    overflow-x: auto; /* scroll instead of crush */
     display: grid;
     grid-template-columns: repeat(7, minmax(160px, 1fr));
   }
@@ -235,7 +235,7 @@
   .del-week-card.is-pickup  { border-left-color: var(--del-pickup); }
   .del-week-card.is-dropoff { border-left-color: var(--del-dropoff); }
 
-  /* MARKER-PATCH-391 — completed deliveries: muted + green check badge, matching
+  /* completed deliveries: muted + green check badge, matching
      the calendar's completed treatment (.ia-cal-appt.status-completed). */
   .del-card.is-completed,
   .del-week-card.is-completed {
@@ -282,7 +282,7 @@
   /* Drawer */
   .del-drawer-bg {
     display: none; position: fixed; inset: 0;
-    background: rgba(0,0,0,.65); z-index: 200; /* MARKER-PATCH-369 — above the bottom tab bar */
+    background: rgba(0,0,0,.65); z-index: 200; /* above the bottom tab bar */
   }
   .del-drawer-bg.is-open { display: block; }
   .del-drawer {
@@ -290,7 +290,7 @@
     width: 520px; max-width: 100vw;
     background: var(--ia-surface);
     border-left: 0.5px solid var(--ia-border-strong, rgba(255,255,255,.14));
-    z-index: 201; overflow-y: auto; /* MARKER-PATCH-369 */
+    z-index: 201; overflow-y: auto;
   }
   .del-drawer.is-open { display: block; }
   .del-drawer-head {
@@ -308,7 +308,7 @@
   }
   .del-drawer-close:hover { background: rgba(255,255,255,.06); color: var(--ia-text); }
   .del-drawer-body { padding: 18px 24px; }
-  /* MARKER-PATCH-447 — contact tiles (call / text / email), mirrors the customer page */
+  /* contact tiles (call / text / email), mirrors the customer page */
   .del-contact-tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 18px; }
   .del-ctile { display: flex; flex-direction: column; align-items: center; gap: 4px; background: var(--ia-surface); border: 0.5px solid var(--ia-border); border-radius: 10px; padding: 12px 6px; color: var(--ia-text); text-decoration: none; cursor: pointer; -webkit-tap-highlight-color: transparent; }
   .del-ctile svg { color: var(--ia-accent); }
@@ -336,7 +336,7 @@
     outline: none; border-color: var(--ia-accent, #BEF264);
   }
   .del-textarea { resize: vertical; min-height: 60px; }
-  /* MARKER-PATCH-427 — asset picker */
+  /* asset picker */
   .del-assets { display: flex; flex-direction: column; gap: 6px; }
   .del-asset { display: flex; align-items: center; gap: 10px; padding: 9px 11px; background: var(--ia-surface); border: 0.5px solid var(--ia-border); border-radius: 8px; cursor: pointer; font-size: 13px; color: var(--ia-text); }
   .del-asset:hover { border-color: var(--ia-border-strong, rgba(255,255,255,.18)); }
@@ -344,7 +344,7 @@
   .del-asset-name { font-weight: 500; }
   .del-asset-id { color: var(--ia-text-2, rgba(255,255,255,.55)); font-size: 12px; }
   .del-assets-empty { font-size: 12px; color: var(--ia-text-2, rgba(255,255,255,.55)); padding: 4px 2px; }
-  /* MARKER-PATCH-427 — bike picker */
+  /* bike picker */
   .del-assets { display: flex; flex-direction: column; gap: 6px; }
   .del-asset { display: flex; align-items: center; gap: 10px; padding: 9px 11px; background: var(--ia-surface); border: 0.5px solid var(--ia-border); border-radius: 8px; cursor: pointer; font-size: 13px; color: var(--ia-text); }
   .del-asset:hover { border-color: var(--ia-border-strong, rgba(255,255,255,.18)); }
@@ -353,7 +353,7 @@
   .del-asset-id { color: var(--ia-text-2, rgba(255,255,255,.55)); font-size: 12px; }
   .del-assets-empty { font-size: 12px; color: var(--ia-text-2, rgba(255,255,255,.55)); padding: 4px 2px; }
 
-  /* MARKER-PATCH-153-FIX1 — match customer-search component to drawer input styling */
+  /* match customer-search component to drawer input styling */
   .del-drawer .ia-cs,
   .del-drawer .ia-cs-input {
     width: 100%;
@@ -411,17 +411,17 @@
     position: sticky; bottom: 0;
     background: var(--ia-surface);
   }
-  /* MARKER-PATCH-157-FIX1 — top row: cancel left, action buttons right */
+  /* top row: cancel left, action buttons right */
   .del-drawer-foot-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
   .del-drawer-foot-right { display: flex; gap: 10px; }
-  .del-btn--full { width: 100%; justify-content: center; } /* MARKER-PATCH-157-FIX1 */
+  .del-btn--full { width: 100%; justify-content: center; }
   .del-btn {
     height: 32px; padding: 0 14px;
     border: 0; border-radius: 4px;
     font-size: 12.5px; cursor: pointer;
     display: inline-flex; align-items: center; gap: 6px;
     font-family: inherit;
-    white-space: nowrap; /* MARKER-PATCH-157-FIX1 — prevent label wrapping */
+    white-space: nowrap; /* prevent label wrapping */
     text-decoration: none;
   }
   .del-btn--primary { background: var(--ia-accent, #BEF264); color: var(--ia-accent-text, #0a0a0a); font-weight: 600; }
@@ -438,7 +438,7 @@
   }
   .del-btn--danger:hover { background: rgba(248,113,113,.08); }
 
-  /* ===================== MARKER-PATCH-352 =====================
+  /* ===================== =====================
      Deliveries WEEK -> phone route-list (matrix stays on >=768px). */
   @media (max-width: 767px) {
     .del-week { display: block; }
@@ -517,7 +517,7 @@
   }
   /* =================== end patch-352 block =================== */
 
-  /* ===================== MARKER-PATCH-353 =====================
+  /* ===================== =====================
      Deliveries toolbar -> no phone overflow (day + week share it). */
   @media (max-width: 767px) {
     /* action cluster: wrap instead of running off-screen */
@@ -536,7 +536,7 @@
   }
   /* =================== end patch-353 block =================== */
 
-  /* ===================== MARKER-PATCH-436 =====================
+  /* ===================== =====================
      Deliveries toolbar matches the calendar: Day/Week toggle + date nav on one
      row (compact toggle, nav fills); Pickup/Dropoff full-width below on phones.
      Supersedes the patch-353 .del-day-nav / .date-label rules (markup moved). */
@@ -550,7 +550,7 @@
     .del-toolbar-right .del-btn { flex: 1 1 auto; justify-content: center; }
   }
 
-  /* MARKER-PATCH-369 — pickup/dropoff drawer phone layout. Footer was
+  /* pickup/dropoff drawer phone layout. Footer was
      overflowing (up to 4 action buttons in a no-wrap row) and sat under the
      bottom tab bar (drawer z-index now clears the nav). */
   @media (max-width: 600px) {
@@ -565,7 +565,7 @@
     .del-drawer-foot-right > .del-btn { flex: 1 1 calc(50% - 4px); justify-content: center; }
   }
 
-  /* ===================== MARKER-PATCH-398 =====================
+  /* ===================== =====================
      Completed stops on the phone route-list: green check in the type-tag slot,
      overriding patch-352's Pickup/Dropoff badge for both types. */
   @media (max-width: 767px) {
@@ -595,11 +595,11 @@
   $today    = \Carbon\Carbon::now($tz)->startOfDay();
   $isToday  = $date->copy()->setTimezone($tz)->startOfDay()->equalTo($today);
 
-  // MARKER-PATCH-152C — what notification channels will fire on save?
+  // what notification channels will fire on save?
   $notifyEmail = $tenant->notificationEnabled('delivery_scheduled_email');
   $notifySms   = $tenant->notificationEnabled('delivery_scheduled_sms');
 
-  // MARKER-PATCH-152B-FIX3 — auto-fit day-view hour range
+  // auto-fit day-view hour range
   // Default to 8am–6pm. If deliveries exist outside that, expand to cover them.
   $openHour  = 8;
   $closeHour = 18;
@@ -657,7 +657,7 @@
 </div>
 
 <div class="del-toolbar">
-  {{-- MARKER-PATCH-436 — toggle + date nav grouped (matches calendar); actions full-width on phones --}}
+  {{-- toggle + date nav grouped (matches calendar); actions full-width on phones --}}
   <div class="del-toolbar-nav">
     <div class="del-dw-toggle">
       <a href="?view=day&date={{ $date->toDateString() }}" class="{{ $view === 'day' ? 'is-active' : '' }}">Day</a>
@@ -670,7 +670,6 @@
     </div>
   </div>
   <div class="del-toolbar-right">
-    {{-- MARKER-PATCH-321 --}}
     @if($view === 'day')
       <a class="del-btn del-btn--ghost" href="{{ route('tenant.deliveries.slips') }}?date={{ $date->toDateString() }}" target="_blank" rel="noopener">&#9113; Print slips</a>
     @endif
@@ -679,7 +678,7 @@
   </div>
 </div>
 
-{{-- MARKER-PATCH-438 — section tabs sit below the toolbar, right above the list --}}
+{{-- section tabs sit below the toolbar, right above the list --}}
 <x-tenant.schedule-tabs active="deliveries" />
 
 {{-- ===========================================================
@@ -710,7 +709,7 @@
               </div>
               <div class="time-col">
                 {{ $d->scheduled_at->copy()->setTimezone($tz)->format('g:i A') }}
-                {{-- MARKER-PATCH-514 — route window chip --}}
+                {{-- route window chip --}}
                 @if(!empty(($windowChips ?? [])[$d->id] ?? null))
                   <span style="display:inline-block;font-size:9.5px;font-weight:600;letter-spacing:.05em;color:var(--ia-accent);background:var(--ia-accent-soft);border:0.5px solid var(--ia-accent);border-radius:99px;padding:1px 8px;margin-bottom:3px">{{ ($windowChips ?? [])[$d->id] }}</span>
                 @endif
@@ -865,7 +864,7 @@
 
     <div class="del-drawer-body">
 
-      {{-- MARKER-PATCH-447 — contact the delivery customer (call / text / email) --}}
+      {{-- contact the delivery customer (call / text / email) --}}
       <div class="del-contact-tiles" id="del-contact-tiles" style="display:none">
         <a href="#" class="del-ctile is-disabled" id="del-ctile-call">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
@@ -898,14 +897,14 @@
         </div>
       </div>
 
-      {{-- Customer — MARKER-PATCH-153 — using shared customer-search component --}}
+      {{-- Customer — using shared customer-search component --}}
       <div class="del-row">
         <label class="del-label">Customer</label>
         <x-tenant.customer-search name="customer_id" required />
         @error('customer_id')<div class="del-error">{{ $message }}</div>@enderror
       </div>
 
-      {{-- Bikes on this run — MARKER-PATCH-427 --}}
+      {{-- Bikes on this run --}}
       <div class="del-row" id="del-assets-row" style="display:none;">
         <label class="del-label">{{ ucfirst(tenant()->asset_label_plural ?: 'items') }} on this run</label>
         <div id="del-assets" class="del-assets"></div>
@@ -930,15 +929,14 @@
       {{-- Window --}}
       <div class="del-row">
         <label class="del-label">Window</label>
-        {{-- MARKER-SSEL-BATCH2 --}}
-        {{-- MARKER-DRAWER-GUARDS — :id is required for getElementById('del-window') --}}
+        {{-- :id is required for getElementById('del-window') --}}
         <x-tenant.searchable-select name="window_minutes" :searchable="false"
           :id="'del-window'"
           :options="['15' => '15 min window', '30' => '30 min window', '60' => '60 min window', '120' => '2 hour window']"
           selected="30" any="30 min window" noun="windows" />
       </div>
 
-      {{-- Address — MARKER-PATCH-153 — manual entry, no autofill --}}
+      {{-- Address — manual entry, no autofill --}}
       <div class="del-row">
         <label class="del-label">Address</label>
         <input type="text" name="address" class="del-input" id="del-address" placeholder="123 Main St, Spokane, WA 99201">
@@ -948,7 +946,6 @@
       @if($is_timeslot && $resources->isNotEmpty())
         <div class="del-row">
           <label class="del-label">Delivery resource</label>
-          {{-- MARKER-SSEL-BATCH2 --}}
           @php
             $sselRes = [];
             foreach ($resources as $res) {
@@ -968,7 +965,7 @@
         <textarea name="notes" class="del-textarea" id="del-notes" placeholder="Gate code, dog warning, where to leave the {{ tenant()->asset_label_singular ?: 'item' }}…"></textarea>
       </div>
 
-      {{-- Notify banner — MARKER-PATCH-152C / MARKER-PATCH-157 --}}
+      {{-- Notify banner --}}
       @php
         $channelLabels = [];
         if ($notifyEmail) $channelLabels[] = 'email';
@@ -998,17 +995,16 @@
 
     </div>
 
-    {{-- MARKER-PATCH-157-FIX1 — two-row footer for cleaner spacing --}}
+    {{-- two-row footer for cleaner spacing --}}
     <div class="del-drawer-foot">
       <div class="del-drawer-foot-row">
         <div id="del-foot-left">
           <button type="button" class="del-btn del-btn--danger" id="del-cancel-btn" style="display:none;" onclick="delCancel()">Cancel</button>
         </div>
         <div class="del-drawer-foot-right">
-          {{-- MARKER-PATCH-329 --}}
           <button type="button" class="del-btn del-btn--ghost" id="del-print-btn" style="display:none;" onclick="delPrintSlip()">&#9113; Print</button>
           <button type="button" class="del-btn del-btn--ghost" onclick="delCloseDrawer()">Close</button>
-          {{-- MARKER-PATCH-157 — hidden notify flag, set by the two save buttons --}}
+          {{-- hidden notify flag, set by the two save buttons --}}
           <input type="hidden" name="notify" id="del-notify-flag" value="0">
           <button type="submit" class="del-btn del-btn--ghost"   id="del-save-btn"        onclick="return delPrepSubmit(false)">Save</button>
           <button type="submit" class="del-btn del-btn--primary" id="del-save-notify-btn" onclick="return delPrepSubmit(true)">Save &amp; notify</button>
@@ -1033,14 +1029,14 @@
       'window_minutes'       => $d->window_minutes,
       'address'              => $d->address,
       'customer_id'          => $d->customer_id,
-      // MARKER-PATCH-153 — needed by drawer edit-mode preselect
+      // needed by drawer edit-mode preselect
       'customer_name'        => trim(($d->customer->first_name ?? '') . ' ' . ($d->customer->last_name ?? '')) ?: ($d->customer->email ?? 'Customer'),
-      // MARKER-PATCH-447 — contact tiles in the delivery drawer
+      // contact tiles in the delivery drawer
       'customer_phone'       => $d->customer?->phone ?? '',
       'customer_email'       => $d->customer?->email ?? '',
       'delivery_resource_id' => $d->delivery_resource_id,
       'notes'                => $d->notes,
-      'assets_ids'           => collect($d->assets ?? [])->pluck('id')->values()->all(), // MARKER-PATCH-427
+      'assets_ids'           => collect($d->assets ?? [])->pluck('id')->values()->all(),
     ];
   }
 @endphp
@@ -1048,15 +1044,15 @@
 <script>
   window.delDeliveries = @json($deliveriesForJs);
   window.delEditing = null;
-  // MARKER-PATCH-152B-FIX1 — base URLs only; client appends /{id}/[action]
+  // base URLs only; client appends /{id}/[action]
   window.delRoutes = {
     store:    @json(route('tenant.deliveries.store')),
     base:     @json(route('tenant.deliveries.index')),
-    customerAssets: @json(route('tenant.deliveries.customer-assets')), // MARKER-PATCH-427
+    customerAssets: @json(route('tenant.deliveries.customer-assets')),
   };
 
   function delOpenCreate(type) {
-    { var _pb = document.getElementById('del-print-btn'); if (_pb) _pb.style.display = 'none'; } // MARKER-PATCH-329
+    { var _pb = document.getElementById('del-print-btn'); if (_pb) _pb.style.display = 'none'; }
     window.delEditing = null;
     document.getElementById('del-drawer-bg').classList.add('is-open');
     document.getElementById('del-drawer').classList.add('is-open');
@@ -1067,7 +1063,7 @@
     delSelectType(type);
     // Default date = today, time = next round hour
     var now = new Date();
-    // MARKER-PATCH-152B-FIX2 — use LOCAL date components, not UTC
+    // use LOCAL date components, not UTC
     var y = now.getFullYear();
     var m = String(now.getMonth() + 1).padStart(2, '0');
     var dd = String(now.getDate()).padStart(2, '0');
@@ -1075,23 +1071,23 @@
     var hh = String(now.getHours() + 1).padStart(2, '0');
     document.getElementById('del-time').value = hh + ':00';
     document.getElementById('del-window').value = '30';
-    // MARKER-PATCH-153 — customer-search component reset
+    // customer-search component reset
     delResetCustomer();
-    delSetContactTiles('', ''); // MARKER-PATCH-447 — no customer yet on create
+    delSetContactTiles('', ''); // no customer yet on create
     document.getElementById('del-address').value = '';
     var rEl = document.getElementById('del-resource');
     if (rEl) rEl.value = '';
     document.getElementById('del-notes').value = '';
-    delLoadAssets(''); // MARKER-PATCH-427 — clear bikes on create
+    delLoadAssets(''); // clear bikes on create
     document.getElementById('del-complete-btn').style.display = 'none';
     document.getElementById('del-cancel-btn').style.display = 'none';
-    // MARKER-PATCH-157 — set both button labels for create mode
-    // MARKER-PATCH-157-FIX1 — shorter labels
+    // set both button labels for create mode
+    // shorter labels
     document.getElementById('del-save-btn').textContent = 'Save';
     document.getElementById('del-save-notify-btn').textContent = 'Save & notify';
   }
 
-  // MARKER-PATCH-329 — print this delivery's receipt via a hidden iframe.
+  // print this delivery's receipt via a hidden iframe.
   window.delPrintSlip = function () {
     var id = window.delEditing;
     if (!id) return;
@@ -1111,13 +1107,13 @@
     var d = window.delDeliveries[id];
     if (!d) return;
     window.delEditing = id;
-    { var _pb = document.getElementById('del-print-btn'); if (_pb) _pb.style.display = ''; } // MARKER-PATCH-329
+    { var _pb = document.getElementById('del-print-btn'); if (_pb) _pb.style.display = ''; }
     document.getElementById('del-drawer-bg').classList.add('is-open');
     document.getElementById('del-drawer').classList.add('is-open');
     document.getElementById('del-drawer-title').textContent = 'Edit ' + d.type;
     document.getElementById('del-drawer-sub').textContent = d.status === 'completed' ? 'Completed ' + (d.completed_at || '') : 'Scheduled';
     document.getElementById('del-form').action = window.delRoutes.base + '/' + id;
-    // MARKER-DRAWER-GUARDS — every getElementById is guarded so that a missing
+    // every getElementById is guarded so that a missing
     // element (conditional render, component without :id, DOM change) cannot
     // throw and abort the function before the customer field is populated.
     var fmEl = document.getElementById('del-form-method'); if (fmEl) fmEl.value = 'PATCH';
@@ -1129,27 +1125,27 @@
     var dtEl = document.getElementById('del-date');   if (dtEl) dtEl.value = parts[0] || '';
     var tmEl = document.getElementById('del-time');   if (tmEl) tmEl.value = parts[1] || '';
     var wEl  = document.getElementById('del-window'); if (wEl)  wEl.value  = String(d.window_minutes || 30);
-    // MARKER-PATCH-153 — populate search box with customer name
+    // populate search box with customer name
     delSetCustomer(d.customer_id, d.customer_name || '');
-    delSetContactTiles(d.customer_phone || '', d.customer_email || ''); // MARKER-PATCH-447
+    delSetContactTiles(d.customer_phone || '', d.customer_email || '');
     var adEl = document.getElementById('del-address'); if (adEl) adEl.value = d.address || '';
     var rEl  = document.getElementById('del-resource'); if (rEl) rEl.value = d.delivery_resource_id || '';
     var ntEl = document.getElementById('del-notes');   if (ntEl) ntEl.value = d.notes || '';
-    delLoadAssets(d.customer_id, { selected: d.assets_ids || [] }); // MARKER-PATCH-427
+    delLoadAssets(d.customer_id, { selected: d.assets_ids || [] });
     var cpEl = document.getElementById('del-complete-btn'); if (cpEl) cpEl.style.display = (d.status === 'scheduled') ? '' : 'none';
     var cnEl = document.getElementById('del-cancel-btn');   if (cnEl) cnEl.style.display = (d.status === 'scheduled') ? '' : 'none';
-    // MARKER-PATCH-157 — set both button labels for edit mode
-    // MARKER-PATCH-157-FIX1 — shorter labels
+    // set both button labels for edit mode
+    // shorter labels
     var svEl = document.getElementById('del-save-btn');        if (svEl) svEl.textContent = 'Update';
     var snEl = document.getElementById('del-save-notify-btn'); if (snEl) snEl.textContent = 'Update & notify';
   }
 
-  // MARKER-PATCH-447 — set the call/text/email tiles from the customer's phone/email
+  // set the call/text/email tiles from the customer's phone/email
   function delSetContactTiles(phone, email) {
     var row = document.getElementById('del-contact-tiles');
     if (!row) return;
     var p = (phone || '').replace(/[^0-9+]/g, '');
-    // MARKER-DRAWER-GUARDS — guarded; same pattern as the rest of the drawer.
+    // guarded; same pattern as the rest of the drawer.
     var call = document.getElementById('del-ctile-call');
     var text = document.getElementById('del-ctile-text');
     var mail = document.getElementById('del-ctile-email');
@@ -1173,7 +1169,7 @@
     document.getElementById('del-tile-dropoff').classList.toggle('is-selected', t === 'dropoff');
     document.getElementById('del-form-type').value = t;
   }
-  // MARKER-PATCH-153 — customer-search component helpers
+  // customer-search component helpers
   // Reset the search box on create.
   function delResetCustomer() {
     var root = document.querySelector('.del-drawer [data-customer-search]');
@@ -1197,7 +1193,7 @@
     if (clear)   clear.hidden = !id;
   }
 
-  // MARKER-PATCH-427 — load the picked customer's bikes into the drawer.
+  // load the picked customer's bikes into the drawer.
   function delLoadAssets(customerId, opts) {
     opts = opts || {};
     var row = document.getElementById('del-assets-row');
@@ -1245,7 +1241,7 @@
     var idf = document.querySelector('.del-drawer [data-cs-id]');
     if (idf) idf.addEventListener('change', function () { delLoadAssets(this.value, { fillAddress: true }); });
   });
-  // MARKER-PATCH-157 — accepts notify flag from the clicked button
+  // accepts notify flag from the clicked button
   function delPrepSubmit(notify) {
     var d = document.getElementById('del-date').value;
     var t = document.getElementById('del-time').value;
@@ -1259,7 +1255,7 @@
   }
   async function delComplete() {
     if (!window.delEditing) return;
-    if (!(await iaConfirm('Mark this delivery complete?'))) return; // MARKER-INLINE-CONFIRM-2
+    if (!(await iaConfirm('Mark this delivery complete?'))) return;
     var f = document.createElement('form');
     f.method = 'POST';
     f.action = window.delRoutes.base + '/' + window.delEditing + '/complete';
@@ -1269,7 +1265,7 @@
   }
   async function delCancel() {
     if (!window.delEditing) return;
-    if (!(await iaConfirm('Cancel this delivery? The customer will NOT be auto-notified of the cancellation.'))) return; // MARKER-INLINE-CONFIRM-2
+    if (!(await iaConfirm('Cancel this delivery? The customer will NOT be auto-notified of the cancellation.'))) return;
     var f = document.createElement('form');
     f.method = 'POST';
     f.action = window.delRoutes.base + '/' + window.delEditing + '/cancel';

@@ -5,7 +5,6 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * MARKER-PATCH-125
  *
  * Cloudflare for SaaS returns two sets of DNS records that tenants must
  * add to validate cert issuance with the CA (in addition to Intake's own

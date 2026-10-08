@@ -4,7 +4,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-// MARKER-RENTAL-EXT — last-minute extension offers. One row per offer
+// last-minute extension offers. One row per offer
 // episode; the magic-link token is the customer's whole identity here.
 return new class extends Migration {
     public function up(): void

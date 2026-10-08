@@ -1,5 +1,4 @@
 <?php
-// MARKER-DIST-TOGGLE
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\DB;
@@ -22,7 +21,7 @@ return new class extends Migration
             })
             ->update(['is_active' => false]);
 
-        Log::info("MARKER-DIST-TOGGLE: switched off {$off} subscription(s) that had no credentials");
+        Log::info("dist-toggle: switched off {$off} subscription(s) that had no credentials");
     }
 
     public function down(): void

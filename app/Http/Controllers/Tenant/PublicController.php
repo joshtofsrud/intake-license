@@ -25,7 +25,7 @@ class PublicController extends Controller
             return view('public.coming-soon');
         }
 
-        // MARKER-SPLASH-2 -- the homepage asks for its OWN pairing, exactly
+        // the homepage asks for its OWN pairing, exactly
         // like every other page now does.
         return $this->renderWithSplash($page);
     }
@@ -42,7 +42,7 @@ class PublicController extends Controller
             ->where('is_published', true)
             ->firstOrFail();
 
-        // MARKER-SPLASH-2 -- any page can carry a splash now, so this route
+        // any page can carry a splash now, so this route
         // resolves one too. Direct links to a page WITH a pairing are
         // interrupted on purpose: the shop opted that page in.
         return $this->renderWithSplash($page);
@@ -65,14 +65,14 @@ class PublicController extends Controller
     // ----------------------------------------------------------------
     public function contact(Request $request)
     {
-        // MARKER-PATCH-399 — honeypot. Real users never fill this hidden field;
+        // honeypot. Real users never fill this hidden field;
         // if it's filled, silently drop with a normal success response so the
         // bot can't tell it was caught.
         if (filled($request->input('company_website'))) {
             return back()->with('contact_success', true);
         }
 
-        // MARKER-CONTACT-SPAM — minimum fill time. The value is encrypted at
+        // minimum fill time. The value is encrypted at
         // render, so it can't be forged or replayed with a stale timestamp.
         // Same silent success as the honeypot: a bot that learns which check
         // caught it just works around that one.
@@ -93,7 +93,7 @@ class PublicController extends Controller
             }
         }
 
-        // MARKER-CONTACT-NAMES — the form now posts first_name and last_name,
+        // the form now posts first_name and last_name,
         // both required, because a single "name" field let people through with
         // one word and the inbox filled with half-identified customers.
         // Older published pages may still post a combined "name": those are
@@ -119,17 +119,17 @@ class PublicController extends Controller
 
         $tenant = tenant();
 
-        // MARKER-PATCH-378 — route web contact submissions into the unified inbox
+        // route web contact submissions into the unified inbox
         // so nothing is silently lost (notification_email may be unset). Inbound
         // only: no SMS side-effects, no phone required. Email below stays as a
         // fallback. Wrapped so a public form never 500s on a capture failure.
         try {
-            // MARKER-CONTACT-NAMES — split fields win; the combined field is
+            // split fields win; the combined field is
             // only a fallback for pages published before this change.
             if ($usesSplitName) {
                 $first = trim((string) $request->input('first_name'));
                 $last  = trim((string) $request->input('last_name'));
-                // MARKER-CONTACT-NAME-FIX — $name is read further down for the
+                // $name is read further down for the
                 // message metadata. Leaving it unset here threw an
                 // ErrorException that the catch below swallowed, so the
                 // customer and thread were written and the message was not.
@@ -158,7 +158,7 @@ class PublicController extends Controller
                 'phone'  => $request->input('phone'),
             ]);
         } catch (\Throwable $e) {
-            // MARKER-CONTACT-NAME-FIX — this catch is right (a public form must
+            // this catch is right (a public form must
             // never 500), but a bare message made a capture failure look like
             // noise for weeks. Log enough to tie the log line to the blank
             // thread it produced.
@@ -172,10 +172,9 @@ class PublicController extends Controller
         $to     = $tenant?->notification_email ?? $tenant?->email_from_address;
 
         if ($to) {
-            // MARKER-LEDGER-STRAGGLERS
             $ledger = \App\Services\EmailLedger::begin($tenant->id, 'other', $to, 'contact_form');
             try {
-                // MARKER-CONTACT-NAME-FIX — a split-name page posts no 'name'
+                // a split-name page posts no 'name'
                 // field, so these interpolations were blank. Rebuild from
                 // whichever pair of fields the page actually sent.
                 $senderName = trim((string) $request->input('name'))
@@ -201,7 +200,7 @@ class PublicController extends Controller
     }
 
     /**
-     * MARKER-SPLASH-2 -- resolve this page's pairing and render accordingly.
+     * resolve this page's pairing and render accordingly.
      *
      * Viewing a page that IS somebody's splash writes that splash's cookie,
      * so clicking through to the page behind it is not bounced straight back
@@ -251,7 +250,7 @@ class PublicController extends Controller
         $tenant   = tenant();
         $sections = $page->sections()->where('is_visible', true)->get();
         $sections = \App\Models\Tenant\TenantPageSection::withInheritedChrome($sections, $page->tenant_id, $page->id);
-        $navItems = TenantNavItem::forSite((string) $tenant->id); // MARKER-SHOP-NAV
+        $navItems = TenantNavItem::forSite((string) $tenant->id);
 
         $catalog = TenantServiceCategory::where('tenant_id', $tenant->id)
             ->where('is_active', true)
@@ -263,7 +262,7 @@ class PublicController extends Controller
             }])
             ->get();
 
-        // MARKER-SPLASH -- overlay mode: the homepage renders exactly as it
+        // overlay mode: the homepage renders exactly as it
         // always did and the splash draws on top, so the real HTML is still
         // served to crawlers and to anyone with JS off.
         $splashSections = null;

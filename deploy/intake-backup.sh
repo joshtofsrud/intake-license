@@ -1,5 +1,5 @@
 #!/bin/bash
-# MARKER-BACKUP-RECORD — nightly database backup to DO Spaces.
+# nightly database backup to DO Spaces.
 #
 # Source of truth: deploy/intake-backup.sh in the repo. Installed on the
 # server as /usr/local/bin/intake-backup.sh (root, mode 700); root's cron

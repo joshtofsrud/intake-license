@@ -16,11 +16,11 @@
 @section('mobile-fab', 'walk-in')
 
 @section('content')
-{{-- MARKER-CAL-COMPACT — the phone's "collapse the top" choice, applied before
+{{-- the phone's "collapse the top" choice, applied before
      the page draws so the full header never flashes. Only phones act on it. --}}
 <script>try { if (localStorage.getItem('ia-cal-compact') === '1') { document.documentElement.classList.add('ia-cal-compact'); } } catch (e) {}</script>
 
-{{-- MARKER-APPT-PICKER — an override is only honest if the day shows it.
+{{-- an override is only honest if the day shows it.
      $overCapacityDays is keyed by date: ['used' => n, 'max' => m]. --}}
 @if(!empty($overCapacityDays))
   <div style="border:0.5px solid rgba(248,113,113,.32);background:rgba(248,113,113,.09);border-radius:8px;padding:10px 13px;margin-bottom:12px;font-size:12.5px;color:#f87171">
@@ -38,7 +38,7 @@
     <p class="ia-page-subtitle">Your schedule, your shop, one view.</p>
   </div>
     <div class="ia-page-actions" style="margin-left:auto">
-      {{-- MARKER-PATCH-163 — canonical new-appointment entry point on calendar header --}}
+      {{-- canonical new-appointment entry point on calendar header --}}
       <button type="button" class="ia-btn ia-btn--primary" onclick="openApptModal()">
         + New appointment
       </button>
@@ -402,7 +402,7 @@
 
 @endif
 
-{{-- MARKER-PATCH-163 — defines window.openApptModal() --}}
+{{-- defines window.openApptModal() --}}
 @include('tenant.appointments._create_modal')
 
 @endsection

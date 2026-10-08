@@ -1,5 +1,4 @@
 <?php
-// MARKER-PATCH-217
 
 namespace App\Http\Middleware;
 

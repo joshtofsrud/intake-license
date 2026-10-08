@@ -5,7 +5,7 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * MARKER-PATCH-176 — make the sale payment ledger support standalone refunds.
+ * make the sale payment ledger support standalone refunds.
  *
  * - sale_id becomes NULLABLE: a standalone refund (e.g. refunding a pre-Intake
  *   fee) has no sale to hang off, but is still a money-out row in the ledger.

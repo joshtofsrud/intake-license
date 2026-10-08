@@ -1,5 +1,5 @@
 <?php
-// MARKER-PATCH-631 — online orders can be placed with manual payment methods
+// online orders can be placed with manual payment methods
 // (Venmo, Cash App, custom); record which one so confirmation instructions
 // and admin mark-paid know the method.
 

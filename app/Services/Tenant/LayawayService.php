@@ -14,7 +14,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
 /**
- * MARKER-LAYAWAY — open, pay, complete, cancel.
+ * open, pay, complete, cancel.
  *
  * Composes what already exists rather than duplicating it:
  *   SaleService::saveDraft      builds the sale and lines without touching stock
@@ -40,7 +40,7 @@ class LayawayService
      * @return array{plan: TenantLayawayPlan, sale: TenantSale, held: int, ordered: int}
      */
     /**
-     * MARKER-LAYAWAY-TENDERED — $legs is a split already taken at the register.
+     * $legs is a split already taken at the register.
      * When present it IS the opening payment and $openingPaymentCents is
      * ignored; each leg is recorded in turn so nothing taken at the counter
      * goes missing from the plan.
@@ -52,14 +52,14 @@ class LayawayService
         return DB::transaction(function () use ($tenant, $cart, $openingPaymentCents, $method, $reference, $userId, $policy) {
             $cart['tenant_id'] = $tenant->id;
 
-            // MARKER-LAYAWAY-DRAFT — if the register already autosaved this
+            // if the register already autosaved this
             // cart as a draft, CONVERT it. saveDraft() updates in place when
             // given an id and creates a new sale when not, so omitting it left
             // the original draft orphaned beside the layaway — same goods, two
             // rows, one of them resumable at the till.
             //
             // A layaway is a draft that grew up, not a new record beside one.
-            // MARKER-LAYAWAY-NO-GIFTCARD — a gift card has no goods to hold
+            // a gift card has no goods to hold
             // and its value exists the moment it is issued. Checked here as
             // well as in the register, because a rule enforced only in a
             // browser is not enforced.
@@ -76,7 +76,7 @@ class LayawayService
             $sale->forceFill(['payment_status' => 'layaway'])->save();
             $sale->load('items');
 
-            // MARKER-LAYAWAY-TENDERED — the legs together are the opening
+            // the legs together are the opening
             // payment, so the minimum is judged on their sum, not on any one.
             if ($legs) {
                 $openingPaymentCents = array_sum(array_column($legs, 'amount_cents'));
@@ -127,7 +127,7 @@ class LayawayService
                     'sale_id'            => $sale->id,
                     'sale_item_id'       => $line->id,
                     'status'             => TenantSpecialOrder::STATUS_NEEDED,
-                    // MARKER-LAYAWAY-SO-SOURCE — 'register' because that is
+                    // 'register' because that is
                     // where this was rung, and because created_from is an enum
                     // of register|appointment|item|manual|booking. It has no
                     // 'layaway' value, and inventing one truncated the insert.
@@ -151,7 +151,7 @@ class LayawayService
             ]);
 
             if ($legs) {
-                // MARKER-LAYAWAY-TENDERED — each leg on the ledger, as taken.
+                // each leg on the ledger, as taken.
                 foreach ($legs as $leg) {
                     $this->pay($plan, (int) $leg['amount_cents'], $leg['method'],
                         $leg['reference'] ?? null, $userId);

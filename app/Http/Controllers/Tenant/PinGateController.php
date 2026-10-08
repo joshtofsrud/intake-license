@@ -27,7 +27,7 @@ class PinGateController extends Controller
 {
     public function __construct(protected PinService $pins) {}
 
-    // MARKER-PATCH-480 — first-time PIN setup from the lock overlay (JSON).
+    // first-time PIN setup from the lock overlay (JSON).
     public function setupPin(Request $request)
     {
         $user = Auth::guard('tenant')->user();
@@ -90,7 +90,7 @@ class PinGateController extends Controller
             ], 423);
         }
 
-        // MARKER-HEARTBEAT-READONLY — report only; stamp nothing.
+        // report only; stamp nothing.
         //
         // This used to bump last_pin_activity_at whenever the session wasn't
         // already stale. The client fires this on a 60s timer regardless of
@@ -112,7 +112,7 @@ class PinGateController extends Controller
      * Verifies the PIN against the currently signed-in user.
      */
     /**
-     * GET /admin/pin/context — MARKER-PATCH-545
+     * GET /admin/pin/context
      * The overlay calls this when an unlock POST 419s after long idle:
      * returns whether the session is still authenticated plus a fresh
      * CSRF token so the overlay can retry silently instead of looping

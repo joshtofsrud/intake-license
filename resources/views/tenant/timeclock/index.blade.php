@@ -1,6 +1,6 @@
 @extends('layouts.tenant.app')
 
-{{-- MARKER-PATCH-610 — Time clock. Clock in/out + today's shifts + who's on. --}}
+{{-- Time clock. Clock in/out + today's shifts + who's on. --}}
 
 @section('title', 'Time clock')
 
@@ -37,7 +37,7 @@
 .tc-inp { padding: 6px 10px; border-radius: 6px; border: 0.5px solid var(--ia-border); background: var(--ia-input-bg, #0a0a0a); color: var(--ia-text); font-size: 12.5px; }
 @media (max-width: 760px) { .tc-stats { grid-template-columns: 1fr 1fr; } }
 </style>
-{{-- MARKER-TC-EDIT-SCOPE — edit affordances. Matches the team grid's modal
+{{-- edit affordances. Matches the team grid's modal
      shape (.tt-*) with this page's own prefix, so nothing collides. --}}
 <style>
 .tc-edit{display:none;padding:12px 16px;border-bottom:.5px solid var(--ia-border);background:rgba(127,127,127,.05)}
@@ -67,7 +67,7 @@
 
   <h1 style="font-size:19px;font-weight:700;margin-bottom:4px">Time clock</h1>
 
-  {{-- MARKER-PATCH-614 — subnav; Team only for managers --}}
+  {{-- subnav; Team only for managers --}}
   @if(auth('tenant')->user()?->can('timeclock.manage'))
     <div style="display:flex;gap:20px;border-bottom:.5px solid var(--ia-border);margin-bottom:20px">
       <a href="{{ route('tenant.timeclock.index') }}" style="padding:11px 2px;font-size:13px;color:var(--ia-text);border-bottom:2px solid var(--ia-accent);margin-bottom:-.5px;text-decoration:none;font-weight:600">My time</a>
@@ -98,7 +98,7 @@
           <button class="tc-btn tc-btn--out" type="submit">Clock out</button>
         </form>
       @elseif($authUser->exempt_from_timeclock)
-        {{-- MARKER-TC-EDIT-SCOPE — the button is gone because the endpoint
+        {{-- the button is gone because the endpoint
              refuses it, not instead of the endpoint refusing it. --}}
         <div style="font-size:12.5px;color:var(--ia-text-muted);max-width:220px;text-align:right">
           You're marked as <b>never clocks in</b>. Turn it off below to use the clock.
@@ -112,7 +112,7 @@
     </div>
   </div>
 
-  {{-- MARKER-PATCH-613 — rolling totals (pay-period-aware totals arrive with settings) --}}
+  {{-- rolling totals (pay-period-aware totals arrive with settings) --}}
   <div class="tc-stats">
     <div class="tc-stat"><div class="l">This week</div><div class="v">{{ intdiv($weekMinutes, 60) }}h {{ $weekMinutes % 60 }}m</div></div>
     <div class="tc-stat"><div class="l">This month</div><div class="v">{{ intdiv($monthMinutes, 60) }}h {{ $monthMinutes % 60 }}m</div></div>
@@ -147,10 +147,10 @@
     </div>
   </div>
 
-  {{-- MARKER-TC-EDIT-SCOPE — self-serve exemption toggle. Posts to the
+  {{-- self-serve exemption toggle. Posts to the
        ACCOUNT endpoint: TeamController redirects self-edits away, so anything
        a person sets on themselves has to go through /admin/account.
-       MARKER-TC-EXEMPT-CAP — behind the capability; the endpoint checks too. --}}
+       behind the capability; the endpoint checks too. --}}
   @if($authUser->can('timeclock.exempt_self'))
   <div class="tc-card" style="margin-top:16px">
     <div class="tc-card-h">Clock-in prompts</div>
@@ -170,7 +170,7 @@
   </div>
   @endif
 
-  {{-- MARKER-PATCH-613 — shift history + email/print timesheet --}}
+  {{-- shift history + email/print timesheet --}}
   <div class="tc-card" style="margin-top:16px">
     <div class="tc-card-h">Shift history
       <span style="display:flex;gap:8px">
@@ -203,7 +203,7 @@
         </span>
       </div>
       @if($canEditMine ?? false)
-        {{-- MARKER-TC-EDIT-SCOPE — same endpoint and same required audit
+        {{-- same endpoint and same required audit
              reason as the team grid; only the surface is new. --}}
         <form class="tc-edit" id="tc-ed-{{ $p->id }}" method="POST"
               action="{{ route('tenant.timeclock.punch.edit', ['punchId' => $p->id]) }}">
@@ -232,7 +232,7 @@
 </div>
 
 @if($canEditMine ?? false)
-{{-- MARKER-TC-EDIT-SCOPE — add a punch to YOUR OWN timesheet. The endpoint
+{{-- add a punch to YOUR OWN timesheet. The endpoint
      re-checks the subject, so someone holding only edit_own cannot post
      another person's id here. --}}
 <div class="tc-mov" id="tc-add">
@@ -260,7 +260,7 @@
 @endsection
 
 @push('scripts')
-{{-- MARKER-OFFLINE-SYNC stage 2 — punches queue on-device when offline and
+{{-- stage 2 — punches queue on-device when offline and
      replay with their ORIGINAL timestamps. Gated by the offline_sync add-on. --}}
 @if ($offlineSyncEnabled ?? false)
 <script>

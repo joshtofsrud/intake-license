@@ -1,4 +1,4 @@
-{{-- MARKER-IMPORT-QUEUE — the work, made visible.
+{{-- the work, made visible.
 
      Included by the preview and show screens. Opens itself whenever the
      import is mid-flight, including after a page reload or on another device,
@@ -70,7 +70,7 @@
 
   function fmt(n) { return (n || 0).toLocaleString(); }
 
-  // MARKER-IMPORT-PROGRESS-FIX — from the server, not from page load.
+  // from the server, not from page load.
   function elapsed(sec) {
     var s = Math.max(0, Math.round(sec || 0));
     return s < 60 ? s + 's' : Math.floor(s / 60) + 'm ' + (s % 60) + 's';
@@ -87,7 +87,7 @@
     el.elapsed.textContent = elapsed(d.elapsed);
 
     el.tallies.innerHTML = '';
-    // MARKER-IMPORT-STATUS-RACE — a tally from the previous phase next to a
+    // a tally from the previous phase next to a
     // bar showing this one is two numbers contradicting each other: the modal
     // read "0 of 18,246 rows" beside "18,200 created".
     if (d.live && d.done > 0) {
@@ -113,18 +113,18 @@
       el.sub.textContent = 'Every row has an outcome.';
       el.fill.style.width = '100%';
     } else if (d.orphaned) {
-      // MARKER-IMPORT-STATUS-RACE — dispatched, then refused itself.
+      // dispatched, then refused itself.
       el.title.textContent = 'This run never started';
       el.sub.textContent = 'The import was asked to run but the worker found it in another state.';
       el.warn.className = 'imp-prog-warn failed';
       el.warn.textContent = 'Nothing was written. Close this and press Import again — if it happens twice, tell me and I will look at the worker.';
     } else if (d.stalled) {
       el.title.textContent = 'Still going, but nothing has moved';
-      el.sub.textContent = 'No update for ' + Math.round(d.seen_ago) + ' seconds.'; // MARKER-IMPORT-STATUS-RACE
+      el.sub.textContent = 'No update for ' + Math.round(d.seen_ago) + ' seconds.';
       el.warn.className = 'imp-prog-warn stalled';
       el.warn.textContent = 'The worker may have stopped. Leave this open a moment; if nothing moves, stop the import and try again — nothing is lost, every row already written has a recorded outcome.';
     } else {
-      // MARKER-IMPORT-PROGRESS-500 — a preview is not an import. The modal
+      // a preview is not an import. The modal
       // said "Importing · Writing rows" while nothing was being written.
       var isPreview = d.stage === 'previewing';
       el.title.textContent = isPreview ? 'Checking the file' : 'Importing';
@@ -134,13 +134,13 @@
     }
 
     var done = d.finished || d.stage === 'failed' || d.stage === 'cancelled';
-    el.cancel.style.display = (done || d.orphaned) ? 'none' : ''; // MARKER-IMPORT-STATUS-RACE
+    el.cancel.style.display = (done || d.orphaned) ? 'none' : '';
     el.hide.style.display   = (done || d.orphaned) ? '' : 'none';
     el.hide.style.display   = done ? '' : 'none';
     el.go.style.display     = (d.stage === 'finished') ? '' : 'none';
   }
 
-  // MARKER-IMPORT-PROGRESS-500 — a failing poll is news, not noise. The old
+  // a failing poll is news, not noise. The old
   // empty catch let a 500 fire once a second behind a calm-looking bar.
   var failures = 0;
 
@@ -174,7 +174,7 @@
   }
 
   el.cancel.addEventListener('click', function () {
-    // MARKER-IMPORT-PROGRESS-500 — honest label for what is being stopped.
+    // honest label for what is being stopped.
     el.cancel.disabled = true;
     el.sub.textContent = 'Stopping after the current batch…';
     fetch(cancelUrl, { method: 'POST', headers: { 'X-CSRF-TOKEN': csrf, 'Accept': 'application/json' } });

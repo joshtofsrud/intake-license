@@ -1,6 +1,5 @@
 <?php
 
-// MARKER-QBP-CLS-CREDS
 
 namespace App\Console\Commands;
 

@@ -1,5 +1,4 @@
 <?php
-// MARKER-SALES-WIDGET
 
 namespace App\Filament\Resources\SalesProspectResource\Widgets;
 

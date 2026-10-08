@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-// MARKER-SIGNING-CREDS
 use App\Models\RaiseSetting;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Http;
@@ -34,7 +33,7 @@ class SigningService
         } catch (\Throwable $e) {
             // A key encrypted under a previous APP_KEY can never be recovered.
             // Say so plainly rather than behaving as if none was set.
-            Log::error('MARKER-SIGNING-CREDS stored key could not be decrypted', [
+            Log::error('signing-creds: stored key could not be decrypted', [
                 'error' => $e->getMessage(),
             ]);
 
@@ -58,7 +57,7 @@ class SigningService
     }
 
     /**
-     * MARKER-MANUAL-SAFE — whether Intake sends the SAFE itself.
+     * whether Intake sends the SAFE itself.
      *
      * Off by default: sending through the API needs a paid Dropbox Sign tier,
      * and a button that always fails is worse than no button. With it off, the
@@ -81,7 +80,7 @@ class SigningService
     }
 
     /**
-     * MARKER-SIGNING-SEND — send the SAFE to one investor.
+     * send the SAFE to one investor.
      *
      * The three recital fields are SENDER fields on the template, filled here
      * from the investor's own record. The investor cannot change the amount
@@ -127,14 +126,14 @@ class SigningService
                 ->timeout(30)
                 ->post(self::BASE . '/signature_request/send_with_template', $payload);
         } catch (\Throwable $e) {
-            Log::error('MARKER-SIGNING-SEND request threw', ['investor' => $investor->id, 'error' => $e->getMessage()]);
+            Log::error('signing-send: request threw', ['investor' => $investor->id, 'error' => $e->getMessage()]);
 
             return ['ok' => false, 'message' => 'Could not reach Dropbox Sign.', 'request_id' => null];
         }
 
         if (! $response->successful()) {
             $detail = $response->json('error.error_msg') ?: ('HTTP ' . $response->status());
-            Log::error('MARKER-SIGNING-SEND rejected', ['investor' => $investor->id, 'detail' => $detail]);
+            Log::error('signing-send: rejected', ['investor' => $investor->id, 'detail' => $detail]);
 
             return ['ok' => false, 'message' => $detail, 'request_id' => null];
         }
@@ -145,7 +144,7 @@ class SigningService
     }
 
     /**
-     * MARKER-SIGNING-SEND — verify a callback.
+     * verify a callback.
      *
      * Dropbox Sign has no separate webhook secret: the hash is HMAC-SHA256 of
      * the event time concatenated with the event type, keyed on the API KEY.
@@ -167,7 +166,7 @@ class SigningService
         return hash_equals(hash_hmac('sha256', $time . $type, $key), $hash);
     }
 
-    /** MARKER-SIGNING-SEND — pull the executed PDF once it exists. */
+    /** pull the executed PDF once it exists. */
     public static function downloadExecuted(string $requestId): ?string
     {
         $key = self::key();
@@ -179,7 +178,7 @@ class SigningService
                 ->timeout(60)
                 ->get(self::BASE . '/signature_request/files/' . $requestId, ['file_type' => 'pdf']);
         } catch (\Throwable $e) {
-            Log::error('MARKER-SIGNING-SEND download threw', ['request' => $requestId, 'error' => $e->getMessage()]);
+            Log::error('signing-send: download threw', ['request' => $requestId, 'error' => $e->getMessage()]);
 
             return null;
         }
@@ -206,7 +205,7 @@ class SigningService
                 ->timeout(15)
                 ->get(self::BASE . '/account');
         } catch (\Throwable $e) {
-            Log::error('MARKER-SIGNING-CREDS connection test threw', ['error' => $e->getMessage()]);
+            Log::error('signing-creds: connection test threw', ['error' => $e->getMessage()]);
 
             return ['ok' => false, 'message' => 'Could not reach Dropbox Sign: ' . $e->getMessage(), 'email' => null];
         }

@@ -1,7 +1,6 @@
 @extends('layouts.tenant.app')
 @php $pageTitle = 'Distributors'; @endphp
 
-{{-- MARKER-PATCH-HLC7A --}}
 
 @push('styles')
 <style>
@@ -35,11 +34,11 @@
 
 @section('content')
 
-{{-- MARKER-CONNECTION-RESTORE — rebuilt from the committed original with the
+{{-- rebuilt from the committed original with the
      multi-distributor boxes folded in. The previous patch replaced this whole
      section and silently dropped the tabs, the Account # field and the
      "what your key unlocks" panel. --}}
-<div class="ia-section">{{-- MARKER-SECTION-WIDTH --}}
+<div class="ia-section">
   <h1 style="font-size:20px;font-weight:600;margin-bottom:14px">Distributor catalogs</h1>
   @include('layouts.tenant._inventory-tabs')
 
@@ -60,7 +59,6 @@
     <div class="dc-card">
       <div style="display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap">
         <div style="display:flex;align-items:center;gap:12px">
-          {{-- MARKER-DIST-TOGGLE --}}
           <form method="POST" action="{{ route('tenant.distributors.connection.toggle') }}">
             @csrf
             <input type="hidden" name="code" value="{{ $b['code'] }}">
@@ -80,7 +78,7 @@
           </div>
         </div>
         <div style="font-size:12px;color:var(--ia-text-dim);text-align:right">
-          {{-- MARKER-FLASH-MODAL — this said "connected" whenever a credential
+          {{-- this said "connected" whenever a credential
                was STORED, so a distributor could show connected and
                auth_failed on the same card. It now reflects the last test. --}}
           @php $st = $b['sub']->last_sync_status; @endphp
@@ -89,7 +87,7 @@
           @elseif ($st === 'auth_failed')
             <span style="color:#E24B4A">credentials rejected</span><br>
           @elseif ($st === 'unreachable')
-            {{-- MARKER-BTI-PROBE — not a credential problem. --}}
+            {{-- not a credential problem. --}}
             <span style="color:var(--ia-warn,#D9A441)">couldn't reach it</span><br>
           @elseif ($b['hasKey'])
             <span style="color:var(--ia-text-dim)">saved, not tested</span><br>
@@ -98,7 +96,6 @@
         </div>
       </div>
 
-      {{-- MARKER-DIST-TOGGLE --}}
       @if($b['enabled'])
 
       @if (count($boxes) > 1)
@@ -126,7 +123,7 @@
         </div>
       @endif
 
-      {{-- MARKER-PRICE-SEED — which list price this distributor's new items
+      {{-- which list price this distributor's new items
            start at, and a check of where its items sit today. Its own form, so
            it never travels through the credential form (a blank field there
            means "keep the saved key"). --}}
@@ -173,7 +170,7 @@
               <label>{{ $f['label'] }}</label>
               <input class="dc-input" type="{{ $f['type'] === 'password' ? 'text' : $f['type'] }}"
                      name="{{ $f['name'] }}" autocomplete="off"
-                     {{-- MARKER-PARTIAL-CREDS — each field hints at ITS OWN stored
+                     {{-- each field hints at ITS OWN stored
                           value. Both BTI fields used to show the whole joined
                           credential, so the username box hinted at the password. --}}
                      placeholder="{{ $b['hints'][$f['name']] ?? ('paste your ' . $b['label'] . ' ' . strtolower($f['label'])) }}">
@@ -186,7 +183,7 @@
           </div>
         </div>
 
-        {{-- MARKER-DIST-VENDOR-PROMPT — which vendor is this distributor --}}
+        {{-- which vendor is this distributor --}}
         <div class="dc-row">
           <div class="dc-field" style="max-width:320px">
             <label>This distributor is which of your vendors?</label>
@@ -219,7 +216,7 @@
           </div>
         @endif
 
-        {{-- MARKER-TENANT-TEST-FEEDBACK — a 30s form post with no feedback
+        {{-- a 30s form post with no feedback
              reads as a hung page. Say what's happening and why. --}}
         <div style="display:flex;gap:10px;margin-top:4px;flex-wrap:wrap;align-items:center">
           <button class="dc-btn primary" type="submit" data-dc-save>Save</button>
@@ -230,13 +227,13 @@
         <div data-dc-testnote
              style="display:none;font-size:11.5px;color:var(--ia-text-dim);margin-top:9px;line-height:1.5"></div>
       </form>
-      @endif {{-- MARKER-DIST-TOGGLE --}}
+      @endif
     </div>
   @endforeach
 
-  {{-- MARKER-PRICE-SEED — the pricing check modal. --}}
+  {{-- the pricing check modal. --}}
   <script>
-  // MARKER-PRICE-CHECK-READY — this script sits above the modal markup, so at
+  // this script sits above the modal markup, so at
   // parse time the modal doesn't exist yet: the first version bailed out here
   // and the button did nothing. Wait for the document instead.
   document.addEventListener('DOMContentLoaded', function () {
@@ -301,7 +298,6 @@
   });
   </script>
 
-  {{-- MARKER-TENANT-TEST-FEEDBACK --}}
   <script>
   (function () {
     document.querySelectorAll('[data-dc-test]').forEach(function (btn) {
@@ -332,7 +328,7 @@
   </script>
 
   <div class="dc-card">
-    {{-- MARKER-PATCH-559 — sync status + manual runs live on Catalog attention,
+    {{-- sync status + manual runs live on Catalog attention,
          the surface staff actually watch. Connection is credentials only. --}}
     <div style="font-size:12.5px;color:var(--ia-text-muted);padding:6px 0 2px">
       Looking for sync status or a manual refresh? That lives on
@@ -349,7 +345,7 @@
   </div>
 </div>
 
-{{-- MARKER-PRICE-SEED — the pricing check, in the app's own modal styles. --}}
+{{-- the pricing check, in the app's own modal styles. --}}
 <div id="pcModalBg" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:900;align-items:flex-start;justify-content:center;padding:48px 16px;overflow:auto">
   <div class="dc-card" style="width:100%;max-width:620px;margin:0" role="dialog" aria-label="Pricing check">
     <h2 class="dc-h" id="pcTitle">Pricing check</h2>

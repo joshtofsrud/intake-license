@@ -4,7 +4,7 @@
 @push('styles')
 @include('tenant.reports._tab_styles')
 <style>
-/* MARKER-PATCH-185 — revenue split dots + composition bar */
+/* revenue split dots + composition bar */
 .rep-rev-strip .lbl{display:flex;align-items:center;gap:7px}
 .rep-rev-dot{width:8px;height:8px;border-radius:50%;flex:none;display:inline-block}
 .rep-rev-dot.is-svc{background:var(--ia-accent,#bef264);box-shadow:0 0 8px rgba(190,242,100,0.45)}
@@ -23,7 +23,7 @@
   <h1 class="rep-h1">Reports</h1>
   <div class="rep-sub">{{ $today_label }}</div>
 
-  <div class="rep-controls">{{-- MARKER-PATCH-432 --}}
+  <div class="rep-controls">
   @include('tenant.reports._tab_subnav', ['active' => 'money'])
 
   <div class="rep-rangebar">
@@ -39,7 +39,7 @@
   </div>
   </div>
 
-  {{-- Revenue summary — MARKER-PATCH-185: service/retail/uncategorized by line-item type. --}}
+  {{-- Revenue summary — service/retail/uncategorized by line-item type. --}}
   @php
     $revTotal = (int) $revenueSummary['total_revenue_cents'];
     $revSvc   = (int) $revenueSummary['service_revenue_cents'];

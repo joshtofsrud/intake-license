@@ -1,5 +1,4 @@
 <?php
-// MARKER-PATCH-HLC3B
 
 namespace App\Services\Distributors;
 
@@ -22,7 +21,7 @@ class TenantDistributorSyncService
     ) {}
 
     /**
-     * MARKER-SYNC-CHUNKED — the linked pivots for one tenant + distributor,
+     * the linked pivots for one tenant + distributor,
      * optionally one keyset slice of them: id > $after, id <= $upto.
      * RunTenantDistributorSyncJob plans its slices from this same query.
      */
@@ -36,7 +35,7 @@ class TenantDistributorSyncService
             ->when($upto !== null, fn ($q) => $q->where('id', '<=', $upto));
     }
 
-    /** $after/$upto limit the run to one slice (MARKER-SYNC-CHUNKED); null = everything. */
+    /** $after/$upto limit the run to one slice; null = everything. */
     public function sync(TenantDistributorCatalogSubscription $sub, bool $dryRun = false, ?string $after = null, ?string $upto = null): array
     {
         $code = strtoupper((string) $sub->distributor_code);
@@ -48,7 +47,7 @@ class TenantDistributorSyncService
 
         $adapter = $this->registry->forSubscription($sub);
         if ($adapter === null) {
-            // MARKER-OVERNIGHT-FIX — no credentials is a setting, not a fault.
+            // no credentials is a setting, not a fault.
             // Throwing failed the nightly sync and reported an error every
             // night (demo's HLC row). Say so on the subscription and stop.
             \Illuminate\Support\Facades\DB::table('tenant_distributor_catalog_subscriptions')
@@ -67,7 +66,7 @@ class TenantDistributorSyncService
             'tenant_id' => $tenantId, 'code' => $code, 'linked' => 0,
             'cost_updated' => 0, 'avail_updated' => 0, 'seeded_price' => 0,
             'flags_opened' => 0, 'flags_resolved' => 0, 'dry_run' => $dryRun, 'errors' => [],
-            // MARKER-TITLE-SOURCE — rows this distributor supplies but does
+            // rows this distributor supplies but does
             // not own the naming of. Reported so the skip is countable
             // rather than invisible.
             'descriptive_skipped' => 0,
@@ -92,10 +91,10 @@ class TenantDistributorSyncService
         $res['errors'] = array_merge($res['errors'], $costErrors);
         $availByVariant = $this->fetchAvailability($adapter, $variantNos, $res);
 
-        // MARKER-SYNC-CHUNKED — stock snapshots are collected and written in
+        // stock snapshots are collected and written in
         // batches after the loop (finally, so rows already saved above keep
         // their snapshot even if a later item throws) — not one insert per item.
-        // MARKER-SNAPSHOT-OVERWRITE — one row per item, overwritten each sync.
+        // one row per item, overwritten each sync.
         $snapshots = [];
         try {
         foreach ($pivots as $pivot) {
@@ -117,7 +116,7 @@ class TenantDistributorSyncService
                 $pivot->live_checked_at = now();
                 $pivot->save();
 
-                // MARKER-PATCH-556 — stamp the item so "Last synced" is honest
+                // stamp the item so "Last synced" is honest
                 // and cost/margin surfaces (item page, register modal, reports
                 // via effectiveCostCents) see the synced cost. Never clobber a
                 // known cost with null when HLC omits one.
@@ -148,7 +147,7 @@ class TenantDistributorSyncService
 
             // First-link seed only: MAP -> MSRP. Never overwrite a set price.
             if ($item->shop_sell_price_cents === null) {
-                $seed = \App\Support\PriceSeed::for((string) $sub->tenant_id, $code, $cat->msrp_cents, $cat->map_cents); // MARKER-PRICE-SEED
+                $seed = \App\Support\PriceSeed::for((string) $sub->tenant_id, $code, $cat->msrp_cents, $cat->map_cents);
                 if ($seed !== null) {
                     if (! $dryRun) {
                         $item->shop_sell_price_cents = $seed;
@@ -160,7 +159,7 @@ class TenantDistributorSyncService
 
             $inStock = (int) ($item->computed_stock_count ?? 0) > 0;
 
-            // MARKER-TITLE-SOURCE — is THIS distributor the one whose wording
+            // is THIS distributor the one whose wording
             // the item follows? The item's own distributor_catalog_id decides
             // it; when that is not set, the preferred pivot stands in. When
             // neither applies no source owns the naming, and descriptive drift
@@ -310,7 +309,7 @@ class TenantDistributorSyncService
         ?int $prevCost,
         ?int $newCost,
         bool $inStock,
-        bool $isDescriptiveSource, // MARKER-TITLE-SOURCE
+        bool $isDescriptiveSource,
         bool $dryRun,
         array &$res
     ): void {
@@ -331,7 +330,7 @@ class TenantDistributorSyncService
             }
         }
 
-        // MARKER-PATCH-557 — price-position detectors.
+        // price-position detectors.
         $sell = $item->effectiveSellPriceCents();
         if ($sell !== null && $sell > 0) {
             if ($cat->map_cents !== null && $sell < $cat->map_cents) {
@@ -365,7 +364,7 @@ class TenantDistributorSyncService
             }
         }
 
-        // MARKER-TITLE-SOURCE — everything above this line (cost vanished, MAP
+        // everything above this line (cost vanished, MAP
         // vanished, MSRP vanished) runs for EVERY distributor and still does.
         // Everything below it is about what the product is called, and only
         // the item's own source gets a say. Placed as a return because the
@@ -381,7 +380,7 @@ class TenantDistributorSyncService
         // keeps their own name from the attention surface.
         $titleNow = $cat->display_name;
         $titleDiffers = $titleNow !== null && $titleNow !== '' && $titleNow !== $item->catalog_title_seen;
-        // MARKER-TITLE-RATIO -- only a meaningful rename flags. Feeds tweak
+        // only a meaningful rename flags. Feeds tweak
         // casing/spacing/punctuation constantly; below the configured ratio
         // the seen baseline advances silently instead of flooding attention.
         $titleRatio = $titleDiffers ? self::titleChangeRatio($item->catalog_title_seen, $titleNow) : 0.0;
@@ -409,7 +408,7 @@ class TenantDistributorSyncService
             $this->resolveFlag($tenantId, $item, TenantPricingAttentionFlag::REASON_TITLE_CHANGED, $dryRun, $res);
         }
 
-        // MARKER-DETAILS-WATCH — descriptive drift (color / size / description).
+        // descriptive drift (color / size / description).
         // Same contract as the title watch: never auto-applied; the tenant
         // adopts or keeps from the attention surface. A null baseline is
         // seeded silently so an existing library never floods attention.
@@ -479,7 +478,7 @@ class TenantDistributorSyncService
         );
     }
 
-    // MARKER-TITLE-RATIO -- 0.0 (identical) .. 1.0 (entirely different),
+    // 0.0 (identical) .. 1.0 (entirely different),
     // measured on case/whitespace-normalized strings so cosmetic feed edits
     // score near zero. A null or blank baseline counts as a full change,
     // preserving the pre-ratio behavior for never-seen titles. Public static

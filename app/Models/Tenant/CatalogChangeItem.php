@@ -4,7 +4,7 @@ namespace App\Models\Tenant;
 
 use Illuminate\Database\Eloquent\Model;
 
-// MARKER-CATALOG-HISTORY — one item's before-and-after within a batch.
+// one item's before-and-after within a batch.
 class CatalogChangeItem extends Model
 {
     protected $table = 'catalog_change_items';

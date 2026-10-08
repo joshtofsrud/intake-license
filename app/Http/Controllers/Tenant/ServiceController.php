@@ -51,8 +51,8 @@ class ServiceController extends Controller
                 'cleanup_after_minutes' => (int) $item->cleanup_after_minutes,
                 'slot_weight'           => (int) $item->slot_weight,
                 'is_active'             => (bool) $item->is_active,
-                'quick_only'            => (bool) $item->quick_only, // MARKER-PATCH-546
-                'show_on_register'      => (bool) $item->show_on_register, // MARKER-QUICK-ADD
+                'quick_only'            => (bool) $item->quick_only,
+                'show_on_register'      => (bool) $item->show_on_register,
                 'sort_order'            => (int) $item->sort_order,
                 'eligible_resource_ids' => $item->eligibleResources->pluck('id')->values()->toArray(),
                 'addons'                => $item->serviceAddons->map(fn($pivot) => [
@@ -120,7 +120,7 @@ class ServiceController extends Controller
         $op = $request->input('op', 'delete_service');
 
         if ($op === 'delete_category') {
-            // MARKER-SVC-CAT — tenant_service_items.category_id is
+            // tenant_service_items.category_id is
             // cascadeOnDelete. Deleting a category with services in it would
             // destroy them and their add-on links, silently. Never cascade:
             // the services move somewhere first, or nothing happens.
@@ -264,8 +264,8 @@ class ServiceController extends Controller
             'duration_minutes'      => max(1, (int) $request->input('duration_minutes', 30)),
             'cleanup_after_minutes' => (int) $request->input('cleanup_after_minutes', 0),
             'slot_weight'           => max(1, min(4, (int) $request->input('slot_weight', 1))),
-            'quick_only'            => (bool) ((int) $request->input('quick_only', 0)), // MARKER-PATCH-546
-            'show_on_register'      => (bool) ((int) $request->input('show_on_register', 0)), // MARKER-QUICK-ADD
+            'quick_only'            => (bool) ((int) $request->input('quick_only', 0)),
+            'show_on_register'      => (bool) ((int) $request->input('show_on_register', 0)),
         ];
 
         if ($id) {
@@ -292,7 +292,7 @@ class ServiceController extends Controller
             'cleanup_after_minutes' => (int) $service->cleanup_after_minutes,
             'slot_weight'           => (int) $service->slot_weight,
             'is_active'             => (bool) $service->is_active,
-            // MARKER-SERVICE-FLAGS-ROUNDTRIP — these two were saved but never
+            // these two were saved but never
             // returned, so the drawer redrew them from its stale local copy
             // and both checkboxes appeared to reset on save.
             'quick_only'            => (bool) $service->quick_only,

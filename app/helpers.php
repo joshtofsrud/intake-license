@@ -24,7 +24,7 @@ if (! function_exists('tenant_url')) {
         $t = tenant();
         if (! $t) return url($path);
 
-        // MARKER-PATCH-123 — delegate to Tenant::publicUrl() so custom
+        // delegate to Tenant::publicUrl() so custom
         // domains served via tenant_domains (and legacy custom_domain) are
         // both handled in one place.
         return $t->publicUrl() . '/' . ltrim($path, '/');
@@ -42,14 +42,14 @@ if (! function_exists('format_money')) {
     function format_money(int $cents, string $symbol = '$'): string
     {
         $sym = tenant()?->currency_symbol ?? $symbol;
-        // MARKER-DASH-LESS-CHROME — sign first: "-$180.00", not "$-180.00".
+        // sign first: "-$180.00", not "$-180.00".
         return ($cents < 0 ? '-' : '') . $sym . number_format(abs($cents) / 100, 2);
     }
 }
 
 if (! function_exists('tlocal')) {
     /**
-     * MARKER-PATCH-189 — Render a UTC datetime instant in the current tenant's
+     * Render a UTC datetime instant in the current tenant's
      * timezone. THE canonical way to display any 'datetime'-cast column
      * (scheduled_at, starts_at, created_at, sent_at, …). Storing UTC and
      * converting at the edge is the standard; this makes the conversion
@@ -77,7 +77,7 @@ if (! function_exists('tlocal')) {
 
 if (! function_exists('tnow')) {
     /**
-     * MARKER-PATCH-234C — "now" as a tenant-local Carbon. Use for
+     * "now" as a tenant-local Carbon. Use for
      * date-of-day boundaries the tenant will see (today's pickups, week
      * windows). For storage timestamps and created_at comparisons use plain
      * now() — those are UTC. Mirrors DashboardDataService::tnow().
@@ -93,7 +93,7 @@ if (! function_exists('tnow')) {
 
 if (! function_exists('is_impersonating')) {
     /**
-     * MARKER-IMPERSONATION-PIN — is this session a platform operator acting
+     * is this session a platform operator acting
      * as a tenant user? Every PIN gate must consult this: the operator
      * cannot know the tenant's PIN, so enforcing one locks them out of a
      * session they legitimately hold. Reaching impersonation already
@@ -157,7 +157,7 @@ if (! function_exists('debug_log')) {
 
 if (! function_exists('tender_label')) {
     /**
-     * MARKER-PATCH-630 — human label for a payment_method key.
+     * human label for a payment_method key.
      * 'cash_app' → 'Cash App', 'custom_house_account' → 'House account'.
      * Prefers the tenant's configured method name when available.
      */
@@ -185,7 +185,7 @@ if (! function_exists('tender_label')) {
 
 if (! function_exists('tenant_day_utc_range')) {
     /**
-     * MARKER-TZ-WAVE1 — the ONE way to bound a tenant-local calendar day
+     * the ONE way to bound a tenant-local calendar day
      * when querying UTC timestamp columns. Returns [startUtc, endUtc)
      * for the given tenant-local day.
      *
@@ -211,7 +211,7 @@ if (! function_exists('tenant_day_utc_range')) {
 
 if (! function_exists('tenant_tz_offset_expr')) {
     /**
-     * MARKER-TZ-WAVE4 — DST-correct SQL expression converting a UTC
+     * DST-correct SQL expression converting a UTC
      * timestamp COLUMN to tenant-local time for bucketing (DATE()/HOUR()).
      *
      * WRONG: $off = Carbon::now($tz)->utcOffset() * 60;           // TODAY's offset
@@ -260,7 +260,7 @@ if (! function_exists('tenant_tz_offset_expr')) {
     }
 }
 
-// MARKER-WELCOME-LOGO-SMART — initials of the WORDS, not the first letters.
+// initials of the WORDS, not the first letters.
 // "Oakridge Bike Shop" is OBS, not OA.
 if (! function_exists('brand_initials')) {
     function brand_initials(?string $name, int $max = 3): string
@@ -291,12 +291,12 @@ if (! function_exists('brand_initials')) {
     }
 }
 
-// MARKER-TC-EDIT-SCOPE — tenant-local value for a <input type="datetime-local">.
+// tenant-local value for a <input type="datetime-local">.
 // editPunch parses submitted values in the tenant timezone, so the field has to
 // be rendered in it too or every save would shift by the UTC offset.
 if (! function_exists('error_home_url')) {
     /**
-     * MARKER-ERR-HOME — where "Back to dashboard" should actually go.
+     * where "Back to dashboard" should actually go.
      *
      * url('/') on a tenant host is the shop's PUBLIC site. For a shop with no
      * published site that redirects to a login, so a staff member who hit an
@@ -306,10 +306,10 @@ if (! function_exists('error_home_url')) {
     function error_home_url(): string
     {
         try {
-            // MARKER-ERROR-HOME-FIX — the destination follows WHERE the error
+            // the destination follows WHERE the error
             // happened, not who is signed in: public page → that site's home.
 
-            // MARKER-ERROR-LINKS — a page-not-found error never loads the session,
+            // a page-not-found error never loads the session,
             // so a signed-in person looked signed out and was sent to the public
             // site. Anyone who was inside /admin goes back to /admin; it asks
             // them to sign in if they really aren't.
@@ -324,7 +324,7 @@ if (! function_exists('error_home_url')) {
         return url('/');
     }
 
-    /** MARKER-ERROR-LINKS — true when the error happened inside an admin area. */
+    /** true when the error happened inside an admin area. */
     function error_in_admin(): bool
     {
         try {
@@ -335,7 +335,7 @@ if (! function_exists('error_home_url')) {
         }
     }
 
-    /** MARKER-ERROR-LINKS — help lives on intake.works, whichever address the error is on. */
+    /** help lives on intake.works, whichever address the error is on. */
     function error_help_url(): string
     {
         return 'https://' . config('intake.domain', 'intake.works') . '/docs';

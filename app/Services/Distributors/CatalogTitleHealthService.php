@@ -1,6 +1,5 @@
 <?php
 
-// MARKER-TITLE-SCOPES
 
 namespace App\Services\Distributors;
 
@@ -73,7 +72,7 @@ class CatalogTitleHealthService
         foreach ($emptyToken as $token => $count) {
             if ($count / $n > 0.5) {
                 $pct = (int) round($count / $n * 100);
-                // MARKER-FLAG-TUNING — 'info', not 'warn'. An empty token is
+                // 'info', not 'warn'. An empty token is
                 // normal: {size} and {color} are blank on most non-tire
                 // categories and render() already collapses the gap. This is
                 // context for whoever edits the template, not a defect, and
@@ -111,7 +110,7 @@ class CatalogTitleHealthService
     }
 
     /**
-     * MARKER-FLAG-TUNING — worst severity in a flag set, for the indexed
+     * worst severity in a flag set, for the indexed
      * column. 'info' is deliberately ranked below 'warn' and is not a
      * queueing condition; a scope carrying only info findings is clean.
      */

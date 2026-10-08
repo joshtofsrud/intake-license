@@ -4,7 +4,6 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
-// MARKER-RAISE-RECORDS
 class InvestorDocument extends Model
 {
     protected $fillable = [

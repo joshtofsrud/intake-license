@@ -1,5 +1,5 @@
-{{-- MARKER-PATCH-150 — tenant public-page analytics + funnel tracking --}}
-@include('public._ga4') {{-- MARKER-SHOP-GA4 — one copy of the tag, shared with the rental pages --}}
+{{-- tenant public-page analytics + funnel tracking --}}
+@include('public._ga4') {{-- one copy of the tag, shared with the rental pages --}}
 
 {{-- Native funnel tracking — anonymous, no third-party --}}
 <script>
@@ -17,7 +17,7 @@
     utm_campaign: params.get('utm_campaign') || null,
   };
 
-  // MARKER-FUNNEL-SESSION-FIX — the session id is minted CLIENT-side, once,
+  // the session id is minted CLIENT-side, once,
   // and rides in every payload. Server-minted ids fragmented first visits:
   // several beacons raced out before any Set-Cookie landed, so one person's
   // click became two or three phantom "sessions" and the started tile could
@@ -59,7 +59,7 @@
 
     try {
       // Use sendBeacon when available — fire-and-forget, survives nav
-      if (navigator.sendBeacon) { // MARKER-FUNNEL-SESSION-FIX — one transport for everything
+      if (navigator.sendBeacon) { // one transport for everything
         var blob = new Blob([JSON.stringify(body)], { type: 'application/json' });
         navigator.sendBeacon('/funnel/track', blob);
         return;
@@ -87,16 +87,16 @@
   // Booking-page hooks. The tracker loads in <head>, so the booking form
   // isn't in the DOM yet — defer setup until DOM-ready, and detect the booking
   // page by its surface (not the URL) so this fires on /book, custom domains,
-  // and any page-builder slug. MARKER-PATCH-449
+  // and any page-builder slug.
   function initBookingHooks() {
     if (!document.getElementById('bk-progress') && !document.querySelector('.bk-section')) return;
     send('booking_page_viewed');
 
-    // MARKER-FUNNEL-SESSION-FIX — the old "first interaction = started"
+    // the old "first interaction = started"
     // emitter is gone. "Started" now has exactly one meaning: entered the
     // flow (choice-page click or direct landing), emitted by those pages.
 
-    // MARKER-PATCH-452 — record each wizard step the anonymous session reaches,
+    // record each wizard step the anonymous session reaches,
     // so drop-off is visible even before any contact info exists. Deduped per step.
     (function trackSteps(){
       var seenSteps = {};
@@ -120,7 +120,7 @@
       } catch (e) {}
     })();
 
-    // MARKER-RECOVERY — capture partial booking once contact info is entered.
+    // capture partial booking once contact info is entered.
     function readContact() {
       function v(id){ var el = document.getElementById(id); return el ? el.value.trim() : ''; }
       var first = v('bk-first-name'), last = v('bk-last-name');
@@ -157,7 +157,7 @@
     document.addEventListener('visibilitychange', function(){ if (document.visibilityState === 'hidden') sendAbandon(); });
   }
 
-  // Run now if the DOM is already parsed, otherwise wait for it. MARKER-PATCH-449
+  // Run now if the DOM is already parsed, otherwise wait for it.
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initBookingHooks);
   } else {

@@ -5,7 +5,6 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
 
-// MARKER-INVEST-SITE
 class InvestToken extends Model
 {
     protected $fillable = ['token', 'label', 'is_active', 'views', 'last_viewed_at', 'revoked_at'];

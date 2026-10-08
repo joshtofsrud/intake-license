@@ -9,14 +9,14 @@ use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
 
 /**
- * MARKER-PATCH-561 — Online Retail Wave 2: the read-only storefront.
+ * Online Retail Wave 2: the read-only storefront.
  * Grid + product page over inventory the tenant has opted online.
  * No cart, no writes — Wave 3 adds the cart on top of these views.
  */
 class StorefrontController extends Controller
 {
     /**
-     * MARKER-PATCH-563 — storefront gates through the addon framework
+     * storefront gates through the addon framework
      * (online_store: included branded+scale, never starter), replacing
      * 562's hardcoded tier match. One gating system everywhere.
      */
@@ -24,7 +24,7 @@ class StorefrontController extends Controller
     {
         $ok = app(\App\Services\FeatureAccessService::class)
             ->hasAddon(tenant(), 'online_store');
-        // MARKER-PATCH-569 — tenant master switch on top of the addon gate
+        // tenant master switch on top of the addon gate
         $ok = $ok && (bool) ((tenant()->settings['storefront']['enabled'] ?? true));
         abort_unless($ok, 404);
     }
@@ -56,7 +56,7 @@ class StorefrontController extends Controller
                 });
             })
             ->when($cat, fn ($w) => $w->where('category_id', $cat))
-            // MARKER-PATCH-583 — shopper-facing sorts
+            // shopper-facing sorts
             ->when(true, function ($w) use ($request) {
                 match ($request->query('sort', 'featured')) {
                     'price_asc'  => $w->orderByRaw('COALESCE(shop_sell_price_cents, catalog_msrp_cents) ASC'),
@@ -75,16 +75,16 @@ class StorefrontController extends Controller
             ->orderBy('name')
             ->get(['id', 'name']);
 
-        // MARKER-PATCH-583 — per-category counts for the sidebar layout
+        // per-category counts for the sidebar layout
         $catCounts = $this->visible()
             ->selectRaw('category_id, COUNT(*) AS n')
             ->groupBy('category_id')->pluck('n', 'category_id');
 
-        return \App\Services\Tenant\SiteChromeService::render($tenant, 'shop_index', [ // MARKER-PATCH-579
+        return \App\Services\Tenant\SiteChromeService::render($tenant, 'shop_index', [
             'browseLayout' => (string) (($tenant->settings['storefront']['browse_layout'] ?? null) ?: 'chips'),
             'catCounts'    => $catCounts,
             'sort'         => $request->query('sort', 'featured'),
-            'cartCount'  => \App\Services\Tenant\CartService::forTenant($tenant)->itemCount(), // MARKER-PATCH-564
+            'cartCount'  => \App\Services\Tenant\CartService::forTenant($tenant)->itemCount(),
             'tenant'     => $tenant,
             'items'      => $items,
             'categories' => $categories,
@@ -94,7 +94,7 @@ class StorefrontController extends Controller
     }
 
     /**
-     * MARKER-PATCH-582 / 621 — GET /shop/search.json — instant search feed.
+     * / 621 — GET /shop/search.json — instant search feed.
      * Relevance-scored (exact > name prefix > name word > brand > SKU, with a
      * gentle in-stock nudge) instead of stock-count-then-alphabetical, and
      * every query logs to tenant_search_queries for the Traffic report.
@@ -106,7 +106,7 @@ class StorefrontController extends Controller
             return response()->json(['items' => []]);
         }
 
-        // MARKER-PATCH-622 — exact-phrase redirect rules beat product matching.
+        // exact-phrase redirect rules beat product matching.
         if ($rd = \App\Models\Tenant\TenantSearchRule::redirectFor(tenant()->id, $q)) {
             \App\Models\Tenant\TenantSearchQuery::log(
                 tenant()->id, mb_substr((string) $request->session()->getId(), 0, 64), $q, 1
@@ -119,7 +119,7 @@ class StorefrontController extends Controller
 
         $tokens = array_values(array_filter(preg_split('/\s+/', mb_strtolower($q)), fn ($t) => mb_strlen($t) >= 2));
 
-        // MARKER-PATCH-622 — synonym expansion (seeds + tenant rules).
+        // synonym expansion (seeds + tenant rules).
         $synonyms  = \App\Models\Tenant\TenantSearchRule::synonymMap(tenant()->id);
         $corrected = false;
         $tokens = array_map(function ($t) use ($synonyms, &$corrected) {
@@ -143,7 +143,7 @@ class StorefrontController extends Controller
         };
         $candidates = $fetch($tokens);
 
-        // MARKER-PATCH-622 — typo fallback: zero results → correct each token
+        // typo fallback: zero results → correct each token
         // against the tenant vocabulary and retry once.
         if ($candidates->isEmpty()) {
             $fixed = array_map(function ($t) use (&$corrected) {
@@ -185,7 +185,7 @@ class StorefrontController extends Controller
         ->take(8)
         ->pluck('item');
 
-        // MARKER-PATCH-621 — analytics: log the query with its result count.
+        // analytics: log the query with its result count.
         \App\Models\Tenant\TenantSearchQuery::log(
             tenant()->id,
             mb_substr((string) $request->session()->getId(), 0, 64),
@@ -194,7 +194,7 @@ class StorefrontController extends Controller
         );
 
         return response()->json(['corrected' => $corrected && $scored->isNotEmpty() ? implode(' ', $tokens) : null, 'items' => $scored->map(function ($i) {
-            // MARKER-ITEM-IMAGES-EVERYWHERE — was passing $p->distributorCatalog
+            // was passing $p->distributorCatalog
             // and $p->tenant_id from inside a closure that only receives $i.
             // $p is not in scope, so both arrived null and every QBP image in
             // storefront search resolved to nothing. Asking the item removes
@@ -207,7 +207,7 @@ class StorefrontController extends Controller
                 'price' => $i->effectiveSellPriceCents() !== null
                     ? '$' . number_format($i->effectiveSellPriceCents() / 100, 2) : null,
                 'img'   => $img,
-                'stock' => $i->availableCount() > 0, // MARKER-RESERVE — held units are not for sale online either
+                'stock' => $i->availableCount() > 0, // held units are not for sale online either
                 'url'   => '/shop/' . $i->id,
             ];
         })->values()]);
@@ -222,7 +222,7 @@ class StorefrontController extends Controller
 
         $cat = $item->distributorCatalog;
 
-        // MARKER-ITEM-IMAGES-EVERYWHERE — was passing $cat?->tenant_id, but
+        // was passing $cat?->tenant_id, but
         // $cat is a platform catalog row shared across tenants and has no
         // tenant_id at all. The CLS prefix is per tenant, so that resolved to
         // null and QBP galleries came out empty.
@@ -240,9 +240,9 @@ class StorefrontController extends Controller
             ->map(fn ($a) => ['name' => $a['Name'], 'value' => $a['Value']])
             ->values()->all();
 
-        return \App\Services\Tenant\SiteChromeService::render(tenant(), 'shop_show', [ // MARKER-PATCH-579
-            'shopItem' => $item, // MARKER-PATCH-585 — collision-proof alias
-            'cartCount' => \App\Services\Tenant\CartService::forTenant(tenant())->itemCount(), // MARKER-PATCH-564
+        return \App\Services\Tenant\SiteChromeService::render(tenant(), 'shop_show', [
+            'shopItem' => $item, // collision-proof alias
+            'cartCount' => \App\Services\Tenant\CartService::forTenant(tenant())->itemCount(),
             'tenant' => tenant(),
             'item'   => $item,
             'images' => $images,

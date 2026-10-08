@@ -1,5 +1,4 @@
 <?php
-// MARKER-SALE-DELETE-STOCK
 
 namespace App\Console\Commands;
 
@@ -8,7 +7,7 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Sales deleted before MARKER-SALE-DELETE-STOCK took their stock with them:
+ * Sales deleted before took their stock with them:
  * the units stayed deducted and the outgoing movement rows still reference a
  * sale that no longer exists. This finds those movements and, with --fix,
  * writes the counter-movement that should have happened at delete time.

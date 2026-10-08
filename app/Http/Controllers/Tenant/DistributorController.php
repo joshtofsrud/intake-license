@@ -1,5 +1,4 @@
 <?php
-// MARKER-PATCH-HLC7A
 
 namespace App\Http\Controllers\Tenant;
 
@@ -19,7 +18,7 @@ use Illuminate\Http\Request;
  */
 class DistributorController extends Controller
 {
-    // MARKER-DIST-MULTI — was the whole controller's distributor. Kept as the
+    // was the whole controller's distributor. Kept as the
     // default for the routes that still assume one (import, attention), which
     // remain HLC-only until those screens are generalised too.
     private const CODE = 'HLC';
@@ -38,7 +37,7 @@ class DistributorController extends Controller
     }
 
     /**
-     * MARKER-DIST-MULTI — one box per supported distributor.
+     * one box per supported distributor.
      *
      * Reads DistributorRegistry::supported(), so a newly registered adapter
      * appears here with no change to this method or the view.
@@ -51,11 +50,11 @@ class DistributorController extends Controller
 
         $boxes = [];
         foreach ($registry->supported() as $code) {
-            // MARKER-DIST-TOGGLE — a row created just by opening this page is
+            // a row created just by opening this page is
             // not a connection. It starts OFF and the shop turns it on.
             $sub = TenantDistributorCatalogSubscription::firstOrCreate(
                 ['tenant_id' => $tenant->id, 'distributor_code' => $code],
-                // MARKER-PRICE-SEED — new rows start at MSRP; the column
+                // new rows start at MSRP; the column
                 // defaults to 'map' so nobody already connected shifts.
                 ['is_active' => false, 'price_seed' => 'msrp'],
             );
@@ -65,7 +64,7 @@ class DistributorController extends Controller
                 'code'      => $code,
                 'label'     => $registry->label($code),
                 'sub'       => $sub,
-                // MARKER-DIST-VENDOR-PROMPT — which of the shop's vendors IS
+                // which of the shop's vendors IS
                 // this distributor. Asked here because it's the one moment the
                 // answer is unambiguous.
                 'vendors'   => \App\Models\Tenant\TenantVendor::where('tenant_id', tenant()->id)
@@ -73,11 +72,11 @@ class DistributorController extends Controller
                 'linkedVendorId' => \App\Models\Tenant\TenantVendor::where('tenant_id', tenant()->id)
                     ->where('distributor_code', strtolower($code))->value('id'),
                 'fields'    => $registry->credentialFields($code),
-                'enabled'   => (bool) $sub->is_active,   // MARKER-DIST-TOGGLE
+                'enabled'   => (bool) $sub->is_active,
                 'hasKey'    => filled($creds['api_key'] ?? null),
-                'priceSeed' => $sub->price_seed ?: 'map', // MARKER-PRICE-SEED
+                'priceSeed' => $sub->price_seed ?: 'map',
                 'maskedKey' => $this->mask($creds['api_key'] ?? null),
-                // MARKER-PARTIAL-CREDS — a hint per field, not the whole
+                // a hint per field, not the whole
                 // joined credential under both of them.
                 'hints'     => $registry->credentialHints(
                     $code, $creds['api_key'] ?? null, fn ($v) => $this->mask($v)
@@ -91,7 +90,7 @@ class DistributorController extends Controller
             ];
         }
 
-        // MARKER-PRIORITY-FIX — make the stored numbers say what the order
+        // make the stored numbers say what the order
         // is, then read them back. Ties break on code so the result is
         // stable rather than whatever the database returns today.
         usort($boxes, fn ($a, $b) => [$a['priority'], $a['code']] <=> [$b['priority'], $b['code']]);
@@ -120,7 +119,7 @@ class DistributorController extends Controller
     }
 
     /**
-     * MARKER-DIST-MULTI — saves one distributor's box.
+     * saves one distributor's box.
      *
      * The credential fields differ per distributor, so the submitted values
      * go through the registry, which knows how to collapse them into the
@@ -129,7 +128,7 @@ class DistributorController extends Controller
      * change its priority without re-typing a key it can't read back.
      */
     /**
-     * MARKER-DIST-TOGGLE — turn a distributor on or off for this shop.
+     * turn a distributor on or off for this shop.
      * Turning OFF keeps the stored credentials, so pausing does not mean
      * re-entering an API key later.
      */
@@ -166,14 +165,14 @@ class DistributorController extends Controller
         $data = $request->validate([
             'distributor_code' => ['required', 'string', 'max:32'],
             'api_key'          => ['nullable', 'string', 'max:255'],
-            // MARKER-CLS-RENDER — QBP's second key. Absent from this list it
+            // QBP's second key. Absent from this list it
             // was stripped before packCredentials ever saw it, so the field
             // rendered, accepted a paste, and saved nothing.
             'cls_key'          => ['nullable', 'string', 'max:255'],
             'username'         => ['nullable', 'string', 'max:128'],
             'password'         => ['nullable', 'string', 'max:255'],
             'account_number'   => ['nullable', 'string', 'max:64'],
-            'vendor_id'        => ['nullable', 'string', 'max:64'], // MARKER-DIST-VENDOR-PROMPT
+            'vendor_id'        => ['nullable', 'string', 'max:64'],
         ]);
 
         $registry = app(\App\Services\Distributors\DistributorRegistry::class);
@@ -188,7 +187,7 @@ class DistributorController extends Controller
         $creds = (array) ($sub->credentials_encrypted ?? []);
         $before = (string) ($creds['api_key'] ?? '');
 
-        // MARKER-PARTIAL-CREDS — hand the stored value in so a blank field
+        // hand the stored value in so a blank field
         // keeps its part instead of discarding the whole credential.
         $packed = $registry->packCredentials($code, $data, $before);
         if ($packed !== null) {
@@ -196,7 +195,7 @@ class DistributorController extends Controller
             $creds['region'] = $creds['region'] ?? 'us';
         }
 
-        // MARKER-VENDOR-MERGE — if another vendor is already carrying this
+        // if another vendor is already carrying this
         // distributor's items, linking without absorbing it splits the
         // catalog. Send the shop to a confirmation screen instead.
         $vendorId = trim((string) ($data['vendor_id'] ?? ''));
@@ -235,7 +234,7 @@ class DistributorController extends Controller
         $sub->account_number = $data['account_number'] ?? $sub->account_number;
         $sub->save();
 
-        // MARKER-PARTIAL-CREDS — say plainly when the credential didn't move.
+        // say plainly when the credential didn't move.
         // Reporting "saved" on a no-op is what hid the discarded password.
         $after = (string) ($sub->credentials_encrypted['api_key'] ?? '');
         $label = $registry->label($code);
@@ -248,7 +247,7 @@ class DistributorController extends Controller
     }
 
     /**
-     * MARKER-PRIORITY-ORDER — move a distributor up or down the data order.
+     * move a distributor up or down the data order.
      *
      * Swaps data_priority with the adjacent distributor rather than
      * renumbering everything. Renumbering would rewrite rows the shop never
@@ -260,7 +259,7 @@ class DistributorController extends Controller
      * still definite.
      */
     /**
-     * MARKER-VENDOR-MERGE — show what absorbing the old vendor will do.
+     * show what absorbing the old vendor will do.
      *
      * The merge is irreversible and deletes a vendor, so the counts and the
      * surviving name are the sanity check that the right target was picked.
@@ -302,7 +301,7 @@ class DistributorController extends Controller
         );
     }
 
-    /** MARKER-PRICE-SEED — which list price this distributor's new items start at. */
+    /** which list price this distributor's new items start at. */
     public function savePricing(Request $request): RedirectResponse
     {
         $this->guard();
@@ -319,7 +318,7 @@ class DistributorController extends Controller
             . strtoupper($data['price_seed']) . '.');
     }
 
-    /** MARKER-PRICE-SEED — where this distributor's items sit today. */
+    /** where this distributor's items sit today. */
     public function pricingCheck(Request $request, \App\Services\Distributors\DistributorPricingService $pricing): \Illuminate\Http\JsonResponse
     {
         $this->guard();
@@ -340,7 +339,7 @@ class DistributorController extends Controller
         ]);
     }
 
-    /** MARKER-PRICE-SEED — move every untouched price to the chosen list price. */
+    /** move every untouched price to the chosen list price. */
     public function pricingSweep(Request $request, \App\Services\Distributors\DistributorPricingService $pricing): RedirectResponse
     {
         $this->guard();
@@ -387,7 +386,7 @@ class DistributorController extends Controller
             return back();          // already at the end
         }
 
-        // MARKER-PRIORITY-FIX — move it in the list, then renumber the whole
+        // move it in the list, then renumber the whole
         // list 1..N. Swapping the two stored values kept the order right but
         // left the numbers arbitrary (two defaults both at 50, or a 1 beside
         // a 50), so the stored value never stated the position.
@@ -400,7 +399,7 @@ class DistributorController extends Controller
     }
 
     /**
-     * MARKER-PRIORITY-FIX — the tenant's subscriptions in priority order,
+     * the tenant's subscriptions in priority order,
      * limited to distributors the registry supports.
      *
      * That limit is the fix: this used to return every subscription row,
@@ -421,7 +420,7 @@ class DistributorController extends Controller
     }
 
     /**
-     * MARKER-PRIORITY-FIX — rewrite priorities as 1..N in their current
+     * rewrite priorities as 1..N in their current
      * order, so the stored number IS the position.
      *
      * Swapping the two values kept the order right but left the numbers
@@ -446,7 +445,7 @@ class DistributorController extends Controller
     }
 
     /**
-     * MARKER-POSTED-CODE — the distributor the request is about.
+     * the distributor the request is about.
      *
      * No default. self::CODE as a fallback meant a request that didn't carry
      * a distributor quietly acted on HLC and reported success for it, which
@@ -471,7 +470,7 @@ class DistributorController extends Controller
     public function testConnection(Request $request): RedirectResponse
     {
         $this->guard();
-        // MARKER-POSTED-CODE — was self::CODE, so every box tested HLC.
+        // was self::CODE, so every box tested HLC.
         [$code, $label, $sub] = $this->requestedSub($request);
 
         $creds = (array) ($sub->credentials_encrypted ?? []);
@@ -487,7 +486,7 @@ class DistributorController extends Controller
             $res = $adapter->testConnection();
             $ok = (bool) ($res['ok'] ?? false);
 
-            // MARKER-BTI-PROBE — every failure used to be recorded as
+            // every failure used to be recorded as
             // auth_failed, so a 503, a timeout or DNS trouble all displayed as
             // "credentials rejected" and sent someone to re-enter a password
             // that was already correct.
@@ -511,7 +510,7 @@ class DistributorController extends Controller
         }
     }
 
-    // MARKER-POSTED-CODE — the job syncs every active subscription for the
+    // the job syncs every active subscription for the
     // tenant, so the distributor here decides whose credentials are checked
     // first and what the message names, not which feed runs.
     public function refreshSync(Request $request): RedirectResponse
@@ -524,7 +523,7 @@ class DistributorController extends Controller
             return back()->with('error', 'Connect ' . $label . ' before refreshing.');
         }
 
-        // MARKER-PATCH-556 — same logged job as Catalog attention's Sync now,
+        // same logged job as Catalog attention's Sync now,
         // so every sync (any button) appears in the run history.
         \App\Jobs\RunTenantDistributorSyncJob::dispatch(tenant()->id, false, 'manual');
         return back()->with('success', 'Refreshing your cost & availability in the background.');
@@ -534,7 +533,6 @@ class DistributorController extends Controller
     {
         $this->guard();
 
-        // MARKER-IMPORTER-PER-CODE
         $code = $this->importCode($request->query('code'));
 
         return view('tenant.distributors.import', array_merge(
@@ -555,7 +553,6 @@ class DistributorController extends Controller
             'include_unsellable' => ['nullable'],
         ]);
 
-        // MARKER-IMPORTER-PER-CODE
         $code = $this->importCode($data['code'] ?? null);
 
         $filters = array_filter([
@@ -564,11 +561,11 @@ class DistributorController extends Controller
             'include_unsellable' => ! empty($data['include_unsellable']),
         ], fn ($v) => $v !== null && $v !== '' && $v !== false);
 
-        $view = $this->importFilterOptions($code, $filters['brand'] ?? null); // MARKER-SSEL-SCOPE
+        $view = $this->importFilterOptions($code, $filters['brand'] ?? null);
         $view['filters'] = $filters;
         $view['mode'] = $data['mode'];
 
-        // MARKER-CATALOG-IMPORT-ALL — no brand and no category now means the
+        // no brand and no category now means the
         // WHOLE catalog. The old guard refused with view()->with('error'),
         // which sets a view variable while the view reads session('error') —
         // so the refusal rendered as nothing at all.
@@ -584,7 +581,7 @@ class DistributorController extends Controller
             // Preview inspects a leading sample for the created/merged/skipped
             // estimate — hydrating 47,000 rows to preview them is the problem
             // we are fixing — but reports the true total beside it.
-            // MARKER-PREVIEW-EXACT — exact counts over the whole set, in SQL.
+            // exact counts over the whole set, in SQL.
             // The old preview sampled 2,000 rows and said so on screen, which
             // read as a cap. Nobody needs to know how an estimate was made.
             $linked = $importer->linkedCandidateCount(tenant()->id, $code, $filters);
@@ -622,7 +619,7 @@ class DistributorController extends Controller
 
     /** Brand / category options + catalog size for the import filter. */
     /**
-     * MARKER-IMPORTER-PER-CODE — brands, categories and the item count for
+     * brands, categories and the item count for
      * ONE distributor. Was pinned to self::CODE, which left a shop with BTI
      * connected unable to import any of its 24,643 items.
      */
@@ -634,18 +631,18 @@ class DistributorController extends Controller
         return [
             'importCode' => $code,
             'importCodes' => $this->importableCodes(),
-            'brands' => (clone $base)->whereNotNull('manufacturer')->whereRaw("TRIM(manufacturer) <> ''") // MARKER-BLANK-CATEGORY
+            'brands' => (clone $base)->whereNotNull('manufacturer')->whereRaw("TRIM(manufacturer) <> ''")
                 ->distinct()->orderBy('manufacturer')->pluck('manufacturer'),
-            // MARKER-SSEL-SCOPE — categories narrow to the chosen brand so
+            // categories narrow to the chosen brand so
             // the picker never offers a category the brand has no items in.
-            'categories' => (clone $base)->whereNotNull('category')->whereRaw("TRIM(category) <> ''") // MARKER-BLANK-CATEGORY
+            'categories' => (clone $base)->whereNotNull('category')->whereRaw("TRIM(category) <> ''")
                 ->when($brand !== null && $brand !== '', fn ($q) => $q->where('manufacturer', $brand))
                 ->distinct()->orderBy('category')->pluck('category'),
             'catalogTotal' => (clone $base)->count(),
         ];
     }
 
-    /** MARKER-SSEL-SCOPE — categories for one brand, for the live picker. */
+    /** categories for one brand, for the live picker. */
     public function importCategories(\Illuminate\Http\Request $request): \Illuminate\Http\JsonResponse
     {
         $this->guard();
@@ -655,7 +652,7 @@ class DistributorController extends Controller
 
         $categories = \App\Models\PlatformDistributorCatalog::query()
             ->where('distributor_code', $code)->where('is_active', true)
-            ->whereNotNull('category')->whereRaw("TRIM(category) <> ''") // MARKER-BLANK-CATEGORY
+            ->whereNotNull('category')->whereRaw("TRIM(category) <> ''")
             ->when($brand !== '', fn ($q) => $q->where('manufacturer', $brand))
             ->distinct()->orderBy('category')->pluck('category');
 
@@ -673,7 +670,7 @@ class DistributorController extends Controller
     {
         $supported = app(\App\Services\Distributors\DistributorRegistry::class)->supported();
 
-        // MARKER-DIST-TOGGLE — only distributors THIS shop has connected. The
+        // only distributors THIS shop has connected. The
         // platform catalog is shared, so without this a shop was offered
         // catalogs (and dealer cost, MAP and MSRP) for accounts it does not
         // hold. Credentials as well as the toggle: the switch alone is the
@@ -706,7 +703,7 @@ class DistributorController extends Controller
     /**
      * The distributor being imported from, defaulting to the first available.
      *
-     * MARKER-DIST-TOGGLE — every import path (the screen, importRun, the
+     * every import path (the screen, importRun, the
      * category picker) resolves its code through here, so refusing an
      * unconnected distributor here refuses it everywhere. A hidden option is
      * not a gate; a crafted POST must fail too.
@@ -756,7 +753,7 @@ class DistributorController extends Controller
             $q->where('reason', $fReason);
         }
 
-        // MARKER-ATTENTION-SCALE -- reason priority in SQL so pagination keeps
+        // reason priority in SQL so pagination keeps
         // the queue order, then newest first within a reason.
         $rankSql = "CASE reason WHEN 'title_changed' THEN 0 WHEN 'below_map' THEN 1 WHEN 'off_msrp' THEN 2"
             . " WHEN 'map_vanished' THEN 3 WHEN 'msrp_vanished' THEN 4 WHEN 'cost_vanished' THEN 5 ELSE 9 END";
@@ -767,7 +764,7 @@ class DistributorController extends Controller
         $flags = $q->orderByRaw($rankSql)->orderByDesc('created_at')
             ->paginate($perPage)->withQueryString();
 
-        // MARKER-ATTENTION-SCALE -- chip counts reflect ALL open flags (not the
+        // chip counts reflect ALL open flags (not the
         // current filter), computed as SQL aggregates: this page previously
         // hydrated every open flag three times over and OOM'd at scale.
         $base = \App\Models\Tenant\TenantPricingAttentionFlag::query()
@@ -781,7 +778,7 @@ class DistributorController extends Controller
             'in'        => $inCount,
             'out'       => $total - $inCount,
             'title'     => (int) ($allBy['title_changed'] ?? 0),
-            'details'   => (int) ($allBy['details_changed'] ?? 0), // MARKER-ATTENTION-SCALE -- was uncounted, hiding thousands from the header
+            'details'   => (int) ($allBy['details_changed'] ?? 0), // was uncounted, hiding thousands from the header
             'below_map' => (int) ($allBy['below_map'] ?? 0),
             'off_msrp'  => (int) ($allBy['off_msrp'] ?? 0),
             'vanished'  => (int) (($allBy['cost_vanished'] ?? 0) + ($allBy['map_vanished'] ?? 0) + ($allBy['msrp_vanished'] ?? 0)),
@@ -802,11 +799,11 @@ class DistributorController extends Controller
 
         $filters = ['brand' => $fBrand, 'category' => $fCategory, 'reason' => $fReason];
 
-        // MARKER-PATCH-555 — latest sync run for the header line
+        // latest sync run for the header line
         $lastSyncRun = \Illuminate\Support\Facades\DB::table('tenant_distributor_sync_runs')
             ->where('tenant_id', $tenant->id)->orderByDesc('started_at')->first();
 
-        // MARKER-TITLE-RATIO -- shown in the page legend.
+        // shown in the page legend.
         $titleThresholdPct = (int) round(((float) config('distributors.title_change_min_ratio', 0.15)) * 100);
 
         return view('tenant.distributors.attention', compact(
@@ -815,7 +812,7 @@ class DistributorController extends Controller
     }
 
     /**
-     * POST /attention/sync — MARKER-PATCH-555
+     * POST /attention/sync
      * Queue a tenant distributor sync (real or dry-run) and bounce back;
      * the page shows the run row when the worker finishes.
      */
@@ -831,7 +828,7 @@ class DistributorController extends Controller
     }
 
     /**
-     * MARKER-CATALOG-UNDO — what bulk changes have been made, and undoing them.
+     * what bulk changes have been made, and undoing them.
      */
     public function catalogHistory(\Illuminate\Http\Request $request)
     {
@@ -907,7 +904,7 @@ class DistributorController extends Controller
         $data = $request->validate([
             'action'     => ['required', 'in:raise_map,match_msrp,acknowledge,adopt_title,keep_title,adopt_details,keep_details'],
             'flag_ids'   => ['nullable', 'array'],
-            'row_flag'   => ['nullable', 'string'], // MARKER-PATCH-558 — per-row one-click action
+            'row_flag'   => ['nullable', 'string'], // per-row one-click action
             'flag_ids.*' => ['string'],
             'select_all' => ['nullable', 'boolean'],
             'f_brand'    => ['nullable', 'string', 'max:128'],
@@ -918,14 +915,14 @@ class DistributorController extends Controller
 
         $action = $data['action'];
 
-        // MARKER-PATCH-558 — a row button targets exactly one flag,
+        // a row button targets exactly one flag,
         // regardless of checkboxes or the apply-all toggle.
         if (filled($data['row_flag'] ?? null)) {
             $data['flag_ids'] = [$data['row_flag']];
             $request->merge(['select_all' => false]);
         }
 
-        // MARKER-ATTENTION-QUEUE — the same work, in a service both this
+        // the same work, in a service both this
         // request and the queued job call. Over a couple of hundred flags it
         // cannot finish inside a request (nginx cuts it at 60s), so it queues.
         $sel = [

@@ -1,5 +1,4 @@
 <?php
-// MARKER-PATCH-257
 
 namespace App\Console\Commands;
 
@@ -26,7 +25,7 @@ class BackfillTenantMedia extends Command
             ? Tenant::where('id', $this->option('tenant'))->get()
             : Tenant::all();
 
-        $imageExt = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'avif', 'svg', 'ico']; // MARKER-LOGOBAR-POLISH
+        $imageExt = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'avif', 'svg', 'ico'];
         $created = 0;
 
         foreach ($tenants as $tenant) {

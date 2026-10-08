@@ -5,7 +5,7 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * MARKER-MERGE-AFTER — where a merged-away item went.
+ * where a merged-away item went.
  *
  * Without it a merged item is indistinguishable from an archived one: the
  * page offers Restore, and restoring brings back an empty husk whose stock,

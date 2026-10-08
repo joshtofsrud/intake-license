@@ -1,4 +1,4 @@
-{{-- MARKER-INV-PAGER — one pager, rendered in three places (above the table,
+{{-- one pager, rendered in three places (above the table,
      below it, and under the mobile card list). $qs, $pages and $pagerWhere
      come from the caller. $pagerWhere is 'top', 'bottom' or 'mobile' and only
      decides which extras show, so the three stay in step by construction. --}}

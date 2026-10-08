@@ -1,14 +1,14 @@
 @extends('layouts.tenant.app')
 @php $pageTitle = 'Email charges'; @endphp
 
-{{-- MARKER-EMAIL-BILLING / MARKER-EMAIL-CHARGES-V3
+{{--
      One hierarchy: the balance is the only hero, then this month, then the
      detail behind it, then history beside the limit. Every section states the
      window it covers, because the previous version showed four different
      totals and never said which was which. --}}
 @push('styles')
 <style>
-  /* MARKER-EMAIL-CHARGES-V3 — no private width and no hard-coded colors:
+  /* no private width and no hard-coded colors:
      this page inherits the same container and theme variables as the rest. */
   .ec-stack > * + * { margin-top: 18px; }
   .ec-hero-n { font-size: 38px; font-weight: 700; letter-spacing: -.025em; line-height: 1; }
@@ -37,7 +37,6 @@
 @section('content')
 
 {{-- the same header every other settings page uses --}}
-{{-- MARKER-SETTINGS-BACKLINK --}}
 <a href="{{ route('tenant.settings.index') }}#account" class="ia-back-link">&larr; Account settings</a>
 <div class="ia-page-head">
   <div class="ia-page-head-left">
@@ -186,7 +185,7 @@
     @endif
   </div>
 
-  {{-- MARKER-BILLING-RECEIPT — what has actually been taken from the card --}}
+  {{-- what has actually been taken from the card --}}
   @php
     $runs = \App\Models\TenantChargeRun::where('tenant_id', $currentTenant->id)
         ->whereIn('status', ['charged', 'refunded', 'written_off'])

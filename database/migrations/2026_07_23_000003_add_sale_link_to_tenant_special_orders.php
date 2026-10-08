@@ -1,6 +1,6 @@
 <?php
 
-// MARKER-SO-SALE-LINK — special orders created from the register had NO link
+// special orders created from the register had NO link
 // to the sale or line that requested them (only the browser's cart held the
 // id), so removing a line, discarding a draft, or abandoning a cart left the
 // order stranded in "needed" forever. These columns are what any cleanup —

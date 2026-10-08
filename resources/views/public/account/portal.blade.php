@@ -96,7 +96,7 @@
 </div>
 
 {{-- Upcoming tab --}}
-{{-- MARKER-PATCH-574 — online order history --}}
+{{-- online order history --}}
 @if(($onlineOrders ?? collect())->isNotEmpty())
 <div class="ac-tab-panel" id="tab-orders">
   <div class="ac-section-title">Online orders</div>

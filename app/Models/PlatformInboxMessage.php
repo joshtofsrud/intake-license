@@ -6,7 +6,6 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-/** MARKER-INBOX */
 class PlatformInboxMessage extends Model
 {
     use HasUuids;
@@ -17,14 +16,14 @@ class PlatformInboxMessage extends Model
         'kind', 'status', 'tenant_id', 'name', 'email', 'phone', 'company',
         'subject', 'body', 'source_url', 'ref_id', 'meta',
         'read_at', 'replied_at', 'reply_body', 'ip',
-        'inbound_token', 'campaign_id', 'last_message_at', // MARKER-PLATFORM-INBOUND
+        'inbound_token', 'campaign_id', 'last_message_at',
     ];
 
     protected $casts = [
         'meta'            => 'array',
         'read_at'         => 'datetime',
         'replied_at'      => 'datetime',
-        'last_message_at' => 'datetime', // MARKER-PLATFORM-INBOUND
+        'last_message_at' => 'datetime',
     ];
 
     public const KIND_CONTACT = 'contact';
@@ -61,7 +60,7 @@ class PlatformInboxMessage extends Model
     }
 
     // ------------------------------------------------------------------
-    // MARKER-PLATFORM-INBOUND — a message is a conversation, not a one-off
+    // a message is a conversation, not a one-off
     // ------------------------------------------------------------------
 
     public function replies(): \Illuminate\Database\Eloquent\Relations\HasMany

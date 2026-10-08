@@ -3,16 +3,16 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  @include('partials.mobile-input-zoom') {{-- MARKER-MOBILE-INPUT-ZOOM --}}
+  @include('partials.mobile-input-zoom')
   <meta name="csrf-token" content="{{ csrf_token() }}">
   <title>{{ $pageTitle ?? 'My Account' }} — {{ $currentTenant->name }}</title>
   @if($currentTenant->favicon_url)<link rel="icon" href="{{ $currentTenant->favicon_url }}">@endif
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>{{-- MARKER-SELFHOST-FONTS-2 — the font FILES come from gstatic; without this the browser pays a second DNS+TLS handshake --}}
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>{{-- the font FILES come from gstatic; without this the browser pays a second DNS+TLS handshake --}}
   <link href="https://fonts.googleapis.com/css2?family={{ str_replace(' ', '+', $currentTenant->font_heading ?? 'Inter') }}:wght@400;500;600;700&family={{ str_replace(' ', '+', $currentTenant->font_body ?? 'Inter') }}:wght@400;500;600&display=swap" rel="stylesheet">
   <style>
     :root {
-{!! \App\Support\DesignTokens::cssVars(\App\Support\DesignTokens::resolve($currentTenant)) !!} {{-- MARKER-TOKENS --}}
+{!! \App\Support\DesignTokens::cssVars(\App\Support\DesignTokens::resolve($currentTenant)) !!}
       --p-r: 8px; --p-r-lg: 12px; --p-max: 680px;
     }
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -53,16 +53,16 @@
     .ac-intake-footer a { border-bottom: 1px solid currentColor; }
   </style>
   @stack('styles')
-  {{-- MARKER-PATCH-150 — analytics + funnel tracking --}}
+  {{-- analytics + funnel tracking --}}
   @include('public._funnel_tracker')
 </head>
 <body>
-@include('public._chrome-inline', ['chromePos' => 'top']) {{-- MARKER-PATCH-581 --}}
+@include('public._chrome-inline', ['chromePos' => 'top'])
 @php
   $logoUrl = \App\Support\ColorHelper::pickLogo($currentTenant, $currentTenant->bg_color ?? '#ffffff');
   $customer = Auth::guard('customer')->user();
 @endphp
-{{-- MARKER-PORTAL-CSS — the builder nav above already shows the logo and the
+{{-- the builder nav above already shows the logo and the
      signed-in customer, so this bar would be a second copy of both. It still
      renders for a tenant with no site chrome. --}}
 @php $acHasChrome = (bool) \App\Services\Tenant\SiteChromeService::parts($currentTenant)['nav']; @endphp
@@ -99,6 +99,6 @@
 @endif
 
 @stack('scripts')
-@include('public._chrome-inline', ['chromePos' => 'bottom']) {{-- MARKER-PATCH-581 --}}
+@include('public._chrome-inline', ['chromePos' => 'bottom'])
 </body>
 </html>

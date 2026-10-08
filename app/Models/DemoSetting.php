@@ -4,7 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
-// MARKER-DEMO-RESET — key/value for demo state: epoch, anchor week, pause, kill.
+// key/value for demo state: epoch, anchor week, pause, kill.
 class DemoSetting extends Model
 {
     protected $table = 'demo_settings';

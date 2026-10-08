@@ -6,7 +6,7 @@ use App\Support\Seo;
 use Illuminate\Http\Request;
 
 /**
- * MARKER-SEO-SIGNALS — robots.txt and sitemaps for every host. intake.works,
+ * robots.txt and sitemaps for every host. intake.works,
  * app.intake.works and every shop host each get their own, built from
  * App\Support\Seo so they always agree with the page-level signals.
  */

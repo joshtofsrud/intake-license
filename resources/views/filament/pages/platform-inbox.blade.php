@@ -1,5 +1,4 @@
 <x-filament-panels::page>
-{{-- MARKER-INBOX --}}
 <style>
   .ib{--ib-line:var(--ia-border,rgba(127,127,127,.22));--ib-accent:#8b7cf6;--ib-warn:#f0c46a}
   .ib-tabs{display:flex;gap:4px;border-bottom:1px solid var(--ib-line);margin-bottom:14px}

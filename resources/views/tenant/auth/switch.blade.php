@@ -3,13 +3,13 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  @include('partials.mobile-input-zoom') {{-- MARKER-MOBILE-INPUT-ZOOM --}}
+  @include('partials.mobile-input-zoom')
   <meta name="csrf-token" content="{{ csrf_token() }}">
   <title>Who's here? — {{ $currentTenant->name }}</title>
   @if($currentTenant->favicon_url)
     <link rel="icon" href="{{ $currentTenant->favicon_url }}">
   @endif
-  <link rel="stylesheet" href="{{ asset('css/fonts.css') }}">{{-- MARKER-SELFHOST-FONTS-2 --}}
+  <link rel="stylesheet" href="{{ asset('css/fonts.css') }}">
   <style>
     *{box-sizing:border-box;margin:0;padding:0}
     body{font-family:'Inter',-apple-system,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;-webkit-font-smoothing:antialiased}
@@ -87,7 +87,7 @@
 
     /* Set-initial-PIN stage */
     label{display:block;font-size:12px;font-weight:500;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em;margin-top:14px}
-    /* MARKER-PATCH-500 — was input[type=password],input[type=text]: the
+    /* was input[type=password],input[type=text]: the
        type=text half outranked .pin-input and stretched the PIN boxes. */
     input[type=password]:not(.pin-input){width:100%;padding:10px 14px;background:rgba(255,255,255,.05);border:0.5px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;font-family:inherit;transition:border-color .12s}
     input:focus{outline:none;border-color:var(--accent)}
@@ -181,7 +181,7 @@
       <input type="password" inputmode="numeric" pattern="\d*" maxlength="1" class="pin-input" data-confirm-pos="3" autocomplete="off">
     </div>
 
-    {{-- MARKER-PATCH-459 — per-user credential, never the shop --}}
+    {{-- per-user credential, never the shop --}}
     <label>Your account password</label>
     <input type="password" id="set-device-password" placeholder="••••••••" autocomplete="off">
     <div class="hint">Second factor: re-enter <strong>your own</strong> account password — the one you sign in with. This proves it's really you before a PIN is set on your card.</div>
@@ -244,7 +244,7 @@
     inputs.forEach((inp, idx) => {
       inp.addEventListener('input', (e) => {
         inp.value = inp.value.replace(/\D/g, '').slice(0, 1);
-        // MARKER-PATCH-465 — reveal the digit for a beat, then mask it via type
+        // reveal the digit for a beat, then mask it via type
         // swap to 'password' (native masking, works in every browser).
         clearTimeout(inp._maskTimer);
         if (inp.value) {

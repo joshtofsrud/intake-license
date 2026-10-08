@@ -1,6 +1,6 @@
-@php $bgId = 'mkbg-' . substr(md5((string) ($section->id ?? uniqid())), 0, 10); @endphp {{-- MARKER-TRY-DEMO-TIDY --}}
+@php $bgId = 'mkbg-' . substr(md5((string) ($section->id ?? uniqid())), 0, 10); @endphp
 @include('marketing.sections._section_bg', ['bgId' => $bgId])
-{{-- MARKER-DEMO-SECTION — Try the demo. Content: demo_slug, layout (card|button),
+{{-- Try the demo. Content: demo_slug, layout (card|button),
      eyebrow, heading, subheading, button_label, accent_color, anchor_id --}}
 @php
     $slug    = $c['demo_slug'] ?? 'demo';

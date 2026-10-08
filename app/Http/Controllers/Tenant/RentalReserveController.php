@@ -1,5 +1,4 @@
 <?php
-// MARKER-PATCH-240
 
 namespace App\Http\Controllers\Tenant;
 
@@ -305,7 +304,7 @@ class RentalReserveController extends Controller
         [$rental, $sale, $pi] = $result;
         $request->session()->put('public_rental_id', $rental->id);
 
-        // MARKER-PATCH-247 — online reservations ping the staff bell.
+        // online reservations ping the staff bell.
         app(\App\Services\Tenant\StaffAlertService::class)->emit($tenant, 'rental.reserved_online', [
             'title' => 'Online reservation — ' . $rental->rental_number,
             'body'  => trim(($request->input('first_name') . ' ' . $request->input('last_name')))

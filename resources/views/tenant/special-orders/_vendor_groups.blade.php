@@ -1,4 +1,4 @@
-{{-- MARKER-SO-SCROLL — open special orders, in two parts:
+{{-- open special orders, in two parts:
      1. one scrollable box of items still needing a vendor
      2. a separate box per vendor below, each with its own batch action
 
@@ -78,7 +78,7 @@
   $sogUnassigned = $vgroups[''] ?? [];
 @endphp
 
-{{-- MARKER-SO-ORPHANS — orphans first, and apart. These are not waiting for
+{{-- orphans first, and apart. These are not waiting for
      a vendor decision: their sale, work order or line has gone, so nobody is
      waiting for them at all. Leaving them in "Needs a vendor" made the board's
      count read as work when it was debris. --}}
@@ -123,7 +123,7 @@
 
     <div class="sog-body scrolls">
       @foreach($sogOrphans as $so)
-        {{-- MARKER-SO-ORPHANS-INCLUDE — the same arguments the needs-a-vendor
+        {{-- the same arguments the needs-a-vendor
              block passes. The partial derives $og from $origins itself; what
              it cannot do without is vendorId and selectable. Nothing here is
              selectable: these are not being grouped into a vendor order. --}}
@@ -171,7 +171,7 @@
     }
     $min = $vendor->free_freight_cents ?? null;
 
-    // MARKER-SO-COPY-EXPORT — build the two columns for this vendor.
+    // build the two columns for this vendor.
     // Quantities for the same part number are summed: two lines for one part
     // is a common way to get shorted, and vendors' paste boxes rarely add.
     $sogExport = [];
@@ -194,7 +194,6 @@
         <span class="sog-tot">${{ number_format($groupTotal / 100, 2) }}</span>
         <input type="text" class="sog-in" placeholder="PO #" data-sog-po style="width:92px">
         <input type="date" class="sog-in" data-sog-eta value="{{ now()->addDays(7)->toDateString() }}">
-        {{-- MARKER-SO-COPY-EXPORT --}}
         <button type="button" class="ia-btn" style="padding:7px 13px;font-size:11.5px"
                 data-sog-copy data-sog-rows='@json($sogLines)'
                 @disabled(! count($sogLines))>
@@ -328,7 +327,6 @@
 })();
 </script>
 
-{{-- MARKER-SO-COPY-EXPORT --}}
 <script>
 (function () {
   function toText(rows) {

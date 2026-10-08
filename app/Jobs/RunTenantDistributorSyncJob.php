@@ -1,6 +1,5 @@
 <?php
-// MARKER-PATCH-555
-// MARKER-SYNC-CHUNKED — this job now PLANS the run and hands the work to a
+// this job now PLANS the run and hands the work to a
 // chain of SyncDistributorSliceJob (about 2,000 linked items each, per
 // distributor), finished by FinishTenantDistributorSyncJob. As one job it
 // could not finish a large catalog inside its 30-minute limit — WMM timed
@@ -97,7 +96,7 @@ class RunTenantDistributorSyncJob implements ShouldQueue
             Bus::chain($jobs)->dispatch();
         } catch (\Throwable $e) {
             DistributorSyncRuns::close($this->tenantId, $this->runId, 'Run could not start: ' . $e->getMessage());
-            JobFailureReporter::report(self::class, '"Sync now" run could not start', $e, [], $this->tenantId);   // MARKER-JOB-ISSUES-2
+            JobFailureReporter::report(self::class, '"Sync now" run could not start', $e, [], $this->tenantId);
         }
     }
 

@@ -4,7 +4,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-// MARKER-PATCH-482 — structured quality signals for recovery (late_completion, and
+// structured quality signals for recovery (late_completion, and
 // later late_delivery / reschedule / special_order_delay). Queryable per customer
 // so the at-risk detector can ask "any recent issues on their last visit?".
 return new class extends Migration

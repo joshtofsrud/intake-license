@@ -3,7 +3,7 @@
 namespace App\Services\Tenant\Import;
 
 /**
- * MARKER-IMPORT-QUEUE — write progress the screen can read.
+ * write progress the screen can read.
  *
  * Throttled to one write per 400 rows or per second, whichever comes first:
  * an UPDATE per row on an 18k file is 18k writes for a bar that moves in
@@ -66,7 +66,7 @@ trait ReportsProgress
     /** Rows in the file, for the denominator. */
     protected function rowTotal(): int
     {
-        // MARKER-IMPORT-PROGRESS-FIX — the uploader puts it in options.
+        // the uploader puts it in options.
         return $this->import->rowCount();
     }
 }

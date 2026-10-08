@@ -1,4 +1,4 @@
-{{-- MARKER-OLD-SCHOOL-BANNER — open notes about one customer.
+{{-- open notes about one customer.
 
      Expects $bannerCustomer. Renders nothing when there is nothing open, so
      it can be included unconditionally.
@@ -36,7 +36,6 @@
         </form>
         <div class="nb-body">
           <div class="nb-text">{{ $bn->body }}</div>
-          {{-- MARKER-OLD-SCHOOL-PHOTO --}}
           @if($bn->photos)
             <div class="np-shots">
               @foreach($bn->photoUrls() as $u)
@@ -71,7 +70,6 @@
     .nb-text { font-size:13.5px; line-height:1.5; word-break:break-word; }
     .nb-meta { font-size:10.5px; color:#7A7159; margin-top:4px; }
     .nb-age { color:#A8622A; font-weight:600; margin-left:6px; }
-    /* MARKER-OLD-SCHOOL-PHOTO */
     .np-shots { display:flex; gap:6px; margin-top:7px; flex-wrap:wrap; }
     .np-shots img { width:64px; height:64px; object-fit:cover; border-radius:6px; display:block;
                     border:1px solid #D9CDB0; }

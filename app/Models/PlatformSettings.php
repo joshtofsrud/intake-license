@@ -5,7 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 
 /**
- * MARKER-PLATFORM-MAIL — single-row platform settings (id = 1), mirroring
+ * single-row platform settings (id = 1), mirroring
  * the BillingSettings pattern. Editable in master admin so the platform
  * sender is not an .env deploy step.
  */
@@ -15,27 +15,27 @@ class PlatformSettings extends Model
 
     protected $fillable = [
         'mail_from_address',
-        'support_email',          // MARKER-SUPPORT-EMAIL
+        'support_email',
         'mail_from_name',
-        'email_rate',             // MARKER-EMAIL-LEDGER
-        'email_rate_marketing',   // MARKER-EMAIL-RATES
-        'email_free_monthly',     // MARKER-EMAIL-RATES
-        'email_free_by_tier',     // MARKER-ALLOWANCE-TIERS
-        'charging_enabled',       // MARKER-BILLING-CHARGE
+        'email_rate',
+        'email_rate_marketing',
+        'email_free_monthly',
+        'email_free_by_tier',
+        'charging_enabled',
         'charge_threshold_default_cents',
-        'sms_rate',               // MARKER-SMS-METER
-        'mms_multiplier',         // MARKER-SMS-METER
-        'email_broadcast_stream', // MARKER-EMAIL-LEDGER
-        'alert_500_enabled',      // MARKER-500-ALERT
-        'alert_500_email',        // MARKER-500-ALERT
-        'platform_broadcast_stream', // MARKER-PLATFORM-EMAIL
-        // MARKER-PLATFORM-INBOUND — platform_from_name / platform_from_email
+        'sms_rate',
+        'mms_multiplier',
+        'email_broadcast_stream',
+        'alert_500_enabled',
+        'alert_500_email',
+        'platform_broadcast_stream',
+        // platform_from_name / platform_from_email
         // removed: mail_from_address and mail_from_name above already are the
         // platform sender, and two homes for one address is how they drift.
-        'platform_postal_address',   // MARKER-PLATFORM-EMAIL
+        'platform_postal_address',
     ];
 
-    // MARKER-ALLOWANCE-TIERS — without this the json column reads back as a
+    // without this the json column reads back as a
     // string and every allowance lookup silently falls through to the default.
     protected $casts = [
         'email_free_by_tier' => 'array',
@@ -73,7 +73,7 @@ class PlatformSettings extends Model
      */
 
     /**
-     * MARKER-SUPPORT-EMAIL — where a shop should write when something is wrong.
+     * where a shop should write when something is wrong.
      *
      * Falls back to the platform sending address rather than a literal, because
      * that is an address someone has actually configured. A support link that

@@ -10,7 +10,7 @@
   }
 
   const admin = window.IntakeAdmin || {};
-  let csrf = admin.csrfToken; // MARKER-PATCH-545 — mutable: refreshed after long idle
+  let csrf = admin.csrfToken; // mutable: refreshed after long idle
 
   // Configurable from window.IntakeAdmin if needed; defaults here match
   // the config/intake.php server-side values.
@@ -26,7 +26,7 @@
   const msgEl  = overlay.querySelector('#ia-lock-msg');
   const submitBtn = overlay.querySelector('#ia-lock-submit');
   const subEl     = overlay.querySelector('#ia-lock-sub');
-  // MARKER-PATCH-480 — first-time PIN setup mode.
+  // first-time PIN setup mode.
   const isSetup   = overlay.dataset.lockMode === 'setup';
   let pendingPin  = null;
 
@@ -80,7 +80,7 @@
         // User signed out elsewhere. Send them to the login page.
         window.location.href = '/admin/login';
       } else if (res.status === 419 && !isRetry) {
-        // MARKER-HEARTBEAT-419 — stale CSRF token. Without this the request
+        // stale CSRF token. Without this the request
         // that keeps the session alive fails every interval from here on,
         // silently, with the same dead token. Same recovery submitPin uses.
         // isRetry bounds it to one refresh and one retry: if the session is
@@ -95,7 +95,7 @@
     }
   }
 
-  // MARKER-PATCH-480 — enter -> confirm -> save a brand-new PIN.
+  // enter -> confirm -> save a brand-new PIN.
   async function submitSetup() {
     const pin = inputs.map(i => i.value).join('');
     if (pin.length !== 4) return;
@@ -140,7 +140,7 @@
     }
   }
 
-  // MARKER-PATCH-545 — after long idle the page's CSRF token (and sometimes
+  // after long idle the page's CSRF token (and sometimes
   // the whole session) is stale. Refresh the token and report auth state so
   // the unlock can retry silently instead of erroring forever.
   async function refreshContext() {
@@ -166,7 +166,7 @@
         body: JSON.stringify({ pin })
       });
 
-      // MARKER-PATCH-545 — stale token or dead session
+      // stale token or dead session
       if ((res.status === 419 || res.status === 401) && !isRetry) {
         const authed = await refreshContext();
         if (authed) {
@@ -218,7 +218,7 @@
   inputs.forEach((inp, idx) => {
     inp.addEventListener('input', () => {
       inp.value = inp.value.replace(/\D/g, '').slice(0, 1);
-      // MARKER-PATCH-466 — reveal the digit for a beat, then mask it via type
+      // reveal the digit for a beat, then mask it via type
       // swap to 'password' (native masking, repaints reliably across browsers).
       clearTimeout(inp._maskTimer);
       if (inp.value) {

@@ -1,6 +1,6 @@
 @extends('public.account._shell')
 @php $pageTitle = 'Check your email'; @endphp
-{{-- MARKER-CUST-AUTH — shown for ANY existing email, with or without an
+{{-- shown for ANY existing email, with or without an
      account, so the register form can't be used to discover who has one. --}}
 
 @section('content')

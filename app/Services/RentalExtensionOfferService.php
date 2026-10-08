@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 /**
- * MARKER-RENTAL-EXT — the whole brain for last-minute extension offers.
+ * the whole brain for last-minute extension offers.
  * Eligibility and pricing live here so the scheduled scan, the manual
  * "Send offer now" button, and the rental-detail panel all agree.
  */
@@ -45,7 +45,7 @@ class RentalExtensionOfferService
     public function eligibility(Tenant $tenant, TenantRental $rental, ?string &$reason = null, ?int $discountOverride = null): ?array
     {
         $cfg = $this->settings($tenant);
-        // MARKER-RENTAL-EXT-PORTAL — customer-initiated extensions pay full
+        // customer-initiated extensions pay full
         // price; the discount is the shop's move, not a self-serve coupon.
         if ($discountOverride !== null) {
             $cfg['discount_pct'] = max(0, min(90, $discountOverride));
@@ -132,7 +132,7 @@ class RentalExtensionOfferService
     /** Create the offer row and send the SMS. Returns the offer. */
     public function createAndSend(Tenant $tenant, TenantRental $rental, array $e, string $channel = 'auto'): TenantRentalExtensionOffer
     {
-        $sendSms = $channel !== 'portal'; // MARKER-RENTAL-EXT-PORTAL — customer is already on the page
+        $sendSms = $channel !== 'portal'; // customer is already on the page
         $offer = TenantRentalExtensionOffer::create([
             'tenant_id'      => $tenant->id,
             'rental_id'      => $rental->id,
@@ -171,7 +171,7 @@ class RentalExtensionOfferService
             }
         }
 
-        // MARKER-RENTAL-EXT-P2 — the offer is part of the conversation.
+        // the offer is part of the conversation.
         if ($customer) {
             try {
                 $inbox  = app(\App\Services\Tenant\InboxService::class);

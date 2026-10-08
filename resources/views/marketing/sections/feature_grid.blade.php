@@ -1,7 +1,7 @@
-@php $bgId = 'mkbg-' . substr(md5((string) ($section->id ?? uniqid())), 0, 10); @endphp {{-- MARKER-MKT-SECTION-BG --}}
+@php $bgId = 'mkbg-' . substr(md5((string) ($section->id ?? uniqid())), 0, 10); @endphp
 @include('marketing.sections._section_bg', ['bgId' => $bgId])
 {{--
-    Feature grid (intake.works). MARKER-MKT-FEATGRID — reads every setting the
+    Feature grid (intake.works). reads every setting the
     editor offers, like a shop's feature grid does:
       layout (grid | intro_split), columns 1–4, card style (card | minimal),
       show icons, heading alignment, accent phrase, content width, text /

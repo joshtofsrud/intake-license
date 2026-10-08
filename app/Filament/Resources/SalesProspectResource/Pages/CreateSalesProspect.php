@@ -1,5 +1,4 @@
 <?php
-// MARKER-SALES-CORE
 
 namespace App\Filament\Resources\SalesProspectResource\Pages;
 

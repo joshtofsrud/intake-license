@@ -5,7 +5,7 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * MARKER-CATALOG-COLORSIZE — the NAMES, not the codes.
+ * the NAMES, not the codes.
  *
  * size_id / color_id already exist and hold HLC's opaque codes, which the
  * title templates use as tokens. These two hold the human-readable values

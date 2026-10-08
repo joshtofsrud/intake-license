@@ -1,6 +1,6 @@
 <?php
 
-// MARKER-CATALOG-MATCHES — a LINK between two distributor catalog rows for
+// a LINK between two distributor catalog rows for
 // the same physical product. Rows are never merged; matching is reversible.
 
 use Illuminate\Database\Migrations\Migration;

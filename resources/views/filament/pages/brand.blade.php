@@ -1,5 +1,4 @@
 <x-filament-panels::page>
-{{-- MARKER-BRAND --}}
 <style>
   .br{--br-line:var(--ia-border,rgba(127,127,127,.22));--br-accent:#8b7cf6}
   .br-legend{border:1px solid rgba(139,124,246,.3);background:rgba(139,124,246,.07);border-radius:12px;padding:12px 16px;font-size:13px;line-height:1.65;margin-bottom:18px}

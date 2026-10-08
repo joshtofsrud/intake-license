@@ -1,4 +1,4 @@
-{{-- MARKER-PATCH-234 — the one status vocabulary. Pass $rental; the pill
+{{-- the one status vocabulary. Pass $rental; the pill
      derives: cancelled / returned / Xh Ym overdue / due today / out /
      balance due / reserved. Used by the bookings list and detail; future
      surfaces include this rather than inventing their own colors. --}}

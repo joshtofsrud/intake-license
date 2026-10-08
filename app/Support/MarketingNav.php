@@ -7,7 +7,7 @@ use App\Models\Tenant\TenantNavItem;
 use App\Models\Tenant\TenantPage;
 
 /**
- * MARKER-MKT-NAV — the intake.works header menu, from one place: the rows
+ * the intake.works header menu, from one place: the rows
  * edited on master admin › Site & content › Navigation. Each row is either a
  * page (follows the page's address; hidden while the page is unpublished) or
  * a custom link, with a style (link / button / outline) and a side (left /
@@ -18,8 +18,8 @@ class MarketingNav
     public const STYLES = ['link', 'button', 'outline'];
     public const SIDES  = ['left', 'right'];
 
-    // MARKER-MKT-NAV-FLOAT — header style and its four Floating settings.
-    public const HEADER_DEFAULTS = ['style' => 'classic', 'bg' => '#0a0a0a', 'opacity' => 70, 'blur' => 14, 'pill' => '#ffffff', 'pill_strength' => 8, 'space' => 'normal', 'link' => '', 'fade' => false, 'btn_pos' => 'bar', 'pad_x' => 0, 'top_gap' => -1, 'btn_text' => '', 'btn_fill' => '', 'btn_dist' => 0, 'menu_bg' => '', 'menu_link' => '', 'link_weight' => '400', 'link_bright' => 'soft']; // MARKER-NAV-WEIGHT
+    // header style and its four Floating settings.
+    public const HEADER_DEFAULTS = ['style' => 'classic', 'bg' => '#0a0a0a', 'opacity' => 70, 'blur' => 14, 'pill' => '#ffffff', 'pill_strength' => 8, 'space' => 'normal', 'link' => '', 'fade' => false, 'btn_pos' => 'bar', 'pad_x' => 0, 'top_gap' => -1, 'btn_text' => '', 'btn_fill' => '', 'btn_dist' => 0, 'menu_bg' => '', 'menu_link' => '', 'link_weight' => '400', 'link_bright' => 'soft'];
 
     public static function header(?array $override = null): array
     {
@@ -27,7 +27,7 @@ class MarketingNav
         return self::cleanHeader(is_array($raw) ? $raw : []);
     }
 
-    // MARKER-MKT-NAV-PHONE — desktop settings plus phone overrides (only the
+    // desktop settings plus phone overrides (only the
     // settings changed for phones are stored under 'phone').
     public static function cleanHeader(array $h): array
     {
@@ -63,20 +63,19 @@ class MarketingNav
             'blur'          => $int($h['blur'] ?? null, $d['blur'], 30),
             'pill'          => $hex($h['pill'] ?? null, $d['pill']),
             'pill_strength' => $int($h['pill_strength'] ?? null, $d['pill_strength'], 30),
-            // MARKER-MKT-NAV-POLISH
             'space'         => in_array($h['space'] ?? '', ['tight', 'normal', 'roomy'], true) ? $h['space'] : 'normal',
             'link'          => $hex($h['link'] ?? null, ''),
-            'fade'          => filter_var($h['fade'] ?? false, FILTER_VALIDATE_BOOLEAN), // MARKER-MKT-NAV-EDGE
-            'btn_pos'       => ($h['btn_pos'] ?? '') === 'menu' ? 'menu' : 'bar', // MARKER-MKT-NAV-BUTTONS — old Beside/Center become 'bar'
+            'fade'          => filter_var($h['fade'] ?? false, FILTER_VALIDATE_BOOLEAN),
+            'btn_pos'       => ($h['btn_pos'] ?? '') === 'menu' ? 'menu' : 'bar', // old Beside/Center become 'bar'
             'btn_text'      => $hex($h['btn_text'] ?? null, ''),
             'btn_fill'      => $hex($h['btn_fill'] ?? null, ''),
             'btn_dist'      => $int($h['btn_dist'] ?? null, 0, 200),
-            'menu_bg'       => $hex($h['menu_bg'] ?? null, ''),   // MARKER-MKT-NAV-MENU
+            'menu_bg'       => $hex($h['menu_bg'] ?? null, ''),
             'menu_link'     => $hex($h['menu_link'] ?? null, ''),
-            'link_weight'   => in_array((string) ($h['link_weight'] ?? ''), ['400', '500', '600'], true) ? (string) $h['link_weight'] : '400', // MARKER-NAV-WEIGHT
+            'link_weight'   => in_array((string) ($h['link_weight'] ?? ''), ['400', '500', '600'], true) ? (string) $h['link_weight'] : '400',
             'link_bright'   => ($h['link_bright'] ?? '') === 'bright' ? 'bright' : 'soft',
-            'pad_x'         => $int($h['pad_x'] ?? null, 0, 60), // MARKER-MKT-NAV-EDGEROOM — 0 = preset
-            'top_gap'       => (isset($h['top_gap']) && is_numeric($h['top_gap']) && (int) $h['top_gap'] >= 0) ? min(80, (int) $h['top_gap']) : -1, // MARKER-MKT-NAV-TOP — -1 = preset
+            'pad_x'         => $int($h['pad_x'] ?? null, 0, 60), // 0 = preset
+            'top_gap'       => (isset($h['top_gap']) && is_numeric($h['top_gap']) && (int) $h['top_gap'] >= 0) ? min(80, (int) $h['top_gap']) : -1, // -1 = preset
         ];
     }
 
@@ -95,7 +94,7 @@ class MarketingNav
     }
 
     /**
-     * MARKER-MKT-HOME — the slug of the page intake.works shows at /: the
+     * the slug of the page intake.works shows at /: the
      * published page flagged Home, or the page with slug "home" if none is.
      */
     public static function homeSlug(): string
@@ -120,7 +119,7 @@ class MarketingNav
             ->get(['id', 'title', 'slug', 'is_home', 'is_published'])
             ->mapWithKeys(fn ($pg) => [(string) $pg->id => [
                 'title'     => (string) $pg->title,
-                'path'      => $pg->slug === self::homeSlug() ? '/' : '/' . $pg->slug, // MARKER-MKT-HOME
+                'path'      => $pg->slug === self::homeSlug() ? '/' : '/' . $pg->slug,
                 'published' => (bool) $pg->is_published,
             ]])->all();
     }
@@ -130,12 +129,12 @@ class MarketingNav
     {
         $p = self::platform();
         if (! $p) return [];
-        $menuMeta = (array) (($p->settings['marketing_menu']['meta'] ?? []) ?: []); // MARKER-MKT-MENU-GROUPS
+        $menuMeta = (array) (($p->settings['marketing_menu']['meta'] ?? []) ?: []);
         return TenantNavItem::where('tenant_id', $p->id)->orderBy('sort_order')->get()->values()
             ->map(fn ($r, $idx) => self::cleanMeta($menuMeta[$idx] ?? []) + [
                 'type'  => $r->page_id ? 'page' : 'link',
                 'page'  => $r->page_id ? (string) $r->page_id : null,
-                'label' => (string) ($r->getRawOriginal('label') ?? ''), // MARKER-SHOP-NAV — raw, not the page title
+                'label' => (string) ($r->getRawOriginal('label') ?? ''), // raw, not the page title
                 'url'   => (string) ($r->getRawOriginal('url') ?? ''),
                 'style' => in_array($r->style, self::STYLES, true) ? $r->style : 'link',
                 'side'  => in_array($r->side, self::SIDES, true) ? $r->side : 'left',
@@ -166,7 +165,7 @@ class MarketingNav
                 if ($label === '' || $url === '') continue;
                 if (! preg_match('#^(/|\#|https?://|mailto:|tel:)#i', $url)) continue;
             }
-            $out[] = ['label' => $label, 'url' => $url, 'style' => $style, 'side' => $side, 'tab' => ! empty($r['tab'])] + self::cleanMeta($r); // MARKER-MKT-MENU-GROUPS
+            $out[] = ['label' => $label, 'url' => $url, 'style' => $style, 'side' => $side, 'tab' => ! empty($r['tab'])] + self::cleanMeta($r);
         }
         return $out;
     }
@@ -196,7 +195,7 @@ class MarketingNav
         return $n . ($s[($v - 20) % 10] ?? $s[$v] ?? $s[0]);
     }
 
-    // ===================== MARKER-MKT-FOOTER =====================
+    // ===================== =====================
     // The intake.works footer: a tagline, up to 4 link columns, a legal row
     // and a copyright line, edited on Site & content › Navigation. Rows are
     // pages (follow the page, hidden while unpublished), links, or the plan
@@ -221,7 +220,7 @@ class MarketingNav
             ],
             'legal'     => [$pg('privacy', 'Privacy'), $pg('terms', 'Terms'), $pg('cookies', 'Cookies'), $pg('acceptable-use', 'Acceptable use')],
             'copyright' => '© {year} Intake. All rights reserved.',
-            'phone'     => 'grid', // MARKER-MKT-FOOTER-PHONE
+            'phone'     => 'grid',
         ];
     }
 
@@ -250,7 +249,7 @@ class MarketingNav
             'columns'   => $cols,
             'legal'     => array_values(array_filter(array_map($row, array_slice((array) ($f['legal'] ?? []), 0, 8)))),
             'copyright' => $txt($f['copyright'] ?? '', 120),
-            'phone'     => in_array($f['phone'] ?? 'grid', ['grid', 'stack', 'accordion'], true) ? ($f['phone'] ?? 'grid') : 'grid', // MARKER-MKT-FOOTER-PHONE
+            'phone'     => in_array($f['phone'] ?? 'grid', ['grid', 'stack', 'accordion'], true) ? ($f['phone'] ?? 'grid') : 'grid',
         ];
     }
 
@@ -268,7 +267,7 @@ class MarketingNav
         return ['label' => $r['label'], 'url' => $r['url'], 'quiz' => false, 'tab' => $r['tab']];
     }
 
-    // ===================== MARKER-MKT-MENU-GROUPS =====================
+    // ===================== =====================
     // Grouped menus: rows on the left can belong to a group; a group shows in
     // the bar as one dropdown (at its first row's place) with each link's icon
     // and one-line description, plus an optional featured action card. On

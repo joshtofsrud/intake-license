@@ -7,7 +7,7 @@ use Illuminate\Support\Facades\Log;
 use Symfony\Component\Mime\Address;
 
 /**
- * MARKER-DEMO-NO-MAIL — the last stop before any email leaves Intake.
+ * the last stop before any email leaves Intake.
  *
  *   - Nothing from a demo shop is sent, whichever code path built it (receipts,
  *     portal invites, password resets, waitlist offers, contact forms…). The
@@ -37,7 +37,7 @@ class BlockDemoAndReservedMail
         if ($tenantId) {
             $isDemo = (bool) \App\Models\Tenant::whereKey($tenantId)->value('is_demo');
             if ($isDemo) {
-                Log::info('MARKER-DEMO-NO-MAIL email not sent (demo shop)', [
+                Log::info('demo-no-mail: email not sent (demo shop)', [
                     'tenant_id' => $tenantId, 'subject' => $msg->getSubject(),
                 ]);
                 return false;
@@ -52,7 +52,7 @@ class BlockDemoAndReservedMail
             if (! $list) { continue; }
             $ok = array_values(array_filter($list, fn (Address $a) => ! self::reserved($a->getAddress())));
             if (count($ok) !== count($list)) {
-                Log::info('MARKER-DEMO-NO-MAIL dropped reserved-domain recipients', [
+                Log::info('demo-no-mail: dropped reserved-domain recipients', [
                     'dropped' => array_map(fn (Address $a) => $a->getAddress(),
                         array_filter($list, fn (Address $a) => self::reserved($a->getAddress()))),
                 ]);

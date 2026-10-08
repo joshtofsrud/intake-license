@@ -299,7 +299,7 @@
     opacity: 1 !important;
 }
 
-/* MARKER-TENANT-MENU-DARK — must be !important to beat the light rule above */
+/* must be !important to beat the light rule above */
 .dark .tg-card__menu-pop {
     background: rgb(24 24 27 / 1) !important;
     background-color: rgb(24 24 27 / 1) !important;
@@ -326,7 +326,7 @@
     color: rgb(228 228 231 / 1);
 }
 
-/* MARKER-TENANT-MENU-DARK — disabled entries readable, not near-invisible */
+/* disabled entries readable, not near-invisible */
 .dark .tg-card__menu-item[aria-disabled="true"],
 .dark .tg-card__menu-item:disabled {
     color: rgb(113 113 122 / 1);
@@ -524,7 +524,7 @@
     backdrop-filter: saturate(180%) blur(6px);
     -webkit-backdrop-filter: saturate(180%) blur(6px);
 }
-/* MARKER-TENANTS-POLISH — the page's own background (Filament's dark body is
+/* the page's own background (Filament's dark body is
    gray-950), so the sticky controls don't read as a slate panel. */
 .dark .tg-controls {
     background: rgb(var(--gray-950, 3 7 18));

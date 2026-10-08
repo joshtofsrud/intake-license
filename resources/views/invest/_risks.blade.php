@@ -1,4 +1,4 @@
-{{-- MARKER-INVEST-FULL — prose, not a table: every row's amount column was
+{{-- prose, not a table: every row's amount column was
      empty, so it was a table shape carrying no table data. --}}
 <section><div class="wrap">
   <h2>What has to go right.</h2>

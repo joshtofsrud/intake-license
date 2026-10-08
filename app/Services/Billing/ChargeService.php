@@ -12,7 +12,7 @@ use Illuminate\Support\Str;
 use Stripe\StripeClient;
 
 /**
- * MARKER-BILLING-CHARGE — settle a shop's balance against its saved card.
+ * settle a shop's balance against its saved card.
  *
  * The whole design exists to make double-charging impossible:
  *
@@ -108,7 +108,7 @@ class ChargeService
                 'tenant_id'       => $tenant->id,
                 'status'          => TenantChargeRun::PENDING,
                 'amount_cents'    => $cents,
-                // MARKER-BILLING-TAX-ROOM — no tax is calculated yet, so the
+                // no tax is calculated yet, so the
                 // total equals the subtotal. When a calculator is added it
                 // sets tax_cents and raises amount_cents; nothing else moves.
                 'subtotal_cents'  => $cents,
@@ -160,18 +160,18 @@ class ChargeService
 
                 $this->resumeCampaigns($tenant);
 
-                // MARKER-BILLING-NOTICES — receipt, and the open notice is answered.
+                // receipt, and the open notice is answered.
                 $notices = app(\App\Services\Billing\BillingNoticeService::class);
                 $notices->notify($tenant, 'charged', [
                     '{amount}'   => '$' . number_format($run->amount_cents / 100, 2),
                     '{messages}' => number_format($run->message_count),
-                    // MARKER-BILLING-RECEIPT — the receipt itself, not just a note about it
+                    // the receipt itself, not just a note about it
                     '{link}'     => 'https://' . $tenant->subdomain . '.' . config('intake.domain')
                                     . '/admin/settings/receipt/' . $run->id,
                 ], $run->id);
                 $notices->resolve($tenant, 'charged');
 
-                logger()->info('MARKER-BILLING-CHARGE charged', [
+                logger()->info('billing-charge: charged', [
                     'tenant' => $tenant->id, 'run' => $run->id, 'cents' => $run->amount_cents,
                 ]);
             } else {
@@ -187,7 +187,7 @@ class ChargeService
                 'next_attempt_at' => now()->addMinutes(15),
             ])->save();
 
-            logger()->error('MARKER-BILLING-CHARGE unresolved', [
+            logger()->error('billing-charge: unresolved', [
                 'run' => $run->id, 'error' => $e->getMessage(),
             ]);
         }
@@ -226,7 +226,7 @@ class ChargeService
                 $this->markFailed($run, $intent->status, 'Reconciled: ' . $intent->status);
             }
         } catch (\Throwable $e) {
-            logger()->error('MARKER-BILLING-CHARGE reconcile failed', ['run' => $run->id, 'error' => $e->getMessage()]);
+            logger()->error('billing-charge: reconcile failed', ['run' => $run->id, 'error' => $e->getMessage()]);
         }
 
         return $run->refresh();
@@ -245,7 +245,7 @@ class ChargeService
                 'metadata'       => ['charge_run_id' => $run->id, 'reason' => $reason],
             ]);
         } catch (\Throwable $e) {
-            logger()->error('MARKER-BILLING-CHARGE refund failed', ['run' => $run->id, 'error' => $e->getMessage()]);
+            logger()->error('billing-charge: refund failed', ['run' => $run->id, 'error' => $e->getMessage()]);
             return false;
         }
 
@@ -280,10 +280,10 @@ class ChargeService
 
         $this->resumeCampaigns($run->tenant);
 
-        app(\App\Services\Billing\BillingNoticeService::class)  // MARKER-BILLING-NOTICES
+        app(\App\Services\Billing\BillingNoticeService::class)
             ->resolve($run->tenant, 'written_off');
 
-        logger()->info('MARKER-BILLING-CHARGE written off', [
+        logger()->info('billing-charge: written off', [
             'run' => $run->id, 'cents' => $run->amount_cents, 'by' => $by, 'reason' => $reason,
         ]);
 
@@ -311,12 +311,11 @@ class ChargeService
 
         $this->pauseCampaigns($run->tenant);
 
-        // MARKER-BILLING-NOTICES
         app(\App\Services\Billing\BillingNoticeService::class)->notify($run->tenant, 'charge_failed', [
             '{amount}' => '$' . number_format($run->amount_cents / 100, 2),
         ], $run->id);
 
-        logger()->warning('MARKER-BILLING-CHARGE failed', [
+        logger()->warning('billing-charge: failed', [
             'tenant' => $run->tenant_id, 'run' => $run->id, 'code' => $code, 'attempts' => $attempts,
         ]);
     }

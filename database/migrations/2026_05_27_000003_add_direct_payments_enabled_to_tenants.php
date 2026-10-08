@@ -5,7 +5,7 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * MARKER-PATCH-169 — Direct Payments bridge feature.
+ * Direct Payments bridge feature.
  *
  * Boolean toggle controlled by master-admin. When true, the tenant\'s
  * Settings -> Payments tab reveals a "Register card payments" section

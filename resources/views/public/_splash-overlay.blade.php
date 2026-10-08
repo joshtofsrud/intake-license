@@ -1,4 +1,4 @@
-{{-- MARKER-SPLASH — overlay rendering of the splash page's own sections.
+{{-- overlay rendering of the splash page's own sections.
 
      The homepage is already in the DOM underneath this; that is the whole
      point of overlay mode. Everything here is inert to crawlers (they do not
@@ -65,7 +65,7 @@
   document.body.style.overflow = 'hidden';
 
   var FREQ   = @json($spFreq);
-  var COOKIE = @json($splashCfg['cookie'] ?? 'intake_splash'); // MARKER-SPLASH-2 — per splash
+  var COOKIE = @json($splashCfg['cookie'] ?? 'intake_splash'); // per splash
 
   function remember() {
     if (FREQ === 'always') return;           // deliberately never remembered

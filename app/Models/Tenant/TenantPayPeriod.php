@@ -1,5 +1,5 @@
 <?php
-// MARKER-PATCH-612 — pay period. Boundaries are tenant-local, stored UTC.
+// pay period. Boundaries are tenant-local, stored UTC.
 
 namespace App\Models\Tenant;
 

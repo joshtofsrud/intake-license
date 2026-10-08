@@ -20,7 +20,7 @@ Intake is briefly offline for scheduled maintenance. Customer bookings on your p
   </div>
 </div>
 <div class="err-actions" style="margin-top:28px">
-  {{-- MARKER-ERROR-LINKS — there is no status page --}}
+  {{-- there is no status page --}}
   <a href="javascript:window.location.reload()" class="btn btn-secondary">Try again</a>
 </div>
 @endsection

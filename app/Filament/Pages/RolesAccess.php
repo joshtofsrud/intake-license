@@ -1,5 +1,5 @@
 <?php
-// MARKER-ADMIN-NAV-GATE — the matrix as a reference page, readable by every
+// the matrix as a reference page, readable by every
 // staff role so anyone can see exactly what their role covers.
 
 namespace App\Filament\Pages;
@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\Auth;
 
 class RolesAccess extends Page
 {
-    use \App\Support\UsesAdminNav; // MARKER-NAV-ORDER
+    use \App\Support\UsesAdminNav;
     protected static ?string $navigationIcon  = 'heroicon-o-shield-check';
     protected static ?string $navigationLabel = 'Roles & access';
     protected static ?string $navigationGroup = 'Team';
@@ -44,7 +44,7 @@ class RolesAccess extends Page
                 'config'        => 'Platform config — Stripe, email, theme',
                 'raise'         => 'Raise',
                 'team'          => 'Team & roles',
-                'scheduling'    => 'Scheduling — calls with prospects', // MARKER-SCHED-ADMIN
+                'scheduling'    => 'Scheduling — calls with prospects',
             ],
             'myRole' => Auth::guard('web')->user()?->roleName(),
         ];

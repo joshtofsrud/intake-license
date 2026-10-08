@@ -1,5 +1,4 @@
 <x-filament-panels::page>
-<!-- MARKER-SCHED-ADMIN -->
 
 <div class="flex items-start justify-between gap-4">
     <p class="text-sm text-gray-500">Each type has its own public link, length and questions. Turning one off keeps the link but shows "not taking bookings right now". Internal types have no link — you add them by hand on the Calendar.</p>

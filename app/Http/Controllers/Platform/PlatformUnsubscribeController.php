@@ -7,7 +7,7 @@ use App\Models\PlatformEmailOptout;
 use Illuminate\Http\Request;
 
 /**
- * MARKER-PLATFORM-EMAIL — stateless unsubscribe.
+ * stateless unsubscribe.
  *
  * The link carries the address and an APP_KEY HMAC. No DB token, nothing to
  * expire, nothing to clean up. A GET only ASKS — scanners and link-prefetchers

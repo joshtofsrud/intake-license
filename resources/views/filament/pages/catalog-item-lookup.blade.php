@@ -1,4 +1,3 @@
-{{-- MARKER-CATALOG-LOOKUP --}}
 <x-filament-panels::page>
 
   <x-filament::section>
@@ -48,7 +47,7 @@
             @foreach($results as $r)
               <tr style="border-top:1px solid rgba(255,255,255,.07);{{ $selected === $r->id ? 'background:rgba(217,164,65,.10)' : '' }}">
                 <td style="padding:9px 10px;font-weight:600">{{ $r->distributor_code }}</td>
-                <td style="padding:9px 10px">{{ \Illuminate\Support\Str::limit($r->display_name ?: $r->name, 70) }}{{-- MARKER-LOOKUP-TITLE-SEARCH --}}</td>
+                <td style="padding:9px 10px">{{ \Illuminate\Support\Str::limit($r->display_name ?: $r->name, 70) }}</td>
                 <td style="padding:9px 10px;opacity:.75">{{ $r->manufacturer_sku ?: '—' }}</td>
                 <td style="padding:9px 10px;opacity:.75;font-variant-numeric:tabular-nums">{{ $r->upc ?: ($r->ean ? $r->ean . ' (EAN)' : '—') }}</td>
                 <td style="padding:9px 10px;text-align:right;font-variant-numeric:tabular-nums">

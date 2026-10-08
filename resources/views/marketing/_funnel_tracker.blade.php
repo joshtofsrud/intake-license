@@ -1,8 +1,8 @@
-{{-- MARKER-MKTTRAFFIC — marketing-site funnel tracking. Mirrors the tenant
+{{-- marketing-site funnel tracking. Mirrors the tenant
      tracker's contract but posts to the platform endpoint, since /funnel/track
      is tenant-host only. Anonymous: a random session id in sessionStorage, no
      third party, no fingerprinting. --}}
-@include('marketing._analytics') {{-- MARKER-MKT-ANALYTICS --}}
+@include('marketing._analytics')
 <script>
 (function () {
   if (window.__intakeMktFunnel) { return; }
@@ -17,7 +17,7 @@
       sessionStorage.setItem(KEY, sid);
     }
   } catch (e) {
-    // MARKER-MKTSID -- storage unavailable: send NO id and let the server's
+    // storage unavailable: send NO id and let the server's
     // mkt_sid cookie identify this visitor. The old 'nostore' literal made
     // every storage-blocked visitor share one session.
     sid = null;
@@ -35,7 +35,7 @@
 
   function send(eventType, step) {
     var payload = JSON.stringify({
-      session_id:   sid || null, // MARKER-MKTSID
+      session_id:   sid || null,
       event_type:   eventType,
       path:         window.location.pathname,
       referrer_url: document.referrer || null,
@@ -65,7 +65,7 @@
 
   send('page_view');
 
-  // MARKER-MKTCONV — clicks on the things worth knowing about. Delegated, so
+  // clicks on the things worth knowing about. Delegated, so
   // it covers markup added later; label comes from data-track when set, and
   // otherwise from the destination, which keeps builder sections working
   // without anyone remembering to annotate them.
@@ -84,7 +84,7 @@
     send('cta_click', label);
   }, true);
 
-  // MARKER-MKTCONV — without an end event every single-page session reads 0:00
+  // without an end event every single-page session reads 0:00
   // however long it was actually read. One beacon on the way out fixes it.
   var exited = false;
   function exit() {

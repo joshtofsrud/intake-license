@@ -1,4 +1,4 @@
-{{-- MARKER-PATCH-337 — Print & Send composer. One surface for every printed/
+{{-- Print & Send composer. One surface for every printed/
      emailed document. Opened via window.openPrintComposer(source, id, ctx).
      source = 'appointment' | 'sale'. ctx = { type, format, number }.
      Fetches the document's assets from /print/{source}/{id}/meta, builds the
@@ -24,7 +24,7 @@
           <div class="pc-seg pc-col" id="pc-fmt"></div>
         </div>
 
-        {{-- MARKER-PATCH-348 — logo size, graphical invoice only --}}
+        {{-- logo size, graphical invoice only --}}
         <div class="pc-grp" id="pc-logo-grp" style="display:none">
           <div class="pc-lbl">Logo size</div>
           <div class="pc-seg" id="pc-logo"></div>
@@ -70,7 +70,7 @@
 <style>
   .pc-dialog{border:0;border-radius:16px;padding:0;background:#141414;color:#f0f0f0;
     width:min(940px,94vw);max-width:94vw;box-shadow:0 30px 80px rgba(0,0,0,.6);
-    margin:auto;max-height:92vh;overflow:hidden}{{-- MARKER-PATCH-342 --}}
+    margin:auto;max-height:92vh;overflow:hidden}
   .pc-dialog::backdrop{background:rgba(0,0,0,.6)}
   .pc-wrap{font-family:Inter,system-ui,sans-serif;display:flex;flex-direction:column;max-height:92vh}
   .pc-head{display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px solid rgba(255,255,255,.08)}
@@ -125,7 +125,7 @@
   const FMT = { t80:'Thermal 80mm', t58:'Thermal 58mm', full:'Full page', inv:'Graphical invoice' };
   // url format token -> builder format param
   const FMTPARAM = { t80:'t80', t58:'t58', full:'full', inv:'invoice' };
-  // MARKER-PATCH-348 — default logo size from the tenant's saved print identity
+  // default logo size from the tenant's saved print identity
   const LOGO_DEFAULT = @json(\App\Services\PrintIdentityService::forTenant(tenant())['logo_size']);
   const LOGO_OPTS = [['small','S'],['medium','M'],['large','L'],['xl','XL']];
 

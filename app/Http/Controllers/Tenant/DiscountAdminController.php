@@ -1,5 +1,4 @@
 <?php
-// MARKER-DISCOUNTS-ADMIN
 
 namespace App\Http\Controllers\Tenant;
 
@@ -53,7 +52,7 @@ class DiscountAdminController extends Controller
             ->limit(25)
             ->get();
 
-        // MARKER-PROMO-TAGS — tag names per code, and how many redemptions
+        // tag names per code, and how many redemptions
         // had no customer (those can never be tagged; say so).
         $tagSvc      = app(\App\Services\Tenant\DiscountTagService::class);
         $tagNames    = $tagSvc->namesByDiscount($tenant->id);
@@ -85,7 +84,7 @@ class DiscountAdminController extends Controller
             'created_by' => $me->id,
         ]);
 
-        // MARKER-PROMO-TAGS — optional on create; a comma-separated list.
+        // optional on create; a comma-separated list.
         $tags = trim((string) $request->input('tags', ''));
         if ($tags !== '') {
             app(\App\Services\Tenant\DiscountTagService::class)->setTags($discount, $tags, $me->id);
@@ -95,7 +94,7 @@ class DiscountAdminController extends Controller
     }
 
     /**
-     * MARKER-PROMO-TAGS — change the tags on an existing code. Adding a tag
+     * change the tags on an existing code. Adding a tag
      * backfills everyone who already redeemed it; removing one only stops
      * future tagging (past customers keep it — it was true when applied).
      */
@@ -111,7 +110,7 @@ class DiscountAdminController extends Controller
     }
 
     /**
-     * MARKER-PROMO-TAGS — "Email these customers": a draft campaign whose
+     * "Email these customers": a draft campaign whose
      * audience is everyone tagged by this code's FIRST tag, straight into
      * the composer. One tag, not all of them, so the audience is exactly
      * "used this code" and not the shared promo tag's wider set.

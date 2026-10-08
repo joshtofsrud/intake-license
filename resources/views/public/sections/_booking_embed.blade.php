@@ -1,5 +1,5 @@
 {{--
-  MARKER-PATCH-607 — booking form pivot section.
+  booking form pivot section.
   On the Booking page (slug "book") this renders a faithful, static, themed
   mock of what /book actually shows for this tenant (the fork, or the flow
   heading), plus a note that sections above/below it in the builder render

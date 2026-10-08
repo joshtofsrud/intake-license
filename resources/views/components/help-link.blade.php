@@ -1,4 +1,4 @@
-{{-- MARKER-HELP-TENANT — contextual help for one screen.
+{{-- contextual help for one screen.
 
      Usage:  <x-help-link key="inventory.import" />
 

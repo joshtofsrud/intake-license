@@ -7,7 +7,7 @@ use App\Models\AddonPrice;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * MARKER-ADDON-CATALOG — what each add-on costs today.
+ * what each add-on costs today.
  *
  * The newest row not in the future wins, so a price set for next month waits
  * its turn. Falls back to the addons table's own price_cents when no dated row

@@ -1,8 +1,8 @@
 @extends('layouts.tenant.app')
-{{-- MARKER-RENTAL-EXT-P2 — offers activity. --}}
+{{-- offers activity. --}}
 @section('title', 'Last-minute offers')
 @section('content')
-{{-- MARKER-RENTAL-EXT-HEADORDER — nav first, then the title block, which
+{{-- nav first, then the title block, which
      is what Desk / Fleet / Availability / Settings all do. Reversed, this
      page looked like the only one in rentals with a page header. --}}
 @include('layouts.tenant._rental-nav', ['active' => 'offers'])

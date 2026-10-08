@@ -8,7 +8,7 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
 /**
- * MARKER-TENANT-SIGNALS — raise an alert when a tenant crosses a line.
+ * raise an alert when a tenant crosses a line.
  *
  * Every signal is evaluated fresh each run and compared against the stored
  * state. Only an off→on transition raises anything. Staying on is silent;

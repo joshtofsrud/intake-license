@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{{ $page->title }} — guide preview</title>
-{{-- MARKER-MKT-SECTION-BG — help articles preview here, NOT in the marketing
+{{-- help articles preview here, NOT in the marketing
      template. Same public partials the shop's Help page renders, same design
      tokens, no marketing nav or footer around it. What you see is what a
      qualifying shop sees. --}}

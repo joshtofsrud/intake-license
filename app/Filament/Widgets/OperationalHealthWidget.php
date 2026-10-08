@@ -1,5 +1,4 @@
 <?php
-// MARKER-PATCH-132
 
 namespace App\Filament\Widgets;
 
@@ -33,7 +32,6 @@ class OperationalHealthWidget extends BaseWidget
 
     protected function unresolvedErrors(): Stat
     {
-        // MARKER-ERROR-PARITY
         $unresolved = DebugLog::issues()->where('is_resolved', false)->count();
         $last7      = DebugLog::issues()->where('created_at', '>=', now()->subDays(7))->count();
         return Stat::make('Unresolved errors', number_format($unresolved))
@@ -49,7 +47,7 @@ class OperationalHealthWidget extends BaseWidget
             ->color($count > 10 ? 'warning' : ($count > 0 ? 'gray' : 'success'));
     }
 
-    // MARKER-PATCH-133 — failed_jobs table is optional; guard for its absence.
+    // failed_jobs table is optional; guard for its absence.
     protected function failedJobs(): Stat
     {
         $count = 0;
@@ -91,7 +89,7 @@ class OperationalHealthWidget extends BaseWidget
     {
         $count = (int) DB::table('stripe_webhook_events')
             ->whereNull('processed_at')
-            ->where('received_at', '<', now()->subMinutes(5))  // MARKER-PATCH-134
+            ->where('received_at', '<', now()->subMinutes(5))
             ->count();
         return Stat::make('Stripe webhook failures', number_format($count))
             ->description($count > 0 ? 'unprocessed > 5 min' : 'all processed')
@@ -101,7 +99,7 @@ class OperationalHealthWidget extends BaseWidget
     protected function failedLogins(): Stat
     {
         $count = DebugLog::where('channel', 'auth')
-            ->where('event', 'auth.login_failed')  // MARKER-PATCH-134
+            ->where('event', 'auth.login_failed')
             ->where('created_at', '>=', now()->subDay())
             ->count();
         return Stat::make('Failed logins (24h)', number_format($count))
@@ -112,7 +110,7 @@ class OperationalHealthWidget extends BaseWidget
     protected function mailSent(): Stat
     {
         $count = DebugLog::where('channel', 'mail')
-            ->where('event', 'mail.sent')  // MARKER-PATCH-134
+            ->where('event', 'mail.sent')
             ->where('created_at', '>=', now()->subDay())
             ->count();
         return Stat::make('Mail sent (24h)', number_format($count))
@@ -122,7 +120,7 @@ class OperationalHealthWidget extends BaseWidget
 
     protected function backupStatus(): Stat
     {
-        // MARKER-BACKUP-RECORD — same reading as the dashboard tile.
+        // same reading as the dashboard tile.
         $bk = \App\Support\BackupStatus::read();
         if ($bk['state'] === 'none') {
             return Stat::make('Backup status', 'no report')

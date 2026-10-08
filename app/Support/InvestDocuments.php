@@ -5,7 +5,7 @@ namespace App\Support;
 use App\Models\InvestDocument;
 
 /**
- * MARKER-INVEST-V2 — where the round's shared documents live.
+ * where the round's shared documents live.
  *
  * Both the gated page and the investor portal serve the same proposal PDFs,
  * so the mapping sits here rather than being copied into each controller.
@@ -22,7 +22,7 @@ class InvestDocuments
     ];
 
     /** Absolute path for a slug, or null when there is nothing to serve. */
-    // MARKER-INVEST-CONTEXT — any slug the uploader created is servable, not
+    // any slug the uploader created is servable, not
     // just the three shipped ones.
     public static function path(string $slug): ?string
     {
@@ -42,7 +42,7 @@ class InvestDocuments
      * exact moment carelessness is most expensive.
      */
     /**
-     * MARKER-INVEST-CONTEXT — everything uploaded and active, in the order set
+     * everything uploaded and active, in the order set
      * in Raise setup.
      *
      * This used to look for three hardcoded slugs. The uploader derives a slug

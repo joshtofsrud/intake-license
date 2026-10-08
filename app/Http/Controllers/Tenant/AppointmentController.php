@@ -12,7 +12,7 @@ use App\Models\Tenant\TenantCustomer;
 use App\Models\Tenant\TenantInventoryItem;
 use App\Services\Tenant\AppointmentInventoryService;
 use App\Services\Tenant\AppointmentRegisterBridgeService;
-use App\Services\Tenant\DeliveryProposalService; // MARKER-PATCH-527
+use App\Services\Tenant\DeliveryProposalService;
 use App\Services\Tenant\InventoryStockException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -30,7 +30,7 @@ class AppointmentController extends Controller
     // Terminal statuses (cancelled/refunded) can only be reopened to pending.
     // The UI is responsible for confirming destructive or backward moves;
     // this controller only enforces "is the target status valid at all?"
-    // MARKER-PATCH-287 — status transitions/labels/destructive now live in the
+    // status transitions/labels/destructive now live in the
     // single source: App\Support\AppointmentStatus. (Dead ACTIVE/TERMINAL consts removed.)
 
     public function index(Request $request)
@@ -47,7 +47,7 @@ class AppointmentController extends Controller
         $dateFrom = $request->input('date_from', '');
         $dateTo   = $request->input('date_to', '');
         $filter      = $request->input('filter', '');
-        $resourceId  = $request->input('resource_id', ''); // MARKER-PATCH-113
+        $resourceId  = $request->input('resource_id', '');
         $sort        = $request->input('sort', 'date_desc');
         $page     = max(1, (int) $request->input('page', 1));
         $perPage  = 25;
@@ -57,13 +57,13 @@ class AppointmentController extends Controller
         // mirrors a card on the dashboard so clicking the card lands here filtered.
         $filterLabels = [
             'unconfirmed_bookings' => 'Unconfirmed bookings',
-            'pickup_outreach' => 'Pickup to arrange', // MARKER-PICKUP-OUTREACH
+            'pickup_outreach' => 'Pickup to arrange',
             'unpaid_completed'     => 'Unpaid completed jobs',
             'ready_pickup'         => 'Ready for pickup',
             'overdue_unstarted'    => 'Overdue: not started',
             'overdue_in_progress'  => 'Overdue: in progress',
             'stale_pickups'        => 'Stale pickups',
-            'awaiting_delivery'    => 'Awaiting delivery', // MARKER-PATCH-539
+            'awaiting_delivery'    => 'Awaiting delivery',
         ];
         $filter = array_key_exists($filter, $filterLabels) ? $filter : '';
 
@@ -76,7 +76,7 @@ class AppointmentController extends Controller
                 $q->whereIn('status', AppointmentStatus::awaitingStatuses())
                   ->whereDate('appointment_date', '>=', $today);
                 break;
-            case 'pickup_outreach': // MARKER-PICKUP-OUTREACH
+            case 'pickup_outreach':
                 $q->where('pickup_outreach_pending', true);
                 break;
             case 'unpaid_completed':
@@ -100,7 +100,7 @@ class AppointmentController extends Controller
                   ->whereIn('payment_status', ['unpaid', 'partial'])
                   ->where('updated_at', '<', now()->subDays(3));
                 break;
-            case 'awaiting_delivery': // MARKER-PATCH-539 — mirrors DashboardDataService card
+            case 'awaiting_delivery': // mirrors DashboardDataService card
                 $q->where('status', 'completed')
                   ->whereNotNull('completed_at')
                   ->where('completed_at', '>=', now()->subDays(14))
@@ -111,7 +111,7 @@ class AppointmentController extends Controller
                           ->where('tenant_deliveries.type', 'dropoff')
                           ->where('tenant_deliveries.status', '!=', 'cancelled');
                   });
-                  // MARKER-DELIVERY-RESOLUTION — mirror the tile exactly
+                  // mirror the tile exactly
                 $q->whereNull('delivery_resolution')
                   ->where(function ($w) {
                       $w->whereNull('delivery_snooze_until')
@@ -175,7 +175,7 @@ class AppointmentController extends Controller
 
         $totalPages = max(1, ceil($total / $perPage));
 
-        // MARKER-DELIVERY-RESOLUTION — why each job is still waiting, for the
+        // why each job is still waiting, for the
         // triage panel. One query, no N+1.
         $deliveryWhy = [];
         if ($filter === 'awaiting_delivery' && $appointments->isNotEmpty()) {
@@ -200,12 +200,12 @@ class AppointmentController extends Controller
             'appointments', 'total', 'page', 'totalPages',
             'search', 'status', 'payment', 'dateFrom', 'dateTo', 'sort',
             'filter', 'filterLabels', 'resources', 'resourceFilter',
-            'deliveryWhy' // MARKER-DELIVERY-RESOLUTION
+            'deliveryWhy'
         ));
     }
 
     /**
-     * MARKER-NOTIFY-CHOICE — send the confirmation on purpose.
+     * send the confirmation on purpose.
      *
      * Dispatches the SAME job the public booking path uses, narrowed to the
      * chosen channels, so there is one way to send a confirmation rather than
@@ -237,7 +237,7 @@ class AppointmentController extends Controller
         ]);
     }
 
-    // MARKER-APPT-ASSET — customer's assets for the create-appointment picker.
+    // customer's assets for the create-appointment picker.
     // Gated on multi_asset_enabled (the flag that turns on asset tracking).
     public function customerAssets(Request $request): \Illuminate\Http\JsonResponse
     {
@@ -276,14 +276,14 @@ class AppointmentController extends Controller
             'customer_last_name'  => ['required_without:customer_id', 'string', 'max:100'],
             'customer_email'      => ['required_without:customer_id', 'email', 'max:255'],
             'customer_phone'      => ['nullable', 'string', 'max:32'],
-            // MARKER-CUST-ADDR — optional, passed through to the customer record.
+            // optional, passed through to the customer record.
             'customer_address_line1' => ['nullable', 'string', 'max:191'],
             'customer_city'          => ['nullable', 'string', 'max:100'],
             'customer_state'         => ['nullable', 'string', 'max:64'],
             'customer_postcode'      => ['nullable', 'string', 'max:20'],
             'appointment_date'    => ['required', 'date'],
             'appointment_time'    => ['nullable', 'string'],
-            // MARKER-APPT-OVERRIDE — requested, not granted. The policy below
+            // requested, not granted. The policy below
             // decides; a crafted request cannot overbook a shop that has not
             // turned it on.
             'override_capacity'     => ['nullable', 'boolean'],
@@ -324,7 +324,7 @@ class AppointmentController extends Controller
             return response()->json(['ok' => false, 'errors' => ['customer_email' => ['Email is required.']]], 422);
         }
 
-        // MARKER-STAFF-NO-NOON — no time picked (drop-off) means no time saved,
+        // no time picked (drop-off) means no time saved,
         // matching online drop-off bookings. A placeholder noon was being sent
         // to customers in confirmations and reminders as a real time.
         $apptTime = !empty($data['appointment_time'])
@@ -336,12 +336,11 @@ class AppointmentController extends Controller
             'last_name'        => $last,
             'email'            => $email,
             'phone'            => $phone,
-            // MARKER-CUST-ADDR
             'address_line1'    => $data['customer_address_line1'] ?? null,
             'city'             => $data['customer_city']          ?? null,
             'state'            => $data['customer_state']         ?? null,
             'postcode'         => $data['customer_postcode']      ?? null,
-            // MARKER-APPT-OVERRIDE — asked for by the screen, granted by the shop.
+            // asked for by the screen, granted by the shop.
             'allow_overbook'        => $request->boolean('override_capacity') && tenant()->staffMayOverbook(),
             'override_short_notice' => $request->boolean('override_short_notice') && tenant()->staffMayBookShortNotice(),
             'override_reason'       => trim((string) $request->input('override_reason', '')) ?: null,
@@ -349,9 +348,9 @@ class AppointmentController extends Controller
             'date'             => $data['appointment_date'],
             'appointment_time' => $apptTime,
             'resource_id'      => $data['resource_id'] ?? null,
-            // MARKER-PATCH-519 — P&D fields; createAppointment re-validates both.
+            // P&D fields; createAppointment re-validates both.
             'route_window_id'  => $request->input('route_window_id') ?: null,
-            // MARKER-PICKUP-OUTREACH — assigning a window resolves the outreach flag downstream
+            // assigning a window resolves the outreach flag downstream
             'need_by'          => $request->input('need_by') ?: null,
             'items'            => array_map(function ($item) {
                 return [
@@ -366,7 +365,7 @@ class AppointmentController extends Controller
         ];
 
         try {
-            // MARKER-NOTIFY-CHOICE — a staff-created appointment notifies nobody
+            // a staff-created appointment notifies nobody
             // by default. Booking a customer in at the counter shouldn't fire
             // a confirmation before anyone has checked the details; sending is
             // an explicit choice via appointments.notify.
@@ -398,7 +397,7 @@ class AppointmentController extends Controller
         }
 
         if ($request->expectsJson()) {
-            // MARKER-NOTIFY-MODAL — which channels could actually reach this
+            // which channels could actually reach this
             // customer. A channel needs BOTH the customer's contact detail and
             // the tenant's notification switch; offering one without both is a
             // button that silently does nothing.
@@ -590,7 +589,7 @@ class AppointmentController extends Controller
             $dateStr = $cursor->toDateString();
             $times = $bookingService->availableSlotsForDate($tenant, $dateStr, $resourceId, $required);
 
-            // MARKER-BOOKING-OVERRIDE — this is the STAFF endpoint. When the
+            // this is the STAFF endpoint. When the
             // shop lets staff book short notice, those times are returned
             // FLAGGED rather than filtered away, so the screen can offer them
             // and say what they are. Customers' paths are untouched.
@@ -618,7 +617,6 @@ class AppointmentController extends Controller
                     'time'       => $t,
                     'date_label' => $dateLabel,
                     'time_label' => self::formatTimeLabel($t),
-                    // MARKER-BOOKING-OVERRIDE
                     'short_notice' => isset($shortNotice[$t]),
                 ];
             }
@@ -823,21 +821,21 @@ class AppointmentController extends Controller
             ->orderBy('name')
             ->get(['id', 'name']);
 
-        // MARKER-PATCH-158-F — branch to multi-asset view whenever the feature is on
+        // branch to multi-asset view whenever the feature is on
         // (drops the previous "must have at least one asset attached" requirement,
         // which created a chicken-and-egg where users couldn't attach the first
         // asset because the view wasn't rendered yet).
         if ($tenant->multi_asset_enabled) {
             $appointmentAssets = \App\Models\Tenant\TenantAppointmentAsset::where('tenant_id', $tenant->id)
                 ->where('appointment_id', $appointment->id)
-                ->with(['customerAsset', 'items.serviceItem', 'addons.addon', 'parts.inventoryItem', 'parts.specialOrder', 'workOrderResponses']) // MARKER-PATCH-158-G5
+                ->with(['customerAsset', 'items.serviceItem', 'addons.addon', 'parts.inventoryItem', 'parts.specialOrder', 'workOrderResponses'])
                 ->orderBy('sort_order')
                 ->get();
 
             // Loose items/addons/parts = NOT pinned to any asset (back-compat)
             $looseItems  = $appointment->items->whereNull('appointment_asset_id');
             $looseAddons = $appointment->addons->whereNull('appointment_asset_id');
-            $looseParts  = $appointment->parts->whereNull('appointment_asset_id'); // MARKER-PATCH-158-G4
+            $looseParts  = $appointment->parts->whereNull('appointment_asset_id');
 
             // Picker data: customer's saved assets not already attached
             $attachedAssetIds = $appointmentAssets->pluck('customer_asset_id')->filter()->values()->all();
@@ -848,7 +846,6 @@ class AppointmentController extends Controller
                 ->orderBy('name')
                 ->get();
 
-            // MARKER-SEND-CONFIRMATION
             [$confirmCanEmail, $confirmCanSms, $confirmSentAt, $confirmChannels, $confirmFailed]
                 = $this->confirmationState($tenant, $appointment);
 
@@ -861,7 +858,6 @@ class AppointmentController extends Controller
                 'confirmCanEmail', 'confirmCanSms', 'confirmSentAt', 'confirmChannels', 'confirmFailed'));
         }
 
-        // MARKER-SEND-CONFIRMATION
         [$confirmCanEmail, $confirmCanSms, $confirmSentAt, $confirmChannels, $confirmFailed]
             = $this->confirmationState($tenant, $appointment);
 
@@ -872,7 +868,7 @@ class AppointmentController extends Controller
     }
 
     /**
-     * MARKER-SEND-CONFIRMATION — what the operator needs to decide whether
+     * what the operator needs to decide whether
      * to tell this customer anything.
      *
      * Reads tenant_notification_log rather than a new column: the job
@@ -918,7 +914,7 @@ class AppointmentController extends Controller
         return [$canEmail, $canSms, $sentAt, $channels, $failed];
     }
 
-    // MARKER-PATCH-313 — render the printable 80mm service tag(s) for a job.
+    // render the printable 80mm service tag(s) for a job.
     public function printTag(Request $request, string $id)
     {
         $tenant = tenant();
@@ -938,7 +934,7 @@ class AppointmentController extends Controller
             'show_note'     => $show('show_note'),
             'show_qr'       => $show('show_qr'),
             'show_stub'     => $show('show_stub'),
-        ], \App\Services\PrintIdentityService::forTenant($tenant)); // MARKER-PATCH-332
+        ], \App\Services\PrintIdentityService::forTenant($tenant));
 
         // One slip per attached asset; otherwise a single slip for the job.
         $assets = \App\Models\Tenant\TenantAppointmentAsset::where('tenant_id', $tenant->id)
@@ -962,7 +958,7 @@ class AppointmentController extends Controller
         }
 
         $jobUrl = route('tenant.appointments.show', $appointment->id);
-        $embed  = $request->boolean('embed'); // MARKER-PATCH-314 — modal/iframe mode
+        $embed  = $request->boolean('embed'); // modal/iframe mode
 
         return view('tenant.appointments.tag', compact('tenant', 'appointment', 'tag', 'slips', 'jobUrl', 'embed'));
     }
@@ -991,7 +987,7 @@ class AppointmentController extends Controller
             $identifierValue = $resp?->response_value;
         }
 
-        // ── MARKER-PATCH-212 — enriched drawer data ──
+        // ── enriched drawer data ──
 
         // Assets (multi-asset). Empty collection for single-asset appointments.
         $assets = \App\Models\Tenant\TenantAppointmentAsset::where('tenant_id', $tenant->id)
@@ -1105,7 +1101,7 @@ class AppointmentController extends Controller
     }
 
     /**
-     * MARKER-PATCH-290 — single line-item serializer shared by the detail modal
+     * single line-item serializer shared by the detail modal
      * and the calendar drawer, so both reconcile to the same subtotal
      * (services + add-ons + parts). Returns the richer modal shape; the drawer
      * ignores prep/cleanup.
@@ -1178,7 +1174,7 @@ class AppointmentController extends Controller
                 'total_duration_minutes' => $appointment->total_duration_minutes,
                 ...$this->appointmentLineItems($appointment),
                 'charges' => $appointment->charges->map(fn($c) => ['id' => $c->id, 'description' => $c->description, 'amount' => format_money($c->amount_cents), 'is_paid' => $c->is_paid, 'date' => \Carbon\Carbon::parse($c->created_at)->format('M j')]),
-                'notes' => $appointment->notes->sortByDesc('created_at')->values()->map(fn($n) => ['id' => $n->id, 'note' => $n->note_content, 'author' => $n->user?->name ?? ($n->note_type === 'system' ? 'System' : 'Staff'), 'type' => $n->note_type, 'created_at' => tlocal($n->created_at, 'M j, g:i a') /* MARKER-PATCH-532 */]),
+                'notes' => $appointment->notes->sortByDesc('created_at')->values()->map(fn($n) => ['id' => $n->id, 'note' => $n->note_content, 'author' => $n->user?->name ?? ($n->note_type === 'system' ? 'System' : 'Staff'), 'type' => $n->note_type, 'created_at' => tlocal($n->created_at, 'M j, g:i a') ]),
                 'work_order_responses' => $appointment->workOrderResponses
                     ->filter(fn($r) => $r->field !== null)
                     ->map(fn($r) => [
@@ -1202,7 +1198,7 @@ class AppointmentController extends Controller
         $appointment = TenantAppointment::where('tenant_id', $tenant->id)->where('id', $id)->firstOrFail();
         $op = $request->input('op');
 
-        // MARKER-PATCH-311 — set or clear the promised-back datetime.
+        // set or clear the promised-back datetime.
         if ($op === 'promised') {
             $raw = trim((string) $request->input('promised_date', ''));
             if ($raw === '') {
@@ -1250,7 +1246,7 @@ class AppointmentController extends Controller
 
             $appointment->update(['status' => $newStatus]);
 
-            // MARKER-PATCH-160 — appointment receipt on configured terminal states.
+            // appointment receipt on configured terminal states.
             // Defaults to ['completed']; tenants can add 'shipped' or 'closed' via
             // settings.receipt_appointment_trigger_states.
             $tenantSettings = $tenant->settings ?? [];
@@ -1309,7 +1305,7 @@ class AppointmentController extends Controller
                 }
             }
             TenantAppointmentNote::create(['appointment_id' => $appointment->id, 'user_id' => Auth::guard('tenant')->id(), 'note_type' => 'system', 'is_customer_visible' => false, 'note_content' => 'Status changed to ' . ucwords(str_replace('_', ' ', $newStatus)) . '.', 'created_at' => now()]);
-            // MARKER-PATCH-527 — offer to text delivery windows when work hits Completed
+            // offer to text delivery windows when work hits Completed
             $proposeDelivery = null;
             if (
                 $newStatus === 'completed' && $oldStatus !== 'completed'
@@ -1319,7 +1315,7 @@ class AppointmentController extends Controller
                 try {
                     $appointment->loadMissing('customer');
                     $cust = $appointment->customer;
-                    // MARKER-PATCH-538 — pending proposal no longer blocks the modal (re-send supersedes)
+                    // pending proposal no longer blocks the modal (re-send supersedes)
                     if ($cust && !empty($cust->phone)) {
                         $svc = DeliveryProposalService::forTenant($tenant);
                         $cands = $svc->candidates();
@@ -1330,7 +1326,7 @@ class AppointmentController extends Controller
                             $dl = \Carbon\Carbon::now($tz)->setTime($assumeHour, 0);
                             if ($dl->isPast()) $dl->addDay();
                             $proposeDelivery = [
-                                'asset_noun'     => $tenant->asset_label_singular ?: 'work', // MARKER-PATCH-535
+                                'asset_noun'     => $tenant->asset_label_singular ?: 'work',
                                 'customer_name'  => trim(($cust->first_name ?? '') . ' ' . ($cust->last_name ?? '')),
                                 'phone_tail'     => substr(preg_replace('/\D/', '', $cust->phone), -4),
                                 'windows'        => $cands,
@@ -1350,18 +1346,18 @@ class AppointmentController extends Controller
                 'status'         => $newStatus,
                 'label'          => ucwords(str_replace('_', ' ', $newStatus)),
                 'register_bridge'=> $bridgeResult,
-                'propose_delivery' => $proposeDelivery, // MARKER-PATCH-527
+                'propose_delivery' => $proposeDelivery,
                 'reload'         => true, // signal client to reload — banner / lock state needs fresh data
             ]);
         }
 
-        // MARKER-PATCH-531 — staff picked a window in the modal: schedule it now
+        // staff picked a window in the modal: schedule it now
         if ($op === 'delivery_schedule_direct') {
             if (!$tenant->deliveries_enabled) {
                 return response()->json(['ok' => false, 'message' => 'Deliveries are not enabled.'], 422);
             }
             try {
-                // MARKER-PATCH-534 — per-channel consent from the modal pills
+                // per-channel consent from the modal pills
                 $channels = array_filter([
                     $request->input('notify_sms') === '1' ? 'sms' : null,
                     $request->input('notify_email') === '1' ? 'email' : null,
@@ -1384,18 +1380,18 @@ class AppointmentController extends Controller
                 'appointment_id' => $appointment->id,
                 'user_id' => Auth::guard('tenant')->id(),
                 'note_type' => 'system', 'is_customer_visible' => false,
-                'note_content' => 'Delivery scheduled for ' . tlocal($delivery->scheduled_at, 'D M j, g:i A') . ' from the completion modal' . (count($channels) ? ' — confirmation by ' . implode(' + ', $channels) . '.' : ' — no customer notification.'), // MARKER-PATCH-534
+                'note_content' => 'Delivery scheduled for ' . tlocal($delivery->scheduled_at, 'D M j, g:i A') . ' from the completion modal' . (count($channels) ? ' — confirmation by ' . implode(' + ', $channels) . '.' : ' — no customer notification.'),
                 'created_at' => now(),
             ]);
             return response()->json(['ok' => true]);
         }
 
-        // MARKER-PATCH-527 — staff confirmed the modal: create + text the proposal
+        // staff confirmed the modal: create + text the proposal
         if ($op === 'delivery_proposal_send') {
             if (!$tenant->deliveries_enabled) {
                 return response()->json(['ok' => false, 'message' => 'Deliveries are not enabled.'], 422);
             }
-            // MARKER-PATCH-536 — options go out only on the channels staff chose
+            // options go out only on the channels staff chose
             $propChannels = array_values(array_filter([
                 $request->input('notify_sms', '1') === '1' ? 'sms' : null,
                 $request->input('notify_email') === '1' ? 'email' : null,
@@ -1412,7 +1408,7 @@ class AppointmentController extends Controller
                 return response()->json(['ok' => false, 'message' => 'Could not send — check logs.'], 500);
             }
             if (!$proposal) {
-                return response()->json(['ok' => false, 'message' => 'Nothing to send — no contact info for the chosen channels, or no open windows.'], 422); // MARKER-PATCH-538
+                return response()->json(['ok' => false, 'message' => 'Nothing to send — no contact info for the chosen channels, or no open windows.'], 422);
             }
             if (!$proposal->sent_channels) {
                 return response()->json(['ok' => false, 'message' => 'Proposal saved but the text failed to send.'], 500);
@@ -1421,12 +1417,12 @@ class AppointmentController extends Controller
                 'appointment_id' => $appointment->id,
                 'user_id' => Auth::guard('tenant')->id(),
                 'note_type' => 'system', 'is_customer_visible' => false,
-                'note_content' => 'Delivery windows sent to customer by ' . str_replace('sms', 'text', implode(' + ', $propChannels)) . ' (' . count($proposal->windows) . ' options).', // MARKER-PATCH-536
+                'note_content' => 'Delivery windows sent to customer by ' . str_replace('sms', 'text', implode(' + ', $propChannels)) . ' (' . count($proposal->windows) . ' options).',
                 'created_at' => now(),
             ]);
             return response()->json(['ok' => true]);
         }
-        // MARKER-DELIVERY-RESOLUTION — record how a completed job got back to
+        // record how a completed job got back to
         // the customer, so the queue reflects decisions rather than a timer.
         if ($op === 'delivery_resolution') {
             $valid = ['customer_pickup', 'handed_over', 'not_needed'];
@@ -1720,7 +1716,7 @@ class AppointmentController extends Controller
         if ($op === 'add_note') {
             $note = mb_substr(trim($request->input('note', '')), 0, 500);
             if (!$note) return response()->json(['ok' => false, 'message' => 'Note is required.'], 422);
-            // MARKER-PATCH-158-E5 — accept visibility flag (default false = internal)
+            // accept visibility flag (default false = internal)
             $isCustomerVisible = (bool) $request->input('is_customer_visible', false);
             $n = TenantAppointmentNote::create(['appointment_id' => $appointment->id, 'user_id' => Auth::guard('tenant')->id(), 'note_type' => 'staff', 'is_customer_visible' => $isCustomerVisible, 'note_content' => $note, 'created_at' => now()]);
             $user = Auth::guard('tenant')->user();
@@ -1732,7 +1728,7 @@ class AppointmentController extends Controller
                 return response()->json(['ok' => false, 'message' => 'values must be an array.'], 422);
             }
 
-            // MARKER-PATCH-158-G5 — Optional asset scope. NULL = appointment-wide
+            // Optional asset scope. NULL = appointment-wide
             // (legacy behavior). When set, the response is pinned to that asset
             // card so multiple assets each carry their own intake answers.
             $assetId = $request->input('appointment_asset_id');
@@ -1761,7 +1757,7 @@ class AppointmentController extends Controller
                 $value = is_string($rawValue) ? trim($rawValue) : $rawValue;
                 $value = ($value === '' || $value === null) ? null : (string) $value;
 
-                // MARKER-PATCH-158-G5 — Upsert key now includes appointment_asset_id
+                // Upsert key now includes appointment_asset_id
                 $existing = \App\Models\Tenant\TenantAppointmentWorkOrderResponse::where('tenant_id', $tenant->id)
                     ->where('appointment_id', $appointment->id)
                     ->where('field_id', $field->id)
@@ -1786,7 +1782,7 @@ class AppointmentController extends Controller
                         'tenant_id'            => $tenant->id,
                         'appointment_id'       => $appointment->id,
                         'field_id'             => $field->id,
-                        'appointment_asset_id' => $assetId, // MARKER-PATCH-158-G5
+                        'appointment_asset_id' => $assetId,
                         'field_label_snapshot' => $field->label,
                         'response_value'       => $value,
                     ]);
@@ -1799,7 +1795,7 @@ class AppointmentController extends Controller
             }
 
             // Update the promoted identifier column if any identifier field was in the payload.
-            // MARKER-PATCH-158-G5 — In multi-asset mode this captures the last asset's
+            // In multi-asset mode this captures the last asset's
             // identifier written. Cross-appointment identifier search (?serial=ABC) hits
             // this column; a future enhancement could index per-asset identifiers separately.
             $identifierTouched = $fields->contains(fn($f) => (bool) $f->is_identifier);
@@ -1841,7 +1837,7 @@ class AppointmentController extends Controller
             $item = \App\Models\Tenant\TenantAppointmentItem::where('id', $itemId)
                 ->where('appointment_id', $appointment->id)->first();
             if (!$item) return response()->json(['ok' => false, 'message' => 'Item not found.'], 422);
-            // MARKER-PATCH-158-E2 — snapshot asset FK before delete so we can refresh its subtotal
+            // snapshot asset FK before delete so we can refresh its subtotal
             $assetId = $item->appointment_asset_id;
             $item->delete();
             if ($assetId) {
@@ -1875,7 +1871,7 @@ class AppointmentController extends Controller
             $addon = \App\Models\Tenant\TenantAppointmentAddon::where('id', $addonId)
                 ->where('appointment_id', $appointment->id)->first();
             if (!$addon) return response()->json(['ok' => false, 'message' => 'Add-on not found.'], 422);
-            // MARKER-PATCH-158-E2 — snapshot asset FK before delete so we can refresh its subtotal
+            // snapshot asset FK before delete so we can refresh its subtotal
             $assetId = $addon->appointment_asset_id;
             $addon->delete();
             if ($assetId) {
@@ -1887,7 +1883,7 @@ class AppointmentController extends Controller
         }
 
         // -------------------------------------------------------------------
-        // MARKER-PATCH-158-E1 — Multi-asset operations
+        // Multi-asset operations
         //
         // These ops only make sense when the tenant has multi_asset_enabled.
         // Guarded explicitly rather than relying on view-side gating, so that
@@ -2059,7 +2055,7 @@ class AppointmentController extends Controller
             return response()->json(['ok' => true]);
         }
 
-        // MARKER-PATCH-470 — move a loose (unassigned) service/add-on under an asset
+        // move a loose (unassigned) service/add-on under an asset
         if ($op === 'assign_loose_to_asset') {
             $data = $request->validate([
                 'appointment_asset_id' => ['required', 'uuid'],
@@ -2089,7 +2085,7 @@ class AppointmentController extends Controller
             return response()->json(['ok' => true]);
         }
 
-        // MARKER-PATCH-471 — unified assign: ensure the asset is attached (existing
+        // unified assign: ensure the asset is attached (existing
         // appointment asset, a saved customer asset, or a brand-new one), then move the
         // loose line onto it — all atomically, so a failure leaves no half-attached asset.
         if ($op === 'assign_loose_to_target') {
@@ -2186,7 +2182,7 @@ class AppointmentController extends Controller
             return response()->json(['ok' => true]);
         }
 
-        // MARKER-PATCH-472 — service-first add: create the service/add-on line and pin it to the
+        // service-first add: create the service/add-on line and pin it to the
         // chosen target (existing appointment asset, a saved customer asset, a brand-new asset, or
         // leave it loose for "assign later") — all atomically.
         if ($op === 'add_service_to_target') {
@@ -2302,7 +2298,7 @@ class AppointmentController extends Controller
             return response()->json(['ok' => true]);
         }
 
-        // MARKER-PATCH-158-E2 — rename an appointment-asset (snapshot only,
+        // rename an appointment-asset (snapshot only,
         // doesn't touch the underlying customer_asset)
         if ($op === 'rename_appointment_asset') {
             $data = $request->validate([
@@ -2329,7 +2325,7 @@ class AppointmentController extends Controller
             $request->validate([
                 'inventory_item_id'     => ['required', 'uuid'],
                 'quantity'              => ['nullable', 'integer', 'min:1', 'max:999'],
-                'appointment_asset_id'  => ['nullable', 'uuid'], // MARKER-PATCH-158-G4
+                'appointment_asset_id'  => ['nullable', 'uuid'],
             ]);
 
             $invItem = TenantInventoryItem::where('id', $request->input('inventory_item_id'))
@@ -2341,7 +2337,7 @@ class AppointmentController extends Controller
 
             $qty = (int) ($request->input('quantity') ?? 1);
 
-            // MARKER-PATCH-158-G4 — validate optional asset FK is on this appointment
+            // validate optional asset FK is on this appointment
             $assetId = $request->input('appointment_asset_id');
             if ($assetId) {
                 $assetExists = \App\Models\Tenant\TenantAppointmentAsset::where('appointment_id', $appointment->id)
@@ -2367,18 +2363,18 @@ class AppointmentController extends Controller
             $part = TenantAppointmentPart::create([
                 'appointment_id'        => $appointment->id,
                 'inventory_item_id'     => $invItem->id,
-                'appointment_asset_id'  => $assetId, // MARKER-PATCH-158-G4
+                'appointment_asset_id'  => $assetId,
                 'item_name_snapshot'    => $invItem->name,
                 'item_sku_snapshot'     => $invItem->sku,
                 'quantity'              => $qty,
                 'unit_price_cents'      => (int) ($invItem->effectiveSellPriceCents() ?? 0),
                 'cost_cents_at_time'    => $invItem->effectiveCostCents(),
                 'is_taxable'            => true,
-                'is_special_order'      => $request->boolean('special_order', true), // MARKER-PATCH-419 — default on
+                'is_special_order'      => $request->boolean('special_order', true), // default on
                 'committed_at'          => null,
             ]);
 
-            // MARKER-PATCH-419 — mirror this part into Special Orders (status 'needed').
+            // mirror this part into Special Orders (status 'needed').
             try {
                 app(\App\Services\Tenant\SpecialOrderService::class)
                     ->syncForAppointmentPart($part, \Illuminate\Support\Facades\Auth::guard('tenant')->id());
@@ -2430,12 +2426,12 @@ class AppointmentController extends Controller
                 'unit_price_cents'     => ['required', 'integer', 'min:0', 'max:99999999'],
                 'quantity'             => ['nullable', 'integer', 'min:1', 'max:999'],
                 'is_taxable'           => ['nullable', 'boolean'],
-                'appointment_asset_id' => ['nullable', 'uuid'], // MARKER-PATCH-158-G4
+                'appointment_asset_id' => ['nullable', 'uuid'],
             ]);
 
             $qty = (int) ($request->input('quantity') ?? 1);
 
-            // MARKER-PATCH-158-G4 — validate optional asset FK is on this appointment
+            // validate optional asset FK is on this appointment
             $assetId = $request->input('appointment_asset_id');
             if ($assetId) {
                 $assetExists = \App\Models\Tenant\TenantAppointmentAsset::where('appointment_id', $appointment->id)
@@ -2449,14 +2445,14 @@ class AppointmentController extends Controller
             $part = TenantAppointmentPart::create([
                 'appointment_id'        => $appointment->id,
                 'inventory_item_id'     => null,
-                'appointment_asset_id'  => $assetId, // MARKER-PATCH-158-G4
+                'appointment_asset_id'  => $assetId,
                 'item_name_snapshot'    => trim($request->input('name')),
                 'item_sku_snapshot'     => null,
                 'quantity'              => $qty,
                 'unit_price_cents'      => (int) $request->input('unit_price_cents'),
                 'cost_cents_at_time'    => null,
                 'is_taxable'            => $request->boolean('is_taxable', true),
-                'is_special_order'      => false, // MARKER-PATCH-419 — custom one-offs aren't ordered
+                'is_special_order'      => false, // custom one-offs aren't ordered
                 'committed_at'          => null,
             ]);
 
@@ -2489,7 +2485,7 @@ class AppointmentController extends Controller
             ]);
         }
 
-        // MARKER-PATCH-419 — per-line "add to special orders" checkbox toggle
+        // per-line "add to special orders" checkbox toggle
         if ($op === 'toggle_part_special_order') {
             $part = TenantAppointmentPart::where('appointment_id', $appointment->id)
                 ->where('id', $request->input('part_id'))
@@ -2542,7 +2538,7 @@ class AppointmentController extends Controller
 
             $name = $part->item_name_snapshot;
 
-            // MARKER-SO-ORPHAN-FIX — deleting a part used to leave its linked
+            // deleting a part used to leave its linked
             // special order alive as an orphan. Mirror the uncheck logic:
             // a still-"needed" SO is retracted; an ordered/arrived SO stays
             // (goods may be inbound) but the appointment gets a warning note.
@@ -2636,7 +2632,7 @@ class AppointmentController extends Controller
             $row->price_cents_override      = ($price === null || $price === '')      ? null : (int) $price;
             $row->duration_minutes_override = ($duration === null || $duration === '') ? null : (int) $duration;
             $row->save();
-            // MARKER-PATCH-158-E2 — refresh asset subtotal if this row is pinned to one
+            // refresh asset subtotal if this row is pinned to one
             if ($row->appointment_asset_id) {
                 $aa = \App\Models\Tenant\TenantAppointmentAsset::find($row->appointment_asset_id);
                 if ($aa) $aa->refreshSubtotal();
@@ -2935,7 +2931,7 @@ class AppointmentController extends Controller
         $query = TenantInventoryItem::where('tenant_id', $tenant->id)
             ->where('is_active', true);
 
-        // MARKER-INV-SEARCH — the shared search (barcode twins included).
+        // the shared search (barcode twins included).
         if ($q !== '') {
             $searchHit = \App\Support\InventorySearch::apply($query, $tenant->id, $q);
             \App\Support\InventorySearch::rank($query, $searchHit['used']);
@@ -2971,7 +2967,7 @@ class AppointmentController extends Controller
      * fractional cents from rounding don't compound.
      */
     /**
-     * MARKER-APPT-DISCOUNT — apply a whole-appointment discount, by code or
+     * apply a whole-appointment discount, by code or
      * as a manual amount/percent. A code is redeemed here, so its use limit
      * is honoured the moment it is attached.
      */
@@ -3038,7 +3034,7 @@ class AppointmentController extends Controller
         return back()->with('success', 'Discount applied.');
     }
 
-    /** MARKER-APPT-DISCOUNT — remove it and give any code use back. */
+    /** remove it and give any code use back. */
     public function removeDiscount(string $id)
     {
         $appointment = \App\Models\Tenant\TenantAppointment::where('tenant_id', tenant()->id)->findOrFail($id);
@@ -3082,7 +3078,7 @@ class AppointmentController extends Controller
         $taxCents      = 0;
         $totalDuration = 0;
 
-        // MARKER-APPT-DISCOUNT — every line is collected first, because a
+        // every line is collected first, because a
         // whole-appointment discount has to be spread over the lines before
         // tax can be figured. $lines is [gross, taxable] per row.
         $lines = [];
@@ -3116,7 +3112,7 @@ class AppointmentController extends Controller
             $lines[] = ['gross' => $line, 'taxable' => (bool) $part->is_taxable];
         }
 
-        // MARKER-APPT-DISCOUNT — clamp, allocate, then tax the reduced base.
+        // clamp, allocate, then tax the reduced base.
         // Largest-remainder, so the parts sum to exactly the discount.
         $discountCents = max(0, (int) ($appointment->discount_cents ?? 0));
         if ($discountCents > $subtotalCents) {
@@ -3163,7 +3159,7 @@ class AppointmentController extends Controller
 
         $appointment->update([
             'subtotal_cents'         => $subtotalCents,
-            // MARKER-APPT-DISCOUNT — the clamped value wins, so a discount
+            // the clamped value wins, so a discount
             // can never exceed what the appointment is worth.
             'discount_cents'         => $discountCents,
             'tax_cents'              => $taxCents,
@@ -3175,14 +3171,14 @@ class AppointmentController extends Controller
 
 
     /**
-     * MARKER-APPT-OVERRIDE — how loaded each day is, for the staff day picker.
+     * how loaded each day is, for the staff day picker.
      *
      * Reports the shop's policy alongside the days so the screen never offers
      * an override the server would refuse.
      */
     public function dayLoad(Request $request)
     {
-        // MARKER-APPT-PICKER-GUARD — this controller guards through the route
+        // this controller guards through the route
         // group, as weekTimes() and pickerData() do. The guard call that was
         // here came from InventoryController, which defines one; this
         // controller does not, so every request fatalled.

@@ -23,7 +23,6 @@ class DebugLogHeaderStats extends BaseWidget
 
     protected function getStats(): array
     {
-        // MARKER-ERROR-PARITY
         $errors24   = DebugLog::issues()
             ->where('is_resolved', false)
             ->where('created_at', '>=', now()->subDay())->count();
