@@ -23,6 +23,7 @@ class SalesChannel extends Model
         'name', 'slug', 'status', 'categories', 'business_types',
         'criteria', 'playbook', 'best_ask', 'generated_by', 'notes',
         'places_query', // MARKER-SALES-INDUSTRY
+        'brand_list',   // MARKER-BRAND-LIST
     ];
 
     protected $casts = [

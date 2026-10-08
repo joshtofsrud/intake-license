@@ -43,6 +43,10 @@ class SalesChannelResource extends Resource
                     ->label('Places search phrase')->maxLength(120)->columnSpanFull()
                     ->placeholder('e.g. bike shop')
                     ->helperText('What Find shops searches Google for. Leave blank to keep this industry out of Find shops.'),
+                Forms\Components\Textarea::make('brand_list') // MARKER-BRAND-LIST
+                    ->label('Brands to look for')->rows(12)->columnSpanFull()
+                    ->placeholder("Trek\nSanta Cruz: Santa Cruz Bicycles\nRad Power Bikes: Rad Power, RadPower")
+                    ->helperText('One brand per line. Other spellings go after a colon, separated by commas. The website pass looks for these on each shop\'s site in this industry and records the ones it finds; a name only counts when the site writes it with a capital letter. Shops already read are not re-read when you change this list.'),
             ]),
 
             Forms\Components\Section::make('Targeting')->columns(2)->schema([

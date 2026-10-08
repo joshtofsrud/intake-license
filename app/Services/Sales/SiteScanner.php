@@ -29,12 +29,6 @@ class SiteScanner
         'the', 'and', 'of', 'co', 'company', 'inc', 'llc', 'ltd', 'outdoor', 'outdoors', 'sports', 'sport', 'store', 'works',
         'center', 'centre', 'repair', 'service', 'services', 'electric', 'ebike', 'ebikes', 'e-bike', 'e-bikes', 'mountain', 'mtb', 'a'];
 
-    /** Capitalised words that are also brand names but mostly appear as ordinary words. */
-    private const BRAND_STOP = ['pro', 'kind', 'ride', 'shop', 'bike', 'service', 'home', 'about', 'contact', 'sale', 'new',
-        'used', 'more', 'free', 'all', 'one', 'best', 'park', 'origin', 'element', 'spot', 'pure', 'electra electric', 'state',
-        'generic', 'misc', 'unknown', 'various', 'universal', 'standard', 'assorted', 'house', 'n/a', 'na', 'none', 'other',
-        'sram x', 'go', 'max', 'city', 'trail', 'road', 'gravel', 'mountain', 'tour', 'sport', 'kids', 'youth', 'women',
-        'men', 'team', 'club', 'race', 'events', 'rentals', 'repair', 'parts', 'tools', 'accessories', 'apparel', 'brands'];
 
     public static function isNotShopSite(string $host): bool
     {
@@ -170,7 +164,7 @@ class SiteScanner
         $phone   = $this->phone($html, $text); // MARKER-SITE-SCAN-PHONE
         $socials = $this->socials($html);
         $owner   = $this->owner($text);
-        $brands  = $this->brands($text);
+        $brands  = $this->brands($text, $p); // MARKER-BRAND-LIST — the industry's own brand list
 
         $changes = ['socials' => $socials ?: null, 'brands' => $brands ?: null];
         if ($email && blank($p->email)) $changes['email'] = $email;
@@ -301,12 +295,44 @@ class SiteScanner
         return null;
     }
 
+    /** @var array<string,array<string,string>> industry id => (lowercase spelling => brand) */
+    private static array $lists = [];
+
+    /**
+     * "Rad Power Bikes: Rad Power, RadPower" → three spellings, one brand.
+     * One brand per line; other spellings after a colon, comma separated.
+     */
+    public static function parseBrandList(?string $raw): array
+    {
+        $out = [];
+        foreach (preg_split('/\r?\n/', (string) $raw) as $line) {
+            $line = trim($line);
+            if ($line === '' || str_starts_with($line, '#')) continue;
+            [$name, $alts] = array_pad(explode(':', $line, 2), 2, '');
+            $name = trim(preg_replace('/\s+/', ' ', $name));
+            if (mb_strlen($name) < 2) continue;
+            foreach (array_merge([$name], array_map('trim', explode(',', $alts))) as $sp) {
+                $sp = mb_strtolower(trim(preg_replace('/\s+/', ' ', $sp)));
+                if (mb_strlen($sp) >= 2) $out[$sp] ??= $name;
+            }
+        }
+        return $out;
+    }
+
+    public static function brandsFor(?string $channelId): array
+    {
+        if (! $channelId) return [];
+        return self::$lists[$channelId] ??= self::parseBrandList(
+            \App\Models\SalesChannel::whereKey($channelId)->value('brand_list')
+        );
+    }
+
     public function owner(string $text): ?string
     {
         $name = "([A-Z][a-z]+(?: [A-Z]\\.)?(?: (?:Mc|Mac|O')?[A-Z][a-zA-Z'\\-]+){1,2})";
         $role = '(?i:co-?owner|owner|co-?founder|founder|proprietor)s?';
         $pats = [
-            "/\\b{$role}\\b(?: and [a-z ]+)?[\\s:,\\-–—|]+(?:is\\s+)?{$name}/iu",
+            "/\\b{$role}\\b(?: and [a-z ]+)?[\\s:,\\-–—|]+(?:is\\s+)?{$name}/u", // MARKER-OWNER-CASE-FIX — names must be capitalised
             "/{$name}\\s*[,\\-–—|(]\\s*(?:the\\s+)?{$role}\\b/u",
             "/{$name}\\s+(?i:is the|is our|, our)\\s+{$role}\\b/u",
             "/(?i:owned|founded|run) by {$name}/u",
@@ -323,16 +349,20 @@ class SiteScanner
         return null;
     }
 
-    /** Brands from the distributor catalogs that the site mentions, most-mentioned first. */
-    public function brands(string $text): array
+    /**
+     * MARKER-BRAND-LIST — brands from the prospect's industry list (Sales setup ›
+     * Industries › Brands to look for) that the site mentions, most-mentioned first.
+     * An industry with no list gets no brands.
+     */
+    public function brands(string $text, ?SalesProspect $p = null): array
     {
-        $dict = self::brandDictionary();
+        $dict = $p ? self::brandsFor($p->channel_id) : [];
         if (! $dict) return [];
         $words = preg_split('/[^\p{L}\p{N}&\'\-]+/u', $text, -1, PREG_SPLIT_NO_EMPTY);
         $hits = [];
         $n = count($words);
         for ($i = 0; $i < $n; $i++) {
-            for ($len = 3; $len >= 1; $len--) {
+            for ($len = 4; $len >= 1; $len--) {
                 if ($i + $len > $n) continue;
                 $first = $words[$i];
                 if (! preg_match('/^\p{Lu}/u', $first) && ! preg_match('/^\p{N}/u', $first)) continue; // brand names are written capitalised
@@ -344,31 +374,4 @@ class SiteScanner
         return array_slice(array_keys($hits), 0, 40);
     }
 
-    /** lowercase name => display name, from manufacturers carried by the distributor catalogs (cached a day). */
-    public static function brandDictionary(): array
-    {
-        $hit = Cache::get('sales:site-scan:brands');
-        if (is_array($hit) && $hit) return $hit;
-        $dict = (function () {
-            try {
-                $rows = DB::table('platform_distributor_catalogs')
-                    ->whereNotNull('manufacturer')->where('manufacturer', '!=', '')
-                    ->select('manufacturer', DB::raw('COUNT(*) n'))->groupBy('manufacturer')
-                    ->having('n', '>=', 10)->pluck('manufacturer');
-            } catch (\Throwable $e) {
-                return [];
-            }
-            $out = [];
-            foreach ($rows as $name) {
-                $name = trim(preg_replace('/\s+/', ' ', (string) $name));
-                $key = mb_strtolower($name);
-                if (mb_strlen($key) < 3 || in_array($key, self::BRAND_STOP, true) || substr_count($key, ' ') > 2) continue;
-                if ($name === mb_strtoupper($name) && mb_strlen($name) > 4) $name = ucwords(mb_strtolower($name)); // SHIMANO → Shimano
-                $out[$key] ??= $name;
-            }
-            return $out;
-        })();
-        if ($dict) Cache::put('sales:site-scan:brands', $dict, 86400); // an empty list (catalog unreachable) is not kept
-        return $dict;
-    }
 }
