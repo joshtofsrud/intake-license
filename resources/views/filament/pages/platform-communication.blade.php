@@ -22,6 +22,13 @@
   .pc-pill{font-size:10.5px;padding:2px 8px;border-radius:99px;border:1px solid var(--pc-line);opacity:.75}
   .pc-pill--custom{background:rgba(139,124,246,.14);border-color:rgba(139,124,246,.4);color:#cfc7ff;opacity:1}
   .pc-edit{background:none;border:0;color:var(--pc-accent);font:inherit;font-size:13px;cursor:pointer;text-align:right}
+  /* MARKER-PLATFORM-MANAGE */
+  .pc-acts-row{display:flex;gap:12px;justify-content:flex-end;align-items:center;font-size:13px;white-space:nowrap}
+  .pc-del{background:none;border:0;color:var(--pc-warn, #f0c46a);font:inherit;font-size:13px;cursor:pointer;opacity:.8}
+  .pc-del:hover{opacity:1}
+  .pc-rule{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--pc-line);border-radius:99px;padding:3px 6px 3px 10px;font-size:12px;margin:0 6px 6px 0}
+  .pc-rule button{background:none;border:0;color:inherit;opacity:.55;cursor:pointer;font:inherit;padding:0 4px}
+  .pc-rule button:hover{opacity:1}
   .pc-cols{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
   @media(max-width:1000px){.pc-cols{grid-template-columns:1fr}}
   .pc-card{border:1px solid var(--pc-line);border-radius:12px;padding:16px 18px}
@@ -378,7 +385,7 @@
 
       <div class="pc-list">
         @forelse($campaigns as $c)
-          <div class="pc-row" style="grid-template-columns:1fr 110px 1fr 70px">
+          <div class="pc-row" style="grid-template-columns:1fr 110px 1fr 150px">
             <div>
               <div class="t">{{ $c->name }}</div>
               <div class="d">{{ $c->subject ?: 'No subject yet' }}</div>
@@ -388,7 +395,17 @@
               {{ optional($c->audience)->name ?: 'No audience' }}
               @if($c->total_sent) · {{ $c->total_sent }} sent @endif
             </div>
-            <button type="button" class="pc-edit" wire:click="openCampaign('{{ $c->id }}')">Open</button>
+            {{-- MARKER-PLATFORM-MANAGE --}}
+            <div class="pc-acts-row">
+              @if($confirmDel === 'c:' . $c->id)
+                <span style="opacity:.7">Delete?</span>
+                <button type="button" class="pc-del" wire:click="deleteCampaign('{{ $c->id }}')">Yes</button>
+                <button type="button" class="pc-edit" wire:click="cancelDelete">No</button>
+              @else
+                @if($c->status === 'draft')<button type="button" class="pc-del" wire:click="askDelete('c:{{ $c->id }}')">Delete</button>@endif
+                <button type="button" class="pc-edit" wire:click="openCampaign('{{ $c->id }}')">Open</button>
+              @endif
+            </div>
           </div>
         @empty
           <div style="padding:26px 16px;text-align:center;opacity:.5;font-size:13px">No campaigns yet.</div>
@@ -398,11 +415,21 @@
       <div class="pc-grp">Audiences</div>
       <div class="pc-list">
         @forelse($audiences as $a)
-          <div class="pc-row" style="grid-template-columns:1fr 150px 1fr 70px">
+          <div class="pc-row" style="grid-template-columns:1fr 150px 1fr 150px{{ $aEditing === $a->id ? ';background:rgba(139,124,246,.08)' : '' }}">
             <div><div class="t">{{ $a->name }}</div></div>
             <div><span class="pc-pill">{{ \App\Models\PlatformAudience::SOURCES[$a->source] ?? $a->source }}</span></div>
             <div class="fires">{{ count($a->rules ?? []) }} {{ count($a->rules ?? []) === 1 ? 'rule' : 'rules' }}</div>
-            <div></div>
+            {{-- MARKER-PLATFORM-MANAGE --}}
+            <div class="pc-acts-row">
+              @if($confirmDel === 'a:' . $a->id)
+                <span style="opacity:.7">Delete?</span>
+                <button type="button" class="pc-del" wire:click="deleteAudience('{{ $a->id }}')">Yes</button>
+                <button type="button" class="pc-edit" wire:click="cancelDelete">No</button>
+              @else
+                <button type="button" class="pc-del" wire:click="askDelete('a:{{ $a->id }}')">Delete</button>
+                <button type="button" class="pc-edit" wire:click="openAudience('{{ $a->id }}')">Open</button>
+              @endif
+            </div>
           </div>
         @empty
           <div style="padding:20px 16px;text-align:center;opacity:.5;font-size:13px">No audiences yet — make one below.</div>
@@ -410,8 +437,27 @@
       </div>
 
       <div class="pc-card" style="margin-top:14px">
-        <h3>New audience</h3>
+        <h3>{{ $aEditing ? 'Edit audience' : 'New audience' }}</h3>
         <div class="sub">Rules, not a fixed list — it re-resolves every time a campaign fires</div>
+        {{-- MARKER-PLATFORM-MANAGE — the rules this audience already has --}}
+        @if($aEditing)
+          <div class="pc-f">
+            <label>Rules</label>
+            <div>
+              @forelse($aRules as $i => $r)
+                @php
+                  $rv = is_array($r['value'] ?? null) ? implode(', ', $r['value']) : (string) ($r['value'] ?? '');
+                  $rText = ($r['field'] ?? '') === 'ids'
+                    ? 'These ' . count(array_filter(explode(',', $rv))) . ' picked shops'
+                    : ($r['field'] ?? '') . ' ' . str_replace('_', ' ', $r['op'] ?? 'is') . ' ' . \Illuminate\Support\Str::limit($rv, 40);
+                @endphp
+                <span class="pc-rule">{{ $rText }}<button type="button" wire:click="removeAudienceRule({{ $i }})" title="Remove this rule">×</button></span>
+              @empty
+                <span class="pc-note">No rules: everyone in the source.</span>
+              @endforelse
+            </div>
+          </div>
+        @endif
         <div class="pc-f"><label>Name</label><input type="text" wire:model="aName" placeholder="Tenants without rentals"></div>
         <div class="pc-f">
           <label>Source</label>
@@ -433,10 +479,11 @@
             </select>
             <input type="text" wire:model="aValue" placeholder="scale / rentals">
           </div>
-          <div class="pc-note">Leave the rule blank for everyone in that source.</div>
+          <div class="pc-note">{{ $aEditing ? 'Fill this in to add one more rule.' : 'Leave the rule blank for everyone in that source.' }}</div>
         </div>
         <div class="pc-acts">
-          <button type="button" class="pc-btn pc-btn--pri" wire:click="newAudience">Save audience</button>
+          <button type="button" class="pc-btn pc-btn--pri" wire:click="newAudience">{{ $aEditing ? 'Save changes' : 'Save audience' }}</button>
+          @if($aEditing)<button type="button" class="pc-btn" wire:click="closeAudience">Cancel</button>@endif
         </div>
       </div>
     @endif

@@ -56,6 +56,10 @@ class PlatformCommunication extends Page
     public string $aField = '';
     public string $aOp = 'is';
     public string $aValue = '';
+    // MARKER-PLATFORM-MANAGE — open an audience to edit it; delete audiences and campaigns
+    public ?string $aEditing = null;
+    public array   $aRules   = [];
+    public ?string $confirmDel = null; // 'a:<id>' or 'c:<id>' while the inline "Delete?" is showing
 
     public string $subject = '';
     public string $body    = '';
@@ -397,22 +401,97 @@ class PlatformCommunication extends Page
             return;
         }
 
-        $rules = [];
+        // MARKER-PLATFORM-MANAGE — editing keeps the rules already there (minus any removed)
+        $rules = $this->aEditing ? array_values($this->aRules) : [];
         if (trim($this->aField) !== '' && trim($this->aValue) !== '') {
             $rules[] = ['field' => $this->aField, 'op' => $this->aOp, 'value' => trim($this->aValue)];
         }
 
-        \App\Models\PlatformAudience::create([
-            'name'   => $name,
-            'source' => $this->aSource,
-            'rules'  => $rules,
-        ]);
+        $existing = $this->aEditing ? \App\Models\PlatformAudience::find($this->aEditing) : null;
+        if ($existing) {
+            $existing->update(['name' => $name, 'source' => $this->aSource, 'rules' => $rules]);
+        } else {
+            \App\Models\PlatformAudience::create([
+                'name'   => $name,
+                'source' => $this->aSource,
+                'rules'  => $rules,
+            ]);
+        }
 
-        $this->aName = '';
-        $this->aField = '';
-        $this->aValue = '';
+        $this->closeAudience();
 
-        Notification::make()->success()->title('Audience saved')->send();
+        Notification::make()->success()->title($existing ? 'Audience updated' : 'Audience saved')->send();
+    }
+
+    // MARKER-PLATFORM-MANAGE ------------------------------------------------
+    public function openAudience(string $id): void
+    {
+        $a = \App\Models\PlatformAudience::find($id);
+        if (! $a) return;
+        $this->aEditing = $a->id;
+        $this->aName    = (string) $a->name;
+        $this->aSource  = (string) $a->source;
+        $this->aRules   = array_values((array) ($a->rules ?? []));
+        $this->aField = ''; $this->aOp = 'is'; $this->aValue = '';
+        $this->confirmDel = null;
+    }
+
+    public function closeAudience(): void
+    {
+        $this->aEditing = null;
+        $this->aRules = [];
+        $this->aName = ''; $this->aSource = 'tenants';
+        $this->aField = ''; $this->aOp = 'is'; $this->aValue = '';
+    }
+
+    public function removeAudienceRule(int $i): void
+    {
+        unset($this->aRules[$i]);
+        $this->aRules = array_values($this->aRules);
+    }
+
+    public function askDelete(string $key): void { $this->confirmDel = $key; }
+    public function cancelDelete(): void          { $this->confirmDel = null; }
+
+    public function deleteAudience(string $id): void
+    {
+        $this->confirmDel = null;
+        $a = \App\Models\PlatformAudience::find($id);
+        if (! $a) return;
+        $busy = \App\Models\PlatformCampaign::where('audience_id', $a->id)->whereIn('status', ['scheduled', 'sending'])->count();
+        if ($busy) {
+            Notification::make()->warning()->title("Can't delete — a scheduled campaign uses it")
+                ->body('Cancel that campaign or give it another audience first.')->send();
+            return;
+        }
+        // drafts lose the audience and need a new one before they can go
+        \App\Models\PlatformCampaign::where('audience_id', $a->id)->where('status', 'draft')->update(['audience_id' => null]);
+        if ($this->aEditing === $a->id) $this->closeAudience();
+        if ($this->campaignId && $this->cAudience === (string) $a->id) $this->cAudience = '';
+        $a->delete();
+        Notification::make()->success()->title('Audience deleted')->send();
+    }
+
+    public function deleteCampaign(string $id): void
+    {
+        $this->confirmDel = null;
+        $c = \App\Models\PlatformCampaign::find($id);
+        if (! $c) return;
+        if ($c->status !== 'draft') {
+            Notification::make()->warning()->title($c->status === 'sent' ? "Sent campaigns are kept" : 'Cancel it first')
+                ->body($c->status === 'sent' ? 'It holds the record of who got what.' : 'Only drafts can be deleted.')->send();
+            return;
+        }
+        $went = \App\Models\PlatformCampaignSend::where('campaign_id', $c->id)->whereNotIn('status', ['pending', 'skipped'])->count();
+        if ($went) {
+            Notification::make()->warning()->title("Can't delete — some of it already went out")
+                ->body("$went emails were sent before it was cancelled; the campaign keeps that record.")->send();
+            return;
+        }
+        \App\Models\PlatformCampaignSend::where('campaign_id', $c->id)->delete();
+        if ($this->campaignId === $c->id) $this->campaignId = null;
+        $c->delete();
+        Notification::make()->success()->title('Campaign deleted')->send();
     }
 
     public function newCampaign(): void
