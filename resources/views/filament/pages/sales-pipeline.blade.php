@@ -141,6 +141,29 @@
     <select class="sx-in" wire:model.live="territoryId"><option value="">All territories</option><option value="none">No territory</option>@foreach($this->territories() as $t)<option value="{{ $t->id }}">{{ $t->name }}</option>@endforeach</select>
     <select class="sx-in" wire:model.live="repId"><option value="">Any rep</option><option value="none">House (no rep)</option>@foreach($this->reps() as $r)<option value="{{ $r->id }}">{{ $r->name }}</option>@endforeach</select>
     <select class="sx-in" wire:model.live="priority"><option value="">Any priority</option>@foreach(\App\Models\SalesProspect::PRIORITIES as $k => $v)<option value="{{ $k }}">{{ $v }}</option>@endforeach</select>
+    {{-- MARKER-PROSPECTS-PLACE — pick any number of states; ZIPs or ZIP starts --}}
+    @php $stCounts = $this->stateCounts(); @endphp
+    <div x-data="{ open: false }" style="position:relative" x-on:click.outside="open = false" x-on:keydown.escape="open = false">
+      <button type="button" class="sx-in" style="cursor:pointer;min-width:120px;text-align:left" x-on:click="open = !open">
+        {{ $states ? (count($states) <= 3 ? implode(', ', $states) : count($states) . ' states') : 'All states' }} ▾
+      </button>
+      <div x-show="open" x-cloak style="position:absolute;z-index:40;top:calc(100% + 4px);left:0;width:340px;max-height:360px;overflow:auto;background:#141416;border:1px solid var(--sx-line-2);border-radius:10px;padding:10px;box-shadow:0 16px 40px rgba(0,0,0,.5)">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;font-size:12px;color:var(--sx-dim)">
+          <span>{{ count($states) ? count($states) . ' picked' : 'Pick one or more' }}</span>
+          @if($states)<button type="button" wire:click="clearStates" style="background:none;border:0;color:#a78bfa;cursor:pointer;font:inherit">Clear</button>@endif
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:2px 8px">
+          @foreach($stCounts as $code => $n)
+            <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;padding:3px 2px;cursor:pointer">
+              <input type="checkbox" value="{{ $code }}" wire:model.live="states" style="accent-color:var(--sx-violet)">
+              <span>{{ $code }}</span><span style="color:var(--sx-dim);font-size:11px">{{ number_format($n) }}</span>
+            </label>
+          @endforeach
+        </div>
+      </div>
+    </div>
+    <input type="text" class="sx-in" style="width:150px" wire:model.live.debounce.500ms="zip" placeholder="ZIP, e.g. 992, 83814" title="One or more ZIP codes, or their first digits, separated by commas">
+
     {{-- MARKER-SALES-SITE-FILTER --}}
     <select class="sx-in" wire:model.live="site">
       <option value="">Any contact info</option>
@@ -217,7 +240,7 @@
       <thead><tr>
         <th style="width:28px"><input type="checkbox" aria-label="Select this page" @checked($pageIds && ! array_diff($pageIds, $selected)) wire:click="toggleAllOnPage({{ json_encode($pageIds) }})"></th>
         {{-- MARKER-PROSPECTS-SORT — click a heading to sort; again to reverse; a third time for the default (due first, then score) --}}
-        @foreach(['shop' => ['Shop', ''], 'contact' => ['Contact', ''], 'industry' => ['Industry', ''], 'loop' => ['Loop', ''], 'priority' => ['Pri', ''], 'verified' => ['Verified', ''], 'score' => ['Score', 'num'], 'rep' => ['Rep', ''], 'stage' => ['Stage', ''], 'next' => ['Next action', ''], 'quote' => ['Quote', 'num']] as $sk => [$sLabel, $sCls])
+        @foreach(['shop' => ['Shop', ''], 'place' => ['Location', ''], 'contact' => ['Contact', ''], 'industry' => ['Industry', ''], 'loop' => ['Loop', ''], 'priority' => ['Pri', ''], 'verified' => ['Verified', ''], 'score' => ['Score', 'num'], 'rep' => ['Rep', ''], 'stage' => ['Stage', ''], 'next' => ['Next action', ''], 'quote' => ['Quote', 'num']] as $sk => [$sLabel, $sCls])
           <th class="sx-sort {{ $sCls }} {{ $sortBy === $sk ? 'on' : '' }}" wire:click="sortList('{{ $sk }}')" title="Sort by {{ strtolower($sLabel) }}">{{ $sLabel }}@if($sortBy === $sk)<span class="sx-arr">{{ $sortDir === 'asc' ? '▲' : '▼' }}</span>@endif</th>
         @endforeach
       </tr></thead>
@@ -226,7 +249,9 @@
           @php $due = $p->next_action_on && $p->next_action_on->toDateString() <= $today; @endphp
           <tr class="r {{ $openId === $p->id ? 'sel' : '' }}" wire:key="l-{{ $p->id }}">
             <td wire:click.stop><input type="checkbox" value="{{ $p->id }}" wire:model.live="selected" aria-label="Select {{ $p->shop }}"></td>
-            <td wire:click="open('{{ $p->id }}')">{{ $p->shop }}<div style="{{ $muted }}">{{ $p->city }}{{ $p->state ? ', ' . $p->state : '' }}</div></td>
+            <td wire:click="open('{{ $p->id }}')">{{ $p->shop }}</td>
+            {{-- MARKER-PROSPECTS-PLACE --}}
+            <td wire:click="open('{{ $p->id }}')" style="white-space:nowrap">{{ $p->city }}{{ $p->state ? ', ' . $p->state : '' }}<div style="{{ $muted }}">{{ $p->postcode }}</div></td>
             {{-- MARKER-SALES-SITE-FILTER — email, phone and socials at a glance; links don't open the drawer --}}
             <td wire:click="open('{{ $p->id }}')" style="font-size:12.5px;line-height:1.5">
               @if($p->email)<a href="mailto:{{ $p->email }}" onclick="event.stopPropagation()" style="color:#a78bfa">{{ $p->email }}</a><br>@endif
@@ -248,7 +273,7 @@
             <td wire:click="open('{{ $p->id }}')" class="num">{{ $p->quote_monthly ? '$' . number_format($p->quote_monthly) : '' }}</td>
           </tr>
         @empty
-          <tr><td colspan="12" style="color:var(--sx-dim);padding:22px 10px">No prospects match these filters.</td></tr>
+          <tr><td colspan="13" style="color:var(--sx-dim);padding:22px 10px">No prospects match these filters.</td></tr>
         @endforelse
       </tbody>
     </table>

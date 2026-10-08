@@ -38,6 +38,8 @@ class SalesPipeline extends Page
     public bool   $hideUntouched = false; // MARKER-PROSPECTS-SORT — off by default: imported shops show
     public string $sortBy  = '';         // MARKER-PROSPECTS-SORT — List view column sort ('' = due first, then score)
     public string $sortDir = 'asc';
+    public array  $states  = [];         // MARKER-PROSPECTS-PLACE — any of these states
+    public string $zip     = '';         // MARKER-PROSPECTS-PLACE — ZIPs or ZIP starts, comma separated
     public string $site        = ''; // MARKER-SALES-SITE-FILTER — what the website pass found
     public bool   $showClosed  = false;
     public string $q           = '';
@@ -106,6 +108,11 @@ class SalesPipeline extends Page
             ->when($this->site === 'brands', fn ($q) => $q->whereNotNull('brands'))
             ->when($this->site === 'nothing', fn ($q) => $q->whereIn('site_scan_status', ['nothing_found', 'unreachable', 'not_shop_site', 'name_mismatch']))
             ->when($this->site === 'unread', fn ($q) => $q->whereNull('site_scanned_at')->whereNotNull('website')->where('website', '!=', ''))
+            // MARKER-PROSPECTS-PLACE
+            ->when($this->states, fn ($q) => $q->whereIn('state', array_values(array_filter(array_map(fn ($s) => strtoupper(substr((string) $s, 0, 2)), $this->states)))))
+            ->when($this->zipTokens(), fn ($q) => $q->where(function ($w) {
+                foreach ($this->zipTokens() as $z) $w->orWhere('postcode', 'like', $z . '%');
+            }))
             ->when($this->hideUntouched && $this->site === '', fn ($q) => $q->where(fn ($w) => $w->where('stage', '!=', 'prospect')->orWhereNotNull('last_contacted_at')->orWhereNotNull('next_action_on')->orWhereNotNull('sales_rep_id')))
             ->when(trim($this->q) !== '', fn ($q) => $q->where(fn ($w) => $w->where('shop', 'like', '%' . trim($this->q) . '%')->orWhere('city', 'like', '%' . trim($this->q) . '%')));
     }
@@ -324,7 +331,7 @@ class SalesPipeline extends Page
     public function updatedIndustryId(): void { session(['sales.industry' => $this->industryId]); $this->listPage = 1; $this->selected = []; }
     public function updated($name): void
     {
-        if (in_array($name, ['q', 'territoryId', 'repId', 'priority', 'dueOnly', 'hideUntouched', 'showClosed', 'site'], true)) {
+        if (in_array(explode('.', $name)[0], ['q', 'territoryId', 'repId', 'priority', 'dueOnly', 'hideUntouched', 'showClosed', 'site', 'states', 'zip'], true)) {
             $this->listPage = 1; $this->selected = [];
         }
     }
@@ -377,7 +384,7 @@ class SalesPipeline extends Page
         $blankLast = fn (string $col) => $q->orderByRaw("CASE WHEN $col IS NULL OR $col = '' THEN 1 ELSE 0 END");
         switch ($this->sortBy) {
             case 'shop':     $q->orderBy('shop', $d); break;
-            case 'place':    $blankLast('state'); $q->orderBy('state', $d)->orderBy('city', $d); break;
+            case 'place':    $blankLast('state'); $q->orderBy('state', $d)->orderBy('city', $d)->orderBy('postcode', $d); break;
             case 'contact':  $q->orderByRaw("(CASE WHEN email IS NULL OR email = '' THEN 0 ELSE 2 END) + (CASE WHEN phone IS NULL OR phone = '' THEN 0 ELSE 1 END) " . ($d === 'asc' ? 'DESC' : 'ASC')); break;
             case 'industry': $q->orderByRaw('CASE WHEN channel_id IS NULL THEN 1 ELSE 0 END')
                                 ->orderByRaw('(SELECT name FROM sales_channels WHERE sales_channels.id = sales_prospects.channel_id) ' . $d); break;
@@ -395,6 +402,24 @@ class SalesPipeline extends Page
         $rows = $q->orderBy('shop')->forPage($this->listPage, self::LIST_PER_PAGE)->get();
         return ['rows' => $rows, 'total' => $total, 'pages' => $pages];
     }
+
+    /** MARKER-PROSPECTS-PLACE — "992, 83814" → ['992', '83814']; digits only, 2 to 5 of them. */
+    public function zipTokens(): array
+    {
+        return array_values(array_unique(array_filter(array_map(
+            fn ($t) => preg_match('/^\d{2,5}$/', $t = preg_replace('/\D/', '', $t)) ? $t : null,
+            preg_split('/[\s,;]+/', $this->zip)
+        ))));
+    }
+
+    /** States that have prospects, with counts, for the state picker. */
+    public function stateCounts(): array
+    {
+        return SalesProspect::query()->whereNotNull('state')->where('state', '!=', '')
+            ->select('state', DB::raw('COUNT(*) n'))->groupBy('state')->orderBy('state')->pluck('n', 'state')->all();
+    }
+
+    public function clearStates(): void { $this->states = []; $this->listPage = 1; $this->selected = []; }
 
     /** MARKER-PROSPECTS-SORT — click a column: sort by it; click again: reverse; a third time: back to the default order. */
     public function sortList(string $key): void
