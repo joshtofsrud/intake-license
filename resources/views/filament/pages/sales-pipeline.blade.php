@@ -126,7 +126,8 @@
   <p class="sx-lede">
     Board and List show the same prospects with the same filters{{ $curInd ? ', limited to ' . $curInd->name : '' }}.
     On the board, drag a shop to another stage; the move is added to its timeline.
-    @if($hideUntouched) Shops nobody has worked yet are hidden. @endif
+    @if($hideUntouched && $site === '') Shops nobody has worked yet are hidden. @endif
+    @if($site !== '') The Website pass filter shows every matching shop, worked or not. @endif
     @if(! $showClosed) Won and lost are hidden. @endif
   </p>
 
@@ -135,6 +136,19 @@
     <select class="sx-in" wire:model.live="territoryId"><option value="">All territories</option><option value="none">No territory</option>@foreach($this->territories() as $t)<option value="{{ $t->id }}">{{ $t->name }}</option>@endforeach</select>
     <select class="sx-in" wire:model.live="repId"><option value="">Any rep</option><option value="none">House (no rep)</option>@foreach($this->reps() as $r)<option value="{{ $r->id }}">{{ $r->name }}</option>@endforeach</select>
     <select class="sx-in" wire:model.live="priority"><option value="">Any priority</option>@foreach(\App\Models\SalesProspect::PRIORITIES as $k => $v)<option value="{{ $k }}">{{ $v }}</option>@endforeach</select>
+    {{-- MARKER-SALES-SITE-FILTER --}}
+    <select class="sx-in" wire:model.live="site">
+      <option value="">Any contact info</option>
+      <option value="found">Website pass found something</option>
+      <option value="email">Has email</option>
+      <option value="phone">Has phone</option>
+      <option value="instagram">Has Instagram</option>
+      <option value="facebook">Has Facebook</option>
+      <option value="owner">Has owner name</option>
+      <option value="brands">Has brands</option>
+      <option value="nothing">Website read, nothing usable</option>
+      <option value="unread">Website not read yet</option>
+    </select>
     <label class="sx-tog"><input type="checkbox" wire:model.live="dueOnly"> Due today</label>
     <label class="sx-tog"><input type="checkbox" wire:model.live="hideUntouched"> Hide untouched</label>
     <label class="sx-tog"><input type="checkbox" wire:model.live="showClosed"> Show won and lost</label>
@@ -197,7 +211,7 @@
     <table class="sx-t">
       <thead><tr>
         <th style="width:28px"><input type="checkbox" aria-label="Select this page" @checked($pageIds && ! array_diff($pageIds, $selected)) wire:click="toggleAllOnPage({{ json_encode($pageIds) }})"></th>
-        <th>Shop</th><th>Industry</th><th>Loop</th><th>Pri</th><th>Verified</th><th class="num">Score</th><th>Rep</th><th>Stage</th><th>Next action</th><th class="num">Quote</th>
+        <th>Shop</th><th>Contact</th><th>Industry</th><th>Loop</th><th>Pri</th><th>Verified</th><th class="num">Score</th><th>Rep</th><th>Stage</th><th>Next action</th><th class="num">Quote</th>
       </tr></thead>
       <tbody>
         @forelse($list['rows'] as $p)
@@ -205,6 +219,16 @@
           <tr class="r {{ $openId === $p->id ? 'sel' : '' }}" wire:key="l-{{ $p->id }}">
             <td wire:click.stop><input type="checkbox" value="{{ $p->id }}" wire:model.live="selected" aria-label="Select {{ $p->shop }}"></td>
             <td wire:click="open('{{ $p->id }}')">{{ $p->shop }}<div style="{{ $muted }}">{{ $p->city }}{{ $p->state ? ', ' . $p->state : '' }}</div></td>
+            {{-- MARKER-SALES-SITE-FILTER — email, phone and socials at a glance; links don't open the drawer --}}
+            <td wire:click="open('{{ $p->id }}')" style="font-size:12.5px;line-height:1.5">
+              @if($p->email)<a href="mailto:{{ $p->email }}" onclick="event.stopPropagation()" style="color:#a78bfa">{{ $p->email }}</a><br>@endif
+              @if($p->phone)<span>{{ $p->phone }}</span><br>@endif
+              @php $soc = (array) ($p->socials ?? []); @endphp
+              @foreach(['instagram' => 'Instagram', 'facebook' => 'Facebook'] as $net => $netName)
+                @if(! empty($soc[$net]))<a href="{{ $soc[$net] }}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="color:#a78bfa;margin-right:8px">{{ $netName }}</a>@endif
+              @endforeach
+              @if(! $p->email && ! $p->phone && empty($soc['instagram']) && empty($soc['facebook']))<span style="color:var(--sx-dim)">—</span>@endif
+            </td>
             <td wire:click="open('{{ $p->id }}')" style="color:var(--sx-dim)">{{ $p->channel?->name ?? 'None' }}</td>
             <td wire:click="open('{{ $p->id }}')" style="color:var(--sx-dim)">{{ $p->loop ? 'L' . $p->loop : '' }}</td>
             <td wire:click="open('{{ $p->id }}')"><span style="{{ $pri[$p->priority] ?? '' }};font-weight:700;font-size:12px">{{ $p->priority }}</span></td>
@@ -216,7 +240,7 @@
             <td wire:click="open('{{ $p->id }}')" class="num">{{ $p->quote_monthly ? '$' . number_format($p->quote_monthly) : '' }}</td>
           </tr>
         @empty
-          <tr><td colspan="11" style="color:var(--sx-dim);padding:22px 10px">No prospects match these filters.</td></tr>
+          <tr><td colspan="12" style="color:var(--sx-dim);padding:22px 10px">No prospects match these filters.</td></tr>
         @endforelse
       </tbody>
     </table>
@@ -330,6 +354,11 @@
           <b>Address</b><span>{{ $cur->address ?: '—' }}{{ $cur->postcode ? ' ' . $cur->postcode : '' }}</span>
           <b>Phone</b><span>{{ $cur->phone ?: '—' }}</span>
           <b>Website</b><span>@if($cur->website)<a href="{{ $cur->website }}" target="_blank" rel="noopener" style="color:#a78bfa">{{ parse_url($cur->website, PHP_URL_HOST) ?: $cur->website }}</a>@else — @endif</span>
+          {{-- MARKER-SALES-SITE-FILTER — what the website pass found --}}
+          <b>Socials</b><span>@php $curSoc = (array) ($cur->socials ?? []); @endphp
+            @forelse($curSoc as $net => $url)<a href="{{ $url }}" target="_blank" rel="noopener" style="color:#a78bfa;margin-right:10px">{{ ['instagram' => 'Instagram', 'facebook' => 'Facebook', 'strava' => 'Strava', 'youtube' => 'YouTube', 'tiktok' => 'TikTok', 'x' => 'X'][$net] ?? ucfirst($net) }}</a>@empty — @endforelse</span>
+          <b>Brands</b><span>{{ $cur->brands ? implode(', ', (array) $cur->brands) : '—' }}</span>
+          <b>Website pass</b><span style="color:var(--sx-dim)">@if($cur->site_scanned_at){{ ['ok' => 'Read', 'nothing_found' => 'Read, nothing usable', 'unreachable' => "Site didn't answer", 'not_shop_site' => "Link isn't the shop's own site", 'name_mismatch' => "Site doesn't mention this shop", 'social_only' => 'Link is a social page', 'no_site' => 'No website', 'error' => 'Could not read'][$cur->site_scan_status] ?? $cur->site_scan_status }} · {{ $cur->site_scanned_at->diffForHumans() }}@else Not read yet @endif</span>
           <b>Hours</b><span>{{ $cur->hours ?: '—' }}</span>
           <b>Google</b><span>@if($cur->rating)★ {{ $cur->rating }} · {{ $cur->rating_count }} reviews @else — @endif @if($cur->business_status && $cur->business_status !== 'OPERATIONAL') · <span style="color:#f87171">{{ $cur->businessStatusLabel() }}</span>@endif @if($cur->google_maps_url) · <a href="{{ $cur->google_maps_url }}" target="_blank" rel="noopener" style="color:#a78bfa">map</a>@endif</span>
           <b>Type</b><span>{{ $cur->type ?: ($cur->primary_type ? str_replace('_', ' ', $cur->primary_type) : '—') }}</span>

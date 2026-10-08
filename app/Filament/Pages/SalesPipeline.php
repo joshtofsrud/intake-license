@@ -36,6 +36,7 @@ class SalesPipeline extends Page
     public string $priority    = '';
     public bool   $dueOnly     = false;
     public bool   $hideUntouched = true;
+    public string $site        = ''; // MARKER-SALES-SITE-FILTER — what the website pass found
     public bool   $showClosed  = false;
     public string $q           = '';
 
@@ -91,7 +92,17 @@ class SalesPipeline extends Page
             ->when($this->repId && $this->repId !== 'none', fn ($q) => $q->where('sales_rep_id', $this->repId))
             ->when($this->priority, fn ($q) => $q->where('priority', $this->priority))
             ->when($this->dueOnly, fn ($q) => $q->whereNotNull('next_action_on')->whereDate('next_action_on', '<=', now()))
-            ->when($this->hideUntouched, fn ($q) => $q->where(fn ($w) => $w->where('stage', '!=', 'prospect')->orWhereNotNull('last_contacted_at')->orWhereNotNull('next_action_on')->orWhereNotNull('sales_rep_id')))
+            // MARKER-SALES-SITE-FILTER — a Website pass filter shows untouched shops too; that's the point of it
+            ->when($this->site === 'found', fn ($q) => $q->where(fn ($w) => $w->where(fn ($e) => $e->whereNotNull('email')->where('email', '!=', ''))->orWhereNotNull('socials')->orWhereNotNull('brands')))
+            ->when($this->site === 'email', fn ($q) => $q->whereNotNull('email')->where('email', '!=', ''))
+            ->when($this->site === 'phone', fn ($q) => $q->whereNotNull('phone')->where('phone', '!=', ''))
+            ->when($this->site === 'instagram', fn ($q) => $q->whereNotNull('socials->instagram'))
+            ->when($this->site === 'facebook', fn ($q) => $q->whereNotNull('socials->facebook'))
+            ->when($this->site === 'owner', fn ($q) => $q->whereNotNull('owner_contact')->where('owner_contact', '!=', ''))
+            ->when($this->site === 'brands', fn ($q) => $q->whereNotNull('brands'))
+            ->when($this->site === 'nothing', fn ($q) => $q->whereIn('site_scan_status', ['nothing_found', 'unreachable', 'not_shop_site', 'name_mismatch']))
+            ->when($this->site === 'unread', fn ($q) => $q->whereNull('site_scanned_at')->whereNotNull('website')->where('website', '!=', ''))
+            ->when($this->hideUntouched && $this->site === '', fn ($q) => $q->where(fn ($w) => $w->where('stage', '!=', 'prospect')->orWhereNotNull('last_contacted_at')->orWhereNotNull('next_action_on')->orWhereNotNull('sales_rep_id')))
             ->when(trim($this->q) !== '', fn ($q) => $q->where(fn ($w) => $w->where('shop', 'like', '%' . trim($this->q) . '%')->orWhere('city', 'like', '%' . trim($this->q) . '%')));
     }
 
@@ -309,7 +320,7 @@ class SalesPipeline extends Page
     public function updatedIndustryId(): void { session(['sales.industry' => $this->industryId]); $this->listPage = 1; $this->selected = []; }
     public function updated($name): void
     {
-        if (in_array($name, ['q', 'territoryId', 'repId', 'priority', 'dueOnly', 'hideUntouched', 'showClosed'], true)) {
+        if (in_array($name, ['q', 'territoryId', 'repId', 'priority', 'dueOnly', 'hideUntouched', 'showClosed', 'site'], true)) {
             $this->listPage = 1; $this->selected = [];
         }
     }
@@ -342,7 +353,7 @@ class SalesPipeline extends Page
     /** How many prospects "Hide untouched" is hiding right now. */
     public function hiddenCount(): int
     {
-        if (! $this->hideUntouched) return 0;
+        if (! $this->hideUntouched || $this->site !== '') return 0; // MARKER-SALES-SITE-FILTER
         $was = $this->hideUntouched;
         $this->hideUntouched = false;
         $all = (clone $this->baseQuery())->when(! $this->showClosed, fn ($q) => $q->open())->count();
