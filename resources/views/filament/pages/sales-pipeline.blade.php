@@ -55,6 +55,10 @@
   .sx-t td.sx-shop { white-space:normal; min-width:170px; max-width:260px; }
   .sx-t td.sx-contact { line-height:1.55; }
   .sx-t td.sx-contact a { margin-right:10px; }
+  /* MARKER-PROSPECTS-WEB — globe that opens the shop's website */
+  .sx-t td.sx-web { width:34px; padding-left:4px; padding-right:4px; }
+  .sx-t td.sx-web a { display:inline-flex; width:26px; height:26px; align-items:center; justify-content:center; border-radius:6px; color:var(--sx-dim); }
+  .sx-t td.sx-web a:hover { color:#fff; background:rgba(255,255,255,.08); }
   .sx-count { margin-left:auto; color:var(--sx-faint); font-size:12.5px; }
   .sx-hidden { display:flex; gap:14px; align-items:center; padding:12px 0; border-bottom:1px solid var(--sx-line); font-size:13.5px; color:var(--sx-dim); }
   .sx-hidden b { color:#fff; }
@@ -257,8 +261,12 @@
       <thead><tr>
         <th style="width:28px"><input type="checkbox" aria-label="Select this page" @checked($pageIds && ! array_diff($pageIds, $selected)) wire:click="toggleAllOnPage({{ json_encode($pageIds) }})"></th>
         {{-- MARKER-PROSPECTS-SORT — click a heading to sort; again to reverse; a third time for the default (due first, then score) --}}
-        @foreach(['shop' => ['Shop', ''], 'place' => ['Location', ''], 'contact' => ['Contact', ''], 'industry' => ['Industry', ''], 'loop' => ['Loop', ''], 'priority' => ['Pri', ''], 'verified' => ['Verified', ''], 'score' => ['Score', 'num'], 'rep' => ['Rep', ''], 'stage' => ['Stage', ''], 'next' => ['Next action', ''], 'quote' => ['Quote', 'num']] as $sk => [$sLabel, $sCls])
+        @foreach(['shop' => ['Shop', ''], 'web' => ['', ''], 'place' => ['Location', ''], 'contact' => ['Contact', ''], 'industry' => ['Industry', ''], 'loop' => ['Loop', ''], 'priority' => ['Pri', ''], 'verified' => ['Verified', ''], 'score' => ['Score', 'num'], 'rep' => ['Rep', ''], 'stage' => ['Stage', ''], 'next' => ['Next action', ''], 'quote' => ['Quote', 'num']] as $sk => [$sLabel, $sCls])
           @continue(($sk === 'loop' && ! $hasLoop) || ($sk === 'industry' && $industryId))
+          @if($sk === 'web')
+            <th style="width:34px" title="Website"></th>
+            @continue
+          @endif
           <th class="sx-sort {{ $sCls }} {{ $sortBy === $sk ? 'on' : '' }}" wire:click="sortList('{{ $sk }}')" title="Sort by {{ strtolower($sLabel) }}">{{ $sLabel }}@if($sortBy === $sk)<span class="sx-arr">{{ $sortDir === 'asc' ? '▲' : '▼' }}</span>@endif</th>
         @endforeach
       </tr></thead>
@@ -268,6 +276,8 @@
           <tr class="r {{ $openId === $p->id ? 'sel' : '' }}" wire:key="l-{{ $p->id }}">
             <td wire:click.stop><input type="checkbox" value="{{ $p->id }}" wire:model.live="selected" aria-label="Select {{ $p->shop }}"></td>
             <td wire:click="open('{{ $p->id }}')" class="sx-shop">{{ $p->shop }}</td>
+            {{-- MARKER-PROSPECTS-WEB — opens in a new tab; doesn't open the shop's panel --}}
+            <td class="sx-web">@if($p->website)<a href="{{ preg_match('#^https?://#i', $p->website) ? $p->website : 'https://' . $p->website }}" target="_blank" rel="noopener noreferrer" title="Open {{ parse_url(preg_match('#^https?://#i', $p->website) ? $p->website : 'https://' . $p->website, PHP_URL_HOST) ?: 'website' }}" onclick="event.stopPropagation()"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/></svg></a>@endif</td>
             {{-- MARKER-PROSPECTS-PLACE --}}
             <td wire:click="open('{{ $p->id }}')" style="white-space:nowrap">{{ $p->city }}{{ $p->state ? ', ' . $p->state : '' }}<div style="{{ $muted }}">{{ $p->postcode }}</div></td>
             {{-- MARKER-SALES-SITE-FILTER — email, phone and socials at a glance; links don't open the drawer --}}
@@ -291,7 +301,7 @@
             <td wire:click="open('{{ $p->id }}')" class="num">{{ $p->quote_monthly ? '$' . number_format($p->quote_monthly) : '' }}</td>
           </tr>
         @empty
-          <tr><td colspan="13" style="color:var(--sx-dim);padding:22px 10px">No prospects match these filters.</td></tr>
+          <tr><td colspan="14" style="color:var(--sx-dim);padding:22px 10px">No prospects match these filters.</td></tr>
         @endforelse
       </tbody>
     </table>
