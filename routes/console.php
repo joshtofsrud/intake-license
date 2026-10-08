@@ -297,7 +297,7 @@ Schedule::command('seo:check')
     ->withoutOverlapping();
 
 // website pass over prospects; Pause/Resume on Find shops.
-Schedule::command('sales:scan-sites --limit=80')
+Schedule::command('sales:scan-sites')   // how many per run: Speed on Find shops
     ->everyFiveMinutes()
-    ->withoutOverlapping(30)
+    ->withoutOverlapping(60)
     ->runInBackground();

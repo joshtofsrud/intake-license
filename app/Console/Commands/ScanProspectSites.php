@@ -14,12 +14,15 @@ use Illuminate\Console\Command;
 class ScanProspectSites extends Command
 {
     protected $signature = 'sales:scan-sites
-        {--limit=80 : Prospects to read this run}
+        {--limit= : Prospects to read this run (default: the Speed set on Find shops)}
         {--id= : Read just this prospect (ignores pause)}
         {--rescan : Include prospects already read}
         {--force : Run even while paused}';
 
     protected $description = "Read prospects' websites for email, socials, owner and brands";
+
+    /** Shops per five-minute run, by the Speed picked on Find shops. */
+    public const SPEEDS = ['normal' => 80, 'fast' => 250, 'max' => 600];
 
     public function handle(SiteScanner $scanner): int
     {
@@ -37,7 +40,8 @@ class ScanProspectSites extends Command
             if (! $this->option('rescan')) $q->whereNull('site_scanned_at');
             $q->orderByRaw("CASE priority WHEN 'A' THEN 0 WHEN 'B' THEN 1 WHEN 'C' THEN 2 ELSE 3 END")->orderBy('created_at');
         }
-        $rows = $q->limit(max(1, (int) $this->option('limit')))->get();
+        $limit = (int) ($this->option('limit') ?: (self::SPEEDS[SalesSetting::get('site_scan_speed', 'normal')] ?? 80));
+        $rows = $q->limit(max(1, $limit))->get();
         if ($rows->isEmpty()) { $this->line('Nothing left to read.'); return self::SUCCESS; }
 
         $tally = [];

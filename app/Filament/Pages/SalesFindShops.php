@@ -109,6 +109,13 @@ class SalesFindShops extends Page
         ];
     }
 
+    public function setScanSpeed(string $speed): void
+    {
+        if (! isset(\App\Console\Commands\ScanProspectSites::SPEEDS[$speed])) return;
+        \App\Models\SalesSetting::put('site_scan_speed', $speed);
+        Notification::make()->title('Website pass speed: ' . \App\Console\Commands\ScanProspectSites::SPEEDS[$speed] . ' shops every five minutes')->success()->send();
+    }
+
     public function toggleSiteScan(): void
     {
         $paused = \App\Models\SalesSetting::get('site_scan_paused') === '1';
