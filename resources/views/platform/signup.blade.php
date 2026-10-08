@@ -35,6 +35,13 @@
     .su-subdomain-wrap input{margin-bottom:0;padding-right:140px}
     .su-subdomain-suffix{position:absolute;right:12px;top:50%;transform:translateY(-50%);font-size:13px;color:var(--muted);pointer-events:none;white-space:nowrap}
     .su-subdomain-status{font-size:12px;margin-top:5px;min-height:16px;transition:color .15s}
+    /* MARKER-SIGNUP-DOMAIN-TIP */
+    .su-tip{position:relative;display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;margin-left:6px;border-radius:50%;
+      border:1px solid currentColor;font-size:10px;font-weight:600;font-style:normal;text-transform:none;letter-spacing:0;cursor:help;vertical-align:1px;opacity:.75;outline:none}
+    .su-tip:hover,.su-tip:focus{opacity:1}
+    .su-tip span{display:none;position:absolute;left:50%;bottom:calc(100% + 8px);transform:translateX(-50%);width:240px;padding:9px 11px;border-radius:8px;
+      background:#1c1c1f;border:1px solid rgba(255,255,255,.14);box-shadow:0 10px 30px rgba(0,0,0,.45);color:#e8e8ea;font-size:12px;font-weight:400;line-height:1.45;z-index:20}
+    .su-tip:hover span,.su-tip:focus span{display:block}
     .su-subdomain-status.avail{color:var(--accent)}
     .su-subdomain-status.taken{color:#F09595}
     .su-subdomain-status.checking{color:var(--muted)}
@@ -101,7 +108,7 @@
       <input type="text" name="shop_name" id="shop-name" value="{{ old('shop_name', ($invite ?? null)?->shop ?? '') }}" required
         placeholder="Spokes Cycle Works" autocomplete="organization">
 
-      <label>Your booking URL *</label>
+      <label>Your booking URL * <i class="su-tip" tabindex="0" aria-label="About your booking URL">i<span>You can connect your own domain, like yourshop.com, any time later in Settings. This address keeps working either way.</span></i></label>
       <div class="su-subdomain-wrap">
         <input type="text" name="subdomain" id="subdomain-input" value="{{ old('subdomain') }}" required
           placeholder="spokes" autocomplete="off" {{ $errors->has('subdomain') ? 'class=err' : '' }}>
@@ -183,6 +190,15 @@ document.getElementById('subdomain-input').addEventListener('input', function() 
   this._userEdited = true;
   checkSubdomain(this.value);
 });
+
+// MARKER-SIGNUP-DOMAIN-TIP — a shop name already filled in (from an invite, or the
+// form coming back with errors) suggests the URL straight away; before this the
+// URL box stayed empty until the shop name was edited.
+(function () {
+  var shop = document.getElementById('shop-name'), inp = document.getElementById('subdomain-input');
+  if (shop && inp && shop.value.trim() !== '' && inp.value.trim() === '') shop.dispatchEvent(new Event('input'));
+  else if (inp && inp.value.trim() !== '') checkSubdomain(inp.value);
+})();
 
 function checkSubdomain(val) {
   val = val.toLowerCase().trim();
