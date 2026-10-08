@@ -3,7 +3,6 @@
 namespace App\Filament\Pages;
 
 use App\Models\SalesProspect;
-use App\Models\SalesSetting;
 use App\Support\AdminAccess;
 use Filament\Pages\Page;
 use Illuminate\Support\Facades\Auth;
@@ -12,8 +11,9 @@ use Illuminate\Support\Facades\Auth;
  * MARKER-IG-QUEUE: Instagram follows. One prospect at a time: Open loads
  * their profile in a fixed popup window beside this page, and a PERSON taps
  * Follow there. Nothing here follows anyone; Instagram bans automated
- * follows. Opening marks the prospect followed and logs it on the timeline;
- * a daily cap keeps the account under Instagram's radar.
+ * follows. Opening marks the prospect followed and logs it on the timeline.
+ * MARKER-IG-PACE: no cap; a warning shows when more than PACE_WARN follows
+ * land within the last hour, since bursts are what Instagram blocks.
  */
 class SalesInstagramFollows extends Page
 {
@@ -26,9 +26,8 @@ class SalesInstagramFollows extends Page
     protected static ?string $slug            = 'sales-instagram';
     protected static ?string $title           = 'Instagram follows';
 
-    public const CAP_KEY = 'ig_follow_cap';
-    public const CAPS = [15, 20, 25, 30];
-    // the cap's "day" runs on Pacific time, not the server clock
+    public const PACE_WARN = 20; // follows in the last 60 minutes before the warning shows
+    // "today" runs on Pacific time, not the server clock
     public const TZ = 'America/Los_Angeles';
 
     private static function dayStart()
@@ -41,7 +40,6 @@ class SalesInstagramFollows extends Page
     public string $stage = '';
     public string $sort = 'score';
     public bool   $withRep = false;
-    public int    $cap = 25;
 
     public static function canAccess(): bool
     {
@@ -51,15 +49,6 @@ class SalesInstagramFollows extends Page
     public function mount(): void
     {
         abort_unless(static::canAccess(), 403);
-        $c = (int) (SalesSetting::get(self::CAP_KEY) ?? 25);
-        $this->cap = in_array($c, self::CAPS, true) ? $c : 25;
-    }
-
-    public function updatedCap($v): void
-    {
-        $v = (int) $v;
-        $this->cap = in_array($v, self::CAPS, true) ? $v : 25;
-        SalesSetting::put(self::CAP_KEY, (string) $this->cap);
     }
 
     /** Prospects with an Instagram link, open, not followed yet. */
@@ -106,7 +95,7 @@ class SalesInstagramFollows extends Page
         $today = SalesProspect::query()->whereNotNull('ig_followed_at')->where('ig_followed_at', '>=', self::dayStart())->count();
         return [
             'today' => $today,
-            'left'  => max(0, $this->cap - $today),
+            'hour'  => SalesProspect::query()->where('ig_followed_at', '>=', now()->subHour())->count(),
             'queue' => (clone $this->filtered())->count(),
             'all'   => SalesProspect::query()->whereNotNull('ig_followed_at')->count(),
         ];
@@ -139,7 +128,6 @@ class SalesInstagramFollows extends Page
     /** Called right after the popup opens (the click itself opened it). */
     public function followed(string $id): void
     {
-        if ($this->stats()['left'] <= 0) { return; }
         $p = SalesProspect::find($id);
         if (! $p || $p->ig_followed_at) { return; }
         $p->forceFill(['ig_followed_at' => now(), 'ig_skipped_at' => null])->save();

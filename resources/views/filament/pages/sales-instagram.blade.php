@@ -6,7 +6,7 @@
     $next  = $q->first();
     $rest  = $q->slice(1);
     $done  = $this->followedToday();
-    $capped = $st['left'] <= 0;
+    $fast   = $st['hour'] > \App\Filament\Pages\SalesInstagramFollows::PACE_WARN;
 @endphp
 
 <x-filament-panels::page>
@@ -48,6 +48,8 @@
   .ig-keys kbd { font-family:inherit; border:1px solid var(--sx-line-2); border-radius:4px; padding:0 5px; font-size:11px; color:var(--sx-dim); }
   .ig-cols { display:grid; grid-template-columns:1.6fr 1fr; gap:32px; }
   .ig-cols > section { min-width:0; }
+  .ig-warn { margin-top:16px; padding:10px 14px; border:1px solid rgba(244,124,124,.45); border-radius:8px; color:#f47c7c; font-size:13px; line-height:1.5; }
+  .ig-warn b { color:#f47c7c; }
   .ig-h2 { font-size:13px; font-weight:600; color:var(--sx-dim); margin:22px 0 4px; }
   @media (max-width:760px) { .ig-cols { grid-template-columns:1fr; gap:8px; } }
 </style>
@@ -81,18 +83,22 @@
 
     <div class="sx-tally">
         <div><b class="lime">{{ $st['today'] }}</b>followed today</div>
-        <div><b>{{ $st['left'] }}</b>left today (cap {{ $cap }})</div>
+        <div><b style="{{ $fast ? 'color:#f47c7c' : '' }}">{{ $st['hour'] }}</b>in the last hour</div>
         <div><b>{{ number_format($st['queue']) }}</b>in the queue</div>
         <div><b>{{ number_format($st['all']) }}</b>followed all time</div>
     </div>
 
-    <p class="sx-lede"><b>What this does:</b> Open loads each prospect's Instagram profile in one window beside this page. <b>You</b> tap Follow there — nothing here follows anyone automatically. Opening marks the prospect followed and logs it on their timeline; Undo if you didn't follow. The daily cap stops the queue so Instagram never sees a burst. Not affected: email, lead score, stage.</p>
+    <p class="sx-lede"><b>What this does:</b> Open loads each prospect's Instagram profile in one window beside this page. <b>You</b> tap Follow there — nothing here follows anyone automatically. Opening marks the prospect followed and logs it on their timeline; Undo if you didn't follow. A warning shows when more than {{ \App\Filament\Pages\SalesInstagramFollows::PACE_WARN }} follows land in an hour, since bursts are what Instagram blocks. Not affected: email, lead score, stage.</p>
+
+    @if ($fast)
+        {{-- MARKER-IG-PACE --}}
+        <div class="ig-warn" wire:poll.60s>
+            <b>Slow down:</b> {{ $st['hour'] }} follows in the last hour. Instagram action-blocks accounts that follow in bursts — take a break before the next one. This clears by itself as the hour rolls over.
+        </div>
+    @endif
 
     <div class="ig-next">
-        @if ($capped)
-            <div class="ig-k">Done for today</div>
-            <div class="ig-sub">You've reached today's cap of {{ $cap }}. The queue opens again tomorrow.</div>
-        @elseif (! $next)
+        @if (! $next)
             <div class="ig-k">Queue empty</div>
             <div class="ig-sub">Every prospect here with an Instagram link has been followed.</div>
         @else
@@ -127,11 +133,6 @@
             <option value="new">Newest first</option>
         </select>
         <label class="sx-tog"><input type="checkbox" wire:model.live="withRep"> Only with a rep assigned</label>
-        <span class="sx-count">Daily cap
-            <select class="sx-in" wire:model.live="cap">
-                @foreach (\App\Filament\Pages\SalesInstagramFollows::CAPS as $c)<option value="{{ $c }}">{{ $c }}</option>@endforeach
-            </select>
-        </span>
     </div>
 
     <div class="ig-cols">
