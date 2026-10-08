@@ -301,3 +301,12 @@ Schedule::command('sales:scan-sites')   // how many per run: Speed on Find shops
     ->everyFiveMinutes()
     ->withoutOverlapping(60)
     ->runInBackground();
+
+// ----------------------------------------------------------------
+// MARKER-OPTION-FIELDS: clean option values (casing, compound, bead,
+// TPI) on catalog rows changed since last read, for the register picker.
+// ----------------------------------------------------------------
+Schedule::command('catalog:spec-attrs')
+    ->hourlyAt(20)
+    ->withoutOverlapping()
+    ->runInBackground();

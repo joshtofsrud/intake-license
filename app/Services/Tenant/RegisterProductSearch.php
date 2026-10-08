@@ -69,7 +69,7 @@ class RegisterProductSearch
         // the shop's own name leaves them out): one lookup by key.
         $catIds = $all->pluck('distributor_catalog_id')->filter()->unique()->values()->all();
         $cats = $catIds
-            ? DB::table('platform_distributor_catalogs')->whereIn('id', $catIds)->get(['id', 'manufacturer', 'display_name', 'category_path'])->keyBy('id')->all()
+            ? DB::table('platform_distributor_catalogs')->whereIn('id', $catIds)->get(['id', 'manufacturer', 'display_name', 'category_path', 'spec_attrs'])->keyBy('id')->all()
             : [];
         foreach ($all as $r) {
             $cat = $cats[$r->distributor_catalog_id] ?? null;
@@ -78,6 +78,7 @@ class RegisterProductSearch
                 : trim((string) ($cat->manufacturer ?? ''));
             $r->cat_title = (string) ($cat->display_name ?? '');
             $r->cat_path  = (string) ($cat->category_path ?? ''); // MARKER-OPTION-SPLIT
+            $r->spec      = ($cat && $cat->spec_attrs !== null) ? (json_decode((string) $cat->spec_attrs, true) ?: []) : null; // MARKER-OPTION-FIELDS
         }
 
         // Suppliers (and their part numbers) per matched item: one lookup.
@@ -488,7 +489,10 @@ class RegisterProductSearch
         // Option splitting) out of a run-together Version.
         $catPath = '';
         foreach ($items as $r) { if (($r->cat_path ?? '') !== '') { $catPath = (string) $r->cat_path; break; } }
-        [$variants, $attrs, $attrNames] = \App\Support\VariantSplitter::apply($variants, $attrs, $catPath);
+        // MARKER-OPTION-FIELDS: values from each item's catalog row where it has one
+        $specById = [];
+        foreach ($items as $r) { if (is_array($r->spec ?? null)) { $specById[$r->id] = $r->spec; } }
+        [$variants, $attrs, $attrNames] = \App\Support\VariantSplitter::apply($variants, $attrs, $catPath, $specById);
 
         return ['title' => $title, 'brand' => (string) ($first->brand ?? ''), 'rows' => $rows,
                 'variants' => $variants, 'attrs' => $attrs, 'attr_names' => $attrNames];

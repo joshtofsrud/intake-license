@@ -2033,16 +2033,19 @@ function regGroupsHtml(data, push, rowHtml) {
 // Values for one attribute. The first attribute (usually size) lists every
 // value; each later one only what fits the choices above it.
 function regPickerOptions(state, attr) {
-  const others = state.attrs.slice(0, state.attrs.indexOf(attr));
+  // MARKER-OPTION-FIELDS: only values that exist for the chosen first option
+  // (usually size), each with the stock of its best variant. No greyed
+  // "other options": choosing one moves the other dropdowns to fit.
+  const anchor = state.attrs[0];
+  const pool = attr === anchor ? state.vars
+    : state.vars.filter(v => (v[anchor] || '') === (state.cur[anchor] || ''));
   const vals = {};
-  state.vars.forEach(v => {
+  pool.forEach(v => {
     const key = v[attr] || '—';
-    const fits = others.every(o => (v[o] || '') === (state.cur[o] || ''));
-    const o = vals[key] || (vals[key] = { value: key, fits: false, best: null });
-    if (fits) { o.fits = true; if (!o.best || v.st.n > o.best.st.n || (o.best.st.cls !== 'in' && v.st.cls === 'in')) { o.best = v; } }
-    if (!o.any) { o.any = v; }
+    const o = vals[key] || (vals[key] = { value: key, fits: true, best: null, any: v });
+    if (!o.best || (o.best.st.cls !== 'in' && v.st.cls === 'in') || (o.best.st.cls === v.st.cls && v.st.n > o.best.st.n)) { o.best = v; }
   });
-  return Object.values(vals).sort((a, b) => b.fits - a.fits); // what fits the size first
+  return Object.values(vals);
 }
 
 function regPickerRender(gid) {
@@ -2093,15 +2096,22 @@ function regPickerToggle(gid, open) {
 }
 
 function regPickerChoose(gid, attr, val) {
+  // MARKER-OPTION-FIELDS: the variant with this value that keeps the most of
+  // the other choices, then the best stocked. The first option stays put
+  // unless it is the one being changed.
   const state = regPickers[gid];
   if (!state) { return; }
-  const want = Object.assign({}, state.cur, { [attr]: val === '—' ? '' : val });
-  const upto = state.attrs.slice(0, state.attrs.indexOf(attr) + 1);
-  const exact = state.vars.filter(v => state.attrs.every(a => (v[a] || '') === (want[a] || '')));
-  const loose = state.vars.filter(v => upto.every(a => (v[a] || '') === (want[a] || '')));
-  const pool = exact.length ? exact : loose;
+  const want = val === '—' ? '' : val;
+  const anchor = state.attrs[0];
+  let pool = state.vars.filter(v => (v[attr] || '') === want);
+  if (attr !== anchor) {
+    const same = pool.filter(v => (v[anchor] || '') === (state.cur[anchor] || ''));
+    if (same.length) { pool = same; }
+  }
   if (!pool.length) { return; }
-  state.cur = pool.slice().sort((a, b) => (b.st.cls === 'in') - (a.st.cls === 'in') || b.st.n - a.st.n)[0];
+  const keep = v => state.attrs.reduce((n, a) => n + ((v[a] || '') === (state.cur[a] || '') ? 1 : 0), 0);
+  state.cur = pool.slice().sort((a, b) => keep(b) - keep(a)
+    || (b.st.cls === 'in') - (a.st.cls === 'in') || b.st.n - a.st.n)[0];
   regPickerRender(gid);
 }
 
