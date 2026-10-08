@@ -39,7 +39,8 @@ class SalesPipeline extends Page
     public string $sortBy  = '';         // MARKER-PROSPECTS-SORT — List view column sort ('' = due first, then score)
     public string $sortDir = 'asc';
     public array  $states  = [];         // MARKER-PROSPECTS-PLACE — any of these states
-    public string $zip     = '';         // MARKER-PROSPECTS-PLACE — ZIPs or ZIP starts, comma separated
+    public string $zip     = '';
+    public array  $brandsSel = [];       // MARKER-PROSPECTS-BRANDS — shops carrying any of these         // MARKER-PROSPECTS-PLACE — ZIPs or ZIP starts, comma separated
     public string $site        = ''; // MARKER-SALES-SITE-FILTER — what the website pass found
     public bool   $showClosed  = false;
     public string $q           = '';
@@ -109,6 +110,9 @@ class SalesPipeline extends Page
             ->when($this->site === 'nothing', fn ($q) => $q->whereIn('site_scan_status', ['nothing_found', 'unreachable', 'not_shop_site', 'name_mismatch']))
             ->when($this->site === 'unread', fn ($q) => $q->whereNull('site_scanned_at')->whereNotNull('website')->where('website', '!=', ''))
             // MARKER-PROSPECTS-PLACE
+            ->when($this->brandsSel, fn ($q) => $q->where(function ($w) {  // MARKER-PROSPECTS-BRANDS
+                foreach (array_slice(array_values(array_filter(array_map('strval', $this->brandsSel))), 0, 40) as $b) $w->orWhereJsonContains('brands', $b);
+            }))
             ->when($this->states, fn ($q) => $q->whereIn('state', array_values(array_filter(array_map(fn ($s) => strtoupper(substr((string) $s, 0, 2)), $this->states)))))
             ->when($this->zipTokens(), fn ($q) => $q->where(function ($w) {
                 foreach ($this->zipTokens() as $z) $w->orWhere('postcode', 'like', $z . '%');
@@ -331,7 +335,7 @@ class SalesPipeline extends Page
     public function updatedIndustryId(): void { session(['sales.industry' => $this->industryId]); $this->listPage = 1; $this->selected = []; }
     public function updated($name): void
     {
-        if (in_array(explode('.', $name)[0], ['q', 'territoryId', 'repId', 'priority', 'dueOnly', 'hideUntouched', 'showClosed', 'site', 'states', 'zip'], true)) {
+        if (in_array(explode('.', $name)[0], ['q', 'territoryId', 'repId', 'priority', 'dueOnly', 'hideUntouched', 'showClosed', 'site', 'states', 'zip', 'brandsSel'], true)) {
             $this->listPage = 1; $this->selected = [];
         }
     }
@@ -418,6 +422,24 @@ class SalesPipeline extends Page
         return SalesProspect::query()->whereNotNull('state')->where('state', '!=', '')
             ->select('state', DB::raw('COUNT(*) n'))->groupBy('state')->orderBy('state')->pluck('n', 'state')->all();
     }
+
+    /** MARKER-PROSPECTS-BRANDS — brands the website pass found, most common first, for the picker. Cached 10 minutes. */
+    public function brandCounts(): array
+    {
+        $key = 'sales:brand-counts:' . ($this->industryId ?: 'all');
+        return \Illuminate\Support\Facades\Cache::remember($key, 600, function () {
+            $n = [];
+            SalesProspect::query()->whereNotNull('brands')
+                ->when($this->industryId, fn ($q) => $q->where('channel_id', $this->industryId))
+                ->select(['id', 'brands'])->chunkById(2000, function ($rows) use (&$n) {
+                    foreach ($rows as $r) foreach ((array) $r->brands as $b) if (is_string($b) && $b !== '') $n[$b] = ($n[$b] ?? 0) + 1;
+                });
+            arsort($n);
+            return $n;
+        });
+    }
+
+    public function clearBrands(): void { $this->brandsSel = []; $this->listPage = 1; $this->selected = []; }
 
     public function clearStates(): void { $this->states = []; $this->listPage = 1; $this->selected = []; }
 

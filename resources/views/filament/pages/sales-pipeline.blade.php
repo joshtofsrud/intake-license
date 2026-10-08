@@ -183,6 +183,27 @@
         </div>
       </div>
     </div>
+    {{-- MARKER-PROSPECTS-BRANDS — pick any number of brands; shops carrying any of them --}}
+    @php $brCounts = $this->brandCounts(); @endphp
+    <div x-data="{ open: false, f: '' }" style="position:relative" x-on:click.outside="open = false" x-on:keydown.escape="open = false">
+      <button type="button" class="sx-in" style="cursor:pointer;min-width:120px;text-align:left" x-on:click="open = !open">
+        {{ $brandsSel ? (count($brandsSel) <= 2 ? implode(', ', $brandsSel) : count($brandsSel) . ' brands') : 'All brands' }} ▾
+      </button>
+      <div x-show="open" x-cloak style="position:absolute;z-index:40;top:calc(100% + 4px);left:0;width:300px;max-height:380px;overflow:auto;background:#141416;border:1px solid var(--sx-line-2);border-radius:10px;padding:10px;box-shadow:0 16px 40px rgba(0,0,0,.5)">
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+          <input type="text" class="sx-in" style="flex:1;padding:4px 8px" placeholder="Find a brand" x-model="f">
+          @if($brandsSel)<button type="button" wire:click="clearBrands" style="background:none;border:0;color:#a78bfa;cursor:pointer;font:inherit;font-size:12px">Clear</button>@endif
+        </div>
+        @forelse($brCounts as $bName => $bN)
+          <label x-show="!f || {{ json_encode(mb_strtolower($bName)) }}.includes(f.toLowerCase())" style="display:flex;align-items:center;gap:8px;font-size:12.5px;padding:3px 2px;cursor:pointer">
+            <input type="checkbox" value="{{ $bName }}" wire:model.live="brandsSel">
+            <span style="flex:1">{{ $bName }}</span><span style="color:var(--sx-dim);font-size:11px">{{ number_format($bN) }}</span>
+          </label>
+        @empty
+          <div style="font-size:12px;color:var(--sx-dim);padding:4px 2px">No brands found yet. The website pass fills these in as it reads shop sites.</div>
+        @endforelse
+      </div>
+    </div>
     <input type="text" class="sx-in" style="width:150px" wire:model.live.debounce.500ms="zip" placeholder="ZIP, e.g. 992, 83814" title="One or more ZIP codes, or their first digits, separated by commas">
 
     {{-- MARKER-SALES-SITE-FILTER --}}
@@ -261,8 +282,12 @@
       <thead><tr>
         <th style="width:28px"><input type="checkbox" aria-label="Select this page" @checked($pageIds && ! array_diff($pageIds, $selected)) wire:click="toggleAllOnPage({{ json_encode($pageIds) }})"></th>
         {{-- MARKER-PROSPECTS-SORT — click a heading to sort; again to reverse; a third time for the default (due first, then score) --}}
-        @foreach(['shop' => ['Shop', ''], 'web' => ['', ''], 'place' => ['Location', ''], 'contact' => ['Contact', ''], 'industry' => ['Industry', ''], 'loop' => ['Loop', ''], 'priority' => ['Pri', ''], 'verified' => ['Verified', ''], 'score' => ['Score', 'num'], 'rep' => ['Rep', ''], 'stage' => ['Stage', ''], 'next' => ['Next action', ''], 'quote' => ['Quote', 'num']] as $sk => [$sLabel, $sCls])
+        @foreach(['shop' => ['Shop', ''], 'web' => ['', ''], 'place' => ['Location', ''], 'contact' => ['Contact', ''], 'brands' => ['Brands', ''], 'industry' => ['Industry', ''], 'loop' => ['Loop', ''], 'priority' => ['Pri', ''], 'verified' => ['Verified', ''], 'score' => ['Score', 'num'], 'rep' => ['Rep', ''], 'stage' => ['Stage', ''], 'next' => ['Next action', ''], 'quote' => ['Quote', 'num']] as $sk => [$sLabel, $sCls])
           @continue(($sk === 'loop' && ! $hasLoop) || ($sk === 'industry' && $industryId))
+          @if($sk === 'brands')
+            <th>Brands</th>
+            @continue
+          @endif
           @if($sk === 'web')
             <th style="width:34px" title="Website"></th>
             @continue
@@ -290,6 +315,9 @@
               @endforeach
               @if(! $p->email && ! $p->phone && empty($soc['instagram']) && empty($soc['facebook']))<span style="color:var(--sx-dim)">—</span>@endif
             </td>
+            {{-- MARKER-PROSPECTS-BRANDS — first three, then +N --}}
+            @php $pb = array_values(array_filter((array) ($p->brands ?? []), 'is_string')); @endphp
+            <td wire:click="open('{{ $p->id }}')" style="font-size:12.5px;color:var(--sx-dim)" title="{{ implode(', ', $pb) }}">@if($pb){{ implode(', ', array_slice($pb, 0, 3)) }}@if(count($pb) > 3) <span style="color:var(--sx-faint)">+{{ count($pb) - 3 }}</span>@endif @else <span style="color:var(--sx-faint)">—</span>@endif</td>
             @unless($industryId)<td wire:click="open('{{ $p->id }}')" style="color:var(--sx-dim)">{{ $p->channel?->name ?? 'None' }}</td>@endunless
             @if($hasLoop)<td wire:click="open('{{ $p->id }}')" style="color:var(--sx-dim)">{{ $p->loop ? 'L' . $p->loop : '' }}</td>@endif
             <td wire:click="open('{{ $p->id }}')"><span style="{{ $pri[$p->priority] ?? '' }};font-weight:700;font-size:12px">{{ $p->priority }}</span></td>
@@ -301,7 +329,7 @@
             <td wire:click="open('{{ $p->id }}')" class="num">{{ $p->quote_monthly ? '$' . number_format($p->quote_monthly) : '' }}</td>
           </tr>
         @empty
-          <tr><td colspan="14" style="color:var(--sx-dim);padding:22px 10px">No prospects match these filters.</td></tr>
+          <tr><td colspan="15" style="color:var(--sx-dim);padding:22px 10px">No prospects match these filters.</td></tr>
         @endforelse
       </tbody>
     </table>
