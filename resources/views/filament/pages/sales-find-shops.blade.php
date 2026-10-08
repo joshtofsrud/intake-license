@@ -56,7 +56,7 @@
   </div>
   <div style="{{ $muted }};margin-top:8px">
     Runs on the server every five minutes, about 80 shops at a time, and reads each prospect's own website: home page plus a contact or about page.
-    It fills email and owner only when they are empty, and adds socials and the brands the site mentions. Nothing a person typed is changed.
+    It fills email, phone and owner only when they are empty, and adds socials and the brands the site mentions. Nothing a person typed is changed.
     Brand dealer pages, booking tools and sites that don't mention the shop's name are skipped and counted above. Signed-up shops are left alone.
   </div>
 </div>

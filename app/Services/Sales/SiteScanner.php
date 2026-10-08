@@ -167,6 +167,7 @@ class SiteScanner
         }
 
         $email   = $this->email($html, $text, $host);
+        $phone   = $this->phone($html, $text); // MARKER-SITE-SCAN-PHONE
         $socials = $this->socials($html);
         $owner   = $this->owner($text);
         $brands  = $this->brands($text);
@@ -174,14 +175,16 @@ class SiteScanner
         $changes = ['socials' => $socials ?: null, 'brands' => $brands ?: null];
         if ($email && blank($p->email)) $changes['email'] = $email;
         if ($owner && blank($p->owner_contact)) $changes['owner_contact'] = $owner;
+        if ($phone && blank($p->phone)) $changes['phone'] = $phone; // MARKER-SITE-SCAN-PHONE
 
         $found = array_filter([
             isset($changes['email']) ? 'email' : null,
+            isset($changes['phone']) ? 'phone' : null,
             $socials ? count($socials) . ' social' . (count($socials) === 1 ? '' : 's') : null,
             isset($changes['owner_contact']) ? 'owner' : null,
             $brands ? count($brands) . ' brand' . (count($brands) === 1 ? '' : 's') : null,
         ]);
-        $status = ($email || $socials || $owner || $brands) ? 'ok' : 'nothing_found';
+        $status = ($email || $phone || $socials || $owner || $brands) ? 'ok' : 'nothing_found';
         $this->finish($p, $status, $changes);
         if ($found) $p->activities()->create(['type' => 'system', 'body' => 'Website pass found ' . implode(', ', $found)]);
         return $status;
@@ -270,6 +273,32 @@ class SiteScanner
     {
         $u = preg_replace('/[?#].*$/', '', $u);
         return mb_substr(rtrim((string) $u, '/'), 0, 255);
+    }
+
+    /**
+     * MARKER-SITE-SCAN-PHONE — the shop's phone: a tap-to-call link first (that's
+     * the number they want called), else the most repeated US number on the page.
+     * Returned as (509) 555-0123.
+     */
+    public function phone(string $html, string $text): ?string
+    {
+        $fmt = function (string $raw): ?string {
+            $d = preg_replace('/\D/', '', $raw);
+            if (strlen($d) === 11 && $d[0] === '1') $d = substr($d, 1);
+            if (strlen($d) !== 10 || in_array($d[0], ['0', '1'], true) || in_array($d[3], ['0', '1'], true)) return null;
+            if (str_starts_with(substr($d, 3), '555') || preg_match('/^(\d)\1{9}$/', $d)) return null; // placeholders
+            if (in_array(substr($d, 0, 3), ['800', '833', '844', '855', '866', '877', '888'], true)) return null; // toll-free is rarely the shop
+            return '(' . substr($d, 0, 3) . ') ' . substr($d, 3, 3) . '-' . substr($d, 6);
+        };
+        if (preg_match_all('/href=["\']tel:([^"\']+)["\']/i', $html, $m)) {
+            foreach ($m[1] as $t) if ($p = $fmt(urldecode($t))) return $p;
+        }
+        if (preg_match_all('/(?<![\d.\-])(?:\+?1[\s.\-]?)?\(?\d{3}\)?[\s.\-]\d{3}[\s.\-]\d{4}(?![\d\-])/', $text, $m)) {
+            $seen = [];
+            foreach ($m[0] as $t) if ($p = $fmt($t)) $seen[$p] = ($seen[$p] ?? 0) + 1;
+            if ($seen) { arsort($seen); return array_key_first($seen); }
+        }
+        return null;
     }
 
     public function owner(string $text): ?string
