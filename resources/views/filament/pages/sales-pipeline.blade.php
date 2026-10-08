@@ -54,10 +54,17 @@
   .sx-t td.sx-shop { white-space:normal; min-width:170px; max-width:260px; }
   .sx-t td.sx-contact { line-height:1.55; }
   .sx-t td.sx-contact a { margin-right:10px; }
-  /* globe that opens the shop's website */
-  .sx-t td.sx-web { width:34px; padding-left:4px; padding-right:4px; }
-  .sx-t td.sx-web a { display:inline-flex; width:26px; height:26px; align-items:center; justify-content:center; border-radius:6px; color:var(--sx-dim); }
-  .sx-t td.sx-web a:hover { color:#fff; background:rgba(255,255,255,.08); }
+  /* the table fits the page; if the window is too narrow it scrolls inside its own box */
+  .sx-tw { overflow-x:auto; }
+  .sx-t .sx-sub { font-size:12px; color:var(--sx-faint); margin-top:2px; }
+  .sx-t .sx-nm a.sx-ico { vertical-align:-6px; margin:0 0 0 3px; }
+  .sx-t .sx-chk { font-size:11.5px; color:var(--sx-amber); margin-top:2px; }
+  .sx-t a.sx-ico { display:inline-flex; width:22px; height:22px; flex:none; align-items:center; justify-content:center; border-radius:5px; color:var(--sx-dim); margin-top:-2px; }
+  .sx-t a.sx-ico:hover { color:#fff; background:rgba(255,255,255,.08); }
+  .sx-t td.sx-contact a.sx-ico { margin-right:0; }
+  .sx-t .sx-em { display:block; max-width:220px; overflow:hidden; text-overflow:ellipsis; color:#a78bfa; }
+  .sx-t .sx-ph { display:flex; align-items:center; gap:4px; color:var(--sx-dim); }
+  .sx-t td.sx-brands { white-space:normal; min-width:120px; max-width:200px; font-size:12.5px; color:var(--sx-dim); }
   .sx-count { margin-left:auto; color:var(--sx-faint); font-size:12.5px; }
   .sx-hidden { display:flex; gap:14px; align-items:center; padding:12px 0; border-bottom:1px solid var(--sx-line); font-size:13.5px; color:var(--sx-dim); }
   .sx-hidden b { color:#fff; }
@@ -238,18 +245,14 @@
         <button class="sx-btn sm" style="margin-left:auto" wire:click="$set('selected', [])">Clear selection</button>
       </div>
     @endif
-    <table class="sx-t">
+    <div class="sx-tw"><table class="sx-t">
       <thead><tr>
         <th style="width:28px"><input type="checkbox" aria-label="Select this page" @checked($pageIds && ! array_diff($pageIds, $selected)) wire:click="toggleAllOnPage({{ json_encode($pageIds) }})"></th>
         {{-- click a heading to sort; again to reverse; a third time for the default (due first, then score) --}}
-        @foreach(['shop' => ['Shop', ''], 'web' => ['', ''], 'place' => ['Location', ''], 'contact' => ['Contact', ''], 'brands' => ['Brands', ''], 'industry' => ['Industry', ''], 'loop' => ['Loop', ''], 'priority' => ['Pri', ''], 'verified' => ['Verified', ''], 'score' => ['Score', 'num'], 'rep' => ['Rep', ''], 'stage' => ['Stage', ''], 'next' => ['Next action', ''], 'quote' => ['Quote', 'num']] as $sk => [$sLabel, $sCls])
-          @continue(($sk === 'loop' && ! $hasLoop) || ($sk === 'industry' && $industryId))
+        @foreach(['shop' => ['Shop', ''], 'place' => ['Location', ''], 'contact' => ['Contact', ''], 'brands' => ['Brands', ''], 'industry' => ['Industry', ''], 'score' => ['Score', 'num'], 'stage' => ['Stage', ''], 'next' => ['Next action', ''], 'quote' => ['Quote', 'num']] as $sk => [$sLabel, $sCls])
+          @continue($sk === 'industry' && $industryId)
           @if($sk === 'brands')
             <th>Brands</th>
-            @continue
-          @endif
-          @if($sk === 'web')
-            <th style="width:34px" title="Website"></th>
             @continue
           @endif
           <th class="sx-sort {{ $sCls }} {{ $sortBy === $sk ? 'on' : '' }}" wire:click="sortList('{{ $sk }}')" title="Sort by {{ strtolower($sLabel) }}">{{ $sLabel }}@if($sortBy === $sk)<span class="sx-arr">{{ $sortDir === 'asc' ? '▲' : '▼' }}</span>@endif</th>
@@ -260,38 +263,38 @@
           @php $due = $p->next_action_on && $p->next_action_on->toDateString() <= $today; @endphp
           <tr class="r {{ $openId === $p->id ? 'sel' : '' }}" wire:key="l-{{ $p->id }}">
             <td wire:click.stop><input type="checkbox" value="{{ $p->id }}" wire:model.live="selected" aria-label="Select {{ $p->shop }}"></td>
-            <td wire:click="open('{{ $p->id }}')" class="sx-shop">{{ $p->shop }}</td>
-            {{-- opens in a new tab; doesn't open the shop's panel --}}
-            <td class="sx-web">@if($p->website)<a href="{{ preg_match('#^https?://#i', $p->website) ? $p->website : 'https://' . $p->website }}" target="_blank" rel="noopener noreferrer" title="Open {{ parse_url(preg_match('#^https?://#i', $p->website) ? $p->website : 'https://' . $p->website, PHP_URL_HOST) ?: 'website' }}" onclick="event.stopPropagation()"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/></svg></a>@endif</td>
+            @php $site = $p->website ? (preg_match('#^https?://#i', $p->website) ? $p->website : 'https://' . $p->website) : null; @endphp
+            <td wire:click="open('{{ $p->id }}')" class="sx-shop">
+              <div class="sx-nm">{{ $p->shop }}@if($site)<a class="sx-ico" href="{{ $site }}" target="_blank" rel="noopener noreferrer" title="Open {{ parse_url($site, PHP_URL_HOST) ?: 'website' }}" onclick="event.stopPropagation()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/></svg></a>@endif</div>
+              @unless($p->verified)<div class="sx-chk">To check</div>@endunless
+            </td>
             <td wire:click="open('{{ $p->id }}')" style="white-space:nowrap">{{ $p->city }}{{ $p->state ? ', ' . $p->state : '' }}<div style="{{ $muted }}">{{ $p->postcode }}</div></td>
             {{-- email, phone and socials at a glance; links don't open the drawer --}}
             <td wire:click="open('{{ $p->id }}')" class="sx-contact" style="font-size:12.5px">
-              @if($p->email)<a href="mailto:{{ $p->email }}" onclick="event.stopPropagation()" style="color:#a78bfa">{{ $p->email }}</a><br>@endif
-              @if($p->phone)<span>{{ $p->phone }}</span><br>@endif
               @php $soc = (array) ($p->socials ?? []); @endphp
-              @foreach(['instagram' => 'Instagram', 'facebook' => 'Facebook'] as $net => $netName)
-                @if(! empty($soc[$net]))<a href="{{ $soc[$net] }}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="color:#a78bfa;margin-right:8px">{{ $netName }}</a>@endif
-              @endforeach
-              @if(! $p->email && ! $p->phone && empty($soc['instagram']) && empty($soc['facebook']))<span style="color:var(--sx-dim)">—</span>@endif
+              @if($p->email)<a class="sx-em" href="mailto:{{ $p->email }}" title="{{ $p->email }}" onclick="event.stopPropagation()">{{ $p->email }}</a>@endif
+              @if($p->phone || ! empty($soc['instagram']) || ! empty($soc['facebook']))
+                <div class="sx-ph">@if($p->phone)<span style="margin-right:4px">{{ $p->phone }}</span>@endif
+                  @if(! empty($soc['instagram']))<a class="sx-ico" href="{{ $soc['instagram'] }}" target="_blank" rel="noopener" title="Instagram" onclick="event.stopPropagation()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3.5" y="3.5" width="17" height="17" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.2" cy="6.8" r="1" fill="currentColor" stroke="none"/></svg></a>@endif
+                  @if(! empty($soc['facebook']))<a class="sx-ico" href="{{ $soc['facebook'] }}" target="_blank" rel="noopener" title="Facebook" onclick="event.stopPropagation()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M14 21v-8h3l.5-3.5H14V7.8c0-1 .4-1.8 1.9-1.8H17.6V3.1c-.5-.1-1.6-.2-2.8-.2-2.6 0-4.3 1.6-4.3 4.4v2.2H7.6V13h2.9v8"/></svg></a>@endif
+                </div>
+              @endif
+              @if(! $p->email && ! $p->phone && empty($soc['instagram']) && empty($soc['facebook']))<span style="color:var(--sx-faint)">—</span>@endif
             </td>
             {{-- first three, then +N --}}
             @php $pb = array_values(array_filter((array) ($p->brands ?? []), 'is_string')); @endphp
-            <td wire:click="open('{{ $p->id }}')" style="font-size:12.5px;color:var(--sx-dim)" title="{{ implode(', ', $pb) }}">@if($pb){{ implode(', ', array_slice($pb, 0, 3)) }}@if(count($pb) > 3) <span style="color:var(--sx-faint)">+{{ count($pb) - 3 }}</span>@endif @else <span style="color:var(--sx-faint)">—</span>@endif</td>
-            @unless($industryId)<td wire:click="open('{{ $p->id }}')" style="color:var(--sx-dim)">{{ $p->channel?->name ?? 'None' }}</td>@endunless
-            @if($hasLoop)<td wire:click="open('{{ $p->id }}')" style="color:var(--sx-dim)">{{ $p->loop ? 'L' . $p->loop : '' }}</td>@endif
-            <td wire:click="open('{{ $p->id }}')"><span style="{{ $pri[$p->priority] ?? '' }};font-weight:700;font-size:12px">{{ $p->priority }}</span></td>
-            <td wire:click="open('{{ $p->id }}')" style="color:{{ $p->verified ? 'var(--sx-lime)' : 'var(--sx-amber)' }}">{{ $p->verified ? 'Yes' : 'To check' }}</td>
-            <td wire:click="open('{{ $p->id }}')" class="num" style="{{ $p->lead_score >= 75 ? 'color:var(--sx-lime)' : '' }}">{{ $p->lead_score }}</td>
-            <td wire:click="open('{{ $p->id }}')" style="color:var(--sx-dim)">{{ $p->rep?->name ?? 'House' }}</td>
-            <td wire:click="open('{{ $p->id }}')">{{ \App\Models\SalesProspect::STAGES[$p->stage] ?? $p->stage }}</td>
-            <td wire:click="open('{{ $p->id }}')" style="color:{{ $due ? 'var(--sx-amber)' : 'var(--sx-dim)' }}">@if($p->next_action){{ $due ? 'Due' : $p->next_action_on?->format('M j') }}, {{ $p->next_action }}@endif</td>
+            <td wire:click="open('{{ $p->id }}')" class="sx-brands" title="{{ implode(', ', $pb) }}">@if($pb){{ implode(', ', array_slice($pb, 0, 3)) }}@if(count($pb) > 3) <span style="color:var(--sx-faint)">+{{ count($pb) - 3 }}</span>@endif @else <span style="color:var(--sx-faint)">—</span>@endif</td>
+            @unless($industryId)<td wire:click="open('{{ $p->id }}')" style="color:var(--sx-dim)">{{ $p->channel?->name ?? 'None' }}@if($hasLoop && $p->loop)<div class="sx-sub">Loop {{ $p->loop }}</div>@endif</td>@endunless
+            <td wire:click="open('{{ $p->id }}')" class="num" title="Priority {{ $p->priority ?: 'none' }}, lead score {{ $p->lead_score }}"><span style="{{ $pri[$p->priority] ?? '' }};font-weight:700;font-size:12px;margin-right:7px">{{ $p->priority }}</span><span style="{{ $p->lead_score >= 75 ? 'color:var(--sx-lime)' : '' }}">{{ $p->lead_score }}</span></td>
+            <td wire:click="open('{{ $p->id }}')">{{ \App\Models\SalesProspect::STAGES[$p->stage] ?? $p->stage }}<div class="sx-sub">{{ $p->rep?->name ?? 'House' }}</div></td>
+            <td wire:click="open('{{ $p->id }}')" style="white-space:normal;min-width:110px;max-width:190px;color:{{ $due ? 'var(--sx-amber)' : 'var(--sx-dim)' }}">@if($p->next_action){{ $due ? 'Due' : $p->next_action_on?->format('M j') }}, {{ $p->next_action }}@endif</td>
             <td wire:click="open('{{ $p->id }}')" class="num">{{ $p->quote_monthly ? '$' . number_format($p->quote_monthly) : '' }}</td>
           </tr>
         @empty
-          <tr><td colspan="15" style="color:var(--sx-dim);padding:22px 10px">No prospects match these filters.</td></tr>
+          <tr><td colspan="10" style="color:var(--sx-dim);padding:22px 10px">No prospects match these filters.</td></tr>
         @endforelse
       </tbody>
-    </table>
+    </table></div>
     <div class="sx-pager">
       <span>{{ number_format($list['total']) }} prospects</span>
       @if($list['pages'] > 1)
