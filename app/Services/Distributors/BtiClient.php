@@ -439,8 +439,8 @@ class BtiClient implements DistributorAdapter
                 // Kept in the shape the service's fallback branch reads, so
                 // the two warehouses still sum if the total is ever missing.
                 'Warehouses' => [
-                    ['Code' => 'santa_fe', 'QtyAvailable' => (int) ($r['available_santa_fe'] ?? 0)],
-                    ['Code' => 'reno',     'QtyAvailable' => (int) ($r['available_reno'] ?? 0)],
+                    ['Code' => 'santa_fe', 'Name' => 'Santa Fe', 'QtyAvailable' => (int) ($r['available_santa_fe'] ?? 0)],
+                    ['Code' => 'reno',     'Name' => 'Reno',     'QtyAvailable' => (int) ($r['available_reno'] ?? 0)],
                 ],
             ];
         }

@@ -44,6 +44,7 @@ class TenantInventoryItemVendor extends Pivot
         'unit_cost_cents' => 'integer',
         'live_cost_cents'  => 'integer',
         'live_avail'       => 'integer',
+        'live_warehouses'  => 'array', // MARKER-SUPPLY
         'lead_time_days'  => 'integer',
         'is_preferred'    => 'boolean',
         'last_ordered_at' => 'datetime',

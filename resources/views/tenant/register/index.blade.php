@@ -320,6 +320,23 @@
   /* MARKER-OPTION-SPLIT: split options sit two to a row on a phone */
   @media (max-width:640px){ .reg-dds--many .reg-dd{flex-basis:calc(50% - 4px)} }
   .reg-also{margin-top:8px;font-size:11.5px;color:var(--ia-text-dim)}
+  /* MARKER-SUPPLY: supplier stock chip + warehouse panel */
+  .reg-supply-btn{cursor:pointer;background:transparent;font-family:inherit;margin-left:0}
+  .reg-supply-panel{position:absolute;z-index:60;min-width:240px;max-width:min(340px,calc(100vw - 16px));padding:10px 12px;
+    background:var(--ia-surface);border:0.5px solid var(--ia-border-strong,var(--ia-border));border-radius:var(--ia-r-md);
+    box-shadow:0 16px 40px rgba(0,0,0,.45);font-size:12.5px;color:var(--ia-text)}
+  .reg-supply-panel[hidden]{display:none}
+  .reg-supply-legend{font-size:11px;color:var(--ia-text-dim);margin-bottom:8px;line-height:1.45}
+  .reg-supply-sup{display:flex;justify-content:space-between;font-weight:600;margin-top:8px}
+  .reg-supply-wh{display:flex;align-items:center;gap:6px;padding:2px 0 2px 2px;color:var(--ia-text-dim)}
+  .reg-supply-wh.is-pref{color:var(--ia-text)}
+  .reg-supply-wh .n{flex:1}
+  .reg-supply-wh .q{font-variant-numeric:tabular-nums}
+  .reg-supply-wh .q.zero{opacity:.6}
+  .reg-supply-wh.is-none{font-size:11px;padding-left:0}
+  .reg-supply-star{width:20px;flex:none;border:0;background:none;color:var(--ia-text-dim);cursor:pointer;font-size:13px;padding:0}
+  .reg-supply-star.on{color:#f5c451}
+  .reg-supply-far{margin-top:8px;font-size:11px;color:var(--ia-text-dim)}
   .reg-group-head .reg-gright{display:flex;align-items:center;gap:10px}
   .reg-vars{display:flex;flex-direction:column;gap:6px;margin-top:8px}
   .reg-vrow{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
@@ -1937,6 +1954,9 @@ function regGroupsHtml(data, push, rowHtml) {
   const scope = ps.scope;
   const sup = id => (ps.supplier_stock && ps.supplier_stock[id]) || null;
   (data.products || []).forEach(p => { const s = sup(p.id); if (s) { p.sup_name = s.name; p.sup_avail = s.n; } });
+  // MARKER-SUPPLY: every supplier and warehouse per item, and the shop's starred warehouses
+  regSupply = ps.supplier_detail || {}; regPrefs = ps.preferred_warehouses || {};
+  (data.products || []).forEach(p => { const t = regSupplyTotal(p.id); if (t.list.length) { p.sup_avail = t.n; p.sup_name = t.list.length === 1 ? t.list[0].name : 'suppliers'; } });
   regPickers = {};
   regAllProducts = (data.products || []).map(regEntryOf);
 
@@ -1989,14 +2009,8 @@ function regGroupsHtml(data, push, rowHtml) {
       ? ` <span class="reg-stock-chip is-in">${hereN} here</span>`
       : ` <span class="reg-stock-chip is-out">0 here</span>`;
     if (awayN > 0) { stock += ` <span class="reg-stock-chip is-elsewhere">${awayN} at other locations</span>`; }
-    if (hereN <= 0 && awayN <= 0) {
-      const bySup = {};
-      vars.forEach(v => { if (v.p.sup_avail > 0) { bySup[v.p.sup_name] = (bySup[v.p.sup_name] || 0) + v.p.sup_avail; } });
-      const names = Object.keys(bySup).sort((a, b) => bySup[b] - bySup[a]);
-      if (names.length) {
-        stock += ` <span class="reg-stock-chip is-order">${names.slice(0, 2).map(n => bySup[n] + ' at ' + escapeHtml(n)).join(' · ')}</span>`;
-      }
-    }
+    // MARKER-SUPPLY: supplier stock is shown for the chosen option on its own
+    // line (the chip with the warehouse panel), not summed across every option here.
 
     // The line itself: a keyboard stop that opens the picker, or adds the
     // chosen variant once it is open.
@@ -2032,6 +2046,101 @@ function regGroupsHtml(data, push, rowHtml) {
 
 // Values for one attribute. The first attribute (usually size) lists every
 // value; each later one only what fits the choices above it.
+// MARKER-SUPPLY: supplier stock for one item. Starred warehouses count when a
+// distributor has any; otherwise every warehouse does. One chip; hover (or
+// tap) shows each supplier and warehouse, with a star to prefer it.
+let regSupply = {};
+let regPrefs = {};
+function regSupplyTotal(id) {
+  const list = regSupply[id] || [];
+  let n = 0, far = 0;
+  list.forEach(s => {
+    const pref = (regPrefs[s.code] || []).map(String);
+    if (pref.length && (s.wh || []).length) {
+      (s.wh || []).forEach(w => { if (pref.includes(String(w.c))) { n += w.q; } else { far += w.q; } });
+    } else { n += s.n; }
+  });
+  return { n, far, list };
+}
+function regSupplyChip(id) {
+  const t = regSupplyTotal(id);
+  if (!t.list.length) { return ''; }
+  const starred = t.list.some(s => (regPrefs[s.code] || []).length);
+  const cls = t.n > 0 ? 'is-order' : 'is-out';
+  return `<button type="button" class="reg-stock-chip ${cls} reg-supply-btn" data-item-id="${id}" aria-haspopup="true">${t.n} at ${starred ? 'your warehouses' : 'suppliers'} ▾</button>`;
+}
+function regSupplyPanelHtml(id) {
+  const t = regSupplyTotal(id);
+  let h = '<div class="reg-supply-legend">Distributor stock for this exact option, from the daily sync. ★ a warehouse to count only starred ones for that distributor — applies to everyone at this shop.</div>';
+  t.list.forEach(s => {
+    const pref = (regPrefs[s.code] || []).map(String);
+    h += `<div class="reg-supply-sup"><span>${escapeHtml(s.name)}</span><b>${s.n}</b></div>`;
+    const whs = (s.wh || []).slice().sort((a, b) => (pref.includes(String(b.c)) - pref.includes(String(a.c))) || b.q - a.q);
+    if (!whs.length) { h += '<div class="reg-supply-wh is-none">No warehouse breakdown yet — shows after the next sync</div>'; }
+    whs.forEach(w => {
+      const on = pref.includes(String(w.c));
+      h += `<div class="reg-supply-wh${on ? ' is-pref' : ''}">`
+        + (s.code ? `<button type="button" class="reg-supply-star${on ? ' on' : ''}" data-dist="${escapeHtml(s.code)}" data-wh="${escapeHtml(String(w.c))}" data-item-id="${id}" aria-label="${on ? 'Unstar' : 'Star'} ${escapeHtml(w.n)}">${on ? '★' : '☆'}</button>` : '<span class="reg-supply-star"></span>')
+        + `<span class="n">${escapeHtml(w.n)}</span>`
+        + `<span class="q${w.q > 0 ? '' : ' zero'}">${w.q > 0 ? w.q : (w.eta ? 'due ' + escapeHtml(w.eta) : '0')}</span></div>`;
+    });
+  });
+  if (t.far > 0) { h += `<div class="reg-supply-far">+${t.far} at warehouses not starred</div>`; }
+  return h;
+}
+const regSupplyPanel = document.createElement('div');
+regSupplyPanel.className = 'reg-supply-panel';
+regSupplyPanel.hidden = true;
+document.body.appendChild(regSupplyPanel);
+let regSupplyFor = null, regSupplyHideT = null;
+function regSupplyShow(btn) {
+  clearTimeout(regSupplyHideT);
+  regSupplyFor = btn.dataset.itemId;
+  regSupplyPanel.innerHTML = regSupplyPanelHtml(regSupplyFor);
+  regSupplyPanel.hidden = false;
+  const r = btn.getBoundingClientRect();
+  const w = regSupplyPanel.offsetWidth;
+  regSupplyPanel.style.left = Math.max(8, Math.min(window.innerWidth - w - 8, r.left)) + 'px';
+  regSupplyPanel.style.top = (r.bottom + window.scrollY + 6) + 'px';
+}
+function regSupplyHide(now) {
+  clearTimeout(regSupplyHideT);
+  regSupplyHideT = setTimeout(() => { regSupplyPanel.hidden = true; regSupplyFor = null; }, now ? 0 : 220);
+}
+document.addEventListener('pointerover', e => {
+  if (e.pointerType !== 'mouse') { return; } // touch opens it with a tap
+  const b = e.target.closest && e.target.closest('.reg-supply-btn');
+  if (b) { regSupplyShow(b); return; }
+  if (e.target.closest && e.target.closest('.reg-supply-panel')) { clearTimeout(regSupplyHideT); return; }
+  if (!regSupplyPanel.hidden) { regSupplyHide(false); }
+});
+document.addEventListener('click', async e => {
+  const b = e.target.closest('.reg-supply-btn');
+  if (b) { e.stopPropagation(); if (!regSupplyPanel.hidden && regSupplyFor === b.dataset.itemId) { regSupplyHide(true); } else { regSupplyShow(b); } return; }
+  const star = e.target.closest('.reg-supply-star[data-dist]');
+  if (star) {
+    e.stopPropagation();
+    const on = !star.classList.contains('on');
+    try {
+      const res = await fetch(@json(route('tenant.register.preferred-warehouse')), {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF, Accept: 'application/json' },
+        body: JSON.stringify({ distributor: star.dataset.dist, warehouse: star.dataset.wh, on })
+      });
+      const j = await res.json();
+      if (j && j.ok) {
+        regPrefs = j.preferred_warehouses || {};
+        regPanelRefresh(star.dataset.itemId);
+      }
+    } catch (err) { /* the star stays as it was */ }
+    return;
+  }
+  if (!regSupplyPanel.hidden && !e.target.closest('.reg-supply-panel')) { regSupplyHide(true); }
+}, true);
+function regPanelRefresh(id) {
+  regSupplyPanel.innerHTML = regSupplyPanelHtml(id);
+  Object.keys(regPickers).forEach(gid => { if (regPickers[gid].open) { regPickerRender(gid); } });
+}
+
 function regPickerOptions(state, attr) {
   // MARKER-OPTION-FIELDS: only values that exist for the chosen first option
   // (usually size), each with the stock of its best variant. No greyed
@@ -2053,8 +2162,18 @@ function regPickerRender(gid) {
   const el = resultsArea.querySelector(`.reg-picker[data-gid="${gid}"]`);
   if (!state || !el) { return; }
   const c = state.cur;
-  let html = '<div class="reg-dds' + (state.attrs.length > 2 ? ' reg-dds--many' : '') + '">';
-  state.attrs.forEach(attr => {
+  let html = '<div class="reg-dds' + (state.attrs.filter((a, i) => i === 0 || regPickerOptions(state, a).length > 1).length > 2 ? ' reg-dds--many' : '') + '">';
+  // MARKER-SUPPLY: an option with one value at the chosen first option is
+  // not a choice; it is listed quietly under the dropdowns instead.
+  const fixed = [];
+  const shown = state.attrs.filter((attr, i) => {
+    if (i === 0) { return true; }
+    const vals = regPickerOptions(state, attr);
+    if (vals.length > 1) { return true; }
+    if (vals.length === 1 && vals[0].value !== '—') { fixed.push(escapeHtml((state.names || REG_ATTR_NAME)[attr] || attr) + ' ' + escapeHtml(vals[0].value)); }
+    return false;
+  });
+  shown.forEach(attr => {
     const val = c[attr] || '—';
     html += `<div class="reg-dd" data-attr="${attr}"><button type="button" class="reg-dd-btn" data-gid="${gid}" data-attr="${attr}">`
       + `<span class="k">${escapeHtml((state.names || REG_ATTR_NAME)[attr] || attr)}</span><span class="v">${escapeHtml(val)}</span><span class="chev">▾</span></button>`
@@ -2070,9 +2189,10 @@ function regPickerRender(gid) {
   });
   html += '</div><div class="reg-dd-panel" hidden></div>';
   if (c.also) { html += '<div class="reg-also">Also in the name: ' + escapeHtml(c.also) + '</div>'; } /* MARKER-OPTION-SPLIT */
+  if (fixed.length) { html += '<div class="reg-also">' + fixed.join(' · ') + '</div>'; } /* MARKER-SUPPLY */
   const st = c.st;
   html += `<div class="reg-pick-line"><div style="min-width:0"><div class="t">${escapeHtml(c.label)}</div>`
-    + `<div class="s"><span class="reg-stock-chip is-${st.cls === 'in' ? 'in' : st.cls === 'rem' ? 'elsewhere' : st.cls === 'sup' ? 'order' : 'out'}">${escapeHtml(st.txt === 'none' ? 'none in stock' : st.txt)}</span> · ${escapeHtml(c.p.sku || '')}</div></div>`
+    + `<div class="s">${st.cls === 'sup' ? '' : `<span class="reg-stock-chip is-${st.cls === 'in' ? 'in' : st.cls === 'rem' ? 'elsewhere' : 'out'}">${escapeHtml(st.txt === 'none' ? 'none in stock' : st.txt)}</span> `}${regSupplyChip(c.id)} · ${escapeHtml(c.p.sku || '')}</div></div>`
     + `<button type="button" class="reg-info-btn" data-item-id="${c.id}" title="Item details" aria-label="Item details">i</button>`
     + `<div class="price">${fmt(c.p.price_cents || 0)}</div>`
     + `<button type="button" class="reg-pick-add" data-gid="${gid}">Add</button></div>`;

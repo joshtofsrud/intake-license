@@ -85,12 +85,22 @@ class RegisterProductSearch
         $supOf  = [];
         $vskuOf = [];
         $supStock = [];
+        $supAll   = [];
         foreach (array_chunk($ids, 1000) as $chunk) {
             DB::table('tenant_inventory_item_vendors as iv_x')
                 ->join('tenant_vendors as v_x', 'v_x.id', '=', 'iv_x.vendor_id')
                 ->whereIn('iv_x.inventory_item_id', $chunk)
-                ->get(['iv_x.inventory_item_id', 'iv_x.vendor_sku', 'v_x.name', 'iv_x.live_avail'])
-                ->each(function ($r) use (&$supOf, &$vskuOf, &$supStock) {
+                ->get(['iv_x.inventory_item_id', 'iv_x.vendor_sku', 'v_x.name', 'iv_x.live_avail', 'iv_x.distributor_code', 'iv_x.live_warehouses'])
+                ->each(function ($r) use (&$supOf, &$vskuOf, &$supStock, &$supAll) {
+                    // MARKER-SUPPLY: every supplier with its warehouses, for the stock panel
+                    if (trim((string) $r->name) !== '' && $r->live_avail !== null) {
+                        $supAll[$r->inventory_item_id][] = [
+                            'name' => (string) $r->name,
+                            'code' => strtoupper((string) ($r->distributor_code ?? '')),
+                            'n'    => max(0, (int) $r->live_avail),
+                            'wh'   => json_decode((string) ($r->live_warehouses ?? ''), true) ?: [],
+                        ];
+                    }
                     if (trim((string) $r->name) !== '') { $supOf[$r->inventory_item_id][(string) $r->name] = true; }
                     // the supplier with the most on hand.
                     $n = (int) ($r->live_avail ?? 0);
@@ -243,6 +253,9 @@ class RegisterProductSearch
             'item_ids'     => $ids,
             // supplier availability for the items shown
             'supplier_stock' => (object) array_intersect_key($supStock, array_flip($ids)),
+            // MARKER-SUPPLY: every supplier per item (merged barcodes folded in) and the shop's starred warehouses
+            'supplier_detail' => (object) self::supplierDetail($out, $supAll),
+            'preferred_warehouses' => (object) ((array) ((function_exists('tenant') ? tenant() : null)?->settings['preferred_warehouses'] ?? [])),
             'groups'       => $out,
             'scope'        => $scope,
             'sort'         => $sort,
@@ -258,6 +271,33 @@ class RegisterProductSearch
             'total'        => count($inScope),
             'capped'       => $capped,
         ];
+    }
+
+    /**
+     * MARKER-SUPPLY: suppliers per shown item. An option that stands for
+     * several items with one barcode (see shape) lists the suppliers of all
+     * of them, one entry per distributor, keeping the larger count.
+     */
+    private static function supplierDetail(array $groups, array $supAll): array
+    {
+        $out = [];
+        foreach ($groups as $g) {
+            foreach ($g['variants'] ?? [['id' => $g['rows'][0]['items'][0]['id'] ?? null]] as $v) {
+                if (($v['id'] ?? null) === null) { continue; }
+                $by = [];
+                foreach (array_merge([$v['id']], $v['alt_ids'] ?? [], $g['alts'][$v['id']] ?? []) as $id) {
+                    foreach ($supAll[$id] ?? [] as $s) {
+                        $k = $s['code'] !== '' ? $s['code'] : $s['name'];
+                        if (! isset($by[$k]) || $s['n'] > $by[$k]['n']) { $by[$k] = $s; }
+                    }
+                }
+                if ($by) {
+                    usort($by, fn ($a, $b) => $b['n'] <=> $a['n']);
+                    $out[$v['id']] = array_values($by);
+                }
+            }
+        }
+        return $out;
     }
 
     /** The name with its size and colour taken out, normalised. */
@@ -327,6 +367,30 @@ class RegisterProductSearch
     /** One group as the screen draws it: a title, then rows of chips. */
     private static function shape(array $items): array
     {
+        // MARKER-SUPPLY: one option per barcode. The same product stocked as
+        // two items (one per distributor) becomes one option; the item kept is
+        // the one with the most on the shelf, the others ride along in alts so
+        // their suppliers still count.
+        $byCode = [];
+        $alts = [];
+        $kept = [];
+        foreach ($items as $r) {
+            $bc = ltrim(trim((string) ($r->catalog_ean ?: $r->catalog_upc ?: '')), '0');
+            if ($bc === '' || ! isset($byCode[$bc])) {
+                if ($bc !== '') { $byCode[$bc] = count($kept); }
+                $kept[] = $r;
+                continue;
+            }
+            $i = $byCode[$bc];
+            if ((int) $r->computed_stock_count > (int) $kept[$i]->computed_stock_count) {
+                $alts[$r->id] = array_merge($alts[$kept[$i]->id] ?? [], [$kept[$i]->id]);
+                unset($alts[$kept[$i]->id]);
+                $kept[$i] = $r;
+            } else {
+                $alts[$kept[$i]->id][] = $r->id;
+            }
+        }
+        $items = $kept;
         $first = $items[0];
         $title = self::strip((string) $first->name, $first->size, $first->color);
         // Tidy what removing the size and colour left behind: doubled
@@ -354,7 +418,7 @@ class RegisterProductSearch
         if (count($items) === 1) {
             return ['title' => $title, 'brand' => (string) ($first->brand ?? ''), 'rows' => [
                 ['label' => '', 'items' => [['id' => $first->id, 'label' => '']]],
-            ]];
+            ], 'alts' => $alts];
         }
 
         $sizes  = array_filter(array_map(fn ($r) => trim((string) $r->size), $items));
@@ -495,7 +559,7 @@ class RegisterProductSearch
         [$variants, $attrs, $attrNames] = \App\Support\VariantSplitter::apply($variants, $attrs, $catPath, $specById);
 
         return ['title' => $title, 'brand' => (string) ($first->brand ?? ''), 'rows' => $rows,
-                'variants' => $variants, 'attrs' => $attrs, 'attr_names' => $attrNames];
+                'variants' => $variants, 'attrs' => $attrs, 'attr_names' => $attrNames, 'alts' => $alts];
     }
 
     private static function sizeOrder(string $label): array

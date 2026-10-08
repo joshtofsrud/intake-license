@@ -463,6 +463,8 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
                 // dismiss a parked appointment draft from the tray
                 Route::post('/register/appointment-tray/dismiss', [TenantControllers\RegisterController::class, 'dismissTraySale'])->name('register.appointment-tray.dismiss');
                 Route::get('/register/search',           [TenantControllers\RegisterController::class, 'search'])->name('register.search');
+                // MARKER-SUPPLY: star a distributor warehouse from the stock panel
+                Route::post('/register/preferred-warehouse', [TenantControllers\SupplierWarehouseController::class, 'toggle'])->name('register.preferred-warehouse');
                 // read-only code check against the live cart
                 Route::get('/register/discount/validate', [TenantControllers\RegisterController::class, 'validateDiscount'])->name('register.discount.validate');
                 Route::get('/register/item/{id}/info',   [TenantControllers\RegisterController::class, 'itemInfo'])->name('register.item_info');

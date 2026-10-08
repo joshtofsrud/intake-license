@@ -89,7 +89,8 @@ class TenantDistributorSyncService
 
         [$costByVariant, $costErrors] = $this->fetchCosts($adapter, $code, $upcs, $mpns, $variantNos);
         $res['errors'] = array_merge($res['errors'], $costErrors);
-        $availByVariant = $this->fetchAvailability($adapter, $variantNos, $res);
+        $whByVariant = []; // MARKER-SUPPLY: per-warehouse stock, beside the total
+        $availByVariant = $this->fetchAvailability($adapter, $variantNos, $res, $whByVariant);
 
         // stock snapshots are collected and written in
         // batches after the loop (finally, so rows already saved above keep
@@ -112,6 +113,9 @@ class TenantDistributorSyncService
                 $pivot->live_cost_cents = $newCost;
                 if ($newAvail !== null) {
                     $pivot->live_avail = $newAvail;
+                }
+                if (isset($whByVariant[$vno])) {
+                    $pivot->live_warehouses = $whByVariant[$vno]; // MARKER-SUPPLY
                 }
                 $pivot->live_checked_at = now();
                 $pivot->save();
@@ -219,13 +223,17 @@ class TenantDistributorSyncService
     }
 
     /** @return array<string,int> variant_no => available qty (best-effort parse) */
-    private function fetchAvailability(DistributorAdapter $adapter, array $variantNos, array &$res): array
+    private function fetchAvailability(DistributorAdapter $adapter, array $variantNos, array &$res, array &$wh = []): array
     {
         $avail = [];
         foreach (array_chunk($variantNos, 50) as $chunk) {
             try {
-                foreach ($this->normalizeInventory($adapter->inventory($chunk)) as $vno => $qty) {
+                $resp = $adapter->inventory($chunk);
+                foreach ($this->normalizeInventory($resp) as $vno => $qty) {
                     $avail[$vno] = $qty;
+                }
+                foreach ($this->normalizeWarehouses($resp) as $vno => $list) {
+                    $wh[$vno] = $list;
                 }
             } catch (\Throwable $e) {
                 $res['errors'][] = 'avail fetch: ' . $e->getMessage();
@@ -255,6 +263,48 @@ class TenantDistributorSyncService
      *
      * @return array<string,int>
      */
+    /**
+     * MARKER-SUPPLY: each warehouse's stock per variant, in one shape for
+     * every distributor: [{c: code, n: name, q: qty, eta: Y-m-d|null}].
+     * HLC sends WarehousesQuantities {Id, Name, QtyAvailable, NextDueDate};
+     * the BTI and QBP adapters send Warehouses {Code, Name, QtyAvailable, EtaMs}.
+     *
+     * @return array<string,array>
+     */
+    private function normalizeWarehouses(mixed $resp): array
+    {
+        $out = [];
+        foreach ($this->productsList($resp) as $row) {
+            if (! is_array($row)) { continue; }
+            $vno = $row['VariantNo'] ?? $row['Sku'] ?? $row['SKU'] ?? null;
+            if ($vno === null) { continue; }
+            $list = null;
+            foreach (['WarehousesQuantities', 'Warehouses'] as $k) {
+                if (! empty($row[$k]) && is_array($row[$k])) { $list = $row[$k]; break; }
+            }
+            if ($list === null) { continue; }
+            $whs = [];
+            foreach ($list as $w) {
+                if (! is_array($w)) { continue; }
+                $code = trim((string) ($w['Code'] ?? $w['Id'] ?? $w['Name'] ?? ''));
+                if ($code === '') { continue; }
+                $qty = 0;
+                foreach (['QtyAvailable', 'Quantity', 'Available', 'Qty'] as $wk) {
+                    if (isset($w[$wk]) && is_numeric($w[$wk])) { $qty = (int) $w[$wk]; break; }
+                }
+                $eta = null;
+                if (! empty($w['EtaMs']) && is_numeric($w['EtaMs'])) {
+                    $eta = gmdate('Y-m-d', (int) ($w['EtaMs'] / 1000));
+                } elseif (! empty($w['NextDueDate']) && ! str_starts_with((string) $w['NextDueDate'], '9999')) {
+                    $eta = substr((string) $w['NextDueDate'], 0, 10);
+                }
+                $whs[] = ['c' => $code, 'n' => trim((string) ($w['Name'] ?? $code)) ?: $code, 'q' => max(0, $qty), 'eta' => $eta];
+            }
+            $out[(string) $vno] = $whs;
+        }
+        return $out;
+    }
+
     private function normalizeInventory(mixed $resp): array
     {
         $out = [];
