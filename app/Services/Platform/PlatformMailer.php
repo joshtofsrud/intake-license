@@ -103,6 +103,9 @@ class PlatformMailer
             $h->addTextHeader('X-PM-Message-Stream', $stream);
             $h->addTextHeader('List-Unsubscribe', '<' . $unsubscribeUrl . '>');
             $h->addTextHeader('List-Unsubscribe-Post', 'List-Unsubscribe=One-Click');
+            // opens and clicks come back by webhook and raise the shop's lead score
+            $h->addTextHeader('X-PM-TrackOpens', 'true');
+            $h->addTextHeader('X-PM-TrackLinks', 'HtmlOnly');
             foreach ($headers as $k => $v) {
                 $h->addTextHeader($k, (string) $v);
             }

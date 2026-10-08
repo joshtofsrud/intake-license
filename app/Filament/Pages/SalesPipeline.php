@@ -586,7 +586,7 @@ class SalesPipeline extends Page
 
         try {
             $ok = \App\Services\Platform\PlatformMailer::send($to, $p->owner_contact ?: null, trim($this->emailSubject), $html,
-                \App\Http\Controllers\Platform\PlatformUnsubscribeController::url($to), ['X-PM-Metadata-prospect' => $p->id], $thread->replyToken());
+                \App\Http\Controllers\Platform\PlatformUnsubscribeController::url($to), ['X-PM-Metadata-prospect' => $p->id, 'X-PM-Metadata-platform_thread' => $thread->id], $thread->replyToken());
         } catch (\Throwable $e) {
             report($e);
             \App\Services\Platform\PlatformMailer::log('prospect', $to, trim($this->emailSubject), ['status' => 'failed', 'error' => mb_substr($e->getMessage(), 0, 400)]);

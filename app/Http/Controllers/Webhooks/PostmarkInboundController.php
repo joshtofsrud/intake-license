@@ -250,6 +250,9 @@ class PostmarkInboundController extends Controller
             $body = trim(strip_tags((string) ($payload['TextBody'] ?? '')));
         }
 
+        // the first answer on a thread raises the shop's lead score
+        $firstReply = ! \App\Models\PlatformInboxReply::where('message_id', $message->id)->where('direction', 'in')->exists();
+
         \App\Models\PlatformInboxReply::create([
             'message_id'  => $message->id,
             'direction'   => 'in',
@@ -263,6 +266,16 @@ class PostmarkInboundController extends Controller
             'read_at'         => null,
             'last_message_at' => now(),
         ])->save();
+
+        if ($firstReply) {
+            try {
+                if ($p = \App\Services\Sales\ProspectEngagement::forThread($message, $from)) {
+                    \App\Services\Sales\ProspectEngagement::add($p, 'reply', (string) $message->subject);
+                }
+            } catch (\Throwable $e) {
+                report($e); // the reply itself is already saved
+            }
+        }
 
         return response('OK', 200);
     }

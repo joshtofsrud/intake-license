@@ -117,7 +117,24 @@ class PostmarkWebhookController extends Controller
         if ($first && $row->source_type === 'prospects' && $row->source_id) {
             $p = \App\Models\SalesProspect::find($row->source_id);
             $name = (string) \App\Models\PlatformCampaign::whereKey($row->campaign_id)->value('name');
-            $p?->activities()->create(['type' => 'email', 'body' => ($type === 'Open' ? 'Opened: ' : 'Clicked a link in: ') . $name]);
+            if ($p) \App\Services\Sales\ProspectEngagement::add($p, $type === 'Open' ? 'open' : 'click', $name);
+        }
+        return response('OK', 200);
+    }
+
+    /** Opens and clicks on a one-off email sent from a prospect's panel. First of each counts once. */
+    protected function handleThreadEngagement(string $type, string $threadId)
+    {
+        $m = \App\Models\PlatformInboxMessage::find($threadId);
+        if (! $m) return response('OK', 200);
+        $meta = (array) ($m->meta ?? []);
+        $flag = $type === 'Open' ? 'opened_at' : 'clicked_at';
+        if (! empty($meta[$flag])) return response('OK', 200);
+        $meta[$flag] = now()->toIso8601String();
+        if ($type === 'Click' && empty($meta['opened_at'])) $meta['opened_at'] = $meta[$flag];
+        $m->forceFill(['meta' => $meta])->save();
+        if ($p = \App\Services\Sales\ProspectEngagement::forThread($m)) {
+            \App\Services\Sales\ProspectEngagement::add($p, $type === 'Open' ? 'open' : 'click', (string) $m->subject);
         }
         return response('OK', 200);
     }
@@ -125,8 +142,15 @@ class PostmarkWebhookController extends Controller
     protected function handleEngagement(string $type, array $payload)
     {
         $meta   = $payload['Metadata'] ?? [];
+        // clicking Unsubscribe is not interest
+        if ($type === 'Click' && str_contains((string) ($payload['OriginalLink'] ?? ''), '/platform-email/unsubscribe/')) {
+            return response('OK', 200);
+        }
         if (! empty($meta['platform_send_id'])) {
             return $this->handlePlatformEngagement($type, (string) $meta['platform_send_id']);
+        }
+        if (! empty($meta['platform_thread'])) {
+            return $this->handleThreadEngagement($type, (string) $meta['platform_thread']);
         }
         $sendId = $meta['send_id'] ?? null;
         if (! $sendId) {

@@ -160,6 +160,7 @@
     @if($hideUntouched && $site === '') Shops nobody has worked yet are hidden. @endif
     @if($site !== '') The Website pass filter shows every matching shop, worked or not. @endif
     @if(! $showClosed) Won and lost are hidden. @endif
+    Score rises by itself when a shop engages with Platform email: +5 the first time an email is opened, +10 for a first click, +25 for a first reply (110 at most).
   </p>
 
   <div class="sx-bar">
