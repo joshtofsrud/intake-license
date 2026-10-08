@@ -155,8 +155,9 @@
     </form>
 
     <p class="su-fine-print">
-      Free for 14 days — no credit card needed.<br>
-      By signing up you agree to our <a href="#" style="color:var(--muted)">Terms</a> and <a href="#" style="color:var(--muted)">Privacy Policy</a>.
+      {{-- MARKER-SIGNUP-CARD-COPY — the trial needs a card (next step); the old line said it didn't. Terms and Privacy linked to "#". --}}
+      Free for 14 days. A card starts the trial; nothing is charged until it ends.<br>
+      By signing up you agree to our <a href="https://{{ config('intake.domain', 'intake.works') }}/terms" target="_blank" rel="noopener" style="color:var(--muted)">Terms</a> and <a href="https://{{ config('intake.domain', 'intake.works') }}/privacy" target="_blank" rel="noopener" style="color:var(--muted)">Privacy Policy</a>.
     </p>
   </div>
 
