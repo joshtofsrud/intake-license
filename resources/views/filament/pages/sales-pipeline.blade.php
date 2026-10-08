@@ -8,6 +8,8 @@
     $hidden = $this->hiddenCount();
     $cols  = $mode === 'board' ? $this->columns() : [];
     $list  = $mode === 'list' ? $this->listRows() : null;
+    // MARKER-PROSPECTS-TIDY — columns that say nothing on this page are left out
+    $hasLoop = $list ? $list['rows']->contains(fn ($p) => ! empty($p->loop)) : false;
     $muted = 'font-size:12px;color:var(--sx-dim)';
     $input = 'sx-in';
     $card  = 'border:1px solid var(--sx-line-2);border-radius:10px;padding:12px 14px';
@@ -38,6 +40,21 @@
   .sx-bar { display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding:12px 0; margin-top:14px; border-top:1px solid var(--sx-line); border-bottom:1px solid var(--sx-line); }
   .sx-tog { display:inline-flex; align-items:center; gap:6px; font-size:13px; color:var(--sx-dim); cursor:pointer; user-select:none; }
   .sx-tog input { accent-color:var(--sx-violet); }
+  /* MARKER-PROSPECTS-TIDY — the page's own checkbox, not the browser's white box */
+  .sx-root input[type=checkbox] { -webkit-appearance:none; appearance:none; width:16px; height:16px; margin:0; flex:none;
+    border:1px solid var(--sx-line-2); border-radius:4px; background:rgba(255,255,255,.04); display:inline-grid; place-content:center;
+    cursor:pointer; vertical-align:middle; box-shadow:none; transition:background .12s, border-color .12s; }
+  .sx-root input[type=checkbox]:hover { border-color:rgba(255,255,255,.3); }
+  .sx-root input[type=checkbox]:focus-visible { outline:2px solid var(--sx-vsoft); outline-offset:1px; }
+  .sx-root input[type=checkbox]::before { content:""; width:9px; height:9px; transform:scale(0); transition:transform .1s;
+    background:#fff; clip-path:polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0%, 43% 62%); }
+  .sx-root input[type=checkbox]:checked { background:var(--sx-violet); border-color:var(--sx-violet); }
+  .sx-root input[type=checkbox]:checked::before { transform:scale(1); }
+  /* MARKER-PROSPECTS-TIDY — one line per value; only the shop name wraps */
+  .sx-t td { white-space:nowrap; }
+  .sx-t td.sx-shop { white-space:normal; min-width:170px; max-width:260px; }
+  .sx-t td.sx-contact { line-height:1.55; }
+  .sx-t td.sx-contact a { margin-right:10px; }
   .sx-count { margin-left:auto; color:var(--sx-faint); font-size:12.5px; }
   .sx-hidden { display:flex; gap:14px; align-items:center; padding:12px 0; border-bottom:1px solid var(--sx-line); font-size:13.5px; color:var(--sx-dim); }
   .sx-hidden b { color:#fff; }
@@ -241,6 +258,7 @@
         <th style="width:28px"><input type="checkbox" aria-label="Select this page" @checked($pageIds && ! array_diff($pageIds, $selected)) wire:click="toggleAllOnPage({{ json_encode($pageIds) }})"></th>
         {{-- MARKER-PROSPECTS-SORT — click a heading to sort; again to reverse; a third time for the default (due first, then score) --}}
         @foreach(['shop' => ['Shop', ''], 'place' => ['Location', ''], 'contact' => ['Contact', ''], 'industry' => ['Industry', ''], 'loop' => ['Loop', ''], 'priority' => ['Pri', ''], 'verified' => ['Verified', ''], 'score' => ['Score', 'num'], 'rep' => ['Rep', ''], 'stage' => ['Stage', ''], 'next' => ['Next action', ''], 'quote' => ['Quote', 'num']] as $sk => [$sLabel, $sCls])
+          @continue(($sk === 'loop' && ! $hasLoop) || ($sk === 'industry' && $industryId))
           <th class="sx-sort {{ $sCls }} {{ $sortBy === $sk ? 'on' : '' }}" wire:click="sortList('{{ $sk }}')" title="Sort by {{ strtolower($sLabel) }}">{{ $sLabel }}@if($sortBy === $sk)<span class="sx-arr">{{ $sortDir === 'asc' ? '▲' : '▼' }}</span>@endif</th>
         @endforeach
       </tr></thead>
@@ -249,11 +267,11 @@
           @php $due = $p->next_action_on && $p->next_action_on->toDateString() <= $today; @endphp
           <tr class="r {{ $openId === $p->id ? 'sel' : '' }}" wire:key="l-{{ $p->id }}">
             <td wire:click.stop><input type="checkbox" value="{{ $p->id }}" wire:model.live="selected" aria-label="Select {{ $p->shop }}"></td>
-            <td wire:click="open('{{ $p->id }}')">{{ $p->shop }}</td>
+            <td wire:click="open('{{ $p->id }}')" class="sx-shop">{{ $p->shop }}</td>
             {{-- MARKER-PROSPECTS-PLACE --}}
             <td wire:click="open('{{ $p->id }}')" style="white-space:nowrap">{{ $p->city }}{{ $p->state ? ', ' . $p->state : '' }}<div style="{{ $muted }}">{{ $p->postcode }}</div></td>
             {{-- MARKER-SALES-SITE-FILTER — email, phone and socials at a glance; links don't open the drawer --}}
-            <td wire:click="open('{{ $p->id }}')" style="font-size:12.5px;line-height:1.5">
+            <td wire:click="open('{{ $p->id }}')" class="sx-contact" style="font-size:12.5px">
               @if($p->email)<a href="mailto:{{ $p->email }}" onclick="event.stopPropagation()" style="color:#a78bfa">{{ $p->email }}</a><br>@endif
               @if($p->phone)<span>{{ $p->phone }}</span><br>@endif
               @php $soc = (array) ($p->socials ?? []); @endphp
@@ -262,8 +280,8 @@
               @endforeach
               @if(! $p->email && ! $p->phone && empty($soc['instagram']) && empty($soc['facebook']))<span style="color:var(--sx-dim)">—</span>@endif
             </td>
-            <td wire:click="open('{{ $p->id }}')" style="color:var(--sx-dim)">{{ $p->channel?->name ?? 'None' }}</td>
-            <td wire:click="open('{{ $p->id }}')" style="color:var(--sx-dim)">{{ $p->loop ? 'L' . $p->loop : '' }}</td>
+            @unless($industryId)<td wire:click="open('{{ $p->id }}')" style="color:var(--sx-dim)">{{ $p->channel?->name ?? 'None' }}</td>@endunless
+            @if($hasLoop)<td wire:click="open('{{ $p->id }}')" style="color:var(--sx-dim)">{{ $p->loop ? 'L' . $p->loop : '' }}</td>@endif
             <td wire:click="open('{{ $p->id }}')"><span style="{{ $pri[$p->priority] ?? '' }};font-weight:700;font-size:12px">{{ $p->priority }}</span></td>
             <td wire:click="open('{{ $p->id }}')" style="color:{{ $p->verified ? 'var(--sx-lime)' : 'var(--sx-amber)' }}">{{ $p->verified ? 'Yes' : 'To check' }}</td>
             <td wire:click="open('{{ $p->id }}')" class="num" style="{{ $p->lead_score >= 75 ? 'color:var(--sx-lime)' : '' }}">{{ $p->lead_score }}</td>
