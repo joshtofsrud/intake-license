@@ -338,6 +338,8 @@
   .reg-supply-star.on{color:#f5c451}
   .reg-supply-far{margin-top:8px;font-size:11px;color:var(--ia-text-dim)}
   .reg-group-head .reg-gright{display:flex;align-items:center;gap:10px}
+  /* MARKER-CART-INFO */
+  .reg-line .reg-cart-info{margin:0 0 0 6px;width:20px;height:20px;vertical-align:middle;display:inline-block;line-height:18px;padding:0}
   .reg-vars{display:flex;flex-direction:column;gap:6px;margin-top:8px}
   .reg-vrow{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
   .reg-vrow .lab{font-size:12px;color:var(--ia-text-dim);width:130px;flex:none;
@@ -2998,6 +3000,14 @@ function updateQty(key, qty) {
     renderCart();
   };
 
+// MARKER-CART-INFO: the cart's i buttons open the item details, like search rows.
+document.addEventListener('click', (e) => {
+  const b = e.target.closest && e.target.closest('.reg-cart-info');
+  if (!b) { return; }
+  e.stopPropagation();
+  openItemInfo(b.dataset.itemId);
+});
+
 function renderCart() {
   const lines = document.getElementById('cartLines');
   const totalCount = cart.items.length + cart.refund_lines.length;
@@ -3129,7 +3139,7 @@ function renderCart() {
         return `
         <div class="reg-line">
           <div>
-            <div class="name">${escapeHtml(i.name)} ${badge}</div>
+            <div class="name">${escapeHtml(i.name)}${i.type === 'product' && i.source_id ? ` <button type="button" class="reg-info-btn reg-cart-info" data-item-id="${escapeHtml(String(i.source_id))}" title="Item details" aria-label="Item details">i</button>` : ''} ${badge}</div>
             <div class="meta">${priceMeta} ${priceBtn}</div>
             ${actionRow}
           </div>
