@@ -44,6 +44,9 @@ class PlatformEmail extends Page implements HasForms
             'support_email'      => $settings->support_email,
             'mail_from_name'    => $settings->mail_from_name,
             'email_broadcast_stream' => $settings->email_broadcast_stream,
+            // MARKER-PROSPECT-STREAM
+            'platform_broadcast_stream' => $settings->platform_broadcast_stream,
+            'platform_postal_address'   => $settings->platform_postal_address,
             'email_rate'             => $settings->email_rate !== null ? (string) $settings->email_rate : '0.002',
             'email_rate_marketing'   => $settings->email_rate_marketing !== null ? (string) $settings->email_rate_marketing : '0.0035',
             'email_free_monthly'     => (string) ($settings->email_free_monthly ?? 0),
@@ -142,6 +145,24 @@ class PlatformEmail extends Page implements HasForms
                             ->autocomplete('off'),
                     ]),
 
+                // MARKER-PROSPECT-STREAM: Intake's own marketing, separate from shops'.
+                Section::make('Intake\'s own marketing email')
+                    ->description('Affects ONLY email Intake sends as a company: one-off emails to prospects from the Prospects drawer, and platform campaigns. Does NOT affect shop campaigns (the stream above), receipts, invites or any other transactional mail. Empty stream: those sends are blocked with a "no broadcast stream set" warning.')
+                    ->schema([
+                        TextInput::make('platform_broadcast_stream')
+                            ->label('Postmark stream ID for Intake marketing')
+                            ->placeholder('intake-outreach')
+                            ->maxLength(64)
+                            ->helperText('Use its own Broadcasts-type stream, not the shops\' one above — a complaint about prospect outreach must never hurt shop campaigns. Turn on Open and Click tracking for this stream in Postmark so engagement reaches lead scores.')
+                            ->autocomplete('off'),
+                        TextInput::make('platform_postal_address')
+                            ->label('Postal address in the footer')
+                            ->placeholder('Intake Inc · street, city, state ZIP')
+                            ->maxLength(200)
+                            ->helperText('Printed under every prospect and platform campaign email. US law (CAN-SPAM) requires a physical address on commercial email.')
+                            ->autocomplete('off'),
+                    ]),
+
                 Section::make('Send a test')
                     ->description('Proves the sender end to end without waiting for a real signup.')
                     ->schema([
@@ -162,6 +183,9 @@ class PlatformEmail extends Page implements HasForms
             'mail_from_address' => trim((string) ($state['mail_from_address'] ?? '')) ?: null,
             'mail_from_name'    => trim((string) ($state['mail_from_name'] ?? '')) ?: null,
             'email_broadcast_stream' => trim((string) ($state['email_broadcast_stream'] ?? '')) ?: null,
+            // MARKER-PROSPECT-STREAM
+            'platform_broadcast_stream' => trim((string) ($state['platform_broadcast_stream'] ?? '')) ?: null,
+            'platform_postal_address'   => trim((string) ($state['platform_postal_address'] ?? '')) ?: null,
             'email_rate'             => is_numeric($state['email_rate'] ?? null) ? (float) $state['email_rate'] : 0.002,
             'email_rate_marketing'   => is_numeric($state['email_rate_marketing'] ?? null) ? (float) $state['email_rate_marketing'] : 0.0035,
             'email_free_monthly'     => is_numeric($state['email_free_monthly'] ?? null) ? (int) $state['email_free_monthly'] : 0,
