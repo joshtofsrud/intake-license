@@ -17,7 +17,7 @@ class ScanProspectSites extends Command
         {--limit= : Prospects to read this run (default: the Speed set on Find shops)}
         {--id= : Read just this prospect (ignores pause)}
         {--rescan : Include prospects already read}
-        {--force : Run even while paused}';
+        {--force : Run even while stopped}';
 
     protected $description = "Read prospects' websites for email, socials, owner and brands";
 
@@ -26,8 +26,8 @@ class ScanProspectSites extends Command
 
     public function handle(SiteScanner $scanner): int
     {
-        if (! $this->option('id') && ! $this->option('force') && SalesSetting::get('site_scan_paused') === '1') {
-            $this->line('Website pass is paused (Find shops › Website pass).');
+        if (! $this->option('id') && ! $this->option('force') && SalesSetting::get('site_scan_on') !== '1') {
+            $this->line('Website pass is stopped (Find shops › Website pass › Start).');
             return self::SUCCESS;
         }
         @set_time_limit(0);

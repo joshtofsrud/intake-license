@@ -41,7 +41,7 @@
 <div style="{{ $card }};margin-bottom:16px">
   <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
     <span style="font-size:13px;font-weight:600">Website pass</span>
-    <span style="{{ $badge }}{{ $ss['paused'] ? 'background:rgba(251,191,36,.18);color:#fbbf24' : ($ss['left'] ? 'background:rgba(139,92,246,.18);color:#a78bfa' : 'background:rgba(74,222,128,.15);color:#4ade80') }}">{{ $ss['paused'] ? 'Paused' : ($ss['left'] ? 'Running' : 'Up to date') }}</span>
+    <span style="{{ $badge }}{{ $ss['paused'] ? 'background:rgba(251,191,36,.18);color:#fbbf24' : ($ss['left'] ? 'background:rgba(139,92,246,.18);color:#a78bfa' : 'background:rgba(74,222,128,.15);color:#4ade80') }}">{{ $ss['paused'] ? 'Stopped' : ($ss['left'] ? 'Running' : 'Up to date') }}</span>
     <span style="{{ $muted }}">{{ number_format($ss['with_site'] - $ss['left']) }} of {{ number_format($ss['with_site']) }} sites read ({{ $ssDone }}%)@if($ss['last']) · last {{ \Illuminate\Support\Carbon::parse($ss['last'])->diffForHumans() }}@endif</span>
     @php $ssSpeed = \App\Models\SalesSetting::get('site_scan_speed', 'normal'); @endphp
     <select class="{{ $input }}" style="margin-left:auto;width:auto;padding-top:5px;padding-bottom:5px" wire:change="setScanSpeed($event.target.value)" title="How many shops each five-minute run reads">
@@ -49,7 +49,7 @@
         <option value="{{ $sv }}" @selected($ssSpeed === $sv)>{{ $sl }}</option>
       @endforeach
     </select>
-    <button type="button" class="sfs-btn" wire:click="toggleSiteScan">{{ $ss['paused'] ? 'Resume' : 'Pause' }}</button>
+    <button type="button" class="sfs-btn {{ $ss['paused'] ? 'p' : '' }}" wire:click="toggleSiteScan">{{ $ss['paused'] ? 'Start' : 'Stop' }}</button>
   </div>
   <div style="height:4px;border-radius:2px;background:rgba(127,127,127,.18);margin:10px 0 8px;overflow:hidden"><div style="height:100%;width:{{ $ssDone }}%;background:rgb(139,92,246)"></div></div>
   <div style="{{ $muted }};display:flex;gap:16px;flex-wrap:wrap">
@@ -60,7 +60,8 @@
     <span>{{ number_format($ss['by']['unreachable'] ?? 0) }} sites that didn't answer</span>
   </div>
   <div style="{{ $muted }};margin-top:8px">
-    Runs on the server every five minutes, {{ \App\Console\Commands\ScanProspectSites::SPEEDS[$ssSpeed] ?? 80 }} shops at a time (Speed), and reads each prospect's own website: home page plus a contact or about page.
+    Only runs after Start: uploading a list or finding shops adds them, and they wait here until you press it.
+    While started it runs on the server every five minutes, {{ \App\Console\Commands\ScanProspectSites::SPEEDS[$ssSpeed] ?? 80 }} shops at a time (Speed), and reads each prospect's own website: home page plus a contact or about page.
     It fills email, phone and owner only when they are empty, and adds socials and the brands the site mentions. Nothing a person typed is changed.
     Brand dealer pages, booking tools and sites that don't mention the shop's name are skipped and counted above. Signed-up shops are left alone.
   </div>

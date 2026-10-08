@@ -105,7 +105,7 @@ class SalesFindShops extends Page
             'socials'   => (clone $base)->whereNotNull('socials')->count(),
             'brands'    => (clone $base)->whereNotNull('brands')->count(),
             'last'      => (clone $base)->max('site_scanned_at'),
-            'paused'    => \App\Models\SalesSetting::get('site_scan_paused') === '1',
+            'paused'    => \App\Models\SalesSetting::get('site_scan_on') !== '1',
         ];
     }
 
@@ -118,9 +118,9 @@ class SalesFindShops extends Page
 
     public function toggleSiteScan(): void
     {
-        $paused = \App\Models\SalesSetting::get('site_scan_paused') === '1';
-        \App\Models\SalesSetting::put('site_scan_paused', $paused ? '0' : '1');
-        Notification::make()->title($paused ? 'Website pass resumed' : 'Website pass paused')->success()->send();
+        $on = \App\Models\SalesSetting::get('site_scan_on') === '1';
+        \App\Models\SalesSetting::put('site_scan_on', $on ? '0' : '1');
+        Notification::make()->title($on ? 'Website pass stopped' : 'Website pass started; the first shops are read within five minutes')->success()->send();
     }
 
     // Duplicate shops — the same shop entered twice (same phone, or same website at the same place).
