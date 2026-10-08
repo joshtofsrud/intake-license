@@ -162,48 +162,11 @@
     <select class="sx-in" wire:model.live="territoryId"><option value="">All territories</option><option value="none">No territory</option>@foreach($this->territories() as $t)<option value="{{ $t->id }}">{{ $t->name }}</option>@endforeach</select>
     <select class="sx-in" wire:model.live="repId"><option value="">Any rep</option><option value="none">House (no rep)</option>@foreach($this->reps() as $r)<option value="{{ $r->id }}">{{ $r->name }}</option>@endforeach</select>
     <select class="sx-in" wire:model.live="priority"><option value="">Any priority</option>@foreach(\App\Models\SalesProspect::PRIORITIES as $k => $v)<option value="{{ $k }}">{{ $v }}</option>@endforeach</select>
-    {{-- MARKER-PROSPECTS-PLACE — pick any number of states; ZIPs or ZIP starts --}}
-    @php $stCounts = $this->stateCounts(); @endphp
-    <div x-data="{ open: false }" style="position:relative" x-on:click.outside="open = false" x-on:keydown.escape="open = false">
-      <button type="button" class="sx-in" style="cursor:pointer;min-width:120px;text-align:left" x-on:click="open = !open">
-        {{ $states ? (count($states) <= 3 ? implode(', ', $states) : count($states) . ' states') : 'All states' }} ▾
-      </button>
-      <div x-show="open" x-cloak style="position:absolute;z-index:40;top:calc(100% + 4px);left:0;width:340px;max-height:360px;overflow:auto;background:#141416;border:1px solid var(--sx-line-2);border-radius:10px;padding:10px;box-shadow:0 16px 40px rgba(0,0,0,.5)">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;font-size:12px;color:var(--sx-dim)">
-          <span>{{ count($states) ? count($states) . ' picked' : 'Pick one or more' }}</span>
-          @if($states)<button type="button" wire:click="clearStates" style="background:none;border:0;color:#a78bfa;cursor:pointer;font:inherit">Clear</button>@endif
-        </div>
-        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:2px 8px">
-          @foreach($stCounts as $code => $n)
-            <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;padding:3px 2px;cursor:pointer">
-              <input type="checkbox" value="{{ $code }}" wire:model.live="states" style="accent-color:var(--sx-violet)">
-              <span>{{ $code }}</span><span style="color:var(--sx-dim);font-size:11px">{{ number_format($n) }}</span>
-            </label>
-          @endforeach
-        </div>
-      </div>
-    </div>
-    {{-- MARKER-PROSPECTS-BRANDS — pick any number of brands; shops carrying any of them --}}
-    @php $brCounts = $this->brandCounts(); @endphp
-    <div x-data="{ open: false, f: '' }" style="position:relative" x-on:click.outside="open = false" x-on:keydown.escape="open = false">
-      <button type="button" class="sx-in" style="cursor:pointer;min-width:120px;text-align:left" x-on:click="open = !open">
-        {{ $brandsSel ? (count($brandsSel) <= 2 ? implode(', ', $brandsSel) : count($brandsSel) . ' brands') : 'All brands' }} ▾
-      </button>
-      <div x-show="open" x-cloak style="position:absolute;z-index:40;top:calc(100% + 4px);left:0;width:300px;max-height:380px;overflow:auto;background:#141416;border:1px solid var(--sx-line-2);border-radius:10px;padding:10px;box-shadow:0 16px 40px rgba(0,0,0,.5)">
-        <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
-          <input type="text" class="sx-in" style="flex:1;padding:4px 8px" placeholder="Find a brand" x-model="f">
-          @if($brandsSel)<button type="button" wire:click="clearBrands" style="background:none;border:0;color:#a78bfa;cursor:pointer;font:inherit;font-size:12px">Clear</button>@endif
-        </div>
-        @forelse($brCounts as $bName => $bN)
-          <label x-show="!f || {{ json_encode(mb_strtolower($bName)) }}.includes(f.toLowerCase())" style="display:flex;align-items:center;gap:8px;font-size:12.5px;padding:3px 2px;cursor:pointer">
-            <input type="checkbox" value="{{ $bName }}" wire:model.live="brandsSel">
-            <span style="flex:1">{{ $bName }}</span><span style="color:var(--sx-dim);font-size:11px">{{ number_format($bN) }}</span>
-          </label>
-        @empty
-          <div style="font-size:12px;color:var(--sx-dim);padding:4px 2px">No brands found yet. The website pass fills these in as it reads shop sites.</div>
-        @endforelse
-      </div>
-    </div>
+    {{-- MARKER-PROSPECTS-PLACE · MARKER-SX-MULTI — states and brands use the shared multi-pick dropdown --}}
+    @include('filament.partials.sx-multi', ['model' => 'states', 'any' => 'All states', 'noun' => 'states', 'width' => 120,
+      'opts' => collect($this->stateCounts())->map(fn ($n, $code) => [$code, $code, $n])->values()->all()])
+    @include('filament.partials.sx-multi', ['model' => 'brandsSel', 'any' => 'All brands', 'noun' => 'brands', 'width' => 130, 'key' => $industryId,
+      'opts' => collect($this->brandCounts())->map(fn ($n, $b) => [$b, $b, $n])->values()->all()])
     <input type="text" class="sx-in" style="width:150px" wire:model.live.debounce.500ms="zip" placeholder="ZIP, e.g. 992, 83814" title="One or more ZIP codes, or their first digits, separated by commas">
 
     {{-- MARKER-SALES-SITE-FILTER --}}
