@@ -514,9 +514,10 @@
 
 /* Sticky control bar — replaces old .tg-header + .tg-filters */
 .tg-controls {
+    /* MARKER-TENANTS-STICKY: stick below the 4rem Filament topbar, not over it */
     position: sticky;
-    top: 0;
-    z-index: 20;
+    top: 4rem;
+    z-index: 10;
     background: rgb(var(--gray-50, 248 250 252));
     padding: 14px 0 12px;
     margin-bottom: 20px;
