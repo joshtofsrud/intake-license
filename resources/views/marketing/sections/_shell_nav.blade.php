@@ -337,8 +337,14 @@
         fit();
     }
     function fit() {
+        // MARKER-CAROUSEL-MOTION: a Floating header overlays the page, so the
+        // first section must start below it or its top (eyebrow) hides behind it.
+        var first = document.querySelector('.mkw-first > section, .mkw-first > div');
+        if (first) first.style.removeProperty('padding-top');
         if (!nav.classList.contains('is-float')) { nav.style.removeProperty('--mkf-h'); return; }
-        nav.style.setProperty('--mkf-h', (inner.offsetHeight + parseFloat(getComputedStyle(nav).paddingTop)) + 'px');
+        var h = inner.offsetHeight + parseFloat(getComputedStyle(nav).paddingTop);
+        nav.style.setProperty('--mkf-h', h + 'px');
+        if (first) { var pt = parseFloat(getComputedStyle(first).paddingTop) || 0; if (pt < h + 24) first.style.setProperty('padding-top', (h + 24) + 'px'); }
     }
     apply();
     if (phone.addEventListener) phone.addEventListener('change', apply); else phone.addListener(apply);

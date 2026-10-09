@@ -45,6 +45,12 @@
   @php return; @endphp
 @endif
 
+{{-- MARKER-CAROUSEL-MOTION --}}
+@if(($c['carousel_style'] ?? 'classic') === 'motion')
+  @include('partials.carousel-motion', ['images' => $images, 'c' => $c, 'uid' => $uid, 'radius' => $radius, 'customClass' => $customClass, 'mkWrap' => true])
+  @php return; @endphp
+@endif
+
 <style>
 .{{ $uid }}-sec { @if($bgMode === 'color' && $bgColor !== '') background: {{ $bgColor }}; padding-top:48px; padding-bottom:48px; @endif }
 .{{ $uid }}-wrap { position:relative; }

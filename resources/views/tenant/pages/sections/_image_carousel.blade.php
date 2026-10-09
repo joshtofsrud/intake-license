@@ -99,17 +99,31 @@
     <div class="pb2-field">
       <label class="pb2-field-label">Carousel style</label>
       <div class="pb2-seg" data-field-seg="carousel_style">
-        @foreach(['classic'=>'Classic','depth'=>'Depth'] as $v => $n)
+        @foreach(['classic'=>'Classic','depth'=>'Depth','motion'=>'Motion'] as $v => $n)
           <button type="button" class="pb2-seg-btn {{ $get('carousel_style', 'classic') === $v ? 'active' : '' }}" data-seg-value="{{ $v }}">{{ $n }}</button>
         @endforeach
       </div>
       <input type="hidden" data-field="carousel_style" value="{{ $get('carousel_style', 'classic') }}">
-      <div class="pb2-field-hint" style="text-align:left;display:block;margin-top:4px">Depth: the center card is large and in focus, neighbours sit smaller behind. Each image's caption becomes its title; its link adds a button.</div>
+      <div class="pb2-field-hint" style="text-align:left;display:block;margin-top:4px">Depth: the center card is large and in focus, neighbours sit smaller behind. Each image's caption becomes its title; its link adds a button. Motion: one gliding row of photos at their own widths; scroll, drag or swipe.</div>
     </div>
     <div class="pb2-field">
       <label class="pb2-field-label">Card button text <span class="pb2-field-hint">Depth</span></label>
       <input type="text" class="pb2-input" data-field="depth_button" value="{{ $get('depth_button', 'View') }}" maxlength="24">
     </div>
+    {{-- MARKER-CAROUSEL-MOTION editor --}}
+    <div class="pb2-field">
+      <label class="pb2-field-label">Photo height <span class="pb2-field-hint">Motion</span></label>
+      <div class="pb2-seg" data-field-seg="motion_height">
+        @foreach(['m'=>'Medium','l'=>'Large'] as $v => $n)
+          <button type="button" class="pb2-seg-btn {{ $get('motion_height', 'm') === $v ? 'active' : '' }}" data-seg-value="{{ $v }}">{{ $n }}</button>
+        @endforeach
+      </div>
+      <input type="hidden" data-field="motion_height" value="{{ $get('motion_height', 'm') }}">
+    </div>
+    <label class="pb2-checkbox-row">
+      <input type="checkbox" data-field="motion_mono" value="1" {{ $get('motion_mono') ? 'checked' : '' }}>
+      <span>Black &amp; white, colour on hover <span class="pb2-field-hint">Motion</span></span>
+    </label>
 
     <div class="pb2-field">
       <label class="pb2-field-label">Slide shape</label>
