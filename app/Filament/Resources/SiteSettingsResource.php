@@ -110,6 +110,14 @@ class SiteSettingsResource extends Resource
                         ->regex('/^G-[A-Z0-9]{4,20}$/i')
                         ->validationMessages(['regex' => 'A GA4 measurement ID starts with G-, e.g. G-XXXXXXXXXX.']),
 
+                    // MARKER-GA4-CONVERSIONS
+                    Forms\Components\TextInput::make('ga4_api_secret')
+                        ->label('GA4 Measurement Protocol API secret')
+                        ->password()
+                        ->revealable()
+                        ->maxLength(64)
+                        ->helperText("Records signups (sign_up) and booked calls (generate_lead) in GA4 from the server, so Google Ads can count them as conversions. Create it in GA4: Admin, Data streams, your intake.works stream, Measurement Protocol API secrets. Leave blank to turn this off. Signups and bookings made while you're signed in to master admin aren't sent."),
+
                     Forms\Components\TextInput::make('plausible_domain')
                         ->label('Plausible domain')
                         ->placeholder('intake.works'),

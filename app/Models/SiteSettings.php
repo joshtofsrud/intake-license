@@ -30,6 +30,7 @@ class SiteSettings extends Model
         'plausible_domain',
         'gtm_id',
         'ga4_id',
+        'ga4_api_secret', // MARKER-GA4-CONVERSIONS
         'brand',
         'brand_history',
     ];

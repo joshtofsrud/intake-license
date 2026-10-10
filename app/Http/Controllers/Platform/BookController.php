@@ -164,6 +164,7 @@ class BookController extends Controller
         MarketingFunnelController::record('booking_completed', ['step' => $type->slug]);
         Log::info('sched-public: booked', ['id' => $booking->id, 'type' => $type->slug]);
 
+        \App\Support\Ga4Conversion::send($request, 'generate_lead', ['booking_type' => (string) ($type->name ?? '')]); // MARKER-GA4-CONVERSIONS
         return redirect()->route('book.manage', ['token' => $booking->token, 'new' => 1]);
     }
 

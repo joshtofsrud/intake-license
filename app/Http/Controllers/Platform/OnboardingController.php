@@ -232,6 +232,7 @@ class OnboardingController extends Controller
 
         // ---- 4. Clear session, issue login token, redirect ----
         $request->session()->forget('pending_signup');
+        \App\Support\Ga4Conversion::send($request, 'sign_up', ['method' => 'intake', 'plan' => (string) ($tenant->plan_tier ?? '')]); // MARKER-GA4-CONVERSIONS
         return $this->redirectToTenantAdmin($tenant, $user);
     }
 
@@ -429,6 +430,7 @@ class OnboardingController extends Controller
         }
 
         $request->session()->forget('pending_signup');
+        \App\Support\Ga4Conversion::send($request, 'sign_up', ['method' => 'intake', 'plan' => (string) ($tenant->plan_tier ?? '')]); // MARKER-GA4-CONVERSIONS
         return $this->redirectToTenantAdmin($tenant, $user);
     }
 
