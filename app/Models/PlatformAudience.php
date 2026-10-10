@@ -22,5 +22,6 @@ class PlatformAudience extends Model
         'wrote_in'      => 'Wrote in',
         'reps'          => 'Reps & agencies',
         'investors'     => 'Investors',
+        'inv_leads'     => 'Investor mailing list',
     ];
 }

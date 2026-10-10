@@ -428,54 +428,148 @@
         @endforelse
       </div>
 
+      <!-- MARKER-AUDIENCE-BUILDER -->
+      <style>
+        .ab{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:28px;align-items:start}
+        @media(max-width:1000px){.ab{grid-template-columns:1fr}}
+        .ab-src{display:flex;flex-wrap:wrap;gap:6px}
+        .ab-src button{border:1px solid var(--pc-line);background:none;color:inherit;font:inherit;font-size:13px;border-radius:8px;padding:7px 12px;cursor:pointer;opacity:.75}
+        .ab-src button.on{border-color:var(--pc-accent);background:rgba(139,124,246,.12);opacity:1;font-weight:600}
+        .ab-rule{display:grid;grid-template-columns:44px minmax(0,1fr) 110px minmax(0,1.3fr) 28px;gap:8px;align-items:center;margin-bottom:8px}
+        .ab-rule .j{font-size:12px;opacity:.5;text-align:right}
+        .ab-rule select,.ab-rule input{width:100%;background:transparent;border:1px solid var(--pc-line);border-radius:8px;color:inherit;font:inherit;font-size:13.5px;padding:7px 9px}
+        .ab-rule select option{color:#111}
+        .ab-x{background:none;border:0;color:inherit;opacity:.5;cursor:pointer;font-size:17px}
+        .ab-x:hover{opacity:1}
+        .ab-add{background:none;border:0;color:var(--pc-accent);font:inherit;font-weight:600;font-size:13px;cursor:pointer;padding:2px 0}
+        .ab-chips{display:flex;flex-wrap:wrap;gap:6px}
+        .ab-chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--pc-line);border-radius:99px;padding:5px 11px;font-size:12.5px;background:none;color:inherit;font-family:inherit;cursor:pointer;opacity:.7}
+        .ab-chip.on{opacity:1;border-color:rgba(248,113,113,.5);background:rgba(248,113,113,.08)}
+        .ab-chip.lock{cursor:default}
+        .ab-gate{border-left:2px solid var(--pc-warn);padding:6px 0 6px 12px;font-size:12.5px;line-height:1.55;opacity:.9;margin-top:10px}
+        .ab-gate.inv{border-left-color:var(--pc-accent)}
+        .ab-gate b{font-weight:600}
+        .ab-prev{border-left:1px solid var(--pc-line);padding-left:22px}
+        @media(max-width:1000px){.ab-prev{border-left:0;padding-left:0;border-top:1px solid var(--pc-line);padding-top:16px}}
+        .ab-big{font-size:44px;font-weight:700;letter-spacing:-.03em;line-height:1;font-variant-numeric:tabular-nums}
+        .ab-big small{font-size:13px;font-weight:500;opacity:.6;margin-left:6px;letter-spacing:0}
+        .ab-math div{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px dashed var(--pc-line);font-size:13px;opacity:.8;font-variant-numeric:tabular-nums}
+        .ab-math div.m b{color:#f87171}
+        .ab-math div.t{border-bottom:0;opacity:1;font-weight:600}
+        .ab-s{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;padding:7px 0;border-bottom:1px solid var(--pc-line);font-size:13px}
+        .ab-s:last-child{border-bottom:0}
+        .ab-s .e{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px;opacity:.5;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+        .ab-s .tg{font-size:11.5px;opacity:.6;white-space:nowrap}
+      </style>
+      @php
+        $abF   = $aScreen['fields'] ?? [];
+        $abO   = $aScreen['options'] ?? [];
+        $abP   = $aScreen['preview'] ?? null;
+        $abInv = in_array($aSource, ['investors', 'inv_leads'], true);
+        $abEx  = \App\Services\Platform\PlatformAudienceService::EXCLUSIONS;
+      @endphp
       <div class="pc-card" style="margin-top:14px">
         <h3>{{ $aEditing ? 'Edit audience' : 'New audience' }}</h3>
-        <div class="sub">Rules, not a fixed list — it re-resolves every time a campaign fires</div>
-        {{-- the rules this audience already has --}}
-        @if($aEditing)
-          <div class="pc-f">
-            <label>Rules</label>
-            <div>
-              @forelse($aRules as $i => $r)
-                @php
-                  $rv = is_array($r['value'] ?? null) ? implode(', ', $r['value']) : (string) ($r['value'] ?? '');
-                  $rText = ($r['field'] ?? '') === 'ids'
-                    ? 'These ' . count(array_filter(explode(',', $rv))) . ' picked shops'
-                    : ($r['field'] ?? '') . ' ' . str_replace('_', ' ', $r['op'] ?? 'is') . ' ' . \Illuminate\Support\Str::limit($rv, 40);
-                @endphp
-                <span class="pc-rule">{{ $rText }}<button type="button" wire:click="removeAudienceRule({{ $i }})" title="Remove this rule">×</button></span>
-              @empty
-                <span class="pc-note">No rules: everyone in the source.</span>
-              @endforelse
+        <div class="sub">Rules, not a fixed list. Who matches is worked out again every time a campaign sends.</div>
+        <div class="ab">
+          <div>
+            <div class="pc-f"><label>Name</label><input type="text" wire:model="aName" placeholder="Leave blank to name it from the rules"></div>
+
+            <div class="pc-f">
+              <label>Who</label>
+              <div class="ab-src">
+                @foreach(\App\Models\PlatformAudience::SOURCES as $k => $label)
+                  <button type="button" class="{{ $aSource === $k ? 'on' : '' }}" wire:click="setSource('{{ $k }}')">{{ $label }}</button>
+                @endforeach
+              </div>
+              @if($aSource === 'prospects')
+                <div class="ab-gate"><b>Only prospects who asked to hear from us.</b> Campaigns send through Postmark's broadcast stream, which only allows people who opted in, so a prospect is included once they booked a call, wrote in through the site or became a tenant. @if($abP && $abP['cold'] > 0){{ number_format($abP['cold']) }} cold prospects are never included; they're contacted one by one, not by campaign.@endif</div>
+              @endif
+              @if($abInv)
+                <div class="ab-gate inv"><b>Investor channel, kept apart.</b> Use investor audiences for investor updates only. Declined investors are always left out, and the investor details ({amount}, {percent}, {remaining}, {portal}) can't be sent to any other audience. The mailing list is people who asked for updates, not investors; keep what goes to them factual, since an offer sent to a list anyone could join starts to look like general solicitation.</div>
+              @endif
+            </div>
+
+            @if($abF)
+              <div class="pc-f">
+                <label>Match all of these</label>
+                @foreach($aRules as $i => $r)
+                  @php $rf = (string) ($r['field'] ?? ''); @endphp
+                  @if(isset($abF[$rf]))
+                    <div class="ab-rule" wire:key="abr-{{ $i }}">
+                      <span class="j">{{ $i ? 'and' : 'where' }}</span>
+                      <select wire:model.live="aRules.{{ $i }}.field">
+                        @foreach($abF as $fk => $fl)<option value="{{ $fk }}">{{ $fl }}</option>@endforeach
+                      </select>
+                      <select wire:model.live="aRules.{{ $i }}.op">
+                        @if($rf === 'addon')
+                          <option value="has">has</option><option value="has_not">doesn't have</option>
+                        @elseif($rf === 'is_active')
+                          <option value="is">is</option>
+                        @else
+                          <option value="is">is</option><option value="is_not">is not</option>
+                        @endif
+                      </select>
+                      @if(! empty($abO[$rf]))
+                        <select wire:model.live="aRules.{{ $i }}.value">
+                          @foreach($abO[$rf] as $ov => $ol)<option value="{{ $ov }}">{{ $ol }}</option>@endforeach
+                        </select>
+                      @else
+                        <input type="text" wire:model.live.debounce.500ms="aRules.{{ $i }}.value" placeholder="value">
+                      @endif
+                      <button type="button" class="ab-x" wire:click="removeAudienceRule({{ $i }})" title="Remove this rule">&times;</button>
+                    </div>
+                  @else
+                    <span class="pc-rule">{{ $rf === 'ids' ? 'These ' . count(array_filter(explode(',', (string) ($r['value'] ?? '')))) . ' picked shops' : $rf . ' ' . str_replace('_', ' ', (string) ($r['op'] ?? 'is')) . ' ' . \Illuminate\Support\Str::limit((string) ($r['value'] ?? ''), 40) }}<button type="button" wire:click="removeAudienceRule({{ $i }})" title="Remove this rule">&times;</button></span>
+                  @endif
+                @endforeach
+                @if(! count($aRules))<div class="pc-note" style="margin-bottom:6px">No rules: everyone in this source.</div>@endif
+                <button type="button" class="ab-add" wire:click="addRule">+ Add rule</button>
+              </div>
+            @endif
+
+            <div class="pc-f">
+              <label>Leave out</label>
+              <div class="ab-chips">
+                <span class="ab-chip on lock">Opted out &middot; always</span>
+                <span class="ab-chip on lock">Bounced &middot; always</span>
+                @if($aSource === 'investors')<span class="ab-chip on lock">Declined &middot; always</span>@endif
+                @if($aSource === 'prospects')
+                  @foreach($abEx as $ek => $ex)
+                    <button type="button" class="ab-chip {{ in_array($ek, $aExclude, true) ? 'on' : '' }}" wire:click="toggleExclude('{{ $ek }}')">{{ $ex['label'] }}</button>
+                  @endforeach
+                @endif
+              </div>
+            </div>
+
+            <div class="pc-acts">
+              <button type="button" class="pc-btn pc-btn--pri" wire:click="newAudience">{{ $aEditing ? 'Save changes' : 'Save audience' }}</button>
+              @if($aEditing)<button type="button" class="pc-btn" wire:click="closeAudience">Cancel</button>@endif
             </div>
           </div>
-        @endif
-        <div class="pc-f"><label>Name</label><input type="text" wire:model="aName" placeholder="Tenants without rentals"></div>
-        <div class="pc-f">
-          <label>Source</label>
-          <select wire:model="aSource" style="width:100%;background:transparent;border:1px solid var(--pc-line);border-radius:8px;color:inherit;font:inherit;font-size:13.5px;padding:8px 10px">
-            @foreach(\App\Models\PlatformAudience::SOURCES as $k => $label)
-              <option value="{{ $k }}">{{ $label }}</option>
-            @endforeach
-          </select>
-        </div>
-        <div class="pc-f">
-          <label>Optional rule</label>
-          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
-            <input type="text" wire:model="aField" placeholder="e.g. plan_tier, status, stage, industry, state" title="Prospects: stage, industry, state, territory, rep, priority, verified, ids">
-            <select wire:model="aOp" style="background:transparent;border:1px solid var(--pc-line);border-radius:8px;color:inherit;font:inherit;font-size:13.5px;padding:8px 10px">
-              <option value="is">is</option>
-              <option value="is_not">is not</option>
-              <option value="has">has</option>
-              <option value="has_not">doesn't have</option>
-            </select>
-            <input type="text" wire:model="aValue" placeholder="scale / rentals">
+
+          <div class="ab-prev" wire:loading.class="opacity-60">
+            <div class="pc-grp" style="margin-top:0">Will receive right now</div>
+            @if($abP)
+              <div class="ab-big">{{ number_format($abP['mailable']) }}<small>{{ $abP['mailable'] === 1 ? 'person' : 'people' }}</small></div>
+              <div class="pc-note" style="margin:8px 0 12px">{{ $abInv ? 'Investor updates only' : 'Postmark broadcast stream' }}</div>
+              <div class="ab-math">
+                <div><span>Match the rules</span><b>{{ number_format($abP['matched']) }}</b></div>
+                @if($abP['optout'] > 0)<div class="m"><span>Opted out</span><b>&minus;{{ number_format($abP['optout']) }}</b></div>@endif
+                @if($abP['bounced'] > 0)<div class="m"><span>Bounced or complained</span><b>&minus;{{ number_format($abP['bounced']) }}</b></div>@endif
+                <div class="t"><span>Will receive</span><b>{{ number_format($abP['mailable']) }}</b></div>
+              </div>
+              <div class="pc-grp">First {{ count($abP['sample']) }}</div>
+              @forelse($abP['sample'] as $s)
+                <div class="ab-s"><div><div>{{ $s['name'] }}</div><div class="e">{{ $s['email'] }}</div></div><div class="tg">{{ $s['tag'] }}</div></div>
+              @empty
+                <div class="pc-note">No one matches yet. Loosen a rule.</div>
+              @endforelse
+            @else
+              <div class="pc-note">The preview couldn't be worked out. Saving still works.</div>
+            @endif
+            <div class="pc-note" style="margin-top:14px;line-height:1.55">These are today's numbers; they're worked out again at send time. Opted-out and bounced addresses are always removed. A shop's own customers are never an audience here.</div>
           </div>
-          <div class="pc-note">{{ $aEditing ? 'Fill this in to add one more rule.' : 'Leave the rule blank for everyone in that source.' }}</div>
-        </div>
-        <div class="pc-acts">
-          <button type="button" class="pc-btn pc-btn--pri" wire:click="newAudience">{{ $aEditing ? 'Save changes' : 'Save audience' }}</button>
-          @if($aEditing)<button type="button" class="pc-btn" wire:click="closeAudience">Cancel</button>@endif
         </div>
       </div>
     @endif

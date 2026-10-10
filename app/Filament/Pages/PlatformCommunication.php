@@ -58,6 +58,7 @@ class PlatformCommunication extends Page
     // open an audience to edit it; delete audiences and campaigns
     public ?string $aEditing = null;
     public array   $aRules   = [];
+    public array   $aExclude = []; // MARKER-AUDIENCE-BUILDER prospect exclusions ticked
     public ?string $confirmDel = null; // 'a:<id>' or 'c:<id>' while the inline "Delete?" is showing
 
     public string $subject = '';
@@ -205,6 +206,7 @@ class PlatformCommunication extends Page
             'allShops'       => $allShops,
             'others'     => $others,
             'audiences'  => $audiences,
+            'aScreen'    => $this->tab === 'campaigns' ? $this->audienceScreen() : null,
             'campaigns'  => $campaigns,
             'campaign'   => $campaign,
             'reach'      => $reach,
@@ -385,6 +387,12 @@ class PlatformCommunication extends Page
         } elseif (trim($this->cBody) === '' && trim((string) $c->body) === '') {
             $out[] = 'Write a body.';
         }
+        // MARKER-AUDIENCE-BUILDER: investor details never leave the investor channel.
+        $src  = optional(\App\Models\PlatformAudience::find($this->cAudience ?: $c->audience_id))->source;
+        $text = $this->cSubject . ' ' . $this->cBody . ' ' . json_encode($this->cBlocks);
+        if ($src !== 'investors' && preg_match('/\{+\s*(amount|percent|remaining|portal)\s*\}+/i', $text)) {
+            $out[] = 'This uses investor details ({amount}, {percent}, {remaining} or {portal}), which only go to an Investors audience.';
+        }
         if ($reach !== null && $reach['mailable'] === 0) {
             $out[] = 'This audience matches nobody who can be mailed right now.';
         }
@@ -394,32 +402,93 @@ class PlatformCommunication extends Page
 
     public function newAudience(): void
     {
-        $name = trim($this->aName);
+        // MARKER-AUDIENCE-BUILDER: rule rows + exclusion ticks, named for you if left blank.
+        $svc   = app(\App\Services\Platform\PlatformAudienceService::class);
+        $rules = $this->audienceRules();
+        $name  = trim($this->aName);
         if ($name === '') {
-            Notification::make()->warning()->title('Name the audience first')->send();
-            return;
-        }
-
-        // editing keeps the rules already there (minus any removed)
-        $rules = $this->aEditing ? array_values($this->aRules) : [];
-        if (trim($this->aField) !== '' && trim($this->aValue) !== '') {
-            $rules[] = ['field' => $this->aField, 'op' => $this->aOp, 'value' => trim($this->aValue)];
+            $label = \App\Models\PlatformAudience::SOURCES[$this->aSource] ?? $this->aSource;
+            $bits  = collect($rules)->reject(fn ($r) => ! empty($r['x']))
+                ->map(fn ($r) => (($r['op'] ?? 'is') === 'is_not' || ($r['op'] ?? '') === 'has_not' ? 'not ' : '') . ($r['value'] ?? ''))->filter()->all();
+            $name  = $label . ($bits ? ' - ' . implode(', ', $bits) : '');
         }
 
         $existing = $this->aEditing ? \App\Models\PlatformAudience::find($this->aEditing) : null;
         if ($existing) {
             $existing->update(['name' => $name, 'source' => $this->aSource, 'rules' => $rules]);
         } else {
-            \App\Models\PlatformAudience::create([
-                'name'   => $name,
-                'source' => $this->aSource,
-                'rules'  => $rules,
-            ]);
+            \App\Models\PlatformAudience::create(['name' => $name, 'source' => $this->aSource, 'rules' => $rules]);
         }
 
         $this->closeAudience();
 
         Notification::make()->success()->title($existing ? 'Audience updated' : 'Audience saved')->send();
+    }
+
+    /** The rules exactly as they'd be saved: filled rows, then the ticked exclusions (prospects only). */
+    protected function audienceRules(): array
+    {
+        $rules = collect($this->aRules)
+            ->filter(fn ($r) => is_array($r) && ($r['field'] ?? '') !== '' && trim((string) ($r['value'] ?? '')) !== '')
+            ->map(fn ($r) => ['field' => (string) $r['field'], 'op' => (string) ($r['op'] ?? 'is'), 'value' => trim((string) $r['value'])])
+            ->values()->all();
+        if ($this->aSource === 'prospects') {
+            foreach (\App\Services\Platform\PlatformAudienceService::EXCLUSIONS as $k => $ex) {
+                if (in_array($k, $this->aExclude, true)) $rules[] = $ex['rule'];
+            }
+        }
+        return $rules;
+    }
+
+    public function setSource(string $source): void
+    {
+        if (! array_key_exists($source, \App\Models\PlatformAudience::SOURCES)) return;
+        $this->aSource  = $source;
+        $this->aRules   = [];
+        $this->aExclude = $source === 'prospects' ? array_keys(\App\Services\Platform\PlatformAudienceService::EXCLUSIONS) : [];
+    }
+
+    public function addRule(): void
+    {
+        $fields = \App\Services\Platform\PlatformAudienceService::FIELDS[$this->aSource] ?? [];
+        if (! $fields) return;
+        $used = collect($this->aRules)->pluck('field')->all();
+        $key  = collect(array_keys($fields))->first(fn ($k) => ! in_array($k, $used, true)) ?? array_key_first($fields);
+        $opts = app(\App\Services\Platform\PlatformAudienceService::class)->options($this->aSource)[$key] ?? [];
+        $this->aRules[] = ['field' => $key, 'op' => $key === 'addon' ? 'has' : 'is', 'value' => (string) (array_key_first($opts) ?? '')];
+    }
+
+    public function toggleExclude(string $key): void
+    {
+        $this->aExclude = in_array($key, $this->aExclude, true)
+            ? array_values(array_diff($this->aExclude, [$key]))
+            : array_values(array_merge($this->aExclude, [$key]));
+    }
+
+    /** Changing a rule's field resets its operator and value to that field's first choices. */
+    public function updatedARules($value, $key): void
+    {
+        [$i, $part] = array_pad(explode('.', (string) $key), 2, null);
+        if ($part !== 'field' || ! isset($this->aRules[$i])) return;
+        $f    = (string) $this->aRules[$i]['field'];
+        $opts = app(\App\Services\Platform\PlatformAudienceService::class)->options($this->aSource)[$f] ?? [];
+        $this->aRules[$i]['op']    = $f === 'addon' ? 'has' : 'is';
+        $this->aRules[$i]['value'] = (string) (array_key_first($opts) ?? '');
+    }
+
+    /** Fields, value lists and the live preview for the audience being built. Never throws into the page. */
+    protected function audienceScreen(): array
+    {
+        try {
+            $svc = app(\App\Services\Platform\PlatformAudienceService::class);
+            return [
+                'fields'  => \App\Services\Platform\PlatformAudienceService::FIELDS[$this->aSource] ?? [],
+                'options' => $svc->options($this->aSource),
+                'preview' => $svc->preview($this->aSource, $this->audienceRules()),
+            ];
+        } catch (\Throwable $e) {
+            return ['fields' => [], 'options' => [], 'preview' => null];
+        }
     }
 
     // ----------------------------------------------
@@ -430,7 +499,12 @@ class PlatformCommunication extends Page
         $this->aEditing = $a->id;
         $this->aName    = (string) $a->name;
         $this->aSource  = (string) $a->source;
-        $this->aRules   = array_values((array) ($a->rules ?? []));
+        $rules = array_values((array) ($a->rules ?? []));
+        $this->aExclude = collect($rules)->pluck('x')->filter()->values()->all();
+        $this->aRules   = collect($rules)->filter(fn ($r) => empty($r['x']))->map(fn ($r) => [
+            'field' => (string) ($r['field'] ?? ''), 'op' => (string) ($r['op'] ?? 'is'),
+            'value' => is_array($r['value'] ?? null) ? implode(',', $r['value']) : (string) ($r['value'] ?? ''),
+        ])->values()->all();
         $this->aField = ''; $this->aOp = 'is'; $this->aValue = '';
         $this->confirmDel = null;
     }
@@ -439,6 +513,7 @@ class PlatformCommunication extends Page
     {
         $this->aEditing = null;
         $this->aRules = [];
+        $this->aExclude = [];
         $this->aName = ''; $this->aSource = 'tenants';
         $this->aField = ''; $this->aOp = 'is'; $this->aValue = '';
     }

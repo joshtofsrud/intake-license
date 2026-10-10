@@ -7,6 +7,7 @@ use App\Models\PlatformEmailOptout;
 use App\Models\Tenant;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 /**
  * turn an audience's rules into recipients.
@@ -31,7 +32,8 @@ class PlatformAudienceService
             'prospects'                => $this->fromProspects($rules),
             'wrote_in'                 => $this->fromInbox($rules),
             'reps'                     => $this->fromReps($rules),
-            'investors'                => $this->fromInvestors(),
+            'investors'                => $this->fromInvestors($rules),
+            'inv_leads'                => $this->fromInvestLeads(),
             default                    => collect(),
         };
 
@@ -62,10 +64,24 @@ class PlatformAudienceService
 
     // ------------------------------------------------------------- sources
 
-    /** everyone on the investor record who hasn't declined. */
-    protected function fromInvestors(): Collection
+    /** everyone on the investor record who hasn't declined, narrowed by status and amount. */
+    protected function fromInvestors(array $rules = []): Collection
     {
         return \App\Models\Investor::whereNull('declined_at')->whereNotNull('email')->get()
+            ->filter(function ($i) use ($rules) {
+                foreach ($rules as $r) {
+                    $f = $r['field'] ?? null; $v = (string) ($r['value'] ?? ''); $not = ($r['op'] ?? 'is') === 'is_not';
+                    if ($v === '') continue;
+                    $have = match ($f) {
+                        'status' => self::investorStage($i),
+                        'amount' => self::amountBand((int) $i->amount),
+                        default  => null,
+                    };
+                    if ($have === null) continue;
+                    if (($have === $v) === $not) return false;
+                }
+                return true;
+            })
             ->map(fn ($i) => [
                 'email'       => (string) $i->email,
                 'name'        => $i->name,
@@ -159,6 +175,26 @@ class PlatformAudienceService
                 continue;
             }
 
+            // MARKER-AUDIENCE-BUILDER prospect exclusions
+            if ($field === 'is_tenant') {
+                $wantTenant = in_array(mb_strtolower($value), ['yes', '1', 'true'], true) !== $not;
+                if ($wantTenant) {
+                    $q->where(fn ($w) => $w->whereNotNull('converted_at')->orWhereNotNull('tenant_id'));
+                } else {
+                    $q->whereNull('converted_at')->whereNull('tenant_id');
+                }
+                continue;
+            }
+            if ($field === 'contacted_within') {
+                $since = now()->subDays(max(1, (int) $value));
+                if ($not) {
+                    $q->where(fn ($w) => $w->whereNull('last_contacted_at')->orWhere('last_contacted_at', '<', $since));
+                } else {
+                    $q->where('last_contacted_at', '>=', $since);
+                }
+                continue;
+            }
+
             $ids = match ($field) {
                 'industry'  => ['channel_id', $byName('sales_channels', $value)],
                 'territory' => ['territory_id', $byName('sales_territories', $value)],
@@ -174,7 +210,17 @@ class PlatformAudienceService
             }
         }
 
-        return collect($q->get())->map(fn ($p) => [
+        $rows = collect($q->get());
+        // MARKER-AUDIENCE-BUILDER: campaigns go through Postmark's broadcast
+        // stream, which only allows people who asked to hear from us. A prospect
+        // counts once they booked a call, wrote in through the site or became a
+        // tenant. Cold prospects are never campaign recipients.
+        if (! $this->includeCold) {
+            $optin = $this->optedInEmails();
+            $rows  = $rows->filter(fn ($p) => ! empty($p->converted_at) || isset($optin[mb_strtolower(trim((string) $p->email))]));
+        }
+
+        return $rows->map(fn ($p) => [
             'email'       => (string) $p->email,
             'name'        => $p->owner_contact ?: $p->shop,
             'source_type' => 'prospects',
@@ -215,6 +261,171 @@ class PlatformAudienceService
                 'source_type' => 'reps',
                 'source_id'   => (string) $r->id,
                 'vars'        => ['first_name' => $this->firstName($r->name ?? null) ?: 'there', 'shop_name' => ''],
+            ]);
+    }
+
+    // MARKER-AUDIENCE-BUILDER: what the audience screen offers, and its live preview.
+
+    /** Fields a rule can use, per source. Anything else in a saved rule is kept but shown read-only. */
+    public const FIELDS = [
+        'prospects'     => ['industry' => 'Industry', 'stage' => 'Stage', 'priority' => 'Priority', 'state' => 'State', 'territory' => 'Territory', 'rep' => 'Rep', 'verified' => 'Verified'],
+        'tenants'       => ['plan_tier' => 'Plan', 'subscription' => 'Subscription', 'addon' => 'Add-on', 'is_active' => 'Active'],
+        'tenant_owners' => ['plan_tier' => 'Plan', 'subscription' => 'Subscription', 'addon' => 'Add-on', 'is_active' => 'Active'],
+        'investors'     => ['status' => 'Status', 'amount' => 'Amount'],
+    ];
+
+    /** Prospect exclusions shown as tick boxes; stored as ordinary rules carrying 'x'. */
+    public const EXCLUSIONS = [
+        'tenant' => ['label' => 'Already a tenant',             'rule' => ['field' => 'is_tenant',        'op' => 'is',     'value' => 'no',  'x' => 'tenant']],
+        'lost'   => ['label' => 'Marked lost',                  'rule' => ['field' => 'stage',            'op' => 'is_not', 'value' => 'lost', 'x' => 'lost']],
+        'recent' => ['label' => 'Contacted in the last 30 days', 'rule' => ['field' => 'contacted_within', 'op' => 'is_not', 'value' => '30',  'x' => 'recent']],
+    ];
+
+    public const INVESTOR_STAGES = ['added' => 'Added', 'invited' => 'Invited', 'opened' => 'Opened', 'committed' => 'Committed', 'signed' => 'Signed', 'funded' => 'Funded'];
+    public const AMOUNT_BANDS    = ['under_10k' => 'Under $10k', '10k_25k' => '$10k to $25k', '25k_plus' => '$25k and up'];
+
+    /** Cold prospects are never campaign recipients. Outreach tools may turn this on. */
+    public bool $includeCold = false;
+
+    /** @return array<string, array<string,string>> value => label, per field */
+    public function options(string $source): array
+    {
+        $out = [];
+        $names = function (string $table) {
+            try {
+                return Schema::hasTable($table)
+                    ? DB::table($table)->whereNotNull('name')->orderBy('name')->pluck('name', 'name')->all() : [];
+            } catch (\Throwable $e) { return []; }
+        };
+        $distinct = function (string $table, string $col) {
+            try {
+                return DB::table($table)->whereNotNull($col)->where($col, '!=', '')->distinct()->orderBy($col)->pluck($col)
+                    ->mapWithKeys(fn ($v) => [(string) $v => ucfirst(str_replace('_', ' ', (string) $v))])->all();
+            } catch (\Throwable $e) { return []; }
+        };
+
+        if ($source === 'prospects') {
+            $out = [
+                'industry'  => $names('sales_channels'),
+                'stage'     => $distinct('sales_prospects', 'stage'),
+                'priority'  => ['A' => 'A', 'B' => 'B', 'C' => 'C'],
+                'state'     => $distinct('sales_prospects', 'state'),
+                'territory' => $names('sales_territories'),
+                'rep'       => $names('sales_reps'),
+                'verified'  => ['yes' => 'Yes', 'no' => 'No'],
+            ];
+        } elseif (in_array($source, ['tenants', 'tenant_owners'], true)) {
+            $addons = [];
+            try {
+                $addons = (new Tenant)->addons()->getRelated()->newQuery()->distinct()->orderBy('addon_code')->pluck('addon_code')
+                    ->mapWithKeys(fn ($v) => [(string) $v => ucfirst(str_replace('_', ' ', (string) $v))])->all();
+            } catch (\Throwable $e) {}
+            $out = [
+                'plan_tier'    => $distinct('tenants', 'plan_tier'),
+                'subscription' => $distinct('tenants', 'subscription_status'),
+                'addon'        => $addons,
+                'is_active'    => ['yes' => 'Yes', 'no' => 'No'],
+            ];
+        } elseif ($source === 'investors') {
+            $out = ['status' => self::INVESTOR_STAGES, 'amount' => self::AMOUNT_BANDS];
+        }
+
+        return $out;
+    }
+
+    /** Everything the screen shows beside the rules, from the same resolver the sender uses. */
+    public function preview(string $source, array $rules): array
+    {
+        $a   = new PlatformAudience(['name' => 'preview', 'source' => $source, 'rules' => $rules]);
+        $all = $this->resolve($a);
+
+        $opt   = $all->isEmpty() ? collect() : PlatformEmailOptout::whereIn('email', $all->pluck('email'))->get(['email', 'kind']);
+        $gone  = $opt->pluck('email')->flip();
+        $bad   = $opt->filter(fn ($r) => in_array($r->kind, ['bounce', 'complaint'], true))->count();
+        $ok    = $all->reject(fn ($r) => isset($gone[$r['email']]))->values();
+        $optin = $source === 'prospects' ? $this->optedInEmails() : [];
+
+        $sample = $ok->take(8)->map(function ($r) use ($source, $optin) {
+            $tag = '';
+            if ($source === 'prospects') {
+                $tag = $optin[$r['email']] ?? 'became a tenant';
+            } elseif (in_array($source, ['tenants', 'tenant_owners'], true)) {
+                $tag = (string) ($r['vars']['plan'] ?? '');
+            } elseif ($source === 'investors') {
+                $inv = \App\Models\Investor::find($r['source_id']);
+                $tag = $inv ? (self::INVESTOR_STAGES[self::investorStage($inv)] ?? '') : '';
+            } elseif ($source === 'inv_leads') {
+                $tag = 'mailing list';
+            }
+            return ['name' => $r['name'] ?: $r['email'], 'email' => $r['email'], 'tag' => $tag];
+        })->all();
+
+        return [
+            'matched'  => $all->count(),
+            'optout'   => $opt->count() - $bad,
+            'bounced'  => $bad,
+            'mailable' => $ok->count(),
+            'sample'   => $sample,
+            'cold'     => $source === 'prospects' ? $this->coldProspectCount() : 0,
+        ];
+    }
+
+    /** email => how they asked to hear from us: booked a call or wrote in through the site. */
+    public function optedInEmails(): array
+    {
+        $out = [];
+        try {
+            if (Schema::hasTable('platform_inbox_messages')) {
+                foreach (DB::table('platform_inbox_messages')->where('kind', 'contact')->where('status', '!=', 'spam')
+                    ->whereNotNull('email')->pluck('email') as $e) {
+                    $out[mb_strtolower(trim((string) $e))] = 'wrote in';
+                }
+            }
+            if (Schema::hasTable('platform_bookings')) {
+                foreach (DB::table('platform_bookings')->whereNotNull('email')->pluck('email') as $e) {
+                    $out[mb_strtolower(trim((string) $e))] = 'booked a call';
+                }
+            }
+        } catch (\Throwable $e) {}
+        return $out;
+    }
+
+    public function coldProspectCount(): int
+    {
+        try {
+            $optin = $this->optedInEmails();
+            return DB::table('sales_prospects')->whereNotNull('email')->where('email', '!=', '')->whereNull('converted_at')
+                ->pluck('email')->reject(fn ($e) => isset($optin[mb_strtolower(trim((string) $e))]))->count();
+        } catch (\Throwable $e) { return 0; }
+    }
+
+    public static function investorStage($i): string
+    {
+        return $i->funded_at ? 'funded' : ($i->signed_at ? 'signed' : ($i->committed_at ? 'committed'
+            : (! empty($i->opened_at) ? 'opened' : ($i->invited_at ? 'invited' : 'added'))));
+    }
+
+    public static function amountBand(int $amount): string
+    {
+        return $amount >= 25000 ? '25k_plus' : ($amount >= 10000 ? '10k_25k' : 'under_10k');
+    }
+
+    /** People who joined the invest page's mailing list and aren't investors (yet). */
+    protected function fromInvestLeads(): Collection
+    {
+        if (! Schema::hasTable('invest_leads')) {
+            return collect();
+        }
+        $inv = \App\Models\Investor::whereNotNull('email')->pluck('email')->map(fn ($e) => mb_strtolower(trim((string) $e)))->flip();
+
+        return collect(DB::table('invest_leads')->whereNotNull('email')->orderByDesc('id')->get(['name', 'email']))
+            ->reject(fn ($l) => isset($inv[mb_strtolower(trim((string) $l->email))]))
+            ->map(fn ($l) => [
+                'email'       => (string) $l->email,
+                'name'        => $l->name,
+                'source_type' => 'inv_leads',
+                'source_id'   => null,
+                'vars'        => ['first_name' => $this->firstName($l->name) ?: 'there', 'shop_name' => ''],
             ]);
     }
 

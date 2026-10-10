@@ -171,6 +171,7 @@ class PlatformLetter
     {
         return match ($source) {
             'investors'     => "You're receiving this because you're an investor in Intake Inc. Reply to reach Josh directly.",
+            'inv_leads'     => "You're receiving this because you asked for updates about Intake.",
             'tenants', 'tenant_owners' => "You're receiving this as an Intake shop owner.",
             'prospects'     => "You're receiving this because your shop has talked with Intake.",
             'reps'          => "You're receiving this as an Intake partner.",
