@@ -188,7 +188,6 @@ Route::domain('app.' . $domain)->middleware(\App\Http\Middleware\SeoSignals::cla
     Route::post('/signup',  [Platform\OnboardingController::class, 'processSignup'])->name('platform.signup.process');
     Route::get('/signup/payment',  [Platform\OnboardingController::class, 'paymentStep'])->name('platform.signup.payment');
     Route::post('/signup/complete', [Platform\OnboardingController::class, 'completeSignup'])->name('platform.signup.complete');
-    Route::get('/checkout', [Platform\OnboardingController::class, 'checkout'])->name('platform.checkout');
     Route::post('/subdomain/check', [Platform\OnboardingController::class, 'checkSubdomain'])->name('platform.subdomain.check');
 
     Route::get('/login',    [Platform\OnboardingController::class, 'login'])->name('platform.login');

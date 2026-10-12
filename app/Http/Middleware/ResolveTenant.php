@@ -56,7 +56,34 @@ class ResolveTenant
                 return response()->view('marketing.account-elsewhere', [], 404);
             }
 
-            return $next($request);
+            // MARKER-PLATFORM-HOST-404
+            // Shop-site routes have no shop to serve on the platform's own
+            // hosts (intake.works, www, app. and the other reserved names).
+            // Anything the marketing and signup routes didn't claim used to
+            // fall through to a shop controller with tenant() === null and
+            // 500 (/shop, /cart, /rentals ... on app.intake.works). Two kinds
+            // of request legitimately arrive here and still pass:
+            //   - inbound webhooks (Stripe Connect, Postmark, Twilio,
+            //     Cloudflare, SES, Dropbox Sign ...), which post to the
+            //     platform host and find their shop from the payload;
+            //   - the staff sign-in pages, which already redirect to the
+            //     platform sign-in when there is no shop.
+            if ($request->is('webhooks/*')) {
+                return $next($request);
+            }
+
+            $action = (string) optional($request->route())->getActionName();
+            $auth   = \App\Http\Controllers\Tenant\AuthController::class;
+            if (in_array($action, [$auth . '@showLogin', $auth . '@showForgot', $auth . '@showReset'], true)) {
+                return $next($request);
+            }
+
+            // www has no routes of its own; send visitors to the bare domain.
+            if ($host === 'www.' . $rootDomain && in_array($request->method(), ['GET', 'HEAD'], true)) {
+                return redirect()->to('https://' . $rootDomain . $request->getRequestUri(), 301);
+            }
+
+            abort(404);
         }
 
         // ----------------------------------------------------------------
