@@ -40,7 +40,10 @@
         </div>
         <div class="ia-form-group">
           <label class="ia-form-label">SKU <span class="ia-required">*</span></label>
-          <input type="text" name="sku" class="ia-input" required value="{{ old('sku', $item->sku) }}">
+          <div style="display:flex;gap:8px">
+            <input type="text" name="sku" class="ia-input" required value="{{ old('sku', $item->sku) }}" style="flex:1;min-width:0">
+            <button type="button" class="ia-btn ia-btn--secondary ia-btn--sm" data-sku-generate="{{ route('tenant.inventory.sku.next') }}" title="Replace with the next SKU on your prefix">Generate</button>
+          </div>
         </div>
       </div>
 
@@ -211,7 +214,7 @@
 @endsection
 
 @push('scripts')
-<script src="{{ asset('js/tenant/item-identify.js') }}?v=1"></script>
+<script src="{{ asset('js/tenant/item-identify.js') }}?v=2"></script>
 <script>
 // see create.blade.php. A scanner's Enter moves on
 // instead of submitting a half-edited item.

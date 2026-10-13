@@ -40,6 +40,14 @@
 
   function show(input, m) {
     var box = boxFor(input);
+    // MARKER-SKU-GEN: an archived item still owns this SKU
+    if (m.archived) {
+      box.innerHTML = '<strong>Used by an archived item</strong>'
+        + '<div style="margin:6px 0 10px">' + esc(m.name) + ' still owns ' + esc(m.how) + '. Restore that item, or use another SKU.</div>'
+        + '<a class="ia-btn ia-btn--secondary ia-btn--sm" href="' + esc(m.url) + '">See archived items</a>';
+      box.style.display = '';
+      return;
+    }
     var title = m.strength === 'possible' ? 'Possibly already in your inventory' : 'Already in your inventory';
     var html = '<strong>' + title + '</strong>'
       + '<div style="margin:6px 0 10px">' + esc(m.name) + ' · ' + money(m.price) + ' · ' + esc(m.stock) + ' in stock · same ' + esc(m.how) + '</div>'
@@ -92,5 +100,21 @@
     if (!input) { return; }
     input.addEventListener('change', function () { check(input); });
     input.addEventListener('blur', function () { check(input); });
+  });
+
+  // MARKER-SKU-GEN: Generate fills the next free SKU on the shop's prefix
+  form.querySelectorAll('[data-sku-generate]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var input = form.querySelector('[name="sku"]');
+      if (!input) { return; }
+      btn.disabled = true;
+      fetch(btn.getAttribute('data-sku-generate'), { headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin' })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (d) {
+          if (d && d.sku) { input.value = d.sku; input.dispatchEvent(new Event('change')); }
+        })
+        .catch(function () {})
+        .then(function () { btn.disabled = false; });
+    });
   });
 })();

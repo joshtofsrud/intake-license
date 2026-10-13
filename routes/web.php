@@ -531,6 +531,11 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
                 Route::post('/register/layaway/{plan}/pay',          [TenantControllers\RegisterController::class, 'payLayaway'])->name('register.layaway.pay');
                 Route::post('/register/layaway/{plan}/complete',     [TenantControllers\RegisterController::class, 'completeLayaway'])->name('register.layaway.complete');
                 Route::get('/register/history',          [TenantControllers\RegisterController::class, 'historyIndex'])->name('register.history.index');
+                // MARKER-CUSTOM-ITEMS: what was rung up by hand, to sort into inventory
+                Route::get('/register/custom-items',          [TenantControllers\CustomItemsController::class, 'index'])->name('register.custom-items');
+                Route::get('/register/custom-items/search',   [TenantControllers\CustomItemsController::class, 'search'])->name('register.custom-items.search');
+                Route::post('/register/custom-items/resolve', [TenantControllers\CustomItemsController::class, 'resolve'])->name('register.custom-items.resolve');
+                Route::post('/register/custom-items/undo',    [TenantControllers\CustomItemsController::class, 'undo'])->name('register.custom-items.undo');
                 Route::get('/register/sales/{id}/json',  [TenantControllers\RegisterController::class, 'showSaleJson'])->name('register.sales.show');
                 // printable 80mm sales receipt
                 Route::get('/register/sales/{id}/receipt', [TenantControllers\RegisterController::class, 'printReceipt'])->name('register.sales.receipt');
@@ -893,6 +898,8 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
                 Route::post('/merge',            [TenantControllers\InventoryController::class, 'mergeCommit'])->name('merge.commit');
                 // asked by the item forms as each identifier field is left.
                 Route::get('/identify',          [TenantControllers\ItemIdentifyController::class, 'check'])->name('identify');
+                // the next free SKU on the shop's prefix (MARKER-SKU-GEN)
+                Route::get('/sku/next',          [TenantControllers\ItemIdentifyController::class, 'nextSku'])->name('sku.next');
 
                 // duplicate items; capability checked in the controller.
                 Route::get('/duplicates',                [TenantControllers\DuplicateItemsController::class, 'index'])->name('duplicates');

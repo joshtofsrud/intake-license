@@ -328,8 +328,8 @@ class DashboardDataService
                 'key'   => 'ready_pickup',
                 'icon'  => '✅',
                 'desc'  => $readyPickupCount === 1
-                    ? 'Customer ready to receive their bike'
-                    : 'Customers ready to receive their bikes',
+                    ? 'Customer ready to receive their ' . ($this->tenant->asset_label_singular ?: 'item')
+                    : 'Customers ready to receive their ' . ($this->tenant->asset_label_plural ?: 'items'),
                 'tone'  => 'amber',  // customer's action: collect their item
                 'link'  => route('tenant.appointments.index', ['filter' => 'ready_pickup']),
             ];
@@ -589,6 +589,27 @@ class DashboardDataService
                 'tone'  => 'violet',  // your action: start a re-engagement campaign
                 'link'  => route('tenant.customers.index'),
             ];
+        }
+
+        // MARKER-CUSTOM-ITEMS: lines rung up by hand that nobody has sorted yet
+        try {
+            if (app(\App\Services\FeatureAccessService::class)->hasAddon($this->tenant, 'retail')) {
+                $ci = (new CustomItemsService($this->tenant))->counts();
+                if ($ci['open'] > 0) {
+                    $cards[] = [
+                        'count' => $ci['today'] > 0 ? $ci['today'] : $ci['open'],
+                        'title' => $ci['today'] > 0 ? 'Custom items sold today' : 'Custom items to sort',
+                        'key'   => 'custom_items',
+                        'icon'  => '🏷️',
+                        'desc'  => 'Add them to inventory so they scan next time'
+                            . ($ci['today'] > 0 && $ci['earlier'] > 0 ? ' · ' . $ci['earlier'] . ' more from earlier' : ''),
+                        'tone'  => 'amber',
+                        'link'  => route('tenant.register.custom-items'),
+                    ];
+                }
+            }
+        } catch (\Throwable $e) {
+            // the dashboard never fails over a count
         }
 
         return [

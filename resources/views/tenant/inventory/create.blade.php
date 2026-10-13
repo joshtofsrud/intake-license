@@ -79,9 +79,12 @@
         </div>
         <div class="ia-form-group">
           <label class="ia-form-label">SKU <span class="ia-required">*</span></label>
-          <input type="text" name="sku" class="ia-input" required value="{{ old('sku') }}"
-            placeholder="Your own code for this item">
-          <div class="ia-form-hint">Must be unique within your shop.</div>
+          <div style="display:flex;gap:8px">
+            <input type="text" name="sku" class="ia-input" required value="{{ old('sku') }}"
+              placeholder="Your own code for this item" style="flex:1;min-width:0">
+            <button type="button" class="ia-btn ia-btn--secondary ia-btn--sm" data-sku-generate="{{ route('tenant.inventory.sku.next') }}">Generate</button>
+          </div>
+          <div class="ia-form-hint">Must be unique within your shop. Generate uses your prefix, {{ \App\Support\SkuNumbering::prefix($currentTenant) }}, set in Settings &rsaquo; Business.</div>
         </div>
       </div>
 
@@ -228,7 +231,7 @@
 @endsection
 
 @push('scripts')
-<script src="{{ asset('js/tenant/item-identify.js') }}?v=1"></script>
+<script src="{{ asset('js/tenant/item-identify.js') }}?v=2"></script>
 <script>
 // barcode scanners send Enter the moment they finish
 // reading. On a form that submits on Enter this saves a half-filled item and

@@ -149,6 +149,7 @@ class SettingsController extends Controller
             'asset_label_plural'   => ['nullable', 'string', 'max:30'],
             'default_tax_rate'     => ['nullable', 'numeric', 'min:0', 'max:25'],
             'inventory_cost_method' => ['nullable', 'in:average,last,manual'],
+            'sku_prefix'           => ['nullable', 'string', 'max:12'], // MARKER-SKU-GEN
             'tax_services_default' => ['nullable', 'boolean'],
             'tax_supports_exempt'  => ['nullable', 'boolean'],
         ]);
@@ -187,6 +188,8 @@ class SettingsController extends Controller
             'settings'             => array_merge((array) ($tenant->settings ?? []), [
                 'inventory_cost_method' => in_array($request->input('inventory_cost_method'), ['average', 'last', 'manual'], true)
                     ? $request->input('inventory_cost_method') : 'average',
+                // empty = derived from the shop name each time
+                'sku_prefix' => \App\Support\SkuNumbering::clean($request->input('sku_prefix')),
             ]),
         ]);
 

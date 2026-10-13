@@ -622,6 +622,19 @@
       </div>
     </div>
 
+    {{-- MARKER-SKU-GEN: numbering --}}
+    @php $skuPrefixSaved = \App\Support\SkuNumbering::clean(((array) ($currentTenant->settings ?? []))['sku_prefix'] ?? ''); @endphp
+    <div class="ia-card" style="margin-bottom:20px">
+      <div class="ia-card-head"><span class="ia-card-title">Numbering</span></div>
+      <div class="ia-form-group" style="max-width:340px">
+        <label class="ia-form-label">SKU prefix</label>
+        <input type="text" name="sku_prefix" class="ia-input" maxlength="12" value="{{ old('sku_prefix', $skuPrefixSaved) }}" placeholder="{{ \App\Support\SkuNumbering::defaultPrefix($currentTenant) }}" style="text-transform:uppercase">
+        <p style="font-size:11px;opacity:.5;margin-top:8px;line-height:1.5">
+          Generate on an item's SKU uses this, then the next free number: {{ \App\Support\SkuNumbering::prefix($currentTenant) }}00001, {{ \App\Support\SkuNumbering::prefix($currentTenant) }}00002 &hellip; Letters, numbers and dashes. Left empty, it's the first word of your shop name. Changing it never renames SKUs you already have.
+        </p>
+      </div>
+    </div>
+
     {{-- Tax --}}
     <div class="ia-card" style="margin-bottom:20px">
       <div class="ia-card-head"><span class="ia-card-title">Sales tax</span></div>

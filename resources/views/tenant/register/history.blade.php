@@ -225,6 +225,7 @@
   <div class="reg-tabs-scroll">
   <a href="{{ route('tenant.register.index') }}" class="reg-tab-link">Transaction</a>
   <a href="{{ route('tenant.register.history.index') }}" class="reg-tab-link active">Transaction History</a>
+  <a href="{{ route('tenant.register.custom-items') }}" class="reg-tab-link">Custom items</a>
   <a href="{{ route('tenant.register.quotes.index') }}" class="reg-tab-link">Quotes</a>
   <a href="{{ route('tenant.register.layaways.index') }}" class="reg-tab-link">Layaways</a>
   <a href="{{ route('tenant.register.reconciliation') }}" class="reg-tab-link">Reconciliation</a>

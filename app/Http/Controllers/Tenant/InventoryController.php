@@ -1219,13 +1219,18 @@ class InventoryController extends Controller
             }
         }
 
-        // Enforce SKU uniqueness within tenant
-        $skuTaken = TenantInventoryItem::where('tenant_id', $tenant->id)
+        // Enforce SKU uniqueness within tenant.
+        // MARKER-SKU-GEN: archived items count. The unique index includes
+        // them, so an archived item's SKU passed this check and the insert
+        // then failed with a server error.
+        $skuOwner = TenantInventoryItem::withTrashed()->where('tenant_id', $tenant->id)
             ->where('sku', $data['sku'])
-            ->exists();
-        if ($skuTaken) {
+            ->first();
+        if ($skuOwner) {
             return back()->withInput()->withErrors([
-                'sku' => "SKU '{$data['sku']}' already exists for this tenant.",
+                'sku' => $skuOwner->trashed()
+                    ? "SKU '{$data['sku']}' belongs to an archived item, {$skuOwner->name}. Restore that item, or use another SKU."
+                    : "SKU '{$data['sku']}' is already used by {$skuOwner->name}.",
             ]);
         }
 
@@ -1271,6 +1276,15 @@ class InventoryController extends Controller
         // likely into impossible.
         self::autoLinkByIdentifiers($item->refresh());
         $this->syncItemSources($request, $item);
+
+        // MARKER-CUSTOM-ITEMS: added from Register > Custom items; record it and go back there
+        if ($request->filled('custom_item_key')) {
+            (new \App\Services\Tenant\CustomItemsService($tenant))->resolve(
+                (string) $request->input('custom_item_key'), 'added', $item->id, null, false,
+                $item->name, optional(Auth::guard('tenant')->user())->id
+            );
+            return redirect()->route('tenant.register.custom-items')->with('success', "Added {$item->name} to inventory.");
+        }
 
         return redirect()->route('tenant.inventory.show', $item->id)
             ->with('flash', ['type' => 'success', 'message' => "Item '{$item->name}' created."]);
@@ -1757,14 +1771,16 @@ class InventoryController extends Controller
             ]);
         }
 
-        // SKU uniqueness — exclude current item
-        $skuTaken = TenantInventoryItem::where('tenant_id', $tenant->id)
+        // SKU uniqueness, excluding this item; archived items count (MARKER-SKU-GEN)
+        $skuOwner = TenantInventoryItem::withTrashed()->where('tenant_id', $tenant->id)
             ->where('sku', $data['sku'])
             ->where('id', '!=', $item->id)
-            ->exists();
-        if ($skuTaken) {
+            ->first();
+        if ($skuOwner) {
             return back()->withInput()->withErrors([
-                'sku' => "SKU '{$data['sku']}' already exists for this tenant.",
+                'sku' => $skuOwner->trashed()
+                    ? "SKU '{$data['sku']}' belongs to an archived item, {$skuOwner->name}. Restore that item, or use another SKU."
+                    : "SKU '{$data['sku']}' is already used by {$skuOwner->name}.",
             ]);
         }
 

@@ -53,6 +53,23 @@ class ItemIdentifyController extends Controller
         if (! $item && $field === 'sku') {
             $item = $q()->whereRaw('LOWER(sku) = ?', [mb_strtolower($value)])->first();
             $how = $item ? 'SKU ' . $item->sku : null;
+
+            // MARKER-SKU-GEN: an archived item still owns its SKU, so saving
+            // would fail. Say so now, instead of a red error after Save.
+            if (! $item) {
+                $gone = TenantInventoryItem::onlyTrashed()->where('tenant_id', $tenant->id)
+                    ->when($except, fn ($w) => $w->where('id', '!=', $except))
+                    ->whereRaw('LOWER(sku) = ?', [mb_strtolower($value)])->first();
+                if ($gone) {
+                    return response()->json(['match' => [
+                        'id'       => $gone->id,
+                        'name'     => $gone->name,
+                        'how'      => 'SKU ' . $gone->sku,
+                        'archived' => true,
+                        'url'      => route('tenant.inventory.index', ['archived' => 1]),
+                    ]]);
+                }
+            }
         }
 
         if (! $item && $field === 'catalog_mpn') {
@@ -80,5 +97,17 @@ class ItemIdentifyController extends Controller
             'url'        => route('tenant.inventory.show', $item->id),
             'adjust_url' => route('tenant.inventory.show', $item->id) . '?adjust=1',
         ]]);
+    }
+
+    /** GET /inventory/sku/next: the next free SKU on the shop's prefix (MARKER-SKU-GEN). */
+    public function nextSku(): JsonResponse
+    {
+        $tenant = tenant();
+        $this->assertRetailEnabled($tenant);
+
+        return response()->json([
+            'sku'    => \App\Support\SkuNumbering::next($tenant),
+            'prefix' => \App\Support\SkuNumbering::prefix($tenant),
+        ]);
     }
 }
