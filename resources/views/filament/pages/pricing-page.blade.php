@@ -6,6 +6,9 @@
     $money  = fn (int $c) => number_format($c / 100, $c % 100 ? 2 : 0);
     $dirty  = $this->isDirty();
     $ed     = $this->editing();
+    // MARKER-PRICING-MOBILE-PRIORITY
+    $phTip  = 'Shows first on the plan card on phones. Cards show five lines; the rest sit behind "+ more".';
+    $phone  = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="2" width="12" height="20" rx="2.5"/><path d="M11 18h2"/></svg>';
 @endphp
 <x-filament-panels::page>
 <style>
@@ -38,10 +41,13 @@
   .pp .pp-in:hover{background:rgba(127,127,127,.08)!important}
   .pp .pp-in:focus{outline:none;border-bottom-color:#8b7cf6!important;background:rgba(139,124,246,.06)!important}
   .pp textarea.pp-in{border-bottom:1px dashed rgba(127,127,127,.3)!important}
-  .pp-row{display:grid;grid-template-columns:minmax(0,1.4fr) repeat(3,minmax(0,1fr)) 74px;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--ln)}
+  .pp-row{display:grid;grid-template-columns:minmax(0,1.4fr) repeat(3,minmax(0,1fr)) 34px 74px;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--ln)}
   .pp-row.h{font-size:12px;font-weight:600;opacity:.6;border-bottom-color:var(--ln2)}
   .pp-x{background:none;border:0;cursor:pointer;opacity:.55;font-size:15px;padding:2px 5px;color:inherit}
   .pp-x:hover{opacity:1}
+  .pp-ph{display:inline-flex;justify-content:center;align-items:center;opacity:.65;cursor:help}
+  .pp-ck{display:flex;justify-content:center}
+  .pp-ck input{width:16px;height:16px;accent-color:#8b7cf6;cursor:pointer}
   .pp-blurbs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
   .pp-dirty{color:#d4a017;font-size:12.5px}
   .pp-legend{font-size:12px;opacity:.65;line-height:1.65;border-top:1px solid var(--ln);padding-top:12px;max-width:940px}
@@ -95,13 +101,14 @@
     </div>
 
     <div class="pp-lab" style="margin:22px 0 6px">The basics · rows that aren't add-ons. Type yes or no for a tick or a dash.</div>
-    <div class="pp-row h"><span>Row</span><span>Starter</span><span>Branded</span><span>Scale</span><span></span></div>
+    <div class="pp-row h"><span>Row</span><span>Starter</span><span>Branded</span><span>Scale</span><span class="pp-ph" title="{{ $phTip }}">{!! $phone !!}</span><span></span></div>
     @foreach($basics as $i => $r)
       <div class="pp-row" wire:key="basic-{{ $i }}">
         <input class="pp-in" wire:model.live.debounce.400ms="basics.{{ $i }}.0" maxlength="80" placeholder="Row name">
         <input class="pp-in" wire:model.live.debounce.400ms="basics.{{ $i }}.1" maxlength="60">
         <input class="pp-in" wire:model.live.debounce.400ms="basics.{{ $i }}.2" maxlength="60">
         <input class="pp-in" wire:model.live.debounce.400ms="basics.{{ $i }}.3" maxlength="60">
+        <label class="pp-ck" title="{{ $phTip }}"><input type="checkbox" wire:model.live="basics.{{ $i }}.4"></label>
         <span style="white-space:nowrap">
           <button type="button" class="pp-x" wire:click="moveRow({{ $i }}, -1)" title="Move up">&uarr;</button><button type="button" class="pp-x" wire:click="moveRow({{ $i }}, 1)" title="Move down">&darr;</button><button type="button" class="pp-x" wire:click="removeRow({{ $i }})" title="Remove row">&times;</button>
         </span>
@@ -112,15 +119,19 @@
 
   {{-- add-ons by plan --}}
   <div>
-    <div class="pp-lab" style="margin-bottom:4px">Add-ons on each plan</div>
+    <div class="pp-bar" style="justify-content:space-between;margin-bottom:4px">
+      <div class="pp-lab">Add-ons on each plan</div>
+      @if($dirty)<div class="pp-bar"><span class="pp-dirty">Unsaved changes</span><x-filament::button size="sm" wire:click="saveText">Save</x-filament::button></div>@endif
+    </div>
     <table>
-      <thead><tr><th>Add-on</th>@foreach($plans as $p)<th>{{ $p['name'] }}<small>${{ $money($p['cents']) }}/mo</small></th>@endforeach</tr></thead>
+      <thead><tr><th>Add-on</th><th style="width:44px"><span class="pp-ph" title="{{ $phTip }}">{!! $phone !!}</span></th>@foreach($plans as $p)<th>{{ $p['name'] }}<small>${{ $money($p['cents']) }}/mo</small></th>@endforeach</tr></thead>
       <tbody>
         @foreach($groups as $gName => $rows)
-          <tr class="grp"><th colspan="4">{{ $gName }}</th></tr>
+          <tr class="grp"><th colspan="5">{{ $gName }}</th></tr>
           @foreach($rows as $r)
             <tr>
               <th>{{ $r['addon']->name }}<small>{{ $r['addon']->code }}{{ $r['addon']->min_plan_tier ? ' · '.ucfirst($r['addon']->min_plan_tier).' and up' : '' }}</small></th>
+              <td>@if(in_array('inc', array_column($r['cells'], 't'), true))<label class="pp-ck" title="{{ $phTip }}"><input type="checkbox" value="{{ $r['addon']->code }}" wire:model.live="mobileAddons"></label>@endif</td>
               @foreach($r['cells'] as $cell)
                 <td><button type="button" class="pp-c {{ $cell['t'] }}" wire:click="openAddon({{ $r['addon']->id }})">
                   @if($cell['t'] === 'no')&mdash;@elseif($cell['t'] === 'ask')Ask us{{ isset($cell['price']) ? ' · '.$cell['price'] : '' }}@else{{ $cell['s'] }}@endif
@@ -135,6 +146,7 @@
 
   <div class="pp-legend">
     <b>What this changes.</b> Saving here changes intake.works/pricing straight away; there is no publish step. Plan prices are not edited here, they come from Billing &rsaquo; Plan prices. Add-on prices are not edited here either, they come from Billing &rsaquo; Add-ons, where they can be dated. Who gets an add-on (the drawer) is the real setting: it changes what shops on that plan can use today, not only what the page says.
+    The phone column picks which lines a plan card shows first on phones (five lines in all, the rest behind "+ more"); it does not change desktop, where every line shows, and only add-ons a plan includes appear on cards, so only those have a box.
     Add-ons that are closed or retired, and hidden add-ons no plan includes, never appear on the page. Amber cells have no price yet, so the public page leaves them out.
   </div>
 </div>

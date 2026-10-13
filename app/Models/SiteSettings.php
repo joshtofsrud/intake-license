@@ -35,6 +35,7 @@ class SiteSettings extends Model
         'brand_history',
         'pricing_blurbs', // MARKER-LIVE-PRICING
         'pricing_basics',
+        'pricing_mobile_addons', // MARKER-PRICING-MOBILE-PRIORITY
     ];
 
     protected $casts = [
@@ -42,6 +43,7 @@ class SiteSettings extends Model
         'brand_history' => 'array',
         'pricing_blurbs' => 'array',
         'pricing_basics' => 'array',
+        'pricing_mobile_addons' => 'array',
     ];
 
     public static function current(): self

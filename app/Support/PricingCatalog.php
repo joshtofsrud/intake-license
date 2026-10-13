@@ -84,21 +84,34 @@ class PricingCatalog
         return array_merge(self::DEFAULT_BLURBS, array_filter($saved, fn ($v) => is_string($v) && trim($v) !== ''));
     }
 
-    /** @return array<int,array{0:string,1:string,2:string,3:string}> */
+    /**
+     * Rows of [label, starter, branded, scale, phone]. phone = shown on the
+     * card on phones before "+ more" (MARKER-PRICING-MOBILE-PRIORITY).
+     * @return array<int,array{0:string,1:string,2:string,3:string,4:bool}>
+     */
     public static function basics(): array
     {
         $saved = Schema::hasColumn('site_settings', 'pricing_basics') ? SiteSettings::current()->pricing_basics : null;
         if (! is_array($saved) || ! count($saved)) {
-            return self::DEFAULT_BASICS;
+            $saved = self::DEFAULT_BASICS;
         }
         $rows = [];
         foreach ($saved as $r) {
             if (! is_array($r) || trim((string) ($r[0] ?? '')) === '') {
                 continue;
             }
-            $rows[] = [(string) $r[0], (string) ($r[1] ?? ''), (string) ($r[2] ?? ''), (string) ($r[3] ?? '')];
+            $rows[] = [(string) $r[0], (string) ($r[1] ?? ''), (string) ($r[2] ?? ''), (string) ($r[3] ?? ''), ! empty($r[4])];
         }
         return $rows;
+    }
+
+    /** Add-on codes whose card line shows on phones before "+ more". */
+    public static function mobileAddons(): array
+    {
+        if (! Schema::hasColumn('site_settings', 'pricing_mobile_addons')) {
+            return [];
+        }
+        return array_values(array_filter((array) (SiteSettings::current()->pricing_mobile_addons ?? []), 'is_string'));
     }
 
     /**
@@ -188,11 +201,15 @@ class PricingCatalog
         return $out;
     }
 
-    /** What plan $i adds over the plan below it, for the card lists. */
+    /**
+     * What plan $i adds over the plan below it, for the card lists.
+     * @return array<int,array{text:string,mobile:bool}>
+     */
     public static function adds(int $i): array
     {
         $tier = self::TIERS[$i];
         $prev = $i > 0 ? self::TIERS[$i - 1] : null;
+        $mobile = self::mobileAddons();
         $out = [];
         foreach (self::basics() as $b) {
             $v = trim((string) ($b[$i + 1] ?? ''));
@@ -202,14 +219,31 @@ class PricingCatalog
             if ($prev !== null && $v === trim((string) ($b[$i] ?? ''))) {
                 continue;
             }
-            $out[] = strtolower($v) === 'yes' ? $b[0] : $b[0] . ': ' . $v;
+            $out[] = ['text' => strtolower($v) === 'yes' ? $b[0] : $b[0] . ': ' . $v, 'mobile' => (bool) $b[4]];
         }
         foreach (self::addons() as $a) {
             $now = self::cell($a, $tier)['t'] === 'inc';
             $before = $prev !== null && self::cell($a, $prev)['t'] === 'inc';
             if ($now && ! $before) {
-                $out[] = $a->name;
+                $out[] = ['text' => $a->name, 'mobile' => in_array($a->code, $mobile, true)];
             }
+        }
+        return $out;
+    }
+
+    /**
+     * Which lines of a card show on phones: ticked ones first, then the rest
+     * in order, five in all. Nothing ticked = the first five.
+     * @return array<int,bool> index => shown
+     */
+    public static function phoneLines(array $lines, int $cap = 5): array
+    {
+        $ticked   = array_keys(array_filter(array_map(fn ($l) => ! empty($l['mobile']), $lines)));
+        $unticked = array_values(array_diff(array_keys($lines), $ticked));
+        $pick     = array_slice(array_merge($ticked, $unticked), 0, $cap);
+        $out = [];
+        foreach (array_keys($lines) as $k) {
+            $out[$k] = in_array($k, $pick, true);
         }
         return $out;
     }

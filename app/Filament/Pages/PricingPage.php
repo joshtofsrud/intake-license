@@ -32,8 +32,11 @@ class PricingPage extends Page
     /** tier => one-liner */
     public array $blurbs = [];
 
-    /** rows of [label, starter, branded, scale] */
+    /** rows of [label, starter, branded, scale, phone] */
     public array $basics = [];
+
+    /** add-on codes whose card line shows on phones (MARKER-PRICING-MOBILE-PRIORITY) */
+    public array $mobileAddons = [];
 
     public string $savedSnapshot = '';
 
@@ -45,12 +48,16 @@ class PricingPage extends Page
     {
         $this->blurbs = PricingCatalog::blurbs();
         $this->basics = array_map(fn ($r) => array_values($r), PricingCatalog::basics());
+        $this->mobileAddons = PricingCatalog::mobileAddons();
         $this->savedSnapshot = $this->snapshot();
     }
 
     private function snapshot(): string
     {
-        return json_encode([$this->blurbs, $this->basics]);
+        $basics = array_map(fn ($r) => [(string) ($r[0] ?? ''), (string) ($r[1] ?? ''), (string) ($r[2] ?? ''), (string) ($r[3] ?? ''), ! empty($r[4])], $this->basics);
+        $mobile = array_values(array_unique(array_map('strval', $this->mobileAddons)));
+        sort($mobile);
+        return json_encode([$this->blurbs, $basics, $mobile]);
     }
 
     public function isDirty(): bool
@@ -60,7 +67,7 @@ class PricingPage extends Page
 
     public function addRow(): void
     {
-        $this->basics[] = ['', '', '', ''];
+        $this->basics[] = ['', '', '', '', false];
     }
 
     public function removeRow(int $i): void
@@ -93,12 +100,16 @@ class PricingPage extends Page
             $rows[] = [$label,
                 mb_substr(trim((string) ($r[1] ?? '')), 0, 60),
                 mb_substr(trim((string) ($r[2] ?? '')), 0, 60),
-                mb_substr(trim((string) ($r[3] ?? '')), 0, 60)];
+                mb_substr(trim((string) ($r[3] ?? '')), 0, 60),
+                ! empty($r[4]) ? '1' : ''];
         }
-        SiteSettings::current()->update(['pricing_blurbs' => $blurbs, 'pricing_basics' => $rows]);
+        $known  = Addon::query()->pluck('code')->all();
+        $mobile = array_values(array_intersect($known, array_map('strval', $this->mobileAddons)));
+        SiteSettings::current()->update(['pricing_blurbs' => $blurbs, 'pricing_basics' => $rows, 'pricing_mobile_addons' => $mobile]);
 
         $this->blurbs = PricingCatalog::blurbs();
         $this->basics = array_map(fn ($r) => array_values($r), PricingCatalog::basics());
+        $this->mobileAddons = PricingCatalog::mobileAddons();
         $this->savedSnapshot = $this->snapshot();
         Notification::make()->title('Pricing page updated')->body('intake.works/pricing shows it now.')->success()->send();
     }

@@ -87,8 +87,7 @@
             margin: 0 calc(-1 * var(--mk-gutter, 20px)); padding: 14px 7% 6px; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
         .{{ $ptId }}.pt-tabs .lp-cards::-webkit-scrollbar { display: none; }
         .{{ $ptId }}.pt-tabs .lp-card { flex: 0 0 86%; scroll-snap-align: center; }
-        /* MARKER-PRICING-PHONE-COMPACT: cards keep their own height, first four lines, the rest on tap */
-        .{{ $ptId }} .lp-cards { align-items: flex-start; }
+        /* MARKER-PRICING-PHONE-COMPACT: equal heights, chosen lines, the rest on tap */
         .{{ $ptId }} .lp-card { padding: 20px 18px 18px; }
         .{{ $ptId }} .lp-price { margin: 10px 0 6px; }
         .{{ $ptId }} .lp-price b { font-size: 38px; }
@@ -129,11 +128,16 @@
                     <div class="lp-name">{{ $p['name'] }}</div>
                     <div class="lp-price"><b>${{ $money($p['cents']) }}</b><span>/mo</span></div>
                     <p class="lp-blurb">{{ $p['blurb'] }}</p>
-                    @php $lpAdds = \App\Support\PricingCatalog::adds($i); $lpExtra = max(0, count($lpAdds) - 4); @endphp
+                    @php
+                        // MARKER-PRICING-MOBILE-PRIORITY: phones show ticked lines first, then the rest, five in all
+                        $lpAdds  = \App\Support\PricingCatalog::adds($i);
+                        $lpShow  = \App\Support\PricingCatalog::phoneLines($lpAdds);
+                        $lpExtra = count(array_filter($lpShow, fn ($v) => ! $v));
+                    @endphp
                     <ul class="lp-list">
                         @if($i > 0)<li class="lead">Everything in {{ $plans[$i - 1]['name'] }}, plus:</li>@endif
                         @foreach($lpAdds as $n => $line)
-                            <li class="{{ $n >= 4 ? 'lp-more' : '' }}">{!! $check !!}<span>{{ $line }}</span></li>
+                            <li class="{{ $lpShow[$n] ? '' : 'lp-more' }}">{!! $check !!}<span>{{ $line['text'] }}</span></li>
                         @endforeach
                     </ul>
                     @if($lpExtra > 0)<button type="button" class="lp-morebtn" data-more="+{{ $lpExtra }} more">+{{ $lpExtra }} more</button>@endif
