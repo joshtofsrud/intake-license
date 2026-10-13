@@ -14,7 +14,7 @@
   .pp-lab{font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;font-weight:700;opacity:.55}
   .pp-bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
   .pp-iss{border-top:1px solid var(--ln);border-bottom:1px solid var(--ln);padding:10px 0}
-  .pp-iss div{display:grid;grid-template-columns:14px minmax(0,1fr) auto;gap:10px;padding:6px 0;align-items:baseline}
+  .pp-iss > div{display:grid;grid-template-columns:14px minmax(0,1fr) auto;gap:10px;padding:6px 0;align-items:baseline}
   .pp-iss i{width:8px;height:8px;border-radius:50%;background:#f0c46a;display:inline-block}
   .pp-iss .bad i{background:#f87171}
   .pp-iss span{opacity:.75}
@@ -33,8 +33,11 @@
   .pp-c.ask{opacity:.7}
   .pp-c.no{opacity:.3}
   .pp-c.hide{color:#d4a017;border-color:rgba(240,196,106,.35);background:rgba(240,196,106,.07)}
-  .pp input.pp-in,.pp textarea.pp-in,.pp select.pp-in{width:100%;background:transparent;border:1px solid var(--ln2);border-radius:7px;padding:7px 9px;font-size:13.5px;color:inherit}
-  .pp .pp-in:focus{outline:none;border-color:#8b7cf6}
+  /* MARKER-PRICING-PAGE-FIX: cells read as text, not boxes; hover tints, focus underlines */
+  .pp input.pp-in,.pp textarea.pp-in{width:100%;background:transparent!important;border:0!important;border-bottom:1px solid transparent!important;border-radius:0!important;box-shadow:none!important;padding:6px 4px!important;font-size:13.5px;color:inherit;resize:none}
+  .pp .pp-in:hover{background:rgba(127,127,127,.08)!important}
+  .pp .pp-in:focus{outline:none;border-bottom-color:#8b7cf6!important;background:rgba(139,124,246,.06)!important}
+  .pp textarea.pp-in{border-bottom:1px dashed rgba(127,127,127,.3)!important}
   .pp-row{display:grid;grid-template-columns:minmax(0,1.4fr) repeat(3,minmax(0,1fr)) 74px;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--ln)}
   .pp-row.h{font-size:12px;font-weight:600;opacity:.6;border-bottom-color:var(--ln2)}
   .pp-x{background:none;border:0;cursor:pointer;opacity:.55;font-size:15px;padding:2px 5px;color:inherit}
@@ -46,7 +49,7 @@
   .pp-drawer{position:fixed;top:0;right:0;bottom:0;width:380px;max-width:100%;z-index:41;overflow:auto;padding:22px;border-left:1px solid var(--ln2);background:#111113;color:#f4f4f5}
   .pp-drawer .f{margin-top:14px}
   .pp-drawer label.t{display:block;font-size:12px;opacity:.6;margin-bottom:5px}
-  .pp-drawer select,.pp-drawer .pp-in{background:#18181b}
+  .pp-drawer select.pp-in{width:100%;background:#18181b;border:1px solid rgba(255,255,255,.14);border-radius:7px;padding:7px 9px;font-size:13.5px;color:inherit}
   .pp-chk{display:flex;gap:14px;flex-wrap:wrap}
   .pp-chk label{display:flex;gap:6px;align-items:center;font-size:13.5px}
   @media (max-width:900px){.pp-blurbs{grid-template-columns:1fr}.pp-row{grid-template-columns:1fr 1fr}.pp-row.h{display:none}}
