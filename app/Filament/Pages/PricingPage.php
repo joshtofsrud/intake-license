@@ -1,0 +1,156 @@
+<?php
+
+namespace App\Filament\Pages;
+
+use App\Filament\Resources\AddonResource;
+use App\Models\Addon;
+use App\Models\SiteSettings;
+use App\Support\PricingCatalog;
+use Filament\Notifications\Notification;
+use Filament\Pages\Page;
+
+/**
+ * MARKER-LIVE-PRICING: what intake.works/pricing will show, built from the
+ * same PricingCatalog the public section uses, so the preview cannot disagree
+ * with the page. Edits here: the plan one-liners, the "basics" rows, and who
+ * gets each add-on. Prices stay where they are dated (Plan prices, Add-ons).
+ */
+class PricingPage extends Page
+{
+    use \App\Support\UsesAdminNav;
+    use \App\Support\GatedByAdminArea;
+    protected static string $adminArea = 'config';
+
+    protected static ?string $navigationIcon  = 'heroicon-o-currency-dollar';
+    protected static ?string $navigationLabel = 'Pricing page';
+    protected static ?string $navigationGroup = 'Billing';
+    protected static ?int    $navigationSort  = 35;
+    protected static ?string $title           = 'Pricing page';
+    protected static ?string $slug            = 'pricing-page';
+    protected static string  $view            = 'filament.pages.pricing-page';
+
+    /** tier => one-liner */
+    public array $blurbs = [];
+
+    /** rows of [label, starter, branded, scale] */
+    public array $basics = [];
+
+    public string $savedSnapshot = '';
+
+    public ?int $editId = null;
+
+    public array $edit = [];
+
+    public function mount(): void
+    {
+        $this->blurbs = PricingCatalog::blurbs();
+        $this->basics = array_map(fn ($r) => array_values($r), PricingCatalog::basics());
+        $this->savedSnapshot = $this->snapshot();
+    }
+
+    private function snapshot(): string
+    {
+        return json_encode([$this->blurbs, $this->basics]);
+    }
+
+    public function isDirty(): bool
+    {
+        return $this->snapshot() !== $this->savedSnapshot;
+    }
+
+    public function addRow(): void
+    {
+        $this->basics[] = ['', '', '', ''];
+    }
+
+    public function removeRow(int $i): void
+    {
+        unset($this->basics[$i]);
+        $this->basics = array_values($this->basics);
+    }
+
+    public function moveRow(int $i, int $dir): void
+    {
+        $j = $i + $dir;
+        if (! isset($this->basics[$i], $this->basics[$j])) {
+            return;
+        }
+        [$this->basics[$i], $this->basics[$j]] = [$this->basics[$j], $this->basics[$i]];
+    }
+
+    public function saveText(): void
+    {
+        $blurbs = [];
+        foreach (PricingCatalog::TIERS as $t) {
+            $blurbs[$t] = mb_substr(trim((string) ($this->blurbs[$t] ?? '')), 0, 200);
+        }
+        $rows = [];
+        foreach ($this->basics as $r) {
+            $label = mb_substr(trim((string) ($r[0] ?? '')), 0, 80);
+            if ($label === '') {
+                continue;
+            }
+            $rows[] = [$label,
+                mb_substr(trim((string) ($r[1] ?? '')), 0, 60),
+                mb_substr(trim((string) ($r[2] ?? '')), 0, 60),
+                mb_substr(trim((string) ($r[3] ?? '')), 0, 60)];
+        }
+        SiteSettings::current()->update(['pricing_blurbs' => $blurbs, 'pricing_basics' => $rows]);
+
+        $this->blurbs = PricingCatalog::blurbs();
+        $this->basics = array_map(fn ($r) => array_values($r), PricingCatalog::basics());
+        $this->savedSnapshot = $this->snapshot();
+        Notification::make()->title('Pricing page updated')->body('intake.works/pricing shows it now.')->success()->send();
+    }
+
+    public function discardText(): void
+    {
+        $this->mount();
+    }
+
+    public function openAddon(int $id): void
+    {
+        $a = Addon::findOrFail($id);
+        $this->editId = $a->id;
+        $this->edit = [
+            'included' => array_values((array) ($a->included_in_plans ?? [])),
+            'min'      => (string) ($a->min_plan_tier ?? ''),
+            'visibility' => (string) ($a->visibility ?? Addon::VIS_SELF_SERVE),
+            'status'   => (string) $a->status,
+        ];
+    }
+
+    public function closeAddon(): void
+    {
+        $this->editId = null;
+        $this->edit = [];
+    }
+
+    public function saveAddon(): void
+    {
+        $a = Addon::findOrFail($this->editId);
+        $inc = array_values(array_intersect(PricingCatalog::TIERS, (array) ($this->edit['included'] ?? [])));
+        $min = in_array($this->edit['min'] ?? '', ['branded', 'scale'], true) ? $this->edit['min'] : null;
+        $vis = array_key_exists($this->edit['visibility'] ?? '', Addon::VISIBILITIES) ? $this->edit['visibility'] : $a->visibility;
+        $st  = array_key_exists($this->edit['status'] ?? '', Addon::STATUSES) ? $this->edit['status'] : $a->status;
+
+        $a->included_in_plans = $inc ?: null;
+        $a->min_plan_tier = $min;
+        $a->visibility = $vis;
+        $a->status = $st;
+        $a->save();
+
+        $this->closeAddon();
+        Notification::make()->title($a->name . ' saved')->body('Shops and the pricing page use it now.')->success()->send();
+    }
+
+    public function addonEditUrl(int $id): string
+    {
+        return AddonResource::getUrl('edit', ['record' => $id]);
+    }
+
+    public function editing(): ?Addon
+    {
+        return $this->editId ? Addon::find($this->editId) : null;
+    }
+}

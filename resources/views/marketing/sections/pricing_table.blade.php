@@ -1,236 +1,180 @@
 @php $bgId = 'mkbg-' . substr(md5((string) ($section->id ?? uniqid())), 0, 10); @endphp
 @include('marketing.sections._section_bg', ['bgId' => $bgId])
 {{--
-    Pricing. Content: eyebrow, heading, subheading, source ('config'|'manual'),
-                      featured (slug), plans[] (manual), footnote
+    Pricing, live from master admin (MARKER-LIVE-PRICING).
+    Plan prices: Billing > Plan prices. Add-on prices and who gets what:
+    Billing > Add-ons. Plan one-liners and the basics rows: Billing > Pricing page.
+    Nothing price-related is typed into this section, so the page can't drift
+    from what signup actually charges.
 
-    When source='config' (default), pulls plan prices from config('intake.plan_prices')
-    and uses the old design's plan descriptions/features. Matches the old pricing
-    card visual style exactly — dark cards, lime-accented featured plan, pill badge.
+    Content: eyebrow, heading, accent_words, subheading, footnote,
+             featured (starter|branded|scale|'' for none; default branded),
+             hide_matrix (hides the plan-by-plan table under the cards).
 --}}
 @php
-    if (($c['source'] ?? 'config') === 'config') {
-        $prices = config('intake.plan_prices', []);
-        $plans = [
-            [
-                'slug'  => 'starter',
-                'name'  => 'Starter',
-                'price_cents' => $prices['starter'] ?? 2900,
-                'period' => '/mo',
-                'desc'   => 'Everything you need to start taking bookings online.',
-                'features' => ['Booking form','Customer CRM','Work orders','Email campaigns','intake.works subdomain','Stripe + PayPal'], // every plan has email
-                'cta_label' => 'Start free trial',
-            ],
-            [
-                'slug'  => 'branded',
-                'name'  => 'Branded',
-                'price_cents' => $prices['branded'] ?? 7900,
-                'period' => '/mo',
-                'desc'   => 'Your own domain and brand — nothing that says "Intake".',
-                'features' => ['Everything in Starter','Custom domain','Remove Intake branding','Priority support'],
-                'cta_label' => 'Start free trial',
-            ],
-            [
-                'slug'  => 'scale',
-                'name'  => 'Scale',
-                'price_cents' => $prices['scale'] ?? 19900,
-                'period' => '/mo',
-                'desc'   => 'Add more locations, full white-label, and advanced automations.',
-                'features' => ['Everything in Branded','Add more locations (add-on)','Full white-label','Dedicated support','Advanced automations'], // no plan includes extra locations; Scale can add them
-                'cta_label' => 'Start free trial',
-            ],
-        ];
-    } else {
-        $plans = $c['plans'] ?? [];
-    }
-    $featured = $c['featured'] ?? 'branded';
-    $ptTabs   = ($c['phone_layout'] ?? 'tabs') !== 'stack';
     $ptId     = 'mkpt-' . substr(md5((string) ($section->id ?? uniqid())), 0, 10);
-    $ptActive = 0;
-    foreach (array_values($plans) as $ptI => $ptP) { if (($ptP['slug'] ?? null) === $featured) { $ptActive = $ptI; break; } }
+    $plans    = \App\Support\PricingCatalog::plans();
+    $basics   = \App\Support\PricingCatalog::basics();
+    $featured = array_key_exists('featured', $c) ? (string) $c['featured'] : 'branded';
+    $hideMx   = ! empty($c['hide_matrix']) && ! in_array((string) $c['hide_matrix'], ['0', 'false'], true);
+    $groups   = $hideMx ? [] : \App\Support\PricingCatalog::groups(true);
+    $signup   = route('platform.signup');
+    $money    = fn (int $cents) => number_format($cents / 100, $cents % 100 ? 2 : 0);
+    $heading  = e($c['heading'] ?? '');
+    $aw       = trim((string) ($c['accent_words'] ?? ''));
+    if ($aw !== '' && stripos($heading, e($aw)) !== false) {
+        $heading = preg_replace('/' . preg_quote(e($aw), '/') . '/i', '<span class="lp-accent">$0</span>', $heading, 1);
+    }
+    $hotIdx   = array_search($featured, array_column($plans, 'k'), true);
+    $check    = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg>';
+    $footnote = trim((string) ($c['footnote'] ?? '')) ?: 'Prices in US dollars, billed monthly. Each extra location is billed at your plan\'s price.';
 @endphp
-
 <style>
-    .mk-plan-grid {
-        display: grid;
-        grid-template-columns: repeat({{ count($plans) }}, 1fr);
-        gap: 14px;
-    }
-    .mk-plan {
-        background: rgba(255,255,255,.03);
-        border: 0.5px solid var(--mk-border);
-        border-radius: var(--mk-r-lg);
-        padding: 24px;
-        display: flex; flex-direction: column;
-    }
-    .mk-plan.featured {
-        border-color: rgba(190,242,100,.4);
-        background: rgba(190,242,100,.03);
-    }
-    .mk-plan-badge {
-        font-size: 10px; text-transform: uppercase; letter-spacing: .08em;
-        background: rgba(190,242,100,.12);
-        color: var(--mk-accent);
-        padding: 3px 10px;
-        border-radius: 4px;
-        display: inline-block;
-        margin-bottom: 12px;
-        font-weight: 600;
-        width: fit-content;
-    }
-    .mk-plan-name { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
-    .mk-plan-price {
-        font-size: 32px; font-weight: 800;
-        letter-spacing: -.02em; margin-bottom: 4px;
-        line-height: 1;
-    }
-    .mk-plan-price sup { font-size: 18px; font-weight: 600; vertical-align: top; margin-top: 6px; display: inline-block; }
-    .mk-plan-price span { font-size: 14px; font-weight: 400; color: var(--mk-muted); }
-    .mk-plan-desc {
-        font-size: 13px; color: var(--mk-muted);
-        margin: 10px 0 18px;
-        padding-bottom: 18px;
-        border-bottom: 0.5px solid var(--mk-border);
-        line-height: 1.55;
-    }
-    .mk-plan-feats { display: flex; flex-direction: column; gap: 8px; flex: 1; }
-    .mk-plan-feat {
-        font-size: 13px; color: rgba(255,255,255,.6);
-        display: flex; align-items: flex-start; gap: 8px;
-        line-height: 1.4;
-    }
-    .mk-check {
-        width: 14px; height: 14px;
-        border-radius: 50%;
-        background: var(--mk-accent-dim);
-        border: 0.5px solid rgba(190,242,100,.3);
-        flex-shrink: 0;
-        margin-top: 1px;
-        display: flex; align-items: center; justify-content: center;
-    }
-    .mk-check::after {
-        content: '';
-        width: 5px; height: 5px;
-        border-radius: 50%;
-        background: var(--mk-accent);
-        opacity: .7;
-    }
-    .mk-plan-btn {
-        margin-top: 20px;
-        display: block; text-align: center;
-        padding: 11px;
-        border-radius: var(--mk-r);
-        font-size: 14px; font-weight: 600;
-        border: 0.5px solid var(--mk-border2);
-        color: var(--mk-muted);
-        transition: all .15s;
-    }
-    .mk-plan-btn:hover { border-color: rgba(255,255,255,.25); color: var(--mk-text); }
-    .mk-plan.featured .mk-plan-btn {
-        background: var(--mk-accent);
-        color: var(--mk-accent-text);
-        border-color: var(--mk-accent);
-    }
-    .mk-plan.featured .mk-plan-btn:hover { filter: brightness(.92); }
-
-    @media(max-width: 860px) { .mk-plan-grid { grid-template-columns: 1fr; } }
-    .{{ $ptId }} .mk-plan-tabs { display: none; }
-    @media (max-width: 860px) {
-        .{{ $ptId }}.pt-tabs .mk-plan-tabs { display: flex; background: rgba(255,255,255,.06); border-radius: 999px; padding: 4px; gap: 2px; margin: 4px 0 22px; }
-        .{{ $ptId }} .mk-plan-tabs button { flex: 1; border: 0; background: none; color: var(--mk-muted); font: inherit; font-size: 13px; font-weight: 600; padding: 9px 0; border-radius: 999px; cursor: pointer; transition: background .2s, color .2s; }
-        .{{ $ptId }} .mk-plan-tabs button.on { background: var(--mk-accent); color: var(--mk-accent-text, #0a0a0a); }
-        /* a swipeable row under the pills */
-        .{{ $ptId }}.pt-tabs .mk-plan-grid { display: flex; grid-template-columns: none; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory;
-            margin: 0 calc(-1 * var(--mk-gutter, 20px)); padding: 14px 7% 6px; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
-        .{{ $ptId }}.pt-tabs .mk-plan-grid::-webkit-scrollbar { display: none; }
-        .{{ $ptId }}.pt-tabs .mk-plan { flex: 0 0 86%; scroll-snap-align: center; }
+    .{{ $ptId }} .lp-head { text-align: center; max-width: 720px; margin: 0 auto 40px; }
+    .{{ $ptId }} .lp-head h2 { font-size: clamp(32px, 4.6vw, 56px); font-weight: 500; letter-spacing: -.04em; line-height: 1.04; }
+    .{{ $ptId }} .lp-accent { color: rgba(255,255,255,.5); }
+    .{{ $ptId }} .lp-head p { color: var(--mk-muted); font-size: 17px; margin-top: 14px; }
+    .{{ $ptId }} .lp-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; max-width: 1080px; margin: 0 auto; }
+    .{{ $ptId }} .lp-card { position: relative; display: flex; flex-direction: column; padding: 26px 24px 24px; border-radius: 18px; overflow: hidden;
+        border: 1px solid rgba(255,255,255,.09); background: linear-gradient(180deg, rgba(255,255,255,.045), rgba(255,255,255,.012)); }
+    .{{ $ptId }} .lp-card.hot { border-color: rgba(190,242,100,.28);
+        background: radial-gradient(120% 70% at 50% 100%, rgba(190,242,100,.2), rgba(190,242,100,.04) 55%, transparent), linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.015)); }
+    .{{ $ptId }} .lp-name { font-size: 15px; font-weight: 500; }
+    .{{ $ptId }} .lp-price { display: flex; align-items: baseline; gap: 6px; margin: 14px 0 8px; }
+    .{{ $ptId }} .lp-price b { font-size: 46px; font-weight: 500; letter-spacing: -.045em; line-height: 1; }
+    .{{ $ptId }} .lp-price span { color: var(--mk-muted); font-size: 15px; }
+    .{{ $ptId }} .lp-blurb { color: rgba(255,255,255,.62); font-size: 14px; line-height: 1.55; min-height: 48px; padding-bottom: 18px; border-bottom: 1px solid var(--mk-border); }
+    .{{ $ptId }} .lp-list { list-style: none; margin: 16px 0 28px; padding: 0; display: grid; gap: 11px; font-size: 13.5px; }
+    .{{ $ptId }} .lp-list li { display: flex; gap: 10px; align-items: flex-start; color: rgba(255,255,255,.72); line-height: 1.4; }
+    .{{ $ptId }} .lp-list li svg { flex: none; width: 14px; height: 14px; margin-top: 2px; stroke: rgba(255,255,255,.55); fill: none; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+    .{{ $ptId }} .lp-list li.lead { color: rgba(255,255,255,.45); }
+    .{{ $ptId }} .lp-btn { margin-top: auto; display: block; text-align: center; padding: 11px; border-radius: 10px; background: rgba(255,255,255,.1); color: #fff; font-size: 14px; font-weight: 500; transition: background .15s; }
+    .{{ $ptId }} .lp-btn:hover { background: rgba(255,255,255,.16); }
+    .{{ $ptId }} .lp-card.hot .lp-btn { background: #fff; color: #0a0a0a; font-weight: 600; }
+    .{{ $ptId }} .lp-mx { max-width: 1080px; margin: clamp(64px, 8vw, 100px) auto 0; }
+    .{{ $ptId }} .lp-mx h3 { text-align: center; font-size: clamp(26px, 3.4vw, 38px); font-weight: 500; letter-spacing: -.035em; margin-bottom: 8px; }
+    .{{ $ptId }} .lp-mx > p { text-align: center; color: var(--mk-muted); font-size: 14.5px; margin-bottom: 18px; }
+    .{{ $ptId }} table { width: 100%; border-collapse: collapse; font-size: 14.5px; }
+    .{{ $ptId }} thead th { position: sticky; top: 0; z-index: 2; background: rgba(12,12,12,.94); backdrop-filter: blur(8px); text-align: center; font-weight: 600; padding: 26px 10px 14px; border-bottom: 1px solid var(--mk-border2); }
+    .{{ $ptId }} thead th:first-child { text-align: left; }
+    .{{ $ptId }} thead th small { display: block; font-weight: 500; color: var(--mk-muted); font-size: 12.5px; }
+    .{{ $ptId }} tbody th { text-align: left; font-weight: 500; padding: 13px 10px 13px 0; color: rgba(255,255,255,.88); }
+    .{{ $ptId }} tbody td { text-align: center; padding: 13px 10px; }
+    .{{ $ptId }} tbody tr { border-bottom: 1px dotted rgba(255,255,255,.1); }
+    .{{ $ptId }} tr.grp th { padding: 30px 0 10px; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: rgba(255,255,255,.4); font-weight: 700; border-bottom: 1px solid var(--mk-border2); }
+    .{{ $ptId }} td.hot, .{{ $ptId }} th.hot { background-color: rgba(255,255,255,.03); }
+    .{{ $ptId }} .inc { color: var(--mk-accent); font-weight: 600; display: inline-flex; align-items: center; gap: 6px; }
+    .{{ $ptId }} .inc svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+    .{{ $ptId }} .pr { color: rgba(255,255,255,.8); font-variant-numeric: tabular-nums; }
+    .{{ $ptId }} .ask { color: rgba(255,255,255,.6); font-size: 13.5px; }
+    .{{ $ptId }} .no { color: rgba(255,255,255,.22); }
+    .{{ $ptId }} .lp-foot { margin: 22px auto 0; max-width: 1080px; font-size: 13px; color: var(--mk-muted); line-height: 1.6; }
+    .{{ $ptId }} .lp-pick { display: none; }
+    @media (max-width: 820px) {
+        .{{ $ptId }} .lp-cards { grid-template-columns: 1fr; }
+        .{{ $ptId }} .lp-blurb { min-height: 0; }
+        .{{ $ptId }} .lp-pick { display: flex; gap: 6px; margin-bottom: 12px; }
+        .{{ $ptId }} .lp-pick button { flex: 1; border: 1px solid var(--mk-border2); background: none; color: var(--mk-text); border-radius: 999px; padding: 8px; font: inherit; font-size: 13.5px; cursor: pointer; }
+        .{{ $ptId }} .lp-pick button.on { background: var(--mk-accent); color: #0a0a0a; border-color: var(--mk-accent); font-weight: 600; }
+        .{{ $ptId }} table [data-p] { display: none; }
+        .{{ $ptId }} table [data-p].show { display: table-cell; }
     }
 </style>
 
-<section class="mk-section {{ $ptId }} {{ $bgId }}{{ $ptTabs ? ' pt-tabs' : '' }}">
+<section class="mk-section {{ $ptId }} {{ $bgId }}">
     <div class="mk-container">
-        @if(!empty($c['eyebrow']))
-            <div class="mk-eyebrow">{{ $c['eyebrow'] }}</div>
-        @endif
-        @if(!empty($c['heading']))
-            <h2 class="mk-section-title">{{ $c['heading'] }}</h2>
-        @endif
-        @if(!empty($c['subheading']))
-            <p class="mk-section-sub">{{ $c['subheading'] }}</p>
-        @endif
-
-        @if($ptTabs && count($plans) > 1)
-            <div class="mk-plan-tabs" role="tablist" aria-label="Plans">
-                @foreach(array_values($plans) as $ptI => $ptP)
-                    <button type="button" role="tab" data-i="{{ $ptI }}" class="{{ $ptI === $ptActive ? 'on' : '' }}" aria-selected="{{ $ptI === $ptActive ? 'true' : 'false' }}">{{ $ptP['name'] ?? ('Plan ' . ($ptI + 1)) }}</button>
-                @endforeach
+        @if(!empty($c['eyebrow']) || $heading !== '' || !empty($c['subheading']))
+            <div class="lp-head">
+                @if(!empty($c['eyebrow']))<div class="mk-eyebrow">{{ $c['eyebrow'] }}</div>@endif
+                @if($heading !== '')<h2>{!! $heading !!}</h2>@endif
+                @if(!empty($c['subheading']))<p>{{ $c['subheading'] }}</p>@endif
             </div>
         @endif
-        <div class="mk-plan-grid">
-            @foreach($plans as $plan)
-                @php $isFeatured = ($plan['slug'] ?? null) === $featured; @endphp
-                <div class="mk-plan {{ $isFeatured ? 'featured' : '' }}{{ $loop->index === $ptActive ? ' is-active' : '' }}">
-                    @if($isFeatured)
-                        <div class="mk-plan-badge">Most popular</div>
-                    @endif
-                    <div class="mk-plan-name">{{ $plan['name'] ?? '' }}</div>
-                    <div class="mk-plan-price">
-                        <sup>$</sup>{{ number_format(($plan['price_cents'] ?? 0) / 100, 0) }}<span>{{ $plan['period'] ?? '/mo' }}</span>
-                    </div>
-                    @if(!empty($plan['desc']))
-                        <p class="mk-plan-desc">{{ $plan['desc'] }}</p>
-                    @endif
-                    <div class="mk-plan-feats">
-                        @foreach(($plan['features'] ?? []) as $feat)
-                            <div class="mk-plan-feat">
-                                <div class="mk-check"></div>
-                                {{ $feat }}
-                            </div>
+
+        <div class="lp-cards">
+            @foreach($plans as $i => $p)
+                <div class="lp-card{{ $p['k'] === $featured ? ' hot' : '' }}" data-plan="{{ $p['k'] }}">
+                    <div class="lp-name">{{ $p['name'] }}</div>
+                    <div class="lp-price"><b>${{ $money($p['cents']) }}</b><span>/mo</span></div>
+                    <p class="lp-blurb">{{ $p['blurb'] }}</p>
+                    <ul class="lp-list">
+                        @if($i > 0)<li class="lead">Everything in {{ $plans[$i - 1]['name'] }}, plus:</li>@endif
+                        @foreach(\App\Support\PricingCatalog::adds($i) as $line)
+                            <li>{!! $check !!}<span>{{ $line }}</span></li>
                         @endforeach
-                    </div>
-                    <a href="{{ $plan['cta_url'] ?? route('platform.signup') . '?plan=' . ($plan['slug'] ?? '') }}" class="mk-plan-btn">
-                        {{ $plan['cta_label'] ?? 'Get started' }}
-                    </a>
+                    </ul>
+                    <a class="lp-btn" href="{{ $signup }}?plan={{ $p['k'] }}">Start free trial</a>
                 </div>
             @endforeach
         </div>
 
-        @if(!empty($c['footnote']))
-            <p style="font-size:13px;color:var(--mk-dim);margin-top:16px">{{ $c['footnote'] }}</p>
-        @endif
+        @unless($hideMx)
+            <div class="lp-mx">
+                <h3>Plans and features</h3>
+                <p>Included, available as an add-on, or not on that plan.</p>
+                <div class="lp-pick" role="tablist" aria-label="Plan">
+                    @foreach($plans as $i => $p)
+                        <button type="button" data-i="{{ $i }}" class="{{ $i === ($hotIdx === false ? 0 : $hotIdx) ? 'on' : '' }}">{{ $p['name'] }}</button>
+                    @endforeach
+                </div>
+                @php $showIdx = $hotIdx === false ? 0 : $hotIdx; @endphp
+                <table>
+                    <thead><tr><th></th>
+                        @foreach($plans as $i => $p)
+                            <th data-p="{{ $i }}" class="{{ $i === $showIdx ? 'show' : '' }}{{ $i === $hotIdx ? ' hot' : '' }}">{{ $p['name'] }}<small>${{ $money($p['cents']) }}/mo</small></th>
+                        @endforeach
+                    </tr></thead>
+                    <tbody>
+                        <tr class="grp"><th colspan="4">The basics</th></tr>
+                        @foreach($basics as $b)
+                            <tr><th>{{ $b[0] }}</th>
+                                @foreach([1, 2, 3] as $col)
+                                    @php $v = trim((string) ($b[$col] ?? '')); $lv = strtolower($v); @endphp
+                                    <td data-p="{{ $col - 1 }}" class="{{ $col - 1 === $showIdx ? 'show' : '' }}{{ $col - 1 === $hotIdx ? ' hot' : '' }}">
+                                        @if($lv === 'yes')<span class="inc">{!! $check !!}</span>
+                                        @elseif($v === '' || in_array($lv, ['no', '-', '—'], true))<span class="no">&mdash;</span>
+                                        @else<span>{{ $v }}</span>@endif
+                                    </td>
+                                @endforeach
+                            </tr>
+                        @endforeach
+                        @foreach($groups as $gName => $rows)
+                            <tr class="grp"><th colspan="4">{{ $gName }}</th></tr>
+                            @foreach($rows as $r)
+                                <tr><th>{{ $r['addon']->name }}</th>
+                                    @foreach(array_values($r['cells']) as $i => $cell)
+                                        <td data-p="{{ $i }}" class="{{ $i === $showIdx ? 'show' : '' }}{{ $i === $hotIdx ? ' hot' : '' }}">
+                                            @if($cell['t'] === 'inc')<span class="inc">{!! $check !!}Included</span>
+                                            @elseif($cell['t'] === 'price')<span class="pr">{{ $cell['s'] }}</span>
+                                            @elseif($cell['t'] === 'ask')<span class="ask">Ask us</span>
+                                            @else<span class="no">&mdash;</span>@endif
+                                        </td>
+                                    @endforeach
+                                </tr>
+                            @endforeach
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+        @endunless
+
+        <p class="lp-foot">{{ $footnote }}</p>
     </div>
 </section>
+@unless($hideMx)
 <script>
-/* pills and swipe kept in sync on phones */
+/* phone: the pills pick which plan's column the table shows */
 (function () {
   var root = document.querySelector('.{{ $ptId }}');
-  if (!root || root.dataset.ptReady) return;
-  root.dataset.ptReady = '1';
-  var row = root.querySelector('.mk-plan-grid'), tabs = root.querySelectorAll('.mk-plan-tabs button'), cards = root.querySelectorAll('.mk-plan');
-  if (!row || !tabs.length) return;
-  var phone = window.matchMedia('(max-width: 860px)');
-  function mark(i) {
-    tabs.forEach(function (t, k) { t.classList.toggle('on', k === i); t.setAttribute('aria-selected', k === i ? 'true' : 'false'); });
-  }
-  function go(i, smooth) {
-    var c = cards[i]; if (!c) return;
-    var rr = row.getBoundingClientRect(), cr = c.getBoundingClientRect();
-    row.scrollTo({ left: row.scrollLeft + (cr.left + cr.width / 2) - (rr.left + rr.width / 2), behavior: smooth ? 'smooth' : 'auto' });
-    mark(i);
-  }
-  var raf = 0;
-  row.addEventListener('scroll', function () {
-    if (raf) return;
-    raf = requestAnimationFrame(function () {
-      raf = 0;
-      var rr = row.getBoundingClientRect(), mid = rr.left + rr.width / 2, best = 0, d = Infinity;
-      cards.forEach(function (c, k) { var cr = c.getBoundingClientRect(), m = Math.abs(cr.left + cr.width / 2 - mid); if (m < d) { d = m; best = k; } });
-      mark(best);
-    });
-  }, { passive: true });
-  tabs.forEach(function (b) { b.addEventListener('click', function () { go(+b.dataset.i, true); }); });
-  function start() { if (phone.matches) go({{ $ptActive }}, false); }
-  window.addEventListener('load', function () { setTimeout(start, 30); });
-  start();
+  if (!root || root.dataset.lpReady) return;
+  root.dataset.lpReady = '1';
+  var pick = root.querySelector('.lp-pick');
+  if (!pick) return;
+  pick.addEventListener('click', function (e) {
+    var b = e.target.closest('button'); if (!b) return;
+    pick.querySelectorAll('button').forEach(function (x) { x.classList.toggle('on', x === b); });
+    root.querySelectorAll('table [data-p]').forEach(function (c) { c.classList.toggle('show', c.getAttribute('data-p') === b.getAttribute('data-i')); });
+  });
 })();
 </script>
+@endunless

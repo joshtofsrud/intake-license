@@ -33,11 +33,15 @@ class SiteSettings extends Model
         'ga4_api_secret', // MARKER-GA4-CONVERSIONS
         'brand',
         'brand_history',
+        'pricing_blurbs', // MARKER-LIVE-PRICING
+        'pricing_basics',
     ];
 
     protected $casts = [
         'brand'         => 'array',
         'brand_history' => 'array',
+        'pricing_blurbs' => 'array',
+        'pricing_basics' => 'array',
     ];
 
     public static function current(): self

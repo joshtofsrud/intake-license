@@ -56,6 +56,26 @@
     </div>
   </div>
 
+  @if(!empty($isMarketing))
+  {{-- MARKER-LIVE-PRICING: on intake.works the plans are live from master admin --}}
+  <div class="pb2-group">
+    <div class="pb2-group-title">Plans</div>
+    <div class="pb2-field-hint" style="text-align:left;display:block;margin-bottom:10px">
+      Plans, prices and what each one includes come from master admin (Billing: Pricing page, Plan prices, Add-ons). Change them there and this page follows on its own.
+    </div>
+    @php $lpFeat = array_key_exists('featured', $c) ? (string) $c['featured'] : 'branded'; @endphp
+    <div class="pb2-field">
+      <label class="pb2-field-label">Highlighted plan</label>
+      <select class="pb2-input" data-field="featured">
+        @foreach(['' => 'None', 'starter' => 'Starter', 'branded' => 'Branded', 'scale' => 'Scale'] as $v => $n)
+          <option value="{{ $v }}" {{ $lpFeat === $v ? 'selected' : '' }}>{{ $n }}</option>
+        @endforeach
+      </select>
+    </div>
+    <label class="pb2-checkbox-row"><input type="checkbox" data-field="hide_matrix" value="1" {{ ! empty($c['hide_matrix']) && ! in_array((string) ($c['hide_matrix'] ?? ''), ['0', 'false'], true) ? 'checked' : '' }}><span>Hide the plan-by-plan table</span></label>
+    <a href="{{ \App\Filament\Pages\PricingPage::getUrl() }}" target="_blank" class="pb2-btn" style="margin-top:10px;display:inline-block">Open Pricing page</a>
+  </div>
+  @else
   <div class="pb2-group">
     <div class="pb2-group-title">
       Plans
@@ -116,6 +136,7 @@
 
     <input type="hidden" data-field="plans" id="pb2-plans-json" value="{{ json_encode($plans) }}">
   </div>
+  @endif
 
 </div>
 

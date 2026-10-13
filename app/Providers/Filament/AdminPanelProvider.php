@@ -126,6 +126,7 @@ class AdminPanelProvider extends PanelProvider
                 \App\Filament\Pages\VariantSplitRules::class, // MARKER-OPTION-SPLIT: no route without this line
                 ThemeEditor::class,
                 \App\Filament\Pages\BillingConfiguration::class,
+                \App\Filament\Pages\PricingPage::class, // MARKER-LIVE-PRICING
                 \App\Filament\Pages\PasswordEditor::class,
                 \App\Filament\Pages\ChangelogImportPreview::class,
                 \App\Filament\Pages\EmailHealth::class,

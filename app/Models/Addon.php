@@ -24,6 +24,7 @@ class Addon extends Model
         'billing_cadence',
         'price_display_override',
         'included_in_plans',
+        'min_plan_tier', // MARKER-LIVE-PRICING
         'stripe_product_id',
         'stripe_price_id_monthly',
         'stripe_price_id_annual',

@@ -79,6 +79,12 @@ class AddonResource extends Resource
                         ->columns(4)
                         ->helperText('Shops on these plans get it at no charge — it still appears on their statement, at $0.'),
 
+                    Forms\Components\Select::make('min_plan_tier') // MARKER-LIVE-PRICING
+                        ->label('Lowest plan that can have it')
+                        ->options(['branded' => 'Branded and up', 'scale' => 'Scale only'])
+                        ->placeholder('Any plan')
+                        ->helperText('Wins over "included": a plan below this never gets it.'),
+
                     Forms\Components\Select::make('status')
                         ->options(Addon::STATUSES)
                         ->default(Addon::ACTIVE)
