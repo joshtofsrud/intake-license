@@ -2721,6 +2721,23 @@ function addToCart(item) {
     item = regEntryOf(item.state.cur.p);
   }
   if (!item) { return; }
+  // MARKER-CART-MERGE: the same product added again (a second scan, a second
+  // tap) raises the quantity on its line instead of adding a duplicate line.
+  // A line with a price edit, a transfer request or a special order stays
+  // separate, since those belong to the units already on it.
+  if (item.type === 'product' && item.source_id != null) {
+    for (let k = cart.items.length - 1; k >= 0; k--) {
+      const l = cart.items[k];
+      if (l.type === 'product' && String(l.source_id) === String(item.source_id)
+          && !l.line_discount_cents && !l.line_override_cents
+          && !l.transfer_request_id && !l.special_order_id) {
+        l.qty = (Number(l.qty) || 0) + 1;
+        renderCart();
+        queueDraftSave();
+        return;
+      }
+    }
+  }
   if (typeof item.price_cents !== 'number' || isNaN(item.price_cents)) {
     item = Object.assign({}, item, { price_cents: parseInt(item.price_cents, 10) || 0 }); // never a $NaN line
   }
