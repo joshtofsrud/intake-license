@@ -77,6 +77,7 @@
     .{{ $ptId }} .lp-foot { margin: 22px auto 0; max-width: 1080px; font-size: 13px; color: var(--mk-muted); line-height: 1.6; }
     .{{ $ptId }} .lp-pick { display: none; }
     .{{ $ptId }} .lp-tabs { display: none; }
+    .{{ $ptId }} .lp-morebtn { display: none; }
     @media (max-width: 820px) {
         .{{ $ptId }} .lp-cards { grid-template-columns: 1fr; }
         .{{ $ptId }}.pt-tabs .lp-tabs { display: flex; background: rgba(255,255,255,.06); border-radius: 999px; padding: 4px; gap: 2px; margin: 4px 0 22px; }
@@ -86,6 +87,16 @@
             margin: 0 calc(-1 * var(--mk-gutter, 20px)); padding: 14px 7% 6px; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
         .{{ $ptId }}.pt-tabs .lp-cards::-webkit-scrollbar { display: none; }
         .{{ $ptId }}.pt-tabs .lp-card { flex: 0 0 86%; scroll-snap-align: center; }
+        /* MARKER-PRICING-PHONE-COMPACT: cards keep their own height, first four lines, the rest on tap */
+        .{{ $ptId }} .lp-cards { align-items: flex-start; }
+        .{{ $ptId }} .lp-card { padding: 20px 18px 18px; }
+        .{{ $ptId }} .lp-price { margin: 10px 0 6px; }
+        .{{ $ptId }} .lp-price b { font-size: 38px; }
+        .{{ $ptId }} .lp-blurb { padding-bottom: 14px; font-size: 13.5px; }
+        .{{ $ptId }} .lp-list { margin: 14px 0 10px; gap: 9px; }
+        .{{ $ptId }} .lp-more { display: none !important; }
+        .{{ $ptId }} .lp-card.open .lp-more { display: flex !important; }
+        .{{ $ptId }} .lp-morebtn { display: block; background: none; border: 0; padding: 0 0 16px 24px; color: var(--mk-accent); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; text-align: left; }
         .{{ $ptId }} .lp-blurb { min-height: 0; }
         .{{ $ptId }} .lp-pick { display: flex; gap: 6px; margin-bottom: 12px; }
         .{{ $ptId }} .lp-pick button { flex: 1; border: 1px solid var(--mk-border2); background: none; color: var(--mk-text); border-radius: 999px; padding: 8px; font: inherit; font-size: 13.5px; cursor: pointer; }
@@ -118,12 +129,14 @@
                     <div class="lp-name">{{ $p['name'] }}</div>
                     <div class="lp-price"><b>${{ $money($p['cents']) }}</b><span>/mo</span></div>
                     <p class="lp-blurb">{{ $p['blurb'] }}</p>
+                    @php $lpAdds = \App\Support\PricingCatalog::adds($i); $lpExtra = max(0, count($lpAdds) - 4); @endphp
                     <ul class="lp-list">
                         @if($i > 0)<li class="lead">Everything in {{ $plans[$i - 1]['name'] }}, plus:</li>@endif
-                        @foreach(\App\Support\PricingCatalog::adds($i) as $line)
-                            <li>{!! $check !!}<span>{{ $line }}</span></li>
+                        @foreach($lpAdds as $n => $line)
+                            <li class="{{ $n >= 4 ? 'lp-more' : '' }}">{!! $check !!}<span>{{ $line }}</span></li>
                         @endforeach
                     </ul>
+                    @if($lpExtra > 0)<button type="button" class="lp-morebtn" data-more="+{{ $lpExtra }} more">+{{ $lpExtra }} more</button>@endif
                     <a class="lp-btn" href="{{ $signup }}?plan={{ $p['k'] }}">Start free trial</a>
                 </div>
             @endforeach
@@ -213,6 +226,12 @@
     window.addEventListener('load', function () { setTimeout(start, 30); });
     start();
   }
+  root.querySelectorAll('.lp-morebtn').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var card = b.closest('.lp-card'), open = card.classList.toggle('open');
+      b.textContent = open ? 'Show less' : b.getAttribute('data-more');
+    });
+  });
   var pick = root.querySelector('.lp-pick');
   if (pick) pick.addEventListener('click', function (e) {
     var b = e.target.closest('button'); if (!b) return;
