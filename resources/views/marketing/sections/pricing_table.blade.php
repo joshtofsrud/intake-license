@@ -9,15 +9,20 @@
 
     Content: eyebrow, heading, accent_words, subheading, footnote,
              featured (starter|branded|scale|'' for none; default branded),
-             hide_matrix (hides the plan-by-plan table under the cards).
+             show_matrix (adds the plan-by-plan table under the cards; off by
+             default, so the home page keeps just the three cards),
+             phone_layout ('tabs' = swipeable row with plan pills, 'stack').
 --}}
 @php
     $ptId     = 'mkpt-' . substr(md5((string) ($section->id ?? uniqid())), 0, 10);
     $plans    = \App\Support\PricingCatalog::plans();
     $basics   = \App\Support\PricingCatalog::basics();
     $featured = array_key_exists('featured', $c) ? (string) $c['featured'] : 'branded';
-    $hideMx   = ! empty($c['hide_matrix']) && ! in_array((string) $c['hide_matrix'], ['0', 'false'], true);
+    // MARKER-PRICING-SECTION-RESTORE: table is opt-in; phone swipe is back
+    $showMx   = ! empty($c['show_matrix']) && ! in_array((string) $c['show_matrix'], ['0', 'false'], true);
+    $hideMx   = ! $showMx;
     $groups   = $hideMx ? [] : \App\Support\PricingCatalog::groups(true);
+    $ptTabs   = ($c['phone_layout'] ?? 'tabs') !== 'stack';
     $signup   = route('platform.signup');
     $money    = fn (int $cents) => number_format($cents / 100, $cents % 100 ? 2 : 0);
     $heading  = e($c['heading'] ?? '');
@@ -26,6 +31,7 @@
         $heading = preg_replace('/' . preg_quote(e($aw), '/') . '/i', '<span class="lp-accent">$0</span>', $heading, 1);
     }
     $hotIdx   = array_search($featured, array_column($plans, 'k'), true);
+    $ptActive = $hotIdx === false ? 0 : $hotIdx;
     $check    = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg>';
     $footnote = trim((string) ($c['footnote'] ?? '')) ?: 'Prices in US dollars, billed monthly. Each extra location is billed at your plan\'s price.';
 @endphp
@@ -70,8 +76,16 @@
     .{{ $ptId }} .no { color: rgba(255,255,255,.22); }
     .{{ $ptId }} .lp-foot { margin: 22px auto 0; max-width: 1080px; font-size: 13px; color: var(--mk-muted); line-height: 1.6; }
     .{{ $ptId }} .lp-pick { display: none; }
+    .{{ $ptId }} .lp-tabs { display: none; }
     @media (max-width: 820px) {
         .{{ $ptId }} .lp-cards { grid-template-columns: 1fr; }
+        .{{ $ptId }}.pt-tabs .lp-tabs { display: flex; background: rgba(255,255,255,.06); border-radius: 999px; padding: 4px; gap: 2px; margin: 4px 0 22px; }
+        .{{ $ptId }} .lp-tabs button { flex: 1; border: 0; background: none; color: var(--mk-muted); font: inherit; font-size: 13px; font-weight: 600; padding: 9px 0; border-radius: 999px; cursor: pointer; transition: background .2s, color .2s; }
+        .{{ $ptId }} .lp-tabs button.on { background: var(--mk-accent); color: var(--mk-accent-text, #0a0a0a); }
+        .{{ $ptId }}.pt-tabs .lp-cards { display: flex; grid-template-columns: none; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory;
+            margin: 0 calc(-1 * var(--mk-gutter, 20px)); padding: 14px 7% 6px; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+        .{{ $ptId }}.pt-tabs .lp-cards::-webkit-scrollbar { display: none; }
+        .{{ $ptId }}.pt-tabs .lp-card { flex: 0 0 86%; scroll-snap-align: center; }
         .{{ $ptId }} .lp-blurb { min-height: 0; }
         .{{ $ptId }} .lp-pick { display: flex; gap: 6px; margin-bottom: 12px; }
         .{{ $ptId }} .lp-pick button { flex: 1; border: 1px solid var(--mk-border2); background: none; color: var(--mk-text); border-radius: 999px; padding: 8px; font: inherit; font-size: 13.5px; cursor: pointer; }
@@ -81,7 +95,7 @@
     }
 </style>
 
-<section class="mk-section {{ $ptId }} {{ $bgId }}">
+<section class="mk-section {{ $ptId }} {{ $bgId }}{{ $ptTabs ? ' pt-tabs' : '' }}">
     <div class="mk-container">
         @if(!empty($c['eyebrow']) || $heading !== '' || !empty($c['subheading']))
             <div class="lp-head">
@@ -91,6 +105,13 @@
             </div>
         @endif
 
+        @if($ptTabs)
+            <div class="lp-tabs" role="tablist" aria-label="Plans">
+                @foreach($plans as $i => $p)
+                    <button type="button" role="tab" data-i="{{ $i }}" class="{{ $i === $ptActive ? 'on' : '' }}" aria-selected="{{ $i === $ptActive ? 'true' : 'false' }}">{{ $p['name'] }}</button>
+                @endforeach
+            </div>
+        @endif
         <div class="lp-cards">
             @foreach($plans as $i => $p)
                 <div class="lp-card{{ $p['k'] === $featured ? ' hot' : '' }}" data-plan="{{ $p['k'] }}">
@@ -161,20 +182,42 @@
         <p class="lp-foot">{{ $footnote }}</p>
     </div>
 </section>
-@unless($hideMx)
 <script>
-/* phone: the pills pick which plan's column the table shows */
+/* phone: pills and swipe kept in sync; the table's pills pick a column */
 (function () {
   var root = document.querySelector('.{{ $ptId }}');
   if (!root || root.dataset.lpReady) return;
   root.dataset.lpReady = '1';
+  var row = root.querySelector('.lp-cards'), tabs = root.querySelectorAll('.lp-tabs button'), cards = root.querySelectorAll('.lp-card');
+  if (row && tabs.length) {
+    var phone = window.matchMedia('(max-width: 820px)');
+    var mark = function (i) { tabs.forEach(function (t, k) { t.classList.toggle('on', k === i); t.setAttribute('aria-selected', k === i ? 'true' : 'false'); }); };
+    var go = function (i, smooth) {
+      var c = cards[i]; if (!c) return;
+      var rr = row.getBoundingClientRect(), cr = c.getBoundingClientRect();
+      row.scrollTo({ left: row.scrollLeft + (cr.left + cr.width / 2) - (rr.left + rr.width / 2), behavior: smooth ? 'smooth' : 'auto' });
+      mark(i);
+    };
+    var raf = 0;
+    row.addEventListener('scroll', function () {
+      if (raf) return;
+      raf = requestAnimationFrame(function () {
+        raf = 0;
+        var rr = row.getBoundingClientRect(), mid = rr.left + rr.width / 2, best = 0, d = Infinity;
+        cards.forEach(function (c, k) { var cr = c.getBoundingClientRect(), m = Math.abs(cr.left + cr.width / 2 - mid); if (m < d) { d = m; best = k; } });
+        mark(best);
+      });
+    }, { passive: true });
+    tabs.forEach(function (b) { b.addEventListener('click', function () { go(+b.dataset.i, true); }); });
+    var start = function () { if (phone.matches) go({{ $ptActive }}, false); };
+    window.addEventListener('load', function () { setTimeout(start, 30); });
+    start();
+  }
   var pick = root.querySelector('.lp-pick');
-  if (!pick) return;
-  pick.addEventListener('click', function (e) {
+  if (pick) pick.addEventListener('click', function (e) {
     var b = e.target.closest('button'); if (!b) return;
     pick.querySelectorAll('button').forEach(function (x) { x.classList.toggle('on', x === b); });
     root.querySelectorAll('table [data-p]').forEach(function (c) { c.classList.toggle('show', c.getAttribute('data-p') === b.getAttribute('data-i')); });
   });
 })();
 </script>
-@endunless

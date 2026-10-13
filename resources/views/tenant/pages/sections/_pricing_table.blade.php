@@ -72,7 +72,7 @@
         @endforeach
       </select>
     </div>
-    <label class="pb2-checkbox-row"><input type="checkbox" data-field="hide_matrix" value="1" {{ ! empty($c['hide_matrix']) && ! in_array((string) ($c['hide_matrix'] ?? ''), ['0', 'false'], true) ? 'checked' : '' }}><span>Hide the plan-by-plan table</span></label>
+    <label class="pb2-checkbox-row"><input type="checkbox" data-field="show_matrix" value="1" {{ ! empty($c['show_matrix']) && ! in_array((string) ($c['show_matrix'] ?? ''), ['0', 'false'], true) ? 'checked' : '' }}><span>Show the plan-by-plan table under the cards</span></label>
     <a href="{{ \App\Filament\Pages\PricingPage::getUrl() }}" target="_blank" class="pb2-btn" style="margin-top:10px;display:inline-block">Open Pricing page</a>
   </div>
   @else
