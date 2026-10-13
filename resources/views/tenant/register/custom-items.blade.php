@@ -217,6 +217,10 @@
 .ci-table td{vertical-align:middle}
 .ci-name b{font-weight:500;color:var(--ia-text)}
 .ci-name small{display:block;color:var(--ia-text-dim);font-size:11.5px;margin-top:2px}
+.ci-pager{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:8px 0;font-size:12.5px;color:var(--ia-text-dim)}
+.ci-pager nav{display:flex;align-items:center;gap:6px}
+.ci-pager nav a,.ci-pager nav span{padding:4px 10px;border-radius:999px;border:.5px solid var(--ia-border);color:var(--ia-text);text-decoration:none}
+.ci-pager nav span{opacity:.4}
 .ci-times{display:inline-block;min-width:26px;padding:2px 8px;border-radius:999px;background:var(--ia-hover);font-weight:600;font-size:12px}
 .ci-times.hot{background:rgba(224,168,78,.16);color:#E0A84E}
 .ci-sales a{font-family:var(--ia-font-mono);font-size:11.5px;color:var(--ia-text-dim);margin-right:6px;text-decoration:none}
@@ -294,6 +298,17 @@
     <p style="font-size:13px">{{ $filter === 'open' ? 'Everything rung up by hand has been sorted.' : 'Sorted custom items show up here.' }}</p>
   </div>
 @else
+  @if($pager['pages'] > 1)
+    @php $pq = fn ($p) => route('tenant.register.custom-items', ['show' => $filter, 'range' => $range, 'page' => $p]); @endphp
+    <div class="ci-pager">
+      <div>{{ $pager['from'] }}&ndash;{{ $pager['to'] }} of {{ $pager['total'] }}</div>
+      <nav>
+        @if($pager['page'] > 1)<a href="{{ $pq($pager['page'] - 1) }}">&lsaquo; Prev</a>@else<span>&lsaquo; Prev</span>@endif
+        Page {{ $pager['page'] }} of {{ $pager['pages'] }}
+        @if($pager['page'] < $pager['pages'])<a href="{{ $pq($pager['page'] + 1) }}">Next &rsaquo;</a>@else<span>Next &rsaquo;</span>@endif
+      </nav>
+    </div>
+  @endif
   <div class="h-table-wrap">
     <table class="h-table ci-table">
       <thead><tr><th>Typed as</th><th style="text-align:right">Price</th><th style="text-align:center">Rung up</th><th>Last</th><th>Sales</th><th></th></tr></thead>
@@ -313,14 +328,14 @@
                   {{ $r->status === 'added' ? 'Added as' : 'Matched to' }} {{ $r->item->name }} · {{ $r->item->sku }}
                 @elseif($filter !== 'open' && $g['ignored'])
                   Never listed again
-                @else
-                  {{ $lastAt->isToday() ? 'Today' : 'From earlier' }}
+                @elseif($lastAt->isToday())
+                  Today
                 @endif
               </small></td>
             <td data-label="Price" style="text-align:right">{{ $money($g['price_cents']) }}</td>
             <td data-label="Rung up" style="text-align:center"><span class="ci-times {{ $g['times'] > 2 ? 'hot' : '' }}">{{ $filter === 'open' ? $g['open'] : $g['times'] }}</span></td>
             <td data-label="Last" style="color:var(--ia-text-dim);font-size:12.5px">{{ $when }}@if($g['last_staff']) · {{ $g['last_staff'] }}@endif</td>
-            <td data-label="Sales" class="ci-sales">@foreach($g['sales'] as $s)<a href="{{ route('tenant.register.sales.receipt', $s['id']) }}" target="_blank">{{ $s['number'] ? '#' . \Illuminate\Support\Str::afterLast($s['number'], '-') : 'sale' }}</a>@endforeach</td>
+            <td data-label="Sales" class="ci-sales">@foreach($g['sales'] as $s)<a href="{{ route('tenant.register.sales.receipt', $s['id']) }}" target="_blank" title="{{ $s['number'] }}{{ !empty($s['at']) ? ' · ' . \Illuminate\Support\Carbon::parse($s['at'])->timezone($currentTenant->timezone())->format('M j') : '' }}">{{ $s['number'] ? '#' . \Illuminate\Support\Str::afterLast($s['number'], '-') : 'sale' }}</a>@endforeach</td>
             <td class="ci-acts">
               @if($filter === 'open')
                 <button type="button" class="ia-btn ia-btn--primary ia-btn--sm" data-ci-open="add" data-key="{{ $g['key'] }}" data-name="{{ $g['name'] }}" data-price="{{ number_format($g['price_cents'] / 100, 2, '.', '') }}" data-times="{{ $g['open'] }}">Add to inventory</button>
@@ -338,6 +353,17 @@
       </tbody>
     </table>
   </div>
+  @if($pager['pages'] > 1)
+    @php $pq = fn ($p) => route('tenant.register.custom-items', ['show' => $filter, 'range' => $range, 'page' => $p]); @endphp
+    <div class="ci-pager">
+      <div>{{ $pager['from'] }}&ndash;{{ $pager['to'] }} of {{ $pager['total'] }}</div>
+      <nav>
+        @if($pager['page'] > 1)<a href="{{ $pq($pager['page'] - 1) }}">&lsaquo; Prev</a>@else<span>&lsaquo; Prev</span>@endif
+        Page {{ $pager['page'] }} of {{ $pager['pages'] }}
+        @if($pager['page'] < $pager['pages'])<a href="{{ $pq($pager['page'] + 1) }}">Next &rsaquo;</a>@else<span>Next &rsaquo;</span>@endif
+      </nav>
+    </div>
+  @endif
 @endif
 
 <div class="ci-legend"><b>What sorting does.</b> <b>Add to inventory</b> creates the item the same way Inventory › Add item does; past sales stay exactly as they were rung up and nothing comes off stock for them. <b>Match</b> links these lines to an item you already have, for this list only; stock and sales don't change. <b>Not inventory</b> is for labor, shop supplies and one-offs: they leave the list and stop counting on the dashboard. If the same thing is rung up by hand again later, it comes back here. Nothing on this page changes a receipt, a payment or a customer's record.</div>

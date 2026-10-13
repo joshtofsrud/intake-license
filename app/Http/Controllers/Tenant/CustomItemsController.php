@@ -46,7 +46,22 @@ class CustomItemsController extends Controller
             $categories[$opt['cat']->id] = str_repeat("\u{00A0}\u{00A0}\u{00A0}", max(0, $opt['depth'] - 1)) . ($opt['depth'] ? '└ ' : '') . $opt['cat']->name;
         }
 
+        // MARKER-CI-PAGER: 50 groups a page, most rung up first
+        $perPage = 50;
+        $page    = max(1, (int) $request->query('page', 1));
+        $pages   = max(1, (int) ceil($rows->count() / $perPage));
+        $page    = min($page, $pages);
+        $pager   = [
+            'page'  => $page,
+            'pages' => $pages,
+            'total' => $rows->count(),
+            'from'  => $rows->isEmpty() ? 0 : ($page - 1) * $perPage + 1,
+            'to'    => min($page * $perPage, $rows->count()),
+        ];
+        $rows = $rows->slice(($page - 1) * $perPage, $perPage)->values();
+
         return view('tenant.register.custom-items', [
+            'pager'      => $pager,
             'rows'       => $rows,
             'counts'     => $counts,
             'tabCounts'  => [

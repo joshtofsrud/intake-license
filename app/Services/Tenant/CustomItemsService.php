@@ -105,7 +105,7 @@ class CustomItemsService
                     'open_today'  => $open->filter(fn ($l) => $paid($l) >= $todayStart)->count(),
                     'last_at'     => $paid($last),
                     'last_staff'  => trim(($staff->first_name ?? '') . ' ' . mb_substr((string) ($staff->last_name ?? ''), 0, 1)),
-                    'sales'       => $ls->pluck('sale')->filter()->unique('id')->take(6)->map(fn ($s) => ['id' => $s->id, 'number' => $s->sale_number])->values()->all(),
+                    'sales'       => $ls->pluck('sale')->filter()->unique('id')->take(6)->map(fn ($s) => ['id' => $s->id, 'number' => $s->sale_number, 'at' => $s->paid_at])->values()->all(),
                     'status'      => $isIgnored ? 'skipped' : ($r->status ?? null),
                     'resolution'  => $r,
                     'ignored'     => $isIgnored,
