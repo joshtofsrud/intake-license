@@ -136,7 +136,7 @@
 @endpush
 
 @section('content')
-<div style="max-width:1080px">
+<div style="max-width:1080px" class="{{ ($view ?? 'grid') === 'coverage' ? 'sc-is-cov' : '' }}">
   <h1 style="font-size:19px;font-weight:700;margin-bottom:4px">Scheduling</h1>
 
   <div class="sc-sub">
@@ -152,9 +152,14 @@
   </div>
 
   <div class="sc-bar">
-    <a class="sc-btn" href="{{ route('tenant.scheduling.index', ['week' => $weekStart->copy()->subWeek()->toDateString()]) }}">◀</a>
+    @php $scView = ($view ?? 'grid') === 'coverage' ? ['view' => 'coverage'] : []; @endphp
+    <a class="sc-btn" href="{{ route('tenant.scheduling.index', ['week' => $weekStart->copy()->subWeek()->toDateString()] + $scView) }}">◀</a>
     <span style="font-weight:600;font-size:13px">Week of {{ $weekStart->format('M j') }} – {{ $weekStart->copy()->endOfWeek()->format('M j, Y') }}</span>
-    <a class="sc-btn" href="{{ route('tenant.scheduling.index', ['week' => $weekStart->copy()->addWeek()->toDateString()]) }}">▶</a>
+    <a class="sc-btn" href="{{ route('tenant.scheduling.index', ['week' => $weekStart->copy()->addWeek()->toDateString()] + $scView) }}">▶</a>
+    <span class="sc-seg">
+      <a href="{{ route('tenant.scheduling.index', ['week' => $weekStart->toDateString()]) }}" class="{{ $scView ? '' : 'on' }}">Grid</a>
+      <a href="{{ route('tenant.scheduling.index', ['week' => $weekStart->toDateString(), 'view' => 'coverage']) }}" class="{{ $scView ? 'on' : '' }}">Coverage</a>
+    </span>
     @if($draftCount > 0)<span class="sc-drafts">{{ $draftCount }} draft shift{{ $draftCount > 1 ? 's' : '' }} — staff can't see them yet</span>@endif
     <span style="margin-left:auto;display:flex;gap:8px">
       <form method="POST" action="{{ route('tenant.scheduling.copy-week', ['week' => $weekStart->toDateString()]) }}">@csrf
@@ -234,6 +239,10 @@
       </form>
     </span>
   </div>
+
+  @if(($view ?? 'grid') === 'coverage' && $coverage)
+    @include('tenant.scheduling._coverage')
+  @endif
 
   <div class="sc-grid">
     @if($set['demand_overlay'] && !empty($demand))
@@ -466,18 +475,27 @@
     <form method="POST" action="{{ route('tenant.scheduling.shift.store') }}">@csrf
       <input type="hidden" name="tenant_user_id" id="sc-uid">
       <input type="hidden" name="date" id="sc-date">
+      <input type="hidden" name="replace_shift_id" id="sc-replace">
       <div class="sc-mh"><span id="sc-title">Add shift</span><span style="cursor:pointer" onclick="document.getElementById('sc-add-modal').classList.remove('on')">×</span></div>
       <div class="sc-mb">
+        {{-- who: shown when adding from a Coverage gap --}}
+        <div id="sc-pick-wrap" style="display:none">
+          <label>Who</label>
+          <select id="sc-pick" onchange="document.getElementById('sc-uid').value=this.value">
+            @foreach($staff as $m)<option value="{{ $m->id }}">{{ $m->name }}</option>@endforeach
+          </select>
+        </div>
         <div class="two">
-          <div><label>Start</label><input type="time" name="start_time" value="09:00" required></div>
-          <div><label>End</label><input type="time" name="end_time" value="17:00" required></div>
+          <div><label>Start</label><input type="time" name="start_time" id="sc-start" value="09:00" required></div>
+          <div><label>End</label><input type="time" name="end_time" id="sc-end" value="17:00" required></div>
         </div>
         <label>Label (optional)</label>
-        <input type="text" name="label" maxlength="80" placeholder="Shop, Routes, …">
+        <input type="text" name="label" id="sc-label" maxlength="80" placeholder="Shop, Routes, …">
       </div>
       <div class="sc-mf">
+        <button type="button" class="sc-btn" id="sc-remove" style="display:none;margin-right:auto;color:#f87171" onclick="scCovRemove()">Remove shift</button>
         <button type="button" class="sc-btn" onclick="document.getElementById('sc-add-modal').classList.remove('on')">Cancel</button>
-        <button type="submit" class="sc-btn p">Add shift</button>
+        <button type="submit" class="sc-btn p" id="sc-submit">Add shift</button>
       </div>
     </form>
   </div>
@@ -486,10 +504,23 @@
 @push('scripts')
 <script>
 function scAddShift(uid, name, date, dateLabel) {
-  document.getElementById('sc-uid').value = uid;
-  document.getElementById('sc-date').value = date;
-  document.getElementById('sc-title').textContent = name + ' · ' + dateLabel;
-  document.getElementById('sc-add-modal').classList.add('on');
+  scCovOpen({ title: name + ' · ' + dateLabel, date: date, uid: uid, start: '09:00', end: '17:00' });
+}
+// one modal for add (grid cell or Coverage gap) and edit (Coverage shift)
+function scCovOpen(o) {
+  var $ = function (id) { return document.getElementById(id); };
+  var pick = $('sc-pick');
+  $('sc-pick-wrap').style.display = o.pick ? '' : 'none';
+  $('sc-uid').value = o.pick ? (pick ? pick.value : '') : o.uid;
+  $('sc-date').value = o.date;
+  $('sc-start').value = o.start || '09:00';
+  $('sc-end').value = o.end || '17:00';
+  $('sc-label').value = o.label || '';
+  $('sc-replace').value = o.replace || '';
+  $('sc-remove').style.display = o.replace ? '' : 'none';
+  $('sc-submit').textContent = o.replace ? 'Save shift' : 'Add shift';
+  $('sc-title').textContent = o.title;
+  $('sc-add-modal').classList.add('on');
 }
 </script>
 @endpush

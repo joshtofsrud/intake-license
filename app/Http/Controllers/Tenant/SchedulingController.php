@@ -128,7 +128,11 @@ class SchedulingController extends Controller
             unset($cells);
         }
 
-        return view('tenant.scheduling.index', compact('staff', 'grid', 'days', 'weekStart', 'draftCount', 'pendingTimeOff', 'set', 'demand', 'templates', 'availability'));
+        // MARKER-SCHED-COVERAGE: Grid or Coverage
+        $view     = $request->query('view') === 'coverage' ? 'coverage' : 'grid';
+        $coverage = $view === 'coverage' ? $this->coverage($tenant, $staff, $grid, $days, $set) : null;
+
+        return view('tenant.scheduling.index', compact('staff', 'grid', 'days', 'weekStart', 'draftCount', 'pendingTimeOff', 'set', 'demand', 'templates', 'availability', 'view', 'coverage'));
     }
 
     /** scheduling feature settings with defaults. */
@@ -142,6 +146,99 @@ class SchedulingController extends Controller
             'timeoff_notice_days' => (int) ($s['scheduling_timeoff_notice_days'] ?? 0),
             // staffing guide; 0 = off.
             'bookings_per_staff'  => (int) ($s['scheduling_bookings_per_staff'] ?? 0),
+            // Coverage view: fewer than this on while open shows amber.
+            'min_on'              => max(1, (int) ($s['scheduling_min_on'] ?? 1)),
+        ];
+    }
+
+    /**
+     * MARKER-SCHED-COVERAGE: data for the Coverage view. Minutes are
+     * tenant-local wall clock; a shift running past midnight is drawn to the
+     * end of its first day. Open hours come from the default capacity rules,
+     * with a dated override (or closure) winning for its day.
+     */
+    private function coverage($tenant, $staff, array $grid, array $days, array $set): array
+    {
+        $rules = \App\Models\Tenant\TenantCapacityRule::where('tenant_id', $tenant->id)
+            ->where('rule_type', 'default')->get()->keyBy('day_of_week');
+        $overrides = \App\Models\Tenant\TenantCapacityRule::where('tenant_id', $tenant->id)
+            ->where('rule_type', 'override')
+            ->whereBetween('specific_date', [$days[0]->toDateString(), $days[6]->toDateString()])
+            ->get()->keyBy(fn ($r) => $r->specific_date->toDateString());
+        $toMin = fn ($t) => $t ? ((int) substr((string) $t, 0, 2)) * 60 + (int) substr((string) $t, 3, 2) : null;
+
+        $hours = [];
+        foreach ($days as $i => $d) {
+            $rule = $rules->get((int) $d->dayOfWeek);
+            $ov   = $overrides->get($d->toDateString());
+            if ($ov && ($ov->is_closed || $ov->open_time)) {
+                $rule = $ov;
+            }
+            $open  = ($rule && ! $rule->is_closed) ? $toMin($rule->open_time) : null;
+            $close = ($rule && ! $rule->is_closed) ? $toMin($rule->close_time) : null;
+            $hours[$i] = ($open !== null && $close !== null && $close > $open) ? [$open, $close] : null;
+        }
+
+        $palette = ['#BEF264', '#60A5FA', '#F472B6', '#FBBF24', '#A78BFA', '#34D399', '#FB923C', '#22D3EE', '#F87171', '#E879F9'];
+        $people = [];
+        $shifts = [];
+        $off    = [];
+        foreach ($staff->values() as $k => $m) {
+            $people[] = ['id' => $m->id, 'name' => $m->name, 'color' => $palette[$k % count($palette)]];
+            for ($i = 0; $i < 7; $i++) {
+                if (! empty($grid[$m->id][$i]['off'])) {
+                    $off[] = ['u' => $m->id, 'd' => $i];
+                }
+                foreach ($grid[$m->id][$i]['shifts'] as $sh) {
+                    $ls = tlocal_carbon($sh->starts_at);
+                    $le = tlocal_carbon($sh->ends_at);
+                    $s  = $ls->hour * 60 + $ls->minute;
+                    $e  = $le->isSameDay($ls) ? $le->hour * 60 + $le->minute : 1440;
+                    $shifts[] = [
+                        'id'    => $sh->id,
+                        'u'     => $m->id,
+                        'd'     => $i,
+                        's'     => $s,
+                        'e'     => max($e, $s + 15),
+                        'draft' => ! $sh->published_at,
+                        'label' => $sh->label,
+                        'warn'  => ! empty($sh->avail_conflict),
+                    ];
+                }
+            }
+        }
+
+        // draw from the earliest open/shift hour to the latest, whole hours
+        $lo = 8 * 60;
+        $hi = 18 * 60;
+        foreach ($hours as $h) {
+            if ($h) { $lo = min($lo, $h[0]); $hi = max($hi, $h[1]); }
+        }
+        foreach ($shifts as $s) {
+            $lo = min($lo, $s['s']);
+            $hi = max($hi, $s['e']);
+        }
+        $lo = max(0, (int) floor($lo / 60) * 60);
+        $hi = min(1440, (int) ceil($hi / 60) * 60);
+
+        $now   = tnow();
+        $today = null;
+        foreach ($days as $i => $d) {
+            if ($d->isSameDay($now)) { $today = $i; }
+        }
+
+        return [
+            'days'   => array_map(fn ($d) => ['w' => $d->format('D'), 'n' => $d->format('j'), 'date' => $d->toDateString(), 'label' => $d->format('D M j')], $days),
+            'hours'  => $hours,
+            'people' => $people,
+            'shifts' => $shifts,
+            'off'    => $off,
+            'min_on' => $set['min_on'],
+            'lo'     => $lo,
+            'hi'     => $hi,
+            'now'    => $today === null ? null : ['d' => $today, 'm' => $now->hour * 60 + $now->minute],
+            'sel'    => $today ?? 0,
+            'multi_location' => \App\Models\Tenant\TenantLocation::where('tenant_id', $tenant->id)->count() > 1,
         ];
     }
 
@@ -164,6 +261,7 @@ class SchedulingController extends Controller
         $data = $request->validate([
             'scheduling_timeoff_notice_days' => ['required', 'integer', 'min:0', 'max:60'],
             'scheduling_bookings_per_staff'  => ['nullable', 'integer', 'min:0', 'max:50'],
+            'scheduling_min_on'              => ['nullable', 'integer', 'min:1', 'max:20'],
         ]);
 
         $settings = $tenant->settings ?? [];
@@ -172,6 +270,7 @@ class SchedulingController extends Controller
         $settings['scheduling_notify_publish'] = (bool) $request->input('scheduling_notify_publish');
         $settings['scheduling_timeoff_notice_days'] = $data['scheduling_timeoff_notice_days'];
         $settings['scheduling_bookings_per_staff']  = (int) ($data['scheduling_bookings_per_staff'] ?? 0);
+        $settings['scheduling_min_on']              = max(1, (int) ($data['scheduling_min_on'] ?? 1));
         $tenant->update(['settings' => $settings]);
 
         return back()->with('success', 'Scheduling settings saved.');

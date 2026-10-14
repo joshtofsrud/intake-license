@@ -60,6 +60,10 @@
         <input type="number" name="scheduling_bookings_per_staff" class="ss-num" min="0" max="50" value="{{ $set['bookings_per_staff'] ?? 0 }}">
       </div>
       <div class="ss-row">
+        <span>Minimum on the floor<div class="d">The builder's Coverage view marks open hours with fewer people on than this in amber, and nobody at all in red. 1 = only flag hours with nobody on.</div></span>
+        <input type="number" name="scheduling_min_on" class="ss-num" min="1" max="20" value="{{ $set['min_on'] ?? 1 }}">
+      </div>
+      <div class="ss-row">
         <span>Staff availability<div class="d">Staff set recurring day/time availability; the builder flags conflicts (never blocks).</div></span>
         <label class="ss-tog"><input type="checkbox" name="scheduling_availability" value="1" @checked($set['availability'])><i></i></label>
       </div>
