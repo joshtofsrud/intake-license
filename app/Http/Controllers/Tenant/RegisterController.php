@@ -514,7 +514,12 @@ class RegisterController extends Controller
                 'tenant_id'          => $tenant->id,
                 'rang_up_by_user_id' => auth('tenant')->id(),
                 'location_id'        => $locationId,
-                'register_id'        => $request->session()->get('current_register_id'),
+                // MARKER-REGISTER-TENANT-CHECK: only this shop's register. One
+                // impersonation session spans shops, so the remembered register
+                // could belong to another one.
+                'register_id'        => (($rid = (int) $request->session()->get('current_register_id', 0))
+                                            && \App\Models\Tenant\TenantRegister::where('tenant_id', $tenant->id)->whereKey($rid)->exists())
+                                            ? $rid : null,
                 'client_uuid'        => $validated['client_uuid'] ?? null,
                 'customer_id'        => $validated['customer_id'] ?? null,
                 'status'             => 'completed',

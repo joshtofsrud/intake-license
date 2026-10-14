@@ -49,7 +49,18 @@ class RequireTenantAuth
                     ->where('role', 'owner')->where('is_active', true)->first();
 
                 if ($owner) {
-                    Auth::guard('tenant')->login($owner);
+                    // MARKER-IMPERSONATE-SWITCH: swap the owner WITHOUT login().
+                    // login() gives the session a new id; with two shops open in
+                    // tabs every poll did that, and a request racing the new id
+                    // wrote an empty session back, logging the operator out of
+                    // the shop and master admin alike. The operator already
+                    // passed the master-admin check above, so a fresh id adds
+                    // nothing here.
+                    $guard = Auth::guard('tenant');
+                    $request->session()->put($guard->getName(), $owner->getAuthIdentifier());
+                    $guard->setUser($owner);
+                    // the register picked in the other shop belongs to that shop
+                    $request->session()->forget('current_register_id');
                     $user = $owner;
                     debug_log()->impersonation('switch', $tenant, $owner);
                 } else {
