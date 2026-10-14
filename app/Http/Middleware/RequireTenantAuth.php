@@ -94,6 +94,21 @@ class RequireTenantAuth
         // Share the authenticated user with views
         view()->share('authUser', $user);
 
+        // MARKER-NO-CUSTOMER-RECALL: inside the staff admin, never sign the
+        // browser in as a CUSTOMER from a "remember me" cookie. The builder
+        // preview renders the public nav, which asks the customer guard who's
+        // there; a remember cookie (say, from testing your own portal) made it
+        // log in, and that login gives the session a new id. The editor's other
+        // requests, in flight at the same moment, still carried the old id and
+        // wrote an empty session back: you were logged out of the shop and
+        // master admin. Customer sign-ins on the public site are untouched.
+        $customerGuard = Auth::guard('customer');
+        if ($customerGuard instanceof \Illuminate\Auth\SessionGuard) {
+            $clean = $request->duplicate();
+            $clean->cookies->remove($customerGuard->getRecallerName());
+            $customerGuard->setRequest($clean);
+        }
+
         return $next($request);
     }
 
