@@ -2,8 +2,20 @@
      Success dismisses itself; an error waits to be acknowledged, which is
      why errors were a blocking alert before this and still behave that way. --}}
 @php
-  $flashOk  = session('success');
-  $flashErr = session('error') ?: ((isset($errors) && $errors->any()) ? $errors->first() : null);
+  // MARKER-FLASH-FALLBACK: some controllers send ->with('flash', ['type','message']).
+  // Pages that print that themselves keep doing so; anywhere it would otherwise
+  // be dropped (Register, Layaways, Notifications, back() to a page that doesn't
+  // print it), this pop-up shows it instead. Already on the page = not repeated.
+  $flashOkAlt = null; $flashErrAlt = null;
+  $fl = session('flash');
+  if (! session('success') && ! session('error') && is_array($fl) && trim((string) ($fl['message'] ?? '')) !== '') {
+      $flMsg = (string) $fl['message'];
+      if (! str_contains((string) $__env->yieldContent('content'), e($flMsg))) {
+          if (($fl['type'] ?? '') === 'error') { $flashErrAlt = $flMsg; } else { $flashOkAlt = $flMsg; }
+      }
+  }
+  $flashOk  = session('success') ?: $flashOkAlt;
+  $flashErr = session('error') ?: ($flashErrAlt ?: ((isset($errors) && $errors->any()) ? $errors->first() : null));
 @endphp
 
 @if($flashOk || $flashErr)
