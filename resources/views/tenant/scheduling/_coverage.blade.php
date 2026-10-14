@@ -2,9 +2,6 @@
      Same shifts as the Grid; nothing here publishes or notifies. --}}
 @push('styles')
 <style>
-.sc-seg{display:inline-flex;border:.5px solid var(--ia-border-2,rgba(255,255,255,.2));border-radius:7px;overflow:hidden}
-.sc-seg a{color:var(--ia-text-muted);font-size:12px;font-weight:600;padding:7px 12px;text-decoration:none}
-.sc-seg a.on{background:var(--ia-surface-2,#1a1a1a);color:var(--ia-text)}
 .sc-is-cov .sc-grid,.sc-is-cov .sc-grid ~ p,.sc-is-cov .scm{display:none !important}
 .sc-modal{max-width:calc(100% - 32px)}
 .cv{border:.5px solid var(--ia-border);border-radius:12px;background:var(--ia-surface);overflow-x:auto}

@@ -13,6 +13,10 @@
 .sc-bar { display:flex; align-items:center; gap:10px; margin-bottom:14px; flex-wrap:wrap; }
 .sc-btn { padding:7px 13px; border-radius:7px; font-size:12px; font-weight:600; cursor:pointer; border:.5px solid var(--ia-border-2,rgba(255,255,255,.2)); background:transparent; color:var(--ia-text); text-decoration:none; }
 .sc-btn.p { background:var(--ia-accent); color:var(--ia-accent-text); border:none; }
+/* MARKER-SCHED-SEG: Grid / Coverage switch, styled in both views */
+.sc-seg{display:inline-flex;border:.5px solid var(--ia-border-2,rgba(255,255,255,.2));border-radius:7px;overflow:hidden}
+.sc-seg a{color:var(--ia-text-muted);font-size:12px;font-weight:600;padding:7px 12px;text-decoration:none}
+.sc-seg a.on{background:var(--ia-surface-2,#1a1a1a);color:var(--ia-text)}
 .sc-grid { border:.5px solid var(--ia-border); border-radius:12px; overflow-x:auto; background:var(--ia-surface); }
 .sc-row { display:grid; grid-template-columns:150px repeat(7, minmax(110px,1fr)); border-bottom:.5px solid var(--ia-border); min-width:920px; }
 .sc-row:last-child { border-bottom:none; }
