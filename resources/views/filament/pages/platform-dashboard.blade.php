@@ -54,7 +54,11 @@
   .mt-metric .v{display:block;font-size:22px;font-weight:700;letter-spacing:-.02em;line-height:1.15}
   .mt-metric .d{display:block;font-size:11.5px;opacity:.6}
   .mt-metric .d.up{color:var(--pd-ok);opacity:1}.mt-metric .d.down{color:var(--pd-bad);opacity:1}
-  .mt-chartwrap{padding:14px 16px 8px}
+  /* MARKER-DASH-CHART-FILL: the chart fills the box, however tall the metric column is */
+  .mt-chartwrap{padding:14px 16px 8px;display:flex;flex-direction:column}
+  .mt-plot{position:relative;flex:1 1 auto;min-height:150px}
+  .mt-plot svg{position:absolute;inset:0;width:100%;height:100%}
+  .mt-plot .mt-dot{position:absolute;width:7px;height:7px;margin:-3.5px 0 0 -3.5px;border-radius:50%;background:rgb(139,124,246)}
   .mt-axis{display:flex;justify-content:space-between;font-size:11px;opacity:.45;margin-top:4px}
   /* one row per step. As boxes in a grid they had no
      room in a 300px column and the arrows fell between lines. */
@@ -136,12 +140,14 @@
       @endforeach
     </div>
     <div class="mt-chartwrap">
-      <svg id="pd-chart" viewBox="0 0 640 150" width="100%" height="150" preserveAspectRatio="none">
-        <defs><linearGradient id="pd-g" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="rgb(139,124,246)" stop-opacity=".35"/><stop offset="1" stop-color="rgb(139,124,246)" stop-opacity="0"/></linearGradient></defs>
-        <path id="pd-area" fill="url(#pd-g)" d=""></path>
-        <path id="pd-line" fill="none" stroke="rgb(139,124,246)" stroke-width="2" d=""></path>
-        <circle id="pd-dot" r="3.5" fill="rgb(139,124,246)" cx="640" cy="75"></circle>
-      </svg>
+      <div class="mt-plot">
+        <svg id="pd-chart" viewBox="0 0 640 150" preserveAspectRatio="none">
+          <defs><linearGradient id="pd-g" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="rgb(139,124,246)" stop-opacity=".35"/><stop offset="1" stop-color="rgb(139,124,246)" stop-opacity="0"/></linearGradient></defs>
+          <path id="pd-area" fill="url(#pd-g)" d=""></path>
+          <path id="pd-line" fill="none" stroke="rgb(139,124,246)" stroke-width="2" vector-effect="non-scaling-stroke" d=""></path>
+        </svg>
+        <span class="mt-dot" id="pd-dot" style="left:100%;top:50%"></span>
+      </div>
       <div class="mt-axis">
         <span>{{ \Carbon\Carbon::parse($series['labels'][0])->format('M j') }}</span>
         <span>{{ \Carbon\Carbon::parse($series['labels'][intdiv(count($series['labels']), 2)])->format('M j') }}</span>
@@ -316,7 +322,7 @@
       document.getElementById('pd-area').setAttribute('d', d + ' L' + W + ' ' + H + ' L0 ' + H + ' Z');
       var last = pts[pts.length - 1];
       var dot = document.getElementById('pd-dot');
-      dot.setAttribute('cx', last[0]); dot.setAttribute('cy', last[1]);
+      dot.style.left = (last[0] / W * 100) + '%'; dot.style.top = (last[1] / H * 100) + '%';
       document.getElementById('pd-chart-legend').textContent = m.legend;
     }
     var btns = document.querySelectorAll('.mt-metric[data-metric]');
