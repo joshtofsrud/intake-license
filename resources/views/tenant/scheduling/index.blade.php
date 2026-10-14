@@ -156,13 +156,13 @@
   </div>
 
   <div class="sc-bar">
-    @php $scView = ($view ?? 'grid') === 'coverage' ? ['view' => 'coverage'] : []; @endphp
+    @php $scView = ($view ?? 'coverage') === 'grid' ? ['view' => 'grid'] : []; @endphp
     <a class="sc-btn" href="{{ route('tenant.scheduling.index', ['week' => $weekStart->copy()->subWeek()->toDateString()] + $scView) }}">◀</a>
     <span style="font-weight:600;font-size:13px">Week of {{ $weekStart->format('M j') }} – {{ $weekStart->copy()->endOfWeek()->format('M j, Y') }}</span>
     <a class="sc-btn" href="{{ route('tenant.scheduling.index', ['week' => $weekStart->copy()->addWeek()->toDateString()] + $scView) }}">▶</a>
     <span class="sc-seg">
-      <a href="{{ route('tenant.scheduling.index', ['week' => $weekStart->toDateString()]) }}" class="{{ $scView ? '' : 'on' }}">Grid</a>
-      <a href="{{ route('tenant.scheduling.index', ['week' => $weekStart->toDateString(), 'view' => 'coverage']) }}" class="{{ $scView ? 'on' : '' }}">Coverage</a>
+      <a href="{{ route('tenant.scheduling.index', ['week' => $weekStart->toDateString()]) }}" class="{{ $scView ? '' : 'on' }}">Coverage</a>
+      <a href="{{ route('tenant.scheduling.index', ['week' => $weekStart->toDateString(), 'view' => 'grid']) }}" class="{{ $scView ? 'on' : '' }}">Grid</a>
     </span>
     @if($draftCount > 0)<span class="sc-drafts">{{ $draftCount }} draft shift{{ $draftCount > 1 ? 's' : '' }} — staff can't see them yet</span>@endif
     <span style="margin-left:auto;display:flex;gap:8px">

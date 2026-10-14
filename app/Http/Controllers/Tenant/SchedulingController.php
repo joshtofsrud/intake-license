@@ -129,7 +129,8 @@ class SchedulingController extends Controller
         }
 
         // MARKER-SCHED-COVERAGE: Grid or Coverage
-        $view     = $request->query('view') === 'coverage' ? 'coverage' : 'grid';
+        // MARKER-SCHED-COVERAGE-DEFAULT: Coverage unless ?view=grid
+        $view     = $request->query('view') === 'grid' ? 'grid' : 'coverage';
         $coverage = $view === 'coverage' ? $this->coverage($tenant, $staff, $grid, $days, $set) : null;
 
         return view('tenant.scheduling.index', compact('staff', 'grid', 'days', 'weekStart', 'draftCount', 'pendingTimeOff', 'set', 'demand', 'templates', 'availability', 'view', 'coverage'));
