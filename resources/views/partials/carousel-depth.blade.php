@@ -9,18 +9,21 @@
 --}}
 @php
   $cdId     = $uid . 'd';
+  // MARKER-CAROUSEL-STYLE-FIX: section background + spacing apply to every style
+  $cxBg     = (($c['bg_mode'] ?? 'none') === 'color' && preg_match('/^(#[0-9a-fA-F]{3,8}|rgba?\([0-9., %]+\))$/', trim((string) ($c['bg_color'] ?? '')))) ? trim((string) $c['bg_color']) : '';
+  $cdGap    = ['tight' => 12, 'normal' => 20, 'loose' => 32][$c['gap'] ?? 'normal'] ?? 20;
   $cdBtn    = trim((string) ($c['depth_button'] ?? 'View')) ?: 'View';
   $cdArrows = ! in_array((string) ($c['show_arrows'] ?? '1'), ['0', 'false', ''], true);
   $cdAnchor = preg_replace('/[^A-Za-z0-9_-]/', '', (string) ($c['anchor_id'] ?? ''));
   $cdCls    = trim($customClass . (empty($mkWrap) && ! empty($c['hide_on_mobile']) ? ' cd-hide-m' : '') . (empty($mkWrap) && ! empty($c['hide_on_desktop']) ? ' cd-hide-d' : ''));
 @endphp
 <style>
-  .{{ $cdId }} { padding: clamp(48px, 7vw, 96px) 0; }
+  .{{ $cdId }} { padding: clamp(48px, 7vw, 96px) 0;@if($cxBg !== '') background: {{ $cxBg }};@endif }
   .{{ $cdId }} .cd-head { max-width: 1180px; margin: 0 auto 28px; padding: 0 24px; }
   .{{ $cdId }} .cd-head h2 { margin: 0 0 8px; font-size: clamp(26px, 3.6vw, 40px); letter-spacing: -.02em; }
   .{{ $cdId }} .cd-head p { margin: 0; opacity: .65; max-width: 620px; }
   .{{ $cdId }} .cd-wrap { position: relative; }
-  .{{ $cdId }} .cd-track { display: flex; gap: 20px; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; padding: 20px calc(50% - min(280px, 39vw)); outline: none; }
+  .{{ $cdId }} .cd-track { display: flex; gap: {{ $cdGap }}px; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; padding: 28px calc(50% - min(280px, 39vw)) 76px; margin: -28px 0 -56px; outline: none; }
   .{{ $cdId }} .cd-track::-webkit-scrollbar { display: none; }
   .{{ $cdId }} .cd-card { flex: 0 0 min(560px, 78vw); scroll-snap-align: center; margin: 0; cursor: pointer; transform: scale(.86); opacity: .5; transition: transform .45s ease, opacity .45s ease; }
   .{{ $cdId }} .cd-card.is-active { transform: scale(1); opacity: 1; cursor: default; }

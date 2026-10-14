@@ -124,9 +124,19 @@
       <input type="checkbox" data-field="motion_mono" value="1" {{ $get('motion_mono') ? 'checked' : '' }}>
       <span>Black &amp; white, colour on hover <span class="pb2-field-hint">Motion</span></span>
     </label>
+    {{-- MARKER-CAROUSEL-STYLE-FIX: Motion's own shape; Mixed keeps the varied widths --}}
+    <div class="pb2-field">
+      <label class="pb2-field-label">Photo shape <span class="pb2-field-hint">Motion</span></label>
+      <div class="pb2-seg" data-field-seg="motion_shape">
+        @foreach(['mixed'=>'Mixed','wide'=>'16:9','landscape'=>'4:3','square'=>'1:1'] as $v => $n)
+          <button type="button" class="pb2-seg-btn {{ $get('motion_shape', 'mixed') === $v ? 'active' : '' }}" data-seg-value="{{ $v }}">{{ $n }}</button>
+        @endforeach
+      </div>
+      <input type="hidden" data-field="motion_shape" value="{{ $get('motion_shape', 'mixed') }}">
+    </div>
 
     <div class="pb2-field">
-      <label class="pb2-field-label">Slide shape</label>
+      <label class="pb2-field-label">Slide shape <span class="pb2-field-hint">Classic, Depth</span></label>
       <select class="pb2-input" data-field="aspect_ratio">
         @foreach(['wide'=>'Wide (16:9)','landscape'=>'Landscape (4:3)','square'=>'Square (1:1)'] as $v => $n)
           <option value="{{ $v }}" {{ $get('aspect_ratio','wide') === $v ? 'selected' : '' }}>{{ $n }}</option>

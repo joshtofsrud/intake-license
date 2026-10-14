@@ -9,6 +9,11 @@
 --}}
 @php
   $cmId     = $uid . 'm';
+  // MARKER-CAROUSEL-STYLE-FIX: section background + spacing apply to every style
+  $cxBg     = (($c['bg_mode'] ?? 'none') === 'color' && preg_match('/^(#[0-9a-fA-F]{3,8}|rgba?\([0-9., %]+\))$/', trim((string) ($c['bg_color'] ?? '')))) ? trim((string) $c['bg_color']) : '';
+  $cmGap    = ['tight' => 4, 'normal' => 8, 'loose' => 16][$c['gap'] ?? 'normal'] ?? 8;
+  // photo shape: 'mixed' keeps the varied widths; a ratio makes every photo that shape
+  $cmShape  = ['wide' => 16 / 9, 'landscape' => 4 / 3, 'square' => 1.0][$c['motion_shape'] ?? 'mixed'] ?? null;
   $cmH      = ['m' => 360, 'l' => 460][$c['motion_height'] ?? 'm'] ?? 360;
   $cmMono   = in_array((string) ($c['motion_mono'] ?? ''), ['1', 'true'], true) || ($c['motion_mono'] ?? null) === true;
   $cmCaps   = in_array((string) ($c['show_captions'] ?? ''), ['1', 'true'], true) || ($c['show_captions'] ?? null) === true;
@@ -17,13 +22,13 @@
   $cmW      = [1.45, .82, 1.2, .95, .75, 1.35, .85, 1.05, .8];
 @endphp
 <style>
-  .{{ $cmId }} { padding: clamp(48px, 7vw, 96px) 0; overflow: hidden; }
+  .{{ $cmId }} { padding: clamp(48px, 7vw, 96px) 0; overflow: hidden;@if($cxBg !== '') background: {{ $cxBg }};@endif }
   .{{ $cmId }} .cm-head { max-width: 1180px; margin: 0 auto 28px; padding: 0 24px; }
   .{{ $cmId }} .cm-head h2 { margin: 0 0 8px; font-size: clamp(26px, 3.6vw, 40px); letter-spacing: -.02em; }
   .{{ $cmId }} .cm-head p { margin: 0; opacity: .65; max-width: 620px; }
   .{{ $cmId }} .cm-view { overflow: hidden; cursor: grab; touch-action: pan-y; user-select: none; -webkit-user-select: none; padding: 8px 0; outline: none; }
   .{{ $cmId }} .cm-view.is-drag { cursor: grabbing; }
-  .{{ $cmId }} .cm-track { display: flex; gap: 8px; width: max-content; padding: 0 24px; will-change: transform; }
+  .{{ $cmId }} .cm-track { display: flex; gap: {{ $cmGap }}px; width: max-content; padding: 0 24px; will-change: transform; }
   .{{ $cmId }} .cm-item { flex: none; margin: 0; }
   .{{ $cmId }} .cm-frame { position: relative; display: block; height: {{ $cmH }}px; overflow: hidden; border-radius: {{ $radius }}; background: rgba(127,127,127,.12); transform-origin: 50% 50%; }
   .{{ $cmId }} .cm-frame img { position: absolute; top: 0; left: -9%; width: 118%; height: 100%; object-fit: cover; pointer-events: none; will-change: transform; transition: filter .5s ease; -webkit-user-drag: none; }
@@ -49,7 +54,8 @@
     <div class="cm-track">
       @foreach($images as $cmI => $cmImg)
         @php $cmLink = trim((string) ($cmImg['link'] ?? '')); $cmSafe = preg_match('#^(https?://|/|\#)#i', $cmLink) ? $cmLink : ''; @endphp
-        <figure class="cm-item" style="width: {{ (int) round($cmH * $cmW[$cmI % count($cmW)]) }}px" data-w="{{ $cmW[$cmI % count($cmW)] }}">
+        @php $cmRatio = $cmShape ?? $cmW[$cmI % count($cmW)]; @endphp
+        <figure class="cm-item" style="width: {{ (int) round($cmH * $cmRatio) }}px" data-w="{{ $cmRatio }}"@if($cmShape) data-fixed="1"@endif>
           @if($cmSafe !== '')
             <a class="cm-frame" href="{{ $cmSafe }}" draggable="false"><img src="{{ $cmImg['url'] }}" alt="{{ $cmImg['alt'] ?: $cmImg['caption'] }}" loading="lazy" draggable="false"></a>
           @else
@@ -78,6 +84,8 @@
   // once a photo loads, blend its real shape into the varied width
   items.forEach(function (it) {
     var img = it.querySelector('img'), f = it.querySelector('.cm-frame');
+    // a fixed shape keeps every photo the same ratio (and follows the height on phones)
+    if (it.dataset.fixed) { var fit = function () { it.style.width = Math.round(f.clientHeight * (parseFloat(it.dataset.w) || 1)) + 'px'; measure(); }; fit(); window.addEventListener('resize', fit); return; }
     function size() { if (!img.naturalWidth) return; var r = img.naturalWidth / img.naturalHeight, w = parseFloat(it.dataset.w) || 1;
       it.style.width = Math.round(f.clientHeight * Math.min(1.6, Math.max(.68, r * .7 + w * .3))) + 'px'; measure(); }
     if (img.complete) size(); else img.addEventListener('load', size);
