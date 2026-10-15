@@ -230,6 +230,23 @@ class PageBuilderController extends Controller
             'hide_on_mobile'  => false,
             'hide_on_desktop' => false,
         ],
+        // MARKER-FEATURES-ACCORDION
+        'features_accordion' => [
+            'eyebrow' => 'Everything in one place', 'heading' => 'One tool. The entire shop.', 'accent_words' => '',
+            'subheading' => 'Booking, work orders, point of sale and your customer records share one login and one set of data.',
+            'panels' => [
+                ['title' => 'Online booking', 'heading' => 'Booking that turns into work', 'body' => 'Customers pick a service and a time on your own website. It lands on your calendar and becomes a work order, no re-typing.', 'visual' => 'flow', 'color' => '#2a2556', 'accent' => '#8f86e8', 'link_label' => 'See it in the demo', 'link_url' => '/demo', 'image' => ''],
+                ['title' => 'Work orders', 'heading' => 'Every job on one ticket', 'body' => 'Status, charges, parts and staff notes in one place for every job.', 'visual' => 'wo', 'color' => '#3a2416', 'accent' => '#e39a5c', 'link_label' => 'See it in the demo', 'link_url' => '/demo', 'image' => ''],
+                ['title' => 'Point of sale', 'heading' => 'A register that knows your stock', 'body' => 'Walk-in sales, quotes and returns. Stock updates the moment a sale is finished.', 'visual' => 'pos', 'color' => '#1f3b2b', 'accent' => '#BEF264', 'link_label' => 'See it in the demo', 'link_url' => '/demo', 'image' => ''],
+                ['title' => 'Customer records', 'heading' => 'Records that build themselves', 'body' => 'History, spend and notes from every booking and sale, without data entry.', 'visual' => 'cust', 'color' => '#3a1f22', 'accent' => '#ee7a5f', 'link_label' => 'See it in the demo', 'link_url' => '/demo', 'image' => ''],
+                ['title' => 'Win-back emails', 'heading' => 'Bring back the ones who drifted', 'body' => 'Spot customers who\'ve drifted away and bring them back with campaigns.', 'visual' => 'wb', 'color' => '#172647', 'accent' => '#A9CBE8', 'link_label' => 'See it in the demo', 'link_url' => '/demo', 'image' => ''],
+                ['title' => 'Your website', 'heading' => 'Your brand, your website', 'body' => 'A full website builder on your own domain. Customers see your name and colours, not ours.', 'visual' => 'site', 'color' => '#3d1414', 'accent' => '#F3E36B', 'link_label' => 'See it in the demo', 'link_url' => '/demo', 'image' => ''],
+                ['title' => 'Grows with you', 'heading' => 'Add the pieces when you need them', 'body' => 'Rentals, an online store, staff scheduling and more. Same login, same customers.', 'visual' => 'grow', 'color' => '#24301a', 'accent' => '#BEF264', 'link_label' => 'See it in the demo', 'link_url' => '/demo', 'image' => ''],
+            ],
+            'start_panel' => 3, 'autoplay' => true, 'autoplay_seconds' => 7, 'panel_height' => 'l',
+            'cta_label' => 'Start free trial', 'cta_url' => 'https://app.intake.works/signup',
+            'accent_color' => '', 'anchor_id' => '', 'custom_classes' => '', 'hide_on_mobile' => false, 'hide_on_desktop' => false,
+        ],
         'feature_tiles' => [
             'eyebrow' => '', 'heading' => 'Everything in one place', 'accent_words' => '', 'subheading' => '', 'tiles' => [],
             'footer_text' => '', 'footer_cta_label' => '', 'footer_cta_url' => '',
