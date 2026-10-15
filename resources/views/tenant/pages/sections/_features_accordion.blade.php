@@ -120,14 +120,6 @@
       <input type="hidden" data-field="panel_height" value="{{ $get('panel_height', 'l') }}">
     </div>
   </div>
-  <div class="pb2-group">
-    <div class="pb2-group-title">Button under the panels</div>
-    <div class="pb2-field-row">
-      <div class="pb2-field"><label class="pb2-field-label">Label</label><input type="text" class="pb2-input" data-field="cta_label" value="{{ $get('cta_label') }}" placeholder="Start free trial"></div>
-      <div class="pb2-field"><label class="pb2-field-label">Link</label><input type="text" class="pb2-input" data-field="cta_url" value="{{ $get('cta_url') }}" placeholder="https://app.intake.works/signup"></div>
-    </div>
-    <div class="pb2-field-hint" style="display:block;text-align:left">Leave either blank to hide the button.</div>
-  </div>
 </div>
 
 <div class="pb2-tab-panel" data-tab="style" hidden>

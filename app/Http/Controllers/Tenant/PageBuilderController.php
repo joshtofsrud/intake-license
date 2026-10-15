@@ -244,7 +244,7 @@ class PageBuilderController extends Controller
                 ['title' => 'Grows with you', 'heading' => 'Add the pieces when you need them', 'body' => 'Rentals, an online store, staff scheduling and more. Same login, same customers.', 'visual' => 'grow', 'color' => '#24301a', 'accent' => '#BEF264', 'link_label' => 'See it in the demo', 'link_url' => '/demo', 'image' => ''],
             ],
             'start_panel' => 3, 'autoplay' => true, 'autoplay_seconds' => 7, 'panel_height' => 'l',
-            'cta_label' => 'Start free trial', 'cta_url' => 'https://app.intake.works/signup',
+           
             'accent_color' => '', 'anchor_id' => '', 'custom_classes' => '', 'hide_on_mobile' => false, 'hide_on_desktop' => false,
         ],
         'feature_tiles' => [

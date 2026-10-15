@@ -23,8 +23,6 @@
     $auto   = ! in_array((string) ($c['autoplay'] ?? '1'), ['0', 'false', ''], true);
     $secs   = max(3, min(30, (int) ($c['autoplay_seconds'] ?? 7)));
     $height = ['m' => 500, 'l' => 560, 'xl' => 640][$c['panel_height'] ?? 'l'] ?? 560;
-    $cta    = trim((string) ($c['cta_label'] ?? ''));
-    $ctaUrl = $safe($c['cta_url'] ?? '');
     $pad    = fn ($i) => str_pad((string) ($i + 1), 2, '0', STR_PAD_LEFT);
 @endphp
 {{-- anchor, custom classes and hide-on-phone/desktop are applied by the page's section wrapper --}}
@@ -113,15 +111,6 @@
   .{{ $faId }} .v-grow .sw2::after{content:"";position:absolute;top:2px;left:2px;width:11px;height:11px;border-radius:50%;background:#fff;transition:left .3s}
   .{{ $faId }} .v-grow .ad.on .sw2{background:{{ $accent }}}
   .{{ $faId }} .v-grow .ad.on .sw2::after{left:13px;background:#0a0a0a}
-  /* glow-border call to action */
-  @property --fa-gb{syntax:'<angle>';initial-value:0deg;inherits:false}
-  .{{ $faId }} .fa-cta{display:flex;justify-content:center;margin-top:30px}
-  .{{ $faId }} .fa-glow{position:relative;isolation:isolate;display:inline-flex;align-items:center;gap:8px;background:#0b0b0b;color:#fff;border-radius:999px;padding:12px 22px;font-size:14px;font-weight:600;text-decoration:none;white-space:nowrap}
-  .{{ $faId }} .fa-glow::before{content:"";position:absolute;inset:-1.5px;border-radius:inherit;z-index:-1;padding:1.5px;background:conic-gradient(from var(--fa-gb),transparent 0 62%,color-mix(in srgb,{{ $accent }} 40%,transparent) 72%,{{ $accent }} 86%,#fff 90%,transparent 94%);-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;animation:{{ $faId }}spin 2.6s linear infinite}
-  .{{ $faId }} .fa-glow::after{content:"";position:absolute;inset:-10px;border-radius:inherit;z-index:-2;filter:blur(14px);opacity:.55;background:conic-gradient(from var(--fa-gb),transparent 0 70%,{{ $accent }} 86%,transparent 96%);animation:{{ $faId }}spin 2.6s linear infinite;transition:opacity .25s}
-  .{{ $faId }} .fa-glow:hover::after{opacity:.9}
-  .{{ $faId }} .fa-glow svg{width:15px;height:15px;color:{{ $accent }}}
-  @keyframes {{ $faId }}spin{to{--fa-gb:360deg}}
   @media (max-width:980px){.{{ $faId }} .acc-vis{align-self:stretch}}
   @media (max-width:760px){
     .{{ $faId }} .acc{flex-direction:column;height:auto;gap:10px}
@@ -133,7 +122,7 @@
     .{{ $faId }} .acc-body{padding:56px 20px 50px}
     .{{ $faId }} .acc-k{left:20px;top:22px}.{{ $faId }} .acc-prog{left:20px;right:20px}
   }
-  @media (prefers-reduced-motion:reduce){.{{ $faId }} .acc *{transition:none!important;animation:none!important}.{{ $faId }} .fa-glow::before,.{{ $faId }} .fa-glow::after{animation:none}}
+  @media (prefers-reduced-motion:reduce){.{{ $faId }} .acc *{transition:none!important;animation:none!important}}
 </style>
 <div class="fa-wrap">
   @if(trim((string) ($c['eyebrow'] ?? '')) !== '' || $heading !== '' || trim((string) ($c['subheading'] ?? '')) !== '')
@@ -191,9 +180,6 @@
   </div>
   @endif
 
-  @if($cta !== '' && $ctaUrl !== '')
-    <div class="fa-cta"><a class="fa-glow" href="{{ $ctaUrl }}"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l1.8 5.6L19.5 9.5l-5.7 1.9L12 17l-1.8-5.6L4.5 9.5l5.7-1.9z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg>{{ $cta }}</a></div>
-  @endif
 </div>
 <script>
 (function(){
