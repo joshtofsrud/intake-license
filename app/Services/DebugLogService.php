@@ -73,7 +73,10 @@ class DebugLogService
     {
         if (! $this->channelEnabled('request')) return null;
 
-        $isError = $statusCode >= 500;
+        // The holding page answers 503 on purpose (MARKER-HOLDING-503): logged, but not as an error.
+        $holding = (bool) $request->attributes->get('holding_page');
+        if ($holding && ! $note) $note = 'holding page';
+        $isError = $statusCode >= 500 && ! $holding;
         $isSlow  = $durationMs >= (int) config('debug.request.slow_threshold_ms', 1500);
         $severity = $isError ? 'error' : ($isSlow ? 'notice' : 'info');
 

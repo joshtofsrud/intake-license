@@ -53,6 +53,9 @@ class ShowWelcomePage
         if ($path === '/welcome-preview')                 return $next($request);
         if (WelcomePage::allows($tenant, $path))          return $next($request);
 
+        // Tell the request log this 503 is deliberate, so it is not counted as an error.
+        $request->attributes->set('holding_page', true);
+
         // 503 rather than 200: the site exists and is coming back, and we
         // would rather not have a holding page indexed as the real thing.
         return response()

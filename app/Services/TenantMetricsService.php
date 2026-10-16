@@ -165,7 +165,7 @@ class TenantMetricsService
 
             $problems = 0;
             try {
-                $problems = DB::table('debug_logs')->where('tenant_id', $id)->whereIn('severity', ['error', 'critical'])
+                $problems = DB::table('debug_logs')->where('tenant_id', $id)->whereIn('severity', ['error', 'critical'])->where('channel', '!=', 'request')
                     ->where('is_resolved', false)->where('created_at', '>=', now()->subDays(7))->count();
             } catch (\Throwable $e) {}
 
