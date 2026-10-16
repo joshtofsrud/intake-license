@@ -194,12 +194,12 @@ class DebugLogResource extends Resource
                         'info'     => 'Info',
                         'debug'    => 'Debug',
                     ])
-                    ->query(function (Builder $q, array $data) {
+                    ->query(function (Builder $query, array $data) {
                         if (! $data['value']) return;
                         $levels = ['debug', 'info', 'notice', 'warning', 'error', 'critical'];
                         $min = array_search($data['value'], $levels, true);
                         if ($min !== false) {
-                            $q->whereIn('severity', array_slice($levels, $min));
+                            $query->whereIn('severity', array_slice($levels, $min));
                         }
                     })
                     ->label('Min severity'),
@@ -211,12 +211,12 @@ class DebugLogResource extends Resource
 
                 Tables\Filters\Filter::make('unresolved_errors')
                     ->label('Unresolved errors only')
-                    ->query(fn (Builder $q) => $q->issues()->where('is_resolved', false))
+                    ->query(fn (Builder $query) => $query->issues()->where('is_resolved', false))
                     ->toggle(),
 
                 Tables\Filters\Filter::make('recent')
                     ->label('Last 24h')
-                    ->query(fn (Builder $q) => $q->where('created_at', '>=', now()->subDay()))
+                    ->query(fn (Builder $query) => $query->where('created_at', '>=', now()->subDay()))
                     ->toggle(),
 
                 Tables\Filters\Filter::make('correlation_id')
@@ -225,9 +225,9 @@ class DebugLogResource extends Resource
                             ->label('Correlation ID')
                             ->placeholder('UUID'),
                     ])
-                    ->query(function (Builder $q, array $data) {
+                    ->query(function (Builder $query, array $data) {
                         if (! empty($data['correlation_id'])) {
-                            $q->where('correlation_id', $data['correlation_id']);
+                            $query->where('correlation_id', $data['correlation_id']);
                         }
                     }),
 
@@ -237,9 +237,9 @@ class DebugLogResource extends Resource
                             ->label('Error fingerprint')
                             ->placeholder('32-char hash'),
                     ])
-                    ->query(function (Builder $q, array $data) {
+                    ->query(function (Builder $query, array $data) {
                         if (! empty($data['fingerprint'])) {
-                            $q->where('fingerprint', $data['fingerprint']);
+                            $query->where('fingerprint', $data['fingerprint']);
                         }
                     }),
             ])
