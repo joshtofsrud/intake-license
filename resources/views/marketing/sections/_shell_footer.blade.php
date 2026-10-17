@@ -37,7 +37,8 @@
     @media (max-width: 520px) {
         .mk-footer-inner { grid-template-columns: 1fr; }
         .mk-footer-bottom { flex-direction: column; gap: 10px; text-align: center; }
-        .mk-footer-legal { flex-wrap: wrap; justify-content: center; gap: 8px 18px; }
+        .mk-footer-legal { flex-wrap: wrap; justify-content: center; gap: 0 18px; }
+        .mk-footer-legal a { padding: 10px 0; }
     }
     /* column titles are plain titles unless the accordion is on */
     .mk-footer-col > summary { list-style: none; cursor: default; pointer-events: none; }

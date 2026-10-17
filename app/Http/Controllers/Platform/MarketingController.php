@@ -55,6 +55,12 @@ class MarketingController extends Controller
 
         if (! $template) abort(404);
 
+        // MARKER-FOR-INDUSTRY-META: the page title and description carry the same
+        // {industry_*} tokens as the sections; fill them too (not saved).
+        foreach (['title', 'meta_title', 'meta_description'] as $f) {
+            if (is_string($template->{$f})) $template->{$f} = $this->substituteTokens($template->{$f}, $pack);
+        }
+
         $sections = $template->sections()->where('is_visible', true)->get()->map(function ($s) use ($pack) {
             $s->content = $this->substituteTokens($s->content, $pack);
             return $s;

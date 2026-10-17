@@ -70,6 +70,8 @@
 @media(max-width:480px){.sc-screens{grid-template-columns:1fr}}
 </style>
 
+{{-- MARKER-SC-CONTAINER: inside the page container so it gets the same side gutter as every other section --}}
+<div class="mk-container">
 <div class="sc-wrap" style="{{ $flip ? 'direction:rtl' : '' }}">
     {{-- Text column --}}
     <div style="{{ $flip ? 'direction:ltr' : '' }}">
@@ -183,4 +185,5 @@
 
         </div>
     </div>
+</div>
 </div>

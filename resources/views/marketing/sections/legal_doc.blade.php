@@ -22,6 +22,7 @@
 .legal-toc-label { font-size: 11px; text-transform: uppercase; letter-spacing: .12em; color: var(--mk-dim); font-weight: 600; margin-bottom: 14px; }
 .legal-toc ol { margin: 0; padding: 0; list-style: none; counter-reset: toc; }
 .legal-toc li { counter-increment: toc; font-size: 14px; padding: 6px 0; display: flex; gap: 12px; }
+.legal-toc li a { display: inline-block; padding: 6px 0; margin: -6px 0; }
 .legal-toc li::before { content: counter(toc) "."; color: var(--mk-dim); flex-shrink: 0; min-width: 24px; }
 .legal-toc a { color: var(--mk-text); text-decoration: none; transition: color .12s; }
 .legal-toc a:hover { color: var(--mk-accent); }

@@ -105,7 +105,9 @@
     }
 
     /* three lines morph into an X */
-    .mk-hamburger { cursor: pointer; transition: transform .2s ease; }
+    .mk-hamburger { cursor: pointer; transition: transform .2s ease; position: relative; }
+    /* bigger tap area (44px) without changing how the icon looks */
+    .mk-hamburger::after { content: ""; position: absolute; inset: -11px -12px; }
     .mk-hamburger:hover { transform: scale(1.06); }
     .mk-hamburger span { transition: transform .25s ease, opacity .2s ease; }
     .mk-hamburger.is-open span:nth-child(1) { transform: translateY(6.5px) rotate(45deg); }
