@@ -251,7 +251,12 @@
           <div style="min-width:0">
             <div class="ds-step-title">Authorise the HTTPS certificate</div>
             <div class="ds-step-desc">
-              Once steps 1 and 2 are live, our certificate provider (Cloudflare) will email you with a third record to add. It looks like the example below — the exact value will be unique to your domain. <strong style="color:var(--ia-text);font-weight:500">Use the value from the email, not this example.</strong>
+              {{-- MARKER-DCV-COPY: nothing is emailed; the real record appears on this page --}}
+              @if($domain->preferredDcvRecord())
+                Your certificate record is ready. It's in the <strong style="color:var(--ia-text);font-weight:500">One more record</strong> box below. Add it the same way as steps 1 and 2.
+              @else
+                Once steps 1 and 2 are added, a third record appears on this page, usually within a few minutes (press <strong style="color:var(--ia-text);font-weight:500">Check now</strong> to look sooner). Nothing is emailed. It will look like the example below; use the real value when it shows, not this example.
+              @endif
             </div>
             <div class="ds-dns" style="margin-top:10px">
               <div class="ds-dns-row head">
