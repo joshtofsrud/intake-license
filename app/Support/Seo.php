@@ -32,6 +32,16 @@ class Seo
         'marketing.show', 'marketing.industry',
     ];
 
+    /**
+     * MARKER-MARKETING-HIDDEN: marketing pages that stay live at their address but
+     * are not linked from the site, so they are kept out of search (noindex) and
+     * out of sitemap.xml. Remove a path here to list it again.
+     */
+    public const MARKETING_HIDDEN_PATHS = ['/how-it-works', '/why-intake'];
+
+    /** The /for/{industry} template pages: hidden from search until they are marketed. */
+    public const MARKETING_HIDE_INDUSTRY = true;
+
     /** Shop routes that may be indexed. Anything else on a shop host is not. */
     public const TENANT_ROUTES = [
         'tenant.home', 'tenant.page', 'tenant.booking', 'tenant.shop.index', 'tenant.shop.show',
@@ -107,6 +117,8 @@ class Seo
 
         if ($kind === 'marketing') {
             if (! in_array($name, self::MARKETING_ROUTES, true)) return $no;
+            if (in_array($path, self::MARKETING_HIDDEN_PATHS, true)) return $no;
+            if (self::MARKETING_HIDE_INDUSTRY && str_starts_with($path, '/for/')) return $no;
             return [
                 'index'     => true,
                 'canonical' => self::marketingBase() . ($path === '/' ? '/' : $path),
@@ -176,13 +188,14 @@ class Seo
             $slug = (string) $p->slug;
             if ($slug === '' || str_starts_with($slug, '__') || $slug === 'invest') continue;
             $path = $slug === MarketingNav::homeSlug() ? '/' : '/' . $slug;
+            if (in_array($path, self::MARKETING_HIDDEN_PATHS, true)) continue;
             $urls[$path] = [self::marketingBase() . $path, $p->updated_at?->toAtomString()];
         }
         if (! isset($urls['/'])) $urls['/'] = [self::marketingBase() . '/', null];
 
         $hasIndustryTemplate = TenantPage::where('tenant_id', $platform->id)
             ->where('slug', '__for-industry')->where('is_published', true)->exists();
-        if ($hasIndustryTemplate) {
+        if ($hasIndustryTemplate && ! self::MARKETING_HIDE_INDUSTRY) {
             foreach (array_keys((array) config('industry_packs', [])) as $slug) {
                 $urls['/for/' . $slug] = [self::marketingBase() . '/for/' . $slug, null];
             }

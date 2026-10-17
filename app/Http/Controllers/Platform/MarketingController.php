@@ -42,6 +42,9 @@ class MarketingController extends Controller
 
     public function forIndustry(string $industry)
     {
+        // /for/bike-shops duplicated the real /bike-shops page; send visitors and search engines there.
+        if ($industry === 'bike-shops') return redirect('/bike-shops', 301);
+
         $packService = app(IndustryPackService::class);
         $pack = $packService->get($industry);
         if (! $pack) abort(404);

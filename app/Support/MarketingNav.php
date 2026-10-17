@@ -218,7 +218,7 @@ class MarketingNav
                     ['type' => 'quiz', 'page' => null, 'label' => 'Which plan is right for me?', 'url' => '', 'tab' => false],
                 ]],
             ],
-            'legal'     => [$pg('privacy', 'Privacy'), $pg('terms', 'Terms'), $pg('cookies', 'Cookies'), $pg('acceptable-use', 'Acceptable use')],
+            'legal'     => [$pg('privacy', 'Privacy'), $pg('terms', 'Terms'), $pg('cookies', 'Cookies'), $pg('acceptable-use', 'Acceptable use'), $pg('sub-processors', 'Sub-processors')],
             'copyright' => '© {year} Intake. All rights reserved.',
             'phone'     => 'grid',
         ];
