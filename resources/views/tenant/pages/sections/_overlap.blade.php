@@ -189,6 +189,27 @@
   </div>
   <div class="pb2-field-hint" style="text-align:left;display:block">Plays once, the first time the section scrolls into view. Visitors who prefer reduced motion see it straight away.</div>
 </div>
+{{-- MARKER-BUTTON-FX: button effect for this section's buttons --}}
+@php
+  $bfxMode = in_array($section->content['btn_fx'] ?? 'none', ['none', 'arrow', 'roll', 'sweep', 'glow'], true) ? ($section->content['btn_fx'] ?? 'none') : 'none';
+  $bfxRip  = ! empty($section->content['btn_ripple']) && ! in_array((string) $section->content['btn_ripple'], ['0', 'false'], true);
+@endphp
+<div class="pb2-group">
+  <div class="pb2-group-title">Button effect</div>
+  <div class="pb2-field">
+    <div class="pb2-seg" data-field-seg="btn_fx" style="flex-wrap:wrap">
+      @foreach(['none' => 'None', 'arrow' => 'Arrow', 'roll' => 'Text roll', 'sweep' => 'Fill sweep', 'glow' => 'Glow border'] as $v => $n)
+        <button type="button" class="pb2-seg-btn {{ $bfxMode === $v ? 'active' : '' }}" data-seg-value="{{ $v }}">{{ $n }}</button>
+      @endforeach
+    </div>
+    <input type="hidden" data-field="btn_fx" value="{{ $bfxMode }}">
+  </div>
+  <label class="pb2-checkbox-row">
+    <input type="checkbox" data-field="btn_ripple" value="1" {{ $bfxRip ? 'checked' : '' }}>
+    <span>Press ripple <span class="pb2-field-hint">squish and ripple on click or tap</span></span>
+  </label>
+  <div class="pb2-field-hint" style="text-align:left;display:block">Applies to every button in this section. The header menu and footer are not affected. Shows on hover; visitors who prefer reduced motion see plain buttons.</div>
+</div>
 <label class="pb2-checkbox-row" data-move-after="hide_on_tablet">
   <input type="checkbox" data-field="divider_below" value="1" {{ $divOn ? 'checked' : '' }}>
   <span>Divider line below</span>

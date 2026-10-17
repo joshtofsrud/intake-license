@@ -415,7 +415,7 @@
           </style>
           <div class="{{ $pullId }}">
         @endif
-        <div class="{{ $mkwClass }}" @if(in_array($c['appear'] ?? '', ['fade', 'up'], true)) style="--mk-appear-delay: {{ max(0, min(1000, (int) ($c['appear_delay'] ?? 0))) }}ms; --mk-appear-dur: {{ max(200, min(2000, (int) ($c['appear_duration'] ?? 700))) }}ms" @endif @if($mkwAnchor !== '') id="{{ $mkwAnchor }}" @endif @isset($mkGradCss[(string) $section->id]) data-bg-grad="{{ $mkGradCss[(string) $section->id] }}" @endisset @if(! empty($c['bg_continue']) && ! in_array((string) $c['bg_continue'], ['0', 'false'], true)) data-bg-cont="1" data-bg-cont-css="{{ $mkCdCss }}" @endif data-bg-end="{{ $mkCdEnd }}">
+        <div class="{{ $mkwClass }}" @if(in_array($c['btn_fx'] ?? '', ['arrow', 'roll', 'sweep', 'glow'], true)) data-btn-fx="{{ $c['btn_fx'] }}" @endif @if(! empty($c['btn_ripple']) && ! in_array((string) $c['btn_ripple'], ['0', 'false'], true)) data-btn-ripple="1" @endif @if(in_array($c['appear'] ?? '', ['fade', 'up'], true)) style="--mk-appear-delay: {{ max(0, min(1000, (int) ($c['appear_delay'] ?? 0))) }}ms; --mk-appear-dur: {{ max(200, min(2000, (int) ($c['appear_duration'] ?? 700))) }}ms" @endif @if($mkwAnchor !== '') id="{{ $mkwAnchor }}" @endif @isset($mkGradCss[(string) $section->id]) data-bg-grad="{{ $mkGradCss[(string) $section->id] }}" @endisset @if(! empty($c['bg_continue']) && ! in_array((string) $c['bg_continue'], ['0', 'false'], true)) data-bg-cont="1" data-bg-cont-css="{{ $mkCdCss }}" @endif data-bg-end="{{ $mkCdEnd }}">
         @if($mkwTop !== null || $mkwBot !== null || $mkwHead || $mkwBody)
           <style>
             @if($mkwTop !== null) .{{ $mkwId }} > section, .{{ $mkwId }} > footer, .{{ $mkwId }} > div { padding-top: {{ $mkwTop }} !important; } @endif
@@ -564,5 +564,6 @@
 @include('marketing._funnel_tracker')
 @endif
 @include('marketing._book_modal')
+@include('marketing.partials.button-fx')
 </body>
 </html>
