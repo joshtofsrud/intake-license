@@ -141,11 +141,17 @@ class ServerHealthService
             // Subtract 1 for the master process; result is workers.
             $workers = max(0, $totalProcs - 1);
 
-            // We don't know configured pm.max_children without parsing the
-            // pool config file. Default php-fpm.conf on Ubuntu is 5; we'll
-            // use a heuristic of 12 as max for the bar (covers default + headroom).
-            // If you tune pm settings later this can be made configurable.
-            $maxAssumed = 12;
+            // MARKER-FPM-REAL-MAX: read pm.max_children from the FPM pool
+            // config(s) instead of assuming 12, which flagged a healthy server
+            // as needing attention. Falls back to 12 if no pool file is readable.
+            $maxAssumed = 0;
+            foreach ((array) glob('/etc/php/' . PHP_MAJOR_VERSION . '.' . PHP_MINOR_VERSION . '/fpm/pool.d/*.conf') as $poolFile) {
+                $cfg = @file_get_contents($poolFile);
+                if ($cfg !== false && preg_match('/^\s*pm\.max_children\s*=\s*(\d+)/m', $cfg, $mm)) {
+                    $maxAssumed += (int) $mm[1];
+                }
+            }
+            if ($maxAssumed < 1) $maxAssumed = 12;
             $pct = min(100, round(($workers / $maxAssumed) * 100));
             $status = $pct > 90 ? 'err' : ($pct > 70 ? 'warn' : 'ok');
 

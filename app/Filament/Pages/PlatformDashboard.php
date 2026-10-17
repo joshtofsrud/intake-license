@@ -256,7 +256,7 @@ class PlatformDashboard extends Page
         $f = $snap['php_fpm'] ?? ['available' => false];
         $tiles['fpm'] = $f['available']
             ? ['label'=>'PHP-FPM', 'value'=>$f['workers'].' of '.$f['max'].' workers',
-               'meta'=>'master + active',
+               'meta'=>'running, incl. idle spares',
                'pct'=>$f['pct'], 'state'=>$this->mapStatus($f['status'])]
             : ['label'=>'PHP-FPM','value'=>'n/a','meta'=>'unreadable','pct'=>0,'state'=>'idle'];
 
