@@ -324,6 +324,17 @@
       var dot = document.getElementById('pd-dot');
       dot.style.left = (last[0] / W * 100) + '%'; dot.style.top = (last[1] / H * 100) + '%';
       document.getElementById('pd-chart-legend').textContent = m.legend;
+      // MARKER-CHART-HOVER: hand the drawn points to the hover read-out
+      var hw = document.getElementById('pd-chart').closest('.mt-chartwrap');
+      if (hw) {
+        hw.setAttribute('data-hover-chart', '');
+        hw.dataset.cur = JSON.stringify(s);
+        hw.dataset.labels = JSON.stringify(@json(array_values($series['labels'])));
+        hw.dataset.geom = [H, H - PAD, H - PAD * 2, max].join(',');
+        var kb = document.querySelector('.mt-metric[data-metric="' + key + '"] .k');
+        hw.dataset.name = kb ? kb.textContent.trim().replace(/ \u00b7 .*$/, '') : '';
+        hw.dataset.fmt = key === 'mrr' ? 'money' : 'int';
+      }
     }
     var btns = document.querySelectorAll('.mt-metric[data-metric]');
     btns.forEach(function (b) {
@@ -353,5 +364,6 @@
     apply(parseInt(localStorage.getItem(KEY) || '0', 10));
   })();
 </script>
+@include('filament.partials.chart-hover')
 
 </x-filament-panels::page>

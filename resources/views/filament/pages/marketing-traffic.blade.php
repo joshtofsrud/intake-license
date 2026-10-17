@@ -170,7 +170,13 @@
     @endforeach
   </div>
 
-  <div class="mt-chartwrap">
+  <div class="mt-chartwrap" data-hover-chart
+       data-cur='@json(array_values($series['current'] ?? []))'
+       data-prev='@json($compare ? array_values($series['previous'] ?? []) : [])'
+       data-labels='@json(array_values($series['labels'] ?? []))'
+       data-geom="200,190,165,{{ max(1, (int) ($series['peak'] ?? 1)) }}"
+       data-name="{{ $stats[$metric]['label'] ?? ucfirst(str_replace('_', ' ', $metric)) }}"
+       data-fmt="int">
     @if(($series['points'] ?? 0) > 1)
       @php
         $peak = max(1, (int) $series['peak']);
@@ -253,6 +259,11 @@
           <div class="p">{{ round(($count / (int) $steps[0]['count']) * 100) }}% of visits</div>
         @else
           <div class="p">&nbsp;</div>
+        @endif
+        @if($i === 0)
+          <div class="hv start">{{ number_format($count) }} {{ $count === 1 ? 'session starts' : 'sessions start' }} here</div>
+        @elseif($prev !== null)
+          <div class="hv">{{ number_format(max(0, $prev - $count)) }} stopped before this step</div>
         @endif
       </div>
     @endforeach
@@ -609,4 +620,5 @@
   if (saved !== 'all') { applyFilter(saved); }
 })();
 </script>
+@include('filament.partials.chart-hover')
 </x-filament-panels::page>
