@@ -162,6 +162,24 @@
 @if($statusKey !== 'suspended')
   @php
     $instructionsPresentation = $statusKey === 'active' ? 'collapsed' : 'prominent';
+    // MARKER-DOMAIN-GUIDE: registrar-proof instructions.
+    // The "root" is the part a registrar adds on the end of every Name / Host
+    // (ground-control.works for www.ground-control.works). Shown names are
+    // what to TYPE there: "@" for the root itself, otherwise the part before it.
+    $dsParts  = explode('.', strtolower($domain->hostname));
+    $dsTail2  = implode('.', array_slice($dsParts, -2));
+    $dsRootN  = (count($dsParts) >= 3 && in_array($dsTail2, ['co.uk', 'org.uk', 'me.uk', 'com.au', 'net.au', 'org.au', 'co.nz', 'co.za', 'com.br', 'com.mx', 'co.jp'], true)) ? 3 : 2;
+    $dsRoot   = implode('.', array_slice($dsParts, -$dsRootN));
+    $dsIsRoot = strtolower($domain->hostname) === $dsRoot;
+    $dsType   = function ($fqdn) use ($dsRoot) {
+        $fqdn = rtrim(strtolower((string) $fqdn), '.');
+        if ($fqdn === $dsRoot) return '@';
+        return str_ends_with($fqdn, '.' . $dsRoot) ? substr($fqdn, 0, -strlen('.' . $dsRoot)) : $fqdn;
+    };
+    $dsDcv    = $domain->preferredDcvRecord();
+    $dsDcvTxt = $domain->dcvTxtFallbackRecord();
+    $dsWww    = 'www.' . $dsRoot;
+    $dsWwwHas = \App\Models\Tenant\TenantDomain::where('tenant_id', $domain->tenant_id)->where('hostname', $dsWww)->exists();
   @endphp
 
   @push('styles')
@@ -191,8 +209,11 @@
       <div class="ia-card-head">
         <span class="ia-card-title">Add three DNS records at your registrar</span>
       </div>
-      <p style="font-size:12.5px;color:var(--ia-text-3,#888);margin-bottom:18px;line-height:1.55">
-        Wherever you bought <code style="font-family:var(--ia-font-mono,monospace)">{{ $domain->hostname }}</code> — GoDaddy, Cloudflare, Namecheap, etc. Work through the steps in order; the last record comes from Cloudflare after the first two are live.
+      <p style="font-size:12.5px;color:var(--ia-text-3,#888);margin-bottom:8px;line-height:1.6">
+        Add these where the DNS for <code style="font-family:var(--ia-font-mono,monospace)">{{ $dsRoot }}</code> is managed, usually the company you bought it from (GoDaddy, Namecheap, Squarespace, Cloudflare…). Look for <strong style="color:var(--ia-text)">DNS</strong>, <strong style="color:var(--ia-text)">DNS records</strong> or <strong style="color:var(--ia-text)">Manage DNS</strong>, and add each record below.
+      </p>
+      <p style="font-size:12.5px;color:var(--ia-text-3,#888);margin-bottom:18px;line-height:1.6">
+        In the <strong style="color:var(--ia-text)">Name / Host</strong> box, type exactly what's shown in white: your registrar adds <code style="font-family:var(--ia-font-mono,monospace)">{{ $dsRoot }}</code> on the end by itself. <code style="font-family:var(--ia-font-mono,monospace)">@</code> means the domain itself. Leave TTL at its default. This page checks every minute; changes usually show within a few minutes, occasionally a few hours.
       </p>
   @endif
 
@@ -212,7 +233,7 @@
               </div>
               <div class="ds-dns-row">
                 <div><span class="dm-pill verifying" style="padding:2px 8px">TXT</span></div>
-                <div class="ds-dns-mono ds-dns-value">{{ $domain->verificationRecordName() }}</div>
+                <div class="ds-dns-mono ds-dns-value">{{ $dsType($domain->verificationRecordName()) }}<div style="opacity:.45;font-size:10.5px;margin-top:2px">{{ $domain->verificationRecordName() }}</div></div>
                 <div class="ds-dns-mono ds-dns-value">{{ $domain->verificationRecordValue() }}</div>
                 <button type="button" class="ds-copy-btn" data-copy="{{ $domain->verificationRecordValue() }}">Copy</button>
               </div>
@@ -234,125 +255,97 @@
               </div>
               <div class="ds-dns-row">
                 <div><span class="dm-pill verifying" style="padding:2px 8px">CNAME</span></div>
-                <div class="ds-dns-mono ds-dns-value">{{ $domain->hostname }}</div>
+                <div class="ds-dns-mono ds-dns-value">{{ $dsType($domain->hostname) }}<div style="opacity:.45;font-size:10.5px;margin-top:2px">{{ $domain->hostname }}</div></div>
                 <div class="ds-dns-mono ds-dns-value">{{ $cnameTarget }}</div>
                 <button type="button" class="ds-copy-btn" data-copy="{{ $cnameTarget }}">Copy</button>
               </div>
             </div>
-            <p style="font-size:11.5px;color:var(--ia-text-3,#888);margin-top:10px;line-height:1.55">
-              <strong style="color:#F59E0B">Apex domain note:</strong> Some registrars don't permit a CNAME on the root domain. If yours doesn't, use a CNAME-flattening feature (Cloudflare's is automatic; some registrars call it ANAME or ALIAS), or use a subdomain like <code style="font-family:var(--ia-font-mono,monospace)">www.{{ $domain->hostname }}</code>.
-            </p>
+            @if($dsIsRoot)
+              <div style="margin-top:12px;padding:12px 14px;border-radius:10px;background:rgba(245,158,11,.07);border:1px solid rgba(245,158,11,.25);font-size:12.5px;line-height:1.6;color:var(--ia-text-2,rgba(255,255,255,.75))">
+                <strong style="color:#F59E0B">{{ $dsRoot }} has no www, and most registrars can't point that with a CNAME.</strong>
+                GoDaddy, Namecheap and Squarespace, among others, refuse a CNAME named <code>@</code>. If yours does, do this instead:
+                <ol style="margin:8px 0 0 18px;padding:0">
+                  <li><strong style="color:var(--ia-text)">Use {{ $dsWww }} as your site address.</strong> @if($dsWwwHas) It's already added; open it from Domains and follow its steps. @else Add it with the button below and follow its steps. @endif</li>
+                  <li><strong style="color:var(--ia-text)">Forward {{ $dsRoot }} to it at your registrar:</strong> find <em>Forwarding</em> (sometimes <em>Redirect</em> or <em>URL redirect</em>), forward to <code>https://{{ $dsWww }}</code>, choose <em>Permanent (301)</em> and <em>no masking</em>. You don't need to touch any other records.</li>
+                  <li><strong style="color:var(--ia-text)">Then remove {{ $dsRoot }} here</strong> so it isn't left waiting.</li>
+                </ol>
+                <div style="margin-top:8px">Your DNS is on <strong style="color:var(--ia-text)">Cloudflare</strong>? Then {{ $dsRoot }} works as it is. Add the records above and set the CNAME to <em>DNS only</em> (grey cloud).</div>
+                @unless($dsWwwHas)
+                  <form method="POST" action="{{ route('tenant.domains.store', []) }}" style="margin-top:10px">
+                    @csrf
+                    <input type="hidden" name="hostname" value="{{ $dsWww }}">
+                    <button type="submit" class="ia-btn ia-btn-secondary" style="font-size:12px;padding:6px 12px">Add {{ $dsWww }} instead</button>
+                  </form>
+                @endunless
+              </div>
+            @else
+              <p style="font-size:11.5px;color:var(--ia-text-3,#888);margin-top:10px;line-height:1.55">
+                On Cloudflare? Set this record to <em>DNS only</em> (grey cloud), not proxied.
+                @if(str_starts_with(strtolower($domain->hostname), 'www.'))
+                  To make <code style="font-family:var(--ia-font-mono,monospace)">{{ $dsRoot }}</code> (without www) work too, set up <em>Forwarding</em> at your registrar from {{ $dsRoot }} to <code style="font-family:var(--ia-font-mono,monospace)">https://{{ $domain->hostname }}</code>, permanent (301), no masking.
+                @endif
+              </p>
+            @endif
           </div>
         </div>
 
-        {{-- Step 3 — ACME challenge (informational, value comes from Cloudflare) --}}
+        {{-- Step 3 — certificate record (real value from Cloudflare when we have it) --}}
         <div class="ds-step-block">
           <div class="ds-step-num">3</div>
           <div style="min-width:0">
             <div class="ds-step-title">Authorise the HTTPS certificate</div>
             <div class="ds-step-desc">
-              {{-- MARKER-DCV-COPY: nothing is emailed; the real record appears on this page --}}
-              @if($domain->preferredDcvRecord())
-                Your certificate record is ready. It's in the <strong style="color:var(--ia-text);font-weight:500">One more record</strong> box below. Add it the same way as steps 1 and 2.
+              @if($dsDcv)
+                This lets the certificate authority issue and renew your padlock certificate automatically. Add it the same way as steps 1 and 2.
               @else
-                Once steps 1 and 2 are added, a third record appears on this page, usually within a few minutes (press <strong style="color:var(--ia-text);font-weight:500">Check now</strong> to look sooner). Nothing is emailed. It will look like the example below; use the real value when it shows, not this example.
+                This record appears here a few minutes after steps 1 and 2 are added (press <strong style="color:var(--ia-text);font-weight:500">Check now</strong> to look sooner). Nothing is emailed; come back to this page.
               @endif
             </div>
-            <div class="ds-dns" style="margin-top:10px">
-              <div class="ds-dns-row head">
-                <div>Type</div><div>Name / Host</div><div>Value</div><div></div>
+            @if($dsDcv)
+              <div class="ds-dns" style="margin-top:10px">
+                <div class="ds-dns-row head">
+                  <div>Type</div><div>Name / Host</div><div>Value</div><div></div>
+                </div>
+                <div class="ds-dns-row">
+                  <div><span class="dm-pill verifying" style="padding:2px 8px">{{ $dsDcv['type'] }}</span></div>
+                  <div class="ds-dns-mono ds-dns-value">{{ $dsType($dsDcv['name']) }}<div style="opacity:.45;font-size:10.5px;margin-top:2px">{{ $dsDcv['name'] }}</div></div>
+                  <div class="ds-dns-mono ds-dns-value">{{ $dsDcv['value'] }}</div>
+                  <button type="button" class="ds-copy-btn" data-copy="{{ $dsDcv['value'] }}">Copy</button>
+                </div>
               </div>
-              <div class="ds-rec-note">
-                <div><span class="ds-rec-note-pill">CNAME</span></div>
-                <div class="ds-rec-note-name">_acme-challenge.{{ $domain->hostname }}</div>
-                <div class="ds-rec-note-value"><em>(Cloudflare-issued, ends in <code style="font-family:inherit">.dcv.cloudflare.com</code>)</em></div>
-                <div></div>
+              @if($dsDcv['type'] === 'CNAME' && $dsDcvTxt)
+                <details style="margin-top:10px">
+                  <summary style="cursor:pointer;font-size:12px;color:var(--ia-text-3,#888)">Your registrar won't accept this CNAME? Use the TXT version instead.</summary>
+                  <p style="font-size:11.5px;color:var(--ia-text-3,#888);margin:8px 0;line-height:1.55">The TXT version works, but its value changes at every certificate renewal (about every 90 days) and you'll need to update it each time. We'll show the new value here.</p>
+                  <div class="ds-dns">
+                    <div class="ds-dns-row">
+                      <div><span class="dm-pill verifying" style="padding:2px 8px">{{ $dsDcvTxt['type'] }}</span></div>
+                      <div class="ds-dns-mono ds-dns-value">{{ $dsType($dsDcvTxt['name']) }}<div style="opacity:.45;font-size:10.5px;margin-top:2px">{{ $dsDcvTxt['name'] }}</div></div>
+                      <div class="ds-dns-mono ds-dns-value">{{ $dsDcvTxt['value'] }}</div>
+                      <button type="button" class="ds-copy-btn" data-copy="{{ $dsDcvTxt['value'] }}">Copy</button>
+                    </div>
+                  </div>
+                </details>
+              @endif
+            @else
+              <div class="ds-dns" style="margin-top:10px">
+                <div class="ds-dns-row head">
+                  <div>Type</div><div>Name / Host</div><div>Value</div><div></div>
+                </div>
+                <div class="ds-rec-note">
+                  <div><span class="ds-rec-note-pill">CNAME</span></div>
+                  <div class="ds-rec-note-name">{{ $dsType('_acme-challenge.' . $domain->hostname) }}</div>
+                  <div class="ds-rec-note-value"><em>waiting for Cloudflare…</em></div>
+                  <div></div>
+                </div>
               </div>
-            </div>
+            @endif
           </div>
         </div>
 
       </div>
 
   @if($instructionsPresentation === 'collapsed')
-      </div>
-    </details>
-  @else
-    </div>
-  @endif
-@endif
-
-{{-- ───────────── CERT VALIDATION ───────────── --}}
-{{-- Cloudflare for SaaS gate-2 records. Cert can't issue until tenant adds these. --}}
-@php
-  $preferredDcv = $domain->preferredDcvRecord();
-  $txtFallback  = $domain->dcvTxtFallbackRecord();
-  $showCertVal  = $preferredDcv !== null
-                  && in_array($statusKey, ['pending_dns','verifying','issuing_cert','active'], true);
-  $certValMode  = $statusKey === 'active' ? 'collapsed' : 'prominent';
-@endphp
-
-@if($showCertVal)
-  @if($certValMode === 'collapsed')
-    <details class="ia-card" style="margin-bottom:16px">
-      <summary style="cursor:pointer;font-size:13px;color:var(--ia-text-3,#888);font-weight:600">
-        Cert validation records <span style="font-weight:400;opacity:.7">— required for automatic cert renewal</span>
-      </summary>
-      <div style="padding:14px 0 0">
-  @else
-    <div class="ia-card" style="margin-bottom:16px">
-      <div class="ia-card-head">
-        <span class="ia-card-title">
-          @if($preferredDcv['type'] === 'CNAME')
-            One more record — handles cert renewals automatically
-          @else
-            One more record — required to issue your HTTPS cert
-          @endif
-        </span>
-      </div>
-      <p style="font-size:12.5px;color:var(--ia-text-3,#888);margin-bottom:12px;line-height:1.55">
-        @if($preferredDcv['type'] === 'CNAME')
-          This record lets the cert authority validate your domain. Adding the CNAME version (below) is preferred — it's set-and-forget and renews on its own.
-        @else
-          Add this TXT record so the cert authority can validate your domain. The value rotates at every cert renewal — we'll prompt you when it changes.
-        @endif
-      </p>
-  @endif
-
-      <div class="ds-dns">
-        <div class="ds-dns-row head">
-          <div>Type</div><div>Name / Host</div><div>Value</div><div></div>
-        </div>
-        <div class="ds-dns-row">
-          <div><span class="dm-pill verifying" style="padding:2px 8px">{{ $preferredDcv['type'] }}</span></div>
-          <div class="ds-dns-mono ds-dns-value">{{ $preferredDcv['name'] }}</div>
-          <div class="ds-dns-mono ds-dns-value">{{ $preferredDcv['value'] }}</div>
-          <button type="button" class="ds-copy-btn" data-copy="{{ $preferredDcv['value'] }}">Copy</button>
-        </div>
-      </div>
-
-      @if($preferredDcv['type'] === 'CNAME' && $txtFallback && $certValMode !== 'collapsed')
-        <details style="margin-top:12px">
-          <summary style="cursor:pointer;font-size:12px;color:var(--ia-text-3,#888)">
-            Can't add a CNAME under <code style="font-family:var(--ia-font-mono,monospace)">_acme-challenge</code>? Use the TXT alternative.
-          </summary>
-          <div style="margin-top:10px">
-            <p style="font-size:11.5px;color:var(--ia-text-3,#888);margin-bottom:8px;line-height:1.55">
-              Some registrars don't permit CNAMEs at this subdomain. The TXT version works but its value changes at every cert renewal (about every 90 days) — you'll need to update it manually each time.
-            </p>
-            <div class="ds-dns">
-              <div class="ds-dns-row">
-                <div><span class="dm-pill verifying" style="padding:2px 8px">{{ $txtFallback['type'] }}</span></div>
-                <div class="ds-dns-mono ds-dns-value">{{ $txtFallback['name'] }}</div>
-                <div class="ds-dns-mono ds-dns-value">{{ $txtFallback['value'] }}</div>
-                <button type="button" class="ds-copy-btn" data-copy="{{ $txtFallback['value'] }}">Copy</button>
-              </div>
-            </div>
-          </div>
-        </details>
-      @endif
-
-  @if($certValMode === 'collapsed')
       </div>
     </details>
   @else
