@@ -285,7 +285,9 @@
           @php
             $itemUrl    = $item->url ?? '/';
             $itemPath   = parse_url($itemUrl, PHP_URL_PATH) ?? $itemUrl;
-            $isActive   = ($itemPath === $currentPath) || ($currentPath === '/' && $itemPath === '/');
+            // MARKER-NAV-ANCHOR-ACTIVE: a #fragment link jumps within a page, it is never the current page
+            $isActive   = ! str_contains($itemUrl, '#')
+                && (($itemPath === $currentPath) || ($currentPath === '/' && $itemPath === '/'));
             $isExternal = !empty($item->is_external) || str_starts_with($itemUrl, 'http');
             $newTab     = !empty($item->open_in_new_tab);
           @endphp
