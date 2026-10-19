@@ -152,7 +152,8 @@
   // Logical grouping for the gallery. Order matters — common ones first.
   $typeGroups = [
     'Layout'     => ['nav','hero','footer'],
-    'Content'    => ['text_image','feature_grid','feature_groups','step_timeline','image_gallery','image_carousel','scroll_words','faq_accordion','stats_row'],
+    // MARKER-SHOP-PORT4: features_accordion, feature_tiles and comparison_table were allowed but in no group, so the gallery never showed them
+    'Content'    => ['text_image','feature_grid','features_accordion','feature_tiles','feature_groups','step_timeline','image_gallery','image_carousel','scroll_words','faq_accordion','stats_row','comparison_table'],
     'Conversion' => ['services','cta_banner','booking_embed','contact_form','book_call','try_demo','roi','pricing_table','rentals_showcase','rental_spotlight','rental_categories','rental_browse','products_showcase'], // book_call
     'Social'     => ['testimonial_carousel','logo_bar'],
     'Advanced'   => ['custom_html'],
@@ -2421,7 +2422,7 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
               ? ['hero','cta_banner','feature_grid','custom_html','text_image','image_gallery','image_carousel','stats_row','testimonial_carousel','faq_accordion','logo_bar','step_timeline','pricing_table'] // content sections; chrome/shop/nav excluded
               : ($isMarketing
               ? ['nav','hero','text_image','cta_banner','image_gallery','image_carousel','scroll_words','contact_form','feature_grid','step_timeline','faq_accordion','footer','pricing_table','testimonial_carousel','logo_bar','stats_row','comparison_table','industry_pack_showcase','book_call','try_demo','roi','feature_tiles','features_accordion','custom_html','feature_groups'] /* (marketing only) */
-              : ['nav','hero','text_image','cta_banner','image_gallery','image_carousel','scroll_words','contact_form','booking_embed','classes_embed','feature_grid','step_timeline','faq_accordion','footer','testimonial_carousel','logo_bar','stats_row','pricing_table','rentals_showcase','rental_spotlight','rental_categories','rental_browse','products_showcase','custom_html']);
+              : ['nav','hero','text_image','cta_banner','image_gallery','image_carousel','scroll_words','contact_form','booking_embed','classes_embed','feature_grid','features_accordion','feature_tiles','feature_groups','step_timeline','faq_accordion','footer','testimonial_carousel','logo_bar','stats_row','comparison_table','pricing_table','rentals_showcase','rental_spotlight','rental_categories','rental_browse','products_showcase','custom_html']);
           @endphp
 
           <div class="pb2-gallery">
@@ -3611,6 +3612,9 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
     // testimonials quote list (MARKER-TS-EDITOR)
     initTsList(body);
 
+    // comparison table columns + rows (MARKER-SHOP-PORT4)
+    initCtEditor(body);
+
     // feature tiles list
     initFtList(body);
 
@@ -4088,6 +4092,142 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
       const q = row.querySelector('[data-ts-field="quote"]'); if (q) q.focus();
     });
     if (addBtn) addBtn.hidden = root.querySelectorAll('.pb2-tsrow').length >= MAX;
+  }
+
+  // MARKER-SHOP-PORT4: comparison table columns + rows (tenant/pages/sections/_comparison_table).
+  function initCtEditor(body) {
+    const colsBox = body.querySelector('#pb2-ct-cols');
+    const rowsBox = body.querySelector('#pb2-ct-rows');
+    const colsJson = body.querySelector('#pb2-ct-cols-json');
+    const rowsJson = body.querySelector('#pb2-ct-rows-json');
+    if (!colsBox || !rowsBox || !colsJson || !rowsJson) return;
+    const MAXC = 4, MAXR = 20;
+    const colAdd = body.querySelector('#pb2-ct-coladd'), rowAdd = body.querySelector('#pb2-ct-rowadd');
+    const colCount = body.querySelector('#pb2-ct-colcount'), rowCount = body.querySelector('#pb2-ct-rowcount');
+    const KNOWN = { yes: 'Yes ✓', no: 'No ✕', extra: 'Add-on' };
+    const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
+
+    function cols() { return Array.prototype.map.call(colsBox.querySelectorAll('[data-ct-col]'), i => i.value); }
+
+    function valueField(v) {
+      const k = String(v == null ? '' : v).trim().toLowerCase();
+      const known = k === '' ? 'no' : (['yes', 'true', '1'].includes(k) ? 'yes' : (['no', 'false', '0'].includes(k) ? 'no' : (['extra', 'add-on', 'paid'].includes(k) ? 'extra' : 'text')));
+      const sel = '<select class="pb2-input pb2-input-sm" data-ct-sel>'
+        + Object.keys(KNOWN).map(o => '<option value="' + o + '"' + (o === known ? ' selected' : '') + '>' + KNOWN[o] + '</option>').join('')
+        + '<option value="text"' + (known === 'text' ? ' selected' : '') + '>Text…</option></select>';
+      const txt = '<input type="text" class="pb2-input pb2-input-sm pb2-ct-txt" data-ct-txt maxlength="40" placeholder="e.g. $20/mo" value="' + (known === 'text' ? esc(v) : '') + '"' + (known === 'text' ? '' : ' hidden') + '>';
+      return sel + txt;
+    }
+
+    function rowHtml(r) {
+      const names = cols();
+      const vals = Array.isArray(r.values) ? r.values : [];
+      return '<div class="pb2-ctrow pb2-faqrow">'
+        + '<div class="pb2-faqrow-head"><span class="pb2-navlist-handle">⋮⋮</span><span class="pb2-faqrow-pos"></span>'
+        + '<button type="button" class="pb2-textlink" data-ct-up title="Move up" aria-label="Move up">↑</button>'
+        + '<button type="button" class="pb2-navlist-remove" data-ct-rowrm title="Remove" aria-label="Remove">×</button></div>'
+        + '<div class="pb2-faqrow-fields"><input type="text" class="pb2-input pb2-input-sm" data-ct-feature placeholder="Feature" value="' + esc(r.feature || '') + '">'
+        + names.map((n, i) => '<div class="pb2-ct-val" data-ct-cell><span>' + esc(n || (i === 0 ? 'You' : 'Column ' + (i + 1))) + '</span><div>' + valueField(vals[i]) + '</div></div>').join('')
+        + '</div></div>';
+    }
+
+    function serialize() {
+      const names = cols();
+      colsJson.value = JSON.stringify(names);
+      colsJson.dispatchEvent(new Event('change', { bubbles: true }));
+      const out = [];
+      rowsBox.querySelectorAll('.pb2-ctrow').forEach((row, i) => {
+        const pos = row.querySelector('.pb2-faqrow-pos'); if (pos) pos.textContent = String(i + 1).padStart(2, '0');
+        const feature = row.querySelector('[data-ct-feature]').value;
+        const values = Array.prototype.map.call(row.querySelectorAll('[data-ct-cell]'), cell => {
+          const s = cell.querySelector('[data-ct-sel]').value;
+          return s === 'text' ? cell.querySelector('[data-ct-txt]').value : s;
+        });
+        if (feature.trim() === '') return;
+        out.push({ feature: feature, values: values });
+      });
+      rowsJson.value = JSON.stringify(out);
+      rowsJson.dispatchEvent(new Event('change', { bubbles: true }));
+      if (colCount) colCount.textContent = names.length + ' / ' + MAXC;
+      if (rowCount) rowCount.textContent = out.length + ' / ' + MAXR;
+      if (colAdd) colAdd.hidden = names.length >= MAXC;
+      if (rowAdd) rowAdd.hidden = rowsBox.querySelectorAll('.pb2-ctrow').length >= MAXR;
+      colsBox.querySelectorAll('[data-ct-colrm]').forEach((b, i) => { b.style.visibility = (i === 0 || names.length <= 2) ? 'hidden' : ''; });
+    }
+
+    function currentRows() {
+      return Array.prototype.map.call(rowsBox.querySelectorAll('.pb2-ctrow'), row => ({
+        feature: row.querySelector('[data-ct-feature]').value,
+        values: Array.prototype.map.call(row.querySelectorAll('[data-ct-cell]'), cell => {
+          const s = cell.querySelector('[data-ct-sel]').value;
+          return s === 'text' ? cell.querySelector('[data-ct-txt]').value : s;
+        }),
+      }));
+    }
+
+    function draw(rows) {
+      rowsBox.innerHTML = rows.map(rowHtml).join('');
+      serialize();
+    }
+
+    // one listener set for the whole editor (rows are redrawn when columns change)
+    rowsBox.addEventListener('input', serialize);
+    rowsBox.addEventListener('change', e => {
+      const sel = e.target.closest && e.target.closest('[data-ct-sel]');
+      if (sel) {
+        const txt = sel.parentNode.querySelector('[data-ct-txt]');
+        txt.hidden = sel.value !== 'text';
+        if (!txt.hidden) txt.focus();
+      }
+      serialize();
+    });
+    rowsBox.addEventListener('click', e => {
+      const row = e.target.closest && e.target.closest('.pb2-ctrow'); if (!row) return;
+      if (e.target.closest('[data-ct-rowrm]')) { row.remove(); serialize(); }
+      else if (e.target.closest('[data-ct-up]')) { const p = row.previousElementSibling; if (p) { rowsBox.insertBefore(row, p); serialize(); } }
+    });
+    colsBox.addEventListener('input', () => {
+      // keep the labels beside each value in step with the column names
+      const names = cols();
+      rowsBox.querySelectorAll('.pb2-ctrow').forEach(row => row.querySelectorAll('[data-ct-cell] > span').forEach((s, i) => { s.textContent = names[i] || (i === 0 ? 'You' : 'Column ' + (i + 1)); }));
+      serialize();
+    });
+    colsBox.addEventListener('click', e => {
+      const b = e.target.closest && e.target.closest('[data-ct-colrm]'); if (!b) return;
+      const all = Array.prototype.slice.call(colsBox.querySelectorAll('.pb2-ct-col'));
+      const idx = all.indexOf(b.closest('.pb2-ct-col'));
+      if (idx <= 0 || all.length <= 2) return;
+      const rows = currentRows().map(r => { r.values.splice(idx, 1); return r; });
+      all[idx].remove();
+      draw(rows);
+    });
+    if (colAdd) colAdd.addEventListener('click', () => {
+      if (colsBox.querySelectorAll('.pb2-ct-col').length >= MAXC) return;
+      const rows = currentRows().map(r => { r.values.push('no'); return r; });
+      const d = document.createElement('div');
+      d.className = 'pb2-ct-col';
+      d.innerHTML = '<em></em><input type="text" class="pb2-input pb2-input-sm" data-ct-col placeholder="Column name"><button type="button" class="pb2-navlist-remove" data-ct-colrm title="Remove column" aria-label="Remove column">×</button>';
+      colsBox.appendChild(d);
+      draw(rows);
+      d.querySelector('input').focus();
+    });
+    if (rowAdd) rowAdd.addEventListener('click', () => {
+      if (rowsBox.querySelectorAll('.pb2-ctrow').length >= MAXR) return;
+      rowsBox.insertAdjacentHTML('beforeend', rowHtml({ feature: '', values: cols().map((_, i) => i === 0 ? 'yes' : 'no') }));
+      serialize();
+      const f = rowsBox.lastElementChild.querySelector('[data-ct-feature]'); if (f) f.focus();
+    });
+
+    let initial = [];
+    try { initial = JSON.parse(rowsBox.getAttribute('data-rows') || '[]'); } catch (e) { initial = []; }
+    rowsBox.innerHTML = (Array.isArray(initial) ? initial : []).map(rowHtml).join('');
+    // first draw: count and buttons only, no save prompt for an untouched section
+    const names = cols();
+    if (colCount) colCount.textContent = names.length + ' / ' + MAXC;
+    if (colAdd) colAdd.hidden = names.length >= MAXC;
+    if (rowAdd) rowAdd.hidden = rowsBox.querySelectorAll('.pb2-ctrow').length >= MAXR;
+    rowsBox.querySelectorAll('.pb2-ctrow .pb2-faqrow-pos').forEach((p, i) => { p.textContent = String(i + 1).padStart(2, '0'); });
+    colsBox.querySelectorAll('[data-ct-colrm]').forEach((b, i) => { b.style.visibility = (i === 0 || names.length <= 2) ? 'hidden' : ''; });
   }
 
   function initFaqList(body) {

@@ -21,6 +21,7 @@ class ShopSectionDesign
         'contact_form', 'cta_banner', 'faq_accordion', 'feature_grid', 'footer', 'hero', 'logo_bar',
         'pricing_table', 'rental_browse', 'rental_categories', 'rental_spotlight', 'rentals_showcase',
         'services', 'stats_row', 'step_timeline', 'text_image',
+        'features_accordion', 'feature_tiles', 'comparison_table', // MARKER-SHOP-PORT4
     ];
 
     public static function on($v): bool

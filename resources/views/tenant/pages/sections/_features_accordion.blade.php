@@ -20,7 +20,7 @@
   </div>
   <div class="pb2-group">
     <div class="pb2-group-title">Panels <span class="pb2-group-meta" id="pb2-fa-count">{{ count($faPanels) }} / 9</span></div>
-    <div class="pb2-field-hint" style="display:block;text-align:left;margin-bottom:8px">One panel is open at a time; the rest sit as slim coloured strips. On phones they stack and open downward. "Live" visuals are small animated screens with sample data; Picture shows an image you upload.</div>
+    <div class="pb2-field-hint" style="display:block;text-align:left;margin-bottom:8px">One panel is open at a time; the rest sit as slim coloured strips. On phones they stack and open downward. {{ ($isMarketing ?? false) ? '"Live" visuals are small animated screens with sample data; ' : '' }}Picture shows an image you upload.</div>
     <div id="pb2-fa-list">
       @foreach($faPanels as $i => $it)
 <div class="pb2-farow pb2-faqrow">
@@ -45,7 +45,7 @@
       <label style="display:flex;gap:6px;align-items:center;font-size:11.5px;color:var(--pb2-text-dim)"><input type="color" data-fa-field="accent" value="{{ $it['accent'] ?? '#BEF264' }}" class="pb2-color-swatch"> Accent</label>
     </div>
     <select class="pb2-input pb2-input-sm" data-fa-field="visual">
-      @foreach(['flow'=>'Live: booking flow','wo'=>'Live: work order','pos'=>'Live: register sale','cust'=>'Live: customer record','wb'=>'Live: win-back emails','site'=>'Live: website colours','grow'=>'Live: add-on switches','image'=>'Picture','none'=>'Nothing'] as $v => $n)
+      @foreach((($isMarketing ?? false) ? ['flow'=>'Live: booking flow','wo'=>'Live: work order','pos'=>'Live: register sale','cust'=>'Live: customer record','wb'=>'Live: win-back emails','site'=>'Live: website colours','grow'=>'Live: add-on switches','image'=>'Picture','none'=>'Nothing'] : ['image'=>'Picture','none'=>'Nothing']) as $v => $n)
         <option value="{{ $v }}" @selected(($it['visual'] ?? 'none') === $v)>{{ $n }}</option>
       @endforeach
     </select>
@@ -85,7 +85,7 @@
       <label style="display:flex;gap:6px;align-items:center;font-size:11.5px;color:var(--pb2-text-dim)"><input type="color" data-fa-field="accent" value="{{ $it['accent'] ?? '#BEF264' }}" class="pb2-color-swatch"> Accent</label>
     </div>
     <select class="pb2-input pb2-input-sm" data-fa-field="visual">
-      @foreach(['flow'=>'Live: booking flow','wo'=>'Live: work order','pos'=>'Live: register sale','cust'=>'Live: customer record','wb'=>'Live: win-back emails','site'=>'Live: website colours','grow'=>'Live: add-on switches','image'=>'Picture','none'=>'Nothing'] as $v => $n)
+      @foreach((($isMarketing ?? false) ? ['flow'=>'Live: booking flow','wo'=>'Live: work order','pos'=>'Live: register sale','cust'=>'Live: customer record','wb'=>'Live: win-back emails','site'=>'Live: website colours','grow'=>'Live: add-on switches','image'=>'Picture','none'=>'Nothing'] : ['image'=>'Picture','none'=>'Nothing']) as $v => $n)
         <option value="{{ $v }}" @selected(($it['visual'] ?? 'none') === $v)>{{ $n }}</option>
       @endforeach
     </select>

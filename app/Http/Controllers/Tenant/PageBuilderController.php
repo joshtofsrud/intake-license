@@ -1304,7 +1304,8 @@ class PageBuilderController extends Controller
             }
             $section = TenantPageSection::create([
                 'page_id' => $page->id, 'tenant_id' => $tenant->id,
-                'section_type' => $type, 'content' => self::DEFAULTS[$type],
+                // MARKER-SHOP-PORT4: shops start from neutral example copy (App\Support\ShopSectionDefaults)
+                'section_type' => $type, 'content' => \App\Support\ShopSectionDefaults::content($tenant, $type, self::DEFAULTS[$type]),
                 'padding' => 'normal', 'is_visible' => true,
                 'sort_order' => TenantPageSection::where('page_id', $page->id)->max('sort_order') + 1,
             ]);
