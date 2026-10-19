@@ -3608,6 +3608,9 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
     // text_image style switch + accordion items
     initTiAccList(body);
 
+    // testimonials quote list (MARKER-TS-EDITOR)
+    initTsList(body);
+
     // feature tiles list
     initFtList(body);
 
@@ -3995,6 +3998,96 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
       root.appendChild(row); wire(row); serialize();
       const t = row.querySelector('[data-tiacc-field="title"]'); if (t) t.focus();
     });
+  }
+
+  // MARKER-TS-EDITOR: the testimonials quote list (tenant/pages/sections/_testimonial_carousel).
+  function initTsList(body) {
+    const root = body.querySelector('#pb2-ts-list');
+    const json = body.querySelector('#pb2-ts-json');
+    if (!root || !json) return;
+    const MAX = 12;
+    const addBtn = body.querySelector('#pb2-ts-add');
+    const count  = body.querySelector('#pb2-ts-count');
+
+    function serialize() {
+      const out = [];
+      root.querySelectorAll('.pb2-tsrow').forEach((row, i) => {
+        const g = f => (row.querySelector('[data-ts-field="' + f + '"]') || {}).value || '';
+        const pos = row.querySelector('.pb2-faqrow-pos');
+        if (pos) pos.textContent = String(i + 1).padStart(2, '0');
+        const t = { quote: g('quote'), author: g('author'), role: g('role'), avatar_url: g('avatar_url') };
+        if (t.quote.trim() === '' && t.author.trim() === '') return;
+        out.push(t);
+      });
+      json.value = JSON.stringify(out);
+      json.dispatchEvent(new Event('change', { bubbles: true }));
+      if (count) count.textContent = out.length + ' / ' + MAX;
+      if (addBtn) addBtn.hidden = root.querySelectorAll('.pb2-tsrow').length >= MAX;
+    }
+    function thumb(row) {
+      const u = row.querySelector('[data-ts-field="avatar_url"]').value;
+      const t = row.querySelector('.pb2-tiacc-thumb');
+      t.style.backgroundImage = u ? 'url("' + u.replace(/"/g, '%22') + '")' : '';
+      t.textContent = u ? '' : '';
+      const clr = row.querySelector('[data-ts-clear]'); if (clr) clr.hidden = !u;
+    }
+    function setPhoto(row, url) { row.querySelector('[data-ts-field="avatar_url"]').value = url || ''; thumb(row); serialize(); }
+    function wire(row) {
+      row.querySelectorAll('[data-ts-field]').forEach(inp => { inp.addEventListener('input', serialize); inp.addEventListener('change', serialize); });
+      const rm = row.querySelector('[data-ts-remove]');
+      if (rm) rm.addEventListener('click', () => { row.remove(); serialize(); });
+      const up = row.querySelector('[data-ts-up]');
+      if (up) up.addEventListener('click', () => { const p = row.previousElementSibling; if (p) { root.insertBefore(row, p); serialize(); } });
+      const st  = row.querySelector('[data-ts-status]');
+      const say = (msg, ms) => { if (!st) return; st.textContent = msg; if (ms) setTimeout(() => { if (st.textContent === msg) st.textContent = ''; }, ms); };
+      const upl = row.querySelector('[data-ts-upload]');
+      if (upl) upl.addEventListener('click', () => {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = 'image/jpeg,image/png,image/gif,image/webp,image/avif';
+        input.style.display = 'none';
+        document.body.appendChild(input);
+        input.addEventListener('change', async () => {
+          const file = input.files && input.files[0];
+          input.remove();
+          if (!file) return;
+          say('Uploading…');
+          const fd = new FormData();
+          fd.append('_token', getCsrf());
+          fd.append('file', file);
+          fd.append('type', 'general');
+          try {
+            const resp = await fetch(UPLOAD_URL, { method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' } });
+            const data = await resp.json();
+            if (data && data.ok && data.url) { setPhoto(row, data.url); say('Uploaded ✓', 1500); }
+            else { say(''); IntakeConfirm.alert({ title: 'Upload failed', message: (data && data.message) || 'Please try again.' }); }
+          } catch (e) {
+            say(''); console.error(e);
+            IntakeConfirm.alert({ title: 'Upload failed', message: 'Please try again.' });
+          }
+        });
+        input.click();
+      });
+      const lib = row.querySelector('[data-ts-lib]');
+      if (lib) lib.addEventListener('click', () => {
+        // the library picker hands its choice to window.__tiAccPick (shared with the accordion lists)
+        window.__tiAccPick = (url) => setPhoto(row, url);
+        openMediaPicker('__tiacc_pick');
+      });
+      const clr = row.querySelector('[data-ts-clear]');
+      if (clr) clr.addEventListener('click', () => setPhoto(row, ''));
+      thumb(row);
+    }
+    root.querySelectorAll('.pb2-tsrow').forEach(wire);
+    if (addBtn) addBtn.addEventListener('click', () => {
+      if (root.querySelectorAll('.pb2-tsrow').length >= MAX) return;
+      const tpl = body.querySelector('#pb2-ts-tpl');
+      if (!tpl) return;
+      const row = tpl.content.firstElementChild.cloneNode(true);
+      root.appendChild(row); wire(row); serialize();
+      const q = row.querySelector('[data-ts-field="quote"]'); if (q) q.focus();
+    });
+    if (addBtn) addBtn.hidden = root.querySelectorAll('.pb2-tsrow').length >= MAX;
   }
 
   function initFaqList(body) {

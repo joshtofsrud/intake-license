@@ -158,7 +158,6 @@
   <div class="pb2-faqrow-head">
     <span class="pb2-navlist-handle">⋮⋮</span>
     <span class="pb2-faqrow-pos">{{ str_pad((string) (($i ?? 0) + 1), 2, '0', STR_PAD_LEFT) }}</span>
-    <span style="flex:1"></span>
     <button type="button" class="pb2-textlink" data-tiacc-up title="Move up" aria-label="Move up">↑</button>
     <button type="button" class="pb2-navlist-remove" data-tiacc-remove title="Remove" aria-label="Remove">×</button>
   </div>
@@ -188,7 +187,6 @@
   <div class="pb2-faqrow-head">
     <span class="pb2-navlist-handle">⋮⋮</span>
     <span class="pb2-faqrow-pos">{{ str_pad((string) (($i ?? 0) + 1), 2, '0', STR_PAD_LEFT) }}</span>
-    <span style="flex:1"></span>
     <button type="button" class="pb2-textlink" data-tiacc-up title="Move up" aria-label="Move up">↑</button>
     <button type="button" class="pb2-navlist-remove" data-tiacc-remove title="Remove" aria-label="Remove">×</button>
   </div>
