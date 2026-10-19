@@ -18,6 +18,10 @@
 @unless($sticky)
 {{ $S }} { position: relative; }
 @endunless
+@if($sticky)
+/* builder preview only: the section wrapper is exactly the nav's height, so the wrapper sticks instead */
+[data-pb-section]:has(> {{ $S }}) { position: sticky; top: 0; z-index: 100; }
+@endif
 
 /* three lines morph into an X while the drop panel is open */
 {{ $S }} .p-hamburger { position: relative; }
@@ -69,7 +73,8 @@
   {{ $S }}::before {
     content: ''; position: absolute; left: 0; right: 0; top: 0; height: calc(100% + 28px);
     pointer-events: none; z-index: -1; opacity: var(--pf-fade, 0); transition: opacity .2s;
-    background: linear-gradient(to bottom, color-mix(in srgb, var(--p-bg, #ffffff) 70%, transparent), transparent);
+    /* MARKER-SHOP-FLOAT-NAV-FIX1: fade toward the bar's own color, not the page's */
+    background: linear-gradient(to bottom, color-mix(in srgb, var(--pf-bg) 55%, transparent), transparent);
     -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
     -webkit-mask-image: linear-gradient(to bottom, #000 45%, transparent); mask-image: linear-gradient(to bottom, #000 45%, transparent);
   }
