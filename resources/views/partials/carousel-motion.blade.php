@@ -31,7 +31,7 @@
   .{{ $cmId }} .cm-track { display: flex; gap: {{ $cmGap }}px; width: max-content; padding: 0 24px; will-change: transform; }
   .{{ $cmId }} .cm-item { flex: none; margin: 0; }
   .{{ $cmId }} .cm-frame { position: relative; display: block; height: {{ $cmH }}px; overflow: hidden; border-radius: {{ $radius }}; background: rgba(127,127,127,.12); transform-origin: 50% 50%; }
-  .{{ $cmId }} .cm-frame img { position: absolute; top: 0; left: -9%; width: 118%; height: 100%; object-fit: cover; pointer-events: none; will-change: transform; transition: filter .5s ease; -webkit-user-drag: none; }
+  .{{ $cmId }} .cm-frame img { position: absolute; top: 0; left: -9%; width: 118%; height: 100%; object-fit: cover; max-width: none; /* MARKER-CAROUSEL-GRAY-EDGE: shop layout caps img at 100% */ pointer-events: none; will-change: transform; transition: filter .5s ease; -webkit-user-drag: none; }
   .{{ $cmId }}.is-mono .cm-frame img { filter: grayscale(1) contrast(1.05); }
   .{{ $cmId }}.is-mono .cm-item:hover .cm-frame img { filter: none; }
   .{{ $cmId }} figcaption { padding: 10px 2px 0; font-size: 13px; opacity: .7; max-width: 100%; }
