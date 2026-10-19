@@ -23,9 +23,10 @@
 {{--=================== CONTENT ===================--}}
 <div class="pb2-tab-panel" data-tab="content">
 
-  {{-- Classic is the single block; Accordion is several items. Shop sites get Accordion in a later patch. --}}
+  {{-- Classic is the single block; Accordion is several items. --}}
   @php
-    $tiMarketing = (bool) (tenant()?->is_platform ?? false);
+    // MARKER-SHOP-TI-ACCORDION: shop sites have Accordion, image frames and the lightbox too
+    $tiMarketing = true;
     $tiStyle = $tiMarketing && $get('ti_style', 'classic') === 'accordion' ? 'accordion' : 'classic';
     $tiItems = $c['acc_items'] ?? [];
     if (is_string($tiItems)) { $d = json_decode($tiItems, true); $tiItems = is_array($d) ? $d : []; }
@@ -253,8 +254,8 @@
       <input type="number" class="pb2-input" min="3" max="20" data-field="acc_auto_secs" value="{{ (int) $get('acc_auto_secs', 6) }}">
       <div class="pb2-field-hint" style="display:block;text-align:left;margin-top:6px">Moving on its own pauses while a visitor hovers the list, stops for good once they click an item, and is off when "several open" is on. Visitors who've turned motion off in their device settings get no animation.</div>
     </div>
-    @if($isMarketing ?? false)
-    {{-- intake.works only for now; shop sites next. --}}
+    @if(true)
+    {{-- both sites (MARKER-SHOP-TI-ACCORDION) --}}
     <label class="pb2-checkbox-row"><input type="checkbox" data-field="acc_scroll" value="1" {{ $tiFlag('acc_scroll', false) ? 'checked' : '' }}><span>Open items as visitors scroll</span></label>
     <div class="pb2-field">
       <label class="pb2-field-label">Scroll per item</label>

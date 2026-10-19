@@ -66,6 +66,17 @@
 
   $instId = 'p-ti-' . ($section->id ?? uniqid());
   $imgRight = $imgPos === 'right';
+
+  // MARKER-SHOP-TI-ACCORDION: style, image frame and lightbox, as on intake.works
+  $tiStyle    = ($c['ti_style'] ?? 'classic') === 'accordion' ? 'accordion' : 'classic';
+  $tiLightbox = ! empty($c['img_lightbox']) && ! in_array((string) $c['img_lightbox'], ['0', 'false'], true);
+  $tiFrame    = in_array($c['img_frame'] ?? 'none', ['panel', 'browser'], true) ? $c['img_frame'] : 'none';
+  $tiFrameOpen = match ($tiFrame) {
+      'panel'   => '<div class="ti-frame ti-frame-panel">',
+      'browser' => '<div class="ti-frame ti-frame-browser"><div class="ti-bar" aria-hidden="true"><i></i><i></i><i></i><span>' . e(trim((string) ($c['img_frame_url'] ?? '')) ?: request()->getHost()) . '</span></div>',
+      default   => '',
+  };
+  $tiFrameClose = $tiFrame === 'none' ? '' : '</div>';
 @endphp
 
 <style>
@@ -186,10 +197,32 @@
 @if($hideDesktop)
 @media (min-width: 769px) { .{{ $instId }} { display: none; } }
 @endif
+@if($tiFrame !== 'none')
+/* MARKER-SHOP-TI-ACCORDION: image frame */
+.{{ $instId }} .ti-frame { padding: 12px; border-radius: calc({{ $radiusPx }} + 8px); background: color-mix(in srgb, {{ $textColor }} 5%, transparent); border: 1px solid color-mix(in srgb, {{ $textColor }} 12%, transparent); box-shadow: 0 30px 60px -28px rgba(0,0,0,.35), 0 0 90px -30px color-mix(in srgb, {{ $accentColor ?: 'var(--p-accent, #0a0a0a)' }} 35%, transparent); }
+.{{ $instId }} .ti-frame-browser { padding: 0 10px 10px; }
+.{{ $instId }} .ti-bar { display: flex; align-items: center; gap: 6px; height: 34px; padding: 0 4px; }
+.{{ $instId }} .ti-bar i { width: 9px; height: 9px; border-radius: 50%; background: color-mix(in srgb, {{ $textColor }} 18%, transparent); flex: none; }
+.{{ $instId }} .ti-bar span { margin: 0 auto; transform: translateX(-16px); font-size: 11px; color: {{ $textColorBody }}; background: color-mix(in srgb, {{ $textColor }} 6%, transparent); border-radius: 6px; padding: 3px 14px; max-width: 60%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.{{ $instId }} .ti-frame-browser .p-ti-image { border-radius: 0 0 {{ $radiusPx }} {{ $radiusPx }}; }
+@media (max-width: 768px) {
+  .{{ $instId }} .ti-frame { padding: 8px; }
+  .{{ $instId }} .ti-frame-browser { padding: 0 6px 6px; }
+  @if(!$imgRight)
+  .{{ $instId }} .p-ti-grid > .ti-frame { order: -1; }
+  @endif
+}
+@endif
+@if($tiLightbox)
+.{{ $instId }} .p-ti-image img { cursor: zoom-in; }
+@endif
 </style>
 
-<section class="{{ $instId }} p-text-image {{ $customClass }}" @if($anchorId) id="{{ $anchorId }}" @endif>
+<section class="{{ $instId }} p-text-image {{ $customClass }}" @if($anchorId) id="{{ $anchorId }}" @endif @if($tiLightbox) data-ti-lb @endif>
   <div class="p-ti-wrap">
+    @if($tiStyle === 'accordion')
+      @include('public._ti-acc')
+    @else
     <div class="p-ti-grid">
       <div class="p-ti-text">
         @if(!empty($c['eyebrow']))
@@ -212,13 +245,17 @@
           </div>
         @endif
       </div>
-      <div class="p-ti-image">
+      {!! $tiFrameOpen !!}<div class="p-ti-image">
         @if(!empty($c['image_url']))
           <img src="{{ $c['image_url'] }}" alt="{{ $c['image_alt'] ?? $c['heading'] ?? '' }}" loading="lazy">
         @else
           <div class="p-ti-image-empty">No image</div>
         @endif
-      </div>
+      </div>{!! $tiFrameClose !!}
     </div>
+    @endif
   </div>
 </section>
+@if($tiStyle === 'accordion' || $tiLightbox)
+  @include('public._ti-js', ['tiJsAcc' => $tiStyle === 'accordion', 'tiJsLb' => $tiLightbox])
+@endif
