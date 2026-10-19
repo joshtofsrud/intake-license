@@ -832,6 +832,9 @@ class PageBuilderController extends Controller
         $navItems = TenantNavItem::forSite((string) $tenant->id);
         $navDraft = \App\Support\BuilderDraft::navRows((string) $page->id);
         if ($navDraft !== null) $navItems = \App\Support\ShopNav::previewItems((string) $tenant->id, $navDraft);
+        // MARKER-SHOP-MENU-GROUPS: unsaved groups show in the preview too
+        $navGroupsDraft = \App\Support\BuilderDraft::navGroups((string) $page->id);
+        if ($navGroupsDraft !== null) app()->instance('shopnav.preview_groups', \App\Support\ShopNav::cleanGroups($navGroupsDraft));
 
         $catalog = TenantServiceCategory::where('tenant_id', $tenant->id)
             ->where('is_active', true)
@@ -907,6 +910,14 @@ class PageBuilderController extends Controller
             }
             $items = $items->values();
 
+            // MARKER-SHOP-MENU-GROUPS: the groups save with the menu; a link whose group is gone goes back in the bar
+            $snGroups = $request->has('nav_groups')
+                ? \App\Support\ShopNav::cleanGroups((array) (json_decode((string) $request->input('nav_groups'), true) ?: []))
+                : \App\Support\ShopNav::groups($tenant);
+            $snKeys = array_column($snGroups, 'key');
+            $items = $items->map(fn ($it) => ($it['group_key'] && ! in_array($it['group_key'], $snKeys, true))
+                ? array_merge($it, ['group_key' => null, 'description' => null, 'icon' => null]) : $it);
+
             if ($items->isEmpty()) {
                 return response()->json([
                     'ok' => false,
@@ -918,6 +929,11 @@ class PageBuilderController extends Controller
             foreach ($items as $i => $item) {
                 \App\Models\Tenant\TenantNavItem::create($item + ['tenant_id' => $tenant->id, 'sort_order' => $i]);
             }
+
+            $snSettings = $tenant->settings ?? [];
+            $snSettings['shop_menu'] = array_merge((array) ($snSettings['shop_menu'] ?? []), ['groups' => $snGroups]);
+            $tenant->settings = $snSettings;
+            $tenant->save();
 
             return response()->json(['ok' => true, 'count' => $items->count()]);
         }
@@ -1262,7 +1278,8 @@ class PageBuilderController extends Controller
             // the menu list rides along so the preview shows it unsaved.
             if ($request->filled('nav_rows')) {
                 $navRows = json_decode((string) $request->input('nav_rows'), true);
-                if (is_array($navRows)) \App\Support\BuilderDraft::putNav((string) $page->id, $navRows);
+                $navGroups = $request->filled('nav_groups') ? json_decode((string) $request->input('nav_groups'), true) : null; // MARKER-SHOP-MENU-GROUPS
+                if (is_array($navRows)) \App\Support\BuilderDraft::putNav((string) $page->id, $navRows, is_array($navGroups) ? $navGroups : null);
             }
             return response()->json(['success' => true]);
         }

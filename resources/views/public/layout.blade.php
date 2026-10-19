@@ -284,8 +284,13 @@
         <small>{{ $mnCustomer ? 'My account' : 'Bookings, orders, rentals & messages' }}</small></span>
     </a>
   @endif
-  @foreach($navItems as $item)
-    <a href="{{ $item->url }}" onclick="closeMobileNav()">{{ $item->label }}</a>
+  {{-- MARKER-SHOP-MENU-GROUPS: a group is a row that opens in place --}}
+  @foreach(\App\Support\ShopNav::bar($navItems, \App\Support\ShopNav::groups($currentTenant)) as $mnB)
+    @if($mnB['kind'] === 'group')
+      @include('public._nav-dd', ['g' => $mnB['group'], 'mode' => 'acc', 'closeFull' => true])
+    @else
+      <a href="{{ $mnB['item']->url }}" onclick="closeMobileNav()">{{ $mnB['item']->label }}</a>
+    @endif
   @endforeach
   @php $navSection = $sections->firstWhere('section_type', 'nav'); $nc = $navSection?->content ?? []; @endphp
   @if(!empty($nc['cta_label']))

@@ -1538,6 +1538,34 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
 .pb2-insp-body .sn-legend{font-size:12px;line-height:1.55;border:.5px dashed var(--pb2-border-2);border-radius:8px;padding:9px 11px;margin-bottom:10px}
 .pb2-insp-body .sn-legend b{color:var(--pb2-text);font-weight:600}
 .pb2-insp-body .sn-in{width:auto}
+/* MARKER-SHOP-MENU-GROUPS: menu groups box and each link's group row */
+.pb2-insp-body .mg-box{border:.5px solid var(--pb2-border);border-radius:8px;padding:10px;margin-bottom:12px;background:var(--pb2-bg)}
+.pb2-insp-body .mg-head{display:flex;align-items:center;gap:8px;margin-bottom:4px}
+.pb2-insp-body .mg-head b{font-size:12.5px;font-weight:600;color:var(--pb2-text)}
+.pb2-insp-body .mg-head .pb2-group-meta{margin-left:auto}
+.pb2-insp-body .mg-hint{font-size:11.5px;line-height:1.5;color:var(--pb2-text-dim);margin-bottom:8px}
+.pb2-insp-body .mg-card{border:.5px solid var(--pb2-border);border-radius:8px;padding:8px;margin-bottom:6px;background:var(--pb2-surface-2)}
+.pb2-insp-body .mg-r1{display:flex;align-items:center;gap:6px}
+.pb2-insp-body .mg-r1 .sn-in{flex:1}
+.pb2-insp-body .mg-n{font-size:11px;color:var(--pb2-text-faint);white-space:nowrap}
+.pb2-insp-body .mg-chk{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--pb2-text-dim);margin-top:7px;cursor:pointer}
+.pb2-insp-body .mg-feat{display:grid;gap:5px;margin-top:6px;padding-left:20px}
+.pb2-insp-body .mg-feat-r{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px}
+.pb2-insp-body .mg-feat .sn-in,.pb2-insp-body .sn-r3 .sn-in{width:100%;box-sizing:border-box}
+.pb2-insp-body .mg-add{font-size:12px}
+.pb2-insp-body .sn-r3{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px;margin-top:6px;padding-left:18px}
+.pb2-insp-body .sn-r3 .sn-sel,.pb2-insp-body .sn-r3 .pb2-field-hint{grid-column:1/-1}
+.pb2-insp-body .sn-r3.has-group .sn-sel{grid-column:1}
+.pb2-insp-body .sn-r3 .sn-desc{grid-column:1/-1}
+.pb2-insp-body .sn-sel{background:var(--pb2-bg);border:.5px solid var(--pb2-border);border-radius:6px;color:var(--pb2-text);font:inherit;font-size:12px;padding:5px 6px;min-width:0}
+.pb2-insp-body .sn-row.in-group{border-left:2px solid var(--pb2-accent)}
+.pb2-insp-body .mg-ic{position:relative}
+.pb2-insp-body .mg-ic-btn{display:inline-flex;align-items:center;gap:4px;height:100%;min-height:28px;background:var(--pb2-bg);border:.5px solid var(--pb2-border);border-radius:6px;color:var(--pb2-text);padding:0 7px;cursor:pointer;font:inherit;font-size:11px}
+.pb2-insp-body .mg-ic-btn svg,.pb2-insp-body .mg-ic-pop svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.pb2-insp-body .mg-ic-pop{position:absolute;right:0;top:calc(100% + 4px);z-index:30;display:grid;grid-template-columns:repeat(6,30px);gap:3px;padding:6px;background:var(--pb2-surface);border:.5px solid var(--pb2-border-2);border-radius:8px;box-shadow:0 12px 30px rgba(0,0,0,.45)}
+.pb2-insp-body .mg-ic-pop button{width:30px;height:30px;display:flex;align-items:center;justify-content:center;background:none;border:0;border-radius:6px;color:var(--pb2-text-dim);cursor:pointer}
+.pb2-insp-body .mg-ic-pop button:hover,.pb2-insp-body .mg-ic-pop button.on{background:var(--pb2-surface-3);color:var(--pb2-text)}
+.pb2-insp-body .mg-ic-pop .none{grid-column:span 6;width:auto;font:inherit;font-size:11px}
 /* controls fit the panel; it never scrolls sideways. */
 .pb2-insp-body { overflow-x: hidden; }
 .pb2-insp-body .pb2-field-row > * { min-width: 0; }
@@ -2926,7 +2954,7 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
     clearTimeout(pb2DraftTimer);
     var c = pb2CollectContent(), fl = { section_op: 'draft', section_id: selectedId };
     Object.keys(c).forEach(function (k) { fl['content[' + k + ']'] = c[k]; });
-    if (window.pb2NavPending && window.pb2NavRows) fl.nav_rows = JSON.stringify(window.pb2NavRows);
+    if (window.pb2NavPending && window.pb2NavRows) { fl.nav_rows = JSON.stringify(window.pb2NavRows); if (window.pb2NavGroups) fl.nav_groups = JSON.stringify(window.pb2NavGroups); }
     return pb2Post(fl).catch(function () {});
   }
   function pb2ReloadSame(item, idx) {
@@ -2979,7 +3007,7 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
     var sid = selectedId, seq = ++pb2DraftSeq, c = pb2CollectContent();
     var f = { section_op: 'draft', section_id: sid };
     Object.keys(c).forEach(function (k) { f['content[' + k + ']'] = c[k]; });
-    if (window.pb2NavPending && window.pb2NavRows) f.nav_rows = JSON.stringify(window.pb2NavRows);
+    if (window.pb2NavPending && window.pb2NavRows) { f.nav_rows = JSON.stringify(window.pb2NavRows); if (window.pb2NavGroups) f.nav_groups = JSON.stringify(window.pb2NavGroups); }
     pb2Post(f)
       .then(function (r) {
         if (!r.ok) throw new Error('draft ' + r.status);
@@ -5072,6 +5100,76 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
     const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
     window.pb2NavRows = rows;
 
+    // MARKER-SHOP-MENU-GROUPS: dropdown groups. Left-side Link items can join
+    // a group; the bar shows each group once, where its first link is.
+    const gHost = body.querySelector('#pb2-nav-groups');
+    let groups = [], icons = {}, icPop = -1, icPopG = -1;
+    try { groups = JSON.parse(host.dataset.groups || '[]'); icons = JSON.parse(host.dataset.icons || '{}'); } catch (e) { groups = []; icons = {}; }
+    if (!Array.isArray(groups)) groups = [];
+    window.pb2NavGroups = groups;
+    const svg = k => icons[k] ? `<svg viewBox="0 0 24 24" aria-hidden="true">${icons[k]}</svg>` : '';
+    const groupable = r => r.side === 'left' && r.style === 'link';
+    const inGroup = r => groupable(r) && r.group && groups.some(g => g.key === r.group);
+    const countIn = k => rows.filter(r => groupable(r) && r.group === k).length;
+    function iconPop(cur, attr) {
+      return '<div class="mg-ic-pop">' + Object.keys(icons).map(k => `<button type="button" ${attr} data-ic="${k}" class="${k === cur ? 'on' : ''}" title="${k}">${svg(k)}</button>`).join('')
+        + `<button type="button" class="none" ${attr} data-ic="">No icon</button></div>`;
+    }
+    function groupRow(r, i) {
+      if (!groups.length || r.side !== 'left') return '';
+      if (r.style !== 'link') return '<div class="sn-r3"><span class="pb2-field-hint" style="text-align:left">Buttons stay in the bar — only Link items can join a group.</span></div>';
+      const g = inGroup(r);
+      return `<div class="sn-r3${g ? ' has-group' : ''}"><select class="sn-sel" data-sn-group="${i}"><option value="">Not in a group — shows in the bar</option>`
+        + groups.map(x => `<option value="${esc(x.key)}"${r.group === x.key ? ' selected' : ''}>In ${esc(x.title || 'group')}</option>`).join('') + '</select>'
+        + (g ? `<div class="mg-ic"><button type="button" class="mg-ic-btn" data-sn-icon="${i}" title="Icon">${r.icon ? svg(r.icon) : 'Icon'} ▾</button>${icPop === i ? iconPop(r.icon, `data-sn-icset="${i}"`) : ''}</div>`
+          + `<input class="sn-in sn-desc" data-sn-k="desc" data-i="${i}" value="${esc(r.desc || '')}" maxlength="80" placeholder="One-line description (optional)">` : '')
+        + '</div>';
+    }
+    function renderGroups() {
+      if (!gHost) return;
+      window.pb2NavGroups = groups;
+      gHost.innerHTML = `<div class="mg-head"><b>Menu groups</b><span class="pb2-group-meta">${groups.length} / 6</span></div>`
+        + '<div class="mg-hint">Put links in a group to show them as one dropdown. A group sits in the bar where its first link is in the list below. Left-side Link items only.</div>'
+        + groups.map((g, gi) => {
+          const n = countIn(g.key), f = g.feature;
+          return `<div class="mg-card"><div class="mg-r1"><input class="sn-in" data-g="${gi}" data-gk="title" value="${esc(g.title)}" maxlength="30" placeholder="Group name">`
+            + `<span class="mg-n">${n}${n === 1 ? ' link' : ' links'}${n ? '' : ' · hidden'}</span>`
+            + `<button type="button" class="sn-x" data-gdel="${gi}" title="Remove group (its links go back in the bar)">×</button></div>`
+            + `<label class="mg-chk"><input type="checkbox" data-gfeat="${gi}"${f ? ' checked' : ''}> Featured action card</label>`
+            + (f ? `<div class="mg-feat"><div class="mg-feat-r"><input class="sn-in" data-g="${gi}" data-gf="label" value="${esc(f.label)}" maxlength="40" placeholder="Label, e.g. Book a pickup">`
+                + `<div class="mg-ic"><button type="button" class="mg-ic-btn" data-gicon="${gi}" title="Icon">${svg(f.icon)} ▾</button>${icPopG === gi ? iconPop(f.icon, `data-gicset="${gi}"`) : ''}</div></div>`
+                + `<input class="sn-in" data-g="${gi}" data-gf="desc" value="${esc(f.desc || '')}" maxlength="80" placeholder="One line under it">`
+                + `<input class="sn-in" data-g="${gi}" data-gf="url" value="${esc(f.url || '')}" maxlength="255" placeholder="/book, /contact or https://…"></div>` : '')
+            + '</div>';
+        }).join('')
+        + (groups.length ? '' : '<div class="pb2-field-hint" style="text-align:left;padding:2px 0 6px">No groups yet — every link shows in the bar, as now.</div>')
+        + (groups.length < 6 ? '<button type="button" class="pb2-btn mg-add" data-gadd="1">+ Group</button>' : '');
+    }
+    function groupsChanged() { window.pb2NavGroups = groups; changed(); }
+    if (gHost) {
+      gHost.addEventListener('input', e => {
+        const t = e.target, g = groups[+t.dataset.g]; if (!g) return;
+        if (t.dataset.gk) g[t.dataset.gk] = t.value;
+        else if (t.dataset.gf && g.feature) g.feature[t.dataset.gf] = t.value;
+        else return;
+        window.pb2NavRows = rows; window.pb2NavGroups = groups; window.pb2NavPending = true; window.pb2NavSaver = saveNavLinks;
+        if (window.pb2MarkDirty) window.pb2MarkDirty();
+      });
+      gHost.addEventListener('change', e => {
+        const t = e.target;
+        if (t.dataset.gk) { render(); return; } // the group name shows in each link's picker
+        if (t.dataset.gfeat !== undefined) { groups[+t.dataset.gfeat].feature = t.checked ? { label: 'Book now', desc: '', url: '/book', icon: 'cal' } : null; groupsChanged(); }
+      });
+      gHost.addEventListener('click', e => {
+        const t = e.target.closest('button'); if (!t) return;
+        const d = t.dataset;
+        if (d.gadd) { if (groups.length < 6) groups.push({ key: 'g' + Date.now().toString(36).slice(-6), title: 'New group', feature: null }); groupsChanged(); return; }
+        if (d.gdel !== undefined) { const k = groups[+d.gdel].key; rows.forEach(r => { if (r.group === k) r.group = ''; }); groups.splice(+d.gdel, 1); groupsChanged(); return; }
+        if (d.gicon !== undefined) { icPopG = icPopG === +d.gicon ? -1 : +d.gicon; renderGroups(); return; }
+        if (d.gicset !== undefined) { groups[+d.gicset].feature.icon = d.ic || 'star'; icPopG = -1; groupsChanged(); }
+      });
+    }
+
     function setStatus(text) {
       if (status) status.innerHTML = text ? `<span class="pb2-field-hint" style="text-align:left">${text}</span>` : '';
     }
@@ -5087,6 +5185,7 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
       return '<span class="sn-seg">' + opts.map(o => `<button type="button" data-sn-seg="${k}" data-i="${i}" data-v="${o[0]}" class="${o[0] === v ? 'on' : ''}">${o[1]}</button>`).join('') + '</span>';
     }
     function render() {
+      renderGroups();
       const used = rows.filter(r => r.type === 'page').map(r => r.page);
       const free = Object.keys(pages).filter(id => used.indexOf(id) < 0);
       host.innerHTML = rows.map((r, i) => {
@@ -5095,7 +5194,7 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
           ? (p ? `<span class="sn-chip">Page</span>${esc(p.t)} · <code>${esc(p.path)}</code>${p.pub ? '' : '<span class="sn-warn">hidden — unpublished</span>'}`
                : '<span class="sn-warn">page deleted — remove this item</span>')
           : `<span class="sn-chip">Link</span><input class="sn-in" style="width:calc(100% - 46px)" data-sn-k="url" data-i="${i}" value="${esc(r.url)}" placeholder="/path or https://…">`;
-        return `<div class="sn-row${r.type === 'page' && r.page === hl ? ' sn-new' : ''}" draggable="true" data-i="${i}">
+        return `<div class="sn-row${r.type === 'page' && r.page === hl ? ' sn-new' : ''}${inGroup(r) ? ' in-group' : ''}" draggable="true" data-i="${i}">
           <div class="sn-r1"><span class="sn-grip" title="Drag to reorder">⋮⋮</span>
             <input class="sn-in" data-sn-k="label" data-i="${i}" value="${esc(r.label)}" placeholder="${esc(p ? p.t : 'Label')}" maxlength="60">
             <button type="button" class="sn-x" data-sn-del="${i}" title="Remove from the menu">×</button></div>
@@ -5103,6 +5202,7 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
             ${seg(i, 'style', [['link','Link'],['button','Button'],['outline','Outline']], r.style)}
             ${seg(i, 'side', [['left','L'],['right','R']], r.side)}
             <label class="sn-tab"><input type="checkbox" data-sn-tab="${i}" ${r.tab ? 'checked' : ''}>New tab</label></div>
+          ${groupRow(r, i)}
         </div>`;
       }).join('') +
       (rows.length ? '' : '<div class="pb2-field-hint" style="text-align:left;padding:6px 0">The menu is empty — the header shows just the logo.</div>') +
@@ -5122,9 +5222,12 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
     });
     host.addEventListener('change', e => {
       if (e.target.dataset.snTab !== undefined) { rows[+e.target.dataset.snTab].tab = e.target.checked; changed(); }
+      if (e.target.dataset.snGroup !== undefined) { rows[+e.target.dataset.snGroup].group = e.target.value; changed(); }
     });
     host.addEventListener('click', e => {
       const t = e.target.closest('button'); if (!t) return;
+      if (t.dataset.snIcon !== undefined) { icPop = icPop === +t.dataset.snIcon ? -1 : +t.dataset.snIcon; render(); return; }
+      if (t.dataset.snIcset !== undefined) { rows[+t.dataset.snIcset].icon = t.dataset.ic; icPop = -1; changed(); return; }
       if (t.dataset.snSeg) { rows[+t.dataset.i][t.dataset.snSeg] = t.dataset.v; changed(); return; }
       if (t.dataset.snDel !== undefined) { rows.splice(+t.dataset.snDel, 1); changed(); return; }
       if (t.dataset.snPop) { pop = !pop; render(); return; }
@@ -5149,7 +5252,11 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
         fd.append(`nav_items[${i}][style]`, r.style);
         fd.append(`nav_items[${i}][side]`, r.side);
         fd.append(`nav_items[${i}][open_in_new_tab]`, r.tab ? '1' : '0');
+        fd.append(`nav_items[${i}][group]`, r.group || '');
+        fd.append(`nav_items[${i}][icon]`, r.icon || '');
+        fd.append(`nav_items[${i}][desc]`, r.desc || '');
       });
+      if (gHost) fd.append('nav_groups', JSON.stringify(groups));
       setStatus('Saving the menu…');
       return fetch(STORE_URL, { method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' } })
         .then(r => r.json().then(j => ({ ok: r.ok, j })))

@@ -31,9 +31,16 @@ class BuilderDraft
     }
 
     // unsaved menu rows for the builder preview.
-    public static function putNav(string $pageId, array $rows): void
+    public static function putNav(string $pageId, array $rows, ?array $groups = null): void
     {
-        self::put($pageId, '__nav', ['rows' => array_slice($rows, 0, 40)]);
+        self::put($pageId, '__nav', ['rows' => array_slice($rows, 0, 40)] + ($groups !== null ? ['groups' => array_slice($groups, 0, 6)] : []));
+    }
+
+    // MARKER-SHOP-MENU-GROUPS: unsaved menu groups for the builder preview.
+    public static function navGroups(string $pageId): ?array
+    {
+        $d = session()->get(self::KEY, [])[$pageId]['__nav'] ?? null;
+        return is_array($d) && isset($d['groups']) && is_array($d['groups']) ? $d['groups'] : null;
     }
 
     public static function navRows(string $pageId): ?array

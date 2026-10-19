@@ -73,8 +73,12 @@
       Page items follow their page and hide while it’s unpublished. Buttons are just items styled as a button.
       Live once you Save.
     </div>
+    {{-- MARKER-SHOP-MENU-GROUPS: drawn by initNavLinkList() --}}
+    @unless($isMarketing ?? false)<div class="mg-box" id="pb2-nav-groups"></div>@endunless
     <div id="pb2-nav-linklist"
          data-rows="{{ json_encode($snRows) }}"
+         data-groups="{{ json_encode(\App\Support\ShopNav::groups($snT)) }}"
+         data-icons="{{ json_encode(\App\Support\ShopNav::icons()) }}"
          data-pages="{{ json_encode($snPages) }}"
          data-apps="{{ json_encode($snApps) }}"></div>
     <div class="pb2-navlist-status" id="pb2-nav-status" style="margin-top:8px"></div>

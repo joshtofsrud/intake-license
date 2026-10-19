@@ -13,7 +13,7 @@ class TenantNavItem extends Model
 {
     use HasUuids;
     protected $table    = 'tenant_nav_items';
-    protected $fillable = ['tenant_id','page_id','label','url','style','side','is_external','open_in_new_tab','sort_order'];
+    protected $fillable = ['tenant_id','page_id','label','url','style','side','is_external','open_in_new_tab','sort_order','group_key','description','icon']; // MARKER-SHOP-MENU-GROUPS
     protected $casts    = ['is_external' => 'boolean', 'open_in_new_tab' => 'boolean'];
 
     public function page()

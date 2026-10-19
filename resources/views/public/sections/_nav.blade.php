@@ -79,6 +79,9 @@
 
   $instId = 'p-nav-' . ($section->id ?? uniqid());
 
+  // MARKER-SHOP-MENU-GROUPS: dropdown groups (none = the menu as before)
+  $navGroups = isset($tenant) && $tenant ? \App\Support\ShopNav::groups($tenant) : [];
+
   // MARKER-SHOP-FLOAT-NAV: header style (Classic / Floating), App\Support\ShopNavHeader
   $pfAll   = \App\Support\ShopNavHeader::resolve($c);
   $pfD     = $pfAll['d'];
@@ -283,6 +286,17 @@
 @endif
 
 @include('public._nav-float')
+@if($navGroups)
+@php
+  // panel colours: the bar's own (Floating) or the header's (Classic)
+  $ddBg = $pfD['style'] === 'float' ? $pfD['bg']
+      : ((! in_array($bgMode, ['transparent', 'blur'], true) && preg_match('/^#[0-9a-fA-F]{6}$/', (string) $bgColor)) ? $bgColor : '#ffffff');
+  $ddText = ($pfD['style'] !== 'float' && ($c['text_color'] ?? '') !== '' && $ddBg === $bgColor) ? $c['text_color']
+      : (\App\Support\ColorHelper::isDark($ddBg) ? '#ffffff' : '#0a0a0a');
+@endphp
+.{{ $instId }} { --p-dd-bg: {{ $ddBg }}; --p-dd-text: {{ $ddText }}; }
+@include('public._nav-dd-css')
+@endif
 </style>
 
 <nav class="{{ $instId }} p-nav {{ $customClass }}" data-pf-d="{{ $pfD['style'] }}" data-pf-p="{{ $pfP['style'] }}" @if($anchorId) id="{{ $anchorId }}" @endif>
@@ -300,8 +314,13 @@
       @endif
 
       <div class="p-nav-links">
-        @foreach(collect($navItems)->filter(fn ($i) => ($i->side ?? 'left') !== 'right') as $item)
+        @foreach(\App\Support\ShopNav::bar(collect($navItems)->filter(fn ($i) => ($i->side ?? 'left') !== 'right'), $navGroups) as $navB)
+          @if($navB['kind'] === 'group')
+            @include('public._nav-dd', ['g' => $navB['group'], 'mode' => 'bar'])
+            @continue
+          @endif
           @php
+            $item       = $navB['item'];
             $itemUrl    = $item->url ?? '/';
             $itemPath   = parse_url($itemUrl, PHP_URL_PATH) ?? $itemUrl;
             // MARKER-NAV-ANCHOR-ACTIVE: a #fragment link jumps within a page, it is never the current page
@@ -373,8 +392,13 @@
     @if($navShowAccount ?? false)
       <a href="{{ ($navCustomer ?? null) ? route('tenant.customer.portal') : route('tenant.customer.login') }}">{{ ($navCustomer ?? null) ? $navCustomer->first_name : 'Sign in' }}</a>
     @endif
-    @foreach(collect($navItems)->filter(fn ($i) => ($i->style ?? 'link') === 'link') as $item)
+    @foreach(\App\Support\ShopNav::bar(collect($navItems)->filter(fn ($i) => ($i->style ?? 'link') === 'link'), $navGroups) as $navB)
+      @if($navB['kind'] === 'group')
+        @include('public._nav-dd', ['g' => $navB['group'], 'mode' => 'acc'])
+        @continue
+      @endif
       @php
+        $item  = $navB['item'];
         $dUrl  = $item->url ?? '/';
         $dPath = parse_url($dUrl, PHP_URL_PATH) ?? $dUrl;
       @endphp
@@ -539,3 +563,29 @@ document.addEventListener('click', function (e) {
 @endonce
 @endif
 
+@if($navGroups)
+<script>
+(function () {
+  // MARKER-SHOP-MENU-GROUPS: dropdowns open on hover (mouse) or click/tap;
+  // Esc, a click outside or leaving closes. Phone menus keep one group open.
+  if (!window.__pDd) {
+    window.__pDd = true;
+    var ddFine = window.matchMedia && window.matchMedia('(hover: hover)').matches, ddT = null;
+    var ddSet = function (d, on) { d.classList.toggle('on', on); var b = d.querySelector('.p-dd-btn'); if (b) b.setAttribute('aria-expanded', on ? 'true' : 'false'); };
+    var ddAll = function (except) { document.querySelectorAll('.p-dd.on').forEach(function (d) { if (d !== except) ddSet(d, false); }); };
+    document.addEventListener('mouseover', function (e) { if (!ddFine) return; var d = e.target.closest && e.target.closest('.p-dd'); if (d) { clearTimeout(ddT); ddAll(d); ddSet(d, true); } });
+    document.addEventListener('mouseout', function (e) { if (!ddFine) return; var d = e.target.closest && e.target.closest('.p-dd'); if (!d || d.contains(e.relatedTarget)) return; ddT = setTimeout(function () { ddSet(d, false); }, 140); });
+    document.addEventListener('click', function (e) {
+      var b = e.target.closest && e.target.closest('.p-dd-btn');
+      if (b) { var d = b.closest('.p-dd'); ddAll(d); ddSet(d, ddFine ? true : !d.classList.contains('on')); return; }
+      if (!(e.target.closest && e.target.closest('.p-dd-panel'))) ddAll(null);
+    });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') ddAll(null); });
+    document.addEventListener('toggle', function (e) {
+      var t = e.target; if (!t.matches || !t.matches('.p-mg') || !t.open) return;
+      t.parentNode.querySelectorAll('.p-mg[open]').forEach(function (x) { if (x !== t) x.open = false; });
+    }, true);
+  }
+})();
+</script>
+@endif
