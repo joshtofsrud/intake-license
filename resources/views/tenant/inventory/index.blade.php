@@ -387,8 +387,7 @@
 @push('styles')
 <style>
   .inv-pager{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:10px 14px}
-  .inv-pager--top{border-bottom:0.5px solid var(--ia-border)}
-  .inv-pager--bottom{border-top:0.5px solid var(--ia-border)}
+  /* MARKER-PAGER-RULES: no rules; the table's own rounded box separates them */
   .inv-pager--mobile{justify-content:center}
   .inv-pager-count{font-size:12px;color:var(--ia-text-muted)}
   .inv-pager-size{display:flex;align-items:center;gap:6px;margin:0}
