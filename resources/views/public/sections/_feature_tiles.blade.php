@@ -33,10 +33,10 @@
 @endphp
 <style>
   {!! $sh['css'] !!}
-  .{{ $ftId }} .ft-outer { max-width: 1200px; margin: 0 auto; padding: 0 clamp(20px, 5vw, 48px); }
+  .{{ $ftId }} .ft-outer { max-width: var(--p-page-max, 1200px); margin: 0 auto; padding: 0 clamp(20px, 5vw, 48px); }
   .{{ $ftId }} .ft-eyebrow { font-family: ui-monospace, monospace; font-size: 11px; text-transform: uppercase; letter-spacing: .12em; color: {{ $accent }}; margin-bottom: 14px; }
   .{{ $ftId }} .ft-head h2 { font-size: clamp(26px, 3.6vw, 44px); font-weight: var(--p-heading-weight, 600); text-transform: var(--p-heading-transform, none); line-height: 1.1; letter-spacing: -.02em; margin: 0 0 12px; }
-  .{{ $ftId }} .ft-wrap { max-width: 1100px; margin: 0 auto; }
+  .{{ $ftId }} .ft-wrap { max-width: var(--p-page-max, 1100px); margin: 0 auto; }
   .{{ $ftId }} .ft-head { max-width: 760px; margin-bottom: 36px; }
   .{{ $ftId }} .ft-head p { opacity: .7; font-size: 18px; line-height: 1.6; margin: 0; }
   .{{ $ftId }} .ft-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }

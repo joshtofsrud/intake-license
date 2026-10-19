@@ -70,6 +70,11 @@
       --p-r-lg:         12px;
       --p-max:          1160px;
       --p-gutter:       clamp(16px, 5vw, 64px);
+      {{-- MARKER-SHOP-PAGE-WIDTH: the builder's Page width; unset leaves every section as it was --}}
+      @if(isset($page) && in_array((int) ($page->page_width ?? 0), [960, 1280, 1440], true))
+      --p-page-max:     {{ (int) $page->page_width }}px;
+      --p-max:          {{ (int) $page->page_width }}px;
+      @endif
     }
 
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -372,7 +377,7 @@
   // MARKER-SECTION-DESIGN: a page that continues a gradient wraps every section
   $sdForce = \App\Support\ShopSectionDesign::pageContinues($sections);
 @endphp
-{!! \App\Support\SectionRows::css($pbRows, '1200px', 'clamp(16px, 4vw, 48px)') !!}
+{!! \App\Support\SectionRows::css($pbRows, 'var(--p-page-max, 1200px)', 'clamp(16px, 4vw, 48px)') !!}
 @foreach($sections as $section)
   @if($section->is_visible)
     {{-- Guard against section types that exist in the

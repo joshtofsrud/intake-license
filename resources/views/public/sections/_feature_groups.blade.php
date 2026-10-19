@@ -16,7 +16,7 @@
 @endphp
 <style>
     {!! $sh['css'] !!}
-    .{{ $fgxId }} .fgx-outer { max-width: 1200px; margin: 0 auto; padding: 0 clamp(20px, 5vw, 48px); }
+    .{{ $fgxId }} .fgx-outer { max-width: var(--p-page-max, 1200px); margin: 0 auto; padding: 0 clamp(20px, 5vw, 48px); }
     .{{ $fgxId }} .fgx-eyebrow { font-family: ui-monospace, monospace; font-size: 11px; text-transform: uppercase; letter-spacing: .12em; color: {{ $sh['accent'] }}; margin-bottom: 14px; }
     .{{ $fgxId }} .fgx-title { font-size: clamp(26px, 3.6vw, 44px); font-weight: var(--p-heading-weight, 600); text-transform: var(--p-heading-transform, none); line-height: 1.1; letter-spacing: -.02em; margin: 0 0 12px; }
     .{{ $fgxId }} .fgx-sub { opacity: .7; font-size: 17px; line-height: 1.6; margin: 0; max-width: 640px; }

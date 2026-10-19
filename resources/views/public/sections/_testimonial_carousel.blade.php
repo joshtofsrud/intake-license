@@ -29,7 +29,7 @@
   @if($tsBg) background: {{ $tsBg }}; @endif
   color: {{ $tsText ?: 'var(--p-text, #0a0a0a)' }};
 }
-.{{ $instId }} .p-ts-wrap { max-width: 1100px; margin: 0 auto; padding: 0 clamp(20px, 5vw, 48px); }
+.{{ $instId }} .p-ts-wrap { max-width: var(--p-page-max, 1100px); margin: 0 auto; padding: 0 clamp(20px, 5vw, 48px); }
 .{{ $instId }} .p-ts-head { text-align: center; margin-bottom: 44px; }
 .{{ $instId }} .p-ts-eyebrow { font-family: ui-monospace, monospace; font-size: 11px; text-transform: uppercase; letter-spacing: .12em; color: var(--p-accent, currentColor); margin-bottom: 14px; }
 .{{ $instId }} .p-ts-heading { font-size: clamp(24px, 3.5vw, 40px); font-weight: var(--p-heading-weight, 500); text-transform: var(--p-heading-transform, none); line-height: 1.15; letter-spacing: -.02em; margin: 0; }

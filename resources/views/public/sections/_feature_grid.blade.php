@@ -65,7 +65,7 @@
   @endif
 }
 .{{ $instId }} .p-fg-wrap {
-  max-width: {{ (int)($c['content_max_width'] ?? 1200) }}px;
+  max-width: min({{ (int)($c['content_max_width'] ?? 1200) }}px, var(--p-page-max, {{ (int)($c['content_max_width'] ?? 1200) }}px));
   margin: 0 auto;
   padding: 0 clamp(20px, 5vw, 48px);
 }

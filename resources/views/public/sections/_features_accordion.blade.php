@@ -25,7 +25,7 @@
 @endphp
 <style>
   {!! $sh['css'] !!}
-  .{{ $faId }} .fa-wrap{max-width:1320px;margin:0 auto;padding:0 clamp(20px,5vw,64px)}
+  .{{ $faId }} .fa-wrap{max-width:calc(var(--p-page-max, 1192px) + 128px);margin:0 auto;padding:0 clamp(20px,5vw,64px)}
   .{{ $faId }} .fa-head{max-width:760px;margin-bottom:34px}
   .{{ $faId }} .fa-eyebrow{font-family:ui-monospace,monospace;font-size:11px;text-transform:uppercase;letter-spacing:.12em;color:{{ $sh['accent'] }};margin-bottom:14px}
   .{{ $faId }} .fa-head h2{font-size:clamp(26px,3.6vw,44px);font-weight:var(--p-heading-weight,600);text-transform:var(--p-heading-transform,none);line-height:1.1;letter-spacing:-.02em;margin:0 0 12px}

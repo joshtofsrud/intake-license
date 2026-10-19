@@ -1131,16 +1131,18 @@ class PageBuilderController extends Controller
         // (marketing pages). null = the site default, 1080.
         if ($op === 'set_page_width') {
             $w = (int) $request->input('page_width', 0);
-            if (! in_array($w, [0, 960, 1080, 1280, 1440], true)) {
+            // MARKER-SHOP-PAGE-WIDTH: intake.works' standard is 1080, a shop's 1200
+            $wDef = ($tenant && ($tenant->is_platform ?? false)) ? 1080 : 1200;
+            if (! in_array($w, [0, 960, $wDef, 1280, 1440], true)) {
                 return response()->json(['ok' => false, 'error' => 'Pick one of the listed widths.'], 422);
             }
-            $w = ($w === 0 || $w === 1080) ? null : $w;
+            $w = ($w === 0 || $w === $wDef) ? null : $w;
             if ((int) $page->page_width !== (int) $w) {
                 app(\App\Services\Tenant\PageRevisionService::class)
                     ->snapshot($page, 'Changed page width');
                 $page->update(['page_width' => $w]);
             }
-            return response()->json(['ok' => true, 'page_width' => $w ?? 1080]);
+            return response()->json(['ok' => true, 'page_width' => $w ?? $wDef]);
         }
 
         // the builder's Search & sharing panel.

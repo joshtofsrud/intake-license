@@ -140,7 +140,7 @@
   color: {{ $textColor }};
 }
 .{{ $instId }} .p-ftr-wrap {
-  max-width: 1200px;
+  max-width: var(--p-page-max, 1200px);
   margin: 0 auto;
   padding: 0 clamp(20px, 5vw, 48px);
 }
@@ -363,7 +363,7 @@
 @endif
 /* pre-footer call-to-action band */
 .{{ $instId }} .p-ftr-cta { border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 36px; margin-bottom: 44px; }
-.{{ $instId }} .p-ftr-cta-inner { max-width: 1200px; margin: 0 auto; padding: 0 clamp(20px, 5vw, 48px); display: flex; align-items: center; justify-content: space-between; gap: 28px; flex-wrap: wrap; }
+.{{ $instId }} .p-ftr-cta-inner { max-width: var(--p-page-max, 1200px); margin: 0 auto; padding: 0 clamp(20px, 5vw, 48px); display: flex; align-items: center; justify-content: space-between; gap: 28px; flex-wrap: wrap; }
 .{{ $instId }} .p-ftr-cta-eyebrow { font-size: 11px; letter-spacing: .16em; text-transform: uppercase; color: {{ $ctaAccent }}; margin-bottom: 10px; font-weight: 600; }
 .{{ $instId }} .p-ftr-cta-h { font-size: clamp(22px, 3vw, 32px); line-height: 1.08; margin: 0; font-weight: 700; letter-spacing: -0.01em; color: {{ $textColor }}; }
 .{{ $instId }} .p-ftr-cta-hl { color: {{ $ctaAccent }}; }

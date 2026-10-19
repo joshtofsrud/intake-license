@@ -79,7 +79,7 @@
     -webkit-mask-image: linear-gradient(to bottom, #000 45%, transparent); mask-image: linear-gradient(to bottom, #000 45%, transparent);
   }
   {{ $S }} .p-nav-wrap {
-    max-width: 1200px;
+    max-width: var(--p-page-max, 1200px);
     padding: var(--pf-pad);
     border-radius: {{ $layout === 'centered' ? '24px' : '999px' }};
     background: color-mix(in srgb, var(--pf-bg) var(--pf-op), transparent);

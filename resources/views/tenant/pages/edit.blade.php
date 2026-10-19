@@ -1794,13 +1794,11 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
           Mobile
         </button>
       </div>
-      @if($isMarketing ?? false)
-      {{-- dashed lines at the page width, off by default --}}
+      {{-- dashed lines at the page width, off by default (MARKER-SHOP-PAGE-WIDTH: shops too) --}}
       <button class="pb2-guides-btn" id="pb2-guides-btn" type="button" aria-pressed="false" title="Show the page width on the preview">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-dasharray="3 3"><line x1="6" y1="2" x2="6" y2="22"/><line x1="18" y1="2" x2="18" y2="22"/></svg>
         Guides
       </button>
-      @endif
     </div>
 
     <div class="pb2-topbar-right">
@@ -2226,12 +2224,14 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
     </script>
     @endif
 
-    @if($isMarketing ?? false)
-    {{-- the widest any section on this page can go.
+    {{-- MARKER-SHOP-PAGE-WIDTH: on shop sites too. The widest any section on this page can go.
          Saves on click; sections and Content width sliders follow it. --}}
     @php
-      $pwNow  = in_array((int) ($page->page_width ?? 0), [960, 1280, 1440], true) ? (int) $page->page_width : 1080;
-      $pwOpts = [960 => 'Narrow', 1080 => 'Standard', 1280 => 'Wide', 1440 => 'Extra wide'];
+      // intake.works' standard is 1080; a shop's is 1200, the width its sections already use
+      $pwMk   = (bool) ($isMarketing ?? false);
+      $pwDef  = $pwMk ? 1080 : 1200;
+      $pwOpts = [960 => 'Narrow', $pwDef => 'Standard', 1280 => 'Wide', 1440 => 'Extra wide'];
+      $pwNow  = in_array((int) ($page->page_width ?? 0), [960, 1280, 1440], true) ? (int) $page->page_width : $pwDef;
     @endphp
     <style>
     .pb2-pw-opts { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
@@ -2242,10 +2242,10 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
     .pb2-pw-opt b { font-size: 12px; font-weight: 600; }
     .pb2-pw-opt span { font-family: var(--pb2-mono); font-size: 10px; color: var(--pb2-text-faint); }
     </style>
-    <div class="pb2-ss" id="pb2-pw" data-update-url="{{ $updateUrl }}" data-width="{{ $pwNow }}">
+    <div class="pb2-ss" id="pb2-pw" data-update-url="{{ $updateUrl }}" data-width="{{ $pwNow }}" data-default="{{ $pwDef }}" data-guide-max="{{ $pwMk ? 'var(--mk-max,1080px)' : 'var(--p-page-max,1200px)' }}" data-guide-prop="{{ $pwMk ? '--mk-max' : '--p-page-max' }}" data-guide-gutter="{{ $pwMk ? 'var(--mk-gutter,24px)' : 'clamp(20px,5vw,48px)' }}">
       <button type="button" class="pb2-ss-head" id="pb2-pw-toggle" aria-expanded="false" aria-controls="pb2-pw-body">
         <span class="pb2-ss-title">Page width</span>
-        <span class="pb2-ss-state {{ $pwNow !== 1080 ? 'is-custom' : '' }}" id="pb2-pw-state">{{ $pwNow }}px</span>
+        <span class="pb2-ss-state {{ $pwNow !== $pwDef ? 'is-custom' : '' }}" id="pb2-pw-state">{{ $pwNow }}px</span>
         <svg class="pb2-ss-chev" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
       </button>
       <div class="pb2-ss-body" id="pb2-pw-body" hidden>
@@ -2255,7 +2255,7 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
         </div>
         <div class="pb2-pw-opts">
           @foreach($pwOpts as $w => $name)
-            <button type="button" class="pb2-pw-opt {{ $w === $pwNow ? 'is-on' : '' }}" data-w="{{ $w }}"><b>{{ $name }}</b><span>{{ $w }}px{{ $w === 1080 ? ' · default' : '' }}</span></button>
+            <button type="button" class="pb2-pw-opt {{ $w === $pwNow ? 'is-on' : '' }}" data-w="{{ $w }}"><b>{{ $name }}</b><span>{{ $w }}px{{ $w === $pwDef ? ' · default' : '' }}</span></button>
           @endforeach
         </div>
         <div class="pb2-ss-msg" id="pb2-pw-msg" style="margin-top:8px"></div>
@@ -2269,7 +2269,8 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
       var body = document.getElementById('pb2-pw-body');
       var state = document.getElementById('pb2-pw-state');
       var msg = document.getElementById('pb2-pw-msg');
-      window.PB2_PAGE_WIDTH = parseInt(root.dataset.width, 10) || 1080;
+      var PW_DEF = parseInt(root.dataset.default, 10) || 1080;
+      window.PB2_PAGE_WIDTH = parseInt(root.dataset.width, 10) || PW_DEF;
 
       head.addEventListener('click', function () {
         var open = head.getAttribute('aria-expanded') !== 'true';
@@ -2312,7 +2313,7 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
             window.PB2_PAGE_WIDTH = res.d.page_width;
             root.querySelectorAll('.pb2-pw-opt').forEach(function (o) { o.classList.toggle('is-on', parseInt(o.dataset.w, 10) === res.d.page_width); });
             state.textContent = res.d.page_width + 'px';
-            state.classList.toggle('is-custom', res.d.page_width !== 1080);
+            state.classList.toggle('is-custom', res.d.page_width !== PW_DEF);
             msg.textContent = 'Saved';
             clamp();
             var f = document.getElementById('pb2-preview');
@@ -2342,13 +2343,13 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
         g.id = 'pb2-guides';
         g.innerHTML = '<style>'
           + '#pb2-guides{position:fixed;inset:0;pointer-events:none;z-index:2147483000}'
-          + '#pb2-guides .o{position:absolute;top:0;bottom:0;left:50%;width:min(100%,var(--mk-max,1080px));transform:translateX(-50%);border-left:1px dashed rgba(190,242,100,.75);border-right:1px dashed rgba(190,242,100,.75)}'
-          + '#pb2-guides .i{position:absolute;top:0;bottom:0;left:var(--mk-gutter,24px);right:var(--mk-gutter,24px);border-left:1px dotted rgba(190,242,100,.35);border-right:1px dotted rgba(190,242,100,.35)}'
+          + '#pb2-guides .o{position:absolute;top:0;bottom:0;left:50%;width:min(100%,' + root.dataset.guideMax + ');transform:translateX(-50%);border-left:1px dashed rgba(190,242,100,.75);border-right:1px dashed rgba(190,242,100,.75)}'
+          + '#pb2-guides .i{position:absolute;top:0;bottom:0;left:' + root.dataset.guideGutter + ';right:' + root.dataset.guideGutter + ';border-left:1px dotted rgba(190,242,100,.35);border-right:1px dotted rgba(190,242,100,.35)}'
           + '#pb2-guides .t{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);font:600 10px/1 ui-monospace,Menlo,monospace;color:#0a0a0a;background:rgba(190,242,100,.9);padding:3px 6px;border-radius:4px}'
           + '</style><div class="o"><div class="i"></div><span class="t"></span></div>';
         doc.body.appendChild(g);
         var t = g.querySelector('.t');
-        try { t.textContent = (frame.contentWindow.getComputedStyle(doc.documentElement).getPropertyValue('--mk-max').trim() || '1080px') + ' page width'; } catch (e) {}
+        try { t.textContent = (frame.contentWindow.getComputedStyle(doc.documentElement).getPropertyValue(root.dataset.guideProp).trim() || (PW_DEF + 'px')) + ' page width'; } catch (e) {}
       }
       function setOn(v) {
         on = v;
@@ -2367,7 +2368,6 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
       setOn(on);
     })();
     </script>
-    @endif
 
     {{-- sections docked above the inspector --}}
     <div class="pb2-sections-docked" id="pb2-sections-pane">
