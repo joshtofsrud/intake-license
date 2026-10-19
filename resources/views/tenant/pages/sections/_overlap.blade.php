@@ -89,8 +89,8 @@
   </div>
 </div>
 
-{{-- intake.works only: shop sections don't read these yet. --}}
-@if($isMarketing ?? false)
+{{-- MARKER-SECTION-DESIGN: intake.works, and shop sections that paint their own background --}}
+@if(($isMarketing ?? false) || \App\Support\ShopSectionDesign::supportsBlend((string) $section->section_type))
 @php
   $blendOp   = (int) ($section->content['bg_opacity'] ?? 100);
   $blendCont = ! empty($section->content['bg_continue']);
@@ -139,7 +139,7 @@
 @endif
 
 {{-- moved beside "Hide on desktop" by the inspector (data-move-after). --}}
-@if($isMarketing ?? false)
+@if(($isMarketing ?? false) || $section->section_type !== 'nav')
   @php $hideTab = ! empty($section->content['hide_on_tablet']) && ! in_array((string) $section->content['hide_on_tablet'], ['0', 'false'], true); @endphp
   <label class="pb2-checkbox-row" data-move-after="hide_on_desktop">
     <input type="checkbox" data-field="hide_on_tablet" value="1" {{ $hideTab ? 'checked' : '' }}>
@@ -147,8 +147,8 @@
   </label>
 @endif
 
-{{-- intake.works only. --}}
-@if($isMarketing ?? false)
+{{-- intake.works and shop sites (MARKER-SECTION-DESIGN); not the nav --}}
+@if(($isMarketing ?? false) || $section->section_type !== 'nav')
 @php
   $apMode  = in_array($section->content['appear'] ?? 'none', ['none', 'fade', 'up'], true) ? ($section->content['appear'] ?? 'none') : 'none';
   $apDelay = max(0, min(1000, (int) ($section->content['appear_delay'] ?? 0)));

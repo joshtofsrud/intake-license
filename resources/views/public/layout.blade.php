@@ -252,6 +252,8 @@
     }
   </style>
 
+  {{-- MARKER-SECTION-DESIGN --}}
+  @include('public._section-design', ['sdPart' => 'head'])
   @stack('styles')
 </head>
 
@@ -367,6 +369,8 @@
 @php
   // which sections share a row on this page.
   $pbRows = \App\Support\SectionRows::plan($sections, fn ($s) => $s->is_visible && ! in_array($s->section_type, ['nav', 'footer'], true) && view()->exists('public.sections._' . $s->section_type));
+  // MARKER-SECTION-DESIGN: a page that continues a gradient wraps every section
+  $sdForce = \App\Support\ShopSectionDesign::pageContinues($sections);
 @endphp
 {!! \App\Support\SectionRows::css($pbRows, '1200px', 'clamp(16px, 4vw, 48px)') !!}
 @foreach($sections as $section)
@@ -406,6 +410,11 @@
         <div class="{{ $pullId }}">
       @endif
       @if(!empty($builderPreview))<div data-pb-section="{{ $section->id }}" data-pb-type="{{ $section->section_type }}">@endif
+      {{-- MARKER-SECTION-DESIGN: appear, blend, button effects, tablet hide, divider --}}
+      @php $sdWrap = $section->section_type === 'nav' ? null : \App\Support\ShopSectionDesign::wrap($section, $sc, $sdForce); @endphp
+      @if($sdWrap)
+        {!! $sdWrap['open'] !!}
+      @endif
       @include($partial, [
         'c'        => $sc,
         'section'  => $section,
@@ -413,6 +422,9 @@
         'catalog'  => $catalog,
         'tenant'   => $currentTenant,
       ])
+      @if($sdWrap)
+        {!! $sdWrap['close'] !!}
+      @endif
       @if(!empty($builderPreview))</div>@endif
       @if($pull > 0 || $pullP > 0)</div>@endif
       {!! \App\Support\SectionRows::close($pbRows, $section) !!}
@@ -444,6 +456,8 @@
 function openMobileNav()  { document.getElementById('p-mobile-nav').classList.add('open'); document.body.style.overflow='hidden'; }
 function closeMobileNav() { document.getElementById('p-mobile-nav').classList.remove('open'); document.body.style.overflow=''; }
 </script>
+
+@include('public._section-design', ['sdPart' => 'foot'])
 
 @stack('scripts')
 </body>
