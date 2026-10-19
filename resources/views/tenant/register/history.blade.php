@@ -330,7 +330,8 @@
             </td>
             @php
               $dateRaw = $r['paid_at'] ?? $r['updated_at'];
-              $dateObj = $dateRaw ? \Carbon\Carbon::parse($dateRaw) : null;
+              // MARKER-HISTORY-TENANT-DATE: paid_at/updated_at are UTC instants; show the shop's local date
+              $dateObj = $dateRaw ? tlocal_carbon($dateRaw) : null;
             @endphp
             <td data-label="Date" class="h-meta" title="{{ $dateObj?->format('M j, Y g:i A') ?? '' }}">
               {{ $dateObj?->format('Y-m-d') ?? '—' }}
