@@ -863,7 +863,10 @@
   };
 
   window.invPickAll = function (box) {
-    document.querySelectorAll('.inv-pick').forEach(function (c) { if (c.checked !== box.checked) { c.checked = box.checked; window.invPick(c); } });
+    // MARKER-LABELS-SELALL: read the header box once; invPick updates it as rows change
+    var on = box.checked;
+    document.querySelectorAll('.inv-pick').forEach(function (c) { if (c.checked !== on) { c.checked = on; window.invPick(c); } });
+    box.checked = on;
   };
   window.invPrintLabels = function () {
     if (picks.length && window.openLabels) window.openLabels({ items: picks.map(function (p) { return p.id; }) });
