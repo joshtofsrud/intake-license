@@ -73,9 +73,9 @@
   {{ $S }}::before {
     content: ''; position: absolute; left: 0; right: 0; top: 0; height: calc(100% + 28px);
     pointer-events: none; z-index: -1; opacity: var(--pf-fade, 0); transition: opacity .2s;
-    /* MARKER-SHOP-FLOAT-NAV-FIX1: fade toward the bar's own color, not the page's */
-    background: linear-gradient(to bottom, color-mix(in srgb, var(--pf-bg) 55%, transparent), transparent);
-    -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+    /* MARKER-SHOP-FLOAT-NAV-FIX2: blur only, no color, so it suits any section under the bar */
+    background: transparent;
+    -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
     -webkit-mask-image: linear-gradient(to bottom, #000 45%, transparent); mask-image: linear-gradient(to bottom, #000 45%, transparent);
   }
   {{ $S }} .p-nav-wrap {
