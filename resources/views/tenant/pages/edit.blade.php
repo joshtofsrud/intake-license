@@ -3014,6 +3014,7 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
       var w = doc.defaultView;
       if (w.mkAppearScan) w.mkAppearScan();
       if (w.mkPaintBg) w.mkPaintBg();
+      if (w.pNavFit) w.pNavFit(); // MARKER-SHOP-FLOAT-NAV
     } catch (e) {}
   }
   function pb2DraftClear() {

@@ -78,6 +78,23 @@
   }
 
   $instId = 'p-nav-' . ($section->id ?? uniqid());
+
+  // MARKER-SHOP-FLOAT-NAV: header style (Classic / Floating), App\Support\ShopNavHeader
+  $pfAll   = \App\Support\ShopNavHeader::resolve($c);
+  $pfD     = $pfAll['d'];
+  $pfP     = $pfAll['p'];
+  $pfOwn   = ($c['link_color'] ?? '') ?: ($c['text_color'] ?? '');
+  $pfLinkD = $pfOwn ?: (\App\Support\ShopNavHeader::autoLink($pfD) ?: $linkColor);
+  $pfLinkP = $pfOwn ?: (\App\Support\ShopNavHeader::autoLink($pfP) ?: $linkColor);
+  $pfMenuBg    = $pfP['menu_bg'] ?: $pfP['bg'];
+  $pfMenuSolid = $pfP['menu_bg'] ?: (preg_match('/^#[0-9a-fA-F]{6}$/', (string) $bgColor) ? $bgColor : '#ffffff');
+  $pfMenuLink  = $pfP['menu_link']
+      ?: ($pfP['menu_bg'] !== '' ? (\App\Support\ColorHelper::isDark($pfP['menu_bg']) ? '#ffffff' : '#0a0a0a')
+      : ($pfP['style'] === 'float' ? $pfLinkP : $linkColor));
+  // on a floating bar solid enough to read against, Auto picks the logo by the bar's color
+  if ($showLogo && isset($tenant) && $logoVariant === 'auto' && $pfD['style'] === 'float' && $pfD['opacity'] >= 40) {
+      $logoUrl = \App\Support\ColorHelper::pickLogo($tenant, $pfD['bg']);
+  }
 @endphp
 
 <style>
@@ -264,9 +281,11 @@
 @if($hideDesktop)
 @media (min-width: 769px) { .{{ $instId }} { display: none; } }
 @endif
+
+@include('public._nav-float')
 </style>
 
-<nav class="{{ $instId }} p-nav {{ $customClass }}" @if($anchorId) id="{{ $anchorId }}" @endif>
+<nav class="{{ $instId }} p-nav {{ $customClass }}" data-pf-d="{{ $pfD['style'] }}" data-pf-p="{{ $pfP['style'] }}" @if($anchorId) id="{{ $anchorId }}" @endif>
   <div class="p-nav-wrap">
     <div class="p-nav-inner">
 
@@ -340,14 +359,136 @@
              class="{{ ($item->style ?? 'link') === 'button' ? 'p-nav-cta p-nav-cta--primary' : (($item->style ?? 'link') === 'outline' ? 'p-nav-cta p-nav-cta--outline' : 'p-nav-link') }}"
              @if(!empty($item->open_in_new_tab)) target="_blank" rel="noopener" @endif>{{ $item->label }}</a>
         @endforeach
-        <button class="p-hamburger" onclick="if (typeof openMobileNav === 'function') openMobileNav()" aria-label="Open menu">
+        <button class="p-hamburger" type="button" onclick="pNavMenu('{{ $instId }}', this)" aria-label="Open menu" aria-expanded="false" aria-controls="{{ $instId }}-drop">
           <span></span><span></span><span></span>
         </button>
       </div>
 
     </div>
   </div>
+
+  {{-- MARKER-SHOP-FLOAT-NAV: the phone menu that drops from the bar (Floating,
+       or pages that have no full-screen menu). Links first, then buttons. --}}
+  <div class="p-nav-drop" id="{{ $instId }}-drop">
+    @if($navShowAccount ?? false)
+      <a href="{{ ($navCustomer ?? null) ? route('tenant.customer.portal') : route('tenant.customer.login') }}">{{ ($navCustomer ?? null) ? $navCustomer->first_name : 'Sign in' }}</a>
+    @endif
+    @foreach(collect($navItems)->filter(fn ($i) => ($i->style ?? 'link') === 'link') as $item)
+      @php
+        $dUrl  = $item->url ?? '/';
+        $dPath = parse_url($dUrl, PHP_URL_PATH) ?? $dUrl;
+      @endphp
+      <a href="{{ $dUrl }}" class="{{ (! str_contains($dUrl, '#') && $dPath === $currentPath) ? 'active' : '' }}" @if(!empty($item->open_in_new_tab)) target="_blank" rel="noopener" @endif>{{ $item->label }}</a>
+    @endforeach
+    @foreach(collect($navItems)->filter(fn ($i) => ($i->style ?? 'link') !== 'link' && ((($i->side ?? 'left') !== 'right') || $pfP['btn_pos'] === 'menu')) as $item)
+      <a href="{{ $item->url ?? '/' }}" class="p-nav-cta {{ ($item->style ?? 'link') === 'button' ? 'p-nav-cta--primary' : 'p-nav-cta--outline' }}" @if(!empty($item->open_in_new_tab)) target="_blank" rel="noopener" @endif>{{ $item->label }}</a>
+    @endforeach
+  </div>
 </nav>
+
+{{-- MARKER-SHOP-FLOAT-NAV: phone menu toggle and the Floating bar's tuck.
+     Re-runs safely when the builder preview swaps this section in. --}}
+<script>
+(function () {
+  var PHONE = '(max-width: {{ \App\Support\ShopNavHeader::BREAK }}px)';
+  function isFloat(nav) {
+    var ph = window.matchMedia && window.matchMedia(PHONE).matches;
+    return (ph ? nav.getAttribute('data-pf-p') : nav.getAttribute('data-pf-d')) === 'float';
+  }
+  function closeDrop(nav) {
+    if (!nav) return;
+    var d = nav.querySelector('.p-nav-drop'), b = nav.querySelector('.p-hamburger');
+    if (d) d.classList.remove('open');
+    if (b) { b.classList.remove('is-open'); b.setAttribute('aria-expanded', 'false'); }
+  }
+  // ☰: a Floating bar (or a page with no full-screen menu) drops its own panel;
+  // otherwise the page's full-screen menu opens as before.
+  window.pNavMenu = function (id, btn) {
+    var nav = document.querySelector('.' + id);
+    if (!nav) return;
+    var full = document.getElementById('p-mobile-nav') && typeof window.openMobileNav === 'function';
+    if (!isFloat(nav) && full) { window.openMobileNav(); return; }
+    var d = document.getElementById(id + '-drop');
+    if (!d) { if (full) window.openMobileNav(); return; }
+    nav.classList.toggle('is-drop-solid', !isFloat(nav));
+    var on = !d.classList.contains('open');
+    d.classList.toggle('open', on);
+    btn.classList.toggle('is-open', on);
+    btn.setAttribute('aria-expanded', on ? 'true' : 'false');
+  };
+  if (!window.pNavDropWired) {
+    window.pNavDropWired = true;
+    document.addEventListener('click', function (e) {
+      document.querySelectorAll('.p-nav-drop.open').forEach(function (d) {
+        var nav = d.closest('.p-nav');
+        if (e.target.closest && e.target.closest('.p-nav-drop a')) { closeDrop(nav); return; }
+        if (nav && !nav.contains(e.target)) closeDrop(nav);
+      });
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') document.querySelectorAll('.p-nav').forEach(closeDrop);
+    });
+  }
+
+  // The first thing on the page after the nav: the section the bar hovers over.
+  function firstSection(nav) {
+    var el = nav.closest('[data-pb-section]') || nav;
+    while ((el = el.nextElementSibling)) {
+      if (/^(STYLE|SCRIPT|LINK|NOSCRIPT|TEMPLATE)$/.test(el.tagName)) continue;
+      if (!el.getClientRects().length) continue;
+      break;
+    }
+    if (!el) return null;
+    if (/^(SECTION|HEADER|FOOTER)$/.test(el.tagName)) return el;
+    return el.querySelector('section, header') || el;
+  }
+
+  var id = '{{ $instId }}';
+  window.pNavFits = window.pNavFits || {};
+  window.pNavFits[id] = function () {
+    var nav = document.querySelector('.' + id);
+    if (!nav) { delete window.pNavFits[id]; return; }
+    // undo the last measurement before taking a new one (the nav may have
+    // been redrawn by the builder since, so find it by its mark, not a reference)
+    document.querySelectorAll('[data-pf-pad]').forEach(function (el) {
+      el.style.paddingTop = el.getAttribute('data-pf-pad');
+      el.removeAttribute('data-pf-pad');
+    });
+    nav.classList.remove('is-tucked');
+    nav.style.removeProperty('--pf-h');
+    if (!isFloat(nav)) { nav.classList.remove('is-drop-solid'); return; }
+    // booking, rentals and account pages: the bar floats but keeps its space
+    if (nav.closest('.p-chrome-scope')) return;
+    var wrap = nav.querySelector('.p-nav-wrap');
+    if (!wrap) return;
+    var h = Math.ceil(wrap.offsetHeight + (parseFloat(getComputedStyle(nav).paddingTop) || 0));
+    nav.style.setProperty('--pf-h', h + 'px');
+    nav.classList.add('is-tucked');
+    var first = firstSection(nav);
+    if (!first) return;
+    var need = h + 24;
+    var pt = parseFloat(getComputedStyle(first).paddingTop) || 0;
+    if (pt < need) {
+      first.setAttribute('data-pf-pad', first.style.paddingTop || '');
+      first.style.paddingTop = need + 'px';
+    }
+  };
+  window.pNavFit = function () {
+    Object.keys(window.pNavFits || {}).forEach(function (k) { try { window.pNavFits[k](); } catch (e) {} });
+  };
+  if (!window.pNavFitWired) {
+    window.pNavFitWired = true;
+    var mq = window.matchMedia ? window.matchMedia(PHONE) : null;
+    var onScreen = function () { document.querySelectorAll('.p-nav').forEach(closeDrop); window.pNavFit(); };
+    if (mq && mq.addEventListener) mq.addEventListener('change', onScreen); else if (mq && mq.addListener) mq.addListener(onScreen);
+    window.addEventListener('resize', function () { window.pNavFit(); });
+    window.addEventListener('load', function () { window.pNavFit(); });
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { window.pNavFit(); });
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', window.pNavFits[id]);
+  else window.pNavFits[id]();
+})();
+</script>
 
 @if($navShopSearch ?? false)
 @once

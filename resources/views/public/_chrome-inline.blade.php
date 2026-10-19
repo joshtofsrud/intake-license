@@ -25,7 +25,8 @@
     .p-mobile-nav.open { display: flex; }
     .p-mobile-nav a { font-size: 22px; font-weight: 600; padding: 10px 0; border-bottom: 1px solid rgba(0,0,0,.07); color: var(--p-text); text-decoration: none; }
   </style>
-  <div class="p-chrome-scope">
+  {{-- MARKER-SHOP-FLOAT-NAV: display:contents so the sticky nav sticks to the page, not to this wrapper --}}
+  <div class="p-chrome-scope" style="display:contents">
   @include('public.sections._nav', [
       'c' => $ci['nav']->content ?? [], 'section' => $ci['nav'],
       'navItems' => $ci['navItems'], 'tenant' => $ciTenant, 'catalog' => collect(),

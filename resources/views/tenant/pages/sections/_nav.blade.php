@@ -142,6 +142,160 @@
 {{--=================== STYLE ===================--}}
 <div class="pb2-tab-panel" data-tab="style" hidden>
 
+@unless($isMarketing ?? false)
+  {{-- MARKER-SHOP-FLOAT-NAV: header style, same settings as the
+       intake.works header. Desktop and phone are set up separately; the
+       phone uses the desktop settings unless "Different on phones" is on.
+       Shown/hidden by data attributes on .pnf (the inspector is injected as
+       HTML, so inline handlers, not scripts). --}}
+  @php
+    $pnf  = \App\Support\ShopNavHeader::resolve($c);
+    $pnfD = $pnf['d'];
+    $pnfP = $pnf['p'];
+    $pnfRange = function (string $field, int $min, int $max, int $step, int $val, string $unit, string $zero = '') {
+        $show = ($zero !== '' && $val === 0) ? $zero : $val . $unit;
+        $js = "var o=this.nextElementSibling;o.textContent=" . ($zero !== '' ? "(this.value==0?'" . $zero . "':this.value+'" . $unit . "')" : "this.value+'" . $unit . "'")
+            . ";var h=this.closest('.pb2-field').querySelector('[data-field=" . $field . "]');h.value=this.value;h.dispatchEvent(new Event('change',{bubbles:true}));";
+        return '<div class="pnf-range"><input type="range" min="' . $min . '" max="' . $max . '" step="' . $step . '" value="' . $val . '" oninput="' . e($js) . '"><output>' . e($show) . '</output></div>'
+            . '<input type="hidden" data-field="' . e($field) . '" value="' . $val . '">';
+    };
+  @endphp
+  <style>
+    .pnf[data-screen="desktop"] .pnf-p, .pnf[data-screen="phone"] .pnf-d { display: none; }
+    .pnf[data-dstyle="classic"] .pnf-d .pnf-fo { display: none; }
+    .pnf[data-pstyle="classic"] .pnf-p .pnf-fo { display: none; }
+    .pnf[data-own="0"] .pnf-own { display: none; }
+    .pnf[data-own="1"] .pnf-same { display: none; }
+    .pnf .pnf-range { display: flex; align-items: center; gap: 12px; }
+    .pnf .pnf-range input[type=range] { flex: 1; min-width: 0; }
+    .pnf .pnf-range output { min-width: 44px; text-align: right; font-variant-numeric: tabular-nums; font-size: 12.5px; opacity: .75; }
+    .pnf .pnf-auto { background: none; border: 0; padding: 0 0 0 6px; font: inherit; font-size: 11.5px; text-decoration: underline; color: inherit; opacity: .7; cursor: pointer; }
+    .pnf .pnf-sub { margin-top: 14px; padding-top: 12px; border-top: 1px solid rgba(127,127,127,.15); }
+  </style>
+  <div class="pb2-group pnf" data-screen="desktop" data-dstyle="{{ $pnfD['style'] }}" data-pstyle="{{ $pnfP['style'] }}" data-own="{{ $pnfP['own'] ? '1' : '0' }}">
+    <div class="pb2-group-title">Header style</div>
+
+    <div class="pb2-field">
+      <div class="pb2-seg" data-field-seg="__pnf_screen">
+        <button type="button" class="pb2-seg-btn active" data-seg-value="desktop"
+                onclick="this.closest('.pnf').dataset.screen='desktop';var d=document.querySelector('.pb2-device-btn[data-device=desktop]');if(d)d.click();">Desktop</button>
+        <button type="button" class="pb2-seg-btn" data-seg-value="phone"
+                onclick="this.closest('.pnf').dataset.screen='phone';var d=document.querySelector('.pb2-device-btn[data-device=mobile]');if(d)d.click();">Phone</button>
+      </div>
+      <div class="pb2-field-hint" style="text-align:left;display:block;margin-top:4px">Which screen you're setting up. The preview switches with it.</div>
+    </div>
+
+    @foreach(['d' => 'fl_', 'p' => 'flp_'] as $pnfK => $px)
+      @php $h = $pnfK === 'd' ? $pnfD : $pnfP; @endphp
+      <div class="pnf-{{ $pnfK }}">
+        @if($pnfK === 'p')
+          <label class="pb2-checkbox-row">
+            <input type="checkbox" data-field="flp_own" value="1" {{ $pnfP['own'] ? 'checked' : '' }}
+                   onchange="this.closest('.pnf').dataset.own=this.checked?'1':'0'">
+            <span>Different on phones</span>
+          </label>
+          <div class="pb2-field-hint pnf-same" style="text-align:left;display:block;margin-top:4px">Phones use the desktop settings.</div>
+        @endif
+
+        <div class="{{ $pnfK === 'p' ? 'pnf-own' : '' }}">
+          <div class="pb2-field">
+            <label class="pb2-field-label">Style</label>
+            @php $sf = $pnfK === 'd' ? 'hdr_style' : 'flp_style'; $sk = $pnfK === 'd' ? 'dstyle' : 'pstyle'; @endphp
+            <div class="pb2-seg" data-field-seg="{{ $sf }}">
+              @foreach(['classic' => 'Classic', 'float' => 'Floating'] as $val => $name)
+                <button type="button" class="pb2-seg-btn {{ $h['style'] === $val ? 'active' : '' }}" data-seg-value="{{ $val }}"
+                        onclick="this.closest('.pnf').dataset.{{ $sk }}='{{ $val }}'">{{ $name }}</button>
+              @endforeach
+            </div>
+            <input type="hidden" data-field="{{ $sf }}" value="{{ $h['style'] }}">
+          </div>
+
+          <div class="pnf-fo">
+            <div class="pb2-field">
+              <label class="pb2-field-label">Bar color</label>
+              <div class="pb2-color-row">
+                <input type="color" data-field="{{ $px }}bg" value="{{ $h['bg'] }}" class="pb2-color-swatch">
+              </div>
+            </div>
+            <div class="pb2-field">
+              <label class="pb2-field-label">Opacity</label>
+              {!! $pnfRange($px . 'opacity', 0, 100, 5, $h['opacity'], '%') !!}
+            </div>
+            <div class="pb2-field">
+              <label class="pb2-field-label">Blur <span class="pb2-field-hint">frosted glass behind the bar</span></label>
+              {!! $pnfRange($px . 'blur', 0, 30, 1, $h['blur'], 'px') !!}
+            </div>
+            <div class="pb2-field">
+              <label class="pb2-field-label">Spacing</label>
+              <div class="pb2-seg" data-field-seg="{{ $px }}space">
+                @foreach(['tight' => 'Tight', 'normal' => 'Normal', 'roomy' => 'Roomy'] as $val => $name)
+                  <button type="button" class="pb2-seg-btn {{ $h['space'] === $val ? 'active' : '' }}" data-seg-value="{{ $val }}">{{ $name }}</button>
+                @endforeach
+              </div>
+              <input type="hidden" data-field="{{ $px }}space" value="{{ $h['space'] }}">
+            </div>
+            <div class="pb2-field">
+              <label class="pb2-field-label">From top
+                <button type="button" class="pnf-auto"
+                        onclick="var f=this.closest('.pb2-field');var h=f.querySelector('[data-field={{ $px }}top_gap]');h.value='-1';f.querySelector('output').textContent='auto';h.dispatchEvent(new Event('change',{bubbles:true}));">Auto</button>
+              </label>
+              <div class="pnf-range">
+                <input type="range" min="0" max="80" step="2" value="{{ $h['top_gap'] >= 0 ? $h['top_gap'] : ($pnfK === 'd' ? 18 : 10) }}"
+                       oninput="this.nextElementSibling.textContent=this.value+'px';var h=this.closest('.pb2-field').querySelector('[data-field={{ $px }}top_gap]');h.value=this.value;h.dispatchEvent(new Event('change',{bubbles:true}));">
+                <output>{{ $h['top_gap'] >= 0 ? $h['top_gap'] . 'px' : 'auto' }}</output>
+              </div>
+              <input type="hidden" data-field="{{ $px }}top_gap" value="{{ $h['top_gap'] }}">
+            </div>
+            <div class="pb2-field">
+              <label class="pb2-field-label">Edge room <span class="pb2-field-hint">inside the bar, left and right</span></label>
+              {!! $pnfRange($px . 'pad_x', 0, 60, 2, $h['pad_x'], 'px', 'auto') !!}
+            </div>
+            <label class="pb2-checkbox-row">
+              <input type="checkbox" data-field="{{ $px }}fade" value="1" {{ $h['fade'] ? 'checked' : '' }}>
+              <span>Fade the page under the bar</span>
+            </label>
+            <div class="pb2-field">
+              <label class="pb2-field-label">Link pill <span class="pb2-field-hint">the shape behind the links</span></label>
+              <div class="pb2-color-row">
+                <input type="color" data-field="{{ $px }}pill" value="{{ $h['pill'] }}" class="pb2-color-swatch">
+              </div>
+            </div>
+            <div class="pb2-field">
+              <label class="pb2-field-label">Pill strength</label>
+              {!! $pnfRange($px . 'pill_strength', 0, 30, 1, $h['pill_strength'], '%') !!}
+            </div>
+          </div>
+        </div>
+
+        @if($pnfK === 'p')
+          <div class="pnf-sub">
+            <div class="pb2-field">
+              <label class="pb2-field-label">Header buttons on phones</label>
+              <div class="pb2-seg" data-field-seg="flp_btn_pos">
+                @foreach(['bar' => 'In the bar', 'menu' => 'In menu only'] as $val => $name)
+                  <button type="button" class="pb2-seg-btn {{ $pnfP['btn_pos'] === $val ? 'active' : '' }}" data-seg-value="{{ $val }}">{{ $name }}</button>
+                @endforeach
+              </div>
+              <input type="hidden" data-field="flp_btn_pos" value="{{ $pnfP['btn_pos'] }}">
+            </div>
+            <div class="pb2-field">
+              <label class="pb2-field-label">Distance from ☰ <span class="pb2-field-hint">when in the bar</span></label>
+              {!! $pnfRange('flp_btn_dist', 0, 200, 2, $pnfP['btn_dist'], 'px') !!}
+            </div>
+          </div>
+        @endif
+      </div>
+    @endforeach
+
+    <div class="pb2-field-hint" style="text-align:left;display:block;margin-top:12px">
+      <b>What Floating changes:</b> the bar becomes a rounded glass pill that hovers over the page, and the first section starts
+      behind it (its top padding grows just enough to clear the bar). On booking, rentals and account pages the bar floats
+      but doesn't tuck over the page. Background and Border below apply to Classic only. Nothing else on your pages changes.
+    </div>
+  </div>
+
+@endunless
+
   <div class="pb2-group">
     <div class="pb2-group-title">Background</div>
 
@@ -208,6 +362,72 @@
     </div>
   </div>
 
+@unless($isMarketing ?? false)
+  {{-- MARKER-SHOP-FLOAT-NAV: link weight, header buttons and phone menu colors (both header styles) --}}
+  @php $pnfL = \App\Support\ShopNavHeader::resolve($c); @endphp
+  <div class="pb2-group">
+    <div class="pb2-group-title">Links &amp; buttons</div>
+    <div class="pb2-field-row">
+      <div class="pb2-field">
+        <label class="pb2-field-label">Link weight</label>
+        <div class="pb2-seg" data-field-seg="fl_link_weight">
+          @foreach(['400' => 'Regular', '500' => 'Medium', '600' => 'Semibold'] as $val => $name)
+            <button type="button" class="pb2-seg-btn {{ $pnfL['d']['link_weight'] === (string) $val ? 'active' : '' }}" data-seg-value="{{ $val }}">{{ $name }}</button>
+          @endforeach
+        </div>
+        <input type="hidden" data-field="fl_link_weight" value="{{ $pnfL['d']['link_weight'] }}">
+      </div>
+    </div>
+    <div class="pb2-field">
+      <label class="pb2-field-label">Link brightness</label>
+      <div class="pb2-seg" data-field-seg="fl_link_bright">
+        @foreach(['soft' => 'Soft', 'bright' => 'Bright'] as $val => $name)
+          <button type="button" class="pb2-seg-btn {{ $pnfL['d']['link_bright'] === $val ? 'active' : '' }}" data-seg-value="{{ $val }}">{{ $name }}</button>
+        @endforeach
+      </div>
+      <input type="hidden" data-field="fl_link_bright" value="{{ $pnfL['d']['link_bright'] }}">
+    </div>
+    <div class="pb2-field-row">
+      <div class="pb2-field">
+        <label class="pb2-field-label">Button text</label>
+        <div class="pb2-color-row">
+          <input type="color" data-field="fl_btn_text" value="{{ $pnfL['d']['btn_text'] ?: '#ffffff' }}" class="pb2-color-swatch">
+          <input type="text" class="pb2-input pb2-input-sm pb2-input-mono" data-field="fl_btn_text_text" value="{{ $pnfL['d']['btn_text'] }}" placeholder="auto">
+        </div>
+      </div>
+      <div class="pb2-field">
+        <label class="pb2-field-label">Button fill</label>
+        <div class="pb2-color-row">
+          <input type="color" data-field="fl_btn_fill" value="{{ $pnfL['d']['btn_fill'] ?: '#0a0a0a' }}" class="pb2-color-swatch">
+          <input type="text" class="pb2-input pb2-input-sm pb2-input-mono" data-field="fl_btn_fill_text" value="{{ $pnfL['d']['btn_fill'] }}" placeholder="auto">
+        </div>
+      </div>
+    </div>
+    <div class="pb2-field-hint" style="text-align:left;display:block;margin-top:4px">Buttons are menu items styled as a button. These colors apply in the bar and in the phone menu. Clear a box to go back to auto.</div>
+  </div>
+
+  <div class="pb2-group">
+    <div class="pb2-group-title">Phone menu</div>
+    <div class="pb2-field-row">
+      <div class="pb2-field">
+        <label class="pb2-field-label">Panel</label>
+        <div class="pb2-color-row">
+          <input type="color" data-field="flp_menu_bg" value="{{ $pnfL['p']['menu_bg'] ?: '#ffffff' }}" class="pb2-color-swatch">
+          <input type="text" class="pb2-input pb2-input-sm pb2-input-mono" data-field="flp_menu_bg_text" value="{{ $pnfL['p']['menu_bg'] }}" placeholder="auto">
+        </div>
+      </div>
+      <div class="pb2-field">
+        <label class="pb2-field-label">Links</label>
+        <div class="pb2-color-row">
+          <input type="color" data-field="flp_menu_link" value="{{ $pnfL['p']['menu_link'] ?: '#0a0a0a' }}" class="pb2-color-swatch">
+          <input type="text" class="pb2-input pb2-input-sm pb2-input-mono" data-field="flp_menu_link_text" value="{{ $pnfL['p']['menu_link'] }}" placeholder="auto">
+        </div>
+      </div>
+    </div>
+    <div class="pb2-field-hint" style="text-align:left;display:block;margin-top:4px">The menu that opens from ☰. Auto follows the bar.</div>
+  </div>
+
+@endunless
 </div>
 
 {{--=================== ADVANCED ===================--}}
