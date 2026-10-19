@@ -190,6 +190,8 @@
         @method('DELETE')
         <button type="submit" class="ia-btn ia-btn--ghost" style="color:var(--ia-error)">Archive</button>
       </form>
+      {{-- MARKER-LABELS --}}
+      <button type="button" class="ia-btn ia-btn--secondary" onclick="openLabels({ items: [@js((string) $item->id)] })">Print labels</button>
       <a href="{{ route('tenant.inventory.edit', $item->id) }}" class="ia-btn ia-btn--secondary">Edit</a>
       <button type="button" class="ia-btn ia-btn--primary" onclick="iaShowAdjust()">Adjust stock</button>
     @endif
@@ -834,6 +836,7 @@
 </script>
 @endpush
 
+@include('tenant.inventory._labels')
 @endsection
 
 @push('styles')

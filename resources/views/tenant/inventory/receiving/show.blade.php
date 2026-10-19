@@ -52,6 +52,8 @@
   </div>
   <div class="ia-page-actions">
     <a href="{{ route('tenant.inventory.receiving.index') }}" class="ia-btn ia-btn--ghost">← Back</a>
+    {{-- MARKER-LABELS --}}
+    <button type="button" class="ia-btn ia-btn--secondary" onclick="openLabels({ shipment: @js((string) $shipment->id) })">Print labels</button>
   </div>
 </div>
 
@@ -156,4 +158,5 @@
   @endif
 </div>
 
+@include('tenant.inventory._labels')
 @endsection

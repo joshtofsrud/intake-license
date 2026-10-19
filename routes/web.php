@@ -955,6 +955,10 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
                 Route::get('/items/search', [TenantControllers\ReceiveShipmentController::class, 'searchItems'])->name('items.search');
 
 
+                // MARKER-LABELS: barcode labels (InventoryLabelController)
+                Route::get('/labels/data',       [TenantControllers\InventoryLabelController::class, 'data'])->name('labels.data');
+                Route::post('/labels/sheet',     [TenantControllers\InventoryLabelController::class, 'sheet'])->name('labels.sheet');
+                Route::post('/labels/prefs',     [TenantControllers\InventoryLabelController::class, 'savePrefs'])->name('labels.prefs');
                 Route::get('/{id}',              [TenantControllers\InventoryController::class, 'show'])->name('show');
                 Route::get('/{id}/edit',         [TenantControllers\InventoryController::class, 'edit'])->name('edit');
                 Route::patch('/{id}',            [TenantControllers\InventoryController::class, 'update'])->name('update');

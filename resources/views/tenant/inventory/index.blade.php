@@ -570,14 +570,18 @@
   </div>
 @endif
 
-@if(($canMergeItems ?? false))
+{{-- MARKER-LABELS: the selection bar is for everyone (Print labels); Merge only for those who may --}}
   <div id="inv-merge-bar" style="display:none;align-items:center;gap:12px;padding:10px 14px;margin-bottom:12px;
        background:rgba(190,242,100,.08);border:0.5px solid rgba(190,242,100,.3);border-radius:8px;font-size:12.5px">
     <span id="inv-merge-count"></span>
-    <button type="button" class="ia-btn ia-btn--sm ia-btn--primary" style="margin-left:auto"
+    <button type="button" class="ia-btn ia-btn--sm ia-btn--primary" style="margin-left:auto" onclick="invPrintLabels()">Print labels</button>
+    @if(($canMergeItems ?? false))
+    <button type="button" class="ia-btn ia-btn--sm ia-btn--secondary" title="Pick exactly two items to merge"
             id="inv-merge-go" onclick="invOpenMerge()" disabled>Merge…</button>
+    @endif
     <button type="button" class="ia-btn ia-btn--sm" onclick="invClearPicks()">Clear</button>
   </div>
+@if(($canMergeItems ?? false))
 
   <div id="inv-merge-scrim" onclick="invCloseMerge()"
        style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:60"></div>
@@ -615,7 +619,7 @@
         <tr>
           <th style="width:4px;padding:0"></th>
             {{-- matches the cell added to item-card. --}}
-            @if(($canMergeItems ?? false))<th style="width:30px"></th>@endif
+            <th style="width:30px"><input type="checkbox" id="inv-pick-all" title="Select every item on this page" onchange="invPickAll(this)"></th>{{-- MARKER-LABELS --}}
           <th>Item</th>
           <th>UPC</th>
           @if($showColor ?? false)<th>Color</th>@endif
@@ -786,6 +790,7 @@
 @endif
 
 </div>
+@include('tenant.inventory._labels')
 @endsection
 
 @push('scripts')
@@ -844,30 +849,32 @@
     var entry = { id: cb.value, name: cb.dataset.name, sku: cb.dataset.sku };
 
     if (cb.checked) {
-      // Two is the whole feature. A third tick is refused rather than
-      // silently ignored, so nobody thinks they queued a batch.
-      if (picks.length >= 2) {
-        cb.checked = false;
-        count.textContent = 'Two at a time — untick one first.';
-        return;
-      }
-      picks.push(entry);
+      // MARKER-LABELS: any number can be ticked (labels); Merge waits for exactly two
+      if (!picks.some(function (p) { return p.id === entry.id; })) picks.push(entry);
     } else {
       picks = picks.filter(function (p) { return p.id !== cb.value; });
     }
 
     bar.style.display = picks.length ? 'flex' : 'none';
-    go.disabled = picks.length !== 2;
-    count.textContent = picks.length === 2
-      ? '2 selected'
-      : picks.length + ' selected — pick one more';
+    if (go) go.disabled = picks.length !== 2;
+    count.textContent = picks.length + ' selected';
+    var all = document.getElementById('inv-pick-all'), boxes = document.querySelectorAll('.inv-pick');
+    if (all) all.checked = boxes.length > 0 && picks.length === boxes.length;
+  };
+
+  window.invPickAll = function (box) {
+    document.querySelectorAll('.inv-pick').forEach(function (c) { if (c.checked !== box.checked) { c.checked = box.checked; window.invPick(c); } });
+  };
+  window.invPrintLabels = function () {
+    if (picks.length && window.openLabels) window.openLabels({ items: picks.map(function (p) { return p.id; }) });
   };
 
   window.invClearPicks = function () {
     picks = [];
     document.querySelectorAll('.inv-pick').forEach(function (c) { c.checked = false; });
     bar.style.display = 'none';
-    go.disabled = true;
+    if (go) go.disabled = true;
+    var all = document.getElementById('inv-pick-all'); if (all) all.checked = false;
   };
 
   function pair() {

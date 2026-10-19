@@ -34,7 +34,8 @@
 
   {{-- stopPropagation because the whole row is a link to
        the item; without it, ticking a box navigates away. --}}
-  @if(($canMergeItems ?? false))
+  {{-- MARKER-LABELS: tick boxes for everyone (labels); Merge still checks its own permission --}}
+  @if(true)
     <td style="width:30px;padding-left:8px" onclick="event.stopPropagation()">
       <input type="checkbox" class="inv-pick" value="{{ $item->id }}"
              data-name="{{ $item->name }}"

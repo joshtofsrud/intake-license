@@ -348,6 +348,9 @@
         @endforeach
       @endisset
     </div>
+    {{-- MARKER-LABELS: counts what has been received so far --}}
+    <button type="button" class="ia-btn ia-btn--secondary" style="margin-right:8px"
+            onclick="if (document.activeElement) document.activeElement.blur(); setTimeout(function () { openLabels({ shipment: @js((string) $shipment->id) }); }, 400)">Print labels</button>
     <button type="submit" class="ia-btn ia-btn--primary" id="rcv-commit-btn"
             @if($shipment->received_count === 0) disabled @endif>
       Commit shipment
@@ -885,6 +888,7 @@
 })();
 </script>
 
+@include('tenant.inventory._labels')
 @endsection
 
 @push('scripts')
