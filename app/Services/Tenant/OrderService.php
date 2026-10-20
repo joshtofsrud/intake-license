@@ -243,14 +243,12 @@ class OrderService
                 'notes'              => 'Online order ' . $fresh->order_number
                     . ' — paid by ' . tender_label($fresh->payment_method) . ', confirmed by staff'
                     . ($fresh->wants_install ? ' — customer requested installation' : ''),
-                'items'              => $fresh->items->map(fn ($l) => [
-                    'type'              => 'product',
-                    'inventory_item_id' => $l->inventory_item_id,
-                    'name'              => $l->name_snapshot,
-                    'quantity'          => (float) $l->quantity,
-                    'unit_price_cents'  => $l->unit_price_cents,
-                ])->values()->all(),
+                // MARKER-ORDER-SALE-PARITY
+                'discount_redemption_id' => $fresh->discount_redemption_id,
+                'items'              => $this->saleLines($fresh),
             ]);
+
+            $this->checkParity($fresh, $sale);
 
             $fresh->forceFill([
                 'customer_id'    => $customer->id,
@@ -262,6 +260,60 @@ class OrderService
 
             return $fresh;
         });
+    }
+
+    /**
+     * MARKER-ORDER-SALE-PARITY (audit A07): the sale an online order becomes,
+     * line for line. The order's discount is spread over the product lines
+     * exactly as quote() spread it (largest remainder), so each line's tax is
+     * figured on the same base; delivery is its own untaxed line. The sale then
+     * totals what the customer was charged, to the cent.
+     */
+    protected function saleLines(TenantOrder $order): array
+    {
+        $order->loadMissing('items');
+        $gross    = (int) $order->items->sum('line_total_cents');
+        $discount = max(0, min((int) ($order->discount_cents ?? 0), $gross));
+        $alloc = [];
+        if ($discount > 0 && $gross > 0) {
+            $rem = []; $run = 0;
+            foreach ($order->items as $l) {
+                $exact = $l->line_total_cents * $discount / $gross;
+                $alloc[$l->id] = (int) floor($exact); $rem[$l->id] = $exact - $alloc[$l->id]; $run += $alloc[$l->id];
+            }
+            arsort($rem); $left = $discount - $run;
+            foreach (array_keys($rem) as $id) { if ($left <= 0) break; $alloc[$id]++; $left--; }
+        }
+        $lines = $order->items->map(fn ($l) => [
+            'type'              => 'product',
+            'inventory_item_id' => $l->inventory_item_id,
+            'name_snapshot'     => $l->name_snapshot,
+            'quantity'          => (float) $l->quantity,
+            'unit_price_cents'  => $l->unit_price_cents,
+            'discount_cents'    => (int) ($alloc[$l->id] ?? 0),
+        ])->values()->all();
+        if ((int) ($order->shipping_cents ?? 0) > 0) {
+            $lines[] = [
+                'type'             => 'open_item',
+                'name_snapshot'    => $order->fulfillment_type === 'local_delivery' ? 'Local delivery' : 'Shipping',
+                'quantity'         => 1,
+                'unit_price_cents' => (int) $order->shipping_cents,
+                'is_taxable'       => false,
+            ];
+        }
+        return $lines;
+    }
+
+    /** If the sale still doesn't total what was charged (say, a tax-exempt customer), log it for a look. */
+    protected function checkParity(TenantOrder $order, $sale): void
+    {
+        if ((int) $sale->total_cents !== (int) $order->total_cents) {
+            Log::error('online_order.sale_total_mismatch', [
+                'order_id' => $order->id, 'order_number' => $order->order_number, 'sale_id' => $sale->id,
+                'order_total' => (int) $order->total_cents, 'sale_total' => (int) $sale->total_cents,
+                'order_tax' => (int) $order->tax_cents, 'sale_tax' => (int) $sale->tax_cents,
+            ]);
+        }
     }
 
     public function finalize(TenantOrder $order, \Stripe\PaymentIntent $pi): TenantOrder
@@ -334,14 +386,12 @@ class OrderService
                 'paid_at'                  => now(),
                 'notes'                    => 'Online order ' . $fresh->order_number
                     . ($fresh->wants_install ? ' — customer requested installation' : ''),
-                'items'                    => $fresh->items->map(fn ($l) => [
-                    'type'              => 'product',
-                    'inventory_item_id' => $l->inventory_item_id,
-                    'name'              => $l->name_snapshot,
-                    'quantity'          => (float) $l->quantity,
-                    'unit_price_cents'  => $l->unit_price_cents,
-                ])->values()->all(),
+                // MARKER-ORDER-SALE-PARITY: discount, delivery and tax as the customer paid them
+                'discount_redemption_id'   => $fresh->discount_redemption_id,
+                'items'                    => $this->saleLines($fresh),
             ]);
+
+            $this->checkParity($fresh, $sale);
 
             // 4) link + transition
             $fresh->forceFill([
