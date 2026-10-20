@@ -336,6 +336,9 @@
             // MARKER-NAV-ANCHOR-ACTIVE: a #fragment link jumps within a page, it is never the current page
             $isActive   = ! str_contains($itemUrl, '#')
                 && (($itemPath === $currentPath) || ($currentPath === '/' && $itemPath === '/'));
+            // MARKER-NAV-ONE-ACTIVE: when two links point at the same page, only the first is marked current
+            $isActive   = $isActive && ($item->style ?? 'link') === 'link' && empty($navActiveTaken);
+            if ($isActive) $navActiveTaken = true;
             $isExternal = !empty($item->is_external) || str_starts_with($itemUrl, 'http');
             $newTab     = !empty($item->open_in_new_tab);
           @endphp
@@ -411,8 +414,10 @@
         $item  = $navB['item'];
         $dUrl  = $item->url ?? '/';
         $dPath = parse_url($dUrl, PHP_URL_PATH) ?? $dUrl;
+        $dOn   = ! str_contains($dUrl, '#') && $dPath === $currentPath && empty($navDropTaken);
+        if ($dOn) $navDropTaken = true;
       @endphp
-      <a href="{{ $dUrl }}" class="{{ (! str_contains($dUrl, '#') && $dPath === $currentPath) ? 'active' : '' }}" @if(!empty($item->open_in_new_tab)) target="_blank" rel="noopener" @endif>{{ $item->label }}</a>
+      <a href="{{ $dUrl }}" class="{{ $dOn ? 'active' : '' }}" @if(!empty($item->open_in_new_tab)) target="_blank" rel="noopener" @endif>{{ $item->label }}</a>
     @endforeach
     @foreach(collect($navItems)->filter(fn ($i) => ($i->style ?? 'link') !== 'link' && ((($i->side ?? 'left') !== 'right') || $pfP['btn_pos'] === 'menu')) as $item)
       <a href="{{ $item->url ?? '/' }}" class="p-nav-cta {{ ($item->style ?? 'link') === 'button' ? 'p-nav-cta--primary' : 'p-nav-cta--outline' }}" @if(!empty($item->open_in_new_tab)) target="_blank" rel="noopener" @endif>{{ $item->label }}</a>

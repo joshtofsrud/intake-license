@@ -11,6 +11,9 @@
   $cmId     = $uid . 'm';
   // MARKER-CAROUSEL-STYLE-FIX: section background + spacing apply to every style
   $cxBg     = (($c['bg_mode'] ?? 'none') === 'color' && preg_match('/^(#[0-9a-fA-F]{3,8}|rgba?\([0-9., %]+\))$/', trim((string) ($c['bg_color'] ?? '')))) ? trim((string) $c['bg_color']) : '';
+  // MARKER-CAROUSEL-TEXT-CONTRAST: heading, captions and the scroll hint follow the section background
+  $cxTxt = preg_match('/^#[0-9a-fA-F]{6}$/', (string) ($c['text_color'] ?? '')) ? $c['text_color']
+         : ((preg_match('/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/', $cxBg) && \App\Support\ColorHelper::isDark($cxBg)) ? '#f2f2f2' : '');
   $cmGap    = ['tight' => 4, 'normal' => 8, 'loose' => 16][$c['gap'] ?? 'normal'] ?? 8;
   // photo shape: 'mixed' keeps the varied widths; a ratio makes every photo that shape
   $cmShape  = ['wide' => 16 / 9, 'landscape' => 4 / 3, 'square' => 1.0][$c['motion_shape'] ?? 'mixed'] ?? null;
@@ -22,7 +25,7 @@
   $cmW      = [1.45, .82, 1.2, .95, .75, 1.35, .85, 1.05, .8];
 @endphp
 <style>
-  .{{ $cmId }} { padding: clamp(48px, 7vw, 96px) 0; overflow: hidden;@if($cxBg !== '') background: {{ $cxBg }};@endif }
+  .{{ $cmId }} { padding: clamp(48px, 7vw, 96px) 0; overflow: hidden;@if($cxBg !== '') background: {{ $cxBg }};@endif @if($cxTxt !== '') color: {{ $cxTxt }};@endif }
   .{{ $cmId }} .cm-head { max-width: 1180px; margin: 0 auto 28px; padding: 0 24px; }
   .{{ $cmId }} .cm-head h2 { margin: 0 0 8px; font-size: clamp(26px, 3.6vw, 40px); letter-spacing: -.02em; }
   .{{ $cmId }} .cm-head p { margin: 0; opacity: .65; max-width: 620px; }

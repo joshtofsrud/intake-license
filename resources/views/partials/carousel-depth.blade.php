@@ -11,6 +11,9 @@
   $cdId     = $uid . 'd';
   // MARKER-CAROUSEL-STYLE-FIX: section background + spacing apply to every style
   $cxBg     = (($c['bg_mode'] ?? 'none') === 'color' && preg_match('/^(#[0-9a-fA-F]{3,8}|rgba?\([0-9., %]+\))$/', trim((string) ($c['bg_color'] ?? '')))) ? trim((string) $c['bg_color']) : '';
+  // MARKER-CAROUSEL-TEXT-CONTRAST: heading, captions and the scroll hint follow the section background
+  $cxTxt = preg_match('/^#[0-9a-fA-F]{6}$/', (string) ($c['text_color'] ?? '')) ? $c['text_color']
+         : ((preg_match('/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/', $cxBg) && \App\Support\ColorHelper::isDark($cxBg)) ? '#f2f2f2' : '');
   $cdGap    = ['tight' => 12, 'normal' => 20, 'loose' => 32][$c['gap'] ?? 'normal'] ?? 20;
   $cdBtn    = trim((string) ($c['depth_button'] ?? 'View')) ?: 'View';
   $cdArrows = ! in_array((string) ($c['show_arrows'] ?? '1'), ['0', 'false', ''], true);
@@ -18,7 +21,7 @@
   $cdCls    = trim($customClass . (empty($mkWrap) && ! empty($c['hide_on_mobile']) ? ' cd-hide-m' : '') . (empty($mkWrap) && ! empty($c['hide_on_desktop']) ? ' cd-hide-d' : ''));
 @endphp
 <style>
-  .{{ $cdId }} { padding: clamp(48px, 7vw, 96px) 0;@if($cxBg !== '') background: {{ $cxBg }};@endif }
+  .{{ $cdId }} { padding: clamp(48px, 7vw, 96px) 0;@if($cxBg !== '') background: {{ $cxBg }};@endif @if($cxTxt !== '') color: {{ $cxTxt }};@endif }
   .{{ $cdId }} .cd-head { max-width: 1180px; margin: 0 auto 28px; padding: 0 24px; }
   .{{ $cdId }} .cd-head h2 { margin: 0 0 8px; font-size: clamp(26px, 3.6vw, 40px); letter-spacing: -.02em; }
   .{{ $cdId }} .cd-head p { margin: 0; opacity: .65; max-width: 620px; }

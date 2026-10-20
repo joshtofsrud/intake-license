@@ -36,6 +36,9 @@
   $hideMobile   = !empty($c['hide_on_mobile']);
   $hideDesktop  = !empty($c['hide_on_desktop']);
   $customClass  = trim($c['custom_classes'] ?? '');
+  // MARKER-CAROUSEL-TEXT-CONTRAST: heading and dots follow the section background
+  $cxTxt = preg_match('/^#[0-9a-fA-F]{6}$/', (string) ($c['text_color'] ?? '')) ? $c['text_color']
+         : (($bgMode === 'color' && preg_match('/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/', (string) $bgColor) && \App\Support\ColorHelper::isDark($bgColor)) ? '#f2f2f2' : '');
 @endphp
 
 @if(($c['carousel_style'] ?? 'classic') === 'depth')
@@ -50,7 +53,7 @@
 @endif
 
 <style>
-.{{ $uid }}-sec { @if($bgMode === 'color' && $bgColor !== '') background: {{ $bgColor }}; padding-top:48px; padding-bottom:48px; @endif }
+.{{ $uid }}-sec { @if($bgMode === 'color' && $bgColor !== '') background: {{ $bgColor }}; padding-top:48px; padding-bottom:48px; @endif @if($cxTxt !== '') color: {{ $cxTxt }}; @endif }
 .{{ $uid }}-wrap { position:relative; }
 .{{ $uid }}-track { display:flex; gap:{{ $gapPx }}px; overflow-x:auto; scroll-snap-type:x mandatory; scroll-behavior:smooth; -webkit-overflow-scrolling:touch; scrollbar-width:none; }
 .{{ $uid }}-track::-webkit-scrollbar { display:none; }
