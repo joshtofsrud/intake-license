@@ -125,8 +125,12 @@
   </div>
   <label class="pb2-checkbox-row">
     <input type="checkbox" data-field="bg_fade_out" value="1" {{ $fadeOut ? 'checked' : '' }}>
-    <span>Fade out — melt into the page instead of a hard edge</span>
+    <span>Fade out — melt into what's below instead of a hard edge</span>
   </label>
+  {{-- MARKER-HERO-IMAGE-FADE --}}
+  @unless($isMarketing ?? false)
+  <div class="pb2-field-hint" style="text-align:left;display:block;margin-top:2px">On a hero with a photo background, the bottom of the photo fades into the next section's color.</div>
+  @endunless
   <label class="pb2-checkbox-row">
     <input type="checkbox" data-field="bg_continue" value="1" {{ $blendCont ? 'checked' : '' }}>
     <span>Continue gradient from the section above</span>

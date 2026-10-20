@@ -173,6 +173,14 @@
   pointer-events: none;
 }
 @endif
+@if(!empty($c['_fade_to']) && $bgMode === 'image')
+/* MARKER-HERO-IMAGE-FADE: the photo's bottom edge melts into the section below */
+.{{ $instId }}::after {
+  content: ''; position: absolute; left: 0; right: 0; bottom: -1px; height: min(45%, 320px);
+  background: linear-gradient(to bottom, transparent, {{ $c['_fade_to'] }});
+  z-index: 0; pointer-events: none;
+}
+@endif
 .{{ $instId }} .p-hero-content {
   position: relative;
   z-index: 1;

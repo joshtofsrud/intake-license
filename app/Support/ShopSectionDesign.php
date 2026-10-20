@@ -90,6 +90,20 @@ class ShopSectionDesign
     }
 
     /**
+     * MARKER-HERO-IMAGE-FADE: the color a section starts with at its top edge, so the
+     * section above can fade into it. $c is the section's content with bg_color
+     * already resolved by the layout; $pageBg is the page background.
+     */
+    public static function startColor(array $c, string $pageBg): string
+    {
+        $hex = fn ($v) => is_string($v) && preg_match('/^#[0-9a-fA-F]{3,8}$/', trim($v)) ? trim($v) : null;
+        $mode = $c['bg_mode'] ?? 'none';
+        if ($mode === 'gradient') return $hex($c['bg_gradient_from'] ?? null) ?: '#ffffff';
+        if (in_array($mode, ['color', 'solid', 'image'], true)) return $hex($c['bg_color'] ?? null) ?: $pageBg;
+        return $pageBg;
+    }
+
+    /**
      * css:  a background override, only when a blend setting differs from the default
      * grad: this section's gradient, for joining with sections that continue it
      * end:  the color this section ends on (what a continuing section starts from)

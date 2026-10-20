@@ -399,6 +399,19 @@
         $sc['bg_color'] = \App\Support\DesignTokens::sectionBg(
             $sc['bg_color'] ?? null, $section->section_type, $dt
         );
+        // MARKER-HERO-IMAGE-FADE: an image hero set to fade out melts into the next visible section
+        if ($section->section_type === 'hero' && ($sc['bg_mode'] ?? '') === 'image'
+            && ! empty($sc['bg_fade_out']) && ! in_array((string) $sc['bg_fade_out'], ['0', 'false'], true)) {
+            $hfNext = collect($sections)->slice($loop->index + 1)
+                ->first(fn ($s) => $s->is_visible && view()->exists('public.sections._' . $s->section_type));
+            if ($hfNext) {
+                $hfC = $hfNext->content ?? [];
+                $hfC['bg_color'] = \App\Support\DesignTokens::sectionBg($hfC['bg_color'] ?? null, $hfNext->section_type, $dt);
+                $sc['_fade_to'] = \App\Support\ShopSectionDesign::startColor($hfC, $dt['bg'] ?? '#ffffff');
+            } else {
+                $sc['_fade_to'] = $dt['bg'] ?? '#ffffff';
+            }
+        }
       @endphp
       {{-- an addressable wrapper, builder-only. Section
            partials render their own <section> elements with markup we don't
