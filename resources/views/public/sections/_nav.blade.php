@@ -53,6 +53,8 @@
       'xl'     => '52px',
   ];
   $logoHeight = $logoSizeMap[$c['logo_size'] ?? 'medium'] ?? '30px';
+  // MARKER-SHOP-NAV-PHONE-LOGO: phones can have their own logo size; blank = same as desktop
+  $logoHeightP = $logoSizeMap[$c['logo_size_p'] ?? ''] ?? $logoHeight;
 
   // Colors
   // content-aware default: when the tenant hasn't chosen a
@@ -276,6 +278,14 @@
 @media (max-width: 768px) {
   .{{ $instId }} .p-nav-links { display: none; }
   .{{ $instId }} .p-hamburger { display: flex; }
+  /* MARKER-SHOP-NAV-PHONE-LOGO: the logo gives up room so the buttons and the menu
+     button always fit inside the bar (they used to spill past its right edge) */
+  .{{ $instId }} .p-nav-inner { gap: 12px; }
+  @if($layout !== 'centered')
+  .{{ $instId }} .p-nav-end { margin-left: auto; } /* buttons and menu button sit at the right edge */
+  @endif
+  .{{ $instId }} .p-nav-logo { flex-shrink: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .{{ $instId }} .p-nav-logo img { height: {{ $logoHeightP }}; max-width: 100%; object-fit: contain; object-position: left center; }
 }
 
 @if($hideMobile)

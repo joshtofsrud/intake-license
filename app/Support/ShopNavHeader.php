@@ -25,10 +25,11 @@ class ShopNavHeader
         'normal' => ['18px', '12px 14px 12px 24px'],
         'roomy'  => ['26px', '16px 18px 16px 30px'],
     ];
+    // MARKER-SHOP-NAV-PHONE-LOGO: more room on the right so the menu button isn't against the edge
     private const SPACE_P = [
-        'tight'  => ['8px',  '6px 6px 6px 14px'],
-        'normal' => ['10px', '8px 8px 8px 16px'],
-        'roomy'  => ['14px', '10px 10px 10px 18px'],
+        'tight'  => ['8px',  '6px 10px 6px 14px'],
+        'normal' => ['10px', '8px 12px 8px 16px'],
+        'roomy'  => ['14px', '10px 14px 10px 18px'],
     ];
 
     /** ['d' => desktop settings, 'p' => phone settings] */

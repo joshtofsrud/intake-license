@@ -134,6 +134,15 @@
         @endforeach
       </select>
     </div>
+    {{-- MARKER-SHOP-NAV-PHONE-LOGO --}}
+    <div class="pb2-field">
+      <label class="pb2-field-label">Logo size on phones <span class="pb2-field-hint">shrinks further if the bar runs out of room</span></label>
+      <select class="pb2-input" data-field="logo_size_p">
+        @foreach([''=>'Same as desktop','small'=>'Small (22px)','medium'=>'Medium (30px)','large'=>'Large (40px)','xl'=>'Extra large (52px)'] as $v => $n)
+          <option value="{{ $v }}" {{ (string) $get('logo_size_p', '') === $v ? 'selected' : '' }}>{{ $n }}</option>
+        @endforeach
+      </select>
+    </div>
 
     <label class="pb2-checkbox-row">
       <input type="checkbox" data-field="sticky" value="1" {{ $get('sticky', true) ? 'checked' : '' }}>
