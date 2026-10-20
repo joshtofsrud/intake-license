@@ -10,6 +10,8 @@
   $S   = '.' . $instId;
   $nhD = $pfD;
   $nhP = $pfP;
+  // MARKER-SHOP-NAV-CORNERS: the phone menu follows the phone bar's corners when it floats
+  $nhDropR = \App\Support\ShopNavHeader::radii($nhP['style'] === 'float' ? $nhP : ['corners' => 'round']);
 @endphp
 {{ $S }} { {!! \App\Support\ShopNavHeader::vars($nhD, false, $pfLinkD) !!} --pf-menu-bg: {{ $pfMenuBg }}; --pf-menu-solid: {{ $pfMenuSolid }}; --pf-menu-link: {{ $pfMenuLink }}; }
 @media (max-width: 768px) {
@@ -38,7 +40,7 @@
   {{ $S }} .p-nav-drop.open {
     display: flex; flex-direction: column;
     position: absolute; left: 12px; right: 12px; top: calc(100% + 8px); z-index: 150;
-    padding: 6px 18px 14px; border-radius: 20px;
+    padding: 6px 18px 14px; border-radius: {{ $nhDropR['drop'] }};
     max-height: calc(100vh - 120px); overflow: auto;
     background: color-mix(in srgb, var(--pf-menu-bg) var(--pf-op), transparent);
     -webkit-backdrop-filter: blur(var(--pf-blur)); backdrop-filter: blur(var(--pf-blur));
@@ -46,7 +48,7 @@
     box-shadow: 0 18px 40px rgba(0,0,0,.18);
   }
   {{ $S }}.is-drop-solid .p-nav-drop.open {
-    left: 0; right: 0; top: 100%; border-radius: 0 0 18px 18px;
+    left: 0; right: 0; top: 100%; border-radius: 0 0 {{ $nhDropR['solid'] }} {{ $nhDropR['solid'] }};
     background: var(--pf-menu-solid); -webkit-backdrop-filter: none; backdrop-filter: none;
     border-width: 0; box-shadow: 0 18px 30px rgba(0,0,0,.12);
   }
@@ -63,6 +65,7 @@
 {{-- Floating bar, for each screen size that uses it --}}
 @foreach(['d' => '(min-width: 769px)', 'p' => '(max-width: 768px)'] as $nhKey => $nhMq)
 @if(($nhKey === 'd' ? $nhD : $nhP)['style'] === 'float')
+@php $nhR = \App\Support\ShopNavHeader::radii($nhKey === 'd' ? $nhD : $nhP, $layout === 'centered'); @endphp
 @media {{ $nhMq }} {
   {{ $S }} {
     background: transparent; border-bottom: 0; box-shadow: none;
@@ -81,7 +84,7 @@
   {{ $S }} .p-nav-wrap {
     max-width: var(--p-page-max, 1200px);
     padding: var(--pf-pad);
-    border-radius: {{ $layout === 'centered' ? '24px' : '999px' }};
+    border-radius: {{ $nhR['bar'] }};
     background: color-mix(in srgb, var(--pf-bg) var(--pf-op), transparent);
     -webkit-backdrop-filter: blur(var(--pf-blur)); backdrop-filter: blur(var(--pf-blur));
     border: .5px solid color-mix(in srgb, var(--pf-edge) 12%, transparent);
@@ -89,19 +92,19 @@
   }
   {{ $S }} .p-nav-inner { height: auto; min-height: 36px; }
   {{ $S }} .p-nav-links {
-    flex: 0 1 auto; background: var(--pf-pill); border-radius: 999px; padding: 4px; gap: 2px;
+    flex: 0 1 auto; background: var(--pf-pill); border-radius: {{ $nhR['pill'] }}; padding: 4px; gap: 2px;
     @if($layout === 'split')
     margin-left: auto;
     @elseif($layout === 'standard' && $logoAlign !== 'center')
     margin: 0 auto;
     @endif
   }
-  {{ $S }} .p-nav-link { border-radius: 999px; padding: 7px 14px; color: var(--pf-link); }
+  {{ $S }} .p-nav-link { border-radius: {{ $nhR['link'] }}; padding: 7px 14px; color: var(--pf-link); }
   {{ $S }} .p-nav-link.active::after { left: 14px; right: 14px; bottom: 3px; background: var(--pf-link); }
   {{ $S }} .p-nav-link.active::before { background: var(--pf-link); }
   {{ $S }} .p-nav-logo, {{ $S }} .p-nav-account, {{ $S }} .p-nav-search-btn { color: var(--pf-link); }
   {{ $S }} .p-hamburger span { background: var(--pf-link); }
-  {{ $S }} .p-nav-cta { border-radius: 999px; }
+  {{ $S }} .p-nav-cta { border-radius: {{ $nhR['pill'] }}; }
   {{ $S }} .p-nav-cta--outline, {{ $S }} .p-nav-cta--ghost { color: var(--pf-link); border-color: var(--pf-link); }
 }
 @endif

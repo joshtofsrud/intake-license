@@ -238,6 +238,16 @@
               </div>
               <input type="hidden" data-field="{{ $px }}space" value="{{ $h['space'] }}">
             </div>
+            {{-- MARKER-SHOP-NAV-CORNERS --}}
+            <div class="pb2-field">
+              <label class="pb2-field-label">Corners <span class="pb2-field-hint">the bar, its links and the phone menu</span></label>
+              <div class="pb2-seg" data-field-seg="{{ $px }}corners">
+                @foreach(['round' => 'Round', 'soft' => 'Soft', 'square' => 'Square'] as $val => $name)
+                  <button type="button" class="pb2-seg-btn {{ $h['corners'] === $val ? 'active' : '' }}" data-seg-value="{{ $val }}">{{ $name }}</button>
+                @endforeach
+              </div>
+              <input type="hidden" data-field="{{ $px }}corners" value="{{ $h['corners'] }}">
+            </div>
             <div class="pb2-field">
               <label class="pb2-field-label">From top
                 <button type="button" class="pnf-auto"

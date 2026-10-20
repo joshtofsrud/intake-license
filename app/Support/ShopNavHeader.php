@@ -67,6 +67,7 @@ class ShopNavHeader
             'top_gap'       => (is_numeric($topGap) && (int) $topGap >= 0) ? min(80, (int) $topGap) : -1, // -1 = preset
             'pad_x'         => self::int($c[$px . 'pad_x'] ?? null, 0, 60, 0), // 0 = preset
             'fade'          => self::on($c[$px . 'fade'] ?? false),
+            'corners'       => in_array($c[$px . 'corners'] ?? '', ['round', 'soft', 'square'], true) ? $c[$px . 'corners'] : 'round',
             'link_weight'   => in_array((string) ($c['fl_link_weight'] ?? ''), ['400', '500', '600'], true) ? (string) $c['fl_link_weight'] : '500',
             'link_bright'   => ($c['fl_link_bright'] ?? '') === 'bright' ? 'bright' : 'soft',
             'btn_text'      => self::hex($c['fl_btn_text'] ?? null, ''),
@@ -96,6 +97,22 @@ class ShopNavHeader
     {
         if ($h['style'] !== 'float' || $h['opacity'] < 40) return null;
         return ColorHelper::isDark($h['bg']) ? '#ffffff' : '#0a0a0a';
+    }
+
+    /**
+     * MARKER-SHOP-NAV-CORNERS: corner radii for a Floating bar.
+     * round = the original look (pill bar), soft = slightly rounded, square = none.
+     * Keys: bar, pill (the shape behind the links, header buttons), link,
+     * drop (phone menu under a floating bar), solid (phone menu on pages
+     * without a full-screen menu; bottom corners only).
+     */
+    public static function radii(array $h, bool $centered = false): array
+    {
+        return match ($h['corners'] ?? 'round') {
+            'soft'   => ['bar' => '12px', 'pill' => '8px', 'link' => '6px', 'drop' => '12px', 'solid' => '10px'],
+            'square' => ['bar' => '0',    'pill' => '0',   'link' => '0',   'drop' => '0',    'solid' => '0'],
+            default  => ['bar' => $centered ? '24px' : '999px', 'pill' => '999px', 'link' => '999px', 'drop' => '20px', 'solid' => '18px'],
+        };
     }
 
     /** The CSS custom properties one screen size uses. */
