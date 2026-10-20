@@ -22,9 +22,29 @@ class DemoReset extends Command
     protected $signature   = 'demo:reset {--slug=demo : Which demo tenant} {--force : Ignore the pause}';
     protected $description = 'Restore the demo tenant from its frozen template';
 
+    /**
+     * MARKER-DEMO-RESET-SAFE: one reset at a time (the hourly run and the Reset
+     * button used to be able to overlap, one wiping while the other restored),
+     * and the wipe + restore is one transaction, so a failed reset leaves the
+     * demo as it was instead of empty.
+     */
     public function handle(): int
     {
         $slug = (string) $this->option('slug');
+        $lock = \Illuminate\Support\Facades\Cache::lock('demo-reset:' . $slug, 1800);
+        if (! $lock->get()) {
+            $this->info("A reset of '{$slug}' is already running — skipping.");
+            return self::SUCCESS;
+        }
+        try {
+            return $this->runReset($slug);
+        } finally {
+            $lock->release();
+        }
+    }
+
+    private function runReset(string $slug): int
+    {
 
         if (! $this->option('force')) {
             $pausedUntil = DemoSetting::get("paused_until:{$slug}");
@@ -79,6 +99,7 @@ class DemoReset extends Command
         }
 
         DB::statement('SET FOREIGN_KEY_CHECKS=0');
+        DB::beginTransaction();
         try {
             // wipe: child tables first is unnecessary with checks off, and the
             // manifest order is the copy order anyway
@@ -119,9 +140,10 @@ class DemoReset extends Command
             }
             fclose($fh);
             if ($buffer) $this->flush($current, $buffer);
+            DB::commit();
         } catch (\Throwable $e) {
-            // the demo is now WIPED and not restored: loudest possible.
-            \App\Support\JobFailureReporter::report(self::class, "demo:reset failed mid-restore — the '{$slug}' demo is DOWN until it succeeds", $e, ['slug' => $slug, 'rows_before_failure' => $rows ?? 0], $tenantId);
+            DB::rollBack(); // the demo keeps whatever it had before this reset started
+            \App\Support\JobFailureReporter::report(self::class, "demo:reset failed mid-restore and was rolled back — the '{$slug}' demo is unchanged", $e, ['slug' => $slug, 'rows_before_failure' => $rows ?? 0], $tenantId);
             throw $e;
         } finally {
             DB::statement('SET FOREIGN_KEY_CHECKS=1');
