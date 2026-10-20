@@ -94,7 +94,7 @@ class DebugLogService
             'severity'    => $severity,
             'method'      => $request->method(),
             'route'       => optional($request->route())->getName(),
-            'path'        => '/' . ltrim($request->path(), '/'),
+            'path'        => self::maskPath('/' . ltrim($request->path(), '/')),
             'host'        => $request->getHost(),
             'status_code' => $statusCode,
             'duration_ms' => $durationMs,
@@ -102,7 +102,8 @@ class DebugLogService
             'user_agent'  => Str::limit((string) $request->userAgent(), 490, ''),
             'context'     => $isError || $isSlow ? [
                 'query'  => $this->redact($request->query()),
-                'input'  => $this->redact($request->except([])),
+                // MARKER-SEC-AUDIT A03: sign-in, PIN and password forms are never captured
+                'input'  => self::isCredentialRequest($request) ? '[not captured]' : $this->redact($request->except([])),
             ] : null,
         ]);
     }
@@ -417,6 +418,40 @@ class DebugLogService
         return [null, null, null];
     }
 
+    /** MARKER-SEC-AUDIT A03: exact list, or any name containing password / secret / token / a pin field. */
+    public static function sensitiveKey(string $k, ?array $keys = null): bool
+    {
+        $k = strtolower($k);
+        if (in_array($k, $keys ?? (array) config('debug.request.redact_keys', []), true)) return true;
+        return (bool) preg_match('/(password|passwd|secret|token|^pin$|^pin_|_pin$|cvc|cvv|card_number)/', $k);
+    }
+
+    /** Sign-in, PIN, password and account-security requests: their bodies are never logged. */
+    public static function isCredentialRequest(Request $request): bool
+    {
+        $name = (string) optional($request->route())->getName();
+        if ($name !== '' && preg_match('/(login|logout|password|reset|pin\.|\.pin|switch|setup|activate|customer\.register)/', $name)) return true;
+        return (bool) preg_match('#(login|password|/pin/|/switch|/setup|/activate)#i', $request->path());
+    }
+
+    /** A long opaque path segment is a link token: keep its ends so it can still be matched by eye. */
+    public static function maskPath(string $path): string
+    {
+        return preg_replace_callback('#/([A-Za-z0-9_\-]{24,})(?=/|$)#', function ($m) {
+            if (preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i', $m[1])) return $m[0]; // record ids stay
+            return '/' . substr($m[1], 0, 4) . '…' . substr($m[1], -2);
+        }, $path);
+    }
+
+    /** The request URL for logs and alert emails: masked path, secret query values redacted. */
+    public static function safeUrl(Request $request): string
+    {
+        $q = [];
+        foreach ($request->query() as $k => $v) $q[$k] = self::sensitiveKey((string) $k) ? '[REDACTED]' : $v;
+        $url = $request->getSchemeAndHttpHost() . self::maskPath('/' . ltrim($request->path(), '/'));
+        return $q ? $url . '?' . http_build_query($q) : $url;
+    }
+
     /**
      * Redact sensitive fields from a payload before storing.
      */
@@ -425,7 +460,7 @@ class DebugLogService
         $keys = (array) config('debug.request.redact_keys', []);
         $out  = [];
         foreach ($data as $k => $v) {
-            if (in_array(strtolower((string) $k), $keys, true)) {
+            if (self::sensitiveKey((string) $k, $keys)) { // MARKER-SEC-AUDIT A03: names that contain a secret word too
                 $out[$k] = '[REDACTED]';
             } elseif (is_array($v)) {
                 $out[$k] = $this->redact($v);

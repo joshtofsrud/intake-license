@@ -389,7 +389,7 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
         // that most needed the limit it did not have. 3 per 10 minutes.
         Route::post('/forgot-password', [TenantControllers\AuthController::class, 'sendReset'])->name('forgot.submit')->middleware('throttle:3,10');
         Route::get('/reset-password',   [TenantControllers\AuthController::class, 'showReset'])->name('reset');
-        Route::post('/reset-password',  [TenantControllers\AuthController::class, 'resetPassword'])->name('reset.submit');
+        Route::post('/reset-password',  [TenantControllers\AuthController::class, 'resetPassword'])->name('reset.submit')->middleware('throttle:10,10'); // MARKER-SEC-AUDIT A13
         // team-member invite setup (public, tenant-resolved, token-gated)
         Route::get('/team/setup',       [TenantControllers\TeamController::class, 'setupForm'])->name('team.setup');
         Route::post('/team/setup',      [TenantControllers\TeamController::class, 'completeSetup'])->name('team.setup.complete');
@@ -1375,6 +1375,9 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
 // ─────────────────────────────────────────────────────────────────────
 Route::middleware([
         'App\Http\Middleware\ResolveTenant',
+        // MARKER-SEC-AUDIT A06: a signed-in customer must belong to this shop. The login
+        // cookie is shared across *.intake.works (impersonation needs that), so this is the wall.
+        'App\Http\Middleware\EnsureCustomerTenant',
         // after tenant resolution, before anything renders.
         'App\Http\Middleware\ShowWelcomePage',
         // after ResolveTenant, so tenant() is available.

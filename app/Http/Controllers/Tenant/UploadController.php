@@ -37,7 +37,13 @@ class UploadController extends Controller
         }
 
         // Build path: tenants/{tenant_id}/{type}/{filename}
-        $ext      = $file->getClientOriginalExtension() ?: 'jpg';
+        // MARKER-SEC-UPLOADS: the extension comes from what the file IS, never from its name
+        $ext      = strtolower((string) ($file->guessExtension() ?: ''));
+        if ($ext === 'jpeg') $ext = 'jpg';
+        if (! in_array($ext, array_merge(self::ALLOWED, ['mp4', 'webm', 'mov', 'qt']), true)) {
+            return response()->json(['ok' => false, 'message' => 'That file type isn’t supported.'], 422);
+        }
+        if ($ext === 'qt') $ext = 'mov';
         $filename = Str::slug(pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME));
         $filename = $filename . '-' . Str::random(6) . '.' . $ext;
         $path     = "tenants/{$tenant->id}/{$type}";

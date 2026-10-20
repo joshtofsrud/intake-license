@@ -40,7 +40,10 @@ return Application::configure(basePath: dirname(__DIR__))
         // verify a signed-in customer belongs to the tenant
         // being served. Appended globally rather than pinned to the account
         // routes so it also covers every portal page, present and future.
-        $middleware->append(\App\Http\Middleware\EnsureCustomerTenant::class);
+        // MARKER-SEC-AUDIT A06: moved to the shop route group (routes/web.php). As global
+        // middleware it ran before the session started, so it never saw a customer.
+        // MARKER-SEC-UPLOADS: every uploaded SVG is cleaned before a controller stores it.
+        $middleware->append(\App\Http\Middleware\SanitizeUploads::class);
 
         // DemoBanner used to be appended here, but global
         // middleware runs BEFORE route middleware, so ResolveTenant had not run
@@ -108,7 +111,7 @@ return Application::configure(basePath: dirname(__DIR__))
                 'exception' => $e->getMessage(),
                 'file'      => $e->getFile(),
                 'line'      => $e->getLine(),
-                'url'       => $request->fullUrl(),
+                'url'       => \App\Services\DebugLogService::safeUrl($request), // MARKER-SEC-AUDIT A03
             ]);
 
             // email each 5xx to the address set on the
@@ -130,7 +133,7 @@ return Application::configure(basePath: dirname(__DIR__))
                 if ($alertOn && $alertTo && \Illuminate\Support\Facades\Cache::add($sig, 1, 900)) {
                     $body = "Ref: {$refId}\n"
                         . 'Time: ' . now()->toDateTimeString() . " UTC\n"
-                        . 'URL: ' . $request->fullUrl() . "\n"
+                        . 'URL: ' . \App\Services\DebugLogService::safeUrl($request) . "\n"
                         . 'Exception: ' . get_class($e) . "\n"
                         . 'Message: ' . $e->getMessage() . "\n"
                         . 'At: ' . $e->getFile() . ':' . $e->getLine() . "\n\n"
@@ -151,7 +154,7 @@ return Application::configure(basePath: dirname(__DIR__))
             if ($request->expectsJson() || $request->ajax()) {
                 return response()->json([
                     'ok'     => false,
-                    'error'  => "Something went wrong on our end ({$refId}). Nothing was saved — try again, and quote that code if it keeps happening.",
+                    'error'  => "Something went wrong on our end ({$refId}). We couldn’t confirm whether that went through — check before trying again, and quote that code if it keeps happening.", // MARKER-SEC-AUDIT A17
                     'ref_id' => $refId,
                 ], 500);
             }

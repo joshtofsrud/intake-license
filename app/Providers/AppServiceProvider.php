@@ -36,6 +36,9 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        // MARKER-SEC-AUDIT: workers are long-lived; each job reads add-on access fresh
+        \Illuminate\Support\Facades\Queue::before(fn () => \App\Services\FeatureAccessService::flushRequestCache());
+
         // enforce one primary domain per tenant
         // every bare ->links() renders the themed
         // paginator (PATCH-364) instead of Laravel's unstyled tailwind default.

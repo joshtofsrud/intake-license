@@ -87,6 +87,12 @@ class EnsurePinFresh
         }
 
         if ($isStale) {
+            // MARKER-SEC-AUDIT A04: nothing changes while locked, form posts included
+            if (! in_array($request->method(), ['GET', 'HEAD', 'OPTIONS'], true) && ! ($request->expectsJson() || $request->ajax())) {
+                return redirect()->back()
+                    ->withInput($request->except(['password', 'pin', 'pin_confirm', 'device_password', '_token']))
+                    ->with('error', 'Locked — enter your PIN, then save again.');
+            }
             if ($request->expectsJson() || $request->ajax()) {
                 return response()->json([
                     'ok'     => false,

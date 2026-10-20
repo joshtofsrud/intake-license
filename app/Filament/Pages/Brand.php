@@ -56,7 +56,8 @@ class Brand extends Page
             if (! $file) {
                 continue;
             }
-            $ext  = strtolower($file->getClientOriginalExtension() ?: 'png');
+            $ext  = strtolower((string) ($file->guessExtension() ?: 'png')); // MARKER-SEC-UPLOADS: from the content
+            if (! in_array($ext, ['svg', 'png', 'jpg', 'jpeg'], true)) continue;
             $path = $file->storeAs('brand', $slot . '-' . now()->format('YmdHis') . '-' . substr(md5(uniqid('', true)), 0, 6) . '.' . $ext, 'public');
             $brand[$slot] = $path;
             $changed[] = $meta[0];

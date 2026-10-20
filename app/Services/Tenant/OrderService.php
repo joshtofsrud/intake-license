@@ -116,7 +116,9 @@ class OrderService
             ->where('email', $contact['email'])
             ->first();
 
-        $order = DB::transaction(function () use ($cart, $contact, $fulfillment, $quote, $customer) {
+        // MARKER-SEC-AUDIT A08: $manualMethod was used inside without being passed in, and the
+        // discount branch used $order, which only exists after the closure returns.
+        $order = DB::transaction(function () use ($cart, $contact, $fulfillment, $quote, $customer, $manualMethod) {
             $cart->forceFill([
                 'order_number'        => $cart->order_number ?: TenantOrder::nextOrderNumber($this->tenant->id),
                 'status'              => TenantOrder::STATUS_PENDING_PAYMENT,
@@ -148,8 +150,8 @@ class OrderService
                     $this->tenant->id,
                     (string) $cart->discount_code,
                     (int) $cart->items->sum('line_total_cents'),
-                    (string) $order->id,
-                    $order->customer_id,
+                    (string) $cart->id,
+                    $cart->customer_id,
                     null
                 );
 
@@ -157,7 +159,7 @@ class OrderService
                     throw new \RuntimeException($redeem['reason'] ?? 'That discount code can no longer be used.');
                 }
 
-                $order->forceFill([
+                $cart->forceFill([
                     'discount_code'          => (string) $cart->discount_code,
                     'discount_redemption_id' => $redeem['redemption']->id,
                 ])->save();
@@ -265,6 +267,24 @@ class OrderService
     public function finalize(TenantOrder $order, \Stripe\PaymentIntent $pi): TenantOrder
     {
         if ($order->sale_id) return $order; // already finalized
+
+        // MARKER-SEC-AUDIT A01: the payment must belong to THIS order. Its metadata
+        // carries the order id we set when creating it; the id, currency and the
+        // amount actually received must all match, or it settles nothing.
+        $piOrder = (string) ($pi->metadata->intake_order_id ?? '');
+        $piCur   = strtolower((string) ($pi->currency ?? ''));
+        $piGot   = (int) ($pi->amount_received ?? $pi->amount);
+        if ($piOrder === '' || ! hash_equals((string) $order->id, $piOrder) || ($piCur !== '' && $piCur !== 'usd') || $piGot !== (int) $order->total_cents) {
+            Log::warning('online_order.finalize_wrong_payment', [
+                'order_id' => $order->id, 'pi' => $pi->id, 'pi_order' => $piOrder,
+                'stored_pi' => $order->stripe_payment_intent_id, 'currency' => $piCur, 'received' => $piGot,
+            ]);
+            abort(422, 'Payment not confirmed.');
+        }
+        if ($order->stripe_payment_intent_id && $order->stripe_payment_intent_id !== $pi->id) {
+            // a retried checkout made a newer intent; this older one is still this order's money
+            Log::notice('online_order.finalize_earlier_intent', ['order_id' => $order->id, 'pi' => $pi->id, 'stored_pi' => $order->stripe_payment_intent_id]);
+        }
 
         if ($pi->status !== 'succeeded' || (int) $pi->amount !== (int) $order->total_cents) {
             Log::warning('online_order.finalize_rejected', [

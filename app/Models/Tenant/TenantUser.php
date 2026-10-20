@@ -28,8 +28,8 @@ class TenantUser extends Authenticatable
     public function canAccessSection(string $key): bool
     {
         if ($this->role === 'owner') return true;
-        $role = $this->accessRole;
-        if (!$role) return true;
+        $role = $this->effectiveRole();
+        if (!$role) return $this->role === 'manager';
         return $role->allowsSection($key);
     }
 
@@ -42,10 +42,22 @@ class TenantUser extends Authenticatable
     {
         if (! is_string($key)) return parent::can($key, $arguments);
         if ($this->role === 'owner') return true;
-        $role = $this->accessRole;
-        if (!$role) return true;
+        $role = $this->effectiveRole();
+        if (!$role) return $this->role === 'manager';
         return $role->allowsCapability($key);
     }
+    /**
+     * MARKER-SEC-AUDIT roles: an account with no role_id used to get FULL access.
+     * It now gets the system role its level implies (Manager or Staff); if even
+     * that is missing, managers keep access and staff don't.
+     */
+    public function effectiveRole(): ?TenantRole
+    {
+        if ($this->accessRole) return $this->accessRole;
+        return TenantRole::where('tenant_id', $this->tenant_id)->where('is_system', true)
+            ->where('name', $this->role === 'manager' ? 'Manager' : 'Staff')->first();
+    }
+
     public function isOwner(): bool     { return $this->role === 'owner'; }
     public function isManager(): bool   { return in_array($this->role, ['owner','manager']); }
 

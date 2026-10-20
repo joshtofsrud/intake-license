@@ -86,6 +86,13 @@ class RequireTenantAuth
             }
         }
 
+        // MARKER-SEC-AUDIT A05: deactivation takes effect on the next request, on every device
+        if (! $user->is_active) {
+            Auth::guard('tenant')->logout();
+            return redirect()->route('tenant.login')
+                ->withErrors(['email' => 'Your account has been deactivated. Contact your shop owner.']);
+        }
+
         // Check minimum role requirement
         if (! $this->hasMinimumRole($user->role, $minRole)) {
             abort(403, 'Insufficient permissions.');

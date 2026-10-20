@@ -50,11 +50,23 @@ class AuthController extends Controller
         ]);
 
         $tenant = tenant();
+        // MARKER-SEC-AUDIT A13: 5 tries per account per address, 30 per address, each over 5 minutes.
+        // An owner locked out by someone else can still reset by email.
+        $rlAcct = 'staff-login:' . $tenant->id . '|' . strtolower((string) $request->input('email')) . '|' . $request->ip();
+        $rlIp   = 'staff-login-ip:' . $request->ip();
+        if (\Illuminate\Support\Facades\RateLimiter::tooManyAttempts($rlAcct, 5) || \Illuminate\Support\Facades\RateLimiter::tooManyAttempts($rlIp, 30)) {
+            $wait = max(\Illuminate\Support\Facades\RateLimiter::availableIn($rlAcct), \Illuminate\Support\Facades\RateLimiter::availableIn($rlIp));
+            return back()->withInput($request->only('email'))
+                ->withErrors(['email' => 'Too many sign-in attempts. Try again in ' . max(1, (int) ceil($wait / 60)) . ' minute(s), or reset your password.']);
+        }
+
         $user   = TenantUser::where('tenant_id', $tenant->id)
             ->where('email', strtolower($request->input('email')))
             ->first();
 
         if (! $user || ! Hash::check($request->input('password'), $user->password)) {
+            \Illuminate\Support\Facades\RateLimiter::hit($rlAcct, 300);
+            \Illuminate\Support\Facades\RateLimiter::hit($rlIp, 300);
             return back()
                 ->withInput($request->only('email'))
                 ->withErrors(['email' => 'These credentials do not match our records.']);
@@ -66,6 +78,7 @@ class AuthController extends Controller
                 ->withErrors(['email' => 'Your account has been deactivated. Contact your shop owner.']);
         }
 
+        \Illuminate\Support\Facades\RateLimiter::clear($rlAcct);
         Auth::guard('tenant')->login($user, $request->boolean('remember'));
         $request->session()->regenerate();
         $user->forceFill(['last_login_at' => now()])->save();

@@ -61,6 +61,9 @@ return [
             'card', 'card_number', 'cvc', 'cvv',
             'ssn', 'tax_id',
             'twilio_auth_token', 'stripe_secret',
+            // MARKER-SEC-AUDIT A03: PINs and the device password
+            'pin', 'pin_confirm', 'pin_confirmation', 'new_pin', 'current_pin', 'device_password',
+            'new_password', 'remember_token', 'access_token', 'refresh_token', 'authorization',
         ],
     ],
 

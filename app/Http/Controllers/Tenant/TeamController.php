@@ -341,6 +341,12 @@ class TeamController extends Controller
             return back()->with('error', 'Use your account page to edit yourself.');
         }
 
+        // MARKER-SEC-AUDIT A02: a manager can't reset, edit, deactivate or unlock an owner
+        if ($member->role === 'owner' && $me->role !== 'owner') {
+            Log::warning('TEAM_OWNER_GUARD', ['tenant' => $tenant->id, 'actor' => $me->id, 'target' => $member->id, 'op' => $op]);
+            return back()->with('error', 'Only an owner can change another owner’s account.');
+        }
+
         switch ($op) {
             case 'update_account': {
                 // phone was fillable and already used by
@@ -391,6 +397,8 @@ class TeamController extends Controller
             case 'reset_password': {
                 $newPassword = Str::random(12);
                 $member->update(['password' => Hash::make($newPassword)]);
+                $member->setRememberToken(Str::random(60)); $member->save(); // other signed-in devices drop out
+                Log::info('TEAM_PASSWORD_RESET', ['tenant' => $tenant->id, 'actor' => $me->id, 'target' => $member->id]);
                 return back()->with('success', "Password reset. New temporary password: {$newPassword}");
             }
 
@@ -402,7 +410,13 @@ class TeamController extends Controller
             }
 
             case 'toggle_active': {
+                if ($member->is_active && $member->role === 'owner'
+                    && TenantUser::where('tenant_id', $tenant->id)->where('role', 'owner')->where('is_active', true)->count() <= 1) {
+                    return back()->with('error', 'This is the only active owner — it can’t be deactivated.');
+                }
                 $member->update(['is_active' => ! $member->is_active]);
+                if (! $member->is_active) { $member->setRememberToken(Str::random(60)); $member->save(); }
+                Log::info('TEAM_ACTIVE_TOGGLE', ['tenant' => $tenant->id, 'actor' => $me->id, 'target' => $member->id, 'active' => $member->is_active]);
                 return back()->with('success', $member->is_active ? 'Member reactivated.' : 'Member deactivated.');
             }
 
@@ -439,9 +453,13 @@ class TeamController extends Controller
         if ($member->id === $me->id) {
             return back()->with('error', 'You cannot remove yourself.');
         }
+        // MARKER-SEC-AUDIT A02: only an owner removes an owner, and never the last active one
+        if ($member->role === 'owner' && $me->role !== 'owner') {
+            return back()->with('error', 'Only an owner can remove another owner.');
+        }
         if ($member->role === 'owner') {
             $owners = TenantUser::where('tenant_id', $tenant->id)
-                ->where('role', 'owner')->count();
+                ->where('role', 'owner')->where('is_active', true)->where('id', '!=', $member->id)->count() + 1;
             if ($owners <= 1) {
                 return back()->with('error', 'Cannot remove the last owner.');
             }
