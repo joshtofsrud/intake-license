@@ -249,8 +249,8 @@
     </div>
   </div>
   @endif
-  {{-- intake.works only (shop heroes don't read these yet) --}}
-  @if($isMarketing ?? false)
+  {{-- MARKER-SHOP-HERO-SCROLL-FX: intake.works and shop heroes both read these --}}
+  @if(true)
   <div class="pb2-group">
     <div class="pb2-group-title">Scroll effect</div>
     @foreach([['scroll_parallax', 'Parallax', 100, '%'], ['scroll_fade', 'Fade', 100, '%'], ['scroll_blur', 'Blur', 20, 'px']] as [$sk, $sl, $smax, $su])
