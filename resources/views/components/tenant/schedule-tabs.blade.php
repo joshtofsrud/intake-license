@@ -20,7 +20,7 @@
     </svg>
     Appointments
   </a>
-  @if($currentTenant->classes_enabled)
+  @if($currentTenant->classes_active)
   <a href="{{ route('tenant.classes.sessions') }}"
      class="ia-schedule-pill {{ $active === 'classes' ? 'is-active' : '' }}">
     <svg width="13" height="13" viewBox="0 0 14 14" fill="none">

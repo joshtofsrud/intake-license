@@ -546,7 +546,7 @@
                 <button type="submit" class="cl-session-action-btn">Mark completed</button>
               </form>
             @endif
-            <form method="POST" action="{{ route('tenant.classes.sessions.update', ['id' => $session->id]) }}" onsubmit="return iaConfirmAction(this, event, {title:'Cancel this session?', message:'Registered customers will NOT be automatically notified. Refunds and credit restoration apply per registration.', confirmText:'Cancel session', cancelText:'Keep session', danger:true})">
+            <form method="POST" action="{{ route('tenant.classes.sessions.update', ['id' => $session->id]) }}" onsubmit="return iaConfirmAction(this, event, {title:'Cancel this session?', message:'Everyone booked is cancelled and their pack credits and membership uses go back. Drop-ins paid at the desk are not refunded automatically, and customers are not emailed yet, so let them know.', confirmText:'Cancel session', cancelText:'Keep session', danger:true})">
               @csrf @method('PATCH')
               <input type="hidden" name="status" value="cancelled">
               <button type="submit" class="cl-session-action-btn danger">Cancel session</button>

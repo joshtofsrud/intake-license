@@ -71,7 +71,7 @@
     @endif
     <div class="cl-confirm-row">
       <div class="cl-confirm-label">Payment</div>
-      <div class="cl-confirm-value">{{ ucfirst(str_replace('_', ' ', $registration->payment_method)) }}</div>
+      <div class="cl-confirm-value">{{ ['per_class' => 'Pay at the studio', 'cash' => 'Paid at the desk', 'pack' => 'Class pack', 'membership' => 'Membership'][$registration->payment_method] ?? ucfirst(str_replace('_', ' ', $registration->payment_method)) }}</div>
     </div>
     <div class="cl-confirm-row">
       <div class="cl-confirm-label">Name</div>

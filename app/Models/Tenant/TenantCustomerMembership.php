@@ -15,6 +15,15 @@ class TenantCustomerMembership extends Model
 
     protected $table = 'tenant_customer_memberships';
 
+    // MARKER-CLASSES-P0: one active membership per customer via unique
+    // (tenant_id, active_slot); NULL once cancelled, expired or paused.
+    protected static function booted(): void
+    {
+        static::saving(function (self $m) {
+            $m->active_slot = $m->status === 'active' ? $m->customer_id : null;
+        });
+    }
+
     protected $fillable = [
         'tenant_id',
         'customer_id',

@@ -1632,7 +1632,7 @@ body.ia-theme-b .cust-edit-handle { background: rgba(0,0,0,.18); }
     @endif
 
     {{-- Memberships & Packs (classes-enabled tenants only) --}}
-    @if($currentTenant->classes_enabled)
+    @if($currentTenant->classes_active)
       @php
         $activeMembership = $customerMemberships->where('status', 'active')->first();
         $activePacks      = $customerPacks->where('status', 'active');
@@ -1980,7 +1980,7 @@ body.ia-theme-b .cust-edit-handle { background: rgba(0,0,0,.18); }
 
 </div>
 
-@if($currentTenant->classes_enabled)
+@if($currentTenant->classes_active)
   <div class="cust-mp-modal" id="cust-mp-modal"
        data-grant-membership-url="{{ route('tenant.customers.memberships.grant', ['customerId' => $customer->id]) }}"
        data-grant-pack-url="{{ route('tenant.customers.packs.grant', ['customerId' => $customer->id]) }}"

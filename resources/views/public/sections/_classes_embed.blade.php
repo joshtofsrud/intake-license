@@ -4,12 +4,16 @@
   use Carbon\Carbon;
 
   $weeksAhead = (int) ($c['weeks_ahead'] ?? 2);
-  $from = Carbon::now()->startOfWeek();
+  // MARKER-CLASSES-P0: studio-time week, started classes hidden, nothing at all
+  // when the shop doesn't have classes on.
+  $classesOn = (bool) ($tenant->classes_active ?? false);
+  $from = Carbon::now($tenant->timezone())->startOfWeek();
   $to   = $from->copy()->addWeeks($weeksAhead)->endOfDay();
 
   $embedSessions = TenantClassSession::where('tenant_id', $tenant->id)
       ->whereIn('status', ['scheduled', 'confirmed'])
-      ->whereBetween('starts_at', [$from, $to])
+      ->whereBetween('starts_at', [$from->copy()->utc(), $to->copy()->utc()])
+      ->where('starts_at', '>', now())
       ->with(['template', 'instructorResource'])
       ->withCount('activeRegistrations')
       ->orderBy('starts_at')
@@ -20,6 +24,7 @@
       : collect();
 @endphp
 
+@if($classesOn)
 <section class="p-section" id="classes">
   <div class="p-container">
     @if(!empty($c['heading']))
@@ -132,3 +137,4 @@ function ceFilter(templateId, btn) {
   return false;
 }
 </script>
+@endif

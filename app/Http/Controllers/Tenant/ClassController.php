@@ -238,6 +238,23 @@ class ClassController extends Controller
             $data['instructor_snapshot'] = $resource?->name;
         }
 
+        // MARKER-CLASSES-P0: cancelling a session cancels its bookings and gives
+        // credits and membership uses back. It used to change the status only.
+        if (($data['status'] ?? null) === 'cancelled' && $session->status !== 'cancelled') {
+            $c = $this->registrationService->cancelSession($session->id, $tenant->id);
+            $session->update($data);
+            $msg = 'Session cancelled.';
+            if ($c['cancelled'] || $c['waitlist']) {
+                $msg .= " {$c['cancelled']} booking(s) cancelled, {$c['restored']} credit(s) or membership use(s) given back"
+                     . ($c['waitlist'] ? ", {$c['waitlist']} waitlist place(s) cleared" : '') . '.';
+                if ($c['paid_at_desk']) {
+                    $msg .= " {$c['paid_at_desk']} paid at the desk: refund them from the sale in the register.";
+                }
+                $msg .= ' Customers are not emailed yet, so let them know.';
+            }
+            return back()->with('success', $msg);
+        }
+
         $session->update($data);
 
         return back()->with('success', 'Session updated.');
@@ -299,7 +316,8 @@ class ClassController extends Controller
                 $sessionId,
                 $data['customer_id'],
                 $tenant->id,
-                $data['payment_method']
+                $data['payment_method'],
+                true // staff: may book until the class ends (MARKER-CLASSES-P0)
             );
         } catch (\RuntimeException $e) {
             return back()->with('error', $e->getMessage());
@@ -335,6 +353,13 @@ class ClassController extends Controller
 
         if (in_array($session->status, ['cancelled', 'completed'])) {
             return back()->with('error', 'This class session is not accepting registrations.');
+        }
+        // MARKER-CLASSES-P0: never take cash for a class that can't seat them.
+        if ($session->ends_at->isPast()) {
+            return back()->with('error', 'This class has already finished.');
+        }
+        if ($session->spotsRemaining() <= 0) {
+            return back()->with('error', 'This class is full. Add them to the waitlist with a pass or membership, or pick another class.');
         }
 
         $price = (int) ($session->template->price_cents ?? 0);
@@ -385,7 +410,11 @@ class ClassController extends Controller
     public function cancelRegistration(string $id)
     {
         $tenant = tenant();
-        $this->registrationService->cancel($id, $tenant->id);
+        try {
+            $this->registrationService->cancel($id, $tenant->id, true);
+        } catch (\RuntimeException $e) { // MARKER-CLASSES-P0
+            return back()->with('error', $e->getMessage());
+        }
 
         return back()->with('success', 'Registration cancelled.');
     }
@@ -590,10 +619,11 @@ class ClassController extends Controller
             ], 422);
         }
 
-        // Period: starts today, ends one calendar month from today.
-        // Period rollover command (TODO) will advance these monthly.
+        // Period: today through the day before the same date next month,
+        // the same shape memberships:tick uses when it rolls a period over
+        // (it used to be one day longer on the first period). MARKER-CLASSES-P0
         $start = now($tenant->timezone())->startOfDay();
-        $end   = $start->copy()->addMonth();
+        $end   = $start->copy()->addMonth()->subDay();
 
         $membership = TenantCustomerMembership::create([
             'tenant_id'                => $tenant->id,

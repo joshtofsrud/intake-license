@@ -107,7 +107,7 @@ class CustomerPortalController extends Controller
 
         $upcomingClasses = collect();
         $pastClasses     = collect();
-        if ($tenant->classes_enabled) {
+        if ($tenant->classes_active) {
             $upcomingClasses = $customer->classRegistrations()
                 ->whereIn('status', ['registered', 'waitlisted'])
                 ->with(['session.template'])

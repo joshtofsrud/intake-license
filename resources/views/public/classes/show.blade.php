@@ -90,12 +90,21 @@
     </div>
     @if(in_array($existingRegistration->status, ['registered', 'waitlisted']))
       <form method="POST" action="{{ route('tenant.customer.classes.cancel', ['id' => $existingRegistration->id]) }}"
-            style="margin-top:12px" onsubmit="return confirm('Cancel your registration?')">
+            style="margin-top:12px">
         @csrf
-        <button type="submit" style="font-size:13px;color:#A32D2D;background:none;border:none;cursor:pointer;text-decoration:underline">Cancel registration</button>
+        {{-- MARKER-CLASSES-P0: in-page confirm instead of the browser's confirm() --}}
+        <button type="button" onclick="this.hidden=true;this.nextElementSibling.hidden=false" style="font-size:13px;color:#A32D2D;background:none;border:none;cursor:pointer;text-decoration:underline">Cancel registration</button>
+        <span hidden style="font-size:13px">Cancel this booking?
+          <button type="submit" style="font-size:13px;color:#A32D2D;background:none;border:none;cursor:pointer;text-decoration:underline;margin-left:6px">Yes, cancel</button>
+          <button type="button" onclick="this.parentElement.hidden=true;this.parentElement.previousElementSibling.hidden=false" style="font-size:13px;background:none;border:none;cursor:pointer;opacity:.7;margin-left:6px">Keep it</button>
+        </span>
       </form>
     @endif
   </div>
+
+{{-- Started: no booking (MARKER-CLASSES-P0) --}}
+@elseif($session->starts_at->isPast())
+  <div class="cl-waitlist-note">This class has already started. Pick another time from the schedule.</div>
 
 {{-- Waitlist --}}
 @elseif($isFull)
@@ -166,7 +175,7 @@
           <div class="cl-pay-radio"></div>
           <div>
             <div class="cl-pay-name">Pay per class</div>
-            <div class="cl-pay-sub">Charged at checkout</div>
+            <div class="cl-pay-sub">Pay at the studio</div>
           </div>
           <span class="cl-pay-price">${{ number_format($session->template->price_cents / 100, 2) }}</span>
         </label>
@@ -178,7 +187,7 @@
       <input type="hidden" name="payment_method" value="{{ $session->template->price_cents > 0 ? 'per_class' : 'cash' }}">
       @if($session->template->price_cents > 0)
         <div style="margin-bottom:16px;padding:13px 15px;background:var(--p-surface);border-radius:var(--p-r-lg);display:flex;justify-content:space-between;align-items:center">
-          <span style="font-size:14px;opacity:.7">Class price</span>
+          <span style="font-size:14px;opacity:.7">Class price · pay at the studio</span>
           <span style="font-size:18px;font-weight:700">${{ number_format($session->template->price_cents / 100, 2) }}</span>
         </div>
       @endif

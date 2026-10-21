@@ -363,7 +363,7 @@ class CustomerController extends Controller
         $customerPacks       = collect();
         $membershipProducts  = collect();
         $packProducts        = collect();
-        if ($tenant->classes_enabled) {
+        if ($tenant->classes_active) {
             $customerMemberships = \App\Models\Tenant\TenantCustomerMembership::where('tenant_id', $tenant->id)
                 ->where('customer_id', $customer->id)
                 ->with('product:id,name,type,monthly_limit,price_cents')

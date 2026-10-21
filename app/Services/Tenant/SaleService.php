@@ -483,7 +483,9 @@ class SaleService
                         $meta['class_session_id'],
                         $finalSale->customer_id,
                         $tenantId,
-                        'cash'
+                        'cash',
+                        true,  // staff
+                        false  // paid at the register: never also spend a pack or membership (MARKER-CLASSES-P0)
                     );
                 } catch (\Throwable $e) {
                     \Illuminate\Support\Facades\Log::warning('class registration after sale commit failed', [

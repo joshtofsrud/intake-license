@@ -326,7 +326,7 @@
 <div class="cl-modal-overlay" id="cancel-modal">
   <div class="cl-modal" style="max-width:400px">
     <div class="cl-modal-title">Cancel this session?</div>
-    <p style="font-size:13px;color:var(--ia-text-muted);margin-bottom:20px">Registered customers will not be automatically notified.</p>
+    <p style="font-size:13px;color:var(--ia-text-muted);margin-bottom:20px">Everyone booked is cancelled and their pack credits and membership uses go back. Drop-ins paid at the desk are not refunded automatically, and customers are not emailed yet, so let them know.</p>
     <form method="POST" id="cancel-form" action="">
       @csrf
       @method('PATCH')

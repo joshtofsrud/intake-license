@@ -165,7 +165,7 @@
     </div>
 
     {{-- Memberships & Packs (classes-enabled tenants only) --}}
-    @if($currentTenant->classes_enabled)
+    @if($currentTenant->classes_active)
       @php
         $activeMembership = $customerMemberships->where('status', 'active')->first();
         $activePacks      = $customerPacks->where('status', 'active');
@@ -448,7 +448,7 @@
 
 </div>
 
-@if($currentTenant->classes_enabled)
+@if($currentTenant->classes_active)
   <div class="cust-mp-modal" id="cust-mp-modal"
        data-grant-membership-url="{{ route('tenant.customers.memberships.grant', ['customerId' => $customer->id]) }}"
        data-grant-pack-url="{{ route('tenant.customers.packs.grant', ['customerId' => $customer->id]) }}"

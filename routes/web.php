@@ -319,12 +319,14 @@ $tenantRoutes = function () {
     Route::get('/account/settings',       [TenantControllers\CustomerPortalController::class, 'account'])->name('tenant.customer.portal.account');
     Route::post('/account/notifications', [TenantControllers\CustomerPortalController::class, 'notificationsUpdate'])->name('tenant.customer.portal.notifications');
 
-    // Customer-facing class booking
+    // Customer-facing class booking. 404 unless the shop has classes on (MARKER-CLASSES-P0).
+    Route::middleware([\App\Http\Middleware\RequireClassesActive::class . ':public'])->group(function () {
     Route::get('/classes',                          [TenantControllers\CustomerClassController::class, 'index'])->name('tenant.customer.classes');
     Route::get('/classes/{id}',                     [TenantControllers\CustomerClassController::class, 'show'])->name('tenant.customer.classes.show');
     Route::post('/classes/{id}/register',           [TenantControllers\CustomerClassController::class, 'register'])->name('tenant.customer.classes.register');
     Route::get('/classes/confirm/{id}',             [TenantControllers\CustomerClassController::class, 'confirm'])->name('tenant.customer.classes.confirm');
     Route::post('/classes/registrations/{id}/cancel', [TenantControllers\CustomerClassController::class, 'cancelRegistration'])->name('tenant.customer.classes.cancel');
+    });
 
 // Cloudflare custom-hostname webhook
 Route::post('webhooks/cloudflare', [\App\Http\Controllers\Webhooks\CloudflareWebhookController::class, 'handle'])
@@ -713,7 +715,7 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
                 Route::post('/hours',      [TenantControllers\OnboardingWizardController::class, 'saveHours'])->name('hours.save');
                 Route::get('/services',    [TenantControllers\OnboardingWizardController::class, 'showServices'])->name('services');
                 Route::post('/services',   [TenantControllers\OnboardingWizardController::class, 'saveServices'])->name('services.save');
-                Route::get('/team',        [TenantControllers\OnboardingWizardController::class, 'showTeamshowTeamOrSkip'])->name('team');
+                Route::get('/team',        [TenantControllers\OnboardingWizardController::class, 'showTeamOrSkip'])->name('team');
                 Route::post('/team',       [TenantControllers\OnboardingWizardController::class, 'saveTeam'])->name('team.save');
                 Route::get('/payment',     [TenantControllers\OnboardingWizardController::class, 'showPayment'])->name('payment');
                 Route::post('/payment',    [TenantControllers\OnboardingWizardController::class, 'savePayment'])->name('payment.save');
@@ -1015,6 +1017,8 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             Route::delete('/waitlist/entries/{id}',    [TenantControllers\WaitlistAdminController::class, 'cancelEntry'])->name('waitlist.cancel');
             // Feature-addon catalog (tenant-facing purchase + manage).
             // Classes — templates, sessions, registrations, memberships, packs
+            // Gated: classes add-on AND switched on (MARKER-CLASSES-P0).
+            Route::middleware([\App\Http\Middleware\RequireClassesActive::class])->group(function () {
             Route::get('/classes/templates',                    [TenantControllers\ClassController::class, 'templates'])->name('classes.templates');
             Route::post('/classes/templates',                   [TenantControllers\ClassController::class, 'storeTemplate'])->name('classes.templates.store');
             Route::patch('/classes/templates/{id}',             [TenantControllers\ClassController::class, 'updateTemplate'])->name('classes.templates.update');
@@ -1051,6 +1055,7 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             // Classes reports — panel page + CSV exports per panel
             Route::get('/classes/reports',                                    [TenantControllers\ClassController::class, 'reports'])->name('classes.reports');
             Route::get('/classes/reports/export/{panel}',                     [TenantControllers\ClassController::class, 'reportExport'])->name('classes.reports.export');
+            });
 
             // Note: 'feature-addons' path avoids collision with existing service-addon routes below.
             Route::get('/feature-addons',             [TenantControllers\AddonCatalogController::class, 'index'])->name('feature_addons.index');

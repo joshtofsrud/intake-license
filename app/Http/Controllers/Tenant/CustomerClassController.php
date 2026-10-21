@@ -26,14 +26,25 @@ class CustomerClassController extends Controller
     public function index(Request $request)
     {
         $tenant   = tenant();
-        $from     = $request->date('from', 'Y-m-d') ?? now()->startOfWeek();
+        // MARKER-CLASSES-P0: weeks are the studio's weeks, and classes that have
+        // started are not offered. (This used to start the week in UTC and
+        // list earlier classes this week as bookable.)
+        $tz = $tenant->timezone();
+        try {
+            $from = $request->filled('from')
+                ? \Carbon\Carbon::createFromFormat('Y-m-d', (string) $request->query('from'), $tz)->startOfDay()
+                : now($tz)->startOfWeek();
+        } catch (\Throwable $e) {
+            $from = now($tz)->startOfWeek();
+        }
         $to       = $from->copy()->addDays(6)->endOfDay();
 
         $templateFilter = $request->query('template');
 
         $sessions = TenantClassSession::where('tenant_id', $tenant->id)
             ->whereIn('status', ['scheduled', 'confirmed'])
-            ->whereBetween('starts_at', [$from, $to])
+            ->whereBetween('starts_at', [$from->copy()->utc(), $to->copy()->utc()])
+            ->where('starts_at', '>', now())
             ->when($templateFilter, fn($q) => $q->where('class_template_id', $templateFilter))
             ->with(['template', 'instructorResource'])
             ->withCount('activeRegistrations')
@@ -100,7 +111,10 @@ class CustomerClassController extends Controller
         // Determine payment method
         $paymentMethod = $request->input('payment_method', 'per_class');
 
-        // Guest drop-in — no account needed for per_class or cash
+        // Guest drop-in — no account needed for per_class or cash.
+        // MARKER-CLASSES-P0: a guest never spends a matching customer's pack or
+        // membership; the email alone proves nothing.
+        $isGuest = ! $customer;
         if (!$customer) {
             if (!in_array($paymentMethod, ['per_class', 'cash'])) {
                 return back()->withErrors(['auth' => 'Please sign in to use a membership or pack.']);
@@ -127,7 +141,9 @@ class CustomerClassController extends Controller
                 $id,
                 $customer->id,
                 $tenant->id,
-                $paymentMethod
+                $paymentMethod,
+                false,
+                ! $isGuest
             );
         } catch (\RuntimeException $e) {
             return back()->withErrors(['booking' => $e->getMessage()]);
@@ -169,7 +185,11 @@ class CustomerClassController extends Controller
             ->where('customer_id', $customer->id)
             ->findOrFail($id);
 
-        $this->registrationService->cancel($registration->id, $tenant->id);
+        try {
+            $this->registrationService->cancel($registration->id, $tenant->id, false);
+        } catch (\RuntimeException $e) { // MARKER-CLASSES-P0
+            return back()->withErrors(['booking' => $e->getMessage()]);
+        }
 
         return back()->with('success', 'Your registration has been cancelled.');
     }

@@ -14,6 +14,18 @@ class TenantClassRegistration extends Model
 
     protected $table = 'tenant_class_registrations';
 
+    // MARKER-CLASSES-P0: one active booking per person per class is enforced by a
+    // unique (class_session_id, active_slot) key. active_slot is the customer
+    // id while the booking is live and NULL otherwise.
+    protected static function booted(): void
+    {
+        static::saving(function (self $r) {
+            $r->active_slot = in_array($r->status, ['registered', 'waitlisted', 'checked_in'], true)
+                ? $r->customer_id
+                : null;
+        });
+    }
+
     protected $fillable = [
         'tenant_id',
         'class_session_id',

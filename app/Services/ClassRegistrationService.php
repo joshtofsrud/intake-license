@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use App\Models\Tenant;
 use App\Models\Tenant\TenantClassSession;
 use App\Models\Tenant\TenantClassRegistration;
 use App\Models\Tenant\TenantCustomer;
@@ -10,156 +9,203 @@ use App\Models\Tenant\TenantCustomerMembership;
 use App\Models\Tenant\TenantCustomerPack;
 use App\Support\MySQLLock;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use RuntimeException;
 
+/**
+ * Class bookings: register, cancel, waitlist, session cancellation.
+ *
+ * Every change to a session's bookings takes the same lock,
+ * intake:{tenant}:class:{session}, so a cancel and a booking for the last
+ * spot can never interleave.
+ *
+ * $staff = true  -> a staff member is acting (admin screens, register hook).
+ *                   Staff may book until the class ENDS and may cancel a
+ *                   checked-in booking (correcting a mistake).
+ * $staff = false -> the customer is acting (website, portal). Booking and
+ *                   cancelling close when the class STARTS, and a checked-in
+ *                   booking can't be cancelled (it would hand the credit back
+ *                   for a class they attended).
+ *
+ * MARKER-CLASSES-P0
+ */
 class ClassRegistrationService
 {
-    // TODO(class-confirmation-emails): when registration confirmations
-    // ship post-launch, include the template's class_notes and the
-    // session's session_notes_override in the email body. Both fields
-    // are populated on the registration's session+template; just wire
-    // them through the mailable.
+    private const ACTIVE = ['registered', 'checked_in'];
+
+    // TODO(class-confirmation-emails): class registrations still send no
+    // email. Phase 3 of the classes rework adds confirmation, reminder,
+    // waitlist and cancellation messages (include class_notes and
+    // session_notes_override in the confirmation).
 
     /**
-     * Register a customer for a class session.
+     * Book a customer into a session, or onto its waitlist when it is full.
      *
-     * Payment resolution order (enforced here, never at the call site):
-     *   1. Active membership with remaining capacity → payment_method = membership
-     *   2. Non-expired pack with credits remaining, oldest expiry first → payment_method = pack
-     *   3. No coverage → payment_method = per_class (Stripe via Connect, post-launch)
-     *                  or cash (manual, admin-only)
-     *
-     * Lock scope: intake:{tenant}:class:{session} — one registration
-     * at a time per session to prevent capacity races.
+     * Payment resolution (resolvePayment):
+     *   explicit 'membership' / 'pack' -> that source or an error, never a
+     *                                     silent fallback
+     *   anything else, $allowCoverage   -> membership, then soonest-expiring
+     *                                     pack, then the requested method
+     *   $allowCoverage = false          -> the requested method only. Used
+     *                                     for guests (who must never spend a
+     *                                     matching customer's credits) and for
+     *                                     drop-ins already paid at the register.
      */
     public function register(
         string $sessionId,
         string $customerId,
         string $tenantId,
-        string $paymentMethod = 'per_class'
+        string $paymentMethod = 'per_class',
+        bool $staff = false,
+        bool $allowCoverage = true
     ): TenantClassRegistration {
-        $lockKey = "intake:{$tenantId}:class:{$sessionId}";
-
-        $lock = app(MySQLLock::class);
-
-        return $lock->withLock($lockKey, function () use (
-            $sessionId, $customerId, $tenantId, $paymentMethod
+        return $this->locked($tenantId, $sessionId, function () use (
+            $sessionId, $customerId, $tenantId, $paymentMethod, $staff, $allowCoverage
         ) {
-            return DB::transaction(function () use (
-                $sessionId, $customerId, $tenantId, $paymentMethod
-            ) {
-                $session = TenantClassSession::where('tenant_id', $tenantId)
-                    ->findOrFail($sessionId);
+            $session = TenantClassSession::where('tenant_id', $tenantId)->findOrFail($sessionId);
+            TenantCustomer::where('tenant_id', $tenantId)->findOrFail($customerId);
 
-                // the session was scoped to the
-                // tenant and the customer was not, so a foreign customer_id
-                // reached resolvePayment() and the registration row itself.
-                // Scope it the same way, in the same place.
-                TenantCustomer::where('tenant_id', $tenantId)
-                    ->findOrFail($customerId);
+            if (! in_array($session->status, ['scheduled', 'confirmed'], true)) {
+                throw new RuntimeException('This class is not taking bookings.');
+            }
+            if ($staff ? $session->ends_at->isPast() : $session->starts_at->isPast()) {
+                throw new RuntimeException($staff
+                    ? 'This class has already finished.'
+                    : 'This class has already started.');
+            }
 
-                // Guard: session must be bookable
-                if (!$session->isBookable()) {
-                    throw new RuntimeException('This class session is not available for registration.');
-                }
+            $existing = TenantClassRegistration::where('class_session_id', $sessionId)
+                ->where('customer_id', $customerId)
+                ->whereIn('status', ['registered', 'checked_in', 'waitlisted'])
+                ->exists();
+            if ($existing) {
+                throw new RuntimeException('Customer is already booked into this class or on its waitlist.');
+            }
 
-                // Guard: no duplicate active registration
-                $existing = TenantClassRegistration::where('class_session_id', $sessionId)
-                    ->where('customer_id', $customerId)
-                    ->whereIn('status', ['registered', 'checked_in', 'waitlisted'])
-                    ->exists();
+            $resolved = $allowCoverage
+                ? $this->resolvePayment($customerId, $tenantId, $paymentMethod)
+                : $this->requestedOnly($paymentMethod);
 
-                if ($existing) {
-                    throw new RuntimeException('Customer is already registered for this session.');
-                }
+            // A full class goes to the waitlist. (Before this patch a full
+            // class was refused outright, so nobody could ever join a waitlist.)
+            $isFull      = $session->spotsRemaining() <= 0;
+            $status      = $isFull ? 'waitlisted' : 'registered';
+            $waitlistPos = null;
+            if ($isFull) {
+                $waitlistPos = (int) TenantClassRegistration::where('class_session_id', $sessionId)
+                    ->where('status', 'waitlisted')
+                    ->max('waitlist_position') + 1;
+            } else {
+                // Consume before writing the row so a failed consume rolls
+                // the whole transaction back. Waitlisted people pay nothing
+                // until they are moved in.
+                $this->consumePaymentSource($resolved);
+            }
 
-                // Resolve payment method
-                $resolved = $this->resolvePayment($customerId, $tenantId, $paymentMethod);
-
-                // Determine spot vs waitlist
-                $spotsRemaining = $session->spotsRemaining();
-                $status         = $spotsRemaining > 0 ? 'registered' : 'waitlisted';
-                $waitlistPos    = null;
-
-                if ($status === 'waitlisted') {
-                    $waitlistPos = TenantClassRegistration::where('class_session_id', $sessionId)
-                        ->where('status', 'waitlisted')
-                        ->max('waitlist_position') + 1;
-                }
-
-                // Consume the payment source before writing the registration
-                // so a failed consume rolls back the whole transaction
-                if ($status === 'registered') {
-                    $this->consumePaymentSource($resolved, $tenantId);
-                }
-
-                return TenantClassRegistration::create([
-                    'tenant_id'        => $tenantId,
-                    'class_session_id' => $sessionId,
-                    'customer_id'      => $customerId,
-                    'status'           => $status,
-                    'payment_method'   => $resolved['method'],
-                    'membership_id'    => $resolved['membership_id'] ?? null,
-                    'pack_id'          => $resolved['pack_id'] ?? null,
-                    'paid_cents'       => $resolved['paid_cents'] ?? 0,
-                    'waitlist_position'=> $waitlistPos,
-                    'registered_at'    => now(),
-                ]);
-            });
+            return TenantClassRegistration::create([
+                'tenant_id'         => $tenantId,
+                'class_session_id'  => $sessionId,
+                'customer_id'       => $customerId,
+                'status'            => $status,
+                'payment_method'    => $resolved['method'],
+                'membership_id'     => $resolved['membership_id'] ?? null,
+                'pack_id'           => $resolved['pack_id'] ?? null,
+                'paid_cents'        => $resolved['paid_cents'] ?? 0,
+                'waitlist_position' => $waitlistPos,
+                'registered_at'     => now(),
+            ]);
         });
     }
 
     /**
-     * Cancel a registration. If the session has a waitlist, promote
-     * the next customer automatically.
+     * Cancel one booking or waitlist place.
+     *
+     *  - waitlisted: leaves the waitlist; nothing was consumed, nobody moves.
+     *  - registered / checked_in: the credit or membership use goes back and
+     *    the first waitlisted person who can pay is moved in.
      */
-    public function cancel(string $registrationId, string $tenantId): void
+    public function cancel(string $registrationId, string $tenantId, bool $staff = false): void
     {
-        DB::transaction(function () use ($registrationId, $tenantId) {
-            $registration = TenantClassRegistration::where('tenant_id', $tenantId)
-                ->findOrFail($registrationId);
+        $sessionId = TenantClassRegistration::where('tenant_id', $tenantId)
+            ->findOrFail($registrationId)->class_session_id;
 
-            if (!$registration->isActive()) {
-                throw new RuntimeException('Registration is not in a cancellable state.');
+        $this->locked($tenantId, $sessionId, function () use ($registrationId, $tenantId, $staff) {
+            $registration = TenantClassRegistration::where('tenant_id', $tenantId)
+                ->lockForUpdate()
+                ->findOrFail($registrationId);
+            $session = TenantClassSession::where('tenant_id', $tenantId)
+                ->findOrFail($registration->class_session_id);
+
+            if ($registration->status === 'waitlisted') {
+                $registration->update([
+                    'status'            => 'cancelled',
+                    'cancelled_at'      => now(),
+                    'waitlist_position' => null,
+                ]);
+                return;
             }
 
-            // Restore the payment source on the cancelled registration BEFORE
-            // marking it cancelled. Pack credits go back, membership usage
-            // counter ticks back. Per-class and cash never had pre-consumption,
-            // so nothing to restore for those methods.
-            $this->restorePaymentSource($registration, $tenantId);
+            if (! in_array($registration->status, self::ACTIVE, true)) {
+                throw new RuntimeException('This booking is already cancelled.');
+            }
+            if (! $staff && $registration->status === 'checked_in') {
+                throw new RuntimeException("You've already been checked in to this class.");
+            }
+            if (! $staff && $session->starts_at->isPast()) {
+                throw new RuntimeException('This class has already started.');
+            }
 
+            $this->restorePaymentSource($registration, $tenantId);
             $registration->cancel();
 
-            // Promote next waitlisted customer
-            $next = TenantClassRegistration::where('class_session_id', $registration->class_session_id)
-                ->where('status', 'waitlisted')
-                ->orderBy('waitlist_position')
-                ->first();
-
-            if ($next) {
-                $resolved = $this->resolvePayment(
-                    $next->customer_id,
-                    $tenantId,
-                    $next->payment_method
-                );
-
-                $this->consumePaymentSource($resolved, $tenantId);
-
-                $next->update([
-                    'status'           => 'registered',
-                    'waitlist_position'=> null,
-                    'payment_method'   => $resolved['method'],
-                    'membership_id'    => $resolved['membership_id'] ?? null,
-                    'pack_id'          => $resolved['pack_id'] ?? null,
-                ]);
+            if ($session->starts_at->isFuture()
+                && in_array($session->status, ['scheduled', 'confirmed'], true)) {
+                $this->promoteFromWaitlist($session, $tenantId);
             }
         });
     }
 
     /**
-     * Check in a customer to a session.
+     * Cancel every booking on a session that is itself being cancelled.
+     * Credits and membership uses go back; waitlist places are cleared.
+     * Nobody is promoted. Returns counts for the staff message.
+     *
+     * @return array{cancelled:int, restored:int, waitlist:int, paid_at_desk:int}
      */
+    public function cancelSession(string $sessionId, string $tenantId): array
+    {
+        return $this->locked($tenantId, $sessionId, function () use ($sessionId, $tenantId) {
+            $counts = ['cancelled' => 0, 'restored' => 0, 'waitlist' => 0, 'paid_at_desk' => 0];
+
+            $rows = TenantClassRegistration::where('tenant_id', $tenantId)
+                ->where('class_session_id', $sessionId)
+                ->whereIn('status', ['registered', 'checked_in', 'waitlisted'])
+                ->lockForUpdate()
+                ->get();
+
+            foreach ($rows as $r) {
+                if ($r->status === 'waitlisted') {
+                    $counts['waitlist']++;
+                } else {
+                    $counts['cancelled']++;
+                    if (in_array($r->payment_method, ['pack', 'membership'], true)) {
+                        $this->restorePaymentSource($r, $tenantId);
+                        $counts['restored']++;
+                    } elseif ($r->payment_method === 'cash') {
+                        $counts['paid_at_desk']++;
+                    }
+                }
+                $r->metadata = array_merge($r->metadata ?? [], ['cancel_reason' => 'session_cancelled']);
+                $r->status            = 'cancelled';
+                $r->cancelled_at      = now();
+                $r->waitlist_position = null;
+                $r->save();
+            }
+
+            return $counts;
+        });
+    }
+
     public function checkIn(string $registrationId, string $tenantId): void
     {
         $registration = TenantClassRegistration::where('tenant_id', $tenantId)
@@ -169,9 +215,6 @@ class ClassRegistrationService
         $registration->update(['status' => 'checked_in']);
     }
 
-    /**
-     * Mark a registered customer as no-show.
-     */
     public function markNoShow(string $registrationId, string $tenantId): void
     {
         $registration = TenantClassRegistration::where('tenant_id', $tenantId)
@@ -182,25 +225,69 @@ class ClassRegistrationService
     }
 
     // ------------------------------------------------------------------
-    // Payment resolution
+    // Internals
     // ------------------------------------------------------------------
 
+    private function locked(string $tenantId, string $sessionId, callable $work): mixed
+    {
+        return app(MySQLLock::class)->withLock(
+            "intake:{$tenantId}:class:{$sessionId}",
+            fn () => DB::transaction($work)
+        );
+    }
+
     /**
-     * Resolve which payment source covers this registration.
-     *
-     * Returns an array with:
-     *   method        — 'membership' | 'pack' | 'per_class' | 'cash'
-     *   membership_id — uuid or null
-     *   pack_id       — uuid or null
-     *   paid_cents    — 0 unless per_class
+     * Move the first waitlisted person who can still pay into the class.
+     * Each person keeps the payment method they joined with. Someone whose
+     * pack or membership no longer covers it stays on the waitlist and the
+     * next person is tried; one empty pack must never block a cancellation.
      */
-    private function resolvePayment(
-        string $customerId,
-        string $tenantId,
-        string $requestedMethod
-    ): array {
-        // Look up coverage. Both lookups are cheap and we may need either
-        // depending on what the caller requested.
+    private function promoteFromWaitlist(TenantClassSession $session, string $tenantId): void
+    {
+        if ($session->spotsRemaining() <= 0) {
+            return;
+        }
+
+        $waiting = TenantClassRegistration::where('class_session_id', $session->id)
+            ->where('status', 'waitlisted')
+            ->orderBy('waitlist_position')
+            ->get();
+
+        foreach ($waiting as $next) {
+            try {
+                $resolved = $this->resolvePayment($next->customer_id, $tenantId, $next->payment_method);
+            } catch (RuntimeException $e) {
+                Log::info('classes: waitlist promotion skipped, no coverage', [
+                    'registration_id' => $next->id,
+                    'reason'          => $e->getMessage(),
+                ]);
+                continue;
+            }
+
+            $this->consumePaymentSource($resolved);
+            $next->update([
+                'status'            => 'registered',
+                'waitlist_position' => null,
+                'payment_method'    => $resolved['method'],
+                'membership_id'     => $resolved['membership_id'] ?? null,
+                'pack_id'           => $resolved['pack_id'] ?? null,
+            ]);
+            return;
+        }
+    }
+
+    private function requestedOnly(string $requestedMethod): array
+    {
+        return [
+            'method'        => in_array($requestedMethod, ['per_class', 'cash'], true) ? $requestedMethod : 'per_class',
+            'membership_id' => null,
+            'pack_id'       => null,
+            'paid_cents'    => 0,
+        ];
+    }
+
+    private function resolvePayment(string $customerId, string $tenantId, string $requestedMethod): array
+    {
         $membership = TenantCustomerMembership::where('tenant_id', $tenantId)
             ->where('customer_id', $customerId)
             ->where('status', 'active')
@@ -212,114 +299,58 @@ class ClassRegistrationService
             ->consumptionOrder()
             ->first();
 
-        // If admin explicitly picked membership or pack, honor that choice
-        // strictly — do NOT silently fall back to per_class. A silent fallback
-        // here means the admin thinks coverage was used when it wasn't, the
-        // customer never gets billed, and the audit trail is wrong.
+        // Explicit choice: honour it strictly. A silent fallback would let
+        // staff believe coverage was used when it wasn't.
         if ($requestedMethod === 'membership') {
-            if (!$membership || !$membership->canCoverClass()) {
-                throw new RuntimeException(
-                    'Customer has no active membership with capacity. Pick a different payment method.'
-                );
+            if (! $membership || ! $membership->canCoverClass()) {
+                throw new RuntimeException('Customer has no active membership with classes left. Pick a different payment method.');
             }
-            return [
-                'method'        => 'membership',
-                'membership_id' => $membership->id,
-                'pack_id'       => null,
-                'paid_cents'    => 0,
-                'source'        => $membership,
-            ];
+            return ['method' => 'membership', 'membership_id' => $membership->id, 'pack_id' => null, 'paid_cents' => 0, 'source' => $membership];
         }
-
         if ($requestedMethod === 'pack') {
-            if (!$pack) {
-                throw new RuntimeException(
-                    'Customer has no usable pack. Pick a different payment method.'
-                );
+            if (! $pack) {
+                throw new RuntimeException('Customer has no usable pack. Pick a different payment method.');
             }
-            return [
-                'method'        => 'pack',
-                'membership_id' => null,
-                'pack_id'       => $pack->id,
-                'paid_cents'    => 0,
-                'source'        => $pack,
-            ];
+            return ['method' => 'pack', 'membership_id' => null, 'pack_id' => $pack->id, 'paid_cents' => 0, 'source' => $pack];
         }
 
-        // For per_class / cash / customer-portal flows where the requestedMethod
-        // is permissive, prefer best-available coverage automatically: membership
-        // first, then pack, then fall through to the requested cash/per_class.
-        // This path is the one the customer self-service portal uses.
         if ($membership && $membership->canCoverClass()) {
-            return [
-                'method'        => 'membership',
-                'membership_id' => $membership->id,
-                'pack_id'       => null,
-                'paid_cents'    => 0,
-                'source'        => $membership,
-            ];
+            return ['method' => 'membership', 'membership_id' => $membership->id, 'pack_id' => null, 'paid_cents' => 0, 'source' => $membership];
         }
-
         if ($pack) {
-            return [
-                'method'        => 'pack',
-                'membership_id' => null,
-                'pack_id'       => $pack->id,
-                'paid_cents'    => 0,
-                'source'        => $pack,
-            ];
+            return ['method' => 'pack', 'membership_id' => null, 'pack_id' => $pack->id, 'paid_cents' => 0, 'source' => $pack];
         }
 
-        return [
-            'method'        => in_array($requestedMethod, ['per_class', 'cash'])
-                                ? $requestedMethod
-                                : 'per_class',
-            'membership_id' => null,
-            'pack_id'       => null,
-            'paid_cents'    => 0,
-        ];
+        return $this->requestedOnly($requestedMethod);
     }
 
-    /**
-     * Consume the resolved payment source.
-     * Called inside the DB transaction after capacity is confirmed.
-     */
-    private function consumePaymentSource(array $resolved, string $tenantId): void
+    private function consumePaymentSource(array $resolved): void
     {
         match ($resolved['method']) {
             'membership' => $resolved['source']->increment('classes_used_this_period'),
             'pack'       => $resolved['source']->deductCredit(),
-            default      => null, // per_class and cash: no pre-consumption
+            default      => null,
         };
     }
 
     /**
-     * Restore the payment source for a cancelled registration. Reverses what
-     * consumePaymentSource() did at registration time.
-     *
-     * Intentionally tolerant — if the source no longer exists (admin revoked
-     * the pack/membership manually), or the registration was per_class/cash,
-     * we silently no-op. The registration still gets cancelled either way.
-     *
-     * Edge case: membership usage shouldn't go negative. If the period rolled
-     * over since registration (so classes_used_this_period was already reset
-     * to 0), decrementing would underflow. Guard with a max(0, x-1) pattern.
+     * Undo consumePaymentSource(). Tolerant: a revoked pack or membership,
+     * or a per_class / cash booking, is a no-op. Membership use never goes
+     * below zero (the period may have rolled over since booking).
      */
     private function restorePaymentSource(TenantClassRegistration $registration, string $tenantId): void
     {
         if ($registration->payment_method === 'pack' && $registration->pack_id) {
-            $pack = TenantCustomerPack::where('tenant_id', $tenantId)
-                ->find($registration->pack_id);
+            $pack = TenantCustomerPack::where('tenant_id', $tenantId)->find($registration->pack_id);
             if ($pack) {
                 $pack->restoreCredit();
             }
         } elseif ($registration->payment_method === 'membership' && $registration->membership_id) {
-            $membership = TenantCustomerMembership::where('tenant_id', $tenantId)
-                ->find($registration->membership_id);
+            $membership = TenantCustomerMembership::where('tenant_id', $tenantId)->find($registration->membership_id);
             if ($membership && $membership->classes_used_this_period > 0) {
                 $membership->decrement('classes_used_this_period');
             }
         }
-        // per_class, cash, or unrecognized methods: no pre-consumption to undo.
     }
 }
+
