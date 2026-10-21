@@ -81,6 +81,16 @@ class MarketingFunnelController extends Controller
 
         self::record($data['event_type'], $data);
 
+        // MARKER-EMAIL-OUTREACH: a prospect who arrived through their own email
+        // link (mkt_p cookie). Staff signed in to master admin aren't counted.
+        try {
+            if (! auth('web')->check()) {
+                \App\Services\Sales\ProspectOutreach::recordVisit((string) $request->cookie('mkt_p', ''), (string) $data['session_id'], (string) $data['event_type'], $data['path'] ?? null, $data['device'] ?? null);
+            }
+        } catch (\Throwable $e) {
+            report($e);
+        }
+
         return response()->json(['ok' => true])->withCookie(
             Cookie::make('mkt_sid', $data['session_id'], 60 * 24 * 90, '/', null, true, true, false, 'lax')
         );

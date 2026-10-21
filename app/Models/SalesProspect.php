@@ -52,6 +52,9 @@ class SalesProspect extends Model
         'site_scanned_at'   => 'datetime',
         'invited_at'        => 'datetime',
         'converted_at'      => 'datetime',
+        'emailed_at'        => 'datetime', // MARKER-EMAIL-OUTREACH
+        'email_skipped_at'  => 'datetime',
+        'link_clicked_at'   => 'datetime',
         'lat'               => 'decimal:6',
         'lng'               => 'decimal:6',
     ];

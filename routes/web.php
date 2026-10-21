@@ -9,7 +9,7 @@ $domain = config('intake.domain', 'intake.works');
 // Platform routes — intake.works
 // =========================================================================
 
-Route::domain($domain)->middleware(\App\Http\Middleware\SeoSignals::class)->group(function () {
+Route::domain($domain)->middleware([\App\Http\Middleware\SeoSignals::class, \App\Http\Middleware\OutreachLink::class])->group(function () { // MARKER-EMAIL-OUTREACH: ?p= prospect links
 
     Route::get('/robots.txt',  [\App\Http\Controllers\SeoController::class, 'robots'])->name('marketing.robots');
     Route::get('/sitemap.xml', [\App\Http\Controllers\SeoController::class, 'sitemap'])->name('marketing.sitemap');

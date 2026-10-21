@@ -76,7 +76,9 @@ class AdminAccess
             'tenant-domains'                                 => 'domains',
             'sales-channels', 'sales-prospects',
             'sales-find-shops', 'sales-territories', 'sales-places',
-            'sales-pipeline', 'sales-route-day'              => 'crm',
+            'sales-pipeline', 'sales-route-day',
+            'sales-instagram', 'sales-email-outreach',
+            'sales-email-templates'                          => 'crm', // MARKER-EMAIL-OUTREACH (sales-instagram was unmapped: owner/admin only)
             'sales-agencies'                                 => 'reps',
             'marketing-pages', 'platform-nav-items',
             'changelog-entries', 'roadmap-entries',

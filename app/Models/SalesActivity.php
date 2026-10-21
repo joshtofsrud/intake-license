@@ -28,6 +28,7 @@ class SalesActivity extends Model
         'follow_up'    => 'Follow-up',
         'stage_change' => 'Stage change',
         'system'       => 'System',
+        'visit'        => 'Site visit', // MARKER-EMAIL-OUTREACH: arrived through their email link
     ];
 
     public function prospect(): BelongsTo
@@ -44,6 +45,7 @@ class SalesActivity extends Model
             'follow_up'    => 'heroicon-o-clock',
             'stage_change' => 'heroicon-o-arrow-right-circle',
             'system'       => 'heroicon-o-bolt',
+            'visit'        => 'heroicon-o-cursor-arrow-rays',
             default        => 'heroicon-o-chat-bubble-left',
         };
     }

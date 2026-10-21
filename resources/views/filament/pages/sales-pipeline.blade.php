@@ -339,6 +339,13 @@
         <div style="{{ $card }};margin-top:10px">
           <div style="font-weight:600;font-size:13px;margin-bottom:4px">Email {{ $cur->owner_contact ?: $cur->shop }}</div>
           <div style="{{ $muted }};margin-bottom:8px">Sent from Intake's platform email with an unsubscribe link and your postal address. Replies arrive in the platform inbox. It's added to this shop's timeline.</div>
+          {{-- MARKER-EMAIL-OUTREACH: template + landing page, remembered with Email outreach --}}
+          @php $eoPages = \App\Services\Sales\ProspectOutreach::landingPages(); @endphp
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+            <div><div style="{{ $muted }}">Template · <a href="{{ \App\Filament\Pages\SalesEmailTemplates::getUrl() }}" style="color:#a78bfa">edit</a></div><select class="{{ $input }}" style="width:100%" wire:model.live="emailTemplateId"><option value="">Blank</option>@foreach(\App\Models\SalesEmailTemplate::orderBy('sort')->orderBy('name')->get(['id', 'name']) as $eoT)<option value="{{ $eoT->id }}">{{ $eoT->name }}</option>@endforeach</select></div>
+            <div><div style="{{ $muted }}">Their link opens</div><select class="{{ $input }}" style="width:100%" wire:model.live="emailLanding"><optgroup label="Pages">@foreach($eoPages['pages'] as $eoPath => $eoLabel)<option value="{{ $eoPath }}">{{ $eoLabel }}{{ $eoPath !== '/' ? ' · ' . $eoPath : '' }}</option>@endforeach</optgroup>@if(count($eoPages['industries']))<optgroup label="Industry pages">@foreach($eoPages['industries'] as $eoPath => $eoLabel)<option value="{{ $eoPath }}">{{ $eoLabel }} · {{ $eoPath }}</option>@endforeach</optgroup>@endif</select></div>
+          </div>
+          <div style="{{ $muted }};margin-bottom:8px">[link] becomes <span style="color:#a78bfa;word-break:break-all">{{ \App\Services\Sales\ProspectOutreach::link($cur, $emailLanding) }}</span></div>
           <input type="text" class="sx-in" style="width:100%;margin-bottom:8px" wire:model="emailSubject" placeholder="Subject">
           @error('emailSubject')<div style="color:#f47c7c;font-size:12px;margin:-4px 0 6px">{{ $message }}</div>@enderror
           <textarea class="sx-in" rows="7" style="width:100%" wire:model="emailBody"></textarea>
@@ -441,7 +448,7 @@
         </div>
         <div class="spb-tl">
           @forelse($cur->activities as $a)
-            <div class="e {{ in_array($a->type, ['stage_change', 'demo'], true) ? 'hot' : '' }}">
+            <div class="e {{ in_array($a->type, ['stage_change', 'demo', 'visit'], true) ? 'hot' : '' }}">
               <div>@if($a->type === 'stage_change'){{ \App\Models\SalesProspect::STAGES[$a->stage_from] ?? $a->stage_from }} → {{ \App\Models\SalesProspect::STAGES[$a->stage_to] ?? $a->stage_to }}@if($a->body) · {{ $a->body }}@endif @else<b style="text-transform:capitalize">{{ str_replace('_', ' ', $a->type) }}</b>@if($a->body) · {{ $a->body }}@endif @endif</div>
               <div class="w">{{ $a->occurred_at?->format('M j, Y g:ia') }}</div>
             </div>
