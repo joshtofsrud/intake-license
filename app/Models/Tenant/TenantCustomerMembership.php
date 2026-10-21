@@ -29,6 +29,9 @@ class TenantCustomerMembership extends Model
         'classes_used_this_period',
         'stripe_subscription_id',
         'sale_item_id', // MARKER-CLASSES-P1
+        // MARKER-CLASSES-P2: billing
+        'billing_mode', 'renewal_price_cents', 'stripe_payment_method_id', 'card_brand', 'card_last4',
+        'failed_attempts', 'next_retry_at', 'last_charge_error', 'cancel_at_period_end', 'pause_until',
         'metadata',
     ];
 
@@ -36,6 +39,11 @@ class TenantCustomerMembership extends Model
         'current_period_start'     => 'date',
         'current_period_end'       => 'date',
         'classes_used_this_period' => 'integer',
+        'renewal_price_cents'      => 'integer',
+        'failed_attempts'          => 'integer',
+        'next_retry_at'            => 'datetime',
+        'cancel_at_period_end'     => 'boolean',
+        'pause_until'              => 'date',
         'metadata'                 => 'array',
     ];
 
@@ -83,8 +91,19 @@ class TenantCustomerMembership extends Model
         return $this->classes_used_this_period < $this->product->monthly_limit;
     }
 
+    /** MARKER-CLASSES-P2: past_due still books while its renewal is being collected (7 days). */
     public function canCoverClass(): bool
     {
-        return $this->isActive() && $this->hasCapacity();
+        return in_array($this->status, ['active', 'past_due'], true) && $this->hasCapacity();
+    }
+
+    /** What staff see about how this membership is paid. */
+    public function billingLabel(): string
+    {
+        return match ($this->billing_mode) {
+            'card'  => 'Card' . ($this->card_brand ? ' ' . ucfirst($this->card_brand) : '') . ($this->card_last4 ? ' ending ' . $this->card_last4 : '') . ' · renews automatically',
+            'desk'  => 'Pays at the desk',
+            default => 'Given by staff · no charge',
+        };
     }
 }

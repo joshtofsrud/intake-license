@@ -1634,16 +1634,17 @@ body.ia-theme-b .cust-edit-handle { background: rgba(0,0,0,.18); }
     {{-- Memberships & Packs (classes-enabled tenants only) --}}
     @if($currentTenant->classes_active)
       @php
-        $activeMembership = $customerMemberships->where('status', 'active')->first();
+        // MARKER-CLASSES-P2: several memberships, and the billing states.
+        $liveMemberships  = $customerMemberships->whereIn('status', ['active', 'past_due', 'paused']);
         $activePacks      = $customerPacks->where('status', 'active');
-        $historyMemberships = $customerMemberships->where('status', '!=', 'active');
+        $historyMemberships = $customerMemberships->whereNotIn('status', ['active', 'past_due', 'paused']);
         $historyPacks       = $customerPacks->where('status', '!=', 'active');
       @endphp
       <div class="ia-card" id="cust-mp-card">
         <div class="ia-card-head">
           <span class="ia-card-title">Memberships &amp; Packs</span>
           <div style="display:flex;gap:6px">
-            @if(!$activeMembership && $membershipProducts->isNotEmpty())
+            @if($membershipProducts->isNotEmpty())
               <button type="button" class="ia-btn ia-btn--ghost ia-btn--sm" onclick="openGrantModal('membership')">+ Grant membership</button>
             @endif
             @if($packProducts->isNotEmpty())
@@ -1652,28 +1653,87 @@ body.ia-theme-b .cust-edit-handle { background: rgba(0,0,0,.18); }
           </div>
         </div>
 
-        @if(!$activeMembership && $activePacks->isEmpty() && $historyMemberships->isEmpty() && $historyPacks->isEmpty())
+        @if($liveMemberships->isEmpty() && $activePacks->isEmpty() && $historyMemberships->isEmpty() && $historyPacks->isEmpty())
           <p style="font-size:13px;opacity:.5">No memberships or packs yet.</p>
         @else
           {{-- Active items --}}
           <div style="display:flex;flex-direction:column;gap:8px">
-            @if($activeMembership)
-              <div class="cust-mp-row" data-mp-id="{{ $activeMembership->id }}" data-mp-kind="membership">
+            {{-- MARKER-CLASSES-P2: every live membership, how it is paid, and what staff can do --}}
+            @foreach($liveMemberships as $mem)
+              @php
+                $memBadge = match ($mem->status) {
+                  'past_due' => ['ia-badge--partial', $mem->billing_mode === 'desk' ? 'Due' : 'Payment failed'],
+                  'paused'   => ['ia-badge--pending', 'Paused'],
+                  default    => ['ia-badge--confirmed', $mem->cancel_at_period_end ? 'Ends ' . $mem->current_period_end?->format('M j') : 'Active'],
+                };
+              @endphp
+              <div class="cust-mp-row" data-mp-id="{{ $mem->id }}" data-mp-kind="membership" style="flex-wrap:wrap">
                 <div class="cust-mp-row-main">
-                  <div class="cust-mp-row-title">{{ $activeMembership->product?->name ?? 'Membership' }}</div>
+                  <div class="cust-mp-row-title">{{ $mem->product?->name ?? 'Membership' }}</div>
                   <div class="cust-mp-row-sub">
-                    @if($activeMembership->product?->type === 'unlimited')
-                      Unlimited · used {{ $activeMembership->classes_used_this_period }} this period
+                    @if($mem->product?->type === 'unlimited')
+                      Unlimited · used {{ $mem->classes_used_this_period }} this period
                     @else
-                      {{ $activeMembership->classes_used_this_period }} / {{ $activeMembership->product?->monthly_limit ?? '?' }} used this period
+                      {{ $mem->classes_used_this_period }} / {{ $mem->product?->monthly_limit ?? '?' }} used this period
                     @endif
-                    · renews {{ $activeMembership->current_period_end?->format('M j, Y') }}
+                    @if($mem->status === 'paused')
+                      · restarts {{ $mem->pause_until?->format('M j, Y') }}
+                    @elseif(!$mem->cancel_at_period_end)
+                      · {{ $mem->status === 'past_due' ? 'was due' : 'renews' }} {{ $mem->current_period_end?->copy()->addDay()->format('M j, Y') }}
+                    @endif
                   </div>
+                  <div class="cust-mp-row-sub">
+                    {{ $mem->billingLabel() }} @if($mem->billing_mode !== 'comp' && $mem->renewal_price_cents) · {{ format_money($mem->renewal_price_cents) }} a month @endif
+                    @if($mem->pause_until && $mem->status !== 'paused') · pauses at renewal until {{ $mem->pause_until->format('M j') }} @endif
+                  </div>
+                  @if($mem->status === 'past_due')
+                    <div class="cust-mp-row-sub" style="color:#F5C56B">
+                      {{ $mem->last_charge_error }} @if($mem->next_retry_at) · {{ $mem->billing_mode === 'card' ? 'next try' : 'ends if unpaid' }} {{ $mem->next_retry_at->format('M j') }} @endif · they can still book until then
+                    </div>
+                  @endif
                 </div>
-                <span class="ia-badge ia-badge--confirmed">Active</span>
-                <button type="button" class="ia-btn ia-btn--ghost ia-btn--sm" onclick="revokeMP('membership','{{ $activeMembership->id }}')">Cancel</button>
+                <span class="ia-badge {{ $memBadge[0] }}">{{ $memBadge[1] }}</span>
+                <div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center;flex-basis:100%;margin-top:2px">
+                  @if($mem->status === 'past_due' || $mem->billing_mode === 'desk')
+                    <form method="POST" action="{{ route('tenant.customers.memberships.renew', ['customerId' => $customer->id, 'id' => $mem->id]) }}" style="display:inline">
+                      @csrf
+                      <button type="submit" class="ia-btn ia-btn--secondary ia-btn--sm">Renew at the register</button>
+                    </form>
+                  @endif
+                  @if($mem->status === 'paused' || $mem->pause_until)
+                    <form method="POST" action="{{ route('tenant.customers.memberships.billing', ['customerId' => $customer->id, 'id' => $mem->id]) }}" style="display:inline">
+                      @csrf <input type="hidden" name="action" value="resume">
+                      <button type="submit" class="ia-btn ia-btn--ghost ia-btn--sm">{{ $mem->status === 'paused' ? 'Restart now' : 'Don\'t pause' }}</button>
+                    </form>
+                  @elseif($mem->billing_mode !== 'comp' && $mem->status === 'active')
+                    <button type="button" class="ia-btn ia-btn--ghost ia-btn--sm" onclick="mpTogglePause('{{ $mem->id }}')">Pause</button>
+                  @endif
+                  @if($mem->cancel_at_period_end)
+                    <form method="POST" action="{{ route('tenant.customers.memberships.billing', ['customerId' => $customer->id, 'id' => $mem->id]) }}" style="display:inline">
+                      @csrf <input type="hidden" name="action" value="undo_cancel">
+                      <button type="submit" class="ia-btn ia-btn--ghost ia-btn--sm">Keep renewing</button>
+                    </form>
+                  @elseif($mem->status === 'active')
+                    <form method="POST" action="{{ route('tenant.customers.memberships.billing', ['customerId' => $customer->id, 'id' => $mem->id]) }}" style="display:inline"
+                          onsubmit="return mpConfirm(this, event, 'End at the renewal date?', 'No more charges. They keep booking until {{ $mem->current_period_end?->format('M j') }}, then it ends.')">
+                      @csrf <input type="hidden" name="action" value="cancel_end">
+                      <button type="submit" class="ia-btn ia-btn--ghost ia-btn--sm">End at renewal</button>
+                    </form>
+                  @endif
+                  <button type="button" class="ia-btn ia-btn--ghost ia-btn--sm" onclick="revokeMP('membership','{{ $mem->id }}')">Cancel now</button>
+                </div>
+                <form method="POST" id="mp-pause-{{ $mem->id }}"
+                      action="{{ route('tenant.customers.memberships.billing', ['customerId' => $customer->id, 'id' => $mem->id]) }}"
+                      style="flex-basis:100%;display:none;gap:6px;align-items:center;font-size:12.5px;margin-top:6px">
+                  @csrf <input type="hidden" name="action" value="pause">
+                  <span>Pause from the renewal on {{ $mem->current_period_end?->copy()->addDay()->format('M j') }} until</span>
+                  <input type="date" name="pause_until" class="ia-input" style="width:auto;height:30px;padding:3px 8px" required min="{{ $mem->current_period_end?->copy()->addDays(2)->format('Y-m-d') }}">
+                  <button type="submit" class="ia-btn ia-btn--primary ia-btn--sm">Save</button>
+                  <button type="button" class="ia-btn ia-btn--ghost ia-btn--sm" onclick="mpTogglePause('{{ $mem->id }}')">Cancel</button>
+                </form>
               </div>
-            @endif
+            @endforeach
+
 
             @foreach($activePacks as $pack)
               @php
@@ -1724,6 +1784,7 @@ body.ia-theme-b .cust-edit-handle { background: rgba(0,0,0,.18); }
             </details>
           @endif
         @endif
+        <p class="cust-mp-legend" style="font-size:12px;color:var(--ia-text-dim);margin:12px 0 0">Card memberships renew automatically on the renewal date and show as a card sale in the register. A declined card is retried 1, 3 and 7 days later; until then the member can still book. Desk memberships show here as due on their renewal date. Memberships given by staff renew with no charge.</p>
       </div>
     @endif
 
@@ -2532,6 +2593,18 @@ body.ia-theme-b .cust-edit-handle { background: rgba(0,0,0,.18); }
    * written server-side automatically. Reloads page on success to show the
    * updated state (history entry appears, active row removed).
    */
+  // MARKER-CLASSES-P2: in-app confirm for membership billing forms (never confirm())
+  window.mpConfirm = function (form, ev, title, message) {
+    ev.preventDefault();
+    window.IntakeConfirm.show({ title: title, message: message, confirmText: 'Yes', cancelText: 'Back' })
+      .then(function (ok) { if (ok) form.submit(); });
+    return false;
+  };
+  window.mpTogglePause = function (id) {
+    var el = document.getElementById('mp-pause-' + id);
+    if (el) el.style.display = (el.style.display === 'flex') ? 'none' : 'flex';
+  };
+
   window.revokeMP = function (kind, id) {
     var label = kind === 'membership' ? 'membership' : 'pack';
     var title = kind === 'membership' ? 'Cancel membership?' : 'Cancel pack?';

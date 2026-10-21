@@ -328,7 +328,7 @@ class ClassRegistrationService
 
         $membership = TenantCustomerMembership::where('tenant_id', $tenantId)
             ->where('customer_id', $customerId)
-            ->where('status', 'active')
+            ->whereIn('status', ['active', 'past_due']) // MARKER-CLASSES-P2
             ->with('product')
             ->get()
             ->filter(fn ($m) => $m->canCoverClass() && $covers($m->product))

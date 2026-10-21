@@ -42,68 +42,14 @@ class MembershipsTickCommand extends Command
     {
         $now = now();
 
-        $rolled  = $this->rolloverMemberships($now);
+        // MARKER-CLASSES-P2: renewals are billed now (card / desk / comp).
+        $billing = app(\App\Services\MembershipBillingService::class)->run($now);
+        $rolled  = $billing['renewed'] + $billing['charged'];
+        $this->info('Memberships: ' . json_encode($billing));
         $expired = $this->expirePacks($now);
 
         $this->info("Rolled over {$rolled} membership period(s). Expired {$expired} pack(s).");
         return self::SUCCESS;
-    }
-
-    /**
-     * Find every active membership whose period has lapsed and advance it.
-     *
-     * Loop chunks to avoid loading the whole table — at scale a tenant could
-     * have thousands of active memberships. Each row is a tiny update so the
-     * cursor is fine.
-     */
-    private function rolloverMemberships(Carbon $now): int
-    {
-        $count = 0;
-
-        // period_end is a tenant-local business date; the
-        // job runs on UTC hours (early UTC morning = the previous evening in
-        // the US), so comparing against the UTC date rolled memberships the
-        // night before their period actually ended. Compare per tenant
-        // against that tenant's local today.
-        $tenantToday = self::tenantLocalDates();
-        TenantCustomerMembership::where('status', 'active')
-            ->whereNotNull('current_period_end')
-            ->cursor()
-            ->each(function (TenantCustomerMembership $m) use (&$count, $now, $tenantToday) {
-                $localToday = $tenantToday[$m->tenant_id] ?? $now->toDateString();
-                if ($m->current_period_end->toDateString() >= $localToday) return;
-                try {
-                    DB::transaction(function () use ($m, $now) {
-                        // Advance the period. We anchor off the existing end so
-                        // a membership that lapsed mid-month still rolls cleanly,
-                        // but if the period_end is way in the past (system was
-                        // down for a month), we catch up to "next from now" so
-                        // we don't loop. Most cases: period_end was yesterday,
-                        // new start = today, new end = today + 1 month.
-                        $newStart = $m->current_period_end->copy()->addDay();
-                        if ($newStart->lt($now->copy()->startOfDay())) {
-                            $newStart = $now->copy()->startOfDay();
-                        }
-                        $newEnd = $newStart->copy()->addMonth()->subDay();
-
-                        $m->update([
-                            'current_period_start'     => $newStart,
-                            'current_period_end'       => $newEnd,
-                            'classes_used_this_period' => 0,
-                        ]);
-                    });
-                    $count++;
-                } catch (\Throwable $e) {
-                    // Don't fail the whole batch on one bad row.
-                    Log::warning('memberships:tick rollover failed', [
-                        'membership_id' => $m->id,
-                        'tenant_id'     => $m->tenant_id,
-                        'error'         => $e->getMessage(),
-                    ]);
-                }
-            });
-
-        return $count;
     }
 
     /**

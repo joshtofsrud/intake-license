@@ -459,6 +459,7 @@ class RegisterController extends Controller
             'items.*.class_pass.kind' => 'nullable|string|in:pack,membership',
             'items.*.class_pass.product_id' => 'nullable|uuid',
             'items.*.class_pass.book_session_id' => 'nullable|uuid',
+            'items.*.class_pass.renew_membership_id' => 'nullable|uuid', // MARKER-CLASSES-P2
             'items.*.gift_card.kind'             => 'nullable|string|in:physical,egift',
             'items.*.gift_card.code'             => 'nullable|string|max:40',
             'items.*.gift_card.recipient_name'   => 'nullable|string|max:120',
@@ -976,6 +977,7 @@ class RegisterController extends Controller
             'items.*.class_pass.kind' => 'nullable|string|in:pack,membership',
             'items.*.class_pass.product_id' => 'nullable|uuid',
             'items.*.class_pass.book_session_id' => 'nullable|uuid',
+            'items.*.class_pass.renew_membership_id' => 'nullable|uuid', // MARKER-CLASSES-P2
             'items.*.name_snapshot'    => 'nullable|string|max:255',
             'items.*.unit_price_cents' => 'nullable|integer|min:0',
             'items.*.quantity'         => 'nullable|numeric|min:0.001',
@@ -1266,6 +1268,7 @@ class RegisterController extends Controller
             'items.*.class_pass.kind' => 'nullable|string|in:pack,membership',
             'items.*.class_pass.product_id' => 'nullable|uuid',
             'items.*.class_pass.book_session_id' => 'nullable|uuid',
+            'items.*.class_pass.renew_membership_id' => 'nullable|uuid', // MARKER-CLASSES-P2
             'items.*.gift_card.kind'             => 'nullable|string|in:physical,egift',
             'items.*.gift_card.code'             => 'nullable|string|max:40',
             'items.*.gift_card.recipient_name'   => 'nullable|string|max:120',
@@ -1880,6 +1883,7 @@ class RegisterController extends Controller
             'items.*.class_pass.kind' => 'nullable|string|in:pack,membership',
             'items.*.class_pass.product_id' => 'nullable|uuid',
             'items.*.class_pass.book_session_id' => 'nullable|uuid',
+            'items.*.class_pass.renew_membership_id' => 'nullable|uuid', // MARKER-CLASSES-P2
             'items.*.gift_card.kind'             => 'nullable|string|in:physical,egift',
             'items.*.gift_card.code'             => 'nullable|string|max:40',
             'items.*.gift_card.recipient_name'   => 'nullable|string|max:120',
@@ -2411,6 +2415,7 @@ class RegisterController extends Controller
             'items.*.class_pass.kind' => 'nullable|string|in:pack,membership',
             'items.*.class_pass.product_id' => 'nullable|uuid',
             'items.*.class_pass.book_session_id' => 'nullable|uuid',
+            'items.*.class_pass.renew_membership_id' => 'nullable|uuid', // MARKER-CLASSES-P2
             'items.*.gift_card.kind'             => 'nullable|string|in:physical,egift',
             'items.*.gift_card.code'             => 'nullable|string|max:40',
             'items.*.gift_card.recipient_name'   => 'nullable|string|max:120',
@@ -2769,6 +2774,7 @@ class RegisterController extends Controller
             // preflight payload so we can validate before charging
             'customer_id'       => 'nullable|uuid',
             'has_service_line'  => 'nullable|boolean',
+            'has_membership_line' => 'nullable|boolean', // MARKER-CLASSES-P2
         ]);
 
         $direct = new DirectPaymentsService($tenant);
@@ -2789,9 +2795,22 @@ class RegisterController extends Controller
         }
 
         try {
-            $pi = $direct->createPaymentIntent($validated['amount_cents'], 'usd', array_filter([
-                'intake_sale_id' => $validated['sale_id'] ?? null,
-            ]));
+            // MARKER-CLASSES-P2: a membership on the sale saves the card to the
+            // customer so the shop can charge its monthly renewals.
+            if (! empty($validated['has_membership_line'])) {
+                $cust = ! empty($validated['customer_id'])
+                    ? \App\Models\Tenant\TenantCustomer::where('tenant_id', $tenant->id)->find($validated['customer_id']) : null;
+                if (! $cust) {
+                    return response()->json(['ok' => false, 'error' => 'Choose the customer first: a membership belongs to someone.'], 422);
+                }
+                $pi = $direct->createPaymentIntentSavingCard($validated['amount_cents'], $direct->ensureCustomer($cust), array_filter([
+                    'intake_sale_id' => $validated['sale_id'] ?? null,
+                ]));
+            } else {
+                $pi = $direct->createPaymentIntent($validated['amount_cents'], 'usd', array_filter([
+                    'intake_sale_id' => $validated['sale_id'] ?? null,
+                ]));
+            }
             return response()->json([
                 'ok'             => true,
                 'client_secret'  => $pi->client_secret,

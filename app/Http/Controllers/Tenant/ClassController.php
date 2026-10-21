@@ -806,6 +806,89 @@ class ClassController extends Controller
     }
 
     /**
+     * MARKER-CLASSES-P2: staff billing actions on one membership.
+     *   pause         skip renewals until a date (from the next renewal)
+     *   resume        clear a pause
+     *   cancel_end    end it on the renewal date, no more charges
+     *   undo_cancel   keep renewing
+     */
+    public function membershipAction(Request $request, string $customerId, string $id)
+    {
+        $tenant = tenant();
+        $m = TenantCustomerMembership::where('tenant_id', $tenant->id)->where('customer_id', $customerId)->findOrFail($id);
+        $data = $request->validate([
+            'action'      => ['required', 'in:pause,resume,cancel_end,undo_cancel'],
+            'pause_until' => ['required_if:action,pause', 'nullable', 'date', 'after:today'],
+        ]);
+        $label = $m->product?->name ?? 'Membership';
+
+        switch ($data['action']) {
+            case 'pause':
+                $until = \Carbon\Carbon::parse($data['pause_until']);
+                $m->update(['pause_until' => $until]);
+                $msg = "{$label} pauses at its renewal on {$m->current_period_end->copy()->addDay()->format('M j')} and restarts {$until->format('M j')}.";
+                break;
+            case 'resume':
+                $m->update(['pause_until' => null]);
+                $msg = $m->status === 'paused' ? "{$label} restarts at tonight's renewal run." : "{$label} won't pause.";
+                if ($m->status === 'paused') {
+                    $m->update(['pause_until' => now($tenant->timezone())->startOfDay()]);
+                }
+                break;
+            case 'cancel_end':
+                $m->update(['cancel_at_period_end' => true]);
+                $msg = "{$label} ends on {$m->current_period_end->format('M j')}. No more charges.";
+                break;
+            default:
+                $m->update(['cancel_at_period_end' => false]);
+                $msg = "{$label} keeps renewing.";
+        }
+        \App\Services\ClassCreditLedger::record($tenant->id, $m->customer_id, 0, 'billing_change', ['membership_id' => $m->id], $msg);
+        $customer = TenantCustomer::where('tenant_id', $tenant->id)->find($customerId);
+        if ($customer) {
+            $this->writeCustomerAuditNote($customer, $msg);
+        }
+
+        return back()->with('success', $msg);
+    }
+
+    /**
+     * MARKER-CLASSES-P2: take a membership's renewal at the register (pays at the
+     * desk, or a card that failed). Opens the register with the renewal on
+     * the sale; paying it renews the membership. Paying by card there also
+     * saves that card for future renewals.
+     */
+    public function renewMembershipAtRegister(string $customerId, string $id)
+    {
+        $tenant = tenant();
+        $m = TenantCustomerMembership::where('tenant_id', $tenant->id)->where('customer_id', $customerId)->with('product')->findOrFail($id);
+        $locationId = request()->session()->get('current_location_id');
+        if (! $locationId) {
+            return back()->with('error', 'Pick a register location first.');
+        }
+        $price = (int) ($m->renewal_price_cents ?? $m->product?->price_cents ?? 0);
+
+        $draft = app(\App\Services\Tenant\SaleService::class)->saveDraft([
+            'tenant_id'          => $tenant->id,
+            'rang_up_by_user_id' => auth('tenant')->id(),
+            'location_id'        => $locationId,
+            'customer_id'        => $m->customer_id,
+            'notes'              => null,
+            'tip_cents'          => 0,
+            'items'              => [[
+                'type'             => 'class_pass',
+                'quantity'         => 1,
+                'unit_price_cents' => $price,
+                'name_snapshot'    => ($m->product?->name ?? 'Membership') . ' · renewal',
+                'class_pass'       => ['kind' => 'membership', 'product_id' => $m->product_id, 'renew_membership_id' => $m->id],
+            ]],
+        ]);
+
+        return redirect()->route('tenant.register.index', ['draft' => $draft->id])
+            ->with('success', 'Renewal is on the sale. Take payment to renew the membership.');
+    }
+
+    /**
      * Helper for writing system notes to the customer history. Used by all
      * grant/revoke actions so admins have a clear record of comps and changes.
      */

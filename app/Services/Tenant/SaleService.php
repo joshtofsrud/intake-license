@@ -567,6 +567,8 @@ class SaleService
                 'kind'            => $kind,
                 'product_id'      => $product->id,
                 'book_session_id' => $cp['book_session_id'] ?? null,
+                // MARKER-CLASSES-P2: renews this membership instead of selling a new one
+                'renew_membership_id' => $cp['renew_membership_id'] ?? null,
             ];
         }
 

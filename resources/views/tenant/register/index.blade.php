@@ -1052,6 +1052,9 @@
       <div style="display:flex;justify-content:space-between;font-weight:600;font-size:15px"><span>Charge</span><span id="cardPaymentAmount">$0.00</span></div>
     </div>
 
+    {{-- MARKER-CLASSES-P2: say so when the card will be kept --}}
+    <div id="cardPaymentSaveNote" style="display:none;font-size:12.5px;color:var(--ia-text-muted);margin:-4px 0 12px">This card is saved to the customer and charged for the membership's monthly renewals. They can stop that by cancelling the membership.</div>
+
     <div id="card-payment-element" style="background:var(--ia-input-bg);border:0.5px solid var(--ia-border);border-radius:var(--ia-r-md);padding:16px;margin-bottom:14px;min-height:60px"></div>
 
     <div id="cardPaymentError" style="display:none;padding:12px 14px;background:rgba(248,113,113,.10);border:0.5px solid rgba(248,113,113,.25);border-radius:var(--ia-r-md);font-size:12.5px;color:#f87171;margin-bottom:14px"></div>
@@ -4758,6 +4761,7 @@ async function openCardPaymentModal() {
   document.getElementById('cardPaymentAmount').textContent = fmt(amountCents);
   document.getElementById('cardPaymentChargeLabel').textContent = 'Charge ' + fmt(amountCents);
 
+  (function(){ const n = document.getElementById('cardPaymentSaveNote'); if (n) n.style.display = cart.items.some(i => i.type === 'class_pass' && i.pass && i.pass.kind === 'membership') ? '' : 'none'; })();
   openModal('cardPaymentModal');
 
   // Reset Stripe.js elements between opens
@@ -4780,6 +4784,7 @@ async function openCardPaymentModal() {
         // preflight context
         customer_id: cart.customer ? cart.customer.id : null,
         has_service_line: cart.items.some(i => i.type === 'service'),
+        has_membership_line: cart.items.some(i => i.type === 'class_pass' && i.pass && i.pass.kind === 'membership'), // MARKER-CLASSES-P2
       }),
     });
     intent = await res.json();
@@ -5151,6 +5156,7 @@ async function openPaymentLinkModal() {
         amount_cents: amountCents,
         customer_id: cart.customer ? cart.customer.id : null,
         has_service_line: cart.items.some(i => i.type === 'service'),
+        has_membership_line: cart.items.some(i => i.type === 'class_pass' && i.pass && i.pass.kind === 'membership'), // MARKER-CLASSES-P2
         description: 'Purchase at ' + document.title,
         items: cart.items.map(serializeLine),
         tip_cents: cart.tipCents || 0,

@@ -24,7 +24,11 @@ use Illuminate\Support\Facades\Log;
  *
  * Refunding the line voids what is left on the pass (reverseForRefund).
  *
- * MARKER-CLASSES-P1
+ * Phase 2: a membership sold by card is set to renew on that card; a
+ * line with renew_membership_id renews an existing membership instead of
+ * making a new one (automatic renewals and "Renew at the register").
+ *
+ * MARKER-CLASSES-P1 MARKER-CLASSES-P2
  */
 class ClassPassService
 {
@@ -46,6 +50,11 @@ class ClassPassService
 
         foreach ($lines as $line) {
             if ($line->type !== 'class_pass') {
+                continue;
+            }
+            $renewId = ((array) ($line->metadata ?? []))['renew_membership_id'] ?? null;
+            if ($renewId) {
+                $this->renew($sale, (string) $renewId);
                 continue;
             }
             if (TenantCustomerPack::where('sale_item_id', $line->id)->exists()
@@ -116,12 +125,19 @@ class ClassPassService
         $tz    = \App\Models\Tenant::find($sale->tenant_id)?->timezone() ?? config('app.timezone');
         $start = now($tz)->startOfDay();
 
+        $card = $link ? $this->savedCard($sale) : null;
+
         $m = TenantCustomerMembership::create([
             'tenant_id'                => $sale->tenant_id,
             'customer_id'              => $sale->customer_id,
             'product_id'               => $product->id,
             'sale_item_id'             => $link ? $line->id : null,
             'status'                   => 'active',
+            'billing_mode'             => $card ? 'card' : 'desk',
+            'renewal_price_cents'      => (int) $product->price_cents,
+            'stripe_payment_method_id' => $card['id'] ?? null,
+            'card_brand'               => $card['brand'] ?? null,
+            'card_last4'               => $card['last4'] ?? null,
             'current_period_start'     => $start,
             'current_period_end'       => $start->copy()->addMonth()->subDay(),
             'classes_used_this_period' => 0,
@@ -133,6 +149,73 @@ class ClassPassService
             $product->name . ' · sale ' . ($sale->sale_number ?? $sale->id));
 
         return $m;
+    }
+
+    /**
+     * Renew an existing membership from a paid sale: the next period starts
+     * the day after the current one ends, or today if that has passed.
+     * Clears past_due and retries. Idempotent per sale (credit ledger).
+     */
+    private function renew(TenantSale $sale, string $membershipId): void
+    {
+        $m = TenantCustomerMembership::where('tenant_id', $sale->tenant_id)->with('product')->find($membershipId);
+        if (! $m || $m->customer_id !== $sale->customer_id) {
+            throw new SaleValidationException('That membership renewal belongs to a different customer.');
+        }
+        if (\App\Models\Tenant\TenantClassCreditEntry::where('membership_id', $m->id)->where('sale_id', $sale->id)->where('reason', 'renewed')->exists()) {
+            return;
+        }
+
+        $tz    = \App\Models\Tenant::find($sale->tenant_id)?->timezone() ?? config('app.timezone');
+        $today = now($tz)->startOfDay();
+        $start = $m->current_period_end ? $m->current_period_end->copy()->addDay()->startOfDay() : $today->copy();
+        if ($start->lt($today)) {
+            $start = $today->copy();
+        }
+        $card = $this->savedCard($sale);
+
+        $m->update(array_merge([
+            'status'                   => 'active',
+            'current_period_start'     => $start,
+            'current_period_end'       => $start->copy()->addMonth()->subDay(),
+            'classes_used_this_period' => 0,
+            'failed_attempts'          => 0,
+            'next_retry_at'            => null,
+            'last_charge_error'        => null,
+            'pause_until'              => null,
+        ], $card ? [
+            'billing_mode'             => 'card',
+            'stripe_payment_method_id' => $card['id'],
+            'card_brand'               => $card['brand'],
+            'card_last4'               => $card['last4'],
+        ] : []));
+
+        ClassCreditLedger::record($sale->tenant_id, $m->customer_id, 0, 'renewed', ['membership_id' => $m->id, 'sale_id' => $sale->id],
+            ($m->product?->name ?? 'Membership') . ' · ' . $start->format('M j') . ' to ' . $start->copy()->addMonth()->subDay()->format('M j') . ' · sale ' . ($sale->sale_number ?? $sale->id));
+    }
+
+    /**
+     * The card a sale saved for later charges (register card payment with
+     * a membership on it), or null. Never blocks the sale: a Stripe error
+     * here just leaves the membership paying at the desk.
+     */
+    private function savedCard(TenantSale $sale): ?array
+    {
+        if (! $sale->stripe_payment_intent_id) {
+            return null;
+        }
+        try {
+            $tenant = \App\Models\Tenant::find($sale->tenant_id);
+            $card   = app()->makeWith(\App\Services\Tenant\DirectPaymentsService::class, ['tenant' => $tenant])->savedCardFromIntent($sale->stripe_payment_intent_id);
+            if ($card && ! empty($card['customer'])) {
+                \App\Models\Tenant\TenantCustomer::where('tenant_id', $sale->tenant_id)->whereKey($sale->customer_id)
+                    ->whereNull('stripe_customer_id')->update(['stripe_customer_id' => $card['customer']]);
+            }
+            return $card;
+        } catch (\Throwable $e) {
+            Log::warning('classes: could not read the saved card from the sale', ['sale_id' => $sale->id, 'error' => $e->getMessage()]);
+            return null;
+        }
     }
 
     /**

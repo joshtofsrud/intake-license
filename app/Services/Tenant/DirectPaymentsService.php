@@ -129,6 +129,98 @@ class DirectPaymentsService
         return $this->client()->paymentIntents->cancel($piId);
     }
 
+    // ------------------------------------------------------------------
+    // Saved cards for class membership renewals. MARKER-CLASSES-P2
+    // Everything here is on the shop's own Stripe account: the customer,
+    // the card and the renewal charges belong to the shop.
+    // ------------------------------------------------------------------
+
+    /** The Stripe customer for this shop's customer, created on first use. */
+    public function ensureCustomer(\App\Models\Tenant\TenantCustomer $customer): string
+    {
+        if ($customer->stripe_customer_id) {
+            return $customer->stripe_customer_id;
+        }
+        $params = [
+            'name'     => trim(($customer->first_name ?? '') . ' ' . ($customer->last_name ?? '')) ?: null,
+            'metadata' => ['intake_tenant_id' => $this->tenant->id, 'intake_customer_id' => $customer->id],
+        ];
+        if (! empty($customer->email)) {
+            $params['email'] = $customer->email;
+        }
+        $sc = $this->client()->customers->create(array_filter($params, fn ($v) => $v !== null));
+        $customer->forceFill(['stripe_customer_id' => $sc->id])->save();
+
+        return $sc->id;
+    }
+
+    /**
+     * A register PaymentIntent that also saves the card to the customer for
+     * later off-session charges (a membership's monthly renewal).
+     */
+    public function createPaymentIntentSavingCard(int $amountCents, string $stripeCustomerId, array $metadata = []): \Stripe\PaymentIntent
+    {
+        return $this->client()->paymentIntents->create([
+            'amount'                    => $amountCents,
+            'currency'                  => 'usd',
+            'customer'                  => $stripeCustomerId,
+            'setup_future_usage'        => 'off_session',
+            'automatic_payment_methods' => ['enabled' => true, 'allow_redirects' => 'never'],
+            'metadata' => array_merge([
+                'intake_tenant_id'   => $this->tenant->id,
+                'intake_tenant_name' => $this->tenant->name,
+                'intake_environment' => app()->environment(),
+                'intake_saves_card'  => 'membership',
+            ], $metadata),
+        ]);
+    }
+
+    /**
+     * The saved card behind a succeeded PaymentIntent, or null when the
+     * intent didn't save one. Shape: id, brand, last4.
+     */
+    public function savedCardFromIntent(string $piId): ?array
+    {
+        $pi = $this->client()->paymentIntents->retrieve($piId, ['expand' => ['payment_method']]);
+        if (($pi->status ?? null) !== 'succeeded' || empty($pi->setup_future_usage) || empty($pi->customer)) {
+            return null;
+        }
+        $pm = $pi->payment_method;
+        if (! $pm || is_string($pm)) {
+            return $pm ? ['id' => $pm, 'brand' => null, 'last4' => null, 'customer' => $pi->customer] : null;
+        }
+        return [
+            'id'       => $pm->id,
+            'brand'    => $pm->card->brand ?? null,
+            'last4'    => $pm->card->last4 ?? null,
+            'customer' => is_string($pi->customer) ? $pi->customer : ($pi->customer->id ?? null),
+        ];
+    }
+
+    /**
+     * Charge a saved card with nobody present. Throws \Stripe\Exception\*
+     * on a decline or any API error; the caller records the failure.
+     * The idempotency key makes a retried run return the same charge
+     * instead of charging twice.
+     */
+    public function chargeSavedCard(string $stripeCustomerId, string $paymentMethodId, int $amountCents, string $idempotencyKey, array $metadata = []): \Stripe\PaymentIntent
+    {
+        return $this->client()->paymentIntents->create([
+            'amount'         => $amountCents,
+            'currency'       => 'usd',
+            'customer'       => $stripeCustomerId,
+            'payment_method' => $paymentMethodId,
+            'off_session'    => true,
+            'confirm'        => true,
+            'metadata'       => array_merge([
+                'intake_tenant_id'   => $this->tenant->id,
+                'intake_environment' => app()->environment(),
+                'intake_kind'        => 'membership_renewal',
+            ], $metadata),
+        ], ['idempotency_key' => $idempotencyKey]);
+    }
+
+
     public function retrievePaymentIntent(string $piId): \Stripe\PaymentIntent
     {
         return $this->client()->paymentIntents->retrieve($piId, [

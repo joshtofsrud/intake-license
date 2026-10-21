@@ -1051,6 +1051,9 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             Route::delete('/customers/{customerId}/memberships/{id}',         [TenantControllers\ClassController::class, 'revokeCustomerMembership'])->name('customers.memberships.revoke');
             Route::post('/customers/{customerId}/packs',                      [TenantControllers\ClassController::class, 'grantCustomerPack'])->name('customers.packs.grant');
             Route::delete('/customers/{customerId}/packs/{id}',               [TenantControllers\ClassController::class, 'revokeCustomerPack'])->name('customers.packs.revoke');
+            // MARKER-CLASSES-P2
+            Route::post('/customers/{customerId}/memberships/{id}/billing',   [TenantControllers\ClassController::class, 'membershipAction'])->name('customers.memberships.billing');
+            Route::post('/customers/{customerId}/memberships/{id}/renew',     [TenantControllers\ClassController::class, 'renewMembershipAtRegister'])->name('customers.memberships.renew');
 
             // Classes reports — panel page + CSV exports per panel
             Route::get('/classes/reports',                                    [TenantControllers\ClassController::class, 'reports'])->name('classes.reports');
