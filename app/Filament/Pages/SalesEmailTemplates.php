@@ -17,6 +17,7 @@ use Illuminate\Support\Facades\DB;
 class SalesEmailTemplates extends Page
 {
     use \App\Support\UsesAdminNav;
+    use \Livewire\WithFileUploads; // MARKER-OUTREACH-TEST-SIG: signature logo upload
     protected static ?string $navigationIcon  = 'heroicon-o-document-text';
     protected static ?string $navigationLabel = 'Email templates';
     protected static ?string $navigationGroup = 'Sales';
@@ -31,6 +32,10 @@ class SalesEmailTemplates extends Page
     public string $body = '';
     public string $landing = '/';
     public bool $confirmDelete = false;
+
+    // MARKER-OUTREACH-TEST-SIG: your signature (editId === 'signature')
+    public array $sig = [];
+    public $logoUpload = null;
 
     public static function canAccess(): bool
     {
@@ -114,6 +119,63 @@ class SalesEmailTemplates extends Page
         }
         $this->editId = (string) $t->id;
         Notification::make()->title('Template saved')->success()->send();
+    }
+
+    /** Send the template, filled with a made-up shop, only to you. Unsaved edits included. */
+    public function sendTest(): void
+    {
+        $this->validate([
+            'subject' => ['required', 'string', 'max:191'],
+            'body'    => ['required', 'string', 'max:10000'],
+        ], ['subject.required' => 'Add a subject.', 'body.required' => 'Write the message.']);
+        [$ok, $msg] = ProspectOutreach::sendTest(ProspectOutreach::sampleProspect(), $this->subject, $this->body, $this->landing);
+        Notification::make()->title($msg)->{$ok ? 'success' : 'warning'}()->send();
+    }
+
+    public function openSignature(): void
+    {
+        $this->editId = 'signature';
+        $this->sig = ProspectOutreach::signature();
+        $this->logoUpload = null;
+        $this->confirmDelete = false;
+        $this->resetErrorBag();
+    }
+
+    public function saveSignature(): void
+    {
+        $this->validate([
+            'sig.name'  => ['nullable', 'string', 'max:80'],
+            'sig.title' => ['nullable', 'string', 'max:80'],
+            'sig.phone' => ['nullable', 'string', 'max:40'],
+            'sig.line'  => ['nullable', 'string', 'max:120'],
+            'sig.website' => ['nullable', 'string', 'max:191'], 'sig.instagram' => ['nullable', 'string', 'max:191'],
+            'sig.facebook' => ['nullable', 'string', 'max:191'], 'sig.linkedin' => ['nullable', 'string', 'max:191'],
+            'logoUpload' => ['nullable', 'image', 'mimes:png,jpg,jpeg', 'max:1024'],
+        ], ['logoUpload.mimes' => 'Use a PNG or JPG; many inboxes don\'t show SVG.', 'logoUpload.max' => 'Keep the logo under 1 MB.']);
+
+        $sig = ProspectOutreach::signature();
+        foreach (['name', 'title', 'phone', 'line', 'website', 'instagram', 'facebook', 'linkedin'] as $k) {
+            $sig[$k] = trim((string) ($this->sig[$k] ?? ''));
+        }
+        $sig['enabled'] = (bool) ($this->sig['enabled'] ?? false);
+        $sig['logo'] = in_array($this->sig['logo'] ?? 'brand', ['brand', 'upload', 'none'], true) ? $this->sig['logo'] : 'brand';
+        if ($this->logoUpload) {
+            $sig['logo_path'] = $this->logoUpload->store('outreach', 'public');
+            $sig['logo'] = 'upload';
+            $this->logoUpload = null;
+        }
+        if ($sig['logo'] === 'upload' && ($sig['logo_path'] ?? '') === '') $sig['logo'] = 'brand';
+        ProspectOutreach::saveSignature($sig);
+        $this->sig = ProspectOutreach::signature();
+        Notification::make()->title('Signature saved')->success()->send();
+    }
+
+    /** The signature as it will look, from the fields as they are now (unsaved). */
+    public function signaturePreview(): string
+    {
+        $sig = array_merge(ProspectOutreach::signature(), $this->sig, ['enabled' => true]);
+        if ($this->logoUpload) $sig['logo'] = 'none'; // shown separately until saved
+        return ProspectOutreach::signatureHtml($sig);
     }
 
     public function deleteTemplate(): void

@@ -57,7 +57,7 @@
         }
      }">
 
-    <p class="sx-lede"><b>What this does:</b> Saved emails for <a href="{{ $sendUrl }}">Email outreach</a> and the Email button on a Prospects card. <b>[first_name]</b>, <b>[shop]</b> and <b>[city]</b> fill in from the prospect; <b>[link]</b> becomes that shop's own link to the page you pick when sending (the page here is only the starting choice). The unsubscribe link and postal address are added to every email automatically. Editing a template doesn't change emails already sent.</p>
+    <p class="sx-lede"><b>What this does:</b> Saved emails for <a href="{{ $sendUrl }}">Email outreach</a> and the Email button on a Prospects card. <b>[first_name]</b>, <b>[shop]</b> and <b>[city]</b> fill in from the prospect; <b>[link]</b> becomes that shop's own link to the page you pick when sending (the page here is only the starting choice). The unsubscribe link and postal address are added to every email automatically. Editing a template doesn't change emails already sent. <b>Send test to me</b> sends it to you, filled in with a sample shop.</p>
 
     <div class="et-cols">
         <section>
@@ -74,9 +74,63 @@
             @if ($editId === 'new' && $tpls->isNotEmpty())
                 <div class="et-item on"><div class="nm">New template</div><div class="sub">Not saved yet</div></div>
             @endif
+            {{-- MARKER-OUTREACH-TEST-SIG --}}
+            @php $mySig = \App\Services\Sales\ProspectOutreach::signature(); @endphp
+            <div class="et-head" style="margin-top:22px"><span>Your signature</span></div>
+            <button type="button" class="et-item {{ $editId === 'signature' ? 'on' : '' }}" wire:click="openSignature">
+                <div class="nm">Signature</div>
+                <div class="sub">{{ $mySig['enabled'] ? 'On · added to every email you send' : 'Off' }}</div>
+            </button>
         </section>
 
         <section>
+            @if ($editId === 'signature')
+                @php
+                    $logoUrl = \App\Services\Sales\ProspectOutreach::signatureLogoUrl(array_merge($mySig, $sig));
+                    $svg = \App\Services\Sales\ProspectOutreach::logoIsSvg($logoUrl);
+                @endphp
+                <label class="eo-chips" style="font-size:13px;color:inherit;margin:0"><input type="checkbox" wire:model.live="sig.enabled" style="accent-color:#8b5cf6"> Add my signature to every prospect email I send</label>
+                <div class="eo-two">
+                    <div><div class="eo-lbl">Name</div><input type="text" class="sx-in eo-full" wire:model.live.debounce.400ms="sig.name"></div>
+                    <div><div class="eo-lbl">Title</div><input type="text" class="sx-in eo-full" wire:model.live.debounce.400ms="sig.title" placeholder="Founder, Intake"></div>
+                    <div><div class="eo-lbl">Phone</div><input type="text" class="sx-in eo-full" wire:model.live.debounce.400ms="sig.phone"></div>
+                    <div><div class="eo-lbl">Extra line <span style="color:var(--sx-faint)">(optional)</span></div><input type="text" class="sx-in eo-full" wire:model.live.debounce.400ms="sig.line" placeholder="20 years in shops. Built the software I wanted."></div>
+                </div>
+                <div class="eo-two">
+                    @foreach (\App\Services\Sales\ProspectOutreach::SOCIALS as $k => $label)
+                        <div><div class="eo-lbl">{{ $label }} link</div><input type="text" class="sx-in eo-full" wire:model.live.debounce.400ms="sig.{{ $k }}" placeholder="{{ $k === 'website' ? 'intake.works' : $k . '.com/…' }}"></div>
+                    @endforeach
+                </div>
+                <div class="eo-lbl">Logo</div>
+                <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+                    <select class="sx-in" wire:model.live="sig.logo">
+                        <option value="brand">Brand logo for email</option>
+                        <option value="upload">My own logo</option>
+                        <option value="none">No logo</option>
+                    </select>
+                    @if (($sig['logo'] ?? 'brand') === 'upload')
+                        <input type="file" accept="image/png,image/jpeg" wire:model="logoUpload" class="sx-in" style="max-width:280px">
+                    @endif
+                </div>
+                @error('logoUpload')<div class="eo-err">{{ $message }}</div>@enderror
+                @if (($sig['logo'] ?? 'brand') === 'brand' && $svg)
+                    <div class="et-help" style="color:#fbbf24">The Brand logo for email is an SVG, which Gmail and Outlook don't show. Upload a PNG in Brand › Logo for email, or choose My own logo.</div>
+                @endif
+
+                <div class="eo-lbl" style="margin-top:18px">Preview</div>
+                <div style="border:1px solid var(--sx-line-2);border-radius:8px;background:#fff;color:#111;padding:6px 18px 18px">
+                    @if ($logoUpload)
+                        <div style="font-size:12px;color:#777;margin-top:10px">New logo (saved when you press Save):</div>
+                        <img src="{{ $logoUpload->temporaryUrl() }}" alt="" style="width:120px;height:auto;margin-top:6px">
+                    @endif
+                    {!! $this->signaturePreview() !!}
+                </div>
+                <div class="et-help">Shown under the message and above the unsubscribe line. Only your emails use your signature; anyone else sending from master admin sets their own.</div>
+
+                <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:16px">
+                    <button type="button" class="sx-btn p" wire:click="saveSignature" wire:loading.attr="disabled">Save signature</button>
+                </div>
+            @else
             <div class="eo-lbl">Name <span style="color:var(--sx-faint)">(only you see this)</span></div>
             <input type="text" class="sx-in eo-full" wire:model="name" placeholder="e.g. Intro: one login for the whole shop">
             @error('name')<div class="eo-err">{{ $message }}</div>@enderror
@@ -114,6 +168,7 @@
 
             <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:16px">
                 <button type="button" class="sx-btn p" wire:click="saveTemplate" wire:loading.attr="disabled">Save template</button>
+                <button type="button" class="sx-btn" wire:click="sendTest" wire:loading.attr="disabled" title="Sends this template, filled in with a sample shop, only to you">Send test to me</button>
                 @if ($editId && $editId !== 'new')
                     @if (! $confirmDelete)
                         <button type="button" class="sx-btn" wire:click="$set('confirmDelete', true)">Delete</button>
@@ -125,6 +180,7 @@
                     @endif
                 @endif
             </div>
+            @endif
         </section>
     </div>
 </div>

@@ -97,7 +97,7 @@
         <div><b>{{ number_format($st['queue']) }}</b>in the queue</div>
     </div>
 
-    <p class="sx-lede"><b>What this does:</b> Send emails the shop shown, from Intake's platform email address, with an unsubscribe link and your postal address. Nothing sends on its own. <b>[link]</b> becomes that shop's own link to the page you pick, so their visit shows on their timeline with the pages they looked at. Your template, landing page and filters are remembered. Addresses that unsubscribed, bounced or complained never appear here. Visits while you're signed in to master admin aren't recorded, so test a link in a private window. <b>Not affected:</b> tenant emails (receipts, bookings), Instagram follows, campaigns.</p>
+    <p class="sx-lede"><b>What this does:</b> Send emails the shop shown, from Intake's platform email address, with an unsubscribe link and your postal address. Nothing sends on its own. <b>[link]</b> becomes that shop's own link to the page you pick, so their visit shows on their timeline with the pages they looked at. Your template, landing page and filters are remembered. Addresses that unsubscribed, bounced or complained never appear here. Visits while you're signed in to master admin aren't recorded, so test a link in a private window. <b>Send test to me</b> sends this email only to you, with a link that carries no tracking code. Your signature is set on Email templates. <b>Not affected:</b> tenant emails (receipts, bookings), Instagram follows, campaigns.</p>
 
     <div class="sx-bar">
         <select class="sx-in" wire:model.live="state">
@@ -176,6 +176,7 @@
                 <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:16px">
                     <button type="button" class="sx-btn p big" data-eo-send wire:click="send" wire:loading.attr="disabled" wire:target="send">Send to {{ $cur->email }}</button>
                     <button type="button" class="sx-btn" data-eo-skip wire:click="skip" wire:loading.attr="disabled">Skip</button>
+                    <button type="button" class="sx-btn" wire:click="sendTest" wire:loading.attr="disabled" title="Sends this email only to you, marked [Test]. The shop stays in the queue.">Send test to me</button>
                     <button type="button" class="sx-btn" wire:click="wrongEmail" wire:loading.attr="disabled">Wrong email</button>
                 </div>
                 <div class="ig-keys"><kbd>Ctrl</kbd>/<kbd>⌘</kbd> + <kbd>Enter</kbd> send · <kbd>S</kbd> skip</div>

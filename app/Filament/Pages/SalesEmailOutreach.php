@@ -219,6 +219,19 @@ class SalesEmailOutreach extends Page
         $this->loadNext();
     }
 
+    /** MARKER-OUTREACH-TEST-SIG: the same email, only to you. The shop stays in the queue. */
+    public function sendTest(): void
+    {
+        $p = $this->current();
+        if (! $p) return;
+        $this->validate(
+            ['subject' => ['required', 'string', 'max:191'], 'body' => ['required', 'string', 'max:10000']],
+            ['subject.required' => 'Add a subject.', 'body.required' => 'Write the message.']
+        );
+        [$ok, $msg] = ProspectOutreach::sendTest($p, $this->subject, $this->body, $this->landing);
+        Notification::make()->title($msg)->{$ok ? 'success' : 'warning'}()->send();
+    }
+
     public function skip(): void
     {
         $p = $this->current();

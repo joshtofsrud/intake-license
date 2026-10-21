@@ -1,5 +1,6 @@
 <?php
 // MARKER-EMAIL-OUTREACH
+// MARKER-OUTREACH-TEST-SIG: test send to yourself, signature with logo and links.
 //
 // One prospect email, start to finish: fill the template, give the shop its own
 // link to the page you picked, send on the platform broadcast stream (never the
@@ -141,17 +142,147 @@ class ProspectOutreach
             . '<br><a href="' . e(\App\Http\Controllers\Platform\PlatformUnsubscribeController::url($to)) . '" style="color:#777">Unsubscribe</a></p>';
     }
 
-    /** The email exactly as it goes out (also the preview). */
-    public static function html(string $body, SalesProspect $p, ?string $page, string $to): string
+    /**
+     * The email exactly as it goes out (also the preview). A test send links to
+     * the page without the shop's code, so opening it isn't their visit.
+     */
+    public static function html(string $body, SalesProspect $p, ?string $page, string $to, bool $test = false): string
     {
         $marker = "\u{E000}LINK\u{E000}";
         $text = e(self::fill(trim($body), $p, $marker));
         if (str_contains($text, $marker)) {
-            $url  = self::link($p, $page);
+            $url  = $test ? self::pageUrl($page) : self::link($p, $page);
             $text = str_replace($marker, '<a href="' . e($url) . '" style="color:#2563eb">' . e($url) . '</a>', $text);
         }
+        $banner = $test
+            ? '<p style="font-size:12px;color:#777;margin:0 0 16px;padding:8px 10px;background:#f4f4f5;border-radius:6px">Test send, only to you. The shop has not been emailed, and the link here carries no tracking code.</p>'
+            : '';
         return '<div style="font-family:Inter,Arial,sans-serif;font-size:15px;line-height:1.6;color:#111">'
-            . nl2br($text) . self::footer($to) . '</div>';
+            . $banner . nl2br($text) . self::signatureHtml() . self::footer($to) . '</div>';
+    }
+
+    /** The landing page with no tracking code. */
+    public static function pageUrl(?string $page): string
+    {
+        return 'https://' . config('intake.domain', 'intake.works') . self::normalizePage($page);
+    }
+
+    // ------------------------------------------------------------ signature
+
+    public const SOCIALS = ['website' => 'Website', 'instagram' => 'Instagram', 'facebook' => 'Facebook', 'linkedin' => 'LinkedIn'];
+
+    /** This admin's signature; logo is 'brand', 'upload' or 'none'. */
+    public static function signature(): array
+    {
+        $u = Auth::guard('web')->user();
+        $sig = [];
+        if ($u) {
+            try {
+                $all = json_decode((string) DB::table('users')->where('id', $u->id)->value('admin_prefs'), true);
+                $sig = is_array($all['signature'] ?? null) ? $all['signature'] : [];
+            } catch (\Throwable $e) {
+                $sig = [];
+            }
+        }
+        $out = [
+            'enabled'   => (bool) ($sig['enabled'] ?? false),
+            'name'      => (string) ($sig['name'] ?? ($u?->name ?? '')),
+            'title'     => (string) ($sig['title'] ?? ''),
+            'phone'     => (string) ($sig['phone'] ?? ''),
+            'line'      => (string) ($sig['line'] ?? ''),
+            'logo'      => in_array($sig['logo'] ?? 'brand', ['brand', 'upload', 'none'], true) ? ($sig['logo'] ?? 'brand') : 'brand',
+            'logo_path' => (string) ($sig['logo_path'] ?? ''),
+        ];
+        foreach (array_keys(self::SOCIALS) as $k) $out[$k] = (string) ($sig[$k] ?? '');
+        return $out;
+    }
+
+    public static function saveSignature(array $sig): void
+    {
+        $u = Auth::guard('web')->user();
+        if (! $u) return;
+        $all = json_decode((string) DB::table('users')->where('id', $u->id)->value('admin_prefs'), true);
+        $all = is_array($all) ? $all : [];
+        $all['signature'] = $sig;
+        DB::table('users')->where('id', $u->id)->update(['admin_prefs' => json_encode($all)]);
+    }
+
+    /** Absolute URL of the logo the signature uses, or null. */
+    public static function signatureLogoUrl(?array $sig = null): ?string
+    {
+        $sig = $sig ?? self::signature();
+        if ($sig['logo'] === 'none') return null;
+        if ($sig['logo'] === 'upload' && $sig['logo_path'] !== '') {
+            return 'https://' . config('intake.domain', 'intake.works') . '/storage/' . ltrim($sig['logo_path'], '/');
+        }
+        $url = \App\Support\Brand::url('email');
+        return preg_replace('#^https?://[^/]+#', 'https://' . config('intake.domain', 'intake.works'), $url);
+    }
+
+    /** True when the logo is an SVG, which many inboxes (Gmail, Outlook) won't show. */
+    public static function logoIsSvg(?string $url): bool
+    {
+        return $url !== null && str_ends_with(strtolower((string) parse_url($url, PHP_URL_PATH)), '.svg');
+    }
+
+    /** Email-safe table: logo on the left, name and details on the right. Empty when off. */
+    public static function signatureHtml(?array $sig = null): string
+    {
+        $sig = $sig ?? self::signature();
+        if (! $sig['enabled']) return '';
+        $logo = self::signatureLogoUrl($sig);
+
+        $lines = [];
+        if (trim($sig['name']) !== '')  $lines[] = '<span style="font-weight:600;color:#111;font-size:14px">' . e(trim($sig['name'])) . '</span>';
+        if (trim($sig['title']) !== '') $lines[] = e(trim($sig['title']));
+        if (trim($sig['phone']) !== '') {
+            $tel = preg_replace('/[^0-9+]/', '', $sig['phone']);
+            $lines[] = '<a href="tel:' . e($tel) . '" style="color:#444;text-decoration:none">' . e(trim($sig['phone'])) . '</a>';
+        }
+        if (trim($sig['line']) !== '')  $lines[] = e(trim($sig['line']));
+        $links = [];
+        foreach (self::SOCIALS as $k => $label) {
+            $v = trim($sig[$k]);
+            if ($v === '') continue;
+            $href = preg_match('#^https?://#i', $v) ? $v : 'https://' . ltrim($v, '/');
+            $links[] = '<a href="' . e($href) . '" style="color:#2563eb;text-decoration:none">' . e($label) . '</a>';
+        }
+        if ($links) $lines[] = implode(' &nbsp;·&nbsp; ', $links);
+        if (! $lines && ! $logo) return '';
+
+        $html = '<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin-top:26px;border-collapse:collapse"><tr>';
+        if ($logo) {
+            $html .= '<td style="padding:2px 16px 2px 0;vertical-align:middle;border-right:2px solid #e5e5e5">'
+                . '<img src="' . e($logo) . '" alt="" width="120" style="display:block;width:120px;max-width:120px;height:auto;border:0"></td>';
+        }
+        $html .= '<td style="padding:2px 0 2px ' . ($logo ? '16px' : '0') . ';vertical-align:middle;font-size:13px;line-height:1.55;color:#444">'
+            . implode('<br>', $lines) . '</td></tr></table>';
+        return $html;
+    }
+
+    /** Send the email only to the signed-in admin. Nothing is logged and the shop isn't touched. */
+    public static function sendTest(SalesProspect $p, string $subject, string $body, ?string $page): array
+    {
+        $u = Auth::guard('web')->user();
+        $to = mb_strtolower(trim((string) ($u?->email ?? '')));
+        if (! filter_var($to, FILTER_VALIDATE_EMAIL)) return [false, 'Your admin account has no email address'];
+        $subject = self::subject($subject, $p);
+        if ($subject === '') return [false, 'Add a subject'];
+        try {
+            $ok = PlatformMailer::send($to, $u?->name ?: null, '[Test] ' . $subject, self::html($body, $p, $page, $to, true),
+                \App\Http\Controllers\Platform\PlatformUnsubscribeController::url($to));
+        } catch (\Throwable $e) {
+            report($e);
+            return [false, 'Test not sent: ' . $e->getMessage()];
+        }
+        if (! $ok) return [false, 'Test not sent: platform email has no broadcast stream set'];
+        return [true, 'Test sent to ' . $to];
+    }
+
+    /** A made-up shop for testing a template. Never saved. */
+    public static function sampleProspect(): SalesProspect
+    {
+        return (new SalesProspect())->forceFill(['shop' => 'Sample Shop Co', 'city' => 'Spokane', 'state' => 'WA', 'owner_contact' => 'Alex Sample']);
     }
 
     // ------------------------------------------------------------ sending
