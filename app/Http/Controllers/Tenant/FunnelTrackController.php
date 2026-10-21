@@ -34,6 +34,13 @@ class FunnelTrackController extends Controller
             return response()->json(['ok' => false, 'reason' => 'no_tenant'], 404);
         }
 
+        // MARKER-TRAFFIC-NO-STAFF: the shop's own signed-in staff (and anyone
+        // impersonating them) aren't visitors — their browsing isn't recorded.
+        $staff = \Illuminate\Support\Facades\Auth::guard('tenant')->user();
+        if ($staff && (string) $staff->tenant_id === (string) $tenant->id) {
+            return response()->json(['ok' => true, 'skipped' => 'staff']);
+        }
+
         // Rate limit: 60 events / minute per IP per tenant. Generous
         // enough for legitimate use (page_view per nav, booking events
         // per step) but blocks abusive scripted floods.

@@ -5,8 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   @include('partials.mobile-input-zoom')
   <meta name="csrf-token" content="{{ csrf_token() }}">
-  {{-- analytics + funnel tracking --}}
+  {{-- analytics + funnel tracking. MARKER-TRAFFIC-NO-STAFF: never from the
+       page builder's preview (same rule the intake.works pages already follow) --}}
+  @if(empty($builderPreview))
   @include('public._funnel_tracker')
+  @endif
 
   {{-- title, description and link-preview tags,
        from the builder's Search & sharing panel. --}}
