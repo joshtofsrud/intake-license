@@ -237,9 +237,26 @@ class SalePaymentService
         }
 
         if ($status !== $sale->payment_status || $paidAt != $sale->paid_at) {
+            $becamePaid = $status === 'paid' && $sale->payment_status !== 'paid';
             $sale->payment_status = $status;
             $sale->paid_at = $paidAt;
             $sale->save();
+
+            // MARKER-CLASSES-P1: a sale paid AFTER it was rung up (payment link,
+            // card webhook) never activated its gift cards; class passes would
+            // have had the same gap. Both issuers are idempotent per line.
+            if ($becamePaid) {
+                foreach ([\App\Services\Tenant\GiftCardService::class, \App\Services\ClassPassService::class] as $issuer) {
+                    try {
+                        app($issuer)->issueForSale($sale->fresh('items'));
+                    } catch (\Throwable $e) {
+                        \Illuminate\Support\Facades\Log::error('paid-later issue failed', [
+                            'sale_id' => $sale->id, 'issuer' => $issuer, 'error' => $e->getMessage(),
+                        ]);
+                        report($e);
+                    }
+                }
+            }
         }
     }
 }

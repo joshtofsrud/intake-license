@@ -5,7 +5,7 @@ namespace App\Services\Tenant;
 use App\Models\Tenant\TenantGiftCard;
 use App\Models\Tenant\TenantGiftCardTransaction;
 use App\Models\Tenant\TenantSale;
-use App\Services\Tenant\Exceptions\SaleValidationException;
+use App\Services\Tenant\SaleValidationException; // MARKER-CLASSES-P1: the Exceptions\ class never existed, so every gift card error was a 500
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -367,6 +367,49 @@ class GiftCardService
             $this->ledger($locked, 'deactivate', 0, null, $reason, $userId);
         });
     }
+
+    /**
+     * A sold gift card is being refunded: take the refunded amount back off
+     * the card. Before this, a refund paid the money out and left the card
+     * active with its full balance, so the same value could be spent again.
+     * Refuses when the card has already been spent below the refund amount.
+     * MARKER-CLASSES-P1
+     */
+    public function reverseForRefund(\App\Models\Tenant\TenantSaleItem $refundLine, TenantSale $refund): void
+    {
+        if (! $refundLine->gift_card_id) {
+            return;
+        }
+        $amount = abs((int) $refundLine->line_total_cents);
+        if ($amount < 1) {
+            return;
+        }
+
+        $card = TenantGiftCard::where('tenant_id', $refund->tenant_id)
+            ->whereKey($refundLine->gift_card_id)
+            ->lockForUpdate()
+            ->first();
+        if (! $card) {
+            return;
+        }
+        if ($card->balance_cents < $amount) {
+            throw new SaleValidationException(sprintf(
+                'Gift card %s has only %s left on it, so only that much of it can be refunded.',
+                $card->maskedCode(), '$' . number_format($card->balance_cents / 100, 2)
+            ));
+        }
+
+        $card->balance_cents -= $amount;
+        if ($card->balance_cents === 0) {
+            $card->status             = 'deactivated';
+            $card->deactivated_at     = now();
+            $card->deactivated_reason = 'Refunded on ' . ($refund->sale_number ?? $refund->id);
+        }
+        $card->save();
+
+        $this->ledger($card, 'refund_void', -$amount, $refund->id, 'Card refunded on ' . ($refund->sale_number ?? $refund->id), $refund->rang_up_by_user_id);
+    }
+
 
     protected function ledger(TenantGiftCard $card, string $kind, int $amountCents, ?string $saleId, ?string $note, ?string $userId, ?string $locationId = null): void
     {

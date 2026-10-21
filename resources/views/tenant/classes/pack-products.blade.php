@@ -3,6 +3,8 @@
 
 @push('styles')
 <style>
+.cl-cover-opt{display:flex;gap:8px;align-items:center;font-size:13px;padding:3px 0;cursor:pointer}
+.cl-cover-list{padding:2px 0 0 22px;max-height:180px;overflow:auto}
 .cl-subnav{display:flex;gap:2px;margin-bottom:20px;border-bottom:0.5px solid var(--ia-border)}
 .cl-subnav-tab{padding:9px 14px;font-size:13px;color:var(--ia-text-muted);border-bottom:2px solid transparent;margin-bottom:-0.5px;cursor:pointer;background:none;border-left:none;border-right:none;border-top:none;text-decoration:none;transition:color var(--ia-t),border-color var(--ia-t)}
 .cl-subnav-tab:hover{color:var(--ia-text)}
@@ -175,20 +177,39 @@
       <div class="cl-field-triple">
         <div class="cl-field">
           <label class="cl-label">Credits</label>
-          <input type="number" name="credit_count" id="add-credits" class="cl-input" required min="1" max="999" value="10" oninput="updatePerCredit('add')">
+          <input type="number" name="credit_count" id="add-credits" class="cl-input" required min="1" max="999" placeholder="e.g. 10" oninput="updatePerCredit('add')">
         </div>
         <div class="cl-field">
           <label class="cl-label">Expires (days)</label>
-          <input type="number" name="expiry_days" class="cl-input" required min="1" max="730" value="180">
+          <input type="number" name="expiry_days" class="cl-input" required min="1" max="730" placeholder="e.g. 90">
         </div>
         <div class="cl-field">
           <label class="cl-label">Price</label>
           <div class="cl-price-wrap">
             <span class="cl-price-sym">$</span>
-            <input type="number" name="price_dollars" id="add-price" class="cl-input" required min="0" step="0.01" value="100.00" oninput="updatePerCredit('add')">
+            <input type="number" name="price_dollars" id="add-price" class="cl-input" required min="0" step="0.01" placeholder="0.00" oninput="updatePerCredit('add')">
           </div>
-          <div class="cl-per-credit" id="add-per-credit">$10.00 per class</div>
+          <div class="cl-per-credit" id="add-per-credit"></div>
         </div>
+      </div>
+      {{-- MARKER-CLASSES-P1: what this pays for, and tax --}}
+      <div class="cl-field">
+        <label class="cl-label">Pays for</label>
+        <label class="cl-cover-opt"><input type="radio" name="covers_mode" value="all" id="add-covers-all" checked onchange="clCovers('add')"> Every class</label>
+        <label class="cl-cover-opt"><input type="radio" name="covers_mode" value="some" id="add-covers-some" onchange="clCovers('add')"> Only the classes ticked</label>
+        <div class="cl-cover-list" id="add-cover-list" hidden>
+          @forelse($templates as $t)
+            <label class="cl-cover-opt"><input type="checkbox" name="covers[]" value="{{ $t->id }}"> {{ $t->name }}</label>
+          @empty
+            <div class="cl-per-credit">No class types yet.</div>
+          @endforelse
+        </div>
+      </div>
+      <div class="cl-field">
+        <label class="cl-label" style="display:flex;align-items:center;gap:8px;cursor:pointer">
+          <input type="hidden" name="is_taxable" value="0">
+          <input type="checkbox" name="is_taxable" id="add-taxable" value="1"> Charge sales tax when sold
+        </label>
       </div>
       <div class="cl-field">
         <label class="cl-label" style="display:flex;align-items:center;gap:8px;cursor:pointer">
@@ -236,6 +257,25 @@
           <div class="cl-per-credit" id="edit-per-credit"></div>
         </div>
       </div>
+      {{-- MARKER-CLASSES-P1: what this pays for, and tax --}}
+      <div class="cl-field">
+        <label class="cl-label">Pays for</label>
+        <label class="cl-cover-opt"><input type="radio" name="covers_mode" value="all" id="edit-covers-all" checked onchange="clCovers('edit')"> Every class</label>
+        <label class="cl-cover-opt"><input type="radio" name="covers_mode" value="some" id="edit-covers-some" onchange="clCovers('edit')"> Only the classes ticked</label>
+        <div class="cl-cover-list" id="edit-cover-list" hidden>
+          @forelse($templates as $t)
+            <label class="cl-cover-opt"><input type="checkbox" name="covers[]" value="{{ $t->id }}"> {{ $t->name }}</label>
+          @empty
+            <div class="cl-per-credit">No class types yet.</div>
+          @endforelse
+        </div>
+      </div>
+      <div class="cl-field">
+        <label class="cl-label" style="display:flex;align-items:center;gap:8px;cursor:pointer">
+          <input type="hidden" name="is_taxable" value="0">
+          <input type="checkbox" name="is_taxable" id="edit-taxable" value="1"> Charge sales tax when sold
+        </label>
+      </div>
       <div class="cl-field">
         <label class="cl-label" style="display:flex;align-items:center;gap:8px;cursor:pointer">
           <input type="hidden" name="is_active" value="0">
@@ -267,6 +307,7 @@
     document.getElementById(prefix+'-per-credit').textContent = '$'+per.toFixed(2)+' per class';
   };
 
+  window.clCovers = function(prefix){ document.getElementById(prefix + '-cover-list').hidden = !document.getElementById(prefix + '-covers-some').checked; };
   window.openAddModal  = function(){ addModal.classList.add('is-open'); updatePerCredit('add'); }
   window.closeAddModal = function(){ addModal.classList.remove('is-open'); }
 
@@ -279,6 +320,11 @@
     document.getElementById('edit-price').value       = (p.price_cents / 100).toFixed(2);
     document.getElementById('edit-active').checked    = p.is_active == 1;
     updatePerCredit('edit');
+    var cov = Array.isArray(p.covers) ? p.covers : [];
+    document.getElementById('edit-covers-' + (cov.length ? 'some' : 'all')).checked = true;
+    document.querySelectorAll('#edit-cover-list input[type=checkbox]').forEach(function(c){ c.checked = cov.indexOf(c.value) !== -1; });
+    clCovers('edit');
+    document.getElementById('edit-taxable').checked = !!p.is_taxable;
     editModal.classList.add('is-open');
   }
   window.closeEditModal = function(){ editModal.classList.remove('is-open'); }

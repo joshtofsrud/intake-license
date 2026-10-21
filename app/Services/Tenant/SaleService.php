@@ -67,6 +67,10 @@ class SaleService
                 'Customer is required when the sale has any service line.'
             );
         }
+        // MARKER-CLASSES-P1: a class pass belongs to someone.
+        if (collect($items)->contains(fn ($i) => ($i['type'] ?? null) === 'class_pass') && empty($data['customer_id'])) {
+            throw new SaleValidationException('Choose the customer first: a class pass belongs to someone.');
+        }
 
         // Location is required (DB allows null for legacy/imports; app enforces presence).
         if (empty($data['location_id'])) {
@@ -148,6 +152,7 @@ class SaleService
                 $gifts = app(\App\Services\Tenant\GiftCardService::class);
                 $gifts->redeemTenders($finalSale, $data);
                 $gifts->issueForSale($finalSale);
+                app(\App\Services\ClassPassService::class)->issueForSale($finalSale); // MARKER-CLASSES-P1
             }
 
             // record payment on the SALE ledger (createSale
@@ -366,6 +371,9 @@ class SaleService
                     'Customer is required when the sale has any service line.'
                 );
             }
+            if ($sale->items->contains(fn ($i) => $i->type === 'class_pass') && empty($customerId)) { // MARKER-CLASSES-P1
+                throw new SaleValidationException('Choose the customer first: a class pass belongs to someone.');
+            }
 
             $newPaymentStatus = $data['payment_status'] ?? 'paid';
             $paidAt = $newPaymentStatus === 'paid'
@@ -416,6 +424,7 @@ class SaleService
                 $gifts = app(\App\Services\Tenant\GiftCardService::class);
                 $gifts->redeemTenders($finalSale, $data);
                 $gifts->issueForSale($finalSale);
+                app(\App\Services\ClassPassService::class)->issueForSale($finalSale); // MARKER-CLASSES-P1
             }
 
             // Appointment-payment hook. If this sale is linked to an
@@ -537,6 +546,27 @@ class SaleService
                 'recipient_name'  => $gc['recipient_name'] ?? null,
                 'recipient_email' => $gc['recipient_email'] ?? null,
                 'gift_message'    => $gc['gift_message'] ?? null,
+            ];
+        }
+
+        // MARKER-CLASSES-P1: a class pass line. Name, price and tax come from the
+        // shop's own pass product; nothing about it is trusted from the browser
+        // except which product it is (a permitted price edit still arrives as
+        // unit_price_cents / discount_cents, like any other line).
+        if ($type === 'class_pass') {
+            $cp      = (array) ($data['class_pass'] ?? []);
+            $kind    = (string) ($cp['kind'] ?? '');
+            $product = \App\Services\ClassPassService::product($sale->tenant_id, $kind, $cp['product_id'] ?? null);
+            if (! $product || ! $product->is_active) {
+                throw new SaleValidationException('That class pass is not for sale in this shop.');
+            }
+            $name           = $name ?: $product->name;
+            $unitPriceCents = $unitPriceCents ?? (int) $product->price_cents;
+            $isTaxable      = (bool) $product->is_taxable;
+            $metadata = [
+                'kind'            => $kind,
+                'product_id'      => $product->id,
+                'book_session_id' => $cp['book_session_id'] ?? null,
             ];
         }
 
@@ -964,6 +994,14 @@ class SaleService
                     'original_sale_item_id' => $orig->id,
                     'disposition'           => $dispo,
                 ]);
+
+                // MARKER-CLASSES-P1: refunding a gift card takes the money back off
+                // the card; refunding a class pass voids what is left on it.
+                if ($line->type === 'gift_card') {
+                    app(\App\Services\Tenant\GiftCardService::class)->reverseForRefund($line, $refund);
+                } elseif ($line->type === 'class_pass') {
+                    app(\App\Services\ClassPassService::class)->reverseForRefund($orig, $refund);
+                }
 
                 $appliedNow[$orig->id] = ($appliedNow[$orig->id] ?? 0) + $qty;
 

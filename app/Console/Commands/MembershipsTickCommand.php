@@ -118,12 +118,23 @@ class MembershipsTickCommand extends Command
     {
         // same per-tenant local-date treatment as rollover.
         $count = 0;
+        // MARKER-CLASSES-P1: one row at a time so each expiry lands in the credit ledger.
         foreach (self::tenantLocalDates() as $tenantId => $localToday) {
-            $count += TenantCustomerPack::where('tenant_id', $tenantId)
+            TenantCustomerPack::where('tenant_id', $tenantId)
                 ->whereIn('status', ['active', 'exhausted'])
                 ->whereNotNull('expires_at')
                 ->where('expires_at', '<', $localToday)
-                ->update(['status' => 'expired']);
+                ->get()
+                ->each(function (TenantCustomerPack $p) use (&$count) {
+                    DB::transaction(function () use ($p) {
+                        $left = (int) $p->credits_remaining;
+                        $p->update(['status' => 'expired']);
+                        if ($left > 0) {
+                            \App\Services\ClassCreditLedger::record($p->tenant_id, $p->customer_id, -$left, 'expired', ['pack_id' => $p->id], "{$left} unused credit(s)");
+                        }
+                    });
+                    $count++;
+                });
         }
         return $count;
     }

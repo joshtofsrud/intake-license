@@ -27,7 +27,10 @@ use RuntimeException;
  *                   booking can't be cancelled (it would hand the credit back
  *                   for a class they attended).
  *
- * MARKER-CLASSES-P0
+ * Every credit or membership use that moves is written to the class credit
+ * ledger (ClassCreditLedger) in the same transaction.
+ *
+ * MARKER-CLASSES-P0 MARKER-CLASSES-P1
  */
 class ClassRegistrationService
 {
@@ -83,7 +86,7 @@ class ClassRegistrationService
             }
 
             $resolved = $allowCoverage
-                ? $this->resolvePayment($customerId, $tenantId, $paymentMethod)
+                ? $this->resolvePayment($customerId, $tenantId, $paymentMethod, $session)
                 : $this->requestedOnly($paymentMethod);
 
             // A full class goes to the waitlist. (Before this patch a full
@@ -102,7 +105,7 @@ class ClassRegistrationService
                 $this->consumePaymentSource($resolved);
             }
 
-            return TenantClassRegistration::create([
+            $registration = TenantClassRegistration::create([
                 'tenant_id'         => $tenantId,
                 'class_session_id'  => $sessionId,
                 'customer_id'       => $customerId,
@@ -114,6 +117,12 @@ class ClassRegistrationService
                 'waitlist_position' => $waitlistPos,
                 'registered_at'     => now(),
             ]);
+
+            if ($status === 'registered') {
+                $this->ledgerConsumed($registration, $session);
+            }
+
+            return $registration;
         });
     }
 
@@ -155,7 +164,7 @@ class ClassRegistrationService
                 throw new RuntimeException('This class has already started.');
             }
 
-            $this->restorePaymentSource($registration, $tenantId);
+            $this->restorePaymentSource($registration, $tenantId, $staff ? 'Removed by staff' : 'Cancelled by the customer');
             $registration->cancel();
 
             if ($session->starts_at->isFuture()
@@ -189,7 +198,7 @@ class ClassRegistrationService
                 } else {
                     $counts['cancelled']++;
                     if (in_array($r->payment_method, ['pack', 'membership'], true)) {
-                        $this->restorePaymentSource($r, $tenantId);
+                        $this->restorePaymentSource($r, $tenantId, 'Class cancelled by the studio');
                         $counts['restored']++;
                     } elseif ($r->payment_method === 'cash') {
                         $counts['paid_at_desk']++;
@@ -255,7 +264,7 @@ class ClassRegistrationService
 
         foreach ($waiting as $next) {
             try {
-                $resolved = $this->resolvePayment($next->customer_id, $tenantId, $next->payment_method);
+                $resolved = $this->resolvePayment($next->customer_id, $tenantId, $next->payment_method, $session);
             } catch (RuntimeException $e) {
                 Log::info('classes: waitlist promotion skipped, no coverage', [
                     'registration_id' => $next->id,
@@ -272,8 +281,22 @@ class ClassRegistrationService
                 'membership_id'     => $resolved['membership_id'] ?? null,
                 'pack_id'           => $resolved['pack_id'] ?? null,
             ]);
+            $this->ledgerConsumed($next->fresh(), $session, 'Moved in from the waitlist');
             return;
         }
+    }
+
+    private function ledgerConsumed(TenantClassRegistration $r, TenantClassSession $session, ?string $why = null): void
+    {
+        if (! in_array($r->payment_method, ['pack', 'membership'], true)) {
+            return;
+        }
+        $label = optional($session->template)->name ?? 'Class';
+        ClassCreditLedger::record($r->tenant_id, $r->customer_id, -1, 'booked', [
+            'pack_id'         => $r->pack_id,
+            'membership_id'   => $r->membership_id,
+            'registration_id' => $r->id,
+        ], trim($label . ' · ' . $session->starts_at->format('M j g:ia') . ($why ? ' · ' . $why : '')));
     }
 
     private function requestedOnly(string $requestedMethod): array
@@ -286,35 +309,55 @@ class ClassRegistrationService
         ];
     }
 
-    private function resolvePayment(string $customerId, string $tenantId, string $requestedMethod): array
+    /**
+     * Which of the customer's memberships and packs can pay for this class.
+     * A product with covers = NULL covers every class; otherwise only the
+     * class types listed. Memberships before packs; an unlimited membership
+     * before a capped one; packs soonest-expiring first.
+     */
+    private function resolvePayment(string $customerId, string $tenantId, string $requestedMethod, ?TenantClassSession $session = null): array
     {
+        $templateId = $session?->class_template_id;
+        $covers = function ($product) use ($templateId): bool {
+            if (! $product) {
+                return false;
+            }
+            $list = $product->covers;
+            return empty($list) || $templateId === null || in_array($templateId, (array) $list, true);
+        };
+
         $membership = TenantCustomerMembership::where('tenant_id', $tenantId)
             ->where('customer_id', $customerId)
             ->where('status', 'active')
             ->with('product')
+            ->get()
+            ->filter(fn ($m) => $m->canCoverClass() && $covers($m->product))
+            ->sortBy(fn ($m) => $m->product->isUnlimited() ? 0 : 1)
             ->first();
 
         $pack = TenantCustomerPack::where('tenant_id', $tenantId)
             ->where('customer_id', $customerId)
             ->consumptionOrder()
-            ->first();
+            ->with('product')
+            ->get()
+            ->first(fn ($p) => $covers($p->product));
 
         // Explicit choice: honour it strictly. A silent fallback would let
         // staff believe coverage was used when it wasn't.
         if ($requestedMethod === 'membership') {
-            if (! $membership || ! $membership->canCoverClass()) {
-                throw new RuntimeException('Customer has no active membership with classes left. Pick a different payment method.');
+            if (! $membership) {
+                throw new RuntimeException('Customer has no active membership with classes left that covers this class. Pick a different payment method.');
             }
             return ['method' => 'membership', 'membership_id' => $membership->id, 'pack_id' => null, 'paid_cents' => 0, 'source' => $membership];
         }
         if ($requestedMethod === 'pack') {
             if (! $pack) {
-                throw new RuntimeException('Customer has no usable pack. Pick a different payment method.');
+                throw new RuntimeException('Customer has no usable pack that covers this class. Pick a different payment method.');
             }
             return ['method' => 'pack', 'membership_id' => null, 'pack_id' => $pack->id, 'paid_cents' => 0, 'source' => $pack];
         }
 
-        if ($membership && $membership->canCoverClass()) {
+        if ($membership) {
             return ['method' => 'membership', 'membership_id' => $membership->id, 'pack_id' => null, 'paid_cents' => 0, 'source' => $membership];
         }
         if ($pack) {
@@ -338,17 +381,20 @@ class ClassRegistrationService
      * or a per_class / cash booking, is a no-op. Membership use never goes
      * below zero (the period may have rolled over since booking).
      */
-    private function restorePaymentSource(TenantClassRegistration $registration, string $tenantId): void
+    private function restorePaymentSource(TenantClassRegistration $registration, string $tenantId, ?string $why = null): void
     {
+        $refs = ['registration_id' => $registration->id];
         if ($registration->payment_method === 'pack' && $registration->pack_id) {
             $pack = TenantCustomerPack::where('tenant_id', $tenantId)->find($registration->pack_id);
             if ($pack) {
                 $pack->restoreCredit();
+                ClassCreditLedger::record($tenantId, $registration->customer_id, 1, 'restored', $refs + ['pack_id' => $pack->id], $why);
             }
         } elseif ($registration->payment_method === 'membership' && $registration->membership_id) {
             $membership = TenantCustomerMembership::where('tenant_id', $tenantId)->find($registration->membership_id);
             if ($membership && $membership->classes_used_this_period > 0) {
                 $membership->decrement('classes_used_this_period');
+                ClassCreditLedger::record($tenantId, $registration->customer_id, 1, 'restored', $refs + ['membership_id' => $membership->id], $why);
             }
         }
     }

@@ -446,8 +446,9 @@ class ClassController extends Controller
             ->withCount('memberships')
             ->orderBy('name')
             ->get();
+        $templates = \App\Models\Tenant\TenantClassTemplate::where('tenant_id', $tenant->id)->orderBy('name')->get(['id', 'name']);
 
-        return view('tenant.classes.membership-products', compact('products'));
+        return view('tenant.classes.membership-products', compact('products', 'templates'));
     }
 
     public function storeMembershipProduct(Request $request)
@@ -462,7 +463,16 @@ class ClassController extends Controller
                                 'required_if:type,capped'],
             'price_dollars' => ['required', 'numeric', 'min:0'],
             'is_active'     => ['boolean'],
+            'covers_mode' => ['nullable', 'in:all,some'],
+            'covers'      => ['nullable', 'array'],
+            'covers.*'    => ['uuid', \Illuminate\Validation\Rule::exists('tenant_class_templates', 'id')->where(fn ($q) => $q->where('tenant_id', $tenant->id))],
+            'is_taxable'  => ['boolean'],
         ]);
+        // MARKER-CLASSES-P1: which classes it pays for, and tax.
+        $data['covers'] = ($request->input('covers_mode') === 'some' && $request->filled('covers'))
+            ? array_values(array_unique($request->input('covers'))) : null;
+        unset($data['covers_mode']);
+        $data['is_taxable'] = $request->boolean('is_taxable');
 
         $data['tenant_id'] = $tenant->id;
         $data['is_active'] = $request->boolean('is_active', true);
@@ -490,7 +500,16 @@ class ClassController extends Controller
                                 'required_if:type,capped'],
             'price_dollars' => ['required', 'numeric', 'min:0'],
             'is_active'     => ['boolean'],
+            'covers_mode' => ['nullable', 'in:all,some'],
+            'covers'      => ['nullable', 'array'],
+            'covers.*'    => ['uuid', \Illuminate\Validation\Rule::exists('tenant_class_templates', 'id')->where(fn ($q) => $q->where('tenant_id', $tenant->id))],
+            'is_taxable'  => ['boolean'],
         ]);
+        // MARKER-CLASSES-P1: which classes it pays for, and tax.
+        $data['covers'] = ($request->input('covers_mode') === 'some' && $request->filled('covers'))
+            ? array_values(array_unique($request->input('covers'))) : null;
+        unset($data['covers_mode']);
+        $data['is_taxable'] = $request->boolean('is_taxable');
 
         $data['is_active'] = $request->boolean('is_active', true);
         $data['price_cents'] = (int) round($request->input('price_dollars', 0) * 100);
@@ -515,8 +534,9 @@ class ClassController extends Controller
             ->withCount('customerPacks')
             ->orderBy('name')
             ->get();
+        $templates = \App\Models\Tenant\TenantClassTemplate::where('tenant_id', $tenant->id)->orderBy('name')->get(['id', 'name']);
 
-        return view('tenant.classes.pack-products', compact('products'));
+        return view('tenant.classes.pack-products', compact('products', 'templates'));
     }
 
     public function storePackProduct(Request $request)
@@ -528,9 +548,18 @@ class ClassController extends Controller
             'description' => ['nullable', 'string', 'max:500'],
             'credit_count'=> ['required', 'integer', 'min:1', 'max:999'],
             'expiry_days' => ['required', 'integer', 'min:1', 'max:730'],
-            'price_cents' => ['required', 'integer', 'min:0'],
+            'price_dollars' => ['required', 'numeric', 'min:0'], // MARKER-CLASSES-P1: was price_cents, which the form never sends
             'is_active'   => ['boolean'],
+            'covers_mode' => ['nullable', 'in:all,some'],
+            'covers'      => ['nullable', 'array'],
+            'covers.*'    => ['uuid', \Illuminate\Validation\Rule::exists('tenant_class_templates', 'id')->where(fn ($q) => $q->where('tenant_id', $tenant->id))],
+            'is_taxable'  => ['boolean'],
         ]);
+        // MARKER-CLASSES-P1: which classes it pays for, and tax.
+        $data['covers'] = ($request->input('covers_mode') === 'some' && $request->filled('covers'))
+            ? array_values(array_unique($request->input('covers'))) : null;
+        unset($data['covers_mode']);
+        $data['is_taxable'] = $request->boolean('is_taxable');
 
         $data['tenant_id'] = $tenant->id;
         $data['is_active'] = $request->boolean('is_active', true);
@@ -551,9 +580,18 @@ class ClassController extends Controller
             'description' => ['nullable', 'string', 'max:500'],
             'credit_count'=> ['required', 'integer', 'min:1', 'max:999'],
             'expiry_days' => ['required', 'integer', 'min:1', 'max:730'],
-            'price_cents' => ['required', 'integer', 'min:0'],
+            'price_dollars' => ['required', 'numeric', 'min:0'], // MARKER-CLASSES-P1: was price_cents, which the form never sends
             'is_active'   => ['boolean'],
+            'covers_mode' => ['nullable', 'in:all,some'],
+            'covers'      => ['nullable', 'array'],
+            'covers.*'    => ['uuid', \Illuminate\Validation\Rule::exists('tenant_class_templates', 'id')->where(fn ($q) => $q->where('tenant_id', $tenant->id))],
+            'is_taxable'  => ['boolean'],
         ]);
+        // MARKER-CLASSES-P1: which classes it pays for, and tax.
+        $data['covers'] = ($request->input('covers_mode') === 'some' && $request->filled('covers'))
+            ? array_values(array_unique($request->input('covers'))) : null;
+        unset($data['covers_mode']);
+        $data['is_taxable'] = $request->boolean('is_taxable');
 
         $data['is_active'] = $request->boolean('is_active', true);
         $data['price_cents'] = (int) round($request->input('price_dollars', 0) * 100);
@@ -607,15 +645,17 @@ class ClassController extends Controller
             ->where('is_active', true)
             ->findOrFail($data['product_id']);
 
-        // One-active-membership rule. Existing one must be cancelled first.
+        // MARKER-CLASSES-P1: several memberships are allowed (each covers its own
+        // classes); the same membership twice is not.
         $existing = TenantCustomerMembership::where('tenant_id', $tenant->id)
             ->where('customer_id', $customer->id)
+            ->where('product_id', $product->id)
             ->where('status', 'active')
             ->first();
         if ($existing) {
             return response()->json([
                 'ok' => false,
-                'message' => 'Customer already has an active membership. Cancel it first.',
+                'message' => 'Customer already has this membership.',
             ], 422);
         }
 
@@ -636,6 +676,8 @@ class ClassController extends Controller
             'stripe_subscription_id'   => null,
             'metadata'                 => ['granted_by' => 'admin', 'granted_at' => now()->toIso8601String()],
         ]);
+        \App\Services\ClassCreditLedger::record($tenant->id, $customer->id, 0, 'granted', ['membership_id' => $membership->id],
+            $product->name . ' · given by staff' . (!empty($data['note']) ? ' · ' . $data['note'] : '')); // MARKER-CLASSES-P1
 
         $this->writeCustomerAuditNote($customer, sprintf(
             'Membership granted: %s (period %s → %s).%s',
@@ -671,6 +713,7 @@ class ClassController extends Controller
         }
 
         $membership->update(['status' => 'cancelled']);
+        \App\Services\ClassCreditLedger::record($tenant->id, $membership->customer_id, 0, 'revoked', ['membership_id' => $membership->id], 'Cancelled by staff'); // MARKER-CLASSES-P1
 
         $customer = TenantCustomer::where('tenant_id', $tenant->id)->find($customerId);
         if ($customer) {
@@ -712,6 +755,8 @@ class ClassController extends Controller
             'stripe_payment_intent_id' => null,
             'metadata'                 => ['granted_by' => 'admin', 'granted_at' => now()->toIso8601String()],
         ]);
+        \App\Services\ClassCreditLedger::record($tenant->id, $customer->id, (int) $product->credit_count, 'granted', ['pack_id' => $pack->id],
+            $product->name . ' · given by staff' . (!empty($data['note']) ? ' · ' . $data['note'] : '')); // MARKER-CLASSES-P1
 
         $this->writeCustomerAuditNote($customer, sprintf(
             '%d-class pack granted: %s (expires %s).%s',
@@ -748,6 +793,7 @@ class ClassController extends Controller
         }
 
         $pack->update(['status' => 'cancelled']);
+        \App\Services\ClassCreditLedger::record($tenant->id, $pack->customer_id, -((int) $pack->credits_remaining), 'revoked', ['pack_id' => $pack->id], 'Cancelled by staff'); // MARKER-CLASSES-P1
 
         $customer = TenantCustomer::where('tenant_id', $tenant->id)->find($customerId);
         if ($customer) {

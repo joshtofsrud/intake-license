@@ -24,6 +24,7 @@ class TenantCustomerPack extends Model
         'expires_at',
         'status',
         'stripe_payment_intent_id',
+        'sale_item_id', // MARKER-CLASSES-P1
         'metadata',
     ];
 

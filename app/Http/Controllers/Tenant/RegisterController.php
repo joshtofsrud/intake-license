@@ -394,7 +394,26 @@ class RegisterController extends Controller
                 ->toArray();
         }
 
-        return response()->json(compact('products', 'services', 'customers') + ['corrected' => $searchCorrected, 'missing' => $searchMissing, 'product_search' => $productSearch]);
+        // MARKER-CLASSES-P1: class packs and memberships, when the shop has classes on.
+        $passes = [];
+        if (($type === 'all' || $type === 'service') && $tenant->classes_active) {
+            foreach (['pack' => \App\Models\Tenant\TenantClassPackProduct::class, 'membership' => \App\Models\Tenant\TenantClassMembershipProduct::class] as $kind => $model) {
+                foreach ($model::where('tenant_id', $tenant->id)->where('is_active', true)->where('name', 'like', "%{$q}%")->limit(10)->get() as $p) {
+                    $passes[] = [
+                        'id'          => $p->id,
+                        'kind'        => $kind,
+                        'name'        => $p->name,
+                        'price_cents' => (int) $p->price_cents,
+                        'is_taxable'  => (bool) $p->is_taxable,
+                        'meta'        => $kind === 'pack'
+                            ? "Class pack · {$p->credit_count} credits · {$p->expiry_days} days"
+                            : 'Membership · ' . ($p->type === 'unlimited' ? 'unlimited' : "{$p->monthly_limit} a month"),
+                    ];
+                }
+            }
+        }
+
+        return response()->json(compact('products', 'services', 'customers', 'passes') + ['corrected' => $searchCorrected, 'missing' => $searchMissing, 'product_search' => $productSearch]);
     }
 
     public function storeSale(Request $request): JsonResponse
@@ -426,7 +445,7 @@ class RegisterController extends Controller
             'payments.*.reference'         => 'nullable|string|max:120',
             'po_number'                    => 'nullable|string|max:64',
             'items'            => 'required|array|min:1',
-            'items.*.type'             => 'required|string|in:service,product,open_item,gift_card',
+            'items.*.type'             => 'required|string|in:service,product,open_item,gift_card,class_pass',
             'items.*.service_id'       => 'nullable|uuid',
             'items.*.inventory_item_id'=> 'nullable|uuid',
             'items.*.name_snapshot'    => 'nullable|string|max:255',
@@ -436,6 +455,10 @@ class RegisterController extends Controller
             'items.*.is_taxable'       => 'nullable|boolean',
             // gift line details, stored as line metadata
             'items.*.gift_card'                  => 'nullable|array',
+            'items.*.class_pass'                  => 'nullable|array', // MARKER-CLASSES-P1
+            'items.*.class_pass.kind' => 'nullable|string|in:pack,membership',
+            'items.*.class_pass.product_id' => 'nullable|uuid',
+            'items.*.class_pass.book_session_id' => 'nullable|uuid',
             'items.*.gift_card.kind'             => 'nullable|string|in:physical,egift',
             'items.*.gift_card.code'             => 'nullable|string|max:40',
             'items.*.gift_card.recipient_name'   => 'nullable|string|max:120',
@@ -945,10 +968,14 @@ class RegisterController extends Controller
             'stripe_payment_intent_id' => 'nullable|string|max:120',
             'customer_id'              => 'nullable|uuid',
             'items'                    => 'required|array|min:1',
-            'items.*.type'             => 'required|string|in:service,product,open_item,gift_card',
+            'items.*.type'             => 'required|string|in:service,product,open_item,gift_card,class_pass',
             'items.*.service_id'       => 'nullable|uuid',
             'items.*.inventory_item_id'=> 'nullable|uuid',
             'items.*.gift_card'        => 'nullable|array',
+            'items.*.class_pass'        => 'nullable|array', // MARKER-CLASSES-P1
+            'items.*.class_pass.kind' => 'nullable|string|in:pack,membership',
+            'items.*.class_pass.product_id' => 'nullable|uuid',
+            'items.*.class_pass.book_session_id' => 'nullable|uuid',
             'items.*.name_snapshot'    => 'nullable|string|max:255',
             'items.*.unit_price_cents' => 'nullable|integer|min:0',
             'items.*.quantity'         => 'nullable|numeric|min:0.001',
@@ -1225,7 +1252,7 @@ class RegisterController extends Controller
             'tip_cents'        => 'nullable|integer|min:0',
             'metadata'         => 'nullable|array',
             'items'            => 'nullable|array',
-            'items.*.type'             => 'required_with:items|string|in:service,product,open_item,gift_card',
+            'items.*.type'             => 'required_with:items|string|in:service,product,open_item,gift_card,class_pass',
             'items.*.service_id'       => 'nullable|uuid',
             'items.*.inventory_item_id'=> 'nullable|uuid',
             'items.*.name_snapshot'    => 'nullable|string|max:255',
@@ -1235,6 +1262,10 @@ class RegisterController extends Controller
             'items.*.is_taxable'       => 'nullable|boolean',
             // gift line details, stored as line metadata
             'items.*.gift_card'                  => 'nullable|array',
+            'items.*.class_pass'                  => 'nullable|array', // MARKER-CLASSES-P1
+            'items.*.class_pass.kind' => 'nullable|string|in:pack,membership',
+            'items.*.class_pass.product_id' => 'nullable|uuid',
+            'items.*.class_pass.book_session_id' => 'nullable|uuid',
             'items.*.gift_card.kind'             => 'nullable|string|in:physical,egift',
             'items.*.gift_card.code'             => 'nullable|string|max:40',
             'items.*.gift_card.recipient_name'   => 'nullable|string|max:120',
@@ -1522,6 +1553,8 @@ class RegisterController extends Controller
                     'is_taxable'        => (bool) $i->is_taxable,
                     'tax_cents'         => (int) $i->tax_cents,
                     'tax_rate_snapshot' => $i->tax_rate_snapshot,
+                    // MARKER-CLASSES-P1: a resumed pass line keeps which pass it is.
+                    'class_pass'        => $i->type === 'class_pass' ? (array) ($i->metadata ?? []) : null,
                     // so a resumed line keeps its price edit.
                     'catalog_price_cents' => match ($i->type) {
                         'product' => $i->inventoryItem ? (int) ($i->inventoryItem->effectiveSellPriceCents() ?? 0) : null,
@@ -1834,7 +1867,7 @@ class RegisterController extends Controller
             'payment_method'   => $this->allowedTenders(['even_exchange']),
             'payment_reference'=> 'nullable|string',
             'items'            => 'nullable|array',
-            'items.*.type'             => 'required_with:items|string|in:service,product,open_item,gift_card',
+            'items.*.type'             => 'required_with:items|string|in:service,product,open_item,gift_card,class_pass',
             'items.*.service_id'       => 'nullable|uuid',
             'items.*.inventory_item_id'=> 'nullable|uuid',
             'items.*.name_snapshot'    => 'nullable|string|max:255',
@@ -1843,6 +1876,10 @@ class RegisterController extends Controller
             'items.*.is_taxable'       => 'nullable|boolean',
             // gift line details, stored as line metadata
             'items.*.gift_card'                  => 'nullable|array',
+            'items.*.class_pass'                  => 'nullable|array', // MARKER-CLASSES-P1
+            'items.*.class_pass.kind' => 'nullable|string|in:pack,membership',
+            'items.*.class_pass.product_id' => 'nullable|uuid',
+            'items.*.class_pass.book_session_id' => 'nullable|uuid',
             'items.*.gift_card.kind'             => 'nullable|string|in:physical,egift',
             'items.*.gift_card.code'             => 'nullable|string|max:40',
             'items.*.gift_card.recipient_name'   => 'nullable|string|max:120',
@@ -2360,7 +2397,7 @@ class RegisterController extends Controller
             'notes'            => 'nullable|string',
             'tip_cents'        => 'nullable|integer|min:0',
             'items'            => 'required|array|min:1',
-            'items.*.type'             => 'required|string|in:service,product,open_item,gift_card',
+            'items.*.type'             => 'required|string|in:service,product,open_item,gift_card,class_pass',
             'items.*.service_id'       => 'nullable|uuid',
             'items.*.inventory_item_id'=> 'nullable|uuid',
             'items.*.name_snapshot'    => 'nullable|string|max:255',
@@ -2370,6 +2407,10 @@ class RegisterController extends Controller
             'items.*.is_taxable'       => 'nullable|boolean',
             // gift line details, stored as line metadata
             'items.*.gift_card'                  => 'nullable|array',
+            'items.*.class_pass'                  => 'nullable|array', // MARKER-CLASSES-P1
+            'items.*.class_pass.kind' => 'nullable|string|in:pack,membership',
+            'items.*.class_pass.product_id' => 'nullable|uuid',
+            'items.*.class_pass.book_session_id' => 'nullable|uuid',
             'items.*.gift_card.kind'             => 'nullable|string|in:physical,egift',
             'items.*.gift_card.code'             => 'nullable|string|max:40',
             'items.*.gift_card.recipient_name'   => 'nullable|string|max:120',
@@ -2454,6 +2495,10 @@ class RegisterController extends Controller
         if (($line['type'] ?? '') === 'service' && ! empty($line['service_id'])) {
             return (int) (TenantServiceItem::where('tenant_id', $tenantId)
                 ->whereKey($line['service_id'])->value('price_cents') ?? 0);
+        }
+        if (($line['type'] ?? '') === 'class_pass') { // MARKER-CLASSES-P1
+            $cp = (array) ($line['class_pass'] ?? []);
+            return (int) (\App\Services\ClassPassService::product($tenantId, (string) ($cp['kind'] ?? ''), $cp['product_id'] ?? null)?->price_cents ?? 0);
         }
 
         return 0;

@@ -1709,6 +1709,14 @@ function buildDraftPayload() {
         out.name_snapshot = i.name;
         out.unit_price_cents = i.price_cents;
       }
+      // MARKER-CLASSES-P1: a held sale with a gift card or class pass used to fail
+      // to save, because these lines went out without what they are.
+      if (i.type === 'gift_card') {
+        out.name_snapshot = i.name;
+        out.unit_price_cents = i.price_cents;
+        out.gift_card = i.gift || {};
+      }
+      if (i.type === 'class_pass') { out.class_pass = i.pass || {}; }
       return linePriceFields(i, out);
     }),
   };
@@ -2544,6 +2552,19 @@ function renderResults(data, refundResult) {
     data.products.forEach(p => { html += regRow(p); });
     html += '</div>';
   }
+  // MARKER-CLASSES-P1: class packs and memberships, sold like any other line.
+  if (data.passes && data.passes.length) {
+    html += '<div class="reg-results-section mouse-defer"><h3>Class passes</h3>';
+    data.passes.forEach(p => {
+      visibleResults.push({type:'class_pass',source_id:p.id,name:p.name,price_cents:p.price_cents,is_taxable:!!p.is_taxable,pass:{kind:p.kind,product_id:p.id}});
+      const idx = visibleResults.length - 1;
+      html += `<div class="reg-row" data-i="${idx}">
+        <div><div class="name">${escapeHtml(p.name)}</div><div class="meta">${escapeHtml(p.meta || '')}</div></div>
+        <div class="price">${fmt(p.price_cents)}</div>
+      </div>`;
+    });
+    html += '</div>';
+  }
   if (data.services && data.services.length) {
     html += '<div class="reg-results-section mouse-defer"><h3>Services</h3>';
     data.services.forEach(s => {
@@ -2759,6 +2780,7 @@ function addToCart(item) {
     special_order_id: null,
     so_number: null,
   });
+  if (item.pass) { cart.items[cart.items.length - 1].pass = item.pass; } // MARKER-CLASSES-P1
   renderCart();
   queueDraftSave();
 }
@@ -5532,6 +5554,7 @@ function serializeLine(i) {
     out.unit_price_cents = i.price_cents;
     out.gift_card = i.gift || {};
   }
+  if (i.type === 'class_pass') { out.class_pass = i.pass || {}; } // MARKER-CLASSES-P1
   return linePriceFields(i, out);
 }
 
@@ -5902,6 +5925,7 @@ async function resumeDraft(id) {
       is_taxable: i.is_taxable,
       tax_cents: i.tax_cents || 0,
       tax_rate_snapshot: i.tax_rate_snapshot,
+      pass: i.class_pass || undefined, // MARKER-CLASSES-P1
     }));
     closeModal('draftsModal');
     renderCart();

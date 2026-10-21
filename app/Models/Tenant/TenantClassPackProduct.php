@@ -24,6 +24,8 @@ class TenantClassPackProduct extends Model
         'price_cents',
         'is_active',
         'metadata',
+        'covers',      // MARKER-CLASSES-P1: NULL = every class, else class template ids
+        'is_taxable',
     ];
 
     protected $casts = [
@@ -32,6 +34,8 @@ class TenantClassPackProduct extends Model
         'price_cents'  => 'integer',
         'is_active'    => 'boolean',
         'metadata'     => 'array',
+        'covers'       => 'array',
+        'is_taxable'   => 'boolean',
     ];
 
     public function tenant(): BelongsTo
@@ -47,6 +51,12 @@ class TenantClassPackProduct extends Model
     public function scopeActive(Builder $q): Builder
     {
         return $q->where('is_active', true);
+    }
+
+    /** MARKER-CLASSES-P1: does this pass pay for classes of this type? */
+    public function coversTemplate(?string $templateId): bool
+    {
+        return empty($this->covers) || $templateId === null || in_array($templateId, (array) $this->covers, true);
     }
 
     public function scopeForTenant(Builder $q, string $tenantId): Builder
