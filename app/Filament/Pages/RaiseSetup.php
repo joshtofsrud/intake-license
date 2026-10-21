@@ -247,7 +247,7 @@ class RaiseSetup extends Page
             \Illuminate\Support\Facades\Mail::send([], [], function ($mail) use ($to, $message, $html) {
                 $mail->to($to)
                      ->subject('[test] ' . $message['subject'])
-                     ->text($message['body']);
+                     ->text($message['body'] . \App\Support\EmailSignature::textSuffix()); // MARKER-UNIVERSAL-SIGNATURE
 
                 if ($html) { $mail->html($html); }
             });

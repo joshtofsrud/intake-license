@@ -152,7 +152,7 @@ class InvestorMessenger
             Mail::send([], [], function ($mail) use ($investor, $message, $html) {
                 $mail->to($investor->email, $investor->name)
                      ->subject($message['subject'])
-                     ->text($message['body']);
+                     ->text($message['body'] . \App\Support\EmailSignature::textSuffix()); // MARKER-UNIVERSAL-SIGNATURE
 
                 if ($html) { $mail->html($html); }
             });
@@ -192,7 +192,7 @@ class InvestorMessenger
             Mail::send([], [], function ($mail) use ($investor, $message, $html) {
                 $mail->to($investor->email, $investor->name)
                      ->subject($message['subject'])
-                     ->text($message['body']);
+                     ->text($message['body'] . \App\Support\EmailSignature::textSuffix()); // MARKER-UNIVERSAL-SIGNATURE
 
                 if ($html) { $mail->html($html); }
             });

@@ -76,10 +76,10 @@
             @endif
             {{-- MARKER-OUTREACH-TEST-SIG --}}
             @php $mySig = \App\Services\Sales\ProspectOutreach::signature(); @endphp
-            <div class="et-head" style="margin-top:22px"><span>Your signature</span></div>
+            <div class="et-head" style="margin-top:22px"><span>Signature</span></div>
             <button type="button" class="et-item {{ $editId === 'signature' ? 'on' : '' }}" wire:click="openSignature">
                 <div class="nm">Signature</div>
-                <div class="sub">{{ $mySig['enabled'] ? 'On · added to every email you send' : 'Off' }}</div>
+                <div class="sub">{{ $mySig['enabled'] ? 'On · prospect, investor and inbox emails' : 'Off' }}</div>
             </button>
         </section>
 
@@ -89,7 +89,7 @@
                     $logoUrl = \App\Services\Sales\ProspectOutreach::signatureLogoUrl(array_merge($mySig, $sig));
                     $svg = \App\Services\Sales\ProspectOutreach::logoIsSvg($logoUrl);
                 @endphp
-                <label class="eo-chips" style="font-size:13px;color:inherit;margin:0"><input type="checkbox" wire:model.live="sig.enabled" style="accent-color:#8b5cf6"> Add my signature to every prospect email I send</label>
+                <label class="eo-chips" style="font-size:13px;color:inherit;margin:0"><input type="checkbox" wire:model.live="sig.enabled" style="accent-color:#8b5cf6"> Add this signature to Intake's emails: prospects, investors and Platform inbox replies</label>
                 <div class="eo-two">
                     <div><div class="eo-lbl">Name</div><input type="text" class="sx-in eo-full" wire:model.live.debounce.400ms="sig.name"></div>
                     <div><div class="eo-lbl">Title</div><input type="text" class="sx-in eo-full" wire:model.live.debounce.400ms="sig.title" placeholder="Founder, Intake"></div>
@@ -125,7 +125,7 @@
                     @endif
                     {!! $this->signaturePreview() !!}
                 </div>
-                <div class="et-help">Shown under the message and above the unsubscribe line. Only your emails use your signature; anyone else sending from master admin sets their own.</div>
+                <div class="et-help">One signature for Intake, shown under the message. Used on prospect emails, every investor email (including the automatic ones like the commitment confirmation) and replies from the Platform inbox. Not used on tenant emails, password resets, team invites or billing notices.</div>
 
                 <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:16px">
                     <button type="button" class="sx-btn p" wire:click="saveSignature" wire:loading.attr="disabled">Save signature</button>

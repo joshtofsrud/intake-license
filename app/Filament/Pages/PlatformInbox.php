@@ -182,8 +182,12 @@ class PlatformInbox extends Page
                 ?: \App\Support\PlatformInbox::notifyAddress();
             $subject = 'Re: ' . ($row->subject ?: 'your message to Intake');
             try {
-                Mail::raw($text, function ($m) use ($to, $subject, $replyTo) {
-                    $m->to($to)->subject($subject);
+                // MARKER-UNIVERSAL-SIGNATURE: the reply plus Intake's signature, text and HTML.
+                $plain = $text . \App\Support\EmailSignature::textSuffix();
+                $html  = '<div style="font-family:Inter,Arial,sans-serif;font-size:15px;line-height:1.6;color:#111">'
+                    . nl2br(e($text)) . \App\Support\EmailSignature::html() . '</div>';
+                Mail::send([], [], function ($m) use ($to, $subject, $replyTo, $plain, $html) {
+                    $m->to($to)->subject($subject)->text($plain)->html($html);
                     if ($replyTo) {
                         $m->replyTo($replyTo);
                     }

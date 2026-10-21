@@ -48,6 +48,9 @@
         @endif
       @endforeach
 
+      {{-- MARKER-UNIVERSAL-SIGNATURE --}}
+      {!! \App\Support\EmailSignature::html() !!}
+
     </td>
   </tr>
 

@@ -171,18 +171,16 @@ class ProspectOutreach
 
     public const SOCIALS = ['website' => 'Website', 'instagram' => 'Instagram', 'facebook' => 'Facebook', 'linkedin' => 'LinkedIn'];
 
-    /** This admin's signature; logo is 'brand', 'upload' or 'none'. */
+    /** Intake's signature (MARKER-UNIVERSAL-SIGNATURE: one for everyone); logo is 'brand', 'upload' or 'none'. */
     public static function signature(): array
     {
         $u = Auth::guard('web')->user();
         $sig = [];
-        if ($u) {
-            try {
-                $all = json_decode((string) DB::table('users')->where('id', $u->id)->value('admin_prefs'), true);
-                $sig = is_array($all['signature'] ?? null) ? $all['signature'] : [];
-            } catch (\Throwable $e) {
-                $sig = [];
-            }
+        try {
+            $sig = json_decode((string) DB::table('platform_settings')->where('id', 1)->value('email_signature'), true);
+            $sig = is_array($sig) ? $sig : [];
+        } catch (\Throwable $e) {
+            $sig = [];
         }
         $out = [
             'enabled'   => (bool) ($sig['enabled'] ?? false),
@@ -199,12 +197,25 @@ class ProspectOutreach
 
     public static function saveSignature(array $sig): void
     {
-        $u = Auth::guard('web')->user();
-        if (! $u) return;
-        $all = json_decode((string) DB::table('users')->where('id', $u->id)->value('admin_prefs'), true);
-        $all = is_array($all) ? $all : [];
-        $all['signature'] = $sig;
-        DB::table('users')->where('id', $u->id)->update(['admin_prefs' => json_encode($all)]);
+        \App\Models\PlatformSettings::current(); // makes row 1 when missing
+        DB::table('platform_settings')->where('id', 1)->update(['email_signature' => json_encode($sig)]);
+        \App\Models\PlatformSettings::forget();
+    }
+
+    /** Plain-text signature for the text part of an email; empty when off. */
+    public static function signatureText(?array $sig = null): string
+    {
+        $sig = $sig ?? self::signature();
+        if (! $sig['enabled']) return '';
+        $lines = [];
+        foreach (['name', 'title', 'phone', 'line'] as $k) {
+            if (trim((string) $sig[$k]) !== '') $lines[] = trim((string) $sig[$k]);
+        }
+        foreach (self::SOCIALS as $k => $label) {
+            $v = trim((string) $sig[$k]);
+            if ($v !== '') $lines[] = $label . ': ' . (preg_match('#^https?://#i', $v) ? $v : 'https://' . ltrim($v, '/'));
+        }
+        return implode("\n", $lines);
     }
 
     /** Absolute URL of the logo the signature uses, or null. */

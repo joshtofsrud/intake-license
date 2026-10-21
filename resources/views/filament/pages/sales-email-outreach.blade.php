@@ -97,7 +97,7 @@
         <div><b>{{ number_format($st['queue']) }}</b>in the queue</div>
     </div>
 
-    <p class="sx-lede"><b>What this does:</b> Send emails the shop shown, from Intake's platform email address, with an unsubscribe link and your postal address. Nothing sends on its own. <b>[link]</b> becomes that shop's own link to the page you pick, so their visit shows on their timeline with the pages they looked at. Your template, landing page and filters are remembered. Addresses that unsubscribed, bounced or complained never appear here. Visits while you're signed in to master admin aren't recorded, so test a link in a private window. <b>Send test to me</b> sends this email only to you, with a link that carries no tracking code. Your signature is set on Email templates. <b>Not affected:</b> tenant emails (receipts, bookings), Instagram follows, campaigns.</p>
+    <p class="sx-lede"><b>What this does:</b> Send emails the shop shown, from Intake's platform email address, with an unsubscribe link and your postal address. Nothing sends on its own. <b>[link]</b> becomes that shop's own link to the page you pick, so their visit shows on their timeline with the pages they looked at. Your template, landing page and filters are remembered. Addresses that unsubscribed, bounced or complained never appear here. Visits while you're signed in to master admin aren't recorded, so test a link in a private window. <b>Send test to me</b> sends this email only to you, with a link that carries no tracking code. The signature is set on Email templates › Signature. <b>Not affected:</b> tenant emails (receipts, bookings), Instagram follows, campaigns.</p>
 
     <div class="sx-bar">
         <select class="sx-in" wire:model.live="state">

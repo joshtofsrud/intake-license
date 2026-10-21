@@ -421,6 +421,11 @@
             <div class="rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-white/10 p-5">
                 <pre class="font-sans text-gray-800 dark:text-gray-200"
                      style="white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word;margin:0;font-size:14px;line-height:1.7;max-width:68ch">{{ $previewBody }}</pre>
+                {{-- MARKER-UNIVERSAL-SIGNATURE: the signature as it goes out --}}
+                @php $rzSig = \App\Support\EmailSignature::html(); @endphp
+                @if ($rzSig !== '')
+                    <div style="background:#fff;border-radius:8px;padding:2px 12px 12px;margin-top:12px">{!! $rzSig !!}</div>
+                @endif
             </div>
         </div>
 

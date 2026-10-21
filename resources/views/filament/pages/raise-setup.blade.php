@@ -22,7 +22,9 @@
         <label class="block"><span class="text-xs text-gray-500">Target raise</span>
             <input wire:model="target" type="number" class="mt-1 w-full rounded-lg border-gray-300 dark:bg-white/5 dark:border-white/10"></label>
         <label class="block"><span class="text-xs text-gray-500">Emails signed by</span>
-            <input wire:model="senderName" class="mt-1 w-full rounded-lg border-gray-300 dark:bg-white/5 dark:border-white/10"></label>
+            <input wire:model="senderName" class="mt-1 w-full rounded-lg border-gray-300 dark:bg-white/5 dark:border-white/10">
+            {{-- MARKER-UNIVERSAL-SIGNATURE --}}
+            <span class="mt-1 block text-xs text-gray-500">The signature block (logo, title, links) goes under every investor email. Set it on <a href="{{ \App\Filament\Pages\SalesEmailTemplates::getUrl() }}" class="text-primary-600 underline">Email templates › Signature</a>.</span></label>
     </div>
     <div class="mt-3 flex items-center gap-4">
         <x-filament::button wire:click="saveRound">Save round</x-filament::button>
