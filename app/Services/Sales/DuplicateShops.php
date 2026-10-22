@@ -17,34 +17,59 @@ class DuplicateShops
     private const COLS = ['id', 'shop', 'city', 'state', 'postcode', 'phone', 'website', 'email', 'stage', 'tenant_id',
         'sales_rep_id', 'last_contacted_at', 'next_action_on', 'created_at'];
 
-    /** @return array<int, array{ids: string[], keeper: string, reason: string}> */
-    public function groups(): array
+    /**
+     * MARKER-DUPES-LEAN: two light passes over the table instead of loading every prospect
+     * as a model, which ran Find shops out of memory once 185,000 shops were loaded. Pass 1
+     * counts hashed keys; pass 2 keeps only rows whose key turns up more than once.
+     * With $keepers false the keeper is not worked out (that costs a query per set), so a
+     * plain count stays cheap; the keeper is then just the first id.
+     * @return array<int, array{ids: string[], keeper: string, reason: string}>
+     */
+    public function groups(bool $keepers = true): array
     {
-        $rows = SalesProspect::query()->select(self::COLS)->get()->keyBy('id');
-        $parent = [];
-        $find = function ($x) use (&$parent, &$find) { return ($parent[$x] ?? $x) === $x ? $x : ($parent[$x] = $find($parent[$x])); };
-        $union = function ($a, $b) use (&$parent, $find) { $ra = $find($a); $rb = $find($b); if ($ra !== $rb) $parent[$rb] = $ra; };
-        $why = [];
-
-        $byPhone = []; $bySite = [];
-        foreach ($rows as $r) {
+        @set_time_limit(300);
+        $keysOf = function ($r): array {
+            $k = [];
             $ph = self::phoneKey($r->phone);
-            if ($ph) $byPhone[$ph][] = $r->id;
+            if ($ph) $k['same phone'] = 'p' . $ph;
             $host = $r->website ? SiteScanner::hostOf((string) $r->website) : '';
             if ($host && ! SiteScanner::isNotShopSite($host)) {
                 $where = self::zipKey($r->postcode) ?: ($r->city ? mb_strtolower(trim($r->city)) . '|' . strtoupper((string) $r->state) : '');
-                if ($where !== '') $bySite[$host . '|' . $where][] = $r->id;
+                if ($where !== '') $k['same website and place'] = 's' . $host . '|' . $where;
             }
+            return $k;
+        };
+        $base = fn () => DB::table('sales_prospects')->select(['id', 'phone', 'website', 'postcode', 'city', 'state']);
+        $seen = [];
+        foreach ($base()->lazyById(5000, 'id') as $r) foreach ($keysOf($r) as $key) { $h = crc32($key); $seen[$h] = ($seen[$h] ?? 0) + 1; }
+        $maps = ['same phone' => [], 'same website and place' => []];
+        foreach ($base()->lazyById(5000, 'id') as $r) {
+            foreach ($keysOf($r) as $reason => $key) if (($seen[crc32($key)] ?? 0) > 1) $maps[$reason][$key][] = (string) $r->id;
         }
-        foreach ([['same phone', $byPhone], ['same website and place', $bySite]] as [$reason, $map]) {
+        unset($seen);
+
+        $parent = [];
+        $find = function ($x) use (&$parent, &$find) { return ($parent[$x] ?? $x) === $x ? $x : ($parent[$x] = $find($parent[$x])); };
+        $union = function ($a, $b) use (&$parent, $find) { $ra = $find($a); $rb = $find($b); if ($ra !== $rb) $parent[$rb] = $ra; };
+        $why = []; // id => bits: 1 same phone, 2 same website and place
+        $bit = ['same phone' => 1, 'same website and place' => 2];
+        foreach ($maps as $reason => $map) {
             foreach ($map as $ids) {
                 if (count($ids) < 2 || count($ids) > 8) continue;      // 9+ on one key is a chain or junk data, not a duplicate
-                foreach ($ids as $id) { $why[$id][$reason] = true; $union($ids[0], $id); }
+                foreach ($ids as $id) { $why[$id] = ($why[$id] ?? 0) | $bit[$reason]; $union($ids[0], $id); }
             }
         }
+        unset($maps);
 
         $sets = [];
         foreach (array_keys($why) as $id) $sets[$find($id)][] = $id;
+        $shop = []; $tenant = [];
+        foreach (array_chunk(array_keys($why), 1000) as $chunk) {
+            foreach (DB::table('sales_prospects')->whereIn('id', $chunk)->get(['id', 'shop', 'tenant_id']) as $r) {
+                $shop[$r->id] = (string) $r->shop;
+                if ($r->tenant_id) $tenant[$r->id] = $r->tenant_id;
+            }
+        }
         $ignored = self::ignored();
         $out = [];
         foreach ($sets as $ids) {
@@ -53,13 +78,14 @@ class DuplicateShops
             sort($ids);
             if (isset($ignored[implode(',', $ids)])) continue;
             // two different signed-up shops are never merged
-            $tenants = array_unique(array_filter(array_map(fn ($i) => $rows[$i]->tenant_id, $ids)));
+            $tenants = array_unique(array_filter(array_map(fn ($i) => $tenant[$i] ?? null, $ids)));
             if (count($tenants) > 1) continue;
-            $reasons = [];
-            foreach ($ids as $i) foreach (array_keys($why[$i] ?? []) as $w) $reasons[$w] = true;
-            $out[] = ['ids' => $ids, 'keeper' => $this->keeperOf($ids), 'reason' => implode(' · ', array_keys($reasons))];
+            $bits = 0;
+            foreach ($ids as $i) $bits |= ($why[$i] ?? 0);
+            $reasons = array_filter(['same phone' => $bits & 1, 'same website and place' => $bits & 2]);
+            $out[] = ['ids' => $ids, 'keeper' => $keepers ? $this->keeperOf($ids) : $ids[0], 'reason' => implode(' · ', array_keys($reasons))];
         }
-        usort($out, fn ($a, $b) => strcmp((string) $rows[$a['keeper']]->shop, (string) $rows[$b['keeper']]->shop));
+        usort($out, fn ($a, $b) => strcmp($shop[$a['keeper']] ?? '', $shop[$b['keeper']] ?? ''));
         return $out;
     }
 

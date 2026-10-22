@@ -154,13 +154,16 @@ class SalesFindShops extends Page
     public function duplicateCount(): int
     {
         return (int) \Illuminate\Support\Facades\Cache::remember('sales:duplicate-shops:count', 300,
-            fn () => count((new \App\Services\Sales\DuplicateShops())->groups()));
+            fn () => count((new \App\Services\Sales\DuplicateShops())->groups(false))); // MARKER-DUPES-LEAN
     }
 
     /** Sets with their rows, for the review list (first 100). */
     public function duplicateSets(): array
     {
-        $sets = array_slice((new \App\Services\Sales\DuplicateShops())->groups(), 0, 100);
+        $svc = new \App\Services\Sales\DuplicateShops();
+        $sets = array_slice($svc->groups(false), 0, 100);
+        foreach ($sets as &$s0) $s0['keeper'] = $svc->keeperOf($s0['ids']); // only the 100 shown
+        unset($s0);
         $rows = \App\Models\SalesProspect::whereIn('id', collect($sets)->pluck('ids')->flatten()->all())
             ->get(['id', 'shop', 'city', 'state', 'postcode', 'phone', 'website', 'email', 'stage'])->keyBy('id');
         foreach ($sets as &$s) {
@@ -189,7 +192,7 @@ class SalesFindShops extends Page
         $this->confirmMergeAll = false;
         $svc = new \App\Services\Sales\DuplicateShops();
         $n = 0;
-        foreach ($svc->groups() as $set) { $svc->merge($set['ids']); $n++; }
+        foreach ($svc->groups(false) as $set) { $svc->merge($set['ids']); $n++; } // merge picks the keeper itself
         \Illuminate\Support\Facades\Cache::forget('sales:duplicate-shops:count');
         Notification::make()->title("Merged {$n} " . ($n === 1 ? 'set' : 'sets') . ' of duplicates')->success()->send();
     }
