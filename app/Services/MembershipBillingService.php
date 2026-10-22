@@ -134,7 +134,7 @@ class MembershipBillingService
 
     private function markDue(TenantCustomerMembership $m): string
     {
-        $dueDate = $m->current_period_end->copy()->addDay();
+        $dueDate = $this->localDay($m, $m->current_period_end->copy()->addDay()->toDateString()); // MARKER-CLASSES-P3
         $m->update([
             'status'           => 'past_due',
             'next_retry_at'    => $dueDate->copy()->addDays(self::RETRY_DAYS[count(self::RETRY_DAYS) - 1])->startOfDay(),
@@ -223,10 +223,10 @@ class MembershipBillingService
     private function failed(TenantCustomerMembership $m, Carbon $now, string $why): string
     {
         $n       = (int) $m->failed_attempts + 1;
-        $dueDate = $m->current_period_end->copy()->addDay()->startOfDay();
+        $dueDate = $this->localDay($m, $m->current_period_end->copy()->addDay()->toDateString()); // MARKER-CLASSES-P3
         $next    = $n <= count(self::RETRY_DAYS) ? $dueDate->copy()->addDays(self::RETRY_DAYS[$n - 1]) : $now->copy();
         if ($next->lt($now) && $n <= count(self::RETRY_DAYS)) {
-            $next = $now->copy()->addDay()->startOfDay();
+            $next = $this->localDay($m, $now->copy()->setTimezone($this->tz($m))->addDay()->toDateString());
         }
 
         $m->update([
@@ -239,6 +239,22 @@ class MembershipBillingService
             "Renewal attempt {$n} failed: " . mb_substr($why, 0, 180));
 
         return 'failed';
+    }
+
+    /** The studio's timezone. MARKER-CLASSES-P3 */
+    private function tz(TenantCustomerMembership $m): string
+    {
+        return Tenant::find($m->tenant_id)?->timezone() ?: config('app.timezone', 'UTC');
+    }
+
+    /**
+     * Midnight at the studio on a calendar date (Y-m-d), in the app's
+     * timezone: Eloquent stores a date-time as written, without converting.
+     * MARKER-CLASSES-P3
+     */
+    private function localDay(TenantCustomerMembership $m, string $ymd): Carbon
+    {
+        return Carbon::parse($ymd, $this->tz($m))->startOfDay()->setTimezone(config('app.timezone', 'UTC'));
     }
 
     /** Where and by whom a renewal sale is recorded: the original sale's, else the shop's first. */

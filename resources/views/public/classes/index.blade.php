@@ -34,6 +34,7 @@
 .cl-price{font-size:14px;font-weight:600}
 .cl-empty{padding:48px;text-align:center;opacity:.45;font-size:15px}
 </style>
+  @include('public.classes._online-css') {{-- MARKER-CLASSES-P3 --}}
 @endpush
 
 @section('content')
@@ -44,9 +45,17 @@
     <div style="font-size:14px;opacity:.5;margin-top:2px">{{ $currentTenant->name }}</div>
   </div>
   @if(!Auth::guard('customer')->check())
-    <a href="{{ route('tenant.customer.login') }}" class="ac-btn ac-btn--ghost" style="padding:8px 16px;border-radius:var(--p-r);font-size:13px;font-weight:600;border:1.5px solid var(--p-border)">Sign in</a>
+    <a href="{{ route('tenant.customer.login') }}" class="ac-btn ac-btn--ghost" style="width:auto;flex-shrink:0;padding:8px 16px;border-radius:var(--p-r);font-size:13px;font-weight:600;border:1.5px solid var(--p-border)">Sign in</a>
   @endif
 </div>
+
+{{-- MARKER-CLASSES-P3 --}}
+@include('public.classes._tabs', ['active' => 'schedule'])
+@if($introPromo)
+  <a class="ps-promo" href="{{ route('tenant.customer.classes.buy', ['kind' => 'pack', 'productId' => $introPromo->id]) }}">
+    <div><b>New here?</b> {{ $introPromo->name }} for {{ format_money($introPromo->price_cents) }}</div><span>Buy now ›</span>
+  </a>
+@endif
 
 {{-- Week nav --}}
 @php
@@ -71,7 +80,7 @@
 
 {{-- Sessions grouped by date --}}
 @php
-  $grouped = $sessions->groupBy(fn($s) => $s->starts_at->format('Y-m-d'));
+  $grouped = $sessions->groupBy(fn($s) => tlocal($s->starts_at, 'Y-m-d'));
 @endphp
 
 @forelse($grouped as $date => $daySessions)

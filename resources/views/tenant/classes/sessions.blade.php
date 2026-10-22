@@ -173,7 +173,7 @@
         <div class="cl-session-head" onclick="toggleSession('{{ $session->id }}')">
           <div>
             <div class="cl-session-time">{{ tlocal($session->starts_at) }}</div>
-            <div class="cl-session-date">{{ $session->starts_at->format('D, M j') }}</div>
+            <div class="cl-session-date">{{ tlocal($session->starts_at, 'D, M j') }}</div>
           </div>
           <div>
             <div class="cl-session-name">{{ $session->template->name }}</div>
@@ -269,11 +269,11 @@
     // Sessions are already ordered by starts_at from the controller.
     $byDay = [];
     foreach ($sessions as $sess) {
-      $key = $sess->starts_at->format('Y-m-d');
+      $key = tlocal($sess->starts_at, 'Y-m-d');
       $byDay[$key] = $byDay[$key] ?? [];
       $byDay[$key][] = $sess;
     }
-    $todayKey = now()->format('Y-m-d');
+    $todayKey = tnow()->format('Y-m-d');
   @endphp
   <div class="cl-sched-mobile">
     @foreach($byDay as $dayKey => $daySessions)

@@ -70,7 +70,7 @@
       </div>
     @endif
 
-    @php $grouped = $embedSessions->groupBy(fn($s) => $s->starts_at->format('Y-m-d')); @endphp
+    @php $grouped = $embedSessions->groupBy(fn($s) => tlocal($s->starts_at, 'Y-m-d')); @endphp
 
     @if($embedSessions->isEmpty())
       <div class="ce-empty">

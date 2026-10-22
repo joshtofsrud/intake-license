@@ -54,8 +54,8 @@ class TenantDiscount extends Model
     public function inactiveReason(): ?string
     {
         if (! $this->is_active) return 'Turned off';
-        if ($this->starts_at && $this->starts_at->isFuture()) return 'Starts ' . $this->starts_at->format('M j');
-        if ($this->ends_at && $this->ends_at->isPast()) return 'Expired ' . $this->ends_at->format('M j');
+        if ($this->starts_at && $this->starts_at->isFuture()) return 'Starts ' . tlocal($this->starts_at, 'M j');
+        if ($this->ends_at && $this->ends_at->isPast()) return 'Expired ' . tlocal($this->ends_at, 'M j');
         if ($this->max_redemptions > 0 && $this->redemption_count >= $this->max_redemptions) return 'Fully used';
         return null;
     }

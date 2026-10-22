@@ -84,13 +84,15 @@ class ClassReportsService
         // Drop-ins this month: per_class or cash payment_method on registrations
         // that landed in the current calendar month.
         $dropinsThisMonth = TenantClassRegistration::where('tenant_id', $tenantId)
-            ->whereIn('payment_method', ['per_class', 'cash'])
+            ->whereIn('payment_method', ['per_class', 'cash', 'online']) /* MARKER-CLASSES-P3 */
             ->where('registered_at', '>=', $monthStart)
+            ->whereIn('status', ['registered', 'checked_in', 'no_show']) // cancelled and waitlisted were counted as drop-ins
             ->count();
 
         $dropinCustomersThisMonth = TenantClassRegistration::where('tenant_id', $tenantId)
-            ->whereIn('payment_method', ['per_class', 'cash'])
+            ->whereIn('payment_method', ['per_class', 'cash', 'online']) /* MARKER-CLASSES-P3 */
             ->where('registered_at', '>=', $monthStart)
+            ->whereIn('status', ['registered', 'checked_in', 'no_show']) // cancelled and waitlisted were counted as drop-ins
             ->distinct('customer_id')
             ->count('customer_id');
 
@@ -136,7 +138,7 @@ class ClassReportsService
 
         // Aggregate drop-ins per customer in the window
         $rows = TenantClassRegistration::where('tenant_id', $tenantId)
-            ->whereIn('payment_method', ['per_class', 'cash'])
+            ->whereIn('payment_method', ['per_class', 'cash', 'online']) /* MARKER-CLASSES-P3 */
             ->where('registered_at', '>=', $since)
             ->whereIn('status', ['registered', 'checked_in'])
             ->select('customer_id', DB::raw('COUNT(*) as dropin_count'), DB::raw('SUM(paid_cents) as total_spend_cents'))

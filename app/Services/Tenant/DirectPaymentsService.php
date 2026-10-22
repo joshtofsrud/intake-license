@@ -221,6 +221,39 @@ class DirectPaymentsService
     }
 
 
+    /**
+     * MARKER-CLASSES-P3: save a card with no charge (a member replacing the
+     * card their membership renews on). Confirmed in the browser.
+     */
+    public function createSetupIntent(string $stripeCustomerId, array $metadata = []): \Stripe\SetupIntent
+    {
+        return $this->client()->setupIntents->create([
+            'customer'                  => $stripeCustomerId,
+            'usage'                     => 'off_session',
+            'automatic_payment_methods' => ['enabled' => true, 'allow_redirects' => 'never'],
+            'metadata'                  => array_merge([
+                'intake_tenant_id'   => $this->tenant->id,
+                'intake_environment' => app()->environment(),
+            ], $metadata),
+        ]);
+    }
+
+    /** A SetupIntent and the card it saved. Shape: status, id, brand, last4, customer, metadata. */
+    public function retrieveSetupIntent(string $setupIntentId): array
+    {
+        $si = $this->client()->setupIntents->retrieve($setupIntentId, ['expand' => ['payment_method']]);
+        $pm = $si->payment_method;
+
+        return [
+            'status'   => $si->status,
+            'id'       => is_string($pm) ? $pm : ($pm->id ?? null),
+            'brand'    => is_object($pm) ? ($pm->card->brand ?? null) : null,
+            'last4'    => is_object($pm) ? ($pm->card->last4 ?? null) : null,
+            'customer' => is_string($si->customer) ? $si->customer : ($si->customer->id ?? null),
+            'metadata' => $si->metadata ? $si->metadata->toArray() : [],
+        ];
+    }
+
     public function retrievePaymentIntent(string $piId): \Stripe\PaymentIntent
     {
         return $this->client()->paymentIntents->retrieve($piId, [

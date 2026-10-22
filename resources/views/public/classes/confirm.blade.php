@@ -57,7 +57,7 @@
     </div>
     <div class="cl-confirm-row">
       <div class="cl-confirm-label">Date</div>
-      <div class="cl-confirm-value">{{ $registration->session->starts_at->format('l, M j, Y') }}</div>
+      <div class="cl-confirm-value">{{ tlocal($registration->session->starts_at, 'l, M j, Y') }}</div>
     </div>
     <div class="cl-confirm-row">
       <div class="cl-confirm-label">Time</div>
@@ -71,7 +71,7 @@
     @endif
     <div class="cl-confirm-row">
       <div class="cl-confirm-label">Payment</div>
-      <div class="cl-confirm-value">{{ ['per_class' => 'Pay at the studio', 'cash' => 'Paid at the desk', 'pack' => 'Class pack', 'membership' => 'Membership'][$registration->payment_method] ?? ucfirst(str_replace('_', ' ', $registration->payment_method)) }}</div>
+      <div class="cl-confirm-value">{{ ['per_class' => 'Pay at the studio', 'cash' => (($registration->session->template->price_cents ?? 0) > 0 ? 'Paid at the desk' : 'Free class'), 'online' => 'Paid online', 'pack' => 'Class pack', 'membership' => 'Membership'][$registration->payment_method] ?? ucfirst(str_replace('_', ' ', $registration->payment_method)) }}</div>
     </div>
     <div class="cl-confirm-row">
       <div class="cl-confirm-label">Name</div>

@@ -321,6 +321,15 @@ $tenantRoutes = function () {
 
     // Customer-facing class booking. 404 unless the shop has classes on (MARKER-CLASSES-P0).
     Route::middleware([\App\Http\Middleware\RequireClassesActive::class . ':public'])->group(function () {
+    // MARKER-CLASSES-P3: buying classes online. Above /classes/{id} so these paths aren't read as a class id.
+    Route::get('/classes/passes',                   [TenantControllers\ClassOnlineController::class, 'passes'])->name('tenant.customer.classes.passes');
+    Route::get('/classes/buy/{kind}/{productId}',   [TenantControllers\ClassOnlineController::class, 'buy'])->name('tenant.customer.classes.buy');
+    Route::post('/classes/checkout',                [TenantControllers\ClassOnlineController::class, 'start'])->name('tenant.customer.classes.checkout')->middleware('throttle:12,1');
+    Route::get('/classes/checkout/return',          [TenantControllers\ClassOnlineController::class, 'returnLeg'])->name('tenant.customer.classes.checkout.return');
+    Route::get('/classes/checkout/done',            [TenantControllers\ClassOnlineController::class, 'done'])->name('tenant.customer.classes.checkout.done');
+    Route::get('/account/passes',                   [TenantControllers\ClassOnlineController::class, 'myPasses'])->name('tenant.customer.portal.passes');
+    Route::get('/account/passes/card',              [TenantControllers\ClassOnlineController::class, 'cardReturn'])->name('tenant.customer.portal.passes.card');
+    Route::post('/account/passes/{id}/card',        [TenantControllers\ClassOnlineController::class, 'startCard'])->name('tenant.customer.portal.passes.card.start')->middleware('throttle:12,1');
     Route::get('/classes',                          [TenantControllers\CustomerClassController::class, 'index'])->name('tenant.customer.classes');
     Route::get('/classes/{id}',                     [TenantControllers\CustomerClassController::class, 'show'])->name('tenant.customer.classes.show');
     Route::post('/classes/{id}/register',           [TenantControllers\CustomerClassController::class, 'register'])->name('tenant.customer.classes.register');
@@ -1042,6 +1051,7 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             Route::get('/classes/packs',                        [TenantControllers\ClassController::class, 'packProducts'])->name('classes.packs');
             Route::post('/classes/packs',                       [TenantControllers\ClassController::class, 'storePackProduct'])->name('classes.packs.store');
             Route::patch('/classes/packs/{id}',                 [TenantControllers\ClassController::class, 'updatePackProduct'])->name('classes.packs.update');
+            Route::post('/classes/online-settings',             [TenantControllers\ClassController::class, 'saveOnlineSettings'])->name('classes.online-settings'); // MARKER-CLASSES-P3
 
             // Customer-side grant/revoke for memberships and packs. Comp/manual
             // for v1 — Stripe purchase flow comes later. Endpoints are POST

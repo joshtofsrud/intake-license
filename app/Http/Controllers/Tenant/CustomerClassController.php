@@ -7,6 +7,7 @@ use App\Models\Tenant\TenantClassSession;
 use App\Models\Tenant\TenantClassTemplate;
 use App\Models\Tenant\TenantCustomer;
 use App\Services\ClassRegistrationService;
+use App\Services\ClassOnlineSaleService; // MARKER-CLASSES-P3
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -56,8 +57,12 @@ class CustomerClassController extends Controller
 
         $customer = $this->customer();
 
+        // MARKER-CLASSES-P3: the "New here?" line, for people who never had the intro.
+        $introPromo = (ClassOnlineSaleService::cardsOn($tenant) && ! ClassOnlineSaleService::introUsed($tenant->id, $customer))
+            ? ClassOnlineSaleService::products($tenant)['intro']->first() : null;
+
         return view('public.classes.index', compact(
-            'sessions', 'templates', 'from', 'to', 'customer', 'templateFilter'
+            'sessions', 'templates', 'from', 'to', 'customer', 'templateFilter', 'introPromo'
         ));
     }
 
@@ -89,9 +94,36 @@ class CustomerClassController extends Controller
         $spotsRemaining = max(0, $session->capacity_snapshot - $session->active_registrations_count);
         $isFull         = $spotsRemaining === 0;
 
+        // MARKER-CLASSES-P3: what this customer can book with here, and what
+        // the studio offers online: the intro offer, paying now, or paying at
+        // the studio, as the studio's setting allows.
+        $tid        = $session->class_template_id;
+        $coversThis = fn ($p) => $p && (empty($p->covers) || in_array($tid, (array) $p->covers, true));
+        $coverMemberships = $customer
+            ? \App\Models\Tenant\TenantCustomerMembership::where('tenant_id', $tenant->id)->where('customer_id', $customer->id)
+                ->whereIn('status', ['active', 'past_due'])->with('product')->get()
+                ->filter(fn ($m) => $m->product && $m->canCoverClass() && $coversThis($m->product))
+                ->sortBy(fn ($m) => $m->product->isUnlimited() ? 0 : 1)->values()
+            : collect();
+        $coverPacks = $customer
+            ? \App\Models\Tenant\TenantCustomerPack::where('tenant_id', $tenant->id)->where('customer_id', $customer->id)
+                ->consumptionOrder()->with('product')->get()->filter(fn ($p) => $coversThis($p->product))->values()
+            : collect();
+        $cardsOn    = ClassOnlineSaleService::cardsOn($tenant);
+        $dropinMode = ClassOnlineSaleService::dropinMode($tenant);
+        $introOffer = null;
+        if ($cardsOn && $coverMemberships->isEmpty() && $coverPacks->isEmpty()
+            && ! ClassOnlineSaleService::introUsed($tenant->id, $customer)) {
+            $introOffer = ClassOnlineSaleService::products($tenant)['intro']->first(fn ($p) => $coversThis($p) && $p->price_cents > 0);
+        }
+        $introQuote  = $introOffer ? ClassOnlineSaleService::quote($tenant, 'pack', $introOffer, null, $customer) : null;
+        $dropinQuote = ClassOnlineSaleService::quote($tenant, 'dropin', null, $session, $customer);
+        $stripePk    = $cardsOn ? ClassOnlineSaleService::payments($tenant)->publishableKey() : null;
+
         return view('public.classes.show', compact(
             'session', 'customer', 'activeMembership', 'activePacks',
-            'existingRegistration', 'spotsRemaining', 'isFull'
+            'existingRegistration', 'spotsRemaining', 'isFull',
+            'coverMemberships', 'coverPacks', 'cardsOn', 'dropinMode', 'introOffer', 'introQuote', 'dropinQuote', 'stripePk'
         ));
     }
 
@@ -110,6 +142,21 @@ class CustomerClassController extends Controller
 
         // Determine payment method
         $paymentMethod = $request->input('payment_method', 'per_class');
+
+        // MARKER-CLASSES-P3: what a booking form may ask for. 'cash' means no
+        // charge, so only a free class; 'online' only ever comes from a paid
+        // checkout. Before this a form could post 'cash' and book a paid class
+        // as "Paid at the desk".
+        $session->loadMissing('template');
+        $price = (int) ($session->template?->price_cents ?? 0);
+        if (! in_array($paymentMethod, ['membership', 'pack', 'per_class', 'cash'], true)
+            || ($paymentMethod === 'cash' && $price > 0)) {
+            return back()->withInput()->withErrors(['booking' => 'Pick how you\'d like to pay.']);
+        }
+        if ($paymentMethod === 'per_class' && $price > 0 && $session->spotsRemaining() > 0
+            && ClassOnlineSaleService::dropinMode($tenant) === 'card') {
+            return back()->withInput()->withErrors(['booking' => 'Pay online to book this class.']);
+        }
 
         // Guest drop-in — no account needed for per_class or cash.
         // MARKER-CLASSES-P0: a guest never spends a matching customer's pack or

@@ -26,6 +26,8 @@ class TenantClassPackProduct extends Model
         'metadata',
         'covers',      // MARKER-CLASSES-P1: NULL = every class, else class template ids
         'is_taxable',
+        'sell_online', // MARKER-CLASSES-P3
+        'is_intro',
     ];
 
     protected $casts = [
@@ -36,6 +38,8 @@ class TenantClassPackProduct extends Model
         'metadata'     => 'array',
         'covers'       => 'array',
         'is_taxable'   => 'boolean',
+        'sell_online'  => 'boolean',
+        'is_intro'     => 'boolean',
     ];
 
     public function tenant(): BelongsTo

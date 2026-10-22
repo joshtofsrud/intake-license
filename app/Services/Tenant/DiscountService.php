@@ -41,10 +41,10 @@ class DiscountService
             return $fail('That code has been turned off.');
         }
         if ($discount->starts_at && $discount->starts_at->isFuture()) {
-            return $fail('That code starts ' . $discount->starts_at->format('M j') . '.');
+            return $fail('That code starts ' . tlocal($discount->starts_at, 'M j') . '.');
         }
         if ($discount->ends_at && $discount->ends_at->isPast()) {
-            return $fail('That code expired ' . $discount->ends_at->format('M j') . '.');
+            return $fail('That code expired ' . tlocal($discount->ends_at, 'M j') . '.');
         }
         if ($subtotalCents < $discount->min_subtotal_cents) {
             return $fail('This code needs a subtotal of at least $'

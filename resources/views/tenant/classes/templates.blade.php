@@ -84,6 +84,21 @@
   <a href="{{ route('tenant.classes.reports') }}" class="cl-subnav-tab">Reports</a>
 </nav></div>
 
+{{-- MARKER-CLASSES-P3: how a class booked online without a pass is paid --}}
+<form method="POST" action="{{ route('tenant.classes.online-settings') }}" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:-6px 0 16px;font-size:13px;color:var(--ia-text-muted)">
+  @csrf
+  <label for="online-dropin">Booking online without a pass:</label>
+  <select name="class_online_dropin" id="online-dropin" class="cl-select" style="width:auto;padding:5px 9px">
+    @foreach(\App\Services\ClassOnlineSaleService::DROPIN_MODES as $k => $label)
+      <option value="{{ $k }}" @selected($onlineDropin === $k)>{{ $label }}</option>
+    @endforeach
+  </select>
+  <button type="submit" class="ia-btn ia-btn--secondary ia-btn--sm">Save</button>
+  @unless($cardsOn)
+    <span style="flex-basis:100%;font-size:12px">Card payments aren't set up, so everyone pays at the studio for now. <a href="{{ route('tenant.settings.payments.index') }}" style="color:var(--ia-text)">Set up payments</a></span>
+  @endunless
+</form>
+
 @if($errors->any())
   <div class="ia-flash ia-flash--error" style="margin-bottom:16px">{{ $errors->first() }}</div>
 @endif

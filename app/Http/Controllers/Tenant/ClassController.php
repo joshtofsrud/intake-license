@@ -36,7 +36,11 @@ class ClassController extends Controller
         $resources = TenantResource::where('tenant_id', $tenant->id)
             ->active()->ordered()->get();
 
-        return view('tenant.classes.templates', compact('templates', 'resources'));
+        // MARKER-CLASSES-P3: how a class booked online without a pass is paid
+        $onlineDropin = \App\Services\ClassOnlineSaleService::dropinSetting($tenant);
+        $cardsOn      = \App\Services\ClassOnlineSaleService::cardsOn($tenant);
+
+        return view('tenant.classes.templates', compact('templates', 'resources', 'onlineDropin', 'cardsOn'));
     }
 
     public function storeTemplate(Request $request)
@@ -378,8 +382,8 @@ class ClassController extends Controller
         $lineName = sprintf(
             'Drop-in: %s · %s %s',
             $session->template->name,
-            $session->starts_at->format('D M j'),
-            $session->starts_at->format('g:i A')
+            tlocal($session->starts_at, 'D M j'),
+            tlocal($session->starts_at, 'g:i A')
         );
 
         $draft = app(\App\Services\Tenant\SaleService::class)->saveDraft([
@@ -473,6 +477,7 @@ class ClassController extends Controller
             ? array_values(array_unique($request->input('covers'))) : null;
         unset($data['covers_mode']);
         $data['is_taxable'] = $request->boolean('is_taxable');
+        $data += $this->onlineFlags($request, __FUNCTION__); // MARKER-CLASSES-P3
 
         $data['tenant_id'] = $tenant->id;
         $data['is_active'] = $request->boolean('is_active', true);
@@ -510,6 +515,7 @@ class ClassController extends Controller
             ? array_values(array_unique($request->input('covers'))) : null;
         unset($data['covers_mode']);
         $data['is_taxable'] = $request->boolean('is_taxable');
+        $data += $this->onlineFlags($request, __FUNCTION__); // MARKER-CLASSES-P3
 
         $data['is_active'] = $request->boolean('is_active', true);
         $data['price_cents'] = (int) round($request->input('price_dollars', 0) * 100);
@@ -560,6 +566,7 @@ class ClassController extends Controller
             ? array_values(array_unique($request->input('covers'))) : null;
         unset($data['covers_mode']);
         $data['is_taxable'] = $request->boolean('is_taxable');
+        $data += $this->onlineFlags($request, __FUNCTION__); // MARKER-CLASSES-P3
 
         $data['tenant_id'] = $tenant->id;
         $data['is_active'] = $request->boolean('is_active', true);
@@ -592,6 +599,7 @@ class ClassController extends Controller
             ? array_values(array_unique($request->input('covers'))) : null;
         unset($data['covers_mode']);
         $data['is_taxable'] = $request->boolean('is_taxable');
+        $data += $this->onlineFlags($request, __FUNCTION__); // MARKER-CLASSES-P3
 
         $data['is_active'] = $request->boolean('is_active', true);
         $data['price_cents'] = (int) round($request->input('price_dollars', 0) * 100);
@@ -599,6 +607,34 @@ class ClassController extends Controller
         $product->update($data);
 
         return back()->with('success', 'Pack product updated.');
+    }
+
+    // ------------------------------------------------------------------
+    // Selling online (MARKER-CLASSES-P3)
+    // ------------------------------------------------------------------
+
+    /** "Sell online" for both product kinds; "Intro offer" for packs. */
+    private function onlineFlags(Request $request, string $fn): array
+    {
+        $flags = ['sell_online' => $request->boolean('sell_online')];
+        if (str_contains($fn, 'Pack')) {
+            $flags['is_intro'] = $request->boolean('is_intro');
+        }
+        return $flags;
+    }
+
+    /** How a class booked online without a pass is paid. */
+    public function saveOnlineSettings(Request $request)
+    {
+        $tenant = tenant();
+        $data   = $request->validate([
+            'class_online_dropin' => ['required', \Illuminate\Validation\Rule::in(array_keys(\App\Services\ClassOnlineSaleService::DROPIN_MODES))],
+        ]);
+        $settings = (array) ($tenant->settings ?? []);
+        $settings['class_online_dropin'] = $data['class_online_dropin'];
+        $tenant->forceFill(['settings' => $settings])->save();
+
+        return back()->with('success', 'Saved. Online bookings without a pass: ' . strtolower(\App\Services\ClassOnlineSaleService::DROPIN_MODES[$data['class_online_dropin']]) . '.');
     }
 
     // ------------------------------------------------------------------

@@ -82,6 +82,7 @@
     <p class="ia-page-subtitle">Recurring memberships customers can subscribe to.</p>
   </div>
   <div class="ia-page-head-right">
+    <x-help-link key="classes.sell-online" />{{-- MARKER-CLASSES-P3 --}}
     <button class="ia-btn ia-btn--primary" onclick="openAddModal()">+ New membership</button>
   </div>
 </div>
@@ -107,7 +108,7 @@
     <div class="cl-table-row {{ $p->is_active ? '' : 'is-inactive' }}">
       <div>
         <div class="cl-name">{{ $p->name }}</div>
-        <div class="cl-meta">{{ $p->isUnlimited() ? 'Unlimited classes per month' : $p->monthly_limit.' classes per month' }}</div>
+        <div class="cl-meta">{{ $p->isUnlimited() ? 'Unlimited classes per month' : $p->monthly_limit.' classes per month' }}{{ $p->sell_online ? ' · Sold online' : '' }}</div>
       </div>
       <div style="text-align:right">
         <span class="cl-badge cl-badge--{{ $p->type }}">{{ ucfirst($p->type) }}</span>
@@ -115,6 +116,11 @@
       <div class="cl-num">${{ number_format($p->price_cents / 100, 2) }}</div>
       <div class="cl-num">{{ $p->memberships_count }}</div>
       <div class="cl-actions">
+        @if($p->sell_online && $p->is_active){{-- MARKER-CLASSES-P3 --}}
+            <button type="button" class="cl-action-btn" title="Share link" data-name="{{ $p->name }}" data-url="{{ tenant()->urlTo('/classes/passes', ['offer' => $p->id]) }}" data-intro="{{ !empty($p->is_intro) ? '1' : '' }}" onclick="clShare(this.dataset.name, this.dataset.url, !!this.dataset.intro)">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M6 8a2.5 2.5 0 003.5 0l2-2A2.5 2.5 0 008 2.5l-.7.7M8 6a2.5 2.5 0 00-3.5 0l-2 2A2.5 2.5 0 006 11.5l.7-.7" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+            </button>
+            @endif
         <button class="cl-action-btn" title="Edit" onclick="openEditModal({{ $p->toJson() }})">
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M9.5 2.5l2 2L4 12H2v-2L9.5 2.5z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>
         </button>
@@ -151,6 +157,11 @@
             @endif
           </div>
           <div class="cl-mp-actions-m">
+            @if($p->sell_online && $p->is_active){{-- MARKER-CLASSES-P3 --}}
+            <button type="button" class="cl-mp-icon-btn-m" title="Share link" data-name="{{ $p->name }}" data-url="{{ tenant()->urlTo('/classes/passes', ['offer' => $p->id]) }}" data-intro="{{ !empty($p->is_intro) ? '1' : '' }}" onclick="clShare(this.dataset.name, this.dataset.url, !!this.dataset.intro)">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M6 8a2.5 2.5 0 003.5 0l2-2A2.5 2.5 0 008 2.5l-.7.7M8 6a2.5 2.5 0 00-3.5 0l-2 2A2.5 2.5 0 006 11.5l.7-.7" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+            </button>
+            @endif
             <button type="button" class="cl-mp-icon-btn-m" title="Edit" onclick="openEditModal({{ $p->toJson() }})">
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M9.5 2.5l2 2L4 12H2v-2L9.5 2.5z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>
             </button>
@@ -166,6 +177,10 @@
     @endforelse
   </div>
 </div>
+
+{{-- MARKER-CLASSES-P3 --}}
+<p style="font-size:12px;color:var(--ia-text-dim,var(--ia-text-muted));margin:12px 0 0">Sold online: listed on your Passes &amp; pricing page; the first month is paid by card to your Stripe account and the card is saved for renewals. The link button shares it. Sold at the register as always, whichever you tick.</p>
+@include('tenant.classes._share-link')
 
 {{-- Add modal --}}
 <div class="cl-modal-overlay" id="add-modal" onclick="if(event.target===this)closeAddModal()">
@@ -218,6 +233,13 @@
         <label class="cl-label" style="display:flex;align-items:center;gap:8px;cursor:pointer">
           <input type="hidden" name="is_taxable" value="0">
           <input type="checkbox" name="is_taxable" id="add-taxable" value="1"> Charge sales tax when sold
+        </label>
+      </div>
+      {{-- MARKER-CLASSES-P3: selling online --}}
+      <div class="cl-field">
+        <label class="cl-label" style="display:flex;align-items:center;gap:8px;cursor:pointer">
+          <input type="hidden" name="sell_online" value="0">
+          <input type="checkbox" name="sell_online" id="add-online" value="1"> Sell online, on your Passes &amp; pricing page
         </label>
       </div>
       <div class="cl-field">
@@ -287,6 +309,13 @@
           <input type="checkbox" name="is_taxable" id="edit-taxable" value="1"> Charge sales tax when sold
         </label>
       </div>
+      {{-- MARKER-CLASSES-P3: selling online --}}
+      <div class="cl-field">
+        <label class="cl-label" style="display:flex;align-items:center;gap:8px;cursor:pointer">
+          <input type="hidden" name="sell_online" value="0">
+          <input type="checkbox" name="sell_online" id="edit-online" value="1"> Sell online, on your Passes &amp; pricing page
+        </label>
+      </div>
       <div class="cl-field">
         <label class="cl-label" style="display:flex;align-items:center;gap:8px;cursor:pointer">
           <input type="hidden" name="is_active" value="0">
@@ -335,6 +364,7 @@
     document.querySelectorAll('#edit-cover-list input[type=checkbox]').forEach(function(c){ c.checked = cov.indexOf(c.value) !== -1; });
     clCovers('edit');
     document.getElementById('edit-taxable').checked = !!p.is_taxable;
+    document.getElementById('edit-online').checked = !!p.sell_online; // MARKER-CLASSES-P3
     editModal.classList.add('is-open');
   }
   window.closeEditModal = function(){ editModal.classList.remove('is-open'); }

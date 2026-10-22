@@ -497,6 +497,16 @@ HTML;
 
             // "your work is ready, pick a window" options email
             // online store order confirmation
+            // MARKER-CLASSES-P3: a class pass or a class bought online
+            'class_purchase_receipt' => [
+                'subject'   => "Your receipt from {$shop}",
+                'body_html' => "<p>Hi {{first_name}},</p>
+<p>Thanks! Here's what you bought from {$shop}:</p>
+{{details}}
+<p style='margin-top:14px'><a href='{{schedule_url}}' style='color:#111'>See the class schedule</a></p>
+{{account_line}}
+<p>— The {$shop} team</p>",
+            ],
             'order_confirmation' => [
                 'subject'   => 'Order confirmed — {{order_number}}',
                 'body_html' => "<p>Hi {{first_name}},</p>

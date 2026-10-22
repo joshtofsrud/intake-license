@@ -296,13 +296,13 @@ class ClassRegistrationService
             'pack_id'         => $r->pack_id,
             'membership_id'   => $r->membership_id,
             'registration_id' => $r->id,
-        ], trim($label . ' · ' . $session->starts_at->format('M j g:ia') . ($why ? ' · ' . $why : '')));
+        ], trim($label . ' · ' . $session->starts_at->copy()->setTimezone(\App\Models\Tenant::find($r->tenant_id)?->timezone() ?: config('app.timezone', 'UTC'))->format('M j g:ia') . ($why ? ' · ' . $why : '')));
     }
 
     private function requestedOnly(string $requestedMethod): array
     {
         return [
-            'method'        => in_array($requestedMethod, ['per_class', 'cash'], true) ? $requestedMethod : 'per_class',
+            'method'        => in_array($requestedMethod, ['per_class', 'cash', 'online'], true) ? $requestedMethod : 'per_class', // MARKER-CLASSES-P3: online = paid by card online
             'membership_id' => null,
             'pack_id'       => null,
             'paid_cents'    => 0,

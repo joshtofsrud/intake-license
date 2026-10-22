@@ -136,80 +136,99 @@
     <button type="submit" class="ac-btn ac-btn--primary">Join waitlist</button>
   </form>
 
-{{-- Register --}}
+{{-- Register. MARKER-CLASSES-P3: passes they own first, then the intro
+     offer and paying online, then paying at the studio, as the studio allows. --}}
 @else
+  @php
+    $signedIn = Auth::guard('customer')->check();
+    $price    = (int) $session->template->price_cents;
+    $opts     = [];
+    if ($signedIn && $coverMemberships->isNotEmpty()) {
+        $m = $coverMemberships->first();
+        $opts[] = ['key' => 'membership', 'via' => 'form', 'name' => $m->product->name,
+            'sub' => ($m->product->isUnlimited() ? 'Unlimited' : max(0, $m->product->monthly_limit - $m->classes_used_this_period) . ' classes left')
+                . ' · renews ' . $m->current_period_end?->copy()->addDay()->format('M j'),
+            'right' => '<span class="cl-pay-badge">Included</span>', 'btn' => 'Reserve my spot'];
+    }
+    if ($signedIn && $coverPacks->isNotEmpty()) {
+        $pk = $coverPacks->first();
+        $opts[] = ['key' => 'pack', 'via' => 'form', 'name' => $pk->product->name,
+            'sub' => $pk->credits_remaining . ' credits · expires ' . $pk->expires_at->format('M j'),
+            'right' => '<span class="cl-pay-badge">Use 1 credit</span>', 'btn' => 'Reserve my spot'];
+    }
+    if ($introOffer) {
+        $opts[] = ['key' => 'intro', 'via' => 'card', 'name' => $introOffer->name . ' · new here',
+            'sub' => $introOffer->credit_count . ' classes in ' . $introOffer->expiry_days . ' days, this one included',
+            'right' => '<span class="cl-pay-price">' . e(format_money((int) $introOffer->price_cents)) . '</span>',
+            'btn' => 'Pay ' . format_money($introQuote['total']) . ' and book', 'amount' => $introQuote['total'],
+            'product' => $introOffer->id];
+    }
+    if ($price > 0 && $cardsOn && in_array($dropinMode, ['both', 'card'], true)) {
+        $opts[] = ['key' => 'dropin', 'via' => 'card', 'name' => 'Drop in', 'sub' => 'Pay for this class now',
+            'right' => '<span class="cl-pay-price">' . e(format_money($price)) . '</span>',
+            'btn' => 'Pay ' . format_money($dropinQuote['total']) . ' and book', 'amount' => $dropinQuote['total']];
+    }
+    if ($price > 0 && in_array($dropinMode, ['both', 'desk'], true)) {
+        $opts[] = ['key' => 'per_class', 'via' => 'form', 'name' => 'Reserve, pay at the studio',
+            'sub' => 'Pay when you arrive', 'right' => '<span class="cl-pay-price">' . e(format_money($price)) . '</span>',
+            'btn' => 'Reserve, pay at the studio'];
+    }
+    if ($price <= 0 && $coverMemberships->isEmpty() && $coverPacks->isEmpty()) {
+        $opts[] = ['key' => 'cash', 'via' => 'form', 'name' => 'Free class', 'sub' => 'No payment needed', 'right' => '', 'btn' => 'Reserve my spot'];
+    }
+    $first   = $opts[0] ?? null;
+    $hasCard = collect($opts)->contains(fn ($o) => $o['via'] === 'card');
+  @endphp
+
+  @if(! $first)
+    <div class="cl-waitlist-note">
+      @if($signedIn)
+        Book this class with a pass, or ask the studio.
+        <a class="ac-link" href="{{ route('tenant.customer.classes.passes') }}">See passes</a>
+      @else
+        <a class="ac-link" href="{{ route('tenant.customer.login') }}">Sign in</a> to book with your membership or pack, or
+        <a class="ac-link" href="{{ route('tenant.customer.classes.passes') }}">see passes</a>.
+      @endif
+    </div>
+  @else
   <form method="POST" action="{{ route('tenant.customer.classes.register', ['id' => $session->id]) }}" id="register-form">
     @csrf
+    <input type="hidden" name="payment_method" id="payment_method_input" value="{{ $first['via'] === 'form' ? $first['key'] : '' }}">
 
-    {{-- Payment options (only for logged-in customers with credits) --}}
-    @if(Auth::guard('customer')->check() && ($activeMembership || $activePacks->isNotEmpty() || $session->template->price_cents > 0))
+    @if(count($opts) > 1 || $first['key'] !== 'cash')
       <div class="cl-section-label" style="margin-bottom:10px">How would you like to pay?</div>
-
-      @if($activeMembership && $activeMembership->canCoverClass())
-        <label class="cl-pay-option selected" onclick="selectPay(this,'membership')">
+      @foreach($opts as $i => $o)
+        <label class="cl-pay-option {{ $i === 0 ? 'selected' : '' }}"
+               data-key="{{ $o['key'] }}" data-via="{{ $o['via'] }}" data-btn="{{ $o['btn'] }}"
+               data-amount="{{ $o['amount'] ?? '' }}" data-product="{{ $o['product'] ?? '' }}"
+               onclick="selectPay(this)">
           <div class="cl-pay-radio"></div>
           <div>
-            <div class="cl-pay-name">{{ $activeMembership->product->name }}</div>
-            <div class="cl-pay-sub">
-              {{ $activeMembership->product->isUnlimited() ? 'Unlimited' : ($activeMembership->product->monthly_limit - $activeMembership->classes_used_this_period) . ' classes remaining' }}
-              · renews {{ $activeMembership->current_period_end->format('M j') }}
-            </div>
+            <div class="cl-pay-name">{{ $o['name'] }}</div>
+            <div class="cl-pay-sub">{{ $o['sub'] }}</div>
           </div>
-          <span class="cl-pay-badge">Included</span>
-        </label>
-      @endif
-
-      @foreach($activePacks as $pack)
-        <label class="cl-pay-option {{ !$activeMembership ? 'selected' : '' }}" onclick="selectPay(this,'pack')">
-          <div class="cl-pay-radio"></div>
-          <div>
-            <div class="cl-pay-name">{{ $pack->product->name }}</div>
-            <div class="cl-pay-sub">{{ $pack->credits_remaining }} credits · expires {{ $pack->expires_at->format('M j') }}</div>
-          </div>
-          <span class="cl-pay-badge">Use 1 credit</span>
+          {!! $o['right'] !!}
         </label>
       @endforeach
-
-      @if($session->template->price_cents > 0)
-        <label class="cl-pay-option {{ !$activeMembership && $activePacks->isEmpty() ? 'selected' : '' }}" onclick="selectPay(this,'per_class')">
-          <div class="cl-pay-radio"></div>
-          <div>
-            <div class="cl-pay-name">Pay per class</div>
-            <div class="cl-pay-sub">Pay at the studio</div>
-          </div>
-          <span class="cl-pay-price">${{ number_format($session->template->price_cents / 100, 2) }}</span>
-        </label>
-      @endif
-
-      <input type="hidden" name="payment_method" id="payment_method_input" value="{{ $activeMembership ? 'membership' : ($activePacks->isNotEmpty() ? 'pack' : 'per_class') }}">
-
-    @else
-      <input type="hidden" name="payment_method" value="{{ $session->template->price_cents > 0 ? 'per_class' : 'cash' }}">
-      @if($session->template->price_cents > 0)
-        <div style="margin-bottom:16px;padding:13px 15px;background:var(--p-surface);border-radius:var(--p-r-lg);display:flex;justify-content:space-between;align-items:center">
-          <span style="font-size:14px;opacity:.7">Class price · pay at the studio</span>
-          <span style="font-size:18px;font-weight:700">${{ number_format($session->template->price_cents / 100, 2) }}</span>
-        </div>
-      @endif
     @endif
 
     {{-- Guest fields --}}
-    @if(!Auth::guard('customer')->check())
+    @if(! $signedIn)
       <div class="cl-guest-fields" style="margin-top:16px">
         <div class="cl-guest-title">Your details</div>
         <div class="cl-row">
           <div class="ac-field">
             <label class="ac-label">First name</label>
-            <input type="text" name="first_name" class="ac-input" required value="{{ old('first_name') }}">
+            <input type="text" name="first_name" id="g-first" class="ac-input" required maxlength="80" value="{{ old('first_name') }}">
           </div>
           <div class="ac-field">
             <label class="ac-label">Last name</label>
-            <input type="text" name="last_name" class="ac-input" required value="{{ old('last_name') }}">
+            <input type="text" name="last_name" id="g-last" class="ac-input" required maxlength="80" value="{{ old('last_name') }}">
           </div>
         </div>
         <div class="ac-field" style="margin-bottom:0">
           <label class="ac-label">Email</label>
-          <input type="email" name="email" class="ac-input" required value="{{ old('email') }}" placeholder="For your confirmation">
+          <input type="email" name="email" id="g-email" class="ac-input" required maxlength="180" value="{{ old('email') }}" placeholder="For your confirmation">
         </div>
       </div>
       <div style="font-size:12px;opacity:.45;margin:10px 0 16px;text-align:center">
@@ -217,20 +236,75 @@
       </div>
     @endif
 
-    <button type="submit" class="ac-btn ac-btn--primary" style="margin-top:{{ Auth::guard('customer')->check() ? '16px' : '0' }}">
-      Reserve my spot
-    </button>
+    @if($hasCard)
+      <div id="cl-card-wrap" style="{{ $first['via'] === 'card' ? '' : 'display:none' }};margin-top:{{ $signedIn ? '16px' : '0' }}">
+        <div class="cl-section-label" style="margin-bottom:10px">Card</div>
+        <div class="co-pe" id="cl-card"></div>
+      </div>
+    @endif
+
+    <div class="ac-flash ac-flash--error co-err" id="cl-pay-err"></div>
+    <button type="submit" class="ac-btn ac-btn--primary" id="cl-book-btn" style="margin-top:{{ $signedIn ? '16px' : '0' }}">{{ $first['btn'] }}</button>
+    @if($first['key'] === 'per_class' || collect($opts)->contains('key', 'per_class'))
+      <div class="co-fine" id="cl-desk-note" style="{{ $first['key'] === 'per_class' ? '' : 'display:none' }}">Can't make it? Cancel from your account so the spot goes to someone else.</div>
+    @endif
   </form>
+  @endif
 @endif
 
 @endsection
 
+@push('styles')
+  @include('public.classes._online-css')
+@endpush
+
 @push('scripts')
+@if(! empty($hasCard))
+  @include('public.classes._pay-js')
+@endif
 <script>
-function selectPay(el, method) {
-  document.querySelectorAll('.cl-pay-option').forEach(function(o){ o.classList.remove('selected'); });
-  el.classList.add('selected');
-  document.getElementById('payment_method_input').value = method;
-}
+(function () {
+  var hasCard = {{ ! empty($hasCard) ? 'true' : 'false' }};
+  var mounted = false;
+  function current() { return document.querySelector('.cl-pay-option.selected'); }
+  function sync() {
+    var o = current(); if (!o) return;
+    var card = o.dataset.via === 'card';
+    var wrap = document.getElementById('cl-card-wrap');
+    if (wrap) wrap.style.display = card ? '' : 'none';
+    document.getElementById('payment_method_input').value = card ? '' : o.dataset.key;
+    document.getElementById('cl-book-btn').textContent = o.dataset.btn;
+    var desk = document.getElementById('cl-desk-note');
+    if (desk) desk.style.display = o.dataset.key === 'per_class' ? '' : 'none';
+    if (card && hasCard) {
+      if (!mounted) { mounted = ClassPay.mount({ pk: @json($stripePk ?? null), el: '#cl-card', amount: parseInt(o.dataset.amount, 10) }); }
+      else { ClassPay.update({ amount: parseInt(o.dataset.amount, 10) }); }
+    }
+  }
+  window.selectPay = function (el) {
+    document.querySelectorAll('.cl-pay-option').forEach(function (o) { o.classList.remove('selected'); });
+    el.classList.add('selected');
+    sync();
+  };
+  var form = document.getElementById('register-form');
+  if (form) {
+    form.addEventListener('submit', function (e) {
+      var o = current();
+      if (!o || o.dataset.via !== 'card') return; // reserve: a normal form post
+      e.preventDefault();
+      var err = document.getElementById('cl-pay-err');
+      var payload = { session_id: @json($session->id), kind: o.dataset.key === 'intro' ? 'pack' : 'dropin', product_id: o.dataset.product || null };
+      var f = document.getElementById('g-first');
+      if (f) {
+        payload.first_name = f.value.trim();
+        payload.last_name  = document.getElementById('g-last').value.trim();
+        payload.email      = document.getElementById('g-email').value.trim();
+        if (!payload.first_name || !payload.email) { err.textContent = 'Enter your name and email.'; err.style.display = 'block'; return; }
+      }
+      ClassPay.pay(@json(route('tenant.customer.classes.checkout')), payload, err, document.getElementById('cl-book-btn'));
+    });
+  }
+  sync();
+})();
 </script>
 @endpush

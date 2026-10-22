@@ -1,5 +1,5 @@
 @extends('layouts.tenant.app')
-@php $pageTitle = $session->template->name . ' — ' . $session->starts_at->format('M j, Y'); @endphp
+@php $pageTitle = $session->template->name . ' — ' . tlocal($session->starts_at, 'M j, Y'); @endphp
 
 @push('styles')
 <style>
@@ -168,7 +168,7 @@
   <div class="ia-page-head-left">
     <h1 class="ia-page-title">{{ $session->template->name }}</h1>
     <p class="ia-page-subtitle">
-      {{ $session->starts_at->format('l, F j, Y') }} ·
+      {{ tlocal($session->starts_at, 'l, F j, Y') }} ·
       {{ tlocal($session->starts_at) }} – {{ tlocal($session->ends_at) }}
     </p>
   </div>
@@ -271,7 +271,7 @@
           @method('PATCH')
           <div class="cl-notes-label-row">
             <span class="cl-notes-label">Note for this session only</span>
-            <span class="cl-notes-scope">{{ $session->starts_at->format('M j') }}</span>
+            <span class="cl-notes-scope">{{ tlocal($session->starts_at, 'M j') }}</span>
           </div>
           <textarea name="session_notes_override"
                     id="cl-session-notes-input"
@@ -511,7 +511,7 @@
         </div>
         <div class="cl-info-row">
           <span class="cl-info-label">Date</span>
-          <span class="cl-info-value">{{ $session->starts_at->format('M j, Y') }}</span>
+          <span class="cl-info-value">{{ tlocal($session->starts_at, 'M j, Y') }}</span>
         </div>
         <div class="cl-info-row">
           <span class="cl-info-label">Time</span>

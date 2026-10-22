@@ -136,6 +136,23 @@ class DirectPaymentsWebhookController extends Controller
         $pi = $event->data->object;
         $piId = $pi->id;
 
+        // MARKER-CLASSES-P3: a class pass or class bought online. The browser
+        // return usually settles it first; this is the backstop for closed
+        // tabs. finalize() settles a checkout once, whoever calls it.
+        if (!empty($pi->metadata->intake_class_checkout_id ?? null)) {
+            $co = \App\Models\Tenant\TenantClassOnlineCheckout::where('tenant_id', $tenant->id)
+                ->where('id', $pi->metadata->intake_class_checkout_id)->first();
+            if ($co && in_array($co->status, ['pending', 'settling'], true)) {
+                try {
+                    $full = \App\Services\ClassOnlineSaleService::payments($tenant)->retrievePaymentIntent($piId);
+                    app(\App\Services\ClassOnlineSaleService::class)->finalize($co, $full);
+                } catch (\Throwable $e) {
+                    Log::error('classes.online: webhook settle failed', ['checkout' => $co->id, 'error' => $e->getMessage()]);
+                }
+            }
+            return;
+        }
+
         // online store orders: the browser return leg
         // usually finalizes first; this is the backstop for closed tabs.
         // finalize() is lock-guarded idempotent, so double-delivery is safe.
