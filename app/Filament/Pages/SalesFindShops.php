@@ -68,6 +68,11 @@ class SalesFindShops extends Page
         abort_unless(static::canAccess(), 403);
         $this->industry = (string) (array_key_first($this->industries()) ?? 'custom');
         $this->townState = $this->findPref('state', 'WA');
+        // MARKER-COVERAGE: links from Coverage carry a state and maybe an industry
+        $qs = strtoupper((string) request()->query('state', ''));
+        if (isset(\App\Services\Sales\TownCoverage::STATES[$qs])) $this->townState = $qs;
+        $qi = (string) request()->query('industry', '');
+        if ($qi !== '' && isset($this->industries()[$qi])) $this->industry = $qi;
     }
 
     /** chips come from the Industries page; active ones first. */

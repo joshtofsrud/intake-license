@@ -152,6 +152,7 @@ class AdminPanelProvider extends PanelProvider
                 \App\Filament\Pages\SalesEmailOutreach::class,  // MARKER-EMAIL-OUTREACH: explicit, no auto-discovery
                 \App\Filament\Pages\SalesEmailTemplates::class,
                 \App\Filament\Pages\SalesPipeline::class,     // explicit registration; this panel does NOT auto-discover
+                \App\Filament\Pages\SalesCoverage::class,     // MARKER-COVERAGE
                 \App\Filament\Pages\SalesFindShops::class, \App\Filament\Pages\SalesPlacesSettings::class,     // explicit registration; this panel does NOT auto-discover
             ])
             ->widgets([

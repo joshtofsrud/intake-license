@@ -77,6 +77,11 @@ class SalesPipeline extends Page
         $this->sortDir = session('sales.sort_dir') === 'desc' ? 'desc' : 'asc';
         if ($this->industryId !== '' && $this->industryId !== 'none' && ! \App\Models\SalesChannel::whereKey($this->industryId)->exists()) $this->industryId = '';
         if ($id = request()->query('open')) $this->open($id);
+        // MARKER-COVERAGE: links from Coverage carry a state and maybe an industry
+        if ($st = (string) request()->query('state', '')) $this->states = [strtoupper(substr($st, 0, 2))];
+        if (($ind = (string) request()->query('industry', '')) !== '' && ($ind === 'none' || \App\Models\SalesChannel::whereKey($ind)->exists())) {
+            $this->industryId = $ind; session(['sales.industry' => $ind]);
+        }
     }
 
     // ---------------------------------------------------------------- data
