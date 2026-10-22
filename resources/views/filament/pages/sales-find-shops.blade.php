@@ -37,16 +37,20 @@
 </div>
 
 {{-- the website pass runs on the server; this says what it is doing --}}
-@php $ss = $this->siteScanStats(); $ssDone = $ss['with_site'] ? (int) floor(($ss['with_site'] - $ss['left']) * 100 / $ss['with_site']) : 0; @endphp
+@php $ss = $this->siteScanStats(); $ssDone = $ss['with_site'] ? (int) floor(($ss['with_site'] - $ss['left']) * 100 / $ss['with_site']) : 0; $ssLeft = $ss['left'] + ($ss['mode'] === 'deep' ? $ss['deep_left'] : 0); @endphp
 <div style="{{ $card }};margin-bottom:16px">
   <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
     <span style="font-size:13px;font-weight:600">Website pass</span>
-    <span style="{{ $badge }}{{ $ss['paused'] ? 'background:rgba(251,191,36,.18);color:#fbbf24' : ($ss['left'] ? 'background:rgba(139,92,246,.18);color:#a78bfa' : 'background:rgba(74,222,128,.15);color:#4ade80') }}">{{ $ss['paused'] ? 'Stopped' : ($ss['left'] ? 'Running' : 'Up to date') }}</span>
+    <span style="{{ $badge }}{{ $ss['paused'] ? 'background:rgba(251,191,36,.18);color:#fbbf24' : ($ssLeft ? 'background:rgba(139,92,246,.18);color:#a78bfa' : 'background:rgba(74,222,128,.15);color:#4ade80') }}">{{ $ss['paused'] ? 'Stopped' : ($ssLeft ? 'Running' : 'Up to date') }}</span>
     <span style="{{ $muted }}">{{ number_format($ss['with_site'] - $ss['left']) }} of {{ number_format($ss['with_site']) }} sites read ({{ $ssDone }}%)@if($ss['last']) · last {{ \Illuminate\Support\Carbon::parse($ss['last'])->diffForHumans() }}@endif</span>
-    @php $ssSpeed = \App\Models\SalesSetting::get('site_scan_speed', 'normal'); @endphp
-    <select class="{{ $input }}" style="margin-left:auto;width:auto;padding-top:5px;padding-bottom:5px" wire:change="setScanSpeed($event.target.value)" title="How many shops each five-minute run reads">
-      @foreach(['normal' => 'Normal · 80 per run', 'fast' => 'Fast · 250 per run', 'max' => 'Max · 600 per run'] as $sv => $sl)
-        <option value="{{ $sv }}" @selected($ssSpeed === $sv)>{{ $sl }}</option>
+    @php $ssSpeed = \App\Models\SalesSetting::get('site_scan_speed', 'normal'); $ssSp = \App\Console\Commands\ScanProspectSites::SPEEDS; $ssDp = \App\Console\Commands\ScanProspectSites::DEEP_SPEEDS; @endphp
+    <select class="{{ $input }}" style="margin-left:auto;width:auto;padding-top:5px;padding-bottom:5px" wire:change="setScanMode($event.target.value)" title="Standard reads each new site once; Deep then goes back over shops still missing an email or socials">
+      <option value="standard" @selected($ss['mode'] === 'standard')>Standard pass</option>
+      <option value="deep" @selected($ss['mode'] === 'deep')>Deep pass · gaps</option>
+    </select>
+    <select class="{{ $input }}" style="width:auto;padding-top:5px;padding-bottom:5px" wire:change="setScanSpeed($event.target.value)" title="How many shops each five-minute run reads">
+      @foreach(['normal' => 'Normal', 'fast' => 'Fast', 'max' => 'Max'] as $sv => $sl)
+        <option value="{{ $sv }}" @selected($ssSpeed === $sv)>{{ $sl }} · {{ $ss['mode'] === 'deep' ? $ssSp[$sv] . ' / ' . $ssDp[$sv] . ' deep' : $ssSp[$sv] }} per run</option>
       @endforeach
     </select>
     <button type="button" class="sfs-btn {{ $ss['paused'] ? 'p' : '' }}" wire:click="toggleSiteScan">{{ $ss['paused'] ? 'Start' : 'Stop' }}</button>
@@ -58,12 +62,19 @@
     <span><b>{{ number_format($ss['brands']) }}</b> with brands</span>
     <span>{{ number_format(($ss['by']['not_shop_site'] ?? 0) + ($ss['by']['name_mismatch'] ?? 0)) }} links that aren't the shop's own site</span>
     <span>{{ number_format($ss['by']['unreachable'] ?? 0) }} sites that didn't answer</span>
+    @if($ss['mode'] === 'deep' || $ss['deep_read'])
+      <span>Deep pass: <b>{{ number_format($ss['deep_read']) }}</b> of {{ number_format($ss['deep_read'] + $ss['deep_left']) }} read · <b>{{ number_format($ss['deep_found']) }}</b> gained something</span>
+    @endif
   </div>
   <div style="{{ $muted }};margin-top:8px">
     Only runs after Start: uploading a list or finding shops adds them, and they wait here until you press it.
     While started it runs on the server every five minutes, {{ \App\Console\Commands\ScanProspectSites::SPEEDS[$ssSpeed] ?? 80 }} shops at a time (Speed), and reads each prospect's own website: home page plus a contact or about page.
     It fills email, phone and owner only when they are empty, and adds socials and the brands the site mentions. Nothing a person typed is changed.
     Brand dealer pages, booking tools and sites that don't mention the shop's name are skipped and counted above. Signed-up shops are left alone.
+    <b>Deep pass</b> (pick it beside Speed): once every new site has had its first read, it goes back to shops still missing an email or socials, one read each.
+    It tries the other spellings of the address when a site didn't answer, reads the sitemap and up to eight pages (contact, about, team, locations, service),
+    and finds addresses written as "name [at] shop [dot] com" or tucked inside the page's code. It is slower ({{ $ssDp[$ssSpeed] ?? 30 }} shops per run), uses none of the Google budget,
+    and still only fills empty fields; socials and brands are added to, never replaced.
   </div>
 </div>
 

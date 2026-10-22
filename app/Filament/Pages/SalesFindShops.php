@@ -106,6 +106,11 @@ class SalesFindShops extends Page
             'brands'    => (clone $base)->whereNotNull('brands')->count(),
             'last'      => (clone $base)->max('site_scanned_at'),
             'paused'    => \App\Models\SalesSetting::get('site_scan_on') !== '1',
+            // MARKER-DEEP-PASS
+            'mode'       => \App\Models\SalesSetting::get('site_scan_mode', 'standard') === 'deep' ? 'deep' : 'standard',
+            'deep_left'  => \App\Console\Commands\ScanProspectSites::deepQueue()->reorder()->count(),
+            'deep_read'  => (clone $base)->whereNotNull('deep_scanned_at')->where('deep_scan_status', '!=', 'skipped')->count(),
+            'deep_found' => (clone $base)->where('deep_scan_status', 'found')->count(),
         ];
     }
 
@@ -113,7 +118,18 @@ class SalesFindShops extends Page
     {
         if (! isset(\App\Console\Commands\ScanProspectSites::SPEEDS[$speed])) return;
         \App\Models\SalesSetting::put('site_scan_speed', $speed);
-        Notification::make()->title('Website pass speed: ' . \App\Console\Commands\ScanProspectSites::SPEEDS[$speed] . ' shops every five minutes')->success()->send();
+        Notification::make()->title('Website pass speed: ' . \App\Console\Commands\ScanProspectSites::SPEEDS[$speed] . ' shops every five minutes'
+            . (\App\Models\SalesSetting::get('site_scan_mode') === 'deep' ? ' (' . \App\Console\Commands\ScanProspectSites::DEEP_SPEEDS[$speed] . ' in the deep pass)' : ''))->success()->send();
+    }
+
+    // MARKER-DEEP-PASS: Standard reads each new site once; Deep then goes back over the gaps.
+    public function setScanMode(string $mode): void
+    {
+        if (! in_array($mode, ['standard', 'deep'], true)) return;
+        \App\Models\SalesSetting::put('site_scan_mode', $mode);
+        Notification::make()->title($mode === 'deep'
+            ? 'Deep pass on: once new sites are read, it goes back over shops still missing an email or socials'
+            : 'Standard pass: each new site is read once')->success()->send();
     }
 
     public function toggleSiteScan(): void

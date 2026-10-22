@@ -33,6 +33,7 @@ class SalesProspect extends Model
         'invite_token', 'invite_email', 'invite_plan', 'invited_at', 'converted_at',
         'import_batch',
         'socials', 'brands', 'site_scanned_at', 'site_scan_status',
+        'deep_scanned_at', 'deep_scan_status', // MARKER-DEEP-PASS
     ];
 
     protected $casts = [
@@ -50,6 +51,7 @@ class SalesProspect extends Model
         'socials'           => 'array',
         'brands'            => 'array',
         'site_scanned_at'   => 'datetime',
+        'deep_scanned_at'   => 'datetime',
         'invited_at'        => 'datetime',
         'converted_at'      => 'datetime',
         'emailed_at'        => 'datetime', // MARKER-EMAIL-OUTREACH

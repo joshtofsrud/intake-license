@@ -92,14 +92,17 @@ class SiteScanner
     }
 
     /** @param array<string,string> $urls  @return array<string,array{url:string,body:string}> keyed like $urls, failures left out */
-    private function fetchAll(array $urls): array
+    private function fetchAll(array $urls, ?string $ua = null, bool $htmlOnly = true): array
     {
         $keys = array_keys($urls);
-        $res = Http::pool(function (Pool $pool) use ($urls) {
+        $browser = $ua !== null; // the deep pass reads as an ordinary browser, a little more patiently
+        $res = Http::pool(function (Pool $pool) use ($urls, $ua, $browser) {
             $reqs = [];
             foreach ($urls as $k => $u) {
-                $reqs[] = $pool->as((string) $k)->withHeaders(['User-Agent' => self::UA, 'Accept' => 'text/html,*/*;q=0.5'])
-                    ->connectTimeout(5)->timeout(12)
+                $reqs[] = $pool->as((string) $k)->withHeaders(['User-Agent' => $ua ?? self::UA,
+                        'Accept' => $browser ? 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8' : 'text/html,*/*;q=0.5',
+                        'Accept-Language' => 'en-US,en;q=0.9'])
+                    ->connectTimeout($browser ? 6 : 5)->timeout($browser ? 15 : 12)
                     ->withOptions(['allow_redirects' => ['max' => 5, 'track_redirects' => true]])
                     ->get($u);
             }
@@ -110,7 +113,7 @@ class SiteScanner
             $r = $res[(string) $k] ?? null;
             if (! $r instanceof \Illuminate\Http\Client\Response || ! $r->successful()) continue;
             $type = strtolower((string) $r->header('Content-Type'));
-            if ($type !== '' && ! str_contains($type, 'html')) continue;
+            if ($htmlOnly && $type !== '' && ! str_contains($type, 'html')) continue;
             $hist = $r->header('X-Guzzle-Redirect-History');
             $final = $hist ? trim(last(explode(',', $hist))) : $urls[$k];
             $out[$k] = ['url' => $final, 'body' => substr((string) $r->body(), 0, 800000)];
@@ -228,7 +231,12 @@ class SiteScanner
         }
         preg_match_all('/[A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,}/i', $text, $t);
         $all = array_merge($all, $t[0]);
+        return $this->pickEmail($all, $host);
+    }
 
+    /** The best address from a list of candidates: the shop's own domain first. */
+    private function pickEmail(array $all, string $host): ?string
+    {
         $good = [];
         foreach ($all as $e) {
             $e = strtolower(trim($e, " .,;:<>()[]\"'"));
@@ -248,8 +256,14 @@ class SiteScanner
     public function socials(string $html): array
     {
         preg_match_all('/href=["\'](https?:\/\/[^"\']+)["\']/i', $html, $m);
+        return $this->socialsFrom($m[1]);
+    }
+
+    /** @param string[] $urls */
+    private function socialsFrom(array $urls): array
+    {
         $out = [];
-        foreach ($m[1] as $u) {
+        foreach ($urls as $u) {
             $u = html_entity_decode($u);
             $host = self::hostOf($u);
             foreach (self::SOCIAL_HOSTS as $sh => $net) {
@@ -372,6 +386,219 @@ class SiteScanner
         }
         arsort($hits);
         return array_slice(array_keys($hits), 0, 40);
+    }
+
+    // ---- MARKER-DEEP-PASS: the deep website pass ---------------------------
+    // Goes back to shops the first pass read but left without an email or
+    // socials. It tries the other spellings of the address when the site
+    // didn't answer, reads the sitemap and up to eight pages, and looks for
+    // addresses written out to dodge spam bots or tucked inside the page's
+    // code. Like the first pass it fills only empty fields; socials and brands
+    // are added to, never replaced.
+
+    public const BROWSER_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0 Safari/537.36';
+    public const DEEP_PAGES = 8;
+
+    /** Free mailbox providers: an address there found inside a page's code is still the shop's. */
+    private const MAILBOX_HOSTS = ['gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com', 'aol.com', 'icloud.com', 'me.com', 'mac.com',
+        'msn.com', 'live.com', 'comcast.net', 'att.net', 'protonmail.com', 'proton.me', 'q.com', 'centurylink.net', 'frontier.com',
+        'charter.net', 'cox.net', 'verizon.net', 'sbcglobal.net', 'bellsouth.net', 'earthlink.net', 'ymail.com', 'rocketmail.com'];
+
+    /**
+     * @param  iterable<SalesProspect> $prospects
+     * @return array<string,string> prospect id => deep status
+     */
+    public function scanDeep(iterable $prospects): array
+    {
+        $todo = []; $out = [];
+        foreach ($prospects as $p) {
+            $url  = trim((string) $p->website);
+            $host = $url !== '' ? self::hostOf($url) : '';
+            $social = false;
+            foreach (self::SOCIAL_HOSTS as $sh => $net) if ($host === $sh || str_ends_with($host, '.' . $sh)) $social = true;
+            if ($host === '' || $social || self::isNotShopSite($host)) { $out[$p->id] = $this->finishDeep($p, 'skipped'); continue; }
+            $todo[$p->id] = ['p' => $p, 'host' => $host, 'url' => str_contains($url, '://') ? $url : 'https://' . $url];
+        }
+        if (! $todo) return $out;
+
+        // 1. home page; for sites that don't answer, the other spellings of the address
+        $home = $this->fetchAll(array_map(fn ($t) => $t['url'], $todo), self::BROWSER_UA);
+        $tries = [];
+        foreach ($todo as $id => $t) {
+            if (isset($home[$id])) continue;
+            foreach ($this->addressVariants($t['url']) as $i => $v) $tries["$id|$i"] = $v;
+        }
+        if ($tries) {
+            foreach ($this->fetchAll($tries, self::BROWSER_UA) as $k => $r) $home[self::idOf($k)] ??= $r;
+        }
+
+        // 2. the sitemap, then up to eight pages from it and the home page's links
+        $maps = [];
+        foreach ($todo as $id => $t) if (isset($home[$id])) $maps[$id] = $this->siteRoot($home[$id]['url']) . '/sitemap.xml';
+        $maps = $maps ? $this->fetchAll($maps, self::BROWSER_UA, false) : [];
+        $more = [];
+        foreach ($todo as $id => $t) {
+            if (! isset($home[$id])) continue;
+            foreach ($this->deepLinks($home[$id]['body'], $home[$id]['url'], $maps[$id]['body'] ?? '') as $i => $link) $more["$id|$i"] = $link;
+        }
+        $pagesBy = [];
+        foreach ($more ? $this->fetchAll($more, self::BROWSER_UA) : [] as $k => $r) $pagesBy[self::idOf($k)][] = $r['body'];
+
+        foreach ($todo as $id => $t) {
+            if (! isset($home[$id])) { $out[$id] = $this->finishDeep($t['p'], 'unreachable'); continue; }
+            try {
+                $out[$id] = $this->applyDeep($t['p'], array_merge([$home[$id]['body']], $pagesBy[self::idOf("$id|")] ?? []), self::hostOf($home[$id]['url']) ?: $t['host']);
+            } catch (\Throwable $e) {
+                report($e);
+                $out[$id] = $this->finishDeep($t['p'], 'error');
+            }
+        }
+        return $out;
+    }
+
+    private static function idOf(string|int $key): string
+    {
+        $key = (string) $key;
+        return substr($key, 0, (int) strrpos($key, '|'));
+    }
+
+    /** https://www, http://, http://www and https:// spellings of an address, minus the one given. */
+    private function addressVariants(string $url): array
+    {
+        $u = parse_url($url);
+        $host = strtolower((string) preg_replace('/^www\./', '', (string) ($u['host'] ?? '')));
+        if ($host === '') return [];
+        $host .= isset($u['port']) ? ':' . $u['port'] : '';
+        $path = ($u['path'] ?? '') ?: '/';
+        $same = rtrim(strtolower($url), '/');
+        $all = array_unique(["https://www.$host$path", "http://$host$path", "http://www.$host$path", "https://$host$path"]);
+        return array_values(array_filter($all, fn ($v) => rtrim(strtolower($v), '/') !== $same));
+    }
+
+    private function siteRoot(string $url): string
+    {
+        $b = parse_url($url);
+        return ($b['scheme'] ?? 'https') . '://' . ($b['host'] ?? '') . (isset($b['port']) ? ':' . $b['port'] : '');
+    }
+
+    /** Same-site pages most likely to carry contact details: contact first, then about/team, then service pages. */
+    private function deepLinks(string $html, string $base, string $sitemap): array
+    {
+        $host = self::hostOf($base);
+        $cands = [];
+        preg_match_all('/<a\b[^>]*href=["\']([^"\'#]+)["\'][^>]*>(.*?)<\/a>/is', $html, $m, PREG_SET_ORDER);
+        foreach ($m as $a) $cands[] = [html_entity_decode(trim($a[1])), strtolower(strip_tags($a[2]))];
+        preg_match_all('#<loc>\s*([^<\s]+)\s*</loc>#i', $sitemap, $s);
+        foreach (array_slice($s[1], 0, 3000) as $loc) $cands[] = [html_entity_decode(trim($loc)), ''];
+
+        $ranked = [];
+        foreach ($cands as [$href, $txt]) {
+            if (preg_match('/^(mailto|tel|javascript|sms):/i', $href) || preg_match('/\.(pdf|jpe?g|png|gif|webp|svg|zip|xml|mp4|css|js)(\?|$)/i', $href)) continue;
+            $key = strtolower(urldecode($href)) . ' ' . $txt;
+            $rank = match (true) {
+                (bool) preg_match('/contact|get[- ]in[- ]touch|reach[- ]us|find[- ]us|visit|location|direction|hours/', $key) => 0,
+                (bool) preg_match('/about|our[- ]story|team|staff|people|meet|crew|who[- ]we|owner|history/', $key) => 1,
+                (bool) preg_match('/service|repair|rental|appointment|fitting|faq|info|polic|career|jobs/', $key) => 2,
+                default => null,
+            };
+            if ($rank === null) continue;
+            $abs = $this->absolute($href, $base);
+            if (! $abs || self::hostOf($abs) !== $host) continue;
+            $abs = rtrim((string) preg_replace('/#.*$/', '', $abs), '/');
+            if ($abs === rtrim($base, '/') || $abs === $this->siteRoot($base)) continue;
+            $ranked[$rank][$abs] = true;
+        }
+        $root = $this->siteRoot($base);
+        if (empty($ranked[0])) foreach (['/contact', '/contact-us'] as $g) $ranked[3][$root . $g] = true;
+        if (empty($ranked[1])) foreach (['/about', '/about-us'] as $g) $ranked[3][$root . $g] = true;
+        ksort($ranked);
+        $out = [];
+        foreach ($ranked as $set) {
+            foreach (array_keys($set) as $u) {
+                if (count($out) >= self::DEEP_PAGES) break 2;
+                $out[] = $u;
+            }
+        }
+        return $out;
+    }
+
+    private function applyDeep(SalesProspect $p, array $pages, string $host): string
+    {
+        $html = implode("\n", $pages);
+        $text = $this->text($html);
+        if (! $this->nameMatches((string) $p->shop, $text . ' ' . $host, (string) $p->city)) return $this->finishDeep($p, 'name_mismatch');
+
+        $email = $this->email($html, $text, $host) ?? $this->hiddenEmail($html, $text, $host);
+        $phone = $this->phone($html, $text);
+        $owner = $this->owner($text);
+        // social links in scripts and structured data ("sameAs"), not only in <a href>
+        preg_match_all('#https?://(?:[a-z0-9\-]+\.)?(?:instagram|facebook|fb|strava|youtube|tiktok|twitter|x)\.com/[^\s"\'<>\\\\]+#i', str_replace('\/', '/', $html), $sm);
+        $socials = $this->socials($html) + $this->socialsFrom(array_map(fn ($u) => rtrim($u, '.,;:)]}'), $sm[0]));
+        $brands  = $this->brands($text, $p);
+
+        $had       = is_array($p->socials) ? $p->socials : [];
+        $newSoc    = array_diff_key($socials, $had);
+        $hadBrands = is_array($p->brands) ? $p->brands : [];
+        $newBrands = array_values(array_diff($brands, $hadBrands));
+
+        $changes = [];
+        if ($email && blank($p->email)) $changes['email'] = $email;
+        if ($phone && blank($p->phone)) $changes['phone'] = $phone;
+        if ($owner && blank($p->owner_contact)) $changes['owner_contact'] = $owner;
+        if ($newSoc) $changes['socials'] = $had + $newSoc;
+        if ($newBrands) $changes['brands'] = array_slice(array_merge($hadBrands, $newBrands), 0, 40);
+        // the site answered this time, so it no longer counts as one that didn't
+        if (in_array($p->site_scan_status, ['unreachable', 'error'], true)) {
+            $changes['site_scan_status'] = ($email || $phone || $socials || $owner || $brands) ? 'ok' : 'nothing_found';
+        }
+
+        $got = array_filter([
+            isset($changes['email']) ? 'email' : null,
+            isset($changes['phone']) ? 'phone' : null,
+            $newSoc ? count($newSoc) . ' social' . (count($newSoc) === 1 ? '' : 's') : null,
+            isset($changes['owner_contact']) ? 'owner' : null,
+            $newBrands ? count($newBrands) . ' brand' . (count($newBrands) === 1 ? '' : 's') : null,
+        ]);
+        $status = $got ? 'found' : 'nothing_new';
+        $this->finishDeep($p, $status, $changes);
+        if ($got) $p->activities()->create(['type' => 'system', 'body' => 'Deep website pass found ' . implode(', ', $got)]);
+        return $status;
+    }
+
+    /**
+     * Addresses the first pass can't see: written out ("shop [at] site [dot] com",
+     * "shop at site dot com"), entity-encoded, or inside scripts and structured data.
+     * One found in code counts only on the shop's own domain or a free mailbox provider.
+     */
+    public function hiddenEmail(string $html, string $text, string $host): ?string
+    {
+        // a mailto link is the address the shop chose to publish, so it goes first
+        $raw = html_entity_decode(str_ireplace(['\u0040', '%40'], '@', $html), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        preg_match_all('/mailto:([^"\'?\s>]+)/i', $raw, $mm);
+        $all  = array_map('urldecode', $mm[1]);
+        $tlds = 'com|net|org|biz|us|co|ca|info|bike|shop|store|life|club|fit|studio|works|me|io';
+        $dot  = '(?:\s*(?:\[\s*dot\s*\]|\(\s*dot\s*\)|\{\s*dot\s*\})\s*|\s+dot\s+|\.)';
+        $at   = '\s*(?:\[\s*at\s*\]|\(\s*at\s*\)|\{\s*at\s*\})\s*';
+        preg_match_all("/([a-z0-9._%+\\-]+){$at}([a-z0-9\\-]+(?:{$dot}[a-z0-9\\-]+)*{$dot}(?:{$tlds}))\\b/i", $text, $m1, PREG_SET_ORDER);
+        preg_match_all("/\\b([a-z0-9._\\-]+)\\s+at\\s+([a-z0-9\\-]+(?:\\s+dot\\s+[a-z0-9\\-]+)*\\s+dot\\s+(?:{$tlds}))\\b/i", $text, $m2, PREG_SET_ORDER);
+        foreach (array_merge($m1, $m2) as $x) {
+            $dom = preg_replace('/\s*(?:\[\s*dot\s*\]|\(\s*dot\s*\)|\{\s*dot\s*\})\s*|\s+dot\s+/i', '.', $x[2]);
+            $all[] = $x[1] . '@' . preg_replace('/\s+/', '', (string) $dom);
+        }
+
+        $root = implode('.', array_slice(explode('.', $host), -2));
+        preg_match_all('/[A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,}/i', $raw, $r);
+        foreach ($r[0] as $e) {
+            $dom = strtolower(substr((string) strrchr($e, '@'), 1));
+            if ($dom === $root || str_ends_with($dom, '.' . $root) || in_array($dom, self::MAILBOX_HOSTS, true)) $all[] = $e;
+        }
+        return $all ? $this->pickEmail($all, $host) : null;
+    }
+
+    private function finishDeep(SalesProspect $p, string $status, array $changes = []): string
+    {
+        $p->forceFill($changes + ['deep_scanned_at' => now(), 'deep_scan_status' => $status])->save();
+        return $status;
     }
 
 }
