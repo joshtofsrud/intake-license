@@ -75,7 +75,7 @@ class SalesPipeline extends Page
         $this->industryId = (string) session('sales.industry', '');
         $this->sortBy  = (string) session('sales.sort', '');
         $this->sortDir = session('sales.sort_dir') === 'desc' ? 'desc' : 'asc';
-        if ($this->industryId !== '' && ! \App\Models\SalesChannel::whereKey($this->industryId)->exists()) $this->industryId = '';
+        if ($this->industryId !== '' && $this->industryId !== 'none' && ! \App\Models\SalesChannel::whereKey($this->industryId)->exists()) $this->industryId = '';
         if ($id = request()->query('open')) $this->open($id);
     }
 
@@ -90,7 +90,7 @@ class SalesPipeline extends Page
     protected function baseQuery()
     {
         return SalesProspect::query()->with(['rep', 'territory'])
-            ->when($this->industryId, fn ($q) => $q->where('channel_id', $this->industryId))
+            ->when($this->industryId, fn ($q) => $this->industryId === 'none' ? $q->whereNull('channel_id') : $q->where('channel_id', $this->industryId))
             ->when($this->territoryId === 'none', fn ($q) => $q->whereNull('territory_id'))
             ->when($this->territoryId && $this->territoryId !== 'none', fn ($q) => $q->where('territory_id', $this->territoryId))
             ->when($this->repId === 'none', fn ($q) => $q->whereNull('sales_rep_id'))
@@ -346,7 +346,7 @@ class SalesPipeline extends Page
 
     public function stats(): array
     {
-        $base = SalesProspect::query()->when($this->industryId, fn ($q) => $q->where('channel_id', $this->industryId));
+        $base = SalesProspect::query()->when($this->industryId, fn ($q) => $this->industryId === 'none' ? $q->whereNull('channel_id') : $q->where('channel_id', $this->industryId));
         $total = (clone $base)->count();
         $plans = \App\Support\PlanPricing::all();
         $floor = $plans ? min(array_filter($plans)) / 100 : 89;
@@ -427,7 +427,7 @@ class SalesPipeline extends Page
         return \Illuminate\Support\Facades\Cache::remember($key, 600, function () {
             $n = [];
             SalesProspect::query()->whereNotNull('brands')
-                ->when($this->industryId, fn ($q) => $q->where('channel_id', $this->industryId))
+                ->when($this->industryId, fn ($q) => $this->industryId === 'none' ? $q->whereNull('channel_id') : $q->where('channel_id', $this->industryId))
                 ->select(['id', 'brands'])->chunkById(2000, function ($rows) use (&$n) {
                     foreach ($rows as $r) foreach ((array) $r->brands as $b) if (is_string($b) && $b !== '') $n[$b] = ($n[$b] ?? 0) + 1;
                 });

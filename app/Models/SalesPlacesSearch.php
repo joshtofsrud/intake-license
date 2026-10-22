@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 class SalesPlacesSearch extends Model
 {
     protected $table = 'sales_places_searches';
-    protected $fillable = ['user_id', 'industry', 'place', 'radius_miles', 'requests', 'found', 'new_count', 'cost_cents'];
+    protected $fillable = ['user_id', 'industry', 'place', 'radius_miles', 'requests', 'found', 'new_count', 'cost_cents', 'channel_id', 'lat', 'lng']; // MARKER-TOWN-LIST
 
     public static function monthToDateCents(): int
     {

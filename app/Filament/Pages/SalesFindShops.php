@@ -31,6 +31,8 @@ class SalesFindShops extends Page
     public string $industry    = ''; // an Industries id, or 'custom'
     public string $uploadIndustry = '';
     public string $customQuery = '';
+    public string $customName  = ''; // MARKER-CUSTOM-INDUSTRY: the industry a Custom search is saved as
+    public string $customChannelId = '';
     public string $place       = '';
     public int    $radius      = 25;
     public bool   $autoAssign  = true;
@@ -65,6 +67,7 @@ class SalesFindShops extends Page
     {
         abort_unless(static::canAccess(), 403);
         $this->industry = (string) (array_key_first($this->industries()) ?? 'custom');
+        $this->townState = $this->findPref('state', 'WA');
     }
 
     /** chips come from the Industries page; active ones first. */
@@ -199,7 +202,35 @@ class SalesFindShops extends Page
             $this->error = 'Monthly Places budget reached. Raise it below to keep searching.';
             return;
         }
-        $out = (new ShopFinder())->search($this->industry, $this->customQuery, $this->place, $this->radius, Auth::id());
+        // MARKER-CUSTOM-INDUSTRY: a Custom search becomes (or joins) an industry on
+        // Sales setup > Industries, so its shops land in a group everywhere.
+        $this->customChannelId = '';
+        if ($this->industry === 'custom') {
+            $phrase = trim($this->customQuery);
+            if ($phrase === '') { $this->error = 'Type what to search for.'; return; }
+            $name = trim($this->customName) !== '' ? trim($this->customName) : \Illuminate\Support\Str::ucfirst($phrase);
+            $c = \App\Models\SalesChannel::whereRaw('LOWER(name) = ?', [mb_strtolower($name)])->first()
+                ?? \App\Models\SalesChannel::where('slug', \Illuminate\Support\Str::slug($name))->first();
+            if (! $c) {
+                $c = \App\Models\SalesChannel::create(['name' => mb_substr($name, 0, 120), 'status' => 'draft',
+                    'places_query' => mb_substr($phrase, 0, 120), 'playbook' => \App\Models\SalesChannel::DEFAULT_PLAYBOOK]);
+                Notification::make()->title('New industry "' . $c->name . '" added')->body('It is on Sales setup › Industries with the search phrase "' . $phrase . '".')->success()->send();
+            } else {
+                $fix = [];
+                if (blank($c->places_query)) $fix['places_query'] = mb_substr($phrase, 0, 120);
+                if ($c->status === 'stub') $fix['status'] = 'draft';
+                if ($fix) $c->update($fix);
+            }
+            $this->customChannelId = $c->id;
+        }
+        $out = (new ShopFinder())->search($this->industry, $this->customQuery, $this->place, $this->radius, Auth::id(), $this->customChannelId ?: null);
+        if ($this->customChannelId && ! $out['error']) {
+            $c = \App\Models\SalesChannel::find($this->customChannelId);
+            // same phrase as the industry's own: just select its chip from now on
+            if ($c && mb_strtolower(trim((string) $c->places_query)) === mb_strtolower(trim($this->customQuery))) {
+                $this->industry = $c->id; $this->customQuery = ''; $this->customName = '';
+            }
+        }
         $this->error   = $out['error'];
         $this->located = $out['located'];
         $this->results = $out['results'];
@@ -242,7 +273,7 @@ class SalesFindShops extends Page
         $n = 0;
         foreach ($this->results as &$r) {
             if (! in_array($r['place_id'], $ids, true) || $r['status'] !== 'new') continue;
-            $p = $finder->add($r, $this->autoAssign, $this->place, $by, $this->industry !== 'custom' ? $this->industry : null);
+            $p = $finder->add($r, $this->autoAssign, $this->place, $by, $this->industry !== 'custom' ? $this->industry : ($this->customChannelId ?: null));
             $r['status'] = 'prospect'; $r['prospect_id'] = $p->id; $r['stage'] = $p->stage;
             $n++;
         }
@@ -255,6 +286,65 @@ class SalesFindShops extends Page
     }
 
     // ----------------------------------------------------------------
+    // ---- MARKER-TOWN-LIST: towns in a state, marked covered or not for this industry
+    public string  $townState  = 'WA';
+    public string  $townFilter = 'open';
+    public ?string $townPick   = null;
+    private ?array $townCache  = null;
+
+    public function townData(): array
+    {
+        if (! isset(\App\Services\Sales\TownCoverage::STATES[$this->townState])) $this->townState = 'WA';
+        return $this->townCache ??= \App\Services\Sales\TownCoverage::forState($this->townState, $this->industry === 'custom' ? ($this->customChannelId ?: null) : $this->industry);
+    }
+
+    public function updatedTownState(): void
+    {
+        $this->townPick = null;
+        $this->saveFindPref('state', $this->townState);
+        $this->dispatch('places-updated');
+    }
+
+    public function updatedIndustry(): void { $this->dispatch('places-updated'); }
+
+    public function pickTown(string $name): void
+    {
+        $this->townPick = $name;
+        $this->place = $name . ', ' . $this->townState;
+        $this->resetErrorBag('place');
+        $this->dispatch('places-updated');
+    }
+
+    public function nextTown(): void
+    {
+        foreach ($this->townData()['rows'] as $r) {
+            if ($r['status'] === 'open') { $this->pickTown($r['name']); return; }
+        }
+        Notification::make()->title('Every town in ' . \App\Services\Sales\TownCoverage::STATES[$this->townState] . ' is covered for this industry')->success()->send();
+    }
+
+    /** Find shops choices remembered per admin (users.admin_prefs.find). */
+    private function findPref(string $key, string $default): string
+    {
+        $u = Auth::guard('web')->user();
+        if (! $u) return $default;
+        try { $all = json_decode((string) \Illuminate\Support\Facades\DB::table('users')->where('id', $u->id)->value('admin_prefs'), true); } catch (\Throwable $e) { return $default; }
+        $v = $all['find'][$key] ?? null;
+        return is_string($v) && $v !== '' ? $v : $default;
+    }
+
+    private function saveFindPref(string $key, string $value): void
+    {
+        $u = Auth::guard('web')->user();
+        if (! $u) return;
+        try {
+            $all = json_decode((string) \Illuminate\Support\Facades\DB::table('users')->where('id', $u->id)->value('admin_prefs'), true);
+            $all = is_array($all) ? $all : [];
+            $all['find'] = array_merge(is_array($all['find'] ?? null) ? $all['find'] : [], [$key => $value]);
+            \Illuminate\Support\Facades\DB::table('users')->where('id', $u->id)->update(['admin_prefs' => json_encode($all)]);
+        } catch (\Throwable $e) { report($e); }
+    }
+
     public function updatedShopList(): void
     {
         $this->uploadPreview = null; $this->uploadResult = null; $this->uploadError = null;

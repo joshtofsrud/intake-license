@@ -143,6 +143,9 @@
     @foreach($inds as $ind)
       <button class="{{ $industryId === $ind->id ? 'on' : '' }}" wire:click="$set('industryId', '{{ $ind->id }}')">{{ $ind->name }}<span>{{ number_format($ind->prospects_count) }}</span></button>
     @endforeach
+    {{-- MARKER-CUSTOM-INDUSTRY: shops saved without an industry, so they can be found and moved (bulk Industry) --}}
+    @php $noInd = \App\Models\SalesProspect::whereNull('channel_id')->count(); @endphp
+    @if($noInd || $industryId === 'none')<button class="{{ $industryId === 'none' ? 'on' : '' }}" wire:click="$set('industryId', 'none')">No industry<span>{{ number_format($noInd) }}</span></button>@endif
   </div>
 
   <div class="sx-tally">

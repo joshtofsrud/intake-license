@@ -18,13 +18,14 @@ class ShopFinder
     /**
      * @return array{located:?string, results:array<int,array>, requests:int, cost_cents:int, error:?string}
      */
-    public function search(string $industry, string $customQuery, string $place, int $radiusMiles, ?int $userId = null): array
+    public function search(string $industry, string $customQuery, string $place, int $radiusMiles, ?int $userId = null, ?string $saveTo = null): array
     {
         $client = new PlacesClient();
         if (! $client->configured()) {
             return ['located' => null, 'results' => [], 'requests' => 0, 'cost_cents' => 0, 'error' => 'Add a Google Places key first.'];
         }
-        $channel = $industry === 'custom' ? null : SalesChannel::find($industry);
+        // a Custom search is filed under the industry it is saved as (MARKER-CUSTOM-INDUSTRY)
+        $channel = $industry === 'custom' ? ($saveTo ? SalesChannel::find($saveTo) : null) : SalesChannel::find($industry);
         $q = $industry === 'custom' ? trim($customQuery) : trim((string) $channel?->places_query);
         if ($q === '') {
             return ['located' => null, 'results' => [], 'requests' => 0, 'cost_cents' => 0,
@@ -63,6 +64,9 @@ class ShopFinder
             'found'        => count($rows),
             'new_count'    => count(array_filter($rows, fn ($r) => $r['status'] === 'new')),
             'cost_cents'   => $cost,
+            'channel_id'   => $channel?->id, // MARKER-TOWN-LIST: where it was centered, for town coverage
+            'lat'          => $loc['lat'],
+            'lng'          => $loc['lng'],
         ]);
 
         return ['located' => $loc['label'], 'results' => $rows, 'requests' => $client->requests, 'cost_cents' => $cost, 'error' => null];

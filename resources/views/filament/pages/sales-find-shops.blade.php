@@ -26,6 +26,20 @@
   .sfs-btn.p{background:rgb(139,92,246);border-color:rgb(139,92,246);color:#fff}
   .sfs-btn:disabled{opacity:.45;cursor:not-allowed}
   .leaflet-container{font:inherit}
+  /* MARKER-TOWN-LIST */
+  .sfs-seg{display:flex;gap:2px;border:1px solid rgba(127,127,127,.25);border-radius:7px;padding:2px}
+  .sfs-seg button{border:0;background:none;font-size:12px;padding:3px 8px;border-radius:5px;cursor:pointer;opacity:.65}
+  .sfs-seg button.on{background:rgba(127,127,127,.18);opacity:1}
+  .sfs-tw-list{margin:6px 0 10px;max-height:236px;overflow:auto;border:1px solid rgba(127,127,127,.18);border-radius:8px}
+  .sfs-tw{display:grid;grid-template-columns:1fr auto;gap:2px 8px;padding:7px 10px;border-top:1px solid rgba(127,127,127,.12);cursor:pointer}
+  .sfs-tw:first-child{border-top:0}
+  .sfs-tw:hover{background:rgba(127,127,127,.08)}
+  .sfs-tw.sel{background:rgba(139,92,246,.12)}
+  .sfs-tw .n{font-size:13px;font-weight:500}
+  .sfs-tw .pop{font-size:12px;opacity:.5;font-variant-numeric:tabular-nums}
+  .sfs-tw .st{font-size:11.5px;opacity:.65;grid-column:1/-1}
+  .sfs-dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:5px}
+  .sfs-dot.open{background:#84cc16}.sfs-dot.cov{background:#71717a}.sfs-dot.done{background:rgb(139,92,246)}
   .sfs-legend{border-radius:12px;padding:10px 14px;border:1px solid rgba(139,92,246,.35);background:rgba(139,92,246,.08);font-size:13px;margin-bottom:16px}
 </style>
 
@@ -149,10 +163,44 @@
         @endforeach
       </div>
       @if($industry === 'custom')
-        <input type="text" wire:model="customQuery" class="{{ $input }}" style="width:100%;margin-top:6px" placeholder='e.g. "paddle shop", "sewing machine repair"'>
+        <input type="text" wire:model="customQuery" class="{{ $input }}" style="width:100%;margin-top:6px" placeholder='Search for, e.g. "sewing machine repair"'>
+        <input type="text" wire:model="customName" class="{{ $input }}" style="width:100%;margin-top:6px" placeholder="Save as industry (blank: same as the search)">
+        <div style="font-size:12px;opacity:.65;margin-top:4px;line-height:1.45">Shops you add go into this industry. A new name is added on Sales setup › Industries with this search phrase, so it gets its own chip here and its own group in Prospects, outreach and reports. A name that already exists is used as it is.</div>
       @endif
 
       <div style="{{ $label }};margin-top:16px">Where</div>
+      {{-- MARKER-TOWN-LIST: towns in a state, marked by whether a search for this industry already covered them --}}
+      @php $td = $this->townData(); $twRows = $townFilter === 'open' ? array_values(array_filter($td['rows'], fn ($r) => $r['status'] === 'open')) : $td['rows']; @endphp
+      <div style="display:flex;gap:6px;align-items:center">
+        <select wire:model.live="townState" class="{{ $input }}" style="flex:1;min-width:0">
+          @foreach(\App\Services\Sales\TownCoverage::STATES as $stAbbr => $stName)<option value="{{ $stAbbr }}">{{ $stName }}</option>@endforeach
+        </select>
+        <button type="button" class="sfs-btn" wire:click="nextTown" title="Fill Where with the biggest town not yet covered for this industry">Next town</button>
+      </div>
+      @if($td['total'])
+        <div style="height:4px;border-radius:2px;background:rgba(127,127,127,.18);margin:8px 0 4px;overflow:hidden"><div style="height:100%;width:{{ $td['pop_pct'] }}%;background:rgb(139,92,246)"></div></div>
+        <div style="{{ $muted }}">{{ number_format($td['covered']) }} of {{ number_format($td['total']) }} towns covered · {{ $td['pop_pct'] }}% of the state's people</div>
+        <div style="display:flex;align-items:center;gap:6px;margin-top:8px">
+          <div class="sfs-seg">
+            <button type="button" class="{{ $townFilter === 'open' ? 'on' : '' }}" wire:click="$set('townFilter', 'open')">Not covered</button>
+            <button type="button" class="{{ $townFilter === 'all' ? 'on' : '' }}" wire:click="$set('townFilter', 'all')">All</button>
+          </div>
+          <span style="{{ $muted }};margin-left:auto">{{ number_format(count($twRows)) }} towns</span>
+        </div>
+        <div class="sfs-tw-list">
+          @forelse(array_slice($twRows, 0, 250) as $tw)
+            <div class="sfs-tw {{ $townPick === $tw['name'] ? 'sel' : '' }}" wire:key="tw-{{ md5($townState . $tw['name'] . $tw['lat']) }}" wire:click="pickTown(@js($tw['name']))">
+              <span class="n">{{ $tw['name'] }}</span>
+              <span class="pop">{{ $tw['pop'] >= 1000 ? round($tw['pop'] / 1000, $tw['pop'] < 10000 ? 1 : 0) . 'k' : $tw['pop'] }}</span>
+              <span class="st"><span class="sfs-dot {{ $tw['status'] }}"></span>{{ $tw['note'] }}{{ $tw['prospects'] ? ' · ' . $tw['prospects'] . ($tw['prospects'] === 1 ? ' prospect' : ' prospects') : '' }}</span>
+            </div>
+          @empty
+            <div style="padding:12px;{{ $muted }}">Every town here is covered for this industry.</div>
+          @endforelse
+          @if(count($twRows) > 250)<div style="padding:8px 10px;{{ $muted }}">Showing the biggest 250. Search those and the next ones appear.</div>@endif
+        </div>
+        <div style="{{ $muted }};margin:-4px 0 10px;line-height:1.45">Covered means inside the circle of an earlier search for this industry{{ $industry === 'custom' ? ' (Custom searches are not tracked)' : '' }}. Picking a town only fills Where; nothing is charged until Search Places. Towns over 1,000 people, from GeoNames (CC BY 4.0).</div>
+      @endif
       <input type="text" wire:model="place" wire:keydown.enter="search" class="{{ $input }}" style="width:100%" placeholder="City or address">
       @error('place')<div style="color:#f87171;font-size:12px;margin-top:4px">{{ $message }}</div>@enderror
       <div style="{{ $muted }};margin-top:10px">Radius <b>{{ $radius }}</b> mi <span style="opacity:.6">(Places caps a search at about 30)</span></div>
@@ -262,7 +310,9 @@
   <div>
     <div wire:ignore class="sfs-map" id="sfs-map"></div>
     {{-- not @json: that directive splits on commas --}}
-    <script type="application/json" id="sfs-data">{!! json_encode(['rows' => $this->results, 'selected' => $this->selected, 'located' => $this->located], JSON_HEX_TAG | JSON_HEX_AMP) !!}</script>
+    <script type="application/json" id="sfs-data">@php $tdm = $this->townData(); $tdPick = collect($tdm['rows'])->firstWhere('name', $townPick); @endphp{!! json_encode(['rows' => $this->results, 'selected' => $this->selected, 'located' => $this->located,
+      'state' => $townState, 'circles' => $tdm['circles'], 'pick' => $tdPick ? [$tdPick['lat'], $tdPick['lng']] : null,
+      'towns' => array_map(fn ($r) => [$r['name'], $r['lat'], $r['lng'], $r['status'], $r['pop']], $tdm['rows'])], JSON_HEX_TAG | JSON_HEX_AMP) !!}</script>
 
     <div style="{{ $card }};margin-top:16px;padding:0">
       <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 14px;flex-wrap:wrap;gap:8px">
@@ -326,16 +376,26 @@
 <script>
   // map is wire:ignore'd; it redraws from #sfs-data whenever the component says so.
   (function () {
-    var map = null, layer = null;
+    var map = null, layer = null, lastState = null; // MARKER-TOWN-LIST
     function draw() {
       var el = document.getElementById('sfs-map'); if (!el || !window.L) return;
       var data; try { data = JSON.parse(document.getElementById('sfs-data').textContent); } catch (e) { return; }
       if (!map) {
-        map = L.map(el, { zoomControl: true }).setView([47.66, -117.43], 9);
+        map = L.map(el, { zoomControl: true, preferCanvas: true }).setView([47.66, -117.43], 9);
          var esri = 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/'; L.tileLayer(esri + 'World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, maxNativeZoom: 16, attribution: 'Tiles &copy; Esri &mdash; Esri, HERE, Garmin, &copy; OpenStreetMap contributors' }).addTo(map); L.tileLayer(esri + 'World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, maxNativeZoom: 16 }).addTo(map);
       }
       if (layer) { layer.remove(); }
       layer = L.layerGroup().addTo(map);
+      // earlier searches for this industry as circles, towns as small dots under the results
+      (data.circles || []).forEach(function (c) { L.circle([c[0], c[1]], { radius: c[2] * 1609.34, color: 'rgb(139,92,246)', weight: 1, fillOpacity: .07, interactive: false }).addTo(layer); });
+      (data.towns || []).forEach(function (t) {
+        var col = t[3] === 'open' ? '#84cc16' : (t[3] === 'done' ? 'rgb(139,92,246)' : '#71717a');
+        var on = data.pick && data.pick[0] === t[1] && data.pick[1] === t[2];
+        var m = L.circleMarker([t[1], t[2]], { radius: t[4] > 100000 ? 5 : (t[4] > 20000 ? 4 : 2.5), weight: on ? 3 : 0, color: '#fff', fillColor: col, fillOpacity: .85 });
+        m.bindTooltip(t[0], { direction: 'top' });
+        m.on('click', function () { var c = el.closest('[wire\\:id]'); if (c && window.Livewire) { Livewire.find(c.getAttribute('wire:id')).call('pickTown', t[0]); } });
+        m.addTo(layer);
+      });
       var pts = [];
       (data.rows || []).forEach(function (r) {
         if (r.lat == null) return;
@@ -347,6 +407,9 @@
         m.addTo(layer); pts.push([r.lat, r.lng]);
       });
       if (pts.length) { map.fitBounds(pts, { padding: [24, 24], maxZoom: 13 }); }
+      else if (data.pick) { map.setView(data.pick, 9); }
+      else if (data.state !== lastState && (data.towns || []).length) { map.fitBounds(data.towns.map(function (t) { return [t[1], t[2]]; }), { padding: [16, 16] }); }
+      lastState = data.state;
     }
     document.addEventListener('DOMContentLoaded', draw);
     document.addEventListener('livewire:initialized', function () { draw(); });
