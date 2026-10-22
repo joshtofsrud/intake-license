@@ -79,8 +79,14 @@
   .mt-arrow{font-size:13px;opacity:.3}
 
   /* dashboard-only, same vocabulary */
-  .pd-head{display:flex;align-items:center;gap:14px;margin-bottom:16px;flex-wrap:wrap}
-  .pd-head .gen{font-size:12px;opacity:.5;margin-left:auto}
+  .pd-head{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+  .pd-head .st{background:none;border:0;padding:0;color:inherit;font:inherit;font-size:12.5px;cursor:pointer;white-space:nowrap}
+  .pd-head .gen{font-size:12px;opacity:.5;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .pd-rf{margin-left:auto;display:flex;align-items:center;gap:4px;flex:none}
+  .pd-sel{border:1px solid rgba(127,127,127,.3);background:transparent;color:inherit;border-radius:8px;padding:4px 6px;font:inherit;font-size:12.5px}
+  .pd-sel option{color:#111}
+  .pd-ib{width:30px;height:30px;border:1px solid rgba(127,127,127,.3);background:transparent;color:inherit;border-radius:8px;cursor:pointer;font-size:15px;line-height:1}
+  @media(max-width:640px){.pd-head .pd-up{display:none}.pd-head.show-up .pd-up{display:inline}}
   .st{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;opacity:.9}
   .st i{width:8px;height:8px;border-radius:50%;display:inline-block;background:var(--pd-ok)}
   .st.ok i{box-shadow:0 0 0 3px rgba(127,217,143,.18)} .st.warn i{background:var(--pd-warn)} .st.bad i{background:var(--pd-bad)}
@@ -114,18 +120,19 @@
 <div class="pd">
 
   {{-- page head: system state is one line, not a hero --}}
+  {{-- MARKER-DASH-COMPACT: state, time and auto-refresh on one line --}}
   <div class="pd-head">
-    <span class="st {{ $hero['state'] }}"><i></i>{{ $hero['headline'] }}</span>
-    <span class="gen">Generated {{ $generatedAt->format('H:i:s') }} UTC{{ $hero['uptime'] ? ' · uptime ' . $hero['uptime'] : '' }}</span>
-  </div>
-
-  {{-- refresh cadence, as the traffic page's pill bar --}}
-  <div class="mt-bar" id="pd-refresh">
-    <button type="button" data-secs="30">Live · 30s</button>
-    <button type="button" data-secs="60">1 min</button>
-    <button type="button" data-secs="300">5 min</button>
-    <button type="button" data-secs="0">Off</button>
-    <button type="button" style="margin-left:auto" onclick="window.location.reload()">Refresh now</button>
+    <button type="button" class="st {{ $hero['state'] }}" onclick="this.closest('.pd-head').classList.toggle('show-up')" title="Uptime {{ $hero['uptime'] }}"><i></i>{{ $hero['headline'] }}</button>
+    <span class="gen">{{ $generatedAt->copy()->timezone('America/Los_Angeles')->format('g:i a') }}<span class="pd-up">{{ $hero['uptime'] ? ' · up ' . $hero['uptime'] : '' }}</span></span>
+    <span class="pd-rf" id="pd-refresh">
+      <select class="pd-sel" data-refresh-select aria-label="Auto-refresh">
+        <option value="30">Live</option>
+        <option value="60">1 min</option>
+        <option value="300">5 min</option>
+        <option value="0">Off</option>
+      </select>
+      <button type="button" class="pd-ib" title="Refresh now" aria-label="Refresh now" onclick="window.location.reload()">&#8635;</button>
+    </span>
   </div>
 
   {{-- headline: four metrics, one charted --}}
@@ -345,23 +352,25 @@
     });
     if (btns.length) draw(btns[0].dataset.metric);
 
-    // ---- refresh cadence pills, persisted like the old select ----
+    // ---- refresh cadence: one small menu, remembered in this browser ----
     var KEY = 'pd-refresh-secs';
-    var pills = document.querySelectorAll('#pd-refresh button[data-secs]');
+    var sel = document.querySelector('[data-refresh-select]');
     var timer = null;
     function apply(secs) {
       if (timer) { clearTimeout(timer); timer = null; }
-      pills.forEach(function (p) { p.classList.toggle('on', parseInt(p.dataset.secs, 10) === secs); });
+      if (sel) { sel.value = String(secs); }
       if (secs > 0) { timer = setTimeout(function () { window.location.reload(); }, secs * 1000); }
     }
-    pills.forEach(function (p) {
-      p.addEventListener('click', function () {
-        var secs = parseInt(p.dataset.secs, 10);
-        localStorage.setItem(KEY, String(secs));
+    if (sel) {
+      sel.addEventListener('change', function () {
+        var secs = parseInt(sel.value, 10);
+        try { localStorage.setItem(KEY, String(secs)); } catch (e) {}
         apply(secs);
       });
-    });
-    apply(parseInt(localStorage.getItem(KEY) || '0', 10));
+    }
+    var saved = '0';
+    try { saved = localStorage.getItem(KEY) || '0'; } catch (e) {}
+    apply(parseInt(saved, 10));
   })();
 </script>
 @include('filament.partials.chart-hover')

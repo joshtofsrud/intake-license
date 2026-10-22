@@ -3,9 +3,12 @@
      existing blocks, wrapped; Conversions is new. Plain JS, no Livewire round
      trip, so switching tabs never refetches. --}}
 <style>
-  .mkt-tabs{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:16px;border-bottom:1px solid rgba(127,127,127,.2);padding-bottom:8px}
-  .mkt-tab{padding:6px 12px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;border:1px solid transparent;background:none;color:inherit;opacity:.6}
-  .mkt-tab.on{opacity:1;border-color:rgba(127,127,127,.3);background:rgba(127,127,127,.1)}
+  /* MARKER-TRAFFIC-COMPACT: one slim row of tabs, scrolls sideways on a phone */
+  .mkt-tabs{display:flex;gap:2px;flex-wrap:nowrap;overflow-x:auto;margin-bottom:12px;padding:3px;border-radius:9px;background:rgba(127,127,127,.12);width:max-content;max-width:100%;scrollbar-width:none}
+  .mkt-tabs::-webkit-scrollbar{display:none}
+  .mkt-tab{flex:none;padding:5px 11px;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;border:0;background:none;color:inherit;opacity:.6;white-space:nowrap}
+  .mkt-tab.on{opacity:1;background:rgba(255,255,255,.12);box-shadow:0 1px 2px rgba(0,0,0,.15)}
+  html:not(.dark) .mkt-tab.on{background:#fff}
   .mkt-panel[hidden]{display:none}
 </style>
 <div class="mkt-tabs">
@@ -50,6 +53,17 @@
 .mt-bar-label{position:relative;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .mt-bar-n{position:relative;margin-left:auto;opacity:.6;font-variant-numeric:tabular-nums}
 .mt-note{border-radius:10px;padding:11px 14px;font-size:12.5px;line-height:1.55;margin-bottom:14px}
+.mt-ctl{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.mt-sel{border:1px solid rgba(127,127,127,.3);background:transparent;color:inherit;border-radius:8px;padding:5px 8px;font:inherit;font-size:13px}
+.mt-sel option{color:#111}
+.mt-ctl .mt-compare{margin-left:0;white-space:nowrap}
+.mt-rl{font-size:12px;opacity:.45;white-space:nowrap}
+.mt-live{margin-left:auto;display:inline-flex;align-items:center;gap:6px;font-size:12px;border:1px solid rgba(127,127,127,.3);border-radius:999px;padding:3px 10px;background:none;color:inherit;cursor:pointer;white-space:nowrap}
+.mt-live i{width:7px;height:7px;border-radius:50%;background:#22c55e}
+.mt-live.warn i{background:#f0c46a}
+.mt-custom{margin:0 0 12px}
+.mt-range[hidden],.mt-note[hidden]{display:none}
+@media(max-width:640px){.mt-rl{display:none}.mt-custom{display:flex;width:100%;box-sizing:border-box}}
 .mt-note--warn{background:rgba(240,196,106,.08);border:1px solid rgba(240,196,106,.3)}
 .mt-headline{display:grid;grid-template-columns:210px 1fr;border:1px solid rgba(127,127,127,.22);border-radius:12px;overflow:hidden}
 @media(max-width:900px){.mt-headline{grid-template-columns:1fr}}
@@ -97,10 +111,42 @@
 .mt-empty{padding:18px;text-align:center;font-size:12.5px;opacity:.4}
 </style>
 
-{{-- LEGEND. Two different things produce a page of zeroes:
-     a quiet week, and a tracker that has stopped reporting. Those looked
-     identical here for weeks. This says which. --}}
-<div class="mt-note {{ $health['stale'] ? 'mt-note--warn' : '' }}" style="margin-bottom:14px">
+{{-- MARKER-TRAFFIC-COMPACT: range, compare and tracking state on one row.
+     The tracking explanation opens from the chip; when tracking has stopped it
+     stays open, because then every browser-sent number below is wrong. --}}
+@php
+  $mtCustom = $from || $to;
+  $mtAgo = str_replace([' seconds', ' second', ' minutes', ' minute', ' hours', ' hour', ' days', ' day', ' weeks', ' week', ' ago'], ['s', 's', 'm', 'm', 'h', 'h', 'd', 'd', 'w', 'w', ''], (string) ($health['ago'] ?? ''));
+@endphp
+<div class="mt-ctl">
+  <select class="mt-sel" aria-label="Date range"
+          onchange="if (this.value === 'custom') { document.getElementById('mt-custom').hidden = false; } else { window.location.search = '?window=' + this.value; }">
+    @foreach(['1d' => 'Today', '7d' => 'Last 7 days', '30d' => 'Last 30 days', '90d' => 'Last 90 days'] as $wKey => $wLabel)
+      <option value="{{ $wKey }}" @selected(! $mtCustom && $window === $wKey)>{{ $wLabel }}</option>
+    @endforeach
+    <option value="custom" @selected($mtCustom)>Custom range…</option>
+  </select>
+  <label class="mt-compare">
+    <input type="checkbox" wire:model.live="compare" @checked($compare)>
+    <span>Compare</span>
+  </label>
+  <span class="mt-rl">{{ $rangeLabel }}</span>
+  <button type="button" class="mt-live {{ $health['stale'] ? 'warn' : '' }}" onclick="var n = document.getElementById('mt-track-note'); n.hidden = ! n.hidden;">
+    <i></i>{{ $health['stale'] ? 'Not tracking' : 'Live · ' . $mtAgo }}
+  </button>
+</div>
+
+<form method="GET" class="mt-range mt-custom" id="mt-custom" @if(! $mtCustom) hidden @endif>
+  <input type="hidden" name="window" value="{{ $window }}">
+  <input type="date" name="from" value="{{ $from ?? '' }}" onchange="this.form.submit()" aria-label="From">
+  <span>→</span>
+  <input type="date" name="to" value="{{ $to ?? '' }}" onchange="this.form.submit()" aria-label="To">
+  @if($mtCustom)
+    <a href="{{ url()->current() }}?window={{ $window }}" class="mt-clear" title="Back to the preset">clear</a>
+  @endif
+</form>
+
+<div class="mt-note {{ $health['stale'] ? 'mt-note--warn' : '' }}" id="mt-track-note" @if(! $health['stale']) hidden @endif>
   @if($health['stale'])
     <b>No page view has been recorded {{ $health['ago'] ? 'since ' . $health['ago'] : 'at all' }}.</b>
     Visit intake.works in a private window and reload this page — if nothing appears, the tracker
@@ -115,30 +161,6 @@
     demo entries, booked calls, accounts created.
     Crawler traffic is excluded everywhere on this page.
   </div>
-</div>
-
-<div class="mt-bar">
-  @foreach(['1d' => 'Today', '7d' => 'Last 7 days', '30d' => 'Last 30 days', '90d' => 'Last 90 days'] as $wKey => $wLabel)
-    <a href="?window={{ $wKey }}" class="{{ $window === $wKey ? 'on' : '' }}">{{ $wLabel }}</a>
-  @endforeach
-  {{-- a real range. TrafficReportService always accepted
-       from/to; only the page never offered it. --}}
-  <form method="GET" class="mt-range">
-    <input type="hidden" name="window" value="{{ $window }}">
-    <input type="date" name="from" value="{{ $from ?? '' }}" onchange="this.form.submit()">
-    <span>→</span>
-    <input type="date" name="to" value="{{ $to ?? '' }}" onchange="this.form.submit()">
-    @if($from || $to)
-      <a href="{{ url()->current() }}?window={{ $window }}" class="mt-clear" title="Back to the preset">clear</a>
-    @endif
-  </form>
-
-  <label class="mt-compare">
-    <input type="checkbox" wire:model.live="compare" @checked($compare)>
-    <span>Compare to previous</span>
-  </label>
-
-  <span style="margin-left:auto;font-size:12px;opacity:.45;align-self:center">{{ $rangeLabel }}</span>
 </div>
 
 {{-- Overview carries the tiles, the funnel and the
