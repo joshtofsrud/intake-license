@@ -1054,6 +1054,8 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             Route::post('/classes/registrations/{id}/checkin',  [TenantControllers\ClassController::class, 'checkIn'])->name('classes.registrations.checkin');
             Route::get('/classes/checkin',                      [TenantControllers\ClassController::class, 'checkinScreen'])->name('classes.checkin'); // MARKER-CLASSES-P9
             Route::get('/classes/mine',                         [TenantControllers\ClassController::class, 'mine'])->name('classes.mine'); // MARKER-CLASSES-P10
+            Route::get('/classes/import',                       [TenantControllers\ClassController::class, 'import'])->name('classes.import'); // MARKER-CLASSES-P12
+            Route::post('/classes/import',                      [TenantControllers\ClassController::class, 'importUpload'])->name('classes.import.upload');
             Route::post('/classes/mine/claim',                  [TenantControllers\ClassController::class, 'mineClaim'])->name('classes.mine.claim');
             Route::post('/classes/mine/release',                [TenantControllers\ClassController::class, 'mineRelease'])->name('classes.mine.release');
             Route::get('/classes/self-check-in/open',           [TenantControllers\ClassController::class, 'kioskOpen'])->name('classes.kiosk.open');

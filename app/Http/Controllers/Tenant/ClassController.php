@@ -825,6 +825,25 @@ class ClassController extends Controller
         return back()->with('success', 'New self check-in link made. Open it again on your tablet; the old link no longer works.');
     }
 
+    // ------------------------------------------------------------------
+    // Import from another system (MARKER-CLASSES-P12)
+    // ------------------------------------------------------------------
+
+    public function import()
+    {
+        return view('tenant.classes.import', ['received' => \App\Services\ClassImport::received(tenant())]);
+    }
+
+    public function importUpload(Request $request)
+    {
+        $d = $request->validate([
+            'source' => ['required', \Illuminate\Validation\Rule::in(array_keys(\App\Services\ClassImport::SOURCES))],
+            'export' => ['required', 'file', 'max:20480', 'mimes:csv,txt,xlsx,xls,zip'],
+        ]);
+        \App\Services\ClassImport::receive(tenant(), $request->file('export'), $d['source'], auth('tenant')->id());
+        return back()->with('success', 'Export received. Nothing has been imported yet.');
+    }
+
     /** Classes › Settings: every class rule and message switch (MARKER-CLASSES-P8). */
     public function settings()
     {

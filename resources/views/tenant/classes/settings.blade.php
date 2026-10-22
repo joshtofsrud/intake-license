@@ -153,6 +153,11 @@
     </div>
   </section>
 
+  <section class="cs-sec">{{-- MARKER-CLASSES-P12 --}}
+    <div><h2>Moving from another system?</h2><p class="cs-help">Customers, passes and memberships.</p></div>
+    <div><a href="{{ route('tenant.classes.import') }}" class="ia-btn ia-btn--secondary ia-btn--sm">Import</a></div>
+  </section>
+
   <div class="cs-save">
     <button type="submit" class="ia-btn ia-btn--primary">Save settings</button>
     <span class="cs-legend">Rules apply to every booking and cancel from now on, including classes already booked. Staff are never held to them.</span>
