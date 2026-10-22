@@ -145,11 +145,32 @@ class SalesEmailOutreach extends Page
         // skipped ones go to the back, oldest skip first
         $q = $this->filtered()->orderByRaw('email_skipped_at IS NOT NULL')->orderBy('email_skipped_at');
         if ($this->sort === 'emailed') return $q->orderByRaw('emailed_at IS NOT NULL')->orderBy('emailed_at')->orderByDesc('lead_score');
-        return $this->sort === 'new' ? $q->orderByDesc('created_at') : $q->orderByDesc('lead_score')->orderBy('shop');
+        // MARKER-OUTREACH-FAST: ties break on id (in the index) instead of shop name (not in it)
+        return $this->sort === 'new' ? $q->orderByDesc('created_at')->orderBy('id') : $q->orderByDesc('lead_score')->orderBy('id');
+    }
+
+    /**
+     * The next 26 ids in queue order, read from the index alone and fetched once per click:
+     * the first is the shop on screen, the rest are the queue list.
+     */
+    private ?array $topIds = null;
+    private function topIds(bool $fresh = false): array
+    {
+        if ($fresh || $this->topIds === null) {
+            $this->topIds = $this->ordered()->limit(26)->pluck('id')->map(fn ($id) => (string) $id)->all();
+        }
+        return $this->topIds;
+    }
+
+    /** Cached for a minute: they hardly move between sends, and each is a pass over every shop. */
+    private function cached(string $what, \Closure $fn)
+    {
+        return \Illuminate\Support\Facades\Cache::remember('outreach:' . $what . ':' . md5(json_encode([$this->who, $this->industryId, $this->state, $this->stage])), 60, $fn);
     }
 
     public function industries(): array
     {
+        return $this->cached('industries', function () {
         // every industry with an emailable shop keeps its tab, even at 0 for this filter
         $counts = $this->base()->selectRaw('channel_id, COUNT(*) n')->groupBy('channel_id')->pluck('n', 'channel_id');
         $any = SalesProspect::query()->whereNotNull('email')->where('email', 'like', '%@%')->whereNotIn('stage', ['won', 'lost'])
@@ -157,11 +178,12 @@ class SalesEmailOutreach extends Page
         return \App\Models\SalesChannel::query()->whereIn('id', $any)->orderBy('name')->get(['id', 'name'])
             ->map(fn ($c) => ['id' => (string) $c->id, 'name' => $c->name, 'n' => (int) ($counts[$c->id] ?? 0)])
             ->sortByDesc('n')->values()->all();
+        });
     }
 
     public function states(): array
     {
-        return $this->base()->whereNotNull('state')->distinct()->orderBy('state')->pluck('state')->all();
+        return $this->cached('states', fn () => $this->base()->whereNotNull('state')->distinct()->orderBy('state')->pluck('state')->all());
     }
 
     /** MARKER-OUTREACH-TALLY-GROUP: the tally follows the industry tab that's open. */
@@ -182,7 +204,10 @@ class SalesEmailOutreach extends Page
 
     public function queue()
     {
-        return $this->ordered()->where('id', '!=', (string) $this->currentId)->limit(25)->get(['id', 'shop', 'city', 'state', 'email', 'lead_score', 'email_skipped_at', 'emailed_at']);
+        $ids = array_slice(array_values(array_diff($this->topIds(), [(string) $this->currentId])), 0, 25);
+        if (! $ids) return collect();
+        $rows = SalesProspect::query()->whereIn('id', $ids)->get(['id', 'shop', 'city', 'state', 'email', 'lead_score', 'email_skipped_at', 'emailed_at'])->keyBy('id');
+        return collect($ids)->map(fn ($id) => $rows[$id] ?? null)->filter()->values();
     }
 
     public function sentToday()
@@ -201,8 +226,7 @@ class SalesEmailOutreach extends Page
 
     private function loadNext(): void
     {
-        $next = $this->ordered()->first(['id']);
-        $id = $next?->id ? (string) $next->id : null;
+        $id = $this->topIds(true)[0] ?? null;
         if ($id !== $this->currentId) {
             $this->currentId = $id;
             $this->applyTemplate();
