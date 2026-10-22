@@ -390,15 +390,49 @@ class SalesFindShops extends Page
         if ($this->uploadPreview['error']) Notification::make()->title($this->uploadPreview['error'])->danger()->send();
     }
 
+    // MARKER-FAST-IMPORT: a big list loads 1,000 rows per request; the page asks for the
+    // next chunk until it is done, showing progress, so nothing hits the server's time limit.
+    public ?array $importRun = null;
+    public const IMPORT_CHUNK = 1000;
+
     public function importUpload(): void
     {
         $this->validate(['shopList' => ['required', 'file', 'max:51200']]);
         if ($this->mapProblem()) { Notification::make()->title($this->mapProblem())->warning()->send(); return; }
-        $r = (new \App\Services\Sales\ShopListImporter())->import($this->shopList->getRealPath(), null, $this->uploadAssign, false, null, $this->columnMap, $this->uploadIndustry ?: null);
+        if ($this->importRun) return;
+        $batch = 'list-' . now()->format('Ymd-Hi');
+        $dir = storage_path('app/shop-imports');
+        if (! is_dir($dir)) @mkdir($dir, 0775, true);
+        $path = $dir . '/' . $batch . '-' . \Illuminate\Support\Str::random(6) . '.csv';
+        if (! @copy($this->shopList->getRealPath(), $path)) { Notification::make()->title('Could not keep the file for loading. Try again.')->danger()->send(); return; }
         try { $this->shopList->delete(); } catch (\Throwable $e) {}
-        $this->shopList = null; $this->uploadPreview = null; $this->uploadResult = $r; $this->uploadHeaders = []; $this->uploadSample = []; $this->columnMap = [];
-        if ($r['error']) { Notification::make()->title($r['error'])->danger()->send(); return; }
-        Notification::make()->title($r['inserted'] . ' shops loaded')->body("Batch {$r['batch']} · {$r['matched']} already present · {$r['assigned']} assigned to a territory")->success()->send();
+        $this->importRun = [
+            'path' => $path, 'pos' => 0, 'size' => max(1, (int) filesize($path)), 'batch' => $batch,
+            'map' => $this->columnMap, 'assign' => $this->uploadAssign, 'channel' => $this->uploadIndustry ?: null,
+            'inserted' => 0, 'matched' => 0, 'blank' => 0, 'total' => 0, 'assigned' => 0, 'with_coords' => 0,
+            'expect' => (int) ($this->uploadPreview['total'] ?? 0),
+        ];
+        $this->shopList = null; $this->uploadResult = null; $this->uploadHeaders = []; $this->uploadSample = [];
+        $this->importStep();
+    }
+
+    public function importStep(): void
+    {
+        $run = $this->importRun;
+        if (! $run) return;
+        if (! is_file($run['path'])) { $this->importRun = null; Notification::make()->title('The list file went missing part way. The shops loaded so far are kept.')->danger()->send(); return; }
+        $r = (new \App\Services\Sales\ShopListImporter())->import($run['path'], $run['batch'], $run['assign'], false, null, $run['map'], $run['channel'], (int) $run['pos'], self::IMPORT_CHUNK);
+        if ($r['error']) { @unlink($run['path']); $this->importRun = null; Notification::make()->title($r['error'])->danger()->send(); return; }
+        foreach (['inserted', 'matched', 'blank', 'total', 'assigned', 'with_coords'] as $k) $run[$k] += $r[$k];
+        $run['pos'] = $r['pos'];
+        if (! $r['done']) { $this->importRun = $run; return; }
+
+        @unlink($run['path']);
+        $this->importRun = null;
+        $this->uploadPreview = null; $this->columnMap = [];
+        $this->uploadResult = ['inserted' => $run['inserted'], 'matched' => $run['matched'], 'blank' => $run['blank'], 'total' => $run['total'],
+            'assigned' => $run['assigned'], 'with_coords' => $run['with_coords'], 'batch' => $run['batch'], 'error' => null];
+        Notification::make()->title($run['inserted'] . ' shops loaded')->body("Batch {$run['batch']} · {$run['matched']} already present · {$run['assigned']} assigned to a territory")->success()->send();
     }
 
     public function undoBatch(string $batch): void

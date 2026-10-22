@@ -264,10 +264,19 @@
       <label style="display:flex;gap:8px;font-size:13px;align-items:center;margin-top:8px"><input type="checkbox" wire:model="uploadAssign" class="rounded"> Assign to territory reps on load</label>
       <div style="display:flex;gap:8px;margin-top:10px">
         <button class="sfs-btn" wire:click="previewUpload" wire:loading.attr="disabled" @disabled(! $uploadHeaders || $this->mapProblem())><span wire:loading.remove wire:target="previewUpload">Preview</span><span wire:loading wire:target="previewUpload">Reading…</span></button>
-        @if($uploadPreview && ! $uploadPreview['error'])
-          <button class="sfs-btn p" wire:click="importUpload" wire:loading.attr="disabled"><span wire:loading.remove wire:target="importUpload">Load {{ number_format($uploadPreview['inserted']) }} shops</span><span wire:loading wire:target="importUpload">Loading… this can take a minute</span></button>
+        @if($uploadPreview && ! $uploadPreview['error'] && ! $importRun)
+          <button class="sfs-btn p" wire:click="importUpload" wire:loading.attr="disabled"><span wire:loading.remove wire:target="importUpload">Load {{ number_format($uploadPreview['inserted']) }} shops</span><span wire:loading wire:target="importUpload">Starting…</span></button>
         @endif
       </div>
+      {{-- MARKER-FAST-IMPORT: loads in chunks of 1,000; this line asks for the next chunk until done --}}
+      @if($importRun)
+        @php $irPct = min(99, (int) floor($importRun['pos'] * 100 / $importRun['size'])); @endphp
+        <div wire:poll.500ms="importStep" style="margin-top:10px">
+          <div style="font-size:13px">Loading… <b>{{ number_format($importRun['total']) }}</b>{{ $importRun['expect'] ? ' of ' . number_format($importRun['expect']) : '' }} rows read · {{ number_format($importRun['inserted']) }} new · {{ number_format($importRun['matched']) }} already present</div>
+          <div style="height:4px;border-radius:2px;background:rgba(127,127,127,.18);margin-top:6px;overflow:hidden"><div style="height:100%;width:{{ $irPct }}%;background:rgb(139,92,246)"></div></div>
+          <div style="{{ $muted }};margin-top:4px">Keep this page open until it finishes. If you leave, the shops loaded so far stay, under batch <code>{{ $importRun['batch'] }}</code>.</div>
+        </div>
+      @endif
       @if($uploadPreview && ! $uploadPreview['error'])
         <div style="font-size:13px;margin-top:10px"><b>{{ number_format($uploadPreview['inserted']) }} new</b> · {{ number_format($uploadPreview['matched']) }} already present · {{ number_format($uploadPreview['blank']) }} skipped (no name or state) · {{ number_format($uploadPreview['with_coords']) }} with coordinates · {{ number_format($uploadPreview['total']) }} rows read</div>
         @if($uploadPreview['with_coords'] === 0)<div style="{{ $muted }};margin-top:4px;color:#fbbf24">No coordinates in this file — these shops won't appear on maps until a Pull details. Re-export with latitude/longitude if you can.</div>@endif

@@ -71,11 +71,16 @@ class ShopListImporter
      * @param  array<string,string>|null $map  field => header (from guessMap or the mapping screen)
      * @return array{inserted:int, matched:int, blank:int, total:int, assigned:int, with_coords:int, batch:string, error:?string}
      */
-    public function import(string $path, ?string $batch = null, bool $assign = true, bool $dry = false, ?callable $progress = null, ?array $map = null, ?string $channelId = null): array
+    /**
+     * MARKER-FAST-IMPORT: $startAt / $maxRows let a big file load in chunks (the page
+     * calls back for the next chunk, so no single request runs into the server's
+     * time limit). The result then also carries 'pos' (where to carry on) and 'done'.
+     */
+    public function import(string $path, ?string $batch = null, bool $assign = true, bool $dry = false, ?callable $progress = null, ?array $map = null, ?string $channelId = null, int $startAt = 0, int $maxRows = 0): array
     {
         $channel = $channelId ? \App\Models\SalesChannel::find($channelId) : null;
         $batch ??= 'list-' . now()->format('Ymd-Hi');
-        $out = ['inserted' => 0, 'matched' => 0, 'blank' => 0, 'total' => 0, 'assigned' => 0, 'with_coords' => 0, 'batch' => $batch, 'error' => null];
+        $out = ['inserted' => 0, 'matched' => 0, 'blank' => 0, 'total' => 0, 'assigned' => 0, 'with_coords' => 0, 'batch' => $batch, 'error' => null, 'pos' => 0, 'done' => true];
 
         $fh = is_file($path) ? fopen($path, 'r') : false;
         if (! $fh) { $out['error'] = 'File not found or unreadable.'; return $out; }
@@ -92,7 +97,19 @@ class ShopListImporter
         };
 
         @set_time_limit(900);
-        while (($row = fgetcsv($fh)) !== false) {
+        if ($startAt > 0) fseek($fh, $startAt);
+
+        // every shop already known, read once (it used to be one unindexed lookup per row,
+        // which is what timed out on a 10,000-row file); rows repeated inside the file count too
+        $key = fn ($shop, $city, $addr) => Str::lower(trim((string) $shop)) . '|' . Str::lower(trim((string) $city)) . '|' . Str::lower(trim((string) $addr));
+        $known = [];
+        foreach (DB::table('sales_prospects')->select(['shop', 'city', 'address'])->cursor() as $k) $known[$key($k->shop, $k->city, $k->address)] = true;
+
+        $out['done'] = false;
+        while (true) {
+            if ($maxRows > 0 && $out['total'] >= $maxRows) break;
+            $row = fgetcsv($fh);
+            if ($row === false) { $out['done'] = true; break; }
             $out['total']++;
             $shop  = $col($row, 'shop');
             $city  = $col($row, 'city');
@@ -100,12 +117,9 @@ class ShopListImporter
             $state = self::stateCode($col($row, 'state'));
             if ($shop === '' || $state === '') { $out['blank']++; continue; }
 
-            $exists = SalesProspect::query()
-                ->whereRaw('LOWER(shop) = ?', [Str::lower($shop)])
-                ->whereRaw('LOWER(COALESCE(city, "")) = ?', [Str::lower($city)])
-                ->whereRaw('LOWER(COALESCE(address, "")) = ?', [Str::lower($addr)])
-                ->exists();
-            if ($exists) { $out['matched']++; continue; }
+            $k = $key($shop, $city, $addr);
+            if (isset($known[$k])) { $out['matched']++; continue; }
+            $known[$k] = true;
 
             $lat = $col($row, 'lat'); $lng = $col($row, 'lng');
             $hasCoords = is_numeric($lat) && is_numeric($lng);
@@ -119,7 +133,6 @@ class ShopListImporter
             if ($dry) continue;
 
             $p = SalesProspect::create([
-                'id'            => (string) Str::uuid(),
                 'shop'          => mb_substr($shop, 0, 191),
                 'city'          => $city ?: null,
                 'state'         => $state,
@@ -145,6 +158,7 @@ class ShopListImporter
             if ($assign && TerritoryResolver::apply($p)) $out['assigned']++;
             if ($progress && $out['total'] % 500 === 0) $progress($out['total']);
         }
+        $out['pos'] = (int) ftell($fh);
         fclose($fh);
         return $out;
     }
