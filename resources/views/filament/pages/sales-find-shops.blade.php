@@ -310,7 +310,9 @@
   <div>
     <div wire:ignore class="sfs-map" id="sfs-map"></div>
     {{-- not @json: that directive splits on commas --}}
-    <script type="application/json" id="sfs-data">@php $tdm = $this->townData(); $tdPick = collect($tdm['rows'])->firstWhere('name', $townPick); @endphp{!! json_encode(['rows' => $this->results, 'selected' => $this->selected, 'located' => $this->located,
+    {{-- MARKER-MAP-FIX: this setup line must stay on its own line, apart from the data line below --}}
+    @php $tdm = $this->townData(); $tdPick = collect($tdm['rows'])->firstWhere('name', $townPick); @endphp
+    <script type="application/json" id="sfs-data">{!! json_encode(['rows' => $this->results, 'selected' => $this->selected, 'located' => $this->located,
       'state' => $townState, 'circles' => $tdm['circles'], 'pick' => $tdPick ? [$tdPick['lat'], $tdPick['lng']] : null,
       'towns' => array_map(fn ($r) => [$r['name'], $r['lat'], $r['lng'], $r['status'], $r['pop']], $tdm['rows'])], JSON_HEX_TAG | JSON_HEX_AMP) !!}</script>
 
