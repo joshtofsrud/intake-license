@@ -48,3 +48,15 @@ html:not(.dark) .sx-root .sx-t .sx-em { color: #7c3aed; }
   .mt-range input { width: auto; flex: 1; min-width: 0; }
   .mt-compare { margin-left: 0; }
 }
+
+/* ---- MARKER-ONE-CHEVRON: every dropdown on the Sales, Dashboard and
+   Marketing traffic pages draws exactly one chevron, with room for it, so
+   the browser's arrow and the theme's arrow can't both show or sit on the
+   text. ------------------------------------------------------------------ */
+select.sx-in, .sx-root select, select.mt-sel, select.pd-sel, .spb-dr select {
+  -webkit-appearance: none; -moz-appearance: none; appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='%238a8a93' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 8l4 4 4-4'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 8px center; background-size: 16px 16px;
+  padding-right: 30px; text-overflow: ellipsis; white-space: nowrap; overflow: hidden;
+}
+select.sx-in::-ms-expand, select.mt-sel::-ms-expand, select.pd-sel::-ms-expand { display: none; }
