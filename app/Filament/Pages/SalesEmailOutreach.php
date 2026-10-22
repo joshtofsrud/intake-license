@@ -34,6 +34,7 @@ class SalesEmailOutreach extends Page
     public string $state = '';
     public string $stage = '';
     public string $sort = 'score';
+    public string $who = 'new'; // MARKER-OUTREACH-RECONTACT: new | again | all
 
     public string $templateId = '';
     public string $landing = '/';
@@ -63,7 +64,7 @@ class SalesEmailOutreach extends Page
         abort_unless(static::canAccess(), 403);
         if (request()->query('tab') === 'results') $this->tab = 'results';
         $prefs = ProspectOutreach::prefs();
-        foreach (['industryId', 'state', 'stage', 'sort', 'templateId'] as $k) {
+        foreach (['industryId', 'state', 'stage', 'sort', 'templateId', 'who'] as $k) {
             if (isset($prefs[$k]) && is_string($prefs[$k])) $this->{$k} = $prefs[$k];
         }
         if (isset($prefs['page']) && is_string($prefs['page'])) $this->landing = $prefs['page'];
@@ -79,7 +80,7 @@ class SalesEmailOutreach extends Page
 
     public function updated($name): void
     {
-        if (in_array($name, ['industryId', 'state', 'stage', 'sort'], true)) {
+        if (in_array($name, ['industryId', 'state', 'stage', 'sort', 'who'], true)) {
             ProspectOutreach::savePrefs([$name => $this->{$name}]);
             $this->loadNext();
         } elseif ($name === 'templateId') {
@@ -121,7 +122,12 @@ class SalesEmailOutreach extends Page
     {
         return SalesProspect::query()
             ->whereNotNull('email')->where('email', 'like', '%@%')
-            ->whereNull('emailed_at')
+            // MARKER-OUTREACH-RECONTACT: shops already emailed can be emailed
+            // again; anyone emailed today stays out so a send doesn't come
+            // straight back as the next shop.
+            ->when($this->who === 'new', fn ($q) => $q->whereNull('emailed_at'))
+            ->when($this->who === 'again', fn ($q) => $q->whereNotNull('emailed_at')->where('emailed_at', '<', self::dayStart()))
+            ->when($this->who === 'all', fn ($q) => $q->where(fn ($w) => $w->whereNull('emailed_at')->orWhere('emailed_at', '<', self::dayStart())))
             ->whereNotIn('stage', ['won', 'lost'])
             ->whereRaw('LOWER(email) NOT IN (SELECT email FROM platform_email_optouts)');
     }
@@ -138,6 +144,7 @@ class SalesEmailOutreach extends Page
     {
         // skipped ones go to the back, oldest skip first
         $q = $this->filtered()->orderByRaw('email_skipped_at IS NOT NULL')->orderBy('email_skipped_at');
+        if ($this->sort === 'emailed') return $q->orderByRaw('emailed_at IS NOT NULL')->orderBy('emailed_at')->orderByDesc('lead_score');
         return $this->sort === 'new' ? $q->orderByDesc('created_at') : $q->orderByDesc('lead_score')->orderBy('shop');
     }
 
@@ -172,7 +179,7 @@ class SalesEmailOutreach extends Page
 
     public function queue()
     {
-        return $this->ordered()->where('id', '!=', (string) $this->currentId)->limit(25)->get(['id', 'shop', 'city', 'state', 'email', 'lead_score', 'email_skipped_at']);
+        return $this->ordered()->where('id', '!=', (string) $this->currentId)->limit(25)->get(['id', 'shop', 'city', 'state', 'email', 'lead_score', 'email_skipped_at', 'emailed_at']);
     }
 
     public function sentToday()

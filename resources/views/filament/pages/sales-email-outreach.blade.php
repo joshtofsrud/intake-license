@@ -122,21 +122,28 @@
         </select>
         <select class="sx-in" wire:model.live="sort">
             <option value="score">Highest lead score first</option>
+            <option value="emailed">Longest since emailed</option>
             <option value="new">Newest first</option>
         </select>
-        <span class="sx-count">Shops with an email address that haven't been emailed</span>
+        {{-- MARKER-OUTREACH-RECONTACT --}}
+        <select class="sx-in" wire:model.live="who">
+            <option value="new">Not emailed yet</option>
+            <option value="again">Emailed before</option>
+            <option value="all">Everyone</option>
+        </select>
+        <span class="sx-count">{{ ['new' => "Shops with an email address that haven't been emailed", 'again' => 'Shops you emailed before today, to email again', 'all' => 'Every shop with an email address, except those emailed today'][$who] ?? '' }}</span>
     </div>
 
     <div class="eo-cols">
         <section>
             @if (! $cur)
                 <div class="ig-k">Queue empty</div>
-                <div class="ig-sub">Every prospect here with an email address has been emailed. Change the filters above, or add email addresses on Prospects.</div>
+                <div class="ig-sub">{{ $who === 'new' ? 'Every prospect here with an email address has been emailed. Switch "Not emailed yet" to "Emailed before" to email them again, change the filters, or add email addresses on Prospects.' : 'Nobody matches these filters. Shops emailed today wait until tomorrow.' }}</div>
             @else
                 <div wire:key="cur-{{ $cur->id }}">
                     <div class="ig-k">Next up</div>
                     <div class="ig-name">{{ $cur->shop }}</div>
-                    <div class="ig-sub">{{ trim($cur->city . ', ' . $cur->state, ', ') }}{{ $cur->owner_contact ? ' · ' . $cur->owner_contact : '' }} · {{ $cur->email }} · lead score {{ $cur->lead_score }} · {{ \App\Models\SalesProspect::STAGES[$cur->stage] ?? $cur->stage }}{{ $cur->email_skipped_at ? ' · skipped before' : '' }}</div>
+                    <div class="ig-sub">{{ trim($cur->city . ', ' . $cur->state, ', ') }}{{ $cur->owner_contact ? ' · ' . $cur->owner_contact : '' }} · {{ $cur->email }} · lead score {{ $cur->lead_score }} · {{ \App\Models\SalesProspect::STAGES[$cur->stage] ?? $cur->stage }}{{ $cur->email_skipped_at ? ' · skipped before' : '' }}{{ $cur->emailed_at ? ' · last emailed ' . $cur->emailed_at->diffForHumans() : '' }}</div>
                 </div>
 
                 <div class="eo-two">
@@ -208,7 +215,7 @@
                 <tbody>
                 @forelse ($q as $p)
                     <tr wire:key="q-{{ $p->id }}">
-                        <td>{{ $p->shop }}<div class="sx-sub">{{ trim($p->city . ', ' . $p->state, ', ') }} · {{ $p->email }}{{ $p->email_skipped_at ? ' · skipped' : '' }}</div></td>
+                        <td>{{ $p->shop }}<div class="sx-sub">{{ trim($p->city . ', ' . $p->state, ', ') }} · {{ $p->email }}{{ $p->email_skipped_at ? ' · skipped' : '' }}{{ $p->emailed_at ? ' · emailed ' . $p->emailed_at->diffForHumans() : '' }}</div></td>
                         <td style="text-align:right">{{ $p->lead_score }}</td>
                     </tr>
                 @empty

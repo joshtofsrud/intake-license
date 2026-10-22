@@ -1,0 +1,50 @@
+/* MARKER-ADMIN-FIXES-CSS: loaded after mobile.css on every master admin page. */
+
+/* ---- Sales pages (.sx-root: Prospects, Instagram follows, Email outreach,
+   Email templates) were written for dark mode only: white text on a white
+   page in light mode. ---------------------------------------------------- */
+html:not(.dark) .sx-root {
+  --sx-line: rgba(0,0,0,.08); --sx-line-2: rgba(0,0,0,.16);
+  --sx-dim: #52525b; --sx-faint: #71717a;
+  --sx-vsoft: rgba(139,92,246,.12); --sx-lime: #4d7c0f;
+  color: #18181b;
+}
+html:not(.dark) .sx-root .sx-inds button.on,
+html:not(.dark) .sx-root .sx-tally b,
+html:not(.dark) .sx-root .sx-lede b,
+html:not(.dark) .sx-root .or-fs b,
+html:not(.dark) .sx-root .et-item.on .nm,
+html:not(.dark) .sx-root .et-item:hover .nm,
+html:not(.dark) .sx-root .et-help b,
+html:not(.dark) .sx-root .sx-hidden b,
+html:not(.dark) .sx-root .sx-seg button.on,
+html:not(.dark) .sx-root .sx-t th.sx-sort:hover,
+html:not(.dark) .sx-root .sx-t th.sx-sort.on,
+html:not(.dark) .sx-root .eo-chip:hover { color: #18181b; }
+html:not(.dark) .sx-root .sx-tally .lime,
+html:not(.dark) .sx-root .or-fs .lime,
+html:not(.dark) .sx-root .eo-yes { color: #4d7c0f; }
+html:not(.dark) .sx-root .sx-in { background-color: #fff; color: #18181b; }
+html:not(.dark) .sx-root .sx-in option,
+html:not(.dark) .sx-root .sx-in optgroup { background: #fff; color: #18181b; }
+html:not(.dark) .sx-root .sx-btn { color: #18181b; }
+html:not(.dark) .sx-root .sx-btn.p { color: #fff; }
+html:not(.dark) .sx-root .or-pills button { background: rgba(0,0,0,.05); }
+html:not(.dark) .sx-root .or-wk i.v { background: #84cc16; }
+html:not(.dark) .sx-root .or-tag.hot { border-color: #65a30d; color: #4d7c0f; }
+html:not(.dark) .sx-root .sx-t a.sx-ico:hover { color: #18181b; background: rgba(0,0,0,.06); }
+html:not(.dark) .sx-root .eo-lbl a,
+html:not(.dark) .sx-root .eo-link code,
+html:not(.dark) .sx-root .sx-lede a,
+html:not(.dark) .sx-root .sx-t .h,
+html:not(.dark) .sx-root .sx-t .sx-em { color: #7c3aed; }
+
+/* ---- Marketing traffic: the date presets wrapped into circles on a phone
+   and the custom range ran off the edge. -------------------------------- */
+@media (max-width: 640px) {
+  .mt-bar { flex-wrap: wrap; row-gap: 8px; }
+  .mt-bar a { white-space: nowrap; height: auto; padding: 7px 12px; }
+  .mt-range { width: 100%; margin-left: 0; box-sizing: border-box; padding: 6px 12px; }
+  .mt-range input { width: auto; flex: 1; min-width: 0; }
+  .mt-compare { margin-left: 0; }
+}

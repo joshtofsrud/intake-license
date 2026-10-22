@@ -218,6 +218,14 @@ class AdminPanelProvider extends PanelProvider
                     . (file_exists(public_path('css/admin/mobile.css')) ? filemtime(public_path('css/admin/mobile.css')) : '1')
                     . '">'
             )
+            // MARKER-ADMIN-FIXES-CSS: light-mode Sales pages, phone date bar
+            ->renderHook(
+                PanelsRenderHook::BODY_END,
+                fn (): string => '<link rel="stylesheet" href="'
+                    . asset('css/admin/fixes.css') . '?v='
+                    . (file_exists(public_path('css/admin/fixes.css')) ? filemtime(public_path('css/admin/fixes.css')) : '1')
+                    . '">'
+            )
             // in-app confirm for every [data-confirm].
             // Replaces wire:confirm, which uses the browser's native confirm()
             // and fails closed and silently when that is suppressed. Capture
