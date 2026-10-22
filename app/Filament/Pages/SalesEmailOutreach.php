@@ -148,13 +148,19 @@ class SalesEmailOutreach extends Page
         return $this->base()->whereNotNull('state')->distinct()->orderBy('state')->pluck('state')->all();
     }
 
+    /** MARKER-OUTREACH-TALLY-GROUP: the tally follows the industry tab that's open. */
     public function stats(): array
     {
+        $sends = fn () => DB::table('sales_outreach_sends as s')
+            ->when($this->industryId !== '', fn ($q) => $q->join('sales_prospects as p', 'p.id', '=', 's.sales_prospect_id')
+                ->where('p.channel_id', $this->industryId));
         return [
-            'today'   => DB::table('sales_outreach_sends')->where('created_at', '>=', self::dayStart())->count(),
-            'all'     => DB::table('sales_outreach_sends')->count(),
-            'visited' => SalesProspect::query()->whereNotNull('link_clicked_at')->count(),
+            'today'   => $sends()->where('s.created_at', '>=', self::dayStart())->count(),
+            'all'     => $sends()->count(),
+            'visited' => SalesProspect::query()->whereNotNull('link_clicked_at')
+                ->when($this->industryId !== '', fn ($q) => $q->where('channel_id', $this->industryId))->count(),
             'queue'   => (clone $this->filtered())->count(),
+            'total'   => $this->base()->count(),
         ];
     }
 

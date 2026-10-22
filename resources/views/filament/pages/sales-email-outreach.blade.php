@@ -93,7 +93,7 @@
 
     @if (count($inds) > 1)
     <div class="sx-inds">
-        <button type="button" class="{{ $industryId === '' ? 'on' : '' }}" wire:click="$set('industryId', '')">All</button>
+        <button type="button" class="{{ $industryId === '' ? 'on' : '' }}" wire:click="$set('industryId', '')">All <span>{{ number_format($st['total']) }}</span></button>
         @foreach ($inds as $i)
             <button type="button" class="{{ $industryId === $i['id'] ? 'on' : '' }}" wire:click="$set('industryId', '{{ $i['id'] }}')">{{ $i['name'] }} <span>{{ number_format($i['n']) }}</span></button>
         @endforeach
