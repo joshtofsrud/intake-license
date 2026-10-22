@@ -123,11 +123,11 @@ class SalesEmailOutreach extends Page
         return SalesProspect::query()
             ->whereNotNull('email')->where('email', 'like', '%@%')
             // MARKER-OUTREACH-RECONTACT: shops already emailed can be emailed
-            // again; anyone emailed today stays out so a send doesn't come
-            // straight back as the next shop.
+            // again; only a shop emailed in the last hour stays out, so a send
+            // doesn't come straight back as the next shop (MARKER-RECONTACT-HOUR).
             ->when($this->who === 'new', fn ($q) => $q->whereNull('emailed_at'))
-            ->when($this->who === 'again', fn ($q) => $q->whereNotNull('emailed_at')->where('emailed_at', '<', self::dayStart()))
-            ->when($this->who === 'all', fn ($q) => $q->where(fn ($w) => $w->whereNull('emailed_at')->orWhere('emailed_at', '<', self::dayStart())))
+            ->when($this->who === 'again', fn ($q) => $q->whereNotNull('emailed_at')->where('emailed_at', '<', now()->subHour()))
+            ->when($this->who === 'all', fn ($q) => $q->where(fn ($w) => $w->whereNull('emailed_at')->orWhere('emailed_at', '<', now()->subHour())))
             ->whereNotIn('stage', ['won', 'lost'])
             ->whereRaw('LOWER(email) NOT IN (SELECT email FROM platform_email_optouts)');
     }
@@ -150,8 +150,11 @@ class SalesEmailOutreach extends Page
 
     public function industries(): array
     {
+        // every industry with an emailable shop keeps its tab, even at 0 for this filter
         $counts = $this->base()->selectRaw('channel_id, COUNT(*) n')->groupBy('channel_id')->pluck('n', 'channel_id');
-        return \App\Models\SalesChannel::query()->whereIn('id', $counts->keys()->filter())->orderBy('name')->get(['id', 'name'])
+        $any = SalesProspect::query()->whereNotNull('email')->where('email', 'like', '%@%')->whereNotIn('stage', ['won', 'lost'])
+            ->whereNotNull('channel_id')->distinct()->pluck('channel_id');
+        return \App\Models\SalesChannel::query()->whereIn('id', $any)->orderBy('name')->get(['id', 'name'])
             ->map(fn ($c) => ['id' => (string) $c->id, 'name' => $c->name, 'n' => (int) ($counts[$c->id] ?? 0)])
             ->sortByDesc('n')->values()->all();
     }

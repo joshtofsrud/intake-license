@@ -131,14 +131,14 @@
             <option value="again">Emailed before</option>
             <option value="all">Everyone</option>
         </select>
-        <span class="sx-count">{{ ['new' => "Shops with an email address that haven't been emailed", 'again' => 'Shops you emailed before today, to email again', 'all' => 'Every shop with an email address, except those emailed today'][$who] ?? '' }}</span>
+        <span class="sx-count">{{ ['new' => "Shops with an email address that haven't been emailed", 'again' => 'Shops you emailed before, longest ago first is a sort option', 'all' => 'Every shop with an email address'][$who] ?? '' }}</span>
     </div>
 
     <div class="eo-cols">
         <section>
             @if (! $cur)
                 <div class="ig-k">Queue empty</div>
-                <div class="ig-sub">{{ $who === 'new' ? 'Every prospect here with an email address has been emailed. Switch "Not emailed yet" to "Emailed before" to email them again, change the filters, or add email addresses on Prospects.' : 'Nobody matches these filters. Shops emailed today wait until tomorrow.' }}</div>
+                <div class="ig-sub">{{ $who === 'new' ? 'Every prospect here with an email address has been emailed. Switch "Not emailed yet" to "Emailed before" to email them again, change the filters, or add email addresses on Prospects.' : 'Nobody matches these filters. A shop you emailed in the last hour waits an hour before it comes back.' }}</div>
             @else
                 <div wire:key="cur-{{ $cur->id }}">
                     <div class="ig-k">Next up</div>
