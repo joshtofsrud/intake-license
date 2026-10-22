@@ -535,6 +535,15 @@ HTML;
 <p style='margin-top:14px'><a href='{{calendar_url}}' style='color:#111'>Add to calendar</a> &nbsp;·&nbsp; <a href='{{class_url}}' style='color:#111'>Can't make it now? Cancel here</a></p>
 <p>— The {$shop} team</p>",
             ],
+            'class_changed' => [ // MARKER-CLASSES-P7
+                'subject'   => 'New time: {{class_name}}',
+                'body_html' => "<p>Hi {{first_name}},</p>
+<p><strong>{{class_name}}</strong> has moved. It's now on <strong>{{class_when}}</strong>. {{change_line}}</p>
+{{details}}
+<p>You're still booked.</p>
+<p style='margin-top:14px'><a href='{{calendar_url}}' style='color:#111'>Update your calendar</a> &nbsp;·&nbsp; <a href='{{class_url}}' style='color:#111'>Can't make the new time? Cancel here</a></p>
+<p>— The {$shop} team</p>",
+            ],
             'class_cancelled' => [
                 'subject'   => 'Cancelled: {{class_name}} on {{class_when}}',
                 'body_html' => "<p>Hi {{first_name}},</p>

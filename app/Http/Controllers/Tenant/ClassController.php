@@ -105,6 +105,11 @@ class ClassController extends Controller
         if ($template->sessions()->where('starts_at', '>', now())->exists()) {
             return back()->withErrors(['template' => 'Cannot delete a template with upcoming sessions.']);
         }
+        // MARKER-CLASSES-P7: a repeating class would keep making classes for it
+        if (\App\Models\Tenant\TenantClassSchedule::where('class_template_id', $template->id)
+            ->where(fn ($q) => $q->whereNull('ends_on')->orWhere('ends_on', '>=', now()->toDateString()))->exists()) {
+            return back()->withErrors(['template' => 'This class repeats on the schedule. Stop the repeating class first.']);
+        }
 
         $template->delete();
 
@@ -118,11 +123,14 @@ class ClassController extends Controller
     public function sessions(Request $request)
     {
         $tenant   = tenant();
-        $from     = $request->date('from', 'Y-m-d') ?? now()->startOfWeek();
-        $to       = $request->date('to', 'Y-m-d')   ?? $from->copy()->addDays(6);
+        // MARKER-CLASSES-P7: the week is the studio's week. In UTC, an
+        // evening class on the last day showed up in the next week.
+        $tz       = $tenant->timezone();
+        $from     = $request->date('from', 'Y-m-d', $tz) ?? now($tz)->startOfWeek();
+        $to       = $request->date('to', 'Y-m-d', $tz)   ?? $from->copy()->addDays(6);
 
         $sessions = TenantClassSession::where('tenant_id', $tenant->id)
-            ->whereBetween('starts_at', [$from, $to->endOfDay()])
+            ->whereBetween('starts_at', [$from->copy()->startOfDay()->utc(), $to->copy()->endOfDay()->utc()])
             ->with(['template', 'instructorResource', 'registrations.customer'])
             ->withCount(['activeRegistrations', 'waitlist'])
             ->orderBy('starts_at')
@@ -131,7 +139,12 @@ class ClassController extends Controller
         $templates = TenantClassTemplate::where('tenant_id', $tenant->id)
             ->active()->orderBy('name')->get();
 
-        return view('tenant.classes.sessions', compact('sessions', 'templates', 'from', 'to'));
+        $schedules = \App\Models\Tenant\TenantClassSchedule::where('tenant_id', $tenant->id)
+            ->where(fn ($q) => $q->whereNull('ends_on')->orWhere('ends_on', '>=', now($tz)->toDateString()))
+            ->with('template')->orderBy('start_time')->get();
+        $publishWeeks = \App\Services\ClassRules::for($tenant)->get('publish_weeks');
+
+        return view('tenant.classes.sessions', compact('sessions', 'templates', 'from', 'to', 'schedules', 'publishWeeks'));
     }
 
     public function storeSession(Request $request)
@@ -147,7 +160,8 @@ class ClassController extends Controller
             'notes'             => ['nullable', 'string', 'max:1000'],
             'repeat_until'      => ['nullable', 'date', 'after:starts_date'],
             'repeat_until_daily'=> ['nullable', 'date', 'after:starts_date'],
-            'repeat_days'       => ['nullable', 'string'],
+            'repeat_days'       => ['nullable', 'regex:/^[0-6](,[0-6])*$/'],
+            'repeat'            => ['nullable', 'in:once,weekly,daily'], // MARKER-CLASSES-P7
         ]);
 
         $template = TenantClassTemplate::where('tenant_id', $tenant->id)
@@ -158,34 +172,28 @@ class ClassController extends Controller
         $capacity   = $request->capacity_override ?? $template->default_capacity;
         $notes      = $request->notes;
 
-        // Build list of dates to create sessions for
-        $dates = [];
-        $startDate = Carbon::parse($request->starts_date);
-        $time      = $request->starts_time;
-
-        if ($request->filled('repeat_days') && $request->filled('repeat_until')) {
-            // Weekly repeat — specific days of week
-            $dows  = array_map('intval', explode(',', $request->repeat_days));
-            $until = Carbon::parse($request->repeat_until)->endOfDay();
-            $cur   = $startDate->copy();
-            while ($cur->lte($until) && count($dates) < 365) {
-                if (in_array($cur->dayOfWeek, $dows)) {
-                    $dates[] = $cur->copy();
-                }
-                $cur->addDay();
+        // MARKER-CLASSES-P7: Weekly and Daily set up a repeating class; its
+        // classes are created ahead on a rolling window, with no year cap.
+        $mode = $request->input('repeat', 'once');
+        if (in_array($mode, ['weekly', 'daily'], true)) {
+            $days  = $mode === 'daily' ? [0, 1, 2, 3, 4, 5, 6] : explode(',', (string) $request->repeat_days);
+            $until = $mode === 'daily' ? $request->repeat_until_daily : $request->repeat_until;
+            try {
+                $s = app(\App\Services\ClassScheduleService::class)->create(
+                    $tenant, $template, $mode === 'weekly' && ! $request->filled('repeat_days') ? [] : $days,
+                    $request->starts_time, Carbon::parse($request->starts_date)->toDateString(),
+                    $until ?: null, $request->capacity_override ? (int) $request->capacity_override : null, $notes
+                );
+            } catch (\RuntimeException $e) {
+                return back()->withErrors(['session' => $e->getMessage()])->withInput();
             }
-        } elseif ($request->filled('repeat_until_daily')) {
-            // Daily repeat
-            $until = Carbon::parse($request->repeat_until_daily)->endOfDay();
-            $cur   = $startDate->copy();
-            while ($cur->lte($until) && count($dates) < 365) {
-                $dates[] = $cur->copy();
-                $cur->addDay();
-            }
-        } else {
-            // Single session
-            $dates[] = $startDate->copy();
+            $n = TenantClassSession::where('schedule_id', $s->id)->count();
+            return back()->with('success', "Repeating class set up: {$s->daysLabel()} at {$s->timeLabel()}"
+                . ($s->ends_on ? ' until ' . $s->ends_on->format('M j') : '') . ". {$n} classes created so far; more are added as time goes on.");
         }
+
+        $time  = $request->starts_time;
+        $dates = [Carbon::parse($request->starts_date)];
 
         $created = 0;
         foreach ($dates as $date) {
@@ -250,6 +258,9 @@ class ClassController extends Controller
             $c = $this->registrationService->cancelSession($session->id, $tenant->id);
             $session->update($data);
             $msg = 'Session cancelled.';
+            if ($session->schedule_id) {
+                $msg .= ' The repeating class carries on; this date stays cancelled.'; // MARKER-CLASSES-P7
+            }
             if ($c['cancelled'] || $c['waitlist']) {
                 $msg .= " {$c['cancelled']} booking(s) cancelled, {$c['restored']} credit(s) or membership use(s) given back"
                      . ($c['waitlist'] ? ", {$c['waitlist']} waitlist place(s) cleared" : '') . '.';
@@ -298,7 +309,11 @@ class ClassController extends Controller
                     'waitlist.customer'])
             ->findOrFail($id);
 
-        return view('tenant.classes.session-detail', compact('session'));
+        // MARKER-CLASSES-P7
+        $schedule    = $session->schedule_id ? \App\Models\Tenant\TenantClassSchedule::find($session->schedule_id) : null;
+        $instructors = TenantResource::where('tenant_id', $tenant->id)->active()->ordered()->get();
+
+        return view('tenant.classes.session-detail', compact('session', 'schedule', 'instructors'));
     }
 
     // ------------------------------------------------------------------
@@ -648,6 +663,66 @@ class ClassController extends Controller
         return back()->with('success', 'Saved. Online bookings without a pass: ' . strtolower(\App\Services\ClassOnlineSaleService::DROPIN_MODES[$data['class_online_dropin']]) . '.');
     }
 
+    // ------------------------------------------------------------------
+    // Repeating classes (MARKER-CLASSES-P7)
+    // ------------------------------------------------------------------
+
+    /** Change this class, or this and later classes on its schedule. */
+    public function editSession(Request $request, string $id)
+    {
+        $tenant  = tenant();
+        $session = TenantClassSession::where('tenant_id', $tenant->id)->findOrFail($id);
+        $d = $request->validate([
+            'scope'                  => ['required', 'in:one,later'],
+            'date'                   => ['nullable', 'date_format:Y-m-d'],
+            'time'                   => ['required', 'date_format:H:i'],
+            'capacity'               => ['nullable', 'integer', 'min:1', 'max:500'],
+            'instructor_resource_id' => ['nullable', 'uuid', \Illuminate\Validation\Rule::exists('tenant_resources', 'id')
+                ->where(fn ($q) => $q->where('tenant_id', $tenant->id))],
+        ]);
+        if (! in_array($session->status, ['scheduled', 'confirmed'], true)) {
+            return back()->withErrors(['session' => 'This class can no longer be changed.']);
+        }
+
+        $c   = ['time' => $d['time'], 'capacity' => $d['capacity'] ?? null, 'instructor_resource_id' => $d['instructor_resource_id'] ?? null];
+        $svc = app(\App\Services\ClassScheduleService::class);
+        try {
+            if ($d['scope'] === 'later' && $session->schedule_id) {
+                $r   = $svc->editFrom($session, $c);
+                $msg = $r['updated'] === 1 ? 'Class updated.' : "{$r['updated']} classes updated, this one and later. New classes on this schedule use the new details.";
+            } else {
+                $r   = $svc->editOne($session, $c + ['date' => $d['date'] ?? null]);
+                $msg = 'Class updated.';
+            }
+        } catch (\RuntimeException $e) {
+            return back()->withErrors(['session' => $e->getMessage()]);
+        }
+        if ($r['emailed']) {
+            $msg .= $tenant->notificationEnabled('class_changed_email')
+                ? " {$r['emailed']} people booked were emailed the new time."
+                : " {$r['emailed']} people are booked, and class change emails are off in Communication, so let them know.";
+        }
+        return back()->with('success', $msg);
+    }
+
+    /** Stop a repeating class after a given day; booked classes stay. */
+    public function stopSchedule(Request $request, string $id)
+    {
+        $tenant = tenant();
+        $s      = \App\Models\Tenant\TenantClassSchedule::where('tenant_id', $tenant->id)->findOrFail($id);
+        $d      = $request->validate(['last_day' => ['required', 'date_format:Y-m-d']]);
+        $r      = app(\App\Services\ClassScheduleService::class)->stopAfter($s, $d['last_day']);
+
+        $msg = 'Stopped after ' . Carbon::parse($d['last_day'])->format('M j') . '.';
+        if ($r['removed']) {
+            $msg .= " {$r['removed']} later class(es) nobody had booked were removed.";
+        }
+        if ($r['kept']) {
+            $msg .= " {$r['kept']} later class(es) have people booked and were kept: cancel or keep them one by one.";
+        }
+        return back()->with('success', $msg);
+    }
+
     /** Booking rules (MARKER-CLASSES-P4). A blank box means "no limit". */
     public function saveRules(Request $request)
     {
@@ -660,6 +735,7 @@ class ClassController extends Controller
             'waitlist_max'        => ['nullable', 'integer', 'min:1', 'max:500'],
             'waitlist_stop_hours' => ['nullable', 'integer', 'min:0', 'max:720'],
             'reminder_hours'      => ['nullable', 'integer', 'min:1', 'max:48'], // MARKER-CLASSES-P5
+            'publish_weeks'       => ['nullable', 'integer', 'min:1', 'max:26'], // MARKER-CLASSES-P7
             'online_refund'       => ['nullable', \Illuminate\Validation\Rule::in(array_keys(\App\Services\ClassRules::ONLINE_REFUND))], // MARKER-CLASSES-P6
         ]);
         $d['waitlist_on'] = $request->boolean('waitlist_on');

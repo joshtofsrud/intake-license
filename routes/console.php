@@ -68,6 +68,11 @@ Schedule::command('inventory:find-duplicates')
 // Class reminders and pass-expiry emails. MARKER-CLASSES-P5
 // Each is marked as sent, so overlapping or repeated runs send once.
 // ----------------------------------------------------------------
+Schedule::command('classes:extend-schedules') // MARKER-CLASSES-P7: repeating classes, created ahead
+    ->dailyAt('02:40')
+    ->withoutOverlapping()
+    ->runInBackground();
+
 Schedule::command('classes:send-reminders')
     ->everyTenMinutes()
     ->withoutOverlapping()

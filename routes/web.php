@@ -1039,6 +1039,8 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             Route::get('/classes/sessions/{id}',                [TenantControllers\ClassController::class, 'showSession'])->name('classes.sessions.show');
             Route::patch('/classes/sessions/{id}',              [TenantControllers\ClassController::class, 'updateSession'])->name('classes.sessions.update');
             Route::delete('/classes/sessions/{id}',             [TenantControllers\ClassController::class, 'destroySession'])->name('classes.sessions.destroy');
+            Route::post('/classes/sessions/{id}/edit',          [TenantControllers\ClassController::class, 'editSession'])->name('classes.sessions.edit'); // MARKER-CLASSES-P7
+            Route::post('/classes/schedules/{id}/stop',         [TenantControllers\ClassController::class, 'stopSchedule'])->name('classes.schedules.stop'); // MARKER-CLASSES-P7
 
             Route::post('/classes/sessions/{id}/register',      [TenantControllers\ClassController::class, 'registerCustomer'])->name('classes.sessions.register');
             Route::post('/classes/registrations/{id}/cancel',   [TenantControllers\ClassController::class, 'cancelRegistration'])->name('classes.registrations.cancel');

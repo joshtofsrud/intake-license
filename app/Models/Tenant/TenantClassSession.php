@@ -18,6 +18,7 @@ class TenantClassSession extends Model
     protected $fillable = [
         'tenant_id',
         'class_template_id',
+        'schedule_id', // MARKER-CLASSES-P7
         'starts_at',
         'ends_at',
         'instructor_snapshot',

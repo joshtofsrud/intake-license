@@ -322,11 +322,39 @@
   </div>
 @endif
 
+{{-- MARKER-CLASSES-P7: repeating classes --}}
+@if($schedules->isNotEmpty())
+<details class="cl-sched" style="margin:22px 0 8px" open>
+  <summary style="cursor:pointer;font-size:13px;font-weight:600;margin-bottom:8px">Repeating classes ({{ $schedules->count() }})</summary>
+  <div style="border-top:0.5px solid var(--ia-border)">
+    @foreach($schedules as $s)
+      <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px 16px;padding:10px 0;border-bottom:0.5px solid var(--ia-border);font-size:13px">
+        <div style="flex:1;min-width:200px">
+          <div style="font-weight:600">{{ $s->template?->name ?? 'Class' }}</div>
+          <div style="color:var(--ia-text-muted);font-size:12px">{{ $s->daysLabel() }} · {{ $s->timeLabel() }} · {{ $s->ends_on ? 'until ' . $s->ends_on->format('M j, Y') : 'no end date' }}</div>
+        </div>
+        <form method="POST" action="{{ route('tenant.classes.schedules.stop', ['id' => $s->id]) }}" style="display:flex;align-items:center;gap:6px">
+          @csrf
+          <label style="font-size:12px;color:var(--ia-text-muted)">Stop after</label>
+          <input type="date" name="last_day" class="cl-input" style="width:auto;padding:5px 8px" required value="{{ now(tenant()->timezone())->toDateString() }}" min="{{ $s->starts_on->format('Y-m-d') }}">
+          <button type="button" class="ia-btn ia-btn--ghost ia-btn--sm" onclick="this.hidden=true;this.nextElementSibling.hidden=false">Stop</button>
+          <span hidden style="font-size:12px">Stop it?
+            <button type="submit" class="ia-btn ia-btn--ghost ia-btn--sm" style="color:#EF4444">Yes, stop</button>
+            <button type="button" class="ia-btn ia-btn--ghost ia-btn--sm" onclick="this.parentElement.hidden=true;this.parentElement.previousElementSibling.hidden=false">Keep</button>
+          </span>
+        </form>
+      </div>
+    @endforeach
+  </div>
+  <div style="font-size:12px;color:var(--ia-text-muted);margin-top:8px;line-height:1.5">Repeating classes are created {{ $publishWeeks }} week{{ $publishWeeks === 1 ? '' : 's' }} ahead, and more are added each day; change that in Templates › Booking rules. Stopping removes later classes nobody has booked. Classes with bookings stay until you cancel them. To change a time, instructor or capacity, open any of its classes and choose "This and later classes".</div>
+</details>
+@endif
+
 {{-- Cancel session modal --}}
 <div class="cl-modal-overlay" id="cancel-modal">
   <div class="cl-modal" style="max-width:400px">
     <div class="cl-modal-title">Cancel this session?</div>
-    <p style="font-size:13px;color:var(--ia-text-muted);margin-bottom:20px">Everyone booked is cancelled and their pack credits and membership uses go back. Drop-ins paid at the desk are not refunded automatically, and customers are not emailed yet, so let them know.</p>
+    <p style="font-size:13px;color:var(--ia-text-muted);margin-bottom:20px">Everyone booked is cancelled and emailed. Pack credits and membership uses go back, and drop-ins paid online are refunded to the card. Drop-ins paid at the desk are refunded from the sale.</p>
     <form method="POST" id="cancel-form" action="">
       @csrf
       @method('PATCH')
@@ -345,6 +373,7 @@
     <div class="cl-modal-title">New class session</div>
     <form method="POST" action="{{ route('tenant.classes.sessions.store') }}" id="session-form">
       @csrf
+      <input type="hidden" name="repeat" id="repeat-input" value="once"> {{-- MARKER-CLASSES-P7 --}}
 
       <div class="cl-field">
         <label class="cl-label">Template</label>
@@ -405,7 +434,7 @@
           <input type="hidden" name="repeat_days" id="repeat-days-input">
         </div>
         <div class="cl-field">
-          <label class="cl-label">Until</label>
+          <label class="cl-label">Until (optional, leave blank to keep going)</label>
           <input type="date" name="repeat_until" id="repeat-until" class="cl-input" min="{{ now()->addDay()->format('Y-m-d') }}">
         </div>
       </div>
@@ -413,7 +442,7 @@
       {{-- Daily options --}}
       <div class="cl-repeat-section" id="repeat-daily">
         <div class="cl-field">
-          <label class="cl-label">Until</label>
+          <label class="cl-label">Until (optional, leave blank to keep going)</label>
           <input type="date" name="repeat_until_daily" class="cl-input" min="{{ now()->addDay()->format('Y-m-d') }}">
         </div>
       </div>
@@ -502,6 +531,10 @@
     } else if(repeatMode==='weekly'){
       var dows = Array.from(document.querySelectorAll('.cl-dow-btn.active')).map(b=>parseInt(b.dataset.dow));
       var until = document.getElementById('repeat-until').value;
+      if(dows.length && !until){ // MARKER-CLASSES-P7: no end date = keeps going
+        var dn=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+        preview.textContent='Every '+dows.sort().map(function(x){return dn[x];}).join(', ')+' at '+fmtTime(time)+', from '+fmtDate(selectedDate)+', with no end date.'; return;
+      }
       if(dows.length && until){
         var cur = new Date(selectedDate);
         var end = new Date(until);
@@ -512,6 +545,7 @@
       }
     } else if(repeatMode==='daily'){
       var untilD = document.querySelector('[name="repeat_until_daily"]').value;
+      if(!untilD){ preview.textContent='Every day at '+fmtTime(time)+', from '+fmtDate(selectedDate)+', with no end date.'; return; } // MARKER-CLASSES-P7
       if(untilD){
         var cur = new Date(selectedDate);
         var end = new Date(untilD);
@@ -557,6 +591,7 @@
 
   window.setRepeat = function(mode, btn){
     repeatMode = mode;
+    document.getElementById('repeat-input').value = mode; // MARKER-CLASSES-P7
     document.querySelectorAll('.cl-repeat-tab').forEach(function(b){ b.classList.remove('active'); });
     btn.classList.add('active');
     document.querySelectorAll('.cl-repeat-section').forEach(function(s){ s.classList.remove('active'); });

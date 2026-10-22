@@ -525,6 +525,12 @@
           <span class="cl-info-label">Capacity</span>
           <span class="cl-info-value">{{ $session->capacity_snapshot }}</span>
         </div>
+        @if($schedule) {{-- MARKER-CLASSES-P7 --}}
+          <div class="cl-info-row">
+            <span class="cl-info-label">Repeats</span>
+            <span class="cl-info-value">{{ $schedule->daysLabel() }} · {{ $schedule->timeLabel() }}{{ $schedule->ends_on ? ' · until ' . $schedule->ends_on->format('M j') : '' }}</span>
+          </div>
+        @endif
         @if($session->notes)
           <div class="cl-info-row">
             <span class="cl-info-label">Notes</span>
@@ -533,6 +539,56 @@
         @endif
       </div>
     </div>
+
+    {{-- MARKER-CLASSES-P7: change this class, or this and later ones --}}
+    @if(in_array($session->status, ['scheduled', 'confirmed']) && $session->ends_at->isFuture())
+      @php $loc = $session->starts_at->copy()->setTimezone(tenant()->timezone()); @endphp
+      <div class="cl-card">
+        <details @if($errors->has('session')) open @endif>
+          <summary class="cl-card-head" style="cursor:pointer;list-style:none"><span class="cl-card-title">Change this class</span></summary>
+          <div class="cl-card-body">
+            @if($errors->has('session'))<div class="ia-flash ia-flash--error" style="margin-bottom:10px">{{ $errors->first('session') }}</div>@endif
+            <form method="POST" action="{{ route('tenant.classes.sessions.edit', ['id' => $session->id]) }}" style="display:grid;gap:10px;font-size:13px">
+              @csrf
+              @if($schedule)
+                <div style="display:flex;flex-direction:column;gap:6px">
+                  <label style="display:flex;gap:8px;align-items:center"><input type="radio" name="scope" value="one" checked onchange="document.getElementById('cl-edit-date').hidden=false"> This class only</label>
+                  <label style="display:flex;gap:8px;align-items:center"><input type="radio" name="scope" value="later" onchange="document.getElementById('cl-edit-date').hidden=true"> This and later classes ({{ $schedule->daysLabel() }})</label>
+                </div>
+              @else
+                <input type="hidden" name="scope" value="one">
+              @endif
+              <label id="cl-edit-date">Date
+                <input type="date" name="date" class="cl-input" value="{{ $loc->toDateString() }}" min="{{ now(tenant()->timezone())->toDateString() }}"></label>
+              <label>Time
+                <input type="time" name="time" class="cl-input" required value="{{ $loc->format('H:i') }}"></label>
+              <label>Instructor
+                <select name="instructor_resource_id" class="cl-select">
+                  <option value="">No instructor</option>
+                  @foreach($instructors as $res)
+                    <option value="{{ $res->id }}" @selected($session->instructor_resource_id === $res->id)>{{ $res->name }}</option>
+                  @endforeach
+                </select></label>
+              <label>Capacity
+                <input type="number" name="capacity" class="cl-input" min="1" max="500" value="{{ $session->capacity_snapshot }}"></label>
+              <button type="submit" class="ia-btn ia-btn--primary ia-btn--sm" style="justify-self:start">Save changes</button>
+              <div style="font-size:12px;color:var(--ia-text-muted);line-height:1.5">Bookings stay with the class. If the time changes, people booked are emailed the new time (switch that off in Communication).</div>
+            </form>
+            @if($schedule)
+              <form method="POST" action="{{ route('tenant.classes.schedules.stop', ['id' => $schedule->id]) }}" style="margin-top:14px;padding-top:12px;border-top:0.5px solid var(--ia-border);font-size:13px">
+                @csrf
+                <input type="hidden" name="last_day" value="{{ $loc->toDateString() }}">
+                <button type="button" class="cl-session-action-btn" onclick="this.hidden=true;this.nextElementSibling.hidden=false">Stop repeating after this class</button>
+                <span hidden>Later classes nobody has booked are removed; booked ones stay.
+                  <button type="submit" class="cl-session-action-btn danger" style="margin-top:6px">Yes, stop repeating</button>
+                  <button type="button" class="cl-session-action-btn" style="margin-top:6px" onclick="this.parentElement.hidden=true;this.parentElement.previousElementSibling.hidden=false">Keep it</button>
+                </span>
+              </form>
+            @endif
+          </div>
+        </details>
+      </div>
+    @endif
 
     @if(!in_array($session->status, ['cancelled','completed']))
       <div class="cl-card">
@@ -546,7 +602,7 @@
                 <button type="submit" class="cl-session-action-btn">Mark completed</button>
               </form>
             @endif
-            <form method="POST" action="{{ route('tenant.classes.sessions.update', ['id' => $session->id]) }}" onsubmit="return iaConfirmAction(this, event, {title:'Cancel this session?', message:'Everyone booked is cancelled and their pack credits and membership uses go back. Drop-ins paid at the desk are not refunded automatically, and customers are not emailed yet, so let them know.', confirmText:'Cancel session', cancelText:'Keep session', danger:true})">
+            <form method="POST" action="{{ route('tenant.classes.sessions.update', ['id' => $session->id]) }}" onsubmit="return iaConfirmAction(this, event, {title:'Cancel this session?', message:'Everyone booked is cancelled and emailed. Pack credits and membership uses go back, and drop-ins paid online are refunded to the card. Drop-ins paid at the desk are refunded from the sale.', confirmText:'Cancel session', cancelText:'Keep session', danger:true})">
               @csrf @method('PATCH')
               <input type="hidden" name="status" value="cancelled">
               <button type="submit" class="cl-session-action-btn danger">Cancel session</button>

@@ -25,6 +25,7 @@ class ClassMessages
         'class_booking_confirmation', 'class_reminder', 'class_waitlist_moved_in',
         'class_cancelled', 'class_late_cancel', 'class_pass_reminder',
         'class_membership_renewed', 'class_membership_payment_due', 'class_purchase_receipt',
+        'class_changed', // MARKER-CLASSES-P7
     ];
 
     private static int $quiet = 0;
@@ -60,6 +61,15 @@ class ClassMessages
     public static function movedIn(TenantClassRegistration $r): void
     {
         self::forRegistration('class_waitlist_moved_in', $r);
+    }
+
+    /** The class moved to a new time (MARKER-CLASSES-P7). */
+    public static function changed(TenantClassRegistration $r, $oldStart): void
+    {
+        $tenant = Tenant::find($r->tenant_id);
+        if ($tenant) {
+            self::forRegistration('class_changed', $r, ['change_line' => e('It was ' . self::local($tenant, $oldStart, 'l, M j') . ' at ' . self::local($tenant, $oldStart, 'g:i A') . '.')]);
+        }
     }
 
     public static function studioCancelled(TenantClassRegistration $r, string $creditLine): void
@@ -159,6 +169,7 @@ class ClassMessages
             'passes_url'   => $tenant->urlTo('/classes/passes'),
             'account_url'  => $tenant->urlTo('/account'),
             'credit_line'  => 'Your class credit has been returned to your pack.',
+            'change_line'  => 'It was ' . $when->copy()->subHour()->format('l, M j') . ' at ' . $when->copy()->subHour()->format('g:i A') . '.',
             'rule_line'    => 'Classes can be cancelled free up to 12 hours before they start.',
             'pass_line'    => 'You have 1 class left on your 10-class pack (use it by ' . now()->addDays(20)->format('M j') . ').',
             'pass_name'    => 'Unlimited',
