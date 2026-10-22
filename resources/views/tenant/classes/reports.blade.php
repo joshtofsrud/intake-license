@@ -149,6 +149,7 @@
   <a href="{{ route('tenant.classes.memberships') }}" class="cl-subnav-tab">Memberships</a>
   <a href="{{ route('tenant.classes.packs') }}"       class="cl-subnav-tab">Packs</a>
   <a href="{{ route('tenant.classes.reports') }}"     class="cl-subnav-tab is-active">Reports</a>
+  <a href="{{ route('tenant.classes.settings') }}" class="cl-subnav-tab">Settings</a> {{-- MARKER-CLASSES-P8 --}}
 </nav></div>
 
 @php

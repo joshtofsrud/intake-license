@@ -448,7 +448,7 @@ class ClassOnlineSaleService
 
     private function sendReceipt(Tenant $tenant, TenantClassOnlineCheckout $co, TenantCustomer $customer, ?TenantClassSession $session, array $card): void
     {
-        if (! filled($customer->email)) {
+        if (! filled($customer->email) || ! $tenant->notificationEnabled('class_purchase_receipt_email')) { // MARKER-CLASSES-P8: honour the switch
             return;
         }
         try {

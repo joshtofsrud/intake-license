@@ -15,8 +15,8 @@ use RuntimeException;
 
 /**
  * Repeating classes. A schedule's classes are created as far ahead as the
- * studio's window (Booking rules › "Repeating classes are created … weeks
- * ahead"); a daily run keeps the window full.
+ * studio's window (Classes › Settings › Repeating classes); a daily run
+ * keeps the window full.
  *
  * Upcoming bookings never disappear when a schedule changes: edits move
  * booked classes (and email the people booked when the time changes), and

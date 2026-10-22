@@ -28,6 +28,20 @@ class ClassMessages
         'class_changed', // MARKER-CLASSES-P7
     ];
 
+    /** The switches on Classes › Settings, in order: key => [label, description]. MARKER-CLASSES-P8 */
+    public const LABELS = [
+        'class_booking_confirmation'   => ['Class booked', 'With the class notes and an add-to-calendar link'],
+        'class_reminder'               => ['Reminder', 'Before class'],
+        'class_waitlist_moved_in'      => ['Moved in from the waitlist', 'Straight away'],
+        'class_changed'                => ['Class time changed', 'When you move a class people are booked into'],
+        'class_cancelled'              => ['Class cancelled by the studio', 'Says what happened to their credit or payment'],
+        'class_late_cancel'            => ['Late cancel', 'Says the rule and how to ask for it to be waived'],
+        'class_pass_reminder'          => ['Pass running low or expiring', 'At 1 class left, and 7 days before a pack expires'],
+        'class_membership_renewed'     => ['Membership renewed', 'The receipt for an automatic renewal'],
+        'class_membership_payment_due' => ['Renewal failed or due', 'Card declined, with the retry date, or due at the studio'],
+        'class_purchase_receipt'       => ['Pass or class bought online', 'The receipt'],
+    ];
+
     private static int $quiet = 0;
 
     /** Run $fn without booking confirmations (the online receipt already covers it). */

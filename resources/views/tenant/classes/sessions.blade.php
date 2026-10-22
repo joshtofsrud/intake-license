@@ -134,6 +134,7 @@
   <a href="{{ route('tenant.classes.memberships') }}" class="cl-subnav-tab">Memberships</a>
   <a href="{{ route('tenant.classes.packs') }}" class="cl-subnav-tab">Packs</a>
   <a href="{{ route('tenant.classes.reports') }}" class="cl-subnav-tab">Reports</a>
+  <a href="{{ route('tenant.classes.settings') }}" class="cl-subnav-tab">Settings</a> {{-- MARKER-CLASSES-P8 --}}
 </nav></div>
 
 
@@ -346,7 +347,7 @@
       </div>
     @endforeach
   </div>
-  <div style="font-size:12px;color:var(--ia-text-muted);margin-top:8px;line-height:1.5">Repeating classes are created {{ $publishWeeks }} week{{ $publishWeeks === 1 ? '' : 's' }} ahead, and more are added each day; change that in Templates › Booking rules. Stopping removes later classes nobody has booked. Classes with bookings stay until you cancel them. To change a time, instructor or capacity, open any of its classes and choose "This and later classes".</div>
+  <div style="font-size:12px;color:var(--ia-text-muted);margin-top:8px;line-height:1.5">Repeating classes are created {{ $publishWeeks }} week{{ $publishWeeks === 1 ? '' : 's' }} ahead, and more are added each day; change that in Classes › Settings. Stopping removes later classes nobody has booked. Classes with bookings stay until you cancel them. To change a time, instructor or capacity, open any of its classes and choose "This and later classes".</div>
 </details>
 @endif
 

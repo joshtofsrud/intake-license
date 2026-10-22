@@ -1054,8 +1054,8 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             Route::get('/classes/packs',                        [TenantControllers\ClassController::class, 'packProducts'])->name('classes.packs');
             Route::post('/classes/packs',                       [TenantControllers\ClassController::class, 'storePackProduct'])->name('classes.packs.store');
             Route::patch('/classes/packs/{id}',                 [TenantControllers\ClassController::class, 'updatePackProduct'])->name('classes.packs.update');
-            Route::post('/classes/online-settings',             [TenantControllers\ClassController::class, 'saveOnlineSettings'])->name('classes.online-settings'); // MARKER-CLASSES-P3
-            Route::post('/classes/rules',                       [TenantControllers\ClassController::class, 'saveRules'])->name('classes.rules'); // MARKER-CLASSES-P4
+            Route::get('/classes/settings',                    [TenantControllers\ClassController::class, 'settings'])->name('classes.settings'); // MARKER-CLASSES-P8
+            Route::post('/classes/settings',                   [TenantControllers\ClassController::class, 'saveSettings'])->name('classes.settings.save'); // MARKER-CLASSES-P8
 
             // Customer-side grant/revoke for memberships and packs. Comp/manual
             // for v1 — Stripe purchase flow comes later. Endpoints are POST

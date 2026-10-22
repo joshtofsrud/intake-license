@@ -36,13 +36,8 @@ class ClassController extends Controller
         $resources = TenantResource::where('tenant_id', $tenant->id)
             ->active()->ordered()->get();
 
-        // MARKER-CLASSES-P3: how a class booked online without a pass is paid
-        $onlineDropin = \App\Services\ClassOnlineSaleService::dropinSetting($tenant);
-        $cardsOn      = \App\Services\ClassOnlineSaleService::cardsOn($tenant);
-
-        $rules = \App\Services\ClassRules::for($tenant)->all(); // MARKER-CLASSES-P4
-
-        return view('tenant.classes.templates', compact('templates', 'resources', 'onlineDropin', 'cardsOn', 'rules'));
+        // Class settings live on Classes › Settings (MARKER-CLASSES-P8)
+        return view('tenant.classes.templates', compact('templates', 'resources'));
     }
 
     public function storeTemplate(Request $request)
@@ -649,20 +644,6 @@ class ClassController extends Controller
         return $flags;
     }
 
-    /** How a class booked online without a pass is paid. */
-    public function saveOnlineSettings(Request $request)
-    {
-        $tenant = tenant();
-        $data   = $request->validate([
-            'class_online_dropin' => ['required', \Illuminate\Validation\Rule::in(array_keys(\App\Services\ClassOnlineSaleService::DROPIN_MODES))],
-        ]);
-        $settings = (array) ($tenant->settings ?? []);
-        $settings['class_online_dropin'] = $data['class_online_dropin'];
-        $tenant->forceFill(['settings' => $settings])->save();
-
-        return back()->with('success', 'Saved. Online bookings without a pass: ' . strtolower(\App\Services\ClassOnlineSaleService::DROPIN_MODES[$data['class_online_dropin']]) . '.');
-    }
-
     // ------------------------------------------------------------------
     // Repeating classes (MARKER-CLASSES-P7)
     // ------------------------------------------------------------------
@@ -723,8 +704,20 @@ class ClassController extends Controller
         return back()->with('success', $msg);
     }
 
-    /** Booking rules (MARKER-CLASSES-P4). A blank box means "no limit". */
-    public function saveRules(Request $request)
+    /** Classes › Settings: every class rule and message switch (MARKER-CLASSES-P8). */
+    public function settings()
+    {
+        $tenant   = tenant();
+        $rules    = \App\Services\ClassRules::for($tenant)->all();
+        $messages = collect(\App\Services\ClassMessages::LABELS)->map(fn ($x, $k) => $tenant->notificationEnabled($k . '_email'))->all();
+        $onlineDropin = \App\Services\ClassOnlineSaleService::dropinSetting($tenant);
+        $cardsOn      = \App\Services\ClassOnlineSaleService::cardsOn($tenant);
+
+        return view('tenant.classes.settings', compact('rules', 'messages', 'onlineDropin', 'cardsOn'));
+    }
+
+    /** A blank box means "no limit". Message switches are the same ones Communication shows. */
+    public function saveSettings(Request $request)
     {
         $tenant = tenant();
         $d = $request->validate([
@@ -732,18 +725,30 @@ class ClassController extends Controller
             'book_cutoff_minutes' => ['nullable', 'integer', 'min:0', 'max:10080'],
             'cancel_cutoff_hours' => ['nullable', 'integer', 'min:0', 'max:720'],
             'after_cutoff'        => ['required', \Illuminate\Validation\Rule::in(array_keys(\App\Services\ClassRules::AFTER_CUTOFF))],
+            'online_refund'       => ['nullable', \Illuminate\Validation\Rule::in(array_keys(\App\Services\ClassRules::ONLINE_REFUND))],
             'waitlist_max'        => ['nullable', 'integer', 'min:1', 'max:500'],
             'waitlist_stop_hours' => ['nullable', 'integer', 'min:0', 'max:720'],
-            'reminder_hours'      => ['nullable', 'integer', 'min:1', 'max:48'], // MARKER-CLASSES-P5
-            'publish_weeks'       => ['nullable', 'integer', 'min:1', 'max:26'], // MARKER-CLASSES-P7
-            'online_refund'       => ['nullable', \Illuminate\Validation\Rule::in(array_keys(\App\Services\ClassRules::ONLINE_REFUND))], // MARKER-CLASSES-P6
+            'publish_weeks'       => ['nullable', 'integer', 'min:1', 'max:26'],
+            'reminder_hours'      => ['nullable', 'integer', 'min:1', 'max:48'],
+            'class_online_dropin' => ['nullable', \Illuminate\Validation\Rule::in(array_keys(\App\Services\ClassOnlineSaleService::DROPIN_MODES))],
+            'notify'              => ['nullable', 'array'],
         ]);
-        $d['waitlist_on'] = $request->boolean('waitlist_on');
         $settings = (array) ($tenant->settings ?? []);
-        $settings['class_rules'] = $d;
+        $settings['class_rules'] = collect($d)->only([
+            'book_ahead_days', 'book_cutoff_minutes', 'cancel_cutoff_hours', 'after_cutoff', 'online_refund',
+            'waitlist_max', 'waitlist_stop_hours', 'publish_weeks', 'reminder_hours',
+        ])->all() + ['waitlist_on' => $request->boolean('waitlist_on')];
+        if (! empty($d['class_online_dropin'])) {
+            $settings['class_online_dropin'] = $d['class_online_dropin'];
+        }
+        foreach (array_keys(\App\Services\ClassMessages::LABELS) as $key) {
+            if (array_key_exists($key, (array) ($d['notify'] ?? []))) {
+                $settings['notify_' . $key . '_email'] = (bool) $d['notify'][$key];
+            }
+        }
         $tenant->forceFill(['settings' => $settings])->save();
 
-        return back()->with('success', 'Booking rules saved.');
+        return back()->with('success', 'Settings saved.');
     }
 
     // ------------------------------------------------------------------

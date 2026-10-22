@@ -82,63 +82,8 @@
   <a href="{{ route('tenant.classes.memberships') }}" class="cl-subnav-tab">Memberships</a>
   <a href="{{ route('tenant.classes.packs') }}" class="cl-subnav-tab">Packs</a>
   <a href="{{ route('tenant.classes.reports') }}" class="cl-subnav-tab">Reports</a>
+  <a href="{{ route('tenant.classes.settings') }}" class="cl-subnav-tab">Settings</a> {{-- MARKER-CLASSES-P8 --}}
 </nav></div>
-
-{{-- MARKER-CLASSES-P3: how a class booked online without a pass is paid --}}
-<form method="POST" action="{{ route('tenant.classes.online-settings') }}" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:-6px 0 16px;font-size:13px;color:var(--ia-text-muted)">
-  @csrf
-  <label for="online-dropin">Booking online without a pass:</label>
-  <select name="class_online_dropin" id="online-dropin" class="cl-select" style="width:auto;padding:5px 9px">
-    @foreach(\App\Services\ClassOnlineSaleService::DROPIN_MODES as $k => $label)
-      <option value="{{ $k }}" @selected($onlineDropin === $k)>{{ $label }}</option>
-    @endforeach
-  </select>
-  <button type="submit" class="ia-btn ia-btn--secondary ia-btn--sm">Save</button>
-  @unless($cardsOn)
-    <span style="flex-basis:100%;font-size:12px">Card payments aren't set up, so everyone pays at the studio for now. <a href="{{ route('tenant.settings.payments.index') }}" style="color:var(--ia-text)">Set up payments</a></span>
-  @endunless
-</form>
-
-{{-- MARKER-CLASSES-P4: booking rules. Blank = no limit. Staff are never held to these. --}}
-<details class="cl-card" style="margin-bottom:16px;padding:12px 16px" @if($errors->has('book_ahead_days')||$errors->has('cancel_cutoff_hours')||$errors->has('waitlist_max')) open @endif>
-  <summary style="cursor:pointer;font-size:13px;font-weight:600">Booking rules @if($cardsOn && empty($rules['online_refund']))<span style="font-weight:400;color:#A32D2D"> · online refund rule not set</span>@endif</summary> {{-- MARKER-CLASSES-P6 --}}
-  <form method="POST" action="{{ route('tenant.classes.rules') }}" style="margin-top:12px;display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px 18px;font-size:13px">
-    @csrf
-    <label>Customers can book up to
-      <span style="display:flex;gap:6px;align-items:center;margin-top:4px"><input type="number" min="0" max="365" name="book_ahead_days" value="{{ $rules['book_ahead_days'] }}" class="cl-select" style="width:80px" placeholder="any"> days ahead</span></label>
-    <label>Online booking closes
-      <span style="display:flex;gap:6px;align-items:center;margin-top:4px"><input type="number" min="0" max="10080" name="book_cutoff_minutes" value="{{ $rules['book_cutoff_minutes'] }}" class="cl-select" style="width:80px" placeholder="0"> minutes before</span></label>
-    <label>Free cancelling until
-      <span style="display:flex;gap:6px;align-items:center;margin-top:4px"><input type="number" min="0" max="720" name="cancel_cutoff_hours" value="{{ $rules['cancel_cutoff_hours'] }}" class="cl-select" style="width:80px" placeholder="start"> hours before</span></label>
-    <label>After that
-      <select name="after_cutoff" class="cl-select" style="margin-top:4px">
-        @foreach(\App\Services\ClassRules::AFTER_CUTOFF as $k => $label)
-          <option value="{{ $k }}" @selected($rules['after_cutoff'] === $k)>{{ $label }}</option>
-        @endforeach
-      </select></label>
-    <label>Paid online, cancelled in time {{-- MARKER-CLASSES-P6 --}}
-      <select name="online_refund" class="cl-select" style="margin-top:4px">
-        <option value="">Choose one</option>
-        @foreach(\App\Services\ClassRules::ONLINE_REFUND as $k => $label)
-          <option value="{{ $k }}" @selected($rules['online_refund'] === $k)>{{ $label }}</option>
-        @endforeach
-      </select>
-      @if(empty($rules['online_refund']))<span style="display:block;font-size:12px;color:#A32D2D;margin-top:4px">Not set. Nothing is refunded automatically until you choose.</span>@endif</label>
-    <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" name="waitlist_on" value="1" @checked($rules['waitlist_on'])> Full classes have a waitlist</label>
-    <label>Waitlist holds up to
-      <span style="display:flex;gap:6px;align-items:center;margin-top:4px"><input type="number" min="1" max="500" name="waitlist_max" value="{{ $rules['waitlist_max'] }}" class="cl-select" style="width:80px" placeholder="any"> people</span></label>
-    <label>Stop moving people in
-      <span style="display:flex;gap:6px;align-items:center;margin-top:4px"><input type="number" min="0" max="720" name="waitlist_stop_hours" value="{{ $rules['waitlist_stop_hours'] }}" class="cl-select" style="width:80px" placeholder="never"> hours before</span></label>
-    <label>Repeating classes are created {{-- MARKER-CLASSES-P7 --}}
-      <span style="display:flex;gap:6px;align-items:center;margin-top:4px"><input type="number" min="1" max="26" name="publish_weeks" value="{{ $rules['publish_weeks'] }}" class="cl-select" style="width:80px"> weeks ahead</span></label>
-    <label>Reminder email {{-- MARKER-CLASSES-P5 --}}
-      <span style="display:flex;gap:6px;align-items:center;margin-top:4px"><input type="number" min="1" max="48" name="reminder_hours" value="{{ $rules['reminder_hours'] }}" class="cl-select" style="width:80px"> hours before</span></label>
-    <div style="grid-column:1/-1;display:flex;gap:12px;align-items:center;flex-wrap:wrap">
-      <button type="submit" class="ia-btn ia-btn--secondary ia-btn--sm">Save rules</button>
-      <span style="font-size:12px;color:var(--ia-text-muted)">Applies to customers booking and cancelling online. Staff can always book, cancel and restore credits. A late cancel keeps the credit used only if you choose that above. Turn emails on or off, or reword them, in <a href="{{ route('tenant.communication.index') }}" style="color:var(--ia-text)">Communication</a>.</span>
-    </div>
-  </form>
-</details>
 
 @if($errors->any())
   <div class="ia-flash ia-flash--error" style="margin-bottom:16px">{{ $errors->first() }}</div>
