@@ -40,6 +40,7 @@
 <div class="cl-subnav-wrap"><nav class="cl-subnav">
   <a href="{{ route('tenant.classes.templates') }}" class="cl-subnav-tab">Templates</a>
   <a href="{{ route('tenant.classes.sessions') }}" class="cl-subnav-tab">Schedule</a>
+  <a href="{{ route('tenant.classes.checkin') }}" class="cl-subnav-tab">Check-in</a> {{-- MARKER-CLASSES-P9 --}}
   <a href="{{ route('tenant.classes.memberships') }}" class="cl-subnav-tab">Memberships</a>
   <a href="{{ route('tenant.classes.packs') }}" class="cl-subnav-tab">Packs</a>
   <a href="{{ route('tenant.classes.reports') }}" class="cl-subnav-tab">Reports</a>
@@ -114,6 +115,19 @@
     <div>
       <div class="cs-line">Create classes
         <input type="number" min="1" max="26" name="publish_weeks" value="{{ old('publish_weeks', $rules['publish_weeks']) }}" class="cl-input cs-num"> weeks ahead.</div>
+    </div>
+  </section>
+
+  <section class="cs-sec">{{-- MARKER-CLASSES-P9 --}}
+    <div><h2>Waiver</h2><p class="cs-help">@if($waiver)Version {{ $waiver->version }} · {{ $waiverSigned }} customer{{ $waiverSigned === 1 ? '' : 's' }} signed.@else Customers agree to it when they book online.@endif</p></div>
+    <div>
+      <div class="cs-row" style="padding-top:0">
+        <div><div class="cs-row-t">Customers sign a waiver</div><div class="cs-row-s">Asked for when they book online; flagged at check-in until signed</div></div>
+        <input type="hidden" name="waiver_on" value="{{ $rules['waiver_on'] ? 1 : 0 }}">
+        <button type="button" class="ia-toggle {{ $rules['waiver_on'] ? 'on' : '' }}" data-cs-toggle><span class="ia-toggle-sr">Waiver</span></button>
+      </div>
+      <textarea name="waiver_body" class="cl-input" rows="7" style="width:100%;margin-top:12px;line-height:1.5" maxlength="20000" placeholder="Your waiver, in your own words.">{{ old('waiver_body', $waiver?->body) }}</textarea>
+      <div class="cs-row-s" style="margin-top:6px">Changing the text makes a new version. Everyone signs the new one at their next booking; nobody loses a booking over it.</div>
     </div>
   </section>
 

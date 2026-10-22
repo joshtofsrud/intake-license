@@ -181,6 +181,14 @@ class ClassOnlineSaleService
 
         $customer = $signedIn ?: $this->guest($tenant, $in);
 
+        // MARKER-CLASSES-P9: booking a class needs the studio's waiver
+        if ($session && ClassWaivers::needs($tenant, $customer->id)) {
+            if (empty($in['waiver_agree']) || trim((string) ($in['waiver_name'] ?? '')) === '') {
+                throw new RuntimeException('Please read the waiver, tick to agree and type your name.');
+            }
+            ClassWaivers::sign($tenant, $customer->id, (string) $in['waiver_name'], 'online', request()->ip());
+        }
+
         if ($kind === 'pack' && $product->is_intro && self::introUsed($tenant->id, $customer)) {
             throw new RuntimeException('The ' . $product->name . ' offer is for first visits, and this email has had it before.');
         }

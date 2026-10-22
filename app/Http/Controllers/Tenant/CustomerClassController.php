@@ -119,6 +119,7 @@ class CustomerClassController extends Controller
         $introQuote  = $introOffer ? ClassOnlineSaleService::quote($tenant, 'pack', $introOffer, null, $customer) : null;
         $dropinQuote = ClassOnlineSaleService::quote($tenant, 'dropin', null, $session, $customer);
         $stripePk    = $cardsOn ? ClassOnlineSaleService::payments($tenant)->publishableKey() : null;
+        $waiver       = \App\Services\ClassWaivers::needs($tenant, $customer?->id) ? \App\Services\ClassWaivers::current($tenant) : null; // MARKER-CLASSES-P9
         $rules        = \App\Services\ClassRules::for($tenant); // MARKER-CLASSES-P4
         $bookingBlock = $rules->bookingBlock($session);
         $waitlistOpen = $rules->get('waitlist_on')
@@ -137,7 +138,7 @@ class CustomerClassController extends Controller
         return view('public.classes.show', compact(
             'session', 'customer', 'activeMembership', 'activePacks',
             'existingRegistration', 'spotsRemaining', 'isFull',
-            'coverMemberships', 'coverPacks', 'cardsOn', 'dropinMode', 'introOffer', 'introQuote', 'dropinQuote', 'stripePk', 'bookingBlock', 'waitlistOpen', 'cancelNote'
+            'coverMemberships', 'coverPacks', 'cardsOn', 'dropinMode', 'introOffer', 'introQuote', 'dropinQuote', 'stripePk', 'bookingBlock', 'waitlistOpen', 'cancelNote', 'waiver'
         ));
     }
 
@@ -187,14 +188,25 @@ class CustomerClassController extends Controller
                 'email'      => ['required', 'email', 'max:180'],
             ]);
 
-            // Find or create guest customer
-            $customer = TenantCustomer::firstOrCreate(
-                ['tenant_id' => $tenant->id, 'email' => $request->email],
-                [
+            // Find or create guest customer. MARKER-CLASSES-P9: matched by email
+            // regardless of case, as online checkout does; "Maya@x" and "maya@x"
+            // used to become two customers.
+            $email    = mb_strtolower(trim((string) $request->email));
+            $customer = TenantCustomer::where('tenant_id', $tenant->id)->whereRaw('LOWER(email) = ?', [$email])->first()
+                ?? TenantCustomer::create([
+                    'tenant_id'  => $tenant->id,
+                    'email'      => $email,
                     'first_name' => $request->first_name,
                     'last_name'  => $request->last_name,
-                ]
-            );
+                ]);
+        }
+
+        // MARKER-CLASSES-P9: the studio's waiver, until this customer has signed it
+        if (\App\Services\ClassWaivers::needs($tenant, $customer->id)) {
+            if (! $request->boolean('waiver_agree') || trim((string) $request->input('waiver_name')) === '') {
+                return back()->withInput()->withErrors(['booking' => 'Please read the waiver, tick to agree and type your name.']);
+            }
+            \App\Services\ClassWaivers::sign($tenant, $customer->id, (string) $request->input('waiver_name'), 'online', $request->ip());
         }
 
         try {
@@ -259,6 +271,40 @@ class CustomerClassController extends Controller
             'Content-Type'        => 'text/calendar; charset=utf-8',
             'Content-Disposition' => 'attachment; filename="class.ics"',
         ]);
+    }
+
+    // ------------------------------------------------------------------
+    // Waiver from an emailed link (MARKER-CLASSES-P9)
+    // ------------------------------------------------------------------
+
+    public function waiver(Request $request)
+    {
+        [$customer, $waiver, $state] = $this->waiverState($request);
+        return view('public.classes.waiver', compact('customer', 'waiver', 'state'));
+    }
+
+    public function waiverSign(Request $request)
+    {
+        [$customer, $waiver, $state] = $this->waiverState($request);
+        if ($state === 'sign') {
+            $d = $request->validate([
+                'waiver_agree' => ['accepted'],
+                'waiver_name'  => ['required', 'string', 'max:160'],
+            ], ['waiver_agree.accepted' => 'Tick the box to agree to the waiver.']);
+            \App\Services\ClassWaivers::sign(tenant(), $customer->id, $d['waiver_name'], 'online', $request->ip());
+        }
+        return redirect()->to($request->fullUrl());
+    }
+
+    /** @return array{0:\App\Models\Tenant\TenantCustomer,1:?\App\Models\Tenant\TenantClassWaiver,2:string} */
+    private function waiverState(Request $request): array
+    {
+        abort_unless($request->hasValidRelativeSignature(), 403, 'This link has expired. Ask the studio for a new one.');
+        $tenant   = tenant();
+        $customer = TenantCustomer::where('tenant_id', $tenant->id)->findOrFail($request->query('c'));
+        $waiver   = \App\Services\ClassWaivers::current($tenant);
+        $state    = ! $waiver ? 'none' : (\App\Services\ClassWaivers::needs($tenant, $customer->id) ? 'sign' : 'signed');
+        return [$customer, $waiver, $state];
     }
 
     // ------------------------------------------------------------------

@@ -544,6 +544,14 @@ HTML;
 <p style='margin-top:14px'><a href='{{calendar_url}}' style='color:#111'>Update your calendar</a> &nbsp;·&nbsp; <a href='{{class_url}}' style='color:#111'>Can't make the new time? Cancel here</a></p>
 <p>— The {$shop} team</p>",
             ],
+            'class_waiver_request' => [ // MARKER-CLASSES-P9
+                'subject'   => "Please sign the {$shop} waiver",
+                'body_html' => "<p>Hi {{first_name}},</p>
+<p>{$shop} asks everyone to read and sign a short waiver before class. It takes a minute.</p>
+<p style='margin:20px 0'><a href='{{waiver_url}}' style='display:inline-block;padding:12px 22px;border-radius:8px;background:#111;color:#fff;text-decoration:none;font-weight:600'>Read and sign</a></p>
+<p style='font-size:13px;color:#666'>The link works for 14 days.</p>
+<p>— The {$shop} team</p>",
+            ],
             'class_cancelled' => [
                 'subject'   => 'Cancelled: {{class_name}} on {{class_when}}',
                 'body_html' => "<p>Hi {{first_name}},</p>

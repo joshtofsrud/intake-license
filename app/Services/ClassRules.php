@@ -43,6 +43,7 @@ class ClassRules
             'waitlist_on'         => ! array_key_exists('waitlist_on', $raw) || (bool) $raw['waitlist_on'],
             'waitlist_max'        => $int('waitlist_max'),
             'waitlist_stop_hours' => $int('waitlist_stop_hours'),
+            'waiver_on'           => (bool) ($raw['waiver_on'] ?? false), // MARKER-CLASSES-P9
             'publish_weeks'       => min(26, max(1, $int('publish_weeks') ?? 4)), // MARKER-CLASSES-P7
             'online_refund'       => array_key_exists($raw['online_refund'] ?? '', self::ONLINE_REFUND) ? $raw['online_refund'] : null, // MARKER-CLASSES-P6
             'reminder_hours'      => min(self::MAX_REMINDER_HOURS, max(1, $int('reminder_hours') ?? 2)), // MARKER-CLASSES-P5

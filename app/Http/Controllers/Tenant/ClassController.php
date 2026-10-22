@@ -704,6 +704,65 @@ class ClassController extends Controller
         return back()->with('success', $msg);
     }
 
+    // ------------------------------------------------------------------
+    // Check-in (MARKER-CLASSES-P9)
+    // ------------------------------------------------------------------
+
+    public function checkinScreen(Request $request)
+    {
+        $tenant  = tenant();
+        $today   = \App\Services\ClassCheckin::today($tenant);
+        $session = \App\Services\ClassCheckin::pick($today, $request->query('session'));
+        $rows    = $session ? \App\Services\ClassCheckin::rows($tenant, $session) : collect();
+
+        return view('tenant.classes.checkin', compact('today', 'session', 'rows'));
+    }
+
+    /** Someone who hasn't signed the waiver: paper signature or emailed link, then check them in. */
+    public function checkinWaiver(Request $request, string $id)
+    {
+        $tenant = tenant();
+        $r = \App\Models\Tenant\TenantClassRegistration::where('tenant_id', $tenant->id)->with('customer')->findOrFail($id);
+        $d = $request->validate(['how' => ['required', 'in:paper,email']]);
+        $c = $r->customer;
+
+        if ($d['how'] === 'paper') {
+            $name = trim($c->first_name . ' ' . $c->last_name) ?: ($c->email ?: 'Customer');
+            \App\Services\ClassWaivers::sign($tenant, $c->id, $name, 'paper', $request->ip(), auth('tenant')->id());
+            $msg = 'Paper waiver recorded for ' . $name . '.';
+        } elseif (\App\Services\ClassWaivers::emailLink($tenant, $c)) {
+            $msg = 'Waiver link emailed to ' . $c->email . '.';
+        } else {
+            $msg = $c->email ? 'Waiver emails are off in Communication, so get a paper signature.' : 'No email on file, so get a paper signature.';
+        }
+        if ($r->status === 'registered') {
+            $this->registrationService->checkIn($r->id, $tenant->id);
+            $msg .= ' Checked in.';
+        }
+        return back()->with('success', $msg);
+    }
+
+    /** Check in everyone booked, except people who still need to sign the waiver. */
+    public function checkinAll(string $id)
+    {
+        $tenant  = tenant();
+        $session = TenantClassSession::where('tenant_id', $tenant->id)->findOrFail($id);
+        $done = 0; $wait = 0;
+        foreach (\App\Services\ClassCheckin::rows($tenant, $session) as $x) {
+            if ($x['reg']->status !== 'registered') {
+                continue;
+            }
+            if ($x['needs_waiver']) {
+                $wait++;
+                continue;
+            }
+            $this->registrationService->checkIn($x['reg']->id, $tenant->id);
+            $done++;
+        }
+        $msg = $done . ' checked in.' . ($wait ? " {$wait} still need to sign the waiver: check them in one by one." : '');
+        return back()->with('success', $msg);
+    }
+
     /** Classes › Settings: every class rule and message switch (MARKER-CLASSES-P8). */
     public function settings()
     {
@@ -713,7 +772,10 @@ class ClassController extends Controller
         $onlineDropin = \App\Services\ClassOnlineSaleService::dropinSetting($tenant);
         $cardsOn      = \App\Services\ClassOnlineSaleService::cardsOn($tenant);
 
-        return view('tenant.classes.settings', compact('rules', 'messages', 'onlineDropin', 'cardsOn'));
+        $waiver       = \App\Services\ClassWaivers::latest($tenant); // MARKER-CLASSES-P9
+        $waiverSigned = $waiver ? \App\Services\ClassWaivers::signedCount($tenant, $waiver) : 0;
+
+        return view('tenant.classes.settings', compact('rules', 'messages', 'onlineDropin', 'cardsOn', 'waiver', 'waiverSigned'));
     }
 
     /** A blank box means "no limit". Message switches are the same ones Communication shows. */
@@ -732,12 +794,20 @@ class ClassController extends Controller
             'reminder_hours'      => ['nullable', 'integer', 'min:1', 'max:48'],
             'class_online_dropin' => ['nullable', \Illuminate\Validation\Rule::in(array_keys(\App\Services\ClassOnlineSaleService::DROPIN_MODES))],
             'notify'              => ['nullable', 'array'],
+            'waiver_body'         => ['nullable', 'string', 'max:20000'], // MARKER-CLASSES-P9
         ]);
+        $waiverOn = $request->boolean('waiver_on');
+        if ($waiverOn && trim((string) ($d['waiver_body'] ?? '')) === '') {
+            return back()->withInput()->withErrors(['waiver_body' => 'Write the waiver before turning it on.']);
+        }
+        if (isset($d['waiver_body'])) {
+            \App\Services\ClassWaivers::saveText($tenant, $d['waiver_body'], auth('tenant')->id());
+        }
         $settings = (array) ($tenant->settings ?? []);
         $settings['class_rules'] = collect($d)->only([
             'book_ahead_days', 'book_cutoff_minutes', 'cancel_cutoff_hours', 'after_cutoff', 'online_refund',
             'waitlist_max', 'waitlist_stop_hours', 'publish_weeks', 'reminder_hours',
-        ])->all() + ['waitlist_on' => $request->boolean('waitlist_on')];
+        ])->all() + ['waitlist_on' => $request->boolean('waitlist_on'), 'waiver_on' => $waiverOn];
         if (! empty($d['class_online_dropin'])) {
             $settings['class_online_dropin'] = $d['class_online_dropin'];
         }

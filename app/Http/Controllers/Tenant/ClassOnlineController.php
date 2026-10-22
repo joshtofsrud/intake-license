@@ -120,6 +120,8 @@ class ClassOnlineController extends Controller
             'last_name'  => ['nullable', 'string', 'max:80'],
             'email'      => ['nullable', 'email', 'max:180'],
             'saves_card' => ['nullable', 'boolean'],
+            'waiver_agree' => ['nullable', 'boolean'], // MARKER-CLASSES-P9
+            'waiver_name'  => ['nullable', 'string', 'max:160'],
         ]);
         if ($data['kind'] === 'membership' && ! $request->boolean('saves_card')) {
             return response()->json(['ok' => false, 'message' => 'A membership renews on this card. Tick the box to save it.'], 422);

@@ -323,6 +323,8 @@ $tenantRoutes = function () {
     Route::middleware([\App\Http\Middleware\RequireClassesActive::class . ':public'])->group(function () {
     // MARKER-CLASSES-P3: buying classes online. Above /classes/{id} so these paths aren't read as a class id.
     Route::get('/classes/passes',                   [TenantControllers\ClassOnlineController::class, 'passes'])->name('tenant.customer.classes.passes');
+    Route::get('/classes/waiver',                   [TenantControllers\CustomerClassController::class, 'waiver'])->name('tenant.customer.classes.waiver'); // MARKER-CLASSES-P9
+    Route::post('/classes/waiver',                  [TenantControllers\CustomerClassController::class, 'waiverSign'])->name('tenant.customer.classes.waiver.sign')->middleware('throttle:12,1');
     Route::get('/classes/buy/{kind}/{productId}',   [TenantControllers\ClassOnlineController::class, 'buy'])->name('tenant.customer.classes.buy');
     Route::post('/classes/checkout',                [TenantControllers\ClassOnlineController::class, 'start'])->name('tenant.customer.classes.checkout')->middleware('throttle:12,1');
     Route::get('/classes/checkout/return',          [TenantControllers\ClassOnlineController::class, 'returnLeg'])->name('tenant.customer.classes.checkout.return');
@@ -1045,6 +1047,9 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             Route::post('/classes/sessions/{id}/register',      [TenantControllers\ClassController::class, 'registerCustomer'])->name('classes.sessions.register');
             Route::post('/classes/registrations/{id}/cancel',   [TenantControllers\ClassController::class, 'cancelRegistration'])->name('classes.registrations.cancel');
             Route::post('/classes/registrations/{id}/checkin',  [TenantControllers\ClassController::class, 'checkIn'])->name('classes.registrations.checkin');
+            Route::get('/classes/checkin',                      [TenantControllers\ClassController::class, 'checkinScreen'])->name('classes.checkin'); // MARKER-CLASSES-P9
+            Route::post('/classes/checkin/{id}/waiver',         [TenantControllers\ClassController::class, 'checkinWaiver'])->name('classes.checkin.waiver');
+            Route::post('/classes/checkin/session/{id}/all',    [TenantControllers\ClassController::class, 'checkinAll'])->name('classes.checkin.all');
             Route::post('/classes/registrations/{id}/noshow',   [TenantControllers\ClassController::class, 'markNoShow'])->name('classes.registrations.noshow');
 
             Route::get('/classes/memberships',                  [TenantControllers\ClassController::class, 'membershipProducts'])->name('classes.memberships');

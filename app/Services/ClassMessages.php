@@ -26,6 +26,7 @@ class ClassMessages
         'class_cancelled', 'class_late_cancel', 'class_pass_reminder',
         'class_membership_renewed', 'class_membership_payment_due', 'class_purchase_receipt',
         'class_changed', // MARKER-CLASSES-P7
+        'class_waiver_request', // MARKER-CLASSES-P9
     ];
 
     /** The switches on Classes › Settings, in order: key => [label, description]. MARKER-CLASSES-P8 */
@@ -40,6 +41,7 @@ class ClassMessages
         'class_membership_renewed'     => ['Membership renewed', 'The receipt for an automatic renewal'],
         'class_membership_payment_due' => ['Renewal failed or due', 'Card declined, with the retry date, or due at the studio'],
         'class_purchase_receipt'       => ['Pass or class bought online', 'The receipt'],
+        'class_waiver_request'         => ['Waiver link', 'When staff send someone the waiver to sign'], // MARKER-CLASSES-P9
     ];
 
     private static int $quiet = 0;
@@ -183,6 +185,7 @@ class ClassMessages
             'passes_url'   => $tenant->urlTo('/classes/passes'),
             'account_url'  => $tenant->urlTo('/account'),
             'credit_line'  => 'Your class credit has been returned to your pack.',
+            'waiver_url'   => $tenant->urlTo('/classes/waiver'),
             'change_line'  => 'It was ' . $when->copy()->subHour()->format('l, M j') . ' at ' . $when->copy()->subHour()->format('g:i A') . '.',
             'rule_line'    => 'Classes can be cancelled free up to 12 hours before they start.',
             'pass_line'    => 'You have 1 class left on your 10-class pack (use it by ' . now()->addDays(20)->format('M j') . ').',

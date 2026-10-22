@@ -90,6 +90,7 @@
 <div class="cl-subnav-wrap"><nav class="cl-subnav">
   <a href="{{ route('tenant.classes.templates') }}" class="cl-subnav-tab">Templates</a>
   <a href="{{ route('tenant.classes.sessions') }}" class="cl-subnav-tab">Schedule</a>
+  <a href="{{ route('tenant.classes.checkin') }}" class="cl-subnav-tab">Check-in</a> {{-- MARKER-CLASSES-P9 --}}
   <a href="{{ route('tenant.classes.memberships') }}" class="cl-subnav-tab is-active">Memberships</a>
   <a href="{{ route('tenant.classes.packs') }}" class="cl-subnav-tab">Packs</a>
   <a href="{{ route('tenant.classes.reports') }}" class="cl-subnav-tab">Reports</a>

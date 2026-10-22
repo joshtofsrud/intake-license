@@ -142,6 +142,7 @@
         </div>
       </div>
     @endif
+    @include('public.classes._waiver-box') {{-- MARKER-CLASSES-P9 --}}
     <button type="submit" class="ac-btn ac-btn--primary">Join waitlist</button>
   </form>
 
@@ -252,6 +253,7 @@
       </div>
     @endif
 
+    @include('public.classes._waiver-box') {{-- MARKER-CLASSES-P9 --}}
     <div class="ac-flash ac-flash--error co-err" id="cl-pay-err"></div>
     <button type="submit" class="ac-btn ac-btn--primary" id="cl-book-btn" style="margin-top:{{ $signedIn ? '16px' : '0' }}">{{ $first['btn'] }}</button>
     @if($first['key'] === 'per_class' || collect($opts)->contains('key', 'per_class'))
@@ -309,6 +311,12 @@
         payload.last_name  = document.getElementById('g-last').value.trim();
         payload.email      = document.getElementById('g-email').value.trim();
         if (!payload.first_name || !payload.email) { err.textContent = 'Enter your name and email.'; err.style.display = 'block'; return; }
+      }
+      var wa = form.querySelector('.js-waiver-agree'); // MARKER-CLASSES-P9
+      if (wa) {
+        var wn = form.querySelector('.js-waiver-name').value.trim();
+        if (!wa.checked || !wn) { err.textContent = 'Please read the waiver, tick to agree and type your name.'; err.style.display = 'block'; return; }
+        payload.waiver_agree = 1; payload.waiver_name = wn;
       }
       ClassPay.pay(@json(route('tenant.customer.classes.checkout')), payload, err, document.getElementById('cl-book-btn'));
     });
