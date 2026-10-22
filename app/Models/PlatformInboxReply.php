@@ -12,7 +12,8 @@ class PlatformInboxReply extends Model
     use HasUuids;
 
     protected $table    = 'platform_inbox_replies';
-    protected $fillable = ['message_id', 'direction', 'from_email', 'body', 'external_id'];
+    protected $fillable = ['message_id', 'direction', 'from_email', 'body', 'external_id', 'is_auto'];
+    protected $casts = ['is_auto' => 'boolean']; // MARKER-AUTO-REPLY
 
     public function message(): BelongsTo
     {

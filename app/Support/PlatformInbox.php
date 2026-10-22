@@ -82,6 +82,19 @@ class PlatformInbox
         }
     }
 
+    /**
+     * MARKER-REPLY-ALERT: a real reply on one of Intake's own threads (a
+     * prospect or anyone answering a platform email) emails the alert address.
+     */
+    public static function replyAlert(PlatformInboxMessage $m, string $from, string $body): void
+    {
+        $who = trim((string) ($m->name ?: $from));
+        if ($m->company && $m->company !== $m->name) $who .= ' at ' . $m->company;
+        $url = 'https://' . config('intake.domain', 'intake.works') . '/admin/inbox?tab=messages&show=open&id=' . $m->id;
+        self::notify($who . ' replied: ' . ($m->subject ?: 'your email'),
+            mb_strimwidth(trim($body), 0, 800, '…') . "\n\nFrom: " . $from . "\nOpen the thread: " . $url);
+    }
+
     protected static function notify(string $subject, string $body): void
     {
         $to = self::notifyAddress();

@@ -250,8 +250,14 @@ class PostmarkInboundController extends Controller
             $body = trim(strip_tags((string) ($payload['TextBody'] ?? '')));
         }
 
-        // the first answer on a thread raises the shop's lead score
-        $firstReply = ! \App\Models\PlatformInboxReply::where('message_id', $message->id)->where('direction', 'in')->exists();
+        // MARKER-AUTO-REPLY: a help desk, out-of-office or "we got your message"
+        // answer is kept on the thread, labeled, but doesn't reopen it, count as
+        // a reply, raise the lead score or alert anyone.
+        $isAuto = \App\Support\AutoReply::detect((array) ($payload['Headers'] ?? []), (string) ($payload['Subject'] ?? ''), $body);
+
+        // the first REAL answer on a thread raises the shop's lead score
+        $firstReply = ! \App\Models\PlatformInboxReply::where('message_id', $message->id)
+            ->where('direction', 'in')->where('is_auto', false)->exists();
 
         \App\Models\PlatformInboxReply::create([
             'message_id'  => $message->id,
@@ -259,7 +265,12 @@ class PostmarkInboundController extends Controller
             'from_email'  => $from ?: $message->email,
             'body'        => $body !== '' ? $body : '(no text — check the original email)',
             'external_id' => $msgId ?: null,
+            'is_auto'     => $isAuto,
         ]);
+
+        if ($isAuto) {
+            return response('OK', 200);
+        }
 
         $message->forceFill([
             'status'          => 'new',
@@ -276,6 +287,9 @@ class PostmarkInboundController extends Controller
                 report($e); // the reply itself is already saved
             }
         }
+
+        // MARKER-REPLY-ALERT
+        \App\Support\PlatformInbox::replyAlert($message, $from ?: (string) $message->email, $body);
 
         return response('OK', 200);
     }

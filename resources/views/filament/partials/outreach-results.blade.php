@@ -14,7 +14,11 @@
   .or-pills button { padding:5px 12px; border-radius:99px; font-size:12.5px; background:rgba(255,255,255,.06); color:inherit; opacity:.6; border:0; cursor:pointer; }
   .or-pills button.on { opacity:1; font-weight:600; box-shadow:inset 0 0 0 1px currentColor; }
   .or-fn { display:flex; align-items:stretch; flex-wrap:wrap; margin-top:18px; border-top:1px solid var(--sx-line); border-bottom:1px solid var(--sx-line); }
-  .or-fs { flex:1 1 0; min-width:110px; padding:14px 14px 14px 0; }
+  .or-fs { flex:1 1 0; min-width:110px; padding:14px 14px 14px 10px; border:0; border-bottom:2px solid transparent; background:none; color:inherit; text-align:left; cursor:pointer; font:inherit; }
+  .or-fs:hover { background:rgba(255,255,255,.03); }
+  .or-fs.on { border-bottom-color:var(--sx-violet); background:rgba(139,92,246,.08); }
+  .or-drill-h { display:flex; align-items:center; gap:10px; padding:12px 0 6px; font-size:13px; font-weight:600; color:var(--sx-dim); }
+  .or-drill-h button { margin-left:auto; background:none; border:0; color:var(--sx-faint); cursor:pointer; font-size:12.5px; }
   .or-fs b { display:block; font-size:24px; font-weight:650; color:#fff; letter-spacing:-.02em; font-variant-numeric:tabular-nums; }
   .or-fs span { display:block; font-size:13px; color:var(--sx-dim); }
   .or-fs i { display:block; font-style:normal; font-size:12px; color:var(--sx-faint); margin-top:2px; }
@@ -58,17 +62,53 @@
 @if ($fn['emailed'] === 0)
     <div class="or-empty">No emails sent from Email outreach or a Prospects card in this window{{ $rIndustry !== '' || $rTemplate !== '' ? ' with these filters' : '' }}.</div>
 @else
+{{-- MARKER-OUTREACH-DRILL: every number opens the shops behind it --}}
 <div class="or-fn">
-    <div class="or-fs"><b>{{ number_format($fn['emailed']) }}</b><span>emailed</span><i>shops</i></div><div class="or-fa">›</div>
-    <div class="or-fs"><b>{{ number_format($fn['opened']) }}</b><span>opened</span><i>{{ $pct($fn['opened'], $fn['emailed']) }} · runs high</i></div><div class="or-fa">›</div>
-    <div class="or-fs"><b class="lime">{{ number_format($fn['visited']) }}</b><span>visited the site</span><i>{{ $pct($fn['visited'], $fn['emailed']) }} of emailed</i></div><div class="or-fa">›</div>
-    <div class="or-fs"><b>{{ number_format($fn['replied']) }}</b><span>replied</span><i>{{ $pct($fn['replied'], $fn['emailed']) }}</i></div><div class="or-fa">›</div>
-    <div class="or-fs"><b>{{ number_format($fn['demo']) }}</b><span>demo or trial</span><i>{{ $pct($fn['demo'], $fn['emailed']) }}</i></div><div class="or-fa">›</div>
-    <div class="or-fs"><b>{{ number_format($fn['won']) }}</b><span>won</span><i>{{ $pct($fn['won'], $fn['emailed']) }}</i></div>
+    @foreach ([
+        ['emailed', 'emailed', 'shops', ''],
+        ['opened', 'opened', $pct($fn['opened'], $fn['emailed']) . ' · runs high', ''],
+        ['visited', 'visited the site', $pct($fn['visited'], $fn['emailed']) . ' of emailed', 'lime'],
+        ['replied', 'replied', $pct($fn['replied'], $fn['emailed']), ''],
+        ['demo', 'demo or trial', $pct($fn['demo'], $fn['emailed']), ''],
+        ['won', 'won', $pct($fn['won'], $fn['emailed']), ''],
+    ] as $i => $fr)
+        @php [$k, $label, $sub, $cls] = $fr; @endphp
+        @if ($i > 0)<div class="or-fa">›</div>@endif
+        <button type="button" class="or-fs {{ $drill === $k ? 'on' : '' }}" wire:click="toggleDrill('{{ $k }}')" title="Show these shops"><b class="{{ $cls }}">{{ number_format($fn[$k]) }}</b><span>{{ $label }}</span><i>{{ $sub }}</i></button>
+    @endforeach
 </div>
+@if ($drill && isset($res['lists'][$drill]))
+    @php
+        $dl = $res['lists'][$drill];
+        $dlNames = ['emailed' => 'Emailed', 'opened' => 'Opened', 'visited' => 'Visited the site', 'replied' => 'Replied', 'demo' => 'Demo or trial', 'won' => 'Won'];
+        $inboxUrl = \App\Filament\Pages\PlatformInbox::getUrl();
+    @endphp
+    <div class="or-drill">
+        <div class="or-drill-h">{{ $dlNames[$drill] }} · {{ count($dl) }} {{ count($dl) === 1 ? 'shop' : 'shops' }}<button type="button" wire:click="toggleDrill('{{ $drill }}')">Close ×</button></div>
+        <table class="sx-t">
+            <tbody>
+            @forelse (array_slice($dl, 0, 50) as $r)
+                <tr wire:key="dl-{{ $drill }}-{{ $r['id'] }}">
+                    <td>{{ $r['shop'] }}<div class="sx-sub">{{ $r['what'] }} · {{ $r['when']->setTimezone($tz)->format('M j, g:i a') }}</div></td>
+                    <td class="n" style="white-space:nowrap">
+                        @if (! empty($r['thread']))<a class="sx-btn sm" style="text-decoration:none" href="{{ $inboxUrl }}?tab=messages&show=all&id={{ $r['thread'] }}">Open thread</a>@endif
+                        <a class="sx-btn sm" style="text-decoration:none" href="{{ $pipe }}?open={{ $r['id'] }}">Open in Prospects</a>
+                    </td>
+                </tr>
+            @empty
+                <tr><td class="sx-sub">No shops here in this window.</td></tr>
+            @endforelse
+            @if (count($dl) > 50)<tr><td class="sx-sub" colspan="2">+ {{ count($dl) - 50 }} more</td></tr>@endif
+            </tbody>
+        </table>
+        @if ($drill === 'replied' && count($res['lists']['auto']))
+            <div class="sx-sub" style="margin-top:8px"><span class="or-tag" style="border-color:rgba(251,191,36,.5);color:#fbbf24">not counted</span>Only an automatic reply came back from: {{ implode(', ', array_slice($res['lists']['auto'], 0, 8)) }}{{ count($res['lists']['auto']) > 8 ? '…' : '' }}</div>
+        @endif
+    </div>
+@endif
 @endif
 
-<p class="sx-lede"><b>How these are counted:</b> shops, not emails, from emails sent here or from a Prospects card; each shop is judged from its first email in the window. Opened comes from the email provider and runs high, because Apple Mail opens every email to preload it, so trust Visited more. Visited means they opened their own link after the email (link scanners don't count, and neither do you when signed in). Replied is an answer that came back into the Platform inbox. Demo or trial and Won are the shop reaching that stage after the email. <b>Not counted:</b> bulk campaigns from Platform email.</p>
+<p class="sx-lede"><b>How these are counted:</b> shops, not emails, from emails sent here or from a Prospects card; each shop is judged from its first email in the window. Opened comes from the email provider and runs high, because Apple Mail opens every email to preload it, so trust Visited more. Visited means they opened their own link after the email (link scanners don't count, and neither do you when signed in). Replied is a real answer that came back into the Platform inbox; help-desk receipts and out-of-office replies don't count. Click any number to see the shops behind it. Demo or trial and Won are the shop reaching that stage after the email. <b>Not counted:</b> bulk campaigns from Platform email.</p>
 
 <div class="or-cols">
     <section>

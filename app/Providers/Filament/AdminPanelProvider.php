@@ -178,6 +178,11 @@ class AdminPanelProvider extends PanelProvider
             // (which happens once the panel has ~15+ items), and a recent change started
             // showing the OS default chunky scrollbar. This injects thin/dim styling
             // scoped to the sidebar nav so it gently scrolls without visually dominating.
+            // MARKER-ADMIN-TOPBAR: Inbox, Calendar, Follow-ups, Issues left of Search
+            ->renderHook(
+                PanelsRenderHook::GLOBAL_SEARCH_BEFORE,
+                fn (): string => \Livewire\Livewire::mount(\App\Livewire\AdminTopbar::class)
+            )
             ->renderHook(
                 PanelsRenderHook::HEAD_END,
                 fn (): string => Blade::render(<<<'HTML'

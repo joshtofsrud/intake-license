@@ -31,6 +31,12 @@
   .ib-reply textarea{width:100%;min-height:110px;background:transparent;border:1px solid var(--ib-line);border-radius:10px;color:inherit;font:inherit;font-size:13.5px;padding:10px 12px;resize:vertical}
   .ib-hint{font-size:11.5px;opacity:.55;margin-top:6px;line-height:1.5}
   .ib-replied{margin-top:12px;padding:10px 12px;border-left:2px solid var(--ib-accent);font-size:13px;white-space:pre-wrap;opacity:.85}
+  .ib-turn{margin-top:12px;padding:10px 12px;border:1px solid var(--ib-line);border-radius:10px;background:rgba(255,255,255,.03)}
+  .ib-turn.auto{opacity:.72;border-style:dashed}
+  .ib-turn-h{font-size:12px;opacity:.7;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .ib-turn-b{font-size:13.5px;line-height:1.6;white-space:pre-wrap;margin-top:6px}
+  .ib-auto{font-size:11px;font-weight:600;color:#fbbf24;border:1px solid rgba(251,191,36,.5);border-radius:999px;padding:0 8px}
+  .ib-link{background:none;border:0;padding:0;color:#a78bfa;cursor:pointer;font:inherit;text-decoration:underline}
   .ib-legend{font-size:12px;opacity:.6;line-height:1.6;margin-bottom:12px}
 </style>
 
@@ -93,7 +99,7 @@
         <h3>{{ $sel->subject ?: ($sel->name ?: 'Message') }}</h3>
         <div class="ib-from">
           @if($sel->kind === 'alert')
-            {{ $sel->ref_id }} · {{ $sel->created_at->format('M j, g:i A') }}
+            {{ $sel->ref_id }} · {{ $sel->created_at->timezone('America/Los_Angeles')->format('M j, g:i A') }}
             @if($sel->tenant) · {{ $sel->tenant->name }} @endif
           @else
             {{ $sel->name }}
@@ -101,7 +107,7 @@
             @if($sel->phone) · {{ $sel->phone }}@endif
             @if($sel->company) · {{ $sel->company }}@endif
             @if($sel->tenant) · <b>{{ $sel->tenant->name }}</b>@endif
-            <br>{{ $sel->created_at->format('D M j, g:i A') }}
+            <br>{{ $sel->created_at->timezone('America/Los_Angeles')->format('D M j, g:i A') }}
             @if($sel->source_url) · from {{ str_replace(['https://','http://'], '', $sel->source_url) }}@endif
             @if($sel->ip) · {{ $sel->ip }}@endif
           @endif
@@ -109,7 +115,28 @@
 
         <div class="ib-body">{{ $sel->body }}</div>
 
-        @if($sel->replied_at)
+        {{-- MARKER-AUTO-REPLY: the whole conversation, in order. Replies they
+             sent were saved but never shown here. --}}
+        @php $turns = $sel->kind === 'alert' ? collect() : $sel->replies()->get(); @endphp
+        @if($turns->isNotEmpty())
+          @foreach($turns as $t)
+            @if($t->direction === 'in')
+              <div class="ib-turn {{ $t->is_auto ? 'auto' : '' }}" wire:key="turn-{{ $t->id }}">
+                <div class="ib-turn-h">{{ $t->from_email ?: $sel->email }} · {{ $t->created_at->timezone('America/Los_Angeles')->format('M j, g:i A') }}
+                  @if($t->is_auto)<span class="ib-auto">Automatic reply</span>@endif</div>
+                <div class="ib-turn-b">{{ $t->body }}</div>
+                @if($t->is_auto)
+                  <div class="ib-hint">Not counted as a reply: no lead score, no alert. <button type="button" class="ib-link" wire:click="markRealReply('{{ $t->id }}')">This was a real reply</button></div>
+                @else
+                  <div class="ib-hint"><button type="button" class="ib-link" wire:click="markAutoReply('{{ $t->id }}')">Automatic reply?</button></div>
+                @endif
+              </div>
+            @else
+              <div class="ib-hint">You replied {{ $t->created_at->diffForHumans() }}:</div>
+              <div class="ib-replied">{{ $t->body }}</div>
+            @endif
+          @endforeach
+        @elseif($sel->replied_at)
           <div class="ib-hint">You replied {{ $sel->replied_at->diffForHumans() }}:</div>
           <div class="ib-replied">{{ $sel->reply_body }}</div>
         @endif

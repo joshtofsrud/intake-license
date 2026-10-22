@@ -147,6 +147,35 @@ class PlatformInbox extends Page
      * owner's email. A stranger's message is answered by email to the
      * address they gave.
      */
+    // MARKER-AUTO-REPLY: correct the automatic-reply guess either way
+    public function markRealReply(string $replyId): void
+    {
+        $r = \App\Models\PlatformInboxReply::find($replyId);
+        if (! $r || ! $r->is_auto) return;
+        $m = PlatformInboxMessage::find($r->message_id);
+        $hadReal = \App\Models\PlatformInboxReply::where('message_id', $r->message_id)->where('direction', 'in')->where('is_auto', false)->exists();
+        $r->forceFill(['is_auto' => false])->save();
+        if ($m && ! $hadReal) {
+            try {
+                if ($p = \App\Services\Sales\ProspectEngagement::forThread($m, (string) $r->from_email)) {
+                    \App\Services\Sales\ProspectEngagement::add($p, 'reply', (string) $m->subject);
+                }
+            } catch (\Throwable $e) {
+                report($e);
+            }
+        }
+    }
+
+    public function markAutoReply(string $replyId): void
+    {
+        $r = \App\Models\PlatformInboxReply::find($replyId);
+        if (! $r || $r->is_auto || $r->direction !== 'in') return;
+        $r->forceFill(['is_auto' => true])->save();
+        $m = PlatformInboxMessage::find($r->message_id);
+        $realLeft = \App\Models\PlatformInboxReply::where('message_id', $r->message_id)->where('direction', 'in')->where('is_auto', false)->exists();
+        if ($m && ! $realLeft) \App\Support\AutoReply::undoReplyCredit($m);
+    }
+
     public function sendReply(): void
     {
         $text = trim($this->reply);

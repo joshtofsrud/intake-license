@@ -252,7 +252,7 @@
         </div>
       @endif
 
-      <div class="mt-tile {{ $count === 0 ? 'is-zero' : '' }}">
+      <div class="mt-tile {{ $count === 0 ? 'is-zero' : '' }}" data-mt-step="{{ $st['label'] }}" role="button" tabindex="0" title="Show when">
         <div class="n">{{ number_format($count) }}</div>
         <div class="l">{{ $st['label'] }}</div>
         @if($i > 0 && $steps[0]['count'] > 0)
@@ -271,8 +271,9 @@
 
   <p class="mt-hint">
     Browsing only, and cumulative: each step counts sessions that also passed every step before
-    it, so this can only fall.
+    it, so this can only fall. Click a step to see when it happened.
   </p>
+  @include('filament.partials.mt-step-list', ['labels' => collect($stages ?? [])->pluck('label')->all(), 'stepTimes' => $stepTimes ?? []])
 @else
   <p class="mt-empty">No browsing activity in this window.</p>
 @endif
@@ -284,7 +285,7 @@
 <div class="mt-sec">What came of it</div>
 <div class="mt-grid">
   @foreach($outcomes ?? [] as $oc)
-    <div class="mt-tile {{ (int) $oc['count'] === 0 ? 'is-zero' : '' }}" style="text-align:left">
+    <div class="mt-tile {{ (int) $oc['count'] === 0 ? 'is-zero' : '' }}" style="text-align:left" data-mt-step="{{ $oc['label'] }}" role="button" tabindex="0" title="Show when">
       <div class="n">{{ number_format((int) $oc['count']) }}</div>
       <div class="l">{{ $oc['label'] }}</div>
       <div class="p">{{ $oc['unit'] }}</div>
@@ -296,8 +297,42 @@
 </div>
 <p class="mt-hint">
   Each of these is counted on its own — someone can book a call without ever opening pricing.
-  They do not add up to the funnel above and are not meant to.
+  They do not add up to the funnel above and are not meant to. Click one to see when each happened.
 </p>
+@include('filament.partials.mt-step-list', ['labels' => collect($outcomes ?? [])->pluck('label')->all(), 'stepTimes' => $stepTimes ?? []])
+<script>
+  // MARKER-STEP-TIMES: click a step for its times; Session jumps to that visit.
+  (function () {
+    if (window.__mtSteps) { return; }
+    window.__mtSteps = true;
+    function closeAll() {
+      document.querySelectorAll('[data-mt-list]').forEach(function (l) { l.hidden = true; });
+      document.querySelectorAll('[data-mt-step]').forEach(function (x) { x.classList.remove('mt-on'); });
+    }
+    function toggle(t) {
+      var list = document.querySelector('[data-mt-list="' + CSS.escape(t.dataset.mtStep) + '"]');
+      if (!list) { return; }
+      var wasOpen = !list.hidden;
+      closeAll();
+      if (!wasOpen) { list.hidden = false; t.classList.add('mt-on'); }
+    }
+    document.addEventListener('click', function (e) {
+      var step = e.target.closest('[data-mt-step]');
+      if (step) { toggle(step); return; }
+      if (e.target.closest('[data-mt-close]')) { closeAll(); return; }
+      var go = e.target.closest('[data-mt-session]');
+      if (!go) { return; }
+      var tab = document.querySelector('[data-mkt-tab="sessions"]');
+      if (tab) { tab.click(); }
+      var row = document.querySelector('.rse-row[data-sid="' + CSS.escape(go.dataset.mtSession) + '"]');
+      if (row) { row.classList.add('open'); row.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+    });
+    document.addEventListener('keydown', function (e) {
+      var step = e.target.closest && e.target.closest('[data-mt-step]');
+      if (step && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); toggle(step); }
+    });
+  })();
+</script>
 
 {{-- this whole region was mis-nested. The Pages panel
      opened INSIDE the Overview panel, so hiding Overview hid it too and the
@@ -456,6 +491,17 @@
 .rse-ev .t{width:76px;flex:none;color:var(--ia-text-dim,rgba(255,255,255,.42));font-size:11px}
 .rse-ev .w{color:var(--ia-text-2,rgba(255,255,255,.72))}
 .rse-src{flex:none;font-size:11px;font-weight:600;color:#c4b5fd;background:rgba(139,92,246,.14);border:.5px solid rgba(139,92,246,.35);border-radius:100px;padding:3px 9px}
+.mt-tile[data-mt-step]{cursor:pointer}
+.mt-tile[data-mt-step]:hover{border-color:rgba(139,124,246,.5)}
+.mt-tile.mt-on{box-shadow:inset 0 0 0 1px rgb(139 124 246)}
+.mt-steplist{margin-top:10px;border:1px solid rgba(127,127,127,.22);border-radius:12px;padding:6px 14px 10px}
+.mt-steplist-h{display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:600;opacity:.85;padding:6px 0}
+.mt-steplist-h button{margin-left:auto;background:none;border:0;color:inherit;opacity:.6;cursor:pointer;font-size:12px}
+.mt-steprow{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:7px 0;border-top:.5px solid rgba(255,255,255,.07);font-size:13px}
+.mt-steprow .t{width:120px;flex:none;font-variant-numeric:tabular-nums}
+.mt-steprow .s{flex:none;min-width:110px;opacity:.75}
+.mt-steprow .p{flex:1;min-width:120px;opacity:.6;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mt-steprow-go{margin-left:auto;border:1px solid rgba(127,127,127,.3);background:none;color:inherit;border-radius:7px;padding:3px 9px;font-size:12px;cursor:pointer}
 .rse-none{padding:22px;text-align:center;font-size:13px;color:var(--ia-text-dim,rgba(255,255,255,.42))}
 </style>
 
@@ -479,7 +525,7 @@
 
   <div class="rse-scroll">
     @forelse($sessions as $sess)
-      <div class="rse-row" data-status="{{ $sess['status'] }}" onclick="this.classList.toggle('open')">
+      <div class="rse-row" data-status="{{ $sess['status'] }}" data-sid="{{ $sess['id'] ?? '' }}" onclick="this.classList.toggle('open')">
         <span class="rse-time">{{ $sess['time'] }}<span>{{ $sess['day'] }}</span></span>
         <span class="rse-land">{{ $sess['landing'] }}</span>
         @if(! empty($sess['outreach']))<span class="rse-src">Email · {{ $sess['outreach']['shop'] }}</span>@endif

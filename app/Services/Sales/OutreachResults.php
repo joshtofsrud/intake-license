@@ -8,7 +8,8 @@
 //
 //   opened   the email provider saw an open or a click (thread meta)
 //   visited  the shop opened its own link after the email (sales_prospect_visits)
-//   replied  an answer came back into the Platform inbox on that thread
+//   replied  a real answer came back into the Platform inbox on that thread
+//            (MARKER-AUTO-REPLY: help-desk receipts and out-of-office don't count)
 //   demo     the shop reached Demo booked, Demo done or Trial after the email
 //   won      the shop reached Won after the email
 
@@ -53,13 +54,14 @@ class OutreachResults
 
         return [
             'funnel'     => self::funnel($rows, $ctx),
+            'lists'      => self::lists($rows, $ctx, $tplNames), // MARKER-OUTREACH-DRILL
             'byTemplate' => $group($rows, fn ($r) => $r->template_id ?: 'none', fn ($k, $g) => $k === 'none'
                 ? 'Written by hand' : ($tplNames[$k] ?? 'Deleted template')),
             'byIndustry' => $group($rows, fn ($r) => $r->channel_id ?: 'none', fn ($k) => $k === 'none'
                 ? 'No industry' : ($chNames[$k] ?? 'Unknown')),
             'byPage'     => $group($rows, fn ($r) => $r->page ?: '/', fn ($k) => ProspectOutreach::pageLabel($k)),
             'weeks'      => self::weeks($all, $ctx),
-            'followUp'   => self::followUp($all, $ctx),
+            'followUp'   => self::followUp($all, $ctx, 12),
         ];
     }
 
@@ -85,7 +87,7 @@ class OutreachResults
     {
         $pids = $rows->pluck('pid')->unique()->values()->all();
         $tids = $rows->pluck('thread_id')->filter()->unique()->values()->all();
-        $ctx = ['visits' => [], 'opened' => [], 'replied' => [], 'stages' => [], 'prospects' => []];
+        $ctx = ['visits' => [], 'opened' => [], 'replied' => [], 'replyText' => [], 'autoOnly' => [], 'stages' => [], 'prospects' => []];
         if (! $pids) return $ctx;
 
         foreach (array_chunk($pids, 500) as $chunk) {
@@ -108,9 +110,15 @@ class OutreachResults
                 if ($o) $ctx['opened'][(string) $m->id] = CarbonImmutable::parse($o);
             }
             foreach (DB::table('platform_inbox_replies')->whereIn('message_id', $chunk)->where('direction', 'in')
-                ->selectRaw('message_id, MIN(created_at) at')->groupBy('message_id')->get() as $r) {
-                $ctx['replied'][(string) $r->message_id] = CarbonImmutable::parse($r->at);
+                ->orderBy('created_at')->get(['message_id', 'created_at', 'body', 'is_auto']) as $r) {
+                $id = (string) $r->message_id;
+                if ($r->is_auto) { $ctx['autoOnly'][$id] = true; continue; }
+                if (! isset($ctx['replied'][$id])) {
+                    $ctx['replied'][$id] = CarbonImmutable::parse($r->created_at);
+                    $ctx['replyText'][$id] = (string) $r->body;
+                }
             }
+            foreach (array_keys($ctx['replied']) as $id) unset($ctx['autoOnly'][$id]);
         }
         return $ctx;
     }
@@ -174,7 +182,7 @@ class OutreachResults
     }
 
     /** Opened or visited since their latest email, no reply, still open. Newest first. */
-    private static function followUp($rows, array $ctx): array
+    public static function followUp($rows, array $ctx, ?int $limit = null): array
     {
         $last = [];
         $threads = [];
@@ -208,7 +216,71 @@ class OutreachResults
             $out[] = ['id' => $pid, 'shop' => $p->shop, 'place' => trim($p->city . ', ' . $p->state, ', '), 'kind' => $kind, 'what' => $what, 'when' => $when];
         }
         usort($out, fn ($a, $b) => $b['when'] <=> $a['when']);
-        return array_slice($out, 0, 12);
+        return $limit ? array_slice($out, 0, $limit) : $out;
+    }
+
+    /** Every shop waiting on a follow-up (the top bar count). */
+    public static function followUpCount(): int
+    {
+        $all = self::sends('', '', null);
+        return count(self::followUp($all, self::context($all)));
+    }
+
+    /**
+     * MARKER-OUTREACH-DRILL: the shops behind each funnel number, newest first,
+     * with what happened and when. Same rules as funnel().
+     */
+    private static function lists($rows, array $ctx, array $tplNames): array
+    {
+        $first = []; $tplOf = []; $threads = [];
+        foreach ($rows as $r) {
+            if (! isset($first[$r->pid])) { $first[$r->pid] = $r->at; $tplOf[$r->pid] = $r->template_id; }
+            if ($r->thread_id) $threads[$r->pid][] = (string) $r->thread_id;
+        }
+        $L = ['emailed' => [], 'opened' => [], 'visited' => [], 'replied' => [], 'demo' => [], 'won' => [], 'auto' => []];
+        $stageNames = \App\Models\SalesProspect::STAGES;
+        foreach ($first as $pid => $at) {
+            $p = $ctx['prospects'][$pid] ?? null;
+            if (! $p) continue;
+            $base = ['id' => $pid, 'shop' => $p->shop, 'thread' => null];
+            $tpl = $tplOf[$pid] ? ($tplNames[$tplOf[$pid]] ?? 'Deleted template') : 'Written by hand';
+            $L['emailed'][] = $base + ['when' => $at, 'what' => $tpl];
+            $t = $threads[$pid] ?? [];
+            $op = null;
+            foreach ($t as $id) if (isset($ctx['opened'][$id]) && (! $op || $ctx['opened'][$id]->lessThan($op))) $op = $ctx['opened'][$id];
+            if ($op) $L['opened'][] = $base + ['when' => $op, 'what' => 'Opened the email'];
+            foreach ($ctx['visits'][$pid] ?? [] as $v) {
+                $va = CarbonImmutable::parse($v->first_at);
+                if ($va->lessThan($at)) continue;
+                $paths = json_decode((string) $v->paths, true) ?: [];
+                $L['visited'][] = $base + ['when' => $va, 'what' => implode(' → ', array_map([ProspectOutreach::class, 'pageLabel'], array_slice($paths, 0, 4))) . ' · ' . (int) $v->pages . ' ' . ((int) $v->pages === 1 ? 'page' : 'pages')];
+                break;
+            }
+            $rep = null; $repThread = null;
+            foreach ($t as $id) if (isset($ctx['replied'][$id]) && (! $rep || $ctx['replied'][$id]->lessThan($rep))) { $rep = $ctx['replied'][$id]; $repThread = $id; }
+            if ($rep) {
+                $L['replied'][] = ['id' => $pid, 'shop' => $p->shop, 'thread' => $repThread, 'when' => $rep,
+                    'what' => '"' . mb_strimwidth(trim(preg_replace('/\s+/', ' ', $ctx['replyText'][$repThread] ?? '')), 0, 110, '…') . '"'];
+            } else {
+                foreach ($t as $id) if (isset($ctx['autoOnly'][$id])) { $L['auto'][] = $p->shop; break; }
+            }
+            $st = array_values(array_filter($ctx['stages'][$pid] ?? [], fn ($s) => $s[1]->greaterThanOrEqualTo($at)));
+            $conv = $p->converted_at ? CarbonImmutable::parse($p->converted_at) : null;
+            if ($st) {
+                usort($st, fn ($a, $b) => $a[1] <=> $b[1]);
+                $L['demo'][] = $base + ['when' => $st[0][1], 'what' => $stageNames[$st[0][0]] ?? $st[0][0]];
+                foreach ($st as $s) if ($s[0] === 'won') { $L['won'][] = $base + ['when' => $s[1], 'what' => 'Won']; break; }
+            } elseif ($conv && $conv->greaterThanOrEqualTo($at)) {
+                $L['demo'][] = $base + ['when' => $conv, 'what' => 'Started a trial'];
+                if ($p->stage === 'won') $L['won'][] = $base + ['when' => $conv, 'what' => 'Won'];
+            }
+        }
+        foreach ($L as $k => $list) {
+            if ($k === 'auto') continue;
+            usort($list, fn ($a, $b) => $b['when'] <=> $a['when']);
+            $L[$k] = $list;
+        }
+        return $L;
     }
 
     // ------------------------------------------------------------ Marketing traffic

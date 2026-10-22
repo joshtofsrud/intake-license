@@ -719,6 +719,7 @@ class TrafficReportService
         $sourceOf = [];
         foreach (TenantFunnelEvent::query()->whereIn('id', $firstIds)->get(['session_id', 'utm_source', 'referrer_domain']) as $e) {
             $ref = strtolower(trim((string) $e->referrer_domain));
+            if (str_starts_with($ref, 'www.')) $ref = substr($ref, 4); // google.com and www.google.com are one source
             $internal = $ref !== '' && (in_array($ref, $own, true) || in_array('www.' . $ref, $own, true) || (str_starts_with($ref, 'www.') && in_array(substr($ref, 4), $own, true)));
             $src = trim((string) $e->utm_source) !== '' ? trim((string) $e->utm_source) : ($ref !== '' && ! $internal ? $ref : '(direct)');
             $sourceOf[$e->session_id] = $src === 'outreach' ? 'Email outreach' : $src;

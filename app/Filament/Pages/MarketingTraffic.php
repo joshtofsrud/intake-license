@@ -107,6 +107,8 @@ class MarketingTraffic extends Page
             'devices'    => $report->deviceSplit(),
             // MARKER-OUTREACH-RESULTS
             'outreach'   => \App\Services\Sales\OutreachResults::forTraffic($report->curStart(), $report->curEnd()),
+            // MARKER-STEP-TIMES: when each step happened
+            'stepTimes'  => \App\Services\Platform\MarketingStepTimes::forWindow($report->curStart(), $report->curEnd()),
             'outcomes'   => $funnel->outcomes(),
             'health'     => $this->trackingHealth($platform),
             'compare'    => $this->compare,

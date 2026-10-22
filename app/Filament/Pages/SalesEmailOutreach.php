@@ -46,6 +46,12 @@ class SalesEmailOutreach extends Page
     public string $rIndustry = '';
     public string $rTemplate = '';
     public string $rDays = '30';
+    public ?string $drill = null; // MARKER-OUTREACH-DRILL: which funnel number is open
+
+    public function toggleDrill(string $k): void
+    {
+        $this->drill = $this->drill === $k ? null : $k;
+    }
 
     public static function canAccess(): bool
     {
