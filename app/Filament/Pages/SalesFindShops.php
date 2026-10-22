@@ -357,6 +357,53 @@ class SalesFindShops extends Page
         } catch (\Throwable $e) { report($e); }
     }
 
+    // ---- MARKER-BG-IMPORT: big files come in through the piece uploader, then load on the server
+    public string $bigFile = '';   // upload id of a file that arrived in pieces
+    public string $bigName = '';
+
+    /** The CSV being mapped / previewed: an uploaded-in-pieces file, or a classic upload. */
+    public function listPath(): ?string
+    {
+        if ($this->bigFile !== '' && preg_match('/^[a-f0-9]{24}$/', $this->bigFile)) {
+            $p = storage_path('app/shop-imports/up-' . $this->bigFile . '.csv');
+            return is_file($p) ? $p : null;
+        }
+        return $this->shopList ? $this->shopList->getRealPath() : null;
+    }
+
+    public function useBigFile(string $id, string $name): void
+    {
+        $this->shopList = null; $this->bigFile = ''; $this->bigName = '';
+        $this->uploadPreview = null; $this->uploadResult = null; $this->uploadError = null;
+        $this->uploadHeaders = []; $this->uploadSample = []; $this->columnMap = [];
+        $this->showLoader = true;
+        if (! preg_match('/^[a-f0-9]{24}$/', $id)) { $this->uploadError = 'That upload could not be found. Pick the file again.'; return; }
+        $this->bigFile = $id; $this->bigName = mb_substr($name, 0, 191);
+        if (! $this->listPath()) { $this->bigFile = ''; $this->uploadError = 'That upload could not be found. Pick the file again.'; return; }
+        try {
+            $i = (new \App\Services\Sales\ShopListImporter())->inspect($this->listPath());
+            if ($i['error']) { $this->uploadError = $i['error']; return; }
+            $this->uploadHeaders = $i['headers']; $this->uploadSample = $i['sample'];
+            $this->columnMap = \App\Services\Sales\ShopListImporter::guessMap($i['headers']);
+        } catch (\Throwable $e) {
+            $this->uploadError = 'Could not read the file: ' . $e->getMessage();
+        }
+    }
+
+    /** Lists loading now, or finished in the last day. */
+    public function importRuns(): array
+    {
+        if (! \Illuminate\Support\Facades\Schema::hasTable('sales_import_runs')) return [];
+        return \Illuminate\Support\Facades\DB::table('sales_import_runs')
+            ->where(fn ($w) => $w->whereIn('status', ['queued', 'running'])->orWhere('updated_at', '>=', now()->subDay()))
+            ->orderByDesc('id')->limit(5)->get()->map(fn ($r) => (array) $r)->all();
+    }
+
+    public function dismissRun(int $id): void
+    {
+        \Illuminate\Support\Facades\DB::table('sales_import_runs')->where('id', $id)->whereIn('status', ['done', 'failed'])->update(['updated_at' => now()->subDays(2)]);
+    }
+
     public function updatedShopList(): void
     {
         $this->uploadPreview = null; $this->uploadResult = null; $this->uploadError = null;
@@ -388,56 +435,46 @@ class SalesFindShops extends Page
 
     public function previewUpload(): void
     {
-        $this->validate(['shopList' => ['required', 'file', 'max:51200']]); // 50 MB
+        if (! $this->listPath()) { Notification::make()->title('Pick a file first.')->warning()->send(); return; } // MARKER-BG-IMPORT
+        @set_time_limit(300);
         $this->uploadResult = null;
         if ($this->mapProblem()) { Notification::make()->title($this->mapProblem())->warning()->send(); return; }
-        $this->uploadPreview = (new \App\Services\Sales\ShopListImporter())->import($this->shopList->getRealPath(), null, $this->uploadAssign, true, null, $this->columnMap, $this->uploadIndustry ?: null);
+        $this->uploadPreview = (new \App\Services\Sales\ShopListImporter())->import($this->listPath(), null, $this->uploadAssign, true, null, $this->columnMap, $this->uploadIndustry ?: null);
         if ($this->uploadPreview['error']) Notification::make()->title($this->uploadPreview['error'])->danger()->send();
     }
 
-    // MARKER-FAST-IMPORT: a big list loads 1,000 rows per request; the page asks for the
-    // next chunk until it is done, showing progress, so nothing hits the server's time limit.
-    public ?array $importRun = null;
-    public const IMPORT_CHUNK = 1000;
+    // MARKER-FAST-IMPORT + MARKER-BG-IMPORT: Load hands the file to the server, which loads it
+    // 1,000 rows at a time every minute (sales:run-imports); the page can be closed meanwhile.
+    public ?array $importRun = null; // no longer used; kept so an open page from before the update doesn't error
 
     public function importUpload(): void
     {
-        $this->validate(['shopList' => ['required', 'file', 'max:51200']]);
+        $src = $this->listPath();
+        if (! $src) { Notification::make()->title('Pick a file first.')->warning()->send(); return; }
         if ($this->mapProblem()) { Notification::make()->title($this->mapProblem())->warning()->send(); return; }
-        if ($this->importRun) return;
         $batch = 'list-' . now()->format('Ymd-Hi');
         $dir = storage_path('app/shop-imports');
         if (! is_dir($dir)) @mkdir($dir, 0775, true);
         $path = $dir . '/' . $batch . '-' . \Illuminate\Support\Str::random(6) . '.csv';
-        if (! @copy($this->shopList->getRealPath(), $path)) { Notification::make()->title('Could not keep the file for loading. Try again.')->danger()->send(); return; }
-        try { $this->shopList->delete(); } catch (\Throwable $e) {}
-        $this->importRun = [
-            'path' => $path, 'pos' => 0, 'size' => max(1, (int) filesize($path)), 'batch' => $batch,
-            'map' => $this->columnMap, 'assign' => $this->uploadAssign, 'channel' => $this->uploadIndustry ?: null,
-            'inserted' => 0, 'matched' => 0, 'blank' => 0, 'total' => 0, 'assigned' => 0, 'with_coords' => 0,
-            'expect' => (int) ($this->uploadPreview['total'] ?? 0),
-        ];
-        $this->shopList = null; $this->uploadResult = null; $this->uploadHeaders = []; $this->uploadSample = [];
-        $this->importStep();
+        $moved = $this->bigFile !== '' ? @rename($src, $path) : @copy($src, $path);
+        if (! $moved) { Notification::make()->title('Could not keep the file for loading. Try again.')->danger()->send(); return; }
+        if ($this->shopList) { try { $this->shopList->delete(); } catch (\Throwable $e) {} }
+        $id = \Illuminate\Support\Facades\DB::table('sales_import_runs')->insertGetId([
+            'user_id' => Auth::id(), 'batch' => $batch, 'file_name' => $this->bigName ?: ($this->shopList ? mb_substr($this->shopList->getClientOriginalName(), 0, 191) : null),
+            'path' => $path, 'size' => max(1, (int) filesize($path)), 'map' => json_encode($this->columnMap), 'assign' => $this->uploadAssign,
+            'channel_id' => $this->uploadIndustry ?: null, 'expect' => (int) ($this->uploadPreview['total'] ?? 0), 'status' => 'queued',
+            'created_at' => now(), 'updated_at' => now(),
+        ]);
+        $this->shopList = null; $this->bigFile = ''; $this->bigName = ''; $this->uploadPreview = null; $this->uploadResult = null;
+        $this->uploadHeaders = []; $this->uploadSample = []; $this->columnMap = [];
+        \App\Services\Sales\ShopListRuns::work((int) $id, 15); // first rows now; the server carries on every minute
+        Notification::make()->title('Loading started')->body('You can leave this page; it keeps loading on the server.')->success()->send();
     }
 
+    /** An open page from before the update may still call this; loading now happens on the server. */
     public function importStep(): void
     {
-        $run = $this->importRun;
-        if (! $run) return;
-        if (! is_file($run['path'])) { $this->importRun = null; Notification::make()->title('The list file went missing part way. The shops loaded so far are kept.')->danger()->send(); return; }
-        $r = (new \App\Services\Sales\ShopListImporter())->import($run['path'], $run['batch'], $run['assign'], false, null, $run['map'], $run['channel'], (int) $run['pos'], self::IMPORT_CHUNK);
-        if ($r['error']) { @unlink($run['path']); $this->importRun = null; Notification::make()->title($r['error'])->danger()->send(); return; }
-        foreach (['inserted', 'matched', 'blank', 'total', 'assigned', 'with_coords'] as $k) $run[$k] += $r[$k];
-        $run['pos'] = $r['pos'];
-        if (! $r['done']) { $this->importRun = $run; return; }
-
-        @unlink($run['path']);
         $this->importRun = null;
-        $this->uploadPreview = null; $this->columnMap = [];
-        $this->uploadResult = ['inserted' => $run['inserted'], 'matched' => $run['matched'], 'blank' => $run['blank'], 'total' => $run['total'],
-            'assigned' => $run['assigned'], 'with_coords' => $run['with_coords'], 'batch' => $run['batch'], 'error' => null];
-        Notification::make()->title($run['inserted'] . ' shops loaded')->body("Batch {$run['batch']} · {$run['matched']} already present · {$run['assigned']} assigned to a territory")->success()->send();
     }
 
     public function undoBatch(string $batch): void

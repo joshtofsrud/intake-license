@@ -13,6 +13,8 @@ Route::domain($domain)->middleware([\App\Http\Middleware\SeoSignals::class, \App
 
     Route::get('/robots.txt',  [\App\Http\Controllers\SeoController::class, 'robots'])->name('marketing.robots');
     Route::get('/sitemap.xml', [\App\Http\Controllers\SeoController::class, 'sitemap'])->name('marketing.sitemap');
+    // MARKER-BG-IMPORT: Find shops > Load a shop list sends big files here in 1 MB pieces
+    Route::post('/sales-upload/chunk', [\App\Http\Controllers\ShopListUploadController::class, 'chunk'])->name('sales.shoplist.chunk');
 
     Route::get('/health', function () {
         try {

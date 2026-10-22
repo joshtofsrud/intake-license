@@ -310,6 +310,12 @@ Schedule::command('seo:check')
     ->dailyAt('04:15')
     ->withoutOverlapping();
 
+// MARKER-BG-IMPORT: shop lists loading in the background (Find shops > Load a shop list)
+Schedule::command('sales:run-imports')
+    ->everyMinute()
+    ->withoutOverlapping(10)
+    ->runInBackground();
+
 // website pass over prospects; Pause/Resume on Find shops.
 Schedule::command('sales:scan-sites')   // how many per run: Speed on Find shops
     ->everyFiveMinutes()

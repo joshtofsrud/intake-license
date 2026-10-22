@@ -225,7 +225,7 @@
         <span style="{{ $muted }}">{{ $showLoader ? 'hide' : 'show' }}</span>
       </div>
       <div style="{{ $showLoader ? '' : 'display:none' }}">
-      <div style="{{ $muted }};margin:8px 0">A CSV like the Overture export: shop_name, address, city, state_code, postcode, website, verified_workstand, and latitude/longitude if you have them. Rows already present (same name, city and address) are skipped. Nothing is written until you confirm, and a batch can be undone below — only rows nobody has worked are removed.</div>
+      <div style="{{ $muted }};margin:8px 0">A CSV (or the same zipped as .csv.gz or .zip) like the Overture export: shop_name, address, city, state_code, postcode, website, verified_workstand, and latitude/longitude if you have them. Rows already present (same name, city and address) are skipped. Nothing is written until you confirm, and a batch can be undone below — only rows nobody has worked are removed.</div>
       {{-- progress + errors are shown here; before this the page went quiet when the upload was rejected --}}
       <div x-data="{ up: false, pct: 0, err: '', stage: '' }"
            x-on:change="if ($event.target.type === 'file' && $event.target.files.length) { stage = 'Picked ' + $event.target.files[0].name + ' (' + Math.round($event.target.files[0].size / 1024) + ' KB) — waiting for the upload to start…'; err = ''; setTimeout(() => { if (!up && pct === 0 && !err) { err = 'The browser never started the upload. Reload the page and try again; if it repeats, tell Josh the file name and size.'; } }, 4000); }"
@@ -233,7 +233,24 @@
            x-on:livewire-upload-progress="pct = $event.detail.progress; stage = 'Uploading… ' + pct + '%'"
            x-on:livewire-upload-finish="up = false; pct = 100; stage = 'Uploaded — reading the columns…'"
            x-on:livewire-upload-error="up = false; err = 'The upload was rejected before it reached Intake — usually the server body-size limit (413). ' + ($event.detail && $event.detail.message ? $event.detail.message : '')">
-        <input type="file" wire:model="shopList" accept=".csv,text/csv" class="{{ $input }}" style="width:100%">
+        {{-- MARKER-BG-IMPORT: files go up in 1 MB pieces (csv, csv.gz or zip), so size limits on the way don't bite --}}
+        <input type="file" accept=".csv,.gz,.zip,text/csv,application/gzip,application/zip" class="{{ $input }}" style="width:100%"
+               x-on:change.stop="(async () => {
+                 const f = $event.target.files[0]; if (!f) return;
+                 const size = 1024 * 1024, total = Math.max(1, Math.ceil(f.size / size));
+                 const id = [...crypto.getRandomValues(new Uint8Array(12))].map(b => b.toString(16).padStart(2, '0')).join('');
+                 const token = document.querySelector('meta[name=csrf-token]')?.content || '';
+                 up = true; pct = 0; err = ''; stage = 'Uploading ' + f.name + '…';
+                 for (let i = 0; i < total; i++) {
+                   const fd = new FormData(); fd.append('upload_id', id); fd.append('index', i); fd.append('total', total); fd.append('name', f.name);
+                   fd.append('chunk', f.slice(i * size, (i + 1) * size), 'piece');
+                   let res = null;
+                   for (let t = 0; t < 3 && !(res && res.ok); t++) { try { res = await fetch('{{ route('sales.shoplist.chunk') }}', { method: 'POST', headers: { 'X-CSRF-TOKEN': token, 'Accept': 'application/json' }, body: fd, credentials: 'same-origin' }); } catch (e) { res = null; } }
+                   if (!res || !res.ok) { let m = ''; try { m = (await res.json()).error || ''; } catch (e) {} up = false; err = m || ('The upload stopped at ' + Math.round(i * 100 / total) + '%. Try again.'); return; }
+                   pct = Math.round((i + 1) * 100 / total); stage = (i + 1 < total) ? 'Uploading… ' + pct + '%' : 'Unpacking and reading the columns…';
+                 }
+                 up = false; await $wire.useBigFile(id, f.name); stage = '';
+               })()">
         <div x-show="up" style="margin-top:6px;height:6px;border-radius:3px;background:rgba(127,127,127,.2);overflow:hidden"><div :style="'height:100%;background:rgb(139,92,246);width:' + pct + '%'"></div></div>
         <div x-show="err" x-text="err" style="color:#f87171;font-size:12px;margin-top:6px"></div>
         <div x-show="stage && !err" x-text="stage" style="{{ $muted }};margin-top:6px"></div>
@@ -268,13 +285,24 @@
           <button class="sfs-btn p" wire:click="importUpload" wire:loading.attr="disabled"><span wire:loading.remove wire:target="importUpload">Load {{ number_format($uploadPreview['inserted']) }} shops</span><span wire:loading wire:target="importUpload">Starting…</span></button>
         @endif
       </div>
-      {{-- MARKER-FAST-IMPORT: loads in chunks of 1,000; this line asks for the next chunk until done --}}
-      @if($importRun)
-        @php $irPct = min(99, (int) floor($importRun['pos'] * 100 / $importRun['size'])); @endphp
-        <div wire:poll.500ms="importStep" style="margin-top:10px">
-          <div style="font-size:13px">Loading… <b>{{ number_format($importRun['total']) }}</b>{{ $importRun['expect'] ? ' of ' . number_format($importRun['expect']) : '' }} rows read · {{ number_format($importRun['inserted']) }} new · {{ number_format($importRun['matched']) }} already present</div>
-          <div style="height:4px;border-radius:2px;background:rgba(127,127,127,.18);margin-top:6px;overflow:hidden"><div style="height:100%;width:{{ $irPct }}%;background:rgb(139,92,246)"></div></div>
-          <div style="{{ $muted }};margin-top:4px">Keep this page open until it finishes. If you leave, the shops loaded so far stay, under batch <code>{{ $importRun['batch'] }}</code>.</div>
+      {{-- MARKER-BG-IMPORT: lists loading on the server (this page can be closed); refreshes while one is going --}}
+      @php $runs = $this->importRuns(); $runsLive = collect($runs)->whereIn('status', ['queued', 'running'])->isNotEmpty(); @endphp
+      @if($runs)
+        <div @if($runsLive) wire:poll.4s @endif style="margin-top:12px">
+          @foreach($runs as $rn)
+            @php $rp = $rn['status'] === 'done' ? 100 : min(99, (int) floor($rn['pos'] * 100 / max(1, $rn['size']))); @endphp
+            <div wire:key="run-{{ $rn['id'] }}" style="font-size:13px;padding:8px 0;border-top:1px solid rgba(127,127,127,.12)">
+              <div style="display:flex;gap:8px;align-items:baseline">
+                <b>{{ $rn['file_name'] ?: $rn['batch'] }}</b>
+                <span style="{{ $muted }}">{{ $rn['status'] === 'done' ? 'Loaded' : ($rn['status'] === 'failed' ? 'Stopped' : ($rn['status'] === 'queued' ? 'Waiting to start' : 'Loading… ' . $rp . '%')) }}</span>
+                @if(in_array($rn['status'], ['done', 'failed'], true))<button type="button" class="sfs-btn" style="margin-left:auto;padding:2px 8px;font-size:12px" wire:click="dismissRun({{ $rn['id'] }})">Hide</button>@endif
+              </div>
+              @if($rn['status'] !== 'done')<div style="height:4px;border-radius:2px;background:rgba(127,127,127,.18);margin:6px 0 4px;overflow:hidden"><div style="height:100%;width:{{ $rp }}%;background:{{ $rn['status'] === 'failed' ? '#f87171' : 'rgb(139,92,246)' }}"></div></div>@endif
+              <div style="{{ $muted }}">{{ number_format($rn['total']) }}{{ $rn['expect'] ? ' of ' . number_format($rn['expect']) : '' }} rows read · {{ number_format($rn['inserted']) }} new · {{ number_format($rn['matched']) }} already present · {{ number_format($rn['assigned']) }} assigned · batch <code>{{ $rn['batch'] }}</code></div>
+              @if($rn['error'])<div style="color:#f87171;font-size:12px;margin-top:2px">{{ $rn['error'] }} The shops loaded so far are kept.</div>@endif
+            </div>
+          @endforeach
+          @if($runsLive)<div style="{{ $muted }};margin-top:4px">Loading runs on the server about 1,000 rows every few seconds, a minute at a time. You can leave this page; come back any time to see where it is.</div>@endif
         </div>
       @endif
       @if($uploadPreview && ! $uploadPreview['error'])

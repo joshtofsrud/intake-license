@@ -32,6 +32,10 @@ class ShopListImporter
         'lng'       => ['Longitude',      false, ['longitude', 'lng', 'lon', 'long', 'x']],
         'workstand' => ['Verified dealer flag', false, ['verified_workstand', 'workstand', 'verified', 'dealer']],
         'source'    => ['Source',         false, ['source', 'data_source']],
+        // MARKER-BG-IMPORT: social links go into the shop's socials
+        'facebook'  => ['Facebook',       false, ['facebook', 'facebook_url', 'fb']],
+        'instagram' => ['Instagram',      false, ['instagram', 'instagram_url', 'ig']],
+        'tiktok'    => ['TikTok',         false, ['tiktok', 'tiktok_url']],
     ];
 
     /** @return array{headers: string[], sample: array<int,array<string,string>>, error:?string} */
@@ -144,6 +148,14 @@ class ShopListImporter
                 'website'       => mb_substr($web, 0, 255) ?: null,
                 'phone'         => mb_substr($col($row, 'phone'), 0, 64) ?: null,
                 'email'         => mb_substr($col($row, 'email'), 0, 191) ?: null,
+                'socials'       => (function () use ($col, $row) {
+                    $s = [];
+                    foreach (['facebook', 'instagram', 'tiktok'] as $net) {
+                        $u = $col($row, $net);
+                        if ($u !== '' && preg_match('#^https?://#i', $u)) $s[$net] = mb_substr((string) preg_replace('/[?#].*$/', '', $u), 0, 255);
+                    }
+                    return $s ?: null;
+                })(),
                 'owner_contact' => mb_substr($col($row, 'owner'), 0, 191) ?: null,
                 'stage'         => 'prospect',
                 'priority'      => $ws ? 'A' : 'B',

@@ -169,7 +169,9 @@ class SiteScanner
         $owner   = $this->owner($text);
         $brands  = $this->brands($text, $p); // the industry's own brand list
 
-        $changes = ['socials' => $socials ?: null, 'brands' => $brands ?: null];
+        // MARKER-BG-IMPORT: keep socials already on the shop (e.g. from a loaded list); the site's links win on a clash
+        $had = is_array($p->socials) ? $p->socials : [];
+        $changes = ['socials' => ($socials + $had) ?: null, 'brands' => $brands ?: null];
         if ($email && blank($p->email)) $changes['email'] = $email;
         if ($owner && blank($p->owner_contact)) $changes['owner_contact'] = $owner;
         if ($phone && blank($p->phone)) $changes['phone'] = $phone;
