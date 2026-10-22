@@ -37,7 +37,14 @@ return new class extends Migration
                 $t->uuid('signed_by_user_id')->nullable(); // staff who recorded a paper signature
                 $t->timestamp('signed_at');
                 $t->timestamps();
-                $t->index(['tenant_id', 'customer_id', 'version']);
+            });
+        }
+        // MySQL caps index names at 64 characters, and Laravel's generated name
+        // for this one is longer, so it is named here. Added on its own so a
+        // table left without it by the first, failed run gets it too.
+        if (! Schema::hasIndex('tenant_class_waiver_signatures', 'cw_sig_tenant_customer_version')) {
+            Schema::table('tenant_class_waiver_signatures', function (Blueprint $t) {
+                $t->index(['tenant_id', 'customer_id', 'version'], 'cw_sig_tenant_customer_version');
             });
         }
     }
