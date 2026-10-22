@@ -37,6 +37,17 @@ class CommunicationController extends Controller
             ['group'=>'Lifecycle','key'=>'appointment_reminder','label'=>'Appointment reminder','desc'=>'24 hours before the appointment','fires'=>'Daily — 24h before','channels'=>['email','sms'],'template'=>'appointment_reminder','editor'=>'body','vars'=>['first_name','shop_name','date'],'def_subject'=>'Reminder: your {{shop_name}} appointment is tomorrow','def_body'=>'Hi {{first_name}}, a reminder that your appointment with {{shop_name}} is tomorrow, {{date}}.'],
             ['group'=>'Lifecycle','key'=>'delivery_reminder','label'=>'Delivery reminder','desc'=>'24 hours before a pickup or dropoff','fires'=>'Daily — 24h before','channels'=>['email','sms'],'template'=>'delivery_reminder','editor'=>'body','vars'=>['first_name','shop_name','date'],'def_subject'=>'Reminder: {{shop_name}} pickup or dropoff tomorrow','def_body'=>'Hi {{first_name}}, a reminder that your {{shop_name}} pickup or dropoff is tomorrow, {{date}}.'],
 
+            // MARKER-CLASSES-P5: class messages, listed only for studios with classes on
+            ['group'=>'Classes','key'=>'class_booking_confirmation','label'=>'Class booked','desc'=>'With the class notes and an add-to-calendar link','fires'=>'Someone is booked into a class','channels'=>['email'],'template'=>'class_booking_confirmation','editor'=>'body','vars'=>['first_name','class_name','class_when','details','notes','calendar_url','class_url'],'def_subject'=>"You're booked: {{class_name}}",'def_body'=>"Hi {{first_name}}, you're booked into {{class_name}} on {{class_when}}."],
+            ['group'=>'Classes','key'=>'class_reminder','label'=>'Class reminder','desc'=>'Before class; set the hours in Classes › Booking rules','fires'=>'Hours before class (default 2)','channels'=>['email'],'template'=>'class_reminder','editor'=>'body','vars'=>['first_name','class_name','class_when','details','notes','class_url'],'def_subject'=>'Reminder: {{class_name}} at {{class_when}}','def_body'=>'Hi {{first_name}}, see you soon at {{class_name}}, {{class_when}}.'],
+            ['group'=>'Classes','key'=>'class_waitlist_moved_in','label'=>'Moved in from the waitlist','desc'=>'A spot opened and they are now booked','fires'=>'Straight away','channels'=>['email'],'template'=>'class_waitlist_moved_in','editor'=>'body','vars'=>['first_name','class_name','class_when','details','calendar_url','class_url'],'def_subject'=>"A spot opened: you're in {{class_name}}",'def_body'=>"Hi {{first_name}}, a spot opened in {{class_name}} on {{class_when}} and you're in."],
+            ['group'=>'Classes','key'=>'class_cancelled','label'=>'Class cancelled by the studio','desc'=>'Says what happened to their credit or payment','fires'=>'You cancel a class','channels'=>['email'],'template'=>'class_cancelled','editor'=>'body','vars'=>['first_name','class_name','class_when','credit_line','schedule_url'],'def_subject'=>'Cancelled: {{class_name}} on {{class_when}}','def_body'=>"Hi {{first_name}}, we've cancelled {{class_name}} on {{class_when}}. {{credit_line}}"],
+            ['group'=>'Classes','key'=>'class_late_cancel','label'=>'Late cancel','desc'=>'Says the rule and how to ask for it to be waived','fires'=>'A customer cancels after the free-cancel window','channels'=>['email'],'template'=>'class_late_cancel','editor'=>'body','vars'=>['first_name','class_name','class_when','rule_line'],'def_subject'=>'Your booking for {{class_name}} is cancelled','def_body'=>'Hi {{first_name}}, your booking for {{class_name}} is cancelled. {{rule_line}}'],
+            ['group'=>'Classes','key'=>'class_pass_reminder','label'=>'Pass running low or expiring','desc'=>'At 1 class left, and 7 days before a pack expires','fires'=>'Once each per pack','channels'=>['email'],'template'=>'class_pass_reminder','editor'=>'body','vars'=>['first_name','pass_line','schedule_url','passes_url'],'def_subject'=>'Your pass','def_body'=>'Hi {{first_name}}, {{pass_line}}'],
+            ['group'=>'Classes','key'=>'class_membership_renewed','label'=>'Membership renewed','desc'=>'The receipt for an automatic card renewal','fires'=>'A saved card is charged for a renewal','channels'=>['email'],'template'=>'class_membership_renewed','editor'=>'body','vars'=>['first_name','pass_name','amount','card_line','next_date','passes_url'],'def_subject'=>'Your {{pass_name}} membership renewed','def_body'=>'Hi {{first_name}}, your {{pass_name}} membership renewed: {{amount}}.'],
+            ['group'=>'Classes','key'=>'class_membership_payment_due','label'=>'Renewal failed or due','desc'=>'Card declined (with the retry date), or due at the desk','fires'=>'A renewal does not go through','channels'=>['email'],'template'=>'class_membership_payment_due','editor'=>'body','vars'=>['first_name','pass_name','payment_line','amount','passes_url'],'def_subject'=>'Your {{pass_name}} renewal needs attention','def_body'=>'Hi {{first_name}}, {{payment_line}}'],
+            ['group'=>'Classes','key'=>'class_purchase_receipt','label'=>'Pass or class bought online','desc'=>'The receipt for anything bought on your classes pages','fires'=>'A customer pays online','channels'=>['email'],'template'=>'class_purchase_receipt','editor'=>'body','vars'=>['first_name','details','schedule_url','account_line'],'def_subject'=>'Your receipt','def_body'=>"Hi {{first_name}}, thanks! Here's what you bought: {{details}}"],
+
             // these two lived ONLY on /admin/emails,
             // which was hidden from the nav. They still send from saved rows,
             // so until now a shop could not word them at all.
@@ -60,6 +71,11 @@ class CommunicationController extends Controller
                 $catalog,
                 fn ($m) => ! str_starts_with($m['key'], 'gift_card_')
             ));
+        }
+
+        // MARKER-CLASSES-P5: class messages only for studios with classes on
+        if (! $tenant->classes_active) {
+            $catalog = array_values(array_filter($catalog, fn ($m) => ! str_starts_with($m['key'], 'class_')));
         }
 
         $templates = \App\Models\Tenant\TenantEmailTemplate::where('tenant_id', $tenant->id)
@@ -117,6 +133,9 @@ class CommunicationController extends Controller
         foreach ($this->catalog() as $m) {
             // skip gift messages the shop cannot send.
             if (str_starts_with($m['key'], 'gift_card_') && ! $tenant->gift_cards_visible) {
+                continue;
+            }
+            if (str_starts_with($m['key'], 'class_') && ! $tenant->classes_active) { // MARKER-CLASSES-P5
                 continue;
             }
             foreach ($m['channels'] as $ch) {
@@ -263,7 +282,7 @@ class CommunicationController extends Controller
     private function sampleVars($tenant): array
     {
         $accent = $tenant->accent_color ?? '#BEF264';
-        return [
+        return \App\Services\ClassMessages::sampleVars($tenant) + [ // MARKER-CLASSES-P5
             'first_name'       => 'Alex',
             'last_name'        => 'Rivera',
             'shop_name'        => $tenant->name,

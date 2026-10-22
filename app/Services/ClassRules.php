@@ -15,6 +15,8 @@ use App\Models\Tenant\TenantClassSession;
  */
 class ClassRules
 {
+    public const MAX_REMINDER_HOURS = 48; // MARKER-CLASSES-P5
+
     public const AFTER_CUTOFF = [
         'keep'  => 'Keep the credit (it is used up)',
         'block' => "Don't allow cancelling",
@@ -35,6 +37,7 @@ class ClassRules
             'waitlist_on'         => ! array_key_exists('waitlist_on', $raw) || (bool) $raw['waitlist_on'],
             'waitlist_max'        => $int('waitlist_max'),
             'waitlist_stop_hours' => $int('waitlist_stop_hours'),
+            'reminder_hours'      => min(self::MAX_REMINDER_HOURS, max(1, $int('reminder_hours') ?? 2)), // MARKER-CLASSES-P5
         ]);
     }
 

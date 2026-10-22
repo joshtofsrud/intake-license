@@ -64,6 +64,15 @@ Schedule::command('inventory:find-duplicates')
 // Memberships & packs daily tick — period rollover + pack expiry.
 // Runs at 04:00 to follow the debug log prune. Idempotent.
 // ----------------------------------------------------------------
+// ----------------------------------------------------------------
+// Class reminders and pass-expiry emails. MARKER-CLASSES-P5
+// Each is marked as sent, so overlapping or repeated runs send once.
+// ----------------------------------------------------------------
+Schedule::command('classes:send-reminders')
+    ->everyTenMinutes()
+    ->withoutOverlapping()
+    ->runInBackground();
+
 Schedule::command('memberships:tick')
     ->dailyAt('04:00')
     ->withoutOverlapping()

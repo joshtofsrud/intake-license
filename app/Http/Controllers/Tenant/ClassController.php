@@ -256,7 +256,16 @@ class ClassController extends Controller
                 if ($c['paid_at_desk']) {
                     $msg .= " {$c['paid_at_desk']} paid at the desk: refund them from the sale in the register.";
                 }
-                $msg .= ' Customers are not emailed yet, so let them know.';
+                // MARKER-CLASSES-P5: online drop-ins are refunded, and everyone is emailed
+                if ($c['refunded']) {
+                    $msg .= " {$c['refunded']} online payment(s) refunded to the card.";
+                }
+                if ($c['refund_failed']) {
+                    $msg .= " {$c['refund_failed']} online payment(s) could not be refunded automatically: refund them from the sale in Sales.";
+                }
+                $msg .= $c['emails_on']
+                    ? ($c['emailed'] ? " {$c['emailed']} customer(s) emailed." : ' Nobody booked has an email on file, so let them know.')
+                    : ' Class cancellation emails are off in Communication, so let customers know.';
             }
             return back()->with('success', $msg);
         }
@@ -650,6 +659,7 @@ class ClassController extends Controller
             'after_cutoff'        => ['required', \Illuminate\Validation\Rule::in(array_keys(\App\Services\ClassRules::AFTER_CUTOFF))],
             'waitlist_max'        => ['nullable', 'integer', 'min:1', 'max:500'],
             'waitlist_stop_hours' => ['nullable', 'integer', 'min:0', 'max:720'],
+            'reminder_hours'      => ['nullable', 'integer', 'min:1', 'max:48'], // MARKER-CLASSES-P5
         ]);
         $d['waitlist_on'] = $request->boolean('waitlist_on');
         $settings = (array) ($tenant->settings ?? []);

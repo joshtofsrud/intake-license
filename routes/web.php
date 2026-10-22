@@ -333,6 +333,7 @@ $tenantRoutes = function () {
     Route::get('/classes',                          [TenantControllers\CustomerClassController::class, 'index'])->name('tenant.customer.classes');
     Route::get('/classes/{id}',                     [TenantControllers\CustomerClassController::class, 'show'])->name('tenant.customer.classes.show');
     Route::post('/classes/{id}/register',           [TenantControllers\CustomerClassController::class, 'register'])->name('tenant.customer.classes.register');
+    Route::get('/classes/{id}/calendar.ics',        [TenantControllers\CustomerClassController::class, 'calendar'])->name('tenant.customer.classes.calendar'); // MARKER-CLASSES-P5
     Route::get('/classes/confirm/{id}',             [TenantControllers\CustomerClassController::class, 'confirm'])->name('tenant.customer.classes.confirm');
     Route::post('/classes/registrations/{id}/cancel', [TenantControllers\CustomerClassController::class, 'cancelRegistration'])->name('tenant.customer.classes.cancel');
     });

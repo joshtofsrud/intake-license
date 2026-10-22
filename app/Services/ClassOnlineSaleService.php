@@ -291,7 +291,7 @@ class ClassOnlineSaleService
         try {
             if ($checkout->kind === 'dropin') {
                 // Book first: if the class filled while they paid, nothing is sold.
-                $reg = $regs->register($session->id, $customer->id, $tenant->id, 'online', false, false);
+                $reg = ClassMessages::quietly(fn () => $regs->register($session->id, $customer->id, $tenant->id, 'online', false, false)); // MARKER-CLASSES-P5: the receipt covers it
                 if ($reg->status !== 'registered') {
                     throw new RuntimeException('That class filled up while you were paying.');
                 }
@@ -345,7 +345,7 @@ class ClassOnlineSaleService
                 // theirs either way, so a full class only means the waitlist.
                 if ($session) {
                     try {
-                        $reg = $regs->register($session->id, $customer->id, $tenant->id, $checkout->kind, false, true);
+                        $reg = ClassMessages::quietly(fn () => $regs->register($session->id, $customer->id, $tenant->id, $checkout->kind, false, true)); // MARKER-CLASSES-P5
                     } catch (\Throwable $e) {
                         $checkout->note = mb_substr('Pass bought; not booked: ' . $e->getMessage(), 0, 255);
                     }
@@ -389,6 +389,61 @@ class ClassOnlineSaleService
         $this->sendReceipt($tenant, $checkout->fresh(), $customer, $session, $card);
 
         return $checkout->fresh();
+    }
+
+    /**
+     * The studio cancelled a class someone paid for online: a refund sale
+     * (so it shows in sales history and day close, like a register refund),
+     * then the card refund on the studio's Stripe. Safe to call twice.
+     * Returns the cents refunded, or null when it could not be done
+     * automatically (staff refund it from the sale). MARKER-CLASSES-P5
+     */
+    public static function refundForCancelledClass(TenantClassRegistration $r): ?int
+    {
+        $meta = (array) ($r->metadata ?? []);
+        if (! empty($meta['refunded_cents'])) {
+            return (int) $meta['refunded_cents'];
+        }
+        $co = TenantClassOnlineCheckout::where('tenant_id', $r->tenant_id)
+            ->where('registration_id', $r->id)->where('kind', 'dropin')->where('status', 'paid')->first();
+        $tenant = Tenant::find($r->tenant_id);
+        $sale   = $co?->sale_id ? \App\Models\Tenant\TenantSale::with('items')->find($co->sale_id) : null;
+        if (! $co || ! $tenant || ! $sale || ! $sale->stripe_payment_intent_id) {
+            Log::warning('classes.online: cancelled class has no paid online sale to refund', ['registration_id' => $r->id]);
+            return null;
+        }
+
+        try {
+            $refund = app(SaleService::class)->createRefund([
+                'tenant_id'          => $tenant->id,
+                'original_sale_id'   => $sale->id,
+                'rang_up_by_user_id' => auth('tenant')->id(),
+                'refund_method'      => 'card',
+                'reason'             => 'Class cancelled by the studio',
+                'item_ids'           => $sale->items->pluck('id')->all(),
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('classes.online: refund sale for a cancelled class failed', ['registration_id' => $r->id, 'error' => $e->getMessage()]);
+            return null;
+        }
+
+        try {
+            $stripeRefund = self::payments($tenant)->refundCharge($sale->stripe_payment_intent_id, (int) $refund->total_cents, [
+                'intake_refund_sale_id'   => $refund->id,
+                'intake_original_sale_id' => $sale->id,
+            ]);
+            $refund->stripe_refund_id = $stripeRefund->id;
+            $refund->save();
+        } catch (\Throwable $e) {
+            // Same as the register: the refund row stays, staff retry the card refund from the sale.
+            Log::error('classes.online: card refund for a cancelled class failed', ['refund_sale_id' => $refund->id, 'error' => $e->getMessage()]);
+            return null;
+        }
+
+        $cents = abs((int) $refund->total_cents);
+        $r->forceFill(['metadata' => $meta + ['refunded_cents' => $cents]])->save();
+        $co->update(['note' => 'Refunded: the studio cancelled the class']);
+        return $cents;
     }
 
     private function sendReceipt(Tenant $tenant, TenantClassOnlineCheckout $co, TenantCustomer $customer, ?TenantClassSession $session, array $card): void

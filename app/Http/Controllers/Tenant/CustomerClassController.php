@@ -224,6 +224,38 @@ class CustomerClassController extends Controller
     }
 
     // ------------------------------------------------------------------
+    // Add to calendar — GET /classes/{id}/calendar.ics (MARKER-CLASSES-P5)
+    // ------------------------------------------------------------------
+
+    public function calendar(string $id)
+    {
+        $tenant  = tenant();
+        $session = TenantClassSession::where('tenant_id', $tenant->id)->with('template')->findOrFail($id);
+        $esc = fn ($s) => str_replace(["\\", ';', ',', "\r", "\n"], ['\\\\', '\;', '\,', '', '\n'], (string) $s);
+        $fmt = fn ($t) => $t->copy()->utc()->format('Ymd\THis\Z');
+        $desc = trim(($session->instructor_snapshot ? 'With ' . $session->instructor_snapshot . "\n" : '')
+            . (string) ($session->template?->class_notes ?? '') . "\n" . $tenant->urlTo('/classes/' . $session->id));
+        $ics = implode("\r\n", [
+            'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Intake//Classes//EN', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH',
+            'BEGIN:VEVENT',
+            'UID:class-' . $session->id . '@intake.works',
+            'DTSTAMP:' . $fmt(now()),
+            'DTSTART:' . $fmt($session->starts_at),
+            'DTEND:' . $fmt($session->ends_at ?? $session->starts_at->copy()->addHour()),
+            'SUMMARY:' . $esc(($session->template?->name ?? 'Class') . ' · ' . $tenant->name),
+            'DESCRIPTION:' . $esc($desc),
+            'URL:' . $esc($tenant->urlTo('/classes/' . $session->id)),
+            $session->status === 'cancelled' ? 'STATUS:CANCELLED' : 'STATUS:CONFIRMED',
+            'END:VEVENT', 'END:VCALENDAR', '',
+        ]);
+
+        return response($ics, 200, [
+            'Content-Type'        => 'text/calendar; charset=utf-8',
+            'Content-Disposition' => 'attachment; filename="class.ics"',
+        ]);
+    }
+
+    // ------------------------------------------------------------------
     // Cancel own registration
     // ------------------------------------------------------------------
 

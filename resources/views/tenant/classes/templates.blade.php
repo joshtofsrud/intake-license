@@ -121,9 +121,11 @@
       <span style="display:flex;gap:6px;align-items:center;margin-top:4px"><input type="number" min="1" max="500" name="waitlist_max" value="{{ $rules['waitlist_max'] }}" class="cl-select" style="width:80px" placeholder="any"> people</span></label>
     <label>Stop moving people in
       <span style="display:flex;gap:6px;align-items:center;margin-top:4px"><input type="number" min="0" max="720" name="waitlist_stop_hours" value="{{ $rules['waitlist_stop_hours'] }}" class="cl-select" style="width:80px" placeholder="never"> hours before</span></label>
+    <label>Reminder email {{-- MARKER-CLASSES-P5 --}}
+      <span style="display:flex;gap:6px;align-items:center;margin-top:4px"><input type="number" min="1" max="48" name="reminder_hours" value="{{ $rules['reminder_hours'] }}" class="cl-select" style="width:80px"> hours before</span></label>
     <div style="grid-column:1/-1;display:flex;gap:12px;align-items:center;flex-wrap:wrap">
       <button type="submit" class="ia-btn ia-btn--secondary ia-btn--sm">Save rules</button>
-      <span style="font-size:12px;color:var(--ia-text-muted)">Applies to customers booking and cancelling online. Staff can always book, cancel and restore credits. A late cancel keeps the credit used only if you choose that above.</span>
+      <span style="font-size:12px;color:var(--ia-text-muted)">Applies to customers booking and cancelling online. Staff can always book, cancel and restore credits. A late cancel keeps the credit used only if you choose that above. Turn emails on or off, or reword them, in <a href="{{ route('tenant.communication.index') }}" style="color:var(--ia-text)">Communication</a>.</span>
     </div>
   </form>
 </details>

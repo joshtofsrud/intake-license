@@ -141,6 +141,7 @@ class MembershipBillingService
             'last_charge_error'=> 'Pays at the desk',
         ]);
         ClassCreditLedger::record($m->tenant_id, $m->customer_id, 0, 'due', ['membership_id' => $m->id], 'Renewal due at the desk');
+        ClassMessages::membershipDue($m); // MARKER-CLASSES-P5
         return 'due';
     }
 
@@ -217,6 +218,8 @@ class MembershipBillingService
             return $this->failed($m, $now, 'Charged, but the sale could not be recorded; the charge was refunded');
         }
 
+        ClassMessages::membershipRenewed($m, $amount); // MARKER-CLASSES-P5
+
         return 'charged';
     }
 
@@ -237,6 +240,8 @@ class MembershipBillingService
         ]);
         ClassCreditLedger::record($m->tenant_id, $m->customer_id, 0, 'payment_failed', ['membership_id' => $m->id],
             "Renewal attempt {$n} failed: " . mb_substr($why, 0, 180));
+
+        ClassMessages::membershipDue($m); // MARKER-CLASSES-P5
 
         return 'failed';
     }

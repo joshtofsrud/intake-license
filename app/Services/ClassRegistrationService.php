@@ -30,16 +30,13 @@ use RuntimeException;
  * Every credit or membership use that moves is written to the class credit
  * ledger (ClassCreditLedger) in the same transaction.
  *
- * MARKER-CLASSES-P0 MARKER-CLASSES-P1 MARKER-CLASSES-P4
+ * MARKER-CLASSES-P0 MARKER-CLASSES-P1 MARKER-CLASSES-P4 MARKER-CLASSES-P5
  */
 class ClassRegistrationService
 {
     private const ACTIVE = ['registered', 'checked_in'];
 
-    // TODO(class-confirmation-emails): class registrations still send no
-    // email. Phase 3 of the classes rework adds confirmation, reminder,
-    // waitlist and cancellation messages (include class_notes and
-    // session_notes_override in the confirmation).
+    // Customer emails go through ClassMessages (MARKER-CLASSES-P5).
 
     /**
      * Book a customer into a session, or onto its waitlist when it is full.
@@ -135,6 +132,7 @@ class ClassRegistrationService
 
             if ($status === 'registered') {
                 $this->ledgerConsumed($registration, $session);
+                ClassMessages::booked($registration); // MARKER-CLASSES-P5
             }
 
             return $registration;
@@ -189,6 +187,9 @@ class ClassRegistrationService
             if ($late) {
                 $registration->metadata = array_merge($registration->metadata ?? [], ['late_cancel' => true]);
                 $registration->save();
+                if (in_array($registration->payment_method, ['pack', 'membership'], true)) {
+                    ClassMessages::lateCancel($registration, $rules->get('cancel_cutoff_hours')); // MARKER-CLASSES-P5
+                }
             } else {
                 $this->restorePaymentSource($registration, $tenantId, $staff ? 'Removed by staff' : 'Cancelled by the customer');
             }
@@ -203,15 +204,19 @@ class ClassRegistrationService
 
     /**
      * Cancel every booking on a session that is itself being cancelled.
-     * Credits and membership uses go back; waitlist places are cleared.
-     * Nobody is promoted. Returns counts for the staff message.
+     * Credits and membership uses go back; waitlist places are cleared;
+     * online drop-ins are refunded (MARKER-CLASSES-P5). Nobody is promoted.
+     * Everyone is emailed what happened to their credit or payment.
+     * Returns counts for the staff message.
      *
-     * @return array{cancelled:int, restored:int, waitlist:int, paid_at_desk:int}
+     * @return array{cancelled:int, restored:int, waitlist:int, paid_at_desk:int, refunded:int, refund_failed:int, emailed:int, emails_on:bool}
      */
     public function cancelSession(string $sessionId, string $tenantId): array
     {
-        return $this->locked($tenantId, $sessionId, function () use ($sessionId, $tenantId) {
-            $counts = ['cancelled' => 0, 'restored' => 0, 'waitlist' => 0, 'paid_at_desk' => 0];
+        $notify = [];
+        $online = [];
+        $counts = $this->locked($tenantId, $sessionId, function () use ($sessionId, $tenantId, &$notify, &$online) {
+            $counts = ['cancelled' => 0, 'restored' => 0, 'waitlist' => 0, 'paid_at_desk' => 0, 'refunded' => 0, 'refund_failed' => 0];
 
             $rows = TenantClassRegistration::where('tenant_id', $tenantId)
                 ->where('class_session_id', $sessionId)
@@ -220,15 +225,25 @@ class ClassRegistrationService
                 ->get();
 
             foreach ($rows as $r) {
+                $line = null;
                 if ($r->status === 'waitlisted') {
                     $counts['waitlist']++;
+                    $line = 'You were on the waitlist, so nothing was charged.';
                 } else {
                     $counts['cancelled']++;
                     if (in_array($r->payment_method, ['pack', 'membership'], true)) {
                         $this->restorePaymentSource($r, $tenantId, 'Class cancelled by the studio');
                         $counts['restored']++;
+                        $line = $r->payment_method === 'pack'
+                            ? 'Your class credit has been returned to your pack.'
+                            : "This class won't count toward your membership.";
                     } elseif ($r->payment_method === 'cash') {
                         $counts['paid_at_desk']++;
+                        $line = 'You paid at the studio, and the studio will refund you.';
+                    } elseif ($r->payment_method === 'online') {
+                        $online[] = $r;
+                    } else {
+                        $line = "You hadn't paid for this class yet, so there's nothing to refund.";
                     }
                 }
                 $r->metadata = array_merge($r->metadata ?? [], ['cancel_reason' => 'session_cancelled']);
@@ -236,10 +251,37 @@ class ClassRegistrationService
                 $r->cancelled_at      = now();
                 $r->waitlist_position = null;
                 $r->save();
+                if ($line !== null) {
+                    $notify[] = [$r, $line];
+                }
             }
 
             return $counts;
         });
+
+        // Card refunds happen after the bookings are cancelled and the lock is
+        // released; a Stripe call never holds the class lock.
+        foreach ($online as $r) {
+            $cents = ClassOnlineSaleService::refundForCancelledClass($r->fresh());
+            if ($cents !== null) {
+                $counts['refunded']++;
+                $notify[] = [$r, 'Your payment of ' . format_money($cents) . ' has been refunded to your card. It can take a few days to show.'];
+            } else {
+                $counts['refund_failed']++;
+                $notify[] = [$r, 'The studio will refund your payment.'];
+            }
+        }
+
+        $counts['emails_on'] = (bool) \App\Models\Tenant::find($tenantId)?->notificationEnabled('class_cancelled_email');
+        $counts['emailed']   = 0;
+        foreach ($notify as [$r, $line]) {
+            ClassMessages::studioCancelled($r, $line);
+            if ($counts['emails_on'] && filled(TenantCustomer::find($r->customer_id)?->email)) {
+                $counts['emailed']++;
+            }
+        }
+
+        return $counts;
     }
 
     public function checkIn(string $registrationId, string $tenantId): void
@@ -313,6 +355,7 @@ class ClassRegistrationService
                 'pack_id'           => $resolved['pack_id'] ?? null,
             ]);
             $this->ledgerConsumed($next->fresh(), $session, 'Moved in from the waitlist');
+            ClassMessages::movedIn($next->fresh()); // MARKER-CLASSES-P5
             return;
         }
     }
@@ -405,6 +448,10 @@ class ClassRegistrationService
             'pack'       => $resolved['source']->deductCredit(),
             default      => null,
         };
+        // MARKER-CLASSES-P5: one class left on a pack
+        if ($resolved['method'] === 'pack' && (int) $resolved['source']->credits_remaining === 1) {
+            ClassMessages::packReminder($resolved['source'], 'low');
+        }
     }
 
     /**

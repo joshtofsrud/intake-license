@@ -507,6 +507,76 @@ HTML;
 {{account_line}}
 <p>— The {$shop} team</p>",
             ],
+            // MARKER-CLASSES-P5: class messages (switch off / reword in Communication)
+            'class_booking_confirmation' => [
+                'subject'   => "You're booked: {{class_name}}",
+                'body_html' => "<p>Hi {{first_name}},</p>
+<p>You're booked into <strong>{{class_name}}</strong> on {{class_when}}.</p>
+{{details}}
+{{notes}}
+<p style='margin-top:14px'><a href='{{calendar_url}}' style='color:#111'>Add to calendar</a> &nbsp;·&nbsp; <a href='{{class_url}}' style='color:#111'>See or cancel your booking</a></p>
+<p>— The {$shop} team</p>",
+            ],
+            'class_reminder' => [
+                'subject'   => 'Reminder: {{class_name}} at {{class_when}}',
+                'body_html' => "<p>Hi {{first_name}},</p>
+<p>See you soon at <strong>{{class_name}}</strong>, {{class_when}}.</p>
+{{details}}
+{{notes}}
+<p style='margin-top:14px'><a href='{{class_url}}' style='color:#111'>Can't make it? Cancel here</a> so someone on the waitlist can have your spot.</p>
+<p>— The {$shop} team</p>",
+            ],
+            'class_waitlist_moved_in' => [
+                'subject'   => "A spot opened: you're in {{class_name}}",
+                'body_html' => "<p>Hi {{first_name}},</p>
+<p>Good news. A spot opened in <strong>{{class_name}}</strong> on {{class_when}}, and you've been moved in from the waitlist.</p>
+{{details}}
+{{notes}}
+<p style='margin-top:14px'><a href='{{calendar_url}}' style='color:#111'>Add to calendar</a> &nbsp;·&nbsp; <a href='{{class_url}}' style='color:#111'>Can't make it now? Cancel here</a></p>
+<p>— The {$shop} team</p>",
+            ],
+            'class_cancelled' => [
+                'subject'   => 'Cancelled: {{class_name}} on {{class_when}}',
+                'body_html' => "<p>Hi {{first_name}},</p>
+<p>We're sorry, {$shop} has cancelled <strong>{{class_name}}</strong> on {{class_when}}.</p>
+<p>{{credit_line}}</p>
+<p style='margin-top:14px'><a href='{{schedule_url}}' style='color:#111'>Find another class</a></p>
+<p>— The {$shop} team</p>",
+            ],
+            'class_late_cancel' => [
+                'subject'   => 'Your booking for {{class_name}} is cancelled',
+                'body_html' => "<p>Hi {{first_name}},</p>
+<p>Your booking for <strong>{{class_name}}</strong> on {{class_when}} is cancelled.</p>
+<p>{{rule_line}} Because this was a late cancel, the class still counts as used.</p>
+<p>If something came up, reply to this email and we'll take a look.</p>
+<p>— The {$shop} team</p>",
+            ],
+            'class_pass_reminder' => [
+                'subject'   => "Your {$shop} pass",
+                'body_html' => "<p>Hi {{first_name}},</p>
+<p>{{pass_line}}</p>
+<p style='margin-top:14px'><a href='{{schedule_url}}' style='color:#111'>Book a class</a> &nbsp;·&nbsp; <a href='{{passes_url}}' style='color:#111'>See passes</a></p>
+<p>— The {$shop} team</p>",
+            ],
+            'class_membership_renewed' => [
+                'subject'   => 'Your {{pass_name}} membership renewed',
+                'body_html' => "<p>Hi {{first_name}},</p>
+<p>Your <strong>{{pass_name}}</strong> membership has renewed.</p>
+<table style='font-size:14px;line-height:1.9;margin:10px 0'>
+  <tr><td style='color:#666;padding-right:16px'>Charged</td><td><strong>{{amount}}</strong> · {{card_line}}</td></tr>
+  <tr><td style='color:#666;padding-right:16px'>Next renewal</td><td><strong>{{next_date}}</strong></td></tr>
+</table>
+<p style='margin-top:14px'><a href='{{passes_url}}' style='color:#111'>Manage your membership</a></p>
+<p>— The {$shop} team</p>",
+            ],
+            'class_membership_payment_due' => [
+                'subject'   => 'Your {{pass_name}} renewal needs attention',
+                'body_html' => "<p>Hi {{first_name}},</p>
+<p>{{payment_line}}</p>
+<p>Renewal: <strong>{{amount}}</strong></p>
+<p style='margin-top:14px'><a href='{{passes_url}}' style='color:#111'>Go to your account</a></p>
+<p>— The {$shop} team</p>",
+            ],
             'order_confirmation' => [
                 'subject'   => 'Order confirmed — {{order_number}}',
                 'body_html' => "<p>Hi {{first_name}},</p>
