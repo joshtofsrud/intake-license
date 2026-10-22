@@ -105,6 +105,8 @@ class MarketingTraffic extends Page
             'allSources' => $report->topSources(20),
             'allPages'   => $report->topPages(20),
             'devices'    => $report->deviceSplit(),
+            // MARKER-OUTREACH-RESULTS
+            'outreach'   => \App\Services\Sales\OutreachResults::forTraffic($report->curStart(), $report->curEnd()),
             'outcomes'   => $funnel->outcomes(),
             'health'     => $this->trackingHealth($platform),
             'compare'    => $this->compare,

@@ -41,6 +41,12 @@ class SalesEmailOutreach extends Page
     public string $body = '';
     public ?string $currentId = null;
 
+    // MARKER-OUTREACH-RESULTS: Send | Results, and the Results filters
+    public string $tab = 'send';
+    public string $rIndustry = '';
+    public string $rTemplate = '';
+    public string $rDays = '30';
+
     public static function canAccess(): bool
     {
         return AdminAccess::allows(Auth::guard('web')->user(), 'crm');
@@ -49,6 +55,7 @@ class SalesEmailOutreach extends Page
     public function mount(): void
     {
         abort_unless(static::canAccess(), 403);
+        if (request()->query('tab') === 'results') $this->tab = 'results';
         $prefs = ProspectOutreach::prefs();
         foreach (['industryId', 'state', 'stage', 'sort', 'templateId'] as $k) {
             if (isset($prefs[$k]) && is_string($prefs[$k])) $this->{$k} = $prefs[$k];
@@ -78,6 +85,22 @@ class SalesEmailOutreach extends Page
             $this->landing = ProspectOutreach::normalizePage($this->landing);
             ProspectOutreach::savePrefs(['page' => $this->landing]);
         }
+    }
+
+    // ---------------------------------------------------------------- results
+
+    public function setTab(string $tab): void
+    {
+        $this->tab = $tab === 'results' ? 'results' : 'send';
+    }
+
+    public function results(): array
+    {
+        return \App\Services\Sales\OutreachResults::compute([
+            'industry' => $this->rIndustry,
+            'template' => $this->rTemplate,
+            'days'     => in_array($this->rDays, ['7', '30', '90', 'all'], true) ? $this->rDays : '30',
+        ]);
     }
 
     // ---------------------------------------------------------------- the queue

@@ -373,6 +373,29 @@
     </div>
   </div>
 
+  {{-- MARKER-OUTREACH-RESULTS: visits that came from a prospect's own email link --}}
+  @php $orUrl = \App\Filament\Pages\SalesEmailOutreach::getUrl() . '?tab=results'; @endphp
+  <div class="mt-two-up">
+    <div class="mt-card">
+      <div class="mt-sec" style="margin-top:0">Email outreach</div>
+      <div class="mt-row"><span>Visits from outreach links</span><b>{{ number_format($outreach['visits']) }}</b></div>
+      <div class="mt-row"><span>Shops that visited</span><b>{{ number_format($outreach['shops']) }}</b></div>
+      <div class="mt-row"><span>Pages per visit</span><b>{{ $outreach['pages_each'] }}</b></div>
+      <div class="mt-row"><span>Shops that went on to Pricing</span><b>{{ number_format($outreach['pricing']) }}</b></div>
+      <div class="mt-row"><span>Started a trial after visiting</span><b>{{ number_format($outreach['trials']) }}</b></div>
+      <p class="mt-hint">Visits from the personal links in emails sent from <a href="{{ $orUrl }}" style="color:#a78bfa">Email outreach</a>, in this date range. Visits while signed in to master admin aren't counted.</p>
+    </div>
+    <div class="mt-card">
+      <div class="mt-sec" style="margin-top:0">Shops that visited</div>
+      @forelse($outreach['recent'] as $r)
+        <div class="mt-row"><span><a href="{{ \App\Filament\Pages\SalesPipeline::getUrl() }}?open={{ $r['id'] }}" style="color:inherit">{{ $r['shop'] }}</a></span><b style="font-weight:500;opacity:.7">{{ $r['pages'] }} {{ \Illuminate\Support\Str::plural('page', $r['pages']) }} · {{ $r['when']->diffForHumans() }}</b></div>
+      @empty
+        <p class="mt-empty">No outreach visits in this window.</p>
+      @endforelse
+      <p class="mt-hint">Which template, and who to follow up: <a href="{{ $orUrl }}" style="color:#a78bfa">Email outreach › Results</a></p>
+    </div>
+  </div>
+
   <div class="mt-two-up">
     <div class="mt-card">
       <div class="mt-sec" style="margin-top:0">Devices</div>
@@ -432,6 +455,7 @@
 .rse-ev{display:flex;gap:11px;font-size:12px;padding:4px 0;align-items:baseline}
 .rse-ev .t{width:76px;flex:none;color:var(--ia-text-dim,rgba(255,255,255,.42));font-size:11px}
 .rse-ev .w{color:var(--ia-text-2,rgba(255,255,255,.72))}
+.rse-src{flex:none;font-size:11px;font-weight:600;color:#c4b5fd;background:rgba(139,92,246,.14);border:.5px solid rgba(139,92,246,.35);border-radius:100px;padding:3px 9px}
 .rse-none{padding:22px;text-align:center;font-size:13px;color:var(--ia-text-dim,rgba(255,255,255,.42))}
 </style>
 
@@ -458,6 +482,7 @@
       <div class="rse-row" data-status="{{ $sess['status'] }}" onclick="this.classList.toggle('open')">
         <span class="rse-time">{{ $sess['time'] }}<span>{{ $sess['day'] }}</span></span>
         <span class="rse-land">{{ $sess['landing'] }}</span>
+        @if(! empty($sess['outreach']))<span class="rse-src">Email · {{ $sess['outreach']['shop'] }}</span>@endif
         <span class="rse-pages">{{ $sess['page_count'] }} {{ \Illuminate\Support\Str::plural('page', $sess['page_count']) }}</span>
         <span class="rse-dev">{{ $sess['device'] }}</span>
         <span class="rse-dur">{{ $sess['duration'] }}</span>
@@ -467,7 +492,11 @@
           <div class="rse-dmeta">
             <span>Session {{ $sess['session'] }}</span>
             @if($sess['referrer'])<span>From {{ $sess['referrer'] }}</span>@endif
-            @if($sess['utm'])<span>utm_source {{ $sess['utm'] }}</span>@endif
+            @if(! empty($sess['outreach']))
+              <span>From an outreach email</span>
+              <span>Shop <a href="{{ \App\Filament\Pages\SalesPipeline::getUrl() }}?open={{ $sess['outreach']['id'] }}" style="color:#a78bfa">{{ $sess['outreach']['shop'] }}</a></span>
+              @if($sess['outreach']['template'])<span>Template: {{ $sess['outreach']['template'] }}</span>@endif
+            @elseif($sess['utm'])<span>utm_source {{ $sess['utm'] }}</span>@endif
             <span>Duration {{ $sess['duration'] }}</span>
           </div>
           @foreach($sess['timeline'] as $ev)

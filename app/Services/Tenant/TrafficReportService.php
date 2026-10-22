@@ -695,43 +695,51 @@ class TrafficReportService
     }
 
     /**
-     * Top sources — UTM source preferred, falls back to referrer domain,
-     * falls back to '(direct)' when both are absent.
+     * Top sources. MARKER-OUTREACH-RESULTS: one source per VISIT, taken from
+     * the visit's first event: UTM source, else an outside referrer, else
+     * '(direct)'. It used to group every event by its own source, so a visit
+     * that clicked from one page to the next was counted again under our own
+     * domain (internal links carry it as the referrer) and a visit landing
+     * from a campaign showed under two sources.
      *
      * Returns rows: [name, visits, conversions, conv_pct].
      */
     public function topSources(int $limit = 8): array
     {
-        // Visits and bookings completed, both grouped by best-available source.
-        // We compute the source label in PHP after fetching session-level rows.
-        $sourceExpr = "COALESCE(NULLIF(utm_source, ''), NULLIF(referrer_domain, ''), '(direct)')";
-
-        $visits = TenantFunnelEvent::query()
+        $firstIds = TenantFunnelEvent::query()
             ->tap(fn ($q) => $this->applyBotFilter($q))
             ->where('tenant_id', $this->tenant->id)
             ->where('created_at', '>=', $this->curStart)
             ->where('created_at', '<',  $this->curEnd)
-            ->selectRaw("$sourceExpr as source, COUNT(DISTINCT session_id) as n")
-            ->groupBy('source')
-            ->orderByDesc('n')
-            ->limit($limit)
-            ->pluck('n', 'source')
-            ->all();
+            ->selectRaw('MIN(id) as id')
+            ->groupBy('session_id')
+            ->toBase();
 
-        if (empty($visits)) return [];
+        $own = $this->ownHosts();
+        $sourceOf = [];
+        foreach (TenantFunnelEvent::query()->whereIn('id', $firstIds)->get(['session_id', 'utm_source', 'referrer_domain']) as $e) {
+            $ref = strtolower(trim((string) $e->referrer_domain));
+            $internal = $ref !== '' && (in_array($ref, $own, true) || in_array('www.' . $ref, $own, true) || (str_starts_with($ref, 'www.') && in_array(substr($ref, 4), $own, true)));
+            $src = trim((string) $e->utm_source) !== '' ? trim((string) $e->utm_source) : ($ref !== '' && ! $internal ? $ref : '(direct)');
+            $sourceOf[$e->session_id] = $src === 'outreach' ? 'Email outreach' : $src;
+        }
+        if (! $sourceOf) return [];
 
-        // Conversions by source (booking_completed sessions)
-        $conv = TenantFunnelEvent::query()
+        $visits = array_count_values($sourceOf);
+        arsort($visits);
+        $visits = array_slice($visits, 0, $limit, true);
+
+        $convSessions = TenantFunnelEvent::query()
             ->tap(fn ($q) => $this->applyBotFilter($q))
             ->where('tenant_id', $this->tenant->id)
             ->where('event_type', 'booking_completed')
             ->where('created_at', '>=', $this->curStart)
             ->where('created_at', '<',  $this->curEnd)
-            ->whereIn(DB::raw($sourceExpr), array_keys($visits))
-            ->selectRaw("$sourceExpr as source, COUNT(DISTINCT session_id) as n")
-            ->groupBy('source')
-            ->pluck('n', 'source')
-            ->all();
+            ->distinct()->pluck('session_id');
+        $conv = [];
+        foreach ($convSessions as $sid) {
+            if (isset($sourceOf[$sid])) $conv[$sourceOf[$sid]] = ($conv[$sourceOf[$sid]] ?? 0) + 1;
+        }
 
         $rows = [];
         foreach ($visits as $source => $n) {
@@ -744,6 +752,31 @@ class TrafficReportService
             ];
         }
         return $rows;
+    }
+
+    /**
+     * Hosts that are this site itself. The platform is intake.works only (a
+     * shop's site linking to it is a real referral); a shop is its own
+     * subdomain plus its custom domains.
+     */
+    private function ownHosts(): array
+    {
+        $root = strtolower((string) config('intake.domain', 'intake.works'));
+        $hosts = [];
+        try {
+            if ($this->tenant->is_platform) {
+                $hosts[] = $root;
+            } else {
+                if ($this->tenant->subdomain) $hosts[] = strtolower((string) $this->tenant->subdomain) . '.' . $root;
+                if ($this->tenant->custom_domain) $hosts[] = strtolower((string) $this->tenant->custom_domain);
+                foreach (DB::table('tenant_domains')->where('tenant_id', $this->tenant->id)->pluck('hostname') as $h) {
+                    $hosts[] = strtolower((string) $h);
+                }
+            }
+        } catch (\Throwable $e) {
+            // tenant_domains missing: what we have is still right for the platform
+        }
+        return array_values(array_unique(array_filter($hosts)));
     }
 
     /**

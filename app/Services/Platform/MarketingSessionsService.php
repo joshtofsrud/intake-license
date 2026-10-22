@@ -142,6 +142,7 @@ class MarketingSessionsService
             $seconds   = (int) $s['first_at']->diffInSeconds($s['last_at']);
 
             $out[] = [
+                'id'         => $s['id'], // MARKER-OUTREACH-RESULTS
                 'session'    => $s['session'],
                 'time'       => $s['first_at']->setTimezone($tz)->format('g:i A'),
                 'day'        => $s['first_at']->setTimezone($tz)->format('M j'),
@@ -162,7 +163,15 @@ class MarketingSessionsService
         }
 
         usort($out, fn ($a, $b) => $b['sort'] <=> $a['sort']);
+        $out = array_slice($out, 0, $limit);
 
-        return array_slice($out, 0, $limit);
+        // MARKER-OUTREACH-RESULTS: sessions that came from a prospect's own email link
+        $shops = \App\Services\Sales\OutreachResults::shopsForSessions(array_column($out, 'id'));
+        foreach ($out as &$o) {
+            $o['outreach'] = $shops[$o['id']] ?? null;
+        }
+        unset($o);
+
+        return $out;
     }
 }

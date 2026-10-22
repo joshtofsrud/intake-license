@@ -81,6 +81,16 @@
      }"
      x-on:keydown.window="key($event)">
 
+    {{-- MARKER-OUTREACH-RESULTS: Send | Results --}}
+    <div class="sx-inds" style="margin-bottom:6px">
+        <button type="button" class="{{ $tab === 'send' ? 'on' : '' }}" wire:click="setTab('send')" style="font-size:15px">Send</button>
+        <button type="button" class="{{ $tab === 'results' ? 'on' : '' }}" wire:click="setTab('results')" style="font-size:15px">Results</button>
+    </div>
+
+    @if ($tab === 'results')
+        @include('filament.partials.outreach-results')
+    @else
+
     @if (count($inds) > 1)
     <div class="sx-inds">
         <button type="button" class="{{ $industryId === '' ? 'on' : '' }}" wire:click="$set('industryId', '')">All</button>
@@ -226,5 +236,6 @@
             </table>
         </section>
     </div>
+    @endif
 </div>
 </x-filament-panels::page>
