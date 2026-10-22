@@ -99,6 +99,35 @@
   @endunless
 </form>
 
+{{-- MARKER-CLASSES-P4: booking rules. Blank = no limit. Staff are never held to these. --}}
+<details class="cl-card" style="margin-bottom:16px;padding:12px 16px" @if($errors->has('book_ahead_days')||$errors->has('cancel_cutoff_hours')||$errors->has('waitlist_max')) open @endif>
+  <summary style="cursor:pointer;font-size:13px;font-weight:600">Booking rules</summary>
+  <form method="POST" action="{{ route('tenant.classes.rules') }}" style="margin-top:12px;display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px 18px;font-size:13px">
+    @csrf
+    <label>Customers can book up to
+      <span style="display:flex;gap:6px;align-items:center;margin-top:4px"><input type="number" min="0" max="365" name="book_ahead_days" value="{{ $rules['book_ahead_days'] }}" class="cl-select" style="width:80px" placeholder="any"> days ahead</span></label>
+    <label>Online booking closes
+      <span style="display:flex;gap:6px;align-items:center;margin-top:4px"><input type="number" min="0" max="10080" name="book_cutoff_minutes" value="{{ $rules['book_cutoff_minutes'] }}" class="cl-select" style="width:80px" placeholder="0"> minutes before</span></label>
+    <label>Free cancelling until
+      <span style="display:flex;gap:6px;align-items:center;margin-top:4px"><input type="number" min="0" max="720" name="cancel_cutoff_hours" value="{{ $rules['cancel_cutoff_hours'] }}" class="cl-select" style="width:80px" placeholder="start"> hours before</span></label>
+    <label>After that
+      <select name="after_cutoff" class="cl-select" style="margin-top:4px">
+        @foreach(\App\Services\ClassRules::AFTER_CUTOFF as $k => $label)
+          <option value="{{ $k }}" @selected($rules['after_cutoff'] === $k)>{{ $label }}</option>
+        @endforeach
+      </select></label>
+    <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" name="waitlist_on" value="1" @checked($rules['waitlist_on'])> Full classes have a waitlist</label>
+    <label>Waitlist holds up to
+      <span style="display:flex;gap:6px;align-items:center;margin-top:4px"><input type="number" min="1" max="500" name="waitlist_max" value="{{ $rules['waitlist_max'] }}" class="cl-select" style="width:80px" placeholder="any"> people</span></label>
+    <label>Stop moving people in
+      <span style="display:flex;gap:6px;align-items:center;margin-top:4px"><input type="number" min="0" max="720" name="waitlist_stop_hours" value="{{ $rules['waitlist_stop_hours'] }}" class="cl-select" style="width:80px" placeholder="never"> hours before</span></label>
+    <div style="grid-column:1/-1;display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+      <button type="submit" class="ia-btn ia-btn--secondary ia-btn--sm">Save rules</button>
+      <span style="font-size:12px;color:var(--ia-text-muted)">Applies to customers booking and cancelling online. Staff can always book, cancel and restore credits. A late cancel keeps the credit used only if you choose that above.</span>
+    </div>
+  </form>
+</details>
+
 @if($errors->any())
   <div class="ia-flash ia-flash--error" style="margin-bottom:16px">{{ $errors->first() }}</div>
 @endif

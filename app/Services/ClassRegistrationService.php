@@ -30,7 +30,7 @@ use RuntimeException;
  * Every credit or membership use that moves is written to the class credit
  * ledger (ClassCreditLedger) in the same transaction.
  *
- * MARKER-CLASSES-P0 MARKER-CLASSES-P1
+ * MARKER-CLASSES-P0 MARKER-CLASSES-P1 MARKER-CLASSES-P4
  */
 class ClassRegistrationService
 {
@@ -77,6 +77,12 @@ class ClassRegistrationService
                     : 'This class has already started.');
             }
 
+            // MARKER-CLASSES-P4: the studio's booking window applies to customers, never to staff
+            $rules = ClassRules::for(\App\Models\Tenant::find($tenantId));
+            if (! $staff && ($why = $rules->bookingBlock($session))) {
+                throw new RuntimeException($why);
+            }
+
             $existing = TenantClassRegistration::where('class_session_id', $sessionId)
                 ->where('customer_id', $customerId)
                 ->whereIn('status', ['registered', 'checked_in', 'waitlisted'])
@@ -92,6 +98,15 @@ class ClassRegistrationService
             // A full class goes to the waitlist. (Before this patch a full
             // class was refused outright, so nobody could ever join a waitlist.)
             $isFull      = $session->spotsRemaining() <= 0;
+            if ($isFull && ! $staff) { // MARKER-CLASSES-P4
+                if (! $rules->get('waitlist_on')) {
+                    throw new RuntimeException('This class is full.');
+                }
+                $max = $rules->get('waitlist_max');
+                if ($max !== null && TenantClassRegistration::where('class_session_id', $sessionId)->where('status', 'waitlisted')->count() >= $max) {
+                    throw new RuntimeException('This class and its waitlist are full.');
+                }
+            }
             $status      = $isFull ? 'waitlisted' : 'registered';
             $waitlistPos = null;
             if ($isFull) {
@@ -164,7 +179,19 @@ class ClassRegistrationService
                 throw new RuntimeException('This class has already started.');
             }
 
-            $this->restorePaymentSource($registration, $tenantId, $staff ? 'Removed by staff' : 'Cancelled by the customer');
+            // MARKER-CLASSES-P4: a late cancel by the customer keeps the credit used,
+            // or is refused, as the studio chose. Staff always get the credit back.
+            $rules = ClassRules::for(\App\Models\Tenant::find($tenantId));
+            $late  = ! $staff && $rules->isLateCancel($session);
+            if ($late && $rules->get('after_cutoff') === 'block') {
+                throw new RuntimeException('It is too late to cancel this class online. Please contact the studio.');
+            }
+            if ($late) {
+                $registration->metadata = array_merge($registration->metadata ?? [], ['late_cancel' => true]);
+                $registration->save();
+            } else {
+                $this->restorePaymentSource($registration, $tenantId, $staff ? 'Removed by staff' : 'Cancelled by the customer');
+            }
             $registration->cancel();
 
             if ($session->starts_at->isFuture()
@@ -254,6 +281,10 @@ class ClassRegistrationService
     private function promoteFromWaitlist(TenantClassSession $session, string $tenantId): void
     {
         if ($session->spotsRemaining() <= 0) {
+            return;
+        }
+        // MARKER-CLASSES-P4: too close to the start to move anyone in
+        if (ClassRules::for(\App\Models\Tenant::find($tenantId))->promotionStopped($session)) {
             return;
         }
 

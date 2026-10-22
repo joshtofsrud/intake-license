@@ -113,7 +113,8 @@ class ClassOnlineSaleService
         return $s
             && in_array($s->status, ['scheduled', 'confirmed'], true)
             && $s->starts_at->isFuture()
-            && $s->spotsRemaining() > 0;
+            && $s->spotsRemaining() > 0
+            && ClassRules::for()->bookingBlock($s) === null; // MARKER-CLASSES-P4
     }
 
     /** @return array{name:string, price:int, tax:int, total:int} */

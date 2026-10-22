@@ -92,6 +92,7 @@
       <form method="POST" action="{{ route('tenant.customer.classes.cancel', ['id' => $existingRegistration->id]) }}"
             style="margin-top:12px">
         @csrf
+        @if(! empty($cancelNote))<div style="font-size:12.5px;opacity:.65;margin-bottom:6px">{{ $cancelNote }}</div>@endif {{-- MARKER-CLASSES-P4 --}}
         {{-- MARKER-CLASSES-P0: in-page confirm instead of the browser's confirm() --}}
         <button type="button" onclick="this.hidden=true;this.nextElementSibling.hidden=false" style="font-size:13px;color:#A32D2D;background:none;border:none;cursor:pointer;text-decoration:underline">Cancel registration</button>
         <span hidden style="font-size:13px">Cancel this booking?
@@ -105,6 +106,14 @@
 {{-- Started: no booking (MARKER-CLASSES-P0) --}}
 @elseif($session->starts_at->isPast())
   <div class="cl-waitlist-note">This class has already started. Pick another time from the schedule.</div>
+
+{{-- Not open yet / closed (MARKER-CLASSES-P4) --}}
+@elseif(! empty($bookingBlock))
+  <div class="cl-waitlist-note">{{ $bookingBlock }}</div>
+
+{{-- Full and no waitlist (MARKER-CLASSES-P4) --}}
+@elseif($isFull && empty($waitlistOpen))
+  <div class="cl-waitlist-note">This class is full. Pick another time from the schedule.</div>
 
 {{-- Waitlist --}}
 @elseif($isFull)

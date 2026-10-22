@@ -119,11 +119,19 @@ class CustomerClassController extends Controller
         $introQuote  = $introOffer ? ClassOnlineSaleService::quote($tenant, 'pack', $introOffer, null, $customer) : null;
         $dropinQuote = ClassOnlineSaleService::quote($tenant, 'dropin', null, $session, $customer);
         $stripePk    = $cardsOn ? ClassOnlineSaleService::payments($tenant)->publishableKey() : null;
+        $rules        = \App\Services\ClassRules::for($tenant); // MARKER-CLASSES-P4
+        $bookingBlock = $rules->bookingBlock($session);
+        $waitlistOpen = $rules->get('waitlist_on')
+            && ($rules->get('waitlist_max') === null || $session->waitlist_count < $rules->get('waitlist_max'));
+        $cancelNote   = $existingRegistration && $existingRegistration->status === 'registered' ? $rules->cancelNote($session) : null;
+        if ($cancelNote && str_contains($cancelNote, 'use up') && ! in_array($existingRegistration->payment_method, ['pack', 'membership'], true)) {
+            $cancelNote = null; // nothing was taken from a pass, so nothing is used up
+        }
 
         return view('public.classes.show', compact(
             'session', 'customer', 'activeMembership', 'activePacks',
             'existingRegistration', 'spotsRemaining', 'isFull',
-            'coverMemberships', 'coverPacks', 'cardsOn', 'dropinMode', 'introOffer', 'introQuote', 'dropinQuote', 'stripePk'
+            'coverMemberships', 'coverPacks', 'cardsOn', 'dropinMode', 'introOffer', 'introQuote', 'dropinQuote', 'stripePk', 'bookingBlock', 'waitlistOpen', 'cancelNote'
         ));
     }
 

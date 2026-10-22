@@ -40,7 +40,9 @@ class ClassController extends Controller
         $onlineDropin = \App\Services\ClassOnlineSaleService::dropinSetting($tenant);
         $cardsOn      = \App\Services\ClassOnlineSaleService::cardsOn($tenant);
 
-        return view('tenant.classes.templates', compact('templates', 'resources', 'onlineDropin', 'cardsOn'));
+        $rules = \App\Services\ClassRules::for($tenant)->all(); // MARKER-CLASSES-P4
+
+        return view('tenant.classes.templates', compact('templates', 'resources', 'onlineDropin', 'cardsOn', 'rules'));
     }
 
     public function storeTemplate(Request $request)
@@ -635,6 +637,26 @@ class ClassController extends Controller
         $tenant->forceFill(['settings' => $settings])->save();
 
         return back()->with('success', 'Saved. Online bookings without a pass: ' . strtolower(\App\Services\ClassOnlineSaleService::DROPIN_MODES[$data['class_online_dropin']]) . '.');
+    }
+
+    /** Booking rules (MARKER-CLASSES-P4). A blank box means "no limit". */
+    public function saveRules(Request $request)
+    {
+        $tenant = tenant();
+        $d = $request->validate([
+            'book_ahead_days'     => ['nullable', 'integer', 'min:0', 'max:365'],
+            'book_cutoff_minutes' => ['nullable', 'integer', 'min:0', 'max:10080'],
+            'cancel_cutoff_hours' => ['nullable', 'integer', 'min:0', 'max:720'],
+            'after_cutoff'        => ['required', \Illuminate\Validation\Rule::in(array_keys(\App\Services\ClassRules::AFTER_CUTOFF))],
+            'waitlist_max'        => ['nullable', 'integer', 'min:1', 'max:500'],
+            'waitlist_stop_hours' => ['nullable', 'integer', 'min:0', 'max:720'],
+        ]);
+        $d['waitlist_on'] = $request->boolean('waitlist_on');
+        $settings = (array) ($tenant->settings ?? []);
+        $settings['class_rules'] = $d;
+        $tenant->forceFill(['settings' => $settings])->save();
+
+        return back()->with('success', 'Booking rules saved.');
     }
 
     // ------------------------------------------------------------------
