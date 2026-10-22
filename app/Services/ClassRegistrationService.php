@@ -146,12 +146,14 @@ class ClassRegistrationService
      *  - registered / checked_in: the credit or membership use goes back and
      *    the first waitlisted person who can pay is moved in.
      */
-    public function cancel(string $registrationId, string $tenantId, bool $staff = false): void
+    /** Returns the cents refunded to a card under the studio's online refund rule (MARKER-CLASSES-P6), else null. */
+    public function cancel(string $registrationId, string $tenantId, bool $staff = false): ?int
     {
         $sessionId = TenantClassRegistration::where('tenant_id', $tenantId)
             ->findOrFail($registrationId)->class_session_id;
 
-        $this->locked($tenantId, $sessionId, function () use ($registrationId, $tenantId, $staff) {
+        $refund = false;
+        $this->locked($tenantId, $sessionId, function () use ($registrationId, $tenantId, $staff, &$refund) {
             $registration = TenantClassRegistration::where('tenant_id', $tenantId)
                 ->lockForUpdate()
                 ->findOrFail($registrationId);
@@ -192,6 +194,8 @@ class ClassRegistrationService
                 }
             } else {
                 $this->restorePaymentSource($registration, $tenantId, $staff ? 'Removed by staff' : 'Cancelled by the customer');
+                // MARKER-CLASSES-P6: the studio's rule for a paid-online class cancelled in time
+                $refund = ! $staff && $registration->payment_method === 'online' && $rules->get('online_refund') === 'card';
             }
             $registration->cancel();
 
@@ -200,6 +204,11 @@ class ClassRegistrationService
                 $this->promoteFromWaitlist($session, $tenantId);
             }
         });
+
+        // The card refund runs after the lock is released.
+        return $refund
+            ? ClassOnlineSaleService::refundForCancelledClass(TenantClassRegistration::find($registrationId), 'Cancelled by the customer')
+            : null;
     }
 
     /**

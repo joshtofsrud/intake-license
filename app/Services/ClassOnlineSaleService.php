@@ -398,7 +398,7 @@ class ClassOnlineSaleService
      * Returns the cents refunded, or null when it could not be done
      * automatically (staff refund it from the sale). MARKER-CLASSES-P5
      */
-    public static function refundForCancelledClass(TenantClassRegistration $r): ?int
+    public static function refundForCancelledClass(TenantClassRegistration $r, string $reason = 'Class cancelled by the studio'): ?int
     {
         $meta = (array) ($r->metadata ?? []);
         if (! empty($meta['refunded_cents'])) {
@@ -419,7 +419,7 @@ class ClassOnlineSaleService
                 'original_sale_id'   => $sale->id,
                 'rang_up_by_user_id' => auth('tenant')->id(),
                 'refund_method'      => 'card',
-                'reason'             => 'Class cancelled by the studio',
+                'reason'             => $reason, // MARKER-CLASSES-P6
                 'item_ids'           => $sale->items->pluck('id')->all(),
             ]);
         } catch (\Throwable $e) {
@@ -442,7 +442,7 @@ class ClassOnlineSaleService
 
         $cents = abs((int) $refund->total_cents);
         $r->forceFill(['metadata' => $meta + ['refunded_cents' => $cents]])->save();
-        $co->update(['note' => 'Refunded: the studio cancelled the class']);
+        $co->update(['note' => mb_substr('Refunded: ' . $reason, 0, 255)]);
         return $cents;
     }
 

@@ -660,6 +660,7 @@ class ClassController extends Controller
             'waitlist_max'        => ['nullable', 'integer', 'min:1', 'max:500'],
             'waitlist_stop_hours' => ['nullable', 'integer', 'min:0', 'max:720'],
             'reminder_hours'      => ['nullable', 'integer', 'min:1', 'max:48'], // MARKER-CLASSES-P5
+            'online_refund'       => ['nullable', \Illuminate\Validation\Rule::in(array_keys(\App\Services\ClassRules::ONLINE_REFUND))], // MARKER-CLASSES-P6
         ]);
         $d['waitlist_on'] = $request->boolean('waitlist_on');
         $settings = (array) ($tenant->settings ?? []);

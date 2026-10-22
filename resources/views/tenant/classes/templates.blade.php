@@ -101,7 +101,7 @@
 
 {{-- MARKER-CLASSES-P4: booking rules. Blank = no limit. Staff are never held to these. --}}
 <details class="cl-card" style="margin-bottom:16px;padding:12px 16px" @if($errors->has('book_ahead_days')||$errors->has('cancel_cutoff_hours')||$errors->has('waitlist_max')) open @endif>
-  <summary style="cursor:pointer;font-size:13px;font-weight:600">Booking rules</summary>
+  <summary style="cursor:pointer;font-size:13px;font-weight:600">Booking rules @if($cardsOn && empty($rules['online_refund']))<span style="font-weight:400;color:#A32D2D"> · online refund rule not set</span>@endif</summary> {{-- MARKER-CLASSES-P6 --}}
   <form method="POST" action="{{ route('tenant.classes.rules') }}" style="margin-top:12px;display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px 18px;font-size:13px">
     @csrf
     <label>Customers can book up to
@@ -116,6 +116,14 @@
           <option value="{{ $k }}" @selected($rules['after_cutoff'] === $k)>{{ $label }}</option>
         @endforeach
       </select></label>
+    <label>Paid online, cancelled in time {{-- MARKER-CLASSES-P6 --}}
+      <select name="online_refund" class="cl-select" style="margin-top:4px">
+        <option value="">Choose one</option>
+        @foreach(\App\Services\ClassRules::ONLINE_REFUND as $k => $label)
+          <option value="{{ $k }}" @selected($rules['online_refund'] === $k)>{{ $label }}</option>
+        @endforeach
+      </select>
+      @if(empty($rules['online_refund']))<span style="display:block;font-size:12px;color:#A32D2D;margin-top:4px">Not set. Nothing is refunded automatically until you choose.</span>@endif</label>
     <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" name="waitlist_on" value="1" @checked($rules['waitlist_on'])> Full classes have a waitlist</label>
     <label>Waitlist holds up to
       <span style="display:flex;gap:6px;align-items:center;margin-top:4px"><input type="number" min="1" max="500" name="waitlist_max" value="{{ $rules['waitlist_max'] }}" class="cl-select" style="width:80px" placeholder="any"> people</span></label>

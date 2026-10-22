@@ -17,6 +17,12 @@ class ClassRules
 {
     public const MAX_REMINDER_HOURS = 48; // MARKER-CLASSES-P5
 
+    /** What happens to an online payment when the customer cancels in time. The studio's choice; unset = nothing automatic. MARKER-CLASSES-P6 */
+    public const ONLINE_REFUND = [
+        'card' => 'Refund to their card',
+        'none' => 'No refund, handle it at the studio',
+    ];
+
     public const AFTER_CUTOFF = [
         'keep'  => 'Keep the credit (it is used up)',
         'block' => "Don't allow cancelling",
@@ -37,6 +43,7 @@ class ClassRules
             'waitlist_on'         => ! array_key_exists('waitlist_on', $raw) || (bool) $raw['waitlist_on'],
             'waitlist_max'        => $int('waitlist_max'),
             'waitlist_stop_hours' => $int('waitlist_stop_hours'),
+            'online_refund'       => array_key_exists($raw['online_refund'] ?? '', self::ONLINE_REFUND) ? $raw['online_refund'] : null, // MARKER-CLASSES-P6
             'reminder_hours'      => min(self::MAX_REMINDER_HOURS, max(1, $int('reminder_hours') ?? 2)), // MARKER-CLASSES-P5
         ]);
     }

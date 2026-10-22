@@ -127,6 +127,12 @@ class CustomerClassController extends Controller
         if ($cancelNote && str_contains($cancelNote, 'use up') && ! in_array($existingRegistration->payment_method, ['pack', 'membership'], true)) {
             $cancelNote = null; // nothing was taken from a pass, so nothing is used up
         }
+        if ($existingRegistration && $existingRegistration->status === 'registered'
+            && $existingRegistration->payment_method === 'online' && ! $rules->isLateCancel($session)) { // MARKER-CLASSES-P6
+            $cancelNote = trim(($cancelNote ?? '') . ' ' . ($rules->get('online_refund') === 'card'
+                ? 'If you cancel now, your payment is refunded to your card.'
+                : "Online payments aren't refunded here. Contact the studio."));
+        }
 
         return view('public.classes.show', compact(
             'session', 'customer', 'activeMembership', 'activePacks',
@@ -273,11 +279,21 @@ class CustomerClassController extends Controller
             ->findOrFail($id);
 
         try {
-            $this->registrationService->cancel($registration->id, $tenant->id, false);
+            $refunded = $this->registrationService->cancel($registration->id, $tenant->id, false);
         } catch (\RuntimeException $e) { // MARKER-CLASSES-P0
             return back()->withErrors(['booking' => $e->getMessage()]);
         }
 
-        return back()->with('success', 'Your registration has been cancelled.');
+        // MARKER-CLASSES-P6: say what happened to an online payment
+        $msg = 'Your registration has been cancelled.';
+        if ($refunded !== null) {
+            $msg .= ' ' . format_money($refunded) . ' has been refunded to your card. It can take a few days to show.';
+        } elseif ($registration->payment_method === 'online'
+            && \App\Services\ClassRules::for($tenant)->get('online_refund') === 'card'
+            && empty($registration->fresh()->metadata['late_cancel'])) {
+            $msg .= ' The studio will refund your payment.';
+        }
+
+        return back()->with('success', $msg);
     }
 }
