@@ -24,6 +24,16 @@ class CustomItemsController extends Controller
         $tenant = tenant();
         $svc    = new CustomItemsService($tenant);
         $all    = $svc->groups();
+        // MARKER-CI-SEARCH: a search narrows everything on the page, tab counts included
+        $q = trim(mb_substr((string) $request->query('q', ''), 0, 80));
+        if ($q !== '') {
+            $needle = mb_strtolower($q);
+            $all = $all->filter(function ($g) use ($needle) {
+                if (str_contains(mb_strtolower($g['name']), $needle)) return true;
+                foreach ($g['sales'] as $s) if (str_contains(mb_strtolower((string) $s['number']), $needle)) return true;
+                return false;
+            })->values();
+        }
         $counts = $svc->counts($all);
 
         $filter = in_array($request->query('show'), ['open', 'added', 'matched', 'skipped'], true) ? $request->query('show') : 'open';
@@ -72,6 +82,7 @@ class CustomItemsController extends Controller
             ],
             'filter'     => $filter,
             'range'      => $range,
+            'q'          => $q,
             'categories' => $categories,
         ]);
     }

@@ -212,6 +212,12 @@
 .ci-legend b{color:var(--ia-text);font-weight:500}
 .ci-tabn{display:inline-block;min-width:18px;padding:0 6px;margin-left:6px;border-radius:999px;background:rgba(224,168,78,.18);color:#E0A84E;font-size:11px;font-weight:600;line-height:18px;text-align:center}
 .ci-bar{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+/* MARKER-CI-SEARCH */
+.ci-search{display:flex;align-items:center;gap:6px;flex:1 1 220px;max-width:340px}
+.ci-search input{flex:1;min-width:0;padding:7px 12px;background:var(--ia-input-bg);border:.5px solid var(--ia-border);border-radius:var(--ia-r-md);color:var(--ia-text);font-size:13px}
+.ci-search input:focus{outline:none;border-color:var(--ia-accent)}
+.ci-search a{font-size:12.5px;color:var(--ia-text-dim);text-decoration:none}
+@media (max-width:640px){.ci-search{max-width:none;flex-basis:100%}}
 .h-chip b{font-weight:600;margin-left:4px;opacity:.8}
 .ci-hint{font-size:12.5px;color:var(--ia-text-dim);margin:0 0 12px}
 .ci-table td{vertical-align:middle}
@@ -281,12 +287,17 @@
 <div class="ci-bar">
   <div class="h-filters" style="margin:0">
     @foreach(['open' => 'To sort', 'added' => 'Added', 'matched' => 'Matched', 'skipped' => 'Not inventory'] as $k => $label)
-      <a href="{{ route('tenant.register.custom-items', ['show' => $k, 'range' => $range]) }}" class="h-chip {{ $filter === $k ? 'active' : '' }}" style="text-decoration:none">{{ $label }} @if($tabCounts[$k] > 0)<b>{{ $tabCounts[$k] }}</b>@endif</a>
+      <a href="{{ route('tenant.register.custom-items', array_filter(['show' => $k, 'range' => $range, 'q' => $q])) }}" class="h-chip {{ $filter === $k ? 'active' : '' }}" style="text-decoration:none">{{ $label }} @if($tabCounts[$k] > 0)<b>{{ $tabCounts[$k] }}</b>@endif</a>
     @endforeach
   </div>
+  <form method="GET" action="{{ route('tenant.register.custom-items') }}" class="ci-search" role="search">
+    <input type="hidden" name="show" value="{{ $filter }}"><input type="hidden" name="range" value="{{ $range }}">
+    <input type="search" name="q" value="{{ $q }}" placeholder="Search name or sale #" autocomplete="off" aria-label="Search custom items">
+    @if($q !== '')<a href="{{ route('tenant.register.custom-items', ['show' => $filter, 'range' => $range]) }}">Clear</a>@endif
+  </form>
   <div class="h-filters" style="margin:0">
     @foreach(['today' => 'Today', 'week' => 'This week', 'all' => 'All'] as $k => $label)
-      <a href="{{ route('tenant.register.custom-items', ['show' => $filter, 'range' => $k]) }}" class="h-chip {{ $range === $k ? 'active' : '' }}" style="text-decoration:none">{{ $label }}</a>
+      <a href="{{ route('tenant.register.custom-items', array_filter(['show' => $filter, 'range' => $k, 'q' => $q])) }}" class="h-chip {{ $range === $k ? 'active' : '' }}" style="text-decoration:none">{{ $label }}</a>
     @endforeach
   </div>
 </div>
@@ -294,12 +305,17 @@
 
 @if($rows->isEmpty())
   <div class="h-empty">
+    @if($q !== '')
+      <h3>No custom items match "{{ $q }}"</h3>
+      <p style="font-size:13px">Try part of the name or a sale number, or check the other tabs.</p>
+    @else
     <h3>{{ $filter === 'open' ? 'Nothing to sort' : 'Nothing here yet' }}</h3>
     <p style="font-size:13px">{{ $filter === 'open' ? 'Everything rung up by hand has been sorted.' : 'Sorted custom items show up here.' }}</p>
+    @endif
   </div>
 @else
   @if($pager['pages'] > 1)
-    @php $pq = fn ($p) => route('tenant.register.custom-items', ['show' => $filter, 'range' => $range, 'page' => $p]); @endphp
+    @php $pq = fn ($p) => route('tenant.register.custom-items', array_filter(['show' => $filter, 'range' => $range, 'q' => $q, 'page' => $p])); @endphp
     <div class="ci-pager">
       <div>{{ $pager['from'] }}&ndash;{{ $pager['to'] }} of {{ $pager['total'] }}</div>
       <nav>
@@ -354,7 +370,7 @@
     </table>
   </div>
   @if($pager['pages'] > 1)
-    @php $pq = fn ($p) => route('tenant.register.custom-items', ['show' => $filter, 'range' => $range, 'page' => $p]); @endphp
+    @php $pq = fn ($p) => route('tenant.register.custom-items', array_filter(['show' => $filter, 'range' => $range, 'q' => $q, 'page' => $p])); @endphp
     <div class="ci-pager">
       <div>{{ $pager['from'] }}&ndash;{{ $pager['to'] }} of {{ $pager['total'] }}</div>
       <nav>
