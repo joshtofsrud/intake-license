@@ -317,8 +317,15 @@ class SalesFindShops extends Page
 
     public function nextTown(): void
     {
-        foreach ($this->townData()['rows'] as $r) {
-            if ($r['status'] === 'open') { $this->pickTown($r['name']); return; }
+        // untouched towns first; partly covered ones (a full search) after those
+        foreach (['open', 'part'] as $want) {
+            foreach ($this->townData()['rows'] as $r) {
+                if ($r['status'] === $want) {
+                    if ($want === 'part') $this->radius = max(5, min($this->radius, 10));
+                    $this->pickTown($r['name']);
+                    return;
+                }
+            }
         }
         Notification::make()->title('Every town in ' . \App\Services\Sales\TownCoverage::STATES[$this->townState] . ' is covered for this industry')->success()->send();
     }

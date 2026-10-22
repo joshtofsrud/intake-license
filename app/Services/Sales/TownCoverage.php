@@ -11,6 +11,9 @@ use Illuminate\Support\Facades\DB;
 
 class TownCoverage
 {
+    /** MARKER-PARTLY-COVERED: Google returns at most 60 shops a search; one that comes back this full likely missed some. */
+    public const CAP = 55;
+
     /** Two-letter code => name, in name order (the state picker). */
     public const STATES = [
         'AL' => 'Alabama', 'AK' => 'Alaska', 'AZ' => 'Arizona', 'AR' => 'Arkansas', 'CA' => 'California',
@@ -70,7 +73,7 @@ class TownCoverage
         $searches = $channelId
             ? SalesPlacesSearch::query()->where('channel_id', $channelId)->whereNotNull('lat')
                 ->whereBetween('lat', [$box[0], $box[1]])->whereBetween('lng', [$box[2], $box[3]])
-                ->latest()->get(['place', 'lat', 'lng', 'radius_miles', 'created_at'])
+                ->latest()->get(['place', 'lat', 'lng', 'radius_miles', 'found', 'created_at'])
             : collect();
         $pros = $channelId
             ? SalesProspect::query()->whereNull('tenant_id')->where('channel_id', $channelId)
@@ -82,16 +85,27 @@ class TownCoverage
         foreach ($towns as $t) {
             $lat = (float) $t->lat; $lng = (float) $t->lng;
             $status = 'open'; $note = 'Not covered';
+            $centerFull = null;
             foreach ($searches as $s) {
                 $d = self::miles($lat, $lng, (float) $s->lat, (float) $s->lng);
+                if ($d >= 2 && $d > (int) $s->radius_miles) continue;
+                if ((int) $s->found >= self::CAP) {
+                    // hit Google's limit: only partly covered, so the town stays on the to-do list
+                    $partNote = 'Partly covered: ' . self::short((string) $s->place) . " hit Google's 60-shop limit " . $s->created_at->diffForHumans()
+                        . '. Try a smaller radius or a nearby town';
+                    if ($d < 2) $centerFull = $partNote; // its own search came back full: a neighbor's circle doesn't settle it
+                    if ($status === 'open') { $status = 'part'; $note = $partNote; }
+                    continue;
+                }
                 if ($d < 2) { $status = 'done'; $note = 'Searched ' . $s->created_at->diffForHumans(); break; }
-                if ($status === 'open' && $d <= (int) $s->radius_miles) {
+                if ($status !== 'cov') {
                     $status = 'cov';
                     $note = 'Covered by ' . self::short((string) $s->place) . ' (' . max(1, (int) round($d)) . ' mi)';
                 }
             }
+            if ($centerFull !== null && $status === 'cov') { $status = 'part'; $note = $centerFull; }
             $allPop += (int) $t->population;
-            if ($status !== 'open') { $cov++; $covPop += (int) $t->population; }
+            if ($status === 'done' || $status === 'cov') { $cov++; $covPop += (int) $t->population; }
             $rows[] = ['name' => $t->name, 'pop' => (int) $t->population, 'lat' => $lat, 'lng' => $lng,
                 'status' => $status, 'note' => $note, 'prospects' => (int) ($pros[mb_strtolower($t->name)] ?? 0)];
         }
@@ -100,7 +114,7 @@ class TownCoverage
             'covered' => $cov,
             'total'   => count($rows),
             'pop_pct' => $allPop ? (int) floor($covPop * 100 / $allPop) : 0,
-            'circles' => $searches->map(fn ($s) => [(float) $s->lat, (float) $s->lng, (int) $s->radius_miles])->values()->all(),
+            'circles' => $searches->map(fn ($s) => [(float) $s->lat, (float) $s->lng, (int) $s->radius_miles, (int) $s->found >= self::CAP])->values()->all(),
         ];
     }
 

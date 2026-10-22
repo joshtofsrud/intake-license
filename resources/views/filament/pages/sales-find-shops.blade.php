@@ -39,7 +39,7 @@
   .sfs-tw .pop{font-size:12px;opacity:.5;font-variant-numeric:tabular-nums}
   .sfs-tw .st{font-size:11.5px;opacity:.65;grid-column:1/-1}
   .sfs-dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:5px}
-  .sfs-dot.open{background:#84cc16}.sfs-dot.cov{background:#71717a}.sfs-dot.done{background:rgb(139,92,246)}
+  .sfs-dot.open{background:#84cc16}.sfs-dot.cov{background:#71717a}.sfs-dot.done{background:rgb(139,92,246)}.sfs-dot.part{background:#f59e0b} /* MARKER-PARTLY-COVERED */
   .sfs-legend{border-radius:12px;padding:10px 14px;border:1px solid rgba(139,92,246,.35);background:rgba(139,92,246,.08);font-size:13px;margin-bottom:16px}
 </style>
 
@@ -170,7 +170,7 @@
 
       <div style="{{ $label }};margin-top:16px">Where</div>
       {{-- MARKER-TOWN-LIST: towns in a state, marked by whether a search for this industry already covered them --}}
-      @php $td = $this->townData(); $twRows = $townFilter === 'open' ? array_values(array_filter($td['rows'], fn ($r) => $r['status'] === 'open')) : $td['rows']; @endphp
+      @php $td = $this->townData(); $twRows = $townFilter === 'open' ? array_values(array_filter($td['rows'], fn ($r) => $r['status'] === 'open' || $r['status'] === 'part')) : $td['rows']; @endphp
       <div style="display:flex;gap:6px;align-items:center">
         <select wire:model.live="townState" class="{{ $input }}" style="flex:1;min-width:0">
           @foreach(\App\Services\Sales\TownCoverage::STATES as $stAbbr => $stName)<option value="{{ $stAbbr }}">{{ $stName }}</option>@endforeach
@@ -199,7 +199,7 @@
           @endforelse
           @if(count($twRows) > 250)<div style="padding:8px 10px;{{ $muted }}">Showing the biggest 250. Search those and the next ones appear.</div>@endif
         </div>
-        <div style="{{ $muted }};margin:-4px 0 10px;line-height:1.45">Covered means inside the circle of an earlier search for this industry{{ $industry === 'custom' ? ' (Custom searches are not tracked)' : '' }}. Picking a town only fills Where; nothing is charged until Search Places. Towns over 1,000 people, from GeoNames (CC BY 4.0).</div>
+        <div style="{{ $muted }};margin:-4px 0 10px;line-height:1.45">Covered means inside the circle of an earlier search for this industry. A search that comes back with Google's 60-shop limit only partly covers its circle (amber), so those towns stay on the list; Next town gets to them after the untouched ones, with a 10 mi radius. Picking a town only fills Where; nothing is charged until Search Places. Towns over 1,000 people, from GeoNames (CC BY 4.0).</div>
       @endif
       <input type="text" wire:model="place" wire:keydown.enter="search" class="{{ $input }}" style="width:100%" placeholder="City or address">
       @error('place')<div style="color:#f87171;font-size:12px;margin-top:4px">{{ $message }}</div>@enderror
@@ -387,9 +387,9 @@
       if (layer) { layer.remove(); }
       layer = L.layerGroup().addTo(map);
       // earlier searches for this industry as circles, towns as small dots under the results
-      (data.circles || []).forEach(function (c) { L.circle([c[0], c[1]], { radius: c[2] * 1609.34, color: 'rgb(139,92,246)', weight: 1, fillOpacity: .07, interactive: false }).addTo(layer); });
+      (data.circles || []).forEach(function (c) { L.circle([c[0], c[1]], { radius: c[2] * 1609.34, color: c[3] ? '#f59e0b' : 'rgb(139,92,246)', dashArray: c[3] ? '4 4' : null, weight: 1, fillOpacity: c[3] ? .04 : .07, interactive: false }).addTo(layer); });
       (data.towns || []).forEach(function (t) {
-        var col = t[3] === 'open' ? '#84cc16' : (t[3] === 'done' ? 'rgb(139,92,246)' : '#71717a');
+        var col = t[3] === 'open' ? '#84cc16' : (t[3] === 'done' ? 'rgb(139,92,246)' : (t[3] === 'part' ? '#f59e0b' : '#71717a'));
         var on = data.pick && data.pick[0] === t[1] && data.pick[1] === t[2];
         var m = L.circleMarker([t[1], t[2]], { radius: t[4] > 100000 ? 5 : (t[4] > 20000 ? 4 : 2.5), weight: on ? 3 : 0, color: '#fff', fillColor: col, fillOpacity: .85 });
         m.bindTooltip(t[0], { direction: 'top' });
