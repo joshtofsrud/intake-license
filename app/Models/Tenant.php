@@ -210,7 +210,8 @@ class Tenant extends Model
     {
         $settings = $this->settings ?? [];
         $settingsKey = 'notify_' . $key;
-        return (bool) ($settings[$settingsKey] ?? true);
+        // MARKER-CLASSES-P11: a few messages start off until the shop turns them on
+        return (bool) ($settings[$settingsKey] ?? ! in_array($key, ['class_we_miss_you_email'], true));
     }
 
     // multi-domain support

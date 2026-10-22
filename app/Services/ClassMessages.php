@@ -27,6 +27,7 @@ class ClassMessages
         'class_membership_renewed', 'class_membership_payment_due', 'class_purchase_receipt',
         'class_changed', // MARKER-CLASSES-P7
         'class_waiver_request', // MARKER-CLASSES-P9
+        'class_we_miss_you', // MARKER-CLASSES-P11
     ];
 
     /** The switches on Classes › Settings, in order: key => [label, description]. MARKER-CLASSES-P8 */
@@ -42,6 +43,7 @@ class ClassMessages
         'class_membership_payment_due' => ['Renewal failed or due', 'Card declined, with the retry date, or due at the studio'],
         'class_purchase_receipt'       => ['Pass or class bought online', 'The receipt'],
         'class_waiver_request'         => ['Waiver link', 'When staff send someone the waiver to sign'], // MARKER-CLASSES-P9
+        'class_we_miss_you'            => ['We miss you', 'Members with no visit in 21 days and nothing booked, once a month at most. Starts off'], // MARKER-CLASSES-P11
     ];
 
     private static int $quiet = 0;
@@ -86,6 +88,20 @@ class ClassMessages
         if ($tenant) {
             self::forRegistration('class_changed', $r, ['change_line' => e('It was ' . self::local($tenant, $oldStart, 'l, M j') . ' at ' . self::local($tenant, $oldStart, 'g:i A') . '.')]);
         }
+    }
+
+    /** A member who hasn't been in for a while (MARKER-CLASSES-P11). */
+    public static function weMissYou(TenantCustomerMembership $m, ?string $lastAt): void
+    {
+        [$tenant, $customer] = self::owner($m);
+        if (! $tenant) {
+            return;
+        }
+        self::queue($tenant, 'class_we_miss_you', $customer, [
+            'pass_name'    => e($m->product?->name ?? 'membership'),
+            'last_line'    => $lastAt ? e(' (your last class was ' . self::local($tenant, \Carbon\Carbon::parse($lastAt, 'UTC'), 'M j') . ')') : '',
+            'schedule_url' => $tenant->urlTo('/classes'),
+        ]);
     }
 
     public static function studioCancelled(TenantClassRegistration $r, string $creditLine): void
@@ -185,6 +201,7 @@ class ClassMessages
             'passes_url'   => $tenant->urlTo('/classes/passes'),
             'account_url'  => $tenant->urlTo('/account'),
             'credit_line'  => 'Your class credit has been returned to your pack.',
+            'last_line'    => ' (your last class was ' . now()->subDays(24)->format('M j') . ')',
             'waiver_url'   => $tenant->urlTo('/classes/waiver'),
             'change_line'  => 'It was ' . $when->copy()->subHour()->format('l, M j') . ' at ' . $when->copy()->subHour()->format('g:i A') . '.',
             'rule_line'    => 'Classes can be cancelled free up to 12 hours before they start.',

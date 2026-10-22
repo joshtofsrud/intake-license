@@ -214,72 +214,68 @@ class ClassReportsService
     }
 
     // ------------------------------------------------------------------
-    // Panel: At-risk active members
-    // Active capped membership, low usage. Or unlimited tier with low visits.
-    // Threshold: 30% by default, configurable via $thresholdPct.
+    // Panel: At-risk members (visits down)
     // ------------------------------------------------------------------
 
-    public function atRiskMembers(string $tenantId, int $thresholdPct = 30, int $limit = self::PANEL_LIMIT): Collection
+    /**
+     * Members whose visits have dropped (MARKER-CLASSES-P11). Visits in the
+     * last 3 weeks against their usual 3 weeks, taken from the 9 weeks before.
+     * At risk: no visit in 3 weeks, or under half their usual. Members who
+     * joined in the last 3 weeks are left alone. (This used to look at how
+     * much of this month's allowance was used, so anyone whose period had
+     * just started showed as at risk.)
+     */
+    public function atRiskMembers(string $tenantId, int $limit = self::PANEL_LIMIT): Collection
     {
-        $now = now();
+        $now        = now();
+        $recentFrom = $now->copy()->subDays(21);
+        $baseFrom   = $now->copy()->subDays(84);
+        $tz         = \App\Models\Tenant::find($tenantId)?->timezone() ?: config('app.timezone', 'UTC');
 
-        return TenantCustomerMembership::where('tenant_id', $tenantId)
-            ->where('status', 'active')
-            ->where('current_period_end', '>=', $now)
+        $members = TenantCustomerMembership::where('tenant_id', $tenantId)
+            ->whereIn('status', ['active', 'past_due'])
+            ->where('created_at', '<=', $recentFrom)
             ->with(['customer:id,first_name,last_name,email', 'product:id,name,type,monthly_limit,price_cents'])
-            ->get()
-            ->filter(function ($m) use ($thresholdPct, $now) {
-                if (!$m->product || !$m->customer) return false;
+            ->get()->filter(fn ($m) => $m->customer && $m->product)->unique('customer_id');
+        if ($members->isEmpty()) {
+            return collect();
+        }
+        $ids = $members->pluck('customer_id')->all();
+        $visitQ = fn () => DB::table('tenant_class_registrations as r')
+            ->join('tenant_class_sessions as s', 's.id', '=', 'r.class_session_id')
+            ->where('r.tenant_id', $tenantId)->whereIn('r.customer_id', $ids)
+            ->whereIn('r.status', ['registered', 'checked_in'])->where('s.starts_at', '<', $now);
+        $recent = $visitQ()->where('s.starts_at', '>=', $recentFrom)->groupBy('r.customer_id')->selectRaw('r.customer_id, COUNT(*) as n')->pluck('n', 'customer_id');
+        $before = $visitQ()->where('s.starts_at', '>=', $baseFrom)->where('s.starts_at', '<', $recentFrom)->groupBy('r.customer_id')->selectRaw('r.customer_id, COUNT(*) as n')->pluck('n', 'customer_id');
+        $last   = $visitQ()->groupBy('r.customer_id')->selectRaw('r.customer_id, MAX(s.starts_at) as at')->pluck('at', 'customer_id');
 
-                if ($m->product->type === 'unlimited') {
-                    // Unlimited: at-risk = used very few classes total
-                    // Threshold approximation: <2 visits in current period
-                    return $m->classes_used_this_period < 2;
-                }
-                // Capped: usage% < threshold
-                $limit = max(1, (int) $m->product->monthly_limit);
-                $pct   = ($m->classes_used_this_period / $limit) * 100;
-                return $pct < $thresholdPct;
-            })
-            ->sortBy(function ($m) {
-                // Sort by period end ascending — most-urgent first
-                return $m->current_period_end->timestamp;
-            })
-            ->take($limit)
-            ->map(function ($m) use ($now) {
-                $product = $m->product;
-                $cust    = $m->customer;
-                $daysLeft = max(0, $now->diffInDays($m->current_period_end, false));
-
-                if ($product->type === 'unlimited') {
-                    $fact = sprintf('%d visit%s · unlimited tier underused',
-                        $m->classes_used_this_period,
-                        $m->classes_used_this_period === 1 ? '' : 's');
-                    $severity = $m->classes_used_this_period === 0 ? 'red' : 'amber';
-                } else {
-                    $fact = sprintf('%d / %d used · period ends in %d day%s',
-                        $m->classes_used_this_period,
-                        $product->monthly_limit,
-                        $daysLeft,
-                        $daysLeft === 1 ? '' : 's');
-                    $severity = $m->classes_used_this_period === 0 ? 'red' : 'amber';
-                }
-
-                $tierLabel = $product->type === 'unlimited'
-                    ? 'Unlimited'
-                    : "{$product->monthly_limit}-class";
-
-                return [
-                    'customer_id' => $cust->id,
-                    'name'        => trim(($cust->first_name ?? '') . ' ' . ($cust->last_name ?? '')) ?: 'Unnamed',
-                    'email'       => $cust->email,
-                    'fact'        => $fact,
-                    'meta'        => "{$tierLabel} · \${$this->dollars($product->price_cents)}/mo",
-                    'cta'         => 'Reach out',
-                    'severity'    => $severity,
-                ];
-            })
-            ->values();
+        return $members->map(function ($m) use ($recent, $before, $last, $tz) {
+            $r     = (int) ($recent[$m->customer_id] ?? 0);
+            $usual = ((int) ($before[$m->customer_id] ?? 0)) / 3;
+            $lastAt = isset($last[$m->customer_id]) ? Carbon::parse($last[$m->customer_id], 'UTC')->setTimezone($tz) : null;
+            if ($r === 0) {
+                $fact = $lastAt ? 'No visit in 3 weeks · last ' . $lastAt->format('M j') : 'No visits since joining ' . $m->created_at->copy()->setTimezone($tz)->format('M j');
+                $severity = 'red';
+                $drop = 1.0 + ($usual / 100);
+            } elseif ($usual >= 2 && $r <= $usual / 2) {
+                $fact = sprintf('%d visit%s in 3 weeks · usually about %d', $r, $r === 1 ? '' : 's', round($usual));
+                $severity = 'amber';
+                $drop = 1 - $r / $usual;
+            } else {
+                return null;
+            }
+            $p = $m->product;
+            return [
+                'customer_id' => $m->customer->id,
+                'name'        => trim(($m->customer->first_name ?? '') . ' ' . ($m->customer->last_name ?? '')) ?: 'Unnamed',
+                'email'       => $m->customer->email,
+                'fact'        => $fact,
+                'meta'        => ($p->type === 'unlimited' ? 'Unlimited' : "{$p->monthly_limit}-class") . " · \${$this->dollars($p->price_cents)}/mo",
+                'cta'         => 'Reach out',
+                'severity'    => $severity,
+                'drop'        => $drop,
+            ];
+        })->filter()->sortByDesc('drop')->take($limit)->values();
     }
 
     // ------------------------------------------------------------------

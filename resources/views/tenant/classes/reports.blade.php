@@ -139,7 +139,7 @@
 <div class="ia-page-head">
   <div class="ia-page-head-left">
     <h1 class="ia-page-title">Classes Reports</h1>
-    <p class="ia-page-subtitle">Member health, churn signals, and conversion targets — last 30 days unless noted.</p>
+    <p class="ia-page-subtitle">How your classes are doing, and who to reach out to.</p>
   </div>
 </div>
 
@@ -152,6 +152,8 @@
   <a href="{{ route('tenant.classes.reports') }}"     class="cl-subnav-tab is-active">Reports</a>
   <a href="{{ route('tenant.classes.settings') }}" class="cl-subnav-tab">Settings</a> {{-- MARKER-CLASSES-P8 --}}
 </nav></div>
+@include('tenant.classes._analytics') {{-- MARKER-CLASSES-P11 --}}
+<div class="an-h"><b>People to act on</b><span>Who to convert, keep and win back</span></div>
 
 @php
     $sub = $currentTenant->subdomain;
@@ -220,7 +222,7 @@
         'title'       => 'At-risk active members',
         'tag'         => 'risk',
         'tagLabel'    => 'Churn signal',
-        'subtitle'    => 'Active membership with low usage this period',
+        'subtitle'    => 'Members who haven\'t come in 3 weeks, or are coming less than half as often as usual',
         'exportSlug'  => 'at-risk-members',
         'emptyText'   => 'Nobody is at-risk right now. Healthy roster.',
         'sub'         => $sub,

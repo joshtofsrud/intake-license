@@ -1203,14 +1203,18 @@ class ClassController extends Controller
      * If page-load time becomes a problem at scale, lazy-load some panels
      * via AJAX. For now batch fetch is fine — total query count is bounded.
      */
-    public function reports(\App\Services\Tenant\ClassReportsService $service)
+    public function reports(Request $request, \App\Services\Tenant\ClassReportsService $service)
     {
         $tenant = tenant();
         $tid    = $tenant->id;
 
         $headline           = $service->headline($tid);
         $dropInRegulars     = $service->dropInRegulars($tid);
-        $atRiskMembers      = $service->atRiskMembers($tid, 30);
+        $atRiskMembers      = $service->atRiskMembers($tid);
+        // MARKER-CLASSES-P11: how classes are doing over 7, 30 or 90 days
+        $a  = \App\Services\ClassAnalytics::for($tenant, (int) $request->query('days', 30));
+        $an = ['days' => $a->days(), 'range' => $a->range(), 'headline' => $a->headline(), 'slots' => $a->slots(),
+               'types' => $a->byType(), 'instructors' => $a->byInstructor(), 'new' => $a->newPeople()];
         $usedUpPacks        = $service->usedUpPacks($tid);
         $recentlyCancelled  = $service->recentlyCancelled($tid);
         $lapsedMemberships  = $service->lapsedMemberships($tid);
@@ -1223,7 +1227,8 @@ class ClassController extends Controller
             'usedUpPacks',
             'recentlyCancelled',
             'lapsedMemberships',
-            'topProducts'
+            'topProducts',
+            'an'
         ));
     }
 
@@ -1243,7 +1248,7 @@ class ClassController extends Controller
 
         $rows = match ($panel) {
             'drop-in-regulars'      => $service->dropInRegulars($tid, $exportLimit),
-            'at-risk-members'       => $service->atRiskMembers($tid, 30, $exportLimit),
+            'at-risk-members'       => $service->atRiskMembers($tid, $exportLimit),
             'used-up-packs'         => $service->usedUpPacks($tid, $exportLimit),
             'recently-cancelled'    => $service->recentlyCancelled($tid, $exportLimit),
             'lapsed-memberships'    => $service->lapsedMemberships($tid, $exportLimit),

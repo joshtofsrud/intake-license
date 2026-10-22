@@ -73,6 +73,11 @@ Schedule::command('classes:extend-schedules') // MARKER-CLASSES-P7: repeating cl
     ->withoutOverlapping()
     ->runInBackground();
 
+Schedule::command('classes:we-miss-you') // MARKER-CLASSES-P11: off until a studio turns it on
+    ->dailyAt('17:20')
+    ->withoutOverlapping()
+    ->runInBackground();
+
 Schedule::command('classes:send-reminders')
     ->everyTenMinutes()
     ->withoutOverlapping()

@@ -552,6 +552,13 @@ HTML;
 <p style='font-size:13px;color:#666'>The link works for 14 days.</p>
 <p>— The {$shop} team</p>",
             ],
+            'class_we_miss_you' => [ // MARKER-CLASSES-P11
+                'subject'   => "We miss you at {$shop}",
+                'body_html' => "<p>Hi {{first_name}},</p>
+<p>It's been a little while since we've seen you in class{{last_line}}. Your {{pass_name}} membership is still active, so come back any time.</p>
+<p style='margin:20px 0'><a href='{{schedule_url}}' style='display:inline-block;padding:12px 22px;border-radius:8px;background:#111;color:#fff;text-decoration:none;font-weight:600'>See this week's classes</a></p>
+<p>— The {$shop} team</p>",
+            ],
             'class_cancelled' => [
                 'subject'   => 'Cancelled: {{class_name}} on {{class_when}}',
                 'body_html' => "<p>Hi {{first_name}},</p>
