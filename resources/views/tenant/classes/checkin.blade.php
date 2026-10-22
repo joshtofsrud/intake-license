@@ -56,8 +56,14 @@
     <h1 class="ia-page-title">Classes</h1>
     <p class="ia-page-subtitle">{{ now(tenant()->timezone())->format('l, M j · g:i A') }}</p>
   </div>
+  <div class="ia-page-head-right" style="display:flex;gap:8px"> {{-- MARKER-CLASSES-P10 --}}
+    <a href="{{ route('tenant.classes.mine') }}" class="ia-btn ia-btn--secondary ia-btn--sm">My classes</a>
+    <a href="{{ route('tenant.classes.kiosk.open') }}" target="_blank" rel="noopener" class="ia-btn ia-btn--secondary ia-btn--sm">Open self check-in</a>
+  </div>
 </div>
 
+@php $fullClasses = ! auth('tenant')->user() || auth('tenant')->user()->canAccessSection('classes'); @endphp {{-- MARKER-CLASSES-P10 --}}
+@if($fullClasses)
 <div class="cl-subnav-wrap"><nav class="cl-subnav">
   <a href="{{ route('tenant.classes.templates') }}" class="cl-subnav-tab">Templates</a>
   <a href="{{ route('tenant.classes.sessions') }}" class="cl-subnav-tab">Schedule</a>
@@ -67,6 +73,7 @@
   <a href="{{ route('tenant.classes.reports') }}" class="cl-subnav-tab">Reports</a>
   <a href="{{ route('tenant.classes.settings') }}" class="cl-subnav-tab">Settings</a>
 </nav></div>
+@endif
 
 @if(session('success'))<div class="ia-flash ia-flash--success" style="margin-bottom:12px">{{ session('success') }}</div>@endif
 @if($errors->any())<div class="ia-flash ia-flash--error" style="margin-bottom:12px">{{ $errors->first() }}</div>@endif
@@ -107,7 +114,7 @@
     </div>
     <div class="ck-tools">
       <input type="search" class="ck-search" placeholder="Find someone on this class" oninput="ckFilter(this.value)">
-      <a href="{{ route('tenant.classes.sessions.show', ['id' => $session->id]) }}#roster" class="ia-btn ia-btn--primary ia-btn--sm">+ Walk-in</a>
+      @if($fullClasses)<a href="{{ route('tenant.classes.sessions.show', ['id' => $session->id]) }}#roster" class="ia-btn ia-btn--primary ia-btn--sm">+ Walk-in</a>@endif
       @if($expected)
         <form method="POST" action="{{ route('tenant.classes.checkin.all', ['id' => $session->id]) }}">@csrf
           <button type="submit" class="ia-btn ia-btn--secondary ia-btn--sm">Check in everyone here</button></form>
@@ -152,6 +159,11 @@
       <div style="font-size:13px;color:var(--ia-text-muted)">Nothing to flag for the people still to arrive.</div>
     @endforelse
     <div class="ck-legend">Flags come from passes, memberships, payments, waivers and customer notes. Nobody types them in. People already checked in drop off this list.</div>
+    {{-- MARKER-CLASSES-P10 --}}
+    <div class="ck-h" style="margin-top:26px">Self check-in</div>
+    <div class="ck-legend" style="margin-top:0">Open it on a tablet at the door. It shows classes starting within the hour. Members tap their name and sign the waiver there if they need to. It never shows prices, notes or flags. Anyone who owes money or has a membership payment due is asked to see the desk.</div>
+    <form method="POST" action="{{ route('tenant.classes.kiosk.new-link') }}" style="margin-top:8px">@csrf
+      <button type="submit" class="ia-btn ia-btn--ghost ia-btn--sm" style="padding-left:0">Make a new link (stops the old one)</button></form>
   </div>
 </div>
 @endif

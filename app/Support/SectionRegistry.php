@@ -24,6 +24,8 @@ class SectionRegistry
             'schedule'          => ['label' => 'Schedule',           'group' => 'main',     'prefixes' => ['tenant.calendar', 'tenant.appointments'],      'gate' => null],
             'rentals'           => ['label' => 'Rentals',            'group' => 'main',     'prefixes' => ['tenant.rentals'],                              'gate' => 'rentals_visible'],
             'classes'           => ['label' => 'Classes',            'group' => 'main',     'prefixes' => ['tenant.classes'],                              'gate' => 'classes_active'],
+            // MARKER-CLASSES-P10: check people in and teach, without prices, passes or settings. Roles with Classes have this too.
+            'class_desk'        => ['label' => 'Class check-in',     'group' => 'main',     'prefixes' => ['tenant.classes.checkin', 'tenant.classes.mine', 'tenant.classes.registrations.checkin', 'tenant.classes.kiosk'], 'gate' => 'classes_active'],
             'customers'         => ['label' => 'Customers',          'group' => 'main',     'prefixes' => ['tenant.customers'],                            'gate' => null],
             'inventory'         => ['label' => 'Inventory',          'group' => 'main',     'prefixes' => ['tenant.inventory', 'tenant.distributors'],     'gate' => 'retail_enabled'],
             'special_orders'    => ['label' => 'Special Orders',     'group' => 'main',     'prefixes' => ['tenant.special-orders'],                       'gate' => 'retail_enabled'],

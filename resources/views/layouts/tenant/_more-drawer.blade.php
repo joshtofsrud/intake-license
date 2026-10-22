@@ -34,6 +34,7 @@
         {{-- role section visibility --}}
         @php $dSec = \App\Support\SectionRegistry::sectionForRoute($navItem['route']); @endphp
         @continue($dSec && !empty($authUser) && !$authUser->canAccessSection($dSec))
+        @continue(!empty($navItem['hide_if_section']) && (empty($authUser) || $authUser->canAccessSection($navItem['hide_if_section']))) {{-- MARKER-CLASSES-P10 --}}
         @php $sect = $navItem['group'] ?? 'workspace'; @endphp
         @if($sect !== $lastSect)
           @if($lastSect !== null)<div class="ia-drawer-rule"></div>@endif

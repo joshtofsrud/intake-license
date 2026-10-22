@@ -41,6 +41,9 @@
   @if($navSec && !empty($authUser) && !$authUser->canAccessSection($navSec))
     @continue
   @endif
+  @if(!empty($item['hide_if_section']) && (empty($authUser) || $authUser->canAccessSection($item['hide_if_section']))) {{-- MARKER-CLASSES-P10 --}}
+    @continue
+  @endif
 
   {{-- the uppercase header already separates groups;
        a divider on top of it stacked ~36px of dead space per boundary, and

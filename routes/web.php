@@ -326,6 +326,9 @@ $tenantRoutes = function () {
     // MARKER-CLASSES-P3: buying classes online. Above /classes/{id} so these paths aren't read as a class id.
     Route::get('/classes/passes',                   [TenantControllers\ClassOnlineController::class, 'passes'])->name('tenant.customer.classes.passes');
     Route::get('/classes/waiver',                   [TenantControllers\CustomerClassController::class, 'waiver'])->name('tenant.customer.classes.waiver'); // MARKER-CLASSES-P9
+    Route::get('/classes/self-check-in/{token}',    [TenantControllers\ClassKioskController::class, 'index'])->name('tenant.customer.classes.kiosk'); // MARKER-CLASSES-P10
+    Route::get('/classes/self-check-in/{token}/{sessionId}', [TenantControllers\ClassKioskController::class, 'session'])->name('tenant.customer.classes.kiosk.session');
+    Route::post('/classes/self-check-in/{token}/{sessionId}/{registrationId}', [TenantControllers\ClassKioskController::class, 'in'])->name('tenant.customer.classes.kiosk.in')->middleware('throttle:40,1');
     Route::post('/classes/waiver',                  [TenantControllers\CustomerClassController::class, 'waiverSign'])->name('tenant.customer.classes.waiver.sign')->middleware('throttle:12,1');
     Route::get('/classes/buy/{kind}/{productId}',   [TenantControllers\ClassOnlineController::class, 'buy'])->name('tenant.customer.classes.buy');
     Route::post('/classes/checkout',                [TenantControllers\ClassOnlineController::class, 'start'])->name('tenant.customer.classes.checkout')->middleware('throttle:12,1');
@@ -1050,6 +1053,11 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             Route::post('/classes/registrations/{id}/cancel',   [TenantControllers\ClassController::class, 'cancelRegistration'])->name('classes.registrations.cancel');
             Route::post('/classes/registrations/{id}/checkin',  [TenantControllers\ClassController::class, 'checkIn'])->name('classes.registrations.checkin');
             Route::get('/classes/checkin',                      [TenantControllers\ClassController::class, 'checkinScreen'])->name('classes.checkin'); // MARKER-CLASSES-P9
+            Route::get('/classes/mine',                         [TenantControllers\ClassController::class, 'mine'])->name('classes.mine'); // MARKER-CLASSES-P10
+            Route::post('/classes/mine/claim',                  [TenantControllers\ClassController::class, 'mineClaim'])->name('classes.mine.claim');
+            Route::post('/classes/mine/release',                [TenantControllers\ClassController::class, 'mineRelease'])->name('classes.mine.release');
+            Route::get('/classes/self-check-in/open',           [TenantControllers\ClassController::class, 'kioskOpen'])->name('classes.kiosk.open');
+            Route::post('/classes/self-check-in/new-link',      [TenantControllers\ClassController::class, 'kioskNewLink'])->name('classes.kiosk.new-link');
             Route::post('/classes/checkin/{id}/waiver',         [TenantControllers\ClassController::class, 'checkinWaiver'])->name('classes.checkin.waiver');
             Route::post('/classes/checkin/session/{id}/all',    [TenantControllers\ClassController::class, 'checkinAll'])->name('classes.checkin.all');
             Route::post('/classes/registrations/{id}/noshow',   [TenantControllers\ClassController::class, 'markNoShow'])->name('classes.registrations.noshow');

@@ -54,7 +54,8 @@ class TenantResource extends Model
 
     public function staffUser(): BelongsTo
     {
-        return $this->belongsTo(\App\Models\User::class, 'staff_user_id');
+        // MARKER-CLASSES-P10: staff_user_id holds a staff login (tenant_users), not a master-admin user
+        return $this->belongsTo(\App\Models\Tenant\TenantUser::class, 'staff_user_id');
     }
 
     // ------------------------------------------------------------------

@@ -104,6 +104,8 @@ class ClassCheckin
                 'pass'         => $pass,
                 'flags'        => $flags,
                 'needs_waiver' => isset($needWaiver[$r->customer_id]),
+                // MARKER-CLASSES-P10: owes money or a membership payment is due: self check-in sends them to the desk
+                'desk'         => isset($pastDue[$r->customer_id]) || ($r->payment_method === 'per_class' && $price > 0),
             ];
         });
     }

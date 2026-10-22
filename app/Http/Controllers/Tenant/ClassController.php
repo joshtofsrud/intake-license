@@ -763,6 +763,68 @@ class ClassController extends Controller
         return back()->with('success', $msg);
     }
 
+    // ------------------------------------------------------------------
+    // My classes and self check-in (MARKER-CLASSES-P10)
+    // ------------------------------------------------------------------
+
+    /** An instructor's own classes for the next 7 days, with who is coming. */
+    public function mine()
+    {
+        $tenant   = tenant();
+        $resource = TenantResource::where('tenant_id', $tenant->id)->where('staff_user_id', auth('tenant')->id())->first();
+        $unclaimed = $resource ? collect() : TenantResource::where('tenant_id', $tenant->id)->active()
+            ->whereNull('staff_user_id')->where(fn ($q) => $q->whereNull('type')->orWhere('type', 'staff'))->ordered()->get();
+        $sessions = collect();
+        $rosters  = [];
+        if ($resource) {
+            $sessions = TenantClassSession::where('tenant_id', $tenant->id)->where('instructor_resource_id', $resource->id)
+                ->whereIn('status', ['scheduled', 'confirmed'])->where('ends_at', '>', now())
+                ->where('starts_at', '<', now($tenant->timezone())->addDays(7)->endOfDay()->utc())
+                ->with('template')->withCount(['activeRegistrations', 'waitlist'])->orderBy('starts_at')->get();
+            foreach ($sessions as $s) {
+                $rosters[$s->id] = \App\Services\ClassCheckin::rows($tenant, $s);
+            }
+        }
+        return view('tenant.classes.mine', compact('resource', 'unclaimed', 'sessions', 'rosters'));
+    }
+
+    /** Link the signed-in staff member to the instructor they teach as. */
+    public function mineClaim(Request $request)
+    {
+        $tenant = tenant();
+        $uid    = auth('tenant')->id();
+        $d = $request->validate(['resource_id' => ['required', 'uuid']]);
+        if (TenantResource::where('tenant_id', $tenant->id)->where('staff_user_id', $uid)->exists()) {
+            return back()->withErrors(['resource_id' => "You're already linked to an instructor."]);
+        }
+        $r = TenantResource::where('tenant_id', $tenant->id)->whereNull('staff_user_id')->find($d['resource_id']);
+        if (! $r) {
+            return back()->withErrors(['resource_id' => 'That instructor is already linked to someone else.']);
+        }
+        $r->update(['staff_user_id' => $uid]);
+        return back()->with('success', "You're set up as " . $r->name . '.');
+    }
+
+    public function mineRelease()
+    {
+        $tenant = tenant();
+        TenantResource::where('tenant_id', $tenant->id)->where('staff_user_id', auth('tenant')->id())->update(['staff_user_id' => null]);
+        return back()->with('success', 'Unlinked. Pick the instructor you teach as.');
+    }
+
+    /** Opens the self check-in screen (for the tablet at the door). */
+    public function kioskOpen()
+    {
+        return redirect()->away(\App\Services\ClassKiosk::url(tenant()));
+    }
+
+    /** A new private link; tablets on the old one stop working. */
+    public function kioskNewLink()
+    {
+        \App\Services\ClassKiosk::token(tenant(), true);
+        return back()->with('success', 'New self check-in link made. Open it again on your tablet; the old link no longer works.');
+    }
+
     /** Classes › Settings: every class rule and message switch (MARKER-CLASSES-P8). */
     public function settings()
     {

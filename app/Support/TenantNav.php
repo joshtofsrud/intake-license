@@ -54,6 +54,14 @@ class TenantNav
           'gate'   => 'classes_active',
           'match_alt' => 'tenant.classes',
         ],
+        [ // MARKER-CLASSES-P10: for roles that check people in or teach, but don't have Classes
+          'route'  => 'tenant.classes.checkin',
+          'label'  => 'Class check-in',
+          'icon'   => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1.5" y="1.5" width="11" height="11" rx="2" stroke="currentColor" stroke-width="1.2"/><path d="M4.3 7.2l1.9 1.9 3.6-3.8" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+          'group'  => null,
+          'gate'   => 'classes_active',
+          'hide_if_section' => 'classes',
+        ],
         [
           'route'  => 'tenant.customers.index',
           'label'  => 'Customers',

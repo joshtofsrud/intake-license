@@ -24,6 +24,9 @@ class TenantRole extends Model
     public function allowsSection(string $key): bool
     {
         if ($this->sections === null) return true;
+        if ($key === 'class_desk' && in_array('classes', $this->sections, true)) {
+            return true; // MARKER-CLASSES-P10: Classes includes check-in
+        }
         return in_array($key, $this->sections, true);
     }
 
