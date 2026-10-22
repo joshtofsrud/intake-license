@@ -33,7 +33,7 @@ class MarketingTraffic extends Page
     // component state: the range survived the click but was absent from the
     // address bar, so a refresh or a copied link silently reverted to the preset.
     #[Url(as: 'window', keep: true)]
-    public string $window = '30d';
+    public string $window = '1d'; // MARKER-TRAFFIC-TODAY: opens on today
 
     // a real date range, and which metric the chart draws.
     #[Url(as: 'from', keep: true)]
@@ -47,12 +47,12 @@ class MarketingTraffic extends Page
 
     public function mount(): void
     {
-        $this->window = request()->query('window', '30d');
+        $this->window = request()->query('window', '1d');
         $this->from = request()->query('from');
         $this->to   = request()->query('to');
         // '1d' is TrafficReportService's existing today window.
         if (! in_array($this->window, ['1d', '7d', '30d', '90d'], true)) {
-            $this->window = '30d';
+            $this->window = '1d';
         }
     }
 
