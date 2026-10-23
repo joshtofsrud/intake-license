@@ -94,6 +94,14 @@ class ImportDistributorCatalogJob implements ShouldQueue, ShouldBeUnique
 
             // look for duplicates straight after an import.
             \App\Jobs\FindDuplicateItemsJob::dispatch($this->tenantId);
+
+            // MARKER-IMPORT-REFRESH: imported items have no dealer cost or
+            // distributor stock until this shop's refresh runs, which was only
+            // nightly or on the Refresh button. Run it now, for this one
+            // distributor, so cost and stock land minutes after the import.
+            if ($totals['created'] + $totals['merged'] > 0) {
+                \App\Jobs\RunTenantDistributorSyncJob::dispatch($this->tenantId, false, 'import', null, $this->code);
+            }
         } catch (\Throwable $e) {
             // reported, not just logged: master admin
             // sees it, the alert address gets it, and it carries a refId.

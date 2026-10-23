@@ -1,0 +1,40 @@
+diff --git a/app/Jobs/ImportDistributorCatalogJob.php b/app/Jobs/ImportDistributorCatalogJob.php
+index 7332cad3..cb9833c8 100644
+--- a/app/Jobs/ImportDistributorCatalogJob.php
++++ b/app/Jobs/ImportDistributorCatalogJob.php
+@@ -94,6 +94,14 @@ class ImportDistributorCatalogJob implements ShouldQueue, ShouldBeUnique
+ 
+             // look for duplicates straight after an import.
+             \App\Jobs\FindDuplicateItemsJob::dispatch($this->tenantId);
++
++            // MARKER-IMPORT-REFRESH: imported items have no dealer cost or
++            // distributor stock until this shop's refresh runs, which was only
++            // nightly or on the Refresh button. Run it now, for this one
++            // distributor, so cost and stock land minutes after the import.
++            if ($totals['created'] + $totals['merged'] > 0) {
++                \App\Jobs\RunTenantDistributorSyncJob::dispatch($this->tenantId, false, 'import', null, $this->code);
++            }
+         } catch (\Throwable $e) {
+             // reported, not just logged: master admin
+             // sees it, the alert address gets it, and it carries a refId.
+diff --git a/app/Jobs/RunTenantDistributorSyncJob.php b/app/Jobs/RunTenantDistributorSyncJob.php
+index 4226e56a..693c5e21 100644
+--- a/app/Jobs/RunTenantDistributorSyncJob.php
++++ b/app/Jobs/RunTenantDistributorSyncJob.php
+@@ -40,6 +40,8 @@ class RunTenantDistributorSyncJob implements ShouldQueue
+         public bool $dryRun = false,
+         public string $trigger = 'manual',
+         public ?string $runId = null,
++        // one distributor only (after an import from it); null = all of them
++        public ?string $onlyCode = null,
+     ) {
+         // Known before handle() so failed() can close the same row.
+         $this->runId ??= (string) Str::uuid();
+@@ -56,6 +58,7 @@ class RunTenantDistributorSyncJob implements ShouldQueue
+         try {
+             $subs = TenantDistributorCatalogSubscription::query()
+                 ->where('tenant_id', $this->tenantId)->where('is_active', true)
++                ->when($this->onlyCode, fn ($q) => $q->where('distributor_code', strtoupper((string) $this->onlyCode)))
+                 ->orderBy('distributor_code')->get();
+ 
+             if ($subs->isEmpty()) {

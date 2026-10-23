@@ -40,6 +40,8 @@ class RunTenantDistributorSyncJob implements ShouldQueue
         public bool $dryRun = false,
         public string $trigger = 'manual',
         public ?string $runId = null,
+        // one distributor only (after an import from it); null = all of them
+        public ?string $onlyCode = null,
     ) {
         // Known before handle() so failed() can close the same row.
         $this->runId ??= (string) Str::uuid();
@@ -56,6 +58,7 @@ class RunTenantDistributorSyncJob implements ShouldQueue
         try {
             $subs = TenantDistributorCatalogSubscription::query()
                 ->where('tenant_id', $this->tenantId)->where('is_active', true)
+                ->when($this->onlyCode, fn ($q) => $q->where('distributor_code', strtoupper((string) $this->onlyCode)))
                 ->orderBy('distributor_code')->get();
 
             if ($subs->isEmpty()) {
