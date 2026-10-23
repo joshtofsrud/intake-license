@@ -1269,6 +1269,9 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
                 Route::post('/vendor-merge', [TenantControllers\DistributorController::class, 'vendorMergeRun'])->name('vendor_merge.run');
                 Route::get('/import',             [TenantControllers\DistributorController::class, 'import'])->name('import');
                 Route::get('/import/categories',  [TenantControllers\DistributorController::class, 'importCategories'])->name('import.categories');
+                // which brands the shop is offered on import.
+                Route::get('/brands',             [TenantControllers\DistributorController::class, 'brands'])->name('brands');
+                Route::post('/brands',            [TenantControllers\DistributorController::class, 'saveBrands'])->name('brands.save');
                 Route::get('/attention',          [TenantControllers\DistributorController::class, 'attention'])->name('attention');
                 Route::post('/attention/resolve', [TenantControllers\DistributorController::class, 'attentionResolve'])->name('attention.resolve');
                 Route::post('/attention/sync',    [TenantControllers\DistributorController::class, 'attentionSync'])->name('attention.sync');

@@ -86,7 +86,7 @@ class Distributors extends Page implements HasForms
     {
         // BTI is HTTP Basic; there is nothing to choose, and offering the
         // field would invite setting a value that does nothing.
-        return strtoupper($code) !== 'BTI';
+        return ! in_array(strtoupper($code), ['BTI', 'SHIMANO'], true);
     }
 
     /** Real HLC variant shapes (trimmed) for the live mapping test. */
@@ -134,7 +134,7 @@ class Distributors extends Page implements HasForms
         // Split it back out so the shop-facing shape and this one agree.
         $user = '';
         $pass = '';
-        if (strtoupper($this->code) === 'BTI' && str_contains((string) $conn->api_key, ':')) {
+        if (in_array(strtoupper($this->code), ['BTI', 'SHIMANO'], true) && str_contains((string) $conn->api_key, ':')) {
             [$user, $pass] = explode(':', (string) $conn->api_key, 2);
         }
 
@@ -196,7 +196,7 @@ class Distributors extends Page implements HasForms
                         TextInput::make('api_key')->label('Platform API key')
                             ->password()->revealable()->autocomplete('off')
                             ->helperText('Encrypted at rest. Leave blank to keep the saved key.')
-                            ->visible(fn () => strtoupper($this->currentCode()) !== 'BTI')
+                            ->visible(fn () => ! in_array(strtoupper($this->currentCode()), ['BTI', 'SHIMANO'], true))
                             ->columnSpanFull(),
 
                         // QBP's second key. Optional:
@@ -210,13 +210,13 @@ class Distributors extends Page implements HasForms
 
                         TextInput::make('username')->label('Username')
                             ->autocomplete('off')
-                            ->helperText('Your BTI account number.')
-                            ->visible(fn () => strtoupper($this->currentCode()) === 'BTI'),
+                            ->helperText('Your BTI account number. For Shimano, the SFTP username.')
+                            ->visible(fn () => in_array(strtoupper($this->currentCode()), ['BTI', 'SHIMANO'], true)),
 
                         TextInput::make('password')->label('Password')
                             ->password()->revealable()->autocomplete('off')
                             ->helperText('Encrypted at rest. Leave blank to keep the saved one.')
-                            ->visible(fn () => strtoupper($this->currentCode()) === 'BTI'),
+                            ->visible(fn () => in_array(strtoupper($this->currentCode()), ['BTI', 'SHIMANO'], true)),
 
                         Select::make('auth_style')->label('Auth style')->native(false)
                             ->options([
@@ -251,7 +251,7 @@ class Distributors extends Page implements HasForms
 
         $conn = PlatformDistributorConnection::forCode($this->currentCode());
 
-        $packed = $registry->packCredentials($this->currentCode(), $state);
+        $packed = $registry->packPlatformCredentials($this->currentCode(), $state, (string) $conn->api_key);
         if ($packed !== null) {
             $conn->api_key = $packed;
         }
@@ -340,7 +340,7 @@ class Distributors extends Page implements HasForms
         // api_key at all — so the test ran against the PREVIOUSLY stored
         // credential rather than the one just typed.
         $state = $this->form->getState();
-        $packed = app(DistributorRegistry::class)->packCredentials($this->currentCode(), $state);
+        $packed = app(DistributorRegistry::class)->packPlatformCredentials($this->currentCode(), $state, (string) $conn->api_key);
         if ($packed !== null) {
             $conn->api_key = $packed;
         }
@@ -390,6 +390,16 @@ class Distributors extends Page implements HasForms
     public function syncBrand(string $brand): void
     {
         $code = $this->currentCode();
+
+        // a switched-off brand brings nothing in, so there is nothing to sync.
+        if (! app(\App\Services\Distributors\BrandControl::class)->platformAllows($code, $brand)) {
+            \Filament\Notifications\Notification::make()
+                ->title($brand . ' is switched off')
+                ->body('Switch it on first, then sync it.')
+                ->warning()->send();
+            return;
+        }
+
         \App\Jobs\SyncDistributorBrandJob::dispatch($code, $brand);
 
         DB::table('distributor_brand_sync_status')
@@ -399,6 +409,39 @@ class Distributors extends Page implements HasForms
 
         \Filament\Notifications\Notification::make()
             ->title($brand . ' sync queued')
+            ->success()->send();
+    }
+
+    /**
+     * switch one brand on or off for the whole platform.
+     * Off means the sync does not bring in anything new for that brand.
+     * It never touches a shop's items, and catalog rows a shop already
+     * carries keep refreshing.
+     */
+    public function toggleBrand(string $brand): void
+    {
+        $bc   = app(\App\Services\Distributors\BrandControl::class);
+        $code = $this->currentCode();
+        $was  = $bc->platformAllows($code, $brand);
+
+        $bc->setPlatform($code, $brand, ! $was, (string) \Illuminate\Support\Facades\Auth::guard('web')->id());
+
+        \Filament\Notifications\Notification::make()
+            ->title($brand . ($was ? ' switched off' : ' switched on'))
+            ->body($was
+                ? 'No new ' . $brand . ' items will be brought in. Items shops already carry keep updating.'
+                : 'Press Sync on this brand to bring it in now, or it comes in on the next sync.')
+            ->success()->send();
+    }
+
+    /** 'on': every brand comes in unless switched off. 'off': only brands switched on do. */
+    public function setBrandMode(string $mode): void
+    {
+        $mode = $mode === 'off' ? 'off' : 'on';
+        app(\App\Services\Distributors\BrandControl::class)->setPlatformMode($this->currentCode(), $mode);
+
+        \Filament\Notifications\Notification::make()
+            ->title($mode === 'off' ? 'Only brands you switch on will come in' : 'Every brand comes in unless you switch it off')
             ->success()->send();
     }
 
@@ -439,6 +482,9 @@ class Distributors extends Page implements HasForms
             'sampleOptions' => collect(self::SAMPLES)->map(fn ($s) => $s['label'])->all(),
             'brandStatuses' => DB::table('distributor_brand_sync_status')
                 ->where('distributor_code', $this->currentCode())->orderBy('brand_name')->get(),
+            // per-brand on/off, read once so the table does not query per row.
+            'brandMode'     => app(\App\Services\Distributors\BrandControl::class)->platformMode($this->currentCode()),
+            'brandSwitches' => app(\App\Services\Distributors\BrandControl::class)->platformSwitches($this->currentCode()),
         ];
     }
 }

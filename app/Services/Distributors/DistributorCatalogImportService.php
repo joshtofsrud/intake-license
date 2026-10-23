@@ -26,7 +26,7 @@ class DistributorCatalogImportService
             'created' => 0, 'merged' => 0, 'skipped' => 0, 'dry_run' => $dryRun,
         ];
 
-        $candidates = $this->candidates($code, $filters, $limit, $offset);
+        $candidates = $this->candidates($code, $filters, $limit, $offset, $tenantId);
         $res['matched_catalog'] = $candidates->count();
         if ($candidates->isEmpty()) {
             return $res;
@@ -219,11 +219,16 @@ class DistributorCatalogImportService
      * import loop rather than filtered out here, so the candidate set does
      * not shift as the import progresses and offsets stay meaningful.
      */
-    private function candidates(string $code, array $filters, int $limit, int $offset = 0)
+    private function candidates(string $code, array $filters, int $limit, int $offset = 0, ?string $tenantId = null)
     {
         $q = PlatformDistributorCatalog::query()
             ->where('distributor_code', $code)
             ->where('is_active', true);
+
+        // brands switched off by the platform, or by this shop (or by master
+        // admin on the shop's behalf), are not offered. This only decides what
+        // NEW rows can come in: items the shop already carries are untouched.
+        app(BrandControl::class)->constrain($q, $code, $tenantId);
 
         if (empty($filters['include_unsellable'])) {
             $q->where(fn ($w) => $w->whereNull('is_sellable')->orWhere('is_sellable', true));
@@ -260,6 +265,7 @@ class DistributorCatalogImportService
         $q = PlatformDistributorCatalog::query()
             ->where('distributor_code', strtoupper($distributorCode))
             ->where('is_active', true);
+        app(BrandControl::class)->constrain($q, strtoupper($distributorCode), $tenantId);
         if (empty($filters['include_unsellable'])) {
             $q->where(fn ($w) => $w->whereNull('is_sellable')->orWhere('is_sellable', true));
         }
@@ -280,11 +286,12 @@ class DistributorCatalogImportService
         })->count();
     }
 
-    public function candidateCount(string $distributorCode, array $filters = []): int
+    public function candidateCount(string $distributorCode, array $filters = [], ?string $tenantId = null): int
     {
         $q = PlatformDistributorCatalog::query()
             ->where('distributor_code', strtoupper($distributorCode))
             ->where('is_active', true);
+        app(BrandControl::class)->constrain($q, strtoupper($distributorCode), $tenantId);
 
         if (empty($filters['include_unsellable'])) {
             $q->where(fn ($w) => $w->whereNull('is_sellable')->orWhere('is_sellable', true));

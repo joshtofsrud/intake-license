@@ -56,16 +56,38 @@
             </div>
 
             @if(!empty($brandStatuses) && count($brandStatuses))
-                <div style="margin-top:18px;font-size:11px;text-transform:uppercase;opacity:.6;margin-bottom:6px">Per-brand progress</div>
+                <div style="margin-top:18px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:6px">
+                    <span style="font-size:11px;text-transform:uppercase;opacity:.6">Per-brand progress and control</span>
+                    <span style="flex:1"></span>
+                    <span style="font-size:11.5px;opacity:.7">New brands:</span>
+                    <button type="button" wire:click="setBrandMode('on')"
+                            style="font-size:11px;padding:3px 10px;border:.5px solid rgba(255,255,255,.2);border-radius:6px;background:{{ $brandMode === 'on' ? 'rgba(190,242,100,.15)' : 'transparent' }};color:{{ $brandMode === 'on' ? '#BEF264' : 'inherit' }};cursor:pointer">Come in</button>
+                    <button type="button" wire:click="setBrandMode('off')"
+                            style="font-size:11px;padding:3px 10px;border:.5px solid rgba(255,255,255,.2);border-radius:6px;background:{{ $brandMode === 'off' ? 'rgba(190,242,100,.15)' : 'transparent' }};color:{{ $brandMode === 'off' ? '#BEF264' : 'inherit' }};cursor:pointer">Stay out until switched on</button>
+                </div>
+                {{-- legend: what a brand switch does and does not do --}}
+                <div style="font-size:11.5px;line-height:1.55;opacity:.75;margin-bottom:8px">
+                    <b>On</b>: the sync brings this brand into the shared catalog. <b>Off</b>: it brings nothing new in.
+                    A switch never removes items a shop already carries, and catalog rows a shop already carries keep
+                    updating, so anything in stock stays sellable.
+                </div>
                 <div style="max-height:340px;overflow:auto;border:1px solid rgba(255,255,255,.1);border-radius:8px">
                     <table style="width:100%;border-collapse:collapse;font-size:12.5px">
                         @foreach($brandStatuses as $b)
                             @php /* skipped-unchanged is part of the truth */ $done = $b->status === 'done'; $sync = $b->status === 'syncing'; $bSkipped = (int) ($b->skipped ?? 0); @endphp
+                            @php
+                                $bKey = \App\Services\Distributors\BrandControl::key($b->brand_name);
+                                $bOn  = array_key_exists($bKey, $brandSwitches) ? $brandSwitches[$bKey] : ($brandMode === 'on');
+                            @endphp
                             <tr style="border-bottom:.5px solid rgba(255,255,255,.07)">
                                 <td style="padding:7px 12px;font-weight:600">{{ $b->brand_name }}</td>
                                 <td style="padding:7px 12px;font-family:ui-monospace,monospace;opacity:.85">{{ number_format($b->written) }} / {{ number_format($b->total) }} @if($bSkipped > 0)<span style="opacity:.55">&middot; {{ number_format($bSkipped) }} unchanged</span> @endif</td>
                                 <td style="padding:7px 12px;text-align:right">
-                                    @if($done)
+                                    @if(! $bOn)
+                                        <span style="opacity:.5">&mdash; off</span>
+                                    @elseif($b->status === 'off')
+                                        <span style="opacity:.5">off at last sync</span>
+                                    @elseif($done)
                                         <span style="color:#BEF264">✓ done</span>
                                     @elseif($sync)
                                         <span style="color:#BEF264">● syncing</span>
@@ -80,9 +102,14 @@
                                     @endif
                                 </td>
                                 {{-- inline single-brand refresh --}}
-                                <td style="padding:7px 12px;text-align:right">
+                                <td style="padding:7px 12px;text-align:right;white-space:nowrap">
+                                    <button type="button" wire:click="toggleBrand(@js($b->brand_name))" wire:loading.attr="disabled"
+                                            title="{{ $bOn ? 'Switch this brand off' : 'Switch this brand on' }}"
+                                            style="font-size:11px;padding:3px 10px;border:.5px solid {{ $bOn ? 'rgba(190,242,100,.5)' : 'rgba(255,255,255,.2)' }};border-radius:6px;background:{{ $bOn ? 'rgba(190,242,100,.15)' : 'transparent' }};color:{{ $bOn ? '#BEF264' : 'inherit' }};cursor:pointer">{{ $bOn ? 'On' : 'Off' }}</button>
+                                    @if($bOn)
                                     <button type="button" wire:click="syncBrand(@js($b->brand_name))" wire:loading.attr="disabled"
                                             style="font-size:11px;padding:3px 10px;border:.5px solid rgba(255,255,255,.2);border-radius:6px;background:transparent;color:#BEF264;cursor:pointer">Sync</button>
+                                    @endif
                                 </td>
                             </tr>
                         @endforeach

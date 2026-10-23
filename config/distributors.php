@@ -73,4 +73,25 @@ return [
         'cache_hours'    => (int) env('BTI_CACHE_HOURS', 6),
     ],
 
+    // SFTP spreadsheet feed. The login is NOT here: it is
+    // entered once in master admin (Distributors) and used for every shop.
+    // Pin the server's host key so nobody can stand in for it. Some curl
+    // builds only honour the MD5 form, others only SHA-256; set whichever
+    // yours accepts (php artisan shimano:test says which works).
+    'shimano' => [
+        'name'            => 'Shimano',
+        'host'            => env('SHIMANO_HOST', 'ftpsna.shimano.com'),
+        'port'            => (int) env('SHIMANO_PORT', 22),
+        'dir'             => env('SHIMANO_DIR', 'US'),
+        'host_key_sha256' => env('SHIMANO_HOST_KEY_SHA256', 'hJseMiQvY/RhwiEdbXWLyJ54pncExGm+qeXeXGSOG88'),
+        'host_key_md5'    => env('SHIMANO_HOST_KEY_MD5'),
+        'insecure'        => (bool) env('SHIMANO_INSECURE', false),
+        'timeout'         => (int) env('SHIMANO_TIMEOUT', 600),
+        // the flattened feed is reused this long by stock/price refreshes;
+        // a catalog sync always fetches a fresh copy.
+        'cache_minutes'   => (int) env('SHIMANO_CACHE_MINUTES', 30),
+        // the whole US feed is a few thousand products
+        'sync_page_size'  => (int) env('SHIMANO_SYNC_PAGE_SIZE', 50000),
+    ],
+
 ];

@@ -57,7 +57,7 @@ class ImportDistributorCatalogJob implements ShouldQueue, ShouldBeUnique
         // batch row each page as its undo ledger, resetting status and
         // progress_total. Keep the total here and re-assert state per page.
         $total = (int) $batch->progress_total
-            ?: $importer->candidateCount($this->code, $this->filters);
+            ?: $importer->candidateCount($this->code, $this->filters, $this->tenantId);
 
         try {
             while (true) {

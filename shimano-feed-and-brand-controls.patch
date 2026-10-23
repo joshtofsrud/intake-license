@@ -1,0 +1,2328 @@
+diff --git a/app/Console/Commands/ShimanoTest.php b/app/Console/Commands/ShimanoTest.php
+new file mode 100644
+index 00000000..bc82991d
+--- /dev/null
++++ b/app/Console/Commands/ShimanoTest.php
+@@ -0,0 +1,51 @@
++<?php
++
++namespace App\Console\Commands;
++
++use App\Models\PlatformDistributorConnection;
++use App\Services\Distributors\DistributorRegistry;
++use App\Services\Distributors\ShimanoClient;
++use Illuminate\Console\Command;
++
++/**
++ * Checks the Shimano SFTP login and host-key pin without touching any data.
++ *
++ *   php artisan shimano:test
++ *   php artisan shimano:test --products   also downloads and parses the feed
++ */
++class ShimanoTest extends Command
++{
++    protected $signature = 'shimano:test {--products : also download the feed and count what it holds}';
++    protected $description = 'Test the Shimano SFTP connection saved in master admin';
++
++    public function handle(DistributorRegistry $registry): int
++    {
++        $conn = PlatformDistributorConnection::where('distributor_code', 'SHIMANO')->first();
++        if (! $conn || blank($conn->api_key)) {
++            $this->error('No Shimano login saved. Add it in master admin under Distributors.');
++            return self::FAILURE;
++        }
++
++        /** @var ShimanoClient $client */
++        $client = $registry->make('SHIMANO', ['api_key' => $conn->api_key, 'region' => $conn->region ?: 'us']);
++
++        $res = $client->testConnection();
++        $this->line(($res['ok'] ? 'OK    ' : 'FAILED') . '  ' . ($res['body'] ?? ''));
++        if (! $res['ok']) {
++            if (str_contains((string) $res['body'], 'curl exit 60')) {
++                $this->warn('The server key did not match the pin. Your curl build may only accept the other form:');
++                $this->warn('  SHIMANO_HOST_KEY_MD5=<md5 hex>   (ssh-keyscan -t ed25519 ftpsna.shimano.com | ssh-keygen -lf - -E md5)');
++            }
++            return self::FAILURE;
++        }
++
++        if ($this->option('products')) {
++            $brands = $client->brands();   // refreshes the feed
++            $this->info(count($brands) . ' brands: ' . implode(', ', array_column($brands, 'name')));
++            $n = 0; $v = 0;
++            foreach ($client->products()['Products'] as $p) { $n++; $v += count($p['Variants']); }
++            $this->info("{$n} products, {$v} SKUs");
++        }
++        return self::SUCCESS;
++    }
++}
+diff --git a/app/Filament/Pages/Distributors.php b/app/Filament/Pages/Distributors.php
+index 7299f80e..699c4914 100644
+--- a/app/Filament/Pages/Distributors.php
++++ b/app/Filament/Pages/Distributors.php
+@@ -86,7 +86,7 @@ class Distributors extends Page implements HasForms
+     {
+         // BTI is HTTP Basic; there is nothing to choose, and offering the
+         // field would invite setting a value that does nothing.
+-        return strtoupper($code) !== 'BTI';
++        return ! in_array(strtoupper($code), ['BTI', 'SHIMANO'], true);
+     }
+ 
+     /** Real HLC variant shapes (trimmed) for the live mapping test. */
+@@ -134,7 +134,7 @@ class Distributors extends Page implements HasForms
+         // Split it back out so the shop-facing shape and this one agree.
+         $user = '';
+         $pass = '';
+-        if (strtoupper($this->code) === 'BTI' && str_contains((string) $conn->api_key, ':')) {
++        if (in_array(strtoupper($this->code), ['BTI', 'SHIMANO'], true) && str_contains((string) $conn->api_key, ':')) {
+             [$user, $pass] = explode(':', (string) $conn->api_key, 2);
+         }
+ 
+@@ -196,7 +196,7 @@ class Distributors extends Page implements HasForms
+                         TextInput::make('api_key')->label('Platform API key')
+                             ->password()->revealable()->autocomplete('off')
+                             ->helperText('Encrypted at rest. Leave blank to keep the saved key.')
+-                            ->visible(fn () => strtoupper($this->currentCode()) !== 'BTI')
++                            ->visible(fn () => ! in_array(strtoupper($this->currentCode()), ['BTI', 'SHIMANO'], true))
+                             ->columnSpanFull(),
+ 
+                         // QBP's second key. Optional:
+@@ -210,13 +210,13 @@ class Distributors extends Page implements HasForms
+ 
+                         TextInput::make('username')->label('Username')
+                             ->autocomplete('off')
+-                            ->helperText('Your BTI account number.')
+-                            ->visible(fn () => strtoupper($this->currentCode()) === 'BTI'),
++                            ->helperText('Your BTI account number. For Shimano, the SFTP username.')
++                            ->visible(fn () => in_array(strtoupper($this->currentCode()), ['BTI', 'SHIMANO'], true)),
+ 
+                         TextInput::make('password')->label('Password')
+                             ->password()->revealable()->autocomplete('off')
+                             ->helperText('Encrypted at rest. Leave blank to keep the saved one.')
+-                            ->visible(fn () => strtoupper($this->currentCode()) === 'BTI'),
++                            ->visible(fn () => in_array(strtoupper($this->currentCode()), ['BTI', 'SHIMANO'], true)),
+ 
+                         Select::make('auth_style')->label('Auth style')->native(false)
+                             ->options([
+@@ -251,7 +251,7 @@ class Distributors extends Page implements HasForms
+ 
+         $conn = PlatformDistributorConnection::forCode($this->currentCode());
+ 
+-        $packed = $registry->packCredentials($this->currentCode(), $state);
++        $packed = $registry->packPlatformCredentials($this->currentCode(), $state, (string) $conn->api_key);
+         if ($packed !== null) {
+             $conn->api_key = $packed;
+         }
+@@ -340,7 +340,7 @@ class Distributors extends Page implements HasForms
+         // api_key at all — so the test ran against the PREVIOUSLY stored
+         // credential rather than the one just typed.
+         $state = $this->form->getState();
+-        $packed = app(DistributorRegistry::class)->packCredentials($this->currentCode(), $state);
++        $packed = app(DistributorRegistry::class)->packPlatformCredentials($this->currentCode(), $state, (string) $conn->api_key);
+         if ($packed !== null) {
+             $conn->api_key = $packed;
+         }
+@@ -390,6 +390,16 @@ class Distributors extends Page implements HasForms
+     public function syncBrand(string $brand): void
+     {
+         $code = $this->currentCode();
++
++        // a switched-off brand brings nothing in, so there is nothing to sync.
++        if (! app(\App\Services\Distributors\BrandControl::class)->platformAllows($code, $brand)) {
++            \Filament\Notifications\Notification::make()
++                ->title($brand . ' is switched off')
++                ->body('Switch it on first, then sync it.')
++                ->warning()->send();
++            return;
++        }
++
+         \App\Jobs\SyncDistributorBrandJob::dispatch($code, $brand);
+ 
+         DB::table('distributor_brand_sync_status')
+@@ -402,6 +412,39 @@ class Distributors extends Page implements HasForms
+             ->success()->send();
+     }
+ 
++    /**
++     * switch one brand on or off for the whole platform.
++     * Off means the sync does not bring in anything new for that brand.
++     * It never touches a shop's items, and catalog rows a shop already
++     * carries keep refreshing.
++     */
++    public function toggleBrand(string $brand): void
++    {
++        $bc   = app(\App\Services\Distributors\BrandControl::class);
++        $code = $this->currentCode();
++        $was  = $bc->platformAllows($code, $brand);
++
++        $bc->setPlatform($code, $brand, ! $was, (string) \Illuminate\Support\Facades\Auth::guard('web')->id());
++
++        \Filament\Notifications\Notification::make()
++            ->title($brand . ($was ? ' switched off' : ' switched on'))
++            ->body($was
++                ? 'No new ' . $brand . ' items will be brought in. Items shops already carry keep updating.'
++                : 'Press Sync on this brand to bring it in now, or it comes in on the next sync.')
++            ->success()->send();
++    }
++
++    /** 'on': every brand comes in unless switched off. 'off': only brands switched on do. */
++    public function setBrandMode(string $mode): void
++    {
++        $mode = $mode === 'off' ? 'off' : 'on';
++        app(\App\Services\Distributors\BrandControl::class)->setPlatformMode($this->currentCode(), $mode);
++
++        \Filament\Notifications\Notification::make()
++            ->title($mode === 'off' ? 'Only brands you switch on will come in' : 'Every brand comes in unless you switch it off')
++            ->success()->send();
++    }
++
+     protected function dispatchSync(bool $delta): void
+     {
+         // HLC8 running checkpoint — show progress immediately, before the
+@@ -439,6 +482,9 @@ class Distributors extends Page implements HasForms
+             'sampleOptions' => collect(self::SAMPLES)->map(fn ($s) => $s['label'])->all(),
+             'brandStatuses' => DB::table('distributor_brand_sync_status')
+                 ->where('distributor_code', $this->currentCode())->orderBy('brand_name')->get(),
++            // per-brand on/off, read once so the table does not query per row.
++            'brandMode'     => app(\App\Services\Distributors\BrandControl::class)->platformMode($this->currentCode()),
++            'brandSwitches' => app(\App\Services\Distributors\BrandControl::class)->platformSwitches($this->currentCode()),
+         ];
+     }
+ }
+diff --git a/app/Filament/Pages/TenantBrandAccess.php b/app/Filament/Pages/TenantBrandAccess.php
+new file mode 100644
+index 00000000..de6e5bb8
+--- /dev/null
++++ b/app/Filament/Pages/TenantBrandAccess.php
+@@ -0,0 +1,148 @@
++<?php
++
++namespace App\Filament\Pages;
++
++use App\Models\Tenant;
++use App\Services\Distributors\BrandControl;
++use App\Services\Distributors\DistributorRegistry;
++use Filament\Notifications\Notification;
++use Filament\Pages\Page;
++use Illuminate\Support\Facades\Auth;
++
++/**
++ * Master-admin control of which distributor brands one SHOP is offered.
++ *
++ * Only shops that have the distributor add-on appear: the add-on is what gives
++ * a shop distributor import at all. For each brand an admin chooses:
++ *
++ *   Shop decides   no admin row; the shop's own Brands tab governs it
++ *   Locked on      the shop is offered it and cannot switch it off
++ *   Locked off     the shop is not offered it and cannot switch it on
++ *
++ * A lock only decides what NEW items can be imported. It never removes,
++ * hides or deactivates an item the shop already carries.
++ */
++class TenantBrandAccess extends Page
++{
++    use \App\Support\UsesAdminNav;
++    use \App\Support\GatedByAdminArea;
++    protected static string $adminArea = 'catalog';
++
++    protected static ?string $navigationIcon  = 'heroicon-o-adjustments-horizontal';
++    protected static ?string $navigationLabel = 'Shop brand access';
++    protected static ?string $navigationGroup = 'Distribution';
++    protected static ?int    $navigationSort  = 55;
++    protected static ?string $title = 'Shop brand access';
++
++    protected static string $view = 'filament.pages.tenant-brand-access';
++
++    public ?string $tenantId = null;
++    public string $code = '';
++    public string $find = '';
++
++    /**
++     * h(brand_key) => shop | on | off, what the admin has chosen on screen.
++     * Keyed by a hash because brand names carry spaces and dots, and a dot in a
++     * Livewire property path is read as nesting.
++     */
++    public array $choices = [];
++
++    public static function h(string $brandKey): string
++    {
++        return substr(md5($brandKey), 0, 12);
++    }
++
++    public function mount(): void
++    {
++        $codes = array_keys($this->distributorOptions);
++        $this->code = $codes[0] ?? '';
++    }
++
++    /** @return array<string,string> tenant id => name, add-on shops only */
++    public function getTenantOptionsProperty(): array
++    {
++        return Tenant::query()->orderBy('name')->get(['id', 'name'])
++            ->filter(fn (Tenant $t) => (bool) $t->distributor_sync_enabled)
++            ->mapWithKeys(fn (Tenant $t) => [(string) $t->id => (string) $t->name])
++            ->all();
++    }
++
++    /** @return array<string,string> */
++    public function getDistributorOptionsProperty(): array
++    {
++        $registry = app(DistributorRegistry::class);
++        $out = [];
++        foreach ($registry->supported() as $c) {
++            $out[$c] = $registry->label($c);
++        }
++        return $out;
++    }
++
++    public function updatedTenantId(): void { $this->loadChoices(); }
++    public function updatedCode(): void     { $this->loadChoices(); }
++
++    /** The brands on screen, with the shop's current state for each. */
++    public function getBrandsProperty(): array
++    {
++        if (! $this->tenantId || $this->code === '') {
++            return [];
++        }
++        if (! array_key_exists($this->tenantId, $this->tenantOptions)) {
++            return [];   // not an add-on shop: nothing to control
++        }
++
++        $brands = app(BrandControl::class)->brandsForTenant($this->tenantId, $this->code);
++        $q = mb_strtolower(trim($this->find));
++
++        return $q === '' ? $brands
++            : array_values(array_filter($brands, fn ($b) => str_contains(mb_strtolower($b['name']), $q)));
++    }
++
++    public function loadChoices(): void
++    {
++        $this->choices = [];
++        if (! $this->tenantId || $this->code === '') {
++            return;
++        }
++        $rows = app(BrandControl::class)->tenantRows($this->tenantId, $this->code);
++        foreach ($rows as $key => $row) {
++            if ($row->set_by === 'admin') {
++                $this->choices[self::h((string) $key)] = $row->enabled ? 'on' : 'off';
++            }
++        }
++    }
++
++    public function save(): void
++    {
++        abort_unless($this->tenantId && array_key_exists($this->tenantId, $this->tenantOptions), 403);
++
++        $bc   = app(BrandControl::class);
++        $who  = (string) Auth::guard('web')->id();
++        $rows = $bc->tenantRows($this->tenantId, $this->code);
++        $changed = 0;
++
++        foreach ($bc->brandsForTenant($this->tenantId, $this->code) as $b) {
++            $choice = $this->choices[self::h($b['key'])] ?? 'shop';
++            $row    = $rows[$b['key']] ?? null;
++            $current = ($row && $row->set_by === 'admin') ? ($row->enabled ? 'on' : 'off') : 'shop';
++
++            if ($choice === $current) {
++                continue;
++            }
++            if ($choice === 'shop') {
++                // hand it back: drop the admin row, keep nothing behind
++                $bc->releaseTenant($this->tenantId, $this->code, $b['name']);
++            } else {
++                $bc->setTenant($this->tenantId, $this->code, $b['name'], $choice === 'on', 'admin', $who);
++            }
++            $changed++;
++        }
++
++        Notification::make()->success()
++            ->title($changed === 0 ? 'No changes to save' : "Saved {$changed} brand" . ($changed === 1 ? '' : 's'))
++            ->body($changed === 0 ? null : 'Items the shop already carries are untouched.')
++            ->send();
++
++        $this->loadChoices();
++    }
++}
+diff --git a/app/Http/Controllers/Tenant/DistributorController.php b/app/Http/Controllers/Tenant/DistributorController.php
+index 0b03960e..80d5c321 100644
+--- a/app/Http/Controllers/Tenant/DistributorController.php
++++ b/app/Http/Controllers/Tenant/DistributorController.php
+@@ -72,6 +72,8 @@ class DistributorController extends Controller
+                 'linkedVendorId' => \App\Models\Tenant\TenantVendor::where('tenant_id', tenant()->id)
+                     ->where('distributor_code', strtolower($code))->value('id'),
+                 'fields'    => $registry->credentialFields($code),
++                // no key asked for: Intake holds the one login
++                'platformSupplied' => $registry->platformSupplied($code),
+                 'enabled'   => (bool) $sub->is_active,
+                 'hasKey'    => filled($creds['api_key'] ?? null),
+                 'priceSeed' => $sub->price_seed ?: 'map',
+@@ -570,7 +572,7 @@ class DistributorController extends Controller
+         // which sets a view variable while the view reads session('error') —
+         // so the refusal rendered as nothing at all.
+         $importer = app(\App\Services\Distributors\DistributorCatalogImportService::class);
+-        $total    = $importer->candidateCount($code, $filters);
++        $total    = $importer->candidateCount($code, $filters, tenant()->id);
+ 
+         if ($total === 0) {
+             $view['error'] = 'Nothing in the ' . $code . ' catalog matches those filters.';
+@@ -617,6 +619,65 @@ class DistributorController extends Controller
+         return view('tenant.distributors.import', $view);
+     }
+ 
++    /**
++     * which brands this shop is offered on its import screen,
++     * per distributor. Turning a brand off only decides what can be IMPORTED
++     * next: nothing already in the shop's inventory is touched, so anything
++     * in stock stays and stays sellable.
++     */
++    public function brands(\Illuminate\Http\Request $request): \Illuminate\Contracts\View\View
++    {
++        $this->guard();
++
++        $bc       = app(\App\Services\Distributors\BrandControl::class);
++        $registry = app(\App\Services\Distributors\DistributorRegistry::class);
++
++        $panels = [];
++        foreach ($this->importableCodes() as $code) {
++            $panels[] = [
++                'code'   => $code,
++                'label'  => $registry->label($code),
++                'brands' => $bc->brandsForTenant(tenant()->id, $code),
++            ];
++        }
++
++        return view('tenant.distributors.brands', ['panels' => $panels]);
++    }
++
++    public function saveBrands(\Illuminate\Http\Request $request): \Illuminate\Http\RedirectResponse
++    {
++        $this->guard();
++
++        $data = $request->validate([
++            'code'  => ['required', 'string', 'max:32'],
++            'on'    => ['nullable', 'array'],
++            'on.*'  => ['string', 'max:128'],
++        ]);
++
++        // refuses a distributor the shop has not connected, same as import.
++        $code = $this->importCode($data['code']);
++
++        $bc  = app(\App\Services\Distributors\BrandControl::class);
++        $on  = array_flip(array_map(fn ($k) => \App\Services\Distributors\BrandControl::key($k), $data['on'] ?? []));
++        $who = (string) auth('tenant')->id();
++
++        $changed = 0;
++        foreach ($bc->brandsForTenant(tenant()->id, $code) as $b) {
++            if ($b['locked']) {
++                continue;   // set by Intake support; the shop cannot change it
++            }
++            $want = isset($on[$b['key']]);
++            if ($want !== $b['enabled']) {
++                $bc->setTenant(tenant()->id, $code, $b['name'], $want, 'tenant', $who);
++                $changed++;
++            }
++        }
++
++        return back()->with('success', $changed === 0
++            ? 'No changes to save.'
++            : $code . ' brands saved. Items you already carry are untouched.');
++    }
++
+     /** Brand / category options + catalog size for the import filter. */
+     /**
+      * brands, categories and the item count for
+@@ -627,6 +688,8 @@ class DistributorController extends Controller
+     {
+         $base = \App\Models\PlatformDistributorCatalog::query()
+             ->where('distributor_code', $code)->where('is_active', true);
++        // brands switched off by the platform or by this shop are not offered.
++        app(\App\Services\Distributors\BrandControl::class)->constrain($base, $code, tenant()->id);
+ 
+         return [
+             'importCode' => $code,
+@@ -650,8 +713,11 @@ class DistributorController extends Controller
+         $code  = $this->importCode($request->query('code'));
+         $brand = trim((string) $request->query('brand', ''));
+ 
+-        $categories = \App\Models\PlatformDistributorCatalog::query()
+-            ->where('distributor_code', $code)->where('is_active', true)
++        $catQuery = \App\Models\PlatformDistributorCatalog::query()
++            ->where('distributor_code', $code)->where('is_active', true);
++        app(\App\Services\Distributors\BrandControl::class)->constrain($catQuery, $code, tenant()->id);
++
++        $categories = $catQuery
+             ->whereNotNull('category')->whereRaw("TRIM(category) <> ''")
+             ->when($brand !== '', fn ($q) => $q->where('manufacturer', $brand))
+             ->distinct()->orderBy('category')->pluck('category');
+diff --git a/app/Jobs/ImportDistributorCatalogJob.php b/app/Jobs/ImportDistributorCatalogJob.php
+index dc0ab2f4..7332cad3 100644
+--- a/app/Jobs/ImportDistributorCatalogJob.php
++++ b/app/Jobs/ImportDistributorCatalogJob.php
+@@ -57,7 +57,7 @@ class ImportDistributorCatalogJob implements ShouldQueue, ShouldBeUnique
+         // batch row each page as its undo ledger, resetting status and
+         // progress_total. Keep the total here and re-assert state per page.
+         $total = (int) $batch->progress_total
+-            ?: $importer->candidateCount($this->code, $this->filters);
++            ?: $importer->candidateCount($this->code, $this->filters, $this->tenantId);
+ 
+         try {
+             while (true) {
+diff --git a/app/Services/Distributors/BrandControl.php b/app/Services/Distributors/BrandControl.php
+new file mode 100644
+index 00000000..b83d3b86
+--- /dev/null
++++ b/app/Services/Distributors/BrandControl.php
+@@ -0,0 +1,256 @@
++<?php
++
++namespace App\Services\Distributors;
++
++use App\Models\PlatformDistributorConnection;
++use Illuminate\Database\Eloquent\Builder as EloquentBuilder;
++use Illuminate\Database\Query\Builder as QueryBuilder;
++use Illuminate\Support\Facades\DB;
++
++/**
++ * One place that answers "is this brand in?" for every distributor.
++ *
++ * Two levels, and neither of them ever removes anything a shop already owns:
++ *
++ *   PLATFORM (master admin, per distributor). Decides which brands are brought
++ *   into the shared catalog by the sync. A brand that is switched off is not
++ *   fetched, EXCEPT that catalog rows a shop already carries keep refreshing
++ *   (see protectedVariantNos), so an item a shop has on its shelf and can sell
++ *   never goes stale or loses its source.
++ *
++ *   SHOP (per tenant, per distributor). Decides which brands the shop is
++ *   offered on its import screen. Master admin can set a shop's brand from its
++ *   own screen for shops with the distributor add-on; those rows are marked
++ *   set_by = 'admin' and the shop cannot change them.
++ *
++ * Neither level touches tenant_inventory_items. A brand being off only means
++ * "do not bring new rows in / do not offer new rows".
++ */
++class BrandControl
++{
++    /** Lower-cased, trimmed brand name: the key every table here joins on. */
++    public static function key(?string $brand): string
++    {
++        return mb_strtolower(trim((string) $brand));
++    }
++
++    // ------------------------------------------------------------ platform
++
++    /** 'on' = every brand unless switched off. 'off' = only brands switched on. */
++    public function platformMode(string $code): string
++    {
++        $mode = (string) PlatformDistributorConnection::query()
++            ->where('distributor_code', strtoupper($code))->value('brand_default');
++
++        return $mode === 'off' ? 'off' : 'on';
++    }
++
++    public function setPlatformMode(string $code, string $mode): void
++    {
++        $code = strtoupper($code);
++        PlatformDistributorConnection::forCode($code);   // make sure the row exists
++        PlatformDistributorConnection::query()->where('distributor_code', $code)
++            ->update(['brand_default' => $mode === 'off' ? 'off' : 'on']);
++    }
++
++    /** @return array<string,bool> brand_key => enabled, explicit switches only */
++    public function platformSwitches(string $code): array
++    {
++        return DB::table('distributor_brand_settings')
++            ->where('distributor_code', strtoupper($code))
++            ->pluck('enabled', 'brand_key')
++            ->map(fn ($v) => (bool) $v)
++            ->all();
++    }
++
++    public function platformAllows(string $code, string $brand, ?string $mode = null, ?array $switches = null): bool
++    {
++        $mode     ??= $this->platformMode($code);
++        $switches ??= $this->platformSwitches($code);
++        $k = self::key($brand);
++
++        if (array_key_exists($k, $switches)) {
++            return $switches[$k];
++        }
++        return $mode === 'on';
++    }
++
++    public function setPlatform(string $code, string $brand, bool $enabled, ?string $by = null): void
++    {
++        $now = now();
++        DB::table('distributor_brand_settings')->updateOrInsert(
++            ['distributor_code' => strtoupper($code), 'brand_key' => self::key($brand)],
++            ['brand_name' => trim($brand), 'enabled' => $enabled, 'updated_by' => $by,
++             'updated_at' => $now, 'created_at' => $now],
++        );
++    }
++
++    /**
++     * Variant numbers of this brand's catalog rows that a shop already carries.
++     *
++     * "Carries" is deliberately wider than "has in stock": a row linked to ANY
++     * shop item, as the item's own catalog row or as one of its vendor sources.
++     * Those keep syncing when the brand is switched off, because the shop's
++     * stocked, sellable item depends on them. Cheap to be generous here; an
++     * unlinked row costs nothing to leave out.
++     *
++     * @return array<int,string>
++     */
++    public function protectedVariantNos(string $code, string $brand): array
++    {
++        return DB::table('platform_distributor_catalogs as c')
++            ->where('c.distributor_code', strtoupper($code))
++            ->whereRaw('LOWER(TRIM(c.manufacturer)) = ?', [self::key($brand)])
++            ->where(function ($w) {
++                $w->whereExists(fn ($e) => $e->selectRaw('1')->from('tenant_inventory_items as i')
++                        ->whereColumn('i.distributor_catalog_id', 'c.id'))
++                  ->orWhereExists(fn ($e) => $e->selectRaw('1')->from('tenant_inventory_item_vendors as v')
++                        ->whereColumn('v.distributor_catalog_id', 'c.id'));
++            })
++            ->pluck('c.distributor_variant_no')
++            ->map(fn ($v) => (string) $v)
++            ->all();
++    }
++
++    /** Should the sync look at this brand at all? Switched on, or still carried by a shop. */
++    public function syncable(string $code, string $brand, ?string $mode = null, ?array $switches = null): bool
++    {
++        if ($this->platformAllows($code, $brand, $mode, $switches)) {
++            return true;
++        }
++        return DB::table('platform_distributor_catalogs as c')
++            ->where('c.distributor_code', strtoupper($code))
++            ->whereRaw('LOWER(TRIM(c.manufacturer)) = ?', [self::key($brand)])
++            ->where(function ($w) {
++                $w->whereExists(fn ($e) => $e->selectRaw('1')->from('tenant_inventory_items as i')
++                        ->whereColumn('i.distributor_catalog_id', 'c.id'))
++                  ->orWhereExists(fn ($e) => $e->selectRaw('1')->from('tenant_inventory_item_vendors as v')
++                        ->whereColumn('v.distributor_catalog_id', 'c.id'));
++            })
++            ->exists();
++    }
++
++    // -------------------------------------------------------------- tenant
++
++    /** @return array<string,object> brand_key => row (enabled, set_by, brand_name) */
++    public function tenantRows(string $tenantId, string $code): array
++    {
++        return DB::table('tenant_distributor_brand_settings')
++            ->where('tenant_id', $tenantId)
++            ->where('distributor_code', strtoupper($code))
++            ->get()->keyBy('brand_key')->all();
++    }
++
++    /** A shop's own call, refused when master admin has set that brand. */
++    public function setTenant(string $tenantId, string $code, string $brand, bool $enabled, string $setBy = 'tenant', ?string $by = null): bool
++    {
++        $code = strtoupper($code);
++        $k    = self::key($brand);
++
++        $existing = DB::table('tenant_distributor_brand_settings')
++            ->where('tenant_id', $tenantId)->where('distributor_code', $code)->where('brand_key', $k)->first();
++
++        if ($existing && $existing->set_by === 'admin' && $setBy !== 'admin') {
++            return false;   // locked by master admin
++        }
++
++        // A shop switching a brand back ON leaves nothing behind: no row
++        // means on, so the table only ever holds exceptions.
++        if ($enabled && $setBy === 'tenant') {
++            DB::table('tenant_distributor_brand_settings')
++                ->where('tenant_id', $tenantId)->where('distributor_code', $code)->where('brand_key', $k)->delete();
++            return true;
++        }
++
++        $now = now();
++        DB::table('tenant_distributor_brand_settings')->updateOrInsert(
++            ['tenant_id' => $tenantId, 'distributor_code' => $code, 'brand_key' => $k],
++            ['brand_name' => trim($brand), 'enabled' => $enabled, 'set_by' => $setBy,
++             'updated_by' => $by, 'updated_at' => $now, 'created_at' => $now],
++        );
++        return true;
++    }
++
++    /** Master admin hands a brand back to the shop. */
++    public function releaseTenant(string $tenantId, string $code, string $brand): void
++    {
++        DB::table('tenant_distributor_brand_settings')
++            ->where('tenant_id', $tenantId)->where('distributor_code', strtoupper($code))
++            ->where('brand_key', self::key($brand))->delete();
++    }
++
++    // ------------------------------------------------------------- queries
++
++    /**
++     * Narrow a platform_distributor_catalogs query to the brands that are in.
++     * Pass a tenant id to also apply that shop's own switches.
++     *
++     * Rows with no manufacturer are never hidden by a "switched off" list: a
++     * blank is not a brand, and hiding it would lose rows nobody chose to lose.
++     *
++     * @param EloquentBuilder|QueryBuilder $q
++     * @return EloquentBuilder|QueryBuilder
++     */
++    public function constrain($q, string $code, ?string $tenantId = null)
++    {
++        $code     = strtoupper($code);
++        $mode     = $this->platformMode($code);
++        $switches = $this->platformSwitches($code);
++        $expr     = DB::raw('LOWER(TRIM(manufacturer))');
++
++        $off = array_keys(array_filter($switches, fn ($on) => ! $on));
++        $on  = array_keys(array_filter($switches, fn ($on) => $on));
++
++        if ($mode === 'off') {
++            $on ? $q->whereIn($expr, $on) : $q->whereRaw('1 = 0');
++        } elseif ($off) {
++            $q->where(fn ($w) => $w->whereNull('manufacturer')->orWhereNotIn($expr, $off));
++        }
++
++        if ($tenantId !== null) {
++            $tenantOff = DB::table('tenant_distributor_brand_settings')
++                ->where('tenant_id', $tenantId)->where('distributor_code', $code)
++                ->where('enabled', false)->pluck('brand_key')->all();
++            if ($tenantOff) {
++                $q->where(fn ($w) => $w->whereNull('manufacturer')->orWhereNotIn($expr, $tenantOff));
++            }
++        }
++
++        return $q;
++    }
++
++    /**
++     * Brands a shop can be offered for one distributor, with item counts and
++     * the shop's own state. Platform-off brands are not listed: they are not in
++     * the shared catalog's offer, so there is nothing for the shop to decide.
++     *
++     * @return array<int,array{name:string,key:string,items:int,enabled:bool,locked:bool}>
++     */
++    public function brandsForTenant(string $tenantId, string $code): array
++    {
++        $code = strtoupper($code);
++
++        $q = DB::table('platform_distributor_catalogs')
++            ->where('distributor_code', $code)->where('is_active', true)
++            ->whereNotNull('manufacturer')->whereRaw("TRIM(manufacturer) <> ''");
++        $q = $this->constrain($q, $code, null);
++
++        $counts = $q->select('manufacturer', DB::raw('COUNT(*) as n'))
++            ->groupBy('manufacturer')->orderBy('manufacturer')->get();
++
++        $rows = $this->tenantRows($tenantId, $code);
++        $out  = [];
++        foreach ($counts as $c) {
++            $k   = self::key($c->manufacturer);
++            $row = $rows[$k] ?? null;
++            $out[$k] = [
++                'name'    => (string) $c->manufacturer,
++                'key'     => $k,
++                'items'   => (int) $c->n,
++                'enabled' => $row ? (bool) $row->enabled : true,
++                'locked'  => $row !== null && $row->set_by === 'admin',
++            ];
++        }
++        return array_values($out);
++    }
++}
+diff --git a/app/Services/Distributors/DistributorCatalogImportService.php b/app/Services/Distributors/DistributorCatalogImportService.php
+index 3797efc1..9663573b 100644
+--- a/app/Services/Distributors/DistributorCatalogImportService.php
++++ b/app/Services/Distributors/DistributorCatalogImportService.php
+@@ -26,7 +26,7 @@ class DistributorCatalogImportService
+             'created' => 0, 'merged' => 0, 'skipped' => 0, 'dry_run' => $dryRun,
+         ];
+ 
+-        $candidates = $this->candidates($code, $filters, $limit, $offset);
++        $candidates = $this->candidates($code, $filters, $limit, $offset, $tenantId);
+         $res['matched_catalog'] = $candidates->count();
+         if ($candidates->isEmpty()) {
+             return $res;
+@@ -219,12 +219,17 @@ class DistributorCatalogImportService
+      * import loop rather than filtered out here, so the candidate set does
+      * not shift as the import progresses and offsets stay meaningful.
+      */
+-    private function candidates(string $code, array $filters, int $limit, int $offset = 0)
++    private function candidates(string $code, array $filters, int $limit, int $offset = 0, ?string $tenantId = null)
+     {
+         $q = PlatformDistributorCatalog::query()
+             ->where('distributor_code', $code)
+             ->where('is_active', true);
+ 
++        // brands switched off by the platform, or by this shop (or by master
++        // admin on the shop's behalf), are not offered. This only decides what
++        // NEW rows can come in: items the shop already carries are untouched.
++        app(BrandControl::class)->constrain($q, $code, $tenantId);
++
+         if (empty($filters['include_unsellable'])) {
+             $q->where(fn ($w) => $w->whereNull('is_sellable')->orWhere('is_sellable', true));
+         }
+@@ -260,6 +265,7 @@ class DistributorCatalogImportService
+         $q = PlatformDistributorCatalog::query()
+             ->where('distributor_code', strtoupper($distributorCode))
+             ->where('is_active', true);
++        app(BrandControl::class)->constrain($q, strtoupper($distributorCode), $tenantId);
+         if (empty($filters['include_unsellable'])) {
+             $q->where(fn ($w) => $w->whereNull('is_sellable')->orWhere('is_sellable', true));
+         }
+@@ -280,11 +286,12 @@ class DistributorCatalogImportService
+         })->count();
+     }
+ 
+-    public function candidateCount(string $distributorCode, array $filters = []): int
++    public function candidateCount(string $distributorCode, array $filters = [], ?string $tenantId = null): int
+     {
+         $q = PlatformDistributorCatalog::query()
+             ->where('distributor_code', strtoupper($distributorCode))
+             ->where('is_active', true);
++        app(BrandControl::class)->constrain($q, strtoupper($distributorCode), $tenantId);
+ 
+         if (empty($filters['include_unsellable'])) {
+             $q->where(fn ($w) => $w->whereNull('is_sellable')->orWhere('is_sellable', true));
+diff --git a/app/Services/Distributors/DistributorCatalogSyncService.php b/app/Services/Distributors/DistributorCatalogSyncService.php
+index 6fa211a6..c15b17af 100644
+--- a/app/Services/Distributors/DistributorCatalogSyncService.php
++++ b/app/Services/Distributors/DistributorCatalogSyncService.php
+@@ -17,11 +17,60 @@ use Illuminate\Support\Facades\DB;
+  */
+ class DistributorCatalogSyncService
+ {
++    /** Platform brand switches, read once per run by loadBrandControl(). */
++    private string $brandMode = 'on';
++    /** @var array<string,bool> */
++    private array $brandSwitches = [];
++
+     public function __construct(
+         private readonly DistributorMapResolver $resolver,
+         private readonly CatalogTitleComposer $composer,
++        private readonly BrandControl $brands,
+     ) {}
+ 
++    private function loadBrandControl(string $code): void
++    {
++        $this->brandMode     = $this->brands->platformMode($code);
++        $this->brandSwitches = $this->brands->platformSwitches($code);
++    }
++
++    /**
++     * Apply the platform brand switch to one brand's products.
++     *
++     * A brand that is on passes straight through. A brand that is OFF is not
++     * written, with one exception: catalog rows a shop already carries are
++     * kept and keep refreshing, because the shop's item (stocked, sellable)
++     * depends on them. Everything else for that brand is dropped. Returns []
++     * when nothing is left to write.
++     *
++     * @param  array<int,array> $products
++     * @return array<int,array>
++     */
++    private function gateBrand(string $code, string $brandName, array $products): array
++    {
++        if ($this->brands->platformAllows($code, $brandName, $this->brandMode, $this->brandSwitches)) {
++            return $products;
++        }
++
++        $keep = array_flip($this->brands->protectedVariantNos($code, $brandName));
++        if (! $keep) {
++            return [];
++        }
++
++        $out = [];
++        foreach ($products as $p) {
++            $variants = array_values(array_filter($p['Variants'] ?? [], function ($v) use ($code, $p, $keep) {
++                $vno = $this->resolver->resolve($code, $v, $p)['distributor_variant_no'] ?? ($v['VariantNo'] ?? null);
++                return $vno !== null && isset($keep[(string) $vno]);
++            }));
++            if ($variants) {
++                $p['Variants'] = $variants;
++                $out[] = $p;
++            }
++        }
++        return $out;
++    }
++
+     /**
+      * @return array{code:string,pages:int,seen:int,written:int,skipped_delta:int,map_vanished:int,msrp_vanished:int,errors:array<string>}
+      */
+@@ -48,6 +97,7 @@ class DistributorCatalogSyncService
+         DB::connection()->disableQueryLog();
+ 
+         $this->markProgress($code, 0, true);
++        $this->loadBrandControl($code);
+ 
+         // adapters with big catalogs page by brand instead
+         // of one giant fetch. The adapter declares it; nothing here names a
+@@ -104,6 +154,12 @@ class DistributorCatalogSyncService
+         $this->seedBrandStatuses($code, $byBrand);
+ 
+         foreach ($byBrand as $brandName => $brandProducts) {
++            // brand switched off: not written, except rows a shop already carries.
++            $brandProducts = $this->gateBrand($code, (string) $brandName, $brandProducts);
++            if (! $brandProducts) {
++                $this->setBrandStatus($code, (string) $brandName, 'off', 0, null, 0);
++                continue;
++            }
+             $this->setBrandStatus($code, $brandName, 'syncing', null);
+             $brandWritten = 0;
+             $brandSkipped = 0;
+@@ -173,6 +229,7 @@ class DistributorCatalogSyncService
+         ];
+ 
+         DB::connection()->disableQueryLog();
++        $this->loadBrandControl($code);
+         $this->setBrandStatus($code, $brandName, 'syncing', null);
+ 
+         try {
+@@ -197,6 +254,13 @@ class DistributorCatalogSyncService
+ 
+             $res['pages'] = 1;
+ 
++            // a brand switched off writes nothing new; rows a shop carries still refresh.
++            $products = $this->gateBrand($code, $brandName, $products);
++            if (! $products) {
++                $this->setBrandStatus($code, $brandName, 'off', 0, 0, 0);
++                return $res;
++            }
++
+             // single-brand refresh writes the real
+             // denominator too, so one Sync click heals a 0-total row.
+             $brandTotal = 0;
+@@ -254,6 +318,21 @@ class DistributorCatalogSyncService
+         $this->seedBrandStatuses($code, $pendingNames);
+         unset($pendingNames);
+ 
++        // a brand switched off is not even fetched, unless a shop
++        // still carries rows from it. The panel keeps listing it, as 'off',
++        // so it can be switched back on.
++        $active = [];
++        foreach ($brandList as $b) {
++            $bn = (string) ($b['name'] ?? '');
++            if ($this->brands->syncable($code, $bn, $this->brandMode, $this->brandSwitches)) {
++                $active[] = $b;
++            } else {
++                $this->setBrandStatus($code, $bn, 'off', 0, 0, 0);
++            }
++        }
++        $brandList = $active;
++        unset($active);
++
+         foreach (array_chunk($brandList, 10) as $chunk) {
+             $ids = array_column($chunk, 'id');
+ 
+@@ -282,6 +361,12 @@ class DistributorCatalogSyncService
+             unset($products);
+ 
+             foreach ($byBrand as $brandName => $brandProducts) {
++                // switched off but still carried by a shop: only those rows.
++                $brandProducts = $this->gateBrand($code, (string) $brandName, $brandProducts);
++                if (! $brandProducts) {
++                    $this->setBrandStatus($code, (string) $brandName, 'off', 0, null, 0);
++                    continue;
++                }
+                 // products for this brand are finally in
+                 // hand, so the denominator can be written. Seeding left it 0.
+                 $brandTotal = 0;
+diff --git a/app/Services/Distributors/DistributorRegistry.php b/app/Services/Distributors/DistributorRegistry.php
+index 0be5fc36..e79aada2 100644
+--- a/app/Services/Distributors/DistributorRegistry.php
++++ b/app/Services/Distributors/DistributorRegistry.php
+@@ -24,8 +24,23 @@ class DistributorRegistry
+         // present so master admin can hold the key and
+         // test it. Only testConnection() works; the data methods throw.
+         'QBP' => QbpClient::class,
++        // an SFTP spreadsheet feed. One platform login serves every shop.
++        'SHIMANO' => ShimanoClient::class,
+     ];
+ 
++    /** Marker stored in a shop's subscription when the platform login is used. */
++    public const PLATFORM_MARK = 'platform';
++
++    /**
++     * Distributors whose login belongs to Intake, not to each shop. A shop
++     * "connects" by switching it on; no key is asked for, and the one set in
++     * master admin is used for every shop.
++     */
++    public function platformSupplied(string $code): bool
++    {
++        return strtoupper($code) === 'SHIMANO';
++    }
++
+     /**
+      * what each distributor asks a shop for.
+      *
+@@ -38,6 +53,11 @@ class DistributorRegistry
+      */
+     public function credentialFields(string $code): array
+     {
++        // a shop is asked for nothing; see platformCredentialFields for master admin
++        if ($this->platformSupplied($code)) {
++            return [];
++        }
++
+         return match (strtoupper($code)) {
+             'BTI' => [
+                 ['name' => 'username', 'label' => 'BTI username', 'type' => 'text',
+@@ -59,6 +79,39 @@ class DistributorRegistry
+         };
+     }
+ 
++    /** What master admin types in for the platform login of a distributor. */
++    public function platformCredentialFields(string $code): array
++    {
++        if (strtoupper($code) === 'SHIMANO') {
++            return [
++                ['name' => 'username', 'label' => 'SFTP username', 'type' => 'text',
++                 'hint' => 'The Shimano SFTP account for the country, for example ibd_user_us.'],
++                ['name' => 'password', 'label' => 'SFTP password', 'type' => 'password',
++                 'hint' => 'Shared by every shop. Stored encrypted.'],
++            ];
++        }
++        return $this->credentialFields($code);
++    }
++
++    /**
++     * Master admin's version of packCredentials. Shimano's username and
++     * password join with a colon like BTI's; every other distributor packs
++     * exactly as it does for a shop.
++     *
++     * @param  array<string,string> $input
++     */
++    public function packPlatformCredentials(string $code, array $input, ?string $stored = null): ?string
++    {
++        if (strtoupper($code) === 'SHIMANO') {
++            $stored = (string) $stored;
++            [$cu, $cp] = str_contains($stored, ':') ? explode(':', $stored, 2) : ['', ''];
++            $u = trim($input['username'] ?? '') ?: $cu;
++            $p = trim($input['password'] ?? '') ?: $cp;
++            return ($u === '' || $p === '') ? null : $u . ':' . $p;
++        }
++        return $this->packCredentials($code, $input, $stored);
++    }
++
+     /**
+      * pull the CLS half out of a stored credential.
+      *
+@@ -81,6 +134,7 @@ class DistributorRegistry
+             'HLC' => 'HLC',
+             'BTI' => 'BTI',
+             'QBP' => 'QBP',
++            'SHIMANO' => 'Shimano',
+             default => strtoupper($code),
+         };
+     }
+@@ -110,6 +164,10 @@ class DistributorRegistry
+     {
+         $stored = (string) $stored;
+ 
++        if ($this->platformSupplied($code)) {
++            return self::PLATFORM_MARK;
++        }
++
+         if (strtoupper($code) === 'BTI') {
+             $curUser = '';
+             $curPass = '';
+@@ -158,7 +216,7 @@ class DistributorRegistry
+     public function credentialHints(string $code, ?string $stored, callable $mask): array
+     {
+         $stored = (string) $stored;
+-        if ($stored === '') {
++        if ($stored === '' || $this->platformSupplied($code)) {
+             return [];
+         }
+ 
+@@ -217,6 +275,14 @@ class DistributorRegistry
+         $apiKey = (string) ($credentials['api_key'] ?? '');
+         $region = (string) ($credentials['region'] ?? 'us');
+ 
++        // a shop on a platform-supplied distributor stores only the marker;
++        // the real login is the one master admin saved.
++        if ($this->platformSupplied($code) && $apiKey === self::PLATFORM_MARK) {
++            $conn   = \App\Models\PlatformDistributorConnection::where('distributor_code', $code)->first();
++            $apiKey = (string) ($conn?->api_key ?? '');
++            $region = (string) ($conn?->region ?: $region);
++        }
++
+         // Every current adapter shares the (apiKey, region) constructor shape.
+         // If a future distributor needs a different signature, branch here.
+         return new $class($apiKey, $region);
+diff --git a/app/Services/Distributors/ShimanoClient.php b/app/Services/Distributors/ShimanoClient.php
+new file mode 100644
+index 00000000..5c41c80e
+--- /dev/null
++++ b/app/Services/Distributors/ShimanoClient.php
+@@ -0,0 +1,738 @@
++<?php
++
++namespace App\Services\Distributors;
++
++use OpenSpout\Reader\XLSX\Options;
++use OpenSpout\Reader\XLSX\Reader;
++use Symfony\Component\Process\Process;
++
++/**
++ * Shimano (and the brands it distributes: PRO, Lazer, Motorex) adapter.
++ *
++ *   Transport : SFTP, one account for the whole country (the username and
++ *               password are shared, so they live on the platform connection
++ *               in master admin, never per shop).
++ *   Feed      : one .xlsx per product family in /US (Hard Goods, Soft Goods,
++ *               PRO, Lazer, Motorex). Every file shares the same first 45
++ *               columns; each adds its own spec columns after them.
++ *
++ * There is no API, so this adapter's job is fetch, flatten, and stream:
++ *
++ *   1. list /US over SFTP and download every .xlsx,
++ *   2. read each with a streaming XLSX reader and flatten every row to a small
++ *      normalised record (empty spec columns are dropped, so a 250-column row
++ *      costs about as much as a 40-column one),
++ *   3. keep the records as JSON lines, one per SKU. Every later call
++ *      (brands, products, inventory, prices, images) streams that file, so a
++ *      shop's stock refresh never re-parses a spreadsheet.
++ *
++ * The sync layer is written around HLC's nested shape (a product with
++ * 'Brand' and 'Variants'), so products() hands back exactly that.
++ *
++ * Credentials arrive in the api_key slot as "username:password", the same
++ * packing BTI uses, so the registry's (apiKey, region) shape still holds.
++ *
++ * Identifiers, because duplicates are the thing this must not create:
++ *   - SKU Code  -> the Shimano item number, kept as the MPN (brand-qualified
++ *                  by the identifier service, so it can match HLC/QBP/BTI);
++ *   - SKU UPC   -> split into UPC (12 digits) or EAN (13 digits). The feed
++ *                  mixes both in one column; Motorex ships EAN-13.
++ */
++class ShimanoClient implements DistributorAdapter
++{
++    private string $host;
++    private int $port;
++    private string $user = '';
++    private string $pass = '';
++    private string $dir;
++    private ?string $hostKeySha256;
++    private ?string $hostKeyMd5;
++    private bool $insecure;
++    private int $timeout;
++    private int $cacheMinutes;
++    private string $cacheDir;
++    private string $curlBin;
++
++    /** the feed was rebuilt by THIS adapter instance already */
++    private bool $refreshedThisRun = false;
++
++    /** Filenames never imported: Excel lock files and the like. */
++    private const SKIP = '/^(~\$|\.)/';
++
++    /** First-column words that are an internal family prefix, not part of the category. */
++    private const CATEGORY_PREFIXES = ['hg', 'lsg', 'pro', 'lazer', 'motorex', 'shimano'];
++
++    /** Country codes seen in the feed. Unknown codes are shown as given. */
++    private const COUNTRIES = [
++        'CN' => 'China', 'TW' => 'Taiwan', 'MY' => 'Malaysia', 'VN' => 'Vietnam', 'JP' => 'Japan',
++        'ID' => 'Indonesia', 'TH' => 'Thailand', 'KH' => 'Cambodia', 'IN' => 'India', 'PH' => 'Philippines',
++        'KR' => 'South Korea', 'SG' => 'Singapore', 'US' => 'United States', 'MX' => 'Mexico',
++        'DE' => 'Germany', 'IT' => 'Italy', 'FR' => 'France', 'CH' => 'Switzerland', 'PT' => 'Portugal',
++        'ES' => 'Spain', 'GB' => 'United Kingdom', 'CZ' => 'Czechia', 'SK' => 'Slovakia', 'HU' => 'Hungary',
++    ];
++
++    /** Columns that are identity, media or bookkeeping, never a spec the shop reads. */
++    private const NOT_A_SPEC = [
++        'sku code', 'sku name', 'sku upc', 'sku video url', 'sku map', 'sku map break eligible',
++        'sku manual media path', 'sku color', 'sku series', 'sku generation',
++        'product type', 'product b2b sport', 'product collection', 'product gender',
++        'product manual media path', 'product exploded image', 'small parts', 'product has mips',
++        'product image spec table', 'product video description', 'product video lifestyle',
++    ];
++
++    public function __construct(
++        private readonly string $apiKey,
++        private readonly string $region = 'us',
++        ?array $config = null,
++    ) {
++        $cfg = $config ?? config('distributors.shimano', []);
++
++        $this->host          = (string) ($cfg['host'] ?? 'ftpsna.shimano.com');
++        $this->port          = (int) ($cfg['port'] ?? 22);
++        $this->hostKeySha256 = ($cfg['host_key_sha256'] ?? null) ?: null;
++        $this->hostKeyMd5    = ($cfg['host_key_md5'] ?? null) ?: null;
++        $this->insecure      = (bool) ($cfg['insecure'] ?? false);
++        $this->timeout       = (int) ($cfg['timeout'] ?? 300);
++        $this->cacheMinutes  = (int) ($cfg['cache_minutes'] ?? 30);
++        $this->curlBin       = (string) ($cfg['curl'] ?? 'curl');
++        $this->cacheDir      = (string) ($cfg['cache_dir'] ?? storage_path('app/distributor-cache'));
++
++        // the folder is the region in capitals: US today, CA when that account is added.
++        $this->dir = strtoupper(trim((string) ($cfg['dir'] ?? $region ?: 'us')));
++
++        if (str_contains($apiKey, ':')) {
++            [$this->user, $this->pass] = explode(':', $apiKey, 2);
++        } else {
++            $this->user = $apiKey;
++        }
++    }
++
++    public function code(): string { return 'SHIMANO'; }
++    public function name(): string { return 'Shimano'; }
++
++    /** Tells the sync to ask for one brand at a time, so a brand switched off is never read. */
++    public function pagesByBrand(): bool { return true; }
++
++    // ------------------------------------------------------------- probe
++
++    public function testConnection(): array
++    {
++        try {
++            $names = $this->listRemote();
++        } catch (\Throwable $e) {
++            $msg = $e->getMessage();
++            return [
++                'ok'     => false,
++                'status' => null,
++                // curl exit 67: the server refused the login
++                'auth'   => str_contains($msg, 'curl exit 67') || str_contains($msg, 'Authentication'),
++                'body'   => $msg,
++            ];
++        }
++
++        return [
++            'ok'     => $names !== [],
++            'status' => 200,
++            'auth'   => false,
++            'body'   => $names !== []
++                ? count($names) . ' feed file' . (count($names) === 1 ? '' : 's') . ' in /' . $this->dir . ': ' . implode(', ', $names)
++                : 'connected, but /' . $this->dir . ' has no .xlsx files',
++        ];
++    }
++
++    // --------------------------------------------------------- transport
++
++    /**
++     * One curl call. The login goes in on stdin as a curl config line, never
++     * on the command line, so it cannot show up in a process listing.
++     *
++     * @param array<int,string> $args
++     */
++    private function curl(array $args): string
++    {
++        $cmd = array_merge([
++            $this->curlBin, '--silent', '--show-error', '--fail',
++            '--connect-timeout', '20', '--max-time', (string) $this->timeout,
++            '-K', '-',
++        ], $this->pinArgs(), $args);
++
++        $p = new Process($cmd);
++        $p->setTimeout($this->timeout + 30);
++        $p->setInput('user = "' . addcslashes($this->user . ':' . $this->pass, "\"\\") . "\"\n");
++        $p->run();
++
++        if (! $p->isSuccessful()) {
++            $err = trim($p->getErrorOutput());
++            throw new \RuntimeException('Shimano SFTP failed (curl exit ' . $p->getExitCode() . ')' . ($err !== '' ? ': ' . $err : ''));
++        }
++        return $p->getOutput();
++    }
++
++    /**
++     * Pin Shimano's host key so nobody can stand in for the server. Some curl
++     * builds only honour the MD5 form, others only SHA-256, so either may be
++     * configured. With neither set the connection is refused unless
++     * 'insecure' is explicitly on (testing only).
++     *
++     * @return array<int,string>
++     */
++    private function pinArgs(): array
++    {
++        if ($this->hostKeyMd5) {
++            return ['--hostpubmd5', strtolower(str_replace(':', '', $this->hostKeyMd5))];
++        }
++        if ($this->hostKeySha256) {
++            return ['--hostpubsha256', $this->hostKeySha256];
++        }
++        if ($this->insecure) {
++            return ['--insecure'];
++        }
++        throw new \RuntimeException('Shimano: no host key is pinned (set SHIMANO_HOST_KEY_MD5 or SHIMANO_HOST_KEY_SHA256)');
++    }
++
++    private function base(): string
++    {
++        return 'sftp://' . $this->host . ($this->port !== 22 ? ':' . $this->port : '') . '/' . rawurlencode($this->dir) . '/';
++    }
++
++    /** @return array<int,string> .xlsx file names in the region folder */
++    private function listRemote(): array
++    {
++        $out = $this->curl(['--list-only', $this->base()]);
++
++        $names = [];
++        foreach (preg_split('/\R/', $out) as $line) {
++            $line = trim($line);
++            if ($line === '' || ! preg_match('/\.xlsx$/i', $line) || preg_match(self::SKIP, $line)) {
++                continue;
++            }
++            $names[] = $line;
++        }
++        sort($names);
++        return $names;
++    }
++
++    private function download(string $name, string $to): void
++    {
++        $tmp = $to . '.part';
++        @unlink($tmp);
++        try {
++            $this->curl(['--output', $tmp, $this->base() . rawurlencode($name)]);
++            if (! is_file($tmp) || filesize($tmp) < 1024) {
++                throw new \RuntimeException("Shimano feed file {$name} came back empty");
++            }
++            rename($tmp, $to);   // only a complete download is ever read
++        } finally {
++            @unlink($tmp);
++        }
++    }
++
++    // ------------------------------------------------------------ cache
++
++    private function cachePath(): string
++    {
++        return rtrim($this->cacheDir, '/') . '/shimano-' . strtolower($this->dir) . '.jsonl';
++    }
++
++    /**
++     * The flattened feed, rebuilt when it is missing, older than the cache
++     * window, or when $force says the caller needs today's file (a catalog
++     * sync does; a shop's stock refresh does not).
++     */
++    private function feed(bool $force = false): string
++    {
++        $path = $this->cachePath();
++
++        $fresh = is_file($path) && filesize($path) > 0
++            && (time() - filemtime($path)) < $this->cacheMinutes * 60;
++
++        if (($force && ! $this->refreshedThisRun) || ! $fresh) {
++            $this->rebuild($path);
++            $this->refreshedThisRun = true;
++        }
++        return $path;
++    }
++
++    private function rebuild(string $path): void
++    {
++        if (! is_dir($this->cacheDir)) {
++            @mkdir($this->cacheDir, 0775, true);
++        }
++        $work = rtrim($this->cacheDir, '/') . '/shimano-' . strtolower($this->dir) . '-files';
++        if (! is_dir($work)) {
++            @mkdir($work, 0775, true);
++        }
++
++        $names = $this->listRemote();
++        if ($names === []) {
++            throw new \RuntimeException('Shimano: no .xlsx files found in /' . $this->dir);
++        }
++
++        $tmp = $path . '.part';
++        $out = fopen($tmp, 'w');
++        if ($out === false) {
++            throw new \RuntimeException('Shimano: cannot write ' . $tmp);
++        }
++
++        $count = 0;
++        try {
++            foreach ($names as $name) {
++                $local = $work . '/' . preg_replace('/[^A-Za-z0-9._-]+/', '_', $name);
++                $this->download($name, $local);
++                foreach ($this->readWorkbook($local, $name) as $row) {
++                    fwrite($out, json_encode($row, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) . "\n");
++                    $count++;
++                }
++                @unlink($local);   // flattened; the spreadsheet is not needed again
++            }
++        } finally {
++            fclose($out);
++        }
++
++        if ($count === 0) {
++            @unlink($tmp);
++            throw new \RuntimeException('Shimano: the feed files held no SKU rows');
++        }
++        rename($tmp, $path);
++    }
++
++    /**
++     * Streams the first sheet of one workbook as normalised records.
++     *
++     * @return \Generator<int,array<string,mixed>>
++     */
++    private function readWorkbook(string $file, string $label): \Generator
++    {
++        $options = new Options();
++        $reader  = new Reader($options);
++        $reader->open($file);
++
++        try {
++            foreach ($reader->getSheetIterator() as $sheet) {
++                $header = null;
++                foreach ($sheet->getRowIterator() as $row) {
++                    $cells = $row->toArray();
++                    if ($header === null) {
++                        // the headers carry stray spaces ("Product Long Description ")
++                        $header = array_map(fn ($h) => trim((string) $h), $cells);
++                        continue;
++                    }
++                    $rec = [];
++                    foreach ($header as $i => $h) {
++                        if ($h === '') { continue; }
++                        $v = $cells[$i] ?? null;
++                        if ($v === null) { continue; }
++                        $rec[$h] = $v;
++                    }
++                    $n = $this->normalize($rec, $label);
++                    if ($n !== null) {
++                        yield $n;
++                    }
++                }
++                break;   // the data is on the first sheet
++            }
++        } finally {
++            $reader->close();
++        }
++    }
++
++    // -------------------------------------------------------- normalise
++
++    private function s(array $r, string $col): string
++    {
++        $v = $r[$col] ?? '';
++        if ($v instanceof \DateTimeInterface) {
++            return $v->format('Y-m-d');
++        }
++        if (is_float($v) || is_int($v)) {
++            $v = (floor((float) $v) == (float) $v) ? sprintf('%.0f', $v) : (string) $v;
++        }
++        // Color Name and Color Image arrive with a leading newline
++        return trim((string) $v, " \t\n\r\0\x0B\xC2\xA0");
++    }
++
++    private function num(array $r, string $col): ?float
++    {
++        $v = $r[$col] ?? null;
++        if ($v === null || $v === '') { return null; }
++        $v = str_replace([',', '$'], '', (string) $v);
++        return is_numeric($v) ? (float) $v : null;
++    }
++
++    /** @return array{0:string,1:string} [upc, ean] */
++    private function barcode(mixed $raw): array
++    {
++        if (is_float($raw) || is_int($raw)) {
++            $raw = sprintf('%.0f', $raw);
++        }
++        $d = preg_replace('/\D+/', '', (string) $raw);
++        if ($d === '' || trim($d, '0') === '') {
++            return ['', ''];
++        }
++        $n = strlen($d);
++        if ($n === 11) {                       // a UPC-A that lost its leading zero in a spreadsheet
++            $d = '0' . $d;
++            $n = 12;
++        }
++        if ($n === 12) {
++            return [$d, ''];
++        }
++        if ($n === 13) {
++            // 0 + a UPC-A is the same product's EAN-13 form
++            return str_starts_with($d, '0') ? [substr($d, 1), ''] : ['', $d];
++        }
++        if ($n === 14 && str_starts_with($d, '0')) {
++            return $this->barcode(substr($d, 1));
++        }
++        return in_array($n, [8, 14], true) ? ['', $d] : ['', ''];
++    }
++
++    /** "100+" means at least 100, and is stored as 100. */
++    private function qty(mixed $raw): array
++    {
++        $v = trim((string) $raw);
++        if ($v === '') { return [0, false]; }
++        $plus = str_ends_with($v, '+');
++        $n = (int) preg_replace('/[^0-9]/', '', $v);
++        return [max(0, $n), $plus];
++    }
++
++    private function date(mixed $raw): ?string
++    {
++        if ($raw instanceof \DateTimeInterface) {
++            return $raw->format('Y-m-d');
++        }
++        $v = trim((string) $raw);
++        return preg_match('/^\d{4}-\d{2}-\d{2}/', $v) ? substr($v, 0, 10) : null;
++    }
++
++    /** "Chromoly Steel" -> "Chromoly steel". Codes and single words are left alone. */
++    private function tidy(string $v): string
++    {
++        $v = trim($v);
++        if (strtoupper($v) === 'X') {
++            return 'Yes';
++        }
++        if (preg_match('/^\p{Lu}\p{Ll}+( \p{Lu}\p{Ll}+)+$/u', $v)) {
++            return mb_substr($v, 0, 1) . mb_strtolower(mb_substr($v, 1));
++        }
++        return $v;
++    }
++
++    /** "HG_Pedals" -> "Pedals". "LSG_Footwear_insoles_and_parts" -> "Footwear insoles and parts". */
++    private function categoryName(string $type): string
++    {
++        $parts = explode('_', trim($type));
++        if (count($parts) > 1 && in_array(strtolower($parts[0]), self::CATEGORY_PREFIXES, true)) {
++            array_shift($parts);
++        }
++        $name = trim(implode(' ', $parts));
++        return $name === '' ? '' : mb_strtoupper(mb_substr($name, 0, 1)) . mb_substr($name, 1);
++    }
++
++    private function clean(string $html): string
++    {
++        $t = preg_replace('/<br\s*\/?>/i', "\n", $html);
++        $t = html_entity_decode(strip_tags((string) $t), ENT_QUOTES | ENT_HTML5, 'UTF-8');
++        $t = preg_replace("/[ \t]+/", ' ', $t);
++        $t = preg_replace("/\n{3,}/", "\n\n", (string) $t);
++        return trim((string) $t);
++    }
++
++    /** @return array<string,mixed>|null null for a row with no SKU */
++    private function normalize(array $r, string $file): ?array
++    {
++        $sku = $this->s($r, 'SKU Code');
++        if ($sku === '') {
++            return null;
++        }
++
++        [$upc, $ean] = $this->barcode($r['SKU UPC'] ?? '');
++
++        // color "ONE" is a placeholder for "no color choice", not a color
++        $color = $this->s($r, 'Color Name');
++        if (in_array(strtoupper($color), ['ONE', 'NONE', 'N/A'], true)) {
++            $color = '';
++        }
++
++        // images, in the order a shop wants to see them
++        $images = [];
++        foreach (['Primary', 'Back', 'Detail', 'Lifestyle', 'Medial', 'On Body', 'Sole', 'Top'] as $slot) {
++            $u = $this->s($r, 'SKU Image ' . $slot);
++            if ($u !== '' && ! in_array($u, $images, true)) {
++                $images[] = $u;
++            }
++        }
++
++        // Text. Soft Goods keeps its marketing copy in the "Supplemental" columns.
++        $short    = $this->clean($this->s($r, 'Product Short Description') ?: $this->s($r, 'Supplemental Product Short Description'));
++        $headline = $this->clean($this->s($r, 'Product Long Description Headline') ?: $this->s($r, 'Supplemental Product Headline'));
++        $long     = $this->clean($this->s($r, 'Product Long Description') ?: $this->s($r, 'Supplemental Product Long Description'));
++        $cont     = $this->clean($this->s($r, 'Product Long Description Continued'));
++
++        $paras = [];
++        foreach ([$headline, $long, $short, $cont] as $p) {
++            if ($p === '') { continue; }
++            foreach ($paras as $q) {
++                if (stripos($q, $p) !== false) { continue 2; }   // already said, in a longer paragraph
++            }
++            $paras[] = $p;
++        }
++
++        $features = [];
++        $featRaw = $this->s($r, 'Product Features/Benefits') ?: $this->s($r, 'Supplemental Product Features');
++        foreach (explode('|', $featRaw) as $f) {
++            $f = trim(ltrim(trim($f), "•*- \t"));
++            if ($f !== '') { $features[] = $this->clean($f); }
++        }
++
++        $description = implode("\n\n", $paras);
++        if ($features) {
++            $description .= ($description !== '' ? "\n\n" : '') . implode("\n", $features);
++        }
++
++        // Specs: every populated SKU / spec column becomes a Name => Value pair.
++        $attrs = [];
++        foreach ($r as $h => $v) {
++            $lh = strtolower($h);
++            if (in_array($lh, self::NOT_A_SPEC, true)) { continue; }
++            if (! preg_match('/^(sku|product spec) /i', $h)) { continue; }
++            if (str_starts_with($lh, 'sku image') || str_starts_with($lh, 'product image') || str_starts_with($lh, 'product video')) { continue; }
++            $val = $this->s($r, $h);
++            if ($val === '') { continue; }
++            $label = trim(preg_replace('/^(sku|product spec) /i', '', $h));
++            $attrs[] = ['Name' => $label, 'Value' => $this->tidy(str_replace('|', ', ', $val))];
++        }
++        if (($gender = $this->s($r, 'Product Gender')) !== '' && strtolower($gender) !== 'unisex') {
++            $attrs[] = ['Name' => 'Gender', 'Value' => $this->tidy($gender)];
++        }
++        if (($sport = $this->s($r, 'Product B2B Sport')) !== '' && strtolower($sport) !== strtolower($this->s($r, 'Brand'))) {
++            $attrs[] = ['Name' => 'Riding', 'Value' => str_replace('|', ', ', $sport)];
++        }
++        if (($cc = strtoupper($this->s($r, 'Country Of Origin'))) !== '') {
++            $attrs[] = ['Name' => 'Made in', 'Value' => self::COUNTRIES[$cc] ?? $cc];
++        }
++
++        [$irv, $irvPlus] = $this->qty($r['Inventory US IRV'] ?? '');
++        [$nch, $nchPlus] = $this->qty($r['Inventory US NCH'] ?? '');
++
++        $msrp  = $this->num($r, 'Price USD MSRP');
++        $isMap = strtolower($this->s($r, 'SKU Map')) === 'yes';
++
++        $dims = array_values(array_filter([
++            $this->num($r, 'Length'), $this->num($r, 'Width'), $this->num($r, 'Height'),
++        ], fn ($d) => $d !== null && $d > 0));
++
++        $video = $this->s($r, 'SKU Video URL') ?: $this->s($r, 'Product Video URL');
++
++        $out = [
++            'brand'        => $this->s($r, 'Brand'),
++            'product_code' => $this->s($r, 'Product Code'),
++            'sku'          => $sku,
++            'name'         => $this->s($r, 'SKU Name'),
++            'product_name' => $this->s($r, 'Product Name'),
++            'upc'          => $upc,
++            'ean'          => $ean,
++            'color'        => $color,
++            'size'         => in_array(strtoupper($this->s($r, 'Size')), ['ONE', 'OS', 'N/A'], true) ? '' : $this->tidy($this->s($r, 'Size')),
++            'description'  => $description,
++            'features'     => $features,
++            'ptype'        => $this->s($r, 'Product Type'),
++            'category'     => $this->categoryName($this->s($r, 'Product Type')),
++            'images'       => $images,
++            'video'        => $video,
++            'irv'          => $irv,
++            'irv_plus'     => $irvPlus,
++            'nch'          => $nch,
++            'nch_plus'     => $nchPlus,
++            'irv_next'     => $this->date($r['Inventory next available date US IRV'] ?? ''),
++            'nch_next'     => $this->date($r['Inventory next available date US NCH'] ?? ''),
++            'cost'         => $this->num($r, 'Price USD MSWP'),
++            'msrp'         => $msrp,
++            // MAP: this file says only whether an item has one, and the price is the MSRP
++            'map'          => $isMap,
++            'map_price'    => $isMap ? $msrp : null,
++            'map_break'    => strtolower($this->s($r, 'SKU Map Break Eligible')) === 'yes',
++            'weight'       => $this->num($r, 'Weight'),
++            'dimensions'   => $dims,
++            'origin'       => $this->s($r, 'Country Of Origin'),
++            'attrs'        => $attrs,
++            'file'         => $file,
++        ];
++
++        // drop empties so the cache stays small
++        return array_filter($out, fn ($v) => $v !== '' && $v !== null && $v !== []);
++    }
++
++    // ---------------------------------------------------------- reading
++
++    /** @return \Generator<int,array<string,mixed>> */
++    private function rows(bool $force = false): \Generator
++    {
++        $fh = fopen($this->feed($force), 'r');
++        if ($fh === false) {
++            return;
++        }
++        try {
++            while (($line = fgets($fh)) !== false) {
++                $row = json_decode($line, true);
++                if (is_array($row)) {
++                    yield $row;
++                }
++            }
++        } finally {
++            fclose($fh);
++        }
++    }
++
++    // -------------------------------------------------------------- api
++
++    /**
++     * Brands come from the Brand column. This is the call a catalog sync makes
++     * first, so it is also where the feed is refreshed from Shimano: a shop's
++     * stock refresh never reaches here and reuses the cached copy.
++     */
++    public function brands(): array
++    {
++        $out = [];
++        foreach ($this->rows(true) as $r) {
++            $b = (string) ($r['brand'] ?? '');
++            if ($b !== '' && ! isset($out[$b])) {
++                $out[$b] = ['id' => $b, 'name' => $b];
++            }
++        }
++        ksort($out);
++        return array_values($out);
++    }
++
++    public function categories(): array
++    {
++        $out = [];
++        foreach ($this->rows() as $r) {
++            $t = (string) ($r['ptype'] ?? '');
++            if ($t === '' || isset($out[$t])) { continue; }
++            $n = (string) ($r['category'] ?? $t);
++            $out[$t] = ['id' => $t, 'name' => $n, 'parent_id' => '', 'path' => $n];
++        }
++        return array_values($out);
++    }
++
++    /**
++     * @param array{brands?: array, upcs?: array, vendorParts?: array, pageStartIndex?: int, pageSize?: int} $opts
++     */
++    public function products(array $opts = []): array
++    {
++        $brands = array_flip(array_map(fn ($b) => mb_strtolower(trim((string) $b)), $opts['brands'] ?? []));
++        $upcs   = array_flip(array_map('strval', $opts['upcs'] ?? []));
++        $parts  = array_flip(array_map(fn ($p) => strtoupper(trim((string) $p)), $opts['vendorParts'] ?? []));
++        $filtered = $upcs || $parts;
++
++        $start = max(0, ((int) ($opts['pageStartIndex'] ?? 1)) - 1);
++        $size  = (int) ($opts['pageSize'] ?? 0);
++
++        $byProduct = [];
++        $pos = [];
++        $next = 0;
++
++        foreach ($this->rows() as $r) {
++            if ($brands && ! isset($brands[mb_strtolower((string) ($r['brand'] ?? ''))])) {
++                continue;
++            }
++            if ($filtered) {
++                $hitUpc  = $upcs && (isset($upcs[$r['upc'] ?? '']) || isset($upcs[$r['ean'] ?? '']));
++                $hitPart = $parts && isset($parts[strtoupper((string) ($r['sku'] ?? ''))]);
++                if (! $hitUpc && ! $hitPart) { continue; }
++            }
++
++            $gid = ($r['brand'] ?? '') . '|' . ($r['product_code'] ?? $r['sku']);
++            if (! array_key_exists($gid, $pos)) {
++                $pos[$gid] = $next++;
++            }
++            if ($size > 0 && ($pos[$gid] < $start || $pos[$gid] >= $start + $size)) {
++                continue;
++            }
++
++            if (! isset($byProduct[$gid])) {
++                $byProduct[$gid] = [
++                    // what the sync groups on
++                    'Brand'        => ($r['brand'] ?? '') !== '' ? $r['brand'] : 'Unknown',
++                    'product_code' => $r['product_code'] ?? $r['sku'],
++                    'Name'         => $r['product_name'] ?? ($r['name'] ?? ''),
++                    'Variants'     => [],
++                ];
++            }
++            $r['VariantNo'] = $r['sku'];
++            $byProduct[$gid]['Variants'][] = $r;
++        }
++
++        return ['Products' => array_values($byProduct), 'Failures' => []];
++    }
++
++    /**
++     * Stock, one entry per warehouse. IRV and NCH are kept apart because they
++     * are different shelves with different restock dates; the shop sees both.
++     */
++    public function inventory(array $skus): array
++    {
++        $want = array_flip(array_map('strval', $skus));
++        $out = [];
++
++        foreach ($this->rows() as $r) {
++            $sku = (string) ($r['sku'] ?? '');
++            if ($want && ! isset($want[$sku])) { continue; }
++
++            $irv = (int) ($r['irv'] ?? 0);
++            $nch = (int) ($r['nch'] ?? 0);
++
++            $out[] = [
++                'VariantNo'         => $sku,
++                'TotalQtyAvailable' => $irv + $nch,
++                'Warehouses' => [
++                    ['Code' => 'IRV', 'Name' => 'IRV', 'QtyAvailable' => $irv,
++                     'AtLeast' => (bool) ($r['irv_plus'] ?? false), 'NextDueDate' => $r['irv_next'] ?? null],
++                    ['Code' => 'NCH', 'Name' => 'NCH', 'QtyAvailable' => $nch,
++                     'AtLeast' => (bool) ($r['nch_plus'] ?? false), 'NextDueDate' => $r['nch_next'] ?? null],
++                ],
++            ];
++        }
++        return $out;
++    }
++
++    /**
++     * Dealer cost, MSRP and MAP. The raw record is kept underneath because
++     * the field map reads it by key (cost_cents <- cost), exactly as it does
++     * for BTI.
++     */
++    public function prices(array $skus): array
++    {
++        $want = array_flip(array_map('strval', $skus));
++        $out = [];
++
++        foreach ($this->rows() as $r) {
++            $sku = (string) ($r['sku'] ?? '');
++            if ($want && ! isset($want[$sku])) { continue; }
++
++            $out[] = array_merge($r, [
++                'VariantNo' => $sku,
++                'Prices'    => [['PriceTypeId' => 1, 'PriceType' => 'Base', 'Price' => (float) ($r['cost'] ?? 0)]],
++                'MSRP'      => $r['msrp'] ?? null,
++                'MAP'       => $r['map_price'] ?? null,
++            ]);
++        }
++        return $out;
++    }
++
++    public function images(array $skus): array
++    {
++        $want = array_flip(array_map('strval', $skus));
++        $out = [];
++
++        foreach ($this->rows() as $r) {
++            $sku = (string) ($r['sku'] ?? '');
++            if (($want && ! isset($want[$sku])) || empty($r['images'])) { continue; }
++
++            $out[] = ['VariantNo' => $sku, 'sku' => $sku, 'images' => $r['images']];
++        }
++        return $out;
++    }
++}
+diff --git a/config/distributors.php b/config/distributors.php
+index 543c8cd1..4eaa633d 100644
+--- a/config/distributors.php
++++ b/config/distributors.php
+@@ -73,4 +73,25 @@ return [
+         'cache_hours'    => (int) env('BTI_CACHE_HOURS', 6),
+     ],
+ 
++    // SFTP spreadsheet feed. The login is NOT here: it is
++    // entered once in master admin (Distributors) and used for every shop.
++    // Pin the server's host key so nobody can stand in for it. Some curl
++    // builds only honour the MD5 form, others only SHA-256; set whichever
++    // yours accepts (php artisan shimano:test says which works).
++    'shimano' => [
++        'name'            => 'Shimano',
++        'host'            => env('SHIMANO_HOST', 'ftpsna.shimano.com'),
++        'port'            => (int) env('SHIMANO_PORT', 22),
++        'dir'             => env('SHIMANO_DIR', 'US'),
++        'host_key_sha256' => env('SHIMANO_HOST_KEY_SHA256', 'hJseMiQvY/RhwiEdbXWLyJ54pncExGm+qeXeXGSOG88'),
++        'host_key_md5'    => env('SHIMANO_HOST_KEY_MD5'),
++        'insecure'        => (bool) env('SHIMANO_INSECURE', false),
++        'timeout'         => (int) env('SHIMANO_TIMEOUT', 600),
++        // the flattened feed is reused this long by stock/price refreshes;
++        // a catalog sync always fetches a fresh copy.
++        'cache_minutes'   => (int) env('SHIMANO_CACHE_MINUTES', 30),
++        // the whole US feed is a few thousand products
++        'sync_page_size'  => (int) env('SHIMANO_SYNC_PAGE_SIZE', 50000),
++    ],
++
+ ];
+diff --git a/database/migrations/2026_10_23_000100_distributor_brand_controls.php b/database/migrations/2026_10_23_000100_distributor_brand_controls.php
+new file mode 100644
+index 00000000..1b398748
+--- /dev/null
++++ b/database/migrations/2026_10_23_000100_distributor_brand_controls.php
+@@ -0,0 +1,73 @@
++<?php
++
++use Illuminate\Database\Migrations\Migration;
++use Illuminate\Database\Schema\Blueprint;
++use Illuminate\Support\Facades\Schema;
++
++/**
++ * Brand control for every distributor, at two levels.
++ *
++ *  - distributor_brand_settings: the PLATFORM switch. Which brands of a
++ *    distributor Intake ingests into the shared catalog at all.
++ *  - platform_distributor_connections.brand_default: what a brand with no
++ *    switch of its own does. 'on' (the default, so nothing already running
++ *    changes) means every brand comes in unless switched off; 'off' means only
++ *    brands switched on come in.
++ *  - tenant_distributor_brand_settings: a SHOP's switch. Which of the shared
++ *    catalog's brands that shop is offered on its import screen. set_by says
++ *    who made the call: 'tenant' rows the shop can change; 'admin' rows were
++ *    set from master admin and the shop cannot change them.
++ *
++ * Additive only. Turning a brand off never touches a shop's items: these
++ * tables only decide what NEW catalog rows are brought in or offered.
++ */
++return new class extends Migration
++{
++    public function up(): void
++    {
++        if (! Schema::hasTable('distributor_brand_settings')) {
++            Schema::create('distributor_brand_settings', function (Blueprint $t) {
++                $t->id();
++                $t->string('distributor_code', 32);
++                $t->string('brand_key', 128);     // lower-cased, trimmed brand name
++                $t->string('brand_name', 128);    // as the distributor spells it
++                $t->boolean('enabled')->default(true);
++                $t->string('updated_by', 64)->nullable();
++                $t->timestamps();
++                $t->unique(['distributor_code', 'brand_key'], 'dbs_code_brand_unique');
++            });
++        }
++
++        if (Schema::hasTable('platform_distributor_connections')
++            && ! Schema::hasColumn('platform_distributor_connections', 'brand_default')) {
++            Schema::table('platform_distributor_connections', function (Blueprint $t) {
++                $t->string('brand_default', 8)->default('on');
++            });
++        }
++
++        if (! Schema::hasTable('tenant_distributor_brand_settings')) {
++            Schema::create('tenant_distributor_brand_settings', function (Blueprint $t) {
++                $t->id();
++                $t->uuid('tenant_id');
++                $t->string('distributor_code', 32);
++                $t->string('brand_key', 128);
++                $t->string('brand_name', 128);
++                $t->boolean('enabled')->default(true);
++                $t->string('set_by', 8)->default('tenant');   // tenant | admin
++                $t->string('updated_by', 64)->nullable();
++                $t->timestamps();
++                $t->unique(['tenant_id', 'distributor_code', 'brand_key'], 'tdbs_tenant_code_brand_unique');
++                $t->index(['tenant_id', 'distributor_code'], 'tdbs_tenant_code_idx');
++            });
++        }
++    }
++
++    public function down(): void
++    {
++        Schema::dropIfExists('tenant_distributor_brand_settings');
++        Schema::dropIfExists('distributor_brand_settings');
++        if (Schema::hasColumn('platform_distributor_connections', 'brand_default')) {
++            Schema::table('platform_distributor_connections', fn (Blueprint $t) => $t->dropColumn('brand_default'));
++        }
++    }
++};
+diff --git a/database/seeders/ShimanoFieldMapSeeder.php b/database/seeders/ShimanoFieldMapSeeder.php
+new file mode 100644
+index 00000000..1c02406b
+--- /dev/null
++++ b/database/seeders/ShimanoFieldMapSeeder.php
+@@ -0,0 +1,88 @@
++<?php
++
++namespace Database\Seeders;
++
++use Illuminate\Database\Seeder;
++use Illuminate\Support\Facades\DB;
++use Illuminate\Support\Str;
++
++/**
++ * Shimano field map. The source paths are the keys ShimanoClient writes into
++ * each flattened record (not the spreadsheet's column names), so the same map
++ * serves all five feed files.
++ *
++ * updateOrInsert on (distributor_code, canonical_field): safe to re-run, and
++ * it will not clobber master-admin edits to fields it does not list.
++ */
++class ShimanoFieldMapSeeder extends Seeder
++{
++    public function run(): void
++    {
++        $code = 'SHIMANO';
++
++        // [canonical_field, source_path, transform, args, lookup, notes]
++        $rows = [
++            // identity. The duplicate guard reads these: UPC and EAN are
++            // split by digit count in the client, and the MPN is brand-qualified.
++            ['distributor_variant_no', 'sku', 'direct', ['cast' => 'string'], null, 'SKU Code, the unique key'],
++            ['distributor_product_no', 'product_code', 'direct', ['cast' => 'string'], null, 'Product Code groups the colour/size variants'],
++            ['upc', 'upc', 'direct', null, null, '12-digit only'],
++            ['ean', 'ean', 'direct', null, null, '13-digit only (Motorex ships these)'],
++            ['manufacturer_sku', 'sku', 'direct', ['cast' => 'trim'], null, "Shimano's item number is the MPN"],
++
++            // descriptive
++            ['name', 'name', 'direct', null, null, 'SKU Name'],
++            ['description', 'description', 'direct', null, null, 'headline + long text + features, HTML stripped'],
++            ['manufacturer', 'brand', 'direct', null, null, 'Shimano, PRO, Lazer or Motorex'],
++            ['category', 'category', 'direct', null, null, 'Product Type with the family prefix removed'],
++            ['category_id', 'ptype', 'direct', ['cast' => 'string'], null, null],
++            ['category_path', 'category', 'direct', null, null, 'one level in this feed'],
++            ['color', 'color', 'direct', null, null, '"ONE" is dropped by the client'],
++            ['size', 'size', 'direct', null, null, null],
++            ['attributes', 'attrs', 'json_passthrough', null, null, 'every populated SKU / spec column as {Name,Value}'],
++
++            // money
++            ['cost_cents', 'cost', 'direct', ['cast' => 'cents'], null, 'Price USD MSWP, dealer cost'],
++            ['msrp_cents', 'msrp', 'direct', ['cast' => 'cents'], null, 'Price USD MSRP'],
++            ['map_cents', 'map_price', 'direct', ['cast' => 'cents_zero_null'], null, 'MSRP when SKU Map is Yes (meaning to be confirmed with Shimano)'],
++
++            // physical
++            ['weight', 'weight', 'direct', ['cast' => 'float'], null, null],
++            ['dimensions', 'dimensions', 'json_passthrough', null, null, '[length, width, height]'],
++
++            // media
++            ['images', 'images', 'json_passthrough', null, null, 'primary, back, detail, lifestyle, medial, on body, sole, top'],
++        ];
++
++        $now = now();
++
++        foreach ($rows as [$field, $path, $transform, $args, $lookup, $notes]) {
++            $payload = [
++                'source_path'    => $path,
++                'transform'      => $transform,
++                'transform_args' => $args ? json_encode($args) : null,
++                'lookup_table'   => $lookup ? json_encode($lookup) : null,
++                'notes'          => $notes,
++                'is_active'      => true,
++                'updated_at'     => $now,
++            ];
++
++            $existing = DB::table('distributor_field_maps')
++                ->where('distributor_code', $code)
++                ->where('canonical_field', $field)
++                ->first();
++
++            if ($existing) {
++                DB::table('distributor_field_maps')->where('id', $existing->id)->update($payload);
++            } else {
++                $payload['id'] = (string) Str::uuid();
++                $payload['distributor_code'] = $code;
++                $payload['canonical_field'] = $field;
++                $payload['created_at'] = $now;
++                DB::table('distributor_field_maps')->insert($payload);
++            }
++        }
++
++        $this->command?->info('ShimanoFieldMapSeeder: seeded ' . count($rows) . ' Shimano field maps.');
++    }
++}
+diff --git a/resources/views/filament/pages/distributors.blade.php b/resources/views/filament/pages/distributors.blade.php
+index fddc1f5e..4e852bfd 100644
+--- a/resources/views/filament/pages/distributors.blade.php
++++ b/resources/views/filament/pages/distributors.blade.php
+@@ -56,16 +56,38 @@
+             </div>
+ 
+             @if(!empty($brandStatuses) && count($brandStatuses))
+-                <div style="margin-top:18px;font-size:11px;text-transform:uppercase;opacity:.6;margin-bottom:6px">Per-brand progress</div>
++                <div style="margin-top:18px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:6px">
++                    <span style="font-size:11px;text-transform:uppercase;opacity:.6">Per-brand progress and control</span>
++                    <span style="flex:1"></span>
++                    <span style="font-size:11.5px;opacity:.7">New brands:</span>
++                    <button type="button" wire:click="setBrandMode('on')"
++                            style="font-size:11px;padding:3px 10px;border:.5px solid rgba(255,255,255,.2);border-radius:6px;background:{{ $brandMode === 'on' ? 'rgba(190,242,100,.15)' : 'transparent' }};color:{{ $brandMode === 'on' ? '#BEF264' : 'inherit' }};cursor:pointer">Come in</button>
++                    <button type="button" wire:click="setBrandMode('off')"
++                            style="font-size:11px;padding:3px 10px;border:.5px solid rgba(255,255,255,.2);border-radius:6px;background:{{ $brandMode === 'off' ? 'rgba(190,242,100,.15)' : 'transparent' }};color:{{ $brandMode === 'off' ? '#BEF264' : 'inherit' }};cursor:pointer">Stay out until switched on</button>
++                </div>
++                {{-- legend: what a brand switch does and does not do --}}
++                <div style="font-size:11.5px;line-height:1.55;opacity:.75;margin-bottom:8px">
++                    <b>On</b>: the sync brings this brand into the shared catalog. <b>Off</b>: it brings nothing new in.
++                    A switch never removes items a shop already carries, and catalog rows a shop already carries keep
++                    updating, so anything in stock stays sellable.
++                </div>
+                 <div style="max-height:340px;overflow:auto;border:1px solid rgba(255,255,255,.1);border-radius:8px">
+                     <table style="width:100%;border-collapse:collapse;font-size:12.5px">
+                         @foreach($brandStatuses as $b)
+                             @php /* skipped-unchanged is part of the truth */ $done = $b->status === 'done'; $sync = $b->status === 'syncing'; $bSkipped = (int) ($b->skipped ?? 0); @endphp
++                            @php
++                                $bKey = \App\Services\Distributors\BrandControl::key($b->brand_name);
++                                $bOn  = array_key_exists($bKey, $brandSwitches) ? $brandSwitches[$bKey] : ($brandMode === 'on');
++                            @endphp
+                             <tr style="border-bottom:.5px solid rgba(255,255,255,.07)">
+                                 <td style="padding:7px 12px;font-weight:600">{{ $b->brand_name }}</td>
+                                 <td style="padding:7px 12px;font-family:ui-monospace,monospace;opacity:.85">{{ number_format($b->written) }} / {{ number_format($b->total) }} @if($bSkipped > 0)<span style="opacity:.55">&middot; {{ number_format($bSkipped) }} unchanged</span> @endif</td>
+                                 <td style="padding:7px 12px;text-align:right">
+-                                    @if($done)
++                                    @if(! $bOn)
++                                        <span style="opacity:.5">&mdash; off</span>
++                                    @elseif($b->status === 'off')
++                                        <span style="opacity:.5">off at last sync</span>
++                                    @elseif($done)
+                                         <span style="color:#BEF264">✓ done</span>
+                                     @elseif($sync)
+                                         <span style="color:#BEF264">● syncing</span>
+@@ -80,9 +102,14 @@
+                                     @endif
+                                 </td>
+                                 {{-- inline single-brand refresh --}}
+-                                <td style="padding:7px 12px;text-align:right">
++                                <td style="padding:7px 12px;text-align:right;white-space:nowrap">
++                                    <button type="button" wire:click="toggleBrand(@js($b->brand_name))" wire:loading.attr="disabled"
++                                            title="{{ $bOn ? 'Switch this brand off' : 'Switch this brand on' }}"
++                                            style="font-size:11px;padding:3px 10px;border:.5px solid {{ $bOn ? 'rgba(190,242,100,.5)' : 'rgba(255,255,255,.2)' }};border-radius:6px;background:{{ $bOn ? 'rgba(190,242,100,.15)' : 'transparent' }};color:{{ $bOn ? '#BEF264' : 'inherit' }};cursor:pointer">{{ $bOn ? 'On' : 'Off' }}</button>
++                                    @if($bOn)
+                                     <button type="button" wire:click="syncBrand(@js($b->brand_name))" wire:loading.attr="disabled"
+                                             style="font-size:11px;padding:3px 10px;border:.5px solid rgba(255,255,255,.2);border-radius:6px;background:transparent;color:#BEF264;cursor:pointer">Sync</button>
++                                    @endif
+                                 </td>
+                             </tr>
+                         @endforeach
+diff --git a/resources/views/filament/pages/tenant-brand-access.blade.php b/resources/views/filament/pages/tenant-brand-access.blade.php
+new file mode 100644
+index 00000000..6ce62aac
+--- /dev/null
++++ b/resources/views/filament/pages/tenant-brand-access.blade.php
+@@ -0,0 +1,83 @@
++<x-filament-panels::page>
++
++  {{-- legend: what this screen does and does not touch --}}
++  <div class="rounded-lg bg-primary-500/10 ring-1 ring-primary-500/30 px-4 py-3 text-xs text-gray-600 dark:text-gray-300">
++    <b>What this does.</b> Chooses which of a distributor's brands one shop is offered on its Import screen.
++    "Locked on" and "Locked off" override the shop's own Brands tab; "Shop decides" hands it back.
++    Only shops with the distributor add-on are listed.
++    <b>What it does not do.</b> It never removes, hides or deactivates an item the shop already carries.
++    Anything in their inventory, including everything in stock, stays and can still be sold.
++  </div>
++
++  <div class="flex flex-wrap items-end gap-3">
++    <div>
++      <label class="block text-xs font-semibold text-gray-500 mb-1">Shop</label>
++      <select wire:model.live="tenantId" class="fi-input rounded-lg border-gray-300 dark:border-white/10 dark:bg-white/5 text-sm">
++        <option value="">Choose a shop</option>
++        @foreach ($this->tenantOptions as $id => $name)
++          <option value="{{ $id }}">{{ $name }}</option>
++        @endforeach
++      </select>
++    </div>
++    <div>
++      <label class="block text-xs font-semibold text-gray-500 mb-1">Distributor</label>
++      <select wire:model.live="code" class="fi-input rounded-lg border-gray-300 dark:border-white/10 dark:bg-white/5 text-sm">
++        @foreach ($this->distributorOptions as $c => $label)
++          <option value="{{ $c }}">{{ $label }}</option>
++        @endforeach
++      </select>
++    </div>
++    <div>
++      <label class="block text-xs font-semibold text-gray-500 mb-1">Find a brand</label>
++      <input type="search" wire:model.live.debounce.300ms="find"
++             class="fi-input rounded-lg border-gray-300 dark:border-white/10 dark:bg-white/5 text-sm" placeholder="Brand name">
++    </div>
++  </div>
++
++  @if (! $tenantId)
++    <p class="text-sm text-gray-500">Choose a shop to see its brands.</p>
++  @else
++    @php $brands = $this->brands; @endphp
++
++    @if (count($brands) === 0)
++      <p class="text-sm text-gray-500">No brands to show for that shop and distributor.</p>
++    @else
++      <div class="overflow-x-auto">
++        <table class="w-full text-sm">
++          <thead>
++            <tr class="text-left text-xs uppercase tracking-wide text-gray-500">
++              <th class="py-2 pr-4">Brand</th>
++              <th class="py-2 pr-4">Items</th>
++              <th class="py-2 pr-4">Shop's own setting</th>
++              <th class="py-2">Admin control</th>
++            </tr>
++          </thead>
++          <tbody>
++            @foreach ($brands as $b)
++              <tr class="border-t border-gray-200 dark:border-white/10">
++                <td class="py-2 pr-4 font-semibold">{{ $b['name'] }}</td>
++                <td class="py-2 pr-4 font-mono text-xs text-gray-500">{{ number_format($b['items']) }}</td>
++                <td class="py-2 pr-4 text-xs text-gray-500">
++                  @if ($b['locked']) set by you @else {{ $b['enabled'] ? 'on' : 'off' }} @endif
++                </td>
++                <td class="py-2">
++                  <select wire:model="choices.{{ \App\Filament\Pages\TenantBrandAccess::h($b['key']) }}"
++                          class="fi-input rounded-lg border-gray-300 dark:border-white/10 dark:bg-white/5 text-xs">
++                    <option value="shop">Shop decides</option>
++                    <option value="on">Locked on</option>
++                    <option value="off">Locked off</option>
++                  </select>
++                </td>
++              </tr>
++            @endforeach
++          </tbody>
++        </table>
++      </div>
++
++      <div>
++        <x-filament::button wire:click="save">Save brand access</x-filament::button>
++      </div>
++    @endif
++  @endif
++
++</x-filament-panels::page>
+diff --git a/resources/views/layouts/tenant/_inventory-tabs.blade.php b/resources/views/layouts/tenant/_inventory-tabs.blade.php
+index c4663076..5172bdb8 100644
+--- a/resources/views/layouts/tenant/_inventory-tabs.blade.php
++++ b/resources/views/layouts/tenant/_inventory-tabs.blade.php
+@@ -24,6 +24,7 @@
+   $invTabs[] = ['route' => 'tenant.inventory.reports',          'label' => 'Reports',           'match' => 'tenant.inventory.reports'];
+   if ($distOn) {
+       $invTabs[] = ['route' => 'tenant.distributors.import',     'label' => 'Import',            'match' => 'tenant.distributors.import'];
++      $invTabs[] = ['route' => 'tenant.distributors.brands',     'label' => 'Brands',            'match' => 'tenant.distributors.brands'];
+       $invTabs[] = ['route' => 'tenant.distributors.attention',  'label' => 'Catalog attention', 'match' => 'tenant.distributors.attention'];
+       $invTabs[] = ['route' => 'tenant.distributors.connection', 'label' => 'Connection & sync', 'match' => 'tenant.distributors.connection'];
+   }
+diff --git a/resources/views/tenant/distributors/_tabs.blade.php b/resources/views/tenant/distributors/_tabs.blade.php
+index 26f65a05..004b5ec8 100644
+--- a/resources/views/tenant/distributors/_tabs.blade.php
++++ b/resources/views/tenant/distributors/_tabs.blade.php
+@@ -4,6 +4,7 @@
+   @php
+     $tabs = [
+       'tenant.distributors.import'             => 'Import',
++      'tenant.distributors.brands'             => 'Brands',
+       'tenant.distributors.attention'          => 'Pricing Attention',
+       'tenant.distributors.connection'         => 'Connection & Sync',
+     ];
+diff --git a/resources/views/tenant/distributors/brands.blade.php b/resources/views/tenant/distributors/brands.blade.php
+new file mode 100644
+index 00000000..8ff12b6d
+--- /dev/null
++++ b/resources/views/tenant/distributors/brands.blade.php
+@@ -0,0 +1,102 @@
++@extends('layouts.tenant.app')
++@php $pageTitle = 'Distributor brands'; @endphp
++
++@push('styles')
++<style>
++.bc-h{font-size:15px;font-weight:600;margin:0 0 4px}
++.bc-sub{font-size:12.5px;color:var(--ia-text-dim);margin-bottom:14px;line-height:1.5}
++.bc-legend{padding:11px 15px;border-radius:var(--ia-r-md);font-size:12.5px;line-height:1.55;margin-bottom:18px;border:1px solid rgba(190,242,100,.2);background:var(--ia-accent-soft);color:var(--ia-text-muted)}
++.bc-bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
++.bc-input{background:var(--ia-input-bg);border:1px solid var(--ia-border);border-radius:var(--ia-r-md);padding:7px 11px;color:var(--ia-text);font-size:13px;min-width:200px}
++.bc-input:focus{outline:none;border-color:var(--ia-accent)}
++.bc-link{background:none;border:none;color:var(--ia-accent);font-size:12.5px;font-weight:600;cursor:pointer;padding:0}
++.bc-list{border-top:.5px solid var(--ia-border);max-height:460px;overflow:auto}
++.bc-row{display:flex;align-items:center;gap:12px;padding:8px 2px;border-bottom:.5px solid var(--ia-border);font-size:13px}
++.bc-row label{flex:1;display:flex;align-items:center;gap:10px;cursor:pointer}
++.bc-row .n{font-family:var(--ia-mono);font-size:12px;color:var(--ia-text-dim)}
++.bc-row .lock{font-size:11.5px;color:var(--ia-text-dim)}
++.bc-btn{display:inline-flex;align-items:center;padding:9px 16px;border-radius:var(--ia-r-md);font-size:13px;font-weight:600;cursor:pointer;border:1px solid var(--ia-accent);background:var(--ia-accent);color:var(--ia-accent-text)}
++.bc-sec{margin-bottom:34px}
++</style>
++@endpush
++
++@section('content')
++<div class="ia-section">
++  <h1 style="font-size:20px;font-weight:600;margin-bottom:14px">Distributor brands</h1>
++  @include('layouts.tenant._inventory-tabs')
++
++  @if(session('success'))<div class="bc-legend" style="margin-top:14px">{{ session('success') }}</div>@endif
++
++  <div class="bc-legend" style="margin-top:14px">
++    <b>What this does.</b> Brands you switch off stop appearing on the Import screen, so they are not offered for new imports.
++    <b>What it does not do.</b> It never removes, hides or deactivates an item you already carry. Anything in your inventory,
++    including everything you have in stock, stays and can still be sold, and its distributor cost and availability keep updating.
++  </div>
++
++  @forelse ($panels as $p)
++    <form method="POST" action="{{ route('tenant.distributors.brands.save') }}" class="bc-sec" data-bc-form>
++      @csrf
++      <input type="hidden" name="code" value="{{ $p['code'] }}">
++      <h2 class="bc-h">{{ $p['label'] }}</h2>
++      <p class="bc-sub">
++        {{ number_format(count($p['brands'])) }} brands.
++        {{ number_format(collect($p['brands'])->where('enabled', true)->count()) }} on.
++      </p>
++
++      <div class="bc-bar">
++        <input type="search" class="bc-input" placeholder="Find a brand" data-bc-find>
++        <button type="button" class="bc-link" data-bc-all="1">Turn all on</button>
++        <button type="button" class="bc-link" data-bc-all="0">Turn all off</button>
++      </div>
++
++      <div class="bc-list">
++        @foreach ($p['brands'] as $b)
++          <div class="bc-row" data-bc-name="{{ \Illuminate\Support\Str::lower($b['name']) }}">
++            <label>
++              <input type="checkbox" name="on[]" value="{{ $b['key'] }}"
++                     @checked($b['enabled']) @disabled($b['locked'])>
++              <span>{{ $b['name'] }}</span>
++            </label>
++            @if ($b['locked'])
++              {{-- disabled inputs are not submitted, so a locked brand that is ON still needs its value sent --}}
++              @if ($b['enabled'])<input type="hidden" name="on[]" value="{{ $b['key'] }}">@endif
++              <span class="lock">Set by Intake support</span>
++            @endif
++            <span class="n">{{ number_format($b['items']) }} items</span>
++          </div>
++        @endforeach
++      </div>
++
++      <div style="margin-top:14px">
++        <button type="submit" class="bc-btn">Save {{ $p['label'] }} brands</button>
++      </div>
++    </form>
++  @empty
++    <p class="bc-sub">Connect a distributor on the Connection &amp; sync tab and its brands appear here.</p>
++  @endforelse
++</div>
++
++<script>
++  document.querySelectorAll('[data-bc-form]').forEach(function (f) {
++    var find = f.querySelector('[data-bc-find]');
++    if (find) {
++      find.addEventListener('input', function () {
++        var q = find.value.trim().toLowerCase();
++        f.querySelectorAll('.bc-row').forEach(function (r) {
++          r.style.display = (q === '' || r.getAttribute('data-bc-name').indexOf(q) !== -1) ? '' : 'none';
++        });
++      });
++    }
++    f.querySelectorAll('[data-bc-all]').forEach(function (btn) {
++      btn.addEventListener('click', function () {
++        var on = btn.getAttribute('data-bc-all') === '1';
++        f.querySelectorAll('.bc-row').forEach(function (r) {
++          if (r.style.display === 'none') { return; }   // only what the search is showing
++          var cb = r.querySelector('input[type=checkbox]');
++          if (cb && !cb.disabled) { cb.checked = on; }
++        });
++      });
++    });
++  });
++</script>
++@endsection
+diff --git a/resources/views/tenant/distributors/connection.blade.php b/resources/views/tenant/distributors/connection.blade.php
+index 48bbf457..a0c356cf 100644
+--- a/resources/views/tenant/distributors/connection.blade.php
++++ b/resources/views/tenant/distributors/connection.blade.php
+@@ -165,6 +165,16 @@
+         <input type="hidden" name="distributor_code" value="{{ $b['code'] }}">
+ 
+         <div class="dc-row">
++          @if (! empty($b['platformSupplied']))
++            <div class="dc-field" style="min-width:280px">
++              <div style="font-size:12.5px;line-height:1.55;color:var(--ia-text-dim)">
++                Intake holds the {{ $b['label'] }} login for every shop, so there is
++                no key to enter. Switch it on, choose your vendor below, and save.
++                Your cost, stock and next-available dates come through the same way as
++                the other distributors, and stock for each warehouse is shown separately.
++              </div>
++            </div>
++          @endif
+           @foreach ($b['fields'] as $f)
+             <div class="dc-field">
+               <label>{{ $f['label'] }}</label>
+diff --git a/resources/views/tenant/distributors/import.blade.php b/resources/views/tenant/distributors/import.blade.php
+index 379cc000..9c4d5c6b 100644
+--- a/resources/views/tenant/distributors/import.blade.php
++++ b/resources/views/tenant/distributors/import.blade.php
+@@ -63,7 +63,8 @@
+   <div class="im-card">
+     <h2 class="im-h">Import items</h2>
+     <p class="im-sub">Pick a brand and/or category, preview what comes in, then import. Items land catalog-only (no stock) — your normal product search finds them after. <b>{{ number_format($catalogTotal) }}</b> {{ $importCode }} items in the shared catalog.
+-      An item another distributor already supplies is added as a second source rather than duplicated.</p>
++      An item another distributor already supplies is added as a second source rather than duplicated.
++      Brands you have switched off are not listed here — <a href="{{ route('tenant.distributors.brands') }}" style="color:var(--ia-accent)">manage brands</a>. Switching a brand off never removes items you already carry.</p>
+ 
+     <form method="POST" action="{{ route('tenant.distributors.import.run') }}">
+             <input type="hidden" name="code" value="{{ $importCode }}">
+diff --git a/routes/web.php b/routes/web.php
+index 1301f617..91af7045 100644
+--- a/routes/web.php
++++ b/routes/web.php
+@@ -1269,6 +1269,9 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
+                 Route::post('/vendor-merge', [TenantControllers\DistributorController::class, 'vendorMergeRun'])->name('vendor_merge.run');
+                 Route::get('/import',             [TenantControllers\DistributorController::class, 'import'])->name('import');
+                 Route::get('/import/categories',  [TenantControllers\DistributorController::class, 'importCategories'])->name('import.categories');
++                // which brands the shop is offered on import.
++                Route::get('/brands',             [TenantControllers\DistributorController::class, 'brands'])->name('brands');
++                Route::post('/brands',            [TenantControllers\DistributorController::class, 'saveBrands'])->name('brands.save');
+                 Route::get('/attention',          [TenantControllers\DistributorController::class, 'attention'])->name('attention');
+                 Route::post('/attention/resolve', [TenantControllers\DistributorController::class, 'attentionResolve'])->name('attention.resolve');
+                 Route::post('/attention/sync',    [TenantControllers\DistributorController::class, 'attentionSync'])->name('attention.sync');

@@ -4,6 +4,7 @@
   @php
     $tabs = [
       'tenant.distributors.import'             => 'Import',
+      'tenant.distributors.brands'             => 'Brands',
       'tenant.distributors.attention'          => 'Pricing Attention',
       'tenant.distributors.connection'         => 'Connection & Sync',
     ];

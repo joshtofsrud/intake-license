@@ -165,6 +165,16 @@
         <input type="hidden" name="distributor_code" value="{{ $b['code'] }}">
 
         <div class="dc-row">
+          @if (! empty($b['platformSupplied']))
+            <div class="dc-field" style="min-width:280px">
+              <div style="font-size:12.5px;line-height:1.55;color:var(--ia-text-dim)">
+                Intake holds the {{ $b['label'] }} login for every shop, so there is
+                no key to enter. Switch it on, choose your vendor below, and save.
+                Your cost, stock and next-available dates come through the same way as
+                the other distributors, and stock for each warehouse is shown separately.
+              </div>
+            </div>
+          @endif
           @foreach ($b['fields'] as $f)
             <div class="dc-field">
               <label>{{ $f['label'] }}</label>

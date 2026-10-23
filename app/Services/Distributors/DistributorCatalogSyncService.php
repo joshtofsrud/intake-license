@@ -17,10 +17,59 @@ use Illuminate\Support\Facades\DB;
  */
 class DistributorCatalogSyncService
 {
+    /** Platform brand switches, read once per run by loadBrandControl(). */
+    private string $brandMode = 'on';
+    /** @var array<string,bool> */
+    private array $brandSwitches = [];
+
     public function __construct(
         private readonly DistributorMapResolver $resolver,
         private readonly CatalogTitleComposer $composer,
+        private readonly BrandControl $brands,
     ) {}
+
+    private function loadBrandControl(string $code): void
+    {
+        $this->brandMode     = $this->brands->platformMode($code);
+        $this->brandSwitches = $this->brands->platformSwitches($code);
+    }
+
+    /**
+     * Apply the platform brand switch to one brand's products.
+     *
+     * A brand that is on passes straight through. A brand that is OFF is not
+     * written, with one exception: catalog rows a shop already carries are
+     * kept and keep refreshing, because the shop's item (stocked, sellable)
+     * depends on them. Everything else for that brand is dropped. Returns []
+     * when nothing is left to write.
+     *
+     * @param  array<int,array> $products
+     * @return array<int,array>
+     */
+    private function gateBrand(string $code, string $brandName, array $products): array
+    {
+        if ($this->brands->platformAllows($code, $brandName, $this->brandMode, $this->brandSwitches)) {
+            return $products;
+        }
+
+        $keep = array_flip($this->brands->protectedVariantNos($code, $brandName));
+        if (! $keep) {
+            return [];
+        }
+
+        $out = [];
+        foreach ($products as $p) {
+            $variants = array_values(array_filter($p['Variants'] ?? [], function ($v) use ($code, $p, $keep) {
+                $vno = $this->resolver->resolve($code, $v, $p)['distributor_variant_no'] ?? ($v['VariantNo'] ?? null);
+                return $vno !== null && isset($keep[(string) $vno]);
+            }));
+            if ($variants) {
+                $p['Variants'] = $variants;
+                $out[] = $p;
+            }
+        }
+        return $out;
+    }
 
     /**
      * @return array{code:string,pages:int,seen:int,written:int,skipped_delta:int,map_vanished:int,msrp_vanished:int,errors:array<string>}
@@ -48,6 +97,7 @@ class DistributorCatalogSyncService
         DB::connection()->disableQueryLog();
 
         $this->markProgress($code, 0, true);
+        $this->loadBrandControl($code);
 
         // adapters with big catalogs page by brand instead
         // of one giant fetch. The adapter declares it; nothing here names a
@@ -104,6 +154,12 @@ class DistributorCatalogSyncService
         $this->seedBrandStatuses($code, $byBrand);
 
         foreach ($byBrand as $brandName => $brandProducts) {
+            // brand switched off: not written, except rows a shop already carries.
+            $brandProducts = $this->gateBrand($code, (string) $brandName, $brandProducts);
+            if (! $brandProducts) {
+                $this->setBrandStatus($code, (string) $brandName, 'off', 0, null, 0);
+                continue;
+            }
             $this->setBrandStatus($code, $brandName, 'syncing', null);
             $brandWritten = 0;
             $brandSkipped = 0;
@@ -173,6 +229,7 @@ class DistributorCatalogSyncService
         ];
 
         DB::connection()->disableQueryLog();
+        $this->loadBrandControl($code);
         $this->setBrandStatus($code, $brandName, 'syncing', null);
 
         try {
@@ -196,6 +253,13 @@ class DistributorCatalogSyncService
             }
 
             $res['pages'] = 1;
+
+            // a brand switched off writes nothing new; rows a shop carries still refresh.
+            $products = $this->gateBrand($code, $brandName, $products);
+            if (! $products) {
+                $this->setBrandStatus($code, $brandName, 'off', 0, 0, 0);
+                return $res;
+            }
 
             // single-brand refresh writes the real
             // denominator too, so one Sync click heals a 0-total row.
@@ -254,6 +318,21 @@ class DistributorCatalogSyncService
         $this->seedBrandStatuses($code, $pendingNames);
         unset($pendingNames);
 
+        // a brand switched off is not even fetched, unless a shop
+        // still carries rows from it. The panel keeps listing it, as 'off',
+        // so it can be switched back on.
+        $active = [];
+        foreach ($brandList as $b) {
+            $bn = (string) ($b['name'] ?? '');
+            if ($this->brands->syncable($code, $bn, $this->brandMode, $this->brandSwitches)) {
+                $active[] = $b;
+            } else {
+                $this->setBrandStatus($code, $bn, 'off', 0, 0, 0);
+            }
+        }
+        $brandList = $active;
+        unset($active);
+
         foreach (array_chunk($brandList, 10) as $chunk) {
             $ids = array_column($chunk, 'id');
 
@@ -282,6 +361,12 @@ class DistributorCatalogSyncService
             unset($products);
 
             foreach ($byBrand as $brandName => $brandProducts) {
+                // switched off but still carried by a shop: only those rows.
+                $brandProducts = $this->gateBrand($code, (string) $brandName, $brandProducts);
+                if (! $brandProducts) {
+                    $this->setBrandStatus($code, (string) $brandName, 'off', 0, null, 0);
+                    continue;
+                }
                 // products for this brand are finally in
                 // hand, so the denominator can be written. Seeding left it 0.
                 $brandTotal = 0;

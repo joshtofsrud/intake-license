@@ -24,7 +24,22 @@ class DistributorRegistry
         // present so master admin can hold the key and
         // test it. Only testConnection() works; the data methods throw.
         'QBP' => QbpClient::class,
+        // an SFTP spreadsheet feed. One platform login serves every shop.
+        'SHIMANO' => ShimanoClient::class,
     ];
+
+    /** Marker stored in a shop's subscription when the platform login is used. */
+    public const PLATFORM_MARK = 'platform';
+
+    /**
+     * Distributors whose login belongs to Intake, not to each shop. A shop
+     * "connects" by switching it on; no key is asked for, and the one set in
+     * master admin is used for every shop.
+     */
+    public function platformSupplied(string $code): bool
+    {
+        return strtoupper($code) === 'SHIMANO';
+    }
 
     /**
      * what each distributor asks a shop for.
@@ -38,6 +53,11 @@ class DistributorRegistry
      */
     public function credentialFields(string $code): array
     {
+        // a shop is asked for nothing; see platformCredentialFields for master admin
+        if ($this->platformSupplied($code)) {
+            return [];
+        }
+
         return match (strtoupper($code)) {
             'BTI' => [
                 ['name' => 'username', 'label' => 'BTI username', 'type' => 'text',
@@ -57,6 +77,39 @@ class DistributorRegistry
                  'hint' => 'Issued by the distributor for your dealer account.'],
             ],
         };
+    }
+
+    /** What master admin types in for the platform login of a distributor. */
+    public function platformCredentialFields(string $code): array
+    {
+        if (strtoupper($code) === 'SHIMANO') {
+            return [
+                ['name' => 'username', 'label' => 'SFTP username', 'type' => 'text',
+                 'hint' => 'The Shimano SFTP account for the country, for example ibd_user_us.'],
+                ['name' => 'password', 'label' => 'SFTP password', 'type' => 'password',
+                 'hint' => 'Shared by every shop. Stored encrypted.'],
+            ];
+        }
+        return $this->credentialFields($code);
+    }
+
+    /**
+     * Master admin's version of packCredentials. Shimano's username and
+     * password join with a colon like BTI's; every other distributor packs
+     * exactly as it does for a shop.
+     *
+     * @param  array<string,string> $input
+     */
+    public function packPlatformCredentials(string $code, array $input, ?string $stored = null): ?string
+    {
+        if (strtoupper($code) === 'SHIMANO') {
+            $stored = (string) $stored;
+            [$cu, $cp] = str_contains($stored, ':') ? explode(':', $stored, 2) : ['', ''];
+            $u = trim($input['username'] ?? '') ?: $cu;
+            $p = trim($input['password'] ?? '') ?: $cp;
+            return ($u === '' || $p === '') ? null : $u . ':' . $p;
+        }
+        return $this->packCredentials($code, $input, $stored);
     }
 
     /**
@@ -81,6 +134,7 @@ class DistributorRegistry
             'HLC' => 'HLC',
             'BTI' => 'BTI',
             'QBP' => 'QBP',
+            'SHIMANO' => 'Shimano',
             default => strtoupper($code),
         };
     }
@@ -109,6 +163,10 @@ class DistributorRegistry
     public function packCredentials(string $code, array $input, ?string $stored = null): ?string
     {
         $stored = (string) $stored;
+
+        if ($this->platformSupplied($code)) {
+            return self::PLATFORM_MARK;
+        }
 
         if (strtoupper($code) === 'BTI') {
             $curUser = '';
@@ -158,7 +216,7 @@ class DistributorRegistry
     public function credentialHints(string $code, ?string $stored, callable $mask): array
     {
         $stored = (string) $stored;
-        if ($stored === '') {
+        if ($stored === '' || $this->platformSupplied($code)) {
             return [];
         }
 
@@ -216,6 +274,14 @@ class DistributorRegistry
 
         $apiKey = (string) ($credentials['api_key'] ?? '');
         $region = (string) ($credentials['region'] ?? 'us');
+
+        // a shop on a platform-supplied distributor stores only the marker;
+        // the real login is the one master admin saved.
+        if ($this->platformSupplied($code) && $apiKey === self::PLATFORM_MARK) {
+            $conn   = \App\Models\PlatformDistributorConnection::where('distributor_code', $code)->first();
+            $apiKey = (string) ($conn?->api_key ?? '');
+            $region = (string) ($conn?->region ?: $region);
+        }
 
         // Every current adapter shares the (apiKey, region) constructor shape.
         // If a future distributor needs a different signature, branch here.

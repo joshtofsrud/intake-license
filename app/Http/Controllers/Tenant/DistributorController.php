@@ -72,6 +72,8 @@ class DistributorController extends Controller
                 'linkedVendorId' => \App\Models\Tenant\TenantVendor::where('tenant_id', tenant()->id)
                     ->where('distributor_code', strtolower($code))->value('id'),
                 'fields'    => $registry->credentialFields($code),
+                // no key asked for: Intake holds the one login
+                'platformSupplied' => $registry->platformSupplied($code),
                 'enabled'   => (bool) $sub->is_active,
                 'hasKey'    => filled($creds['api_key'] ?? null),
                 'priceSeed' => $sub->price_seed ?: 'map',
@@ -570,7 +572,7 @@ class DistributorController extends Controller
         // which sets a view variable while the view reads session('error') —
         // so the refusal rendered as nothing at all.
         $importer = app(\App\Services\Distributors\DistributorCatalogImportService::class);
-        $total    = $importer->candidateCount($code, $filters);
+        $total    = $importer->candidateCount($code, $filters, tenant()->id);
 
         if ($total === 0) {
             $view['error'] = 'Nothing in the ' . $code . ' catalog matches those filters.';
@@ -617,6 +619,65 @@ class DistributorController extends Controller
         return view('tenant.distributors.import', $view);
     }
 
+    /**
+     * which brands this shop is offered on its import screen,
+     * per distributor. Turning a brand off only decides what can be IMPORTED
+     * next: nothing already in the shop's inventory is touched, so anything
+     * in stock stays and stays sellable.
+     */
+    public function brands(\Illuminate\Http\Request $request): \Illuminate\Contracts\View\View
+    {
+        $this->guard();
+
+        $bc       = app(\App\Services\Distributors\BrandControl::class);
+        $registry = app(\App\Services\Distributors\DistributorRegistry::class);
+
+        $panels = [];
+        foreach ($this->importableCodes() as $code) {
+            $panels[] = [
+                'code'   => $code,
+                'label'  => $registry->label($code),
+                'brands' => $bc->brandsForTenant(tenant()->id, $code),
+            ];
+        }
+
+        return view('tenant.distributors.brands', ['panels' => $panels]);
+    }
+
+    public function saveBrands(\Illuminate\Http\Request $request): \Illuminate\Http\RedirectResponse
+    {
+        $this->guard();
+
+        $data = $request->validate([
+            'code'  => ['required', 'string', 'max:32'],
+            'on'    => ['nullable', 'array'],
+            'on.*'  => ['string', 'max:128'],
+        ]);
+
+        // refuses a distributor the shop has not connected, same as import.
+        $code = $this->importCode($data['code']);
+
+        $bc  = app(\App\Services\Distributors\BrandControl::class);
+        $on  = array_flip(array_map(fn ($k) => \App\Services\Distributors\BrandControl::key($k), $data['on'] ?? []));
+        $who = (string) auth('tenant')->id();
+
+        $changed = 0;
+        foreach ($bc->brandsForTenant(tenant()->id, $code) as $b) {
+            if ($b['locked']) {
+                continue;   // set by Intake support; the shop cannot change it
+            }
+            $want = isset($on[$b['key']]);
+            if ($want !== $b['enabled']) {
+                $bc->setTenant(tenant()->id, $code, $b['name'], $want, 'tenant', $who);
+                $changed++;
+            }
+        }
+
+        return back()->with('success', $changed === 0
+            ? 'No changes to save.'
+            : $code . ' brands saved. Items you already carry are untouched.');
+    }
+
     /** Brand / category options + catalog size for the import filter. */
     /**
      * brands, categories and the item count for
@@ -627,6 +688,8 @@ class DistributorController extends Controller
     {
         $base = \App\Models\PlatformDistributorCatalog::query()
             ->where('distributor_code', $code)->where('is_active', true);
+        // brands switched off by the platform or by this shop are not offered.
+        app(\App\Services\Distributors\BrandControl::class)->constrain($base, $code, tenant()->id);
 
         return [
             'importCode' => $code,
@@ -650,8 +713,11 @@ class DistributorController extends Controller
         $code  = $this->importCode($request->query('code'));
         $brand = trim((string) $request->query('brand', ''));
 
-        $categories = \App\Models\PlatformDistributorCatalog::query()
-            ->where('distributor_code', $code)->where('is_active', true)
+        $catQuery = \App\Models\PlatformDistributorCatalog::query()
+            ->where('distributor_code', $code)->where('is_active', true);
+        app(\App\Services\Distributors\BrandControl::class)->constrain($catQuery, $code, tenant()->id);
+
+        $categories = $catQuery
             ->whereNotNull('category')->whereRaw("TRIM(category) <> ''")
             ->when($brand !== '', fn ($q) => $q->where('manufacturer', $brand))
             ->distinct()->orderBy('category')->pluck('category');

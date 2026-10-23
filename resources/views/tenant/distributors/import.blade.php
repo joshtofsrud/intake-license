@@ -63,7 +63,8 @@
   <div class="im-card">
     <h2 class="im-h">Import items</h2>
     <p class="im-sub">Pick a brand and/or category, preview what comes in, then import. Items land catalog-only (no stock) — your normal product search finds them after. <b>{{ number_format($catalogTotal) }}</b> {{ $importCode }} items in the shared catalog.
-      An item another distributor already supplies is added as a second source rather than duplicated.</p>
+      An item another distributor already supplies is added as a second source rather than duplicated.
+      Brands you have switched off are not listed here — <a href="{{ route('tenant.distributors.brands') }}" style="color:var(--ia-accent)">manage brands</a>. Switching a brand off never removes items you already carry.</p>
 
     <form method="POST" action="{{ route('tenant.distributors.import.run') }}">
             <input type="hidden" name="code" value="{{ $importCode }}">
