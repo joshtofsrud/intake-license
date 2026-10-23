@@ -26,7 +26,10 @@ class DistributorMapResolver
         $ctx = $this->context($variant, $product);
         $out = [];
         foreach ($this->mapsFor($distributorCode) as $field => $row) {
-            $out[$field] = $this->applyRow($row, $ctx);
+            // MARKER-FIELD-CLEANUP: the row's clean-up options from master admin
+            $out[$field] = \App\Support\FieldCleanup::apply(
+                $this->applyRow($row, $ctx), $row->cleanup ?? null, $field === 'attributes'
+            );
         }
         return $out;
     }

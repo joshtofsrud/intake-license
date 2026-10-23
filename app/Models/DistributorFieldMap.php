@@ -22,6 +22,7 @@ class DistributorFieldMap extends Model
         'transform',
         'transform_args',
         'lookup_table',
+        'cleanup',
         'sort_order',
         'is_active',
         'notes',
@@ -30,6 +31,7 @@ class DistributorFieldMap extends Model
     protected $casts = [
         'transform_args' => 'array',
         'lookup_table'   => 'array',
+        'cleanup'        => 'array',   // MARKER-FIELD-CLEANUP
         'sort_order'     => 'integer',
         'is_active'      => 'boolean',
     ];

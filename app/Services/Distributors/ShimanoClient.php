@@ -63,25 +63,15 @@ class ShimanoClient implements DistributorAdapter
     /** Filenames never imported: Excel lock files and the like. */
     private const SKIP = '/^(~\$|\.)/';
 
-    /** First-column words that are an internal family prefix, not part of the category. */
-    private const CATEGORY_PREFIXES = ['hg', 'lsg', 'pro', 'lazer', 'motorex', 'shimano'];
-
-    /** Country codes seen in the feed. Unknown codes are shown as given. */
-    private const COUNTRIES = [
-        'CN' => 'China', 'TW' => 'Taiwan', 'MY' => 'Malaysia', 'VN' => 'Vietnam', 'JP' => 'Japan',
-        'ID' => 'Indonesia', 'TH' => 'Thailand', 'KH' => 'Cambodia', 'IN' => 'India', 'PH' => 'Philippines',
-        'KR' => 'South Korea', 'SG' => 'Singapore', 'US' => 'United States', 'MX' => 'Mexico',
-        'DE' => 'Germany', 'IT' => 'Italy', 'FR' => 'France', 'CH' => 'Switzerland', 'PT' => 'Portugal',
-        'ES' => 'Spain', 'GB' => 'United Kingdom', 'CZ' => 'Czechia', 'SK' => 'Slovakia', 'HU' => 'Hungary',
-    ];
-
-    /** Columns that are identity, media or bookkeeping, never a spec the shop reads. */
+    /**
+     * Columns that are identity, media or bookkeeping: read into their own
+     * fields, never shown as a spec. Which of the remaining columns a shop
+     * sees, and how they are labelled and worded, is decided in master admin
+     * (Field maps → attributes → Clean-up), not here.
+     */
     private const NOT_A_SPEC = [
         'sku code', 'sku name', 'sku upc', 'sku video url', 'sku map', 'sku map break eligible',
-        'sku manual media path', 'sku color', 'sku series', 'sku generation',
-        'product type', 'product b2b sport', 'product collection', 'product gender',
-        'product manual media path', 'product exploded image', 'small parts', 'product has mips',
-        'product image spec table', 'product video description', 'product video lifestyle',
+        'sku manual media path',
     ];
 
     public function __construct(
@@ -552,30 +542,6 @@ class ShimanoClient implements DistributorAdapter
         return preg_match('/^\d{4}-\d{2}-\d{2}/', $v) ? substr($v, 0, 10) : null;
     }
 
-    /** "Chromoly Steel" -> "Chromoly steel". Codes and single words are left alone. */
-    private function tidy(string $v): string
-    {
-        $v = trim($v);
-        if (strtoupper($v) === 'X') {
-            return 'Yes';
-        }
-        if (preg_match('/^\p{Lu}\p{Ll}+( \p{Lu}\p{Ll}+)+$/u', $v)) {
-            return mb_substr($v, 0, 1) . mb_strtolower(mb_substr($v, 1));
-        }
-        return $v;
-    }
-
-    /** "HG_Pedals" -> "Pedals". "LSG_Footwear_insoles_and_parts" -> "Footwear insoles and parts". */
-    private function categoryName(string $type): string
-    {
-        $parts = explode('_', trim($type));
-        if (count($parts) > 1 && in_array(strtolower($parts[0]), self::CATEGORY_PREFIXES, true)) {
-            array_shift($parts);
-        }
-        $name = trim(implode(' ', $parts));
-        return $name === '' ? '' : mb_strtoupper(mb_substr($name, 0, 1)) . mb_substr($name, 1);
-    }
-
     private function clean(string $html): string
     {
         $t = preg_replace('/<br\s*\/?>/i', "\n", $html);
@@ -595,11 +561,8 @@ class ShimanoClient implements DistributorAdapter
 
         [$upc, $ean] = $this->barcode($r['SKU UPC'] ?? '');
 
-        // color "ONE" is a placeholder for "no color choice", not a color
+        // as sent; placeholders such as "ONE" are blanked by the field map's clean-up
         $color = $this->s($r, 'Color Name');
-        if (in_array(strtoupper($color), ['ONE', 'NONE', 'N/A'], true)) {
-            $color = '';
-        }
 
         // images, in the order a shop wants to see them
         $images = [];
@@ -647,16 +610,18 @@ class ShimanoClient implements DistributorAdapter
             $val = $this->s($r, $h);
             if ($val === '') { continue; }
             $label = trim(preg_replace('/^(sku|product spec) /i', '', $h));
-            $attrs[] = ['Name' => $label, 'Value' => $this->tidy(str_replace('|', ', ', $val))];
+            // the feed's own label and value; renames, wording and which specs
+            // to hide are the attributes field map's clean-up, in master admin
+            $attrs[] = ['Name' => $label, 'Value' => str_replace('|', ', ', $val)];
         }
-        if (($gender = $this->s($r, 'Product Gender')) !== '' && strtolower($gender) !== 'unisex') {
-            $attrs[] = ['Name' => 'Gender', 'Value' => $this->tidy($gender)];
+        if (($gender = $this->s($r, 'Product Gender')) !== '') {
+            $attrs[] = ['Name' => 'Gender', 'Value' => $gender];
         }
-        if (($sport = $this->s($r, 'Product B2B Sport')) !== '' && strtolower($sport) !== strtolower($this->s($r, 'Brand'))) {
+        if (($sport = $this->s($r, 'Product B2B Sport')) !== '') {
             $attrs[] = ['Name' => 'Riding', 'Value' => str_replace('|', ', ', $sport)];
         }
-        if (($cc = strtoupper($this->s($r, 'Country Of Origin'))) !== '') {
-            $attrs[] = ['Name' => 'Made in', 'Value' => self::COUNTRIES[$cc] ?? $cc];
+        if (($cc = $this->s($r, 'Country Of Origin')) !== '') {
+            $attrs[] = ['Name' => 'Made in', 'Value' => $cc];
         }
 
         [$irv, $irvPlus] = $this->qty($r['Inventory US IRV'] ?? '');
@@ -680,11 +645,11 @@ class ShimanoClient implements DistributorAdapter
             'upc'          => $upc,
             'ean'          => $ean,
             'color'        => $color,
-            'size'         => in_array(strtoupper($this->s($r, 'Size')), ['ONE', 'OS', 'N/A'], true) ? '' : $this->tidy($this->s($r, 'Size')),
+            'size'         => $this->s($r, 'Size'),
             'description'  => $description,
             'features'     => $features,
             'ptype'        => $this->s($r, 'Product Type'),
-            'category'     => $this->categoryName($this->s($r, 'Product Type')),
+            'category'     => $this->s($r, 'Product Type'),   // tidied by the category field map's clean-up
             'images'       => $images,
             'video'        => $video,
             'irv'          => $irv,

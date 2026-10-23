@@ -67,8 +67,9 @@
   // no filter. This used to keep only rows with a
   // distributor_code, which silently hid every hand-added vendor and left an
   // item sourced only from those with no Sourcing card at all.
+  $distLabel = fn ($c) => app(\App\Services\Distributors\DistributorRegistry::class)->label((string) $c);
   $sources = $item->vendors
-      ->map(function ($v) use ($infoCatalogId) {
+      ->map(function ($v) use ($infoCatalogId, $distLabel) {
           $cost = $v->pivot->live_cost_cents ?? $v->pivot->unit_cost_cents;
           return (object) [
               'vendor'    => $v,
@@ -76,8 +77,14 @@
               // what to show in the first column, and
               // whether tier-2 owns this row's cost.
               'label'     => filled($v->pivot->distributor_code ?? null)
-                  ? $v->pivot->distributor_code
+                  ? $distLabel($v->pivot->distributor_code)
                   : $v->name,
+              // MARKER-ITEM-WAREHOUSES: each warehouse's stock and restock
+              // date, as the last sync reported them [{c, n, q, eta}].
+              'wh'        => (function ($raw) {
+                  $w = is_array($raw) ? $raw : (json_decode((string) $raw, true) ?: []);
+                  return array_values(array_filter($w, 'is_array'));
+              })($v->pivot->live_warehouses ?? null),
               'manual'    => ! filled($v->pivot->distributor_code ?? null),
               'sku'       => $v->pivot->vendor_sku,
               'cost'      => $cost,
@@ -315,7 +322,7 @@
                   <img src="{{ $img['url'] }}" alt="">
                 </button>
 
-                <span class="ia-img-badge">{{ $img['source'] === 'tenant' ? 'Yours' : ($item->distributorCatalog?->distributor_code ?: 'Distributor') }}</span>
+                <span class="ia-img-badge">{{ $img['source'] === 'tenant' ? 'Yours' : ($item->distributorCatalog?->distributor_code ? $distLabel($item->distributorCatalog->distributor_code) : 'Distributor') }}</span>
 
                 @if($img['source'] === 'tenant')
                   <button type="button" class="ia-img-x" title="Remove from this item"
@@ -433,6 +440,14 @@
                 @if($src->avail !== null){{ $src->avail }}
                 @elseif(! $src->synced)<span style="color:var(--ia-text-muted)">not synced</span>
                 @else<span style="color:var(--ia-text-muted)">unknown</span>@endif
+                @if(count($src->wh) > 1 || collect($src->wh)->contains(fn ($w) => ($w['q'] ?? 0) == 0 && ! empty($w['eta'])))
+                  <div style="font-size:11px;color:var(--ia-text-dim);margin-top:2px;white-space:nowrap">
+                    @foreach($src->wh as $w)
+                      {{ $w['c'] ?? ($w['n'] ?? '?') }} {{ (int) ($w['q'] ?? 0) }}@if(($w['q'] ?? 0) == 0 && ! empty($w['eta'])) <span title="Next available">· back {{ \Illuminate\Support\Carbon::parse($w['eta'])->format('M j') }}</span>@endif
+                      @if(! $loop->last) &nbsp;·&nbsp; @endif
+                    @endforeach
+                  </div>
+                @endif
               </td>
               <td>@if($src->lead !== null){{ $src->lead }}d @else<span style="color:var(--ia-text-muted)">—</span>@endif</td>
               <td style="text-align:right">
@@ -447,7 +462,8 @@
         <div style="font-size:11.5px;color:var(--ia-text-dim);line-height:1.55">
           <b>Info</b> marks the distributor supplying this item's name, description and specs — set by
           your distributor order on Connection &amp; sync, not by price. Availability is each
-          distributor's last reported figure, not live.
+          distributor's last reported figure, not live; where a distributor reports more than one
+          warehouse, each is listed under the total, with its restock date when it is out.
         </div>
       </div>
     </div>
@@ -461,7 +477,9 @@
         <span style="font-size:12px;color:var(--ia-text-muted);margin-left:8px">from {{ $item->distributorCatalog?->distributor_name ?? 'distributor' }}</span>
       </div>
       <div class="ia-card-body">
-        @if($catDesc)<p style="color:var(--ia-text-muted);font-size:13.5px;line-height:1.5;margin:0 0 14px">{{ $catDesc }}</p>@endif
+        {{-- MARKER-ITEM-DESC: paragraphs, a bold headline and feature lines kept,
+             instead of one run-together block. Escaped inside DescriptionHtml. --}}
+        @if($catDesc)<div class="ia-desc">{!! \App\Support\DescriptionHtml::render($catDesc) !!}</div>@endif
         @if($specRows->isNotEmpty())
           <table class="ia-key-value">
             @foreach($specRows as $a)
@@ -495,6 +513,17 @@
                not to the item, so they live in the Sourcing card. --}}
           <tr><td>Cost checked</td><td>{{ $liveChecked?->diffForHumans() ?? 'never' }}</td></tr>
           <tr><td>UPC</td><td><code>{{ $item->catalog_upc ?? '—' }}</code></td></tr>
+          {{-- MARKER-ITEM-MAP: the distributor's minimum advertised price --}}
+          @if($item->catalog_map_cents)
+            <tr><td>Advertised price</td><td>
+              <span class="ia-badge" style="margin-right:6px">MAP</span>
+              {{ $item->distributorCatalog?->distributor_code ? $distLabel($item->distributorCatalog->distributor_code) : 'The distributor' }}
+              sets a minimum advertised price of <b>{{ format_money($item->catalog_map_cents) }}</b> on this item.
+              @if($effSell && $effSell < $item->catalog_map_cents)
+                <span style="color:var(--ia-error)">Your price is below it.</span>
+              @endif
+            </td></tr>
+          @endif
           <tr><td>Last synced</td><td>{{ $item->catalog_synced_at?->diffForHumans() ?? 'never' }}</td></tr>
           <tr><td>Reorder at</td><td>{{ $item->shop_reorder_threshold ?? '—' }}</td></tr>
           <tr><td>Reorder qty</td><td>{{ $item->shop_reorder_quantity ?? '—' }}</td></tr>
@@ -606,6 +635,28 @@
                number is per distributor and now sits on that distributor's row
                in Sourcing; showing one unlabelled MPN meant it was right for
                at most one of them. --}}
+          {{-- MARKER-ITEM-MODEL: the product this variant belongs to, and the
+               other colors the distributor lists for it. --}}
+          @php
+            $idCat   = $item->distributorCatalog;
+            $idModel = $idCat?->distributor_product_no;
+            $idModel = ($idModel && ! ctype_digit((string) $idModel) && strcasecmp((string) $idModel, (string) $item->sku) !== 0) ? $idModel : null;
+            $idColors = $idModel
+                ? \App\Models\PlatformDistributorCatalog::query()
+                    ->where('distributor_code', $idCat->distributor_code)->where('distributor_product_no', $idCat->distributor_product_no)
+                    ->where('is_active', true)->whereNotNull('color')->where('color', '<>', '')
+                    ->orderBy('color')->distinct()->pluck('color')
+                : collect();
+          @endphp
+          @if($idModel)
+            <tr><td>Model</td><td>{{ $idModel }}
+              @if($idColors->count() > 1)
+                <div style="font-size:12px;color:var(--ia-text-dim);margin-top:2px">{{ $idColors->count() }} colors from {{ $distLabel($idCat->distributor_code) }}: {{ $idColors->implode(', ') }}</div>
+              @endif
+            </td></tr>
+          @endif
+          @if($item->color)<tr><td>Color</td><td>{{ $item->color }}</td></tr>@endif
+          @if($item->size)<tr><td>Size</td><td>{{ $item->size }}</td></tr>@endif
           <tr><td>Your SKU</td><td><code>{{ $item->sku }}</code></td></tr>
           <tr><td>UPC</td><td><code>{{ $item->catalog_upc ?: ($item->distributorCatalog?->upc ?: '—') }}</code></td></tr>
           @if($item->distributorCatalog?->ean)
@@ -765,6 +816,12 @@
 
 @push('styles')
 <style>
+/* MARKER-ITEM-DESC */
+.ia-desc { color: var(--ia-text-muted); font-size: 13.5px; line-height: 1.55; margin: 0 0 14px; }
+.ia-desc p { margin: 0 0 10px; }
+.ia-desc b { color: var(--ia-text); font-weight: 600; }
+.ia-desc-list { margin: 0 0 10px; padding-left: 18px; }
+.ia-desc-list li { margin: 0 0 4px; }
   .ia-show-grid{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:20px;align-items:start;margin-bottom:20px}
   .ia-show-main{display:flex;flex-direction:column;gap:20px;min-width:0}
   .ia-show-side{position:sticky;top:20px;display:flex;flex-direction:column;gap:16px}

@@ -16,6 +16,54 @@ use Illuminate\Support\Str;
  */
 class ShimanoFieldMapSeeder extends Seeder
 {
+    private const COUNTRY = [
+        'CN' => 'China', 'TW' => 'Taiwan', 'MY' => 'Malaysia', 'VN' => 'Vietnam', 'JP' => 'Japan',
+        'ID' => 'Indonesia', 'TH' => 'Thailand', 'KH' => 'Cambodia', 'IN' => 'India', 'PH' => 'Philippines',
+        'KR' => 'South Korea', 'SG' => 'Singapore', 'US' => 'United States', 'MX' => 'Mexico',
+        'DE' => 'Germany', 'IT' => 'Italy', 'FR' => 'France', 'CH' => 'Switzerland', 'PT' => 'Portugal',
+        'ES' => 'Spain', 'GB' => 'United Kingdom', 'CZ' => 'Czechia', 'SK' => 'Slovakia', 'HU' => 'Hungary',
+    ];
+
+    /**
+     * MARKER-FIELD-CLEANUP: Shimano's starting clean-up, per field. Every value
+     * here is editable in master admin (Field maps → the row → Clean-up); it
+     * is only written where a row has no clean-up yet.
+     *
+     * @return array<string,array>
+     */
+    public static function cleanup(): array
+    {
+        $category = [
+            'replace'    => [
+                ['pattern' => '^(HG|LSG|PRO|LAZER|MOTOREX|SHIMANO)_', 'with' => ''],   // family prefix
+                ['pattern' => '_', 'with' => ' '],
+            ],
+            'value_case' => 'first_upper',
+        ];
+
+        $values = ['X' => 'Yes', 'Gender: Unisex' => ''];
+        foreach (['Shimano', 'PRO', 'Lazer', 'Motorex'] as $b) {
+            $values['Riding: ' . $b] = '';   // the brand in the sport column says nothing
+        }
+        foreach (self::COUNTRY as $code => $name) {
+            $values['Made in: ' . $code] = $name;
+        }
+
+        return [
+            'color'         => ['blank_values' => ['ONE', 'NONE', 'N/A']],
+            'size'          => ['blank_values' => ['ONE', 'One size', 'OS', 'N/A']],
+            'category'      => $category,
+            'category_path' => $category,
+            'attributes'    => [
+                'label_words' => ['Axel' => 'Axle'],
+                'label_case'  => 'sentence',
+                'drop_labels' => ['Color', 'Series', 'Generation'],
+                'value_map'   => $values,
+                'value_case'  => 'title_to_sentence',
+            ],
+        ];
+    }
+
     public function run(): void
     {
         $code = 'SHIMANO';
@@ -73,8 +121,16 @@ class ShimanoFieldMapSeeder extends Seeder
                 ->first();
 
             if ($existing) {
-                DB::table('distributor_field_maps')->where('id', $existing->id)->update($payload);
+                // a row already there may have been edited in master admin:
+                // leave it, and only give it clean-up if it has none
+                if (empty($existing->cleanup) && isset(self::cleanup()[$field])) {
+                    DB::table('distributor_field_maps')->where('id', $existing->id)
+                        ->update(['cleanup' => json_encode(self::cleanup()[$field]), 'updated_at' => $now]);
+                }
             } else {
+                if (isset(self::cleanup()[$field])) {
+                    $payload['cleanup'] = json_encode(self::cleanup()[$field]);
+                }
                 $payload['id'] = (string) Str::uuid();
                 $payload['distributor_code'] = $code;
                 $payload['canonical_field'] = $field;
@@ -83,6 +139,6 @@ class ShimanoFieldMapSeeder extends Seeder
             }
         }
 
-        $this->command?->info('ShimanoFieldMapSeeder: seeded ' . count($rows) . ' Shimano field maps.');
+        $this->command?->info('ShimanoFieldMapSeeder: added any missing Shimano field maps; rows already there were left as they are.');
     }
 }

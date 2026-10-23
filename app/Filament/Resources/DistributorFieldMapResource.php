@@ -149,6 +149,61 @@ class DistributorFieldMapResource extends Resource
                         ->reorderable(false),
                 ]),
 
+            // MARKER-FIELD-CLEANUP: a feed's quirks are fixed here, per field,
+            // never hard-coded into a distributor's reader. Applied after the
+            // transform, on every sync, for any distributor.
+            Forms\Components\Section::make('Clean-up')
+                ->description('Tidy what this field brings in. Applies on the next sync of this distributor; matching ignores upper/lower case.')
+                ->collapsible()
+                ->collapsed(fn (Forms\Get $get) => blank(array_filter((array) $get('cleanup'))))
+                ->schema([
+                    Forms\Components\Grid::make(2)->schema([
+                        Forms\Components\TagsInput::make('cleanup.blank_values')
+                            ->label('Values that mean "nothing"')
+                            ->placeholder('e.g. One size, N/A')
+                            ->helperText('These come in as empty.'),
+                        Forms\Components\Select::make('cleanup.value_case')
+                            ->label('Letter case of values')
+                            ->native(false)->placeholder('As sent')
+                            ->options(\App\Support\FieldCleanup::CASES),
+                    ]),
+                    Forms\Components\KeyValue::make('cleanup.value_map')
+                        ->label('Rename values')
+                        ->keyLabel('Feed value')->valueLabel('Show as')
+                        ->helperText('Whole value. For specs, write "Label: value" to rename it in one spec only (e.g. "Made in: MY" → Malaysia). Leave "Show as" empty to hide it.')
+                        ->reorderable(false),
+                    Forms\Components\Repeater::make('cleanup.replace')
+                        ->label('Find and replace (patterns)')
+                        ->schema([
+                            Forms\Components\TextInput::make('pattern')->label('Find (regular expression)')->required(),
+                            Forms\Components\TextInput::make('with')->label('Replace with'),
+                        ])
+                        ->columns(2)->defaultItems(0)->reorderable()
+                        ->helperText('Runs first, in order. e.g. ^HG_ → (nothing) removes a family prefix.'),
+
+                    // spec labels only make sense on the specs field
+                    Forms\Components\Fieldset::make('Spec labels')
+                        ->visible(fn (Forms\Get $get) => $get('canonical_field') === 'attributes')
+                        ->schema([
+                            Forms\Components\KeyValue::make('cleanup.label_map')
+                                ->label('Rename specs')
+                                ->keyLabel('Feed label')->valueLabel('Show as')
+                                ->reorderable(false)->columnSpanFull(),
+                            Forms\Components\KeyValue::make('cleanup.label_words')
+                                ->label('Fix a word in every label')
+                                ->keyLabel('Word')->valueLabel('Becomes')
+                                ->helperText('e.g. Axel → Axle')
+                                ->reorderable(false),
+                            Forms\Components\TagsInput::make('cleanup.drop_labels')
+                                ->label('Specs not to show')
+                                ->placeholder('e.g. Series'),
+                            Forms\Components\Select::make('cleanup.label_case')
+                                ->label('Letter case of labels')
+                                ->native(false)->placeholder('As sent')
+                                ->options(['sentence' => 'Sentence case ("Cartridge axle")']),
+                        ])->columns(2),
+                ]),
+
             Forms\Components\Section::make('Status')->schema([
                 Forms\Components\Grid::make(2)->schema([
                     Forms\Components\Toggle::make('is_active')->default(true),

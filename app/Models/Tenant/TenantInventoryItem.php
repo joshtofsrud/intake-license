@@ -330,7 +330,7 @@ class TenantInventoryItem extends Model
             'vendor_id'
         )
             ->using(TenantInventoryItemVendor::class)
-            ->withPivot(['vendor_sku', 'unit_cost_cents', 'lead_time_days', 'is_preferred', 'last_ordered_at', 'distributor_code', 'distributor_catalog_id', 'live_cost_cents', 'live_avail', 'live_checked_at'])
+            ->withPivot(['vendor_sku', 'unit_cost_cents', 'lead_time_days', 'is_preferred', 'last_ordered_at', 'distributor_code', 'distributor_catalog_id', 'live_cost_cents', 'live_avail', 'live_checked_at', 'live_warehouses'])
             ->withTimestamps();
     }
 
