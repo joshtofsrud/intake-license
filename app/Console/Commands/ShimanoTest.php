@@ -20,6 +20,13 @@ class ShimanoTest extends Command
 
     public function handle(DistributorRegistry $registry): int
     {
+        // run as root it would leave root-owned feed files that the queue
+        // workers (www-data) then cannot replace
+        if (function_exists('posix_geteuid') && posix_geteuid() === 0) {
+            $this->error('Run this as www-data:  runuser -u www-data -- php artisan shimano:test');
+            return self::FAILURE;
+        }
+
         $conn = PlatformDistributorConnection::where('distributor_code', 'SHIMANO')->first();
         if (! $conn || blank($conn->api_key)) {
             $this->error('No Shimano login saved. Add it in master admin under Distributors.');
@@ -32,9 +39,6 @@ class ShimanoTest extends Command
         $res = $client->testConnection();
         $this->line(($res['ok'] ? 'OK    ' : 'FAILED') . '  ' . ($res['body'] ?? ''));
         if (! $res['ok']) {
-            if (str_contains((string) $res['body'], 'host key mismatch')) {
-                $this->warn('The server key did not match the pinned fingerprint (SHIMANO_HOST_KEY_SHA256).');
-            }
             return self::FAILURE;
         }
 

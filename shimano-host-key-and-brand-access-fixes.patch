@@ -1,0 +1,244 @@
+diff --git a/app/Console/Commands/ShimanoTest.php b/app/Console/Commands/ShimanoTest.php
+index dff93d9c..a7e64b9f 100644
+--- a/app/Console/Commands/ShimanoTest.php
++++ b/app/Console/Commands/ShimanoTest.php
+@@ -20,6 +20,13 @@ class ShimanoTest extends Command
+ 
+     public function handle(DistributorRegistry $registry): int
+     {
++        // run as root it would leave root-owned feed files that the queue
++        // workers (www-data) then cannot replace
++        if (function_exists('posix_geteuid') && posix_geteuid() === 0) {
++            $this->error('Run this as www-data:  runuser -u www-data -- php artisan shimano:test');
++            return self::FAILURE;
++        }
++
+         $conn = PlatformDistributorConnection::where('distributor_code', 'SHIMANO')->first();
+         if (! $conn || blank($conn->api_key)) {
+             $this->error('No Shimano login saved. Add it in master admin under Distributors.');
+@@ -32,9 +39,6 @@ class ShimanoTest extends Command
+         $res = $client->testConnection();
+         $this->line(($res['ok'] ? 'OK    ' : 'FAILED') . '  ' . ($res['body'] ?? ''));
+         if (! $res['ok']) {
+-            if (str_contains((string) $res['body'], 'host key mismatch')) {
+-                $this->warn('The server key did not match the pinned fingerprint (SHIMANO_HOST_KEY_SHA256).');
+-            }
+             return self::FAILURE;
+         }
+ 
+diff --git a/app/Filament/Pages/TenantBrandAccess.php b/app/Filament/Pages/TenantBrandAccess.php
+index de6e5bb8..985c47ea 100644
+--- a/app/Filament/Pages/TenantBrandAccess.php
++++ b/app/Filament/Pages/TenantBrandAccess.php
+@@ -61,7 +61,9 @@ class TenantBrandAccess extends Page
+     /** @return array<string,string> tenant id => name, add-on shops only */
+     public function getTenantOptionsProperty(): array
+     {
+-        return Tenant::query()->orderBy('name')->get(['id', 'name'])
++        // full rows: the add-on check also reads plan_tier, and a tenant
++        // loaded with only id and name looks like a starter shop
++        return Tenant::query()->orderBy('name')->get()
+             ->filter(fn (Tenant $t) => (bool) $t->distributor_sync_enabled)
+             ->mapWithKeys(fn (Tenant $t) => [(string) $t->id => (string) $t->name])
+             ->all();
+diff --git a/app/Http/Controllers/Tenant/DistributorController.php b/app/Http/Controllers/Tenant/DistributorController.php
+index 80d5c321..12fb57b3 100644
+--- a/app/Http/Controllers/Tenant/DistributorController.php
++++ b/app/Http/Controllers/Tenant/DistributorController.php
+@@ -156,6 +156,22 @@ class DistributorController extends Controller
+         $on = (bool) $request->boolean('enabled');
+         $sub->update(['is_active' => $on]);
+ 
++        // Intake holds the login for these, so switching on IS connecting:
++        // store the marker the registry resolves to the platform login.
++        $registry = app(\App\Services\Distributors\DistributorRegistry::class);
++        if ($registry->platformSupplied($code)) {
++            if ($on) {
++                $creds = (array) ($sub->credentials_encrypted ?? []);
++                $creds['api_key'] = \App\Services\Distributors\DistributorRegistry::PLATFORM_MARK;
++                $creds['region']  = $creds['region'] ?? 'us';
++                $sub->credentials_encrypted = $creds;
++                $sub->save();
++            }
++            return back()->with('success', $registry->label($code) . ($on
++                ? ' turned on. Your cost and availability come through on the next sync.'
++                : ' turned off. Turn it back on any time.'));
++        }
++
+         return back()->with('success', $on
+             ? $code . ' turned on. Add your account key to unlock your cost and availability.'
+             : $code . ' turned off. Your key is kept — turn it back on any time.');
+@@ -675,7 +691,7 @@ class DistributorController extends Controller
+ 
+         return back()->with('success', $changed === 0
+             ? 'No changes to save.'
+-            : $code . ' brands saved. Items you already carry are untouched.');
++            : app(\App\Services\Distributors\DistributorRegistry::class)->label($code) . ' brands saved. Items you already carry are untouched.');
+     }
+ 
+     /** Brand / category options + catalog size for the import filter. */
+diff --git a/app/Providers/Filament/AdminPanelProvider.php b/app/Providers/Filament/AdminPanelProvider.php
+index 28421346..80d5906a 100644
+--- a/app/Providers/Filament/AdminPanelProvider.php
++++ b/app/Providers/Filament/AdminPanelProvider.php
+@@ -108,6 +108,8 @@ class AdminPanelProvider extends PanelProvider
+                 // custom dashboard replaces Pages\Dashboard
+                 \App\Filament\Pages\PlatformDashboard::class,
+                 \App\Filament\Pages\Distributors::class, // HLC distributor hub
++                // explicit registration; no route without this line.
++                \App\Filament\Pages\TenantBrandAccess::class,
+                 // list-first Catalog Titles page. This panel
+                 // lists pages explicitly, so a new page class is invisible until
+                 // it appears here, cache or no cache.
+diff --git a/app/Services/Distributors/ShimanoClient.php b/app/Services/Distributors/ShimanoClient.php
+index c7282606..1f119422 100644
+--- a/app/Services/Distributors/ShimanoClient.php
++++ b/app/Services/Distributors/ShimanoClient.php
+@@ -47,6 +47,7 @@ class ShimanoClient implements DistributorAdapter
+     private string $dir;
+     private ?string $hostKeySha256;
+     private ?string $hostKeyMd5;
++    private ?string $hostKey;
+     private bool $insecure;
+     private int $timeout;
+     private int $cacheMinutes;
+@@ -93,6 +94,7 @@ class ShimanoClient implements DistributorAdapter
+         $this->port          = (int) ($cfg['port'] ?? 22);
+         $this->hostKeySha256 = ($cfg['host_key_sha256'] ?? null) ?: null;
+         $this->hostKeyMd5    = ($cfg['host_key_md5'] ?? null) ?: null;
++        $this->hostKey       = trim((string) ($cfg['host_key'] ?? '')) ?: null;
+         $this->insecure      = (bool) ($cfg['insecure'] ?? false);
+         $this->timeout       = (int) ($cfg['timeout'] ?? 300);
+         $this->cacheMinutes  = (int) ($cfg['cache_minutes'] ?? 30);
+@@ -144,28 +146,48 @@ class ShimanoClient implements DistributorAdapter
+ 
+     // --------------------------------------------------------- transport
+ 
++    /** Does this key blob carry the pinned fingerprint? */
++    private function matchesPin(string $blob): bool
++    {
++        $wantSha = $this->hostKeySha256 ? rtrim(trim($this->hostKeySha256), '=') : null;
++        $wantMd5 = $this->hostKeyMd5 ? strtolower(str_replace(':', '', $this->hostKeyMd5)) : null;
++
++        return ($wantSha !== null && hash_equals($wantSha, rtrim(base64_encode(hash('sha256', $blob, true)), '=')))
++            || ($wantMd5 !== null && hash_equals($wantMd5, md5($blob)));
++    }
++
+     /**
+-     * The server's host key, taken from ssh-keyscan and accepted ONLY if its
+-     * fingerprint equals the pinned one (SHA-256 or MD5). The accepted key is
+-     * written to a private known_hosts file, and the real connection then
+-     * demands exactly that key, so nobody can stand in for Shimano.
++     * A private known_hosts file holding Shimano's key and nothing else.
++     * OpenSSH then refuses any server that does not present exactly that key.
++     *
++     * The key normally ships in config (Shimano's server refuses ssh-keyscan).
++     * It is checked against the fingerprint pin before use, so a wrong key in
++     * config fails loudly instead of trusting the wrong server.
+      */
+     private function knownHostsFile(): string
+     {
+         if ($this->knownHosts !== null) {
+             return $this->knownHosts;
+         }
+-        if (! $this->hostKeySha256 && ! $this->hostKeyMd5) {
++        if (! $this->hostKey && ! $this->hostKeySha256 && ! $this->hostKeyMd5) {
+             if ($this->insecure) {
+                 return $this->knownHosts = '/dev/null';
+             }
+-            throw new \RuntimeException('Shimano: no host key is pinned (set SHIMANO_HOST_KEY_SHA256)');
++            throw new \RuntimeException('Shimano: no host key is configured (SHIMANO_HOST_KEY)');
+         }
+ 
+-        $wantSha = $this->hostKeySha256 ? rtrim(trim($this->hostKeySha256), '=') : null;
+-        $wantMd5 = $this->hostKeyMd5 ? strtolower(str_replace(':', '', $this->hostKeyMd5)) : null;
++        if ($this->hostKey) {
++            $f = preg_split('/\s+/', $this->hostKey);
++            $blob = isset($f[1]) ? base64_decode($f[1], true) : false;
++            if ($blob === false || ! ($this->hostKeySha256 || $this->hostKeyMd5) || ! $this->matchesPin($blob)) {
++                throw new \RuntimeException('Shimano: the configured host key does not match the pinned fingerprint');
++            }
++            return $this->knownHosts = $this->writeKnownHosts($f[0], $f[1]);
++        }
+ 
++        // fallback: no key shipped, so ask the server for it and check the pin
+         $lastErr = '';
++        $sawKey  = false;
+         for ($try = 1; $try <= 4; $try++) {
+             $p = new Process([$this->keyscanBin, '-T', '30', '-p', (string) $this->port, $this->host]);
+             $p->setTimeout(60);
+@@ -177,22 +199,29 @@ class ShimanoClient implements DistributorAdapter
+                 if (count($f) < 3 || $f[0] === '' || $f[0][0] === '#') { continue; }
+                 $blob = base64_decode($f[2], true);
+                 if ($blob === false) { continue; }
+-
+-                $okSha = $wantSha !== null && hash_equals($wantSha, rtrim(base64_encode(hash('sha256', $blob, true)), '='));
+-                $okMd5 = $wantMd5 !== null && hash_equals($wantMd5, md5($blob));
+-                if (! $okSha && ! $okMd5) { continue; }
+-
+-                $file = $this->workDir() . '/known_hosts';
+-                $host = $this->port === 22 ? $this->host : '[' . $this->host . ']:' . $this->port;
+-                file_put_contents($file, $host . ' ' . $f[1] . ' ' . $f[2] . "\n");
+-                chmod($file, 0600);
+-                return $this->knownHosts = $file;
++                $sawKey = true;
++                if ($this->matchesPin($blob)) {
++                    return $this->knownHosts = $this->writeKnownHosts($f[1], $f[2]);
++                }
+             }
+-            if ($try < 4) { sleep(2); }   // the server sometimes answers a scan with nothing
++            if ($try < 4) { sleep(2); }
+         }
+ 
+-        throw new \RuntimeException('Shimano: could not verify the server key against the pinned fingerprint'
+-            . ($lastErr !== '' ? ' (' . $lastErr . ')' : '') . ' (host key mismatch)');
++        throw new \RuntimeException($sawKey
++            ? 'Shimano: the server presented a key that does not match the pinned fingerprint (host key mismatch)'
++            : 'Shimano: the server did not return its host key' . ($lastErr !== '' ? ' (' . $lastErr . ')' : ''));
++    }
++
++    /** Written to a temp file and renamed, so a leftover file owned by another user never blocks it. */
++    private function writeKnownHosts(string $type, string $b64): string
++    {
++        $file = $this->workDir() . '/shimano-known_hosts';
++        $host = $this->port === 22 ? $this->host : '[' . $this->host . ']:' . $this->port;
++        $tmp  = $file . '.' . getmypid() . '.tmp';
++        file_put_contents($tmp, $host . ' ' . $type . ' ' . $b64 . "\n");
++        chmod($tmp, 0600);
++        rename($tmp, $file);
++        return $file;
+     }
+ 
+     private function workDir(): string
+@@ -207,10 +236,12 @@ class ShimanoClient implements DistributorAdapter
+     {
+         $f = $this->workDir() . '/shimano-askpass.sh';
+         $body = "#!/bin/sh\nprintf '%s\\n' \"\$SHIMANO_SFTP_PW\"\n";
+-        if (! is_file($f) || file_get_contents($f) !== $body) {
+-            file_put_contents($f, $body);
++        if (! is_file($f) || ! is_readable($f) || file_get_contents($f) !== $body || ! is_executable($f)) {
++            $tmp = $f . '.' . getmypid() . '.tmp';
++            file_put_contents($tmp, $body);
++            chmod($tmp, 0700);
++            rename($tmp, $f);
+         }
+-        chmod($f, 0700);
+         return $f;
+     }
+ 
+diff --git a/config/distributors.php b/config/distributors.php
+index 6aabc69f..5cba37c6 100644
+--- a/config/distributors.php
++++ b/config/distributors.php
+@@ -84,6 +84,11 @@ return [
+         'dir'             => env('SHIMANO_DIR', 'US'),
+         'host_key_sha256' => env('SHIMANO_HOST_KEY_SHA256', 'hJseMiQvY/RhwiEdbXWLyJ54pncExGm+qeXeXGSOG88'),
+         'host_key_md5'    => env('SHIMANO_HOST_KEY_MD5'),
++        // Shimano's public host key itself (not a secret). OpenSSH checks the
++        // server against exactly this key on every connection. Shimano's
++        // server refuses ssh-keyscan, so the key has to ship rather than be
++        // fetched. It must match the SHA-256 pin above or nothing connects.
++        'host_key'        => env('SHIMANO_HOST_KEY', 'ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCv0Gv9gb8QHZddOKpahRFOYNuNmzVer3lHfhXtpPE/cA7/5jrfkMoHTef+DgbmPOCJ8BpZap+UtZzCZTwGDfEaF7bqYk2RqJaJq49+StdbQo5RsGhg3KBUHPyg5sO0+iS48z56MTwWyPaO7XTkxamkC2TFWsLssYhnrzS5sngy+kSYHwX9RABYqA/KZA6JUQhXueLvyizGFiPl908rBV7RwxGqSZ24abu4cNzqtXc5mYG/Aup25Sjm85Hw3JmpBezZRoIKzdhgS5w2JNiKIi5QjwMzQ2gCeg8biEQZX6OaTSadVbiY69DcMgOyJ+MM0Cb3dgNIfPBhDXKC1TJYGn2n'),
+         'insecure'        => (bool) env('SHIMANO_INSECURE', false),
+         'timeout'         => (int) env('SHIMANO_TIMEOUT', 600),
+         // the flattened feed is reused this long by stock/price refreshes;

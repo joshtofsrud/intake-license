@@ -156,6 +156,22 @@ class DistributorController extends Controller
         $on = (bool) $request->boolean('enabled');
         $sub->update(['is_active' => $on]);
 
+        // Intake holds the login for these, so switching on IS connecting:
+        // store the marker the registry resolves to the platform login.
+        $registry = app(\App\Services\Distributors\DistributorRegistry::class);
+        if ($registry->platformSupplied($code)) {
+            if ($on) {
+                $creds = (array) ($sub->credentials_encrypted ?? []);
+                $creds['api_key'] = \App\Services\Distributors\DistributorRegistry::PLATFORM_MARK;
+                $creds['region']  = $creds['region'] ?? 'us';
+                $sub->credentials_encrypted = $creds;
+                $sub->save();
+            }
+            return back()->with('success', $registry->label($code) . ($on
+                ? ' turned on. Your cost and availability come through on the next sync.'
+                : ' turned off. Turn it back on any time.'));
+        }
+
         return back()->with('success', $on
             ? $code . ' turned on. Add your account key to unlock your cost and availability.'
             : $code . ' turned off. Your key is kept — turn it back on any time.');
@@ -675,7 +691,7 @@ class DistributorController extends Controller
 
         return back()->with('success', $changed === 0
             ? 'No changes to save.'
-            : $code . ' brands saved. Items you already carry are untouched.');
+            : app(\App\Services\Distributors\DistributorRegistry::class)->label($code) . ' brands saved. Items you already carry are untouched.');
     }
 
     /** Brand / category options + catalog size for the import filter. */

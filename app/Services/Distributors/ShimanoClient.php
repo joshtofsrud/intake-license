@@ -47,6 +47,7 @@ class ShimanoClient implements DistributorAdapter
     private string $dir;
     private ?string $hostKeySha256;
     private ?string $hostKeyMd5;
+    private ?string $hostKey;
     private bool $insecure;
     private int $timeout;
     private int $cacheMinutes;
@@ -93,6 +94,7 @@ class ShimanoClient implements DistributorAdapter
         $this->port          = (int) ($cfg['port'] ?? 22);
         $this->hostKeySha256 = ($cfg['host_key_sha256'] ?? null) ?: null;
         $this->hostKeyMd5    = ($cfg['host_key_md5'] ?? null) ?: null;
+        $this->hostKey       = trim((string) ($cfg['host_key'] ?? '')) ?: null;
         $this->insecure      = (bool) ($cfg['insecure'] ?? false);
         $this->timeout       = (int) ($cfg['timeout'] ?? 300);
         $this->cacheMinutes  = (int) ($cfg['cache_minutes'] ?? 30);
@@ -144,28 +146,48 @@ class ShimanoClient implements DistributorAdapter
 
     // --------------------------------------------------------- transport
 
+    /** Does this key blob carry the pinned fingerprint? */
+    private function matchesPin(string $blob): bool
+    {
+        $wantSha = $this->hostKeySha256 ? rtrim(trim($this->hostKeySha256), '=') : null;
+        $wantMd5 = $this->hostKeyMd5 ? strtolower(str_replace(':', '', $this->hostKeyMd5)) : null;
+
+        return ($wantSha !== null && hash_equals($wantSha, rtrim(base64_encode(hash('sha256', $blob, true)), '=')))
+            || ($wantMd5 !== null && hash_equals($wantMd5, md5($blob)));
+    }
+
     /**
-     * The server's host key, taken from ssh-keyscan and accepted ONLY if its
-     * fingerprint equals the pinned one (SHA-256 or MD5). The accepted key is
-     * written to a private known_hosts file, and the real connection then
-     * demands exactly that key, so nobody can stand in for Shimano.
+     * A private known_hosts file holding Shimano's key and nothing else.
+     * OpenSSH then refuses any server that does not present exactly that key.
+     *
+     * The key normally ships in config (Shimano's server refuses ssh-keyscan).
+     * It is checked against the fingerprint pin before use, so a wrong key in
+     * config fails loudly instead of trusting the wrong server.
      */
     private function knownHostsFile(): string
     {
         if ($this->knownHosts !== null) {
             return $this->knownHosts;
         }
-        if (! $this->hostKeySha256 && ! $this->hostKeyMd5) {
+        if (! $this->hostKey && ! $this->hostKeySha256 && ! $this->hostKeyMd5) {
             if ($this->insecure) {
                 return $this->knownHosts = '/dev/null';
             }
-            throw new \RuntimeException('Shimano: no host key is pinned (set SHIMANO_HOST_KEY_SHA256)');
+            throw new \RuntimeException('Shimano: no host key is configured (SHIMANO_HOST_KEY)');
         }
 
-        $wantSha = $this->hostKeySha256 ? rtrim(trim($this->hostKeySha256), '=') : null;
-        $wantMd5 = $this->hostKeyMd5 ? strtolower(str_replace(':', '', $this->hostKeyMd5)) : null;
+        if ($this->hostKey) {
+            $f = preg_split('/\s+/', $this->hostKey);
+            $blob = isset($f[1]) ? base64_decode($f[1], true) : false;
+            if ($blob === false || ! ($this->hostKeySha256 || $this->hostKeyMd5) || ! $this->matchesPin($blob)) {
+                throw new \RuntimeException('Shimano: the configured host key does not match the pinned fingerprint');
+            }
+            return $this->knownHosts = $this->writeKnownHosts($f[0], $f[1]);
+        }
 
+        // fallback: no key shipped, so ask the server for it and check the pin
         $lastErr = '';
+        $sawKey  = false;
         for ($try = 1; $try <= 4; $try++) {
             $p = new Process([$this->keyscanBin, '-T', '30', '-p', (string) $this->port, $this->host]);
             $p->setTimeout(60);
@@ -177,22 +199,29 @@ class ShimanoClient implements DistributorAdapter
                 if (count($f) < 3 || $f[0] === '' || $f[0][0] === '#') { continue; }
                 $blob = base64_decode($f[2], true);
                 if ($blob === false) { continue; }
-
-                $okSha = $wantSha !== null && hash_equals($wantSha, rtrim(base64_encode(hash('sha256', $blob, true)), '='));
-                $okMd5 = $wantMd5 !== null && hash_equals($wantMd5, md5($blob));
-                if (! $okSha && ! $okMd5) { continue; }
-
-                $file = $this->workDir() . '/known_hosts';
-                $host = $this->port === 22 ? $this->host : '[' . $this->host . ']:' . $this->port;
-                file_put_contents($file, $host . ' ' . $f[1] . ' ' . $f[2] . "\n");
-                chmod($file, 0600);
-                return $this->knownHosts = $file;
+                $sawKey = true;
+                if ($this->matchesPin($blob)) {
+                    return $this->knownHosts = $this->writeKnownHosts($f[1], $f[2]);
+                }
             }
-            if ($try < 4) { sleep(2); }   // the server sometimes answers a scan with nothing
+            if ($try < 4) { sleep(2); }
         }
 
-        throw new \RuntimeException('Shimano: could not verify the server key against the pinned fingerprint'
-            . ($lastErr !== '' ? ' (' . $lastErr . ')' : '') . ' (host key mismatch)');
+        throw new \RuntimeException($sawKey
+            ? 'Shimano: the server presented a key that does not match the pinned fingerprint (host key mismatch)'
+            : 'Shimano: the server did not return its host key' . ($lastErr !== '' ? ' (' . $lastErr . ')' : ''));
+    }
+
+    /** Written to a temp file and renamed, so a leftover file owned by another user never blocks it. */
+    private function writeKnownHosts(string $type, string $b64): string
+    {
+        $file = $this->workDir() . '/shimano-known_hosts';
+        $host = $this->port === 22 ? $this->host : '[' . $this->host . ']:' . $this->port;
+        $tmp  = $file . '.' . getmypid() . '.tmp';
+        file_put_contents($tmp, $host . ' ' . $type . ' ' . $b64 . "\n");
+        chmod($tmp, 0600);
+        rename($tmp, $file);
+        return $file;
     }
 
     private function workDir(): string
@@ -207,10 +236,12 @@ class ShimanoClient implements DistributorAdapter
     {
         $f = $this->workDir() . '/shimano-askpass.sh';
         $body = "#!/bin/sh\nprintf '%s\\n' \"\$SHIMANO_SFTP_PW\"\n";
-        if (! is_file($f) || file_get_contents($f) !== $body) {
-            file_put_contents($f, $body);
+        if (! is_file($f) || ! is_readable($f) || file_get_contents($f) !== $body || ! is_executable($f)) {
+            $tmp = $f . '.' . getmypid() . '.tmp';
+            file_put_contents($tmp, $body);
+            chmod($tmp, 0700);
+            rename($tmp, $f);
         }
-        chmod($f, 0700);
         return $f;
     }
 

@@ -84,6 +84,11 @@ return [
         'dir'             => env('SHIMANO_DIR', 'US'),
         'host_key_sha256' => env('SHIMANO_HOST_KEY_SHA256', 'hJseMiQvY/RhwiEdbXWLyJ54pncExGm+qeXeXGSOG88'),
         'host_key_md5'    => env('SHIMANO_HOST_KEY_MD5'),
+        // Shimano's public host key itself (not a secret). OpenSSH checks the
+        // server against exactly this key on every connection. Shimano's
+        // server refuses ssh-keyscan, so the key has to ship rather than be
+        // fetched. It must match the SHA-256 pin above or nothing connects.
+        'host_key'        => env('SHIMANO_HOST_KEY', 'ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCv0Gv9gb8QHZddOKpahRFOYNuNmzVer3lHfhXtpPE/cA7/5jrfkMoHTef+DgbmPOCJ8BpZap+UtZzCZTwGDfEaF7bqYk2RqJaJq49+StdbQo5RsGhg3KBUHPyg5sO0+iS48z56MTwWyPaO7XTkxamkC2TFWsLssYhnrzS5sngy+kSYHwX9RABYqA/KZA6JUQhXueLvyizGFiPl908rBV7RwxGqSZ24abu4cNzqtXc5mYG/Aup25Sjm85Hw3JmpBezZRoIKzdhgS5w2JNiKIi5QjwMzQ2gCeg8biEQZX6OaTSadVbiY69DcMgOyJ+MM0Cb3dgNIfPBhDXKC1TJYGn2n'),
         'insecure'        => (bool) env('SHIMANO_INSECURE', false),
         'timeout'         => (int) env('SHIMANO_TIMEOUT', 600),
         // the flattened feed is reused this long by stock/price refreshes;

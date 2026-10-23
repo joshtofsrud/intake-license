@@ -61,7 +61,9 @@ class TenantBrandAccess extends Page
     /** @return array<string,string> tenant id => name, add-on shops only */
     public function getTenantOptionsProperty(): array
     {
-        return Tenant::query()->orderBy('name')->get(['id', 'name'])
+        // full rows: the add-on check also reads plan_tier, and a tenant
+        // loaded with only id and name looks like a starter shop
+        return Tenant::query()->orderBy('name')->get()
             ->filter(fn (Tenant $t) => (bool) $t->distributor_sync_enabled)
             ->mapWithKeys(fn (Tenant $t) => [(string) $t->id => (string) $t->name])
             ->all();
