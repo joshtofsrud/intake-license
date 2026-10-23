@@ -94,6 +94,9 @@ return [
         // the flattened feed is reused this long by stock/price refreshes;
         // a catalog sync always fetches a fresh copy.
         'cache_minutes'   => (int) env('SHIMANO_CACHE_MINUTES', 30),
+        // after a failed connection nothing contacts Shimano for this long;
+        // their server blocks an address that keeps retrying.
+        'backoff_minutes' => (int) env('SHIMANO_BACKOFF_MINUTES', 30),
         // the whole US feed is a few thousand products
         'sync_page_size'  => (int) env('SHIMANO_SYNC_PAGE_SIZE', 50000),
     ],

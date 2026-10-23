@@ -51,6 +51,7 @@ class ShimanoClient implements DistributorAdapter
     private bool $insecure;
     private int $timeout;
     private int $cacheMinutes;
+    private int $backoffMinutes;
     private string $cacheDir;
     private string $sftpBin;
     private string $keyscanBin;
@@ -98,6 +99,7 @@ class ShimanoClient implements DistributorAdapter
         $this->insecure      = (bool) ($cfg['insecure'] ?? false);
         $this->timeout       = (int) ($cfg['timeout'] ?? 300);
         $this->cacheMinutes  = (int) ($cfg['cache_minutes'] ?? 30);
+        $this->backoffMinutes = (int) ($cfg['backoff_minutes'] ?? 30);
         $this->sftpBin       = (string) ($cfg['sftp'] ?? 'sftp');
         $this->keyscanBin    = (string) ($cfg['keyscan'] ?? 'ssh-keyscan');
         $this->cacheDir      = (string) ($cfg['cache_dir'] ?? storage_path('app/distributor-cache'));
@@ -250,8 +252,46 @@ class ShimanoClient implements DistributorAdapter
      * the command line: ssh fetches it from the askpass script, which reads
      * it from this process's environment only.
      */
+    private function backoffFile(): string
+    {
+        return $this->workDir() . '/shimano-backoff.json';
+    }
+
+    /**
+     * After a failed connection nothing contacts Shimano again for a while.
+     * Their server blocks an address that keeps retrying, and every shop's
+     * stock refresh would otherwise retry on its own and keep the block alive.
+     */
+    private function guardBackoff(): void
+    {
+        $f = $this->backoffFile();
+        if (! is_file($f)) {
+            return;
+        }
+        $b = json_decode((string) @file_get_contents($f), true) ?: [];
+        $until = (int) ($b['until'] ?? 0);
+        if ($until > time()) {
+            $mins = (int) ceil(($until - time()) / 60);
+            throw new \RuntimeException('Shimano: paused after a failed connection, so their server '
+                . 'does not block us for retrying. Try again in ' . $mins . ' minute' . ($mins === 1 ? '' : 's')
+                . '. Last error: ' . ($b['error'] ?? 'unknown'));
+        }
+    }
+
+    private function setBackoff(string $error): void
+    {
+        $f   = $this->backoffFile();
+        $tmp = $f . '.' . getmypid() . '.tmp';
+        file_put_contents($tmp, json_encode([
+            'at' => time(), 'until' => time() + $this->backoffMinutes * 60, 'error' => mb_substr($error, 0, 300),
+        ]));
+        rename($tmp, $f);
+    }
+
     private function sftp(string $commands): string
     {
+        $this->guardBackoff();
+
         $cmd = [
             $this->sftpBin,
             '-P', (string) $this->port,
@@ -276,8 +316,11 @@ class ShimanoClient implements DistributorAdapter
 
         if (! $p->isSuccessful()) {
             $err = trim($p->getErrorOutput());
-            throw new \RuntimeException('Shimano SFTP failed (exit ' . $p->getExitCode() . ')' . ($err !== '' ? ': ' . $err : ''));
+            $msg = 'Shimano SFTP failed (exit ' . $p->getExitCode() . ')' . ($err !== '' ? ': ' . $err : '');
+            $this->setBackoff($msg);
+            throw new \RuntimeException($msg);
         }
+        @unlink($this->backoffFile());
         return $p->getOutput() . "\n" . $p->getErrorOutput();
     }
 
@@ -306,21 +349,6 @@ class ShimanoClient implements DistributorAdapter
         return $names;
     }
 
-    private function download(string $name, string $to): void
-    {
-        $tmp = $to . '.part';
-        @unlink($tmp);
-        try {
-            $this->sftp('get ' . $this->q($this->dir . '/' . $name) . ' ' . $this->q($tmp));
-            if (! is_file($tmp) || filesize($tmp) < 1024) {
-                throw new \RuntimeException("Shimano feed file {$name} came back empty");
-            }
-            rename($tmp, $to);   // only a complete download is ever read
-        } finally {
-            @unlink($tmp);
-        }
-    }
-
     // ------------------------------------------------------------ cache
 
     private function cachePath(): string
@@ -341,7 +369,16 @@ class ShimanoClient implements DistributorAdapter
             && (time() - filemtime($path)) < $this->cacheMinutes * 60;
 
         if (($force && ! $this->refreshedThisRun) || ! $fresh) {
-            $this->rebuild($path);
+            try {
+                $this->rebuild($path);
+            } catch (\Throwable $e) {
+                // a catalog sync must say it failed; a shop's stock refresh
+                // reads the last good copy rather than failing or retrying
+                if ($force || ! is_file($path) || filesize($path) === 0) {
+                    throw $e;
+                }
+                return $path;
+            }
             $this->refreshedThisRun = true;
         }
         return $path;
@@ -356,8 +393,24 @@ class ShimanoClient implements DistributorAdapter
         if (! is_dir($work)) {
             @mkdir($work, 0775, true);
         }
+        foreach (glob($work . '/*') ?: [] as $old) {
+            @unlink($old);   // never parse a file left by an earlier, broken run
+        }
 
-        $names = $this->listRemote();
+        // one connection fetches every file: Shimano blocks bursts of logins.
+        // The glob stays outside quotes (sftp does not expand it inside them).
+        $this->sftp('get ' . str_replace(' ', '\\ ', $this->dir) . '/*.xlsx ' . $this->q($work . '/'));
+
+        $names = [];
+        foreach (glob($work . '/*') ?: [] as $f) {
+            $n = basename($f);
+            if (! preg_match('/\.xlsx$/i', $n) || preg_match(self::SKIP, $n)) { continue; }
+            if (filesize($f) < 1024) {
+                throw new \RuntimeException("Shimano feed file {$n} came back empty");
+            }
+            $names[] = $n;
+        }
+        sort($names);
         if ($names === []) {
             throw new \RuntimeException('Shimano: no .xlsx files found in /' . $this->dir);
         }
@@ -371,8 +424,7 @@ class ShimanoClient implements DistributorAdapter
         $count = 0;
         try {
             foreach ($names as $name) {
-                $local = $work . '/' . preg_replace('/[^A-Za-z0-9._-]+/', '_', $name);
-                $this->download($name, $local);
+                $local = $work . '/' . $name;
                 foreach ($this->readWorkbook($local, $name) as $row) {
                     fwrite($out, json_encode($row, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) . "\n");
                     $count++;

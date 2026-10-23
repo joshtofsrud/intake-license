@@ -325,7 +325,8 @@ class Distributors extends Page implements HasForms
             // to filter on. Offering the button would imply an incremental
             // pull that doesn't exist and quietly run a full one.
             Action::make('runDelta')->label('Run delta sync')->color('gray')
-                ->visible(fn () => strtoupper($this->currentCode()) !== 'BTI')
+                // Shimano is a whole-file feed too: no delta to offer.
+                ->visible(fn () => ! in_array(strtoupper($this->currentCode()), ['BTI', 'SHIMANO'], true))
                 ->action(fn () => $this->dispatchSync(true)),
         ];
     }

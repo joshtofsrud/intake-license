@@ -169,6 +169,13 @@ Schedule::command('distributors:sync-catalog BTI')
     ->withoutOverlapping()
     ->runInBackground();
 
+// Shimano: one SFTP session pulls the five spreadsheets. Full, like BTI —
+// the files are rewritten whole. Before identifiers are indexed at 05:30.
+Schedule::command('distributors:sync-catalog SHIMANO')
+    ->dailyAt('04:45')
+    ->withoutOverlapping()
+    ->runInBackground();
+
 // Reads the rows both syncs just wrote. Without this, matching sees nothing
 // new — which is exactly why 55,773 QBP rows were invisible to the importer.
 Schedule::command('catalog:index-identifiers')
