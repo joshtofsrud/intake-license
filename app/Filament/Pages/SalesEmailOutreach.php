@@ -270,7 +270,30 @@ class SalesEmailOutreach extends Page
             ->when($this->industryId !== '', fn ($q) => $q->where('p.channel_id', $this->industryId))
             ->orderByDesc('s.created_at')
             ->skip(($this->listPage - 1) * self::PER_PAGE)->limit(self::PER_PAGE)
-            ->get(['p.shop', 'p.city', 'p.state', 's.created_at', 'p.link_clicked_at']);
+            ->get(['p.shop', 'p.city', 'p.state', 's.created_at', 'p.link_clicked_at', 's.thread_id']);
+    }
+
+    /**
+     * MARKER-OUTREACH-OPENS: for each sent email's thread, when the provider saw
+     * an open (or a click) and when they first replied. Auto-replies are flagged
+     * apart, never counted as a reply. Same sources as Results.
+     */
+    public function threadNews($rows): array
+    {
+        $ids = collect($rows)->pluck('thread_id')->filter()->map(fn ($id) => (string) $id)->unique()->values()->all();
+        $out = [];
+        if (! $ids) return $out;
+        foreach (\App\Models\PlatformInboxMessage::whereIn('id', $ids)->get(['id', 'meta']) as $m) {
+            $meta = (array) ($m->meta ?? []);
+            $o = $meta['opened_at'] ?? ($meta['clicked_at'] ?? null);
+            if ($o) $out[(string) $m->id]['opened'] = \Carbon\Carbon::parse($o);
+        }
+        foreach (DB::table('platform_inbox_replies')->whereIn('message_id', $ids)->where('direction', 'in')
+            ->orderBy('created_at')->get(['message_id', 'created_at', 'is_auto']) as $r) {
+            $k = $r->is_auto ? 'auto' : 'replied';
+            $out[(string) $r->message_id][$k] ??= \Carbon\Carbon::parse($r->created_at);
+        }
+        return $out;
     }
 
     /** MARKER-OUTREACH-LAYOUT: shops that opened their link, latest first. */

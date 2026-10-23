@@ -6,6 +6,8 @@
     $q     = $this->queue();
     $done  = $list === 'today' ? $this->sentToday() : collect();
     $seen  = $list === 'visited' ? $this->visited() : collect();
+    $news  = $list === 'today' ? $this->threadNews($done) : [];
+    $tz    = \App\Filament\Pages\SalesEmailOutreach::TZ;
     $listTotal = ['queue' => max(0, $st['queue'] - ($cur ? 1 : 0)), 'today' => $st['today'], 'visited' => $st['visited']][$list];
     $per   = \App\Filament\Pages\SalesEmailOutreach::PER_PAGE;
     $pages = max(1, (int) ceil($listTotal / $per));
@@ -61,6 +63,9 @@
   .eo-list .sx-t tr.cur td { background:var(--sx-vsoft); }
   .eo-list .eo-em { color:#a78bfa; }
   .eo-pager { display:flex; justify-content:space-between; align-items:center; padding:10px 0; font-size:12.5px; color:var(--sx-faint); }
+  .eo-tags { display:inline-flex; gap:6px; flex-wrap:wrap; }
+  .eo-tag-o { background:var(--sx-vsoft) !important; color:#c4b5fd !important; }
+  .eo-tag-n { background:none !important; color:var(--sx-faint) !important; border:1px solid var(--sx-line-2); font-weight:500 !important; }
   .eo-tag { display:inline-block; border-radius:4px; padding:1px 7px; font-size:11px; font-weight:600; background:rgba(190,242,100,.14); color:var(--sx-lime); }
   .eo-cols > section { min-width:0; }
   .eo-two { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
@@ -256,13 +261,19 @@
             @endforelse
             </tbody>
         @elseif ($list === 'today')
-            <thead><tr><th>Shop</th><th>Town</th><th></th><th style="text-align:right">When</th></tr></thead>
+            <thead><tr><th>Shop</th><th>Town</th><th>Status</th><th style="text-align:right">Sent</th></tr></thead>
             <tbody>
             @forelse ($done as $d)
                 <tr>
                     <td class="eo-shop">{{ $d->shop }}</td>
                     <td style="color:var(--sx-dim)">{{ trim($d->city . ', ' . $d->state, ', ') }}</td>
-                    <td>@if ($d->link_clicked_at)<span class="eo-tag">Visited from their link</span>@endif</td>
+                    @php $nw = $news[(string) $d->thread_id] ?? []; @endphp
+                    <td><span class="eo-tags">
+                        @if (! empty($nw['replied']))<span class="eo-tag">Replied {{ $nw['replied']->timezone($tz)->format('g:i a') }}</span>@endif
+                        @if ($d->link_clicked_at)<span class="eo-tag">Visited from their link</span>@endif
+                        @if (! empty($nw['opened']))<span class="eo-tag eo-tag-o">Opened {{ $nw['opened']->timezone($tz)->format('g:i a') }}</span>@else<span class="eo-tag eo-tag-n">Not opened</span>@endif
+                        @if (! empty($nw['auto']) && empty($nw['replied']))<span class="eo-tag eo-tag-n">Auto-reply</span>@endif
+                    </span></td>
                     <td style="text-align:right;color:var(--sx-dim)">{{ \Carbon\Carbon::parse($d->created_at)->timezone(\App\Filament\Pages\SalesEmailOutreach::TZ)->format('g:i a') }}</td>
                 </tr>
             @empty
