@@ -363,7 +363,8 @@ class SalesPipeline extends Page
             'won'      => (clone $base)->where('stage', 'won')->count(),
             'tenants'  => (clone $base)->whereNotNull('tenant_id')->count(),
             'due'      => (clone $base)->open()->whereNotNull('next_action_on')->whereDate('next_action_on', '<=', now())->count(),
-            'value'    => (int) round((clone $base)->whereIn('priority', ['A', 'B'])->get(['lead_score'])->sum(fn ($p) => ($p->lead_score / 110) * $floor)),
+            // MARKER-PIPELINE-SUM: summed in the database; loading every A/B shop to add them up ran the page out of memory at 185,000 shops
+            'value'    => (int) round(((float) (clone $base)->whereIn('priority', ['A', 'B'])->sum('lead_score') / 110) * $floor),
         ];
     }
 
