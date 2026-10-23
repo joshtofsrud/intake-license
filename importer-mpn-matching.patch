@@ -1,0 +1,265 @@
+diff --git a/app/Jobs/RefreshCatalogMatchesJob.php b/app/Jobs/RefreshCatalogMatchesJob.php
+new file mode 100644
+index 00000000..57cd8c6f
+--- /dev/null
++++ b/app/Jobs/RefreshCatalogMatchesJob.php
+@@ -0,0 +1,51 @@
++<?php
++
++namespace App\Jobs;
++
++use Illuminate\Bus\Queueable;
++use Illuminate\Contracts\Queue\ShouldBeUnique;
++use Illuminate\Contracts\Queue\ShouldQueue;
++use Illuminate\Foundation\Bus\Dispatchable;
++use Illuminate\Queue\InteractsWithQueue;
++use Illuminate\Queue\SerializesModels;
++use Illuminate\Support\Facades\Artisan;
++
++/**
++ * Rebuild one distributor's identifier index, then re-run cross-distributor
++ * matching, straight after a catalog sync started by hand.
++ *
++ * The nightly chain (sync 04:00-04:45, index 05:30, match 06:00) does this for
++ * scheduled syncs. A sync run from master admin during the day used to leave
++ * its rows unindexed until the next morning, so an import that day could not
++ * see that a row was the same part another distributor already supplies, and
++ * created a second item for it. Shimano's first sync was exactly that case.
++ */
++class RefreshCatalogMatchesJob implements ShouldQueue, ShouldBeUnique
++{
++    use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
++
++    public int $timeout = 1800;
++    public int $tries = 1;
++    public int $uniqueFor = 1800;
++
++    public function __construct(public string $distributorCode) {}
++
++    public function uniqueId(): string
++    {
++        return 'catalog-matches-refresh-' . strtoupper($this->distributorCode);
++    }
++
++    public function handle(): void
++    {
++        try {
++            Artisan::call('catalog:index-identifiers', ['code' => strtoupper($this->distributorCode)]);
++            Artisan::call('catalog:match');
++        } catch (\Throwable $e) {
++            \App\Support\JobFailureReporter::report(
++                self::class, strtoupper($this->distributorCode) . ' catalog index refresh failed after a sync', $e,
++                ['code' => strtoupper($this->distributorCode)]
++            );
++            throw $e;
++        }
++    }
++}
+diff --git a/app/Jobs/SyncDistributorCatalogJob.php b/app/Jobs/SyncDistributorCatalogJob.php
+index 69360111..a672966e 100644
+--- a/app/Jobs/SyncDistributorCatalogJob.php
++++ b/app/Jobs/SyncDistributorCatalogJob.php
+@@ -75,6 +75,9 @@ class SyncDistributorCatalogJob implements ShouldQueue, ShouldBeUnique
+         try {
+             $res = $sync->syncIdentity($adapter, $since);
+             Log::info("SyncDistributorCatalogJob {$code}: wrote {$res['written']} of {$res['seen']} variants.");
++            // MARKER-SYNC-REINDEX: index and match now, so today's imports can
++            // see this distributor's part numbers and barcodes across catalogs.
++            RefreshCatalogMatchesJob::dispatch($code);
+         } catch (\Throwable $e) {
+             DB::table('distributor_sync_state')->updateOrInsert(
+                 ['distributor_code' => $code, 'source_ref' => 'catalog'],
+diff --git a/app/Services/Distributors/CatalogIdentifierService.php b/app/Services/Distributors/CatalogIdentifierService.php
+index fe424c32..0505d254 100644
+--- a/app/Services/Distributors/CatalogIdentifierService.php
++++ b/app/Services/Distributors/CatalogIdentifierService.php
+@@ -106,6 +106,16 @@ class CatalogIdentifierService
+      * manufacturers — plenty of brands ship a part called "100" — so the
+      * brand travels with it and a bare MPN is never emitted.
+      */
++    /**
++     * The brand-qualified MPN key ("BRAND|PART"), or null when the part
++     * number is too short or a placeholder. Public so the importer matches a
++     * shop's items with exactly the rules the cross-distributor index uses.
++     */
++    public function mpnKey(?string $brand, ?string $sku): ?string
++    {
++        return $this->mpn((string) $brand, (string) $sku);
++    }
++
+     private function mpn(string $brand, string $sku): ?string
+     {
+         $b = $this->squash($brand);
+diff --git a/app/Services/Distributors/DistributorCatalogImportService.php b/app/Services/Distributors/DistributorCatalogImportService.php
+index 9663573b..55b96e7b 100644
+--- a/app/Services/Distributors/DistributorCatalogImportService.php
++++ b/app/Services/Distributors/DistributorCatalogImportService.php
+@@ -33,7 +33,8 @@ class DistributorCatalogImportService
+         }
+ 
+         $vendor = $dryRun ? null : $this->vendorFor($tenantId, $code);
+-        [$byKey, $byUpc, $linkedCatalog, $bySku, $byEan, $byBarcode] = $this->existingIndexes($tenantId);
++        [$byKey, $byUpc, $linkedCatalog, $bySku, $byEan, $byBarcode, $byMpn] = $this->existingIndexes($tenantId);
++        $ids = app(CatalogIdentifierService::class);
+ 
+         $matchedRows = $this->matchedRows($candidates->pluck('id')->all());
+ 
+@@ -121,6 +122,16 @@ class DistributorCatalogImportService
+                 }
+             }
+ 
++            // MARKER-IMPORT-MPN: same brand, same manufacturer part number. Checked
++            // after every barcode test (a barcode is the stronger evidence) and
++            // directly against the shop's items, so a part number matches even
++            // before the overnight cross-distributor index has linked the rows,
++            // and an item the shop entered with only a part number is found.
++            $mpnKey = $this->mpnKey($ids, $cat->manufacturer, $cat->manufacturer_sku);
++            if ($matchId === null && $mpnKey !== null && isset($byMpn[$mpnKey])) {
++                $matchId = $byMpn[$mpnKey];
++            }
++
+             if ($matchId) {
+                 if (! $dryRun) {
+                     $this->addSource($matchId, $vendor, $code, $cat);
+@@ -139,6 +150,9 @@ class DistributorCatalogImportService
+                         if (blank($matched->catalog_ean) && filled($cat->ean)) {
+                             $fill['catalog_ean'] = trim((string) $cat->ean);
+                         }
++                        if (blank($matched->catalog_mpn) && filled($cat->manufacturer_sku)) {
++                            $fill['catalog_mpn'] = trim((string) $cat->manufacturer_sku);
++                        }
+                         if ($fill) {
+                             $matched->forceFill($fill)->save();
+ 
+@@ -155,6 +169,9 @@ class DistributorCatalogImportService
+                     }
+                 }
+                 $linkedCatalog[$cat->id] = $matchId;
++                if ($mpnKey !== null) {
++                    $byMpn[$mpnKey] = $byMpn[$mpnKey] ?? $matchId;
++                }
+                 $res['merged']++;
+                 continue;
+             }
+@@ -199,6 +216,11 @@ class DistributorCatalogImportService
+             foreach (\App\Support\Barcode::keys($cat->upc, $cat->ean) as $bk) {
+                 $byBarcode[$bk] = $byBarcode[$bk] ?? $id;
+             }
++            // the index learns as it goes: two rows with one part number in a
++            // single run must not create two items.
++            if ($mpnKey !== null) {
++                $byMpn[$mpnKey] = $byMpn[$mpnKey] ?? $id;
++            }
+             $linkedCatalog[$cat->id] = $id;
+             $res['created']++;
+         }
+@@ -314,7 +336,7 @@ class DistributorCatalogImportService
+     {
+         $items = TenantInventoryItem::query()
+             ->where('tenant_id', $tenantId)
+-            ->get(['id', 'sku', 'catalog_upc', 'catalog_ean', 'distributor_catalog_id']);
++            ->get(['id', 'sku', 'catalog_upc', 'catalog_ean', 'catalog_mpn', 'shop_brand', 'distributor_catalog_id']);
+ 
+         $itemIds = $items->pluck('id');
+         $pivots = TenantInventoryItemVendor::query()
+@@ -325,9 +347,34 @@ class DistributorCatalogImportService
+             ->merge($pivots->pluck('distributor_catalog_id'))
+             ->filter()->unique()->values();
+ 
+-        $keyByCatalog = PlatformDistributorCatalog::query()
++        $catRows = PlatformDistributorCatalog::query()
+             ->whereIn('id', $catalogIds)
+-            ->pluck('product_key', 'id');
++            ->get(['id', 'product_key', 'manufacturer', 'manufacturer_sku'])
++            ->keyBy('id');
++        $keyByCatalog = $catRows->map(fn ($r) => $r->product_key);
++
++        // brand-qualified part numbers the shop already carries: the item's own
++        // MPN under its brand, and the MPN of every catalog row it is linked to.
++        $ids   = app(CatalogIdentifierService::class);
++        $byMpn = [];
++        foreach ($items as $it) {
++            $brand = $it->shop_brand ?: ($catRows[$it->distributor_catalog_id]->manufacturer ?? null);
++            if (($k = $this->mpnKey($ids, $brand, $it->catalog_mpn)) !== null) {
++                $byMpn[$k] = $byMpn[$k] ?? $it->id;
++            }
++            if ($it->distributor_catalog_id && isset($catRows[$it->distributor_catalog_id])) {
++                $r = $catRows[$it->distributor_catalog_id];
++                if (($k = $this->mpnKey($ids, $r->manufacturer, $r->manufacturer_sku)) !== null) {
++                    $byMpn[$k] = $byMpn[$k] ?? $it->id;
++                }
++            }
++        }
++        foreach ($pivots as $p) {
++            $r = $catRows[$p->distributor_catalog_id] ?? null;
++            if ($r && ($k = $this->mpnKey($ids, $r->manufacturer, $r->manufacturer_sku)) !== null) {
++                $byMpn[$k] = $byMpn[$k] ?? $p->inventory_item_id;
++            }
++        }
+ 
+         $byKey = [];
+         $byUpc = [];
+@@ -369,7 +416,20 @@ class DistributorCatalogImportService
+             }
+         }
+ 
+-        return [$byKey, $byUpc, $linked, $bySku, $byEan, $byBarcode];
++        return [$byKey, $byUpc, $linked, $bySku, $byEan, $byBarcode, $byMpn];
++    }
++
++    /**
++     * The identifier service's key, with a stricter floor: matching an item
++     * outright on a 2- or 3-character part number is too easy to get wrong.
++     */
++    private function mpnKey(CatalogIdentifierService $ids, ?string $brand, ?string $sku): ?string
++    {
++        $k = $ids->mpnKey($brand, $sku);
++        if ($k === null) {
++            return null;
++        }
++        return strlen(substr($k, strpos($k, '|') + 1)) >= 4 ? $k : null;
+     }
+ 
+     /**
+diff --git a/resources/views/tenant/distributors/import.blade.php b/resources/views/tenant/distributors/import.blade.php
+index 9c4d5c6b..dd4d35d1 100644
+--- a/resources/views/tenant/distributors/import.blade.php
++++ b/resources/views/tenant/distributors/import.blade.php
+@@ -1,5 +1,9 @@
+ @extends('layouts.tenant.app')
+-@php $pageTitle = 'Import from a distributor'; @endphp
++@php
++  $pageTitle = 'Import from a distributor';
++  // the distributor's name as people write it ("Shimano"), not its code
++  $distLabel = fn ($c) => app(\App\Services\Distributors\DistributorRegistry::class)->label((string) $c);
++@endphp
+ 
+ 
+ @push('styles')
+@@ -29,7 +33,7 @@
+ 
+ @section('content')
+ <div class="ia-section">
+-  <h1 style="font-size:20px;font-weight:600;margin-bottom:14px">Import from {{ $importCode }}</h1>
++  <h1 style="font-size:20px;font-weight:600;margin-bottom:14px">Import from {{ $distLabel($importCode) }}</h1>
+ 
+   {{-- brands, categories and counts are per
+        distributor, and there are thousands of each, so switching reloads
+@@ -43,7 +47,7 @@
+            style="padding:5px 13px;border-radius:20px;font-size:12.5px;font-weight:600;text-decoration:none;
+                   border:1px solid {{ $c === $importCode ? 'var(--ia-text)' : 'var(--ia-border)' }};
+                   background:{{ $c === $importCode ? 'var(--ia-text)' : 'var(--ia-surface-2)' }};
+-                  color:{{ $c === $importCode ? 'var(--ia-bg)' : 'var(--ia-text-dim)' }}">{{ $c }}</a>
++                  color:{{ $c === $importCode ? 'var(--ia-bg)' : 'var(--ia-text-dim)' }}">{{ $distLabel($c) }}</a>
+       @endforeach
+     </div>
+   @endif
+@@ -62,7 +66,7 @@
+ 
+   <div class="im-card">
+     <h2 class="im-h">Import items</h2>
+-    <p class="im-sub">Pick a brand and/or category, preview what comes in, then import. Items land catalog-only (no stock) — your normal product search finds them after. <b>{{ number_format($catalogTotal) }}</b> {{ $importCode }} items in the shared catalog.
++    <p class="im-sub">Pick a brand and/or category, preview what comes in, then import. Items land catalog-only (no stock) — your normal product search finds them after. <b>{{ number_format($catalogTotal) }}</b> {{ $distLabel($importCode) }} items in the shared catalog.
+       An item another distributor already supplies is added as a second source rather than duplicated.
+       Brands you have switched off are not listed here — <a href="{{ route('tenant.distributors.brands') }}" style="color:var(--ia-accent)">manage brands</a>. Switching a brand off never removes items you already carry.</p>
+ 

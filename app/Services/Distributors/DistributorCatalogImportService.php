@@ -33,7 +33,8 @@ class DistributorCatalogImportService
         }
 
         $vendor = $dryRun ? null : $this->vendorFor($tenantId, $code);
-        [$byKey, $byUpc, $linkedCatalog, $bySku, $byEan, $byBarcode] = $this->existingIndexes($tenantId);
+        [$byKey, $byUpc, $linkedCatalog, $bySku, $byEan, $byBarcode, $byMpn] = $this->existingIndexes($tenantId);
+        $ids = app(CatalogIdentifierService::class);
 
         $matchedRows = $this->matchedRows($candidates->pluck('id')->all());
 
@@ -121,6 +122,16 @@ class DistributorCatalogImportService
                 }
             }
 
+            // MARKER-IMPORT-MPN: same brand, same manufacturer part number. Checked
+            // after every barcode test (a barcode is the stronger evidence) and
+            // directly against the shop's items, so a part number matches even
+            // before the overnight cross-distributor index has linked the rows,
+            // and an item the shop entered with only a part number is found.
+            $mpnKey = $this->mpnKey($ids, $cat->manufacturer, $cat->manufacturer_sku);
+            if ($matchId === null && $mpnKey !== null && isset($byMpn[$mpnKey])) {
+                $matchId = $byMpn[$mpnKey];
+            }
+
             if ($matchId) {
                 if (! $dryRun) {
                     $this->addSource($matchId, $vendor, $code, $cat);
@@ -139,6 +150,9 @@ class DistributorCatalogImportService
                         if (blank($matched->catalog_ean) && filled($cat->ean)) {
                             $fill['catalog_ean'] = trim((string) $cat->ean);
                         }
+                        if (blank($matched->catalog_mpn) && filled($cat->manufacturer_sku)) {
+                            $fill['catalog_mpn'] = trim((string) $cat->manufacturer_sku);
+                        }
                         if ($fill) {
                             $matched->forceFill($fill)->save();
 
@@ -155,6 +169,9 @@ class DistributorCatalogImportService
                     }
                 }
                 $linkedCatalog[$cat->id] = $matchId;
+                if ($mpnKey !== null) {
+                    $byMpn[$mpnKey] = $byMpn[$mpnKey] ?? $matchId;
+                }
                 $res['merged']++;
                 continue;
             }
@@ -198,6 +215,11 @@ class DistributorCatalogImportService
             }
             foreach (\App\Support\Barcode::keys($cat->upc, $cat->ean) as $bk) {
                 $byBarcode[$bk] = $byBarcode[$bk] ?? $id;
+            }
+            // the index learns as it goes: two rows with one part number in a
+            // single run must not create two items.
+            if ($mpnKey !== null) {
+                $byMpn[$mpnKey] = $byMpn[$mpnKey] ?? $id;
             }
             $linkedCatalog[$cat->id] = $id;
             $res['created']++;
@@ -314,7 +336,7 @@ class DistributorCatalogImportService
     {
         $items = TenantInventoryItem::query()
             ->where('tenant_id', $tenantId)
-            ->get(['id', 'sku', 'catalog_upc', 'catalog_ean', 'distributor_catalog_id']);
+            ->get(['id', 'sku', 'catalog_upc', 'catalog_ean', 'catalog_mpn', 'shop_brand', 'distributor_catalog_id']);
 
         $itemIds = $items->pluck('id');
         $pivots = TenantInventoryItemVendor::query()
@@ -325,9 +347,34 @@ class DistributorCatalogImportService
             ->merge($pivots->pluck('distributor_catalog_id'))
             ->filter()->unique()->values();
 
-        $keyByCatalog = PlatformDistributorCatalog::query()
+        $catRows = PlatformDistributorCatalog::query()
             ->whereIn('id', $catalogIds)
-            ->pluck('product_key', 'id');
+            ->get(['id', 'product_key', 'manufacturer', 'manufacturer_sku'])
+            ->keyBy('id');
+        $keyByCatalog = $catRows->map(fn ($r) => $r->product_key);
+
+        // brand-qualified part numbers the shop already carries: the item's own
+        // MPN under its brand, and the MPN of every catalog row it is linked to.
+        $ids   = app(CatalogIdentifierService::class);
+        $byMpn = [];
+        foreach ($items as $it) {
+            $brand = $it->shop_brand ?: ($catRows[$it->distributor_catalog_id]->manufacturer ?? null);
+            if (($k = $this->mpnKey($ids, $brand, $it->catalog_mpn)) !== null) {
+                $byMpn[$k] = $byMpn[$k] ?? $it->id;
+            }
+            if ($it->distributor_catalog_id && isset($catRows[$it->distributor_catalog_id])) {
+                $r = $catRows[$it->distributor_catalog_id];
+                if (($k = $this->mpnKey($ids, $r->manufacturer, $r->manufacturer_sku)) !== null) {
+                    $byMpn[$k] = $byMpn[$k] ?? $it->id;
+                }
+            }
+        }
+        foreach ($pivots as $p) {
+            $r = $catRows[$p->distributor_catalog_id] ?? null;
+            if ($r && ($k = $this->mpnKey($ids, $r->manufacturer, $r->manufacturer_sku)) !== null) {
+                $byMpn[$k] = $byMpn[$k] ?? $p->inventory_item_id;
+            }
+        }
 
         $byKey = [];
         $byUpc = [];
@@ -369,7 +416,20 @@ class DistributorCatalogImportService
             }
         }
 
-        return [$byKey, $byUpc, $linked, $bySku, $byEan, $byBarcode];
+        return [$byKey, $byUpc, $linked, $bySku, $byEan, $byBarcode, $byMpn];
+    }
+
+    /**
+     * The identifier service's key, with a stricter floor: matching an item
+     * outright on a 2- or 3-character part number is too easy to get wrong.
+     */
+    private function mpnKey(CatalogIdentifierService $ids, ?string $brand, ?string $sku): ?string
+    {
+        $k = $ids->mpnKey($brand, $sku);
+        if ($k === null) {
+            return null;
+        }
+        return strlen(substr($k, strpos($k, '|') + 1)) >= 4 ? $k : null;
     }
 
     /**

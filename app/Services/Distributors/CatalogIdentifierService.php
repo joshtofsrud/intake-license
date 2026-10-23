@@ -106,6 +106,16 @@ class CatalogIdentifierService
      * manufacturers — plenty of brands ship a part called "100" — so the
      * brand travels with it and a bare MPN is never emitted.
      */
+    /**
+     * The brand-qualified MPN key ("BRAND|PART"), or null when the part
+     * number is too short or a placeholder. Public so the importer matches a
+     * shop's items with exactly the rules the cross-distributor index uses.
+     */
+    public function mpnKey(?string $brand, ?string $sku): ?string
+    {
+        return $this->mpn((string) $brand, (string) $sku);
+    }
+
     private function mpn(string $brand, string $sku): ?string
     {
         $b = $this->squash($brand);

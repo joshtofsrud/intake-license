@@ -75,6 +75,9 @@ class SyncDistributorCatalogJob implements ShouldQueue, ShouldBeUnique
         try {
             $res = $sync->syncIdentity($adapter, $since);
             Log::info("SyncDistributorCatalogJob {$code}: wrote {$res['written']} of {$res['seen']} variants.");
+            // MARKER-SYNC-REINDEX: index and match now, so today's imports can
+            // see this distributor's part numbers and barcodes across catalogs.
+            RefreshCatalogMatchesJob::dispatch($code);
         } catch (\Throwable $e) {
             DB::table('distributor_sync_state')->updateOrInsert(
                 ['distributor_code' => $code, 'source_ref' => 'catalog'],

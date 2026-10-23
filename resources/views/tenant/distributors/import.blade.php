@@ -1,5 +1,9 @@
 @extends('layouts.tenant.app')
-@php $pageTitle = 'Import from a distributor'; @endphp
+@php
+  $pageTitle = 'Import from a distributor';
+  // the distributor's name as people write it ("Shimano"), not its code
+  $distLabel = fn ($c) => app(\App\Services\Distributors\DistributorRegistry::class)->label((string) $c);
+@endphp
 
 
 @push('styles')
@@ -29,7 +33,7 @@
 
 @section('content')
 <div class="ia-section">
-  <h1 style="font-size:20px;font-weight:600;margin-bottom:14px">Import from {{ $importCode }}</h1>
+  <h1 style="font-size:20px;font-weight:600;margin-bottom:14px">Import from {{ $distLabel($importCode) }}</h1>
 
   {{-- brands, categories and counts are per
        distributor, and there are thousands of each, so switching reloads
@@ -43,7 +47,7 @@
            style="padding:5px 13px;border-radius:20px;font-size:12.5px;font-weight:600;text-decoration:none;
                   border:1px solid {{ $c === $importCode ? 'var(--ia-text)' : 'var(--ia-border)' }};
                   background:{{ $c === $importCode ? 'var(--ia-text)' : 'var(--ia-surface-2)' }};
-                  color:{{ $c === $importCode ? 'var(--ia-bg)' : 'var(--ia-text-dim)' }}">{{ $c }}</a>
+                  color:{{ $c === $importCode ? 'var(--ia-bg)' : 'var(--ia-text-dim)' }}">{{ $distLabel($c) }}</a>
       @endforeach
     </div>
   @endif
@@ -62,7 +66,7 @@
 
   <div class="im-card">
     <h2 class="im-h">Import items</h2>
-    <p class="im-sub">Pick a brand and/or category, preview what comes in, then import. Items land catalog-only (no stock) — your normal product search finds them after. <b>{{ number_format($catalogTotal) }}</b> {{ $importCode }} items in the shared catalog.
+    <p class="im-sub">Pick a brand and/or category, preview what comes in, then import. Items land catalog-only (no stock) — your normal product search finds them after. <b>{{ number_format($catalogTotal) }}</b> {{ $distLabel($importCode) }} items in the shared catalog.
       An item another distributor already supplies is added as a second source rather than duplicated.
       Brands you have switched off are not listed here — <a href="{{ route('tenant.distributors.brands') }}" style="color:var(--ia-accent)">manage brands</a>. Switching a brand off never removes items you already carry.</p>
 
