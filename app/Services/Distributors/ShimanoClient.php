@@ -9,7 +9,7 @@ use Symfony\Component\Process\Process;
 /**
  * Shimano (and the brands it distributes: PRO, Lazer, Motorex) adapter.
  *
- *   Transport : SFTP, one account for the whole country (the username and
+ *   Transport : SFTP through the server's OpenSSH client, one account for the whole country (the username and
  *               password are shared, so they live on the platform connection
  *               in master admin, never per shop).
  *   Feed      : one .xlsx per product family in /US (Hard Goods, Soft Goods,
@@ -51,7 +51,9 @@ class ShimanoClient implements DistributorAdapter
     private int $timeout;
     private int $cacheMinutes;
     private string $cacheDir;
-    private string $curlBin;
+    private string $sftpBin;
+    private string $keyscanBin;
+    private ?string $knownHosts = null;
 
     /** the feed was rebuilt by THIS adapter instance already */
     private bool $refreshedThisRun = false;
@@ -94,7 +96,8 @@ class ShimanoClient implements DistributorAdapter
         $this->insecure      = (bool) ($cfg['insecure'] ?? false);
         $this->timeout       = (int) ($cfg['timeout'] ?? 300);
         $this->cacheMinutes  = (int) ($cfg['cache_minutes'] ?? 30);
-        $this->curlBin       = (string) ($cfg['curl'] ?? 'curl');
+        $this->sftpBin       = (string) ($cfg['sftp'] ?? 'sftp');
+        $this->keyscanBin    = (string) ($cfg['keyscan'] ?? 'ssh-keyscan');
         $this->cacheDir      = (string) ($cfg['cache_dir'] ?? storage_path('app/distributor-cache'));
 
         // the folder is the region in capitals: US today, CA when that account is added.
@@ -124,8 +127,7 @@ class ShimanoClient implements DistributorAdapter
             return [
                 'ok'     => false,
                 'status' => null,
-                // curl exit 67: the server refused the login
-                'auth'   => str_contains($msg, 'curl exit 67') || str_contains($msg, 'Authentication'),
+                'auth'   => str_contains($msg, 'Permission denied') || str_contains($msg, 'Authentication'),
                 'body'   => $msg,
             ];
         }
@@ -143,71 +145,132 @@ class ShimanoClient implements DistributorAdapter
     // --------------------------------------------------------- transport
 
     /**
-     * One curl call. The login goes in on stdin as a curl config line, never
-     * on the command line, so it cannot show up in a process listing.
-     *
-     * @param array<int,string> $args
+     * The server's host key, taken from ssh-keyscan and accepted ONLY if its
+     * fingerprint equals the pinned one (SHA-256 or MD5). The accepted key is
+     * written to a private known_hosts file, and the real connection then
+     * demands exactly that key, so nobody can stand in for Shimano.
      */
-    private function curl(array $args): string
+    private function knownHostsFile(): string
     {
-        $cmd = array_merge([
-            $this->curlBin, '--silent', '--show-error', '--fail',
-            '--connect-timeout', '20', '--max-time', (string) $this->timeout,
-            '-K', '-',
-        ], $this->pinArgs(), $args);
+        if ($this->knownHosts !== null) {
+            return $this->knownHosts;
+        }
+        if (! $this->hostKeySha256 && ! $this->hostKeyMd5) {
+            if ($this->insecure) {
+                return $this->knownHosts = '/dev/null';
+            }
+            throw new \RuntimeException('Shimano: no host key is pinned (set SHIMANO_HOST_KEY_SHA256)');
+        }
 
-        $p = new Process($cmd);
-        $p->setTimeout($this->timeout + 30);
-        $p->setInput('user = "' . addcslashes($this->user . ':' . $this->pass, "\"\\") . "\"\n");
+        $wantSha = $this->hostKeySha256 ? rtrim(trim($this->hostKeySha256), '=') : null;
+        $wantMd5 = $this->hostKeyMd5 ? strtolower(str_replace(':', '', $this->hostKeyMd5)) : null;
+
+        $lastErr = '';
+        for ($try = 1; $try <= 4; $try++) {
+            $p = new Process([$this->keyscanBin, '-T', '30', '-p', (string) $this->port, $this->host]);
+            $p->setTimeout(60);
+            $p->run();
+            $lastErr = trim($p->getErrorOutput());
+
+            foreach (preg_split('/\R/', $p->getOutput()) as $line) {
+                $f = preg_split('/\s+/', trim($line));
+                if (count($f) < 3 || $f[0] === '' || $f[0][0] === '#') { continue; }
+                $blob = base64_decode($f[2], true);
+                if ($blob === false) { continue; }
+
+                $okSha = $wantSha !== null && hash_equals($wantSha, rtrim(base64_encode(hash('sha256', $blob, true)), '='));
+                $okMd5 = $wantMd5 !== null && hash_equals($wantMd5, md5($blob));
+                if (! $okSha && ! $okMd5) { continue; }
+
+                $file = $this->workDir() . '/known_hosts';
+                $host = $this->port === 22 ? $this->host : '[' . $this->host . ']:' . $this->port;
+                file_put_contents($file, $host . ' ' . $f[1] . ' ' . $f[2] . "\n");
+                chmod($file, 0600);
+                return $this->knownHosts = $file;
+            }
+            if ($try < 4) { sleep(2); }   // the server sometimes answers a scan with nothing
+        }
+
+        throw new \RuntimeException('Shimano: could not verify the server key against the pinned fingerprint'
+            . ($lastErr !== '' ? ' (' . $lastErr . ')' : '') . ' (host key mismatch)');
+    }
+
+    private function workDir(): string
+    {
+        $d = rtrim($this->cacheDir, '/');
+        if (! is_dir($d)) { @mkdir($d, 0775, true); }
+        return $d;
+    }
+
+    /** A tiny script ssh runs to ask for the password; the secret itself travels in the environment. */
+    private function askpass(): string
+    {
+        $f = $this->workDir() . '/shimano-askpass.sh';
+        $body = "#!/bin/sh\nprintf '%s\\n' \"\$SHIMANO_SFTP_PW\"\n";
+        if (! is_file($f) || file_get_contents($f) !== $body) {
+            file_put_contents($f, $body);
+        }
+        chmod($f, 0700);
+        return $f;
+    }
+
+    /**
+     * Runs sftp with the given commands on stdin. The password is never in
+     * the command line: ssh fetches it from the askpass script, which reads
+     * it from this process's environment only.
+     */
+    private function sftp(string $commands): string
+    {
+        $cmd = [
+            $this->sftpBin,
+            '-P', (string) $this->port,
+            '-o', 'StrictHostKeyChecking=' . ($this->insecure && ! $this->hostKeySha256 && ! $this->hostKeyMd5 ? 'no' : 'yes'),
+            '-o', 'UserKnownHostsFile=' . $this->knownHostsFile(),
+            '-o', 'PreferredAuthentications=password',
+            '-o', 'PubkeyAuthentication=no',
+            '-o', 'NumberOfPasswordPrompts=1',
+            '-o', 'ConnectTimeout=20',
+            $this->user . '@' . $this->host,
+        ];
+
+        $p = new Process($cmd, null, [
+            'SSH_ASKPASS'          => $this->askpass(),
+            'SSH_ASKPASS_REQUIRE'  => 'force',
+            'DISPLAY'              => 'intake',
+            'SHIMANO_SFTP_PW'      => $this->pass,
+        ]);
+        $p->setTimeout($this->timeout);
+        $p->setInput($commands . "\nbye\n");
         $p->run();
 
         if (! $p->isSuccessful()) {
             $err = trim($p->getErrorOutput());
-            throw new \RuntimeException('Shimano SFTP failed (curl exit ' . $p->getExitCode() . ')' . ($err !== '' ? ': ' . $err : ''));
+            throw new \RuntimeException('Shimano SFTP failed (exit ' . $p->getExitCode() . ')' . ($err !== '' ? ': ' . $err : ''));
         }
-        return $p->getOutput();
+        return $p->getOutput() . "\n" . $p->getErrorOutput();
     }
 
-    /**
-     * Pin Shimano's host key so nobody can stand in for the server. Some curl
-     * builds only honour the MD5 form, others only SHA-256, so either may be
-     * configured. With neither set the connection is refused unless
-     * 'insecure' is explicitly on (testing only).
-     *
-     * @return array<int,string>
-     */
-    private function pinArgs(): array
+    private function q(string $v): string
     {
-        if ($this->hostKeyMd5) {
-            return ['--hostpubmd5', strtolower(str_replace(':', '', $this->hostKeyMd5))];
-        }
-        if ($this->hostKeySha256) {
-            return ['--hostpubsha256', $this->hostKeySha256];
-        }
-        if ($this->insecure) {
-            return ['--insecure'];
-        }
-        throw new \RuntimeException('Shimano: no host key is pinned (set SHIMANO_HOST_KEY_MD5 or SHIMANO_HOST_KEY_SHA256)');
-    }
-
-    private function base(): string
-    {
-        return 'sftp://' . $this->host . ($this->port !== 22 ? ':' . $this->port : '') . '/' . rawurlencode($this->dir) . '/';
+        return '"' . addcslashes($v, '"\\') . '"';
     }
 
     /** @return array<int,string> .xlsx file names in the region folder */
     private function listRemote(): array
     {
-        $out = $this->curl(['--list-only', $this->base()]);
+        $out = $this->sftp('ls -1 ' . $this->q($this->dir));
 
         $names = [];
         foreach (preg_split('/\R/', $out) as $line) {
             $line = trim($line);
-            if ($line === '' || ! preg_match('/\.xlsx$/i', $line) || preg_match(self::SKIP, $line)) {
+            if ($line === '' || str_starts_with($line, 'sftp>') || ! preg_match('/\.xlsx$/i', $line)) {
                 continue;
             }
-            $names[] = $line;
+            $name = basename($line);
+            if (preg_match(self::SKIP, $name)) { continue; }
+            $names[$name] = $name;
         }
+        $names = array_values($names);
         sort($names);
         return $names;
     }
@@ -217,7 +280,7 @@ class ShimanoClient implements DistributorAdapter
         $tmp = $to . '.part';
         @unlink($tmp);
         try {
-            $this->curl(['--output', $tmp, $this->base() . rawurlencode($name)]);
+            $this->sftp('get ' . $this->q($this->dir . '/' . $name) . ' ' . $this->q($tmp));
             if (! is_file($tmp) || filesize($tmp) < 1024) {
                 throw new \RuntimeException("Shimano feed file {$name} came back empty");
             }

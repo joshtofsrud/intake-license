@@ -32,9 +32,8 @@ class ShimanoTest extends Command
         $res = $client->testConnection();
         $this->line(($res['ok'] ? 'OK    ' : 'FAILED') . '  ' . ($res['body'] ?? ''));
         if (! $res['ok']) {
-            if (str_contains((string) $res['body'], 'curl exit 60')) {
-                $this->warn('The server key did not match the pin. Your curl build may only accept the other form:');
-                $this->warn('  SHIMANO_HOST_KEY_MD5=<md5 hex>   (ssh-keyscan -t ed25519 ftpsna.shimano.com | ssh-keygen -lf - -E md5)');
+            if (str_contains((string) $res['body'], 'host key mismatch')) {
+                $this->warn('The server key did not match the pinned fingerprint (SHIMANO_HOST_KEY_SHA256).');
             }
             return self::FAILURE;
         }

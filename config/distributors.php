@@ -75,9 +75,8 @@ return [
 
     // SFTP spreadsheet feed. The login is NOT here: it is
     // entered once in master admin (Distributors) and used for every shop.
-    // Pin the server's host key so nobody can stand in for it. Some curl
-    // builds only honour the MD5 form, others only SHA-256; set whichever
-    // yours accepts (php artisan shimano:test says which works).
+    // Pin the server's host key (SHA-256 fingerprint) so nobody can stand in
+    // for it. Needs the openssh-client package (sftp, ssh-keyscan).
     'shimano' => [
         'name'            => 'Shimano',
         'host'            => env('SHIMANO_HOST', 'ftpsna.shimano.com'),
