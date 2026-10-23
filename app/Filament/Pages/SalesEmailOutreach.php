@@ -175,7 +175,13 @@ class SalesEmailOutreach extends Page
             ->when($this->who === 'again', fn ($q) => $q->whereNotNull('emailed_at')->where('emailed_at', '<', now()->subHour()))
             ->when($this->who === 'all', fn ($q) => $q->where(fn ($w) => $w->whereNull('emailed_at')->orWhere('emailed_at', '<', now()->subHour())))
             ->whereNotIn('stage', ['won', 'lost'])
-            ->whereRaw('LOWER(email) NOT IN (SELECT email FROM platform_email_optouts)');
+            ->whereRaw('LOWER(email) NOT IN (SELECT email FROM platform_email_optouts)')
+            // MARKER-OUTREACH-ONE-PER-ADDRESS: an address that had an outreach
+            // email recently is out of the queue whichever listing it was
+            // sent as; "new" means the ADDRESS has never had one.
+            ->whereRaw('LOWER(TRIM(email)) NOT IN (SELECT LOWER(email) FROM sales_outreach_sends WHERE created_at >= ?)',
+                [now()->subHours(ProspectOutreach::ADDRESS_GAP_HOURS)])
+            ->when($this->who === 'new', fn ($q) => $q->whereRaw('LOWER(TRIM(email)) NOT IN (SELECT LOWER(email) FROM sales_outreach_sends)'));
     }
 
     private function filtered()

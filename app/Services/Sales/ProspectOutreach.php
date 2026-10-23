@@ -298,6 +298,26 @@ class ProspectOutreach
 
     // ------------------------------------------------------------ sending
 
+    /**
+     * MARKER-OUTREACH-ONE-PER-ADDRESS: one outreach email per ADDRESS per this
+     * many hours, however many prospect records share it. Google lists one
+     * business several times (a second name, a rentals page, two locations),
+     * all with the same contact email, and each listing used to get its own
+     * email — up to three in one day to the same inbox.
+     */
+    public const ADDRESS_GAP_HOURS = 24;
+
+    /** The last outreach email to this address inside the gap, if any. */
+    public static function recentSendTo(string $email): ?object
+    {
+        return DB::table('sales_outreach_sends as s')
+            ->leftJoin('sales_prospects as p', 'p.id', '=', 's.sales_prospect_id')
+            ->whereRaw('LOWER(s.email) = ?', [mb_strtolower(trim($email))])
+            ->where('s.created_at', '>=', now()->subHours(self::ADDRESS_GAP_HOURS))
+            ->orderByDesc('s.created_at')
+            ->first(['s.created_at', 'p.shop']);
+    }
+
     /** @return array{0: bool, 1: string} sent?, message for the person sending */
     public static function send(SalesProspect $p, string $subject, string $body, ?string $page, ?string $templateId = null): array
     {
@@ -307,6 +327,12 @@ class ProspectOutreach
         }
         if (PlatformEmailOptout::has($to)) {
             return [false, 'Not sent: this address unsubscribed from Intake email'];
+        }
+        if ($prev = self::recentSendTo($to)) {
+            return [false, 'Not sent: ' . $to . ' already had an outreach email '
+                . \Illuminate\Support\Carbon::parse($prev->created_at)->diffForHumans()
+                . ($prev->shop ? ' (as ' . $prev->shop . ')' : '')
+                . '. One email per address per ' . self::ADDRESS_GAP_HOURS . ' hours.'];
         }
 
         $page    = self::normalizePage($page);
@@ -354,6 +380,12 @@ class ProspectOutreach
         $changes = ['last_contacted_at' => now(), 'emailed_at' => now(), 'email_skipped_at' => null];
         if ($p->stage === 'prospect') $changes['stage'] = 'contacted';
         $p->forceFill($changes)->save();
+
+        // the other listings with this address were emailed too, as far as
+        // anyone reading them is concerned; they stop showing as "new"
+        SalesProspect::query()->where('id', '!=', $p->id)
+            ->whereRaw('LOWER(TRIM(email)) = ?', [$to])
+            ->update(['emailed_at' => now()]);
 
         try {
             DB::table('sales_outreach_sends')->insert([

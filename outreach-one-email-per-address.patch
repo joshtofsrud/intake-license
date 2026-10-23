@@ -1,0 +1,76 @@
+diff --git a/app/Filament/Pages/SalesEmailOutreach.php b/app/Filament/Pages/SalesEmailOutreach.php
+index e0e93cf8..6e42acd2 100644
+--- a/app/Filament/Pages/SalesEmailOutreach.php
++++ b/app/Filament/Pages/SalesEmailOutreach.php
+@@ -144,7 +144,13 @@ class SalesEmailOutreach extends Page
+             ->when($this->who === 'again', fn ($q) => $q->whereNotNull('emailed_at')->where('emailed_at', '<', now()->subHour()))
+             ->when($this->who === 'all', fn ($q) => $q->where(fn ($w) => $w->whereNull('emailed_at')->orWhere('emailed_at', '<', now()->subHour())))
+             ->whereNotIn('stage', ['won', 'lost'])
+-            ->whereRaw('LOWER(email) NOT IN (SELECT email FROM platform_email_optouts)');
++            ->whereRaw('LOWER(email) NOT IN (SELECT email FROM platform_email_optouts)')
++            // MARKER-OUTREACH-ONE-PER-ADDRESS: an address that had an outreach
++            // email recently is out of the queue whichever listing it was
++            // sent as; "new" means the ADDRESS has never had one.
++            ->whereRaw('LOWER(TRIM(email)) NOT IN (SELECT LOWER(email) FROM sales_outreach_sends WHERE created_at >= ?)',
++                [now()->subHours(ProspectOutreach::ADDRESS_GAP_HOURS)])
++            ->when($this->who === 'new', fn ($q) => $q->whereRaw('LOWER(TRIM(email)) NOT IN (SELECT LOWER(email) FROM sales_outreach_sends)'));
+     }
+ 
+     private function filtered()
+diff --git a/app/Services/Sales/ProspectOutreach.php b/app/Services/Sales/ProspectOutreach.php
+index 0c640a34..8b15725b 100644
+--- a/app/Services/Sales/ProspectOutreach.php
++++ b/app/Services/Sales/ProspectOutreach.php
+@@ -298,6 +298,26 @@ class ProspectOutreach
+ 
+     // ------------------------------------------------------------ sending
+ 
++    /**
++     * MARKER-OUTREACH-ONE-PER-ADDRESS: one outreach email per ADDRESS per this
++     * many hours, however many prospect records share it. Google lists one
++     * business several times (a second name, a rentals page, two locations),
++     * all with the same contact email, and each listing used to get its own
++     * email — up to three in one day to the same inbox.
++     */
++    public const ADDRESS_GAP_HOURS = 24;
++
++    /** The last outreach email to this address inside the gap, if any. */
++    public static function recentSendTo(string $email): ?object
++    {
++        return DB::table('sales_outreach_sends as s')
++            ->leftJoin('sales_prospects as p', 'p.id', '=', 's.sales_prospect_id')
++            ->whereRaw('LOWER(s.email) = ?', [mb_strtolower(trim($email))])
++            ->where('s.created_at', '>=', now()->subHours(self::ADDRESS_GAP_HOURS))
++            ->orderByDesc('s.created_at')
++            ->first(['s.created_at', 'p.shop']);
++    }
++
+     /** @return array{0: bool, 1: string} sent?, message for the person sending */
+     public static function send(SalesProspect $p, string $subject, string $body, ?string $page, ?string $templateId = null): array
+     {
+@@ -308,6 +328,12 @@ class ProspectOutreach
+         if (PlatformEmailOptout::has($to)) {
+             return [false, 'Not sent: this address unsubscribed from Intake email'];
+         }
++        if ($prev = self::recentSendTo($to)) {
++            return [false, 'Not sent: ' . $to . ' already had an outreach email '
++                . \Illuminate\Support\Carbon::parse($prev->created_at)->diffForHumans()
++                . ($prev->shop ? ' (as ' . $prev->shop . ')' : '')
++                . '. One email per address per ' . self::ADDRESS_GAP_HOURS . ' hours.'];
++        }
+ 
+         $page    = self::normalizePage($page);
+         $subject = self::subject($subject, $p);
+@@ -355,6 +381,12 @@ class ProspectOutreach
+         if ($p->stage === 'prospect') $changes['stage'] = 'contacted';
+         $p->forceFill($changes)->save();
+ 
++        // the other listings with this address were emailed too, as far as
++        // anyone reading them is concerned; they stop showing as "new"
++        SalesProspect::query()->where('id', '!=', $p->id)
++            ->whereRaw('LOWER(TRIM(email)) = ?', [$to])
++            ->update(['emailed_at' => now()]);
++
+         try {
+             DB::table('sales_outreach_sends')->insert([
+                 'sales_prospect_id' => $p->id,
