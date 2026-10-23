@@ -58,6 +58,7 @@
 .mt-live i{width:7px;height:7px;border-radius:50%;background:#22c55e}
 .mt-live.warn i{background:#f0c46a}
 .mt-note[hidden]{display:none}
+.mt-cal{padding:5px 8px}
 @media(max-width:640px){.mt-rl{display:none}}
 .mt-note--warn{background:rgba(240,196,106,.08);border:1px solid rgba(240,196,106,.3)}
 .mt-headline{display:grid;grid-template-columns:210px 1fr;border:1px solid rgba(127,127,127,.22);border-radius:12px;overflow:hidden}
@@ -114,21 +115,22 @@
   $mtAgo = str_replace([' seconds', ' second', ' minutes', ' minute', ' hours', ' hour', ' days', ' day', ' weeks', ' week', ' ago'], ['s', 's', 'm', 'm', 'h', 'h', 'd', 'd', 'w', 'w', ''], (string) ($health['ago'] ?? ''));
 @endphp
 <div class="mt-ctl">
-  {{-- MARKER-TRAFFIC-RANGE-PICKER: "Custom range…" opens the single-calendar
-       picker beside this menu (components/admin/date-range); backing out of it
-       puts the menu back where it was. --}}
-  <select class="mt-sel" aria-label="Date range" id="mt-window" data-was="{{ $mtCustom ? 'custom' : $window }}"
-          onchange="if (this.value === 'custom') { document.getElementById('mt-dr').__drInstance.open(); } else { window.location.search = '?window=' + this.value; }">
+  {{-- MARKER-TRAFFIC-RANGE-PICKER: presets in the menu; any other range from
+       the calendar icon beside it (components/admin/date-range). --}}
+  <select class="mt-sel" aria-label="Date range"
+          onchange="window.location.search = '?window=' + this.value;">
+    @if($mtCustom)
+      <option value="" selected disabled hidden>Custom dates</option>
+    @endif
     @foreach(['1d' => 'Today', '7d' => 'Last 7 days', '30d' => 'Last 30 days', '90d' => 'Last 90 days'] as $wKey => $wLabel)
       <option value="{{ $wKey }}" @selected(! $mtCustom && $window === $wKey)>{{ $wLabel }}</option>
     @endforeach
-    <option value="custom" @selected($mtCustom)>Custom range…</option>
   </select>
   <form method="GET" style="display:contents">
     <input type="hidden" name="window" value="{{ $window }}">
-    <x-admin.date-range id="mt-dr" from-name="from" to-name="to"
+    <x-admin.date-range from-name="from" to-name="to"
         :from-value="$from ?? ''" :to-value="$to ?? ''"
-        placeholder="Pick dates" :hide-trigger="! $mtCustom" />
+        placeholder="" title="Pick dates" trigger-class="mt-cal" />
   </form>
   <label class="mt-compare">
     <input type="checkbox" wire:model.live="compare" @checked($compare)>
@@ -140,13 +142,6 @@
   </button>
 </div>
 
-<script>
-  document.getElementById('mt-dr')?.addEventListener('dr:closed', function (e) {
-    if (e.detail.applied) return;
-    var sel = document.getElementById('mt-window');
-    if (sel) sel.value = sel.dataset.was;   // backed out: menu shows what is really on screen
-  });
-</script>
 
 <div class="mt-note {{ $health['stale'] ? 'mt-note--warn' : '' }}" id="mt-track-note" @if(! $health['stale']) hidden @endif>
   @if($health['stale'])

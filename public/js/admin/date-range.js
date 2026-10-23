@@ -229,8 +229,10 @@
             } else if (this.toInput.value) {
                 this.label.textContent = `Until ${fmtShort(fromIso(this.toInput.value))}`;
             } else {
-                this.label.textContent = this.label.dataset.placeholder || 'Date range';
+                this.label.textContent = 'placeholder' in this.label.dataset ? this.label.dataset.placeholder : 'Date range';
             }
+            // icon-only trigger when there is nothing to say
+            this.label.hidden = this.label.textContent === '';
         }
 
         shiftMonth(delta) {

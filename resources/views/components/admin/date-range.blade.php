@@ -10,6 +10,8 @@
     'triggerClass' => '',
     // render the trigger hidden; the page opens the picker itself
     'hideTrigger'  => false,
+    // tooltip for the trigger; with an empty placeholder it is icon-only
+    'title'        => 'Pick dates',
 ])
 
 {{--
@@ -29,12 +31,12 @@
     <input type="hidden" name="{{ $fromName }}" value="{{ $fromValue }}" data-dr-from>
     <input type="hidden" name="{{ $toName }}"   value="{{ $toValue }}"   data-dr-to>
 
-    <button type="button" class="adr-trigger {{ $triggerClass }} {{ $drF ? 'is-on' : '' }}" data-dr-trigger @if($hideTrigger) hidden @endif>
+    <button type="button" class="adr-trigger {{ $triggerClass }} {{ $drF ? 'is-on' : '' }}" data-dr-trigger title="{{ $title }}" aria-label="{{ $title }}" @if($hideTrigger) hidden @endif>
         <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
             <rect x="1.75" y="3" width="10.5" height="9" rx="1.5" stroke="currentColor" stroke-width="1.2"/>
             <path d="M4.5 1.75v2.5M9.5 1.75v2.5M1.75 6h10.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
         </svg>
-        <span data-dr-label data-placeholder="{{ $placeholder }}">{{ $drLabel }}</span>
+        <span data-dr-label data-placeholder="{{ $placeholder }}" @if($drLabel === '') hidden @endif>{{ $drLabel }}</span>
     </button>
 
     <div class="adr-pop" data-dr-pop hidden>

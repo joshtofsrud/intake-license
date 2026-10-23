@@ -61,7 +61,7 @@
             <button type="button" class="{{ $rDays === (string) $k ? 'on' : '' }}" wire:click="$set('rDays', '{{ $k }}')">{{ $label }}</button>
         @endforeach
         {{-- MARKER-OUTREACH-RANGE: the single-calendar picker, any range --}}
-        <x-admin.date-range wire="setRange" placeholder="Dates" trigger-class="or-cal {{ $rDays === 'custom' ? 'on' : '' }}"
+        <x-admin.date-range wire="setRange" placeholder="" title="Pick dates" trigger-class="or-cal {{ $rDays === 'custom' ? 'on' : '' }}"
             :from-value="$rDays === 'custom' ? ($rFrom ?? '') : ''" :to-value="$rDays === 'custom' ? ($rTo ?? '') : ''" />
     </div>
 </div>

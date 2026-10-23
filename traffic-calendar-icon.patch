@@ -1,0 +1,114 @@
+diff --git a/public/js/admin/date-range.js b/public/js/admin/date-range.js
+index 0f57657a..7c55ce4a 100644
+--- a/public/js/admin/date-range.js
++++ b/public/js/admin/date-range.js
+@@ -229,8 +229,10 @@
+             } else if (this.toInput.value) {
+                 this.label.textContent = `Until ${fmtShort(fromIso(this.toInput.value))}`;
+             } else {
+-                this.label.textContent = this.label.dataset.placeholder || 'Date range';
++                this.label.textContent = 'placeholder' in this.label.dataset ? this.label.dataset.placeholder : 'Date range';
+             }
++            // icon-only trigger when there is nothing to say
++            this.label.hidden = this.label.textContent === '';
+         }
+ 
+         shiftMonth(delta) {
+diff --git a/resources/views/components/admin/date-range.blade.php b/resources/views/components/admin/date-range.blade.php
+index 33f6fa43..e1ec2bff 100644
+--- a/resources/views/components/admin/date-range.blade.php
++++ b/resources/views/components/admin/date-range.blade.php
+@@ -10,6 +10,8 @@
+     'triggerClass' => '',
+     // render the trigger hidden; the page opens the picker itself
+     'hideTrigger'  => false,
++    // tooltip for the trigger; with an empty placeholder it is icon-only
++    'title'        => 'Pick dates',
+ ])
+ 
+ {{--
+@@ -29,12 +31,12 @@
+     <input type="hidden" name="{{ $fromName }}" value="{{ $fromValue }}" data-dr-from>
+     <input type="hidden" name="{{ $toName }}"   value="{{ $toValue }}"   data-dr-to>
+ 
+-    <button type="button" class="adr-trigger {{ $triggerClass }} {{ $drF ? 'is-on' : '' }}" data-dr-trigger @if($hideTrigger) hidden @endif>
++    <button type="button" class="adr-trigger {{ $triggerClass }} {{ $drF ? 'is-on' : '' }}" data-dr-trigger title="{{ $title }}" aria-label="{{ $title }}" @if($hideTrigger) hidden @endif>
+         <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+             <rect x="1.75" y="3" width="10.5" height="9" rx="1.5" stroke="currentColor" stroke-width="1.2"/>
+             <path d="M4.5 1.75v2.5M9.5 1.75v2.5M1.75 6h10.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+         </svg>
+-        <span data-dr-label data-placeholder="{{ $placeholder }}">{{ $drLabel }}</span>
++        <span data-dr-label data-placeholder="{{ $placeholder }}" @if($drLabel === '') hidden @endif>{{ $drLabel }}</span>
+     </button>
+ 
+     <div class="adr-pop" data-dr-pop hidden>
+diff --git a/resources/views/filament/pages/marketing-traffic.blade.php b/resources/views/filament/pages/marketing-traffic.blade.php
+index 2ea3f9de..80b89630 100644
+--- a/resources/views/filament/pages/marketing-traffic.blade.php
++++ b/resources/views/filament/pages/marketing-traffic.blade.php
+@@ -58,6 +58,7 @@
+ .mt-live i{width:7px;height:7px;border-radius:50%;background:#22c55e}
+ .mt-live.warn i{background:#f0c46a}
+ .mt-note[hidden]{display:none}
++.mt-cal{padding:5px 8px}
+ @media(max-width:640px){.mt-rl{display:none}}
+ .mt-note--warn{background:rgba(240,196,106,.08);border:1px solid rgba(240,196,106,.3)}
+ .mt-headline{display:grid;grid-template-columns:210px 1fr;border:1px solid rgba(127,127,127,.22);border-radius:12px;overflow:hidden}
+@@ -114,21 +115,22 @@
+   $mtAgo = str_replace([' seconds', ' second', ' minutes', ' minute', ' hours', ' hour', ' days', ' day', ' weeks', ' week', ' ago'], ['s', 's', 'm', 'm', 'h', 'h', 'd', 'd', 'w', 'w', ''], (string) ($health['ago'] ?? ''));
+ @endphp
+ <div class="mt-ctl">
+-  {{-- MARKER-TRAFFIC-RANGE-PICKER: "Custom range…" opens the single-calendar
+-       picker beside this menu (components/admin/date-range); backing out of it
+-       puts the menu back where it was. --}}
+-  <select class="mt-sel" aria-label="Date range" id="mt-window" data-was="{{ $mtCustom ? 'custom' : $window }}"
+-          onchange="if (this.value === 'custom') { document.getElementById('mt-dr').__drInstance.open(); } else { window.location.search = '?window=' + this.value; }">
++  {{-- MARKER-TRAFFIC-RANGE-PICKER: presets in the menu; any other range from
++       the calendar icon beside it (components/admin/date-range). --}}
++  <select class="mt-sel" aria-label="Date range"
++          onchange="window.location.search = '?window=' + this.value;">
++    @if($mtCustom)
++      <option value="" selected disabled hidden>Custom dates</option>
++    @endif
+     @foreach(['1d' => 'Today', '7d' => 'Last 7 days', '30d' => 'Last 30 days', '90d' => 'Last 90 days'] as $wKey => $wLabel)
+       <option value="{{ $wKey }}" @selected(! $mtCustom && $window === $wKey)>{{ $wLabel }}</option>
+     @endforeach
+-    <option value="custom" @selected($mtCustom)>Custom range…</option>
+   </select>
+   <form method="GET" style="display:contents">
+     <input type="hidden" name="window" value="{{ $window }}">
+-    <x-admin.date-range id="mt-dr" from-name="from" to-name="to"
++    <x-admin.date-range from-name="from" to-name="to"
+         :from-value="$from ?? ''" :to-value="$to ?? ''"
+-        placeholder="Pick dates" :hide-trigger="! $mtCustom" />
++        placeholder="" title="Pick dates" trigger-class="mt-cal" />
+   </form>
+   <label class="mt-compare">
+     <input type="checkbox" wire:model.live="compare" @checked($compare)>
+@@ -140,13 +142,6 @@
+   </button>
+ </div>
+ 
+-<script>
+-  document.getElementById('mt-dr')?.addEventListener('dr:closed', function (e) {
+-    if (e.detail.applied) return;
+-    var sel = document.getElementById('mt-window');
+-    if (sel) sel.value = sel.dataset.was;   // backed out: menu shows what is really on screen
+-  });
+-</script>
+ 
+ <div class="mt-note {{ $health['stale'] ? 'mt-note--warn' : '' }}" id="mt-track-note" @if(! $health['stale']) hidden @endif>
+   @if($health['stale'])
+diff --git a/resources/views/filament/partials/outreach-results.blade.php b/resources/views/filament/partials/outreach-results.blade.php
+index cf6b17f9..1c3da858 100644
+--- a/resources/views/filament/partials/outreach-results.blade.php
++++ b/resources/views/filament/partials/outreach-results.blade.php
+@@ -61,7 +61,7 @@
+             <button type="button" class="{{ $rDays === (string) $k ? 'on' : '' }}" wire:click="$set('rDays', '{{ $k }}')">{{ $label }}</button>
+         @endforeach
+         {{-- MARKER-OUTREACH-RANGE: the single-calendar picker, any range --}}
+-        <x-admin.date-range wire="setRange" placeholder="Dates" trigger-class="or-cal {{ $rDays === 'custom' ? 'on' : '' }}"
++        <x-admin.date-range wire="setRange" placeholder="" title="Pick dates" trigger-class="or-cal {{ $rDays === 'custom' ? 'on' : '' }}"
+             :from-value="$rDays === 'custom' ? ($rFrom ?? '') : ''" :to-value="$rDays === 'custom' ? ($rTo ?? '') : ''" />
+     </div>
+ </div>
