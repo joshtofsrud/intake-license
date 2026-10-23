@@ -37,10 +37,6 @@
 .mt-tile-k{font-size:11px;opacity:.55}
 .mt-tile-v{font-size:24px;font-weight:700;margin-top:2px}
 .mt-tile-d{font-size:11.5px;margin-top:2px;opacity:.6}
-.mt-range{display:inline-flex;align-items:center;gap:6px;border:1px solid rgba(127,127,127,.3);border-radius:999px;padding:4px 10px;margin-left:6px}
-.mt-range input{background:none;border:0;color:inherit;font:inherit;font-size:12.5px;width:120px}
-.mt-range input::-webkit-calendar-picker-indicator{filter:invert(.6);cursor:pointer}
-.mt-clear{font-size:11.5px;opacity:.55;text-decoration:underline}
 .mt-compare{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;opacity:.75;margin-left:10px}
 .mt-legend{font-size:11px;opacity:.42;margin-top:2px}
 .mt-two-up{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:20px}
@@ -61,9 +57,8 @@
 .mt-live{margin-left:auto;display:inline-flex;align-items:center;gap:6px;font-size:12px;border:1px solid rgba(127,127,127,.3);border-radius:999px;padding:3px 10px;background:none;color:inherit;cursor:pointer;white-space:nowrap}
 .mt-live i{width:7px;height:7px;border-radius:50%;background:#22c55e}
 .mt-live.warn i{background:#f0c46a}
-.mt-custom{margin:0 0 12px}
-.mt-range[hidden],.mt-note[hidden]{display:none}
-@media(max-width:640px){.mt-rl{display:none}.mt-custom{display:flex;width:100%;box-sizing:border-box}}
+.mt-note[hidden]{display:none}
+@media(max-width:640px){.mt-rl{display:none}}
 .mt-note--warn{background:rgba(240,196,106,.08);border:1px solid rgba(240,196,106,.3)}
 .mt-headline{display:grid;grid-template-columns:210px 1fr;border:1px solid rgba(127,127,127,.22);border-radius:12px;overflow:hidden}
 @media(max-width:900px){.mt-headline{grid-template-columns:1fr}}
@@ -119,13 +114,22 @@
   $mtAgo = str_replace([' seconds', ' second', ' minutes', ' minute', ' hours', ' hour', ' days', ' day', ' weeks', ' week', ' ago'], ['s', 's', 'm', 'm', 'h', 'h', 'd', 'd', 'w', 'w', ''], (string) ($health['ago'] ?? ''));
 @endphp
 <div class="mt-ctl">
-  <select class="mt-sel" aria-label="Date range"
-          onchange="if (this.value === 'custom') { document.getElementById('mt-custom').hidden = false; } else { window.location.search = '?window=' + this.value; }">
+  {{-- MARKER-TRAFFIC-RANGE-PICKER: "Custom range…" opens the single-calendar
+       picker beside this menu (components/admin/date-range); backing out of it
+       puts the menu back where it was. --}}
+  <select class="mt-sel" aria-label="Date range" id="mt-window" data-was="{{ $mtCustom ? 'custom' : $window }}"
+          onchange="if (this.value === 'custom') { document.getElementById('mt-dr').__drInstance.open(); } else { window.location.search = '?window=' + this.value; }">
     @foreach(['1d' => 'Today', '7d' => 'Last 7 days', '30d' => 'Last 30 days', '90d' => 'Last 90 days'] as $wKey => $wLabel)
       <option value="{{ $wKey }}" @selected(! $mtCustom && $window === $wKey)>{{ $wLabel }}</option>
     @endforeach
     <option value="custom" @selected($mtCustom)>Custom range…</option>
   </select>
+  <form method="GET" style="display:contents">
+    <input type="hidden" name="window" value="{{ $window }}">
+    <x-admin.date-range id="mt-dr" from-name="from" to-name="to"
+        :from-value="$from ?? ''" :to-value="$to ?? ''"
+        placeholder="Pick dates" :hide-trigger="! $mtCustom" />
+  </form>
   <label class="mt-compare">
     <input type="checkbox" wire:model.live="compare" @checked($compare)>
     <span>Compare</span>
@@ -136,15 +140,13 @@
   </button>
 </div>
 
-<form method="GET" class="mt-range mt-custom" id="mt-custom" @if(! $mtCustom) hidden @endif>
-  <input type="hidden" name="window" value="{{ $window }}">
-  <input type="date" name="from" value="{{ $from ?? '' }}" onchange="this.form.submit()" aria-label="From">
-  <span>→</span>
-  <input type="date" name="to" value="{{ $to ?? '' }}" onchange="this.form.submit()" aria-label="To">
-  @if($mtCustom)
-    <a href="{{ url()->current() }}?window={{ $window }}" class="mt-clear" title="Back to the preset">clear</a>
-  @endif
-</form>
+<script>
+  document.getElementById('mt-dr')?.addEventListener('dr:closed', function (e) {
+    if (e.detail.applied) return;
+    var sel = document.getElementById('mt-window');
+    if (sel) sel.value = sel.dataset.was;   // backed out: menu shows what is really on screen
+  });
+</script>
 
 <div class="mt-note {{ $health['stale'] ? 'mt-note--warn' : '' }}" id="mt-track-note" @if(! $health['stale']) hidden @endif>
   @if($health['stale'])

@@ -25,18 +25,36 @@ class OutreachResults
     public const DEMO_STAGES = ['demo_booked', 'demo_done', 'trial', 'won'];
 
     /**
-     * @param array{industry?: string, template?: string, days?: string} $f
-     *        template '' = all, 'none' = written by hand; days '7' | '30' | '90' | 'all'
+     * @param array{industry?: string, template?: string, days?: string, from?: string, to?: string, tz?: string} $f
+     *        template '' = all, 'none' = written by hand;
+     *        days 'today' | '7' | '30' | '90' | 'all' | 'custom' (custom reads from/to, Y-m-d, in tz)
      */
     public static function compute(array $f): array
     {
         $industry = (string) ($f['industry'] ?? '');
         $template = (string) ($f['template'] ?? '');
         $days     = (string) ($f['days'] ?? '30');
-        $since    = $days === 'all' ? null : now()->subDays(max(1, (int) $days));
+        $tz       = (string) ($f['tz'] ?? 'America/Los_Angeles');
+        $until    = null;
+
+        // MARKER-OUTREACH-RANGE: Today is the local calendar day, and a custom
+        // range runs from the start of its first day to the end of its last.
+        $dayOf = fn (?string $d) => $d && preg_match('/^\d{4}-\d{2}-\d{2}$/', $d) ? CarbonImmutable::createFromFormat('Y-m-d', $d, $tz) : null;
+        if ($days === 'today') {
+            $since = CarbonImmutable::now($tz)->startOfDay();
+        } elseif ($days === 'custom' && ($a = $dayOf($f['from'] ?? null))) {
+            $b     = $dayOf($f['to'] ?? null) ?? $a;
+            [$a, $b] = $a->greaterThan($b) ? [$b, $a] : [$a, $b];
+            $since = $a->startOfDay();
+            $until = $b->endOfDay();
+        } else {
+            $since = $days === 'all' ? null : now()->subDays(max(1, (int) $days));
+        }
 
         $all = self::sends($industry, $template, null);        // every matching send, for follow-ups and the chart
-        $rows = $since ? $all->filter(fn ($r) => $r->at->greaterThanOrEqualTo($since))->values() : $all;
+        $rows = ($since || $until)
+            ? $all->filter(fn ($r) => (! $since || $r->at->greaterThanOrEqualTo($since)) && (! $until || $r->at->lessThanOrEqualTo($until)))->values()
+            : $all;
 
         $ctx = self::context($all);
 

@@ -221,6 +221,17 @@ class AdminPanelProvider extends PanelProvider
                     . (file_exists(public_path('css/admin/mobile.css')) ? filemtime(public_path('css/admin/mobile.css')) : '1')
                     . '">'
             )
+            // MARKER-ADMIN-DATE-RANGE: the tenant single-calendar range picker,
+            // carried into master admin (components/admin/date-range). Loaded on
+            // every page because Livewire can add a picker after load.
+            ->renderHook(
+                PanelsRenderHook::BODY_END,
+                function (): string {
+                    $v = fn (string $f) => file_exists(public_path($f)) ? filemtime(public_path($f)) : '1';
+                    return '<link rel="stylesheet" href="' . asset('css/admin/date-range.css') . '?v=' . $v('css/admin/date-range.css') . '">'
+                         . '<script src="' . asset('js/admin/date-range.js') . '?v=' . $v('js/admin/date-range.js') . '" defer></script>';
+                }
+            )
             // MARKER-ADMIN-FIXES-CSS: light-mode Sales pages, phone date bar
             ->renderHook(
                 PanelsRenderHook::BODY_END,

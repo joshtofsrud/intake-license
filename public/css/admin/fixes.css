@@ -29,7 +29,8 @@ html:not(.dark) .sx-root .sx-in option,
 html:not(.dark) .sx-root .sx-in optgroup { background: #fff; color: #18181b; }
 html:not(.dark) .sx-root .sx-btn { color: #18181b; }
 html:not(.dark) .sx-root .sx-btn.p { color: #fff; }
-html:not(.dark) .sx-root .or-pills button { background: rgba(0,0,0,.05); }
+html:not(.dark) .sx-root .or-pills > button,
+html:not(.dark) .sx-root .or-pills .adr-trigger.or-cal { background: rgba(0,0,0,.05); }
 html:not(.dark) .sx-root .or-wk i.v { background: #84cc16; }
 html:not(.dark) .sx-root .or-tag.hot { border-color: #65a30d; color: #4d7c0f; }
 html:not(.dark) .sx-root .sx-t a.sx-ico:hover { color: #18181b; background: rgba(0,0,0,.06); }
@@ -44,8 +45,6 @@ html:not(.dark) .sx-root .sx-t .sx-em { color: #7c3aed; }
 @media (max-width: 640px) {
   .mt-bar { flex-wrap: wrap; row-gap: 8px; }
   .mt-bar a { white-space: nowrap; height: auto; padding: 7px 12px; }
-  .mt-range { width: 100%; margin-left: 0; box-sizing: border-box; padding: 6px 12px; }
-  .mt-range input { width: auto; flex: 1; min-width: 0; }
   .mt-compare { margin-left: 0; }
 }
 

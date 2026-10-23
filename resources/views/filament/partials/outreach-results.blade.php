@@ -11,8 +11,12 @@
 @endphp
 <style>
   .or-pills { display:flex; gap:6px; margin-left:auto; }
-  .or-pills button { padding:5px 12px; border-radius:99px; font-size:12.5px; background:rgba(255,255,255,.06); color:inherit; opacity:.6; border:0; cursor:pointer; }
-  .or-pills button.on { opacity:1; font-weight:600; box-shadow:inset 0 0 0 1px currentColor; }
+  .or-pills > button { padding:5px 12px; border-radius:99px; font-size:12.5px; background:rgba(255,255,255,.06); color:inherit; opacity:.6; border:0; cursor:pointer; }
+  .or-pills > button.on { opacity:1; font-weight:600; box-shadow:inset 0 0 0 1px currentColor; }
+  /* the calendar pill reads as one of the pills; its popover keeps its own look */
+  .or-pills .adr-trigger.or-cal { border:0; border-radius:99px; padding:5px 12px; font-size:12.5px; background:rgba(255,255,255,.06); }
+  .or-pills .adr-trigger.or-cal.on { color:inherit; font-weight:600; box-shadow:inset 0 0 0 1px currentColor; }
+  .or-pills .adr-pop { left:auto; right:0; }
   .or-fn { display:flex; align-items:stretch; flex-wrap:wrap; margin-top:18px; border-top:1px solid var(--sx-line); border-bottom:1px solid var(--sx-line); }
   .or-fs { flex:1 1 0; min-width:110px; padding:14px 14px 14px 10px; border:0; border-bottom:2px solid transparent; background:none; color:inherit; text-align:left; cursor:pointer; font:inherit; }
   .or-fs:hover { background:rgba(255,255,255,.03); }
@@ -53,9 +57,12 @@
         <option value="none">Written by hand</option>
     </select>
     <div class="or-pills">
-        @foreach (['7' => '7 days', '30' => '30 days', '90' => '90 days', 'all' => 'All time'] as $k => $label)
+        @foreach (['today' => 'Today', '7' => '7 days', '30' => '30 days', '90' => '90 days', 'all' => 'All time'] as $k => $label)
             <button type="button" class="{{ $rDays === (string) $k ? 'on' : '' }}" wire:click="$set('rDays', '{{ $k }}')">{{ $label }}</button>
         @endforeach
+        {{-- MARKER-OUTREACH-RANGE: the single-calendar picker, any range --}}
+        <x-admin.date-range wire="setRange" placeholder="Dates" trigger-class="or-cal {{ $rDays === 'custom' ? 'on' : '' }}"
+            :from-value="$rDays === 'custom' ? ($rFrom ?? '') : ''" :to-value="$rDays === 'custom' ? ($rTo ?? '') : ''" />
     </div>
 </div>
 

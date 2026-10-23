@@ -1,0 +1,869 @@
+diff --git a/app/Filament/Pages/SalesEmailOutreach.php b/app/Filament/Pages/SalesEmailOutreach.php
+index d6d5ca1e..e0e93cf8 100644
+--- a/app/Filament/Pages/SalesEmailOutreach.php
++++ b/app/Filament/Pages/SalesEmailOutreach.php
+@@ -47,8 +47,20 @@ class SalesEmailOutreach extends Page
+     public string $rIndustry = '';
+     public string $rTemplate = '';
+     public string $rDays = '30';
++    public ?string $rFrom = null;   // MARKER-OUTREACH-RANGE: picked with the calendar
++    public ?string $rTo   = null;
+     public ?string $drill = null; // MARKER-OUTREACH-DRILL: which funnel number is open
+ 
++    /** Apply / Clear from the calendar on Results. */
++    public function setRange(?string $from, ?string $to): void
++    {
++        $ok = fn (?string $d) => $d && preg_match('/^\d{4}-\d{2}-\d{2}$/', $d) ? $d : null;
++        $this->rFrom = $ok($from);
++        $this->rTo   = $ok($to) ?? $this->rFrom;
++        $this->rDays = $this->rFrom ? 'custom' : '30';
++        $this->drill = null;
++    }
++
+     public function toggleDrill(string $k): void
+     {
+         $this->drill = $this->drill === $k ? null : $k;
+@@ -106,7 +118,10 @@ class SalesEmailOutreach extends Page
+         return \App\Services\Sales\OutreachResults::compute([
+             'industry' => $this->rIndustry,
+             'template' => $this->rTemplate,
+-            'days'     => in_array($this->rDays, ['7', '30', '90', 'all'], true) ? $this->rDays : '30',
++            'days'     => in_array($this->rDays, ['today', '7', '30', '90', 'all', 'custom'], true) ? $this->rDays : '30',
++            'from'     => $this->rFrom,
++            'to'       => $this->rTo,
++            'tz'       => self::TZ,
+         ]);
+     }
+ 
+diff --git a/app/Providers/Filament/AdminPanelProvider.php b/app/Providers/Filament/AdminPanelProvider.php
+index 80d5906a..f62bc461 100644
+--- a/app/Providers/Filament/AdminPanelProvider.php
++++ b/app/Providers/Filament/AdminPanelProvider.php
+@@ -221,6 +221,17 @@ class AdminPanelProvider extends PanelProvider
+                     . (file_exists(public_path('css/admin/mobile.css')) ? filemtime(public_path('css/admin/mobile.css')) : '1')
+                     . '">'
+             )
++            // MARKER-ADMIN-DATE-RANGE: the tenant single-calendar range picker,
++            // carried into master admin (components/admin/date-range). Loaded on
++            // every page because Livewire can add a picker after load.
++            ->renderHook(
++                PanelsRenderHook::BODY_END,
++                function (): string {
++                    $v = fn (string $f) => file_exists(public_path($f)) ? filemtime(public_path($f)) : '1';
++                    return '<link rel="stylesheet" href="' . asset('css/admin/date-range.css') . '?v=' . $v('css/admin/date-range.css') . '">'
++                         . '<script src="' . asset('js/admin/date-range.js') . '?v=' . $v('js/admin/date-range.js') . '" defer></script>';
++                }
++            )
+             // MARKER-ADMIN-FIXES-CSS: light-mode Sales pages, phone date bar
+             ->renderHook(
+                 PanelsRenderHook::BODY_END,
+diff --git a/app/Services/Sales/OutreachResults.php b/app/Services/Sales/OutreachResults.php
+index acf5127c..9c7af052 100644
+--- a/app/Services/Sales/OutreachResults.php
++++ b/app/Services/Sales/OutreachResults.php
+@@ -25,18 +25,36 @@ class OutreachResults
+     public const DEMO_STAGES = ['demo_booked', 'demo_done', 'trial', 'won'];
+ 
+     /**
+-     * @param array{industry?: string, template?: string, days?: string} $f
+-     *        template '' = all, 'none' = written by hand; days '7' | '30' | '90' | 'all'
++     * @param array{industry?: string, template?: string, days?: string, from?: string, to?: string, tz?: string} $f
++     *        template '' = all, 'none' = written by hand;
++     *        days 'today' | '7' | '30' | '90' | 'all' | 'custom' (custom reads from/to, Y-m-d, in tz)
+      */
+     public static function compute(array $f): array
+     {
+         $industry = (string) ($f['industry'] ?? '');
+         $template = (string) ($f['template'] ?? '');
+         $days     = (string) ($f['days'] ?? '30');
+-        $since    = $days === 'all' ? null : now()->subDays(max(1, (int) $days));
++        $tz       = (string) ($f['tz'] ?? 'America/Los_Angeles');
++        $until    = null;
++
++        // MARKER-OUTREACH-RANGE: Today is the local calendar day, and a custom
++        // range runs from the start of its first day to the end of its last.
++        $dayOf = fn (?string $d) => $d && preg_match('/^\d{4}-\d{2}-\d{2}$/', $d) ? CarbonImmutable::createFromFormat('Y-m-d', $d, $tz) : null;
++        if ($days === 'today') {
++            $since = CarbonImmutable::now($tz)->startOfDay();
++        } elseif ($days === 'custom' && ($a = $dayOf($f['from'] ?? null))) {
++            $b     = $dayOf($f['to'] ?? null) ?? $a;
++            [$a, $b] = $a->greaterThan($b) ? [$b, $a] : [$a, $b];
++            $since = $a->startOfDay();
++            $until = $b->endOfDay();
++        } else {
++            $since = $days === 'all' ? null : now()->subDays(max(1, (int) $days));
++        }
+ 
+         $all = self::sends($industry, $template, null);        // every matching send, for follow-ups and the chart
+-        $rows = $since ? $all->filter(fn ($r) => $r->at->greaterThanOrEqualTo($since))->values() : $all;
++        $rows = ($since || $until)
++            ? $all->filter(fn ($r) => (! $since || $r->at->greaterThanOrEqualTo($since)) && (! $until || $r->at->lessThanOrEqualTo($until)))->values()
++            : $all;
+ 
+         $ctx = self::context($all);
+ 
+diff --git a/public/css/admin/date-range.css b/public/css/admin/date-range.css
+new file mode 100644
+index 00000000..52d12cef
+--- /dev/null
++++ b/public/css/admin/date-range.css
+@@ -0,0 +1,109 @@
++/* Date range picker — master admin.
++   The tenant picker (components/tenant/date-range) carried into master admin:
++   same layout and sizes, in the admin's own palette (Filament's primary,
++   violet). Loaded on every admin page from AdminPanelProvider. */
++
++.adr {
++    --adr-surface:   rgb(24 24 27);
++    --adr-surface-2: rgba(255,255,255,.035);
++    --adr-border:    rgba(255,255,255,.12);
++    --adr-border-2:  rgba(255,255,255,.24);
++    --adr-text:      #f4f4f5;
++    --adr-muted:     rgba(244,244,245,.55);
++    --adr-hover:     rgba(255,255,255,.06);
++    --adr-accent:    rgb(var(--primary-500, 139, 92, 246));
++    --adr-accent-soft: rgba(var(--primary-500, 139, 92, 246), .2);
++    --adr-accent-text: #fff;
++    position: relative;
++    display: inline-block;
++}
++html:not(.dark) .adr {
++    --adr-surface:   #fff;
++    --adr-surface-2: rgba(0,0,0,.025);
++    --adr-border:    rgba(0,0,0,.12);
++    --adr-border-2:  rgba(0,0,0,.25);
++    --adr-text:      #18181b;
++    --adr-muted:     rgba(24,24,27,.55);
++    --adr-hover:     rgba(0,0,0,.05);
++    --adr-accent-soft: rgba(var(--primary-500, 139, 92, 246), .14);
++}
++
++.adr-trigger {
++    display: inline-flex; align-items: center; gap: 6px;
++    border: 1px solid rgba(127,127,127,.3); background: transparent; color: inherit;
++    border-radius: 8px; padding: 5px 10px; font: inherit; font-size: 13px;
++    cursor: pointer; white-space: nowrap;
++}
++.adr-trigger:hover { border-color: rgba(127,127,127,.55); }
++.adr-trigger.is-on { border-color: var(--adr-accent); color: var(--adr-accent); }
++.adr-trigger[hidden] { display: none; }
++
++.adr-pop {
++    position: absolute; top: calc(100% + 4px); left: 0; z-index: 60;
++    background: var(--adr-surface); color: var(--adr-text);
++    border: 1px solid var(--adr-border); border-radius: 10px;
++    padding: 12px; box-shadow: 0 8px 24px rgba(0,0,0,.4);
++    width: 300px; user-select: none; font-size: 13px;
++}
++.adr-pop[hidden] { display: none; }
++.adr-pop.is-flip-right { left: auto; right: 0; }
++
++.adr-presets {
++    display: flex; flex-wrap: wrap; gap: 4px;
++    margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid var(--adr-border);
++}
++.adr-preset {
++    background: transparent; border: 1px solid var(--adr-border); border-radius: 5px;
++    padding: 4px 9px; font-size: 11px; color: var(--adr-muted); cursor: pointer; font-family: inherit;
++}
++.adr-preset:hover { color: var(--adr-text); border-color: var(--adr-border-2); }
++
++.adr-cal { background: var(--adr-surface-2); border: 1px solid var(--adr-border); border-radius: 8px; padding: 10px; }
++.adr-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
++.adr-title { font-size: 13px; font-weight: 600; }
++.adr-nav {
++    background: transparent; border: 1px solid var(--adr-border); border-radius: 5px;
++    width: 26px; height: 26px; cursor: pointer; color: var(--adr-muted);
++    font-size: 14px; line-height: 1; font-family: inherit;
++    display: flex; align-items: center; justify-content: center;
++}
++.adr-nav:hover { color: var(--adr-text); border-color: var(--adr-border-2); }
++
++.adr-dows {
++    display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; margin-bottom: 4px;
++    font-size: 9.5px; text-transform: uppercase; letter-spacing: .06em;
++    color: var(--adr-muted); font-weight: 600; text-align: center;
++}
++.adr-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
++
++.adr-cell {
++    aspect-ratio: 1; display: flex; align-items: center; justify-content: center;
++    font-size: 12px; border-radius: 4px; cursor: pointer; background: transparent; border: none;
++    color: var(--adr-muted); font-family: inherit; position: relative;
++}
++.adr-cell:hover:not(:disabled):not(.is-empty):not(.is-range-start):not(.is-range-end):not(.is-in-range) { background: var(--adr-hover); color: var(--adr-text); }
++.adr-cell.is-empty { cursor: default; pointer-events: none; }
++.adr-cell.is-today { outline: 1px solid var(--adr-accent); outline-offset: -1px; }
++.adr-cell.is-in-range { background: var(--adr-accent-soft); color: var(--adr-text); border-radius: 0; }
++.adr-cell.is-range-start { background: var(--adr-accent); color: var(--adr-accent-text); font-weight: 600; border-top-right-radius: 0; border-bottom-right-radius: 0; }
++.adr-cell.is-range-end { background: var(--adr-accent); color: var(--adr-accent-text); font-weight: 600; border-top-left-radius: 0; border-bottom-left-radius: 0; }
++.adr-cell.is-range-start.is-range-end { border-radius: 4px; }
++.adr-cell.is-in-range.is-row-end { border-top-right-radius: 4px; border-bottom-right-radius: 4px; }
++.adr-cell.is-in-range.is-row-start { border-top-left-radius: 4px; border-bottom-left-radius: 4px; }
++
++.adr-summary {
++    margin-top: 10px; padding: 6px 10px; background: var(--adr-surface-2); border-radius: 6px;
++    font-size: 12px; color: var(--adr-muted); text-align: center; min-height: 28px;
++    display: flex; align-items: center; justify-content: center;
++}
++
++.adr-actions { display: flex; gap: 6px; margin-top: 10px; justify-content: flex-end; }
++.adr-btn {
++    padding: 5px 12px; font-size: 12px; border-radius: 6px; cursor: pointer; font-family: inherit;
++    border: 1px solid var(--adr-border); background: transparent; color: var(--adr-text);
++}
++.adr-btn:hover { border-color: var(--adr-border-2); }
++.adr-btn--primary { background: var(--adr-accent); border-color: var(--adr-accent); color: var(--adr-accent-text); font-weight: 600; }
++.adr-btn--primary:hover { filter: brightness(1.08); }
++.adr-btn--ghost { border-color: transparent; }
++.adr-clear { margin-right: auto; color: #EF4444; }
+diff --git a/public/css/admin/fixes.css b/public/css/admin/fixes.css
+index 306254a9..e8c41fbc 100644
+--- a/public/css/admin/fixes.css
++++ b/public/css/admin/fixes.css
+@@ -29,7 +29,8 @@ html:not(.dark) .sx-root .sx-in option,
+ html:not(.dark) .sx-root .sx-in optgroup { background: #fff; color: #18181b; }
+ html:not(.dark) .sx-root .sx-btn { color: #18181b; }
+ html:not(.dark) .sx-root .sx-btn.p { color: #fff; }
+-html:not(.dark) .sx-root .or-pills button { background: rgba(0,0,0,.05); }
++html:not(.dark) .sx-root .or-pills > button,
++html:not(.dark) .sx-root .or-pills .adr-trigger.or-cal { background: rgba(0,0,0,.05); }
+ html:not(.dark) .sx-root .or-wk i.v { background: #84cc16; }
+ html:not(.dark) .sx-root .or-tag.hot { border-color: #65a30d; color: #4d7c0f; }
+ html:not(.dark) .sx-root .sx-t a.sx-ico:hover { color: #18181b; background: rgba(0,0,0,.06); }
+@@ -44,8 +45,6 @@ html:not(.dark) .sx-root .sx-t .sx-em { color: #7c3aed; }
+ @media (max-width: 640px) {
+   .mt-bar { flex-wrap: wrap; row-gap: 8px; }
+   .mt-bar a { white-space: nowrap; height: auto; padding: 7px 12px; }
+-  .mt-range { width: 100%; margin-left: 0; box-sizing: border-box; padding: 6px 12px; }
+-  .mt-range input { width: auto; flex: 1; min-width: 0; }
+   .mt-compare { margin-left: 0; }
+ }
+ 
+diff --git a/public/js/admin/date-range.js b/public/js/admin/date-range.js
+new file mode 100644
+index 00000000..0f57657a
+--- /dev/null
++++ b/public/js/admin/date-range.js
+@@ -0,0 +1,436 @@
++/**
++ * Date range picker — master admin copy of public/js/tenant/date-range.js.
++ *
++ * Same calendar, presets and selection rules as the tenant picker. Two
++ * differences: it can hand the range to a Livewire method instead of
++ * submitting a form ([data-dr-wire="method"]), and it attaches to pickers
++ * Livewire adds later (a tab switch), not only those present at page load.
++ *
++ * Auto-attaches to any element with [data-dr]. Each instance is independent
++ * — a page can have multiple pickers without stomping each other.
++ *
++ * Selection model:
++ *   - First click sets `from`, clears `to`. Calendar shows single highlight.
++ *   - Second click: if later than `from`, sets `to`. If earlier, swaps so
++ *     the earlier date becomes new `from` and prior `from` becomes `to`.
++ *   - Same-date second click → single-day range (from == to).
++ *   - Hover preview shows the prospective range while user is mid-selection.
++ *
++ * The hidden inputs `data-dr-from` / `data-dr-to` are the source of truth at
++ * page-render time. While the popover is open we work with internal state and
++ * only commit to the inputs (and submit the parent form) when Apply fires.
++ *
++ * Dates are kept as ISO strings (YYYY-MM-DD) inside the inputs. Internally
++ * we use Date objects normalized to local-midnight to avoid timezone drift.
++ */
++(function () {
++    'use strict';
++
++    const MONTHS = [
++        'January', 'February', 'March', 'April', 'May', 'June',
++        'July', 'August', 'September', 'October', 'November', 'December'
++    ];
++
++    /**
++     * Convert a Date to YYYY-MM-DD using local-time components. Avoids the
++     * UTC drift you get with toISOString() when local timezone is behind UTC.
++     */
++    function toIso(d) {
++        if (!d) return '';
++        const y = d.getFullYear();
++        const m = String(d.getMonth() + 1).padStart(2, '0');
++        const day = String(d.getDate()).padStart(2, '0');
++        return `${y}-${m}-${day}`;
++    }
++
++    /** Parse YYYY-MM-DD as local-midnight. */
++    function fromIso(s) {
++        if (!s) return null;
++        const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
++        if (!m) return null;
++        return new Date(parseInt(m[1], 10), parseInt(m[2], 10) - 1, parseInt(m[3], 10));
++    }
++
++    /** Strip time component from a Date for safe comparisons. */
++    function dayOnly(d) {
++        return new Date(d.getFullYear(), d.getMonth(), d.getDate());
++    }
++
++    /** Pretty short label like "May 7, 2026". */
++    function fmtShort(d) {
++        if (!d) return '';
++        return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
++    }
++
++    function isSameDay(a, b) {
++        if (!a || !b) return false;
++        return a.getFullYear() === b.getFullYear()
++            && a.getMonth() === b.getMonth()
++            && a.getDate() === b.getDate();
++    }
++
++    function isBetween(d, lo, hi) {
++        return d >= lo && d <= hi;
++    }
++
++    class DateRangePicker {
++        constructor(root) {
++            this.root = root;
++            this.fromInput = root.querySelector('[data-dr-from]');
++            this.toInput   = root.querySelector('[data-dr-to]');
++            this.trigger   = root.querySelector('[data-dr-trigger]');
++            this.label     = root.querySelector('[data-dr-label]');
++            this.pop       = root.querySelector('[data-dr-pop]');
++            this.title     = root.querySelector('[data-dr-title]');
++            this.grid      = root.querySelector('[data-dr-grid]');
++            this.summary   = root.querySelector('[data-dr-summary-text]');
++            this.prevBtn   = root.querySelector('[data-dr-prev]');
++            this.nextBtn   = root.querySelector('[data-dr-next]');
++            this.clearBtn  = root.querySelector('[data-dr-clear]');
++            this.cancelBtn = root.querySelector('[data-dr-cancel]');
++            this.applyBtn  = root.querySelector('[data-dr-apply]');
++
++            // Working state — separate from committed input values
++            this.from = fromIso(this.fromInput.value);
++            this.to   = fromIso(this.toInput.value);
++            // hoverDate is set during mid-selection (have from, no to yet)
++            this.hoverDate = null;
++
++            // View month: anchor on `from` if set, else today
++            const anchor = this.from || new Date();
++            this.viewYear  = anchor.getFullYear();
++            this.viewMonth = anchor.getMonth();
++
++            this.today = dayOnly(new Date());
++
++            this.bind();
++            this.updateLabel();
++        }
++
++        bind() {
++            this.trigger.addEventListener('click', () => this.toggle());
++            this.prevBtn.addEventListener('click', () => this.shiftMonth(-1));
++            this.nextBtn.addEventListener('click', () => this.shiftMonth(1));
++            this.clearBtn.addEventListener('click', () => this.clearAndApply());
++            this.cancelBtn.addEventListener('click', () => this.close(false));
++            this.applyBtn.addEventListener('click', () => this.apply());
++
++            this.root.querySelectorAll('[data-dr-preset]').forEach(btn => {
++                btn.addEventListener('click', () => this.applyPreset(btn.dataset.drPreset));
++            });
++
++            // Click outside closes without applying
++            this.outsideHandler = (e) => {
++                if (!this.pop.hidden && !this.root.contains(e.target)) {
++                    this.close(false);
++                }
++            };
++            document.addEventListener('click', this.outsideHandler, true);
++
++            // Esc closes without applying
++            this.keyHandler = (e) => {
++                if (this.pop.hidden) return;
++                if (e.key === 'Escape') {
++                    e.preventDefault();
++                    this.close(false);
++                } else if (e.key === 'Enter') {
++                    e.preventDefault();
++                    this.apply();
++                }
++            };
++            document.addEventListener('keydown', this.keyHandler);
++        }
++
++        toggle() {
++            if (this.pop.hidden) this.open();
++            else this.close(false);
++        }
++
++        open() {
++            // Snapshot current input values in case user cancels
++            this.savedFrom = this.fromInput.value;
++            this.savedTo   = this.toInput.value;
++            this.from = fromIso(this.fromInput.value);
++            this.to   = fromIso(this.toInput.value);
++            this.hoverDate = null;
++            const anchor = this.from || new Date();
++            this.viewYear  = anchor.getFullYear();
++            this.viewMonth = anchor.getMonth();
++            this.pop.hidden = false;
++            this.render();
++
++            // flip to right-align when the popover would spill
++            // off the right edge of the viewport (trigger sitting far right).
++            this.pop.classList.remove('is-flip-right');
++            const _r = this.pop.getBoundingClientRect();
++            if (_r.right > window.innerWidth - 8) {
++                this.pop.classList.add('is-flip-right');
++            }
++        }
++
++        close(commit) {
++            if (!commit) {
++                // Restore to snapshot values; selection state was internal
++                this.fromInput.value = this.savedFrom || '';
++                this.toInput.value   = this.savedTo || '';
++            }
++            this.pop.hidden = true;
++            // lets a page undo whatever opened the picker (a "Custom range…"
++            // option) when the person backs out without applying.
++            this.root.dispatchEvent(new CustomEvent('dr:closed', { detail: { applied: !!commit } }));
++        }
++
++        apply() {
++            // If user picked only "from" but not "to", treat as a single-day range
++            if (this.from && !this.to) this.to = this.from;
++            this.fromInput.value = toIso(this.from);
++            this.toInput.value   = toIso(this.to);
++            this.updateLabel();
++            this.close(true);
++            this.submitForm();
++        }
++
++        clearAndApply() {
++            this.from = null;
++            this.to   = null;
++            this.fromInput.value = '';
++            this.toInput.value   = '';
++            this.updateLabel();
++            this.close(true);
++            this.submitForm();
++        }
++
++        submitForm() {
++            this.applied = true;
++            // Livewire page: hand the range to the named component method.
++            const method = this.root.dataset.drWire;
++            if (method) {
++                const host = this.root.closest('[wire\\:id]');
++                const lw = host && window.Livewire ? window.Livewire.find(host.getAttribute('wire:id')) : null;
++                if (lw) lw.call(method, this.fromInput.value, this.toInput.value);
++                return;
++            }
++            // Otherwise submit the parent <form>, as the tenant picker does.
++            const form = this.root.closest('form');
++            if (form) form.submit();
++        }
++
++        updateLabel() {
++            if (this.fromInput.value && this.toInput.value) {
++                const f = fromIso(this.fromInput.value);
++                const t = fromIso(this.toInput.value);
++                if (isSameDay(f, t)) {
++                    this.label.textContent = fmtShort(f);
++                } else {
++                    this.label.textContent = `${fmtShort(f)} — ${fmtShort(t)}`;
++                }
++            } else if (this.fromInput.value) {
++                this.label.textContent = `From ${fmtShort(fromIso(this.fromInput.value))}`;
++            } else if (this.toInput.value) {
++                this.label.textContent = `Until ${fmtShort(fromIso(this.toInput.value))}`;
++            } else {
++                this.label.textContent = this.label.dataset.placeholder || 'Date range';
++            }
++        }
++
++        shiftMonth(delta) {
++            this.viewMonth += delta;
++            if (this.viewMonth < 0) { this.viewMonth = 11; this.viewYear -= 1; }
++            else if (this.viewMonth > 11) { this.viewMonth = 0; this.viewYear += 1; }
++            this.render();
++        }
++
++        /**
++         * Click-on-cell logic. Two clicks = a range.
++         */
++        selectDate(d) {
++            // Cancel any pending hover-render — it could otherwise rebuild
++            // the grid after the click lands and visually undo our update.
++            if (this._hoverRaf) {
++                cancelAnimationFrame(this._hoverRaf);
++                this._hoverRaf = null;
++            }
++
++            if (!this.from || (this.from && this.to)) {
++                // First click, or starting fresh after a complete range
++                this.from = d;
++                this.to = null;
++            } else {
++                // Second click — close out the range
++                if (d < this.from) {
++                    // Earlier than current from → swap
++                    this.to = this.from;
++                    this.from = d;
++                } else {
++                    this.to = d;
++                }
++            }
++            this.hoverDate = null;
++            this.render();
++        }
++
++        applyPreset(name) {
++            const today = new Date();
++            const t = dayOnly(today);
++            let from, to;
++            switch (name) {
++                case 'today':
++                    from = t; to = t; break;
++                case 'last_7':
++                    to = t;
++                    from = new Date(t); from.setDate(t.getDate() - 6);
++                    break;
++                case 'this_month':
++                    from = new Date(t.getFullYear(), t.getMonth(), 1);
++                    to = new Date(t.getFullYear(), t.getMonth() + 1, 0);
++                    break;
++                case 'last_30':
++                    to = t;
++                    from = new Date(t); from.setDate(t.getDate() - 29);
++                    break;
++                case 'this_year':
++                    from = new Date(t.getFullYear(), 0, 1);
++                    to = new Date(t.getFullYear(), 11, 31);
++                    break;
++                default:
++                    return;
++            }
++            this.from = from;
++            this.to = to;
++            // Snap view to the from-month
++            this.viewYear = from.getFullYear();
++            this.viewMonth = from.getMonth();
++            this.hoverDate = null;
++            this.render();
++        }
++
++        /**
++         * Build the calendar grid for the current view month and apply
++         * range/highlight classes per cell.
++         */
++        render() {
++            this.title.textContent = `${MONTHS[this.viewMonth]} ${this.viewYear}`;
++            this.grid.innerHTML = '';
++
++            const firstDow = new Date(this.viewYear, this.viewMonth, 1).getDay();
++            const daysInMonth = new Date(this.viewYear, this.viewMonth + 1, 0).getDate();
++
++            // The row position helps draw clean range bars at row edges.
++            // Cell index in grid = firstDow + (day - 1). Row = floor(idx / 7).
++            // First col of row = idx % 7 === 0; last col = idx % 7 === 6.
++            for (let i = 0; i < firstDow; i++) {
++                const empty = document.createElement('button');
++                empty.type = 'button';
++                empty.className = 'adr-cell is-empty';
++                empty.disabled = true;
++                this.grid.appendChild(empty);
++            }
++
++            // Determine the effective range for highlighting. If user is
++            // mid-selection (from set, no to, hovering elsewhere), preview
++            // a virtual range using the hover.
++            let lo = null, hi = null;
++            if (this.from && this.to) {
++                lo = this.from < this.to ? this.from : this.to;
++                hi = this.from < this.to ? this.to : this.from;
++            } else if (this.from && this.hoverDate) {
++                lo = this.from < this.hoverDate ? this.from : this.hoverDate;
++                hi = this.from < this.hoverDate ? this.hoverDate : this.from;
++            } else if (this.from) {
++                lo = this.from; hi = this.from;
++            }
++
++            for (let day = 1; day <= daysInMonth; day++) {
++                const cellDate = new Date(this.viewYear, this.viewMonth, day);
++                const cell = document.createElement('button');
++                cell.type = 'button';
++                cell.className = 'adr-cell';
++                cell.textContent = day;
++
++                if (isSameDay(cellDate, this.today)) cell.classList.add('is-today');
++
++                if (lo && hi) {
++                    const inRange = isBetween(cellDate, lo, hi);
++                    if (inRange) {
++                        const isStart = isSameDay(cellDate, lo);
++                        const isEnd   = isSameDay(cellDate, hi);
++                        if (isStart) cell.classList.add('is-range-start');
++                        if (isEnd)   cell.classList.add('is-range-end');
++                        if (!isStart && !isEnd) cell.classList.add('is-in-range');
++
++                        // Track row-edge cells for clean band rendering
++                        const cellIdx = firstDow + (day - 1);
++                        if (cellIdx % 7 === 0) cell.classList.add('is-row-start');
++                        if (cellIdx % 7 === 6) cell.classList.add('is-row-end');
++                    }
++                }
++
++                cell.addEventListener('click', () => this.selectDate(cellDate));
++                cell.addEventListener('mouseenter', () => {
++                    // Only show hover preview when mid-selection
++                    if (!this.from || this.to) return;
++
++                    // Skip if hovering the same date as before — avoids
++                    // a re-render storm that destroys the cell DOM mid-click
++                    // and swallows the user's second click.
++                    if (this.hoverDate && isSameDay(this.hoverDate, cellDate)) return;
++
++                    this.hoverDate = cellDate;
++
++                    // Defer the re-render so it can't race with a pending
++                    // click event on this same cell. requestAnimationFrame
++                    // gives the browser a chance to dispatch the click first.
++                    if (this._hoverRaf) cancelAnimationFrame(this._hoverRaf);
++                    this._hoverRaf = requestAnimationFrame(() => {
++                        this._hoverRaf = null;
++                        this.render();
++                    });
++                });
++                this.grid.appendChild(cell);
++            }
++
++            this.renderSummary();
++        }
++
++        renderSummary() {
++            if (this.from && this.to) {
++                const lo = this.from < this.to ? this.from : this.to;
++                const hi = this.from < this.to ? this.to : this.from;
++                if (isSameDay(lo, hi)) {
++                    this.summary.textContent = fmtShort(lo);
++                } else {
++                    const days = Math.round((hi - lo) / 86400000) + 1;
++                    this.summary.textContent = `${fmtShort(lo)} → ${fmtShort(hi)} (${days} days)`;
++                }
++            } else if (this.from) {
++                this.summary.textContent = `From ${fmtShort(this.from)} — pick end date`;
++            } else {
++                this.summary.textContent = 'Click a date to start';
++            }
++        }
++    }
++
++    function init() {
++        document.querySelectorAll('[data-dr]').forEach(root => {
++            if (root.__drInstance) return;
++            root.__drInstance = new DateRangePicker(root);
++        });
++    }
++
++    function start() {
++        init();
++        // Livewire adds pickers after load (tab switches, re-renders).
++        let queued = false;
++        new MutationObserver(() => {
++            if (queued) return;
++            queued = true;
++            requestAnimationFrame(() => { queued = false; init(); });
++        }).observe(document.body, { childList: true, subtree: true });
++    }
++
++    if (document.readyState === 'loading') {
++        document.addEventListener('DOMContentLoaded', start);
++    } else {
++        start();
++    }
++})();
+diff --git a/resources/views/components/admin/date-range.blade.php b/resources/views/components/admin/date-range.blade.php
+new file mode 100644
+index 00000000..33f6fa43
+--- /dev/null
++++ b/resources/views/components/admin/date-range.blade.php
+@@ -0,0 +1,71 @@
++@props([
++    'fromName'     => 'from',
++    'toName'       => 'to',
++    'fromValue'    => '',
++    'toValue'      => '',
++    'placeholder'  => 'Date range',
++    // a Livewire method to call with (from, to) on Apply / Clear. Without it
++    // the picker submits its parent <form>, like the tenant picker.
++    'wire'         => null,
++    'triggerClass' => '',
++    // render the trigger hidden; the page opens the picker itself
++    'hideTrigger'  => false,
++])
++
++{{--
++  Master-admin copy of components/tenant/date-range: one calendar, presets,
++  click a start and an end. Styles: public/css/admin/date-range.css. Script:
++  public/js/admin/date-range.js. Both load on every admin page
++  (AdminPanelProvider, MARKER-ADMIN-DATE-RANGE).
++--}}
++@php
++    $drF = $fromValue ? \Carbon\Carbon::parse($fromValue) : null;
++    $drT = $toValue ? \Carbon\Carbon::parse($toValue) : null;
++    $drLabel = $drF && $drT
++        ? ($drF->isSameDay($drT) ? $drF->format('M j, Y') : $drF->format('M j, Y') . ' — ' . $drT->format('M j, Y'))
++        : $placeholder;
++@endphp
++<div {{ $attributes->merge(['class' => 'adr']) }} data-dr @if($wire) data-dr-wire="{{ $wire }}" @endif>
++    <input type="hidden" name="{{ $fromName }}" value="{{ $fromValue }}" data-dr-from>
++    <input type="hidden" name="{{ $toName }}"   value="{{ $toValue }}"   data-dr-to>
++
++    <button type="button" class="adr-trigger {{ $triggerClass }} {{ $drF ? 'is-on' : '' }}" data-dr-trigger @if($hideTrigger) hidden @endif>
++        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
++            <rect x="1.75" y="3" width="10.5" height="9" rx="1.5" stroke="currentColor" stroke-width="1.2"/>
++            <path d="M4.5 1.75v2.5M9.5 1.75v2.5M1.75 6h10.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
++        </svg>
++        <span data-dr-label data-placeholder="{{ $placeholder }}">{{ $drLabel }}</span>
++    </button>
++
++    <div class="adr-pop" data-dr-pop hidden>
++        <div class="adr-presets">
++            <button type="button" class="adr-preset" data-dr-preset="today">Today</button>
++            <button type="button" class="adr-preset" data-dr-preset="last_7">Last 7 days</button>
++            <button type="button" class="adr-preset" data-dr-preset="this_month">This month</button>
++            <button type="button" class="adr-preset" data-dr-preset="last_30">Last 30 days</button>
++            <button type="button" class="adr-preset" data-dr-preset="this_year">This year</button>
++        </div>
++
++        <div class="adr-cal">
++            <div class="adr-head">
++                <button type="button" class="adr-nav" data-dr-prev aria-label="Previous month">‹</button>
++                <div class="adr-title" data-dr-title></div>
++                <button type="button" class="adr-nav" data-dr-next aria-label="Next month">›</button>
++            </div>
++            <div class="adr-dows">
++                <div>Su</div><div>Mo</div><div>Tu</div><div>We</div><div>Th</div><div>Fr</div><div>Sa</div>
++            </div>
++            <div class="adr-grid" data-dr-grid></div>
++        </div>
++
++        <div class="adr-summary">
++            <span data-dr-summary-text>Click a date to start</span>
++        </div>
++
++        <div class="adr-actions">
++            <button type="button" class="adr-btn adr-btn--ghost adr-clear" data-dr-clear>Clear</button>
++            <button type="button" class="adr-btn" data-dr-cancel>Cancel</button>
++            <button type="button" class="adr-btn adr-btn--primary" data-dr-apply>Apply</button>
++        </div>
++    </div>
++</div>
+diff --git a/resources/views/filament/pages/marketing-traffic.blade.php b/resources/views/filament/pages/marketing-traffic.blade.php
+index 08cc4fae..2ea3f9de 100644
+--- a/resources/views/filament/pages/marketing-traffic.blade.php
++++ b/resources/views/filament/pages/marketing-traffic.blade.php
+@@ -37,10 +37,6 @@
+ .mt-tile-k{font-size:11px;opacity:.55}
+ .mt-tile-v{font-size:24px;font-weight:700;margin-top:2px}
+ .mt-tile-d{font-size:11.5px;margin-top:2px;opacity:.6}
+-.mt-range{display:inline-flex;align-items:center;gap:6px;border:1px solid rgba(127,127,127,.3);border-radius:999px;padding:4px 10px;margin-left:6px}
+-.mt-range input{background:none;border:0;color:inherit;font:inherit;font-size:12.5px;width:120px}
+-.mt-range input::-webkit-calendar-picker-indicator{filter:invert(.6);cursor:pointer}
+-.mt-clear{font-size:11.5px;opacity:.55;text-decoration:underline}
+ .mt-compare{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;opacity:.75;margin-left:10px}
+ .mt-legend{font-size:11px;opacity:.42;margin-top:2px}
+ .mt-two-up{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:20px}
+@@ -61,9 +57,8 @@
+ .mt-live{margin-left:auto;display:inline-flex;align-items:center;gap:6px;font-size:12px;border:1px solid rgba(127,127,127,.3);border-radius:999px;padding:3px 10px;background:none;color:inherit;cursor:pointer;white-space:nowrap}
+ .mt-live i{width:7px;height:7px;border-radius:50%;background:#22c55e}
+ .mt-live.warn i{background:#f0c46a}
+-.mt-custom{margin:0 0 12px}
+-.mt-range[hidden],.mt-note[hidden]{display:none}
+-@media(max-width:640px){.mt-rl{display:none}.mt-custom{display:flex;width:100%;box-sizing:border-box}}
++.mt-note[hidden]{display:none}
++@media(max-width:640px){.mt-rl{display:none}}
+ .mt-note--warn{background:rgba(240,196,106,.08);border:1px solid rgba(240,196,106,.3)}
+ .mt-headline{display:grid;grid-template-columns:210px 1fr;border:1px solid rgba(127,127,127,.22);border-radius:12px;overflow:hidden}
+ @media(max-width:900px){.mt-headline{grid-template-columns:1fr}}
+@@ -119,13 +114,22 @@
+   $mtAgo = str_replace([' seconds', ' second', ' minutes', ' minute', ' hours', ' hour', ' days', ' day', ' weeks', ' week', ' ago'], ['s', 's', 'm', 'm', 'h', 'h', 'd', 'd', 'w', 'w', ''], (string) ($health['ago'] ?? ''));
+ @endphp
+ <div class="mt-ctl">
+-  <select class="mt-sel" aria-label="Date range"
+-          onchange="if (this.value === 'custom') { document.getElementById('mt-custom').hidden = false; } else { window.location.search = '?window=' + this.value; }">
++  {{-- MARKER-TRAFFIC-RANGE-PICKER: "Custom range…" opens the single-calendar
++       picker beside this menu (components/admin/date-range); backing out of it
++       puts the menu back where it was. --}}
++  <select class="mt-sel" aria-label="Date range" id="mt-window" data-was="{{ $mtCustom ? 'custom' : $window }}"
++          onchange="if (this.value === 'custom') { document.getElementById('mt-dr').__drInstance.open(); } else { window.location.search = '?window=' + this.value; }">
+     @foreach(['1d' => 'Today', '7d' => 'Last 7 days', '30d' => 'Last 30 days', '90d' => 'Last 90 days'] as $wKey => $wLabel)
+       <option value="{{ $wKey }}" @selected(! $mtCustom && $window === $wKey)>{{ $wLabel }}</option>
+     @endforeach
+     <option value="custom" @selected($mtCustom)>Custom range…</option>
+   </select>
++  <form method="GET" style="display:contents">
++    <input type="hidden" name="window" value="{{ $window }}">
++    <x-admin.date-range id="mt-dr" from-name="from" to-name="to"
++        :from-value="$from ?? ''" :to-value="$to ?? ''"
++        placeholder="Pick dates" :hide-trigger="! $mtCustom" />
++  </form>
+   <label class="mt-compare">
+     <input type="checkbox" wire:model.live="compare" @checked($compare)>
+     <span>Compare</span>
+@@ -136,15 +140,13 @@
+   </button>
+ </div>
+ 
+-<form method="GET" class="mt-range mt-custom" id="mt-custom" @if(! $mtCustom) hidden @endif>
+-  <input type="hidden" name="window" value="{{ $window }}">
+-  <input type="date" name="from" value="{{ $from ?? '' }}" onchange="this.form.submit()" aria-label="From">
+-  <span>→</span>
+-  <input type="date" name="to" value="{{ $to ?? '' }}" onchange="this.form.submit()" aria-label="To">
+-  @if($mtCustom)
+-    <a href="{{ url()->current() }}?window={{ $window }}" class="mt-clear" title="Back to the preset">clear</a>
+-  @endif
+-</form>
++<script>
++  document.getElementById('mt-dr')?.addEventListener('dr:closed', function (e) {
++    if (e.detail.applied) return;
++    var sel = document.getElementById('mt-window');
++    if (sel) sel.value = sel.dataset.was;   // backed out: menu shows what is really on screen
++  });
++</script>
+ 
+ <div class="mt-note {{ $health['stale'] ? 'mt-note--warn' : '' }}" id="mt-track-note" @if(! $health['stale']) hidden @endif>
+   @if($health['stale'])
+diff --git a/resources/views/filament/partials/outreach-results.blade.php b/resources/views/filament/partials/outreach-results.blade.php
+index 5f486761..cf6b17f9 100644
+--- a/resources/views/filament/partials/outreach-results.blade.php
++++ b/resources/views/filament/partials/outreach-results.blade.php
+@@ -11,8 +11,12 @@
+ @endphp
+ <style>
+   .or-pills { display:flex; gap:6px; margin-left:auto; }
+-  .or-pills button { padding:5px 12px; border-radius:99px; font-size:12.5px; background:rgba(255,255,255,.06); color:inherit; opacity:.6; border:0; cursor:pointer; }
+-  .or-pills button.on { opacity:1; font-weight:600; box-shadow:inset 0 0 0 1px currentColor; }
++  .or-pills > button { padding:5px 12px; border-radius:99px; font-size:12.5px; background:rgba(255,255,255,.06); color:inherit; opacity:.6; border:0; cursor:pointer; }
++  .or-pills > button.on { opacity:1; font-weight:600; box-shadow:inset 0 0 0 1px currentColor; }
++  /* the calendar pill reads as one of the pills; its popover keeps its own look */
++  .or-pills .adr-trigger.or-cal { border:0; border-radius:99px; padding:5px 12px; font-size:12.5px; background:rgba(255,255,255,.06); }
++  .or-pills .adr-trigger.or-cal.on { color:inherit; font-weight:600; box-shadow:inset 0 0 0 1px currentColor; }
++  .or-pills .adr-pop { left:auto; right:0; }
+   .or-fn { display:flex; align-items:stretch; flex-wrap:wrap; margin-top:18px; border-top:1px solid var(--sx-line); border-bottom:1px solid var(--sx-line); }
+   .or-fs { flex:1 1 0; min-width:110px; padding:14px 14px 14px 10px; border:0; border-bottom:2px solid transparent; background:none; color:inherit; text-align:left; cursor:pointer; font:inherit; }
+   .or-fs:hover { background:rgba(255,255,255,.03); }
+@@ -53,9 +57,12 @@
+         <option value="none">Written by hand</option>
+     </select>
+     <div class="or-pills">
+-        @foreach (['7' => '7 days', '30' => '30 days', '90' => '90 days', 'all' => 'All time'] as $k => $label)
++        @foreach (['today' => 'Today', '7' => '7 days', '30' => '30 days', '90' => '90 days', 'all' => 'All time'] as $k => $label)
+             <button type="button" class="{{ $rDays === (string) $k ? 'on' : '' }}" wire:click="$set('rDays', '{{ $k }}')">{{ $label }}</button>
+         @endforeach
++        {{-- MARKER-OUTREACH-RANGE: the single-calendar picker, any range --}}
++        <x-admin.date-range wire="setRange" placeholder="Dates" trigger-class="or-cal {{ $rDays === 'custom' ? 'on' : '' }}"
++            :from-value="$rDays === 'custom' ? ($rFrom ?? '') : ''" :to-value="$rDays === 'custom' ? ($rTo ?? '') : ''" />
+     </div>
+ </div>
+ 

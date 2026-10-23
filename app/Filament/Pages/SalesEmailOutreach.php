@@ -47,7 +47,19 @@ class SalesEmailOutreach extends Page
     public string $rIndustry = '';
     public string $rTemplate = '';
     public string $rDays = '30';
+    public ?string $rFrom = null;   // MARKER-OUTREACH-RANGE: picked with the calendar
+    public ?string $rTo   = null;
     public ?string $drill = null; // MARKER-OUTREACH-DRILL: which funnel number is open
+
+    /** Apply / Clear from the calendar on Results. */
+    public function setRange(?string $from, ?string $to): void
+    {
+        $ok = fn (?string $d) => $d && preg_match('/^\d{4}-\d{2}-\d{2}$/', $d) ? $d : null;
+        $this->rFrom = $ok($from);
+        $this->rTo   = $ok($to) ?? $this->rFrom;
+        $this->rDays = $this->rFrom ? 'custom' : '30';
+        $this->drill = null;
+    }
 
     public function toggleDrill(string $k): void
     {
@@ -106,7 +118,10 @@ class SalesEmailOutreach extends Page
         return \App\Services\Sales\OutreachResults::compute([
             'industry' => $this->rIndustry,
             'template' => $this->rTemplate,
-            'days'     => in_array($this->rDays, ['7', '30', '90', 'all'], true) ? $this->rDays : '30',
+            'days'     => in_array($this->rDays, ['today', '7', '30', '90', 'all', 'custom'], true) ? $this->rDays : '30',
+            'from'     => $this->rFrom,
+            'to'       => $this->rTo,
+            'tz'       => self::TZ,
         ]);
     }
 
