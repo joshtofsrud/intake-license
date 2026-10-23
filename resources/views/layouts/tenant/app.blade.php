@@ -19,9 +19,12 @@
   <link rel="preload" as="font" type="font/woff2" crossorigin
         href="{{ asset('fonts/inter-latin-500-normal.woff2') }}">
 
-  {{-- Favicon --}}
+  {{-- Favicon: the shop's own, else Intake's (the one master admin uses),
+       never the browser's blank globe. --}}
   @if($currentTenant->favicon_url)
     <link rel="icon" href="{{ $currentTenant->favicon_url }}">
+  @else
+    <link rel="icon" href="{{ \App\Support\Brand::url('favicon') }}">
   @endif
 
   <link rel="stylesheet" href="{{ asset('css/fonts.css') }}">
