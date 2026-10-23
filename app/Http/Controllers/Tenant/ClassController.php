@@ -118,28 +118,105 @@ class ClassController extends Controller
     public function sessions(Request $request)
     {
         $tenant   = tenant();
-        // MARKER-CLASSES-P7: the week is the studio's week. In UTC, an
-        // evening class on the last day showed up in the next week.
-        $tz       = $tenant->timezone();
-        $from     = $request->date('from', 'Y-m-d', $tz) ?? now($tz)->startOfWeek();
-        $to       = $request->date('to', 'Y-m-d', $tz)   ?? $from->copy()->addDays(6);
+        // MARKER-CLASSES-UI1: the Schedule tab is a week grid (or one day, or
+        // the old list), in the studio's own week and clock.
+        $tz   = $tenant->timezone();
+        $view = in_array($request->query('view'), ['day', 'week', 'list'], true) ? $request->query('view') : 'week';
+        $day  = $request->date('day', 'Y-m-d', $tz) ?? now($tz)->startOfDay();
+        $from = $view === 'day' ? $day->copy()->startOfDay()
+            : ($request->date('from', 'Y-m-d', $tz) ?? ($request->filled('day') ? $day->copy()->startOfWeek() : now($tz)->startOfWeek()));
+        $to   = $view === 'day' ? $from->copy() : ($request->date('to', 'Y-m-d', $tz) ?? $from->copy()->addDays(6));
 
-        $sessions = TenantClassSession::where('tenant_id', $tenant->id)
+        $instructor = $request->query('instructor');
+        $type       = $request->query('type');
+
+        $weekSessions = TenantClassSession::where('tenant_id', $tenant->id)
             ->whereBetween('starts_at', [$from->copy()->startOfDay()->utc(), $to->copy()->endOfDay()->utc()])
             ->with(['template', 'instructorResource', 'registrations.customer'])
             ->withCount(['activeRegistrations', 'waitlist'])
             ->orderBy('starts_at')
             ->get();
+        $sessions = $weekSessions
+            ->when($instructor, fn ($c) => $c->where('instructor_resource_id', $instructor))
+            ->when($type, fn ($c) => $c->where('class_template_id', $type))
+            ->values();
 
         $templates = TenantClassTemplate::where('tenant_id', $tenant->id)
             ->active()->orderBy('name')->get();
+        $instructors = $weekSessions->filter(fn ($s) => $s->instructor_resource_id)
+            ->mapWithKeys(fn ($s) => [$s->instructor_resource_id => $s->instructorResource?->name ?? $s->instructor_snapshot ?? 'Instructor'])
+            ->sort();
 
-        $schedules = \App\Models\Tenant\TenantClassSchedule::where('tenant_id', $tenant->id)
-            ->where(fn ($q) => $q->whereNull('ends_on')->orWhere('ends_on', '>=', now($tz)->toDateString()))
-            ->with('template')->orderBy('start_time')->get();
+        $insight      = $this->scheduleInsight($tenant, $tz);
         $publishWeeks = \App\Services\ClassRules::for($tenant)->get('publish_weeks');
 
-        return view('tenant.classes.sessions', compact('sessions', 'templates', 'from', 'to', 'schedules', 'publishWeeks'));
+        return view('tenant.classes.sessions', compact(
+            'sessions', 'templates', 'from', 'to', 'view', 'instructors', 'instructor', 'type', 'insight', 'publishWeeks'
+        ));
+    }
+
+    /**
+     * MARKER-CLASSES-UI1: one line under the grid when the last four weeks
+     * show a class running out of room: its busiest waitlist, and a weekday
+     * with nothing at that time. Null when nothing stands out.
+     */
+    private function scheduleInsight(\App\Models\Tenant $tenant, string $tz): ?array
+    {
+        $past = TenantClassSession::where('tenant_id', $tenant->id)
+            ->whereIn('status', ['scheduled', 'confirmed', 'completed'])
+            ->whereBetween('starts_at', [now()->subDays(28), now()->addDays(7)])
+            ->with('template')->withCount('waitlist')->get();
+        // Evidence from classes already held; upcoming ones can still change.
+        $top = $past->filter(fn ($s) => $s->starts_at->isPast())->sortByDesc('waitlist_count')->first();
+        if (! $top || $top->waitlist_count < 3 || ! $top->template) {
+            return null;
+        }
+        $local = $top->starts_at->copy()->setTimezone($tz);
+        $time  = $local->format('H:i');
+        // Weekdays already holding a class within half an hour of that time.
+        $busy = $past->filter(function ($s) use ($tz, $local) {
+            $l = $s->starts_at->copy()->setTimezone($tz);
+            return abs(($l->hour * 60 + $l->minute) - ($local->hour * 60 + $local->minute)) < 30;
+        })->map(fn ($s) => $s->starts_at->copy()->setTimezone($tz)->dayOfWeek)->unique();
+        // A weekday class suggests another weekday; a weekend one, the other weekend day.
+        $days = in_array($local->dayOfWeek, [0, 6], true) ? [6, 0] : [1, 2, 3, 4, 5];
+        $free = collect($days)->first(fn ($d) => ! $busy->contains($d));
+        $names = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+        $start = $free !== null ? now($tz)->addDay()->startOfDay() : null;
+        while ($start && $start->dayOfWeek !== $free) {
+            $start->addDay();
+        }
+        return [
+            'slot'     => $names[$local->dayOfWeek] . ' ' . $local->format('g:ia'),
+            'class'    => $top->template->name,
+            'count'    => $top->waitlist_count,
+            'when'     => $top->starts_at->isPast() ? 'had' : 'has',
+            'free'     => $free !== null ? $names[$free] . ' ' . $local->format('g:ia') : null,
+            'add'      => $free !== null ? route('tenant.classes.sessions', [
+                'add' => 'weekly', 'template' => $top->class_template_id, 'time' => $time,
+                'dow' => $free, 'date' => $start->toDateString(),
+            ]) : null,
+        ];
+    }
+
+    /** MARKER-CLASSES-UI1: the Recurring schedules tab. */
+    public function schedules()
+    {
+        $tenant = tenant();
+        $tz     = $tenant->timezone();
+        $schedules = \App\Models\Tenant\TenantClassSchedule::where('tenant_id', $tenant->id)
+            ->with('template')->orderBy('start_time')->get()
+            ->sortBy(fn ($s) => ($s->ends_on && $s->ends_on->lt(now($tz)->startOfDay()) ? '1' : '0') . $s->start_time)->values();
+        $ids  = $schedules->pluck('id');
+        $next = TenantClassSession::where('tenant_id', $tenant->id)->whereIn('schedule_id', $ids)
+            ->whereIn('status', ['scheduled', 'confirmed'])->where('starts_at', '>', now())
+            ->withCount('activeRegistrations')->orderBy('starts_at')->get()->groupBy('schedule_id');
+        $instructorNames = TenantResource::where('tenant_id', $tenant->id)
+            ->whereIn('id', $schedules->pluck('instructor_resource_id')->merge($schedules->pluck('template.instructor_resource_id'))->filter()->unique())
+            ->pluck('name', 'id');
+        $publishWeeks = \App\Services\ClassRules::for($tenant)->get('publish_weeks');
+
+        return view('tenant.classes.schedules', compact('schedules', 'next', 'instructorNames', 'publishWeeks'));
     }
 
     public function storeSession(Request $request)

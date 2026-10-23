@@ -82,15 +82,11 @@
   </div>
 </div>
 
-<div class="cl-subnav-wrap"><nav class="cl-subnav">
-  <a href="{{ route('tenant.classes.templates') }}" class="cl-subnav-tab">Templates</a>
-  <a href="{{ route('tenant.classes.sessions') }}" class="cl-subnav-tab">Schedule</a>
-  <a href="{{ route('tenant.classes.checkin') }}" class="cl-subnav-tab">Check-in</a> {{-- MARKER-CLASSES-P9 --}}
-  <a href="{{ route('tenant.classes.memberships') }}" class="cl-subnav-tab">Memberships</a>
-  <a href="{{ route('tenant.classes.packs') }}" class="cl-subnav-tab is-active">Packs</a>
-  <a href="{{ route('tenant.classes.reports') }}" class="cl-subnav-tab">Reports</a>
-  <a href="{{ route('tenant.classes.settings') }}" class="cl-subnav-tab">Settings</a> {{-- MARKER-CLASSES-P8 --}}
-</nav></div>
+@include('tenant.classes._tabs', ['active' => 'passes']) {{-- MARKER-CLASSES-UI1 --}}
+<div style="display:inline-flex;padding:3px;border:0.5px solid var(--ia-border);border-radius:var(--ia-r-md);margin-bottom:16px">
+  <a href="{{ route('tenant.classes.memberships') }}" style="padding:5px 12px;font-size:12.5px;border-radius:6px;text-decoration:none;color:var(--ia-text-muted)">Memberships</a>
+  <a href="{{ route('tenant.classes.packs') }}" style="padding:5px 12px;font-size:12.5px;border-radius:6px;text-decoration:none;background:var(--ia-surface-2);color:var(--ia-text);font-weight:500">Class packs</a>
+</div>
 
 <div class="cl-card">
   <div class="cl-table-head">

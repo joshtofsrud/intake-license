@@ -1,12 +1,8 @@
 @extends('layouts.tenant.app')
-@php $pageTitle = 'Class Schedule'; @endphp
+@php $pageTitle = 'Classes'; @endphp
 
 @push('styles')
 <style>
-.cl-subnav{display:flex;gap:2px;margin-bottom:20px;border-bottom:0.5px solid var(--ia-border)}
-.cl-subnav-tab{padding:9px 14px;font-size:13px;color:var(--ia-text-muted);border-bottom:2px solid transparent;margin-bottom:-0.5px;cursor:pointer;background:none;border-left:none;border-right:none;border-top:none;text-decoration:none;transition:color var(--ia-t),border-color var(--ia-t)}
-.cl-subnav-tab:hover{color:var(--ia-text)}
-.cl-subnav-tab.is-active{color:var(--ia-text);border-bottom-color:var(--ia-accent);font-weight:500}
 .cl-week-nav{display:flex;align-items:center;gap:10px;margin-bottom:16px}
 .cl-week-label{font-size:14px;font-weight:500;color:var(--ia-text);min-width:200px;text-align:center}
 .cl-week-btn{width:30px;height:30px;border-radius:6px;background:var(--ia-surface);border:0.5px solid var(--ia-border);color:var(--ia-text-muted);display:inline-flex;align-items:center;justify-content:center;cursor:pointer;transition:all var(--ia-t);text-decoration:none}
@@ -111,50 +107,197 @@
   .cl-week-nav{flex-wrap:wrap;gap:6px}
   .cl-week-label{min-width:0;flex:1}
 }
+/* MARKER-CLASSES-UI1: week grid */
+.cg-head-sub{font-size:13px;color:var(--ia-text-muted);margin-top:2px}
+.cg-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px}
+.cg-seg{display:inline-flex;padding:3px;border:0.5px solid var(--ia-border);border-radius:var(--ia-r-md);background:var(--ia-surface)}
+.cg-seg a{padding:5px 12px;font-size:12.5px;color:var(--ia-text-muted);border-radius:6px;text-decoration:none}
+.cg-seg a:hover{color:var(--ia-text)}
+.cg-seg a.is-active{background:var(--ia-surface-2);color:var(--ia-text);font-weight:500}
+.cg-nav{display:inline-flex;align-items:center;gap:4px}
+.cg-nav a.cg-arrow{width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center;border-radius:6px;color:var(--ia-text-muted);text-decoration:none}
+.cg-nav a.cg-arrow:hover{background:var(--ia-hover);color:var(--ia-text)}
+.cg-range{font-size:14px;font-weight:500;min-width:110px;text-align:center;font-variant-numeric:tabular-nums}
+.cg-today{font-size:12.5px;color:var(--ia-text-muted);text-decoration:none;padding:5px 8px;border-radius:6px}
+.cg-today:hover{background:var(--ia-hover);color:var(--ia-text)}
+.cg-filters{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap}
+.cg-filters .cl-select{width:auto;padding:6px 28px 6px 11px;font-size:12.5px}
+.cg-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:8px;align-items:start}
+.cg-day-h{display:flex;justify-content:space-between;align-items:baseline;gap:6px;font-size:12.5px;color:var(--ia-text-muted);padding:0 2px 8px;white-space:nowrap}
+.cg-day-h b{font-weight:500;color:var(--ia-text)}
+.cg-day-h.is-today,.cg-day-h.is-today b{color:var(--ia-accent)}
+.cg-col{display:flex;flex-direction:column;gap:8px;min-width:0}
+.cg-empty{font-size:12px;color:var(--ia-text-muted);padding:10px 2px;opacity:.7}
+.cg-tile{display:block;position:relative;background:var(--ia-surface);border:0.5px solid var(--ia-border);border-radius:var(--ia-r-md);padding:10px 10px 9px;text-decoration:none;color:inherit;transition:background var(--ia-t),border-color var(--ia-t)}
+.cg-tile:hover{background:var(--ia-hover);border-color:var(--ia-border-strong)}
+.cg-tile.is-done{opacity:.55}
+.cg-tile.is-soon{border:1.5px solid var(--ia-accent);box-shadow:0 0 0 3px var(--ia-accent-soft)}
+.cg-tile.is-cancelled{opacity:.5}
+.cg-tile.is-cancelled .cg-name{text-decoration:line-through}
+.cg-top{display:flex;justify-content:space-between;gap:6px;font-size:11.5px;color:var(--ia-text-muted);font-variant-numeric:tabular-nums}
+.cg-count{font-weight:600}
+.cg-count.ok{color:#22c55e}.cg-count.busy{color:#f59e0b}.cg-count.full{color:#ef4444}
+.cg-name{font-size:13px;font-weight:600;color:var(--ia-text);margin-top:3px;line-height:1.25;overflow:hidden;text-overflow:ellipsis}
+.cg-who{font-size:11.5px;color:var(--ia-text-muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cg-fill{height:4px;background:var(--ia-surface-2);border-radius:2px;overflow:hidden;margin-top:9px}
+.cg-fill i{display:block;height:100%;border-radius:2px}
+.cg-fill i.ok{background:#22c55e}.cg-fill i.busy{background:#f59e0b}.cg-fill i.full{background:#ef4444}
+.cg-wait{font-size:11.5px;color:var(--ia-text-muted);margin-top:6px}
+.cg-foot{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:16px;font-size:12px;color:var(--ia-text-muted)}
+.cg-legend{display:flex;gap:14px;flex-wrap:wrap}
+.cg-legend span{display:inline-flex;align-items:center;gap:6px}
+.cg-legend i{width:9px;height:9px;border-radius:2px;display:inline-block}
+.cg-insight{margin-top:12px;font-size:13px;color:var(--ia-text-muted);line-height:1.5}
+.cg-insight b{color:var(--ia-accent);font-weight:500}
+.cg-insight a{color:var(--ia-accent);text-decoration:none}
+.cg-insight a:hover{text-decoration:underline}
+.cg-day-list{max-width:640px}
+.cg-day-list .cg-tile{display:grid;grid-template-columns:90px 1fr 70px;gap:4px 14px;align-items:center}
+.cg-day-list .cg-top{display:contents}
+.cg-day-list .cg-time{grid-row:1/3;font-size:13px;color:var(--ia-text);font-weight:500}
+.cg-day-list .cg-count{grid-column:3;grid-row:1;text-align:right;font-size:13px}
+.cg-day-list .cg-name{grid-column:2;grid-row:1;margin:0}
+.cg-day-list .cg-who{grid-column:2;grid-row:2;margin:0}
+.cg-day-list .cg-fill{grid-column:3;grid-row:2;margin:0}
+.cg-day-list .cg-wait{grid-column:2;margin:0}
+@media(max-width:1100px){.cg-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
+@media(max-width:700px){
+  .cg-grid{grid-template-columns:1fr;gap:4px}
+  .cg-col{margin-bottom:14px}
+  .cg-filters{margin-left:0;width:100%}
+  .cg-filters .cl-select{flex:1;min-width:0}
+  .cg-day-list .cg-tile{grid-template-columns:70px 1fr 56px}
+}
 </style>
 @endpush
 
 @section('content')
 
+{{-- MARKER-CLASSES-UI1 --}}
+@php
+  $nowLocal = tnow();
+  $q = array_filter(['view' => $view === 'week' ? null : $view, 'instructor' => $instructor, 'type' => $type]);
+  $step = $view === 'day' ? 1 : 7;
+  $prevQ = $view === 'day' ? ['day' => $from->copy()->subDay()->toDateString()] : ['from' => $from->copy()->subDays(7)->toDateString()];
+  $nextQ = $view === 'day' ? ['day' => $from->copy()->addDay()->toDateString()] : ['from' => $from->copy()->addDays(7)->toDateString()];
+  $range = $view === 'day' ? $from->format('D, M j')
+      : ($from->month === $to->month ? $from->format('M j') . ' – ' . $to->format('j') : $from->format('M j') . ' – ' . $to->format('M j'));
+  $byDay = $sessions->groupBy(fn ($s) => tlocal($s->starts_at, 'Y-m-d'));
+  $todayKey = $nowLocal->toDateString();
+@endphp
+
 <div class="ia-page-head">
   <div class="ia-page-head-left">
     <h1 class="ia-page-title">Classes</h1>
-    <p class="ia-page-subtitle">Schedule and manage individual class sessions.</p>
+    <p class="cg-head-sub">{{ $nowLocal->format('l, M j') }} · {{ strtolower($nowLocal->format('g:iA')) }}</p>
   </div>
-  <div class="ia-page-head-right">
-    <button class="ia-btn ia-btn--primary" onclick="openAddModal()">+ New session</button>
+  <div class="ia-page-head-right" style="display:flex;gap:8px">
+    <a href="{{ route('tenant.classes.templates', ['add' => 1]) }}" class="ia-btn ia-btn--ghost">+ Class type</a>
+    <button class="ia-btn ia-btn--primary" onclick="openAddModal()">+ Schedule a class</button>
   </div>
 </div>
 
 <x-tenant.schedule-tabs active="classes" />
 
-<div class="cl-subnav-wrap"><nav class="cl-subnav">
-  <a href="{{ route('tenant.classes.templates') }}" class="cl-subnav-tab">Templates</a>
-  <a href="{{ route('tenant.classes.sessions') }}" class="cl-subnav-tab is-active">Schedule</a>
-  <a href="{{ route('tenant.classes.checkin') }}" class="cl-subnav-tab">Check-in</a> {{-- MARKER-CLASSES-P9 --}}
-  <a href="{{ route('tenant.classes.memberships') }}" class="cl-subnav-tab">Memberships</a>
-  <a href="{{ route('tenant.classes.packs') }}" class="cl-subnav-tab">Packs</a>
-  <a href="{{ route('tenant.classes.reports') }}" class="cl-subnav-tab">Reports</a>
-  <a href="{{ route('tenant.classes.settings') }}" class="cl-subnav-tab">Settings</a> {{-- MARKER-CLASSES-P8 --}}
-</nav></div>
+@include('tenant.classes._tabs', ['active' => 'schedule'])
 
+<form class="cg-bar" method="GET" action="{{ route('tenant.classes.sessions') }}">
+  <div class="cg-seg" role="tablist">
+    <a href="{{ route('tenant.classes.sessions', array_merge($q, ['view' => 'day', 'day' => ($view === 'day' ? $from : ($from->lte($nowLocal) && $to->copy()->endOfDay()->gte($nowLocal) ? $nowLocal : $from))->toDateString()])) }}" class="{{ $view === 'day' ? 'is-active' : '' }}">Day</a>
+    <a href="{{ route('tenant.classes.sessions', array_merge($q, ['view' => null, 'from' => $from->copy()->startOfWeek()->toDateString()])) }}" class="{{ $view === 'week' ? 'is-active' : '' }}">Week</a>
+    <a href="{{ route('tenant.classes.sessions', array_merge($q, ['view' => 'list', 'from' => $from->copy()->startOfWeek()->toDateString()])) }}" class="{{ $view === 'list' ? 'is-active' : '' }}">List</a>
+  </div>
+  <div class="cg-nav">
+    <a class="cg-arrow" href="{{ route('tenant.classes.sessions', array_merge($q, $prevQ)) }}" aria-label="Previous">
+      <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M8 2L4 6l4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </a>
+    <span class="cg-range">{{ $range }}</span>
+    <a class="cg-arrow" href="{{ route('tenant.classes.sessions', array_merge($q, $nextQ)) }}" aria-label="Next">
+      <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M4 2l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </a>
+    <a class="cg-today" href="{{ route('tenant.classes.sessions', $view === 'day' ? array_merge($q, ['day' => $todayKey]) : $q) }}">Today</a>
+  </div>
+  @if($view !== 'week')<input type="hidden" name="view" value="{{ $view }}">@endif
+  <input type="hidden" name="{{ $view === 'day' ? 'day' : 'from' }}" value="{{ $from->toDateString() }}">
+  <div class="cg-filters">
+    @if($instructors->count() > 1 || $instructor)
+    <select name="instructor" class="cl-select" onchange="this.form.submit()" aria-label="Instructor">
+      <option value="">All instructors</option>
+      @foreach($instructors as $id => $name)
+        <option value="{{ $id }}" @selected($instructor === $id)>{{ $name }}</option>
+      @endforeach
+    </select>
+    @endif
+    <select name="type" class="cl-select" onchange="this.form.submit()" aria-label="Class type">
+      <option value="">All class types</option>
+      @foreach($templates as $t)
+        <option value="{{ $t->id }}" @selected($type === $t->id)>{{ $t->name }}</option>
+      @endforeach
+    </select>
+  </div>
+</form>
 
-@php
-  $prevFrom = $from->copy()->subDays(7)->format('Y-m-d');
-  $nextFrom = $from->copy()->addDays(7)->format('Y-m-d');
-@endphp
+@if($view === 'week')
+  <div class="cg-grid">
+    @for($d = $from->copy(); $d->lte($to); $d->addDay())
+      @php
+        $key = $d->toDateString();
+        $daySessions = $byDay->get($key, collect());
+        $dayBooked = $daySessions->where('status', '!=', 'cancelled')->sum('active_registrations_count');
+      @endphp
+      <div class="cg-col">
+        <div class="cg-day-h {{ $key === $todayKey ? 'is-today' : '' }}">
+          <a href="{{ route('tenant.classes.sessions', array_merge($q, ['view' => 'day', 'day' => $key])) }}" style="color:inherit;text-decoration:none"><b>{{ $d->format('D j') }}</b></a>
+          <span>{{ $dayBooked }} booked</span>
+        </div>
+        @forelse($daySessions as $s)
+          @include('tenant.classes._tile', ['s' => $s])
+        @empty
+          <div class="cg-empty">No classes</div>
+        @endforelse
+      </div>
+    @endfor
+  </div>
+@elseif($view === 'day')
+  <div class="cg-day-list">
+    <div class="cg-day-h {{ $from->toDateString() === $todayKey ? 'is-today' : '' }}">
+      <b>{{ $from->format('l, M j') }}</b>
+      <span>{{ $sessions->where('status', '!=', 'cancelled')->sum('active_registrations_count') }} booked</span>
+    </div>
+    <div class="cg-col">
+      @forelse($sessions as $s)
+        @include('tenant.classes._tile', ['s' => $s])
+      @empty
+        <div class="cl-empty-week">
+          <div class="cl-empty-week-title">No classes this day</div>
+          <div class="cl-empty-week-body"><a href="#" onclick="openAddModal();return false" style="color:var(--ia-accent)">Schedule a class</a></div>
+        </div>
+      @endforelse
+    </div>
+  </div>
+@endif
 
-<div class="cl-week-nav">
-  <a href="{{ request()->fullUrlWithQuery(['from' => $prevFrom]) }}" class="cl-week-btn">
-    <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M8 2L4 6l4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-  </a>
-  <div class="cl-week-label">{{ $from->format('M j') }} – {{ $to->format('M j, Y') }}</div>
-  <a href="{{ request()->fullUrlWithQuery(['from' => $nextFrom]) }}" class="cl-week-btn">
-    <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M4 2l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-  </a>
-  <a href="{{ request()->fullUrlWithQuery(['from' => now()->startOfWeek()->format('Y-m-d')]) }}" class="ia-btn ia-btn--ghost" style="margin-left:4px;font-size:12px;padding:5px 10px">Today</a>
-</div>
+@if($view !== 'list')
+  <div class="cg-foot">
+    <div class="cg-legend">
+      <span><i style="background:#22c55e"></i>Room</span>
+      <span><i style="background:#f59e0b"></i>75%+ full</span>
+      <span><i style="background:#ef4444"></i>Full</span>
+    </div>
+    <div>Faded = finished · outlined = starting soon · numbers are booked / capacity</div>
+  </div>
+  @if($insight)
+    <div class="cg-insight">↳ <b>{{ $insight['slot'] }} {{ $insight['class'] }} {{ $insight['when'] }} {{ $insight['count'] }} on the waitlist</b>@if($insight['free']) and {{ $insight['free'] }} has no class. A second {{ $insight['class'] }} there would likely fill. <a href="{{ $insight['add'] }}">Add a schedule</a>@else.@endif</div>
+  @endif
+  @if($templates->isEmpty())
+    <div class="cl-empty-week" style="margin-top:16px">
+      <div class="cl-empty-week-title">Start with a class type</div>
+      <div class="cl-empty-week-body">A class type holds the name, length, capacity and price. <a href="{{ route('tenant.classes.templates', ['add' => 1]) }}" style="color:var(--ia-accent)">Add one</a>, then schedule it here.</div>
+    </div>
+  @endif
+@endif
 
+@if($view === 'list')
 @if($sessions->isEmpty())
   <div class="cl-empty-week">
     <div class="cl-empty-week-title">No sessions this week</div>
@@ -323,33 +466,6 @@
     @endforeach
   </div>
 @endif
-
-{{-- MARKER-CLASSES-P7: repeating classes --}}
-@if($schedules->isNotEmpty())
-<details class="cl-sched" style="margin:22px 0 8px" open>
-  <summary style="cursor:pointer;font-size:13px;font-weight:600;margin-bottom:8px">Repeating classes ({{ $schedules->count() }})</summary>
-  <div style="border-top:0.5px solid var(--ia-border)">
-    @foreach($schedules as $s)
-      <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px 16px;padding:10px 0;border-bottom:0.5px solid var(--ia-border);font-size:13px">
-        <div style="flex:1;min-width:200px">
-          <div style="font-weight:600">{{ $s->template?->name ?? 'Class' }}</div>
-          <div style="color:var(--ia-text-muted);font-size:12px">{{ $s->daysLabel() }} · {{ $s->timeLabel() }} · {{ $s->ends_on ? 'until ' . $s->ends_on->format('M j, Y') : 'no end date' }}</div>
-        </div>
-        <form method="POST" action="{{ route('tenant.classes.schedules.stop', ['id' => $s->id]) }}" style="display:flex;align-items:center;gap:6px">
-          @csrf
-          <label style="font-size:12px;color:var(--ia-text-muted)">Stop after</label>
-          <input type="date" name="last_day" class="cl-input" style="width:auto;padding:5px 8px" required value="{{ now(tenant()->timezone())->toDateString() }}" min="{{ $s->starts_on->format('Y-m-d') }}">
-          <button type="button" class="ia-btn ia-btn--ghost ia-btn--sm" onclick="this.hidden=true;this.nextElementSibling.hidden=false">Stop</button>
-          <span hidden style="font-size:12px">Stop it?
-            <button type="submit" class="ia-btn ia-btn--ghost ia-btn--sm" style="color:#EF4444">Yes, stop</button>
-            <button type="button" class="ia-btn ia-btn--ghost ia-btn--sm" onclick="this.parentElement.hidden=true;this.parentElement.previousElementSibling.hidden=false">Keep</button>
-          </span>
-        </form>
-      </div>
-    @endforeach
-  </div>
-  <div style="font-size:12px;color:var(--ia-text-muted);margin-top:8px;line-height:1.5">Repeating classes are created {{ $publishWeeks }} week{{ $publishWeeks === 1 ? '' : 's' }} ahead, and more are added each day; change that in Classes › Settings. Stopping removes later classes nobody has booked. Classes with bookings stay until you cancel them. To change a time, instructor or capacity, open any of its classes and choose "This and later classes".</div>
-</details>
 @endif
 
 {{-- Cancel session modal --}}
@@ -633,6 +749,26 @@
 
   document.getElementById('cancel-modal').addEventListener('click',function(e){ if(e.target===this) closeCancelModal(); });
   document.addEventListener('keydown',function(e){ if(e.key==='Escape'){ closeAddModal(); closeCancelModal(); } });
+  // MARKER-CLASSES-UI1: "?add=weekly&template=…&time=…&dow=…&date=…" opens the
+  // form filled in (from "Add a schedule", the Recurring schedules tab, or
+  // "+ Schedule a class" elsewhere).
+  (function(){
+    var p = new URLSearchParams(location.search);
+    if (!p.get('add')) return;
+    openAddModal();
+    if (p.get('template')) { var sel = document.querySelector('#session-form [name="class_template_id"]'); if (sel) sel.value = p.get('template'); }
+    if (p.get('time')) document.getElementById('starts-time').value = p.get('time');
+    if (p.get('add') === 'weekly' || p.get('add') === 'daily') {
+      var tab = Array.from(document.querySelectorAll('.cl-repeat-tab')).find(function(b){ return b.getAttribute('onclick').indexOf("'" + p.get('add') + "'") > -1; });
+      if (tab) setRepeat(p.get('add'), tab);
+    }
+    if (p.get('dow') !== null) { var b = document.querySelector('.cl-dow-btn[data-dow="' + p.get('dow') + '"]'); if (b && !b.classList.contains('active')) toggleDow(b); }
+    if (p.get('date')) {
+      var d = p.get('date').split('-');
+      var dt = new Date(+d[0], +d[1] - 1, +d[2]);
+      if (!isNaN(dt)) { calYear = dt.getFullYear(); calMonth = dt.getMonth(); selectDate(dt); }
+    }
+  })();
 })();
 </script>
 @endpush

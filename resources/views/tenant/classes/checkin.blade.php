@@ -64,15 +64,7 @@
 
 @php $fullClasses = ! auth('tenant')->user() || auth('tenant')->user()->canAccessSection('classes'); @endphp {{-- MARKER-CLASSES-P10 --}}
 @if($fullClasses)
-<div class="cl-subnav-wrap"><nav class="cl-subnav">
-  <a href="{{ route('tenant.classes.templates') }}" class="cl-subnav-tab">Templates</a>
-  <a href="{{ route('tenant.classes.sessions') }}" class="cl-subnav-tab">Schedule</a>
-  <a href="{{ route('tenant.classes.checkin') }}" class="cl-subnav-tab is-active">Check-in</a>
-  <a href="{{ route('tenant.classes.memberships') }}" class="cl-subnav-tab">Memberships</a>
-  <a href="{{ route('tenant.classes.packs') }}" class="cl-subnav-tab">Packs</a>
-  <a href="{{ route('tenant.classes.reports') }}" class="cl-subnav-tab">Reports</a>
-  <a href="{{ route('tenant.classes.settings') }}" class="cl-subnav-tab">Settings</a>
-</nav></div>
+@include('tenant.classes._tabs', ['active' => 'checkin']) {{-- MARKER-CLASSES-UI1 --}}
 @endif
 
 @if(session('success'))<div class="ia-flash ia-flash--success" style="margin-bottom:12px">{{ session('success') }}</div>@endif

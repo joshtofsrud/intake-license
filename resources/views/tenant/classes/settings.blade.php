@@ -37,15 +37,7 @@
   </div>
 </div>
 
-<div class="cl-subnav-wrap"><nav class="cl-subnav">
-  <a href="{{ route('tenant.classes.templates') }}" class="cl-subnav-tab">Templates</a>
-  <a href="{{ route('tenant.classes.sessions') }}" class="cl-subnav-tab">Schedule</a>
-  <a href="{{ route('tenant.classes.checkin') }}" class="cl-subnav-tab">Check-in</a> {{-- MARKER-CLASSES-P9 --}}
-  <a href="{{ route('tenant.classes.memberships') }}" class="cl-subnav-tab">Memberships</a>
-  <a href="{{ route('tenant.classes.packs') }}" class="cl-subnav-tab">Packs</a>
-  <a href="{{ route('tenant.classes.reports') }}" class="cl-subnav-tab">Reports</a>
-  <a href="{{ route('tenant.classes.settings') }}" class="cl-subnav-tab is-active">Settings</a>
-</nav></div>
+@include('tenant.classes._tabs', ['active' => 'settings']) {{-- MARKER-CLASSES-UI1 --}}
 
 @if(session('success'))<div class="ia-flash ia-flash--success" style="margin-bottom:12px">{{ session('success') }}</div>@endif
 @if($errors->any())<div class="ia-flash ia-flash--error" style="margin-bottom:12px">{{ $errors->first() }}</div>@endif

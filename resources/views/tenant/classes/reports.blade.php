@@ -143,15 +143,7 @@
   </div>
 </div>
 
-<div class="cl-subnav-wrap"><nav class="cl-subnav">
-  <a href="{{ route('tenant.classes.templates') }}"   class="cl-subnav-tab">Templates</a>
-  <a href="{{ route('tenant.classes.sessions') }}"    class="cl-subnav-tab">Schedule</a>
-  <a href="{{ route('tenant.classes.checkin') }}" class="cl-subnav-tab">Check-in</a> {{-- MARKER-CLASSES-P9 --}}
-  <a href="{{ route('tenant.classes.memberships') }}" class="cl-subnav-tab">Memberships</a>
-  <a href="{{ route('tenant.classes.packs') }}"       class="cl-subnav-tab">Packs</a>
-  <a href="{{ route('tenant.classes.reports') }}"     class="cl-subnav-tab is-active">Reports</a>
-  <a href="{{ route('tenant.classes.settings') }}" class="cl-subnav-tab">Settings</a> {{-- MARKER-CLASSES-P8 --}}
-</nav></div>
+@include('tenant.classes._tabs', ['active' => 'analytics']) {{-- MARKER-CLASSES-UI1 --}}
 @include('tenant.classes._analytics') {{-- MARKER-CLASSES-P11 --}}
 <div class="an-h"><b>People to act on</b><span>Who to convert, keep and win back</span></div>
 
