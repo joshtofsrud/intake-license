@@ -61,6 +61,36 @@ class SalesEmailOutreach extends Page
         $this->drill = null;
     }
 
+    // MARKER-OUTREACH-LAYOUT: the list under the composer (Queue | Emailed today | Visited), 10 a page
+    public string $list = 'queue';
+    public int $listPage = 1;
+    public const PER_PAGE = 10;
+
+    public function setList(string $l): void
+    {
+        $this->list = in_array($l, ['queue', 'today', 'visited'], true) ? $l : 'queue';
+        $this->listPage = 1;
+    }
+
+    public function listPageTo(int $p): void
+    {
+        $this->listPage = max(1, $p);
+    }
+
+    /** True while the shop on screen is the top of the queue (not one picked from the list). */
+    public function onTop(): bool
+    {
+        return $this->currentId !== null && ($this->topIds()[0] ?? null) === (string) $this->currentId;
+    }
+
+    /** Write to a shop from the queue instead of the one on top. */
+    public function pick(string $id): void
+    {
+        if (! $this->filtered()->whereKey($id)->exists()) return;
+        $this->currentId = $id;
+        $this->applyTemplate();
+    }
+
     public function toggleDrill(string $k): void
     {
         $this->drill = $this->drill === $k ? null : $k;
@@ -94,6 +124,7 @@ class SalesEmailOutreach extends Page
     {
         if (in_array($name, ['industryId', 'state', 'stage', 'sort', 'who'], true)) {
             ProspectOutreach::savePrefs([$name => $this->{$name}]);
+            $this->listPage = 1;
             $this->loadNext();
         } elseif ($name === 'templateId') {
             $tpl = $this->templateId !== '' ? SalesEmailTemplate::find($this->templateId) : null;
@@ -219,7 +250,13 @@ class SalesEmailOutreach extends Page
 
     public function queue()
     {
-        $ids = array_slice(array_values(array_diff($this->topIds(), [(string) $this->currentId])), 0, 25);
+        // MARKER-OUTREACH-LAYOUT: page 1 comes from the ids already read; later pages ask for theirs
+        $per = self::PER_PAGE;
+        if ($this->listPage <= 2) {
+            $ids = array_slice(array_values(array_diff($this->topIds(), [(string) $this->currentId])), ($this->listPage - 1) * $per, $per);
+        } else {
+            $ids = $this->ordered()->whereKeyNot((string) $this->currentId)->skip(($this->listPage - 1) * $per)->limit($per)->pluck('id')->map(fn ($id) => (string) $id)->all();
+        }
         if (! $ids) return collect();
         $rows = SalesProspect::query()->whereIn('id', $ids)->get(['id', 'shop', 'city', 'state', 'email', 'lead_score', 'email_skipped_at', 'emailed_at'])->keyBy('id');
         return collect($ids)->map(fn ($id) => $rows[$id] ?? null)->filter()->values();
@@ -230,8 +267,20 @@ class SalesEmailOutreach extends Page
         return DB::table('sales_outreach_sends as s')
             ->join('sales_prospects as p', 'p.id', '=', 's.sales_prospect_id')
             ->where('s.created_at', '>=', self::dayStart())
-            ->orderByDesc('s.created_at')->limit(40)
-            ->get(['p.shop', 's.created_at', 'p.link_clicked_at']);
+            ->when($this->industryId !== '', fn ($q) => $q->where('p.channel_id', $this->industryId))
+            ->orderByDesc('s.created_at')
+            ->skip(($this->listPage - 1) * self::PER_PAGE)->limit(self::PER_PAGE)
+            ->get(['p.shop', 'p.city', 'p.state', 's.created_at', 'p.link_clicked_at']);
+    }
+
+    /** MARKER-OUTREACH-LAYOUT: shops that opened their link, latest first. */
+    public function visited()
+    {
+        return SalesProspect::query()->whereNotNull('link_clicked_at')
+            ->when($this->industryId !== '', fn ($q) => $q->where('channel_id', $this->industryId))
+            ->orderByDesc('link_clicked_at')
+            ->skip(($this->listPage - 1) * self::PER_PAGE)->limit(self::PER_PAGE)
+            ->get(['id', 'shop', 'city', 'state', 'emailed_at', 'link_clicked_at']);
     }
 
     public function current(): ?SalesProspect

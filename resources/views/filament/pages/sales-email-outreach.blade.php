@@ -4,7 +4,11 @@
     $inds  = $this->industries();
     $cur   = $this->current();
     $q     = $this->queue();
-    $done  = $this->sentToday();
+    $done  = $list === 'today' ? $this->sentToday() : collect();
+    $seen  = $list === 'visited' ? $this->visited() : collect();
+    $listTotal = ['queue' => max(0, $st['queue'] - ($cur ? 1 : 0)), 'today' => $st['today'], 'visited' => $st['visited']][$list];
+    $per   = \App\Filament\Pages\SalesEmailOutreach::PER_PAGE;
+    $pages = max(1, (int) ceil($listTotal / $per));
     $tpls  = $this->templates();
     $lp    = $this->landingPages();
     $tplUrl = \App\Filament\Pages\SalesEmailTemplates::getUrl();
@@ -15,19 +19,15 @@
   .sx-root { --sx-line:rgba(255,255,255,.075); --sx-line-2:rgba(255,255,255,.14); --sx-dim:#a3a3ab; --sx-faint:#74747d;
     --sx-violet:#8b5cf6; --sx-vsoft:rgba(139,92,246,.17); --sx-lime:#BEF264; font-size:14px; }
   .sx-in { background-color:rgba(255,255,255,.04); border:1px solid var(--sx-line-2); border-radius:7px; padding:6px 10px; font-size:13px; color:inherit; }
-  select.sx-in { padding-right:32px; background-repeat:no-repeat; }
+  /* MARKER-OUTREACH-LAYOUT: the app's own chevron, not the browser's arrow */
+  select.sx-in { -webkit-appearance:none; appearance:none; padding-right:30px; background-repeat:no-repeat; background-position:right 10px center; background-size:12px 12px;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' fill='none' stroke='%23a3a3ab' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 4.5l3 3 3-3'/%3E%3C/svg%3E"); }
   .sx-in option, .sx-in optgroup { background:#26272c; }
   .sx-inds { display:flex; gap:18px; border-bottom:1px solid var(--sx-line); overflow-x:auto; }
   .sx-inds button { background:none; border:0; border-bottom:2px solid transparent; padding:9px 0; color:var(--sx-dim); cursor:pointer; white-space:nowrap; font-weight:500; }
   .sx-inds button.on { color:#fff; border-bottom-color:var(--sx-violet); }
   .sx-inds button span { color:var(--sx-faint); font-weight:400; margin-left:4px; }
-  .sx-tally { display:flex; gap:30px; flex-wrap:wrap; margin-top:16px; font-size:13px; color:var(--sx-dim); }
-  .sx-tally b { display:block; font-size:22px; font-weight:650; color:#fff; letter-spacing:-.02em; font-variant-numeric:tabular-nums; }
-  .sx-tally .lime { color:var(--sx-lime); }
-  .sx-lede { color:var(--sx-faint); font-size:13px; line-height:1.55; margin:12px 0 0; max-width:84ch; }
-  .sx-lede b { color:#fff; font-weight:600; }
   .sx-bar { display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding:12px 0; margin-top:14px; border-top:1px solid var(--sx-line); border-bottom:1px solid var(--sx-line); }
-  .sx-count { margin-left:auto; color:var(--sx-faint); font-size:12.5px; }
   .sx-btn { border:1px solid var(--sx-line-2); background:none; border-radius:7px; padding:6px 12px; font-weight:500; font-size:13px; cursor:pointer; white-space:nowrap; color:inherit; }
   .sx-btn.p { background:var(--sx-violet); border-color:var(--sx-violet); color:#fff; }
   .sx-btn.sm { padding:4px 9px; font-size:12.5px; }
@@ -43,7 +43,25 @@
   .ig-keys { margin-top:10px; font-size:12px; color:var(--sx-faint); }
   .ig-keys kbd { font-family:inherit; border:1px solid var(--sx-line-2); border-radius:4px; padding:0 5px; font-size:11px; color:var(--sx-dim); }
   .ig-h2 { font-size:13px; font-weight:600; color:var(--sx-dim); margin:22px 0 4px; }
-  .eo-cols { display:grid; grid-template-columns:1.25fr 1fr; gap:36px; margin-top:18px; }
+  .eo-cols { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:28px; margin-top:18px; }
+  .eo-pvcol { position:sticky; top:16px; align-self:start; }
+  .eo-pvcol .eo-pv { max-height:calc(100vh - 140px); overflow:auto; }
+  .eo-bar-tally { margin-left:auto; display:flex; gap:20px; flex-wrap:wrap; font-size:12.5px; color:var(--sx-dim); }
+  .eo-bar-tally b { color:#fff; font-weight:600; font-size:15px; margin-right:4px; font-variant-numeric:tabular-nums; }
+  .eo-bar-tally b.lime { color:var(--sx-lime); }
+  .eo-legend { color:var(--sx-faint); font-size:12.5px; line-height:1.55; padding:10px 0; border-bottom:1px solid var(--sx-line); }
+  .eo-legend b { color:var(--sx-dim); font-weight:500; }
+  .eo-legend button { background:none; border:0; color:#a78bfa; font-size:12.5px; cursor:pointer; padding:0; }
+  .eo-top { display:flex; align-items:flex-start; gap:12px; }
+  .eo-top .ig-nav { margin-left:auto; font-size:12.5px; color:var(--sx-faint); white-space:nowrap; padding-top:2px; }
+  .eo-list { margin-top:34px; }
+  .eo-list .sx-inds { align-items:flex-end; }
+  .eo-list .sx-t td { vertical-align:middle; white-space:nowrap; }
+  .eo-list .sx-t td.eo-shop { white-space:normal; }
+  .eo-list .sx-t tr.cur td { background:var(--sx-vsoft); }
+  .eo-list .eo-em { color:#a78bfa; }
+  .eo-pager { display:flex; justify-content:space-between; align-items:center; padding:10px 0; font-size:12.5px; color:var(--sx-faint); }
+  .eo-tag { display:inline-block; border-radius:4px; padding:1px 7px; font-size:11px; font-weight:600; background:rgba(190,242,100,.14); color:var(--sx-lime); }
   .eo-cols > section { min-width:0; }
   .eo-two { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
   .eo-lbl { font-size:12.5px; color:var(--sx-faint); margin:14px 0 4px; }
@@ -62,7 +80,7 @@
   .eo-pv a { pointer-events:none; }
   .eo-pv-s { font-weight:600; font-size:15px; margin-bottom:12px; color:#111; }
   .eo-yes { color:var(--sx-lime); }
-  @media (max-width:860px) { .eo-cols, .eo-two { grid-template-columns:1fr; gap:10px; } }
+  @media (max-width:860px) { .eo-cols, .eo-two { grid-template-columns:1fr; gap:10px; } .eo-pvcol { position:static; } .eo-pvcol .eo-pv { max-height:none; } .eo-bar-tally { margin-left:0; width:100%; } .eo-hide-m { display:none; } }
 </style>
 
 <div class="sx-root"
@@ -100,15 +118,6 @@
     </div>
     @endif
 
-    <div class="sx-tally">
-        <div><b class="lime">{{ $st['today'] }}</b>emailed today</div>
-        <div><b>{{ number_format($st['all']) }}</b>emailed all time</div>
-        <div><b>{{ number_format($st['visited']) }}</b>visited from their link</div>
-        <div><b>{{ number_format($st['queue']) }}</b>in the queue</div>
-    </div>
-
-    <p class="sx-lede"><b>What this does:</b> Send emails the shop shown, from Intake's platform email address, with an unsubscribe link and your postal address. Nothing sends on its own. <b>[link]</b> becomes that shop's own link to the page you pick, so their visit shows on their timeline with the pages they looked at. Your template, landing page and filters are remembered. Addresses that unsubscribed, bounced or complained never appear here. Visits while you're signed in to master admin aren't recorded, so test a link in a private window. <b>Send test to me</b> sends this email only to you, with a link that carries no tracking code. The signature is set on Email templates › Signature. <b>Not affected:</b> tenant emails (receipts, bookings), Instagram follows, campaigns.</p>
-
     <div class="sx-bar">
         <select class="sx-in" wire:model.live="state">
             <option value="">All states</option>
@@ -131,7 +140,19 @@
             <option value="again">Emailed before</option>
             <option value="all">Everyone</option>
         </select>
-        <span class="sx-count">{{ ['new' => "Shops with an email address that haven't been emailed", 'again' => 'Shops you emailed before, longest ago first is a sort option', 'all' => 'Every shop with an email address'][$who] ?? '' }}</span>
+        <div class="eo-bar-tally">
+            <span><b class="lime">{{ $st['today'] }}</b>today</span>
+            <span><b>{{ number_format($st['all']) }}</b>all time</span>
+            <span><b>{{ number_format($st['visited']) }}</b>visited</span>
+            <span><b>{{ number_format($st['queue']) }}</b>in queue</span>
+        </div>
+    </div>
+
+    {{-- MARKER-OUTREACH-LAYOUT: the legend, one line until More --}}
+    <div class="eo-legend" x-data="{ more: false }">
+        <b>Only sends when you press Send,</b> from Intake's platform address, with an unsubscribe link and your postal address. Addresses that unsubscribed, bounced or complained never appear. <b>Not affected:</b> tenant emails (receipts, bookings), Instagram follows, campaigns.
+        <button type="button" x-on:click="more = ! more" x-text="more ? 'Less' : 'More'">More</button>
+        <div x-show="more" x-cloak style="margin-top:6px"><b>[link]</b> becomes that shop's own link to the page you pick, so their visit shows on their timeline with the pages they looked at. Your template, landing page and filters are remembered. Visits while you're signed in to master admin aren't recorded, so test a link in a private window. <b>Send test to me</b> sends this email only to you, with a link that carries no tracking code. The signature is set on Email templates › Signature. {{ ['new' => "The queue is shops with an email address that haven't been emailed.", 'again' => 'The queue is shops you emailed before; "Longest since emailed" is a sort option.', 'all' => 'The queue is every shop with an email address.'][$who] ?? '' }}</div>
     </div>
 
     <div class="eo-cols">
@@ -141,7 +162,7 @@
                 <div class="ig-sub">{{ $who === 'new' ? 'Every prospect here with an email address has been emailed. Switch "Not emailed yet" to "Emailed before" to email them again, change the filters, or add email addresses on Prospects.' : 'Nobody matches these filters. A shop you emailed in the last hour waits an hour before it comes back.' }}</div>
             @else
                 <div wire:key="cur-{{ $cur->id }}">
-                    <div class="ig-k">Next up</div>
+                    <div class="ig-k">{{ $this->onTop() ? 'Next up' : 'Writing to' }} · {{ number_format($st['queue']) }} in the queue</div>
                     <div class="ig-name">{{ $cur->shop }}</div>
                     <div class="ig-sub">{{ trim($cur->city . ', ' . $cur->state, ', ') }}{{ $cur->owner_contact ? ' · ' . $cur->owner_contact : '' }} · {{ $cur->email }} · lead score {{ $cur->lead_score }} · {{ \App\Models\SalesProspect::STAGES[$cur->stage] ?? $cur->stage }}{{ $cur->email_skipped_at ? ' · skipped before' : '' }}{{ $cur->emailed_at ? ' · last emailed ' . $cur->emailed_at->diffForHumans() : '' }}</div>
                 </div>
@@ -176,7 +197,7 @@
                 @error('subject')<div class="eo-err">{{ $message }}</div>@enderror
 
                 <div class="eo-lbl"><span>Message</span></div>
-                <textarea class="sx-in eo-full" rows="11" x-ref="body" wire:model.live.debounce.400ms="body"></textarea>
+                <textarea class="sx-in eo-full" rows="16" x-ref="body" wire:model.live.debounce.400ms="body"></textarea>
                 @error('body')<div class="eo-err">{{ $message }}</div>@enderror
                 <div class="eo-chips">Insert:
                     @foreach (\App\Services\Sales\ProspectOutreach::TOKENS as $tok)
@@ -200,7 +221,7 @@
             @endif
         </section>
 
-        <section>
+        <section class="eo-pvcol">
             @if ($cur)
                 <div class="eo-pv-h"><span>Preview, as they'll see it</span><span>To: {{ $cur->email }}</span></div>
                 <div class="eo-pv">
@@ -208,40 +229,71 @@
                     {!! $this->previewHtml($cur) !!}
                 </div>
             @endif
-
-            <h2 class="ig-h2">Queue</h2>
-            <table class="sx-t">
-                <thead><tr><th>Shop</th><th style="text-align:right">Score</th></tr></thead>
-                <tbody>
-                @forelse ($q as $p)
-                    <tr wire:key="q-{{ $p->id }}">
-                        <td>{{ $p->shop }}<div class="sx-sub">{{ trim($p->city . ', ' . $p->state, ', ') }} · {{ $p->email }}{{ $p->email_skipped_at ? ' · skipped' : '' }}{{ $p->emailed_at ? ' · emailed ' . $p->emailed_at->diffForHumans() : '' }}</div></td>
-                        <td style="text-align:right">{{ $p->lead_score }}</td>
-                    </tr>
-                @empty
-                    <tr><td colspan="2" class="sx-sub">Nothing else waiting.</td></tr>
-                @endforelse
-                @if ($st['queue'] > $q->count() + ($cur ? 1 : 0))
-                    <tr><td colspan="2" class="sx-sub">+ {{ number_format($st['queue'] - $q->count() - ($cur ? 1 : 0)) }} more</td></tr>
-                @endif
-                </tbody>
-            </table>
-
-            <h2 class="ig-h2">Emailed today</h2>
-            <table class="sx-t">
-                <thead><tr><th>Shop</th><th style="text-align:right">When</th></tr></thead>
-                <tbody>
-                @forelse ($done as $d)
-                    <tr>
-                        <td>{{ $d->shop }}@if ($d->link_clicked_at)<div class="sx-sub eo-yes">Visited from their link</div>@endif</td>
-                        <td style="text-align:right;white-space:nowrap;color:var(--sx-dim)">{{ \Carbon\Carbon::parse($d->created_at)->timezone(\App\Filament\Pages\SalesEmailOutreach::TZ)->format('g:i a') }}</td>
-                    </tr>
-                @empty
-                    <tr><td colspan="2" class="sx-sub">None yet today.</td></tr>
-                @endforelse
-                </tbody>
-            </table>
         </section>
+    </div>
+
+    {{-- MARKER-OUTREACH-LAYOUT: one full-width list, 10 a page --}}
+    <div class="eo-list">
+        <div class="sx-inds">
+            <button type="button" class="{{ $list === 'queue' ? 'on' : '' }}" wire:click="setList('queue')">Queue <span>{{ number_format(max(0, $st['queue'] - ($cur ? 1 : 0))) }}</span></button>
+            <button type="button" class="{{ $list === 'today' ? 'on' : '' }}" wire:click="setList('today')">Emailed today <span>{{ $st['today'] }}</span></button>
+            <button type="button" class="{{ $list === 'visited' ? 'on' : '' }}" wire:click="setList('visited')">Visited <span>{{ number_format($st['visited']) }}</span></button>
+        </div>
+        <table class="sx-t">
+        @if ($list === 'queue')
+            <thead><tr><th>Shop</th><th>Town</th><th class="eo-hide-m">Email</th><th style="text-align:right">Score</th><th></th></tr></thead>
+            <tbody>
+            @forelse ($q as $p)
+                <tr wire:key="q-{{ $p->id }}">
+                    <td class="eo-shop">{{ $p->shop }}@if ($p->email_skipped_at || $p->emailed_at)<div class="sx-sub">{{ $p->email_skipped_at ? 'skipped' : '' }}{{ $p->email_skipped_at && $p->emailed_at ? ' · ' : '' }}{{ $p->emailed_at ? 'emailed ' . $p->emailed_at->diffForHumans() : '' }}</div>@endif</td>
+                    <td style="color:var(--sx-dim)">{{ trim($p->city . ', ' . $p->state, ', ') }}</td>
+                    <td class="eo-hide-m eo-em">{{ $p->email }}</td>
+                    <td style="text-align:right">{{ $p->lead_score }}</td>
+                    <td style="text-align:right"><button type="button" class="sx-btn sm" wire:click="pick('{{ $p->id }}')">Write</button></td>
+                </tr>
+            @empty
+                <tr><td colspan="5" class="sx-sub">Nothing else waiting.</td></tr>
+            @endforelse
+            </tbody>
+        @elseif ($list === 'today')
+            <thead><tr><th>Shop</th><th>Town</th><th></th><th style="text-align:right">When</th></tr></thead>
+            <tbody>
+            @forelse ($done as $d)
+                <tr>
+                    <td class="eo-shop">{{ $d->shop }}</td>
+                    <td style="color:var(--sx-dim)">{{ trim($d->city . ', ' . $d->state, ', ') }}</td>
+                    <td>@if ($d->link_clicked_at)<span class="eo-tag">Visited from their link</span>@endif</td>
+                    <td style="text-align:right;color:var(--sx-dim)">{{ \Carbon\Carbon::parse($d->created_at)->timezone(\App\Filament\Pages\SalesEmailOutreach::TZ)->format('g:i a') }}</td>
+                </tr>
+            @empty
+                <tr><td colspan="4" class="sx-sub">None yet today.</td></tr>
+            @endforelse
+            </tbody>
+        @else
+            <thead><tr><th>Shop</th><th>Town</th><th>Emailed</th><th style="text-align:right">Visited</th></tr></thead>
+            <tbody>
+            @forelse ($seen as $v)
+                <tr>
+                    <td class="eo-shop">{{ $v->shop }}</td>
+                    <td style="color:var(--sx-dim)">{{ trim($v->city . ', ' . $v->state, ', ') }}</td>
+                    <td style="color:var(--sx-dim)">{{ $v->emailed_at ? $v->emailed_at->timezone(\App\Filament\Pages\SalesEmailOutreach::TZ)->format('M j, g:i a') : '—' }}</td>
+                    <td style="text-align:right;color:var(--sx-dim)">{{ $v->link_clicked_at->timezone(\App\Filament\Pages\SalesEmailOutreach::TZ)->format('M j, g:i a') }}</td>
+                </tr>
+            @empty
+                <tr><td colspan="4" class="sx-sub">Nobody has opened their link yet.</td></tr>
+            @endforelse
+            </tbody>
+        @endif
+        </table>
+        @if ($listTotal > $per)
+            <div class="eo-pager">
+                <span>{{ number_format(($listPage - 1) * $per + 1) }}–{{ number_format(min($listTotal, $listPage * $per)) }} of {{ number_format($listTotal) }}</span>
+                <span style="display:flex;gap:6px">
+                    <button type="button" class="sx-btn sm" wire:click="listPageTo({{ $listPage - 1 }})" @disabled($listPage <= 1)>‹ Prev</button>
+                    <button type="button" class="sx-btn sm" wire:click="listPageTo({{ $listPage + 1 }})" @disabled($listPage >= $pages)>Next ›</button>
+                </span>
+            </div>
+        @endif
     </div>
     @endif
 </div>
