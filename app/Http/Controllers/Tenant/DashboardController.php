@@ -61,6 +61,12 @@ class DashboardController extends Controller
         // a second view for people who want a way in rather
         // than a report. Overview is unchanged and remains the default.
         $user = \Illuminate\Support\Facades\Auth::guard('tenant')->user();
+        // MARKER-DASH-BRIEF: a third view, in beta. Overview stays the default.
+        if (($user->dashboard_view ?? 'overview') === 'brief') {
+            $data['week'] = $service->weekAhead();
+            $data['jobs'] = $service->jobsCompleted30();
+            return view('tenant.dashboard-brief', $data);
+        }
         if (($user->dashboard_view ?? 'overview') === 'tiles') {
             $data['tiles'] = \App\Support\DashboardTiles::layout($tenant, $user);
             return view('tenant.dashboard-tiles', $data);
@@ -72,7 +78,7 @@ class DashboardController extends Controller
     /** flip between Overview and Tiles. */
     public function setView(\Illuminate\Http\Request $request)
     {
-        $data = $request->validate(['view' => 'required|in:overview,tiles']);
+        $data = $request->validate(['view' => 'required|in:overview,tiles,brief']);
         \Illuminate\Support\Facades\Auth::guard('tenant')->user()
             ->update(['dashboard_view' => $data['view']]);
 

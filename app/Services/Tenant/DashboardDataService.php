@@ -733,6 +733,119 @@ class DashboardDataService
         ];
     }
 
+    /**
+     * MARKER-DASH-BRIEF: the next seven days for the Brief dashboard — each
+     * day's opening hours (an override for that date beats the weekly rule)
+     * and its bookings with start and length, for the day timeline.
+     *
+     * @return array{days: array<int,array>, start_hour: int, end_hour: int, now_hour: float, total: int}
+     */
+    public function weekAhead(): array
+    {
+        $tz    = $this->tenant->timezone();
+        $now   = $this->tnow()->copy()->setTimezone($tz);
+        $start = $now->copy()->startOfDay();
+        $end   = $start->copy()->addDays(6);
+
+        $appts = TenantAppointment::where('tenant_id', $this->tenant->id)
+            ->whereBetween('appointment_date', [$start->toDateString(), $end->toDateString()])
+            ->whereNotIn('status', AppointmentStatus::terminalStatuses())
+            ->orderByRaw('appointment_time IS NULL, appointment_time ASC')
+            ->with(['customer', 'items'])
+            ->get()
+            ->groupBy(fn ($a) => $a->appointment_date->toDateString());
+
+        $rules     = TenantCapacityRule::where('tenant_id', $this->tenant->id)->get();
+        $weekly    = $rules->where('rule_type', 'default')->keyBy('day_of_week');
+        $overrides = $rules->where('rule_type', 'override')->filter(fn ($r) => $r->specific_date)
+            ->keyBy(fn ($r) => $r->specific_date->toDateString());
+        $hasHours  = $rules->isNotEmpty();
+        $awaiting  = AppointmentStatus::awaitingStatuses();
+
+        $toHour = function (?string $t): ?float {
+            if (! $t) return null;
+            [$h, $m] = array_pad(explode(':', $t), 2, 0);
+            return (int) $h + ((int) $m) / 60;
+        };
+
+        $days = [];
+        $lo = 24.0; $hi = 0.0; $total = 0;
+        for ($i = 0; $i < 7; $i++) {
+            $d    = $start->copy()->addDays($i);
+            $key  = $d->toDateString();
+            $rule = $overrides[$key] ?? $weekly[$d->dayOfWeek] ?? null;
+
+            $closed = $hasHours && (! $rule || $rule->is_closed || (! $rule->open_time && ! $rule->close_time));
+            $open   = $rule ? $toHour($rule->open_time) : null;
+            $close  = $rule ? $toHour($rule->close_time) : null;
+            if (! $closed && $open !== null && $close !== null && $close > $open) {
+                $lo = min($lo, $open); $hi = max($hi, $close);
+            }
+
+            $bookings = [];
+            $untimed  = [];
+            foreach ($appts[$key] ?? [] as $a) {
+                $first = optional($a->items->first())->item_name_snapshot;
+                $more  = max(0, $a->items->count() - 1);
+                $row = [
+                    'who'      => $a->customerName() ?: 'Walk-in',
+                    'what'     => $first ? $first . ($more ? ' +' . $more : '') : 'Booking',
+                    'awaiting' => in_array($a->status, $awaiting, true),
+                    'link'     => route('tenant.appointments.show', $a->id),
+                ];
+                $at = $toHour($a->appointment_time);
+                if ($at === null) { $untimed[] = $row; continue; }
+
+                $len = $a->total_duration_minutes ? $a->total_duration_minutes / 60 : null;
+                if (! $len && $a->appointment_end_time && ($endH = $toHour($a->appointment_end_time)) > $at) {
+                    $len = $endH - $at;
+                }
+                $len = max(0.5, $len ?: 1);
+                $bookings[] = $row + ['at' => $at, 'len' => $len];
+                $lo = min($lo, floor($at)); $hi = max($hi, ceil($at + $len));
+            }
+            $total += count($bookings) + count($untimed);
+
+            $days[] = [
+                'date'     => $key,
+                'dow'      => $d->format('D'),
+                'num'      => (int) $d->format('j'),
+                'name'     => $i === 0 ? 'Today, ' . $d->format('l') : ($i === 1 ? 'Tomorrow, ' . $d->format('l') : $d->format('l, M j')),
+                'is_today' => $i === 0,
+                'closed'   => $closed,
+                'open'     => $closed ? null : $open,
+                'close'    => $closed ? null : $close,
+                'bookings' => $bookings,
+                'untimed'  => $untimed,
+            ];
+        }
+
+        // no hours anywhere and nothing booked: a plain working day
+        if ($lo >= $hi) { $lo = 8; $hi = 18; }
+
+        return [
+            'days'       => $days,
+            'start_hour' => (int) floor($lo),
+            'end_hour'   => (int) ceil($hi),
+            'now_hour'   => $now->hour + $now->minute / 60,
+            'total'      => $total,
+        ];
+    }
+
+    /** MARKER-DASH-BRIEF: jobs completed in the last 30 days, and the 30 before. */
+    public function jobsCompleted30(): array
+    {
+        $tz  = $this->tenant->timezone();
+        $now = $this->tnow()->copy()->setTimezone($tz);
+        $cur = [$now->copy()->subDays(29)->startOfDay()->utc(), $now->copy()->endOfDay()->utc()];
+        $pri = [$now->copy()->subDays(59)->startOfDay()->utc(), $now->copy()->subDays(30)->endOfDay()->utc()];
+        $q = fn ($w) => TenantAppointment::where('tenant_id', $this->tenant->id)
+            ->whereIn('status', AppointmentStatus::doneStatuses())
+            ->whereBetween('completed_at', $w)->count();
+        $c = $q($cur); $p = $q($pri);
+        return ['current' => $c, 'prior' => $p, 'delta_pct' => $p > 0 ? round(($c - $p) / $p * 100) : null];
+    }
+
     public function onboardingProgress(bool $dismissedThisSession): array
     {
         $tenant = $this->tenant;

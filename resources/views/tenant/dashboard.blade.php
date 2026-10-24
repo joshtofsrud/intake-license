@@ -132,6 +132,10 @@
         @csrf<input type="hidden" name="view" value="tiles">
         <button type="submit" title="Tiles" aria-label="Tiles" style="padding:6px 13px;font-size:12px;font-weight:600;border-radius:6px;background:none;color:var(--ia-text-dim);border:none;cursor:pointer;font-family:inherit"><svg class="vs-ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg><span class="vs-lb">Tiles</span></button>
       </form>
+      <form method="POST" action="{{ route('tenant.dashboard.view') }}" style="margin:0;display:inline">
+        @csrf<input type="hidden" name="view" value="brief">
+        <button type="submit" title="Brief (beta)" aria-label="Brief (beta)" style="padding:6px 13px;font-size:12px;font-weight:600;border-radius:6px;background:none;color:var(--ia-text-dim);border:none;cursor:pointer;font-family:inherit"><svg class="vs-ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h10M4 18h13"/></svg><span class="vs-lb">Brief <span style="font-size:9.5px;font-weight:700;letter-spacing:.06em;opacity:.7">BETA</span></span></button>
+      </form>
     </div>
   </div>
 </div>

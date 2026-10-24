@@ -1,0 +1,528 @@
+diff --git a/app/Http/Controllers/Tenant/DashboardController.php b/app/Http/Controllers/Tenant/DashboardController.php
+index 9afacd6e..7ad2806c 100644
+--- a/app/Http/Controllers/Tenant/DashboardController.php
++++ b/app/Http/Controllers/Tenant/DashboardController.php
+@@ -61,6 +61,12 @@ class DashboardController extends Controller
+         // a second view for people who want a way in rather
+         // than a report. Overview is unchanged and remains the default.
+         $user = \Illuminate\Support\Facades\Auth::guard('tenant')->user();
++        // MARKER-DASH-BRIEF: a third view, in beta. Overview stays the default.
++        if (($user->dashboard_view ?? 'overview') === 'brief') {
++            $data['week'] = $service->weekAhead();
++            $data['jobs'] = $service->jobsCompleted30();
++            return view('tenant.dashboard-brief', $data);
++        }
+         if (($user->dashboard_view ?? 'overview') === 'tiles') {
+             $data['tiles'] = \App\Support\DashboardTiles::layout($tenant, $user);
+             return view('tenant.dashboard-tiles', $data);
+@@ -72,7 +78,7 @@ class DashboardController extends Controller
+     /** flip between Overview and Tiles. */
+     public function setView(\Illuminate\Http\Request $request)
+     {
+-        $data = $request->validate(['view' => 'required|in:overview,tiles']);
++        $data = $request->validate(['view' => 'required|in:overview,tiles,brief']);
+         \Illuminate\Support\Facades\Auth::guard('tenant')->user()
+             ->update(['dashboard_view' => $data['view']]);
+ 
+diff --git a/app/Services/Tenant/DashboardDataService.php b/app/Services/Tenant/DashboardDataService.php
+index f00aaefd..97873319 100644
+--- a/app/Services/Tenant/DashboardDataService.php
++++ b/app/Services/Tenant/DashboardDataService.php
+@@ -733,6 +733,119 @@ class DashboardDataService
+         ];
+     }
+ 
++    /**
++     * MARKER-DASH-BRIEF: the next seven days for the Brief dashboard — each
++     * day's opening hours (an override for that date beats the weekly rule)
++     * and its bookings with start and length, for the day timeline.
++     *
++     * @return array{days: array<int,array>, start_hour: int, end_hour: int, now_hour: float, total: int}
++     */
++    public function weekAhead(): array
++    {
++        $tz    = $this->tenant->timezone();
++        $now   = $this->tnow()->copy()->setTimezone($tz);
++        $start = $now->copy()->startOfDay();
++        $end   = $start->copy()->addDays(6);
++
++        $appts = TenantAppointment::where('tenant_id', $this->tenant->id)
++            ->whereBetween('appointment_date', [$start->toDateString(), $end->toDateString()])
++            ->whereNotIn('status', AppointmentStatus::terminalStatuses())
++            ->orderByRaw('appointment_time IS NULL, appointment_time ASC')
++            ->with(['customer', 'items'])
++            ->get()
++            ->groupBy(fn ($a) => $a->appointment_date->toDateString());
++
++        $rules     = TenantCapacityRule::where('tenant_id', $this->tenant->id)->get();
++        $weekly    = $rules->where('rule_type', 'default')->keyBy('day_of_week');
++        $overrides = $rules->where('rule_type', 'override')->filter(fn ($r) => $r->specific_date)
++            ->keyBy(fn ($r) => $r->specific_date->toDateString());
++        $hasHours  = $rules->isNotEmpty();
++        $awaiting  = AppointmentStatus::awaitingStatuses();
++
++        $toHour = function (?string $t): ?float {
++            if (! $t) return null;
++            [$h, $m] = array_pad(explode(':', $t), 2, 0);
++            return (int) $h + ((int) $m) / 60;
++        };
++
++        $days = [];
++        $lo = 24.0; $hi = 0.0; $total = 0;
++        for ($i = 0; $i < 7; $i++) {
++            $d    = $start->copy()->addDays($i);
++            $key  = $d->toDateString();
++            $rule = $overrides[$key] ?? $weekly[$d->dayOfWeek] ?? null;
++
++            $closed = $hasHours && (! $rule || $rule->is_closed || (! $rule->open_time && ! $rule->close_time));
++            $open   = $rule ? $toHour($rule->open_time) : null;
++            $close  = $rule ? $toHour($rule->close_time) : null;
++            if (! $closed && $open !== null && $close !== null && $close > $open) {
++                $lo = min($lo, $open); $hi = max($hi, $close);
++            }
++
++            $bookings = [];
++            $untimed  = [];
++            foreach ($appts[$key] ?? [] as $a) {
++                $first = optional($a->items->first())->item_name_snapshot;
++                $more  = max(0, $a->items->count() - 1);
++                $row = [
++                    'who'      => $a->customerName() ?: 'Walk-in',
++                    'what'     => $first ? $first . ($more ? ' +' . $more : '') : 'Booking',
++                    'awaiting' => in_array($a->status, $awaiting, true),
++                    'link'     => route('tenant.appointments.show', $a->id),
++                ];
++                $at = $toHour($a->appointment_time);
++                if ($at === null) { $untimed[] = $row; continue; }
++
++                $len = $a->total_duration_minutes ? $a->total_duration_minutes / 60 : null;
++                if (! $len && $a->appointment_end_time && ($endH = $toHour($a->appointment_end_time)) > $at) {
++                    $len = $endH - $at;
++                }
++                $len = max(0.5, $len ?: 1);
++                $bookings[] = $row + ['at' => $at, 'len' => $len];
++                $lo = min($lo, floor($at)); $hi = max($hi, ceil($at + $len));
++            }
++            $total += count($bookings) + count($untimed);
++
++            $days[] = [
++                'date'     => $key,
++                'dow'      => $d->format('D'),
++                'num'      => (int) $d->format('j'),
++                'name'     => $i === 0 ? 'Today, ' . $d->format('l') : ($i === 1 ? 'Tomorrow, ' . $d->format('l') : $d->format('l, M j')),
++                'is_today' => $i === 0,
++                'closed'   => $closed,
++                'open'     => $closed ? null : $open,
++                'close'    => $closed ? null : $close,
++                'bookings' => $bookings,
++                'untimed'  => $untimed,
++            ];
++        }
++
++        // no hours anywhere and nothing booked: a plain working day
++        if ($lo >= $hi) { $lo = 8; $hi = 18; }
++
++        return [
++            'days'       => $days,
++            'start_hour' => (int) floor($lo),
++            'end_hour'   => (int) ceil($hi),
++            'now_hour'   => $now->hour + $now->minute / 60,
++            'total'      => $total,
++        ];
++    }
++
++    /** MARKER-DASH-BRIEF: jobs completed in the last 30 days, and the 30 before. */
++    public function jobsCompleted30(): array
++    {
++        $tz  = $this->tenant->timezone();
++        $now = $this->tnow()->copy()->setTimezone($tz);
++        $cur = [$now->copy()->subDays(29)->startOfDay()->utc(), $now->copy()->endOfDay()->utc()];
++        $pri = [$now->copy()->subDays(59)->startOfDay()->utc(), $now->copy()->subDays(30)->endOfDay()->utc()];
++        $q = fn ($w) => TenantAppointment::where('tenant_id', $this->tenant->id)
++            ->whereIn('status', AppointmentStatus::doneStatuses())
++            ->whereBetween('completed_at', $w)->count();
++        $c = $q($cur); $p = $q($pri);
++        return ['current' => $c, 'prior' => $p, 'delta_pct' => $p > 0 ? round(($c - $p) / $p * 100) : null];
++    }
++
+     public function onboardingProgress(bool $dismissedThisSession): array
+     {
+         $tenant = $this->tenant;
+diff --git a/public/css/tenant/dashboard-brief.css b/public/css/tenant/dashboard-brief.css
+new file mode 100644
+index 00000000..8605b065
+--- /dev/null
++++ b/public/css/tenant/dashboard-brief.css
+@@ -0,0 +1,107 @@
++/* MARKER-DASH-BRIEF: the Brief dashboard (beta). Lines and rows, no cards.
++   Every colour is a theme token, so it follows the shop's theme and accent. */
++/* --mb-ink: the accent as text. Pulled toward the text colour so a light
++   accent (lime, yellow) stays readable on a light theme; on dark themes it
++   barely moves. */
++.mb { --mb-late: #E5533F; --mb-today: #D98A06; --mb-ink: color-mix(in srgb, var(--ia-accent) 62%, var(--ia-text));
++       --mb-dim: color-mix(in srgb, var(--ia-text-dim) 72%, var(--ia-text)); }
++.mb-eyebrow { font-size: 11px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; color: var(--mb-ink); }
++.mb-h1 { font-size: 46px; line-height: 1.05; font-weight: 700; letter-spacing: -.035em; margin: 10px 0 0; }
++.mb-sum { font-size: 17px; line-height: 1.5; color: var(--mb-dim); margin: 12px 0 0; max-width: 680px; }
++.mb-sum b { color: var(--ia-text); font-weight: 500; }
++.mb-sum .late { color: var(--mb-late); }
++.mb-acts { display: flex; gap: 10px; margin-top: 22px; flex-wrap: wrap; align-items: center; }
++
++.mb-setup { display: flex; align-items: center; gap: 14px; margin-top: 26px; padding: 11px 0; border-top: 1px solid var(--ia-border); border-bottom: 1px solid var(--ia-border); font-size: 13.5px; }
++.mb-setup .k { font-weight: 600; }
++.mb-setup .bar { width: 120px; height: 4px; border-radius: 2px; background: var(--ia-surface-2); overflow: hidden; flex: none; }
++.mb-setup .bar i { display: block; height: 100%; background: var(--ia-accent); }
++.mb-setup .n { color: var(--mb-dim); }
++.mb-setup a { margin-left: auto; color: var(--mb-ink); font-weight: 500; white-space: nowrap; }
++.mb-setup a:hover { text-decoration: underline; }
++
++.mb-cols { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 56px; margin-top: 36px; }
++.mb-h2 { font-size: 21px; font-weight: 600; letter-spacing: -.02em; margin: 0; }
++.mb-h2row { display: flex; align-items: baseline; gap: 10px; }
++.mb-h2row .meta { margin-left: auto; font-size: 12.5px; color: var(--mb-dim); }
++
++/* queue */
++.mb-grp { margin-top: 20px; }
++.mb-grp-h { display: flex; align-items: center; gap: 8px; font-size: 11px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--mb-dim); padding-bottom: 8px; border-bottom: 1px solid var(--ia-border); }
++.mb-grp-h i { width: 7px; height: 7px; border-radius: 50%; display: block; background: var(--ia-text-dim); }
++.mb-grp-h.late { color: var(--mb-late); } .mb-grp-h.late i { background: var(--mb-late); }
++.mb-grp-h.today { color: var(--mb-today); } .mb-grp-h.today i { background: var(--mb-today); }
++.mb-grp-h .c { margin-left: auto; font-weight: 500; letter-spacing: 0; text-transform: none; font-size: 12px; }
++.mb-row { display: grid; grid-template-columns: 58px 1fr auto; align-items: center; gap: 10px; padding: 12px 6px 12px 0; border-bottom: 1px solid var(--ia-border); color: inherit; text-decoration: none; transition: background var(--ia-t); }
++.mb-row:hover { background: var(--ia-hover); }
++.mb-row .n { font-size: 25px; font-weight: 600; letter-spacing: -.03em; text-align: right; padding-right: 10px; font-variant-numeric: tabular-nums; }
++.mb-row .t { font-size: 15px; font-weight: 500; }
++.mb-row .s { font-size: 13px; color: var(--mb-dim); }
++.mb-row .arr { color: var(--mb-dim); font-size: 18px; }
++.mb-calm { padding: 18px 0; color: var(--mb-dim); border-bottom: 1px solid var(--ia-border); }
++
++/* week */
++.mb-days { display: grid; grid-template-columns: repeat(7, 1fr); margin-top: 16px; border-bottom: 1px solid var(--ia-border); }
++.mb-day { background: none; border: 0; color: var(--mb-dim); padding: 6px 0 10px; text-align: center; border-bottom: 2px solid transparent; margin-bottom: -1px; font-family: inherit; cursor: pointer; }
++.mb-day .w { font-size: 10.5px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; }
++.mb-day .d { font-size: 19px; font-weight: 600; color: var(--ia-text); line-height: 1.3; }
++.mb-day .dots { height: 9px; display: flex; justify-content: center; gap: 3px; margin-top: 2px; font-size: 10px; line-height: 9px; }
++.mb-day .dots i { width: 4px; height: 4px; border-radius: 50%; background: var(--ia-accent); display: block; margin-top: 2px; }
++.mb-day.off .d { color: var(--mb-dim); }
++.mb-day.on { border-bottom-color: var(--mb-ink); }
++.mb-day.on .d, .mb-day.on .w { color: var(--mb-ink); }
++.mb-dayhead { display: flex; align-items: baseline; margin-top: 14px; font-size: 13px; color: var(--mb-dim); }
++.mb-dayhead b { color: var(--ia-text); font-weight: 600; font-size: 14px; }
++.mb-dayhead span { margin-left: auto; }
++.mb-untimed { font-size: 12.5px; color: var(--mb-dim); margin-top: 8px; }
++.mb-untimed a { color: var(--ia-text); }
++
++.mb-tl { position: relative; margin-top: 12px; }
++.mb-tl .hr { position: relative; height: var(--mb-hr, 44px); border-top: 1px solid var(--ia-border); }
++.mb-tl .hr span { position: absolute; top: -8px; left: 0; font-family: var(--ia-font-mono); font-size: 11px; color: var(--mb-dim); background: var(--ia-bg); padding-right: 8px; }
++.mb-tl .lane { position: absolute; left: 52px; right: 0; top: 0; bottom: 0; }
++.mb-tl .bk { position: absolute; left: 0; right: 0; z-index: 2; border-radius: 7px; padding: 6px 10px; display: flex; align-items: flex-start; gap: 10px; overflow: hidden; border: 1px solid; font-size: 13px; line-height: 1.35; color: inherit; text-decoration: none; }
++.mb-tl .bk.ok { background: color-mix(in srgb, var(--ia-accent) 12%, var(--ia-bg)); border-color: color-mix(in srgb, var(--ia-accent) 40%, transparent); }
++.mb-tl .bk.pend { background: color-mix(in srgb, var(--mb-today) 12%, var(--ia-bg)); border-color: color-mix(in srgb, var(--mb-today) 45%, transparent); }
++.mb-tl .bk > div:first-child { min-width: 0; }
++.mb-tl .bk .who { font-weight: 600; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
++.mb-tl .bk .tm { font-family: var(--ia-font-mono); font-size: 11px; color: var(--mb-dim); display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
++.mb-tl .bk .side { margin-left: auto; flex: none; font-size: 12px; font-weight: 600; }
++.mb-tl .bk.ok .side { color: var(--mb-ink); font-weight: 500; }
++.mb-tl .bk.pend .side { color: var(--mb-today); }
++.mb-tl .open { position: absolute; left: 0; right: 0; z-index: 1; background: var(--ia-bg); border: 1px dashed var(--ia-border-strong); border-radius: 7px; display: flex; align-items: center; justify-content: space-between; padding: 0 10px; font-size: 12px; color: var(--mb-dim); opacity: .7; text-decoration: none; transition: opacity var(--ia-t); }
++.mb-tl .open:hover { opacity: 1; }
++.mb-tl .open b { font-weight: 500; color: var(--mb-ink); }
++.mb-tl .now { position: absolute; left: -8px; right: 0; height: 0; border-top: 2px solid var(--mb-late); z-index: 3; }
++.mb-tl .now::before { content: ''; position: absolute; left: -4px; top: -5px; width: 8px; height: 8px; border-radius: 50%; background: var(--mb-late); }
++.mb-tl .now span { position: absolute; right: 0; top: -18px; font-size: 10.5px; font-weight: 600; color: var(--mb-late); }
++.mb-tl .closed { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--mb-dim); font-size: 13px; background: repeating-linear-gradient(135deg, transparent 0 8px, var(--ia-hover) 8px 16px); border-radius: 7px; }
++.mb-legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 11.5px; color: var(--mb-dim); margin-top: 10px; }
++.mb-legend i { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; border: 1px solid; }
++.mb-legend .a { background: color-mix(in srgb, var(--ia-accent) 12%, var(--ia-bg)); border-color: color-mix(in srgb, var(--ia-accent) 40%, transparent); }
++.mb-legend .b { background: color-mix(in srgb, var(--mb-today) 12%, var(--ia-bg)); border-color: color-mix(in srgb, var(--mb-today) 45%, transparent); }
++.mb-legend .c { border-style: dashed; border-color: var(--ia-border-strong); }
++
++/* last 30 days */
++.mb-stats { margin-top: 40px; }
++.mb-st { display: grid; grid-template-columns: 1fr 110px auto; gap: 14px; align-items: center; padding: 13px 0; border-bottom: 1px solid var(--ia-border); }
++.mb-st .k { color: var(--mb-dim); font-size: 14px; }
++.mb-st .k small { display: block; font-size: 11.5px; }
++.mb-st .k small.up { color: var(--mb-ink); }
++.mb-st .k small.down { color: var(--mb-late); }
++.mb-st .v { font-size: 23px; font-weight: 600; letter-spacing: -.02em; text-align: right; min-width: 90px; font-variant-numeric: tabular-nums; }
++.mb-st svg { display: block; width: 110px; height: 28px; color: var(--mb-ink); }
++.mb-note { font-size: 12px; color: var(--mb-dim); margin-top: 10px; line-height: 1.5; }
++
++@media (max-width: 1023px) {
++  .mb-h1 { font-size: 34px; }
++  .mb-sum { font-size: 15.5px; }
++  .mb-setup { flex-wrap: wrap; gap: 8px 12px; }
++  .mb-setup a { margin-left: 0; }
++  .mb-cols { grid-template-columns: 1fr; gap: 36px; margin-top: 26px; }
++  .mb-row { grid-template-columns: 46px 1fr auto; }
++  .mb-row .n { font-size: 21px; }
++  .mb-h2row { flex-wrap: wrap; }
++  .mb-h2row .meta { margin-left: 0; flex-basis: 100%; }
++  .mb-stats { margin-top: 30px; }
++}
+diff --git a/resources/views/tenant/dashboard-brief.blade.php b/resources/views/tenant/dashboard-brief.blade.php
+new file mode 100644
+index 00000000..a625316e
+--- /dev/null
++++ b/resources/views/tenant/dashboard-brief.blade.php
+@@ -0,0 +1,229 @@
++@extends('layouts.tenant.app')
++{{-- MARKER-DASH-BRIEF: the third dashboard view, in beta. Built from the same
++     data as Overview (DashboardController); Overview stays the default. --}}
++@section('title', 'Dashboard')
++@section('mobile-fab', 'walk-in')
++@push('styles')
++  <link rel="stylesheet" href="{{ asset('css/tenant/dashboard-simple.css') }}?v={{ filemtime(public_path('css/tenant/dashboard-simple.css')) }}">
++  <link rel="stylesheet" href="{{ asset('css/tenant/dashboard-brief.css') }}?v={{ filemtime(public_path('css/tenant/dashboard-brief.css')) }}">
++  <style>
++    .mb-head .vs-ic { display: none; }
++    @media (max-width: 1023px) {
++      .mb-head .ia-viewseg button { padding: 5px 8px !important; line-height: 0; }
++      .mb-head .ia-viewseg .vs-lb { display: none; }
++      .mb-head .ia-viewseg .vs-ic { display: inline-block; }
++      .mb-head.has-fab .mb-acts > a.ia-btn { display: none !important; }
++    }
++  </style>
++@endpush
++
++@section('content')
++@php
++  // ---- the queue: the attention cards, grouped by how urgent they are ----
++  $lateKeys  = ['overdue_unstarted', 'overdue_in_progress', 'so_overdue'];
++  $laterKeys = ['so_needed', 'low_stock', 'catalog_attention', 'custom_items', 'win_back', 'transfers_arriving'];
++  $cards  = collect($attention['cards'] ?? [])->filter(fn ($c) => (int) ($c['count'] ?? 0) > 0);
++  $groups = [
++      'late'  => ['Late',         $cards->filter(fn ($c) => in_array($c['key'] ?? '', $lateKeys, true))],
++      'today' => ['Today',        $cards->reject(fn ($c) => in_array($c['key'] ?? '', array_merge($lateKeys, $laterKeys), true))],
++      'later' => ['When you can', $cards->filter(fn ($c) => in_array($c['key'] ?? '', $laterKeys, true))],
++  ];
++  $lateN  = (int) $groups['late'][1]->sum('count');
++  $todayN = (int) $groups['today'][1]->sum('count');
++
++  // ---- the summary line ----
++  $hello = 'Good ' . $greeting['time_of_day'] . ($greeting['name'] ? ', ' . $greeting['name'] : '') . '.';
++  $booked = $today['today_count'] ?? 0;
++  if ($booked > 0) {
++      $dayLine = $booked . ' ' . \Illuminate\Support\Str::plural('booking', $booked) . ' today.';
++  } elseif (! empty($today['next_day'])) {
++      $dayLine = 'Nothing is booked until ' . ($today['next_day']->isTomorrow() ? 'tomorrow' : $today['next_day']->format('l')) . '.';
++  } else {
++      $dayLine = 'Nothing is booked in the next 30 days.';
++  }
++
++  // ---- setup: one line while unfinished ----
++  $steps = [
++      'services' => ['Add your services', route('tenant.services.index')],
++      'hours'    => ['Set your hours', route('tenant.capacity.index')],
++      'branding' => ['Add your logo and colours', route('tenant.settings.index')],
++  ];
++  $done = collect($steps)->keys()->filter(fn ($k) => ! empty($progress[$k]))->count();
++  $nextStep = collect($steps)->first(fn ($v, $k) => empty($progress[$k]));
++
++  // ---- week: open on today if it has bookings, else the first day that does ----
++  $days = $week['days'];
++  $sel = 0;
++  if (empty($days[0]['bookings']) && empty($days[0]['untimed'])) {
++      foreach ($days as $i => $d) { if ($d['bookings'] || $d['untimed']) { $sel = $i; break; } }
++  }
++  $H0 = $week['start_hour']; $H1 = $week['end_hour']; $HR = 44;
++  $fmt = function (float $h): string {
++      $H = (int) floor($h); $M = (int) round(($h - $H) * 60);
++      if ($M === 60) { $H++; $M = 0; }
++      return ((($H + 11) % 12) + 1) . ($M ? ':' . str_pad((string) $M, 2, '0', STR_PAD_LEFT) : '') . ($H < 12 ? 'a' : 'p');
++  };
++  $newUrl = route('tenant.appointments.index', ['new' => 1]);
++
++  // ---- last 30 days ----
++  $spark = function (array $vals): string {
++      $vals = array_values($vals);
++      $n = count($vals);
++      if ($n < 2 || max($vals) == min($vals)) return '<svg viewBox="0 0 110 28" aria-hidden="true"></svg>';
++      $avg = [];
++      for ($i = 0; $i < $n; $i++) { $w = array_slice($vals, max(0, $i - 3), min(4, $i + 1)); $avg[] = array_sum($w) / count($w); }
++      $mn = min($avg); $mx = max($avg); $pts = [];
++      foreach ($avg as $i => $v) { $pts[] = round($i * 110 / ($n - 1), 1) . ',' . round(25 - ($mx > $mn ? ($v - $mn) / ($mx - $mn) : .5) * 22, 1); }
++      $last = explode(',', end($pts));
++      return '<svg viewBox="0 0 110 28" aria-hidden="true"><path d="M' . implode(' L', $pts) . '" fill="none" stroke="currentColor" stroke-opacity=".75" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/><circle cx="' . $last[0] . '" cy="' . $last[1] . '" r="2.2" fill="currentColor"/></svg>';
++  };
++  $delta = function ($pct) {
++      if ($pct === null) return '';
++      return '<small class="' . ($pct >= 0 ? 'up' : 'down') . '">' . ($pct >= 0 ? '▲ ' : '▼ ') . abs($pct) . '% vs the 30 days before</small>';
++  };
++@endphp
++
++<div class="mb">
++
++  <section class="mb-head {{ tenant()->retail_enabled ? 'has-fab' : '' }}">
++    <div style="display:flex;align-items:center;gap:12px">
++      <div class="mb-eyebrow">{{ $greeting['date_long'] }}</div>
++      <div class="ia-viewseg" style="margin-left:auto">
++        <form method="POST" action="{{ route('tenant.dashboard.view') }}">
++          @csrf<input type="hidden" name="view" value="overview">
++          <button type="submit" title="Overview" aria-label="Overview"><svg class="vs-ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="3" y="5" width="14" height="14" rx="2"/><path d="M21 7v10"/></svg><span class="vs-lb">Overview</span></button>
++        </form>
++        <form method="POST" action="{{ route('tenant.dashboard.view') }}">
++          @csrf<input type="hidden" name="view" value="tiles">
++          <button type="submit" title="Tiles" aria-label="Tiles"><svg class="vs-ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg><span class="vs-lb">Tiles</span></button>
++        </form>
++        <button type="button" class="on" title="Brief (beta)" aria-label="Brief (beta)"><svg class="vs-ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h10M4 18h13"/></svg><span class="vs-lb">Brief <span style="font-size:9.5px;font-weight:700;letter-spacing:.06em;opacity:.7">BETA</span></span></button>
++      </div>
++    </div>
++
++    <h1 class="mb-h1">{{ $hello }}</h1>
++    <p class="mb-sum">
++      @if ($lateN || $todayN)
++        @if ($lateN)<b class="late">{{ $lateN }} {{ \Illuminate\Support\Str::plural('thing', $lateN) }} {{ $lateN === 1 ? 'is' : 'are' }} late</b>@endif
++        @if ($lateN && $todayN) and @endif
++        @if ($todayN)<b>{{ $todayN }} {{ $lateN ? '' : \Illuminate\Support\Str::plural('thing', $todayN) . ' ' }}{{ $todayN === 1 ? 'is' : 'are' }} due today</b>@endif.
++      @else
++        <b>All caught up.</b>
++      @endif
++      {{ $dayLine }}
++    </p>
++    <div class="mb-acts">
++      <a href="{{ $newUrl }}" class="ia-btn ia-btn--primary">New appointment</a>
++      @if (tenant()->retail_enabled)
++        <a href="{{ route('tenant.register.index') }}" class="ia-btn">Open register</a>
++      @endif
++    </div>
++
++    @if (empty($progress['all_done']) && $nextStep)
++      <div class="mb-setup">
++        <span class="k">Finish setup</span>
++        <span class="bar"><i style="width:{{ round($done / 3 * 100) }}%"></i></span>
++        <span class="n">{{ $done }} of 3 done</span>
++        <a href="{{ $nextStep[1] }}">{{ $nextStep[0] }} →</a>
++      </div>
++    @endif
++  </section>
++
++  <div class="mb-cols">
++
++    {{-- QUEUE: each row is a count that opens its own filtered list --}}
++    <section>
++      <div class="mb-h2row"><h2 class="mb-h2">The queue</h2><span class="meta">Most urgent first · each row opens its list</span></div>
++      @if ($cards->isEmpty())
++        <div class="mb-calm">Nothing needs you right now.</div>
++      @endif
++      @foreach ($groups as $gk => [$label, $rows])
++        @continue($rows->isEmpty())
++        @php $sum = (int) $rows->sum('count'); @endphp
++        <div class="mb-grp">
++          <div class="mb-grp-h {{ $gk }}"><i></i>{{ $label }}<span class="c">{{ $sum }} {{ \Illuminate\Support\Str::plural('thing', $sum) }}</span></div>
++          @foreach ($rows as $c)
++            <a class="mb-row" href="{{ $c['link'] }}">
++              <span class="n">{{ $c['count'] }}</span>
++              <span><div class="t">{{ $c['title'] }}</div><div class="s">{{ $c['desc'] }}</div></span>
++              <span class="arr">›</span>
++            </a>
++          @endforeach
++        </div>
++      @endforeach
++    </section>
++
++    {{-- WEEK + LAST 30 DAYS --}}
++    <section>
++      <div class="mb-h2row"><h2 class="mb-h2">This week</h2><span class="meta">{{ $week['total'] }} booked</span></div>
++
++      <div class="mb-days" role="tablist">
++        @foreach ($days as $i => $d)
++          <button type="button" class="mb-day {{ $i === $sel ? 'on' : '' }} {{ $d['closed'] ? 'off' : '' }}" data-mb-day="{{ $i }}" role="tab">
++            <div class="w">{{ $d['dow'] }}</div><div class="d">{{ $d['num'] }}</div>
++            <div class="dots">@if ($d['closed'])closed @else @for ($k = 0; $k < min(4, count($d['bookings']) + count($d['untimed'])); $k++)<i></i>@endfor @endif</div>
++          </button>
++        @endforeach
++      </div>
++
++      @foreach ($days as $i => $d)
++        @php $n = count($d['bookings']) + count($d['untimed']); @endphp
++        <div class="mb-daypanel" data-mb-panel="{{ $i }}" @if ($i !== $sel) hidden @endif>
++          <div class="mb-dayhead"><b>{{ $d['name'] }}</b><span>{{ $d['closed'] ? 'Closed' : ($n ? $n . ' booked' : '') }}</span></div>
++          @if ($d['untimed'])
++            <div class="mb-untimed">No time set:
++              @foreach ($d['untimed'] as $u)<a href="{{ $u['link'] }}">{{ $u['who'] }}</a>{{ $loop->last ? '' : ', ' }}@endforeach
++            </div>
++          @endif
++          <div class="mb-tl" style="--mb-hr:{{ $HR }}px">
++            @for ($h = $H0; $h < $H1; $h++)<div class="hr"><span>{{ $fmt($h) }}</span></div>@endfor
++            <div class="lane">
++              @if ($d['closed'])
++                <div class="closed">Closed</div>
++              @else
++                @php
++                  $t = max($H0, $d['open'] ?? $H0);
++                  $dayEnd = min($H1, $d['close'] ?? $H1);
++                  $gaps = [];
++                  foreach ($d['bookings'] as $b) { if ($b['at'] - $t >= 1) $gaps[] = [$t, $b['at']]; $t = max($t, $b['at'] + $b['len']); }
++                  if ($dayEnd - $t >= 1) $gaps[] = [$t, $dayEnd];
++                @endphp
++                @foreach ($gaps as [$g0, $g1])
++                  <a class="open" href="{{ $newUrl }}" style="top:{{ ($g0 - $H0) * $HR + 3 }}px;height:{{ ($g1 - $g0) * $HR - 6 }}px"><span>Open · {{ $fmt($g0) }}–{{ $fmt($g1) }}</span><b>+ Book</b></a>
++                @endforeach
++                @foreach ($d['bookings'] as $b)
++                  <a class="bk {{ $b['awaiting'] ? 'pend' : 'ok' }}" href="{{ $b['link'] }}" style="top:{{ ($b['at'] - $H0) * $HR + 2 }}px;height:{{ max(28, $b['len'] * $HR - 4) }}px">
++                    <div><span class="who">{{ $b['who'] }}</span><span class="tm">{{ $fmt($b['at']) }}–{{ $fmt($b['at'] + $b['len']) }} · {{ $b['what'] }}</span></div>
++                    <div class="side">{{ $b['awaiting'] ? 'Confirm →' : 'Confirmed' }}</div>
++                  </a>
++                @endforeach
++              @endif
++              @if ($d['is_today'] && $week['now_hour'] >= $H0 && $week['now_hour'] <= $H1)
++                <div class="now" style="top:{{ ($week['now_hour'] - $H0) * $HR }}px"><span>Now {{ $fmt($week['now_hour']) }}</span></div>
++              @endif
++            </div>
++          </div>
++        </div>
++      @endforeach
++      <div class="mb-legend"><span><i class="a"></i>Confirmed</span><span><i class="b"></i>Waiting on you</span><span><i class="c"></i>Open: click to book</span></div>
++
++      <div class="mb-stats">
++        <div class="mb-h2row"><h2 class="mb-h2">Last 30 days</h2></div>
++        <div class="mb-st"><span class="k">Sales{!! $delta($growth['revenue']['delta_pct'] ?? null) !!}</span>{!! $spark($growth['revenue']['sparkline'] ?? []) !!}<span class="v">{{ format_money($growth['revenue']['current_cents'] ?? 0) }}</span></div>
++        <div class="mb-st"><span class="k">Jobs completed{!! $delta($jobs['delta_pct'] ?? null) !!}</span><svg viewBox="0 0 110 28" aria-hidden="true"></svg><span class="v">{{ number_format($jobs['current'] ?? 0) }}</span></div>
++        <div class="mb-st"><span class="k">New customers{!! $delta($growth['customers']['delta_pct'] ?? null) !!}</span>{!! $spark($growth['customers']['sparkline'] ?? []) !!}<span class="v">{{ number_format($growth['customers']['current'] ?? 0) }}</span></div>
++        <div class="mb-note">Sales are payments received. The line is a 4-day average across the 30 days; comparisons appear once there's a month before to compare with.</div>
++      </div>
++    </section>
++  </div>
++</div>
++
++<script>
++  document.querySelectorAll('[data-mb-day]').forEach(function (b) {
++    b.addEventListener('click', function () {
++      document.querySelectorAll('[data-mb-day]').forEach(function (x) { x.classList.toggle('on', x === b); });
++      document.querySelectorAll('[data-mb-panel]').forEach(function (p) { p.hidden = p.dataset.mbPanel !== b.dataset.mbDay; });
++    });
++  });
++</script>
++@endsection
+diff --git a/resources/views/tenant/dashboard-tiles.blade.php b/resources/views/tenant/dashboard-tiles.blade.php
+index 6f122b98..6409fa42 100644
+--- a/resources/views/tenant/dashboard-tiles.blade.php
++++ b/resources/views/tenant/dashboard-tiles.blade.php
+@@ -80,6 +80,10 @@
+         <button type="submit" title="Overview" aria-label="Overview"><svg class="vs-ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="3" y="5" width="14" height="14" rx="2"/><path d="M21 7v10"/></svg><span class="vs-lb">Overview</span></button>
+       </form>
+       <button type="button" class="on" title="Tiles" aria-label="Tiles"><svg class="vs-ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg><span class="vs-lb">Tiles</span></button>
++      <form method="POST" action="{{ route('tenant.dashboard.view') }}">
++        @csrf<input type="hidden" name="view" value="brief">
++        <button type="submit" title="Brief (beta)" aria-label="Brief (beta)"><svg class="vs-ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h10M4 18h13"/></svg><span class="vs-lb">Brief <span style="font-size:9.5px;font-weight:700;letter-spacing:.06em;opacity:.7">BETA</span></span></button>
++      </form>
+     </div>
+   </div>
+ </div>
+diff --git a/resources/views/tenant/dashboard.blade.php b/resources/views/tenant/dashboard.blade.php
+index 93ac53c8..2bdc7789 100644
+--- a/resources/views/tenant/dashboard.blade.php
++++ b/resources/views/tenant/dashboard.blade.php
+@@ -132,6 +132,10 @@
+         @csrf<input type="hidden" name="view" value="tiles">
+         <button type="submit" title="Tiles" aria-label="Tiles" style="padding:6px 13px;font-size:12px;font-weight:600;border-radius:6px;background:none;color:var(--ia-text-dim);border:none;cursor:pointer;font-family:inherit"><svg class="vs-ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg><span class="vs-lb">Tiles</span></button>
+       </form>
++      <form method="POST" action="{{ route('tenant.dashboard.view') }}" style="margin:0;display:inline">
++        @csrf<input type="hidden" name="view" value="brief">
++        <button type="submit" title="Brief (beta)" aria-label="Brief (beta)" style="padding:6px 13px;font-size:12px;font-weight:600;border-radius:6px;background:none;color:var(--ia-text-dim);border:none;cursor:pointer;font-family:inherit"><svg class="vs-ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h10M4 18h13"/></svg><span class="vs-lb">Brief <span style="font-size:9.5px;font-weight:700;letter-spacing:.06em;opacity:.7">BETA</span></span></button>
++      </form>
+     </div>
+   </div>
+ </div>
