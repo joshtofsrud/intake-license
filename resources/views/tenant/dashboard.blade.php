@@ -126,17 +126,7 @@
       + New appointment
     </a>
     {{-- toggle lives in the page head on both views --}}
-    <div class="ia-viewseg" style="display:inline-flex;background:var(--ia-surface);border:1px solid var(--ia-border);border-radius:9px;padding:3px">
-      <button type="button" class="on" title="Overview" aria-label="Overview" style="padding:6px 13px;font-size:12px;font-weight:600;border-radius:6px;background:var(--ia-surface-2);color:var(--ia-text);border:none;cursor:pointer;font-family:inherit"><svg class="vs-ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="3" y="5" width="14" height="14" rx="2"/><path d="M21 7v10"/></svg><span class="vs-lb">Overview</span></button>
-      <form method="POST" action="{{ route('tenant.dashboard.view') }}" style="margin:0;display:inline">
-        @csrf<input type="hidden" name="view" value="tiles">
-        <button type="submit" title="Tiles" aria-label="Tiles" style="padding:6px 13px;font-size:12px;font-weight:600;border-radius:6px;background:none;color:var(--ia-text-dim);border:none;cursor:pointer;font-family:inherit"><svg class="vs-ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg><span class="vs-lb">Tiles</span></button>
-      </form>
-      <form method="POST" action="{{ route('tenant.dashboard.view') }}" style="margin:0;display:inline">
-        @csrf<input type="hidden" name="view" value="brief">
-        <button type="submit" title="Brief (beta)" aria-label="Brief (beta)" style="padding:6px 13px;font-size:12px;font-weight:600;border-radius:6px;background:none;color:var(--ia-text-dim);border:none;cursor:pointer;font-family:inherit"><svg class="vs-ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h10M4 18h13"/></svg><span class="vs-lb">Brief <span style="font-size:9.5px;font-weight:700;letter-spacing:.06em;opacity:.7">BETA</span></span></button>
-      </form>
-    </div>
+    @include('tenant.dashboard._switch', ['inline' => true])
   </div>
 </div>
 
@@ -175,10 +165,9 @@
 {{-- b --}}
 {{-- toggle moved into the page head above --}}
 
-@include('tenant.dashboard._zone_triage_tiles')
-@include('tenant.dashboard._zone_today_tile')
-@include('tenant.dashboard._zone_growth_tiles')
-@include('tenant.dashboard._zone_launcher')
+{{-- MARKER-DASH-TEMPLATES: Overview is now a template; this page is its frame
+     and the zones are its blocks, drawn in the order its live version lists. --}}
+@include('tenant.dashboard._rows', ['dashRows' => $dashRows])
 
 @push('styles')
 <style>

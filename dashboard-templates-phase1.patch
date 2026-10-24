@@ -1,0 +1,1720 @@
+diff --git a/app/Http/Controllers/Tenant/DashboardController.php b/app/Http/Controllers/Tenant/DashboardController.php
+index 7ad2806c..1386619a 100644
+--- a/app/Http/Controllers/Tenant/DashboardController.php
++++ b/app/Http/Controllers/Tenant/DashboardController.php
+@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Tenant;
+ 
+ use App\Http\Controllers\Controller;
+ use App\Services\Tenant\DashboardDataService;
++use App\Support\Dashboard\BlockRegistry;
++use App\Support\Dashboard\DashboardTemplates;
+ use Illuminate\Http\Request;
+ 
+ class DashboardController extends Controller
+@@ -58,27 +60,37 @@ class DashboardController extends Controller
+             'workOrderBanner' => $workOrderBanner,
+         ];
+ 
+-        // a second view for people who want a way in rather
+-        // than a report. Overview is unchanged and remains the default.
++        // MARKER-DASH-TEMPLATES: the dashboard is a template — Overview, Tiles,
++        // Brief, or one built in master admin. The person's pick lives in
++        // dashboard_view (the template key); the default covers no pick, or
++        // a pick that's no longer offered.
+         $user = \Illuminate\Support\Facades\Auth::guard('tenant')->user();
+-        // MARKER-DASH-BRIEF: a third view, in beta. Overview stays the default.
+-        if (($user->dashboard_view ?? 'overview') === 'brief') {
++        $template = DashboardTemplates::activeFor($user->dashboard_view ?? null);
++        $rows = $template['rows'];
++
++        // Only load what this template's blocks draw.
++        $needs = BlockRegistry::needs($rows);
++        if (in_array('week', $needs, true)) {
+             $data['week'] = $service->weekAhead();
++        }
++        if (in_array('jobs', $needs, true)) {
+             $data['jobs'] = $service->jobsCompleted30();
+-            return view('tenant.dashboard-brief', $data);
+         }
+-        if (($user->dashboard_view ?? 'overview') === 'tiles') {
++        if (in_array('tiles', $needs, true)) {
+             $data['tiles'] = \App\Support\DashboardTiles::layout($tenant, $user);
+-            return view('tenant.dashboard-tiles', $data);
+         }
+ 
+-        return view('tenant.dashboard', $data);
++        $data['activeTemplate']  = $template;
++        $data['switchTemplates'] = DashboardTemplates::switchable();
++        $data['dashRows']        = $rows;
++
++        return view(DashboardTemplates::frameView($template), $data);
+     }
+ 
+-    /** flip between Overview and Tiles. */
++    /** switch to another dashboard template. */
+     public function setView(\Illuminate\Http\Request $request)
+     {
+-        $data = $request->validate(['view' => 'required|in:overview,tiles,brief']);
++        $data = $request->validate(['view' => ['required', 'string', \Illuminate\Validation\Rule::in(DashboardTemplates::keys())]]);
+         \Illuminate\Support\Facades\Auth::guard('tenant')->user()
+             ->update(['dashboard_view' => $data['view']]);
+ 
+diff --git a/app/Models/DashboardBlock.php b/app/Models/DashboardBlock.php
+new file mode 100644
+index 00000000..44c372bf
+--- /dev/null
++++ b/app/Models/DashboardBlock.php
+@@ -0,0 +1,23 @@
++<?php
++
++namespace App\Models;
++
++use Illuminate\Database\Eloquent\Model;
++
++/**
++ * A dashboard block as master admin sees it. Built-in blocks draw from code
++ * (App\Support\Dashboard\BlockRegistry); this row carries their name and
++ * whether they're hidden everywhere.
++ */
++class DashboardBlock extends Model
++{
++    protected $table = 'dashboard_blocks';
++
++    protected $fillable = ['key', 'name', 'kind', 'is_builtin', 'origin', 'config', 'hidden_at'];
++
++    protected $casts = [
++        'is_builtin' => 'boolean',
++        'config'     => 'array',
++        'hidden_at'  => 'datetime',
++    ];
++}
+diff --git a/app/Models/DashboardTemplate.php b/app/Models/DashboardTemplate.php
+new file mode 100644
+index 00000000..057216e7
+--- /dev/null
++++ b/app/Models/DashboardTemplate.php
+@@ -0,0 +1,41 @@
++<?php
++
++namespace App\Models;
++
++use Illuminate\Database\Eloquent\Model;
++use Illuminate\Database\Eloquent\Relations\BelongsTo;
++use Illuminate\Database\Eloquent\Relations\HasMany;
++
++/**
++ * A dashboard template: a named arrangement of blocks that shops pick from
++ * their dashboard switch. Shops only ever see the live version; edits sit in
++ * draft_layout until published.
++ */
++class DashboardTemplate extends Model
++{
++    protected $table = 'dashboard_templates';
++
++    protected $fillable = [
++        'key', 'name', 'is_builtin', 'frame', 'state', 'switch_label', 'beta_badge', 'icon',
++        'rearrange', 'is_default', 'sort', 'live_version_id', 'draft_layout', 'audience', 'retired_at',
++    ];
++
++    protected $casts = [
++        'is_builtin'   => 'boolean',
++        'beta_badge'   => 'boolean',
++        'is_default'   => 'boolean',
++        'draft_layout' => 'array',
++        'audience'     => 'array',
++        'retired_at'   => 'datetime',
++    ];
++
++    public function liveVersion(): BelongsTo
++    {
++        return $this->belongsTo(DashboardTemplateVersion::class, 'live_version_id');
++    }
++
++    public function versions(): HasMany
++    {
++        return $this->hasMany(DashboardTemplateVersion::class, 'dashboard_template_id');
++    }
++}
+diff --git a/app/Models/DashboardTemplateVersion.php b/app/Models/DashboardTemplateVersion.php
+new file mode 100644
+index 00000000..4ec73d1e
+--- /dev/null
++++ b/app/Models/DashboardTemplateVersion.php
+@@ -0,0 +1,24 @@
++<?php
++
++namespace App\Models;
++
++use Illuminate\Database\Eloquent\Model;
++use Illuminate\Database\Eloquent\Relations\BelongsTo;
++
++/** One published layout of a template. Kept for history and rollback. */
++class DashboardTemplateVersion extends Model
++{
++    protected $table = 'dashboard_template_versions';
++
++    protected $fillable = ['dashboard_template_id', 'version', 'layout', 'note', 'published_by_user_id', 'published_at'];
++
++    protected $casts = [
++        'layout'       => 'array',
++        'published_at' => 'datetime',
++    ];
++
++    public function template(): BelongsTo
++    {
++        return $this->belongsTo(DashboardTemplate::class, 'dashboard_template_id');
++    }
++}
+diff --git a/app/Support/Dashboard/BlockRegistry.php b/app/Support/Dashboard/BlockRegistry.php
+new file mode 100644
+index 00000000..b493c8e6
+--- /dev/null
++++ b/app/Support/Dashboard/BlockRegistry.php
+@@ -0,0 +1,75 @@
++<?php
++
++namespace App\Support\Dashboard;
++
++/**
++ * The dashboard blocks that come from code.
++ *
++ * Each one is a Blade partial that draws one part of a dashboard, plus the
++ * extra data it needs beyond what every dashboard already loads (greeting,
++ * today, attention, growth, launcher, progress). Templates arrange these by
++ * key; the dashboard_blocks table holds the master-admin side of each one
++ * (its name, and whether it's hidden everywhere).
++ *
++ * Adding a built-in block: add an entry here and a row in dashboard_blocks
++ * (see DashboardTemplates::seedBuiltIns()).
++ */
++class BlockRegistry
++{
++    /** Extra data a block can ask for, and what loads it. */
++    public const NEEDS = ['week', 'jobs', 'tiles'];
++
++    public static function builtIns(): array
++    {
++        return [
++            // Overview
++            'attention' => ['name' => 'Needs attention', 'origin' => 'overview', 'view' => 'tenant.dashboard._zone_triage_tiles',
++                'reads' => 'Appointments, work orders, special orders, stock', 'desc' => 'The attention counts as a row of tiles.', 'needs' => []],
++            'today'     => ['name' => 'Today', 'origin' => 'overview', 'view' => 'tenant.dashboard._zone_today_tile',
++                'reads' => 'Appointments', 'desc' => "Today's bookings and the week strip.", 'needs' => []],
++            'growth'    => ['name' => 'Growth', 'origin' => 'overview', 'view' => 'tenant.dashboard._zone_growth_tiles',
++                'reads' => 'Sales, customers', 'desc' => 'Revenue and customer trends.', 'needs' => []],
++            'launcher'  => ['name' => 'App launcher', 'origin' => 'overview', 'view' => 'tenant.dashboard._zone_launcher',
++                'reads' => 'Add-ons the shop has', 'desc' => 'Shortcuts to the main areas.', 'needs' => []],
++
++            // Tiles
++            'needs_you' => ['name' => 'Needs you', 'origin' => 'tiles', 'view' => 'tenant.dashboard.blocks.needs-you',
++                'reads' => 'Appointments, work orders, special orders, stock', 'desc' => 'Attention counts as tiles, collapsible.', 'needs' => []],
++            'tiles'     => ['name' => 'Tiles', 'origin' => 'tiles', 'view' => 'tenant.dashboard.blocks.tiles',
++                'reads' => 'Add-ons the shop has', 'desc' => 'Shortcut tiles each person can reorder and hide.', 'needs' => ['tiles']],
++
++            // Brief
++            'greeting'  => ['name' => 'Greeting and summary', 'origin' => 'brief', 'view' => 'tenant.dashboard.blocks.greeting',
++                'reads' => 'Appointments, the queue', 'desc' => 'Greeting, then one line on what is late, due and booked.', 'needs' => []],
++            'actions'   => ['name' => 'Quick actions', 'origin' => 'brief', 'view' => 'tenant.dashboard.blocks.actions',
++                'reads' => 'Shop settings', 'desc' => 'New appointment, plus Open register when Retail is on.', 'needs' => []],
++            'setup'     => ['name' => 'Finish setup', 'origin' => 'brief', 'view' => 'tenant.dashboard.blocks.setup',
++                'reads' => 'Setup progress', 'desc' => 'Shows until services, hours and branding are done.', 'needs' => []],
++            'queue'     => ['name' => 'The queue', 'origin' => 'brief', 'view' => 'tenant.dashboard.blocks.queue',
++                'reads' => 'Appointments, work orders, special orders, stock', 'desc' => 'Late, Today and When you can. Each row opens its list.', 'needs' => []],
++            'week'      => ['name' => 'This week', 'origin' => 'brief', 'view' => 'tenant.dashboard.blocks.week',
++                'reads' => 'Appointments, opening hours', 'desc' => 'Day strip and timeline. Free time links to a new appointment.', 'needs' => ['week']],
++            'last30'    => ['name' => 'Last 30 days', 'origin' => 'brief', 'view' => 'tenant.dashboard.blocks.last30',
++                'reads' => 'Sales, work orders, customers', 'desc' => 'Sales, jobs completed and new customers against the 30 days before.', 'needs' => ['jobs']],
++        ];
++    }
++
++    public static function view(string $key): ?string
++    {
++        return self::builtIns()[$key]['view'] ?? null;
++    }
++
++    /** Every extra data set the blocks in these rows ask for. */
++    public static function needs(array $rows): array
++    {
++        $defs = self::builtIns();
++        $needs = [];
++        foreach (Layout::blockKeys($rows) as $key) {
++            foreach ($defs[$key]['needs'] ?? [] as $n) {
++                $needs[$n] = true;
++            }
++        }
++
++        return array_keys($needs);
++    }
++}
+diff --git a/app/Support/Dashboard/BriefView.php b/app/Support/Dashboard/BriefView.php
+new file mode 100644
+index 00000000..4491c7e6
+--- /dev/null
++++ b/app/Support/Dashboard/BriefView.php
+@@ -0,0 +1,125 @@
++<?php
++
++namespace App\Support\Dashboard;
++
++use Illuminate\Support\Collection;
++use Illuminate\Support\Str;
++
++/**
++ * The figures and small renderers the Brief blocks share.
++ *
++ * These used to sit in one @php block at the top of dashboard-brief.blade.php.
++ * Now that each part of Brief is its own block (so a template can use any of
++ * them on its own), every block asks this class for what it needs instead of
++ * relying on variables another block happened to set.
++ */
++class BriefView
++{
++    private const LATE_KEYS  = ['overdue_unstarted', 'overdue_in_progress', 'so_overdue'];
++    private const LATER_KEYS = ['so_needed', 'low_stock', 'catalog_attention', 'custom_items', 'win_back', 'transfers_arriving'];
++
++    /**
++     * The attention cards grouped by urgency: Late, Today, When you can.
++     *
++     * @return array{cards: Collection, groups: array, lateN: int, todayN: int}
++     */
++    public static function queue(?array $attention): array
++    {
++        $cards  = collect($attention['cards'] ?? [])->filter(fn ($c) => (int) ($c['count'] ?? 0) > 0);
++        $groups = [
++            'late'  => ['Late',         $cards->filter(fn ($c) => in_array($c['key'] ?? '', self::LATE_KEYS, true))],
++            'today' => ['Today',        $cards->reject(fn ($c) => in_array($c['key'] ?? '', array_merge(self::LATE_KEYS, self::LATER_KEYS), true))],
++            'later' => ['When you can', $cards->filter(fn ($c) => in_array($c['key'] ?? '', self::LATER_KEYS, true))],
++        ];
++
++        return [
++            'cards'  => $cards,
++            'groups' => $groups,
++            'lateN'  => (int) $groups['late'][1]->sum('count'),
++            'todayN' => (int) $groups['today'][1]->sum('count'),
++        ];
++    }
++
++    public static function hello(array $greeting): string
++    {
++        return 'Good ' . $greeting['time_of_day'] . ($greeting['name'] ? ', ' . $greeting['name'] : '') . '.';
++    }
++
++    public static function dayLine(?array $today): string
++    {
++        $booked = $today['today_count'] ?? 0;
++        if ($booked > 0) {
++            return $booked . ' ' . Str::plural('booking', $booked) . ' today.';
++        }
++        if (! empty($today['next_day'])) {
++            return 'Nothing is booked until ' . ($today['next_day']->isTomorrow() ? 'tomorrow' : $today['next_day']->format('l')) . '.';
++        }
++
++        return 'Nothing is booked in the next 30 days.';
++    }
++
++    /**
++     * Setup progress: how many of the three steps are done and the next one.
++     *
++     * @return array{done: int, next: ?array}
++     */
++    public static function setup(?array $progress): array
++    {
++        $steps = [
++            'services' => ['Add your services', route('tenant.services.index')],
++            'hours'    => ['Set your hours', route('tenant.capacity.index')],
++            'branding' => ['Add your logo and colours', route('tenant.settings.index')],
++        ];
++
++        return [
++            'done' => collect($steps)->keys()->filter(fn ($k) => ! empty($progress[$k]))->count(),
++            'next' => collect($steps)->first(fn ($v, $k) => empty($progress[$k])),
++        ];
++    }
++
++    /** The day the week opens on: today if it has bookings, else the first day that does. */
++    public static function firstBusyDay(array $days): int
++    {
++        if (empty($days[0]['bookings']) && empty($days[0]['untimed'])) {
++            foreach ($days as $i => $d) {
++                if ($d['bookings'] || $d['untimed']) {
++                    return $i;
++                }
++            }
++        }
++
++        return 0;
++    }
++
++    /** 9 → "9a", 13.5 → "1:30p". */
++    public static function hour(float $h): string
++    {
++        $H = (int) floor($h);
++        $M = (int) round(($h - $H) * 60);
++        if ($M === 60) { $H++; $M = 0; }
++
++        return ((($H + 11) % 12) + 1) . ($M ? ':' . str_pad((string) $M, 2, '0', STR_PAD_LEFT) : '') . ($H < 12 ? 'a' : 'p');
++    }
++
++    /** A 4-day moving-average sparkline, or an empty box when there's nothing to draw. */
++    public static function spark(array $vals): string
++    {
++        $vals = array_values($vals);
++        $n = count($vals);
++        if ($n < 2 || max($vals) == min($vals)) return '<svg viewBox="0 0 110 28" aria-hidden="true"></svg>';
++        $avg = [];
++        for ($i = 0; $i < $n; $i++) { $w = array_slice($vals, max(0, $i - 3), min(4, $i + 1)); $avg[] = array_sum($w) / count($w); }
++        $mn = min($avg); $mx = max($avg); $pts = [];
++        foreach ($avg as $i => $v) { $pts[] = round($i * 110 / ($n - 1), 1) . ',' . round(25 - ($mx > $mn ? ($v - $mn) / ($mx - $mn) : .5) * 22, 1); }
++        $last = explode(',', end($pts));
++
++        return '<svg viewBox="0 0 110 28" aria-hidden="true"><path d="M' . implode(' L', $pts) . '" fill="none" stroke="currentColor" stroke-opacity=".75" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/><circle cx="' . $last[0] . '" cy="' . $last[1] . '" r="2.2" fill="currentColor"/></svg>';
++    }
++
++    public static function delta($pct): string
++    {
++        if ($pct === null) return '';
++
++        return '<small class="' . ($pct >= 0 ? 'up' : 'down') . '">' . ($pct >= 0 ? '▲ ' : '▼ ') . abs($pct) . '% vs the 30 days before</small>';
++    }
++}
+diff --git a/app/Support/Dashboard/DashboardTemplates.php b/app/Support/Dashboard/DashboardTemplates.php
+new file mode 100644
+index 00000000..a080dbf4
+--- /dev/null
++++ b/app/Support/Dashboard/DashboardTemplates.php
+@@ -0,0 +1,174 @@
++<?php
++
++namespace App\Support\Dashboard;
++
++use App\Models\DashboardBlock;
++use App\Models\DashboardTemplate;
++use Illuminate\Support\Facades\DB;
++
++/**
++ * Which dashboard templates a person can switch between, and which one they
++ * see. Reads dashboard_templates / their live versions; if those tables can't
++ * be read (a migration hasn't run yet) it falls back to the built-in
++ * definitions below, which are exactly what the tables are seeded with — so
++ * a shop's dashboard never breaks over it.
++ */
++class DashboardTemplates
++{
++    /** The frame is the page around the blocks: its header, switch and scripts. */
++    public const FRAMES = [
++        'overview' => 'tenant.dashboard',
++        'tiles'    => 'tenant.dashboard-tiles',
++        'brief'    => 'tenant.dashboard-brief',
++    ];
++
++    /** Switch icons. The same SVGs the three views drew by hand before. */
++    public const ICONS = [
++        'overview' => '<svg class="vs-ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="3" y="5" width="14" height="14" rx="2"/><path d="M21 7v10"/></svg>',
++        'tiles'    => '<svg class="vs-ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>',
++        'brief'    => '<svg class="vs-ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h10M4 18h13"/></svg>',
++    ];
++
++    private static ?array $cache = null;
++
++    /**
++     * Overview, Tiles and Brief as templates: the same blocks, in the same
++     * order, as the three views drew before templates existed.
++     */
++    public static function builtInDefinitions(): array
++    {
++        $p = fn (string $b) => ['b' => $b];
++
++        return [
++            ['key' => 'overview', 'name' => 'Overview', 'frame' => 'overview', 'switch_label' => 'Overview', 'beta_badge' => false,
++             'icon' => 'overview', 'is_default' => true, 'sort' => 10, 'state' => 'live', 'rearrange' => 'none',
++             'layout' => [
++                 ['split' => [12], 'cols' => [[$p('attention')]]],
++                 ['split' => [12], 'cols' => [[$p('today')]]],
++                 ['split' => [12], 'cols' => [[$p('growth')]]],
++                 ['split' => [12], 'cols' => [[$p('launcher')]]],
++             ]],
++            ['key' => 'tiles', 'name' => 'Tiles', 'frame' => 'tiles', 'switch_label' => 'Tiles', 'beta_badge' => false,
++             'icon' => 'tiles', 'is_default' => false, 'sort' => 20, 'state' => 'live', 'rearrange' => 'none',
++             'layout' => [
++                 ['split' => [12], 'cols' => [[$p('needs_you')]]],
++                 ['split' => [12], 'cols' => [[$p('tiles')]]],
++             ]],
++            ['key' => 'brief', 'name' => 'Brief', 'frame' => 'brief', 'switch_label' => 'Brief', 'beta_badge' => true,
++             'icon' => 'brief', 'is_default' => false, 'sort' => 30, 'state' => 'live', 'rearrange' => 'none',
++             'layout' => [
++                 ['split' => [12], 'cols' => [[$p('greeting'), $p('actions'), $p('setup')]]],
++                 ['split' => [7, 5], 'cols' => [[$p('queue')], [$p('week'), $p('last30')]]],
++             ]],
++        ];
++    }
++
++    /** Writes the built-in blocks and templates (v1 of each). Safe to run twice. */
++    public static function seedBuiltIns(): void
++    {
++        $now = now();
++
++        foreach (BlockRegistry::builtIns() as $key => $def) {
++            DB::table('dashboard_blocks')->updateOrInsert(
++                ['key' => $key],
++                ['name' => $def['name'], 'kind' => 'data', 'is_builtin' => true, 'origin' => $def['origin'], 'created_at' => $now, 'updated_at' => $now]
++            );
++        }
++
++        foreach (self::builtInDefinitions() as $def) {
++            if (DB::table('dashboard_templates')->where('key', $def['key'])->exists()) {
++                continue;
++            }
++            $id = DB::table('dashboard_templates')->insertGetId([
++                'key' => $def['key'], 'name' => $def['name'], 'is_builtin' => true, 'frame' => $def['frame'],
++                'state' => $def['state'], 'switch_label' => $def['switch_label'], 'beta_badge' => $def['beta_badge'],
++                'icon' => $def['icon'], 'rearrange' => $def['rearrange'], 'is_default' => $def['is_default'],
++                'sort' => $def['sort'], 'created_at' => $now, 'updated_at' => $now,
++            ]);
++            $vid = DB::table('dashboard_template_versions')->insertGetId([
++                'dashboard_template_id' => $id, 'version' => 1, 'layout' => json_encode($def['layout']),
++                'note' => 'Made a template from the ' . $def['name'] . ' view. Nothing changed on screen.',
++                'published_at' => $now, 'created_at' => $now, 'updated_at' => $now,
++            ]);
++            DB::table('dashboard_templates')->where('id', $id)->update(['live_version_id' => $vid]);
++        }
++    }
++
++    /**
++     * Templates that appear in the dashboard switch, in order, each with its
++     * live layout (hidden and unknown blocks already taken out).
++     *
++     * @return array<int, array{key: string, name: string, frame: string, label: string, beta: bool, icon: string, default: bool, rows: array}>
++     */
++    public static function switchable(): array
++    {
++        if (self::$cache !== null) {
++            return self::$cache;
++        }
++
++        try {
++            $hidden = DashboardBlock::whereNotNull('hidden_at')->pluck('key')->all();
++            $list = DashboardTemplate::with('liveVersion')
++                ->whereIn('state', ['live', 'beta'])
++                ->whereNotNull('live_version_id')
++                ->whereIn('frame', array_keys(self::FRAMES))
++                ->orderBy('sort')->orderBy('id')
++                ->get()
++                ->map(fn (DashboardTemplate $t) => [
++                    'key'     => $t->key,
++                    'name'    => $t->name,
++                    'frame'   => $t->frame,
++                    'label'   => $t->switch_label ?: $t->name,
++                    'beta'    => (bool) $t->beta_badge,
++                    'icon'    => $t->icon ?: $t->frame,
++                    'default' => (bool) $t->is_default,
++                    'rows'    => Layout::visible((array) ($t->liveVersion?->layout ?? []), $hidden),
++                ])
++                ->values()
++                ->all();
++        } catch (\Throwable $e) {
++            report($e);
++            $list = [];
++        }
++
++        if (! $list) {
++            $list = array_map(fn ($d) => [
++                'key' => $d['key'], 'name' => $d['name'], 'frame' => $d['frame'], 'label' => $d['switch_label'],
++                'beta' => $d['beta_badge'], 'icon' => $d['icon'], 'default' => $d['is_default'],
++                'rows' => Layout::visible($d['layout']),
++            ], self::builtInDefinitions());
++        }
++
++        return self::$cache = $list;
++    }
++
++    /** The template this person sees: the one they picked, else the default, else the first. */
++    public static function activeFor(?string $picked): array
++    {
++        $list = self::switchable();
++        foreach ($list as $t) {
++            if ($picked !== null && $t['key'] === $picked) return $t;
++        }
++        foreach ($list as $t) {
++            if ($t['default']) return $t;
++        }
++
++        return $list[0];
++    }
++
++    public static function keys(): array
++    {
++        return array_column(self::switchable(), 'key');
++    }
++
++    public static function frameView(array $template): string
++    {
++        return self::FRAMES[$template['frame']] ?? self::FRAMES['overview'];
++    }
++
++    /** For tests and long-running workers: forget what this process read. */
++    public static function flush(): void
++    {
++        self::$cache = null;
++    }
++}
+diff --git a/app/Support/Dashboard/Layout.php b/app/Support/Dashboard/Layout.php
+new file mode 100644
+index 00000000..315f4b13
+--- /dev/null
++++ b/app/Support/Dashboard/Layout.php
+@@ -0,0 +1,65 @@
++<?php
++
++namespace App\Support\Dashboard;
++
++/**
++ * A template's layout: rows, each split into columns (12-unit widths), each
++ * column a stack of placed blocks.
++ *
++ *   [ ['split' => [7, 5], 'cols' => [ [['b' => 'queue']], [['b' => 'week'], ['b' => 'last30']] ]], ... ]
++ *
++ * Stored as JSON on dashboard_template_versions.layout.
++ */
++class Layout
++{
++    /** Every block key in the layout, in reading order. */
++    public static function blockKeys(array $rows): array
++    {
++        $keys = [];
++        foreach ($rows as $row) {
++            foreach ((array) ($row['cols'] ?? []) as $col) {
++                foreach ((array) $col as $p) {
++                    if (is_array($p) && isset($p['b']) && is_string($p['b'])) {
++                        $keys[] = $p['b'];
++                    }
++                }
++            }
++        }
++
++        return $keys;
++    }
++
++    /**
++     * The layout as a shop should see it: blocks that no longer exist, or
++     * that master admin has hidden everywhere, are taken out; a column left
++     * empty stays (it holds its width), a row left with no blocks at all goes.
++     */
++    public static function visible(array $rows, array $hiddenKeys = []): array
++    {
++        $known = BlockRegistry::builtIns();
++        $out = [];
++        foreach ($rows as $row) {
++            $split = array_values(array_filter((array) ($row['split'] ?? [12]), fn ($n) => is_int($n) && $n > 0));
++            if (! $split) $split = [12];
++            $cols = [];
++            $any = false;
++            foreach ($split as $i => $_) {
++                $col = [];
++                foreach ((array) (($row['cols'] ?? [])[$i] ?? []) as $p) {
++                    $key = is_array($p) ? ($p['b'] ?? null) : null;
++                    if (! is_string($key) || ! isset($known[$key]) || in_array($key, $hiddenKeys, true)) {
++                        continue;
++                    }
++                    $col[] = $p;
++                    $any = true;
++                }
++                $cols[] = $col;
++            }
++            if ($any) {
++                $out[] = ['split' => $split, 'cols' => $cols];
++            }
++        }
++
++        return $out;
++    }
++}
+diff --git a/database/migrations/2026_10_24_120000_create_dashboard_templates.php b/database/migrations/2026_10_24_120000_create_dashboard_templates.php
+new file mode 100644
+index 00000000..6e333d1f
+--- /dev/null
++++ b/database/migrations/2026_10_24_120000_create_dashboard_templates.php
+@@ -0,0 +1,75 @@
++<?php
++
++use App\Support\Dashboard\DashboardTemplates;
++use Illuminate\Database\Migrations\Migration;
++use Illuminate\Database\Schema\Blueprint;
++use Illuminate\Support\Facades\Schema;
++
++/**
++ * MARKER-DASH-TEMPLATES: dashboard templates, phase 1.
++ *
++ * Overview, Tiles and Brief become templates made of blocks. Each is seeded
++ * as v1 with exactly the blocks and order the view drew before, so no shop's
++ * dashboard changes. Additive only: tenant_users.dashboard_view keeps holding
++ * the picked view, and its values (overview / tiles / brief) are the template
++ * keys.
++ */
++return new class extends Migration
++{
++    public function up(): void
++    {
++        Schema::create('dashboard_blocks', function (Blueprint $table) {
++            $table->id();
++            $table->string('key', 40)->unique();
++            $table->string('name', 80);
++            $table->string('kind', 12)->default('data');
++            $table->boolean('is_builtin')->default(false);
++            $table->string('origin', 16)->nullable();
++            $table->json('config')->nullable();
++            $table->timestamp('hidden_at')->nullable();
++            $table->timestamps();
++        });
++
++        Schema::create('dashboard_templates', function (Blueprint $table) {
++            $table->id();
++            // Stored in tenant_users.dashboard_view, which is 16 characters.
++            $table->string('key', 16)->unique();
++            $table->string('name', 80);
++            $table->boolean('is_builtin')->default(false);
++            $table->string('frame', 16)->default('overview');
++            $table->string('state', 12)->default('draft');
++            $table->string('switch_label', 40)->nullable();
++            $table->boolean('beta_badge')->default(false);
++            $table->string('icon', 16)->nullable();
++            $table->string('rearrange', 8)->default('none');
++            $table->boolean('is_default')->default(false);
++            $table->unsignedSmallInteger('sort')->default(100);
++            $table->unsignedBigInteger('live_version_id')->nullable();
++            $table->json('draft_layout')->nullable();
++            $table->json('audience')->nullable();
++            $table->timestamp('retired_at')->nullable();
++            $table->timestamps();
++        });
++
++        Schema::create('dashboard_template_versions', function (Blueprint $table) {
++            $table->id();
++            $table->foreignId('dashboard_template_id')->constrained('dashboard_templates')->cascadeOnDelete();
++            $table->unsignedInteger('version');
++            $table->json('layout');
++            $table->string('note', 255)->nullable();
++            $table->unsignedBigInteger('published_by_user_id')->nullable();
++            $table->timestamp('published_at')->nullable();
++            $table->timestamps();
++            $table->unique(['dashboard_template_id', 'version'], 'dtv_template_version_unique');
++        });
++
++        DashboardTemplates::seedBuiltIns();
++    }
++
++    public function down(): void
++    {
++        Schema::dropIfExists('dashboard_template_versions');
++        Schema::dropIfExists('dashboard_templates');
++        Schema::dropIfExists('dashboard_blocks');
++    }
++};
+diff --git a/resources/views/tenant/dashboard-brief.blade.php b/resources/views/tenant/dashboard-brief.blade.php
+index a625316e..f3f716f4 100644
+--- a/resources/views/tenant/dashboard-brief.blade.php
++++ b/resources/views/tenant/dashboard-brief.blade.php
+@@ -18,69 +18,15 @@
+ @endpush
+ 
+ @section('content')
++{{-- MARKER-DASH-TEMPLATES: Brief is now a template. This page is its frame
++     (header, switch, two-column body); the parts inside are blocks, drawn in
++     the order the template's live version lists them. Single-column rows at
++     the top sit in the header; rows with columns become the two-column body. --}}
+ @php
+-  // ---- the queue: the attention cards, grouped by how urgent they are ----
+-  $lateKeys  = ['overdue_unstarted', 'overdue_in_progress', 'so_overdue'];
+-  $laterKeys = ['so_needed', 'low_stock', 'catalog_attention', 'custom_items', 'win_back', 'transfers_arriving'];
+-  $cards  = collect($attention['cards'] ?? [])->filter(fn ($c) => (int) ($c['count'] ?? 0) > 0);
+-  $groups = [
+-      'late'  => ['Late',         $cards->filter(fn ($c) => in_array($c['key'] ?? '', $lateKeys, true))],
+-      'today' => ['Today',        $cards->reject(fn ($c) => in_array($c['key'] ?? '', array_merge($lateKeys, $laterKeys), true))],
+-      'later' => ['When you can', $cards->filter(fn ($c) => in_array($c['key'] ?? '', $laterKeys, true))],
+-  ];
+-  $lateN  = (int) $groups['late'][1]->sum('count');
+-  $todayN = (int) $groups['today'][1]->sum('count');
+-
+-  // ---- the summary line ----
+-  $hello = 'Good ' . $greeting['time_of_day'] . ($greeting['name'] ? ', ' . $greeting['name'] : '') . '.';
+-  $booked = $today['today_count'] ?? 0;
+-  if ($booked > 0) {
+-      $dayLine = $booked . ' ' . \Illuminate\Support\Str::plural('booking', $booked) . ' today.';
+-  } elseif (! empty($today['next_day'])) {
+-      $dayLine = 'Nothing is booked until ' . ($today['next_day']->isTomorrow() ? 'tomorrow' : $today['next_day']->format('l')) . '.';
+-  } else {
+-      $dayLine = 'Nothing is booked in the next 30 days.';
++  $briefHead = []; $briefBody = [];
++  foreach ($dashRows as $r) {
++      if (! $briefBody && count($r['split']) === 1) { $briefHead[] = $r; } else { $briefBody[] = $r; }
+   }
+-
+-  // ---- setup: one line while unfinished ----
+-  $steps = [
+-      'services' => ['Add your services', route('tenant.services.index')],
+-      'hours'    => ['Set your hours', route('tenant.capacity.index')],
+-      'branding' => ['Add your logo and colours', route('tenant.settings.index')],
+-  ];
+-  $done = collect($steps)->keys()->filter(fn ($k) => ! empty($progress[$k]))->count();
+-  $nextStep = collect($steps)->first(fn ($v, $k) => empty($progress[$k]));
+-
+-  // ---- week: open on today if it has bookings, else the first day that does ----
+-  $days = $week['days'];
+-  $sel = 0;
+-  if (empty($days[0]['bookings']) && empty($days[0]['untimed'])) {
+-      foreach ($days as $i => $d) { if ($d['bookings'] || $d['untimed']) { $sel = $i; break; } }
+-  }
+-  $H0 = $week['start_hour']; $H1 = $week['end_hour']; $HR = 44;
+-  $fmt = function (float $h): string {
+-      $H = (int) floor($h); $M = (int) round(($h - $H) * 60);
+-      if ($M === 60) { $H++; $M = 0; }
+-      return ((($H + 11) % 12) + 1) . ($M ? ':' . str_pad((string) $M, 2, '0', STR_PAD_LEFT) : '') . ($H < 12 ? 'a' : 'p');
+-  };
+-  $newUrl = route('tenant.appointments.index', ['new' => 1]);
+-
+-  // ---- last 30 days ----
+-  $spark = function (array $vals): string {
+-      $vals = array_values($vals);
+-      $n = count($vals);
+-      if ($n < 2 || max($vals) == min($vals)) return '<svg viewBox="0 0 110 28" aria-hidden="true"></svg>';
+-      $avg = [];
+-      for ($i = 0; $i < $n; $i++) { $w = array_slice($vals, max(0, $i - 3), min(4, $i + 1)); $avg[] = array_sum($w) / count($w); }
+-      $mn = min($avg); $mx = max($avg); $pts = [];
+-      foreach ($avg as $i => $v) { $pts[] = round($i * 110 / ($n - 1), 1) . ',' . round(25 - ($mx > $mn ? ($v - $mn) / ($mx - $mn) : .5) * 22, 1); }
+-      $last = explode(',', end($pts));
+-      return '<svg viewBox="0 0 110 28" aria-hidden="true"><path d="M' . implode(' L', $pts) . '" fill="none" stroke="currentColor" stroke-opacity=".75" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/><circle cx="' . $last[0] . '" cy="' . $last[1] . '" r="2.2" fill="currentColor"/></svg>';
+-  };
+-  $delta = function ($pct) {
+-      if ($pct === null) return '';
+-      return '<small class="' . ($pct >= 0 ? 'up' : 'down') . '">' . ($pct >= 0 ? '▲ ' : '▼ ') . abs($pct) . '% vs the 30 days before</small>';
+-  };
+ @endphp
+ 
+ <div class="mb">
+@@ -88,142 +34,24 @@
+   <section class="mb-head {{ tenant()->retail_enabled ? 'has-fab' : '' }}">
+     <div style="display:flex;align-items:center;gap:12px">
+       <div class="mb-eyebrow">{{ $greeting['date_long'] }}</div>
+-      <div class="ia-viewseg" style="margin-left:auto">
+-        <form method="POST" action="{{ route('tenant.dashboard.view') }}">
+-          @csrf<input type="hidden" name="view" value="overview">
+-          <button type="submit" title="Overview" aria-label="Overview"><svg class="vs-ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="3" y="5" width="14" height="14" rx="2"/><path d="M21 7v10"/></svg><span class="vs-lb">Overview</span></button>
+-        </form>
+-        <form method="POST" action="{{ route('tenant.dashboard.view') }}">
+-          @csrf<input type="hidden" name="view" value="tiles">
+-          <button type="submit" title="Tiles" aria-label="Tiles"><svg class="vs-ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg><span class="vs-lb">Tiles</span></button>
+-        </form>
+-        <button type="button" class="on" title="Brief (beta)" aria-label="Brief (beta)"><svg class="vs-ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h10M4 18h13"/></svg><span class="vs-lb">Brief <span style="font-size:9.5px;font-weight:700;letter-spacing:.06em;opacity:.7">BETA</span></span></button>
+-      </div>
+-    </div>
+-
+-    <h1 class="mb-h1">{{ $hello }}</h1>
+-    <p class="mb-sum">
+-      @if ($lateN || $todayN)
+-        @if ($lateN)<b class="late">{{ $lateN }} {{ \Illuminate\Support\Str::plural('thing', $lateN) }} {{ $lateN === 1 ? 'is' : 'are' }} late</b>@endif
+-        @if ($lateN && $todayN) and @endif
+-        @if ($todayN)<b>{{ $todayN }} {{ $lateN ? '' : \Illuminate\Support\Str::plural('thing', $todayN) . ' ' }}{{ $todayN === 1 ? 'is' : 'are' }} due today</b>@endif.
+-      @else
+-        <b>All caught up.</b>
+-      @endif
+-      {{ $dayLine }}
+-    </p>
+-    <div class="mb-acts">
+-      <a href="{{ $newUrl }}" class="ia-btn ia-btn--primary">New appointment</a>
+-      @if (tenant()->retail_enabled)
+-        <a href="{{ route('tenant.register.index') }}" class="ia-btn">Open register</a>
+-      @endif
++      @include('tenant.dashboard._switch', ['segStyle' => 'margin-left:auto'])
+     </div>
+ 
+-    @if (empty($progress['all_done']) && $nextStep)
+-      <div class="mb-setup">
+-        <span class="k">Finish setup</span>
+-        <span class="bar"><i style="width:{{ round($done / 3 * 100) }}%"></i></span>
+-        <span class="n">{{ $done }} of 3 done</span>
+-        <a href="{{ $nextStep[1] }}">{{ $nextStep[0] }} →</a>
+-      </div>
+-    @endif
++    @include('tenant.dashboard._rows', ['dashRows' => $briefHead])
+   </section>
+ 
+-  <div class="mb-cols">
+-
+-    {{-- QUEUE: each row is a count that opens its own filtered list --}}
+-    <section>
+-      <div class="mb-h2row"><h2 class="mb-h2">The queue</h2><span class="meta">Most urgent first · each row opens its list</span></div>
+-      @if ($cards->isEmpty())
+-        <div class="mb-calm">Nothing needs you right now.</div>
+-      @endif
+-      @foreach ($groups as $gk => [$label, $rows])
+-        @continue($rows->isEmpty())
+-        @php $sum = (int) $rows->sum('count'); @endphp
+-        <div class="mb-grp">
+-          <div class="mb-grp-h {{ $gk }}"><i></i>{{ $label }}<span class="c">{{ $sum }} {{ \Illuminate\Support\Str::plural('thing', $sum) }}</span></div>
+-          @foreach ($rows as $c)
+-            <a class="mb-row" href="{{ $c['link'] }}">
+-              <span class="n">{{ $c['count'] }}</span>
+-              <span><div class="t">{{ $c['title'] }}</div><div class="s">{{ $c['desc'] }}</div></span>
+-              <span class="arr">›</span>
+-            </a>
+-          @endforeach
+-        </div>
+-      @endforeach
+-    </section>
+-
+-    {{-- WEEK + LAST 30 DAYS --}}
+-    <section>
+-      <div class="mb-h2row"><h2 class="mb-h2">This week</h2><span class="meta">{{ $week['total'] }} booked</span></div>
+-
+-      <div class="mb-days" role="tablist">
+-        @foreach ($days as $i => $d)
+-          <button type="button" class="mb-day {{ $i === $sel ? 'on' : '' }} {{ $d['closed'] ? 'off' : '' }}" data-mb-day="{{ $i }}" role="tab">
+-            <div class="w">{{ $d['dow'] }}</div><div class="d">{{ $d['num'] }}</div>
+-            <div class="dots">@if ($d['closed'])closed @else @for ($k = 0; $k < min(4, count($d['bookings']) + count($d['untimed'])); $k++)<i></i>@endfor @endif</div>
+-          </button>
++  @foreach ($briefBody as $bodyRow)
++    @if (count($bodyRow['split']) > 1)
++      <div class="mb-cols"@if ($bodyRow['split'] !== [7, 5]) style="grid-template-columns:{{ collect($bodyRow['split'])->map(fn ($n) => 'minmax(0, ' . $n . 'fr)')->implode(' ') }}"@endif>
++        @foreach ($bodyRow['cols'] as $bodyCol)
++          <section>
++            @include('tenant.dashboard._rows', ['dashRows' => [['split' => [12], 'cols' => [$bodyCol]]]])
++          </section>
+         @endforeach
+       </div>
+-
+-      @foreach ($days as $i => $d)
+-        @php $n = count($d['bookings']) + count($d['untimed']); @endphp
+-        <div class="mb-daypanel" data-mb-panel="{{ $i }}" @if ($i !== $sel) hidden @endif>
+-          <div class="mb-dayhead"><b>{{ $d['name'] }}</b><span>{{ $d['closed'] ? 'Closed' : ($n ? $n . ' booked' : '') }}</span></div>
+-          @if ($d['untimed'])
+-            <div class="mb-untimed">No time set:
+-              @foreach ($d['untimed'] as $u)<a href="{{ $u['link'] }}">{{ $u['who'] }}</a>{{ $loop->last ? '' : ', ' }}@endforeach
+-            </div>
+-          @endif
+-          <div class="mb-tl" style="--mb-hr:{{ $HR }}px">
+-            @for ($h = $H0; $h < $H1; $h++)<div class="hr"><span>{{ $fmt($h) }}</span></div>@endfor
+-            <div class="lane">
+-              @if ($d['closed'])
+-                <div class="closed">Closed</div>
+-              @else
+-                @php
+-                  $t = max($H0, $d['open'] ?? $H0);
+-                  $dayEnd = min($H1, $d['close'] ?? $H1);
+-                  $gaps = [];
+-                  foreach ($d['bookings'] as $b) { if ($b['at'] - $t >= 1) $gaps[] = [$t, $b['at']]; $t = max($t, $b['at'] + $b['len']); }
+-                  if ($dayEnd - $t >= 1) $gaps[] = [$t, $dayEnd];
+-                @endphp
+-                @foreach ($gaps as [$g0, $g1])
+-                  <a class="open" href="{{ $newUrl }}" style="top:{{ ($g0 - $H0) * $HR + 3 }}px;height:{{ ($g1 - $g0) * $HR - 6 }}px"><span>Open · {{ $fmt($g0) }}–{{ $fmt($g1) }}</span><b>+ Book</b></a>
+-                @endforeach
+-                @foreach ($d['bookings'] as $b)
+-                  <a class="bk {{ $b['awaiting'] ? 'pend' : 'ok' }}" href="{{ $b['link'] }}" style="top:{{ ($b['at'] - $H0) * $HR + 2 }}px;height:{{ max(28, $b['len'] * $HR - 4) }}px">
+-                    <div><span class="who">{{ $b['who'] }}</span><span class="tm">{{ $fmt($b['at']) }}–{{ $fmt($b['at'] + $b['len']) }} · {{ $b['what'] }}</span></div>
+-                    <div class="side">{{ $b['awaiting'] ? 'Confirm →' : 'Confirmed' }}</div>
+-                  </a>
+-                @endforeach
+-              @endif
+-              @if ($d['is_today'] && $week['now_hour'] >= $H0 && $week['now_hour'] <= $H1)
+-                <div class="now" style="top:{{ ($week['now_hour'] - $H0) * $HR }}px"><span>Now {{ $fmt($week['now_hour']) }}</span></div>
+-              @endif
+-            </div>
+-          </div>
+-        </div>
+-      @endforeach
+-      <div class="mb-legend"><span><i class="a"></i>Confirmed</span><span><i class="b"></i>Waiting on you</span><span><i class="c"></i>Open: click to book</span></div>
+-
+-      <div class="mb-stats">
+-        <div class="mb-h2row"><h2 class="mb-h2">Last 30 days</h2></div>
+-        <div class="mb-st"><span class="k">Sales{!! $delta($growth['revenue']['delta_pct'] ?? null) !!}</span>{!! $spark($growth['revenue']['sparkline'] ?? []) !!}<span class="v">{{ format_money($growth['revenue']['current_cents'] ?? 0) }}</span></div>
+-        <div class="mb-st"><span class="k">Jobs completed{!! $delta($jobs['delta_pct'] ?? null) !!}</span><svg viewBox="0 0 110 28" aria-hidden="true"></svg><span class="v">{{ number_format($jobs['current'] ?? 0) }}</span></div>
+-        <div class="mb-st"><span class="k">New customers{!! $delta($growth['customers']['delta_pct'] ?? null) !!}</span>{!! $spark($growth['customers']['sparkline'] ?? []) !!}<span class="v">{{ number_format($growth['customers']['current'] ?? 0) }}</span></div>
+-        <div class="mb-note">Sales are payments received. The line is a 4-day average across the 30 days; comparisons appear once there's a month before to compare with.</div>
+-      </div>
+-    </section>
+-  </div>
++    @else
++      @include('tenant.dashboard._rows', ['dashRows' => [$bodyRow]])
++    @endif
++  @endforeach
+ </div>
+-
+-<script>
+-  document.querySelectorAll('[data-mb-day]').forEach(function (b) {
+-    b.addEventListener('click', function () {
+-      document.querySelectorAll('[data-mb-day]').forEach(function (x) { x.classList.toggle('on', x === b); });
+-      document.querySelectorAll('[data-mb-panel]').forEach(function (p) { p.hidden = p.dataset.mbPanel !== b.dataset.mbDay; });
+-    });
+-  });
+-</script>
+ @endsection
+diff --git a/resources/views/tenant/dashboard-tiles.blade.php b/resources/views/tenant/dashboard-tiles.blade.php
+index 6409fa42..99b3bc9d 100644
+--- a/resources/views/tenant/dashboard-tiles.blade.php
++++ b/resources/views/tenant/dashboard-tiles.blade.php
+@@ -30,18 +30,7 @@
+ @endpush
+ 
+ @section('content')
+-@php
+-  $L        = $launcher ?? [];
+-  $visible  = $tiles['visible'] ?? [];
+-  $hiddenT  = $tiles['hidden'] ?? [];
+-  // same sort as _zone_triage_tiles: red first,
+-  // then amber, violet, blue; stable within a tone.
+-  $toneWeight = ['red' => 0, 'amber' => 1, 'violet' => 2, 'blue' => 3];
+-  $cards    = collect($attention['cards'] ?? [])
+-      ->filter(fn ($c) => ($c['count'] ?? 0) > 0)
+-      ->sortBy(fn ($c) => $toneWeight[$c['tone'] ?? 'blue'] ?? 99)
+-      ->values();
+-@endphp
++{{-- MARKER-DASH-TEMPLATES: Tiles is now a template; this page is its frame. --}}
+ 
+ {{-- the same three figures as Overview, on phones,
+      a size smaller so Tiles stays tight. --}}
+@@ -74,236 +63,10 @@
+     <a href="{{ route('tenant.appointments.index', ['new' => 1]) }}" class="ia-btn ia-btn--primary">
+       + New appointment
+     </a>
+-    <div class="ia-viewseg">
+-      <form method="POST" action="{{ route('tenant.dashboard.view') }}">
+-        @csrf<input type="hidden" name="view" value="overview">
+-        <button type="submit" title="Overview" aria-label="Overview"><svg class="vs-ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="3" y="5" width="14" height="14" rx="2"/><path d="M21 7v10"/></svg><span class="vs-lb">Overview</span></button>
+-      </form>
+-      <button type="button" class="on" title="Tiles" aria-label="Tiles"><svg class="vs-ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg><span class="vs-lb">Tiles</span></button>
+-      <form method="POST" action="{{ route('tenant.dashboard.view') }}">
+-        @csrf<input type="hidden" name="view" value="brief">
+-        <button type="submit" title="Brief (beta)" aria-label="Brief (beta)"><svg class="vs-ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h10M4 18h13"/></svg><span class="vs-lb">Brief <span style="font-size:9.5px;font-weight:700;letter-spacing:.06em;opacity:.7">BETA</span></span></button>
+-      </form>
+-    </div>
++    @include('tenant.dashboard._switch')
+   </div>
+ </div>
+ 
+-{{-- Needs you today: kept deliberately. Simple shouldn't mean blind to a
+-     booking that's waiting. --}}
+-@if($cards->count())
+-  @php $worstTone = $cards->contains(fn ($c) => ($c['tone'] ?? '') === 'red') ? 'red' : 'amber'; @endphp
+-  <button type="button" id="ia-needsyou-bar" class="ia-needsyou-bar ia-needsyou-bar--{{ $worstTone }}" hidden>
+-    {{-- the same count as the greeting (things that
+-         need you), not every card's inner count added up. --}}
+-    <span class="ia-needsyou-count">{{ $attention['total_items'] ?? $cards->count() }}</span>
+-    <span class="ia-needsyou-label">need you</span>
+-    <span class="ia-needsyou-titles">{{ $cards->pluck('title')->take(3)->implode(' · ') }}@if($cards->count() > 3) · +{{ $cards->count() - 3 }} more @endif</span>
+-    <span class="ia-needsyou-chev">▾</span>
+-  </button>
+-  <div class="ia-tiles-zone ia-needsyou-zone">Needs you
+-    <button type="button" id="ia-needsyou-collapse" class="ia-needsyou-min" title="Collapse">— collapse</button>
+-  </div>
+-  <div class="ia-tiles-grid" id="ia-needsyou-grid">
+-    @foreach($cards as $card)
+-      @php $tileTone = match ($card['tone'] ?? null) { 'red' => 'red', 'amber' => 'rust', 'violet' => 'plum', 'blue' => 'blue', default => 'rust' }; @endphp
+-      <a class="ia-tile ia-tile--{{ $tileTone }} ia-tile--wide" href="{{ $card['link'] ?? '#' }}">
+-        <span class="badge alert">{{ $card['count'] }}</span>
+-        <div style="font-size:26px;font-weight:300;margin-top:auto;line-height:1">{{ $card['count'] }}</div>
+-        <div class="nm" style="margin-top:8px">{{ $card['title'] ?? '' }}</div>
+-        <div class="mt">{{ $card['desc'] ?? '' }}</div>
+-      </a>
+-    @endforeach
+-  </div>
+-@endif
+-
+-<div class="ia-tiles-zone ia-jumpto-zone">Jump to
+-  <button type="button" class="ia-btn ia-btn--sm" id="ia-tiles-edit" style="margin-left:auto">Edit tiles</button>
+-</div>
+-<div class="ia-tiles-grid" id="ia-tiles-grid">
+-  @foreach($visible as $key => $def)
+-    <a class="ia-tile ia-tile--{{ $def['tone'] }}" href="{{ route($def['route']) }}"
+-       data-tile="{{ $key }}" data-tone="{{ $def['tone'] }}" data-label="{{ $def['label'] }}">
+-      <button type="button" class="ia-tile-hide" title="Hide {{ $def['label'] }}"
+-              aria-label="Hide {{ $def['label'] }}">&times;</button>
+-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+-           stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+-        {!! $def['icon'] !!}
+-      </svg>
+-      <div class="nm">{{ $def['label'] }}</div>
+-      <div class="mt">{{ ($def['stat'])($L) }}</div>
+-    </a>
+-  @endforeach
+-</div>
+-
+-<div id="ia-tiles-editui" hidden>
+-  <div class="ia-tiles-tray">
+-    <div class="ia-tiles-tray-label">Hidden tiles — click one to bring it back</div>
+-    <div class="ia-tiles-tray-items" id="ia-tiles-tray">
+-      @forelse($hiddenT as $key => $def)
+-        <button type="button" class="ia-tray-chip" data-restore="{{ $key }}"
+-                data-tone="{{ $def['tone'] }}" data-label="{{ $def['label'] }}">
+-          <span class="dot ia-tile--{{ $def['tone'] }}"></span>{{ $def['label'] }}
+-        </button>
+-      @empty
+-        <span class="ia-tiles-tray-empty" data-tray-empty>Nothing hidden.</span>
+-      @endforelse
+-    </div>
+-  </div>
+-  <div class="ia-tiles-editbar">
+-    <span>Drag tiles to reorder · &times; hides one</span>
+-    <button type="button" class="ia-btn ia-btn--primary ia-btn--sm" id="ia-tiles-done">Done</button>
+-    <form method="POST" action="{{ route('tenant.dashboard.tiles.reset') }}" style="margin:0">
+-      @csrf
+-      <button class="ia-btn ia-btn--sm">Reset to default</button>
+-    </form>
+-  </div>
+-</div>
++{{-- MARKER-DASH-TEMPLATES: the blocks, in the order the template's live version lists them. --}}
++@include('tenant.dashboard._rows', ['dashRows' => $dashRows])
+ @endsection
+-
+-@push('scripts')
+-<script>
+-/* own scope, deliberately separate from the
+-   edit-tiles script below (shared blocks die whole on one duplicate const). */
+-(function () {
+-  var KEY  = 'ia-needsyou-collapsed';
+-  var bar  = document.getElementById('ia-needsyou-bar');
+-  var zone = document.querySelector('.ia-needsyou-zone');
+-  var grid = document.getElementById('ia-needsyou-grid');
+-  var min  = document.getElementById('ia-needsyou-collapse');
+-  if (!bar || !zone || !grid) return;
+-  function apply(collapsed) {
+-    bar.hidden  = !collapsed;
+-    zone.hidden = collapsed;
+-    grid.hidden = collapsed;
+-    try { localStorage.setItem(KEY, collapsed ? '1' : '0'); } catch (e) {}
+-  }
+-  bar.addEventListener('click', function () { apply(false); });
+-  if (min) min.addEventListener('click', function () { apply(true); });
+-  var saved = null;
+-  try { saved = localStorage.getItem(KEY); } catch (e) {}
+-  if (saved === '1') apply(true);
+-})();
+-</script>
+-<script>
+-// reorder, hide, restore. Saves on Done rather than on every
+-// drag, so a reorder is one request instead of a dozen.
+-(function () {
+-  var grid = document.getElementById('ia-tiles-grid');
+-  var editBtn = document.getElementById('ia-tiles-edit');
+-  if (!grid || !editBtn) return;
+-
+-  var editUi = document.getElementById('ia-tiles-editui');
+-  var tray   = document.getElementById('ia-tiles-tray');
+-  var doneBtn = document.getElementById('ia-tiles-done');
+-  var saveUrl = @json(route('tenant.dashboard.tiles.save'));
+-  var csrf    = @json(csrf_token());
+-  var editing = false;
+-  var dragEl  = null;
+-
+-  function setEditing(on) {
+-    editing = on;
+-    grid.classList.toggle('is-editing', on);
+-    editUi.hidden = !on;
+-    editBtn.hidden = on;
+-    grid.querySelectorAll('.ia-tile').forEach(function (t) { t.draggable = on; });
+-  }
+-
+-  // In edit mode a tile is a handle, not a link.
+-  grid.addEventListener('click', function (e) {
+-    var hide = e.target.closest('.ia-tile-hide');
+-    if (hide) {
+-      e.preventDefault();
+-      hideTile(hide.closest('.ia-tile'));
+-      return;
+-    }
+-    if (editing) e.preventDefault();
+-  });
+-
+-  function hideTile(tile) {
+-    if (!tile) return;
+-    var chip = document.createElement('button');
+-    chip.type = 'button';
+-    chip.className = 'ia-tray-chip';
+-    chip.setAttribute('data-restore', tile.dataset.tile);
+-    chip.dataset.tone = tile.dataset.tone;
+-    chip.dataset.label = tile.dataset.label;
+-    chip.innerHTML = '<span class="dot ia-tile--' + tile.dataset.tone + '"></span>';
+-    chip.appendChild(document.createTextNode(tile.dataset.label));
+-    tray.appendChild(chip);
+-    tile.remove();
+-    var empty = tray.querySelector('[data-tray-empty]');
+-    if (empty) empty.remove();
+-  }
+-
+-  tray.addEventListener('click', function (e) {
+-    var chip = e.target.closest('[data-restore]');
+-    if (!chip) return;
+-    // Rebuilt on the next load with its icon and live sub-stat; showing a
+-    // placeholder now beats pretending we have those client-side.
+-    var t = document.createElement('a');
+-    t.className = 'ia-tile ia-tile--' + chip.dataset.tone;
+-    t.href = '#';
+-    t.dataset.tile = chip.getAttribute('data-restore');
+-    t.dataset.tone = chip.dataset.tone;
+-    t.dataset.label = chip.dataset.label;
+-    t.draggable = editing;
+-    t.innerHTML = '<button type="button" class="ia-tile-hide">&times;</button>'
+-                + '<div class="nm"></div><div class="mt">Saved — reloading…</div>';
+-    t.querySelector('.nm').textContent = chip.dataset.label;
+-    grid.appendChild(t);
+-    chip.remove();
+-    if (!tray.children.length) {
+-      var s = document.createElement('span');
+-      s.className = 'ia-tiles-tray-empty';
+-      s.setAttribute('data-tray-empty', '');
+-      s.textContent = 'Nothing hidden.';
+-      tray.appendChild(s);
+-    }
+-  });
+-
+-  grid.addEventListener('dragstart', function (e) {
+-    var t = e.target.closest('.ia-tile');
+-    if (!editing || !t) return;
+-    dragEl = t;
+-    t.classList.add('dragging');
+-    try { e.dataTransfer.setData('text/plain', ''); } catch (err) {}
+-    e.dataTransfer.effectAllowed = 'move';
+-  });
+-  grid.addEventListener('dragend', function () {
+-    if (dragEl) dragEl.classList.remove('dragging');
+-    grid.querySelectorAll('.drag-over').forEach(function (x) { x.classList.remove('drag-over'); });
+-    dragEl = null;
+-  });
+-  grid.addEventListener('dragover', function (e) {
+-    if (!editing || !dragEl) return;
+-    e.preventDefault();
+-    var over = e.target.closest('.ia-tile');
+-    if (!over || over === dragEl) return;
+-    var r = over.getBoundingClientRect();
+-    grid.insertBefore(dragEl, (e.clientX < r.left + r.width / 2) ? over : over.nextSibling);
+-  });
+-
+-  editBtn.addEventListener('click', function () { setEditing(true); });
+-
+-  doneBtn.addEventListener('click', function () {
+-    var order  = Array.prototype.map.call(grid.querySelectorAll('.ia-tile'), function (t) { return t.dataset.tile; });
+-    var hidden = Array.prototype.map.call(tray.querySelectorAll('[data-restore]'), function (c) { return c.getAttribute('data-restore'); });
+-
+-    doneBtn.disabled = true;
+-    fetch(saveUrl, {
+-      method: 'POST',
+-      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': csrf },
+-      body: JSON.stringify({ order: order, hidden: hidden })
+-    }).then(function (r) {
+-      // Reload so restored tiles come back with their real icon and count.
+-      if (r.ok) { window.location.reload(); return; }
+-      doneBtn.disabled = false;
+-      alert('Could not save your tiles — try again.');
+-    }).catch(function () {
+-      doneBtn.disabled = false;
+-      alert('Could not save your tiles — check your connection.');
+-    });
+-  });
+-})();
+-</script>
+-@endpush
+diff --git a/resources/views/tenant/dashboard.blade.php b/resources/views/tenant/dashboard.blade.php
+index 2bdc7789..4c84358c 100644
+--- a/resources/views/tenant/dashboard.blade.php
++++ b/resources/views/tenant/dashboard.blade.php
+@@ -126,17 +126,7 @@
+       + New appointment
+     </a>
+     {{-- toggle lives in the page head on both views --}}
+-    <div class="ia-viewseg" style="display:inline-flex;background:var(--ia-surface);border:1px solid var(--ia-border);border-radius:9px;padding:3px">
+-      <button type="button" class="on" title="Overview" aria-label="Overview" style="padding:6px 13px;font-size:12px;font-weight:600;border-radius:6px;background:var(--ia-surface-2);color:var(--ia-text);border:none;cursor:pointer;font-family:inherit"><svg class="vs-ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="3" y="5" width="14" height="14" rx="2"/><path d="M21 7v10"/></svg><span class="vs-lb">Overview</span></button>
+-      <form method="POST" action="{{ route('tenant.dashboard.view') }}" style="margin:0;display:inline">
+-        @csrf<input type="hidden" name="view" value="tiles">
+-        <button type="submit" title="Tiles" aria-label="Tiles" style="padding:6px 13px;font-size:12px;font-weight:600;border-radius:6px;background:none;color:var(--ia-text-dim);border:none;cursor:pointer;font-family:inherit"><svg class="vs-ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg><span class="vs-lb">Tiles</span></button>
+-      </form>
+-      <form method="POST" action="{{ route('tenant.dashboard.view') }}" style="margin:0;display:inline">
+-        @csrf<input type="hidden" name="view" value="brief">
+-        <button type="submit" title="Brief (beta)" aria-label="Brief (beta)" style="padding:6px 13px;font-size:12px;font-weight:600;border-radius:6px;background:none;color:var(--ia-text-dim);border:none;cursor:pointer;font-family:inherit"><svg class="vs-ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h10M4 18h13"/></svg><span class="vs-lb">Brief <span style="font-size:9.5px;font-weight:700;letter-spacing:.06em;opacity:.7">BETA</span></span></button>
+-      </form>
+-    </div>
++    @include('tenant.dashboard._switch', ['inline' => true])
+   </div>
+ </div>
+ 
+@@ -175,10 +165,9 @@
+ {{-- b --}}
+ {{-- toggle moved into the page head above --}}
+ 
+-@include('tenant.dashboard._zone_triage_tiles')
+-@include('tenant.dashboard._zone_today_tile')
+-@include('tenant.dashboard._zone_growth_tiles')
+-@include('tenant.dashboard._zone_launcher')
++{{-- MARKER-DASH-TEMPLATES: Overview is now a template; this page is its frame
++     and the zones are its blocks, drawn in the order its live version lists. --}}
++@include('tenant.dashboard._rows', ['dashRows' => $dashRows])
+ 
+ @push('styles')
+ <style>
+diff --git a/resources/views/tenant/dashboard/_rows.blade.php b/resources/views/tenant/dashboard/_rows.blade.php
+new file mode 100644
+index 00000000..b308eef1
+--- /dev/null
++++ b/resources/views/tenant/dashboard/_rows.blade.php
+@@ -0,0 +1,12 @@
++{{-- MARKER-DASH-TEMPLATES: draws a template's rows of blocks. Each block is
++     its own partial and gets the same data the page has. --}}
++@foreach ($dashRows as $dashRow)
++  @foreach ($dashRow['cols'] as $dashCol)
++    @foreach ($dashCol as $dashBlock)
++      @php $dashView = \App\Support\Dashboard\BlockRegistry::view($dashBlock['b']); @endphp
++      @if ($dashView)
++        @include($dashView)
++      @endif
++    @endforeach
++  @endforeach
++@endforeach
+diff --git a/resources/views/tenant/dashboard/_switch.blade.php b/resources/views/tenant/dashboard/_switch.blade.php
+new file mode 100644
+index 00000000..029252f6
+--- /dev/null
++++ b/resources/views/tenant/dashboard/_switch.blade.php
+@@ -0,0 +1,25 @@
++{{-- MARKER-DASH-TEMPLATES: the dashboard switch, one button per template the
++     person can use. $inline = true draws Overview's inline-styled version
++     (that page doesn't load dashboard-simple.css). --}}
++@php
++  $inline   = $inline ?? false;
++  $segStyle = $segStyle ?? null;
++
++@endphp
++<div class="ia-viewseg"@if ($inline) style="display:inline-flex;background:var(--ia-surface);border:1px solid var(--ia-border);border-radius:9px;padding:3px"@elseif ($segStyle) style="{{ $segStyle }}"@endif>
++  @foreach ($switchTemplates as $sw)
++    @php
++      $swTitle = $sw['label'] . ($sw['beta'] ? ' (beta)' : '');
++      $swIcon  = \App\Support\Dashboard\DashboardTemplates::ICONS[$sw['icon']] ?? \App\Support\Dashboard\DashboardTemplates::ICONS['overview'];
++      $swLabel = e($sw['label']) . ($sw['beta'] ? ' <span style="font-size:9.5px;font-weight:700;letter-spacing:.06em;opacity:.7">BETA</span>' : '');
++    @endphp
++    @if ($sw['key'] === $activeTemplate['key'])
++      <button type="button" class="on" title="{{ $swTitle }}" aria-label="{{ $swTitle }}"@if ($inline) style="padding:6px 13px;font-size:12px;font-weight:600;border-radius:6px;background:var(--ia-surface-2);color:var(--ia-text);border:none;cursor:pointer;font-family:inherit"@endif>{!! $swIcon !!}<span class="vs-lb">{!! $swLabel !!}</span></button>
++    @else
++      <form method="POST" action="{{ route('tenant.dashboard.view') }}"@if ($inline) style="margin:0;display:inline"@endif>
++        @csrf<input type="hidden" name="view" value="{{ $sw['key'] }}">
++        <button type="submit" title="{{ $swTitle }}" aria-label="{{ $swTitle }}"@if ($inline) style="padding:6px 13px;font-size:12px;font-weight:600;border-radius:6px;background:none;color:var(--ia-text-dim);border:none;cursor:pointer;font-family:inherit"@endif>{!! $swIcon !!}<span class="vs-lb">{!! $swLabel !!}</span></button>
++      </form>
++    @endif
++  @endforeach
++</div>
+diff --git a/resources/views/tenant/dashboard/blocks/actions.blade.php b/resources/views/tenant/dashboard/blocks/actions.blade.php
+new file mode 100644
+index 00000000..2a8234d2
+--- /dev/null
++++ b/resources/views/tenant/dashboard/blocks/actions.blade.php
+@@ -0,0 +1,7 @@
++{{-- Block: quick actions (Brief). --}}
++    <div class="mb-acts">
++      <a href="{{ route('tenant.appointments.index', ['new' => 1]) }}" class="ia-btn ia-btn--primary">New appointment</a>
++      @if (tenant()->retail_enabled)
++        <a href="{{ route('tenant.register.index') }}" class="ia-btn">Open register</a>
++      @endif
++    </div>
+diff --git a/resources/views/tenant/dashboard/blocks/greeting.blade.php b/resources/views/tenant/dashboard/blocks/greeting.blade.php
+new file mode 100644
+index 00000000..f3a5e6c1
+--- /dev/null
++++ b/resources/views/tenant/dashboard/blocks/greeting.blade.php
+@@ -0,0 +1,17 @@
++{{-- Block: greeting and summary (Brief). --}}
++@php
++  $bq = \App\Support\Dashboard\BriefView::queue($attention ?? []);
++  $lateN = $bq['lateN']; $todayN = $bq['todayN'];
++  $dayLine = \App\Support\Dashboard\BriefView::dayLine($today ?? []);
++@endphp
++    <h1 class="mb-h1">{{ \App\Support\Dashboard\BriefView::hello($greeting) }}</h1>
++    <p class="mb-sum">
++      @if ($lateN || $todayN)
++        @if ($lateN)<b class="late">{{ $lateN }} {{ \Illuminate\Support\Str::plural('thing', $lateN) }} {{ $lateN === 1 ? 'is' : 'are' }} late</b>@endif
++        @if ($lateN && $todayN) and @endif
++        @if ($todayN)<b>{{ $todayN }} {{ $lateN ? '' : \Illuminate\Support\Str::plural('thing', $todayN) . ' ' }}{{ $todayN === 1 ? 'is' : 'are' }} due today</b>@endif.
++      @else
++        <b>All caught up.</b>
++      @endif
++      {{ $dayLine }}
++    </p>
+diff --git a/resources/views/tenant/dashboard/blocks/last30.blade.php b/resources/views/tenant/dashboard/blocks/last30.blade.php
+new file mode 100644
+index 00000000..9229df93
+--- /dev/null
++++ b/resources/views/tenant/dashboard/blocks/last30.blade.php
+@@ -0,0 +1,12 @@
++{{-- Block: last 30 days (Brief). --}}
++@php
++  $spark = fn (array $vals): string => \App\Support\Dashboard\BriefView::spark($vals);
++  $delta = fn ($pct): string => \App\Support\Dashboard\BriefView::delta($pct);
++@endphp
++      <div class="mb-stats">
++        <div class="mb-h2row"><h2 class="mb-h2">Last 30 days</h2></div>
++        <div class="mb-st"><span class="k">Sales{!! $delta($growth['revenue']['delta_pct'] ?? null) !!}</span>{!! $spark($growth['revenue']['sparkline'] ?? []) !!}<span class="v">{{ format_money($growth['revenue']['current_cents'] ?? 0) }}</span></div>
++        <div class="mb-st"><span class="k">Jobs completed{!! $delta($jobs['delta_pct'] ?? null) !!}</span><svg viewBox="0 0 110 28" aria-hidden="true"></svg><span class="v">{{ number_format($jobs['current'] ?? 0) }}</span></div>
++        <div class="mb-st"><span class="k">New customers{!! $delta($growth['customers']['delta_pct'] ?? null) !!}</span>{!! $spark($growth['customers']['sparkline'] ?? []) !!}<span class="v">{{ number_format($growth['customers']['current'] ?? 0) }}</span></div>
++        <div class="mb-note">Sales are payments received. The line is a 4-day average across the 30 days; comparisons appear once there's a month before to compare with.</div>
++      </div>
+diff --git a/resources/views/tenant/dashboard/blocks/needs-you.blade.php b/resources/views/tenant/dashboard/blocks/needs-you.blade.php
+new file mode 100644
+index 00000000..2eb49c75
+--- /dev/null
++++ b/resources/views/tenant/dashboard/blocks/needs-you.blade.php
+@@ -0,0 +1,63 @@
++{{-- Block: needs you (Tiles). --}}
++@php
++  // same sort as _zone_triage_tiles: red first,
++  // then amber, violet, blue; stable within a tone.
++  $toneWeight = ['red' => 0, 'amber' => 1, 'violet' => 2, 'blue' => 3];
++  $cards    = collect($attention['cards'] ?? [])
++      ->filter(fn ($c) => ($c['count'] ?? 0) > 0)
++      ->sortBy(fn ($c) => $toneWeight[$c['tone'] ?? 'blue'] ?? 99)
++      ->values();
++@endphp
++{{-- Needs you today: kept deliberately. Simple shouldn't mean blind to a
++     booking that's waiting. --}}
++@if($cards->count())
++  @php $worstTone = $cards->contains(fn ($c) => ($c['tone'] ?? '') === 'red') ? 'red' : 'amber'; @endphp
++  <button type="button" id="ia-needsyou-bar" class="ia-needsyou-bar ia-needsyou-bar--{{ $worstTone }}" hidden>
++    {{-- the same count as the greeting (things that
++         need you), not every card's inner count added up. --}}
++    <span class="ia-needsyou-count">{{ $attention['total_items'] ?? $cards->count() }}</span>
++    <span class="ia-needsyou-label">need you</span>
++    <span class="ia-needsyou-titles">{{ $cards->pluck('title')->take(3)->implode(' · ') }}@if($cards->count() > 3) · +{{ $cards->count() - 3 }} more @endif</span>
++    <span class="ia-needsyou-chev">▾</span>
++  </button>
++  <div class="ia-tiles-zone ia-needsyou-zone">Needs you
++    <button type="button" id="ia-needsyou-collapse" class="ia-needsyou-min" title="Collapse">— collapse</button>
++  </div>
++  <div class="ia-tiles-grid" id="ia-needsyou-grid">
++    @foreach($cards as $card)
++      @php $tileTone = match ($card['tone'] ?? null) { 'red' => 'red', 'amber' => 'rust', 'violet' => 'plum', 'blue' => 'blue', default => 'rust' }; @endphp
++      <a class="ia-tile ia-tile--{{ $tileTone }} ia-tile--wide" href="{{ $card['link'] ?? '#' }}">
++        <span class="badge alert">{{ $card['count'] }}</span>
++        <div style="font-size:26px;font-weight:300;margin-top:auto;line-height:1">{{ $card['count'] }}</div>
++        <div class="nm" style="margin-top:8px">{{ $card['title'] ?? '' }}</div>
++        <div class="mt">{{ $card['desc'] ?? '' }}</div>
++      </a>
++    @endforeach
++  </div>
++@endif
++
++@push('scripts')
++<script>
++/* own scope, deliberately separate from the
++   edit-tiles script below (shared blocks die whole on one duplicate const). */
++(function () {
++  var KEY  = 'ia-needsyou-collapsed';
++  var bar  = document.getElementById('ia-needsyou-bar');
++  var zone = document.querySelector('.ia-needsyou-zone');
++  var grid = document.getElementById('ia-needsyou-grid');
++  var min  = document.getElementById('ia-needsyou-collapse');
++  if (!bar || !zone || !grid) return;
++  function apply(collapsed) {
++    bar.hidden  = !collapsed;
++    zone.hidden = collapsed;
++    grid.hidden = collapsed;
++    try { localStorage.setItem(KEY, collapsed ? '1' : '0'); } catch (e) {}
++  }
++  bar.addEventListener('click', function () { apply(false); });
++  if (min) min.addEventListener('click', function () { apply(true); });
++  var saved = null;
++  try { saved = localStorage.getItem(KEY); } catch (e) {}
++  if (saved === '1') apply(true);
++})();
++</script>
++@endpush
+diff --git a/resources/views/tenant/dashboard/blocks/queue.blade.php b/resources/views/tenant/dashboard/blocks/queue.blade.php
+new file mode 100644
+index 00000000..74cbcdc1
+--- /dev/null
++++ b/resources/views/tenant/dashboard/blocks/queue.blade.php
+@@ -0,0 +1,20 @@
++{{-- Block: the queue (Brief). Each row is a count that opens its own filtered list. --}}
++@php $bq = \App\Support\Dashboard\BriefView::queue($attention ?? []); @endphp
++      <div class="mb-h2row"><h2 class="mb-h2">The queue</h2><span class="meta">Most urgent first · each row opens its list</span></div>
++      @if ($bq['cards']->isEmpty())
++        <div class="mb-calm">Nothing needs you right now.</div>
++      @endif
++      @foreach ($bq['groups'] as $gk => [$label, $rows])
++        @continue($rows->isEmpty())
++        @php $sum = (int) $rows->sum('count'); @endphp
++        <div class="mb-grp">
++          <div class="mb-grp-h {{ $gk }}"><i></i>{{ $label }}<span class="c">{{ $sum }} {{ \Illuminate\Support\Str::plural('thing', $sum) }}</span></div>
++          @foreach ($rows as $c)
++            <a class="mb-row" href="{{ $c['link'] }}">
++              <span class="n">{{ $c['count'] }}</span>
++              <span><div class="t">{{ $c['title'] }}</div><div class="s">{{ $c['desc'] }}</div></span>
++              <span class="arr">›</span>
++            </a>
++          @endforeach
++        </div>
++      @endforeach
+diff --git a/resources/views/tenant/dashboard/blocks/setup.blade.php b/resources/views/tenant/dashboard/blocks/setup.blade.php
+new file mode 100644
+index 00000000..bf15c779
+--- /dev/null
++++ b/resources/views/tenant/dashboard/blocks/setup.blade.php
+@@ -0,0 +1,10 @@
++{{-- Block: finish setup (Brief). Draws nothing once setup is done. --}}
++@php $bs = \App\Support\Dashboard\BriefView::setup($progress ?? []); @endphp
++    @if (empty($progress['all_done']) && $bs['next'])
++      <div class="mb-setup">
++        <span class="k">Finish setup</span>
++        <span class="bar"><i style="width:{{ round($bs['done'] / 3 * 100) }}%"></i></span>
++        <span class="n">{{ $bs['done'] }} of 3 done</span>
++        <a href="{{ $bs['next'][1] }}">{{ $bs['next'][0] }} →</a>
++      </div>
++    @endif
+diff --git a/resources/views/tenant/dashboard/blocks/tiles.blade.php b/resources/views/tenant/dashboard/blocks/tiles.blade.php
+new file mode 100644
+index 00000000..592dee7e
+--- /dev/null
++++ b/resources/views/tenant/dashboard/blocks/tiles.blade.php
+@@ -0,0 +1,178 @@
++{{-- Block: tiles (Tiles). Shortcut tiles each person can reorder and hide. --}}
++@php
++  $L        = $launcher ?? [];
++  $visible  = $tiles['visible'] ?? [];
++  $hiddenT  = $tiles['hidden'] ?? [];
++@endphp
++<div class="ia-tiles-zone ia-jumpto-zone">Jump to
++  <button type="button" class="ia-btn ia-btn--sm" id="ia-tiles-edit" style="margin-left:auto">Edit tiles</button>
++</div>
++<div class="ia-tiles-grid" id="ia-tiles-grid">
++  @foreach($visible as $key => $def)
++    <a class="ia-tile ia-tile--{{ $def['tone'] }}" href="{{ route($def['route']) }}"
++       data-tile="{{ $key }}" data-tone="{{ $def['tone'] }}" data-label="{{ $def['label'] }}">
++      <button type="button" class="ia-tile-hide" title="Hide {{ $def['label'] }}"
++              aria-label="Hide {{ $def['label'] }}">&times;</button>
++      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
++           stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
++        {!! $def['icon'] !!}
++      </svg>
++      <div class="nm">{{ $def['label'] }}</div>
++      <div class="mt">{{ ($def['stat'])($L) }}</div>
++    </a>
++  @endforeach
++</div>
++
++<div id="ia-tiles-editui" hidden>
++  <div class="ia-tiles-tray">
++    <div class="ia-tiles-tray-label">Hidden tiles — click one to bring it back</div>
++    <div class="ia-tiles-tray-items" id="ia-tiles-tray">
++      @forelse($hiddenT as $key => $def)
++        <button type="button" class="ia-tray-chip" data-restore="{{ $key }}"
++                data-tone="{{ $def['tone'] }}" data-label="{{ $def['label'] }}">
++          <span class="dot ia-tile--{{ $def['tone'] }}"></span>{{ $def['label'] }}
++        </button>
++      @empty
++        <span class="ia-tiles-tray-empty" data-tray-empty>Nothing hidden.</span>
++      @endforelse
++    </div>
++  </div>
++  <div class="ia-tiles-editbar">
++    <span>Drag tiles to reorder · &times; hides one</span>
++    <button type="button" class="ia-btn ia-btn--primary ia-btn--sm" id="ia-tiles-done">Done</button>
++    <form method="POST" action="{{ route('tenant.dashboard.tiles.reset') }}" style="margin:0">
++      @csrf
++      <button class="ia-btn ia-btn--sm">Reset to default</button>
++    </form>
++  </div>
++</div>
++@push('scripts')
++<script>
++// reorder, hide, restore. Saves on Done rather than on every
++// drag, so a reorder is one request instead of a dozen.
++(function () {
++  var grid = document.getElementById('ia-tiles-grid');
++  var editBtn = document.getElementById('ia-tiles-edit');
++  if (!grid || !editBtn) return;
++
++  var editUi = document.getElementById('ia-tiles-editui');
++  var tray   = document.getElementById('ia-tiles-tray');
++  var doneBtn = document.getElementById('ia-tiles-done');
++  var saveUrl = @json(route('tenant.dashboard.tiles.save'));
++  var csrf    = @json(csrf_token());
++  var editing = false;
++  var dragEl  = null;
++
++  function setEditing(on) {
++    editing = on;
++    grid.classList.toggle('is-editing', on);
++    editUi.hidden = !on;
++    editBtn.hidden = on;
++    grid.querySelectorAll('.ia-tile').forEach(function (t) { t.draggable = on; });
++  }
++
++  // In edit mode a tile is a handle, not a link.
++  grid.addEventListener('click', function (e) {
++    var hide = e.target.closest('.ia-tile-hide');
++    if (hide) {
++      e.preventDefault();
++      hideTile(hide.closest('.ia-tile'));
++      return;
++    }
++    if (editing) e.preventDefault();
++  });
++
++  function hideTile(tile) {
++    if (!tile) return;
++    var chip = document.createElement('button');
++    chip.type = 'button';
++    chip.className = 'ia-tray-chip';
++    chip.setAttribute('data-restore', tile.dataset.tile);
++    chip.dataset.tone = tile.dataset.tone;
++    chip.dataset.label = tile.dataset.label;
++    chip.innerHTML = '<span class="dot ia-tile--' + tile.dataset.tone + '"></span>';
++    chip.appendChild(document.createTextNode(tile.dataset.label));
++    tray.appendChild(chip);
++    tile.remove();
++    var empty = tray.querySelector('[data-tray-empty]');
++    if (empty) empty.remove();
++  }
++
++  tray.addEventListener('click', function (e) {
++    var chip = e.target.closest('[data-restore]');
++    if (!chip) return;
++    // Rebuilt on the next load with its icon and live sub-stat; showing a
++    // placeholder now beats pretending we have those client-side.
++    var t = document.createElement('a');
++    t.className = 'ia-tile ia-tile--' + chip.dataset.tone;
++    t.href = '#';
++    t.dataset.tile = chip.getAttribute('data-restore');
++    t.dataset.tone = chip.dataset.tone;
++    t.dataset.label = chip.dataset.label;
++    t.draggable = editing;
++    t.innerHTML = '<button type="button" class="ia-tile-hide">&times;</button>'
++                + '<div class="nm"></div><div class="mt">Saved — reloading…</div>';
++    t.querySelector('.nm').textContent = chip.dataset.label;
++    grid.appendChild(t);
++    chip.remove();
++    if (!tray.children.length) {
++      var s = document.createElement('span');
++      s.className = 'ia-tiles-tray-empty';
++      s.setAttribute('data-tray-empty', '');
++      s.textContent = 'Nothing hidden.';
++      tray.appendChild(s);
++    }
++  });
++
++  grid.addEventListener('dragstart', function (e) {
++    var t = e.target.closest('.ia-tile');
++    if (!editing || !t) return;
++    dragEl = t;
++    t.classList.add('dragging');
++    try { e.dataTransfer.setData('text/plain', ''); } catch (err) {}
++    e.dataTransfer.effectAllowed = 'move';
++  });
++  grid.addEventListener('dragend', function () {
++    if (dragEl) dragEl.classList.remove('dragging');
++    grid.querySelectorAll('.drag-over').forEach(function (x) { x.classList.remove('drag-over'); });
++    dragEl = null;
++  });
++  grid.addEventListener('dragover', function (e) {
++    if (!editing || !dragEl) return;
++    e.preventDefault();
++    var over = e.target.closest('.ia-tile');
++    if (!over || over === dragEl) return;
++    var r = over.getBoundingClientRect();
++    grid.insertBefore(dragEl, (e.clientX < r.left + r.width / 2) ? over : over.nextSibling);
++  });
++
++  // in-app message, never the browser's alert()
++  function saveFailed(msg) {
++    doneBtn.disabled = false;
++    if (window.IntakeToast) { window.IntakeToast.error(msg); return; }
++    var note = document.querySelector('.ia-tiles-editbar > span');
++    if (note) note.textContent = msg;
++  }
++
++  editBtn.addEventListener('click', function () { setEditing(true); });
++
++  doneBtn.addEventListener('click', function () {
++    var order  = Array.prototype.map.call(grid.querySelectorAll('.ia-tile'), function (t) { return t.dataset.tile; });
++    var hidden = Array.prototype.map.call(tray.querySelectorAll('[data-restore]'), function (c) { return c.getAttribute('data-restore'); });
++
++    doneBtn.disabled = true;
++    fetch(saveUrl, {
++      method: 'POST',
++      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': csrf },
++      body: JSON.stringify({ order: order, hidden: hidden })
++    }).then(function (r) {
++      // Reload so restored tiles come back with their real icon and count.
++      if (r.ok) { window.location.reload(); return; }
++      saveFailed('Could not save your tiles. Try again.');
++    }).catch(function () {
++      saveFailed('Could not save your tiles. Check your connection.');
++    });
++  });
++})();
++</script>
++@endpush
+diff --git a/resources/views/tenant/dashboard/blocks/week.blade.php b/resources/views/tenant/dashboard/blocks/week.blade.php
+new file mode 100644
+index 00000000..dcfedf54
+--- /dev/null
++++ b/resources/views/tenant/dashboard/blocks/week.blade.php
+@@ -0,0 +1,67 @@
++{{-- Block: this week (Brief). Day strip, then each day's timeline; free time links to a new appointment. --}}
++@php
++  $days = $week['days'];
++  $sel = \App\Support\Dashboard\BriefView::firstBusyDay($days);
++  $H0 = $week['start_hour']; $H1 = $week['end_hour']; $HR = 44;
++  $fmt = fn (float $h): string => \App\Support\Dashboard\BriefView::hour($h);
++  $newUrl = route('tenant.appointments.index', ['new' => 1]);
++@endphp
++      <div class="mb-h2row"><h2 class="mb-h2">This week</h2><span class="meta">{{ $week['total'] }} booked</span></div>
++
++      <div class="mb-days" role="tablist">
++        @foreach ($days as $i => $d)
++          <button type="button" class="mb-day {{ $i === $sel ? 'on' : '' }} {{ $d['closed'] ? 'off' : '' }}" data-mb-day="{{ $i }}" role="tab">
++            <div class="w">{{ $d['dow'] }}</div><div class="d">{{ $d['num'] }}</div>
++            <div class="dots">@if ($d['closed'])closed @else @for ($k = 0; $k < min(4, count($d['bookings']) + count($d['untimed'])); $k++)<i></i>@endfor @endif</div>
++          </button>
++        @endforeach
++      </div>
++
++      @foreach ($days as $i => $d)
++        @php $n = count($d['bookings']) + count($d['untimed']); @endphp
++        <div class="mb-daypanel" data-mb-panel="{{ $i }}" @if ($i !== $sel) hidden @endif>
++          <div class="mb-dayhead"><b>{{ $d['name'] }}</b><span>{{ $d['closed'] ? 'Closed' : ($n ? $n . ' booked' : '') }}</span></div>
++          @if ($d['untimed'])
++            <div class="mb-untimed">No time set:
++              @foreach ($d['untimed'] as $u)<a href="{{ $u['link'] }}">{{ $u['who'] }}</a>{{ $loop->last ? '' : ', ' }}@endforeach
++            </div>
++          @endif
++          <div class="mb-tl" style="--mb-hr:{{ $HR }}px">
++            @for ($h = $H0; $h < $H1; $h++)<div class="hr"><span>{{ $fmt($h) }}</span></div>@endfor
++            <div class="lane">
++              @if ($d['closed'])
++                <div class="closed">Closed</div>
++              @else
++                @php
++                  $t = max($H0, $d['open'] ?? $H0);
++                  $dayEnd = min($H1, $d['close'] ?? $H1);
++                  $gaps = [];
++                  foreach ($d['bookings'] as $b) { if ($b['at'] - $t >= 1) $gaps[] = [$t, $b['at']]; $t = max($t, $b['at'] + $b['len']); }
++                  if ($dayEnd - $t >= 1) $gaps[] = [$t, $dayEnd];
++                @endphp
++                @foreach ($gaps as [$g0, $g1])
++                  <a class="open" href="{{ $newUrl }}" style="top:{{ ($g0 - $H0) * $HR + 3 }}px;height:{{ ($g1 - $g0) * $HR - 6 }}px"><span>Open · {{ $fmt($g0) }}–{{ $fmt($g1) }}</span><b>+ Book</b></a>
++                @endforeach
++                @foreach ($d['bookings'] as $b)
++                  <a class="bk {{ $b['awaiting'] ? 'pend' : 'ok' }}" href="{{ $b['link'] }}" style="top:{{ ($b['at'] - $H0) * $HR + 2 }}px;height:{{ max(28, $b['len'] * $HR - 4) }}px">
++                    <div><span class="who">{{ $b['who'] }}</span><span class="tm">{{ $fmt($b['at']) }}–{{ $fmt($b['at'] + $b['len']) }} · {{ $b['what'] }}</span></div>
++                    <div class="side">{{ $b['awaiting'] ? 'Confirm →' : 'Confirmed' }}</div>
++                  </a>
++                @endforeach
++              @endif
++              @if ($d['is_today'] && $week['now_hour'] >= $H0 && $week['now_hour'] <= $H1)
++                <div class="now" style="top:{{ ($week['now_hour'] - $H0) * $HR }}px"><span>Now {{ $fmt($week['now_hour']) }}</span></div>
++              @endif
++            </div>
++          </div>
++        </div>
++      @endforeach
++      <div class="mb-legend"><span><i class="a"></i>Confirmed</span><span><i class="b"></i>Waiting on you</span><span><i class="c"></i>Open: click to book</span></div>
++<script>
++  document.querySelectorAll('[data-mb-day]').forEach(function (b) {
++    b.addEventListener('click', function () {
++      document.querySelectorAll('[data-mb-day]').forEach(function (x) { x.classList.toggle('on', x === b); });
++      document.querySelectorAll('[data-mb-panel]').forEach(function (p) { p.hidden = p.dataset.mbPanel !== b.dataset.mbDay; });
++    });
++  });
++</script>

@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Tenant;
 
 use App\Http\Controllers\Controller;
 use App\Services\Tenant\DashboardDataService;
+use App\Support\Dashboard\BlockRegistry;
+use App\Support\Dashboard\DashboardTemplates;
 use Illuminate\Http\Request;
 
 class DashboardController extends Controller
@@ -58,27 +60,37 @@ class DashboardController extends Controller
             'workOrderBanner' => $workOrderBanner,
         ];
 
-        // a second view for people who want a way in rather
-        // than a report. Overview is unchanged and remains the default.
+        // MARKER-DASH-TEMPLATES: the dashboard is a template — Overview, Tiles,
+        // Brief, or one built in master admin. The person's pick lives in
+        // dashboard_view (the template key); the default covers no pick, or
+        // a pick that's no longer offered.
         $user = \Illuminate\Support\Facades\Auth::guard('tenant')->user();
-        // MARKER-DASH-BRIEF: a third view, in beta. Overview stays the default.
-        if (($user->dashboard_view ?? 'overview') === 'brief') {
+        $template = DashboardTemplates::activeFor($user->dashboard_view ?? null);
+        $rows = $template['rows'];
+
+        // Only load what this template's blocks draw.
+        $needs = BlockRegistry::needs($rows);
+        if (in_array('week', $needs, true)) {
             $data['week'] = $service->weekAhead();
-            $data['jobs'] = $service->jobsCompleted30();
-            return view('tenant.dashboard-brief', $data);
         }
-        if (($user->dashboard_view ?? 'overview') === 'tiles') {
+        if (in_array('jobs', $needs, true)) {
+            $data['jobs'] = $service->jobsCompleted30();
+        }
+        if (in_array('tiles', $needs, true)) {
             $data['tiles'] = \App\Support\DashboardTiles::layout($tenant, $user);
-            return view('tenant.dashboard-tiles', $data);
         }
 
-        return view('tenant.dashboard', $data);
+        $data['activeTemplate']  = $template;
+        $data['switchTemplates'] = DashboardTemplates::switchable();
+        $data['dashRows']        = $rows;
+
+        return view(DashboardTemplates::frameView($template), $data);
     }
 
-    /** flip between Overview and Tiles. */
+    /** switch to another dashboard template. */
     public function setView(\Illuminate\Http\Request $request)
     {
-        $data = $request->validate(['view' => 'required|in:overview,tiles,brief']);
+        $data = $request->validate(['view' => ['required', 'string', \Illuminate\Validation\Rule::in(DashboardTemplates::keys())]]);
         \Illuminate\Support\Facades\Auth::guard('tenant')->user()
             ->update(['dashboard_view' => $data['view']]);
 
