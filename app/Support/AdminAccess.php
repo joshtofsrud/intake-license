@@ -72,7 +72,8 @@ class AdminAccess
         return match ($segment) {
             'tenants', 'password-editor',
             'customer-cleanup', 'billing-discounts',
-            'tenant-billing', 'billing-notices', 'sidebar', 'plan-prices', 'addons', 'scheduled-tasks'               => 'tenants',
+            'tenant-billing', 'billing-notices', 'sidebar', 'plan-prices', 'addons', 'scheduled-tasks',
+            'dashboards'                                     => 'tenants', // MARKER-DASH-DEFAULT
             'tenant-domains'                                 => 'domains',
             'sales-channels', 'sales-prospects',
             'sales-find-shops', 'sales-territories', 'sales-places',
