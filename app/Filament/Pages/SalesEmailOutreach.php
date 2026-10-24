@@ -235,7 +235,10 @@ class SalesEmailOutreach extends Page
 
     public function states(): array
     {
-        return $this->cached('states', fn () => $this->base()->whereNotNull('state')->distinct()->orderBy('state')->pluck('state')->all());
+        // MARKER-OUTREACH-STATE-LIST: states with shops in the industry that's open
+        return $this->cached('states', fn () => $this->base()
+            ->when($this->industryId !== '', fn ($q) => $q->where('channel_id', $this->industryId))
+            ->whereNotNull('state')->distinct()->orderBy('state')->pluck('state')->all());
     }
 
     /** MARKER-OUTREACH-TALLY-GROUP: the tally follows the industry tab that's open. */

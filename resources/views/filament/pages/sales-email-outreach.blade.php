@@ -126,7 +126,15 @@
     <div class="sx-bar">
         <select class="sx-in" wire:model.live="state">
             <option value="">All states</option>
-            @foreach ($this->states() as $s)<option value="{{ $s }}">{{ $s }}</option>@endforeach
+            {{-- MARKER-OUTREACH-STATE-LIST: the remembered state stays listed even
+                 when it has no shops left. Without it the dropdown showed
+                 "All states" while still filtering on that state, the queue
+                 read 0, and picking "All states" changed nothing. --}}
+            @php $stList = $this->states(); @endphp
+            @if ($state !== '' && ! in_array($state, $stList, true))
+                <option value="{{ $state }}">{{ $state }} (none left)</option>
+            @endif
+            @foreach ($stList as $s)<option value="{{ $s }}">{{ $s }}</option>@endforeach
         </select>
         <select class="sx-in" wire:model.live="stage">
             <option value="">Any stage</option>

@@ -1,0 +1,83 @@
+diff --git a/app/Filament/Pages/SalesEmailOutreach.php b/app/Filament/Pages/SalesEmailOutreach.php
+index 08057793..223964f0 100644
+--- a/app/Filament/Pages/SalesEmailOutreach.php
++++ b/app/Filament/Pages/SalesEmailOutreach.php
+@@ -235,7 +235,10 @@ class SalesEmailOutreach extends Page
+ 
+     public function states(): array
+     {
+-        return $this->cached('states', fn () => $this->base()->whereNotNull('state')->distinct()->orderBy('state')->pluck('state')->all());
++        // MARKER-OUTREACH-STATE-LIST: states with shops in the industry that's open
++        return $this->cached('states', fn () => $this->base()
++            ->when($this->industryId !== '', fn ($q) => $q->where('channel_id', $this->industryId))
++            ->whereNotNull('state')->distinct()->orderBy('state')->pluck('state')->all());
+     }
+ 
+     /** MARKER-OUTREACH-TALLY-GROUP: the tally follows the industry tab that's open. */
+diff --git a/public/css/admin/fixes.css b/public/css/admin/fixes.css
+index e8c41fbc..b0b0ee82 100644
+--- a/public/css/admin/fixes.css
++++ b/public/css/admin/fixes.css
+@@ -20,7 +20,9 @@ html:not(.dark) .sx-root .sx-hidden b,
+ html:not(.dark) .sx-root .sx-seg button.on,
+ html:not(.dark) .sx-root .sx-t th.sx-sort:hover,
+ html:not(.dark) .sx-root .sx-t th.sx-sort.on,
+-html:not(.dark) .sx-root .eo-chip:hover { color: #18181b; }
++html:not(.dark) .sx-root .eo-chip:hover,
++html:not(.dark) .sx-root .eo-bar-tally b { color: #18181b; }
++html:not(.dark) .sx-root .eo-bar-tally b.lime,
+ html:not(.dark) .sx-root .sx-tally .lime,
+ html:not(.dark) .sx-root .or-fs .lime,
+ html:not(.dark) .sx-root .eo-yes { color: #4d7c0f; }
+@@ -40,6 +42,30 @@ html:not(.dark) .sx-root .sx-lede a,
+ html:not(.dark) .sx-root .sx-t .h,
+ html:not(.dark) .sx-root .sx-t .sx-em { color: #7c3aed; }
+ 
++/* ---- MARKER-SESSIONS-LIGHT: Marketing traffic › Sessions was written for
++   dark mode only — a grey slab with white text on a light page. ---------- */
++html:not(.dark) .rse-zone-sub,
++html:not(.dark) .rse-time span,
++html:not(.dark) .rse-pages,
++html:not(.dark) .rse-dev,
++html:not(.dark) .rse-dmeta,
++html:not(.dark) .rse-ev .t,
++html:not(.dark) .rse-none { color: #71717a; }
++html:not(.dark) .rse-dur,
++html:not(.dark) .rse-ev .w { color: #3f3f46; }
++html:not(.dark) .rse-chip { color: #52525b; border: 1px solid rgba(0,0,0,.16); }
++html:not(.dark) .rse-chip.on { color: #18181b; }
++html:not(.dark) .rse-scroll { background: #fff; border: 1px solid rgba(0,0,0,.12); }
++html:not(.dark) .rse-row { border-bottom-color: rgba(0,0,0,.07); }
++html:not(.dark) .rse-row:hover { background: rgba(0,0,0,.03); }
++html:not(.dark) .rse-detail { background: #fafafa; border: 1px solid rgba(0,0,0,.1); }
++html:not(.dark) .rse-dmeta { border-bottom-color: rgba(0,0,0,.08); }
++html:not(.dark) .rse-status.converted { color: #15803d; background: rgba(34,197,94,.1); border-color: rgba(21,128,61,.3); }
++html:not(.dark) .rse-status.browsed { color: #4d7c0f; background: rgba(132,204,22,.12); border-color: rgba(101,163,13,.35); }
++html:not(.dark) .rse-status.bounced { color: #71717a; background: rgba(0,0,0,.04); border-color: rgba(0,0,0,.12); }
++html:not(.dark) .rse-src { color: #6d28d9; }
++html:not(.dark) .mt-steprow { border-top-color: rgba(0,0,0,.08); }
++
+ /* ---- Marketing traffic: the date presets wrapped into circles on a phone
+    and the custom range ran off the edge. -------------------------------- */
+ @media (max-width: 640px) {
+diff --git a/resources/views/filament/pages/sales-email-outreach.blade.php b/resources/views/filament/pages/sales-email-outreach.blade.php
+index c65dba79..db2d2170 100644
+--- a/resources/views/filament/pages/sales-email-outreach.blade.php
++++ b/resources/views/filament/pages/sales-email-outreach.blade.php
+@@ -126,7 +126,15 @@
+     <div class="sx-bar">
+         <select class="sx-in" wire:model.live="state">
+             <option value="">All states</option>
+-            @foreach ($this->states() as $s)<option value="{{ $s }}">{{ $s }}</option>@endforeach
++            {{-- MARKER-OUTREACH-STATE-LIST: the remembered state stays listed even
++                 when it has no shops left. Without it the dropdown showed
++                 "All states" while still filtering on that state, the queue
++                 read 0, and picking "All states" changed nothing. --}}
++            @php $stList = $this->states(); @endphp
++            @if ($state !== '' && ! in_array($state, $stList, true))
++                <option value="{{ $state }}">{{ $state }} (none left)</option>
++            @endif
++            @foreach ($stList as $s)<option value="{{ $s }}">{{ $s }}</option>@endforeach
+         </select>
+         <select class="sx-in" wire:model.live="stage">
+             <option value="">Any stage</option>
