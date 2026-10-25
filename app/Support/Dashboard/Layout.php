@@ -39,7 +39,7 @@ class Layout
      */
     public static function sanitize(array $rows): array
     {
-        $known = BlockRegistry::builtIns();
+        $known = BlockRegistry::all();
         $seen = [];
         $out = [];
         foreach ($rows as $row) {
@@ -128,7 +128,7 @@ class Layout
      */
     public static function diff(?array $live, array $draft, array $names = []): array
     {
-        $name = fn (string $k) => $names[$k] ?? (BlockRegistry::builtIns()[$k]['name'] ?? $k);
+        $name = fn (string $k) => $names[$k] ?? (BlockRegistry::all()[$k]['name'] ?? $k);
         $draftKeys = self::blockKeys($draft);
         if ($live === null) {
             return [['added', 'First version, ' . count($draftKeys) . ' ' . \Illuminate\Support\Str::plural('block', count($draftKeys))]];
@@ -207,7 +207,7 @@ class Layout
      */
     public static function visible(array $rows, array $hiddenKeys = []): array
     {
-        $known = BlockRegistry::builtIns();
+        $known = BlockRegistry::all();
         $out = [];
         foreach ($rows as $row) {
             $split = array_values(array_filter((array) ($row['split'] ?? [12]), fn ($n) => is_int($n) && $n > 0));

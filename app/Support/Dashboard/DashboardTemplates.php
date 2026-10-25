@@ -204,5 +204,6 @@ class DashboardTemplates
     public static function flush(): void
     {
         self::$cache = null;
+        CustomBlocks::flush();
     }
 }

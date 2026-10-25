@@ -2,6 +2,7 @@
 @include('filament.partials.dashboards-style')
 
 <div class="sx-root">
+  @include('filament.partials.dashboards-tabs', ['tab' => 'templates'])
   <div class="db-legend">
     <b>Shops only see a template's live version.</b> Edits stay in a draft no shop can see until you publish it.
     A live template appears in the dashboard switch of every shop that gets it (set in its editor).

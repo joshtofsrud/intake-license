@@ -1,0 +1,1641 @@
+diff --git a/app/Filament/Pages/DashboardBlockBuilder.php b/app/Filament/Pages/DashboardBlockBuilder.php
+new file mode 100644
+index 00000000..acb3eaa9
+--- /dev/null
++++ b/app/Filament/Pages/DashboardBlockBuilder.php
+@@ -0,0 +1,227 @@
++<?php
++
++namespace App\Filament\Pages;
++
++use App\Models\DashboardBlock;
++use App\Models\Tenant;
++use App\Support\AdminAccess;
++use App\Support\Dashboard\BlockStore;
++use App\Support\Dashboard\CustomBlocks;
++use Filament\Notifications\Notification;
++use Filament\Pages\Page;
++use Illuminate\Support\Facades\Auth;
++use Livewire\Attributes\Url;
++
++/**
++ * MARKER-DASH-BUILDER: make or edit one made-here block, with a preview
++ * drawn from a real shop's data. Nothing is stored until Save.
++ */
++class DashboardBlockBuilder extends Page
++{
++    use \App\Support\GatedByAdminArea;
++    protected static string $adminArea = 'tenants';
++
++    protected static bool $shouldRegisterNavigation = false;
++    protected static ?string $slug = 'dashboard-block';
++    protected static ?string $title = 'Block';
++    protected static string $view = 'filament.pages.dashboard-block-builder';
++
++    #[Url]
++    public string $k = '';
++
++    public string $name = '';
++    public string $kind = 'data';
++
++    // data
++    public string $source = 'appointments';
++    public array $rules = [];
++    public string $measure = 'count';
++    public ?string $field = null;
++    public string $period = 'last_30';
++    public bool $compare = true;
++    public string $display = 'number';
++    public string $line = '';
++
++    // action / note
++    public string $action = 'new_appointment';
++    public string $text = '';
++    public string $until = '';
++
++    // preview
++    public string $shop = '';
++    public int $width = 6;
++
++    public function mount(): void
++    {
++        if ($this->k !== '') {
++            $b = DashboardBlock::where('key', $this->k)->first();
++            if (! $b || $b->is_builtin) {
++                $this->redirect(DashboardBlocks::getUrl());
++                return;
++            }
++            $this->load($b);
++        }
++        // preview at Ground Control if it's here, else the busiest active shop, so the figures aren't all zero
++        $this->shop = (string) (Tenant::where('is_active', true)->where('subdomain', 'grndctrl')->value('id')
++            ?? \Illuminate\Support\Facades\DB::table('tenant_appointments')->join('tenants', 'tenants.id', '=', 'tenant_appointments.tenant_id')
++                ->where('tenants.is_active', true)->groupBy('tenant_appointments.tenant_id')->orderByRaw('COUNT(*) DESC')->value('tenant_appointments.tenant_id')
++            ?? Tenant::where('is_active', true)->orderBy('name')->value('id') ?? '');
++    }
++
++    private function load(DashboardBlock $b): void
++    {
++        $this->name = $b->name;
++        $this->kind = $b->kind;
++        $c = CustomBlocks::normalize($b->kind, (array) $b->config);
++        foreach ($c as $key => $v) {
++            if ($key === 'until') { $this->until = (string) $v; continue; }
++            if (property_exists($this, $key)) $this->{$key} = $v ?? ($key === 'field' ? null : $this->{$key});
++        }
++    }
++
++    public function getTitle(): string
++    {
++        return $this->k === '' ? 'New block' : ($this->name ?: 'Block');
++    }
++
++    public function canManage(): bool
++    {
++        return AdminAccess::level(Auth::guard('web')->user(), 'tenants') === 'full';
++    }
++
++    /** What's on screen, as it would be stored. */
++    private function config(): array
++    {
++        return CustomBlocks::normalize($this->kind, match ($this->kind) {
++            'action' => ['action' => $this->action, 'line' => $this->line],
++            'note'   => ['text' => $this->text, 'until' => $this->until ?: null],
++            default  => ['source' => $this->source, 'rules' => $this->rules, 'measure' => $this->measure, 'field' => $this->field,
++                         'period' => $this->period, 'compare' => $this->compare, 'display' => $this->display, 'line' => $this->line],
++        });
++    }
++
++    /** Keeps the on-screen choices consistent after any change (a list can only be rows, and so on). */
++    private function settle(): void
++    {
++        if ($this->kind !== 'data') return;
++        $c = $this->config();
++        $this->measure = $c['measure'];
++        $this->field = $c['field'];
++        $this->period = $c['period'];
++        $this->display = $c['display'];
++    }
++
++    public function updated($prop): void
++    {
++        if (str_starts_with($prop, 'rules.')) return; // kept as typed until it's valid
++        $this->settle();
++    }
++
++    public function setSource(string $s): void
++    {
++        if (! isset(CustomBlocks::sources()[$s])) return;
++        $this->source = $s;
++        $this->rules = [];
++        $this->field = null;
++        $this->settle();
++    }
++
++    public function addRule(): void
++    {
++        $fields = CustomBlocks::sources()[$this->source]['fields'];
++        $f = array_key_first($fields);
++        $this->rules[] = $this->blankRule($f, $fields[$f]);
++    }
++
++    private function blankRule(string $f, array $def): array
++    {
++        return $def['type'] === 'enum' ? [$f, 'is', array_key_first($def['options'])] : [$f, 'more', ''];
++    }
++
++    public function ruleField(int $i, string $f): void
++    {
++        $def = CustomBlocks::sources()[$this->source]['fields'][$f] ?? null;
++        if (! $def || ! isset($this->rules[$i])) return;
++        $this->rules[$i] = $this->blankRule($f, $def);
++    }
++
++    public function removeRule(int $i): void
++    {
++        unset($this->rules[$i]);
++        $this->rules = array_values($this->rules);
++    }
++
++    public function save()
++    {
++        if (! $this->canManage()) {
++            Notification::make()->title('View access only')->danger()->send();
++            return null;
++        }
++        $new = $this->k === '';
++        try {
++            $b = BlockStore::save($new ? null : $this->k, $this->name, $this->kind, $this->config());
++        } catch (\Throwable $e) {
++            Notification::make()->title($e instanceof \InvalidArgumentException ? $e->getMessage() : 'That did not save. Try again.')->danger()->send();
++            if (! $e instanceof \InvalidArgumentException) report($e);
++            return null;
++        }
++        Notification::make()->title($new ? $b->name . ' saved' : 'Changes saved')
++            ->body($new ? 'Add it to a template in the editor. Shops see it once that template is published.' : 'Dashboards that have it show the change on their next load.')
++            ->success()->send();
++        if ($new) {
++            return redirect(self::getUrl(['k' => $b->key]));
++        }
++        $this->load($b);
++
++        return null;
++    }
++
++    protected function getViewData(): array
++    {
++        $cfg = $this->config();
++        $stored = $this->k !== '' ? DashboardBlock::where('key', $this->k)->first() : null;
++        $tenant = $this->shop !== '' ? Tenant::find($this->shop) : null;
++
++        $preview = null;
++        $previewError = null;
++        if ($tenant) {
++            try {
++                $preview = [
++                    'def'    => ['name' => $this->name !== '' ? $this->name : 'Untitled block', 'kind' => $this->kind, 'config' => $cfg],
++                    'tenant' => $tenant,
++                    'result' => $this->kind === 'data' ? CustomBlocks::compute($cfg, $tenant) : ['kind' => $this->kind],
++                ];
++            } catch (\Throwable $e) {
++                report($e);
++                $previewError = 'The preview could not be worked out for this shop.';
++            }
++        }
++        $lacks = null;
++        if ($tenant && $this->kind !== 'note') {
++            $area = CustomBlocks::access($this->kind, $cfg)['all'][0] ?? null;
++            $gate = $area ? (\App\Support\SectionRegistry::all()[$area]['gate'] ?? null) : null;
++            if ($gate && ! $tenant->{$gate}) $lacks = \App\Support\SectionRegistry::all()[$area]['label'];
++        }
++
++        $usage = $stored ? (BlockStore::usage()[$stored->key] ?? []) : [];
++        $src = CustomBlocks::sources()[$cfg['source'] ?? 'appointments'] ?? null;
++
++        return [
++            'cfg'       => $cfg,
++            'src'       => $src,
++            'sources'   => CustomBlocks::sources(),
++            'canEdit'   => $this->canManage(),
++            'isNew'     => $this->k === '',
++            'dirty'     => ! $stored || $stored->name !== trim($this->name) || $stored->kind !== $this->kind
++                            || json_encode(CustomBlocks::normalize($stored->kind, (array) $stored->config)) !== json_encode($cfg),
++            'usage'     => $usage,
++            'liveShops' => $stored && collect($usage)->where('live', true)->isNotEmpty() ? BlockStore::shopCount($stored->key) : 0,
++            'sentence'  => CustomBlocks::sentence($this->kind, $cfg),
++            'who'       => ($a = CustomBlocks::access($this->kind, $cfg)['all'][0] ?? null) ? (\App\Support\SectionRegistry::all()[$a]['label'] ?? $a) : null,
++            'preview'   => $preview,
++            'previewError' => $previewError,
++            'lacks'     => $lacks,
++            'shops'     => Tenant::where('is_active', true)->orderBy('name')->limit(300)->pluck('name', 'id')->all(),
++        ];
++    }
++}
+diff --git a/app/Filament/Pages/DashboardBlocks.php b/app/Filament/Pages/DashboardBlocks.php
+new file mode 100644
+index 00000000..7fbd0fa0
+--- /dev/null
++++ b/app/Filament/Pages/DashboardBlocks.php
+@@ -0,0 +1,120 @@
++<?php
++
++namespace App\Filament\Pages;
++
++use App\Models\DashboardBlock;
++use App\Support\AdminAccess;
++use App\Support\Dashboard\BlockAccess;
++use App\Support\Dashboard\BlockRegistry;
++use App\Support\Dashboard\BlockStore;
++use Filament\Notifications\Notification;
++use Filament\Pages\Page;
++use Illuminate\Support\Facades\Auth;
++
++/**
++ * MARKER-DASH-BUILDER: every dashboard block — built-in and made here — where
++ * each one is used, and Hide everywhere / Unhide. Made-here blocks open in
++ * the block builder. Reached from the Blocks tab on Dashboards.
++ */
++class DashboardBlocks extends Page
++{
++    use \App\Support\GatedByAdminArea;
++    protected static string $adminArea = 'tenants';
++
++    protected static bool $shouldRegisterNavigation = false;
++    protected static ?string $slug = 'dashboard-blocks';
++    protected static ?string $title = 'Dashboards';
++    protected static string $view = 'filament.pages.dashboard-blocks';
++
++    public string $filter = 'all';
++    public string $find = '';
++
++    public function canManage(): bool
++    {
++        return AdminAccess::level(Auth::guard('web')->user(), 'tenants') === 'full';
++    }
++
++    private function guard(): bool
++    {
++        if ($this->canManage()) return true;
++        Notification::make()->title('View access only')->body('Only admins with full Tenants access can change blocks.')->danger()->send();
++
++        return false;
++    }
++
++    private function run(callable $fn, string $ok, ?string $body = null): void
++    {
++        if (! $this->guard()) return;
++        try {
++            $b = $fn();
++        } catch (\Throwable $e) {
++            Notification::make()->title($e instanceof \InvalidArgumentException ? $e->getMessage() : 'That did not save. Try again.')->danger()->send();
++            if (! $e instanceof \InvalidArgumentException) report($e);
++            return;
++        }
++        Notification::make()->title(str_replace(':name', $b->name, $ok))->body($body)->success()->send();
++    }
++
++    public function hide(string $key): void
++    {
++        $this->run(fn () => BlockStore::setHidden($key, true), ':name is hidden everywhere', 'It has left every dashboard. Unhide puts it back where it was.');
++    }
++
++    public function unhide(string $key): void
++    {
++        $this->run(fn () => BlockStore::setHidden($key, false), ':name is back', 'It shows again wherever it was placed.');
++    }
++
++    public function duplicate(string $key)
++    {
++        if (! $this->guard()) return null;
++        try {
++            $b = BlockStore::duplicate($key);
++        } catch (\Throwable $e) {
++            Notification::make()->title($e instanceof \InvalidArgumentException ? $e->getMessage() : 'That did not save. Try again.')->danger()->send();
++            return null;
++        }
++
++        return redirect(DashboardBlockBuilder::getUrl(['k' => $b->key]));
++    }
++
++    public function delete(string $key): void
++    {
++        $this->run(fn () => BlockStore::delete($key), ':name deleted', 'It has gone from every template it was on.');
++    }
++
++    protected function getViewData(): array
++    {
++        $rows = DashboardBlock::orderByDesc('is_builtin')->orderBy('id')->get();
++        $defs = BlockRegistry::all();
++        $usage = BlockStore::usage();
++        $q = mb_strtolower(trim($this->find));
++
++        $list = $rows->filter(fn ($b) => isset($defs[$b->key]))->map(function (DashboardBlock $b) use ($defs, $usage) {
++            $d = $defs[$b->key];
++            return [
++                'key'     => $b->key,
++                'name'    => $b->name,
++                'builtin' => $b->is_builtin,
++                'kind'    => $b->is_builtin ? 'data' : $b->kind,
++                'desc'    => $d['desc'] ?? '',
++                'reads'   => $d['reads'] ?? '',
++                'who'     => BlockAccess::describe($b->key),
++                'used'    => $usage[$b->key] ?? [],
++                'hidden'  => $b->hidden_at !== null,
++                'updated' => $b->updated_at,
++            ];
++        });
++
++        $all = $list;
++        $list = $list->filter(fn ($b) => match ($this->filter) {
++            'builtin' => $b['builtin'], 'custom' => ! $b['builtin'], 'hidden' => $b['hidden'], default => true,
++        })->filter(fn ($b) => $q === '' || str_contains(mb_strtolower($b['name']), $q))->values();
++
++        return [
++            'list'      => $list,
++            'counts'    => ['builtin' => $all->where('builtin', true)->count(), 'custom' => $all->where('builtin', false)->count(), 'hidden' => $all->where('hidden', true)->count()],
++            'canManage' => $this->canManage(),
++        ];
++    }
++}
+diff --git a/app/Filament/Pages/DashboardEditor.php b/app/Filament/Pages/DashboardEditor.php
+index 8cf21690..5b23d65b 100644
+--- a/app/Filament/Pages/DashboardEditor.php
++++ b/app/Filament/Pages/DashboardEditor.php
+@@ -195,7 +195,7 @@ class DashboardEditor extends Page
+     public function addBlock(string $key): void
+     {
+         if (! $this->guard()) return;
+-        if (! isset(BlockRegistry::builtIns()[$key]) || in_array($key, Layout::blockKeys($this->rows), true)) return;
++        if (! isset(BlockRegistry::all()[$key]) || in_array($key, Layout::blockKeys($this->rows), true)) return;
+         [$r, $c] = $this->target;
+         if (! isset($this->rows[$r]['cols'][$c])) { $r = 0; $c = 0; }
+         $this->rows[$r]['cols'][$c][] = ['b' => $key];
+@@ -216,7 +216,7 @@ class DashboardEditor extends Page
+         if (! $this->guard() || ! isset($this->rows[$r]['cols'][$c])) return;
+         if (isset($from['add'])) {
+             $key = (string) $from['add'];
+-            if (! isset(BlockRegistry::builtIns()[$key]) || in_array($key, Layout::blockKeys($this->rows), true)) return;
++            if (! isset(BlockRegistry::all()[$key]) || in_array($key, Layout::blockKeys($this->rows), true)) return;
+             $p = ['b' => $key];
+         } else {
+             [$fr, $fc, $fi] = [(int) ($from['r'] ?? -1), (int) ($from['c'] ?? -1), (int) ($from['i'] ?? -1)];
+@@ -363,7 +363,7 @@ class DashboardEditor extends Page
+         $hidden = DashboardBlock::whereNotNull('hidden_at')->pluck('key')->all();
+         $on = Layout::blockKeys($screen);
+ 
+-        $catalog = collect(BlockRegistry::builtIns())->map(fn ($d, $k) => [
++        $catalog = collect(BlockRegistry::all())->map(fn ($d, $k) => [
+             'key' => $k, 'name' => $names[$k] ?? $d['name'], 'origin' => ucfirst($d['origin']),
+             'desc' => $d['desc'], 'on' => in_array($k, $on, true), 'hidden' => in_array($k, $hidden, true),
+         ])->groupBy('origin');
+@@ -380,7 +380,7 @@ class DashboardEditor extends Page
+             'catalog'    => $catalog,
+             'names'      => $names,
+             'hidden'     => $hidden,
+-            'registry'   => BlockRegistry::builtIns(),
++            'registry'   => BlockRegistry::all(),
+             'splits'     => Layout::SPLITS,
+             'versions'   => $tpl->versions()->orderByDesc('version')->limit(12)->get(),
+             'picked'     => (int) ($picks[$tpl->key] ?? 0),
+diff --git a/app/Providers/Filament/AdminPanelProvider.php b/app/Providers/Filament/AdminPanelProvider.php
+index b312dcf2..aedf7294 100644
+--- a/app/Providers/Filament/AdminPanelProvider.php
++++ b/app/Providers/Filament/AdminPanelProvider.php
+@@ -113,6 +113,8 @@ class AdminPanelProvider extends PanelProvider
+                 // MARKER-DASH-DEFAULT: explicit registration; no route without this line.
+                 \App\Filament\Pages\Dashboards::class,
+                 \App\Filament\Pages\DashboardEditor::class, // MARKER-DASH-ADMIN
++                \App\Filament\Pages\DashboardBlocks::class, // MARKER-DASH-BUILDER
++                \App\Filament\Pages\DashboardBlockBuilder::class,
+                 // list-first Catalog Titles page. This panel
+                 // lists pages explicitly, so a new page class is invisible until
+                 // it appears here, cache or no cache.
+diff --git a/app/Support/AdminAccess.php b/app/Support/AdminAccess.php
+index 4b0e2045..72ddeee7 100644
+--- a/app/Support/AdminAccess.php
++++ b/app/Support/AdminAccess.php
+@@ -73,7 +73,8 @@ class AdminAccess
+             'tenants', 'password-editor',
+             'customer-cleanup', 'billing-discounts',
+             'tenant-billing', 'billing-notices', 'sidebar', 'plan-prices', 'addons', 'scheduled-tasks',
+-            'dashboards', 'dashboard-editor'                 => 'tenants', // MARKER-DASH-ADMIN
++            'dashboards', 'dashboard-editor',
++            'dashboard-blocks', 'dashboard-block'            => 'tenants', // MARKER-DASH-ADMIN, MARKER-DASH-BUILDER
+             'tenant-domains'                                 => 'domains',
+             'sales-channels', 'sales-prospects',
+             'sales-find-shops', 'sales-territories', 'sales-places',
+diff --git a/app/Support/Dashboard/BlockAccess.php b/app/Support/Dashboard/BlockAccess.php
+index 0f9c2508..305d38c6 100644
+--- a/app/Support/Dashboard/BlockAccess.php
++++ b/app/Support/Dashboard/BlockAccess.php
+@@ -66,7 +66,7 @@ class BlockAccess
+     /** Whether the block shows for this person at all. */
+     public function seesBlock(string $key): bool
+     {
+-        $rule = BlockRegistry::builtIns()[$key]['access'] ?? [];
++        $rule = BlockRegistry::all()[$key]['access'] ?? [];
+         if (! empty($rule['all'])) {
+             foreach ($rule['all'] as $s) {
+                 if (! $this->can($s)) return false;
+@@ -86,7 +86,7 @@ class BlockAccess
+     /** Block keys this person doesn't get. */
+     public function blocked(): array
+     {
+-        return array_values(array_filter(array_keys(BlockRegistry::builtIns()), fn ($k) => ! $this->seesBlock($k)));
++        return array_values(array_filter(array_keys(BlockRegistry::all()), fn ($k) => ! $this->seesBlock($k)));
+     }
+ 
+     /**
+@@ -116,7 +116,7 @@ class BlockAccess
+     /** The areas a block's data comes from, as people read them: "Schedule or Reports". */
+     public static function describe(string $key): ?string
+     {
+-        $rule = BlockRegistry::builtIns()[$key]['access'] ?? [];
++        $rule = BlockRegistry::all()[$key]['access'] ?? [];
+         $labels = fn (array $keys) => array_map(fn ($s) => SectionRegistry::all()[$s]['label'] ?? $s, $keys);
+         if (! empty($rule['all'])) return implode(' and ', $labels($rule['all']));
+         if (! empty($rule['any'])) return implode(count($rule['any']) > 2 ? ', ' : ' or ', $labels($rule['any']));
+diff --git a/app/Support/Dashboard/BlockRegistry.php b/app/Support/Dashboard/BlockRegistry.php
+index 00ef7ef6..987f46b3 100644
+--- a/app/Support/Dashboard/BlockRegistry.php
++++ b/app/Support/Dashboard/BlockRegistry.php
+@@ -63,15 +63,24 @@ class BlockRegistry
+         ];
+     }
+ 
++    /**
++     * MARKER-DASH-BUILDER: every block a template can place — the built-ins
++     * above, then the ones made in master admin (CustomBlocks).
++     */
++    public static function all(): array
++    {
++        return self::builtIns() + CustomBlocks::definitions();
++    }
++
+     public static function view(string $key): ?string
+     {
+-        return self::builtIns()[$key]['view'] ?? null;
++        return self::all()[$key]['view'] ?? null;
+     }
+ 
+     /** Every extra data set the blocks in these rows ask for. */
+     public static function needs(array $rows): array
+     {
+-        $defs = self::builtIns();
++        $defs = self::all();
+         $needs = [];
+         foreach (Layout::blockKeys($rows) as $key) {
+             foreach ($defs[$key]['needs'] ?? [] as $n) {
+diff --git a/app/Support/Dashboard/BlockStore.php b/app/Support/Dashboard/BlockStore.php
+new file mode 100644
+index 00000000..16522145
+--- /dev/null
++++ b/app/Support/Dashboard/BlockStore.php
+@@ -0,0 +1,130 @@
++<?php
++
++namespace App\Support\Dashboard;
++
++use App\Models\DashboardBlock;
++use App\Models\DashboardTemplate;
++use Illuminate\Support\Facades\DB;
++use InvalidArgumentException;
++
++/**
++ * MARKER-DASH-BUILDER: every change master admin makes to blocks — making,
++ * editing, copying and deleting made-here blocks, and hiding any block
++ * everywhere.
++ *
++ * Unlike templates, blocks have no draft: a saved change shows on every
++ * dashboard that has the block on its next load (the builder says how many
++ * shops that is before you save).
++ */
++class BlockStore
++{
++    public static function find(string $key): DashboardBlock
++    {
++        $b = DashboardBlock::where('key', $key)->first();
++        if (! $b) throw new InvalidArgumentException('No such block.');
++
++        return $b;
++    }
++
++    /** Creates or updates a made-here block. Returns it. */
++    public static function save(?string $key, string $name, string $kind, array $config): DashboardBlock
++    {
++        $name = trim($name);
++        if ($name === '' || mb_strlen($name) > 80) throw new InvalidArgumentException('Give the block a name of up to 80 characters.');
++        if (! in_array($kind, ['data', 'action', 'note'], true)) throw new InvalidArgumentException('Choose what kind of block it is.');
++        $config = CustomBlocks::normalize($kind, $config);
++        if ($kind === 'note' && $config['text'] === '') throw new InvalidArgumentException('Write the note first.');
++
++        if ($key) {
++            $b = self::find($key);
++            if ($b->is_builtin) throw new InvalidArgumentException("Built-in blocks come from code and can't be edited here.");
++            $b->update(['name' => $name, 'kind' => $kind, 'config' => $config]);
++            debug_log()->audit('dashboard.block_changed', "Changed block {$name}: " . CustomBlocks::sentence($kind, $config), $b);
++        } else {
++            $b = DB::transaction(function () use ($name, $kind, $config) {
++                $b = DashboardBlock::create(['key' => 'new' . bin2hex(random_bytes(8)), 'name' => $name, 'kind' => $kind,
++                    'is_builtin' => false, 'origin' => 'custom', 'config' => $config]);
++                $b->update(['key' => CustomBlocks::KEY_PREFIX . $b->id]);
++
++                return $b;
++            });
++            debug_log()->audit('dashboard.block_created', "Made block {$name}: " . CustomBlocks::sentence($kind, $config), $b);
++        }
++        DashboardTemplates::flush();
++
++        return $b->fresh();
++    }
++
++    public static function duplicate(string $key): DashboardBlock
++    {
++        $src = self::find($key);
++        if ($src->is_builtin) throw new InvalidArgumentException("Built-in blocks can't be copied.");
++
++        return self::save(null, mb_substr($src->name . ' copy', 0, 80), $src->kind, (array) $src->config);
++    }
++
++    /** Deletes a made-here block. It drops off every template it was on. */
++    public static function delete(string $key): DashboardBlock
++    {
++        $b = self::find($key);
++        if ($b->is_builtin) throw new InvalidArgumentException("Built-in blocks can't be deleted. Hide it everywhere instead.");
++        $b->delete();
++        DashboardTemplates::flush();
++        debug_log()->audit('dashboard.block_deleted', "Deleted block {$b->name}", $b);
++
++        return $b;
++    }
++
++    public static function setHidden(string $key, bool $hidden): DashboardBlock
++    {
++        $b = self::find($key);
++        $b->update(['hidden_at' => $hidden ? now() : null]);
++        DashboardTemplates::flush();
++        debug_log()->audit($hidden ? 'dashboard.block_hidden' : 'dashboard.block_unhidden', ($hidden ? 'Hid ' : 'Unhid ') . "{$b->name} everywhere", $b);
++
++        return $b;
++    }
++
++    /**
++     * Where each block is placed: key => [[template name, live?, draft only?], ...].
++     * Live means on the template's live version; a block only on a draft is
++     * marked so.
++     */
++    public static function usage(): array
++    {
++        $out = [];
++        foreach (DashboardTemplate::with('liveVersion')->where('state', '!=', 'retired')->orderBy('sort')->get() as $t) {
++            $live = $t->liveVersion ? Layout::blockKeys((array) $t->liveVersion->layout) : [];
++            $draft = is_array($t->draft_layout) ? Layout::blockKeys($t->draft_layout) : [];
++            foreach (array_unique(array_merge($live, $draft)) as $k) {
++                $out[$k][] = ['name' => $t->name, 'key' => $t->key, 'live' => $t->state === 'live' && in_array($k, $live, true)];
++            }
++        }
++
++        return $out;
++    }
++
++    /** Shops that have a live template with this block on it (audiences applied, roles aside). */
++    public static function shopCount(string $key): int
++    {
++        $n = 0;
++        $everyone = false;
++        $auds = [];
++        foreach (DashboardTemplate::with('liveVersion')->where('state', 'live')->get() as $t) {
++            if (! $t->liveVersion || ! in_array($key, Layout::blockKeys((array) $t->liveVersion->layout), true)) continue;
++            if ($t->is_default || Audience::isEveryone($t->audience)) { $everyone = true; break; }
++            $auds[] = $t->audience;
++        }
++        if ($everyone) return \App\Models\Tenant::where('is_active', true)->count();
++        if (! $auds) return 0;
++        \App\Models\Tenant::where('is_active', true)->chunk(200, function ($chunk) use ($auds, &$n) {
++            foreach ($chunk as $tn) {
++                foreach ($auds as $a) {
++                    if (Audience::allows($a, $tn)) { $n++; break; }
++                }
++            }
++        });
++
++        return $n;
++    }
++}
+diff --git a/app/Support/Dashboard/CustomBlocks.php b/app/Support/Dashboard/CustomBlocks.php
+new file mode 100644
+index 00000000..698809ae
+--- /dev/null
++++ b/app/Support/Dashboard/CustomBlocks.php
+@@ -0,0 +1,457 @@
++<?php
++
++namespace App\Support\Dashboard;
++
++use App\Models\DashboardBlock;
++use App\Models\Tenant;
++use App\Support\AppointmentStatus;
++use Carbon\Carbon;
++use Illuminate\Database\Query\Builder;
++use Illuminate\Support\Facades\Cache;
++use Illuminate\Support\Facades\DB;
++use Illuminate\Support\Str;
++
++/**
++ * MARKER-DASH-BUILDER: blocks made in master admin (Dashboards › Blocks).
++ *
++ * Three kinds:
++ *   data    reads one source at the shop it's on (appointments, sales,
++ *           customers), keeps only what matches its rules, and shows a count,
++ *           a total, an average or the records themselves
++ *   action  a button to a page the app already has (New appointment, …)
++ *   note    a heading and a few lines of text from master admin
++ *
++ * Stored on dashboard_blocks (kind, name, config). Every query is scoped to
++ * one tenant_id; there is no way to read another shop. Results are cached for
++ * five minutes per shop and block; editing a block changes its config, which
++ * changes the cache key, so an edit shows on the next load.
++ *
++ * Config:
++ *   data:   source, rules [[field, op, value]], measure count|sum|avg|list,
++ *           field, period, compare, display number|trend|rows, line
++ *   action: action, line
++ *   note:   text, until (Y-m-d or null)
++ */
++class CustomBlocks
++{
++    public const KEY_PREFIX = 'x';
++
++    /** What a block can read. 'area' is the Roles & access area its data comes from. */
++    public static function sources(): array
++    {
++        $roleLabels = ['awaiting' => 'Waiting to confirm', 'scheduled' => 'Confirmed', 'active' => 'In progress', 'done' => 'Done', 'cancelled' => 'Cancelled'];
++
++        return [
++            'appointments' => [
++                'label' => 'Appointments', 'desc' => 'Bookings and jobs, by their appointment date', 'area' => 'schedule',
++                'opens' => 'tenant.appointments.index', 'opens_label' => 'Appointments', 'unit' => ['booking', 'bookings'],
++                'fields' => [
++                    'status'  => ['label' => 'Status', 'type' => 'enum', 'options' => $roleLabels],
++                    'payment' => ['label' => 'Payment', 'type' => 'enum', 'options' => ['paid' => 'Paid', 'unpaid' => 'Unpaid', 'partial' => 'Part paid', 'refunded' => 'Refunded']],
++                    'amount'  => ['label' => 'Amount', 'type' => 'money', 'sql' => 'total_cents'],
++                    'owed'    => ['label' => 'Still owed', 'type' => 'money', 'sql' => '(total_cents - paid_cents)'],
++                ],
++                'periods' => ['today', 'next_7', 'this_week', 'last_7', 'last_30', 'this_month', 'all_time'],
++            ],
++            'sales' => [
++                'label' => 'Sales', 'desc' => 'Completed register and online sales, by when they were paid (Reports counts payments received, so the two can differ a little)', 'area' => 'reports',
++                'opens' => 'tenant.reports.index', 'opens_label' => 'Reports', 'unit' => ['sale', 'sales'],
++                'fields' => [
++                    'amount'   => ['label' => 'Amount', 'type' => 'money', 'sql' => 'tenant_sales.total_cents'],
++                    'discount' => ['label' => 'Discount given', 'type' => 'money', 'sql' => '(tenant_sales.discount_cents + tenant_sales.sale_discount_cents)'],
++                    'tip'      => ['label' => 'Tip', 'type' => 'money', 'sql' => 'tenant_sales.tip_cents'],
++                    'customer' => ['label' => 'Customer', 'type' => 'enum', 'options' => ['yes' => 'Has a customer', 'no' => 'No customer (walk-in)']],
++                ],
++                'periods' => ['today', 'this_week', 'last_7', 'last_30', 'this_month', 'all_time'],
++            ],
++            'customers' => [
++                'label' => 'Customers', 'desc' => 'People and businesses, by when they were added', 'area' => 'customers',
++                'opens' => 'tenant.customers.index', 'opens_label' => 'Customers', 'unit' => ['customer', 'customers'],
++                'fields' => [
++                    'vip'   => ['label' => 'VIP', 'type' => 'enum', 'options' => ['yes' => 'VIP', 'no' => 'Not VIP']],
++                    'type'  => ['label' => 'Kind', 'type' => 'enum', 'options' => ['individual' => 'Person', 'business' => 'Business']],
++                    'email' => ['label' => 'Email', 'type' => 'enum', 'options' => ['yes' => 'Has an email', 'no' => 'No email']],
++                ],
++                'periods' => ['today', 'this_week', 'last_7', 'last_30', 'this_month', 'all_time'],
++            ],
++        ];
++    }
++
++    public const PERIODS = [
++        'today' => 'Today', 'next_7' => 'Next 7 days', 'this_week' => 'This week', 'last_7' => 'Last 7 days',
++        'last_30' => 'Last 30 days', 'this_month' => 'This month', 'all_time' => 'All time',
++    ];
++
++    public const MEASURES = ['count' => 'How many', 'sum' => 'Total of', 'avg' => 'Average of', 'list' => 'The records'];
++
++    public const DISPLAYS = ['number' => 'Number', 'trend' => 'Number + trend', 'rows' => 'Rows'];
++
++    /** Buttons an action block can show: pages that already exist. */
++    public const ACTIONS = [
++        'new_appointment' => ['label' => 'New appointment', 'route' => 'tenant.appointments.index', 'params' => ['new' => 1]],
++        'register'        => ['label' => 'Open register', 'route' => 'tenant.register.index', 'params' => []],
++        'walk_in'         => ['label' => 'Start a walk-in', 'route' => 'tenant.register.walk-in', 'params' => []],
++        'special_orders'  => ['label' => 'Special orders', 'route' => 'tenant.special-orders.index', 'params' => []],
++        'customers'       => ['label' => 'Find a customer', 'route' => 'tenant.customers.index', 'params' => []],
++        'class_checkin'   => ['label' => 'Class check-in', 'route' => 'tenant.classes.checkin', 'params' => []],
++    ];
++
++    private static ?array $defs = null;
++
++    // ---- the blocks themselves ---------------------------------------------
++
++    /** Every made-here block as a registry entry (see BlockRegistry::all()). Read once per request. */
++    public static function definitions(): array
++    {
++        if (self::$defs !== null) return self::$defs;
++        $out = [];
++        try {
++            foreach (DashboardBlock::where('is_builtin', false)->orderBy('id')->get() as $b) {
++                $cfg = self::normalize($b->kind, (array) $b->config);
++                $out[$b->key] = [
++                    'name'   => $b->name,
++                    'origin' => 'custom',
++                    'view'   => 'tenant.dashboard.blocks.custom',
++                    'reads'  => self::reads($b->kind, $cfg),
++                    'desc'   => self::sentence($b->kind, $cfg),
++                    'access' => self::access($b->kind, $cfg),
++                    'needs'  => [],
++                    'custom' => true,
++                    'kind'   => $b->kind,
++                    'config' => $cfg,
++                    'id'     => $b->id,
++                ];
++            }
++        } catch (\Throwable $e) {
++            // table not there yet: no made-here blocks
++        }
++
++        return self::$defs = $out;
++    }
++
++    public static function flush(): void
++    {
++        self::$defs = null;
++    }
++
++    /** The areas a block needs, in BlockAccess's terms. */
++    public static function access(string $kind, array $cfg): array
++    {
++        if ($kind === 'data') {
++            $area = self::sources()[$cfg['source']]['area'] ?? null;
++            return $area ? ['all' => [$area]] : [];
++        }
++        if ($kind === 'action') {
++            $area = \App\Support\SectionRegistry::sectionForRoute(self::ACTIONS[$cfg['action']]['route'] ?? null);
++            return $area ? ['all' => [$area]] : [];
++        }
++
++        return [];
++    }
++
++    public static function reads(string $kind, array $cfg): string
++    {
++        return match ($kind) {
++            'data'   => self::sources()[$cfg['source']]['label'] ?? '—',
++            'action' => 'Button: ' . (self::ACTIONS[$cfg['action']]['label'] ?? '—'),
++            default  => 'A note',
++        };
++    }
++
++    /**
++     * A config fit to store and run: known values only. Anything unknown
++     * falls back to a safe default rather than failing.
++     */
++    public static function normalize(string $kind, array $c): array
++    {
++        if ($kind === 'action') {
++            return ['action' => isset(self::ACTIONS[$c['action'] ?? '']) ? $c['action'] : 'new_appointment', 'line' => mb_substr(trim((string) ($c['line'] ?? '')), 0, 140)];
++        }
++        if ($kind === 'note') {
++            $until = $c['until'] ?? null;
++            $until = is_string($until) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $until) ? $until : null;
++            return ['text' => mb_substr(trim((string) ($c['text'] ?? '')), 0, 600), 'until' => $until];
++        }
++
++        $sources = self::sources();
++        $source = isset($sources[$c['source'] ?? '']) ? $c['source'] : 'appointments';
++        $src = $sources[$source];
++        $money = array_keys(array_filter($src['fields'], fn ($f) => $f['type'] === 'money'));
++        $measure = isset(self::MEASURES[$c['measure'] ?? '']) ? $c['measure'] : 'count';
++        if (in_array($measure, ['sum', 'avg'], true) && ! $money) $measure = 'count';
++        $field = in_array($c['field'] ?? null, $money, true) ? $c['field'] : ($money[0] ?? null);
++        $period = in_array($c['period'] ?? '', $src['periods'], true) ? $c['period'] : 'last_30';
++        $display = isset(self::DISPLAYS[$c['display'] ?? '']) ? $c['display'] : 'number';
++        if ($measure === 'list') $display = 'rows';
++        if ($measure !== 'list' && $display === 'rows') $display = 'number';
++        if ($display === 'trend' && in_array($period, ['today', 'all_time'], true)) $display = 'number';
++
++        $rules = [];
++        foreach (array_slice((array) ($c['rules'] ?? []), 0, 6) as $r) {
++            [$f, $op, $v] = array_pad(array_values((array) $r), 3, null);
++            $def = $src['fields'][$f] ?? null;
++            if (! $def) continue;
++            if ($def['type'] === 'enum') {
++                if (! in_array($op, ['is', 'is_not'], true) || ! isset($def['options'][$v])) continue;
++            } else {
++                if (! in_array($op, ['more', 'less'], true) || ! is_numeric($v)) continue;
++                $v = round((float) $v, 2);
++            }
++            $rules[] = [$f, $op, $v];
++        }
++
++        return [
++            'source'  => $source,
++            'rules'   => $rules,
++            'measure' => $measure,
++            'field'   => in_array($measure, ['sum', 'avg'], true) ? $field : null,
++            'period'  => $period,
++            'compare' => $measure !== 'list' && $period !== 'all_time' && ! empty($c['compare']),
++            'display' => $display,
++            'line'    => mb_substr(trim((string) ($c['line'] ?? '')), 0, 140),
++        ];
++    }
++
++    /** One plain sentence: what the block shows. */
++    public static function sentence(string $kind, array $c): string
++    {
++        if ($kind === 'action') return 'A button that opens ' . (self::ACTIONS[$c['action']]['label'] ?? 'a page') . '.';
++        if ($kind === 'note') return 'A note to shops' . ($c['until'] ? ', shown until ' . Carbon::parse($c['until'])->format('M j') : '') . '.';
++
++        $src = self::sources()[$c['source']];
++        $what = match ($c['measure']) {
++            'count' => 'How many ' . strtolower($src['label']),
++            'sum'   => 'The total ' . strtolower($src['fields'][$c['field']]['label'] ?? '') . ' of ' . strtolower($src['label']),
++            'avg'   => 'The average ' . strtolower($src['fields'][$c['field']]['label'] ?? '') . ' of ' . strtolower($src['label']),
++            default => 'The ' . strtolower($src['label']),
++        };
++        $rules = array_map(function ($r) use ($src) {
++            $f = $src['fields'][$r[0]];
++            if ($f['type'] === 'enum') return strtolower($f['label']) . ($r[1] === 'is_not' ? ' is not ' : ' is ') . $f['options'][$r[2]];
++            return strtolower($f['label']) . ($r[1] === 'more' ? ' over ' : ' under ') . '$' . number_format((float) $r[2], 2);
++        }, $c['rules']);
++
++        return $what . ($rules ? ' where ' . implode(' and ', $rules) : '') . ', ' . strtolower(self::PERIODS[$c['period']])
++            . ($c['compare'] ? ', compared with the period before' : '') . '.';
++    }
++
++    // ---- figures -------------------------------------------------------------
++
++    /**
++     * The block's figures at one shop, cached for five minutes.
++     *
++     * @return array{kind: string, ...}
++     */
++    public static function result(string $key, Tenant $tenant): ?array
++    {
++        $def = self::definitions()[$key] ?? null;
++        if (! $def) return null;
++        if ($def['kind'] !== 'data') return ['kind' => $def['kind']];
++
++        $ck = 'dashcb:' . $tenant->id . ':' . $key . ':' . md5(json_encode($def['config']));
++
++        return Cache::remember($ck, 300, fn () => self::compute($def['config'], $tenant));
++    }
++
++    /** The figures, uncached (the builder's preview uses this directly). */
++    public static function compute(array $c, Tenant $tenant): array
++    {
++        $tz = $tenant->timezone();
++        [$from, $to, $pFrom, $pTo] = self::range($c['period'], $tz);
++        $out = ['kind' => 'data', 'measure' => $c['measure'], 'display' => $c['display'], 'money' => in_array($c['measure'], ['sum', 'avg'], true)];
++
++        if ($c['measure'] === 'list') {
++            $out['total'] = (clone self::query($c, $tenant, $from, $to))->count();
++            $out['rows'] = self::rows($c, $tenant, $from, $to);
++            return $out;
++        }
++
++        $out['value'] = self::aggregate($c, $tenant, $from, $to);
++        $out['prev'] = $c['compare'] && $pFrom ? self::aggregate($c, $tenant, $pFrom, $pTo) : null;
++        $out['pct'] = ($out['prev'] !== null && $out['prev'] != 0) ? (int) round(($out['value'] - $out['prev']) / abs($out['prev']) * 100) : null;
++        if ($c['display'] === 'trend' && $from) {
++            $out['series'] = self::series($c, $tenant, $from, $to);
++        }
++
++        return $out;
++    }
++
++    /** [from, to, prevFrom, prevTo] as tenant-local Carbons; nulls for all time. */
++    public static function range(string $period, string $tz): array
++    {
++        $today = Carbon::now($tz)->startOfDay();
++        switch ($period) {
++            case 'today':      $f = $today->copy(); $t = $today->copy(); break;
++            case 'next_7':     $f = $today->copy(); $t = $today->copy()->addDays(6); break;
++            case 'this_week':  $f = $today->copy()->startOfWeek(); $t = $f->copy()->addDays(6); break;
++            case 'last_7':     $f = $today->copy()->subDays(6); $t = $today->copy(); break;
++            case 'this_month': $f = $today->copy()->startOfMonth(); $t = $today->copy()->endOfMonth()->startOfDay();
++                return [$f, $t, $f->copy()->subMonthNoOverflow()->startOfMonth(), $f->copy()->subDay()];
++            case 'all_time':   return [null, null, null, null];
++            default:           $f = $today->copy()->subDays(29); $t = $today->copy();
++        }
++        $days = $f->diffInDays($t) + 1;
++
++        return [$f, $t, $f->copy()->subDays($days), $f->copy()->subDay()];
++    }
++
++    /** The source's rows at this shop, with its rules and the date range applied. */
++    private static function query(array $c, Tenant $tenant, ?Carbon $from, ?Carbon $to): Builder
++    {
++        $tid = $tenant->id;
++        switch ($c['source']) {
++            case 'sales':
++                $q = DB::table('tenant_sales')->where('tenant_sales.tenant_id', $tid)
++                    ->where('tenant_sales.status', 'completed')->whereNull('tenant_sales.refund_of_sale_id')->whereNotNull('tenant_sales.paid_at');
++                if ($from) $q->whereBetween('tenant_sales.paid_at', [$from->copy()->utc(), $to->copy()->endOfDay()->utc()]);
++                break;
++            case 'customers':
++                $q = DB::table('tenant_customers')->where('tenant_customers.tenant_id', $tid)->whereNull('tenant_customers.erased_at');
++                if ($from) $q->whereBetween('tenant_customers.created_at', [$from->copy()->utc(), $to->copy()->endOfDay()->utc()]);
++                break;
++            default:
++                $q = DB::table('tenant_appointments')->where('tenant_appointments.tenant_id', $tid);
++                if ($from) $q->whereBetween('tenant_appointments.appointment_date', [$from->toDateString(), $to->toDateString()]);
++        }
++
++        $fields = self::sources()[$c['source']]['fields'];
++        foreach ($c['rules'] as [$f, $op, $v]) {
++            $def = $fields[$f];
++            if ($def['type'] === 'money') {
++                $q->whereRaw($def['sql'] . ($op === 'more' ? ' > ?' : ' < ?'), [(int) round($v * 100)]);
++                continue;
++            }
++            $not = $op === 'is_not';
++            switch ($c['source'] . '.' . $f) {
++                case 'appointments.status':
++                    $q->{$not ? 'whereNotIn' : 'whereIn'}('tenant_appointments.status', AppointmentStatus::statusesForRole($v));
++                    break;
++                case 'appointments.payment':
++                    $not ? $q->where(fn ($w) => $w->where('tenant_appointments.payment_status', '!=', $v)->orWhereNull('tenant_appointments.payment_status'))
++                         : $q->where('tenant_appointments.payment_status', $v);
++                    break;
++                case 'sales.customer':
++                    ($v === 'yes') !== $not ? $q->whereNotNull('tenant_sales.customer_id') : $q->whereNull('tenant_sales.customer_id');
++                    break;
++                case 'customers.vip':
++                    $q->where('tenant_customers.is_vip', (($v === 'yes') !== $not) ? 1 : 0);
++                    break;
++                case 'customers.type':
++                    $not ? $q->where(fn ($w) => $w->where('tenant_customers.customer_type', '!=', $v)->orWhereNull('tenant_customers.customer_type'))
++                         : $q->where('tenant_customers.customer_type', $v);
++                    break;
++                case 'customers.email':
++                    ($v === 'yes') !== $not
++                        ? $q->whereNotNull('tenant_customers.email')->where('tenant_customers.email', '!=', '')
++                        : $q->where(fn ($w) => $w->whereNull('tenant_customers.email')->orWhere('tenant_customers.email', ''));
++                    break;
++            }
++        }
++
++        return $q;
++    }
++
++    private static function aggExpr(array $c): string
++    {
++        if ($c['measure'] === 'count') return 'COUNT(*)';
++        $sql = self::sources()[$c['source']]['fields'][$c['field']]['sql'];
++
++        return ($c['measure'] === 'avg' ? 'AVG(' : 'SUM(') . $sql . ')';
++    }
++
++    private static function aggregate(array $c, Tenant $tenant, ?Carbon $from, ?Carbon $to): float
++    {
++        return (float) (self::query($c, $tenant, $from, $to)->selectRaw(self::aggExpr($c) . ' as v')->value('v') ?? 0);
++    }
++
++    /** One value per day across the period, for the sparkline. */
++    private static function series(array $c, Tenant $tenant, Carbon $from, Carbon $to): array
++    {
++        $days = [];
++        for ($d = $from->copy(); $d->lte($to) && count($days) < 62; $d->addDay()) $days[$d->toDateString()] = 0;
++        $q = self::query($c, $tenant, $from, $to);
++        if ($c['source'] === 'appointments') {
++            $q->selectRaw('DATE(tenant_appointments.appointment_date) as d, ' . self::aggExpr($c) . ' as v');
++        } else {
++            $col = $c['source'] === 'sales' ? 'tenant_sales.paid_at' : 'tenant_customers.created_at';
++            [$expr, $bind] = tenant_tz_offset_expr($col, $tenant->timezone(), $from->copy()->utc(), $to->copy()->endOfDay()->utc());
++            $q->selectRaw("DATE({$expr}) as d, " . self::aggExpr($c) . ' as v', $bind);
++        }
++        foreach ($q->groupBy('d')->pluck('v', 'd') as $d => $v) {
++            if (array_key_exists($d, $days)) $days[$d] = (float) $v;
++        }
++
++        return array_values($days);
++    }
++
++    /** Up to six records, each [title, sub, right, route, id]. */
++    private static function rows(array $c, Tenant $tenant, ?Carbon $from, ?Carbon $to): array
++    {
++        $tz = $tenant->timezone();
++        $sym = $tenant->currency_symbol ?? '$';
++        $money = fn ($cents) => self::money((int) $cents, $sym);
++        $q = self::query($c, $tenant, $from, $to)->limit(6);
++
++        switch ($c['source']) {
++            case 'sales':
++                return $q->leftJoin('tenant_customers', 'tenant_customers.id', '=', 'tenant_sales.customer_id')
++                    ->orderByDesc('tenant_sales.paid_at')
++                    ->get(['tenant_sales.id', 'tenant_sales.sale_number', 'tenant_sales.paid_at', 'tenant_sales.total_cents', 'tenant_customers.first_name', 'tenant_customers.last_name'])
++                    ->map(fn ($r) => [
++                        trim(($r->first_name ?? '') . ' ' . ($r->last_name ?? '')) ?: 'Walk-in',
++                        '#' . $r->sale_number . ' · ' . Carbon::parse($r->paid_at, 'UTC')->setTimezone($tz)->format('M j, g:i A'),
++                        $money($r->total_cents), 'tenant.register.sales.receipt', $r->id,
++                    ])->all();
++            case 'customers':
++                return $q->orderByDesc('tenant_customers.created_at')
++                    ->get(['id', 'first_name', 'last_name', 'business_name', 'email', 'phone', 'created_at'])
++                    ->map(fn ($r) => [
++                        trim($r->first_name . ' ' . $r->last_name) ?: ($r->business_name ?: 'No name'),
++                        $r->email ?: ($r->phone ?: 'No contact details'),
++                        'Added ' . Carbon::parse($r->created_at, 'UTC')->setTimezone($tz)->format('M j'), 'tenant.customers.show', $r->id,
++                    ])->all();
++            default:
++                return $q->orderBy('appointment_date')->orderBy('appointment_time')
++                    ->get(['id', 'customer_first_name', 'customer_last_name', 'appointment_date', 'appointment_time', 'status', 'total_cents'])
++                    ->map(fn ($r) => [
++                        trim($r->customer_first_name . ' ' . $r->customer_last_name) ?: 'No name',
++                        Carbon::parse($r->appointment_date)->format('D M j') . ($r->appointment_time ? ' · ' . Carbon::parse($r->appointment_time)->format('g:i A') : '')
++                            . ' · ' . (AppointmentStatus::LABELS[$r->status] ?? Str::headline((string) $r->status)),
++                        $money($r->total_cents), 'tenant.appointments.show', $r->id,
++                    ])->all();
++        }
++    }
++
++    public static function money(int $cents, string $sym = '$'): string
++    {
++        return ($cents < 0 ? '-' : '') . $sym . number_format(abs($cents) / 100, abs($cents) >= 100000 ? 0 : 2);
++    }
++
++    /** The headline figure as text: "42", "$1,280". */
++    public static function figure(array $r, ?Tenant $tenant = null): string
++    {
++        if (! empty($r['money'])) return self::money((int) round($r['value'] ?? 0), $tenant?->currency_symbol ?? '$');
++
++        return number_format((float) ($r['value'] ?? 0));
++    }
++
++    /** The unit after a count: "bookings". */
++    public static function unit(array $cfg, float $n): string
++    {
++        $u = self::sources()[$cfg['source']]['unit'] ?? ['', ''];
++
++        return (int) $n === 1 ? $u[0] : $u[1];
++    }
++
++    /** "Last 30 days · vs the 30 days before" */
++    public static function meta(array $cfg): string
++    {
++        $p = self::PERIODS[$cfg['period']] ?? '';
++        if (! $cfg['compare']) return $p;
++
++        return $p . ' · vs ' . match ($cfg['period']) {
++            'today' => 'yesterday', 'this_week' => 'last week', 'this_month' => 'last month', 'next_7' => 'the 7 days before',
++            'last_7' => 'the 7 days before', default => 'the 30 days before',
++        };
++    }
++}
+diff --git a/app/Support/Dashboard/DashboardTemplates.php b/app/Support/Dashboard/DashboardTemplates.php
+index 3fdea387..e547fa05 100644
+--- a/app/Support/Dashboard/DashboardTemplates.php
++++ b/app/Support/Dashboard/DashboardTemplates.php
+@@ -204,5 +204,6 @@ class DashboardTemplates
+     public static function flush(): void
+     {
+         self::$cache = null;
++        CustomBlocks::flush();
+     }
+ }
+diff --git a/app/Support/Dashboard/Layout.php b/app/Support/Dashboard/Layout.php
+index 578677b6..09bc78fc 100644
+--- a/app/Support/Dashboard/Layout.php
++++ b/app/Support/Dashboard/Layout.php
+@@ -39,7 +39,7 @@ class Layout
+      */
+     public static function sanitize(array $rows): array
+     {
+-        $known = BlockRegistry::builtIns();
++        $known = BlockRegistry::all();
+         $seen = [];
+         $out = [];
+         foreach ($rows as $row) {
+@@ -128,7 +128,7 @@ class Layout
+      */
+     public static function diff(?array $live, array $draft, array $names = []): array
+     {
+-        $name = fn (string $k) => $names[$k] ?? (BlockRegistry::builtIns()[$k]['name'] ?? $k);
++        $name = fn (string $k) => $names[$k] ?? (BlockRegistry::all()[$k]['name'] ?? $k);
+         $draftKeys = self::blockKeys($draft);
+         if ($live === null) {
+             return [['added', 'First version, ' . count($draftKeys) . ' ' . \Illuminate\Support\Str::plural('block', count($draftKeys))]];
+@@ -207,7 +207,7 @@ class Layout
+      */
+     public static function visible(array $rows, array $hiddenKeys = []): array
+     {
+-        $known = BlockRegistry::builtIns();
++        $known = BlockRegistry::all();
+         $out = [];
+         foreach ($rows as $row) {
+             $split = array_values(array_filter((array) ($row['split'] ?? [12]), fn ($n) => is_int($n) && $n > 0));
+diff --git a/resources/views/filament/pages/dashboard-block-builder.blade.php b/resources/views/filament/pages/dashboard-block-builder.blade.php
+new file mode 100644
+index 00000000..76056866
+--- /dev/null
++++ b/resources/views/filament/pages/dashboard-block-builder.blade.php
+@@ -0,0 +1,233 @@
++<x-filament-panels::page>
++@include('filament.partials.dashboards-style')
++<style>
++  .bb { display:grid; grid-template-columns:minmax(0, 1fr) minmax(0, 1.05fr); gap:28px; align-items:start; }
++  @media (max-width:1100px) { .bb { grid-template-columns:1fr; } }
++  .bb-step { display:grid; grid-template-columns:26px 1fr; gap:12px; padding:16px 0; border-bottom:1px solid var(--sx-line); }
++  .bb-step .no { width:22px; height:22px; border-radius:50%; border:1px solid var(--sx-line-2); display:grid; place-items:center; font-size:11.5px; color:var(--sx-dim); }
++  .bb-step h4 { font-size:14px; font-weight:600; color:var(--db-txt); margin:1px 0 4px; }
++  .bb-step .q { font-size:12.5px; color:var(--sx-faint); margin-bottom:10px; line-height:1.5; }
++  .bb-seg { display:inline-flex; border:1px solid var(--sx-line-2); border-radius:8px; overflow:hidden; flex-wrap:wrap; }
++  .bb-seg button { background:none; border:0; padding:6px 12px; font-size:13px; color:var(--sx-dim); cursor:pointer; }
++  .bb-seg button + button { border-left:1px solid var(--sx-line-2); }
++  .bb-seg button.on { background:var(--sx-vsoft); color:var(--db-txt); font-weight:500; }
++  .bb-seg button[disabled] { opacity:.4; cursor:default; }
++  .bb-src { display:grid; gap:6px; }
++  .bb-src button { display:flex; gap:10px; align-items:flex-start; text-align:left; background:none; border:1px solid var(--sx-line); border-radius:8px; padding:9px 12px; cursor:pointer; color:inherit; }
++  .bb-src button.on { border-color:var(--sx-violet); background:var(--sx-vsoft); }
++  .bb-src .rb { width:14px; height:14px; border-radius:50%; border:1.5px solid var(--sx-line-2); margin-top:2px; flex:none; }
++  .bb-src button.on .rb { border:4px solid var(--sx-violet); }
++  .bb-src .t { display:block; font-size:13.5px; font-weight:500; color:var(--db-txt); }
++  .bb-src .s { display:block; font-size:12px; color:var(--sx-faint); }
++  .bb-rule { display:grid; grid-template-columns:1fr 110px 1fr 26px; gap:8px; margin-bottom:8px; align-items:center; }
++  .bb-rule .x { background:none; border:0; color:var(--sx-faint); font-size:18px; cursor:pointer; }
++  .bb-row2 { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-top:10px; }
++  .bb-chk { display:inline-flex; gap:8px; align-items:center; font-size:13px; color:var(--sx-dim); cursor:pointer; }
++  .bb-chk input { accent-color:#8b5cf6; }
++  .bb-pv-h { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:10px; font-size:12.5px; color:var(--sx-faint); }
++  .bb-frame { border:1px solid var(--sx-line-2); border-radius:10px; background:#141416; padding:22px 26px; overflow:hidden; color:#ececef;
++    --ia-text-muted:#8b8b93; --ia-border:rgba(255,255,255,.08); --ia-accent:#f5a524; --ia-accent-soft:rgba(245,165,36,.08); --ia-hover:rgba(255,255,255,.03); }
++  .bb-frame .ia-btn { display:inline-flex; padding:8px 14px; border-radius:8px; font-size:14px; font-weight:500; text-decoration:none; }
++  .bb-frame .ia-btn--primary { background:#f5a524; color:#1a1206; }
++  .bb-frame .cb { margin:0; }
++  .bb-ghost { border:1px dashed var(--sx-line-2); border-radius:8px; padding:18px; font-size:13px; color:var(--sx-faint); }
++  .bb-say { font-size:13.5px; line-height:1.55; color:var(--sx-dim); padding:14px 0 6px; }
++  .bb-facts { display:grid; grid-template-columns:110px 1fr; gap:6px 12px; font-size:12.5px; padding:6px 0 0; }
++  .bb-facts span:nth-child(odd) { color:var(--sx-faint); }
++  .bb-top { display:flex; gap:10px; align-items:center; flex-wrap:wrap; padding-bottom:12px; }
++</style>
++
++<div class="sx-root">
++  <div class="db-note" style="margin-bottom:8px"><a class="db-lnk" href="{{ \App\Filament\Pages\DashboardBlocks::getUrl() }}">Blocks</a> / {{ $isNew ? 'New block' : $name }}</div>
++
++  <div class="db-legend">
++    @if ($isNew)
++      <b>A new block isn't on any dashboard yet.</b> Save it, then add it to a template in the editor. Shops see it once that template is published.
++    @elseif ($usage)
++      <b>This block is on {{ collect($usage)->map(fn ($u) => $u['name'] . ($u['live'] ? '' : ' (draft)'))->implode(', ') }}.</b>
++      @if ($liveShops) Saving changes it on up to {{ number_format($liveShops) }} {{ \Illuminate\Support\Str::plural('shop', $liveShops) }}' dashboards on their next load, without republishing. @else No live dashboard shows it yet. @endif
++    @else
++      <b>This block isn't on any template.</b> Add it to one in the editor.
++    @endif
++    The preview uses the chosen shop's real figures; nothing is saved until you press Save.
++  </div>
++
++  <div class="bb-top">
++    <input type="text" class="db-in" style="max-width:340px;font-size:15px;font-weight:600" wire:model.live.debounce.400ms="name" maxlength="80" placeholder="Name this block" @disabled(! $canEdit)>
++    @if (! $isNew && $dirty)<span class="db-tag pend">Unsaved changes</span>@endif
++    <span style="margin-left:auto"></span>
++    <a class="db-btn" href="{{ \App\Filament\Pages\DashboardBlocks::getUrl() }}">{{ $dirty ? 'Cancel' : 'Back' }}</a>
++    @if ($canEdit)
++      <button type="button" class="db-btn p" wire:click="save" @disabled(! $dirty || trim($name) === '')
++        @if (! $isNew && $liveShops) data-confirm="Save changes to {{ $name }}?&#10;It changes on up to {{ number_format($liveShops) }} {{ \Illuminate\Support\Str::plural('shop', $liveShops) }}' dashboards on their next load." @endif>{{ $isNew ? 'Save block' : 'Save changes' }}</button>
++    @endif
++  </div>
++
++  <div class="bb">
++    <div>
++      <div class="bb-step"><span class="no">1</span><div>
++        <h4>What kind of block</h4>
++        <div class="bb-seg">
++          @foreach (['data' => 'Shows data', 'action' => 'A button', 'note' => 'A note to shops'] as $kk => $kl)
++            <button type="button" class="{{ $kind === $kk ? 'on' : '' }}" wire:click="$set('kind', '{{ $kk }}')" @disabled(! $canEdit)>{{ $kl }}</button>
++          @endforeach
++        </div>
++      </div></div>
++
++      @if ($kind === 'data')
++        <div class="bb-step"><span class="no">2</span><div>
++          <h4>Reads</h4>
++          <div class="q">Every block reads only the shop it's on. There's no way to see another shop's records.</div>
++          <div class="bb-src">
++            @foreach ($sources as $sk => $s)
++              <button type="button" class="{{ $source === $sk ? 'on' : '' }}" wire:click="setSource('{{ $sk }}')" @disabled(! $canEdit)>
++                <span class="rb"></span><span><span class="t">{{ $s['label'] }}</span><span class="s">{{ $s['desc'] }} · seen by people who can open {{ \App\Support\SectionRegistry::all()[$s['area']]['label'] ?? $s['area'] }}</span></span>
++              </button>
++            @endforeach
++          </div>
++        </div></div>
++
++        <div class="bb-step"><span class="no">3</span><div>
++          <h4>Only include</h4>
++          <div class="q">Leave empty to include everything in the period.</div>
++          @foreach ($rules as $i => $r)
++            @php $fdef = $src['fields'][$r[0]] ?? null; @endphp
++            @if ($fdef)
++              <div class="bb-rule" wire:key="rule-{{ $i }}-{{ $r[0] }}">
++                <select class="db-in" wire:change="ruleField({{ $i }}, $event.target.value)" @disabled(! $canEdit)>
++                  @foreach ($src['fields'] as $fk => $fd)<option value="{{ $fk }}" @selected($fk === $r[0])>{{ $fd['label'] }}</option>@endforeach
++                </select>
++                <select class="db-in" wire:model.live="rules.{{ $i }}.1" @disabled(! $canEdit)>
++                  @if ($fdef['type'] === 'enum')
++                    <option value="is">is</option><option value="is_not">is not</option>
++                  @else
++                    <option value="more">is over</option><option value="less">is under</option>
++                  @endif
++                </select>
++                @if ($fdef['type'] === 'enum')
++                  <select class="db-in" wire:model.live="rules.{{ $i }}.2" @disabled(! $canEdit)>
++                    @foreach ($fdef['options'] as $ok => $ol)<option value="{{ $ok }}">{{ $ol }}</option>@endforeach
++                  </select>
++                @else
++                  <input type="number" min="0" step="0.01" class="db-in" placeholder="$ amount" wire:model.live.debounce.400ms="rules.{{ $i }}.2" @disabled(! $canEdit)>
++                @endif
++                <button type="button" class="x" wire:click="removeRule({{ $i }})" aria-label="Remove rule" @disabled(! $canEdit)>×</button>
++              </div>
++            @endif
++          @endforeach
++          @if ($canEdit && count($rules) < 6)<button type="button" class="db-lnk" wire:click="addRule">+ Add a rule</button>@endif
++          @if (count($rules) !== count($cfg['rules']))<div class="db-note db-warn" style="margin-top:6px">A rule without an amount is left out until it has one.</div>@endif
++        </div></div>
++
++        @php $moneyFields = collect($src['fields'])->filter(fn ($f) => $f['type'] === 'money'); @endphp
++        <div class="bb-step"><span class="no">4</span><div>
++          <h4>Shows</h4>
++          <div class="bb-seg" style="margin-bottom:10px">
++            @foreach (\App\Support\Dashboard\CustomBlocks::MEASURES as $mk => $ml)
++              <button type="button" class="{{ $cfg['measure'] === $mk ? 'on' : '' }}" wire:click="$set('measure', '{{ $mk }}')" @disabled(! $canEdit || (in_array($mk, ['sum', 'avg'], true) && $moneyFields->isEmpty()))>{{ $ml }}</button>
++            @endforeach
++          </div>
++          @if (in_array($cfg['measure'], ['sum', 'avg'], true))
++            <div class="bb-row2" style="margin-top:0;margin-bottom:10px">
++              <select class="db-in" style="max-width:240px" wire:model.live="field" @disabled(! $canEdit)>
++                @foreach ($moneyFields as $fk => $fd)<option value="{{ $fk }}">{{ $fd['label'] }}</option>@endforeach
++              </select>
++            </div>
++          @endif
++          <div class="bb-row2">
++            <select class="db-in" style="max-width:200px" wire:model.live="period" @disabled(! $canEdit)>
++              @foreach ($src['periods'] as $pk)<option value="{{ $pk }}">{{ \App\Support\Dashboard\CustomBlocks::PERIODS[$pk] }}</option>@endforeach
++            </select>
++            @if ($cfg['measure'] !== 'list' && $cfg['period'] !== 'all_time')
++              <label class="bb-chk"><input type="checkbox" wire:model.live="compare" @disabled(! $canEdit)> Compare with the period before</label>
++            @endif
++          </div>
++          @if ($source === 'appointments')<div class="db-note" style="margin-top:6px">Appointments count on their appointment date, so This week and Next 7 days include what's booked ahead.</div>@endif
++        </div></div>
++
++        <div class="bb-step"><span class="no">5</span><div>
++          <h4>Looks like</h4>
++          <div class="bb-seg">
++            @foreach (\App\Support\Dashboard\CustomBlocks::DISPLAYS as $dk => $dl)
++              @php $ok = $cfg['measure'] === 'list' ? $dk === 'rows' : ($dk !== 'rows' && ! ($dk === 'trend' && in_array($cfg['period'], ['today', 'all_time'], true))); @endphp
++              <button type="button" class="{{ $cfg['display'] === $dk ? 'on' : '' }}" wire:click="$set('display', '{{ $dk }}')" @disabled(! $canEdit || ! $ok)>{{ $dl }}</button>
++            @endforeach
++          </div>
++          <div class="db-note" style="margin-top:6px">{{ $cfg['measure'] === 'list' ? 'Shows up to six records, each opening its own page.' : 'A trend draws one point a day across the period, so it needs more than a day.' }}</div>
++        </div></div>
++
++        <div class="bb-step"><span class="no">6</span><div>
++          <h4>Line under the title <span class="db-sub" style="display:inline;font-weight:400">optional</span></h4>
++          <input type="text" class="db-in" maxlength="140" wire:model.live.debounce.400ms="line" placeholder="e.g. Jobs that are done but not paid for" @disabled(! $canEdit)>
++        </div></div>
++
++      @elseif ($kind === 'action')
++        <div class="bb-step"><span class="no">2</span><div>
++          <h4>The button opens</h4>
++          <div class="q">Pages the app already has. The block only shows to people whose role can open that page, at shops that have it.</div>
++          <div class="bb-src">
++            @foreach (\App\Support\Dashboard\CustomBlocks::ACTIONS as $ak => $a)
++              @php $aSec = \App\Support\SectionRegistry::sectionForRoute($a['route']); @endphp
++              <button type="button" class="{{ $action === $ak ? 'on' : '' }}" wire:click="$set('action', '{{ $ak }}')" @disabled(! $canEdit)>
++                <span class="rb"></span><span><span class="t">{{ $a['label'] }}</span><span class="s">Seen by people who can open {{ \App\Support\SectionRegistry::all()[$aSec]['label'] ?? 'it' }}</span></span>
++              </button>
++            @endforeach
++          </div>
++        </div></div>
++        <div class="bb-step"><span class="no">3</span><div>
++          <h4>Line under the title <span class="db-sub" style="display:inline;font-weight:400">optional</span></h4>
++          <input type="text" class="db-in" maxlength="140" wire:model.live.debounce.400ms="line" @disabled(! $canEdit)>
++        </div></div>
++
++      @else
++        <div class="bb-step"><span class="no">2</span><div>
++          <h4>The note</h4>
++          <div class="q">Plain text, for a heads-up you want every shop on a template to read. Everyone at the shop sees it.</div>
++          <textarea class="db-in" rows="5" maxlength="600" wire:model.live.debounce.400ms="text" @disabled(! $canEdit)></textarea>
++        </div></div>
++        <div class="bb-step"><span class="no">3</span><div>
++          <h4>Show until <span class="db-sub" style="display:inline;font-weight:400">optional</span></h4>
++          <div class="q">After this day it stops showing by itself. Leave empty to show it until you remove it.</div>
++          <input type="date" class="db-in" style="max-width:200px" wire:model.live="until" @disabled(! $canEdit)>
++        </div></div>
++      @endif
++    </div>
++
++    <div>
++      <div class="bb-pv-h">
++        <span>Preview at</span>
++        <select class="db-in" style="max-width:240px" wire:model.live="shop">
++          @foreach ($shops as $sid => $sn)<option value="{{ $sid }}">{{ $sn }}</option>@endforeach
++        </select>
++        <span style="margin-left:auto">Width</span>
++        <span class="bb-seg">
++          @foreach ([4 => '⅓', 6 => '½', 8 => '⅔', 12 => 'Full'] as $w => $wl)
++            <button type="button" class="{{ $width === $w ? 'on' : '' }}" wire:click="$set('width', {{ $w }})">{{ $wl }}</button>
++          @endforeach
++        </span>
++      </div>
++      <div class="bb-frame" style="max-width:{{ round(1040 * $width / 12) + 52 }}px">
++        @if ($previewError)
++          <div class="bb-ghost">{{ $previewError }}</div>
++        @elseif ($lacks)
++          <div class="bb-ghost"><b>{{ $shops[$shop] ?? 'This shop' }}</b> doesn't have {{ $lacks }} turned on, so it never sees this block.</div>
++        @elseif ($preview)
++          @include('tenant.dashboard.blocks._custom-style')
++          @include('tenant.dashboard.blocks.custom', ['cbPreview' => $preview, 'dashBlock' => ['b' => 'preview']])
++          @if ($kind === 'note' && $cfg['text'] === '')<div class="bb-ghost">Write the note to see it here.</div>@endif
++        @endif
++      </div>
++      <div class="db-note" style="margin-top:6px">Drawn at its real width on a desktop dashboard. Links don't open from the preview.</div>
++      <div class="bb-say">{{ $sentence }}</div>
++      <div class="bb-facts">
++        @if ($kind === 'data')
++          <span>Reads</span><span>{{ $src['label'] }}, this shop only</span>
++          <span>Updates</span><span>Worked out when someone opens the dashboard, then kept for 5 minutes for that shop</span>
++          <span>Clicking it</span><span>{{ $cfg['measure'] === 'list' ? 'Each record opens its own page, and the' : 'The' }} header links to {{ $src['opens_label'] }}</span>
++        @endif
++        <span>Seen by</span><span>{{ $who ? 'People whose role can open ' . $who : 'Everyone at the shop' }}</span>
++      </div>
++    </div>
++  </div>
++</div>
++</x-filament-panels::page>
+diff --git a/resources/views/filament/pages/dashboard-blocks.blade.php b/resources/views/filament/pages/dashboard-blocks.blade.php
+new file mode 100644
+index 00000000..1f87642f
+--- /dev/null
++++ b/resources/views/filament/pages/dashboard-blocks.blade.php
+@@ -0,0 +1,82 @@
++<x-filament-panels::page>
++@include('filament.partials.dashboards-style')
++
++<div class="sx-root">
++  @include('filament.partials.dashboards-tabs', ['tab' => 'blocks'])
++
++  <div class="db-legend">
++    <b>Built-in blocks</b> come from code, so what they show can't be changed here; you can hide one everywhere.
++    <b>Made-here blocks</b> are built on this page from a shop's own data, a button, or a note.
++    Every block reads only the shop it's on, and each person only sees blocks whose data their role can open.
++    <b>Hide everywhere</b> takes a block off every dashboard straight away. Nothing is deleted, and Unhide puts it back where it was.
++    Saving a change to a made-here block shows on every dashboard that has it on its next load, without republishing.
++  </div>
++
++  <div class="db-bar">
++    <span style="display:inline-flex;gap:6px">
++      @foreach (['all' => 'All', 'builtin' => 'Built-in', 'custom' => 'Made here', 'hidden' => 'Hidden'] as $fk => $fl)
++        <button type="button" class="db-btn sm" style="{{ $filter === $fk ? 'background:var(--sx-vsoft);border-color:var(--sx-violet)' : '' }}" wire:click="$set('filter', '{{ $fk }}')">{{ $fl }}</button>
++      @endforeach
++    </span>
++    <input type="search" class="db-in" style="width:200px" placeholder="Find a block" wire:model.live.debounce.300ms="find">
++    <span class="note">{{ $counts['builtin'] }} built-in · {{ $counts['custom'] }} made here · {{ $counts['hidden'] }} hidden</span>
++    @if ($canManage)
++      <span style="margin-left:auto"></span>
++      <a class="db-btn p" href="{{ \App\Filament\Pages\DashboardBlockBuilder::getUrl() }}">New block</a>
++    @endif
++  </div>
++
++  <table class="db-t">
++    <thead><tr><th>Block</th><th class="db-hide-m">Kind</th><th class="db-hide-m">Seen by people who can open</th><th class="db-hide-m">On templates</th><th></th></tr></thead>
++    <tbody>
++      @forelse ($list as $b)
++        <tr class="{{ $b['hidden'] ? 'dim' : '' }}">
++          <td>
++            @if (! $b['builtin'])
++              <a class="db-nm" style="text-decoration:none" href="{{ \App\Filament\Pages\DashboardBlockBuilder::getUrl(['k' => $b['key']]) }}">{{ $b['name'] }}</a>
++            @else
++              <span class="db-nm">{{ $b['name'] }}</span>
++            @endif
++            <div class="db-sub">{{ $b['desc'] }}</div>
++          </td>
++          <td class="db-hide-m">
++            @if ($b['builtin'])<span class="db-tag draft">Built-in</span>@else<span class="db-tag live">Made here</span>@endif
++            <div class="db-sub">{{ $b['reads'] }}</div>
++          </td>
++          <td class="db-hide-m">{{ $b['who'] ?? 'Everyone' }}</td>
++          <td class="db-hide-m">
++            @forelse ($b['used'] as $u)
++              {{ $u['name'] }}@if (! $u['live'])<span class="db-sub" style="display:inline"> (draft)</span>@endif{{ ! $loop->last ? ',' : '' }}
++            @empty
++              <span class="db-sub" style="display:inline">Not on any template</span>
++            @endforelse
++            @if ($b['hidden'])<div><span class="db-tag off">Hidden everywhere</span></div>@endif
++          </td>
++          <td class="r">
++            @if ($canManage)
++              <span class="db-acts">
++                @if (! $b['builtin'])
++                  <a class="db-lnk" href="{{ \App\Filament\Pages\DashboardBlockBuilder::getUrl(['k' => $b['key']]) }}">Edit</a>
++                  <button type="button" class="db-lnk dim" wire:click="duplicate('{{ $b['key'] }}')">Copy</button>
++                @endif
++                @if ($b['hidden'])
++                  <button type="button" class="db-lnk" wire:click="unhide('{{ $b['key'] }}')">Unhide</button>
++                @else
++                  <button type="button" class="db-lnk dim" wire:click="hide('{{ $b['key'] }}')"
++                    data-confirm="Hide {{ $b['name'] }} everywhere?&#10;It leaves every dashboard straight away{{ $b['used'] ? ' (' . collect($b['used'])->pluck('name')->implode(', ') . ')' : '' }}. Nothing is deleted, and Unhide puts it back where it was.">Hide everywhere</button>
++                @endif
++                @if (! $b['builtin'])
++                  <button type="button" class="db-lnk red" wire:click="delete('{{ $b['key'] }}')"
++                    data-confirm="Delete {{ $b['name'] }}?&#10;{{ $b['used'] ? 'It comes off ' . collect($b['used'])->pluck('name')->implode(', ') . ' straight away. ' : '' }}This can't be undone. Hide everywhere keeps it instead.">Delete</button>
++                @endif
++              </span>
++            @endif
++          </td>
++        </tr>
++      @empty
++        <tr><td colspan="5" class="db-note" style="padding:18px 10px">No blocks match.</td></tr>
++      @endforelse
++    </tbody>
++  </table>
++</div>
++</x-filament-panels::page>
+diff --git a/resources/views/filament/pages/dashboard-editor.blade.php b/resources/views/filament/pages/dashboard-editor.blade.php
+index 1b7e1f4c..8fa41071 100644
+--- a/resources/views/filament/pages/dashboard-editor.blade.php
++++ b/resources/views/filament/pages/dashboard-editor.blade.php
+@@ -180,9 +180,9 @@
+         </div>
+       @endif
+       @if ($canEdit)
+-        <div class="db-note" style="margin-bottom:4px">Drag a block into a column, or click <b>Add</b> to put it in the outlined column. Click a placed block for its settings.</div>
++        <div class="db-note" style="margin-bottom:4px">Drag a block into a column, or click <b>Add</b> to put it in the outlined column. Click a placed block for its settings. New blocks are made on the <a class="db-lnk" href="{{ \App\Filament\Pages\DashboardBlocks::getUrl() }}">Blocks</a> page.</div>
+         @foreach ($catalog as $origin => $items)
+-          <div class="de-g">From {{ $origin }}</div>
++          <div class="de-g">{{ $origin === 'Custom' ? 'Made here' : 'From ' . $origin }}</div>
+           @foreach ($items as $b)
+             <div class="de-lib {{ $b['on'] ? 'on' : '' }} {{ $b['hidden'] ? 'hid' : '' }}" title="{{ $b['desc'] }}"
+                  @if (! $b['on']) draggable="true" x-on:dragstart="drag($event, { add: '{{ $b['key'] }}' })" @endif>
+@@ -311,7 +311,7 @@
+                     <span class="de-grip">⋮⋮</span>
+                     <button type="button" class="pick" wire:click="selectBlock({{ $r }}, {{ $c }}, {{ $i }})" title="Settings for this block">
+                       <span class="t">{{ $names[$p['b']] ?? $p['b'] }}</span>
+-                      <span class="s" style="display:block">{{ $isHidden ? 'Hidden everywhere: no shop sees it' : 'From ' . ucfirst($def['origin'] ?? '') . ' · ' . ($def['reads'] ?? '') }}</span>
++                      <span class="s" style="display:block">{{ $isHidden ? 'Hidden everywhere: no shop sees it' : (($def['origin'] ?? '') === 'custom' ? 'Made here' : 'From ' . ucfirst($def['origin'] ?? '')) . ' · ' . ($def['reads'] ?? '') }}</span>
+                       @if (! empty($p['lock']))<span class="who">Always shown</span>@endif
+                     </button>
+                     @if ($canEdit)
+diff --git a/resources/views/filament/pages/dashboards.blade.php b/resources/views/filament/pages/dashboards.blade.php
+index 6606d9f1..3c67efbc 100644
+--- a/resources/views/filament/pages/dashboards.blade.php
++++ b/resources/views/filament/pages/dashboards.blade.php
+@@ -2,6 +2,7 @@
+ @include('filament.partials.dashboards-style')
+ 
+ <div class="sx-root">
++  @include('filament.partials.dashboards-tabs', ['tab' => 'templates'])
+   <div class="db-legend">
+     <b>Shops only see a template's live version.</b> Edits stay in a draft no shop can see until you publish it.
+     A live template appears in the dashboard switch of every shop that gets it (set in its editor).
+diff --git a/resources/views/filament/partials/dashboards-tabs.blade.php b/resources/views/filament/partials/dashboards-tabs.blade.php
+new file mode 100644
+index 00000000..6782fc54
+--- /dev/null
++++ b/resources/views/filament/partials/dashboards-tabs.blade.php
+@@ -0,0 +1,11 @@
++{{-- MARKER-DASH-BUILDER: Templates | Blocks, at the top of both Dashboards pages. --}}
++<style>
++  .db-tabs { display:flex; gap:22px; border-bottom:1px solid var(--sx-line); margin:-4px 0 14px; }
++  .db-tabs a { padding:8px 0 10px; font-size:14px; font-weight:500; color:var(--sx-dim); text-decoration:none; border-bottom:2px solid transparent; margin-bottom:-1px; }
++  .db-tabs a.on { color:var(--db-txt); border-bottom-color:var(--sx-violet); }
++  .db-tabs a:hover { color:var(--db-txt); }
++</style>
++<nav class="db-tabs">
++  <a href="{{ \App\Filament\Pages\Dashboards::getUrl() }}" class="{{ $tab === 'templates' ? 'on' : '' }}">Templates</a>
++  <a href="{{ \App\Filament\Pages\DashboardBlocks::getUrl() }}" class="{{ $tab === 'blocks' ? 'on' : '' }}">Blocks</a>
++</nav>
+diff --git a/resources/views/tenant/dashboard/blocks/_custom-style.blade.php b/resources/views/tenant/dashboard/blocks/_custom-style.blade.php
+new file mode 100644
+index 00000000..369044fa
+--- /dev/null
++++ b/resources/views/tenant/dashboard/blocks/_custom-style.blade.php
+@@ -0,0 +1,30 @@
++{{-- MARKER-DASH-BUILDER: styles for made-here blocks (custom.blade.php), also
++     used by master admin's block builder preview. --}}
++    <style>
++      .cb { margin: 0 0 28px; }
++      .cb-h { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
++      .cb-h h2 { font-size: 21px; font-weight: 600; letter-spacing: -.02em; margin: 0; }
++      .cb-h .meta { margin-left: auto; font-size: 12.5px; color: var(--ia-text-muted, #8b8b93); }
++      .cb-h .meta a { color: inherit; }
++      .cb-line { font-size: 13px; color: var(--ia-text-muted, #8b8b93); margin-top: 4px; }
++      .cb-big { display: flex; align-items: baseline; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
++      .cb-big .v { font-size: 38px; font-weight: 600; letter-spacing: -.03em; line-height: 1; font-variant-numeric: tabular-nums; }
++      .cb-big .u { font-size: 13px; color: var(--ia-text-muted, #8b8b93); }
++      .cb-big .d { font-size: 12.5px; font-weight: 600; }
++      .cb-big .d.up { color: #4ade80; } .cb-big .d.down { color: #f87171; }
++      .cb-big .was { font-size: 12.5px; color: var(--ia-text-muted, #8b8b93); }
++      .cb-spark { margin-top: 10px; height: 36px; color: var(--ia-accent, #f5a524); }
++      .cb-spark svg { width: 100%; height: 36px; display: block; }
++      .cb-rows { margin-top: 8px; }
++      .cb-row { display: grid; grid-template-columns: 1fr auto auto; gap: 10px; align-items: center; padding: 11px 6px 11px 0; border-bottom: 1px solid var(--ia-border, rgba(255,255,255,.08)); color: inherit; text-decoration: none; }
++      a.cb-row:hover { background: var(--ia-hover, rgba(255,255,255,.03)); }
++      .cb-row .t { font-size: 15px; font-weight: 500; }
++      .cb-row .s { font-size: 13px; color: var(--ia-text-muted, #8b8b93); }
++      .cb-row .r { font-size: 13.5px; font-variant-numeric: tabular-nums; }
++      .cb-row .arr { color: var(--ia-text-muted, #8b8b93); font-size: 18px; }
++      .cb-calm { padding: 14px 0; color: var(--ia-text-muted, #8b8b93); font-size: 14px; }
++      .cb-acts { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
++      .cb-note { border-left: 2px solid var(--ia-accent, #f5a524); background: var(--ia-accent-soft, rgba(245,165,36,.08)); border-radius: var(--ia-r-md, 8px); padding: 14px 18px; }
++      .cb-note .t { font-weight: 600; font-size: 15px; margin-bottom: 4px; }
++      .cb-note .s { font-size: 14px; line-height: 1.55; white-space: pre-line; opacity: .85; }
++    </style>
+diff --git a/resources/views/tenant/dashboard/blocks/custom.blade.php b/resources/views/tenant/dashboard/blocks/custom.blade.php
+new file mode 100644
+index 00000000..b240eefc
+--- /dev/null
++++ b/resources/views/tenant/dashboard/blocks/custom.blade.php
+@@ -0,0 +1,89 @@
++{{-- MARKER-DASH-BUILDER: a block made in master admin (CustomBlocks). One view
++     for every kind: a figure, a figure with its trend, a few records, a
++     button, or a note. Self-contained styles, so it looks the same in any
++     template's frame. Expects $dashBlock (the placement); $cbPreview (master
++     admin's builder) supplies the definition and figures instead. --}}
++@php
++  $cbPreview = $cbPreview ?? null;
++  $cbKey = $dashBlock['b'] ?? '';
++  $cbDef = $cbPreview['def'] ?? (\App\Support\Dashboard\CustomBlocks::definitions()[$cbKey] ?? null);
++  $cbTenant = $cbPreview['tenant'] ?? tenant();
++  $cbSee = $cbPreview ? null : ($see ?? \App\Support\Dashboard\BlockAccess::for(auth('tenant')->user()));
++  $cbRes = $cbDef ? ($cbPreview['result'] ?? ($cbDef['kind'] === 'data' ? \App\Support\Dashboard\CustomBlocks::result($cbKey, $cbTenant) : ['kind' => $cbDef['kind']])) : null;
++  $cbUrl = function (?string $route, $params = []) use ($cbSee) {
++      if (! $route || ! \Illuminate\Support\Facades\Route::has($route)) return null;
++      if ($cbSee && ! $cbSee->canRoute($route)) return null;
++      try { return route($route, $params); } catch (\Throwable $e) { return null; }
++  };
++  $cbCfg = $cbDef['config'] ?? [];
++  $cbExpired = $cbDef && $cbDef['kind'] === 'note' && ! empty($cbCfg['until'])
++      && \Carbon\Carbon::parse($cbCfg['until'], $cbTenant?->timezone() ?? 'UTC')->endOfDay()->isPast();
++@endphp
++@once
++  @push('styles')
++    @include('tenant.dashboard.blocks._custom-style')
++  @endpush
++@endonce
++@if ($cbDef && $cbRes && ! $cbExpired)
++  @php $cbName = $dashBlock['title'] ?? $cbDef['name']; @endphp
++  <div class="cb">
++  @if ($cbDef['kind'] === 'note')
++    <div class="cb-note"><div class="t">{{ $cbName }}</div><div class="s">{{ $cbCfg['text'] }}</div></div>
++
++  @elseif ($cbDef['kind'] === 'action')
++    @php $cbAct = \App\Support\Dashboard\CustomBlocks::ACTIONS[$cbCfg['action']] ?? null; $cbHref = $cbAct ? ($cbPreview ? '#' : $cbUrl($cbAct['route'], $cbAct['params'])) : null; @endphp
++    @if ($cbHref)
++      <div class="cb-h"><h2>{{ $cbName }}</h2></div>
++      @if ($cbCfg['line'])<div class="cb-line">{{ $cbCfg['line'] }}</div>@endif
++      <div class="cb-acts"><a href="{{ $cbHref }}" class="ia-btn ia-btn--primary">{{ $cbAct['label'] }}</a></div>
++    @endif
++
++  @else
++    @php
++      $cbSrc = \App\Support\Dashboard\CustomBlocks::sources()[$cbCfg['source']];
++      $cbAll = $cbPreview ? null : $cbUrl($cbSrc['opens']);
++    @endphp
++    <div class="cb-h">
++      <h2>{{ $cbName }}</h2>
++      <span class="meta">
++        @if ($cbRes['measure'] === 'list')
++          {{ number_format($cbRes['total']) }} · {{ \App\Support\Dashboard\CustomBlocks::PERIODS[$cbCfg['period']] }}
++        @else
++          {{ \App\Support\Dashboard\CustomBlocks::meta($cbCfg) }}
++        @endif
++        @if ($cbAll) · <a href="{{ $cbAll }}">{{ $cbSrc['opens_label'] }} ›</a>@endif
++      </span>
++    </div>
++    @if ($cbCfg['line'])<div class="cb-line">{{ $cbCfg['line'] }}</div>@endif
++
++    @if ($cbRes['measure'] === 'list')
++      <div class="cb-rows">
++        @forelse ($cbRes['rows'] as [$t, $s, $r, $route, $id])
++          @php $href = $cbPreview ? null : $cbUrl($route, $id); @endphp
++          @if ($href)<a class="cb-row" href="{{ $href }}">@else<div class="cb-row">@endif
++            <span><div class="t">{{ $t }}</div><div class="s">{{ $s }}</div></span>
++            <span class="r">{{ $r }}</span>
++            <span class="arr">{{ $href ? '›' : '' }}</span>
++          @if ($href)</a>@else</div>@endif
++        @empty
++          <div class="cb-calm">Nothing here {{ strtolower(\App\Support\Dashboard\CustomBlocks::PERIODS[$cbCfg['period']]) }}.</div>
++        @endforelse
++      </div>
++    @else
++      <div class="cb-big">
++        <span class="v">{{ \App\Support\Dashboard\CustomBlocks::figure($cbRes, $cbTenant) }}</span>
++        @if ($cbCfg['measure'] === 'count')<span class="u">{{ \App\Support\Dashboard\CustomBlocks::unit($cbCfg, $cbRes['value']) }}</span>@endif
++        @if ($cbRes['pct'] !== null)
++          <span class="d {{ $cbRes['pct'] >= 0 ? 'up' : 'down' }}">{{ $cbRes['pct'] >= 0 ? '▲' : '▼' }} {{ abs($cbRes['pct']) }}%</span>
++        @elseif ($cbCfg['compare'] && $cbRes['prev'] !== null)
++          <span class="was">nothing to compare with yet</span>
++        @endif
++      </div>
++      @if ($cbCfg['display'] === 'trend' && ! empty($cbRes['series']))
++        {{-- stretched to the block's width: the line keeps its thickness, the end dot is dropped --}}
++        <div class="cb-spark">{!! preg_replace('/<circle[^>]*\/>/', '', str_replace(['<svg viewBox="0 0 110 28"', '<path '], ['<svg viewBox="0 0 110 28" preserveAspectRatio="none"', '<path vector-effect="non-scaling-stroke" '], \App\Support\Dashboard\BriefView::spark($cbRes['series']))) !!}</div>
++      @endif
++    @endif
++  @endif
++  </div>
++@endif

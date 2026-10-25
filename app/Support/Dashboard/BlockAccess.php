@@ -66,7 +66,7 @@ class BlockAccess
     /** Whether the block shows for this person at all. */
     public function seesBlock(string $key): bool
     {
-        $rule = BlockRegistry::builtIns()[$key]['access'] ?? [];
+        $rule = BlockRegistry::all()[$key]['access'] ?? [];
         if (! empty($rule['all'])) {
             foreach ($rule['all'] as $s) {
                 if (! $this->can($s)) return false;
@@ -86,7 +86,7 @@ class BlockAccess
     /** Block keys this person doesn't get. */
     public function blocked(): array
     {
-        return array_values(array_filter(array_keys(BlockRegistry::builtIns()), fn ($k) => ! $this->seesBlock($k)));
+        return array_values(array_filter(array_keys(BlockRegistry::all()), fn ($k) => ! $this->seesBlock($k)));
     }
 
     /**
@@ -116,7 +116,7 @@ class BlockAccess
     /** The areas a block's data comes from, as people read them: "Schedule or Reports". */
     public static function describe(string $key): ?string
     {
-        $rule = BlockRegistry::builtIns()[$key]['access'] ?? [];
+        $rule = BlockRegistry::all()[$key]['access'] ?? [];
         $labels = fn (array $keys) => array_map(fn ($s) => SectionRegistry::all()[$s]['label'] ?? $s, $keys);
         if (! empty($rule['all'])) return implode(' and ', $labels($rule['all']));
         if (! empty($rule['any'])) return implode(count($rule['any']) > 2 ? ', ' : ' or ', $labels($rule['any']));

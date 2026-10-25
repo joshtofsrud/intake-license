@@ -195,7 +195,7 @@ class DashboardEditor extends Page
     public function addBlock(string $key): void
     {
         if (! $this->guard()) return;
-        if (! isset(BlockRegistry::builtIns()[$key]) || in_array($key, Layout::blockKeys($this->rows), true)) return;
+        if (! isset(BlockRegistry::all()[$key]) || in_array($key, Layout::blockKeys($this->rows), true)) return;
         [$r, $c] = $this->target;
         if (! isset($this->rows[$r]['cols'][$c])) { $r = 0; $c = 0; }
         $this->rows[$r]['cols'][$c][] = ['b' => $key];
@@ -216,7 +216,7 @@ class DashboardEditor extends Page
         if (! $this->guard() || ! isset($this->rows[$r]['cols'][$c])) return;
         if (isset($from['add'])) {
             $key = (string) $from['add'];
-            if (! isset(BlockRegistry::builtIns()[$key]) || in_array($key, Layout::blockKeys($this->rows), true)) return;
+            if (! isset(BlockRegistry::all()[$key]) || in_array($key, Layout::blockKeys($this->rows), true)) return;
             $p = ['b' => $key];
         } else {
             [$fr, $fc, $fi] = [(int) ($from['r'] ?? -1), (int) ($from['c'] ?? -1), (int) ($from['i'] ?? -1)];
@@ -363,7 +363,7 @@ class DashboardEditor extends Page
         $hidden = DashboardBlock::whereNotNull('hidden_at')->pluck('key')->all();
         $on = Layout::blockKeys($screen);
 
-        $catalog = collect(BlockRegistry::builtIns())->map(fn ($d, $k) => [
+        $catalog = collect(BlockRegistry::all())->map(fn ($d, $k) => [
             'key' => $k, 'name' => $names[$k] ?? $d['name'], 'origin' => ucfirst($d['origin']),
             'desc' => $d['desc'], 'on' => in_array($k, $on, true), 'hidden' => in_array($k, $hidden, true),
         ])->groupBy('origin');
@@ -380,7 +380,7 @@ class DashboardEditor extends Page
             'catalog'    => $catalog,
             'names'      => $names,
             'hidden'     => $hidden,
-            'registry'   => BlockRegistry::builtIns(),
+            'registry'   => BlockRegistry::all(),
             'splits'     => Layout::SPLITS,
             'versions'   => $tpl->versions()->orderByDesc('version')->limit(12)->get(),
             'picked'     => (int) ($picks[$tpl->key] ?? 0),

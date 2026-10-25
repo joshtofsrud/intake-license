@@ -113,6 +113,8 @@ class AdminPanelProvider extends PanelProvider
                 // MARKER-DASH-DEFAULT: explicit registration; no route without this line.
                 \App\Filament\Pages\Dashboards::class,
                 \App\Filament\Pages\DashboardEditor::class, // MARKER-DASH-ADMIN
+                \App\Filament\Pages\DashboardBlocks::class, // MARKER-DASH-BUILDER
+                \App\Filament\Pages\DashboardBlockBuilder::class,
                 // list-first Catalog Titles page. This panel
                 // lists pages explicitly, so a new page class is invisible until
                 // it appears here, cache or no cache.

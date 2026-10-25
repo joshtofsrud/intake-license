@@ -180,9 +180,9 @@
         </div>
       @endif
       @if ($canEdit)
-        <div class="db-note" style="margin-bottom:4px">Drag a block into a column, or click <b>Add</b> to put it in the outlined column. Click a placed block for its settings.</div>
+        <div class="db-note" style="margin-bottom:4px">Drag a block into a column, or click <b>Add</b> to put it in the outlined column. Click a placed block for its settings. New blocks are made on the <a class="db-lnk" href="{{ \App\Filament\Pages\DashboardBlocks::getUrl() }}">Blocks</a> page.</div>
         @foreach ($catalog as $origin => $items)
-          <div class="de-g">From {{ $origin }}</div>
+          <div class="de-g">{{ $origin === 'Custom' ? 'Made here' : 'From ' . $origin }}</div>
           @foreach ($items as $b)
             <div class="de-lib {{ $b['on'] ? 'on' : '' }} {{ $b['hidden'] ? 'hid' : '' }}" title="{{ $b['desc'] }}"
                  @if (! $b['on']) draggable="true" x-on:dragstart="drag($event, { add: '{{ $b['key'] }}' })" @endif>
@@ -311,7 +311,7 @@
                     <span class="de-grip">⋮⋮</span>
                     <button type="button" class="pick" wire:click="selectBlock({{ $r }}, {{ $c }}, {{ $i }})" title="Settings for this block">
                       <span class="t">{{ $names[$p['b']] ?? $p['b'] }}</span>
-                      <span class="s" style="display:block">{{ $isHidden ? 'Hidden everywhere: no shop sees it' : 'From ' . ucfirst($def['origin'] ?? '') . ' · ' . ($def['reads'] ?? '') }}</span>
+                      <span class="s" style="display:block">{{ $isHidden ? 'Hidden everywhere: no shop sees it' : (($def['origin'] ?? '') === 'custom' ? 'Made here' : 'From ' . ucfirst($def['origin'] ?? '')) . ' · ' . ($def['reads'] ?? '') }}</span>
                       @if (! empty($p['lock']))<span class="who">Always shown</span>@endif
                     </button>
                     @if ($canEdit)

@@ -63,15 +63,24 @@ class BlockRegistry
         ];
     }
 
+    /**
+     * MARKER-DASH-BUILDER: every block a template can place — the built-ins
+     * above, then the ones made in master admin (CustomBlocks).
+     */
+    public static function all(): array
+    {
+        return self::builtIns() + CustomBlocks::definitions();
+    }
+
     public static function view(string $key): ?string
     {
-        return self::builtIns()[$key]['view'] ?? null;
+        return self::all()[$key]['view'] ?? null;
     }
 
     /** Every extra data set the blocks in these rows ask for. */
     public static function needs(array $rows): array
     {
-        $defs = self::builtIns();
+        $defs = self::all();
         $needs = [];
         foreach (Layout::blockKeys($rows) as $key) {
             foreach ($defs[$key]['needs'] ?? [] as $n) {
