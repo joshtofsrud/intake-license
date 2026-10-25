@@ -15,14 +15,24 @@ class Layout
     /** The column splits a row can have. Each adds up to 12. */
     public const SPLITS = [[12], [6, 6], [8, 4], [4, 8], [7, 5], [5, 7], [4, 4, 4]];
 
+    /** What each split is called in the editor. Shapes, not twelfths. */
     public const SPLIT_NAMES = [
-        '12' => 'Full width', '6-6' => 'Half and half', '8-4' => 'Wide and narrow', '4-8' => 'Narrow and wide',
-        '7-5' => '7 and 5', '5-7' => '5 and 7', '4-4-4' => 'Thirds',
+        '12' => 'Full width', '6-6' => 'Halves', '8-4' => '⅔ + ⅓', '4-8' => '⅓ + ⅔',
+        '7-5' => 'Wider left (58/42)', '5-7' => 'Wider right (42/58)', '4-4-4' => 'Thirds',
     ];
+
+    /** Who a block can be limited to: a person's role in their shop. */
+    public const ROLES = ['owner' => 'Owner', 'manager' => 'Manager', 'staff' => 'Staff'];
 
     public static function splitName(array $split): string
     {
-        return self::SPLIT_NAMES[implode('-', $split)] ?? implode(' · ', $split);
+        return self::SPLIT_NAMES[implode('-', $split)] ?? implode(' + ', array_map(fn ($n) => round($n / 12 * 100) . '%', $split));
+    }
+
+    /** A column's share of the row, as people read it: "58%". */
+    public static function colWidth(array $split, int $i): string
+    {
+        return round(($split[$i] ?? 12) / 12 * 100) . '%';
     }
 
     /**
@@ -49,11 +59,68 @@ class Layout
                         continue;
                     }
                     $seen[$key] = true;
-                    $col[] = ['b' => $key];
+                    $col[] = self::placement($p);
                 }
                 $cols[] = $col;
             }
             $out[] = ['split' => $split, 'cols' => $cols];
+        }
+
+        return $out;
+    }
+
+    /**
+     * One placed block, cleaned: its key, who sees it (left out = everyone),
+     * and whether people can hide it (left out = they can).
+     */
+    public static function placement(array $p): array
+    {
+        $out = ['b' => (string) $p['b']];
+        $roles = array_values(array_intersect(array_keys(self::ROLES), array_map('strval', (array) ($p['roles'] ?? []))));
+        if ($roles && count($roles) < count(self::ROLES)) {
+            $out['roles'] = $roles;
+        }
+        if (! empty($p['lock'])) {
+            $out['lock'] = true;
+        }
+
+        return $out;
+    }
+
+    /**
+     * The layout one person sees: blocks their role doesn't get are left
+     * out, then their own choices are applied — hidden blocks dropped, and
+     * (when the template allows reordering) each column in their order.
+     * Locked blocks can't be hidden. Columns keep their width even when empty.
+     *
+     * @param array $prefs  ['hidden' => [keys], 'order' => ['r-c' => [keys]]]
+     * @param string $rearrange  none | hide | both
+     */
+    public static function personal(array $rows, ?string $role, array $prefs, string $rearrange): array
+    {
+        $hidden = $rearrange !== 'none' ? array_map('strval', (array) ($prefs['hidden'] ?? [])) : [];
+        $order  = $rearrange === 'both' ? (array) ($prefs['order'] ?? []) : [];
+        $out = [];
+        foreach ($rows as $r => $row) {
+            $cols = [];
+            $any = false;
+            foreach ($row['cols'] as $c => $col) {
+                $col = array_values(array_filter($col, function ($p) use ($role, $hidden) {
+                    if (isset($p['roles']) && ! in_array((string) $role, $p['roles'], true)) return false;
+                    if (empty($p['lock']) && in_array($p['b'], $hidden, true)) return false;
+                    return true;
+                }));
+                $mine = array_values(array_map('strval', (array) ($order[$r . '-' . $c] ?? [])));
+                if ($mine) {
+                    usort($col, function ($a, $b) use ($mine) {
+                        $ia = array_search($a['b'], $mine, true); $ib = array_search($b['b'], $mine, true);
+                        return ($ia === false ? PHP_INT_MAX : $ia) <=> ($ib === false ? PHP_INT_MAX : $ib);
+                    });
+                }
+                $any = $any || $col;
+                $cols[] = $col;
+            }
+            if ($any) $out[] = ['split' => $row['split'], 'cols' => $cols];
         }
 
         return $out;
@@ -89,6 +156,12 @@ class Layout
             if ($l['r'] !== $d['r'] || $l['c'] !== $d['c'] || array_search($k, $ordL, true) !== array_search($k, $ordD, true)) {
                 $out[] = ['moved', 'Moved ' . $name($k)];
             }
+            if (($l['p']['roles'] ?? null) !== ($d['p']['roles'] ?? null)) {
+                $out[] = ['moved', 'Changed who sees ' . $name($k)];
+            }
+            if (! empty($l['p']['lock']) !== ! empty($d['p']['lock'])) {
+                $out[] = ['moved', $name($k) . (! empty($d['p']['lock']) ? ' can no longer be hidden' : ' can be hidden')];
+            }
         }
         $ls = array_map(fn ($r) => implode('-', $r['split'] ?? [12]), $live);
         $ds = array_map(fn ($r) => implode('-', $r['split'] ?? [12]), $draft);
@@ -106,8 +179,10 @@ class Layout
         foreach (array_values($rows) as $r => $row) {
             foreach (array_values((array) ($row['cols'] ?? [])) as $c => $col) {
                 $keys = array_values(array_filter(array_map(fn ($p) => is_array($p) ? ($p['b'] ?? null) : null, (array) $col)));
-                foreach ($keys as $k) {
-                    $m[$k] = ['r' => $r, 'c' => $c, 'col' => $keys];
+                foreach ((array) $col as $p) {
+                    if (is_array($p) && isset($p['b'])) {
+                        $m[$p['b']] = ['r' => $r, 'c' => $c, 'col' => $keys, 'p' => self::placement($p)];
+                    }
                 }
             }
         }
@@ -153,7 +228,7 @@ class Layout
                     if (! is_string($key) || ! isset($known[$key]) || in_array($key, $hiddenKeys, true)) {
                         continue;
                     }
-                    $col[] = $p;
+                    $col[] = self::placement($p);
                     $any = true;
                 }
                 $cols[] = $col;

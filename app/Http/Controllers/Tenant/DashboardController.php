@@ -5,7 +5,9 @@ namespace App\Http\Controllers\Tenant;
 use App\Http\Controllers\Controller;
 use App\Services\Tenant\DashboardDataService;
 use App\Support\Dashboard\BlockRegistry;
+use App\Support\Dashboard\CustomizePanel;
 use App\Support\Dashboard\DashboardTemplates;
+use App\Support\Dashboard\Layout;
 use Illuminate\Http\Request;
 
 class DashboardController extends Controller
@@ -65,8 +67,15 @@ class DashboardController extends Controller
         // dashboard_view (the template key); the default covers no pick, or
         // a pick that's no longer offered.
         $user = \Illuminate\Support\Facades\Auth::guard('tenant')->user();
-        $template = DashboardTemplates::activeFor($user->dashboard_view ?? null);
-        $rows = $template['rows'];
+        $template = DashboardTemplates::activeFor($user->dashboard_view ?? null, $tenant);
+
+        // MARKER-DASH-AUDIENCE: blocks this person's role doesn't get are left
+        // out, then their own hides and order are applied, as far as the
+        // template (and the platform-wide switch) allow.
+        $rearrange = DashboardTemplates::rearrangeFor($template);
+        $prefs = (array) (($user->dashboard_prefs ?? [])[$template['key']] ?? []);
+        $roleRows = Layout::personal($template['rows'], $user->role, [], 'none');
+        $rows = Layout::personal($template['rows'], $user->role, $prefs, $rearrange);
 
         // Only load what this template's blocks draw.
         $needs = BlockRegistry::needs($rows);
@@ -81,8 +90,9 @@ class DashboardController extends Controller
         }
 
         $data['activeTemplate']  = $template;
-        $data['switchTemplates'] = DashboardTemplates::switchable();
+        $data['switchTemplates'] = DashboardTemplates::switchable($tenant);
         $data['dashRows']        = $rows;
+        $data['customize']       = CustomizePanel::for($template, $roleRows, $prefs, $rearrange);
 
         return view(DashboardTemplates::frameView($template), $data);
     }
@@ -90,11 +100,45 @@ class DashboardController extends Controller
     /** switch to another dashboard template. */
     public function setView(\Illuminate\Http\Request $request)
     {
-        $data = $request->validate(['view' => ['required', 'string', \Illuminate\Validation\Rule::in(DashboardTemplates::keys())]]);
+        $data = $request->validate(['view' => ['required', 'string', \Illuminate\Validation\Rule::in(DashboardTemplates::keys(tenant()))]]);
         \Illuminate\Support\Facades\Auth::guard('tenant')->user()
             ->update(['dashboard_view' => $data['view']]);
 
         return redirect()->route('tenant.dashboard');
+    }
+
+    /**
+     * MARKER-DASH-AUDIENCE: save what one person hid or reordered on one
+     * template. Only blocks the template has, and only what the template
+     * lets people change; a reset clears their choices for that template.
+     */
+    public function saveCustomize(Request $request)
+    {
+        $user = \Illuminate\Support\Facades\Auth::guard('tenant')->user();
+        $data = $request->validate([
+            'template'  => ['required', 'string', \Illuminate\Validation\Rule::in(DashboardTemplates::keys(tenant()))],
+            'reset'     => 'nullable|boolean',
+            'hidden'    => 'nullable|array|max:60',
+            'hidden.*'  => 'string|max:40',
+            'order'     => 'nullable|array|max:60',
+            'order.*'   => 'array|max:60',
+            'order.*.*' => 'string|max:40',
+        ]);
+
+        $template = DashboardTemplates::activeFor($data['template'], tenant());
+        $all = (array) ($user->dashboard_prefs ?? []);
+        if (! empty($data['reset'])) {
+            unset($all[$template['key']]);
+        } else {
+            $clean = CustomizePanel::clean($template, $user->role, $data, DashboardTemplates::rearrangeFor($template));
+            if ($clean === null) {
+                return response()->json(['ok' => false, 'error' => 'Changing this dashboard is turned off.'], 403);
+            }
+            $all[$template['key']] = $clean;
+        }
+        $user->update(['dashboard_prefs' => $all ?: null]);
+
+        return response()->json(['ok' => true]);
     }
 
     /** save one user's tile arrangement. */

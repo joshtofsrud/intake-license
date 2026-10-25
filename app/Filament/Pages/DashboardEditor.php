@@ -6,6 +6,8 @@ use App\Models\DashboardBlock;
 use App\Models\DashboardTemplate;
 use App\Models\DashboardTemplateVersion;
 use App\Support\AdminAccess;
+use App\Models\Tenant;
+use App\Support\Dashboard\Audience;
 use App\Support\Dashboard\BlockRegistry;
 use App\Support\Dashboard\Layout;
 use App\Support\Dashboard\TemplateStore;
@@ -41,6 +43,19 @@ class DashboardEditor extends Page
     public string $label = '';
     public bool $beta = false;
     public string $note = '';
+    public string $rearrange = 'none';
+
+    /** The placed block whose settings are open: [row, column, index], or empty. */
+    public array $sel = [];
+
+    // who gets it (saved on its own, straight away)
+    public string $audMode = 'all';
+    public string $audPlan = '';
+    public array $audIndustries = [];
+    public array $audAddons = [];
+    public array $audInclude = [];
+    public array $audExclude = [];
+    public string $shopFind = '';
 
     public function mount(): void
     {
@@ -58,6 +73,14 @@ class DashboardEditor extends Page
         $this->name = $tpl->name;
         $this->label = (string) ($tpl->switch_label ?: $tpl->name);
         $this->beta = (bool) $tpl->beta_badge;
+        $this->rearrange = in_array($tpl->rearrange, ['none', 'hide', 'both'], true) ? $tpl->rearrange : 'none';
+        $a = Audience::normalize($tpl->audience);
+        $this->audMode = $a['mode'];
+        $this->audPlan = (string) $a['plan'];
+        $this->audIndustries = $a['industries'];
+        $this->audAddons = $a['addons'];
+        $this->audInclude = $a['include'];
+        $this->audExclude = $a['exclude'];
         $this->target = [max(0, count($this->rows) - 1), 0];
     }
 
@@ -98,6 +121,40 @@ class DashboardEditor extends Page
         $r = min($this->target[0] ?? 0, max(0, count($this->rows) - 1));
         $c = min($this->target[1] ?? 0, max(0, count($this->rows[$r]['split'] ?? [12]) - 1));
         $this->target = [$r, $c];
+        if ($this->sel && ! isset($this->rows[$this->sel[0]]['cols'][$this->sel[1]][$this->sel[2]])) {
+            $this->sel = [];
+        }
+    }
+
+    // ---- one block's settings (part of the layout: saved with the draft) --
+
+    public function selectBlock(int $r, int $c, int $i): void
+    {
+        $this->sel = isset($this->rows[$r]['cols'][$c][$i]) && $this->sel !== [$r, $c, $i] ? [$r, $c, $i] : [];
+    }
+
+    public function toggleRole(string $role): void
+    {
+        if (! $this->guard() || ! $this->sel || ! isset(Layout::ROLES[$role])) return;
+        [$r, $c, $i] = $this->sel;
+        $p = &$this->rows[$r]['cols'][$c][$i];
+        $roles = $p['roles'] ?? array_keys(Layout::ROLES);
+        $roles = in_array($role, $roles, true) ? array_values(array_diff($roles, [$role])) : array_merge($roles, [$role]);
+        if (! $roles) {
+            Notification::make()->title('At least one role has to see it.')->body('Remove the block instead if nobody should.')->warning()->send();
+            return;
+        }
+        $p['roles'] = $roles;
+        unset($p);
+        $this->settle();
+    }
+
+    public function toggleLock(): void
+    {
+        if (! $this->guard() || ! $this->sel) return;
+        [$r, $c, $i] = $this->sel;
+        $this->rows[$r]['cols'][$c][$i]['lock'] = empty($this->rows[$r]['cols'][$c][$i]['lock']);
+        $this->settle();
     }
 
     public function addRow(int $splitIndex): void
@@ -111,6 +168,7 @@ class DashboardEditor extends Page
 
     public function removeRow(int $r): void
     {
+        $this->sel = [];
         if (! $this->guard() || ! isset($this->rows[$r])) return;
         array_splice($this->rows, $r, 1);
         if (! $this->rows) $this->rows = [['split' => [12], 'cols' => [[]]]];
@@ -119,6 +177,7 @@ class DashboardEditor extends Page
 
     public function moveRow(int $r, int $dir): void
     {
+        $this->sel = [];
         if (! $this->guard()) return;
         $n = $r + $dir;
         if (! isset($this->rows[$r], $this->rows[$n])) return;
@@ -130,6 +189,7 @@ class DashboardEditor extends Page
     /** Fewer columns: blocks from the dropped columns move into the last one. Nothing is removed. */
     public function setSplit(int $r, int $splitIndex): void
     {
+        $this->sel = [];
         if (! $this->guard() || ! isset($this->rows[$r])) return;
         $split = Layout::SPLITS[$splitIndex] ?? [12];
         $old = $this->rows[$r]['cols'];
@@ -160,6 +220,7 @@ class DashboardEditor extends Page
 
     public function removeBlock(int $r, int $c, int $i): void
     {
+        $this->sel = [];
         if (! $this->guard() || ! isset($this->rows[$r]['cols'][$c][$i])) return;
         array_splice($this->rows[$r]['cols'][$c], $i, 1);
         $this->settle();
@@ -183,6 +244,7 @@ class DashboardEditor extends Page
         $at = max(0, min($at, count($this->rows[$r]['cols'][$c])));
         array_splice($this->rows[$r]['cols'][$c], $at, 0, [$p]);
         $this->target = [$r, $c];
+        $this->sel = [$r, $c, $at];
         $this->settle();
     }
 
@@ -261,12 +323,51 @@ class DashboardEditor extends Page
     {
         if (! $this->guard()) return;
         try {
-            TemplateStore::saveSettings($this->t, $this->name, $this->label, $this->beta);
+            TemplateStore::saveSettings($this->t, $this->name, $this->label, $this->beta, $this->rearrange);
         } catch (\Throwable $e) {
             $this->fail($e);
             return;
         }
         Notification::make()->title('Settings saved')->body('The switch shows the new label on the next page load.')->success()->send();
+    }
+
+    // ---- who gets it ------------------------------------------------------
+
+    private function audience(): array
+    {
+        return Audience::normalize([
+            'mode' => $this->audMode, 'plan' => $this->audPlan ?: null, 'industries' => $this->audIndustries,
+            'addons' => $this->audAddons, 'include' => $this->audInclude, 'exclude' => $this->audExclude,
+        ]);
+    }
+
+    public function addShop(string $list, string $id): void
+    {
+        if (! in_array($list, ['audInclude', 'audExclude'], true) || ! Tenant::whereKey($id)->exists()) return;
+        $this->{$list} = array_values(array_unique(array_merge($this->{$list}, [$id])));
+        $other = $list === 'audInclude' ? 'audExclude' : 'audInclude';
+        $this->{$other} = array_values(array_diff($this->{$other}, [$id]));
+        $this->shopFind = '';
+    }
+
+    public function removeShop(string $list, string $id): void
+    {
+        if (! in_array($list, ['audInclude', 'audExclude'], true)) return;
+        $this->{$list} = array_values(array_diff($this->{$list}, [$id]));
+    }
+
+    public function saveAudience(): void
+    {
+        if (! $this->guard()) return;
+        try {
+            $tpl = TemplateStore::saveAudience($this->t, $this->audience());
+        } catch (\Throwable $e) {
+            $this->fail($e);
+            return;
+        }
+        Notification::make()->title('Saved: ' . Audience::describe($tpl->audience))
+            ->body($tpl->state === 'live' ? 'Shops that no longer get it fall back to the default on their next load.' : 'It takes effect when you publish.')
+            ->success()->send();
     }
 
     protected function getViewData(): array
@@ -299,6 +400,19 @@ class DashboardEditor extends Page
             'splits'     => Layout::SPLITS,
             'versions'   => $tpl->versions()->orderByDesc('version')->limit(12)->get(),
             'picked'     => (int) ($picks[$tpl->key] ?? 0),
+            'selBlock'   => $this->sel ? ($screen[$this->sel[0]]['cols'][$this->sel[1]][$this->sel[2]] ?? null) : null,
+            'roles'      => Layout::ROLES,
+            'customizeOn' => \App\Support\Dashboard\DashboardTemplates::customizeEnabled(),
+            'aud'        => $this->audience(),
+            'audSaved'   => Audience::normalize($tpl->audience),
+            'audCount'   => Audience::countMatching($this->audience()),
+            'plans'      => Audience::PLANS,
+            'industries' => collect((array) config('industry_packs', []))->map(fn ($v) => $v['label'] ?? '')->all(),
+            'addons'     => \Illuminate\Support\Facades\DB::table('addons')->whereIn('status', ['active', 'deprecated'])->orderBy('sort_order')->pluck('name', 'code')->all(),
+            'shopNames'  => Tenant::whereIn('id', array_merge($this->audInclude, $this->audExclude))->pluck('name', 'id')->all(),
+            'shopHits'   => strlen(trim($this->shopFind)) >= 2
+                ? Tenant::where('name', 'like', '%' . str_replace(['%', '_'], ['\\%', '\\_'], trim($this->shopFind)) . '%')->orderBy('name')->limit(8)->pluck('name', 'id')->all()
+                : [],
         ];
     }
 }

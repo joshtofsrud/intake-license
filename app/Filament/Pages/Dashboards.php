@@ -35,6 +35,8 @@ class Dashboards extends Page
     public string $default = '';
 
     public string $newName = '';
+    public string $checkFind = '';
+    public ?string $checkId = null;
     public string $newFrom = '';
 
     public function mount(): void
@@ -128,6 +130,21 @@ class Dashboards extends Page
             ->body('It has left every dashboard switch. Anyone who had it now sees the default.')->success()->send();
     }
 
+    public function setCustomize(bool $on): void
+    {
+        if (! $this->guard()) return;
+        TemplateStore::setCustomizeEnabled($on);
+        Notification::make()->title($on ? 'Customizing is on' : 'Customizing is off for every shop')
+            ->body($on ? "Each template's own setting applies again." : 'Customize disappears on their next load. What people chose is kept for when it comes back.')
+            ->success()->send();
+    }
+
+    public function pickShop(string $id): void
+    {
+        $this->checkId = $id;
+        $this->checkFind = '';
+    }
+
     public function restore(string $key): void
     {
         if (! $this->guard()) return;
@@ -138,6 +155,37 @@ class Dashboards extends Page
             return;
         }
         Notification::make()->title($t->name . ' restored as a draft')->body('Publish it to offer it to shops again.')->success()->send();
+    }
+
+    /** What one shop gets, and why — for "Check a shop". */
+    private function checkResult($all): ?array
+    {
+        $tenant = $this->checkId ? \App\Models\Tenant::find($this->checkId) : null;
+        if (! $tenant) return null;
+        $lines = [];
+        $offered = [];
+        foreach ($all as $t) {
+            if ($t->state !== 'live') {
+                $lines[] = [$t->name, false, $t->state === 'retired' ? 'retired' : 'not published yet'];
+                continue;
+            }
+            [$ok, $why] = $t->is_default ? [true, 'the default goes to every shop'] : \App\Support\Dashboard\Audience::check($t->audience, $tenant);
+            $lines[] = [$t->name, $ok, $why];
+            if ($ok) $offered[$t->key] = $t->name;
+        }
+
+        return [
+            'name'  => $tenant->name,
+            'facts' => collect([
+                \App\Support\Dashboard\Audience::PLANS[$tenant->plan_tier ?? 'starter'] ?? $tenant->plan_tier,
+                config('industry_packs.' . $tenant->industry_pack . '.label'),
+            ])->filter()->implode(' · '),
+            'lines' => $lines,
+            'people' => \App\Models\Tenant\TenantUser::where('tenant_id', $tenant->id)->where('is_active', true)->get(['name', 'role', 'dashboard_view']),
+            'default' => $all->firstWhere('is_default', true)?->name,
+            'offered' => $offered,
+            'names'   => $all->pluck('name', 'key')->all(),
+        ];
     }
 
     protected function getViewData(): array
@@ -164,6 +212,8 @@ class Dashboards extends Page
                 'pending'  => $t->liveVersion && is_array($t->draft_layout) ? count(TemplateStore::changes($t, $working)) : 0,
                 'picked'   => (int) ($picks[$t->key] ?? 0),
                 'retired'  => $t->retired_at,
+                'audience' => \App\Support\Dashboard\Audience::describe($t->audience),
+                'rearrange'=> $t->rearrange,
             ];
         });
 
@@ -174,6 +224,11 @@ class Dashboards extends Page
             'following'      => (clone $following)->count(),
             'followingShops' => (clone $following)->distinct()->count('tenant_id'),
             'canManage'      => $this->canManage(),
+            'customizeOn'    => \App\Support\Dashboard\DashboardTemplates::customizeEnabled(),
+            'checkHits'      => strlen(trim($this->checkFind)) >= 2
+                ? \App\Models\Tenant::where('name', 'like', '%' . str_replace(['%', '_'], ['\\%', '\\_'], trim($this->checkFind)) . '%')->orderBy('name')->limit(8)->pluck('name', 'id')->all()
+                : [],
+            'check'          => $this->checkResult($all),
         ];
     }
 }

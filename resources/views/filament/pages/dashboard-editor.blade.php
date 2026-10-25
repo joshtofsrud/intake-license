@@ -28,6 +28,23 @@
   .de-blk .t { font-size:13px; font-weight:600; color:var(--db-txt); }
   .de-blk .s { font-size:11.5px; color:var(--sx-faint); }
   .de-blk.hid { border-style:dashed; opacity:.6; }
+  .de-blk.sel { border-color:var(--sx-violet); box-shadow:0 0 0 1px var(--sx-violet); }
+  .de-blk .who { display:inline-block; margin-top:3px; font-size:11px; color:var(--db-vtext); }
+  .de-blk .pick { background:none; border:0; padding:0; text-align:left; color:inherit; font:inherit; cursor:pointer; }
+  .de-set { border:1px solid var(--sx-violet); border-radius:10px; padding:10px 12px; margin:6px 0 4px; }
+  .de-set h4 { font-size:13.5px; font-weight:700; color:var(--db-txt); margin:0 0 8px; display:flex; }
+  .de-set h4 button { margin-left:auto; }
+  .de-chk { display:flex; gap:8px; align-items:center; font-size:13px; padding:3px 0; cursor:pointer; }
+  .de-chk input, .de-opt input { accent-color:#8b5cf6 !important; color:#8b5cf6 !important; }
+  .de-opt { display:flex; gap:8px; align-items:flex-start; font-size:13px; padding:5px 0; cursor:pointer; }
+  .de-opt input { margin-top:3px; }
+  .de-opt small { display:block; font-size:11.5px; color:var(--sx-faint); }
+  .de-chips { display:flex; flex-wrap:wrap; gap:6px; margin:6px 0; }
+  .de-chip { display:inline-flex; align-items:center; gap:4px; border:1px solid var(--sx-line-2); border-radius:99px; padding:2px 4px 2px 9px; font-size:12px; }
+  .de-chip button { background:none; border:0; color:var(--sx-faint); cursor:pointer; font-size:13px; padding:0 3px; }
+  .de-hits { border:1px solid var(--sx-line-2); border-radius:7px; margin-top:4px; }
+  .de-hits button { display:block; width:100%; text-align:left; background:none; border:0; border-bottom:1px solid var(--sx-line); padding:6px 8px; font:inherit; font-size:12.5px; color:inherit; cursor:pointer; }
+  .de-hits button:hover { background:var(--sx-vsoft); }
   .de-ctl { display:flex; gap:2px; }
   .de-ctl button { background:none; border:0; color:var(--sx-faint); cursor:pointer; font-size:13px; padding:2px 5px; border-radius:4px; }
   .de-ctl button:hover { color:var(--db-txt); background:var(--db-hover); }
@@ -97,7 +114,7 @@
             @if ($tpl->state === 'live')
               Everyone on {{ $tpl->name }} sees this on their next page load.
             @else
-              It joins every shop's dashboard switch. Nobody's screen changes until they pick it.
+              It joins the dashboard switch of the shops that get it (see Who gets it). Nobody's screen changes until they pick it.
             @endif
           </x-slot>
           <div class="sx-root">
@@ -139,8 +156,26 @@
 
   <div class="de-grid">
     <aside class="de-panel">
+      @if ($canEdit && $selBlock)
+        @php $selRoles = $selBlock['roles'] ?? array_keys($roles); $hideOff = $rearrange === 'none' || ! $customizeOn; @endphp
+        <div class="de-set">
+          <h4>{{ $names[$selBlock['b']] ?? $selBlock['b'] }}<button type="button" class="db-lnk dim" style="font-size:12px" wire:click="selectBlock({{ $sel[0] }}, {{ $sel[1] }}, {{ $sel[2] }})">Close</button></h4>
+          <div class="db-note" style="margin-bottom:4px">Who sees it</div>
+          @foreach ($roles as $rk => $rl)
+            <label class="de-chk"><input type="checkbox" @checked(in_array($rk, $selRoles, true)) wire:click="toggleRole('{{ $rk }}')"> {{ $rl }}s</label>
+          @endforeach
+          <div class="db-note" style="margin:4px 0 10px">A person's role in their shop. Anyone else gets the space closed up, not a gap.</div>
+          <label class="de-chk" @if ($hideOff) style="opacity:.5" @endif><input type="checkbox" @checked(empty($selBlock['lock'])) wire:click="toggleLock" @disabled($hideOff)> People can hide it</label>
+          <div class="db-note" style="margin-top:4px">
+            @if (! $customizeOn) Customizing is turned off for every shop on the Dashboards page.
+            @elseif ($rearrange === 'none') This template doesn't let people change anything (see Template settings).
+            @else Untick to keep it on everyone's dashboard. @endif
+            Saved with the draft; shops get it when you publish.
+          </div>
+        </div>
+      @endif
       @if ($canEdit)
-        <div class="db-note" style="margin-bottom:4px">Drag a block into a column, or click <b>Add</b> to put it in the outlined column.</div>
+        <div class="db-note" style="margin-bottom:4px">Drag a block into a column, or click <b>Add</b> to put it in the outlined column. Click a placed block for its settings.</div>
         @foreach ($catalog as $origin => $items)
           <div class="de-g">From {{ $origin }}</div>
           @foreach ($items as $b)
@@ -156,9 +191,64 @@
         <div class="de-g" style="padding-top:22px">Template settings</div>
         <div class="de-f"><label>Name</label><input type="text" class="db-in" maxlength="80" wire:model="name"></div>
         <div class="de-f"><label>Name in the dashboard switch</label><input type="text" class="db-in" maxlength="40" wire:model="label"></div>
-        <label class="db-note" style="display:flex;gap:8px;align-items:center;margin-bottom:10px"><input type="checkbox" wire:model="beta" style="accent-color:#8b5cf6"> Show a BETA label in the switch</label>
+        <label class="db-note" style="display:flex;gap:8px;align-items:center;margin-bottom:10px"><input type="checkbox" wire:model="beta" style="accent-color:#8b5cf6;color:#8b5cf6"> Show a BETA label in the switch</label>
+        <div class="db-note" style="margin:6px 0 2px">What people can change on it</div>
+        @foreach (['none' => ['Nothing', 'Everyone sees it exactly as you built it.'], 'hide' => ['Hide blocks', 'Each person can hide blocks you allow, from a Customize button.'], 'both' => ['Hide and reorder', 'Each person can also change the order within a column.']] as $rv => [$rl, $rd])
+          <label class="de-opt"><input type="radio" value="{{ $rv }}" wire:model="rearrange"><span>{{ $rl }}<small>{{ $rd }}</small></span></label>
+        @endforeach
+        @unless ($customizeOn)<div class="db-note db-warn" style="margin-bottom:6px">Customizing is off for every shop right now, so nobody sees Customize. This setting is kept for when it's back on.</div>@endunless
         <button type="button" class="db-btn sm" wire:click="saveSettings">Save settings</button>
         <div class="db-note" style="margin-top:6px">These apply straight away, without publishing.</div>
+      @endif
+
+      <div class="de-g" style="padding-top:22px">Who gets it</div>
+      @if ($tpl->is_default)
+        <div class="db-note">This is the default, so every shop gets it. Choose another default on the Dashboards page to limit it.</div>
+      @else
+        <div class="db-note" style="margin-bottom:4px">{{ $tpl->state === 'live' ? 'Applies straight away.' : 'Takes effect when you publish.' }} A shop that stops getting it falls back to the default. Each person's own pick and choices are kept in case it comes back.</div>
+        @foreach (['all' => ['Every shop', ''], 'match' => ['Shops that match', 'By plan, type of business or add-on'], 'chosen' => ['Only shops I choose', 'A beta: name the shops']] as $mv => [$ml, $md])
+          <label class="de-opt"><input type="radio" value="{{ $mv }}" wire:model.live="audMode" @disabled(! $canEdit)><span>{{ $ml }}@if ($md)<small>{{ $md }}</small>@endif</span></label>
+        @endforeach
+        @if ($audMode === 'match')
+          <div class="de-f" style="margin-top:6px"><label>Plan</label>
+            <select class="db-in" wire:model.live="audPlan" @disabled(! $canEdit)>
+              <option value="">Any plan</option>
+              @foreach ($plans as $pk => $pl)<option value="{{ $pk }}">{{ $pl }} and up</option>@endforeach
+            </select></div>
+          <div class="db-note">Type of business <span style="opacity:.8">(none ticked = any)</span></div>
+          @foreach ($industries as $ik => $il)
+            <label class="de-chk"><input type="checkbox" value="{{ $ik }}" wire:model.live="audIndustries" @disabled(! $canEdit)> {{ $il }}</label>
+          @endforeach
+          <div class="db-note" style="margin-top:8px">Has every one of these add-ons</div>
+          @foreach ($addons as $ak => $al)
+            <label class="de-chk"><input type="checkbox" value="{{ $ak }}" wire:model.live="audAddons" @disabled(! $canEdit)> {{ $al }}</label>
+          @endforeach
+        @endif
+        @foreach (($audMode === 'all' ? ['audExclude' => 'Never offer it to'] : ['audInclude' => $audMode === 'chosen' ? 'The shops' : 'Also offer it to', 'audExclude' => 'Never offer it to']) as $list => $title)
+          <div class="db-note" style="margin-top:10px">{{ $title }}</div>
+          <div class="de-chips">
+            @forelse ($this->{$list} as $sid)
+              <span class="de-chip">{{ $shopNames[$sid] ?? 'Removed shop' }}@if ($canEdit)<button type="button" wire:click="removeShop('{{ $list }}', '{{ $sid }}')" aria-label="Remove">×</button>@endif</span>
+            @empty
+              <span class="db-note">None</span>
+            @endforelse
+          </div>
+        @endforeach
+        @if ($canEdit)
+          <input type="text" class="db-in" placeholder="Find a shop to add" wire:model.live.debounce.300ms="shopFind">
+          @if ($shopHits)
+            <div class="de-hits">
+              @foreach ($shopHits as $sid => $sname)
+                <button type="button" wire:click="addShop('{{ $audMode === 'all' ? 'audExclude' : 'audInclude' }}', '{{ $sid }}')">{{ $sname }} <span class="db-note">· {{ $audMode === 'all' ? 'never offer' : 'add' }}</span></button>
+                @if ($audMode !== 'all')<button type="button" wire:click="addShop('audExclude', '{{ $sid }}')" style="padding-left:20px"><span class="db-note">or never offer it to {{ $sname }}</span></button>@endif
+              @endforeach
+            </div>
+          @endif
+          <div class="db-bar" style="padding:10px 0 0">
+            <button type="button" class="db-btn sm p" wire:click="saveAudience" @disabled($aud === $audSaved)>Save who gets it</button>
+            <span class="note">{{ \App\Support\Dashboard\Audience::describe($aud) }} · <b>{{ number_format($audCount) }}</b> {{ \Illuminate\Support\Str::plural('shop', $audCount) }}</span>
+          </div>
+        @endif
       @endif
 
       <div class="de-g" style="padding-top:22px">Versions</div>
@@ -209,15 +299,19 @@
                      x-on:dragleave="if (! $el.contains($event.relatedTarget)) over = null"
                      x-on:drop.prevent="drop($event, {{ $r }}, {{ $c }})"
                    @endif>
-                @if (count($row['split']) > 1)<div class="colh">Column {{ $c + 1 }} · {{ $span }}/12</div>@endif
+                @if (count($row['split']) > 1)<div class="colh">Column {{ $c + 1 }} · {{ \App\Support\Dashboard\Layout::colWidth($row['split'], $c) }}</div>@endif
                 @forelse ($col as $i => $p)
                   @php $def = $registry[$p['b']] ?? null; $isHidden = in_array($p['b'], $hidden, true); @endphp
-                  <div class="de-blk {{ $isHidden ? 'hid' : '' }}" @if ($canEdit) draggable="true" x-on:dragstart="drag($event, { r: {{ $r }}, c: {{ $c }}, i: {{ $i }} })" @endif>
+                  @php
+                    $whoText = isset($p['roles']) ? collect($p['roles'])->map(fn ($k) => $roles[$k] . 's')->implode(' and ') . ' only' : null;
+                  @endphp
+                  <div class="de-blk {{ $isHidden ? 'hid' : '' }} {{ $sel === [$r, $c, $i] ? 'sel' : '' }}" @if ($canEdit) draggable="true" x-on:dragstart="drag($event, { r: {{ $r }}, c: {{ $c }}, i: {{ $i }} })" @endif>
                     <span class="de-grip">⋮⋮</span>
-                    <span>
+                    <button type="button" class="pick" wire:click="selectBlock({{ $r }}, {{ $c }}, {{ $i }})" title="Settings for this block">
                       <span class="t">{{ $names[$p['b']] ?? $p['b'] }}</span>
                       <span class="s" style="display:block">{{ $isHidden ? 'Hidden everywhere: no shop sees it' : 'From ' . ucfirst($def['origin'] ?? '') . ' · ' . ($def['reads'] ?? '') }}</span>
-                    </span>
+                      @if ($whoText || ! empty($p['lock']))<span class="who">{{ collect([$whoText, ! empty($p['lock']) ? 'Always shown' : null])->filter()->implode(' · ') }}</span>@endif
+                    </button>
                     @if ($canEdit)
                       <span class="de-ctl">
                         <button type="button" title="Move up" wire:click="nudge({{ $r }}, {{ $c }}, {{ $i }}, -1)" @disabled($i === 0)>↑</button>

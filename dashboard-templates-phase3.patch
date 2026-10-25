@@ -1,0 +1,1518 @@
+diff --git a/app/Filament/Pages/DashboardEditor.php b/app/Filament/Pages/DashboardEditor.php
+index a4ae899f..2fbde6b3 100644
+--- a/app/Filament/Pages/DashboardEditor.php
++++ b/app/Filament/Pages/DashboardEditor.php
+@@ -6,6 +6,8 @@ use App\Models\DashboardBlock;
+ use App\Models\DashboardTemplate;
+ use App\Models\DashboardTemplateVersion;
+ use App\Support\AdminAccess;
++use App\Models\Tenant;
++use App\Support\Dashboard\Audience;
+ use App\Support\Dashboard\BlockRegistry;
+ use App\Support\Dashboard\Layout;
+ use App\Support\Dashboard\TemplateStore;
+@@ -41,6 +43,19 @@ class DashboardEditor extends Page
+     public string $label = '';
+     public bool $beta = false;
+     public string $note = '';
++    public string $rearrange = 'none';
++
++    /** The placed block whose settings are open: [row, column, index], or empty. */
++    public array $sel = [];
++
++    // who gets it (saved on its own, straight away)
++    public string $audMode = 'all';
++    public string $audPlan = '';
++    public array $audIndustries = [];
++    public array $audAddons = [];
++    public array $audInclude = [];
++    public array $audExclude = [];
++    public string $shopFind = '';
+ 
+     public function mount(): void
+     {
+@@ -58,6 +73,14 @@ class DashboardEditor extends Page
+         $this->name = $tpl->name;
+         $this->label = (string) ($tpl->switch_label ?: $tpl->name);
+         $this->beta = (bool) $tpl->beta_badge;
++        $this->rearrange = in_array($tpl->rearrange, ['none', 'hide', 'both'], true) ? $tpl->rearrange : 'none';
++        $a = Audience::normalize($tpl->audience);
++        $this->audMode = $a['mode'];
++        $this->audPlan = (string) $a['plan'];
++        $this->audIndustries = $a['industries'];
++        $this->audAddons = $a['addons'];
++        $this->audInclude = $a['include'];
++        $this->audExclude = $a['exclude'];
+         $this->target = [max(0, count($this->rows) - 1), 0];
+     }
+ 
+@@ -98,6 +121,40 @@ class DashboardEditor extends Page
+         $r = min($this->target[0] ?? 0, max(0, count($this->rows) - 1));
+         $c = min($this->target[1] ?? 0, max(0, count($this->rows[$r]['split'] ?? [12]) - 1));
+         $this->target = [$r, $c];
++        if ($this->sel && ! isset($this->rows[$this->sel[0]]['cols'][$this->sel[1]][$this->sel[2]])) {
++            $this->sel = [];
++        }
++    }
++
++    // ---- one block's settings (part of the layout: saved with the draft) --
++
++    public function selectBlock(int $r, int $c, int $i): void
++    {
++        $this->sel = isset($this->rows[$r]['cols'][$c][$i]) && $this->sel !== [$r, $c, $i] ? [$r, $c, $i] : [];
++    }
++
++    public function toggleRole(string $role): void
++    {
++        if (! $this->guard() || ! $this->sel || ! isset(Layout::ROLES[$role])) return;
++        [$r, $c, $i] = $this->sel;
++        $p = &$this->rows[$r]['cols'][$c][$i];
++        $roles = $p['roles'] ?? array_keys(Layout::ROLES);
++        $roles = in_array($role, $roles, true) ? array_values(array_diff($roles, [$role])) : array_merge($roles, [$role]);
++        if (! $roles) {
++            Notification::make()->title('At least one role has to see it.')->body('Remove the block instead if nobody should.')->warning()->send();
++            return;
++        }
++        $p['roles'] = $roles;
++        unset($p);
++        $this->settle();
++    }
++
++    public function toggleLock(): void
++    {
++        if (! $this->guard() || ! $this->sel) return;
++        [$r, $c, $i] = $this->sel;
++        $this->rows[$r]['cols'][$c][$i]['lock'] = empty($this->rows[$r]['cols'][$c][$i]['lock']);
++        $this->settle();
+     }
+ 
+     public function addRow(int $splitIndex): void
+@@ -111,6 +168,7 @@ class DashboardEditor extends Page
+ 
+     public function removeRow(int $r): void
+     {
++        $this->sel = [];
+         if (! $this->guard() || ! isset($this->rows[$r])) return;
+         array_splice($this->rows, $r, 1);
+         if (! $this->rows) $this->rows = [['split' => [12], 'cols' => [[]]]];
+@@ -119,6 +177,7 @@ class DashboardEditor extends Page
+ 
+     public function moveRow(int $r, int $dir): void
+     {
++        $this->sel = [];
+         if (! $this->guard()) return;
+         $n = $r + $dir;
+         if (! isset($this->rows[$r], $this->rows[$n])) return;
+@@ -130,6 +189,7 @@ class DashboardEditor extends Page
+     /** Fewer columns: blocks from the dropped columns move into the last one. Nothing is removed. */
+     public function setSplit(int $r, int $splitIndex): void
+     {
++        $this->sel = [];
+         if (! $this->guard() || ! isset($this->rows[$r])) return;
+         $split = Layout::SPLITS[$splitIndex] ?? [12];
+         $old = $this->rows[$r]['cols'];
+@@ -160,6 +220,7 @@ class DashboardEditor extends Page
+ 
+     public function removeBlock(int $r, int $c, int $i): void
+     {
++        $this->sel = [];
+         if (! $this->guard() || ! isset($this->rows[$r]['cols'][$c][$i])) return;
+         array_splice($this->rows[$r]['cols'][$c], $i, 1);
+         $this->settle();
+@@ -183,6 +244,7 @@ class DashboardEditor extends Page
+         $at = max(0, min($at, count($this->rows[$r]['cols'][$c])));
+         array_splice($this->rows[$r]['cols'][$c], $at, 0, [$p]);
+         $this->target = [$r, $c];
++        $this->sel = [$r, $c, $at];
+         $this->settle();
+     }
+ 
+@@ -261,7 +323,7 @@ class DashboardEditor extends Page
+     {
+         if (! $this->guard()) return;
+         try {
+-            TemplateStore::saveSettings($this->t, $this->name, $this->label, $this->beta);
++            TemplateStore::saveSettings($this->t, $this->name, $this->label, $this->beta, $this->rearrange);
+         } catch (\Throwable $e) {
+             $this->fail($e);
+             return;
+@@ -269,6 +331,45 @@ class DashboardEditor extends Page
+         Notification::make()->title('Settings saved')->body('The switch shows the new label on the next page load.')->success()->send();
+     }
+ 
++    // ---- who gets it ------------------------------------------------------
++
++    private function audience(): array
++    {
++        return Audience::normalize([
++            'mode' => $this->audMode, 'plan' => $this->audPlan ?: null, 'industries' => $this->audIndustries,
++            'addons' => $this->audAddons, 'include' => $this->audInclude, 'exclude' => $this->audExclude,
++        ]);
++    }
++
++    public function addShop(string $list, string $id): void
++    {
++        if (! in_array($list, ['audInclude', 'audExclude'], true) || ! Tenant::whereKey($id)->exists()) return;
++        $this->{$list} = array_values(array_unique(array_merge($this->{$list}, [$id])));
++        $other = $list === 'audInclude' ? 'audExclude' : 'audInclude';
++        $this->{$other} = array_values(array_diff($this->{$other}, [$id]));
++        $this->shopFind = '';
++    }
++
++    public function removeShop(string $list, string $id): void
++    {
++        if (! in_array($list, ['audInclude', 'audExclude'], true)) return;
++        $this->{$list} = array_values(array_diff($this->{$list}, [$id]));
++    }
++
++    public function saveAudience(): void
++    {
++        if (! $this->guard()) return;
++        try {
++            $tpl = TemplateStore::saveAudience($this->t, $this->audience());
++        } catch (\Throwable $e) {
++            $this->fail($e);
++            return;
++        }
++        Notification::make()->title('Saved: ' . Audience::describe($tpl->audience))
++            ->body($tpl->state === 'live' ? 'Shops that no longer get it fall back to the default on their next load.' : 'It takes effect when you publish.')
++            ->success()->send();
++    }
++
+     protected function getViewData(): array
+     {
+         $tpl = $this->tpl();
+@@ -299,6 +400,19 @@ class DashboardEditor extends Page
+             'splits'     => Layout::SPLITS,
+             'versions'   => $tpl->versions()->orderByDesc('version')->limit(12)->get(),
+             'picked'     => (int) ($picks[$tpl->key] ?? 0),
++            'selBlock'   => $this->sel ? ($screen[$this->sel[0]]['cols'][$this->sel[1]][$this->sel[2]] ?? null) : null,
++            'roles'      => Layout::ROLES,
++            'customizeOn' => \App\Support\Dashboard\DashboardTemplates::customizeEnabled(),
++            'aud'        => $this->audience(),
++            'audSaved'   => Audience::normalize($tpl->audience),
++            'audCount'   => Audience::countMatching($this->audience()),
++            'plans'      => Audience::PLANS,
++            'industries' => collect((array) config('industry_packs', []))->map(fn ($v) => $v['label'] ?? '')->all(),
++            'addons'     => \Illuminate\Support\Facades\DB::table('addons')->whereIn('status', ['active', 'deprecated'])->orderBy('sort_order')->pluck('name', 'code')->all(),
++            'shopNames'  => Tenant::whereIn('id', array_merge($this->audInclude, $this->audExclude))->pluck('name', 'id')->all(),
++            'shopHits'   => strlen(trim($this->shopFind)) >= 2
++                ? Tenant::where('name', 'like', '%' . str_replace(['%', '_'], ['\\%', '\\_'], trim($this->shopFind)) . '%')->orderBy('name')->limit(8)->pluck('name', 'id')->all()
++                : [],
+         ];
+     }
+ }
+diff --git a/app/Filament/Pages/Dashboards.php b/app/Filament/Pages/Dashboards.php
+index e97d4c78..293a201a 100644
+--- a/app/Filament/Pages/Dashboards.php
++++ b/app/Filament/Pages/Dashboards.php
+@@ -35,6 +35,8 @@ class Dashboards extends Page
+     public string $default = '';
+ 
+     public string $newName = '';
++    public string $checkFind = '';
++    public ?string $checkId = null;
+     public string $newFrom = '';
+ 
+     public function mount(): void
+@@ -128,6 +130,21 @@ class Dashboards extends Page
+             ->body('It has left every dashboard switch. Anyone who had it now sees the default.')->success()->send();
+     }
+ 
++    public function setCustomize(bool $on): void
++    {
++        if (! $this->guard()) return;
++        TemplateStore::setCustomizeEnabled($on);
++        Notification::make()->title($on ? 'Customizing is on' : 'Customizing is off for every shop')
++            ->body($on ? "Each template's own setting applies again." : 'Customize disappears on their next load. What people chose is kept for when it comes back.')
++            ->success()->send();
++    }
++
++    public function pickShop(string $id): void
++    {
++        $this->checkId = $id;
++        $this->checkFind = '';
++    }
++
+     public function restore(string $key): void
+     {
+         if (! $this->guard()) return;
+@@ -140,6 +157,37 @@ class Dashboards extends Page
+         Notification::make()->title($t->name . ' restored as a draft')->body('Publish it to offer it to shops again.')->success()->send();
+     }
+ 
++    /** What one shop gets, and why — for "Check a shop". */
++    private function checkResult($all): ?array
++    {
++        $tenant = $this->checkId ? \App\Models\Tenant::find($this->checkId) : null;
++        if (! $tenant) return null;
++        $lines = [];
++        $offered = [];
++        foreach ($all as $t) {
++            if ($t->state !== 'live') {
++                $lines[] = [$t->name, false, $t->state === 'retired' ? 'retired' : 'not published yet'];
++                continue;
++            }
++            [$ok, $why] = $t->is_default ? [true, 'the default goes to every shop'] : \App\Support\Dashboard\Audience::check($t->audience, $tenant);
++            $lines[] = [$t->name, $ok, $why];
++            if ($ok) $offered[$t->key] = $t->name;
++        }
++
++        return [
++            'name'  => $tenant->name,
++            'facts' => collect([
++                \App\Support\Dashboard\Audience::PLANS[$tenant->plan_tier ?? 'starter'] ?? $tenant->plan_tier,
++                config('industry_packs.' . $tenant->industry_pack . '.label'),
++            ])->filter()->implode(' · '),
++            'lines' => $lines,
++            'people' => \App\Models\Tenant\TenantUser::where('tenant_id', $tenant->id)->where('is_active', true)->get(['name', 'role', 'dashboard_view']),
++            'default' => $all->firstWhere('is_default', true)?->name,
++            'offered' => $offered,
++            'names'   => $all->pluck('name', 'key')->all(),
++        ];
++    }
++
+     protected function getViewData(): array
+     {
+         $all = DashboardTemplate::with('liveVersion')->orderBy('sort')->orderBy('id')->get();
+@@ -164,6 +212,8 @@ class Dashboards extends Page
+                 'pending'  => $t->liveVersion && is_array($t->draft_layout) ? count(TemplateStore::changes($t, $working)) : 0,
+                 'picked'   => (int) ($picks[$t->key] ?? 0),
+                 'retired'  => $t->retired_at,
++                'audience' => \App\Support\Dashboard\Audience::describe($t->audience),
++                'rearrange'=> $t->rearrange,
+             ];
+         });
+ 
+@@ -174,6 +224,11 @@ class Dashboards extends Page
+             'following'      => (clone $following)->count(),
+             'followingShops' => (clone $following)->distinct()->count('tenant_id'),
+             'canManage'      => $this->canManage(),
++            'customizeOn'    => \App\Support\Dashboard\DashboardTemplates::customizeEnabled(),
++            'checkHits'      => strlen(trim($this->checkFind)) >= 2
++                ? \App\Models\Tenant::where('name', 'like', '%' . str_replace(['%', '_'], ['\\%', '\\_'], trim($this->checkFind)) . '%')->orderBy('name')->limit(8)->pluck('name', 'id')->all()
++                : [],
++            'check'          => $this->checkResult($all),
+         ];
+     }
+ }
+diff --git a/app/Http/Controllers/Tenant/DashboardController.php b/app/Http/Controllers/Tenant/DashboardController.php
+index 669570bb..4c177391 100644
+--- a/app/Http/Controllers/Tenant/DashboardController.php
++++ b/app/Http/Controllers/Tenant/DashboardController.php
+@@ -5,7 +5,9 @@ namespace App\Http\Controllers\Tenant;
+ use App\Http\Controllers\Controller;
+ use App\Services\Tenant\DashboardDataService;
+ use App\Support\Dashboard\BlockRegistry;
++use App\Support\Dashboard\CustomizePanel;
+ use App\Support\Dashboard\DashboardTemplates;
++use App\Support\Dashboard\Layout;
+ use Illuminate\Http\Request;
+ 
+ class DashboardController extends Controller
+@@ -65,8 +67,15 @@ class DashboardController extends Controller
+         // dashboard_view (the template key); the default covers no pick, or
+         // a pick that's no longer offered.
+         $user = \Illuminate\Support\Facades\Auth::guard('tenant')->user();
+-        $template = DashboardTemplates::activeFor($user->dashboard_view ?? null);
+-        $rows = $template['rows'];
++        $template = DashboardTemplates::activeFor($user->dashboard_view ?? null, $tenant);
++
++        // MARKER-DASH-AUDIENCE: blocks this person's role doesn't get are left
++        // out, then their own hides and order are applied, as far as the
++        // template (and the platform-wide switch) allow.
++        $rearrange = DashboardTemplates::rearrangeFor($template);
++        $prefs = (array) (($user->dashboard_prefs ?? [])[$template['key']] ?? []);
++        $roleRows = Layout::personal($template['rows'], $user->role, [], 'none');
++        $rows = Layout::personal($template['rows'], $user->role, $prefs, $rearrange);
+ 
+         // Only load what this template's blocks draw.
+         $needs = BlockRegistry::needs($rows);
+@@ -81,8 +90,9 @@ class DashboardController extends Controller
+         }
+ 
+         $data['activeTemplate']  = $template;
+-        $data['switchTemplates'] = DashboardTemplates::switchable();
++        $data['switchTemplates'] = DashboardTemplates::switchable($tenant);
+         $data['dashRows']        = $rows;
++        $data['customize']       = CustomizePanel::for($template, $roleRows, $prefs, $rearrange);
+ 
+         return view(DashboardTemplates::frameView($template), $data);
+     }
+@@ -90,13 +100,47 @@ class DashboardController extends Controller
+     /** switch to another dashboard template. */
+     public function setView(\Illuminate\Http\Request $request)
+     {
+-        $data = $request->validate(['view' => ['required', 'string', \Illuminate\Validation\Rule::in(DashboardTemplates::keys())]]);
++        $data = $request->validate(['view' => ['required', 'string', \Illuminate\Validation\Rule::in(DashboardTemplates::keys(tenant()))]]);
+         \Illuminate\Support\Facades\Auth::guard('tenant')->user()
+             ->update(['dashboard_view' => $data['view']]);
+ 
+         return redirect()->route('tenant.dashboard');
+     }
+ 
++    /**
++     * MARKER-DASH-AUDIENCE: save what one person hid or reordered on one
++     * template. Only blocks the template has, and only what the template
++     * lets people change; a reset clears their choices for that template.
++     */
++    public function saveCustomize(Request $request)
++    {
++        $user = \Illuminate\Support\Facades\Auth::guard('tenant')->user();
++        $data = $request->validate([
++            'template'  => ['required', 'string', \Illuminate\Validation\Rule::in(DashboardTemplates::keys(tenant()))],
++            'reset'     => 'nullable|boolean',
++            'hidden'    => 'nullable|array|max:60',
++            'hidden.*'  => 'string|max:40',
++            'order'     => 'nullable|array|max:60',
++            'order.*'   => 'array|max:60',
++            'order.*.*' => 'string|max:40',
++        ]);
++
++        $template = DashboardTemplates::activeFor($data['template'], tenant());
++        $all = (array) ($user->dashboard_prefs ?? []);
++        if (! empty($data['reset'])) {
++            unset($all[$template['key']]);
++        } else {
++            $clean = CustomizePanel::clean($template, $user->role, $data, DashboardTemplates::rearrangeFor($template));
++            if ($clean === null) {
++                return response()->json(['ok' => false, 'error' => 'Changing this dashboard is turned off.'], 403);
++            }
++            $all[$template['key']] = $clean;
++        }
++        $user->update(['dashboard_prefs' => $all ?: null]);
++
++        return response()->json(['ok' => true]);
++    }
++
+     /** save one user's tile arrangement. */
+     public function saveTiles(\Illuminate\Http\Request $request)
+     {
+diff --git a/app/Models/PlatformSettings.php b/app/Models/PlatformSettings.php
+index 854b810a..edea4120 100644
+--- a/app/Models/PlatformSettings.php
++++ b/app/Models/PlatformSettings.php
+@@ -33,12 +33,15 @@ class PlatformSettings extends Model
+         // removed: mail_from_address and mail_from_name above already are the
+         // platform sender, and two homes for one address is how they drift.
+         'platform_postal_address',
++        // MARKER-DASH-AUDIENCE: off = no shop can customize its dashboard
++        'dashboard_customize_enabled',
+     ];
+ 
+     // without this the json column reads back as a
+     // string and every allowance lookup silently falls through to the default.
+     protected $casts = [
+         'email_free_by_tier' => 'array',
++        'dashboard_customize_enabled' => 'boolean',
+     ];
+ 
+     /** Laravel's framework default when nothing is configured. */
+@@ -55,7 +58,9 @@ class PlatformSettings extends Model
+ 
+         $row = self::find(1);
+         if (! $row) {
+-            $row = self::create(['id' => 1]);
++            // forceCreate: id isn't fillable, so create() dropped it (or threw
++            // outside production) instead of making the id = 1 row.
++            $row = self::forceCreate(['id' => 1]);
+         }
+ 
+         return static::$memo = $row;
+diff --git a/app/Models/Tenant/TenantUser.php b/app/Models/Tenant/TenantUser.php
+index d8473929..82c252b4 100644
+--- a/app/Models/Tenant/TenantUser.php
++++ b/app/Models/Tenant/TenantUser.php
+@@ -10,9 +10,9 @@ class TenantUser extends Authenticatable
+ {
+     use HasUuids;
+     protected $table = 'tenant_users';
+-    protected $fillable = ['tenant_id','name','email','phone','password','role','role_id','admin_theme','is_active','exempt_from_timeclock','last_login_at','dashboard_view','dashboard_tiles','pin_hash','pin_set_at','pin_failed_count','pin_locked_until','pin_last_used_at'];
++    protected $fillable = ['tenant_id','name','email','phone','password','role','role_id','admin_theme','is_active','exempt_from_timeclock','last_login_at','dashboard_view','dashboard_tiles','dashboard_prefs','pin_hash','pin_set_at','pin_failed_count','pin_locked_until','pin_last_used_at'];
+     protected $hidden   = ['password','remember_token','pin_hash'];
+-    protected $casts    = ['is_active' => 'boolean', 'exempt_from_timeclock' => 'boolean', 'last_login_at' => 'datetime', 'dashboard_tiles' => 'array', 'pin_set_at' => 'datetime', 'pin_locked_until' => 'datetime', 'pin_last_used_at' => 'datetime'];
++    protected $casts    = ['is_active' => 'boolean', 'exempt_from_timeclock' => 'boolean', 'last_login_at' => 'datetime', 'dashboard_tiles' => 'array', 'dashboard_prefs' => 'array', 'pin_set_at' => 'datetime', 'pin_locked_until' => 'datetime', 'pin_last_used_at' => 'datetime'];
+ 
+     public function tenant(): BelongsTo { return $this->belongsTo(Tenant::class); }
+ 
+diff --git a/app/Support/Dashboard/Audience.php b/app/Support/Dashboard/Audience.php
+new file mode 100644
+index 00000000..fd7ec1d0
+--- /dev/null
++++ b/app/Support/Dashboard/Audience.php
+@@ -0,0 +1,126 @@
++<?php
++
++namespace App\Support\Dashboard;
++
++use App\Models\Tenant;
++use App\Services\FeatureAccessService;
++
++/**
++ * MARKER-DASH-AUDIENCE: which shops a dashboard template is offered to.
++ *
++ *   mode  all     every shop
++ *         match   shops on at least `plan`, of one of `industries`, with all of `addons`
++ *         chosen  only the shops in `include` (a beta)
++ *   include  shop ids always offered it (any mode)
++ *   exclude  shop ids never offered it (wins over everything)
++ *
++ * Stored as JSON on dashboard_templates.audience; null means every shop.
++ */
++class Audience
++{
++    public const PLANS = ['starter' => 'Starter', 'branded' => 'Branded', 'scale' => 'Scale', 'custom' => 'Custom'];
++
++    public static function normalize(?array $a): array
++    {
++        $a = (array) $a;
++        $mode = in_array($a['mode'] ?? 'all', ['all', 'match', 'chosen'], true) ? ($a['mode'] ?? 'all') : 'all';
++        $ids = fn ($v) => array_values(array_unique(array_filter(array_map('strval', (array) $v), fn ($x) => $x !== '')));
++
++        return [
++            'mode'       => $mode,
++            'plan'       => isset(self::PLANS[$a['plan'] ?? '']) ? $a['plan'] : null,
++            'industries' => array_values(array_intersect(array_keys((array) config('industry_packs', [])), (array) ($a['industries'] ?? []))),
++            'addons'     => $ids($a['addons'] ?? []),
++            'include'    => $ids($a['include'] ?? []),
++            'exclude'    => $ids($a['exclude'] ?? []),
++        ];
++    }
++
++    public static function isEveryone(?array $a): bool
++    {
++        $a = self::normalize($a);
++
++        return $a['mode'] === 'all' && ! $a['exclude'];
++    }
++
++    /** Whether the shop is offered the template, and why, in words. */
++    public static function check(?array $a, Tenant $tenant): array
++    {
++        $a = self::normalize($a);
++        $id = (string) $tenant->id;
++        if (in_array($id, $a['exclude'], true)) return [false, 'left out by name'];
++        if (in_array($id, $a['include'], true)) return [true, 'added by name'];
++        if ($a['mode'] === 'all') return [true, 'every shop gets it'];
++        if ($a['mode'] === 'chosen') return [false, 'not one of the chosen shops'];
++
++        $rank = array_flip(array_keys(self::PLANS));
++        if ($a['plan'] && ($rank[$tenant->plan_tier ?? 'starter'] ?? 0) < $rank[$a['plan']]) {
++            return [false, 'on the ' . (self::PLANS[$tenant->plan_tier ?? 'starter'] ?? $tenant->plan_tier) . ' plan'];
++        }
++        if ($a['industries'] && ! in_array($tenant->industry_pack, $a['industries'], true)) {
++            $label = config('industry_packs.' . $tenant->industry_pack . '.label') ?? 'no business type set';
++            return [false, 'business type is ' . $label];
++        }
++        foreach ($a['addons'] as $code) {
++            if (! app(FeatureAccessService::class)->hasAddon($tenant, $code)) {
++                return [false, 'no ' . self::addonName($code) . ' add-on'];
++            }
++        }
++
++        return [true, 'matches'];
++    }
++
++    public static function allows(?array $a, Tenant $tenant): bool
++    {
++        return self::check($a, $tenant)[0];
++    }
++
++    /** One line for lists: "Every shop", "Scale plan and up, with Classes", "3 chosen shops". */
++    public static function describe(?array $a): string
++    {
++        $a = self::normalize($a);
++        $tail = ($a['include'] ? ' + ' . count($a['include']) . ' by name' : '') . ($a['exclude'] ? ', not ' . count($a['exclude']) : '');
++        if ($a['mode'] === 'all') return 'Every shop' . ($a['exclude'] ? ' but ' . count($a['exclude']) : '');
++        if ($a['mode'] === 'chosen') return count($a['include']) . ' chosen ' . \Illuminate\Support\Str::plural('shop', count($a['include'])) . ($a['exclude'] ? ', not ' . count($a['exclude']) : '');
++        $parts = [];
++        if ($a['plan']) $parts[] = self::PLANS[$a['plan']] . ' plan and up';
++        if ($a['industries']) $parts[] = collect($a['industries'])->map(fn ($k) => config("industry_packs.$k.label", $k))->implode(' or ');
++        if ($a['addons']) $parts[] = 'with ' . collect($a['addons'])->map(fn ($c) => self::addonName($c))->implode(' and ');
++
++        return ($parts ? implode(', ', $parts) : 'Every shop') . $tail;
++    }
++
++    /** How many active shops get it. Cached briefly: checking add-ons costs a query or two per shop. */
++    public static function countMatching(?array $a): int
++    {
++        $a = self::normalize($a);
++
++        return \Illuminate\Support\Facades\Cache::remember('dash-aud:' . md5(json_encode($a)), 300, function () use ($a) {
++            if ($a['mode'] === 'all') {
++                return Tenant::where('is_active', true)->whereNotIn('id', $a['exclude'] ?: [''])->count();
++            }
++            $n = 0;
++            Tenant::where('is_active', true)->select('*')->chunk(200, function ($chunk) use ($a, &$n) {
++                foreach ($chunk as $t) {
++                    if (self::allows($a, $t)) $n++;
++                }
++            });
++
++            return $n;
++        });
++    }
++
++    public static function addonName(string $code): string
++    {
++        static $names = null;
++        if ($names === null) {
++            try {
++                $names = \Illuminate\Support\Facades\DB::table('addons')->pluck('name', 'code')->all();
++            } catch (\Throwable $e) {
++                $names = [];
++            }
++        }
++
++        return $names[$code] ?? ucwords(str_replace('_', ' ', $code));
++    }
++}
+diff --git a/app/Support/Dashboard/CustomizePanel.php b/app/Support/Dashboard/CustomizePanel.php
+new file mode 100644
+index 00000000..b1472845
+--- /dev/null
++++ b/app/Support/Dashboard/CustomizePanel.php
+@@ -0,0 +1,96 @@
++<?php
++
++namespace App\Support\Dashboard;
++
++/**
++ * MARKER-DASH-AUDIENCE: the "Customize" panel on a shop's dashboard — the
++ * blocks one person can hide (and, if the template allows, reorder), and the
++ * cleaning of what they send back.
++ */
++class CustomizePanel
++{
++    /**
++     * Null when there's nothing this person can change here (customizing is
++     * off platform-wide or on this template, or every block is locked).
++     *
++     * @param array $roleRows  the template's rows with role filtering applied, before personal choices
++     */
++    public static function for(array $template, array $roleRows, array $prefs, string $rearrange): ?array
++    {
++        if ($rearrange === 'none') {
++            return null;
++        }
++        $names = TemplateStore::blockNames();
++        $hidden = array_map('strval', (array) ($prefs['hidden'] ?? []));
++        $order = $rearrange === 'both' ? (array) ($prefs['order'] ?? []) : [];
++
++        $allowed = [];
++        foreach ($roleRows as $rr) foreach ($rr['cols'] as $cc) foreach ($cc as $p) $allowed[$p['b']] = $p;
++
++        $groups = [];
++        $hideable = 0;
++        $hiddenCount = 0;
++        foreach ($template['rows'] as $r => $row) {
++            foreach ($row['cols'] as $c => $col) {
++                // the role-filtered column, matched by block key
++                $keys = array_column($col, 'b');
++                $blocks = [];
++                foreach ($keys as $k) {
++                    if (! isset($allowed[$k])) continue;
++                    $locked = ! empty($allowed[$k]['lock']);
++                    $isHidden = ! $locked && in_array($k, $hidden, true);
++                    $hideable += $locked ? 0 : 1;
++                    $hiddenCount += $isHidden ? 1 : 0;
++                    $blocks[] = ['key' => $k, 'name' => $names[$k] ?? $k, 'locked' => $locked, 'hidden' => $isHidden];
++                }
++                $mine = array_values(array_map('strval', (array) ($order[$r . '-' . $c] ?? [])));
++                if ($mine) {
++                    usort($blocks, function ($a, $b) use ($mine) {
++                        $ia = array_search($a['key'], $mine, true); $ib = array_search($b['key'], $mine, true);
++                        return ($ia === false ? PHP_INT_MAX : $ia) <=> ($ib === false ? PHP_INT_MAX : $ib);
++                    });
++                }
++                if (! $blocks) continue;
++                $where = count($row['split']) > 1
++                    ? ['Left', 'Middle', 'Right'][count($row['split']) === 2 && $c === 1 ? 2 : $c] . ' column'
++                    : 'Full width';
++                $groups[] = ['key' => $r . '-' . $c, 'label' => 'Row ' . ($r + 1) . ' · ' . $where, 'blocks' => $blocks];
++            }
++        }
++
++        if ($hideable === 0 && $rearrange !== 'both') {
++            return null;
++        }
++
++        return ['template' => $template['key'], 'name' => $template['name'], 'mode' => $rearrange, 'groups' => $groups, 'hiddenCount' => $hiddenCount];
++    }
++
++    /** What a person sent, kept to what this template lets them change. Null = not allowed at all. */
++    public static function clean(array $template, ?string $role, array $data, string $rearrange): ?array
++    {
++        if ($rearrange === 'none') {
++            return null;
++        }
++        $roleRows = Layout::personal($template['rows'], $role, [], 'none');
++        $placed = [];
++        foreach ($roleRows as $row) foreach ($row['cols'] as $col) foreach ($col as $p) $placed[$p['b']] = $p;
++
++        $hidden = array_values(array_filter(array_unique(array_map('strval', (array) ($data['hidden'] ?? []))),
++            fn ($k) => isset($placed[$k]) && empty($placed[$k]['lock'])));
++
++        $order = [];
++        if ($rearrange === 'both') {
++            foreach ($template['rows'] as $r => $row) {
++                foreach ($row['cols'] as $c => $col) {
++                    $keys = array_column($col, 'b');
++                    $sent = array_values(array_filter(array_map('strval', (array) (($data['order'] ?? [])[$r . '-' . $c] ?? [])), fn ($k) => in_array($k, $keys, true)));
++                    if ($sent && $sent !== array_values(array_intersect($keys, $sent))) {
++                        $order[$r . '-' . $c] = array_values(array_unique($sent));
++                    }
++                }
++            }
++        }
++
++        return array_filter(['hidden' => $hidden, 'order' => $order]);
++    }
++}
+diff --git a/app/Support/Dashboard/DashboardTemplates.php b/app/Support/Dashboard/DashboardTemplates.php
+index b8ffb220..3fdea387 100644
+--- a/app/Support/Dashboard/DashboardTemplates.php
++++ b/app/Support/Dashboard/DashboardTemplates.php
+@@ -4,6 +4,7 @@ namespace App\Support\Dashboard;
+ 
+ use App\Models\DashboardBlock;
+ use App\Models\DashboardTemplate;
++use App\Models\Tenant;
+ use Illuminate\Support\Facades\DB;
+ 
+ /**
+@@ -102,7 +103,19 @@ class DashboardTemplates
+      *
+      * @return array<int, array{key: string, name: string, frame: string, label: string, beta: bool, icon: string, default: bool, rows: array}>
+      */
+-    public static function switchable(): array
++    public static function switchable(?Tenant $tenant = null): array
++    {
++        $all = self::all();
++        if (! $tenant) {
++            return $all;
++        }
++
++        // the default is offered to every shop, whatever its audience says
++        return array_values(array_filter($all, fn ($t) => $t['default'] || Audience::allows($t['audience'], $tenant)));
++    }
++
++    /** Every live template, audience aside. Read once per request. */
++    private static function all(): array
+     {
+         if (self::$cache !== null) {
+             return self::$cache;
+@@ -117,14 +130,16 @@ class DashboardTemplates
+                 ->orderBy('sort')->orderBy('id')
+                 ->get()
+                 ->map(fn (DashboardTemplate $t) => [
+-                    'key'     => $t->key,
+-                    'name'    => $t->name,
+-                    'frame'   => $t->frame,
+-                    'label'   => $t->switch_label ?: $t->name,
+-                    'beta'    => (bool) $t->beta_badge,
+-                    'icon'    => $t->icon ?: $t->frame,
+-                    'default' => (bool) $t->is_default,
+-                    'rows'    => Layout::visible((array) ($t->liveVersion?->layout ?? []), $hidden),
++                    'key'       => $t->key,
++                    'name'      => $t->name,
++                    'frame'     => $t->frame,
++                    'label'     => $t->switch_label ?: $t->name,
++                    'beta'      => (bool) $t->beta_badge,
++                    'icon'      => $t->icon ?: $t->frame,
++                    'default'   => (bool) $t->is_default,
++                    'rearrange' => in_array($t->rearrange, ['none', 'hide', 'both'], true) ? $t->rearrange : 'none',
++                    'audience'  => $t->audience,
++                    'rows'      => Layout::visible((array) ($t->liveVersion?->layout ?? []), $hidden),
+                 ])
+                 ->values()
+                 ->all();
+@@ -137,6 +152,7 @@ class DashboardTemplates
+             $list = array_map(fn ($d) => [
+                 'key' => $d['key'], 'name' => $d['name'], 'frame' => $d['frame'], 'label' => $d['switch_label'],
+                 'beta' => $d['beta_badge'], 'icon' => $d['icon'], 'default' => $d['is_default'],
++                'rearrange' => 'none', 'audience' => null,
+                 'rows' => Layout::visible($d['layout']),
+             ], self::builtInDefinitions());
+         }
+@@ -144,10 +160,10 @@ class DashboardTemplates
+         return self::$cache = $list;
+     }
+ 
+-    /** The template this person sees: the one they picked, else the default, else the first. */
+-    public static function activeFor(?string $picked): array
++    /** The template this person sees: the one they picked if the shop gets it, else the default, else the first. */
++    public static function activeFor(?string $picked, ?Tenant $tenant = null): array
+     {
+-        $list = self::switchable();
++        $list = self::switchable($tenant);
+         foreach ($list as $t) {
+             if ($picked !== null && $t['key'] === $picked) return $t;
+         }
+@@ -158,9 +174,25 @@ class DashboardTemplates
+         return $list[0];
+     }
+ 
+-    public static function keys(): array
++    public static function keys(?Tenant $tenant = null): array
++    {
++        return array_column(self::switchable($tenant), 'key');
++    }
++
++    /** The platform-wide switch: off means nobody can customize a dashboard. */
++    public static function customizeEnabled(): bool
++    {
++        try {
++            return (bool) (\App\Models\PlatformSettings::current()->dashboard_customize_enabled ?? true);
++        } catch (\Throwable $e) {
++            return true;
++        }
++    }
++
++    /** What a person may change on this template: none, hide, or both (hide and reorder). */
++    public static function rearrangeFor(array $template): string
+     {
+-        return array_column(self::switchable(), 'key');
++        return self::customizeEnabled() ? ($template['rearrange'] ?? 'none') : 'none';
+     }
+ 
+     public static function frameView(array $template): string
+diff --git a/app/Support/Dashboard/Layout.php b/app/Support/Dashboard/Layout.php
+index 6b552b7e..57194a08 100644
+--- a/app/Support/Dashboard/Layout.php
++++ b/app/Support/Dashboard/Layout.php
+@@ -15,14 +15,24 @@ class Layout
+     /** The column splits a row can have. Each adds up to 12. */
+     public const SPLITS = [[12], [6, 6], [8, 4], [4, 8], [7, 5], [5, 7], [4, 4, 4]];
+ 
++    /** What each split is called in the editor. Shapes, not twelfths. */
+     public const SPLIT_NAMES = [
+-        '12' => 'Full width', '6-6' => 'Half and half', '8-4' => 'Wide and narrow', '4-8' => 'Narrow and wide',
+-        '7-5' => '7 and 5', '5-7' => '5 and 7', '4-4-4' => 'Thirds',
++        '12' => 'Full width', '6-6' => 'Halves', '8-4' => '⅔ + ⅓', '4-8' => '⅓ + ⅔',
++        '7-5' => 'Wider left (58/42)', '5-7' => 'Wider right (42/58)', '4-4-4' => 'Thirds',
+     ];
+ 
++    /** Who a block can be limited to: a person's role in their shop. */
++    public const ROLES = ['owner' => 'Owner', 'manager' => 'Manager', 'staff' => 'Staff'];
++
+     public static function splitName(array $split): string
+     {
+-        return self::SPLIT_NAMES[implode('-', $split)] ?? implode(' · ', $split);
++        return self::SPLIT_NAMES[implode('-', $split)] ?? implode(' + ', array_map(fn ($n) => round($n / 12 * 100) . '%', $split));
++    }
++
++    /** A column's share of the row, as people read it: "58%". */
++    public static function colWidth(array $split, int $i): string
++    {
++        return round(($split[$i] ?? 12) / 12 * 100) . '%';
+     }
+ 
+     /**
+@@ -49,7 +59,7 @@ class Layout
+                         continue;
+                     }
+                     $seen[$key] = true;
+-                    $col[] = ['b' => $key];
++                    $col[] = self::placement($p);
+                 }
+                 $cols[] = $col;
+             }
+@@ -59,6 +69,63 @@ class Layout
+         return $out;
+     }
+ 
++    /**
++     * One placed block, cleaned: its key, who sees it (left out = everyone),
++     * and whether people can hide it (left out = they can).
++     */
++    public static function placement(array $p): array
++    {
++        $out = ['b' => (string) $p['b']];
++        $roles = array_values(array_intersect(array_keys(self::ROLES), array_map('strval', (array) ($p['roles'] ?? []))));
++        if ($roles && count($roles) < count(self::ROLES)) {
++            $out['roles'] = $roles;
++        }
++        if (! empty($p['lock'])) {
++            $out['lock'] = true;
++        }
++
++        return $out;
++    }
++
++    /**
++     * The layout one person sees: blocks their role doesn't get are left
++     * out, then their own choices are applied — hidden blocks dropped, and
++     * (when the template allows reordering) each column in their order.
++     * Locked blocks can't be hidden. Columns keep their width even when empty.
++     *
++     * @param array $prefs  ['hidden' => [keys], 'order' => ['r-c' => [keys]]]
++     * @param string $rearrange  none | hide | both
++     */
++    public static function personal(array $rows, ?string $role, array $prefs, string $rearrange): array
++    {
++        $hidden = $rearrange !== 'none' ? array_map('strval', (array) ($prefs['hidden'] ?? [])) : [];
++        $order  = $rearrange === 'both' ? (array) ($prefs['order'] ?? []) : [];
++        $out = [];
++        foreach ($rows as $r => $row) {
++            $cols = [];
++            $any = false;
++            foreach ($row['cols'] as $c => $col) {
++                $col = array_values(array_filter($col, function ($p) use ($role, $hidden) {
++                    if (isset($p['roles']) && ! in_array((string) $role, $p['roles'], true)) return false;
++                    if (empty($p['lock']) && in_array($p['b'], $hidden, true)) return false;
++                    return true;
++                }));
++                $mine = array_values(array_map('strval', (array) ($order[$r . '-' . $c] ?? [])));
++                if ($mine) {
++                    usort($col, function ($a, $b) use ($mine) {
++                        $ia = array_search($a['b'], $mine, true); $ib = array_search($b['b'], $mine, true);
++                        return ($ia === false ? PHP_INT_MAX : $ia) <=> ($ib === false ? PHP_INT_MAX : $ib);
++                    });
++                }
++                $any = $any || $col;
++                $cols[] = $col;
++            }
++            if ($any) $out[] = ['split' => $row['split'], 'cols' => $cols];
++        }
++
++        return $out;
++    }
++
+     /**
+      * What changed from $live to $draft, in words, for the editor and the
+      * publish dialog. Each entry is [kind, text]; kind is added / removed / moved / layout.
+@@ -89,6 +156,12 @@ class Layout
+             if ($l['r'] !== $d['r'] || $l['c'] !== $d['c'] || array_search($k, $ordL, true) !== array_search($k, $ordD, true)) {
+                 $out[] = ['moved', 'Moved ' . $name($k)];
+             }
++            if (($l['p']['roles'] ?? null) !== ($d['p']['roles'] ?? null)) {
++                $out[] = ['moved', 'Changed who sees ' . $name($k)];
++            }
++            if (! empty($l['p']['lock']) !== ! empty($d['p']['lock'])) {
++                $out[] = ['moved', $name($k) . (! empty($d['p']['lock']) ? ' can no longer be hidden' : ' can be hidden')];
++            }
+         }
+         $ls = array_map(fn ($r) => implode('-', $r['split'] ?? [12]), $live);
+         $ds = array_map(fn ($r) => implode('-', $r['split'] ?? [12]), $draft);
+@@ -106,8 +179,10 @@ class Layout
+         foreach (array_values($rows) as $r => $row) {
+             foreach (array_values((array) ($row['cols'] ?? [])) as $c => $col) {
+                 $keys = array_values(array_filter(array_map(fn ($p) => is_array($p) ? ($p['b'] ?? null) : null, (array) $col)));
+-                foreach ($keys as $k) {
+-                    $m[$k] = ['r' => $r, 'c' => $c, 'col' => $keys];
++                foreach ((array) $col as $p) {
++                    if (is_array($p) && isset($p['b'])) {
++                        $m[$p['b']] = ['r' => $r, 'c' => $c, 'col' => $keys, 'p' => self::placement($p)];
++                    }
+                 }
+             }
+         }
+@@ -153,7 +228,7 @@ class Layout
+                     if (! is_string($key) || ! isset($known[$key]) || in_array($key, $hiddenKeys, true)) {
+                         continue;
+                     }
+-                    $col[] = $p;
++                    $col[] = self::placement($p);
+                     $any = true;
+                 }
+                 $cols[] = $col;
+diff --git a/app/Support/Dashboard/TemplateStore.php b/app/Support/Dashboard/TemplateStore.php
+index 56fd1372..59322bed 100644
+--- a/app/Support/Dashboard/TemplateStore.php
++++ b/app/Support/Dashboard/TemplateStore.php
+@@ -170,7 +170,7 @@ class TemplateStore
+         return $t->fresh('liveVersion');
+     }
+ 
+-    public static function saveSettings(string $key, string $name, string $label, bool $beta): DashboardTemplate
++    public static function saveSettings(string $key, string $name, string $label, bool $beta, ?string $rearrange = null): DashboardTemplate
+     {
+         $name = trim($name);
+         $label = trim($label);
+@@ -181,9 +181,11 @@ class TemplateStore
+             throw new InvalidArgumentException('The switch label needs 1 to 40 characters.');
+         }
+         $t = self::find($key);
+-        $t->update(['name' => $name, 'switch_label' => $label, 'beta_badge' => $beta]);
++        $rearrange = in_array($rearrange, ['none', 'hide', 'both'], true) ? $rearrange : $t->rearrange;
++        $t->update(['name' => $name, 'switch_label' => $label, 'beta_badge' => $beta, 'rearrange' => $rearrange]);
+         DashboardTemplates::flush();
+-        debug_log()->audit('dashboard.settings_changed', "Settings for {$name}: switch label “{$label}”" . ($beta ? ', BETA label' : ''), $t);
++        $can = ['none' => 'nothing', 'hide' => 'hide blocks', 'both' => 'hide and reorder blocks'][$rearrange];
++        debug_log()->audit('dashboard.settings_changed', "Settings for {$name}: switch label “{$label}”" . ($beta ? ', BETA label' : '') . "; people can change: {$can}", $t);
+ 
+         return $t->fresh('liveVersion');
+     }
+@@ -217,6 +219,9 @@ class TemplateStore
+         if ($t->state !== 'live') {
+             throw new InvalidArgumentException('Only a live template can be the default.');
+         }
++        if (! Audience::isEveryone($t->audience)) {
++            throw new InvalidArgumentException('The default has to be offered to every shop. Change who gets it first.');
++        }
+         DB::transaction(function () use ($t) {
+             DashboardTemplate::query()->update(['is_default' => false]);
+             $t->update(['is_default' => true]);
+@@ -226,6 +231,33 @@ class TemplateStore
+         return $t;
+     }
+ 
++    /** Who gets the template. The default always goes to every shop. */
++    public static function saveAudience(string $key, array $audience): DashboardTemplate
++    {
++        $t = self::find($key);
++        $audience = Audience::normalize($audience);
++        if ($t->is_default && ! Audience::isEveryone($audience)) {
++            throw new InvalidArgumentException('This is the default, so every shop gets it. Choose another default first.');
++        }
++        if ($audience['mode'] === 'chosen' && ! $audience['include']) {
++            throw new InvalidArgumentException('Add at least one shop, or choose another option.');
++        }
++        $t->update(['audience' => Audience::isEveryone($audience) ? null : $audience]);
++        DashboardTemplates::flush();
++        debug_log()->audit('dashboard.audience_changed', "Who gets {$t->name}: " . Audience::describe($audience), $t);
++
++        return $t->fresh('liveVersion');
++    }
++
++    /** The platform-wide switch for people customizing their dashboards. */
++    public static function setCustomizeEnabled(bool $on): void
++    {
++        $s = \App\Models\PlatformSettings::current();
++        $s->update(['dashboard_customize_enabled' => $on]);
++        \App\Models\PlatformSettings::forget();
++        debug_log()->audit('dashboard.customize_switch', 'Dashboard customizing turned ' . ($on ? 'on' : 'off') . ' for every shop', $s);
++    }
++
+     /** People who picked each template themselves, keyed by template key. */
+     public static function pickCounts(): array
+     {
+diff --git a/database/migrations/2026_10_25_090000_dashboard_audiences_and_customizing.php b/database/migrations/2026_10_25_090000_dashboard_audiences_and_customizing.php
+new file mode 100644
+index 00000000..fc451c5a
+--- /dev/null
++++ b/database/migrations/2026_10_25_090000_dashboard_audiences_and_customizing.php
+@@ -0,0 +1,41 @@
++<?php
++
++use Illuminate\Database\Migrations\Migration;
++use Illuminate\Database\Schema\Blueprint;
++use Illuminate\Support\Facades\Schema;
++
++/**
++ * MARKER-DASH-AUDIENCE: dashboard templates, phase 3. Additive only.
++ *
++ * platform_settings.dashboard_customize_enabled: one switch that turns
++ *   per-person dashboard customizing off for every shop (each template keeps
++ *   its own setting for when it's turned back on).
++ * tenant_users.dashboard_prefs: what each person hid or reordered, per
++ *   template key: {"brief": {"hidden": ["setup"], "order": {"1-1": ["last30", "week"]}}}.
++ */
++return new class extends Migration
++{
++    public function up(): void
++    {
++        if (! Schema::hasColumn('platform_settings', 'dashboard_customize_enabled')) {
++            Schema::table('platform_settings', function (Blueprint $t) {
++                $t->boolean('dashboard_customize_enabled')->default(true);
++            });
++        }
++        if (! Schema::hasColumn('tenant_users', 'dashboard_prefs')) {
++            Schema::table('tenant_users', function (Blueprint $t) {
++                $t->json('dashboard_prefs')->nullable()->after('dashboard_tiles');
++            });
++        }
++    }
++
++    public function down(): void
++    {
++        if (Schema::hasColumn('tenant_users', 'dashboard_prefs')) {
++            Schema::table('tenant_users', fn (Blueprint $t) => $t->dropColumn('dashboard_prefs'));
++        }
++        if (Schema::hasColumn('platform_settings', 'dashboard_customize_enabled')) {
++            Schema::table('platform_settings', fn (Blueprint $t) => $t->dropColumn('dashboard_customize_enabled'));
++        }
++    }
++};
+diff --git a/resources/views/filament/pages/dashboard-editor.blade.php b/resources/views/filament/pages/dashboard-editor.blade.php
+index d832ee29..ce5c1f04 100644
+--- a/resources/views/filament/pages/dashboard-editor.blade.php
++++ b/resources/views/filament/pages/dashboard-editor.blade.php
+@@ -28,6 +28,23 @@
+   .de-blk .t { font-size:13px; font-weight:600; color:var(--db-txt); }
+   .de-blk .s { font-size:11.5px; color:var(--sx-faint); }
+   .de-blk.hid { border-style:dashed; opacity:.6; }
++  .de-blk.sel { border-color:var(--sx-violet); box-shadow:0 0 0 1px var(--sx-violet); }
++  .de-blk .who { display:inline-block; margin-top:3px; font-size:11px; color:var(--db-vtext); }
++  .de-blk .pick { background:none; border:0; padding:0; text-align:left; color:inherit; font:inherit; cursor:pointer; }
++  .de-set { border:1px solid var(--sx-violet); border-radius:10px; padding:10px 12px; margin:6px 0 4px; }
++  .de-set h4 { font-size:13.5px; font-weight:700; color:var(--db-txt); margin:0 0 8px; display:flex; }
++  .de-set h4 button { margin-left:auto; }
++  .de-chk { display:flex; gap:8px; align-items:center; font-size:13px; padding:3px 0; cursor:pointer; }
++  .de-chk input, .de-opt input { accent-color:#8b5cf6 !important; color:#8b5cf6 !important; }
++  .de-opt { display:flex; gap:8px; align-items:flex-start; font-size:13px; padding:5px 0; cursor:pointer; }
++  .de-opt input { margin-top:3px; }
++  .de-opt small { display:block; font-size:11.5px; color:var(--sx-faint); }
++  .de-chips { display:flex; flex-wrap:wrap; gap:6px; margin:6px 0; }
++  .de-chip { display:inline-flex; align-items:center; gap:4px; border:1px solid var(--sx-line-2); border-radius:99px; padding:2px 4px 2px 9px; font-size:12px; }
++  .de-chip button { background:none; border:0; color:var(--sx-faint); cursor:pointer; font-size:13px; padding:0 3px; }
++  .de-hits { border:1px solid var(--sx-line-2); border-radius:7px; margin-top:4px; }
++  .de-hits button { display:block; width:100%; text-align:left; background:none; border:0; border-bottom:1px solid var(--sx-line); padding:6px 8px; font:inherit; font-size:12.5px; color:inherit; cursor:pointer; }
++  .de-hits button:hover { background:var(--sx-vsoft); }
+   .de-ctl { display:flex; gap:2px; }
+   .de-ctl button { background:none; border:0; color:var(--sx-faint); cursor:pointer; font-size:13px; padding:2px 5px; border-radius:4px; }
+   .de-ctl button:hover { color:var(--db-txt); background:var(--db-hover); }
+@@ -97,7 +114,7 @@
+             @if ($tpl->state === 'live')
+               Everyone on {{ $tpl->name }} sees this on their next page load.
+             @else
+-              It joins every shop's dashboard switch. Nobody's screen changes until they pick it.
++              It joins the dashboard switch of the shops that get it (see Who gets it). Nobody's screen changes until they pick it.
+             @endif
+           </x-slot>
+           <div class="sx-root">
+@@ -139,8 +156,26 @@
+ 
+   <div class="de-grid">
+     <aside class="de-panel">
++      @if ($canEdit && $selBlock)
++        @php $selRoles = $selBlock['roles'] ?? array_keys($roles); $hideOff = $rearrange === 'none' || ! $customizeOn; @endphp
++        <div class="de-set">
++          <h4>{{ $names[$selBlock['b']] ?? $selBlock['b'] }}<button type="button" class="db-lnk dim" style="font-size:12px" wire:click="selectBlock({{ $sel[0] }}, {{ $sel[1] }}, {{ $sel[2] }})">Close</button></h4>
++          <div class="db-note" style="margin-bottom:4px">Who sees it</div>
++          @foreach ($roles as $rk => $rl)
++            <label class="de-chk"><input type="checkbox" @checked(in_array($rk, $selRoles, true)) wire:click="toggleRole('{{ $rk }}')"> {{ $rl }}s</label>
++          @endforeach
++          <div class="db-note" style="margin:4px 0 10px">A person's role in their shop. Anyone else gets the space closed up, not a gap.</div>
++          <label class="de-chk" @if ($hideOff) style="opacity:.5" @endif><input type="checkbox" @checked(empty($selBlock['lock'])) wire:click="toggleLock" @disabled($hideOff)> People can hide it</label>
++          <div class="db-note" style="margin-top:4px">
++            @if (! $customizeOn) Customizing is turned off for every shop on the Dashboards page.
++            @elseif ($rearrange === 'none') This template doesn't let people change anything (see Template settings).
++            @else Untick to keep it on everyone's dashboard. @endif
++            Saved with the draft; shops get it when you publish.
++          </div>
++        </div>
++      @endif
+       @if ($canEdit)
+-        <div class="db-note" style="margin-bottom:4px">Drag a block into a column, or click <b>Add</b> to put it in the outlined column.</div>
++        <div class="db-note" style="margin-bottom:4px">Drag a block into a column, or click <b>Add</b> to put it in the outlined column. Click a placed block for its settings.</div>
+         @foreach ($catalog as $origin => $items)
+           <div class="de-g">From {{ $origin }}</div>
+           @foreach ($items as $b)
+@@ -156,11 +191,66 @@
+         <div class="de-g" style="padding-top:22px">Template settings</div>
+         <div class="de-f"><label>Name</label><input type="text" class="db-in" maxlength="80" wire:model="name"></div>
+         <div class="de-f"><label>Name in the dashboard switch</label><input type="text" class="db-in" maxlength="40" wire:model="label"></div>
+-        <label class="db-note" style="display:flex;gap:8px;align-items:center;margin-bottom:10px"><input type="checkbox" wire:model="beta" style="accent-color:#8b5cf6"> Show a BETA label in the switch</label>
++        <label class="db-note" style="display:flex;gap:8px;align-items:center;margin-bottom:10px"><input type="checkbox" wire:model="beta" style="accent-color:#8b5cf6;color:#8b5cf6"> Show a BETA label in the switch</label>
++        <div class="db-note" style="margin:6px 0 2px">What people can change on it</div>
++        @foreach (['none' => ['Nothing', 'Everyone sees it exactly as you built it.'], 'hide' => ['Hide blocks', 'Each person can hide blocks you allow, from a Customize button.'], 'both' => ['Hide and reorder', 'Each person can also change the order within a column.']] as $rv => [$rl, $rd])
++          <label class="de-opt"><input type="radio" value="{{ $rv }}" wire:model="rearrange"><span>{{ $rl }}<small>{{ $rd }}</small></span></label>
++        @endforeach
++        @unless ($customizeOn)<div class="db-note db-warn" style="margin-bottom:6px">Customizing is off for every shop right now, so nobody sees Customize. This setting is kept for when it's back on.</div>@endunless
+         <button type="button" class="db-btn sm" wire:click="saveSettings">Save settings</button>
+         <div class="db-note" style="margin-top:6px">These apply straight away, without publishing.</div>
+       @endif
+ 
++      <div class="de-g" style="padding-top:22px">Who gets it</div>
++      @if ($tpl->is_default)
++        <div class="db-note">This is the default, so every shop gets it. Choose another default on the Dashboards page to limit it.</div>
++      @else
++        <div class="db-note" style="margin-bottom:4px">{{ $tpl->state === 'live' ? 'Applies straight away.' : 'Takes effect when you publish.' }} A shop that stops getting it falls back to the default. Each person's own pick and choices are kept in case it comes back.</div>
++        @foreach (['all' => ['Every shop', ''], 'match' => ['Shops that match', 'By plan, type of business or add-on'], 'chosen' => ['Only shops I choose', 'A beta: name the shops']] as $mv => [$ml, $md])
++          <label class="de-opt"><input type="radio" value="{{ $mv }}" wire:model.live="audMode" @disabled(! $canEdit)><span>{{ $ml }}@if ($md)<small>{{ $md }}</small>@endif</span></label>
++        @endforeach
++        @if ($audMode === 'match')
++          <div class="de-f" style="margin-top:6px"><label>Plan</label>
++            <select class="db-in" wire:model.live="audPlan" @disabled(! $canEdit)>
++              <option value="">Any plan</option>
++              @foreach ($plans as $pk => $pl)<option value="{{ $pk }}">{{ $pl }} and up</option>@endforeach
++            </select></div>
++          <div class="db-note">Type of business <span style="opacity:.8">(none ticked = any)</span></div>
++          @foreach ($industries as $ik => $il)
++            <label class="de-chk"><input type="checkbox" value="{{ $ik }}" wire:model.live="audIndustries" @disabled(! $canEdit)> {{ $il }}</label>
++          @endforeach
++          <div class="db-note" style="margin-top:8px">Has every one of these add-ons</div>
++          @foreach ($addons as $ak => $al)
++            <label class="de-chk"><input type="checkbox" value="{{ $ak }}" wire:model.live="audAddons" @disabled(! $canEdit)> {{ $al }}</label>
++          @endforeach
++        @endif
++        @foreach (($audMode === 'all' ? ['audExclude' => 'Never offer it to'] : ['audInclude' => $audMode === 'chosen' ? 'The shops' : 'Also offer it to', 'audExclude' => 'Never offer it to']) as $list => $title)
++          <div class="db-note" style="margin-top:10px">{{ $title }}</div>
++          <div class="de-chips">
++            @forelse ($this->{$list} as $sid)
++              <span class="de-chip">{{ $shopNames[$sid] ?? 'Removed shop' }}@if ($canEdit)<button type="button" wire:click="removeShop('{{ $list }}', '{{ $sid }}')" aria-label="Remove">×</button>@endif</span>
++            @empty
++              <span class="db-note">None</span>
++            @endforelse
++          </div>
++        @endforeach
++        @if ($canEdit)
++          <input type="text" class="db-in" placeholder="Find a shop to add" wire:model.live.debounce.300ms="shopFind">
++          @if ($shopHits)
++            <div class="de-hits">
++              @foreach ($shopHits as $sid => $sname)
++                <button type="button" wire:click="addShop('{{ $audMode === 'all' ? 'audExclude' : 'audInclude' }}', '{{ $sid }}')">{{ $sname }} <span class="db-note">· {{ $audMode === 'all' ? 'never offer' : 'add' }}</span></button>
++                @if ($audMode !== 'all')<button type="button" wire:click="addShop('audExclude', '{{ $sid }}')" style="padding-left:20px"><span class="db-note">or never offer it to {{ $sname }}</span></button>@endif
++              @endforeach
++            </div>
++          @endif
++          <div class="db-bar" style="padding:10px 0 0">
++            <button type="button" class="db-btn sm p" wire:click="saveAudience" @disabled($aud === $audSaved)>Save who gets it</button>
++            <span class="note">{{ \App\Support\Dashboard\Audience::describe($aud) }} · <b>{{ number_format($audCount) }}</b> {{ \Illuminate\Support\Str::plural('shop', $audCount) }}</span>
++          </div>
++        @endif
++      @endif
++
+       <div class="de-g" style="padding-top:22px">Versions</div>
+       @forelse ($versions as $v)
+         <div class="de-ver">
+@@ -209,15 +299,19 @@
+                      x-on:dragleave="if (! $el.contains($event.relatedTarget)) over = null"
+                      x-on:drop.prevent="drop($event, {{ $r }}, {{ $c }})"
+                    @endif>
+-                @if (count($row['split']) > 1)<div class="colh">Column {{ $c + 1 }} · {{ $span }}/12</div>@endif
++                @if (count($row['split']) > 1)<div class="colh">Column {{ $c + 1 }} · {{ \App\Support\Dashboard\Layout::colWidth($row['split'], $c) }}</div>@endif
+                 @forelse ($col as $i => $p)
+                   @php $def = $registry[$p['b']] ?? null; $isHidden = in_array($p['b'], $hidden, true); @endphp
+-                  <div class="de-blk {{ $isHidden ? 'hid' : '' }}" @if ($canEdit) draggable="true" x-on:dragstart="drag($event, { r: {{ $r }}, c: {{ $c }}, i: {{ $i }} })" @endif>
++                  @php
++                    $whoText = isset($p['roles']) ? collect($p['roles'])->map(fn ($k) => $roles[$k] . 's')->implode(' and ') . ' only' : null;
++                  @endphp
++                  <div class="de-blk {{ $isHidden ? 'hid' : '' }} {{ $sel === [$r, $c, $i] ? 'sel' : '' }}" @if ($canEdit) draggable="true" x-on:dragstart="drag($event, { r: {{ $r }}, c: {{ $c }}, i: {{ $i }} })" @endif>
+                     <span class="de-grip">⋮⋮</span>
+-                    <span>
++                    <button type="button" class="pick" wire:click="selectBlock({{ $r }}, {{ $c }}, {{ $i }})" title="Settings for this block">
+                       <span class="t">{{ $names[$p['b']] ?? $p['b'] }}</span>
+                       <span class="s" style="display:block">{{ $isHidden ? 'Hidden everywhere: no shop sees it' : 'From ' . ucfirst($def['origin'] ?? '') . ' · ' . ($def['reads'] ?? '') }}</span>
+-                    </span>
++                      @if ($whoText || ! empty($p['lock']))<span class="who">{{ collect([$whoText, ! empty($p['lock']) ? 'Always shown' : null])->filter()->implode(' · ') }}</span>@endif
++                    </button>
+                     @if ($canEdit)
+                       <span class="de-ctl">
+                         <button type="button" title="Move up" wire:click="nudge({{ $r }}, {{ $c }}, {{ $i }}, -1)" @disabled($i === 0)>↑</button>
+diff --git a/resources/views/filament/pages/dashboards.blade.php b/resources/views/filament/pages/dashboards.blade.php
+index 8bc3d32c..6606d9f1 100644
+--- a/resources/views/filament/pages/dashboards.blade.php
++++ b/resources/views/filament/pages/dashboards.blade.php
+@@ -4,12 +4,25 @@
+ <div class="sx-root">
+   <div class="db-legend">
+     <b>Shops only see a template's live version.</b> Edits stay in a draft no shop can see until you publish it.
+-    Every live template appears in every shop's dashboard switch.
++    A live template appears in the dashboard switch of every shop that gets it (set in its editor).
+     <b>The default</b> is what anyone who hasn't picked a view sees: {{ number_format($following) }} {{ \Illuminate\Support\Str::plural('person', $following) }}
+     across {{ number_format($followingShops) }} {{ \Illuminate\Support\Str::plural('shop', $followingShops) }} right now, including anyone whose pick was retired.
+     People who chose a view keep it.
+   </div>
+ 
++  <div class="db-bar" style="border-bottom:1px solid var(--sx-line)">
++    <span class="note" style="color:var(--db-txt);font-size:13.5px">People can customize their dashboards: <b style="color:{{ $customizeOn ? 'var(--sx-lime)' : 'var(--db-amber)' }}">{{ $customizeOn ? 'On' : 'Off for every shop' }}</b></span>
++    @if ($canManage)
++      @if ($customizeOn)
++        <button type="button" class="db-btn sm" wire:click="setCustomize(false)"
++          data-confirm="Turn customizing off for every shop?&#10;Nobody sees Customize, and everyone sees each template exactly as you built it. What people chose is kept, and comes back if you turn it on again.">Turn off</button>
++      @else
++        <button type="button" class="db-btn sm" wire:click="setCustomize(true)">Turn on</button>
++      @endif
++    @endif
++    <span class="note">{{ $customizeOn ? 'Each template decides what people can change (in its editor).' : 'Each template keeps its own setting for when this is back on.' }}</span>
++  </div>
++
+   <div class="db-bar">
+     <span class="note">{{ $active->where('state', 'live')->count() }} live · {{ $active->where('state', 'draft')->count() }} draft only · {{ $active->where('pending', '>', 0)->count() }} with a draft waiting</span>
+     @if ($canManage)
+@@ -41,7 +54,7 @@
+ 
+   <table class="db-t">
+     <thead>
+-      <tr><th>Template</th><th>Status</th><th class="db-hide-m">In the switch</th><th class="db-hide-m">Chose it</th><th>Default</th><th></th></tr>
++      <tr><th>Template</th><th>Status</th><th class="db-hide-m">Who gets it</th><th class="db-hide-m">In the switch</th><th class="db-hide-m">Chose it</th><th>Default</th><th></th></tr>
+     </thead>
+     <tbody>
+       @foreach ($active as $t)
+@@ -54,6 +67,7 @@
+             @if ($t['state'] === 'live')<span class="db-tag live">Live v{{ $t['version'] }}</span>@else<span class="db-tag draft">Draft only</span>@endif
+             @if ($t['pending'])<span class="db-tag pend">Draft waiting · {{ $t['pending'] }} {{ \Illuminate\Support\Str::plural('change', $t['pending']) }}</span>@endif
+           </td>
++          <td class="db-hide-m">{{ $t['audience'] }}<div class="db-sub">{{ ['none' => 'People can\'t change it', 'hide' => 'People can hide blocks', 'both' => 'People can hide and reorder'][$t['rearrange']] ?? '' }}</div></td>
+           <td class="db-hide-m">{{ $t['label'] }}@if ($t['beta']) <span class="db-beta">BETA</span>@endif</td>
+           <td class="db-hide-m db-num">{{ number_format($t['picked']) }}</td>
+           <td>
+@@ -110,5 +124,34 @@
+       </tbody>
+     </table>
+   @endif
++
++  <div class="db-h3">Check a shop<span class="meta">Which dashboards one shop is offered, and why</span></div>
++  <input type="text" class="db-in" style="max-width:360px" placeholder="Find a shop" wire:model.live.debounce.300ms="checkFind">
++  @if ($checkHits)
++    <div style="max-width:360px;border:1px solid var(--sx-line-2);border-radius:7px;margin-top:4px">
++      @foreach ($checkHits as $sid => $sname)
++        <button type="button" class="db-lnk" style="display:block;width:100%;text-align:left;padding:6px 8px;border-bottom:1px solid var(--sx-line);color:inherit" wire:click="pickShop('{{ $sid }}')">{{ $sname }}</button>
++      @endforeach
++    </div>
++  @endif
++  @if ($check)
++    <table class="db-t" style="margin-top:10px">
++      <tbody>
++        <tr><td class="db-nm" style="width:220px">{{ $check['name'] }}</td><td class="db-note">{{ $check['facts'] ?: 'No plan or business type set' }}</td></tr>
++        @foreach ($check['lines'] as [$tn, $ok, $why])
++          <tr><td>{{ $tn }}</td><td>@if ($ok)<span class="db-tag live">In their switch</span>@else<span class="db-tag off">Not offered</span>@endif <span class="db-note">{{ $why }}</span></td></tr>
++        @endforeach
++        @foreach ($check['people'] as $person)
++          <tr><td class="db-note">{{ $person->name }} · {{ ucfirst($person->role) }}</td><td class="db-note">@if (! $person->dashboard_view)
++              Follows the default ({{ $check['default'] }})
++            @elseif (isset($check['offered'][$person->dashboard_view]))
++              Picked {{ $check['offered'][$person->dashboard_view] }}
++            @else
++              Picked {{ $check['names'][$person->dashboard_view] ?? 'a template that\'s gone' }}, which this shop isn't offered, so sees the default ({{ $check['default'] }})
++            @endif</td></tr>
++        @endforeach
++      </tbody>
++    </table>
++  @endif
+ </div>
+ </x-filament-panels::page>
+diff --git a/resources/views/tenant/dashboard-brief.blade.php b/resources/views/tenant/dashboard-brief.blade.php
+index f3f716f4..5b522e9b 100644
+--- a/resources/views/tenant/dashboard-brief.blade.php
++++ b/resources/views/tenant/dashboard-brief.blade.php
+@@ -35,6 +35,7 @@
+     <div style="display:flex;align-items:center;gap:12px">
+       <div class="mb-eyebrow">{{ $greeting['date_long'] }}</div>
+       @include('tenant.dashboard._switch', ['segStyle' => 'margin-left:auto'])
++      @include('tenant.dashboard._customize_button')
+     </div>
+ 
+     @include('tenant.dashboard._rows', ['dashRows' => $briefHead])
+@@ -54,4 +55,5 @@
+     @endif
+   @endforeach
+ </div>
++@include('tenant.dashboard._customize_panel')
+ @endsection
+diff --git a/resources/views/tenant/dashboard-standard.blade.php b/resources/views/tenant/dashboard-standard.blade.php
+index 8f00a7c3..af73f0ae 100644
+--- a/resources/views/tenant/dashboard-standard.blade.php
++++ b/resources/views/tenant/dashboard-standard.blade.php
+@@ -27,10 +27,12 @@
+     <div style="display:flex;align-items:center;gap:12px;margin-bottom:22px">
+       <div class="mb-eyebrow">{{ $greeting['date_long'] }}</div>
+       @include('tenant.dashboard._switch', ['segStyle' => 'margin-left:auto'])
++      @include('tenant.dashboard._customize_button')
+     </div>
+   </section>
+   <div class="dash-std-rows">
+     @include('tenant.dashboard._rows', ['dashRows' => $dashRows])
+   </div>
+ </div>
++@include('tenant.dashboard._customize_panel')
+ @endsection
+diff --git a/resources/views/tenant/dashboard-tiles.blade.php b/resources/views/tenant/dashboard-tiles.blade.php
+index 99b3bc9d..4420e37e 100644
+--- a/resources/views/tenant/dashboard-tiles.blade.php
++++ b/resources/views/tenant/dashboard-tiles.blade.php
+@@ -64,9 +64,11 @@
+       + New appointment
+     </a>
+     @include('tenant.dashboard._switch')
++    @include('tenant.dashboard._customize_button')
+   </div>
+ </div>
+ 
+ {{-- MARKER-DASH-TEMPLATES: the blocks, in the order the template's live version lists them. --}}
+ @include('tenant.dashboard._rows', ['dashRows' => $dashRows])
++@include('tenant.dashboard._customize_panel')
+ @endsection
+diff --git a/resources/views/tenant/dashboard.blade.php b/resources/views/tenant/dashboard.blade.php
+index 215b0e49..f4162a34 100644
+--- a/resources/views/tenant/dashboard.blade.php
++++ b/resources/views/tenant/dashboard.blade.php
+@@ -127,6 +127,7 @@
+     </a>
+     {{-- toggle lives in the page head on both views --}}
+     @include('tenant.dashboard._switch', ['inline' => true])
++    @include('tenant.dashboard._customize_button')
+   </div>
+ </div>
+ 
+@@ -168,6 +169,7 @@
+ {{-- MARKER-DASH-TEMPLATES: Overview is now a template; this page is its frame
+      and the zones are its blocks, drawn in the order its live version lists. --}}
+ @include('tenant.dashboard._rows', ['dashRows' => $dashRows])
++@include('tenant.dashboard._customize_panel')
+ 
+ 
+ 
+diff --git a/resources/views/tenant/dashboard/_customize_button.blade.php b/resources/views/tenant/dashboard/_customize_button.blade.php
+new file mode 100644
+index 00000000..4a3f38a1
+--- /dev/null
++++ b/resources/views/tenant/dashboard/_customize_button.blade.php
+@@ -0,0 +1,8 @@
++{{-- MARKER-DASH-AUDIENCE: opens the Customize panel. Only drawn when this
++     person can change something on this template. --}}
++@if (! empty($customize))
++  <button type="button" class="ia-btn ia-btn--sm ia-dash-cust" data-dash-customize title="Choose which blocks you see{{ $customize['mode'] === 'both' ? ' and their order' : '' }}" aria-label="Customize this dashboard">
++    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/></svg>
++    <span class="ia-dash-cust-lb">Customize{{ $customize['hiddenCount'] ? ' · ' . $customize['hiddenCount'] . ' hidden' : '' }}</span>
++  </button>
++@endif
+diff --git a/resources/views/tenant/dashboard/_customize_panel.blade.php b/resources/views/tenant/dashboard/_customize_panel.blade.php
+new file mode 100644
+index 00000000..49b96f2a
+--- /dev/null
++++ b/resources/views/tenant/dashboard/_customize_panel.blade.php
+@@ -0,0 +1,138 @@
++{{-- MARKER-DASH-AUDIENCE: the Customize panel. What one person hides or
++     reorders applies to them only, on this template only. Saved with Save;
++     nothing changes until then. --}}
++@if (! empty($customize))
++@push('styles')
++<style>
++  .ia-dash-cust { white-space: nowrap; }
++  @media (max-width: 1023px) { .ia-dash-cust { padding: 5px 8px !important; } .ia-dash-cust-lb { display: none; } }
++  .dc-scrim { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 1000; }
++  .dc-panel { position: fixed; top: 0; right: 0; bottom: 0; width: min(420px, 94vw); z-index: 1001; background: var(--ia-surface); color: var(--ia-text);
++    border-left: 0.5px solid var(--ia-border); display: flex; flex-direction: column; box-shadow: -8px 0 24px rgba(0,0,0,.18); }
++  .dc-head { padding: 18px 20px 12px; border-bottom: 0.5px solid var(--ia-border); }
++  .dc-head h2 { font-size: 16px; font-weight: 600; margin: 0; }
++  .dc-head p { font-size: 12.5px; color: var(--ia-text-muted); margin: 4px 0 0; line-height: 1.5; }
++  .dc-body { flex: 1; overflow-y: auto; padding: 8px 20px 16px; }
++  .dc-grp { font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--ia-text-muted); font-weight: 600; padding: 16px 0 6px; }
++  .dc-row { display: flex; align-items: center; gap: 8px; padding: 9px 0; border-bottom: 0.5px solid var(--ia-border); font-size: 14px; }
++  .dc-row.off .dc-nm { color: var(--ia-text-dim); text-decoration: line-through; }
++  .dc-nm { flex: 1; min-width: 0; }
++  .dc-lock { font-size: 12px; color: var(--ia-text-muted); }
++  .dc-row button { background: none; border: 0.5px solid var(--ia-border-strong); color: var(--ia-text); border-radius: 6px; font: inherit; font-size: 12px; padding: 3px 9px; cursor: pointer; }
++  .dc-row button[disabled] { opacity: .3; cursor: default; }
++  .dc-foot { padding: 14px 20px; border-top: 0.5px solid var(--ia-border); display: flex; gap: 8px; align-items: center; }
++  .dc-foot .sp { margin-right: auto; }
++  /* above the phone nav bar and the round + button */
++  .dc-foot { padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px)); }
++</style>
++@endpush
++
++<div id="dc-wrap" hidden>
++  <div class="dc-scrim" data-dc-close></div>
++  <aside class="dc-panel" role="dialog" aria-modal="true" aria-labelledby="dc-title">
++    <div class="dc-head">
++      <h2 id="dc-title">Customize {{ $customize['name'] }}</h2>
++      <p>Only for you. Other people in your shop keep their own view.
++        {{ $customize['mode'] === 'both' ? 'Hide blocks you don\'t need, or change their order within a column.' : 'Hide the blocks you don\'t need.' }}
++        Blocks marked “Always shown” are set by Intake.</p>
++    </div>
++    <div class="dc-body" id="dc-body">
++      @foreach ($customize['groups'] as $g)
++        <div class="dc-grp">{{ $g['label'] }}</div>
++        <div data-dc-col="{{ $g['key'] }}">
++          @foreach ($g['blocks'] as $b)
++            <div class="dc-row {{ $b['hidden'] ? 'off' : '' }}" data-dc-block="{{ $b['key'] }}" data-dc-locked="{{ $b['locked'] ? 1 : 0 }}">
++              <span class="dc-nm">{{ $b['name'] }}</span>
++              @if ($customize['mode'] === 'both')
++                <button type="button" data-dc-move="-1" aria-label="Move {{ $b['name'] }} up">↑</button>
++                <button type="button" data-dc-move="1" aria-label="Move {{ $b['name'] }} down">↓</button>
++              @endif
++              @if ($b['locked'])
++                <span class="dc-lock">Always shown</span>
++              @else
++                <button type="button" data-dc-toggle>{{ $b['hidden'] ? 'Show' : 'Hide' }}</button>
++              @endif
++            </div>
++          @endforeach
++        </div>
++      @endforeach
++    </div>
++    <div class="dc-foot">
++      <span class="sp"><button type="button" class="ia-btn ia-btn--ghost ia-btn--sm" data-dc-reset>Reset to the template</button></span>
++      <button type="button" class="ia-btn ia-btn--sm" data-dc-close>Cancel</button>
++      <button type="button" class="ia-btn ia-btn--primary ia-btn--sm" data-dc-save>Save</button>
++    </div>
++  </aside>
++</div>
++
++@push('scripts')
++<script>
++(function () {
++  var wrap = document.getElementById('dc-wrap');
++  if (!wrap) return;
++  var body = document.getElementById('dc-body');
++  var saveUrl = @json(route('tenant.dashboard.customize'));
++  var tpl = @json($customize['template']);
++  var initial = body.innerHTML;
++
++  function open() { body.innerHTML = initial; refresh(); wrap.hidden = false; document.body.style.overflow = 'hidden'; }
++  function close() { wrap.hidden = true; document.body.style.overflow = ''; }
++  function refresh() {
++    body.querySelectorAll('[data-dc-col]').forEach(function (col) {
++      var rows = col.querySelectorAll('[data-dc-block]');
++      rows.forEach(function (row, i) {
++        var up = row.querySelector('[data-dc-move="-1"]'), dn = row.querySelector('[data-dc-move="1"]');
++        if (up) up.disabled = i === 0;
++        if (dn) dn.disabled = i === rows.length - 1;
++      });
++    });
++  }
++  function fail(msg) {
++    if (window.IntakeToast) { window.IntakeToast.error(msg); return; }
++    var p = wrap.querySelector('.dc-head p'); if (p) p.textContent = msg;
++  }
++  function send(payload) {
++    payload.template = tpl;
++    return fetch(saveUrl, {
++      method: 'POST',
++      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': (window.IntakeAdmin && window.IntakeAdmin.csrfToken) || '' },
++      body: JSON.stringify(payload)
++    }).then(function (r) {
++      if (r.ok) { window.location.reload(); return; }
++      fail('Could not save. Try again.');
++    }).catch(function () { fail('Could not save. Check your connection.'); });
++  }
++
++  document.querySelectorAll('[data-dash-customize]').forEach(function (b) { b.addEventListener('click', open); });
++  wrap.addEventListener('click', function (e) {
++    if (e.target.closest('[data-dc-close]')) { close(); return; }
++    var t = e.target.closest('[data-dc-toggle]');
++    if (t) { var row = t.closest('[data-dc-block]'); var off = row.classList.toggle('off'); t.textContent = off ? 'Show' : 'Hide'; return; }
++    var m = e.target.closest('[data-dc-move]');
++    if (m) {
++      var row = m.closest('[data-dc-block]'), dir = +m.getAttribute('data-dc-move');
++      var sib = dir < 0 ? row.previousElementSibling : row.nextElementSibling;
++      if (sib) { if (dir < 0) row.parentNode.insertBefore(row, sib); else row.parentNode.insertBefore(sib, row); refresh(); }
++      return;
++    }
++    if (e.target.closest('[data-dc-save]')) {
++      var hidden = [], order = {};
++      body.querySelectorAll('[data-dc-col]').forEach(function (col) {
++        var keys = [];
++        col.querySelectorAll('[data-dc-block]').forEach(function (row) {
++          keys.push(row.getAttribute('data-dc-block'));
++          if (row.classList.contains('off')) hidden.push(row.getAttribute('data-dc-block'));
++        });
++        order[col.getAttribute('data-dc-col')] = keys;
++      });
++      e.target.disabled = true;
++      send({ hidden: hidden, order: order });
++      return;
++    }
++    if (e.target.closest('[data-dc-reset]')) { send({ reset: true }); }
++  });
++  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !wrap.hidden) close(); });
++})();
++</script>
++@endpush
++@endif
+diff --git a/routes/web.php b/routes/web.php
+index f96216a0..f02b3f0b 100644
+--- a/routes/web.php
++++ b/routes/web.php
+@@ -1107,6 +1107,7 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
+             Route::post('/dashboard/wof-banner/dismiss', [TenantControllers\DashboardController::class, 'dismissWorkOrderBanner'])->name('dashboard.wof-banner.dismiss');
+             Route::post('/dashboard/view',        [TenantControllers\DashboardController::class, 'setView'])->name('dashboard.view');
+             Route::post('/dashboard/tiles',       [TenantControllers\DashboardController::class, 'saveTiles'])->name('dashboard.tiles.save');
++            Route::post('/dashboard/customize',   [TenantControllers\DashboardController::class, 'saveCustomize'])->name('dashboard.customize'); // MARKER-DASH-AUDIENCE
+             Route::post('/dashboard/tiles/reset', [TenantControllers\DashboardController::class, 'resetTiles'])->name('dashboard.tiles.reset');
+ 
+             Route::post('/addons',              [TenantControllers\AddonController::class, 'store'])->name('addons.store');

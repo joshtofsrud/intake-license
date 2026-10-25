@@ -33,12 +33,15 @@ class PlatformSettings extends Model
         // removed: mail_from_address and mail_from_name above already are the
         // platform sender, and two homes for one address is how they drift.
         'platform_postal_address',
+        // MARKER-DASH-AUDIENCE: off = no shop can customize its dashboard
+        'dashboard_customize_enabled',
     ];
 
     // without this the json column reads back as a
     // string and every allowance lookup silently falls through to the default.
     protected $casts = [
         'email_free_by_tier' => 'array',
+        'dashboard_customize_enabled' => 'boolean',
     ];
 
     /** Laravel's framework default when nothing is configured. */
@@ -55,7 +58,9 @@ class PlatformSettings extends Model
 
         $row = self::find(1);
         if (! $row) {
-            $row = self::create(['id' => 1]);
+            // forceCreate: id isn't fillable, so create() dropped it (or threw
+            // outside production) instead of making the id = 1 row.
+            $row = self::forceCreate(['id' => 1]);
         }
 
         return static::$memo = $row;

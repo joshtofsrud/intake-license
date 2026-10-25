@@ -170,7 +170,7 @@ class TemplateStore
         return $t->fresh('liveVersion');
     }
 
-    public static function saveSettings(string $key, string $name, string $label, bool $beta): DashboardTemplate
+    public static function saveSettings(string $key, string $name, string $label, bool $beta, ?string $rearrange = null): DashboardTemplate
     {
         $name = trim($name);
         $label = trim($label);
@@ -181,9 +181,11 @@ class TemplateStore
             throw new InvalidArgumentException('The switch label needs 1 to 40 characters.');
         }
         $t = self::find($key);
-        $t->update(['name' => $name, 'switch_label' => $label, 'beta_badge' => $beta]);
+        $rearrange = in_array($rearrange, ['none', 'hide', 'both'], true) ? $rearrange : $t->rearrange;
+        $t->update(['name' => $name, 'switch_label' => $label, 'beta_badge' => $beta, 'rearrange' => $rearrange]);
         DashboardTemplates::flush();
-        debug_log()->audit('dashboard.settings_changed', "Settings for {$name}: switch label “{$label}”" . ($beta ? ', BETA label' : ''), $t);
+        $can = ['none' => 'nothing', 'hide' => 'hide blocks', 'both' => 'hide and reorder blocks'][$rearrange];
+        debug_log()->audit('dashboard.settings_changed', "Settings for {$name}: switch label “{$label}”" . ($beta ? ', BETA label' : '') . "; people can change: {$can}", $t);
 
         return $t->fresh('liveVersion');
     }
@@ -217,6 +219,9 @@ class TemplateStore
         if ($t->state !== 'live') {
             throw new InvalidArgumentException('Only a live template can be the default.');
         }
+        if (! Audience::isEveryone($t->audience)) {
+            throw new InvalidArgumentException('The default has to be offered to every shop. Change who gets it first.');
+        }
         DB::transaction(function () use ($t) {
             DashboardTemplate::query()->update(['is_default' => false]);
             $t->update(['is_default' => true]);
@@ -224,6 +229,33 @@ class TemplateStore
         DashboardTemplates::flush();
 
         return $t;
+    }
+
+    /** Who gets the template. The default always goes to every shop. */
+    public static function saveAudience(string $key, array $audience): DashboardTemplate
+    {
+        $t = self::find($key);
+        $audience = Audience::normalize($audience);
+        if ($t->is_default && ! Audience::isEveryone($audience)) {
+            throw new InvalidArgumentException('This is the default, so every shop gets it. Choose another default first.');
+        }
+        if ($audience['mode'] === 'chosen' && ! $audience['include']) {
+            throw new InvalidArgumentException('Add at least one shop, or choose another option.');
+        }
+        $t->update(['audience' => Audience::isEveryone($audience) ? null : $audience]);
+        DashboardTemplates::flush();
+        debug_log()->audit('dashboard.audience_changed', "Who gets {$t->name}: " . Audience::describe($audience), $t);
+
+        return $t->fresh('liveVersion');
+    }
+
+    /** The platform-wide switch for people customizing their dashboards. */
+    public static function setCustomizeEnabled(bool $on): void
+    {
+        $s = \App\Models\PlatformSettings::current();
+        $s->update(['dashboard_customize_enabled' => $on]);
+        \App\Models\PlatformSettings::forget();
+        debug_log()->audit('dashboard.customize_switch', 'Dashboard customizing turned ' . ($on ? 'on' : 'off') . ' for every shop', $s);
     }
 
     /** People who picked each template themselves, keyed by template key. */

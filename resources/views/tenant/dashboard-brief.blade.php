@@ -35,6 +35,7 @@
     <div style="display:flex;align-items:center;gap:12px">
       <div class="mb-eyebrow">{{ $greeting['date_long'] }}</div>
       @include('tenant.dashboard._switch', ['segStyle' => 'margin-left:auto'])
+      @include('tenant.dashboard._customize_button')
     </div>
 
     @include('tenant.dashboard._rows', ['dashRows' => $briefHead])
@@ -54,4 +55,5 @@
     @endif
   @endforeach
 </div>
+@include('tenant.dashboard._customize_panel')
 @endsection

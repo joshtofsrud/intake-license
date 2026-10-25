@@ -4,10 +4,23 @@
 <div class="sx-root">
   <div class="db-legend">
     <b>Shops only see a template's live version.</b> Edits stay in a draft no shop can see until you publish it.
-    Every live template appears in every shop's dashboard switch.
+    A live template appears in the dashboard switch of every shop that gets it (set in its editor).
     <b>The default</b> is what anyone who hasn't picked a view sees: {{ number_format($following) }} {{ \Illuminate\Support\Str::plural('person', $following) }}
     across {{ number_format($followingShops) }} {{ \Illuminate\Support\Str::plural('shop', $followingShops) }} right now, including anyone whose pick was retired.
     People who chose a view keep it.
+  </div>
+
+  <div class="db-bar" style="border-bottom:1px solid var(--sx-line)">
+    <span class="note" style="color:var(--db-txt);font-size:13.5px">People can customize their dashboards: <b style="color:{{ $customizeOn ? 'var(--sx-lime)' : 'var(--db-amber)' }}">{{ $customizeOn ? 'On' : 'Off for every shop' }}</b></span>
+    @if ($canManage)
+      @if ($customizeOn)
+        <button type="button" class="db-btn sm" wire:click="setCustomize(false)"
+          data-confirm="Turn customizing off for every shop?&#10;Nobody sees Customize, and everyone sees each template exactly as you built it. What people chose is kept, and comes back if you turn it on again.">Turn off</button>
+      @else
+        <button type="button" class="db-btn sm" wire:click="setCustomize(true)">Turn on</button>
+      @endif
+    @endif
+    <span class="note">{{ $customizeOn ? 'Each template decides what people can change (in its editor).' : 'Each template keeps its own setting for when this is back on.' }}</span>
   </div>
 
   <div class="db-bar">
@@ -41,7 +54,7 @@
 
   <table class="db-t">
     <thead>
-      <tr><th>Template</th><th>Status</th><th class="db-hide-m">In the switch</th><th class="db-hide-m">Chose it</th><th>Default</th><th></th></tr>
+      <tr><th>Template</th><th>Status</th><th class="db-hide-m">Who gets it</th><th class="db-hide-m">In the switch</th><th class="db-hide-m">Chose it</th><th>Default</th><th></th></tr>
     </thead>
     <tbody>
       @foreach ($active as $t)
@@ -54,6 +67,7 @@
             @if ($t['state'] === 'live')<span class="db-tag live">Live v{{ $t['version'] }}</span>@else<span class="db-tag draft">Draft only</span>@endif
             @if ($t['pending'])<span class="db-tag pend">Draft waiting · {{ $t['pending'] }} {{ \Illuminate\Support\Str::plural('change', $t['pending']) }}</span>@endif
           </td>
+          <td class="db-hide-m">{{ $t['audience'] }}<div class="db-sub">{{ ['none' => 'People can\'t change it', 'hide' => 'People can hide blocks', 'both' => 'People can hide and reorder'][$t['rearrange']] ?? '' }}</div></td>
           <td class="db-hide-m">{{ $t['label'] }}@if ($t['beta']) <span class="db-beta">BETA</span>@endif</td>
           <td class="db-hide-m db-num">{{ number_format($t['picked']) }}</td>
           <td>
@@ -106,6 +120,35 @@
             <td><span class="db-nm">{{ $t['name'] }}</span><div class="db-sub">Retired {{ $t['retired']?->format('M j') }} · {{ $t['blocks'] }} {{ \Illuminate\Support\Str::plural('block', $t['blocks']) }}</div></td>
             <td class="r">@if ($canManage)<button type="button" class="db-lnk" wire:click="restore('{{ $t['key'] }}')">Restore as draft</button>@endif</td>
           </tr>
+        @endforeach
+      </tbody>
+    </table>
+  @endif
+
+  <div class="db-h3">Check a shop<span class="meta">Which dashboards one shop is offered, and why</span></div>
+  <input type="text" class="db-in" style="max-width:360px" placeholder="Find a shop" wire:model.live.debounce.300ms="checkFind">
+  @if ($checkHits)
+    <div style="max-width:360px;border:1px solid var(--sx-line-2);border-radius:7px;margin-top:4px">
+      @foreach ($checkHits as $sid => $sname)
+        <button type="button" class="db-lnk" style="display:block;width:100%;text-align:left;padding:6px 8px;border-bottom:1px solid var(--sx-line);color:inherit" wire:click="pickShop('{{ $sid }}')">{{ $sname }}</button>
+      @endforeach
+    </div>
+  @endif
+  @if ($check)
+    <table class="db-t" style="margin-top:10px">
+      <tbody>
+        <tr><td class="db-nm" style="width:220px">{{ $check['name'] }}</td><td class="db-note">{{ $check['facts'] ?: 'No plan or business type set' }}</td></tr>
+        @foreach ($check['lines'] as [$tn, $ok, $why])
+          <tr><td>{{ $tn }}</td><td>@if ($ok)<span class="db-tag live">In their switch</span>@else<span class="db-tag off">Not offered</span>@endif <span class="db-note">{{ $why }}</span></td></tr>
+        @endforeach
+        @foreach ($check['people'] as $person)
+          <tr><td class="db-note">{{ $person->name }} · {{ ucfirst($person->role) }}</td><td class="db-note">@if (! $person->dashboard_view)
+              Follows the default ({{ $check['default'] }})
+            @elseif (isset($check['offered'][$person->dashboard_view]))
+              Picked {{ $check['offered'][$person->dashboard_view] }}
+            @else
+              Picked {{ $check['names'][$person->dashboard_view] ?? 'a template that\'s gone' }}, which this shop isn't offered, so sees the default ({{ $check['default'] }})
+            @endif</td></tr>
         @endforeach
       </tbody>
     </table>

@@ -127,6 +127,7 @@
     </a>
     {{-- toggle lives in the page head on both views --}}
     @include('tenant.dashboard._switch', ['inline' => true])
+    @include('tenant.dashboard._customize_button')
   </div>
 </div>
 
@@ -168,6 +169,7 @@
 {{-- MARKER-DASH-TEMPLATES: Overview is now a template; this page is its frame
      and the zones are its blocks, drawn in the order its live version lists. --}}
 @include('tenant.dashboard._rows', ['dashRows' => $dashRows])
+@include('tenant.dashboard._customize_panel')
 
 
 

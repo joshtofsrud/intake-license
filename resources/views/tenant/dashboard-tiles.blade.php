@@ -64,9 +64,11 @@
       + New appointment
     </a>
     @include('tenant.dashboard._switch')
+    @include('tenant.dashboard._customize_button')
   </div>
 </div>
 
 {{-- MARKER-DASH-TEMPLATES: the blocks, in the order the template's live version lists them. --}}
 @include('tenant.dashboard._rows', ['dashRows' => $dashRows])
+@include('tenant.dashboard._customize_panel')
 @endsection

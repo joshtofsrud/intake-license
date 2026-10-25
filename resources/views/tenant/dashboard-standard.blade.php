@@ -27,10 +27,12 @@
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:22px">
       <div class="mb-eyebrow">{{ $greeting['date_long'] }}</div>
       @include('tenant.dashboard._switch', ['segStyle' => 'margin-left:auto'])
+      @include('tenant.dashboard._customize_button')
     </div>
   </section>
   <div class="dash-std-rows">
     @include('tenant.dashboard._rows', ['dashRows' => $dashRows])
   </div>
 </div>
+@include('tenant.dashboard._customize_panel')
 @endsection

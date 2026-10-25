@@ -1107,6 +1107,7 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             Route::post('/dashboard/wof-banner/dismiss', [TenantControllers\DashboardController::class, 'dismissWorkOrderBanner'])->name('dashboard.wof-banner.dismiss');
             Route::post('/dashboard/view',        [TenantControllers\DashboardController::class, 'setView'])->name('dashboard.view');
             Route::post('/dashboard/tiles',       [TenantControllers\DashboardController::class, 'saveTiles'])->name('dashboard.tiles.save');
+            Route::post('/dashboard/customize',   [TenantControllers\DashboardController::class, 'saveCustomize'])->name('dashboard.customize'); // MARKER-DASH-AUDIENCE
             Route::post('/dashboard/tiles/reset', [TenantControllers\DashboardController::class, 'resetTiles'])->name('dashboard.tiles.reset');
 
             Route::post('/addons',              [TenantControllers\AddonController::class, 'store'])->name('addons.store');

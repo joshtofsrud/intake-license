@@ -4,6 +4,7 @@ namespace App\Support\Dashboard;
 
 use App\Models\DashboardBlock;
 use App\Models\DashboardTemplate;
+use App\Models\Tenant;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -102,7 +103,19 @@ class DashboardTemplates
      *
      * @return array<int, array{key: string, name: string, frame: string, label: string, beta: bool, icon: string, default: bool, rows: array}>
      */
-    public static function switchable(): array
+    public static function switchable(?Tenant $tenant = null): array
+    {
+        $all = self::all();
+        if (! $tenant) {
+            return $all;
+        }
+
+        // the default is offered to every shop, whatever its audience says
+        return array_values(array_filter($all, fn ($t) => $t['default'] || Audience::allows($t['audience'], $tenant)));
+    }
+
+    /** Every live template, audience aside. Read once per request. */
+    private static function all(): array
     {
         if (self::$cache !== null) {
             return self::$cache;
@@ -117,14 +130,16 @@ class DashboardTemplates
                 ->orderBy('sort')->orderBy('id')
                 ->get()
                 ->map(fn (DashboardTemplate $t) => [
-                    'key'     => $t->key,
-                    'name'    => $t->name,
-                    'frame'   => $t->frame,
-                    'label'   => $t->switch_label ?: $t->name,
-                    'beta'    => (bool) $t->beta_badge,
-                    'icon'    => $t->icon ?: $t->frame,
-                    'default' => (bool) $t->is_default,
-                    'rows'    => Layout::visible((array) ($t->liveVersion?->layout ?? []), $hidden),
+                    'key'       => $t->key,
+                    'name'      => $t->name,
+                    'frame'     => $t->frame,
+                    'label'     => $t->switch_label ?: $t->name,
+                    'beta'      => (bool) $t->beta_badge,
+                    'icon'      => $t->icon ?: $t->frame,
+                    'default'   => (bool) $t->is_default,
+                    'rearrange' => in_array($t->rearrange, ['none', 'hide', 'both'], true) ? $t->rearrange : 'none',
+                    'audience'  => $t->audience,
+                    'rows'      => Layout::visible((array) ($t->liveVersion?->layout ?? []), $hidden),
                 ])
                 ->values()
                 ->all();
@@ -137,6 +152,7 @@ class DashboardTemplates
             $list = array_map(fn ($d) => [
                 'key' => $d['key'], 'name' => $d['name'], 'frame' => $d['frame'], 'label' => $d['switch_label'],
                 'beta' => $d['beta_badge'], 'icon' => $d['icon'], 'default' => $d['is_default'],
+                'rearrange' => 'none', 'audience' => null,
                 'rows' => Layout::visible($d['layout']),
             ], self::builtInDefinitions());
         }
@@ -144,10 +160,10 @@ class DashboardTemplates
         return self::$cache = $list;
     }
 
-    /** The template this person sees: the one they picked, else the default, else the first. */
-    public static function activeFor(?string $picked): array
+    /** The template this person sees: the one they picked if the shop gets it, else the default, else the first. */
+    public static function activeFor(?string $picked, ?Tenant $tenant = null): array
     {
-        $list = self::switchable();
+        $list = self::switchable($tenant);
         foreach ($list as $t) {
             if ($picked !== null && $t['key'] === $picked) return $t;
         }
@@ -158,9 +174,25 @@ class DashboardTemplates
         return $list[0];
     }
 
-    public static function keys(): array
+    public static function keys(?Tenant $tenant = null): array
     {
-        return array_column(self::switchable(), 'key');
+        return array_column(self::switchable($tenant), 'key');
+    }
+
+    /** The platform-wide switch: off means nobody can customize a dashboard. */
+    public static function customizeEnabled(): bool
+    {
+        try {
+            return (bool) (\App\Models\PlatformSettings::current()->dashboard_customize_enabled ?? true);
+        } catch (\Throwable $e) {
+            return true;
+        }
+    }
+
+    /** What a person may change on this template: none, hide, or both (hide and reorder). */
+    public static function rearrangeFor(array $template): string
+    {
+        return self::customizeEnabled() ? ($template['rearrange'] ?? 'none') : 'none';
     }
 
     public static function frameView(array $template): string
