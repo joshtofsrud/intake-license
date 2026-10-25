@@ -40,8 +40,14 @@ class WaitlistSeeder
             'offer_copy_override'          => null,
         ]);
 
-        // Also flip the has_waitlist_addon flag on the tenant
-        $tenant->update(['has_waitlist_addon' => true]);
+        // The waitlist add-on lives in the add-on framework now; the old
+        // has_waitlist_addon column was dropped in April.
+        app(\App\Services\AddonManagementService::class)->activate($tenant, 'waitlist', [
+            'source'      => 'staff_push',
+            'actor_type'  => 'system',
+            'actor_label' => 'Demo seeder',
+            'reason'      => 'Demo data',
+        ]);
 
         $services = array_values($servicesBySlug);
         if (empty($services) || empty($customers)) {

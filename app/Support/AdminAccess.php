@@ -73,7 +73,7 @@ class AdminAccess
             'tenants', 'password-editor',
             'customer-cleanup', 'billing-discounts',
             'tenant-billing', 'billing-notices', 'sidebar', 'plan-prices', 'addons', 'scheduled-tasks',
-            'dashboards'                                     => 'tenants', // MARKER-DASH-DEFAULT
+            'dashboards', 'dashboard-editor'                 => 'tenants', // MARKER-DASH-ADMIN
             'tenant-domains'                                 => 'domains',
             'sales-channels', 'sales-prospects',
             'sales-find-shops', 'sales-territories', 'sales-places',

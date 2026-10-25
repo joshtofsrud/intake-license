@@ -1,0 +1,2495 @@
+diff --git a/app/Console/Commands/DemoPopulate.php b/app/Console/Commands/DemoPopulate.php
+index 88190344..3ddcea38 100644
+--- a/app/Console/Commands/DemoPopulate.php
++++ b/app/Console/Commands/DemoPopulate.php
+@@ -84,7 +84,9 @@ class DemoPopulate extends Command
+         $this->newLine();
+ 
+         try {
+-            DB::transaction(function () use ($subdomain, $shopName, $industry, $ownerName, $ownerEmail, $ownerPassword) {
++            // The seeder writes its own ids so later rows can point at earlier
++            // ones; models don't allow mass-assigned ids, so unguard just here.
++            \Illuminate\Database\Eloquent\Model::unguarded(fn () => DB::transaction(function () use ($subdomain, $shopName, $industry, $ownerName, $ownerEmail, $ownerPassword) {
+                 $tenant = Tenant::create([
+                     'id'          => (string) Str::uuid(),
+                     'license_id'  => null,
+@@ -92,6 +94,9 @@ class DemoPopulate extends Command
+                     'subdomain'   => $subdomain,
+                     'plan_tier'   => 'scale',
+                     'is_active'   => true,
++                    // a demo is ready to use: no setup wizard, and a real timezone
++                    'onboarding_status' => 'complete',
++                    'timezone'    => 'America/Los_Angeles',
+                 ]);
+ 
+                 $seeder = new DemoSeeder(
+@@ -99,7 +104,7 @@ class DemoPopulate extends Command
+                     logger: fn(string $msg) => $this->line($msg),
+                 );
+                 $seeder->seed($tenant, $ownerName, $ownerEmail, $ownerPassword);
+-            });
++            }));
+         } catch (\Throwable $e) {
+             $this->newLine();
+             $this->error("Seeding failed: " . $e->getMessage());
+diff --git a/app/Filament/Pages/DashboardEditor.php b/app/Filament/Pages/DashboardEditor.php
+new file mode 100644
+index 00000000..a4ae899f
+--- /dev/null
++++ b/app/Filament/Pages/DashboardEditor.php
+@@ -0,0 +1,304 @@
++<?php
++
++namespace App\Filament\Pages;
++
++use App\Models\DashboardBlock;
++use App\Models\DashboardTemplate;
++use App\Models\DashboardTemplateVersion;
++use App\Support\AdminAccess;
++use App\Support\Dashboard\BlockRegistry;
++use App\Support\Dashboard\Layout;
++use App\Support\Dashboard\TemplateStore;
++use Filament\Notifications\Notification;
++use Filament\Pages\Page;
++use Illuminate\Support\Facades\Auth;
++use Livewire\Attributes\Url;
++
++/**
++ * MARKER-DASH-ADMIN: edit one dashboard template — its rows, columns and
++ * blocks — as a draft, then publish it. Opened from the Dashboards page.
++ */
++class DashboardEditor extends Page
++{
++    use \App\Support\GatedByAdminArea;
++    protected static string $adminArea = 'tenants';
++
++    protected static bool $shouldRegisterNavigation = false;
++    protected static ?string $slug = 'dashboard-editor';
++    protected static ?string $title = 'Edit dashboard';
++    protected static string $view = 'filament.pages.dashboard-editor';
++
++    #[Url]
++    public string $t = '';
++
++    /** The layout on screen. Saved only by Save draft or Publish. */
++    public array $rows = [];
++
++    /** Where Add puts a block: [row, column]. */
++    public array $target = [0, 0];
++
++    public string $name = '';
++    public string $label = '';
++    public bool $beta = false;
++    public string $note = '';
++
++    public function mount(): void
++    {
++        $tpl = DashboardTemplate::where('key', $this->t)->first();
++        if (! $tpl) {
++            $this->redirect(Dashboards::getUrl());
++            return;
++        }
++        $this->load($tpl);
++    }
++
++    private function load(DashboardTemplate $tpl): void
++    {
++        $this->rows = TemplateStore::workingLayout($tpl);
++        $this->name = $tpl->name;
++        $this->label = (string) ($tpl->switch_label ?: $tpl->name);
++        $this->beta = (bool) $tpl->beta_badge;
++        $this->target = [max(0, count($this->rows) - 1), 0];
++    }
++
++    public function getTitle(): string
++    {
++        return $this->name !== '' ? $this->name : 'Edit dashboard';
++    }
++
++    private function tpl(): DashboardTemplate
++    {
++        return TemplateStore::find($this->t);
++    }
++
++    public function canManage(): bool
++    {
++        return AdminAccess::level(Auth::guard('web')->user(), 'tenants') === 'full';
++    }
++
++    private function guard(): bool
++    {
++        if ($this->canManage() && $this->tpl()->state !== 'retired') return true;
++        Notification::make()->title($this->canManage() ? 'Restore this template before editing it.' : 'View access only')->danger()->send();
++
++        return false;
++    }
++
++    private function fail(\Throwable $e): void
++    {
++        Notification::make()->title($e instanceof \InvalidArgumentException ? $e->getMessage() : 'That did not save. Try again.')->danger()->send();
++        if (! $e instanceof \InvalidArgumentException) report($e);
++    }
++
++    // ---- layout edits (on screen only) ---------------------------------
++
++    private function settle(): void
++    {
++        $this->rows = Layout::sanitize($this->rows);
++        $r = min($this->target[0] ?? 0, max(0, count($this->rows) - 1));
++        $c = min($this->target[1] ?? 0, max(0, count($this->rows[$r]['split'] ?? [12]) - 1));
++        $this->target = [$r, $c];
++    }
++
++    public function addRow(int $splitIndex): void
++    {
++        if (! $this->guard()) return;
++        $split = Layout::SPLITS[$splitIndex] ?? [12];
++        $this->rows[] = ['split' => $split, 'cols' => array_fill(0, count($split), [])];
++        $this->target = [count($this->rows) - 1, 0];
++        $this->settle();
++    }
++
++    public function removeRow(int $r): void
++    {
++        if (! $this->guard() || ! isset($this->rows[$r])) return;
++        array_splice($this->rows, $r, 1);
++        if (! $this->rows) $this->rows = [['split' => [12], 'cols' => [[]]]];
++        $this->settle();
++    }
++
++    public function moveRow(int $r, int $dir): void
++    {
++        if (! $this->guard()) return;
++        $n = $r + $dir;
++        if (! isset($this->rows[$r], $this->rows[$n])) return;
++        [$this->rows[$r], $this->rows[$n]] = [$this->rows[$n], $this->rows[$r]];
++        $this->target = [$n, 0];
++        $this->settle();
++    }
++
++    /** Fewer columns: blocks from the dropped columns move into the last one. Nothing is removed. */
++    public function setSplit(int $r, int $splitIndex): void
++    {
++        if (! $this->guard() || ! isset($this->rows[$r])) return;
++        $split = Layout::SPLITS[$splitIndex] ?? [12];
++        $old = $this->rows[$r]['cols'];
++        $cols = [];
++        foreach ($split as $i => $_) $cols[$i] = $old[$i] ?? [];
++        for ($i = count($split); $i < count($old); $i++) {
++            $cols[count($split) - 1] = array_merge($cols[count($split) - 1], $old[$i]);
++        }
++        $this->rows[$r] = ['split' => $split, 'cols' => $cols];
++        $this->settle();
++    }
++
++    public function setTarget(int $r, int $c): void
++    {
++        $this->target = [$r, $c];
++        $this->settle();
++    }
++
++    public function addBlock(string $key): void
++    {
++        if (! $this->guard()) return;
++        if (! isset(BlockRegistry::builtIns()[$key]) || in_array($key, Layout::blockKeys($this->rows), true)) return;
++        [$r, $c] = $this->target;
++        if (! isset($this->rows[$r]['cols'][$c])) { $r = 0; $c = 0; }
++        $this->rows[$r]['cols'][$c][] = ['b' => $key];
++        $this->settle();
++    }
++
++    public function removeBlock(int $r, int $c, int $i): void
++    {
++        if (! $this->guard() || ! isset($this->rows[$r]['cols'][$c][$i])) return;
++        array_splice($this->rows[$r]['cols'][$c], $i, 1);
++        $this->settle();
++    }
++
++    /** Drag and drop, and the arrow buttons: move a placed block, or add one from the list. */
++    public function dropAt(array $from, int $r, int $c, int $at): void
++    {
++        if (! $this->guard() || ! isset($this->rows[$r]['cols'][$c])) return;
++        if (isset($from['add'])) {
++            $key = (string) $from['add'];
++            if (! isset(BlockRegistry::builtIns()[$key]) || in_array($key, Layout::blockKeys($this->rows), true)) return;
++            $p = ['b' => $key];
++        } else {
++            [$fr, $fc, $fi] = [(int) ($from['r'] ?? -1), (int) ($from['c'] ?? -1), (int) ($from['i'] ?? -1)];
++            if (! isset($this->rows[$fr]['cols'][$fc][$fi])) return;
++            $p = $this->rows[$fr]['cols'][$fc][$fi];
++            array_splice($this->rows[$fr]['cols'][$fc], $fi, 1);
++            if ($fr === $r && $fc === $c && $fi < $at) $at--;
++        }
++        $at = max(0, min($at, count($this->rows[$r]['cols'][$c])));
++        array_splice($this->rows[$r]['cols'][$c], $at, 0, [$p]);
++        $this->target = [$r, $c];
++        $this->settle();
++    }
++
++    public function nudge(int $r, int $c, int $i, int $dir): void
++    {
++        $this->dropAt(['r' => $r, 'c' => $c, 'i' => $i], $r, $c, $i + ($dir > 0 ? 2 : -1));
++    }
++
++    public function toColumn(int $r, int $c, int $i, int $toC): void
++    {
++        if (! isset($this->rows[$r]['cols'][$toC])) return;
++        $this->dropAt(['r' => $r, 'c' => $c, 'i' => $i], $r, $toC, count($this->rows[$r]['cols'][$toC]));
++    }
++
++    // ---- saving ---------------------------------------------------------
++
++    public function saveDraft(): void
++    {
++        if (! $this->guard()) return;
++        try {
++            TemplateStore::saveDraft($this->t, $this->rows);
++        } catch (\Throwable $e) {
++            $this->fail($e);
++            return;
++        }
++        Notification::make()->title('Draft saved')->body('Shops still see the live version.')->success()->send();
++    }
++
++    public function discardDraft(): void
++    {
++        if (! $this->guard()) return;
++        $tpl = TemplateStore::discardDraft($this->t);
++        $this->rows = TemplateStore::workingLayout($tpl);
++        $this->settle();
++        Notification::make()->title('Draft discarded')->success()->send();
++    }
++
++    public function revertScreen(): void
++    {
++        $this->rows = TemplateStore::workingLayout($this->tpl());
++        $this->settle();
++    }
++
++    public function publish(): void
++    {
++        if (! $this->guard()) return;
++        try {
++            $v = TemplateStore::publish($this->t, $this->rows, $this->note, Auth::guard('web')->id());
++        } catch (\Throwable $e) {
++            $this->fail($e);
++            return;
++        }
++        $this->note = '';
++        $this->rows = TemplateStore::workingLayout($this->tpl());
++        $this->dispatch('close-modal', id: 'publish-dashboard');
++        Notification::make()->title($this->name . ' v' . $v->version . ' is live')
++            ->body('Everyone on it sees it on their next page load.')->success()->send();
++    }
++
++    public function openVersion(int $versionId): void
++    {
++        if (! $this->guard()) return;
++        try {
++            $tpl = TemplateStore::openVersion($this->t, $versionId);
++        } catch (\Throwable $e) {
++            $this->fail($e);
++            return;
++        }
++        $this->rows = TemplateStore::workingLayout($tpl);
++        $this->settle();
++        $v = DashboardTemplateVersion::find($versionId);
++        Notification::make()->title('v' . $v?->version . ' is now your draft')->body('Shops still see the live version until you publish.')->success()->send();
++    }
++
++    public function saveSettings(): void
++    {
++        if (! $this->guard()) return;
++        try {
++            TemplateStore::saveSettings($this->t, $this->name, $this->label, $this->beta);
++        } catch (\Throwable $e) {
++            $this->fail($e);
++            return;
++        }
++        Notification::make()->title('Settings saved')->body('The switch shows the new label on the next page load.')->success()->send();
++    }
++
++    protected function getViewData(): array
++    {
++        $tpl = $this->tpl();
++        $stored = TemplateStore::workingLayout($tpl);
++        $screen = Layout::sanitize($this->rows);
++        $names = TemplateStore::blockNames();
++        $hidden = DashboardBlock::whereNotNull('hidden_at')->pluck('key')->all();
++        $on = Layout::blockKeys($screen);
++
++        $catalog = collect(BlockRegistry::builtIns())->map(fn ($d, $k) => [
++            'key' => $k, 'name' => $names[$k] ?? $d['name'], 'origin' => ucfirst($d['origin']),
++            'desc' => $d['desc'], 'on' => in_array($k, $on, true), 'hidden' => in_array($k, $hidden, true),
++        ])->groupBy('origin');
++
++        $picks = TemplateStore::pickCounts();
++
++        return [
++            'tpl'        => $tpl,
++            'canEdit'    => $this->canManage() && $tpl->state !== 'retired',
++            'dirty'      => json_encode($screen) !== json_encode($stored),
++            'hasDraft'   => is_array($tpl->draft_layout),
++            'changes'    => TemplateStore::changes($tpl, $screen),
++            'canPublish' => TemplateStore::canPublish($tpl, $screen),
++            'catalog'    => $catalog,
++            'names'      => $names,
++            'hidden'     => $hidden,
++            'registry'   => BlockRegistry::builtIns(),
++            'splits'     => Layout::SPLITS,
++            'versions'   => $tpl->versions()->orderByDesc('version')->limit(12)->get(),
++            'picked'     => (int) ($picks[$tpl->key] ?? 0),
++        ];
++    }
++}
+diff --git a/app/Filament/Pages/Dashboards.php b/app/Filament/Pages/Dashboards.php
+index 2952a48f..e97d4c78 100644
+--- a/app/Filament/Pages/Dashboards.php
++++ b/app/Filament/Pages/Dashboards.php
+@@ -5,18 +5,16 @@ namespace App\Filament\Pages;
+ use App\Models\DashboardTemplate;
+ use App\Models\Tenant\TenantUser;
+ use App\Support\AdminAccess;
+-use App\Support\Dashboard\DashboardTemplates;
++use App\Support\Dashboard\Layout;
++use App\Support\Dashboard\TemplateStore;
+ use Filament\Notifications\Notification;
+ use Filament\Pages\Page;
+ use Illuminate\Support\Facades\Auth;
+-use Illuminate\Support\Facades\DB;
+ 
+ /**
+- * MARKER-DASH-DEFAULT: master admin's view of the shop dashboards.
+- *
+- * For now it does one thing: choose the default dashboard — the one anyone
+- * who hasn't picked a view sees. Phase 2 of the dashboard builder grows this
+- * page into the Templates tab.
++ * MARKER-DASH-ADMIN: the shop dashboards. Every template (Overview, Tiles,
++ * Brief and any built here), which one is the default, and the way into the
++ * editor. Shops only see a template's live version.
+  */
+ class Dashboards extends Page
+ {
+@@ -36,6 +34,9 @@ class Dashboards extends Page
+     /** The default as chosen on screen; saved only on Save. */
+     public string $default = '';
+ 
++    public string $newName = '';
++    public string $newFrom = '';
++
+     public function mount(): void
+     {
+         $this->default = $this->savedDefault();
+@@ -43,11 +44,7 @@ class Dashboards extends Page
+ 
+     private function savedDefault(): string
+     {
+-        foreach (DashboardTemplates::switchable() as $t) {
+-            if ($t['default']) return $t['key'];
+-        }
+-
+-        return DashboardTemplates::switchable()[0]['key'] ?? '';
++        return (string) (DashboardTemplate::where('is_default', true)->value('key') ?? 'overview');
+     }
+ 
+     public function canManage(): bool
+@@ -55,30 +52,18 @@ class Dashboards extends Page
+         return AdminAccess::level(Auth::guard('web')->user(), 'tenants') === 'full';
+     }
+ 
+-    /** People who chose each template, and people who follow the default. */
+-    private function counts(): array
++    private function guard(): bool
++    {
++        if ($this->canManage()) return true;
++        Notification::make()->title('View access only')->body('Only admins with full Tenants access can change dashboards.')->danger()->send();
++
++        return false;
++    }
++
++    private function fail(\Throwable $e): void
+     {
+-        $keys = DashboardTemplates::keys();
+-        $picked = TenantUser::query()
+-            ->where('is_active', true)
+-            ->whereIn('dashboard_view', $keys)
+-            ->select('dashboard_view', DB::raw('count(*) as n'))
+-            ->groupBy('dashboard_view')
+-            ->pluck('n', 'dashboard_view')
+-            ->all();
+-
+-        $following = TenantUser::query()
+-            ->where('is_active', true)
+-            ->where(fn ($q) => $q->whereNull('dashboard_view')->orWhereNotIn('dashboard_view', $keys))
+-            ->count();
+-
+-        $followingShops = TenantUser::query()
+-            ->where('is_active', true)
+-            ->where(fn ($q) => $q->whereNull('dashboard_view')->orWhereNotIn('dashboard_view', $keys))
+-            ->distinct()
+-            ->count('tenant_id');
+-
+-        return ['picked' => $picked, 'following' => $following, 'followingShops' => $followingShops];
++        Notification::make()->title($e instanceof \InvalidArgumentException ? $e->getMessage() : 'That did not save. Try again.')->danger()->send();
++        if (! $e instanceof \InvalidArgumentException) report($e);
+     }
+ 
+     public function resetChoice(): void
+@@ -88,43 +73,107 @@ class Dashboards extends Page
+ 
+     public function save(): void
+     {
+-        if (! $this->canManage()) {
+-            Notification::make()->title('View access only')->body('Only admins with full Tenants access can change the default.')->danger()->send();
+-            return;
+-        }
+-
++        if (! $this->guard()) return;
+         $was = $this->savedDefault();
+-        if (! in_array($this->default, DashboardTemplates::keys(), true)) {
+-            Notification::make()->title('That dashboard is not available')->danger()->send();
++        if ($this->default === $was) return;
++        try {
++            $t = TemplateStore::setDefault($this->default);
++        } catch (\Throwable $e) {
+             $this->default = $was;
++            $this->fail($e);
+             return;
+         }
+-        if ($this->default === $was) {
+-            return;
++        debug_log()->audit('dashboard.default_changed', "Default dashboard: {$was} → {$this->default}", $t);
++        Notification::make()->title($t->name . ' is now the default dashboard')
++            ->body("People who haven't picked a view see it on their next page load.")->success()->send();
++    }
++
++    public function create()
++    {
++        if (! $this->guard()) return null;
++        try {
++            $t = TemplateStore::create($this->newName, $this->newFrom !== '' ? $this->newFrom : null);
++        } catch (\Throwable $e) {
++            $this->fail($e);
++            return null;
+         }
++        $this->newName = '';
+ 
+-        DB::transaction(function () {
+-            DashboardTemplate::query()->update(['is_default' => false]);
+-            DashboardTemplate::where('key', $this->default)->update(['is_default' => true]);
+-        });
+-        DashboardTemplates::flush();
++        return redirect(DashboardEditor::getUrl(['t' => $t->key]));
++    }
+ 
+-        $t = DashboardTemplate::where('key', $this->default)->first();
+-        debug_log()->audit('dashboard.default_changed', "Default dashboard: {$was} → {$this->default}", $t);
++    public function duplicate(string $key)
++    {
++        if (! $this->guard()) return null;
++        try {
++            $t = TemplateStore::duplicate($key);
++        } catch (\Throwable $e) {
++            $this->fail($e);
++            return null;
++        }
++
++        return redirect(DashboardEditor::getUrl(['t' => $t->key]));
++    }
++
++    public function retire(string $key): void
++    {
++        if (! $this->guard()) return;
++        try {
++            $t = TemplateStore::retire($key);
++        } catch (\Throwable $e) {
++            $this->fail($e);
++            return;
++        }
++        Notification::make()->title($t->name . ' retired')
++            ->body('It has left every dashboard switch. Anyone who had it now sees the default.')->success()->send();
++    }
+ 
+-        Notification::make()
+-            ->title(($t?->name ?? $this->default) . ' is now the default dashboard')
+-            ->body('People who haven\'t picked a view see it on their next page load.')
+-            ->success()->send();
++    public function restore(string $key): void
++    {
++        if (! $this->guard()) return;
++        try {
++            $t = TemplateStore::restore($key);
++        } catch (\Throwable $e) {
++            $this->fail($e);
++            return;
++        }
++        Notification::make()->title($t->name . ' restored as a draft')->body('Publish it to offer it to shops again.')->success()->send();
+     }
+ 
+     protected function getViewData(): array
+     {
++        $all = DashboardTemplate::with('liveVersion')->orderBy('sort')->orderBy('id')->get();
++        $picks = TemplateStore::pickCounts();
++        $liveKeys = $all->where('state', 'live')->pluck('key')->all();
++
++        $following = TenantUser::query()->where('is_active', true)
++            ->where(fn ($q) => $q->whereNull('dashboard_view')->orWhereNotIn('dashboard_view', $liveKeys ?: ['']));
++
++        $rows = $all->map(function (DashboardTemplate $t) use ($picks) {
++            $working = TemplateStore::workingLayout($t);
++            return [
++                'key'      => $t->key,
++                'name'     => $t->name,
++                'builtin'  => $t->is_builtin,
++                'state'    => $t->state,
++                'version'  => $t->liveVersion?->version,
++                'label'    => $t->switch_label ?: $t->name,
++                'beta'     => $t->beta_badge,
++                'default'  => $t->is_default,
++                'blocks'   => count(Layout::blockKeys($working)),
++                'pending'  => $t->liveVersion && is_array($t->draft_layout) ? count(TemplateStore::changes($t, $working)) : 0,
++                'picked'   => (int) ($picks[$t->key] ?? 0),
++                'retired'  => $t->retired_at,
++            ];
++        });
++
+         return [
+-            'templates'  => DashboardTemplates::switchable(),
+-            'saved'      => $this->savedDefault(),
+-            'counts'     => $this->counts(),
+-            'canManage'  => $this->canManage(),
++            'active'         => $rows->where('state', '!=', 'retired')->values(),
++            'retired'        => $rows->where('state', 'retired')->values(),
++            'saved'          => $this->savedDefault(),
++            'following'      => (clone $following)->count(),
++            'followingShops' => (clone $following)->distinct()->count('tenant_id'),
++            'canManage'      => $this->canManage(),
+         ];
+     }
+ }
+diff --git a/app/Http/Controllers/Tenant/DashboardController.php b/app/Http/Controllers/Tenant/DashboardController.php
+index 1386619a..669570bb 100644
+--- a/app/Http/Controllers/Tenant/DashboardController.php
++++ b/app/Http/Controllers/Tenant/DashboardController.php
+@@ -130,47 +130,7 @@ class DashboardController extends Controller
+         return redirect()->route('tenant.dashboard')->with('success', 'Tiles reset.');
+     }
+ 
+-    public function dayJson(\Illuminate\Http\Request $request)
+-    {
+-        $tenant = tenant();
+-        $service = new DashboardDataService($tenant);
+-
+-        $date = $request->query('date', $tenant->localToday()->toDateString());
+-        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
+-            $date = $tenant->localToday()->toDateString();
+-        }
+-
+-        $data = $service->dayData($date);
+-
+-        return response()->json([
+-            'ok' => true,
+-            'target_date'       => $data['target_date'],
+-            'target_date_long'  => $data['target_date_long'],
+-            'appointment_count' => $data['appointment_count'],
+-            'strip'             => $data['strip'],
+-            'appointments'      => $data['appointments']->map(function ($a) {
+-                return [
+-                    'id'                  => $a->id,
+-                    'url'                 => route('tenant.appointments.show', $a->id),
+-                    'appointment_time'    => $a->appointment_time,
+-                    'time_hm'             => $a->appointment_time ? \Carbon\Carbon::parse($a->appointment_time)->format('g:i') : null,
+-                    'time_ap'             => $a->appointment_time ? \Carbon\Carbon::parse($a->appointment_time)->format('A') : null,
+-                    'duration'            => (int) ($a->total_duration_minutes ?? 0),
+-                    'first_item'          => $a->items->first()?->item_name_snapshot ?? 'Service',
+-                    'customer_name'       => trim(($a->customer_first_name ?? '') . ' ' . ($a->customer_last_name ?? '')),
+-                    'total_formatted'     => format_money($a->total_cents),
+-                    'status'              => $a->status,
+-                    'status_label'        => ucwords(str_replace('_', ' ', $a->status)),
+-                    'status_class'        => str_replace('_', '-', $a->status),
+-                    'payment_status'      => $a->payment_status,
+-                    'payment_status_label'=> ucfirst($a->payment_status),
+-                    'receiving'           => $a->receiving_method_snapshot ?: 'Any time',
+-                ];
+-            })->values()->toArray(),
+-        ]);
+-    }
+-
+-        public function dismissWorkOrderBanner(\Illuminate\Http\Request $request)
++    public function dismissWorkOrderBanner(\Illuminate\Http\Request $request)
+     {
+         return response()
+             ->json(['ok' => true])
+diff --git a/app/Models/Tenant.php b/app/Models/Tenant.php
+index a24dfc7c..dd6786d8 100644
+--- a/app/Models/Tenant.php
++++ b/app/Models/Tenant.php
+@@ -110,7 +110,8 @@ class Tenant extends Model
+      */
+     public function timezone(): string
+     {
+-        return $this->attributes['timezone'] ?: 'America/Los_Angeles';
++        // ?? null: a tenant just created without a timezone has no such key yet
++        return ($this->attributes['timezone'] ?? null) ?: 'America/Los_Angeles';
+     }
+ 
+     /** "Now" in the tenant's local timezone. */
+diff --git a/app/Providers/Filament/AdminPanelProvider.php b/app/Providers/Filament/AdminPanelProvider.php
+index 915e34ad..b312dcf2 100644
+--- a/app/Providers/Filament/AdminPanelProvider.php
++++ b/app/Providers/Filament/AdminPanelProvider.php
+@@ -112,6 +112,7 @@ class AdminPanelProvider extends PanelProvider
+                 \App\Filament\Pages\TenantBrandAccess::class,
+                 // MARKER-DASH-DEFAULT: explicit registration; no route without this line.
+                 \App\Filament\Pages\Dashboards::class,
++                \App\Filament\Pages\DashboardEditor::class, // MARKER-DASH-ADMIN
+                 // list-first Catalog Titles page. This panel
+                 // lists pages explicitly, so a new page class is invisible until
+                 // it appears here, cache or no cache.
+diff --git a/app/Services/Demo/ClassStudioDemo.php b/app/Services/Demo/ClassStudioDemo.php
+index 3dee7ace..a6fcc17c 100644
+--- a/app/Services/Demo/ClassStudioDemo.php
++++ b/app/Services/Demo/ClassStudioDemo.php
+@@ -255,7 +255,7 @@ class ClassStudioDemo
+                 if ($kind === 'intro') {
+                     $p['since'] = $today->copy()->subDays(mt_rand(3, 75));
+                     $p['convert'] = mt_rand(1, 100) <= 45;
+-                    $p['product'] = $p['convert'] ? $mProducts[1] ?? $mProducts[0] : null;
++                    $p['product'] = $p['convert'] ? ($mProducts[1] ?? $mProducts[0] ?? null) : null;
+                 }
+                 if ($kind === 'member') {
+                     $members++;
+diff --git a/app/Services/Demo/WaitlistSeeder.php b/app/Services/Demo/WaitlistSeeder.php
+index 83b47b30..04819c39 100644
+--- a/app/Services/Demo/WaitlistSeeder.php
++++ b/app/Services/Demo/WaitlistSeeder.php
+@@ -40,8 +40,14 @@ class WaitlistSeeder
+             'offer_copy_override'          => null,
+         ]);
+ 
+-        // Also flip the has_waitlist_addon flag on the tenant
+-        $tenant->update(['has_waitlist_addon' => true]);
++        // The waitlist add-on lives in the add-on framework now; the old
++        // has_waitlist_addon column was dropped in April.
++        app(\App\Services\AddonManagementService::class)->activate($tenant, 'waitlist', [
++            'source'      => 'staff_push',
++            'actor_type'  => 'system',
++            'actor_label' => 'Demo seeder',
++            'reason'      => 'Demo data',
++        ]);
+ 
+         $services = array_values($servicesBySlug);
+         if (empty($services) || empty($customers)) {
+diff --git a/app/Services/Tenant/DashboardDataService.php b/app/Services/Tenant/DashboardDataService.php
+index 97873319..e36cd639 100644
+--- a/app/Services/Tenant/DashboardDataService.php
++++ b/app/Services/Tenant/DashboardDataService.php
+@@ -170,7 +170,6 @@ class DashboardDataService
+             'week_revenue_cents'  => $weekRevenue,
+             'week_new_customers'  => $weekNewCustomers,
+             'week_cancellations'  => $weekCancellations,
+-            'strip'               => $this->build7DayStripCenteredOn($this->tnow()->startOfDay()),
+         ];
+     }
+ 
+@@ -1031,112 +1030,7 @@ class DashboardDataService
+      * Banner state for prompting tenants to set up work order fields.
+      * Returns null if no banner should show.
+      */
+-    /**
+-     * Returns appointment list + counts for a specific date + 7-day strip counts.
+-     * Used by both server render (for initial dashboard load with ?date=) and
+-     * the AJAX day-swap endpoint.
+-     */
+-    public function dayData(string $date): array
+-    {
+-        $tenantId = $this->tenant->id;
+-        $target = \Illuminate\Support\Carbon::parse($date)->startOfDay();
+-
+-        $appointments = TenantAppointment::where('tenant_id', $tenantId)
+-            ->whereDate('appointment_date', $target->toDateString())
+-            ->whereNotIn('status', AppointmentStatus::terminalStatuses())
+-            ->orderByRaw('appointment_time IS NULL, appointment_time ASC')
+-            ->orderBy('created_at')
+-            ->with('items')
+-            ->get();
+-
+-        // 7-day strip: 3 days before, target, 3 days after.
+-        // Level (0-3) powers the heatmap-style load indicator on each day card.
+-        $strip = $this->build7DayStripCenteredOn($target);
+-
+-        return [
+-            'target_date'       => $target->toDateString(),
+-            'target_date_long'  => $target->format('l, F j'),
+-            'appointments'      => $appointments,
+-            'appointment_count' => $appointments->count(),
+-            'strip'             => $strip,
+-        ];
+-    }
+-
+-    /**
+-     * Build the 7-day strip array (3 days before, target, 3 days after)
+-     * with appointment counts and a 0-3 load level for each day. Used by
+-     * both the initial dashboard render (zoneToday) and the AJAX day-swap
+-     * endpoint (dayData).
+-     */
+-    private function build7DayStripCenteredOn(\Illuminate\Support\Carbon $target): array
+-    {
+-        $tenantId = $this->tenant->id;
+-
+-        $activeResourceCount = max(1, TenantResource::where('tenant_id', $tenantId)
+-            ->where('is_active', true)
+-            ->count());
+-
+-        $rulesByDow = TenantCapacityRule::where('tenant_id', $tenantId)
+-            ->where('rule_type', 'default')
+-            ->get()
+-            ->keyBy('day_of_week');
+-
+-        $strip = [];
+-        for ($i = -3; $i <= 3; $i++) {
+-            $d = $target->copy()->addDays($i);
+-            $count = TenantAppointment::where('tenant_id', $tenantId)
+-                ->whereDate('appointment_date', $d->toDateString())
+-                ->whereNotIn('status', AppointmentStatus::terminalStatuses())
+-                ->count();
+-
+-            $strip[] = [
+-                'date'       => $d->toDateString(),
+-                'day_short'  => $d->format('D'),
+-                'day_num'    => (int) $d->format('j'),
+-                'is_today'   => $d->isToday(),
+-                'is_target'  => $i === 0,
+-                'count'      => $count,
+-                'load_level' => $this->loadLevelForDay($d, $count, $rulesByDow, $activeResourceCount),
+-            ];
+-        }
+-        return $strip;
+-    }
+-
+-    /**
+-     * Compute a 0-3 load level for a given day based on appointment count
+-     * vs. theoretical max slots (capacity rule's open hours × resources).
+-     * 0 = closed or zero appointments
+-     * 1 = 1-33% full
+-     * 2 = 34-66% full
+-     * 3 = 67-100% full
+-     */
+-    private function loadLevelForDay(
+-        \Illuminate\Support\Carbon $date,
+-        int $count,
+-        \Illuminate\Support\Collection $rulesByDow,
+-        int $activeResourceCount
+-    ): int {
+-        if ($count === 0) {
+-            return 0;
+-        }
+-        $rule = $rulesByDow->get($date->dayOfWeek);
+-        if (!$rule || !$rule->open_time || !$rule->close_time) {
+-            // Day with bookings but no capacity rule: show light load.
+-            return 1;
+-        }
+-        $open  = \Illuminate\Support\Carbon::parse($date->toDateString() . ' ' . $rule->open_time);
+-        $close = \Illuminate\Support\Carbon::parse($date->toDateString() . ' ' . $rule->close_time);
+-        $intervalMin = max(1, (int) ($rule->slot_interval_minutes ?? 30));
+-        $minutesOpen = max(0, $close->diffInMinutes($open));
+-        $slotsPerResource = intdiv($minutesOpen, $intervalMin);
+-        $maxSlots = max(1, $slotsPerResource * $activeResourceCount);
+-        $ratio = $count / $maxSlots;
+-        if ($ratio >= 0.67) return 3;
+-        if ($ratio >= 0.34) return 2;
+-        return 1;
+-    }
+-
+-        public function workOrderBanner(bool $dismissed): ?array
++    public function workOrderBanner(bool $dismissed): ?array
+     {
+         if ($dismissed) { return null; }
+ 
+diff --git a/app/Support/AdminAccess.php b/app/Support/AdminAccess.php
+index a9df8c97..4b0e2045 100644
+--- a/app/Support/AdminAccess.php
++++ b/app/Support/AdminAccess.php
+@@ -73,7 +73,7 @@ class AdminAccess
+             'tenants', 'password-editor',
+             'customer-cleanup', 'billing-discounts',
+             'tenant-billing', 'billing-notices', 'sidebar', 'plan-prices', 'addons', 'scheduled-tasks',
+-            'dashboards'                                     => 'tenants', // MARKER-DASH-DEFAULT
++            'dashboards', 'dashboard-editor'                 => 'tenants', // MARKER-DASH-ADMIN
+             'tenant-domains'                                 => 'domains',
+             'sales-channels', 'sales-prospects',
+             'sales-find-shops', 'sales-territories', 'sales-places',
+diff --git a/app/Support/Dashboard/BlockRegistry.php b/app/Support/Dashboard/BlockRegistry.php
+index b493c8e6..d3274aba 100644
+--- a/app/Support/Dashboard/BlockRegistry.php
++++ b/app/Support/Dashboard/BlockRegistry.php
+@@ -26,7 +26,7 @@ class BlockRegistry
+             'attention' => ['name' => 'Needs attention', 'origin' => 'overview', 'view' => 'tenant.dashboard._zone_triage_tiles',
+                 'reads' => 'Appointments, work orders, special orders, stock', 'desc' => 'The attention counts as a row of tiles.', 'needs' => []],
+             'today'     => ['name' => 'Today', 'origin' => 'overview', 'view' => 'tenant.dashboard._zone_today_tile',
+-                'reads' => 'Appointments', 'desc' => "Today's bookings and the week strip.", 'needs' => []],
++                'reads' => 'Appointments', 'desc' => "Today's bookings and deliveries, or the next day that has some.", 'needs' => []],
+             'growth'    => ['name' => 'Growth', 'origin' => 'overview', 'view' => 'tenant.dashboard._zone_growth_tiles',
+                 'reads' => 'Sales, customers', 'desc' => 'Revenue and customer trends.', 'needs' => []],
+             'launcher'  => ['name' => 'App launcher', 'origin' => 'overview', 'view' => 'tenant.dashboard._zone_launcher',
+diff --git a/app/Support/Dashboard/DashboardTemplates.php b/app/Support/Dashboard/DashboardTemplates.php
+index a080dbf4..b8ffb220 100644
+--- a/app/Support/Dashboard/DashboardTemplates.php
++++ b/app/Support/Dashboard/DashboardTemplates.php
+@@ -20,6 +20,7 @@ class DashboardTemplates
+         'overview' => 'tenant.dashboard',
+         'tiles'    => 'tenant.dashboard-tiles',
+         'brief'    => 'tenant.dashboard-brief',
++        'standard' => 'tenant.dashboard-standard',
+     ];
+ 
+     /** Switch icons. The same SVGs the three views drew by hand before. */
+@@ -27,6 +28,7 @@ class DashboardTemplates
+         'overview' => '<svg class="vs-ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="3" y="5" width="14" height="14" rx="2"/><path d="M21 7v10"/></svg>',
+         'tiles'    => '<svg class="vs-ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>',
+         'brief'    => '<svg class="vs-ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h10M4 18h13"/></svg>',
++        'custom'   => '<svg class="vs-ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="3" y="4" width="18" height="6" rx="1.5"/><rect x="3" y="14" width="10" height="6" rx="1.5"/><rect x="16" y="14" width="5" height="6" rx="1.5"/></svg>',
+     ];
+ 
+     private static ?array $cache = null;
+diff --git a/app/Support/Dashboard/Layout.php b/app/Support/Dashboard/Layout.php
+index 315f4b13..6b552b7e 100644
+--- a/app/Support/Dashboard/Layout.php
++++ b/app/Support/Dashboard/Layout.php
+@@ -12,6 +12,109 @@ namespace App\Support\Dashboard;
+  */
+ class Layout
+ {
++    /** The column splits a row can have. Each adds up to 12. */
++    public const SPLITS = [[12], [6, 6], [8, 4], [4, 8], [7, 5], [5, 7], [4, 4, 4]];
++
++    public const SPLIT_NAMES = [
++        '12' => 'Full width', '6-6' => 'Half and half', '8-4' => 'Wide and narrow', '4-8' => 'Narrow and wide',
++        '7-5' => '7 and 5', '5-7' => '5 and 7', '4-4-4' => 'Thirds',
++    ];
++
++    public static function splitName(array $split): string
++    {
++        return self::SPLIT_NAMES[implode('-', $split)] ?? implode(' · ', $split);
++    }
++
++    /**
++     * A layout fit to store: allowed splits only, known blocks only, each
++     * block at most once, extra column settings dropped. Empty rows are kept
++     * (the editor drops blocks into them); shops never see them.
++     */
++    public static function sanitize(array $rows): array
++    {
++        $known = BlockRegistry::builtIns();
++        $seen = [];
++        $out = [];
++        foreach ($rows as $row) {
++            $split = array_values(array_map('intval', (array) ($row['split'] ?? [12])));
++            if (! in_array($split, self::SPLITS, true)) {
++                $split = [12];
++            }
++            $cols = [];
++            foreach ($split as $i => $_) {
++                $col = [];
++                foreach ((array) (($row['cols'] ?? [])[$i] ?? []) as $p) {
++                    $key = is_array($p) ? ($p['b'] ?? null) : null;
++                    if (! is_string($key) || ! isset($known[$key]) || isset($seen[$key])) {
++                        continue;
++                    }
++                    $seen[$key] = true;
++                    $col[] = ['b' => $key];
++                }
++                $cols[] = $col;
++            }
++            $out[] = ['split' => $split, 'cols' => $cols];
++        }
++
++        return $out;
++    }
++
++    /**
++     * What changed from $live to $draft, in words, for the editor and the
++     * publish dialog. Each entry is [kind, text]; kind is added / removed / moved / layout.
++     */
++    public static function diff(?array $live, array $draft, array $names = []): array
++    {
++        $name = fn (string $k) => $names[$k] ?? (BlockRegistry::builtIns()[$k]['name'] ?? $k);
++        $draftKeys = self::blockKeys($draft);
++        if ($live === null) {
++            return [['added', 'First version, ' . count($draftKeys) . ' ' . \Illuminate\Support\Str::plural('block', count($draftKeys))]];
++        }
++        $L = self::locations($live);
++        $D = self::locations($draft);
++        $out = [];
++        foreach ($D as $k => $_) {
++            if (! isset($L[$k])) $out[] = ['added', 'Added ' . $name($k)];
++        }
++        foreach ($L as $k => $_) {
++            if (! isset($D[$k])) $out[] = ['removed', 'Removed ' . $name($k)];
++        }
++        foreach ($D as $k => $d) {
++            if (! isset($L[$k])) continue;
++            $l = $L[$k];
++            // order among the blocks both versions share, so adding one above
++            // another doesn't count as moving it
++            $ordL = array_values(array_filter($l['col'], fn ($x) => isset($D[$x])));
++            $ordD = array_values(array_filter($d['col'], fn ($x) => isset($L[$x])));
++            if ($l['r'] !== $d['r'] || $l['c'] !== $d['c'] || array_search($k, $ordL, true) !== array_search($k, $ordD, true)) {
++                $out[] = ['moved', 'Moved ' . $name($k)];
++            }
++        }
++        $ls = array_map(fn ($r) => implode('-', $r['split'] ?? [12]), $live);
++        $ds = array_map(fn ($r) => implode('-', $r['split'] ?? [12]), $draft);
++        if ($ls !== $ds) {
++            $out[] = ['layout', 'Changed the rows'];
++        }
++
++        return $out;
++    }
++
++    /** block key => [r, c, col (keys in that column)] */
++    private static function locations(array $rows): array
++    {
++        $m = [];
++        foreach (array_values($rows) as $r => $row) {
++            foreach (array_values((array) ($row['cols'] ?? [])) as $c => $col) {
++                $keys = array_values(array_filter(array_map(fn ($p) => is_array($p) ? ($p['b'] ?? null) : null, (array) $col)));
++                foreach ($keys as $k) {
++                    $m[$k] = ['r' => $r, 'c' => $c, 'col' => $keys];
++                }
++            }
++        }
++
++        return $m;
++    }
++
+     /** Every block key in the layout, in reading order. */
+     public static function blockKeys(array $rows): array
+     {
+diff --git a/app/Support/Dashboard/TemplateStore.php b/app/Support/Dashboard/TemplateStore.php
+new file mode 100644
+index 00000000..56fd1372
+--- /dev/null
++++ b/app/Support/Dashboard/TemplateStore.php
+@@ -0,0 +1,240 @@
++<?php
++
++namespace App\Support\Dashboard;
++
++use App\Models\DashboardBlock;
++use App\Models\DashboardTemplate;
++use App\Models\DashboardTemplateVersion;
++use Illuminate\Support\Facades\DB;
++use InvalidArgumentException;
++
++/**
++ * MARKER-DASH-ADMIN: every change master admin makes to dashboard templates.
++ *
++ * Shops only ever see a template's live version. Editing writes draft_layout;
++ * publishing copies the draft into a new numbered version and points the
++ * template at it. Nothing here touches a person's own pick (dashboard_view):
++ * a retired template simply stops being offered, and anyone who had it falls
++ * back to the default on their next load.
++ */
++class TemplateStore
++{
++    public static function find(string $key): DashboardTemplate
++    {
++        $t = DashboardTemplate::with('liveVersion')->where('key', $key)->first();
++        if (! $t) {
++            throw new InvalidArgumentException('No such dashboard template.');
++        }
++
++        return $t;
++    }
++
++    public static function liveLayout(DashboardTemplate $t): ?array
++    {
++        return $t->liveVersion ? Layout::sanitize((array) $t->liveVersion->layout) : null;
++    }
++
++    /** The layout being edited: the saved draft, else the live one, else one empty row. */
++    public static function workingLayout(DashboardTemplate $t): array
++    {
++        if (is_array($t->draft_layout)) {
++            return Layout::sanitize($t->draft_layout);
++        }
++
++        return self::liveLayout($t) ?? [['split' => [12], 'cols' => [[]]]];
++    }
++
++    /** Block names as master admin sees them, for change lists. */
++    public static function blockNames(): array
++    {
++        $names = array_map(fn ($d) => $d['name'], BlockRegistry::builtIns());
++        try {
++            foreach (DashboardBlock::pluck('name', 'key') as $k => $n) {
++                if ($n) $names[$k] = $n;
++            }
++        } catch (\Throwable $e) {
++            // table not there yet: registry names will do
++        }
++
++        return $names;
++    }
++
++    public static function changes(DashboardTemplate $t, ?array $layout = null): array
++    {
++        $layout ??= self::workingLayout($t);
++
++        return Layout::diff(self::liveLayout($t), $layout, self::blockNames());
++    }
++
++    /** Whether Publish has anything to do: a change, or a template not yet offered. */
++    public static function canPublish(DashboardTemplate $t, ?array $layout = null): bool
++    {
++        $layout ??= self::workingLayout($t);
++        if (! Layout::blockKeys($layout)) {
++            return false;
++        }
++
++        return self::changes($t, $layout) !== [] || $t->state !== 'live';
++    }
++
++    public static function create(string $name, ?string $fromKey = null): DashboardTemplate
++    {
++        $name = trim($name);
++        if ($name === '' || mb_strlen($name) > 80) {
++            throw new InvalidArgumentException('Give the template a name of up to 80 characters.');
++        }
++        $layout = $fromKey ? self::workingLayout(self::find($fromKey)) : [['split' => [12], 'cols' => [[]]]];
++
++        return DB::transaction(function () use ($name, $layout) {
++            $t = DashboardTemplate::create([
++                // a placeholder until the id exists; keys must fit dashboard_view (16)
++                'key' => 'new' . substr(bin2hex(random_bytes(6)), 0, 12),
++                'name' => $name, 'is_builtin' => false, 'frame' => 'standard', 'state' => 'draft',
++                'switch_label' => mb_substr($name, 0, 40), 'beta_badge' => true, 'icon' => 'custom',
++                'rearrange' => 'none', 'is_default' => false,
++                'sort' => (int) DashboardTemplate::max('sort') + 10,
++                'draft_layout' => $layout,
++            ]);
++            $t->update(['key' => 'c' . $t->id]);
++            debug_log()->audit('dashboard.template_created', "Created dashboard template {$name}", $t);
++
++            return $t;
++        });
++    }
++
++    public static function duplicate(string $key): DashboardTemplate
++    {
++        $src = self::find($key);
++
++        return self::create(mb_substr($src->name . ' copy', 0, 80), $key);
++    }
++
++    public static function saveDraft(string $key, array $layout): DashboardTemplate
++    {
++        $t = self::find($key);
++        if ($t->state === 'retired') {
++            throw new InvalidArgumentException('Restore this template before editing it.');
++        }
++        $layout = Layout::sanitize($layout);
++        // a draft identical to live is no draft at all
++        $t->update(['draft_layout' => ($t->liveVersion && self::changes($t, $layout) === []) ? null : $layout]);
++
++        return $t->fresh('liveVersion');
++    }
++
++    public static function discardDraft(string $key): DashboardTemplate
++    {
++        $t = self::find($key);
++        $t->update(['draft_layout' => null]);
++        debug_log()->audit('dashboard.draft_discarded', "Discarded the draft of {$t->name}", $t);
++
++        return $t->fresh('liveVersion');
++    }
++
++    public static function publish(string $key, array $layout, ?string $note, ?int $userId): DashboardTemplateVersion
++    {
++        $t = self::find($key);
++        if ($t->state === 'retired') {
++            throw new InvalidArgumentException('Restore this template before publishing it.');
++        }
++        $layout = Layout::sanitize($layout);
++        if (! self::canPublish($t, $layout)) {
++            throw new InvalidArgumentException(Layout::blockKeys($layout) ? 'Nothing has changed since the live version.' : 'Add at least one block before publishing.');
++        }
++        $changes = self::changes($t, $layout);
++
++        $v = DB::transaction(function () use ($t, $layout, $note, $userId) {
++            $n = (int) DashboardTemplateVersion::where('dashboard_template_id', $t->id)->lockForUpdate()->max('version') + 1;
++            $v = DashboardTemplateVersion::create([
++                'dashboard_template_id' => $t->id, 'version' => $n, 'layout' => $layout,
++                'note' => $note !== null && trim($note) !== '' ? mb_substr(trim($note), 0, 255) : null,
++                'published_by_user_id' => $userId, 'published_at' => now(),
++            ]);
++            $t->update(['live_version_id' => $v->id, 'draft_layout' => null, 'state' => 'live', 'retired_at' => null]);
++
++            return $v;
++        });
++        DashboardTemplates::flush();
++        debug_log()->audit('dashboard.published', "Published {$t->name} v{$v->version}: " . implode('; ', array_column($changes, 1)), $t);
++
++        return $v;
++    }
++
++    /** Puts an old version back into the draft, for review before publishing. */
++    public static function openVersion(string $key, int $versionId): DashboardTemplate
++    {
++        $t = self::find($key);
++        $v = DashboardTemplateVersion::where('dashboard_template_id', $t->id)->findOrFail($versionId);
++        $t->update(['draft_layout' => Layout::sanitize((array) $v->layout)]);
++
++        return $t->fresh('liveVersion');
++    }
++
++    public static function saveSettings(string $key, string $name, string $label, bool $beta): DashboardTemplate
++    {
++        $name = trim($name);
++        $label = trim($label);
++        if ($name === '' || mb_strlen($name) > 80) {
++            throw new InvalidArgumentException('The name needs 1 to 80 characters.');
++        }
++        if ($label === '' || mb_strlen($label) > 40) {
++            throw new InvalidArgumentException('The switch label needs 1 to 40 characters.');
++        }
++        $t = self::find($key);
++        $t->update(['name' => $name, 'switch_label' => $label, 'beta_badge' => $beta]);
++        DashboardTemplates::flush();
++        debug_log()->audit('dashboard.settings_changed', "Settings for {$name}: switch label “{$label}”" . ($beta ? ', BETA label' : ''), $t);
++
++        return $t->fresh('liveVersion');
++    }
++
++    public static function retire(string $key): DashboardTemplate
++    {
++        $t = self::find($key);
++        if ($t->is_default) {
++            throw new InvalidArgumentException('Choose another default before retiring this one.');
++        }
++        $t->update(['state' => 'retired', 'retired_at' => now()]);
++        DashboardTemplates::flush();
++        debug_log()->audit('dashboard.retired', "Retired {$t->name}", $t);
++
++        return $t;
++    }
++
++    /** Back as a draft: not offered to shops until it's published again. */
++    public static function restore(string $key): DashboardTemplate
++    {
++        $t = self::find($key);
++        $t->update(['state' => 'draft', 'retired_at' => null]);
++        debug_log()->audit('dashboard.restored', "Restored {$t->name} as a draft", $t);
++
++        return $t;
++    }
++
++    public static function setDefault(string $key): DashboardTemplate
++    {
++        $t = self::find($key);
++        if ($t->state !== 'live') {
++            throw new InvalidArgumentException('Only a live template can be the default.');
++        }
++        DB::transaction(function () use ($t) {
++            DashboardTemplate::query()->update(['is_default' => false]);
++            $t->update(['is_default' => true]);
++        });
++        DashboardTemplates::flush();
++
++        return $t;
++    }
++
++    /** People who picked each template themselves, keyed by template key. */
++    public static function pickCounts(): array
++    {
++        return \App\Models\Tenant\TenantUser::query()
++            ->where('is_active', true)
++            ->whereNotNull('dashboard_view')
++            ->select('dashboard_view', DB::raw('count(*) as n'))
++            ->groupBy('dashboard_view')
++            ->pluck('n', 'dashboard_view')
++            ->all();
++    }
++}
+diff --git a/resources/views/filament/pages/dashboard-editor.blade.php b/resources/views/filament/pages/dashboard-editor.blade.php
+new file mode 100644
+index 00000000..d832ee29
+--- /dev/null
++++ b/resources/views/filament/pages/dashboard-editor.blade.php
+@@ -0,0 +1,251 @@
++<x-filament-panels::page>
++@include('filament.partials.dashboards-style')
++<style>
++  .de-top { display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding-bottom:12px; border-bottom:1px solid var(--sx-line); }
++  .de-top .sp { margin-left:auto; display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
++  .de-grid { display:grid; grid-template-columns:280px minmax(0,1fr); gap:0; align-items:start; }
++  .de-panel { border-right:1px solid var(--sx-line); padding:14px 18px 14px 0; position:sticky; top:72px; max-height:calc(100vh - 90px); overflow:auto; }
++  .de-canvas { padding:14px 0 14px 22px; min-width:0; }
++  .de-g { font-size:10.5px; letter-spacing:.09em; text-transform:uppercase; color:var(--sx-faint); font-weight:700; padding:14px 0 6px; }
++  .de-lib { display:grid; grid-template-columns:14px 1fr auto; gap:8px; align-items:center; padding:7px 6px 7px 2px; border-radius:6px; font-size:13px; border:1px solid transparent; cursor:grab; }
++  .de-lib:hover { background:var(--db-hover); border-color:var(--sx-line); }
++  .de-lib.on { opacity:.5; cursor:default; }
++  .de-lib.hid .t { text-decoration:line-through; }
++  .de-lib .s { display:block; font-size:11.5px; color:var(--sx-faint); }
++  .de-grip { color:var(--sx-faint); font-size:11px; letter-spacing:-1px; }
++  .de-row { border:1px solid var(--sx-line); border-radius:10px; margin-bottom:14px; }
++  .de-rowh { display:flex; align-items:center; gap:8px; padding:8px 10px; border-bottom:1px solid var(--sx-line); font-size:12.5px; color:var(--sx-faint); flex-wrap:wrap; }
++  .de-rowh b { color:var(--db-txt); font-weight:600; }
++  .de-rowh select { width:auto; padding:3px 26px 3px 8px; font-size:12px; }
++  .de-rowh .sp { margin-left:auto; display:flex; gap:4px; }
++  .de-cols { display:grid; grid-template-columns:repeat(12, minmax(0, 1fr)); gap:10px; padding:10px; }
++  .de-col { border:1.5px dashed var(--sx-line-2); border-radius:8px; padding:8px; min-height:74px; display:flex; flex-direction:column; gap:6px; cursor:pointer; }
++  .de-col.target { border-color:var(--sx-violet); border-style:solid; }
++  .de-col.over { border-color:var(--sx-violet); background:var(--sx-vsoft); }
++  .de-col .empty { margin:auto; font-size:12px; color:var(--sx-faint); text-align:center; }
++  .de-col .colh { font-size:10.5px; color:var(--sx-faint); letter-spacing:.06em; text-transform:uppercase; font-weight:600; }
++  .de-blk { display:grid; grid-template-columns:14px 1fr auto; gap:8px; align-items:center; background:var(--db-card); border:1px solid var(--sx-line-2); border-radius:7px; padding:8px 8px 8px 6px; cursor:grab; }
++  .de-blk .t { font-size:13px; font-weight:600; color:var(--db-txt); }
++  .de-blk .s { font-size:11.5px; color:var(--sx-faint); }
++  .de-blk.hid { border-style:dashed; opacity:.6; }
++  .de-ctl { display:flex; gap:2px; }
++  .de-ctl button { background:none; border:0; color:var(--sx-faint); cursor:pointer; font-size:13px; padding:2px 5px; border-radius:4px; }
++  .de-ctl button:hover { color:var(--db-txt); background:var(--db-hover); }
++  .de-ctl button[disabled] { opacity:.3; cursor:default; }
++  .de-addrow { display:flex; gap:6px; flex-wrap:wrap; align-items:center; border:1.5px dashed var(--sx-line-2); border-radius:10px; padding:12px; font-size:12.5px; color:var(--sx-faint); }
++  .de-split { display:inline-flex; gap:2px; height:9px; width:24px; vertical-align:middle; margin-right:4px; }
++  .de-split i { display:block; background:currentColor; opacity:.5; border-radius:1.5px; }
++  .de-f { margin-bottom:12px; }
++  .de-f label { display:block; font-size:12px; color:var(--sx-faint); margin-bottom:4px; }
++  .de-ver { display:flex; gap:8px; align-items:baseline; padding:7px 0; border-bottom:1px solid var(--sx-line); font-size:12.5px; }
++  .de-ver .sp { margin-left:auto; }
++  .de-ch { list-style:none; margin:0 0 12px; padding:0; border-top:1px solid var(--sx-line); }
++  .de-ch li { padding:7px 0; border-bottom:1px solid var(--sx-line); font-size:13px; }
++  @media (max-width:1100px) {
++    .de-grid { grid-template-columns:1fr; }
++    .de-panel { position:static; max-height:none; border-right:0; border-top:1px solid var(--sx-line); padding:14px 0; order:2; }
++    .de-canvas { padding:14px 0; order:1; }
++  }
++  @media (max-width:640px) {
++    .de-cols { display:block; }
++    .de-col + .de-col { margin-top:10px; }
++  }
++</style>
++
++@php
++  $splitIcon = fn ($sp) => '<span class="de-split">' . collect($sp)->map(fn ($n) => '<i style="flex:' . $n . '"></i>')->implode('') . '</span>';
++@endphp
++
++<div class="sx-root" x-data="{
++    over: null,
++    drag(e, data) { e.dataTransfer.setData('text/plain', JSON.stringify(data)); e.dataTransfer.effectAllowed = 'move'; },
++    at(e, col) {
++      const kids = [...col.querySelectorAll(':scope > .de-blk')];
++      for (let i = 0; i < kids.length; i++) { const b = kids[i].getBoundingClientRect(); if (e.clientY < b.top + b.height / 2) return i; }
++      return kids.length;
++    },
++    drop(e, r, c) {
++      this.over = null;
++      let data; try { data = JSON.parse(e.dataTransfer.getData('text/plain')); } catch (err) { return; }
++      $wire.dropAt(data, r, c, this.at(e, e.currentTarget));
++    }
++  }">
++
++  <div style="font-size:13px;color:var(--sx-faint);margin:-6px 0 8px"><a class="db-lnk" href="{{ \App\Filament\Pages\Dashboards::getUrl() }}">Dashboards</a> / {{ $tpl->name }}</div>
++
++  <div class="de-top">
++    @if ($tpl->state === 'live')
++      <span class="db-tag live">Live v{{ $tpl->liveVersion?->version }}</span>
++      <span class="db-note">{{ number_format($picked) }} {{ \Illuminate\Support\Str::plural('person', $picked) }} picked it{{ $tpl->is_default ? ', and it is the default' : '' }}</span>
++    @elseif ($tpl->state === 'retired')
++      <span class="db-tag off">Retired</span><span class="db-note">Restore it from Dashboards to edit it.</span>
++    @else
++      <span class="db-tag draft">Draft only</span><span class="db-note">No shop sees it yet.</span>
++    @endif
++    @if ($canEdit)
++      <span class="sp">
++        @if ($dirty)
++          <button type="button" class="db-btn" wire:click="revertScreen">Undo unsaved changes</button>
++        @elseif ($hasDraft && $tpl->liveVersion)
++          <button type="button" class="db-btn warn" wire:click="discardDraft" data-confirm="Discard the draft?&#10;The editor goes back to v{{ $tpl->liveVersion->version }}, which is what shops see now.">Discard draft</button>
++        @endif
++        <button type="button" class="db-btn" wire:click="saveDraft" @disabled(! $dirty)>{{ $dirty ? 'Save draft' : 'Draft saved' }}</button>
++        <x-filament::modal id="publish-dashboard" width="lg">
++          <x-slot name="trigger"><button type="button" class="db-btn p" @disabled(! $canPublish)>Publish…</button></x-slot>
++          <x-slot name="heading">Publish {{ $tpl->name }} v{{ ($tpl->liveVersion?->version ?? 0) + 1 }}</x-slot>
++          <x-slot name="description">
++            @if ($tpl->state === 'live')
++              Everyone on {{ $tpl->name }} sees this on their next page load.
++            @else
++              It joins every shop's dashboard switch. Nobody's screen changes until they pick it.
++            @endif
++          </x-slot>
++          <div class="sx-root">
++            <ul class="de-ch">
++              @forelse ($changes as [$kind, $text])
++                <li><span class="db-diff" style="display:inline;padding:0;border:0"><span class="{{ $kind }}">{{ $text }}</span></span></li>
++              @empty
++                <li class="db-note">No layout changes. Publishing offers it to shops again.</li>
++              @endforelse
++            </ul>
++            <label class="db-note">Note for the version history (optional)
++              <input type="text" class="db-in" style="margin-top:4px" maxlength="255" wire:model="note" placeholder="What changed and why">
++            </label>
++          </div>
++          <x-slot name="footerActions">
++            <x-filament::button wire:click="publish">Publish v{{ ($tpl->liveVersion?->version ?? 0) + 1 }}</x-filament::button>
++            <x-filament::button color="gray" x-on:click="$dispatch('close-modal', { id: 'publish-dashboard' })">Cancel</x-filament::button>
++          </x-slot>
++        </x-filament::modal>
++      </span>
++    @endif
++  </div>
++
++  <div class="db-diff">
++    @if ($changes)
++      <span>{{ $tpl->liveVersion ? 'Since v' . $tpl->liveVersion->version . ':' : 'New:' }}</span>
++      @foreach ($changes as [$kind, $text])<span class="{{ $kind }}">{{ $text }}</span>@endforeach
++    @else
++      <span>No changes from v{{ $tpl->liveVersion?->version }}. Shops see exactly this.</span>
++    @endif
++    @if ($dirty)<span class="db-warn" style="margin-left:auto">Unsaved</span>@elseif ($hasDraft)<span style="margin-left:auto">Draft saved {{ $tpl->updated_at?->diffForHumans() }}</span>@endif
++  </div>
++
++  <div class="db-legend" style="padding-top:10px">
++    <b>This is the layout, not a preview.</b> Each box is a block; shops see them drawn with their own data and theme.
++    A block that's hidden everywhere, or that a shop can't use, is left out of that shop's dashboard and the space closes up.
++    On phones every row becomes one column, left to right.
++  </div>
++
++  <div class="de-grid">
++    <aside class="de-panel">
++      @if ($canEdit)
++        <div class="db-note" style="margin-bottom:4px">Drag a block into a column, or click <b>Add</b> to put it in the outlined column.</div>
++        @foreach ($catalog as $origin => $items)
++          <div class="de-g">From {{ $origin }}</div>
++          @foreach ($items as $b)
++            <div class="de-lib {{ $b['on'] ? 'on' : '' }} {{ $b['hidden'] ? 'hid' : '' }}" title="{{ $b['desc'] }}"
++                 @if (! $b['on']) draggable="true" x-on:dragstart="drag($event, { add: '{{ $b['key'] }}' })" @endif>
++              <span class="de-grip">⋮⋮</span>
++              <span><span class="t">{{ $b['name'] }}</span><span class="s">{{ $b['on'] ? 'On this template' : ($b['hidden'] ? 'Hidden everywhere' : $b['desc']) }}</span></span>
++              @if (! $b['on'])<button type="button" class="db-lnk" style="font-size:12px" wire:click="addBlock('{{ $b['key'] }}')">Add</button>@endif
++            </div>
++          @endforeach
++        @endforeach
++
++        <div class="de-g" style="padding-top:22px">Template settings</div>
++        <div class="de-f"><label>Name</label><input type="text" class="db-in" maxlength="80" wire:model="name"></div>
++        <div class="de-f"><label>Name in the dashboard switch</label><input type="text" class="db-in" maxlength="40" wire:model="label"></div>
++        <label class="db-note" style="display:flex;gap:8px;align-items:center;margin-bottom:10px"><input type="checkbox" wire:model="beta" style="accent-color:#8b5cf6"> Show a BETA label in the switch</label>
++        <button type="button" class="db-btn sm" wire:click="saveSettings">Save settings</button>
++        <div class="db-note" style="margin-top:6px">These apply straight away, without publishing.</div>
++      @endif
++
++      <div class="de-g" style="padding-top:22px">Versions</div>
++      @forelse ($versions as $v)
++        <div class="de-ver">
++          <b style="color:var(--db-txt)">v{{ $v->version }}</b>
++          <span class="db-note">{{ $v->published_at?->format('M j, g:ia') }}@if ($v->note) · {{ \Illuminate\Support\Str::limit($v->note, 60) }}@endif</span>
++          <span class="sp">
++            @if ($tpl->live_version_id === $v->id)<span class="db-tag live">Live</span>
++            @elseif ($canEdit)<button type="button" class="db-lnk" style="font-size:12px" wire:click="openVersion({{ $v->id }})"
++                data-confirm="Open v{{ $v->version }} as your draft?&#10;It replaces the draft you're editing. Shops keep seeing the live version until you publish.">Open as draft</button>@endif
++          </span>
++        </div>
++      @empty
++        <div class="db-note">Not published yet.</div>
++      @endforelse
++    </aside>
++
++    <section class="de-canvas">
++      @foreach ($rows as $r => $row)
++        <div class="de-row" wire:key="row-{{ $r }}-{{ md5(json_encode($row)) }}">
++          <div class="de-rowh">
++            <b>Row {{ $r + 1 }}</b>
++            @if ($canEdit)
++              <select class="db-in" wire:change="setSplit({{ $r }}, $event.target.value)" aria-label="Columns in row {{ $r + 1 }}">
++                @foreach ($splits as $si => $sp)
++                  <option value="{{ $si }}" @selected($sp === $row['split'])>{{ \App\Support\Dashboard\Layout::splitName($sp) }}</option>
++                @endforeach
++              </select>
++              <span class="sp de-ctl">
++                <button type="button" title="Move row up" wire:click="moveRow({{ $r }}, -1)" @disabled($r === 0)>↑</button>
++                <button type="button" title="Move row down" wire:click="moveRow({{ $r }}, 1)" @disabled($r === count($rows) - 1)>↓</button>
++                <button type="button" title="Remove row" wire:click="removeRow({{ $r }})"
++                  @if (collect($row['cols'])->flatten(1)->count()) data-confirm="Remove row {{ $r + 1 }}?&#10;Its blocks come off this template. They aren't deleted, and you can add them again." @endif>✕</button>
++              </span>
++            @else
++              <span>{{ \App\Support\Dashboard\Layout::splitName($row['split']) }}</span>
++            @endif
++          </div>
++          <div class="de-cols">
++            @foreach ($row['split'] as $c => $span)
++              @php $col = $row['cols'][$c] ?? []; @endphp
++              <div class="de-col {{ $canEdit && $target === [$r, $c] ? 'target' : '' }}" style="grid-column:span {{ $span }}"
++                   :class="{ 'over': over === '{{ $r }}-{{ $c }}' }"
++                   @if ($canEdit)
++                     wire:click.self="setTarget({{ $r }}, {{ $c }})"
++                     x-on:dragover.prevent="over = '{{ $r }}-{{ $c }}'"
++                     x-on:dragleave="if (! $el.contains($event.relatedTarget)) over = null"
++                     x-on:drop.prevent="drop($event, {{ $r }}, {{ $c }})"
++                   @endif>
++                @if (count($row['split']) > 1)<div class="colh">Column {{ $c + 1 }} · {{ $span }}/12</div>@endif
++                @forelse ($col as $i => $p)
++                  @php $def = $registry[$p['b']] ?? null; $isHidden = in_array($p['b'], $hidden, true); @endphp
++                  <div class="de-blk {{ $isHidden ? 'hid' : '' }}" @if ($canEdit) draggable="true" x-on:dragstart="drag($event, { r: {{ $r }}, c: {{ $c }}, i: {{ $i }} })" @endif>
++                    <span class="de-grip">⋮⋮</span>
++                    <span>
++                      <span class="t">{{ $names[$p['b']] ?? $p['b'] }}</span>
++                      <span class="s" style="display:block">{{ $isHidden ? 'Hidden everywhere: no shop sees it' : 'From ' . ucfirst($def['origin'] ?? '') . ' · ' . ($def['reads'] ?? '') }}</span>
++                    </span>
++                    @if ($canEdit)
++                      <span class="de-ctl">
++                        <button type="button" title="Move up" wire:click="nudge({{ $r }}, {{ $c }}, {{ $i }}, -1)" @disabled($i === 0)>↑</button>
++                        <button type="button" title="Move down" wire:click="nudge({{ $r }}, {{ $c }}, {{ $i }}, 1)" @disabled($i === count($col) - 1)>↓</button>
++                        @if ($c > 0)<button type="button" title="Move to the column on the left" wire:click="toColumn({{ $r }}, {{ $c }}, {{ $i }}, {{ $c - 1 }})">←</button>@endif
++                        @if ($c < count($row['split']) - 1)<button type="button" title="Move to the column on the right" wire:click="toColumn({{ $r }}, {{ $c }}, {{ $i }}, {{ $c + 1 }})">→</button>@endif
++                        <button type="button" title="Remove from this template" wire:click="removeBlock({{ $r }}, {{ $c }}, {{ $i }})">✕</button>
++                      </span>
++                    @endif
++                  </div>
++                @empty
++                  <div class="empty">{{ $canEdit ? 'Drop a block here' : 'Empty' }}</div>
++                @endforelse
++              </div>
++            @endforeach
++          </div>
++        </div>
++      @endforeach
++
++      @if ($canEdit)
++        <div class="de-addrow">
++          <span>Add a row:</span>
++          @foreach ($splits as $si => $sp)
++            <button type="button" class="db-btn sm" wire:click="addRow({{ $si }})">{!! $splitIcon($sp) !!}{{ \App\Support\Dashboard\Layout::splitName($sp) }}</button>
++          @endforeach
++        </div>
++      @endif
++    </section>
++  </div>
++</div>
++</x-filament-panels::page>
+diff --git a/resources/views/filament/pages/dashboards.blade.php b/resources/views/filament/pages/dashboards.blade.php
+index ae526009..8bc3d32c 100644
+--- a/resources/views/filament/pages/dashboards.blade.php
++++ b/resources/views/filament/pages/dashboards.blade.php
+@@ -1,62 +1,81 @@
+ <x-filament-panels::page>
+-{{-- MARKER-DASH-DEFAULT: same line-and-row vocabulary as the Sales pages (.sx-root),
+-     so fixes.css's light-mode token overrides apply here too. --}}
+-<style>
+-  .sx-root { --sx-line:rgba(255,255,255,.075); --sx-line-2:rgba(255,255,255,.14); --sx-dim:#a3a3ab; --sx-faint:#74747d;
+-    --sx-violet:#8b5cf6; --sx-vsoft:rgba(139,92,246,.17); --sx-lime:#BEF264; --db-txt:#fff; font-size:14px; }
+-  html:not(.dark) .sx-root { --db-txt:#18181b; }
+-  .db-legend { color:var(--sx-faint); font-size:12.5px; line-height:1.6; padding:0 0 12px; border-bottom:1px solid var(--sx-line); }
+-  .db-legend b { color:var(--sx-dim); font-weight:500; }
+-  .db-t { width:100%; border-collapse:collapse; font-size:13.5px; }
+-  .db-t th { text-align:left; font-weight:500; color:var(--sx-faint); font-size:12.5px; padding:10px; border-bottom:1px solid var(--sx-line-2); white-space:nowrap; }
+-  .db-t td { padding:12px 10px; border-bottom:1px solid var(--sx-line); vertical-align:middle; }
+-  .db-t tr.on td { background:var(--sx-vsoft); }
+-  .db-t label { display:flex; align-items:center; gap:10px; cursor:pointer; }
+-  .db-t input[type=radio] { accent-color:#8b5cf6 !important; color:#8b5cf6 !important; width:15px; height:15px; }
+-  .db-nm { font-weight:600; color:var(--db-txt); }
+-  .db-sub { font-size:12px; color:var(--sx-faint); margin-top:2px; }
+-  .db-tag { display:inline-block; border-radius:4px; padding:1px 7px; font-size:11px; font-weight:600; background:rgba(190,242,100,.14); color:var(--sx-lime); margin-left:6px; }
+-  .db-beta { font-size:9.5px; font-weight:700; letter-spacing:.06em; opacity:.7; }
+-  .db-num { font-variant-numeric:tabular-nums; }
+-  .db-bar { display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:14px 0; }
+-  .db-bar .note { font-size:12.5px; color:var(--sx-faint); }
+-  .db-bar .note b { color:var(--db-txt); font-weight:600; }
+-  .db-btn { border:1px solid var(--sx-line-2); background:none; border-radius:7px; padding:6px 14px; font-weight:500; font-size:13px; cursor:pointer; color:inherit; }
+-  .db-btn.p { background:var(--sx-violet); border-color:var(--sx-violet); color:#fff; }
+-  .db-btn[disabled] { opacity:.45; cursor:default; }
+-  .db-warn { color:#fbbf24; }
+-  html:not(.dark) .db-warn { color:#b45309; }
+-  @media (max-width:860px) { .db-hide-m { display:none; } .db-t td, .db-t th { padding-left:6px; padding-right:6px; } }
+-</style>
++@include('filament.partials.dashboards-style')
+ 
+ <div class="sx-root">
+   <div class="db-legend">
+-    <b>The default is the dashboard anyone who hasn't picked a view sees.</b>
+-    That's {{ number_format($counts['following']) }} {{ \Illuminate\Support\Str::plural('person', $counts['following']) }}
+-    across {{ number_format($counts['followingShops']) }} {{ \Illuminate\Support\Str::plural('shop', $counts['followingShops']) }} right now,
+-    including anyone whose pick is no longer offered. People who chose a view in their dashboard switch keep it, whatever the default is.
+-    Changing it takes effect on their next page load; nothing else about their dashboards changes.
++    <b>Shops only see a template's live version.</b> Edits stay in a draft no shop can see until you publish it.
++    Every live template appears in every shop's dashboard switch.
++    <b>The default</b> is what anyone who hasn't picked a view sees: {{ number_format($following) }} {{ \Illuminate\Support\Str::plural('person', $following) }}
++    across {{ number_format($followingShops) }} {{ \Illuminate\Support\Str::plural('shop', $followingShops) }} right now, including anyone whose pick was retired.
++    People who chose a view keep it.
++  </div>
++
++  <div class="db-bar">
++    <span class="note">{{ $active->where('state', 'live')->count() }} live · {{ $active->where('state', 'draft')->count() }} draft only · {{ $active->where('pending', '>', 0)->count() }} with a draft waiting</span>
++    @if ($canManage)
++      <span style="margin-left:auto"></span>
++      <x-filament::modal id="new-dashboard" width="md">
++        <x-slot name="trigger"><button type="button" class="db-btn p">New template</button></x-slot>
++        <x-slot name="heading">New template</x-slot>
++        <x-slot name="description">It starts as a draft. No shop sees it until you publish it.</x-slot>
++        <div class="sx-root" style="display:grid;gap:12px">
++          <label class="db-note">Name
++            <input type="text" class="db-in" style="margin-top:4px" wire:model="newName" maxlength="80" placeholder="e.g. Front desk">
++          </label>
++          <label class="db-note">Start from
++            <select class="db-in" style="margin-top:4px" wire:model="newFrom">
++              <option value="">A blank page</option>
++              @foreach ($active as $t)
++                <option value="{{ $t['key'] }}">A copy of {{ $t['name'] }}</option>
++              @endforeach
++            </select>
++          </label>
++        </div>
++        <x-slot name="footerActions">
++          <x-filament::button wire:click="create">Create draft</x-filament::button>
++          <x-filament::button color="gray" x-on:click="$dispatch('close-modal', { id: 'new-dashboard' })">Cancel</x-filament::button>
++        </x-slot>
++      </x-filament::modal>
++    @endif
+   </div>
+ 
+   <table class="db-t">
+     <thead>
+-      <tr><th>Default</th><th class="db-hide-m">In the dashboard switch</th><th>Chose it themselves</th></tr>
++      <tr><th>Template</th><th>Status</th><th class="db-hide-m">In the switch</th><th class="db-hide-m">Chose it</th><th>Default</th><th></th></tr>
+     </thead>
+     <tbody>
+-      @foreach ($templates as $t)
++      @foreach ($active as $t)
+         <tr class="{{ $default === $t['key'] ? 'on' : '' }}">
+           <td>
+-            <label>
+-              <input type="radio" name="dash-default" value="{{ $t['key'] }}" wire:model.live="default" @disabled(! $canManage)>
+-              <span>
+-                <span class="db-nm">{{ $t['name'] }}</span>
+-                @if ($saved === $t['key'])<span class="db-tag">Default now</span>@endif
+-                <span class="db-sub" style="display:block">{{ count(\App\Support\Dashboard\Layout::blockKeys($t['rows'])) }} blocks</span>
+-              </span>
+-            </label>
++            <a class="db-nm" href="{{ \App\Filament\Pages\DashboardEditor::getUrl(['t' => $t['key']]) }}" style="text-decoration:none">{{ $t['name'] }}</a>
++            <div class="db-sub">{{ $t['builtin'] ? 'Built-in' : 'Made here' }} · {{ $t['blocks'] }} {{ \Illuminate\Support\Str::plural('block', $t['blocks']) }}</div>
++          </td>
++          <td>
++            @if ($t['state'] === 'live')<span class="db-tag live">Live v{{ $t['version'] }}</span>@else<span class="db-tag draft">Draft only</span>@endif
++            @if ($t['pending'])<span class="db-tag pend">Draft waiting · {{ $t['pending'] }} {{ \Illuminate\Support\Str::plural('change', $t['pending']) }}</span>@endif
+           </td>
+           <td class="db-hide-m">{{ $t['label'] }}@if ($t['beta']) <span class="db-beta">BETA</span>@endif</td>
+-          <td class="db-num">{{ number_format($counts['picked'][$t['key']] ?? 0) }} {{ \Illuminate\Support\Str::plural('person', $counts['picked'][$t['key']] ?? 0) }}</td>
++          <td class="db-hide-m db-num">{{ number_format($t['picked']) }}</td>
++          <td>
++            @if ($t['state'] === 'live')
++              <label><input type="radio" name="dash-default" value="{{ $t['key'] }}" wire:model.live="default" @disabled(! $canManage)>
++                @if ($saved === $t['key'])<span class="db-tag live">Default now</span>@endif</label>
++            @else
++              <span class="db-sub">Publish first</span>
++            @endif
++          </td>
++          <td class="r">
++            <span class="db-acts">
++              <a class="db-lnk" href="{{ \App\Filament\Pages\DashboardEditor::getUrl(['t' => $t['key']]) }}">{{ $canManage ? 'Edit' : 'View' }}</a>
++              @if ($canManage)
++                <button type="button" class="db-lnk dim" wire:click="duplicate('{{ $t['key'] }}')">Duplicate</button>
++                @if ($saved !== $t['key'])
++                  <button type="button" class="db-lnk red" wire:click="retire('{{ $t['key'] }}')"
++                    data-confirm="Retire {{ $t['name'] }}?&#10;It leaves every dashboard switch. {{ $t['picked'] }} {{ \Illuminate\Support\Str::plural('person', $t['picked']) }} who picked it will see the default on their next load. Its versions are kept, and you can restore it.">Retire</button>
++                @endif
++              @endif
++            </span>
++          </td>
+         </tr>
+       @endforeach
+     </tbody>
+@@ -64,18 +83,32 @@
+ 
+   <div class="db-bar">
+     @if ($canManage)
+-      @php $chosen = collect($templates)->firstWhere('key', $default); @endphp
++      @php $chosen = $active->firstWhere('key', $default); @endphp
+       <button type="button" class="db-btn p" wire:click="save" @disabled($default === $saved)
+-        data-confirm="Make {{ $chosen['name'] ?? $default }} the default?&#10;{{ number_format($counts['following']) }} {{ \Illuminate\Support\Str::plural('person', $counts['following']) }} who haven't picked a view will see it on their next page load.">Save</button>
++        data-confirm="Make {{ $chosen['name'] ?? $default }} the default?&#10;{{ number_format($following) }} {{ \Illuminate\Support\Str::plural('person', $following) }} who haven't picked a view will see it on their next page load.">Save default</button>
+       <button type="button" class="db-btn" wire:click="resetChoice" @disabled($default === $saved)>Cancel</button>
+       @if ($default !== $saved)
+-        <span class="note db-warn">Not saved yet. {{ number_format($counts['following']) }} {{ \Illuminate\Support\Str::plural('person', $counts['following']) }} would switch to {{ $chosen['name'] ?? $default }}.</span>
++        <span class="note db-warn">Not saved yet. {{ number_format($following) }} {{ \Illuminate\Support\Str::plural('person', $following) }} would switch to {{ $chosen['name'] ?? $default }}.</span>
+       @else
+-        <span class="note"><b>{{ collect($templates)->firstWhere('key', $saved)['name'] ?? '' }}</b> is the default.</span>
++        <span class="note"><b>{{ $active->firstWhere('key', $saved)['name'] ?? '' }}</b> is the default.</span>
+       @endif
+     @else
+-      <span class="note">You have view access. Only admins with full Tenants access can change the default.</span>
++      <span class="note">You have view access. Only admins with full Tenants access can change dashboards.</span>
+     @endif
+   </div>
++
++  @if ($retired->isNotEmpty())
++    <div class="db-h3">Retired<span class="meta">Not offered to any shop. Versions are kept.</span></div>
++    <table class="db-t">
++      <tbody>
++        @foreach ($retired as $t)
++          <tr class="dim">
++            <td><span class="db-nm">{{ $t['name'] }}</span><div class="db-sub">Retired {{ $t['retired']?->format('M j') }} · {{ $t['blocks'] }} {{ \Illuminate\Support\Str::plural('block', $t['blocks']) }}</div></td>
++            <td class="r">@if ($canManage)<button type="button" class="db-lnk" wire:click="restore('{{ $t['key'] }}')">Restore as draft</button>@endif</td>
++          </tr>
++        @endforeach
++      </tbody>
++    </table>
++  @endif
+ </div>
+ </x-filament-panels::page>
+diff --git a/resources/views/filament/partials/dashboards-style.blade.php b/resources/views/filament/partials/dashboards-style.blade.php
+new file mode 100644
+index 00000000..56b6d4bf
+--- /dev/null
++++ b/resources/views/filament/partials/dashboards-style.blade.php
+@@ -0,0 +1,51 @@
++{{-- MARKER-DASH-ADMIN: shared look for the Dashboards pages. The Sales pages'
++     line-and-row vocabulary (.sx-root), so fixes.css's light-mode token
++     overrides apply here too. --}}
++<style>
++  .sx-root { --sx-line:rgba(255,255,255,.075); --sx-line-2:rgba(255,255,255,.14); --sx-dim:#a3a3ab; --sx-faint:#74747d;
++    --sx-violet:#8b5cf6; --sx-vsoft:rgba(139,92,246,.17); --sx-lime:#BEF264; --db-txt:#fff; --db-vtext:#a78bfa;
++    --db-amber:#fbbf24; --db-red:#f47c7c; --db-hover:rgba(255,255,255,.03); --db-card:rgba(255,255,255,.025); font-size:14px; }
++  html:not(.dark) .sx-root { --db-txt:#18181b; --db-vtext:#6d28d9; --db-amber:#b45309; --db-red:#dc2626; --db-hover:rgba(0,0,0,.025); --db-card:#fff; }
++  .db-legend { color:var(--sx-faint); font-size:12.5px; line-height:1.6; padding:0 0 12px; border-bottom:1px solid var(--sx-line); }
++  .db-legend b { color:var(--sx-dim); font-weight:500; }
++  .db-t { width:100%; border-collapse:collapse; font-size:13.5px; }
++  .db-t th { text-align:left; font-weight:500; color:var(--sx-faint); font-size:12.5px; padding:10px; border-bottom:1px solid var(--sx-line-2); white-space:nowrap; }
++  .db-t td { padding:12px 10px; border-bottom:1px solid var(--sx-line); vertical-align:middle; }
++  .db-t tr.on td { background:var(--sx-vsoft); }
++  .db-t tr.dim td { opacity:.55; }
++  .db-t label { display:flex; align-items:center; gap:10px; cursor:pointer; }
++  .db-t input[type=radio] { accent-color:#8b5cf6 !important; color:#8b5cf6 !important; width:15px; height:15px; }
++  .db-t td.r { text-align:right; white-space:nowrap; }
++  .db-nm { font-weight:600; color:var(--db-txt); }
++  .db-sub { font-size:12px; color:var(--sx-faint); margin-top:2px; }
++  .db-tag { display:inline-block; border-radius:4px; padding:1px 7px; font-size:11px; font-weight:600; white-space:nowrap; line-height:1.6; }
++  .db-tag.live { background:rgba(190,242,100,.14); color:var(--sx-lime); }
++  .db-tag.draft { border:1px solid var(--sx-line-2); color:var(--sx-dim); font-weight:500; }
++  .db-tag.pend { background:rgba(251,191,36,.13); color:var(--db-amber); }
++  .db-tag.off { border:1px dashed var(--sx-line-2); color:var(--sx-faint); font-weight:500; }
++  .db-beta { font-size:9.5px; font-weight:700; letter-spacing:.06em; opacity:.7; }
++  .db-num { font-variant-numeric:tabular-nums; }
++  .db-bar { display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:14px 0; }
++  .db-bar .note, .db-note { font-size:12.5px; color:var(--sx-faint); line-height:1.55; }
++  .db-bar .note b, .db-note b { color:var(--db-txt); font-weight:600; }
++  .db-btn { border:1px solid var(--sx-line-2); background:none; border-radius:7px; padding:6px 13px; font-weight:500; font-size:13px; cursor:pointer; color:inherit; white-space:nowrap; display:inline-flex; align-items:center; gap:6px; text-decoration:none; }
++  .db-btn:hover { background:var(--db-hover); }
++  .db-btn.p { background:var(--sx-violet); border-color:var(--sx-violet); color:#fff; }
++  .db-btn.sm { padding:3px 9px; font-size:12px; }
++  .db-btn.warn { color:var(--db-red); }
++  .db-btn[disabled] { opacity:.45; cursor:default; }
++  .db-lnk { background:none; border:0; padding:0; font:inherit; color:var(--db-vtext); cursor:pointer; text-decoration:none; }
++  .db-lnk:hover { text-decoration:underline; }
++  .db-lnk.dim { color:var(--sx-dim); }
++  .db-lnk.red { color:var(--db-red); }
++  .db-acts { display:inline-flex; gap:14px; align-items:center; }
++  .db-in { background-color:rgba(255,255,255,.04); border:1px solid var(--sx-line-2); border-radius:7px; padding:6px 10px; font-size:13px; color:inherit; width:100%; }
++  html:not(.dark) .db-in { background-color:#fff; color:#18181b; }
++  .db-in option { background:#26272c; } html:not(.dark) .db-in option { background:#fff; }
++  .db-h3 { font-size:13px; font-weight:600; color:var(--sx-dim); margin:24px 0 6px; display:flex; gap:10px; align-items:baseline; }
++  .db-h3 .meta { margin-left:auto; font-weight:400; color:var(--sx-faint); font-size:12.5px; }
++  .db-warn { color:var(--db-amber); }
++  .db-diff { display:flex; gap:6px 14px; flex-wrap:wrap; align-items:center; font-size:12.5px; color:var(--sx-faint); padding:10px 0; border-bottom:1px solid var(--sx-line); min-height:41px; }
++  .db-diff .added { color:var(--sx-lime); } .db-diff .removed { color:var(--db-red); } .db-diff .moved, .db-diff .layout { color:var(--db-amber); }
++  @media (max-width:860px) { .db-hide-m { display:none; } .db-t td, .db-t th { padding-left:6px; padding-right:6px; } }
++</style>
+diff --git a/resources/views/tenant/dashboard-standard.blade.php b/resources/views/tenant/dashboard-standard.blade.php
+new file mode 100644
+index 00000000..8f00a7c3
+--- /dev/null
++++ b/resources/views/tenant/dashboard-standard.blade.php
+@@ -0,0 +1,36 @@
++@extends('layouts.tenant.app')
++{{-- MARKER-DASH-TEMPLATES: the frame for templates built in master admin.
++     A date line and the dashboard switch, then the template's rows. Every
++     block's stylesheet is loaded, since a template can mix blocks from
++     Overview, Tiles and Brief. --}}
++@section('title', 'Dashboard')
++@section('mobile-fab', 'walk-in')
++@push('styles')
++  <link rel="stylesheet" href="{{ asset('css/tenant/dashboard.css') }}?v={{ filemtime(public_path('css/tenant/dashboard.css')) }}">
++  <link rel="stylesheet" href="{{ asset('css/tenant/dashboard-tiles.css') }}?v={{ filemtime(public_path('css/tenant/dashboard-tiles.css')) }}">
++  <link rel="stylesheet" href="{{ asset('css/tenant/dashboard-simple.css') }}?v={{ filemtime(public_path('css/tenant/dashboard-simple.css')) }}">
++  <link rel="stylesheet" href="{{ asset('css/tenant/dashboard-brief.css') }}?v={{ filemtime(public_path('css/tenant/dashboard-brief.css')) }}">
++  <style>
++    .mb-head .vs-ic { display: none; }
++    .dash-std-rows > * + * { margin-top: 32px; }
++    @media (max-width: 1023px) {
++      .mb-head .ia-viewseg button { padding: 5px 8px !important; line-height: 0; }
++      .mb-head .ia-viewseg .vs-lb { display: none; }
++      .mb-head .ia-viewseg .vs-ic { display: inline-block; }
++    }
++  </style>
++@endpush
++
++@section('content')
++<div class="mb">
++  <section class="mb-head">
++    <div style="display:flex;align-items:center;gap:12px;margin-bottom:22px">
++      <div class="mb-eyebrow">{{ $greeting['date_long'] }}</div>
++      @include('tenant.dashboard._switch', ['segStyle' => 'margin-left:auto'])
++    </div>
++  </section>
++  <div class="dash-std-rows">
++    @include('tenant.dashboard._rows', ['dashRows' => $dashRows])
++  </div>
++</div>
++@endsection
+diff --git a/resources/views/tenant/dashboard.blade.php b/resources/views/tenant/dashboard.blade.php
+index 4c84358c..215b0e49 100644
+--- a/resources/views/tenant/dashboard.blade.php
++++ b/resources/views/tenant/dashboard.blade.php
+@@ -169,392 +169,6 @@
+      and the zones are its blocks, drawn in the order its live version lists. --}}
+ @include('tenant.dashboard._rows', ['dashRows' => $dashRows])
+ 
+-@push('styles')
+-<style>
+-  .appt-drawer-backdrop {
+-    position: fixed;
+-    inset: 0;
+-    background: rgba(0,0,0,.4);
+-    z-index: 90;
+-    opacity: 0;
+-    pointer-events: none;
+-    transition: opacity .18s ease;
+-  }
+-  .appt-drawer-backdrop.open { opacity: 1; pointer-events: auto; }
+-
+-  .appt-drawer {
+-    position: fixed;
+-    top: 0; right: 0; bottom: 0;
+-    width: min(480px, 92vw);
+-    background: var(--ia-surface);
+-    border-left: 0.5px solid var(--ia-border);
+-    z-index: 100;
+-    transform: translateX(100%);
+-    transition: transform .22s ease;
+-    display: flex;
+-    flex-direction: column;
+-    box-shadow: -8px 0 24px rgba(0,0,0,0.08);
+-  }
+-  .appt-drawer.open { transform: translateX(0); }
+-
+-  .appt-drawer-head {
+-    padding: 18px 20px;
+-    border-bottom: 0.5px solid var(--ia-border);
+-    display: flex;
+-    justify-content: space-between;
+-    align-items: flex-start;
+-    flex-shrink: 0;
+-  }
+-  .appt-drawer-ra {
+-    font-size: 11px;
+-    text-transform: uppercase;
+-    letter-spacing: .07em;
+-    color: var(--ia-text-muted);
+-    margin-bottom: 2px;
+-    font-weight: 500;
+-  }
+-  .appt-drawer-title {
+-    font-size: 18px;
+-    font-weight: 500;
+-    letter-spacing: -.01em;
+-  }
+-  .appt-drawer-close {
+-    background: none;
+-    border: none;
+-    font-size: 22px;
+-    line-height: 1;
+-    color: var(--ia-text-muted);
+-    cursor: pointer;
+-    padding: 2px 6px;
+-    border-radius: 4px;
+-  }
+-  .appt-drawer-close:hover { background: var(--ia-hover); }
+-
+-  .appt-drawer-body {
+-    flex: 1;
+-    overflow-y: auto;
+-    padding: 20px;
+-  }
+-  .appt-drawer-section {
+-    margin-bottom: 18px;
+-    padding-bottom: 14px;
+-    border-bottom: 0.5px solid var(--ia-border);
+-  }
+-  .appt-drawer-section:last-child { border-bottom: none; }
+-  .appt-drawer-label {
+-    font-size: 10px;
+-    text-transform: uppercase;
+-    letter-spacing: .07em;
+-    color: var(--ia-text-muted);
+-    font-weight: 500;
+-    margin-bottom: 6px;
+-  }
+-  .appt-drawer-badges {
+-    display: flex;
+-    gap: 6px;
+-    flex-wrap: wrap;
+-    margin-bottom: 14px;
+-  }
+-  .appt-drawer-row {
+-    display: flex;
+-    justify-content: space-between;
+-    padding: 5px 0;
+-    font-size: 13px;
+-  }
+-  .appt-drawer-row-label { color: var(--ia-text-muted); }
+-  .appt-drawer-identifier {
+-    font-family: var(--ia-font-mono);
+-    font-size: 15px;
+-    font-weight: 500;
+-    letter-spacing: .02em;
+-  }
+-  .appt-drawer-foot {
+-    padding: 14px 20px;
+-    border-top: 0.5px solid var(--ia-border);
+-    display: flex;
+-    gap: 8px;
+-    flex-shrink: 0;
+-  }
+-  .appt-drawer-foot a, .appt-drawer-foot button { flex: 1; justify-content: center; }
+-
+-  .appt-drawer-loading {
+-    padding: 40px 20px;
+-    text-align: center;
+-    font-size: 13px;
+-    color: var(--ia-text-muted);
+-  }
+-
+-  /* On mobile + tablet, the bottom nav sits over the drawer foot.
+-     Mirror the nav's 72px height + safe-area padding so buttons clear it. */
+-  @media (max-width: 1023px) {
+-    .appt-drawer-foot {
+-      padding-bottom: calc(14px + 72px + env(safe-area-inset-bottom, 0px));
+-    }
+-  }
+-</style>
+-@endpush
+-
+-<div class="appt-drawer-backdrop" id="appt-drawer-backdrop"></div>
+-<aside class="appt-drawer" id="appt-drawer" role="dialog" aria-label="Appointment details">
+-  <div class="appt-drawer-head">
+-    <div>
+-      <div class="appt-drawer-ra" id="drawer-ra">Loading…</div>
+-      <div class="appt-drawer-title" id="drawer-title"></div>
+-    </div>
+-    <button type="button" class="appt-drawer-close" id="drawer-close" aria-label="Close">&times;</button>
+-  </div>
+-  <div class="appt-drawer-body" id="drawer-body">
+-    <div class="appt-drawer-loading">Loading…</div>
+-  </div>
+-  <div class="appt-drawer-foot">
+-    <a href="#" class="ia-btn ia-btn--primary" id="drawer-fullview">Open full view</a>
+-    <button type="button" class="ia-btn ia-btn--ghost" id="drawer-close-2">Close</button>
+-  </div>
+-</aside>
+-
+-@push('scripts')
+-<script>
+-(function(){
+-  'use strict';
+-
+-  var backdrop = document.getElementById('appt-drawer-backdrop');
+-  var drawer = document.getElementById('appt-drawer');
+-  var closeBtn = document.getElementById('drawer-close');
+-  var closeBtn2 = document.getElementById('drawer-close-2');
+-  var fullLink = document.getElementById('drawer-fullview');
+-  var raEl = document.getElementById('drawer-ra');
+-  var titleEl = document.getElementById('drawer-title');
+-  var bodyEl = document.getElementById('drawer-body');
+-
+-  function openDrawer() {
+-    backdrop.classList.add('open');
+-    drawer.classList.add('open');
+-    document.body.style.overflow = 'hidden';
+-  }
+-  function closeDrawer() {
+-    backdrop.classList.remove('open');
+-    drawer.classList.remove('open');
+-    document.body.style.overflow = '';
+-  }
+-
+-  backdrop.addEventListener('click', closeDrawer);
+-  closeBtn.addEventListener('click', closeDrawer);
+-  closeBtn2.addEventListener('click', closeDrawer);
+-  document.addEventListener('keydown', function(e){
+-    if (e.key === 'Escape' && drawer.classList.contains('open')) closeDrawer();
+-  });
+-
+-  function escHtml(s) {
+-    return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+-  }
+-
+-  function loadDrawer(apptId) {
+-    openDrawer();
+-    raEl.textContent = 'Loading…';
+-    titleEl.textContent = '';
+-    bodyEl.innerHTML = '<div class="appt-drawer-loading">Loading…</div>';
+-
+-    var url = window.location.origin + '/admin/appointments/' + apptId + '/drawer';
+-    fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }})
+-      .then(function(r){ return r.json(); })
+-      .then(function(resp){
+-        if (!resp.ok) { bodyEl.innerHTML = '<div class="appt-drawer-loading">Could not load appointment.</div>'; return; }
+-        var a = resp.appointment;
+-
+-        raEl.textContent = a.ra_number;
+-        var headline = a.items && a.items.length ? a.items[0].name : 'Appointment';
+-        titleEl.textContent = headline;
+-        fullLink.href = a.full_url;
+-
+-        var html = '';
+-
+-        html += '<div class="appt-drawer-badges">';
+-        html += '<span class="ia-badge ia-badge--' + escHtml(a.status.replace(/_/g, '-')) + '">' + escHtml(a.status_label) + '</span>';
+-        html += '<span class="ia-badge ia-badge--' + escHtml(a.payment_status) + '">' + escHtml(a.payment_status_label) + '</span>';
+-        html += '</div>';
+-
+-        html += '<div class="appt-drawer-section">';
+-        html += '<div class="appt-drawer-label">When</div>';
+-        html += '<div style="font-size:14px">' + escHtml(a.appointment_date_long || '');
+-        if (a.appointment_time) {
+-          var timeStr = a.appointment_time.substring(0,5);
+-          html += ' &middot; ' + escHtml(timeStr);
+-        }
+-        if (a.duration_minutes) html += ' &middot; ' + a.duration_minutes + ' min';
+-        html += '</div></div>';
+-
+-        html += '<div class="appt-drawer-section">';
+-        html += '<div class="appt-drawer-label">Customer</div>';
+-        html += '<div style="font-size:14px;font-weight:500">' + escHtml(a.customer_name) + '</div>';
+-        if (a.customer_email) html += '<div style="font-size:12px;color:var(--ia-text-muted);margin-top:2px">' + escHtml(a.customer_email) + '</div>';
+-        if (a.customer_phone) html += '<div style="font-size:12px;color:var(--ia-text-muted);margin-top:2px">' + escHtml(a.customer_phone) + '</div>';
+-        html += '</div>';
+-
+-        if (a.identifier_value && a.identifier_label) {
+-          html += '<div class="appt-drawer-section">';
+-          html += '<div class="appt-drawer-label">' + escHtml(a.identifier_label) + '</div>';
+-          html += '<div class="appt-drawer-identifier">' + escHtml(a.identifier_value) + '</div>';
+-          html += '</div>';
+-        }
+-
+-        if (a.items && a.items.length) {
+-          html += '<div class="appt-drawer-section">';
+-          html += '<div class="appt-drawer-label">Services</div>';
+-          a.items.forEach(function(it){
+-            html += '<div class="appt-drawer-row"><span>' + escHtml(it.name) + '</span><span>' + escHtml(it.price) + '</span></div>';
+-          });
+-          if (a.addons && a.addons.length) {
+-            a.addons.forEach(function(ad){
+-              html += '<div class="appt-drawer-row"><span class="appt-drawer-row-label">+ ' + escHtml(ad.name) + '</span><span>' + escHtml(ad.price) + '</span></div>';
+-            });
+-          }
+-          html += '</div>';
+-        }
+-
+-        html += '<div class="appt-drawer-section">';
+-        html += '<div class="appt-drawer-row" style="font-weight:500;padding-top:4px"><span>Total</span><span>' + escHtml(a.total_formatted) + '</span></div>';
+-        html += '</div>';
+-
+-        bodyEl.innerHTML = html;
+-      })
+-      .catch(function(){
+-        bodyEl.innerHTML = '<div class="appt-drawer-loading">Network error.</div>';
+-      });
+-  }
+-
+-  // Intercept appointment row clicks in Zone 1 — open drawer instead of navigating
+-  document.addEventListener('click', function(e){
+-    var row = e.target.closest('.ia-dash-today-row[data-appt-id]');
+-    if (!row) return;
+-    // Let modified clicks (cmd/ctrl/middle-click) open in new tab as normal
+-    if (e.metaKey || e.ctrlKey || e.shiftKey || e.button === 1) return;
+-    e.preventDefault();
+-    var apptId = row.getAttribute('data-appt-id');
+-    var fullHref = row.getAttribute('href');
+-    if (fullLink) fullLink.setAttribute('href', fullHref);
+-    loadDrawer(apptId);
+-  });
+-})();
+-</script>
+-@endpush
+ 
+ 
+ @endsection
+-
+-@push('scripts')
+-<script>
+-(function(){
+-  'use strict';
+-
+-  var strip = document.getElementById('ia-date-strip');
+-  var panel = document.getElementById('ia-day-panel');
+-  if (!strip || !panel) return;
+-
+-  var dayUrl = '{{ route("tenant.dashboard.day") }}';
+-
+-  function escHtml(s) {
+-    return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+-  }
+-
+-  function updateStripCounts(stripData) {
+-    // Updates the 3-bar load indicator on each day chip. Backend supplies
+-    // load_level (0-3) computed from appt_count vs. day capacity.
+-    stripData.forEach(function(d){
+-      var el = document.querySelector('[data-load-for="' + d.date + '"]');
+-      if (el && typeof d.load_level !== 'undefined') {
+-        el.setAttribute('data-level', String(d.load_level));
+-      }
+-    });
+-  }
+-
+-  function renderAppointments(data) {
+-    if (data.appointment_count === 0) {
+-      panel.innerHTML = '<div class="ia-card" style="margin-top:0"><div class="ia-card-head"><span class="ia-card-title">' + escHtml(data.target_date_long) + '</span></div><p style="font-size:13px;opacity:.4;padding:8px 0">No appointments on this day.</p></div>';
+-      return;
+-    }
+-
+-    var html = '<div class="ia-card" style="margin-top:0">';
+-    html += '<div class="ia-card-head">';
+-    html += '<span class="ia-card-title">' + escHtml(data.target_date_long) + ' · ' + data.appointment_count + ' ' + (data.appointment_count === 1 ? 'appointment' : 'appointments') + '</span>';
+-    html += '<a href="{{ route("tenant.appointments.index") }}" class="ia-card-action">Open calendar →</a>';
+-    html += '</div>';
+-    html += '<div class="ia-dash-today-list">';
+-
+-    data.appointments.forEach(function(a){
+-      html += '<a href="' + escHtml(a.url) + '" class="ia-dash-today-row">';
+-      html += '<div class="ia-dash-today-time">';
+-      if (a.time_hm) {
+-        html += '<div class="ia-dash-today-time-hm">' + escHtml(a.time_hm) + '</div>';
+-        html += '<div class="ia-dash-today-time-ap">' + escHtml(a.time_ap);
+-        if (a.duration) html += ' · ' + a.duration + ' min';
+-        html += '</div>';
+-      } else {
+-        html += '<div class="ia-dash-today-time-hm">Drop-off</div>';
+-        html += '<div class="ia-dash-today-time-ap">' + escHtml(a.receiving) + '</div>';
+-      }
+-      html += '</div>';
+-      html += '<div class="ia-dash-today-main">';
+-      html += '<div class="ia-dash-today-service">' + escHtml(a.first_item) + '</div>';
+-      html += '<div class="ia-dash-today-customer">' + escHtml(a.customer_name) + ' · ' + escHtml(a.total_formatted) + '</div>';
+-      html += '</div>';
+-      html += '<div class="ia-dash-today-status">';
+-      html += '<span class="ia-badge ia-badge--' + escHtml(a.status_class) + '">' + escHtml(a.status_label) + '</span>';
+-      if (a.payment_status !== 'unpaid') {
+-        html += '<span class="ia-badge ia-badge--' + escHtml(a.payment_status) + '" style="margin-left:4px">' + escHtml(a.payment_status_label) + '</span>';
+-      }
+-      html += '</div>';
+-      html += '</a>';
+-    });
+-
+-    html += '</div></div>';
+-    panel.innerHTML = html;
+-  }
+-
+-  function selectDate(dateStr) {
+-    strip.querySelectorAll('.ia-dash-date-chip').forEach(function(c){
+-      c.classList.remove('is-target');
+-      c.style.background = 'transparent';
+-      c.style.borderBottom = '0.5px solid var(--ia-border)';
+-    });
+-    var active = strip.querySelector('[data-date="' + dateStr + '"]');
+-    if (active) {
+-      active.classList.add('is-target');
+-      active.style.background = 'var(--ia-surface-2)';
+-      active.style.borderBottom = '2px solid var(--ia-accent)';
+-    }
+-
+-    panel.innerHTML = '<div style="padding:24px;text-align:center;opacity:.5;font-size:13px">Loading…</div>';
+-
+-    fetch(dayUrl + '?date=' + encodeURIComponent(dateStr), {
+-      headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }
+-    })
+-      .then(function(r){ return r.json(); })
+-      .then(function(resp){
+-        if (!resp.ok) { panel.innerHTML = '<div style="padding:24px;text-align:center;opacity:.5">Could not load day.</div>'; return; }
+-        updateStripCounts(resp.strip);
+-        renderAppointments(resp);
+-      })
+-      .catch(function(){
+-        panel.innerHTML = '<div style="padding:24px;text-align:center;opacity:.5">Network error.</div>';
+-      });
+-  }
+-
+-  // Load initial strip counts for all 7 days
+-  (function loadInitialCounts(){
+-    var today = new Date().toISOString().slice(0,10);
+-    fetch(dayUrl + '?date=' + today, {
+-      headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }
+-    })
+-      .then(function(r){ return r.json(); })
+-      .then(function(resp){ if (resp.ok) updateStripCounts(resp.strip); });
+-  })();
+-
+-  strip.addEventListener('click', function(e){
+-    var chip = e.target.closest('.ia-dash-date-chip');
+-    if (!chip) return;
+-    var date = chip.getAttribute('data-date');
+-    if (date) selectDate(date);
+-  });
+-})();
+-</script>
+-@endpush
+diff --git a/resources/views/tenant/dashboard/_rows.blade.php b/resources/views/tenant/dashboard/_rows.blade.php
+index b308eef1..e33eb9dc 100644
+--- a/resources/views/tenant/dashboard/_rows.blade.php
++++ b/resources/views/tenant/dashboard/_rows.blade.php
+@@ -1,12 +1,41 @@
+ {{-- MARKER-DASH-TEMPLATES: draws a template's rows of blocks. Each block is
+-     its own partial and gets the same data the page has. --}}
++     its own partial and gets the same data the page has. A full-width row is
++     just its blocks; a row with columns becomes a 12-unit grid that stacks
++     into one column on phones. --}}
++@once
++  @push('styles')
++    <style>
++      .dash-row { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); column-gap: 28px; align-items: start; }
++      .dash-col { min-width: 0; }
++      @media (max-width: 1023px) {
++        .dash-row { display: block; }
++        .dash-row > .dash-col + .dash-col { margin-top: 24px; }
++      }
++    </style>
++  @endpush
++@endonce
+ @foreach ($dashRows as $dashRow)
+-  @foreach ($dashRow['cols'] as $dashCol)
+-    @foreach ($dashCol as $dashBlock)
+-      @php $dashView = \App\Support\Dashboard\BlockRegistry::view($dashBlock['b']); @endphp
+-      @if ($dashView)
+-        @include($dashView)
+-      @endif
++  @if (count($dashRow['split']) > 1)
++    <div class="dash-row">
++      @foreach ($dashRow['cols'] as $dashCi => $dashCol)
++        <div class="dash-col" style="grid-column:span {{ $dashRow['split'][$dashCi] ?? 12 }}">
++          @foreach ($dashCol as $dashBlock)
++            @php $dashView = \App\Support\Dashboard\BlockRegistry::view($dashBlock['b']); @endphp
++            @if ($dashView)
++              @include($dashView)
++            @endif
++          @endforeach
++        </div>
++      @endforeach
++    </div>
++  @else
++    @foreach ($dashRow['cols'] as $dashCol)
++      @foreach ($dashCol as $dashBlock)
++        @php $dashView = \App\Support\Dashboard\BlockRegistry::view($dashBlock['b']); @endphp
++        @if ($dashView)
++          @include($dashView)
++        @endif
++      @endforeach
+     @endforeach
+-  @endforeach
++  @endif
+ @endforeach
+diff --git a/resources/views/tenant/dashboard/_zone_attention.blade.php b/resources/views/tenant/dashboard/_zone_attention.blade.php
+deleted file mode 100644
+index f23db571..00000000
+--- a/resources/views/tenant/dashboard/_zone_attention.blade.php
++++ /dev/null
+@@ -1,10 +0,0 @@
+-@if($attention['total_items'] > 0)
+-<div class="ia-dash-attention-block">
+-  <div class="ia-dash-zone-head">
+-    <span class="ia-card-title">Needs your attention</span>
+-    <span class="ia-dash-zone-count">· {{ $attention['total_items'] }} {{ Str::plural('item', $attention['total_items']) }}</span>
+-  </div>
+-
+-  @include('tenant.dashboard._attention_cards', ['cards' => $attention['cards']])
+-</div>
+-@endif
+diff --git a/resources/views/tenant/dashboard/_zone_growth.blade.php b/resources/views/tenant/dashboard/_zone_growth.blade.php
+deleted file mode 100644
+index b8bff28d..00000000
+--- a/resources/views/tenant/dashboard/_zone_growth.blade.php
++++ /dev/null
+@@ -1,87 +0,0 @@
+-@php
+-  $sparkline = function(array $series, int $width = 260, int $height = 48) {
+-      $n = count($series);
+-      if ($n < 2) return '';
+-      $min = min($series);
+-      $max = max($series);
+-      $range = max(1, $max - $min);
+-
+-      $xStep = $width / max(1, $n - 1);
+-      $points = [];
+-      foreach ($series as $i => $v) {
+-          $x = round($i * $xStep, 2);
+-          $y = round($height - (($v - $min) / $range) * $height * 0.85 - 4, 2);
+-          $points[] = "$x,$y";
+-      }
+-      $pathD = 'M ' . implode(' L ', $points);
+-      $fillD = $pathD . ' L ' . ($width) . ',' . $height . ' L 0,' . $height . ' Z';
+-      return '<svg viewBox="0 0 ' . $width . ' ' . $height . '" class="ia-dash-spark" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">'
+-           . '<path d="' . $fillD . '" fill="var(--ia-accent)" opacity="0.12"/>'
+-           . '<path d="' . $pathD . '" stroke="var(--ia-accent)" stroke-width="1.5" fill="none" stroke-linejoin="round" stroke-linecap="round"/>'
+-           . '</svg>';
+-  };
+-
+-  $revDeltaText = $growth['revenue']['delta_pct'] !== null
+-      ? (($growth['revenue']['delta_pct'] >= 0 ? '▲ ' : '▼ ') . abs($growth['revenue']['delta_pct']) . '%')
+-      : null;
+-  $revDeltaClass = $growth['revenue']['delta_pct'] !== null && $growth['revenue']['delta_pct'] >= 0 ? 'up' : 'down';
+-
+-  $custDeltaText = $growth['customers']['delta_pct'] !== null
+-      ? (($growth['customers']['delta_pct'] >= 0 ? '▲ ' : '▼ ') . abs($growth['customers']['delta_pct']) . '%')
+-      : null;
+-  $custDeltaClass = $growth['customers']['delta_pct'] !== null && $growth['customers']['delta_pct'] >= 0 ? 'up' : 'down';
+-@endphp
+-
+-<div class="ia-dash-growth-block">
+-  <div class="ia-dash-zone-head">
+-    <span class="ia-card-title">Growth · last 30 days</span>
+-  </div>
+-
+-  <div class="ia-dash-growth-grid">
+-    <div class="ia-dash-growth-card">
+-      <div class="ia-dash-growth-head">
+-        <span class="ia-dash-growth-label">Revenue</span>
+-        @if($revDeltaText)
+-          <span class="ia-dash-growth-delta {{ $revDeltaClass }}">{{ $revDeltaText }}</span>
+-        @endif
+-      </div>
+-      <div class="ia-dash-growth-value">{{ format_money($growth['revenue']['current_cents']) }}</div>
+-      <div class="ia-dash-growth-sub">
+-        vs {{ format_money($growth['revenue']['prior_cents']) }} previous 30 days
+-      </div>
+-      <div class="ia-dash-spark-wrap">
+-        {!! $sparkline($growth['revenue']['sparkline']) !!}
+-      </div>
+-    </div>
+-
+-    <div class="ia-dash-growth-card">
+-      <div class="ia-dash-growth-head">
+-        <span class="ia-dash-growth-label">New customers</span>
+-        @if($custDeltaText)
+-          <span class="ia-dash-growth-delta {{ $custDeltaClass }}">{{ $custDeltaText }}</span>
+-        @endif
+-      </div>
+-      <div class="ia-dash-growth-value">{{ $growth['customers']['current'] }}</div>
+-      <div class="ia-dash-growth-sub">
+-        vs {{ $growth['customers']['prior'] }} previous 30 days
+-      </div>
+-      <div class="ia-dash-spark-wrap">
+-        {!! $sparkline($growth['customers']['sparkline']) !!}
+-      </div>
+-    </div>
+-  </div>
+-
+-  <div class="ia-dash-health">
+-    <div class="ia-dash-zone-head">
+-      <span class="ia-card-title">Operational health</span>
+-    </div>
+-    <ul class="ia-dash-health-list">
+-      @foreach($growth['health'] as $item)
+-        <li class="ia-dash-health-item">
+-          <span class="ia-dash-health-dot ia-dash-health-dot--{{ $item['status'] }}"></span>
+-          <span class="ia-dash-health-label"><strong>{{ $item['label'] }}</strong> — {{ $item['detail'] }}</span>
+-        </li>
+-      @endforeach
+-    </ul>
+-  </div>
+-</div>
+diff --git a/resources/views/tenant/dashboard/_zone_today.blade.php b/resources/views/tenant/dashboard/_zone_today.blade.php
+deleted file mode 100644
+index 7070f9c1..00000000
+--- a/resources/views/tenant/dashboard/_zone_today.blade.php
++++ /dev/null
+@@ -1,178 +0,0 @@
+-<div class="ia-dash-zone1">
+-
+-  <div class="ia-dash-summary">
+-    <div class="ia-dash-greet-card">
+-      @if($today['today_count'] === 0 && $today['last_24h_bookings'] === 0)
+-        <div class="ia-dash-summary-line">
+-          No appointments on the books today. When customers book, you will see them here.
+-        </div>
+-      @else
+-        <div class="ia-dash-summary-line">
+-          @if($today['today_count'] > 0)
+-            You have
+-            <strong>{{ $today['today_count'] }} {{ Str::plural('appointment', $today['today_count']) }} today</strong>@if($today['next_up'] && $today['next_up']->appointment_time)
+-              — next up at
+-              <strong>{{ \Carbon\Carbon::parse($today['next_up']->appointment_time)->format('g:i A') }}</strong>
+-              with {{ $today['next_up']->customerName() }}@if($today['next_up']->items->isNotEmpty())
+-                ({{ $today['next_up']->items->first()->item_name_snapshot }})
+-              @endif.
+-            @else
+-              .
+-            @endif
+-          @else
+-            No appointments today.
+-          @endif
+-
+-          @if($today['last_24h_bookings'] > 0)
+-            In the last 24 hours you got
+-            <strong>{{ $today['last_24h_bookings'] }} new {{ Str::plural('booking', $today['last_24h_bookings']) }}</strong>.
+-          @endif
+-        </div>
+-      @endif
+-    </div>
+-
+-    <div class="ia-dash-weekstats">
+-      <div class="ia-dash-weekstat-head">This week so far</div>
+-      <div class="ia-dash-weekstat-grid">
+-        <div>
+-          <div class="ia-dash-weekstat-value">{{ $today['week_bookings'] }}</div>
+-          <div class="ia-dash-weekstat-label">Bookings</div>
+-        </div>
+-        <div>
+-          <div class="ia-dash-weekstat-value">{{ format_money($today['week_revenue_cents']) }}</div>
+-          <div class="ia-dash-weekstat-label">Revenue</div>
+-        </div>
+-        <div>
+-          <div class="ia-dash-weekstat-value">{{ $today['week_new_customers'] }}</div>
+-          <div class="ia-dash-weekstat-label">New customers</div>
+-        </div>
+-        <div>
+-          <div class="ia-dash-weekstat-value">{{ $today['week_cancellations'] }}</div>
+-          <div class="ia-dash-weekstat-label">Cancellations</div>
+-        </div>
+-      </div>
+-    </div>
+-  </div>
+-
+-
+-  {{-- 7-day date strip --}}
+-  @php
+-    $stripStart = now()->subDays(3)->startOfDay();
+-    $stripDays = [];
+-    for ($i = 0; $i < 7; $i++) {
+-        $d = $stripStart->copy()->addDays($i);
+-        $stripDays[] = [
+-            'date'       => $d->toDateString(),
+-            'day_short'  => $d->format('D'),
+-            'day_num'    => (int) $d->format('j'),
+-            'is_today'   => $d->isToday(),
+-            'load_level' => $today['strip'][$i]['load_level'] ?? 0,
+-        ];
+-    }
+-  @endphp
+-
+-  <div class="ia-dash-date-strip" id="ia-date-strip" role="tablist" style="display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin:20px 0 12px">
+-    @foreach($stripDays as $sd)
+-      <button type="button" class="ia-dash-date-chip {{ $sd['is_today'] ? 'is-target' : '' }}" data-date="{{ $sd['date'] }}" role="tab">
+-        <span class="ia-dash-date-day">{{ $sd['day_short'] }}</span>
+-        <span class="ia-dash-date-num">{{ $sd['day_num'] }}</span>
+-        <span class="ia-dash-date-load" data-load-for="{{ $sd['date'] }}" data-level="{{ $sd['load_level'] }}" aria-label="Day load">
+-          <span class="ia-dash-date-load-bar"></span>
+-          <span class="ia-dash-date-load-bar"></span>
+-          <span class="ia-dash-date-load-bar"></span>
+-        </span>
+-      </button>
+-    @endforeach
+-  </div>
+-
+-  <div id="ia-day-panel">
+-
+-  @if($today['appointments']->isNotEmpty())
+-  <div class="ia-card" style="margin-top:20px">
+-    <div class="ia-card-head">
+-      <span class="ia-card-title">Today · {{ $today['today_count'] }} {{ Str::plural('appointment', $today['today_count']) }}</span>
+-      <a href="{{ route('tenant.appointments.index') }}" class="ia-card-action">Open calendar →</a>
+-    </div>
+-
+-    <div class="ia-dash-today-list">
+-      @foreach($today['appointments'] as $appt)
+-        <a href="{{ route('tenant.appointments.show', $appt->id) }}" class="ia-dash-today-row" data-appt-id="{{ $appt->id }}">
+-          <div class="ia-dash-today-time">
+-            @if($appt->appointment_time)
+-              <div class="ia-dash-today-time-hm">
+-                {{ \Carbon\Carbon::parse($appt->appointment_time)->format('g:i') }}
+-              </div>
+-              <div class="ia-dash-today-time-ap">
+-                {{ \Carbon\Carbon::parse($appt->appointment_time)->format('A') }}
+-                @if($appt->total_duration_minutes)
+-                  · {{ $appt->total_duration_minutes }} min
+-                @endif
+-              </div>
+-            @else
+-              <div class="ia-dash-today-time-hm">Drop-off</div>
+-              <div class="ia-dash-today-time-ap">{{ $appt->receiving_method_snapshot ?: 'Any time' }}</div>
+-            @endif
+-          </div>
+-          <div class="ia-dash-today-main">
+-            <div class="ia-dash-today-service">
+-              {{ $appt->items->first()?->item_name_snapshot ?: 'Service' }}
+-            </div>
+-            <div class="ia-dash-today-customer">
+-              {{ $appt->customerName() }} · {{ format_money($appt->total_cents) }}
+-            </div>
+-          </div>
+-          <div class="ia-dash-today-status">
+-            <span class="ia-badge ia-badge--{{ str_replace('_', '-', $appt->status) }}">
+-              {{ ucwords(str_replace('_', ' ', $appt->status)) }}
+-            </span>
+-            @if($appt->payment_status !== 'unpaid')
+-              <span class="ia-badge ia-badge--{{ $appt->payment_status }}" style="margin-left:4px">
+-                {{ ucfirst($appt->payment_status) }}
+-              </span>
+-            @endif
+-          </div>
+-        </a>
+-      @endforeach
+-    </div>
+-  </div>
+-  @endif
+-
+-  {{-- today's deliveries, mirrors the appointments block --}}
+-  @if(!empty($today['today_deliveries']) && $today['today_deliveries']->isNotEmpty())
+-  <div class="ia-card" style="margin-top:20px">
+-    <div class="ia-card-head">
+-      <span class="ia-card-title">Deliveries · {{ $today['today_deliveries']->count() }} today</span>
+-      <a href="{{ route('tenant.deliveries.index') }}" class="ia-card-action">Open deliveries →</a>
+-    </div>
+-
+-    <div class="ia-dash-today-list">
+-      @foreach($today['today_deliveries'] as $delivery)
+-        <a href="{{ route('tenant.deliveries.index') }}" class="ia-dash-today-row">
+-          <div class="ia-dash-today-time">
+-            @if($delivery->scheduled_at)
+-              <div class="ia-dash-today-time-hm">{{ tlocal($delivery->scheduled_at, 'g:i') }}</div>
+-              <div class="ia-dash-today-time-ap">{{ $delivery->scheduled_at->format('A') }}</div>
+-            @else
+-              <div class="ia-dash-today-time-hm">Any time</div>
+-            @endif
+-          </div>
+-          <div class="ia-dash-today-main">
+-            <div class="ia-dash-today-service">
+-              {{ $delivery->isPickup() ? 'Pickup' : 'Drop-off' }}@if($delivery->deliveryResource) · {{ $delivery->deliveryResource->name }}@endif
+-            </div>
+-            <div class="ia-dash-today-customer">
+-              {{ $delivery->customer ? trim(($delivery->customer->first_name ?? '') . ' ' . ($delivery->customer->last_name ?? '')) : 'No customer' }}@if($delivery->address) · {{ $delivery->address }}@endif
+-            </div>
+-          </div>
+-          <div class="ia-dash-today-status">
+-            <span class="ia-badge ia-badge--{{ str_replace('_', '-', $delivery->status) }}">
+-              {{ ucfirst($delivery->status) }}
+-            </span>
+-          </div>
+-        </a>
+-      @endforeach
+-    </div>
+-  </div>
+-  @endif
+-  </div>{{-- /ia-day-panel --}}
+-</div>
+diff --git a/routes/web.php b/routes/web.php
+index 46aac472..f96216a0 100644
+--- a/routes/web.php
++++ b/routes/web.php
+@@ -1105,7 +1105,6 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
+             Route::patch('/work-order-fields/{id}',      [TenantControllers\WorkOrderFieldsController::class, 'update'])->name('work-order-fields.update');
+             Route::delete('/work-order-fields/{id}',     [TenantControllers\WorkOrderFieldsController::class, 'destroy'])->name('work-order-fields.destroy');
+             Route::post('/dashboard/wof-banner/dismiss', [TenantControllers\DashboardController::class, 'dismissWorkOrderBanner'])->name('dashboard.wof-banner.dismiss');
+-            Route::get('/dashboard/day.json', [TenantControllers\DashboardController::class, 'dayJson'])->name('dashboard.day');
+             Route::post('/dashboard/view',        [TenantControllers\DashboardController::class, 'setView'])->name('dashboard.view');
+             Route::post('/dashboard/tiles',       [TenantControllers\DashboardController::class, 'saveTiles'])->name('dashboard.tiles.save');
+             Route::post('/dashboard/tiles/reset', [TenantControllers\DashboardController::class, 'resetTiles'])->name('dashboard.tiles.reset');

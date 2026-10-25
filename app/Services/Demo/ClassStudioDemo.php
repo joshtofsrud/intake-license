@@ -255,7 +255,7 @@ class ClassStudioDemo
                 if ($kind === 'intro') {
                     $p['since'] = $today->copy()->subDays(mt_rand(3, 75));
                     $p['convert'] = mt_rand(1, 100) <= 45;
-                    $p['product'] = $p['convert'] ? $mProducts[1] ?? $mProducts[0] : null;
+                    $p['product'] = $p['convert'] ? ($mProducts[1] ?? $mProducts[0] ?? null) : null;
                 }
                 if ($kind === 'member') {
                     $members++;

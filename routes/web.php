@@ -1105,7 +1105,6 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             Route::patch('/work-order-fields/{id}',      [TenantControllers\WorkOrderFieldsController::class, 'update'])->name('work-order-fields.update');
             Route::delete('/work-order-fields/{id}',     [TenantControllers\WorkOrderFieldsController::class, 'destroy'])->name('work-order-fields.destroy');
             Route::post('/dashboard/wof-banner/dismiss', [TenantControllers\DashboardController::class, 'dismissWorkOrderBanner'])->name('dashboard.wof-banner.dismiss');
-            Route::get('/dashboard/day.json', [TenantControllers\DashboardController::class, 'dayJson'])->name('dashboard.day');
             Route::post('/dashboard/view',        [TenantControllers\DashboardController::class, 'setView'])->name('dashboard.view');
             Route::post('/dashboard/tiles',       [TenantControllers\DashboardController::class, 'saveTiles'])->name('dashboard.tiles.save');
             Route::post('/dashboard/tiles/reset', [TenantControllers\DashboardController::class, 'resetTiles'])->name('dashboard.tiles.reset');

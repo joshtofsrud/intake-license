@@ -110,7 +110,8 @@ class Tenant extends Model
      */
     public function timezone(): string
     {
-        return $this->attributes['timezone'] ?: 'America/Los_Angeles';
+        // ?? null: a tenant just created without a timezone has no such key yet
+        return ($this->attributes['timezone'] ?? null) ?: 'America/Los_Angeles';
     }
 
     /** "Now" in the tenant's local timezone. */

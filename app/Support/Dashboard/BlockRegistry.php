@@ -26,7 +26,7 @@ class BlockRegistry
             'attention' => ['name' => 'Needs attention', 'origin' => 'overview', 'view' => 'tenant.dashboard._zone_triage_tiles',
                 'reads' => 'Appointments, work orders, special orders, stock', 'desc' => 'The attention counts as a row of tiles.', 'needs' => []],
             'today'     => ['name' => 'Today', 'origin' => 'overview', 'view' => 'tenant.dashboard._zone_today_tile',
-                'reads' => 'Appointments', 'desc' => "Today's bookings and the week strip.", 'needs' => []],
+                'reads' => 'Appointments', 'desc' => "Today's bookings and deliveries, or the next day that has some.", 'needs' => []],
             'growth'    => ['name' => 'Growth', 'origin' => 'overview', 'view' => 'tenant.dashboard._zone_growth_tiles',
                 'reads' => 'Sales, customers', 'desc' => 'Revenue and customer trends.', 'needs' => []],
             'launcher'  => ['name' => 'App launcher', 'origin' => 'overview', 'view' => 'tenant.dashboard._zone_launcher',

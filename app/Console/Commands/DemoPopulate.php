@@ -84,7 +84,9 @@ class DemoPopulate extends Command
         $this->newLine();
 
         try {
-            DB::transaction(function () use ($subdomain, $shopName, $industry, $ownerName, $ownerEmail, $ownerPassword) {
+            // The seeder writes its own ids so later rows can point at earlier
+            // ones; models don't allow mass-assigned ids, so unguard just here.
+            \Illuminate\Database\Eloquent\Model::unguarded(fn () => DB::transaction(function () use ($subdomain, $shopName, $industry, $ownerName, $ownerEmail, $ownerPassword) {
                 $tenant = Tenant::create([
                     'id'          => (string) Str::uuid(),
                     'license_id'  => null,
@@ -92,6 +94,9 @@ class DemoPopulate extends Command
                     'subdomain'   => $subdomain,
                     'plan_tier'   => 'scale',
                     'is_active'   => true,
+                    // a demo is ready to use: no setup wizard, and a real timezone
+                    'onboarding_status' => 'complete',
+                    'timezone'    => 'America/Los_Angeles',
                 ]);
 
                 $seeder = new DemoSeeder(
@@ -99,7 +104,7 @@ class DemoPopulate extends Command
                     logger: fn(string $msg) => $this->line($msg),
                 );
                 $seeder->seed($tenant, $ownerName, $ownerEmail, $ownerPassword);
-            });
+            }));
         } catch (\Throwable $e) {
             $this->newLine();
             $this->error("Seeding failed: " . $e->getMessage());

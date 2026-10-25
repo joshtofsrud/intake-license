@@ -112,6 +112,7 @@ class AdminPanelProvider extends PanelProvider
                 \App\Filament\Pages\TenantBrandAccess::class,
                 // MARKER-DASH-DEFAULT: explicit registration; no route without this line.
                 \App\Filament\Pages\Dashboards::class,
+                \App\Filament\Pages\DashboardEditor::class, // MARKER-DASH-ADMIN
                 // list-first Catalog Titles page. This panel
                 // lists pages explicitly, so a new page class is invisible until
                 // it appears here, cache or no cache.
