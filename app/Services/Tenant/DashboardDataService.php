@@ -275,6 +275,7 @@ class DashboardDataService
                     . ($awaitingNoReplyCount > 0 ? " — {$awaitingNoReplyCount} never replied to the options link" : '')
                     . (($awaitingCallCount ?? 0) > 0 ? " — {$awaitingCallCount} asked for a call" : ''),
                 'tone'  => 'amber',
+                'route' => 'tenant.appointments.index', // MARKER-DASH-ACCESS: who may see the card
                 'link'  => route('tenant.appointments.index', ['filter' => 'awaiting_delivery']),
             ];
         }
@@ -289,6 +290,7 @@ class DashboardDataService
                     ? '1 booking awaiting confirmation or drop-off'
                     : $unconfirmedCount . ' bookings awaiting confirmation or drop-off',
                 'tone'  => 'red',  // your action: review and confirm
+                'route' => 'tenant.appointments.index', // MARKER-DASH-ACCESS: who may see the card
                 'link'  => route('tenant.appointments.index', ['filter' => 'unconfirmed_bookings']),
             ];
         }
@@ -304,6 +306,7 @@ class DashboardDataService
                     ? '1 booking asked you to reach out about pickup'
                     : $pickupOutreachCount . ' bookings asked you to reach out about pickup',
                 'tone'  => 'amber',  // your action: contact and schedule
+                'route' => 'tenant.appointments.index', // MARKER-DASH-ACCESS: who may see the card
                 'link'  => route('tenant.appointments.index', ['filter' => 'pickup_outreach']),
             ];
         }
@@ -316,6 +319,7 @@ class DashboardDataService
                 'icon'  => '💳',
                 'desc'  => '$' . number_format($unpaidDoneSumCents / 100, 0) . ' outstanding on finished work',
                 'tone'  => 'amber',  // customer's action: send payment
+                'route' => 'tenant.appointments.index', // MARKER-DASH-ACCESS: who may see the card
                 'link'  => route('tenant.appointments.index', ['filter' => 'unpaid_completed']),
             ];
         }
@@ -330,6 +334,7 @@ class DashboardDataService
                     ? 'Customer ready to receive their ' . ($this->tenant->asset_label_singular ?: 'item')
                     : 'Customers ready to receive their ' . ($this->tenant->asset_label_plural ?: 'items'),
                 'tone'  => 'amber',  // customer's action: collect their item
+                'route' => 'tenant.appointments.index', // MARKER-DASH-ACCESS: who may see the card
                 'link'  => route('tenant.appointments.index', ['filter' => 'ready_pickup']),
             ];
         }
@@ -344,6 +349,7 @@ class DashboardDataService
                     ? 'Customer waiting for an opening'
                     : 'Customers waiting for an opening',
                 'tone'  => 'amber',  // customer's action: accept the opening (waitlist page, not appointments)
+                'route' => 'tenant.waitlist.index', // MARKER-DASH-ACCESS: who may see the card
                 'link'  => route('tenant.waitlist.index'),
             ];
         }
@@ -364,6 +370,7 @@ class DashboardDataService
                     ? 'Appointment past its scheduled date and never started'
                     : 'Appointments past their scheduled date and never started',
                 'tone'  => 'red',
+                'route' => 'tenant.appointments.index', // MARKER-DASH-ACCESS: who may see the card
                 'link'  => route('tenant.appointments.index', ['filter' => 'overdue_unstarted']),
             ];
         }
@@ -383,6 +390,7 @@ class DashboardDataService
                     ? 'Job started but not closed out'
                     : 'Jobs started but not closed out',
                 'tone'  => 'red',  // your action: close out the job (more concerning than unstarted)
+                'route' => 'tenant.appointments.index', // MARKER-DASH-ACCESS: who may see the card
                 'link'  => route('tenant.appointments.index', ['filter' => 'overdue_in_progress']),
             ];
         }
@@ -403,6 +411,7 @@ class DashboardDataService
                     ? 'Completed 3+ days ago, customer not collected'
                     : 'Completed 3+ days ago, customers not collected',
                 'tone'  => 'amber',
+                'route' => 'tenant.appointments.index', // MARKER-DASH-ACCESS: who may see the card
                 'link'  => route('tenant.appointments.index', ['filter' => 'stale_pickups']),
             ];
         }
@@ -426,6 +435,7 @@ class DashboardDataService
                     ? 'Customer part not yet ordered from a vendor'
                     : 'Customer parts not yet ordered from a vendor',
                 'tone'  => 'amber',  // your action: pick a vendor + place the order
+                'route' => 'tenant.special-orders.index', // MARKER-DASH-ACCESS: who may see the card
                 'link'  => route('tenant.special-orders.index'),
             ];
         }
@@ -444,6 +454,7 @@ class DashboardDataService
                     ? 'Customer part on the bench, ready to pull and notify'
                     : 'Customer parts on the bench, ready to pull and notify',
                 'tone'  => 'amber',  // your action: pull from bench + tell customer
+                'route' => 'tenant.special-orders.index', // MARKER-DASH-ACCESS: who may see the card
                 'link'  => route('tenant.special-orders.index', ['view' => 'arrived_bench']),
             ];
         }
@@ -464,6 +475,7 @@ class DashboardDataService
                     ? 'Vendor missed expected arrival — chase them'
                     : 'Vendors missed expected arrivals — chase them',
                 'tone'  => 'red',  // your action: contact vendor about delay
+                'route' => 'tenant.special-orders.index', // MARKER-DASH-ACCESS: who may see the card
                 'link'  => route('tenant.special-orders.index', ['view' => 'overdue']),
             ];
         }
@@ -489,6 +501,7 @@ class DashboardDataService
                         ? 'Another location is asking for stock from here'
                         : 'Other locations are asking for stock from here',
                     'tone'  => 'amber',
+                    'route' => 'tenant.transfer-requests.index', // MARKER-DASH-ACCESS: who may see the card
                     'link'  => route('tenant.transfer-requests.index', ['view' => 'to_send']),
                 ];
             }
@@ -508,6 +521,7 @@ class DashboardDataService
                         ? 'Stock is in transit to this location'
                         : 'Stock items are in transit to this location',
                     'tone'  => 'blue',
+                    'route' => 'tenant.transfer-requests.index', // MARKER-DASH-ACCESS: who may see the card
                     'link'  => route('tenant.transfer-requests.index', ['view' => 'to_receive']),
                 ];
             }
@@ -535,6 +549,7 @@ class DashboardDataService
                     ? 'Item at or below its reorder threshold'
                     : 'Items at or below their reorder thresholds',
                 'tone'  => 'amber',  // your action: plan replenishment
+                'route' => 'tenant.inventory.index', // MARKER-DASH-ACCESS: who may see the card
                 'link'  => route('tenant.inventory.index', ['stock' => 'low']),
             ];
         }
@@ -560,6 +575,7 @@ class DashboardDataService
                     ? 'Price or MAP change from your distributor needs review'
                     : 'Price or MAP changes from your distributor need review',
                 'tone'  => 'amber',
+                'route' => 'tenant.distributors.attention', // MARKER-DASH-ACCESS: who may see the card
                 'link'  => route('tenant.distributors.attention'),
             ];
         }
@@ -586,6 +602,7 @@ class DashboardDataService
                     ? 'Customer has not been in for 180+ days'
                     : 'Customers have not been in for 180+ days',
                 'tone'  => 'violet',  // your action: start a re-engagement campaign
+                'route' => 'tenant.customers.index', // MARKER-DASH-ACCESS: who may see the card
                 'link'  => route('tenant.customers.index'),
             ];
         }
@@ -603,6 +620,7 @@ class DashboardDataService
                         'desc'  => 'Add them to inventory so they scan next time'
                             . ($ci['today'] > 0 && $ci['earlier'] > 0 ? ' · ' . $ci['earlier'] . ' more from earlier' : ''),
                         'tone'  => 'amber',
+                        'route' => 'tenant.register.custom-items', // MARKER-DASH-ACCESS: who may see the card
                         'link'  => route('tenant.register.custom-items'),
                     ];
                 }

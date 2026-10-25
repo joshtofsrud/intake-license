@@ -23,6 +23,7 @@
      the order the template's live version lists them. Single-column rows at
      the top sit in the header; rows with columns become the two-column body. --}}
 @php
+  $see ??= \App\Support\Dashboard\BlockAccess::for(auth('tenant')->user());
   $briefHead = []; $briefBody = [];
   foreach ($dashRows as $r) {
       if (! $briefBody && count($r['split']) === 1) { $briefHead[] = $r; } else { $briefBody[] = $r; }
@@ -31,7 +32,7 @@
 
 <div class="mb">
 
-  <section class="mb-head {{ tenant()->retail_enabled ? 'has-fab' : '' }}">
+  <section class="mb-head {{ $see->can('register') ? 'has-fab' : '' }}">
     <div style="display:flex;align-items:center;gap:12px">
       <div class="mb-eyebrow">{{ $greeting['date_long'] }}</div>
       @include('tenant.dashboard._switch', ['segStyle' => 'margin-left:auto'])

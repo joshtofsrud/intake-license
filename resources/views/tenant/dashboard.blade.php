@@ -29,6 +29,7 @@
 @section('content')
 
 @php
+  $see ??= \App\Support\Dashboard\BlockAccess::for(auth('tenant')->user());
   $greetingWord = "Good {$greeting['time_of_day']}";
   $greetingLine = $greeting['name'] ? "{$greetingWord}, {$greeting['name']}." : "{$greetingWord}.";
 @endphp
@@ -37,18 +38,25 @@
 <div class="ia-dash-mobile-only">
   {{-- 3-stat row --}}
   <div class="ia-dash-m-stats ia-dash-m-stats--strip">
+    {{-- MARKER-DASH-ACCESS: each figure only for people whose role can open where it comes from --}}
+    @if ($see->can('schedule'))
     <div class="ia-dash-m-stat">
       <div class="ia-dash-m-stat-num">{{ $today['today_count'] }}</div>
       <div class="ia-dash-m-stat-lbl">Today</div>
     </div>
+    @endif
+    @if ($see->can('reports'))
     <div class="ia-dash-m-stat">
       <div class="ia-dash-m-stat-num">{{ format_money($today['week_revenue_cents']) }}</div>
       <div class="ia-dash-m-stat-lbl">Wk revenue</div>
     </div>
+    @endif
+    @if ($see->can('customers'))
     <div class="ia-dash-m-stat">
       <div class="ia-dash-m-stat-num">{{ $today['week_new_customers'] }}</div>
       <div class="ia-dash-m-stat-lbl">New cust.</div>
     </div>
+    @endif
   </div>
 
   {{-- Next-up hero card. Renders only when there's a next_up appointment with a time. --}}
@@ -73,7 +81,7 @@
     }
     $nuService = $nu && $nu->items->isNotEmpty() ? $nu->items->first()->item_name_snapshot : null;
   @endphp
-  @if($nu && $nuTime)
+  @if($nu && $nuTime && $see->can('schedule'))
     <a href="{{ route('tenant.appointments.show', $nu->id) }}" class="ia-dash-m-hero">
       <div class="ia-dash-m-hero-when">
         @if($nuMinutesAway !== null && $nuMinutesAway >= 0 && $nuMinutesAway < 120)
@@ -95,14 +103,14 @@
       @endif
       <div class="ia-dash-m-hero-cta">View →</div>
     </a>
-  @elseif($today['today_count'] === 0)
+  @elseif($today['today_count'] === 0 && $see->can('schedule'))
     <div class="ia-dash-m-empty">
       No appointments today. Open the calendar to book one.
     </div>
   @endif
 </div>
 
-<div class="ia-page-head ia-dash-head {{ tenant()->retail_enabled ? 'has-fab' : '' }}">
+<div class="ia-page-head ia-dash-head {{ $see->can('register') ? 'has-fab' : '' }}">
   <div class="ia-page-head-left">
     <h1 class="ia-page-title">{{ $greetingLine }}</h1>
     {{-- c --}}
@@ -117,14 +125,18 @@
     </p>
   </div>
   <div class="ia-page-actions">
+    @if ($see->can('register'))
     <a href="{{ route('tenant.register.index') }}" class="ia-btn ia-btn--primary">
       + New sale
     </a>
+    @endif
     {{-- was a bare link to the list, which meant
          hunting for the real button once you got there. --}}
+    @if ($see->can('schedule'))
     <a href="{{ route('tenant.appointments.index', ['new' => 1]) }}" class="ia-btn ia-btn--primary">
       + New appointment
     </a>
+    @endif
     {{-- toggle lives in the page head on both views --}}
     @include('tenant.dashboard._switch', ['inline' => true])
     @include('tenant.dashboard._customize_button')

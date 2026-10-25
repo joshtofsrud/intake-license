@@ -1,4 +1,6 @@
-{{-- Growth tiles: revenue, customers, health. --}}
+{{-- Growth tiles: revenue, customers, health. Each shows only to people whose
+     role can open where it comes from (Reports, Customers, Business settings). --}}
+@php $see ??= \App\Support\Dashboard\BlockAccess::for(auth('tenant')->user()); @endphp
 
 @php
   $sparkline = function(array $series, int $width = 240, int $height = 36) {
@@ -45,6 +47,7 @@
   <div class="ia-dash-growth-tiles-grid">
 
     {{-- tile links now apply matching filters --}}
+    @if ($see->can('reports'))
     <a href="{{ route('tenant.reports.index', ['range' => 'last_30']) }}" class="ia-dash-growth-tile">
       <div class="label">Revenue · last 30d</div>
       <div class="value">{{ format_money($rev['current_cents']) }}</div>
@@ -57,7 +60,9 @@
         {!! $sparkline($rev['sparkline']) !!}
       </div>
     </a>
+    @endif
 
+    @if ($see->can('customers'))
     <a href="{{ route('tenant.customers.index', ['created_after' => \Carbon\Carbon::now()->subDays(29)->toDateString(), 'sort' => 'added_desc']) }}" class="ia-dash-growth-tile">
       <div class="label">New customers · last 30d</div>
       <div class="value">{{ $cust['current'] }}</div>
@@ -70,7 +75,9 @@
         {!! $sparkline($cust['sparkline']) !!}
       </div>
     </a>
+    @endif
 
+    @if ($see->can('settings'))
     <div class="ia-dash-growth-tile ia-dash-growth-tile--health">
       <div class="label">Operational health</div>
       <ul class="health-list">
@@ -83,6 +90,7 @@
         @endforeach
       </ul>
     </div>
+    @endif
 
   </div>
 </div>

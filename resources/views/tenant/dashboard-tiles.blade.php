@@ -31,19 +31,21 @@
 
 @section('content')
 {{-- MARKER-DASH-TEMPLATES: Tiles is now a template; this page is its frame. --}}
+@php $see ??= \App\Support\Dashboard\BlockAccess::for(auth('tenant')->user()); @endphp
 
 {{-- the same three figures as Overview, on phones,
      a size smaller so Tiles stays tight. --}}
 <div class="ia-tiles-stats" aria-label="This week">
-  <div><b>{{ $today['today_count'] ?? 0 }}</b><span>Today</span></div>
-  <div><b>{{ format_money((int) ($today['week_revenue_cents'] ?? 0)) }}</b><span>Wk revenue</span></div>
-  <div><b>{{ $today['week_new_customers'] ?? 0 }}</b><span>New cust.</span></div>
+  {{-- MARKER-DASH-ACCESS: each figure only for people whose role can open where it comes from --}}
+  @if ($see->can('schedule'))<div><b>{{ $today['today_count'] ?? 0 }}</b><span>Today</span></div>@endif
+  @if ($see->can('reports'))<div><b>{{ format_money((int) ($today['week_revenue_cents'] ?? 0)) }}</b><span>Wk revenue</span></div>@endif
+  @if ($see->can('customers'))<div><b>{{ $today['week_new_customers'] ?? 0 }}</b><span>New cust.</span></div>@endif
 </div>
 
 {{-- identical head to the Overview view: same
      greeting construction, same bold long date, same amber attention count
      (attention total, not the visible-card count), same action buttons. --}}
-<div class="ia-page-head ia-tiles-head ia-dash-head {{ tenant()->retail_enabled ? 'has-fab' : '' }}">
+<div class="ia-page-head ia-tiles-head ia-dash-head {{ $see->can('register') ? 'has-fab' : '' }}">
   <div class="ia-page-head-left">
     <h1 class="ia-page-title">{{ $greeting['name'] ? 'Good ' . $greeting['time_of_day'] . ', ' . $greeting['name'] . '.' : 'Good ' . $greeting['time_of_day'] . '.' }}</h1>
     <p class="ia-page-subtitle">
@@ -57,12 +59,16 @@
     </p>
   </div>
   <div class="ia-page-actions ia-tiles-actions">
+    @if ($see->can('register'))
     <a href="{{ route('tenant.register.index') }}" class="ia-btn ia-btn--primary">
       + New sale
     </a>
+    @endif
+    @if ($see->can('schedule'))
     <a href="{{ route('tenant.appointments.index', ['new' => 1]) }}" class="ia-btn ia-btn--primary">
       + New appointment
     </a>
+    @endif
     @include('tenant.dashboard._switch')
     @include('tenant.dashboard._customize_button')
   </div>

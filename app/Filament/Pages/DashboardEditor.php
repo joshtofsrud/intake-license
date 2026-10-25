@@ -133,22 +133,6 @@ class DashboardEditor extends Page
         $this->sel = isset($this->rows[$r]['cols'][$c][$i]) && $this->sel !== [$r, $c, $i] ? [$r, $c, $i] : [];
     }
 
-    public function toggleRole(string $role): void
-    {
-        if (! $this->guard() || ! $this->sel || ! isset(Layout::ROLES[$role])) return;
-        [$r, $c, $i] = $this->sel;
-        $p = &$this->rows[$r]['cols'][$c][$i];
-        $roles = $p['roles'] ?? array_keys(Layout::ROLES);
-        $roles = in_array($role, $roles, true) ? array_values(array_diff($roles, [$role])) : array_merge($roles, [$role]);
-        if (! $roles) {
-            Notification::make()->title('At least one role has to see it.')->body('Remove the block instead if nobody should.')->warning()->send();
-            return;
-        }
-        $p['roles'] = $roles;
-        unset($p);
-        $this->settle();
-    }
-
     public function toggleLock(): void
     {
         if (! $this->guard() || ! $this->sel) return;
@@ -401,7 +385,6 @@ class DashboardEditor extends Page
             'versions'   => $tpl->versions()->orderByDesc('version')->limit(12)->get(),
             'picked'     => (int) ($picks[$tpl->key] ?? 0),
             'selBlock'   => $this->sel ? ($screen[$this->sel[0]]['cols'][$this->sel[1]][$this->sel[2]] ?? null) : null,
-            'roles'      => Layout::ROLES,
             'customizeOn' => \App\Support\Dashboard\DashboardTemplates::customizeEnabled(),
             'aud'        => $this->audience(),
             'audSaved'   => Audience::normalize($tpl->audience),

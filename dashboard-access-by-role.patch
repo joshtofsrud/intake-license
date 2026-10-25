@@ -1,0 +1,1016 @@
+diff --git a/app/Filament/Pages/DashboardEditor.php b/app/Filament/Pages/DashboardEditor.php
+index 2fbde6b3..8cf21690 100644
+--- a/app/Filament/Pages/DashboardEditor.php
++++ b/app/Filament/Pages/DashboardEditor.php
+@@ -133,22 +133,6 @@ class DashboardEditor extends Page
+         $this->sel = isset($this->rows[$r]['cols'][$c][$i]) && $this->sel !== [$r, $c, $i] ? [$r, $c, $i] : [];
+     }
+ 
+-    public function toggleRole(string $role): void
+-    {
+-        if (! $this->guard() || ! $this->sel || ! isset(Layout::ROLES[$role])) return;
+-        [$r, $c, $i] = $this->sel;
+-        $p = &$this->rows[$r]['cols'][$c][$i];
+-        $roles = $p['roles'] ?? array_keys(Layout::ROLES);
+-        $roles = in_array($role, $roles, true) ? array_values(array_diff($roles, [$role])) : array_merge($roles, [$role]);
+-        if (! $roles) {
+-            Notification::make()->title('At least one role has to see it.')->body('Remove the block instead if nobody should.')->warning()->send();
+-            return;
+-        }
+-        $p['roles'] = $roles;
+-        unset($p);
+-        $this->settle();
+-    }
+-
+     public function toggleLock(): void
+     {
+         if (! $this->guard() || ! $this->sel) return;
+@@ -401,7 +385,6 @@ class DashboardEditor extends Page
+             'versions'   => $tpl->versions()->orderByDesc('version')->limit(12)->get(),
+             'picked'     => (int) ($picks[$tpl->key] ?? 0),
+             'selBlock'   => $this->sel ? ($screen[$this->sel[0]]['cols'][$this->sel[1]][$this->sel[2]] ?? null) : null,
+-            'roles'      => Layout::ROLES,
+             'customizeOn' => \App\Support\Dashboard\DashboardTemplates::customizeEnabled(),
+             'aud'        => $this->audience(),
+             'audSaved'   => Audience::normalize($tpl->audience),
+diff --git a/app/Http/Controllers/Tenant/DashboardController.php b/app/Http/Controllers/Tenant/DashboardController.php
+index 4c177391..cdecd20c 100644
+--- a/app/Http/Controllers/Tenant/DashboardController.php
++++ b/app/Http/Controllers/Tenant/DashboardController.php
+@@ -52,6 +52,11 @@ class DashboardController extends Controller
+         $today     = $service->zoneToday();
+         $attention = $service->zoneAttention();
+ 
++        // MARKER-DASH-ACCESS: a person only sees what their role can open —
++        // cards, tiles and whole blocks — whatever the shop's roles are called.
++        $see = \App\Support\Dashboard\BlockAccess::for($request->user('tenant'));
++        $attention = $see->attention($attention);
++
+         $data = [
+             'greeting'  => $service->greeting($user),
+             'today'     => $today,
+@@ -59,7 +64,8 @@ class DashboardController extends Controller
+             'growth'    => $service->zoneGrowth(),
+             'launcher'  => $service->zoneLauncher($today, $attention),
+             'progress'  => $progress,
+-            'workOrderBanner' => $workOrderBanner,
++            'workOrderBanner' => $see->canRoute('tenant.work-order-fields.index') ? $workOrderBanner : null,
++            'see'       => $see,
+         ];
+ 
+         // MARKER-DASH-TEMPLATES: the dashboard is a template — Overview, Tiles,
+@@ -69,13 +75,14 @@ class DashboardController extends Controller
+         $user = \Illuminate\Support\Facades\Auth::guard('tenant')->user();
+         $template = DashboardTemplates::activeFor($user->dashboard_view ?? null, $tenant);
+ 
+-        // MARKER-DASH-AUDIENCE: blocks this person's role doesn't get are left
+-        // out, then their own hides and order are applied, as far as the
++        // MARKER-DASH-ACCESS: blocks whose data this person's role can't open
++        // are left out, then their own hides and order are applied, as far as the
+         // template (and the platform-wide switch) allow.
+         $rearrange = DashboardTemplates::rearrangeFor($template);
+         $prefs = (array) (($user->dashboard_prefs ?? [])[$template['key']] ?? []);
+-        $roleRows = Layout::personal($template['rows'], $user->role, [], 'none');
+-        $rows = Layout::personal($template['rows'], $user->role, $prefs, $rearrange);
++        $blocked = $see->blocked();
++        $roleRows = Layout::personal($template['rows'], $blocked, [], 'none');
++        $rows = Layout::personal($template['rows'], $blocked, $prefs, $rearrange);
+ 
+         // Only load what this template's blocks draw.
+         $needs = BlockRegistry::needs($rows);
+@@ -86,7 +93,7 @@ class DashboardController extends Controller
+             $data['jobs'] = $service->jobsCompleted30();
+         }
+         if (in_array('tiles', $needs, true)) {
+-            $data['tiles'] = \App\Support\DashboardTiles::layout($tenant, $user);
++            $data['tiles'] = $see->tiles(\App\Support\DashboardTiles::layout($tenant, $user));
+         }
+ 
+         $data['activeTemplate']  = $template;
+@@ -130,7 +137,7 @@ class DashboardController extends Controller
+         if (! empty($data['reset'])) {
+             unset($all[$template['key']]);
+         } else {
+-            $clean = CustomizePanel::clean($template, $user->role, $data, DashboardTemplates::rearrangeFor($template));
++            $clean = CustomizePanel::clean($template, \App\Support\Dashboard\BlockAccess::for($user)->blocked(), $data, DashboardTemplates::rearrangeFor($template));
+             if ($clean === null) {
+                 return response()->json(['ok' => false, 'error' => 'Changing this dashboard is turned off.'], 403);
+             }
+diff --git a/app/Services/Tenant/DashboardDataService.php b/app/Services/Tenant/DashboardDataService.php
+index e36cd639..26d985ac 100644
+--- a/app/Services/Tenant/DashboardDataService.php
++++ b/app/Services/Tenant/DashboardDataService.php
+@@ -275,6 +275,7 @@ class DashboardDataService
+                     . ($awaitingNoReplyCount > 0 ? " — {$awaitingNoReplyCount} never replied to the options link" : '')
+                     . (($awaitingCallCount ?? 0) > 0 ? " — {$awaitingCallCount} asked for a call" : ''),
+                 'tone'  => 'amber',
++                'route' => 'tenant.appointments.index', // MARKER-DASH-ACCESS: who may see the card
+                 'link'  => route('tenant.appointments.index', ['filter' => 'awaiting_delivery']),
+             ];
+         }
+@@ -289,6 +290,7 @@ class DashboardDataService
+                     ? '1 booking awaiting confirmation or drop-off'
+                     : $unconfirmedCount . ' bookings awaiting confirmation or drop-off',
+                 'tone'  => 'red',  // your action: review and confirm
++                'route' => 'tenant.appointments.index', // MARKER-DASH-ACCESS: who may see the card
+                 'link'  => route('tenant.appointments.index', ['filter' => 'unconfirmed_bookings']),
+             ];
+         }
+@@ -304,6 +306,7 @@ class DashboardDataService
+                     ? '1 booking asked you to reach out about pickup'
+                     : $pickupOutreachCount . ' bookings asked you to reach out about pickup',
+                 'tone'  => 'amber',  // your action: contact and schedule
++                'route' => 'tenant.appointments.index', // MARKER-DASH-ACCESS: who may see the card
+                 'link'  => route('tenant.appointments.index', ['filter' => 'pickup_outreach']),
+             ];
+         }
+@@ -316,6 +319,7 @@ class DashboardDataService
+                 'icon'  => '💳',
+                 'desc'  => '$' . number_format($unpaidDoneSumCents / 100, 0) . ' outstanding on finished work',
+                 'tone'  => 'amber',  // customer's action: send payment
++                'route' => 'tenant.appointments.index', // MARKER-DASH-ACCESS: who may see the card
+                 'link'  => route('tenant.appointments.index', ['filter' => 'unpaid_completed']),
+             ];
+         }
+@@ -330,6 +334,7 @@ class DashboardDataService
+                     ? 'Customer ready to receive their ' . ($this->tenant->asset_label_singular ?: 'item')
+                     : 'Customers ready to receive their ' . ($this->tenant->asset_label_plural ?: 'items'),
+                 'tone'  => 'amber',  // customer's action: collect their item
++                'route' => 'tenant.appointments.index', // MARKER-DASH-ACCESS: who may see the card
+                 'link'  => route('tenant.appointments.index', ['filter' => 'ready_pickup']),
+             ];
+         }
+@@ -344,6 +349,7 @@ class DashboardDataService
+                     ? 'Customer waiting for an opening'
+                     : 'Customers waiting for an opening',
+                 'tone'  => 'amber',  // customer's action: accept the opening (waitlist page, not appointments)
++                'route' => 'tenant.waitlist.index', // MARKER-DASH-ACCESS: who may see the card
+                 'link'  => route('tenant.waitlist.index'),
+             ];
+         }
+@@ -364,6 +370,7 @@ class DashboardDataService
+                     ? 'Appointment past its scheduled date and never started'
+                     : 'Appointments past their scheduled date and never started',
+                 'tone'  => 'red',
++                'route' => 'tenant.appointments.index', // MARKER-DASH-ACCESS: who may see the card
+                 'link'  => route('tenant.appointments.index', ['filter' => 'overdue_unstarted']),
+             ];
+         }
+@@ -383,6 +390,7 @@ class DashboardDataService
+                     ? 'Job started but not closed out'
+                     : 'Jobs started but not closed out',
+                 'tone'  => 'red',  // your action: close out the job (more concerning than unstarted)
++                'route' => 'tenant.appointments.index', // MARKER-DASH-ACCESS: who may see the card
+                 'link'  => route('tenant.appointments.index', ['filter' => 'overdue_in_progress']),
+             ];
+         }
+@@ -403,6 +411,7 @@ class DashboardDataService
+                     ? 'Completed 3+ days ago, customer not collected'
+                     : 'Completed 3+ days ago, customers not collected',
+                 'tone'  => 'amber',
++                'route' => 'tenant.appointments.index', // MARKER-DASH-ACCESS: who may see the card
+                 'link'  => route('tenant.appointments.index', ['filter' => 'stale_pickups']),
+             ];
+         }
+@@ -426,6 +435,7 @@ class DashboardDataService
+                     ? 'Customer part not yet ordered from a vendor'
+                     : 'Customer parts not yet ordered from a vendor',
+                 'tone'  => 'amber',  // your action: pick a vendor + place the order
++                'route' => 'tenant.special-orders.index', // MARKER-DASH-ACCESS: who may see the card
+                 'link'  => route('tenant.special-orders.index'),
+             ];
+         }
+@@ -444,6 +454,7 @@ class DashboardDataService
+                     ? 'Customer part on the bench, ready to pull and notify'
+                     : 'Customer parts on the bench, ready to pull and notify',
+                 'tone'  => 'amber',  // your action: pull from bench + tell customer
++                'route' => 'tenant.special-orders.index', // MARKER-DASH-ACCESS: who may see the card
+                 'link'  => route('tenant.special-orders.index', ['view' => 'arrived_bench']),
+             ];
+         }
+@@ -464,6 +475,7 @@ class DashboardDataService
+                     ? 'Vendor missed expected arrival — chase them'
+                     : 'Vendors missed expected arrivals — chase them',
+                 'tone'  => 'red',  // your action: contact vendor about delay
++                'route' => 'tenant.special-orders.index', // MARKER-DASH-ACCESS: who may see the card
+                 'link'  => route('tenant.special-orders.index', ['view' => 'overdue']),
+             ];
+         }
+@@ -489,6 +501,7 @@ class DashboardDataService
+                         ? 'Another location is asking for stock from here'
+                         : 'Other locations are asking for stock from here',
+                     'tone'  => 'amber',
++                    'route' => 'tenant.transfer-requests.index', // MARKER-DASH-ACCESS: who may see the card
+                     'link'  => route('tenant.transfer-requests.index', ['view' => 'to_send']),
+                 ];
+             }
+@@ -508,6 +521,7 @@ class DashboardDataService
+                         ? 'Stock is in transit to this location'
+                         : 'Stock items are in transit to this location',
+                     'tone'  => 'blue',
++                    'route' => 'tenant.transfer-requests.index', // MARKER-DASH-ACCESS: who may see the card
+                     'link'  => route('tenant.transfer-requests.index', ['view' => 'to_receive']),
+                 ];
+             }
+@@ -535,6 +549,7 @@ class DashboardDataService
+                     ? 'Item at or below its reorder threshold'
+                     : 'Items at or below their reorder thresholds',
+                 'tone'  => 'amber',  // your action: plan replenishment
++                'route' => 'tenant.inventory.index', // MARKER-DASH-ACCESS: who may see the card
+                 'link'  => route('tenant.inventory.index', ['stock' => 'low']),
+             ];
+         }
+@@ -560,6 +575,7 @@ class DashboardDataService
+                     ? 'Price or MAP change from your distributor needs review'
+                     : 'Price or MAP changes from your distributor need review',
+                 'tone'  => 'amber',
++                'route' => 'tenant.distributors.attention', // MARKER-DASH-ACCESS: who may see the card
+                 'link'  => route('tenant.distributors.attention'),
+             ];
+         }
+@@ -586,6 +602,7 @@ class DashboardDataService
+                     ? 'Customer has not been in for 180+ days'
+                     : 'Customers have not been in for 180+ days',
+                 'tone'  => 'violet',  // your action: start a re-engagement campaign
++                'route' => 'tenant.customers.index', // MARKER-DASH-ACCESS: who may see the card
+                 'link'  => route('tenant.customers.index'),
+             ];
+         }
+@@ -603,6 +620,7 @@ class DashboardDataService
+                         'desc'  => 'Add them to inventory so they scan next time'
+                             . ($ci['today'] > 0 && $ci['earlier'] > 0 ? ' · ' . $ci['earlier'] . ' more from earlier' : ''),
+                         'tone'  => 'amber',
++                        'route' => 'tenant.register.custom-items', // MARKER-DASH-ACCESS: who may see the card
+                         'link'  => route('tenant.register.custom-items'),
+                     ];
+                 }
+diff --git a/app/Support/Dashboard/BlockAccess.php b/app/Support/Dashboard/BlockAccess.php
+new file mode 100644
+index 00000000..0f9c2508
+--- /dev/null
++++ b/app/Support/Dashboard/BlockAccess.php
+@@ -0,0 +1,126 @@
++<?php
++
++namespace App\Support\Dashboard;
++
++use App\Models\Tenant\TenantUser;
++use App\Support\SectionRegistry;
++
++/**
++ * MARKER-DASH-ACCESS: what one person's dashboard may show them.
++ *
++ * Shops build their own roles in Team & access, so a dashboard can't go by
++ * role names. It goes by the areas a role can open (SectionRegistry): a
++ * block, a figure or a link only appears for someone whose role can open the
++ * area its data comes from. Whatever a shop calls its roles, the dashboard
++ * follows them.
++ *
++ * Each block in BlockRegistry lists its areas under 'access':
++ *   ['any' => [...]]  shown if the person can open at least one (the block
++ *                     then leaves out the parts they can't)
++ *   ['all' => [...]]  shown only if they can open every one
++ *
++ * No signed-in person (a render outside a request) sees everything.
++ */
++class BlockAccess
++{
++    private array $memo = [];
++
++    public function __construct(private readonly ?TenantUser $user) {}
++
++    public static function for(?TenantUser $user): self
++    {
++        return new self($user);
++    }
++
++    /**
++     * Can this person open the area (a SectionRegistry key)? The shop has to
++     * have the area turned on too (Register needs Retail, and so on), as the
++     * sidebar does.
++     */
++    public function can(string $section): bool
++    {
++        return $this->memo[$section] ??= $this->shopHas($section) && (! $this->user || $this->user->canAccessSection($section));
++    }
++
++    private function shopHas(string $section): bool
++    {
++        $gate = SectionRegistry::all()[$section]['gate'] ?? null;
++        if (! $gate) return true;
++        try {
++            $tenant = (function_exists('tenant') ? tenant() : null) ?? $this->user?->tenant;
++
++            return $tenant ? (bool) $tenant->{$gate} : true;
++        } catch (\Throwable $e) {
++            return true;
++        }
++    }
++
++    /** Can they open the page this route goes to? Routes no area governs are open to all. */
++    public function canRoute(?string $route): bool
++    {
++        $section = SectionRegistry::sectionForRoute($route);
++
++        return $section === null || $this->can($section);
++    }
++
++    /** Whether the block shows for this person at all. */
++    public function seesBlock(string $key): bool
++    {
++        $rule = BlockRegistry::builtIns()[$key]['access'] ?? [];
++        if (! empty($rule['all'])) {
++            foreach ($rule['all'] as $s) {
++                if (! $this->can($s)) return false;
++            }
++        }
++        if (! empty($rule['any'])) {
++            foreach ($rule['any'] as $s) {
++                if ($this->can($s)) return true;
++            }
++
++            return false;
++        }
++
++        return true;
++    }
++
++    /** Block keys this person doesn't get. */
++    public function blocked(): array
++    {
++        return array_values(array_filter(array_keys(BlockRegistry::builtIns()), fn ($k) => ! $this->seesBlock($k)));
++    }
++
++    /**
++     * The attention data with only the cards whose list this person can
++     * open. Counts are worked out again so a heading never counts things
++     * they can't see.
++     */
++    public function attention(array $attention): array
++    {
++        $cards = array_values(array_filter((array) ($attention['cards'] ?? []), fn ($c) => $this->canRoute($c['route'] ?? null)));
++        $attention['cards'] = $cards;
++        $attention['total_items'] = count($cards);
++
++        return $attention;
++    }
++
++    /** Shortcut tiles, minus those going to pages this person can't open. */
++    public function tiles(array $layout): array
++    {
++        foreach (['visible', 'hidden'] as $part) {
++            $layout[$part] = array_filter((array) ($layout[$part] ?? []), fn ($def) => $this->canRoute($def['route'] ?? null));
++        }
++
++        return $layout;
++    }
++
++    /** The areas a block's data comes from, as people read them: "Schedule or Reports". */
++    public static function describe(string $key): ?string
++    {
++        $rule = BlockRegistry::builtIns()[$key]['access'] ?? [];
++        $labels = fn (array $keys) => array_map(fn ($s) => SectionRegistry::all()[$s]['label'] ?? $s, $keys);
++        if (! empty($rule['all'])) return implode(' and ', $labels($rule['all']));
++        if (! empty($rule['any'])) return implode(count($rule['any']) > 2 ? ', ' : ' or ', $labels($rule['any']));
++
++        return null;
++    }
++}
+diff --git a/app/Support/Dashboard/BlockRegistry.php b/app/Support/Dashboard/BlockRegistry.php
+index d3274aba..0baa8ca1 100644
+--- a/app/Support/Dashboard/BlockRegistry.php
++++ b/app/Support/Dashboard/BlockRegistry.php
+@@ -19,38 +19,47 @@ class BlockRegistry
+     /** Extra data a block can ask for, and what loads it. */
+     public const NEEDS = ['week', 'jobs', 'tiles'];
+ 
++    /**
++     * MARKER-DASH-ACCESS: the areas (SectionRegistry keys) a block's data
++     * comes from — see BlockAccess. Blocks made of links and counts from
++     * several areas show if the person can open any of them, then leave out
++     * the parts they can't.
++     */
++    private const QUEUE_AREAS = ['any' => ['schedule', 'waitlist', 'special_orders', 'transfer_requests', 'inventory', 'customers', 'register']];
++    private const LINK_AREAS  = ['any' => ['schedule', 'register', 'customers', 'waitlist', 'inventory', 'special_orders', 'reports', 'services', 'resources', 'pages', 'settings', 'rentals', 'inbox', 'team']];
++
+     public static function builtIns(): array
+     {
+         return [
+             // Overview
+             'attention' => ['name' => 'Needs attention', 'origin' => 'overview', 'view' => 'tenant.dashboard._zone_triage_tiles',
+-                'reads' => 'Appointments, work orders, special orders, stock', 'desc' => 'The attention counts as a row of tiles.', 'needs' => []],
++                'reads' => 'Appointments, work orders, special orders, stock', 'desc' => 'The attention counts as a row of tiles.', 'access' => self::QUEUE_AREAS, 'needs' => []],
+             'today'     => ['name' => 'Today', 'origin' => 'overview', 'view' => 'tenant.dashboard._zone_today_tile',
+-                'reads' => 'Appointments', 'desc' => "Today's bookings and deliveries, or the next day that has some.", 'needs' => []],
++                'reads' => 'Appointments', 'desc' => "Today's bookings and deliveries, or the next day that has some.", 'access' => ['any' => ['schedule']], 'needs' => []],
+             'growth'    => ['name' => 'Growth', 'origin' => 'overview', 'view' => 'tenant.dashboard._zone_growth_tiles',
+-                'reads' => 'Sales, customers', 'desc' => 'Revenue and customer trends.', 'needs' => []],
++                'reads' => 'Sales, customers', 'desc' => 'Revenue and customer trends.', 'access' => ['any' => ['reports', 'customers', 'settings']], 'needs' => []],
+             'launcher'  => ['name' => 'App launcher', 'origin' => 'overview', 'view' => 'tenant.dashboard._zone_launcher',
+-                'reads' => 'Add-ons the shop has', 'desc' => 'Shortcuts to the main areas.', 'needs' => []],
++                'reads' => 'Add-ons the shop has', 'desc' => 'Shortcuts to the main areas.', 'access' => self::LINK_AREAS, 'needs' => []],
+ 
+             // Tiles
+             'needs_you' => ['name' => 'Needs you', 'origin' => 'tiles', 'view' => 'tenant.dashboard.blocks.needs-you',
+-                'reads' => 'Appointments, work orders, special orders, stock', 'desc' => 'Attention counts as tiles, collapsible.', 'needs' => []],
++                'reads' => 'Appointments, work orders, special orders, stock', 'desc' => 'Attention counts as tiles, collapsible.', 'access' => self::QUEUE_AREAS, 'needs' => []],
+             'tiles'     => ['name' => 'Tiles', 'origin' => 'tiles', 'view' => 'tenant.dashboard.blocks.tiles',
+-                'reads' => 'Add-ons the shop has', 'desc' => 'Shortcut tiles each person can reorder and hide.', 'needs' => ['tiles']],
++                'reads' => 'Add-ons the shop has', 'desc' => 'Shortcut tiles each person can reorder and hide.', 'access' => self::LINK_AREAS, 'needs' => ['tiles']],
+ 
+             // Brief
+             'greeting'  => ['name' => 'Greeting and summary', 'origin' => 'brief', 'view' => 'tenant.dashboard.blocks.greeting',
+-                'reads' => 'Appointments, the queue', 'desc' => 'Greeting, then one line on what is late, due and booked.', 'needs' => []],
++                'reads' => 'Appointments, the queue', 'desc' => 'Greeting, then one line on what is late, due and booked.', 'access' => [], 'needs' => []],
+             'actions'   => ['name' => 'Quick actions', 'origin' => 'brief', 'view' => 'tenant.dashboard.blocks.actions',
+-                'reads' => 'Shop settings', 'desc' => 'New appointment, plus Open register when Retail is on.', 'needs' => []],
++                'reads' => 'Shop settings', 'desc' => 'New appointment, plus Open register when Retail is on.', 'access' => ['any' => ['schedule', 'register']], 'needs' => []],
+             'setup'     => ['name' => 'Finish setup', 'origin' => 'brief', 'view' => 'tenant.dashboard.blocks.setup',
+-                'reads' => 'Setup progress', 'desc' => 'Shows until services, hours and branding are done.', 'needs' => []],
++                'reads' => 'Setup progress', 'desc' => 'Shows until services, hours and branding are done.', 'access' => ['all' => ['services', 'capacity', 'settings']], 'needs' => []],
+             'queue'     => ['name' => 'The queue', 'origin' => 'brief', 'view' => 'tenant.dashboard.blocks.queue',
+-                'reads' => 'Appointments, work orders, special orders, stock', 'desc' => 'Late, Today and When you can. Each row opens its list.', 'needs' => []],
++                'reads' => 'Appointments, work orders, special orders, stock', 'desc' => 'Late, Today and When you can. Each row opens its list.', 'access' => self::QUEUE_AREAS, 'needs' => []],
+             'week'      => ['name' => 'This week', 'origin' => 'brief', 'view' => 'tenant.dashboard.blocks.week',
+-                'reads' => 'Appointments, opening hours', 'desc' => 'Day strip and timeline. Free time links to a new appointment.', 'needs' => ['week']],
++                'reads' => 'Appointments, opening hours', 'desc' => 'Day strip and timeline. Free time links to a new appointment.', 'access' => ['any' => ['schedule']], 'needs' => ['week']],
+             'last30'    => ['name' => 'Last 30 days', 'origin' => 'brief', 'view' => 'tenant.dashboard.blocks.last30',
+-                'reads' => 'Sales, work orders, customers', 'desc' => 'Sales, jobs completed and new customers against the 30 days before.', 'needs' => ['jobs']],
++                'reads' => 'Sales, work orders, customers', 'desc' => 'Sales, jobs completed and new customers against the 30 days before.', 'access' => ['any' => ['reports', 'schedule', 'customers']], 'needs' => ['jobs']],
+         ];
+     }
+ 
+diff --git a/app/Support/Dashboard/CustomizePanel.php b/app/Support/Dashboard/CustomizePanel.php
+index b1472845..cb53322f 100644
+--- a/app/Support/Dashboard/CustomizePanel.php
++++ b/app/Support/Dashboard/CustomizePanel.php
+@@ -13,7 +13,7 @@ class CustomizePanel
+      * Null when there's nothing this person can change here (customizing is
+      * off platform-wide or on this template, or every block is locked).
+      *
+-     * @param array $roleRows  the template's rows with role filtering applied, before personal choices
++     * @param array $roleRows  the template's rows minus blocks this person doesn't get, before personal choices
+      */
+     public static function for(array $template, array $roleRows, array $prefs, string $rearrange): ?array
+     {
+@@ -32,7 +32,7 @@ class CustomizePanel
+         $hiddenCount = 0;
+         foreach ($template['rows'] as $r => $row) {
+             foreach ($row['cols'] as $c => $col) {
+-                // the role-filtered column, matched by block key
++                // the person's own column, matched by block key
+                 $keys = array_column($col, 'b');
+                 $blocks = [];
+                 foreach ($keys as $k) {
+@@ -66,12 +66,12 @@ class CustomizePanel
+     }
+ 
+     /** What a person sent, kept to what this template lets them change. Null = not allowed at all. */
+-    public static function clean(array $template, ?string $role, array $data, string $rearrange): ?array
++    public static function clean(array $template, array $blocked, array $data, string $rearrange): ?array
+     {
+         if ($rearrange === 'none') {
+             return null;
+         }
+-        $roleRows = Layout::personal($template['rows'], $role, [], 'none');
++        $roleRows = Layout::personal($template['rows'], $blocked, [], 'none');
+         $placed = [];
+         foreach ($roleRows as $row) foreach ($row['cols'] as $col) foreach ($col as $p) $placed[$p['b']] = $p;
+ 
+diff --git a/app/Support/Dashboard/Layout.php b/app/Support/Dashboard/Layout.php
+index 57194a08..578677b6 100644
+--- a/app/Support/Dashboard/Layout.php
++++ b/app/Support/Dashboard/Layout.php
+@@ -21,9 +21,6 @@ class Layout
+         '7-5' => 'Wider left (58/42)', '5-7' => 'Wider right (42/58)', '4-4-4' => 'Thirds',
+     ];
+ 
+-    /** Who a block can be limited to: a person's role in their shop. */
+-    public const ROLES = ['owner' => 'Owner', 'manager' => 'Manager', 'staff' => 'Staff'];
+-
+     public static function splitName(array $split): string
+     {
+         return self::SPLIT_NAMES[implode('-', $split)] ?? implode(' + ', array_map(fn ($n) => round($n / 12 * 100) . '%', $split));
+@@ -70,16 +67,14 @@ class Layout
+     }
+ 
+     /**
+-     * One placed block, cleaned: its key, who sees it (left out = everyone),
+-     * and whether people can hide it (left out = they can).
++     * One placed block, cleaned: its key, and whether people can hide it
++     * (left out = they can). Who sees a block isn't set here: it follows
++     * what each person's role can open (BlockAccess). Older layouts held an
++     * Owner/Manager/Staff list per block; it is dropped here.
+      */
+     public static function placement(array $p): array
+     {
+         $out = ['b' => (string) $p['b']];
+-        $roles = array_values(array_intersect(array_keys(self::ROLES), array_map('strval', (array) ($p['roles'] ?? []))));
+-        if ($roles && count($roles) < count(self::ROLES)) {
+-            $out['roles'] = $roles;
+-        }
+         if (! empty($p['lock'])) {
+             $out['lock'] = true;
+         }
+@@ -88,15 +83,16 @@ class Layout
+     }
+ 
+     /**
+-     * The layout one person sees: blocks their role doesn't get are left
+-     * out, then their own choices are applied — hidden blocks dropped, and
++     * The layout one person sees: blocks their role can't open the data
++     * for ($blocked, from BlockAccess) are left out, then their own choices are applied — hidden blocks dropped, and
+      * (when the template allows reordering) each column in their order.
+      * Locked blocks can't be hidden. Columns keep their width even when empty.
+      *
++     * @param array $blocked  block keys this person doesn't get
+      * @param array $prefs  ['hidden' => [keys], 'order' => ['r-c' => [keys]]]
+      * @param string $rearrange  none | hide | both
+      */
+-    public static function personal(array $rows, ?string $role, array $prefs, string $rearrange): array
++    public static function personal(array $rows, array $blocked, array $prefs, string $rearrange): array
+     {
+         $hidden = $rearrange !== 'none' ? array_map('strval', (array) ($prefs['hidden'] ?? [])) : [];
+         $order  = $rearrange === 'both' ? (array) ($prefs['order'] ?? []) : [];
+@@ -105,8 +101,8 @@ class Layout
+             $cols = [];
+             $any = false;
+             foreach ($row['cols'] as $c => $col) {
+-                $col = array_values(array_filter($col, function ($p) use ($role, $hidden) {
+-                    if (isset($p['roles']) && ! in_array((string) $role, $p['roles'], true)) return false;
++                $col = array_values(array_filter($col, function ($p) use ($blocked, $hidden) {
++                    if (in_array($p['b'], $blocked, true)) return false;
+                     if (empty($p['lock']) && in_array($p['b'], $hidden, true)) return false;
+                     return true;
+                 }));
+@@ -156,9 +152,6 @@ class Layout
+             if ($l['r'] !== $d['r'] || $l['c'] !== $d['c'] || array_search($k, $ordL, true) !== array_search($k, $ordD, true)) {
+                 $out[] = ['moved', 'Moved ' . $name($k)];
+             }
+-            if (($l['p']['roles'] ?? null) !== ($d['p']['roles'] ?? null)) {
+-                $out[] = ['moved', 'Changed who sees ' . $name($k)];
+-            }
+             if (! empty($l['p']['lock']) !== ! empty($d['p']['lock'])) {
+                 $out[] = ['moved', $name($k) . (! empty($d['p']['lock']) ? ' can no longer be hidden' : ' can be hidden')];
+             }
+diff --git a/resources/views/filament/pages/dashboard-editor.blade.php b/resources/views/filament/pages/dashboard-editor.blade.php
+index ce5c1f04..1b7e1f4c 100644
+--- a/resources/views/filament/pages/dashboard-editor.blade.php
++++ b/resources/views/filament/pages/dashboard-editor.blade.php
+@@ -151,20 +151,25 @@
+   <div class="db-legend" style="padding-top:10px">
+     <b>This is the layout, not a preview.</b> Each box is a block; shops see them drawn with their own data and theme.
+     A block that's hidden everywhere, or that a shop can't use, is left out of that shop's dashboard and the space closes up.
++    Each person only sees blocks, figures and links from areas their role can open in their shop's Team &amp; access.
+     On phones every row becomes one column, left to right.
+   </div>
+ 
+   <div class="de-grid">
+     <aside class="de-panel">
+       @if ($canEdit && $selBlock)
+-        @php $selRoles = $selBlock['roles'] ?? array_keys($roles); $hideOff = $rearrange === 'none' || ! $customizeOn; @endphp
++        @php $hideOff = $rearrange === 'none' || ! $customizeOn; $selAreas = \App\Support\Dashboard\BlockAccess::describe($selBlock['b']); $selRule = $registry[$selBlock['b']]['access'] ?? []; @endphp
+         <div class="de-set">
+           <h4>{{ $names[$selBlock['b']] ?? $selBlock['b'] }}<button type="button" class="db-lnk dim" style="font-size:12px" wire:click="selectBlock({{ $sel[0] }}, {{ $sel[1] }}, {{ $sel[2] }})">Close</button></h4>
+           <div class="db-note" style="margin-bottom:4px">Who sees it</div>
+-          @foreach ($roles as $rk => $rl)
+-            <label class="de-chk"><input type="checkbox" @checked(in_array($rk, $selRoles, true)) wire:click="toggleRole('{{ $rk }}')"> {{ $rl }}s</label>
+-          @endforeach
+-          <div class="db-note" style="margin:4px 0 10px">A person's role in their shop. Anyone else gets the space closed up, not a gap.</div>
++          <div style="font-size:13px;margin-bottom:4px">
++            @if (! $selAreas) Everyone in the shop.
++            @elseif (! empty($selRule['all'])) People whose role can open {{ $selAreas }}.
++            @elseif (count($selRule['any']) === 1) People whose role can open {{ $selAreas }}.
++            @else People whose role can open any of: {{ $selAreas }}. Parts from areas they can't open are left out.
++            @endif
++          </div>
++          <div class="db-note" style="margin:4px 0 10px">Follows each shop's own roles in Team &amp; access, whatever they're called. Anyone else gets the space closed up, not a gap.</div>
+           <label class="de-chk" @if ($hideOff) style="opacity:.5" @endif><input type="checkbox" @checked(empty($selBlock['lock'])) wire:click="toggleLock" @disabled($hideOff)> People can hide it</label>
+           <div class="db-note" style="margin-top:4px">
+             @if (! $customizeOn) Customizing is turned off for every shop on the Dashboards page.
+@@ -302,15 +307,12 @@
+                 @if (count($row['split']) > 1)<div class="colh">Column {{ $c + 1 }} · {{ \App\Support\Dashboard\Layout::colWidth($row['split'], $c) }}</div>@endif
+                 @forelse ($col as $i => $p)
+                   @php $def = $registry[$p['b']] ?? null; $isHidden = in_array($p['b'], $hidden, true); @endphp
+-                  @php
+-                    $whoText = isset($p['roles']) ? collect($p['roles'])->map(fn ($k) => $roles[$k] . 's')->implode(' and ') . ' only' : null;
+-                  @endphp
+                   <div class="de-blk {{ $isHidden ? 'hid' : '' }} {{ $sel === [$r, $c, $i] ? 'sel' : '' }}" @if ($canEdit) draggable="true" x-on:dragstart="drag($event, { r: {{ $r }}, c: {{ $c }}, i: {{ $i }} })" @endif>
+                     <span class="de-grip">⋮⋮</span>
+                     <button type="button" class="pick" wire:click="selectBlock({{ $r }}, {{ $c }}, {{ $i }})" title="Settings for this block">
+                       <span class="t">{{ $names[$p['b']] ?? $p['b'] }}</span>
+                       <span class="s" style="display:block">{{ $isHidden ? 'Hidden everywhere: no shop sees it' : 'From ' . ucfirst($def['origin'] ?? '') . ' · ' . ($def['reads'] ?? '') }}</span>
+-                      @if ($whoText || ! empty($p['lock']))<span class="who">{{ collect([$whoText, ! empty($p['lock']) ? 'Always shown' : null])->filter()->implode(' · ') }}</span>@endif
++                      @if (! empty($p['lock']))<span class="who">Always shown</span>@endif
+                     </button>
+                     @if ($canEdit)
+                       <span class="de-ctl">
+diff --git a/resources/views/layouts/tenant/_mobile-fab.blade.php b/resources/views/layouts/tenant/_mobile-fab.blade.php
+index 59b91835..376416fc 100644
+--- a/resources/views/layouts/tenant/_mobile-fab.blade.php
++++ b/resources/views/layouts/tenant/_mobile-fab.blade.php
+@@ -12,7 +12,8 @@
+      ================================================================ --}}
+ @hasSection('mobile-fab')
+   @php $fabType = trim(View::yieldContent('mobile-fab')); @endphp
+-  @if($fabType === 'walk-in')
++  {{-- MARKER-DASH-ACCESS: and only for people whose role can open the Register --}}
++  @if($fabType === 'walk-in' && (auth('tenant')->user()?->canAccessSection('register') ?? true))
+     <button type="button"
+             class="ia-mobile-fab ia-mobile-fab--walkin"
+             aria-label="Start walk-in"
+diff --git a/resources/views/tenant/dashboard-brief.blade.php b/resources/views/tenant/dashboard-brief.blade.php
+index 5b522e9b..cd5d5c9f 100644
+--- a/resources/views/tenant/dashboard-brief.blade.php
++++ b/resources/views/tenant/dashboard-brief.blade.php
+@@ -23,6 +23,7 @@
+      the order the template's live version lists them. Single-column rows at
+      the top sit in the header; rows with columns become the two-column body. --}}
+ @php
++  $see ??= \App\Support\Dashboard\BlockAccess::for(auth('tenant')->user());
+   $briefHead = []; $briefBody = [];
+   foreach ($dashRows as $r) {
+       if (! $briefBody && count($r['split']) === 1) { $briefHead[] = $r; } else { $briefBody[] = $r; }
+@@ -31,7 +32,7 @@
+ 
+ <div class="mb">
+ 
+-  <section class="mb-head {{ tenant()->retail_enabled ? 'has-fab' : '' }}">
++  <section class="mb-head {{ $see->can('register') ? 'has-fab' : '' }}">
+     <div style="display:flex;align-items:center;gap:12px">
+       <div class="mb-eyebrow">{{ $greeting['date_long'] }}</div>
+       @include('tenant.dashboard._switch', ['segStyle' => 'margin-left:auto'])
+diff --git a/resources/views/tenant/dashboard-tiles.blade.php b/resources/views/tenant/dashboard-tiles.blade.php
+index 4420e37e..bbcc3560 100644
+--- a/resources/views/tenant/dashboard-tiles.blade.php
++++ b/resources/views/tenant/dashboard-tiles.blade.php
+@@ -31,19 +31,21 @@
+ 
+ @section('content')
+ {{-- MARKER-DASH-TEMPLATES: Tiles is now a template; this page is its frame. --}}
++@php $see ??= \App\Support\Dashboard\BlockAccess::for(auth('tenant')->user()); @endphp
+ 
+ {{-- the same three figures as Overview, on phones,
+      a size smaller so Tiles stays tight. --}}
+ <div class="ia-tiles-stats" aria-label="This week">
+-  <div><b>{{ $today['today_count'] ?? 0 }}</b><span>Today</span></div>
+-  <div><b>{{ format_money((int) ($today['week_revenue_cents'] ?? 0)) }}</b><span>Wk revenue</span></div>
+-  <div><b>{{ $today['week_new_customers'] ?? 0 }}</b><span>New cust.</span></div>
++  {{-- MARKER-DASH-ACCESS: each figure only for people whose role can open where it comes from --}}
++  @if ($see->can('schedule'))<div><b>{{ $today['today_count'] ?? 0 }}</b><span>Today</span></div>@endif
++  @if ($see->can('reports'))<div><b>{{ format_money((int) ($today['week_revenue_cents'] ?? 0)) }}</b><span>Wk revenue</span></div>@endif
++  @if ($see->can('customers'))<div><b>{{ $today['week_new_customers'] ?? 0 }}</b><span>New cust.</span></div>@endif
+ </div>
+ 
+ {{-- identical head to the Overview view: same
+      greeting construction, same bold long date, same amber attention count
+      (attention total, not the visible-card count), same action buttons. --}}
+-<div class="ia-page-head ia-tiles-head ia-dash-head {{ tenant()->retail_enabled ? 'has-fab' : '' }}">
++<div class="ia-page-head ia-tiles-head ia-dash-head {{ $see->can('register') ? 'has-fab' : '' }}">
+   <div class="ia-page-head-left">
+     <h1 class="ia-page-title">{{ $greeting['name'] ? 'Good ' . $greeting['time_of_day'] . ', ' . $greeting['name'] . '.' : 'Good ' . $greeting['time_of_day'] . '.' }}</h1>
+     <p class="ia-page-subtitle">
+@@ -57,12 +59,16 @@
+     </p>
+   </div>
+   <div class="ia-page-actions ia-tiles-actions">
++    @if ($see->can('register'))
+     <a href="{{ route('tenant.register.index') }}" class="ia-btn ia-btn--primary">
+       + New sale
+     </a>
++    @endif
++    @if ($see->can('schedule'))
+     <a href="{{ route('tenant.appointments.index', ['new' => 1]) }}" class="ia-btn ia-btn--primary">
+       + New appointment
+     </a>
++    @endif
+     @include('tenant.dashboard._switch')
+     @include('tenant.dashboard._customize_button')
+   </div>
+diff --git a/resources/views/tenant/dashboard.blade.php b/resources/views/tenant/dashboard.blade.php
+index f4162a34..3aa16e33 100644
+--- a/resources/views/tenant/dashboard.blade.php
++++ b/resources/views/tenant/dashboard.blade.php
+@@ -29,6 +29,7 @@
+ @section('content')
+ 
+ @php
++  $see ??= \App\Support\Dashboard\BlockAccess::for(auth('tenant')->user());
+   $greetingWord = "Good {$greeting['time_of_day']}";
+   $greetingLine = $greeting['name'] ? "{$greetingWord}, {$greeting['name']}." : "{$greetingWord}.";
+ @endphp
+@@ -37,18 +38,25 @@
+ <div class="ia-dash-mobile-only">
+   {{-- 3-stat row --}}
+   <div class="ia-dash-m-stats ia-dash-m-stats--strip">
++    {{-- MARKER-DASH-ACCESS: each figure only for people whose role can open where it comes from --}}
++    @if ($see->can('schedule'))
+     <div class="ia-dash-m-stat">
+       <div class="ia-dash-m-stat-num">{{ $today['today_count'] }}</div>
+       <div class="ia-dash-m-stat-lbl">Today</div>
+     </div>
++    @endif
++    @if ($see->can('reports'))
+     <div class="ia-dash-m-stat">
+       <div class="ia-dash-m-stat-num">{{ format_money($today['week_revenue_cents']) }}</div>
+       <div class="ia-dash-m-stat-lbl">Wk revenue</div>
+     </div>
++    @endif
++    @if ($see->can('customers'))
+     <div class="ia-dash-m-stat">
+       <div class="ia-dash-m-stat-num">{{ $today['week_new_customers'] }}</div>
+       <div class="ia-dash-m-stat-lbl">New cust.</div>
+     </div>
++    @endif
+   </div>
+ 
+   {{-- Next-up hero card. Renders only when there's a next_up appointment with a time. --}}
+@@ -73,7 +81,7 @@
+     }
+     $nuService = $nu && $nu->items->isNotEmpty() ? $nu->items->first()->item_name_snapshot : null;
+   @endphp
+-  @if($nu && $nuTime)
++  @if($nu && $nuTime && $see->can('schedule'))
+     <a href="{{ route('tenant.appointments.show', $nu->id) }}" class="ia-dash-m-hero">
+       <div class="ia-dash-m-hero-when">
+         @if($nuMinutesAway !== null && $nuMinutesAway >= 0 && $nuMinutesAway < 120)
+@@ -95,14 +103,14 @@
+       @endif
+       <div class="ia-dash-m-hero-cta">View →</div>
+     </a>
+-  @elseif($today['today_count'] === 0)
++  @elseif($today['today_count'] === 0 && $see->can('schedule'))
+     <div class="ia-dash-m-empty">
+       No appointments today. Open the calendar to book one.
+     </div>
+   @endif
+ </div>
+ 
+-<div class="ia-page-head ia-dash-head {{ tenant()->retail_enabled ? 'has-fab' : '' }}">
++<div class="ia-page-head ia-dash-head {{ $see->can('register') ? 'has-fab' : '' }}">
+   <div class="ia-page-head-left">
+     <h1 class="ia-page-title">{{ $greetingLine }}</h1>
+     {{-- c --}}
+@@ -117,14 +125,18 @@
+     </p>
+   </div>
+   <div class="ia-page-actions">
++    @if ($see->can('register'))
+     <a href="{{ route('tenant.register.index') }}" class="ia-btn ia-btn--primary">
+       + New sale
+     </a>
++    @endif
+     {{-- was a bare link to the list, which meant
+          hunting for the real button once you got there. --}}
++    @if ($see->can('schedule'))
+     <a href="{{ route('tenant.appointments.index', ['new' => 1]) }}" class="ia-btn ia-btn--primary">
+       + New appointment
+     </a>
++    @endif
+     {{-- toggle lives in the page head on both views --}}
+     @include('tenant.dashboard._switch', ['inline' => true])
+     @include('tenant.dashboard._customize_button')
+diff --git a/resources/views/tenant/dashboard/_zone_growth_tiles.blade.php b/resources/views/tenant/dashboard/_zone_growth_tiles.blade.php
+index 9c278c8e..0c2c804e 100644
+--- a/resources/views/tenant/dashboard/_zone_growth_tiles.blade.php
++++ b/resources/views/tenant/dashboard/_zone_growth_tiles.blade.php
+@@ -1,4 +1,6 @@
+-{{-- Growth tiles: revenue, customers, health. --}}
++{{-- Growth tiles: revenue, customers, health. Each shows only to people whose
++     role can open where it comes from (Reports, Customers, Business settings). --}}
++@php $see ??= \App\Support\Dashboard\BlockAccess::for(auth('tenant')->user()); @endphp
+ 
+ @php
+   $sparkline = function(array $series, int $width = 240, int $height = 36) {
+@@ -45,6 +47,7 @@
+   <div class="ia-dash-growth-tiles-grid">
+ 
+     {{-- tile links now apply matching filters --}}
++    @if ($see->can('reports'))
+     <a href="{{ route('tenant.reports.index', ['range' => 'last_30']) }}" class="ia-dash-growth-tile">
+       <div class="label">Revenue · last 30d</div>
+       <div class="value">{{ format_money($rev['current_cents']) }}</div>
+@@ -57,7 +60,9 @@
+         {!! $sparkline($rev['sparkline']) !!}
+       </div>
+     </a>
++    @endif
+ 
++    @if ($see->can('customers'))
+     <a href="{{ route('tenant.customers.index', ['created_after' => \Carbon\Carbon::now()->subDays(29)->toDateString(), 'sort' => 'added_desc']) }}" class="ia-dash-growth-tile">
+       <div class="label">New customers · last 30d</div>
+       <div class="value">{{ $cust['current'] }}</div>
+@@ -70,7 +75,9 @@
+         {!! $sparkline($cust['sparkline']) !!}
+       </div>
+     </a>
++    @endif
+ 
++    @if ($see->can('settings'))
+     <div class="ia-dash-growth-tile ia-dash-growth-tile--health">
+       <div class="label">Operational health</div>
+       <ul class="health-list">
+@@ -83,6 +90,7 @@
+         @endforeach
+       </ul>
+     </div>
++    @endif
+ 
+   </div>
+ </div>
+diff --git a/resources/views/tenant/dashboard/_zone_launcher.blade.php b/resources/views/tenant/dashboard/_zone_launcher.blade.php
+index 35c908f2..0954ebc5 100644
+--- a/resources/views/tenant/dashboard/_zone_launcher.blade.php
++++ b/resources/views/tenant/dashboard/_zone_launcher.blade.php
+@@ -4,6 +4,7 @@
+      Icons are a consistent monochrome SVG set (patch-350) — replaces the
+      mixed emoji that clashed with the dark UI. --}}
+ 
++@php $see ??= \App\Support\Dashboard\BlockAccess::for(auth('tenant')->user()); @endphp
+ @php
+   $L = $launcher ?? [];
+   $registerTodayDisplay = isset($L['register']['today_total_cents'])
+@@ -19,6 +20,7 @@
+ 
+   <div class="ia-dash-launcher-grid">
+ 
++    @if ($see->canRoute('tenant.calendar.index'))
+     <a href="{{ route('tenant.calendar.index') }}" class="ia-dash-launcher-tile">
+       <div class="ic"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="3.5" width="15" height="14" rx="2"/><path d="M2.5 7.5h15M6.5 2v3M13.5 2v3"/></svg></div>
+       <div class="body">
+@@ -26,7 +28,9 @@
+         <div class="sub">{{ $L['calendar']['today_count'] ?? 0 }} booked today</div>
+       </div>
+     </a>
++    @endif
+ 
++    @if ($see->canRoute('tenant.register.index'))
+     <a href="{{ route('tenant.register.index') }}" class="ia-dash-launcher-tile">
+       <div class="ic"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 2.5h10v15l-2-1.3-2 1.3-2-1.3-2 1.3V2.5z"/><path d="M8 7h4M8 10h4"/></svg></div>
+       <div class="body">
+@@ -34,7 +38,9 @@
+         <div class="sub">{{ $registerTodayDisplay }} rung up today</div>
+       </div>
+     </a>
++    @endif
+ 
++    @if ($see->canRoute('tenant.customers.index'))
+     <a href="{{ route('tenant.customers.index') }}" class="ia-dash-launcher-tile">
+       <div class="ic"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="7" r="2.7"/><path d="M3 16.5c0-2.6 2.2-4.3 5-4.3s5 1.7 5 4.3"/><path d="M14 8.2a2.3 2.3 0 0 0 0-2.4"/></svg></div>
+       <div class="body">
+@@ -42,7 +48,9 @@
+         <div class="sub">{{ number_format($L['customers']['count'] ?? 0) }} in database</div>
+       </div>
+     </a>
++    @endif
+ 
++    @if ($see->canRoute('tenant.waitlist.index'))
+     <a href="{{ route('tenant.waitlist.index') }}" class="ia-dash-launcher-tile">
+       <div class="ic"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 3h9M5.5 17h9M6.5 3c0 3 7 4 7 7s-7 4-7 7M13.5 3c0 3-7 4-7 7s7 4 7 7"/></svg></div>
+       <div class="body">
+@@ -61,7 +69,9 @@
+         </div>
+       </div>
+     </a>
++    @endif
+ 
++    @if ($see->canRoute('tenant.inventory.index'))
+     <a href="{{ route('tenant.inventory.index') }}" class="ia-dash-launcher-tile">
+       <div class="ic"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2.5l7 3.8v7.4l-7 3.8-7-3.8V6.3l7-3.8z"/><path d="M3 6.3l7 3.8 7-3.8M10 10.1V18"/></svg></div>
+       <div class="body">
+@@ -79,7 +89,9 @@
+         </div>
+       </div>
+     </a>
++    @endif
+ 
++    @if ($see->canRoute('tenant.special-orders.index'))
+     <a href="{{ route('tenant.special-orders.index') }}" class="ia-dash-launcher-tile">
+       <div class="ic"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 5h8v8h-8zM10.5 8h3.5l2.5 2.5V13h-6z"/><circle cx="6" cy="15" r="1.5"/><circle cx="14" cy="15" r="1.5"/></svg></div>
+       <div class="body">
+@@ -99,7 +111,9 @@
+         </div>
+       </div>
+     </a>
++    @endif
+ 
++    @if ($see->canRoute('tenant.reports.index'))
+     <a href="{{ route('tenant.reports.index') }}" class="ia-dash-launcher-tile">
+       <div class="ic"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17h14"/><path d="M6 17v-5M10 17V6M14 17v-8"/></svg></div>
+       <div class="body">
+@@ -107,7 +121,9 @@
+         <div class="sub">Operations · Customers · Services · Retail · Money · Staff</div>
+       </div>
+     </a>
++    @endif
+ 
++    @if ($see->canRoute('tenant.appointments.index'))
+     <a href="{{ route('tenant.appointments.index') }}" class="ia-dash-launcher-tile">
+       <div class="ic"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4.5" y="3.5" width="11" height="14" rx="2"/><rect x="7" y="2.2" width="6" height="3" rx="1"/><path d="M7.5 9.5h5M7.5 12.5h3"/></svg></div>
+       <div class="body">
+@@ -115,7 +131,9 @@
+         <div class="sub">All bookings · open work</div>
+       </div>
+     </a>
++    @endif
+ 
++    @if ($see->canRoute('tenant.services.index'))
+     <a href="{{ route('tenant.services.index') }}" class="ia-dash-launcher-tile">
+       <div class="ic"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12.6 3.4a3.2 3.2 0 0 0-4 4.1l-4.7 4.7a1.6 1.6 0 0 0 2.2 2.2l4.7-4.7a3.2 3.2 0 0 0 4.1-4l-1.9 1.9-1.6-.4-.4-1.6 1.9-1.9z"/></svg></div>
+       <div class="body">
+@@ -123,7 +141,9 @@
+         <div class="sub">{{ $L['services']['count'] ?? 0 }} active {{ Str::plural('item', $L['services']['count'] ?? 0) }}</div>
+       </div>
+     </a>
++    @endif
+ 
++    @if ($see->canRoute('tenant.resources.index'))
+     <a href="{{ route('tenant.resources.index') }}" class="ia-dash-launcher-tile">
+       <div class="ic"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="6.5" r="3"/><path d="M4 17c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5"/></svg></div>
+       <div class="body">
+@@ -136,7 +156,9 @@
+         </div>
+       </div>
+     </a>
++    @endif
+ 
++    @if ($see->canRoute('tenant.pages.index'))
+     <a href="{{ route('tenant.pages.index') }}" class="ia-dash-launcher-tile">
+       <div class="ic"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 2.5h6l4 4v11H5z"/><path d="M11 2.5v4h4M7.5 11h5M7.5 14h3"/></svg></div>
+       <div class="body">
+@@ -150,7 +172,9 @@
+         </div>
+       </div>
+     </a>
++    @endif
+ 
++    @if ($see->canRoute('tenant.settings.index'))
+     <a href="{{ route('tenant.settings.index') }}" class="ia-dash-launcher-tile">
+       <div class="ic"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="2.6"/><path d="M10 1.5v2M10 16.5v2M1.5 10h2M16.5 10h2M4.6 4.6 6 6M14 14l1.4 1.4M15.4 4.6 14 6M6 14l-1.4 1.4"/></svg></div>
+       <div class="body">
+@@ -158,6 +182,7 @@
+         <div class="sub">Shop · branding · billing</div>
+       </div>
+     </a>
++    @endif
+ 
+   </div>
+ </div>
+diff --git a/resources/views/tenant/dashboard/blocks/actions.blade.php b/resources/views/tenant/dashboard/blocks/actions.blade.php
+index 2a8234d2..e06ca946 100644
+--- a/resources/views/tenant/dashboard/blocks/actions.blade.php
++++ b/resources/views/tenant/dashboard/blocks/actions.blade.php
+@@ -1,7 +1,10 @@
+-{{-- Block: quick actions (Brief). --}}
++{{-- Block: quick actions (Brief). Each button only for people who can open its page. --}}
++@php $see ??= \App\Support\Dashboard\BlockAccess::for(auth('tenant')->user()); @endphp
+     <div class="mb-acts">
++      @if ($see->can('schedule'))
+       <a href="{{ route('tenant.appointments.index', ['new' => 1]) }}" class="ia-btn ia-btn--primary">New appointment</a>
+-      @if (tenant()->retail_enabled)
++      @endif
++      @if ($see->can('register'))
+         <a href="{{ route('tenant.register.index') }}" class="ia-btn">Open register</a>
+       @endif
+     </div>
+diff --git a/resources/views/tenant/dashboard/blocks/greeting.blade.php b/resources/views/tenant/dashboard/blocks/greeting.blade.php
+index f3a5e6c1..eb6312e0 100644
+--- a/resources/views/tenant/dashboard/blocks/greeting.blade.php
++++ b/resources/views/tenant/dashboard/blocks/greeting.blade.php
+@@ -1,8 +1,10 @@
+-{{-- Block: greeting and summary (Brief). --}}
++{{-- Block: greeting and summary (Brief). The counts are of what this person can
++     see; the bookings line only for people who can open Schedule. --}}
++@php $see ??= \App\Support\Dashboard\BlockAccess::for(auth('tenant')->user()); @endphp
+ @php
+   $bq = \App\Support\Dashboard\BriefView::queue($attention ?? []);
+   $lateN = $bq['lateN']; $todayN = $bq['todayN'];
+-  $dayLine = \App\Support\Dashboard\BriefView::dayLine($today ?? []);
++  $dayLine = $see->can('schedule') ? \App\Support\Dashboard\BriefView::dayLine($today ?? []) : '';
+ @endphp
+     <h1 class="mb-h1">{{ \App\Support\Dashboard\BriefView::hello($greeting) }}</h1>
+     <p class="mb-sum">
+diff --git a/resources/views/tenant/dashboard/blocks/last30.blade.php b/resources/views/tenant/dashboard/blocks/last30.blade.php
+index 9229df93..e3b6b6b8 100644
+--- a/resources/views/tenant/dashboard/blocks/last30.blade.php
++++ b/resources/views/tenant/dashboard/blocks/last30.blade.php
+@@ -1,12 +1,14 @@
+-{{-- Block: last 30 days (Brief). --}}
++{{-- Block: last 30 days (Brief). Each figure only for people whose role can
++     open where it comes from: Reports, Schedule, Customers. --}}
++@php $see ??= \App\Support\Dashboard\BlockAccess::for(auth('tenant')->user()); @endphp
+ @php
+   $spark = fn (array $vals): string => \App\Support\Dashboard\BriefView::spark($vals);
+   $delta = fn ($pct): string => \App\Support\Dashboard\BriefView::delta($pct);
+ @endphp
+       <div class="mb-stats">
+         <div class="mb-h2row"><h2 class="mb-h2">Last 30 days</h2></div>
+-        <div class="mb-st"><span class="k">Sales{!! $delta($growth['revenue']['delta_pct'] ?? null) !!}</span>{!! $spark($growth['revenue']['sparkline'] ?? []) !!}<span class="v">{{ format_money($growth['revenue']['current_cents'] ?? 0) }}</span></div>
+-        <div class="mb-st"><span class="k">Jobs completed{!! $delta($jobs['delta_pct'] ?? null) !!}</span><svg viewBox="0 0 110 28" aria-hidden="true"></svg><span class="v">{{ number_format($jobs['current'] ?? 0) }}</span></div>
+-        <div class="mb-st"><span class="k">New customers{!! $delta($growth['customers']['delta_pct'] ?? null) !!}</span>{!! $spark($growth['customers']['sparkline'] ?? []) !!}<span class="v">{{ number_format($growth['customers']['current'] ?? 0) }}</span></div>
+-        <div class="mb-note">Sales are payments received. The line is a 4-day average across the 30 days; comparisons appear once there's a month before to compare with.</div>
++        @if ($see->can('reports'))<div class="mb-st"><span class="k">Sales{!! $delta($growth['revenue']['delta_pct'] ?? null) !!}</span>{!! $spark($growth['revenue']['sparkline'] ?? []) !!}<span class="v">{{ format_money($growth['revenue']['current_cents'] ?? 0) }}</span></div>@endif
++        @if ($see->can('schedule'))<div class="mb-st"><span class="k">Jobs completed{!! $delta($jobs['delta_pct'] ?? null) !!}</span><svg viewBox="0 0 110 28" aria-hidden="true"></svg><span class="v">{{ number_format($jobs['current'] ?? 0) }}</span></div>@endif
++        @if ($see->can('customers'))<div class="mb-st"><span class="k">New customers{!! $delta($growth['customers']['delta_pct'] ?? null) !!}</span>{!! $spark($growth['customers']['sparkline'] ?? []) !!}<span class="v">{{ number_format($growth['customers']['current'] ?? 0) }}</span></div>@endif
++        @if ($see->can('reports'))<div class="mb-note">Sales are payments received. The line is a 4-day average across the 30 days; comparisons appear once there's a month before to compare with.</div>@endif
+       </div>

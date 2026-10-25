@@ -12,7 +12,8 @@
      ================================================================ --}}
 @hasSection('mobile-fab')
   @php $fabType = trim(View::yieldContent('mobile-fab')); @endphp
-  @if($fabType === 'walk-in')
+  {{-- MARKER-DASH-ACCESS: and only for people whose role can open the Register --}}
+  @if($fabType === 'walk-in' && (auth('tenant')->user()?->canAccessSection('register') ?? true))
     <button type="button"
             class="ia-mobile-fab ia-mobile-fab--walkin"
             aria-label="Start walk-in"

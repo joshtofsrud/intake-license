@@ -13,7 +13,7 @@ class CustomizePanel
      * Null when there's nothing this person can change here (customizing is
      * off platform-wide or on this template, or every block is locked).
      *
-     * @param array $roleRows  the template's rows with role filtering applied, before personal choices
+     * @param array $roleRows  the template's rows minus blocks this person doesn't get, before personal choices
      */
     public static function for(array $template, array $roleRows, array $prefs, string $rearrange): ?array
     {
@@ -32,7 +32,7 @@ class CustomizePanel
         $hiddenCount = 0;
         foreach ($template['rows'] as $r => $row) {
             foreach ($row['cols'] as $c => $col) {
-                // the role-filtered column, matched by block key
+                // the person's own column, matched by block key
                 $keys = array_column($col, 'b');
                 $blocks = [];
                 foreach ($keys as $k) {
@@ -66,12 +66,12 @@ class CustomizePanel
     }
 
     /** What a person sent, kept to what this template lets them change. Null = not allowed at all. */
-    public static function clean(array $template, ?string $role, array $data, string $rearrange): ?array
+    public static function clean(array $template, array $blocked, array $data, string $rearrange): ?array
     {
         if ($rearrange === 'none') {
             return null;
         }
-        $roleRows = Layout::personal($template['rows'], $role, [], 'none');
+        $roleRows = Layout::personal($template['rows'], $blocked, [], 'none');
         $placed = [];
         foreach ($roleRows as $row) foreach ($row['cols'] as $col) foreach ($col as $p) $placed[$p['b']] = $p;
 

@@ -151,20 +151,25 @@
   <div class="db-legend" style="padding-top:10px">
     <b>This is the layout, not a preview.</b> Each box is a block; shops see them drawn with their own data and theme.
     A block that's hidden everywhere, or that a shop can't use, is left out of that shop's dashboard and the space closes up.
+    Each person only sees blocks, figures and links from areas their role can open in their shop's Team &amp; access.
     On phones every row becomes one column, left to right.
   </div>
 
   <div class="de-grid">
     <aside class="de-panel">
       @if ($canEdit && $selBlock)
-        @php $selRoles = $selBlock['roles'] ?? array_keys($roles); $hideOff = $rearrange === 'none' || ! $customizeOn; @endphp
+        @php $hideOff = $rearrange === 'none' || ! $customizeOn; $selAreas = \App\Support\Dashboard\BlockAccess::describe($selBlock['b']); $selRule = $registry[$selBlock['b']]['access'] ?? []; @endphp
         <div class="de-set">
           <h4>{{ $names[$selBlock['b']] ?? $selBlock['b'] }}<button type="button" class="db-lnk dim" style="font-size:12px" wire:click="selectBlock({{ $sel[0] }}, {{ $sel[1] }}, {{ $sel[2] }})">Close</button></h4>
           <div class="db-note" style="margin-bottom:4px">Who sees it</div>
-          @foreach ($roles as $rk => $rl)
-            <label class="de-chk"><input type="checkbox" @checked(in_array($rk, $selRoles, true)) wire:click="toggleRole('{{ $rk }}')"> {{ $rl }}s</label>
-          @endforeach
-          <div class="db-note" style="margin:4px 0 10px">A person's role in their shop. Anyone else gets the space closed up, not a gap.</div>
+          <div style="font-size:13px;margin-bottom:4px">
+            @if (! $selAreas) Everyone in the shop.
+            @elseif (! empty($selRule['all'])) People whose role can open {{ $selAreas }}.
+            @elseif (count($selRule['any']) === 1) People whose role can open {{ $selAreas }}.
+            @else People whose role can open any of: {{ $selAreas }}. Parts from areas they can't open are left out.
+            @endif
+          </div>
+          <div class="db-note" style="margin:4px 0 10px">Follows each shop's own roles in Team &amp; access, whatever they're called. Anyone else gets the space closed up, not a gap.</div>
           <label class="de-chk" @if ($hideOff) style="opacity:.5" @endif><input type="checkbox" @checked(empty($selBlock['lock'])) wire:click="toggleLock" @disabled($hideOff)> People can hide it</label>
           <div class="db-note" style="margin-top:4px">
             @if (! $customizeOn) Customizing is turned off for every shop on the Dashboards page.
@@ -302,15 +307,12 @@
                 @if (count($row['split']) > 1)<div class="colh">Column {{ $c + 1 }} · {{ \App\Support\Dashboard\Layout::colWidth($row['split'], $c) }}</div>@endif
                 @forelse ($col as $i => $p)
                   @php $def = $registry[$p['b']] ?? null; $isHidden = in_array($p['b'], $hidden, true); @endphp
-                  @php
-                    $whoText = isset($p['roles']) ? collect($p['roles'])->map(fn ($k) => $roles[$k] . 's')->implode(' and ') . ' only' : null;
-                  @endphp
                   <div class="de-blk {{ $isHidden ? 'hid' : '' }} {{ $sel === [$r, $c, $i] ? 'sel' : '' }}" @if ($canEdit) draggable="true" x-on:dragstart="drag($event, { r: {{ $r }}, c: {{ $c }}, i: {{ $i }} })" @endif>
                     <span class="de-grip">⋮⋮</span>
                     <button type="button" class="pick" wire:click="selectBlock({{ $r }}, {{ $c }}, {{ $i }})" title="Settings for this block">
                       <span class="t">{{ $names[$p['b']] ?? $p['b'] }}</span>
                       <span class="s" style="display:block">{{ $isHidden ? 'Hidden everywhere: no shop sees it' : 'From ' . ucfirst($def['origin'] ?? '') . ' · ' . ($def['reads'] ?? '') }}</span>
-                      @if ($whoText || ! empty($p['lock']))<span class="who">{{ collect([$whoText, ! empty($p['lock']) ? 'Always shown' : null])->filter()->implode(' · ') }}</span>@endif
+                      @if (! empty($p['lock']))<span class="who">Always shown</span>@endif
                     </button>
                     @if ($canEdit)
                       <span class="de-ctl">

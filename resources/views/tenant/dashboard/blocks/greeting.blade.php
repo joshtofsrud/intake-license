@@ -1,8 +1,10 @@
-{{-- Block: greeting and summary (Brief). --}}
+{{-- Block: greeting and summary (Brief). The counts are of what this person can
+     see; the bookings line only for people who can open Schedule. --}}
+@php $see ??= \App\Support\Dashboard\BlockAccess::for(auth('tenant')->user()); @endphp
 @php
   $bq = \App\Support\Dashboard\BriefView::queue($attention ?? []);
   $lateN = $bq['lateN']; $todayN = $bq['todayN'];
-  $dayLine = \App\Support\Dashboard\BriefView::dayLine($today ?? []);
+  $dayLine = $see->can('schedule') ? \App\Support\Dashboard\BriefView::dayLine($today ?? []) : '';
 @endphp
     <h1 class="mb-h1">{{ \App\Support\Dashboard\BriefView::hello($greeting) }}</h1>
     <p class="mb-sum">

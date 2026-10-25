@@ -21,9 +21,6 @@ class Layout
         '7-5' => 'Wider left (58/42)', '5-7' => 'Wider right (42/58)', '4-4-4' => 'Thirds',
     ];
 
-    /** Who a block can be limited to: a person's role in their shop. */
-    public const ROLES = ['owner' => 'Owner', 'manager' => 'Manager', 'staff' => 'Staff'];
-
     public static function splitName(array $split): string
     {
         return self::SPLIT_NAMES[implode('-', $split)] ?? implode(' + ', array_map(fn ($n) => round($n / 12 * 100) . '%', $split));
@@ -70,16 +67,14 @@ class Layout
     }
 
     /**
-     * One placed block, cleaned: its key, who sees it (left out = everyone),
-     * and whether people can hide it (left out = they can).
+     * One placed block, cleaned: its key, and whether people can hide it
+     * (left out = they can). Who sees a block isn't set here: it follows
+     * what each person's role can open (BlockAccess). Older layouts held an
+     * Owner/Manager/Staff list per block; it is dropped here.
      */
     public static function placement(array $p): array
     {
         $out = ['b' => (string) $p['b']];
-        $roles = array_values(array_intersect(array_keys(self::ROLES), array_map('strval', (array) ($p['roles'] ?? []))));
-        if ($roles && count($roles) < count(self::ROLES)) {
-            $out['roles'] = $roles;
-        }
         if (! empty($p['lock'])) {
             $out['lock'] = true;
         }
@@ -88,15 +83,16 @@ class Layout
     }
 
     /**
-     * The layout one person sees: blocks their role doesn't get are left
-     * out, then their own choices are applied — hidden blocks dropped, and
+     * The layout one person sees: blocks their role can't open the data
+     * for ($blocked, from BlockAccess) are left out, then their own choices are applied — hidden blocks dropped, and
      * (when the template allows reordering) each column in their order.
      * Locked blocks can't be hidden. Columns keep their width even when empty.
      *
+     * @param array $blocked  block keys this person doesn't get
      * @param array $prefs  ['hidden' => [keys], 'order' => ['r-c' => [keys]]]
      * @param string $rearrange  none | hide | both
      */
-    public static function personal(array $rows, ?string $role, array $prefs, string $rearrange): array
+    public static function personal(array $rows, array $blocked, array $prefs, string $rearrange): array
     {
         $hidden = $rearrange !== 'none' ? array_map('strval', (array) ($prefs['hidden'] ?? [])) : [];
         $order  = $rearrange === 'both' ? (array) ($prefs['order'] ?? []) : [];
@@ -105,8 +101,8 @@ class Layout
             $cols = [];
             $any = false;
             foreach ($row['cols'] as $c => $col) {
-                $col = array_values(array_filter($col, function ($p) use ($role, $hidden) {
-                    if (isset($p['roles']) && ! in_array((string) $role, $p['roles'], true)) return false;
+                $col = array_values(array_filter($col, function ($p) use ($blocked, $hidden) {
+                    if (in_array($p['b'], $blocked, true)) return false;
                     if (empty($p['lock']) && in_array($p['b'], $hidden, true)) return false;
                     return true;
                 }));
@@ -155,9 +151,6 @@ class Layout
             $ordD = array_values(array_filter($d['col'], fn ($x) => isset($L[$x])));
             if ($l['r'] !== $d['r'] || $l['c'] !== $d['c'] || array_search($k, $ordL, true) !== array_search($k, $ordD, true)) {
                 $out[] = ['moved', 'Moved ' . $name($k)];
-            }
-            if (($l['p']['roles'] ?? null) !== ($d['p']['roles'] ?? null)) {
-                $out[] = ['moved', 'Changed who sees ' . $name($k)];
             }
             if (! empty($l['p']['lock']) !== ! empty($d['p']['lock'])) {
                 $out[] = ['moved', $name($k) . (! empty($d['p']['lock']) ? ' can no longer be hidden' : ' can be hidden')];

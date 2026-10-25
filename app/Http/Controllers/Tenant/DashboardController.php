@@ -52,6 +52,11 @@ class DashboardController extends Controller
         $today     = $service->zoneToday();
         $attention = $service->zoneAttention();
 
+        // MARKER-DASH-ACCESS: a person only sees what their role can open —
+        // cards, tiles and whole blocks — whatever the shop's roles are called.
+        $see = \App\Support\Dashboard\BlockAccess::for($request->user('tenant'));
+        $attention = $see->attention($attention);
+
         $data = [
             'greeting'  => $service->greeting($user),
             'today'     => $today,
@@ -59,7 +64,8 @@ class DashboardController extends Controller
             'growth'    => $service->zoneGrowth(),
             'launcher'  => $service->zoneLauncher($today, $attention),
             'progress'  => $progress,
-            'workOrderBanner' => $workOrderBanner,
+            'workOrderBanner' => $see->canRoute('tenant.work-order-fields.index') ? $workOrderBanner : null,
+            'see'       => $see,
         ];
 
         // MARKER-DASH-TEMPLATES: the dashboard is a template — Overview, Tiles,
@@ -69,13 +75,14 @@ class DashboardController extends Controller
         $user = \Illuminate\Support\Facades\Auth::guard('tenant')->user();
         $template = DashboardTemplates::activeFor($user->dashboard_view ?? null, $tenant);
 
-        // MARKER-DASH-AUDIENCE: blocks this person's role doesn't get are left
-        // out, then their own hides and order are applied, as far as the
+        // MARKER-DASH-ACCESS: blocks whose data this person's role can't open
+        // are left out, then their own hides and order are applied, as far as the
         // template (and the platform-wide switch) allow.
         $rearrange = DashboardTemplates::rearrangeFor($template);
         $prefs = (array) (($user->dashboard_prefs ?? [])[$template['key']] ?? []);
-        $roleRows = Layout::personal($template['rows'], $user->role, [], 'none');
-        $rows = Layout::personal($template['rows'], $user->role, $prefs, $rearrange);
+        $blocked = $see->blocked();
+        $roleRows = Layout::personal($template['rows'], $blocked, [], 'none');
+        $rows = Layout::personal($template['rows'], $blocked, $prefs, $rearrange);
 
         // Only load what this template's blocks draw.
         $needs = BlockRegistry::needs($rows);
@@ -86,7 +93,7 @@ class DashboardController extends Controller
             $data['jobs'] = $service->jobsCompleted30();
         }
         if (in_array('tiles', $needs, true)) {
-            $data['tiles'] = \App\Support\DashboardTiles::layout($tenant, $user);
+            $data['tiles'] = $see->tiles(\App\Support\DashboardTiles::layout($tenant, $user));
         }
 
         $data['activeTemplate']  = $template;
@@ -130,7 +137,7 @@ class DashboardController extends Controller
         if (! empty($data['reset'])) {
             unset($all[$template['key']]);
         } else {
-            $clean = CustomizePanel::clean($template, $user->role, $data, DashboardTemplates::rearrangeFor($template));
+            $clean = CustomizePanel::clean($template, \App\Support\Dashboard\BlockAccess::for($user)->blocked(), $data, DashboardTemplates::rearrangeFor($template));
             if ($clean === null) {
                 return response()->json(['ok' => false, 'error' => 'Changing this dashboard is turned off.'], 403);
             }
