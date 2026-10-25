@@ -60,7 +60,10 @@ class TenantRole extends Model
         foreach (['Owner', 'Manager', 'Staff'] as $name) {
             $roles[$name] = static::firstOrCreate(
                 ['tenant_id' => $tenantId, 'name' => $name],
-                ['sections' => null, 'is_system' => true]
+                // MARKER-SEC-SECTIONS: a new Staff role starts with every area but
+                // Discounts and Storefront, which were managers-only before they
+                // became areas; Owner and Manager start with everything
+                ['sections' => $name === 'Staff' ? array_values(array_diff(array_keys(\App\Support\SectionRegistry::all()), ['discounts', 'storefront'])) : null, 'is_system' => true]
             );
         }
 

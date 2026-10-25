@@ -283,6 +283,9 @@ class TenantNav
         [
           'route'  => 'tenant.imports.index',
           'label'  => 'Import',
+          // MARKER-SEC-SECTIONS: shown only to roles with "Import from a
+          // spreadsheet" (under Customers in Roles & access), as the page is
+          'capability' => 'customers.import',
           'icon'   => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1.5v7M4.5 6L7 8.5 9.5 6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 10.5v1a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-1" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>',
           'group'  => 'settings',
         ],

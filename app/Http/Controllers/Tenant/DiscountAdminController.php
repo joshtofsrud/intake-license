@@ -13,8 +13,10 @@ class DiscountAdminController extends Controller
 {
     private function guardManager()
     {
+        // MARKER-SEC-SECTIONS: Discounts is an area in Roles & access now, so
+        // EnforceSectionAccess decides who gets in, not the manager/staff level.
         $me = Auth::guard('tenant')->user();
-        if (! $me || ! $me->isManager()) {
+        if (! $me || ! $me->canAccessSection('discounts')) {
             abort(redirect()->route('tenant.dashboard'));
         }
         return $me;

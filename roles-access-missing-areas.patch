@@ -1,0 +1,281 @@
+diff --git a/app/Http/Controllers/Tenant/DiscountAdminController.php b/app/Http/Controllers/Tenant/DiscountAdminController.php
+index 72cc78c6..05aa5be3 100644
+--- a/app/Http/Controllers/Tenant/DiscountAdminController.php
++++ b/app/Http/Controllers/Tenant/DiscountAdminController.php
+@@ -13,8 +13,10 @@ class DiscountAdminController extends Controller
+ {
+     private function guardManager()
+     {
++        // MARKER-SEC-SECTIONS: Discounts is an area in Roles & access now, so
++        // EnforceSectionAccess decides who gets in, not the manager/staff level.
+         $me = Auth::guard('tenant')->user();
+-        if (! $me || ! $me->isManager()) {
++        if (! $me || ! $me->canAccessSection('discounts')) {
+             abort(redirect()->route('tenant.dashboard'));
+         }
+         return $me;
+diff --git a/app/Http/Controllers/Tenant/StorefrontSettingsController.php b/app/Http/Controllers/Tenant/StorefrontSettingsController.php
+index d2e6178a..497d6561 100644
+--- a/app/Http/Controllers/Tenant/StorefrontSettingsController.php
++++ b/app/Http/Controllers/Tenant/StorefrontSettingsController.php
+@@ -21,7 +21,8 @@ class StorefrontSettingsController extends Controller
+     {
+         abort_unless(tenant()->online_store_enabled, 404);
+         $me = Auth::guard('tenant')->user();
+-        abort_unless($me && $me->isManager(), 403);
++        // MARKER-SEC-SECTIONS: Storefront is an area in Roles & access now
++        abort_unless($me && $me->canAccessSection('storefront'), 403);
+     }
+ 
+     public function show()
+diff --git a/app/Http/Controllers/Tenant/TeamController.php b/app/Http/Controllers/Tenant/TeamController.php
+index dc4853ef..399daeb0 100644
+--- a/app/Http/Controllers/Tenant/TeamController.php
++++ b/app/Http/Controllers/Tenant/TeamController.php
+@@ -564,6 +564,20 @@ class TeamController extends Controller
+         }
+         $groups = \App\Support\SectionRegistry::groups();
+ 
++        // MARKER-SEC-SECTIONS: list areas as the menu shows them — group by
++        // group, and within a group in menu order — so the editor and its menu
++        // preview match the real sidebar. (The registry's own order also decides
++        // where someone lands when a page is closed to them, so it stays put.)
++        $navPos = [];
++        foreach (\App\Support\TenantNav::items() as $i => $item) {
++            $k = \App\Support\SectionRegistry::sectionForRoute($item['route']);
++            if ($k !== null && ! isset($navPos[$k])) $navPos[$k] = $i;
++        }
++        $gPos = array_flip(array_keys($groups));
++        $regPos = array_flip(array_keys($sections));
++        uksort($sections, fn ($a, $b) => [$gPos[$sections[$a]['group']] ?? 99, $navPos[$a] ?? 999, $regPos[$a]]
++            <=> [$gPos[$sections[$b]['group']] ?? 99, $navPos[$b] ?? 999, $regPos[$b]]);
++
+         $selected = $roles->firstWhere('id', $request->query('role')) ?: $roles->first();
+ 
+         return view('tenant.team.roles', compact('roles', 'sections', 'groups', 'selected'));
+diff --git a/app/Models/Tenant/TenantRole.php b/app/Models/Tenant/TenantRole.php
+index 326dfd26..a242b3db 100644
+--- a/app/Models/Tenant/TenantRole.php
++++ b/app/Models/Tenant/TenantRole.php
+@@ -60,7 +60,10 @@ class TenantRole extends Model
+         foreach (['Owner', 'Manager', 'Staff'] as $name) {
+             $roles[$name] = static::firstOrCreate(
+                 ['tenant_id' => $tenantId, 'name' => $name],
+-                ['sections' => null, 'is_system' => true]
++                // MARKER-SEC-SECTIONS: a new Staff role starts with every area but
++                // Discounts and Storefront, which were managers-only before they
++                // became areas; Owner and Manager start with everything
++                ['sections' => $name === 'Staff' ? array_values(array_diff(array_keys(\App\Support\SectionRegistry::all()), ['discounts', 'storefront'])) : null, 'is_system' => true]
+             );
+         }
+ 
+diff --git a/app/Support/CapabilityRegistry.php b/app/Support/CapabilityRegistry.php
+index 3288bd81..1de40502 100644
+--- a/app/Support/CapabilityRegistry.php
++++ b/app/Support/CapabilityRegistry.php
+@@ -139,7 +139,7 @@ class CapabilityRegistry
+             'customers.import' => [
+                 'label'   => 'Import from a spreadsheet',
+                 'section' => 'customers',
+-                'desc'    => 'Upload a CSV to create or update customers in bulk.',
++                'desc'    => 'Upload a CSV to create or update customers or inventory in bulk. Shows Import in the menu.',
+                 'gate'    => null,
+                 'default_roles' => ['Manager'],
+             ],
+diff --git a/app/Support/Dashboard/BlockRegistry.php b/app/Support/Dashboard/BlockRegistry.php
+index 0baa8ca1..00ef7ef6 100644
+--- a/app/Support/Dashboard/BlockRegistry.php
++++ b/app/Support/Dashboard/BlockRegistry.php
+@@ -26,7 +26,7 @@ class BlockRegistry
+      * the parts they can't.
+      */
+     private const QUEUE_AREAS = ['any' => ['schedule', 'waitlist', 'special_orders', 'transfer_requests', 'inventory', 'customers', 'register']];
+-    private const LINK_AREAS  = ['any' => ['schedule', 'register', 'customers', 'waitlist', 'inventory', 'special_orders', 'reports', 'services', 'resources', 'pages', 'settings', 'rentals', 'inbox', 'team']];
++    private const LINK_AREAS  = ['any' => ['schedule', 'register', 'customers', 'waitlist', 'inventory', 'special_orders', 'reports', 'services', 'resources', 'pages', 'settings', 'rentals', 'inbox', 'team', 'gift_cards']];
+ 
+     public static function builtIns(): array
+     {
+diff --git a/app/Support/SectionRegistry.php b/app/Support/SectionRegistry.php
+index c3fee400..ed54b27f 100644
+--- a/app/Support/SectionRegistry.php
++++ b/app/Support/SectionRegistry.php
+@@ -12,7 +12,7 @@ class SectionRegistry
+      * key => [label, group, prefixes (route-name prefixes), gate (tenant
+      * attribute that must be truthy for the section to exist at all)]
+      *
+-     * Groups mirror the nav: main / manage / engage / settings.
++     * Groups mirror the nav (see groups()); within a group, keep the menu's order.
+      */
+     public static function all(): array
+     {
+@@ -20,8 +20,8 @@ class SectionRegistry
+             'dashboard'         => ['label' => 'Dashboard',          'group' => 'main',     'prefixes' => ['tenant.dashboard'],                            'gate' => null],
+             'timeclock'         => ['label' => 'Time clock',         'group' => 'manage',   'prefixes' => ['tenant.timeclock'],                            'gate' => null],
+             'scheduling'        => ['label' => 'Scheduling',         'group' => 'manage',   'prefixes' => ['tenant.scheduling'],                           'gate' => null], // (nav lands with the scheduling build)
+-            'register'          => ['label' => 'Register',           'group' => 'main',     'prefixes' => ['tenant.register'],                             'gate' => 'retail_enabled'],
+-            'schedule'          => ['label' => 'Schedule',           'group' => 'main',     'prefixes' => ['tenant.calendar', 'tenant.appointments'],      'gate' => null],
++            'register'          => ['label' => 'Register',           'group' => 'main',     'prefixes' => ['tenant.register', 'tenant.sales'],             'gate' => 'retail_enabled'],
++            'schedule'          => ['label' => 'Schedule',           'group' => 'main',     'prefixes' => ['tenant.calendar', 'tenant.appointments', 'tenant.deliveries'], 'gate' => null],
+             'rentals'           => ['label' => 'Rentals',            'group' => 'main',     'prefixes' => ['tenant.rentals'],                              'gate' => 'rentals_visible'],
+             'classes'           => ['label' => 'Classes',            'group' => 'main',     'prefixes' => ['tenant.classes'],                              'gate' => 'classes_active'],
+             // MARKER-CLASSES-P10: check people in and teach, without prices, passes or settings. Roles with Classes have this too.
+@@ -29,36 +29,47 @@ class SectionRegistry
+             'customers'         => ['label' => 'Customers',          'group' => 'main',     'prefixes' => ['tenant.customers'],                            'gate' => null],
+             'inventory'         => ['label' => 'Inventory',          'group' => 'main',     'prefixes' => ['tenant.inventory', 'tenant.distributors'],     'gate' => 'retail_enabled'],
+             'special_orders'    => ['label' => 'Special Orders',     'group' => 'main',     'prefixes' => ['tenant.special-orders'],                       'gate' => 'retail_enabled'],
++            // MARKER-SEC-SECTIONS: online orders, gift cards, storefront and
++            // discounts used to sit outside every area, so no role could be
++            // kept out of them. Existing roles were given them (see the
++            // 2026_10_25 migration) so nobody lost access on the day.
++            'orders'            => ['label' => 'Orders',             'group' => 'main',     'prefixes' => ['tenant.orders'],                               'gate' => 'online_store_enabled'],
+             'transfer_requests' => ['label' => 'Transfer Requests',  'group' => 'main',     'prefixes' => ['tenant.transfer-requests'],                    'gate' => 'multi_location_active'],
+             'vendors'           => ['label' => 'Vendors',            'group' => 'main',     'prefixes' => ['tenant.vendors'],                              'gate' => 'retail_enabled'],
+             'reports'           => ['label' => 'Reports',            'group' => 'main',     'prefixes' => ['tenant.reports'],                              'gate' => null],
++            // the staff pages only: the public tenant.gift-cards.public.* pages aren't an area
++            'gift_cards'        => ['label' => 'Gift Cards',         'group' => 'main',     'prefixes' => ['tenant.gift-cards.index', 'tenant.gift-cards.store', 'tenant.gift-cards.show', 'tenant.gift-cards.adjust', 'tenant.gift-cards.deactivate', 'tenant.gift-cards.bind-code'], 'gate' => 'gift_cards_visible'],
+ 
+             'team'              => ['label' => 'Team & access',      'group' => 'manage',   'prefixes' => ['tenant.team'],                                 'gate' => 'additional_users_enabled'],
+             // capability, not a page: gates cost/margin
+             // visibility (register item modal, future report columns).
+             // Empty prefixes = never route-enforced, never in nav.
+             'cost_margins'      => ['label' => 'Costs & margins',    'group' => 'manage',   'prefixes' => [],                                              'gate' => 'retail_enabled'],
+-            'services'          => ['label' => 'Services',           'group' => 'manage',   'prefixes' => ['tenant.services'],                             'gate' => null],
++            'services'          => ['label' => 'Services',           'group' => 'manage',   'prefixes' => ['tenant.services', 'tenant.addons'],            'gate' => null],
+             'resources'         => ['label' => 'Resources',          'group' => 'manage',   'prefixes' => ['tenant.resources'],                            'gate' => null],
+             'work_order_fields' => ['label' => 'Work Order Fields',  'group' => 'manage',   'prefixes' => ['tenant.work-order-fields'],                    'gate' => null],
+             'intake_form_editor'=> ['label' => 'Intake Form Editor', 'group' => 'manage',   'prefixes' => ['tenant.booking-editor'],                       'gate' => null],
+-            'capacity'          => ['label' => 'Capacity',           'group' => 'manage',   'prefixes' => ['tenant.capacity'],                             'gate' => null],
+ 
+-            'media'             => ['label' => 'Media',              'group' => 'website',   'prefixes' => ['tenant.media'],                                'gate' => null],
+-            'pages'             => ['label' => 'Pages',              'group' => 'website',   'prefixes' => ['tenant.pages'],                                'gate' => null],
+-            'templates'         => ['label' => 'Templates',          'group' => 'website',   'prefixes' => ['tenant.templates'],                            'gate' => null],
++            // website, marketing, messages and settings follow the menu's order
++            'pages'             => ['label' => 'Pages',              'group' => 'website',  'prefixes' => ['tenant.pages'],                                'gate' => null],
++            'templates'         => ['label' => 'Templates',          'group' => 'website',  'prefixes' => ['tenant.templates'],                            'gate' => null],
++            'media'             => ['label' => 'Media',              'group' => 'website',  'prefixes' => ['tenant.media'],                                'gate' => null],
++            'storefront'        => ['label' => 'Storefront',         'group' => 'website',  'prefixes' => ['tenant.storefront'],                           'gate' => 'online_store_enabled'],
++            'booking_mode'      => ['label' => 'Booking Mode',       'group' => 'website',  'prefixes' => ['tenant.booking_modes', 'tenant.route_windows'], 'gate' => null],
+             'inbox'             => ['label' => 'Inbox',              'group' => 'messages', 'prefixes' => ['tenant.inbox'],                                'gate' => 'unified_inbox_enabled'],
+             'communication'     => ['label' => 'Communication',      'group' => 'messages',   'prefixes' => ['tenant.communication'],                        'gate' => null],
+             'suppressions'      => ['label' => 'Suppressions',       'group' => 'messages',   'prefixes' => ['tenant.suppressions'],                         'gate' => null],
+-            'waitlist'          => ['label' => 'Waitlist',           'group' => 'marketing',   'prefixes' => ['tenant.waitlist'],                             'gate' => null],
+-            'campaigns'         => ['label' => 'Campaigns',          'group' => 'marketing',   'prefixes' => ['tenant.campaigns'],                            'gate' => null],
+-            'recovery'          => ['label' => 'Recovery',           'group' => 'marketing',   'prefixes' => ['tenant.recovery'],                             'gate' => null],
++            'campaigns'         => ['label' => 'Campaigns',          'group' => 'marketing', 'prefixes' => ['tenant.campaigns', 'tenant.campaign-images', 'tenant.consent'], 'gate' => null],
++            'discounts'         => ['label' => 'Discounts',          'group' => 'marketing', 'prefixes' => ['tenant.discounts'],                            'gate' => null],
++            'recovery'          => ['label' => 'Recovery',           'group' => 'marketing', 'prefixes' => ['tenant.recovery'],                             'gate' => null],
++            'waitlist'          => ['label' => 'Waitlist',           'group' => 'marketing', 'prefixes' => ['tenant.waitlist'],                             'gate' => null],
+ 
+             'help'              => ['label' => 'Help & Guides',      'group' => 'settings', 'prefixes' => ['tenant.help'],                                 'gate' => null],
+             'whats_new'         => ['label' => "What's New / Coming",'group' => 'settings', 'prefixes' => ['tenant.whats_new'],                            'gate' => null],
+             'locations'         => ['label' => 'Locations',          'group' => 'settings', 'prefixes' => ['tenant.locations'],                            'gate' => null],
+-            'booking_mode'      => ['label' => 'Booking Mode',       'group' => 'website',  'prefixes' => ['tenant.booking_modes'],                        'gate' => null],
+-            'settings'          => ['label' => 'Business',           'group' => 'settings', 'prefixes' => ['tenant.settings'],                             'gate' => null],
++            'capacity'          => ['label' => 'Capacity',           'group' => 'settings', 'prefixes' => ['tenant.capacity'],                             'gate' => null],
++            // Business covers billing, custom domains and receiving methods, which live on its page
++            'settings'          => ['label' => 'Business',           'group' => 'settings', 'prefixes' => ['tenant.settings', 'tenant.billing', 'tenant.domains', 'tenant.receiving-methods'], 'gate' => null],
+             'addons'            => ['label' => 'Add-ons',            'group' => 'settings', 'prefixes' => ['tenant.feature_addons'],                       'gate' => null],
+         ];
+     }
+diff --git a/app/Support/TenantNav.php b/app/Support/TenantNav.php
+index cff9de50..c0946347 100644
+--- a/app/Support/TenantNav.php
++++ b/app/Support/TenantNav.php
+@@ -283,6 +283,9 @@ class TenantNav
+         [
+           'route'  => 'tenant.imports.index',
+           'label'  => 'Import',
++          // MARKER-SEC-SECTIONS: shown only to roles with "Import from a
++          // spreadsheet" (under Customers in Roles & access), as the page is
++          'capability' => 'customers.import',
+           'icon'   => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1.5v7M4.5 6L7 8.5 9.5 6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 10.5v1a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-1" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>',
+           'group'  => 'settings',
+         ],
+diff --git a/database/migrations/2026_10_25_100000_add_new_access_areas_to_roles.php b/database/migrations/2026_10_25_100000_add_new_access_areas_to_roles.php
+new file mode 100644
+index 00000000..3f705383
+--- /dev/null
++++ b/database/migrations/2026_10_25_100000_add_new_access_areas_to_roles.php
+@@ -0,0 +1,56 @@
++<?php
++
++use Illuminate\Database\Migrations\Migration;
++use Illuminate\Support\Facades\DB;
++
++/**
++ * MARKER-SEC-SECTIONS: Orders, Gift Cards, Storefront and Discounts
++ * became areas in Roles & access. Before this every role could open them, so
++ * every role that lists its areas gets them added: nobody loses access on the
++ * day, and each shop unticks them where they don't belong. Roles with no list
++ * (Owner, and roles never trimmed) already have everything.
++ */
++return new class extends Migration
++{
++    private const NEW = ['orders', 'gift_cards', 'storefront', 'discounts'];
++    private const EVERYONE = ['orders', 'gift_cards'];
++    private const MANAGERS = ['storefront', 'discounts'];
++
++    public function up(): void
++    {
++        $all = array_keys(\App\Support\SectionRegistry::all());
++        DB::table('tenant_roles')->orderBy('id')->chunk(500, function ($roles) use ($all) {
++            foreach ($roles as $r) {
++                if ($r->is_system && $r->name === 'Owner') continue;
++                $staffy = ($r->is_system && $r->name === 'Staff')
++                    || DB::table('tenant_users')->where('role_id', $r->id)->where('role', 'staff')->exists();
++                $s = $r->sections === null ? null : json_decode($r->sections, true);
++                if ($s === null) {
++                    // full access: only a Staff-level role changes, so its people
++                    // still can't open Discounts and Storefront, as before
++                    if ($staffy) {
++                        DB::table('tenant_roles')->where('id', $r->id)->update(['sections' => json_encode(array_values(array_diff($all, self::MANAGERS)))]);
++                    }
++                    continue;
++                }
++                if (! is_array($s)) continue;
++                $add = $staffy ? self::EVERYONE : array_merge(self::EVERYONE, self::MANAGERS);
++                $merged = array_values(array_unique(array_merge($s, $add)));
++                if ($merged !== $s) {
++                    DB::table('tenant_roles')->where('id', $r->id)->update(['sections' => json_encode($merged)]);
++                }
++            }
++        });
++    }
++
++    public function down(): void
++    {
++        DB::table('tenant_roles')->whereNotNull('sections')->orderBy('id')->chunk(500, function ($roles) {
++            foreach ($roles as $r) {
++                $s = json_decode($r->sections, true);
++                if (! is_array($s)) continue;
++                DB::table('tenant_roles')->where('id', $r->id)->update(['sections' => json_encode(array_values(array_diff($s, self::NEW)))]);
++            }
++        });
++    }
++};
+diff --git a/resources/views/layouts/tenant/_more-drawer.blade.php b/resources/views/layouts/tenant/_more-drawer.blade.php
+index 05aa973a..d17b41d8 100644
+--- a/resources/views/layouts/tenant/_more-drawer.blade.php
++++ b/resources/views/layouts/tenant/_more-drawer.blade.php
+@@ -34,6 +34,7 @@
+         {{-- role section visibility --}}
+         @php $dSec = \App\Support\SectionRegistry::sectionForRoute($navItem['route']); @endphp
+         @continue($dSec && !empty($authUser) && !$authUser->canAccessSection($dSec))
++        @continue(!empty($navItem['capability']) && !empty($authUser) && !$authUser->can($navItem['capability']))
+         @continue(!empty($navItem['hide_if_section']) && (empty($authUser) || $authUser->canAccessSection($navItem['hide_if_section']))) {{-- MARKER-CLASSES-P10 --}}
+         @php $sect = $navItem['group'] ?? 'workspace'; @endphp
+         @if($sect !== $lastSect)
+diff --git a/resources/views/layouts/tenant/_nav-items.blade.php b/resources/views/layouts/tenant/_nav-items.blade.php
+index 6a8ca3fd..6519fb67 100644
+--- a/resources/views/layouts/tenant/_nav-items.blade.php
++++ b/resources/views/layouts/tenant/_nav-items.blade.php
+@@ -41,6 +41,9 @@
+   @if($navSec && !empty($authUser) && !$authUser->canAccessSection($navSec))
+     @continue
+   @endif
++  @if(!empty($item['capability']) && !empty($authUser) && !$authUser->can($item['capability']))
++    @continue
++  @endif
+   @if(!empty($item['hide_if_section']) && (empty($authUser) || $authUser->canAccessSection($item['hide_if_section']))) {{-- MARKER-CLASSES-P10 --}}
+     @continue
+   @endif

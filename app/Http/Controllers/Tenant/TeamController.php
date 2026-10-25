@@ -564,6 +564,20 @@ class TeamController extends Controller
         }
         $groups = \App\Support\SectionRegistry::groups();
 
+        // MARKER-SEC-SECTIONS: list areas as the menu shows them — group by
+        // group, and within a group in menu order — so the editor and its menu
+        // preview match the real sidebar. (The registry's own order also decides
+        // where someone lands when a page is closed to them, so it stays put.)
+        $navPos = [];
+        foreach (\App\Support\TenantNav::items() as $i => $item) {
+            $k = \App\Support\SectionRegistry::sectionForRoute($item['route']);
+            if ($k !== null && ! isset($navPos[$k])) $navPos[$k] = $i;
+        }
+        $gPos = array_flip(array_keys($groups));
+        $regPos = array_flip(array_keys($sections));
+        uksort($sections, fn ($a, $b) => [$gPos[$sections[$a]['group']] ?? 99, $navPos[$a] ?? 999, $regPos[$a]]
+            <=> [$gPos[$sections[$b]['group']] ?? 99, $navPos[$b] ?? 999, $regPos[$b]]);
+
         $selected = $roles->firstWhere('id', $request->query('role')) ?: $roles->first();
 
         return view('tenant.team.roles', compact('roles', 'sections', 'groups', 'selected'));

@@ -21,7 +21,8 @@ class StorefrontSettingsController extends Controller
     {
         abort_unless(tenant()->online_store_enabled, 404);
         $me = Auth::guard('tenant')->user();
-        abort_unless($me && $me->isManager(), 403);
+        // MARKER-SEC-SECTIONS: Storefront is an area in Roles & access now
+        abort_unless($me && $me->canAccessSection('storefront'), 403);
     }
 
     public function show()

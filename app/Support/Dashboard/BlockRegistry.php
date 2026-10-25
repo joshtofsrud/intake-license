@@ -26,7 +26,7 @@ class BlockRegistry
      * the parts they can't.
      */
     private const QUEUE_AREAS = ['any' => ['schedule', 'waitlist', 'special_orders', 'transfer_requests', 'inventory', 'customers', 'register']];
-    private const LINK_AREAS  = ['any' => ['schedule', 'register', 'customers', 'waitlist', 'inventory', 'special_orders', 'reports', 'services', 'resources', 'pages', 'settings', 'rentals', 'inbox', 'team']];
+    private const LINK_AREAS  = ['any' => ['schedule', 'register', 'customers', 'waitlist', 'inventory', 'special_orders', 'reports', 'services', 'resources', 'pages', 'settings', 'rentals', 'inbox', 'team', 'gift_cards']];
 
     public static function builtIns(): array
     {

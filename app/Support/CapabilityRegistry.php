@@ -139,7 +139,7 @@ class CapabilityRegistry
             'customers.import' => [
                 'label'   => 'Import from a spreadsheet',
                 'section' => 'customers',
-                'desc'    => 'Upload a CSV to create or update customers in bulk.',
+                'desc'    => 'Upload a CSV to create or update customers or inventory in bulk. Shows Import in the menu.',
                 'gate'    => null,
                 'default_roles' => ['Manager'],
             ],
