@@ -84,6 +84,11 @@ class OutreachQueue
                 [now()->subHours(ProspectOutreach::ADDRESS_GAP_HOURS)])
             ->when($who === 'new', fn ($q) => $q->whereRaw('LOWER(TRIM(email)) NOT IN (SELECT LOWER(email) FROM sales_outreach_sends)'));
 
+        // MARKER-POSTMARK-INACTIVE: addresses Postmark would refuse never reach the queue
+        if ($pm = \App\Services\Platform\PlatformMailer::stream()) {
+            $q->whereRaw('LOWER(TRIM(email)) NOT IN (SELECT email FROM postmark_suppressions WHERE stream = ?)', [$pm]);
+        }
+
         if (! empty($f['_base'])) return $q; // the counts per industry tab use the unfiltered set
 
         $mail = $f['mail'] ?? 'any';

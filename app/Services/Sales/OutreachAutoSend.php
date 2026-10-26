@@ -232,7 +232,7 @@ class OutreachAutoSend
 
     private static function addressProblem(string $msg): bool
     {
-        return str_contains($msg, 'unsubscribed') || str_contains($msg, 'already had an outreach email') || str_contains($msg, 'Add an email address');
+        return str_contains($msg, 'marked inactive') || str_contains($msg, 'unsubscribed') || str_contains($msg, 'already had an outreach email') || str_contains($msg, 'Add an email address');
     }
 
     /** For the scheduler: re-queue the chain if it was lost (deploy, worker restart). */

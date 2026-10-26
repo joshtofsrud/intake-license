@@ -331,6 +331,10 @@ class ProspectOutreach
         if (PlatformEmailOptout::has($to)) {
             return [false, 'Not sent: this address unsubscribed from Intake email'];
         }
+        // MARKER-POSTMARK-INACTIVE: Postmark would refuse it without telling us
+        if ($pmWhy = \App\Services\PostmarkInactive::reason(\App\Services\Platform\PlatformMailer::stream(), $to)) {
+            return [false, 'Not sent: ' . \App\Services\PostmarkInactive::skipText($pmWhy)];
+        }
         if ($prev = self::recentSendTo($to)) {
             return [false, 'Not sent: ' . $to . ' already had an outreach email '
                 . \Illuminate\Support\Carbon::parse($prev->created_at)->diffForHumans()

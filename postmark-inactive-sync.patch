@@ -1,0 +1,438 @@
+diff --git a/app/Console/Commands/PostmarkSyncInactive.php b/app/Console/Commands/PostmarkSyncInactive.php
+new file mode 100644
+index 00000000..581b03b0
+--- /dev/null
++++ b/app/Console/Commands/PostmarkSyncInactive.php
+@@ -0,0 +1,26 @@
++<?php
++
++namespace App\Console\Commands;
++
++use App\Services\PostmarkInactive;
++use Illuminate\Console\Command;
++
++/** MARKER-POSTMARK-INACTIVE: pull Postmark's inactive-recipient list for each marketing stream. */
++class PostmarkSyncInactive extends Command
++{
++    protected $signature = 'postmark:sync-inactive';
++    protected $description = "Copy Postmark's inactive-recipient list for each marketing stream into Intake";
++
++    public function handle(): int
++    {
++        $res = PostmarkInactive::syncAll();
++        if (! $res) {
++            $this->line('No marketing stream is set on Platform email: nothing to sync.');
++        }
++        foreach ($res as $stream => [$count, $error]) {
++            $this->line($stream . ': ' . ($error ?? $count . ' inactive'));
++        }
++
++        return self::SUCCESS;
++    }
++}
+diff --git a/app/Console/Commands/ProcessCampaignSends.php b/app/Console/Commands/ProcessCampaignSends.php
+index f2861a48..1b7a3eda 100644
+--- a/app/Console/Commands/ProcessCampaignSends.php
++++ b/app/Console/Commands/ProcessCampaignSends.php
+@@ -115,6 +115,11 @@ class ProcessCampaignSends extends Command
+             return self::SUCCESS;
+         }
+ 
++        // MARKER-POSTMARK-INACTIVE: Postmark refuses addresses it has marked
++        // inactive WITHOUT telling Intake, so refresh its list before sending.
++        \App\Services\PostmarkInactive::syncIfStale(15);
++        $pmStream = \App\Services\EmailLedger::broadcastStream();
++
+         $budget = $limit;
+ 
+         foreach ($campaigns as $campaign) {
+@@ -175,6 +180,11 @@ class ProcessCampaignSends extends Command
+                     continue;
+                 }
+ 
++                if ($pmWhy = \App\Services\PostmarkInactive::reason($pmStream, $row->email)) {
++                    $row->update(['status' => 'skipped', 'error_message' => \App\Services\PostmarkInactive::skipText($pmWhy)]);
++                    continue;
++                }
++
+                 // this recipient's own values.
+                 $vars = $baseVars + [
+                     'first_name' => (string) $customer->first_name,
+diff --git a/app/Console/Commands/ProcessPlatformCampaignSends.php b/app/Console/Commands/ProcessPlatformCampaignSends.php
+index 98ea4d91..37af831a 100644
+--- a/app/Console/Commands/ProcessPlatformCampaignSends.php
++++ b/app/Console/Commands/ProcessPlatformCampaignSends.php
+@@ -60,6 +60,11 @@ class ProcessPlatformCampaignSends extends Command
+                 $row->update(['status' => 'skipped', 'skip_reason' => 'unsubscribed']);
+                 continue;
+             }
++            // MARKER-POSTMARK-INACTIVE
++            if ($pmWhy = \App\Services\PostmarkInactive::reason(\App\Services\Platform\PlatformMailer::stream(), $row->email)) {
++                $row->update(['status' => 'skipped', 'skip_reason' => mb_substr(\App\Services\PostmarkInactive::skipText($pmWhy), 0, 120)]);
++                continue;
++            }
+ 
+             try {
+                 $html = $this->renderFor($campaign, $row);
+diff --git a/app/Filament/Pages/PlatformEmail.php b/app/Filament/Pages/PlatformEmail.php
+index 989e3ac2..f6b16fdd 100644
+--- a/app/Filament/Pages/PlatformEmail.php
++++ b/app/Filament/Pages/PlatformEmail.php
+@@ -207,6 +207,20 @@ class PlatformEmail extends Page implements HasForms
+             ->send();
+     }
+ 
++    /** MARKER-POSTMARK-INACTIVE: pull Postmark's inactive list now. */
++    public function syncInactive(): void
++    {
++        $res = \App\Services\PostmarkInactive::syncAll();
++        $errors = array_filter(array_map(fn ($r) => $r[1], $res));
++        if (! $res) {
++            Notification::make()->title('No marketing stream is set, so there is nothing to sync.')->warning()->send();
++        } elseif ($errors) {
++            Notification::make()->title('Sync failed')->body(implode(' ', $errors))->danger()->send();
++        } else {
++            Notification::make()->title('Inactive list synced')->body(collect($res)->map(fn ($r, $s) => $s . ': ' . $r[0])->implode(' · '))->success()->send();
++        }
++    }
++
+     public function sendTest(): void
+     {
+         $this->save();
+diff --git a/app/Services/PostmarkInactive.php b/app/Services/PostmarkInactive.php
+new file mode 100644
+index 00000000..7e9803b0
+--- /dev/null
++++ b/app/Services/PostmarkInactive.php
+@@ -0,0 +1,163 @@
++<?php
++
++namespace App\Services;
++
++use App\Models\PlatformSettings;
++use Illuminate\Support\Facades\DB;
++use Illuminate\Support\Facades\Http;
++use Illuminate\Support\Facades\Log;
++
++/**
++ * MARKER-POSTMARK-INACTIVE: Postmark's inactive-recipient list, kept in
++ * Intake.
++ *
++ * Postmark stops delivering to an address after a hard bounce, a spam
++ * complaint or an unsubscribe on its side ("inactive"). When Intake then
++ * sends to it, Postmark refuses the message and sends NO webhook, so before
++ * this Intake never found out: Oakridge's Oct 14 campaign was refused for 158
++ * addresses that its Oct 8 campaign had already been refused for.
++ *
++ * So Intake asks: the suppression dump for each marketing stream (the shops'
++ * campaign stream and Intake's own outreach stream), every hour and right
++ * before a campaign starts sending. Sends skip anything on the list and say
++ * why. An address Postmark reactivates drops off at the next sync.
++ */
++class PostmarkInactive
++{
++    public const REASONS = [
++        'HardBounce' => 'bounced', 'SpamComplaint' => 'marked as spam', 'ManualSuppression' => 'unsubscribed',
++    ];
++
++    /** The marketing streams in use: [stream id => label]. */
++    public static function streams(): array
++    {
++        $out = [];
++        if ($s = EmailLedger::broadcastStream()) $out[$s] = 'Shop campaigns';
++        if ($p = \App\Services\Platform\PlatformMailer::stream()) $out[$p] = ($out[$p] ?? null) ? $out[$p] . ' and Intake marketing' : 'Intake marketing';
++
++        return $out;
++    }
++
++    /** The Postmark server token: POSTMARK_SERVER_TOKEN, else the SMTP password (Postmark uses the server token for both). */
++    public static function token(): ?string
++    {
++        $t = (string) (config('services.postmark.token') ?: '');
++        if ($t === '' && str_contains((string) config('mail.mailers.smtp.host'), 'postmarkapp.com')) {
++            $t = (string) config('mail.mailers.smtp.password');
++        }
++
++        return $t !== '' ? $t : null;
++    }
++
++    /** Why Postmark has this address inactive on the stream, or null if it doesn't. */
++    public static function reason(?string $stream, string $email): ?string
++    {
++        if (! $stream) return null;
++        try {
++            $r = DB::table('postmark_suppressions')->where('stream', $stream)->where('email', mb_strtolower(trim($email)))->value('reason');
++        } catch (\Throwable $e) {
++            return null; // table not there yet: nothing known
++        }
++        if ($r === null) return null;
++
++        return self::REASONS[$r] ?? 'inactive';
++    }
++
++    /** "Postmark has this address marked inactive (unsubscribed)" */
++    public static function skipText(string $reason): string
++    {
++        return 'Postmark has this address marked inactive (' . $reason . ')';
++    }
++
++    public static function status(): array
++    {
++        $raw = DB::table('platform_settings')->where('id', 1)->value('postmark_inactive_sync');
++        $s = is_string($raw) ? json_decode($raw, true) : null;
++
++        return is_array($s) ? $s : [];
++    }
++
++    /** Syncs every marketing stream. Returns [stream => [count, error]]. Never throws. */
++    public static function syncAll(): array
++    {
++        $out = [];
++        foreach (array_keys(self::streams()) as $stream) {
++            $out[$stream] = self::sync($stream);
++        }
++
++        return $out;
++    }
++
++    /** Syncs when the last sync of any stream is older than $minutes. */
++    public static function syncIfStale(int $minutes = 15): void
++    {
++        $st = self::status();
++        foreach (array_keys(self::streams()) as $stream) {
++            $at = $st[$stream]['at'] ?? null;
++            if (! $at || \Carbon\Carbon::parse($at)->lt(now()->subMinutes($minutes))) {
++                self::sync($stream);
++            }
++        }
++    }
++
++    /** @return array{0: int|null, 1: string|null} how many are inactive now, and the error if it failed */
++    public static function sync(string $stream): array
++    {
++        $token = self::token();
++        $error = null;
++        $count = null;
++        if (! $token) {
++            $error = 'No Postmark server token: set POSTMARK_SERVER_TOKEN in the server .env.';
++        } else {
++            try {
++                $res = Http::withHeaders(['X-Postmark-Server-Token' => $token, 'Accept' => 'application/json'])
++                    ->timeout(30)
++                    ->get('https://api.postmarkapp.com/message-streams/' . rawurlencode($stream) . '/suppressions/dump');
++                if (! $res->successful()) {
++                    $error = 'Postmark said ' . $res->status() . ': ' . mb_substr((string) ($res->json('Message') ?? $res->body()), 0, 200);
++                } else {
++                    $count = self::store($stream, (array) ($res->json('Suppressions') ?? []));
++                }
++            } catch (\Throwable $e) {
++                $error = 'Could not reach Postmark: ' . mb_substr($e->getMessage(), 0, 200);
++            }
++        }
++
++        if ($error) Log::warning('[Postmark] Inactive list sync failed', ['stream' => $stream, 'error' => $error]);
++        $st = self::status();
++        $st[$stream] = $error
++            ? array_merge($st[$stream] ?? [], ['error' => $error, 'tried_at' => now()->toIso8601String()])
++            : ['at' => now()->toIso8601String(), 'count' => $count, 'error' => null];
++        PlatformSettings::current();
++        DB::table('platform_settings')->where('id', 1)->update(['postmark_inactive_sync' => json_encode($st)]);
++
++        return [$count, $error];
++    }
++
++    /** Replaces the stream's rows with what Postmark sent. Returns the count. */
++    private static function store(string $stream, array $list): int
++    {
++        $now = now();
++        $rows = [];
++        foreach ($list as $s) {
++            $email = mb_strtolower(trim((string) ($s['EmailAddress'] ?? '')));
++            if ($email === '' || ! str_contains($email, '@')) continue;
++            $rows[$email] = [
++                'stream' => $stream, 'email' => mb_substr($email, 0, 191),
++                'reason' => mb_substr((string) ($s['SuppressionReason'] ?? ''), 0, 32) ?: null,
++                'origin' => mb_substr((string) ($s['Origin'] ?? ''), 0, 32) ?: null,
++                'suppressed_at' => ! empty($s['CreatedAt']) ? \Carbon\Carbon::parse($s['CreatedAt'])->utc() : null,
++                'synced_at' => $now,
++            ];
++        }
++        DB::transaction(function () use ($stream, $rows, $now) {
++            foreach (array_chunk(array_values($rows), 500) as $chunk) {
++                DB::table('postmark_suppressions')->upsert($chunk, ['stream', 'email'], ['reason', 'origin', 'suppressed_at', 'synced_at']);
++            }
++            // reactivated in Postmark since the last sync
++            DB::table('postmark_suppressions')->where('stream', $stream)->where('synced_at', '<', $now)->delete();
++        });
++
++        return count($rows);
++    }
++}
+diff --git a/app/Services/Sales/OutreachAutoSend.php b/app/Services/Sales/OutreachAutoSend.php
+index c7f0d840..1b9b261a 100644
+--- a/app/Services/Sales/OutreachAutoSend.php
++++ b/app/Services/Sales/OutreachAutoSend.php
+@@ -232,7 +232,7 @@ class OutreachAutoSend
+ 
+     private static function addressProblem(string $msg): bool
+     {
+-        return str_contains($msg, 'unsubscribed') || str_contains($msg, 'already had an outreach email') || str_contains($msg, 'Add an email address');
++        return str_contains($msg, 'marked inactive') || str_contains($msg, 'unsubscribed') || str_contains($msg, 'already had an outreach email') || str_contains($msg, 'Add an email address');
+     }
+ 
+     /** For the scheduler: re-queue the chain if it was lost (deploy, worker restart). */
+diff --git a/app/Services/Sales/OutreachQueue.php b/app/Services/Sales/OutreachQueue.php
+index 8c3463fe..23a40dad 100644
+--- a/app/Services/Sales/OutreachQueue.php
++++ b/app/Services/Sales/OutreachQueue.php
+@@ -84,6 +84,11 @@ class OutreachQueue
+                 [now()->subHours(ProspectOutreach::ADDRESS_GAP_HOURS)])
+             ->when($who === 'new', fn ($q) => $q->whereRaw('LOWER(TRIM(email)) NOT IN (SELECT LOWER(email) FROM sales_outreach_sends)'));
+ 
++        // MARKER-POSTMARK-INACTIVE: addresses Postmark would refuse never reach the queue
++        if ($pm = \App\Services\Platform\PlatformMailer::stream()) {
++            $q->whereRaw('LOWER(TRIM(email)) NOT IN (SELECT email FROM postmark_suppressions WHERE stream = ?)', [$pm]);
++        }
++
+         if (! empty($f['_base'])) return $q; // the counts per industry tab use the unfiltered set
+ 
+         $mail = $f['mail'] ?? 'any';
+diff --git a/app/Services/Sales/ProspectOutreach.php b/app/Services/Sales/ProspectOutreach.php
+index 8463b54d..6e5178d4 100644
+--- a/app/Services/Sales/ProspectOutreach.php
++++ b/app/Services/Sales/ProspectOutreach.php
+@@ -331,6 +331,10 @@ class ProspectOutreach
+         if (PlatformEmailOptout::has($to)) {
+             return [false, 'Not sent: this address unsubscribed from Intake email'];
+         }
++        // MARKER-POSTMARK-INACTIVE: Postmark would refuse it without telling us
++        if ($pmWhy = \App\Services\PostmarkInactive::reason(\App\Services\Platform\PlatformMailer::stream(), $to)) {
++            return [false, 'Not sent: ' . \App\Services\PostmarkInactive::skipText($pmWhy)];
++        }
+         if ($prev = self::recentSendTo($to)) {
+             return [false, 'Not sent: ' . $to . ' already had an outreach email '
+                 . \Illuminate\Support\Carbon::parse($prev->created_at)->diffForHumans()
+diff --git a/config/services.php b/config/services.php
+index 7fc3e31b..9bda1bc5 100644
+--- a/config/services.php
++++ b/config/services.php
+@@ -22,6 +22,10 @@ return [
+ 
+     'postmark' => [
+         'inbound_address' => env('POSTMARK_INBOUND_ADDRESS'),
++        // MARKER-POSTMARK-INACTIVE: server API token for reading the inactive
++        // list. Optional: without it the SMTP password is used, which for
++        // Postmark is the same server token.
++        'token' => env('POSTMARK_SERVER_TOKEN'),
+     ],
+ 
+     // OAuth client for master-admin scheduling's calendar sync.
+diff --git a/database/migrations/2026_10_26_140000_postmark_suppressions.php b/database/migrations/2026_10_26_140000_postmark_suppressions.php
+new file mode 100644
+index 00000000..8b6c6f16
+--- /dev/null
++++ b/database/migrations/2026_10_26_140000_postmark_suppressions.php
+@@ -0,0 +1,44 @@
++<?php
++
++use Illuminate\Database\Migrations\Migration;
++use Illuminate\Database\Schema\Blueprint;
++use Illuminate\Support\Facades\Schema;
++
++/**
++ * MARKER-POSTMARK-INACTIVE: Intake's copy of Postmark's inactive-recipient
++ * list for each marketing stream. Postmark refuses mail to these addresses
++ * and sends no webhook when it does, so Intake has to ask for the list.
++ *
++ *   postmark_suppressions                  one row per stream + address
++ *   platform_settings.postmark_inactive_sync  when each stream last synced, how many, any error
++ */
++return new class extends Migration
++{
++    public function up(): void
++    {
++        if (! Schema::hasTable('postmark_suppressions')) {
++            Schema::create('postmark_suppressions', function (Blueprint $t) {
++                $t->id();
++                $t->string('stream', 64);
++                $t->string('email', 191);
++                $t->string('reason', 32)->nullable();   // HardBounce | SpamComplaint | ManualSuppression
++                $t->string('origin', 32)->nullable();   // Recipient | Customer | Admin
++                $t->timestamp('suppressed_at')->nullable();
++                $t->timestamp('synced_at')->nullable();
++                $t->unique(['stream', 'email']);
++                $t->index('email');
++            });
++        }
++        Schema::table('platform_settings', function (Blueprint $t) {
++            if (! Schema::hasColumn('platform_settings', 'postmark_inactive_sync')) $t->json('postmark_inactive_sync')->nullable();
++        });
++    }
++
++    public function down(): void
++    {
++        Schema::dropIfExists('postmark_suppressions');
++        Schema::table('platform_settings', function (Blueprint $t) {
++            if (Schema::hasColumn('platform_settings', 'postmark_inactive_sync')) $t->dropColumn('postmark_inactive_sync');
++        });
++    }
++};
+diff --git a/resources/views/filament/pages/platform-email.blade.php b/resources/views/filament/pages/platform-email.blade.php
+index f4ea368e..de578613 100644
+--- a/resources/views/filament/pages/platform-email.blade.php
++++ b/resources/views/filament/pages/platform-email.blade.php
+@@ -43,4 +43,37 @@
+         </div>
+     </form>
+ 
++    {{-- MARKER-POSTMARK-INACTIVE --}}
++    @php
++        $pmStreams = \App\Services\PostmarkInactive::streams();
++        $pmStatus  = \App\Services\PostmarkInactive::status();
++    @endphp
++    <div style="margin-top:28px;padding-top:18px;border-top:1px solid rgba(127,127,127,.2)">
++        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
++            <div style="font-weight:600;font-size:15px">Postmark's inactive list</div>
++            <x-filament::button size="sm" color="gray" wire:click="syncInactive" icon="heroicon-o-arrow-path">Sync now</x-filament::button>
++        </div>
++        <div style="font-size:12.5px;opacity:.7;margin:6px 0 10px;line-height:1.55">
++            Postmark stops delivering to an address after a hard bounce, a spam complaint or an unsubscribe on its side, and when Intake sends to one anyway it refuses it <b>without telling Intake</b>.
++            So Intake copies the list every hour and before each campaign starts sending: shop campaigns, Intake campaigns and Email outreach skip those addresses and say why.
++            Receipts and other transactional mail are not affected. An address Postmark reactivates comes off the list at the next sync.
++        </div>
++        @forelse ($pmStreams as $sid => $slabel)
++            @php $ps = $pmStatus[$sid] ?? []; @endphp
++            <div style="font-size:13px;padding:6px 0;display:flex;gap:10px;flex-wrap:wrap">
++                <span style="min-width:200px">{{ $slabel }} <span style="opacity:.6">({{ $sid }})</span></span>
++                @if (! empty($ps['at']))
++                    <span><b>{{ number_format($ps['count'] ?? 0) }}</b> inactive · synced {{ \Carbon\Carbon::parse($ps['at'])->diffForHumans() }}</span>
++                @else
++                    <span style="opacity:.7">Not synced yet</span>
++                @endif
++                @if (! empty($ps['error']))
++                    <span style="color:#dc2626">Last try failed: {{ $ps['error'] }}</span>
++                @endif
++            </div>
++        @empty
++            <div style="font-size:13px;opacity:.7">No marketing stream is set above, so there's nothing to sync.</div>
++        @endforelse
++    </div>
++
+ </x-filament-panels::page>
+diff --git a/routes/console.php b/routes/console.php
+index 2d400823..64089002 100644
+--- a/routes/console.php
++++ b/routes/console.php
+@@ -21,6 +21,12 @@ Schedule::command('outreach:auto-keepalive')
+     ->everyMinute()
+     ->withoutOverlapping(5);
+ 
++// MARKER-POSTMARK-INACTIVE: Postmark refuses addresses it has marked inactive
++// without telling Intake; copy its list so sends skip them.
++Schedule::command('postmark:sync-inactive')
++    ->hourlyAt(17)
++    ->withoutOverlapping(10);
++
+ // MARKER-QUEUE-WATCHDOG: puts a test job on the queue and emails the alert
+ // address if workers have stopped picking jobs up (see App\Support\QueueWatchdog).
+ Schedule::command('queue:watchdog')

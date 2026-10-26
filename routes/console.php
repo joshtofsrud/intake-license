@@ -21,6 +21,12 @@ Schedule::command('outreach:auto-keepalive')
     ->everyMinute()
     ->withoutOverlapping(5);
 
+// MARKER-POSTMARK-INACTIVE: Postmark refuses addresses it has marked inactive
+// without telling Intake; copy its list so sends skip them.
+Schedule::command('postmark:sync-inactive')
+    ->hourlyAt(17)
+    ->withoutOverlapping(10);
+
 // MARKER-QUEUE-WATCHDOG: puts a test job on the queue and emails the alert
 // address if workers have stopped picking jobs up (see App\Support\QueueWatchdog).
 Schedule::command('queue:watchdog')

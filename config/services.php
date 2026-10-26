@@ -22,6 +22,10 @@ return [
 
     'postmark' => [
         'inbound_address' => env('POSTMARK_INBOUND_ADDRESS'),
+        // MARKER-POSTMARK-INACTIVE: server API token for reading the inactive
+        // list. Optional: without it the SMTP password is used, which for
+        // Postmark is the same server token.
+        'token' => env('POSTMARK_SERVER_TOKEN'),
     ],
 
     // OAuth client for master-admin scheduling's calendar sync.

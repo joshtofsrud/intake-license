@@ -207,6 +207,20 @@ class PlatformEmail extends Page implements HasForms
             ->send();
     }
 
+    /** MARKER-POSTMARK-INACTIVE: pull Postmark's inactive list now. */
+    public function syncInactive(): void
+    {
+        $res = \App\Services\PostmarkInactive::syncAll();
+        $errors = array_filter(array_map(fn ($r) => $r[1], $res));
+        if (! $res) {
+            Notification::make()->title('No marketing stream is set, so there is nothing to sync.')->warning()->send();
+        } elseif ($errors) {
+            Notification::make()->title('Sync failed')->body(implode(' ', $errors))->danger()->send();
+        } else {
+            Notification::make()->title('Inactive list synced')->body(collect($res)->map(fn ($r, $s) => $s . ': ' . $r[0])->implode(' · '))->success()->send();
+        }
+    }
+
     public function sendTest(): void
     {
         $this->save();

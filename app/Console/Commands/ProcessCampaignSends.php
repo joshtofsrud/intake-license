@@ -115,6 +115,11 @@ class ProcessCampaignSends extends Command
             return self::SUCCESS;
         }
 
+        // MARKER-POSTMARK-INACTIVE: Postmark refuses addresses it has marked
+        // inactive WITHOUT telling Intake, so refresh its list before sending.
+        \App\Services\PostmarkInactive::syncIfStale(15);
+        $pmStream = \App\Services\EmailLedger::broadcastStream();
+
         $budget = $limit;
 
         foreach ($campaigns as $campaign) {
@@ -172,6 +177,11 @@ class ProcessCampaignSends extends Command
 
                 if (\App\Models\Tenant\TenantEmailSuppression::isSuppressed($tenant->id, $row->email)) {
                     $row->update(['status' => 'skipped', 'error_message' => 'suppressed at send time']);
+                    continue;
+                }
+
+                if ($pmWhy = \App\Services\PostmarkInactive::reason($pmStream, $row->email)) {
+                    $row->update(['status' => 'skipped', 'error_message' => \App\Services\PostmarkInactive::skipText($pmWhy)]);
                     continue;
                 }
 

@@ -60,6 +60,11 @@ class ProcessPlatformCampaignSends extends Command
                 $row->update(['status' => 'skipped', 'skip_reason' => 'unsubscribed']);
                 continue;
             }
+            // MARKER-POSTMARK-INACTIVE
+            if ($pmWhy = \App\Services\PostmarkInactive::reason(\App\Services\Platform\PlatformMailer::stream(), $row->email)) {
+                $row->update(['status' => 'skipped', 'skip_reason' => mb_substr(\App\Services\PostmarkInactive::skipText($pmWhy), 0, 120)]);
+                continue;
+            }
 
             try {
                 $html = $this->renderFor($campaign, $row);
