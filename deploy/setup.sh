@@ -344,6 +344,10 @@ process_name=%(program_name)s_%(process_num)02d
 command=php ${APP_DIR}/artisan queue:work redis --sleep=3 --tries=3 --max-time=3600 --queue=default,emails
 autostart=true
 autorestart=true
+# a crashing worker is retried for over an hour (each wait a second longer)
+# instead of 3 times: a MySQL restart from an automatic update otherwise
+# leaves the workers FATAL for good (MARKER-QUEUE-WATCHDOG, Oct 2026)
+startretries=100
 stopasgroup=true
 killasgroup=true
 user=${DEPLOY_USER}

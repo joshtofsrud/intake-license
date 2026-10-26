@@ -398,15 +398,22 @@ class PlatformDashboard extends Page
                    'value' => "<b>{$caught}</b> reported", 'state' => $caught > 0 ? 'bad' : 'ok',
                    'href' => '/admin/debug-logs?activeTab=errors'];
 
-        // Queue backlog
+        // Queue backlog. MARKER-QUEUE-WATCHDOG: a count alone said "OK" for
+        // 36 hours while both workers were dead, so the row now also says
+        // whether a worker has actually run anything lately.
         $pending = 0;
         try { $pending = (int) Redis::llen('queues:default'); }
         catch (Throwable $e) {}
+        $wd = ['state' => 'unknown', 'heartbeat' => null];
+        try { $wd = \App\Support\QueueWatchdog::status(); } catch (Throwable $e) {}
+        $last = $wd['heartbeat'] ? 'last job ran ' . $wd['heartbeat']->diffForHumans() : 'no job run yet';
         $rows[] = [
-            'name'  => 'Queue backlog',
-            'meta'  => 'Redis · queues:default · checked just now',
-            'value' => "<b>{$pending}</b> pending",
-            'state' => $pending > 50 ? 'bad' : ($pending > 5 ? 'warn' : 'ok'),
+            'name'  => 'Queue',
+            'meta'  => $wd['state'] === 'down'
+                ? 'workers not running · ' . $last
+                : ($wd['state'] === 'unknown' ? 'watchdog not run yet · Redis queues:default' : 'workers running · ' . $last),
+            'value' => $wd['state'] === 'down' ? '<b>Stopped</b> · ' . $pending . ' waiting' : "<b>{$pending}</b> pending",
+            'state' => $wd['state'] === 'down' ? 'bad' : ($pending > 50 ? 'bad' : ($pending > 5 ? 'warn' : 'ok')),
             'href'  => null,
         ];
 

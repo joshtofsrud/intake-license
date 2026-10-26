@@ -79,6 +79,12 @@ class OperationalHealthWidget extends BaseWidget
         } catch (Throwable $e) {
             // Redis unreachable; unresolvedErrors picks up the actual error.
         }
+        // MARKER-QUEUE-WATCHDOG: a backlog count can look fine while no worker runs at all
+        $down = false;
+        try { $down = \App\Support\QueueWatchdog::status()['state'] === 'down'; } catch (Throwable $e) {}
+        if ($down) {
+            return Stat::make('Queue backlog', number_format($pending))->description('workers not running')->color('danger');
+        }
         $color = $pending > 50 ? 'danger' : ($pending > 5 ? 'warning' : 'success');
         return Stat::make('Queue backlog', number_format($pending))
             ->description($pending === 0 ? 'idle' : ($pending > 50 ? 'backed up' : 'working through it'))

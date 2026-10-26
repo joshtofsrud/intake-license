@@ -15,6 +15,12 @@ Artisan::command('inspire', function () {
 // overdue rentals sweep: emits the rental.overdue
 // staff alert (derived state, so it must be polled). Idempotent.
 // ----------------------------------------------------------------
+// MARKER-QUEUE-WATCHDOG: puts a test job on the queue and emails the alert
+// address if workers have stopped picking jobs up (see App\Support\QueueWatchdog).
+Schedule::command('queue:watchdog')
+    ->everyFiveMinutes()
+    ->withoutOverlapping(10);
+
 // drain pending campaign sends, 120/min.
 Schedule::command('campaigns:process-sends')
     ->everyMinute()

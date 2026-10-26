@@ -14,6 +14,12 @@ return [
     // branded "replies@reply.intake.works" once the MX points at Postmark.
     // The per-thread token is injected as "+{token}" before the @, which
     // Postmark returns as MailboxHash on the inbound webhook.
+    // MARKER-QUEUE-WATCHDOG: an outside "dead man's switch" (e.g. Healthchecks.io)
+    // pinged every five minutes; it alerts if the pings stop. Optional.
+    'queue_watchdog' => [
+        'ping_url' => env('QUEUE_WATCHDOG_PING_URL'),
+    ],
+
     'postmark' => [
         'inbound_address' => env('POSTMARK_INBOUND_ADDRESS'),
     ],

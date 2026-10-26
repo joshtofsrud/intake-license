@@ -1,0 +1,368 @@
+diff --git a/app/Console/Commands/QueueWatchdogCommand.php b/app/Console/Commands/QueueWatchdogCommand.php
+new file mode 100644
+index 00000000..c87d9da9
+--- /dev/null
++++ b/app/Console/Commands/QueueWatchdogCommand.php
+@@ -0,0 +1,22 @@
++<?php
++
++namespace App\Console\Commands;
++
++use App\Support\QueueWatchdog;
++use Illuminate\Console\Command;
++
++/** MARKER-QUEUE-WATCHDOG: see App\Support\QueueWatchdog. Scheduled every five minutes. */
++class QueueWatchdogCommand extends Command
++{
++    protected $signature = 'queue:watchdog';
++    protected $description = 'Queue a test job and alert if background jobs have stopped running';
++
++    public function handle(): int
++    {
++        $state = QueueWatchdog::run();
++        $s = QueueWatchdog::status();
++        $this->line('Queue: ' . $state . ' · last job run ' . ($s['heartbeat'] ? $s['heartbeat']->diffForHumans() : 'never') . ' · waiting ' . ($s['waiting'] ?? '?'));
++
++        return self::SUCCESS;
++    }
++}
+diff --git a/app/Filament/Pages/PlatformDashboard.php b/app/Filament/Pages/PlatformDashboard.php
+index 51567dbf..6e109ec0 100644
+--- a/app/Filament/Pages/PlatformDashboard.php
++++ b/app/Filament/Pages/PlatformDashboard.php
+@@ -398,15 +398,22 @@ class PlatformDashboard extends Page
+                    'value' => "<b>{$caught}</b> reported", 'state' => $caught > 0 ? 'bad' : 'ok',
+                    'href' => '/admin/debug-logs?activeTab=errors'];
+ 
+-        // Queue backlog
++        // Queue backlog. MARKER-QUEUE-WATCHDOG: a count alone said "OK" for
++        // 36 hours while both workers were dead, so the row now also says
++        // whether a worker has actually run anything lately.
+         $pending = 0;
+         try { $pending = (int) Redis::llen('queues:default'); }
+         catch (Throwable $e) {}
++        $wd = ['state' => 'unknown', 'heartbeat' => null];
++        try { $wd = \App\Support\QueueWatchdog::status(); } catch (Throwable $e) {}
++        $last = $wd['heartbeat'] ? 'last job ran ' . $wd['heartbeat']->diffForHumans() : 'no job run yet';
+         $rows[] = [
+-            'name'  => 'Queue backlog',
+-            'meta'  => 'Redis · queues:default · checked just now',
+-            'value' => "<b>{$pending}</b> pending",
+-            'state' => $pending > 50 ? 'bad' : ($pending > 5 ? 'warn' : 'ok'),
++            'name'  => 'Queue',
++            'meta'  => $wd['state'] === 'down'
++                ? 'workers not running · ' . $last
++                : ($wd['state'] === 'unknown' ? 'watchdog not run yet · Redis queues:default' : 'workers running · ' . $last),
++            'value' => $wd['state'] === 'down' ? '<b>Stopped</b> · ' . $pending . ' waiting' : "<b>{$pending}</b> pending",
++            'state' => $wd['state'] === 'down' ? 'bad' : ($pending > 50 ? 'bad' : ($pending > 5 ? 'warn' : 'ok')),
+             'href'  => null,
+         ];
+ 
+diff --git a/app/Filament/Widgets/OperationalHealthWidget.php b/app/Filament/Widgets/OperationalHealthWidget.php
+index 25e4660c..32ea7ee7 100644
+--- a/app/Filament/Widgets/OperationalHealthWidget.php
++++ b/app/Filament/Widgets/OperationalHealthWidget.php
+@@ -79,6 +79,12 @@ class OperationalHealthWidget extends BaseWidget
+         } catch (Throwable $e) {
+             // Redis unreachable; unresolvedErrors picks up the actual error.
+         }
++        // MARKER-QUEUE-WATCHDOG: a backlog count can look fine while no worker runs at all
++        $down = false;
++        try { $down = \App\Support\QueueWatchdog::status()['state'] === 'down'; } catch (Throwable $e) {}
++        if ($down) {
++            return Stat::make('Queue backlog', number_format($pending))->description('workers not running')->color('danger');
++        }
+         $color = $pending > 50 ? 'danger' : ($pending > 5 ? 'warning' : 'success');
+         return Stat::make('Queue backlog', number_format($pending))
+             ->description($pending === 0 ? 'idle' : ($pending > 50 ? 'backed up' : 'working through it'))
+diff --git a/app/Jobs/QueueHeartbeat.php b/app/Jobs/QueueHeartbeat.php
+new file mode 100644
+index 00000000..b31247b9
+--- /dev/null
++++ b/app/Jobs/QueueHeartbeat.php
+@@ -0,0 +1,25 @@
++<?php
++
++namespace App\Jobs;
++
++use Illuminate\Bus\Queueable;
++use Illuminate\Contracts\Queue\ShouldQueue;
++use Illuminate\Foundation\Bus\Dispatchable;
++use Illuminate\Queue\InteractsWithQueue;
++use Illuminate\Support\Facades\DB;
++
++/**
++ * MARKER-QUEUE-WATCHDOG: the queue watchdog's test job. A worker running it
++ * is the proof that workers are running. It only stamps the time.
++ */
++class QueueHeartbeat implements ShouldQueue
++{
++    use Dispatchable, InteractsWithQueue, Queueable;
++
++    public int $tries = 1;
++
++    public function handle(): void
++    {
++        DB::table('platform_settings')->where('id', 1)->update(['queue_heartbeat_at' => now()]);
++    }
++}
+diff --git a/app/Support/QueueWatchdog.php b/app/Support/QueueWatchdog.php
+new file mode 100644
+index 00000000..cbd30799
+--- /dev/null
++++ b/app/Support/QueueWatchdog.php
+@@ -0,0 +1,150 @@
++<?php
++
++namespace App\Support;
++
++use App\Jobs\QueueHeartbeat;
++use App\Models\PlatformSettings;
++use Carbon\Carbon;
++use Illuminate\Support\Facades\DB;
++use Illuminate\Support\Facades\Http;
++use Illuminate\Support\Facades\Log;
++use Illuminate\Support\Facades\Mail;
++use Illuminate\Support\Facades\Redis;
++
++/**
++ * MARKER-QUEUE-WATCHDOG: notices when background jobs have stopped running.
++ *
++ * Every five minutes the scheduler (a separate process from the workers)
++ * runs queue:watchdog, which puts a QueueHeartbeat job on the queue. A worker
++ * running it stamps queue_heartbeat_at. queue_ping_at is when the oldest
++ * test job still waiting was queued; once a worker answers, the next run
++ * starts a fresh one. If a test job has waited STALE_MINUTES unanswered, the
++ * queue is down: one email to the dashboard alert address (sent directly,
++ * never through the queue it's reporting on), a master-admin inbox alert and
++ * a log line. When heartbeats resume, one "back to normal" email.
++ *
++ * Optionally each run also pings an outside monitor (QUEUE_WATCHDOG_PING_URL,
++ * e.g. Healthchecks.io): the plain URL when all is well, URL/fail when the
++ * queue is down. If the scheduler or the whole server dies the pings stop and
++ * the outside service raises the alarm, which nothing on the server can.
++ */
++class QueueWatchdog
++{
++    public const STALE_MINUTES = 10;
++
++    /**
++     * Where things stand, without changing anything.
++     *
++     * @return array{state: string, heartbeat: ?Carbon, ping: ?Carbon, down_since: ?Carbon, waiting: ?int}
++     *   state: ok | down | unknown (the watchdog hasn't run yet)
++     */
++    public static function status(): array
++    {
++        $row = DB::table('platform_settings')->where('id', 1)->first(['queue_ping_at', 'queue_heartbeat_at', 'queue_down_since']);
++        $p = fn ($v) => $v ? Carbon::parse($v, 'UTC') : null;
++        $heartbeat = $p($row->queue_heartbeat_at ?? null);
++        $ping = $p($row->queue_ping_at ?? null);
++
++        $state = 'unknown';
++        if ($ping) {
++            $answered = $heartbeat && $heartbeat->gte($ping);
++            $state = (! $answered && $ping->lt(now()->subMinutes(self::STALE_MINUTES))) ? 'down' : 'ok';
++        }
++
++        return ['state' => $state, 'heartbeat' => $heartbeat, 'ping' => $ping, 'down_since' => $p($row->queue_down_since ?? null), 'waiting' => self::waiting()];
++    }
++
++    /** One watchdog run: queue a test job, then alert or recover as needed. Returns the state. */
++    public static function run(): string
++    {
++        PlatformSettings::current(); // makes sure the id = 1 row exists
++        $before = self::status();
++
++        // a fresh test job once the last one has been answered (or on the first run)
++        $answered = $before['ping'] && $before['heartbeat'] && $before['heartbeat']->gte($before['ping']);
++        if (! $before['ping'] || $answered) {
++            DB::table('platform_settings')->where('id', 1)->update(['queue_ping_at' => now()]);
++        }
++        $queued = true;
++        try {
++            QueueHeartbeat::dispatch();
++        } catch (\Throwable $e) {
++            $queued = false; // Redis itself is unreachable: the queue can't be working
++            Log::error('Queue watchdog could not queue its test job: ' . $e->getMessage());
++        }
++
++        $now = self::status();
++        $down = $now['state'] === 'down';
++
++        if ($down && ! $now['down_since']) {
++            DB::table('platform_settings')->where('id', 1)->update(['queue_down_since' => now()]);
++            self::tell(false, $now, $queued);
++        } elseif (! $down && $now['down_since'] && $now['state'] === 'ok' && $answered) {
++            DB::table('platform_settings')->where('id', 1)->update(['queue_down_since' => null]);
++            self::tell(true, $now, $queued);
++        }
++
++        self::pingOutside($down);
++
++        return $now['state'];
++    }
++
++    /** The down / back-to-normal message: email (direct), master-admin inbox, log. */
++    private static function tell(bool $recovered, array $s, bool $queued): void
++    {
++        $ago = fn (?Carbon $t) => $t ? $t->diffForHumans(['parts' => 2]) . ' (' . $t->toDateTimeString() . ' UTC)' : 'never';
++        if ($recovered) {
++            $subject = '[Intake] Background jobs are running again';
++            $body = "Workers are picking up jobs again.\n\n"
++                . 'Down since: ' . $ago($s['down_since']) . "\n"
++                . 'Jobs waiting now: ' . ($s['waiting'] ?? 'unknown') . "\n\n"
++                . "Anything queued while they were down (emails, syncs, campaign sends) has run now, or is running.";
++        } else {
++            $subject = '[Intake] Background jobs have stopped';
++            $body = "No worker has run a job for over " . self::STALE_MINUTES . " minutes, so queued work (emails, syncs, campaign sends) is waiting.\n\n"
++                . 'Last job run: ' . $ago($s['heartbeat']) . "\n"
++                . 'Jobs waiting: ' . ($s['waiting'] ?? 'unknown (Redis could not be read)') . "\n"
++                . ($queued ? '' : "The watchdog could not reach Redis to queue its test job.\n")
++                . "\nOn the server:\n"
++                . "supervisorctl status\n"
++                . "tail -n 40 /var/www/intake/storage/logs/worker.log\n\n"
++                . "If a worker shows FATAL, it crashed on every start and supervisor gave up. After fixing the cause:\n"
++                . "supervisorctl start \"intake-worker:*\"\n\n"
++                . "You'll get one more email when jobs are running again.";
++        }
++
++        Log::log($recovered ? 'info' : 'error', $subject, ['heartbeat' => (string) $s['heartbeat'], 'waiting' => $s['waiting']]);
++        \App\Support\PlatformInbox::alert(['subject' => $subject, 'body' => $body, 'meta' => ['watchdog' => 'queue', 'recovered' => $recovered]]);
++
++        try {
++            $to = PlatformSettings::current()->alert_500_email ?: null;
++            if ($to) {
++                Mail::raw($body, fn ($m) => $m->to($to)->subject($subject));
++            }
++        } catch (\Throwable $e) {
++            Log::error('Queue watchdog email failed: ' . $e->getMessage());
++        }
++    }
++
++    /** The outside dead-man's switch, if one is set up. Never throws. */
++    private static function pingOutside(bool $down): void
++    {
++        $url = rtrim((string) config('services.queue_watchdog.ping_url'), '/');
++        if ($url === '') return;
++        try {
++            Http::timeout(5)->get($down ? $url . '/fail' : $url);
++        } catch (\Throwable $e) {
++            Log::warning('Queue watchdog outside ping failed: ' . $e->getMessage());
++        }
++    }
++
++    /** Jobs waiting on the main queue, or null if Redis can't be read. */
++    public static function waiting(): ?int
++    {
++        try {
++            return (int) Redis::llen('queues:default');
++        } catch (\Throwable $e) {
++            return null;
++        }
++    }
++}
+diff --git a/config/services.php b/config/services.php
+index 5c504f8d..7fc3e31b 100644
+--- a/config/services.php
++++ b/config/services.php
+@@ -14,6 +14,12 @@ return [
+     // branded "replies@reply.intake.works" once the MX points at Postmark.
+     // The per-thread token is injected as "+{token}" before the @, which
+     // Postmark returns as MailboxHash on the inbound webhook.
++    // MARKER-QUEUE-WATCHDOG: an outside "dead man's switch" (e.g. Healthchecks.io)
++    // pinged every five minutes; it alerts if the pings stop. Optional.
++    'queue_watchdog' => [
++        'ping_url' => env('QUEUE_WATCHDOG_PING_URL'),
++    ],
++
+     'postmark' => [
+         'inbound_address' => env('POSTMARK_INBOUND_ADDRESS'),
+     ],
+diff --git a/database/migrations/2026_10_26_090000_queue_watchdog.php b/database/migrations/2026_10_26_090000_queue_watchdog.php
+new file mode 100644
+index 00000000..f9b6dd8a
+--- /dev/null
++++ b/database/migrations/2026_10_26_090000_queue_watchdog.php
+@@ -0,0 +1,35 @@
++<?php
++
++use Illuminate\Database\Migrations\Migration;
++use Illuminate\Database\Schema\Blueprint;
++use Illuminate\Support\Facades\Schema;
++
++/**
++ * MARKER-QUEUE-WATCHDOG: what the queue watchdog remembers between runs.
++ * Kept in the database, not the cache: every deploy clears the cache, and a
++ * watchdog that forgets on deploy would either miss an outage or cry wolf.
++ *
++ *   queue_ping_at       when the oldest test job still waiting was queued (moves on once one is run)
++ *   queue_heartbeat_at  when a worker last ran one
++ *   queue_down_since    set while the queue is down and the alert has gone out
++ */
++return new class extends Migration
++{
++    public function up(): void
++    {
++        Schema::table('platform_settings', function (Blueprint $t) {
++            if (! Schema::hasColumn('platform_settings', 'queue_ping_at')) $t->timestamp('queue_ping_at')->nullable();
++            if (! Schema::hasColumn('platform_settings', 'queue_heartbeat_at')) $t->timestamp('queue_heartbeat_at')->nullable();
++            if (! Schema::hasColumn('platform_settings', 'queue_down_since')) $t->timestamp('queue_down_since')->nullable();
++        });
++    }
++
++    public function down(): void
++    {
++        Schema::table('platform_settings', function (Blueprint $t) {
++            foreach (['queue_ping_at', 'queue_heartbeat_at', 'queue_down_since'] as $c) {
++                if (Schema::hasColumn('platform_settings', $c)) $t->dropColumn($c);
++            }
++        });
++    }
++};
+diff --git a/deploy/setup.sh b/deploy/setup.sh
+index c580439f..86b1043e 100755
+--- a/deploy/setup.sh
++++ b/deploy/setup.sh
+@@ -344,6 +344,10 @@ process_name=%(program_name)s_%(process_num)02d
+ command=php ${APP_DIR}/artisan queue:work redis --sleep=3 --tries=3 --max-time=3600 --queue=default,emails
+ autostart=true
+ autorestart=true
++# a crashing worker is retried for over an hour (each wait a second longer)
++# instead of 3 times: a MySQL restart from an automatic update otherwise
++# leaves the workers FATAL for good (MARKER-QUEUE-WATCHDOG, Oct 2026)
++startretries=100
+ stopasgroup=true
+ killasgroup=true
+ user=${DEPLOY_USER}
+diff --git a/resources/views/filament/pages/platform-dashboard.blade.php b/resources/views/filament/pages/platform-dashboard.blade.php
+index 01097cb7..17730871 100644
+--- a/resources/views/filament/pages/platform-dashboard.blade.php
++++ b/resources/views/filament/pages/platform-dashboard.blade.php
+@@ -225,7 +225,8 @@
+         </label>
+         <input type="email" wire:model="alert500Email" placeholder="alerts@intake.works">
+         <button type="button" wire:click="saveAlert500">Save</button>
+-        <span class="mt-legend" style="flex-basis:100%">One email per distinct error or job failure per 15 minutes, carrying its refId. Off or blank = no emails; everything still logs and shows above.</span>
++        <span class="mt-legend" style="flex-basis:100%">One email per distinct error or job failure per 15 minutes, carrying its refId. Off or blank = no emails; everything still logs and shows above.
++          <b>Queue stopped</b> and <b>back to normal</b> emails go to this address whenever one is set, even with the switch off (MARKER-QUEUE-WATCHDOG): they come once per outage, and a stopped queue is never noise.</span>
+       </div>
+     </div>
+ 
+diff --git a/routes/console.php b/routes/console.php
+index c5729e63..869a542a 100644
+--- a/routes/console.php
++++ b/routes/console.php
+@@ -15,6 +15,12 @@ Artisan::command('inspire', function () {
+ // overdue rentals sweep: emits the rental.overdue
+ // staff alert (derived state, so it must be polled). Idempotent.
+ // ----------------------------------------------------------------
++// MARKER-QUEUE-WATCHDOG: puts a test job on the queue and emails the alert
++// address if workers have stopped picking jobs up (see App\Support\QueueWatchdog).
++Schedule::command('queue:watchdog')
++    ->everyFiveMinutes()
++    ->withoutOverlapping(10);
++
+ // drain pending campaign sends, 120/min.
+ Schedule::command('campaigns:process-sends')
+     ->everyMinute()

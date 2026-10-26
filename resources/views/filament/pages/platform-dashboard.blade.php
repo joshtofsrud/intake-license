@@ -225,7 +225,8 @@
         </label>
         <input type="email" wire:model="alert500Email" placeholder="alerts@intake.works">
         <button type="button" wire:click="saveAlert500">Save</button>
-        <span class="mt-legend" style="flex-basis:100%">One email per distinct error or job failure per 15 minutes, carrying its refId. Off or blank = no emails; everything still logs and shows above.</span>
+        <span class="mt-legend" style="flex-basis:100%">One email per distinct error or job failure per 15 minutes, carrying its refId. Off or blank = no emails; everything still logs and shows above.
+          <b>Queue stopped</b> and <b>back to normal</b> emails go to this address whenever one is set, even with the switch off (MARKER-QUEUE-WATCHDOG): they come once per outage, and a stopped queue is never noise.</span>
       </div>
     </div>
 
