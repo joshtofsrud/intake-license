@@ -81,8 +81,20 @@
   // Expose for booking-page hooks
   window.__intakeFunnel = { send: send };
 
+  // MARKER-PRERENDER-VIEWS: Chrome can load a page in the background while
+  // someone types its address (prerendering), running this script before
+  // anyone sees the page. Count it only once it's actually shown; a
+  // background load that's never opened isn't a view at all.
+  function whenShown(fn) {
+    if (document.prerendering) {
+      document.addEventListener('prerenderingchange', function () { fn(); }, { once: true });
+    } else {
+      fn();
+    }
+  }
+
   // Always fire page_view on every public page
-  send('page_view');
+  whenShown(function () { send('page_view'); });
 
   // Booking-page hooks. The tracker loads in <head>, so the booking form
   // isn't in the DOM yet — defer setup until DOM-ready, and detect the booking
@@ -158,10 +170,11 @@
   }
 
   // Run now if the DOM is already parsed, otherwise wait for it.
+  // (and, like page_view, only once the page is actually shown)
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initBookingHooks);
+    document.addEventListener('DOMContentLoaded', function () { whenShown(initBookingHooks); });
   } else {
-    initBookingHooks();
+    whenShown(initBookingHooks);
   }
 })();
 </script>

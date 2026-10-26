@@ -63,7 +63,20 @@
 
   window.__intakeMktTrack = send;
 
-  send('page_view');
+  // MARKER-PRERENDER-VIEWS: Chrome can load a page in the background while
+  // someone types its address (prerendering), running this script before
+  // anyone sees the page. Count it only once it's actually shown; a
+  // background load that's never opened isn't a view at all.
+  function whenShown(fn) {
+    if (document.prerendering) {
+      document.addEventListener('prerenderingchange', function () { fn(); }, { once: true });
+    } else {
+      fn();
+    }
+  }
+
+  var shown = false;
+  whenShown(function () { shown = true; send('page_view'); });
 
   // clicks on the things worth knowing about. Delegated, so
   // it covers markup added later; label comes from data-track when set, and
@@ -88,7 +101,7 @@
   // however long it was actually read. One beacon on the way out fixes it.
   var exited = false;
   function exit() {
-    if (exited) { return; }
+    if (exited || ! shown) { return; } // a background load that was never opened has nothing to end
     exited = true;
     send('page_exit');
   }
@@ -99,7 +112,7 @@
 
   // Pricing is the clearest intent signal the marketing site has today.
   if (/^\/pricing/.test(window.location.pathname)) {
-    send('pricing_viewed');
+    whenShown(function () { send('pricing_viewed'); });
   }
 })();
 </script>
