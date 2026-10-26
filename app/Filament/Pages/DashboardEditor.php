@@ -141,6 +141,20 @@ class DashboardEditor extends Page
         $this->settle();
     }
 
+    /** MARKER-DASH-BUILDER: this template's own heading for the selected block (empty = its own). */
+    public function setTitle(string $title): void
+    {
+        if (! $this->guard() || ! $this->sel) return;
+        [$r, $c, $i] = $this->sel;
+        $title = mb_substr(trim($title), 0, 60);
+        if ($title === '' || $title === (BlockRegistry::all()[$this->rows[$r]['cols'][$c][$i]['b']]['title'] ?? null)) {
+            unset($this->rows[$r]['cols'][$c][$i]['title']);
+        } else {
+            $this->rows[$r]['cols'][$c][$i]['title'] = $title;
+        }
+        $this->settle();
+    }
+
     public function addRow(int $splitIndex): void
     {
         if (! $this->guard()) return;

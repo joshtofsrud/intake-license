@@ -56,6 +56,9 @@
     <input type="text" class="db-in" style="max-width:340px;font-size:15px;font-weight:600" wire:model.live.debounce.400ms="name" maxlength="80" placeholder="Name this block" @disabled(! $canEdit)>
     @if (! $isNew && $dirty)<span class="db-tag pend">Unsaved changes</span>@endif
     <span style="margin-left:auto"></span>
+    @if (! $isNew)
+      <a class="db-btn" href="{{ \App\Filament\Pages\DashboardPreview::getUrl(['b' => $k, 'w' => $width]) }}" @if ($dirty) title="Shows the saved block; save to preview your changes" @endif>Preview on a dashboard</a>
+    @endif
     <a class="db-btn" href="{{ \App\Filament\Pages\DashboardBlocks::getUrl() }}">{{ $dirty ? 'Cancel' : 'Back' }}</a>
     @if ($canEdit)
       <button type="button" class="db-btn p" wire:click="save" @disabled(! $dirty || trim($name) === '')
@@ -80,8 +83,10 @@
           <div class="q">Every block reads only the shop it's on. There's no way to see another shop's records.</div>
           <div class="bb-src">
             @foreach ($sources as $sk => $s)
+              @php $sGate = \App\Support\SectionRegistry::all()[$s['area']]['gate'] ?? null;
+                   $sNeeds = ['retail_enabled' => 'Retail', 'rentals_visible' => 'Rentals', 'classes_active' => 'Classes', 'gift_cards_visible' => 'Gift cards', 'multi_location_active' => 'more than one location'][$sGate] ?? null; @endphp
               <button type="button" class="{{ $source === $sk ? 'on' : '' }}" wire:click="setSource('{{ $sk }}')" @disabled(! $canEdit)>
-                <span class="rb"></span><span><span class="t">{{ $s['label'] }}</span><span class="s">{{ $s['desc'] }} · seen by people who can open {{ \App\Support\SectionRegistry::all()[$s['area']]['label'] ?? $s['area'] }}</span></span>
+                <span class="rb"></span><span><span class="t">{{ $s['label'] }}@if ($sNeeds) <span class="db-tag draft" style="margin-left:4px">Shops with {{ $sNeeds }}</span>@endif</span><span class="s">{{ $s['desc'] }} · seen by people who can open {{ \App\Support\SectionRegistry::all()[$s['area']]['label'] ?? $s['area'] }}</span></span>
               </button>
             @endforeach
           </div>
@@ -89,7 +94,7 @@
 
         <div class="bb-step"><span class="no">3</span><div>
           <h4>Only include</h4>
-          <div class="q">Leave empty to include everything in the period.</div>
+          <div class="q">{{ $src['date'] ? 'Leave empty to include everything in the period.' : 'Leave empty to include every record.' }}</div>
           @foreach ($rules as $i => $r)
             @php $fdef = $src['fields'][$r[0]] ?? null; @endphp
             @if ($fdef)
@@ -109,7 +114,7 @@
                     @foreach ($fdef['options'] as $ok => $ol)<option value="{{ $ok }}">{{ $ol }}</option>@endforeach
                   </select>
                 @else
-                  <input type="number" min="0" step="0.01" class="db-in" placeholder="$ amount" wire:model.live.debounce.400ms="rules.{{ $i }}.2" @disabled(! $canEdit)>
+                  <input type="number" min="0" step="{{ $fdef['type'] === 'money' ? '0.01' : '1' }}" class="db-in" placeholder="{{ $fdef['type'] === 'money' ? '$ amount' : 'number' }}" wire:model.live.debounce.400ms="rules.{{ $i }}.2" @disabled(! $canEdit)>
                 @endif
                 <button type="button" class="x" wire:click="removeRule({{ $i }})" aria-label="Remove rule" @disabled(! $canEdit)>×</button>
               </div>
@@ -119,7 +124,7 @@
           @if (count($rules) !== count($cfg['rules']))<div class="db-note db-warn" style="margin-top:6px">A rule without an amount is left out until it has one.</div>@endif
         </div></div>
 
-        @php $moneyFields = collect($src['fields'])->filter(fn ($f) => $f['type'] === 'money'); @endphp
+        @php $moneyFields = collect($src['fields'])->filter(fn ($f) => in_array($f['type'], ['money', 'number'], true)); @endphp
         <div class="bb-step"><span class="no">4</span><div>
           <h4>Shows</h4>
           <div class="bb-seg" style="margin-bottom:10px">
@@ -138,22 +143,33 @@
             <select class="db-in" style="max-width:200px" wire:model.live="period" @disabled(! $canEdit)>
               @foreach ($src['periods'] as $pk)<option value="{{ $pk }}">{{ \App\Support\Dashboard\CustomBlocks::PERIODS[$pk] }}</option>@endforeach
             </select>
-            @if ($cfg['measure'] !== 'list' && $cfg['period'] !== 'all_time')
+            @if ($cfg['measure'] !== 'list' && $src['date'] && ! in_array($cfg['period'], ['all_time', 'now'], true))
               <label class="bb-chk"><input type="checkbox" wire:model.live="compare" @disabled(! $canEdit)> Compare with the period before</label>
             @endif
           </div>
-          @if ($source === 'appointments')<div class="db-note" style="margin-top:6px">Appointments count on their appointment date, so This week and Next 7 days include what's booked ahead.</div>@endif
+          @if (in_array($source, ['appointments', 'rentals', 'class_sessions'], true))<div class="db-note" style="margin-top:6px">{{ $src['label'] }} count on the day they're booked for, so This week and Next 7 days include what's ahead.</div>@endif
+          @if (! $src['date'])<div class="db-note" style="margin-top:6px">{{ $src['label'] }} have no period: the block shows them as they are when the dashboard opens.</div>@endif
         </div></div>
 
         <div class="bb-step"><span class="no">5</span><div>
           <h4>Looks like</h4>
           <div class="bb-seg">
+            @php $okDisplays = \App\Support\Dashboard\CustomBlocks::displaysFor($cfg['measure'], $cfg['period'], $src['date'] !== null); @endphp
             @foreach (\App\Support\Dashboard\CustomBlocks::DISPLAYS as $dk => $dl)
-              @php $ok = $cfg['measure'] === 'list' ? $dk === 'rows' : ($dk !== 'rows' && ! ($dk === 'trend' && in_array($cfg['period'], ['today', 'all_time'], true))); @endphp
+              @php $ok = in_array($dk, $okDisplays, true); @endphp
+              @continue(in_array($dk, ['rows', 'table'], true) !== ($cfg['measure'] === 'list'))
               <button type="button" class="{{ $cfg['display'] === $dk ? 'on' : '' }}" wire:click="$set('display', '{{ $dk }}')" @disabled(! $canEdit || ! $ok)>{{ $dl }}</button>
             @endforeach
           </div>
-          <div class="db-note" style="margin-top:6px">{{ $cfg['measure'] === 'list' ? 'Shows up to six records, each opening its own page.' : 'A trend draws one point a day across the period, so it needs more than a day.' }}</div>
+          @if ($cfg['display'] === 'progress')
+            <div class="bb-row2">
+              <span class="db-note">Goal</span>
+              <input type="number" min="0" step="{{ \App\Support\Dashboard\CustomBlocks::isMoney($cfg) ? '0.01' : '1' }}" class="db-in" style="max-width:160px"
+                placeholder="{{ \App\Support\Dashboard\CustomBlocks::isMoney($cfg) ? '$ amount' : 'number' }}" wire:model.live.debounce.400ms="goal" @disabled(! $canEdit)>
+              @if (! $cfg['goal'])<span class="db-note db-warn">Shows as a plain number until it has a goal.</span>@endif
+            </div>
+          @endif
+          <div class="db-note" style="margin-top:6px">{{ $cfg['measure'] === 'list' ? 'Shows up to six records, each opening its own page.' : 'Trend and bars draw one point a day across the period, so they need a period of more than a day. Progress needs a goal, the same for every shop.' }}</div>
         </div></div>
 
         <div class="bb-step"><span class="no">6</span><div>

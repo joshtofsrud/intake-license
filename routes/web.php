@@ -120,6 +120,12 @@ Route::domain($domain)->middleware([\App\Http\Middleware\SeoSignals::class, \App
         Route::post('/admin/scheduling-google/disconnect', [\App\Http\Controllers\Admin\SchedulingGoogleController::class, 'disconnect'])->name('admin.scheduling.google.disconnect');
     });
 
+    // MARKER-DASH-PREVIEW: a shop's dashboard as one of its roles sees it,
+    // drawn in the Dashboards preview (tenants area, read-only).
+    Route::middleware(['auth', \App\Http\Middleware\EnforceAdminArea::class . ':tenants'])->group(function () {
+        Route::get('/admin/dashboard-preview/frame', [\App\Http\Controllers\Admin\DashboardPreviewController::class, 'frame'])->name('admin.dashboard-preview.frame');
+    });
+
     // --- Marketing page editor bridge (admin only) ---
     // GET hands off to the tenant page builder view with platform tenant bound.
     // POST handles auto-save (section content, nav, page meta).

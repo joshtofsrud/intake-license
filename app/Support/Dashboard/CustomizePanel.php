@@ -41,7 +41,7 @@ class CustomizePanel
                     $isHidden = ! $locked && in_array($k, $hidden, true);
                     $hideable += $locked ? 0 : 1;
                     $hiddenCount += $isHidden ? 1 : 0;
-                    $blocks[] = ['key' => $k, 'name' => $names[$k] ?? $k, 'locked' => $locked, 'hidden' => $isHidden];
+                    $blocks[] = ['key' => $k, 'name' => $allowed[$k]['title'] ?? ($names[$k] ?? $k), 'locked' => $locked, 'hidden' => $isHidden];
                 }
                 $mine = array_values(array_map('strval', (array) ($order[$r . '-' . $c] ?? [])));
                 if ($mine) {

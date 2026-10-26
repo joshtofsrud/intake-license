@@ -1,4 +1,4 @@
-@extends('layouts.tenant.app')
+@extends($dashLayout ?? 'layouts.tenant.app'){{-- MARKER-DASH-PREVIEW: master admin's preview draws the same page in layouts.tenant.preview --}}
 @push('styles')
   <link rel="stylesheet" href="{{ asset('css/tenant/dashboard.css') }}?v={{ filemtime(public_path('css/tenant/dashboard.css')) }}">
   {{-- a --}}

@@ -41,6 +41,7 @@ class DashboardBlockBuilder extends Page
     public bool $compare = true;
     public string $display = 'number';
     public string $line = '';
+    public string $goal = '';
 
     // action / note
     public string $action = 'new_appointment';
@@ -75,6 +76,7 @@ class DashboardBlockBuilder extends Page
         $c = CustomBlocks::normalize($b->kind, (array) $b->config);
         foreach ($c as $key => $v) {
             if ($key === 'until') { $this->until = (string) $v; continue; }
+            if ($key === 'goal') { $this->goal = $v === null ? '' : rtrim(rtrim(number_format((float) $v, 2, '.', ''), '0'), '.'); continue; }
             if (property_exists($this, $key)) $this->{$key} = $v ?? ($key === 'field' ? null : $this->{$key});
         }
     }
@@ -96,7 +98,8 @@ class DashboardBlockBuilder extends Page
             'action' => ['action' => $this->action, 'line' => $this->line],
             'note'   => ['text' => $this->text, 'until' => $this->until ?: null],
             default  => ['source' => $this->source, 'rules' => $this->rules, 'measure' => $this->measure, 'field' => $this->field,
-                         'period' => $this->period, 'compare' => $this->compare, 'display' => $this->display, 'line' => $this->line],
+                         'period' => $this->period, 'compare' => $this->compare, 'display' => $this->display, 'line' => $this->line,
+                         'goal' => $this->goal],
         });
     }
 
@@ -113,7 +116,7 @@ class DashboardBlockBuilder extends Page
 
     public function updated($prop): void
     {
-        if (str_starts_with($prop, 'rules.')) return; // kept as typed until it's valid
+        if (str_starts_with($prop, 'rules.') || $prop === 'goal') return; // kept as typed until it's valid
         $this->settle();
     }
 

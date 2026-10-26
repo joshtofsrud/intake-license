@@ -14,7 +14,7 @@
 
 <div class="ia-dash-launcher-block">
   <div class="ia-dash-tiles-zone-label">
-    <span>Jump to</span>
+    <span>{{ $dashBlock['title'] ?? 'Jump to' }}</span>
     <span class="hint">all sections of your shop</span>
   </div>
 

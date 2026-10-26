@@ -1,4 +1,4 @@
-@extends('layouts.tenant.app')
+@extends($dashLayout ?? 'layouts.tenant.app'){{-- MARKER-DASH-PREVIEW: master admin's preview draws the same page in layouts.tenant.preview --}}
 {{-- MARKER-DASH-TEMPLATES: the frame for templates built in master admin.
      A date line and the dashboard switch, then the template's rows. Every
      block's stylesheet is loaded, since a template can mix blocks from

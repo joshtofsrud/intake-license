@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Tenant;
 
 use App\Http\Controllers\Controller;
-use App\Services\Tenant\DashboardDataService;
 use App\Support\Dashboard\BlockRegistry;
 use App\Support\Dashboard\CustomizePanel;
 use App\Support\Dashboard\DashboardTemplates;
@@ -32,41 +31,9 @@ class DashboardController extends Controller
                 ]);
         }
 
-        $service = new DashboardDataService($tenant);
-
-        // When impersonating, the master admin is on the 'web' guard AND
-        // the tenant owner is on the 'tenant' guard. We want the tenant
-        // owner for the dashboard greeting; fall back to default if no
-        // tenant-guarded user exists.
-        $user = $request->user('tenant') ?? $request->user();
-
-        $dismissedThisSession = (bool) $request->cookie('onboarding_dismissed_at');
-        $progress = $service->onboardingProgress($dismissedThisSession);
-
-        $workOrderBannerDismissed = (bool) $request->cookie('wof_banner_dismissed');
-        $workOrderBanner = $service->workOrderBanner($workOrderBannerDismissed);
-
-        // compute zones in order, then
-        // pass today + attention into zoneLauncher so it can reuse already-
-        // computed counts (low stock, SO counts) without re-querying.
-        $today     = $service->zoneToday();
-        $attention = $service->zoneAttention();
-
-        // MARKER-DASH-ACCESS: a person only sees what their role can open —
-        // cards, tiles and whole blocks — whatever the shop's roles are called.
+        // When impersonating, the master admin is on the 'web' guard AND the
+        // tenant owner is on the 'tenant' guard: the greeting is for the owner.
         $see = \App\Support\Dashboard\BlockAccess::for($request->user('tenant'));
-        $attention = $see->attention($attention);
-
-        $data = [
-            'greeting'  => $service->greeting($user),
-            'today'     => $today,
-            'attention' => $attention,
-            'growth'    => $service->zoneGrowth(),
-            'launcher'  => $service->zoneLauncher($today, $attention),
-            'progress'  => $progress,
-            'workOrderBanner' => $see->canRoute('tenant.work-order-fields.index') ? $workOrderBanner : null,
-            'see'       => $see,
-        ];
 
         // MARKER-DASH-TEMPLATES: the dashboard is a template — Overview, Tiles,
         // Brief, or one built in master admin. The person's pick lives in
@@ -84,21 +51,14 @@ class DashboardController extends Controller
         $roleRows = Layout::personal($template['rows'], $blocked, [], 'none');
         $rows = Layout::personal($template['rows'], $blocked, $prefs, $rearrange);
 
-        // Only load what this template's blocks draw.
-        $needs = BlockRegistry::needs($rows);
-        if (in_array('week', $needs, true)) {
-            $data['week'] = $service->weekAhead();
-        }
-        if (in_array('jobs', $needs, true)) {
-            $data['jobs'] = $service->jobsCompleted30();
-        }
-        if (in_array('tiles', $needs, true)) {
-            $data['tiles'] = $see->tiles(\App\Support\DashboardTiles::layout($tenant, $user));
-        }
-
+        // MARKER-DASH-PREVIEW: the page is built in DashboardPage, which master
+        // admin's preview shares, so a preview shows exactly this.
+        $data = \App\Support\Dashboard\DashboardPage::data($tenant, $request->user('tenant') ?? $request->user(), $see, $rows, [
+            'setup_dismissed' => (bool) $request->cookie('onboarding_dismissed_at'),
+            'wof_dismissed'   => (bool) $request->cookie('wof_banner_dismissed'),
+        ]);
         $data['activeTemplate']  = $template;
         $data['switchTemplates'] = DashboardTemplates::switchable($tenant);
-        $data['dashRows']        = $rows;
         $data['customize']       = CustomizePanel::for($template, $roleRows, $prefs, $rearrange);
 
         return view(DashboardTemplates::frameView($template), $data);

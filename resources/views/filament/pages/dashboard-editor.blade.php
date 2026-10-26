@@ -106,6 +106,12 @@
         @elseif ($hasDraft && $tpl->liveVersion)
           <button type="button" class="db-btn warn" wire:click="discardDraft" data-confirm="Discard the draft?&#10;The editor goes back to v{{ $tpl->liveVersion->version }}, which is what shops see now.">Discard draft</button>
         @endif
+        {{-- MARKER-DASH-PREVIEW: previews what's saved, so unsaved changes ask for Save draft first --}}
+        @if ($dirty)
+          <span class="db-btn" style="opacity:.45;cursor:default" title="Save the draft to preview your changes">Preview</span>
+        @else
+          <a class="db-btn" href="{{ \App\Filament\Pages\DashboardPreview::getUrl(['t' => $tpl->key, 'v' => ($hasDraft || ! $tpl->liveVersion) ? 'draft' : 'live']) }}">Preview</a>
+        @endif
         <button type="button" class="db-btn" wire:click="saveDraft" @disabled(! $dirty)>{{ $dirty ? 'Save draft' : 'Draft saved' }}</button>
         <x-filament::modal id="publish-dashboard" width="lg">
           <x-slot name="trigger"><button type="button" class="db-btn p" @disabled(! $canPublish)>Publish…</button></x-slot>
@@ -170,6 +176,14 @@
             @endif
           </div>
           <div class="db-note" style="margin:4px 0 10px">Follows each shop's own roles in Team &amp; access, whatever they're called. Anyone else gets the space closed up, not a gap.</div>
+          @php $selOwnTitle = $registry[$selBlock['b']]['title'] ?? null; @endphp
+          <div class="db-note" style="margin-bottom:4px">Title on this template</div>
+          @if ($selOwnTitle)
+            <input type="text" class="db-in" maxlength="60" wire:key="ttl-{{ implode('-', $sel) }}" value="{{ $selBlock['title'] ?? '' }}" placeholder="{{ $selOwnTitle }}" wire:change="setTitle($event.target.value)">
+            <div class="db-note" style="margin:4px 0 10px">Leave empty to use its own title. Only this template changes.</div>
+          @else
+            <div class="db-note" style="margin:0 0 10px">This block has no heading to rename.</div>
+          @endif
           <label class="de-chk" @if ($hideOff) style="opacity:.5" @endif><input type="checkbox" @checked(empty($selBlock['lock'])) wire:click="toggleLock" @disabled($hideOff)> People can hide it</label>
           <div class="db-note" style="margin-top:4px">
             @if (! $customizeOn) Customizing is turned off for every shop on the Dashboards page.
@@ -310,7 +324,7 @@
                   <div class="de-blk {{ $isHidden ? 'hid' : '' }} {{ $sel === [$r, $c, $i] ? 'sel' : '' }}" @if ($canEdit) draggable="true" x-on:dragstart="drag($event, { r: {{ $r }}, c: {{ $c }}, i: {{ $i }} })" @endif>
                     <span class="de-grip">⋮⋮</span>
                     <button type="button" class="pick" wire:click="selectBlock({{ $r }}, {{ $c }}, {{ $i }})" title="Settings for this block">
-                      <span class="t">{{ $names[$p['b']] ?? $p['b'] }}</span>
+                      <span class="t">{{ $names[$p['b']] ?? $p['b'] }}@if (! empty($p['title'])) <span style="font-weight:400;opacity:.7">· shown as “{{ $p['title'] }}”</span>@endif</span>
                       <span class="s" style="display:block">{{ $isHidden ? 'Hidden everywhere: no shop sees it' : (($def['origin'] ?? '') === 'custom' ? 'Made here' : 'From ' . ucfirst($def['origin'] ?? '')) . ' · ' . ($def['reads'] ?? '') }}</span>
                       @if (! empty($p['lock']))<span class="who">Always shown</span>@endif
                     </button>

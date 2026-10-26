@@ -19,6 +19,9 @@ class BlockRegistry
     /** Extra data a block can ask for, and what loads it. */
     public const NEEDS = ['week', 'jobs', 'tiles'];
 
+    // 'title' (MARKER-DASH-BUILDER): the block's own heading, which a template
+    // can rename (Layout placement 'title'). Blocks without one have no heading.
+
     /**
      * MARKER-DASH-ACCESS: the areas (SectionRegistry keys) a block's data
      * comes from — see BlockAccess. Blocks made of links and counts from
@@ -33,13 +36,13 @@ class BlockRegistry
         return [
             // Overview
             'attention' => ['name' => 'Needs attention', 'origin' => 'overview', 'view' => 'tenant.dashboard._zone_triage_tiles',
-                'reads' => 'Appointments, work orders, special orders, stock', 'desc' => 'The attention counts as a row of tiles.', 'access' => self::QUEUE_AREAS, 'needs' => []],
+                'reads' => 'Appointments, work orders, special orders, stock', 'desc' => 'The attention counts as a row of tiles.', 'access' => self::QUEUE_AREAS, 'title' => 'Needs you today', 'needs' => []],
             'today'     => ['name' => 'Today', 'origin' => 'overview', 'view' => 'tenant.dashboard._zone_today_tile',
-                'reads' => 'Appointments', 'desc' => "Today's bookings and deliveries, or the next day that has some.", 'access' => ['any' => ['schedule']], 'needs' => []],
+                'reads' => 'Appointments', 'desc' => "Today's bookings and deliveries, or the next day that has some.", 'access' => ['any' => ['schedule']], 'title' => 'Today', 'needs' => []],
             'growth'    => ['name' => 'Growth', 'origin' => 'overview', 'view' => 'tenant.dashboard._zone_growth_tiles',
-                'reads' => 'Sales, customers', 'desc' => 'Revenue and customer trends.', 'access' => ['any' => ['reports', 'customers', 'settings']], 'needs' => []],
+                'reads' => 'Sales, customers', 'desc' => 'Revenue and customer trends.', 'access' => ['any' => ['reports', 'customers', 'settings']], 'title' => 'How the business is doing', 'needs' => []],
             'launcher'  => ['name' => 'App launcher', 'origin' => 'overview', 'view' => 'tenant.dashboard._zone_launcher',
-                'reads' => 'Add-ons the shop has', 'desc' => 'Shortcuts to the main areas.', 'access' => self::LINK_AREAS, 'needs' => []],
+                'reads' => 'Add-ons the shop has', 'desc' => 'Shortcuts to the main areas.', 'access' => self::LINK_AREAS, 'title' => 'Jump to', 'needs' => []],
 
             // Tiles
             'needs_you' => ['name' => 'Needs you', 'origin' => 'tiles', 'view' => 'tenant.dashboard.blocks.needs-you',
@@ -55,11 +58,11 @@ class BlockRegistry
             'setup'     => ['name' => 'Finish setup', 'origin' => 'brief', 'view' => 'tenant.dashboard.blocks.setup',
                 'reads' => 'Setup progress', 'desc' => 'Shows until services, hours and branding are done.', 'access' => ['all' => ['services', 'capacity', 'settings']], 'needs' => []],
             'queue'     => ['name' => 'The queue', 'origin' => 'brief', 'view' => 'tenant.dashboard.blocks.queue',
-                'reads' => 'Appointments, work orders, special orders, stock', 'desc' => 'Late, Today and When you can. Each row opens its list.', 'access' => self::QUEUE_AREAS, 'needs' => []],
+                'reads' => 'Appointments, work orders, special orders, stock', 'desc' => 'Late, Today and When you can. Each row opens its list.', 'access' => self::QUEUE_AREAS, 'title' => 'The queue', 'needs' => []],
             'week'      => ['name' => 'This week', 'origin' => 'brief', 'view' => 'tenant.dashboard.blocks.week',
-                'reads' => 'Appointments, opening hours', 'desc' => 'Day strip and timeline. Free time links to a new appointment.', 'access' => ['any' => ['schedule']], 'needs' => ['week']],
+                'reads' => 'Appointments, opening hours', 'desc' => 'Day strip and timeline. Free time links to a new appointment.', 'access' => ['any' => ['schedule']], 'title' => 'This week', 'needs' => ['week']],
             'last30'    => ['name' => 'Last 30 days', 'origin' => 'brief', 'view' => 'tenant.dashboard.blocks.last30',
-                'reads' => 'Sales, work orders, customers', 'desc' => 'Sales, jobs completed and new customers against the 30 days before.', 'access' => ['any' => ['reports', 'schedule', 'customers']], 'needs' => ['jobs']],
+                'reads' => 'Sales, work orders, customers', 'desc' => 'Sales, jobs completed and new customers against the 30 days before.', 'access' => ['any' => ['reports', 'schedule', 'customers']], 'title' => 'Last 30 days', 'needs' => ['jobs']],
         ];
     }
 

@@ -23,7 +23,7 @@
 
 <div class="ia-dash-tiles-block">
   <div class="ia-dash-tiles-zone-label">
-    <span>Needs you today</span>
+    <span>{{ $dashBlock['title'] ?? 'Needs you today' }}</span>
     <span class="hint">
       @if($totalCards === 0)
         0 open · enjoy the calm

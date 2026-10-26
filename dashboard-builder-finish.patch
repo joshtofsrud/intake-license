@@ -1,0 +1,1780 @@
+diff --git a/app/Filament/Pages/DashboardBlockBuilder.php b/app/Filament/Pages/DashboardBlockBuilder.php
+index acb3eaa9..ac4ce7af 100644
+--- a/app/Filament/Pages/DashboardBlockBuilder.php
++++ b/app/Filament/Pages/DashboardBlockBuilder.php
+@@ -41,6 +41,7 @@ class DashboardBlockBuilder extends Page
+     public bool $compare = true;
+     public string $display = 'number';
+     public string $line = '';
++    public string $goal = '';
+ 
+     // action / note
+     public string $action = 'new_appointment';
+@@ -75,6 +76,7 @@ class DashboardBlockBuilder extends Page
+         $c = CustomBlocks::normalize($b->kind, (array) $b->config);
+         foreach ($c as $key => $v) {
+             if ($key === 'until') { $this->until = (string) $v; continue; }
++            if ($key === 'goal') { $this->goal = $v === null ? '' : rtrim(rtrim(number_format((float) $v, 2, '.', ''), '0'), '.'); continue; }
+             if (property_exists($this, $key)) $this->{$key} = $v ?? ($key === 'field' ? null : $this->{$key});
+         }
+     }
+@@ -96,7 +98,8 @@ class DashboardBlockBuilder extends Page
+             'action' => ['action' => $this->action, 'line' => $this->line],
+             'note'   => ['text' => $this->text, 'until' => $this->until ?: null],
+             default  => ['source' => $this->source, 'rules' => $this->rules, 'measure' => $this->measure, 'field' => $this->field,
+-                         'period' => $this->period, 'compare' => $this->compare, 'display' => $this->display, 'line' => $this->line],
++                         'period' => $this->period, 'compare' => $this->compare, 'display' => $this->display, 'line' => $this->line,
++                         'goal' => $this->goal],
+         });
+     }
+ 
+@@ -113,7 +116,7 @@ class DashboardBlockBuilder extends Page
+ 
+     public function updated($prop): void
+     {
+-        if (str_starts_with($prop, 'rules.')) return; // kept as typed until it's valid
++        if (str_starts_with($prop, 'rules.') || $prop === 'goal') return; // kept as typed until it's valid
+         $this->settle();
+     }
+ 
+diff --git a/app/Filament/Pages/DashboardEditor.php b/app/Filament/Pages/DashboardEditor.php
+index 5b23d65b..17709e7e 100644
+--- a/app/Filament/Pages/DashboardEditor.php
++++ b/app/Filament/Pages/DashboardEditor.php
+@@ -141,6 +141,20 @@ class DashboardEditor extends Page
+         $this->settle();
+     }
+ 
++    /** MARKER-DASH-BUILDER: this template's own heading for the selected block (empty = its own). */
++    public function setTitle(string $title): void
++    {
++        if (! $this->guard() || ! $this->sel) return;
++        [$r, $c, $i] = $this->sel;
++        $title = mb_substr(trim($title), 0, 60);
++        if ($title === '' || $title === (BlockRegistry::all()[$this->rows[$r]['cols'][$c][$i]['b']]['title'] ?? null)) {
++            unset($this->rows[$r]['cols'][$c][$i]['title']);
++        } else {
++            $this->rows[$r]['cols'][$c][$i]['title'] = $title;
++        }
++        $this->settle();
++    }
++
+     public function addRow(int $splitIndex): void
+     {
+         if (! $this->guard()) return;
+diff --git a/app/Filament/Pages/DashboardPreview.php b/app/Filament/Pages/DashboardPreview.php
+new file mode 100644
+index 00000000..adbc93b2
+--- /dev/null
++++ b/app/Filament/Pages/DashboardPreview.php
+@@ -0,0 +1,108 @@
++<?php
++
++namespace App\Filament\Pages;
++
++use App\Models\DashboardTemplate;
++use App\Models\Tenant;
++use App\Models\Tenant\TenantRole;
++use App\Support\Dashboard\Audience;
++use App\Support\Dashboard\BlockRegistry;
++use App\Support\Dashboard\TemplateStore;
++use Filament\Pages\Page;
++use Livewire\Attributes\Url;
++
++/**
++ * MARKER-DASH-PREVIEW: full-screen preview of a template or one block, drawn
++ * from a real shop's data as one of its roles would see it. Opened from the
++ * Templates and Blocks tabs, the template editor and the block builder.
++ * Read-only.
++ */
++class DashboardPreview extends Page
++{
++    use \App\Support\GatedByAdminArea;
++    protected static string $adminArea = 'tenants';
++
++    protected static bool $shouldRegisterNavigation = false;
++    protected static ?string $slug = 'dashboard-preview';
++    protected static ?string $title = 'Preview';
++    protected static string $view = 'filament.pages.dashboard-preview';
++
++    #[Url] public string $t = '';
++    #[Url] public string $b = '';
++    #[Url] public string $v = 'live';
++    #[Url] public string $shop = '';
++    #[Url] public string $role = 'owner';
++    #[Url] public string $device = 'desktop';
++    #[Url] public int $w = 12;
++
++    public function mount(): void
++    {
++        if ($this->t === '' && $this->b === '') {
++            $this->redirect(Dashboards::getUrl());
++            return;
++        }
++        if ($this->shop === '' || ! Tenant::whereKey($this->shop)->exists()) {
++            $this->shop = (string) $this->defaultShop();
++        }
++        if ($this->t !== '') {
++            $tpl = DashboardTemplate::where('key', $this->t)->first();
++            if (! $tpl) { $this->redirect(Dashboards::getUrl()); return; }
++            if (! $tpl->live_version_id) $this->v = 'draft';
++        }
++    }
++
++    /** Ground Control when it's here, else the shop with the most bookings, so the figures aren't empty. */
++    private function defaultShop(): ?string
++    {
++        return Tenant::where('is_active', true)->where('subdomain', 'grndctrl')->value('id')
++            ?? \Illuminate\Support\Facades\DB::table('tenant_appointments')->join('tenants', 'tenants.id', '=', 'tenant_appointments.tenant_id')
++                ->where('tenants.is_active', true)->groupBy('tenant_appointments.tenant_id')->orderByRaw('COUNT(*) DESC')->value('tenant_appointments.tenant_id')
++            ?? Tenant::where('is_active', true)->orderBy('name')->value('id');
++    }
++
++    public function updatedShop(): void
++    {
++        $this->role = 'owner';
++    }
++
++    public function getTitle(): string
++    {
++        if ($this->b !== '') return 'Preview: ' . (TemplateStore::blockNames()[$this->b] ?? 'block');
++
++        return 'Preview: ' . (DashboardTemplate::where('key', $this->t)->value('name') ?? 'template');
++    }
++
++    protected function getViewData(): array
++    {
++        $tpl = $this->t !== '' ? DashboardTemplate::with('liveVersion')->where('key', $this->t)->first() : null;
++        $tenant = Tenant::find($this->shop);
++        $roles = $tenant ? TenantRole::where('tenant_id', $tenant->id)->get()
++            ->reject(fn ($r) => $r->isOwnerRole())->sortBy(fn ($r) => ($r->is_system ? '0' : '1') . $r->name)->pluck('name', 'id')->all() : [];
++
++        // whether this shop would get the template at all
++        $gets = null;
++        if ($tpl && $tenant) {
++            $gets = $tpl->is_default ? [true, 'the default goes to every shop'] : Audience::check($tpl->audience, $tenant);
++        }
++        $blockDef = $this->b !== '' ? (BlockRegistry::all()[$this->b] ?? null) : null;
++
++        return [
++            'tpl'      => $tpl,
++            'tenant'   => $tenant,
++            'shops'    => Tenant::where('is_active', true)->orderBy('name')->limit(300)->pluck('name', 'id')->all(),
++            'roles'    => $roles,
++            'gets'     => $gets,
++            'hasDraft' => $tpl && is_array($tpl->draft_layout),
++            'hasLive'  => $tpl && $tpl->live_version_id,
++            'blockDef' => $blockDef,
++            'blockName'=> $this->b !== '' ? (TemplateStore::blockNames()[$this->b] ?? $this->b) : null,
++            'src'      => $tenant ? route('admin.dashboard-preview.frame', array_filter([
++                't' => $this->t ?: null, 'v' => $this->t ? $this->v : null, 'b' => $this->b ?: null, 'w' => $this->b ? $this->w : null,
++                'shop' => $tenant->id, 'role' => $this->role,
++            ])) : null,
++            'back'     => $this->b !== ''
++                ? (! empty($blockDef['custom']) ? DashboardBlockBuilder::getUrl(['k' => $this->b]) : DashboardBlocks::getUrl())
++                : DashboardEditor::getUrl(['t' => $this->t]),
++        ];
++    }
++}
+diff --git a/app/Http/Controllers/Admin/DashboardPreviewController.php b/app/Http/Controllers/Admin/DashboardPreviewController.php
+new file mode 100644
+index 00000000..d1a516f8
+--- /dev/null
++++ b/app/Http/Controllers/Admin/DashboardPreviewController.php
+@@ -0,0 +1,108 @@
++<?php
++
++namespace App\Http\Controllers\Admin;
++
++use App\Http\Controllers\Controller;
++use App\Models\DashboardBlock;
++use App\Models\Tenant;
++use App\Models\Tenant\TenantRole;
++use App\Models\Tenant\TenantUser;
++use App\Support\Dashboard\BlockAccess;
++use App\Support\Dashboard\BlockRegistry;
++use App\Support\Dashboard\DashboardPage;
++use App\Support\Dashboard\DashboardTemplates;
++use App\Support\Dashboard\Layout;
++use App\Support\Dashboard\TemplateStore;
++use Illuminate\Http\Request;
++use Illuminate\Support\Facades\View;
++
++/**
++ * MARKER-DASH-PREVIEW: one shop's dashboard as one of its roles would see
++ * it, drawn inside master admin's preview (DashboardPreview page, in an
++ * iframe). The same frame views and DashboardPage data as the shop's own
++ * dashboard; only the layout around it differs (no sidebar, nothing
++ * clickable). Read-only: nothing here writes to the shop.
++ *
++ *   ?t=key&v=live|draft   a template          ?b=key&w=4|6|8|12   one block
++ *   &shop=tenant id       &role=role id, or "owner"
++ */
++class DashboardPreviewController extends Controller
++{
++    public function frame(Request $request)
++    {
++        $tenant = Tenant::findOrFail((string) $request->query('shop'));
++        $user = self::person($tenant, (string) $request->query('role', 'owner'));
++
++        $hadTenant = app()->bound('tenant');
++        $prevTenant = $hadTenant ? app('tenant') : null;
++        app()->instance('tenant', $tenant);
++        try {
++            $see = BlockAccess::for($user);
++            $template = self::template($request, $tenant);
++            $rows = Layout::personal($template['rows'], $see->blocked(), [], 'none');
++
++            $theme = (array) ($tenant->settings ?? []);
++            $theme = in_array($theme['admin_theme'] ?? 'c', ['b', 'c'], true) ? ($theme['admin_theme'] ?? 'c') : 'c';
++            View::share('currentTenant', $tenant);
++            View::share('adminTheme', $theme);
++
++            // a single block has no switch; a template shows the shop's own switch, with it in
++            $switch = [];
++            if ($template['key'] !== 'preview') {
++                $switch = DashboardTemplates::switchable($tenant);
++                if (! in_array($template['key'], array_column($switch, 'key'), true)) $switch[] = $template;
++            }
++
++            $data = DashboardPage::data($tenant, $user, $see, $rows) + [
++                'activeTemplate'  => $template,
++                'switchTemplates' => $switch,
++                'customize'       => null,
++                'dashLayout'      => 'layouts.tenant.preview',
++                'pageTitle'       => 'Preview',
++            ];
++            $html = view(DashboardTemplates::frameView($template), $data)->render();
++        } finally {
++            $hadTenant ? app()->instance('tenant', $prevTenant) : app()->forgetInstance('tenant');
++        }
++
++        return response($html)->header('X-Frame-Options', 'SAMEORIGIN')->header('Cache-Control', 'no-store');
++    }
++
++    /** A stand-in person with the chosen role. Never saved. */
++    public static function person(Tenant $tenant, string $roleId): TenantUser
++    {
++        $role = $roleId !== 'owner' ? TenantRole::where('tenant_id', $tenant->id)->find($roleId) : null;
++        $u = new TenantUser();
++        $u->forceFill(['tenant_id' => $tenant->id, 'name' => '', 'is_active' => true,
++            'role' => ! $role || $role->isOwnerRole() ? 'owner' : ($role->is_system && $role->name === 'Manager' ? 'manager' : 'staff')]);
++        $u->setRelation('accessRole', $role);
++        $u->setRelation('tenant', $tenant);
++
++        return $u;
++    }
++
++    /** The template (or one block) to draw, in DashboardTemplates' shape. */
++    private static function template(Request $request, Tenant $tenant): array
++    {
++        $hidden = DashboardBlock::whereNotNull('hidden_at')->pluck('key')->all();
++        $b = (string) $request->query('b', '');
++        if ($b !== '') {
++            abort_unless(isset(BlockRegistry::all()[$b]), 404);
++            $w = (int) $request->query('w', 12);
++            $w = in_array($w, [4, 6, 8], true) ? $w : 12;
++            $rows = [['split' => $w === 12 ? [12] : [$w, 12 - $w], 'cols' => $w === 12 ? [[['b' => $b]]] : [[['b' => $b]], []]]];
++
++            return ['key' => 'preview', 'name' => 'Preview', 'frame' => 'standard', 'label' => 'Preview', 'beta' => false, 'icon' => 'custom',
++                'default' => false, 'rearrange' => 'none', 'audience' => null,
++                'rows' => Layout::visible($rows)];
++        }
++
++        $t = TemplateStore::find((string) $request->query('t'));
++        $layout = $request->query('v') === 'draft' ? TemplateStore::workingLayout($t) : (TemplateStore::liveLayout($t) ?? TemplateStore::workingLayout($t));
++
++        return ['key' => $t->key, 'name' => $t->name, 'frame' => array_key_exists($t->frame, DashboardTemplates::FRAMES) ? $t->frame : 'standard',
++            'label' => $t->switch_label ?: $t->name, 'beta' => (bool) $t->beta_badge, 'icon' => $t->icon ?: $t->frame,
++            'default' => (bool) $t->is_default, 'rearrange' => 'none', 'audience' => $t->audience,
++            'rows' => Layout::visible($layout, $hidden)];
++    }
++}
+diff --git a/app/Http/Controllers/Tenant/DashboardController.php b/app/Http/Controllers/Tenant/DashboardController.php
+index cdecd20c..15652ba7 100644
+--- a/app/Http/Controllers/Tenant/DashboardController.php
++++ b/app/Http/Controllers/Tenant/DashboardController.php
+@@ -3,7 +3,6 @@
+ namespace App\Http\Controllers\Tenant;
+ 
+ use App\Http\Controllers\Controller;
+-use App\Services\Tenant\DashboardDataService;
+ use App\Support\Dashboard\BlockRegistry;
+ use App\Support\Dashboard\CustomizePanel;
+ use App\Support\Dashboard\DashboardTemplates;
+@@ -32,41 +31,9 @@ class DashboardController extends Controller
+                 ]);
+         }
+ 
+-        $service = new DashboardDataService($tenant);
+-
+-        // When impersonating, the master admin is on the 'web' guard AND
+-        // the tenant owner is on the 'tenant' guard. We want the tenant
+-        // owner for the dashboard greeting; fall back to default if no
+-        // tenant-guarded user exists.
+-        $user = $request->user('tenant') ?? $request->user();
+-
+-        $dismissedThisSession = (bool) $request->cookie('onboarding_dismissed_at');
+-        $progress = $service->onboardingProgress($dismissedThisSession);
+-
+-        $workOrderBannerDismissed = (bool) $request->cookie('wof_banner_dismissed');
+-        $workOrderBanner = $service->workOrderBanner($workOrderBannerDismissed);
+-
+-        // compute zones in order, then
+-        // pass today + attention into zoneLauncher so it can reuse already-
+-        // computed counts (low stock, SO counts) without re-querying.
+-        $today     = $service->zoneToday();
+-        $attention = $service->zoneAttention();
+-
+-        // MARKER-DASH-ACCESS: a person only sees what their role can open —
+-        // cards, tiles and whole blocks — whatever the shop's roles are called.
++        // When impersonating, the master admin is on the 'web' guard AND the
++        // tenant owner is on the 'tenant' guard: the greeting is for the owner.
+         $see = \App\Support\Dashboard\BlockAccess::for($request->user('tenant'));
+-        $attention = $see->attention($attention);
+-
+-        $data = [
+-            'greeting'  => $service->greeting($user),
+-            'today'     => $today,
+-            'attention' => $attention,
+-            'growth'    => $service->zoneGrowth(),
+-            'launcher'  => $service->zoneLauncher($today, $attention),
+-            'progress'  => $progress,
+-            'workOrderBanner' => $see->canRoute('tenant.work-order-fields.index') ? $workOrderBanner : null,
+-            'see'       => $see,
+-        ];
+ 
+         // MARKER-DASH-TEMPLATES: the dashboard is a template — Overview, Tiles,
+         // Brief, or one built in master admin. The person's pick lives in
+@@ -84,21 +51,14 @@ class DashboardController extends Controller
+         $roleRows = Layout::personal($template['rows'], $blocked, [], 'none');
+         $rows = Layout::personal($template['rows'], $blocked, $prefs, $rearrange);
+ 
+-        // Only load what this template's blocks draw.
+-        $needs = BlockRegistry::needs($rows);
+-        if (in_array('week', $needs, true)) {
+-            $data['week'] = $service->weekAhead();
+-        }
+-        if (in_array('jobs', $needs, true)) {
+-            $data['jobs'] = $service->jobsCompleted30();
+-        }
+-        if (in_array('tiles', $needs, true)) {
+-            $data['tiles'] = $see->tiles(\App\Support\DashboardTiles::layout($tenant, $user));
+-        }
+-
++        // MARKER-DASH-PREVIEW: the page is built in DashboardPage, which master
++        // admin's preview shares, so a preview shows exactly this.
++        $data = \App\Support\Dashboard\DashboardPage::data($tenant, $request->user('tenant') ?? $request->user(), $see, $rows, [
++            'setup_dismissed' => (bool) $request->cookie('onboarding_dismissed_at'),
++            'wof_dismissed'   => (bool) $request->cookie('wof_banner_dismissed'),
++        ]);
+         $data['activeTemplate']  = $template;
+         $data['switchTemplates'] = DashboardTemplates::switchable($tenant);
+-        $data['dashRows']        = $rows;
+         $data['customize']       = CustomizePanel::for($template, $roleRows, $prefs, $rearrange);
+ 
+         return view(DashboardTemplates::frameView($template), $data);
+diff --git a/app/Providers/Filament/AdminPanelProvider.php b/app/Providers/Filament/AdminPanelProvider.php
+index aedf7294..5a1757a9 100644
+--- a/app/Providers/Filament/AdminPanelProvider.php
++++ b/app/Providers/Filament/AdminPanelProvider.php
+@@ -115,6 +115,7 @@ class AdminPanelProvider extends PanelProvider
+                 \App\Filament\Pages\DashboardEditor::class, // MARKER-DASH-ADMIN
+                 \App\Filament\Pages\DashboardBlocks::class, // MARKER-DASH-BUILDER
+                 \App\Filament\Pages\DashboardBlockBuilder::class,
++                \App\Filament\Pages\DashboardPreview::class, // MARKER-DASH-PREVIEW
+                 // list-first Catalog Titles page. This panel
+                 // lists pages explicitly, so a new page class is invisible until
+                 // it appears here, cache or no cache.
+diff --git a/app/Support/AdminAccess.php b/app/Support/AdminAccess.php
+index 72ddeee7..59258439 100644
+--- a/app/Support/AdminAccess.php
++++ b/app/Support/AdminAccess.php
+@@ -74,7 +74,7 @@ class AdminAccess
+             'customer-cleanup', 'billing-discounts',
+             'tenant-billing', 'billing-notices', 'sidebar', 'plan-prices', 'addons', 'scheduled-tasks',
+             'dashboards', 'dashboard-editor',
+-            'dashboard-blocks', 'dashboard-block'            => 'tenants', // MARKER-DASH-ADMIN, MARKER-DASH-BUILDER
++            'dashboard-blocks', 'dashboard-block', 'dashboard-preview' => 'tenants', // MARKER-DASH-ADMIN, MARKER-DASH-BUILDER
+             'tenant-domains'                                 => 'domains',
+             'sales-channels', 'sales-prospects',
+             'sales-find-shops', 'sales-territories', 'sales-places',
+diff --git a/app/Support/Dashboard/BlockRegistry.php b/app/Support/Dashboard/BlockRegistry.php
+index 987f46b3..bc8f7034 100644
+--- a/app/Support/Dashboard/BlockRegistry.php
++++ b/app/Support/Dashboard/BlockRegistry.php
+@@ -19,6 +19,9 @@ class BlockRegistry
+     /** Extra data a block can ask for, and what loads it. */
+     public const NEEDS = ['week', 'jobs', 'tiles'];
+ 
++    // 'title' (MARKER-DASH-BUILDER): the block's own heading, which a template
++    // can rename (Layout placement 'title'). Blocks without one have no heading.
++
+     /**
+      * MARKER-DASH-ACCESS: the areas (SectionRegistry keys) a block's data
+      * comes from — see BlockAccess. Blocks made of links and counts from
+@@ -33,13 +36,13 @@ class BlockRegistry
+         return [
+             // Overview
+             'attention' => ['name' => 'Needs attention', 'origin' => 'overview', 'view' => 'tenant.dashboard._zone_triage_tiles',
+-                'reads' => 'Appointments, work orders, special orders, stock', 'desc' => 'The attention counts as a row of tiles.', 'access' => self::QUEUE_AREAS, 'needs' => []],
++                'reads' => 'Appointments, work orders, special orders, stock', 'desc' => 'The attention counts as a row of tiles.', 'access' => self::QUEUE_AREAS, 'title' => 'Needs you today', 'needs' => []],
+             'today'     => ['name' => 'Today', 'origin' => 'overview', 'view' => 'tenant.dashboard._zone_today_tile',
+-                'reads' => 'Appointments', 'desc' => "Today's bookings and deliveries, or the next day that has some.", 'access' => ['any' => ['schedule']], 'needs' => []],
++                'reads' => 'Appointments', 'desc' => "Today's bookings and deliveries, or the next day that has some.", 'access' => ['any' => ['schedule']], 'title' => 'Today', 'needs' => []],
+             'growth'    => ['name' => 'Growth', 'origin' => 'overview', 'view' => 'tenant.dashboard._zone_growth_tiles',
+-                'reads' => 'Sales, customers', 'desc' => 'Revenue and customer trends.', 'access' => ['any' => ['reports', 'customers', 'settings']], 'needs' => []],
++                'reads' => 'Sales, customers', 'desc' => 'Revenue and customer trends.', 'access' => ['any' => ['reports', 'customers', 'settings']], 'title' => 'How the business is doing', 'needs' => []],
+             'launcher'  => ['name' => 'App launcher', 'origin' => 'overview', 'view' => 'tenant.dashboard._zone_launcher',
+-                'reads' => 'Add-ons the shop has', 'desc' => 'Shortcuts to the main areas.', 'access' => self::LINK_AREAS, 'needs' => []],
++                'reads' => 'Add-ons the shop has', 'desc' => 'Shortcuts to the main areas.', 'access' => self::LINK_AREAS, 'title' => 'Jump to', 'needs' => []],
+ 
+             // Tiles
+             'needs_you' => ['name' => 'Needs you', 'origin' => 'tiles', 'view' => 'tenant.dashboard.blocks.needs-you',
+@@ -55,11 +58,11 @@ class BlockRegistry
+             'setup'     => ['name' => 'Finish setup', 'origin' => 'brief', 'view' => 'tenant.dashboard.blocks.setup',
+                 'reads' => 'Setup progress', 'desc' => 'Shows until services, hours and branding are done.', 'access' => ['all' => ['services', 'capacity', 'settings']], 'needs' => []],
+             'queue'     => ['name' => 'The queue', 'origin' => 'brief', 'view' => 'tenant.dashboard.blocks.queue',
+-                'reads' => 'Appointments, work orders, special orders, stock', 'desc' => 'Late, Today and When you can. Each row opens its list.', 'access' => self::QUEUE_AREAS, 'needs' => []],
++                'reads' => 'Appointments, work orders, special orders, stock', 'desc' => 'Late, Today and When you can. Each row opens its list.', 'access' => self::QUEUE_AREAS, 'title' => 'The queue', 'needs' => []],
+             'week'      => ['name' => 'This week', 'origin' => 'brief', 'view' => 'tenant.dashboard.blocks.week',
+-                'reads' => 'Appointments, opening hours', 'desc' => 'Day strip and timeline. Free time links to a new appointment.', 'access' => ['any' => ['schedule']], 'needs' => ['week']],
++                'reads' => 'Appointments, opening hours', 'desc' => 'Day strip and timeline. Free time links to a new appointment.', 'access' => ['any' => ['schedule']], 'title' => 'This week', 'needs' => ['week']],
+             'last30'    => ['name' => 'Last 30 days', 'origin' => 'brief', 'view' => 'tenant.dashboard.blocks.last30',
+-                'reads' => 'Sales, work orders, customers', 'desc' => 'Sales, jobs completed and new customers against the 30 days before.', 'access' => ['any' => ['reports', 'schedule', 'customers']], 'needs' => ['jobs']],
++                'reads' => 'Sales, work orders, customers', 'desc' => 'Sales, jobs completed and new customers against the 30 days before.', 'access' => ['any' => ['reports', 'schedule', 'customers']], 'title' => 'Last 30 days', 'needs' => ['jobs']],
+         ];
+     }
+ 
+diff --git a/app/Support/Dashboard/CustomBlocks.php b/app/Support/Dashboard/CustomBlocks.php
+index 698809ae..38849aef 100644
+--- a/app/Support/Dashboard/CustomBlocks.php
++++ b/app/Support/Dashboard/CustomBlocks.php
+@@ -15,9 +15,8 @@ use Illuminate\Support\Str;
+  * MARKER-DASH-BUILDER: blocks made in master admin (Dashboards › Blocks).
+  *
+  * Three kinds:
+- *   data    reads one source at the shop it's on (appointments, sales,
+- *           customers), keeps only what matches its rules, and shows a count,
+- *           a total, an average or the records themselves
++ *   data    reads one source at the shop it's on, keeps only what matches its
++ *           rules, and shows a count, a total, an average or the records
+  *   action  a button to a page the app already has (New appointment, …)
+  *   note    a heading and a few lines of text from master admin
+  *
+@@ -28,75 +27,266 @@ use Illuminate\Support\Str;
+  *
+  * Config:
+  *   data:   source, rules [[field, op, value]], measure count|sum|avg|list,
+- *           field, period, compare, display number|trend|rows, line
++ *           field, period, compare, display number|trend|bars|progress|rows|table,
++ *           goal (progress only), line
+  *   action: action, line
+  *   note:   text, until (Y-m-d or null)
++ *
++ * A source is one table: how it's scoped (base), which date the period applies
++ * to (date: null for a "right now" snapshot), its fields, and how a record is
++ * drawn (rows). 'area' is the Roles & access area its data comes from; that
++ * area's add-on gate (Retail, Rentals, Classes…) also decides which shops can
++ * have a block from it.
+  */
+ class CustomBlocks
+ {
+     public const KEY_PREFIX = 'x';
+ 
+-    /** What a block can read. 'area' is the Roles & access area its data comes from. */
++    public const PERIODS = [
++        'now' => 'Right now', 'today' => 'Today', 'next_7' => 'Next 7 days', 'this_week' => 'This week', 'last_7' => 'Last 7 days',
++        'last_30' => 'Last 30 days', 'this_month' => 'This month', 'all_time' => 'All time',
++    ];
++
++    private const DATED = ['today', 'this_week', 'last_7', 'last_30', 'this_month', 'all_time'];
++    private const AHEAD = ['today', 'next_7', 'this_week', 'last_7', 'last_30', 'this_month', 'all_time'];
++
++    public const MEASURES = ['count' => 'How many', 'sum' => 'Total of', 'avg' => 'Average of', 'list' => 'The records'];
++
++    public const DISPLAYS = ['number' => 'Number', 'trend' => 'Number + trend', 'bars' => 'Bars by day', 'progress' => 'Progress to a goal', 'rows' => 'Rows', 'table' => 'Table'];
++
++    /** Buttons an action block can show: pages that already exist. */
++    public const ACTIONS = [
++        'new_appointment' => ['label' => 'New appointment', 'route' => 'tenant.appointments.index', 'params' => ['new' => 1]],
++        'register'        => ['label' => 'Open register', 'route' => 'tenant.register.index', 'params' => []],
++        'walk_in'         => ['label' => 'Start a walk-in', 'route' => 'tenant.register.walk-in', 'params' => []],
++        'special_orders'  => ['label' => 'Special orders', 'route' => 'tenant.special-orders.index', 'params' => []],
++        'customers'       => ['label' => 'Find a customer', 'route' => 'tenant.customers.index', 'params' => []],
++        'class_checkin'   => ['label' => 'Class check-in', 'route' => 'tenant.classes.checkin', 'params' => []],
++    ];
++
++    private static ?array $defs = null;
++    private static ?array $sources = null;
++
++    // ---- the sources -----------------------------------------------------------
++
++    /** A rule on a plain column: is / is not a value (a NULL counts as "not"). */
++    private static function col(string $col): \Closure
++    {
++        return fn (Builder $q, $v, bool $not) => $not
++            ? $q->where(fn ($w) => $w->where($col, '!=', $v)->orWhereNull($col))
++            : $q->where($col, $v);
++    }
++
++    /** A yes/no rule: $yes narrows to "yes"; "no" is everything else. */
++    private static function flag(\Closure $yes): \Closure
++    {
++        return function (Builder $q, $v, bool $not) use ($yes) {
++            if (($v === 'yes') !== $not) {
++                $yes($q);
++            } else {
++                $q->whereNot(fn ($w) => $yes($w));
++            }
++        };
++    }
++
++    private static function name(?string $first, ?string $last, string $fallback = 'No name'): string
++    {
++        return trim(($first ?? '') . ' ' . ($last ?? '')) ?: $fallback;
++    }
++
+     public static function sources(): array
+     {
+-        $roleLabels = ['awaiting' => 'Waiting to confirm', 'scheduled' => 'Confirmed', 'active' => 'In progress', 'done' => 'Done', 'cancelled' => 'Cancelled'];
++        if (self::$sources !== null) return self::$sources;
++        $yesNo = fn (string $yes, string $no) => ['yes' => $yes, 'no' => $no];
+ 
+-        return [
++        return self::$sources = [
+             'appointments' => [
+                 'label' => 'Appointments', 'desc' => 'Bookings and jobs, by their appointment date', 'area' => 'schedule',
+                 'opens' => 'tenant.appointments.index', 'opens_label' => 'Appointments', 'unit' => ['booking', 'bookings'],
++                'base' => fn (Builder $q) => $q,
++                'date' => ['col' => 'tenant_appointments.appointment_date', 'utc' => false], 'periods' => self::AHEAD,
+                 'fields' => [
+-                    'status'  => ['label' => 'Status', 'type' => 'enum', 'options' => $roleLabels],
+-                    'payment' => ['label' => 'Payment', 'type' => 'enum', 'options' => ['paid' => 'Paid', 'unpaid' => 'Unpaid', 'partial' => 'Part paid', 'refunded' => 'Refunded']],
+-                    'amount'  => ['label' => 'Amount', 'type' => 'money', 'sql' => 'total_cents'],
+-                    'owed'    => ['label' => 'Still owed', 'type' => 'money', 'sql' => '(total_cents - paid_cents)'],
++                    'status'  => ['label' => 'Status', 'type' => 'enum',
++                        'options' => ['awaiting' => 'Waiting to confirm', 'scheduled' => 'Confirmed', 'active' => 'In progress', 'done' => 'Done', 'cancelled' => 'Cancelled'],
++                        'apply' => fn (Builder $q, $v, bool $not) => $q->{$not ? 'whereNotIn' : 'whereIn'}('tenant_appointments.status', AppointmentStatus::statusesForRole($v))],
++                    'payment' => ['label' => 'Payment', 'type' => 'enum', 'options' => ['paid' => 'Paid', 'unpaid' => 'Unpaid', 'partial' => 'Part paid', 'refunded' => 'Refunded'],
++                        'apply' => self::col('tenant_appointments.payment_status')],
++                    'amount'  => ['label' => 'Amount', 'type' => 'money', 'sql' => 'tenant_appointments.total_cents'],
++                    'owed'    => ['label' => 'Still owed', 'type' => 'money', 'sql' => '(tenant_appointments.total_cents - tenant_appointments.paid_cents)'],
+                 ],
+-                'periods' => ['today', 'next_7', 'this_week', 'last_7', 'last_30', 'this_month', 'all_time'],
++                'cols' => ['Customer', 'When', 'Amount'],
++                'rows' => fn (Builder $q, $money, string $tz) => $q->orderBy('appointment_date')->orderBy('appointment_time')
++                    ->get(['id', 'customer_first_name', 'customer_last_name', 'appointment_date', 'appointment_time', 'status', 'total_cents'])
++                    ->map(fn ($r) => [self::name($r->customer_first_name, $r->customer_last_name),
++                        Carbon::parse($r->appointment_date)->format('D M j') . ($r->appointment_time ? ' · ' . Carbon::parse($r->appointment_time)->format('g:i A') : '')
++                            . ' · ' . (AppointmentStatus::LABELS[$r->status] ?? Str::headline((string) $r->status)),
++                        $money($r->total_cents), 'tenant.appointments.show', $r->id])->all(),
+             ],
+             'sales' => [
+                 'label' => 'Sales', 'desc' => 'Completed register and online sales, by when they were paid (Reports counts payments received, so the two can differ a little)', 'area' => 'reports',
+                 'opens' => 'tenant.reports.index', 'opens_label' => 'Reports', 'unit' => ['sale', 'sales'],
++                'base' => fn (Builder $q) => $q->where('tenant_sales.status', 'completed')->whereNull('tenant_sales.refund_of_sale_id')->whereNotNull('tenant_sales.paid_at'),
++                'date' => ['col' => 'tenant_sales.paid_at', 'utc' => true], 'periods' => self::DATED,
+                 'fields' => [
+                     'amount'   => ['label' => 'Amount', 'type' => 'money', 'sql' => 'tenant_sales.total_cents'],
+                     'discount' => ['label' => 'Discount given', 'type' => 'money', 'sql' => '(tenant_sales.discount_cents + tenant_sales.sale_discount_cents)'],
+                     'tip'      => ['label' => 'Tip', 'type' => 'money', 'sql' => 'tenant_sales.tip_cents'],
+-                    'customer' => ['label' => 'Customer', 'type' => 'enum', 'options' => ['yes' => 'Has a customer', 'no' => 'No customer (walk-in)']],
++                    'customer' => ['label' => 'Customer', 'type' => 'enum', 'options' => $yesNo('Has a customer', 'No customer (walk-in)'),
++                        'apply' => self::flag(fn ($q) => $q->whereNotNull('tenant_sales.customer_id'))],
+                 ],
+-                'periods' => ['today', 'this_week', 'last_7', 'last_30', 'this_month', 'all_time'],
++                'cols' => ['Customer', 'Sale', 'Amount'],
++                'rows' => fn (Builder $q, $money, string $tz) => $q->leftJoin('tenant_customers', 'tenant_customers.id', '=', 'tenant_sales.customer_id')
++                    ->orderByDesc('tenant_sales.paid_at')
++                    ->get(['tenant_sales.id', 'tenant_sales.sale_number', 'tenant_sales.paid_at', 'tenant_sales.total_cents', 'tenant_customers.first_name', 'tenant_customers.last_name'])
++                    ->map(fn ($r) => [self::name($r->first_name, $r->last_name, 'Walk-in'),
++                        '#' . $r->sale_number . ' · ' . Carbon::parse($r->paid_at, 'UTC')->setTimezone($tz)->format('M j, g:i A'),
++                        $money($r->total_cents), 'tenant.register.sales.receipt', $r->id])->all(),
+             ],
+             'customers' => [
+                 'label' => 'Customers', 'desc' => 'People and businesses, by when they were added', 'area' => 'customers',
+                 'opens' => 'tenant.customers.index', 'opens_label' => 'Customers', 'unit' => ['customer', 'customers'],
++                'base' => fn (Builder $q) => $q->whereNull('tenant_customers.erased_at'),
++                'date' => ['col' => 'tenant_customers.created_at', 'utc' => true], 'periods' => self::DATED,
+                 'fields' => [
+-                    'vip'   => ['label' => 'VIP', 'type' => 'enum', 'options' => ['yes' => 'VIP', 'no' => 'Not VIP']],
+-                    'type'  => ['label' => 'Kind', 'type' => 'enum', 'options' => ['individual' => 'Person', 'business' => 'Business']],
+-                    'email' => ['label' => 'Email', 'type' => 'enum', 'options' => ['yes' => 'Has an email', 'no' => 'No email']],
++                    'vip'   => ['label' => 'VIP', 'type' => 'enum', 'options' => $yesNo('VIP', 'Not VIP'), 'apply' => self::flag(fn ($q) => $q->where('tenant_customers.is_vip', 1))],
++                    'type'  => ['label' => 'Kind', 'type' => 'enum', 'options' => ['individual' => 'Person', 'business' => 'Business'], 'apply' => self::col('tenant_customers.customer_type')],
++                    'email' => ['label' => 'Email', 'type' => 'enum', 'options' => $yesNo('Has an email', 'No email'),
++                        'apply' => self::flag(fn ($q) => $q->whereNotNull('tenant_customers.email')->where('tenant_customers.email', '!=', ''))],
+                 ],
+-                'periods' => ['today', 'this_week', 'last_7', 'last_30', 'this_month', 'all_time'],
++                'cols' => ['Customer', 'Contact', 'Added'],
++                'rows' => fn (Builder $q, $money, string $tz) => $q->orderByDesc('tenant_customers.created_at')
++                    ->get(['id', 'first_name', 'last_name', 'business_name', 'email', 'phone', 'created_at'])
++                    ->map(fn ($r) => [self::name($r->first_name, $r->last_name, $r->business_name ?: 'No name'),
++                        $r->email ?: ($r->phone ?: 'No contact details'),
++                        'Added ' . Carbon::parse($r->created_at, 'UTC')->setTimezone($tz)->format('M j'), 'tenant.customers.show', $r->id])->all(),
++            ],
++            'inventory' => [
++                'label' => 'Inventory items', 'desc' => 'Active items and their stock, as they are right now', 'area' => 'inventory',
++                'opens' => 'tenant.inventory.index', 'opens_label' => 'Inventory', 'unit' => ['item', 'items'],
++                'base' => fn (Builder $q) => $q->where('tenant_inventory_items.is_active', 1)->whereNull('tenant_inventory_items.deleted_at')->whereNull('tenant_inventory_items.merged_into_id'),
++                'date' => null, 'periods' => ['now'],
++                'fields' => [
++                    'low'     => ['label' => 'Stock', 'type' => 'enum', 'options' => $yesNo('At or below its reorder point', 'Above its reorder point'),
++                        'apply' => self::flag(fn ($q) => $q->where('tenant_inventory_items.is_stock_tracked', 1)->whereNotNull('tenant_inventory_items.shop_reorder_threshold')
++                            ->whereColumn('tenant_inventory_items.computed_stock_count', '<=', 'tenant_inventory_items.shop_reorder_threshold'))],
++                    'online'  => ['label' => 'Online', 'type' => 'enum', 'options' => $yesNo('Shown online', 'Not online'), 'apply' => self::flag(fn ($q) => $q->where('tenant_inventory_items.show_online', 1))],
++                    'onhand'  => ['label' => 'On hand', 'type' => 'number', 'sql' => 'GREATEST(tenant_inventory_items.computed_stock_count, 0)'],
++                    'value'   => ['label' => 'Stock value at cost', 'type' => 'money',
++                        'sql' => '(GREATEST(tenant_inventory_items.computed_stock_count, 0) * COALESCE(tenant_inventory_items.received_cost_cents, tenant_inventory_items.shop_cost_cents, tenant_inventory_items.catalog_cost_cents, 0))'],
++                    'price'   => ['label' => 'Price', 'type' => 'money', 'sql' => 'tenant_inventory_items.shop_sell_price_cents'],
++                ],
++                'cols' => ['Item', 'SKU', 'On hand'],
++                'rows' => fn (Builder $q, $money, string $tz) => $q->orderBy('tenant_inventory_items.computed_stock_count')->orderBy('tenant_inventory_items.name')
++                    ->get(['id', 'name', 'sku', 'computed_stock_count', 'shop_reorder_threshold'])
++                    ->map(fn ($r) => [$r->name ?: 'No name', $r->sku ?: 'No SKU',
++                        number_format((int) $r->computed_stock_count) . ($r->shop_reorder_threshold !== null ? ' · reorder at ' . (int) $r->shop_reorder_threshold : ''),
++                        'tenant.inventory.show', $r->id])->all(),
++            ],
++            'special_orders' => [
++                'label' => 'Special orders', 'desc' => 'Items ordered for a customer, by when the order was made', 'area' => 'special_orders',
++                'opens' => 'tenant.special-orders.index', 'opens_label' => 'Special orders', 'unit' => ['order', 'orders'],
++                'base' => fn (Builder $q) => $q->whereNull('tenant_special_orders.deleted_at'),
++                'date' => ['col' => 'tenant_special_orders.created_at', 'utc' => true], 'periods' => self::DATED,
++                'fields' => [
++                    'status'  => ['label' => 'Status', 'type' => 'enum', 'options' => ['needed' => 'Needed', 'ordered' => 'Ordered', 'arrived' => 'Arrived', 'pulled' => 'Picked up', 'cancelled' => 'Cancelled'],
++                        'apply' => self::col('tenant_special_orders.status')],
++                    'late'    => ['label' => 'Arrival', 'type' => 'enum', 'options' => $yesNo('Past its expected date', 'Not late'),
++                        'apply' => self::flag(fn ($q) => $q->where('tenant_special_orders.status', 'ordered')->whereNotNull('tenant_special_orders.expected_arrival_date')
++                            ->whereDate('tenant_special_orders.expected_arrival_date', '<', now()->toDateString()))],
++                    'cost'    => ['label' => 'Cost', 'type' => 'money',
++                        'sql' => '(COALESCE(tenant_special_orders.unit_cost_cents_actual, tenant_special_orders.unit_cost_cents_estimated, 0) * tenant_special_orders.quantity)'],
++                ],
++                'cols' => ['Item', 'Order', 'Expected'],
++                'rows' => fn (Builder $q, $money, string $tz) => $q->leftJoin('tenant_customers', 'tenant_customers.id', '=', 'tenant_special_orders.customer_id')
++                    ->orderByRaw('tenant_special_orders.expected_arrival_date IS NULL')->orderBy('tenant_special_orders.expected_arrival_date')
++                    ->get(['tenant_special_orders.id', 'tenant_special_orders.so_number', 'tenant_special_orders.item_name_snapshot', 'tenant_special_orders.status',
++                        'tenant_special_orders.expected_arrival_date', 'tenant_customers.first_name', 'tenant_customers.last_name'])
++                    ->map(fn ($r) => [$r->item_name_snapshot ?: 'Item', '#' . $r->so_number . ' · ' . Str::headline((string) $r->status) . ' · ' . self::name($r->first_name, $r->last_name, 'No customer'),
++                        $r->expected_arrival_date ? Carbon::parse($r->expected_arrival_date)->format('M j') : '—', 'tenant.special-orders.show', $r->id])->all(),
++            ],
++            'gift_cards' => [
++                'label' => 'Gift cards', 'desc' => 'Cards sold or issued, by when they were made', 'area' => 'gift_cards',
++                'opens' => 'tenant.gift-cards.index', 'opens_label' => 'Gift cards', 'unit' => ['card', 'cards'],
++                'base' => fn (Builder $q) => $q,
++                'date' => ['col' => 'tenant_gift_cards.created_at', 'utc' => true], 'periods' => self::DATED,
++                'fields' => [
++                    'status'   => ['label' => 'Status', 'type' => 'enum', 'options' => ['active' => 'Active', 'used' => 'Used up', 'pending' => 'Not paid for yet', 'deactivated' => 'Deactivated'],
++                        'apply' => self::col('tenant_gift_cards.status')],
++                    'balance'  => ['label' => 'Balance left', 'type' => 'money', 'sql' => 'tenant_gift_cards.balance_cents'],
++                    'original' => ['label' => 'Value when issued', 'type' => 'money', 'sql' => 'tenant_gift_cards.original_cents'],
++                ],
++                'cols' => ['Card', 'For', 'Balance'],
++                'rows' => fn (Builder $q, $money, string $tz) => $q->orderByDesc('tenant_gift_cards.created_at')
++                    ->get(['id', 'code', 'recipient_name', 'purchaser_name', 'balance_cents', 'status'])
++                    ->map(fn ($r) => ['…' . substr((string) $r->code, -4), $r->recipient_name ?: ($r->purchaser_name ?: 'No name') . ' · ' . Str::headline((string) $r->status),
++                        $money($r->balance_cents), 'tenant.gift-cards.show', $r->id])->all(),
++            ],
++            'rentals' => [
++                'label' => 'Rentals', 'desc' => 'Rental bookings, by when they start', 'area' => 'rentals',
++                'opens' => 'tenant.rentals.desk', 'opens_label' => 'Rentals desk', 'unit' => ['rental', 'rentals'],
++                'base' => fn (Builder $q) => $q,
++                'date' => ['col' => 'tenant_rentals.starts_at', 'utc' => true], 'periods' => self::AHEAD,
++                'fields' => [
++                    'status' => ['label' => 'Status', 'type' => 'enum', 'options' => ['reserved' => 'Reserved', 'out' => 'Out', 'returned' => 'Returned', 'cancelled' => 'Cancelled'],
++                        'apply' => self::col('tenant_rentals.status')],
++                    'late'   => ['label' => 'Due back', 'type' => 'enum', 'options' => $yesNo('Late (out past its due time)', 'Not late'),
++                        'apply' => self::flag(fn ($q) => $q->where('tenant_rentals.status', 'out')->where('tenant_rentals.due_at', '<', now()))],
++                    'amount' => ['label' => 'Amount', 'type' => 'money', 'sql' => 'tenant_rentals.total_cents'],
++                ],
++                'cols' => ['Customer', 'Rental', 'Due back'],
++                'rows' => fn (Builder $q, $money, string $tz) => $q->leftJoin('tenant_customers', 'tenant_customers.id', '=', 'tenant_rentals.customer_id')
++                    ->orderBy('tenant_rentals.starts_at')
++                    ->get(['tenant_rentals.id', 'tenant_rentals.rental_number', 'tenant_rentals.status', 'tenant_rentals.due_at', 'tenant_customers.first_name', 'tenant_customers.last_name'])
++                    ->map(fn ($r) => [self::name($r->first_name, $r->last_name), '#' . $r->rental_number . ' · ' . Str::headline((string) $r->status),
++                        $r->due_at ? Carbon::parse($r->due_at, 'UTC')->setTimezone($tz)->format('M j, g:i A') : '—', 'tenant.rentals.bookings.show', $r->id])->all(),
++            ],
++            'class_sessions' => [
++                'label' => 'Class sessions', 'desc' => 'Scheduled classes, by when they start', 'area' => 'classes',
++                'opens' => 'tenant.classes.sessions', 'opens_label' => 'Classes', 'unit' => ['class', 'classes'],
++                'base' => fn (Builder $q) => $q->whereNull('tenant_class_sessions.deleted_at'),
++                'date' => ['col' => 'tenant_class_sessions.starts_at', 'utc' => true], 'periods' => self::AHEAD,
++                'fields' => [
++                    'status'   => ['label' => 'Status', 'type' => 'enum', 'options' => ['scheduled' => 'Scheduled', 'confirmed' => 'Confirmed', 'completed' => 'Completed', 'cancelled' => 'Cancelled'],
++                        'apply' => self::col('tenant_class_sessions.status')],
++                    'full'     => ['label' => 'Spots', 'type' => 'enum', 'options' => $yesNo('Full', 'Has open spots'),
++                        'apply' => self::flag(fn ($q) => $q->whereRaw(self::BOOKED . ' >= tenant_class_sessions.capacity_snapshot'))],
++                    'booked'   => ['label' => 'People booked', 'type' => 'number', 'sql' => self::BOOKED],
++                    'capacity' => ['label' => 'Spots', 'type' => 'number', 'sql' => 'tenant_class_sessions.capacity_snapshot'],
++                ],
++                'cols' => ['Class', 'When', 'Booked'],
++                'rows' => fn (Builder $q, $money, string $tz) => $q->leftJoin('tenant_class_templates', 'tenant_class_templates.id', '=', 'tenant_class_sessions.class_template_id')
++                    ->orderBy('tenant_class_sessions.starts_at')
++                    ->selectRaw('tenant_class_sessions.id, tenant_class_sessions.starts_at, tenant_class_sessions.instructor_snapshot, tenant_class_sessions.capacity_snapshot, tenant_class_templates.name, ' . self::BOOKED . ' as booked')
++                    ->get()
++                    ->map(fn ($r) => [$r->name ?: 'Class', Carbon::parse($r->starts_at, 'UTC')->setTimezone($tz)->format('D M j, g:i A') . ($r->instructor_snapshot ? ' · ' . (is_string($r->instructor_snapshot) && ! str_starts_with($r->instructor_snapshot, '{') ? $r->instructor_snapshot : '') : ''),
++                        (int) $r->booked . ' / ' . (int) $r->capacity_snapshot, 'tenant.classes.sessions.show', $r->id])->all(),
++            ],
++            'memberships' => [
++                'label' => 'Memberships', 'desc' => 'Class memberships, as they are right now', 'area' => 'classes',
++                'opens' => 'tenant.classes.memberships', 'opens_label' => 'Memberships', 'unit' => ['membership', 'memberships'],
++                'base' => fn (Builder $q) => $q->whereNull('tenant_customer_memberships.deleted_at'),
++                'date' => null, 'periods' => ['now'],
++                'fields' => [
++                    'status' => ['label' => 'Status', 'type' => 'enum', 'options' => ['active' => 'Active', 'past_due' => 'Payment overdue', 'paused' => 'Paused', 'cancelled' => 'Cancelled', 'expired' => 'Expired'],
++                        'apply' => self::col('tenant_customer_memberships.status')],
++                    'renews' => ['label' => 'Renewal', 'type' => 'enum', 'options' => $yesNo('Renews in the next 7 days', 'Not renewing this week'),
++                        'apply' => self::flag(fn ($q) => $q->whereBetween('tenant_customer_memberships.current_period_end', [now(), now()->addDays(7)]))],
++                    'price'  => ['label' => 'Renewal price', 'type' => 'money', 'sql' => 'tenant_customer_memberships.renewal_price_cents'],
++                ],
++                'cols' => ['Member', 'Plan', 'Renews'],
++                'rows' => fn (Builder $q, $money, string $tz) => $q->leftJoin('tenant_customers', 'tenant_customers.id', '=', 'tenant_customer_memberships.customer_id')
++                    ->leftJoin('tenant_class_membership_products', 'tenant_class_membership_products.id', '=', 'tenant_customer_memberships.product_id')
++                    ->orderBy('tenant_customer_memberships.current_period_end')
++                    ->get(['tenant_customer_memberships.customer_id', 'tenant_customer_memberships.status', 'tenant_customer_memberships.current_period_end',
++                        'tenant_customers.first_name', 'tenant_customers.last_name', 'tenant_class_membership_products.name'])
++                    ->map(fn ($r) => [self::name($r->first_name, $r->last_name), ($r->name ?: 'Membership') . ' · ' . Str::headline((string) $r->status),
++                        $r->current_period_end ? Carbon::parse($r->current_period_end, 'UTC')->setTimezone($tz)->format('M j') : '—', 'tenant.customers.show', $r->customer_id])->all(),
+             ],
+         ];
+     }
+ 
+-    public const PERIODS = [
+-        'today' => 'Today', 'next_7' => 'Next 7 days', 'this_week' => 'This week', 'last_7' => 'Last 7 days',
+-        'last_30' => 'Last 30 days', 'this_month' => 'This month', 'all_time' => 'All time',
+-    ];
+-
+-    public const MEASURES = ['count' => 'How many', 'sum' => 'Total of', 'avg' => 'Average of', 'list' => 'The records'];
+-
+-    public const DISPLAYS = ['number' => 'Number', 'trend' => 'Number + trend', 'rows' => 'Rows'];
+-
+-    /** Buttons an action block can show: pages that already exist. */
+-    public const ACTIONS = [
+-        'new_appointment' => ['label' => 'New appointment', 'route' => 'tenant.appointments.index', 'params' => ['new' => 1]],
+-        'register'        => ['label' => 'Open register', 'route' => 'tenant.register.index', 'params' => []],
+-        'walk_in'         => ['label' => 'Start a walk-in', 'route' => 'tenant.register.walk-in', 'params' => []],
+-        'special_orders'  => ['label' => 'Special orders', 'route' => 'tenant.special-orders.index', 'params' => []],
+-        'customers'       => ['label' => 'Find a customer', 'route' => 'tenant.customers.index', 'params' => []],
+-        'class_checkin'   => ['label' => 'Class check-in', 'route' => 'tenant.classes.checkin', 'params' => []],
+-    ];
+-
+-    private static ?array $defs = null;
++    /** People booked into a class session (registered or checked in). */
++    private const BOOKED = "(SELECT COUNT(*) FROM tenant_class_registrations r WHERE r.class_session_id = tenant_class_sessions.id AND r.status IN ('registered', 'checked_in') AND r.deleted_at IS NULL)";
+ 
+     // ---- the blocks themselves ---------------------------------------------
+ 
+@@ -116,6 +306,7 @@ class CustomBlocks
+                     'desc'   => self::sentence($b->kind, $cfg),
+                     'access' => self::access($b->kind, $cfg),
+                     'needs'  => [],
++                    'title'  => $b->name,
+                     'custom' => true,
+                     'kind'   => $b->kind,
+                     'config' => $cfg,
+@@ -158,6 +349,21 @@ class CustomBlocks
+         };
+     }
+ 
++    /** Fields that can be added up or averaged. */
++    public static function summable(string $source): array
++    {
++        return array_keys(array_filter(self::sources()[$source]['fields'] ?? [], fn ($f) => in_array($f['type'], ['money', 'number'], true)));
++    }
++
++    /** Which displays fit a measure and period. */
++    public static function displaysFor(string $measure, string $period, bool $dated): array
++    {
++        if ($measure === 'list') return ['rows', 'table'];
++        $multi = $dated && ! in_array($period, ['now', 'today', 'all_time'], true);
++
++        return array_values(array_filter(['number', $multi ? 'trend' : null, $multi ? 'bars' : null, 'progress']));
++    }
++
+     /**
+      * A config fit to store and run: known values only. Anything unknown
+      * falls back to a safe default rather than failing.
+@@ -176,15 +382,15 @@ class CustomBlocks
+         $sources = self::sources();
+         $source = isset($sources[$c['source'] ?? '']) ? $c['source'] : 'appointments';
+         $src = $sources[$source];
+-        $money = array_keys(array_filter($src['fields'], fn ($f) => $f['type'] === 'money'));
++        $sum = self::summable($source);
+         $measure = isset(self::MEASURES[$c['measure'] ?? '']) ? $c['measure'] : 'count';
+-        if (in_array($measure, ['sum', 'avg'], true) && ! $money) $measure = 'count';
+-        $field = in_array($c['field'] ?? null, $money, true) ? $c['field'] : ($money[0] ?? null);
+-        $period = in_array($c['period'] ?? '', $src['periods'], true) ? $c['period'] : 'last_30';
+-        $display = isset(self::DISPLAYS[$c['display'] ?? '']) ? $c['display'] : 'number';
+-        if ($measure === 'list') $display = 'rows';
+-        if ($measure !== 'list' && $display === 'rows') $display = 'number';
+-        if ($display === 'trend' && in_array($period, ['today', 'all_time'], true)) $display = 'number';
++        if (in_array($measure, ['sum', 'avg'], true) && ! $sum) $measure = 'count';
++        $field = in_array($c['field'] ?? null, $sum, true) ? $c['field'] : ($sum[0] ?? null);
++        $period = in_array($c['period'] ?? '', $src['periods'], true) ? $c['period'] : ($src['date'] ? 'last_30' : 'now');
++        $allowed = self::displaysFor($measure, $period, $src['date'] !== null);
++        $display = in_array($c['display'] ?? '', $allowed, true) ? $c['display'] : $allowed[0];
++        $goal = is_numeric($c['goal'] ?? null) && (float) $c['goal'] > 0 ? round((float) $c['goal'], 2) : null;
++        if ($display === 'progress' && ! $goal) $goal = null; // drawn as a plain number until a goal is set
+ 
+         $rules = [];
+         foreach (array_slice((array) ($c['rules'] ?? []), 0, 6) as $r) {
+@@ -206,8 +412,9 @@ class CustomBlocks
+             'measure' => $measure,
+             'field'   => in_array($measure, ['sum', 'avg'], true) ? $field : null,
+             'period'  => $period,
+-            'compare' => $measure !== 'list' && $period !== 'all_time' && ! empty($c['compare']),
++            'compare' => $measure !== 'list' && $src['date'] !== null && ! in_array($period, ['all_time', 'now'], true) && ! empty($c['compare']),
+             'display' => $display,
++            'goal'    => $display === 'progress' ? $goal : null,
+             'line'    => mb_substr(trim((string) ($c['line'] ?? '')), 0, 140),
+         ];
+     }
+@@ -219,29 +426,40 @@ class CustomBlocks
+         if ($kind === 'note') return 'A note to shops' . ($c['until'] ? ', shown until ' . Carbon::parse($c['until'])->format('M j') : '') . '.';
+ 
+         $src = self::sources()[$c['source']];
++        $fl = fn ($k) => strtolower($src['fields'][$k]['label'] ?? '');
+         $what = match ($c['measure']) {
+             'count' => 'How many ' . strtolower($src['label']),
+-            'sum'   => 'The total ' . strtolower($src['fields'][$c['field']]['label'] ?? '') . ' of ' . strtolower($src['label']),
+-            'avg'   => 'The average ' . strtolower($src['fields'][$c['field']]['label'] ?? '') . ' of ' . strtolower($src['label']),
++            'sum'   => 'The total ' . $fl($c['field']) . ' across ' . strtolower($src['label']),
++            'avg'   => 'The average ' . $fl($c['field']) . ' per ' . ($src['unit'][0] ?? 'record'),
+             default => 'The ' . strtolower($src['label']),
+         };
+         $rules = array_map(function ($r) use ($src) {
+             $f = $src['fields'][$r[0]];
+             if ($f['type'] === 'enum') return strtolower($f['label']) . ($r[1] === 'is_not' ? ' is not ' : ' is ') . $f['options'][$r[2]];
+-            return strtolower($f['label']) . ($r[1] === 'more' ? ' over ' : ' under ') . '$' . number_format((float) $r[2], 2);
++            $amt = $f['type'] === 'money' ? '$' . number_format((float) $r[2], 2) : rtrim(rtrim(number_format((float) $r[2], 2), '0'), '.');
++            return strtolower($f['label']) . ($r[1] === 'more' ? ' over ' : ' under ') . $amt;
+         }, $c['rules']);
++        $goal = $c['display'] === 'progress' && $c['goal'] ? ', against a goal of ' . self::goalText($c) : '';
+ 
+         return $what . ($rules ? ' where ' . implode(' and ', $rules) : '') . ', ' . strtolower(self::PERIODS[$c['period']])
+-            . ($c['compare'] ? ', compared with the period before' : '') . '.';
++            . ($c['compare'] ? ', compared with the period before' : '') . $goal . '.';
++    }
++
++    public static function isMoney(array $c): bool
++    {
++        return in_array($c['measure'], ['sum', 'avg'], true) && (self::sources()[$c['source']]['fields'][$c['field']]['type'] ?? null) === 'money';
++    }
++
++    public static function goalText(array $c, ?Tenant $tenant = null): string
++    {
++        if (! $c['goal']) return '';
++
++        return self::isMoney($c) ? self::money((int) round($c['goal'] * 100), $tenant?->currency_symbol ?? '$') : number_format($c['goal']);
+     }
+ 
+     // ---- figures -------------------------------------------------------------
+ 
+-    /**
+-     * The block's figures at one shop, cached for five minutes.
+-     *
+-     * @return array{kind: string, ...}
+-     */
++    /** The block's figures at one shop, cached for five minutes. */
+     public static function result(string $key, Tenant $tenant): ?array
+     {
+         $def = self::definitions()[$key] ?? null;
+@@ -258,25 +476,33 @@ class CustomBlocks
+     {
+         $tz = $tenant->timezone();
+         [$from, $to, $pFrom, $pTo] = self::range($c['period'], $tz);
+-        $out = ['kind' => 'data', 'measure' => $c['measure'], 'display' => $c['display'], 'money' => in_array($c['measure'], ['sum', 'avg'], true)];
++        $out = ['kind' => 'data', 'measure' => $c['measure'], 'display' => $c['display'], 'money' => self::isMoney($c)];
+ 
+         if ($c['measure'] === 'list') {
+             $out['total'] = (clone self::query($c, $tenant, $from, $to))->count();
+-            $out['rows'] = self::rows($c, $tenant, $from, $to);
++            $sym = $tenant->currency_symbol ?? '$';
++            $out['rows'] = (self::sources()[$c['source']]['rows'])(self::query($c, $tenant, $from, $to)->limit(6), fn ($cents) => self::money((int) $cents, $sym), $tz);
+             return $out;
+         }
+ 
+         $out['value'] = self::aggregate($c, $tenant, $from, $to);
+         $out['prev'] = $c['compare'] && $pFrom ? self::aggregate($c, $tenant, $pFrom, $pTo) : null;
+         $out['pct'] = ($out['prev'] !== null && $out['prev'] != 0) ? (int) round(($out['value'] - $out['prev']) / abs($out['prev']) * 100) : null;
+-        if ($c['display'] === 'trend' && $from) {
++        if (in_array($c['display'], ['trend', 'bars'], true) && $from) {
+             $out['series'] = self::series($c, $tenant, $from, $to);
++            $out['labels'] = self::dayLabels($from, $to);
++            $out['today_i'] = array_search(Carbon::now($tz)->toDateString(), array_keys(self::days($from, $to)), true);
++        }
++        if ($c['display'] === 'progress' && $c['goal']) {
++            $goal = self::isMoney($c) ? $c['goal'] * 100 : $c['goal'];
++            $out['goal'] = $goal;
++            $out['pct_goal'] = $goal > 0 ? (int) min(999, round($out['value'] / $goal * 100)) : null;
+         }
+ 
+         return $out;
+     }
+ 
+-    /** [from, to, prevFrom, prevTo] as tenant-local Carbons; nulls for all time. */
++    /** [from, to, prevFrom, prevTo] as tenant-local Carbons; nulls for all time and right now. */
+     public static function range(string $period, string $tz): array
+     {
+         $today = Carbon::now($tz)->startOfDay();
+@@ -287,7 +513,8 @@ class CustomBlocks
+             case 'last_7':     $f = $today->copy()->subDays(6); $t = $today->copy(); break;
+             case 'this_month': $f = $today->copy()->startOfMonth(); $t = $today->copy()->endOfMonth()->startOfDay();
+                 return [$f, $t, $f->copy()->subMonthNoOverflow()->startOfMonth(), $f->copy()->subDay()];
+-            case 'all_time':   return [null, null, null, null];
++            case 'all_time':
++            case 'now':        return [null, null, null, null];
+             default:           $f = $today->copy()->subDays(29); $t = $today->copy();
+         }
+         $days = $f->diffInDays($t) + 1;
+@@ -298,59 +525,38 @@ class CustomBlocks
+     /** The source's rows at this shop, with its rules and the date range applied. */
+     private static function query(array $c, Tenant $tenant, ?Carbon $from, ?Carbon $to): Builder
+     {
+-        $tid = $tenant->id;
+-        switch ($c['source']) {
+-            case 'sales':
+-                $q = DB::table('tenant_sales')->where('tenant_sales.tenant_id', $tid)
+-                    ->where('tenant_sales.status', 'completed')->whereNull('tenant_sales.refund_of_sale_id')->whereNotNull('tenant_sales.paid_at');
+-                if ($from) $q->whereBetween('tenant_sales.paid_at', [$from->copy()->utc(), $to->copy()->endOfDay()->utc()]);
+-                break;
+-            case 'customers':
+-                $q = DB::table('tenant_customers')->where('tenant_customers.tenant_id', $tid)->whereNull('tenant_customers.erased_at');
+-                if ($from) $q->whereBetween('tenant_customers.created_at', [$from->copy()->utc(), $to->copy()->endOfDay()->utc()]);
+-                break;
+-            default:
+-                $q = DB::table('tenant_appointments')->where('tenant_appointments.tenant_id', $tid);
+-                if ($from) $q->whereBetween('tenant_appointments.appointment_date', [$from->toDateString(), $to->toDateString()]);
++        $src = self::sources()[$c['source']];
++        $table = self::table($c['source']);
++        $q = DB::table($table)->where($table . '.tenant_id', $tenant->id);
++        ($src['base'])($q);
++        if ($from && $src['date']) {
++            $d = $src['date'];
++            $d['utc']
++                ? $q->whereBetween($d['col'], [$from->copy()->utc(), $to->copy()->endOfDay()->utc()])
++                : $q->whereBetween($d['col'], [$from->toDateString(), $to->toDateString()]);
+         }
+ 
+-        $fields = self::sources()[$c['source']]['fields'];
+         foreach ($c['rules'] as [$f, $op, $v]) {
+-            $def = $fields[$f];
+-            if ($def['type'] === 'money') {
+-                $q->whereRaw($def['sql'] . ($op === 'more' ? ' > ?' : ' < ?'), [(int) round($v * 100)]);
+-                continue;
+-            }
+-            $not = $op === 'is_not';
+-            switch ($c['source'] . '.' . $f) {
+-                case 'appointments.status':
+-                    $q->{$not ? 'whereNotIn' : 'whereIn'}('tenant_appointments.status', AppointmentStatus::statusesForRole($v));
+-                    break;
+-                case 'appointments.payment':
+-                    $not ? $q->where(fn ($w) => $w->where('tenant_appointments.payment_status', '!=', $v)->orWhereNull('tenant_appointments.payment_status'))
+-                         : $q->where('tenant_appointments.payment_status', $v);
+-                    break;
+-                case 'sales.customer':
+-                    ($v === 'yes') !== $not ? $q->whereNotNull('tenant_sales.customer_id') : $q->whereNull('tenant_sales.customer_id');
+-                    break;
+-                case 'customers.vip':
+-                    $q->where('tenant_customers.is_vip', (($v === 'yes') !== $not) ? 1 : 0);
+-                    break;
+-                case 'customers.type':
+-                    $not ? $q->where(fn ($w) => $w->where('tenant_customers.customer_type', '!=', $v)->orWhereNull('tenant_customers.customer_type'))
+-                         : $q->where('tenant_customers.customer_type', $v);
+-                    break;
+-                case 'customers.email':
+-                    ($v === 'yes') !== $not
+-                        ? $q->whereNotNull('tenant_customers.email')->where('tenant_customers.email', '!=', '')
+-                        : $q->where(fn ($w) => $w->whereNull('tenant_customers.email')->orWhere('tenant_customers.email', ''));
+-                    break;
++            $def = $src['fields'][$f];
++            if ($def['type'] === 'enum') {
++                ($def['apply'])($q, $v, $op === 'is_not');
++            } else {
++                $q->whereRaw($def['sql'] . ($op === 'more' ? ' > ?' : ' < ?'), [$def['type'] === 'money' ? (int) round($v * 100) : $v]);
+             }
+         }
+ 
+         return $q;
+     }
+ 
++    private static function table(string $source): string
++    {
++        return [
++            'appointments' => 'tenant_appointments', 'sales' => 'tenant_sales', 'customers' => 'tenant_customers',
++            'inventory' => 'tenant_inventory_items', 'special_orders' => 'tenant_special_orders', 'gift_cards' => 'tenant_gift_cards',
++            'rentals' => 'tenant_rentals', 'class_sessions' => 'tenant_class_sessions', 'memberships' => 'tenant_customer_memberships',
++        ][$source];
++    }
++
+     private static function aggExpr(array $c): string
+     {
+         if ($c['measure'] === 'count') return 'COUNT(*)';
+@@ -364,75 +570,58 @@ class CustomBlocks
+         return (float) (self::query($c, $tenant, $from, $to)->selectRaw(self::aggExpr($c) . ' as v')->value('v') ?? 0);
+     }
+ 
+-    /** One value per day across the period, for the sparkline. */
+-    private static function series(array $c, Tenant $tenant, Carbon $from, Carbon $to): array
++    private static function days(Carbon $from, Carbon $to): array
+     {
+         $days = [];
+         for ($d = $from->copy(); $d->lte($to) && count($days) < 62; $d->addDay()) $days[$d->toDateString()] = 0;
++
++        return $days;
++    }
++
++    /** "M", "T"… for a week or less; the day of the month beyond that. */
++    private static function dayLabels(Carbon $from, Carbon $to): array
++    {
++        $keys = array_keys(self::days($from, $to));
++
++        return array_map(fn ($d) => count($keys) <= 7 ? Carbon::parse($d)->format('D')[0] : Carbon::parse($d)->format('j'), $keys);
++    }
++
++    /** One value per day across the period. */
++    private static function series(array $c, Tenant $tenant, Carbon $from, Carbon $to): array
++    {
++        $days = self::days($from, $to);
++        $d = self::sources()[$c['source']]['date'];
+         $q = self::query($c, $tenant, $from, $to);
+-        if ($c['source'] === 'appointments') {
+-            $q->selectRaw('DATE(tenant_appointments.appointment_date) as d, ' . self::aggExpr($c) . ' as v');
++        if (! $d['utc']) {
++            $q->selectRaw('DATE(' . $d['col'] . ') as d, ' . self::aggExpr($c) . ' as v');
+         } else {
+-            $col = $c['source'] === 'sales' ? 'tenant_sales.paid_at' : 'tenant_customers.created_at';
+-            [$expr, $bind] = tenant_tz_offset_expr($col, $tenant->timezone(), $from->copy()->utc(), $to->copy()->endOfDay()->utc());
++            [$expr, $bind] = tenant_tz_offset_expr($d['col'], $tenant->timezone(), $from->copy()->utc(), $to->copy()->endOfDay()->utc());
+             $q->selectRaw("DATE({$expr}) as d, " . self::aggExpr($c) . ' as v', $bind);
+         }
+-        foreach ($q->groupBy('d')->pluck('v', 'd') as $d => $v) {
+-            if (array_key_exists($d, $days)) $days[$d] = (float) $v;
++        foreach ($q->groupBy('d')->pluck('v', 'd') as $day => $v) {
++            if (array_key_exists($day, $days)) $days[$day] = (float) $v;
+         }
+ 
+         return array_values($days);
+     }
+ 
+-    /** Up to six records, each [title, sub, right, route, id]. */
+-    private static function rows(array $c, Tenant $tenant, ?Carbon $from, ?Carbon $to): array
++    public static function money(int $cents, string $sym = '$'): string
+     {
+-        $tz = $tenant->timezone();
+-        $sym = $tenant->currency_symbol ?? '$';
+-        $money = fn ($cents) => self::money((int) $cents, $sym);
+-        $q = self::query($c, $tenant, $from, $to)->limit(6);
+-
+-        switch ($c['source']) {
+-            case 'sales':
+-                return $q->leftJoin('tenant_customers', 'tenant_customers.id', '=', 'tenant_sales.customer_id')
+-                    ->orderByDesc('tenant_sales.paid_at')
+-                    ->get(['tenant_sales.id', 'tenant_sales.sale_number', 'tenant_sales.paid_at', 'tenant_sales.total_cents', 'tenant_customers.first_name', 'tenant_customers.last_name'])
+-                    ->map(fn ($r) => [
+-                        trim(($r->first_name ?? '') . ' ' . ($r->last_name ?? '')) ?: 'Walk-in',
+-                        '#' . $r->sale_number . ' · ' . Carbon::parse($r->paid_at, 'UTC')->setTimezone($tz)->format('M j, g:i A'),
+-                        $money($r->total_cents), 'tenant.register.sales.receipt', $r->id,
+-                    ])->all();
+-            case 'customers':
+-                return $q->orderByDesc('tenant_customers.created_at')
+-                    ->get(['id', 'first_name', 'last_name', 'business_name', 'email', 'phone', 'created_at'])
+-                    ->map(fn ($r) => [
+-                        trim($r->first_name . ' ' . $r->last_name) ?: ($r->business_name ?: 'No name'),
+-                        $r->email ?: ($r->phone ?: 'No contact details'),
+-                        'Added ' . Carbon::parse($r->created_at, 'UTC')->setTimezone($tz)->format('M j'), 'tenant.customers.show', $r->id,
+-                    ])->all();
+-            default:
+-                return $q->orderBy('appointment_date')->orderBy('appointment_time')
+-                    ->get(['id', 'customer_first_name', 'customer_last_name', 'appointment_date', 'appointment_time', 'status', 'total_cents'])
+-                    ->map(fn ($r) => [
+-                        trim($r->customer_first_name . ' ' . $r->customer_last_name) ?: 'No name',
+-                        Carbon::parse($r->appointment_date)->format('D M j') . ($r->appointment_time ? ' · ' . Carbon::parse($r->appointment_time)->format('g:i A') : '')
+-                            . ' · ' . (AppointmentStatus::LABELS[$r->status] ?? Str::headline((string) $r->status)),
+-                        $money($r->total_cents), 'tenant.appointments.show', $r->id,
+-                    ])->all();
+-        }
++        return ($cents < 0 ? '-' : '') . $sym . number_format(abs($cents) / 100, abs($cents) >= 100000 ? 0 : 2);
+     }
+ 
+-    public static function money(int $cents, string $sym = '$'): string
++    /** A value as text: "42", "3.5", "$1,280". */
++    public static function format(float $v, array $r, ?Tenant $tenant = null): string
+     {
+-        return ($cents < 0 ? '-' : '') . $sym . number_format(abs($cents) / 100, abs($cents) >= 100000 ? 0 : 2);
++        if (! empty($r['money'])) return self::money((int) round($v), $tenant?->currency_symbol ?? '$');
++
++        return number_format($v, (abs($v - round($v)) > 0.05) ? 1 : 0);
+     }
+ 
+-    /** The headline figure as text: "42", "$1,280". */
++    /** The headline figure as text. */
+     public static function figure(array $r, ?Tenant $tenant = null): string
+     {
+-        if (! empty($r['money'])) return self::money((int) round($r['value'] ?? 0), $tenant?->currency_symbol ?? '$');
+-
+-        return number_format((float) ($r['value'] ?? 0));
++        return self::format((float) ($r['value'] ?? 0), $r, $tenant);
+     }
+ 
+     /** The unit after a count: "bookings". */
+diff --git a/app/Support/Dashboard/CustomizePanel.php b/app/Support/Dashboard/CustomizePanel.php
+index cb53322f..e4114510 100644
+--- a/app/Support/Dashboard/CustomizePanel.php
++++ b/app/Support/Dashboard/CustomizePanel.php
+@@ -41,7 +41,7 @@ class CustomizePanel
+                     $isHidden = ! $locked && in_array($k, $hidden, true);
+                     $hideable += $locked ? 0 : 1;
+                     $hiddenCount += $isHidden ? 1 : 0;
+-                    $blocks[] = ['key' => $k, 'name' => $names[$k] ?? $k, 'locked' => $locked, 'hidden' => $isHidden];
++                    $blocks[] = ['key' => $k, 'name' => $allowed[$k]['title'] ?? ($names[$k] ?? $k), 'locked' => $locked, 'hidden' => $isHidden];
+                 }
+                 $mine = array_values(array_map('strval', (array) ($order[$r . '-' . $c] ?? [])));
+                 if ($mine) {
+diff --git a/app/Support/Dashboard/DashboardPage.php b/app/Support/Dashboard/DashboardPage.php
+new file mode 100644
+index 00000000..765df13d
+--- /dev/null
++++ b/app/Support/Dashboard/DashboardPage.php
+@@ -0,0 +1,58 @@
++<?php
++
++namespace App\Support\Dashboard;
++
++use App\Models\Tenant;
++use App\Models\Tenant\TenantUser;
++use App\Services\Tenant\DashboardDataService;
++
++/**
++ * MARKER-DASH-PREVIEW: everything a dashboard frame draws, for one person at
++ * one shop. The shop's own dashboard (DashboardController) and master admin's
++ * preview both build the page here, so a preview is the real thing: the same
++ * figures, the same blocks, and the same access rules.
++ */
++class DashboardPage
++{
++    /**
++     * @param object|null $user  who it's for: a shop person, or (impersonating) master admin's user for the greeting
++     * @param array $rows  the rows to draw, already cut to what this person gets
++     * @param array $opts  'setup_dismissed', 'wof_dismissed' (cookies on the real page)
++     */
++    public static function data(Tenant $tenant, ?object $user, BlockAccess $see, array $rows, array $opts = []): array
++    {
++        $service = new DashboardDataService($tenant);
++
++        // compute zones in order, then pass today + attention into
++        // zoneLauncher so it can reuse already-computed counts.
++        $today = $service->zoneToday();
++        $attention = $see->attention($service->zoneAttention());
++        $workOrderBanner = $service->workOrderBanner((bool) ($opts['wof_dismissed'] ?? false));
++
++        $data = [
++            'greeting'  => $service->greeting($user),
++            'today'     => $today,
++            'attention' => $attention,
++            'growth'    => $service->zoneGrowth(),
++            'launcher'  => $service->zoneLauncher($today, $attention),
++            'progress'  => $service->onboardingProgress((bool) ($opts['setup_dismissed'] ?? false)),
++            'workOrderBanner' => $see->canRoute('tenant.work-order-fields.index') ? $workOrderBanner : null,
++            'see'       => $see,
++            'dashRows'  => $rows,
++        ];
++
++        // Only load what these blocks draw.
++        $needs = BlockRegistry::needs($rows);
++        if (in_array('week', $needs, true)) {
++            $data['week'] = $service->weekAhead();
++        }
++        if (in_array('jobs', $needs, true)) {
++            $data['jobs'] = $service->jobsCompleted30();
++        }
++        if (in_array('tiles', $needs, true)) {
++            $data['tiles'] = $see->tiles(\App\Support\DashboardTiles::layout($tenant, $user instanceof TenantUser ? $user : null));
++        }
++
++        return $data;
++    }
++}
+diff --git a/app/Support/Dashboard/Layout.php b/app/Support/Dashboard/Layout.php
+index 09bc78fc..fd43532a 100644
+--- a/app/Support/Dashboard/Layout.php
++++ b/app/Support/Dashboard/Layout.php
+@@ -78,6 +78,11 @@ class Layout
+         if (! empty($p['lock'])) {
+             $out['lock'] = true;
+         }
++        // MARKER-DASH-BUILDER: this template's own heading for the block
++        $title = trim((string) ($p['title'] ?? ''));
++        if ($title !== '') {
++            $out['title'] = mb_substr($title, 0, 60);
++        }
+ 
+         return $out;
+     }
+@@ -152,6 +157,9 @@ class Layout
+             if ($l['r'] !== $d['r'] || $l['c'] !== $d['c'] || array_search($k, $ordL, true) !== array_search($k, $ordD, true)) {
+                 $out[] = ['moved', 'Moved ' . $name($k)];
+             }
++            if (($l['p']['title'] ?? null) !== ($d['p']['title'] ?? null)) {
++                $out[] = ['moved', isset($d['p']['title']) ? 'Renamed ' . $name($k) . ' to “' . $d['p']['title'] . '”' : 'Gave ' . $name($k) . ' back its own title'];
++            }
+             if (! empty($l['p']['lock']) !== ! empty($d['p']['lock'])) {
+                 $out[] = ['moved', $name($k) . (! empty($d['p']['lock']) ? ' can no longer be hidden' : ' can be hidden')];
+             }
+diff --git a/resources/views/filament/pages/dashboard-block-builder.blade.php b/resources/views/filament/pages/dashboard-block-builder.blade.php
+index 76056866..06803384 100644
+--- a/resources/views/filament/pages/dashboard-block-builder.blade.php
++++ b/resources/views/filament/pages/dashboard-block-builder.blade.php
+@@ -56,6 +56,9 @@
+     <input type="text" class="db-in" style="max-width:340px;font-size:15px;font-weight:600" wire:model.live.debounce.400ms="name" maxlength="80" placeholder="Name this block" @disabled(! $canEdit)>
+     @if (! $isNew && $dirty)<span class="db-tag pend">Unsaved changes</span>@endif
+     <span style="margin-left:auto"></span>
++    @if (! $isNew)
++      <a class="db-btn" href="{{ \App\Filament\Pages\DashboardPreview::getUrl(['b' => $k, 'w' => $width]) }}" @if ($dirty) title="Shows the saved block; save to preview your changes" @endif>Preview on a dashboard</a>
++    @endif
+     <a class="db-btn" href="{{ \App\Filament\Pages\DashboardBlocks::getUrl() }}">{{ $dirty ? 'Cancel' : 'Back' }}</a>
+     @if ($canEdit)
+       <button type="button" class="db-btn p" wire:click="save" @disabled(! $dirty || trim($name) === '')
+@@ -80,8 +83,10 @@
+           <div class="q">Every block reads only the shop it's on. There's no way to see another shop's records.</div>
+           <div class="bb-src">
+             @foreach ($sources as $sk => $s)
++              @php $sGate = \App\Support\SectionRegistry::all()[$s['area']]['gate'] ?? null;
++                   $sNeeds = ['retail_enabled' => 'Retail', 'rentals_visible' => 'Rentals', 'classes_active' => 'Classes', 'gift_cards_visible' => 'Gift cards', 'multi_location_active' => 'more than one location'][$sGate] ?? null; @endphp
+               <button type="button" class="{{ $source === $sk ? 'on' : '' }}" wire:click="setSource('{{ $sk }}')" @disabled(! $canEdit)>
+-                <span class="rb"></span><span><span class="t">{{ $s['label'] }}</span><span class="s">{{ $s['desc'] }} · seen by people who can open {{ \App\Support\SectionRegistry::all()[$s['area']]['label'] ?? $s['area'] }}</span></span>
++                <span class="rb"></span><span><span class="t">{{ $s['label'] }}@if ($sNeeds) <span class="db-tag draft" style="margin-left:4px">Shops with {{ $sNeeds }}</span>@endif</span><span class="s">{{ $s['desc'] }} · seen by people who can open {{ \App\Support\SectionRegistry::all()[$s['area']]['label'] ?? $s['area'] }}</span></span>
+               </button>
+             @endforeach
+           </div>
+@@ -89,7 +94,7 @@
+ 
+         <div class="bb-step"><span class="no">3</span><div>
+           <h4>Only include</h4>
+-          <div class="q">Leave empty to include everything in the period.</div>
++          <div class="q">{{ $src['date'] ? 'Leave empty to include everything in the period.' : 'Leave empty to include every record.' }}</div>
+           @foreach ($rules as $i => $r)
+             @php $fdef = $src['fields'][$r[0]] ?? null; @endphp
+             @if ($fdef)
+@@ -109,7 +114,7 @@
+                     @foreach ($fdef['options'] as $ok => $ol)<option value="{{ $ok }}">{{ $ol }}</option>@endforeach
+                   </select>
+                 @else
+-                  <input type="number" min="0" step="0.01" class="db-in" placeholder="$ amount" wire:model.live.debounce.400ms="rules.{{ $i }}.2" @disabled(! $canEdit)>
++                  <input type="number" min="0" step="{{ $fdef['type'] === 'money' ? '0.01' : '1' }}" class="db-in" placeholder="{{ $fdef['type'] === 'money' ? '$ amount' : 'number' }}" wire:model.live.debounce.400ms="rules.{{ $i }}.2" @disabled(! $canEdit)>
+                 @endif
+                 <button type="button" class="x" wire:click="removeRule({{ $i }})" aria-label="Remove rule" @disabled(! $canEdit)>×</button>
+               </div>
+@@ -119,7 +124,7 @@
+           @if (count($rules) !== count($cfg['rules']))<div class="db-note db-warn" style="margin-top:6px">A rule without an amount is left out until it has one.</div>@endif
+         </div></div>
+ 
+-        @php $moneyFields = collect($src['fields'])->filter(fn ($f) => $f['type'] === 'money'); @endphp
++        @php $moneyFields = collect($src['fields'])->filter(fn ($f) => in_array($f['type'], ['money', 'number'], true)); @endphp
+         <div class="bb-step"><span class="no">4</span><div>
+           <h4>Shows</h4>
+           <div class="bb-seg" style="margin-bottom:10px">
+@@ -138,22 +143,33 @@
+             <select class="db-in" style="max-width:200px" wire:model.live="period" @disabled(! $canEdit)>
+               @foreach ($src['periods'] as $pk)<option value="{{ $pk }}">{{ \App\Support\Dashboard\CustomBlocks::PERIODS[$pk] }}</option>@endforeach
+             </select>
+-            @if ($cfg['measure'] !== 'list' && $cfg['period'] !== 'all_time')
++            @if ($cfg['measure'] !== 'list' && $src['date'] && ! in_array($cfg['period'], ['all_time', 'now'], true))
+               <label class="bb-chk"><input type="checkbox" wire:model.live="compare" @disabled(! $canEdit)> Compare with the period before</label>
+             @endif
+           </div>
+-          @if ($source === 'appointments')<div class="db-note" style="margin-top:6px">Appointments count on their appointment date, so This week and Next 7 days include what's booked ahead.</div>@endif
++          @if (in_array($source, ['appointments', 'rentals', 'class_sessions'], true))<div class="db-note" style="margin-top:6px">{{ $src['label'] }} count on the day they're booked for, so This week and Next 7 days include what's ahead.</div>@endif
++          @if (! $src['date'])<div class="db-note" style="margin-top:6px">{{ $src['label'] }} have no period: the block shows them as they are when the dashboard opens.</div>@endif
+         </div></div>
+ 
+         <div class="bb-step"><span class="no">5</span><div>
+           <h4>Looks like</h4>
+           <div class="bb-seg">
++            @php $okDisplays = \App\Support\Dashboard\CustomBlocks::displaysFor($cfg['measure'], $cfg['period'], $src['date'] !== null); @endphp
+             @foreach (\App\Support\Dashboard\CustomBlocks::DISPLAYS as $dk => $dl)
+-              @php $ok = $cfg['measure'] === 'list' ? $dk === 'rows' : ($dk !== 'rows' && ! ($dk === 'trend' && in_array($cfg['period'], ['today', 'all_time'], true))); @endphp
++              @php $ok = in_array($dk, $okDisplays, true); @endphp
++              @continue(in_array($dk, ['rows', 'table'], true) !== ($cfg['measure'] === 'list'))
+               <button type="button" class="{{ $cfg['display'] === $dk ? 'on' : '' }}" wire:click="$set('display', '{{ $dk }}')" @disabled(! $canEdit || ! $ok)>{{ $dl }}</button>
+             @endforeach
+           </div>
+-          <div class="db-note" style="margin-top:6px">{{ $cfg['measure'] === 'list' ? 'Shows up to six records, each opening its own page.' : 'A trend draws one point a day across the period, so it needs more than a day.' }}</div>
++          @if ($cfg['display'] === 'progress')
++            <div class="bb-row2">
++              <span class="db-note">Goal</span>
++              <input type="number" min="0" step="{{ \App\Support\Dashboard\CustomBlocks::isMoney($cfg) ? '0.01' : '1' }}" class="db-in" style="max-width:160px"
++                placeholder="{{ \App\Support\Dashboard\CustomBlocks::isMoney($cfg) ? '$ amount' : 'number' }}" wire:model.live.debounce.400ms="goal" @disabled(! $canEdit)>
++              @if (! $cfg['goal'])<span class="db-note db-warn">Shows as a plain number until it has a goal.</span>@endif
++            </div>
++          @endif
++          <div class="db-note" style="margin-top:6px">{{ $cfg['measure'] === 'list' ? 'Shows up to six records, each opening its own page.' : 'Trend and bars draw one point a day across the period, so they need a period of more than a day. Progress needs a goal, the same for every shop.' }}</div>
+         </div></div>
+ 
+         <div class="bb-step"><span class="no">6</span><div>
+diff --git a/resources/views/filament/pages/dashboard-blocks.blade.php b/resources/views/filament/pages/dashboard-blocks.blade.php
+index 1f87642f..1fa35f66 100644
+--- a/resources/views/filament/pages/dashboard-blocks.blade.php
++++ b/resources/views/filament/pages/dashboard-blocks.blade.php
+@@ -53,8 +53,11 @@
+             @if ($b['hidden'])<div><span class="db-tag off">Hidden everywhere</span></div>@endif
+           </td>
+           <td class="r">
++            <span class="db-acts">
++              <a class="db-lnk dim" href="{{ \App\Filament\Pages\DashboardPreview::getUrl(['b' => $b['key']]) }}">Preview</a>
++            </span>
+             @if ($canManage)
+-              <span class="db-acts">
++              <span class="db-acts" style="margin-left:14px">
+                 @if (! $b['builtin'])
+                   <a class="db-lnk" href="{{ \App\Filament\Pages\DashboardBlockBuilder::getUrl(['k' => $b['key']]) }}">Edit</a>
+                   <button type="button" class="db-lnk dim" wire:click="duplicate('{{ $b['key'] }}')">Copy</button>
+diff --git a/resources/views/filament/pages/dashboard-editor.blade.php b/resources/views/filament/pages/dashboard-editor.blade.php
+index 8fa41071..2866374c 100644
+--- a/resources/views/filament/pages/dashboard-editor.blade.php
++++ b/resources/views/filament/pages/dashboard-editor.blade.php
+@@ -106,6 +106,12 @@
+         @elseif ($hasDraft && $tpl->liveVersion)
+           <button type="button" class="db-btn warn" wire:click="discardDraft" data-confirm="Discard the draft?&#10;The editor goes back to v{{ $tpl->liveVersion->version }}, which is what shops see now.">Discard draft</button>
+         @endif
++        {{-- MARKER-DASH-PREVIEW: previews what's saved, so unsaved changes ask for Save draft first --}}
++        @if ($dirty)
++          <span class="db-btn" style="opacity:.45;cursor:default" title="Save the draft to preview your changes">Preview</span>
++        @else
++          <a class="db-btn" href="{{ \App\Filament\Pages\DashboardPreview::getUrl(['t' => $tpl->key, 'v' => ($hasDraft || ! $tpl->liveVersion) ? 'draft' : 'live']) }}">Preview</a>
++        @endif
+         <button type="button" class="db-btn" wire:click="saveDraft" @disabled(! $dirty)>{{ $dirty ? 'Save draft' : 'Draft saved' }}</button>
+         <x-filament::modal id="publish-dashboard" width="lg">
+           <x-slot name="trigger"><button type="button" class="db-btn p" @disabled(! $canPublish)>Publish…</button></x-slot>
+@@ -170,6 +176,14 @@
+             @endif
+           </div>
+           <div class="db-note" style="margin:4px 0 10px">Follows each shop's own roles in Team &amp; access, whatever they're called. Anyone else gets the space closed up, not a gap.</div>
++          @php $selOwnTitle = $registry[$selBlock['b']]['title'] ?? null; @endphp
++          <div class="db-note" style="margin-bottom:4px">Title on this template</div>
++          @if ($selOwnTitle)
++            <input type="text" class="db-in" maxlength="60" wire:key="ttl-{{ implode('-', $sel) }}" value="{{ $selBlock['title'] ?? '' }}" placeholder="{{ $selOwnTitle }}" wire:change="setTitle($event.target.value)">
++            <div class="db-note" style="margin:4px 0 10px">Leave empty to use its own title. Only this template changes.</div>
++          @else
++            <div class="db-note" style="margin:0 0 10px">This block has no heading to rename.</div>
++          @endif
+           <label class="de-chk" @if ($hideOff) style="opacity:.5" @endif><input type="checkbox" @checked(empty($selBlock['lock'])) wire:click="toggleLock" @disabled($hideOff)> People can hide it</label>
+           <div class="db-note" style="margin-top:4px">
+             @if (! $customizeOn) Customizing is turned off for every shop on the Dashboards page.
+@@ -310,7 +324,7 @@
+                   <div class="de-blk {{ $isHidden ? 'hid' : '' }} {{ $sel === [$r, $c, $i] ? 'sel' : '' }}" @if ($canEdit) draggable="true" x-on:dragstart="drag($event, { r: {{ $r }}, c: {{ $c }}, i: {{ $i }} })" @endif>
+                     <span class="de-grip">⋮⋮</span>
+                     <button type="button" class="pick" wire:click="selectBlock({{ $r }}, {{ $c }}, {{ $i }})" title="Settings for this block">
+-                      <span class="t">{{ $names[$p['b']] ?? $p['b'] }}</span>
++                      <span class="t">{{ $names[$p['b']] ?? $p['b'] }}@if (! empty($p['title'])) <span style="font-weight:400;opacity:.7">· shown as “{{ $p['title'] }}”</span>@endif</span>
+                       <span class="s" style="display:block">{{ $isHidden ? 'Hidden everywhere: no shop sees it' : (($def['origin'] ?? '') === 'custom' ? 'Made here' : 'From ' . ucfirst($def['origin'] ?? '')) . ' · ' . ($def['reads'] ?? '') }}</span>
+                       @if (! empty($p['lock']))<span class="who">Always shown</span>@endif
+                     </button>
+diff --git a/resources/views/filament/pages/dashboard-preview.blade.php b/resources/views/filament/pages/dashboard-preview.blade.php
+new file mode 100644
+index 00000000..c71d72f7
+--- /dev/null
++++ b/resources/views/filament/pages/dashboard-preview.blade.php
+@@ -0,0 +1,76 @@
++<x-filament-panels::page>
++@include('filament.partials.dashboards-style')
++<style>
++  .pv-bar { display:flex; gap:10px 14px; align-items:center; flex-wrap:wrap; padding:12px 0; border-bottom:1px solid var(--sx-line); }
++  .pv-bar label { display:inline-flex; gap:8px; align-items:center; font-size:12.5px; color:var(--sx-faint); }
++  .pv-bar select { width:auto; min-width:150px; }
++  .pv-seg { display:inline-flex; border:1px solid var(--sx-line-2); border-radius:8px; overflow:hidden; }
++  .pv-seg button { background:none; border:0; padding:5px 11px; font-size:12.5px; color:var(--sx-dim); cursor:pointer; }
++  .pv-seg button + button { border-left:1px solid var(--sx-line-2); }
++  .pv-seg button.on { background:var(--sx-vsoft); color:var(--db-txt); font-weight:500; }
++  .pv-seg button[disabled] { opacity:.4; cursor:default; }
++  .pv-stage { margin-top:14px; display:flex; justify-content:center; background:rgba(127,127,127,.06); border:1px solid var(--sx-line); border-radius:12px; padding:14px; }
++  .pv-stage iframe { border:0; border-radius:8px; background:#111; width:100%; height:calc(100vh - 290px); min-height:560px; }
++  .pv-stage.phone iframe { width:390px; height:780px; border-radius:22px; box-shadow:0 0 0 8px rgba(127,127,127,.25); }
++</style>
++
++<div class="sx-root">
++  <div class="db-note" style="margin-bottom:8px">
++    <a class="db-lnk" href="{{ \App\Filament\Pages\Dashboards::getUrl() }}">Dashboards</a> /
++    <a class="db-lnk" href="{{ $back }}">{{ $b ? $blockName : $tpl?->name }}</a> / Preview
++  </div>
++
++  <div class="db-legend">
++    <b>This is the shop's real dashboard</b>, drawn with its own figures, as someone with the chosen role sees it: blocks and links their role can't open are left out, just as on the shop.
++    Nothing here can be clicked, and nothing is changed at the shop. People's own hidden and reordered blocks aren't applied.
++    @if ($b) <b>A single block</b> is shown at the width you pick, on an otherwise empty dashboard. @endif
++  </div>
++
++  <div class="pv-bar">
++    <label>Shop
++      <select class="db-in" wire:model.live="shop">
++        @foreach ($shops as $sid => $sn)<option value="{{ $sid }}">{{ $sn }}</option>@endforeach
++      </select>
++    </label>
++    <label>Seen as
++      <select class="db-in" wire:model.live="role">
++        <option value="owner">Owner</option>
++        @foreach ($roles as $rid => $rn)<option value="{{ $rid }}">{{ $rn }}</option>@endforeach
++      </select>
++    </label>
++    @if ($tpl)
++      <span class="pv-seg">
++        <button type="button" class="{{ $v === 'live' ? 'on' : '' }}" wire:click="$set('v', 'live')" @disabled(! $hasLive)>Live{{ $tpl->liveVersion ? ' v' . $tpl->liveVersion->version : '' }}</button>
++        <button type="button" class="{{ $v === 'draft' ? 'on' : '' }}" wire:click="$set('v', 'draft')" @disabled(! $hasDraft && $hasLive)>Draft</button>
++      </span>
++    @else
++      <span class="pv-seg">
++        @foreach ([4 => '⅓ width', 6 => '½', 8 => '⅔', 12 => 'Full'] as $ww => $wl)
++          <button type="button" class="{{ $w === $ww ? 'on' : '' }}" wire:click="$set('w', {{ $ww }})">{{ $wl }}</button>
++        @endforeach
++      </span>
++    @endif
++    <span class="pv-seg">
++      <button type="button" class="{{ $device === 'desktop' ? 'on' : '' }}" wire:click="$set('device', 'desktop')">Desktop</button>
++      <button type="button" class="{{ $device === 'phone' ? 'on' : '' }}" wire:click="$set('device', 'phone')">Phone</button>
++    </span>
++    <span style="margin-left:auto"></span>
++    <a class="db-btn" href="{{ $back }}">Close</a>
++  </div>
++
++  @if ($gets && ! $gets[0])
++    <div class="db-note db-warn" style="padding-top:10px">{{ $tenant->name }} isn't offered this template ({{ $gets[1] }}), so it's shown here only as a preview.</div>
++  @endif
++  @if ($v === 'draft' && $tpl && $hasLive)
++    <div class="db-note" style="padding-top:10px">Showing the draft. Shops see the live version until you publish.</div>
++  @endif
++
++  <div class="pv-stage {{ $device === 'phone' ? 'phone' : '' }}">
++    @if ($src)
++      <iframe src="{{ $src }}" title="Dashboard preview" wire:key="pv-{{ md5($src . $device) }}"></iframe>
++    @else
++      <div class="db-note" style="padding:40px">Pick a shop to preview.</div>
++    @endif
++  </div>
++</div>
++</x-filament-panels::page>
+diff --git a/resources/views/filament/pages/dashboards.blade.php b/resources/views/filament/pages/dashboards.blade.php
+index 3c67efbc..b03c357c 100644
+--- a/resources/views/filament/pages/dashboards.blade.php
++++ b/resources/views/filament/pages/dashboards.blade.php
+@@ -82,6 +82,7 @@
+           <td class="r">
+             <span class="db-acts">
+               <a class="db-lnk" href="{{ \App\Filament\Pages\DashboardEditor::getUrl(['t' => $t['key']]) }}">{{ $canManage ? 'Edit' : 'View' }}</a>
++              <a class="db-lnk dim" href="{{ \App\Filament\Pages\DashboardPreview::getUrl(['t' => $t['key'], 'v' => $t['state'] === 'live' ? 'live' : 'draft']) }}">Preview</a>
+               @if ($canManage)
+                 <button type="button" class="db-lnk dim" wire:click="duplicate('{{ $t['key'] }}')">Duplicate</button>
+                 @if ($saved !== $t['key'])
+diff --git a/resources/views/layouts/tenant/preview.blade.php b/resources/views/layouts/tenant/preview.blade.php
+new file mode 100644
+index 00000000..955dcfc2
+--- /dev/null
++++ b/resources/views/layouts/tenant/preview.blade.php
+@@ -0,0 +1,82 @@
++{{-- MARKER-DASH-PREVIEW: master admin's dashboard preview. The same head as
++     layouts.tenant.app (theme, fonts, accent), then the page's own content
++     with no sidebar, navigation or banners around it. Links and buttons are
++     switched off: nothing here acts on the shop. --}}
++<!DOCTYPE html>
++<html lang="en" class="ia-theme-{{ $adminTheme }}">
++<head>
++  <meta charset="utf-8">
++  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
++  @include('partials.mobile-input-zoom')
++  <meta name="robots" content="noindex">
++  <title>{{ $pageTitle ?? 'Dashboard' }} — {{ $currentTenant->name }}</title>
++
++  {{-- Fonts — Self-hosted from public/fonts; the
++       @font-face rules live in base.css. Preloading the two weights that
++       carry almost all of the UI means they are normally decoded before
++       first paint, so there is no metric swap to watch. crossorigin is
++       required on font preloads even same-origin, or the browser fetches
++       the file twice. 600 and the mono faces are not preloaded — they are
++       used sparsely enough that a late swap is not noticeable. --}}
++  <link rel="preload" as="font" type="font/woff2" crossorigin
++        href="{{ asset('fonts/inter-latin-400-normal.woff2') }}">
++  <link rel="preload" as="font" type="font/woff2" crossorigin
++        href="{{ asset('fonts/inter-latin-500-normal.woff2') }}">
++
++  {{-- Favicon: the shop's own, else Intake's (the one master admin uses),
++       never the browser's blank globe. --}}
++  @if($currentTenant->favicon_url)
++    <link rel="icon" href="{{ $currentTenant->favicon_url }}">
++  @else
++    <link rel="icon" href="{{ \App\Support\Brand::url('favicon') }}">
++  @endif
++
++  <link rel="stylesheet" href="{{ asset('css/fonts.css') }}">
++
++  {{-- Base + theme CSS --}}
++  <link rel="stylesheet" href="{{ asset('css/tenant/base.css') }}?v={{ filemtime(public_path('css/tenant/base.css')) }}">
++  <link rel="stylesheet" href="{{ asset('css/tenant/theme-' . $adminTheme . '.css') }}?v={{ filemtime(public_path('css/tenant/theme-' . $adminTheme . '.css')) }}">
++  <link rel="stylesheet" href="{{ asset('css/tenant/mobile-nav.css') }}?v={{ filemtime(public_path('css/tenant/mobile-nav.css')) }}">
++  <link rel="stylesheet" href="{{ asset('css/tenant/mobile-schedule.css') }}?v={{ filemtime(public_path('css/tenant/mobile-schedule.css')) }}">
++  <link rel="stylesheet" href="{{ asset('css/tenant/mobile-forms.css') }}?v={{ filemtime(public_path('css/tenant/mobile-forms.css')) }}">
++  <link rel="stylesheet" href="{{ asset('css/tenant/dashboard.css') }}?v={{ filemtime(public_path('css/tenant/dashboard.css')) }}">
++  <link rel="stylesheet" href="{{ asset('css/tenant/toast.css') }}?v={{ filemtime(public_path('css/tenant/toast.css')) }}">
++  <link rel="stylesheet" href="{{ asset('css/tenant/confirm.css') }}?v={{ filemtime(public_path('css/tenant/confirm.css')) }}">
++  <link rel="stylesheet" href="{{ asset('css/tenant/toggle.css') }}?v={{ filemtime(public_path('css/tenant/toggle.css')) }}">
++
++  {{-- Master-admin theme overrides (theme_settings table) --}}
++  {!! \App\Support\ThemeOverrideHelper::styleTag() !!}
++
++  {{-- Tenant accent color injected at runtime --}}
++  <style>
++    body {
++      --ia-accent: {{ $currentTenant->accent_color ?? '#3B5A78' }};
++      --ia-accent-text: {{ \App\Support\ColorHelper::accentTextColor($currentTenant->accent_color ?? '#3B5A78') }};
++      --ia-accent-soft: {{ \App\Support\ColorHelper::accentSoft($currentTenant->accent_color ?? '#3B5A78') }};
++    }
++  </style>
++
++  @stack('styles')
++</head>
++
++<body class="ia-theme-{{ $adminTheme }}">
++<style>
++  .ia-main.dash-pv { margin-left: 0 !important; width: 100% !important; }
++  .dash-pv a, .dash-pv button, .dash-pv form, .dash-pv input, .dash-pv select { pointer-events: none !important; }
++  .dash-pv [hidden] { display: none !important; }
++</style>
++<div class="ia-shell" style="display:block">
++  <div class="ia-main dash-pv">
++    <main class="ia-content">
++      @yield('content')
++    </main>
++  </div>
++</div>
++<script>
++  window.IntakeAdmin = { tenantId: '{{ $currentTenant->id }}', csrfToken: '', theme: '{{ $adminTheme }}', currency: '{{ $currentTenant->currency_symbol ?? "$" }}', ajaxUrl: '' };
++</script>
++<script src="{{ asset('js/tenant/toast.js') }}?v={{ filemtime(public_path('js/tenant/toast.js')) }}"></script>
++<script src="{{ asset('js/tenant/confirm.js') }}?v={{ filemtime(public_path('js/tenant/confirm.js')) }}"></script>
++@stack('scripts')
++</body>
++</html>
+diff --git a/resources/views/tenant/dashboard-brief.blade.php b/resources/views/tenant/dashboard-brief.blade.php
+index cd5d5c9f..518be208 100644
+--- a/resources/views/tenant/dashboard-brief.blade.php
++++ b/resources/views/tenant/dashboard-brief.blade.php
+@@ -1,4 +1,4 @@
+-@extends('layouts.tenant.app')
++@extends($dashLayout ?? 'layouts.tenant.app'){{-- MARKER-DASH-PREVIEW: master admin's preview draws the same page in layouts.tenant.preview --}}
+ {{-- MARKER-DASH-BRIEF: the third dashboard view, in beta. Built from the same
+      data as Overview (DashboardController); Overview stays the default. --}}
+ @section('title', 'Dashboard')
+diff --git a/resources/views/tenant/dashboard-standard.blade.php b/resources/views/tenant/dashboard-standard.blade.php
+index af73f0ae..ed3fb514 100644
+--- a/resources/views/tenant/dashboard-standard.blade.php
++++ b/resources/views/tenant/dashboard-standard.blade.php
+@@ -1,4 +1,4 @@
+-@extends('layouts.tenant.app')
++@extends($dashLayout ?? 'layouts.tenant.app'){{-- MARKER-DASH-PREVIEW: master admin's preview draws the same page in layouts.tenant.preview --}}
+ {{-- MARKER-DASH-TEMPLATES: the frame for templates built in master admin.
+      A date line and the dashboard switch, then the template's rows. Every
+      block's stylesheet is loaded, since a template can mix blocks from
+diff --git a/resources/views/tenant/dashboard-tiles.blade.php b/resources/views/tenant/dashboard-tiles.blade.php
+index bbcc3560..80cf9eb6 100644
+--- a/resources/views/tenant/dashboard-tiles.blade.php
++++ b/resources/views/tenant/dashboard-tiles.blade.php
+@@ -1,4 +1,4 @@
+-@extends('layouts.tenant.app')
++@extends($dashLayout ?? 'layouts.tenant.app'){{-- MARKER-DASH-PREVIEW: master admin's preview draws the same page in layouts.tenant.preview --}}
+ {{-- the simplified dashboard. A second view alongside the
+      Overview dashboard, which is unchanged and stays the default. --}}
+ @section('title', 'Dashboard')
+diff --git a/resources/views/tenant/dashboard.blade.php b/resources/views/tenant/dashboard.blade.php
+index 3aa16e33..dd004df3 100644
+--- a/resources/views/tenant/dashboard.blade.php
++++ b/resources/views/tenant/dashboard.blade.php
+@@ -1,4 +1,4 @@
+-@extends('layouts.tenant.app')
++@extends($dashLayout ?? 'layouts.tenant.app'){{-- MARKER-DASH-PREVIEW: master admin's preview draws the same page in layouts.tenant.preview --}}
+ @push('styles')
+   <link rel="stylesheet" href="{{ asset('css/tenant/dashboard.css') }}?v={{ filemtime(public_path('css/tenant/dashboard.css')) }}">
+   {{-- a --}}
+diff --git a/resources/views/tenant/dashboard/_zone_growth_tiles.blade.php b/resources/views/tenant/dashboard/_zone_growth_tiles.blade.php
+index 0c2c804e..586ac45e 100644
+--- a/resources/views/tenant/dashboard/_zone_growth_tiles.blade.php
++++ b/resources/views/tenant/dashboard/_zone_growth_tiles.blade.php
+@@ -40,7 +40,7 @@
+ 
+ <div class="ia-dash-growth-tiles-block">
+   <div class="ia-dash-tiles-zone-label">
+-    <span>How the business is doing</span>
++    <span>{{ $dashBlock['title'] ?? 'How the business is doing' }}</span>
+     <span class="hint">last 30 days vs. prior 30 · tap for full report</span>
+   </div>
+ 
+diff --git a/resources/views/tenant/dashboard/_zone_launcher.blade.php b/resources/views/tenant/dashboard/_zone_launcher.blade.php
+index 0954ebc5..eb77794f 100644
+--- a/resources/views/tenant/dashboard/_zone_launcher.blade.php
++++ b/resources/views/tenant/dashboard/_zone_launcher.blade.php
+@@ -14,7 +14,7 @@
+ 
+ <div class="ia-dash-launcher-block">
+   <div class="ia-dash-tiles-zone-label">
+-    <span>Jump to</span>
++    <span>{{ $dashBlock['title'] ?? 'Jump to' }}</span>
+     <span class="hint">all sections of your shop</span>
+   </div>
+ 
+diff --git a/resources/views/tenant/dashboard/_zone_today_tile.blade.php b/resources/views/tenant/dashboard/_zone_today_tile.blade.php
+index f3733394..93ab97a7 100644
+--- a/resources/views/tenant/dashboard/_zone_today_tile.blade.php
++++ b/resources/views/tenant/dashboard/_zone_today_tile.blade.php
+@@ -31,7 +31,7 @@
+ 
+ <div class="ia-dash-today-tile-block">
+   <div class="ia-dash-tiles-zone-label">
+-    <span>Today</span>
++    <span>{{ $dashBlock['title'] ?? 'Today' }}</span>
+     <span class="hint">
+       @if($todayCount === 0 && $nextDay && $nextDayAppts->isNotEmpty())
+         Nothing today · {{ $nextDayAppts->count() }} {{ \Illuminate\Support\Str::plural('appointment', $nextDayAppts->count()) }} {{ $nextDayLabel }}
+diff --git a/resources/views/tenant/dashboard/_zone_triage_tiles.blade.php b/resources/views/tenant/dashboard/_zone_triage_tiles.blade.php
+index 87f80c49..52cd426e 100644
+--- a/resources/views/tenant/dashboard/_zone_triage_tiles.blade.php
++++ b/resources/views/tenant/dashboard/_zone_triage_tiles.blade.php
+@@ -23,7 +23,7 @@
+ 
+ <div class="ia-dash-tiles-block">
+   <div class="ia-dash-tiles-zone-label">
+-    <span>Needs you today</span>
++    <span>{{ $dashBlock['title'] ?? 'Needs you today' }}</span>
+     <span class="hint">
+       @if($totalCards === 0)
+         0 open · enjoy the calm
+diff --git a/resources/views/tenant/dashboard/blocks/_custom-style.blade.php b/resources/views/tenant/dashboard/blocks/_custom-style.blade.php
+index 369044fa..d69317e7 100644
+--- a/resources/views/tenant/dashboard/blocks/_custom-style.blade.php
++++ b/resources/views/tenant/dashboard/blocks/_custom-style.blade.php
+@@ -23,6 +23,20 @@
+       .cb-row .r { font-size: 13.5px; font-variant-numeric: tabular-nums; }
+       .cb-row .arr { color: var(--ia-text-muted, #8b8b93); font-size: 18px; }
+       .cb-calm { padding: 14px 0; color: var(--ia-text-muted, #8b8b93); font-size: 14px; }
++      .cb-tbl { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px; }
++      .cb-tbl th { text-align: left; font-weight: 500; font-size: 12px; color: var(--ia-text-muted, #8b8b93); padding: 6px 8px 8px 0; border-bottom: 1px solid var(--ia-border, rgba(255,255,255,.08)); }
++      .cb-tbl td { padding: 10px 8px 10px 0; border-bottom: 1px solid var(--ia-border, rgba(255,255,255,.08)); vertical-align: top; }
++      .cb-tbl td.s { color: var(--ia-text-muted, #8b8b93); font-size: 13px; }
++      .cb-tbl .r { text-align: right; padding-right: 0; font-variant-numeric: tabular-nums; white-space: nowrap; }
++      .cb-tbl a { color: inherit; text-decoration: none; font-weight: 500; }
++      .cb-tbl a:hover { text-decoration: underline; }
++      .cb-bars { display: grid; gap: 3px; height: 64px; align-items: end; margin-top: 12px; }
++      .cb-bars > div { height: 100%; display: flex; align-items: flex-end; }
++      .cb-bars i { display: block; width: 100%; background: var(--ia-accent, #f5a524); opacity: .45; border-radius: 2px 2px 0 0; }
++      .cb-bars i.cur { opacity: 1; }
++      .cb-bars-x { display: grid; gap: 3px; margin-top: 4px; font-size: 10.5px; color: var(--ia-text-muted, #8b8b93); text-align: center; }
++      .cb-prog { height: 8px; border-radius: 4px; background: var(--ia-border, rgba(255,255,255,.08)); margin-top: 14px; overflow: hidden; }
++      .cb-prog i { display: block; height: 100%; background: var(--ia-accent, #f5a524); border-radius: 4px; }
+       .cb-acts { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+       .cb-note { border-left: 2px solid var(--ia-accent, #f5a524); background: var(--ia-accent-soft, rgba(245,165,36,.08)); border-radius: var(--ia-r-md, 8px); padding: 14px 18px; }
+       .cb-note .t { font-weight: 600; font-size: 15px; margin-bottom: 4px; }
+diff --git a/resources/views/tenant/dashboard/blocks/custom.blade.php b/resources/views/tenant/dashboard/blocks/custom.blade.php
+index b240eefc..09cfbd04 100644
+--- a/resources/views/tenant/dashboard/blocks/custom.blade.php
++++ b/resources/views/tenant/dashboard/blocks/custom.blade.php
+@@ -57,6 +57,21 @@
+     @if ($cbCfg['line'])<div class="cb-line">{{ $cbCfg['line'] }}</div>@endif
+ 
+     @if ($cbRes['measure'] === 'list')
++      @if ($cbCfg['display'] === 'table' && $cbRes['rows'])
++        <table class="cb-tbl">
++          <thead><tr>@foreach ($cbSrc['cols'] as $ci => $ch)<th class="{{ $ci === 2 ? 'r' : '' }}">{{ $ch }}</th>@endforeach</tr></thead>
++          <tbody>
++            @foreach ($cbRes['rows'] as [$t, $s, $r, $route, $id])
++              @php $href = $cbPreview ? null : $cbUrl($route, $id); @endphp
++              <tr>
++                <td>@if ($href)<a href="{{ $href }}">{{ $t }}</a>@else{{ $t }}@endif</td>
++                <td class="s">{{ $s }}</td>
++                <td class="r">{{ $r }}</td>
++              </tr>
++            @endforeach
++          </tbody>
++        </table>
++      @else
+       <div class="cb-rows">
+         @forelse ($cbRes['rows'] as [$t, $s, $r, $route, $id])
+           @php $href = $cbPreview ? null : $cbUrl($route, $id); @endphp
+@@ -69,6 +84,7 @@
+           <div class="cb-calm">Nothing here {{ strtolower(\App\Support\Dashboard\CustomBlocks::PERIODS[$cbCfg['period']]) }}.</div>
+         @endforelse
+       </div>
++      @endif
+     @else
+       <div class="cb-big">
+         <span class="v">{{ \App\Support\Dashboard\CustomBlocks::figure($cbRes, $cbTenant) }}</span>
+@@ -82,6 +98,19 @@
+       @if ($cbCfg['display'] === 'trend' && ! empty($cbRes['series']))
+         {{-- stretched to the block's width: the line keeps its thickness, the end dot is dropped --}}
+         <div class="cb-spark">{!! preg_replace('/<circle[^>]*\/>/', '', str_replace(['<svg viewBox="0 0 110 28"', '<path '], ['<svg viewBox="0 0 110 28" preserveAspectRatio="none"', '<path vector-effect="non-scaling-stroke" '], \App\Support\Dashboard\BriefView::spark($cbRes['series']))) !!}</div>
++      @elseif ($cbCfg['display'] === 'bars' && ! empty($cbRes['series']))
++        @php $cbMax = max(1, max($cbRes['series'])); $cbN = count($cbRes['series']); @endphp
++        <div class="cb-bars" style="grid-template-columns:repeat({{ $cbN }}, minmax(0, 1fr))">
++          @foreach ($cbRes['series'] as $bi => $bv)
++            <div title="{{ \App\Support\Dashboard\CustomBlocks::format($bv, $cbRes, $cbTenant) }}"><i class="{{ $bi === $cbRes['today_i'] ? 'cur' : '' }}" style="height:{{ $bv > 0 ? max(4, round($bv / $cbMax * 100)) : 0 }}%"></i></div>
++          @endforeach
++        </div>
++        <div class="cb-bars-x" style="grid-template-columns:repeat({{ $cbN }}, minmax(0, 1fr))">
++          @foreach ($cbRes['labels'] as $bi => $bl)<span>{{ $cbN <= 10 || $bi % (int) ceil($cbN / 8) === 0 ? $bl : '' }}</span>@endforeach
++        </div>
++      @elseif ($cbCfg['display'] === 'progress' && ! empty($cbRes['goal']))
++        <div class="cb-prog"><i style="width:{{ min(100, $cbRes['pct_goal']) }}%"></i></div>
++        <div class="cb-line" style="margin-top:6px">{{ $cbRes['pct_goal'] }}% of the {{ \App\Support\Dashboard\CustomBlocks::goalText($cbCfg, $cbTenant) }} goal</div>
+       @endif
+     @endif
+   @endif
+diff --git a/resources/views/tenant/dashboard/blocks/last30.blade.php b/resources/views/tenant/dashboard/blocks/last30.blade.php
+index e3b6b6b8..f03574b2 100644
+--- a/resources/views/tenant/dashboard/blocks/last30.blade.php
++++ b/resources/views/tenant/dashboard/blocks/last30.blade.php
+@@ -6,7 +6,7 @@
+   $delta = fn ($pct): string => \App\Support\Dashboard\BriefView::delta($pct);
+ @endphp
+       <div class="mb-stats">
+-        <div class="mb-h2row"><h2 class="mb-h2">Last 30 days</h2></div>
++        <div class="mb-h2row"><h2 class="mb-h2">{{ $dashBlock['title'] ?? 'Last 30 days' }}</h2></div>
+         @if ($see->can('reports'))<div class="mb-st"><span class="k">Sales{!! $delta($growth['revenue']['delta_pct'] ?? null) !!}</span>{!! $spark($growth['revenue']['sparkline'] ?? []) !!}<span class="v">{{ format_money($growth['revenue']['current_cents'] ?? 0) }}</span></div>@endif
+         @if ($see->can('schedule'))<div class="mb-st"><span class="k">Jobs completed{!! $delta($jobs['delta_pct'] ?? null) !!}</span><svg viewBox="0 0 110 28" aria-hidden="true"></svg><span class="v">{{ number_format($jobs['current'] ?? 0) }}</span></div>@endif
+         @if ($see->can('customers'))<div class="mb-st"><span class="k">New customers{!! $delta($growth['customers']['delta_pct'] ?? null) !!}</span>{!! $spark($growth['customers']['sparkline'] ?? []) !!}<span class="v">{{ number_format($growth['customers']['current'] ?? 0) }}</span></div>@endif
+diff --git a/resources/views/tenant/dashboard/blocks/queue.blade.php b/resources/views/tenant/dashboard/blocks/queue.blade.php
+index 74cbcdc1..1bffda33 100644
+--- a/resources/views/tenant/dashboard/blocks/queue.blade.php
++++ b/resources/views/tenant/dashboard/blocks/queue.blade.php
+@@ -1,6 +1,6 @@
+ {{-- Block: the queue (Brief). Each row is a count that opens its own filtered list. --}}
+ @php $bq = \App\Support\Dashboard\BriefView::queue($attention ?? []); @endphp
+-      <div class="mb-h2row"><h2 class="mb-h2">The queue</h2><span class="meta">Most urgent first · each row opens its list</span></div>
++      <div class="mb-h2row"><h2 class="mb-h2">{{ $dashBlock['title'] ?? 'The queue' }}</h2><span class="meta">Most urgent first · each row opens its list</span></div>
+       @if ($bq['cards']->isEmpty())
+         <div class="mb-calm">Nothing needs you right now.</div>
+       @endif
+diff --git a/resources/views/tenant/dashboard/blocks/week.blade.php b/resources/views/tenant/dashboard/blocks/week.blade.php
+index dcfedf54..866db4f7 100644
+--- a/resources/views/tenant/dashboard/blocks/week.blade.php
++++ b/resources/views/tenant/dashboard/blocks/week.blade.php
+@@ -6,7 +6,7 @@
+   $fmt = fn (float $h): string => \App\Support\Dashboard\BriefView::hour($h);
+   $newUrl = route('tenant.appointments.index', ['new' => 1]);
+ @endphp
+-      <div class="mb-h2row"><h2 class="mb-h2">This week</h2><span class="meta">{{ $week['total'] }} booked</span></div>
++      <div class="mb-h2row"><h2 class="mb-h2">{{ $dashBlock['title'] ?? 'This week' }}</h2><span class="meta">{{ $week['total'] }} booked</span></div>
+ 
+       <div class="mb-days" role="tablist">
+         @foreach ($days as $i => $d)
+diff --git a/routes/web.php b/routes/web.php
+index f02b3f0b..3cb050cc 100644
+--- a/routes/web.php
++++ b/routes/web.php
+@@ -120,6 +120,12 @@ Route::domain($domain)->middleware([\App\Http\Middleware\SeoSignals::class, \App
+         Route::post('/admin/scheduling-google/disconnect', [\App\Http\Controllers\Admin\SchedulingGoogleController::class, 'disconnect'])->name('admin.scheduling.google.disconnect');
+     });
+ 
++    // MARKER-DASH-PREVIEW: a shop's dashboard as one of its roles sees it,
++    // drawn in the Dashboards preview (tenants area, read-only).
++    Route::middleware(['auth', \App\Http\Middleware\EnforceAdminArea::class . ':tenants'])->group(function () {
++        Route::get('/admin/dashboard-preview/frame', [\App\Http\Controllers\Admin\DashboardPreviewController::class, 'frame'])->name('admin.dashboard-preview.frame');
++    });
++
+     // --- Marketing page editor bridge (admin only) ---
+     // GET hands off to the tenant page builder view with platform tenant bound.
+     // POST handles auto-save (section content, nav, page meta).

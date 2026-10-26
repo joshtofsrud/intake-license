@@ -31,7 +31,7 @@
 
 <div class="ia-dash-today-tile-block">
   <div class="ia-dash-tiles-zone-label">
-    <span>Today</span>
+    <span>{{ $dashBlock['title'] ?? 'Today' }}</span>
     <span class="hint">
       @if($todayCount === 0 && $nextDay && $nextDayAppts->isNotEmpty())
         Nothing today · {{ $nextDayAppts->count() }} {{ \Illuminate\Support\Str::plural('appointment', $nextDayAppts->count()) }} {{ $nextDayLabel }}

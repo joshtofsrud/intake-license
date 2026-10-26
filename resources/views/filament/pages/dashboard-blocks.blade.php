@@ -53,8 +53,11 @@
             @if ($b['hidden'])<div><span class="db-tag off">Hidden everywhere</span></div>@endif
           </td>
           <td class="r">
+            <span class="db-acts">
+              <a class="db-lnk dim" href="{{ \App\Filament\Pages\DashboardPreview::getUrl(['b' => $b['key']]) }}">Preview</a>
+            </span>
             @if ($canManage)
-              <span class="db-acts">
+              <span class="db-acts" style="margin-left:14px">
                 @if (! $b['builtin'])
                   <a class="db-lnk" href="{{ \App\Filament\Pages\DashboardBlockBuilder::getUrl(['k' => $b['key']]) }}">Edit</a>
                   <button type="button" class="db-lnk dim" wire:click="duplicate('{{ $b['key'] }}')">Copy</button>

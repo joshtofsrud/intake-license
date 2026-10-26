@@ -6,7 +6,7 @@
   $fmt = fn (float $h): string => \App\Support\Dashboard\BriefView::hour($h);
   $newUrl = route('tenant.appointments.index', ['new' => 1]);
 @endphp
-      <div class="mb-h2row"><h2 class="mb-h2">This week</h2><span class="meta">{{ $week['total'] }} booked</span></div>
+      <div class="mb-h2row"><h2 class="mb-h2">{{ $dashBlock['title'] ?? 'This week' }}</h2><span class="meta">{{ $week['total'] }} booked</span></div>
 
       <div class="mb-days" role="tablist">
         @foreach ($days as $i => $d)

@@ -1,4 +1,4 @@
-@extends('layouts.tenant.app')
+@extends($dashLayout ?? 'layouts.tenant.app'){{-- MARKER-DASH-PREVIEW: master admin's preview draws the same page in layouts.tenant.preview --}}
 {{-- MARKER-DASH-BRIEF: the third dashboard view, in beta. Built from the same
      data as Overview (DashboardController); Overview stays the default. --}}
 @section('title', 'Dashboard')

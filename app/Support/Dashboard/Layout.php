@@ -78,6 +78,11 @@ class Layout
         if (! empty($p['lock'])) {
             $out['lock'] = true;
         }
+        // MARKER-DASH-BUILDER: this template's own heading for the block
+        $title = trim((string) ($p['title'] ?? ''));
+        if ($title !== '') {
+            $out['title'] = mb_substr($title, 0, 60);
+        }
 
         return $out;
     }
@@ -151,6 +156,9 @@ class Layout
             $ordD = array_values(array_filter($d['col'], fn ($x) => isset($L[$x])));
             if ($l['r'] !== $d['r'] || $l['c'] !== $d['c'] || array_search($k, $ordL, true) !== array_search($k, $ordD, true)) {
                 $out[] = ['moved', 'Moved ' . $name($k)];
+            }
+            if (($l['p']['title'] ?? null) !== ($d['p']['title'] ?? null)) {
+                $out[] = ['moved', isset($d['p']['title']) ? 'Renamed ' . $name($k) . ' to “' . $d['p']['title'] . '”' : 'Gave ' . $name($k) . ' back its own title'];
             }
             if (! empty($l['p']['lock']) !== ! empty($d['p']['lock'])) {
                 $out[] = ['moved', $name($k) . (! empty($d['p']['lock']) ? ' can no longer be hidden' : ' can be hidden')];

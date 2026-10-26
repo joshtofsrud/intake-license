@@ -40,7 +40,7 @@
 
 <div class="ia-dash-growth-tiles-block">
   <div class="ia-dash-tiles-zone-label">
-    <span>How the business is doing</span>
+    <span>{{ $dashBlock['title'] ?? 'How the business is doing' }}</span>
     <span class="hint">last 30 days vs. prior 30 · tap for full report</span>
   </div>
 

@@ -82,6 +82,7 @@
           <td class="r">
             <span class="db-acts">
               <a class="db-lnk" href="{{ \App\Filament\Pages\DashboardEditor::getUrl(['t' => $t['key']]) }}">{{ $canManage ? 'Edit' : 'View' }}</a>
+              <a class="db-lnk dim" href="{{ \App\Filament\Pages\DashboardPreview::getUrl(['t' => $t['key'], 'v' => $t['state'] === 'live' ? 'live' : 'draft']) }}">Preview</a>
               @if ($canManage)
                 <button type="button" class="db-lnk dim" wire:click="duplicate('{{ $t['key'] }}')">Duplicate</button>
                 @if ($saved !== $t['key'])
