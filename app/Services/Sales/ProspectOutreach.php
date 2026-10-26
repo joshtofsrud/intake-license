@@ -318,8 +318,11 @@ class ProspectOutreach
             ->first(['s.created_at', 'p.shop']);
     }
 
-    /** @return array{0: bool, 1: string} sent?, message for the person sending */
-    public static function send(SalesProspect $p, string $subject, string $body, ?string $page, ?string $templateId = null): array
+    /**
+     * @return array{0: bool, 1: string} sent?, message for the person sending
+     * @param int|null $sentBy  MARKER-OUTREACH-AUTO: auto-send has no signed-in admin, so it says who started it
+     */
+    public static function send(SalesProspect $p, string $subject, string $body, ?string $page, ?string $templateId = null, ?int $sentBy = null, bool $auto = false): array
     {
         $to = mb_strtolower(trim((string) $p->email));
         if (! filter_var($to, FILTER_VALIDATE_EMAIL)) {
@@ -342,7 +345,7 @@ class ProspectOutreach
         }
         $html    = self::html($body, $p, $page, $to);
         $tpl     = $templateId ? SalesEmailTemplate::find($templateId) : null;
-        $user    = Auth::guard('web')->user();
+        $user    = $sentBy ? \App\Models\User::find($sentBy) : Auth::guard('web')->user();
 
         $thread = \App\Models\PlatformInboxMessage::create([
             'kind'    => \App\Models\PlatformInboxMessage::KIND_CONTACT,
@@ -373,7 +376,7 @@ class ProspectOutreach
         PlatformMailer::log('prospect', $to, $subject);
         $p->activities()->create([
             'type' => 'email',
-            'body' => 'Emailed: ' . $subject . ' (' . ($user?->name ?? 'staff') . ')'
+            'body' => 'Emailed: ' . $subject . ' (' . ($auto ? 'auto-send, started by ' : '') . ($user?->name ?? 'staff') . ')'
                 . ($tpl ? ' · template: ' . $tpl->name : '') . ' · lands on: ' . self::pageLabel($page),
         ]);
 

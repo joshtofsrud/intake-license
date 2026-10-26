@@ -85,6 +85,15 @@
   .eo-pv a { pointer-events:none; }
   .eo-pv-s { font-weight:600; font-size:15px; margin-bottom:12px; color:#111; }
   .eo-yes { color:var(--sx-lime); }
+  /* MARKER-OUTREACH-AUTO */
+  .eo-auto { padding:12px 0; border-bottom:1px solid var(--sx-line); }
+  .eo-auto-row { display:flex; align-items:center; gap:8px 16px; flex-wrap:wrap; font-size:13px; color:var(--sx-dim); }
+  .eo-auto-row b { color:#fff; font-weight:600; }
+  .eo-auto-row label { display:inline-flex; align-items:center; gap:6px; }
+  .eo-num { width:66px; padding:4px 8px; }
+  .eo-auto-sub { font-size:12.5px; color:var(--sx-faint); margin-top:6px; line-height:1.55; }
+  .eo-auto-sub b { color:var(--sx-dim); font-weight:500; }
+  .eo-auto-dot { width:8px; height:8px; border-radius:50%; background:var(--sx-lime); box-shadow:0 0 0 3px rgba(190,242,100,.18); }
   @media (max-width:860px) { .eo-cols, .eo-two { grid-template-columns:1fr; gap:10px; } .eo-pvcol { position:static; } .eo-pvcol .eo-pv { max-height:none; } .eo-bar-tally { margin-left:0; width:100%; } .eo-hide-m { display:none; } }
 </style>
 
@@ -153,6 +162,11 @@
             <option value="again">Emailed before</option>
             <option value="all">Everyone</option>
         </select>
+        {{-- MARKER-OUTREACH-AUTO: business addresses vs free email (Gmail, Outlook…) --}}
+        <select class="sx-in" wire:model.live="mail">
+            @foreach (\App\Services\Sales\OutreachQueue::MAIL as $mk => $ml)<option value="{{ $mk }}">{{ $ml }}</option>@endforeach
+        </select>
+        <button type="button" class="sx-btn sm" wire:click="$toggle('showDomains')">{{ $showDomains ? 'Close list' : 'Free email list' }}</button>
         <div class="eo-bar-tally">
             <span><b class="lime">{{ $st['today'] }}</b>today</span>
             <span><b>{{ number_format($st['all']) }}</b>all time</span>
@@ -161,9 +175,57 @@
         </div>
     </div>
 
+    @if ($showDomains)
+        <div class="eo-legend">
+            <b>Free email domains.</b> An address at one of these counts as free email for the filter and for auto-send's slower pace; everything else is a business address. One per line.
+            <textarea class="sx-in eo-full" rows="6" wire:model="freeDomainsText" style="margin-top:8px;font-family:inherit"></textarea>
+            <div style="display:flex;gap:8px;margin-top:8px"><button type="button" class="sx-btn p sm" wire:click="saveFreeDomains">Save list</button><button type="button" class="sx-btn sm" wire:click="$toggle('showDomains')">Cancel</button></div>
+        </div>
+    @endif
+
+    {{-- MARKER-OUTREACH-AUTO: auto-send --}}
+    @php $au = $this->autoState(); $auOn = (bool) ($au['running'] ?? false); @endphp
+    <div class="eo-auto" @if ($auOn) wire:poll.5s @endif>
+        @if ($auOn)
+            @php $ac = $au['config']; $next = isset($au['next_at']) ? \Carbon\Carbon::parse($au['next_at']) : null; @endphp
+            <div class="eo-auto-row">
+                <span class="eo-auto-dot"></span>
+                <b>Auto-send is on</b>
+                <span>{{ number_format($au['sent']['business'] + $au['sent']['free']) }} sent ({{ $au['sent']['business'] }} business · {{ $au['sent']['free'] }} free email){{ $au['skipped'] ? ' · ' . $au['skipped'] . ' skipped' : '' }}</span>
+                <span>{{ $next && $next->isFuture() ? 'next check in ' . max(1, (int) now()->diffInSeconds($next)) . 's' : 'sending' }}</span>
+                <button type="button" class="sx-btn sm" style="margin-left:auto;border-color:#f47c7c;color:#f47c7c" wire:click="stopAuto">Stop auto-send</button>
+            </div>
+            <div class="eo-auto-sub">
+                Template “{{ $ac['template'] }}” · lands on {{ \App\Services\Sales\ProspectOutreach::pageLabel($ac['page']) }} ·
+                business every {{ $ac['gap_business'] }}s{{ $ac['cap_business'] ? ', ' . $ac['cap_business'] . '/day' : '' }} ·
+                free email every {{ $ac['gap_free'] }}s{{ $ac['cap_free'] ? ', ' . $ac['cap_free'] . '/day' : '' }} ·
+                {{ $au['bounces'] ?? 0 }} {{ ($au['bounces'] ?? 0) === 1 ? 'bounce' : 'bounces' }} so far{{ $ac['max_bounces'] ? ' (pauses at ' . $ac['max_bounces'] . ')' : '' }} ·
+                started {{ \Carbon\Carbon::parse($au['started_at'])->setTimezone($tz)->format('g:i a') }} by {{ $au['started_by_name'] }}
+                @if (! empty($au['last_sent'])) · last: {{ $au['last_sent']['shop'] }}, {{ \Carbon\Carbon::parse($au['last_sent']['at'])->diffForHumans() }}@endif
+            </div>
+            <div class="eo-auto-sub">It uses the filters, template and landing page it was started with, and keeps going if you close this page. Sending by hand still works alongside it.</div>
+        @else
+            <div class="eo-auto-row">
+                <b>Auto-send</b>
+                <label>Business: one every <input type="number" min="1" max="3600" class="sx-in eo-num" wire:model.live.debounce.500ms="gapBusiness"> s</label>
+                <label>Free email: one every <input type="number" min="1" max="3600" class="sx-in eo-num" wire:model.live.debounce.500ms="gapFree"> s</label>
+                <label>Daily cap <input type="number" min="0" class="sx-in eo-num" wire:model="capBusiness"> / <input type="number" min="0" class="sx-in eo-num" wire:model="capFree"></label>
+                <label>Pause after <input type="number" min="0" class="sx-in eo-num" wire:model="maxBounces"> bounces</label>
+                <button type="button" class="sx-btn p sm" style="margin-left:auto" wire:click="startAuto"
+                    data-confirm="Start auto-send?&#10;It emails the {{ number_format($st['queue']) }} {{ \Illuminate\Support\Str::plural('shop', $st['queue']) }} in this queue ({{ \App\Services\Sales\OutreachQueue::MAIL[$mail] }}) with the saved template, one business address every {{ $gapBusiness }}s and one free-email address every {{ $gapFree }}s, until the queue runs out or you stop it. It keeps going if you close this page.">Start auto-send</button>
+            </div>
+            <div class="eo-auto-sub">
+                Sends this queue (the filters above) with the <b>saved</b> template and landing page below, not edits on screen. Gmail, Outlook and other free email get the slower pace. Caps are per day, business / free email, 0 = no cap. It stops by itself when the queue runs out, the caps are reached, a send fails, or bounces and spam complaints reach the limit (0 = never pause).
+                @if (! empty($au['stopped_reason']))
+                    <br><span class="eo-warn" style="display:inline">Last run: {{ $au['stopped_reason'] }} {{ number_format(($au['sent']['business'] ?? 0) + ($au['sent']['free'] ?? 0)) }} sent, ended {{ \Carbon\Carbon::parse($au['stopped_at'])->setTimezone($tz)->format('M j, g:i a') }}.</span>
+                @endif
+            </div>
+        @endif
+    </div>
+
     {{-- MARKER-OUTREACH-LAYOUT: the legend, one line until More --}}
     <div class="eo-legend" x-data="{ more: false }">
-        <b>Only sends when you press Send,</b> from Intake's platform address, with an unsubscribe link and your postal address. Addresses that unsubscribed, bounced or complained never appear. <b>Not affected:</b> tenant emails (receipts, bookings), Instagram follows, campaigns.
+        <b>Sends when you press Send, or on its own while auto-send is on,</b> from Intake's platform address, with an unsubscribe link and your postal address. Addresses that unsubscribed, bounced or complained never appear. <b>Not affected:</b> tenant emails (receipts, bookings), Instagram follows, campaigns.
         <button type="button" x-on:click="more = ! more" x-text="more ? 'Less' : 'More'">More</button>
         <div x-show="more" x-cloak style="margin-top:6px"><b>[link]</b> becomes that shop's own link to the page you pick, so their visit shows on their timeline with the pages they looked at. Your template, landing page and filters are remembered. Visits while you're signed in to master admin aren't recorded, so test a link in a private window. <b>Send test to me</b> sends this email only to you, with a link that carries no tracking code. The signature is set on Email templates › Signature. {{ ['new' => "The queue is shops with an email address that haven't been emailed.", 'again' => 'The queue is shops you emailed before; "Longest since emailed" is a sort option.', 'all' => 'The queue is every shop with an email address.'][$who] ?? '' }}</div>
     </div>

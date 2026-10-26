@@ -35,6 +35,16 @@ class SalesEmailOutreach extends Page
     public string $stage = '';
     public string $sort = 'score';
     public string $who = 'new'; // MARKER-OUTREACH-RECONTACT: new | again | all
+    public string $mail = 'any'; // MARKER-OUTREACH-AUTO: any | business | free
+
+    // MARKER-OUTREACH-AUTO: auto-send's form (the run itself lives in OutreachAutoSend)
+    public int $gapBusiness = 10;
+    public int $gapFree = 60;
+    public int $capBusiness = 0;
+    public int $capFree = 0;
+    public int $maxBounces = 5;
+    public string $freeDomainsText = '';
+    public bool $showDomains = false;
 
     public string $templateId = '';
     public string $landing = '/';
@@ -106,7 +116,7 @@ class SalesEmailOutreach extends Page
         abort_unless(static::canAccess(), 403);
         if (request()->query('tab') === 'results') $this->tab = 'results';
         $prefs = ProspectOutreach::prefs();
-        foreach (['industryId', 'state', 'stage', 'sort', 'templateId', 'who'] as $k) {
+        foreach (['industryId', 'state', 'stage', 'sort', 'templateId', 'who', 'mail'] as $k) {
             if (isset($prefs[$k]) && is_string($prefs[$k])) $this->{$k} = $prefs[$k];
         }
         if (isset($prefs['page']) && is_string($prefs['page'])) $this->landing = $prefs['page'];
@@ -117,12 +127,18 @@ class SalesEmailOutreach extends Page
             $this->landing = (string) (SalesEmailTemplate::whereKey($this->templateId)->value('page') ?: '/');
         }
         $this->landing = ProspectOutreach::normalizePage($this->landing);
+        if (! isset(\App\Services\Sales\OutreachQueue::MAIL[$this->mail])) $this->mail = 'any';
+        $d = \App\Services\Sales\OutreachAutoSend::defaults();
+        [$this->gapBusiness, $this->gapFree, $this->capBusiness, $this->capFree, $this->maxBounces]
+            = [$d['gap_business'], $d['gap_free'], $d['cap_business'], $d['cap_free'], $d['max_bounces']];
+        $this->freeDomainsText = implode("\n", \App\Services\Sales\OutreachQueue::freeDomains());
         $this->loadNext();
     }
 
     public function updated($name): void
     {
-        if (in_array($name, ['industryId', 'state', 'stage', 'sort', 'who'], true)) {
+        if ($name === 'mail' && ! isset(\App\Services\Sales\OutreachQueue::MAIL[$this->mail])) $this->mail = 'any';
+        if (in_array($name, ['industryId', 'state', 'stage', 'sort', 'who', 'mail'], true)) {
             ProspectOutreach::savePrefs([$name => $this->{$name}]);
             $this->listPage = 1;
             $this->loadNext();
@@ -163,42 +179,27 @@ class SalesEmailOutreach extends Page
         return now(self::TZ)->startOfDay()->setTimezone(config('app.timezone'));
     }
 
-    /** Open prospects with an email address, not emailed yet, not unsubscribed. */
+    /** MARKER-OUTREACH-AUTO: the filters on screen, as OutreachQueue takes them. */
+    public function filters(): array
+    {
+        return ['who' => $this->who, 'industryId' => $this->industryId, 'state' => $this->state, 'stage' => $this->stage,
+            'sort' => $this->sort, 'mail' => $this->mail];
+    }
+
+    /** Open prospects with an email address that can be emailed now (no filters but who). */
     private function base()
     {
-        return SalesProspect::query()
-            ->whereNotNull('email')->where('email', 'like', '%@%')
-            // MARKER-OUTREACH-RECONTACT: shops already emailed can be emailed
-            // again; only a shop emailed in the last hour stays out, so a send
-            // doesn't come straight back as the next shop (MARKER-RECONTACT-HOUR).
-            ->when($this->who === 'new', fn ($q) => $q->whereNull('emailed_at'))
-            ->when($this->who === 'again', fn ($q) => $q->whereNotNull('emailed_at')->where('emailed_at', '<', now()->subHour()))
-            ->when($this->who === 'all', fn ($q) => $q->where(fn ($w) => $w->whereNull('emailed_at')->orWhere('emailed_at', '<', now()->subHour())))
-            ->whereNotIn('stage', ['won', 'lost'])
-            ->whereRaw('LOWER(email) NOT IN (SELECT email FROM platform_email_optouts)')
-            // MARKER-OUTREACH-ONE-PER-ADDRESS: an address that had an outreach
-            // email recently is out of the queue whichever listing it was
-            // sent as; "new" means the ADDRESS has never had one.
-            ->whereRaw('LOWER(TRIM(email)) NOT IN (SELECT LOWER(email) FROM sales_outreach_sends WHERE created_at >= ?)',
-                [now()->subHours(ProspectOutreach::ADDRESS_GAP_HOURS)])
-            ->when($this->who === 'new', fn ($q) => $q->whereRaw('LOWER(TRIM(email)) NOT IN (SELECT LOWER(email) FROM sales_outreach_sends)'));
+        return \App\Services\Sales\OutreachQueue::filtered($this->filters() + ['_base' => true]);
     }
 
     private function filtered()
     {
-        return $this->base()
-            ->when($this->industryId !== '', fn ($q) => $q->where('channel_id', $this->industryId))
-            ->when($this->state !== '', fn ($q) => $q->where('state', $this->state))
-            ->when($this->stage !== '', fn ($q) => $q->where('stage', $this->stage));
+        return \App\Services\Sales\OutreachQueue::filtered($this->filters());
     }
 
     private function ordered()
     {
-        // skipped ones go to the back, oldest skip first
-        $q = $this->filtered()->orderByRaw('email_skipped_at IS NOT NULL')->orderBy('email_skipped_at');
-        if ($this->sort === 'emailed') return $q->orderByRaw('emailed_at IS NOT NULL')->orderBy('emailed_at')->orderByDesc('lead_score');
-        // MARKER-OUTREACH-FAST: ties break on id (in the index) instead of shop name (not in it)
-        return $this->sort === 'new' ? $q->orderByDesc('created_at')->orderBy('id') : $q->orderByDesc('lead_score')->orderBy('id');
+        return \App\Services\Sales\OutreachQueue::ordered($this->filters());
     }
 
     /**
@@ -217,7 +218,7 @@ class SalesEmailOutreach extends Page
     /** Cached for a minute: they hardly move between sends, and each is a pass over every shop. */
     private function cached(string $what, \Closure $fn)
     {
-        return \Illuminate\Support\Facades\Cache::remember('outreach:' . $what . ':' . md5(json_encode([$this->who, $this->industryId, $this->state, $this->stage])), 60, $fn);
+        return \Illuminate\Support\Facades\Cache::remember('outreach:' . $what . ':' . md5(json_encode([$this->who, $this->industryId, $this->state, $this->stage, $this->mail])), 60, $fn);
     }
 
     public function industries(): array
@@ -395,6 +396,46 @@ class SalesEmailOutreach extends Page
         );
         [$ok, $msg] = ProspectOutreach::sendTest($p, $this->subject, $this->body, $this->landing);
         Notification::make()->title($msg)->{$ok ? 'success' : 'warning'}()->send();
+    }
+
+    // ---------------------------------------------------------------- MARKER-OUTREACH-AUTO
+
+    public function autoState(): array
+    {
+        $s = \App\Services\Sales\OutreachAutoSend::state();
+        if ($s['running'] ?? false) $s['bounces'] = \App\Services\Sales\OutreachAutoSend::bounces($s);
+
+        return $s;
+    }
+
+    public function startAuto(): void
+    {
+        $u = Auth::guard('web')->user();
+        try {
+            \App\Services\Sales\OutreachAutoSend::start($this->filters(), $this->templateId, $this->landing, [
+                'gap_business' => $this->gapBusiness, 'gap_free' => $this->gapFree,
+                'cap_business' => $this->capBusiness, 'cap_free' => $this->capFree, 'max_bounces' => $this->maxBounces,
+            ], (int) $u->id, (string) $u->name);
+        } catch (\InvalidArgumentException $e) {
+            Notification::make()->title($e->getMessage())->warning()->send();
+            return;
+        }
+        Notification::make()->title('Auto-send started')->body('It keeps going if you close this page. Stop it here any time.')->success()->send();
+    }
+
+    public function stopAuto(): void
+    {
+        \App\Services\Sales\OutreachAutoSend::stop('Stopped by ' . (Auth::guard('web')->user()?->name ?? 'an admin') . '.');
+        Notification::make()->title('Auto-send stopped')->success()->send();
+        $this->loadNext();
+    }
+
+    public function saveFreeDomains(): void
+    {
+        $list = \App\Services\Sales\OutreachQueue::saveFreeDomains($this->freeDomainsText);
+        $this->freeDomainsText = implode("\n", $list);
+        Notification::make()->title(count($list) . ' free email domains saved')->success()->send();
+        $this->loadNext();
     }
 
     public function skip(): void

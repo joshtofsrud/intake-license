@@ -1,0 +1,782 @@
+diff --git a/app/Console/Commands/OutreachAutoKeepalive.php b/app/Console/Commands/OutreachAutoKeepalive.php
+new file mode 100644
+index 00000000..52127bca
+--- /dev/null
++++ b/app/Console/Commands/OutreachAutoKeepalive.php
+@@ -0,0 +1,20 @@
++<?php
++
++namespace App\Console\Commands;
++
++use App\Services\Sales\OutreachAutoSend;
++use Illuminate\Console\Command;
++
++/** MARKER-OUTREACH-AUTO: restarts auto-send's chain if a deploy or worker restart dropped it. */
++class OutreachAutoKeepalive extends Command
++{
++    protected $signature = 'outreach:auto-keepalive';
++    protected $description = 'Keep Email outreach auto-send going after a deploy or worker restart';
++
++    public function handle(): int
++    {
++        OutreachAutoSend::keepAlive();
++
++        return self::SUCCESS;
++    }
++}
+diff --git a/app/Filament/Pages/SalesEmailOutreach.php b/app/Filament/Pages/SalesEmailOutreach.php
+index 223964f0..300d891f 100644
+--- a/app/Filament/Pages/SalesEmailOutreach.php
++++ b/app/Filament/Pages/SalesEmailOutreach.php
+@@ -35,6 +35,16 @@ class SalesEmailOutreach extends Page
+     public string $stage = '';
+     public string $sort = 'score';
+     public string $who = 'new'; // MARKER-OUTREACH-RECONTACT: new | again | all
++    public string $mail = 'any'; // MARKER-OUTREACH-AUTO: any | business | free
++
++    // MARKER-OUTREACH-AUTO: auto-send's form (the run itself lives in OutreachAutoSend)
++    public int $gapBusiness = 10;
++    public int $gapFree = 60;
++    public int $capBusiness = 0;
++    public int $capFree = 0;
++    public int $maxBounces = 5;
++    public string $freeDomainsText = '';
++    public bool $showDomains = false;
+ 
+     public string $templateId = '';
+     public string $landing = '/';
+@@ -106,7 +116,7 @@ class SalesEmailOutreach extends Page
+         abort_unless(static::canAccess(), 403);
+         if (request()->query('tab') === 'results') $this->tab = 'results';
+         $prefs = ProspectOutreach::prefs();
+-        foreach (['industryId', 'state', 'stage', 'sort', 'templateId', 'who'] as $k) {
++        foreach (['industryId', 'state', 'stage', 'sort', 'templateId', 'who', 'mail'] as $k) {
+             if (isset($prefs[$k]) && is_string($prefs[$k])) $this->{$k} = $prefs[$k];
+         }
+         if (isset($prefs['page']) && is_string($prefs['page'])) $this->landing = $prefs['page'];
+@@ -117,12 +127,18 @@ class SalesEmailOutreach extends Page
+             $this->landing = (string) (SalesEmailTemplate::whereKey($this->templateId)->value('page') ?: '/');
+         }
+         $this->landing = ProspectOutreach::normalizePage($this->landing);
++        if (! isset(\App\Services\Sales\OutreachQueue::MAIL[$this->mail])) $this->mail = 'any';
++        $d = \App\Services\Sales\OutreachAutoSend::defaults();
++        [$this->gapBusiness, $this->gapFree, $this->capBusiness, $this->capFree, $this->maxBounces]
++            = [$d['gap_business'], $d['gap_free'], $d['cap_business'], $d['cap_free'], $d['max_bounces']];
++        $this->freeDomainsText = implode("\n", \App\Services\Sales\OutreachQueue::freeDomains());
+         $this->loadNext();
+     }
+ 
+     public function updated($name): void
+     {
+-        if (in_array($name, ['industryId', 'state', 'stage', 'sort', 'who'], true)) {
++        if ($name === 'mail' && ! isset(\App\Services\Sales\OutreachQueue::MAIL[$this->mail])) $this->mail = 'any';
++        if (in_array($name, ['industryId', 'state', 'stage', 'sort', 'who', 'mail'], true)) {
+             ProspectOutreach::savePrefs([$name => $this->{$name}]);
+             $this->listPage = 1;
+             $this->loadNext();
+@@ -163,42 +179,27 @@ class SalesEmailOutreach extends Page
+         return now(self::TZ)->startOfDay()->setTimezone(config('app.timezone'));
+     }
+ 
+-    /** Open prospects with an email address, not emailed yet, not unsubscribed. */
++    /** MARKER-OUTREACH-AUTO: the filters on screen, as OutreachQueue takes them. */
++    public function filters(): array
++    {
++        return ['who' => $this->who, 'industryId' => $this->industryId, 'state' => $this->state, 'stage' => $this->stage,
++            'sort' => $this->sort, 'mail' => $this->mail];
++    }
++
++    /** Open prospects with an email address that can be emailed now (no filters but who). */
+     private function base()
+     {
+-        return SalesProspect::query()
+-            ->whereNotNull('email')->where('email', 'like', '%@%')
+-            // MARKER-OUTREACH-RECONTACT: shops already emailed can be emailed
+-            // again; only a shop emailed in the last hour stays out, so a send
+-            // doesn't come straight back as the next shop (MARKER-RECONTACT-HOUR).
+-            ->when($this->who === 'new', fn ($q) => $q->whereNull('emailed_at'))
+-            ->when($this->who === 'again', fn ($q) => $q->whereNotNull('emailed_at')->where('emailed_at', '<', now()->subHour()))
+-            ->when($this->who === 'all', fn ($q) => $q->where(fn ($w) => $w->whereNull('emailed_at')->orWhere('emailed_at', '<', now()->subHour())))
+-            ->whereNotIn('stage', ['won', 'lost'])
+-            ->whereRaw('LOWER(email) NOT IN (SELECT email FROM platform_email_optouts)')
+-            // MARKER-OUTREACH-ONE-PER-ADDRESS: an address that had an outreach
+-            // email recently is out of the queue whichever listing it was
+-            // sent as; "new" means the ADDRESS has never had one.
+-            ->whereRaw('LOWER(TRIM(email)) NOT IN (SELECT LOWER(email) FROM sales_outreach_sends WHERE created_at >= ?)',
+-                [now()->subHours(ProspectOutreach::ADDRESS_GAP_HOURS)])
+-            ->when($this->who === 'new', fn ($q) => $q->whereRaw('LOWER(TRIM(email)) NOT IN (SELECT LOWER(email) FROM sales_outreach_sends)'));
++        return \App\Services\Sales\OutreachQueue::filtered($this->filters() + ['_base' => true]);
+     }
+ 
+     private function filtered()
+     {
+-        return $this->base()
+-            ->when($this->industryId !== '', fn ($q) => $q->where('channel_id', $this->industryId))
+-            ->when($this->state !== '', fn ($q) => $q->where('state', $this->state))
+-            ->when($this->stage !== '', fn ($q) => $q->where('stage', $this->stage));
++        return \App\Services\Sales\OutreachQueue::filtered($this->filters());
+     }
+ 
+     private function ordered()
+     {
+-        // skipped ones go to the back, oldest skip first
+-        $q = $this->filtered()->orderByRaw('email_skipped_at IS NOT NULL')->orderBy('email_skipped_at');
+-        if ($this->sort === 'emailed') return $q->orderByRaw('emailed_at IS NOT NULL')->orderBy('emailed_at')->orderByDesc('lead_score');
+-        // MARKER-OUTREACH-FAST: ties break on id (in the index) instead of shop name (not in it)
+-        return $this->sort === 'new' ? $q->orderByDesc('created_at')->orderBy('id') : $q->orderByDesc('lead_score')->orderBy('id');
++        return \App\Services\Sales\OutreachQueue::ordered($this->filters());
+     }
+ 
+     /**
+@@ -217,7 +218,7 @@ class SalesEmailOutreach extends Page
+     /** Cached for a minute: they hardly move between sends, and each is a pass over every shop. */
+     private function cached(string $what, \Closure $fn)
+     {
+-        return \Illuminate\Support\Facades\Cache::remember('outreach:' . $what . ':' . md5(json_encode([$this->who, $this->industryId, $this->state, $this->stage])), 60, $fn);
++        return \Illuminate\Support\Facades\Cache::remember('outreach:' . $what . ':' . md5(json_encode([$this->who, $this->industryId, $this->state, $this->stage, $this->mail])), 60, $fn);
+     }
+ 
+     public function industries(): array
+@@ -397,6 +398,46 @@ class SalesEmailOutreach extends Page
+         Notification::make()->title($msg)->{$ok ? 'success' : 'warning'}()->send();
+     }
+ 
++    // ---------------------------------------------------------------- MARKER-OUTREACH-AUTO
++
++    public function autoState(): array
++    {
++        $s = \App\Services\Sales\OutreachAutoSend::state();
++        if ($s['running'] ?? false) $s['bounces'] = \App\Services\Sales\OutreachAutoSend::bounces($s);
++
++        return $s;
++    }
++
++    public function startAuto(): void
++    {
++        $u = Auth::guard('web')->user();
++        try {
++            \App\Services\Sales\OutreachAutoSend::start($this->filters(), $this->templateId, $this->landing, [
++                'gap_business' => $this->gapBusiness, 'gap_free' => $this->gapFree,
++                'cap_business' => $this->capBusiness, 'cap_free' => $this->capFree, 'max_bounces' => $this->maxBounces,
++            ], (int) $u->id, (string) $u->name);
++        } catch (\InvalidArgumentException $e) {
++            Notification::make()->title($e->getMessage())->warning()->send();
++            return;
++        }
++        Notification::make()->title('Auto-send started')->body('It keeps going if you close this page. Stop it here any time.')->success()->send();
++    }
++
++    public function stopAuto(): void
++    {
++        \App\Services\Sales\OutreachAutoSend::stop('Stopped by ' . (Auth::guard('web')->user()?->name ?? 'an admin') . '.');
++        Notification::make()->title('Auto-send stopped')->success()->send();
++        $this->loadNext();
++    }
++
++    public function saveFreeDomains(): void
++    {
++        $list = \App\Services\Sales\OutreachQueue::saveFreeDomains($this->freeDomainsText);
++        $this->freeDomainsText = implode("\n", $list);
++        Notification::make()->title(count($list) . ' free email domains saved')->success()->send();
++        $this->loadNext();
++    }
++
+     public function skip(): void
+     {
+         $p = $this->current();
+diff --git a/app/Jobs/OutreachAutoSendTick.php b/app/Jobs/OutreachAutoSendTick.php
+new file mode 100644
+index 00000000..e2a05ba9
+--- /dev/null
++++ b/app/Jobs/OutreachAutoSendTick.php
+@@ -0,0 +1,34 @@
++<?php
++
++namespace App\Jobs;
++
++use App\Services\Sales\OutreachAutoSend;
++use Illuminate\Bus\Queueable;
++use Illuminate\Contracts\Queue\ShouldQueue;
++use Illuminate\Foundation\Bus\Dispatchable;
++use Illuminate\Queue\InteractsWithQueue;
++
++/** MARKER-OUTREACH-AUTO: one step of auto-send; queues the next step itself. */
++class OutreachAutoSendTick implements ShouldQueue
++{
++    use Dispatchable, InteractsWithQueue, Queueable;
++
++    public int $tries = 1;
++    public int $timeout = 110;
++
++    public function __construct(public string $runId) {}
++
++    public function handle(): void
++    {
++        try {
++            $wait = OutreachAutoSend::tick($this->runId);
++        } catch (\Throwable $e) {
++            \App\Support\JobFailureReporter::report(self::class, 'Outreach auto-send stopped on an error', $e);
++            OutreachAutoSend::stop('Stopped on an error: ' . \Illuminate\Support\Str::limit($e->getMessage(), 200));
++            return;
++        }
++        if ($wait !== null) {
++            self::dispatch($this->runId)->delay(now()->addSeconds($wait));
++        }
++    }
++}
+diff --git a/app/Services/Sales/OutreachAutoSend.php b/app/Services/Sales/OutreachAutoSend.php
+new file mode 100644
+index 00000000..c7f0d840
+--- /dev/null
++++ b/app/Services/Sales/OutreachAutoSend.php
+@@ -0,0 +1,250 @@
++<?php
++
++namespace App\Services\Sales;
++
++use App\Jobs\OutreachAutoSendTick;
++use App\Models\SalesEmailTemplate;
++use Illuminate\Support\Facades\Cache;
++use Illuminate\Support\Facades\DB;
++use Illuminate\Support\Str;
++use InvalidArgumentException;
++
++/**
++ * MARKER-OUTREACH-AUTO: Email outreach sending on its own, at a set pace.
++ *
++ * Start takes a snapshot of the page: its filters, a saved template and the
++ * landing page, plus the pace — seconds between emails to business
++ * addresses, and a separate (usually slower) gap between emails to free email
++ * addresses, so Gmail, Outlook and the rest see a trickle from us. Optional
++ * daily caps per kind, and a bounce limit.
++ *
++ * It runs on the server: OutreachAutoSendTick sends whatever is due and
++ * re-queues itself for the next one, so closing the page doesn't stop it. The
++ * scheduler's outreach:auto-keepalive restarts that chain if a deploy or a
++ * worker restart drops it. Every email goes through ProspectOutreach::send(),
++ * so unsubscribes, one-email-per-address and the activity log all apply
++ * exactly as for Send.
++ *
++ * It stops on its own when the queue runs out, a daily cap is reached for
++ * every kind it's sending, a send fails, or bounces and spam complaints
++ * since it started reach the limit. The page shows why.
++ */
++class OutreachAutoSend
++{
++    public const TZ = 'America/Los_Angeles';
++    public const KINDS = ['business', 'free'];
++
++    public static function state(): array
++    {
++        $raw = DB::table('platform_settings')->where('id', 1)->value('outreach_auto');
++        $s = is_string($raw) ? json_decode($raw, true) : null;
++
++        return is_array($s) ? $s : ['running' => false];
++    }
++
++    private static function put(array $s): void
++    {
++        \App\Models\PlatformSettings::current();
++        DB::table('platform_settings')->where('id', 1)->update(['outreach_auto' => json_encode($s)]);
++    }
++
++    /** The pace and limits last used, to fill the form. */
++    public static function defaults(): array
++    {
++        $c = self::state()['config'] ?? [];
++
++        return [
++            'gap_business' => (int) ($c['gap_business'] ?? 10),
++            'gap_free'     => (int) ($c['gap_free'] ?? 60),
++            'cap_business' => (int) ($c['cap_business'] ?? 0),
++            'cap_free'     => (int) ($c['cap_free'] ?? 0),
++            'max_bounces'  => (int) ($c['max_bounces'] ?? 5),
++        ];
++    }
++
++    /**
++     * @param array $filters  OutreachQueue filters (who, industryId, state, stage, sort, mail)
++     * @param array $pace     gap_business, gap_free (seconds), cap_business, cap_free (per day, 0 = none), max_bounces (0 = never pause)
++     */
++    public static function start(array $filters, string $templateId, string $page, array $pace, int $userId, string $userName): array
++    {
++        if (self::state()['running'] ?? false) throw new InvalidArgumentException('Auto-send is already running. Stop it first.');
++        $tpl = $templateId !== '' ? SalesEmailTemplate::find($templateId) : null;
++        if (! $tpl) throw new InvalidArgumentException('Pick a saved template: auto-send sends the template as saved, not edits on screen.');
++        if (trim((string) $tpl->subject) === '' || trim((string) $tpl->body) === '') throw new InvalidArgumentException('That template needs a subject and a message.');
++
++        $int = fn ($v, $min, $max) => max($min, min($max, (int) $v));
++        $config = [
++            'filters'      => array_intersect_key($filters, array_flip(['who', 'industryId', 'state', 'stage', 'sort', 'mail'])),
++            'template_id'  => (string) $tpl->id,
++            'template'     => $tpl->name,
++            'page'         => ProspectOutreach::normalizePage($page),
++            'gap_business' => $int($pace['gap_business'] ?? 10, 1, 3600),
++            'gap_free'     => $int($pace['gap_free'] ?? 60, 1, 3600),
++            'cap_business' => $int($pace['cap_business'] ?? 0, 0, 10000),
++            'cap_free'     => $int($pace['cap_free'] ?? 0, 0, 10000),
++            'max_bounces'  => $int($pace['max_bounces'] ?? 5, 0, 1000),
++        ];
++        if (! OutreachQueue::filtered($config['filters'])->exists()) throw new InvalidArgumentException('The queue is empty for these filters.');
++
++        $s = [
++            'running' => true, 'run_id' => (string) Str::uuid(), 'started_at' => now()->toIso8601String(),
++            'started_by' => $userId, 'started_by_name' => $userName, 'config' => $config,
++            'sent' => ['business' => 0, 'free' => 0], 'skipped' => 0,
++            'day' => now(self::TZ)->toDateString(), 'day_sent' => ['business' => 0, 'free' => 0],
++            'last' => ['business' => null, 'free' => null], 'next_at' => now()->toIso8601String(),
++            'last_tick_at' => null, 'last_sent' => null, 'stopped_at' => null, 'stopped_reason' => null,
++        ];
++        self::put($s);
++        debug_log()->audit('outreach.auto_started', "Auto-send started by {$userName}: template {$tpl->name}, every {$config['gap_business']}s (free email every {$config['gap_free']}s)", null);
++        OutreachAutoSendTick::dispatch($s['run_id']);
++
++        return $s;
++    }
++
++    public static function stop(string $reason): void
++    {
++        $s = self::state();
++        if (! ($s['running'] ?? false)) return;
++        $s['running'] = false;
++        $s['stopped_at'] = now()->toIso8601String();
++        $s['stopped_reason'] = $reason;
++        self::put($s);
++        debug_log()->audit('outreach.auto_stopped', 'Auto-send stopped: ' . $reason, null);
++    }
++
++    /** Bounces and spam complaints on addresses this run emailed. */
++    public static function bounces(array $s): int
++    {
++        if (empty($s['started_at'])) return 0;
++
++        return (int) DB::table('sales_outreach_sends as o')
++            ->join('platform_email_optouts as x', DB::raw('x.email'), '=', DB::raw('LOWER(o.email)'))
++            ->where('o.created_at', '>=', \Carbon\Carbon::parse($s['started_at']))
++            ->whereIn('x.kind', ['bounce', 'complaint'])
++            ->where('x.updated_at', '>=', \Carbon\Carbon::parse($s['started_at']))
++            ->distinct()->count('o.email');
++    }
++
++    /** Which kinds this run sends: both, or just the one the mail filter picked. */
++    private static function kinds(array $config): array
++    {
++        $mail = $config['filters']['mail'] ?? 'any';
++
++        return in_array($mail, self::KINDS, true) ? [$mail] : self::KINDS;
++    }
++
++    /**
++     * Sends whatever is due. Returns seconds until the next check, or null
++     * when it has stopped (or this tick belongs to an older run).
++     */
++    public static function tick(string $runId): ?int
++    {
++        $lock = Cache::lock('outreach-auto-tick', 120);
++        if (! $lock->get()) return 5; // another tick is mid-send
++        try {
++            $s = self::state();
++            if (! ($s['running'] ?? false) || ($s['run_id'] ?? null) !== $runId) return null;
++            $c = $s['config'];
++            $s['last_tick_at'] = now()->toIso8601String();
++
++            if ($c['max_bounces'] > 0 && ($b = self::bounces($s)) >= $c['max_bounces']) {
++                self::put($s);
++                self::stop("Paused after {$b} bounces or spam complaints since it started. Check Email health before starting again.");
++                return null;
++            }
++
++            $today = now(self::TZ)->toDateString();
++            if (($s['day'] ?? null) !== $today) {
++                $s['day'] = $today;
++                $s['day_sent'] = ['business' => 0, 'free' => 0];
++            }
++
++            $tpl = SalesEmailTemplate::find($c['template_id']);
++            if (! $tpl) {
++                self::put($s);
++                self::stop('The template "' . $c['template'] . '" was deleted.');
++                return null;
++            }
++
++            $open = []; // kinds that still have shops and room under their cap
++            foreach (self::kinds($c) as $kind) {
++                $cap = $c['cap_' . $kind];
++                if ($cap > 0 && $s['day_sent'][$kind] >= $cap) continue;
++                $last = $s['last'][$kind] ? \Carbon\Carbon::parse($s['last'][$kind]) : null;
++                if ($last && $last->copy()->addSeconds($c['gap_' . $kind])->isFuture()) {
++                    $open[] = $kind;
++                    continue;
++                }
++                $p = OutreachQueue::ordered(['mail' => $kind] + $c['filters'])->first();
++                if (! $p) continue;
++                $open[] = $kind;
++
++                [$ok, $msg] = ProspectOutreach::send($p, (string) $tpl->subject, (string) $tpl->body, $c['page'], (string) $tpl->id, (int) $s['started_by'], true);
++                if ($ok) {
++                    $s['sent'][$kind]++;
++                    $s['day_sent'][$kind]++;
++                    $s['last'][$kind] = now()->toIso8601String();
++                    $s['last_sent'] = ['shop' => $p->shop, 'email' => mb_strtolower(trim((string) $p->email)), 'at' => now()->toIso8601String(), 'kind' => $kind];
++                } elseif (self::addressProblem($msg)) {
++                    // this address can't have it (just emailed, unsubscribed, no address): move on
++                    $p->forceFill(['email_skipped_at' => now()])->save();
++                    $s['skipped']++;
++                } else {
++                    self::put($s);
++                    self::stop('A send failed: ' . $msg);
++                    return null;
++                }
++            }
++
++            if (! $open) {
++                $capped = collect(self::kinds($c))->filter(fn ($k) => $c['cap_' . $k] > 0 && $s['day_sent'][$k] >= $c['cap_' . $k])->isNotEmpty();
++                self::put($s);
++                self::stop($capped ? "Today's cap is reached and nothing else is left to send." : 'The queue is empty for these filters.');
++                return null;
++            }
++
++            // next check: the soonest gap among the kinds still sending
++            $waits = [];
++            foreach ($open as $kind) {
++                $last = $s['last'][$kind] ? \Carbon\Carbon::parse($s['last'][$kind]) : null;
++                $waits[] = $last ? max(1, (int) ceil(now()->diffInSeconds($last->copy()->addSeconds($c['gap_' . $kind]), false))) : 1;
++            }
++            $wait = max(1, min(300, min($waits)));
++            $s['next_at'] = now()->addSeconds($wait)->toIso8601String();
++            self::save($s, $runId);
++
++            return $wait;
++        } finally {
++            $lock->release();
++        }
++    }
++
++    /** Saves progress without undoing a Stop pressed while this tick was sending. */
++    private static function save(array $s, string $runId): void
++    {
++        $now = self::state();
++        if (! ($now['running'] ?? false) || ($now['run_id'] ?? null) !== $runId) {
++            foreach (['running', 'stopped_at', 'stopped_reason', 'run_id'] as $k) $s[$k] = $now[$k] ?? null;
++        }
++        self::put($s);
++    }
++
++    private static function addressProblem(string $msg): bool
++    {
++        return str_contains($msg, 'unsubscribed') || str_contains($msg, 'already had an outreach email') || str_contains($msg, 'Add an email address');
++    }
++
++    /** For the scheduler: re-queue the chain if it was lost (deploy, worker restart). */
++    public static function keepAlive(): void
++    {
++        $s = self::state();
++        if (! ($s['running'] ?? false)) return;
++        $last = $s['last_tick_at'] ?? $s['started_at'] ?? null;
++        $next = isset($s['next_at']) ? \Carbon\Carbon::parse($s['next_at']) : null;
++        // overdue by more than two minutes past when it meant to run next
++        if (! $last || ($next && $next->copy()->addMinutes(2)->isPast())) {
++            OutreachAutoSendTick::dispatch($s['run_id']);
++        }
++    }
++}
+diff --git a/app/Services/Sales/OutreachQueue.php b/app/Services/Sales/OutreachQueue.php
+new file mode 100644
+index 00000000..8c3463fe
+--- /dev/null
++++ b/app/Services/Sales/OutreachQueue.php
+@@ -0,0 +1,112 @@
++<?php
++
++namespace App\Services\Sales;
++
++use App\Models\PlatformSettings;
++use App\Models\SalesProspect;
++use Illuminate\Database\Eloquent\Builder;
++
++/**
++ * MARKER-OUTREACH-AUTO: the outreach queue, shared by the Email outreach page
++ * (one shop at a time) and auto-send (OutreachAutoSend), so both always agree
++ * on who's next.
++ *
++ * Filters: who (new | again | all), industryId, state, stage, sort
++ * (score | emailed | new) and mail (any | business | free). "Free" is an
++ * address at a free email provider (Gmail, Outlook…); the list of those
++ * domains is editable on the page and kept on platform_settings.
++ */
++class OutreachQueue
++{
++    /** Used until the list is edited on the page. */
++    public const FREE_DEFAULT = [
++        'gmail.com', 'googlemail.com',
++        'hotmail.com', 'hotmail.co.uk', 'hotmail.ca', 'outlook.com', 'live.com', 'live.ca', 'msn.com', 'passport.com',
++        'yahoo.com', 'yahoo.ca', 'yahoo.co.uk', 'ymail.com', 'rocketmail.com',
++        'aol.com', 'icloud.com', 'me.com', 'mac.com',
++        'comcast.net', 'att.net', 'sbcglobal.net', 'verizon.net', 'charter.net', 'cox.net', 'earthlink.net',
++        'protonmail.com', 'proton.me', 'gmx.com', 'mail.com', 'zoho.com',
++    ];
++
++    public const MAIL = ['any' => 'Any email', 'business' => 'Business addresses', 'free' => 'Free email (Gmail, Outlook…)'];
++
++    /** The free-email domains, lower case, one per entry. */
++    public static function freeDomains(): array
++    {
++        try {
++            $list = json_decode((string) PlatformSettings::current()->getAttribute('outreach_free_domains'), true);
++        } catch (\Throwable $e) {
++            $list = null;
++        }
++
++        return is_array($list) ? $list : self::FREE_DEFAULT;
++    }
++
++    /** Cleans what was typed (commas, spaces or new lines between domains) and saves it. Returns the list. */
++    public static function saveFreeDomains(string $typed): array
++    {
++        $list = collect(preg_split('/[\s,;]+/', mb_strtolower($typed)))
++            ->map(fn ($d) => ltrim(trim($d), '@'))
++            ->filter(fn ($d) => preg_match('/^[a-z0-9][a-z0-9.-]*\.[a-z]{2,}$/', $d))
++            ->unique()->sort()->values()->all();
++        $ps = PlatformSettings::current();
++        $ps->forceFill(['outreach_free_domains' => json_encode($list)])->save();
++        PlatformSettings::forget();
++
++        return $list;
++    }
++
++    public static function isFree(?string $email): bool
++    {
++        $domain = mb_strtolower(trim(substr((string) $email, strrpos((string) $email, '@') + 1)));
++
++        return in_array($domain, self::freeDomains(), true);
++    }
++
++    /** Open prospects with an email address that can be emailed now, filtered. */
++    public static function filtered(array $f): Builder
++    {
++        $who = $f['who'] ?? 'new';
++        $q = SalesProspect::query()
++            ->whereNotNull('email')->where('email', 'like', '%@%')
++            // MARKER-OUTREACH-RECONTACT: shops already emailed can be emailed
++            // again; only a shop emailed in the last hour stays out, so a send
++            // doesn't come straight back as the next shop (MARKER-RECONTACT-HOUR).
++            ->when($who === 'new', fn ($q) => $q->whereNull('emailed_at'))
++            ->when($who === 'again', fn ($q) => $q->whereNotNull('emailed_at')->where('emailed_at', '<', now()->subHour()))
++            ->when($who === 'all', fn ($q) => $q->where(fn ($w) => $w->whereNull('emailed_at')->orWhere('emailed_at', '<', now()->subHour())))
++            ->whereNotIn('stage', ['won', 'lost'])
++            ->whereRaw('LOWER(email) NOT IN (SELECT email FROM platform_email_optouts)')
++            // MARKER-OUTREACH-ONE-PER-ADDRESS: an address that had an outreach
++            // email recently is out of the queue whichever listing it was
++            // sent as; "new" means the ADDRESS has never had one.
++            ->whereRaw('LOWER(TRIM(email)) NOT IN (SELECT LOWER(email) FROM sales_outreach_sends WHERE created_at >= ?)',
++                [now()->subHours(ProspectOutreach::ADDRESS_GAP_HOURS)])
++            ->when($who === 'new', fn ($q) => $q->whereRaw('LOWER(TRIM(email)) NOT IN (SELECT LOWER(email) FROM sales_outreach_sends)'));
++
++        if (! empty($f['_base'])) return $q; // the counts per industry tab use the unfiltered set
++
++        $mail = $f['mail'] ?? 'any';
++        if (in_array($mail, ['business', 'free'], true)) {
++            $free = self::freeDomains() ?: ['-'];
++            $expr = "SUBSTRING_INDEX(LOWER(TRIM(email)), '@', -1)";
++            $marks = implode(',', array_fill(0, count($free), '?'));
++            $q->whereRaw($expr . ($mail === 'free' ? ' IN ' : ' NOT IN ') . '(' . $marks . ')', $free);
++        }
++
++        return $q
++            ->when(($f['industryId'] ?? '') !== '', fn ($q) => $q->where('channel_id', $f['industryId']))
++            ->when(($f['state'] ?? '') !== '', fn ($q) => $q->where('state', $f['state']))
++            ->when(($f['stage'] ?? '') !== '', fn ($q) => $q->where('stage', $f['stage']));
++    }
++
++    /** Queue order: skipped ones at the back, then the chosen sort. */
++    public static function ordered(array $f): Builder
++    {
++        $q = self::filtered($f)->orderByRaw('email_skipped_at IS NOT NULL')->orderBy('email_skipped_at');
++        $sort = $f['sort'] ?? 'score';
++        if ($sort === 'emailed') return $q->orderByRaw('emailed_at IS NOT NULL')->orderBy('emailed_at')->orderByDesc('lead_score');
++        // MARKER-OUTREACH-FAST: ties break on id (in the index) instead of shop name (not in it)
++        return $sort === 'new' ? $q->orderByDesc('created_at')->orderBy('id') : $q->orderByDesc('lead_score')->orderBy('id');
++    }
++}
+diff --git a/app/Services/Sales/ProspectOutreach.php b/app/Services/Sales/ProspectOutreach.php
+index 8b15725b..8463b54d 100644
+--- a/app/Services/Sales/ProspectOutreach.php
++++ b/app/Services/Sales/ProspectOutreach.php
+@@ -318,8 +318,11 @@ class ProspectOutreach
+             ->first(['s.created_at', 'p.shop']);
+     }
+ 
+-    /** @return array{0: bool, 1: string} sent?, message for the person sending */
+-    public static function send(SalesProspect $p, string $subject, string $body, ?string $page, ?string $templateId = null): array
++    /**
++     * @return array{0: bool, 1: string} sent?, message for the person sending
++     * @param int|null $sentBy  MARKER-OUTREACH-AUTO: auto-send has no signed-in admin, so it says who started it
++     */
++    public static function send(SalesProspect $p, string $subject, string $body, ?string $page, ?string $templateId = null, ?int $sentBy = null, bool $auto = false): array
+     {
+         $to = mb_strtolower(trim((string) $p->email));
+         if (! filter_var($to, FILTER_VALIDATE_EMAIL)) {
+@@ -342,7 +345,7 @@ class ProspectOutreach
+         }
+         $html    = self::html($body, $p, $page, $to);
+         $tpl     = $templateId ? SalesEmailTemplate::find($templateId) : null;
+-        $user    = Auth::guard('web')->user();
++        $user    = $sentBy ? \App\Models\User::find($sentBy) : Auth::guard('web')->user();
+ 
+         $thread = \App\Models\PlatformInboxMessage::create([
+             'kind'    => \App\Models\PlatformInboxMessage::KIND_CONTACT,
+@@ -373,7 +376,7 @@ class ProspectOutreach
+         PlatformMailer::log('prospect', $to, $subject);
+         $p->activities()->create([
+             'type' => 'email',
+-            'body' => 'Emailed: ' . $subject . ' (' . ($user?->name ?? 'staff') . ')'
++            'body' => 'Emailed: ' . $subject . ' (' . ($auto ? 'auto-send, started by ' : '') . ($user?->name ?? 'staff') . ')'
+                 . ($tpl ? ' · template: ' . $tpl->name : '') . ' · lands on: ' . self::pageLabel($page),
+         ]);
+ 
+diff --git a/database/migrations/2026_10_26_120000_outreach_auto_send.php b/database/migrations/2026_10_26_120000_outreach_auto_send.php
+new file mode 100644
+index 00000000..2a0bd558
+--- /dev/null
++++ b/database/migrations/2026_10_26_120000_outreach_auto_send.php
+@@ -0,0 +1,32 @@
++<?php
++
++use Illuminate\Database\Migrations\Migration;
++use Illuminate\Database\Schema\Blueprint;
++use Illuminate\Support\Facades\Schema;
++
++/**
++ * MARKER-OUTREACH-AUTO: Email outreach's free-email filter and auto-send.
++ *
++ *   outreach_free_domains  the domains that count as free email (JSON list);
++ *                          null = the built-in list in OutreachQueue
++ *   outreach_auto          auto-send's settings and where it's up to (JSON)
++ */
++return new class extends Migration
++{
++    public function up(): void
++    {
++        Schema::table('platform_settings', function (Blueprint $t) {
++            if (! Schema::hasColumn('platform_settings', 'outreach_free_domains')) $t->json('outreach_free_domains')->nullable();
++            if (! Schema::hasColumn('platform_settings', 'outreach_auto')) $t->json('outreach_auto')->nullable();
++        });
++    }
++
++    public function down(): void
++    {
++        Schema::table('platform_settings', function (Blueprint $t) {
++            foreach (['outreach_free_domains', 'outreach_auto'] as $c) {
++                if (Schema::hasColumn('platform_settings', $c)) $t->dropColumn($c);
++            }
++        });
++    }
++};
+diff --git a/resources/views/filament/pages/sales-email-outreach.blade.php b/resources/views/filament/pages/sales-email-outreach.blade.php
+index db2d2170..e0acd4c6 100644
+--- a/resources/views/filament/pages/sales-email-outreach.blade.php
++++ b/resources/views/filament/pages/sales-email-outreach.blade.php
+@@ -85,6 +85,15 @@
+   .eo-pv a { pointer-events:none; }
+   .eo-pv-s { font-weight:600; font-size:15px; margin-bottom:12px; color:#111; }
+   .eo-yes { color:var(--sx-lime); }
++  /* MARKER-OUTREACH-AUTO */
++  .eo-auto { padding:12px 0; border-bottom:1px solid var(--sx-line); }
++  .eo-auto-row { display:flex; align-items:center; gap:8px 16px; flex-wrap:wrap; font-size:13px; color:var(--sx-dim); }
++  .eo-auto-row b { color:#fff; font-weight:600; }
++  .eo-auto-row label { display:inline-flex; align-items:center; gap:6px; }
++  .eo-num { width:66px; padding:4px 8px; }
++  .eo-auto-sub { font-size:12.5px; color:var(--sx-faint); margin-top:6px; line-height:1.55; }
++  .eo-auto-sub b { color:var(--sx-dim); font-weight:500; }
++  .eo-auto-dot { width:8px; height:8px; border-radius:50%; background:var(--sx-lime); box-shadow:0 0 0 3px rgba(190,242,100,.18); }
+   @media (max-width:860px) { .eo-cols, .eo-two { grid-template-columns:1fr; gap:10px; } .eo-pvcol { position:static; } .eo-pvcol .eo-pv { max-height:none; } .eo-bar-tally { margin-left:0; width:100%; } .eo-hide-m { display:none; } }
+ </style>
+ 
+@@ -153,6 +162,11 @@
+             <option value="again">Emailed before</option>
+             <option value="all">Everyone</option>
+         </select>
++        {{-- MARKER-OUTREACH-AUTO: business addresses vs free email (Gmail, Outlook…) --}}
++        <select class="sx-in" wire:model.live="mail">
++            @foreach (\App\Services\Sales\OutreachQueue::MAIL as $mk => $ml)<option value="{{ $mk }}">{{ $ml }}</option>@endforeach
++        </select>
++        <button type="button" class="sx-btn sm" wire:click="$toggle('showDomains')">{{ $showDomains ? 'Close list' : 'Free email list' }}</button>
+         <div class="eo-bar-tally">
+             <span><b class="lime">{{ $st['today'] }}</b>today</span>
+             <span><b>{{ number_format($st['all']) }}</b>all time</span>
+@@ -161,9 +175,57 @@
+         </div>
+     </div>
+ 
++    @if ($showDomains)
++        <div class="eo-legend">
++            <b>Free email domains.</b> An address at one of these counts as free email for the filter and for auto-send's slower pace; everything else is a business address. One per line.
++            <textarea class="sx-in eo-full" rows="6" wire:model="freeDomainsText" style="margin-top:8px;font-family:inherit"></textarea>
++            <div style="display:flex;gap:8px;margin-top:8px"><button type="button" class="sx-btn p sm" wire:click="saveFreeDomains">Save list</button><button type="button" class="sx-btn sm" wire:click="$toggle('showDomains')">Cancel</button></div>
++        </div>
++    @endif
++
++    {{-- MARKER-OUTREACH-AUTO: auto-send --}}
++    @php $au = $this->autoState(); $auOn = (bool) ($au['running'] ?? false); @endphp
++    <div class="eo-auto" @if ($auOn) wire:poll.5s @endif>
++        @if ($auOn)
++            @php $ac = $au['config']; $next = isset($au['next_at']) ? \Carbon\Carbon::parse($au['next_at']) : null; @endphp
++            <div class="eo-auto-row">
++                <span class="eo-auto-dot"></span>
++                <b>Auto-send is on</b>
++                <span>{{ number_format($au['sent']['business'] + $au['sent']['free']) }} sent ({{ $au['sent']['business'] }} business · {{ $au['sent']['free'] }} free email){{ $au['skipped'] ? ' · ' . $au['skipped'] . ' skipped' : '' }}</span>
++                <span>{{ $next && $next->isFuture() ? 'next check in ' . max(1, (int) now()->diffInSeconds($next)) . 's' : 'sending' }}</span>
++                <button type="button" class="sx-btn sm" style="margin-left:auto;border-color:#f47c7c;color:#f47c7c" wire:click="stopAuto">Stop auto-send</button>
++            </div>
++            <div class="eo-auto-sub">
++                Template “{{ $ac['template'] }}” · lands on {{ \App\Services\Sales\ProspectOutreach::pageLabel($ac['page']) }} ·
++                business every {{ $ac['gap_business'] }}s{{ $ac['cap_business'] ? ', ' . $ac['cap_business'] . '/day' : '' }} ·
++                free email every {{ $ac['gap_free'] }}s{{ $ac['cap_free'] ? ', ' . $ac['cap_free'] . '/day' : '' }} ·
++                {{ $au['bounces'] ?? 0 }} {{ ($au['bounces'] ?? 0) === 1 ? 'bounce' : 'bounces' }} so far{{ $ac['max_bounces'] ? ' (pauses at ' . $ac['max_bounces'] . ')' : '' }} ·
++                started {{ \Carbon\Carbon::parse($au['started_at'])->setTimezone($tz)->format('g:i a') }} by {{ $au['started_by_name'] }}
++                @if (! empty($au['last_sent'])) · last: {{ $au['last_sent']['shop'] }}, {{ \Carbon\Carbon::parse($au['last_sent']['at'])->diffForHumans() }}@endif
++            </div>
++            <div class="eo-auto-sub">It uses the filters, template and landing page it was started with, and keeps going if you close this page. Sending by hand still works alongside it.</div>
++        @else
++            <div class="eo-auto-row">
++                <b>Auto-send</b>
++                <label>Business: one every <input type="number" min="1" max="3600" class="sx-in eo-num" wire:model.live.debounce.500ms="gapBusiness"> s</label>
++                <label>Free email: one every <input type="number" min="1" max="3600" class="sx-in eo-num" wire:model.live.debounce.500ms="gapFree"> s</label>
++                <label>Daily cap <input type="number" min="0" class="sx-in eo-num" wire:model="capBusiness"> / <input type="number" min="0" class="sx-in eo-num" wire:model="capFree"></label>
++                <label>Pause after <input type="number" min="0" class="sx-in eo-num" wire:model="maxBounces"> bounces</label>
++                <button type="button" class="sx-btn p sm" style="margin-left:auto" wire:click="startAuto"
++                    data-confirm="Start auto-send?&#10;It emails the {{ number_format($st['queue']) }} {{ \Illuminate\Support\Str::plural('shop', $st['queue']) }} in this queue ({{ \App\Services\Sales\OutreachQueue::MAIL[$mail] }}) with the saved template, one business address every {{ $gapBusiness }}s and one free-email address every {{ $gapFree }}s, until the queue runs out or you stop it. It keeps going if you close this page.">Start auto-send</button>
++            </div>
++            <div class="eo-auto-sub">
++                Sends this queue (the filters above) with the <b>saved</b> template and landing page below, not edits on screen. Gmail, Outlook and other free email get the slower pace. Caps are per day, business / free email, 0 = no cap. It stops by itself when the queue runs out, the caps are reached, a send fails, or bounces and spam complaints reach the limit (0 = never pause).
++                @if (! empty($au['stopped_reason']))
++                    <br><span class="eo-warn" style="display:inline">Last run: {{ $au['stopped_reason'] }} {{ number_format(($au['sent']['business'] ?? 0) + ($au['sent']['free'] ?? 0)) }} sent, ended {{ \Carbon\Carbon::parse($au['stopped_at'])->setTimezone($tz)->format('M j, g:i a') }}.</span>
++                @endif
++            </div>
++        @endif
++    </div>
++
+     {{-- MARKER-OUTREACH-LAYOUT: the legend, one line until More --}}
+     <div class="eo-legend" x-data="{ more: false }">
+-        <b>Only sends when you press Send,</b> from Intake's platform address, with an unsubscribe link and your postal address. Addresses that unsubscribed, bounced or complained never appear. <b>Not affected:</b> tenant emails (receipts, bookings), Instagram follows, campaigns.
++        <b>Sends when you press Send, or on its own while auto-send is on,</b> from Intake's platform address, with an unsubscribe link and your postal address. Addresses that unsubscribed, bounced or complained never appear. <b>Not affected:</b> tenant emails (receipts, bookings), Instagram follows, campaigns.
+         <button type="button" x-on:click="more = ! more" x-text="more ? 'Less' : 'More'">More</button>
+         <div x-show="more" x-cloak style="margin-top:6px"><b>[link]</b> becomes that shop's own link to the page you pick, so their visit shows on their timeline with the pages they looked at. Your template, landing page and filters are remembered. Visits while you're signed in to master admin aren't recorded, so test a link in a private window. <b>Send test to me</b> sends this email only to you, with a link that carries no tracking code. The signature is set on Email templates › Signature. {{ ['new' => "The queue is shops with an email address that haven't been emailed.", 'again' => 'The queue is shops you emailed before; "Longest since emailed" is a sort option.', 'all' => 'The queue is every shop with an email address.'][$who] ?? '' }}</div>
+     </div>
+diff --git a/routes/console.php b/routes/console.php
+index 869a542a..2d400823 100644
+--- a/routes/console.php
++++ b/routes/console.php
+@@ -15,6 +15,12 @@ Artisan::command('inspire', function () {
+ // overdue rentals sweep: emits the rental.overdue
+ // staff alert (derived state, so it must be polled). Idempotent.
+ // ----------------------------------------------------------------
++// MARKER-OUTREACH-AUTO: if Email outreach auto-send is on and its chain of
++// jobs went missing (deploy, worker restart), start it again.
++Schedule::command('outreach:auto-keepalive')
++    ->everyMinute()
++    ->withoutOverlapping(5);
++
+ // MARKER-QUEUE-WATCHDOG: puts a test job on the queue and emails the alert
+ // address if workers have stopped picking jobs up (see App\Support\QueueWatchdog).
+ Schedule::command('queue:watchdog')

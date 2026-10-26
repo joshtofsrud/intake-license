@@ -15,6 +15,12 @@ Artisan::command('inspire', function () {
 // overdue rentals sweep: emits the rental.overdue
 // staff alert (derived state, so it must be polled). Idempotent.
 // ----------------------------------------------------------------
+// MARKER-OUTREACH-AUTO: if Email outreach auto-send is on and its chain of
+// jobs went missing (deploy, worker restart), start it again.
+Schedule::command('outreach:auto-keepalive')
+    ->everyMinute()
+    ->withoutOverlapping(5);
+
 // MARKER-QUEUE-WATCHDOG: puts a test job on the queue and emails the alert
 // address if workers have stopped picking jobs up (see App\Support\QueueWatchdog).
 Schedule::command('queue:watchdog')
