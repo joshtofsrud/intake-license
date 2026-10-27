@@ -107,6 +107,8 @@ Route::domain($domain)->middleware([\App\Http\Middleware\SeoSignals::class, \App
     // owner/admin via EnsureMasterAdmin.
     Route::middleware(['auth', \App\Http\Middleware\EnforceAdminArea::class . ':impersonation'])->group(function () {
         Route::post('/admin/impersonate/{tenantId}', [\App\Http\Controllers\Admin\ImpersonationController::class, 'impersonate'])->name('admin.impersonate');
+        // MARKER-LIVE-VIEW: the viewer's stream of what the shop's tab sends
+        Route::get('/admin/live-view/stream/{id}', [\App\Http\Controllers\Admin\LiveViewStreamController::class, 'stream'])->name('admin.live-view.stream');
     });
     // stopping needs no admin session: it logs the
     // tenant guard out and goes back. Refusing it stranded people inside a
@@ -469,6 +471,14 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             // per-person light/dark. Sits above the
             // location gate so the toggle works before a location is picked.
             Route::post('/theme',            [TenantControllers\ThemeController::class, 'set'])->name('theme.set');
+
+            // MARKER-LIVE-VIEW: master admin asking to see a tab. Above the
+            // location gate, and allowed through the PIN lock, so a request
+            // can be answered (and a session ended) from any screen.
+            Route::get('/live-view/pending',     [TenantControllers\LiveViewController::class, 'pending'])->name('live-view.pending');
+            Route::post('/live-view/{id}/answer', [TenantControllers\LiveViewController::class, 'answer'])->name('live-view.answer');
+            Route::post('/live-view/{id}/events', [TenantControllers\LiveViewController::class, 'events'])->name('live-view.events');
+            Route::post('/live-view/{id}/end',    [TenantControllers\LiveViewController::class, 'end'])->name('live-view.end');
 
             // Everything below requires a current_location_id set in session.
             // Picker routes above are exempt (chicken/egg).

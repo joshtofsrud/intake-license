@@ -200,6 +200,7 @@
 <script src="{{ asset('js/tenant/location-switcher.js') }}?v={{ filemtime(public_path('js/tenant/location-switcher.js')) }}" defer></script>
 @unless($currentTenant->is_demo ?? false)
 <script src="{{ asset('js/tenant/idle-lock.js') }}?v={{ filemtime(public_path('js/tenant/idle-lock.js')) }}" defer></script>
+@include('layouts.tenant._live-view')
 @endunless
 
 {{-- omitted while impersonating so the client

@@ -68,6 +68,12 @@ class EnsurePinFresh
             'tenant.select-location',
             'tenant.select-location.store',
             'tenant.switch-location',
+            // MARKER-LIVE-VIEW: a viewed tab keeps sending while it's locked
+            // (the PIN boxes are masked), and Stop always works
+            'tenant.live-view.pending',
+            'tenant.live-view.answer',
+            'tenant.live-view.events',
+            'tenant.live-view.end',
         ];
         if (in_array($routeName, $whitelist, true)) {
             return $next($request);

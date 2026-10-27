@@ -228,6 +228,14 @@ class TenantResource extends Resource
                     ->requiresConfirmation()
                     ->action(fn (Tenant $t) => redirect()->route('admin.impersonate', $t->id)),
 
+                // MARKER-LIVE-VIEW: see what they see, with their say-so
+                Tables\Actions\Action::make('live_view')
+                    ->label('Live view')
+                    ->icon('heroicon-o-eye')
+                    ->color('gray')
+                    ->visible(fn () => \App\Support\AdminAccess::allows(auth()->user(), 'impersonation'))
+                    ->url(fn (Tenant $t) => \App\Filament\Pages\LiveView::getUrl(['shop' => $t->id])),
+
                 Tables\Actions\Action::make('reset_password')
                     ->label('Reset password')
                     ->icon('heroicon-o-key')

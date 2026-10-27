@@ -46,6 +46,7 @@ return [
         'skip_paths' => [
             'up', 'health', 'favicon.ico',
             'build/', 'assets/', 'storage/', 'css/', 'js/', 'images/',
+            'admin/live-view/', // MARKER-LIVE-VIEW: four posts a second while a session runs
         ],
 
         // Log every request below this threshold at this sample rate.
