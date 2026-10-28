@@ -385,6 +385,36 @@ window.IntakeConfirm.prompt = function (opts) {
   }, true);
 })();
 
+// MARKER-DATA-CONFIRM: buttons and links written as data-confirm="…" (53 of
+// them, 26 views) used to open the browser's own dialog. Same replay trick as
+// above: stop the click in the capture phase, ask in-app, and on Yes click
+// again with the attribute out of the way. A submit button's form still
+// submits, with that button as the submitter.
+(function () {
+  'use strict';
+
+  document.addEventListener('click', function (e) {
+    var el = e.target && e.target.closest ? e.target.closest('[data-confirm]') : null;
+    if (!el || el.disabled) { return; }
+
+    if (el.dataset.iaConfirmed === '1') {
+      delete el.dataset.iaConfirmed;
+      return; // replay after Yes
+    }
+
+    var msg = el.getAttribute('data-confirm') || 'Are you sure?';
+    e.preventDefault();
+    e.stopImmediatePropagation();
+
+    var ask = window.iaConfirm || function (m) { return Promise.resolve(window.confirm(m)); };
+    ask(msg).then(function (ok) {
+      if (!ok) { return; }
+      el.dataset.iaConfirmed = '1';
+      el.click();
+    });
+  }, true);
+})();
+
 // the one call every rewritten inline confirm uses.
 // Same title, same button text, same danger heuristic, so a site converted
 // next month looks like one converted today.

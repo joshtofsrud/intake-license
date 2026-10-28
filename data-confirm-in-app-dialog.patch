@@ -1,0 +1,68 @@
+diff --git a/public/js/tenant/admin.js b/public/js/tenant/admin.js
+index 3cae00d4..916f4cdc 100644
+--- a/public/js/tenant/admin.js
++++ b/public/js/tenant/admin.js
+@@ -48,18 +48,10 @@
+     });
+   }
+ 
+-  // Confirm dialogs on buttons with data-confirm
+-  function bindConfirmButtons() {
+-    document.querySelectorAll('[data-confirm]').forEach(function (btn) {
+-      btn.addEventListener('click', function (e) {
+-        var msg = btn.getAttribute('data-confirm') || 'Are you sure?';
+-        if (!confirm(msg)) {
+-          e.preventDefault();
+-          e.stopPropagation();
+-        }
+-      });
+-    });
+-  }
++  // data-confirm is handled by confirm.js (the in-app dialog). It used to be
++  // bound here to the native confirm dialog, which is why those buttons showed a
++  // system dialog. Nothing to bind: kept so DOMContentLoaded's call stays valid.
++  function bindConfirmButtons() {}
+ 
+   // Expose a simple AJAX helper for page-specific JS
+   window.IntakeAjax = {
+diff --git a/public/js/tenant/confirm.js b/public/js/tenant/confirm.js
+index ce5e0437..45212e8e 100644
+--- a/public/js/tenant/confirm.js
++++ b/public/js/tenant/confirm.js
+@@ -385,6 +385,36 @@ window.IntakeConfirm.prompt = function (opts) {
+   }, true);
+ })();
+ 
++// MARKER-DATA-CONFIRM: buttons and links written as data-confirm="…" (53 of
++// them, 26 views) used to open the browser's own dialog. Same replay trick as
++// above: stop the click in the capture phase, ask in-app, and on Yes click
++// again with the attribute out of the way. A submit button's form still
++// submits, with that button as the submitter.
++(function () {
++  'use strict';
++
++  document.addEventListener('click', function (e) {
++    var el = e.target && e.target.closest ? e.target.closest('[data-confirm]') : null;
++    if (!el || el.disabled) { return; }
++
++    if (el.dataset.iaConfirmed === '1') {
++      delete el.dataset.iaConfirmed;
++      return; // replay after Yes
++    }
++
++    var msg = el.getAttribute('data-confirm') || 'Are you sure?';
++    e.preventDefault();
++    e.stopImmediatePropagation();
++
++    var ask = window.iaConfirm || function (m) { return Promise.resolve(window.confirm(m)); };
++    ask(msg).then(function (ok) {
++      if (!ok) { return; }
++      el.dataset.iaConfirmed = '1';
++      el.click();
++    });
++  }, true);
++})();
++
+ // the one call every rewritten inline confirm uses.
+ // Same title, same button text, same danger heuristic, so a site converted
+ // next month looks like one converted today.

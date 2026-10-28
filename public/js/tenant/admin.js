@@ -48,18 +48,10 @@
     });
   }
 
-  // Confirm dialogs on buttons with data-confirm
-  function bindConfirmButtons() {
-    document.querySelectorAll('[data-confirm]').forEach(function (btn) {
-      btn.addEventListener('click', function (e) {
-        var msg = btn.getAttribute('data-confirm') || 'Are you sure?';
-        if (!confirm(msg)) {
-          e.preventDefault();
-          e.stopPropagation();
-        }
-      });
-    });
-  }
+  // data-confirm is handled by confirm.js (the in-app dialog). It used to be
+  // bound here to the native confirm dialog, which is why those buttons showed a
+  // system dialog. Nothing to bind: kept so DOMContentLoaded's call stays valid.
+  function bindConfirmButtons() {}
 
   // Expose a simple AJAX helper for page-specific JS
   window.IntakeAjax = {
