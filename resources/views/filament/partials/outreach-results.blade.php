@@ -43,6 +43,25 @@
   .sx-t th.n, .sx-t td.n { text-align:right; font-variant-numeric:tabular-nums; }
   .sx-t .pc { color:var(--sx-faint); font-size:12px; margin-left:4px; }
   .or-empty { padding:28px 0; color:var(--sx-faint); font-size:13px; }
+  /* MARKER-OUTREACH-SEND-DETAIL */
+  .or-howrow { margin:10px 0 4px; }
+  .or-sends { border-top:1px solid var(--sx-line); }
+  .or-send { border-bottom:1px solid var(--sx-line); }
+  .or-send.on { background:rgba(255,255,255,.02); }
+  .or-send-h { display:flex; gap:16px; align-items:flex-start; width:100%; padding:10px 8px; background:none; border:0; color:inherit; font:inherit; text-align:left; cursor:pointer; }
+  .or-send-h:hover { background:rgba(255,255,255,.03); }
+  .or-send-when { width:170px; flex-shrink:0; }
+  .or-send-when .sx-sub { display:block; }
+  .or-send-h .sx-sub { color:var(--sx-faint); font-size:12.5px; }
+  .or-send-sum > .sx-sub:last-child { display:block; margin-top:2px; }
+  .or-send-sum { flex:1; min-width:0; }
+  .or-send-chev { color:var(--sx-faint); width:14px; flex-shrink:0; }
+  .or-send-b { padding:4px 8px 16px 194px; }
+  .or-send-counts { display:flex; gap:6px; flex-wrap:wrap; margin:6px 0 8px; }
+  .or-suggest { border-left:2px solid var(--sx-violet); padding:4px 0 4px 12px; margin:4px 0 12px; }
+  .or-suggest-h { font-size:12.5px; font-weight:600; color:var(--sx-dim); margin-bottom:4px; }
+  .or-suggest-i { font-size:13px; line-height:1.5; margin:4px 0; }
+  @media (max-width:860px) { .or-send-b { padding-left:8px; } .or-send-when { width:120px; } }
   @media (max-width:860px) { .or-cols { grid-template-columns:1fr; gap:8px; } .or-fa { display:none; } }
 </style>
 
@@ -115,38 +134,71 @@
 @endif
 @endif
 
-<p class="sx-lede"><b>How these are counted:</b> shops, not emails, from emails sent here or from a Prospects card; each shop is judged from its first email in the window. Opened comes from the email provider and runs high, because Apple Mail opens every email to preload it, so trust Visited more. Visited means a person at the shop opened their own link after the email: mail filters that check the link don't count (see After each send below), and neither do you when signed in. Replied is a real answer that came back into the Platform inbox; help-desk receipts and out-of-office replies don't count. Click any number to see the shops behind it. Demo or trial and Won are the shop reaching that stage after the email. <b>Not counted:</b> bulk campaigns from Platform email.</p>
+<div class="or-howrow">@include('filament.partials._or-info', ['label' => 'How these are counted', 'body' => "Shops, not emails, from emails sent here or from a Prospects card; each shop is judged from its first email in the window. Opened comes from the email provider and runs high, because Apple Mail opens every email to preload it, so trust Visited more. Visited means a person at the shop opened their own link after the email: mail filters that check the link don't count (see After each send below), and neither do you when signed in. Replied is a real answer that came back into the Platform inbox; help-desk receipts and out-of-office replies don't count. Click any number to see the shops behind it. Demo or trial and Won are the shop reaching that stage after the email. <b>Not counted:</b> bulk campaigns from Platform email."])</div>
 
 {{-- MARKER-OUTREACH-SCANNERS: who actually looked after each batch, and how many filter checks there were --}}
-@php $after = $this->afterSends(); @endphp
+{{-- MARKER-OUTREACH-SEND-DETAIL: every row opens: shops and where they stand, filter checks, suggestions --}}
+@php $after = $this->afterSends(); $detail = $this->sendDetail(); @endphp
 @if ($after)
-<h2 class="ig-h2">After each send</h2>
-<p class="sx-lede" style="margin-top:0" x-data="{ more: false }">Business email filters open every link in a hidden browser right after delivery, so each send is followed by a burst of <b>filter checks</b>. Only <b>people</b> count as Visited, appear on a shop's timeline and show in Marketing traffic. <button type="button" @click="more = ! more" style="background:none;border:0;padding:0;color:var(--sx-violet);cursor:pointer;font:inherit" x-text="more ? 'Less' : 'How we tell'"></button>
-    <span x-show="more" x-cloak style="display:block;margin-top:6px">A <b>person</b> moved the mouse, scrolled, tapped or typed; came from a home or phone connection; was on a phone; or stayed 30 seconds or more. A <b>filter check</b> came from a mail filter's or data centre's network (Microsoft, Proofpoint, Mimecast, Google and others); opened the link several times in the same few seconds; came and went within two minutes of the email; or quickly re-checked a link a filter had already opened. Too brief to tell is <b>unclear</b> and isn't counted either. Visits before Oct 28, 2026 were judged on timing alone. Sends less than 45 minutes apart are one batch.</span></p>
-<table class="sx-t">
-    <tbody>
-    @foreach ($after as $i => $b)
-        <tr wire:key="as-{{ $i }}-{{ $b['at']->getTimestamp() }}" x-data="{ open: false }" style="vertical-align:top">
-            <td style="white-space:nowrap;width:1%">{{ $b['at']->setTimezone($tz)->format('D M j, g:i a') }}<div class="sx-sub">{{ $b['sent'] }} {{ $b['sent'] === 1 ? 'shop' : 'shops' }} emailed</div></td>
-            <td>
-                <button type="button" @click="open = ! open" style="background:none;border:0;padding:0;color:inherit;font:inherit;text-align:left;cursor:{{ $b['people'] ? 'pointer' : 'default' }}">
+<h2 class="ig-h2" style="display:flex;align-items:center;gap:8px">After each send @include('filament.partials._or-info', ['label' => null, 'body' => "Business email filters open every link in a hidden browser right after delivery, so each send is followed by a burst of <b>filter checks</b>. Only <b>people</b> count as Visited, appear on a shop's timeline and show in Marketing traffic.<br><br>A <b>person</b> moved the mouse, scrolled, tapped or typed; came from a home or phone connection; was on a phone; or stayed 30 seconds or more. A <b>filter check</b> came from a mail filter's or data centre's network (Microsoft, Proofpoint, Mimecast, Google and others); opened the link several times in the same few seconds; came and went within two minutes of the email; or quickly re-checked a link a filter had already opened. Too brief to tell is <b>unclear</b> and isn't counted either. Visits before Oct 28, 2026 were judged on timing alone.<br><br>Sends less than 45 minutes apart are one batch. Click a batch to see every shop in it and where it stands."])</h2>
+<div class="or-sends">
+    @foreach ($after as $b)
+        @php $isOpen = $openSend === $b['key']; @endphp
+        <div class="or-send {{ $isOpen ? 'on' : '' }}" wire:key="as-{{ $b['key'] }}">
+            <button type="button" class="or-send-h" wire:click="toggleSend('{{ $b['key'] }}')" aria-expanded="{{ $isOpen ? 'true' : 'false' }}">
+                <span class="or-send-when">{{ $b['at']->setTimezone($tz)->format('D M j, g:i a') }}<span class="sx-sub">{{ $b['sent'] }} {{ $b['sent'] === 1 ? 'shop' : 'shops' }} emailed</span></span>
+                <span class="or-send-sum">
                     <span class="or-tag {{ $b['peopleShops'] ? 'hot' : '' }}">{{ $b['peopleShops'] }} {{ $b['peopleShops'] === 1 ? 'person' : 'people' }}</span>
                     @if ($b['people'])<span class="sx-sub" style="display:inline">{{ collect($b['people'])->pluck('shop')->unique()->take(3)->implode(', ') }}{{ collect($b['people'])->pluck('shop')->unique()->count() > 3 ? '…' : '' }}</span>@endif
-                </button>
-                <div class="sx-sub">@if ($b['scanners'] === 0)No filter checks{{ $b['unsure'] ? ' · ' . $b['unsure'] . ' unclear' : '' }}@else{{ $b['scanners'] }} filter {{ $b['scanners'] === 1 ? 'check' : 'checks' }} at {{ $b['scannerShops'] }} {{ $b['scannerShops'] === 1 ? 'shop' : 'shops' }}, not counted{{ $b['scanWhy'] ? ' (' . collect($b['scanWhy'])->map(fn ($n, $k) => $k . ' ' . $n)->implode(' · ') . ')' : '' }}{{ $b['unsure'] ? ' · ' . $b['unsure'] . ' unclear' : '' }}@endif</div>
-                <div x-show="open" x-cloak style="margin-top:8px">
-                    @foreach ($b['people'] as $pp)
-                        <div style="display:flex;gap:10px;align-items:baseline;padding:4px 0;border-top:1px solid var(--sx-line)">
-                            <span style="min-width:0;flex:1">{{ $pp['shop'] }}<span class="sx-sub" style="display:inline"> · {{ $pp['what'] ?: '—' }} · {{ $pp['pages'] }} {{ $pp['pages'] === 1 ? 'page' : 'pages' }} · {{ $pp['time'] }}{{ $pp['device'] ? ' · ' . $pp['device'] : '' }}{{ $pp['after'] ? ' · ' . $pp['after'] : '' }}</span><div class="sx-sub" style="font-size:11.5px">Why a person: {{ $pp['why'] }}</div></span>
-                            <a class="sx-btn sm" style="text-decoration:none" href="{{ $pipe }}?open={{ $pp['id'] }}">Open</a>
+                    <span class="sx-sub">{{ $b['scanners'] === 0 ? 'No filter checks' : $b['scanners'] . ' filter ' . ($b['scanners'] === 1 ? 'check' : 'checks') . ' at ' . $b['scannerShops'] . ' ' . ($b['scannerShops'] === 1 ? 'shop' : 'shops') . ', not counted' . ($b['scanWhy'] ? ' (' . collect($b['scanWhy'])->map(fn ($n, $k) => $k . ' ' . $n)->implode(' · ') . ')' : '') }}{{ $b['unsure'] ? ' · ' . $b['unsure'] . ' unclear' : '' }}</span>
+                </span>
+                <span class="or-send-chev" wire:loading.remove wire:target="toggleSend('{{ $b['key'] }}')">{{ $isOpen ? '▾' : '▸' }}</span>
+                <span class="or-send-chev" wire:loading wire:target="toggleSend('{{ $b['key'] }}')">…</span>
+            </button>
+            @if ($isOpen)
+                <div class="or-send-b">
+                    @if (! $detail)
+                        <div class="sx-sub">These sends are no longer in the filters above. Change the filters or pick another batch.</div>
+                    @else
+                        @php
+                            $c = $detail['count'];
+                            $stateNames = ['replied' => 'Replied', 'looked' => 'Looked', 'opened' => 'Opened, no click', 'filter' => 'Filter check only', 'nothing' => 'Nothing yet'];
+                        @endphp
+                        @if ($detail['suggest'])
+                            <div class="or-suggest">
+                                <div class="or-suggest-h">Nobody looked yet. What to try</div>
+                                @foreach ($detail['suggest'] as $sg)
+                                    <div class="or-suggest-i">{{ $sg['text'] }}@if ($sg['kind'] === 'followup') <button type="button" class="sx-btn sm" wire:click="toggleDrill('opened')" style="margin-left:6px">Show opened</button>@endif</div>
+                                @endforeach
+                            </div>
+                        @endif
+                        <div class="or-send-counts">
+                            @foreach ($stateNames as $k => $nm)
+                                <span class="or-tag {{ in_array($k, ['replied', 'looked'], true) && $c[$k] ? 'hot' : '' }}">{{ $nm }} {{ $c[$k] }}</span>
+                            @endforeach
                         </div>
-                    @endforeach
+                        <div x-data="{ all: false }">
+                            <table class="sx-t">
+                                <tbody>
+                                @foreach ($detail['shops'] as $i => $sh)
+                                    <tr wire:key="sd-{{ $b['key'] }}-{{ $sh['id'] }}" @if ($i >= 20) x-show="all" x-cloak @endif>
+                                        <td>{{ $sh['shop'] }}<div class="sx-sub">{{ $sh['email'] }}{{ $sh['place'] ? ' · ' . $sh['place'] : '' }}</div></td>
+                                        <td><span class="or-tag {{ in_array($sh['state'], ['replied', 'looked'], true) ? 'hot' : '' }}">{{ $stateNames[$sh['state']] }}</span>@if ($sh['note'])<div class="sx-sub">{{ $sh['note'] }}</div>@endif</td>
+                                        <td class="n"><a class="sx-btn sm" style="text-decoration:none" href="{{ $pipe }}?open={{ $sh['id'] }}">Open</a></td>
+                                    </tr>
+                                @endforeach
+                                </tbody>
+                            </table>
+                            @if (count($detail['shops']) > 20)
+                                <button type="button" class="sx-btn sm" style="margin-top:8px" @click="all = ! all" x-text="all ? 'Show fewer' : 'Show all {{ count($detail['shops']) }}'"></button>
+                            @endif
+                        </div>
+                    @endif
                 </div>
-            </td>
-        </tr>
+            @endif
+        </div>
     @endforeach
-    </tbody>
-</table>
+</div>
 @endif
 
 <div class="or-cols">

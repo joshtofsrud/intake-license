@@ -148,6 +148,7 @@ class OutreachResults
             }
             arsort($why);
             $out[] = [
+                'key' => $b['start']->getTimestamp() . '-' . $b['end']->getTimestamp(),
                 'at' => $b['start'], 'sent' => count($pids), 'people' => $people,
                 'peopleShops' => count(array_unique(array_column($people, 'id'))),
                 'scanners' => array_sum($why), 'scannerShops' => count($scanShops), 'scanWhy' => $why, 'unsure' => $unsure,
@@ -155,6 +156,138 @@ class OutreachResults
         }
 
         return $out;
+    }
+
+    /**
+     * MARKER-OUTREACH-SEND-DETAIL: one batch opened up: every shop emailed and
+     * where it stands, the filter checks with their reasons, and, when nobody
+     * looked, suggestions drawn from the numbers. $key is "startTs-endTs".
+     */
+    public static function batchDetail(array $f, string $key): ?array
+    {
+        if (! preg_match('/^(\d+)-(\d+)$/', $key, $m)) return null;
+        $start = CarbonImmutable::createFromTimestamp((int) $m[1]);
+        $end   = CarbonImmutable::createFromTimestamp((int) $m[2]);
+        $rows = self::sends((string) ($f['industry'] ?? ''), (string) ($f['template'] ?? ''), null)
+            ->filter(fn ($r) => $r->at->getTimestamp() >= $start->getTimestamp() && $r->at->getTimestamp() <= $end->getTimestamp())->values();
+        if ($rows->isEmpty()) return null;
+
+        $ctx = self::context($rows);
+        $pids = $rows->pluck('pid')->unique()->values()->all();
+        $visits = DB::table('sales_prospect_visits')->whereIn('sales_prospect_id', $pids)
+            ->whereBetween('sent_at', [$start->subSecond(), $end->addSecond()])->orderBy('first_at')->get();
+        $byPid = $visits->groupBy('sales_prospect_id');
+        $emails = SalesProspect::whereIn('id', $pids)->pluck('email', 'id')->all();
+
+        $order = ['replied' => 0, 'looked' => 1, 'opened' => 2, 'filter' => 3, 'nothing' => 4];
+        $shops = [];
+        foreach ($rows->groupBy('pid') as $pid => $sends) {
+            $p = $ctx['prospects'][$pid] ?? null;
+            $vs = $byPid[$pid] ?? collect();
+            $tids = $sends->pluck('thread_id')->filter()->all();
+            $replied = array_filter($tids, fn ($t) => isset($ctx['replied'][(string) $t]));
+            $opened  = array_filter($tids, fn ($t) => isset($ctx['opened'][(string) $t]));
+            $person  = $vs->firstWhere('verdict', 'person');
+            $state = $replied ? 'replied' : ($person ? 'looked' : ($opened ? 'opened' : ($vs->where('verdict', 'scanner')->isNotEmpty() ? 'filter' : 'nothing')));
+            $shops[] = [
+                'id' => $pid, 'shop' => $p->shop ?? '(deleted)', 'place' => trim(implode(', ', array_filter([$p->city ?? null, $p->state ?? null]))),
+                'email' => $emails[$pid] ?? '', 'state' => $state,
+                'note' => match ($state) {
+                    'looked' => ($person->verdict_reason ?? ''),
+                    'filter' => $vs->where('verdict', 'scanner')->count() . ' ' . ($vs->where('verdict', 'scanner')->count() === 1 ? 'check' : 'checks') . ': ' . ($vs->firstWhere('verdict', 'scanner')->verdict_reason ?? ''),
+                    default => '',
+                },
+            ];
+        }
+        usort($shops, fn ($a, $b) => [$order[$a['state']], $a['shop']] <=> [$order[$b['state']], $b['shop']]);
+        $count = array_count_values(array_column($shops, 'state'));
+
+        return [
+            'shops' => $shops,
+            'count' => $count + ['replied' => 0, 'looked' => 0, 'opened' => 0, 'filter' => 0, 'nothing' => 0],
+            'suggest' => ($count['looked'] ?? 0) + ($count['replied'] ?? 0) === 0 ? self::suggestions($rows, $end, $count, $emails) : [],
+        ];
+    }
+
+    /** What to try when a batch drew nobody, from the outreach numbers so far. */
+    private static function suggestions($rows, CarbonImmutable $end, array $count, array $emails): array
+    {
+        $out = [];
+        $hours = max(0, (int) floor((time() - $end->getTimestamp()) / 3600));
+
+        // 1. too soon? how long real people have taken to look
+        $delays = DB::table('sales_prospect_visits')->where('verdict', 'person')->whereNotNull('secs_after_send')
+            ->orderBy('secs_after_send')->pluck('secs_after_send')->map(fn ($x) => (int) $x)->all();
+        if ($hours < 48) {
+            $median = $delays ? $delays[intdiv(count($delays), 2)] : null;
+            $within2d = $delays ? count(array_filter($delays, fn ($d) => $d <= 172800)) : 0;
+            $out[] = ['kind' => 'wait', 'text' => 'It\'s been ' . ($hours < 1 ? 'under an hour' : $hours . ' ' . ($hours === 1 ? 'hour' : 'hours')) . ' since this send.'
+                . ($median !== null
+                    ? ' People who looked at earlier sends took ' . self::span($median) . ' (middle of ' . count($delays) . '), and ' . $within2d . ' of ' . count($delays) . ' looked within two days.'
+                    : ' Give it two days before judging it.')
+                . ' Check back ' . $end->addDays(2)->setTimezone('America/Los_Angeles')->format('D M j') . '.'];
+        }
+
+        // 2. opened but didn't click
+        if (($count['opened'] ?? 0) > 0) {
+            $n = $count['opened'];
+            $out[] = ['kind' => 'followup', 'text' => $n . ' ' . ($n === 1 ? 'shop' : 'shops') . ' opened the email but didn\'t click (opens run high, so some are previews). They\'re listed below and on Follow up next: a short personal follow-up in a few days is the best next step.'];
+        }
+
+        // 3. template: another one drawing more people per send?
+        $tplIds = $rows->pluck('template_id')->filter()->unique()->values()->all();
+        $rates = self::templateRates();
+        if ($tplIds && $rates) {
+            $mine = $rates[$tplIds[0]] ?? null;
+            $best = collect($rates)->filter(fn ($r) => $r['sent'] >= 30)->sortByDesc('rate')->first();
+            if ($best && $best['id'] !== ($tplIds[0] ?? null) && $best['rate'] > 0 && (! $mine || $best['rate'] >= 2 * max($mine['rate'], 0.0001))) {
+                $out[] = ['kind' => 'template', 'text' => '"' . $best['name'] . '" has drawn ' . self::pct($best['rate']) . ' people per send over ' . $best['sent'] . ' sends'
+                    . ($mine ? ', against ' . self::pct($mine['rate']) . ' for "' . $mine['name'] . '" used here' : '') . '. Try it for the next batch.'];
+            }
+        }
+
+        // 4. mostly business addresses: filters quarantine cold email
+        $biz = count(array_filter($emails, fn ($e) => $e && ! OutreachQueue::isFree($e)));
+        if ($emails && $biz / count($emails) >= 0.6) {
+            $out[] = ['kind' => 'placement', 'text' => $biz . ' of ' . count($emails) . ' were business addresses, whose mail filters often quarantine cold email even when it passes every check. Run a placement test (type a mail-tester address in Send test) and try a plainer version: one link, no images, written like a personal note.'];
+        }
+
+        if (! $out) {
+            $out[] = ['kind' => 'wait', 'text' => 'Nothing stands out about this send. Follow up with a short personal note in two or three days; second emails often do better than the first.'];
+        }
+
+        return $out;
+    }
+
+    /** People per send for each template, all time: [id => [id, name, sent, people, rate]]. */
+    private static function templateRates(): array
+    {
+        $sent = DB::table('sales_outreach_sends')->whereNotNull('template_id')->groupBy('template_id')
+            ->selectRaw('template_id, COUNT(DISTINCT sales_prospect_id) n')->pluck('n', 'template_id')->all();
+        if (! $sent) return [];
+        $people = DB::table('sales_prospect_visits as v')->join('sales_outreach_sends as s', function ($j) {
+                $j->on('s.sales_prospect_id', '=', 'v.sales_prospect_id')->on('s.created_at', '=', 'v.sent_at');
+            })->where('v.verdict', 'person')->whereNotNull('s.template_id')
+            ->groupBy('s.template_id')->selectRaw('s.template_id, COUNT(DISTINCT v.sales_prospect_id) n')->pluck('n', 'template_id')->all();
+        $names = SalesEmailTemplate::pluck('name', 'id')->all();
+        $out = [];
+        foreach ($sent as $id => $n) {
+            $out[$id] = ['id' => $id, 'name' => $names[$id] ?? 'Deleted template', 'sent' => (int) $n, 'people' => (int) ($people[$id] ?? 0), 'rate' => ($people[$id] ?? 0) / max(1, $n)];
+        }
+        return $out;
+    }
+
+    private static function pct(float $r): string
+    {
+        $p = $r * 100;
+        return ($p < 1 ? number_format($p, 1) : (string) round($p)) . '%';
+    }
+
+    private static function span(int $secs): string
+    {
+        if ($secs < 3600) return max(1, intdiv($secs, 60)) . ' min';
+        if ($secs < 172800) return round($secs / 3600) . ' hours';
+        return round($secs / 86400) . ' days';
     }
 
     /** A short name for why a visit was a filter, for the summary line. */

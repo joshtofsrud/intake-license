@@ -60,6 +60,7 @@ class SalesEmailOutreach extends Page
     public ?string $rFrom = null;   // MARKER-OUTREACH-RANGE: picked with the calendar
     public ?string $rTo   = null;
     public ?string $drill = null; // MARKER-OUTREACH-DRILL: which funnel number is open
+    public ?string $openSend = null; // MARKER-OUTREACH-SEND-DETAIL: which batch under After each send is open
 
     /** Apply / Clear from the calendar on Results. */
     public function setRange(?string $from, ?string $to): void
@@ -170,6 +171,18 @@ class SalesEmailOutreach extends Page
             'to'       => $this->rTo,
             'tz'       => self::TZ,
         ]);
+    }
+
+    public function toggleSend(string $key): void
+    {
+        $this->openSend = $this->openSend === $key ? null : $key;
+    }
+
+    public function sendDetail(): ?array
+    {
+        if (! $this->openSend) return null;
+
+        return \App\Services\Sales\OutreachResults::batchDetail(['industry' => $this->rIndustry, 'template' => $this->rTemplate], $this->openSend);
     }
 
     /** MARKER-OUTREACH-SCANNERS: what happened after each send, same filters as the results. */
