@@ -395,11 +395,15 @@ class TeamController extends Controller
             }
 
             case 'reset_password': {
-                $newPassword = Str::random(12);
+                // No I/l/1/O/0: it gets read off a screen and typed by hand.
+                $alphabet = str_split('abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789');
+                $newPassword = '';
+                for ($i = 0; $i < 12; $i++) $newPassword .= $alphabet[random_int(0, count($alphabet) - 1)];
                 $member->update(['password' => Hash::make($newPassword)]);
                 $member->setRememberToken(Str::random(60)); $member->save(); // other signed-in devices drop out
                 Log::info('TEAM_PASSWORD_RESET', ['tenant' => $tenant->id, 'actor' => $me->id, 'target' => $member->id]);
-                return back()->with('success', "Password reset. New temporary password: {$newPassword}");
+                // MARKER-TEMP-PASSWORD: shown in a dialog that stays until closed (see _flash-modal)
+                return back()->with('temp_password', ['name' => $member->name, 'password' => $newPassword]);
             }
 
             case 'toggle_timeclock_exempt': {
