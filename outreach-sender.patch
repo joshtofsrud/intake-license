@@ -1,0 +1,180 @@
+diff --git a/app/Filament/Pages/PlatformEmail.php b/app/Filament/Pages/PlatformEmail.php
+index f6b16fdd..e9f254aa 100644
+--- a/app/Filament/Pages/PlatformEmail.php
++++ b/app/Filament/Pages/PlatformEmail.php
+@@ -41,6 +41,8 @@ class PlatformEmail extends Page implements HasForms
+ 
+         $this->form->fill([
+             'mail_from_address' => $settings->mail_from_address,
++            'outreach_from_address' => $settings->outreach_from_address, // MARKER-OUTREACH-SENDER
++            'outreach_from_name'    => $settings->outreach_from_name,
+             'support_email'      => $settings->support_email,
+             'mail_from_name'    => $settings->mail_from_name,
+             'email_broadcast_stream' => $settings->email_broadcast_stream,
+@@ -91,6 +93,23 @@ class PlatformEmail extends Page implements HasForms
+                             ->autocomplete('off'),
+                     ]),
+ 
++                // MARKER-OUTREACH-SENDER
++                Section::make('Outreach sender')
++                    ->description('Who emails from Sales › Email outreach and a Prospects card come from, tests included. A person\'s name reads like a note rather than a newsletter. Replies still come back into the Platform inbox. Blank uses the platform sender above. Receipts, signups and campaigns are not affected.')
++                    ->schema([
++                        TextInput::make('outreach_from_name')
++                            ->label('From name')
++                            ->placeholder(fn () => \App\Models\PlatformSettings::fromName() ?: 'Intake')
++                            ->maxLength(120)
++                            ->autocomplete('off'),
++                        TextInput::make('outreach_from_address')
++                            ->label('From address')
++                            ->email()
++                            ->placeholder(fn () => \App\Models\PlatformSettings::fromAddress())
++                            ->helperText('Any address on a domain verified in Postmark (intake.works is), or a verified sender signature.')
++                            ->autocomplete('off'),
++                    ]),
++
+                 // the campaign sending switch + rate.
+                 Section::make('Marketing email')
+                     ->description('Campaign sending for every tenant hinges on the stream below. Empty: campaign sending is OFF platform-wide — shops can draft and queue, nothing goes out, transactional mail is unaffected. Set: the worker drains queues onto that Postmark stream within a minute.')
+@@ -182,6 +201,8 @@ class PlatformEmail extends Page implements HasForms
+         PlatformSettings::current()->update([
+             'mail_from_address' => trim((string) ($state['mail_from_address'] ?? '')) ?: null,
+             'mail_from_name'    => trim((string) ($state['mail_from_name'] ?? '')) ?: null,
++            'outreach_from_address' => trim((string) ($state['outreach_from_address'] ?? '')) ?: null, // MARKER-OUTREACH-SENDER
++            'outreach_from_name'    => trim((string) ($state['outreach_from_name'] ?? '')) ?: null,
+             'email_broadcast_stream' => trim((string) ($state['email_broadcast_stream'] ?? '')) ?: null,
+             // MARKER-PROSPECT-STREAM
+             'platform_broadcast_stream' => trim((string) ($state['platform_broadcast_stream'] ?? '')) ?: null,
+diff --git a/app/Models/PlatformSettings.php b/app/Models/PlatformSettings.php
+index edea4120..f7901eed 100644
+--- a/app/Models/PlatformSettings.php
++++ b/app/Models/PlatformSettings.php
+@@ -33,6 +33,9 @@ class PlatformSettings extends Model
+         // removed: mail_from_address and mail_from_name above already are the
+         // platform sender, and two homes for one address is how they drift.
+         'platform_postal_address',
++        // MARKER-OUTREACH-SENDER: a person's name and address for outreach only; blank = the sender above
++        'outreach_from_address',
++        'outreach_from_name',
+         // MARKER-DASH-AUDIENCE: off = no shop can customize its dashboard
+         'dashboard_customize_enabled',
+     ];
+@@ -115,6 +118,22 @@ class PlatformSettings extends Model
+         return ($config !== '' && $config !== 'Example') ? $config : null;
+     }
+ 
++    /**
++     * MARKER-OUTREACH-SENDER: who outreach emails come from, [address, name].
++     * Each part falls back to the platform sender when blank.
++     */
++    public static function outreachFrom(): array
++    {
++        $s = self::current();
++        $addr = trim((string) ($s->outreach_from_address ?? ''));
++        $name = trim((string) ($s->outreach_from_name ?? ''));
++
++        return [
++            $addr !== '' ? $addr : (self::fromAddress() ?: (string) config('mail.from.address', 'hello@intake.works')),
++            $name !== '' ? $name : (self::fromName() ?: 'Intake'),
++        ];
++    }
++
+     /** True when mail would still go out as the framework placeholder. */
+     public static function isPlaceholder(): bool
+     {
+diff --git a/app/Services/Platform/PlatformMailer.php b/app/Services/Platform/PlatformMailer.php
+index f588c9bf..e3835a3a 100644
+--- a/app/Services/Platform/PlatformMailer.php
++++ b/app/Services/Platform/PlatformMailer.php
+@@ -77,15 +77,16 @@ class PlatformMailer
+         string $html,
+         string $unsubscribeUrl,
+         array $headers = [],
+-        ?string $replyToken = null
++        ?string $replyToken = null,
++        ?array $sender = null // MARKER-OUTREACH-SENDER: [address, name] instead of the platform sender
+     ): bool {
+         $stream = self::stream();
+         if (! $stream) {
+             return false;
+         }
+ 
+-        $from     = self::fromAddress();
+-        $fromName = self::fromName();
++        $from     = $sender[0] ?? self::fromAddress();
++        $fromName = $sender[1] ?? self::fromName();
+ 
+         // a tokenised Reply-To when inbound is
+         // configured, so an answer comes back into the inbox instead of
+diff --git a/app/Services/Sales/ProspectOutreach.php b/app/Services/Sales/ProspectOutreach.php
+index 8a4a7ff9..04e5be16 100644
+--- a/app/Services/Sales/ProspectOutreach.php
++++ b/app/Services/Sales/ProspectOutreach.php
+@@ -289,7 +289,7 @@ class ProspectOutreach
+         if ($subject === '') return [false, 'Add a subject'];
+         try {
+             $ok = PlatformMailer::send($to, $toSelf ? ($u?->name ?: null) : null, ($toSelf ? '[Test] ' : '') . $subject, self::html($body, $p, $page, $to, true),
+-                \App\Http\Controllers\Platform\PlatformUnsubscribeController::url($to));
++                \App\Http\Controllers\Platform\PlatformUnsubscribeController::url($to), [], null, \App\Models\PlatformSettings::outreachFrom());
+         } catch (\Throwable $e) {
+             report($e);
+             return [false, 'Test not sent: ' . $e->getMessage()];
+@@ -373,7 +373,8 @@ class ProspectOutreach
+         try {
+             $ok = PlatformMailer::send($to, $p->owner_contact ?: null, $subject, $html,
+                 \App\Http\Controllers\Platform\PlatformUnsubscribeController::url($to),
+-                ['X-PM-Metadata-prospect' => $p->id, 'X-PM-Metadata-platform_thread' => $thread->id], $thread->replyToken());
++                ['X-PM-Metadata-prospect' => $p->id, 'X-PM-Metadata-platform_thread' => $thread->id], $thread->replyToken(),
++                \App\Models\PlatformSettings::outreachFrom()); // MARKER-OUTREACH-SENDER
+         } catch (\Throwable $e) {
+             report($e);
+             PlatformMailer::log('prospect', $to, $subject, ['status' => 'failed', 'error' => mb_substr($e->getMessage(), 0, 400)]);
+diff --git a/database/migrations/2026_10_28_120000_outreach_sender.php b/database/migrations/2026_10_28_120000_outreach_sender.php
+new file mode 100644
+index 00000000..4cb7bc36
+--- /dev/null
++++ b/database/migrations/2026_10_28_120000_outreach_sender.php
+@@ -0,0 +1,30 @@
++<?php
++
++use Illuminate\Database\Migrations\Migration;
++use Illuminate\Database\Schema\Blueprint;
++use Illuminate\Support\Facades\Schema;
++
++/**
++ * MARKER-OUTREACH-SENDER: outreach emails can come from a person
++ * ("Josh Tofsrud <josh@intake.works>") instead of the platform sender
++ * ("Intake <hello@intake.works>"). Blank = the platform sender, as before.
++ */
++return new class extends Migration
++{
++    public function up(): void
++    {
++        Schema::table('platform_settings', function (Blueprint $t) {
++            if (! Schema::hasColumn('platform_settings', 'outreach_from_address')) $t->string('outreach_from_address', 191)->nullable();
++            if (! Schema::hasColumn('platform_settings', 'outreach_from_name'))    $t->string('outreach_from_name', 120)->nullable();
++        });
++    }
++
++    public function down(): void
++    {
++        Schema::table('platform_settings', function (Blueprint $t) {
++            foreach (['outreach_from_address', 'outreach_from_name'] as $c) {
++                if (Schema::hasColumn('platform_settings', $c)) $t->dropColumn($c);
++            }
++        });
++    }
++};
+diff --git a/resources/views/filament/pages/sales-email-outreach.blade.php b/resources/views/filament/pages/sales-email-outreach.blade.php
+index 601c91d1..22b979e0 100644
+--- a/resources/views/filament/pages/sales-email-outreach.blade.php
++++ b/resources/views/filament/pages/sales-email-outreach.blade.php
+@@ -296,7 +296,8 @@
+                     </span>
+                     <button type="button" class="sx-btn" wire:click="wrongEmail" wire:loading.attr="disabled">Wrong email</button>
+                 </div>
+-                <div class="ig-keys"><kbd>Ctrl</kbd>/<kbd>⌘</kbd> + <kbd>Enter</kbd> send · <kbd>S</kbd> skip</div>
++                @php [$__fa, $__fn] = \App\Models\PlatformSettings::outreachFrom(); @endphp
++                <div class="ig-keys"><kbd>Ctrl</kbd>/<kbd>⌘</kbd> + <kbd>Enter</kbd> send · <kbd>S</kbd> skip · From {{ $__fn }} &lt;{{ $__fa }}&gt; <a href="{{ \App\Filament\Pages\PlatformEmail::getUrl() }}" style="color:inherit;text-decoration:underline">change</a>{{-- MARKER-OUTREACH-SENDER --}}</div>
+             @endif
+         </section>
+ 

@@ -77,15 +77,16 @@ class PlatformMailer
         string $html,
         string $unsubscribeUrl,
         array $headers = [],
-        ?string $replyToken = null
+        ?string $replyToken = null,
+        ?array $sender = null // MARKER-OUTREACH-SENDER: [address, name] instead of the platform sender
     ): bool {
         $stream = self::stream();
         if (! $stream) {
             return false;
         }
 
-        $from     = self::fromAddress();
-        $fromName = self::fromName();
+        $from     = $sender[0] ?? self::fromAddress();
+        $fromName = $sender[1] ?? self::fromName();
 
         // a tokenised Reply-To when inbound is
         // configured, so an answer comes back into the inbox instead of

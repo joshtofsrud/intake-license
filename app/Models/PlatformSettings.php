@@ -33,6 +33,9 @@ class PlatformSettings extends Model
         // removed: mail_from_address and mail_from_name above already are the
         // platform sender, and two homes for one address is how they drift.
         'platform_postal_address',
+        // MARKER-OUTREACH-SENDER: a person's name and address for outreach only; blank = the sender above
+        'outreach_from_address',
+        'outreach_from_name',
         // MARKER-DASH-AUDIENCE: off = no shop can customize its dashboard
         'dashboard_customize_enabled',
     ];
@@ -113,6 +116,22 @@ class PlatformSettings extends Model
 
         $config = trim((string) config('mail.from.name'));
         return ($config !== '' && $config !== 'Example') ? $config : null;
+    }
+
+    /**
+     * MARKER-OUTREACH-SENDER: who outreach emails come from, [address, name].
+     * Each part falls back to the platform sender when blank.
+     */
+    public static function outreachFrom(): array
+    {
+        $s = self::current();
+        $addr = trim((string) ($s->outreach_from_address ?? ''));
+        $name = trim((string) ($s->outreach_from_name ?? ''));
+
+        return [
+            $addr !== '' ? $addr : (self::fromAddress() ?: (string) config('mail.from.address', 'hello@intake.works')),
+            $name !== '' ? $name : (self::fromName() ?: 'Intake'),
+        ];
     }
 
     /** True when mail would still go out as the framework placeholder. */

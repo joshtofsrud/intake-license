@@ -296,7 +296,8 @@
                     </span>
                     <button type="button" class="sx-btn" wire:click="wrongEmail" wire:loading.attr="disabled">Wrong email</button>
                 </div>
-                <div class="ig-keys"><kbd>Ctrl</kbd>/<kbd>⌘</kbd> + <kbd>Enter</kbd> send · <kbd>S</kbd> skip</div>
+                @php [$__fa, $__fn] = \App\Models\PlatformSettings::outreachFrom(); @endphp
+                <div class="ig-keys"><kbd>Ctrl</kbd>/<kbd>⌘</kbd> + <kbd>Enter</kbd> send · <kbd>S</kbd> skip · From {{ $__fn }} &lt;{{ $__fa }}&gt; <a href="{{ \App\Filament\Pages\PlatformEmail::getUrl() }}" style="color:inherit;text-decoration:underline">change</a>{{-- MARKER-OUTREACH-SENDER --}}</div>
             @endif
         </section>
 

@@ -41,6 +41,8 @@ class PlatformEmail extends Page implements HasForms
 
         $this->form->fill([
             'mail_from_address' => $settings->mail_from_address,
+            'outreach_from_address' => $settings->outreach_from_address, // MARKER-OUTREACH-SENDER
+            'outreach_from_name'    => $settings->outreach_from_name,
             'support_email'      => $settings->support_email,
             'mail_from_name'    => $settings->mail_from_name,
             'email_broadcast_stream' => $settings->email_broadcast_stream,
@@ -88,6 +90,23 @@ class PlatformEmail extends Page implements HasForms
                             ->label('From name')
                             ->placeholder('Intake')
                             ->maxLength(120)
+                            ->autocomplete('off'),
+                    ]),
+
+                // MARKER-OUTREACH-SENDER
+                Section::make('Outreach sender')
+                    ->description('Who emails from Sales › Email outreach and a Prospects card come from, tests included. A person\'s name reads like a note rather than a newsletter. Replies still come back into the Platform inbox. Blank uses the platform sender above. Receipts, signups and campaigns are not affected.')
+                    ->schema([
+                        TextInput::make('outreach_from_name')
+                            ->label('From name')
+                            ->placeholder(fn () => \App\Models\PlatformSettings::fromName() ?: 'Intake')
+                            ->maxLength(120)
+                            ->autocomplete('off'),
+                        TextInput::make('outreach_from_address')
+                            ->label('From address')
+                            ->email()
+                            ->placeholder(fn () => \App\Models\PlatformSettings::fromAddress())
+                            ->helperText('Any address on a domain verified in Postmark (intake.works is), or a verified sender signature.')
                             ->autocomplete('off'),
                     ]),
 
@@ -182,6 +201,8 @@ class PlatformEmail extends Page implements HasForms
         PlatformSettings::current()->update([
             'mail_from_address' => trim((string) ($state['mail_from_address'] ?? '')) ?: null,
             'mail_from_name'    => trim((string) ($state['mail_from_name'] ?? '')) ?: null,
+            'outreach_from_address' => trim((string) ($state['outreach_from_address'] ?? '')) ?: null, // MARKER-OUTREACH-SENDER
+            'outreach_from_name'    => trim((string) ($state['outreach_from_name'] ?? '')) ?: null,
             'email_broadcast_stream' => trim((string) ($state['email_broadcast_stream'] ?? '')) ?: null,
             // MARKER-PROSPECT-STREAM
             'platform_broadcast_stream' => trim((string) ($state['platform_broadcast_stream'] ?? '')) ?: null,
