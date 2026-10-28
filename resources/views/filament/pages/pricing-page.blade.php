@@ -178,10 +178,19 @@
       <select class="pp-in" wire:model="edit.status">@foreach(\App\Models\Addon::STATUSES as $v => $l)<option value="{{ $v }}">{{ $l }}</option>@endforeach</select>
     </div>
     <p style="font-size:12px;opacity:.6;margin-top:14px">A lowest plan above an "included" plan wins: that plan does not get it.</p>
+    {{-- MARKER-ADDON-SAFETY --}}
+    @if($statusWarning)
+      <div style="margin-top:16px;padding:12px 14px;border-radius:8px;border:1px solid rgba(248,113,113,.45);background:rgba(248,113,113,.08);font-size:13px;line-height:1.5;white-space:pre-line">{{ $statusWarning }}</div>
+      <div style="display:flex;gap:8px;margin-top:12px">
+        <x-filament::button color="danger" wire:click="saveAddon(true)">Yes, save it</x-filament::button>
+        <x-filament::button color="gray" wire:click="$set('statusWarning', null)">Go back</x-filament::button>
+      </div>
+    @else
     <div style="display:flex;gap:8px;margin-top:18px">
       <x-filament::button wire:click="saveAddon">Save</x-filament::button>
       <x-filament::button color="gray" wire:click="closeAddon">Cancel</x-filament::button>
     </div>
+    @endif
   </aside>
 @endif
 </x-filament-panels::page>

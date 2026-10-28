@@ -23,6 +23,30 @@ class EditAddon extends EditRecord
             ->modalDescription('Deleting removes it from the catalog entirely. If shops are using it, close or retire it instead — that keeps their records intact.')];
     }
 
+    /**
+     * MARKER-ADDON-SAFETY: closing or retiring an add-on takes it from shops,
+     * so Save asks first, saying how many shops have it.
+     */
+    protected function getSaveFormAction(): Actions\Action
+    {
+        return parent::getSaveFormAction()
+            ->submit(null)
+            ->requiresConfirmation(fn () => $this->statusWarning() !== null)
+            // a save that takes nothing away mustn't open a dialog at all
+            ->modalHidden(fn () => $this->statusWarning() === null)
+            ->modalHeading('Change who can use this add-on?')
+            ->modalDescription(fn () => $this->statusWarning())
+            ->modalSubmitActionLabel('Yes, save it')
+            ->action(fn () => $this->save());
+    }
+
+    private function statusWarning(): ?string
+    {
+        $next = (string) ($this->data['status'] ?? $this->record->status);
+
+        return \App\Support\AddonStatusWarning::for($this->record, $next);
+    }
+
     protected function mutateFormDataBeforeSave(array $data): array
     {
         $cents = isset($data['new_price']) ? (int) round(((float) $data['new_price']) * 100) : null;

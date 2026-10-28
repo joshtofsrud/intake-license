@@ -171,8 +171,11 @@ class FeatureAccessService
             return static::$requestCache[$tenant->id];
         }
 
+        // MARKER-ADDON-SAFETY: 'deprecated' (shown as "Closed") means no new
+        // shops, but those who have it keep it. Reading only 'active' here took
+        // it away from them while master admin still showed it on.
         $addons = DB::table('addons')
-            ->where('status', 'active')
+            ->whereIn('status', ['active', 'deprecated'])
             ->select('code', 'included_in_plans', 'min_plan_tier')
             ->get();
 
@@ -195,6 +198,12 @@ class FeatureAccessService
 
         foreach ($active as $code) {
             $map[$code] = true;
+        }
+
+        // MARKER-ADDON-SAFETY: Retired is "off for everyone, existing
+        // activations stop", so a shop's own grant doesn't bring it back.
+        foreach (DB::table('addons')->where('status', 'retired')->pluck('code') as $code) {
+            $map[$code] = false;
         }
 
         $suppressed = DB::table('tenant_addon_suppressions')

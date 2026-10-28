@@ -1,0 +1,246 @@
+diff --git a/app/Filament/Pages/PricingPage.php b/app/Filament/Pages/PricingPage.php
+index 3ca235cc..55ec0823 100644
+--- a/app/Filament/Pages/PricingPage.php
++++ b/app/Filament/Pages/PricingPage.php
+@@ -44,6 +44,9 @@ class PricingPage extends Page
+ 
+     public array $edit = [];
+ 
++    /** MARKER-ADDON-SAFETY: set when a status change needs a yes first. */
++    public ?string $statusWarning = null;
++
+     public function mount(): void
+     {
+         $this->blurbs = PricingCatalog::blurbs();
+@@ -123,6 +126,7 @@ class PricingPage extends Page
+     {
+         $a = Addon::findOrFail($id);
+         $this->editId = $a->id;
++        $this->statusWarning = null;
+         $this->edit = [
+             'included' => array_values((array) ($a->included_in_plans ?? [])),
+             'min'      => (string) ($a->min_plan_tier ?? ''),
+@@ -135,11 +139,20 @@ class PricingPage extends Page
+     {
+         $this->editId = null;
+         $this->edit = [];
++        $this->statusWarning = null;
+     }
+ 
+-    public function saveAddon(): void
++    public function saveAddon(bool $confirmed = false): void
+     {
+         $a = Addon::findOrFail($this->editId);
++        // MARKER-ADDON-SAFETY: closing or retiring takes something away from
++        // shops, so it says how many and waits for a yes.
++        $next = (string) ($this->edit['status'] ?? $a->status);
++        if (! $confirmed && $next !== $a->status && ($w = \App\Support\AddonStatusWarning::for($a, $next))) {
++            $this->statusWarning = $w;
++            return;
++        }
++        $this->statusWarning = null;
+         $inc = array_values(array_intersect(PricingCatalog::TIERS, (array) ($this->edit['included'] ?? [])));
+         $min = in_array($this->edit['min'] ?? '', ['branded', 'scale'], true) ? $this->edit['min'] : null;
+         $vis = array_key_exists($this->edit['visibility'] ?? '', Addon::VISIBILITIES) ? $this->edit['visibility'] : $a->visibility;
+diff --git a/app/Filament/Resources/AddonResource/Pages/EditAddon.php b/app/Filament/Resources/AddonResource/Pages/EditAddon.php
+index edea47fd..0c3c8dd9 100644
+--- a/app/Filament/Resources/AddonResource/Pages/EditAddon.php
++++ b/app/Filament/Resources/AddonResource/Pages/EditAddon.php
+@@ -23,6 +23,30 @@ class EditAddon extends EditRecord
+             ->modalDescription('Deleting removes it from the catalog entirely. If shops are using it, close or retire it instead — that keeps their records intact.')];
+     }
+ 
++    /**
++     * MARKER-ADDON-SAFETY: closing or retiring an add-on takes it from shops,
++     * so Save asks first, saying how many shops have it.
++     */
++    protected function getSaveFormAction(): Actions\Action
++    {
++        return parent::getSaveFormAction()
++            ->submit(null)
++            ->requiresConfirmation(fn () => $this->statusWarning() !== null)
++            // a save that takes nothing away mustn't open a dialog at all
++            ->modalHidden(fn () => $this->statusWarning() === null)
++            ->modalHeading('Change who can use this add-on?')
++            ->modalDescription(fn () => $this->statusWarning())
++            ->modalSubmitActionLabel('Yes, save it')
++            ->action(fn () => $this->save());
++    }
++
++    private function statusWarning(): ?string
++    {
++        $next = (string) ($this->data['status'] ?? $this->record->status);
++
++        return \App\Support\AddonStatusWarning::for($this->record, $next);
++    }
++
+     protected function mutateFormDataBeforeSave(array $data): array
+     {
+         $cents = isset($data['new_price']) ? (int) round(((float) $data['new_price']) * 100) : null;
+diff --git a/app/Models/Addon.php b/app/Models/Addon.php
+index e39b0bec..0ad88cc9 100644
+--- a/app/Models/Addon.php
++++ b/app/Models/Addon.php
+@@ -142,4 +142,76 @@ class Addon extends Model
+     {
+         return $query->orderBy('sort_order');
+     }
++
++    // ── MARKER-ADDON-SAFETY ───────────────────────────────────────────
++
++    /** Fields whose change alters who gets what. Every change to them is logged. */
++    public const WATCHED = ['status', 'included_in_plans', 'min_plan_tier', 'visibility', 'price_cents', 'name'];
++
++    protected static function booted(): void
++    {
++        // Oct 13, 2026: extended reports was set to Retired with no record of
++        // who or why, and every shop lost full reports for two weeks. Now each
++        // change says who made it and what it was before (audit log, kept a year).
++        static::updated(function (Addon $a) {
++            $changes = [];
++            foreach (self::WATCHED as $f) {
++                if (! $a->wasChanged($f)) continue;
++                $was = $a->getOriginal($f);
++                $now = $a->getAttribute($f);
++                if (is_array($was) || is_array($now)) {
++                    $was = is_array($was) ? $was : (json_decode((string) $was, true) ?: []);
++                    $now = is_array($now) ? $now : [];
++                    sort($was); sort($now);
++                    if ($was === $now) continue;
++                }
++                $changes[$f] = ['from' => $was, 'to' => $now];
++            }
++            if (! $changes) return;
++            $text = collect($changes)->map(fn ($c, $f) => $f . ' ' . self::show($c['from']) . ' → ' . self::show($c['to']))->implode('; ');
++            $who = auth('web')->user()?->name ?: (app()->runningInConsole() ? 'a console command' : 'someone');
++            try {
++                debug_log()->audit('addon.changed', $who . ' changed ' . $a->name . ': ' . $text, $a, $changes);
++            } catch (\Throwable $e) {
++                \Illuminate\Support\Facades\Log::warning('addon change not audited', ['addon' => $a->code, 'error' => $e->getMessage()]);
++            }
++        });
++    }
++
++    private static function show($v): string
++    {
++        if (is_array($v)) return $v ? '[' . implode(', ', $v) . ']' : 'none';
++        return $v === null || $v === '' ? 'none' : (string) $v;
++    }
++
++    /**
++     * How many shops have this add-on working right now: granted to them, or
++     * included in their plan, less any switched off for that shop. What a
++     * status change would take away.
++     */
++    public function shopsWithItCount(): int
++    {
++        $plans = array_values((array) ($this->included_in_plans ?? []));
++        $suppressed = \Illuminate\Support\Facades\DB::table('tenant_addon_suppressions')
++            ->where('addon_code', $this->code)->whereNull('lifted_at')->pluck('tenant_id')->all();
++
++        $ids = \Illuminate\Support\Facades\DB::table('tenant_feature_addons')
++            ->where('addon_code', $this->code)->whereIn('status', ['active', 'canceling', 'failed_payment'])
++            ->pluck('tenant_id')->all();
++        if ($plans) {
++            $q = \App\Models\Tenant::query()->whereIn('plan_tier', $plans);
++            if ($this->min_plan_tier) $q->whereIn('plan_tier', $this->tiersFrom($this->min_plan_tier));
++            $ids = array_merge($ids, $q->pluck('id')->all());
++        }
++
++        return count(array_diff(array_unique($ids), $suppressed));
++    }
++
++    private function tiersFrom(string $min): array
++    {
++        $order = ['starter', 'branded', 'scale', 'custom'];
++        $at = array_search($min, $order, true);
++
++        return $at === false ? $order : array_slice($order, $at);
++    }
+ }
+diff --git a/app/Services/FeatureAccessService.php b/app/Services/FeatureAccessService.php
+index e1cf4b15..5f764a3c 100644
+--- a/app/Services/FeatureAccessService.php
++++ b/app/Services/FeatureAccessService.php
+@@ -171,8 +171,11 @@ class FeatureAccessService
+             return static::$requestCache[$tenant->id];
+         }
+ 
++        // MARKER-ADDON-SAFETY: 'deprecated' (shown as "Closed") means no new
++        // shops, but those who have it keep it. Reading only 'active' here took
++        // it away from them while master admin still showed it on.
+         $addons = DB::table('addons')
+-            ->where('status', 'active')
++            ->whereIn('status', ['active', 'deprecated'])
+             ->select('code', 'included_in_plans', 'min_plan_tier')
+             ->get();
+ 
+@@ -197,6 +200,12 @@ class FeatureAccessService
+             $map[$code] = true;
+         }
+ 
++        // MARKER-ADDON-SAFETY: Retired is "off for everyone, existing
++        // activations stop", so a shop's own grant doesn't bring it back.
++        foreach (DB::table('addons')->where('status', 'retired')->pluck('code') as $code) {
++            $map[$code] = false;
++        }
++
+         $suppressed = DB::table('tenant_addon_suppressions')
+             ->where('tenant_id', $tenant->id)
+             ->whereNull('lifted_at')
+diff --git a/app/Support/AddonStatusWarning.php b/app/Support/AddonStatusWarning.php
+new file mode 100644
+index 00000000..8387bdbb
+--- /dev/null
++++ b/app/Support/AddonStatusWarning.php
+@@ -0,0 +1,26 @@
++<?php
++
++namespace App\Support;
++
++use App\Models\Addon;
++
++/**
++ * MARKER-ADDON-SAFETY: what a status change does to shops, in words, for the
++ * yes/no before it's saved (Pricing page panel and the add-on edit page).
++ * Null when the change takes nothing away (anything back to Active).
++ */
++class AddonStatusWarning
++{
++    public static function for(Addon $a, string $next): ?string
++    {
++        if ($next === $a->status) return null;
++        $n = $a->shopsWithItCount();
++        $shops = $n === 1 ? '1 shop has it' : $n . ' shops have it';
++
++        return match ($next) {
++            Addon::RETIRED => "Retire {$a->name}?\nIt switches off straight away for every shop that has it, including shops paying for it, and leaves the pricing page. Right now {$shops}.",
++            Addon::DEPRECATED => "Close {$a->name} to new shops?\nThe shops that have it keep it and are still billed; nobody new can add it. Right now {$shops}.",
++            default => null,
++        };
++    }
++}
+diff --git a/resources/views/filament/pages/pricing-page.blade.php b/resources/views/filament/pages/pricing-page.blade.php
+index 9c19e188..eeec3c9d 100644
+--- a/resources/views/filament/pages/pricing-page.blade.php
++++ b/resources/views/filament/pages/pricing-page.blade.php
+@@ -178,10 +178,19 @@
+       <select class="pp-in" wire:model="edit.status">@foreach(\App\Models\Addon::STATUSES as $v => $l)<option value="{{ $v }}">{{ $l }}</option>@endforeach</select>
+     </div>
+     <p style="font-size:12px;opacity:.6;margin-top:14px">A lowest plan above an "included" plan wins: that plan does not get it.</p>
++    {{-- MARKER-ADDON-SAFETY --}}
++    @if($statusWarning)
++      <div style="margin-top:16px;padding:12px 14px;border-radius:8px;border:1px solid rgba(248,113,113,.45);background:rgba(248,113,113,.08);font-size:13px;line-height:1.5;white-space:pre-line">{{ $statusWarning }}</div>
++      <div style="display:flex;gap:8px;margin-top:12px">
++        <x-filament::button color="danger" wire:click="saveAddon(true)">Yes, save it</x-filament::button>
++        <x-filament::button color="gray" wire:click="$set('statusWarning', null)">Go back</x-filament::button>
++      </div>
++    @else
+     <div style="display:flex;gap:8px;margin-top:18px">
+       <x-filament::button wire:click="saveAddon">Save</x-filament::button>
+       <x-filament::button color="gray" wire:click="closeAddon">Cancel</x-filament::button>
+     </div>
++    @endif
+   </aside>
+ @endif
+ </x-filament-panels::page>

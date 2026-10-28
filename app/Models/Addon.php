@@ -142,4 +142,76 @@ class Addon extends Model
     {
         return $query->orderBy('sort_order');
     }
+
+    // ── MARKER-ADDON-SAFETY ───────────────────────────────────────────
+
+    /** Fields whose change alters who gets what. Every change to them is logged. */
+    public const WATCHED = ['status', 'included_in_plans', 'min_plan_tier', 'visibility', 'price_cents', 'name'];
+
+    protected static function booted(): void
+    {
+        // Oct 13, 2026: extended reports was set to Retired with no record of
+        // who or why, and every shop lost full reports for two weeks. Now each
+        // change says who made it and what it was before (audit log, kept a year).
+        static::updated(function (Addon $a) {
+            $changes = [];
+            foreach (self::WATCHED as $f) {
+                if (! $a->wasChanged($f)) continue;
+                $was = $a->getOriginal($f);
+                $now = $a->getAttribute($f);
+                if (is_array($was) || is_array($now)) {
+                    $was = is_array($was) ? $was : (json_decode((string) $was, true) ?: []);
+                    $now = is_array($now) ? $now : [];
+                    sort($was); sort($now);
+                    if ($was === $now) continue;
+                }
+                $changes[$f] = ['from' => $was, 'to' => $now];
+            }
+            if (! $changes) return;
+            $text = collect($changes)->map(fn ($c, $f) => $f . ' ' . self::show($c['from']) . ' → ' . self::show($c['to']))->implode('; ');
+            $who = auth('web')->user()?->name ?: (app()->runningInConsole() ? 'a console command' : 'someone');
+            try {
+                debug_log()->audit('addon.changed', $who . ' changed ' . $a->name . ': ' . $text, $a, $changes);
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning('addon change not audited', ['addon' => $a->code, 'error' => $e->getMessage()]);
+            }
+        });
+    }
+
+    private static function show($v): string
+    {
+        if (is_array($v)) return $v ? '[' . implode(', ', $v) . ']' : 'none';
+        return $v === null || $v === '' ? 'none' : (string) $v;
+    }
+
+    /**
+     * How many shops have this add-on working right now: granted to them, or
+     * included in their plan, less any switched off for that shop. What a
+     * status change would take away.
+     */
+    public function shopsWithItCount(): int
+    {
+        $plans = array_values((array) ($this->included_in_plans ?? []));
+        $suppressed = \Illuminate\Support\Facades\DB::table('tenant_addon_suppressions')
+            ->where('addon_code', $this->code)->whereNull('lifted_at')->pluck('tenant_id')->all();
+
+        $ids = \Illuminate\Support\Facades\DB::table('tenant_feature_addons')
+            ->where('addon_code', $this->code)->whereIn('status', ['active', 'canceling', 'failed_payment'])
+            ->pluck('tenant_id')->all();
+        if ($plans) {
+            $q = \App\Models\Tenant::query()->whereIn('plan_tier', $plans);
+            if ($this->min_plan_tier) $q->whereIn('plan_tier', $this->tiersFrom($this->min_plan_tier));
+            $ids = array_merge($ids, $q->pluck('id')->all());
+        }
+
+        return count(array_diff(array_unique($ids), $suppressed));
+    }
+
+    private function tiersFrom(string $min): array
+    {
+        $order = ['starter', 'branded', 'scale', 'custom'];
+        $at = array_search($min, $order, true);
+
+        return $at === false ? $order : array_slice($order, $at);
+    }
 }

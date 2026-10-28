@@ -44,6 +44,9 @@ class PricingPage extends Page
 
     public array $edit = [];
 
+    /** MARKER-ADDON-SAFETY: set when a status change needs a yes first. */
+    public ?string $statusWarning = null;
+
     public function mount(): void
     {
         $this->blurbs = PricingCatalog::blurbs();
@@ -123,6 +126,7 @@ class PricingPage extends Page
     {
         $a = Addon::findOrFail($id);
         $this->editId = $a->id;
+        $this->statusWarning = null;
         $this->edit = [
             'included' => array_values((array) ($a->included_in_plans ?? [])),
             'min'      => (string) ($a->min_plan_tier ?? ''),
@@ -135,11 +139,20 @@ class PricingPage extends Page
     {
         $this->editId = null;
         $this->edit = [];
+        $this->statusWarning = null;
     }
 
-    public function saveAddon(): void
+    public function saveAddon(bool $confirmed = false): void
     {
         $a = Addon::findOrFail($this->editId);
+        // MARKER-ADDON-SAFETY: closing or retiring takes something away from
+        // shops, so it says how many and waits for a yes.
+        $next = (string) ($this->edit['status'] ?? $a->status);
+        if (! $confirmed && $next !== $a->status && ($w = \App\Support\AddonStatusWarning::for($a, $next))) {
+            $this->statusWarning = $w;
+            return;
+        }
+        $this->statusWarning = null;
         $inc = array_values(array_intersect(PricingCatalog::TIERS, (array) ($this->edit['included'] ?? [])));
         $min = in_array($this->edit['min'] ?? '', ['branded', 'scale'], true) ? $this->edit['min'] : null;
         $vis = array_key_exists($this->edit['visibility'] ?? '', Addon::VISIBILITIES) ? $this->edit['visibility'] : $a->visibility;
