@@ -16,7 +16,7 @@
   <p style="margin:26px 0">
     <a href="{{ $setupUrl }}"
        style="display:inline-block;padding:13px 26px;border-radius:8px;font-weight:600;
-              text-decoration:none;background:{{ $accent }};color:{{ $accent_text }}">{{ ! empty($selfSignup) ? 'Confirm & create password' : 'Set up my account' }}</a>
+              text-decoration:none;background:{{ $accent }};background-image:linear-gradient({{ $accent }},{{ $accent }});color:{{ $accent_text }}">{{ ! empty($selfSignup) ? 'Confirm & create password' : 'Set up my account' }}</a>
   </p>
 
   <p style="font-size:13px;opacity:.6">This link expires in 60 minutes. If it does, ask us to send a new one —

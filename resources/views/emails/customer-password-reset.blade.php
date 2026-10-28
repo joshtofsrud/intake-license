@@ -13,7 +13,7 @@
   <p style="margin:26px 0">
     <a href="{{ $resetUrl }}"
        style="display:inline-block;padding:13px 26px;border-radius:8px;font-weight:600;
-              text-decoration:none;background:{{ $accent }};color:{{ $accent_text }}">Choose a new password</a>
+              text-decoration:none;background:{{ $accent }};background-image:linear-gradient({{ $accent }},{{ $accent }});color:{{ $accent_text }}">Choose a new password</a>
   </p>
 
   <p style="font-size:13px;opacity:.6">This link expires in 60 minutes. If you didn't ask for this, you can ignore it and your password won't change.</p>

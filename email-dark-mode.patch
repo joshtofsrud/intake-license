@@ -1,0 +1,118 @@
+diff --git a/resources/views/emails/customer-account-invite.blade.php b/resources/views/emails/customer-account-invite.blade.php
+index 94af5f3c..8f49ef82 100644
+--- a/resources/views/emails/customer-account-invite.blade.php
++++ b/resources/views/emails/customer-account-invite.blade.php
+@@ -16,7 +16,7 @@
+   <p style="margin:26px 0">
+     <a href="{{ $setupUrl }}"
+        style="display:inline-block;padding:13px 26px;border-radius:8px;font-weight:600;
+-              text-decoration:none;background:{{ $accent }};color:{{ $accent_text }}">{{ ! empty($selfSignup) ? 'Confirm & create password' : 'Set up my account' }}</a>
++              text-decoration:none;background:{{ $accent }};background-image:linear-gradient({{ $accent }},{{ $accent }});color:{{ $accent_text }}">{{ ! empty($selfSignup) ? 'Confirm & create password' : 'Set up my account' }}</a>
+   </p>
+ 
+   <p style="font-size:13px;opacity:.6">This link expires in 60 minutes. If it does, ask us to send a new one —
+diff --git a/resources/views/emails/customer-password-reset.blade.php b/resources/views/emails/customer-password-reset.blade.php
+index 8010fcbb..41aecf39 100644
+--- a/resources/views/emails/customer-password-reset.blade.php
++++ b/resources/views/emails/customer-password-reset.blade.php
+@@ -13,7 +13,7 @@
+   <p style="margin:26px 0">
+     <a href="{{ $resetUrl }}"
+        style="display:inline-block;padding:13px 26px;border-radius:8px;font-weight:600;
+-              text-decoration:none;background:{{ $accent }};color:{{ $accent_text }}">Choose a new password</a>
++              text-decoration:none;background:{{ $accent }};background-image:linear-gradient({{ $accent }},{{ $accent }});color:{{ $accent_text }}">Choose a new password</a>
+   </p>
+ 
+   <p style="font-size:13px;opacity:.6">This link expires in 60 minutes. If you didn't ask for this, you can ignore it and your password won't change.</p>
+diff --git a/resources/views/emails/layout.blade.php b/resources/views/emails/layout.blade.php
+index ac695b6c..b25a3398 100644
+--- a/resources/views/emails/layout.blade.php
++++ b/resources/views/emails/layout.blade.php
+@@ -10,10 +10,23 @@
+ <meta charset="utf-8">
+ <meta name="viewport" content="width=device-width,initial-scale=1">
+ <meta name="x-apple-disable-message-reformatting">
++<meta name="color-scheme" content="light dark">
++<meta name="supported-color-schemes" content="light dark">
+ <title>{{ $subject ?? $shopName }}</title>
+ <!--[if mso]><noscript><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml></noscript><![endif]-->
+ <style>
+   body{margin:0;padding:0;background:#f4f4f2;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-serif}
++  /* MARKER-EMAIL-DARK: Apple Mail and Outlook honour this; Gmail ignores it and recolours on its own,
++     which is why the header and buttons also carry a gradient background-image (Gmail leaves those alone). */
++  @media (prefers-color-scheme: dark){
++    body,.email-wrapper{background:#0d0d0d!important}
++    .email-body{background:#1c1c1c!important;color:#f0f0f0!important;border-color:rgba(255,255,255,.13)!important}
++    .email-foot{background:#161616!important;border-color:rgba(255,255,255,.13)!important}
++    .email-body p{color:#d8d8d8!important}
++    .email-body .email-pw{color:#f0f0f0!important;border-color:rgba(255,255,255,.2)!important}
++    .email-body .email-dim{color:#8a8a85!important}
++    .email-body a:not([style*="background"]){color:#BEF264}
++  }
+   @media(max-width:620px){.email-wrapper{padding:0!important}.email-body{padding:24px!important}}
+ </style>
+ </head>
+@@ -25,7 +38,7 @@
+ 
+     {{-- Header --}}
+     <tr>
+-      <td style="background:#111111;padding:24px 32px;text-align:center;border-radius:8px 8px 0 0">
++      <td style="background:#111111;background-color:#111111;background-image:linear-gradient(#111111,#111111);padding:24px 32px;text-align:center;border-radius:8px 8px 0 0">
+         @if($logo)
+           <img src="{{ $logo }}" alt="{{ $shopName }}" height="36"
+             style="display:block;margin:0 auto;border:0;max-height:36px;width:auto">
+@@ -47,7 +60,7 @@
+ 
+     {{-- Footer --}}
+     <tr>
+-      <td style="background:#f8f8f6;padding:20px 32px;text-align:center;border-radius:0 0 8px 8px;border:1px solid #e8e8e4;border-top:none">
++      <td class="email-foot" style="background:#f8f8f6;padding:20px 32px;text-align:center;border-radius:0 0 8px 8px;border:1px solid #e8e8e4;border-top:none">
+         <p style="font-size:12px;color:#888888;margin:0;line-height:1.6">
+           This email was sent by {{ $shopName }}.
+           If you have questions, reply to this email.
+diff --git a/resources/views/emails/password-reset.blade.php b/resources/views/emails/password-reset.blade.php
+index 44018a1a..055e06d3 100644
+--- a/resources/views/emails/password-reset.blade.php
++++ b/resources/views/emails/password-reset.blade.php
+@@ -18,7 +18,7 @@
+ {{-- CTA button --}}
+ <table cellpadding="0" cellspacing="0" style="margin:0 0 24px">
+   <tr>
+-    <td style="border-radius:8px;background:{{ $accent }}">
++    <td style="border-radius:8px;background:{{ $accent }};background-image:linear-gradient({{ $accent }},{{ $accent }})">
+       <a href="{{ $resetUrl }}"
+         style="display:inline-block;padding:13px 28px;font-size:15px;font-weight:700;color:{{ $accentText }};text-decoration:none;border-radius:8px">
+         Reset my password →
+diff --git a/resources/views/emails/team-invite.blade.php b/resources/views/emails/team-invite.blade.php
+index 4c96278a..8c1a5961 100644
+--- a/resources/views/emails/team-invite.blade.php
++++ b/resources/views/emails/team-invite.blade.php
+@@ -18,7 +18,7 @@
+ {{-- CTA button --}}
+ <table cellpadding="0" cellspacing="0" style="margin:0 0 24px">
+   <tr>
+-    <td style="border-radius:8px;background:{{ $accent }}">
++    <td style="border-radius:8px;background:{{ $accent }};background-image:linear-gradient({{ $accent }},{{ $accent }})">
+       <a href="{{ $setupUrl }}"
+         style="display:inline-block;padding:13px 28px;font-size:15px;font-weight:700;color:{{ $accentText }};text-decoration:none;border-radius:8px">
+         Set up my account →
+diff --git a/resources/views/emails/team-password-reset.blade.php b/resources/views/emails/team-password-reset.blade.php
+index eacdbaab..1ea00b45 100644
+--- a/resources/views/emails/team-password-reset.blade.php
++++ b/resources/views/emails/team-password-reset.blade.php
+@@ -15,13 +15,13 @@
+   Sign in with this temporary one. You'll be asked to choose your own right away.
+ </p>
+ 
+-<p style="font-size:22px;font-weight:600;letter-spacing:.14em;text-align:center;font-family:'SF Mono',SFMono-Regular,Menlo,Consolas,monospace;color:#111;padding:18px 8px;border-top:1px solid #e6e6e1;border-bottom:1px solid #e6e6e1;margin:0 0 28px;word-break:break-all">
++<p class="email-pw" style="font-size:22px;font-weight:600;letter-spacing:.14em;text-align:center;font-family:'SF Mono',SFMono-Regular,Menlo,Consolas,monospace;color:#111;padding:18px 8px;border-top:1px solid #e6e6e1;border-bottom:1px solid #e6e6e1;margin:0 0 28px;word-break:break-all">
+   {{ $tempPassword }}
+ </p>
+ 
+ <table cellpadding="0" cellspacing="0" style="margin:0 0 24px">
+   <tr>
+-    <td style="border-radius:8px;background:{{ $accent }}">
++    <td style="border-radius:8px;background:{{ $accent }};background-image:linear-gradient({{ $accent }},{{ $accent }})">
+       <a href="{{ $loginUrl }}"
+         style="display:inline-block;padding:13px 28px;font-size:15px;font-weight:700;color:{{ $accentText }};text-decoration:none;border-radius:8px">
+         Sign in →

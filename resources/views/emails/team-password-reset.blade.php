@@ -15,13 +15,13 @@
   Sign in with this temporary one. You'll be asked to choose your own right away.
 </p>
 
-<p style="font-size:22px;font-weight:600;letter-spacing:.14em;text-align:center;font-family:'SF Mono',SFMono-Regular,Menlo,Consolas,monospace;color:#111;padding:18px 8px;border-top:1px solid #e6e6e1;border-bottom:1px solid #e6e6e1;margin:0 0 28px;word-break:break-all">
+<p class="email-pw" style="font-size:22px;font-weight:600;letter-spacing:.14em;text-align:center;font-family:'SF Mono',SFMono-Regular,Menlo,Consolas,monospace;color:#111;padding:18px 8px;border-top:1px solid #e6e6e1;border-bottom:1px solid #e6e6e1;margin:0 0 28px;word-break:break-all">
   {{ $tempPassword }}
 </p>
 
 <table cellpadding="0" cellspacing="0" style="margin:0 0 24px">
   <tr>
-    <td style="border-radius:8px;background:{{ $accent }}">
+    <td style="border-radius:8px;background:{{ $accent }};background-image:linear-gradient({{ $accent }},{{ $accent }})">
       <a href="{{ $loginUrl }}"
         style="display:inline-block;padding:13px 28px;font-size:15px;font-weight:700;color:{{ $accentText }};text-decoration:none;border-radius:8px">
         Sign in →

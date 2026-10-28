@@ -18,7 +18,7 @@
 {{-- CTA button --}}
 <table cellpadding="0" cellspacing="0" style="margin:0 0 24px">
   <tr>
-    <td style="border-radius:8px;background:{{ $accent }}">
+    <td style="border-radius:8px;background:{{ $accent }};background-image:linear-gradient({{ $accent }},{{ $accent }})">
       <a href="{{ $resetUrl }}"
         style="display:inline-block;padding:13px 28px;font-size:15px;font-weight:700;color:{{ $accentText }};text-decoration:none;border-radius:8px">
         Reset my password →
