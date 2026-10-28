@@ -44,8 +44,9 @@
     color:var(--ia-text-dim);margin-bottom:7px}
   .ia-fm-btn{margin-top:18px;background:var(--ia-accent);color:var(--ia-accent-text);
     border:none;border-radius:9px;padding:9px 20px;font-size:13px;font-weight:600;cursor:pointer}
-  .ia-fm-pw{display:block;margin:12px 0 0;padding:12px 14px;border-radius:10px;background:var(--ia-bg, rgba(0,0,0,.25));
-    border:0.5px solid var(--ia-border);font:600 22px/1.2 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.06em;user-select:all;word-break:break-all}
+  .ia-fm-pw{display:block;margin:16px 0 0;padding:16px 8px;border-top:0.5px solid var(--ia-border);border-bottom:0.5px solid var(--ia-border);
+    font-family:var(--ia-font-mono, ui-monospace, monospace);font-size:24px;font-weight:500;line-height:1.2;letter-spacing:.14em;text-indent:.14em;
+    color:var(--ia-text);user-select:all;word-break:break-all;font-variant-ligatures:none}
   .ia-fm-sub{font-size:12.5px;color:var(--ia-text-dim);margin-top:10px}
   .ia-fm-row{display:flex;gap:8px;justify-content:center}
   .ia-fm-btn.ghost{background:transparent;color:var(--ia-text);border:0.5px solid var(--ia-border)}
@@ -72,7 +73,14 @@
     @if($tempPw)
       <div class="ia-fm-msg">Password reset for {{ $tempPw['name'] }}. Temporary password:</div>
       <code class="ia-fm-pw" id="ia-fm-pw">{{ $tempPw['password'] }}</code>
-      <div class="ia-fm-sub">Shown once. They'll be asked to change it when they sign in.</div>
+      <div class="ia-fm-sub">
+        @if(! empty($tempPw['emailed']))
+          Also emailed to {{ $tempPw['email'] ?? 'them' }}.
+        @else
+          <strong style="color:#E24B4A">The email didn't go out</strong>, so give them this one yourself.
+        @endif
+        Shown once. They'll be asked to change it when they sign in.
+      </div>
       <div class="ia-fm-row">
         <button type="button" class="ia-fm-btn ghost" id="ia-fm-copy">Copy</button>
         <button type="button" class="ia-fm-btn" id="ia-fm-ok">Done</button>

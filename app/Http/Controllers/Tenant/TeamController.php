@@ -403,7 +403,20 @@ class TeamController extends Controller
                 $member->setRememberToken(Str::random(60)); $member->save(); // other signed-in devices drop out
                 Log::info('TEAM_PASSWORD_RESET', ['tenant' => $tenant->id, 'actor' => $me->id, 'target' => $member->id]);
                 // MARKER-TEMP-PASSWORD: shown in a dialog that stays until closed (see _flash-modal)
-                return back()->with('temp_password', ['name' => $member->name, 'password' => $newPassword]);
+                // ...and emailed, because a password read off a screen gets mistyped or lost.
+                $emailed = false;
+                $ledger = \App\Services\EmailLedger::begin($tenant->id, 'staff', $member->email, 'team_password_reset');
+                try {
+                    \Illuminate\Support\Facades\Mail::to($member->email)->send(
+                        new \App\Mail\TeamPasswordReset($tenant, $member, $newPassword, $tenant->urlTo('login'), (string) ($me->name ?? ''))
+                    );
+                    \App\Services\EmailLedger::markSent($ledger);
+                    $emailed = true;
+                } catch (\Throwable $e) {
+                    \App\Services\EmailLedger::void($ledger);
+                    \Illuminate\Support\Facades\Log::error('Team password reset mail failed: ' . $e->getMessage());
+                }
+                return back()->with('temp_password', ['name' => $member->name, 'password' => $newPassword, 'email' => $member->email, 'emailed' => $emailed]);
             }
 
             case 'toggle_timeclock_exempt': {
