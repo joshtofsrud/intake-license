@@ -40,6 +40,28 @@ class TenantInventoryCategory extends Model
         'track_serials' => 'boolean',
     ];
 
+    /**
+     * MARKER-CATEGORY-SLUG-FREED: a deleted category keeps its row (soft delete)
+     * but gives its slug back. The unique index on (tenant, slug) counts deleted
+     * rows too, so without this, re-adding a deleted name was a 500. Freeing the
+     * slug on delete means no "-2, -3" growth no matter how many are deleted.
+     */
+    protected static function booted(): void
+    {
+        static::deleting(function (self $c) {
+            if (method_exists($c, 'isForceDeleting') && $c->isForceDeleting()) return;
+            static::withTrashed()->whereKey($c->getKey())->update([
+                'slug' => self::freedSlug((string) $c->slug, (string) $c->getKey()),
+            ]);
+        });
+    }
+
+    public static function freedSlug(string $slug, string $id): string
+    {
+        if (str_contains($slug, '~del-')) return $slug;
+        return mb_substr($slug, 0, 110) . '~del-' . substr($id, -12);
+    }
+
     public function tenant(): BelongsTo
     {
         return $this->belongsTo(Tenant::class);
