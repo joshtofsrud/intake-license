@@ -83,10 +83,7 @@ class RentalBookingController extends Controller
         if ($q !== '') {
             $base->where(function ($w) use ($q) {
                 $w->where('rental_number', 'like', '%' . $q . '%')
-                    ->orWhereHas('customer', function ($c) use ($q) {
-                        $c->where('first_name', 'like', '%' . $q . '%')
-                          ->orWhere('last_name', 'like', '%' . $q . '%');
-                    })
+                    ->orWhereHas('customer', fn ($c) => \App\Support\CustomerMatch::apply($c, $q, [])) // MARKER-NAME-SEARCH
                     ->orWhereHas('lines', fn ($l) => $l->where('name_snapshot', 'like', '%' . $q . '%'));
             });
         }

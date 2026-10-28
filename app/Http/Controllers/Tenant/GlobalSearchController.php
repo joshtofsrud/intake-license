@@ -56,26 +56,17 @@ class GlobalSearchController extends Controller
             ]));
         }
 
-        // ---- customers
+        // ---- customers. MARKER-NAME-SEARCH: full names too ("john smith");
+        // carrying a searched-for tag is a match.
+        $matchCustomer = fn ($query) => \App\Support\CustomerMatch::apply($query, $q, ['email', 'phone', 'business_name'],
+            fn ($w, $l) => $w->orWhereHas('tags', fn ($t) => $t->where('tenant_customer_tags.name', 'like', $l)));
         $customers = TenantCustomer::where('tenant_id', $tenant->id)
-            ->where(fn ($w) => $w
-                ->where('first_name', 'like', $like)
-                ->orWhere('last_name', 'like', $like)
-                ->orWhere('email', 'like', $like)
-                ->orWhere('phone', 'like', $like)
-                // carrying a searched-for tag is a match.
-                ->orWhereHas('tags', fn ($t) => $t->where('tenant_customer_tags.name', 'like', $like)))
+            ->tap($matchCustomer)
             ->limit($perGroup)->get();
 
             // same constraints, unlimited count.
             $customerTotal = TenantCustomer::where('tenant_id', $tenant->id)
-            ->where(fn ($w) => $w
-                ->where('first_name', 'like', $like)
-                ->orWhere('last_name', 'like', $like)
-                ->orWhere('email', 'like', $like)
-                ->orWhere('phone', 'like', $like)
-                // carrying a searched-for tag is a match.
-                ->orWhereHas('tags', fn ($t) => $t->where('tenant_customer_tags.name', 'like', $like)))->count();
+            ->tap($matchCustomer)->count();
         if ($customers->count()) {
             $groups[] = $this->group('Customers', $customers->map(fn ($c) => [
                 'title'    => trim(($c->first_name ?? '') . ' ' . ($c->last_name ?? '')) ?: ($c->email ?: 'Customer'),
@@ -86,11 +77,8 @@ class GlobalSearchController extends Controller
 
         // ---- appointments
         $appts = TenantAppointment::where('tenant_id', $tenant->id)
-            ->where(fn ($w) => $w
-                ->where('ra_number', 'like', $like)
-                ->orWhere('customer_first_name', 'like', $like)
-                ->orWhere('customer_last_name', 'like', $like)
-                ->orWhere('customer_email', 'like', $like))
+            ->tap(fn ($query) => \App\Support\CustomerMatch::apply($query, $q, ['customer_email'],
+                fn ($w, $l) => $w->orWhere('ra_number', 'like', $l), 'customer_first_name', 'customer_last_name', []))
             ->orderByDesc('created_at')->limit($perGroup)->get();
         if ($appts->count()) {
             $groups[] = $this->group('Appointments', $appts->map(fn ($a) => [

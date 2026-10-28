@@ -30,12 +30,7 @@ class QuickBookController extends Controller
 
         $customersQuery = TenantCustomer::where('tenant_id', $tenant->id);
         if ($search !== '') {
-            $customersQuery->where(function ($q) use ($search) {
-                $q->where('first_name', 'like', "%{$search}%")
-                  ->orWhere('last_name',  'like', "%{$search}%")
-                  ->orWhere('email',      'like', "%{$search}%")
-                  ->orWhere('phone',      'like', "%{$search}%");
-            });
+            \App\Support\CustomerMatch::apply($customersQuery, $search); // MARKER-NAME-SEARCH
         }
         $customers = $customersQuery
             ->orderBy('last_name')

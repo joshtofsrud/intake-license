@@ -22,19 +22,13 @@
         <input type="text" name="last_name" class="ac-input" value="{{ old('last_name') }}" required>
       </div>
     </div>
-    <div class="ac-field">
+    <div class="ac-field" style="margin-bottom:20px">
       <label class="ac-label">Email</label>
       <input type="email" name="email" class="ac-input" value="{{ old('email') }}" required placeholder="you@example.com">
     </div>
-    <div class="ac-field">
-      <label class="ac-label">Password</label>
-      <input type="password" name="password" class="ac-input" required placeholder="At least 8 characters">
-    </div>
-    <div class="ac-field" style="margin-bottom:20px">
-      <label class="ac-label">Confirm password</label>
-      <input type="password" name="password_confirmation" class="ac-input" required>
-    </div>
+    {{-- MARKER-EMAIL-FIRST-SIGNUP: the password comes after they confirm the email --}}
     <button type="submit" class="ac-btn ac-btn--primary">Create account</button>
+    <div style="font-size:13px;opacity:.6;margin-top:12px;line-height:1.5">We'll email you a link to confirm it's you and create your password.</div>
   </form>
 
   <div class="ac-divider">already have an account?</div>

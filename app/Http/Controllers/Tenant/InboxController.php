@@ -43,16 +43,10 @@ class InboxController extends Controller
             ->when(! $searching && $filter === 'all', fn ($qb) => $qb->where('status', '!=', 'closed'))
             ->when($searching, function ($qb) use ($q) {
                 $like = '%' . str_replace(['%', '_'], ['\\%', '\\_'], $q) . '%';
-                $qb->where(function ($w) use ($like) {
-                    $w->whereHas('customer', function ($c) use ($like) {
-                        $c->where('first_name', 'like', $like)
-                          ->orWhere('last_name', 'like', $like)
-                          // Neither column alone matches a full name.
-                          ->orWhereRaw("CONCAT(COALESCE(first_name,''), ' ', COALESCE(last_name,'')) LIKE ?", [$like])
-                          ->orWhere('business_name', 'like', $like)
-                          ->orWhere('email', 'like', $like)
-                          ->orWhere('phone', 'like', $like);
-                    })->orWhereHas('messages', fn ($m) => $m->where('body', 'like', $like));
+                $qb->where(function ($w) use ($like, $q) {
+                    // MARKER-NAME-SEARCH: full names, in any order
+                    $w->whereHas('customer', fn ($c) => \App\Support\CustomerMatch::apply($c, $q, ['business_name', 'email', 'phone']))
+                      ->orWhereHas('messages', fn ($m) => $m->where('body', 'like', $like));
                 });
             })
             ->with(['customer:id,first_name,last_name,business_name,customer_type,phone,email,sms_opt_out_at', 'latestMessage'])

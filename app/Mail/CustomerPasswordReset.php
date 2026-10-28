@@ -17,7 +17,9 @@ class CustomerPasswordReset extends Mailable
     public function __construct(
         public readonly TenantCustomer $customer,
         public readonly string $token,
-        public readonly Tenant $tenant
+        public readonly Tenant $tenant,
+        // MARKER-EMAIL-FIRST-SIGNUP: sent from Create account to someone who already has one
+        public readonly bool $alreadyHasAccount = false
     ) {}
 
     public function envelope(): Envelope
@@ -27,7 +29,7 @@ class CustomerPasswordReset extends Mailable
                 $this->tenant->emailFromAddress(),
                 $this->tenant->emailFromName()
             ),
-            subject: 'Reset your password — ' . $this->tenant->name,
+            subject: ($this->alreadyHasAccount ? 'You already have an account — ' : 'Reset your password — ') . $this->tenant->name,
         );
     }
 
@@ -40,18 +42,14 @@ class CustomerPasswordReset extends Mailable
         ]);
 
         return new Content(
-            view: 'emails.password-reset',
+            view: 'emails.customer-password-reset',
             with: [
-                'tenant'   => $this->tenant,
-                'user'     => $this->customer,
-                'resetUrl' => $resetUrl,
-                'vars'     => [
-                    'name'        => $this->customer->fullName(),
-                    'reset_url'   => $resetUrl,
-                    'shop_name'   => $this->tenant->name,
-                    'accent'      => $this->tenant->accent_color ?? '#BEF264',
-                    'accent_text' => \App\Support\ColorHelper::accentTextColor($this->tenant->accent_color ?? '#BEF264'),
-                ],
+                'tenant'      => $this->tenant,
+                'customer'    => $this->customer,
+                'resetUrl'    => $resetUrl,
+                'alreadyHasAccount' => $this->alreadyHasAccount,
+                'accent'      => $this->tenant->accent_color ?? '#BEF264',
+                'accent_text' => \App\Support\ColorHelper::accentTextColor($this->tenant->accent_color ?? '#BEF264'),
             ]
         );
     }

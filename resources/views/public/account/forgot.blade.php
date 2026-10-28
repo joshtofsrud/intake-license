@@ -18,7 +18,7 @@
     @csrf
     <div class="ac-field" style="margin-bottom:20px">
       <label class="ac-label">Email</label>
-      <input type="email" name="email" class="ac-input" value="{{ old('email') }}" required autofocus placeholder="you@example.com">
+      <input type="email" name="email" class="ac-input" value="{{ old('email', request('email')) }}" required autofocus placeholder="you@example.com">
     </div>
     <button type="submit" class="ac-btn ac-btn--primary">Send reset link</button>
   </form>

@@ -21,7 +21,9 @@ class CustomerAccountInvite extends Mailable
     public function __construct(
         public readonly TenantCustomer $customer,
         public readonly string $token,
-        public readonly Tenant $tenant
+        public readonly Tenant $tenant,
+        // MARKER-EMAIL-FIRST-SIGNUP: they asked for it on Create account (vs staff sending it)
+        public readonly bool $selfSignup = false
     ) {}
 
     public function envelope(): Envelope
@@ -31,7 +33,7 @@ class CustomerAccountInvite extends Mailable
                 $this->tenant->emailFromAddress(),
                 $this->tenant->emailFromName()
             ),
-            subject: 'Set up your account — ' . $this->tenant->name,
+            subject: ($this->selfSignup ? 'Confirm your email — ' : 'Set up your account — ') . $this->tenant->name,
         );
     }
 
@@ -50,6 +52,7 @@ class CustomerAccountInvite extends Mailable
                 'tenant'   => $this->tenant,
                 'customer' => $this->customer,
                 'setupUrl' => $url,
+                'selfSignup' => $this->selfSignup,
                 'accent'      => $this->tenant->accent_color ?? '#BEF264',
                 'accent_text' => \App\Support\ColorHelper::accentTextColor($this->tenant->accent_color ?? '#BEF264'),
             ]

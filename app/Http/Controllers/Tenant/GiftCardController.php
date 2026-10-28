@@ -34,9 +34,7 @@ class GiftCardController extends Controller
                     $x->orWhere('purchaser_name', 'like', '%' . $q . '%')
                       ->orWhere('recipient_name', 'like', '%' . $q . '%')
                       ->orWhere('recipient_email', 'like', '%' . $q . '%')
-                      ->orWhereHas('purchaser', fn ($c) => $c->where('first_name', 'like', '%' . $q . '%')
-                          ->orWhere('last_name', 'like', '%' . $q . '%')
-                          ->orWhere('email', 'like', '%' . $q . '%'));
+                      ->orWhereHas('purchaser', fn ($c) => \App\Support\CustomerMatch::apply($c, $q, ['email'])); // MARKER-NAME-SEARCH
                 });
             })
             ->when(in_array($status, ['active', 'used', 'deactivated', 'pending'], true), fn ($w) => $w->where('status', $status))

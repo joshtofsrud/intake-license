@@ -35,45 +35,34 @@ class CustomerAccountController extends Controller
 
     public function register(Request $request)
     {
+        // MARKER-EMAIL-FIRST-SIGNUP: name and email only. Every sign-up gets
+        // the same email (confirm it's you, then create your password) and
+        // the same screen, new or already on file, so the form can't be used
+        // to find out who has an account, and nobody is asked for a password
+        // twice. A profile is never handed over without that confirmation.
         $data = $request->validate([
             'first_name' => ['required', 'string', 'max:80'],
             'last_name'  => ['required', 'string', 'max:80'],
             'email'      => ['required', 'email', 'max:180'],
-            'password'   => ['required', 'string', 'min:8', 'confirmed'],
         ]);
 
         $tenant = $this->tenant();
 
-        $existing = TenantCustomer::where('tenant_id', $tenant->id)
+        $customer = TenantCustomer::where('tenant_id', $tenant->id)
             ->where('email', $data['email'])
-            ->first();
-
-        // an email already on file is NEVER claimed from
-        // this form. Existing customers get a link to their own inbox instead,
-        // and both branches return the same screen so the form can't be used
-        // to enumerate who has an account.
-        if ($existing) {
-            $this->sendClaimLink($existing, $tenant);
-
-            return response()->view('public.account.check-email', [
-                'email' => $data['email'],
+            ->first()
+            ?? TenantCustomer::create([
+                'tenant_id'  => $tenant->id,
+                'first_name' => $data['first_name'],
+                'last_name'  => $data['last_name'],
+                'email'      => $data['email'],
             ]);
-        }
 
-        $customer = TenantCustomer::create([
-            'tenant_id'  => $tenant->id,
-            'first_name' => $data['first_name'],
-            'last_name'  => $data['last_name'],
-            'email'      => $data['email'],
-            'password'   => $data['password'],
+        $this->sendClaimLink($customer, $tenant, true);
+
+        return response()->view('public.account.check-email', [
+            'email' => $data['email'],
         ]);
-
-        $request->session()->regenerate(); // fixation
-        $this->guard()->login($customer, true);
-        $this->stampTenant($request, $tenant);
-
-        return redirect()->intended(route('tenant.customer.portal'))
-            ->with('success', 'Account created. Welcome!');
     }
 
     // ------------------------------------------------------------------
@@ -172,10 +161,35 @@ class CustomerAccountController extends Controller
 
     public function showReset(Request $request)
     {
+        // MARKER-EMAIL-FIRST-SIGNUP: check the link before asking for
+        // anything, so a dead link says so instead of taking a password and
+        // then refusing it. "setup" = no password yet: they're creating one.
+        $email = (string) $request->query('email', '');
+        $token = (string) $request->query('token', '');
+        $customer = $this->linkOwner($email, $token);
+        $setup = $customer
+            ? ! $customer->password
+            : ! TenantCustomer::where('tenant_id', $this->tenant()->id)->where('email', $email)->whereNotNull('password')->exists();
+
         return view('public.account.reset', [
-            'token' => $request->query('token'),
-            'email' => $request->query('email'),
+            'token' => $token,
+            'email' => $email,
+            'valid' => (bool) $customer,
+            'setup' => $setup,
         ]);
+    }
+
+    /** The customer this link belongs to while it's still good, else null. */
+    private function linkOwner(string $email, string $token): ?TenantCustomer
+    {
+        if ($email === '' || $token === '') return null;
+        $customer = TenantCustomer::where('tenant_id', $this->tenant()->id)
+            ->where('email', $email)
+            ->whereNotNull('password_reset_token')
+            ->first();
+        if (! $customer || ! $customer->password_reset_sent_at || $customer->password_reset_sent_at->diffInMinutes(now()) > 60) return null;
+
+        return Hash::check($token, $customer->password_reset_token) ? $customer : null;
     }
 
     public function resetPassword(Request $request)
@@ -205,6 +219,7 @@ class CustomerAccountController extends Controller
             return back()->withErrors(['email' => 'Invalid or expired reset link.']);
         }
 
+        $firstTime = ! $customer->password; // MARKER-EMAIL-FIRST-SIGNUP
         $customer->update([
             'password'               => $data['password'],
             'password_reset_token'   => null,
@@ -215,8 +230,9 @@ class CustomerAccountController extends Controller
         $this->guard()->login($customer, true);
         $this->stampTenant($request, $tenant);
 
-        return redirect()->route('tenant.customer.portal')
-            ->with('success', 'Password updated. You are now logged in.');
+        // back to where they started (a class page, say) when it's this browser
+        return redirect()->intended(route('tenant.customer.portal'))
+            ->with('success', $firstTime ? 'Your account is ready. Welcome!' : 'Password updated. You are now logged in.');
     }
 
     // ------------------------------------------------------------------
@@ -294,7 +310,7 @@ class CustomerAccountController extends Controller
      * identical screen either way, and surfacing a send error here would leak
      * whether the address exists.
      */
-    private function sendClaimLink(TenantCustomer $customer, $tenant): void
+    private function sendClaimLink(TenantCustomer $customer, $tenant, bool $selfSignup = false): void
     {
         try {
             $token = Str::random(64);
@@ -304,8 +320,8 @@ class CustomerAccountController extends Controller
             ]);
 
             $mailable = $customer->password
-                ? new \App\Mail\CustomerPasswordReset($customer, $token, $tenant)
-                : new \App\Mail\CustomerAccountInvite($customer, $token, $tenant);
+                ? new \App\Mail\CustomerPasswordReset($customer, $token, $tenant, $selfSignup)
+                : new \App\Mail\CustomerAccountInvite($customer, $token, $tenant, $selfSignup);
 
             $ledger = \App\Services\EmailLedger::begin(
                 $tenant->id, 'other', $customer->email,

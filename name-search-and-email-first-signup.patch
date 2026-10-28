@@ -1,0 +1,725 @@
+diff --git a/app/Http/Controllers/Tenant/AppointmentController.php b/app/Http/Controllers/Tenant/AppointmentController.php
+index 622cf70b..ad6a92f8 100644
+--- a/app/Http/Controllers/Tenant/AppointmentController.php
++++ b/app/Http/Controllers/Tenant/AppointmentController.php
+@@ -449,12 +449,7 @@ class AppointmentController extends Controller
+ 
+         $customersQuery = TenantCustomer::where('tenant_id', $tenant->id);
+         if ($search !== '') {
+-            $customersQuery->where(function ($q) use ($search) {
+-                $q->where('first_name', 'like', "%{$search}%")
+-                  ->orWhere('last_name',  'like', "%{$search}%")
+-                  ->orWhere('email',      'like', "%{$search}%")
+-                  ->orWhere('phone',      'like', "%{$search}%");
+-            });
++            \App\Support\CustomerMatch::apply($customersQuery, $search); // MARKER-NAME-SEARCH
+         }
+         $customers = $customersQuery
+             ->orderBy('last_name')->orderBy('first_name')
+diff --git a/app/Http/Controllers/Tenant/CustomerAccountController.php b/app/Http/Controllers/Tenant/CustomerAccountController.php
+index d204b397..18425d0f 100644
+--- a/app/Http/Controllers/Tenant/CustomerAccountController.php
++++ b/app/Http/Controllers/Tenant/CustomerAccountController.php
+@@ -35,45 +35,34 @@ class CustomerAccountController extends Controller
+ 
+     public function register(Request $request)
+     {
++        // MARKER-EMAIL-FIRST-SIGNUP: name and email only. Every sign-up gets
++        // the same email (confirm it's you, then create your password) and
++        // the same screen, new or already on file, so the form can't be used
++        // to find out who has an account, and nobody is asked for a password
++        // twice. A profile is never handed over without that confirmation.
+         $data = $request->validate([
+             'first_name' => ['required', 'string', 'max:80'],
+             'last_name'  => ['required', 'string', 'max:80'],
+             'email'      => ['required', 'email', 'max:180'],
+-            'password'   => ['required', 'string', 'min:8', 'confirmed'],
+         ]);
+ 
+         $tenant = $this->tenant();
+ 
+-        $existing = TenantCustomer::where('tenant_id', $tenant->id)
++        $customer = TenantCustomer::where('tenant_id', $tenant->id)
+             ->where('email', $data['email'])
+-            ->first();
+-
+-        // an email already on file is NEVER claimed from
+-        // this form. Existing customers get a link to their own inbox instead,
+-        // and both branches return the same screen so the form can't be used
+-        // to enumerate who has an account.
+-        if ($existing) {
+-            $this->sendClaimLink($existing, $tenant);
+-
+-            return response()->view('public.account.check-email', [
+-                'email' => $data['email'],
++            ->first()
++            ?? TenantCustomer::create([
++                'tenant_id'  => $tenant->id,
++                'first_name' => $data['first_name'],
++                'last_name'  => $data['last_name'],
++                'email'      => $data['email'],
+             ]);
+-        }
+ 
+-        $customer = TenantCustomer::create([
+-            'tenant_id'  => $tenant->id,
+-            'first_name' => $data['first_name'],
+-            'last_name'  => $data['last_name'],
+-            'email'      => $data['email'],
+-            'password'   => $data['password'],
+-        ]);
+-
+-        $request->session()->regenerate(); // fixation
+-        $this->guard()->login($customer, true);
+-        $this->stampTenant($request, $tenant);
++        $this->sendClaimLink($customer, $tenant, true);
+ 
+-        return redirect()->intended(route('tenant.customer.portal'))
+-            ->with('success', 'Account created. Welcome!');
++        return response()->view('public.account.check-email', [
++            'email' => $data['email'],
++        ]);
+     }
+ 
+     // ------------------------------------------------------------------
+@@ -172,12 +161,37 @@ class CustomerAccountController extends Controller
+ 
+     public function showReset(Request $request)
+     {
++        // MARKER-EMAIL-FIRST-SIGNUP: check the link before asking for
++        // anything, so a dead link says so instead of taking a password and
++        // then refusing it. "setup" = no password yet: they're creating one.
++        $email = (string) $request->query('email', '');
++        $token = (string) $request->query('token', '');
++        $customer = $this->linkOwner($email, $token);
++        $setup = $customer
++            ? ! $customer->password
++            : ! TenantCustomer::where('tenant_id', $this->tenant()->id)->where('email', $email)->whereNotNull('password')->exists();
++
+         return view('public.account.reset', [
+-            'token' => $request->query('token'),
+-            'email' => $request->query('email'),
++            'token' => $token,
++            'email' => $email,
++            'valid' => (bool) $customer,
++            'setup' => $setup,
+         ]);
+     }
+ 
++    /** The customer this link belongs to while it's still good, else null. */
++    private function linkOwner(string $email, string $token): ?TenantCustomer
++    {
++        if ($email === '' || $token === '') return null;
++        $customer = TenantCustomer::where('tenant_id', $this->tenant()->id)
++            ->where('email', $email)
++            ->whereNotNull('password_reset_token')
++            ->first();
++        if (! $customer || ! $customer->password_reset_sent_at || $customer->password_reset_sent_at->diffInMinutes(now()) > 60) return null;
++
++        return Hash::check($token, $customer->password_reset_token) ? $customer : null;
++    }
++
+     public function resetPassword(Request $request)
+     {
+         $data = $request->validate([
+@@ -205,6 +219,7 @@ class CustomerAccountController extends Controller
+             return back()->withErrors(['email' => 'Invalid or expired reset link.']);
+         }
+ 
++        $firstTime = ! $customer->password; // MARKER-EMAIL-FIRST-SIGNUP
+         $customer->update([
+             'password'               => $data['password'],
+             'password_reset_token'   => null,
+@@ -215,8 +230,9 @@ class CustomerAccountController extends Controller
+         $this->guard()->login($customer, true);
+         $this->stampTenant($request, $tenant);
+ 
+-        return redirect()->route('tenant.customer.portal')
+-            ->with('success', 'Password updated. You are now logged in.');
++        // back to where they started (a class page, say) when it's this browser
++        return redirect()->intended(route('tenant.customer.portal'))
++            ->with('success', $firstTime ? 'Your account is ready. Welcome!' : 'Password updated. You are now logged in.');
+     }
+ 
+     // ------------------------------------------------------------------
+@@ -294,7 +310,7 @@ class CustomerAccountController extends Controller
+      * identical screen either way, and surfacing a send error here would leak
+      * whether the address exists.
+      */
+-    private function sendClaimLink(TenantCustomer $customer, $tenant): void
++    private function sendClaimLink(TenantCustomer $customer, $tenant, bool $selfSignup = false): void
+     {
+         try {
+             $token = Str::random(64);
+@@ -304,8 +320,8 @@ class CustomerAccountController extends Controller
+             ]);
+ 
+             $mailable = $customer->password
+-                ? new \App\Mail\CustomerPasswordReset($customer, $token, $tenant)
+-                : new \App\Mail\CustomerAccountInvite($customer, $token, $tenant);
++                ? new \App\Mail\CustomerPasswordReset($customer, $token, $tenant, $selfSignup)
++                : new \App\Mail\CustomerAccountInvite($customer, $token, $tenant, $selfSignup);
+ 
+             $ledger = \App\Services\EmailLedger::begin(
+                 $tenant->id, 'other', $customer->email,
+diff --git a/app/Http/Controllers/Tenant/CustomerController.php b/app/Http/Controllers/Tenant/CustomerController.php
+index bc90d5af..0aa75762 100644
+--- a/app/Http/Controllers/Tenant/CustomerController.php
++++ b/app/Http/Controllers/Tenant/CustomerController.php
+@@ -38,14 +38,9 @@ class CustomerController extends Controller
+         }
+ 
+         if ($search) {
+-            $q->where(function ($q2) use ($search) {
+-                $q2->where('first_name', 'like', "%{$search}%")
+-                   ->orWhere('last_name',  'like', "%{$search}%")
+-                   ->orWhere('email',      'like', "%{$search}%")
+-                   ->orWhere('phone',      'like', "%{$search}%")
+-                   // a tag name is a thing people search for.
+-                   ->orWhereHas('tags', fn ($t) => $t->where('tenant_customer_tags.name', 'like', "%{$search}%"));
+-            });
++            // MARKER-NAME-SEARCH: full names too; a tag name is a thing people search for.
++            \App\Support\CustomerMatch::apply($q, $search, ['email', 'phone'],
++                fn ($w, $like) => $w->orWhereHas('tags', fn ($t) => $t->where('tenant_customer_tags.name', 'like', $like)));
+         }
+ 
+         // ?tag={id}, where a chip on the record links to.
+@@ -261,25 +256,19 @@ class CustomerController extends Controller
+         $query = TenantCustomer::where('tenant_id', $tenant->id)->notErased();
+ 
+         if ($q !== '') {
+-            $query->where(function ($qb) use ($q) {
+-                $qb->where('first_name', 'like', "%{$q}%")
+-                   ->orWhere('last_name', 'like', "%{$q}%")
+-                   ->orWhere('email',     'like', "%{$q}%")
+-                   ->orWhere('phone',     'like', "%{$q}%")
+-                   // searching "Spokane Public" has to
+-                   // find the business, and its contacts are searchable too.
+-                   ->orWhere('business_name', 'like', "%{$q}%")
+-                   ->orWhereExists(function ($sub) use ($q) {
+-                       $sub->selectRaw('1')
+-                           ->from('tenant_customer_contacts as tcc')
+-                           ->whereColumn('tcc.customer_id', 'tenant_customers.id')
+-                           ->where(function ($w) use ($q) {
+-                               $w->where('tcc.name', 'like', "%{$q}%")
+-                                 ->orWhere('tcc.email', 'like', "%{$q}%")
+-                                 ->orWhere('tcc.phone', 'like', "%{$q}%");
+-                           });
+-                   });
+-            });
++            // MARKER-NAME-SEARCH: full names too. Searching "Spokane Public" has
++            // to find the business, and its contacts are searchable too.
++            \App\Support\CustomerMatch::apply($query, $q, ['email', 'phone', 'business_name'],
++                fn ($qb, $like) => $qb->orWhereExists(function ($sub) use ($like) {
++                    $sub->selectRaw('1')
++                        ->from('tenant_customer_contacts as tcc')
++                        ->whereColumn('tcc.customer_id', 'tenant_customers.id')
++                        ->where(function ($w) use ($like) {
++                            $w->where('tcc.name', 'like', $like)
++                              ->orWhere('tcc.email', 'like', $like)
++                              ->orWhere('tcc.phone', 'like', $like);
++                        });
++                }));
+             // Name match wins over partial — order by best match heuristically
+             $query->orderByRaw("
+                 CASE
+diff --git a/app/Http/Controllers/Tenant/GiftCardController.php b/app/Http/Controllers/Tenant/GiftCardController.php
+index e9007b23..3f8c1e9e 100644
+--- a/app/Http/Controllers/Tenant/GiftCardController.php
++++ b/app/Http/Controllers/Tenant/GiftCardController.php
+@@ -34,9 +34,7 @@ class GiftCardController extends Controller
+                     $x->orWhere('purchaser_name', 'like', '%' . $q . '%')
+                       ->orWhere('recipient_name', 'like', '%' . $q . '%')
+                       ->orWhere('recipient_email', 'like', '%' . $q . '%')
+-                      ->orWhereHas('purchaser', fn ($c) => $c->where('first_name', 'like', '%' . $q . '%')
+-                          ->orWhere('last_name', 'like', '%' . $q . '%')
+-                          ->orWhere('email', 'like', '%' . $q . '%'));
++                      ->orWhereHas('purchaser', fn ($c) => \App\Support\CustomerMatch::apply($c, $q, ['email'])); // MARKER-NAME-SEARCH
+                 });
+             })
+             ->when(in_array($status, ['active', 'used', 'deactivated', 'pending'], true), fn ($w) => $w->where('status', $status))
+diff --git a/app/Http/Controllers/Tenant/GlobalSearchController.php b/app/Http/Controllers/Tenant/GlobalSearchController.php
+index 3595d069..c60b6354 100644
+--- a/app/Http/Controllers/Tenant/GlobalSearchController.php
++++ b/app/Http/Controllers/Tenant/GlobalSearchController.php
+@@ -56,26 +56,17 @@ class GlobalSearchController extends Controller
+             ]));
+         }
+ 
+-        // ---- customers
++        // ---- customers. MARKER-NAME-SEARCH: full names too ("john smith");
++        // carrying a searched-for tag is a match.
++        $matchCustomer = fn ($query) => \App\Support\CustomerMatch::apply($query, $q, ['email', 'phone', 'business_name'],
++            fn ($w, $l) => $w->orWhereHas('tags', fn ($t) => $t->where('tenant_customer_tags.name', 'like', $l)));
+         $customers = TenantCustomer::where('tenant_id', $tenant->id)
+-            ->where(fn ($w) => $w
+-                ->where('first_name', 'like', $like)
+-                ->orWhere('last_name', 'like', $like)
+-                ->orWhere('email', 'like', $like)
+-                ->orWhere('phone', 'like', $like)
+-                // carrying a searched-for tag is a match.
+-                ->orWhereHas('tags', fn ($t) => $t->where('tenant_customer_tags.name', 'like', $like)))
++            ->tap($matchCustomer)
+             ->limit($perGroup)->get();
+ 
+             // same constraints, unlimited count.
+             $customerTotal = TenantCustomer::where('tenant_id', $tenant->id)
+-            ->where(fn ($w) => $w
+-                ->where('first_name', 'like', $like)
+-                ->orWhere('last_name', 'like', $like)
+-                ->orWhere('email', 'like', $like)
+-                ->orWhere('phone', 'like', $like)
+-                // carrying a searched-for tag is a match.
+-                ->orWhereHas('tags', fn ($t) => $t->where('tenant_customer_tags.name', 'like', $like)))->count();
++            ->tap($matchCustomer)->count();
+         if ($customers->count()) {
+             $groups[] = $this->group('Customers', $customers->map(fn ($c) => [
+                 'title'    => trim(($c->first_name ?? '') . ' ' . ($c->last_name ?? '')) ?: ($c->email ?: 'Customer'),
+@@ -86,11 +77,8 @@ class GlobalSearchController extends Controller
+ 
+         // ---- appointments
+         $appts = TenantAppointment::where('tenant_id', $tenant->id)
+-            ->where(fn ($w) => $w
+-                ->where('ra_number', 'like', $like)
+-                ->orWhere('customer_first_name', 'like', $like)
+-                ->orWhere('customer_last_name', 'like', $like)
+-                ->orWhere('customer_email', 'like', $like))
++            ->tap(fn ($query) => \App\Support\CustomerMatch::apply($query, $q, ['customer_email'],
++                fn ($w, $l) => $w->orWhere('ra_number', 'like', $l), 'customer_first_name', 'customer_last_name', []))
+             ->orderByDesc('created_at')->limit($perGroup)->get();
+         if ($appts->count()) {
+             $groups[] = $this->group('Appointments', $appts->map(fn ($a) => [
+diff --git a/app/Http/Controllers/Tenant/InboxController.php b/app/Http/Controllers/Tenant/InboxController.php
+index 1d54e560..174029bf 100644
+--- a/app/Http/Controllers/Tenant/InboxController.php
++++ b/app/Http/Controllers/Tenant/InboxController.php
+@@ -43,16 +43,10 @@ class InboxController extends Controller
+             ->when(! $searching && $filter === 'all', fn ($qb) => $qb->where('status', '!=', 'closed'))
+             ->when($searching, function ($qb) use ($q) {
+                 $like = '%' . str_replace(['%', '_'], ['\\%', '\\_'], $q) . '%';
+-                $qb->where(function ($w) use ($like) {
+-                    $w->whereHas('customer', function ($c) use ($like) {
+-                        $c->where('first_name', 'like', $like)
+-                          ->orWhere('last_name', 'like', $like)
+-                          // Neither column alone matches a full name.
+-                          ->orWhereRaw("CONCAT(COALESCE(first_name,''), ' ', COALESCE(last_name,'')) LIKE ?", [$like])
+-                          ->orWhere('business_name', 'like', $like)
+-                          ->orWhere('email', 'like', $like)
+-                          ->orWhere('phone', 'like', $like);
+-                    })->orWhereHas('messages', fn ($m) => $m->where('body', 'like', $like));
++                $qb->where(function ($w) use ($like, $q) {
++                    // MARKER-NAME-SEARCH: full names, in any order
++                    $w->whereHas('customer', fn ($c) => \App\Support\CustomerMatch::apply($c, $q, ['business_name', 'email', 'phone']))
++                      ->orWhereHas('messages', fn ($m) => $m->where('body', 'like', $like));
+                 });
+             })
+             ->with(['customer:id,first_name,last_name,business_name,customer_type,phone,email,sms_opt_out_at', 'latestMessage'])
+diff --git a/app/Http/Controllers/Tenant/QuickBookController.php b/app/Http/Controllers/Tenant/QuickBookController.php
+index 43b0c1c4..6c8fa3a7 100644
+--- a/app/Http/Controllers/Tenant/QuickBookController.php
++++ b/app/Http/Controllers/Tenant/QuickBookController.php
+@@ -30,12 +30,7 @@ class QuickBookController extends Controller
+ 
+         $customersQuery = TenantCustomer::where('tenant_id', $tenant->id);
+         if ($search !== '') {
+-            $customersQuery->where(function ($q) use ($search) {
+-                $q->where('first_name', 'like', "%{$search}%")
+-                  ->orWhere('last_name',  'like', "%{$search}%")
+-                  ->orWhere('email',      'like', "%{$search}%")
+-                  ->orWhere('phone',      'like', "%{$search}%");
+-            });
++            \App\Support\CustomerMatch::apply($customersQuery, $search); // MARKER-NAME-SEARCH
+         }
+         $customers = $customersQuery
+             ->orderBy('last_name')
+diff --git a/app/Http/Controllers/Tenant/RegisterController.php b/app/Http/Controllers/Tenant/RegisterController.php
+index 93f84e02..979d374f 100644
+--- a/app/Http/Controllers/Tenant/RegisterController.php
++++ b/app/Http/Controllers/Tenant/RegisterController.php
+@@ -377,12 +377,7 @@ class RegisterController extends Controller
+ 
+         if ($type === 'all' || $type === 'customer') {
+             $customers = TenantCustomer::where('tenant_id', $tenant->id)
+-                ->where(function ($w) use ($q) {
+-                    $w->where('first_name', 'like', "%{$q}%")
+-                      ->orWhere('last_name', 'like', "%{$q}%")
+-                      ->orWhere('email', 'like', "%{$q}%")
+-                      ->orWhere('phone', 'like', "%{$q}%");
+-                })
++                ->tap(fn ($w) => \App\Support\CustomerMatch::apply($w, $q)) // MARKER-NAME-SEARCH
+                 ->limit(10)
+                 ->get()
+                 ->map(fn ($c) => [
+@@ -2693,11 +2688,7 @@ class RegisterController extends Controller
+             ->whereNull('refund_of_sale_id')
+             ->where(function ($w) use ($q) {
+                 $w->where('sale_number', 'like', "%{$q}%")
+-                  ->orWhereHas('customer', function ($c) use ($q) {
+-                      $c->where('first_name', 'like', "%{$q}%")
+-                        ->orWhere('last_name', 'like', "%{$q}%")
+-                        ->orWhere('email', 'like', "%{$q}%");
+-                  });
++                  ->orWhereHas('customer', fn ($c) => \App\Support\CustomerMatch::apply($c, $q, ['email'])); // MARKER-NAME-SEARCH
+             })
+             ->orderByDesc('paid_at')
+             ->limit(20)
+diff --git a/app/Http/Controllers/Tenant/RentalBookingController.php b/app/Http/Controllers/Tenant/RentalBookingController.php
+index b5053969..d7e162aa 100644
+--- a/app/Http/Controllers/Tenant/RentalBookingController.php
++++ b/app/Http/Controllers/Tenant/RentalBookingController.php
+@@ -83,10 +83,7 @@ class RentalBookingController extends Controller
+         if ($q !== '') {
+             $base->where(function ($w) use ($q) {
+                 $w->where('rental_number', 'like', '%' . $q . '%')
+-                    ->orWhereHas('customer', function ($c) use ($q) {
+-                        $c->where('first_name', 'like', '%' . $q . '%')
+-                          ->orWhere('last_name', 'like', '%' . $q . '%');
+-                    })
++                    ->orWhereHas('customer', fn ($c) => \App\Support\CustomerMatch::apply($c, $q, [])) // MARKER-NAME-SEARCH
+                     ->orWhereHas('lines', fn ($l) => $l->where('name_snapshot', 'like', '%' . $q . '%'));
+             });
+         }
+diff --git a/app/Mail/CustomerAccountInvite.php b/app/Mail/CustomerAccountInvite.php
+index 491529e9..cf74ea41 100644
+--- a/app/Mail/CustomerAccountInvite.php
++++ b/app/Mail/CustomerAccountInvite.php
+@@ -21,7 +21,9 @@ class CustomerAccountInvite extends Mailable
+     public function __construct(
+         public readonly TenantCustomer $customer,
+         public readonly string $token,
+-        public readonly Tenant $tenant
++        public readonly Tenant $tenant,
++        // MARKER-EMAIL-FIRST-SIGNUP: they asked for it on Create account (vs staff sending it)
++        public readonly bool $selfSignup = false
+     ) {}
+ 
+     public function envelope(): Envelope
+@@ -31,7 +33,7 @@ class CustomerAccountInvite extends Mailable
+                 $this->tenant->emailFromAddress(),
+                 $this->tenant->emailFromName()
+             ),
+-            subject: 'Set up your account — ' . $this->tenant->name,
++            subject: ($this->selfSignup ? 'Confirm your email — ' : 'Set up your account — ') . $this->tenant->name,
+         );
+     }
+ 
+@@ -50,6 +52,7 @@ class CustomerAccountInvite extends Mailable
+                 'tenant'   => $this->tenant,
+                 'customer' => $this->customer,
+                 'setupUrl' => $url,
++                'selfSignup' => $this->selfSignup,
+                 'accent'      => $this->tenant->accent_color ?? '#BEF264',
+                 'accent_text' => \App\Support\ColorHelper::accentTextColor($this->tenant->accent_color ?? '#BEF264'),
+             ]
+diff --git a/app/Mail/CustomerPasswordReset.php b/app/Mail/CustomerPasswordReset.php
+index 1431c130..563daa3d 100644
+--- a/app/Mail/CustomerPasswordReset.php
++++ b/app/Mail/CustomerPasswordReset.php
+@@ -17,7 +17,9 @@ class CustomerPasswordReset extends Mailable
+     public function __construct(
+         public readonly TenantCustomer $customer,
+         public readonly string $token,
+-        public readonly Tenant $tenant
++        public readonly Tenant $tenant,
++        // MARKER-EMAIL-FIRST-SIGNUP: sent from Create account to someone who already has one
++        public readonly bool $alreadyHasAccount = false
+     ) {}
+ 
+     public function envelope(): Envelope
+@@ -27,7 +29,7 @@ class CustomerPasswordReset extends Mailable
+                 $this->tenant->emailFromAddress(),
+                 $this->tenant->emailFromName()
+             ),
+-            subject: 'Reset your password — ' . $this->tenant->name,
++            subject: ($this->alreadyHasAccount ? 'You already have an account — ' : 'Reset your password — ') . $this->tenant->name,
+         );
+     }
+ 
+@@ -40,18 +42,14 @@ class CustomerPasswordReset extends Mailable
+         ]);
+ 
+         return new Content(
+-            view: 'emails.password-reset',
++            view: 'emails.customer-password-reset',
+             with: [
+-                'tenant'   => $this->tenant,
+-                'user'     => $this->customer,
+-                'resetUrl' => $resetUrl,
+-                'vars'     => [
+-                    'name'        => $this->customer->fullName(),
+-                    'reset_url'   => $resetUrl,
+-                    'shop_name'   => $this->tenant->name,
+-                    'accent'      => $this->tenant->accent_color ?? '#BEF264',
+-                    'accent_text' => \App\Support\ColorHelper::accentTextColor($this->tenant->accent_color ?? '#BEF264'),
+-                ],
++                'tenant'      => $this->tenant,
++                'customer'    => $this->customer,
++                'resetUrl'    => $resetUrl,
++                'alreadyHasAccount' => $this->alreadyHasAccount,
++                'accent'      => $this->tenant->accent_color ?? '#BEF264',
++                'accent_text' => \App\Support\ColorHelper::accentTextColor($this->tenant->accent_color ?? '#BEF264'),
+             ]
+         );
+     }
+diff --git a/app/Support/CustomerMatch.php b/app/Support/CustomerMatch.php
+new file mode 100644
+index 00000000..697a61d9
+--- /dev/null
++++ b/app/Support/CustomerMatch.php
+@@ -0,0 +1,59 @@
++<?php
++
++namespace App\Support;
++
++/**
++ * MARKER-NAME-SEARCH: the one way a customer search box matches people.
++ *
++ * Neither first_name nor last_name alone contains "John Smith", so searches
++ * that only looked in each column found nobody once a full name was typed.
++ * Here a person matches when:
++ *   - the whole text is in any one column (email, phone, a first name...), or
++ *   - the whole text is in "first last", or
++ *   - every word typed is in their first name, last name or business name,
++ *     in any order ("smith john", "john q smith").
++ *
++ *   CustomerMatch::apply($query, $q, ['email', 'phone', 'business_name'],
++ *       fn ($w, $like) => $w->orWhereHas('tags', ...));   // more OR clauses
++ *
++ * Works on a customer query, inside whereHas('customer', ...), and on rows
++ * that copy the name onto themselves (pass the column names).
++ */
++class CustomerMatch
++{
++    public static function apply($query, string $q, array $also = ['email', 'phone'], ?callable $extra = null,
++        string $first = 'first_name', string $last = 'last_name', array $wordCols = ['business_name'])
++    {
++        $q = trim(preg_replace('/\s+/u', ' ', $q));
++        if ($q === '') return $query;
++        $like = self::like($q);
++        $words = array_values(array_filter(explode(' ', $q), fn ($w) => $w !== ''));
++        $wordCols = array_values(array_intersect($wordCols, $also)) ?: [];
++
++        return $query->where(function ($w) use ($q, $like, $words, $also, $extra, $first, $last, $wordCols) {
++            $w->where($first, 'like', $like)->orWhere($last, 'like', $like);
++            foreach ($also as $col) $w->orWhere($col, 'like', $like);
++            $w->orWhereRaw("CONCAT(COALESCE({$first},''), ' ', COALESCE({$last},'')) LIKE ?", [$like]);
++
++            if (count($words) > 1) {
++                $w->orWhere(function ($all) use ($words, $first, $last, $wordCols) {
++                    foreach ($words as $word) {
++                        $wl = self::like($word);
++                        $all->where(function ($one) use ($wl, $first, $last, $wordCols) {
++                            $one->where($first, 'like', $wl)->orWhere($last, 'like', $wl);
++                            foreach ($wordCols as $col) $one->orWhere($col, 'like', $wl);
++                        });
++                    }
++                });
++            }
++
++            if ($extra) $extra($w, $like);
++        });
++    }
++
++    /** %text% with the user's own % and _ taken literally. */
++    public static function like(string $q): string
++    {
++        return '%' . str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $q) . '%';
++    }
++}
+diff --git a/resources/views/emails/customer-account-invite.blade.php b/resources/views/emails/customer-account-invite.blade.php
+index 4a218b67..94af5f3c 100644
+--- a/resources/views/emails/customer-account-invite.blade.php
++++ b/resources/views/emails/customer-account-invite.blade.php
+@@ -1,21 +1,28 @@
+ <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,sans-serif;font-size:15px;line-height:1.6;color:#111">
+   <p>Hi {{ $customer->first_name }},</p>
+ 
++  @if (! empty($selfSignup))
++  <p>Thanks for creating an account with {{ $tenant->name }}. It's where you can see your
++     upcoming bookings, past orders, rentals, and messages with us — all in one place.</p>
++
++  <p>Confirm this is your email, then create your password:</p>
++  @else
+   <p>{{ $tenant->name }} set up an account for you. It's where you can see your
+      upcoming bookings, past orders, rentals, and messages with us — all in one place.</p>
+ 
+   <p>Pick a password to finish setting it up:</p>
++  @endif
+ 
+   <p style="margin:26px 0">
+     <a href="{{ $setupUrl }}"
+        style="display:inline-block;padding:13px 26px;border-radius:8px;font-weight:600;
+-              text-decoration:none;background:{{ $accent }};color:{{ $accent_text }}">Set up my account</a>
++              text-decoration:none;background:{{ $accent }};color:{{ $accent_text }}">{{ ! empty($selfSignup) ? 'Confirm & create password' : 'Set up my account' }}</a>
+   </p>
+ 
+   <p style="font-size:13px;opacity:.6">This link expires in 60 minutes. If it does, ask us to send a new one —
+      or use "Forgot password?" on the sign-in page.</p>
+ 
+-  <p style="font-size:13px;opacity:.6">If you weren't expecting this, you can ignore it and nothing changes.</p>
++  <p style="font-size:13px;opacity:.6">If you {{ ! empty($selfSignup) ? "didn't ask for an account" : "weren't expecting this" }}, you can ignore it and nothing changes.</p>
+ 
+   <p>— {{ $tenant->name }}</p>
+ </div>
+diff --git a/resources/views/emails/customer-password-reset.blade.php b/resources/views/emails/customer-password-reset.blade.php
+new file mode 100644
+index 00000000..8010fcbb
+--- /dev/null
++++ b/resources/views/emails/customer-password-reset.blade.php
+@@ -0,0 +1,22 @@
++{{-- MARKER-EMAIL-FIRST-SIGNUP: a customer's own reset email. It used to borrow
++     the staff one, which told customers about their "staff account". --}}
++<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,sans-serif;font-size:15px;line-height:1.6;color:#111">
++  <p>Hi {{ $customer->first_name ?: 'there' }},</p>
++
++  @if (! empty($alreadyHasAccount))
++  <p>Someone (hopefully you) tried to create an account at {{ $tenant->name }} with this email,
++     but you already have one. Sign in with your password, or if you've forgotten it, choose a new one here:</p>
++  @else
++  <p>You asked to reset your password for your {{ $tenant->name }} account. Choose a new one here:</p>
++  @endif
++
++  <p style="margin:26px 0">
++    <a href="{{ $resetUrl }}"
++       style="display:inline-block;padding:13px 26px;border-radius:8px;font-weight:600;
++              text-decoration:none;background:{{ $accent }};color:{{ $accent_text }}">Choose a new password</a>
++  </p>
++
++  <p style="font-size:13px;opacity:.6">This link expires in 60 minutes. If you didn't ask for this, you can ignore it and your password won't change.</p>
++
++  <p>— {{ $tenant->name }}</p>
++</div>
+diff --git a/resources/views/public/account/check-email.blade.php b/resources/views/public/account/check-email.blade.php
+index 70c411fb..2747720e 100644
+--- a/resources/views/public/account/check-email.blade.php
++++ b/resources/views/public/account/check-email.blade.php
+@@ -1,22 +1,19 @@
+ @extends('public.account._shell')
+ @php $pageTitle = 'Check your email'; @endphp
+-{{-- shown for ANY existing email, with or without an
+-     account, so the register form can't be used to discover who has one. --}}
++{{-- MARKER-EMAIL-FIRST-SIGNUP: shown for EVERY sign-up, new, on file or
++     already with a password, so the form can't be used to discover who has one. --}}
+ 
+ @section('content')
+ <div style="max-width:460px;margin:0 auto">
+   <div class="ac-card">
+     <h1 class="ac-title">Check your email</h1>
+-    <p class="ac-subtitle">We found an existing profile for <b>{{ $email }}</b> at {{ $currentTenant->name }}.</p>
+-
++    <p class="ac-subtitle">We've sent a link to <b>{{ $email }}</b>.</p>
+     <div class="ac-flash ac-flash--success" style="margin-bottom:18px">
+-      We've emailed you a secure link to finish setting up your account. It expires in 60 minutes.
++      Open it to confirm it's you and create your password. It expires in 60 minutes.
+     </div>
+-
+     <p style="font-size:13.5px;opacity:.6;line-height:1.6">
+-      This keeps your history private &mdash; nobody can claim your profile just by knowing your email address.
++      Confirming first keeps your history with {{ $currentTenant->name }} private &mdash; nobody can open an account in your name just by knowing your email address.
+     </p>
+-
+     <p style="font-size:13.5px;opacity:.6;line-height:1.6;margin-top:12px">
+       Didn't get it? Check your spam folder, or <a href="{{ route('tenant.customer.forgot') }}" class="ac-link">request another link</a>.
+     </p>
+diff --git a/resources/views/public/account/forgot.blade.php b/resources/views/public/account/forgot.blade.php
+index 57d0ef35..634ab77c 100644
+--- a/resources/views/public/account/forgot.blade.php
++++ b/resources/views/public/account/forgot.blade.php
+@@ -18,7 +18,7 @@
+     @csrf
+     <div class="ac-field" style="margin-bottom:20px">
+       <label class="ac-label">Email</label>
+-      <input type="email" name="email" class="ac-input" value="{{ old('email') }}" required autofocus placeholder="you@example.com">
++      <input type="email" name="email" class="ac-input" value="{{ old('email', request('email')) }}" required autofocus placeholder="you@example.com">
+     </div>
+     <button type="submit" class="ac-btn ac-btn--primary">Send reset link</button>
+   </form>
+diff --git a/resources/views/public/account/register.blade.php b/resources/views/public/account/register.blade.php
+index e2db3a1d..09a0b1cb 100644
+--- a/resources/views/public/account/register.blade.php
++++ b/resources/views/public/account/register.blade.php
+@@ -22,19 +22,13 @@
+         <input type="text" name="last_name" class="ac-input" value="{{ old('last_name') }}" required>
+       </div>
+     </div>
+-    <div class="ac-field">
++    <div class="ac-field" style="margin-bottom:20px">
+       <label class="ac-label">Email</label>
+       <input type="email" name="email" class="ac-input" value="{{ old('email') }}" required placeholder="you@example.com">
+     </div>
+-    <div class="ac-field">
+-      <label class="ac-label">Password</label>
+-      <input type="password" name="password" class="ac-input" required placeholder="At least 8 characters">
+-    </div>
+-    <div class="ac-field" style="margin-bottom:20px">
+-      <label class="ac-label">Confirm password</label>
+-      <input type="password" name="password_confirmation" class="ac-input" required>
+-    </div>
++    {{-- MARKER-EMAIL-FIRST-SIGNUP: the password comes after they confirm the email --}}
+     <button type="submit" class="ac-btn ac-btn--primary">Create account</button>
++    <div style="font-size:13px;opacity:.6;margin-top:12px;line-height:1.5">We'll email you a link to confirm it's you and create your password.</div>
+   </form>
+ 
+   <div class="ac-divider">already have an account?</div>
+diff --git a/resources/views/public/account/reset.blade.php b/resources/views/public/account/reset.blade.php
+index 979d7bd9..76c3974e 100644
+--- a/resources/views/public/account/reset.blade.php
++++ b/resources/views/public/account/reset.blade.php
+@@ -1,28 +1,37 @@
+ @extends('public.account._shell')
+-@php $pageTitle = 'Set new password'; @endphp
++{{-- MARKER-EMAIL-FIRST-SIGNUP: one page for "create your password" (first time:
++     a sign-up or a shop's invite) and "set a new password" (a reset). A dead
++     link says so before asking for anything. --}}
++@php $pageTitle = ! $valid ? 'Link expired' : ($setup ? 'Create your password' : 'Set new password'); @endphp
+ 
+ @section('content')
+ <div class="ac-card">
+-  <div class="ac-title">Set a new password</div>
+-  <div class="ac-subtitle">Choose a strong password for your account.</div>
++  @if (! $valid)
++    <div class="ac-title">This link has expired</div>
++    <div class="ac-subtitle">Links work for 60 minutes and only once. Send yourself a new one and use the newest email.</div>
++    <a href="{{ route('tenant.customer.forgot', array_filter(['email' => $email ?: null])) }}" class="ac-btn ac-btn--primary" style="display:block;text-align:center;margin-top:18px">Send a new link</a>
++  @else
++    <div class="ac-title">{{ $setup ? 'Create your password' : 'Set a new password' }}</div>
++    <div class="ac-subtitle">{{ $setup ? 'Your email is confirmed. Choose a password and you\'re in.' : 'Choose a strong password for your account.' }}</div>
+ 
+-  @if($errors->any())
+-    <div class="ac-flash ac-flash--error">{{ $errors->first() }}</div>
+-  @endif
++    @if($errors->any())
++      <div class="ac-flash ac-flash--error">{{ $errors->first() }}</div>
++    @endif
+ 
+-  <form method="POST" action="{{ route('tenant.customer.reset.submit') }}">
+-    @csrf
+-    <input type="hidden" name="token" value="{{ $token }}">
+-    <input type="hidden" name="email" value="{{ $email }}">
+-    <div class="ac-field">
+-      <label class="ac-label">New password</label>
+-      <input type="password" name="password" class="ac-input" required autofocus placeholder="At least 8 characters">
+-    </div>
+-    <div class="ac-field" style="margin-bottom:20px">
+-      <label class="ac-label">Confirm new password</label>
+-      <input type="password" name="password_confirmation" class="ac-input" required>
+-    </div>
+-    <button type="submit" class="ac-btn ac-btn--primary">Update password</button>
+-  </form>
++    <form method="POST" action="{{ route('tenant.customer.reset.submit') }}">
++      @csrf
++      <input type="hidden" name="token" value="{{ $token }}">
++      <input type="hidden" name="email" value="{{ $email }}">
++      <div class="ac-field">
++        <label class="ac-label">{{ $setup ? 'Password' : 'New password' }}</label>
++        <input type="password" name="password" class="ac-input" required autofocus placeholder="At least 8 characters" autocomplete="new-password">
++      </div>
++      <div class="ac-field" style="margin-bottom:20px">
++        <label class="ac-label">Confirm {{ $setup ? 'password' : 'new password' }}</label>
++        <input type="password" name="password_confirmation" class="ac-input" required autocomplete="new-password">
++      </div>
++      <button type="submit" class="ac-btn ac-btn--primary">{{ $setup ? 'Create password & sign in' : 'Update password' }}</button>
++    </form>
++  @endif
+ </div>
+ @endsection

@@ -377,12 +377,7 @@ class RegisterController extends Controller
 
         if ($type === 'all' || $type === 'customer') {
             $customers = TenantCustomer::where('tenant_id', $tenant->id)
-                ->where(function ($w) use ($q) {
-                    $w->where('first_name', 'like', "%{$q}%")
-                      ->orWhere('last_name', 'like', "%{$q}%")
-                      ->orWhere('email', 'like', "%{$q}%")
-                      ->orWhere('phone', 'like', "%{$q}%");
-                })
+                ->tap(fn ($w) => \App\Support\CustomerMatch::apply($w, $q)) // MARKER-NAME-SEARCH
                 ->limit(10)
                 ->get()
                 ->map(fn ($c) => [
@@ -2693,11 +2688,7 @@ class RegisterController extends Controller
             ->whereNull('refund_of_sale_id')
             ->where(function ($w) use ($q) {
                 $w->where('sale_number', 'like', "%{$q}%")
-                  ->orWhereHas('customer', function ($c) use ($q) {
-                      $c->where('first_name', 'like', "%{$q}%")
-                        ->orWhere('last_name', 'like', "%{$q}%")
-                        ->orWhere('email', 'like', "%{$q}%");
-                  });
+                  ->orWhereHas('customer', fn ($c) => \App\Support\CustomerMatch::apply($c, $q, ['email'])); // MARKER-NAME-SEARCH
             })
             ->orderByDesc('paid_at')
             ->limit(20)

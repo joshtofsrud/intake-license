@@ -38,14 +38,9 @@ class CustomerController extends Controller
         }
 
         if ($search) {
-            $q->where(function ($q2) use ($search) {
-                $q2->where('first_name', 'like', "%{$search}%")
-                   ->orWhere('last_name',  'like', "%{$search}%")
-                   ->orWhere('email',      'like', "%{$search}%")
-                   ->orWhere('phone',      'like', "%{$search}%")
-                   // a tag name is a thing people search for.
-                   ->orWhereHas('tags', fn ($t) => $t->where('tenant_customer_tags.name', 'like', "%{$search}%"));
-            });
+            // MARKER-NAME-SEARCH: full names too; a tag name is a thing people search for.
+            \App\Support\CustomerMatch::apply($q, $search, ['email', 'phone'],
+                fn ($w, $like) => $w->orWhereHas('tags', fn ($t) => $t->where('tenant_customer_tags.name', 'like', $like)));
         }
 
         // ?tag={id}, where a chip on the record links to.
@@ -261,25 +256,19 @@ class CustomerController extends Controller
         $query = TenantCustomer::where('tenant_id', $tenant->id)->notErased();
 
         if ($q !== '') {
-            $query->where(function ($qb) use ($q) {
-                $qb->where('first_name', 'like', "%{$q}%")
-                   ->orWhere('last_name', 'like', "%{$q}%")
-                   ->orWhere('email',     'like', "%{$q}%")
-                   ->orWhere('phone',     'like', "%{$q}%")
-                   // searching "Spokane Public" has to
-                   // find the business, and its contacts are searchable too.
-                   ->orWhere('business_name', 'like', "%{$q}%")
-                   ->orWhereExists(function ($sub) use ($q) {
-                       $sub->selectRaw('1')
-                           ->from('tenant_customer_contacts as tcc')
-                           ->whereColumn('tcc.customer_id', 'tenant_customers.id')
-                           ->where(function ($w) use ($q) {
-                               $w->where('tcc.name', 'like', "%{$q}%")
-                                 ->orWhere('tcc.email', 'like', "%{$q}%")
-                                 ->orWhere('tcc.phone', 'like', "%{$q}%");
-                           });
-                   });
-            });
+            // MARKER-NAME-SEARCH: full names too. Searching "Spokane Public" has
+            // to find the business, and its contacts are searchable too.
+            \App\Support\CustomerMatch::apply($query, $q, ['email', 'phone', 'business_name'],
+                fn ($qb, $like) => $qb->orWhereExists(function ($sub) use ($like) {
+                    $sub->selectRaw('1')
+                        ->from('tenant_customer_contacts as tcc')
+                        ->whereColumn('tcc.customer_id', 'tenant_customers.id')
+                        ->where(function ($w) use ($like) {
+                            $w->where('tcc.name', 'like', $like)
+                              ->orWhere('tcc.email', 'like', $like)
+                              ->orWhere('tcc.phone', 'like', $like);
+                        });
+                }));
             // Name match wins over partial — order by best match heuristically
             $query->orderByRaw("
                 CASE
