@@ -5,338 +5,312 @@
   $me        = Auth::guard('tenant')->user();
   $pinModeOn = $currentTenant->pin_tier_active;
   $pinLocked = $member->pin_locked_until && $member->pin_locked_until->isFuture();
+  $tmPhoneDigits = $member->phone ? preg_replace('/[^0-9+]/', '', $member->phone) : '';
+  $tmUpdate = route('tenant.team.update', $member->id);
 @endphp
 
 @push('styles')
 <style>
-  /* one visible block per action, so a button is
-     never adjacent to fields it doesn't submit. */
-  .tm-block { padding:14px 0; border-bottom:.5px solid var(--ia-border); }
-  .tm-block:first-of-type { padding-top:0; }
-  .tm-block--last { border-bottom:none; padding-bottom:0; }
-  .tm-block-label { font-size:10.5px; text-transform:uppercase; letter-spacing:.07em;
-                    color:var(--ia-text-dim); font-weight:700; margin-bottom:10px; }
-</style>
-<style>
-.pd-head { display:flex; gap:16px; align-items:center; padding-bottom:18px; border-bottom:0.5px solid var(--ia-border); margin-bottom:20px; }
-.pd-avatar { width:56px; height:56px; border-radius:50%; background:var(--ia-accent); color:var(--ia-accent-text); display:inline-flex; align-items:center; justify-content:center; font-size:18px; font-weight:600; flex-shrink:0; }
-.pd-h2 { font-size:20px; font-weight:600; margin:0; }
-.pd-sub { font-size:12px; color:var(--ia-text-dim); margin-top:3px; }
-.pd-actions { display:flex; gap:6px; }
-/* mirrors .cmd-tile on the customer page. */
-.pd-contact-tiles { margin-left:auto; display:grid; grid-template-columns:repeat(3,1fr); gap:6px; min-width:240px; }
-.pd-tile { display:flex; flex-direction:column; align-items:center; gap:4px;
-           background:var(--ia-surface); border:0.5px solid var(--ia-border);
-           border-radius:10px; padding:11px 6px; color:var(--ia-text);
-           text-decoration:none; cursor:pointer; }
-.pd-tile svg { color:var(--ia-accent); }
-.pd-tile:active { transform:scale(0.97); }
-.pd-tile:focus-visible { outline:2px solid var(--ia-accent); outline-offset:2px; }
-.pd-tile-label { font-size:11px; color:var(--ia-text-dim); font-weight:500; }
-.pd-tile.is-disabled { opacity:.32; cursor:not-allowed; pointer-events:none; }
-.pd-tile.is-disabled svg { color:var(--ia-text-dim); }
-/* widths live here, not inline, so the breakpoint
-   below can override them. Inline styles beat media queries. */
-.pd-input { min-width:280px; max-width:100%; }
-.pd-input--wide { min-width:320px; }
-.pd-input--narrow { min-width:200px; }
-.pd-field { display:grid; grid-template-columns:180px 1fr; gap:16px; padding:12px 0; align-items:center; border-top:0.5px solid var(--ia-border); }
-.pd-field:first-of-type { border-top:none; padding-top:2px; }
-.pd-field-label { font-size:12px; color:var(--ia-text-dim); }
-.pd-field-value { font-size:13px; display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
-.pd-field-hint { font-size:11px; color:var(--ia-text-dim); }
-.pd-device { display:grid; grid-template-columns:1fr auto; gap:14px; padding:12px 0; border-top:0.5px solid var(--ia-border); align-items:center; }
-.pd-device:first-of-type { border-top:none; padding-top:2px; }
-.pd-device-label { font-size:13px; font-weight:500; }
-.pd-device-meta { font-size:11px; color:var(--ia-text-dim); margin-top:3px; }
-.pd-loc-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:8px; }
-.pd-loc { display:flex; align-items:center; gap:8px; font-size:13px; padding:8px 10px; border:0.5px solid var(--ia-border); border-radius:var(--ia-r-md); }
-.pd-empty { padding:24px; text-align:center; border:0.5px dashed var(--ia-border-strong); border-radius:var(--ia-r-md); font-size:12px; color:var(--ia-text-dim); }
-.pd-back { font-size:12px; color:var(--ia-text-dim); display:inline-flex; align-items:center; gap:4px; margin-bottom:12px; text-decoration:none; }
-.pd-back:hover { color:var(--ia-text-muted); }
+  /* MARKER-TEAM-MEMBER-LAYOUT: two columns, hairlines, no cards. Left = what you change
+     (contact, access); right = sign-in and the account actions. Every action still owns its
+     own form, so a button is never next to fields it doesn't submit (a role change once
+     posted the contact form). */
+  .tm-back { font-size:12px; color:var(--ia-text-dim); display:inline-flex; gap:4px; margin-bottom:14px; text-decoration:none; }
+  .tm-back:hover { color:var(--ia-text-muted); }
+  .tm-head { display:flex; gap:14px; align-items:center; padding-bottom:16px; border-bottom:0.5px solid var(--ia-border); }
+  .tm-av { width:44px; height:44px; border-radius:50%; background:var(--ia-accent); color:var(--ia-accent-text); display:grid; place-items:center; font-size:15px; font-weight:600; flex-shrink:0; }
+  .tm-name { font-size:20px; font-weight:600; margin:0; line-height:1.2; }
+  .tm-sub { font-size:12px; color:var(--ia-text-dim); margin-top:2px; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .tm-dot { width:7px; height:7px; border-radius:50%; background:#4ADE80; display:inline-block; }
+  .tm-dot.is-off { background:var(--ia-text-dim); }
+  .tm-ct { margin-left:auto; display:flex; gap:6px; }
+  .tm-ib { width:34px; height:34px; display:grid; place-items:center; border-radius:9px; border:0.5px solid var(--ia-border); background:transparent; color:var(--ia-accent); text-decoration:none; }
+  .tm-ib:hover { background:var(--ia-surface); }
+  .tm-ib:focus-visible { outline:2px solid var(--ia-accent); outline-offset:2px; }
+  .tm-ib.is-disabled { opacity:.3; color:var(--ia-text-dim); pointer-events:none; }
 
-/* this block MUST stay last. A media query
-   adds no specificity, so anything below it with equal specificity wins
-   and these rules silently stop applying. */
-@media (max-width:720px) {
-  .pd-head { flex-wrap:wrap; }
-  .pd-contact-tiles { margin-left:0; width:100%; order:3; }
-  /* 180px of label on a phone leaves nothing for the field — that is what
-     pushed the email, phone and hint text off the right edge. */
-  .pd-field { grid-template-columns:1fr; gap:6px; align-items:start; padding:14px 0; }
-  .pd-field-label { font-size:11px; text-transform:uppercase; letter-spacing:.06em; }
-  .pd-field-value { flex-direction:column; align-items:stretch; gap:8px; }
-  .pd-field-value .ia-input,
-  .pd-field-value select,
-  .pd-field-value .pd-input { width:100%; min-width:0; }
-  .pd-field-value button { width:100%; }
-  .pd-field-value > div,
-  .pd-field-value > span { max-width:100%; }
-  .pd-field-value form { width:100%; }
-  /* Same fixed-column problem on the cards further down. */
-  .pd-device { grid-template-columns:1fr; gap:8px; }
-  .pd-loc-grid { grid-template-columns:1fr; }
-}
+  .tm-act { display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-top:14px; padding:10px 14px; border:1px solid rgba(251,191,36,.4); background:rgba(251,191,36,.06); border-radius:10px; font-size:13px; }
+  .tm-act b { color:#FBBF24; font-weight:600; }
+  .tm-act-meta { color:var(--ia-text-dim); font-size:12px; }
+  .tm-act-sp { flex:1; }
+
+  .tm-cols { display:grid; grid-template-columns:minmax(0,1.55fr) minmax(0,1fr); gap:0 56px; margin-top:6px; }
+  .tm-sec { padding:18px 0 20px; border-top:0.5px solid var(--ia-border); }
+  .tm-cols > div > .tm-sec:first-child { border-top:0; }
+  .tm-lab { font-size:11px; letter-spacing:.08em; text-transform:uppercase; font-weight:600; color:var(--ia-text-dim); margin:0 0 12px; }
+  .tm-hint { font-size:11.5px; color:var(--ia-text-dim); line-height:1.45; }
+
+  /* One height for every control in a row (input, select, button), so a button never sits
+     shorter than the box beside it. */
+  .tm-row .ia-input, .tm-row select.ia-input { height:36px; box-sizing:border-box; }
+  .tm-row .ia-btn { height:36px; padding:0 16px; font-size:13px; box-sizing:border-box; justify-content:center; white-space:nowrap; }
+  .tm-row .ia-btn--ghost { padding:0 12px; }
+  .tm-row .ia-btn[disabled] { opacity:.38; cursor:not-allowed; filter:none; }
+
+  .tm-g2 { display:grid; grid-template-columns:1fr 1fr; gap:12px 14px; }
+  .tm-f label { display:block; font-size:12px; color:var(--ia-text-dim); margin-bottom:5px; }
+  .tm-f .ia-input { width:100%; }
+  .tm-save { align-self:end; display:flex; justify-content:flex-end; }
+  .tm-line { display:grid; grid-template-columns:110px 1fr; gap:12px; align-items:center; padding:10px 0; border-top:0.5px solid var(--ia-border); }
+  .tm-line:first-of-type { border-top:0; padding-top:0; }
+  .tm-line.is-hint { border-top:0; padding:0 0 10px; margin-top:-4px; }
+  .tm-k { font-size:12px; color:var(--ia-text-dim); }
+  .tm-v { display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-size:13px; min-width:0; }
+  .tm-v form { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:0; }
+  .tm-chips { display:flex; gap:8px; flex-wrap:wrap; }
+  .tm-chip { display:inline-flex; align-items:center; gap:8px; font-size:13px; height:36px; box-sizing:border-box; padding:0 12px; border:0.5px solid var(--ia-border); border-radius:99px; cursor:pointer; }
+  .tm-chip input { accent-color:var(--ia-accent); margin:0; }
+  .tm-chip small { color:var(--ia-text-dim); font-size:11px; }
+  .tm-quiet { display:flex; gap:16px; flex-wrap:wrap; }
+  .tm-quiet form { margin:0; }
+  .tm-quiet button { background:none; border:0; padding:0; font:inherit; font-size:13px; color:var(--ia-text-dim); cursor:pointer; text-decoration:underline; text-underline-offset:3px; text-decoration-color:var(--ia-border); }
+  .tm-quiet button:hover { color:var(--ia-text); }
+  .tm-quiet button.is-danger { color:#F87171; }
+
+  /* this block MUST stay last: a media query adds no specificity. */
+  @media (max-width:820px) {
+    .tm-cols { grid-template-columns:1fr; }
+    .tm-cols > div + div > .tm-sec:first-child { border-top:0.5px solid var(--ia-border); }
+  }
+  @media (max-width:560px) {
+    .tm-g2 { grid-template-columns:1fr; }
+    .tm-line { grid-template-columns:1fr; gap:6px; }
+    .tm-head { flex-wrap:wrap; }
+    .tm-ct { margin-left:0; width:100%; }
+    .tm-ib { flex:1; width:auto; }
+    .tm-v form { width:100%; }
+    .tm-v form .ia-input, .tm-v form select { flex:1; min-width:0; }
+    .tm-save { justify-content:stretch; }
+    .tm-save .ia-btn { width:100%; }
+  }
 </style>
 @endpush
 
 @section('content')
-<a href="{{ route('tenant.team.index') }}" class="pd-back">← All team members</a>
+<a href="{{ route('tenant.team.index') }}" class="tm-back">← All team members</a>
 
-{{-- activation banner: only for never-activated
-     members, on a page that is already manager-gated. --}}
-@if(! $member->is_active && $member->last_login_at === null && ($inviteStats ?? null))
-  <div style="border:1px solid rgba(251,191,36,.4);background:rgba(251,191,36,.06);border-radius:12px;padding:14px 16px;margin:14px 0 20px;display:flex;gap:14px;align-items:flex-start">
-    <span style="width:9px;height:9px;border-radius:99px;background:#FBBF24;margin-top:5px;flex-shrink:0"></span>
-    <div style="flex:1">
-      <b style="color:#FBBF24;font-size:13.5px;display:block">Hasn't activated their account</b>
-      <p style="margin:3px 0 10px;color:var(--ia-text-dim);font-size:12.5px">
-        {{ $member->name }} hasn't set a password yet. Sending again emails a fresh link and invalidates the old one. Links stay good for 7 days.
-      </p>
-      <form method="POST" action="{{ route('tenant.team.resend-invite', $member->id) }}" style="display:inline">
-        @csrf
-        <button type="submit" class="ia-btn" style="background:#FBBF24;border-color:#FBBF24;color:#0a0a0a;font-weight:600">Send activation email again</button>
-      </form>
-      @if($pendingInvite)
-        <div style="display:flex;gap:8px;margin-top:10px;align-items:center">
-          <input readonly id="ia-invite-link" style="flex:1;background:var(--ia-surface);border:1px solid var(--ia-border);border-radius:8px;color:var(--ia-text-dim);padding:7px 11px;font-family:ui-monospace,Menlo,monospace;font-size:11.5px"
-                 value="{{ route('tenant.team.setup') . '?token=' . $pendingInvite->token }}">
-          <button type="button" class="ia-btn"
-                  onclick="navigator.clipboard.writeText(document.getElementById('ia-invite-link').value); this.textContent='Copied'; setTimeout(function(b){b.textContent='Copy'}, 1500, this)">Copy</button>
-        </div>
-      @else
-        <div style="margin-top:8px;font-size:12px;color:var(--ia-text-dim)">No valid link outstanding — the last one expired. Send again to mint a new one.</div>
-      @endif
-      <div style="font-size:11.5px;color:var(--ia-text-dim);opacity:.75;margin-top:8px">
-        Sent {{ $inviteStats['sends'] }}× — last {{ $inviteStats['last'] ? \Illuminate\Support\Carbon::parse($inviteStats['last'])->format('M j, g:ia') : 'never' }}
-        · opened: {{ $inviteStats['opened'] ? 'yes' : 'never' }}
-      </div>
+<div class="tm-head">
+  <div class="tm-av">{{ strtoupper(substr($member->name, 0, 2)) }}</div>
+  <div>
+    <h2 class="tm-name">{{ $member->name }}</h2>
+    <div class="tm-sub">
+      <span><span class="tm-dot {{ $member->is_active ? '' : 'is-off' }}"></span> {{ $member->is_active ? 'Active' : 'Inactive' }}</span>
+      <span>·</span><span>{{ ucfirst($member->role) }}</span>
+      <span>·</span><span>last seen {{ $member->last_login_at?->diffForHumans() ?? 'never' }}</span>
     </div>
+  </div>
+  {{-- same affordance as the customer page; a button with nothing behind it is disabled, not dead --}}
+  <div class="tm-ct">
+    <a href="{{ $tmPhoneDigits ? 'tel:' . $tmPhoneDigits : '#' }}" class="tm-ib {{ $tmPhoneDigits ? '' : 'is-disabled' }}"
+       @if(!$tmPhoneDigits) aria-disabled="true" tabindex="-1" @endif
+       title="{{ $tmPhoneDigits ? 'Call ' . $member->name : 'No phone number on file' }}" aria-label="Call">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.9.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+    </a>
+    <a href="{{ $tmPhoneDigits ? 'sms:' . $tmPhoneDigits : '#' }}" class="tm-ib {{ $tmPhoneDigits ? '' : 'is-disabled' }}"
+       @if(!$tmPhoneDigits) aria-disabled="true" tabindex="-1" @endif
+       title="{{ $tmPhoneDigits ? 'Text ' . $member->name : 'No phone number on file' }}" aria-label="Text">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+    </a>
+    <a href="{{ $member->email ? 'mailto:' . $member->email : '#' }}" class="tm-ib {{ $member->email ? '' : 'is-disabled' }}"
+       @if(!$member->email) aria-disabled="true" tabindex="-1" @endif
+       title="{{ $member->email ? 'Email ' . $member->name : 'No email on file' }}" aria-label="Email">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+    </a>
+  </div>
+</div>
+
+{{-- activation strip: only for never-activated members, on a page that is already manager-gated. --}}
+@if(! $member->is_active && $member->last_login_at === null && ($inviteStats ?? null))
+  <div class="tm-act tm-row">
+    <b>Hasn't activated their account</b>
+    <span class="tm-act-meta">
+      @if($pendingInvite)
+        Sent {{ $inviteStats['sends'] }}× · last {{ $inviteStats['last'] ? \Illuminate\Support\Carbon::parse($inviteStats['last'])->format('M j, g:ia') : 'never' }}
+        · opened: {{ $inviteStats['opened'] ? 'yes' : 'never' }}. Links stay good for 7 days.
+      @else
+        The last link expired. Send again to make a new one. Sent {{ $inviteStats['sends'] }}× · opened: {{ $inviteStats['opened'] ? 'yes' : 'never' }}.
+      @endif
+    </span>
+    <span class="tm-act-sp"></span>
+    @if($pendingInvite)
+      <button type="button" class="ia-btn ia-btn--ghost ia-btn--sm" id="ia-invite-copy"
+              data-link="{{ route('tenant.team.setup') . '?token=' . $pendingInvite->token }}">Copy link</button>
+    @endif
+    <form method="POST" action="{{ route('tenant.team.resend-invite', $member->id) }}" style="margin:0">
+      @csrf
+      <button type="submit" class="ia-btn" style="background:#FBBF24;border-color:#FBBF24;color:#0a0a0a;font-weight:600">Send activation email again</button>
+    </form>
   </div>
 @endif
 
-<div class="pd-head">
-  <div class="pd-avatar">{{ strtoupper(substr($member->name, 0, 2)) }}</div>
+<div class="tm-cols">
   <div>
-    <h2 class="pd-h2">{{ $member->name }}</h2>
-    <div class="pd-sub">
-      {{ ucfirst($member->role) }} ·
-      @if($member->is_active) Active @else Inactive @endif ·
-      last seen {{ $member->last_login_at?->diffForHumans() ?? 'never' }}
+    {{-- Contact --}}
+    <div class="tm-sec">
+      <div class="tm-lab">Contact</div>
+      <form method="POST" action="{{ $tmUpdate }}" class="tm-row" data-dirty>
+        @csrf @method('PATCH')
+        <input type="hidden" name="op" value="update_account">
+        <div class="tm-g2">
+          <div class="tm-f"><label for="tm-name">Name</label><input id="tm-name" class="ia-input" name="name" value="{{ $member->name }}"></div>
+          <div class="tm-f"><label for="tm-email">Email</label><input id="tm-email" class="ia-input" type="email" name="email" value="{{ $member->email }}"></div>
+          <div class="tm-f"><label for="tm-phone">Phone</label><input id="tm-phone" class="ia-input" type="tel" name="phone" value="{{ $member->phone }}" maxlength="32" placeholder="(509) 555-0142"></div>
+          <div class="tm-save"><button class="ia-btn ia-btn--primary">Save contact</button></div>
+        </div>
+        <div class="tm-hint" style="margin-top:8px">Phone is used for staff text alerts and the Call and Text buttons above. They can't change their own email or role.</div>
+      </form>
     </div>
-  </div>
-  {{-- same tiles as the customer page, so there is one
-       contact affordance in the product rather than two that drift. A tile
-       with nothing behind it is disabled, not merely dead. --}}
-  @php
-    $tmPhoneDigits = $member->phone ? preg_replace('/[^0-9+]/', '', $member->phone) : '';
-  @endphp
-  <div class="pd-contact-tiles">
-    <a href="{{ $tmPhoneDigits ? 'tel:' . $tmPhoneDigits : '#' }}"
-       class="pd-tile {{ $tmPhoneDigits ? '' : 'is-disabled' }}"
-       @if(!$tmPhoneDigits) aria-disabled="true" tabindex="-1" @endif
-       title="{{ $tmPhoneDigits ? 'Call ' . $member->name : 'No phone number on file' }}">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.9.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/>
-      </svg>
-      <span class="pd-tile-label">Call</span>
-    </a>
-    <a href="{{ $tmPhoneDigits ? 'sms:' . $tmPhoneDigits : '#' }}"
-       class="pd-tile {{ $tmPhoneDigits ? '' : 'is-disabled' }}"
-       @if(!$tmPhoneDigits) aria-disabled="true" tabindex="-1" @endif
-       title="{{ $tmPhoneDigits ? 'Text ' . $member->name : 'No phone number on file' }}">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
-      </svg>
-      <span class="pd-tile-label">Text</span>
-    </a>
-    <a href="{{ $member->email ? 'mailto:' . $member->email : '#' }}"
-       class="pd-tile {{ $member->email ? '' : 'is-disabled' }}"
-       @if(!$member->email) aria-disabled="true" tabindex="-1" @endif
-       title="{{ $member->email ? 'Email ' . $member->name : 'No email on file' }}">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
-        <polyline points="22,6 12,13 2,6"/>
-      </svg>
-      <span class="pd-tile-label">Email</span>
-    </a>
-  </div>
 
-  <div class="pd-actions">
-    <form method="POST" action="{{ route('tenant.team.update', $member->id) }}" style="display:inline">
-      @csrf @method('PATCH')
-      <input type="hidden" name="op" value="toggle_active">
-      <button class="ia-btn ia-btn--ghost ia-btn--sm"
-              data-confirm="{{ $member->is_active ? 'Deactivate' : 'Reactivate' }} {{ $member->name }}?">
-        {{ $member->is_active ? 'Deactivate' : 'Reactivate' }}
-      </button>
-    </form>
-    <form method="POST" action="{{ route('tenant.team.destroy', $member->id) }}" style="display:inline">
-      @csrf @method('DELETE')
-      <button class="ia-btn ia-btn--ghost ia-btn--sm" style="color:#F87171"
-              data-confirm="Remove {{ $member->name }} from the team?">Remove</button>
-    </form>
-  </div>
-</div>
+    {{-- Access --}}
+    <div class="tm-sec">
+      <div class="tm-lab">Access</div>
 
-{{-- Account --}}
-<div class="ia-card" style="margin-bottom:14px">
-  <div class="ia-card-head"><span class="ia-card-title">Account</span></div>
-  <p style="font-size:12px;color:var(--ia-text-dim);margin:0 0 14px">Basic identity. The user cannot change their own email or role.</p>
-
-  {{-- these three forms used to sit stacked with no
-       break, and the identity Save button rendered directly above the Role
-       row. Changing the role and pressing that Save posted the ACCOUNT form:
-       role_id was never sent, the modal said "Account updated." and the
-       select snapped back — indistinguishable from a broken write. Each
-       block is now its own bordered section owning its own action. --}}
-  <div class="tm-block">
-    <form method="POST" action="{{ route('tenant.team.update', $member->id) }}">
-      @csrf @method('PATCH')
-      <input type="hidden" name="op" value="update_account">
-      <div class="tm-block-label">Contact</div>
-      <div class="pd-field">
-        <div class="pd-field-label">Name</div>
-        <div class="pd-field-value"><input class="ia-input pd-input" name="name" value="{{ $member->name }}"></div>
-      </div>
-      <div class="pd-field">
-        <div class="pd-field-label">Email</div>
-        <div class="pd-field-value"><input class="ia-input pd-input pd-input--wide" type="email" name="email" value="{{ $member->email }}"></div>
-      </div>
-      <div class="pd-field">
-        <div class="pd-field-label">Phone</div>
-        <div class="pd-field-value">
-          <input class="ia-input pd-input pd-input--narrow" type="tel" name="phone" value="{{ $member->phone }}" maxlength="32" placeholder="(509) 555-0142">
-          <div style="font-size:11.5px;color:var(--ia-text-dim);margin-top:5px">Used for staff SMS alerts, and for the Call and Text buttons above.</div>
+      <div class="tm-line tm-row">
+        <div class="tm-k">Role</div>
+        <div class="tm-v">
+          <form method="POST" action="{{ $tmUpdate }}" data-dirty>
+            @csrf @method('PATCH')
+            <input type="hidden" name="op" value="change_role">
+            <select name="role_id" class="ia-input" style="width:auto;min-width:150px" aria-label="Role">
+              @if(! $allRoles->contains('id', $member->role_id))
+                <option value="" disabled selected>Choose a role…</option>
+              @endif
+              @foreach($allRoles as $r)
+                <option value="{{ $r->id }}" @selected($member->role_id === $r->id)>{{ $r->name }}</option>
+              @endforeach
+            </select>
+            <button class="ia-btn ia-btn--primary">Change role</button>
+          </form>
+          <span class="tm-hint">Takes effect on their next page load.</span>
         </div>
       </div>
-      <div style="display:flex;justify-content:flex-end;margin-top:8px">
-        <button class="ia-btn ia-btn--primary ia-btn--sm">Save contact</button>
-      </div>
-    </form>
-  </div>
 
-  <div class="tm-block">
-    <form method="POST" action="{{ route('tenant.team.update', $member->id) }}">
-      @csrf @method('PATCH')
-      <input type="hidden" name="op" value="change_role">
-      <div class="tm-block-label">Role</div>
-      <div class="pd-field">
-        <div class="pd-field-label">Access level</div>
-        <div class="pd-field-value" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-          {{-- named roles --}}
-          <select name="role_id" class="ia-input" style="width:auto">
-            @foreach($allRoles as $r)
-              <option value="{{ $r->id }}" @selected($member->role_id === $r->id)>{{ $r->name }}</option>
-            @endforeach
-          </select>
-          <button class="ia-btn ia-btn--primary ia-btn--sm">Change role</button>
-          <span style="font-size:11.5px;color:var(--ia-text-dim)">Takes effect on their next page load.</span>
+      <div class="tm-line tm-row">
+        <div class="tm-k">Locations</div>
+        <div class="tm-v">
+          <form method="POST" action="{{ $tmUpdate }}" data-dirty>
+            @csrf @method('PATCH')
+            <input type="hidden" name="op" value="update_locations">
+            <div class="tm-chips">
+              @foreach($allLocations as $loc)
+                <label class="tm-chip">
+                  <input type="checkbox" name="location_ids[]" value="{{ $loc->id }}" @checked(in_array($loc->id, $memberLocationIds))>
+                  <span>{{ $loc->name }}@if($loc->is_default) <small>default</small>@endif</span>
+                </label>
+              @endforeach
+            </div>
+            <button class="ia-btn ia-btn--primary">Save locations</button>
+          </form>
         </div>
       </div>
-    </form>
-  </div>
 
-  {{-- owners/salaried staff opt-out of the clock-in nudge --}}
-  <div class="tm-block tm-block--last">
-    <form method="POST" action="{{ route('tenant.team.update', $member->id) }}">
-      @csrf @method('PATCH')
-      <input type="hidden" name="op" value="toggle_timeclock_exempt">
-      <div class="tm-block-label">Time clock</div>
-      <div class="pd-field">
-        <div class="pd-field-label">Clock-in prompts</div>
-        <div class="pd-field-value" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-          <span style="font-size:12.5px;color:var(--ia-text-dim)">
-            {{ $member->exempt_from_timeclock ? 'Never clocks in — no clock-in prompts.' : 'Clocks in — sees the clock-in prompt when off the clock.' }}
-          </span>
-          <button class="ia-btn ia-btn--ghost ia-btn--sm">
-            {{ $member->exempt_from_timeclock ? 'Require clock-in' : 'Mark as never clocks in' }}
-          </button>
+      {{-- owners/salaried staff opt out of the clock-in nudge --}}
+      <div class="tm-line tm-row">
+        <div class="tm-k">Clock-in prompt</div>
+        <div class="tm-v">
+          <form method="POST" action="{{ $tmUpdate }}">
+            @csrf @method('PATCH')
+            <input type="hidden" name="op" value="toggle_timeclock_exempt">
+            <span>{{ $member->exempt_from_timeclock ? 'Never clocks in' : 'Required' }}</span>
+            <button class="ia-btn ia-btn--ghost">{{ $member->exempt_from_timeclock ? 'Require clock-in' : 'Mark as never clocks in' }}</button>
+          </form>
         </div>
       </div>
-    </form>
+    </div>
   </div>
-</div>
 
-{{-- Credentials --}}
-<div class="ia-card" style="margin-bottom:14px">
-  <div class="ia-card-head"><span class="ia-card-title">Credentials</span></div>
-  <p style="font-size:12px;color:var(--ia-text-dim);margin:0 0 14px">Reset their password or PIN. The user will be required to set new credentials on next sign-in.</p>
+  <div>
+    {{-- Sign-in --}}
+    <div class="tm-sec">
+      <div class="tm-lab">Sign-in</div>
 
-  @if($pinLocked)
-    <div class="ia-notice ia-notice--error" style="margin-bottom:12px">
-      <strong>PIN is locked.</strong> Too many wrong attempts. Cooldown ends
-      {{ $member->pin_locked_until->diffForHumans() }}.
-    </div>
-  @endif
-
-  <form method="POST" action="{{ route('tenant.team.update', $member->id) }}">
-    @csrf @method('PATCH')
-    <input type="hidden" name="op" value="reset_password">
-    <div class="pd-field">
-      <div class="pd-field-label">Password</div>
-      <div class="pd-field-value">
-        <button class="ia-btn ia-btn--ghost ia-btn--sm"
-                data-confirm="Reset password for {{ $member->name }}?">Reset password</button>
-        <span class="pd-field-hint">Generates a temporary password. They'll change it on next sign-in.</span>
-      </div>
-    </div>
-  </form>
-
-  @if($pinModeOn)
-  <div class="pd-field">
-    <div class="pd-field-label">PIN</div>
-    <div class="pd-field-value">
       @if($pinLocked)
-        <span class="ia-badge ia-badge--cancelled">Locked</span>
-        <form method="POST" action="{{ route('tenant.team.update', $member->id) }}" style="display:inline">
-          @csrf @method('PATCH')
-          <input type="hidden" name="op" value="pin_unlock">
-          <button class="ia-btn ia-btn--ghost ia-btn--sm"
-                  data-confirm="Unlock {{ $member->name }}'s PIN?">Unlock</button>
-        </form>
-      @elseif($member->pin_hash)
-        <span class="ia-badge ia-badge--completed">Set</span>
-      @else
-        <span class="ia-badge ia-badge--pending">Not set</span>
+        <div class="ia-notice ia-notice--error" style="margin-bottom:12px">
+          <strong>PIN is locked.</strong> Too many wrong attempts. Cooldown ends
+          {{ $member->pin_locked_until->diffForHumans() }}.
+        </div>
       @endif
-      @if($member->pin_hash)
-        <form method="POST" action="{{ route('tenant.team.update', $member->id) }}" style="display:inline">
-          @csrf @method('PATCH')
-          <input type="hidden" name="op" value="pin_force_reset">
-          <button class="ia-btn ia-btn--ghost ia-btn--sm"
-                  data-confirm="Force {{ $member->name }} to set a new PIN?">Force reset</button>
-        </form>
+
+      <div class="tm-line tm-row">
+        <div class="tm-k">Password</div>
+        <div class="tm-v">
+          <form method="POST" action="{{ $tmUpdate }}">
+            @csrf @method('PATCH')
+            <input type="hidden" name="op" value="reset_password">
+            <button class="ia-btn ia-btn--ghost" data-confirm="Reset password for {{ $member->name }}?">Reset password</button>
+          </form>
+        </div>
+      </div>
+      <div class="tm-line is-hint"><div class="tm-k"></div>
+        <div class="tm-hint">Emails them a temporary password and shows it to you once. They choose their own at next sign-in.</div>
+      </div>
+
+      @if($pinModeOn)
+      <div class="tm-line tm-row">
+        <div class="tm-k">PIN</div>
+        <div class="tm-v">
+          @if($pinLocked)
+            <span class="ia-badge ia-badge--cancelled">Locked</span>
+            <form method="POST" action="{{ $tmUpdate }}">
+              @csrf @method('PATCH')
+              <input type="hidden" name="op" value="pin_unlock">
+              <button class="ia-btn ia-btn--ghost" data-confirm="Unlock {{ $member->name }}'s PIN?">Unlock</button>
+            </form>
+          @elseif($member->pin_hash)
+            <span class="ia-badge ia-badge--completed">Set</span>
+          @else
+            <span class="ia-badge ia-badge--pending">Not set</span>
+          @endif
+          @if($member->pin_hash)
+            <form method="POST" action="{{ $tmUpdate }}">
+              @csrf @method('PATCH')
+              <input type="hidden" name="op" value="pin_force_reset">
+              <button class="ia-btn ia-btn--ghost" data-confirm="Force {{ $member->name }} to set a new PIN?">Force reset</button>
+            </form>
+          @endif
+        </div>
+      </div>
       @endif
+      {{-- per-user sign-out-everywhere removed (devices are tenant-scoped; see /admin/team/devices) --}}
+    </div>
+
+    {{-- Account: the destructive actions, quiet on purpose --}}
+    <div class="tm-sec">
+      <div class="tm-lab">Account</div>
+      <div class="tm-quiet">
+        <form method="POST" action="{{ $tmUpdate }}">
+          @csrf @method('PATCH')
+          <input type="hidden" name="op" value="toggle_active">
+          <button data-confirm="{{ $member->is_active ? 'Deactivate' : 'Reactivate' }} {{ $member->name }}?">{{ $member->is_active ? 'Deactivate' : 'Reactivate' }}</button>
+        </form>
+        <form method="POST" action="{{ route('tenant.team.destroy', $member->id) }}">
+          @csrf @method('DELETE')
+          <button class="is-danger" data-confirm="Remove {{ $member->name }} from the team?">Remove from team</button>
+        </form>
+      </div>
+      <div class="tm-hint" style="margin-top:8px">Deactivating blocks sign-in and keeps their history. Removing takes them off the team.</div>
     </div>
   </div>
-  @endif
-
-  {{-- per-user sign-out-everywhere removed (devices are tenant-scoped) --}}
 </div>
 
-{{-- Locations --}}
-<div class="ia-card" style="margin-bottom:14px">
-  <div class="ia-card-head"><span class="ia-card-title">Locations</span></div>
-  <p style="font-size:12px;color:var(--ia-text-dim);margin:0 0 14px">Which locations this person has access to.</p>
-
-  <form method="POST" action="{{ route('tenant.team.update', $member->id) }}">
-    @csrf @method('PATCH')
-    <input type="hidden" name="op" value="update_locations">
-    <div class="pd-loc-grid">
-      @foreach($allLocations as $loc)
-        <label class="pd-loc">
-          <input type="checkbox" name="location_ids[]" value="{{ $loc->id }}"
-                 @checked(in_array($loc->id, $memberLocationIds))>
-          <span>{{ $loc->name }}@if($loc->is_default) <span style="font-size:11px;color:var(--ia-text-dim)">(default)</span>@endif</span>
-        </label>
-      @endforeach
-    </div>
-    <div style="display:flex;justify-content:flex-end;margin-top:14px">
-      <button class="ia-btn ia-btn--primary ia-btn--sm">Save locations</button>
-    </div>
-  </form>
-</div>
-
-{{-- per-user devices card removed (devices are tenant-scoped; see /admin/team/devices for full list) --}}
+<script>
+/* MARKER-TEAM-MEMBER-LAYOUT: a Save button is live only once its form differs from what's saved,
+   so pressing it always changes something. Without JS the buttons simply stay enabled. */
+(function () {
+  function snap(f) { return new URLSearchParams(new FormData(f)).toString(); }
+  document.querySelectorAll('form[data-dirty]').forEach(function (f) {
+    var btn = f.querySelector('button.ia-btn'); if (!btn) return;
+    var start = snap(f);
+    function sync() { var same = snap(f) === start; btn.disabled = same; btn.title = same ? 'Nothing changed yet' : ''; }
+    f.addEventListener('input', sync); f.addEventListener('change', sync); sync();
+  });
+  var c = document.getElementById('ia-invite-copy');
+  if (c) c.addEventListener('click', function () {
+    var b = this, t = b.getAttribute('data-link');
+    (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(function () {
+      b.textContent = 'Copied'; setTimeout(function () { b.textContent = 'Copy link'; }, 1500);
+    }, function () { b.textContent = 'Copy failed'; });
+  });
+})();
+</script>
 @endsection
