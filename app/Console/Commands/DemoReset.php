@@ -99,6 +99,20 @@ class DemoReset extends Command
         }
 
         DB::statement('SET FOREIGN_KEY_CHECKS=0');
+        // MARKER-DEMO-RESET-NOLOCK: under the default REPEATABLE READ, deleting
+        // the demo's rows also locks the index GAPS beside them, so for the
+        // whole reset (1.5-3 minutes) any other shop whose tenant id sorts next
+        // to the demo's couldn't insert into those tables: The Bike Hub's page
+        // views hit "Lock wait timeout" at 05:01 on Oct 28. READ COMMITTED locks
+        // only the demo's own rows. It applies to the next transaction only.
+        // Statement-based binary logging can't replicate READ COMMITTED writes,
+        // so on such a server the reset keeps the old behaviour.
+        $binlog = strtoupper((string) (DB::selectOne('SELECT @@binlog_format AS f')->f ?? ''));
+        if ($binlog !== 'STATEMENT') {
+            DB::statement('SET TRANSACTION ISOLATION LEVEL READ COMMITTED');
+        } else {
+            $this->warn('binlog_format is STATEMENT: resetting with gap locks (other shops may wait on the demo).');
+        }
         DB::beginTransaction();
         try {
             // wipe: child tables first is unnecessary with checks off, and the
