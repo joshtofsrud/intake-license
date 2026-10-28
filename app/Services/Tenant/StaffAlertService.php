@@ -30,6 +30,13 @@ class StaffAlertService
     // events staff must never miss; same class as payment.failed.
     private const CRITICAL = ['payment.failed', 'rental.overdue', 'rental.damage_flagged', 'payment.link_completed', 'payment.refund_external'];
 
+    /**
+     * Not critical, but addressed to one person by a teammate, so the add-on
+     * gate doesn't apply: a mention that silently goes nowhere is worse than
+     * no mentions at all. MARKER-NOTE-MENTIONS
+     */
+    private const PERSONAL = ['note.mention'];
+
     /** Default channels per event for users who haven't set prefs. */
     private const DEFAULTS = [
         'booking.created'       => ['in_app' => true,  'sms' => false],
@@ -51,6 +58,7 @@ class StaffAlertService
         'timeoff.requested'      => ['in_app' => true,  'sms' => false],
         'timeoff.decided'        => ['in_app' => true,  'sms' => false],
         'timeoff.withdrawn'      => ['in_app' => true,  'sms' => false],
+        'note.mention'           => ['in_app' => true,  'sms' => false], // MARKER-NOTE-MENTIONS
     ];
 
     public function __construct(
@@ -70,7 +78,7 @@ class StaffAlertService
         $isCritical = in_array($event, self::CRITICAL, true);
 
         // In-app gate: non-critical events require the addon.
-        if (!$isCritical && !$tenant->staff_alerts_enabled) {
+        if (!$isCritical && !in_array($event, self::PERSONAL, true) && !$tenant->staff_alerts_enabled) {
             return;
         }
 

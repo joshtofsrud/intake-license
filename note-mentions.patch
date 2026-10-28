@@ -1,0 +1,537 @@
+diff --git a/app/Http/Controllers/Tenant/AppointmentController.php b/app/Http/Controllers/Tenant/AppointmentController.php
+index ad6a92f8..f197a861 100644
+--- a/app/Http/Controllers/Tenant/AppointmentController.php
++++ b/app/Http/Controllers/Tenant/AppointmentController.php
+@@ -386,7 +386,7 @@ class AppointmentController extends Controller
+ 
+         // Persist staff notes via TenantAppointmentNote — same as old flow.
+         if (!empty($data['staff_notes'])) {
+-            \App\Models\Tenant\TenantAppointmentNote::create([
++            $staffNote = \App\Models\Tenant\TenantAppointmentNote::create([
+                 'appointment_id'      => $appointment->id,
+                 'user_id'             => Auth::guard('tenant')->id(),
+                 'note_type'           => 'manual',
+@@ -394,6 +394,8 @@ class AppointmentController extends Controller
+                 'note_content'        => $data['staff_notes'],
+                 'created_at'          => now(),
+             ]);
++            // MARKER-NOTE-MENTIONS
++            \App\Support\NoteMentions::notifyForAppointment(tenant(), $appointment, $staffNote, Auth::guard('tenant')->user());
+         }
+ 
+         if ($request->expectsJson()) {
+@@ -777,7 +779,7 @@ class AppointmentController extends Controller
+         $tenant = tenant();
+         $appointment = \App\Models\Tenant\TenantAppointment::where('tenant_id', $tenant->id)
+             ->where('id', $id)
+-            ->with(['items', 'addons', 'parts.inventoryItem', 'parts.specialOrder', 'notes', 'charges', 'customer', 'workOrderResponses', 'workOrderFields', 'payments.registerSale', 'sales'])
++            ->with(['items', 'addons', 'parts.inventoryItem', 'parts.specialOrder', 'notes.user', 'charges', 'customer', 'workOrderResponses', 'workOrderFields', 'payments.registerSale', 'sales'])
+             ->firstOrFail();
+ 
+         $transitions = AppointmentStatus::TRANSITIONS[$appointment->status] ?? [];
+@@ -968,7 +970,7 @@ class AppointmentController extends Controller
+         $tenant = tenant();
+         $appointment = \App\Models\Tenant\TenantAppointment::where('tenant_id', $tenant->id)
+             ->where('id', $id)
+-            ->with(['items', 'addons', 'parts', 'workOrderResponses.field', 'notes', 'customer'])
++            ->with(['items', 'addons', 'parts', 'workOrderResponses.field', 'notes.user', 'customer'])
+             ->firstOrFail();
+ 
+         $identifierField = \App\Models\Tenant\TenantWorkOrderField::where('tenant_id', $tenant->id)
+@@ -1135,6 +1137,7 @@ class AppointmentController extends Controller
+ 
+         $transitions = AppointmentStatus::TRANSITIONS[$appointment->status] ?? [];
+ 
++        $mentionPeople = \App\Support\NoteMentions::people(tenant()); // MARKER-NOTE-MENTIONS
+         return response()->json([
+             'ok' => true,
+             'appointment' => [
+@@ -1169,7 +1172,7 @@ class AppointmentController extends Controller
+                 'total_duration_minutes' => $appointment->total_duration_minutes,
+                 ...$this->appointmentLineItems($appointment),
+                 'charges' => $appointment->charges->map(fn($c) => ['id' => $c->id, 'description' => $c->description, 'amount' => format_money($c->amount_cents), 'is_paid' => $c->is_paid, 'date' => \Carbon\Carbon::parse($c->created_at)->format('M j')]),
+-                'notes' => $appointment->notes->sortByDesc('created_at')->values()->map(fn($n) => ['id' => $n->id, 'note' => $n->note_content, 'author' => $n->user?->name ?? ($n->note_type === 'system' ? 'System' : 'Staff'), 'type' => $n->note_type, 'created_at' => tlocal($n->created_at, 'M j, g:i a') ]),
++                'notes' => $appointment->notes->sortByDesc('created_at')->values()->map(fn($n) => ['id' => $n->id, 'note' => $n->note_content, 'html' => \App\Support\NoteMentions::html($n->note_content, $mentionPeople), 'author' => $n->user?->name ?? ($n->note_type === 'system' ? 'System' : 'Staff'), 'type' => $n->note_type, 'created_at' => tlocal($n->created_at, 'M j, g:i a') ]),
+                 'work_order_responses' => $appointment->workOrderResponses
+                     ->filter(fn($r) => $r->field !== null)
+                     ->map(fn($r) => [
+@@ -1715,7 +1718,10 @@ class AppointmentController extends Controller
+             $isCustomerVisible = (bool) $request->input('is_customer_visible', false);
+             $n = TenantAppointmentNote::create(['appointment_id' => $appointment->id, 'user_id' => Auth::guard('tenant')->id(), 'note_type' => 'staff', 'is_customer_visible' => $isCustomerVisible, 'note_content' => $note, 'created_at' => now()]);
+             $user = Auth::guard('tenant')->user();
+-            return response()->json(['ok' => true, 'id' => $n->id, 'note' => $n->note_content, 'author' => $user->name, 'created_at' => $n->created_at->format('M j, g:i a')]);
++            // MARKER-NOTE-MENTIONS: @someone gets it in their bell
++            $mentioned = \App\Support\NoteMentions::notifyForAppointment($tenant, $appointment, $n, $user);
++            return response()->json(['ok' => true, 'id' => $n->id, 'note' => $n->note_content, 'author' => $user->name, 'created_at' => tlocal($n->created_at, 'M j, g:i a'), // shop time, like the list it joins
++                'html' => \App\Support\NoteMentions::html($n->note_content, \App\Support\NoteMentions::people($tenant)), 'mentioned' => count($mentioned)]);
+         }
+         if ($op === 'save_work_order') {
+             $values = $request->input('values', []);
+diff --git a/app/Http/Controllers/Tenant/StaffAlertController.php b/app/Http/Controllers/Tenant/StaffAlertController.php
+index 0446bebf..67a2fa18 100644
+--- a/app/Http/Controllers/Tenant/StaffAlertController.php
++++ b/app/Http/Controllers/Tenant/StaffAlertController.php
+@@ -31,6 +31,7 @@ class StaffAlertController extends Controller
+         'timeoff.requested'      => 'New time-off request (reviewers)',
+         'timeoff.decided'        => 'Your time-off request was decided',
+         'timeoff.withdrawn'      => 'Time-off request withdrawn (reviewers)',
++        'note.mention'           => 'Someone @mentioned you in a note', // MARKER-NOTE-MENTIONS
+     ];
+ 
+     /** full notifications page (grouped, paginated). */
+diff --git a/app/Models/Tenant/TenantAppointmentNote.php b/app/Models/Tenant/TenantAppointmentNote.php
+index c3930949..f858afca 100644
+--- a/app/Models/Tenant/TenantAppointmentNote.php
++++ b/app/Models/Tenant/TenantAppointmentNote.php
+@@ -10,4 +10,11 @@ class TenantAppointmentNote extends Model
+     protected $table      = 'tenant_appointment_notes';
+     protected $fillable   = ['appointment_id','user_id','note_type','is_customer_visible','note_content','created_at'];
+     protected $casts      = ['is_customer_visible' => 'boolean', 'created_at' => 'datetime'];
++
++    // MARKER-NOTE-MENTIONS: the work order pages read $note->user->name, but
++    // there was no relation, so every note showed "Staff" instead of its author.
++    public function user(): \Illuminate\Database\Eloquent\Relations\BelongsTo
++    {
++        return $this->belongsTo(TenantUser::class, 'user_id');
++    }
+ }
+diff --git a/app/Services/Tenant/StaffAlertService.php b/app/Services/Tenant/StaffAlertService.php
+index 9e613949..c3d8d39e 100644
+--- a/app/Services/Tenant/StaffAlertService.php
++++ b/app/Services/Tenant/StaffAlertService.php
+@@ -30,6 +30,13 @@ class StaffAlertService
+     // events staff must never miss; same class as payment.failed.
+     private const CRITICAL = ['payment.failed', 'rental.overdue', 'rental.damage_flagged', 'payment.link_completed', 'payment.refund_external'];
+ 
++    /**
++     * Not critical, but addressed to one person by a teammate, so the add-on
++     * gate doesn't apply: a mention that silently goes nowhere is worse than
++     * no mentions at all. MARKER-NOTE-MENTIONS
++     */
++    private const PERSONAL = ['note.mention'];
++
+     /** Default channels per event for users who haven't set prefs. */
+     private const DEFAULTS = [
+         'booking.created'       => ['in_app' => true,  'sms' => false],
+@@ -51,6 +58,7 @@ class StaffAlertService
+         'timeoff.requested'      => ['in_app' => true,  'sms' => false],
+         'timeoff.decided'        => ['in_app' => true,  'sms' => false],
+         'timeoff.withdrawn'      => ['in_app' => true,  'sms' => false],
++        'note.mention'           => ['in_app' => true,  'sms' => false], // MARKER-NOTE-MENTIONS
+     ];
+ 
+     public function __construct(
+@@ -70,7 +78,7 @@ class StaffAlertService
+         $isCritical = in_array($event, self::CRITICAL, true);
+ 
+         // In-app gate: non-critical events require the addon.
+-        if (!$isCritical && !$tenant->staff_alerts_enabled) {
++        if (!$isCritical && !in_array($event, self::PERSONAL, true) && !$tenant->staff_alerts_enabled) {
+             return;
+         }
+ 
+diff --git a/app/Support/NoteMentions.php b/app/Support/NoteMentions.php
+new file mode 100644
+index 00000000..a0802b5c
+--- /dev/null
++++ b/app/Support/NoteMentions.php
+@@ -0,0 +1,111 @@
++<?php
++
++namespace App\Support;
++
++use App\Models\Tenant;
++use App\Models\Tenant\TenantUser;
++
++/**
++ * MARKER-NOTE-MENTIONS: @someone in a work order note.
++ *
++ * Notes stay plain text; a mention is "@" followed by a staff member's full
++ * name (what the picker inserts), or their first name alone when nobody else
++ * at the shop shares it (what people type by hand). Each person mentioned
++ * gets one alert in their bell, never the author. Matching is
++ * case-insensitive and needs a non-letter after the name, so "@Sam" doesn't
++ * catch "Samantha".
++ */
++class NoteMentions
++{
++    /** Active staff at the shop: [id => name]. */
++    public static function people(Tenant $tenant): array
++    {
++        return TenantUser::where('tenant_id', $tenant->id)->where('is_active', true)
++            ->whereNotNull('name')->where('name', '!=', '')
++            ->orderBy('name')->pluck('name', 'id')->all();
++    }
++
++    /**
++     * Every way each person can be written after "@", longest first so
++     * "Sam Jones" wins over "Sam": [[label, id], ...].
++     */
++    public static function handles(array $people): array
++    {
++        $firsts = [];
++        foreach ($people as $id => $name) {
++            $f = mb_strtolower(strtok(trim($name), ' ') ?: '');
++            if ($f !== '') $firsts[$f][] = $id;
++        }
++        $out = [];
++        foreach ($people as $id => $name) {
++            $name = trim(preg_replace('/\s+/u', ' ', $name));
++            $out[] = [$name, $id];
++            $first = strtok($name, ' ');
++            if ($first && $first !== $name && count($firsts[mb_strtolower($first)] ?? []) === 1) $out[] = [$first, $id];
++        }
++        usort($out, fn ($a, $b) => mb_strlen($b[0]) <=> mb_strlen($a[0]));
++
++        return $out;
++    }
++
++    /** Ids of the people mentioned in $text. */
++    public static function find(string $text, array $people): array
++    {
++        $found = [];
++        foreach (self::handles($people) as [$label, $id]) {
++            if (isset($found[$id])) continue;
++            if (preg_match(self::pattern($label), $text)) $found[$id] = true;
++        }
++
++        return array_keys($found);
++    }
++
++    /** The note as HTML: escaped, with mentions marked. */
++    public static function html(?string $text, array $people): string
++    {
++        $html = e((string) $text);
++        if ($people === [] || ! str_contains($html, '@')) return $html;
++
++        // one pass over the escaped text, so a longer name can't be re-wrapped by a shorter one
++        $alts = array_map(fn ($h) => preg_quote(e($h[0]), '/'), self::handles($people));
++        if (! $alts) return $html;
++
++        return preg_replace_callback('/(^|[^\pL\pN_])@(' . implode('|', $alts) . ')(?![\pL\pN_])/iu',
++            fn ($m) => $m[1] . '<span class="ia-mention">@' . $m[2] . '</span>', $html) ?? $html;
++    }
++
++    /**
++     * Alert everyone mentioned in a work order note, except whoever wrote it.
++     * Returns the ids alerted.
++     */
++    public static function notifyForAppointment(Tenant $tenant, $appointment, $note, ?object $author): array
++    {
++        $people = self::people($tenant);
++        $ids = array_values(array_diff(self::find((string) $note->note_content, $people), [$author?->id]));
++        if (! $ids) return [];
++
++        $who = trim((string) ($author->name ?? '')) ?: 'Someone';
++        $ref = $appointment->ra_number ?: 'a work order';
++        $snippet = trim(preg_replace('/\s+/u', ' ', (string) $note->note_content));
++        $snippet = mb_strlen($snippet) > 140 ? mb_substr($snippet, 0, 139) . '…' : $snippet;
++        $link = route('tenant.appointments.show', $appointment->id) . '#note-' . $note->id;
++
++        $alerts = app(\App\Services\Tenant\StaffAlertService::class);
++        foreach ($ids as $id) {
++            $alerts->emit($tenant, 'note.mention', [
++                'title'        => $who . ' mentioned you on ' . $ref,
++                'body'         => $snippet,
++                'link'         => $link,
++                'meta'         => ['appointment_id' => $appointment->id, 'note_id' => $note->id],
++                'only_user_id' => $id,
++            ]);
++        }
++
++        return $ids;
++    }
++
++    private static function pattern(string $label): string
++    {
++        return '/(^|[^\pL\pN_])@' . preg_quote($label, '/') . '(?![\pL\pN_])/iu';
++    }
++}
+diff --git a/public/js/tenant/mentions.js b/public/js/tenant/mentions.js
+new file mode 100644
+index 00000000..8d5ba2fc
+--- /dev/null
++++ b/public/js/tenant/mentions.js
+@@ -0,0 +1,137 @@
++/*
++ * MARKER-NOTE-MENTIONS: type "@" in any note box marked [data-mentions] and
++ * pick a teammate. The note stays plain text ("@Sam Jones"); the server finds
++ * the names when it's saved and alerts each person in their bell
++ * (App\Support\NoteMentions). Works on boxes added later (the detail modal
++ * builds its own), so it listens on the document.
++ *
++ * IntakeMentions.html(text) escapes a note and marks the mentions, for notes
++ * drawn in the browser.
++ */
++(function () {
++  'use strict';
++  var people = (window.IntakeMentionPeople || []).filter(function (p) { return p && p.name; });
++  var menu = null, field = null, start = -1, items = [], pick = 0;
++
++  function esc(s) {
++    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
++      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
++    });
++  }
++
++  // same rule as the server: full name, or a first name nobody else has
++  function handles() {
++    var firsts = {};
++    people.forEach(function (p) { var f = p.name.trim().split(/\s+/)[0].toLowerCase(); firsts[f] = (firsts[f] || 0) + 1; });
++    var out = [];
++    people.forEach(function (p) {
++      var n = p.name.trim().replace(/\s+/g, ' ');
++      out.push(n);
++      var f = n.split(' ')[0];
++      if (f !== n && firsts[f.toLowerCase()] === 1) out.push(f);
++    });
++    return out.sort(function (a, b) { return b.length - a.length; });
++  }
++
++  window.IntakeMentions = {
++    html: function (text) {
++      var h = esc(text);
++      if (!people.length || h.indexOf('@') < 0) return h;
++      var alts = handles().map(function (n) { return esc(n).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); });
++      var re = new RegExp('(^|[^\\p{L}\\p{N}_])@(' + alts.join('|') + ')(?![\\p{L}\\p{N}_])', 'giu');
++      return h.replace(re, function (m, pre, name) { return pre + '<span class="ia-mention">@' + name + '</span>'; });
++    }
++  };
++
++  if (!people.length) return;
++
++  function close() {
++    if (menu) menu.remove();
++    menu = null; field = null; start = -1; items = [];
++  }
++
++  function query(el) {
++    var pos = el.selectionStart, v = el.value;
++    if (pos == null) return null;
++    var at = v.lastIndexOf('@', pos - 1);
++    if (at < 0) return null;
++    if (at > 0 && /[\p{L}\p{N}_]/u.test(v.charAt(at - 1))) return null; // an email address, not a mention
++    var q = v.slice(at + 1, pos);
++    if (q.length > 30 || /\n/.test(q) || /\s\s/.test(q)) return null;
++    return { at: at, q: q };
++  }
++
++  function show(el) {
++    var hit = query(el);
++    if (!hit) return close();
++    var q = hit.q.toLowerCase();
++    var list = people.filter(function (p) {
++      var n = p.name.toLowerCase();
++      return !q || n.indexOf(q) === 0 || n.split(/\s+/).some(function (w) { return w.indexOf(q) === 0; });
++    }).slice(0, 6);
++    if (!list.length) return close();
++
++    field = el; start = hit.at; items = list; pick = Math.min(pick, list.length - 1);
++    if (!menu) {
++      menu = document.createElement('div');
++      menu.className = 'ia-mention-menu';
++      menu.setAttribute('role', 'listbox');
++      document.body.appendChild(menu);
++      menu.addEventListener('mousedown', function (e) {
++        var row = e.target.closest('[data-i]');
++        if (!row) return;
++        e.preventDefault();
++        choose(parseInt(row.dataset.i, 10));
++      });
++    }
++    menu.innerHTML = list.map(function (p, i) {
++      return '<div class="ia-mention-opt' + (i === pick ? ' on' : '') + '" role="option" data-i="' + i + '">@' + esc(p.name) + '</div>';
++    }).join('');
++    var r = el.getBoundingClientRect();
++    var below = window.innerHeight - r.bottom > 220;
++    menu.style.left = Math.max(8, Math.min(r.left, window.innerWidth - 248)) + 'px';
++    menu.style.top = (below ? r.bottom + 4 : Math.max(8, r.top - 4 - menu.offsetHeight)) + 'px';
++  }
++
++  function choose(i) {
++    var p = items[i];
++    if (!p || !field) return close();
++    var el = field, v = el.value, pos = el.selectionStart;
++    var ins = '@' + p.name + ' ';
++    el.value = v.slice(0, start) + ins + v.slice(pos);
++    var caret = start + ins.length;
++    close();
++    el.setSelectionRange(caret, caret);
++    el.focus();
++    el.dispatchEvent(new Event('input', { bubbles: true })); // character counters
++  }
++
++  document.addEventListener('input', function (e) {
++    var el = e.target;
++    if (!el.matches || !el.matches('[data-mentions]')) return;
++    if (el === field && menu && start >= 0 && el.value.charAt(start) !== '@') { close(); }
++    pick = 0;
++    show(el);
++  });
++
++  document.addEventListener('keydown', function (e) {
++    if (!menu || e.target !== field) return;
++    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
++      e.preventDefault();
++      pick = (pick + (e.key === 'ArrowDown' ? 1 : items.length - 1)) % items.length;
++      show(field);
++    } else if (e.key === 'Enter' || e.key === 'Tab') {
++      e.preventDefault();
++      e.stopImmediatePropagation(); // don't submit the note mid-name
++      choose(pick);
++    } else if (e.key === 'Escape') {
++      e.preventDefault();
++      close();
++    }
++  }, true);
++
++  document.addEventListener('click', function (e) { if (menu && e.target !== field && !menu.contains(e.target)) close(); });
++  document.addEventListener('focusout', function (e) { if (e.target === field) setTimeout(function () { if (document.activeElement !== field) close(); }, 120); });
++  window.addEventListener('resize', close);
++  window.addEventListener('scroll', function () { if (field) show(field); }, true);
++})();
+diff --git a/resources/views/layouts/tenant/_mentions.blade.php b/resources/views/layouts/tenant/_mentions.blade.php
+new file mode 100644
+index 00000000..87a0b1ef
+--- /dev/null
++++ b/resources/views/layouts/tenant/_mentions.blade.php
+@@ -0,0 +1,19 @@
++{{-- MARKER-NOTE-MENTIONS: who can be @mentioned in notes. See public/js/tenant/mentions.js --}}
++@if (auth('tenant')->check() && ($currentTenant ?? null))
++@php
++  $__mp = [];
++  try {
++      foreach (\App\Support\NoteMentions::people($currentTenant) as $__id => $__n) $__mp[] = ['id' => $__id, 'name' => $__n];
++  } catch (\Throwable $e) { $__mp = []; }
++@endphp
++<style>
++  .ia-mention{background:var(--ia-accent-soft, rgba(190,242,100,.14));color:var(--ia-text);font-weight:600;padding:0 3px;border-radius:4px}
++  .ia-mention-menu{position:fixed;z-index:10050;min-width:200px;max-width:240px;padding:4px;border-radius:var(--ia-r-md, 8px);
++    background:var(--ia-surface, #1c1c1f);border:0.5px solid var(--ia-border, rgba(255,255,255,.14));box-shadow:0 10px 30px rgba(0,0,0,.3)}
++  .ia-mention-opt{padding:7px 10px;border-radius:6px;font-size:13px;color:var(--ia-text);cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
++  .ia-mention-opt.on,.ia-mention-opt:hover{background:var(--ia-hover, rgba(255,255,255,.07))}
++  .ia-note:target,.ma-note:target{outline:2px solid var(--ia-accent, #BEF264);outline-offset:4px;border-radius:6px}
++</style>
++<script>window.IntakeMentionPeople = @json($__mp);</script>
++<script src="{{ asset('js/tenant/mentions.js') }}?v={{ filemtime(public_path('js/tenant/mentions.js')) }}" defer></script>
++@endif
+diff --git a/resources/views/layouts/tenant/app.blade.php b/resources/views/layouts/tenant/app.blade.php
+index 1800cba1..17852d2d 100644
+--- a/resources/views/layouts/tenant/app.blade.php
++++ b/resources/views/layouts/tenant/app.blade.php
+@@ -194,6 +194,7 @@
+ 
+ <script src="{{ asset('js/tenant/toast.js') }}?v={{ filemtime(public_path('js/tenant/toast.js')) }}" defer></script>
+ <script src="{{ asset('js/tenant/confirm.js') }}?v={{ filemtime(public_path('js/tenant/confirm.js')) }}" defer></script>
++@include('layouts.tenant._mentions')
+ <script src="{{ asset('js/tenant/admin.js') }}?v={{ filemtime(public_path('js/tenant/admin.js')) }}" defer></script>
+ <script src="{{ asset('js/tenant/sidebar-collapse.js') }}?v={{ filemtime(public_path('js/tenant/sidebar-collapse.js')) }}" defer></script>
+ <script src="{{ asset('js/tenant/mobile-nav.js') }}?v={{ filemtime(public_path('js/tenant/mobile-nav.js')) }}" defer></script>
+diff --git a/resources/views/tenant/_detail_modal.blade.php b/resources/views/tenant/_detail_modal.blade.php
+index 27ee2aa9..687dedcb 100644
+--- a/resources/views/tenant/_detail_modal.blade.php
++++ b/resources/views/tenant/_detail_modal.blade.php
+@@ -451,7 +451,7 @@ var DM = {
+     // Timeline tab (notes + status changes)
+     h += '<div class="dm-tab-content ' + (savedTab === 'dm-tab-notes' ? 'active' : '') + '" id="dm-tab-notes">';
+     h += '<div style="margin-bottom:16px"><div class="dm-row">';
+-    h += '<input type="text" id="dm-note-input" class="dm-input" placeholder="Add a note..." style="flex:1" maxlength="500" onkeydown="if(event.key===\'Enter\'){DM.addApptNote();event.preventDefault()}">';
++    h += '<input type="text" id="dm-note-input" class="dm-input" data-mentions placeholder="Add a note… @ to notify a teammate" style="flex:1" maxlength="500" onkeydown="if(event.key===\'Enter\'){DM.addApptNote();event.preventDefault()}">';
+     h += '<button class="dm-btn dm-btn--primary" onclick="DM.addApptNote()">Add</button>';
+     h += '</div></div>';
+     h += '<div class="dm-timeline" id="dm-notes-list">';
+@@ -465,7 +465,7 @@ var DM = {
+         h += '<div class="dm-tl-head"><span class="dm-tl-author">' + this.esc(n.author) + '</span><span class="dm-tl-time">' + n.created_at + '</span>';
+         if (n.type !== 'system') h += '<button class="dm-tl-delete" onclick="DM.deleteApptNote(\'' + n.id + '\')" title="Delete">&times;</button>';
+         h += '</div>';
+-        h += '<div class="dm-tl-body">' + this.esc(n.note) + '</div></div>';
++        h += '<div class="dm-tl-body">' + (n.html != null ? n.html : this.esc(n.note)) + '</div></div>';
+       }
+     }
+     h += '</div></div>';
+diff --git a/resources/views/tenant/appointments/show-multi-asset.blade.php b/resources/views/tenant/appointments/show-multi-asset.blade.php
+index 040bc7b6..c9620a94 100644
+--- a/resources/views/tenant/appointments/show-multi-asset.blade.php
++++ b/resources/views/tenant/appointments/show-multi-asset.blade.php
+@@ -2374,8 +2374,8 @@ input.ma-asset-name-edit:focus {
+         </div>
+ 
+         <div style="margin-bottom: 14px;">
+-          <textarea id="ma-note-input" rows="3" maxlength="500"
+-            placeholder="Add a note…" class="ia-input"
++          <textarea id="ma-note-input" rows="3" maxlength="500" data-mentions
++            placeholder="Add a note… type @ to notify a teammate" class="ia-input"
+             style="width: 100%; resize: vertical; font-family: inherit;"></textarea>
+           <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 8px;">
+             <label style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ia-text-dim); cursor: pointer;">
+@@ -2393,8 +2393,9 @@ input.ma-asset-name-edit:focus {
+         </div>
+ 
+         <div id="ma-notes-list">
++          @php $mentionPeople = \App\Support\NoteMentions::people($currentTenant ?? tenant()); @endphp
+           @forelse($appointment->notes->sortByDesc('created_at') as $note)
+-            <div class="ma-note {{ $note->note_type === 'system' ? 'ma-note--system' : '' }}" data-note-id="{{ $note->id }}">
++            <div class="ma-note {{ $note->note_type === 'system' ? 'ma-note--system' : '' }}" id="note-{{ $note->id }}" data-note-id="{{ $note->id }}">
+               <div class="ma-note-head">
+                 <span class="ma-note-author">
+                   {{ $note->user?->name ?? ($note->note_type === 'system' ? 'Activity' : 'Staff') }}
+@@ -2411,7 +2412,7 @@ input.ma-asset-name-edit:focus {
+                     title="Delete">&#x2715;</button>
+                 @endif
+               </div>
+-              <div class="ma-note-body">{{ $note->note_content }}</div>
++              <div class="ma-note-body">{!! \App\Support\NoteMentions::html($note->note_content, $mentionPeople) !!}</div>
+             </div>
+           @empty
+             <p class="ma-notes-empty">No notes yet.</p>
+diff --git a/resources/views/tenant/appointments/show.blade.php b/resources/views/tenant/appointments/show.blade.php
+index 9d002837..e831bc09 100644
+--- a/resources/views/tenant/appointments/show.blade.php
++++ b/resources/views/tenant/appointments/show.blade.php
+@@ -1775,8 +1775,8 @@ document.addEventListener('DOMContentLoaded', function () {
+ 
+       <div class="ia-note-add">
+         <textarea id="note-input" rows="3" maxlength="500"
+-          data-maxlength="500" data-counter="note-chars"
+-          placeholder="Add a note…" style="width:100%;border-radius:var(--ia-r-md);border:0.5px solid var(--ia-border);background:var(--ia-input-bg);color:var(--ia-text);padding:8px 10px;font-size:13px;resize:none;font-family:var(--ia-font)"></textarea>
++          data-maxlength="500" data-counter="note-chars" data-mentions
++          placeholder="Add a note… type @ to notify a teammate" style="width:100%;border-radius:var(--ia-r-md);border:0.5px solid var(--ia-border);background:var(--ia-input-bg);color:var(--ia-text);padding:8px 10px;font-size:13px;resize:none;font-family:var(--ia-font)"></textarea>
+         <div class="ia-note-add-footer">
+           <span class="ia-char-count" id="note-chars">500</span>
+           <button type="button" class="ia-btn ia-btn--primary ia-btn--sm" id="note-submit"
+@@ -1788,8 +1788,9 @@ document.addEventListener('DOMContentLoaded', function () {
+       </div>
+ 
+       <div class="ia-notes" id="notes-list">
++        @php $mentionPeople = \App\Support\NoteMentions::people($currentTenant ?? tenant()); @endphp
+         @forelse($appointment->notes->sortByDesc('created_at') as $note)
+-          <div class="ia-note" data-note-id="{{ $note->id }}">
++          <div class="ia-note" id="note-{{ $note->id }}" data-note-id="{{ $note->id }}">
+             <div class="ia-note-head">
+               <span class="ia-note-author">
+                 {{ $note->user?->name ?? ($note->note_type === 'system' ? 'System' : 'Staff') }}
+@@ -1803,7 +1804,7 @@ document.addEventListener('DOMContentLoaded', function () {
+                   title="Delete">&#x2715;</button>
+               @endif
+             </div>
+-            <div class="ia-note-body">{{ $note->note_content }}</div>
++            <div class="ia-note-body">{!! \App\Support\NoteMentions::html($note->note_content, $mentionPeople) !!}</div>
+           </div>
+         @empty
+           <p class="ia-notes-empty" style="font-size:13px;opacity:.4">No notes yet.</p>
+@@ -2269,13 +2270,14 @@ document.addEventListener('keydown', function (e) {
+           var el = document.createElement('div');
+           el.className = 'ia-note';
+           el.setAttribute('data-note-id', resp.id);
++          el.id = 'note-' + resp.id;
+           el.innerHTML =
+             '<div class="ia-note-head">' +
+               '<span class="ia-note-author">' + esc(resp.author) + '</span>' +
+               '<span class="ia-note-time">' + esc(resp.created_at) + '</span>' +
+               '<button type="button" class="ia-note-delete" data-note-id="' + resp.id + '" title="Delete">&#x2715;</button>' +
+             '</div>' +
+-            '<div class="ia-note-body">' + esc(resp.note) + '</div>';
++            '<div class="ia-note-body">' + (resp.html != null ? resp.html : esc(resp.note)) + '</div>';
+           notesList.insertBefore(el, notesList.firstChild);
+           bindDeleteOnEl(el.querySelector('.ia-note-delete'));
+ 

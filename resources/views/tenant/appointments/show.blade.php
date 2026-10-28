@@ -1775,8 +1775,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
       <div class="ia-note-add">
         <textarea id="note-input" rows="3" maxlength="500"
-          data-maxlength="500" data-counter="note-chars"
-          placeholder="Add a note…" style="width:100%;border-radius:var(--ia-r-md);border:0.5px solid var(--ia-border);background:var(--ia-input-bg);color:var(--ia-text);padding:8px 10px;font-size:13px;resize:none;font-family:var(--ia-font)"></textarea>
+          data-maxlength="500" data-counter="note-chars" data-mentions
+          placeholder="Add a note… type @ to notify a teammate" style="width:100%;border-radius:var(--ia-r-md);border:0.5px solid var(--ia-border);background:var(--ia-input-bg);color:var(--ia-text);padding:8px 10px;font-size:13px;resize:none;font-family:var(--ia-font)"></textarea>
         <div class="ia-note-add-footer">
           <span class="ia-char-count" id="note-chars">500</span>
           <button type="button" class="ia-btn ia-btn--primary ia-btn--sm" id="note-submit"
@@ -1788,8 +1788,9 @@ document.addEventListener('DOMContentLoaded', function () {
       </div>
 
       <div class="ia-notes" id="notes-list">
+        @php $mentionPeople = \App\Support\NoteMentions::people($currentTenant ?? tenant()); @endphp
         @forelse($appointment->notes->sortByDesc('created_at') as $note)
-          <div class="ia-note" data-note-id="{{ $note->id }}">
+          <div class="ia-note" id="note-{{ $note->id }}" data-note-id="{{ $note->id }}">
             <div class="ia-note-head">
               <span class="ia-note-author">
                 {{ $note->user?->name ?? ($note->note_type === 'system' ? 'System' : 'Staff') }}
@@ -1803,7 +1804,7 @@ document.addEventListener('DOMContentLoaded', function () {
                   title="Delete">&#x2715;</button>
               @endif
             </div>
-            <div class="ia-note-body">{{ $note->note_content }}</div>
+            <div class="ia-note-body">{!! \App\Support\NoteMentions::html($note->note_content, $mentionPeople) !!}</div>
           </div>
         @empty
           <p class="ia-notes-empty" style="font-size:13px;opacity:.4">No notes yet.</p>
@@ -2269,13 +2270,14 @@ document.addEventListener('keydown', function (e) {
           var el = document.createElement('div');
           el.className = 'ia-note';
           el.setAttribute('data-note-id', resp.id);
+          el.id = 'note-' + resp.id;
           el.innerHTML =
             '<div class="ia-note-head">' +
               '<span class="ia-note-author">' + esc(resp.author) + '</span>' +
               '<span class="ia-note-time">' + esc(resp.created_at) + '</span>' +
               '<button type="button" class="ia-note-delete" data-note-id="' + resp.id + '" title="Delete">&#x2715;</button>' +
             '</div>' +
-            '<div class="ia-note-body">' + esc(resp.note) + '</div>';
+            '<div class="ia-note-body">' + (resp.html != null ? resp.html : esc(resp.note)) + '</div>';
           notesList.insertBefore(el, notesList.firstChild);
           bindDeleteOnEl(el.querySelector('.ia-note-delete'));
 

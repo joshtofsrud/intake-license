@@ -2374,8 +2374,8 @@ input.ma-asset-name-edit:focus {
         </div>
 
         <div style="margin-bottom: 14px;">
-          <textarea id="ma-note-input" rows="3" maxlength="500"
-            placeholder="Add a note…" class="ia-input"
+          <textarea id="ma-note-input" rows="3" maxlength="500" data-mentions
+            placeholder="Add a note… type @ to notify a teammate" class="ia-input"
             style="width: 100%; resize: vertical; font-family: inherit;"></textarea>
           <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 8px;">
             <label style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ia-text-dim); cursor: pointer;">
@@ -2393,8 +2393,9 @@ input.ma-asset-name-edit:focus {
         </div>
 
         <div id="ma-notes-list">
+          @php $mentionPeople = \App\Support\NoteMentions::people($currentTenant ?? tenant()); @endphp
           @forelse($appointment->notes->sortByDesc('created_at') as $note)
-            <div class="ma-note {{ $note->note_type === 'system' ? 'ma-note--system' : '' }}" data-note-id="{{ $note->id }}">
+            <div class="ma-note {{ $note->note_type === 'system' ? 'ma-note--system' : '' }}" id="note-{{ $note->id }}" data-note-id="{{ $note->id }}">
               <div class="ma-note-head">
                 <span class="ma-note-author">
                   {{ $note->user?->name ?? ($note->note_type === 'system' ? 'Activity' : 'Staff') }}
@@ -2411,7 +2412,7 @@ input.ma-asset-name-edit:focus {
                     title="Delete">&#x2715;</button>
                 @endif
               </div>
-              <div class="ma-note-body">{{ $note->note_content }}</div>
+              <div class="ma-note-body">{!! \App\Support\NoteMentions::html($note->note_content, $mentionPeople) !!}</div>
             </div>
           @empty
             <p class="ma-notes-empty">No notes yet.</p>

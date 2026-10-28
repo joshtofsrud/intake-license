@@ -451,7 +451,7 @@ var DM = {
     // Timeline tab (notes + status changes)
     h += '<div class="dm-tab-content ' + (savedTab === 'dm-tab-notes' ? 'active' : '') + '" id="dm-tab-notes">';
     h += '<div style="margin-bottom:16px"><div class="dm-row">';
-    h += '<input type="text" id="dm-note-input" class="dm-input" placeholder="Add a note..." style="flex:1" maxlength="500" onkeydown="if(event.key===\'Enter\'){DM.addApptNote();event.preventDefault()}">';
+    h += '<input type="text" id="dm-note-input" class="dm-input" data-mentions placeholder="Add a note… @ to notify a teammate" style="flex:1" maxlength="500" onkeydown="if(event.key===\'Enter\'){DM.addApptNote();event.preventDefault()}">';
     h += '<button class="dm-btn dm-btn--primary" onclick="DM.addApptNote()">Add</button>';
     h += '</div></div>';
     h += '<div class="dm-timeline" id="dm-notes-list">';
@@ -465,7 +465,7 @@ var DM = {
         h += '<div class="dm-tl-head"><span class="dm-tl-author">' + this.esc(n.author) + '</span><span class="dm-tl-time">' + n.created_at + '</span>';
         if (n.type !== 'system') h += '<button class="dm-tl-delete" onclick="DM.deleteApptNote(\'' + n.id + '\')" title="Delete">&times;</button>';
         h += '</div>';
-        h += '<div class="dm-tl-body">' + this.esc(n.note) + '</div></div>';
+        h += '<div class="dm-tl-body">' + (n.html != null ? n.html : this.esc(n.note)) + '</div></div>';
       }
     }
     h += '</div></div>';

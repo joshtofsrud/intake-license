@@ -386,7 +386,7 @@ class AppointmentController extends Controller
 
         // Persist staff notes via TenantAppointmentNote — same as old flow.
         if (!empty($data['staff_notes'])) {
-            \App\Models\Tenant\TenantAppointmentNote::create([
+            $staffNote = \App\Models\Tenant\TenantAppointmentNote::create([
                 'appointment_id'      => $appointment->id,
                 'user_id'             => Auth::guard('tenant')->id(),
                 'note_type'           => 'manual',
@@ -394,6 +394,8 @@ class AppointmentController extends Controller
                 'note_content'        => $data['staff_notes'],
                 'created_at'          => now(),
             ]);
+            // MARKER-NOTE-MENTIONS
+            \App\Support\NoteMentions::notifyForAppointment(tenant(), $appointment, $staffNote, Auth::guard('tenant')->user());
         }
 
         if ($request->expectsJson()) {
@@ -777,7 +779,7 @@ class AppointmentController extends Controller
         $tenant = tenant();
         $appointment = \App\Models\Tenant\TenantAppointment::where('tenant_id', $tenant->id)
             ->where('id', $id)
-            ->with(['items', 'addons', 'parts.inventoryItem', 'parts.specialOrder', 'notes', 'charges', 'customer', 'workOrderResponses', 'workOrderFields', 'payments.registerSale', 'sales'])
+            ->with(['items', 'addons', 'parts.inventoryItem', 'parts.specialOrder', 'notes.user', 'charges', 'customer', 'workOrderResponses', 'workOrderFields', 'payments.registerSale', 'sales'])
             ->firstOrFail();
 
         $transitions = AppointmentStatus::TRANSITIONS[$appointment->status] ?? [];
@@ -968,7 +970,7 @@ class AppointmentController extends Controller
         $tenant = tenant();
         $appointment = \App\Models\Tenant\TenantAppointment::where('tenant_id', $tenant->id)
             ->where('id', $id)
-            ->with(['items', 'addons', 'parts', 'workOrderResponses.field', 'notes', 'customer'])
+            ->with(['items', 'addons', 'parts', 'workOrderResponses.field', 'notes.user', 'customer'])
             ->firstOrFail();
 
         $identifierField = \App\Models\Tenant\TenantWorkOrderField::where('tenant_id', $tenant->id)
@@ -1135,6 +1137,7 @@ class AppointmentController extends Controller
 
         $transitions = AppointmentStatus::TRANSITIONS[$appointment->status] ?? [];
 
+        $mentionPeople = \App\Support\NoteMentions::people(tenant()); // MARKER-NOTE-MENTIONS
         return response()->json([
             'ok' => true,
             'appointment' => [
@@ -1169,7 +1172,7 @@ class AppointmentController extends Controller
                 'total_duration_minutes' => $appointment->total_duration_minutes,
                 ...$this->appointmentLineItems($appointment),
                 'charges' => $appointment->charges->map(fn($c) => ['id' => $c->id, 'description' => $c->description, 'amount' => format_money($c->amount_cents), 'is_paid' => $c->is_paid, 'date' => \Carbon\Carbon::parse($c->created_at)->format('M j')]),
-                'notes' => $appointment->notes->sortByDesc('created_at')->values()->map(fn($n) => ['id' => $n->id, 'note' => $n->note_content, 'author' => $n->user?->name ?? ($n->note_type === 'system' ? 'System' : 'Staff'), 'type' => $n->note_type, 'created_at' => tlocal($n->created_at, 'M j, g:i a') ]),
+                'notes' => $appointment->notes->sortByDesc('created_at')->values()->map(fn($n) => ['id' => $n->id, 'note' => $n->note_content, 'html' => \App\Support\NoteMentions::html($n->note_content, $mentionPeople), 'author' => $n->user?->name ?? ($n->note_type === 'system' ? 'System' : 'Staff'), 'type' => $n->note_type, 'created_at' => tlocal($n->created_at, 'M j, g:i a') ]),
                 'work_order_responses' => $appointment->workOrderResponses
                     ->filter(fn($r) => $r->field !== null)
                     ->map(fn($r) => [
@@ -1715,7 +1718,10 @@ class AppointmentController extends Controller
             $isCustomerVisible = (bool) $request->input('is_customer_visible', false);
             $n = TenantAppointmentNote::create(['appointment_id' => $appointment->id, 'user_id' => Auth::guard('tenant')->id(), 'note_type' => 'staff', 'is_customer_visible' => $isCustomerVisible, 'note_content' => $note, 'created_at' => now()]);
             $user = Auth::guard('tenant')->user();
-            return response()->json(['ok' => true, 'id' => $n->id, 'note' => $n->note_content, 'author' => $user->name, 'created_at' => $n->created_at->format('M j, g:i a')]);
+            // MARKER-NOTE-MENTIONS: @someone gets it in their bell
+            $mentioned = \App\Support\NoteMentions::notifyForAppointment($tenant, $appointment, $n, $user);
+            return response()->json(['ok' => true, 'id' => $n->id, 'note' => $n->note_content, 'author' => $user->name, 'created_at' => tlocal($n->created_at, 'M j, g:i a'), // shop time, like the list it joins
+                'html' => \App\Support\NoteMentions::html($n->note_content, \App\Support\NoteMentions::people($tenant)), 'mentioned' => count($mentioned)]);
         }
         if ($op === 'save_work_order') {
             $values = $request->input('values', []);
