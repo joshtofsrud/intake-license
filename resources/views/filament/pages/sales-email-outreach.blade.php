@@ -227,7 +227,7 @@
     <div class="eo-legend" x-data="{ more: false }">
         <b>Sends when you press Send, or on its own while auto-send is on,</b> from Intake's platform address, with an unsubscribe link and your postal address. Addresses that unsubscribed, bounced or complained never appear. <b>Not affected:</b> tenant emails (receipts, bookings), Instagram follows, campaigns.
         <button type="button" x-on:click="more = ! more" x-text="more ? 'Less' : 'More'">More</button>
-        <div x-show="more" x-cloak style="margin-top:6px"><b>[link]</b> becomes that shop's own link to the page you pick, so their visit shows on their timeline with the pages they looked at. Your template, landing page and filters are remembered. Visits while you're signed in to master admin aren't recorded, so test a link in a private window. <b>Send test to me</b> sends this email only to you, with a link that carries no tracking code. The signature is set on Email templates › Signature. {{ ['new' => "The queue is shops with an email address that haven't been emailed.", 'again' => 'The queue is shops you emailed before; "Longest since emailed" is a sort option.', 'all' => 'The queue is every shop with an email address.'][$who] ?? '' }}</div>
+        <div x-show="more" x-cloak style="margin-top:6px"><b>[link]</b> becomes that shop's own link to the page you pick, so their visit shows on their timeline with the pages they looked at. Your template, landing page and filters are remembered. Visits while you're signed in to master admin aren't recorded, so test a link in a private window. <b>Send test</b> sends this email only to you (marked [Test]), or to the address you type beside it, such as a spam checker like mail-tester.com or your own Gmail and Outlook inboxes, exactly as a shop would get it. Its link carries no tracking code and the shop stays in the queue. The signature is set on Email templates › Signature. {{ ['new' => "The queue is shops with an email address that haven't been emailed.", 'again' => 'The queue is shops you emailed before; "Longest since emailed" is a sort option.', 'all' => 'The queue is every shop with an email address.'][$who] ?? '' }}</div>
     </div>
 
     <div class="eo-cols">
@@ -289,7 +289,11 @@
                 <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:16px">
                     <button type="button" class="sx-btn p big" data-eo-send wire:click="send" wire:loading.attr="disabled" wire:target="send">Send to {{ $cur->email }}</button>
                     <button type="button" class="sx-btn" data-eo-skip wire:click="skip" wire:loading.attr="disabled">Skip</button>
-                    <button type="button" class="sx-btn" wire:click="sendTest" wire:loading.attr="disabled" title="Sends this email only to you, marked [Test]. The shop stays in the queue.">Send test to me</button>
+                    {{-- MARKER-OUTREACH-TEST-TO --}}
+                    <span style="display:inline-flex;gap:6px;align-items:center">
+                        <input type="email" class="sx-in" style="width:210px" wire:model="testTo" placeholder="Test to: {{ auth()->user()?->email }}" aria-label="Send a test to this address" title="Blank sends it to you, marked [Test]. Any other address (a spam checker like mail-tester.com, or your own Gmail or Outlook) gets it exactly as a shop would, without [Test]. The shop stays in the queue either way.">
+                        <button type="button" class="sx-btn" wire:click="sendTest" wire:loading.attr="disabled">Send test</button>
+                    </span>
                     <button type="button" class="sx-btn" wire:click="wrongEmail" wire:loading.attr="disabled">Wrong email</button>
                 </div>
                 <div class="ig-keys"><kbd>Ctrl</kbd>/<kbd>⌘</kbd> + <kbd>Enter</kbd> send · <kbd>S</kbd> skip</div>

@@ -385,6 +385,9 @@ class SalesEmailOutreach extends Page
         $this->loadNext();
     }
 
+    /** MARKER-OUTREACH-TEST-TO: where a test goes; blank = you. Not remembered. */
+    public string $testTo = '';
+
     /** MARKER-OUTREACH-TEST-SIG: the same email, only to you. The shop stays in the queue. */
     public function sendTest(): void
     {
@@ -394,7 +397,7 @@ class SalesEmailOutreach extends Page
             ['subject' => ['required', 'string', 'max:191'], 'body' => ['required', 'string', 'max:10000']],
             ['subject.required' => 'Add a subject.', 'body.required' => 'Write the message.']
         );
-        [$ok, $msg] = ProspectOutreach::sendTest($p, $this->subject, $this->body, $this->landing);
+        [$ok, $msg] = ProspectOutreach::sendTest($p, $this->subject, $this->body, $this->landing, trim($this->testTo) ?: null);
         Notification::make()->title($msg)->{$ok ? 'success' : 'warning'}()->send();
     }
 

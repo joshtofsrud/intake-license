@@ -272,15 +272,23 @@ class ProspectOutreach
     }
 
     /** Send the email only to the signed-in admin. Nothing is logged and the shop isn't touched. */
-    public static function sendTest(SalesProspect $p, string $subject, string $body, ?string $page): array
+    public static function sendTest(SalesProspect $p, string $subject, string $body, ?string $page, ?string $toAddress = null): array
     {
         $u = Auth::guard('web')->user();
-        $to = mb_strtolower(trim((string) ($u?->email ?? '')));
-        if (! filter_var($to, FILTER_VALIDATE_EMAIL)) return [false, 'Your admin account has no email address'];
+        $mine = mb_strtolower(trim((string) ($u?->email ?? '')));
+        // MARKER-OUTREACH-TEST-TO: any address (a spam checker such as
+        // mail-tester, or your own Gmail/Outlook inboxes to see where it lands).
+        // Sent to someone else it carries no [Test] tag, so it's judged exactly
+        // like the real email. Never counted as outreach; the queue is untouched.
+        $to = mb_strtolower(trim((string) $toAddress)) ?: $mine;
+        if (! filter_var($to, FILTER_VALIDATE_EMAIL)) {
+            return [false, $toAddress ? 'That isn\'t an email address' : 'Your admin account has no email address'];
+        }
+        $toSelf = $to === $mine;
         $subject = self::subject($subject, $p);
         if ($subject === '') return [false, 'Add a subject'];
         try {
-            $ok = PlatformMailer::send($to, $u?->name ?: null, '[Test] ' . $subject, self::html($body, $p, $page, $to, true),
+            $ok = PlatformMailer::send($to, $toSelf ? ($u?->name ?: null) : null, ($toSelf ? '[Test] ' : '') . $subject, self::html($body, $p, $page, $to, true),
                 \App\Http\Controllers\Platform\PlatformUnsubscribeController::url($to));
         } catch (\Throwable $e) {
             report($e);
