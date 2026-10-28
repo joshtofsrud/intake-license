@@ -172,6 +172,19 @@ class SalesEmailOutreach extends Page
         ]);
     }
 
+    /** MARKER-OUTREACH-SCANNERS: what happened after each send, same filters as the results. */
+    public function afterSends(): array
+    {
+        return \App\Services\Sales\OutreachResults::afterSends([
+            'industry' => $this->rIndustry,
+            'template' => $this->rTemplate,
+            'days'     => in_array($this->rDays, ['today', '7', '30', '90', 'all', 'custom'], true) ? $this->rDays : '30',
+            'from'     => $this->rFrom,
+            'to'       => $this->rTo,
+            'tz'       => self::TZ,
+        ]);
+    }
+
     // ---------------------------------------------------------------- the queue
 
     private static function dayStart()

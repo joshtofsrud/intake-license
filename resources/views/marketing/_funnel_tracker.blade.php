@@ -110,6 +110,36 @@
   });
   window.addEventListener('pagehide', exit);
 
+  // MARKER-OUTREACH-SCANNERS: email security filters open every link in a
+  // hidden browser and run this script, but nobody moves a mouse there. For a
+  // visit that came from an outreach email, say once when a person actually
+  // moves, scrolls, taps or types. Nothing about where or what is sent.
+  var OUT = 'intake_mkt_out';
+  try { if (params.get('utm_source') === 'outreach') sessionStorage.setItem(OUT, '1'); } catch (e) {}
+  var fromOutreach = false;
+  try { fromOutreach = sessionStorage.getItem(OUT) === '1'; } catch (e) {}
+  if (fromOutreach) {
+    var moves = 0, lastXY = '', told = false;
+    var evs = ['pointermove', 'touchstart', 'keydown', 'wheel'];
+    var tell = function () {
+      if (told || ! shown) { return; }
+      told = true;
+      evs.forEach(function (n) { window.removeEventListener(n, onAct, true); });
+      send('interact');
+    };
+    var onAct = function (e) {
+      if (! e.isTrusted) { return; }
+      if (e.type === 'pointermove') {
+        var xy = e.clientX + ',' + e.clientY;
+        if (xy === lastXY) { return; }
+        lastXY = xy;
+        if (++moves < 3) { return; } // a real hand moves; one synthetic jump doesn't count
+      }
+      tell();
+    };
+    evs.forEach(function (n) { window.addEventListener(n, onAct, { capture: true, passive: true }); });
+  }
+
   // Pricing is the clearest intent signal the marketing site has today.
   if (/^\/pricing/.test(window.location.pathname)) {
     whenShown(function () { send('pricing_viewed'); });

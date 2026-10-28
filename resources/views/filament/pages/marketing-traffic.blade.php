@@ -156,7 +156,7 @@
     page views, pricing views, clicks, exits.
     Recorded by the server when it happens (always right): messages sent, quiz completions,
     demo entries, booked calls, accounts created.
-    Crawler traffic is excluded everywhere on this page.
+    Crawler traffic is excluded everywhere on this page, and so are email filters checking the links in outreach emails (see Email outreach › Results › After each send).{{-- MARKER-OUTREACH-SCANNERS --}}
   </div>
 </div>
 

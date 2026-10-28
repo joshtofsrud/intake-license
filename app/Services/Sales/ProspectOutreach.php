@@ -10,8 +10,8 @@
 // The link is intake.works/<page>?p=<code>. OutreachLink turns that into a
 // cookie and a clean URL; the marketing tracker's beacons then carry the cookie,
 // and recordVisit() writes what the shop looked at onto its timeline. Only
-// browsers that run the tracker count, so mail scanners that pre-open links
-// don't show up as visits.
+// browsers that run the tracker count; the mail filters that run it too are
+// told apart by OutreachVisitJudge (MARKER-OUTREACH-SCANNERS).
 
 namespace App\Services\Sales;
 
@@ -455,10 +455,11 @@ class ProspectOutreach
      * Called by the marketing tracker endpoint for each beacon. $code comes from
      * the mkt_p cookie OutreachLink set when the shop opened its link.
      */
-    public static function recordVisit(string $code, string $sessionId, string $eventType, ?string $path, ?string $device): void
+    public static function recordVisit(string $code, string $sessionId, string $eventType, ?string $path, ?string $device, ?string $ip = null): void
     {
         if (! preg_match('/^[a-z0-9]{8}$/', $code) || $sessionId === '') return;
-        if (! in_array($eventType, ['page_view', 'page_exit', 'cta_click'], true)) return;
+        // MARKER-OUTREACH-SCANNERS: 'interact' = a person moved, scrolled, tapped or typed
+        if (! in_array($eventType, ['page_view', 'page_exit', 'cta_click', 'interact'], true)) return;
 
         $p = SalesProspect::where('outreach_code', $code)->first();
         if (! $p) return;
@@ -470,40 +471,42 @@ class ProspectOutreach
 
         if (! $v) {
             if ($eventType !== 'page_view') return;
-            $activity = $p->activities()->create(['type' => 'visit', 'body' => 'From their email link', 'occurred_at' => now()]);
+            // the email it followed: filters open links within a minute or two of delivery
+            $sent = DB::table('sales_outreach_sends')->where('sales_prospect_id', $p->id)->where('created_at', '<=', now())->max('created_at');
             $id = DB::table('sales_prospect_visits')->insertGetId([
                 'sales_prospect_id' => $p->id,
                 'session_id'        => mb_substr($sessionId, 0, 64),
-                'activity_id'       => $activity->id,
+                'activity_id'       => null, // written once it's judged a person (OutreachVisitJudge)
                 'paths'             => json_encode([]),
                 'pages'             => 0,
                 'device'            => $device ? mb_substr($device, 0, 12) : null,
                 'first_at'          => now(),
                 'last_at'           => now(),
+                'sent_at'           => $sent,
+                'secs_after_send'   => $sent ? now()->getTimestamp() - \Illuminate\Support\Carbon::parse($sent)->getTimestamp() : null,
+                'verdict'           => 'unsure',
             ]);
             $v = DB::table('sales_prospect_visits')->where('id', $id)->first();
-            if (! $p->link_clicked_at) $p->forceFill(['link_clicked_at' => now()])->save();
+            if ($ip) \App\Jobs\ClassifyOutreachVisit::dispatch($id, $ip);
         }
 
-        $paths = json_decode((string) $v->paths, true) ?: [];
-        $pages = (int) $v->pages;
-        if ($eventType === 'page_view') {
-            $path = '/' . ltrim((string) $path, '/');
-            if (end($paths) !== $path) $paths[] = $path;
-            $pages++;
+        $upd = ['last_at' => now()];
+        if ($eventType === 'interact') {
+            if (! $v->interacted_at) $upd['interacted_at'] = now();
+        } else {
+            $paths = json_decode((string) $v->paths, true) ?: [];
+            $pages = (int) $v->pages;
+            if ($eventType === 'page_view') {
+                $path = '/' . ltrim((string) $path, '/');
+                if (end($paths) !== $path) $paths[] = $path;
+                $pages++;
+            }
+            $upd['paths'] = json_encode(array_slice($paths, -12));
+            $upd['pages'] = $pages;
         }
-        $paths = array_slice($paths, -12);
-        DB::table('sales_prospect_visits')->where('id', $v->id)->update([
-            'paths' => json_encode($paths), 'pages' => $pages, 'last_at' => now(),
-        ]);
+        DB::table('sales_prospect_visits')->where('id', $v->id)->update($upd);
 
-        if ($v->activity_id) {
-            $secs = max(0, now()->getTimestamp() - \Illuminate\Support\Carbon::parse($v->first_at)->getTimestamp());
-            $dur  = $secs < 60 ? $secs . 's' : intdiv($secs, 60) . 'm' . ($secs % 60 ? ' ' . ($secs % 60) . 's' : '');
-            $dev  = ['mobile' => 'phone', 'tablet' => 'tablet', 'desktop' => 'computer'][$v->device] ?? null;
-            $body = 'From their email link: ' . implode(' → ', array_map([self::class, 'pageLabel'], $paths))
-                . ' · ' . $pages . ' ' . ($pages === 1 ? 'page' : 'pages') . ' · ' . $dur . ($dev ? ' · ' . $dev : '');
-            \App\Models\SalesActivity::whereKey($v->activity_id)->update(['body' => mb_substr($body, 0, 1000)]);
-        }
+        // person or filter, and the timeline, "clicked" and traffic that follow from it
+        OutreachVisitJudge::rejudgeProspect((string) $p->id);
     }
 }

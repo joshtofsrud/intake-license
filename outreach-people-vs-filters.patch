@@ -1,0 +1,733 @@
+diff --git a/app/Filament/Pages/SalesEmailOutreach.php b/app/Filament/Pages/SalesEmailOutreach.php
+index 93c50592..b22e3a48 100644
+--- a/app/Filament/Pages/SalesEmailOutreach.php
++++ b/app/Filament/Pages/SalesEmailOutreach.php
+@@ -172,6 +172,19 @@ class SalesEmailOutreach extends Page
+         ]);
+     }
+ 
++    /** MARKER-OUTREACH-SCANNERS: what happened after each send, same filters as the results. */
++    public function afterSends(): array
++    {
++        return \App\Services\Sales\OutreachResults::afterSends([
++            'industry' => $this->rIndustry,
++            'template' => $this->rTemplate,
++            'days'     => in_array($this->rDays, ['today', '7', '30', '90', 'all', 'custom'], true) ? $this->rDays : '30',
++            'from'     => $this->rFrom,
++            'to'       => $this->rTo,
++            'tz'       => self::TZ,
++        ]);
++    }
++
+     // ---------------------------------------------------------------- the queue
+ 
+     private static function dayStart()
+diff --git a/app/Http/Controllers/Platform/MarketingFunnelController.php b/app/Http/Controllers/Platform/MarketingFunnelController.php
+index e1fdd327..a9c3fc22 100644
+--- a/app/Http/Controllers/Platform/MarketingFunnelController.php
++++ b/app/Http/Controllers/Platform/MarketingFunnelController.php
+@@ -52,6 +52,20 @@ class MarketingFunnelController extends Controller
+             'step'         => ['nullable', 'string', 'max:48'],
+         ]);
+ 
++        // MARKER-OUTREACH-SCANNERS: a person moved, scrolled, tapped or typed on
++        // a page they reached from their email link. Only the outreach visit
++        // uses it; it isn't a traffic event.
++        if ($data['event_type'] === 'interact') {
++            try {
++                if (! auth('web')->check()) {
++                    \App\Services\Sales\ProspectOutreach::recordVisit((string) $request->cookie('mkt_p', ''), $this->resolveSession($request), 'interact', null, null);
++                }
++            } catch (\Throwable $e) {
++                report($e);
++            }
++            return response()->json(['ok' => true]);
++        }
++
+         if (! in_array($data['event_type'], self::ALLOWED, true)) {
+             return response()->json(['ok' => false], 204);
+         }
+@@ -85,7 +99,7 @@ class MarketingFunnelController extends Controller
+         // link (mkt_p cookie). Staff signed in to master admin aren't counted.
+         try {
+             if (! auth('web')->check()) {
+-                \App\Services\Sales\ProspectOutreach::recordVisit((string) $request->cookie('mkt_p', ''), (string) $data['session_id'], (string) $data['event_type'], $data['path'] ?? null, $data['device'] ?? null);
++                \App\Services\Sales\ProspectOutreach::recordVisit((string) $request->cookie('mkt_p', ''), (string) $data['session_id'], (string) $data['event_type'], $data['path'] ?? null, $data['device'] ?? null, $request->ip());
+             }
+         } catch (\Throwable $e) {
+             report($e);
+diff --git a/app/Jobs/ClassifyOutreachVisit.php b/app/Jobs/ClassifyOutreachVisit.php
+new file mode 100644
+index 00000000..40901d85
+--- /dev/null
++++ b/app/Jobs/ClassifyOutreachVisit.php
+@@ -0,0 +1,33 @@
++<?php
++
++namespace App\Jobs;
++
++use App\Services\Sales\OutreachVisitJudge;
++use Illuminate\Bus\Queueable;
++use Illuminate\Contracts\Queue\ShouldQueue;
++use Illuminate\Foundation\Bus\Dispatchable;
++use Illuminate\Queue\InteractsWithQueue;
++use Illuminate\Support\Facades\DB;
++
++/**
++ * MARKER-OUTREACH-SCANNERS: look up which network an email-link visit came
++ * from (reverse DNS can take seconds, so not in the request), keep only that
++ * name, and judge the visit again. The address lives only in this job.
++ */
++class ClassifyOutreachVisit implements ShouldQueue
++{
++    use Dispatchable, InteractsWithQueue, Queueable;
++
++    public int $tries = 1;
++    public int $timeout = 30;
++
++    public function __construct(public int $visitId, public string $ip) {}
++
++    public function handle(): void
++    {
++        $v = DB::table('sales_prospect_visits')->where('id', $this->visitId)->first(['id', 'sales_prospect_id']);
++        if (! $v) return;
++        DB::table('sales_prospect_visits')->where('id', $v->id)->update(['network' => OutreachVisitJudge::networkOf($this->ip)]);
++        OutreachVisitJudge::rejudgeProspect((string) $v->sales_prospect_id);
++    }
++}
+diff --git a/app/Services/Sales/OutreachResults.php b/app/Services/Sales/OutreachResults.php
+index 9c7af052..aa2191b1 100644
+--- a/app/Services/Sales/OutreachResults.php
++++ b/app/Services/Sales/OutreachResults.php
+@@ -7,7 +7,8 @@
+ // campaigns from Platform email are not in here.
+ //
+ //   opened   the email provider saw an open or a click (thread meta)
+-//   visited  the shop opened its own link after the email (sales_prospect_visits)
++//   visited  a person at the shop opened its own link after the email
++//            (sales_prospect_visits judged 'person'; mail filters don't count)
+ //   replied  a real answer came back into the Platform inbox on that thread
+ //            (MARKER-AUTO-REPLY: help-desk receipts and out-of-office don't count)
+ //   demo     the shop reached Demo booked, Demo done or Trial after the email
+@@ -33,23 +34,7 @@ class OutreachResults
+     {
+         $industry = (string) ($f['industry'] ?? '');
+         $template = (string) ($f['template'] ?? '');
+-        $days     = (string) ($f['days'] ?? '30');
+-        $tz       = (string) ($f['tz'] ?? 'America/Los_Angeles');
+-        $until    = null;
+-
+-        // MARKER-OUTREACH-RANGE: Today is the local calendar day, and a custom
+-        // range runs from the start of its first day to the end of its last.
+-        $dayOf = fn (?string $d) => $d && preg_match('/^\d{4}-\d{2}-\d{2}$/', $d) ? CarbonImmutable::createFromFormat('Y-m-d', $d, $tz) : null;
+-        if ($days === 'today') {
+-            $since = CarbonImmutable::now($tz)->startOfDay();
+-        } elseif ($days === 'custom' && ($a = $dayOf($f['from'] ?? null))) {
+-            $b     = $dayOf($f['to'] ?? null) ?? $a;
+-            [$a, $b] = $a->greaterThan($b) ? [$b, $a] : [$a, $b];
+-            $since = $a->startOfDay();
+-            $until = $b->endOfDay();
+-        } else {
+-            $since = $days === 'all' ? null : now()->subDays(max(1, (int) $days));
+-        }
++        [$since, $until] = self::window($f);
+ 
+         $all = self::sends($industry, $template, null);        // every matching send, for follow-ups and the chart
+         $rows = ($since || $until)
+@@ -83,6 +68,114 @@ class OutreachResults
+         ];
+     }
+ 
++    /** The time window the filters ask for: [since|null, until|null]. */
++    private static function window(array $f): array
++    {
++        $days     = (string) ($f['days'] ?? '30');
++        $tz       = (string) ($f['tz'] ?? 'America/Los_Angeles');
++        $until    = null;
++
++        // MARKER-OUTREACH-RANGE: Today is the local calendar day, and a custom
++        // range runs from the start of its first day to the end of its last.
++        $dayOf = fn (?string $d) => $d && preg_match('/^\d{4}-\d{2}-\d{2}$/', $d) ? CarbonImmutable::createFromFormat('Y-m-d', $d, $tz) : null;
++        if ($days === 'today') {
++            $since = CarbonImmutable::now($tz)->startOfDay();
++        } elseif ($days === 'custom' && ($a = $dayOf($f['from'] ?? null))) {
++            $b     = $dayOf($f['to'] ?? null) ?? $a;
++            [$a, $b] = $a->greaterThan($b) ? [$b, $a] : [$a, $b];
++            $since = $a->startOfDay();
++            $until = $b->endOfDay();
++        } else {
++            $since = $days === 'all' ? null : now()->subDays(max(1, (int) $days));
++        }
++
++
++        return [$since, $until];
++    }
++
++    /**
++     * MARKER-OUTREACH-SCANNERS: what happened after each batch of sends (sends
++     * less than 45 minutes apart are one batch): who actually looked, and how
++     * many link checks by mail filters there were. Newest first.
++     */
++    public static function afterSends(array $f, int $limit = 12): array
++    {
++        [$since, $until] = self::window($f);
++        $rows = self::sends((string) ($f['industry'] ?? ''), (string) ($f['template'] ?? ''), null)
++            ->filter(fn ($r) => (! $since || $r->at->greaterThanOrEqualTo($since)) && (! $until || $r->at->lessThanOrEqualTo($until)))->values();
++        if ($rows->isEmpty()) return [];
++
++        $batches = [];
++        $cur = null;
++        foreach ($rows as $r) {
++            if (! $cur || abs($r->at->getTimestamp() - $cur['end']->getTimestamp()) > 45 * 60) {
++                if ($cur) $batches[] = $cur;
++                $cur = ['start' => $r->at, 'end' => $r->at, 'pids' => []];
++            }
++            $cur['end'] = $r->at;
++            $cur['pids'][$r->pid] = true;
++        }
++        $batches[] = $cur;
++        $batches = array_slice(array_reverse($batches), 0, $limit);
++
++        $out = [];
++        foreach ($batches as $b) {
++            $pids = array_keys($b['pids']);
++            $visits = DB::table('sales_prospect_visits as v')->join('sales_prospects as p', 'p.id', '=', 'v.sales_prospect_id')
++                ->whereIn('v.sales_prospect_id', $pids)
++                ->whereBetween('v.sent_at', [$b['start']->subSecond(), $b['end']->addSecond()])
++                ->orderBy('v.first_at')
++                ->get(['v.*', 'p.shop']);
++            $people = [];
++            $why = [];
++            $scanShops = [];
++            $unsure = 0;
++            foreach ($visits as $v) {
++                $secs = max(0, CarbonImmutable::parse($v->last_at ?? $v->first_at)->getTimestamp() - CarbonImmutable::parse($v->first_at)->getTimestamp());
++                if ($v->verdict === 'person') {
++                    $paths = json_decode((string) $v->paths, true) ?: [];
++                    $people[] = ['id' => $v->sales_prospect_id, 'shop' => $v->shop, 'pages' => (int) $v->pages, 'time' => OutreachVisitJudge::duration($secs),
++                        'device' => ['mobile' => 'phone', 'tablet' => 'tablet', 'desktop' => 'computer'][$v->device] ?? null,
++                        'what' => implode(' → ', array_map([ProspectOutreach::class, 'pageLabel'], array_slice($paths, 0, 4))),
++                        'after' => $v->secs_after_send !== null ? self::ago((int) $v->secs_after_send) : null, 'why' => $v->verdict_reason];
++                } elseif ($v->verdict === 'scanner') {
++                    $scanShops[$v->sales_prospect_id] = true;
++                    $k = self::scanKind($v);
++                    $why[$k] = ($why[$k] ?? 0) + 1;
++                } else {
++                    $unsure++;
++                }
++            }
++            arsort($why);
++            $out[] = [
++                'at' => $b['start'], 'sent' => count($pids), 'people' => $people,
++                'peopleShops' => count(array_unique(array_column($people, 'id'))),
++                'scanners' => array_sum($why), 'scannerShops' => count($scanShops), 'scanWhy' => $why, 'unsure' => $unsure,
++            ];
++        }
++
++        return $out;
++    }
++
++    /** A short name for why a visit was a filter, for the summary line. */
++    private static function scanKind(object $v): string
++    {
++        if (in_array($v->network, OutreachVisitJudge::FILTER_NETWORKS, true)) return OutreachVisitJudge::NETWORK_LABELS[$v->network];
++        $r = (string) $v->verdict_reason;
++        if (str_contains($r, 'times within')) return 'several at once';
++        if (str_contains($r, 'after the email')) return 'within 2 min of sending';
++        if (str_contains($r, 're-check')) return 'quick re-checks';
++        return 'other';
++    }
++
++    private static function ago(int $secs): string
++    {
++        if ($secs < 120) return $secs . ' s after';
++        if ($secs < 7200) return intdiv($secs, 60) . ' min after';
++        if ($secs < 172800) return intdiv($secs, 3600) . ' h after';
++        return intdiv($secs, 86400) . ' days after';
++    }
++
+     /** One row per send, with the prospect's industry. */
+     private static function sends(string $industry, string $template, $since)
+     {
+@@ -109,7 +202,8 @@ class OutreachResults
+         if (! $pids) return $ctx;
+ 
+         foreach (array_chunk($pids, 500) as $chunk) {
+-            foreach (DB::table('sales_prospect_visits')->whereIn('sales_prospect_id', $chunk)->orderBy('first_at')
++            // MARKER-OUTREACH-SCANNERS: only visits a person made; mail filters opening the link don't count
++            foreach (DB::table('sales_prospect_visits')->whereIn('sales_prospect_id', $chunk)->where('verdict', 'person')->orderBy('first_at')
+                 ->get(['sales_prospect_id', 'first_at', 'last_at', 'paths', 'pages']) as $v) {
+                 $ctx['visits'][$v->sales_prospect_id][] = $v;
+             }
+@@ -311,6 +405,7 @@ class OutreachResults
+             $v = DB::table('sales_prospect_visits as v')
+                 ->join('sales_prospects as p', 'p.id', '=', 'v.sales_prospect_id')
+                 ->where('v.first_at', '>=', $start)->where('v.first_at', '<', $end)
++                ->where('v.verdict', 'person') // MARKER-OUTREACH-SCANNERS
+                 ->orderByDesc('v.first_at')
+                 ->get(['v.sales_prospect_id', 'v.first_at', 'v.paths', 'v.pages', 'p.shop', 'p.converted_at']);
+         } catch (\Throwable $e) {
+diff --git a/app/Services/Sales/OutreachVisitJudge.php b/app/Services/Sales/OutreachVisitJudge.php
+new file mode 100644
+index 00000000..d8a51b93
+--- /dev/null
++++ b/app/Services/Sales/OutreachVisitJudge.php
+@@ -0,0 +1,213 @@
++<?php
++
++namespace App\Services\Sales;
++
++use App\Models\SalesActivity;
++use App\Models\SalesProspect;
++use App\Models\Tenant;
++use Illuminate\Support\Carbon;
++use Illuminate\Support\Facades\Cache;
++use Illuminate\Support\Facades\DB;
++
++/**
++ * MARKER-OUTREACH-SCANNERS: was a visit through a prospect's email link a
++ * person, or an email security filter checking the link?
++ *
++ * Filters (Microsoft Safe Links, Proofpoint, Mimecast, Barracuda, Google...)
++ * open every link in a hidden browser within a minute or two of delivery,
++ * often several at once, and run the page's script, so they reached the
++ * tracker and counted as visits. The signals, strongest first:
++ *
++ *   interacted   a mouse moved, a key, a tap or a wheel: a person
++ *   network      the visit came from a mail-filter or data-centre network
++ *                (by the address's reverse DNS name; the address isn't kept)
++ *   home network a home or phone connection: a person
++ *   burst        several sessions from the same link within a few seconds
++ *   fast         desktop, within 2 minutes of the email, gone within 30 s
++ *   re-check     one page under 10 s after a filter already opened the link
++ *   phone        on a phone or tablet: a person
++ *   stayed       30 s or more on the site: a person
++ *
++ * Anything else is "unsure". Only people count as visited/clicked, get a
++ * timeline entry, and appear in Marketing traffic; scanner sessions are
++ * marked as bots there.
++ */
++class OutreachVisitJudge
++{
++    public const FILTER_NETWORKS = ['microsoft', 'google', 'proofpoint', 'mimecast', 'barracuda', 'cisco', 'datacenter'];
++
++    public const NETWORK_LABELS = [
++        'microsoft'  => 'Microsoft',
++        'google'     => 'Google',
++        'proofpoint' => 'Proofpoint',
++        'mimecast'   => 'Mimecast',
++        'barracuda'  => 'Barracuda',
++        'cisco'      => 'Cisco',
++        'datacenter' => 'a data centre',
++        'home'       => 'a home or phone connection',
++    ];
++
++    /** Reverse-DNS name patterns => network. First match wins. */
++    private const HOST_PATTERNS = [
++        'microsoft'  => '/(protection\.outlook\.com|\.outlook\.com$|microsoft\.com$|\.msn\.net$|cloudapp\.(azure\.com|net)$|\.azure\.com$)/i',
++        'google'     => '/(google\.com$|googleusercontent\.com$|1e100\.net$|googlebot)/i',
++        'proofpoint' => '/(pphosted\.com$|proofpoint)/i',
++        'mimecast'   => '/mimecast/i',
++        'barracuda'  => '/barracuda/i',
++        'cisco'      => '/(iphmx\.com$|ironport|cisco\.com$)/i',
++        'datacenter' => '/(amazonaws\.com$|linode|digitalocean|ovh\.|hetzner|vultr|leaseweb|contabo|choopa|oraclecloud|akamai|cloudflare|fastly|scaleway|googleusercontent|colocrossing|hostwinds|m247|datacamp|servers\.com)/i',
++        'home'       => '/(comcast|verizon|vzw|att\.net|sbcglobal|charter|spectrum|\.rr\.com$|cox\.net|centurylink|qwest|frontier|t-?mobile|mycingular|shawcable|rogers|telus|videotron|bell\.ca|bigpond|optusnet|virginm|btcentral|sky\.com|starlink|wowway|mediacom|suddenlink|optimum|altice|xfinity|\bdsl|cable|fios|dynamic|dhcp|pool|broadband|residential|\.res\.)/i',
++    ];
++
++    /** The network an address belongs to, by its reverse DNS name. Slow: call from a job. */
++    public static function networkOf(string $ip): string
++    {
++        if (! filter_var($ip, FILTER_VALIDATE_IP)) return 'unknown';
++
++        return Cache::remember('outreach-net:' . hash('sha256', $ip), 86400, function () use ($ip) {
++            $host = @gethostbyaddr($ip);
++            if (! $host || $host === $ip) return 'unknown';
++            foreach (self::HOST_PATTERNS as $net => $re) {
++                if (preg_match($re, $host)) return $net;
++            }
++            return 'unknown';
++        });
++    }
++
++    /** One visit's verdict, given its prospect's other visits. [verdict, reason] */
++    public static function judge(object $v, array $all): array
++    {
++        $first = Carbon::parse($v->first_at);
++        $dur   = max(0, Carbon::parse($v->last_at ?? $v->first_at)->getTimestamp() - $first->getTimestamp());
++        $net   = (string) ($v->network ?? '');
++        $desk  = ($v->device ?? 'desktop') === 'desktop' || ($v->device ?? null) === null;
++
++        if (! empty($v->interacted_at)) return ['person', 'moved, scrolled or tapped on the page'];
++        if (in_array($net, self::FILTER_NETWORKS, true)) {
++            return ['scanner', 'came from ' . self::NETWORK_LABELS[$net] . "'s network, where mail filters check links"];
++        }
++        if ($net === 'home') return ['person', 'came from a home or phone connection'];
++
++        $together = 0;
++        $earlierScanner = false;
++        foreach ($all as $o) {
++            if ($o->id === $v->id) continue;
++            $at = Carbon::parse($o->first_at);
++            if (abs($at->getTimestamp() - $first->getTimestamp()) <= 3) $together++;
++            if ($at->lt($first) && ($o->verdict ?? '') === 'scanner') $earlierScanner = true;
++        }
++        if ($together > 0) return ['scanner', 'opened ' . ($together + 1) . ' times within the same few seconds'];
++
++        $after = $v->secs_after_send;
++        if ($after !== null && (int) $after <= 120 && $dur <= 30 && $desk) {
++            return ['scanner', 'opened ' . (int) $after . ' s after the email went out and gone in ' . $dur . ' s'];
++        }
++        if ((int) $v->pages <= 1 && $dur <= 10 && $desk && $earlierScanner) {
++            return ['scanner', 'a quick re-check of a link a filter had already opened'];
++        }
++        if (in_array($v->device, ['mobile', 'tablet'], true)) return ['person', 'on a ' . ($v->device === 'mobile' ? 'phone' : 'tablet')];
++        if ($dur >= 30) return ['person', 'stayed ' . self::duration($dur)];
++
++        return ['unsure', 'too brief to tell'];
++    }
++
++    /**
++     * Judge every visit of one prospect and apply what follows from it: the
++     * timeline entry, "link clicked", and how Marketing traffic sees the session.
++     */
++    public static function rejudgeProspect(string $prospectId): void
++    {
++        $rows = DB::table('sales_prospect_visits')->where('sales_prospect_id', $prospectId)->orderBy('first_at')->orderBy('id')->get()->all();
++        if (! $rows) return;
++
++        // in time order, so a re-check can see that an earlier visit was a scanner
++        foreach ($rows as $i => $v) {
++            [$verdict, $why] = self::judge($v, $rows);
++            if ($verdict !== $v->verdict || $why !== $v->verdict_reason) {
++                DB::table('sales_prospect_visits')->where('id', $v->id)->update(['verdict' => $verdict, 'verdict_reason' => $why]);
++                $rows[$i]->verdict = $verdict;
++                $rows[$i]->verdict_reason = $why;
++            }
++        }
++
++        $p = SalesProspect::find($prospectId);
++        if (! $p) return;
++        $firstPerson = null;
++        foreach ($rows as $v) {
++            self::applyTimeline($p, $v);
++            self::applyTraffic($v);
++            if ($v->verdict === 'person' && (! $firstPerson || Carbon::parse($v->first_at)->lt($firstPerson))) $firstPerson = Carbon::parse($v->first_at);
++        }
++
++        $was = $p->link_clicked_at;
++        if (($was?->getTimestamp()) !== ($firstPerson?->getTimestamp())) {
++            $p->forceFill(['link_clicked_at' => $firstPerson])->save();
++        }
++    }
++
++    /** A person's visit gets a timeline entry kept up to date; anything else has none. */
++    private static function applyTimeline(SalesProspect $p, object $v): void
++    {
++        if ($v->verdict !== 'person') {
++            if ($v->activity_id) {
++                SalesActivity::whereKey($v->activity_id)->delete();
++                DB::table('sales_prospect_visits')->where('id', $v->id)->update(['activity_id' => null]);
++            }
++            return;
++        }
++        $paths = json_decode((string) $v->paths, true) ?: [];
++        $pages = (int) $v->pages;
++        $secs  = max(0, Carbon::parse($v->last_at ?? $v->first_at)->getTimestamp() - Carbon::parse($v->first_at)->getTimestamp());
++        $dev   = ['mobile' => 'phone', 'tablet' => 'tablet', 'desktop' => 'computer'][$v->device] ?? null;
++        $body  = 'From their email link: ' . implode(' → ', array_map([ProspectOutreach::class, 'pageLabel'], $paths))
++            . ' · ' . $pages . ' ' . ($pages === 1 ? 'page' : 'pages') . ' · ' . self::duration($secs) . ($dev ? ' · ' . $dev : '');
++        $body = mb_substr($body, 0, 1000);
++
++        if ($v->activity_id && SalesActivity::whereKey($v->activity_id)->exists()) {
++            SalesActivity::whereKey($v->activity_id)->update(['body' => $body]);
++            return;
++        }
++        $a = $p->activities()->create(['type' => 'visit', 'body' => $body, 'occurred_at' => $v->first_at]);
++        DB::table('sales_prospect_visits')->where('id', $v->id)->update(['activity_id' => $a->id]);
++    }
++
++    /** Scanner sessions are bots to Marketing traffic; a session that turns out to be a person comes back. */
++    private static function applyTraffic(object $v): void
++    {
++        static $platformId = false;
++        if ($platformId === false) $platformId = Tenant::where('is_platform', true)->value('id');
++        if (! $platformId || ! $v->session_id) return;
++
++        $q = DB::table('tenant_funnel_events')->where('tenant_id', $platformId)->where('session_id', $v->session_id)
++            ->whereBetween('created_at', [Carbon::parse($v->first_at)->subSeconds(10), Carbon::parse($v->last_at ?? $v->first_at)->addMinutes(2)]);
++        if ($v->verdict === 'scanner') {
++            $q->where(fn ($w) => $w->whereNull('device')->orWhere('device', '!=', 'bot'))->update(['device' => 'bot']);
++        } else {
++            $q->where('device', 'bot')->update(['device' => $v->device ?: 'desktop']);
++        }
++    }
++
++    /** Fill in what old visits can be judged by (the email they followed) and judge them all. */
++    public static function backfill(): int
++    {
++        $pids = DB::table('sales_prospect_visits')->distinct()->pluck('sales_prospect_id');
++        foreach (DB::table('sales_prospect_visits')->whereNull('sent_at')->get(['id', 'sales_prospect_id', 'first_at']) as $v) {
++            $sent = DB::table('sales_outreach_sends')->where('sales_prospect_id', $v->sales_prospect_id)
++                ->where('created_at', '<=', $v->first_at)->max('created_at');
++            if ($sent) {
++                DB::table('sales_prospect_visits')->where('id', $v->id)->update([
++                    'sent_at' => $sent,
++                    'secs_after_send' => Carbon::parse($v->first_at)->getTimestamp() - Carbon::parse($sent)->getTimestamp(),
++                ]);
++            }
++        }
++        foreach ($pids as $pid) self::rejudgeProspect((string) $pid);
++
++        return count($pids);
++    }
++
++    public static function duration(int $secs): string
++    {
++        return $secs < 60 ? $secs . ' s' : intdiv($secs, 60) . ' min' . ($secs % 60 ? ' ' . ($secs % 60) . ' s' : '');
++    }
++}
+diff --git a/app/Services/Sales/ProspectOutreach.php b/app/Services/Sales/ProspectOutreach.php
+index a2f28008..8a4a7ff9 100644
+--- a/app/Services/Sales/ProspectOutreach.php
++++ b/app/Services/Sales/ProspectOutreach.php
+@@ -10,8 +10,8 @@
+ // The link is intake.works/<page>?p=<code>. OutreachLink turns that into a
+ // cookie and a clean URL; the marketing tracker's beacons then carry the cookie,
+ // and recordVisit() writes what the shop looked at onto its timeline. Only
+-// browsers that run the tracker count, so mail scanners that pre-open links
+-// don't show up as visits.
++// browsers that run the tracker count; the mail filters that run it too are
++// told apart by OutreachVisitJudge (MARKER-OUTREACH-SCANNERS).
+ 
+ namespace App\Services\Sales;
+ 
+@@ -455,10 +455,11 @@ class ProspectOutreach
+      * Called by the marketing tracker endpoint for each beacon. $code comes from
+      * the mkt_p cookie OutreachLink set when the shop opened its link.
+      */
+-    public static function recordVisit(string $code, string $sessionId, string $eventType, ?string $path, ?string $device): void
++    public static function recordVisit(string $code, string $sessionId, string $eventType, ?string $path, ?string $device, ?string $ip = null): void
+     {
+         if (! preg_match('/^[a-z0-9]{8}$/', $code) || $sessionId === '') return;
+-        if (! in_array($eventType, ['page_view', 'page_exit', 'cta_click'], true)) return;
++        // MARKER-OUTREACH-SCANNERS: 'interact' = a person moved, scrolled, tapped or typed
++        if (! in_array($eventType, ['page_view', 'page_exit', 'cta_click', 'interact'], true)) return;
+ 
+         $p = SalesProspect::where('outreach_code', $code)->first();
+         if (! $p) return;
+@@ -470,40 +471,42 @@ class ProspectOutreach
+ 
+         if (! $v) {
+             if ($eventType !== 'page_view') return;
+-            $activity = $p->activities()->create(['type' => 'visit', 'body' => 'From their email link', 'occurred_at' => now()]);
++            // the email it followed: filters open links within a minute or two of delivery
++            $sent = DB::table('sales_outreach_sends')->where('sales_prospect_id', $p->id)->where('created_at', '<=', now())->max('created_at');
+             $id = DB::table('sales_prospect_visits')->insertGetId([
+                 'sales_prospect_id' => $p->id,
+                 'session_id'        => mb_substr($sessionId, 0, 64),
+-                'activity_id'       => $activity->id,
++                'activity_id'       => null, // written once it's judged a person (OutreachVisitJudge)
+                 'paths'             => json_encode([]),
+                 'pages'             => 0,
+                 'device'            => $device ? mb_substr($device, 0, 12) : null,
+                 'first_at'          => now(),
+                 'last_at'           => now(),
++                'sent_at'           => $sent,
++                'secs_after_send'   => $sent ? now()->getTimestamp() - \Illuminate\Support\Carbon::parse($sent)->getTimestamp() : null,
++                'verdict'           => 'unsure',
+             ]);
+             $v = DB::table('sales_prospect_visits')->where('id', $id)->first();
+-            if (! $p->link_clicked_at) $p->forceFill(['link_clicked_at' => now()])->save();
++            if ($ip) \App\Jobs\ClassifyOutreachVisit::dispatch($id, $ip);
+         }
+ 
+-        $paths = json_decode((string) $v->paths, true) ?: [];
+-        $pages = (int) $v->pages;
+-        if ($eventType === 'page_view') {
+-            $path = '/' . ltrim((string) $path, '/');
+-            if (end($paths) !== $path) $paths[] = $path;
+-            $pages++;
++        $upd = ['last_at' => now()];
++        if ($eventType === 'interact') {
++            if (! $v->interacted_at) $upd['interacted_at'] = now();
++        } else {
++            $paths = json_decode((string) $v->paths, true) ?: [];
++            $pages = (int) $v->pages;
++            if ($eventType === 'page_view') {
++                $path = '/' . ltrim((string) $path, '/');
++                if (end($paths) !== $path) $paths[] = $path;
++                $pages++;
++            }
++            $upd['paths'] = json_encode(array_slice($paths, -12));
++            $upd['pages'] = $pages;
+         }
+-        $paths = array_slice($paths, -12);
+-        DB::table('sales_prospect_visits')->where('id', $v->id)->update([
+-            'paths' => json_encode($paths), 'pages' => $pages, 'last_at' => now(),
+-        ]);
++        DB::table('sales_prospect_visits')->where('id', $v->id)->update($upd);
+ 
+-        if ($v->activity_id) {
+-            $secs = max(0, now()->getTimestamp() - \Illuminate\Support\Carbon::parse($v->first_at)->getTimestamp());
+-            $dur  = $secs < 60 ? $secs . 's' : intdiv($secs, 60) . 'm' . ($secs % 60 ? ' ' . ($secs % 60) . 's' : '');
+-            $dev  = ['mobile' => 'phone', 'tablet' => 'tablet', 'desktop' => 'computer'][$v->device] ?? null;
+-            $body = 'From their email link: ' . implode(' → ', array_map([self::class, 'pageLabel'], $paths))
+-                . ' · ' . $pages . ' ' . ($pages === 1 ? 'page' : 'pages') . ' · ' . $dur . ($dev ? ' · ' . $dev : '');
+-            \App\Models\SalesActivity::whereKey($v->activity_id)->update(['body' => mb_substr($body, 0, 1000)]);
+-        }
++        // person or filter, and the timeline, "clicked" and traffic that follow from it
++        OutreachVisitJudge::rejudgeProspect((string) $p->id);
+     }
+ }
+diff --git a/database/migrations/2026_10_28_090000_outreach_visit_verdicts.php b/database/migrations/2026_10_28_090000_outreach_visit_verdicts.php
+new file mode 100644
+index 00000000..b70827e4
+--- /dev/null
++++ b/database/migrations/2026_10_28_090000_outreach_visit_verdicts.php
+@@ -0,0 +1,47 @@
++<?php
++
++use Illuminate\Database\Migrations\Migration;
++use Illuminate\Database\Schema\Blueprint;
++use Illuminate\Support\Facades\Schema;
++
++/**
++ * MARKER-OUTREACH-SCANNERS: each visit through a prospect's email link says
++ * whether a person made it, and why we think so. Email security filters
++ * (Microsoft, Proofpoint, Google...) open every link in a hidden browser
++ * seconds after delivery; on Oct 22-28, 2026 about 245 of 253 "visits" were
++ * those. See App\Services\Sales\OutreachVisitJudge.
++ *
++ * Stores no IP address: only the name of the network a visit came from.
++ */
++return new class extends Migration
++{
++    public function up(): void
++    {
++        if (! Schema::hasTable('sales_prospect_visits')) return;
++
++        Schema::table('sales_prospect_visits', function (Blueprint $t) {
++            if (! Schema::hasColumn('sales_prospect_visits', 'sent_at'))         $t->timestamp('sent_at')->nullable()->index(); // the email this visit followed
++            if (! Schema::hasColumn('sales_prospect_visits', 'secs_after_send')) $t->integer('secs_after_send')->nullable();
++            if (! Schema::hasColumn('sales_prospect_visits', 'network'))         $t->string('network', 24)->nullable();    // microsoft|google|proofpoint|...|home|unknown
++            if (! Schema::hasColumn('sales_prospect_visits', 'interacted_at'))   $t->timestamp('interacted_at')->nullable(); // moved, scrolled, tapped or typed
++            if (! Schema::hasColumn('sales_prospect_visits', 'verdict'))         $t->string('verdict', 10)->default('unsure')->index();  // person|scanner|unsure
++            if (! Schema::hasColumn('sales_prospect_visits', 'verdict_reason'))  $t->string('verdict_reason', 160)->nullable();
++        });
++
++        // judge what's already there: timing is all the old rows have
++        try {
++            \App\Services\Sales\OutreachVisitJudge::backfill();
++        } catch (\Throwable $e) {
++            report($e);
++        }
++    }
++
++    public function down(): void
++    {
++        Schema::table('sales_prospect_visits', function (Blueprint $t) {
++            foreach (['sent_at', 'secs_after_send', 'network', 'interacted_at', 'verdict', 'verdict_reason'] as $c) {
++                if (Schema::hasColumn('sales_prospect_visits', $c)) $t->dropColumn($c);
++            }
++        });
++    }
++};
+diff --git a/resources/views/filament/pages/marketing-traffic.blade.php b/resources/views/filament/pages/marketing-traffic.blade.php
+index 80b89630..1725ca5c 100644
+--- a/resources/views/filament/pages/marketing-traffic.blade.php
++++ b/resources/views/filament/pages/marketing-traffic.blade.php
+@@ -156,7 +156,7 @@
+     page views, pricing views, clicks, exits.
+     Recorded by the server when it happens (always right): messages sent, quiz completions,
+     demo entries, booked calls, accounts created.
+-    Crawler traffic is excluded everywhere on this page.
++    Crawler traffic is excluded everywhere on this page, and so are email filters checking the links in outreach emails (see Email outreach › Results › After each send).{{-- MARKER-OUTREACH-SCANNERS --}}
+   </div>
+ </div>
+ 
+diff --git a/resources/views/filament/partials/outreach-results.blade.php b/resources/views/filament/partials/outreach-results.blade.php
+index 1c3da858..fcfbf067 100644
+--- a/resources/views/filament/partials/outreach-results.blade.php
++++ b/resources/views/filament/partials/outreach-results.blade.php
+@@ -115,7 +115,39 @@
+ @endif
+ @endif
+ 
+-<p class="sx-lede"><b>How these are counted:</b> shops, not emails, from emails sent here or from a Prospects card; each shop is judged from its first email in the window. Opened comes from the email provider and runs high, because Apple Mail opens every email to preload it, so trust Visited more. Visited means they opened their own link after the email (link scanners don't count, and neither do you when signed in). Replied is a real answer that came back into the Platform inbox; help-desk receipts and out-of-office replies don't count. Click any number to see the shops behind it. Demo or trial and Won are the shop reaching that stage after the email. <b>Not counted:</b> bulk campaigns from Platform email.</p>
++<p class="sx-lede"><b>How these are counted:</b> shops, not emails, from emails sent here or from a Prospects card; each shop is judged from its first email in the window. Opened comes from the email provider and runs high, because Apple Mail opens every email to preload it, so trust Visited more. Visited means a person at the shop opened their own link after the email: mail filters that check the link don't count (see After each send below), and neither do you when signed in. Replied is a real answer that came back into the Platform inbox; help-desk receipts and out-of-office replies don't count. Click any number to see the shops behind it. Demo or trial and Won are the shop reaching that stage after the email. <b>Not counted:</b> bulk campaigns from Platform email.</p>
++
++{{-- MARKER-OUTREACH-SCANNERS: who actually looked after each batch, and how many filter checks there were --}}
++@php $after = $this->afterSends(); @endphp
++@if ($after)
++<h2 class="ig-h2">After each send</h2>
++<p class="sx-lede" style="margin-top:0" x-data="{ more: false }">Business email filters open every link in a hidden browser right after delivery, so each send is followed by a burst of <b>filter checks</b>. Only <b>people</b> count as Visited, appear on a shop's timeline and show in Marketing traffic. <button type="button" @click="more = ! more" style="background:none;border:0;padding:0;color:var(--sx-violet);cursor:pointer;font:inherit" x-text="more ? 'Less' : 'How we tell'"></button>
++    <span x-show="more" x-cloak style="display:block;margin-top:6px">A <b>person</b> moved the mouse, scrolled, tapped or typed; came from a home or phone connection; was on a phone; or stayed 30 seconds or more. A <b>filter check</b> came from a mail filter's or data centre's network (Microsoft, Proofpoint, Mimecast, Google and others); opened the link several times in the same few seconds; came and went within two minutes of the email; or quickly re-checked a link a filter had already opened. Too brief to tell is <b>unclear</b> and isn't counted either. Visits before Oct 28, 2026 were judged on timing alone. Sends less than 45 minutes apart are one batch.</span></p>
++<table class="sx-t">
++    <tbody>
++    @foreach ($after as $i => $b)
++        <tr wire:key="as-{{ $i }}-{{ $b['at']->getTimestamp() }}" x-data="{ open: false }" style="vertical-align:top">
++            <td style="white-space:nowrap;width:1%">{{ $b['at']->setTimezone($tz)->format('D M j, g:i a') }}<div class="sx-sub">{{ $b['sent'] }} {{ $b['sent'] === 1 ? 'shop' : 'shops' }} emailed</div></td>
++            <td>
++                <button type="button" @click="open = ! open" style="background:none;border:0;padding:0;color:inherit;font:inherit;text-align:left;cursor:{{ $b['people'] ? 'pointer' : 'default' }}">
++                    <span class="or-tag {{ $b['peopleShops'] ? 'hot' : '' }}">{{ $b['peopleShops'] }} {{ $b['peopleShops'] === 1 ? 'person' : 'people' }}</span>
++                    @if ($b['people'])<span class="sx-sub" style="display:inline">{{ collect($b['people'])->pluck('shop')->unique()->take(3)->implode(', ') }}{{ collect($b['people'])->pluck('shop')->unique()->count() > 3 ? '…' : '' }}</span>@endif
++                </button>
++                <div class="sx-sub">@if ($b['scanners'] === 0)No filter checks{{ $b['unsure'] ? ' · ' . $b['unsure'] . ' unclear' : '' }}@else{{ $b['scanners'] }} filter {{ $b['scanners'] === 1 ? 'check' : 'checks' }} at {{ $b['scannerShops'] }} {{ $b['scannerShops'] === 1 ? 'shop' : 'shops' }}, not counted{{ $b['scanWhy'] ? ' (' . collect($b['scanWhy'])->map(fn ($n, $k) => $k . ' ' . $n)->implode(' · ') . ')' : '' }}{{ $b['unsure'] ? ' · ' . $b['unsure'] . ' unclear' : '' }}@endif</div>
++                <div x-show="open" x-cloak style="margin-top:8px">
++                    @foreach ($b['people'] as $pp)
++                        <div style="display:flex;gap:10px;align-items:baseline;padding:4px 0;border-top:1px solid var(--sx-line)">
++                            <span style="min-width:0;flex:1">{{ $pp['shop'] }}<span class="sx-sub" style="display:inline"> · {{ $pp['what'] ?: '—' }} · {{ $pp['pages'] }} {{ $pp['pages'] === 1 ? 'page' : 'pages' }} · {{ $pp['time'] }}{{ $pp['device'] ? ' · ' . $pp['device'] : '' }}{{ $pp['after'] ? ' · ' . $pp['after'] : '' }}</span><div class="sx-sub" style="font-size:11.5px">Why a person: {{ $pp['why'] }}</div></span>
++                            <a class="sx-btn sm" style="text-decoration:none" href="{{ $pipe }}?open={{ $pp['id'] }}">Open</a>
++                        </div>
++                    @endforeach
++                </div>
++            </td>
++        </tr>
++    @endforeach
++    </tbody>
++</table>
++@endif
+ 
+ <div class="or-cols">
+     <section>
+diff --git a/resources/views/marketing/_funnel_tracker.blade.php b/resources/views/marketing/_funnel_tracker.blade.php
+index c4626436..11de7dbb 100644
+--- a/resources/views/marketing/_funnel_tracker.blade.php
++++ b/resources/views/marketing/_funnel_tracker.blade.php
+@@ -110,6 +110,36 @@
+   });
+   window.addEventListener('pagehide', exit);
+ 
++  // MARKER-OUTREACH-SCANNERS: email security filters open every link in a
++  // hidden browser and run this script, but nobody moves a mouse there. For a
++  // visit that came from an outreach email, say once when a person actually
++  // moves, scrolls, taps or types. Nothing about where or what is sent.
++  var OUT = 'intake_mkt_out';
++  try { if (params.get('utm_source') === 'outreach') sessionStorage.setItem(OUT, '1'); } catch (e) {}
++  var fromOutreach = false;
++  try { fromOutreach = sessionStorage.getItem(OUT) === '1'; } catch (e) {}
++  if (fromOutreach) {
++    var moves = 0, lastXY = '', told = false;
++    var evs = ['pointermove', 'touchstart', 'keydown', 'wheel'];
++    var tell = function () {
++      if (told || ! shown) { return; }
++      told = true;
++      evs.forEach(function (n) { window.removeEventListener(n, onAct, true); });
++      send('interact');
++    };
++    var onAct = function (e) {
++      if (! e.isTrusted) { return; }
++      if (e.type === 'pointermove') {
++        var xy = e.clientX + ',' + e.clientY;
++        if (xy === lastXY) { return; }
++        lastXY = xy;
++        if (++moves < 3) { return; } // a real hand moves; one synthetic jump doesn't count
++      }
++      tell();
++    };
++    evs.forEach(function (n) { window.addEventListener(n, onAct, { capture: true, passive: true }); });
++  }
++
+   // Pricing is the clearest intent signal the marketing site has today.
+   if (/^\/pricing/.test(window.location.pathname)) {
+     whenShown(function () { send('pricing_viewed'); });

@@ -52,6 +52,20 @@ class MarketingFunnelController extends Controller
             'step'         => ['nullable', 'string', 'max:48'],
         ]);
 
+        // MARKER-OUTREACH-SCANNERS: a person moved, scrolled, tapped or typed on
+        // a page they reached from their email link. Only the outreach visit
+        // uses it; it isn't a traffic event.
+        if ($data['event_type'] === 'interact') {
+            try {
+                if (! auth('web')->check()) {
+                    \App\Services\Sales\ProspectOutreach::recordVisit((string) $request->cookie('mkt_p', ''), $this->resolveSession($request), 'interact', null, null);
+                }
+            } catch (\Throwable $e) {
+                report($e);
+            }
+            return response()->json(['ok' => true]);
+        }
+
         if (! in_array($data['event_type'], self::ALLOWED, true)) {
             return response()->json(['ok' => false], 204);
         }
@@ -85,7 +99,7 @@ class MarketingFunnelController extends Controller
         // link (mkt_p cookie). Staff signed in to master admin aren't counted.
         try {
             if (! auth('web')->check()) {
-                \App\Services\Sales\ProspectOutreach::recordVisit((string) $request->cookie('mkt_p', ''), (string) $data['session_id'], (string) $data['event_type'], $data['path'] ?? null, $data['device'] ?? null);
+                \App\Services\Sales\ProspectOutreach::recordVisit((string) $request->cookie('mkt_p', ''), (string) $data['session_id'], (string) $data['event_type'], $data['path'] ?? null, $data['device'] ?? null, $request->ip());
             }
         } catch (\Throwable $e) {
             report($e);

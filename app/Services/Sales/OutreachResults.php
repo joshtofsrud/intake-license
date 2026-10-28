@@ -7,7 +7,8 @@
 // campaigns from Platform email are not in here.
 //
 //   opened   the email provider saw an open or a click (thread meta)
-//   visited  the shop opened its own link after the email (sales_prospect_visits)
+//   visited  a person at the shop opened its own link after the email
+//            (sales_prospect_visits judged 'person'; mail filters don't count)
 //   replied  a real answer came back into the Platform inbox on that thread
 //            (MARKER-AUTO-REPLY: help-desk receipts and out-of-office don't count)
 //   demo     the shop reached Demo booked, Demo done or Trial after the email
@@ -33,23 +34,7 @@ class OutreachResults
     {
         $industry = (string) ($f['industry'] ?? '');
         $template = (string) ($f['template'] ?? '');
-        $days     = (string) ($f['days'] ?? '30');
-        $tz       = (string) ($f['tz'] ?? 'America/Los_Angeles');
-        $until    = null;
-
-        // MARKER-OUTREACH-RANGE: Today is the local calendar day, and a custom
-        // range runs from the start of its first day to the end of its last.
-        $dayOf = fn (?string $d) => $d && preg_match('/^\d{4}-\d{2}-\d{2}$/', $d) ? CarbonImmutable::createFromFormat('Y-m-d', $d, $tz) : null;
-        if ($days === 'today') {
-            $since = CarbonImmutable::now($tz)->startOfDay();
-        } elseif ($days === 'custom' && ($a = $dayOf($f['from'] ?? null))) {
-            $b     = $dayOf($f['to'] ?? null) ?? $a;
-            [$a, $b] = $a->greaterThan($b) ? [$b, $a] : [$a, $b];
-            $since = $a->startOfDay();
-            $until = $b->endOfDay();
-        } else {
-            $since = $days === 'all' ? null : now()->subDays(max(1, (int) $days));
-        }
+        [$since, $until] = self::window($f);
 
         $all = self::sends($industry, $template, null);        // every matching send, for follow-ups and the chart
         $rows = ($since || $until)
@@ -83,6 +68,114 @@ class OutreachResults
         ];
     }
 
+    /** The time window the filters ask for: [since|null, until|null]. */
+    private static function window(array $f): array
+    {
+        $days     = (string) ($f['days'] ?? '30');
+        $tz       = (string) ($f['tz'] ?? 'America/Los_Angeles');
+        $until    = null;
+
+        // MARKER-OUTREACH-RANGE: Today is the local calendar day, and a custom
+        // range runs from the start of its first day to the end of its last.
+        $dayOf = fn (?string $d) => $d && preg_match('/^\d{4}-\d{2}-\d{2}$/', $d) ? CarbonImmutable::createFromFormat('Y-m-d', $d, $tz) : null;
+        if ($days === 'today') {
+            $since = CarbonImmutable::now($tz)->startOfDay();
+        } elseif ($days === 'custom' && ($a = $dayOf($f['from'] ?? null))) {
+            $b     = $dayOf($f['to'] ?? null) ?? $a;
+            [$a, $b] = $a->greaterThan($b) ? [$b, $a] : [$a, $b];
+            $since = $a->startOfDay();
+            $until = $b->endOfDay();
+        } else {
+            $since = $days === 'all' ? null : now()->subDays(max(1, (int) $days));
+        }
+
+
+        return [$since, $until];
+    }
+
+    /**
+     * MARKER-OUTREACH-SCANNERS: what happened after each batch of sends (sends
+     * less than 45 minutes apart are one batch): who actually looked, and how
+     * many link checks by mail filters there were. Newest first.
+     */
+    public static function afterSends(array $f, int $limit = 12): array
+    {
+        [$since, $until] = self::window($f);
+        $rows = self::sends((string) ($f['industry'] ?? ''), (string) ($f['template'] ?? ''), null)
+            ->filter(fn ($r) => (! $since || $r->at->greaterThanOrEqualTo($since)) && (! $until || $r->at->lessThanOrEqualTo($until)))->values();
+        if ($rows->isEmpty()) return [];
+
+        $batches = [];
+        $cur = null;
+        foreach ($rows as $r) {
+            if (! $cur || abs($r->at->getTimestamp() - $cur['end']->getTimestamp()) > 45 * 60) {
+                if ($cur) $batches[] = $cur;
+                $cur = ['start' => $r->at, 'end' => $r->at, 'pids' => []];
+            }
+            $cur['end'] = $r->at;
+            $cur['pids'][$r->pid] = true;
+        }
+        $batches[] = $cur;
+        $batches = array_slice(array_reverse($batches), 0, $limit);
+
+        $out = [];
+        foreach ($batches as $b) {
+            $pids = array_keys($b['pids']);
+            $visits = DB::table('sales_prospect_visits as v')->join('sales_prospects as p', 'p.id', '=', 'v.sales_prospect_id')
+                ->whereIn('v.sales_prospect_id', $pids)
+                ->whereBetween('v.sent_at', [$b['start']->subSecond(), $b['end']->addSecond()])
+                ->orderBy('v.first_at')
+                ->get(['v.*', 'p.shop']);
+            $people = [];
+            $why = [];
+            $scanShops = [];
+            $unsure = 0;
+            foreach ($visits as $v) {
+                $secs = max(0, CarbonImmutable::parse($v->last_at ?? $v->first_at)->getTimestamp() - CarbonImmutable::parse($v->first_at)->getTimestamp());
+                if ($v->verdict === 'person') {
+                    $paths = json_decode((string) $v->paths, true) ?: [];
+                    $people[] = ['id' => $v->sales_prospect_id, 'shop' => $v->shop, 'pages' => (int) $v->pages, 'time' => OutreachVisitJudge::duration($secs),
+                        'device' => ['mobile' => 'phone', 'tablet' => 'tablet', 'desktop' => 'computer'][$v->device] ?? null,
+                        'what' => implode(' → ', array_map([ProspectOutreach::class, 'pageLabel'], array_slice($paths, 0, 4))),
+                        'after' => $v->secs_after_send !== null ? self::ago((int) $v->secs_after_send) : null, 'why' => $v->verdict_reason];
+                } elseif ($v->verdict === 'scanner') {
+                    $scanShops[$v->sales_prospect_id] = true;
+                    $k = self::scanKind($v);
+                    $why[$k] = ($why[$k] ?? 0) + 1;
+                } else {
+                    $unsure++;
+                }
+            }
+            arsort($why);
+            $out[] = [
+                'at' => $b['start'], 'sent' => count($pids), 'people' => $people,
+                'peopleShops' => count(array_unique(array_column($people, 'id'))),
+                'scanners' => array_sum($why), 'scannerShops' => count($scanShops), 'scanWhy' => $why, 'unsure' => $unsure,
+            ];
+        }
+
+        return $out;
+    }
+
+    /** A short name for why a visit was a filter, for the summary line. */
+    private static function scanKind(object $v): string
+    {
+        if (in_array($v->network, OutreachVisitJudge::FILTER_NETWORKS, true)) return OutreachVisitJudge::NETWORK_LABELS[$v->network];
+        $r = (string) $v->verdict_reason;
+        if (str_contains($r, 'times within')) return 'several at once';
+        if (str_contains($r, 'after the email')) return 'within 2 min of sending';
+        if (str_contains($r, 're-check')) return 'quick re-checks';
+        return 'other';
+    }
+
+    private static function ago(int $secs): string
+    {
+        if ($secs < 120) return $secs . ' s after';
+        if ($secs < 7200) return intdiv($secs, 60) . ' min after';
+        if ($secs < 172800) return intdiv($secs, 3600) . ' h after';
+        return intdiv($secs, 86400) . ' days after';
+    }
+
     /** One row per send, with the prospect's industry. */
     private static function sends(string $industry, string $template, $since)
     {
@@ -109,7 +202,8 @@ class OutreachResults
         if (! $pids) return $ctx;
 
         foreach (array_chunk($pids, 500) as $chunk) {
-            foreach (DB::table('sales_prospect_visits')->whereIn('sales_prospect_id', $chunk)->orderBy('first_at')
+            // MARKER-OUTREACH-SCANNERS: only visits a person made; mail filters opening the link don't count
+            foreach (DB::table('sales_prospect_visits')->whereIn('sales_prospect_id', $chunk)->where('verdict', 'person')->orderBy('first_at')
                 ->get(['sales_prospect_id', 'first_at', 'last_at', 'paths', 'pages']) as $v) {
                 $ctx['visits'][$v->sales_prospect_id][] = $v;
             }
@@ -311,6 +405,7 @@ class OutreachResults
             $v = DB::table('sales_prospect_visits as v')
                 ->join('sales_prospects as p', 'p.id', '=', 'v.sales_prospect_id')
                 ->where('v.first_at', '>=', $start)->where('v.first_at', '<', $end)
+                ->where('v.verdict', 'person') // MARKER-OUTREACH-SCANNERS
                 ->orderByDesc('v.first_at')
                 ->get(['v.sales_prospect_id', 'v.first_at', 'v.paths', 'v.pages', 'p.shop', 'p.converted_at']);
         } catch (\Throwable $e) {

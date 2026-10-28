@@ -115,7 +115,39 @@
 @endif
 @endif
 
-<p class="sx-lede"><b>How these are counted:</b> shops, not emails, from emails sent here or from a Prospects card; each shop is judged from its first email in the window. Opened comes from the email provider and runs high, because Apple Mail opens every email to preload it, so trust Visited more. Visited means they opened their own link after the email (link scanners don't count, and neither do you when signed in). Replied is a real answer that came back into the Platform inbox; help-desk receipts and out-of-office replies don't count. Click any number to see the shops behind it. Demo or trial and Won are the shop reaching that stage after the email. <b>Not counted:</b> bulk campaigns from Platform email.</p>
+<p class="sx-lede"><b>How these are counted:</b> shops, not emails, from emails sent here or from a Prospects card; each shop is judged from its first email in the window. Opened comes from the email provider and runs high, because Apple Mail opens every email to preload it, so trust Visited more. Visited means a person at the shop opened their own link after the email: mail filters that check the link don't count (see After each send below), and neither do you when signed in. Replied is a real answer that came back into the Platform inbox; help-desk receipts and out-of-office replies don't count. Click any number to see the shops behind it. Demo or trial and Won are the shop reaching that stage after the email. <b>Not counted:</b> bulk campaigns from Platform email.</p>
+
+{{-- MARKER-OUTREACH-SCANNERS: who actually looked after each batch, and how many filter checks there were --}}
+@php $after = $this->afterSends(); @endphp
+@if ($after)
+<h2 class="ig-h2">After each send</h2>
+<p class="sx-lede" style="margin-top:0" x-data="{ more: false }">Business email filters open every link in a hidden browser right after delivery, so each send is followed by a burst of <b>filter checks</b>. Only <b>people</b> count as Visited, appear on a shop's timeline and show in Marketing traffic. <button type="button" @click="more = ! more" style="background:none;border:0;padding:0;color:var(--sx-violet);cursor:pointer;font:inherit" x-text="more ? 'Less' : 'How we tell'"></button>
+    <span x-show="more" x-cloak style="display:block;margin-top:6px">A <b>person</b> moved the mouse, scrolled, tapped or typed; came from a home or phone connection; was on a phone; or stayed 30 seconds or more. A <b>filter check</b> came from a mail filter's or data centre's network (Microsoft, Proofpoint, Mimecast, Google and others); opened the link several times in the same few seconds; came and went within two minutes of the email; or quickly re-checked a link a filter had already opened. Too brief to tell is <b>unclear</b> and isn't counted either. Visits before Oct 28, 2026 were judged on timing alone. Sends less than 45 minutes apart are one batch.</span></p>
+<table class="sx-t">
+    <tbody>
+    @foreach ($after as $i => $b)
+        <tr wire:key="as-{{ $i }}-{{ $b['at']->getTimestamp() }}" x-data="{ open: false }" style="vertical-align:top">
+            <td style="white-space:nowrap;width:1%">{{ $b['at']->setTimezone($tz)->format('D M j, g:i a') }}<div class="sx-sub">{{ $b['sent'] }} {{ $b['sent'] === 1 ? 'shop' : 'shops' }} emailed</div></td>
+            <td>
+                <button type="button" @click="open = ! open" style="background:none;border:0;padding:0;color:inherit;font:inherit;text-align:left;cursor:{{ $b['people'] ? 'pointer' : 'default' }}">
+                    <span class="or-tag {{ $b['peopleShops'] ? 'hot' : '' }}">{{ $b['peopleShops'] }} {{ $b['peopleShops'] === 1 ? 'person' : 'people' }}</span>
+                    @if ($b['people'])<span class="sx-sub" style="display:inline">{{ collect($b['people'])->pluck('shop')->unique()->take(3)->implode(', ') }}{{ collect($b['people'])->pluck('shop')->unique()->count() > 3 ? '…' : '' }}</span>@endif
+                </button>
+                <div class="sx-sub">@if ($b['scanners'] === 0)No filter checks{{ $b['unsure'] ? ' · ' . $b['unsure'] . ' unclear' : '' }}@else{{ $b['scanners'] }} filter {{ $b['scanners'] === 1 ? 'check' : 'checks' }} at {{ $b['scannerShops'] }} {{ $b['scannerShops'] === 1 ? 'shop' : 'shops' }}, not counted{{ $b['scanWhy'] ? ' (' . collect($b['scanWhy'])->map(fn ($n, $k) => $k . ' ' . $n)->implode(' · ') . ')' : '' }}{{ $b['unsure'] ? ' · ' . $b['unsure'] . ' unclear' : '' }}@endif</div>
+                <div x-show="open" x-cloak style="margin-top:8px">
+                    @foreach ($b['people'] as $pp)
+                        <div style="display:flex;gap:10px;align-items:baseline;padding:4px 0;border-top:1px solid var(--sx-line)">
+                            <span style="min-width:0;flex:1">{{ $pp['shop'] }}<span class="sx-sub" style="display:inline"> · {{ $pp['what'] ?: '—' }} · {{ $pp['pages'] }} {{ $pp['pages'] === 1 ? 'page' : 'pages' }} · {{ $pp['time'] }}{{ $pp['device'] ? ' · ' . $pp['device'] : '' }}{{ $pp['after'] ? ' · ' . $pp['after'] : '' }}</span><div class="sx-sub" style="font-size:11.5px">Why a person: {{ $pp['why'] }}</div></span>
+                            <a class="sx-btn sm" style="text-decoration:none" href="{{ $pipe }}?open={{ $pp['id'] }}">Open</a>
+                        </div>
+                    @endforeach
+                </div>
+            </td>
+        </tr>
+    @endforeach
+    </tbody>
+</table>
+@endif
 
 <div class="or-cols">
     <section>
