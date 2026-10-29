@@ -75,7 +75,7 @@ class TenantResource extends Resource
                     Forms\Components\Placeholder::make('cleanup_state')
                         ->label('Currently')
                         ->content(fn ($record) => $record && $record->customerAdminOpen()
-                            ? 'OPEN until ' . $record->consent_cleanup_until->format('M j, Y g:ia')
+                            ? 'OPEN until ' . alocal($record->consent_cleanup_until, 'M j, Y g:ia')
                             : 'Closed'),
                     Forms\Components\DateTimePicker::make('consent_cleanup_until')
                         ->label('Window open until')
@@ -96,7 +96,7 @@ class TenantResource extends Resource
                                 $set('consent_cleanup_until', $until);
                                 \Filament\Notifications\Notification::make()->success()
                                     ->title('Customer admin mode opened')
-                                    ->body('Closes on its own ' . $until->format('M j, Y g:ia') . '.')
+                                    ->body('Closes on its own ' . alocal($until, 'M j, Y g:ia') . '.')
                                     ->send();
                             }),
                         Forms\Components\Actions\Action::make('closeNow')

@@ -123,7 +123,7 @@
   {{-- MARKER-DASH-COMPACT: state, time and auto-refresh on one line --}}
   <div class="pd-head">
     <button type="button" class="st {{ $hero['state'] }}" onclick="this.closest('.pd-head').classList.toggle('show-up')" title="Uptime {{ $hero['uptime'] }}"><i></i>{{ $hero['headline'] }}</button>
-    <span class="gen">{{ $generatedAt->copy()->timezone('America/Los_Angeles')->format('g:i a') }}<span class="pd-up">{{ $hero['uptime'] ? ' · up ' . $hero['uptime'] : '' }}</span></span>
+    <span class="gen">{{ alocal($generatedAt, 'g:i a') }}<span class="pd-up">{{ $hero['uptime'] ? ' · up ' . $hero['uptime'] : '' }}</span></span>
     <span class="pd-rf" id="pd-refresh">
       <select class="pd-sel" data-refresh-select aria-label="Auto-refresh">
         <option value="30">Live</option>

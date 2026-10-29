@@ -49,7 +49,7 @@
             <div style="{{ $label }}">{{ $statement['period']['label'] }}</div>
             <p style="{{ $body }}">
                 This shop did not exist yet — it was created
-                {{ \Carbon\Carbon::parse($statement['created_at'])->format('F j, Y') }}.
+                {{ alocal($statement['created_at'], 'F j, Y') }}.
             </p>
         </div>
     @elseif($tenant && $statement)
@@ -240,7 +240,7 @@
             @php $notices = $this->notices(); @endphp
             @forelse($notices as $n)
                 <div style="display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;padding:8px 0;border-top:1px solid rgba(127,127,127,.14);font-size:13px">
-                    <span style="min-width:96px;opacity:.6">{{ $n->created_at->format('M j, H:i') }}</span>
+                    <span style="min-width:96px;opacity:.6">{{ alocal($n->created_at, 'M j, H:i') }}</span>
                     <span style="font-weight:600;min-width:140px">{{ \App\Models\BillingNoticeTemplate::find($n->event)?->label ?? $n->event }}</span>
                     <span style="opacity:.6">
                         @if($n->alerted) alert @endif
@@ -265,7 +265,7 @@
 
             @forelse($runs as $run)
                 <div style="display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;padding:9px 0;border-top:1px solid rgba(127,127,127,.14);font-size:13px">
-                    <span style="min-width:96px;opacity:.6">{{ $run->created_at->format('M j, H:i') }}</span>
+                    <span style="min-width:96px;opacity:.6">{{ alocal($run->created_at, 'M j, H:i') }}</span>
                     <span style="font-weight:600;min-width:78px">{{ \App\Filament\Pages\TenantBilling::money($run->amount_cents) }}</span>
                     <span style="opacity:.6">{{ number_format($run->message_count) }} messages</span>
                     <span style="padding:2px 9px;border-radius:999px;border:1px solid rgba(127,127,127,.3);font-size:11px;text-transform:uppercase;letter-spacing:.04em">

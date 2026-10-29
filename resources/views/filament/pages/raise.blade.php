@@ -466,7 +466,7 @@
                         <span class="text-sm" style="color:#BEF264;font-weight:700">{{ number_format((int) $m->amount) }}</span></div>
                     <div style="display:flex;padding:11px 14px;border-bottom:1px solid rgba(255,255,255,.08)">
                         <span class="text-xs text-gray-500" style="flex:0 0 140px">safe_date</span>
-                        <span class="text-sm">{{ now()->format('F j, Y') }}</span></div>
+                        <span class="text-sm">{{ admin_now()->format('F j, Y') }}</span></div>
                     <div style="display:flex;padding:11px 14px">
                         <span class="text-xs text-gray-500" style="flex:0 0 140px">Send to</span>
                         <span class="text-sm">{{ $m->email }}</span></div>

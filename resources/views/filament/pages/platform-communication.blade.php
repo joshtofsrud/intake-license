@@ -210,7 +210,7 @@
       <div class="pc-cols">
         <div class="pc-card">
           <h3>{{ $campaign->name }}</h3>
-          <div class="sub">{{ ucfirst($campaign->status) }}@if($campaign->scheduled_at) · {{ $campaign->scheduled_at->format('D M j, g:i A') }}@endif</div>
+          <div class="sub">{{ ucfirst($campaign->status) }}@if($campaign->scheduled_at) · {{ alocal($campaign->scheduled_at, 'D M j, g:i A') }}@endif</div>
 
           <div class="pc-f"><label>Name</label><input type="text" wire:model="cName"></div>
           <div class="pc-f"><label>Subject</label><input type="text" wire:model="cSubject"></div>
@@ -308,7 +308,7 @@
           @endif
           <div class="pc-f">
             <label>Send at <span style="opacity:.55">(leave blank to send now)</span></label>
-            <input type="datetime-local" wire:model="cSchedule">
+            <input type="datetime-local" wire:model="cSchedule" title="{{ admin_tz_label() }}"> <span style="font-size:11.5px;opacity:.6">{{ admin_tz_label() }}</span>
           </div>
 
           @if($blockers)
@@ -636,7 +636,7 @@
         <div class="pc-row" style="grid-template-columns:1fr 150px 1fr 110px">
           <div>
             <div class="t" style="font-size:13.5px">{{ $row->email }}</div>
-            <div class="d">since {{ $row->suppressed_at?->format('M j, Y') ?? '—' }}</div>
+            <div class="d">since {{ $row->suppressed_at ? alocal($row->suppressed_at, 'M j, Y') : '—' }}</div>
           </div>
           <div>
             <span class="pc-pill pc-pill--custom">All shops</span>

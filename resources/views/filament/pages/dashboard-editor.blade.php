@@ -274,7 +274,7 @@
       @forelse ($versions as $v)
         <div class="de-ver">
           <b style="color:var(--db-txt)">v{{ $v->version }}</b>
-          <span class="db-note">{{ $v->published_at?->format('M j, g:ia') }}@if ($v->note) · {{ \Illuminate\Support\Str::limit($v->note, 60) }}@endif</span>
+          <span class="db-note">{{ alocal($v->published_at, 'M j, g:ia') }}@if ($v->note) · {{ \Illuminate\Support\Str::limit($v->note, 60) }}@endif</span>
           <span class="sp">
             @if ($tpl->live_version_id === $v->id)<span class="db-tag live">Live</span>
             @elseif ($canEdit)<button type="button" class="db-lnk" style="font-size:12px" wire:click="openVersion({{ $v->id }})"

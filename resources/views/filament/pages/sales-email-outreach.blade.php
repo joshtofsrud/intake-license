@@ -7,7 +7,7 @@
     $done  = $list === 'today' ? $this->sentToday() : collect();
     $seen  = $list === 'visited' ? $this->visited() : collect();
     $news  = $list === 'today' ? $this->threadNews($done) : [];
-    $tz    = \App\Filament\Pages\SalesEmailOutreach::TZ;
+    $tz    = admin_tz();
     $listTotal = ['queue' => max(0, $st['queue'] - ($cur ? 1 : 0)), 'today' => $st['today'], 'visited' => $st['visited']][$list];
     $per   = \App\Filament\Pages\SalesEmailOutreach::PER_PAGE;
     $pages = max(1, (int) ceil($listTotal / $per));
@@ -349,7 +349,7 @@
                         @if (! empty($nw['opened']))<span class="eo-tag eo-tag-o">Opened {{ $nw['opened']->timezone($tz)->format('g:i a') }}</span>@else<span class="eo-tag eo-tag-n">Not opened</span>@endif
                         @if (! empty($nw['auto']) && empty($nw['replied']))<span class="eo-tag eo-tag-n">Auto-reply</span>@endif
                     </span></td>
-                    <td style="text-align:right;color:var(--sx-dim)">{{ \Carbon\Carbon::parse($d->created_at)->timezone(\App\Filament\Pages\SalesEmailOutreach::TZ)->format('g:i a') }}</td>
+                    <td style="text-align:right;color:var(--sx-dim)">{{ \Carbon\Carbon::parse($d->created_at)->timezone(admin_tz())->format('g:i a') }}</td>
                 </tr>
             @empty
                 <tr><td colspan="4" class="sx-sub">None yet today.</td></tr>
@@ -362,8 +362,8 @@
                 <tr>
                     <td class="eo-shop">{{ $v->shop }}</td>
                     <td style="color:var(--sx-dim)">{{ trim($v->city . ', ' . $v->state, ', ') }}</td>
-                    <td style="color:var(--sx-dim)">{{ $v->emailed_at ? $v->emailed_at->timezone(\App\Filament\Pages\SalesEmailOutreach::TZ)->format('M j, g:i a') : '—' }}</td>
-                    <td style="text-align:right;color:var(--sx-dim)">{{ $v->link_clicked_at->timezone(\App\Filament\Pages\SalesEmailOutreach::TZ)->format('M j, g:i a') }}</td>
+                    <td style="color:var(--sx-dim)">{{ $v->emailed_at ? $v->emailed_at->timezone(admin_tz())->format('M j, g:i a') : '—' }}</td>
+                    <td style="text-align:right;color:var(--sx-dim)">{{ $v->link_clicked_at->timezone(admin_tz())->format('M j, g:i a') }}</td>
                 </tr>
             @empty
                 <tr><td colspan="4" class="sx-sub">Nobody has opened their link yet.</td></tr>

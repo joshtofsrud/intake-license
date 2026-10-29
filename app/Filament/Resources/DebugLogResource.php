@@ -104,7 +104,7 @@ class DebugLogResource extends Resource
             ->poll('30s')
             ->columns([
                 Tables\Columns\TextColumn::make('created_at')
-                    ->label('When')
+                    ->label(fn () => 'When (' . admin_tz_label() . ')')
                     ->dateTime('M j g:i:s a')
                     ->description(fn (DebugLog $r) => $r->created_at?->diffForHumans())
                     ->sortable(),

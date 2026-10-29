@@ -352,3 +352,58 @@ if (! function_exists('tlocal_input')) {
         return \Carbon\Carbon::parse($utc)->setTimezone(tenant()->timezone())->format('Y-m-d\\TH:i');
     }
 }
+
+/*
+ * MARKER-ADMIN-TZ: master admin shows times in one zone, the platform time zone
+ * (Scheduling › Availability, the same setting the calendar already used).
+ * Storage and the database stay UTC; these convert at the edge, like tlocal()
+ * does for shops. Filament date columns and pickers get it in AppServiceProvider.
+ */
+if (! function_exists('admin_tz')) {
+    function admin_tz(): string
+    {
+        if (app()->bound('intake.admin_tz')) {
+            return app('intake.admin_tz');
+        }
+        try {
+            $v = \App\Models\PlatformBookingSetting::get('timezone');
+        } catch (\Throwable $e) {
+            $v = null;
+        }
+        $tz = (is_string($v) && in_array($v, timezone_identifiers_list(), true)) ? $v : (string) config('app.timezone', 'UTC');
+        app()->instance('intake.admin_tz', $tz);
+
+        return $tz;
+    }
+}
+
+if (! function_exists('alocal')) {
+    /** A UTC instant in the master-admin zone. Empty string for null. @see admin_tz() */
+    function alocal($instant, string $format = 'M j, g:i a'): string
+    {
+        if ($instant === null || $instant === '') {
+            return '';
+        }
+        $c = $instant instanceof \Carbon\CarbonInterface
+            ? \Carbon\Carbon::instance($instant)->copy()
+            : \Carbon\Carbon::parse($instant, 'UTC');
+
+        return $c->setTimezone(admin_tz())->format($format);
+    }
+}
+
+if (! function_exists('admin_now')) {
+    /** "now" in the master-admin zone: for today/this-week boundaries and names people read. */
+    function admin_now(): \Carbon\Carbon
+    {
+        return \Carbon\Carbon::now(admin_tz());
+    }
+}
+
+if (! function_exists('admin_tz_label')) {
+    /** The zone's short name right now, e.g. "PDT", for labels. */
+    function admin_tz_label(): string
+    {
+        return \Carbon\Carbon::now(admin_tz())->format('T');
+    }
+}

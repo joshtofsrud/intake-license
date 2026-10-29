@@ -79,7 +79,7 @@ class ChangelogEntryResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('shipped_on')->date('M j, Y')->sortable(),
+                Tables\Columns\TextColumn::make('shipped_on')->date('M j, Y')->timezone('UTC')->sortable(),
                 Tables\Columns\TextColumn::make('title')->searchable()->limit(60),
                 Tables\Columns\TextColumn::make('category')->badge(),
                 Tables\Columns\ToggleColumn::make('is_published')->label('Pub'),

@@ -5,7 +5,7 @@
     $s       = $this->state();
     $weeks   = $this->weekOptions();
     $sup     = $this->suppressed();
-    $tz      = config('app.timezone');
+    $tz      = admin_tz();
     $busiest = collect($weeks)->keys()->first();
 
     $card   = 'display:flex;flex-direction:column;height:100%;border-radius:12px;padding:16px 18px;border:1px solid rgba(127,127,127,.22)';

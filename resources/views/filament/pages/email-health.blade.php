@@ -218,7 +218,7 @@
             <div>{{ $a['tenant'] }}</div>
             <div>{{ number_format($a['count']) }}</div>
             <div>{{ $a['by'] }}@if($a['role'])<span style="color:var(--eh-text-dim);font-size:11.5px"> · {{ $a['role'] }}</span>@endif</div>
-            <div>{{ $a['when']->format('M j, Y g:ia') }}@if($a['ip'])<span style="color:var(--eh-text-dim);font-size:11.5px"> · {{ $a['ip'] }}</span>@endif</div>
+            <div>{{ alocal($a['when'], 'M j, Y g:ia') }}@if($a['ip'])<span style="color:var(--eh-text-dim);font-size:11.5px"> · {{ $a['ip'] }}</span>@endif</div>
           </div>
         @endforeach
       @endif
@@ -292,7 +292,7 @@
   </div>
 
   <div style="font-size: 11px; color: var(--eh-text-dim); text-align: right; font-family: var(--eh-mono); margin-top: 16px;">
-    Generated {{ $generatedAt->format('Y-m-d H:i:s') }} UTC
+    Generated {{ alocal($generatedAt, 'Y-m-d H:i:s') }} {{ admin_tz_label() }}
   </div>
 
 </div>

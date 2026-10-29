@@ -72,7 +72,7 @@ class OutreachResults
     private static function window(array $f): array
     {
         $days     = (string) ($f['days'] ?? '30');
-        $tz       = (string) ($f['tz'] ?? 'America/Los_Angeles');
+        $tz       = (string) ($f['tz'] ?? admin_tz());
         $until    = null;
 
         // MARKER-OUTREACH-RANGE: Today is the local calendar day, and a custom
@@ -225,7 +225,7 @@ class OutreachResults
                 . ($median !== null
                     ? ' People who looked at earlier sends took ' . self::span($median) . ' (middle of ' . count($delays) . '), and ' . $within2d . ' of ' . count($delays) . ' looked within two days.'
                     : ' Give it two days before judging it.')
-                . ' Check back ' . $end->addDays(2)->setTimezone('America/Los_Angeles')->format('D M j') . '.'];
+                . ' Check back ' . $end->addDays(2)->setTimezone(admin_tz())->format('D M j') . '.'];
         }
 
         // 2. opened but didn't click
@@ -401,7 +401,7 @@ class OutreachResults
     /** Last 8 weeks: shops emailed that week, and shops whose first visit after an email fell in it. */
     private static function weeks($rows, array $ctx): array
     {
-        $tz = 'America/Los_Angeles';
+        $tz = admin_tz();
         $start = now($tz)->startOfWeek()->subWeeks(7);
         $weeks = [];
         for ($i = 0; $i < 8; $i++) {

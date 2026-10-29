@@ -590,7 +590,7 @@ class PlatformCommunication extends Page
         $this->cSubject   = (string) $c->subject;
         $this->cBody      = (string) $c->body;
         $this->cAudience  = (string) $c->audience_id;
-        $this->cSchedule  = $c->scheduled_at?->format('Y-m-d\TH:i') ?? '';
+        $this->cSchedule  = $c->scheduled_at ? alocal($c->scheduled_at, 'Y-m-d\TH:i') : ''; // the box is in the admin zone
         $this->cBlocks    = \App\Support\PlatformLetter::isLetter($c->blocks ?? []) ? array_values($c->blocks) : [];
         $this->cMode      = $this->cBlocks ? 'letter' : 'body';
         $this->shotUploads = [];
@@ -664,12 +664,13 @@ class PlatformCommunication extends Page
 
         // An empty schedule means now. The worker still does the sending, so
         // one code path builds the list and re-checks opt-outs either way.
-        $when = trim($this->cSchedule) !== '' ? \Carbon\Carbon::parse($this->cSchedule) : now();
+        // MARKER-ADMIN-TZ: the box is read in the admin zone (it used to be read as UTC, 7-8 hours off)
+        $when = trim($this->cSchedule) !== '' ? \Carbon\Carbon::parse($this->cSchedule, admin_tz())->utc() : now();
 
         $c->update(['status' => 'scheduled', 'scheduled_at' => $when]);
 
         Notification::make()->success()
-            ->title($when->isFuture() ? 'Scheduled for ' . $when->format('D M j, g:i A') : 'Sending now')
+            ->title($when->isFuture() ? 'Scheduled for ' . alocal($when, 'D M j, g:i A') : 'Sending now')
             ->body('The worker builds the recipient list when it fires, so anyone who unsubscribes before then is excluded.')
             ->send();
     }

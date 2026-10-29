@@ -71,7 +71,7 @@
       <b>Previous versions</b>
       @foreach($history as $i => $h)
         <div class="r">
-          <span>Saved {{ \Illuminate\Support\Carbon::parse($h['saved_at'] ?? now())->format('M j, Y g:ia') }}@if(!empty($h['by'])) by {{ $h['by'] }}@endif</span>
+          <span>Saved {{ alocal($h['saved_at'] ?? now(), 'M j, Y g:ia') }}@if(!empty($h['by'])) by {{ $h['by'] }}@endif</span>
           <button type="button" class="br-btn" wire:click="restore({{ $i }})">Switch back</button>
         </div>
       @endforeach

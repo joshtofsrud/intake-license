@@ -1,0 +1,692 @@
+diff --git a/app/Filament/Pages/PlatformCommunication.php b/app/Filament/Pages/PlatformCommunication.php
+index 152ec66c..e8c39bff 100644
+--- a/app/Filament/Pages/PlatformCommunication.php
++++ b/app/Filament/Pages/PlatformCommunication.php
+@@ -590,7 +590,7 @@ class PlatformCommunication extends Page
+         $this->cSubject   = (string) $c->subject;
+         $this->cBody      = (string) $c->body;
+         $this->cAudience  = (string) $c->audience_id;
+-        $this->cSchedule  = $c->scheduled_at?->format('Y-m-d\TH:i') ?? '';
++        $this->cSchedule  = $c->scheduled_at ? alocal($c->scheduled_at, 'Y-m-d\TH:i') : ''; // the box is in the admin zone
+         $this->cBlocks    = \App\Support\PlatformLetter::isLetter($c->blocks ?? []) ? array_values($c->blocks) : [];
+         $this->cMode      = $this->cBlocks ? 'letter' : 'body';
+         $this->shotUploads = [];
+@@ -664,12 +664,13 @@ class PlatformCommunication extends Page
+ 
+         // An empty schedule means now. The worker still does the sending, so
+         // one code path builds the list and re-checks opt-outs either way.
+-        $when = trim($this->cSchedule) !== '' ? \Carbon\Carbon::parse($this->cSchedule) : now();
++        // MARKER-ADMIN-TZ: the box is read in the admin zone (it used to be read as UTC, 7-8 hours off)
++        $when = trim($this->cSchedule) !== '' ? \Carbon\Carbon::parse($this->cSchedule, admin_tz())->utc() : now();
+ 
+         $c->update(['status' => 'scheduled', 'scheduled_at' => $when]);
+ 
+         Notification::make()->success()
+-            ->title($when->isFuture() ? 'Scheduled for ' . $when->format('D M j, g:i A') : 'Sending now')
++            ->title($when->isFuture() ? 'Scheduled for ' . alocal($when, 'D M j, g:i A') : 'Sending now')
+             ->body('The worker builds the recipient list when it fires, so anyone who unsubscribes before then is excluded.')
+             ->send();
+     }
+diff --git a/app/Filament/Pages/SalesEmailOutreach.php b/app/Filament/Pages/SalesEmailOutreach.php
+index 23bba16d..4daa32ed 100644
+--- a/app/Filament/Pages/SalesEmailOutreach.php
++++ b/app/Filament/Pages/SalesEmailOutreach.php
+@@ -28,7 +28,6 @@ class SalesEmailOutreach extends Page
+     protected static ?string $slug            = 'sales-email-outreach';
+     protected static ?string $title           = 'Email outreach';
+ 
+-    public const TZ = 'America/Los_Angeles';
+ 
+     public string $industryId = '';
+     public string $state = '';
+@@ -169,7 +168,7 @@ class SalesEmailOutreach extends Page
+             'days'     => in_array($this->rDays, ['today', '7', '30', '90', 'all', 'custom'], true) ? $this->rDays : '30',
+             'from'     => $this->rFrom,
+             'to'       => $this->rTo,
+-            'tz'       => self::TZ,
++            'tz'       => admin_tz(),
+         ]);
+     }
+ 
+@@ -194,7 +193,7 @@ class SalesEmailOutreach extends Page
+             'days'     => in_array($this->rDays, ['today', '7', '30', '90', 'all', 'custom'], true) ? $this->rDays : '30',
+             'from'     => $this->rFrom,
+             'to'       => $this->rTo,
+-            'tz'       => self::TZ,
++            'tz'       => admin_tz(),
+         ]);
+     }
+ 
+@@ -202,7 +201,7 @@ class SalesEmailOutreach extends Page
+ 
+     private static function dayStart()
+     {
+-        return now(self::TZ)->startOfDay()->setTimezone(config('app.timezone'));
++        return now(admin_tz())->startOfDay()->setTimezone(config('app.timezone'));
+     }
+ 
+     /** MARKER-OUTREACH-AUTO: the filters on screen, as OutreachQueue takes them. */
+diff --git a/app/Filament/Pages/SalesFindShops.php b/app/Filament/Pages/SalesFindShops.php
+index 6c97d592..fedd6292 100644
+--- a/app/Filament/Pages/SalesFindShops.php
++++ b/app/Filament/Pages/SalesFindShops.php
+@@ -455,7 +455,7 @@ class SalesFindShops extends Page
+         $src = $this->listPath();
+         if (! $src) { Notification::make()->title('Pick a file first.')->warning()->send(); return; }
+         if ($this->mapProblem()) { Notification::make()->title($this->mapProblem())->warning()->send(); return; }
+-        $batch = 'list-' . now()->format('Ymd-Hi');
++        $batch = 'list-' . admin_now()->format('Ymd-Hi');
+         $dir = storage_path('app/shop-imports');
+         if (! is_dir($dir)) @mkdir($dir, 0775, true);
+         $path = $dir . '/' . $batch . '-' . \Illuminate\Support\Str::random(6) . '.csv';
+diff --git a/app/Filament/Pages/SalesInstagramFollows.php b/app/Filament/Pages/SalesInstagramFollows.php
+index 50b63c54..7bdfb2dd 100644
+--- a/app/Filament/Pages/SalesInstagramFollows.php
++++ b/app/Filament/Pages/SalesInstagramFollows.php
+@@ -28,11 +28,10 @@ class SalesInstagramFollows extends Page
+ 
+     public const PACE_WARN = 20; // follows in the last 60 minutes before the warning shows
+     // "today" runs on Pacific time, not the server clock
+-    public const TZ = 'America/Los_Angeles';
+ 
+     private static function dayStart()
+     {
+-        return now(self::TZ)->startOfDay()->setTimezone(config('app.timezone'));
++        return now(admin_tz())->startOfDay()->setTimezone(config('app.timezone'));
+     }
+ 
+     public string $industryId = '';
+diff --git a/app/Filament/Pages/SalesPipeline.php b/app/Filament/Pages/SalesPipeline.php
+index 4283d31a..ff506a3e 100644
+--- a/app/Filament/Pages/SalesPipeline.php
++++ b/app/Filament/Pages/SalesPipeline.php
+@@ -619,7 +619,7 @@ class SalesPipeline extends Page
+             Notification::make()->title('None of the selected shops has an email address')->warning()->send(); return;
+         }
+         $aud = \App\Models\PlatformAudience::create([
+-            'name'   => 'Prospects: ' . count($ids) . ' selected, ' . now()->format('M j, g:ia'),
++            'name'   => 'Prospects: ' . count($ids) . ' selected, ' . admin_now()->format('M j, g:ia'),
+             'source' => 'prospects',
+             'rules'  => [['field' => 'ids', 'op' => 'is', 'value' => implode(',', $ids)]],
+         ]);
+diff --git a/app/Filament/Rep/Resources/RepProspectResource.php b/app/Filament/Rep/Resources/RepProspectResource.php
+index b0ee925f..14dd5490 100644
+--- a/app/Filament/Rep/Resources/RepProspectResource.php
++++ b/app/Filament/Rep/Resources/RepProspectResource.php
+@@ -119,7 +119,7 @@ class RepProspectResource extends Resource
+                     ->formatStateUsing(fn ($state) => $state ? '$' . number_format($state) . '/mo' : null)
+                     ->placeholder('—'),
+                 Tables\Columns\TextColumn::make('next_action_on')
+-                    ->label('Next action')->date()->sortable()
++                    ->label('Next action')->date()->timezone('UTC')->sortable() // a calendar day, not an instant
+                     ->description(fn (SalesProspect $r) => $r->next_action)
+                     ->color(fn (SalesProspect $r) => $r->next_action_on && $r->next_action_on->isPast() ? 'danger' : null),
+             ])
+diff --git a/app/Filament/Resources/ChangelogEntryResource.php b/app/Filament/Resources/ChangelogEntryResource.php
+index a87e3c64..00ecdb13 100644
+--- a/app/Filament/Resources/ChangelogEntryResource.php
++++ b/app/Filament/Resources/ChangelogEntryResource.php
+@@ -79,7 +79,7 @@ class ChangelogEntryResource extends Resource
+     {
+         return $table
+             ->columns([
+-                Tables\Columns\TextColumn::make('shipped_on')->date('M j, Y')->sortable(),
++                Tables\Columns\TextColumn::make('shipped_on')->date('M j, Y')->timezone('UTC')->sortable(),
+                 Tables\Columns\TextColumn::make('title')->searchable()->limit(60),
+                 Tables\Columns\TextColumn::make('category')->badge(),
+                 Tables\Columns\ToggleColumn::make('is_published')->label('Pub'),
+diff --git a/app/Filament/Resources/DebugLogResource.php b/app/Filament/Resources/DebugLogResource.php
+index be09225e..892aa0b2 100644
+--- a/app/Filament/Resources/DebugLogResource.php
++++ b/app/Filament/Resources/DebugLogResource.php
+@@ -104,7 +104,7 @@ class DebugLogResource extends Resource
+             ->poll('30s')
+             ->columns([
+                 Tables\Columns\TextColumn::make('created_at')
+-                    ->label('When')
++                    ->label(fn () => 'When (' . admin_tz_label() . ')')
+                     ->dateTime('M j g:i:s a')
+                     ->description(fn (DebugLog $r) => $r->created_at?->diffForHumans())
+                     ->sortable(),
+diff --git a/app/Filament/Resources/PlanPriceResource.php b/app/Filament/Resources/PlanPriceResource.php
+index d1a70dc4..cc3eb0c4 100644
+--- a/app/Filament/Resources/PlanPriceResource.php
++++ b/app/Filament/Resources/PlanPriceResource.php
+@@ -62,7 +62,7 @@ class PlanPriceResource extends Resource
+                 Tables\Columns\TextColumn::make('price_cents')->label('Price')
+                     ->getStateUsing(fn (PlanPrice $r) => $r->dollars())->sortable(),
+ 
+-                Tables\Columns\TextColumn::make('effective_from')->label('From')->date('M j, Y')->sortable(),
++                Tables\Columns\TextColumn::make('effective_from')->label('From')->date('M j, Y')->timezone('UTC')->sortable(),
+ 
+                 Tables\Columns\TextColumn::make('status')->label('Status')->badge()
+                     ->getStateUsing(function (PlanPrice $r) {
+diff --git a/app/Filament/Resources/SalesProspectResource.php b/app/Filament/Resources/SalesProspectResource.php
+index 64baf02a..312a342c 100644
+--- a/app/Filament/Resources/SalesProspectResource.php
++++ b/app/Filament/Resources/SalesProspectResource.php
+@@ -260,7 +260,7 @@ class SalesProspectResource extends Resource
+                     ->tooltip(fn (SalesProspect $r) => $r->tenant?->name),
+ 
+                 Tables\Columns\TextColumn::make('next_action_on')
+-                    ->label('Due')->date('M j')->sortable()
++                    ->label('Due')->date('M j')->timezone('UTC')->sortable() // a calendar day
+                     ->color(fn ($state) => $state && $state->isPast() ? 'danger' : 'gray')
+                     ->placeholder('—'),
+             ])
+diff --git a/app/Filament/Resources/TenantResource.php b/app/Filament/Resources/TenantResource.php
+index 0069d1b2..6e992f97 100644
+--- a/app/Filament/Resources/TenantResource.php
++++ b/app/Filament/Resources/TenantResource.php
+@@ -75,7 +75,7 @@ class TenantResource extends Resource
+                     Forms\Components\Placeholder::make('cleanup_state')
+                         ->label('Currently')
+                         ->content(fn ($record) => $record && $record->customerAdminOpen()
+-                            ? 'OPEN until ' . $record->consent_cleanup_until->format('M j, Y g:ia')
++                            ? 'OPEN until ' . alocal($record->consent_cleanup_until, 'M j, Y g:ia')
+                             : 'Closed'),
+                     Forms\Components\DateTimePicker::make('consent_cleanup_until')
+                         ->label('Window open until')
+@@ -96,7 +96,7 @@ class TenantResource extends Resource
+                                 $set('consent_cleanup_until', $until);
+                                 \Filament\Notifications\Notification::make()->success()
+                                     ->title('Customer admin mode opened')
+-                                    ->body('Closes on its own ' . $until->format('M j, Y g:ia') . '.')
++                                    ->body('Closes on its own ' . alocal($until, 'M j, Y g:ia') . '.')
+                                     ->send();
+                             }),
+                         Forms\Components\Actions\Action::make('closeNow')
+diff --git a/app/Providers/AppServiceProvider.php b/app/Providers/AppServiceProvider.php
+index bf7235b5..62a5c593 100644
+--- a/app/Providers/AppServiceProvider.php
++++ b/app/Providers/AppServiceProvider.php
+@@ -38,6 +38,19 @@ class AppServiceProvider extends ServiceProvider
+     {
+         // MARKER-SEC-AUDIT: workers are long-lived; each job reads add-on access fresh
+         \Illuminate\Support\Facades\Queue::before(fn () => \App\Services\FeatureAccessService::flushRequestCache());
++        // MARKER-ADMIN-TZ: same for the master-admin time zone, so a changed setting reaches workers
++        \Illuminate\Support\Facades\Queue::before(fn () => app()->forgetInstance('intake.admin_tz'));
++
++        // MARKER-ADMIN-TZ: every Filament date column, entry and date-time picker shows
++        // (and, for pickers, reads back) times in the master-admin zone instead of UTC.
++        // Date-only values (a DatePicker, or a column on a `date` field) are calendar days
++        // with no instant behind them; shifting them would move them a day, so they opt out.
++        \Filament\Tables\Columns\TextColumn::configureUsing(fn ($c) => $c->timezone(fn () => admin_tz()));
++        \Filament\Infolists\Components\TextEntry::configureUsing(fn ($c) => $c->timezone(fn () => admin_tz()));
++        \Filament\Forms\Components\DateTimePicker::configureUsing(function ($c) {
++            if ($c instanceof \Filament\Forms\Components\DatePicker || $c instanceof \Filament\Forms\Components\TimePicker) return;
++            $c->timezone(fn () => admin_tz());
++        });
+ 
+         // enforce one primary domain per tenant
+         // every bare ->links() renders the themed
+diff --git a/app/Services/Sales/OutreachAutoSend.php b/app/Services/Sales/OutreachAutoSend.php
+index 1b9b261a..f7a00ada 100644
+--- a/app/Services/Sales/OutreachAutoSend.php
++++ b/app/Services/Sales/OutreachAutoSend.php
+@@ -31,7 +31,6 @@ use InvalidArgumentException;
+  */
+ class OutreachAutoSend
+ {
+-    public const TZ = 'America/Los_Angeles';
+     public const KINDS = ['business', 'free'];
+ 
+     public static function state(): array
+@@ -91,7 +90,7 @@ class OutreachAutoSend
+             'running' => true, 'run_id' => (string) Str::uuid(), 'started_at' => now()->toIso8601String(),
+             'started_by' => $userId, 'started_by_name' => $userName, 'config' => $config,
+             'sent' => ['business' => 0, 'free' => 0], 'skipped' => 0,
+-            'day' => now(self::TZ)->toDateString(), 'day_sent' => ['business' => 0, 'free' => 0],
++            'day' => now(admin_tz())->toDateString(), 'day_sent' => ['business' => 0, 'free' => 0],
+             'last' => ['business' => null, 'free' => null], 'next_at' => now()->toIso8601String(),
+             'last_tick_at' => null, 'last_sent' => null, 'stopped_at' => null, 'stopped_reason' => null,
+         ];
+@@ -154,7 +153,7 @@ class OutreachAutoSend
+                 return null;
+             }
+ 
+-            $today = now(self::TZ)->toDateString();
++            $today = now(admin_tz())->toDateString();
+             if (($s['day'] ?? null) !== $today) {
+                 $s['day'] = $today;
+                 $s['day_sent'] = ['business' => 0, 'free' => 0];
+diff --git a/app/Services/Sales/OutreachResults.php b/app/Services/Sales/OutreachResults.php
+index 952901c8..f3c74fee 100644
+--- a/app/Services/Sales/OutreachResults.php
++++ b/app/Services/Sales/OutreachResults.php
+@@ -72,7 +72,7 @@ class OutreachResults
+     private static function window(array $f): array
+     {
+         $days     = (string) ($f['days'] ?? '30');
+-        $tz       = (string) ($f['tz'] ?? 'America/Los_Angeles');
++        $tz       = (string) ($f['tz'] ?? admin_tz());
+         $until    = null;
+ 
+         // MARKER-OUTREACH-RANGE: Today is the local calendar day, and a custom
+@@ -225,7 +225,7 @@ class OutreachResults
+                 . ($median !== null
+                     ? ' People who looked at earlier sends took ' . self::span($median) . ' (middle of ' . count($delays) . '), and ' . $within2d . ' of ' . count($delays) . ' looked within two days.'
+                     : ' Give it two days before judging it.')
+-                . ' Check back ' . $end->addDays(2)->setTimezone('America/Los_Angeles')->format('D M j') . '.'];
++                . ' Check back ' . $end->addDays(2)->setTimezone(admin_tz())->format('D M j') . '.'];
+         }
+ 
+         // 2. opened but didn't click
+@@ -401,7 +401,7 @@ class OutreachResults
+     /** Last 8 weeks: shops emailed that week, and shops whose first visit after an email fell in it. */
+     private static function weeks($rows, array $ctx): array
+     {
+-        $tz = 'America/Los_Angeles';
++        $tz = admin_tz();
+         $start = now($tz)->startOfWeek()->subWeeks(7);
+         $weeks = [];
+         for ($i = 0; $i < 8; $i++) {
+diff --git a/app/helpers.php b/app/helpers.php
+index a676bd9c..712ccfaf 100644
+--- a/app/helpers.php
++++ b/app/helpers.php
+@@ -352,3 +352,58 @@ if (! function_exists('tlocal_input')) {
+         return \Carbon\Carbon::parse($utc)->setTimezone(tenant()->timezone())->format('Y-m-d\\TH:i');
+     }
+ }
++
++/*
++ * MARKER-ADMIN-TZ: master admin shows times in one zone, the platform time zone
++ * (Scheduling › Availability, the same setting the calendar already used).
++ * Storage and the database stay UTC; these convert at the edge, like tlocal()
++ * does for shops. Filament date columns and pickers get it in AppServiceProvider.
++ */
++if (! function_exists('admin_tz')) {
++    function admin_tz(): string
++    {
++        if (app()->bound('intake.admin_tz')) {
++            return app('intake.admin_tz');
++        }
++        try {
++            $v = \App\Models\PlatformBookingSetting::get('timezone');
++        } catch (\Throwable $e) {
++            $v = null;
++        }
++        $tz = (is_string($v) && in_array($v, timezone_identifiers_list(), true)) ? $v : (string) config('app.timezone', 'UTC');
++        app()->instance('intake.admin_tz', $tz);
++
++        return $tz;
++    }
++}
++
++if (! function_exists('alocal')) {
++    /** A UTC instant in the master-admin zone. Empty string for null. @see admin_tz() */
++    function alocal($instant, string $format = 'M j, g:i a'): string
++    {
++        if ($instant === null || $instant === '') {
++            return '';
++        }
++        $c = $instant instanceof \Carbon\CarbonInterface
++            ? \Carbon\Carbon::instance($instant)->copy()
++            : \Carbon\Carbon::parse($instant, 'UTC');
++
++        return $c->setTimezone(admin_tz())->format($format);
++    }
++}
++
++if (! function_exists('admin_now')) {
++    /** "now" in the master-admin zone: for today/this-week boundaries and names people read. */
++    function admin_now(): \Carbon\Carbon
++    {
++        return \Carbon\Carbon::now(admin_tz());
++    }
++}
++
++if (! function_exists('admin_tz_label')) {
++    /** The zone's short name right now, e.g. "PDT", for labels. */
++    function admin_tz_label(): string
++    {
++        return \Carbon\Carbon::now(admin_tz())->format('T');
++    }
++}
+diff --git a/resources/views/filament/pages/brand.blade.php b/resources/views/filament/pages/brand.blade.php
+index fd6163de..37ac43f8 100644
+--- a/resources/views/filament/pages/brand.blade.php
++++ b/resources/views/filament/pages/brand.blade.php
+@@ -71,7 +71,7 @@
+       <b>Previous versions</b>
+       @foreach($history as $i => $h)
+         <div class="r">
+-          <span>Saved {{ \Illuminate\Support\Carbon::parse($h['saved_at'] ?? now())->format('M j, Y g:ia') }}@if(!empty($h['by'])) by {{ $h['by'] }}@endif</span>
++          <span>Saved {{ alocal($h['saved_at'] ?? now(), 'M j, Y g:ia') }}@if(!empty($h['by'])) by {{ $h['by'] }}@endif</span>
+           <button type="button" class="br-btn" wire:click="restore({{ $i }})">Switch back</button>
+         </div>
+       @endforeach
+diff --git a/resources/views/filament/pages/dashboard-editor.blade.php b/resources/views/filament/pages/dashboard-editor.blade.php
+index 2866374c..ae36ed7d 100644
+--- a/resources/views/filament/pages/dashboard-editor.blade.php
++++ b/resources/views/filament/pages/dashboard-editor.blade.php
+@@ -274,7 +274,7 @@
+       @forelse ($versions as $v)
+         <div class="de-ver">
+           <b style="color:var(--db-txt)">v{{ $v->version }}</b>
+-          <span class="db-note">{{ $v->published_at?->format('M j, g:ia') }}@if ($v->note) · {{ \Illuminate\Support\Str::limit($v->note, 60) }}@endif</span>
++          <span class="db-note">{{ alocal($v->published_at, 'M j, g:ia') }}@if ($v->note) · {{ \Illuminate\Support\Str::limit($v->note, 60) }}@endif</span>
+           <span class="sp">
+             @if ($tpl->live_version_id === $v->id)<span class="db-tag live">Live</span>
+             @elseif ($canEdit)<button type="button" class="db-lnk" style="font-size:12px" wire:click="openVersion({{ $v->id }})"
+diff --git a/resources/views/filament/pages/demo.blade.php b/resources/views/filament/pages/demo.blade.php
+index f26d11ef..d8f96c6d 100644
+--- a/resources/views/filament/pages/demo.blade.php
++++ b/resources/views/filament/pages/demo.blade.php
+@@ -5,7 +5,7 @@
+     $s       = $this->state();
+     $weeks   = $this->weekOptions();
+     $sup     = $this->suppressed();
+-    $tz      = config('app.timezone');
++    $tz      = admin_tz();
+     $busiest = collect($weeks)->keys()->first();
+ 
+     $card   = 'display:flex;flex-direction:column;height:100%;border-radius:12px;padding:16px 18px;border:1px solid rgba(127,127,127,.22)';
+diff --git a/resources/views/filament/pages/email-health.blade.php b/resources/views/filament/pages/email-health.blade.php
+index 5f04cae8..5ddc8c9e 100644
+--- a/resources/views/filament/pages/email-health.blade.php
++++ b/resources/views/filament/pages/email-health.blade.php
+@@ -218,7 +218,7 @@
+             <div>{{ $a['tenant'] }}</div>
+             <div>{{ number_format($a['count']) }}</div>
+             <div>{{ $a['by'] }}@if($a['role'])<span style="color:var(--eh-text-dim);font-size:11.5px"> · {{ $a['role'] }}</span>@endif</div>
+-            <div>{{ $a['when']->format('M j, Y g:ia') }}@if($a['ip'])<span style="color:var(--eh-text-dim);font-size:11.5px"> · {{ $a['ip'] }}</span>@endif</div>
++            <div>{{ alocal($a['when'], 'M j, Y g:ia') }}@if($a['ip'])<span style="color:var(--eh-text-dim);font-size:11.5px"> · {{ $a['ip'] }}</span>@endif</div>
+           </div>
+         @endforeach
+       @endif
+@@ -292,7 +292,7 @@
+   </div>
+ 
+   <div style="font-size: 11px; color: var(--eh-text-dim); text-align: right; font-family: var(--eh-mono); margin-top: 16px;">
+-    Generated {{ $generatedAt->format('Y-m-d H:i:s') }} UTC
++    Generated {{ alocal($generatedAt, 'Y-m-d H:i:s') }} {{ admin_tz_label() }}
+   </div>
+ 
+ </div>
+diff --git a/resources/views/filament/pages/live-view.blade.php b/resources/views/filament/pages/live-view.blade.php
+index 46642df9..c7af0fee 100644
+--- a/resources/views/filament/pages/live-view.blade.php
++++ b/resources/views/filament/pages/live-view.blade.php
+@@ -82,9 +82,9 @@
+       @forelse ($recent as $r)
+         <tr>
+           <td>{{ $r->tenant?->name ?? '(deleted shop)' }}</td>
+-          <td class="db-hide-m">{{ $r->requested_by_name }}<div class="db-sub">{{ $r->created_at?->format('M j, g:i a') }}</div></td>
++          <td class="db-hide-m">{{ $r->requested_by_name }}<div class="db-sub">{{ alocal($r->created_at, 'M j, g:i a') }}</div></td>
+           <td>{{ $r->status === 'declined' ? '' : ($r->accepted_by_name ?? '') }}</td>
+-          <td class="db-hide-m">{{ $r->accepted_at?->format('g:i a') }}</td>
++          <td class="db-hide-m">{{ alocal($r->accepted_at, 'g:i a') }}</td>
+           <td>
+             @php $tag = ['requested' => 'pend', 'active' => 'live'][$r->status] ?? 'off'; @endphp
+             <span class="db-tag {{ $tag }}">{{ ucfirst($r->status) }}</span>
+diff --git a/resources/views/filament/pages/platform-communication.blade.php b/resources/views/filament/pages/platform-communication.blade.php
+index 5455d459..bd0e6d44 100644
+--- a/resources/views/filament/pages/platform-communication.blade.php
++++ b/resources/views/filament/pages/platform-communication.blade.php
+@@ -210,7 +210,7 @@
+       <div class="pc-cols">
+         <div class="pc-card">
+           <h3>{{ $campaign->name }}</h3>
+-          <div class="sub">{{ ucfirst($campaign->status) }}@if($campaign->scheduled_at) · {{ $campaign->scheduled_at->format('D M j, g:i A') }}@endif</div>
++          <div class="sub">{{ ucfirst($campaign->status) }}@if($campaign->scheduled_at) · {{ alocal($campaign->scheduled_at, 'D M j, g:i A') }}@endif</div>
+ 
+           <div class="pc-f"><label>Name</label><input type="text" wire:model="cName"></div>
+           <div class="pc-f"><label>Subject</label><input type="text" wire:model="cSubject"></div>
+@@ -308,7 +308,7 @@
+           @endif
+           <div class="pc-f">
+             <label>Send at <span style="opacity:.55">(leave blank to send now)</span></label>
+-            <input type="datetime-local" wire:model="cSchedule">
++            <input type="datetime-local" wire:model="cSchedule" title="{{ admin_tz_label() }}"> <span style="font-size:11.5px;opacity:.6">{{ admin_tz_label() }}</span>
+           </div>
+ 
+           @if($blockers)
+@@ -636,7 +636,7 @@
+         <div class="pc-row" style="grid-template-columns:1fr 150px 1fr 110px">
+           <div>
+             <div class="t" style="font-size:13.5px">{{ $row->email }}</div>
+-            <div class="d">since {{ $row->suppressed_at?->format('M j, Y') ?? '—' }}</div>
++            <div class="d">since {{ $row->suppressed_at ? alocal($row->suppressed_at, 'M j, Y') : '—' }}</div>
+           </div>
+           <div>
+             <span class="pc-pill pc-pill--custom">All shops</span>
+diff --git a/resources/views/filament/pages/platform-dashboard.blade.php b/resources/views/filament/pages/platform-dashboard.blade.php
+index 17730871..13f66693 100644
+--- a/resources/views/filament/pages/platform-dashboard.blade.php
++++ b/resources/views/filament/pages/platform-dashboard.blade.php
+@@ -123,7 +123,7 @@
+   {{-- MARKER-DASH-COMPACT: state, time and auto-refresh on one line --}}
+   <div class="pd-head">
+     <button type="button" class="st {{ $hero['state'] }}" onclick="this.closest('.pd-head').classList.toggle('show-up')" title="Uptime {{ $hero['uptime'] }}"><i></i>{{ $hero['headline'] }}</button>
+-    <span class="gen">{{ $generatedAt->copy()->timezone('America/Los_Angeles')->format('g:i a') }}<span class="pd-up">{{ $hero['uptime'] ? ' · up ' . $hero['uptime'] : '' }}</span></span>
++    <span class="gen">{{ alocal($generatedAt, 'g:i a') }}<span class="pd-up">{{ $hero['uptime'] ? ' · up ' . $hero['uptime'] : '' }}</span></span>
+     <span class="pd-rf" id="pd-refresh">
+       <select class="pd-sel" data-refresh-select aria-label="Auto-refresh">
+         <option value="30">Live</option>
+diff --git a/resources/views/filament/pages/platform-inbox.blade.php b/resources/views/filament/pages/platform-inbox.blade.php
+index 2637a60b..7ad85b4b 100644
+--- a/resources/views/filament/pages/platform-inbox.blade.php
++++ b/resources/views/filament/pages/platform-inbox.blade.php
+@@ -99,7 +99,7 @@
+         <h3>{{ $sel->subject ?: ($sel->name ?: 'Message') }}</h3>
+         <div class="ib-from">
+           @if($sel->kind === 'alert')
+-            {{ $sel->ref_id }} · {{ $sel->created_at->timezone('America/Los_Angeles')->format('M j, g:i A') }}
++            {{ $sel->ref_id }} · {{ $sel->created_at->timezone(admin_tz())->format('M j, g:i A') }}
+             @if($sel->tenant) · {{ $sel->tenant->name }} @endif
+           @else
+             {{ $sel->name }}
+@@ -107,7 +107,7 @@
+             @if($sel->phone) · {{ $sel->phone }}@endif
+             @if($sel->company) · {{ $sel->company }}@endif
+             @if($sel->tenant) · <b>{{ $sel->tenant->name }}</b>@endif
+-            <br>{{ $sel->created_at->timezone('America/Los_Angeles')->format('D M j, g:i A') }}
++            <br>{{ $sel->created_at->timezone(admin_tz())->format('D M j, g:i A') }}
+             @if($sel->source_url) · from {{ str_replace(['https://','http://'], '', $sel->source_url) }}@endif
+             @if($sel->ip) · {{ $sel->ip }}@endif
+           @endif
+@@ -122,7 +122,7 @@
+           @foreach($turns as $t)
+             @if($t->direction === 'in')
+               <div class="ib-turn {{ $t->is_auto ? 'auto' : '' }}" wire:key="turn-{{ $t->id }}">
+-                <div class="ib-turn-h">{{ $t->from_email ?: $sel->email }} · {{ $t->created_at->timezone('America/Los_Angeles')->format('M j, g:i A') }}
++                <div class="ib-turn-h">{{ $t->from_email ?: $sel->email }} · {{ $t->created_at->timezone(admin_tz())->format('M j, g:i A') }}
+                   @if($t->is_auto)<span class="ib-auto">Automatic reply</span>@endif</div>
+                 <div class="ib-turn-b">{{ $t->body }}</div>
+                 @if($t->is_auto)
+diff --git a/resources/views/filament/pages/raise.blade.php b/resources/views/filament/pages/raise.blade.php
+index 51d2da07..60f5db78 100644
+--- a/resources/views/filament/pages/raise.blade.php
++++ b/resources/views/filament/pages/raise.blade.php
+@@ -466,7 +466,7 @@
+                         <span class="text-sm" style="color:#BEF264;font-weight:700">{{ number_format((int) $m->amount) }}</span></div>
+                     <div style="display:flex;padding:11px 14px;border-bottom:1px solid rgba(255,255,255,.08)">
+                         <span class="text-xs text-gray-500" style="flex:0 0 140px">safe_date</span>
+-                        <span class="text-sm">{{ now()->format('F j, Y') }}</span></div>
++                        <span class="text-sm">{{ admin_now()->format('F j, Y') }}</span></div>
+                     <div style="display:flex;padding:11px 14px">
+                         <span class="text-xs text-gray-500" style="flex:0 0 140px">Send to</span>
+                         <span class="text-sm">{{ $m->email }}</span></div>
+diff --git a/resources/views/filament/pages/sales-email-outreach.blade.php b/resources/views/filament/pages/sales-email-outreach.blade.php
+index 22b979e0..2dbdae88 100644
+--- a/resources/views/filament/pages/sales-email-outreach.blade.php
++++ b/resources/views/filament/pages/sales-email-outreach.blade.php
+@@ -7,7 +7,7 @@
+     $done  = $list === 'today' ? $this->sentToday() : collect();
+     $seen  = $list === 'visited' ? $this->visited() : collect();
+     $news  = $list === 'today' ? $this->threadNews($done) : [];
+-    $tz    = \App\Filament\Pages\SalesEmailOutreach::TZ;
++    $tz    = admin_tz();
+     $listTotal = ['queue' => max(0, $st['queue'] - ($cur ? 1 : 0)), 'today' => $st['today'], 'visited' => $st['visited']][$list];
+     $per   = \App\Filament\Pages\SalesEmailOutreach::PER_PAGE;
+     $pages = max(1, (int) ceil($listTotal / $per));
+@@ -349,7 +349,7 @@
+                         @if (! empty($nw['opened']))<span class="eo-tag eo-tag-o">Opened {{ $nw['opened']->timezone($tz)->format('g:i a') }}</span>@else<span class="eo-tag eo-tag-n">Not opened</span>@endif
+                         @if (! empty($nw['auto']) && empty($nw['replied']))<span class="eo-tag eo-tag-n">Auto-reply</span>@endif
+                     </span></td>
+-                    <td style="text-align:right;color:var(--sx-dim)">{{ \Carbon\Carbon::parse($d->created_at)->timezone(\App\Filament\Pages\SalesEmailOutreach::TZ)->format('g:i a') }}</td>
++                    <td style="text-align:right;color:var(--sx-dim)">{{ \Carbon\Carbon::parse($d->created_at)->timezone(admin_tz())->format('g:i a') }}</td>
+                 </tr>
+             @empty
+                 <tr><td colspan="4" class="sx-sub">None yet today.</td></tr>
+@@ -362,8 +362,8 @@
+                 <tr>
+                     <td class="eo-shop">{{ $v->shop }}</td>
+                     <td style="color:var(--sx-dim)">{{ trim($v->city . ', ' . $v->state, ', ') }}</td>
+-                    <td style="color:var(--sx-dim)">{{ $v->emailed_at ? $v->emailed_at->timezone(\App\Filament\Pages\SalesEmailOutreach::TZ)->format('M j, g:i a') : '—' }}</td>
+-                    <td style="text-align:right;color:var(--sx-dim)">{{ $v->link_clicked_at->timezone(\App\Filament\Pages\SalesEmailOutreach::TZ)->format('M j, g:i a') }}</td>
++                    <td style="color:var(--sx-dim)">{{ $v->emailed_at ? $v->emailed_at->timezone(admin_tz())->format('M j, g:i a') : '—' }}</td>
++                    <td style="text-align:right;color:var(--sx-dim)">{{ $v->link_clicked_at->timezone(admin_tz())->format('M j, g:i a') }}</td>
+                 </tr>
+             @empty
+                 <tr><td colspan="4" class="sx-sub">Nobody has opened their link yet.</td></tr>
+diff --git a/resources/views/filament/pages/sales-instagram.blade.php b/resources/views/filament/pages/sales-instagram.blade.php
+index d072c9eb..c82d449f 100644
+--- a/resources/views/filament/pages/sales-instagram.blade.php
++++ b/resources/views/filament/pages/sales-instagram.blade.php
+@@ -166,7 +166,7 @@
+                         <td>{{ $p->shop }}</td>
+                         <td style="text-align:right;white-space:nowrap;color:var(--sx-dim)">
+                             @if ($i === 0)<button type="button" class="sx-btn sm" data-ig-undo wire:click="undo('{{ $p->id }}')" style="margin-right:8px">Undo</button>@endif
+-                            {{ \Carbon\Carbon::parse($p->ig_followed_at)->timezone(\App\Filament\Pages\SalesInstagramFollows::TZ)->format('g:i') }}
++                            {{ \Carbon\Carbon::parse($p->ig_followed_at)->timezone(admin_tz())->format('g:i') }}
+                         </td>
+                     </tr>
+                 @empty
+diff --git a/resources/views/filament/pages/sales-pipeline.blade.php b/resources/views/filament/pages/sales-pipeline.blade.php
+index 3b6f44d4..6447b95d 100644
+--- a/resources/views/filament/pages/sales-pipeline.blade.php
++++ b/resources/views/filament/pages/sales-pipeline.blade.php
+@@ -380,7 +380,7 @@
+           <button class="spb-btn sm" wire:click="linkTenant">Link</button>
+         </div>
+       @else
+-        <div style="{{ $muted }};margin-top:8px">Tenant <b>{{ $cur->tenant?->name }}</b> · {{ $cur->tenant?->subscription_status ?? 'no billing' }}@if($cur->tenant?->trial_ends_at) · trial ends {{ $cur->tenant->trial_ends_at->format('M j') }}@endif · <a href="{{ \App\Filament\Resources\TenantResource::getUrl('edit', ['record' => $cur->tenant_id]) }}" style="color:#a78bfa">open tenant</a></div>
++        <div style="{{ $muted }};margin-top:8px">Tenant <b>{{ $cur->tenant?->name }}</b> · {{ $cur->tenant?->subscription_status ?? 'no billing' }}@if($cur->tenant?->trial_ends_at) · trial ends {{ alocal($cur->tenant->trial_ends_at, 'M j') }}@endif · <a href="{{ \App\Filament\Resources\TenantResource::getUrl('edit', ['record' => $cur->tenant_id]) }}" style="color:#a78bfa">open tenant</a></div>
+       @endif
+       <div id="spb-lost" style="{{ $cur->stage === 'lost' ? '' : 'display:none' }};margin-top:10px">
+         <div style="{{ $muted }}">Why lost</div>
+@@ -453,7 +453,7 @@
+           @forelse($cur->activities as $a)
+             <div class="e {{ in_array($a->type, ['stage_change', 'demo', 'visit'], true) ? 'hot' : '' }}">
+               <div>@if($a->type === 'stage_change'){{ \App\Models\SalesProspect::STAGES[$a->stage_from] ?? $a->stage_from }} → {{ \App\Models\SalesProspect::STAGES[$a->stage_to] ?? $a->stage_to }}@if($a->body) · {{ $a->body }}@endif @else<b style="text-transform:capitalize">{{ str_replace('_', ' ', $a->type) }}</b>@if($a->body) · {{ $a->body }}@endif @endif</div>
+-              <div class="w">{{ $a->occurred_at?->format('M j, Y g:ia') }}</div>
++              <div class="w">{{ alocal($a->occurred_at, 'M j, Y g:ia') }}</div>
+             </div>
+           @empty
+             <div style="{{ $muted }}">Nothing logged yet.</div>
+diff --git a/resources/views/filament/pages/sales-route-day.blade.php b/resources/views/filament/pages/sales-route-day.blade.php
+index e63488ee..35454a6a 100644
+--- a/resources/views/filament/pages/sales-route-day.blade.php
++++ b/resources/views/filament/pages/sales-route-day.blade.php
+@@ -77,7 +77,7 @@
+     </select>
+     <span class="sx-tally">
+       @if($nothing)
+-        Nothing due · {{ now()->format('l, M j') }}
++        Nothing due · {{ admin_now()->format('l, M j') }}
+       @else
+         <b>{{ $tally['todo'] }}</b> follow-ups · <b class="{{ $tally['overdue'] ? 'am' : '' }}">{{ $tally['overdue'] }}</b> overdue · <b>{{ $vTotal }}</b> to verify @if($tally['trials']) · <b class="li">${{ number_format($tally['trials']) }}</b>/mo in trials @endif
+       @endif
+diff --git a/resources/views/filament/pages/team-roles.blade.php b/resources/views/filament/pages/team-roles.blade.php
+index 52479375..70b04e06 100644
+--- a/resources/views/filament/pages/team-roles.blade.php
++++ b/resources/views/filament/pages/team-roles.blade.php
+@@ -43,7 +43,7 @@
+           <td class="py-3 pr-3"><span class="rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 {{ $badge($role) }}">{{ ucfirst($role ?? '—') }}</span></td>
+           <td class="py-3 pr-3 text-xs">
+             @if($u->suspended_at)
+-              <span class="text-gray-500">Suspended {{ $u->suspended_at->format('M j') }}</span>
++              <span class="text-gray-500">Suspended {{ alocal($u->suspended_at, 'M j') }}</span>
+             @else
+               <span class="text-lime-600 dark:text-lime-300">Active</span>
+             @endif
+@@ -60,7 +60,7 @@
+   @php $selRole = $selected->roleName(); $selIsOwner = $selRole === 'owner'; $selIsMe = $selected->id === $meId; $locked = $selIsOwner || $selIsMe || ! $canManage; @endphp
+   <x-filament::section>
+     <x-slot name="heading">{{ $selected->name }}</x-slot>
+-    <x-slot name="description">{{ $selected->email }} · joined {{ $selected->created_at?->format('M j, Y') }}</x-slot>
++    <x-slot name="description">{{ $selected->email }} · joined {{ alocal($selected->created_at, 'M j, Y') }}</x-slot>
+     <x-slot name="headerEnd">
+       <x-filament::button size="sm" color="gray" wire:click="closeUser">Close</x-filament::button>
+     </x-slot>
+@@ -89,7 +89,7 @@
+         <div>
+           <div class="mb-1 text-xs font-medium uppercase tracking-wide text-gray-500">Status</div>
+           @if($selected->suspended_at)
+-            <div class="text-sm">Suspended {{ $selected->suspended_at->format('M j, g:ia') }}</div>
++            <div class="text-sm">Suspended {{ alocal($selected->suspended_at, 'M j, g:ia') }}</div>
+             @if(! $locked)
+               <x-filament::button class="mt-2" size="sm" color="gray" wire:click="restore({{ $selected->id }})">Restore access</x-filament::button>
+             @endif
+@@ -118,7 +118,7 @@
+         <div class="mb-1 text-xs font-medium uppercase tracking-wide text-gray-500">Recent activity</div>
+         @forelse($activity as $entry)
+           <div class="border-b border-gray-200 py-2 text-sm dark:border-white/10">
+-            <span class="text-xs text-gray-500">{{ $entry->created_at->format('M j, g:ia') }}</span>
++            <span class="text-xs text-gray-500">{{ alocal($entry->created_at, 'M j, g:ia') }}</span>
+             <div>{{ $entry->message }}</div>
+           </div>
+         @empty
+diff --git a/resources/views/filament/pages/tenant-billing.blade.php b/resources/views/filament/pages/tenant-billing.blade.php
+index 91d438fc..2c304978 100644
+--- a/resources/views/filament/pages/tenant-billing.blade.php
++++ b/resources/views/filament/pages/tenant-billing.blade.php
+@@ -49,7 +49,7 @@
+             <div style="{{ $label }}">{{ $statement['period']['label'] }}</div>
+             <p style="{{ $body }}">
+                 This shop did not exist yet — it was created
+-                {{ \Carbon\Carbon::parse($statement['created_at'])->format('F j, Y') }}.
++                {{ alocal($statement['created_at'], 'F j, Y') }}.
+             </p>
+         </div>
+     @elseif($tenant && $statement)
+@@ -240,7 +240,7 @@
+             @php $notices = $this->notices(); @endphp
+             @forelse($notices as $n)
+                 <div style="display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;padding:8px 0;border-top:1px solid rgba(127,127,127,.14);font-size:13px">
+-                    <span style="min-width:96px;opacity:.6">{{ $n->created_at->format('M j, H:i') }}</span>
++                    <span style="min-width:96px;opacity:.6">{{ alocal($n->created_at, 'M j, H:i') }}</span>
+                     <span style="font-weight:600;min-width:140px">{{ \App\Models\BillingNoticeTemplate::find($n->event)?->label ?? $n->event }}</span>
+                     <span style="opacity:.6">
+                         @if($n->alerted) alert @endif
+@@ -265,7 +265,7 @@
+ 
+             @forelse($runs as $run)
+                 <div style="display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;padding:9px 0;border-top:1px solid rgba(127,127,127,.14);font-size:13px">
+-                    <span style="min-width:96px;opacity:.6">{{ $run->created_at->format('M j, H:i') }}</span>
++                    <span style="min-width:96px;opacity:.6">{{ alocal($run->created_at, 'M j, H:i') }}</span>
+                     <span style="font-weight:600;min-width:78px">{{ \App\Filament\Pages\TenantBilling::money($run->amount_cents) }}</span>
+                     <span style="opacity:.6">{{ number_format($run->message_count) }} messages</span>
+                     <span style="padding:2px 9px;border-radius:999px;border:1px solid rgba(127,127,127,.3);font-size:11px;text-transform:uppercase;letter-spacing:.04em">
+diff --git a/resources/views/filament/partials/outreach-results.blade.php b/resources/views/filament/partials/outreach-results.blade.php
+index 1d2676fc..9745b534 100644
+--- a/resources/views/filament/partials/outreach-results.blade.php
++++ b/resources/views/filament/partials/outreach-results.blade.php
+@@ -7,7 +7,7 @@
+     $chans = \App\Models\SalesChannel::orderBy('name')->get(['id', 'name']);
+     $tplsR = \App\Models\SalesEmailTemplate::orderBy('sort')->orderBy('name')->get(['id', 'name']);
+     $pipe  = \App\Filament\Pages\SalesPipeline::getUrl();
+-    $tz    = \App\Filament\Pages\SalesEmailOutreach::TZ;
++    $tz    = admin_tz();
+ @endphp
+ <style>
+   .or-pills { display:flex; gap:6px; margin-left:auto; }
+diff --git a/resources/views/filament/resources/tenant-resource/pages/list-tenants.blade.php b/resources/views/filament/resources/tenant-resource/pages/list-tenants.blade.php
+index 56f4cd20..b86ce263 100644
+--- a/resources/views/filament/resources/tenant-resource/pages/list-tenants.blade.php
++++ b/resources/views/filament/resources/tenant-resource/pages/list-tenants.blade.php
+@@ -313,9 +313,9 @@
+                                 @if($t->lifecycle === 'suspended')
+                                     Suspended
+                                 @elseif($t->lifecycle === 'trial')
+-                                    Trial · joined {{ $t->created_at?->format('M j') }}
++                                    Trial · joined {{ alocal($t->created_at, 'M j') }}
+                                 @else
+-                                    Joined {{ $t->created_at?->format('M j, Y') }}
++                                    Joined {{ alocal($t->created_at, 'M j, Y') }}
+                                 @endif
+                                 @if($t->owner_name)
+                                     · {{ $t->owner_name }}

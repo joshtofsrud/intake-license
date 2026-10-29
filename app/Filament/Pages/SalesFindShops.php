@@ -455,7 +455,7 @@ class SalesFindShops extends Page
         $src = $this->listPath();
         if (! $src) { Notification::make()->title('Pick a file first.')->warning()->send(); return; }
         if ($this->mapProblem()) { Notification::make()->title($this->mapProblem())->warning()->send(); return; }
-        $batch = 'list-' . now()->format('Ymd-Hi');
+        $batch = 'list-' . admin_now()->format('Ymd-Hi');
         $dir = storage_path('app/shop-imports');
         if (! is_dir($dir)) @mkdir($dir, 0775, true);
         $path = $dir . '/' . $batch . '-' . \Illuminate\Support\Str::random(6) . '.csv';

@@ -99,7 +99,7 @@
         <h3>{{ $sel->subject ?: ($sel->name ?: 'Message') }}</h3>
         <div class="ib-from">
           @if($sel->kind === 'alert')
-            {{ $sel->ref_id }} · {{ $sel->created_at->timezone('America/Los_Angeles')->format('M j, g:i A') }}
+            {{ $sel->ref_id }} · {{ $sel->created_at->timezone(admin_tz())->format('M j, g:i A') }}
             @if($sel->tenant) · {{ $sel->tenant->name }} @endif
           @else
             {{ $sel->name }}
@@ -107,7 +107,7 @@
             @if($sel->phone) · {{ $sel->phone }}@endif
             @if($sel->company) · {{ $sel->company }}@endif
             @if($sel->tenant) · <b>{{ $sel->tenant->name }}</b>@endif
-            <br>{{ $sel->created_at->timezone('America/Los_Angeles')->format('D M j, g:i A') }}
+            <br>{{ $sel->created_at->timezone(admin_tz())->format('D M j, g:i A') }}
             @if($sel->source_url) · from {{ str_replace(['https://','http://'], '', $sel->source_url) }}@endif
             @if($sel->ip) · {{ $sel->ip }}@endif
           @endif
@@ -122,7 +122,7 @@
           @foreach($turns as $t)
             @if($t->direction === 'in')
               <div class="ib-turn {{ $t->is_auto ? 'auto' : '' }}" wire:key="turn-{{ $t->id }}">
-                <div class="ib-turn-h">{{ $t->from_email ?: $sel->email }} · {{ $t->created_at->timezone('America/Los_Angeles')->format('M j, g:i A') }}
+                <div class="ib-turn-h">{{ $t->from_email ?: $sel->email }} · {{ $t->created_at->timezone(admin_tz())->format('M j, g:i A') }}
                   @if($t->is_auto)<span class="ib-auto">Automatic reply</span>@endif</div>
                 <div class="ib-turn-b">{{ $t->body }}</div>
                 @if($t->is_auto)

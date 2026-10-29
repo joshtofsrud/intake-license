@@ -313,9 +313,9 @@
                                 @if($t->lifecycle === 'suspended')
                                     Suspended
                                 @elseif($t->lifecycle === 'trial')
-                                    Trial · joined {{ $t->created_at?->format('M j') }}
+                                    Trial · joined {{ alocal($t->created_at, 'M j') }}
                                 @else
-                                    Joined {{ $t->created_at?->format('M j, Y') }}
+                                    Joined {{ alocal($t->created_at, 'M j, Y') }}
                                 @endif
                                 @if($t->owner_name)
                                     · {{ $t->owner_name }}

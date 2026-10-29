@@ -43,7 +43,7 @@
           <td class="py-3 pr-3"><span class="rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 {{ $badge($role) }}">{{ ucfirst($role ?? '—') }}</span></td>
           <td class="py-3 pr-3 text-xs">
             @if($u->suspended_at)
-              <span class="text-gray-500">Suspended {{ $u->suspended_at->format('M j') }}</span>
+              <span class="text-gray-500">Suspended {{ alocal($u->suspended_at, 'M j') }}</span>
             @else
               <span class="text-lime-600 dark:text-lime-300">Active</span>
             @endif
@@ -60,7 +60,7 @@
   @php $selRole = $selected->roleName(); $selIsOwner = $selRole === 'owner'; $selIsMe = $selected->id === $meId; $locked = $selIsOwner || $selIsMe || ! $canManage; @endphp
   <x-filament::section>
     <x-slot name="heading">{{ $selected->name }}</x-slot>
-    <x-slot name="description">{{ $selected->email }} · joined {{ $selected->created_at?->format('M j, Y') }}</x-slot>
+    <x-slot name="description">{{ $selected->email }} · joined {{ alocal($selected->created_at, 'M j, Y') }}</x-slot>
     <x-slot name="headerEnd">
       <x-filament::button size="sm" color="gray" wire:click="closeUser">Close</x-filament::button>
     </x-slot>
@@ -89,7 +89,7 @@
         <div>
           <div class="mb-1 text-xs font-medium uppercase tracking-wide text-gray-500">Status</div>
           @if($selected->suspended_at)
-            <div class="text-sm">Suspended {{ $selected->suspended_at->format('M j, g:ia') }}</div>
+            <div class="text-sm">Suspended {{ alocal($selected->suspended_at, 'M j, g:ia') }}</div>
             @if(! $locked)
               <x-filament::button class="mt-2" size="sm" color="gray" wire:click="restore({{ $selected->id }})">Restore access</x-filament::button>
             @endif
@@ -118,7 +118,7 @@
         <div class="mb-1 text-xs font-medium uppercase tracking-wide text-gray-500">Recent activity</div>
         @forelse($activity as $entry)
           <div class="border-b border-gray-200 py-2 text-sm dark:border-white/10">
-            <span class="text-xs text-gray-500">{{ $entry->created_at->format('M j, g:ia') }}</span>
+            <span class="text-xs text-gray-500">{{ alocal($entry->created_at, 'M j, g:ia') }}</span>
             <div>{{ $entry->message }}</div>
           </div>
         @empty

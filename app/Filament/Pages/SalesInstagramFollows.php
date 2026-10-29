@@ -28,11 +28,10 @@ class SalesInstagramFollows extends Page
 
     public const PACE_WARN = 20; // follows in the last 60 minutes before the warning shows
     // "today" runs on Pacific time, not the server clock
-    public const TZ = 'America/Los_Angeles';
 
     private static function dayStart()
     {
-        return now(self::TZ)->startOfDay()->setTimezone(config('app.timezone'));
+        return now(admin_tz())->startOfDay()->setTimezone(config('app.timezone'));
     }
 
     public string $industryId = '';

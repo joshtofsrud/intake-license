@@ -260,7 +260,7 @@ class SalesProspectResource extends Resource
                     ->tooltip(fn (SalesProspect $r) => $r->tenant?->name),
 
                 Tables\Columns\TextColumn::make('next_action_on')
-                    ->label('Due')->date('M j')->sortable()
+                    ->label('Due')->date('M j')->timezone('UTC')->sortable() // a calendar day
                     ->color(fn ($state) => $state && $state->isPast() ? 'danger' : 'gray')
                     ->placeholder('—'),
             ])

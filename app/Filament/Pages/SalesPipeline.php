@@ -619,7 +619,7 @@ class SalesPipeline extends Page
             Notification::make()->title('None of the selected shops has an email address')->warning()->send(); return;
         }
         $aud = \App\Models\PlatformAudience::create([
-            'name'   => 'Prospects: ' . count($ids) . ' selected, ' . now()->format('M j, g:ia'),
+            'name'   => 'Prospects: ' . count($ids) . ' selected, ' . admin_now()->format('M j, g:ia'),
             'source' => 'prospects',
             'rules'  => [['field' => 'ids', 'op' => 'is', 'value' => implode(',', $ids)]],
         ]);

@@ -31,7 +31,6 @@ use InvalidArgumentException;
  */
 class OutreachAutoSend
 {
-    public const TZ = 'America/Los_Angeles';
     public const KINDS = ['business', 'free'];
 
     public static function state(): array
@@ -91,7 +90,7 @@ class OutreachAutoSend
             'running' => true, 'run_id' => (string) Str::uuid(), 'started_at' => now()->toIso8601String(),
             'started_by' => $userId, 'started_by_name' => $userName, 'config' => $config,
             'sent' => ['business' => 0, 'free' => 0], 'skipped' => 0,
-            'day' => now(self::TZ)->toDateString(), 'day_sent' => ['business' => 0, 'free' => 0],
+            'day' => now(admin_tz())->toDateString(), 'day_sent' => ['business' => 0, 'free' => 0],
             'last' => ['business' => null, 'free' => null], 'next_at' => now()->toIso8601String(),
             'last_tick_at' => null, 'last_sent' => null, 'stopped_at' => null, 'stopped_reason' => null,
         ];
@@ -154,7 +153,7 @@ class OutreachAutoSend
                 return null;
             }
 
-            $today = now(self::TZ)->toDateString();
+            $today = now(admin_tz())->toDateString();
             if (($s['day'] ?? null) !== $today) {
                 $s['day'] = $today;
                 $s['day_sent'] = ['business' => 0, 'free' => 0];

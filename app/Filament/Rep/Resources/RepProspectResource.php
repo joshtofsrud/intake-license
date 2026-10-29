@@ -119,7 +119,7 @@ class RepProspectResource extends Resource
                     ->formatStateUsing(fn ($state) => $state ? '$' . number_format($state) . '/mo' : null)
                     ->placeholder('—'),
                 Tables\Columns\TextColumn::make('next_action_on')
-                    ->label('Next action')->date()->sortable()
+                    ->label('Next action')->date()->timezone('UTC')->sortable() // a calendar day, not an instant
                     ->description(fn (SalesProspect $r) => $r->next_action)
                     ->color(fn (SalesProspect $r) => $r->next_action_on && $r->next_action_on->isPast() ? 'danger' : null),
             ])

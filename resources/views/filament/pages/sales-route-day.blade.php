@@ -77,7 +77,7 @@
     </select>
     <span class="sx-tally">
       @if($nothing)
-        Nothing due · {{ now()->format('l, M j') }}
+        Nothing due · {{ admin_now()->format('l, M j') }}
       @else
         <b>{{ $tally['todo'] }}</b> follow-ups · <b class="{{ $tally['overdue'] ? 'am' : '' }}">{{ $tally['overdue'] }}</b> overdue · <b>{{ $vTotal }}</b> to verify @if($tally['trials']) · <b class="li">${{ number_format($tally['trials']) }}</b>/mo in trials @endif
       @endif

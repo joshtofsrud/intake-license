@@ -166,7 +166,7 @@
                         <td>{{ $p->shop }}</td>
                         <td style="text-align:right;white-space:nowrap;color:var(--sx-dim)">
                             @if ($i === 0)<button type="button" class="sx-btn sm" data-ig-undo wire:click="undo('{{ $p->id }}')" style="margin-right:8px">Undo</button>@endif
-                            {{ \Carbon\Carbon::parse($p->ig_followed_at)->timezone(\App\Filament\Pages\SalesInstagramFollows::TZ)->format('g:i') }}
+                            {{ \Carbon\Carbon::parse($p->ig_followed_at)->timezone(admin_tz())->format('g:i') }}
                         </td>
                     </tr>
                 @empty

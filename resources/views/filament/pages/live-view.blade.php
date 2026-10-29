@@ -82,9 +82,9 @@
       @forelse ($recent as $r)
         <tr>
           <td>{{ $r->tenant?->name ?? '(deleted shop)' }}</td>
-          <td class="db-hide-m">{{ $r->requested_by_name }}<div class="db-sub">{{ $r->created_at?->format('M j, g:i a') }}</div></td>
+          <td class="db-hide-m">{{ $r->requested_by_name }}<div class="db-sub">{{ alocal($r->created_at, 'M j, g:i a') }}</div></td>
           <td>{{ $r->status === 'declined' ? '' : ($r->accepted_by_name ?? '') }}</td>
-          <td class="db-hide-m">{{ $r->accepted_at?->format('g:i a') }}</td>
+          <td class="db-hide-m">{{ alocal($r->accepted_at, 'g:i a') }}</td>
           <td>
             @php $tag = ['requested' => 'pend', 'active' => 'live'][$r->status] ?? 'off'; @endphp
             <span class="db-tag {{ $tag }}">{{ ucfirst($r->status) }}</span>

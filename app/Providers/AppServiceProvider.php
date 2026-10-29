@@ -38,6 +38,19 @@ class AppServiceProvider extends ServiceProvider
     {
         // MARKER-SEC-AUDIT: workers are long-lived; each job reads add-on access fresh
         \Illuminate\Support\Facades\Queue::before(fn () => \App\Services\FeatureAccessService::flushRequestCache());
+        // MARKER-ADMIN-TZ: same for the master-admin time zone, so a changed setting reaches workers
+        \Illuminate\Support\Facades\Queue::before(fn () => app()->forgetInstance('intake.admin_tz'));
+
+        // MARKER-ADMIN-TZ: every Filament date column, entry and date-time picker shows
+        // (and, for pickers, reads back) times in the master-admin zone instead of UTC.
+        // Date-only values (a DatePicker, or a column on a `date` field) are calendar days
+        // with no instant behind them; shifting them would move them a day, so they opt out.
+        \Filament\Tables\Columns\TextColumn::configureUsing(fn ($c) => $c->timezone(fn () => admin_tz()));
+        \Filament\Infolists\Components\TextEntry::configureUsing(fn ($c) => $c->timezone(fn () => admin_tz()));
+        \Filament\Forms\Components\DateTimePicker::configureUsing(function ($c) {
+            if ($c instanceof \Filament\Forms\Components\DatePicker || $c instanceof \Filament\Forms\Components\TimePicker) return;
+            $c->timezone(fn () => admin_tz());
+        });
 
         // enforce one primary domain per tenant
         // every bare ->links() renders the themed

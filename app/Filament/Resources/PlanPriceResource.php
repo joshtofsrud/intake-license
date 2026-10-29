@@ -62,7 +62,7 @@ class PlanPriceResource extends Resource
                 Tables\Columns\TextColumn::make('price_cents')->label('Price')
                     ->getStateUsing(fn (PlanPrice $r) => $r->dollars())->sortable(),
 
-                Tables\Columns\TextColumn::make('effective_from')->label('From')->date('M j, Y')->sortable(),
+                Tables\Columns\TextColumn::make('effective_from')->label('From')->date('M j, Y')->timezone('UTC')->sortable(),
 
                 Tables\Columns\TextColumn::make('status')->label('Status')->badge()
                     ->getStateUsing(function (PlanPrice $r) {

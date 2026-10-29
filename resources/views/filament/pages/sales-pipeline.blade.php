@@ -380,7 +380,7 @@
           <button class="spb-btn sm" wire:click="linkTenant">Link</button>
         </div>
       @else
-        <div style="{{ $muted }};margin-top:8px">Tenant <b>{{ $cur->tenant?->name }}</b> · {{ $cur->tenant?->subscription_status ?? 'no billing' }}@if($cur->tenant?->trial_ends_at) · trial ends {{ $cur->tenant->trial_ends_at->format('M j') }}@endif · <a href="{{ \App\Filament\Resources\TenantResource::getUrl('edit', ['record' => $cur->tenant_id]) }}" style="color:#a78bfa">open tenant</a></div>
+        <div style="{{ $muted }};margin-top:8px">Tenant <b>{{ $cur->tenant?->name }}</b> · {{ $cur->tenant?->subscription_status ?? 'no billing' }}@if($cur->tenant?->trial_ends_at) · trial ends {{ alocal($cur->tenant->trial_ends_at, 'M j') }}@endif · <a href="{{ \App\Filament\Resources\TenantResource::getUrl('edit', ['record' => $cur->tenant_id]) }}" style="color:#a78bfa">open tenant</a></div>
       @endif
       <div id="spb-lost" style="{{ $cur->stage === 'lost' ? '' : 'display:none' }};margin-top:10px">
         <div style="{{ $muted }}">Why lost</div>
@@ -453,7 +453,7 @@
           @forelse($cur->activities as $a)
             <div class="e {{ in_array($a->type, ['stage_change', 'demo', 'visit'], true) ? 'hot' : '' }}">
               <div>@if($a->type === 'stage_change'){{ \App\Models\SalesProspect::STAGES[$a->stage_from] ?? $a->stage_from }} → {{ \App\Models\SalesProspect::STAGES[$a->stage_to] ?? $a->stage_to }}@if($a->body) · {{ $a->body }}@endif @else<b style="text-transform:capitalize">{{ str_replace('_', ' ', $a->type) }}</b>@if($a->body) · {{ $a->body }}@endif @endif</div>
-              <div class="w">{{ $a->occurred_at?->format('M j, Y g:ia') }}</div>
+              <div class="w">{{ alocal($a->occurred_at, 'M j, Y g:ia') }}</div>
             </div>
           @empty
             <div style="{{ $muted }}">Nothing logged yet.</div>

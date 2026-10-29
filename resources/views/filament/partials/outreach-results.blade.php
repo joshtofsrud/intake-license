@@ -7,7 +7,7 @@
     $chans = \App\Models\SalesChannel::orderBy('name')->get(['id', 'name']);
     $tplsR = \App\Models\SalesEmailTemplate::orderBy('sort')->orderBy('name')->get(['id', 'name']);
     $pipe  = \App\Filament\Pages\SalesPipeline::getUrl();
-    $tz    = \App\Filament\Pages\SalesEmailOutreach::TZ;
+    $tz    = admin_tz();
 @endphp
 <style>
   .or-pills { display:flex; gap:6px; margin-left:auto; }

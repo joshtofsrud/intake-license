@@ -28,7 +28,6 @@ class SalesEmailOutreach extends Page
     protected static ?string $slug            = 'sales-email-outreach';
     protected static ?string $title           = 'Email outreach';
 
-    public const TZ = 'America/Los_Angeles';
 
     public string $industryId = '';
     public string $state = '';
@@ -169,7 +168,7 @@ class SalesEmailOutreach extends Page
             'days'     => in_array($this->rDays, ['today', '7', '30', '90', 'all', 'custom'], true) ? $this->rDays : '30',
             'from'     => $this->rFrom,
             'to'       => $this->rTo,
-            'tz'       => self::TZ,
+            'tz'       => admin_tz(),
         ]);
     }
 
@@ -194,7 +193,7 @@ class SalesEmailOutreach extends Page
             'days'     => in_array($this->rDays, ['today', '7', '30', '90', 'all', 'custom'], true) ? $this->rDays : '30',
             'from'     => $this->rFrom,
             'to'       => $this->rTo,
-            'tz'       => self::TZ,
+            'tz'       => admin_tz(),
         ]);
     }
 
@@ -202,7 +201,7 @@ class SalesEmailOutreach extends Page
 
     private static function dayStart()
     {
-        return now(self::TZ)->startOfDay()->setTimezone(config('app.timezone'));
+        return now(admin_tz())->startOfDay()->setTimezone(config('app.timezone'));
     }
 
     /** MARKER-OUTREACH-AUTO: the filters on screen, as OutreachQueue takes them. */
