@@ -182,6 +182,28 @@ class TenantDistributorSyncService
                     ['distributor_catalog_id', 'avail', 'checked_at', 'updated_at'],
                 );
             }
+
+            // MARKER-VELOCITY: the same readings feed the per-item running
+            // summary and the 60-day change history. A failure here is
+            // reported but never fails the shop's sync.
+            if ($snapshots) {
+                try {
+                    $today = now()->toDateString();
+                    $readings = [];
+                    foreach ($snapshots as $s) {
+                        $vno = $s['distributor_variant_no'];
+                        $readings[$vno] = [
+                            'avail' => $s['avail'],
+                            'catalog_id' => $s['distributor_catalog_id'],
+                            'has_eta_info' => isset($whByVariant[$vno]),
+                            'eta' => StockVelocityRecorder::earliestEta($whByVariant[$vno] ?? null, $today),
+                        ];
+                    }
+                    app(StockVelocityRecorder::class)->record($code, $readings);
+                } catch (\Throwable $e) {
+                    \App\Support\JobFailureReporter::report(self::class, 'Distributor velocity recording failed for ' . $code, $e, ['code' => $code], $tenantId);
+                }
+            }
         }
 
         return $res;

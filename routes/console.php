@@ -216,6 +216,12 @@ Schedule::command('distributors:sync-tenant --all')
     ->withoutOverlapping()
     ->runInBackground();
 
+// MARKER-VELOCITY: stock-change history is kept 60 days; the per-item summary stays.
+Schedule::command('distributors:velocity-prune')
+    ->dailyAt('05:40')
+    ->withoutOverlapping()
+    ->runInBackground();
+
 Schedule::command('deliveries:assume-windows')
     ->everyFifteenMinutes()
     ->withoutOverlapping()

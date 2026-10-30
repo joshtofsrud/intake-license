@@ -1,0 +1,999 @@
+diff --git a/app/Console/Commands/DistributorsVelocityPrune.php b/app/Console/Commands/DistributorsVelocityPrune.php
+new file mode 100644
+index 00000000..84b3e542
+--- /dev/null
++++ b/app/Console/Commands/DistributorsVelocityPrune.php
+@@ -0,0 +1,19 @@
++<?php
++
++namespace App\Console\Commands;
++
++use App\Services\Distributors\StockVelocityRecorder;
++use Illuminate\Console\Command;
++
++/** MARKER-VELOCITY: drop stock-change history older than 60 days. The per-item summary is kept. */
++class DistributorsVelocityPrune extends Command
++{
++    protected $signature = 'distributors:velocity-prune';
++    protected $description = 'Remove distributor stock-change history older than 60 days.';
++
++    public function handle(StockVelocityRecorder $rec): int
++    {
++        $this->info($rec->prune() . ' old change rows removed.');
++        return self::SUCCESS;
++    }
++}
+diff --git a/app/Console/Commands/DistributorsVelocityPull.php b/app/Console/Commands/DistributorsVelocityPull.php
+new file mode 100644
+index 00000000..1078603b
+--- /dev/null
++++ b/app/Console/Commands/DistributorsVelocityPull.php
+@@ -0,0 +1,50 @@
++<?php
++
++namespace App\Console\Commands;
++
++use App\Services\Distributors\StockVelocityRecorder;
++use Illuminate\Console\Command;
++use Illuminate\Support\Facades\Artisan;
++use Illuminate\Support\Facades\DB;
++
++/**
++ * MARKER-VELOCITY: one-off after deploy (safe to re-run).
++ *  1. Seeds a summary for every distributor item from the readings that
++ *     existed before the build, and keeps that reading as the baseline.
++ *  2. Runs the normal per-shop sync once, which takes a fresh reading and
++ *     measures it against the baseline.
++ */
++class DistributorsVelocityPull extends Command
++{
++    protected $signature = 'distributors:velocity-pull {--seed-only : Seed from existing readings without calling the distributors}';
++    protected $description = 'Seed distributor velocity from pre-build readings, then take a fresh reading from every distributor.';
++
++    public function handle(StockVelocityRecorder $rec): int
++    {
++        $this->info('Seeding from the readings taken before this build ...');
++        $s = $rec->seedFromSnapshots();
++        $this->line("  {$s['seeded']} items seeded, {$s['skipped']} already had a summary.");
++
++        if (! $this->option('seed-only')) {
++            $this->info('Taking a fresh reading (the nightly per-shop sync, run once now) ...');
++            Artisan::call('distributors:sync-tenant', ['--all' => true], $this->output);
++        }
++
++        $this->newLine();
++        $this->info('Compared with before the build:');
++        $rows = DB::table('distributor_stock_summary')
++            ->selectRaw('distributor_code,
++                COUNT(*) AS items,
++                SUM(baseline_avail IS NOT NULL AND readings > 1) AS reread,
++                SUM(baseline_avail IS NOT NULL AND readings > 1 AND avail < baseline_avail) AS dropped,
++                SUM(baseline_avail IS NOT NULL AND readings > 1 AND avail > baseline_avail) AS restocked,
++                SUM(next_arrival_on IS NOT NULL) AS with_arrival,
++                MIN(baseline_at) AS since')
++            ->groupBy('distributor_code')->orderBy('distributor_code')->get();
++        $this->table(['Distributor', 'Items', 'Read again', 'Went down', 'Went up', 'With arrival date', 'Baseline from'],
++            $rows->map(fn ($r) => [$r->distributor_code, $r->items, (int) $r->reread, (int) $r->dropped, (int) $r->restocked, (int) $r->with_arrival, $r->since])->all());
++        $this->line('Readings within ' . StockVelocityRecorder::READING_GAP_HOURS . ' hours of the baseline are not counted twice, so "Read again" fills in from tonight\'s sync if the baseline is recent.');
++
++        return self::SUCCESS;
++    }
++}
+diff --git a/app/Filament/Pages/DistributorVelocity.php b/app/Filament/Pages/DistributorVelocity.php
+new file mode 100644
+index 00000000..53a74159
+--- /dev/null
++++ b/app/Filament/Pages/DistributorVelocity.php
+@@ -0,0 +1,272 @@
++<?php
++
++namespace App\Filament\Pages;
++
++use App\Models\PlatformSettings;
++use App\Services\Distributors\StockVelocityRecorder;
++use App\Support\AdminAccess;
++use Carbon\Carbon;
++use Filament\Notifications\Notification;
++use Filament\Pages\Page;
++use Illuminate\Support\Facades\Auth;
++use Illuminate\Support\Facades\DB;
++use Illuminate\Support\Facades\Schema;
++
++/**
++ * MARKER-VELOCITY: how fast each distributor's stock is moving, days left at
++ * that pace, and the next arrival date. Read from distributor_stock_summary,
++ * which the nightly per-shop sync keeps current. No shop sales data is used.
++ */
++class DistributorVelocity extends Page
++{
++    use \App\Support\UsesAdminNav;
++    use \App\Support\GatedByAdminArea;
++    protected static string $adminArea = 'catalog';
++
++    protected static ?string $navigationIcon  = 'heroicon-o-arrow-trending-down';
++    protected static ?string $navigationLabel = 'Distributor velocity';
++    protected static ?string $navigationGroup = 'Distribution';
++    protected static ?int    $navigationSort  = 65;
++    protected static ?string $title           = 'Distributor velocity';
++    protected static ?string $slug            = 'distributor-velocity';
++    protected static string  $view            = 'filament.pages.distributor-velocity';
++
++    public const VIEWS = ['run' => 'Running out', 'fast' => 'Fastest moving', 'arrival' => 'Arrival due', 'slow' => 'Slow or still'];
++    public const SHOP_SWITCHES = [
++        'show_days_left' => ['Show days left to shops', "On the shop's inventory list and special-order lookup, for items the shop already carries.", false],
++        'show_arrival'   => ['Show next arrival date', 'Only where the distributor sends one.', false],
++        'require_good'   => ['Hide estimates until history is Good', 'Shops see "Not enough history" instead of a number until an item has 8 readings over 21 days.', true],
++        'warn_on_po'     => ['Warn on low cover when ordering', 'An amber note on a purchase order line when days left is under the vendor lead time.', false],
++    ];
++
++    public string $tab = 'items';
++    public string $vendor = '';
++    public string $mode = 'run';
++    public string $search = '';
++    public bool $hideEarly = false;
++    public int $limit = 100;
++    public ?int $selected = null;
++    public array $shop = [];
++
++    public function mount(): void
++    {
++        $saved = (array) (PlatformSettings::current()->velocity_settings ?? []);
++        foreach (self::SHOP_SWITCHES as $k => $d) {
++            $this->shop[$k] = (bool) ($saved[$k] ?? $d[2]);
++        }
++        $codes = $this->codes();
++        $on = $saved['vendors'] ?? $codes;
++        $this->shop['vendors'] = array_fill_keys($codes, false);
++        foreach ($codes as $c) {
++            $this->shop['vendors'][$c] = in_array($c, (array) $on, true);
++        }
++    }
++
++    public function canEdit(): bool
++    {
++        return AdminAccess::level(Auth::guard('web')->user(), 'catalog') === 'full';
++    }
++
++    /** Distributor codes with readings, plus any with catalog rows. */
++    public function codes(): array
++    {
++        $a = DB::table('distributor_stock_summary')->distinct()->pluck('distributor_code')->all();
++        $b = DB::table('platform_distributor_catalogs')->where('is_active', true)->distinct()->pluck('distributor_code')->all();
++        $all = array_values(array_unique(array_merge($a, $b)));
++        sort($all);
++        return $all;
++    }
++
++    public function updated($name): void
++    {
++        if (in_array($name, ['search', 'hideEarly', 'vendor', 'mode'], true)) {
++            $this->limit = 100;
++        }
++    }
++
++    public function setTab(string $t): void { if (in_array($t, ['items', 'coverage', 'shops'], true)) $this->tab = $t; }
++    public function setView(string $v): void { if (isset(self::VIEWS[$v])) { $this->mode = $v; $this->limit = 100; } }
++    public function setVendor(string $c): void { $this->vendor = $c; $this->limit = 100; }
++    public function showMore(): void { $this->limit += 100; }
++    public function select(int $id): void { $this->selected = $id; }
++    public function closeDetail(): void { $this->selected = null; }
++    public function clearFilters(): void { $this->search = ''; $this->hideEarly = false; $this->vendor = ''; $this->mode = 'run'; $this->limit = 100; }
++
++    public function saveShop(): void
++    {
++        abort_unless($this->canEdit(), 403);
++        $out = [];
++        foreach (self::SHOP_SWITCHES as $k => $d) {
++            $out[$k] = (bool) ($this->shop[$k] ?? false);
++        }
++        $out['vendors'] = array_keys(array_filter((array) ($this->shop['vendors'] ?? [])));
++        $ps = PlatformSettings::current();
++        $ps->velocity_settings = $out;
++        $ps->save();
++        Notification::make()->title('Shop visibility saved')->success()->send();
++    }
++
++    /** Headline numbers for the Items tab. */
++    public function stats(): array
++    {
++        $q = DB::table('distributor_stock_summary')->when($this->vendor !== '', fn ($q) => $q->where('distributor_code', $this->vendor));
++        $today = now()->toDateString();
++        $r = $q->selectRaw('COUNT(*) AS items,
++                SUM(rate_per_day IS NOT NULL) AS with_rate,
++                SUM(days_left IS NOT NULL AND days_left < 14) AS under14,
++                SUM(next_arrival_on IS NOT NULL AND next_arrival_on <= ?) AS due7,
++                MAX(last_reading_at) AS last_read', [Carbon::parse($today)->addDays(7)->toDateString()])->first();
++        return [
++            'items' => (int) $r->items, 'with_rate' => (int) $r->with_rate, 'under14' => (int) $r->under14,
++            'due7' => (int) $r->due7, 'last_read' => $r->last_read,
++        ];
++    }
++
++    public function vendorCounts(): array
++    {
++        return DB::table('distributor_stock_summary')->selectRaw('distributor_code, COUNT(*) AS n')
++            ->groupBy('distributor_code')->pluck('n', 'distributor_code')->map(fn ($n) => (int) $n)->all();
++    }
++
++    private function baseQuery()
++    {
++        $q = DB::table('distributor_stock_summary as s')
++            ->leftJoin('platform_distributor_catalogs as c', 'c.id', '=', 's.distributor_catalog_id')
++            ->select('s.*', DB::raw('COALESCE(c.display_name, c.name) AS title'), 'c.manufacturer AS brand', 'c.manufacturer_sku AS mpn')
++            ->when($this->vendor !== '', fn ($q) => $q->where('s.distributor_code', $this->vendor))
++            ->when($this->hideEarly, fn ($q) => $q->where('s.readings', '>=', 3)->whereNotNull('s.rate_per_day'));
++
++        $term = trim($this->search);
++        if ($term !== '') {
++            $like = '%' . str_replace(['%', '_'], ['\%', '\_'], $term) . '%';
++            $q->where(function ($w) use ($like) {
++                $w->where('c.display_name', 'like', $like)->orWhere('c.name', 'like', $like)
++                  ->orWhere('c.manufacturer', 'like', $like)->orWhere('c.manufacturer_sku', 'like', $like)
++                  ->orWhere('s.distributor_variant_no', 'like', $like);
++            });
++        }
++
++        switch ($this->mode) {
++            case 'fast':
++                $q->where('s.rate_per_day', '>', 0)->orderByDesc('s.rate_per_day');
++                break;
++            case 'arrival':
++                $q->whereNotNull('s.next_arrival_on')->orderBy('s.next_arrival_on')->orderBy('s.days_left');
++                break;
++            case 'slow':
++                $q->where('s.readings', '>=', 3)->where('s.observed_days', '>=', 1)->where('s.avail', '>', 0)
++                  ->where(fn ($w) => $w->whereNull('s.rate_per_day')->orWhere('s.rate_per_day', '<', 0.1))
++                  ->orderByDesc('s.avail');
++                break;
++            default:
++                $q->whereNotNull('s.days_left')->orderBy('s.days_left');
++        }
++        return $q;
++    }
++
++    /** @return array{rows: array, total: int} */
++    public function rows(): array
++    {
++        $total = (clone $this->baseQuery())->reorder()->count();
++        $rows = $this->baseQuery()->limit($this->limit)->get();
++
++        $catIds = $rows->pluck('distributor_catalog_id')->filter()->unique()->values()->all();
++        $shops = $catIds ? DB::table('tenant_inventory_item_vendors as v')
++            ->join('tenant_inventory_items as i', 'i.id', '=', 'v.inventory_item_id')
++            ->whereIn('v.distributor_catalog_id', $catIds)
++            ->selectRaw('v.distributor_catalog_id, COUNT(DISTINCT i.tenant_id) AS n')
++            ->groupBy('v.distributor_catalog_id')->pluck('n', 'distributor_catalog_id')->all() : [];
++
++        $since = now()->subDays(30);
++        $hist = [];
++        if ($rows->isNotEmpty()) {
++            DB::table('distributor_stock_changes')
++                ->whereIn('distributor_variant_no', $rows->pluck('distributor_variant_no')->all())
++                ->where('recorded_at', '>=', $since)
++                ->orderBy('recorded_at')
++                ->get(['distributor_code', 'distributor_variant_no', 'avail', 'recorded_at'])
++                ->each(function ($c) use (&$hist) { $hist[$c->distributor_code . '|' . $c->distributor_variant_no][] = $c; });
++        }
++
++        $out = [];
++        foreach ($rows as $r) {
++            $r->shops = (int) ($shops[$r->distributor_catalog_id] ?? 0);
++            $r->conf = StockVelocityRecorder::confidence($r);
++            $r->spark = $this->spark($hist[$r->distributor_code . '|' . $r->distributor_variant_no] ?? [], (int) $r->avail, $since, 80, 22);
++            $out[] = $r;
++        }
++        return ['rows' => $out, 'total' => $total];
++    }
++
++    public function detail(): ?object
++    {
++        if (! $this->selected) return null;
++        $r = DB::table('distributor_stock_summary as s')
++            ->leftJoin('platform_distributor_catalogs as c', 'c.id', '=', 's.distributor_catalog_id')
++            ->select('s.*', DB::raw('COALESCE(c.display_name, c.name) AS title'), 'c.manufacturer AS brand', 'c.manufacturer_sku AS mpn')
++            ->where('s.id', $this->selected)->first();
++        if (! $r) return null;
++        $since = now()->subDays(StockVelocityRecorder::KEEP_DAYS);
++        $changes = DB::table('distributor_stock_changes')
++            ->where('distributor_code', $r->distributor_code)->where('distributor_variant_no', $r->distributor_variant_no)
++            ->where('recorded_at', '>=', $since)->orderBy('recorded_at')->get(['avail', 'recorded_at'])->all();
++        $r->chart = $this->spark($changes, (int) $r->avail, $since, 420, 96);
++        $r->change_count = count($changes);
++        $r->conf = StockVelocityRecorder::confidence($r);
++        $r->shops = $r->distributor_catalog_id ? (int) DB::table('tenant_inventory_item_vendors as v')
++            ->join('tenant_inventory_items as i', 'i.id', '=', 'v.inventory_item_id')
++            ->where('v.distributor_catalog_id', $r->distributor_catalog_id)->distinct()->count('i.tenant_id') : 0;
++        return $r;
++    }
++
++    /**
++     * Step line of stock over the window as an SVG polyline's points. Before
++     * the first change in the window the line holds at that change's previous
++     * value (or the first value we have).
++     */
++    private function spark(array $changes, int $current, Carbon $since, int $w, int $h): string
++    {
++        $now = now();
++        $span = max(1, $since->diffInSeconds($now));
++        $pts = [];
++        if (! $changes) {
++            $pts = [[0, $current], [$w, $current]];
++        } else {
++            $first = $changes[0];
++            $pts[] = [0, (int) $first->avail];
++            foreach ($changes as $c) {
++                $x = round($since->diffInSeconds(Carbon::parse($c->recorded_at, 'UTC')) / $span * $w, 1);
++                $x = max(0, min($w, $x));
++                if ($pts) $pts[] = [$x, end($pts)[1]];
++                $pts[] = [$x, (int) $c->avail];
++            }
++            $pts[] = [$w, $current];
++        }
++        $max = max(1, max(array_column($pts, 1)));
++        return implode(' ', array_map(fn ($p) => $p[0] . ',' . round($h - 2 - ($p[1] / $max) * ($h - 4), 1), $pts));
++    }
++
++    /** Data coverage tab. */
++    public function coverage(): array
++    {
++        $today = now()->toDateString();
++        $per = DB::table('distributor_stock_summary')->selectRaw('distributor_code,
++                COUNT(*) AS items, SUM(rate_per_day IS NOT NULL) AS with_rate,
++                SUM(next_arrival_on IS NOT NULL) AS with_arrival, MAX(last_reading_at) AS last_read,
++                SUM(baseline_avail IS NOT NULL) AS seeded')
++            ->groupBy('distributor_code')->orderBy('distributor_code')->get()->keyBy('distributor_code');
++        $changes = DB::table('distributor_stock_changes')->selectRaw('distributor_code, COUNT(*) AS n, MIN(recorded_at) AS oldest')
++            ->groupBy('distributor_code')->get()->keyBy('distributor_code');
++
++        $mb = null;
++        try {
++            $mb = DB::table('information_schema.TABLES')->where('TABLE_SCHEMA', DB::getDatabaseName())
++                ->whereIn('TABLE_NAME', ['distributor_stock_summary', 'distributor_stock_changes'])
++                ->selectRaw('ROUND(SUM(DATA_LENGTH + INDEX_LENGTH) / 1048576, 1) AS mb')->value('mb');
++        } catch (\Throwable $e) {
++            // storage figure is informational only
++        }
++
++        return ['per' => $per, 'changes' => $changes, 'mb' => $mb, 'today' => $today];
++    }
++}
+diff --git a/app/Models/PlatformSettings.php b/app/Models/PlatformSettings.php
+index f7901eed..1622b00e 100644
+--- a/app/Models/PlatformSettings.php
++++ b/app/Models/PlatformSettings.php
+@@ -38,6 +38,8 @@ class PlatformSettings extends Model
+         'outreach_from_name',
+         // MARKER-DASH-AUDIENCE: off = no shop can customize its dashboard
+         'dashboard_customize_enabled',
++        // MARKER-VELOCITY: what shops will see of distributor velocity
++        'velocity_settings',
+     ];
+ 
+     // without this the json column reads back as a
+@@ -45,6 +47,7 @@ class PlatformSettings extends Model
+     protected $casts = [
+         'email_free_by_tier' => 'array',
+         'dashboard_customize_enabled' => 'boolean',
++        'velocity_settings' => 'array',
+     ];
+ 
+     /** Laravel's framework default when nothing is configured. */
+diff --git a/app/Providers/Filament/AdminPanelProvider.php b/app/Providers/Filament/AdminPanelProvider.php
+index c9d57886..43765b65 100644
+--- a/app/Providers/Filament/AdminPanelProvider.php
++++ b/app/Providers/Filament/AdminPanelProvider.php
+@@ -130,6 +130,7 @@ class AdminPanelProvider extends PanelProvider
+                 // explicit registration; this panel
+                 // does not auto-discover.
+                 \App\Filament\Pages\CatalogCoverage::class,
++                \App\Filament\Pages\DistributorVelocity::class, // MARKER-VELOCITY: no route without this line
+                 // same: no route without this line.
+                 \App\Filament\Pages\CatalogItemLookup::class,
+                 \App\Filament\Pages\VariantSplitRules::class, // MARKER-OPTION-SPLIT: no route without this line
+diff --git a/app/Services/Distributors/StockVelocityRecorder.php b/app/Services/Distributors/StockVelocityRecorder.php
+new file mode 100644
+index 00000000..74411fee
+--- /dev/null
++++ b/app/Services/Distributors/StockVelocityRecorder.php
+@@ -0,0 +1,234 @@
++<?php
++
++namespace App\Services\Distributors;
++
++use Carbon\Carbon;
++use Illuminate\Support\Facades\DB;
++
++/**
++ * MARKER-VELOCITY: records distributor stock readings and keeps a running
++ * per-item summary (see the create_distributor_stock_velocity migration).
++ *
++ * The pace is a time-weighted average of DROPS only:
++ *   drop_units    = drop_units    * f + max(0, previous - now)
++ *   observed_days = observed_days * f + days since the previous reading
++ *   rate          = drop_units / observed_days
++ * with f = exp(-days / MEMORY_DAYS), so older movement fades out. A restock
++ * (stock going up) adds no drop and is never read as a sale.
++ *
++ * Several shops can read the same distributor item on the same night with
++ * their own credentials. Only the first reading inside READING_GAP_HOURS
++ * counts, so one item is not measured twice in a night and two accounts that
++ * see slightly different warehouses can't fake a drop.
++ */
++class StockVelocityRecorder
++{
++    public const MEMORY_DAYS       = 30;
++    public const KEEP_DAYS         = 60;
++    public const READING_GAP_HOURS = 6;
++    public const GOOD_READINGS     = 8;
++    public const GOOD_SPAN_DAYS    = 21;
++    public const MIN_OBSERVED_DAYS = 1.0;
++
++    /**
++     * @param array<string, array{avail:int|null, catalog_id?:string|null, eta?:string|null, has_eta_info?:bool}> $readings
++     *        keyed by distributor_variant_no
++     * @return array{read:int, counted:int, changed:int, new:int}
++     */
++    public function record(string $code, array $readings, ?Carbon $at = null): array
++    {
++        $at    = ($at ?? now())->copy()->utc();
++        $today = $at->toDateString();
++        $out   = ['read' => 0, 'counted' => 0, 'changed' => 0, 'new' => 0];
++
++        foreach (array_chunk($readings, 1000, true) as $chunk) {
++            $existing = DB::table('distributor_stock_summary')
++                ->where('distributor_code', $code)
++                ->whereIn('distributor_variant_no', array_map('strval', array_keys($chunk)))
++                ->get()->keyBy('distributor_variant_no');
++
++            $rows = [];
++            $changes = [];
++            foreach ($chunk as $vno => $r) {
++                $vno = (string) $vno;
++                if (! array_key_exists('avail', $r) || $r['avail'] === null) {
++                    continue;
++                }
++                $out['read']++;
++                $avail = max(0, (int) $r['avail']);
++                $eta   = (! empty($r['eta']) && $r['eta'] >= $today) ? substr((string) $r['eta'], 0, 10) : null;
++                $prev  = $existing->get($vno);
++
++                if (! $prev) {
++                    $rows[] = [
++                        'distributor_code' => $code, 'distributor_variant_no' => $vno,
++                        'distributor_catalog_id' => $r['catalog_id'] ?? null,
++                        'avail' => $avail, 'prev_avail' => null,
++                        'drop_units' => 0, 'observed_days' => 0, 'rate_per_day' => null, 'days_left' => null,
++                        'readings' => 1, 'changes' => 1,
++                        'first_seen_at' => $at, 'last_reading_at' => $at, 'last_change_at' => $at, 'last_restock_at' => null,
++                        'next_arrival_on' => $eta,
++                        'baseline_avail' => null, 'baseline_at' => null,
++                        'created_at' => $at, 'updated_at' => $at,
++                    ];
++                    $changes[] = ['distributor_code' => $code, 'distributor_variant_no' => $vno, 'avail' => $avail, 'prev_avail' => null, 'recorded_at' => $at];
++                    $out['counted']++; $out['changed']++; $out['new']++;
++                    continue;
++                }
++
++                $last = $prev->last_reading_at ? Carbon::parse($prev->last_reading_at, 'UTC') : null;
++                $days = $last ? max(0.0, $last->diffInSeconds($at, false) / 86400) : 0.0;
++                if ($last && $days * 24 < self::READING_GAP_HOURS) {
++                    continue; // already measured this item tonight
++                }
++
++                $prevAvail = $prev->avail === null ? null : (int) $prev->avail;
++                $f      = exp(-$days / self::MEMORY_DAYS);
++                $drop   = ($prevAvail !== null && $avail < $prevAvail) ? $prevAvail - $avail : 0;
++                $units  = (float) $prev->drop_units * $f + $drop;
++                $obs    = (float) $prev->observed_days * $f + $days;
++                $rate   = $obs >= self::MIN_OBSERVED_DAYS ? round($units / $obs, 3) : null;
++                $changed = $prevAvail !== $avail;
++
++                $rows[] = [
++                    'distributor_code' => $code, 'distributor_variant_no' => $vno,
++                    'distributor_catalog_id' => $r['catalog_id'] ?? $prev->distributor_catalog_id,
++                    'avail' => $avail, 'prev_avail' => $prevAvail,
++                    'drop_units' => round($units, 3), 'observed_days' => round($obs, 3),
++                    'rate_per_day' => $rate,
++                    'days_left' => ($rate !== null && $rate > 0.001) ? round(min($avail / $rate, 99999), 1) : null,
++                    'readings' => (int) $prev->readings + 1,
++                    'changes' => (int) $prev->changes + ($changed ? 1 : 0),
++                    'first_seen_at' => $prev->first_seen_at,
++                    'last_reading_at' => $at,
++                    'last_change_at' => $changed ? $at : $prev->last_change_at,
++                    'last_restock_at' => ($prevAvail !== null && $avail > $prevAvail) ? $at : $prev->last_restock_at,
++                    // a reading that carries warehouse detail decides the date (null = none due);
++                    // one without warehouse detail leaves the last known date alone
++                    'next_arrival_on' => ! empty($r['has_eta_info']) ? $eta : ($prev->next_arrival_on && $prev->next_arrival_on >= $today ? $prev->next_arrival_on : null),
++                    'baseline_avail' => $prev->baseline_avail, 'baseline_at' => $prev->baseline_at,
++                    'created_at' => $prev->created_at, 'updated_at' => $at,
++                ];
++                if ($changed) {
++                    $changes[] = ['distributor_code' => $code, 'distributor_variant_no' => $vno, 'avail' => $avail, 'prev_avail' => $prevAvail, 'recorded_at' => $at];
++                    $out['changed']++;
++                }
++                $out['counted']++;
++            }
++
++            if ($rows) {
++                DB::table('distributor_stock_summary')->upsert($rows, ['distributor_code', 'distributor_variant_no'], [
++                    'distributor_catalog_id', 'avail', 'prev_avail', 'drop_units', 'observed_days', 'rate_per_day', 'days_left',
++                    'readings', 'changes', 'last_reading_at', 'last_change_at', 'last_restock_at', 'next_arrival_on', 'updated_at',
++                ]);
++            }
++            foreach (array_chunk($changes, 1000) as $batch) {
++                DB::table('distributor_stock_changes')->insert($batch);
++            }
++        }
++
++        return $out;
++    }
++
++    /** Earliest future warehouse ETA for one variant's warehouse list (MARKER-SUPPLY shape). */
++    public static function earliestEta(?array $warehouses, string $today): ?string
++    {
++        $best = null;
++        foreach ($warehouses ?? [] as $w) {
++            $eta = $w['eta'] ?? null;
++            if ($eta && $eta >= $today && ($best === null || $eta < $best)) {
++                $best = $eta;
++            }
++        }
++        return $best;
++    }
++
++    /**
++     * Build summaries from the readings that existed before this build
++     * (distributor_availability_snapshots keeps the latest reading per shop
++     * per item). The latest reading per distributor item becomes the starting
++     * point and the baseline; items that already have a summary are left alone.
++     *
++     * @return array{seeded:int, skipped:int}
++     */
++    public function seedFromSnapshots(): array
++    {
++        $latest = [];
++        DB::table('distributor_availability_snapshots')
++            ->select('id', 'distributor_code', 'distributor_variant_no', 'distributor_catalog_id', 'avail', 'checked_at')
++            ->whereNotNull('avail')
++            ->orderBy('id')
++            ->chunkById(5000, function ($rows) use (&$latest) {
++                foreach ($rows as $s) {
++                    $k = $s->distributor_code . "\x1f" . $s->distributor_variant_no;
++                    if (! isset($latest[$k]) || $s->checked_at > $latest[$k]->checked_at) {
++                        $latest[$k] = $s;
++                    }
++                }
++            });
++
++        $seeded = 0;
++        $skipped = 0;
++        foreach (array_chunk($latest, 1000) as $chunk) {
++            $rows = [];
++            $changes = [];
++            foreach ($chunk as $s) {
++                $at = Carbon::parse($s->checked_at, 'UTC');
++                $rows[] = [
++                    'distributor_code' => $s->distributor_code, 'distributor_variant_no' => (string) $s->distributor_variant_no,
++                    'distributor_catalog_id' => $s->distributor_catalog_id,
++                    'avail' => max(0, (int) $s->avail), 'prev_avail' => null,
++                    'drop_units' => 0, 'observed_days' => 0, 'rate_per_day' => null, 'days_left' => null,
++                    'readings' => 1, 'changes' => 1,
++                    'first_seen_at' => $at, 'last_reading_at' => $at, 'last_change_at' => $at, 'last_restock_at' => null,
++                    'next_arrival_on' => null,
++                    'baseline_avail' => max(0, (int) $s->avail), 'baseline_at' => $at,
++                    'created_at' => now(), 'updated_at' => now(),
++                ];
++            }
++            $n = DB::table('distributor_stock_summary')->insertOrIgnore($rows);
++            $seeded += $n;
++            $skipped += count($rows) - $n;
++
++            // a starting point for the chart, only for items just seeded
++            if ($n > 0) {
++                foreach ($chunk as $s) {
++                    $changes[] = ['distributor_code' => $s->distributor_code, 'distributor_variant_no' => (string) $s->distributor_variant_no,
++                        'avail' => max(0, (int) $s->avail), 'prev_avail' => null, 'recorded_at' => Carbon::parse($s->checked_at, 'UTC')];
++                }
++                $have = DB::table('distributor_stock_changes')
++                    ->whereIn('distributor_variant_no', array_column($changes, 'distributor_variant_no'))
++                    ->select('distributor_code', 'distributor_variant_no')->distinct()->get()
++                    ->map(fn ($r) => $r->distributor_code . "\x1f" . $r->distributor_variant_no)->flip();
++                $changes = array_values(array_filter($changes, fn ($c) => ! isset($have[$c['distributor_code'] . "\x1f" . $c['distributor_variant_no']])));
++                foreach (array_chunk($changes, 1000) as $batch) {
++                    DB::table('distributor_stock_changes')->insert($batch);
++                }
++            }
++        }
++
++        return ['seeded' => $seeded, 'skipped' => $skipped];
++    }
++
++    /** Remove change rows older than KEEP_DAYS. Returns rows removed. */
++    public function prune(): int
++    {
++        $cut = now()->subDays(self::KEEP_DAYS);
++        $total = 0;
++        do {
++            $n = DB::table('distributor_stock_changes')->where('recorded_at', '<', $cut)->limit(5000)->delete();
++            $total += $n;
++        } while ($n > 0);
++        return $total;
++    }
++
++    /** good | building | early, from a summary row. */
++    public static function confidence(object $row): string
++    {
++        $span = ($row->first_seen_at && $row->last_reading_at)
++            ? Carbon::parse($row->first_seen_at)->diffInDays(Carbon::parse($row->last_reading_at)) : 0;
++        if ((int) $row->readings >= self::GOOD_READINGS && $span >= self::GOOD_SPAN_DAYS) return 'good';
++        if ((int) $row->readings >= 3 && $row->rate_per_day !== null) return 'building';
++        return 'early';
++    }
++}
+diff --git a/app/Services/Distributors/TenantDistributorSyncService.php b/app/Services/Distributors/TenantDistributorSyncService.php
+index a8b5c124..a0c1fe4d 100644
+--- a/app/Services/Distributors/TenantDistributorSyncService.php
++++ b/app/Services/Distributors/TenantDistributorSyncService.php
+@@ -182,6 +182,28 @@ class TenantDistributorSyncService
+                     ['distributor_catalog_id', 'avail', 'checked_at', 'updated_at'],
+                 );
+             }
++
++            // MARKER-VELOCITY: the same readings feed the per-item running
++            // summary and the 60-day change history. A failure here is
++            // reported but never fails the shop's sync.
++            if ($snapshots) {
++                try {
++                    $today = now()->toDateString();
++                    $readings = [];
++                    foreach ($snapshots as $s) {
++                        $vno = $s['distributor_variant_no'];
++                        $readings[$vno] = [
++                            'avail' => $s['avail'],
++                            'catalog_id' => $s['distributor_catalog_id'],
++                            'has_eta_info' => isset($whByVariant[$vno]),
++                            'eta' => StockVelocityRecorder::earliestEta($whByVariant[$vno] ?? null, $today),
++                        ];
++                    }
++                    app(StockVelocityRecorder::class)->record($code, $readings);
++                } catch (\Throwable $e) {
++                    \App\Support\JobFailureReporter::report(self::class, 'Distributor velocity recording failed for ' . $code, $e, ['code' => $code], $tenantId);
++                }
++            }
+         }
+ 
+         return $res;
+diff --git a/database/migrations/2026_10_30_140000_create_distributor_stock_velocity.php b/database/migrations/2026_10_30_140000_create_distributor_stock_velocity.php
+new file mode 100644
+index 00000000..681bce5d
+--- /dev/null
++++ b/database/migrations/2026_10_30_140000_create_distributor_stock_velocity.php
+@@ -0,0 +1,87 @@
++<?php
++
++use Illuminate\Database\Migrations\Migration;
++use Illuminate\Database\Schema\Blueprint;
++use Illuminate\Support\Facades\Schema;
++
++/**
++ * MARKER-VELOCITY: distributor stock velocity.
++ *
++ * distributor_stock_summary — one row per distributor item, updated in place
++ * on every reading. Holds the current stock, a time-weighted average daily
++ * drop (drop_units / observed_days, both decayed with a 30-day memory), the
++ * last restock and the next arrival date. Constant size: it never grows past
++ * the number of items read.
++ *
++ * distributor_stock_changes — one row per reading where the quantity CHANGED.
++ * Kept 60 days (distributors:velocity-prune), for charts and so the rate can
++ * be recalculated if the formula changes.
++ */
++return new class extends Migration
++{
++    public function up(): void
++    {
++        if (! Schema::hasTable('distributor_stock_summary')) {
++            Schema::create('distributor_stock_summary', function (Blueprint $t) {
++                $t->bigIncrements('id');
++                $t->string('distributor_code', 32);
++                $t->string('distributor_variant_no', 64);
++                $t->uuid('distributor_catalog_id')->nullable();
++                $t->integer('avail')->nullable();
++                $t->integer('prev_avail')->nullable();
++                $t->decimal('drop_units', 14, 3)->default(0);
++                $t->decimal('observed_days', 10, 3)->default(0);
++                $t->decimal('rate_per_day', 10, 3)->nullable();
++                $t->decimal('days_left', 10, 1)->nullable();
++                $t->unsignedInteger('readings')->default(0);
++                $t->unsignedInteger('changes')->default(0);
++                $t->timestamp('first_seen_at')->nullable();
++                $t->timestamp('last_reading_at')->nullable();
++                $t->timestamp('last_change_at')->nullable();
++                $t->timestamp('last_restock_at')->nullable();
++                $t->date('next_arrival_on')->nullable();
++                // the reading that existed before this build, kept for comparison
++                $t->integer('baseline_avail')->nullable();
++                $t->timestamp('baseline_at')->nullable();
++                $t->timestamps();
++
++                $t->unique(['distributor_code', 'distributor_variant_no'], 'dss_item_unique');
++                $t->index(['days_left'], 'dss_days_left_idx');
++                $t->index(['rate_per_day'], 'dss_rate_idx');
++                $t->index(['next_arrival_on'], 'dss_arrival_idx');
++                $t->index(['distributor_catalog_id'], 'dss_catalog_idx');
++            });
++        }
++
++        if (! Schema::hasTable('distributor_stock_changes')) {
++            Schema::create('distributor_stock_changes', function (Blueprint $t) {
++                $t->bigIncrements('id');
++                $t->string('distributor_code', 32);
++                $t->string('distributor_variant_no', 64);
++                $t->integer('avail')->nullable();
++                $t->integer('prev_avail')->nullable();
++                $t->timestamp('recorded_at');
++
++                $t->index(['distributor_code', 'distributor_variant_no', 'recorded_at'], 'dsc_item_time_idx');
++                $t->index(['recorded_at'], 'dsc_time_idx');
++            });
++        }
++
++        if (! Schema::hasColumn('platform_settings', 'velocity_settings')) {
++            Schema::table('platform_settings', function (Blueprint $t) {
++                $t->json('velocity_settings')->nullable();
++            });
++        }
++    }
++
++    public function down(): void
++    {
++        Schema::dropIfExists('distributor_stock_changes');
++        Schema::dropIfExists('distributor_stock_summary');
++        if (Schema::hasColumn('platform_settings', 'velocity_settings')) {
++            Schema::table('platform_settings', function (Blueprint $t) {
++                $t->dropColumn('velocity_settings');
++            });
++        }
++    }
++};
+diff --git a/resources/views/filament/pages/distributor-velocity.blade.php b/resources/views/filament/pages/distributor-velocity.blade.php
+new file mode 100644
+index 00000000..26cd150c
+--- /dev/null
++++ b/resources/views/filament/pages/distributor-velocity.blade.php
+@@ -0,0 +1,218 @@
++<x-filament-panels::page>
++{{-- MARKER-VELOCITY: distributor stock velocity. Hairlines, no cards (the Sales-page vocabulary). --}}
++<style>
++  .vl-root { --line:rgba(255,255,255,.075); --line2:rgba(255,255,255,.14); --dim:#a3a3ab; --faint:#74747d; --txt:#fff;
++    --violet:#8b5cf6; --vtext:#a78bfa; --vsoft:rgba(139,92,246,.17); --ok:#86efac; --oksoft:rgba(134,239,172,.12);
++    --amber:#fbbf24; --red:#f47c7c; --hover:rgba(255,255,255,.035); --pop:#18181b; font-size:14px; }
++  html:not(.dark) .vl-root { --line:rgba(0,0,0,.08); --line2:rgba(0,0,0,.16); --dim:#52525b; --faint:#6b6b75; --txt:#18181b;
++    --vtext:#6d28d9; --vsoft:rgba(139,92,246,.11); --ok:#15803d; --oksoft:rgba(22,163,74,.1);
++    --amber:#b45309; --red:#dc2626; --hover:rgba(0,0,0,.025); --pop:#fff; }
++  .vl-root .sub { color:var(--dim); max-width:780px; line-height:1.55; margin:0 }
++  .vl-tabs { display:flex; gap:22px; border-bottom:1px solid var(--line); overflow-x:auto; }
++  .vl-tabs button { background:none; border:0; border-bottom:2px solid transparent; padding:9px 0; color:var(--dim); cursor:pointer; white-space:nowrap; font:inherit; font-weight:500; margin-bottom:-1px; }
++  .vl-tabs button.on { color:var(--txt); border-bottom-color:var(--violet); }
++  .vl-tabs button span { color:var(--faint); font-weight:400; margin-left:4px; }
++  .vl-legend { color:var(--faint); font-size:12.5px; line-height:1.6; padding:11px 0; border-bottom:1px solid var(--line); }
++  .vl-legend b { color:var(--dim); font-weight:600; }
++  .vl-sum { display:flex; gap:34px; flex-wrap:wrap; padding:6px 0; }
++  .vl-sum b { display:block; font-size:26px; font-weight:700; letter-spacing:-.02em; color:var(--txt); line-height:1.15; }
++  .vl-sum span { font-size:12.5px; color:var(--dim); }
++  .vl-sum em { font-style:normal; font-size:12px; color:var(--faint); display:block; }
++  .vl-bar { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
++  .vl-in { background:transparent; border:1px solid var(--line2); border-radius:7px; padding:6px 10px; font:inherit; font-size:13px; color:inherit; min-width:240px; }
++  .vl-seg { display:inline-flex; border:1px solid var(--line2); border-radius:8px; padding:2px; gap:2px; flex-wrap:wrap; }
++  .vl-seg button { background:none; border:0; color:var(--dim); padding:4px 10px; border-radius:6px; font:inherit; font-size:12.5px; cursor:pointer; white-space:nowrap; }
++  .vl-seg button.on { color:var(--txt); background:var(--vsoft); font-weight:600; }
++  .vl-chk { font-size:12.5px; color:var(--dim); display:inline-flex; gap:6px; align-items:center; cursor:pointer; margin-left:auto; }
++  .vl-tbl { width:100%; border-collapse:collapse; font-size:13.5px; }
++  .vl-tbl th { font-size:11.5px; font-weight:500; color:var(--faint); text-align:left; padding:8px 10px; border-bottom:1px solid var(--line2); white-space:nowrap; }
++  .vl-tbl td { padding:10px; border-bottom:1px solid var(--line); vertical-align:middle; }
++  .vl-tbl .r { text-align:right; font-variant-numeric:tabular-nums; }
++  .vl-tbl tbody tr { cursor:pointer; } .vl-tbl tbody tr:hover { background:var(--hover); }
++  .vl-nm b { font-weight:600; color:var(--txt); display:block; } .vl-nm span { font-size:12px; color:var(--faint); }
++  .vl-mut { color:var(--faint); }
++  .vl-dl { font-weight:700; } .vl-dl.red { color:var(--red); } .vl-dl.amber { color:var(--amber); }
++  .vl-chip { display:inline-flex; font-size:11.5px; padding:1px 7px; border-radius:4px; white-space:nowrap; border:1px solid var(--line2); color:var(--faint); }
++  .vl-chip.ok { background:var(--oksoft); color:var(--ok); border-color:transparent; }
++  .vl-chip.v { background:var(--vsoft); color:var(--vtext); border-color:transparent; }
++  .vl-btn { border:1px solid var(--line2); background:none; border-radius:7px; padding:6px 12px; font:inherit; font-weight:500; font-size:13px; cursor:pointer; color:inherit; }
++  .vl-btn:hover { background:var(--hover); }
++  .vl-btn.p { background:var(--violet); border-color:var(--violet); color:#fff; }
++  .vl-btn[disabled] { opacity:.45; cursor:default; }
++  .vl-empty { padding:40px 0; text-align:center; color:var(--dim); }
++  .vl-empty b { display:block; color:var(--txt); margin-bottom:6px; font-size:15px; }
++  .vl-cov { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); border-bottom:1px solid var(--line); }
++  .vl-cov > div { padding:14px 18px 14px 0; }
++  .vl-cov b { color:var(--txt); } .vl-cov p { margin:5px 0 0; font-size:12.5px; color:var(--dim); line-height:1.6; }
++  .vl-set .row { display:flex; gap:18px; padding:15px 0; border-bottom:1px solid var(--line); align-items:flex-start; max-width:780px; }
++  .vl-set .row > div:first-child { flex:1; }
++  .vl-set .row b { display:block; color:var(--txt); font-weight:600; }
++  .vl-set .row span { font-size:12.5px; color:var(--dim); line-height:1.5; }
++  .vl-sw { position:relative; width:40px; height:22px; flex:none; margin-top:2px; }
++  .vl-sw input { opacity:0; width:0; height:0; position:absolute; }
++  .vl-sw i { position:absolute; inset:0; border-radius:99px; background:var(--line2); cursor:pointer; transition:background .12s; }
++  .vl-sw i::after { content:''; position:absolute; left:3px; top:3px; width:16px; height:16px; border-radius:50%; background:#fff; box-shadow:0 1px 2px rgba(0,0,0,.3); transition:left .12s; }
++  .vl-sw input:checked + i { background:var(--violet); } .vl-sw input:checked + i::after { left:21px; }
++  .vl-dr-bg { position:fixed; inset:0; background:rgba(0,0,0,.35); z-index:60; }
++  .vl-dr { position:fixed; top:0; right:0; bottom:0; width:min(480px,100%); background:var(--pop); z-index:61; padding:24px 26px; overflow:auto; box-shadow:-20px 0 40px rgba(0,0,0,.18); }
++  .vl-dr dl { display:grid; grid-template-columns:150px 1fr; margin:18px 0; }
++  .vl-dr dt, .vl-dr dd { padding:9px 0; border-bottom:1px solid var(--line); margin:0; font-size:13.5px; }
++  .vl-dr dt { color:var(--faint); } .vl-dr dd { color:var(--txt); }
++</style>
++
++@php
++  $vendorCounts = $this->vendorCounts();
++  $allCount = array_sum($vendorCounts);
++  $confWord = ['good' => 'Good', 'building' => 'Building', 'early' => 'Too early'];
++  // admin time zone when that helper is present, UTC otherwise
++  $at = fn ($v, $f) => $v ? (function_exists('alocal') ? alocal($v, $f) : \Carbon\Carbon::parse($v)->format($f)) : '—';
++  $tzLabel = function_exists('admin_tz_label') ? admin_tz_label() : 'UTC';
++@endphp
++
++<div class="vl-root" style="display:flex;flex-direction:column;gap:18px">
++  <p class="sub">How fast each distributor's stock is moving, how many days it should last at that pace, and when more is due. Read from the nightly distributor sync — no shop sales data is used here.</p>
++
++  <div class="vl-tabs">
++    <button type="button" wire:click="setTab('items')" class="{{ $tab === 'items' ? 'on' : '' }}">Items</button>
++    <button type="button" wire:click="setTab('coverage')" class="{{ $tab === 'coverage' ? 'on' : '' }}">Data coverage</button>
++    <button type="button" wire:click="setTab('shops')" class="{{ $tab === 'shops' ? 'on' : '' }}">Shop visibility</button>
++  </div>
++
++  @if ($tab === 'items')
++    @php $s = $this->stats(); $res = $this->rows(); @endphp
++    <div class="vl-legend">
++      <b>What this shows.</b> Distributor stock for items at least one shop has linked in its inventory, read each night by the per-shop sync. One reading per item per night counts.
++      <b>Days left</b> = stock ÷ average daily drop over roughly the last month. Only drops count; a restock is never read as a sale.
++      <b>Next arrival</b> is the earliest date a distributor's warehouse sends; blank means none was sent.
++      <b>History</b>: Too early (no pace yet), Building, or Good (8+ readings over 21+ days). Nothing on this page is shown to shops — see Shop visibility.
++    </div>
++
++    <div class="vl-sum">
++      <div><b>{{ number_format($s['items']) }}</b><span>Items tracked</span><em>{{ $vendor ?: 'all distributors' }}</em></div>
++      <div><b>{{ number_format($s['with_rate']) }}</b><span>With a pace</span><em>{{ $s['items'] ? round($s['with_rate'] / $s['items'] * 100) : 0 }}% — fills in nightly</em></div>
++      <div><b>{{ number_format($s['under14']) }}</b><span>Under 14 days left</span><em>at current pace</em></div>
++      <div><b>{{ number_format($s['due7']) }}</b><span>Arrivals due in 7 days</span><em>where a date is sent</em></div>
++      <div><b style="font-size:15px;padding-top:9px">{{ $at($s['last_read'], 'M j, g:ia') }}</b><span>Last reading</span><em>{{ $tzLabel }}</em></div>
++    </div>
++
++    <div class="vl-tabs">
++      <button type="button" wire:click="setVendor('')" class="{{ $vendor === '' ? 'on' : '' }}">All distributors<span>{{ number_format($allCount) }}</span></button>
++      @foreach ($vendorCounts as $code => $n)
++        <button type="button" wire:click="setVendor('{{ $code }}')" class="{{ $vendor === $code ? 'on' : '' }}">{{ $code }}<span>{{ number_format($n) }}</span></button>
++      @endforeach
++    </div>
++
++    <div class="vl-bar">
++      <input type="search" class="vl-in" wire:model.live.debounce.400ms="search" placeholder="Search item, brand, SKU or variant">
++      <div class="vl-seg">
++        @foreach (\App\Filament\Pages\DistributorVelocity::VIEWS as $k => $label)
++          <button type="button" wire:click="setView('{{ $k }}')" class="{{ $mode === $k ? 'on' : '' }}">{{ $label }}</button>
++        @endforeach
++      </div>
++      <label class="vl-chk"><input type="checkbox" wire:model.live="hideEarly"> Hide items with too little history</label>
++    </div>
++
++    <div style="overflow-x:auto">
++    <table class="vl-tbl">
++      <thead><tr><th>Item</th><th>Distributor</th><th class="r">In stock</th><th>Last 30 days</th><th class="r">Pace</th><th class="r">Days left</th><th>Next arrival</th><th class="r">Shops stocking</th><th>History</th></tr></thead>
++      <tbody>
++      @forelse ($res['rows'] as $r)
++        @php $dl = $r->days_left === null ? null : (float) $r->days_left; $cls = $dl === null ? 'vl-mut' : ($dl < 14 ? 'red' : ($dl < 30 ? 'amber' : '')); @endphp
++        <tr wire:click="select({{ $r->id }})" wire:key="vl-{{ $r->id }}">
++          <td class="vl-nm"><b>{{ $r->title ?: $r->distributor_variant_no }}</b><span>{{ trim(($r->brand ? $r->brand . ' · ' : '') . ($r->mpn ?: $r->distributor_variant_no)) }}</span></td>
++          <td>{{ $r->distributor_code }}</td>
++          <td class="r">{{ number_format((int) $r->avail) }}</td>
++          <td><svg width="80" height="22" viewBox="0 0 80 22" style="display:block"><polyline fill="none" stroke="#8b5cf6" stroke-width="1.6" points="{{ $r->spark }}"/></svg></td>
++          <td class="r">{{ $r->rate_per_day === null ? '—' : rtrim(rtrim(number_format((float) $r->rate_per_day, 1), '0'), '.') . ' / day' }}</td>
++          <td class="r"><span class="vl-dl {{ $cls }}">{{ $dl === null ? '—' : number_format($dl) . ' days' }}</span></td>
++          <td>@if ($r->next_arrival_on)<span class="vl-chip ok">{{ \Carbon\Carbon::parse($r->next_arrival_on)->format('M j') }}</span>@else<span class="vl-chip">None sent</span>@endif</td>
++          <td class="r">{{ $r->shops }}</td>
++          <td class="vl-mut" style="white-space:nowrap">{{ $confWord[$r->conf] }} · {{ $r->readings }} {{ \Illuminate\Support\Str::plural('reading', (int) $r->readings) }}</td>
++        </tr>
++      @empty
++        <tr><td colspan="9"><div class="vl-empty">
++          @if ($s['items'] === 0)
++            <b>No readings yet.</b>Run the pull once after deploy, or wait for tonight's sync.
++          @else
++            <b>Nothing in this view yet.</b>
++            @if ($mode === 'run' || $mode === 'fast') Pace needs at least two nights of readings, so these fill in after the next sync. @else Try a different view or distributor. @endif
++            <div style="display:flex;gap:8px;justify-content:center;margin-top:14px;flex-wrap:wrap">
++              <button type="button" class="vl-btn" wire:click="clearFilters">Clear search and filters</button>
++              <button type="button" class="vl-btn" wire:click="setView('arrival')">Show arrivals due</button>
++              <button type="button" class="vl-btn" wire:click="setTab('coverage')">See data coverage</button>
++            </div>
++          @endif
++        </div></td></tr>
++      @endforelse
++      </tbody>
++    </table>
++    </div>
++    @if ($res['total'] > count($res['rows']))
++      <div style="display:flex;align-items:center;gap:12px"><button type="button" class="vl-btn" wire:click="showMore">Show 100 more</button><span class="vl-mut" style="font-size:12.5px">{{ number_format(count($res['rows'])) }} of {{ number_format($res['total']) }}</span></div>
++    @endif
++
++    @if ($d = $this->detail())
++      <div class="vl-dr-bg" wire:click="closeDetail"></div>
++      <aside class="vl-dr">
++        <div style="display:flex;align-items:flex-start;gap:12px">
++          <div style="flex:1"><div class="vl-mut" style="font-size:12.5px">{{ $d->distributor_code }} · {{ $d->distributor_variant_no }}</div>
++            <h2 style="font-size:18px;font-weight:600;margin:2px 0;color:var(--txt)">{{ $d->title ?: $d->distributor_variant_no }}</h2>
++            <div style="color:var(--dim);font-size:13px">{{ trim(($d->brand ?? '') . ($d->mpn ? ' · ' . $d->mpn : ''), ' ·') }}</div></div>
++          <button type="button" class="vl-btn" wire:click="closeDetail">Close</button>
++        </div>
++        <div style="margin:18px 0 4px"><svg width="100%" height="96" viewBox="0 0 420 96" preserveAspectRatio="none" style="display:block"><polyline fill="none" stroke="#8b5cf6" stroke-width="1.8" points="{{ $d->chart }}"/></svg>
++          <div class="vl-mut" style="font-size:11.5px;display:flex;justify-content:space-between"><span>60 days ago</span><span>{{ $d->change_count }} {{ \Illuminate\Support\Str::plural('change', $d->change_count) }} recorded</span><span>Now</span></div></div>
++        <dl>
++          <dt>In stock</dt><dd>{{ number_format((int) $d->avail) }}</dd>
++          <dt>Average pace</dt><dd>{{ $d->rate_per_day === null ? 'Not enough history yet' : rtrim(rtrim(number_format((float) $d->rate_per_day, 2), '0'), '.') . ' per day' }}</dd>
++          <dt>Days left</dt><dd>{{ $d->days_left === null ? '—' : number_format((float) $d->days_left) . ' days' }}</dd>
++          <dt>Next arrival</dt><dd>{{ $d->next_arrival_on ? \Carbon\Carbon::parse($d->next_arrival_on)->format('M j, Y') : 'None sent by ' . $d->distributor_code }}</dd>
++          <dt>Last restock</dt><dd>{{ $d->last_restock_at ? $at($d->last_restock_at, 'M j, g:ia') : 'None seen' }}</dd>
++          <dt>Before this build</dt><dd>{{ $d->baseline_avail === null ? 'No earlier reading' : number_format((int) $d->baseline_avail) . ' on ' . $at($d->baseline_at, 'M j, g:ia') }}</dd>
++          <dt>History</dt><dd>{{ $confWord[$d->conf] }} · {{ $d->readings }} readings since {{ $d->first_seen_at ? $at($d->first_seen_at, 'M j') : '—' }}</dd>
++          <dt>Shops stocking</dt><dd>{{ $d->shops }} (a count — shops are never named here)</dd>
++        </dl>
++      </aside>
++    @endif
++
++  @elseif ($tab === 'coverage')
++    @php $c = $this->coverage(); @endphp
++    <div class="vl-legend"><b>What each distributor gives us.</b> Readings come only from the nightly per-shop sync, so an item is tracked once any shop has it linked. Arrival dates come from the distributor's warehouse detail (QBP, BTI and HLC send them when they have one).</div>
++    <div class="vl-cov">
++      @forelse ($c['per'] as $code => $p)
++        @php $ch = $c['changes'][$code] ?? null; @endphp
++        <div><b>{{ $code }}</b>
++          <p>{{ number_format($p->items) }} items tracked<br>{{ number_format($p->with_rate) }} with a pace<br>{{ number_format($p->with_arrival) }} with an arrival date<br>
++          {{ number_format($ch->n ?? 0) }} changes kept{{ $ch && $ch->oldest ? ' since ' . $at($ch->oldest, 'M j') : '' }}<br>
++          Last read {{ $p->last_read ? $at($p->last_read, 'M j, g:ia') : '—' }}</p></div>
++      @empty
++        <div><p>No readings yet. Run the pull once after deploy, or wait for tonight's sync.</p></div>
++      @endforelse
++    </div>
++    <div class="vl-set">
++      <div class="row"><div><b>Recorder</b><span>Runs inside the nightly per-shop sync. Updates one summary row per item and writes a change row only when the quantity moved.</span></div><span class="vl-chip ok">On</span></div>
++      <div class="row"><div><b>Change history</b><span>Individual changes are kept {{ \App\Services\Distributors\StockVelocityRecorder::KEEP_DAYS }} days, then removed nightly. The per-item summary is kept.</span></div><span class="vl-chip v">{{ \App\Services\Distributors\StockVelocityRecorder::KEEP_DAYS }} days</span></div>
++      <div class="row"><div><b>Storage</b><span>Both tables together.</span></div><span class="vl-chip">{{ $c['mb'] === null ? 'Unknown' : $c['mb'] . ' MB' }}</span></div>
++    </div>
++
++  @else
++    <div class="vl-legend"><b>Not live in tenant admin yet.</b> These settings are saved now so the shop-side build reads them. Until that ships, shops see nothing from this page, whatever is switched on. Shops will only ever see distributor stock — never another shop's data.</div>
++    <div class="vl-set">
++      @foreach (\App\Filament\Pages\DistributorVelocity::SHOP_SWITCHES as $k => $d)
++        <div class="row"><div><b>{{ $d[0] }}</b><span>{{ $d[1] }}</span></div>
++          <label class="vl-sw"><input type="checkbox" wire:model="shop.{{ $k }}" @disabled(! $this->canEdit())><i></i></label></div>
++      @endforeach
++      <div class="row"><div><b>Distributors shown to shops</b><span>Untick one to hide its estimates everywhere in tenant admin.</span></div>
++        <div style="display:flex;gap:14px;flex-wrap:wrap;font-size:13px">
++          @foreach (($shop['vendors'] ?? []) as $code => $on)
++            <label style="display:inline-flex;gap:6px;align-items:center"><input type="checkbox" wire:model="shop.vendors.{{ $code }}" @disabled(! $this->canEdit())> {{ $code }}</label>
++          @endforeach
++        </div></div>
++    </div>
++    <div style="display:flex;gap:8px;align-items:center">
++      <button type="button" class="vl-btn p" wire:click="saveShop" @disabled(! $this->canEdit())>Save settings</button>
++      @unless ($this->canEdit())<span class="vl-mut" style="font-size:12.5px">Your role can view these but not change them.</span>@endunless
++    </div>
++  @endif
++</div>
++</x-filament-panels::page>
+diff --git a/routes/console.php b/routes/console.php
+index 64089002..6d6a1811 100644
+--- a/routes/console.php
++++ b/routes/console.php
+@@ -216,6 +216,12 @@ Schedule::command('distributors:sync-tenant --all')
+     ->withoutOverlapping()
+     ->runInBackground();
+ 
++// MARKER-VELOCITY: stock-change history is kept 60 days; the per-item summary stays.
++Schedule::command('distributors:velocity-prune')
++    ->dailyAt('05:40')
++    ->withoutOverlapping()
++    ->runInBackground();
++
+ Schedule::command('deliveries:assume-windows')
+     ->everyFifteenMinutes()
+     ->withoutOverlapping()

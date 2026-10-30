@@ -38,6 +38,8 @@ class PlatformSettings extends Model
         'outreach_from_name',
         // MARKER-DASH-AUDIENCE: off = no shop can customize its dashboard
         'dashboard_customize_enabled',
+        // MARKER-VELOCITY: what shops will see of distributor velocity
+        'velocity_settings',
     ];
 
     // without this the json column reads back as a
@@ -45,6 +47,7 @@ class PlatformSettings extends Model
     protected $casts = [
         'email_free_by_tier' => 'array',
         'dashboard_customize_enabled' => 'boolean',
+        'velocity_settings' => 'array',
     ];
 
     /** Laravel's framework default when nothing is configured. */
