@@ -293,7 +293,7 @@ class TenantDistributorSyncService
      *
      * @return array<string,array>
      */
-    private function normalizeWarehouses(mixed $resp): array
+    public function normalizeWarehouses(mixed $resp): array
     {
         $out = [];
         foreach ($this->productsList($resp) as $row) {
@@ -327,7 +327,7 @@ class TenantDistributorSyncService
         return $out;
     }
 
-    private function normalizeInventory(mixed $resp): array
+    public function normalizeInventory(mixed $resp): array
     {
         $out = [];
         $rows = $this->productsList($resp);

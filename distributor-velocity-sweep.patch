@@ -1,0 +1,330 @@
+diff --git a/app/Console/Commands/DistributorsVelocityPull.php b/app/Console/Commands/DistributorsVelocityPull.php
+index 1078603b..851b210e 100644
+--- a/app/Console/Commands/DistributorsVelocityPull.php
++++ b/app/Console/Commands/DistributorsVelocityPull.php
+@@ -11,13 +11,13 @@ use Illuminate\Support\Facades\DB;
+  * MARKER-VELOCITY: one-off after deploy (safe to re-run).
+  *  1. Seeds a summary for every distributor item from the readings that
+  *     existed before the build, and keeps that reading as the baseline.
+- *  2. Runs the normal per-shop sync once, which takes a fresh reading and
+- *     measures it against the baseline.
++ *  2. Runs the whole-catalog sweep once (master admin logins), which takes a
++ *     fresh reading and measures it against the baseline.
+  */
+ class DistributorsVelocityPull extends Command
+ {
+-    protected $signature = 'distributors:velocity-pull {--seed-only : Seed from existing readings without calling the distributors}';
+-    protected $description = 'Seed distributor velocity from pre-build readings, then take a fresh reading from every distributor.';
++    protected $signature = 'distributors:velocity-pull {--seed-only : Seed from existing readings without calling the distributors} {--shops : Also run the per-shop sync}';
++    protected $description = 'Seed distributor velocity from pre-build readings, then take a fresh whole-catalog reading.';
+ 
+     public function handle(StockVelocityRecorder $rec): int
+     {
+@@ -26,8 +26,12 @@ class DistributorsVelocityPull extends Command
+         $this->line("  {$s['seeded']} items seeded, {$s['skipped']} already had a summary.");
+ 
+         if (! $this->option('seed-only')) {
+-            $this->info('Taking a fresh reading (the nightly per-shop sync, run once now) ...');
+-            Artisan::call('distributors:sync-tenant', ['--all' => true], $this->output);
++            $this->info('Taking a fresh reading of every catalog with the master admin logins ...');
++            Artisan::call('distributors:velocity-sweep', [], $this->output);
++            if ($this->option('shops')) {
++                $this->info('Also running the per-shop sync ...');
++                Artisan::call('distributors:sync-tenant', ['--all' => true], $this->output);
++            }
+         }
+ 
+         $this->newLine();
+diff --git a/app/Console/Commands/DistributorsVelocitySweep.php b/app/Console/Commands/DistributorsVelocitySweep.php
+new file mode 100644
+index 00000000..9075d12a
+--- /dev/null
++++ b/app/Console/Commands/DistributorsVelocitySweep.php
+@@ -0,0 +1,33 @@
++<?php
++
++namespace App\Console\Commands;
++
++use App\Services\Distributors\StockVelocitySweep;
++use App\Support\JobFailureReporter;
++use Illuminate\Console\Command;
++
++/** MARKER-VELOCITY-SWEEP: nightly whole-catalog stock reading with the master admin logins. */
++class DistributorsVelocitySweep extends Command
++{
++    protected $signature = 'distributors:velocity-sweep {codes?* : Distributor codes (default: all with a master admin login)} {--max-calls=5000 : Cap on stock calls per distributor}';
++    protected $description = 'Read every catalog item\'s distributor stock once, with the master admin logins, for distributor velocity.';
++
++    public function handle(StockVelocitySweep $sweep): int
++    {
++        $codes = array_map('strtoupper', (array) $this->argument('codes')) ?: ['BTI', 'HLC', 'QBP', 'SHIMANO'];
++        $rows = [];
++        foreach ($codes as $code) {
++            $this->info("Reading {$code} ...");
++            try {
++                $r = $sweep->run($code, (int) $this->option('max-calls'));
++            } catch (\Throwable $e) {
++                JobFailureReporter::report(self::class, 'Distributor velocity sweep failed for ' . $code, $e, ['code' => $code]);
++                $r = ['code' => $code, 'items' => 0, 'read' => 0, 'counted' => 0, 'changed' => 0, 'new' => 0, 'calls' => 0, 'note' => 'Failed: ' . substr($e->getMessage(), 0, 120)];
++            }
++            $rows[] = [$r['code'], $r['items'], $r['calls'], $r['read'], $r['counted'], $r['changed'], $r['new'], $r['note'] ?? ''];
++        }
++        $this->table(['Distributor', 'Catalog items', 'Calls', 'Stock read', 'Counted', 'Changed', 'New', 'Note'], $rows);
++        $this->line('"Counted" excludes items already read in the last 6 hours.');
++        return self::SUCCESS;
++    }
++}
+diff --git a/app/Services/Distributors/StockVelocityRecorder.php b/app/Services/Distributors/StockVelocityRecorder.php
+index 74411fee..72e0b650 100644
+--- a/app/Services/Distributors/StockVelocityRecorder.php
++++ b/app/Services/Distributors/StockVelocityRecorder.php
+@@ -49,6 +49,7 @@ class StockVelocityRecorder
+ 
+             $rows = [];
+             $changes = [];
++            $etaOnly = [];
+             foreach ($chunk as $vno => $r) {
+                 $vno = (string) $vno;
+                 if (! array_key_exists('avail', $r) || $r['avail'] === null) {
+@@ -79,7 +80,12 @@ class StockVelocityRecorder
+                 $last = $prev->last_reading_at ? Carbon::parse($prev->last_reading_at, 'UTC') : null;
+                 $days = $last ? max(0.0, $last->diffInSeconds($at, false) / 86400) : 0.0;
+                 if ($last && $days * 24 < self::READING_GAP_HOURS) {
+-                    continue; // already measured this item tonight
++                    // already measured tonight; a later reading can still bring
++                    // the arrival date the first one lacked (QBP's bulk call has none)
++                    if (! empty($r['has_eta_info'])) {
++                        $etaOnly[$eta ?? ''][] = $vno;
++                    }
++                    continue;
+                 }
+ 
+                 $prevAvail = $prev->avail === null ? null : (int) $prev->avail;
+@@ -125,6 +131,11 @@ class StockVelocityRecorder
+             foreach (array_chunk($changes, 1000) as $batch) {
+                 DB::table('distributor_stock_changes')->insert($batch);
+             }
++            foreach ($etaOnly as $date => $vnos) {
++                DB::table('distributor_stock_summary')->where('distributor_code', $code)
++                    ->whereIn('distributor_variant_no', $vnos)
++                    ->update(['next_arrival_on' => $date === '' ? null : $date]);
++            }
+         }
+ 
+         return $out;
+diff --git a/app/Services/Distributors/StockVelocitySweep.php b/app/Services/Distributors/StockVelocitySweep.php
+new file mode 100644
+index 00000000..33ff861b
+--- /dev/null
++++ b/app/Services/Distributors/StockVelocitySweep.php
+@@ -0,0 +1,139 @@
++<?php
++
++namespace App\Services\Distributors;
++
++use App\Models\PlatformDistributorConnection;
++use Illuminate\Support\Facades\DB;
++
++/**
++ * MARKER-VELOCITY-SWEEP: one nightly stock reading of each distributor's
++ * WHOLE catalog, using the master admin login (the same one that builds the
++ * shared catalog), fed into StockVelocityRecorder.
++ *
++ * How each distributor is read, by what its API allows:
++ *   BTI, SHIMANO  one feed download covers every item (Shimano reuses its cached feed)
++ *   HLC           stock is asked for in batches of 50 SKUs, with a pause between calls
++ *   QBP           one call per warehouse (no arrival dates on that call); the
++ *                 per-SKU call is far too many requests for a whole catalog.
++ *                 Warehouse codes come from what shops' syncs have already seen.
++ * The per-shop sync keeps recording too; the recorder ignores a second reading
++ * of the same item within 6 hours, so the sweep (run first) is the night's reading.
++ */
++class StockVelocitySweep
++{
++    public const HLC_BATCH = 50;
++    public const HLC_PAUSE_MS = 250;
++
++    public function __construct(
++        private DistributorRegistry $registry,
++        private TenantDistributorSyncService $sync,
++        private StockVelocityRecorder $recorder,
++    ) {}
++
++    /** @return array{code:string, items:int, read:int, counted:int, changed:int, new:int, calls:int, note:?string} */
++    public function run(string $code, int $maxCalls = 5000): array
++    {
++        $code = strtoupper($code);
++        $out = ['code' => $code, 'items' => 0, 'read' => 0, 'counted' => 0, 'changed' => 0, 'new' => 0, 'calls' => 0, 'note' => null];
++
++        $conn = PlatformDistributorConnection::where('distributor_code', $code)->first();
++        if (! $conn || ! $conn->api_key || ! $conn->is_active) {
++            $out['note'] = 'No active master admin login for ' . $code . '.';
++            return $out;
++        }
++        $adapter = $this->registry->make($code, ['api_key' => $conn->api_key, 'region' => $conn->region ?? 'us']);
++        if ($conn->auth_style && method_exists($adapter, 'setAuthStyle')) {
++            $adapter->setAuthStyle($conn->auth_style);
++        }
++
++        // only items in the shared catalog are recorded
++        $catalog = DB::table('platform_distributor_catalogs')
++            ->where('distributor_code', $code)->where('is_active', true)->whereNull('deleted_at')
++            ->pluck('id', 'distributor_variant_no')->all();
++        $out['items'] = count($catalog);
++        if (! $catalog) {
++            $out['note'] = 'No catalog rows for ' . $code . '.';
++            return $out;
++        }
++
++        $avail = [];
++        $wh = [];
++        $hasEta = true;
++
++        switch ($code) {
++            case 'BTI':
++            case 'SHIMANO':
++                $resp = $adapter->inventory([]);
++                $out['calls'] = 1;
++                $avail = $this->sync->normalizeInventory($resp);
++                $wh = $this->sync->normalizeWarehouses($resp);
++                break;
++
++            case 'QBP':
++                $hasEta = false;
++                $codes = $this->qbpWarehouses();
++                if (! $codes) {
++                    $out['note'] = 'No QBP warehouse codes seen yet; QBP is read by the shop sync only.';
++                    return $out;
++                }
++                foreach ($codes as $w) {
++                    if ($out['calls'] >= $maxCalls) break;
++                    $out['calls']++;
++                    foreach ($adapter->inventoryByWarehouse($w) as $sku => $qty) {
++                        $avail[(string) $sku] = ($avail[(string) $sku] ?? 0) + (int) $qty;
++                    }
++                }
++                break;
++
++            default: // HLC and any per-SKU distributor
++                foreach (array_chunk(array_keys($catalog), self::HLC_BATCH) as $chunk) {
++                    if ($out['calls'] >= $maxCalls) {
++                        $out['note'] = "Stopped at {$maxCalls} calls; the rest are read tomorrow night.";
++                        break;
++                    }
++                    $out['calls']++;
++                    try {
++                        $resp = $adapter->inventory(array_map('strval', $chunk));
++                        $avail += $this->sync->normalizeInventory($resp);
++                        $wh += $this->sync->normalizeWarehouses($resp);
++                    } catch (\Throwable $e) {
++                        $out['note'] = 'Some batches failed: ' . substr($e->getMessage(), 0, 160);
++                    }
++                    usleep(self::HLC_PAUSE_MS * 1000);
++                }
++        }
++
++        $today = now()->toDateString();
++        $readings = [];
++        foreach ($avail as $vno => $qty) {
++            $vno = (string) $vno;
++            if (! isset($catalog[$vno]) || $qty === null) continue;
++            $readings[$vno] = [
++                'avail' => (int) $qty,
++                'catalog_id' => $catalog[$vno],
++                'has_eta_info' => $hasEta && isset($wh[$vno]),
++                'eta' => $hasEta ? StockVelocityRecorder::earliestEta($wh[$vno] ?? null, $today) : null,
++            ];
++        }
++
++        $r = $this->recorder->record($code, $readings);
++        return array_merge($out, ['read' => $r['read'], 'counted' => $r['counted'], 'changed' => $r['changed'], 'new' => $r['new']]);
++    }
++
++    /** QBP warehouse codes that shops' own syncs have reported (MARKER-SUPPLY live_warehouses). */
++    public function qbpWarehouses(): array
++    {
++        $codes = [];
++        DB::table('tenant_inventory_item_vendors')
++            ->where('distributor_code', 'QBP')->whereNotNull('live_warehouses')
++            ->orderByDesc('live_checked_at')->limit(2000)
++            ->pluck('live_warehouses')
++            ->each(function ($json) use (&$codes) {
++                foreach ((array) (is_string($json) ? json_decode($json, true) : $json) as $w) {
++                    $c = trim((string) ($w['c'] ?? ''));
++                    if ($c !== '') $codes[$c] = true;
++                }
++            });
++        return array_keys($codes);
++    }
++}
+diff --git a/app/Services/Distributors/TenantDistributorSyncService.php b/app/Services/Distributors/TenantDistributorSyncService.php
+index a0c1fe4d..bebfe957 100644
+--- a/app/Services/Distributors/TenantDistributorSyncService.php
++++ b/app/Services/Distributors/TenantDistributorSyncService.php
+@@ -293,7 +293,7 @@ class TenantDistributorSyncService
+      *
+      * @return array<string,array>
+      */
+-    private function normalizeWarehouses(mixed $resp): array
++    public function normalizeWarehouses(mixed $resp): array
+     {
+         $out = [];
+         foreach ($this->productsList($resp) as $row) {
+@@ -327,7 +327,7 @@ class TenantDistributorSyncService
+         return $out;
+     }
+ 
+-    private function normalizeInventory(mixed $resp): array
++    public function normalizeInventory(mixed $resp): array
+     {
+         $out = [];
+         $rows = $this->productsList($resp);
+diff --git a/resources/views/filament/pages/distributor-velocity.blade.php b/resources/views/filament/pages/distributor-velocity.blade.php
+index 26cd150c..b66c95a0 100644
+--- a/resources/views/filament/pages/distributor-velocity.blade.php
++++ b/resources/views/filament/pages/distributor-velocity.blade.php
+@@ -81,7 +81,7 @@
+   @if ($tab === 'items')
+     @php $s = $this->stats(); $res = $this->rows(); @endphp
+     <div class="vl-legend">
+-      <b>What this shows.</b> Distributor stock for items at least one shop has linked in its inventory, read each night by the per-shop sync. One reading per item per night counts.
++      <b>What this shows.</b> Each distributor's whole catalog, read each night at 3:30 am (UTC) with the master admin logins, plus the per-shop sync. One reading per item per night counts.
+       <b>Days left</b> = stock ÷ average daily drop over roughly the last month. Only drops count; a restock is never read as a sale.
+       <b>Next arrival</b> is the earliest date a distributor's warehouse sends; blank means none was sent.
+       <b>History</b>: Too early (no pace yet), Building, or Good (8+ readings over 21+ days). Nothing on this page is shown to shops — see Shop visibility.
+@@ -177,7 +177,7 @@
+ 
+   @elseif ($tab === 'coverage')
+     @php $c = $this->coverage(); @endphp
+-    <div class="vl-legend"><b>What each distributor gives us.</b> Readings come only from the nightly per-shop sync, so an item is tracked once any shop has it linked. Arrival dates come from the distributor's warehouse detail (QBP, BTI and HLC send them when they have one).</div>
++    <div class="vl-legend"><b>What each distributor gives us.</b> Readings come from a nightly sweep of each whole catalog with the master admin logins (BTI and Shimano in one feed, HLC in batches of 50, QBP one call per warehouse), plus the per-shop sync. Arrival dates come from warehouse detail where it's sent; QBP's warehouse call carries none, so QBP dates come only from shops' syncs.</div>
+     <div class="vl-cov">
+       @forelse ($c['per'] as $code => $p)
+         @php $ch = $c['changes'][$code] ?? null; @endphp
+@@ -190,7 +190,7 @@
+       @endforelse
+     </div>
+     <div class="vl-set">
+-      <div class="row"><div><b>Recorder</b><span>Runs inside the nightly per-shop sync. Updates one summary row per item and writes a change row only when the quantity moved.</span></div><span class="vl-chip ok">On</span></div>
++      <div class="row"><div><b>Recorder</b><span>Fed by the nightly sweep and the per-shop sync. Updates one summary row per item and writes a change row only when the quantity moved.</span></div><span class="vl-chip ok">On</span></div>
+       <div class="row"><div><b>Change history</b><span>Individual changes are kept {{ \App\Services\Distributors\StockVelocityRecorder::KEEP_DAYS }} days, then removed nightly. The per-item summary is kept.</span></div><span class="vl-chip v">{{ \App\Services\Distributors\StockVelocityRecorder::KEEP_DAYS }} days</span></div>
+       <div class="row"><div><b>Storage</b><span>Both tables together.</span></div><span class="vl-chip">{{ $c['mb'] === null ? 'Unknown' : $c['mb'] . ' MB' }}</span></div>
+     </div>
+diff --git a/routes/console.php b/routes/console.php
+index 6d6a1811..5b3353c3 100644
+--- a/routes/console.php
++++ b/routes/console.php
+@@ -216,6 +216,13 @@ Schedule::command('distributors:sync-tenant --all')
+     ->withoutOverlapping()
+     ->runInBackground();
+ 
++// MARKER-VELOCITY-SWEEP: whole-catalog stock with the master admin logins, before
++// the per-shop sync at 06:30 so it is the night's reading for every item.
++Schedule::command('distributors:velocity-sweep')
++    ->dailyAt('03:30')
++    ->withoutOverlapping(240)
++    ->runInBackground();
++
+ // MARKER-VELOCITY: stock-change history is kept 60 days; the per-item summary stays.
+ Schedule::command('distributors:velocity-prune')
+     ->dailyAt('05:40')

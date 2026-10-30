@@ -81,7 +81,7 @@
   @if ($tab === 'items')
     @php $s = $this->stats(); $res = $this->rows(); @endphp
     <div class="vl-legend">
-      <b>What this shows.</b> Distributor stock for items at least one shop has linked in its inventory, read each night by the per-shop sync. One reading per item per night counts.
+      <b>What this shows.</b> Each distributor's whole catalog, read each night at 3:30 am (UTC) with the master admin logins, plus the per-shop sync. One reading per item per night counts.
       <b>Days left</b> = stock ÷ average daily drop over roughly the last month. Only drops count; a restock is never read as a sale.
       <b>Next arrival</b> is the earliest date a distributor's warehouse sends; blank means none was sent.
       <b>History</b>: Too early (no pace yet), Building, or Good (8+ readings over 21+ days). Nothing on this page is shown to shops — see Shop visibility.
@@ -177,7 +177,7 @@
 
   @elseif ($tab === 'coverage')
     @php $c = $this->coverage(); @endphp
-    <div class="vl-legend"><b>What each distributor gives us.</b> Readings come only from the nightly per-shop sync, so an item is tracked once any shop has it linked. Arrival dates come from the distributor's warehouse detail (QBP, BTI and HLC send them when they have one).</div>
+    <div class="vl-legend"><b>What each distributor gives us.</b> Readings come from a nightly sweep of each whole catalog with the master admin logins (BTI and Shimano in one feed, HLC in batches of 50, QBP one call per warehouse), plus the per-shop sync. Arrival dates come from warehouse detail where it's sent; QBP's warehouse call carries none, so QBP dates come only from shops' syncs.</div>
     <div class="vl-cov">
       @forelse ($c['per'] as $code => $p)
         @php $ch = $c['changes'][$code] ?? null; @endphp
@@ -190,7 +190,7 @@
       @endforelse
     </div>
     <div class="vl-set">
-      <div class="row"><div><b>Recorder</b><span>Runs inside the nightly per-shop sync. Updates one summary row per item and writes a change row only when the quantity moved.</span></div><span class="vl-chip ok">On</span></div>
+      <div class="row"><div><b>Recorder</b><span>Fed by the nightly sweep and the per-shop sync. Updates one summary row per item and writes a change row only when the quantity moved.</span></div><span class="vl-chip ok">On</span></div>
       <div class="row"><div><b>Change history</b><span>Individual changes are kept {{ \App\Services\Distributors\StockVelocityRecorder::KEEP_DAYS }} days, then removed nightly. The per-item summary is kept.</span></div><span class="vl-chip v">{{ \App\Services\Distributors\StockVelocityRecorder::KEEP_DAYS }} days</span></div>
       <div class="row"><div><b>Storage</b><span>Both tables together.</span></div><span class="vl-chip">{{ $c['mb'] === null ? 'Unknown' : $c['mb'] . ' MB' }}</span></div>
     </div>

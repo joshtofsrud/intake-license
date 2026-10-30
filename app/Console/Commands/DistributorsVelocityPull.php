@@ -11,13 +11,13 @@ use Illuminate\Support\Facades\DB;
  * MARKER-VELOCITY: one-off after deploy (safe to re-run).
  *  1. Seeds a summary for every distributor item from the readings that
  *     existed before the build, and keeps that reading as the baseline.
- *  2. Runs the normal per-shop sync once, which takes a fresh reading and
- *     measures it against the baseline.
+ *  2. Runs the whole-catalog sweep once (master admin logins), which takes a
+ *     fresh reading and measures it against the baseline.
  */
 class DistributorsVelocityPull extends Command
 {
-    protected $signature = 'distributors:velocity-pull {--seed-only : Seed from existing readings without calling the distributors}';
-    protected $description = 'Seed distributor velocity from pre-build readings, then take a fresh reading from every distributor.';
+    protected $signature = 'distributors:velocity-pull {--seed-only : Seed from existing readings without calling the distributors} {--shops : Also run the per-shop sync}';
+    protected $description = 'Seed distributor velocity from pre-build readings, then take a fresh whole-catalog reading.';
 
     public function handle(StockVelocityRecorder $rec): int
     {
@@ -26,8 +26,12 @@ class DistributorsVelocityPull extends Command
         $this->line("  {$s['seeded']} items seeded, {$s['skipped']} already had a summary.");
 
         if (! $this->option('seed-only')) {
-            $this->info('Taking a fresh reading (the nightly per-shop sync, run once now) ...');
-            Artisan::call('distributors:sync-tenant', ['--all' => true], $this->output);
+            $this->info('Taking a fresh reading of every catalog with the master admin logins ...');
+            Artisan::call('distributors:velocity-sweep', [], $this->output);
+            if ($this->option('shops')) {
+                $this->info('Also running the per-shop sync ...');
+                Artisan::call('distributors:sync-tenant', ['--all' => true], $this->output);
+            }
         }
 
         $this->newLine();

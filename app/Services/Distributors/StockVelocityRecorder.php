@@ -49,6 +49,7 @@ class StockVelocityRecorder
 
             $rows = [];
             $changes = [];
+            $etaOnly = [];
             foreach ($chunk as $vno => $r) {
                 $vno = (string) $vno;
                 if (! array_key_exists('avail', $r) || $r['avail'] === null) {
@@ -79,7 +80,12 @@ class StockVelocityRecorder
                 $last = $prev->last_reading_at ? Carbon::parse($prev->last_reading_at, 'UTC') : null;
                 $days = $last ? max(0.0, $last->diffInSeconds($at, false) / 86400) : 0.0;
                 if ($last && $days * 24 < self::READING_GAP_HOURS) {
-                    continue; // already measured this item tonight
+                    // already measured tonight; a later reading can still bring
+                    // the arrival date the first one lacked (QBP's bulk call has none)
+                    if (! empty($r['has_eta_info'])) {
+                        $etaOnly[$eta ?? ''][] = $vno;
+                    }
+                    continue;
                 }
 
                 $prevAvail = $prev->avail === null ? null : (int) $prev->avail;
@@ -124,6 +130,11 @@ class StockVelocityRecorder
             }
             foreach (array_chunk($changes, 1000) as $batch) {
                 DB::table('distributor_stock_changes')->insert($batch);
+            }
+            foreach ($etaOnly as $date => $vnos) {
+                DB::table('distributor_stock_summary')->where('distributor_code', $code)
+                    ->whereIn('distributor_variant_no', $vnos)
+                    ->update(['next_arrival_on' => $date === '' ? null : $date]);
             }
         }
 
