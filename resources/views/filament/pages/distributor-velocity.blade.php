@@ -35,6 +35,7 @@
   .vl-chip { display:inline-flex; font-size:11.5px; padding:1px 7px; border-radius:4px; white-space:nowrap; border:1px solid var(--line2); color:var(--faint); }
   .vl-chip.ok { background:var(--oksoft); color:var(--ok); border-color:transparent; }
   .vl-chip.v { background:var(--vsoft); color:var(--vtext); border-color:transparent; }
+  .vl-chip.warn { background:rgba(251,191,36,.13); color:var(--amber); border-color:transparent; }
   .vl-btn { border:1px solid var(--line2); background:none; border-radius:7px; padding:6px 12px; font:inherit; font-weight:500; font-size:13px; cursor:pointer; color:inherit; }
   .vl-btn:hover { background:var(--hover); }
   .vl-btn.p { background:var(--violet); border-color:var(--violet); color:#fff; }
@@ -81,10 +82,10 @@
   @if ($tab === 'items')
     @php $s = $this->stats(); $res = $this->rows(); @endphp
     <div class="vl-legend">
-      <b>What this shows.</b> Each distributor's whole catalog, read each night at 3:30 am (UTC) with the master admin logins, plus the per-shop sync. One reading per item per night counts.
+      <b>What this shows.</b> Each distributor's whole catalog, read every 4 hours with the master admin logins (a sweep). Only sweep readings move an item's pace; the per-shop sync adds arrival dates.
       <b>Days left</b> = stock ÷ average daily drop over roughly the last month. Only drops count; a restock is never read as a sale.
       <b>Next arrival</b> is the earliest date a distributor's warehouse sends; blank means none was sent.
-      <b>History</b>: Too early (no pace yet), Building, or Good (8+ readings over 21+ days). Nothing on this page is shown to shops — see Shop visibility.
+      <b>History</b>: Too early (under half a day of readings), Building, or Good (21+ days). Nothing on this page is shown to shops — see Shop visibility.
     </div>
 
     <div class="vl-sum">
@@ -177,7 +178,7 @@
 
   @elseif ($tab === 'coverage')
     @php $c = $this->coverage(); @endphp
-    <div class="vl-legend"><b>What each distributor gives us.</b> Readings come from a nightly sweep of each whole catalog with the master admin logins (BTI and Shimano in one feed, HLC in batches of 50, QBP one call per warehouse), plus the per-shop sync. Arrival dates come from warehouse detail where it's sent; QBP's warehouse call carries none, so QBP dates come only from shops' syncs.</div>
+    <div class="vl-legend"><b>What each distributor gives us.</b> Readings come from a sweep of each whole catalog every 4 hours with the master admin logins (BTI and Shimano in one feed, HLC in batches of 50, QBP one call per warehouse), plus the per-shop sync. Arrival dates come from warehouse detail where it's sent; QBP's warehouse call carries none, so QBP dates come only from shops' syncs.</div>
     <div class="vl-cov">
       @forelse ($c['per'] as $code => $p)
         @php $ch = $c['changes'][$code] ?? null; @endphp
@@ -190,9 +191,30 @@
       @endforelse
     </div>
     <div class="vl-set">
-      <div class="row"><div><b>Recorder</b><span>Fed by the nightly sweep and the per-shop sync. Updates one summary row per item and writes a change row only when the quantity moved.</span></div><span class="vl-chip ok">On</span></div>
+      <div class="row"><div><b>Recorder</b><span>Fed by the 4-hourly sweep and the per-shop sync. Updates one summary row per item and writes a change row only when the quantity moved.</span></div><span class="vl-chip ok">On</span></div>
       <div class="row"><div><b>Change history</b><span>Individual changes are kept {{ \App\Services\Distributors\StockVelocityRecorder::KEEP_DAYS }} days, then removed nightly. The per-item summary is kept.</span></div><span class="vl-chip v">{{ \App\Services\Distributors\StockVelocityRecorder::KEEP_DAYS }} days</span></div>
       <div class="row"><div><b>Storage</b><span>Both tables together.</span></div><span class="vl-chip">{{ $c['mb'] === null ? 'Unknown' : $c['mb'] . ' MB' }}</span></div>
+    </div>
+
+    {{-- MARKER-VELOCITY-SWEEP: the last sweeps, so a missed or partial one is visible --}}
+    <div class="vl-legend" style="border-bottom:0;padding-bottom:0"><b>Recent sweeps.</b> Every 4 hours at quarter past (UTC). A row turns amber when a distributor was skipped, failed, or read nothing.</div>
+    @php $runs = $this->runs(); @endphp
+    <div style="overflow-x:auto">
+    <table class="vl-tbl">
+      <thead><tr><th>Started</th><th>Took</th><th>Distributors</th><th>Notes</th></tr></thead>
+      <tbody>
+      @forelse ($runs as $run)
+        <tr style="cursor:default">
+          <td style="white-space:nowrap">{{ $at($run->started_at, 'M j, g:ia') }}</td>
+          <td class="vl-mut" style="white-space:nowrap">{{ $run->finished_at ? \Carbon\Carbon::parse($run->started_at)->diffForHumans(\Carbon\Carbon::parse($run->finished_at), true) : 'Still running or stopped' }}</td>
+          <td>@foreach ($run->results as $x)<span class="vl-chip {{ (! empty($x['note']) || (($x['items'] ?? 0) > 0 && ($x['read'] ?? 0) === 0)) ? 'warn' : 'ok' }}" style="margin:0 4px 4px 0">{{ $x['code'] }} · {{ number_format($x['read'] ?? 0) }} read · {{ number_format($x['changed'] ?? 0) }} changed</span>@endforeach</td>
+          <td class="vl-mut" style="font-size:12.5px">{{ collect($run->results)->pluck('note')->filter()->implode(' ') ?: '—' }}</td>
+        </tr>
+      @empty
+        <tr style="cursor:default"><td colspan="4"><div class="vl-empty"><b>No sweeps yet.</b>The first runs at the next quarter past a 4-hour mark (UTC), or run it now from the server.</div></td></tr>
+      @endforelse
+      </tbody>
+    </table>
     </div>
 
   @else

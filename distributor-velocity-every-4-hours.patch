@@ -1,0 +1,397 @@
+diff --git a/app/Console/Commands/DistributorsVelocityPull.php b/app/Console/Commands/DistributorsVelocityPull.php
+index 851b210e..3f53ebd0 100644
+--- a/app/Console/Commands/DistributorsVelocityPull.php
++++ b/app/Console/Commands/DistributorsVelocityPull.php
+@@ -47,7 +47,7 @@ class DistributorsVelocityPull extends Command
+             ->groupBy('distributor_code')->orderBy('distributor_code')->get();
+         $this->table(['Distributor', 'Items', 'Read again', 'Went down', 'Went up', 'With arrival date', 'Baseline from'],
+             $rows->map(fn ($r) => [$r->distributor_code, $r->items, (int) $r->reread, (int) $r->dropped, (int) $r->restocked, (int) $r->with_arrival, $r->since])->all());
+-        $this->line('Readings within ' . StockVelocityRecorder::READING_GAP_HOURS . ' hours of the baseline are not counted twice, so "Read again" fills in from tonight\'s sync if the baseline is recent.');
++        $this->line('A sweep within ' . StockVelocityRecorder::SWEEP_GAP_HOURS . ' hour of the last reading is not counted twice.');
+ 
+         return self::SUCCESS;
+     }
+diff --git a/app/Console/Commands/DistributorsVelocitySweep.php b/app/Console/Commands/DistributorsVelocitySweep.php
+index 9075d12a..2e98730a 100644
+--- a/app/Console/Commands/DistributorsVelocitySweep.php
++++ b/app/Console/Commands/DistributorsVelocitySweep.php
+@@ -5,17 +5,22 @@ namespace App\Console\Commands;
+ use App\Services\Distributors\StockVelocitySweep;
+ use App\Support\JobFailureReporter;
+ use Illuminate\Console\Command;
++use Illuminate\Support\Facades\DB;
+ 
+-/** MARKER-VELOCITY-SWEEP: nightly whole-catalog stock reading with the master admin logins. */
++/** MARKER-VELOCITY-SWEEP: whole-catalog stock reading with the master admin logins, every 4 hours. */
+ class DistributorsVelocitySweep extends Command
+ {
+     protected $signature = 'distributors:velocity-sweep {codes?* : Distributor codes (default: all with a master admin login)} {--max-calls=5000 : Cap on stock calls per distributor}';
+-    protected $description = 'Read every catalog item\'s distributor stock once, with the master admin logins, for distributor velocity.';
++    protected $description = 'Read every catalog item\'s distributor stock with the master admin logins (runs every 4 hours) for distributor velocity.';
+ 
+     public function handle(StockVelocitySweep $sweep): int
+     {
+         $codes = array_map('strtoupper', (array) $this->argument('codes')) ?: ['BTI', 'HLC', 'QBP', 'SHIMANO'];
+         $rows = [];
++        $log = [];
++        $problems = 0;
++        // MARKER-VELOCITY-SWEEP: each run is logged for the velocity page and the dashboard
++        $runId = DB::table('distributor_velocity_runs')->insertGetId(['started_at' => now()]);
+         foreach ($codes as $code) {
+             $this->info("Reading {$code} ...");
+             try {
+@@ -25,7 +30,15 @@ class DistributorsVelocitySweep extends Command
+                 $r = ['code' => $code, 'items' => 0, 'read' => 0, 'counted' => 0, 'changed' => 0, 'new' => 0, 'calls' => 0, 'note' => 'Failed: ' . substr($e->getMessage(), 0, 120)];
+             }
+             $rows[] = [$r['code'], $r['items'], $r['calls'], $r['read'], $r['counted'], $r['changed'], $r['new'], $r['note'] ?? ''];
++            $log[] = $r;
++            if (! empty($r['note']) || ($r['items'] > 0 && $r['read'] === 0)) {
++                $problems++;
++            }
+         }
++        DB::table('distributor_velocity_runs')->where('id', $runId)->update([
++            'finished_at' => now(), 'results' => json_encode($log), 'problems' => $problems,
++        ]);
++        DB::table('distributor_velocity_runs')->where('started_at', '<', now()->subDays(14))->delete();
+         $this->table(['Distributor', 'Catalog items', 'Calls', 'Stock read', 'Counted', 'Changed', 'New', 'Note'], $rows);
+         $this->line('"Counted" excludes items already read in the last 6 hours.');
+         return self::SUCCESS;
+diff --git a/app/Filament/Pages/DistributorVelocity.php b/app/Filament/Pages/DistributorVelocity.php
+index 53a74159..d94f3680 100644
+--- a/app/Filament/Pages/DistributorVelocity.php
++++ b/app/Filament/Pages/DistributorVelocity.php
+@@ -35,7 +35,7 @@ class DistributorVelocity extends Page
+     public const SHOP_SWITCHES = [
+         'show_days_left' => ['Show days left to shops', "On the shop's inventory list and special-order lookup, for items the shop already carries.", false],
+         'show_arrival'   => ['Show next arrival date', 'Only where the distributor sends one.', false],
+-        'require_good'   => ['Hide estimates until history is Good', 'Shops see "Not enough history" instead of a number until an item has 8 readings over 21 days.', true],
++        'require_good'   => ['Hide estimates until history is Good', 'Shops see "Not enough history" instead of a number until an item has 21 days of readings.', true],
+         'warn_on_po'     => ['Warn on low cover when ordering', 'An amber note on a purchase order line when days left is under the vendor lead time.', false],
+     ];
+ 
+@@ -246,6 +246,14 @@ class DistributorVelocity extends Page
+         return implode(' ', array_map(fn ($p) => $p[0] . ',' . round($h - 2 - ($p[1] / $max) * ($h - 4), 1), $pts));
+     }
+ 
++    /** Recent sweep runs, newest first (MARKER-VELOCITY-SWEEP). */
++    public function runs(): array
++    {
++        if (! Schema::hasTable('distributor_velocity_runs')) return [];
++        return DB::table('distributor_velocity_runs')->orderByDesc('started_at')->limit(12)->get()
++            ->map(function ($r) { $r->results = json_decode((string) $r->results, true) ?: []; return $r; })->all();
++    }
++
+     /** Data coverage tab. */
+     public function coverage(): array
+     {
+diff --git a/app/Filament/Pages/PlatformDashboard.php b/app/Filament/Pages/PlatformDashboard.php
+index 6e109ec0..7f8f3282 100644
+--- a/app/Filament/Pages/PlatformDashboard.php
++++ b/app/Filament/Pages/PlatformDashboard.php
+@@ -398,6 +398,33 @@ class PlatformDashboard extends Page
+                    'value' => "<b>{$caught}</b> reported", 'state' => $caught > 0 ? 'bad' : 'ok',
+                    'href' => '/admin/debug-logs?activeTab=errors'];
+ 
++        // MARKER-VELOCITY-SWEEP: the 4-hourly distributor stock sweep. Amber
++        // when the last run skipped or failed a distributor, red when none
++        // has finished in 9 hours (two missed runs).
++        try {
++            if (Schema::hasTable('distributor_velocity_runs')) {
++                $run = DB::table('distributor_velocity_runs')->whereNotNull('finished_at')->orderByDesc('finished_at')->first();
++                $open = DB::table('distributor_velocity_runs')->whereNull('finished_at')->where('started_at', '>=', now()->subHours(4))->exists();
++                if (! $run) {
++                    $rows[] = ['name' => 'Distributor sweeps', 'meta' => $open ? 'first sweep running now' : 'no sweep has run yet · every 4 hours',
++                               'value' => $open ? 'running' : 'not run', 'state' => 'idle', 'href' => '/admin/distributor-velocity'];
++                } else {
++                    $res   = json_decode((string) $run->results, true) ?: [];
++                    $read  = array_sum(array_column($res, 'read'));
++                    $stale = \Carbon\Carbon::parse($run->finished_at)->lt(now()->subHours(9));
++                    $rows[] = [
++                        'name'  => 'Distributor sweeps',
++                        'meta'  => 'last finished ' . \Carbon\Carbon::parse($run->finished_at)->diffForHumans()
++                            . ' · ' . implode(' · ', array_map(fn ($x) => $x['code'] . ' ' . number_format($x['read'] ?? 0), $res))
++                            . ($run->problems ? ' · ' . $run->problems . ' with a problem' : '') . ($open ? ' · one running now' : ''),
++                        'value' => ($stale ? '<b>Stopped</b>' : '<b>' . number_format($read) . '</b> read') . ' · ' . e(\Carbon\Carbon::parse($run->finished_at)->diffForHumans(null, true, true)) . ' ago',
++                        'state' => $stale ? 'bad' : ($run->problems ? 'warn' : 'ok'),
++                        'href'  => '/admin/distributor-velocity',
++                    ];
++                }
++            }
++        } catch (Throwable $e) {}
++
+         // Queue backlog. MARKER-QUEUE-WATCHDOG: a count alone said "OK" for
+         // 36 hours while both workers were dead, so the row now also says
+         // whether a worker has actually run anything lately.
+diff --git a/app/Services/Distributors/StockVelocityRecorder.php b/app/Services/Distributors/StockVelocityRecorder.php
+index 72e0b650..f03d961f 100644
+--- a/app/Services/Distributors/StockVelocityRecorder.php
++++ b/app/Services/Distributors/StockVelocityRecorder.php
+@@ -16,27 +16,32 @@ use Illuminate\Support\Facades\DB;
+  * with f = exp(-days / MEMORY_DAYS), so older movement fades out. A restock
+  * (stock going up) adds no drop and is never read as a sale.
+  *
+- * Several shops can read the same distributor item on the same night with
+- * their own credentials. Only the first reading inside READING_GAP_HOURS
+- * counts, so one item is not measured twice in a night and two accounts that
+- * see slightly different warehouses can't fake a drop.
++ * Two sources feed it (MARKER-VELOCITY-SWEEP):
++ *   sweep  every 4 hours, the whole catalog with the master admin login. Once
++ *          an item has been swept, only sweep readings move its pace.
++ *   shop   the nightly per-shop sync. For a swept item it only brings arrival
++ *          dates; for an item no sweep reaches it counts, at most once per
++ *          SHOP_GAP_HOURS, because shops' own logins can see slightly
++ *          different stock and must not fake a drop.
+  */
+ class StockVelocityRecorder
+ {
+     public const MEMORY_DAYS       = 30;
+     public const KEEP_DAYS         = 60;
+-    public const READING_GAP_HOURS = 6;
+-    public const GOOD_READINGS     = 8;
++    public const SWEEP_GAP_HOURS   = 1;
++    public const SHOP_GAP_HOURS    = 6;
++    public const SWEPT_WITHIN_DAYS = 2;
+     public const GOOD_SPAN_DAYS    = 21;
+-    public const MIN_OBSERVED_DAYS = 1.0;
++    public const MIN_OBSERVED_DAYS = 0.5;
+ 
+     /**
+      * @param array<string, array{avail:int|null, catalog_id?:string|null, eta?:string|null, has_eta_info?:bool}> $readings
+      *        keyed by distributor_variant_no
+      * @return array{read:int, counted:int, changed:int, new:int}
+      */
+-    public function record(string $code, array $readings, ?Carbon $at = null): array
++    public function record(string $code, array $readings, ?Carbon $at = null, string $source = 'sweep'): array
+     {
++        $sweep = $source === 'sweep';
+         $at    = ($at ?? now())->copy()->utc();
+         $today = $at->toDateString();
+         $out   = ['read' => 0, 'counted' => 0, 'changed' => 0, 'new' => 0];
+@@ -67,7 +72,8 @@ class StockVelocityRecorder
+                         'avail' => $avail, 'prev_avail' => null,
+                         'drop_units' => 0, 'observed_days' => 0, 'rate_per_day' => null, 'days_left' => null,
+                         'readings' => 1, 'changes' => 1,
+-                        'first_seen_at' => $at, 'last_reading_at' => $at, 'last_change_at' => $at, 'last_restock_at' => null,
++                        'first_seen_at' => $at, 'last_reading_at' => $at, 'last_sweep_at' => $sweep ? $at : null,
++                        'last_change_at' => $at, 'last_restock_at' => null,
+                         'next_arrival_on' => $eta,
+                         'baseline_avail' => null, 'baseline_at' => null,
+                         'created_at' => $at, 'updated_at' => $at,
+@@ -79,7 +85,8 @@ class StockVelocityRecorder
+ 
+                 $last = $prev->last_reading_at ? Carbon::parse($prev->last_reading_at, 'UTC') : null;
+                 $days = $last ? max(0.0, $last->diffInSeconds($at, false) / 86400) : 0.0;
+-                if ($last && $days * 24 < self::READING_GAP_HOURS) {
++                $swept = $prev->last_sweep_at && Carbon::parse($prev->last_sweep_at, 'UTC')->gte($at->copy()->subDays(self::SWEPT_WITHIN_DAYS));
++                if ((! $sweep && $swept) || ($last && $days * 24 < ($sweep ? self::SWEEP_GAP_HOURS : self::SHOP_GAP_HOURS))) {
+                     // already measured tonight; a later reading can still bring
+                     // the arrival date the first one lacked (QBP's bulk call has none)
+                     if (! empty($r['has_eta_info'])) {
+@@ -93,7 +100,7 @@ class StockVelocityRecorder
+                 $drop   = ($prevAvail !== null && $avail < $prevAvail) ? $prevAvail - $avail : 0;
+                 $units  = (float) $prev->drop_units * $f + $drop;
+                 $obs    = (float) $prev->observed_days * $f + $days;
+-                $rate   = $obs >= self::MIN_OBSERVED_DAYS ? round($units / $obs, 3) : null;
++                $rate   = $obs >= self::MIN_OBSERVED_DAYS - 0.02 ? round($units / $obs, 3) : null; // small allowance: decay trims a 12h span just under 0.5
+                 $changed = $prevAvail !== $avail;
+ 
+                 $rows[] = [
+@@ -107,6 +114,7 @@ class StockVelocityRecorder
+                     'changes' => (int) $prev->changes + ($changed ? 1 : 0),
+                     'first_seen_at' => $prev->first_seen_at,
+                     'last_reading_at' => $at,
++                    'last_sweep_at' => $sweep ? $at : $prev->last_sweep_at,
+                     'last_change_at' => $changed ? $at : $prev->last_change_at,
+                     'last_restock_at' => ($prevAvail !== null && $avail > $prevAvail) ? $at : $prev->last_restock_at,
+                     // a reading that carries warehouse detail decides the date (null = none due);
+@@ -125,7 +133,7 @@ class StockVelocityRecorder
+             if ($rows) {
+                 DB::table('distributor_stock_summary')->upsert($rows, ['distributor_code', 'distributor_variant_no'], [
+                     'distributor_catalog_id', 'avail', 'prev_avail', 'drop_units', 'observed_days', 'rate_per_day', 'days_left',
+-                    'readings', 'changes', 'last_reading_at', 'last_change_at', 'last_restock_at', 'next_arrival_on', 'updated_at',
++                    'readings', 'changes', 'last_reading_at', 'last_sweep_at', 'last_change_at', 'last_restock_at', 'next_arrival_on', 'updated_at',
+                 ]);
+             }
+             foreach (array_chunk($changes, 1000) as $batch) {
+@@ -191,7 +199,7 @@ class StockVelocityRecorder
+                     'avail' => max(0, (int) $s->avail), 'prev_avail' => null,
+                     'drop_units' => 0, 'observed_days' => 0, 'rate_per_day' => null, 'days_left' => null,
+                     'readings' => 1, 'changes' => 1,
+-                    'first_seen_at' => $at, 'last_reading_at' => $at, 'last_change_at' => $at, 'last_restock_at' => null,
++                    'first_seen_at' => $at, 'last_reading_at' => $at, 'last_sweep_at' => null, 'last_change_at' => $at, 'last_restock_at' => null,
+                     'next_arrival_on' => null,
+                     'baseline_avail' => max(0, (int) $s->avail), 'baseline_at' => $at,
+                     'created_at' => now(), 'updated_at' => now(),
+@@ -238,8 +246,8 @@ class StockVelocityRecorder
+     {
+         $span = ($row->first_seen_at && $row->last_reading_at)
+             ? Carbon::parse($row->first_seen_at)->diffInDays(Carbon::parse($row->last_reading_at)) : 0;
+-        if ((int) $row->readings >= self::GOOD_READINGS && $span >= self::GOOD_SPAN_DAYS) return 'good';
+-        if ((int) $row->readings >= 3 && $row->rate_per_day !== null) return 'building';
++        if ($row->rate_per_day !== null && $span >= self::GOOD_SPAN_DAYS) return 'good';
++        if ($row->rate_per_day !== null) return 'building';
+         return 'early';
+     }
+ }
+diff --git a/app/Services/Distributors/StockVelocitySweep.php b/app/Services/Distributors/StockVelocitySweep.php
+index 33ff861b..79614d6d 100644
+--- a/app/Services/Distributors/StockVelocitySweep.php
++++ b/app/Services/Distributors/StockVelocitySweep.php
+@@ -16,8 +16,8 @@ use Illuminate\Support\Facades\DB;
+  *   QBP           one call per warehouse (no arrival dates on that call); the
+  *                 per-SKU call is far too many requests for a whole catalog.
+  *                 Warehouse codes come from what shops' syncs have already seen.
+- * The per-shop sync keeps recording too; the recorder ignores a second reading
+- * of the same item within 6 hours, so the sweep (run first) is the night's reading.
++ * Runs every 4 hours. Once an item has been swept, only sweep readings move
++ * its pace; the per-shop sync then only adds arrival dates for it.
+  */
+ class StockVelocitySweep
+ {
+diff --git a/app/Services/Distributors/TenantDistributorSyncService.php b/app/Services/Distributors/TenantDistributorSyncService.php
+index bebfe957..7c4a95fc 100644
+--- a/app/Services/Distributors/TenantDistributorSyncService.php
++++ b/app/Services/Distributors/TenantDistributorSyncService.php
+@@ -199,7 +199,7 @@ class TenantDistributorSyncService
+                             'eta' => StockVelocityRecorder::earliestEta($whByVariant[$vno] ?? null, $today),
+                         ];
+                     }
+-                    app(StockVelocityRecorder::class)->record($code, $readings);
++                    app(StockVelocityRecorder::class)->record($code, $readings, null, 'shop');
+                 } catch (\Throwable $e) {
+                     \App\Support\JobFailureReporter::report(self::class, 'Distributor velocity recording failed for ' . $code, $e, ['code' => $code], $tenantId);
+                 }
+diff --git a/database/migrations/2026_10_30_160000_distributor_velocity_sweep_runs.php b/database/migrations/2026_10_30_160000_distributor_velocity_sweep_runs.php
+new file mode 100644
+index 00000000..7e23805c
+--- /dev/null
++++ b/database/migrations/2026_10_30_160000_distributor_velocity_sweep_runs.php
+@@ -0,0 +1,40 @@
++<?php
++
++use Illuminate\Database\Migrations\Migration;
++use Illuminate\Database\Schema\Blueprint;
++use Illuminate\Support\Facades\Schema;
++
++/**
++ * MARKER-VELOCITY-SWEEP: when the whole-catalog sweep last read each item (only
++ * sweep readings drive the pace once an item is swept), and a log of each
++ * sweep run for the Distributor velocity page and the dashboard.
++ */
++return new class extends Migration
++{
++    public function up(): void
++    {
++        if (! Schema::hasColumn('distributor_stock_summary', 'last_sweep_at')) {
++            Schema::table('distributor_stock_summary', function (Blueprint $t) {
++                $t->timestamp('last_sweep_at')->nullable()->after('last_reading_at');
++            });
++        }
++        if (! Schema::hasTable('distributor_velocity_runs')) {
++            Schema::create('distributor_velocity_runs', function (Blueprint $t) {
++                $t->bigIncrements('id');
++                $t->timestamp('started_at');
++                $t->timestamp('finished_at')->nullable();
++                $t->json('results')->nullable();
++                $t->unsignedSmallInteger('problems')->default(0);
++                $t->index('started_at');
++            });
++        }
++    }
++
++    public function down(): void
++    {
++        Schema::dropIfExists('distributor_velocity_runs');
++        if (Schema::hasColumn('distributor_stock_summary', 'last_sweep_at')) {
++            Schema::table('distributor_stock_summary', function (Blueprint $t) { $t->dropColumn('last_sweep_at'); });
++        }
++    }
++};
+diff --git a/resources/views/filament/pages/distributor-velocity.blade.php b/resources/views/filament/pages/distributor-velocity.blade.php
+index b66c95a0..d6105eba 100644
+--- a/resources/views/filament/pages/distributor-velocity.blade.php
++++ b/resources/views/filament/pages/distributor-velocity.blade.php
+@@ -35,6 +35,7 @@
+   .vl-chip { display:inline-flex; font-size:11.5px; padding:1px 7px; border-radius:4px; white-space:nowrap; border:1px solid var(--line2); color:var(--faint); }
+   .vl-chip.ok { background:var(--oksoft); color:var(--ok); border-color:transparent; }
+   .vl-chip.v { background:var(--vsoft); color:var(--vtext); border-color:transparent; }
++  .vl-chip.warn { background:rgba(251,191,36,.13); color:var(--amber); border-color:transparent; }
+   .vl-btn { border:1px solid var(--line2); background:none; border-radius:7px; padding:6px 12px; font:inherit; font-weight:500; font-size:13px; cursor:pointer; color:inherit; }
+   .vl-btn:hover { background:var(--hover); }
+   .vl-btn.p { background:var(--violet); border-color:var(--violet); color:#fff; }
+@@ -81,10 +82,10 @@
+   @if ($tab === 'items')
+     @php $s = $this->stats(); $res = $this->rows(); @endphp
+     <div class="vl-legend">
+-      <b>What this shows.</b> Each distributor's whole catalog, read each night at 3:30 am (UTC) with the master admin logins, plus the per-shop sync. One reading per item per night counts.
++      <b>What this shows.</b> Each distributor's whole catalog, read every 4 hours with the master admin logins (a sweep). Only sweep readings move an item's pace; the per-shop sync adds arrival dates.
+       <b>Days left</b> = stock ÷ average daily drop over roughly the last month. Only drops count; a restock is never read as a sale.
+       <b>Next arrival</b> is the earliest date a distributor's warehouse sends; blank means none was sent.
+-      <b>History</b>: Too early (no pace yet), Building, or Good (8+ readings over 21+ days). Nothing on this page is shown to shops — see Shop visibility.
++      <b>History</b>: Too early (under half a day of readings), Building, or Good (21+ days). Nothing on this page is shown to shops — see Shop visibility.
+     </div>
+ 
+     <div class="vl-sum">
+@@ -177,7 +178,7 @@
+ 
+   @elseif ($tab === 'coverage')
+     @php $c = $this->coverage(); @endphp
+-    <div class="vl-legend"><b>What each distributor gives us.</b> Readings come from a nightly sweep of each whole catalog with the master admin logins (BTI and Shimano in one feed, HLC in batches of 50, QBP one call per warehouse), plus the per-shop sync. Arrival dates come from warehouse detail where it's sent; QBP's warehouse call carries none, so QBP dates come only from shops' syncs.</div>
++    <div class="vl-legend"><b>What each distributor gives us.</b> Readings come from a sweep of each whole catalog every 4 hours with the master admin logins (BTI and Shimano in one feed, HLC in batches of 50, QBP one call per warehouse), plus the per-shop sync. Arrival dates come from warehouse detail where it's sent; QBP's warehouse call carries none, so QBP dates come only from shops' syncs.</div>
+     <div class="vl-cov">
+       @forelse ($c['per'] as $code => $p)
+         @php $ch = $c['changes'][$code] ?? null; @endphp
+@@ -190,11 +191,32 @@
+       @endforelse
+     </div>
+     <div class="vl-set">
+-      <div class="row"><div><b>Recorder</b><span>Fed by the nightly sweep and the per-shop sync. Updates one summary row per item and writes a change row only when the quantity moved.</span></div><span class="vl-chip ok">On</span></div>
++      <div class="row"><div><b>Recorder</b><span>Fed by the 4-hourly sweep and the per-shop sync. Updates one summary row per item and writes a change row only when the quantity moved.</span></div><span class="vl-chip ok">On</span></div>
+       <div class="row"><div><b>Change history</b><span>Individual changes are kept {{ \App\Services\Distributors\StockVelocityRecorder::KEEP_DAYS }} days, then removed nightly. The per-item summary is kept.</span></div><span class="vl-chip v">{{ \App\Services\Distributors\StockVelocityRecorder::KEEP_DAYS }} days</span></div>
+       <div class="row"><div><b>Storage</b><span>Both tables together.</span></div><span class="vl-chip">{{ $c['mb'] === null ? 'Unknown' : $c['mb'] . ' MB' }}</span></div>
+     </div>
+ 
++    {{-- MARKER-VELOCITY-SWEEP: the last sweeps, so a missed or partial one is visible --}}
++    <div class="vl-legend" style="border-bottom:0;padding-bottom:0"><b>Recent sweeps.</b> Every 4 hours at quarter past (UTC). A row turns amber when a distributor was skipped, failed, or read nothing.</div>
++    @php $runs = $this->runs(); @endphp
++    <div style="overflow-x:auto">
++    <table class="vl-tbl">
++      <thead><tr><th>Started</th><th>Took</th><th>Distributors</th><th>Notes</th></tr></thead>
++      <tbody>
++      @forelse ($runs as $run)
++        <tr style="cursor:default">
++          <td style="white-space:nowrap">{{ $at($run->started_at, 'M j, g:ia') }}</td>
++          <td class="vl-mut" style="white-space:nowrap">{{ $run->finished_at ? \Carbon\Carbon::parse($run->started_at)->diffForHumans(\Carbon\Carbon::parse($run->finished_at), true) : 'Still running or stopped' }}</td>
++          <td>@foreach ($run->results as $x)<span class="vl-chip {{ (! empty($x['note']) || (($x['items'] ?? 0) > 0 && ($x['read'] ?? 0) === 0)) ? 'warn' : 'ok' }}" style="margin:0 4px 4px 0">{{ $x['code'] }} · {{ number_format($x['read'] ?? 0) }} read · {{ number_format($x['changed'] ?? 0) }} changed</span>@endforeach</td>
++          <td class="vl-mut" style="font-size:12.5px">{{ collect($run->results)->pluck('note')->filter()->implode(' ') ?: '—' }}</td>
++        </tr>
++      @empty
++        <tr style="cursor:default"><td colspan="4"><div class="vl-empty"><b>No sweeps yet.</b>The first runs at the next quarter past a 4-hour mark (UTC), or run it now from the server.</div></td></tr>
++      @endforelse
++      </tbody>
++    </table>
++    </div>
++
+   @else
+     <div class="vl-legend"><b>Not live in tenant admin yet.</b> These settings are saved now so the shop-side build reads them. Until that ships, shops see nothing from this page, whatever is switched on. Shops will only ever see distributor stock — never another shop's data.</div>
+     <div class="vl-set">
+diff --git a/routes/console.php b/routes/console.php
+index 5b3353c3..ee8aceb9 100644
+--- a/routes/console.php
++++ b/routes/console.php
+@@ -216,11 +216,11 @@ Schedule::command('distributors:sync-tenant --all')
+     ->withoutOverlapping()
+     ->runInBackground();
+ 
+-// MARKER-VELOCITY-SWEEP: whole-catalog stock with the master admin logins, before
+-// the per-shop sync at 06:30 so it is the night's reading for every item.
++// MARKER-VELOCITY-SWEEP: whole-catalog stock with the master admin logins every
++// 4 hours (distributors update all day). Only sweep readings move an item's pace.
+ Schedule::command('distributors:velocity-sweep')
+-    ->dailyAt('03:30')
+-    ->withoutOverlapping(240)
++    ->cron('15 */4 * * *')
++    ->withoutOverlapping(230)
+     ->runInBackground();
+ 
+ // MARKER-VELOCITY: stock-change history is kept 60 days; the per-item summary stays.

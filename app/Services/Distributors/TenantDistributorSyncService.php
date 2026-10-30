@@ -199,7 +199,7 @@ class TenantDistributorSyncService
                             'eta' => StockVelocityRecorder::earliestEta($whByVariant[$vno] ?? null, $today),
                         ];
                     }
-                    app(StockVelocityRecorder::class)->record($code, $readings);
+                    app(StockVelocityRecorder::class)->record($code, $readings, null, 'shop');
                 } catch (\Throwable $e) {
                     \App\Support\JobFailureReporter::report(self::class, 'Distributor velocity recording failed for ' . $code, $e, ['code' => $code], $tenantId);
                 }

@@ -16,27 +16,32 @@ use Illuminate\Support\Facades\DB;
  * with f = exp(-days / MEMORY_DAYS), so older movement fades out. A restock
  * (stock going up) adds no drop and is never read as a sale.
  *
- * Several shops can read the same distributor item on the same night with
- * their own credentials. Only the first reading inside READING_GAP_HOURS
- * counts, so one item is not measured twice in a night and two accounts that
- * see slightly different warehouses can't fake a drop.
+ * Two sources feed it (MARKER-VELOCITY-SWEEP):
+ *   sweep  every 4 hours, the whole catalog with the master admin login. Once
+ *          an item has been swept, only sweep readings move its pace.
+ *   shop   the nightly per-shop sync. For a swept item it only brings arrival
+ *          dates; for an item no sweep reaches it counts, at most once per
+ *          SHOP_GAP_HOURS, because shops' own logins can see slightly
+ *          different stock and must not fake a drop.
  */
 class StockVelocityRecorder
 {
     public const MEMORY_DAYS       = 30;
     public const KEEP_DAYS         = 60;
-    public const READING_GAP_HOURS = 6;
-    public const GOOD_READINGS     = 8;
+    public const SWEEP_GAP_HOURS   = 1;
+    public const SHOP_GAP_HOURS    = 6;
+    public const SWEPT_WITHIN_DAYS = 2;
     public const GOOD_SPAN_DAYS    = 21;
-    public const MIN_OBSERVED_DAYS = 1.0;
+    public const MIN_OBSERVED_DAYS = 0.5;
 
     /**
      * @param array<string, array{avail:int|null, catalog_id?:string|null, eta?:string|null, has_eta_info?:bool}> $readings
      *        keyed by distributor_variant_no
      * @return array{read:int, counted:int, changed:int, new:int}
      */
-    public function record(string $code, array $readings, ?Carbon $at = null): array
+    public function record(string $code, array $readings, ?Carbon $at = null, string $source = 'sweep'): array
     {
+        $sweep = $source === 'sweep';
         $at    = ($at ?? now())->copy()->utc();
         $today = $at->toDateString();
         $out   = ['read' => 0, 'counted' => 0, 'changed' => 0, 'new' => 0];
@@ -67,7 +72,8 @@ class StockVelocityRecorder
                         'avail' => $avail, 'prev_avail' => null,
                         'drop_units' => 0, 'observed_days' => 0, 'rate_per_day' => null, 'days_left' => null,
                         'readings' => 1, 'changes' => 1,
-                        'first_seen_at' => $at, 'last_reading_at' => $at, 'last_change_at' => $at, 'last_restock_at' => null,
+                        'first_seen_at' => $at, 'last_reading_at' => $at, 'last_sweep_at' => $sweep ? $at : null,
+                        'last_change_at' => $at, 'last_restock_at' => null,
                         'next_arrival_on' => $eta,
                         'baseline_avail' => null, 'baseline_at' => null,
                         'created_at' => $at, 'updated_at' => $at,
@@ -79,7 +85,8 @@ class StockVelocityRecorder
 
                 $last = $prev->last_reading_at ? Carbon::parse($prev->last_reading_at, 'UTC') : null;
                 $days = $last ? max(0.0, $last->diffInSeconds($at, false) / 86400) : 0.0;
-                if ($last && $days * 24 < self::READING_GAP_HOURS) {
+                $swept = $prev->last_sweep_at && Carbon::parse($prev->last_sweep_at, 'UTC')->gte($at->copy()->subDays(self::SWEPT_WITHIN_DAYS));
+                if ((! $sweep && $swept) || ($last && $days * 24 < ($sweep ? self::SWEEP_GAP_HOURS : self::SHOP_GAP_HOURS))) {
                     // already measured tonight; a later reading can still bring
                     // the arrival date the first one lacked (QBP's bulk call has none)
                     if (! empty($r['has_eta_info'])) {
@@ -93,7 +100,7 @@ class StockVelocityRecorder
                 $drop   = ($prevAvail !== null && $avail < $prevAvail) ? $prevAvail - $avail : 0;
                 $units  = (float) $prev->drop_units * $f + $drop;
                 $obs    = (float) $prev->observed_days * $f + $days;
-                $rate   = $obs >= self::MIN_OBSERVED_DAYS ? round($units / $obs, 3) : null;
+                $rate   = $obs >= self::MIN_OBSERVED_DAYS - 0.02 ? round($units / $obs, 3) : null; // small allowance: decay trims a 12h span just under 0.5
                 $changed = $prevAvail !== $avail;
 
                 $rows[] = [
@@ -107,6 +114,7 @@ class StockVelocityRecorder
                     'changes' => (int) $prev->changes + ($changed ? 1 : 0),
                     'first_seen_at' => $prev->first_seen_at,
                     'last_reading_at' => $at,
+                    'last_sweep_at' => $sweep ? $at : $prev->last_sweep_at,
                     'last_change_at' => $changed ? $at : $prev->last_change_at,
                     'last_restock_at' => ($prevAvail !== null && $avail > $prevAvail) ? $at : $prev->last_restock_at,
                     // a reading that carries warehouse detail decides the date (null = none due);
@@ -125,7 +133,7 @@ class StockVelocityRecorder
             if ($rows) {
                 DB::table('distributor_stock_summary')->upsert($rows, ['distributor_code', 'distributor_variant_no'], [
                     'distributor_catalog_id', 'avail', 'prev_avail', 'drop_units', 'observed_days', 'rate_per_day', 'days_left',
-                    'readings', 'changes', 'last_reading_at', 'last_change_at', 'last_restock_at', 'next_arrival_on', 'updated_at',
+                    'readings', 'changes', 'last_reading_at', 'last_sweep_at', 'last_change_at', 'last_restock_at', 'next_arrival_on', 'updated_at',
                 ]);
             }
             foreach (array_chunk($changes, 1000) as $batch) {
@@ -191,7 +199,7 @@ class StockVelocityRecorder
                     'avail' => max(0, (int) $s->avail), 'prev_avail' => null,
                     'drop_units' => 0, 'observed_days' => 0, 'rate_per_day' => null, 'days_left' => null,
                     'readings' => 1, 'changes' => 1,
-                    'first_seen_at' => $at, 'last_reading_at' => $at, 'last_change_at' => $at, 'last_restock_at' => null,
+                    'first_seen_at' => $at, 'last_reading_at' => $at, 'last_sweep_at' => null, 'last_change_at' => $at, 'last_restock_at' => null,
                     'next_arrival_on' => null,
                     'baseline_avail' => max(0, (int) $s->avail), 'baseline_at' => $at,
                     'created_at' => now(), 'updated_at' => now(),
@@ -238,8 +246,8 @@ class StockVelocityRecorder
     {
         $span = ($row->first_seen_at && $row->last_reading_at)
             ? Carbon::parse($row->first_seen_at)->diffInDays(Carbon::parse($row->last_reading_at)) : 0;
-        if ((int) $row->readings >= self::GOOD_READINGS && $span >= self::GOOD_SPAN_DAYS) return 'good';
-        if ((int) $row->readings >= 3 && $row->rate_per_day !== null) return 'building';
+        if ($row->rate_per_day !== null && $span >= self::GOOD_SPAN_DAYS) return 'good';
+        if ($row->rate_per_day !== null) return 'building';
         return 'early';
     }
 }

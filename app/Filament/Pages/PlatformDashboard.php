@@ -398,6 +398,33 @@ class PlatformDashboard extends Page
                    'value' => "<b>{$caught}</b> reported", 'state' => $caught > 0 ? 'bad' : 'ok',
                    'href' => '/admin/debug-logs?activeTab=errors'];
 
+        // MARKER-VELOCITY-SWEEP: the 4-hourly distributor stock sweep. Amber
+        // when the last run skipped or failed a distributor, red when none
+        // has finished in 9 hours (two missed runs).
+        try {
+            if (Schema::hasTable('distributor_velocity_runs')) {
+                $run = DB::table('distributor_velocity_runs')->whereNotNull('finished_at')->orderByDesc('finished_at')->first();
+                $open = DB::table('distributor_velocity_runs')->whereNull('finished_at')->where('started_at', '>=', now()->subHours(4))->exists();
+                if (! $run) {
+                    $rows[] = ['name' => 'Distributor sweeps', 'meta' => $open ? 'first sweep running now' : 'no sweep has run yet · every 4 hours',
+                               'value' => $open ? 'running' : 'not run', 'state' => 'idle', 'href' => '/admin/distributor-velocity'];
+                } else {
+                    $res   = json_decode((string) $run->results, true) ?: [];
+                    $read  = array_sum(array_column($res, 'read'));
+                    $stale = \Carbon\Carbon::parse($run->finished_at)->lt(now()->subHours(9));
+                    $rows[] = [
+                        'name'  => 'Distributor sweeps',
+                        'meta'  => 'last finished ' . \Carbon\Carbon::parse($run->finished_at)->diffForHumans()
+                            . ' · ' . implode(' · ', array_map(fn ($x) => $x['code'] . ' ' . number_format($x['read'] ?? 0), $res))
+                            . ($run->problems ? ' · ' . $run->problems . ' with a problem' : '') . ($open ? ' · one running now' : ''),
+                        'value' => ($stale ? '<b>Stopped</b>' : '<b>' . number_format($read) . '</b> read') . ' · ' . e(\Carbon\Carbon::parse($run->finished_at)->diffForHumans(null, true, true)) . ' ago',
+                        'state' => $stale ? 'bad' : ($run->problems ? 'warn' : 'ok'),
+                        'href'  => '/admin/distributor-velocity',
+                    ];
+                }
+            }
+        } catch (Throwable $e) {}
+
         // Queue backlog. MARKER-QUEUE-WATCHDOG: a count alone said "OK" for
         // 36 hours while both workers were dead, so the row now also says
         // whether a worker has actually run anything lately.

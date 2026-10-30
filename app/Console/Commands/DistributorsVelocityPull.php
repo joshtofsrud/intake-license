@@ -47,7 +47,7 @@ class DistributorsVelocityPull extends Command
             ->groupBy('distributor_code')->orderBy('distributor_code')->get();
         $this->table(['Distributor', 'Items', 'Read again', 'Went down', 'Went up', 'With arrival date', 'Baseline from'],
             $rows->map(fn ($r) => [$r->distributor_code, $r->items, (int) $r->reread, (int) $r->dropped, (int) $r->restocked, (int) $r->with_arrival, $r->since])->all());
-        $this->line('Readings within ' . StockVelocityRecorder::READING_GAP_HOURS . ' hours of the baseline are not counted twice, so "Read again" fills in from tonight\'s sync if the baseline is recent.');
+        $this->line('A sweep within ' . StockVelocityRecorder::SWEEP_GAP_HOURS . ' hour of the last reading is not counted twice.');
 
         return self::SUCCESS;
     }

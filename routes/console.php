@@ -216,11 +216,11 @@ Schedule::command('distributors:sync-tenant --all')
     ->withoutOverlapping()
     ->runInBackground();
 
-// MARKER-VELOCITY-SWEEP: whole-catalog stock with the master admin logins, before
-// the per-shop sync at 06:30 so it is the night's reading for every item.
+// MARKER-VELOCITY-SWEEP: whole-catalog stock with the master admin logins every
+// 4 hours (distributors update all day). Only sweep readings move an item's pace.
 Schedule::command('distributors:velocity-sweep')
-    ->dailyAt('03:30')
-    ->withoutOverlapping(240)
+    ->cron('15 */4 * * *')
+    ->withoutOverlapping(230)
     ->runInBackground();
 
 // MARKER-VELOCITY: stock-change history is kept 60 days; the per-item summary stays.

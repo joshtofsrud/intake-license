@@ -35,7 +35,7 @@ class DistributorVelocity extends Page
     public const SHOP_SWITCHES = [
         'show_days_left' => ['Show days left to shops', "On the shop's inventory list and special-order lookup, for items the shop already carries.", false],
         'show_arrival'   => ['Show next arrival date', 'Only where the distributor sends one.', false],
-        'require_good'   => ['Hide estimates until history is Good', 'Shops see "Not enough history" instead of a number until an item has 8 readings over 21 days.', true],
+        'require_good'   => ['Hide estimates until history is Good', 'Shops see "Not enough history" instead of a number until an item has 21 days of readings.', true],
         'warn_on_po'     => ['Warn on low cover when ordering', 'An amber note on a purchase order line when days left is under the vendor lead time.', false],
     ];
 
@@ -244,6 +244,14 @@ class DistributorVelocity extends Page
         }
         $max = max(1, max(array_column($pts, 1)));
         return implode(' ', array_map(fn ($p) => $p[0] . ',' . round($h - 2 - ($p[1] / $max) * ($h - 4), 1), $pts));
+    }
+
+    /** Recent sweep runs, newest first (MARKER-VELOCITY-SWEEP). */
+    public function runs(): array
+    {
+        if (! Schema::hasTable('distributor_velocity_runs')) return [];
+        return DB::table('distributor_velocity_runs')->orderByDesc('started_at')->limit(12)->get()
+            ->map(function ($r) { $r->results = json_decode((string) $r->results, true) ?: []; return $r; })->all();
     }
 
     /** Data coverage tab. */

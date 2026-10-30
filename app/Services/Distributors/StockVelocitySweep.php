@@ -16,8 +16,8 @@ use Illuminate\Support\Facades\DB;
  *   QBP           one call per warehouse (no arrival dates on that call); the
  *                 per-SKU call is far too many requests for a whole catalog.
  *                 Warehouse codes come from what shops' syncs have already seen.
- * The per-shop sync keeps recording too; the recorder ignores a second reading
- * of the same item within 6 hours, so the sweep (run first) is the night's reading.
+ * Runs every 4 hours. Once an item has been swept, only sweep readings move
+ * its pace; the per-shop sync then only adds arrival dates for it.
  */
 class StockVelocitySweep
 {
