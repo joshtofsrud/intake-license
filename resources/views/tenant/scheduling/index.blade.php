@@ -482,10 +482,10 @@
       <input type="hidden" name="replace_shift_id" id="sc-replace">
       <div class="sc-mh"><span id="sc-title">Add shift</span><span style="cursor:pointer" onclick="document.getElementById('sc-add-modal').classList.remove('on')">×</span></div>
       <div class="sc-mb">
-        {{-- who: shown when adding from a Coverage gap --}}
-        <div id="sc-pick-wrap" style="display:none">
-          <label>Who</label>
-          <select id="sc-pick" onchange="document.getElementById('sc-uid').value=this.value">
+        {{-- MARKER-SHIFT-REASSIGN: who is on the shift; change it to hand the shift to someone else --}}
+        <div id="sc-pick-wrap">
+          <label>Person</label>
+          <select id="sc-pick" onchange="document.getElementById('sc-uid').value=this.value;scCheck()">
             @foreach($staff as $m)<option value="{{ $m->id }}">{{ $m->name }}</option>@endforeach
           </select>
         </div>
@@ -495,6 +495,7 @@
         </div>
         <label>Label (optional)</label>
         <input type="text" name="label" id="sc-label" maxlength="80" placeholder="Shop, Routes, …">
+        <div id="sc-warn" style="display:none;margin-top:12px;font-size:12.5px;line-height:1.5;border-radius:8px;padding:9px 11px"></div>
       </div>
       <div class="sc-mf">
         <button type="button" class="sc-btn" id="sc-remove" style="display:none;margin-right:auto;color:#f87171" onclick="scCovRemove()">Remove shift</button>
@@ -511,11 +512,36 @@ function scAddShift(uid, name, date, dateLabel) {
   scCovOpen({ title: name + ' · ' + dateLabel, date: date, uid: uid, start: '09:00', end: '17:00' });
 }
 // one modal for add (grid cell or Coverage gap) and edit (Coverage shift)
+var scChkTimer = null, scChkSeq = 0;
+function scCheck() {
+  clearTimeout(scChkTimer);
+  scChkTimer = setTimeout(scCheckNow, 150);
+}
+function scCheckNow() {
+  var $ = function (id) { return document.getElementById(id); };
+  var uid = $('sc-uid').value, date = $('sc-date').value, st = $('sc-start').value, en = $('sc-end').value;
+  var box = $('sc-warn'), btn = $('sc-submit'), label = $('sc-replace').value ? 'Save shift' : 'Add shift';
+  box.style.display = 'none'; btn.disabled = false; btn.textContent = label;
+  if (!uid || !date || !st || !en) return;
+  var seq = ++scChkSeq;
+  var q = new URLSearchParams({ user: uid, date: date, start: st, end: en, replace: $('sc-replace').value });
+  fetch(@json(route('tenant.scheduling.shift.check')) + '?' + q.toString(), { headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin' })
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (d) {
+      if (seq !== scChkSeq || !d || !d.lines.length) return;
+      box.textContent = d.lines.join(' ') + (d.blocked ? ' Pick another person or time.' : ' You can still save it.');
+      box.style.cssText += ';display:block;' + (d.blocked
+        ? 'background:rgba(226,75,74,.12);border:.5px solid rgba(226,75,74,.4);color:#f0b3b3'
+        : 'background:rgba(251,191,36,.10);border:.5px solid rgba(251,191,36,.4);color:#f5d98a');
+      if (d.blocked) { btn.disabled = true; } else { btn.textContent = 'Save anyway'; }
+    }).catch(function () {});
+}
 function scCovOpen(o) {
   var $ = function (id) { return document.getElementById(id); };
   var pick = $('sc-pick');
-  $('sc-pick-wrap').style.display = o.pick ? '' : 'none';
-  $('sc-uid').value = o.pick ? (pick ? pick.value : '') : o.uid;
+  var who = o.pick ? (pick ? pick.value : '') : o.uid;
+  $('sc-uid').value = who;
+  if (pick && who) { pick.value = who; }
   $('sc-date').value = o.date;
   $('sc-start').value = o.start || '09:00';
   $('sc-end').value = o.end || '17:00';
@@ -525,7 +551,13 @@ function scCovOpen(o) {
   $('sc-submit').textContent = o.replace ? 'Save shift' : 'Add shift';
   $('sc-title').textContent = o.title;
   $('sc-add-modal').classList.add('on');
+  scCheckNow();
 }
+document.addEventListener('DOMContentLoaded', function () {
+  ['sc-start', 'sc-end'].forEach(function (id) {
+    var el = document.getElementById(id); if (el) { el.addEventListener('input', scCheck); el.addEventListener('change', scCheck); }
+  });
+});
 </script>
 @endpush
 @endsection

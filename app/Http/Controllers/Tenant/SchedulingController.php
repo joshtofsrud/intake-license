@@ -407,20 +407,22 @@ class SchedulingController extends Controller
             'location_id'      => ['nullable', 'uuid'],
         ]);
 
+        // MARKER-SHIFT-REASSIGN: the person on an edited shift can change, so
+        // the old shift is found by id alone (it may belong to someone else).
+        abort_unless(TenantUser::where('tenant_id', $tenant->id)->where('id', $data['tenant_user_id'])->exists(), 422);
+        $old = ! empty($data['replace_shift_id'])
+            ? TenantShift::where('tenant_id', $tenant->id)->where('id', $data['replace_shift_id'])->first()
+            : null;
+
         $tz    = $tenant->timezone();
         $start = \Carbon\Carbon::parse($data['date'] . ' ' . $data['start_time'], $tz);
         $end   = \Carbon\Carbon::parse($data['date'] . ' ' . $data['end_time'], $tz);
         if ($end->lte($start)) $end->addDay(); // overnight shift
 
-        // block scheduling over approved time off
-        $off = TenantTimeOffRequest::where('tenant_id', $tenant->id)
-            ->where('tenant_user_id', $data['tenant_user_id'])
-            ->where('status', 'approved')
-            ->where('starts_at', '<', $end->copy()->utc())
-            ->where('ends_at', '>', $start->copy()->utc())
-            ->exists();
-        if ($off) {
-            return back()->with('error', 'That person has approved time off then — pick another day or person.');
+        // block scheduling over approved time off; the rest are warnings
+        $conf = $this->shiftConflicts($tenant, $data['tenant_user_id'], $start, $end, $old?->id);
+        if ($conf['approved']) {
+            return back()->with('error', $conf['name'] . ' has approved time off then — pick another day or person.');
         }
 
         TenantShift::create([
@@ -428,7 +430,7 @@ class SchedulingController extends Controller
             'tenant_user_id' => $data['tenant_user_id'],
             'location_id'    => (! empty($data['location_id'])
                                     && \App\Models\Tenant\TenantLocation::where('tenant_id', $tenant->id)->where('id', $data['location_id'])->exists())
-                                ? $data['location_id'] : session('current_location_id'),
+                                ? $data['location_id'] : ($old?->location_id ?: session('current_location_id')),
             'starts_at'      => $start->utc(),
             'ends_at'        => $end->utc(),
             'label'          => $data['label'] ?? null,
@@ -437,17 +439,106 @@ class SchedulingController extends Controller
 
         // an edit replaces the old shift, only once the new
         // one is saved (a refused save leaves the original untouched).
-        if (! empty($data['replace_shift_id'])) {
-            TenantShift::where('tenant_id', $tenant->id)
-                ->where('tenant_user_id', $data['tenant_user_id'])
-                ->where('id', $data['replace_shift_id'])
-                ->delete();
-            return back()->with('success', 'Shift updated (draft — publish when the week is ready).');
+        if ($old) {
+            $moved = $old->tenant_user_id !== $data['tenant_user_id'];
+            $old->delete();
+            $note = $this->conflictNote($conf);
+            return back()->with('success', ($moved ? 'Shift moved to ' . $conf['name'] : 'Shift updated') . ' (draft — publish when the week is ready).' . $note);
         }
 
         // conflicts now surface as an inline ! marker on the
         // shift chip in the grid (see index()), not a flash.
-        return back()->with('success', 'Shift added (draft — publish when the week is ready).');
+        return back()->with('success', 'Shift added (draft — publish when the week is ready).' . $this->conflictNote($conf));
+    }
+
+    /**
+     * MARKER-SHIFT-REASSIGN: what stands in the way of putting this person on
+     * this shift. Approved time off blocks; a pending request, a recurring
+     * "unavailable" band and an overlapping shift are warnings.
+     */
+    private function shiftConflicts($tenant, string $userId, $start, $end, ?string $ignoreShiftId = null): array
+    {
+        $name = (string) TenantUser::where('tenant_id', $tenant->id)->where('id', $userId)->value('name');
+        $first = explode(' ', trim($name))[0] ?: 'That person';
+
+        $timeOff = fn (string $status) => TenantTimeOffRequest::where('tenant_id', $tenant->id)
+            ->where('tenant_user_id', $userId)->where('status', $status)
+            ->where('starts_at', '<', $end->copy()->utc())
+            ->where('ends_at', '>', $start->copy()->utc())
+            ->exists();
+
+        $unavailable = [];
+        if ($this->settings($tenant)['availability']) {
+            $localStart = $start->copy()->setTimezone($tenant->timezone());
+            $localEnd   = $end->copy()->setTimezone($tenant->timezone());
+            $dow   = (int) $localStart->dayOfWeek;
+            $words = ['morning' => 'mornings', 'afternoon' => 'afternoons', 'evening' => 'evenings'];
+            $bad   = \App\Models\Tenant\TenantAvailability::where('tenant_id', $tenant->id)
+                ->where('tenant_user_id', $userId)->where('preference', 'unavailable')
+                ->where('day_of_week', $dow)->pluck('band')->all();
+            foreach ($this->spannedBands($localStart, $localEnd) as $band) {
+                if (in_array($band, $bad, true)) $unavailable[] = $words[$band] ?? $band;
+            }
+        }
+
+        $overlap = TenantShift::where('tenant_id', $tenant->id)
+            ->where('tenant_user_id', $userId)
+            ->when($ignoreShiftId, fn ($q) => $q->where('id', '!=', $ignoreShiftId))
+            ->where('starts_at', '<', $end->copy()->utc())
+            ->where('ends_at', '>', $start->copy()->utc())
+            ->exists();
+
+        return [
+            'name'        => $first,
+            'approved'    => $timeOff('approved'),
+            'pending'     => $timeOff('pending'),
+            'unavailable' => $unavailable,
+            'overlap'     => $overlap,
+        ];
+    }
+
+    /** One plain sentence per warning, for the dialog and the flash. */
+    private function conflictLines(array $c): array
+    {
+        $out = [];
+        if ($c['approved'])           $out[] = $c['name'] . ' has approved time off then.';
+        if ($c['pending'])            $out[] = $c['name'] . ' has a time-off request waiting for review that covers this.';
+        if ($c['unavailable'])        $out[] = $c['name'] . ' marked ' . implode(' and ', $c['unavailable']) . ' unavailable on this day.';
+        if ($c['overlap'])            $out[] = $c['name'] . ' already has a shift at that time.';
+        return $out;
+    }
+
+    private function conflictNote(array $c): string
+    {
+        $lines = $this->conflictLines($c);
+        return $lines ? ' Heads up: ' . implode(' ', $lines) : '';
+    }
+
+    /** MARKER-SHIFT-REASSIGN: live check behind the shift dialog. */
+    public function shiftCheck(Request $request)
+    {
+        $tenant = tenant();
+        abort_unless(Auth::guard('tenant')->user()->can('scheduling.build'), 403);
+
+        $d = $request->validate([
+            'user'    => ['required', 'uuid'],
+            'date'    => ['required', 'date'],
+            'start'   => ['required', 'date_format:H:i'],
+            'end'     => ['required', 'date_format:H:i'],
+            'replace' => ['nullable', 'uuid'],
+        ]);
+        abort_unless(TenantUser::where('tenant_id', $tenant->id)->where('id', $d['user'])->exists(), 404);
+
+        $tz    = $tenant->timezone();
+        $start = \Carbon\Carbon::parse($d['date'] . ' ' . $d['start'], $tz);
+        $end   = \Carbon\Carbon::parse($d['date'] . ' ' . $d['end'], $tz);
+        if ($end->lte($start)) $end->addDay();
+
+        $c = $this->shiftConflicts($tenant, $d['user'], $start, $end, $d['replace'] ?? null);
+        return response()->json([
+            'blocked' => $c['approved'],
+            'lines'   => $this->conflictLines($c),
+        ]);
     }
 
     public function deleteShift(Request $request, string $shiftId)

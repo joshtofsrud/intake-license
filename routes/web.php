@@ -1158,6 +1158,7 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             // staff scheduling phase 1
             Route::get('/scheduling',                    [TenantControllers\SchedulingController::class, 'index'])->name('scheduling.index');
             Route::post('/scheduling/shift',             [TenantControllers\SchedulingController::class, 'storeShift'])->name('scheduling.shift.store');
+            Route::get('/scheduling/shift-check',        [TenantControllers\SchedulingController::class, 'shiftCheck'])->name('scheduling.shift.check');
             Route::post('/scheduling/shift/{shiftId}/delete', [TenantControllers\SchedulingController::class, 'deleteShift'])->name('scheduling.shift.delete');
             Route::post('/scheduling/copy-week',         [TenantControllers\SchedulingController::class, 'copyLastWeek'])->name('scheduling.copy-week');
             Route::post('/scheduling/publish',           [TenantControllers\SchedulingController::class, 'publish'])->name('scheduling.publish');

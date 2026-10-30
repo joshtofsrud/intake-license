@@ -1,0 +1,251 @@
+diff --git a/app/Http/Controllers/Tenant/SchedulingController.php b/app/Http/Controllers/Tenant/SchedulingController.php
+index 946231aa..add5524f 100644
+--- a/app/Http/Controllers/Tenant/SchedulingController.php
++++ b/app/Http/Controllers/Tenant/SchedulingController.php
+@@ -407,20 +407,22 @@ class SchedulingController extends Controller
+             'location_id'      => ['nullable', 'uuid'],
+         ]);
+ 
++        // MARKER-SHIFT-REASSIGN: the person on an edited shift can change, so
++        // the old shift is found by id alone (it may belong to someone else).
++        abort_unless(TenantUser::where('tenant_id', $tenant->id)->where('id', $data['tenant_user_id'])->exists(), 422);
++        $old = ! empty($data['replace_shift_id'])
++            ? TenantShift::where('tenant_id', $tenant->id)->where('id', $data['replace_shift_id'])->first()
++            : null;
++
+         $tz    = $tenant->timezone();
+         $start = \Carbon\Carbon::parse($data['date'] . ' ' . $data['start_time'], $tz);
+         $end   = \Carbon\Carbon::parse($data['date'] . ' ' . $data['end_time'], $tz);
+         if ($end->lte($start)) $end->addDay(); // overnight shift
+ 
+-        // block scheduling over approved time off
+-        $off = TenantTimeOffRequest::where('tenant_id', $tenant->id)
+-            ->where('tenant_user_id', $data['tenant_user_id'])
+-            ->where('status', 'approved')
+-            ->where('starts_at', '<', $end->copy()->utc())
+-            ->where('ends_at', '>', $start->copy()->utc())
+-            ->exists();
+-        if ($off) {
+-            return back()->with('error', 'That person has approved time off then — pick another day or person.');
++        // block scheduling over approved time off; the rest are warnings
++        $conf = $this->shiftConflicts($tenant, $data['tenant_user_id'], $start, $end, $old?->id);
++        if ($conf['approved']) {
++            return back()->with('error', $conf['name'] . ' has approved time off then — pick another day or person.');
+         }
+ 
+         TenantShift::create([
+@@ -428,7 +430,7 @@ class SchedulingController extends Controller
+             'tenant_user_id' => $data['tenant_user_id'],
+             'location_id'    => (! empty($data['location_id'])
+                                     && \App\Models\Tenant\TenantLocation::where('tenant_id', $tenant->id)->where('id', $data['location_id'])->exists())
+-                                ? $data['location_id'] : session('current_location_id'),
++                                ? $data['location_id'] : ($old?->location_id ?: session('current_location_id')),
+             'starts_at'      => $start->utc(),
+             'ends_at'        => $end->utc(),
+             'label'          => $data['label'] ?? null,
+@@ -437,17 +439,106 @@ class SchedulingController extends Controller
+ 
+         // an edit replaces the old shift, only once the new
+         // one is saved (a refused save leaves the original untouched).
+-        if (! empty($data['replace_shift_id'])) {
+-            TenantShift::where('tenant_id', $tenant->id)
+-                ->where('tenant_user_id', $data['tenant_user_id'])
+-                ->where('id', $data['replace_shift_id'])
+-                ->delete();
+-            return back()->with('success', 'Shift updated (draft — publish when the week is ready).');
++        if ($old) {
++            $moved = $old->tenant_user_id !== $data['tenant_user_id'];
++            $old->delete();
++            $note = $this->conflictNote($conf);
++            return back()->with('success', ($moved ? 'Shift moved to ' . $conf['name'] : 'Shift updated') . ' (draft — publish when the week is ready).' . $note);
+         }
+ 
+         // conflicts now surface as an inline ! marker on the
+         // shift chip in the grid (see index()), not a flash.
+-        return back()->with('success', 'Shift added (draft — publish when the week is ready).');
++        return back()->with('success', 'Shift added (draft — publish when the week is ready).' . $this->conflictNote($conf));
++    }
++
++    /**
++     * MARKER-SHIFT-REASSIGN: what stands in the way of putting this person on
++     * this shift. Approved time off blocks; a pending request, a recurring
++     * "unavailable" band and an overlapping shift are warnings.
++     */
++    private function shiftConflicts($tenant, string $userId, $start, $end, ?string $ignoreShiftId = null): array
++    {
++        $name = (string) TenantUser::where('tenant_id', $tenant->id)->where('id', $userId)->value('name');
++        $first = explode(' ', trim($name))[0] ?: 'That person';
++
++        $timeOff = fn (string $status) => TenantTimeOffRequest::where('tenant_id', $tenant->id)
++            ->where('tenant_user_id', $userId)->where('status', $status)
++            ->where('starts_at', '<', $end->copy()->utc())
++            ->where('ends_at', '>', $start->copy()->utc())
++            ->exists();
++
++        $unavailable = [];
++        if ($this->settings($tenant)['availability']) {
++            $localStart = $start->copy()->setTimezone($tenant->timezone());
++            $localEnd   = $end->copy()->setTimezone($tenant->timezone());
++            $dow   = (int) $localStart->dayOfWeek;
++            $words = ['morning' => 'mornings', 'afternoon' => 'afternoons', 'evening' => 'evenings'];
++            $bad   = \App\Models\Tenant\TenantAvailability::where('tenant_id', $tenant->id)
++                ->where('tenant_user_id', $userId)->where('preference', 'unavailable')
++                ->where('day_of_week', $dow)->pluck('band')->all();
++            foreach ($this->spannedBands($localStart, $localEnd) as $band) {
++                if (in_array($band, $bad, true)) $unavailable[] = $words[$band] ?? $band;
++            }
++        }
++
++        $overlap = TenantShift::where('tenant_id', $tenant->id)
++            ->where('tenant_user_id', $userId)
++            ->when($ignoreShiftId, fn ($q) => $q->where('id', '!=', $ignoreShiftId))
++            ->where('starts_at', '<', $end->copy()->utc())
++            ->where('ends_at', '>', $start->copy()->utc())
++            ->exists();
++
++        return [
++            'name'        => $first,
++            'approved'    => $timeOff('approved'),
++            'pending'     => $timeOff('pending'),
++            'unavailable' => $unavailable,
++            'overlap'     => $overlap,
++        ];
++    }
++
++    /** One plain sentence per warning, for the dialog and the flash. */
++    private function conflictLines(array $c): array
++    {
++        $out = [];
++        if ($c['approved'])           $out[] = $c['name'] . ' has approved time off then.';
++        if ($c['pending'])            $out[] = $c['name'] . ' has a time-off request waiting for review that covers this.';
++        if ($c['unavailable'])        $out[] = $c['name'] . ' marked ' . implode(' and ', $c['unavailable']) . ' unavailable on this day.';
++        if ($c['overlap'])            $out[] = $c['name'] . ' already has a shift at that time.';
++        return $out;
++    }
++
++    private function conflictNote(array $c): string
++    {
++        $lines = $this->conflictLines($c);
++        return $lines ? ' Heads up: ' . implode(' ', $lines) : '';
++    }
++
++    /** MARKER-SHIFT-REASSIGN: live check behind the shift dialog. */
++    public function shiftCheck(Request $request)
++    {
++        $tenant = tenant();
++        abort_unless(Auth::guard('tenant')->user()->can('scheduling.build'), 403);
++
++        $d = $request->validate([
++            'user'    => ['required', 'uuid'],
++            'date'    => ['required', 'date'],
++            'start'   => ['required', 'date_format:H:i'],
++            'end'     => ['required', 'date_format:H:i'],
++            'replace' => ['nullable', 'uuid'],
++        ]);
++        abort_unless(TenantUser::where('tenant_id', $tenant->id)->where('id', $d['user'])->exists(), 404);
++
++        $tz    = $tenant->timezone();
++        $start = \Carbon\Carbon::parse($d['date'] . ' ' . $d['start'], $tz);
++        $end   = \Carbon\Carbon::parse($d['date'] . ' ' . $d['end'], $tz);
++        if ($end->lte($start)) $end->addDay();
++
++        $c = $this->shiftConflicts($tenant, $d['user'], $start, $end, $d['replace'] ?? null);
++        return response()->json([
++            'blocked' => $c['approved'],
++            'lines'   => $this->conflictLines($c),
++        ]);
+     }
+ 
+     public function deleteShift(Request $request, string $shiftId)
+diff --git a/resources/views/tenant/scheduling/index.blade.php b/resources/views/tenant/scheduling/index.blade.php
+index fae47638..b72ef83f 100644
+--- a/resources/views/tenant/scheduling/index.blade.php
++++ b/resources/views/tenant/scheduling/index.blade.php
+@@ -482,10 +482,10 @@
+       <input type="hidden" name="replace_shift_id" id="sc-replace">
+       <div class="sc-mh"><span id="sc-title">Add shift</span><span style="cursor:pointer" onclick="document.getElementById('sc-add-modal').classList.remove('on')">×</span></div>
+       <div class="sc-mb">
+-        {{-- who: shown when adding from a Coverage gap --}}
+-        <div id="sc-pick-wrap" style="display:none">
+-          <label>Who</label>
+-          <select id="sc-pick" onchange="document.getElementById('sc-uid').value=this.value">
++        {{-- MARKER-SHIFT-REASSIGN: who is on the shift; change it to hand the shift to someone else --}}
++        <div id="sc-pick-wrap">
++          <label>Person</label>
++          <select id="sc-pick" onchange="document.getElementById('sc-uid').value=this.value;scCheck()">
+             @foreach($staff as $m)<option value="{{ $m->id }}">{{ $m->name }}</option>@endforeach
+           </select>
+         </div>
+@@ -495,6 +495,7 @@
+         </div>
+         <label>Label (optional)</label>
+         <input type="text" name="label" id="sc-label" maxlength="80" placeholder="Shop, Routes, …">
++        <div id="sc-warn" style="display:none;margin-top:12px;font-size:12.5px;line-height:1.5;border-radius:8px;padding:9px 11px"></div>
+       </div>
+       <div class="sc-mf">
+         <button type="button" class="sc-btn" id="sc-remove" style="display:none;margin-right:auto;color:#f87171" onclick="scCovRemove()">Remove shift</button>
+@@ -511,11 +512,36 @@ function scAddShift(uid, name, date, dateLabel) {
+   scCovOpen({ title: name + ' · ' + dateLabel, date: date, uid: uid, start: '09:00', end: '17:00' });
+ }
+ // one modal for add (grid cell or Coverage gap) and edit (Coverage shift)
++var scChkTimer = null, scChkSeq = 0;
++function scCheck() {
++  clearTimeout(scChkTimer);
++  scChkTimer = setTimeout(scCheckNow, 150);
++}
++function scCheckNow() {
++  var $ = function (id) { return document.getElementById(id); };
++  var uid = $('sc-uid').value, date = $('sc-date').value, st = $('sc-start').value, en = $('sc-end').value;
++  var box = $('sc-warn'), btn = $('sc-submit'), label = $('sc-replace').value ? 'Save shift' : 'Add shift';
++  box.style.display = 'none'; btn.disabled = false; btn.textContent = label;
++  if (!uid || !date || !st || !en) return;
++  var seq = ++scChkSeq;
++  var q = new URLSearchParams({ user: uid, date: date, start: st, end: en, replace: $('sc-replace').value });
++  fetch(@json(route('tenant.scheduling.shift.check')) + '?' + q.toString(), { headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin' })
++    .then(function (r) { return r.ok ? r.json() : null; })
++    .then(function (d) {
++      if (seq !== scChkSeq || !d || !d.lines.length) return;
++      box.textContent = d.lines.join(' ') + (d.blocked ? ' Pick another person or time.' : ' You can still save it.');
++      box.style.cssText += ';display:block;' + (d.blocked
++        ? 'background:rgba(226,75,74,.12);border:.5px solid rgba(226,75,74,.4);color:#f0b3b3'
++        : 'background:rgba(251,191,36,.10);border:.5px solid rgba(251,191,36,.4);color:#f5d98a');
++      if (d.blocked) { btn.disabled = true; } else { btn.textContent = 'Save anyway'; }
++    }).catch(function () {});
++}
+ function scCovOpen(o) {
+   var $ = function (id) { return document.getElementById(id); };
+   var pick = $('sc-pick');
+-  $('sc-pick-wrap').style.display = o.pick ? '' : 'none';
+-  $('sc-uid').value = o.pick ? (pick ? pick.value : '') : o.uid;
++  var who = o.pick ? (pick ? pick.value : '') : o.uid;
++  $('sc-uid').value = who;
++  if (pick && who) { pick.value = who; }
+   $('sc-date').value = o.date;
+   $('sc-start').value = o.start || '09:00';
+   $('sc-end').value = o.end || '17:00';
+@@ -525,7 +551,13 @@ function scCovOpen(o) {
+   $('sc-submit').textContent = o.replace ? 'Save shift' : 'Add shift';
+   $('sc-title').textContent = o.title;
+   $('sc-add-modal').classList.add('on');
++  scCheckNow();
+ }
++document.addEventListener('DOMContentLoaded', function () {
++  ['sc-start', 'sc-end'].forEach(function (id) {
++    var el = document.getElementById(id); if (el) { el.addEventListener('input', scCheck); el.addEventListener('change', scCheck); }
++  });
++});
+ </script>
+ @endpush
+ @endsection
+diff --git a/routes/web.php b/routes/web.php
+index 0cd40e31..9c8ef97b 100644
+--- a/routes/web.php
++++ b/routes/web.php
+@@ -1158,6 +1158,7 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
+             // staff scheduling phase 1
+             Route::get('/scheduling',                    [TenantControllers\SchedulingController::class, 'index'])->name('scheduling.index');
+             Route::post('/scheduling/shift',             [TenantControllers\SchedulingController::class, 'storeShift'])->name('scheduling.shift.store');
++            Route::get('/scheduling/shift-check',        [TenantControllers\SchedulingController::class, 'shiftCheck'])->name('scheduling.shift.check');
+             Route::post('/scheduling/shift/{shiftId}/delete', [TenantControllers\SchedulingController::class, 'deleteShift'])->name('scheduling.shift.delete');
+             Route::post('/scheduling/copy-week',         [TenantControllers\SchedulingController::class, 'copyLastWeek'])->name('scheduling.copy-week');
+             Route::post('/scheduling/publish',           [TenantControllers\SchedulingController::class, 'publish'])->name('scheduling.publish');
