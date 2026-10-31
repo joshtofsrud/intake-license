@@ -1,0 +1,633 @@
+diff --git a/app/Filament/Pages/BrandNames.php b/app/Filament/Pages/BrandNames.php
+new file mode 100644
+index 00000000..a7b4f81f
+--- /dev/null
++++ b/app/Filament/Pages/BrandNames.php
+@@ -0,0 +1,128 @@
++<?php
++
++namespace App\Filament\Pages;
++
++use App\Support\AdminAccess;
++use App\Support\BrandNames as Names;
++use Filament\Notifications\Notification;
++use Filament\Pages\Page;
++use Illuminate\Support\Facades\Auth;
++use Illuminate\Support\Facades\DB;
++
++/**
++ * MARKER-BRAND-NAMES: one brand, one spelling across distributors.
++ * Lists likely duplicates (1st/First, &/and, case, spacing, Inc/Co), lets
++ * master admin choose the spelling, and keeps every pairing undoable.
++ */
++class BrandNames extends Page
++{
++    use \App\Support\UsesAdminNav;
++    use \App\Support\GatedByAdminArea;
++    protected static string $adminArea = 'catalog';
++
++    protected static ?string $navigationIcon  = 'heroicon-o-tag';
++    protected static ?string $navigationLabel = 'Brand names';
++    protected static ?string $navigationGroup = 'Distribution';
++    protected static ?int    $navigationSort  = 62;
++    protected static ?string $title           = 'Brand names';
++    protected static ?string $slug            = 'brand-names';
++    protected static string  $view            = 'filament.pages.brand-names';
++
++    public string $tab = 'suggested';
++    public string $find = '';
++    public string $from = '';
++    public string $to = '';
++
++    public function canEdit(): bool
++    {
++        return AdminAccess::level(Auth::guard('web')->user(), 'catalog') === 'full';
++    }
++
++    public function setTab(string $t): void { if (in_array($t, ['suggested', 'pairings', 'add'], true)) $this->tab = $t; }
++
++    /** Every brand spelling in the shared catalog, with items per distributor. */
++    private function spellings(): array
++    {
++        $rows = DB::table('platform_distributor_catalogs')
++            ->where('is_active', true)->whereNotNull('manufacturer')->whereRaw("TRIM(manufacturer) <> ''")
++            ->selectRaw('manufacturer AS m, distributor_code AS d, COUNT(*) AS n')
++            ->groupBy('manufacturer', 'distributor_code')->get();
++        $out = [];
++        foreach ($rows as $r) {
++            $out[$r->m]['name'] = $r->m;
++            $out[$r->m]['by'][$r->d] = (int) $r->n;
++            $out[$r->m]['total'] = ($out[$r->m]['total'] ?? 0) + (int) $r->n;
++        }
++        return $out;
++    }
++
++    /** Groups of two or more spellings that fold to the same name. */
++    public function suggestions(): array
++    {
++        $groups = [];
++        foreach ($this->spellings() as $name => $s) {
++            $f = Names::fold($name);
++            if ($f === '') continue;
++            $groups[$f][] = $s;
++        }
++        $groups = array_filter($groups, fn ($g) => count($g) > 1);
++        $term = mb_strtolower(trim($this->find));
++        if ($term !== '') {
++            $groups = array_filter($groups, fn ($g) => collect($g)->contains(fn ($s) => str_contains(mb_strtolower($s['name']), $term)));
++        }
++        foreach ($groups as &$g) {
++            usort($g, fn ($a, $b) => $b['total'] <=> $a['total'] ?: strcmp($a['name'], $b['name']));
++        }
++        unset($g);
++        uasort($groups, fn ($a, $b) => strcasecmp($a[0]['name'], $b[0]['name']));
++        return $groups;
++    }
++
++    /** Use $winner for every spelling in the suggested group $fold. */
++    public function useSpelling(string $fold, string $winner): void
++    {
++        abort_unless($this->canEdit(), 403);
++        $group = $this->suggestions()[$fold] ?? null;
++        if (! $group || ! collect($group)->pluck('name')->contains($winner)) {
++            Notification::make()->title('That group has changed — reload and try again.')->warning()->send();
++            return;
++        }
++        $by = Auth::guard('web')->user()?->email;
++        $n = 0;
++        foreach ($group as $s) {
++            if ($s['name'] !== $winner) $n += Names::pair($s['name'], $winner, $by);
++        }
++        Notification::make()->title('Now one brand: ' . $winner)->body(number_format($n) . ' catalog items relabelled.')->success()->send();
++    }
++
++    public function addPairing(): void
++    {
++        abort_unless($this->canEdit(), 403);
++        $this->validate(['from' => ['required', 'string', 'max:191'], 'to' => ['required', 'string', 'max:191', 'different:from']]);
++        $n = Names::pair($this->from, $this->to, Auth::guard('web')->user()?->email);
++        Notification::make()->title('"' . $this->from . '" now shows as "' . $this->to . '"')->body(number_format($n) . ' catalog items relabelled.')->success()->send();
++        $this->from = $this->to = '';
++        $this->tab = 'pairings';
++    }
++
++    public function undo(int $id): void
++    {
++        abort_unless($this->canEdit(), 403);
++        $n = Names::unpair($id);
++        Notification::make()->title('Pairing removed')->body(number_format($n) . ' catalog items back to the distributor\'s own spelling.')->success()->send();
++    }
++
++    public function pairings(): array
++    {
++        $counts = DB::table('platform_distributor_catalogs')->whereNotNull('manufacturer_raw')
++            ->selectRaw('LOWER(TRIM(manufacturer_raw)) AS k, COUNT(*) AS n')->groupBy('k')->pluck('n', 'k')->all();
++        return DB::table('brand_aliases')->orderBy('canonical_name')->orderBy('alias_name')->get()
++            ->map(function ($a) use ($counts) { $a->items = (int) ($counts[$a->alias_key] ?? 0); return $a; })->all();
++    }
++
++    /** Spellings for the add form's suggestions list. */
++    public function allNames(): array
++    {
++        return collect($this->spellings())->keys()->sort(fn ($a, $b) => strcasecmp($a, $b))->values()->all();
++    }
++}
+diff --git a/app/Filament/Pages/DistributorVelocity.php b/app/Filament/Pages/DistributorVelocity.php
+index 396cbc29..a4321f3c 100644
+--- a/app/Filament/Pages/DistributorVelocity.php
++++ b/app/Filament/Pages/DistributorVelocity.php
+@@ -49,6 +49,7 @@ class DistributorVelocity extends Page
+     public const PER_PAGE = [50, 100, 250, 500];
+     public string $stock = 'in';   // in | out | all
+     public string $brand = '';     // a catalog manufacturer; '' = every brand
++    public string $category = '';  // a catalog category; '' = every category
+     public string $sort = '';      // a SORTS key; '' = the view's own order
+     public string $dir = 'asc';
+ 
+@@ -92,9 +93,12 @@ class DistributorVelocity extends Page
+ 
+     public function updated($name): void
+     {
+-        if (in_array($name, ['search', 'hideEarly', 'vendor', 'mode', 'stock', 'brand', 'perPage'], true)) {
++        if (in_array($name, ['search', 'hideEarly', 'vendor', 'mode', 'stock', 'brand', 'category', 'perPage'], true)) {
+             $this->page = 1;
+         }
++        if ($name === 'brand' && $this->category !== '' && ! array_key_exists($this->category, $this->categories())) {
++            $this->category = '';
++        }
+         if ($name === 'perPage' && ! in_array($this->perPage, self::PER_PAGE, true)) {
+             $this->perPage = 100;
+         }
+@@ -122,11 +126,14 @@ class DistributorVelocity extends Page
+         if ($this->brand !== '' && ! array_key_exists($this->brand, $this->brands())) {
+             $this->brand = '';
+         }
++        if ($this->category !== '' && ! array_key_exists($this->category, $this->categories())) {
++            $this->category = '';
++        }
+     }
+     public function goPage(int $p): void { $this->page = max(1, $p); }
+     public function select(int $id): void { $this->selected = $id; }
+     public function closeDetail(): void { $this->selected = null; }
+-    public function clearFilters(): void { $this->search = ''; $this->hideEarly = false; $this->vendor = ''; $this->mode = 'run'; $this->stock = 'in'; $this->brand = ''; $this->sort = ''; $this->page = 1; }
++    public function clearFilters(): void { $this->search = ''; $this->hideEarly = false; $this->vendor = ''; $this->mode = 'run'; $this->stock = 'in'; $this->brand = ''; $this->category = ''; $this->sort = ''; $this->page = 1; }
+ 
+     /** Brands with tracked items for the chosen distributor, A–Z. */
+     public function brands(): array
+@@ -139,6 +146,18 @@ class DistributorVelocity extends Page
+             ->orderByRaw('LOWER(c.manufacturer)')->pluck('n', 'b')->map(fn ($n) => (int) $n)->all();
+     }
+ 
++    /** Categories with tracked items for the chosen distributor, A–Z. */
++    public function categories(): array
++    {
++        return DB::table('distributor_stock_summary as s')
++            ->join('platform_distributor_catalogs as c', 'c.id', '=', 's.distributor_catalog_id')
++            ->when($this->vendor !== '', fn ($q) => $q->where('s.distributor_code', $this->vendor))
++            ->when($this->brand !== '', fn ($q) => $q->where('c.manufacturer', $this->brand))
++            ->whereNotNull('c.category')->where('c.category', '!=', '')
++            ->selectRaw('c.category AS k, COUNT(*) AS n')->groupBy('c.category')
++            ->orderByRaw('LOWER(c.category)')->pluck('n', 'k')->map(fn ($n) => (int) $n)->all();
++    }
++
+     /** True while a search term is in: the view's own filter is paused so every match shows. */
+     public function searching(): bool { return trim($this->search) !== ''; }
+ 
+@@ -198,7 +217,8 @@ class DistributorVelocity extends Page
+             ->when($this->hideEarly, fn ($q) => $q->whereNotNull('s.rate_per_day'))
+             ->when($this->stock === 'in', fn ($q) => $q->where('s.avail', '>', 0))
+             ->when($this->stock === 'out', fn ($q) => $q->where('s.avail', '=', 0))
+-            ->when($this->brand !== '', fn ($q) => $q->where('c.manufacturer', $this->brand));
++            ->when($this->brand !== '', fn ($q) => $q->where('c.manufacturer', $this->brand))
++            ->when($this->category !== '', fn ($q) => $q->where('c.category', $this->category));
+ 
+         $term = trim($this->search);
+         if ($term !== '') {
+diff --git a/app/Models/PlatformDistributorCatalog.php b/app/Models/PlatformDistributorCatalog.php
+index 4371bfe6..bedfb5cc 100644
+--- a/app/Models/PlatformDistributorCatalog.php
++++ b/app/Models/PlatformDistributorCatalog.php
+@@ -33,6 +33,7 @@ class PlatformDistributorCatalog extends Model
+         'display_name',
+         'display_subtitle',
+         'manufacturer',
++        'manufacturer_raw', // MARKER-BRAND-NAMES: the distributor's own spelling
+         'category',
+         'description',
+         'cost_cents',
+diff --git a/app/Providers/Filament/AdminPanelProvider.php b/app/Providers/Filament/AdminPanelProvider.php
+index 43765b65..18d474dd 100644
+--- a/app/Providers/Filament/AdminPanelProvider.php
++++ b/app/Providers/Filament/AdminPanelProvider.php
+@@ -131,6 +131,7 @@ class AdminPanelProvider extends PanelProvider
+                 // does not auto-discover.
+                 \App\Filament\Pages\CatalogCoverage::class,
+                 \App\Filament\Pages\DistributorVelocity::class, // MARKER-VELOCITY: no route without this line
++                \App\Filament\Pages\BrandNames::class, // MARKER-BRAND-NAMES: no route without this line
+                 // same: no route without this line.
+                 \App\Filament\Pages\CatalogItemLookup::class,
+                 \App\Filament\Pages\VariantSplitRules::class, // MARKER-OPTION-SPLIT: no route without this line
+diff --git a/app/Services/Distributors/DistributorCatalogSyncService.php b/app/Services/Distributors/DistributorCatalogSyncService.php
+index c15b17af..14f78720 100644
+--- a/app/Services/Distributors/DistributorCatalogSyncService.php
++++ b/app/Services/Distributors/DistributorCatalogSyncService.php
+@@ -515,6 +515,10 @@ class DistributorCatalogSyncService
+         $canonical['last_synced_at']  = now();
+         $canonical['is_active']       = true;
+ 
++        // MARKER-BRAND-NAMES: one brand, one spelling, as set in master admin.
++        // The distributor's own spelling stays in manufacturer_raw.
++        $canonical = \App\Support\BrandNames::applyTo($canonical);
++
+         $composed = $this->composer->compose($code, [
+             'brand'         => $canonical['manufacturer'] ?? null,
+             'model'         => $canonical['name'] ?? null,
+diff --git a/app/Support/BrandNames.php b/app/Support/BrandNames.php
+new file mode 100644
+index 00000000..ca68ea8a
+--- /dev/null
++++ b/app/Support/BrandNames.php
+@@ -0,0 +1,122 @@
++<?php
++
++namespace App\Support;
++
++use Illuminate\Support\Facades\DB;
++use Illuminate\Support\Facades\Schema;
++
++/**
++ * MARKER-BRAND-NAMES: master-admin brand spelling pairings.
++ *
++ * A pairing says "this distributor spelling is that brand". It is applied to
++ * the shared catalog's manufacturer column (the field every brand picker,
++ * filter and title reads) when it is saved, and by the catalog sync on every
++ * row it writes. The distributor's own spelling is kept in manufacturer_raw.
++ */
++class BrandNames
++{
++    private static ?array $map = null;
++
++    /** Lower-cased, trimmed, single-spaced: the exact spelling, for lookups. */
++    public static function key(?string $s): string
++    {
++        return mb_strtolower(trim(preg_replace('/\s+/u', ' ', (string) $s)));
++    }
++
++    /**
++     * A loose form for spotting likely duplicates only (never applied on its
++     * own): 1st/first, &/and, punctuation, spacing and company suffixes fold.
++     */
++    public static function fold(?string $s): string
++    {
++        $s = ' ' . self::key($s) . ' ';
++        $s = str_replace('&', ' and ', $s);
++        $s = preg_replace('/[^\p{L}\p{N} ]+/u', ' ', $s);
++        $words = ['1st' => 'first', '2nd' => 'second', '3rd' => 'third', '4th' => 'fourth', '5th' => 'fifth'];
++        foreach ($words as $a => $b) {
++            $s = preg_replace('/(?<=\s)' . $a . '(?=\s)/u', $b, $s);
++        }
++        $s = preg_replace('/\s(inc|co|llc|ltd|corp|corporation|company|the|gmbh|srl)(?=\s)/u', ' ', $s);
++        return preg_replace('/\s+/u', '', $s);
++    }
++
++    /** alias_key => canonical_name, memoised per request. */
++    public static function map(): array
++    {
++        if (self::$map === null) {
++            self::$map = Schema::hasTable('brand_aliases')
++                ? DB::table('brand_aliases')->pluck('canonical_name', 'alias_key')->all()
++                : [];
++        }
++        return self::$map;
++    }
++
++    public static function forget(): void { self::$map = null; }
++
++    /** The spelling to show for a distributor's brand name. */
++    public static function canonical(?string $name): ?string
++    {
++        if ($name === null || trim($name) === '') return $name;
++        return self::map()[self::key($name)] ?? $name;
++    }
++
++    /** Applied by the catalog sync to a row it is about to write. */
++    public static function applyTo(array $row): array
++    {
++        if (! array_key_exists('manufacturer', $row)) return $row;
++        $raw = $row['manufacturer'];
++        $row['manufacturer_raw'] = $raw;
++        $row['manufacturer'] = self::canonical($raw);
++        return $row;
++    }
++
++    /**
++     * Save "spelling X is brand Y" and relabel existing catalog rows now.
++     * Returns how many catalog rows changed.
++     */
++    public static function pair(string $alias, string $canonical, ?string $by = null): int
++    {
++        $alias = trim($alias);
++        $canonical = trim($canonical);
++        $key = self::key($alias);
++        if ($key === '' || $canonical === '' || $key === self::key($canonical)) return 0;
++
++        DB::table('brand_aliases')->updateOrInsert(['alias_key' => $key],
++            ['alias_name' => $alias, 'canonical_name' => $canonical, 'created_by' => $by, 'updated_at' => now(), 'created_at' => now()]);
++        // anything already pointing at the old spelling follows to the new one
++        DB::table('brand_aliases')->where('canonical_name', $alias)->update(['canonical_name' => $canonical, 'updated_at' => now()]);
++        self::forget();
++
++        $n = DB::table('platform_distributor_catalogs')
++            ->where(fn ($w) => $w->whereRaw('LOWER(TRIM(COALESCE(manufacturer_raw, manufacturer))) = ?', [$key])
++                                  ->orWhereRaw('LOWER(TRIM(manufacturer)) = ?', [$key]))
++            ->update(['manufacturer_raw' => DB::raw('COALESCE(manufacturer_raw, manufacturer)'), 'manufacturer' => $canonical]);
++
++        // a brand switched off under the old spelling stays off under the new one
++        foreach (['distributor_brand_settings', 'tenant_distributor_brand_settings'] as $table) {
++            if (! Schema::hasTable($table)) continue;
++            $newKey = self::key($canonical);
++            DB::table($table)->where('brand_key', $key)->get()->each(function ($r) use ($table, $newKey, $canonical) {
++                $clash = DB::table($table)->where('distributor_code', $r->distributor_code)->where('brand_key', $newKey)
++                    ->when(property_exists($r, 'tenant_id'), fn ($q) => $q->where('tenant_id', $r->tenant_id))->exists();
++                if (! $clash) {
++                    DB::table($table)->where('id', $r->id)->update(['brand_key' => $newKey, 'brand_name' => $canonical]);
++                }
++            });
++        }
++        return $n;
++    }
++
++    /** Remove a pairing and put the distributor's own spelling back. Returns rows restored. */
++    public static function unpair(int $id): int
++    {
++        $a = DB::table('brand_aliases')->where('id', $id)->first();
++        if (! $a) return 0;
++        DB::table('brand_aliases')->where('id', $id)->delete();
++        self::forget();
++        return DB::table('platform_distributor_catalogs')
++            ->whereNotNull('manufacturer_raw')
++            ->whereRaw('LOWER(TRIM(manufacturer_raw)) = ?', [$a->alias_key])
++            ->update(['manufacturer' => DB::raw('manufacturer_raw')]);
++    }
++}
+diff --git a/database/migrations/2026_10_31_090000_create_brand_aliases.php b/database/migrations/2026_10_31_090000_create_brand_aliases.php
+new file mode 100644
+index 00000000..bbc9a95b
+--- /dev/null
++++ b/database/migrations/2026_10_31_090000_create_brand_aliases.php
+@@ -0,0 +1,41 @@
++<?php
++
++use Illuminate\Database\Migrations\Migration;
++use Illuminate\Database\Schema\Blueprint;
++use Illuminate\Support\Facades\Schema;
++
++/**
++ * MARKER-BRAND-NAMES: one brand, one spelling. Distributors spell brands
++ * differently ("1st Endurance" at BTI, "First Endurance" at QBP); master
++ * admin picks the spelling to use. The distributor's own spelling is kept in
++ * manufacturer_raw so a pairing can be undone.
++ */
++return new class extends Migration
++{
++    public function up(): void
++    {
++        if (! Schema::hasTable('brand_aliases')) {
++            Schema::create('brand_aliases', function (Blueprint $t) {
++                $t->id();
++                $t->string('alias_key', 191)->unique();   // the spelling, lower-cased and trimmed
++                $t->string('alias_name', 191);            // as the distributor spells it
++                $t->string('canonical_name', 191);        // the spelling every screen shows
++                $t->string('created_by', 191)->nullable();
++                $t->timestamps();
++            });
++        }
++        if (! Schema::hasColumn('platform_distributor_catalogs', 'manufacturer_raw')) {
++            Schema::table('platform_distributor_catalogs', function (Blueprint $t) {
++                $t->string('manufacturer_raw', 191)->nullable()->after('manufacturer');
++            });
++        }
++    }
++
++    public function down(): void
++    {
++        Schema::dropIfExists('brand_aliases');
++        if (Schema::hasColumn('platform_distributor_catalogs', 'manufacturer_raw')) {
++            Schema::table('platform_distributor_catalogs', fn (Blueprint $t) => $t->dropColumn('manufacturer_raw'));
++        }
++    }
++};
+diff --git a/resources/views/filament/pages/brand-names.blade.php b/resources/views/filament/pages/brand-names.blade.php
+new file mode 100644
+index 00000000..cb0f46cc
+--- /dev/null
++++ b/resources/views/filament/pages/brand-names.blade.php
+@@ -0,0 +1,101 @@
++<x-filament-panels::page>
++{{-- MARKER-BRAND-NAMES: one brand, one spelling across every distributor feed. --}}
++<style>
++  .bn { --line:rgba(255,255,255,.075); --line2:rgba(255,255,255,.14); --dim:#a3a3ab; --faint:#74747d; --txt:#fff;
++    --violet:#8b5cf6; --vtext:#a78bfa; --vsoft:rgba(139,92,246,.17); --hover:rgba(255,255,255,.035); font-size:14px; display:flex; flex-direction:column; gap:16px; }
++  html:not(.dark) .bn { --line:rgba(0,0,0,.08); --line2:rgba(0,0,0,.16); --dim:#52525b; --faint:#6b6b75; --txt:#18181b;
++    --vtext:#6d28d9; --vsoft:rgba(139,92,246,.11); --hover:rgba(0,0,0,.025); }
++  .bn .sub { color:var(--dim); max-width:780px; line-height:1.55; margin:0; }
++  .bn-tabs { display:flex; gap:22px; border-bottom:1px solid var(--line); }
++  .bn-tabs button { background:none; border:0; border-bottom:2px solid transparent; padding:9px 0; color:var(--dim); cursor:pointer; font:inherit; font-weight:500; margin-bottom:-1px; }
++  .bn-tabs button.on { color:var(--txt); border-bottom-color:var(--violet); }
++  .bn-tabs button span { color:var(--faint); font-weight:400; margin-left:4px; }
++  .bn-legend { color:var(--faint); font-size:12.5px; line-height:1.6; padding-bottom:11px; border-bottom:1px solid var(--line); }
++  .bn-legend b { color:var(--dim); font-weight:600; }
++  .bn-in { background:transparent; border:1px solid var(--line2); border-radius:7px; padding:6px 10px; font:inherit; font-size:13px; color:inherit; min-width:240px; }
++  .bn-in:focus { outline:none; border-color:var(--violet); }
++  .bn-group { border-bottom:1px solid var(--line); padding:12px 0; }
++  .bn-row { display:flex; align-items:center; gap:12px; padding:5px 0; flex-wrap:wrap; }
++  .bn-row .nm { font-weight:600; color:var(--txt); min-width:220px; }
++  .bn-row .by { color:var(--faint); font-size:12.5px; flex:1; }
++  .bn-btn { border:1px solid var(--line2); background:none; border-radius:7px; padding:5px 11px; font:inherit; font-weight:500; font-size:12.5px; cursor:pointer; color:inherit; white-space:nowrap; }
++  .bn-btn:hover { background:var(--hover); }
++  .bn-btn.p { background:var(--violet); border-color:var(--violet); color:#fff; }
++  .bn-btn[disabled] { opacity:.45; cursor:default; }
++  .bn-tbl { width:100%; border-collapse:collapse; font-size:13.5px; }
++  .bn-tbl th { font-size:11.5px; font-weight:500; color:var(--faint); text-align:left; padding:8px 10px; border-bottom:1px solid var(--line2); }
++  .bn-tbl td { padding:10px; border-bottom:1px solid var(--line); }
++  .bn-empty { padding:36px 0; text-align:center; color:var(--dim); }
++  .bn-empty b { display:block; color:var(--txt); margin-bottom:6px; font-size:15px; }
++  .bn-form { display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap; max-width:780px; }
++  .bn-form label { display:flex; flex-direction:column; gap:5px; font-size:12px; color:var(--dim); }
++</style>
++
++@php $pairs = $this->pairings(); $groups = $tab === 'suggested' ? $this->suggestions() : []; $edit = $this->canEdit(); @endphp
++
++<div class="bn">
++  <p class="sub">Distributors spell some brands differently — "1st Endurance" at BTI, "First Endurance" at QBP. Choose one spelling and every screen uses it: shop imports, the inventory brand filter, brand on/off settings, Distributor velocity and catalog titles.</p>
++
++  <div class="bn-tabs">
++    <button type="button" wire:click="setTab('suggested')" class="{{ $tab === 'suggested' ? 'on' : '' }}">Likely duplicates</button>
++    <button type="button" wire:click="setTab('pairings')" class="{{ $tab === 'pairings' ? 'on' : '' }}">Pairings<span>{{ count($pairs) }}</span></button>
++    <button type="button" wire:click="setTab('add')" class="{{ $tab === 'add' ? 'on' : '' }}">Add a pairing</button>
++  </div>
++
++  <div class="bn-legend">
++    <b>What this does.</b> Applies to every distributor feed, current and future: the catalog sync uses these pairings on every row it writes, and saving one relabels the existing catalog straight away.
++    Each distributor's own spelling is kept underneath, so removing a pairing puts it back. Item names a shop has already saved are the shop's own and are not renamed; catalog titles pick up the new spelling at the next sync.
++  </div>
++
++  @if ($tab === 'suggested')
++    <input type="search" class="bn-in" style="align-self:flex-start;width:320px" wire:model.live.debounce.300ms="find" placeholder="Find a brand">
++    @forelse ($groups as $fold => $g)
++      <div class="bn-group" wire:key="g-{{ md5($fold) }}">
++        @foreach ($g as $s)
++          <div class="bn-row">
++            <span class="nm">{{ $s['name'] }}</span>
++            <span class="by">{{ collect($s['by'])->map(fn ($n, $d) => $d . ' ' . number_format($n))->implode(' · ') }}</span>
++            <button type="button" class="bn-btn" wire:click="useSpelling(@js($fold), @js($s['name']))" @disabled(! $edit)>Use this spelling</button>
++          </div>
++        @endforeach
++      </div>
++    @empty
++      <div class="bn-empty"><b>{{ $find !== '' ? 'No likely duplicates match “' . $find . '”.' : 'No likely duplicates.' }}</b>
++        Spellings that differ only by 1st/First, &amp;/and, case, punctuation, spacing or Inc/Co show here. Other pairs can be added by hand.
++        <div style="margin-top:12px"><button type="button" class="bn-btn" wire:click="setTab('add')">Add a pairing</button></div></div>
++    @endforelse
++
++  @elseif ($tab === 'pairings')
++    @if ($pairs)
++      <table class="bn-tbl">
++        <thead><tr><th>Distributor spelling</th><th>Shows as</th><th>Catalog items</th><th>Added</th><th></th></tr></thead>
++        <tbody>
++        @foreach ($pairs as $p)
++          <tr wire:key="p-{{ $p->id }}">
++            <td>{{ $p->alias_name }}</td>
++            <td style="color:var(--txt);font-weight:600">{{ $p->canonical_name }}</td>
++            <td>{{ number_format($p->items) }}</td>
++            <td style="color:var(--faint);font-size:12.5px">{{ $p->created_by ?: '—' }}</td>
++            <td style="text-align:right"><button type="button" class="bn-btn" wire:click="undo({{ $p->id }})" @disabled(! $edit)>Remove</button></td>
++          </tr>
++        @endforeach
++        </tbody>
++      </table>
++    @else
++      <div class="bn-empty"><b>No pairings yet.</b>Pick a spelling under Likely duplicates, or add one by hand.
++        <div style="margin-top:12px;display:flex;gap:8px;justify-content:center"><button type="button" class="bn-btn" wire:click="setTab('suggested')">See likely duplicates</button><button type="button" class="bn-btn" wire:click="setTab('add')">Add a pairing</button></div></div>
++    @endif
++
++  @else
++    <form wire:submit="addPairing" class="bn-form">
++      <datalist id="bn-names">@foreach ($this->allNames() as $n)<option value="{{ $n }}"></option>@endforeach</datalist>
++      <label>Distributor spelling<input class="bn-in" list="bn-names" wire:model="from" placeholder="e.g. First Endurance"></label>
++      <label>Show it as<input class="bn-in" list="bn-names" wire:model="to" placeholder="e.g. 1st Endurance"></label>
++      <button type="submit" class="bn-btn p" @disabled(! $edit)>Save pairing</button>
++    </form>
++    @error('from')<div style="color:#f47c7c;font-size:12.5px">{{ $message }}</div>@enderror
++    @error('to')<div style="color:#f47c7c;font-size:12.5px">{{ $message }}</div>@enderror
++    @unless ($edit)<div style="color:var(--faint);font-size:12.5px">Your role can view brand names but not change them.</div>@endunless
++  @endif
++</div>
++</x-filament-panels::page>
+diff --git a/resources/views/filament/pages/distributor-velocity.blade.php b/resources/views/filament/pages/distributor-velocity.blade.php
+index c3a8d119..2816cc7c 100644
+--- a/resources/views/filament/pages/distributor-velocity.blade.php
++++ b/resources/views/filament/pages/distributor-velocity.blade.php
+@@ -136,46 +136,11 @@
+ 
+     <div class="vl-bar">
+       <input type="search" class="vl-in" wire:model.live.debounce.400ms="search" placeholder="Search item, brand or SKU">
+-      {{-- MARKER-VELOCITY-BRAND-PICKER: works like the tenant brand picker (x-tenant.searchable-select):
+-           a button, then a panel with "Type to filter", matches highlighted, a tick on the
+-           current brand and a count. Brands A–Z. --}}
+-      @php
+-        $brandList = $this->brands();
+-        $brandOpts = collect($brandList)->map(fn ($n, $b) => ['v' => (string) $b, 'n' => $n])->values()->all();
+-      @endphp
+-      <div class="vl-ssel" wire:key="brand-picker-{{ $vendor ?: 'all' }}"
+-           x-data="{
+-             open: false, q: '', hl: 0, opts: @js($brandOpts), cur: @js($brand),
+-             get shown() { const q = this.q.trim().toLowerCase(); return q === '' ? this.opts : this.opts.filter(o => o.v.toLowerCase().includes(q)); },
+-             mark(s) { const q = this.q.trim(); const e = t => t.replace(/[&<>&quot;]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','&quot;':'&quot;'}[c]));
+-               if (!q) return e(s); const i = s.toLowerCase().indexOf(q.toLowerCase()); return i < 0 ? e(s) : e(s.slice(0, i)) + '<mark>' + e(s.slice(i, i + q.length)) + '</mark>' + e(s.slice(i + q.length)); },
+-             toggle() { this.open = !this.open; if (this.open) { this.q = ''; this.hl = 0; this.$nextTick(() => this.$refs.q.focus()); } },
+-             pick(v) { this.cur = v; this.open = false; $wire.set('brand', v); },
+-             move(d) { const max = this.shown.length; this.hl = Math.max(0, Math.min(max, this.hl + d)); this.$nextTick(() => { const el = this.$refs.list.querySelector('.is-hl'); if (el) el.scrollIntoView({ block: 'nearest' }); }); },
+-             enter() { if (this.q.trim() === '' && this.hl === 0) return this.pick(''); const o = this.shown[this.q.trim() === '' ? this.hl - 1 : this.hl]; if (o) this.pick(o.v); }
+-           }"
+-           @click.outside="open = false" @keydown.escape.window="open = false">
+-        <button type="button" class="vl-ssel-btn" @click="toggle()" aria-haspopup="listbox">
+-          <span :class="cur === '' ? 'is-any' : ''" x-text="cur === '' ? 'All brands' : cur">{{ $brand ?: 'All brands' }}</span>
+-          <span class="vl-ssel-chev" aria-hidden="true">&#9662;</span>
+-        </button>
+-        <div class="vl-ssel-panel" x-show="open" x-cloak>
+-          <div class="vl-ssel-search"><input type="text" x-ref="q" x-model="q" @input="hl = 0" placeholder="Type to filter&hellip;" autocomplete="off"
+-               @keydown.arrow-down.prevent="move(1)" @keydown.arrow-up.prevent="move(-1)" @keydown.enter.prevent="enter()"></div>
+-          <div class="vl-ssel-list" role="listbox" x-ref="list">
+-            <template x-if="q.trim() === ''">
+-              <div class="vl-ssel-opt" :class="{ 'is-sel': cur === '', 'is-hl': hl === 0 }" @click="pick('')" role="option"><span>All brands</span><span class="vl-ssel-tick">&#10003;</span></div>
+-            </template>
+-            <template x-for="(o, i) in shown" :key="o.v">
+-              <div class="vl-ssel-opt" :class="{ 'is-sel': cur === o.v, 'is-hl': hl === (q.trim() === '' ? i + 1 : i) }" @click="pick(o.v)" role="option">
+-                <span x-html="mark(o.v)"></span><span class="vl-ssel-n" x-text="o.n.toLocaleString()"></span><span class="vl-ssel-tick">&#10003;</span>
+-              </div>
+-            </template>
+-            <div class="vl-ssel-none" x-show="q.trim() !== '' && shown.length === 0">No brand matches “<span x-text="q"></span>”.</div>
+-          </div>
+-          <div class="vl-ssel-foot" x-text="q.trim() === '' ? opts.length.toLocaleString() + ' brands' : shown.length.toLocaleString() + ' of ' + opts.length.toLocaleString() + ' brands'"></div>
+-        </div>
+-      </div>
++      {{-- MARKER-VELOCITY-BRAND-PICKER / category: one searchable picker each, A–Z --}}
++      @include('filament.pages.partials.velocity-picker', ['prop' => 'brand', 'cur' => $brand, 'any' => 'All brands', 'noun' => 'brands', 'one' => 'brand',
++        'opts' => collect($this->brands())->map(fn ($n, $b) => ['v' => (string) $b, 'n' => $n])->values()->all()])
++      @include('filament.pages.partials.velocity-picker', ['prop' => 'category', 'cur' => $category, 'any' => 'All categories', 'noun' => 'categories', 'one' => 'category',
++        'opts' => collect($this->categories())->map(fn ($n, $b) => ['v' => (string) $b, 'n' => $n])->values()->all()])
+       <div class="vl-seg">
+         @foreach (\App\Filament\Pages\DistributorVelocity::VIEWS as $k => $label)
+           <button type="button" wire:click="setView('{{ $k }}')" class="{{ $mode === $k ? 'on' : '' }}">{{ $label }}</button>
+@@ -191,7 +156,7 @@
+     </div>
+ 
+     @if ($this->searching())
+-      <div class="vl-mut" style="font-size:12.5px;margin-top:-6px">Searching every item{{ $vendor ? ' at ' . $vendor : '' }}{{ $brand ? ' from ' . $brand : '' }} — the view above only sets the order while you search.</div>
++      <div class="vl-mut" style="font-size:12.5px;margin-top:-6px">Searching every item{{ $vendor ? ' at ' . $vendor : '' }}{{ $brand ? ' from ' . $brand : '' }}{{ $category ? ' in ' . $category : '' }} — the view above only sets the order while you search.</div>
+     @endif
+     <div style="overflow-x:auto">
+     <table class="vl-tbl">
+diff --git a/resources/views/filament/pages/partials/velocity-picker.blade.php b/resources/views/filament/pages/partials/velocity-picker.blade.php
+new file mode 100644
+index 00000000..ab43cd29
+--- /dev/null
++++ b/resources/views/filament/pages/partials/velocity-picker.blade.php
+@@ -0,0 +1,36 @@
++{{-- MARKER-VELOCITY-PICKER: the tenant searchable-select (x-tenant.searchable-select), in master
++     admin colours: a button, then a panel with "Type to filter", matches highlighted, a tick on
++     the current choice and a count. Options A–Z. Params: prop, opts [{v,n}], cur, any, noun, one. --}}
++      <div class="vl-ssel" wire:key="{{ $prop }}-picker-{{ $vendor ?: 'all' }}"
++           x-data="{
++             open: false, q: '', hl: 0, opts: @js($opts), cur: @js($cur),
++             get shown() { const q = this.q.trim().toLowerCase(); return q === '' ? this.opts : this.opts.filter(o => o.v.toLowerCase().includes(q)); },
++             mark(s) { const q = this.q.trim(); const e = t => t.replace(/[&<>&quot;]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','&quot;':'&quot;'}[c]));
++               if (!q) return e(s); const i = s.toLowerCase().indexOf(q.toLowerCase()); return i < 0 ? e(s) : e(s.slice(0, i)) + '<mark>' + e(s.slice(i, i + q.length)) + '</mark>' + e(s.slice(i + q.length)); },
++             toggle() { this.open = !this.open; if (this.open) { this.q = ''; this.hl = 0; this.$nextTick(() => this.$refs.q.focus()); } },
++             pick(v) { this.cur = v; this.open = false; $wire.set(@js($prop), v); },
++             move(d) { const max = this.shown.length; this.hl = Math.max(0, Math.min(max, this.hl + d)); this.$nextTick(() => { const el = this.$refs.list.querySelector('.is-hl'); if (el) el.scrollIntoView({ block: 'nearest' }); }); },
++             enter() { if (this.q.trim() === '' && this.hl === 0) return this.pick(''); const o = this.shown[this.q.trim() === '' ? this.hl - 1 : this.hl]; if (o) this.pick(o.v); }
++           }"
++           @click.outside="open = false" @keydown.escape.window="open = false">
++        <button type="button" class="vl-ssel-btn" @click="toggle()" aria-haspopup="listbox">
++          <span :class="cur === '' ? 'is-any' : ''" x-text="cur === '' ? @js($any) : cur">{{ $cur ?: $any }}</span>
++          <span class="vl-ssel-chev" aria-hidden="true">&#9662;</span>
++        </button>
++        <div class="vl-ssel-panel" x-show="open" x-cloak>
++          <div class="vl-ssel-search"><input type="text" x-ref="q" x-model="q" @input="hl = 0" placeholder="Type to filter&hellip;" autocomplete="off"
++               @keydown.arrow-down.prevent="move(1)" @keydown.arrow-up.prevent="move(-1)" @keydown.enter.prevent="enter()"></div>
++          <div class="vl-ssel-list" role="listbox" x-ref="list">
++            <template x-if="q.trim() === ''">
++              <div class="vl-ssel-opt" :class="{ 'is-sel': cur === '', 'is-hl': hl === 0 }" @click="pick('')" role="option"><span>{{ $any }}</span><span class="vl-ssel-tick">&#10003;</span></div>
++            </template>
++            <template x-for="(o, i) in shown" :key="o.v">
++              <div class="vl-ssel-opt" :class="{ 'is-sel': cur === o.v, 'is-hl': hl === (q.trim() === '' ? i + 1 : i) }" @click="pick(o.v)" role="option">
++                <span x-html="mark(o.v)"></span><span class="vl-ssel-n" x-text="o.n.toLocaleString()"></span><span class="vl-ssel-tick">&#10003;</span>
++              </div>
++            </template>
++            <div class="vl-ssel-none" x-show="q.trim() !== '' && shown.length === 0">No {{ $one }} matches “<span x-text="q"></span>”.</div>
++          </div>
++          <div class="vl-ssel-foot" x-text="q.trim() === '' ? opts.length.toLocaleString() + ' ' + @js($noun) : shown.length.toLocaleString() + ' of ' + opts.length.toLocaleString() + ' ' + @js($noun)"></div>
++        </div>
++      </div>

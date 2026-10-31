@@ -49,6 +49,7 @@ class DistributorVelocity extends Page
     public const PER_PAGE = [50, 100, 250, 500];
     public string $stock = 'in';   // in | out | all
     public string $brand = '';     // a catalog manufacturer; '' = every brand
+    public string $category = '';  // a catalog category; '' = every category
     public string $sort = '';      // a SORTS key; '' = the view's own order
     public string $dir = 'asc';
 
@@ -92,8 +93,11 @@ class DistributorVelocity extends Page
 
     public function updated($name): void
     {
-        if (in_array($name, ['search', 'hideEarly', 'vendor', 'mode', 'stock', 'brand', 'perPage'], true)) {
+        if (in_array($name, ['search', 'hideEarly', 'vendor', 'mode', 'stock', 'brand', 'category', 'perPage'], true)) {
             $this->page = 1;
+        }
+        if ($name === 'brand' && $this->category !== '' && ! array_key_exists($this->category, $this->categories())) {
+            $this->category = '';
         }
         if ($name === 'perPage' && ! in_array($this->perPage, self::PER_PAGE, true)) {
             $this->perPage = 100;
@@ -122,11 +126,14 @@ class DistributorVelocity extends Page
         if ($this->brand !== '' && ! array_key_exists($this->brand, $this->brands())) {
             $this->brand = '';
         }
+        if ($this->category !== '' && ! array_key_exists($this->category, $this->categories())) {
+            $this->category = '';
+        }
     }
     public function goPage(int $p): void { $this->page = max(1, $p); }
     public function select(int $id): void { $this->selected = $id; }
     public function closeDetail(): void { $this->selected = null; }
-    public function clearFilters(): void { $this->search = ''; $this->hideEarly = false; $this->vendor = ''; $this->mode = 'run'; $this->stock = 'in'; $this->brand = ''; $this->sort = ''; $this->page = 1; }
+    public function clearFilters(): void { $this->search = ''; $this->hideEarly = false; $this->vendor = ''; $this->mode = 'run'; $this->stock = 'in'; $this->brand = ''; $this->category = ''; $this->sort = ''; $this->page = 1; }
 
     /** Brands with tracked items for the chosen distributor, A–Z. */
     public function brands(): array
@@ -137,6 +144,18 @@ class DistributorVelocity extends Page
             ->whereNotNull('c.manufacturer')->where('c.manufacturer', '!=', '')
             ->selectRaw('c.manufacturer AS b, COUNT(*) AS n')->groupBy('c.manufacturer')
             ->orderByRaw('LOWER(c.manufacturer)')->pluck('n', 'b')->map(fn ($n) => (int) $n)->all();
+    }
+
+    /** Categories with tracked items for the chosen distributor, A–Z. */
+    public function categories(): array
+    {
+        return DB::table('distributor_stock_summary as s')
+            ->join('platform_distributor_catalogs as c', 'c.id', '=', 's.distributor_catalog_id')
+            ->when($this->vendor !== '', fn ($q) => $q->where('s.distributor_code', $this->vendor))
+            ->when($this->brand !== '', fn ($q) => $q->where('c.manufacturer', $this->brand))
+            ->whereNotNull('c.category')->where('c.category', '!=', '')
+            ->selectRaw('c.category AS k, COUNT(*) AS n')->groupBy('c.category')
+            ->orderByRaw('LOWER(c.category)')->pluck('n', 'k')->map(fn ($n) => (int) $n)->all();
     }
 
     /** True while a search term is in: the view's own filter is paused so every match shows. */
@@ -198,7 +217,8 @@ class DistributorVelocity extends Page
             ->when($this->hideEarly, fn ($q) => $q->whereNotNull('s.rate_per_day'))
             ->when($this->stock === 'in', fn ($q) => $q->where('s.avail', '>', 0))
             ->when($this->stock === 'out', fn ($q) => $q->where('s.avail', '=', 0))
-            ->when($this->brand !== '', fn ($q) => $q->where('c.manufacturer', $this->brand));
+            ->when($this->brand !== '', fn ($q) => $q->where('c.manufacturer', $this->brand))
+            ->when($this->category !== '', fn ($q) => $q->where('c.category', $this->category));
 
         $term = trim($this->search);
         if ($term !== '') {

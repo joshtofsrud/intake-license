@@ -136,46 +136,11 @@
 
     <div class="vl-bar">
       <input type="search" class="vl-in" wire:model.live.debounce.400ms="search" placeholder="Search item, brand or SKU">
-      {{-- MARKER-VELOCITY-BRAND-PICKER: works like the tenant brand picker (x-tenant.searchable-select):
-           a button, then a panel with "Type to filter", matches highlighted, a tick on the
-           current brand and a count. Brands A–Z. --}}
-      @php
-        $brandList = $this->brands();
-        $brandOpts = collect($brandList)->map(fn ($n, $b) => ['v' => (string) $b, 'n' => $n])->values()->all();
-      @endphp
-      <div class="vl-ssel" wire:key="brand-picker-{{ $vendor ?: 'all' }}"
-           x-data="{
-             open: false, q: '', hl: 0, opts: @js($brandOpts), cur: @js($brand),
-             get shown() { const q = this.q.trim().toLowerCase(); return q === '' ? this.opts : this.opts.filter(o => o.v.toLowerCase().includes(q)); },
-             mark(s) { const q = this.q.trim(); const e = t => t.replace(/[&<>&quot;]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','&quot;':'&quot;'}[c]));
-               if (!q) return e(s); const i = s.toLowerCase().indexOf(q.toLowerCase()); return i < 0 ? e(s) : e(s.slice(0, i)) + '<mark>' + e(s.slice(i, i + q.length)) + '</mark>' + e(s.slice(i + q.length)); },
-             toggle() { this.open = !this.open; if (this.open) { this.q = ''; this.hl = 0; this.$nextTick(() => this.$refs.q.focus()); } },
-             pick(v) { this.cur = v; this.open = false; $wire.set('brand', v); },
-             move(d) { const max = this.shown.length; this.hl = Math.max(0, Math.min(max, this.hl + d)); this.$nextTick(() => { const el = this.$refs.list.querySelector('.is-hl'); if (el) el.scrollIntoView({ block: 'nearest' }); }); },
-             enter() { if (this.q.trim() === '' && this.hl === 0) return this.pick(''); const o = this.shown[this.q.trim() === '' ? this.hl - 1 : this.hl]; if (o) this.pick(o.v); }
-           }"
-           @click.outside="open = false" @keydown.escape.window="open = false">
-        <button type="button" class="vl-ssel-btn" @click="toggle()" aria-haspopup="listbox">
-          <span :class="cur === '' ? 'is-any' : ''" x-text="cur === '' ? 'All brands' : cur">{{ $brand ?: 'All brands' }}</span>
-          <span class="vl-ssel-chev" aria-hidden="true">&#9662;</span>
-        </button>
-        <div class="vl-ssel-panel" x-show="open" x-cloak>
-          <div class="vl-ssel-search"><input type="text" x-ref="q" x-model="q" @input="hl = 0" placeholder="Type to filter&hellip;" autocomplete="off"
-               @keydown.arrow-down.prevent="move(1)" @keydown.arrow-up.prevent="move(-1)" @keydown.enter.prevent="enter()"></div>
-          <div class="vl-ssel-list" role="listbox" x-ref="list">
-            <template x-if="q.trim() === ''">
-              <div class="vl-ssel-opt" :class="{ 'is-sel': cur === '', 'is-hl': hl === 0 }" @click="pick('')" role="option"><span>All brands</span><span class="vl-ssel-tick">&#10003;</span></div>
-            </template>
-            <template x-for="(o, i) in shown" :key="o.v">
-              <div class="vl-ssel-opt" :class="{ 'is-sel': cur === o.v, 'is-hl': hl === (q.trim() === '' ? i + 1 : i) }" @click="pick(o.v)" role="option">
-                <span x-html="mark(o.v)"></span><span class="vl-ssel-n" x-text="o.n.toLocaleString()"></span><span class="vl-ssel-tick">&#10003;</span>
-              </div>
-            </template>
-            <div class="vl-ssel-none" x-show="q.trim() !== '' && shown.length === 0">No brand matches “<span x-text="q"></span>”.</div>
-          </div>
-          <div class="vl-ssel-foot" x-text="q.trim() === '' ? opts.length.toLocaleString() + ' brands' : shown.length.toLocaleString() + ' of ' + opts.length.toLocaleString() + ' brands'"></div>
-        </div>
-      </div>
+      {{-- MARKER-VELOCITY-BRAND-PICKER / category: one searchable picker each, A–Z --}}
+      @include('filament.pages.partials.velocity-picker', ['prop' => 'brand', 'cur' => $brand, 'any' => 'All brands', 'noun' => 'brands', 'one' => 'brand',
+        'opts' => collect($this->brands())->map(fn ($n, $b) => ['v' => (string) $b, 'n' => $n])->values()->all()])
+      @include('filament.pages.partials.velocity-picker', ['prop' => 'category', 'cur' => $category, 'any' => 'All categories', 'noun' => 'categories', 'one' => 'category',
+        'opts' => collect($this->categories())->map(fn ($n, $b) => ['v' => (string) $b, 'n' => $n])->values()->all()])
       <div class="vl-seg">
         @foreach (\App\Filament\Pages\DistributorVelocity::VIEWS as $k => $label)
           <button type="button" wire:click="setView('{{ $k }}')" class="{{ $mode === $k ? 'on' : '' }}">{{ $label }}</button>
@@ -191,7 +156,7 @@
     </div>
 
     @if ($this->searching())
-      <div class="vl-mut" style="font-size:12.5px;margin-top:-6px">Searching every item{{ $vendor ? ' at ' . $vendor : '' }}{{ $brand ? ' from ' . $brand : '' }} — the view above only sets the order while you search.</div>
+      <div class="vl-mut" style="font-size:12.5px;margin-top:-6px">Searching every item{{ $vendor ? ' at ' . $vendor : '' }}{{ $brand ? ' from ' . $brand : '' }}{{ $category ? ' in ' . $category : '' }} — the view above only sets the order while you search.</div>
     @endif
     <div style="overflow-x:auto">
     <table class="vl-tbl">

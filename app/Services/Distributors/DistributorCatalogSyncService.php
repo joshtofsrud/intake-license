@@ -515,6 +515,10 @@ class DistributorCatalogSyncService
         $canonical['last_synced_at']  = now();
         $canonical['is_active']       = true;
 
+        // MARKER-BRAND-NAMES: one brand, one spelling, as set in master admin.
+        // The distributor's own spelling stays in manufacturer_raw.
+        $canonical = \App\Support\BrandNames::applyTo($canonical);
+
         $composed = $this->composer->compose($code, [
             'brand'         => $canonical['manufacturer'] ?? null,
             'model'         => $canonical['name'] ?? null,

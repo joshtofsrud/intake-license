@@ -33,6 +33,7 @@ class PlatformDistributorCatalog extends Model
         'display_name',
         'display_subtitle',
         'manufacturer',
+        'manufacturer_raw', // MARKER-BRAND-NAMES: the distributor's own spelling
         'category',
         'description',
         'cost_cents',
