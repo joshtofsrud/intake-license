@@ -23,6 +23,9 @@
   .vl-seg { display:inline-flex; border:1px solid var(--line2); border-radius:8px; padding:2px; gap:2px; flex-wrap:wrap; }
   .vl-seg button { background:none; border:0; color:var(--dim); padding:4px 10px; border-radius:6px; font:inherit; font-size:12.5px; cursor:pointer; white-space:nowrap; }
   .vl-seg button.on { color:var(--txt); background:var(--vsoft); font-weight:600; }
+  .vl-sort { background:none; border:0; padding:0; font:inherit; color:inherit; cursor:pointer; white-space:nowrap; }
+  .vl-sort:hover, .vl-sort.on { color:var(--txt); }
+  .vl-sort i { font-style:normal; color:var(--vtext); margin-left:3px; }
   .vl-chk { font-size:12.5px; color:var(--dim); display:inline-flex; gap:6px; align-items:center; cursor:pointer; margin-left:auto; }
   .vl-tbl { width:100%; border-collapse:collapse; font-size:13.5px; }
   .vl-tbl th { font-size:11.5px; font-weight:500; color:var(--faint); text-align:left; padding:8px 10px; border-bottom:1px solid var(--line2); white-space:nowrap; }
@@ -71,7 +74,7 @@
 @endphp
 
 <div class="vl-root" style="display:flex;flex-direction:column;gap:18px">
-  <p class="sub">How fast each distributor's stock is moving, how many days it should last at that pace, and when more is due. Read from the nightly distributor sync — no shop sales data is used here.</p>
+  <p class="sub">How fast each distributor's stock is moving, how many days it should last at that pace, and when more is due. Read from each distributor every 4 hours — no shop sales data is used here.</p>
 
   <div class="vl-tabs">
     <button type="button" wire:click="setTab('items')" class="{{ $tab === 'items' ? 'on' : '' }}">Items</button>
@@ -90,7 +93,7 @@
 
     <div class="vl-sum">
       <div><b>{{ number_format($s['items']) }}</b><span>Items tracked</span><em>{{ $vendor ?: 'all distributors' }}</em></div>
-      <div><b>{{ number_format($s['with_rate']) }}</b><span>With a pace</span><em>{{ $s['items'] ? round($s['with_rate'] / $s['items'] * 100) : 0 }}% — fills in nightly</em></div>
+      <div><b>{{ number_format($s['with_rate']) }}</b><span>With a pace</span><em>{{ $s['items'] ? round($s['with_rate'] / $s['items'] * 100) : 0 }}% — fills in as sweeps run</em></div>
       <div><b>{{ number_format($s['under14']) }}</b><span>Under 14 days left</span><em>at current pace</em></div>
       <div><b>{{ number_format($s['due7']) }}</b><span>Arrivals due in 7 days</span><em>where a date is sent</em></div>
       <div><b style="font-size:15px;padding-top:9px">{{ $at($s['last_read'], 'M j, g:ia') }}</b><span>Last reading</span><em>{{ $tzLabel }}</em></div>
@@ -110,12 +113,24 @@
           <button type="button" wire:click="setView('{{ $k }}')" class="{{ $mode === $k ? 'on' : '' }}">{{ $label }}</button>
         @endforeach
       </div>
+      <div class="vl-seg">
+        @foreach (\App\Filament\Pages\DistributorVelocity::STOCK as $k => $label)
+          <button type="button" wire:click="setStock('{{ $k }}')" class="{{ $stock === $k ? 'on' : '' }}">{{ $label }}</button>
+        @endforeach
+      </div>
       <label class="vl-chk"><input type="checkbox" wire:model.live="hideEarly"> Hide items with too little history</label>
     </div>
 
     <div style="overflow-x:auto">
     <table class="vl-tbl">
-      <thead><tr><th>Item</th><th>Distributor</th><th class="r">In stock</th><th>Last 30 days</th><th class="r">Pace</th><th class="r">Days left</th><th>Next arrival</th><th class="r">Shops stocking</th><th>History</th></tr></thead>
+      @php
+        $sh = function ($key, $label, $right = false) use ($sort, $dir) {
+            $on = $sort === $key;
+            $arrow = $on ? ($dir === 'asc' ? '↑' : '↓') : '';
+            return '<th' . ($right ? ' class="r"' : '') . '><button type="button" class="vl-sort' . ($on ? ' on' : '') . '" wire:click="sortBy(\'' . $key . '\')" title="Sort by ' . e(strtolower($label)) . '">' . e($label) . ($arrow ? '<i>' . $arrow . '</i>' : '') . '</button></th>';
+        };
+      @endphp
+      <thead><tr>{!! $sh('item', 'Item') !!}{!! $sh('code', 'Distributor') !!}{!! $sh('stock', 'In stock', true) !!}<th title="Stock since the first reading, up to 30 days">Stock trend</th>{!! $sh('pace', 'Pace', true) !!}{!! $sh('days', 'Days left', true) !!}{!! $sh('arrival', 'Next arrival') !!}<th class="r">Shops stocking</th>{!! $sh('history', 'History') !!}</tr></thead>
       <tbody>
       @forelse ($res['rows'] as $r)
         @php $dl = $r->days_left === null ? null : (float) $r->days_left; $cls = $dl === null ? 'vl-mut' : ($dl < 14 ? 'red' : ($dl < 30 ? 'amber' : '')); @endphp
@@ -123,8 +138,8 @@
           <td class="vl-nm"><b>{{ $r->title ?: $r->distributor_variant_no }}</b><span>{{ trim(($r->brand ? $r->brand . ' · ' : '') . ($r->mpn ?: $r->distributor_variant_no)) }}</span></td>
           <td>{{ $r->distributor_code }}</td>
           <td class="r">{{ number_format((int) $r->avail) }}</td>
-          <td><svg width="80" height="22" viewBox="0 0 80 22" style="display:block"><polyline fill="none" stroke="#8b5cf6" stroke-width="1.6" points="{{ $r->spark }}"/></svg></td>
-          <td class="r">{{ $r->rate_per_day === null ? '—' : rtrim(rtrim(number_format((float) $r->rate_per_day, 1), '0'), '.') . ' / day' }}</td>
+          <td title="Since {{ $at($r->spark_from, 'M j, g:ia') }}"><svg width="80" height="22" viewBox="0 0 80 22" style="display:block"><polyline fill="none" stroke="#8b5cf6" stroke-width="1.6" points="{{ $r->spark }}"/></svg></td>
+          <td class="r" style="white-space:nowrap">{{ $r->rate_per_day === null ? '—' : rtrim(rtrim(number_format((float) $r->rate_per_day, 1), '0'), '.') . ' / day' }}</td>
           <td class="r"><span class="vl-dl {{ $cls }}">{{ $dl === null ? '—' : number_format($dl) . ' days' }}</span></td>
           <td>@if ($r->next_arrival_on)<span class="vl-chip ok">{{ \Carbon\Carbon::parse($r->next_arrival_on)->format('M j') }}</span>@else<span class="vl-chip">None sent</span>@endif</td>
           <td class="r">{{ $r->shops }}</td>
@@ -136,9 +151,10 @@
             <b>No readings yet.</b>Run the pull once after deploy, or wait for tonight's sync.
           @else
             <b>Nothing in this view yet.</b>
-            @if ($mode === 'run' || $mode === 'fast') Pace needs at least two nights of readings, so these fill in after the next sync. @else Try a different view or distributor. @endif
+            @if ($stock === 'out' && $mode === 'run') Running out only lists items that are still in stock. @elseif ($mode === 'run' || $mode === 'fast') Pace needs about half a day of sweeps, so these fill in as they run. @else Try a different view, stock filter or distributor. @endif
             <div style="display:flex;gap:8px;justify-content:center;margin-top:14px;flex-wrap:wrap">
               <button type="button" class="vl-btn" wire:click="clearFilters">Clear search and filters</button>
+              @if ($stock !== 'all')<button type="button" class="vl-btn" wire:click="setStock('all')">Show all stock</button>@endif
               <button type="button" class="vl-btn" wire:click="setView('arrival')">Show arrivals due</button>
               <button type="button" class="vl-btn" wire:click="setTab('coverage')">See data coverage</button>
             </div>
@@ -162,7 +178,7 @@
           <button type="button" class="vl-btn" wire:click="closeDetail">Close</button>
         </div>
         <div style="margin:18px 0 4px"><svg width="100%" height="96" viewBox="0 0 420 96" preserveAspectRatio="none" style="display:block"><polyline fill="none" stroke="#8b5cf6" stroke-width="1.8" points="{{ $d->chart }}"/></svg>
-          <div class="vl-mut" style="font-size:11.5px;display:flex;justify-content:space-between"><span>60 days ago</span><span>{{ $d->change_count }} {{ \Illuminate\Support\Str::plural('change', $d->change_count) }} recorded</span><span>Now</span></div></div>
+          <div class="vl-mut" style="font-size:11.5px;display:flex;justify-content:space-between"><span>{{ $at($d->chart_from, 'M j, g:ia') }}</span><span>{{ $d->change_count }} {{ \Illuminate\Support\Str::plural('change', $d->change_count) }} recorded</span><span>Now</span></div></div>
         <dl>
           <dt>In stock</dt><dd>{{ number_format((int) $d->avail) }}</dd>
           <dt>Average pace</dt><dd>{{ $d->rate_per_day === null ? 'Not enough history yet' : rtrim(rtrim(number_format((float) $d->rate_per_day, 2), '0'), '.') . ' per day' }}</dd>

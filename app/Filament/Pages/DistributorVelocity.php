@@ -45,6 +45,16 @@ class DistributorVelocity extends Page
     public string $search = '';
     public bool $hideEarly = false;
     public int $limit = 100;
+    public string $stock = 'in';   // in | out | all
+    public string $sort = '';      // a SORTS key; '' = the view's own order
+    public string $dir = 'asc';
+
+    /** Sortable columns -> SQL. Shops stocking is counted after the query, so it isn't sortable. */
+    public const SORTS = [
+        'item' => 'COALESCE(c.display_name, c.name)', 'code' => 's.distributor_code', 'stock' => 's.avail',
+        'pace' => 's.rate_per_day', 'days' => 's.days_left', 'arrival' => 's.next_arrival_on', 'history' => 's.readings',
+    ];
+    public const STOCK = ['in' => 'In stock', 'out' => 'Out of stock', 'all' => 'All'];
     public ?int $selected = null;
     public array $shop = [];
 
@@ -79,18 +89,29 @@ class DistributorVelocity extends Page
 
     public function updated($name): void
     {
-        if (in_array($name, ['search', 'hideEarly', 'vendor', 'mode'], true)) {
+        if (in_array($name, ['search', 'hideEarly', 'vendor', 'mode', 'stock'], true)) {
             $this->limit = 100;
         }
     }
 
     public function setTab(string $t): void { if (in_array($t, ['items', 'coverage', 'shops'], true)) $this->tab = $t; }
-    public function setView(string $v): void { if (isset(self::VIEWS[$v])) { $this->mode = $v; $this->limit = 100; } }
+    public function setView(string $v): void { if (isset(self::VIEWS[$v])) { $this->mode = $v; $this->sort = ''; $this->limit = 100; } }
+    public function setStock(string $v): void { if (isset(self::STOCK[$v])) { $this->stock = $v; $this->limit = 100; } }
+
+    /** Click a header: sort by it; click again to flip; a third time returns to the view's order. */
+    public function sortBy(string $col): void
+    {
+        if (! isset(self::SORTS[$col])) return;
+        if ($this->sort !== $col) { $this->sort = $col; $this->dir = in_array($col, ['pace', 'stock', 'history'], true) ? 'desc' : 'asc'; }
+        elseif ($this->dir === (in_array($col, ['pace', 'stock', 'history'], true) ? 'desc' : 'asc')) { $this->dir = $this->dir === 'asc' ? 'desc' : 'asc'; }
+        else { $this->sort = ''; }
+        $this->limit = 100;
+    }
     public function setVendor(string $c): void { $this->vendor = $c; $this->limit = 100; }
     public function showMore(): void { $this->limit += 100; }
     public function select(int $id): void { $this->selected = $id; }
     public function closeDetail(): void { $this->selected = null; }
-    public function clearFilters(): void { $this->search = ''; $this->hideEarly = false; $this->vendor = ''; $this->mode = 'run'; $this->limit = 100; }
+    public function clearFilters(): void { $this->search = ''; $this->hideEarly = false; $this->vendor = ''; $this->mode = 'run'; $this->stock = 'in'; $this->sort = ''; $this->limit = 100; }
 
     public function saveShop(): void
     {
@@ -134,7 +155,9 @@ class DistributorVelocity extends Page
             ->leftJoin('platform_distributor_catalogs as c', 'c.id', '=', 's.distributor_catalog_id')
             ->select('s.*', DB::raw('COALESCE(c.display_name, c.name) AS title'), 'c.manufacturer AS brand', 'c.manufacturer_sku AS mpn')
             ->when($this->vendor !== '', fn ($q) => $q->where('s.distributor_code', $this->vendor))
-            ->when($this->hideEarly, fn ($q) => $q->where('s.readings', '>=', 3)->whereNotNull('s.rate_per_day'));
+            ->when($this->hideEarly, fn ($q) => $q->whereNotNull('s.rate_per_day'))
+            ->when($this->stock === 'in', fn ($q) => $q->where('s.avail', '>', 0))
+            ->when($this->stock === 'out', fn ($q) => $q->where('s.avail', '=', 0));
 
         $term = trim($this->search);
         if ($term !== '') {
@@ -161,6 +184,11 @@ class DistributorVelocity extends Page
             default:
                 $q->whereNotNull('s.days_left')->orderBy('s.days_left');
         }
+        if ($this->sort !== '' && isset(self::SORTS[$this->sort])) {
+            $col = self::SORTS[$this->sort];
+            $dir = $this->dir === 'desc' ? 'DESC' : 'ASC';
+            $q->reorder()->orderByRaw("{$col} IS NULL")->orderByRaw("{$col} {$dir}")->orderBy('s.id');
+        }
         return $q;
     }
 
@@ -177,7 +205,7 @@ class DistributorVelocity extends Page
             ->selectRaw('v.distributor_catalog_id, COUNT(DISTINCT i.tenant_id) AS n')
             ->groupBy('v.distributor_catalog_id')->pluck('n', 'distributor_catalog_id')->all() : [];
 
-        $since = now()->subDays(30);
+        $since = now()->subDays(30);   // the trend shows up to 30 days, or since the first reading if newer
         $hist = [];
         if ($rows->isNotEmpty()) {
             DB::table('distributor_stock_changes')
@@ -192,7 +220,9 @@ class DistributorVelocity extends Page
         foreach ($rows as $r) {
             $r->shops = (int) ($shops[$r->distributor_catalog_id] ?? 0);
             $r->conf = StockVelocityRecorder::confidence($r);
-            $r->spark = $this->spark($hist[$r->distributor_code . '|' . $r->distributor_variant_no] ?? [], (int) $r->avail, $since, 80, 22);
+            $from = $this->windowStart($r, $since);
+            $r->spark = $this->spark($hist[$r->distributor_code . '|' . $r->distributor_variant_no] ?? [], (int) $r->avail, $from, 80, 22);
+            $r->spark_from = $from;
             $out[] = $r;
         }
         return ['rows' => $out, 'total' => $total];
@@ -210,7 +240,9 @@ class DistributorVelocity extends Page
         $changes = DB::table('distributor_stock_changes')
             ->where('distributor_code', $r->distributor_code)->where('distributor_variant_no', $r->distributor_variant_no)
             ->where('recorded_at', '>=', $since)->orderBy('recorded_at')->get(['avail', 'recorded_at'])->all();
-        $r->chart = $this->spark($changes, (int) $r->avail, $since, 420, 96);
+        $from = $this->windowStart($r, $since);
+        $r->chart = $this->spark($changes, (int) $r->avail, $from, 420, 96);
+        $r->chart_from = $from;
         $r->change_count = count($changes);
         $r->conf = StockVelocityRecorder::confidence($r);
         $r->shops = $r->distributor_catalog_id ? (int) DB::table('tenant_inventory_item_vendors as v')
@@ -220,9 +252,20 @@ class DistributorVelocity extends Page
     }
 
     /**
-     * Step line of stock over the window as an SVG polyline's points. Before
-     * the first change in the window the line holds at that change's previous
-     * value (or the first value we have).
+     * The chart starts at the item's first reading when that is newer than
+     * the window, so a day of history fills the width instead of being
+     * squeezed into the last pixels of a 30-day axis.
+     */
+    private function windowStart(object $r, Carbon $since): Carbon
+    {
+        $first = $r->first_seen_at ? Carbon::parse($r->first_seen_at, 'UTC') : null;
+        return ($first && $first->gt($since)) ? $first : $since->copy();
+    }
+
+    /**
+     * Step line of stock over the window as an SVG polyline's points, scaled
+     * from zero so an item at 0 sits on the floor. Before the first change in
+     * the window the line holds at that change's value.
      */
     private function spark(array $changes, int $current, Carbon $since, int $w, int $h): string
     {
