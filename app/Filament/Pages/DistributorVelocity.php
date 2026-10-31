@@ -113,13 +113,22 @@ class DistributorVelocity extends Page
         else { $this->sort = ''; }
         $this->page = 1;
     }
-    public function setVendor(string $c): void { $this->vendor = $c; $this->page = 1; }
+    public function setVendor(string $c): void
+    {
+        $this->vendor = $c;
+        $this->page = 1;
+        // a brand picked on one distributor must not carry over to one that
+        // doesn't stock it (SRAM chosen on BTI was shown as a Shimano brand)
+        if ($this->brand !== '' && ! array_key_exists($this->brand, $this->brands())) {
+            $this->brand = '';
+        }
+    }
     public function goPage(int $p): void { $this->page = max(1, $p); }
     public function select(int $id): void { $this->selected = $id; }
     public function closeDetail(): void { $this->selected = null; }
     public function clearFilters(): void { $this->search = ''; $this->hideEarly = false; $this->vendor = ''; $this->mode = 'run'; $this->stock = 'in'; $this->brand = ''; $this->sort = ''; $this->page = 1; }
 
-    /** Brands with tracked items for the chosen distributor, most items first. */
+    /** Brands with tracked items for the chosen distributor, A–Z. */
     public function brands(): array
     {
         return DB::table('distributor_stock_summary as s')
@@ -127,7 +136,7 @@ class DistributorVelocity extends Page
             ->when($this->vendor !== '', fn ($q) => $q->where('s.distributor_code', $this->vendor))
             ->whereNotNull('c.manufacturer')->where('c.manufacturer', '!=', '')
             ->selectRaw('c.manufacturer AS b, COUNT(*) AS n')->groupBy('c.manufacturer')
-            ->orderByDesc('n')->limit(600)->pluck('n', 'b')->map(fn ($n) => (int) $n)->all();
+            ->orderByRaw('LOWER(c.manufacturer)')->pluck('n', 'b')->map(fn ($n) => (int) $n)->all();
     }
 
     /** True while a search term is in: the view's own filter is paused so every match shows. */

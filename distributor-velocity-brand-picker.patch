@@ -1,0 +1,144 @@
+diff --git a/app/Filament/Pages/DistributorVelocity.php b/app/Filament/Pages/DistributorVelocity.php
+index 46d94ca3..396cbc29 100644
+--- a/app/Filament/Pages/DistributorVelocity.php
++++ b/app/Filament/Pages/DistributorVelocity.php
+@@ -113,13 +113,22 @@ class DistributorVelocity extends Page
+         else { $this->sort = ''; }
+         $this->page = 1;
+     }
+-    public function setVendor(string $c): void { $this->vendor = $c; $this->page = 1; }
++    public function setVendor(string $c): void
++    {
++        $this->vendor = $c;
++        $this->page = 1;
++        // a brand picked on one distributor must not carry over to one that
++        // doesn't stock it (SRAM chosen on BTI was shown as a Shimano brand)
++        if ($this->brand !== '' && ! array_key_exists($this->brand, $this->brands())) {
++            $this->brand = '';
++        }
++    }
+     public function goPage(int $p): void { $this->page = max(1, $p); }
+     public function select(int $id): void { $this->selected = $id; }
+     public function closeDetail(): void { $this->selected = null; }
+     public function clearFilters(): void { $this->search = ''; $this->hideEarly = false; $this->vendor = ''; $this->mode = 'run'; $this->stock = 'in'; $this->brand = ''; $this->sort = ''; $this->page = 1; }
+ 
+-    /** Brands with tracked items for the chosen distributor, most items first. */
++    /** Brands with tracked items for the chosen distributor, A–Z. */
+     public function brands(): array
+     {
+         return DB::table('distributor_stock_summary as s')
+@@ -127,7 +136,7 @@ class DistributorVelocity extends Page
+             ->when($this->vendor !== '', fn ($q) => $q->where('s.distributor_code', $this->vendor))
+             ->whereNotNull('c.manufacturer')->where('c.manufacturer', '!=', '')
+             ->selectRaw('c.manufacturer AS b, COUNT(*) AS n')->groupBy('c.manufacturer')
+-            ->orderByDesc('n')->limit(600)->pluck('n', 'b')->map(fn ($n) => (int) $n)->all();
++            ->orderByRaw('LOWER(c.manufacturer)')->pluck('n', 'b')->map(fn ($n) => (int) $n)->all();
+     }
+ 
+     /** True while a search term is in: the view's own filter is paused so every match shows. */
+diff --git a/resources/views/filament/pages/distributor-velocity.blade.php b/resources/views/filament/pages/distributor-velocity.blade.php
+index 3a6bbc5f..c3a8d119 100644
+--- a/resources/views/filament/pages/distributor-velocity.blade.php
++++ b/resources/views/filament/pages/distributor-velocity.blade.php
+@@ -19,12 +19,35 @@
+   .vl-sum span { font-size:12.5px; color:var(--dim); }
+   .vl-sum em { font-style:normal; font-size:12px; color:var(--faint); display:block; }
+   .vl-bar { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+-  .vl-in { background:transparent; border:1px solid var(--line2); border-radius:7px; padding:6px 10px; font:inherit; font-size:13px; color:inherit; min-width:240px; }
++  .vl-in { background:transparent; border:1px solid var(--line2); border-radius:7px; padding:6px 10px; font:inherit; font-size:13px; color:inherit; min-width:200px; }
+   /* one chevron: Filament's form CSS also paints one on every select and it tiles under our background */
+   .vl-root select.vl-in { -webkit-appearance:none; appearance:none; padding-right:30px; background-color:transparent;
+     background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' fill='none' stroke='%23a3a3ab' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 4.5l3 3 3-3'/%3E%3C/svg%3E") !important;
+     background-repeat:no-repeat !important; background-position:right 10px center !important; background-size:12px 12px !important; }
+   .vl-root select.vl-in option { background:var(--pop); color:var(--txt); }
++  /* brand picker: the tenant searchable-select, in this page's colours */
++  .vl-ssel { position:relative; min-width:190px; max-width:240px; }
++  .vl-ssel-btn { width:100%; display:flex; align-items:center; justify-content:space-between; gap:10px; background:transparent; border:1px solid var(--line2);
++    border-radius:7px; padding:6px 10px; color:inherit; font:inherit; font-size:13px; cursor:pointer; text-align:left; }
++  .vl-ssel-btn:hover { border-color:var(--dim); }
++  .vl-ssel-btn > span:first-child { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
++  .vl-ssel-btn .is-any { color:var(--dim); }
++  .vl-ssel-chev { flex:0 0 auto; font-size:10px; opacity:.5; }
++  .vl-ssel-panel { position:absolute; z-index:40; top:calc(100% + 6px); left:0; width:280px; background:var(--pop); border:1px solid var(--line2);
++    border-radius:8px; box-shadow:0 16px 40px rgba(0,0,0,.35); overflow:hidden; }
++  .vl-ssel-search { padding:9px; border-bottom:1px solid var(--line); }
++  .vl-ssel-search input { width:100%; background:transparent; border:1px solid var(--line2); border-radius:7px; padding:7px 10px; color:inherit; font:inherit; font-size:13px; }
++  .vl-ssel-search input:focus { outline:none; border-color:var(--violet); }
++  .vl-ssel-list { max-height:280px; overflow-y:auto; padding:4px; }
++  .vl-ssel-opt { display:flex; align-items:center; gap:10px; padding:7px 10px; border-radius:6px; font-size:13px; cursor:pointer; color:var(--txt); }
++  .vl-ssel-opt > span:first-child { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
++  .vl-ssel-opt:hover, .vl-ssel-opt.is-hl { background:var(--hover); }
++  .vl-ssel-opt.is-sel { color:var(--vtext); font-weight:600; }
++  .vl-ssel-opt mark { background:transparent; color:var(--vtext); font-weight:700; }
++  .vl-ssel-n { font-size:11.5px; color:var(--faint); font-variant-numeric:tabular-nums; }
++  .vl-ssel-tick { visibility:hidden; font-size:11px; } .vl-ssel-opt.is-sel .vl-ssel-tick { visibility:visible; }
++  .vl-ssel-none { padding:16px 12px; font-size:12.5px; color:var(--dim); text-align:center; }
++  .vl-ssel-foot { padding:7px 11px; border-top:1px solid var(--line); font-size:11px; color:var(--dim); }
+   .vl-seg { display:inline-flex; border:1px solid var(--line2); border-radius:8px; padding:2px; gap:2px; flex-wrap:wrap; }
+   .vl-seg button { background:none; border:0; color:var(--dim); padding:4px 10px; border-radius:6px; font:inherit; font-size:12.5px; cursor:pointer; white-space:nowrap; }
+   .vl-seg button.on { color:var(--txt); background:var(--vsoft); font-weight:600; }
+@@ -112,13 +135,47 @@
+     </div>
+ 
+     <div class="vl-bar">
+-      <input type="search" class="vl-in" wire:model.live.debounce.400ms="search" placeholder="Search item, brand, SKU or variant">
+-      @php $brandList = $this->brands(); @endphp
+-      <select class="vl-in" style="min-width:170px;max-width:230px" wire:model.live="brand" aria-label="Brand">
+-        <option value="">All brands ({{ number_format(count($brandList)) }})</option>
+-        @if ($brand !== '' && ! isset($brandList[$brand]))<option value="{{ $brand }}">{{ $brand }}</option>@endif
+-        @foreach ($brandList as $b => $n)<option value="{{ $b }}">{{ $b }} · {{ number_format($n) }}</option>@endforeach
+-      </select>
++      <input type="search" class="vl-in" wire:model.live.debounce.400ms="search" placeholder="Search item, brand or SKU">
++      {{-- MARKER-VELOCITY-BRAND-PICKER: works like the tenant brand picker (x-tenant.searchable-select):
++           a button, then a panel with "Type to filter", matches highlighted, a tick on the
++           current brand and a count. Brands A–Z. --}}
++      @php
++        $brandList = $this->brands();
++        $brandOpts = collect($brandList)->map(fn ($n, $b) => ['v' => (string) $b, 'n' => $n])->values()->all();
++      @endphp
++      <div class="vl-ssel" wire:key="brand-picker-{{ $vendor ?: 'all' }}"
++           x-data="{
++             open: false, q: '', hl: 0, opts: @js($brandOpts), cur: @js($brand),
++             get shown() { const q = this.q.trim().toLowerCase(); return q === '' ? this.opts : this.opts.filter(o => o.v.toLowerCase().includes(q)); },
++             mark(s) { const q = this.q.trim(); const e = t => t.replace(/[&<>&quot;]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','&quot;':'&quot;'}[c]));
++               if (!q) return e(s); const i = s.toLowerCase().indexOf(q.toLowerCase()); return i < 0 ? e(s) : e(s.slice(0, i)) + '<mark>' + e(s.slice(i, i + q.length)) + '</mark>' + e(s.slice(i + q.length)); },
++             toggle() { this.open = !this.open; if (this.open) { this.q = ''; this.hl = 0; this.$nextTick(() => this.$refs.q.focus()); } },
++             pick(v) { this.cur = v; this.open = false; $wire.set('brand', v); },
++             move(d) { const max = this.shown.length; this.hl = Math.max(0, Math.min(max, this.hl + d)); this.$nextTick(() => { const el = this.$refs.list.querySelector('.is-hl'); if (el) el.scrollIntoView({ block: 'nearest' }); }); },
++             enter() { if (this.q.trim() === '' && this.hl === 0) return this.pick(''); const o = this.shown[this.q.trim() === '' ? this.hl - 1 : this.hl]; if (o) this.pick(o.v); }
++           }"
++           @click.outside="open = false" @keydown.escape.window="open = false">
++        <button type="button" class="vl-ssel-btn" @click="toggle()" aria-haspopup="listbox">
++          <span :class="cur === '' ? 'is-any' : ''" x-text="cur === '' ? 'All brands' : cur">{{ $brand ?: 'All brands' }}</span>
++          <span class="vl-ssel-chev" aria-hidden="true">&#9662;</span>
++        </button>
++        <div class="vl-ssel-panel" x-show="open" x-cloak>
++          <div class="vl-ssel-search"><input type="text" x-ref="q" x-model="q" @input="hl = 0" placeholder="Type to filter&hellip;" autocomplete="off"
++               @keydown.arrow-down.prevent="move(1)" @keydown.arrow-up.prevent="move(-1)" @keydown.enter.prevent="enter()"></div>
++          <div class="vl-ssel-list" role="listbox" x-ref="list">
++            <template x-if="q.trim() === ''">
++              <div class="vl-ssel-opt" :class="{ 'is-sel': cur === '', 'is-hl': hl === 0 }" @click="pick('')" role="option"><span>All brands</span><span class="vl-ssel-tick">&#10003;</span></div>
++            </template>
++            <template x-for="(o, i) in shown" :key="o.v">
++              <div class="vl-ssel-opt" :class="{ 'is-sel': cur === o.v, 'is-hl': hl === (q.trim() === '' ? i + 1 : i) }" @click="pick(o.v)" role="option">
++                <span x-html="mark(o.v)"></span><span class="vl-ssel-n" x-text="o.n.toLocaleString()"></span><span class="vl-ssel-tick">&#10003;</span>
++              </div>
++            </template>
++            <div class="vl-ssel-none" x-show="q.trim() !== '' && shown.length === 0">No brand matches “<span x-text="q"></span>”.</div>
++          </div>
++          <div class="vl-ssel-foot" x-text="q.trim() === '' ? opts.length.toLocaleString() + ' brands' : shown.length.toLocaleString() + ' of ' + opts.length.toLocaleString() + ' brands'"></div>
++        </div>
++      </div>
+       <div class="vl-seg">
+         @foreach (\App\Filament\Pages\DistributorVelocity::VIEWS as $k => $label)
+           <button type="button" wire:click="setView('{{ $k }}')" class="{{ $mode === $k ? 'on' : '' }}">{{ $label }}</button>
+@@ -129,7 +186,8 @@
+           <button type="button" wire:click="setStock('{{ $k }}')" class="{{ $stock === $k ? 'on' : '' }}">{{ $label }}</button>
+         @endforeach
+       </div>
+-      <label class="vl-chk"><input type="checkbox" wire:model.live="hideEarly"> Hide items with too little history</label>
++      {{-- a toggle in the filter row instead of a checkbox that wrapped onto its own line --}}
++      <div class="vl-seg"><button type="button" wire:click="$toggle('hideEarly')" class="{{ $hideEarly ? 'on' : '' }}" title="Hide items with too little history to have a pace" aria-pressed="{{ $hideEarly ? 'true' : 'false' }}">{{ $hideEarly ? '✓ ' : '' }}Has a pace</button></div>
+     </div>
+ 
+     @if ($this->searching())
