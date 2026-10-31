@@ -418,13 +418,15 @@
         </div>
 
         <div class="px-6 py-5 overflow-y-auto bg-gray-50 dark:bg-white/5">
-            <div class="rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-white/10 p-5">
-                <pre class="font-sans text-gray-800 dark:text-gray-200"
-                     style="white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word;margin:0;font-size:14px;line-height:1.7;max-width:68ch">{{ $previewBody }}</pre>
+            {{-- MARKER-RAISE-PREVIEW-PAPER: the message on white in both admin themes, the way
+                 the recipient's mail app shows it, with the signature inside the same message --}}
+            <div class="rounded-xl border border-gray-200 dark:border-white/10 p-5" style="background:#fff;color:#1f2937">
+                <pre class="font-sans"
+                     style="white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word;margin:0;font-size:14px;line-height:1.7;max-width:68ch;color:#1f2937">{{ $previewBody }}</pre>
                 {{-- MARKER-UNIVERSAL-SIGNATURE: the signature as it goes out --}}
                 @php $rzSig = \App\Support\EmailSignature::html(); @endphp
                 @if ($rzSig !== '')
-                    <div style="background:#fff;border-radius:8px;padding:2px 12px 12px;margin-top:12px">{!! $rzSig !!}</div>
+                    <div style="margin-top:12px">{!! $rzSig !!}</div>
                 @endif
             </div>
         </div>
