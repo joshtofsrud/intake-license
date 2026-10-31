@@ -59,7 +59,6 @@ class DistributorVelocity extends Page
         'pace' => 's.rate_per_day', 'days' => 's.days_left', 'arrival' => 's.next_arrival_on', 'history' => 's.readings',
     ];
     public const STOCK = ['in' => 'In stock', 'out' => 'Out of stock', 'all' => 'All'];
-    public ?int $selected = null;
     public array $shop = [];
 
     public function mount(): void
@@ -131,8 +130,6 @@ class DistributorVelocity extends Page
         }
     }
     public function goPage(int $p): void { $this->page = max(1, $p); }
-    public function select(int $id): void { $this->selected = $id; }
-    public function closeDetail(): void { $this->selected = null; }
     public function clearFilters(): void { $this->search = ''; $this->hideEarly = false; $this->vendor = ''; $this->mode = 'run'; $this->stock = 'in'; $this->brand = ''; $this->category = ''; $this->sort = ''; $this->page = 1; }
 
     /** Brands with tracked items for the chosen distributor, A–Z. */
@@ -289,34 +286,87 @@ class DistributorVelocity extends Page
             $r->shops = (int) ($shops[$r->distributor_catalog_id] ?? 0);
             $r->conf = StockVelocityRecorder::confidence($r);
             $from = $this->windowStart($r, $since);
-            $r->spark = $this->spark($hist[$r->distributor_code . '|' . $r->distributor_variant_no] ?? [], (int) $r->avail, $from, 80, 22);
+            $h = $hist[$r->distributor_code . '|' . $r->distributor_variant_no] ?? [];
+            $r->spark = $this->spark($h, (int) $r->avail, $from, 80, 22);
+            $r->points = $this->points($h, (int) $r->avail, $from);
             $r->spark_from = $from;
             $out[] = $r;
         }
         return ['rows' => $out, 'total' => $total, 'pages' => $pages, 'from' => $total ? ($this->page - 1) * $this->perPage + 1 : 0];
     }
 
-    public function detail(): ?object
+    /**
+     * MARKER-VELOCITY-DRAWER: one item's detail for the side panel, fetched on
+     * its own. Renderless, so opening the panel no longer re-renders and
+     * re-queries the whole page (which is what made it slow).
+     */
+    #[\Livewire\Attributes\Renderless]
+    public function detailData(int $id): ?array
     {
-        if (! $this->selected) return null;
         $r = DB::table('distributor_stock_summary as s')
             ->leftJoin('platform_distributor_catalogs as c', 'c.id', '=', 's.distributor_catalog_id')
             ->select('s.*', DB::raw('COALESCE(c.display_name, c.name) AS title'), 'c.manufacturer AS brand', 'c.manufacturer_sku AS mpn')
-            ->where('s.id', $this->selected)->first();
+            ->where('s.id', $id)->first();
         if (! $r) return null;
         $since = now()->subDays(StockVelocityRecorder::KEEP_DAYS);
         $changes = DB::table('distributor_stock_changes')
             ->where('distributor_code', $r->distributor_code)->where('distributor_variant_no', $r->distributor_variant_no)
             ->where('recorded_at', '>=', $since)->orderBy('recorded_at')->get(['avail', 'recorded_at'])->all();
         $from = $this->windowStart($r, $since);
-        $r->chart = $this->spark($changes, (int) $r->avail, $from, 420, 96);
-        $r->chart_from = $from;
-        $r->change_count = count($changes);
-        $r->conf = StockVelocityRecorder::confidence($r);
-        $r->shops = $r->distributor_catalog_id ? (int) DB::table('tenant_inventory_item_vendors as v')
+        $shops = $r->distributor_catalog_id ? (int) DB::table('tenant_inventory_item_vendors as v')
             ->join('tenant_inventory_items as i', 'i.id', '=', 'v.inventory_item_id')
             ->where('v.distributor_catalog_id', $r->distributor_catalog_id)->distinct()->count('i.tenant_id') : 0;
-        return $r;
+        $conf = ['good' => 'Good', 'building' => 'Building', 'early' => 'Too early'][StockVelocityRecorder::confidence($r)];
+        $dl = $r->days_left === null ? null : (float) $r->days_left;
+
+        return [
+            'id'       => (int) $r->id,
+            'code'     => $r->distributor_code,
+            'vno'      => $r->distributor_variant_no,
+            'title'    => $r->title ?: $r->distributor_variant_no,
+            'sub'      => trim(($r->brand ?? '') . ($r->mpn ? ' · ' . $r->mpn : ''), ' ·'),
+            'points'   => $this->points($changes, (int) $r->avail, $from),
+            'from'     => $this->when($from),
+            'changes'  => count($changes),
+            'facts'    => [
+                ['In stock', number_format((int) $r->avail)],
+                ['Average pace', $r->rate_per_day === null ? 'Not enough history yet' : rtrim(rtrim(number_format((float) $r->rate_per_day, 2), '0'), '.') . ' per day'],
+                ['Days left', $dl === null ? '—' : ($dl < 1 ? 'Under 1 day' : number_format($dl) . ' days')],
+                ['Next arrival', $r->next_arrival_on ? Carbon::parse($r->next_arrival_on)->format('M j, Y') : 'None sent by ' . $r->distributor_code],
+                ['Last restock', $r->last_restock_at ? $this->when($r->last_restock_at) : 'None seen'],
+                ['Before this build', $r->baseline_avail === null ? 'No earlier reading' : number_format((int) $r->baseline_avail) . ' on ' . $this->when($r->baseline_at)],
+                ['History', $conf . ' · ' . $r->readings . ' readings since ' . ($r->first_seen_at ? $this->when($r->first_seen_at, 'M j') : '—')],
+                ['Shops stocking', $shops . ' (a count — shops are never named here)'],
+            ],
+        ];
+    }
+
+    /** Admin time zone when that helper exists, UTC otherwise. */
+    private function when($v, string $f = 'M j, g:ia'): string
+    {
+        if (! $v) return '—';
+        return function_exists('alocal') ? alocal($v, $f) : Carbon::parse($v)->format($f);
+    }
+
+    /**
+     * The readings behind a chart, for hover: f = position across the chart
+     * (0..1), v = stock, l = when. The last point is the current stock, now.
+     */
+    private function points(array $changes, int $current, Carbon $from): array
+    {
+        $now = now();
+        $span = max(1, $from->diffInSeconds($now));
+        $out = [];
+        if (! $changes) {
+            return [['f' => 0, 'v' => $current, 'l' => $this->when($from)], ['f' => 1, 'v' => $current, 'l' => 'Now']];
+        }
+        $out[] = ['f' => 0, 'v' => (int) $changes[0]->avail, 'l' => $this->when($from)];
+        foreach ($changes as $c) {
+            $at = Carbon::parse($c->recorded_at, 'UTC');
+            $out[] = ['f' => round(max(0, min(1, $from->diffInSeconds($at) / $span)), 4), 'v' => (int) $c->avail, 'l' => $this->when($at)];
+        }
+        $out[] = ['f' => 1, 'v' => $current, 'l' => 'Now'];
+        return $out;
     }
 
     /**

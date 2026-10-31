@@ -85,6 +85,10 @@
   .vl-sw i { position:absolute; inset:0; border-radius:99px; background:var(--line2); cursor:pointer; transition:background .12s; }
   .vl-sw i::after { content:''; position:absolute; left:3px; top:3px; width:16px; height:16px; border-radius:50%; background:#fff; box-shadow:0 1px 2px rgba(0,0,0,.3); transition:left .12s; }
   .vl-sw input:checked + i { background:var(--violet); } .vl-sw input:checked + i::after { left:21px; }
+  .vl-chart { position:relative; cursor:crosshair; }
+  .vl-tip { position:fixed; z-index:70; transform:translate(-50%, calc(-100% - 10px)); pointer-events:none; background:var(--pop); border:1px solid var(--line2);
+    border-radius:7px; padding:5px 9px; font-size:12px; white-space:nowrap; box-shadow:0 8px 24px rgba(0,0,0,.3); color:var(--txt); }
+  .vl-tip b { display:block; font-weight:600; } .vl-tip span { color:var(--dim); font-size:11.5px; }
   .vl-dr-bg { position:fixed; inset:0; background:rgba(0,0,0,.35); z-index:60; }
   .vl-dr { position:fixed; top:0; right:0; bottom:0; width:min(480px,100%); background:var(--pop); z-index:61; padding:24px 26px; overflow:auto; box-shadow:-20px 0 40px rgba(0,0,0,.18); }
   .vl-dr dl { display:grid; grid-template-columns:150px 1fr; margin:18px 0; }
@@ -101,7 +105,11 @@
   $tzLabel = function_exists('admin_tz_label') ? admin_tz_label() : 'UTC';
 @endphp
 
-<div class="vl-root" style="display:flex;flex-direction:column;gap:18px">
+<div class="vl-root" style="display:flex;flex-direction:column;gap:18px"
+     x-data="{ d: null,
+       async openItem(id) { this.d = { loading: true, title: 'Loading…', facts: [], points: null }; const r = await $wire.detailData(id); this.d = r || null; },
+       close() { this.d = null } }"
+     @keydown.escape.window="close()">
   <p class="sub">How fast each distributor's stock is moving, how many days it should last at that pace, and when more is due. Read from each distributor every 4 hours — no shop sales data is used here.</p>
 
   <div class="vl-tabs">
@@ -171,11 +179,11 @@
       <tbody>
       @forelse ($res['rows'] as $r)
         @php $dl = $r->days_left === null ? null : (float) $r->days_left; $cls = $dl === null ? 'vl-mut' : ($dl < 14 ? 'red' : ($dl < 30 ? 'amber' : '')); @endphp
-        <tr wire:click="select({{ $r->id }})" wire:key="vl-{{ $r->id }}">
+        <tr @click="openItem({{ $r->id }})" wire:key="vl-{{ $r->id }}">
           <td class="vl-nm"><b>{{ $r->title ?: $r->distributor_variant_no }}</b><span>{{ trim(($r->brand ? $r->brand . ' · ' : '') . ($r->mpn ?: $r->distributor_variant_no)) }}</span></td>
           <td>{{ $r->distributor_code }}</td>
           <td class="r">{{ number_format((int) $r->avail) }}</td>
-          <td title="Since {{ $at($r->spark_from, 'M j, g:ia') }}"><svg width="80" height="22" viewBox="0 0 80 22" style="display:block"><polyline fill="none" stroke="#8b5cf6" stroke-width="1.6" points="{{ $r->spark }}"/></svg></td>
+          <td @click.stop="openItem({{ $r->id }})">@include('filament.pages.partials.velocity-chart', ['pts' => $r->points, 'w' => 80, 'h' => 22, 'initial' => $r->spark])</td>
           <td class="r" style="white-space:nowrap">{{ $r->rate_per_day === null ? '—' : rtrim(rtrim(number_format((float) $r->rate_per_day, 1), '0'), '.') . ' / day' }}</td>
           <td class="r"><span class="vl-dl {{ $cls }}">{{ $dl === null ? '—' : ($dl < 1 ? 'Under 1 day' : number_format($dl) . ' ' . \Illuminate\Support\Str::plural('day', (int) round($dl))) }}</span></td>
           <td>@if ($r->next_arrival_on)<span class="vl-chip ok">{{ \Carbon\Carbon::parse($r->next_arrival_on)->format('M j') }}</span>@else<span class="vl-chip">None sent</span>@endif</td>
@@ -230,29 +238,36 @@
       @endif
     </div>
 
-    @if ($d = $this->detail())
-      <div class="vl-dr-bg" wire:click="closeDetail"></div>
-      <aside class="vl-dr">
-        <div style="display:flex;align-items:flex-start;gap:12px">
-          <div style="flex:1"><div class="vl-mut" style="font-size:12.5px">{{ $d->distributor_code }} · {{ $d->distributor_variant_no }}</div>
-            <h2 style="font-size:18px;font-weight:600;margin:2px 0;color:var(--txt)">{{ $d->title ?: $d->distributor_variant_no }}</h2>
-            <div style="color:var(--dim);font-size:13px">{{ trim(($d->brand ?? '') . ($d->mpn ? ' · ' . $d->mpn : ''), ' ·') }}</div></div>
-          <button type="button" class="vl-btn" wire:click="closeDetail">Close</button>
-        </div>
-        <div style="margin:18px 0 4px"><svg width="100%" height="96" viewBox="0 0 420 96" preserveAspectRatio="none" style="display:block"><polyline fill="none" stroke="#8b5cf6" stroke-width="1.8" points="{{ $d->chart }}"/></svg>
-          <div class="vl-mut" style="font-size:11.5px;display:flex;justify-content:space-between"><span>{{ $at($d->chart_from, 'M j, g:ia') }}</span><span>{{ $d->change_count }} {{ \Illuminate\Support\Str::plural('change', $d->change_count) }} recorded</span><span>Now</span></div></div>
-        <dl>
-          <dt>In stock</dt><dd>{{ number_format((int) $d->avail) }}</dd>
-          <dt>Average pace</dt><dd>{{ $d->rate_per_day === null ? 'Not enough history yet' : rtrim(rtrim(number_format((float) $d->rate_per_day, 2), '0'), '.') . ' per day' }}</dd>
-          <dt>Days left</dt><dd>{{ $d->days_left === null ? '—' : ((float) $d->days_left < 1 ? 'Under 1 day' : number_format((float) $d->days_left) . ' days') }}</dd>
-          <dt>Next arrival</dt><dd>{{ $d->next_arrival_on ? \Carbon\Carbon::parse($d->next_arrival_on)->format('M j, Y') : 'None sent by ' . $d->distributor_code }}</dd>
-          <dt>Last restock</dt><dd>{{ $d->last_restock_at ? $at($d->last_restock_at, 'M j, g:ia') : 'None seen' }}</dd>
-          <dt>Before this build</dt><dd>{{ $d->baseline_avail === null ? 'No earlier reading' : number_format((int) $d->baseline_avail) . ' on ' . $at($d->baseline_at, 'M j, g:ia') }}</dd>
-          <dt>History</dt><dd>{{ $confWord[$d->conf] }} · {{ $d->readings }} readings since {{ $d->first_seen_at ? $at($d->first_seen_at, 'M j') : '—' }}</dd>
-          <dt>Shops stocking</dt><dd>{{ $d->shops }} (a count — shops are never named here)</dd>
-        </dl>
-      </aside>
-    @endif
+    {{-- MARKER-VELOCITY-DRAWER: filled by one small request (detailData), no page re-render --}}
+    <template x-if="d">
+      <div>
+        <div class="vl-dr-bg" @click="close()"></div>
+        <aside class="vl-dr">
+          <div style="display:flex;align-items:flex-start;gap:12px">
+            <div style="flex:1"><div class="vl-mut" style="font-size:12.5px" x-text="d.code ? d.code + ' · ' + d.vno : ''"></div>
+              <h2 style="font-size:18px;font-weight:600;margin:2px 0;color:var(--txt)" x-text="d.title"></h2>
+              <div style="color:var(--dim);font-size:13px" x-text="d.sub || ''"></div></div>
+            <button type="button" class="vl-btn" @click="close()">Close</button>
+          </div>
+          <template x-if="d.loading"><div class="vl-mut" style="padding:40px 0;text-align:center">Loading…</div></template>
+          <template x-if="d.points">
+            <div style="margin:18px 0 4px">
+              <div x-data="vlChart(d.points, 420, 96)" class="vl-chart" @mousemove="move($event)" @mouseleave="leave()">
+                <svg width="100%" height="96" viewBox="0 0 420 96" preserveAspectRatio="none" style="display:block">
+                  <polyline fill="none" stroke="#8b5cf6" stroke-width="1.8" vector-effect="non-scaling-stroke" :points="path"/>
+                  <line x-show="tip" :x1="tip ? tip.x * 4.2 : 0" :x2="tip ? tip.x * 4.2 : 0" y1="0" y2="96" stroke="currentColor" stroke-opacity=".35" vector-effect="non-scaling-stroke"/>
+                </svg>
+                <div class="vl-tip" x-show="tip" x-cloak :style="tip ? `left:${tip.px}px;top:${tip.py}px` : ''"><b x-text="tip ? tip.v.toLocaleString() + ' in stock' : ''"></b><span x-text="tip ? tip.l : ''"></span></div>
+              </div>
+              <div class="vl-mut" style="font-size:11.5px;display:flex;justify-content:space-between"><span x-text="d.from"></span><span x-text="d.changes + (d.changes === 1 ? ' change' : ' changes') + ' recorded · hover for numbers'"></span><span>Now</span></div>
+            </div>
+          </template>
+          <dl>
+            <template x-for="f in d.facts" :key="f[0]"><div style="display:contents"><dt x-text="f[0]"></dt><dd x-text="f[1]"></dd></div></template>
+          </dl>
+        </aside>
+      </div>
+    </template>
 
   @elseif ($tab === 'coverage')
     @php $c = $this->coverage(); @endphp
@@ -315,4 +330,29 @@
     </div>
   @endif
 </div>
+<script>
+  // MARKER-VELOCITY-CHART: step line with a hover read-out (stock and when) for the
+  // table sparklines and the drawer chart. One definition; Livewire updates reuse it.
+  window.vlChart = window.vlChart || function (pts, w, h) {
+    return {
+      pts: pts || [], w: w, h: h, tip: null,
+      get max() { return Math.max(1, ...this.pts.map(p => p.v)); },
+      y(v) { return this.h - 2 - (v / this.max) * (this.h - 4); },
+      get path() {
+        const out = [];
+        this.pts.forEach((p, i) => { const x = (p.f * this.w).toFixed(1); if (i > 0) out.push(x + ',' + this.y(this.pts[i - 1].v).toFixed(1)); out.push(x + ',' + this.y(p.v).toFixed(1)); });
+        return out.join(' ');
+      },
+      move(e) {
+        const r = e.currentTarget.getBoundingClientRect();
+        const f = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
+        // the reading in force at this point of the line (the last one at or before it)
+        let k = 0; this.pts.forEach((p, i) => { if (p.f <= f + 1e-6) k = i; });
+        const p = this.pts[k];
+        this.tip = { v: p.v, l: p.l, x: f * 100, px: e.clientX, py: r.top + (this.y(p.v) / this.h) * r.height };
+      },
+      leave() { this.tip = null; },
+    };
+  };
+</script>
 </x-filament-panels::page>
