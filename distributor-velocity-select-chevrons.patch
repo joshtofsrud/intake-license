@@ -1,0 +1,34 @@
+diff --git a/resources/views/filament/pages/distributor-velocity.blade.php b/resources/views/filament/pages/distributor-velocity.blade.php
+index 57d2a87e..3a6bbc5f 100644
+--- a/resources/views/filament/pages/distributor-velocity.blade.php
++++ b/resources/views/filament/pages/distributor-velocity.blade.php
+@@ -20,6 +20,11 @@
+   .vl-sum em { font-style:normal; font-size:12px; color:var(--faint); display:block; }
+   .vl-bar { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+   .vl-in { background:transparent; border:1px solid var(--line2); border-radius:7px; padding:6px 10px; font:inherit; font-size:13px; color:inherit; min-width:240px; }
++  /* one chevron: Filament's form CSS also paints one on every select and it tiles under our background */
++  .vl-root select.vl-in { -webkit-appearance:none; appearance:none; padding-right:30px; background-color:transparent;
++    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' fill='none' stroke='%23a3a3ab' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 4.5l3 3 3-3'/%3E%3C/svg%3E") !important;
++    background-repeat:no-repeat !important; background-position:right 10px center !important; background-size:12px 12px !important; }
++  .vl-root select.vl-in option { background:var(--pop); color:var(--txt); }
+   .vl-seg { display:inline-flex; border:1px solid var(--line2); border-radius:8px; padding:2px; gap:2px; flex-wrap:wrap; }
+   .vl-seg button { background:none; border:0; color:var(--dim); padding:4px 10px; border-radius:6px; font:inherit; font-size:12.5px; cursor:pointer; white-space:nowrap; }
+   .vl-seg button.on { color:var(--txt); background:var(--vsoft); font-weight:600; }
+@@ -149,7 +154,7 @@
+           <td class="r">{{ number_format((int) $r->avail) }}</td>
+           <td title="Since {{ $at($r->spark_from, 'M j, g:ia') }}"><svg width="80" height="22" viewBox="0 0 80 22" style="display:block"><polyline fill="none" stroke="#8b5cf6" stroke-width="1.6" points="{{ $r->spark }}"/></svg></td>
+           <td class="r" style="white-space:nowrap">{{ $r->rate_per_day === null ? '—' : rtrim(rtrim(number_format((float) $r->rate_per_day, 1), '0'), '.') . ' / day' }}</td>
+-          <td class="r"><span class="vl-dl {{ $cls }}">{{ $dl === null ? '—' : number_format($dl) . ' days' }}</span></td>
++          <td class="r"><span class="vl-dl {{ $cls }}">{{ $dl === null ? '—' : ($dl < 1 ? 'Under 1 day' : number_format($dl) . ' ' . \Illuminate\Support\Str::plural('day', (int) round($dl))) }}</span></td>
+           <td>@if ($r->next_arrival_on)<span class="vl-chip ok">{{ \Carbon\Carbon::parse($r->next_arrival_on)->format('M j') }}</span>@else<span class="vl-chip">None sent</span>@endif</td>
+           <td class="r">{{ $r->shops }}</td>
+           <td class="vl-mut" style="white-space:nowrap">{{ $confWord[$r->conf] }} · {{ $r->readings }} {{ \Illuminate\Support\Str::plural('reading', (int) $r->readings) }}</td>
+@@ -216,7 +221,7 @@
+         <dl>
+           <dt>In stock</dt><dd>{{ number_format((int) $d->avail) }}</dd>
+           <dt>Average pace</dt><dd>{{ $d->rate_per_day === null ? 'Not enough history yet' : rtrim(rtrim(number_format((float) $d->rate_per_day, 2), '0'), '.') . ' per day' }}</dd>
+-          <dt>Days left</dt><dd>{{ $d->days_left === null ? '—' : number_format((float) $d->days_left) . ' days' }}</dd>
++          <dt>Days left</dt><dd>{{ $d->days_left === null ? '—' : ((float) $d->days_left < 1 ? 'Under 1 day' : number_format((float) $d->days_left) . ' days') }}</dd>
+           <dt>Next arrival</dt><dd>{{ $d->next_arrival_on ? \Carbon\Carbon::parse($d->next_arrival_on)->format('M j, Y') : 'None sent by ' . $d->distributor_code }}</dd>
+           <dt>Last restock</dt><dd>{{ $d->last_restock_at ? $at($d->last_restock_at, 'M j, g:ia') : 'None seen' }}</dd>
+           <dt>Before this build</dt><dd>{{ $d->baseline_avail === null ? 'No earlier reading' : number_format((int) $d->baseline_avail) . ' on ' . $at($d->baseline_at, 'M j, g:ia') }}</dd>
