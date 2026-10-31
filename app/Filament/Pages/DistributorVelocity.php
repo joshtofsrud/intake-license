@@ -44,8 +44,11 @@ class DistributorVelocity extends Page
     public string $mode = 'run';
     public string $search = '';
     public bool $hideEarly = false;
-    public int $limit = 100;
+    public int $perPage = 100;
+    public int $page = 1;
+    public const PER_PAGE = [50, 100, 250, 500];
     public string $stock = 'in';   // in | out | all
+    public string $brand = '';     // a catalog manufacturer; '' = every brand
     public string $sort = '';      // a SORTS key; '' = the view's own order
     public string $dir = 'asc';
 
@@ -89,14 +92,17 @@ class DistributorVelocity extends Page
 
     public function updated($name): void
     {
-        if (in_array($name, ['search', 'hideEarly', 'vendor', 'mode', 'stock'], true)) {
-            $this->limit = 100;
+        if (in_array($name, ['search', 'hideEarly', 'vendor', 'mode', 'stock', 'brand', 'perPage'], true)) {
+            $this->page = 1;
+        }
+        if ($name === 'perPage' && ! in_array($this->perPage, self::PER_PAGE, true)) {
+            $this->perPage = 100;
         }
     }
 
     public function setTab(string $t): void { if (in_array($t, ['items', 'coverage', 'shops'], true)) $this->tab = $t; }
-    public function setView(string $v): void { if (isset(self::VIEWS[$v])) { $this->mode = $v; $this->sort = ''; $this->limit = 100; } }
-    public function setStock(string $v): void { if (isset(self::STOCK[$v])) { $this->stock = $v; $this->limit = 100; } }
+    public function setView(string $v): void { if (isset(self::VIEWS[$v])) { $this->mode = $v; $this->sort = ''; $this->page = 1; } }
+    public function setStock(string $v): void { if (isset(self::STOCK[$v])) { $this->stock = $v; $this->page = 1; } }
 
     /** Click a header: sort by it; click again to flip; a third time returns to the view's order. */
     public function sortBy(string $col): void
@@ -105,13 +111,38 @@ class DistributorVelocity extends Page
         if ($this->sort !== $col) { $this->sort = $col; $this->dir = in_array($col, ['pace', 'stock', 'history'], true) ? 'desc' : 'asc'; }
         elseif ($this->dir === (in_array($col, ['pace', 'stock', 'history'], true) ? 'desc' : 'asc')) { $this->dir = $this->dir === 'asc' ? 'desc' : 'asc'; }
         else { $this->sort = ''; }
-        $this->limit = 100;
+        $this->page = 1;
     }
-    public function setVendor(string $c): void { $this->vendor = $c; $this->limit = 100; }
-    public function showMore(): void { $this->limit += 100; }
+    public function setVendor(string $c): void { $this->vendor = $c; $this->page = 1; }
+    public function goPage(int $p): void { $this->page = max(1, $p); }
     public function select(int $id): void { $this->selected = $id; }
     public function closeDetail(): void { $this->selected = null; }
-    public function clearFilters(): void { $this->search = ''; $this->hideEarly = false; $this->vendor = ''; $this->mode = 'run'; $this->stock = 'in'; $this->sort = ''; $this->limit = 100; }
+    public function clearFilters(): void { $this->search = ''; $this->hideEarly = false; $this->vendor = ''; $this->mode = 'run'; $this->stock = 'in'; $this->brand = ''; $this->sort = ''; $this->page = 1; }
+
+    /** Brands with tracked items for the chosen distributor, most items first. */
+    public function brands(): array
+    {
+        return DB::table('distributor_stock_summary as s')
+            ->join('platform_distributor_catalogs as c', 'c.id', '=', 's.distributor_catalog_id')
+            ->when($this->vendor !== '', fn ($q) => $q->where('s.distributor_code', $this->vendor))
+            ->whereNotNull('c.manufacturer')->where('c.manufacturer', '!=', '')
+            ->selectRaw('c.manufacturer AS b, COUNT(*) AS n')->groupBy('c.manufacturer')
+            ->orderByDesc('n')->limit(600)->pluck('n', 'b')->map(fn ($n) => (int) $n)->all();
+    }
+
+    /** True while a search term is in: the view's own filter is paused so every match shows. */
+    public function searching(): bool { return trim($this->search) !== ''; }
+
+    /** How many search matches the stock filter is hiding (for the empty state). */
+    public function hiddenByStock(): int
+    {
+        if ($this->stock === 'all') return 0;
+        $keep = $this->stock;
+        $this->stock = 'all';
+        $all = (clone $this->baseQuery())->reorder()->count();
+        $this->stock = $keep;
+        return max(0, $all - (clone $this->baseQuery())->reorder()->count());
+    }
 
     public function saveShop(): void
     {
@@ -157,7 +188,8 @@ class DistributorVelocity extends Page
             ->when($this->vendor !== '', fn ($q) => $q->where('s.distributor_code', $this->vendor))
             ->when($this->hideEarly, fn ($q) => $q->whereNotNull('s.rate_per_day'))
             ->when($this->stock === 'in', fn ($q) => $q->where('s.avail', '>', 0))
-            ->when($this->stock === 'out', fn ($q) => $q->where('s.avail', '=', 0));
+            ->when($this->stock === 'out', fn ($q) => $q->where('s.avail', '=', 0))
+            ->when($this->brand !== '', fn ($q) => $q->where('c.manufacturer', $this->brand));
 
         $term = trim($this->search);
         if ($term !== '') {
@@ -169,7 +201,12 @@ class DistributorVelocity extends Page
             });
         }
 
-        switch ($this->mode) {
+        // a search looks at every item; the view only decides the order
+        $searching = $term !== '';
+        if ($searching) {
+            $order = ['fast' => ['s.rate_per_day', 'DESC'], 'arrival' => ['s.next_arrival_on', 'ASC'], 'slow' => ['s.avail', 'DESC']][$this->mode] ?? ['s.days_left', 'ASC'];
+            $q->orderByRaw("{$order[0]} IS NULL")->orderByRaw("{$order[0]} {$order[1]}")->orderBy('s.id');
+        } else switch ($this->mode) {
             case 'fast':
                 $q->where('s.rate_per_day', '>', 0)->orderByDesc('s.rate_per_day');
                 break;
@@ -196,7 +233,9 @@ class DistributorVelocity extends Page
     public function rows(): array
     {
         $total = (clone $this->baseQuery())->reorder()->count();
-        $rows = $this->baseQuery()->limit($this->limit)->get();
+        $pages = max(1, (int) ceil($total / max(1, $this->perPage)));
+        if ($this->page > $pages) $this->page = $pages;
+        $rows = $this->baseQuery()->offset(($this->page - 1) * $this->perPage)->limit($this->perPage)->get();
 
         $catIds = $rows->pluck('distributor_catalog_id')->filter()->unique()->values()->all();
         $shops = $catIds ? DB::table('tenant_inventory_item_vendors as v')
@@ -225,7 +264,7 @@ class DistributorVelocity extends Page
             $r->spark_from = $from;
             $out[] = $r;
         }
-        return ['rows' => $out, 'total' => $total];
+        return ['rows' => $out, 'total' => $total, 'pages' => $pages, 'from' => $total ? ($this->page - 1) * $this->perPage + 1 : 0];
     }
 
     public function detail(): ?object

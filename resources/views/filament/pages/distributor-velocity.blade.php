@@ -108,6 +108,12 @@
 
     <div class="vl-bar">
       <input type="search" class="vl-in" wire:model.live.debounce.400ms="search" placeholder="Search item, brand, SKU or variant">
+      @php $brandList = $this->brands(); @endphp
+      <select class="vl-in" style="min-width:170px;max-width:230px" wire:model.live="brand" aria-label="Brand">
+        <option value="">All brands ({{ number_format(count($brandList)) }})</option>
+        @if ($brand !== '' && ! isset($brandList[$brand]))<option value="{{ $brand }}">{{ $brand }}</option>@endif
+        @foreach ($brandList as $b => $n)<option value="{{ $b }}">{{ $b }} · {{ number_format($n) }}</option>@endforeach
+      </select>
       <div class="vl-seg">
         @foreach (\App\Filament\Pages\DistributorVelocity::VIEWS as $k => $label)
           <button type="button" wire:click="setView('{{ $k }}')" class="{{ $mode === $k ? 'on' : '' }}">{{ $label }}</button>
@@ -121,6 +127,9 @@
       <label class="vl-chk"><input type="checkbox" wire:model.live="hideEarly"> Hide items with too little history</label>
     </div>
 
+    @if ($this->searching())
+      <div class="vl-mut" style="font-size:12.5px;margin-top:-6px">Searching every item{{ $vendor ? ' at ' . $vendor : '' }}{{ $brand ? ' from ' . $brand : '' }} — the view above only sets the order while you search.</div>
+    @endif
     <div style="overflow-x:auto">
     <table class="vl-tbl">
       @php
@@ -150,8 +159,9 @@
           @if ($s['items'] === 0)
             <b>No readings yet.</b>Run the pull once after deploy, or wait for tonight's sync.
           @else
-            <b>Nothing in this view yet.</b>
-            @if ($stock === 'out' && $mode === 'run') Running out only lists items that are still in stock. @elseif ($mode === 'run' || $mode === 'fast') Pace needs about half a day of sweeps, so these fill in as they run. @else Try a different view, stock filter or distributor. @endif
+            @php $hidden = $this->hiddenByStock(); @endphp
+            <b>{{ $this->searching() ? 'No match for “' . $search . '”' . ($stock !== 'all' ? ' that is ' . strtolower(\App\Filament\Pages\DistributorVelocity::STOCK[$stock]) : '') . '.' : 'Nothing in this view yet.' }}</b>
+            @if ($hidden > 0) {{ number_format($hidden) }} {{ \Illuminate\Support\Str::plural('item', $hidden) }} match but {{ $stock === 'in' ? 'are out of stock' : 'are in stock' }}. @elseif ($this->searching()) Search looks at the item name, brand, SKU and distributor number. @elseif ($stock === 'out' && $mode === 'run') Running out only lists items that are still in stock. @elseif ($mode === 'run' || $mode === 'fast') Pace needs about half a day of sweeps, so these fill in as they run. @else Try a different view, stock filter or distributor. @endif
             <div style="display:flex;gap:8px;justify-content:center;margin-top:14px;flex-wrap:wrap">
               <button type="button" class="vl-btn" wire:click="clearFilters">Clear search and filters</button>
               @if ($stock !== 'all')<button type="button" class="vl-btn" wire:click="setStock('all')">Show all stock</button>@endif
@@ -164,9 +174,33 @@
       </tbody>
     </table>
     </div>
-    @if ($res['total'] > count($res['rows']))
-      <div style="display:flex;align-items:center;gap:12px"><button type="button" class="vl-btn" wire:click="showMore">Show 100 more</button><span class="vl-mut" style="font-size:12.5px">{{ number_format(count($res['rows'])) }} of {{ number_format($res['total']) }}</span></div>
-    @endif
+    {{-- pagination: how many match, per-page size, and page controls --}}
+    @php $pg = $page; $pp = $res['pages']; $to = $res['from'] ? $res['from'] + count($res['rows']) - 1 : 0; @endphp
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+      <span class="vl-mut" style="font-size:12.5px">
+        @if ($res['total']) Showing {{ number_format($res['from']) }}–{{ number_format($to) }} of {{ number_format($res['total']) }} that match
+          {{ $this->searching() ? 'this search' : 'this view and filters' }}@else No items match @endif
+        · {{ number_format($s['items']) }} tracked{{ $vendor ? ' at ' . $vendor : '' }}
+      </span>
+      <span style="flex:1"></span>
+      <label class="vl-mut" style="font-size:12.5px;display:inline-flex;gap:6px;align-items:center">Rows
+        <select class="vl-in" style="min-width:0;padding:4px 8px" wire:model.live="perPage">
+          @foreach (\App\Filament\Pages\DistributorVelocity::PER_PAGE as $n)<option value="{{ $n }}">{{ $n }}</option>@endforeach
+        </select></label>
+      @if ($pp > 1)
+        <div class="vl-seg">
+          <button type="button" wire:click="goPage(1)" @disabled($pg <= 1) title="First page">«</button>
+          <button type="button" wire:click="goPage({{ $pg - 1 }})" @disabled($pg <= 1)>Previous</button>
+          @foreach (array_unique(array_filter([1, $pg - 2, $pg - 1, $pg, $pg + 1, $pg + 2, $pp], fn ($x) => $x >= 1 && $x <= $pp)) as $i => $n)
+            @if ($i > 0 && $n - $prevN > 1)<button type="button" disabled>…</button>@endif
+            <button type="button" wire:click="goPage({{ $n }})" class="{{ $n === $pg ? 'on' : '' }}">{{ number_format($n) }}</button>
+            @php $prevN = $n; @endphp
+          @endforeach
+          <button type="button" wire:click="goPage({{ $pg + 1 }})" @disabled($pg >= $pp)>Next</button>
+          <button type="button" wire:click="goPage({{ $pp }})" @disabled($pg >= $pp) title="Last page">»</button>
+        </div>
+      @endif
+    </div>
 
     @if ($d = $this->detail())
       <div class="vl-dr-bg" wire:click="closeDetail"></div>
