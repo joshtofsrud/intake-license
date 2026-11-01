@@ -341,6 +341,17 @@ class ShimanoClient implements DistributorAdapter
 
     // ------------------------------------------------------------ cache
 
+    /**
+     * MARKER-VELOCITY-FETCH: accept a downloaded copy this many minutes old, so
+     * the velocity sweep reuses the catalog sync's download instead of
+     * fetching from Shimano again.
+     */
+    public function useCacheFor(int $minutes): static
+    {
+        $this->cacheMinutes = max($this->cacheMinutes, $minutes);
+        return $this;
+    }
+
     private function cachePath(): string
     {
         return rtrim($this->cacheDir, '/') . '/shimano-' . strtolower($this->dir) . '.jsonl';

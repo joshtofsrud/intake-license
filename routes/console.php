@@ -216,10 +216,11 @@ Schedule::command('distributors:sync-tenant --all')
     ->withoutOverlapping()
     ->runInBackground();
 
-// MARKER-VELOCITY-SWEEP: whole-catalog stock with the master admin logins every
-// 4 hours (distributors update all day). Only sweep readings move an item's pace.
+// MARKER-VELOCITY-SWEEP: whole-catalog stock with the master admin logins. Runs
+// hourly; each distributor is read as often as its fetch setting in master admin
+// (MARKER-VELOCITY-FETCH). Only sweep readings move an item's pace.
 Schedule::command('distributors:velocity-sweep')
-    ->cron('15 */4 * * *')
+    ->hourlyAt(15)
     ->withoutOverlapping(230)
     ->runInBackground();
 

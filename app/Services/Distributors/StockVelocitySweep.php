@@ -63,6 +63,11 @@ class StockVelocitySweep
         switch ($code) {
             case 'BTI':
             case 'SHIMANO':
+                // Shimano is fetched no more often than its fetch setting; a
+                // newer copy from the catalog sync is reused
+                if ($code === 'SHIMANO' && method_exists($adapter, 'useCacheFor')) {
+                    $adapter->useCacheFor(max(30, \App\Support\VelocityFetch::hours($code) * 60 - 15));
+                }
                 $resp = $adapter->inventory([]);
                 $out['calls'] = 1;
                 $avail = $this->sync->normalizeInventory($resp);

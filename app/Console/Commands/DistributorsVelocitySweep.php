@@ -10,12 +10,23 @@ use Illuminate\Support\Facades\DB;
 /** MARKER-VELOCITY-SWEEP: whole-catalog stock reading with the master admin logins, every 4 hours. */
 class DistributorsVelocitySweep extends Command
 {
-    protected $signature = 'distributors:velocity-sweep {codes?* : Distributor codes (default: all with a master admin login)} {--max-calls=5000 : Cap on stock calls per distributor}';
-    protected $description = 'Read every catalog item\'s distributor stock with the master admin logins (runs every 4 hours) for distributor velocity.';
+    protected $signature = 'distributors:velocity-sweep {codes?* : Distributor codes to read now, whatever their schedule} {--max-calls=5000 : Cap on stock calls per distributor}';
+    protected $description = 'Read distributor stock with the master admin logins for distributor velocity. Runs hourly; each distributor is read as often as its fetch setting says.';
 
     public function handle(StockVelocitySweep $sweep): int
     {
-        $codes = array_map('strtoupper', (array) $this->argument('codes')) ?: ['BTI', 'HLC', 'QBP', 'SHIMANO'];
+        $named = array_map('strtoupper', (array) $this->argument('codes'));
+        if ($named) {
+            $codes = $named; // asked for by name: read now
+        } else {
+            // MARKER-VELOCITY-FETCH: only the distributors due by their fetch setting
+            $last = \App\Support\VelocityFetch::lastReads();
+            $codes = array_values(array_filter(['BTI', 'HLC', 'QBP', 'SHIMANO'], fn ($c) => \App\Support\VelocityFetch::due($c, $last[$c] ?? null)));
+            if (! $codes) {
+                $this->line('No distributor is due yet.');
+                return self::SUCCESS;
+            }
+        }
         $rows = [];
         $log = [];
         $problems = 0;
@@ -40,7 +51,7 @@ class DistributorsVelocitySweep extends Command
         ]);
         DB::table('distributor_velocity_runs')->where('started_at', '<', now()->subDays(14))->delete();
         $this->table(['Distributor', 'Catalog items', 'Calls', 'Stock read', 'Counted', 'Changed', 'New', 'Note'], $rows);
-        $this->line('"Counted" excludes items already read in the last 6 hours.');
+        $this->line('"Counted" excludes items already read in the last hour.');
         return self::SUCCESS;
     }
 }

@@ -1,0 +1,313 @@
+diff --git a/app/Console/Commands/DistributorsVelocitySweep.php b/app/Console/Commands/DistributorsVelocitySweep.php
+index 2e98730a..aa33c549 100644
+--- a/app/Console/Commands/DistributorsVelocitySweep.php
++++ b/app/Console/Commands/DistributorsVelocitySweep.php
+@@ -10,12 +10,23 @@ use Illuminate\Support\Facades\DB;
+ /** MARKER-VELOCITY-SWEEP: whole-catalog stock reading with the master admin logins, every 4 hours. */
+ class DistributorsVelocitySweep extends Command
+ {
+-    protected $signature = 'distributors:velocity-sweep {codes?* : Distributor codes (default: all with a master admin login)} {--max-calls=5000 : Cap on stock calls per distributor}';
+-    protected $description = 'Read every catalog item\'s distributor stock with the master admin logins (runs every 4 hours) for distributor velocity.';
++    protected $signature = 'distributors:velocity-sweep {codes?* : Distributor codes to read now, whatever their schedule} {--max-calls=5000 : Cap on stock calls per distributor}';
++    protected $description = 'Read distributor stock with the master admin logins for distributor velocity. Runs hourly; each distributor is read as often as its fetch setting says.';
+ 
+     public function handle(StockVelocitySweep $sweep): int
+     {
+-        $codes = array_map('strtoupper', (array) $this->argument('codes')) ?: ['BTI', 'HLC', 'QBP', 'SHIMANO'];
++        $named = array_map('strtoupper', (array) $this->argument('codes'));
++        if ($named) {
++            $codes = $named; // asked for by name: read now
++        } else {
++            // MARKER-VELOCITY-FETCH: only the distributors due by their fetch setting
++            $last = \App\Support\VelocityFetch::lastReads();
++            $codes = array_values(array_filter(['BTI', 'HLC', 'QBP', 'SHIMANO'], fn ($c) => \App\Support\VelocityFetch::due($c, $last[$c] ?? null)));
++            if (! $codes) {
++                $this->line('No distributor is due yet.');
++                return self::SUCCESS;
++            }
++        }
+         $rows = [];
+         $log = [];
+         $problems = 0;
+@@ -40,7 +51,7 @@ class DistributorsVelocitySweep extends Command
+         ]);
+         DB::table('distributor_velocity_runs')->where('started_at', '<', now()->subDays(14))->delete();
+         $this->table(['Distributor', 'Catalog items', 'Calls', 'Stock read', 'Counted', 'Changed', 'New', 'Note'], $rows);
+-        $this->line('"Counted" excludes items already read in the last 6 hours.');
++        $this->line('"Counted" excludes items already read in the last hour.');
+         return self::SUCCESS;
+     }
+ }
+diff --git a/app/Filament/Pages/DistributorVelocity.php b/app/Filament/Pages/DistributorVelocity.php
+index 9c01fd55..21cfd515 100644
+--- a/app/Filament/Pages/DistributorVelocity.php
++++ b/app/Filament/Pages/DistributorVelocity.php
+@@ -60,6 +60,7 @@ class DistributorVelocity extends Page
+     ];
+     public const STOCK = ['in' => 'In stock', 'out' => 'Out of stock', 'all' => 'All'];
+     public array $shop = [];
++    public array $fetch = [];   // MARKER-VELOCITY-FETCH: code => hours (0 = off)
+ 
+     public function mount(): void
+     {
+@@ -68,6 +69,7 @@ class DistributorVelocity extends Page
+             $this->shop[$k] = (bool) ($saved[$k] ?? $d[2]);
+         }
+         $codes = $this->codes();
++        $this->fetch = array_map('strval', \App\Support\VelocityFetch::all(array_values(array_unique(array_merge(['BTI', 'HLC', 'QBP', 'SHIMANO'], $codes)))));
+         $on = $saved['vendors'] ?? $codes;
+         $this->shop['vendors'] = array_fill_keys($codes, false);
+         foreach ($codes as $c) {
+@@ -178,11 +180,39 @@ class DistributorVelocity extends Page
+         }
+         $out['vendors'] = array_keys(array_filter((array) ($this->shop['vendors'] ?? [])));
+         $ps = PlatformSettings::current();
+-        $ps->velocity_settings = $out;
++        $ps->velocity_settings = array_merge((array) ($ps->velocity_settings ?? []), $out);
+         $ps->save();
+         Notification::make()->title('Shop visibility saved')->success()->send();
+     }
+ 
++    /** MARKER-VELOCITY-FETCH: save how often each distributor is read. */
++    public function saveFetch(): void
++    {
++        abort_unless($this->canEdit(), 403);
++        $out = [];
++        foreach ($this->fetch as $code => $h) {
++            $h = (int) $h;
++            $out[strtoupper((string) $code)] = array_key_exists($h, \App\Support\VelocityFetch::CHOICES) ? $h : \App\Support\VelocityFetch::FALLBACK;
++        }
++        $ps = PlatformSettings::current();
++        $ps->velocity_settings = array_merge((array) ($ps->velocity_settings ?? []), ['fetch' => $out]);
++        $ps->save();
++        Notification::make()->title('Fetch settings saved')->body('The next hourly run follows them.')->success()->send();
++    }
++
++    /** Last sweep read per distributor, and when the next is due. */
++    public function fetchStatus(): array
++    {
++        $last = \App\Support\VelocityFetch::lastReads();
++        $out = [];
++        foreach (array_keys($this->fetch) as $code) {
++            $h = \App\Support\VelocityFetch::hours($code);
++            $l = $last[$code] ?? null;
++            $out[$code] = ['last' => $l, 'next' => $h === 0 ? null : ($l ? $l->copy()->addHours($h) : now())];
++        }
++        return $out;
++    }
++
+     /** Headline numbers for the Items tab. */
+     public function stats(): array
+     {
+diff --git a/app/Filament/Pages/PlatformDashboard.php b/app/Filament/Pages/PlatformDashboard.php
+index 7f8f3282..754cae75 100644
+--- a/app/Filament/Pages/PlatformDashboard.php
++++ b/app/Filament/Pages/PlatformDashboard.php
+@@ -398,9 +398,9 @@ class PlatformDashboard extends Page
+                    'value' => "<b>{$caught}</b> reported", 'state' => $caught > 0 ? 'bad' : 'ok',
+                    'href' => '/admin/debug-logs?activeTab=errors'];
+ 
+-        // MARKER-VELOCITY-SWEEP: the 4-hourly distributor stock sweep. Amber
+-        // when the last run skipped or failed a distributor, red when none
+-        // has finished in 9 hours (two missed runs).
++        // MARKER-VELOCITY-SWEEP: the distributor stock sweep. Amber
++        // when the last run skipped or failed a distributor, red when it
++        // has missed two runs of its most frequent distributor.
+         try {
+             if (Schema::hasTable('distributor_velocity_runs')) {
+                 $run = DB::table('distributor_velocity_runs')->whereNotNull('finished_at')->orderByDesc('finished_at')->first();
+@@ -411,7 +411,9 @@ class PlatformDashboard extends Page
+                 } else {
+                     $res   = json_decode((string) $run->results, true) ?: [];
+                     $read  = array_sum(array_column($res, 'read'));
+-                    $stale = \Carbon\Carbon::parse($run->finished_at)->lt(now()->subHours(9));
++                    // two missed runs of the most frequent distributor (MARKER-VELOCITY-FETCH)
++                    $minH = collect(\App\Support\VelocityFetch::all(['BTI', 'HLC', 'QBP', 'SHIMANO']))->filter()->min() ?: 24;
++                    $stale = \Carbon\Carbon::parse($run->finished_at)->lt(now()->subHours($minH * 2 + 1));
+                     $rows[] = [
+                         'name'  => 'Distributor sweeps',
+                         'meta'  => 'last finished ' . \Carbon\Carbon::parse($run->finished_at)->diffForHumans()
+diff --git a/app/Services/Distributors/ShimanoClient.php b/app/Services/Distributors/ShimanoClient.php
+index dd6c9129..62e54e0b 100644
+--- a/app/Services/Distributors/ShimanoClient.php
++++ b/app/Services/Distributors/ShimanoClient.php
+@@ -341,6 +341,17 @@ class ShimanoClient implements DistributorAdapter
+ 
+     // ------------------------------------------------------------ cache
+ 
++    /**
++     * MARKER-VELOCITY-FETCH: accept a downloaded copy this many minutes old, so
++     * the velocity sweep reuses the catalog sync's download instead of
++     * fetching from Shimano again.
++     */
++    public function useCacheFor(int $minutes): static
++    {
++        $this->cacheMinutes = max($this->cacheMinutes, $minutes);
++        return $this;
++    }
++
+     private function cachePath(): string
+     {
+         return rtrim($this->cacheDir, '/') . '/shimano-' . strtolower($this->dir) . '.jsonl';
+diff --git a/app/Services/Distributors/StockVelocitySweep.php b/app/Services/Distributors/StockVelocitySweep.php
+index 79614d6d..96271958 100644
+--- a/app/Services/Distributors/StockVelocitySweep.php
++++ b/app/Services/Distributors/StockVelocitySweep.php
+@@ -63,6 +63,11 @@ class StockVelocitySweep
+         switch ($code) {
+             case 'BTI':
+             case 'SHIMANO':
++                // Shimano is fetched no more often than its fetch setting; a
++                // newer copy from the catalog sync is reused
++                if ($code === 'SHIMANO' && method_exists($adapter, 'useCacheFor')) {
++                    $adapter->useCacheFor(max(30, \App\Support\VelocityFetch::hours($code) * 60 - 15));
++                }
+                 $resp = $adapter->inventory([]);
+                 $out['calls'] = 1;
+                 $avail = $this->sync->normalizeInventory($resp);
+diff --git a/app/Support/VelocityFetch.php b/app/Support/VelocityFetch.php
+new file mode 100644
+index 00000000..d1b2eee8
+--- /dev/null
++++ b/app/Support/VelocityFetch.php
+@@ -0,0 +1,58 @@
++<?php
++
++namespace App\Support;
++
++use App\Models\PlatformSettings;
++use Carbon\Carbon;
++use Illuminate\Support\Facades\DB;
++
++/**
++ * MARKER-VELOCITY-FETCH: how often the distributor velocity sweep reads each
++ * distributor, set in master admin (Distributor velocity › Data coverage).
++ * The sweep runs hourly and reads only the distributors that are due.
++ */
++class VelocityFetch
++{
++    /** hours => label; 0 = off */
++    public const CHOICES = [4 => 'Every 4 hours', 6 => 'Every 6 hours', 8 => 'Every 8 hours', 12 => 'Twice a day', 24 => 'Once a day', 0 => 'Off'];
++    public const DEFAULTS = ['BTI' => 4, 'HLC' => 4, 'QBP' => 4, 'SHIMANO' => 12];
++    public const FALLBACK = 4;
++
++    public static function hours(string $code): int
++    {
++        $code = strtoupper($code);
++        $saved = (array) ((PlatformSettings::current()->velocity_settings ?? [])['fetch'] ?? []);
++        $h = array_key_exists($code, $saved) ? (int) $saved[$code] : (self::DEFAULTS[$code] ?? self::FALLBACK);
++        return array_key_exists($h, self::CHOICES) ? $h : self::FALLBACK;
++    }
++
++    /** code => hours for every distributor named. */
++    public static function all(array $codes): array
++    {
++        $out = [];
++        foreach ($codes as $c) $out[strtoupper($c)] = self::hours($c);
++        return $out;
++    }
++
++    /** When each distributor was last read by a sweep (from the run log). */
++    public static function lastReads(): array
++    {
++        $last = [];
++        DB::table('distributor_velocity_runs')->whereNotNull('finished_at')->orderByDesc('started_at')->limit(200)
++            ->get(['started_at', 'results'])->each(function ($r) use (&$last) {
++                foreach ((array) json_decode((string) $r->results, true) as $x) {
++                    $c = $x['code'] ?? null;
++                    if ($c && ! isset($last[$c]) && (int) ($x['read'] ?? 0) > 0) $last[$c] = Carbon::parse($r->started_at, 'UTC');
++                }
++            });
++        return $last;
++    }
++
++    /** Due now? Ten minutes of slack so an hourly run at :15 isn't missed by seconds. */
++    public static function due(string $code, ?Carbon $last): bool
++    {
++        $h = self::hours($code);
++        if ($h === 0) return false;
++        return ! $last || $last->lte(now()->subHours($h)->addMinutes(10));
++    }
++}
+diff --git a/resources/views/filament/pages/distributor-velocity.blade.php b/resources/views/filament/pages/distributor-velocity.blade.php
+index 4518b09a..73c9f89e 100644
+--- a/resources/views/filament/pages/distributor-velocity.blade.php
++++ b/resources/views/filament/pages/distributor-velocity.blade.php
+@@ -110,7 +110,7 @@
+        async openItem(id) { this.d = { loading: true, title: 'Loading…', facts: [], points: null }; const r = await $wire.detailData(id); this.d = r || null; },
+        close() { this.d = null } }"
+      @keydown.escape.window="close()">
+-  <p class="sub">How fast each distributor's stock is moving, how many days it should last at that pace, and when more is due. Read from each distributor every 4 hours — no shop sales data is used here.</p>
++  <p class="sub">How fast each distributor's stock is moving, how many days it should last at that pace, and when more is due. Read from each distributor on the schedule under Data coverage — no shop sales data is used here.</p>
+ 
+   <div class="vl-tabs">
+     <button type="button" wire:click="setTab('items')" class="{{ $tab === 'items' ? 'on' : '' }}">Items</button>
+@@ -121,7 +121,7 @@
+   @if ($tab === 'items')
+     @php $s = $this->stats(); $res = $this->rows(); @endphp
+     <div class="vl-legend">
+-      <b>What this shows.</b> Each distributor's whole catalog, read every 4 hours with the master admin logins (a sweep). Only sweep readings move an item's pace; the per-shop sync adds arrival dates.
++      <b>What this shows.</b> Each distributor's whole catalog, read with the master admin logins (a sweep) as often as its fetch setting says — see Data coverage. Only sweep readings move an item's pace; the per-shop sync adds arrival dates.
+       <b>Days left</b> = stock ÷ average daily drop over roughly the last month. Only drops count; a restock is never read as a sale.
+       <b>Next arrival</b> is the earliest date a distributor's warehouse sends; blank means none was sent.
+       <b>History</b>: Too early (under half a day of readings), Building, or Good (21+ days). Nothing on this page is shown to shops — see Shop visibility.
+@@ -271,7 +271,7 @@
+ 
+   @elseif ($tab === 'coverage')
+     @php $c = $this->coverage(); @endphp
+-    <div class="vl-legend"><b>What each distributor gives us.</b> Readings come from a sweep of each whole catalog every 4 hours with the master admin logins (BTI and Shimano in one feed, HLC in batches of 50, QBP one call per warehouse), plus the per-shop sync. Arrival dates come from warehouse detail where it's sent; QBP's warehouse call carries none, so QBP dates come only from shops' syncs.</div>
++    <div class="vl-legend"><b>What each distributor gives us.</b> Readings come from a sweep of each whole catalog with the master admin logins, as often as the fetch settings below say (BTI and Shimano in one feed, HLC in batches of 50, QBP one call per warehouse), plus the per-shop sync. Arrival dates come from warehouse detail where it's sent; QBP's warehouse call carries none, so QBP dates come only from shops' syncs.</div>
+     <div class="vl-cov">
+       @forelse ($c['per'] as $code => $p)
+         @php $ch = $c['changes'][$code] ?? null; @endphp
+@@ -284,13 +284,29 @@
+       @endforelse
+     </div>
+     <div class="vl-set">
+-      <div class="row"><div><b>Recorder</b><span>Fed by the 4-hourly sweep and the per-shop sync. Updates one summary row per item and writes a change row only when the quantity moved.</span></div><span class="vl-chip ok">On</span></div>
++      <div class="row"><div><b>Recorder</b><span>Fed by the sweep and the per-shop sync. Updates one summary row per item and writes a change row only when the quantity moved.</span></div><span class="vl-chip ok">On</span></div>
+       <div class="row"><div><b>Change history</b><span>Individual changes are kept {{ \App\Services\Distributors\StockVelocityRecorder::KEEP_DAYS }} days, then removed nightly. The per-item summary is kept.</span></div><span class="vl-chip v">{{ \App\Services\Distributors\StockVelocityRecorder::KEEP_DAYS }} days</span></div>
+       <div class="row"><div><b>Storage</b><span>Both tables together.</span></div><span class="vl-chip">{{ $c['mb'] === null ? 'Unknown' : $c['mb'] . ' MB' }}</span></div>
+     </div>
+ 
++    {{-- MARKER-VELOCITY-FETCH: how often each distributor is read --}}
++    <div class="vl-legend" style="border-bottom:0;padding-bottom:0"><b>Fetch settings.</b> How often the sweep reads each distributor with the master admin login. It checks every hour at quarter past and reads only the distributors that are due.
++      For Shimano this is also the most often Intake downloads their files; a copy the catalog sync downloaded within that time is reused.</div>
++    @php $fs = $this->fetchStatus(); @endphp
++    <div class="vl-set">
++      @foreach ($fetch as $code => $h)
++        <div class="row" wire:key="fetch-{{ $code }}"><div><b>{{ $code }}</b>
++          <span>Last read {{ ($fs[$code]['last'] ?? null) ? $at($fs[$code]['last'], 'M j, g:ia') : 'not yet' }}{{ (int) $h === 0 ? ' · switched off' : (($fs[$code]['next'] ?? null) ? ' · next due ' . $at($fs[$code]['next'], 'M j, g:ia') : '') }}</span></div>
++          <select class="vl-in" style="min-width:170px" wire:model="fetch.{{ $code }}" @disabled(! $this->canEdit())>
++            @foreach (\App\Support\VelocityFetch::CHOICES as $hrs => $label)<option value="{{ $hrs }}">{{ $label }}</option>@endforeach
++          </select></div>
++      @endforeach
++    </div>
++    <div style="display:flex;gap:8px;align-items:center"><button type="button" class="vl-btn p" wire:click="saveFetch" @disabled(! $this->canEdit())>Save fetch settings</button>
++      @unless ($this->canEdit())<span class="vl-mut" style="font-size:12.5px">Your role can view these but not change them.</span>@endunless</div>
++
+     {{-- MARKER-VELOCITY-SWEEP: the last sweeps, so a missed or partial one is visible --}}
+-    <div class="vl-legend" style="border-bottom:0;padding-bottom:0"><b>Recent sweeps.</b> Every 4 hours at quarter past (UTC). A row turns amber when a distributor was skipped, failed, or read nothing.</div>
++    <div class="vl-legend" style="border-bottom:0;padding-bottom:0"><b>Recent sweeps.</b> Each hour at quarter past, for the distributors that are due. A row turns amber when a distributor was skipped, failed, or read nothing.</div>
+     @php $runs = $this->runs(); @endphp
+     <div style="overflow-x:auto">
+     <table class="vl-tbl">
+diff --git a/routes/console.php b/routes/console.php
+index ee8aceb9..1915924e 100644
+--- a/routes/console.php
++++ b/routes/console.php
+@@ -216,10 +216,11 @@ Schedule::command('distributors:sync-tenant --all')
+     ->withoutOverlapping()
+     ->runInBackground();
+ 
+-// MARKER-VELOCITY-SWEEP: whole-catalog stock with the master admin logins every
+-// 4 hours (distributors update all day). Only sweep readings move an item's pace.
++// MARKER-VELOCITY-SWEEP: whole-catalog stock with the master admin logins. Runs
++// hourly; each distributor is read as often as its fetch setting in master admin
++// (MARKER-VELOCITY-FETCH). Only sweep readings move an item's pace.
+ Schedule::command('distributors:velocity-sweep')
+-    ->cron('15 */4 * * *')
++    ->hourlyAt(15)
+     ->withoutOverlapping(230)
+     ->runInBackground();
+ 

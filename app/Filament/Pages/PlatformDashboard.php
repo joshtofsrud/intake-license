@@ -398,9 +398,9 @@ class PlatformDashboard extends Page
                    'value' => "<b>{$caught}</b> reported", 'state' => $caught > 0 ? 'bad' : 'ok',
                    'href' => '/admin/debug-logs?activeTab=errors'];
 
-        // MARKER-VELOCITY-SWEEP: the 4-hourly distributor stock sweep. Amber
-        // when the last run skipped or failed a distributor, red when none
-        // has finished in 9 hours (two missed runs).
+        // MARKER-VELOCITY-SWEEP: the distributor stock sweep. Amber
+        // when the last run skipped or failed a distributor, red when it
+        // has missed two runs of its most frequent distributor.
         try {
             if (Schema::hasTable('distributor_velocity_runs')) {
                 $run = DB::table('distributor_velocity_runs')->whereNotNull('finished_at')->orderByDesc('finished_at')->first();
@@ -411,7 +411,9 @@ class PlatformDashboard extends Page
                 } else {
                     $res   = json_decode((string) $run->results, true) ?: [];
                     $read  = array_sum(array_column($res, 'read'));
-                    $stale = \Carbon\Carbon::parse($run->finished_at)->lt(now()->subHours(9));
+                    // two missed runs of the most frequent distributor (MARKER-VELOCITY-FETCH)
+                    $minH = collect(\App\Support\VelocityFetch::all(['BTI', 'HLC', 'QBP', 'SHIMANO']))->filter()->min() ?: 24;
+                    $stale = \Carbon\Carbon::parse($run->finished_at)->lt(now()->subHours($minH * 2 + 1));
                     $rows[] = [
                         'name'  => 'Distributor sweeps',
                         'meta'  => 'last finished ' . \Carbon\Carbon::parse($run->finished_at)->diffForHumans()

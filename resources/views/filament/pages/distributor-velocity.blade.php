@@ -110,7 +110,7 @@
        async openItem(id) { this.d = { loading: true, title: 'Loading…', facts: [], points: null }; const r = await $wire.detailData(id); this.d = r || null; },
        close() { this.d = null } }"
      @keydown.escape.window="close()">
-  <p class="sub">How fast each distributor's stock is moving, how many days it should last at that pace, and when more is due. Read from each distributor every 4 hours — no shop sales data is used here.</p>
+  <p class="sub">How fast each distributor's stock is moving, how many days it should last at that pace, and when more is due. Read from each distributor on the schedule under Data coverage — no shop sales data is used here.</p>
 
   <div class="vl-tabs">
     <button type="button" wire:click="setTab('items')" class="{{ $tab === 'items' ? 'on' : '' }}">Items</button>
@@ -121,7 +121,7 @@
   @if ($tab === 'items')
     @php $s = $this->stats(); $res = $this->rows(); @endphp
     <div class="vl-legend">
-      <b>What this shows.</b> Each distributor's whole catalog, read every 4 hours with the master admin logins (a sweep). Only sweep readings move an item's pace; the per-shop sync adds arrival dates.
+      <b>What this shows.</b> Each distributor's whole catalog, read with the master admin logins (a sweep) as often as its fetch setting says — see Data coverage. Only sweep readings move an item's pace; the per-shop sync adds arrival dates.
       <b>Days left</b> = stock ÷ average daily drop over roughly the last month. Only drops count; a restock is never read as a sale.
       <b>Next arrival</b> is the earliest date a distributor's warehouse sends; blank means none was sent.
       <b>History</b>: Too early (under half a day of readings), Building, or Good (21+ days). Nothing on this page is shown to shops — see Shop visibility.
@@ -175,7 +175,7 @@
             return '<th' . ($right ? ' class="r"' : '') . '><button type="button" class="vl-sort' . ($on ? ' on' : '') . '" wire:click="sortBy(\'' . $key . '\')" title="Sort by ' . e(strtolower($label)) . '">' . e($label) . ($arrow ? '<i>' . $arrow . '</i>' : '') . '</button></th>';
         };
       @endphp
-      <thead><tr>{!! $sh('item', 'Item') !!}{!! $sh('code', 'Distributor') !!}{!! $sh('stock', 'In stock', true) !!}<th title="Stock since the first reading, up to 30 days">Stock trend</th>{!! $sh('pace', 'Pace', true) !!}{!! $sh('days', 'Days left', true) !!}{!! $sh('arrival', 'Next arrival') !!}<th class="r">Shops stocking</th>{!! $sh('history', 'History') !!}</tr></thead>
+      <thead><tr>{!! $sh('item', 'Item') !!}{!! $sh('code', 'Distributor') !!}{!! $sh('stock', 'In stock', true) !!}<th title="Stock since the first reading, up to 30 days">Stock trend</th>{!! $sh('pace', 'Pace', true) !!}{!! $sh('days', 'Days left', true) !!}{!! $sh('arrival', 'Next arrival') !!}<th title="The most recent time this item was read, and whether that reading differed from the one before">Last pull</th><th class="r">Shops stocking</th>{!! $sh('history', 'History') !!}</tr></thead>
       <tbody>
       @forelse ($res['rows'] as $r)
         @php $dl = $r->days_left === null ? null : (float) $r->days_left; $cls = $dl === null ? 'vl-mut' : ($dl < 14 ? 'red' : ($dl < 30 ? 'amber' : '')); @endphp
@@ -187,11 +187,17 @@
           <td class="r" style="white-space:nowrap">{{ $r->rate_per_day === null ? '—' : rtrim(rtrim(number_format((float) $r->rate_per_day, 1), '0'), '.') . ' / day' }}</td>
           <td class="r"><span class="vl-dl {{ $cls }}">{{ $dl === null ? '—' : ($dl < 1 ? 'Under 1 day' : number_format($dl) . ' ' . \Illuminate\Support\Str::plural('day', (int) round($dl))) }}</span></td>
           <td>@if ($r->next_arrival_on)<span class="vl-chip ok">{{ \Carbon\Carbon::parse($r->next_arrival_on)->format('M j') }}</span>@else<span class="vl-chip">None sent</span>@endif</td>
+          <td style="white-space:nowrap">
+            <span class="vl-mut">{{ $at($r->last_reading_at, 'M j, g:ia') }}</span><br>
+            @if ($r->pull_delta === null)<span class="vl-chip">First reading</span>
+            @elseif ($r->pull_delta === 0)<span class="vl-chip">No change</span>@if ($r->last_change_at)<span class="vl-mut" style="font-size:11.5px"> · last change {{ $at($r->last_change_at, 'M j') }}</span>@endif
+            @else<span class="vl-chip {{ $r->pull_delta < 0 ? 'amber' : 'ok' }}">{{ $r->pull_delta > 0 ? '+' : '−' }}{{ number_format(abs($r->pull_delta)) }}</span>@endif
+          </td>
           <td class="r">{{ $r->shops }}</td>
           <td class="vl-mut" style="white-space:nowrap">{{ $confWord[$r->conf] }} · {{ $r->readings }} {{ \Illuminate\Support\Str::plural('reading', (int) $r->readings) }}</td>
         </tr>
       @empty
-        <tr><td colspan="9"><div class="vl-empty">
+        <tr><td colspan="10"><div class="vl-empty">
           @if ($s['items'] === 0)
             <b>No readings yet.</b>Run the pull once after deploy, or wait for tonight's sync.
           @else
@@ -271,7 +277,7 @@
 
   @elseif ($tab === 'coverage')
     @php $c = $this->coverage(); @endphp
-    <div class="vl-legend"><b>What each distributor gives us.</b> Readings come from a sweep of each whole catalog every 4 hours with the master admin logins (BTI and Shimano in one feed, HLC in batches of 50, QBP one call per warehouse), plus the per-shop sync. Arrival dates come from warehouse detail where it's sent; QBP's warehouse call carries none, so QBP dates come only from shops' syncs.</div>
+    <div class="vl-legend"><b>What each distributor gives us.</b> Readings come from a sweep of each whole catalog with the master admin logins, as often as the fetch settings below say (BTI and Shimano in one feed, HLC in batches of 50, QBP one call per warehouse), plus the per-shop sync. Arrival dates come from warehouse detail where it's sent; QBP's warehouse call carries none, so QBP dates come only from shops' syncs.</div>
     <div class="vl-cov">
       @forelse ($c['per'] as $code => $p)
         @php $ch = $c['changes'][$code] ?? null; @endphp
@@ -284,13 +290,31 @@
       @endforelse
     </div>
     <div class="vl-set">
-      <div class="row"><div><b>Recorder</b><span>Fed by the 4-hourly sweep and the per-shop sync. Updates one summary row per item and writes a change row only when the quantity moved.</span></div><span class="vl-chip ok">On</span></div>
+      <div class="row"><div><b>Recorder</b><span>Fed by the sweep and the per-shop sync. Updates one summary row per item and writes a change row only when the quantity moved.</span></div><span class="vl-chip ok">On</span></div>
       <div class="row"><div><b>Change history</b><span>Individual changes are kept {{ \App\Services\Distributors\StockVelocityRecorder::KEEP_DAYS }} days, then removed nightly. The per-item summary is kept.</span></div><span class="vl-chip v">{{ \App\Services\Distributors\StockVelocityRecorder::KEEP_DAYS }} days</span></div>
       <div class="row"><div><b>Storage</b><span>Both tables together.</span></div><span class="vl-chip">{{ $c['mb'] === null ? 'Unknown' : $c['mb'] . ' MB' }}</span></div>
     </div>
 
+    {{-- MARKER-VELOCITY-FETCH: how often each distributor is read --}}
+    <div class="vl-legend" style="border-bottom:0;padding-bottom:0"><b>Fetch settings.</b> How often the sweep reads each distributor with the master admin login. It checks every hour at quarter past and reads only the distributors that are due.
+      For Shimano this is also the most often Intake downloads their files; a copy the catalog sync downloaded within that time is reused.</div>
+    @php $fs = $this->fetchStatus(); @endphp
+    <div class="vl-set">
+      @foreach ($fetch as $code => $h)
+        <div class="row" wire:key="fetch-{{ $code }}"><div><b>{{ $code }}</b>
+          @php $lr = $fs[$code]['run'] ?? null; @endphp
+          @if ($lr && $lr['status'] !== 'ok')<span style="color:{{ $lr['status'] === 'failed' ? '#f47c7c' : 'var(--amber, #e0a33a)' }}">Latest run {{ $at($lr['at'], 'M j, g:ia') }}: {{ $lr['status'] === 'failed' ? 'failed — ' : '' }}{{ $lr['text'] }}</span>@endif
+          <span>Last read {{ ($fs[$code]['last'] ?? null) ? $at($fs[$code]['last'], 'M j, g:ia') : 'not yet' }}{{ (int) $h === 0 ? ' · switched off' : (($fs[$code]['next'] ?? null) ? ' · next due ' . $at($fs[$code]['next'], 'M j, g:ia') : '') }}</span></div>
+          <select class="vl-in" style="min-width:170px" wire:model="fetch.{{ $code }}" @disabled(! $this->canEdit())>
+            @foreach (\App\Support\VelocityFetch::CHOICES as $hrs => $label)<option value="{{ $hrs }}">{{ $label }}</option>@endforeach
+          </select></div>
+      @endforeach
+    </div>
+    <div style="display:flex;gap:8px;align-items:center"><button type="button" class="vl-btn p" wire:click="saveFetch" @disabled(! $this->canEdit())>Save fetch settings</button>
+      @unless ($this->canEdit())<span class="vl-mut" style="font-size:12.5px">Your role can view these but not change them.</span>@endunless</div>
+
     {{-- MARKER-VELOCITY-SWEEP: the last sweeps, so a missed or partial one is visible --}}
-    <div class="vl-legend" style="border-bottom:0;padding-bottom:0"><b>Recent sweeps.</b> Every 4 hours at quarter past (UTC). A row turns amber when a distributor was skipped, failed, or read nothing.</div>
+    <div class="vl-legend" style="border-bottom:0;padding-bottom:0"><b>Recent sweeps.</b> Each hour at quarter past, for the distributors that are due. A row turns amber when a distributor was skipped, failed, or read nothing.</div>
     @php $runs = $this->runs(); @endphp
     <div style="overflow-x:auto">
     <table class="vl-tbl">

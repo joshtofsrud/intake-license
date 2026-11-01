@@ -64,6 +64,7 @@ class DistributorVelocity extends Page
     ];
     public const STOCK = ['in' => 'In stock', 'out' => 'Out of stock', 'all' => 'All'];
     public array $shop = [];
+    public array $fetch = [];   // MARKER-VELOCITY-FETCH: code => hours (0 = off)
 
     public function mount(): void
     {
@@ -72,6 +73,7 @@ class DistributorVelocity extends Page
             $this->shop[$k] = (bool) ($saved[$k] ?? $d[2]);
         }
         $codes = $this->codes();
+        $this->fetch = array_map('strval', \App\Support\VelocityFetch::all(array_values(array_unique(array_merge(['BTI', 'HLC', 'QBP', 'SHIMANO'], $codes)))));
         $on = $saved['vendors'] ?? $codes;
         $this->shop['vendors'] = array_fill_keys($codes, false);
         foreach ($codes as $c) {
@@ -182,9 +184,63 @@ class DistributorVelocity extends Page
         }
         $out['vendors'] = array_keys(array_filter((array) ($this->shop['vendors'] ?? [])));
         $ps = PlatformSettings::current();
-        $ps->velocity_settings = $out;
+        $ps->velocity_settings = array_merge((array) ($ps->velocity_settings ?? []), $out);
         $ps->save();
         Notification::make()->title('Shop visibility saved')->success()->send();
+    }
+
+    /** MARKER-VELOCITY-FETCH: save how often each distributor is read. */
+    public function saveFetch(): void
+    {
+        abort_unless($this->canEdit(), 403);
+        $out = [];
+        foreach ($this->fetch as $code => $h) {
+            $h = (int) $h;
+            $out[strtoupper((string) $code)] = array_key_exists($h, \App\Support\VelocityFetch::CHOICES) ? $h : \App\Support\VelocityFetch::FALLBACK;
+        }
+        $ps = PlatformSettings::current();
+        $ps->velocity_settings = array_merge((array) ($ps->velocity_settings ?? []), ['fetch' => $out]);
+        $ps->save();
+        Notification::make()->title('Fetch settings saved')->body('The next hourly run follows them.')->success()->send();
+    }
+
+    /** Last sweep read per distributor, and when the next is due. */
+    public function fetchStatus(): array
+    {
+        $last = \App\Support\VelocityFetch::lastReads();
+        $runs = self::latestRunPerDistributor();
+        $out = [];
+        foreach (array_keys($this->fetch) as $code) {
+            $h = \App\Support\VelocityFetch::hours($code);
+            $l = $last[$code] ?? null;
+            $out[$code] = ['last' => $l, 'next' => $h === 0 ? null : ($l ? $l->copy()->addHours($h) : now()), 'run' => $runs[$code] ?? null];
+        }
+        return $out;
+    }
+
+    /**
+     * The most recent run of each distributor, whatever happened: failed (a
+     * note, or nothing read), read but nothing changed, or read with changes.
+     * @return array<string, array{at:string, status:string, text:string}>
+     */
+    public static function latestRunPerDistributor(): array
+    {
+        if (! Schema::hasTable('distributor_velocity_runs')) return [];
+        $out = [];
+        foreach (DB::table('distributor_velocity_runs')->whereNotNull('finished_at')->orderByDesc('started_at')->limit(40)->get() as $run) {
+            foreach ((json_decode((string) $run->results, true) ?: []) as $r) {
+                $code = $r['code'] ?? null;
+                if (! $code || isset($out[$code])) continue;
+                if (! empty($r['note']) || (($r['items'] ?? 0) > 0 && ($r['read'] ?? 0) === 0)) {
+                    $out[$code] = ['at' => $run->started_at, 'status' => 'failed', 'text' => ($r['note'] ?? '') ?: 'Nothing was read'];
+                } elseif (($r['counted'] ?? 0) > 0 && ($r['changed'] ?? 0) === 0) {
+                    $out[$code] = ['at' => $run->started_at, 'status' => 'nochange', 'text' => 'Read, no item changed'];
+                } else {
+                    $out[$code] = ['at' => $run->started_at, 'status' => 'ok', 'text' => number_format((int) ($r['changed'] ?? 0)) . ' changed'];
+                }
+            }
+        }
+        return $out;
     }
 
     /** Headline numbers for the Items tab. */
@@ -288,6 +344,7 @@ class DistributorVelocity extends Page
         $out = [];
         foreach ($rows as $r) {
             $r->shops = (int) ($shops[$r->distributor_catalog_id] ?? 0);
+            $r->pull_delta = self::pullDelta($r);
             $r->conf = StockVelocityRecorder::confidence($r);
             $from = $this->windowStart($r, $since);
             $h = $hist[$r->distributor_code . '|' . $r->distributor_variant_no] ?? [];
@@ -337,12 +394,25 @@ class DistributorVelocity extends Page
                 ['Average pace', $r->rate_per_day === null ? 'Not enough history yet' : rtrim(rtrim(number_format((float) $r->rate_per_day, 2), '0'), '.') . ' per day'],
                 ['Days left', $dl === null ? '—' : ($dl < 1 ? 'Under 1 day' : number_format($dl) . ' days')],
                 ['Next arrival', $r->next_arrival_on ? Carbon::parse($r->next_arrival_on)->format('M j, Y') : 'None sent by ' . $r->distributor_code],
+                ['Last pull', $this->when($r->last_reading_at) . ' · ' . (($d = self::pullDelta($r)) === null ? 'first reading' : ($d === 0 ? 'no change' : ($d > 0 ? '+' : '−') . number_format(abs($d))))],
+                ['Last change', $r->last_change_at ? $this->when($r->last_change_at) : '—'],
                 ['Last restock', $r->last_restock_at ? $this->when($r->last_restock_at) : 'None seen'],
                 ['Before this build', $r->baseline_avail === null ? 'No earlier reading' : number_format((int) $r->baseline_avail) . ' on ' . $this->when($r->baseline_at)],
                 ['History', $conf . ' · ' . $r->readings . ' readings since ' . ($r->first_seen_at ? $this->when($r->first_seen_at, 'M j') : '—')],
                 ['Shops stocking', $shops . ' (a count — shops are never named here)'],
             ],
         ];
+    }
+
+    /**
+     * What the latest pull did to an item: null = its first reading, 0 = no
+     * change (the pull matched the one before, however long ago the stock last
+     * moved), otherwise the signed difference.
+     */
+    public static function pullDelta(object $r): ?int
+    {
+        if ($r->prev_avail === null) return null;
+        return (int) $r->avail - (int) $r->prev_avail;
     }
 
     /** Admin time zone when that helper exists, UTC otherwise. */
