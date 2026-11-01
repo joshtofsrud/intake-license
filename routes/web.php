@@ -786,6 +786,11 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             Route::get('/reports/retail',       [TenantControllers\ReportsController::class, 'retail'])->name('reports.retail');
             Route::get('/reports/money',        [TenantControllers\ReportsController::class, 'money'])->name('reports.money');
             Route::get('/reports/staff',        [TenantControllers\ReportsController::class, 'staff'])->name('reports.staff');
+            // MARKER-REPORT-BUILDER-CORE
+            Route::get('/reports/custom',               [TenantControllers\CustomReportsController::class, 'index'])->name('reports.custom');
+            Route::get('/reports/custom/export',        [TenantControllers\CustomReportsController::class, 'export'])->name('reports.custom.export');
+            Route::post('/reports/custom/save',         [TenantControllers\CustomReportsController::class, 'save'])->name('reports.custom.save');
+            Route::post('/reports/custom/{id}/delete',  [TenantControllers\CustomReportsController::class, 'destroy'])->name('reports.custom.delete');
             Route::get('/reports/data-quality',        [TenantControllers\ReportsController::class, 'dataQuality'])->name('reports.data_quality');
             Route::get('/reports/data-quality/export', [TenantControllers\ReportsController::class, 'dataQualityExport'])->name('reports.data_quality.export');
             // Traffic tab
