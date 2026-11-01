@@ -37,6 +37,10 @@ class DistributorVelocity extends Page
         'show_arrival'   => ['Show next arrival date', 'Only where the distributor sends one.', false],
         'require_good'   => ['Hide estimates until history is Good', 'Shops see "Not enough history" instead of a number until an item has 21 days of readings.', true],
         'warn_on_po'     => ['Warn on low cover when ordering', 'An amber note on a purchase order line when days left is under the vendor lead time.', false],
+        // Fourth element true = shown under "Reports" on the Shop visibility tab (MARKER-REPORT-DISTRIBUTOR).
+        'report_on'      => ['Offer "Distributor stock" in the report builder', 'Shops can report on distributor stock for items they carry, by item, brand, category or distributor.', false, true],
+        'report_pace'    => ['Show pace per day in reports', 'How many units a day the distributor\'s stock is dropping.', false, true],
+        'report_email'   => ['Allow distributor figures in emailed reports', 'Saved now for when emailed reports ship. Emails can reach people outside the shop, so this stays off until you turn it on.', false, true],
     ];
 
     public string $tab = 'items';

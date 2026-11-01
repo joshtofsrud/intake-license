@@ -311,9 +311,16 @@
     </div>
 
   @else
-    <div class="vl-legend"><b>Not live in tenant admin yet.</b> These settings are saved now so the shop-side build reads them. Until that ships, shops see nothing from this page, whatever is switched on. Shops will only ever see distributor stock — never another shop's data.</div>
+    <div class="vl-legend"><b>What is live.</b> The Reports switches, days left, next arrival, the history rule and the distributor list already apply to the shop's report builder. Everything else here is saved now for the shop-side build, so shops see nothing from it yet. Shops will only ever see distributor stock — never another shop's data.</div>
     <div class="vl-set">
       @foreach (\App\Filament\Pages\DistributorVelocity::SHOP_SWITCHES as $k => $d)
+        @continue(! empty($d[3]))
+        <div class="row"><div><b>{{ $d[0] }}</b><span>{{ $d[1] }}</span></div>
+          <label class="vl-sw"><input type="checkbox" wire:model="shop.{{ $k }}" @disabled(! $this->canEdit())><i></i></label></div>
+      @endforeach
+      <div class="row" style="border-bottom:0;padding-bottom:0"><div><b>Reports</b><span>Shops can build their own reports. These decide whether distributor stock is one of the things they can report on. Days left, next arrival, the history rule and the distributor list above apply to reports too.</span></div></div>
+      @foreach (\App\Filament\Pages\DistributorVelocity::SHOP_SWITCHES as $k => $d)
+        @continue(empty($d[3]))
         <div class="row"><div><b>{{ $d[0] }}</b><span>{{ $d[1] }}</span></div>
           <label class="vl-sw"><input type="checkbox" wire:model="shop.{{ $k }}" @disabled(! $this->canEdit())><i></i></label></div>
       @endforeach

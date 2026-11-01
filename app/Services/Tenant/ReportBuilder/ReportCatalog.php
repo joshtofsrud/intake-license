@@ -19,7 +19,74 @@ class ReportCatalog
     public const MAX_MEASURES = 5;
     public const ROW_CAP = 5000;
 
+    /** What master admin allows shops to see (Distributor velocity > Shop visibility). */
+    public static function velocity(): array
+    {
+        static $v = null;
+        if ($v === null) {
+            try {
+                $s = (array) (\App\Models\PlatformSettings::current()->velocity_settings ?? []);
+            } catch (\Throwable $e) {
+                $s = [];
+            }
+            $v = [
+                'report_on' => (bool) ($s['report_on'] ?? false),
+                'pace'      => (bool) ($s['report_pace'] ?? false),
+                'days'      => (bool) ($s['show_days_left'] ?? false),
+                'arrival'   => (bool) ($s['show_arrival'] ?? false),
+                'good'      => (bool) ($s['require_good'] ?? true),
+                'vendors'   => isset($s['vendors']) ? array_values((array) $s['vendors']) : null,
+            ];
+        }
+        return $v;
+    }
+
     public static function datasets(): array
+    {
+        $all = self::base();
+        $v = self::velocity();
+        if ($v['report_on']) {
+            $all['dist'] = self::distributorDataset($v);
+        }
+        return $all;
+    }
+
+    private static function distributorDataset(array $v): array
+    {
+        $m = [
+            'dstock' => ['label' => 'In stock at distributor', 'type' => 'count'],
+            'dmine'  => ['label' => 'Your stock on hand',      'type' => 'count'],
+        ];
+        if ($v['pace'])    { $m['dpace'] = ['label' => 'Pace per day', 'type' => 'rate']; }
+        if ($v['days'])    { $m['ddays'] = ['label' => 'Days left', 'type' => 'rate']; $m['dlow'] = ['label' => 'Items under 14 days left', 'type' => 'count']; }
+        if ($v['arrival']) { $m['dnext'] = ['label' => 'Days until next arrival', 'type' => 'rate']; }
+
+        $cav = [
+            'Pace is how fast the distributor\'s stock is dropping. It is not your sales.',
+            'Covers only items already in your inventory.',
+        ];
+        if ($v['good']) { $cav[] = 'Items with under 3 weeks of readings show a dash for pace and days left.'; }
+        if ($v['arrival']) { $cav[] = 'Some distributors do not send arrival dates; those show a dash.'; }
+        $cav[] = 'Which figures appear is set by Intake. Figures it hides are not offered here.';
+
+        return [
+            'label'    => 'Distributor stock',
+            'note'     => 'What distributors have left of items you carry, and how fast it is going. Read from each distributor every 4 hours.',
+            'snapshot' => true,
+            'cav'      => $cav,
+            'measures' => $m,
+            'dims'     => [
+                'dist'  => ['label' => 'Distributor', 'type' => 'cat'],
+                'brand' => ['label' => 'Brand',       'type' => 'cat'],
+                'cat'   => ['label' => 'Category',    'type' => 'cat'],
+                'item'  => ['label' => 'Item',        'type' => 'cat'],
+                'hist'  => ['label' => 'History',     'type' => 'cat'],
+            ],
+            'filters'  => ['dist' => 'Distributor', 'brand' => 'Brand', 'cat' => 'Category', 'hist' => 'History'],
+        ];
+    }
+
+    private static function base(): array
     {
         return [
             'sales' => [

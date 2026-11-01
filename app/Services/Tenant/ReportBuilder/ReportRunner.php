@@ -27,9 +27,11 @@ class ReportRunner
         $def = ReportCatalog::datasets()[$cfg['ds']];
         [$from, $to, $rangeLabel] = ReportCatalog::resolveRange($cfg['range'], $this->tenant->localToday());
 
-        $raw = $cfg['ds'] === 'inventory'
-            ? $this->inventoryRows($cfg)
-            : $this->salesRows($cfg, $from->toDateString(), $to->toDateString());
+        $raw = match ($cfg['ds']) {
+            'inventory' => $this->inventoryRows($cfg),
+            'dist'      => $this->distRows($cfg),
+            default     => $this->salesRows($cfg, $from->toDateString(), $to->toDateString()),
+        };
 
         $dimDef = $def['dims'][$cfg['dim']];
         $isTime = $dimDef['type'] === 'time';
@@ -52,6 +54,11 @@ class ReportRunner
             // is in both categories), so the ticket total is counted on its own
             // ungrouped query instead of adding the rows together.
             $all = $this->salesRows($cfg, $from->toDateString(), $to->toDateString(), true);
+            $sum = $all ? $this->components($all[0]) : [];
+        } elseif ($cfg['ds'] === 'dist') {
+            // Days left and arrival are not additive, so the total comes from
+            // its own ungrouped pass.
+            $all = $this->distRows($cfg, true);
             $sum = $all ? $this->components($all[0]) : [];
         } else {
             foreach ($rows as $row) {
@@ -112,6 +119,24 @@ class ReportRunner
             if ($isManager) {
                 $out['staff'] = DB::table('tenant_users')->where('tenant_id', $tid)->orderBy('name')->pluck('name', 'id')->all();
             }
+        } elseif ($ds === 'dist') {
+            $v = ReportCatalog::velocity();
+            $codes = \Illuminate\Support\Facades\Cache::remember('rb:dist-codes', 600, fn () =>
+                DB::table('distributor_stock_summary')->distinct()->orderBy('distributor_code')->pluck('distributor_code')->all());
+            if (is_array($v['vendors'])) {
+                $codes = array_values(array_intersect($codes, $v['vendors']));
+            }
+            $out['dist'] = array_combine($codes, $codes);
+            $out['brand'] = \Illuminate\Support\Facades\Cache::remember('rb:brands:' . $tid . ':' . md5(json_encode($v['vendors'])), 600, fn () =>
+                DB::table('tenant_inventory_items as it')
+                    ->join('platform_distributor_catalogs as pc', 'pc.id', '=', 'it.distributor_catalog_id')
+                    ->join('distributor_stock_summary as s', 's.distributor_catalog_id', '=', 'it.distributor_catalog_id')
+                    ->when(is_array($v['vendors']), fn ($q) => $q->whereIn('s.distributor_code', $v['vendors'] ?: ['-none-']))
+                    ->where('it.tenant_id', $tid)->where('it.is_active', 1)->whereNull('it.deleted_at')
+                    ->whereNotNull('pc.manufacturer')->where('pc.manufacturer', '!=', '')
+                    ->distinct()->orderBy('pc.manufacturer')->pluck('pc.manufacturer', 'pc.manufacturer')->all());
+            $out['cat'] = $this->categoryOptions();
+            $out['hist'] = ['good' => 'Good', 'building' => 'Building', 'early' => 'Too early'];
         } else {
             $out['cat']  = $this->categoryOptions();
             $out['vend'] = DB::table('tenant_vendors')->where('tenant_id', $tid)->orderBy('name')->pluck('name', 'id')->all();
@@ -210,6 +235,84 @@ class ReportRunner
         return $q->get()->all();
     }
 
+    // ------------------------------------------------------ distributor stock
+
+    /**
+     * Items THIS shop carries, matched to what the distributor they came from
+     * has left. Never another shop's data. Pace and days left are hidden for
+     * an item until it has enough history when master admin says so.
+     */
+    private function distRows(array $cfg, bool $totalOnly = false): array
+    {
+        $v = ReportCatalog::velocity();
+
+        $q = DB::table('tenant_inventory_items as it')
+            ->join('distributor_stock_summary as s', 's.distributor_catalog_id', '=', 'it.distributor_catalog_id')
+            ->join('platform_distributor_catalogs as pc', 'pc.id', '=', 'it.distributor_catalog_id')
+            ->leftJoin('tenant_inventory_categories as c', 'c.id', '=', 'it.category_id')
+            ->where('it.tenant_id', $this->tenant->id)
+            ->where('it.is_active', 1)
+            ->whereNull('it.deleted_at')
+            ->select('it.name as item', 'it.computed_stock_count as mine', 'c.name as cat', 'pc.manufacturer as brand',
+                's.distributor_code as dist', 's.avail', 's.rate_per_day', 's.next_arrival_on',
+                's.first_seen_at', 's.last_reading_at');
+
+        if (is_array($v['vendors'])) {
+            $q->whereIn('s.distributor_code', $v['vendors'] ?: ['-none-']);
+        }
+
+        $this->applyFilters($q, array_intersect_key($cfg['f'], ['dist' => 1, 'brand' => 1, 'cat' => 1]), [
+            'dist'  => 's.distributor_code',
+            'brand' => 'pc.manufacturer',
+            'cat'   => 'it.category_id',
+        ]);
+
+        $today = $this->tenant->localToday()->startOfDay();
+        $groups = [];
+
+        foreach ($q->cursor() as $r) {
+            $conf = \App\Services\Distributors\StockVelocityRecorder::confidence($r);
+            if (!empty($cfg['f']['hist']) && $cfg['f']['hist'] !== $conf) {
+                continue;
+            }
+            $usable = $r->rate_per_day !== null && (!$v['good'] || $conf === 'good');
+
+            $key = $totalOnly ? 'Total' : match ($cfg['dim']) {
+                'dist'  => (string) $r->dist,
+                'brand' => $r->brand ?: 'No brand',
+                'cat'   => $r->cat ?: 'Uncategorized',
+                'hist'  => ['good' => 'Good', 'building' => 'Building', 'early' => 'Too early'][$conf],
+                default => (string) $r->item,
+            };
+
+            if (!isset($groups[$key])) {
+                $groups[$key] = (object) ['dim_label' => $key, 'c_avail' => 0.0, 'c_mine' => 0.0, 'c_pace' => 0.0,
+                    'c_paceavail' => 0.0, 'c_low' => 0.0, 'c_next' => null];
+            }
+            $g = $groups[$key];
+
+            $avail = max(0, (int) $r->avail);
+            $g->c_avail += $avail;
+            $g->c_mine  += max(0, (int) $r->mine);
+
+            if ($usable && (float) $r->rate_per_day > 0) {
+                $rate = (float) $r->rate_per_day;
+                $g->c_pace      += $rate;
+                $g->c_paceavail += $avail;
+                if ($avail / $rate < 14) {
+                    $g->c_low += 1;
+                }
+            }
+
+            if ($r->next_arrival_on) {
+                $days = max(0, (int) $today->diffInDays(\Carbon\Carbon::parse($r->next_arrival_on)->startOfDay(), false));
+                $g->c_next = $g->c_next === null ? $days : min($g->c_next, $days);
+            }
+        }
+
+        return array_values($groups);
+    }
+
     // ---------------------------------------------------------------- helpers
 
     private function applyFilters(Builder $q, array $filters, array $columns): void
@@ -226,14 +329,27 @@ class ReportRunner
         $out = [];
         foreach ((array) $r as $k => $v) {
             if (str_starts_with($k, 'c_')) {
-                $out[substr($k, 2)] = (float) $v;
+                $out[substr($k, 2)] = $v === null ? null : (float) $v;
             }
         }
         return $out;
     }
 
-    private function measureValue(string $ds, string $m, array $c): float
+    private function measureValue(string $ds, string $m, array $c): ?float
     {
+        if ($ds === 'dist') {
+            $pace = (float) ($c['pace'] ?? 0);
+            return match ($m) {
+                'dstock' => (float) ($c['avail'] ?? 0),
+                'dmine'  => (float) ($c['mine'] ?? 0),
+                'dpace'  => $pace > 0 ? $pace : null,
+                'ddays'  => $pace > 0 ? (float) ($c['paceavail'] ?? 0) / $pace : null,
+                'dlow'   => (float) ($c['low'] ?? 0),
+                'dnext'  => isset($c['next']) ? (float) $c['next'] : null,
+                default  => null,
+            };
+        }
+
         if ($ds === 'inventory') {
             return in_array($m, ['cost', 'retail'], true) ? ($c[$m] ?? 0) / 100 : (float) ($c[$m] ?? 0);
         }

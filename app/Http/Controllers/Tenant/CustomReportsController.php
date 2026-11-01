@@ -123,7 +123,7 @@ class CustomReportsController extends Controller
                     $v = $row[$col['key']];
                     $line[] = $col['key'] === 'label'
                         ? $this->csvSafe((string) $v)
-                        : round((float) $v, 2);
+                        : ($v === null ? '' : round((float) $v, 2));
                 }
                 fputcsv($out, $line);
             }

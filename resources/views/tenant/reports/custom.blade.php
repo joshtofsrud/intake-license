@@ -35,6 +35,7 @@
   $def = $catalog[$cfg['ds']];
   $money = fn ($v) => '$' . number_format((float) $v, 2);
   $fmt = function ($v, $type) use ($money) {
+      if ($v === null) return '—';
       if ($type === 'money') return $money($v);
       if ($type === 'pct')   return number_format((float) $v, 1) . '%';
       return rtrim(rtrim(number_format((float) $v, 2), '0'), '.');
@@ -66,6 +67,11 @@
           @endforeach
         </select>
         <div class="cr-hint">{{ $def['note'] }}</div>
+        @if(!empty($def['cav']))
+          <ul class="cr-hint" style="margin:6px 0 0;padding-left:16px;">
+            @foreach($def['cav'] as $line)<li>{{ $line }}</li>@endforeach
+          </ul>
+        @endif
       </div>
 
       <div class="cr-sect">
@@ -202,7 +208,7 @@
                   <td>Total</td>
                   @foreach($result['columns'] as $col)
                     @if($col['key'] !== 'label')
-                      <td class="right">{{ $fmt($result['totals'][$col['key']] ?? 0, $col['type']) }}</td>
+                      <td class="right">{{ $fmt($result['totals'][$col['key']] ?? null, $col['type']) }}</td>
                     @endif
                   @endforeach
                 </tr>
@@ -266,6 +272,9 @@
         <div class="row"><span>Revenue:</span><span>paid sales before tax and tips. Refunds, unpaid sales and quotes are left out.</span></div>
         <div class="row"><span>Margin:</span><span>counted only on lines where a cost was saved at the time of the sale, so lines without a cost don't pull the percentage down.</span></div>
         <div class="row"><span>Staff:</span><span>per-person figures are shown to owners and managers only.</span></div>
+        @if($cfg['ds'] === 'dist')
+          <div class="row"><span>Distributor:</span><span>only items you carry, from the distributor each came from. Pace comes from the distributor's stock dropping, not from anyone's sales, and restocks are never counted as sales. Another shop's data is never shown.</span></div>
+        @endif
         <div class="row"><span>Saved:</span><span>a saved report re-runs on today's data each time you open it. Nothing is emailed or pinned.</span></div>
       </div>
     </div>
