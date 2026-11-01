@@ -27,6 +27,14 @@
   .cr-confirm { display: none; gap: 6px; align-items: center; font-size: 12px; }
   .cr-confirm.on { display: inline-flex; }
   .cr-sugg { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+  .cr-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 14px; margin-top: 4px; }
+  .cr-tile { display: flex; flex-direction: column; gap: 6px; padding: 16px 16px 14px; min-height: 156px; border: 1px solid var(--ia-border, #1f1f1f); border-radius: 10px; color: inherit; text-decoration: none; }
+  .cr-tile:hover { border-color: var(--ia-border-2, #2a2a2a); background: rgba(127,127,127,0.06); }
+  .cr-tile .ico { width: 36px; height: 36px; border-radius: 9px; display: flex; align-items: center; justify-content: center; margin-bottom: 8px; color: #BEF264; background: rgba(190,242,100,0.10); }
+  .cr-tile .ico svg { width: 20px; height: 20px; }
+  .cr-tile .nm { font-size: 14.5px; font-weight: 700; letter-spacing: -0.01em; line-height: 1.3; }
+  .cr-tile .ds { font-size: 12px; color: var(--ia-text-3, #888); line-height: 1.45; }
+  .cr-tile .go { margin-top: auto; padding-top: 8px; font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ia-text-3, #888); }
 </style>
 @endpush
 
@@ -147,6 +155,7 @@
     {{-- ------------------------------------------------------------- results --}}
     <div>
       @if($result)
+        <div style="margin-bottom:10px;"><a href="{{ route('tenant.reports.custom') }}" style="font-size:12.5px;color:var(--ia-text-3,#888);text-decoration:none;">&larr; All reports</a></div>
         <div class="cr-bar">
           <div class="cr-title">{{ $saved ? $saved->name : $def['label'] . ' by ' . strtolower($dims[$cfg['dim']]['label']) }}</div>
           <span style="color:var(--ia-text-3,#888);font-size:12.5px;">{{ count($result['rows']) }} rows · {{ $result['range_label'] }}</span>
@@ -220,14 +229,17 @@
           @endif
         @endif
       @else
-        <div class="rep-empty" style="text-align:left;padding:8px 0 18px;">
-          Pick what to show on the left, then press Run report. Or start from one of these:
-          <div class="cr-sugg">
-            <a class="cr-btn" href="{{ route('tenant.reports.custom', ['ds' => 'sales', 'm' => ['rev', 'margin', 'marginp'], 'dim' => 'cat', 'range' => 'last_90', 'go' => 1]) }}">Margin by category</a>
-            <a class="cr-btn" href="{{ route('tenant.reports.custom', ['ds' => 'sales', 'm' => ['rev', 'tickets', 'avg'], 'dim' => 'week', 'range' => 'last_90', 'go' => 1]) }}">Sales by week</a>
-            <a class="cr-btn" href="{{ route('tenant.reports.custom', ['ds' => 'sales', 'm' => ['rev', 'items'], 'dim' => 'item', 'range' => 'last_30', 'limit' => 25, 'go' => 1]) }}">Top 25 items</a>
-            <a class="cr-btn" href="{{ route('tenant.reports.custom', ['ds' => 'inventory', 'm' => ['units', 'cost', 'retail'], 'dim' => 'cat', 'go' => 1]) }}">Stock value by category</a>
-          </div>
+        <div class="cr-lbl">Templates</div>
+        <div class="cr-hint" style="margin:0 0 10px;">Start from one of these, or pick what to show on the left and press Run report.</div>
+        <div class="cr-tiles">
+          @foreach($templates as $tpl)
+            <a class="cr-tile" href="{{ route('tenant.reports.custom', $tpl['cfg']) }}">
+              <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">{!! \App\Services\Tenant\ReportBuilder\ReportIcons::get($tpl['icon']) !!}</svg></span>
+              <span class="nm">{{ $tpl['name'] }}</span>
+              <span class="ds">{{ $tpl['desc'] }}</span>
+              <span class="go">{{ $tpl['data'] }}</span>
+            </a>
+          @endforeach
         </div>
       @endif
 

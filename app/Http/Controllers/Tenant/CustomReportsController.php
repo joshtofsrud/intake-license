@@ -52,6 +52,7 @@ class CustomReportsController extends Controller
             'result'      => $result,
             'saved'       => $saved,
             'myReports'   => $this->listSaved($user),
+            'templates'   => ReportCatalog::templates($isManager),
             'isManager'   => $isManager,
             'maxMeasures' => ReportCatalog::MAX_MEASURES,
         ]);

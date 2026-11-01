@@ -142,6 +142,58 @@ class ReportCatalog
         ];
     }
 
+    /**
+     * Ready-made reports for the landing page. A template is offered only when
+     * the data it needs is on for this shop, so no tile ever opens an error.
+     * (MARKER-REPORT-TEMPLATES)
+     */
+    public static function templates(bool $isManager): array
+    {
+        $all = self::datasets();
+        $t = [
+            ['Sales by week', 'Revenue, tickets and average ticket for each week, last 90 days.', 'calendar-days',
+                ['ds' => 'sales', 'm' => ['rev', 'tickets', 'avg'], 'dim' => 'week', 'range' => 'last_90']],
+            ['Margin by category', 'Revenue, margin dollars and margin percent in each category, last 90 days.', 'percent',
+                ['ds' => 'sales', 'm' => ['rev', 'margin', 'marginp'], 'dim' => 'cat', 'range' => 'last_90']],
+            ['Revenue by location', 'How each location did over the last 30 days.', 'map-pin',
+                ['ds' => 'sales', 'm' => ['rev', 'tickets', 'avg'], 'dim' => 'loc', 'range' => 'last_30']],
+            ['Top 25 items', 'Your best sellers by revenue, last 30 days.', 'crown',
+                ['ds' => 'sales', 'm' => ['rev', 'items'], 'dim' => 'item', 'range' => 'last_30', 'limit' => 25]],
+            ['How customers paid', 'Revenue and tickets for each payment method, last 30 days.', 'wallet',
+                ['ds' => 'sales', 'm' => ['rev', 'tickets'], 'dim' => 'pay', 'range' => 'last_30']],
+            ['Sales by staff', 'Revenue, tickets and average ticket for each person, last 30 days.', 'receipt',
+                ['ds' => 'sales', 'm' => ['rev', 'tickets', 'avg'], 'dim' => 'staff', 'range' => 'last_30']],
+            ['Stock value by category', 'Units on hand, cost and retail value in each category.', 'boxes',
+                ['ds' => 'inventory', 'm' => ['units', 'cost', 'retail'], 'dim' => 'cat']],
+            ['Stock value by vendor', 'Where your money is tied up, vendor by vendor.', 'package-open',
+                ['ds' => 'inventory', 'm' => ['units', 'cost', 'retail'], 'dim' => 'vend']],
+            ['Fastest-moving at the distributor', 'The 25 items dropping fastest at the distributor, with your stock beside it.', 'truck',
+                ['ds' => 'dist', 'm' => ['dpace', 'dstock', 'dmine'], 'dim' => 'item', 'limit' => 25]],
+            ['Low cover by distributor', 'How many items are about to run out, for each distributor.', 'alarm-clock',
+                ['ds' => 'dist', 'm' => ['dlow', 'ddays', 'dstock'], 'dim' => 'dist']],
+            ['Distributor stock by brand', 'What distributors hold of the brands you carry, next to your own stock.', 'tags',
+                ['ds' => 'dist', 'm' => ['dstock', 'dmine'], 'dim' => 'brand']],
+        ];
+
+        $out = [];
+        foreach ($t as [$name, $desc, $icon, $cfg]) {
+            $def = $all[$cfg['ds']] ?? null;
+            if (!$def) {
+                continue;
+            }
+            foreach ($cfg['m'] as $m) {
+                if (!isset($def['measures'][$m])) {
+                    continue 2;
+                }
+            }
+            if (!isset(self::allowedDims($cfg['ds'], $isManager)[$cfg['dim']])) {
+                continue;
+            }
+            $out[] = ['name' => $name, 'desc' => $desc, 'icon' => $icon, 'data' => $def['label'], 'cfg' => $cfg + ['go' => 1]];
+        }
+        return $out;
+    }
+
     public static function ranges(): array
     {
         return [
