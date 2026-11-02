@@ -51,26 +51,34 @@ class TabPanels
         return TabQuery::compareWord($this->q['compare']);
     }
 
-    /** @return array{l: string, v: string, d: string, cls: string} */
-    private function fig(string $label, string $value, ?string $sub = null, string $cls = '', ?float $delta = null): array
+    /**
+     * @param string $unit '%' for a relative change, 'pts' for a change in a percentage (36% to 38% is +2.0 pts)
+     * @param bool $invert true where lower is better (cancellations), so a rise shows as bad
+     * @return array{l: string, v: string, d: string, cls: string}
+     */
+    private function fig(string $label, string $value, ?string $sub = null, string $cls = '', ?float $delta = null, string $unit = '%', bool $invert = false): array
     {
         if ($delta !== null && $this->q['compare'] !== 'off') {
             if (round($delta, 1) == 0.0) {
                 $sub = 'no change ' . $this->word();
             } else {
-                $sub = ($delta >= 0 ? '+' : '−') . number_format(abs($delta), 1) . '% ' . $this->word();
-                $cls = $cls ?: ($delta >= 0 ? 'good' : 'bad');
+                $sub = ($delta >= 0 ? '+' : '−') . number_format(abs($delta), 1) . ($unit === 'pts' ? ' pts ' : '% ') . $this->word();
+                $cls = $cls ?: (($delta >= 0) !== $invert ? 'good' : 'bad');
             }
         }
         return ['l' => $label, 'v' => $value, 'd' => (string) $sub, 'cls' => $cls];
     }
 
-    /** A figure with its change on the period compared with. */
-    private function figCmp(string $label, array $t, string $m, string $type, ?string $sub = null, string $cls = ''): array
+    /** A figure with its change on the period compared with. A percentage changes in points, not in percent of itself. */
+    private function figCmp(string $label, array $t, string $m, string $type, ?string $sub = null, string $cls = '', bool $invert = false): array
     {
         $cur = $t['vals'][$m] ?? null;
-        $delta = ($t['prev'] ?? null) !== null ? self::pct($cur, $t['prev'][$m] ?? null) : null;
-        return $this->fig($label, $this->fmt($cur, $type), $sub, $cls, $delta);
+        $prev = ($t['prev'] ?? null) !== null ? ($t['prev'][$m] ?? null) : null;
+        if ($type === '%') {
+            $delta = ($cur !== null && $prev !== null) ? $cur - $prev : null;
+            return $this->fig($label, $this->fmt($cur, $type), $sub, $cls, $delta, 'pts', $invert);
+        }
+        return $this->fig($label, $this->fmt($cur, $type), $sub, $cls, self::pct($cur, $prev), '%', $invert);
     }
 
     private function delta(?float $cur, ?float $prev): string
@@ -114,7 +122,7 @@ class TabPanels
         $rows = [['Data', $cat[$cfg['ds']]['l'] ?? $cfg['ds']], ['Show', implode(', ', $show)], ['Break down by', $by], ['Range', $range],
             ['Compare', $snapshot ? 'Not used' : TabQuery::COMPARE[$cfg['compare']]]];
         if ($extra) $rows[] = ['Also', $extra];
-        $pub = array_intersect_key($cfg, array_flip(['ds', 'measures', 'dim', 'dim2', 'filters', 'range', 'from', 'to', 'compare', 'sortDir', 'limit']));
+        $pub = array_intersect_key($cfg, array_flip(['ds', 'measures', 'calcs', 'dim', 'dim2', 'filters', 'range', 'from', 'to', 'compare', 'sortDir', 'limit']));
         $code = rtrim(strtr(base64_encode(json_encode($pub)), '+/', '-_'), '=');
         return ['rows' => $rows, 'url' => route('tenant.reports.custom', ['cfg' => $code])];
     }
@@ -122,9 +130,9 @@ class TabPanels
     /** One panel. $body holds 'figs', 'bar', 'table', 'html', 'after' as needed. */
     private function panel(string $id, string $title, string $hint, ?array $cfg, array $body = [], ?string $openExtra = null, bool $snapshot = false): array
     {
-        $p = ['id' => $id, 'title' => $title, 'hint' => $hint, 'figs' => [], 'bar' => null, 'table' => null, 'html' => null, 'after' => null, 'note' => null, 'cfg' => null, 'open' => null];
+        $p = ['id' => $id, 'title' => $title, 'hint' => $hint, 'figs' => [], 'bar' => null, 'table' => null, 'html' => null, 'after' => null, 'note' => null, 'cfg' => null, 'open' => null, 'grid' => null, 'chart' => null];
         if ($cfg) {
-            $p['cfg'] = array_intersect_key($cfg, array_flip(['ds', 'measures', 'dim', 'dim2', 'filters', 'range', 'from', 'to', 'compare', 'sortDir', 'limit']));
+            $p['cfg'] = array_intersect_key($cfg, array_flip(['ds', 'measures', 'calcs', 'dim', 'dim2', 'filters', 'range', 'from', 'to', 'compare', 'sortDir', 'limit']));
             $p['open'] = $this->open($cfg, $openExtra, $snapshot);
         }
         return $body + $p;
@@ -366,6 +374,223 @@ class TabPanels
             ['Cash view:', 'this tab counts payments received in the range. Retail and Custom count sales after refunds. The reconciliation above shows the difference, so the two never look like a mistake.'],
             ['Tax:', 'is collected on each sale and is never part of revenue anywhere in Reports.'],
             ['Everything else:', 'is the one calculated line. It is the payments received minus the lines above it, so it always adds up, and it will be large when a lot of balances were paid for sales from other days.'],
+        ];
+        return ['panels' => $out, 'legend' => $legend];
+    }
+
+    // ---------------------------------------------------------------- shared pieces for Staff and Services
+
+    /** A plain list for one engine breakdown. $cols: [header, measure, type]; the first column is the row name. */
+    private function listPanel(string $id, string $title, string $hint, array $cfg, string $nameHead, array $cols, string $what, string $empty, ?string $after = null, ?string $openExtra = null): array
+    {
+        $e = $this->e;
+        $rows = []; $total = null;
+        if (!$this->locked) {
+            $r = $e->rows($cfg);
+            foreach ($r['rows'] as $row) {
+                $cells = [e($row['l'])];
+                foreach ($cols as [, $m, $t]) $cells[] = $this->fmt($e->cellValue($cfg, $m, $row['vals']), $t);
+                $rows[] = $cells;
+            }
+            if (!$cfg['limit'] || count($r['rows']) < $cfg['limit']) {
+                $total = ['Total'];
+                foreach ($cols as [, $m, $t]) $total[] = $this->fmt($e->cellValue($cfg, $m, $r['totals']), $t);
+            }
+        }
+        return $this->panel($id, $title, $hint, $cfg, [
+            'table' => $this->table(array_merge([$nameHead], array_column($cols, 0)), $rows, $total, $what, $empty),
+            'after' => $after,
+        ], $openExtra);
+    }
+
+    /** Day, week or month buckets, whichever keeps a chart readable for the length of the range. */
+    private function bucketFor(array $cfg): string
+    {
+        [$a, $b] = $this->e->periods()->rangeFor($cfg);
+        $days = $this->e->periods()->days($a, $b);
+        return $days <= 62 ? 'day' : ($days <= 400 ? 'week' : 'month');
+    }
+
+    /** A small bar chart as inline SVG. Bars are aggregates by period; a locked shop gets a fixed pattern instead of real values. */
+    private function bars(array $labels, array $values, bool $fake = false): string
+    {
+        $n = count($values);
+        if ($n === 0) return '';
+        $mx = max(1.0, (float) max($values));
+        $w = 560; $h = 110; $step = $w / $n; $bw = max(2, min(26, $step * 0.68));
+        $svg = '<svg viewBox="0 0 ' . $w . ' ' . $h . '" style="width:100%;max-width:640px;height:110px;display:block" role="img" aria-label="Appointments finished per period">';
+        foreach ($values as $i => $v) {
+            $bh = (int) round($v / $mx * 88);
+            $x = round($i * $step + ($step - $bw) / 2, 1);
+            $svg .= '<rect x="' . $x . '" y="' . (96 - $bh) . '" width="' . round($bw, 1) . '" height="' . $bh . '" rx="2" fill="var(--ia-accent)" opacity=".9">'
+                . ($fake ? '' : '<title>' . e($labels[$i]) . ': ' . number_format($v) . '</title>') . '</rect>';
+        }
+        $svg .= '<line x1="0" y1="96.5" x2="' . $w . '" y2="96.5" stroke="var(--ia-border)"/></svg>';
+        if (!$fake) {
+            $svg .= '<div class="rb-hint" style="display:flex;justify-content:space-between;max-width:640px"><span>' . e($labels[0]) . '</span><span>' . e($labels[$n - 1]) . '</span></div>';
+        }
+        return $svg;
+    }
+
+    // ---------------------------------------------------------------- Staff
+
+    public function staff(): array
+    {
+        $e = $this->e;
+        $out = [];
+
+        // Sales and hours: owners and managers only (hours are pay-adjacent)
+        if ($this->isManager) {
+            $calc = [['id' => 'calc:t1', 'name' => 'Sales per labor hour', 'f' => '[Revenue] / [Hours worked]', 't' => '$']];
+            $c = $this->cfg('sales', ['staff:hrs', 'staff:ot', 'tickets', 'rev', 'calc:t1'], 'staff', ['calcs' => $calc]);
+            $out[] = $this->listPanel('s-hours', 'Sales and hours', 'what each person sold against the hours they worked', $c, 'Staff', [
+                ['Hours', 'staff:hrs', 'd'], ['Overtime', 'staff:ot', 'd'], ['Tickets', 'sales:tickets', 'n'], ['Revenue', 'sales:rev', '$'], ['Sales / hour', 'calc:t1', '$'],
+            ], 'staff figures', 'No sales or hours in this range.', 'Hours come from the time clock, after any edits made on a timesheet. Overtime is the part of those hours that counted as overtime.');
+        } else {
+            $out[] = $this->panel('s-hours', 'Sales and hours', 'what each person sold against the hours they worked', null,
+                ['note' => 'Sales and hours are shown to owners and managers.']);
+        }
+
+        // Booking density: a grid of appointments by weekday and start hour
+        $c = $this->cfg('appts', ['ap'], 'dow', ['dim2' => 'hod', 'compare' => 'off']);
+        $grid = null;
+        if ($this->locked) {
+            $days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+            $cols = ['8a', '9a', '10a', '11a', '12p', '1p', '2p', '3p', '4p', '5p'];
+            $rows = [];
+            foreach ($days as $i => $d) {
+                $v = [];
+                foreach ($cols as $j => $_) $v[] = (($i * 5 + $j * 3) % 7);
+                $rows[] = [$d, $v];
+            }
+            $grid = ['cols' => $cols, 'rows' => $rows, 'max' => 6, 'locked' => true];
+        } else {
+            $pv = $e->pivot($c);
+            $byDow = [];
+            foreach ($pv['rows'] as $row) {
+                foreach ($pv['colKeys'] as $ci => $hk) $byDow[(int) $row['k']][(int) $hk] = (float) ($row['cells']['appts:ap'][$ci] ?? 0);
+            }
+            $hours = [];
+            foreach ($byDow as $hs) foreach ($hs as $hk => $v) if ($hk >= 0 && $v > 0) $hours[] = $hk;
+            $lo = $hours ? min(8, min($hours)) : 8; $hi = $hours ? max(17, max($hours)) : 17;
+            $cols = []; $keys = [];
+            for ($h = $lo; $h <= $hi; $h++) { $keys[] = $h; $cols[] = ($h % 12 === 0 ? 12 : $h % 12) . ($h < 12 ? 'a' : 'p'); }
+            $hasNone = false;
+            foreach ($byDow as $hs) if (($hs[-1] ?? 0) > 0) $hasNone = true;
+            if ($hasNone) { $keys[] = -1; $cols[] = 'No time'; }
+            $rows = []; $mx = 0.0;
+            foreach (['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as $i => $d) {
+                $v = [];
+                foreach ($keys as $k) { $x = (float) ($byDow[$i + 1][$k] ?? 0); $v[] = $x; $mx = max($mx, $x); }
+                $rows[] = [$d, $v];
+            }
+            $grid = ['cols' => $cols, 'rows' => $rows, 'max' => max(1.0, $mx), 'locked' => false, 'empty' => $mx <= 0];
+        }
+        $out[] = $this->panel('s-dens', 'Booking density', 'appointments by day of the week and the hour they start', $c, ['grid' => $grid,
+            'after' => 'Counts every appointment in the range by the hour it is booked to start, in the shop\'s time zone, whatever its status.']);
+
+        // Appointments by staff or resource
+        $c = $this->cfg('appts', ['ap', 'done', 'cancp', 'booked'], 'res');
+        $out[] = $this->listPanel('s-appt', 'Appointments by staff', 'who the work was booked with', $c, 'Staff or resource', [
+            ['Appointments', 'ap', 'n'], ['Completed', 'done', 'n'], ['Cancellation rate', 'cancp', '%'], ['Booked value', 'booked', '$'],
+        ], 'appointments', 'No appointments in this range.', 'Appointments with nobody booked are shown as Unassigned, not dropped, so the totals match the Services tab. Tips by staff and estimate accuracy aren\'t reported yet.');
+
+        $legend = [
+            ['Who sees it:', 'hours, overtime and sales per hour are for owners and managers. Everyone else sees the appointment figures only.'],
+            ['Same numbers:', 'sales are the same figures as Retail and Custom. Hours come from the time clock, after any edits made on a timesheet.'],
+            ['Completed:', 'means completed, shipped or closed. Work still in progress is booked but not counted as completed yet.'],
+            ['Not assigned:', 'appointments with nobody booked are shown, not dropped, so the totals match the Services tab.'],
+        ];
+        return ['panels' => $out, 'legend' => $legend];
+    }
+
+    // ---------------------------------------------------------------- Services
+
+    public function services(): array
+    {
+        $e = $this->e;
+        $out = [];
+
+        // Throughput
+        $c = $this->cfg('appts', ['ap', 'done', 'cancp', 'booked', 'aval'], $this->bucketFor($this->cfg('appts', ['ap'], 'day')));
+        $t = $e->totals($c);
+        $chart = null;
+        if ($this->locked) {
+            $v = []; $l = [];
+            for ($i = 0; $i < 30; $i++) { $v[] = 4 + (($i * 7) % 11); $l[] = ''; }
+            $chart = ['svg' => $this->bars($l, $v, true), 'locked' => true];
+        } else {
+            $cc = $this->cfg('appts', ['done'], $c['dim']);
+            $r = $e->rows($cc);
+            $labels = array_column($r['rows'], 'l');
+            $vals = array_map(fn ($row) => (float) ($e->cellValue($cc, 'done', $row['vals']) ?? 0), $r['rows']);
+            $chart = ['svg' => $this->bars($labels, $vals), 'locked' => false, 'per' => ['day' => 'day', 'week' => 'week', 'month' => 'month'][$c['dim']]];
+        }
+        $out[] = $this->panel('v-thru', 'Throughput', 'appointments finished each ' . ($c['dim'] === 'day' ? 'day' : $c['dim']), $c, ['figs' => [
+            $this->figCmp('Appointments', $t, 'ap', 'n'),
+            $this->figCmp('Completed', $t, 'done', 'n'),
+            $this->figCmp('Cancellation rate', $t, 'cancp', '%', null, '', true),
+            $this->figCmp('Booked value', $t, 'booked', '$'),
+            $this->figCmp('Average value', $t, 'aval', '$'),
+        ], 'chart' => $chart]);
+
+        // Service mix
+        $c = $this->cfg('appts', ['ap', 'booked', 'aval'], 'svc', ['limit' => 10, 'compare' => 'off']);
+        $tot = $e->totals($c)['vals']['booked'] ?? 0.0;
+        $rows = [];
+        if (!$this->locked) {
+            $r = $e->rows($c);
+            foreach ($r['rows'] as $row) {
+                $b = $e->cellValue($c, 'booked', $row['vals']);
+                $rows[] = [e($row['l']), $this->fmt($e->cellValue($c, 'ap', $row['vals']), 'n'), self::share($tot > 0 && $b !== null ? $b / $tot * 100 : 0),
+                    $this->fmt($b, '$'), $this->fmt($e->cellValue($c, 'aval', $row['vals']), '$')];
+            }
+        }
+        $out[] = $this->panel('v-mix', 'Service mix', 'what you do most, and what it earns', $c, [
+            'table' => $this->table(['Service', 'Appointments', 'Share of value', 'Booked value', 'Average value'], $rows, null, 'service mix', 'No appointments in this range.'),
+            'after' => 'Top 10 by appointments. An appointment with several services counts once under each, so the rows can add up to more than the total.',
+        ], 'Top 10, most appointments first');
+
+        // Parts attach
+        $c = $this->cfg('appts', ['partsp', 'partsn', 'parts', 'booked'], 'day');
+        $t = $e->totals($c);
+        $cp = $this->cfg('appts', ['ap', 'partsn', 'partsp', 'parts'], 'svc', ['limit' => 10, 'compare' => 'off']);
+        $pan = $this->listPanel('v-parts', 'Parts attach', 'how often parts are added to the work, and what they earn', $cp, 'Service', [
+            ['Appointments', 'ap', 'n'], ['With parts', 'partsn', 'n'], ['Attach rate', 'partsp', '%'], ['Parts revenue', 'parts', '$'],
+        ], 'parts figures', 'No appointments in this range.', 'Booked value is the service lines only. Parts revenue is the parts added to those appointments, at the price charged.', 'Top 10, most appointments first');
+        $pan['figs'] = [
+            $this->figCmp('Attach rate', $t, 'partsp', '%'),
+            $this->figCmp('Appointments with parts', $t, 'partsn', 'n'),
+            $this->figCmp('Parts revenue', $t, 'parts', '$'),
+            $this->figCmp('Service value', $t, 'booked', '$', 'before parts'),
+        ];
+        $out[] = $pan;
+
+        // Comebacks
+        $c = $this->cfg('appts', ['done', 'back', 'backp'], 'day');
+        $t = $e->totals($c);
+        $cb = $this->cfg('appts', ['back', 'done', 'backp'], 'svc', ['limit' => 10, 'compare' => 'off']);
+        $pan = $this->listPanel('v-back', 'Comebacks', 'the same customer back within 30 days of finished work', $cb, 'Service', [
+            ['Came back', 'back', 'n'], ['Completed', 'done', 'n'], ['Comeback rate', 'backp', '%'],
+        ], 'comebacks', 'No finished appointments in this range.', 'A comeback is a completed appointment followed by another booked appointment for the same customer within 30 days. It may be for a different job, so read it as a prompt to look, not as a fault.', 'Top 10, most comebacks first');
+        $pan['figs'] = [
+            $this->figCmp('Completed', $t, 'done', 'n'),
+            $this->figCmp('Came back within 30 days', $t, 'back', 'n', null, '', true),
+            $this->figCmp('Comeback rate', $t, 'backp', '%', null, '', true),
+        ];
+        $out[] = $pan;
+
+        // Production by bay, chair or person
+        $c = $this->cfg('appts', ['ap', 'done', 'booked', 'hours'], 'res');
+        $out[] = $this->listPanel('v-res', 'Production by bay or chair', 'what each station or person produced', $c, 'Staff or resource', [
+            ['Appointments', 'ap', 'n'], ['Completed', 'done', 'n'], ['Booked value', 'booked', '$'], ['Booked hours', 'hours', 'd'],
+        ], 'production', 'No appointments in this range.', 'Booked hours are the time booked on each appointment, not the hours a station was open, so no utilization percentage is shown.');
+
+        $legend = [
+            ['Completed:', 'means completed, shipped or closed. Work still in progress counts as booked, and is counted as completed once it is finished. This is the same list on the Staff tab and in Custom › Appointments.'],
+            ['Booked value:', 'is the service lines on the appointment before tax, leaving out cancelled and refunded work. Parts are shown separately.'],
+            ['Booked hours:', 'are added up from the duration on each appointment. There are no available-hours figures here, so there is no utilization percentage.'],
+            ['Not tracked:', 'no-shows and estimate accuracy aren\'t recorded in Intake, so they aren\'t shown.'],
         ];
         return ['panels' => $out, 'legend' => $legend];
     }

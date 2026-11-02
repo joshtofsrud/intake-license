@@ -5,13 +5,11 @@ namespace App\Http\Controllers\Tenant;
 use App\Http\Controllers\Controller;
 use App\Services\Tenant\ReportsDataService;
 use App\Services\Tenant\CustomersReportService;
-use App\Services\Tenant\ServicesReportService;
 use App\Services\Tenant\ReportBuilder\ReportAccess;
 use App\Services\Tenant\ReportBuilder\ReportEngine;
 use App\Services\Tenant\ReportBuilder\TabPanels;
 use App\Services\Tenant\ReportBuilder\TabQuery;
 use Illuminate\Support\Facades\Auth;
-use App\Services\Tenant\StaffReportService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -199,66 +197,15 @@ class ReportsController extends Controller
      * estimate accuracy) that surface "coming soon" until the
      * supporting schema lands.
      */
+    /** Services and Staff run on the report engine too. (MARKER-REPORT-TABS-ENGINE) */
     public function services(Request $request): View
     {
-        $tenant = tenant();
-        $today = $tenant->localToday();
+        return $this->engineTab($request, 'services', 'How much work got done, what it was, and how busy each bay or chair was.');
+    }
 
-        $range = (string) $request->query('range', 'today');
-        if (!in_array($range, ['today', 'week', 'month', 'last_30', 'custom'], true)) {
-            $range = 'today';
-        }
-
-        if ($range === 'custom') {
-            $fromStr = (string) $request->query('from', $today->toDateString());
-            $toStr   = (string) $request->query('to',   $today->toDateString());
-            try {
-                $from = Carbon::parse($fromStr, $tenant->timezone())->startOfDay();
-                $to   = Carbon::parse($toStr, $tenant->timezone())->startOfDay();
-                if ($from->gt($to)) [$from, $to] = [$to, $from];
-            } catch (\Throwable $e) {
-                $from = $today->copy();
-                $to   = $today->copy();
-                $range = 'today';
-            }
-        } else {
-            [$from, $to] = match ($range) {
-                'week'    => [$today->copy()->subDays(6), $today->copy()],
-                'month'   => [$today->copy()->startOfMonth(), $today->copy()],
-                'last_30' => [$today->copy()->subDays(29), $today->copy()],
-                default   => [$today->copy(), $today->copy()],
-            };
-        }
-
-        $rangeLabel = match ($range) {
-            'week'   => 'Last 7 days',
-            'last_30' => 'Last 30 days',
-            'month'  => $today->format('F'),
-            'custom' => $from->isSameDay($to)
-                ? $from->format('M j, Y')
-                : $from->format('M j') . ' – ' . $to->format('M j, Y'),
-            default  => 'Today',
-        };
-
-        $isLocked = !$tenant->extended_reports_enabled;
-        $svc = new ServicesReportService($tenant);
-
-        return view('tenant.reports.services', [
-            'tenant'              => $tenant,
-            'range'               => $range,
-            'range_label'         => $rangeLabel,
-            'from'                => $from,
-            'to'                  => $to,
-            'today_label'         => $today->format('l, F j, Y'),
-            'is_locked'           => $isLocked,
-            'throughput'          => $svc->throughput($from, $to, $isLocked),
-            'serviceMix'          => $svc->serviceMix($from, $to, $isLocked),
-            'partsAttach'         => $svc->partsAttach($from, $to, $isLocked),
-            'comebacks'           => $svc->comebacks($from, $to, $isLocked),
-            'productionByResource'=> $svc->productionByResource($from, $to, $isLocked),
-            'mechanicProductivity'=> $svc->mechanicProductivity(),
-            'estimateAccuracy'    => $svc->estimateAccuracy(),
-        ]);
+    public function staff(Request $request): View
+    {
+        return $this->engineTab($request, 'staff', 'Who sold what, and how it compares with the hours they worked.');
     }
 
     /** Retail and Money run on the report engine: the same numbers, ranges and settings as Custom. (MARKER-REPORT-TABS-ENGINE) */
@@ -281,7 +228,7 @@ class ReportsController extends Controller
         $q = TabQuery::read($request);
         $engine = new ReportEngine($tenant, $isManager);
         $panels = new TabPanels($tenant, $engine, $q, $isManager, $locked);
-        $built = $tab === 'money' ? $panels->money() : $panels->retail();
+        $built = match ($tab) { 'money' => $panels->money(), 'staff' => $panels->staff(), 'services' => $panels->services(), default => $panels->retail() };
 
         [$from, $to] = $engine->periods()->rangeFor(['range' => $q['range'], 'from' => $q['from'], 'to' => $q['to']]);
         $prev = $q['compare'] === 'off' ? null : $engine->periods()->previous($from, $to, $q['compare']);
@@ -358,51 +305,4 @@ class ReportsController extends Controller
             'newVsReturning' => $svc->newVsReturning(),
         ]);
     }
-
-    public function staff(Request $request): View
-    {
-        $tenant = tenant();
-        $today = $tenant->localToday();
-        $range = (string) $request->query('range', 'today');
-        if (!in_array($range, ['today', 'week', 'month', 'last_30', 'custom'], true)) $range = 'today';
-        if ($range === 'custom') {
-            try {
-                $from = Carbon::parse((string) $request->query('from', $today->toDateString()), $tenant->timezone())->startOfDay();
-                $to   = Carbon::parse((string) $request->query('to',   $today->toDateString()), $tenant->timezone())->startOfDay();
-                if ($from->gt($to)) [$from, $to] = [$to, $from];
-            } catch (\Throwable $e) {
-                $from = $today->copy(); $to = $today->copy(); $range = 'today';
-            }
-        } else {
-            [$from, $to] = match ($range) {
-                'week'    => [$today->copy()->subDays(6), $today->copy()],
-                'month'   => [$today->copy()->startOfMonth(), $today->copy()],
-                'last_30' => [$today->copy()->subDays(29), $today->copy()],
-                default   => [$today->copy(), $today->copy()],
-            };
-        }
-        $rangeLabel = match ($range) {
-            'week'   => 'Last 7 days',
-            'last_30' => 'Last 30 days',
-            'month'  => $today->format('F'),
-            'custom' => $from->isSameDay($to) ? $from->format('M j, Y') : $from->format('M j') . ' – ' . $to->format('M j, Y'),
-            default  => 'Today',
-        };
-        $isLocked = !$tenant->extended_reports_enabled;
-        $svc = new StaffReportService($tenant);
-
-        return view('tenant.reports.staff', [
-            'tenant'      => $tenant,
-            'range'       => $range,
-            'range_label' => $rangeLabel,
-            'today_label' => $today->format('l, F j, Y'),
-            'is_locked'   => $isLocked,
-            'bookingDensity'  => $svc->bookingDensity($from, $to, $isLocked),
-            'revenueByStaff'  => $svc->revenueByStaff($from, $to, $isLocked),
-            'utilization'     => $svc->utilization(),
-            'servicesByStaff' => $svc->servicesByStaff(),
-            'tipsByStaff'     => $svc->tipsByStaff(),
-        ]);
-    }
 }
-

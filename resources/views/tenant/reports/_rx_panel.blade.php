@@ -28,6 +28,31 @@
     <div class="rb-key" style="margin-bottom:22px">@foreach($p['bar'] as $s)<span><i style="background:{{ $s['color'] }}"></i>{{ $s['label'] }}</span>@endforeach</div>
   @endif
 
+  @if(!empty($p['chart']))
+    @if($p['chart']['locked'])
+      <div class="rb-lock" style="margin-bottom:22px"><div class="rb-blurme">{!! $p['chart']['svg'] !!}</div>
+        <div class="rb-lockbadge"><span><b>Branded feature</b> — see your real daily pattern<button type="button" data-up="the daily pattern">Upgrade</button></span></div></div>
+    @else
+      <div style="margin-bottom:22px">{!! $p['chart']['svg'] !!}</div>
+    @endif
+  @endif
+
+  @if(!empty($p['grid']))
+    @php $g = $p['grid']; @endphp
+    @if(!empty($g['empty']))
+      <div class="rb-note"><div>No appointments in this range. <a href="{{ route('tenant.reports.' . $tab, ['range' => 'last_90', 'compare' => $q['compare']]) }}" class="rb-link">Try the last 90 days</a></div></div>
+    @else
+      @if($g['locked'])<div class="rb-lock"><div class="rb-blurme">@endif
+      <div style="overflow-x:auto"><table class="rx-grid">
+        <tr><th></th>@foreach($g['cols'] as $c)<th>{{ $c }}</th>@endforeach</tr>
+        @foreach($g['rows'] as [$day, $vals])
+          <tr><th class="rl">{{ $day }}</th>@foreach($vals as $v)<td style="background:{{ $v > 0 ? 'color-mix(in srgb,var(--ia-accent) ' . round(8 + $v / $g['max'] * 62) . '%,transparent)' : 'transparent' }}"@if(!$g['locked'] && $v > 0) title="{{ $day }}: {{ (int) $v }} appointment{{ (int) $v === 1 ? '' : 's' }}"@endif>{{ ($v > 0 && !$g['locked']) ? (int) $v : '' }}</td>@endforeach</tr>
+        @endforeach
+      </table></div>
+      @if($g['locked'])</div><div class="rb-lockbadge"><span><b>Branded feature</b> — see your real booking pattern<button type="button" data-up="the booking pattern">Upgrade</button></span></div></div>@endif
+    @endif
+  @endif
+
   @if(!empty($p['recon']))
     <div class="rb-lbl">How this reconciles</div>
     <div class="rx-recon">
