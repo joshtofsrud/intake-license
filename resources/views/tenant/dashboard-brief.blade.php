@@ -57,4 +57,5 @@
   @endforeach
 </div>
 @include('tenant.dashboard._customize_panel')
+@include('tenant.dashboard._pinned_reports')
 @endsection

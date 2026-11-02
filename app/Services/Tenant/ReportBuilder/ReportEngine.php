@@ -283,6 +283,104 @@ class ReportEngine
         return $dim;
     }
 
+    /**
+     * The report as plain rows — what export, emails and dashboard pins show.
+     * Measure values are worked out here (calculations included), so every
+     * place that shows a report shows the same numbers. (MARKER-REPORT-DELIVERY)
+     *
+     * @return array{head: string[], types: string[], rows: array, total: ?array, count: int, pivot: bool}
+     */
+    public function table(array $cfg): array
+    {
+        if ($cfg['dim2'] !== '') {
+            $p = $this->pivot($cfg);
+            $m = $cfg['measures'][0];
+            [$ml, $mt] = $this->measureDef($cfg, $m);
+            $head = array_merge([$this->dimLabel($cfg, $cfg['dim']) . ' / ' . $this->dimLabel($cfg, $cfg['dim2']) . ' (' . $ml . ')'], $p['cols'], ['Total']);
+            $rows = [];
+            foreach ($p['rows'] as $r) {
+                $line = [$r['l']];
+                foreach (array_keys($p['cols']) as $j) {
+                    $vals = [];
+                    foreach ($r['cells'] as $k => $arr) $vals[$k] = $arr[$j];
+                    $line[] = $this->cellValue($cfg, $m, $vals);
+                }
+                $line[] = $this->cellValue($cfg, $m, $r['total']);
+                $rows[] = $line;
+            }
+            $total = ['Total'];
+            foreach (array_keys($p['cols']) as $j) {
+                $vals = [];
+                foreach ($p['colTotals'] as $k => $arr) $vals[$k] = $arr[$j];
+                $total[] = $this->cellValue($cfg, $m, $vals);
+            }
+            $total[] = $this->cellValue($cfg, $m, $p['grand']);
+            return ['head' => $head, 'types' => array_merge(['text'], array_fill(0, count($p['cols']) + 1, $mt)), 'rows' => $rows,
+                'total' => $total, 'count' => count($rows), 'pivot' => true];
+        }
+
+        $res = $this->rows($cfg);
+        $head = [$this->dimLabel($cfg, $cfg['dim'])];
+        $types = ['text'];
+        foreach ($cfg['measures'] as $m) {
+            [$l, $t] = $this->measureDef($cfg, $m);
+            $head[] = $l;
+            $types[] = $t;
+        }
+        $rows = [];
+        foreach ($res['rows'] as $r) {
+            $line = [$r['l']];
+            foreach ($cfg['measures'] as $m) $line[] = $this->cellValue($cfg, $m, $r['vals']);
+            $rows[] = $line;
+        }
+        $total = null;
+        if (!$res['truncated']) {
+            $total = ['Total'];
+            foreach ($cfg['measures'] as $m) $total[] = $this->cellValue($cfg, $m, $res['totals']);
+        }
+        return ['head' => $head, 'types' => $types, 'rows' => $rows, 'total' => $total, 'count' => count($rows), 'pivot' => false,
+            'prevTotals' => $res['prevTotals'], 'totals' => $res['totals']];
+    }
+
+    /** The report as CSV text. Text that would run as a spreadsheet formula is made safe. */
+    public function csv(array $cfg): string
+    {
+        $t = $this->table($cfg);
+        $safe = fn ($v) => preg_match('/^[=+\-@\t\r]/', (string) $v) ? "'" . $v : (string) $v;
+        $h = fopen('php://temp', 'r+');
+        fputcsv($h, array_map($safe, $t['head']));
+        foreach (array_merge($t['rows'], $t['total'] ? [$t['total']] : []) as $r) {
+            $line = [$safe($r[0])];
+            foreach (array_slice($r, 1) as $v) $line[] = $v === null ? '' : round((float) $v, 2);
+            fputcsv($h, $line);
+        }
+        rewind($h);
+        $out = stream_get_contents($h);
+        fclose($h);
+        return (string) $out;
+    }
+
+    /** Does this report read distributor stock (which master admin may keep out of emails)? */
+    public function usesDistributor(array $cfg): bool
+    {
+        if ($cfg['ds'] === 'dist') return true;
+        foreach ($this->keysFor($cfg) as $k) {
+            if (str_starts_with($k, 'dist:')) return true;
+        }
+        return false;
+    }
+
+    public static function format(?float $v, string $t): string
+    {
+        if ($v === null || !is_finite($v)) return '—';
+        return match ($t) {
+            '$'      => ($v < 0 ? '−$' : '$') . number_format(abs($v), abs($v) < 100 ? 2 : 0),
+            '%'      => number_format($v, 1) . '%',
+            'd', 'h' => number_format($v, 1),
+            default  => number_format(round($v)),
+        };
+    }
+
     private static function ordinal(string $k): int
     {
         return match (true) {

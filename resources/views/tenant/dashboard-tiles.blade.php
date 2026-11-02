@@ -77,4 +77,5 @@
 {{-- MARKER-DASH-TEMPLATES: the blocks, in the order the template's live version lists them. --}}
 @include('tenant.dashboard._rows', ['dashRows' => $dashRows])
 @include('tenant.dashboard._customize_panel')
+@include('tenant.dashboard._pinned_reports')
 @endsection

@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Services\Tenant\CustomerTimelineService;
 use App\Services\Tenant\ReportBuilder\ReportCatalog;
 use App\Services\Tenant\ReportBuilder\ReportEngine;
+use App\Services\Tenant\ReportBuilder\ReportMailer;
+use App\Services\Tenant\ReportBuilder\ReportSchedule;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -16,7 +18,7 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * CustomReportsController — the "Custom" tab on Reports.
- * (MARKER-REPORT-BUILDER-CORE MARKER-REPORT-BUILDER-V2)
+ * (MARKER-REPORT-BUILDER-CORE MARKER-REPORT-BUILDER-V2 MARKER-REPORT-DELIVERY)
  *
  * Read-only: nothing here changes shop data. The page sends a report's
  * settings; every request cleans them against the catalog before running.
@@ -49,7 +51,9 @@ class CustomReportsController extends Controller
                 'templates' => ReportCatalog::templates(),
                 'saved'     => $this->listSaved(),
                 'calcs'     => $this->myCalcs(),
-                'me'        => ['id' => $u?->id, 'name' => $u?->name, 'manager' => $this->isManager()],
+                'me'        => ['id' => $u?->id, 'name' => $u?->name, 'email' => $u?->email, 'manager' => $this->isManager()],
+                'schedule'  => ['freqs' => ReportSchedule::FREQS, 'days' => ReportSchedule::DAYS, 'times' => ReportSchedule::times(),
+                    'distEmail' => ReportCatalog::velocity()['email']],
                 'ranges'    => \App\Services\Tenant\ReportBuilder\Periods::RANGES,
                 'urls'      => [
                     'data'      => route('tenant.reports.custom.data'),
@@ -60,6 +64,9 @@ class CustomReportsController extends Controller
                     'customers' => route('tenant.reports.custom.customers'),
                     'timeline'  => route('tenant.reports.custom.timeline'),
                     'calcs'     => route('tenant.reports.custom.calcs'),
+                    'delivery'  => route('tenant.reports.custom.delivery', ['id' => '__ID__']),
+                    'test'      => route('tenant.reports.custom.test', ['id' => '__ID__']),
+                    'pin'       => route('tenant.reports.custom.pin', ['id' => '__ID__']),
                 ],
             ],
         ]);
@@ -82,41 +89,8 @@ class CustomReportsController extends Controller
         $raw = json_decode(base64_decode((string) $request->query('cfg', ''), true) ?: '[]', true);
         $cfg = $engine->clean(is_array($raw) ? $raw : []);
         $name = Str::slug(mb_substr((string) $request->query('name', 'report'), 0, 60)) ?: 'report';
-        $safe = fn ($v) => preg_match('/^[=+\-@\t\r]/', (string) $v) ? "'" . $v : (string) $v;
-        $num = fn ($v) => $v === null ? '' : round((float) $v, 2);
-
-        return response()->streamDownload(function () use ($engine, $cfg, $safe, $num) {
-            $out = fopen('php://output', 'w');
-            if ($cfg['dim2'] !== '') {
-                $p = $engine->pivot($cfg);
-                $m = $cfg['measures'][0];
-                fputcsv($out, array_merge([$engine->dimLabel($cfg, $cfg['dim']) . ' / ' . $engine->dimLabel($cfg, $cfg['dim2']) . ' (' . $engine->measureDef($cfg, $m)[0] . ')'], array_map($safe, $p['cols']), ['Total']));
-                foreach ($p['rows'] as $r) {
-                    $line = [$safe($r['l'])];
-                    foreach (array_keys($p['cols']) as $j) {
-                        $vals = [];
-                        foreach ($r['cells'] as $k => $arr) $vals[$k] = $arr[$j];
-                        $line[] = $num($engine->cellValue($cfg, $m, $vals));
-                    }
-                    $line[] = $num($engine->cellValue($cfg, $m, $r['total']));
-                    fputcsv($out, $line);
-                }
-            } else {
-                $res = $engine->rows($cfg);
-                $head = [$engine->dimLabel($cfg, $cfg['dim'])];
-                foreach ($cfg['measures'] as $m) $head[] = $engine->measureDef($cfg, $m)[0];
-                fputcsv($out, $head);
-                foreach ($res['rows'] as $r) {
-                    $line = [$safe($r['l'])];
-                    foreach ($cfg['measures'] as $m) $line[] = $num($engine->cellValue($cfg, $m, $r['vals']));
-                    fputcsv($out, $line);
-                }
-                $line = ['Total'];
-                foreach ($cfg['measures'] as $m) $line[] = $num($engine->cellValue($cfg, $m, $res['totals']));
-                fputcsv($out, $line);
-            }
-            fclose($out);
-        }, $name . '-' . now()->format('Ymd') . '.csv', ['Content-Type' => 'text/csv']);
+        $csv = $engine->csv($cfg);
+        return response()->streamDownload(function () use ($csv) { echo $csv; }, $name . '-' . now()->format('Ymd') . '.csv', ['Content-Type' => 'text/csv']);
     }
 
     // --------------------------------------------------------------- saving
@@ -164,6 +138,10 @@ class CustomReportsController extends Controller
             return response()->json(['ok' => false, 'message' => 'Only the person who built a report, or an owner or manager, can delete it.'], 403);
         }
         DB::table('tenant_saved_reports')->where('tenant_id', tenant()->id)->where('id', $id)->delete();
+        if (Schema::hasTable('tenant_report_deliveries')) {
+            DB::table('tenant_report_deliveries')->where('tenant_id', tenant()->id)->where('report_id', $id)->delete();
+            DB::table('tenant_report_pins')->where('tenant_id', tenant()->id)->where('report_id', $id)->delete();
+        }
         return response()->json(['ok' => true, 'saved' => $this->listSaved()]);
     }
 
@@ -191,6 +169,11 @@ class CustomReportsController extends Controller
             ->select('r.id', 'r.name', 'r.dataset', 'r.config', 'r.visibility', 'r.created_at', 'r.user_id', 'u.name as by_name');
         if ($hasRun) $q->addSelect('r.last_run_at');
         $tz = tenant()->timezone();
+        $del = []; $pins = [];
+        if (Schema::hasTable('tenant_report_deliveries')) {
+            $del = DB::table('tenant_report_deliveries')->where('tenant_id', tenant()->id)->get()->keyBy('report_id')->all();
+            $pins = DB::table('tenant_report_pins')->where('tenant_id', tenant()->id)->where('user_id', $u?->id)->pluck('show_as', 'report_id')->all();
+        }
         return $q->get()->map(fn ($r) => [
             'id' => $r->id, 'name' => $r->name, 'ds' => $r->dataset === 'inventory' ? 'inv' : $r->dataset,
             'cfg' => json_decode($r->config, true) ?: [],
@@ -198,7 +181,115 @@ class CustomReportsController extends Controller
             'cr' => Carbon::parse($r->created_at, 'UTC')->setTimezone($tz)->toDateString(),
             'own' => $r->user_id === $u?->id, 'by' => $r->by_name ?: 'Former staff',
             'last' => $hasRun && $r->last_run_at ? Carbon::parse($r->last_run_at, 'UTC')->setTimezone($tz)->format('M j, g:i a') : null,
+            'delivery' => isset($del[$r->id]) ? $this->deliveryOut($del[$r->id]) : null,
+            'pin' => $pins[$r->id] ?? null,
         ])->all();
+    }
+
+    private function deliveryOut(object $d): array
+    {
+        $tz = tenant()->timezone();
+        $a = (array) $d;
+        return [
+            'freq' => $d->email_freq, 'day' => (int) $d->email_day, 'time' => $d->email_time, 'to' => (string) $d->recipients,
+            'csv' => (bool) $d->attach_csv, 'skip' => (bool) $d->skip_empty, 'label' => ReportSchedule::label($a),
+            'next' => $d->next_send_at ? Carbon::parse($d->next_send_at, 'UTC')->setTimezone($tz)->format('D M j, g:i a') : null,
+            'lastSent' => $d->last_sent_at ? Carbon::parse($d->last_sent_at, 'UTC')->setTimezone($tz)->format('M j, g:i a') : null,
+            'error' => $d->last_error,
+            'alert' => (bool) $d->alert_on, 'alertM' => $d->alert_measure, 'alertOp' => $d->alert_op,
+            'alertV' => $d->alert_value !== null ? (float) $d->alert_value : null,
+        ];
+    }
+
+    // ------------------------------------------------- emails, alerts, pins
+
+    private function ownedReport(string $id): ?object
+    {
+        $u = $this->user();
+        $row = DB::table('tenant_saved_reports')->where('tenant_id', tenant()->id)->where('id', $id)->first();
+        return $row && ($row->user_id === $u?->id || $this->isManager()) ? $row : null;
+    }
+
+    public function delivery(Request $request, string $id)
+    {
+        $report = $this->ownedReport($id);
+        if (!$report) {
+            return response()->json(['message' => 'Only the person who built this report, or an owner or manager, can change how it is sent.'], 403);
+        }
+        $data = $request->validate([
+            'freq'   => ['required', 'in:never,daily,weekly,monthly,payperiod'],
+            'day'    => ['nullable', 'integer', 'min:1', 'max:28'],
+            'time'   => ['nullable', 'regex:/^\\d{2}:00$/'],
+            'to'     => ['nullable', 'string', 'max:2000'],
+            'csv'    => ['nullable', 'boolean'],
+            'skip'   => ['nullable', 'boolean'],
+            'alert'  => ['nullable', 'boolean'],
+            'alertM' => ['nullable', 'string', 'max:40'],
+            'alertOp'=> ['nullable', 'in:below,above,change'],
+            'alertV' => ['nullable', 'numeric'],
+        ]);
+        $to = array_values(array_unique(array_filter(array_map('trim', explode(',', (string) ($data['to'] ?? ''))))));
+        $bad = array_values(array_filter($to, fn ($x) => !filter_var($x, FILTER_VALIDATE_EMAIL)));
+        if ($bad) return response()->json(['message' => 'These don\'t look like email addresses: ' . implode(', ', $bad)], 422);
+        if (count($to) > 20) return response()->json(['message' => 'Up to 20 addresses per report.'], 422);
+        if ($data['freq'] !== 'never' && !$to) return response()->json(['message' => 'Add at least one email address, or set it to Never.'], 422);
+
+        $mailer = new ReportMailer(tenant());
+        if (($data['freq'] !== 'never' || !empty($data['alert'])) && ($why = $mailer->blocked($report))) {
+            return response()->json(['message' => $why], 422);
+        }
+        $row = [
+            'email_freq' => $data['freq'], 'email_day' => (int) ($data['day'] ?? 1), 'email_time' => $data['time'] ?? '07:00',
+            'recipients' => implode(', ', $to), 'attach_csv' => (bool) ($data['csv'] ?? true), 'skip_empty' => (bool) ($data['skip'] ?? false),
+            'alert_on' => (bool) ($data['alert'] ?? false), 'alert_measure' => $data['alertM'] ?? null, 'alert_op' => $data['alertOp'] ?? 'below',
+            'alert_value' => isset($data['alertV']) ? (float) $data['alertV'] : null, 'last_error' => null, 'updated_at' => now(),
+        ];
+        $row['next_send_at'] = ReportSchedule::next($row, tenant(), now());
+        $existing = DB::table('tenant_report_deliveries')->where('tenant_id', tenant()->id)->where('report_id', $id)->first();
+        if ($existing) {
+            // A changed alert starts fresh, so it can't fire on yesterday's comparison.
+            if ($existing->alert_measure !== $row['alert_measure'] || $existing->alert_op !== $row['alert_op']
+                || (float) $existing->alert_value !== (float) $row['alert_value'] || !$existing->alert_on) {
+                $row['alert_state'] = null; $row['alert_checked_on'] = null;
+            }
+            DB::table('tenant_report_deliveries')->where('id', $existing->id)->update($row);
+        } else {
+            DB::table('tenant_report_deliveries')->insert($row + ['id' => (string) Str::uuid(), 'tenant_id' => tenant()->id, 'report_id' => $id, 'created_at' => now()]);
+        }
+        return response()->json(['saved' => $this->listSaved()]);
+    }
+
+    public function test(Request $request, string $id)
+    {
+        $report = $this->ownedReport($id);
+        $email = $this->user()?->email;
+        if (!$report || !$email) return response()->json(['message' => 'Only the person who built this report, or an owner or manager, can send a test.'], 403);
+        $d = DB::table('tenant_report_deliveries')->where('tenant_id', tenant()->id)->where('report_id', $id)->first();
+        $arr = $d ? (array) $d : ['email_freq' => 'never', 'attach_csv' => 1];
+        $r = (new ReportMailer(tenant()))->send($report, $arr, [$email], true);
+        if ($r['skipped']) return response()->json(['message' => $r['skipped']], 422);
+        return response()->json(['ok' => $r['sent'] > 0, 'to' => $email, 'message' => $r['sent'] ? null : 'The email couldn\'t be sent. Check the address isn\'t blocked from email.']);
+    }
+
+    public function pin(Request $request, string $id)
+    {
+        $data = $request->validate(['on' => ['required', 'boolean'], 'as' => ['nullable', 'in:table,chart,number']]);
+        $u = $this->user();
+        $visible = collect($this->listSaved())->firstWhere('id', $id);
+        if (!$visible) return response()->json(['message' => 'That report isn\'t yours to pin.'], 403);
+        $q = DB::table('tenant_report_pins')->where('tenant_id', tenant()->id)->where('report_id', $id)->where('user_id', $u?->id);
+        if (!$data['on']) {
+            $q->delete();
+        } elseif ($q->exists()) {
+            $q->update(['show_as' => $data['as'] ?? 'table', 'updated_at' => now()]);
+        } else {
+            if (DB::table('tenant_report_pins')->where('tenant_id', tenant()->id)->where('user_id', $u?->id)->count() >= 6) {
+                return response()->json(['message' => 'You can pin up to 6 reports. Unpin one first.'], 422);
+            }
+            DB::table('tenant_report_pins')->insert(['id' => (string) Str::uuid(), 'tenant_id' => tenant()->id, 'report_id' => $id,
+                'user_id' => $u?->id, 'show_as' => $data['as'] ?? 'table', 'created_at' => now(), 'updated_at' => now()]);
+        }
+        return response()->json(['saved' => $this->listSaved()]);
     }
 
     // ---------------------------------------------------------- calculations

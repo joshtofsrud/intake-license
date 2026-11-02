@@ -185,4 +185,5 @@
 
 
 
+@include('tenant.dashboard._pinned_reports')
 @endsection

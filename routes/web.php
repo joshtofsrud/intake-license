@@ -797,6 +797,10 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             Route::get('/reports/custom/customers',     [TenantControllers\CustomReportsController::class, 'customers'])->name('reports.custom.customers');
             Route::post('/reports/custom/timeline',     [TenantControllers\CustomReportsController::class, 'timeline'])->name('reports.custom.timeline');
             Route::post('/reports/custom/calcs',        [TenantControllers\CustomReportsController::class, 'calcs'])->name('reports.custom.calcs');
+            // MARKER-REPORT-DELIVERY: emailed reports, alerts, dashboard pins
+            Route::post('/reports/custom/{id}/delivery', [TenantControllers\CustomReportsController::class, 'delivery'])->name('reports.custom.delivery');
+            Route::post('/reports/custom/{id}/test',     [TenantControllers\CustomReportsController::class, 'test'])->name('reports.custom.test');
+            Route::post('/reports/custom/{id}/pin',      [TenantControllers\CustomReportsController::class, 'pin'])->name('reports.custom.pin');
             Route::get('/reports/data-quality',        [TenantControllers\ReportsController::class, 'dataQuality'])->name('reports.data_quality');
             Route::get('/reports/data-quality/export', [TenantControllers\ReportsController::class, 'dataQualityExport'])->name('reports.data_quality.export');
             // Traffic tab

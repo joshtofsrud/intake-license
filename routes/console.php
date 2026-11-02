@@ -374,3 +374,8 @@ Schedule::command('catalog:spec-attrs')
     ->hourlyAt(20)
     ->withoutOverlapping()
     ->runInBackground();
+
+// MARKER-REPORT-DELIVERY: scheduled report emails (checked every 5 minutes)
+// and report alerts (once a day per shop, from 6am shop time).
+Schedule::command('reports:deliver')->everyFiveMinutes()->withoutOverlapping();
+Schedule::command('reports:check-alerts')->hourly()->withoutOverlapping();

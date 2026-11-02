@@ -1,4 +1,4 @@
-/* Custom reports — the report builder on Reports > Custom. MARKER-REPORT-BUILDER-V2
+/* Custom reports — the report builder on Reports > Custom. MARKER-REPORT-BUILDER-V2 MARKER-REPORT-DELIVERY
  *
  * Everything here works on the shop's live data through the report endpoints.
  * The page never computes a figure itself except calculations, which use the
@@ -7,7 +7,7 @@
 (function () {
 'use strict';
 var BOOT = JSON.parse(document.getElementById('rb-boot').textContent);
-var DS = BOOT.catalog, URLS = BOOT.urls, ME = BOOT.me;
+var DS = BOOT.catalog, URLS = BOOT.urls, ME = BOOT.me, SCHED = BOOT.schedule || { freqs: {}, days: {}, times: {}, distEmail: false };
 var RANGES = BOOT.ranges;
 var SAVED = BOOT.saved || [], MYCALCS = BOOT.calcs || [];
 var ALLM = {};
@@ -207,19 +207,21 @@ function renderList() {
   $('#listSort').value = listSort;
   $('#listCount').textContent = rows.length + ' report' + (rows.length === 1 ? '' : 's');
   var body;
-  if (!SAVED.length) body = '<tr><td colspan="7"><div class="rb-empty">Nothing saved yet. Open a template or ask for a report, then press Save.<div class="rb-ex" style="justify-content:center;margin-top:10px"><button class="rb-chip" data-new>Start a new report</button>' + (TPL[0] ? '<button class="rb-chip" data-tpl="0">' + esc(TPL[0][0]) + '</button>' : '') + '</div></div></td></tr>';
-  else if (!rows.length) body = '<tr><td colspan="7"><div class="rb-empty">No reports match' + (q ? ' “' + esc(q) + '”' : '') + '.<div class="rb-ex" style="justify-content:center;margin-top:10px"><button class="rb-chip" data-clearq>Clear search</button><button class="rb-chip" data-new>Start a new report</button></div></div></td></tr>';
+  if (!SAVED.length) body = '<tr><td colspan="9"><div class="rb-empty">Nothing saved yet. Open a template or ask for a report, then press Save.<div class="rb-ex" style="justify-content:center;margin-top:10px"><button class="rb-chip" data-new>Start a new report</button>' + (TPL[0] ? '<button class="rb-chip" data-tpl="0">' + esc(TPL[0][0]) + '</button>' : '') + '</div></div></td></tr>';
+  else if (!rows.length) body = '<tr><td colspan="9"><div class="rb-empty">No reports match' + (q ? ' “' + esc(q) + '”' : '') + '.<div class="rb-ex" style="justify-content:center;margin-top:10px"><button class="rb-chip" data-clearq>Clear search</button><button class="rb-chip" data-new>Start a new report</button></div></div></td></tr>';
   else body = rows.map(function (r) {
     var d = DS[r.ds], shows;
     if (!d) shows = '<span class="rb-dim">This data isn\'t available to you</span>';
     else if ((r.cfg || {}).mode === 'timeline') shows = 'One customer, in order';
     else { var tmp = Object.assign(blank(r.ds), r.cfg || {}); shows = (tmp.measures || []).map(function (m) { return mdef(tmp, m).l; }).slice(0, 3).join(', ') + (tmp.measures.length > 3 ? ' +' + (tmp.measures.length - 3) : '') + ' · by ' + dimName(r.ds, tmp.dim).toLowerCase() + (tmp.dim2 ? ' × ' + dimName(r.ds, tmp.dim2).toLowerCase() : ''); }
-    var canDel = r.own || ME.manager;
-    return '<tr class="click" data-open="' + esc(r.id) + '"><td><b>' + esc(r.name) + '</b></td><td>' + (d ? esc(d.l) : '—') + '</td><td style="font-size:12px;color:var(--ia-text-muted);max-width:320px">' + shows + '</td><td style="white-space:nowrap">' + crLabel(r.cr) + '<div class="sub" style="font-size:11px;color:var(--ia-text-muted)">by ' + (r.own ? 'You' : esc(r.by)) + '</div></td><td>' + esc(VIS[r.vis] || VIS.me) + '</td><td class="rb-dim">' + (r.last ? esc(r.last) : '—') + '</td>' +
+    var canDel = r.own || ME.manager, dl = r.delivery;
+    var mail = dl && dl.freq !== 'never' ? esc(dl.label) + (dl.error ? '<div style="font-size:11px;color:var(--rb-bad)">' + esc(dl.error) + '</div>' : '') : '<span class="rb-dim">—</span>';
+    if (dl && dl.alert) mail += '<div class="sub" style="font-size:11px;color:var(--ia-text-muted)">alert on</div>';
+    return '<tr class="click" data-open="' + esc(r.id) + '"><td><b>' + esc(r.name) + '</b></td><td>' + (d ? esc(d.l) : '—') + '</td><td style="font-size:12px;color:var(--ia-text-muted);max-width:300px">' + shows + '</td><td style="white-space:nowrap">' + crLabel(r.cr) + '<div class="sub" style="font-size:11px;color:var(--ia-text-muted)">by ' + (r.own ? 'You' : esc(r.by)) + '</div></td><td>' + esc(VIS[r.vis] || VIS.me) + '</td><td>' + mail + '</td><td>' + (r.pin ? '<span class="rb-pill good">Pinned</span>' : '<span class="rb-dim">—</span>') + '</td><td class="rb-dim">' + (r.last ? esc(r.last) : '—') + '</td>' +
       '<td style="text-align:right;white-space:nowrap"><span class="rb-delconf" id="dc-' + esc(r.id) + '">Delete this report? <button class="ia-btn ia-btn--sm" data-delyes="' + esc(r.id) + '">Delete</button><button class="ia-btn ia-btn--sm" data-delno="' + esc(r.id) + '">Keep</button></span>' +
       '<span id="db-' + esc(r.id) + '">' + (canDel ? '<button class="ia-btn ia-btn--sm" data-del="' + esc(r.id) + '">Delete</button> ' : '') + '<button class="ia-btn ia-btn--sm" data-open="' + esc(r.id) + '"' + (d ? '' : ' disabled') + '>Open</button></span></td></tr>';
   }).join('');
-  $('#savedTbl').innerHTML = '<thead><tr><th>Name</th><th>Data</th><th>Shows</th><th>Created</th><th>Who can open</th><th>Last opened</th><th></th></tr></thead><tbody>' + body + '</tbody>';
+  $('#savedTbl').innerHTML = '<thead><tr><th>Name</th><th>Data</th><th>Shows</th><th>Created</th><th>Who can open</th><th>Emailed</th><th>Dashboard</th><th>Last opened</th><th></th></tr></thead><tbody>' + body + '</tbody>';
   var tshow = tplAll ? TPL.length : 8;
   $('#tplList').innerHTML = TPL.slice(0, tshow).map(function (t, i) { return '<button class="rb-tile" data-tpl="' + i + '"><span class="ico c-' + t[3].ds + '">' + lu(t[2]) + '</span><span class="nm">' + esc(t[0]) + '</span><span class="ds">' + esc(t[1]) + '</span><span class="go">' + esc(DS[t[3].ds].l) + '</span></button>'; }).join('');
   $('#tplMore').textContent = TPL.length > 8 ? (tplAll ? 'Show fewer' : 'Show all ' + TPL.length) : '';
@@ -520,13 +522,75 @@ function openCalc(editId) {
   previewCalc(); $('#scrim').classList.add('on'); $('#mCalc').classList.add('on');
 }
 
-/* ===================== share (who can open) ===================== */
+/* ===================== share & schedule ===================== */
+function emailBlocked() {
+  if (S.mode === 'timeline') return 'A customer timeline can\'t be emailed, alerted on or pinned.';
+  var usesDist = S.ds === 'dist' || S.measures.some(function (m) { return m.indexOf('dist:') === 0; }) || S.calcs.some(function (c) { return calcTokens(c.f).some(function (l) { return (labelToKey(l) || '').indexOf('dist:') === 0; }); });
+  if (usesDist && !SCHED.distEmail) return 'Intake doesn\'t allow distributor figures in emails yet, so this report can\'t be emailed or alerted on.';
+  return null;
+}
+function dayOpts(freq, cur) {
+  if (freq === 'weekly') return opt(Object.keys(SCHED.days).map(function (k) { return [k, SCHED.days[k]]; }), cur || 1);
+  if (freq === 'monthly') { var o = []; for (var i = 1; i <= 28; i++) o.push([i, i + (i === 1 ? 'st' : i === 2 ? 'nd' : i === 3 ? 'rd' : i >= 21 && i % 10 === 1 ? 'st' : i >= 21 && i % 10 === 2 ? 'nd' : i >= 21 && i % 10 === 3 ? 'rd' : 'th') + ' of the month']); return opt(o, cur || 1); }
+  return '';
+}
+function syncSchedUi() {
+  var f = $('#shFreq').value, on = f !== 'never';
+  $('#shDay').style.display = (f === 'weekly' || f === 'monthly') ? '' : 'none';
+  if (f === 'weekly' || f === 'monthly') { var cur = +$('#shDay').value || 1; $('#shDay').innerHTML = dayOpts(f, f === 'weekly' ? Math.min(cur, 7) : cur); }
+  $$('#shMail .dep').forEach(function (x) { x.style.opacity = on ? '' : '.45'; $$('input,select', x).forEach(function (i) { i.disabled = !on; }); });
+  $('#shPayNote').style.display = f === 'payperiod' ? '' : 'none';
+}
 function openShare() {
   $('#shName').textContent = $('#rTitle').value;
-  var cur = SAVED_ID && savedById(SAVED_ID);
+  var cur = SAVED_ID && savedById(SAVED_ID), dl = (cur && cur.delivery) || {}, canSched = !cur || cur.own || ME.manager;
   $$('input[name=vis]').forEach(function (x) { x.checked = x.value === ((cur && cur.vis) || 'me'); x.disabled = !!DS[S.ds].lock && x.value === 'all'; });
   $('#shVisNote').textContent = DS[S.ds].lock ? DS[S.ds].l + ' can only be shared with owner and managers.' : '';
+  var blocked = emailBlocked();
+  $('#shFreq').innerHTML = opt(Object.keys(SCHED.freqs).map(function (k) { return [k, SCHED.freqs[k]]; }), dl.freq || 'never');
+  $('#shDay').innerHTML = dayOpts(dl.freq || 'weekly', dl.day || 1);
+  $('#shTime').innerHTML = opt(Object.keys(SCHED.times).map(function (k) { return [k, SCHED.times[k]]; }), dl.time || '07:00');
+  $('#shTo').value = dl.to || (ME.email || '');
+  $('#shCsv').checked = dl.csv !== false; $('#shSkip').checked = !!dl.skip;
+  $('#alOn').checked = !!dl.alert;
+  $('#alM').innerHTML = opt(S.measures.map(function (m) { return [m, mdef(S, m).l]; }), dl.alertM || S.measures[0]);
+  $('#alOp').value = dl.alertOp || 'below'; $('#alV').value = dl.alertV != null ? dl.alertV : '';
+  $('#shPin').checked = !!(cur && cur.pin); $('#shPinAs').value = (cur && cur.pin) || 'table';
+  $('#shStatus').innerHTML = dl.freq && dl.freq !== 'never' ? '<span class="rb-hint">Next email: ' + esc(dl.next || '—') + (dl.lastSent ? ' · last sent ' + esc(dl.lastSent) : '') + '</span>' + (dl.error ? '<div style="color:var(--rb-bad);font-size:12px;margin-top:4px">' + esc(dl.error) + '</div>' : '') : '';
+  $('#shBlocked').textContent = blocked || (!canSched ? 'Only the person who built this report, or an owner or manager, can change its email and alert.' : '');
+  $('#shBlocked').style.display = (blocked || !canSched) ? '' : 'none';
+  $$('#shMail, #shAlert').forEach(function (x) { x.classList.toggle('rb-off', !!blocked || !canSched); $$('input,select,button', x).forEach(function (i) { i.disabled = !!blocked || !canSched; }); });
+  $('#shPinWrap').classList.toggle('rb-off', S.mode === 'timeline'); $$('input,select', $('#shPinWrap')).forEach(function (i) { i.disabled = S.mode === 'timeline'; });
+  if (!blocked && canSched) syncSchedUi();
   $('#scrim').classList.add('on'); $('#drawer').classList.add('on');
+}
+function deliveryBody() {
+  return { freq: $('#shFreq').value, day: +($('#shDay').value || 1), time: $('#shTime').value, to: $('#shTo').value, csv: $('#shCsv').checked, skip: $('#shSkip').checked,
+    alert: $('#alOn').checked, alertM: $('#alM').value, alertOp: $('#alOp').value, alertV: $('#alV').value === '' ? null : +$('#alV').value };
+}
+function saveShare() {
+  var v = ($('input[name=vis]:checked') || {}).value || 'me', blocked = emailBlocked();
+  if ($('#alOn').checked && $('#alV').value === '' && !blocked) { toast('Give the alert a number to watch for.'); $('#alV').focus(); return; }
+  var btn = $('#shSave'); btn.disabled = true;
+  saveReport(v).then(function () {
+    var cur = savedById(SAVED_ID), steps = [];
+    if (!blocked && (cur.own || ME.manager)) steps.push(function () { return post(URLS.delivery.replace('__ID__', SAVED_ID), deliveryBody()); });
+    if (S.mode !== 'timeline' && ($('#shPin').checked || cur.pin)) steps.push(function () { return post(URLS.pin.replace('__ID__', SAVED_ID), { on: $('#shPin').checked, as: $('#shPinAs').value }); });
+    return steps.reduce(function (p, f) { return p.then(function () { return f().then(function (j) { if (j && j.saved) SAVED = j.saved; }); }); }, Promise.resolve());
+  }).then(function () {
+    var cur = savedById(SAVED_ID), dl = cur && cur.delivery, msg = 'Saved — ' + VIS[v].toLowerCase() + ' can open it';
+    if (dl && dl.freq !== 'never') msg += ' · emails ' + dl.label.toLowerCase();
+    if (dl && dl.alert) msg += ' · alert on';
+    if (cur && cur.pin) msg += ' · pinned to your dashboard';
+    closeAll(); toast(msg);
+  }).catch(function (e) { toast(String(e)); }).then(function () { btn.disabled = false; });
+}
+function sendTest() {
+  var go = function () { return post(URLS.test.replace('__ID__', SAVED_ID), {}).then(function (j) { toast(j.ok ? 'Test sent to ' + j.to : (j.message || 'The test couldn\'t be sent.')); }); };
+  var blocked = emailBlocked(); if (blocked) { toast(blocked); return; }
+  $('#shTest').disabled = true;
+  (SAVED_ID && !dirtyOn ? go() : saveReport(($('input[name=vis]:checked') || {}).value || 'me').then(function () { return post(URLS.delivery.replace('__ID__', SAVED_ID), deliveryBody()).then(function (j) { SAVED = j.saved; return go(); }); }))
+    .catch(function (e) { toast(String(e)); }).then(function () { $('#shTest').disabled = false; });
 }
 function saveReport(vis) {
   var nm = ($('#rTitle').value || autoTitle()).trim();
@@ -539,7 +603,7 @@ function saveReport(vis) {
 /* ===================== open / navigate ===================== */
 function view(v) {
   $$('.rb-view').forEach(function (x) { x.classList.toggle('on', x.id === 'v-' + v); });
-  if (v === 'list') { renderList(); $('#subTitle').textContent = 'Build your own report, ask for one in plain words, and save it for your team.'; }
+  if (v === 'list') { renderList(); $('#subTitle').textContent = 'Build your own, ask for one in plain words, and have it emailed or pinned to your dashboard.'; }
   else { $('#headBtns').innerHTML = ''; $('#subTitle').textContent = 'Pick the data, what to show and how to break it down. The preview updates as you go.'; }
   window.scrollTo(0, 0);
 }
@@ -612,7 +676,8 @@ document.addEventListener('click', function (e) {
   if (t.id === 'btnSave') { saveReport(null).catch(function () {}); return; }
   if (t.id === 'btnExport') { var url = URLS.export + '?cfg=' + encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify(payload(S)))))) + '&name=' + encodeURIComponent($('#rTitle').value || 'report'); window.location.href = url; toast('Your CSV is downloading'); return; }
   if (t.id === 'btnShare') { openShare(); return; }
-  if (t.id === 'shSave') { var v = ($('input[name=vis]:checked') || {}).value || 'me'; saveReport(v).then(function () { closeAll(); toast('Saved — ' + VIS[v].toLowerCase() + ' can open it'); }).catch(function () {}); return; }
+  if (t.id === 'shSave') { saveShare(); return; }
+  if (t.id === 'shTest') { sendTest(); return; }
   if (t.dataset.close !== undefined || t.id === 'scrim') { closeAll(); return; }
 });
 var confirmLeave = false;
@@ -627,6 +692,8 @@ document.addEventListener('change', function (e) {
   if (t.id === 'cT') { previewCalc(); return; }
   if (t.id === 'pDs') { var keepTl = false; S = blank(t.value); titleAuto = true; CM = null; RES = null; $('#preview').innerHTML = ''; dirty(); $('#rTitle').value = autoTitle(); renderPanel(); renderPreview(); return; }
   if (t.name === 'vis') return;
+  if (t.id === 'shFreq') { syncSchedUi(); return; }
+  if (t.closest('#drawer')) return;
   if (t.dataset.m) { var i = S.measures.indexOf(t.dataset.m); if (t.checked && i < 0 && S.measures.length < 5) S.measures.push(t.dataset.m); if (!t.checked && i > -1) S.measures.splice(i, 1); }
   else if (t.id === 'pDim') { S.dim = t.value; if (S.dim2 === S.dim) S.dim2 = ''; if (S.dim2 && isTimeDim(S.ds, S.dim) && isTimeDim(S.ds, S.dim2)) S.dim2 = ''; S.measures = S.measures.filter(function (m) { var k = dsOf(S, m); return k === S.ds || canSplit(S, k); }); }
   else if (t.id === 'pDim2') { S.dim2 = t.value; S.measures = S.measures.filter(function (m) { var k = dsOf(S, m); return k === S.ds || canSplit(S, k); }); if (S.dim2) CM = CM || S.measures[0]; }
@@ -645,4 +712,5 @@ $('#rTitle').addEventListener('input', function () { titleAuto = false; dirty();
 $('#listQ').addEventListener('input', renderList);
 $('#listSort').addEventListener('change', function () { listSort = this.value; renderList(); });
 renderList();
+(function () { var id = new URLSearchParams(location.search).get('open'), r = id && savedById(id); if (r && DS[r.ds]) openReport(Object.assign({ ds: r.ds }, r.cfg), r.name, r.id); })();
 })();

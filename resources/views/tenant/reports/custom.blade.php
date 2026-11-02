@@ -7,13 +7,13 @@
 @endpush
 
 @section('content')
-{{-- MARKER-REPORT-BUILDER-CORE MARKER-REPORT-BUILDER-V2 — the report builder. Read-only: nothing here changes shop data. --}}
+{{-- MARKER-REPORT-BUILDER-CORE MARKER-REPORT-BUILDER-V2 MARKER-REPORT-DELIVERY — the report builder. Read-only: nothing here changes shop data. --}}
 <div class="ia-section ia-section--wide" id="rb-app">
 
 <div class="ia-page-head">
   <div class="ia-page-head-left">
     <h1 class="ia-page-title">Reports</h1>
-    <p class="ia-page-subtitle" id="subTitle">Build your own report, ask for one in plain words, and save it for your team.</p>
+    <p class="ia-page-subtitle" id="subTitle">Build your own, ask for one in plain words, and have it emailed or pinned to your dashboard.</p>
   </div>
   <div style="display:flex;gap:8px;align-items:center" id="headBtns"></div>
 </div>
@@ -65,7 +65,7 @@
         <span class="rb-pill warn rb-saved-dirty" id="dirty">Unsaved changes</span>
         <span class="sp" style="flex:1"></span>
         <button class="ia-btn ia-btn--sm" type="button" id="btnExport">Export CSV</button>
-        <button class="ia-btn ia-btn--sm" type="button" id="btnShare">Share</button>
+        <button class="ia-btn ia-btn--sm" type="button" id="btnShare">Share &amp; schedule</button>
         <button class="ia-btn ia-btn--sm ia-btn--primary" type="button" id="btnSave">Save</button>
       </div>
       <div id="readBox"></div>
@@ -84,9 +84,9 @@
 
 <div class="rb-scrim" id="scrim"></div>
 
-<!-- share -->
+<!-- share & schedule -->
 <aside class="rb-drawer" id="drawer">
-  <div class="rb-drawer-h"><div><h3>Share</h3><div class="rb-hint" id="shName"></div></div><button class="rb-x" data-close type="button">×</button></div>
+  <div class="rb-drawer-h"><div><h3>Share &amp; schedule</h3><div class="rb-hint" id="shName"></div></div><button class="rb-x" data-close type="button">×</button></div>
   <div class="rb-drawer-b">
     <div class="rb-lbl">Who can open this report</div>
     <div class="rb-radio" id="shVis">
@@ -95,11 +95,47 @@
       <label><input type="radio" name="vis" value="all"> Everyone with Reports access</label>
     </div>
     <div class="rb-hint" style="margin-top:6px" id="shVisNote"></div>
+
+    <div class="rb-note" id="shBlocked" style="margin-top:20px;display:none"></div>
+
+    <div id="shMail">
+      <div class="rb-lbl" style="margin-top:24px">Email it</div>
+      <div class="rb-grid2">
+        <div><select class="rb-sel rb-w" id="shFreq"></select></div>
+        <div class="dep" style="display:flex;gap:6px"><select class="rb-sel rb-w" id="shDay"></select><select class="rb-sel rb-w" id="shTime"></select></div>
+        <div class="full dep"><input class="rb-inp" id="shTo" placeholder="Email addresses, separated by commas"></div>
+        <div class="full dep"><label style="font-size:13px;display:flex;gap:8px;align-items:center"><input type="checkbox" class="rb-chk" id="shCsv" checked> Attach as CSV</label></div>
+        <div class="full dep"><label style="font-size:13px;display:flex;gap:8px;align-items:center"><input type="checkbox" class="rb-chk" id="shSkip"> Skip the email when there are no rows</label></div>
+      </div>
+      <div class="rb-hint" id="shPayNote" style="margin-top:4px;display:none">Sent the day after each pay period ends, using your time clock pay period settings.</div>
+      <div id="shStatus" style="margin-top:6px"></div>
+      <button class="ia-btn ia-btn--sm" type="button" id="shTest" style="margin-top:10px">Send a test to me</button>
+    </div>
+
+    <div id="shAlert">
+      <div class="rb-lbl" style="margin-top:24px">Tell me when something changes</div>
+      <label style="font-size:13px;display:flex;gap:8px;align-items:center"><input type="checkbox" class="rb-chk" id="alOn"> Email me when</label>
+      <div class="rb-frow" style="grid-template-columns:1.3fr 1fr 80px;margin-top:8px">
+        <select class="rb-sel" id="alM"></select>
+        <select class="rb-sel" id="alOp"><option value="below">drops below</option><option value="above">rises above</option><option value="change">changes by more than (%)</option></select>
+        <input class="rb-inp" id="alV" inputmode="decimal" style="text-align:right">
+      </div>
+      <div class="rb-hint" style="margin-top:2px">Checked each morning against the report's total. You get one email per change, not one every day.</div>
+    </div>
+
+    <div id="shPinWrap">
+      <div class="rb-lbl" style="margin-top:24px">Dashboard</div>
+      <label style="font-size:13px;display:flex;gap:8px;align-items:center"><input type="checkbox" class="rb-chk" id="shPin"> Pin to my dashboard as</label>
+      <select class="rb-sel" id="shPinAs" style="margin-top:8px"><option value="table">Table</option><option value="chart">Chart</option><option value="number">Single number (first measure total)</option></select>
+    </div>
+
     <div class="rb-legend" style="margin-top:26px;margin-bottom:0">
       <b>What this changes.</b>
-      <div class="row"><span>Opening:</span><span>people you share with see the report in Your reports. It runs on today's data each time it's opened.</span></div>
-      <div class="row"><span>Limits:</span><span>staff hours can only be shared with owner and managers. Per-person sales figures are shown to owner and managers only.</span></div>
-      <div class="row"><span>Changes:</span><span>only you, or an owner or manager, can change or delete it. Anyone else who saves it gets their own copy.</span></div>
+      <div class="row"><span>Emails:</span><span>send the report's data as it is at send time, to anyone you list — including people who aren't on your team.</span></div>
+      <div class="row"><span>Limits:</span><span>a report always runs with the access of the person who built it, so an email never shows more than they can see. Staff hours can only be shared with owner and managers.</span></div>
+      <div class="row"><span>Alerts:</span><span>go to the report's owner only, and stop if the report is deleted.</span></div>
+      <div class="row"><span>Pinning:</span><span>shows on your dashboard only, not on anyone else's, and refreshes every 15 minutes.</span></div>
+      <div class="row"><span>Changes:</span><span>only the person who built it, or an owner or manager, can change or delete it. Anyone else who saves it gets their own copy.</span></div>
     </div>
   </div>
   <div class="rb-drawer-f"><button class="ia-btn ia-btn--sm" data-close type="button">Cancel</button><button class="ia-btn ia-btn--sm ia-btn--primary" id="shSave" type="button">Save</button></div>

@@ -283,6 +283,65 @@ class EmailService
     }
 
     // ----------------------------------------------------------------
+    // MARKER-REPORT-DELIVERY: send rendered HTML with an optional file
+    // (a scheduled report's CSV). Same suppression gate, ledger, from/
+    // reply-to and Postmark metadata as sendRenderedWithPdf.
+    // ----------------------------------------------------------------
+    public function sendRenderedWithFile(
+        string $templateKey,
+        string $toEmail,
+        string $subject,
+        string $html,
+        ?string $bytes,
+        ?string $filename,
+        ?string $mime
+    ): bool {
+        $fromName  = $this->tenant->emailFromName();
+        $fromEmail = $this->tenant->emailFromAddress();
+        $replyTo   = $this->tenant->email_reply_to ?? $fromEmail;
+
+        if (\App\Models\Tenant\TenantEmailSuppression::isSuppressed($this->tenant->id, $toEmail)) {
+            logger()->info("EmailService::sendRenderedWithFile skipped (suppressed) [{$templateKey}]", [
+                'tenant_id' => $this->tenant->id,
+                'to'        => $toEmail,
+            ]);
+            return false;
+        }
+
+        $ledger = \App\Services\EmailLedger::begin(
+            $this->tenant->id, \App\Services\EmailLedger::kindFor($templateKey), $toEmail, $templateKey
+        );
+
+        try {
+            $tenantId = $this->tenant->id;
+            $this->deliver(function ($message) use (
+                $toEmail, $subject, $html, $fromName, $fromEmail, $replyTo, $tenantId, $templateKey, $bytes, $filename, $mime
+            ) {
+                $message
+                    ->to($toEmail)
+                    ->from($fromEmail, $fromName)
+                    ->replyTo($replyTo)
+                    ->subject($subject)
+                    ->html($html);
+                if ($bytes !== null && $filename) {
+                    $message->attachData($bytes, $filename, ['mime' => $mime ?: 'application/octet-stream']);
+                }
+                $headers = $message->getHeaders();
+                $headers->addTextHeader('X-Tenant-Id', $tenantId);
+                $headers->addTextHeader('X-Mail-Template', $templateKey);
+                $headers->addTextHeader('X-PM-Metadata-tenant_id', $tenantId);
+            });
+            \App\Services\EmailLedger::markSent($ledger);
+            return true;
+        } catch (\Throwable $e) {
+            \App\Services\EmailLedger::void($ledger);
+            logger()->error("EmailService::sendRenderedWithFile failed [{$templateKey}]: {$e->getMessage()}");
+            return false;
+        }
+    }
+
+
+    // ----------------------------------------------------------------
     // Interpolate {{variable}} placeholders
     // ----------------------------------------------------------------
     public function interpolate(string $template, array $vars): string
