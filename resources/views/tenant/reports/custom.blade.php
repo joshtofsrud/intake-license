@@ -3,325 +3,137 @@
 
 @push('styles')
 @include('tenant.reports._tab_styles')
-<style>
-  /* MARKER-REPORT-BUILDER-CORE MARKER-REPORT-LAYOUT */
-  .cr-grid { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 28px; align-items: start; }
-  @media (max-width: 900px) { .cr-grid { grid-template-columns: 1fr; } }
-  .cr-sect { padding: 14px 0; border-bottom: 1px solid var(--ia-border, #1f1f1f); }
-  .cr-lbl { font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ia-text-3, #888); font-weight: 700; margin-bottom: 8px; display: flex; justify-content: space-between; }
-  .cr-sel { width: 100%; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--ia-border, #1f1f1f); background: transparent; color: inherit; font: inherit; font-size: 13px; }
-  .cr-hint { font-size: 12px; color: var(--ia-text-3, #888); margin-top: 6px; line-height: 1.45; }
-  .cr-chk { display: flex; gap: 8px; align-items: center; padding: 5px 0; font-size: 13px; cursor: pointer; }
-  .cr-fr { margin-top: 8px; }
-  .cr-fr span { display: block; font-size: 11.5px; color: var(--ia-text-3, #888); margin-bottom: 3px; }
-  .cr-btn { display: inline-block; padding: 9px 16px; border-radius: 8px; border: 1px solid var(--ia-border, #1f1f1f); background: transparent; color: inherit; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; text-decoration: none; }
-  .cr-btn.p { background: #BEF264; color: #0a0a0a; border-color: #BEF264; }
-  .cr-bar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
-  .cr-title { font-size: 17px; font-weight: 800; letter-spacing: -0.01em; }
-  .cr-tot td { font-weight: 800; border-top: 2px solid var(--ia-border-2, #2a2a2a); }
-  .cr-legend { margin-top: 26px; padding: 14px 16px; border-left: 2px solid var(--ia-border-2, #2a2a2a); font-size: 12.5px; line-height: 1.55; color: var(--ia-text-3, #888); }
-  .cr-legend b { color: var(--ia-text, #f0f0f0); }
-  .cr-legend .row { display: flex; gap: 8px; margin-top: 4px; }
-  .cr-legend .row > span:first-child { min-width: 92px; color: var(--ia-text, #f0f0f0); font-weight: 600; }
-  .cr-list a.nm { font-weight: 700; color: inherit; text-decoration: none; }
-  .cr-confirm { display: none; gap: 6px; align-items: center; font-size: 12px; }
-  .cr-confirm.on { display: inline-flex; }
-  .cr-sugg { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
-  .cr-tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin-top: 4px; }
-  @media (max-width: 1250px) { .cr-tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
-  @media (max-width: 900px) { .cr-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-  @media (max-width: 560px) { .cr-tiles { grid-template-columns: 1fr; } }
-  .cr-tiles .cr-tile.more { display: none; }
-  .cr-tiles.all .cr-tile.more { display: flex; }
-  .cr-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 6px; }
-  .cr-tile { display: flex; flex-direction: column; gap: 6px; padding: 16px 16px 14px; min-height: 178px; border: 1px solid var(--ia-border, #1f1f1f); border-radius: 10px; color: inherit; text-decoration: none; }
-  .cr-tile:hover { border-color: var(--ia-border-2, #2a2a2a); background: rgba(127,127,127,0.06); }
-  .cr-tile .ico { width: 42px; height: 42px; border-radius: 9px; display: flex; align-items: center; justify-content: center; margin-bottom: 8px; color: #BEF264; background: rgba(190,242,100,0.10); }
-  .cr-tile .ico svg { width: 22px; height: 22px; }
-  .cr-tile .nm { font-size: 14.5px; font-weight: 700; letter-spacing: -0.01em; line-height: 1.3; }
-  .cr-tile .ds { font-size: 12px; color: var(--ia-text-3, #888); line-height: 1.45; }
-  .cr-tile .go { margin-top: auto; padding-top: 8px; font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ia-text-3, #888); }
-</style>
+<link rel="stylesheet" href="{{ asset('css/tenant/report-builder.css') }}?v={{ filemtime(public_path('css/tenant/report-builder.css')) }}">
 @endpush
 
 @section('content')
-@php
-  $def = $catalog[$cfg['ds']];
-  $money = fn ($v) => '$' . number_format((float) $v, 2);
-  $fmt = function ($v, $type) use ($money) {
-      if ($v === null) return '—';
-      if ($type === 'money') return $money($v);
-      if ($type === 'pct')   return number_format((float) $v, 1) . '%';
-      return rtrim(rtrim(number_format((float) $v, 2), '0'), '.');
-  };
-  $runQuery = array_filter([
-      'ds' => $cfg['ds'], 'm' => $cfg['m'], 'dim' => $cfg['dim'], 'f' => $cfg['f'],
-      'range' => $cfg['range'], 'sort' => $cfg['sort'], 'limit' => $cfg['limit'], 'go' => 1,
-  ], fn ($x) => $x !== [] && $x !== null);
-  $exportQuery = $saved ? ['saved' => $saved->id] : $runQuery;
-  // Two screens, as in the mockup: the landing (templates, your reports) and the builder.
-  $showBuilder = $result !== null || request()->boolean('new');
-@endphp
-<div style="padding: 32px 40px;">
-  <h1 class="rep-h1">Reports</h1>
-  <div class="rep-sub">Build your own report from your shop's data.</div>
+{{-- MARKER-REPORT-BUILDER-CORE MARKER-REPORT-BUILDER-V2 — the report builder. Read-only: nothing here changes shop data. --}}
+<div class="ia-section ia-section--wide" id="rb-app">
 
-  <div class="rep-controls">
-    @include('tenant.reports._tab_subnav', ['active' => 'custom'])
+<div class="ia-page-head">
+  <div class="ia-page-head-left">
+    <h1 class="ia-page-title">Reports</h1>
+    <p class="ia-page-subtitle" id="subTitle">Build your own report, ask for one in plain words, and save it for your team.</p>
   </div>
-
-  @if(!$showBuilder)
-    {{-- ------------------------------------------------------------- landing --}}
-    <div class="cr-head">
-      <div class="cr-lbl" style="margin:0;">Templates</div>
-      <a class="cr-btn p" href="{{ route('tenant.reports.custom', ['new' => 1]) }}">+ New report</a>
-    </div>
-    <div class="cr-hint" style="margin:0 0 12px;">Start from one of these, or press New report to build your own.</div>
-    <div class="cr-tiles big" id="cr-tiles">
-      @foreach($templates as $i => $tpl)
-        <a class="cr-tile{{ $i >= 8 ? ' more' : '' }}" href="{{ route('tenant.reports.custom', $tpl['cfg']) }}">
-          <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">{!! \App\Services\Tenant\ReportBuilder\ReportIcons::get($tpl['icon']) !!}</svg></span>
-          <span class="nm">{{ $tpl['name'] }}</span>
-          <span class="ds">{{ $tpl['desc'] }}</span>
-          <span class="go">{{ $tpl['data'] }}</span>
-        </a>
-      @endforeach
-    </div>
-    @if(count($templates) > 8)
-      <button class="cr-btn" type="button" style="margin-top:12px;" onclick="var g=document.getElementById('cr-tiles');var on=g.classList.toggle('all');this.textContent=on?'Show fewer':'Show all {{ count($templates) }}';">Show all {{ count($templates) }}</button>
-    @endif
-
-    <div style="margin-top:34px;">
-        <div class="cr-lbl">Your reports</div>
-        @if(count($myReports) === 0)
-          <div class="cr-hint">Nothing saved yet. Run a report, then press Save this report.</div>
-        @else
-          <table class="rep-tbl cr-list">
-            <thead><tr><th>Name</th><th>Data</th><th>Created by</th><th>Created</th><th>Who can open</th><th></th></tr></thead>
-            <tbody>
-              @foreach($myReports as $r)
-                <tr>
-                  <td><a class="nm" href="{{ route('tenant.reports.custom', ['saved' => $r->id]) }}">{{ $r->name }}</a></td>
-                  <td>{{ $catalog[$r->dataset]['label'] ?? $r->dataset }}</td>
-                  <td>{{ $r->by_name ?? 'Unknown' }}</td>
-                  <td>{{ \Illuminate\Support\Carbon::parse($r->created_at)->format('M j, Y') }}</td>
-                  <td>{{ $r->visibility === 'team' ? 'Everyone' : 'Only the person who built it' }}</td>
-                  <td style="text-align:right;">
-                    @if($isManager || $r->user_id === (\Illuminate\Support\Facades\Auth::guard('tenant')->id()))
-                      <button class="cr-btn" type="button" onclick="this.style.display='none';document.getElementById('del-{{ $r->id }}').classList.add('on')">Delete</button>
-                      <form method="POST" action="{{ route('tenant.reports.custom.delete', $r->id) }}" class="cr-confirm" id="del-{{ $r->id }}">
-                        @csrf
-                        Delete this report?
-                        <button class="cr-btn" type="submit">Yes, delete</button>
-                        <button class="cr-btn" type="button" onclick="this.parentNode.classList.remove('on');this.parentNode.previousElementSibling.style.display=''">Cancel</button>
-                      </form>
-                    @endif
-                  </td>
-                </tr>
-              @endforeach
-            </tbody>
-          </table>
-        @endif
-      </div>
-
-      <div class="cr-legend">
-        <b>How this behaves.</b>
-        <div class="row"><span>Read-only:</span><span>reports never change anything in your shop.</span></div>
-        <div class="row"><span>Whole shop:</span><span>every report covers all your locations unless you filter by location.</span></div>
-        <div class="row"><span>Revenue:</span><span>paid sales before tax and tips. Refunds, unpaid sales and quotes are left out.</span></div>
-        <div class="row"><span>Margin:</span><span>counted only on lines where a cost was saved at the time of the sale, so lines without a cost don't pull the percentage down.</span></div>
-        <div class="row"><span>Staff:</span><span>per-person figures are shown to owners and managers only.</span></div>
-        @if($cfg['ds'] === 'dist')
-          <div class="row"><span>Distributor:</span><span>only items you carry, from the distributor each came from. Pace comes from the distributor's stock dropping, not from anyone's sales, and restocks are never counted as sales. Another shop's data is never shown.</span></div>
-        @endif
-        <div class="row"><span>Saved:</span><span>a saved report re-runs on today's data each time you open it. Nothing is emailed or pinned.</span></div>
-      </div>
-  @else
-  <div class="cr-grid">
-    {{-- ------------------------------------------------------------- builder --}}
-    <form method="GET" action="{{ route('tenant.reports.custom') }}" id="cr-form">
-      <input type="hidden" name="go" value="1">
-
-      <div class="cr-sect">
-        <div class="cr-lbl">Data</div>
-        <select class="cr-sel" name="ds" onchange="document.getElementById('cr-form').submit()">
-          @foreach($catalog as $key => $d)
-            <option value="{{ $key }}" @selected($cfg['ds'] === $key)>{{ $d['label'] }}</option>
-          @endforeach
-        </select>
-        <div class="cr-hint">{{ $def['note'] }}</div>
-        @if(!empty($def['cav']))
-          <ul class="cr-hint" style="margin:6px 0 0;padding-left:16px;">
-            @foreach($def['cav'] as $line)<li>{{ $line }}</li>@endforeach
-          </ul>
-        @endif
-      </div>
-
-      <div class="cr-sect">
-        <div class="cr-lbl"><span>Show</span><span>up to {{ $maxMeasures }}</span></div>
-        @foreach($def['measures'] as $key => $m)
-          <label class="cr-chk">
-            <input type="checkbox" name="m[]" value="{{ $key }}" @checked(in_array($key, $cfg['m'], true))>
-            {{ $m['label'] }}
-          </label>
-        @endforeach
-      </div>
-
-      <div class="cr-sect">
-        <div class="cr-lbl">Break down by</div>
-        <select class="cr-sel" name="dim">
-          @foreach($dims as $key => $d)
-            <option value="{{ $key }}" @selected($cfg['dim'] === $key)>{{ $d['label'] }}</option>
-          @endforeach
-        </select>
-      </div>
-
-      <div class="cr-sect">
-        <div class="cr-lbl">Only include</div>
-        @foreach($def['filters'] as $key => $label)
-          @if(isset($filterOpts[$key]))
-            <div class="cr-fr">
-              <span>{{ $label }}</span>
-              <select class="cr-sel" name="f[{{ $key }}]">
-                <option value="">Any</option>
-                @foreach($filterOpts[$key] as $val => $name)
-                  <option value="{{ $val }}" @selected(($cfg['f'][$key] ?? '') === (string) $val)>{{ $name }}</option>
-                @endforeach
-              </select>
-            </div>
-          @endif
-        @endforeach
-      </div>
-
-      @if(!$def['snapshot'])
-        <div class="cr-sect">
-          <div class="cr-lbl">Date range</div>
-          <select class="cr-sel" name="range">
-            @foreach($ranges as $key => $label)
-              <option value="{{ $key }}" @selected($cfg['range'] === $key)>{{ $label }}</option>
-            @endforeach
-          </select>
-        </div>
-      @else
-        <input type="hidden" name="range" value="{{ $cfg['range'] }}">
-      @endif
-
-      <div class="cr-sect">
-        <div class="cr-lbl">Order and limit</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-          <select class="cr-sel" name="sort">
-            <option value="desc" @selected($cfg['sort'] === 'desc')>Highest first</option>
-            <option value="asc" @selected($cfg['sort'] === 'asc')>Lowest first</option>
-          </select>
-          <select class="cr-sel" name="limit">
-            @foreach([0 => 'Show all', 5 => 'Top 5', 10 => 'Top 10', 15 => 'Top 15', 25 => 'Top 25'] as $v => $l)
-              <option value="{{ $v }}" @selected($cfg['limit'] === $v)>{{ $l }}</option>
-            @endforeach
-          </select>
-        </div>
-        <div class="cr-hint">Time breakdowns stay in date order.</div>
-      </div>
-
-      <div style="padding-top:16px;">
-        <button class="cr-btn p" type="submit">Run report</button>
-      </div>
-    </form>
-
-    {{-- ------------------------------------------------------------- results --}}
-    <div>
-      @if($result)
-        <div style="margin-bottom:10px;"><a href="{{ route('tenant.reports.custom') }}" style="font-size:12.5px;color:var(--ia-text-3,#888);text-decoration:none;">&larr; All reports</a></div>
-        <div class="cr-bar">
-          <div class="cr-title">{{ $saved ? $saved->name : $def['label'] . ' by ' . strtolower($dims[$cfg['dim']]['label']) }}</div>
-          <span style="color:var(--ia-text-3,#888);font-size:12.5px;">{{ count($result['rows']) }} rows · {{ $result['range_label'] }}</span>
-          <span style="flex:1"></span>
-          <a class="cr-btn" href="{{ route('tenant.reports.custom.export', $exportQuery) }}">Export CSV</a>
-          <button class="cr-btn" type="button" onclick="document.getElementById('cr-save').style.display='block'">Save this report</button>
-        </div>
-
-        <form method="POST" action="{{ route('tenant.reports.custom.save') }}" id="cr-save" style="display:none;margin-bottom:14px;padding:14px 16px;border:1px solid var(--ia-border,#1f1f1f);border-radius:10px;">
-          @csrf
-          <input type="hidden" name="ds" value="{{ $cfg['ds'] }}">
-          @foreach($cfg['m'] as $m)<input type="hidden" name="m[]" value="{{ $m }}">@endforeach
-          <input type="hidden" name="dim" value="{{ $cfg['dim'] }}">
-          @foreach($cfg['f'] as $fk => $fv)<input type="hidden" name="f[{{ $fk }}]" value="{{ $fv }}">@endforeach
-          <input type="hidden" name="range" value="{{ $cfg['range'] }}">
-          <input type="hidden" name="sort" value="{{ $cfg['sort'] }}">
-          <input type="hidden" name="limit" value="{{ $cfg['limit'] }}">
-          <div style="display:grid;grid-template-columns:1fr 200px auto;gap:8px;align-items:end;">
-            <div><div class="cr-lbl">Name</div><input class="cr-sel" type="text" name="name" maxlength="120" required value="{{ $def['label'] }} by {{ strtolower($dims[$cfg['dim']]['label']) }}"></div>
-            <div><div class="cr-lbl">Who can open it</div>
-              <select class="cr-sel" name="visibility"><option value="me">Only me</option><option value="team">Everyone on the team</option></select></div>
-            <button class="cr-btn p" type="submit">Save report</button>
-          </div>
-        </form>
-
-        @if(count($result['rows']) === 0)
-          <div class="rep-empty">
-            Nothing matches these settings in {{ strtolower($result['range_label']) }}.
-            <div class="cr-sugg" style="justify-content:center;">
-              @if(!$def['snapshot'] && $cfg['range'] !== 'last_90')
-                <a class="cr-btn" href="{{ route('tenant.reports.custom', array_merge($runQuery, ['range' => 'last_90'])) }}">Try the last 90 days</a>
-              @endif
-              @if($cfg['f'])
-                <a class="cr-btn" href="{{ route('tenant.reports.custom', array_merge($runQuery, ['f' => []])) }}">Clear the filters</a>
-              @endif
-            </div>
-          </div>
-        @else
-          <table class="rep-tbl">
-            <thead><tr>
-              @foreach($result['columns'] as $col)
-                <th class="{{ $col['key'] === 'label' ? '' : 'right' }}">{{ $col['label'] }}</th>
-              @endforeach
-            </tr></thead>
-            <tbody>
-              @foreach($result['rows'] as $row)
-                <tr>
-                  @foreach($result['columns'] as $col)
-                    @if($col['key'] === 'label')
-                      <td class="rep-cell-name">{{ $row['label'] }}</td>
-                    @else
-                      <td class="right">{{ $fmt($row[$col['key']], $col['type']) }}</td>
-                    @endif
-                  @endforeach
-                </tr>
-              @endforeach
-              @if($cfg['limit'] === 0 && !$result['truncated'])
-                <tr class="cr-tot">
-                  <td>Total</td>
-                  @foreach($result['columns'] as $col)
-                    @if($col['key'] !== 'label')
-                      <td class="right">{{ $fmt($result['totals'][$col['key']] ?? null, $col['type']) }}</td>
-                    @endif
-                  @endforeach
-                </tr>
-              @endif
-            </tbody>
-          </table>
-          @if($result['truncated'])
-            <div class="cr-hint" style="margin-top:10px;">This report has more than {{ number_format(\App\Services\Tenant\ReportBuilder\ReportCatalog::ROW_CAP) }} rows, so only the first {{ number_format(\App\Services\Tenant\ReportBuilder\ReportCatalog::ROW_CAP) }} are shown and no total is given. Narrow the date range or add a filter.</div>
-          @endif
-        @endif
-      @else
-        <div class="rep-empty" style="text-align:left;padding:8px 0 18px;">Pick what to show on the left, then press Run report.</div>
-      @endif
-
-
-      <div class="cr-legend">
-        <b>How this behaves.</b>
-        <div class="row"><span>Read-only:</span><span>reports never change anything in your shop.</span></div>
-        <div class="row"><span>Whole shop:</span><span>every report covers all your locations unless you filter by location.</span></div>
-        <div class="row"><span>Revenue:</span><span>paid sales before tax and tips. Refunds, unpaid sales and quotes are left out.</span></div>
-        <div class="row"><span>Margin:</span><span>counted only on lines where a cost was saved at the time of the sale, so lines without a cost don't pull the percentage down.</span></div>
-        <div class="row"><span>Staff:</span><span>per-person figures are shown to owners and managers only.</span></div>
-        @if($cfg['ds'] === 'dist')
-          <div class="row"><span>Distributor:</span><span>only items you carry, from the distributor each came from. Pace comes from the distributor's stock dropping, not from anyone's sales, and restocks are never counted as sales. Another shop's data is never shown.</span></div>
-        @endif
-        <div class="row"><span>Saved:</span><span>a saved report re-runs on today's data each time you open it. Nothing is emailed or pinned.</span></div>
-      </div>
-    </div>
-  </div>
-  @endif
+  <div style="display:flex;gap:8px;align-items:center" id="headBtns"></div>
 </div>
+
+@include('tenant.reports._tab_subnav', ['active' => 'custom'])
+
+<!-- ================= LIST ================= -->
+<section class="rb-view on" id="v-list">
+  <div class="rb-askwrap">
+    <div class="rb-lbl" style="margin-bottom:8px">Ask for a report</div>
+    <div class="rb-ask"><input class="rb-inp rb-askin" id="askList" placeholder='Try: "margin by category compared to last year"' autocomplete="off"><button class="ia-btn ia-btn--primary" type="button" data-ask="askList">Build it</button></div>
+    <div class="rb-ex" id="exList"></div>
+    <div id="askOutList"></div>
+  </div>
+
+  <div class="rb-sec">
+    <div class="rb-h"><h2>Templates</h2><span class="rb-hint">open in the builder — change anything, then save your own copy</span><button class="rb-link" id="tplMore" style="margin-left:auto" type="button"></button></div>
+    <div class="rb-tiles" id="tplList"></div>
+  </div>
+
+  <div class="rb-sec" style="margin-top:40px">
+    <div class="rb-h"><h2>Your reports</h2></div>
+    <div class="rb-bar">
+      <div class="rb-seg" id="listSeg"><button data-f="all" class="on" type="button">All</button><button data-f="mine" type="button">Mine</button><button data-f="shared" type="button">Shared with me</button></div>
+      <span class="rb-hint" id="listCount"></span>
+      <span class="sp"></span>
+      <select class="rb-sel" id="listSort" aria-label="Sort reports"><option value="new">Newest first</option><option value="old">Oldest first</option><option value="name">Name A–Z</option></select>
+      <input class="rb-inp" id="listQ" placeholder="Search reports" style="width:200px">
+    </div>
+    <div class="rb-tbl"><table class="ia-table" id="savedTbl"></table></div>
+  </div>
+</section>
+
+<!-- ================= BUILDER ================= -->
+<section class="rb-view" id="v-build">
+  <div class="rb-titlebar" style="margin-bottom:12px"><a class="rb-link" id="backLink" href="#" onclick="return false">← All reports</a></div>
+
+  <div class="rb-askwrap" style="margin-bottom:18px">
+    <div class="rb-ask"><input class="rb-inp rb-askin" id="askBuild" placeholder="Ask in your own words — it fills in the settings below, and you can change any of them" autocomplete="off"><button class="ia-btn ia-btn--sm" type="button" data-ask="askBuild">Ask</button></div>
+    <div id="askOutBuild"></div>
+  </div>
+  <div id="whyBanner"></div>
+
+  <div class="rb-build">
+    <div class="rb-panel" id="panel"></div>
+    <div>
+      <div class="rb-titlebar">
+        <input class="rb-title" id="rTitle" value="" aria-label="Report name">
+        <span class="rb-pill warn rb-saved-dirty" id="dirty">Unsaved changes</span>
+        <span class="sp" style="flex:1"></span>
+        <button class="ia-btn ia-btn--sm" type="button" id="btnExport">Export CSV</button>
+        <button class="ia-btn ia-btn--sm" type="button" id="btnShare">Share</button>
+        <button class="ia-btn ia-btn--sm ia-btn--primary" type="button" id="btnSave">Save</button>
+      </div>
+      <div id="readBox"></div>
+      <div class="rb-bar" style="margin-bottom:6px" id="viewBar">
+        <div class="rb-seg" id="outSeg"><button data-o="table" class="on" type="button">Table</button><button data-o="bar" type="button">Bar</button><button data-o="line" type="button">Line</button></div>
+        <select class="rb-sel" id="chartMeasure" style="display:none" aria-label="Measure shown"></select>
+        <span class="sp"></span><span class="rb-hint" id="rowHint"></span>
+      </div>
+      <div id="preview"></div>
+      <div id="stands"></div>
+      <div id="related"></div>
+      <div class="rb-legend" style="margin-top:26px" id="legend"></div>
+    </div>
+  </div>
+</section>
+
+<div class="rb-scrim" id="scrim"></div>
+
+<!-- share -->
+<aside class="rb-drawer" id="drawer">
+  <div class="rb-drawer-h"><div><h3>Share</h3><div class="rb-hint" id="shName"></div></div><button class="rb-x" data-close type="button">×</button></div>
+  <div class="rb-drawer-b">
+    <div class="rb-lbl">Who can open this report</div>
+    <div class="rb-radio" id="shVis">
+      <label><input type="radio" name="vis" value="me" checked> Only me</label>
+      <label><input type="radio" name="vis" value="mgr"> Owner and managers</label>
+      <label><input type="radio" name="vis" value="all"> Everyone with Reports access</label>
+    </div>
+    <div class="rb-hint" style="margin-top:6px" id="shVisNote"></div>
+    <div class="rb-legend" style="margin-top:26px;margin-bottom:0">
+      <b>What this changes.</b>
+      <div class="row"><span>Opening:</span><span>people you share with see the report in Your reports. It runs on today's data each time it's opened.</span></div>
+      <div class="row"><span>Limits:</span><span>staff hours can only be shared with owner and managers. Per-person sales figures are shown to owner and managers only.</span></div>
+      <div class="row"><span>Changes:</span><span>only you, or an owner or manager, can change or delete it. Anyone else who saves it gets their own copy.</span></div>
+    </div>
+  </div>
+  <div class="rb-drawer-f"><button class="ia-btn ia-btn--sm" data-close type="button">Cancel</button><button class="ia-btn ia-btn--sm ia-btn--primary" id="shSave" type="button">Save</button></div>
+</aside>
+
+<!-- drill-down -->
+<aside class="rb-drawer" id="drawerDrill"></aside>
+
+<!-- calculation -->
+<div class="rb-modal" id="mCalc" style="width:min(560px,calc(100% - 32px))">
+  <div class="rb-drawer-h"><div><h3 id="cTitle">Add a calculation</h3><div class="rb-hint">Combine measures — from any data that can be split the same way — into a new one.</div></div><button class="rb-x" data-close type="button">×</button></div>
+  <div class="rb-drawer-b">
+    <div class="rb-lbl">Name</div>
+    <input class="rb-inp" id="cName" placeholder="e.g. Sales per labor hour">
+    <div class="rb-lbl" style="margin-top:16px">Formula</div>
+    <input class="rb-inp rb-fx" id="cF" placeholder="[Revenue] / [Hours worked]" autocomplete="off" spellcheck="false">
+    <div class="rb-bar" style="margin:8px 0 0">
+      <select class="rb-sel" id="cPick" style="max-width:250px"></select>
+      <button class="ia-btn ia-btn--sm" type="button" id="cIns">Insert</button>
+      <span class="sp"></span>
+      <div class="rb-seg" id="cOps"><button data-op=" + " type="button">+</button><button data-op=" - " type="button">−</button><button data-op=" * " type="button">×</button><button data-op=" / " type="button">÷</button><button data-op="(" type="button">(</button><button data-op=")" type="button">)</button></div>
+    </div>
+    <div class="rb-bar" style="margin:12px 0 0"><span class="rb-hint">Shown as</span><select class="rb-sel" id="cT"><option value="$">Dollars</option><option value="n">Whole number</option><option value="%">Percent</option><option value="d">Number with a decimal</option></select></div>
+    <div class="rb-calc-prev" id="cPrev"></div>
+    <div class="rb-lbl" style="margin-top:18px">Suggested</div>
+    <div class="rb-chips" id="cSugg"></div>
+    <label style="font-size:13px;display:flex;gap:8px;align-items:center;margin-top:16px"><input type="checkbox" class="rb-chk" id="cLib" checked> Keep it in my calculations so other reports can use it</label>
+  </div>
+  <div class="rb-drawer-f"><button class="ia-btn ia-btn--sm" data-close type="button">Cancel</button><button class="ia-btn ia-btn--sm ia-btn--primary" id="cSave" type="button">Add to report</button></div>
+</div>
+<div class="rb-toast" id="toast"></div>
+
+</div>
+
+<script type="application/json" id="rb-boot">{!! json_encode($boot, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) !!}</script>
+<script src="{{ asset('js/tenant/report-builder.js') }}?v={{ filemtime(public_path('js/tenant/report-builder.js')) }}" defer></script>
 @endsection

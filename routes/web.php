@@ -791,6 +791,12 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             Route::get('/reports/custom/export',        [TenantControllers\CustomReportsController::class, 'export'])->name('reports.custom.export');
             Route::post('/reports/custom/save',         [TenantControllers\CustomReportsController::class, 'save'])->name('reports.custom.save');
             Route::post('/reports/custom/{id}/delete',  [TenantControllers\CustomReportsController::class, 'destroy'])->name('reports.custom.delete');
+            // MARKER-REPORT-BUILDER-V2
+            Route::post('/reports/custom/data',         [TenantControllers\CustomReportsController::class, 'data'])->name('reports.custom.data');
+            Route::post('/reports/custom/{id}/opened',  [TenantControllers\CustomReportsController::class, 'opened'])->name('reports.custom.opened');
+            Route::get('/reports/custom/customers',     [TenantControllers\CustomReportsController::class, 'customers'])->name('reports.custom.customers');
+            Route::post('/reports/custom/timeline',     [TenantControllers\CustomReportsController::class, 'timeline'])->name('reports.custom.timeline');
+            Route::post('/reports/custom/calcs',        [TenantControllers\CustomReportsController::class, 'calcs'])->name('reports.custom.calcs');
             Route::get('/reports/data-quality',        [TenantControllers\ReportsController::class, 'dataQuality'])->name('reports.data_quality');
             Route::get('/reports/data-quality/export', [TenantControllers\ReportsController::class, 'dataQualityExport'])->name('reports.data_quality.export');
             // Traffic tab
