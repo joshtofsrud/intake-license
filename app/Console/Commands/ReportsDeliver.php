@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Models\Tenant;
+use App\Services\Tenant\ReportBuilder\ReportAccess;
 use App\Services\Tenant\ReportBuilder\ReportMailer;
 use App\Services\Tenant\ReportBuilder\ReportSchedule;
 use App\Support\JobFailureReporter;
@@ -17,10 +18,17 @@ class ReportsDeliver extends Command
 
     public function handle(): int
     {
-        $due = DB::table('tenant_report_deliveries')
+        $isDue = fn () => DB::table('tenant_report_deliveries')
             ->where('email_freq', '!=', 'never')
             ->whereNotNull('next_send_at')
-            ->where('next_send_at', '<=', now())
+            ->where('next_send_at', '<=', now());
+        // Shops without extended reports are paused: left out here so they can't crowd out the rest.
+        $paused = [];
+        foreach ($isDue()->distinct()->pluck('tenant_id') as $tid) {
+            $t = Tenant::find($tid);
+            if ($t && !ReportAccess::allowed($t)) $paused[] = $tid;
+        }
+        $due = $isDue()->when($paused, fn ($q) => $q->whereNotIn('tenant_id', $paused))
             ->orderBy('next_send_at')
             ->limit(200)
             ->get();

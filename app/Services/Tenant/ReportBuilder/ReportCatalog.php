@@ -24,7 +24,7 @@ class ReportCatalog
 {
     public const MAX_MEASURES = 5;
     public const ROW_CAP = 5000;
-    public const ORDINAL = ['mband', 'pband', 'bucket', 'hist'];
+    public const ORDINAL = ['mband', 'pband', 'bucket', 'hist', 'dow', 'hod'];
 
     /** What master admin allows shops to see (Distributor velocity > Shop visibility). */
     public static function velocity(): array
@@ -215,6 +215,10 @@ class ReportCatalog
             ['Sales per labor hour', 'Weekly revenue divided by hours worked — a calculation across Sales and Staff hours.', 'timer', ['ds' => 'sales', 'measures' => ['calc:t1', 'rev'], 'dim' => 'week', 'range' => 'Last 90 days', 'calcs' => [['id' => 'calc:t1', 'name' => 'Sales per labor hour', 'f' => '[Revenue] / [Hours worked]', 't' => '$']]]],
             ['New customers by month', 'New customers, total customers and growth rate over a year.', 'user-plus', ['ds' => 'customers', 'measures' => ['newc', 'custs', 'growth'], 'dim' => 'month', 'range' => 'Last 12 months']],
             ['Top customers by lifetime value', 'Your best 15 customers and what they\'ve spent.', 'crown', ['ds' => 'customers', 'measures' => ['ltvt', 'spend', 'visits'], 'dim' => 'cust', 'range' => 'Last 12 months', 'limit' => 15]],
+            ['Tax collected by location', 'Taxable sales and the tax collected at each location, last 30 days.', 'landmark', ['ds' => 'sales', 'measures' => ['taxable', 'tax', 'rev'], 'dim' => 'loc']],
+            ['Booking density', 'When appointments start: day of the week against hour of the day (a pivot).', 'grid-3x3', ['ds' => 'appts', 'measures' => ['ap'], 'dim' => 'dow', 'dim2' => 'hod', 'range' => 'Last 90 days']],
+            ['Parts attach by service', 'How often parts are added to each kind of job, and what they bring in.', 'wrench', ['ds' => 'appts', 'measures' => ['ap', 'partsp', 'parts'], 'dim' => 'svc', 'range' => 'Last 90 days']],
+            ['Comebacks by service', 'Customers who booked again within 30 days of a finished job.', 'rotate-ccw', ['ds' => 'appts', 'measures' => ['done', 'back', 'backp'], 'dim' => 'svc', 'range' => 'Last 90 days']],
             ['Customer timeline', 'Everything that happened with one customer, in order.', 'history', ['ds' => 'customers', 'mode' => 'timeline', 'range' => 'All time']],
             ['Inbox contacts by month', 'How many customers got in touch, month by month.', 'inbox', ['ds' => 'customers', 'measures' => ['inbox'], 'dim' => 'month', 'range' => 'Last 12 months']],
             ['Appointments by service and location', 'Volume for each service at each location (a pivot).', 'calendar-check', ['ds' => 'appts', 'measures' => ['ap'], 'dim' => 'svc', 'dim2' => 'loc']],

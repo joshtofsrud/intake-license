@@ -260,3 +260,13 @@
 .rb-note.rb-stale{border-left-color:var(--rb-warn)}
 .rb-note.rb-stale > div:first-child{opacity:.7}
 #explainBox .rb-note{line-height:1.55}
+
+/* MARKER-REPORT-GATE: shops without extended reports — blurred stand-ins with an upgrade pill. */
+.rb-lock{position:relative}
+.rb-lock .rb-tbl,.rb-lock .rb-blurme{filter:blur(5px);user-select:none;pointer-events:none}
+.rb-lockbadge{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;padding:0 12px}
+.rb-lockbadge>span{display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:center;background:var(--ia-surface-2);border:1px solid var(--ia-border-strong);border-radius:99px;padding:7px 8px 7px 15px;font-size:12.5px;font-weight:600;box-shadow:0 6px 20px rgba(0,0,0,.35);pointer-events:auto}
+.rb-lockbadge b{color:var(--ia-accent);font-weight:600}
+.rb-lockbadge button{background:var(--ia-accent);color:var(--ia-accent-text);border:0;border-radius:99px;padding:4px 12px;font-size:11.5px;font-weight:700;cursor:pointer}
+.rb-ph{background:var(--ia-border);height:11px;border-radius:4px;display:inline-block;vertical-align:middle}
+.rb-lockgo{margin-top:auto;font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ia-text-dim)}

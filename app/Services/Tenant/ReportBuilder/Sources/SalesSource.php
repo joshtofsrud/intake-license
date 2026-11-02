@@ -21,7 +21,7 @@ class SalesSource extends Source
     {
         return [
             'label' => 'Sales',
-            'note'  => 'Paid register and online-store sales. Refunds are taken off. Revenue is before tax and tips.',
+            'note'  => 'Paid register and online-store sales. Refunds are taken off. Revenue is before tax and tips. Tax collected is the sales tax charged on those sales, refunds taken off.',
             'snap'  => false,
             'measures' => [
                 'rev'     => ['Revenue', '$'],
@@ -33,6 +33,8 @@ class SalesSource extends Source
                 'avg'     => ['Average ticket', '$'],
                 'disc'    => ['Discounts given', '$'],
                 'refunds' => ['Refunds', '$'],
+                'tax'     => ['Tax collected', '$'],
+                'taxable' => ['Taxable sales', '$'],
             ],
             'dims' => [
                 'day'   => ['Day', 't'], 'week' => ['Week', 't'], 'month' => ['Month', 't'], 'hour' => ['Hour of day', 't'],
@@ -129,7 +131,9 @@ class SalesSource extends Source
             ->selectRaw("SUM(CASE WHEN i.type IN ('product', 'open_item') THEN $S * i.quantity ELSE 0 END) as c_items")
             ->selectRaw('COUNT(DISTINCT CASE WHEN s.refund_of_sale_id IS NULL THEN s.id END) as c_tickets')
             ->selectRaw('SUM(CASE WHEN s.refund_of_sale_id IS NULL THEN i.discount_cents ELSE 0 END) as c_disc')
-            ->selectRaw("SUM(CASE WHEN s.refund_of_sale_id IS NOT NULL THEN $L ELSE 0 END) as c_refunds");
+            ->selectRaw("SUM(CASE WHEN s.refund_of_sale_id IS NOT NULL THEN $L ELSE 0 END) as c_refunds")
+            ->selectRaw("SUM($S * i.tax_cents) as c_tax")
+            ->selectRaw("SUM(CASE WHEN i.is_taxable = 1 THEN $S * $L ELSE 0 END) as c_taxable");
     }
 
     private static function comps(object $r): array
@@ -137,7 +141,7 @@ class SalesSource extends Source
         return [
             'rev' => (float) $r->c_rev, 'margin' => (float) $r->c_margin, 'costed' => (float) $r->c_costed,
             'items' => (float) $r->c_items, 'tickets' => (float) $r->c_tickets, 'disc' => (float) $r->c_disc,
-            'refunds' => (float) $r->c_refunds,
+            'refunds' => (float) $r->c_refunds, 'tax' => (float) $r->c_tax, 'taxable' => (float) $r->c_taxable,
         ];
     }
 
@@ -193,7 +197,7 @@ class SalesSource extends Source
 
     public function value(string $m, array $c): ?float
     {
-        $c += ['rev' => 0, 'margin' => 0, 'costed' => 0, 'items' => 0, 'tickets' => 0, 'disc' => 0, 'refunds' => 0];
+        $c += ['rev' => 0, 'margin' => 0, 'costed' => 0, 'items' => 0, 'tickets' => 0, 'disc' => 0, 'refunds' => 0, 'tax' => 0, 'taxable' => 0];
         return match ($m) {
             'rev'     => $c['rev'] / 100,
             'margin'  => $c['costed'] != 0 ? $c['margin'] / 100 : null,   // no line with a saved cost: unknown, not zero
@@ -204,6 +208,8 @@ class SalesSource extends Source
             'avg'     => ($r = self::ratio($c['rev'], $c['tickets'])) === null ? null : $r / 100,
             'disc'    => $c['disc'] / 100,
             'refunds' => $c['refunds'] / 100,
+            'tax'     => $c['tax'] / 100,
+            'taxable' => $c['taxable'] / 100,
             default   => null,
         };
     }

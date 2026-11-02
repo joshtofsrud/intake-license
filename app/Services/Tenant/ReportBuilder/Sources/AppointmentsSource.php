@@ -17,7 +17,7 @@ class AppointmentsSource extends Source
     {
         return [
             'label' => 'Appointments',
-            'note'  => 'Booked work, by appointment date. Booked value is before tax and leaves out cancelled and refunded appointments.',
+            'note'  => 'Booked work, by appointment date. Booked value and booked hours are before tax and leave out cancelled and refunded appointments. Parts are those added to the job. "Came back" means the same customer booked again within 30 days of a finished appointment.',
             'snap'  => false,
             'measures' => [
                 'ap'     => ['Appointments', 'n'],
@@ -27,10 +27,17 @@ class AppointmentsSource extends Source
                 'booked' => ['Booked value', '$'],
                 'aval'   => ['Average value', '$'],
                 'paid'   => ['Paid', '$'],
+                'hours'  => ['Booked hours', 'h'],
+                'parts'  => ['Parts revenue', '$'],
+                'partsn' => ['Appointments with parts', 'n'],
+                'partsp' => ['Parts attach rate', '%'],
+                'back'   => ['Came back within 30 days', 'n'],
+                'backp'  => ['Comeback rate', '%'],
             ],
             'dims' => [
                 'day' => ['Day', 't'], 'week' => ['Week', 't'], 'month' => ['Month', 't'],
                 'svc' => ['Service', 'c'], 'res' => ['Staff or resource', 'c'], 'loc' => ['Location', 'c'], 'stat' => ['Status', 'c'],
+                'dow' => ['Day of week', 'c'], 'hod' => ['Start hour', 'c'],
             ],
             'filters' => ['svc' => 'Service', 'res' => 'Staff or resource', 'loc' => 'Location', 'stat' => 'Status'],
         ];
@@ -57,6 +64,8 @@ class AppointmentsSource extends Source
         if ($items) {
             $q->join('tenant_appointment_items as ai', 'ai.appointment_id', '=', 'a.id');
         }
+        $q->leftJoin(DB::raw('(SELECT appointment_id, SUM(quantity * COALESCE(unit_price_cents_override, unit_price_cents)) AS parts_cents FROM tenant_appointment_parts GROUP BY appointment_id) as pt'),
+            'pt.appointment_id', '=', 'a.id');
         $f = $this->byKey($filters);
         foreach (['res' => "COALESCE(a.resource_id, '')", 'loc' => "COALESCE(a.location_id, '')", 'stat' => 'a.status'] as $k => $col) {
             if (isset($f[$k])) {
@@ -80,7 +89,17 @@ class AppointmentsSource extends Source
     private function selectComponents($q, bool $items)
     {
         $val = $items ? 'ai.price_cents' : 'a.subtotal_cents';
+        $live = 'a.status NOT IN ' . self::DEAD;
+        $mins = $items ? 'COALESCE(ai.duration_minutes_snapshot, 0)' : 'COALESCE(a.total_duration_minutes, 0)';
+        $parts = $items
+            ? "SUM(CASE WHEN $live AND a.subtotal_cents > 0 THEN COALESCE(pt.parts_cents, 0) * ai.price_cents / a.subtotal_cents ELSE 0 END)"
+            : "SUM(CASE WHEN $live THEN COALESCE(pt.parts_cents, 0) ELSE 0 END)";
+        $back = 'COUNT(DISTINCT CASE WHEN a.status IN ' . self::DONE . ' AND EXISTS (SELECT 1 FROM tenant_appointments b WHERE b.tenant_id = a.tenant_id AND b.customer_id = a.customer_id AND b.id <> a.id AND b.status NOT IN ' . self::DEAD . ' AND DATEDIFF(b.appointment_date, a.appointment_date) BETWEEN 1 AND 30) THEN a.id END)';
         return $q->selectRaw('COUNT(DISTINCT a.id) as c_ap')
+            ->selectRaw("SUM(CASE WHEN $live THEN $mins ELSE 0 END) as c_mins")
+            ->selectRaw("$parts as c_parts")
+            ->selectRaw("COUNT(DISTINCT CASE WHEN $live AND COALESCE(pt.parts_cents, 0) > 0 THEN a.id END) as c_withparts")
+            ->selectRaw("$back as c_back")
             ->selectRaw('COUNT(DISTINCT CASE WHEN a.status IN ' . self::DONE . ' THEN a.id END) as c_done')
             ->selectRaw("COUNT(DISTINCT CASE WHEN a.status = 'cancelled' THEN a.id END) as c_canc")
             ->selectRaw('COUNT(DISTINCT CASE WHEN a.status NOT IN ' . self::DEAD . ' THEN a.id END) as c_live')
@@ -91,7 +110,8 @@ class AppointmentsSource extends Source
     private static function comps(object $r): array
     {
         return ['ap' => (float) $r->c_ap, 'done' => (float) $r->c_done, 'canc' => (float) $r->c_canc, 'live' => (float) $r->c_live,
-            'booked' => (float) $r->c_booked, 'paid' => (float) $r->c_paid];
+            'booked' => (float) $r->c_booked, 'paid' => (float) $r->c_paid,
+            'mins' => (float) $r->c_mins, 'parts' => (float) $r->c_parts, 'withparts' => (float) $r->c_withparts, 'back' => (float) $r->c_back];
     }
 
     public function run(array $dims, array $filters, Carbon $from, Carbon $to): array
@@ -101,6 +121,7 @@ class AppointmentsSource extends Source
         $exprs = [
             'day' => 'a.appointment_date', 'week' => 'a.appointment_date', 'month' => 'a.appointment_date',
             'svc' => 'ai.item_name_snapshot', 'res' => "COALESCE(a.resource_id, '')", 'loc' => "COALESCE(a.location_id, '')", 'stat' => 'a.status',
+            'dow' => '(WEEKDAY(a.appointment_date) + 1)', 'hod' => 'COALESCE(HOUR(a.appointment_time), -1)',
         ];
         foreach ($dims as $n => $d) {
             $q->selectRaw(($exprs[$d] ?? "''") . " as g$n")->groupByRaw($exprs[$d] ?? "''");
@@ -121,6 +142,8 @@ class AppointmentsSource extends Source
                         'res'  => $raw === '' ? 'Unassigned' : ($this->names('res')[$raw] ?? 'Removed'),
                         'loc'  => $raw === '' ? 'No location' : ($this->names('loc')[$raw] ?? 'Removed location'),
                         'stat' => self::STATUS[$raw] ?? ucfirst($raw),
+                        'dow'  => [1 => 'Monday', 2 => 'Tuesday', 3 => 'Wednesday', 4 => 'Thursday', 5 => 'Friday', 6 => 'Saturday', 7 => 'Sunday'][(int) $raw] ?? $raw,
+                        'hod'  => (int) $raw < 0 ? 'No time set' : date('g a', mktime((int) $raw)),
                         default => $raw,
                     };
                 }
@@ -133,7 +156,7 @@ class AppointmentsSource extends Source
 
     public function value(string $m, array $c): ?float
     {
-        $c += ['ap' => 0, 'done' => 0, 'canc' => 0, 'live' => 0, 'booked' => 0, 'paid' => 0];
+        $c += ['ap' => 0, 'done' => 0, 'canc' => 0, 'live' => 0, 'booked' => 0, 'paid' => 0, 'mins' => 0, 'parts' => 0, 'withparts' => 0, 'back' => 0];
         return match ($m) {
             'ap'     => (float) $c['ap'],
             'done'   => (float) $c['done'],
@@ -142,6 +165,12 @@ class AppointmentsSource extends Source
             'booked' => $c['booked'] / 100,
             'aval'   => ($r = self::ratio($c['booked'], $c['live'])) === null ? null : $r / 100,
             'paid'   => $c['paid'] / 100,
+            'hours'  => $c['mins'] / 60,
+            'parts'  => $c['parts'] / 100,
+            'partsn' => (float) $c['withparts'],
+            'partsp' => self::ratio($c['withparts'], $c['live'], 100),
+            'back'   => (float) $c['back'],
+            'backp'  => self::ratio($c['back'], $c['done'], 100),
             default  => null,
         };
     }

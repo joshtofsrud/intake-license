@@ -38,6 +38,7 @@ class ReportMailer
     /** Why this report can't be emailed right now, or null when it can. */
     public function blocked(object $report): ?string
     {
+        if (!ReportAccess::allowed($this->tenant)) return 'Emailed reports are paused until the shop has extended reports again. Nothing was deleted.';
         $owner = $this->owner($report);
         if (!$owner) return 'The person who built this report is no longer on the team.';
         $engine = $this->engineFor($owner);

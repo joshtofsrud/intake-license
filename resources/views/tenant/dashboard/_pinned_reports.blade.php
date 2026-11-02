@@ -36,7 +36,9 @@
       @php $link = route('tenant.reports.custom', ['open' => $pin['id']]); $tb = $pin['table']; @endphp
       <div class="rbp">
         <div class="rbp-top"><a class="nm" href="{{ $link }}">{{ $pin['name'] }}</a><span class="rg">{{ $pin['range'] ?? '' }}</span></div>
-        @if($pin['error'])
+        @if(!empty($pin['locked']))
+          <div class="lb"><span style="display:inline-flex;vertical-align:-2px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="width:12px;height:12px;flex:none"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span> Part of extended reports. It shows again when the shop has them. <a href="{{ $link }}">What's included</a></div>
+        @elseif($pin['error'])
           <div class="lb">{{ $pin['error'] }} <a href="{{ $link }}">Open it</a></div>
         @elseif(!$tb || $tb['count'] === 0)
           <div class="lb">Nothing matches this report right now. <a href="{{ $link }}">Open it</a></div>

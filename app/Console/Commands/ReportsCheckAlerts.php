@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Models\Tenant;
+use App\Services\Tenant\ReportBuilder\ReportAccess;
 use App\Services\Tenant\ReportBuilder\ReportMailer;
 use App\Support\JobFailureReporter;
 use Illuminate\Console\Command;
@@ -23,7 +24,7 @@ class ReportsCheckAlerts extends Command
         $checked = 0; $sent = 0;
         foreach ($rows as $d) {
             $tenant = Tenant::find($d->tenant_id);
-            if (!$tenant) continue;
+            if (!$tenant || !ReportAccess::allowed($tenant)) continue;   // alerts pause while the shop has no extended reports
             $local = now()->setTimezone($tenant->timezone());
             if ((int) $local->format('G') < 6 || $d->alert_checked_on === $local->toDateString()) continue;
             $report = DB::table('tenant_saved_reports')->where('tenant_id', $d->tenant_id)->where('id', $d->report_id)->first();

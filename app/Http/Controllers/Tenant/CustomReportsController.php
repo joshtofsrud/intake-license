@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Tenant;
 
 use App\Http\Controllers\Controller;
 use App\Services\Tenant\CustomerTimelineService;
+use App\Services\Tenant\ReportBuilder\ReportAccess;
 use App\Services\Tenant\ReportBuilder\ReportCatalog;
 use App\Services\Tenant\ReportBuilder\ReportEngine;
 use App\Services\Tenant\ReportBuilder\ReportExplainer;
@@ -20,7 +21,7 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * CustomReportsController — the "Custom" tab on Reports.
- * (MARKER-REPORT-BUILDER-CORE MARKER-REPORT-BUILDER-V2 MARKER-REPORT-DELIVERY MARKER-REPORT-EXPLAIN)
+ * (MARKER-REPORT-BUILDER-CORE MARKER-REPORT-BUILDER-V2 MARKER-REPORT-DELIVERY MARKER-REPORT-EXPLAIN MARKER-REPORT-GATE)
  *
  * Read-only: nothing here changes shop data. The page sends a report's
  * settings; every request cleans them against the catalog before running.
@@ -43,8 +44,40 @@ class CustomReportsController extends Controller
         return new ReportEngine(tenant(), $this->isManager());
     }
 
+    /**
+     * The builder is part of extended reports. Everything except the page itself
+     * is refused here for a shop without it, so nothing runs, exports or sends.
+     */
+    public function callAction($method, $parameters)
+    {
+        if ($method !== 'index' && !ReportAccess::allowed(tenant())) {
+            return response()->json(['locked' => true, 'message' => ReportAccess::LOCKED_MESSAGE], 402);
+        }
+        // Same as Laravel's own call for a controller without a base class (the base Controller here is empty).
+        return $this->{$method}(...array_values($parameters));
+    }
+
+    /** What a shop without extended reports sees: the templates by name, nothing run. */
+    private function lockedPage()
+    {
+        $u = $this->user();
+        $saved = Schema::hasTable('tenant_saved_reports')
+            ? DB::table('tenant_saved_reports')->where('tenant_id', tenant()->id)
+                ->where(function ($w) use ($u) {
+                    $w->where('user_id', $u?->id)->orWhereIn('visibility', ['all', 'team']);
+                    if ($this->isManager()) $w->orWhere('visibility', 'mgr');
+                })->count()
+            : 0;
+        $templates = array_map(fn ($t) => ['name' => $t[0], 'desc' => $t[1], 'icon' => $t[2]],
+            array_values(array_filter(ReportCatalog::templates(), fn ($t) => ($t[3]['mode'] ?? '') !== 'timeline' && ($t[3]['ds'] ?? '') !== 'dist')));
+        return view('tenant.reports.custom_locked', ['templates' => $templates, 'savedCount' => $saved]);
+    }
+
     public function index()
     {
+        if (!ReportAccess::allowed(tenant())) {
+            return $this->lockedPage();
+        }
         $engine = $this->engine();
         $u = $this->user();
         return view('tenant.reports.custom', [

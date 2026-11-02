@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Models\Tenant;
+use App\Services\Tenant\ReportBuilder\ReportAccess;
 use App\Services\Tenant\ReportBuilder\ReportSuggestions;
 use App\Support\JobFailureReporter;
 use Illuminate\Console\Command;
@@ -38,6 +39,7 @@ class ReportsSuggest extends Command
 
         $done = 0; $found = 0;
         foreach ($q->get() as $tenant) {
+            if (!ReportAccess::allowed($tenant)) continue;
             $local = now()->setTimezone($tenant->timezone());
             $today = $local->toDateString();
             if (!$force && ((int) $local->format('G') < 2 || (string) ($last[$tenant->id] ?? '') === $today)) continue;

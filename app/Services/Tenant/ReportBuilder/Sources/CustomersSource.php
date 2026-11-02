@@ -16,7 +16,7 @@ class CustomersSource extends Source
     {
         return [
             'label' => 'Customers',
-            'note'  => 'Your customers, their spending and their messages. Spend is paid sales net of refunds, before tax and tips. Erased customers are left out.',
+            'note'  => 'Your customers, their spending and their messages. Spend is paid sales net of refunds, before tax and tips. Lapsed customers bought before but not in the 180 days up to the end of the range (not shown over time). Erased customers are left out.',
             'snap'  => false,
             'measures' => [
                 'custs'  => ['Customers', 'n'],
@@ -28,6 +28,7 @@ class CustomersSource extends Source
                 'ltv'    => ['Average lifetime value', '$'],
                 'ltvt'   => ['Total lifetime value', '$'],
                 'inbox'  => ['Inbox contacts', 'n'],
+                'lapsed' => ['Lapsed customers', 'n'],
             ],
             'dims' => [
                 'day' => ['Day', 't'], 'week' => ['Week', 't'], 'month' => ['Month', 't'],
@@ -89,6 +90,12 @@ class CustomersSource extends Source
             ->selectRaw('customer_id, SUM((CASE WHEN refund_of_sale_id IS NULL THEN 1 ELSE -1 END) * (subtotal_cents - discount_cents)) as spend')
             ->groupBy('customer_id')->pluck('spend', 'customer_id')->all();
 
+        // Last purchase before the end of the range, for "lapsed".
+        $lastBuy = DB::table('tenant_sales')->where('tenant_id', $tid)->whereNotNull('customer_id')->where('payment_status', 'paid')
+            ->whereNull('refund_of_sale_id')->where('sale_date', '<=', $toS)
+            ->selectRaw('customer_id, MAX(sale_date) as last_on')->groupBy('customer_id')->pluck('last_on', 'customer_id')->all();
+        $lapseBefore = $to->copy()->subDays(180)->toDateString();
+
         [$ua, $ub] = $this->p->utcBounds($from, $to);
         $msgs = DB::table('tenant_messages as m')->join('tenant_threads as t', 't.id', '=', 'm.thread_id')
             ->where('t.tenant_id', $tid)->where('m.direction', 'in')->whereBetween('m.created_at', [$ua, $ub])
@@ -101,7 +108,7 @@ class CustomersSource extends Source
         }
 
         $groups = []; $active = []; $threads = [];
-        $total = ['custs' => count($cust), 'newc' => 0, 'active' => 0, 'tickets' => 0, 'spend' => 0, 'ltv' => 0, 'inbox' => 0];
+        $total = ['custs' => count($cust), 'newc' => 0, 'active' => 0, 'tickets' => 0, 'spend' => 0, 'ltv' => 0, 'inbox' => 0, 'lapsed' => 0];
         $tActive = []; $tThreads = [];
 
         // Static keys (tag / vip / customer) for one customer, as [[keys...], [labels...]] combinations.
@@ -131,9 +138,11 @@ class CustomersSource extends Source
             $isNew = $c['created'] >= $fromS && $c['created'] <= $toS;
             if ($isNew) $total['newc']++;
             $total['ltv'] += (float) ($life[$id] ?? 0);
+            $isLapsed = isset($lastBuy[$id]) && substr((string) $lastBuy[$id], 0, 10) < $lapseBefore ? 1 : 0;
+            $total['lapsed'] += $isLapsed;
             if ($ti === null) {
                 foreach ($combos($id, null) as [$k, $l]) {
-                    $this->add($groups, array_values($k), array_values($l), ['custs' => 1, 'newc' => $isNew ? 1 : 0, 'ltv' => (float) ($life[$id] ?? 0)]);
+                    $this->add($groups, array_values($k), array_values($l), ['custs' => 1, 'newc' => $isNew ? 1 : 0, 'ltv' => (float) ($life[$id] ?? 0), 'lapsed' => $isLapsed]);
                 }
             } elseif ($isNew) {
                 foreach ($combos($id, $bucketOf($c['created'])) as [$k, $l]) {
@@ -224,6 +233,7 @@ class CustomersSource extends Source
             'ltv'    => $has('ltv') && $c['custs'] > 0 ? $c['ltv'] / $c['custs'] / 100 : null,
             'ltvt'   => $has('ltv') ? $c['ltv'] / 100 : null,
             'inbox'  => (float) $c['inbox'],
+            'lapsed' => $has('lapsed') ? (float) $c['lapsed'] : null,
             default  => null,
         };
     }
