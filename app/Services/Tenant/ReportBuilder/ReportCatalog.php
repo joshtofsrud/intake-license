@@ -98,6 +98,22 @@ class ReportCatalog
         return $out;
     }
 
+    /**
+     * The same range check clean() makes, on its own: a named range passes through; "Custom" needs two real
+     * dates (swapped if backwards, at most about five years). Anything else becomes "Last 30 days".
+     * @return array{0: string, 1: string, 2: string} range, from, to
+     */
+    public static function cleanRangeOnly(string $range, string $from, string $to): array
+    {
+        if (!in_array($range, Periods::RANGES, true)) return ['Last 30 days', '', ''];
+        if ($range !== 'Custom') return [$range, '', ''];
+        $ok = fn ($d) => preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $d, $m) && checkdate((int) $m[2], (int) $m[3], (int) $m[1]) && (int) $m[1] >= 2000;
+        if (!$ok($from) || !$ok($to)) return ['Last 30 days', '', ''];
+        if ($from > $to) [$from, $to] = [$to, $from];
+        if (strtotime($to) - strtotime($from) > 1830 * 86400) $from = date('Y-m-d', strtotime($to) - 1830 * 86400);
+        return ['Custom', $from, $to];
+    }
+
     /** Clean a config from the page or a saved report. Never trusts it. */
     public static function clean(array $in, array $catalog): array
     {
@@ -166,6 +182,10 @@ class ReportCatalog
         $okRanges = $mode === 'timeline' ? ['All time', 'Last 12 months', 'Last 90 days'] : Periods::RANGES;
         if (!in_array($range, $okRanges, true)) $range = $mode === 'timeline' ? 'All time' : 'Last 30 days';
 
+        // "Custom" carries its own two dates; without good ones it falls back.
+        $from = ''; $to = '';
+        if ($range === 'Custom') [$range, $from, $to] = self::cleanRangeOnly($range, (string) ($in['from'] ?? ''), (string) ($in['to'] ?? ''));
+
         $limit = (int) ($in['limit'] ?? 0);
         if ($limit < 0 || $limit > 500) $limit = 0;
 
@@ -183,7 +203,7 @@ class ReportCatalog
 
         return [
             'ds' => $ds, 'mode' => $mode, 'measures' => $measures, 'calcs' => $calcs, 'dim' => $dim, 'dim2' => $dim2,
-            'filters' => $filters, 'range' => $range,
+            'filters' => $filters, 'range' => $range, 'from' => $from, 'to' => $to,
             'compare' => in_array($in['compare'] ?? 'off', ['prev', 'yoy'], true) ? $in['compare'] : 'off',
             'sortDir' => ($in['sortDir'] ?? 'desc') === 'asc' ? 'asc' : 'desc', 'limit' => $limit,
             'tcust' => preg_match('/^[A-Za-z0-9-]{1,40}$/', (string) ($in['tcust'] ?? '')) ? (string) $in['tcust'] : '',

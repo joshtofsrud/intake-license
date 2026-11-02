@@ -83,7 +83,7 @@ class ReportExplainer
         $cat = $this->e->catalog();
         $ds = $cfg['ds'];
         $p = $this->e->periods();
-        [$from, $to] = $p->range($cfg['range']);
+        [$from, $to] = $p->rangeFor($cfg);
         $lines = [];
         $lines[] = 'Report: ' . $title;
         $lines[] = 'Data: ' . ($cat[$ds]['l'] ?? $ds) . '. Period: ' . $cfg['range'] . ' (' . $from->format('M j, Y') . ' – ' . $to->format('M j, Y') . ')'

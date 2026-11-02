@@ -66,7 +66,7 @@ class ReportMailer
             return ['sent' => 0, 'skipped' => 'No rows, so no email (as set).'];
         }
 
-        [$from, $to2] = $engine->periods()->range($cfg['range']);
+        [$from, $to2] = $engine->periods()->rangeFor($cfg);
         $snap = $engine->catalog()[$cfg['ds']]['snap'] ?? false;
         $period = $snap ? 'As of ' . $engine->periods()->today()->format('M j, Y') : $cfg['range'] . ' · ' . $from->format('M j') . ' – ' . $to2->format('M j, Y');
         $link = $this->tenant->urlTo('admin/reports/custom', ['open' => $report->id]);

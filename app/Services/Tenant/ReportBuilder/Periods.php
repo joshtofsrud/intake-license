@@ -14,7 +14,7 @@ use Carbon\Carbon;
  */
 class Periods
 {
-    public const RANGES = ['Today', 'Last 7 days', 'Last 30 days', 'Last 90 days', 'This month', 'Last month', 'Last 12 months', 'This year'];
+    public const RANGES = ['Today', 'Last 7 days', 'Last 30 days', 'Last 90 days', 'This month', 'Last month', 'Last 12 months', 'This year', 'Custom'];
     public const TIME_DIMS = ['day', 'week', 'month', 'hour', 'pp'];
 
     private array $ppCache = [];
@@ -46,6 +46,22 @@ class Periods
             'All time'       => [Carbon::create(2000, 1, 1, 0, 0, 0, $this->tz()), $t->copy()],
             default          => [$t->copy()->subDays(29), $t->copy()],
         };
+    }
+
+    /**
+     * The dates a cleaned config covers. "Custom" uses the two dates picked; anything else is a named range.
+     * @return array{0: Carbon, 1: Carbon}
+     */
+    public function rangeFor(array $cfg): array
+    {
+        if (($cfg['range'] ?? '') === 'Custom' && !empty($cfg['from']) && !empty($cfg['to'])) {
+            try {
+                return [Carbon::parse($cfg['from'], $this->tz())->startOfDay(), Carbon::parse($cfg['to'], $this->tz())->startOfDay()];
+            } catch (\Throwable $e) {
+                // fall through to the default range
+            }
+        }
+        return $this->range(($cfg['range'] ?? 'Custom') === 'Custom' ? 'Last 30 days' : $cfg['range']);
     }
 
     /** The range to compare with: the same length just before, or the same dates a year earlier. */

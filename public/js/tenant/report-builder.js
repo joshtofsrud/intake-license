@@ -80,7 +80,7 @@ function lu(n, sz) { return '<svg viewBox="0 0 24 24" fill="none" stroke="curren
 var S, SAVED_ID = null, titleAuto = true, dirtyOn = false, OUT = 'table', CM = null, EDIT_CALC = null, calcSeq = 1;
 var RES = null, REQ = 0;
 function firstDs() { return DS.sales ? 'sales' : Object.keys(DS)[0]; }
-function blank(ds) { var d = DS[ds]; return { ds: ds, measures: [d.m[0][0]], calcs: [], dim: d.d[0][0], dim2: '', filters: [], range: 'Last 30 days', compare: 'off', sortDir: 'desc', limit: 0, title: '', mode: 'report', tevents: { sale: 1, appt: 1, msg: 1, note: 1, class: 1, rental: 1 }, tcust: '', tcustName: '', why: '', read: null, span: null }; }
+function blank(ds) { var d = DS[ds]; return { ds: ds, measures: [d.m[0][0]], calcs: [], dim: d.d[0][0], dim2: '', filters: [], range: 'Last 30 days', from: '', to: '', compare: 'off', sortDir: 'desc', limit: 0, title: '', mode: 'report', tevents: { sale: 1, appt: 1, msg: 1, note: 1, class: 1, rental: 1 }, tcust: '', tcustName: '', why: '', read: null, span: null }; }
 function autoTitle() {
   if (S.mode === 'timeline') return S.tcustName ? 'Timeline · ' + S.tcustName : 'Customer timeline';
   var ms = S.measures.map(function (m) { return mdef(S, m).l; });
@@ -89,9 +89,10 @@ function autoTitle() {
   if (S.span) t += ' · ' + S.span.l;
   return t;
 }
+function rngText(s) { s = s || S; return (s.range === 'Custom' && s.from && s.to) ? s.from + ' to ' + s.to : s.range.toLowerCase(); }
 function payload(s) {
   return { ds: s.ds, mode: s.mode, measures: s.measures, calcs: s.calcs, dim: s.dim, dim2: s.dim2, filters: s.filters.filter(function (f) { return f.v !== ''; }),
-    range: s.range, compare: s.compare, sortDir: s.sortDir, limit: s.limit, tcust: s.tcust, tevents: s.tevents, span: s.span || null };
+    range: s.range, from: s.from || '', to: s.to || '', compare: s.compare, sortDir: s.sortDir, limit: s.limit, tcust: s.tcust, tevents: s.tevents, span: s.span || null };
 }
 
 /* ===================== templates ===================== */
@@ -280,7 +281,7 @@ function renderPanel() {
     '<div class="rb-sect"><div class="rb-lbl">Break down by</div><select class="rb-sel rb-w" id="pDim">' + opt(d.d.map(function (x) { return [x[0], x[1]]; }), S.dim) + '</select>' +
     '<div class="rb-lbl" style="margin-top:12px">Then split by</div><select class="rb-sel rb-w" id="pDim2">' + opt(dim2opts, S.dim2) + '</select>' + (S.dim2 ? '<div class="rb-hint" style="margin-top:6px">A split shows one measure at a time, as a grid.</div>' : '') + '</div>' +
     '<div class="rb-sect" id="panelFilter"><div class="rb-lbl">Only include</div>' + (S.span ? '<div class="rb-bar" style="margin:0 0 8px"><span class="rb-pill info">Only ' + esc(S.span.l) + '</span><button class="rb-rm" data-spanx aria-label="Show the whole date range">×</button></div>' : '') + fr + (d.f.length ? '<button class="rb-link" data-fadd>+ Add a filter</button>' : '<div class="rb-hint">This data has no filters.</div>') + '</div>' +
-    '<div class="rb-sect"><div class="rb-lbl">' + (d.snap ? 'Date range <span class="n">for pace measures</span>' : 'Date range') + '</div><select class="rb-sel rb-w" id="pRange">' + opt(RANGES, S.range) + '</select>' +
+    '<div class="rb-sect"><div class="rb-lbl">' + (d.snap ? 'Date range <span class="n">for pace measures</span>' : 'Date range') + '</div><select class="rb-sel rb-w" id="pRange">' + opt(RANGES, S.range) + '</select>' + (S.range === 'Custom' ? '<div class="rb-2col" style="margin-top:8px"><div><span class="rb-hint">From</span><input class="rb-inp" type="date" id="pFrom" value="' + esc(S.from || '') + '"></div><div><span class="rb-hint">To</span><input class="rb-inp" type="date" id="pTo" value="' + esc(S.to || '') + '"></div></div>' : '') +
     '<select class="rb-sel rb-w" id="pCmp" style="margin-top:8px">' + opt([['off', 'Don\'t compare'], ['prev', 'Compare with the period before'], ['yoy', 'Compare with the same period last year']], S.compare) + '</select></div>' +
     '<div class="rb-sect"><div class="rb-lbl">Order and limit</div><div class="rb-2col"><select class="rb-sel" id="pSort">' + opt([['desc', 'Highest first'], ['asc', 'Lowest first']], S.sortDir) + '</select><select class="rb-sel" id="pLimit">' + opt([['0', 'Show all'], ['5', 'Top 5'], ['10', 'Top 10'], ['15', 'Top 15'], ['25', 'Top 25'], ['50', 'Top 50']], String(S.limit)) + '</select></div><div class="rb-hint" style="margin-top:6px">Time breakdowns stay in date order.</div></div>';
 }
@@ -322,7 +323,7 @@ function rowsOf(res) { return res.rows.map(function (r) { return { k: r.k, label
 function heat(v, mn, mx) { var p = mx > mn ? ((v || 0) - mn) / (mx - mn) : 0; return 'background:color-mix(in srgb,var(--ia-accent) ' + Math.round(4 + p * 34) + '%,transparent)'; }
 function renderTable(res) {
   var rows = rowsOf(res), dn = dimName(S.ds, S.dim), cmp = S.compare !== 'off';
-  $('#rowHint').textContent = rows.length + ' row' + (rows.length === 1 ? '' : 's') + ' · ' + (DS[S.ds].snap ? 'as of today' : S.range.toLowerCase()) + (res.truncated ? ' · first 5,000 shown' : '');
+  $('#rowHint').textContent = rows.length + ' row' + (rows.length === 1 ? '' : 's') + ' · ' + (DS[S.ds].snap ? 'as of today' : rngText()) + (res.truncated ? ' · first 5,000 shown' : '');
   if (OUT === 'table' || !rows.length) {
     var h = '<div class="rb-tbl"><table class="ia-table"><thead><tr><th>' + esc(dn) + '</th>';
     S.measures.forEach(function (m) { h += '<th class="ia-num">' + esc(mdef(S, m).l) + '</th>' + (cmp ? '<th class="ia-num dl">' + cmpLabel(S) + '</th>' : ''); });
@@ -368,7 +369,7 @@ function pivotView(res) {
 }
 function renderPivot(res) {
   var t = mdef(S, CM).t, pv = pivotView(res), dn = dimName(S.ds, S.dim), dn2 = dimName(S.ds, S.dim2);
-  $('#rowHint').textContent = pv.rows.length + ' × ' + pv.cols.length + ' · ' + (DS[S.ds].snap ? 'as of today' : S.range.toLowerCase());
+  $('#rowHint').textContent = pv.rows.length + ' × ' + pv.cols.length + ' · ' + (DS[S.ds].snap ? 'as of today' : rngText());
   if (!pv.rows.length) { $('#preview').innerHTML = '<div class="rb-empty">Nothing matches these settings.<div class="rb-ex" style="justify-content:center;margin-top:10px">' + (S.filters.length ? '<button class="rb-chip" data-clearf>Clear the filters</button>' : '') + '<button class="rb-chip" data-nosplit>Remove the split</button></div></div>'; return; }
   var all = []; pv.rows.forEach(function (r) { all = all.concat(r.cells.map(function (v) { return v || 0; })); }); var mn = Math.min.apply(null, all), mx = Math.max.apply(null, all);
   if (OUT === 'table') {
@@ -480,7 +481,7 @@ function openDrill(key, dimKey) {
   var isSpan = isTimeDim(S.ds, dk) && dk !== 'hour';
   var inFilters = isSpan || d.f.some(function (x) { return x[0] === dk; });
   DRILL = { key: key, label: row.l, dim: dk, by: next, inFilters: inFilters, span: isSpan ? { dim: dk, key: key, l: row.l } : null };
-  var h = '<div class="rb-drawer-h"><div><h3>' + esc(row.l) + '</h3><div class="rb-hint">' + esc(dimName(S.ds, dk)) + ' · ' + (d.snap ? 'as of today' : S.range.toLowerCase()) + '</div></div><button class="rb-x" data-close>×</button></div><div class="rb-drawer-b">';
+  var h = '<div class="rb-drawer-h"><div><h3>' + esc(row.l) + '</h3><div class="rb-hint">' + esc(dimName(S.ds, dk)) + ' · ' + (d.snap ? 'as of today' : rngText()) + '</div></div><button class="rb-x" data-close>×</button></div><div class="rb-drawer-b">';
   var vals = row.vals || row.total || {};
   S.measures.forEach(function (m) { var md = mdef(S, m), v = cellVal(S, m, vals), dl = row.prev ? pct(v, cellVal(S, m, row.prev)) : null; h += '<div class="rb-kv"><span>' + esc(md.l) + '</span><span>' + fmt(v, md.t) + (S.compare !== 'off' && dl != null ? '<span class="' + (dl >= 0 ? 'd-up' : 'd-dn') + '">' + (dl >= 0 ? '+' : '') + dl.toFixed(1) + '%</span>' : '') + '</span></div>'; });
   h += '<div class="rb-bar" style="margin:22px 0 8px"><div class="rb-lbl" style="margin:0">Break this down by</div><select class="rb-sel" id="drillBy">' + opt(alts.map(function (x) { return [x[0], x[1].replace(' (rang up by)', '')]; }), next) + '</select></div><div id="drillBody">' + (inFilters ? '<div class="rb-empty">Working…</div>' : '') + '</div>';
@@ -524,7 +525,7 @@ function previewCalc() {
     var S2 = JSON.parse(JSON.stringify(S)); S2.measures = keys.slice(0, 5); S2.calcs = []; S2.dim2 = ''; S2.limit = 0; S2.compare = 'off';
     post(URLS.data, { cfg: payload(S2) }).then(function (res) {
       var v = evalCalcWith(f, function (k) { return res.totals[k]; });
-      box.innerHTML = isFinite(v) ? '<span class="rb-hint">Total over ' + esc(DS[S.ds].snap ? 'today' : S.range.toLowerCase()) + ':</span> <b>' + fmt(v, $('#cT').value) + '</b> <span class="rb-hint">· ' + res.rows.length + ' ' + esc(dimName(S.ds, S.dim).toLowerCase()) + (res.rows.length === 1 ? '' : 's') + '</span>' : '<span style="color:var(--rb-bad)">That doesn\'t work out — check the operators and brackets, or a measure that is zero.</span>';
+      box.innerHTML = isFinite(v) ? '<span class="rb-hint">Total over ' + esc(DS[S.ds].snap ? 'today' : rngText()) + ':</span> <b>' + fmt(v, $('#cT').value) + '</b> <span class="rb-hint">· ' + res.rows.length + ' ' + esc(dimName(S.ds, S.dim).toLowerCase()) + (res.rows.length === 1 ? '' : 's') + '</span>' : '<span style="color:var(--rb-bad)">That doesn\'t work out — check the operators and brackets, or a measure that is zero.</span>';
     }).catch(function (e) { box.innerHTML = '<span style="color:var(--rb-bad)">' + esc(e) + '</span>'; });
   }, 300);
 }
@@ -742,7 +743,12 @@ document.addEventListener('change', function (e) {
   if (t.dataset.m) { var i = S.measures.indexOf(t.dataset.m); if (t.checked && i < 0 && S.measures.length < 5) S.measures.push(t.dataset.m); if (!t.checked && i > -1) S.measures.splice(i, 1); }
   else if (t.id === 'pDim') { S.dim = t.value; if (S.dim2 === S.dim) S.dim2 = ''; if (S.dim2 && isTimeDim(S.ds, S.dim) && isTimeDim(S.ds, S.dim2)) S.dim2 = ''; S.measures = S.measures.filter(function (m) { var k = dsOf(S, m); return k === S.ds || canSplit(S, k); }); }
   else if (t.id === 'pDim2') { S.dim2 = t.value; S.measures = S.measures.filter(function (m) { var k = dsOf(S, m); return k === S.ds || canSplit(S, k); }); if (S.dim2) CM = CM || S.measures[0]; }
-  else if (t.id === 'pRange') { S.range = t.value; }
+  else if (t.id === 'pRange') {
+    S.range = t.value;
+    if (S.range === 'Custom' && !(S.from && S.to)) { S.to = BOOT.today || new Date().toISOString().slice(0, 10); var d0 = new Date(S.to + 'T00:00:00'); d0.setDate(d0.getDate() - 29); S.from = d0.getFullYear() + '-' + ('0' + (d0.getMonth() + 1)).slice(-2) + '-' + ('0' + d0.getDate()).slice(-2); }
+    renderPanel();
+  }
+  else if (t.id === 'pFrom' || t.id === 'pTo') { if (!t.value) return; S[t.id === 'pFrom' ? 'from' : 'to'] = t.value; if (S.from && S.to && S.from > S.to) { var sw = S.from; S.from = S.to; S.to = sw; renderPanel(); } }
   else if (t.id === 'pCmp') { S.compare = t.value; }
   else if (t.id === 'pSort') { S.sortDir = t.value; }
   else if (t.id === 'pLimit') { S.limit = +t.value; }
@@ -758,4 +764,12 @@ $('#listQ').addEventListener('input', renderList);
 $('#listSort').addEventListener('change', function () { listSort = this.value; renderList(); });
 renderList();
 (function () { var id = new URLSearchParams(location.search).get('open'), r = id && savedById(id); if (r && DS[r.ds]) openReport(Object.assign({ ds: r.ds }, r.cfg), r.name, r.id); })();
+/* Opened from a Reports tab: the tab passes its exact settings (MARKER-REPORT-TABS-ENGINE). */
+(function () {
+  var c = new URLSearchParams(location.search).get('cfg'); if (!c) return;
+  try {
+    var j = JSON.parse(decodeURIComponent(escape(atob(c.replace(/-/g, '+').replace(/_/g, '/')))));
+    if (j && DS[j.ds]) openReport(j, null, null);
+  } catch (e) { toast('That link to the builder is damaged, so a blank report was opened instead.'); }
+})();
 })();

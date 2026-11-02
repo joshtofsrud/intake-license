@@ -91,6 +91,7 @@ class CustomReportsController extends Controller
                 'schedule'  => ['freqs' => ReportSchedule::FREQS, 'days' => ReportSchedule::DAYS, 'times' => ReportSchedule::times(),
                     'distEmail' => ReportCatalog::velocity()['email']],
                 'ranges'    => \App\Services\Tenant\ReportBuilder\Periods::RANGES,
+                'today'     => tenant()->localToday()->toDateString(),
                 'urls'      => [
                     'data'      => route('tenant.reports.custom.data'),
                     'save'      => route('tenant.reports.custom.save'),
@@ -445,7 +446,7 @@ class CustomReportsController extends Controller
                 'title' => 'Note', 'sub' => (string) $n->note, 'amount' => null, 'refund' => false];
         }
 
-        [$from] = (new \App\Services\Tenant\ReportBuilder\Periods(tenant()))->range($cfg['range']);
+        [$from] = (new \App\Services\Tenant\ReportBuilder\Periods(tenant()))->rangeFor($cfg);
         $events = array_values(array_filter($events, fn ($e) => $e['date'] >= $from->toDateString() && ($cfg['tevents'][$e['kind']] ?? 1)));
         usort($events, fn ($a, $b) => strcmp($b['date'], $a['date']));
 

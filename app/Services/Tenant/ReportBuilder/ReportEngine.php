@@ -54,7 +54,7 @@ class ReportEngine
     /** The report's dates: its range, narrowed to one period when it was opened from a drill-down. */
     private function dates(array $cfg): array
     {
-        [$from, $to] = $this->p->range($cfg['range']);
+        [$from, $to] = $this->p->rangeFor($cfg);
         if (!empty($cfg['span']) && ($b = $this->p->bucketRange($cfg['span']['dim'], $cfg['span']['key']))) {
             $from = $b[0]->gt($from) ? $b[0] : $from;
             $to = $b[1]->lt($to) ? $b[1] : $to;
@@ -184,6 +184,40 @@ class ReportEngine
 
         return ['rows' => $rows, 'totals' => $totals, 'prevTotals' => $ptotals, 'time' => $time, 'truncated' => $truncated,
             'notes' => array_values(array_unique($notes)), 'from' => $from->toDateString(), 'to' => $to->toDateString()];
+    }
+
+    /**
+     * Totals only, with no rows: the figures at the top of a Reports tab. Every number comes from the same
+     * source totals the builder's own total row uses, so a tab and the builder can't disagree.
+     * Measures are read with cellValue(), so calculations work here too.
+     * @return array{vals: array, prev: ?array, from: string, to: string, pfrom: ?string, pto: ?string}
+     */
+    public function totals(array $cfg): array
+    {
+        $notes = [];
+        $keys = $this->keysFor($cfg);
+        [$from, $to] = $this->dates($cfg);
+        $cur = $this->gather($cfg, $keys, [], $from, $to, $notes);
+        $vals = [];
+        foreach ($cur as $ds => $g) {
+            foreach ($g['ms'] as $m) $vals["$ds:$m"] = $this->val($ds, $m, $g['res']['total'] ?? []);
+        }
+        $prev = null; $pf = $pt = null;
+        if (($cfg['compare'] ?? 'off') !== 'off') {
+            [$pf, $pt] = $this->p->previous($from, $to, $cfg['compare']);
+            $pc = $this->gather($cfg, $keys, [], $pf, $pt, $notes);
+            $prev = [];
+            foreach ($pc as $ds => $g) {
+                foreach ($g['ms'] as $m) $prev["$ds:$m"] = $this->val($ds, $m, $g['res']['total'] ?? []);
+            }
+        }
+        $out = ['vals' => [], 'prev' => $prev === null ? null : [], 'from' => $from->toDateString(), 'to' => $to->toDateString(),
+            'pfrom' => $pf?->toDateString(), 'pto' => $pt?->toDateString()];
+        foreach ($cfg['measures'] as $m) {
+            $out['vals'][$m] = $this->cellValue($cfg, $m, $vals);
+            if ($prev !== null) $out['prev'][$m] = $this->cellValue($cfg, $m, $prev);
+        }
+        return $out;
     }
 
     /** A grid: one breakdown down the side, the other across the top. */
