@@ -7,7 +7,7 @@
 @endpush
 
 @section('content')
-{{-- MARKER-REPORT-BUILDER-CORE MARKER-REPORT-BUILDER-V2 MARKER-REPORT-DELIVERY — the report builder. Read-only: nothing here changes shop data. --}}
+{{-- MARKER-REPORT-BUILDER-CORE MARKER-REPORT-BUILDER-V2 MARKER-REPORT-DELIVERY MARKER-REPORT-EXPLAIN — the report builder. Read-only: nothing here changes shop data. --}}
 <div class="ia-section ia-section--wide" id="rb-app">
 
 <div class="ia-page-head">
@@ -32,6 +32,11 @@
   <div class="rb-sec">
     <div class="rb-h"><h2>Templates</h2><span class="rb-hint">open in the builder — change anything, then save your own copy</span><button class="rb-link" id="tplMore" style="margin-left:auto" type="button"></button></div>
     <div class="rb-tiles" id="tplList"></div>
+  </div>
+
+  <div class="rb-sec" style="margin-top:36px">
+    <div class="rb-h"><h2>Suggested builds</h2><span class="rb-hint" id="suggHint">found by comparing recent weeks with the ones before · checked each night</span></div>
+    <div class="rb-tiles" id="suggList"></div>
   </div>
 
   <div class="rb-sec" style="margin-top:40px">
@@ -64,10 +69,12 @@
         <input class="rb-title" id="rTitle" value="" aria-label="Report name">
         <span class="rb-pill warn rb-saved-dirty" id="dirty">Unsaved changes</span>
         <span class="sp" style="flex:1"></span>
+        <button class="ia-btn ia-btn--sm" type="button" id="btnExplain">Explain this</button>
         <button class="ia-btn ia-btn--sm" type="button" id="btnExport">Export CSV</button>
         <button class="ia-btn ia-btn--sm" type="button" id="btnShare">Share &amp; schedule</button>
         <button class="ia-btn ia-btn--sm ia-btn--primary" type="button" id="btnSave">Save</button>
       </div>
+      <div id="explainBox"></div>
       <div id="readBox"></div>
       <div class="rb-bar" style="margin-bottom:6px" id="viewBar">
         <div class="rb-seg" id="outSeg"><button data-o="table" class="on" type="button">Table</button><button data-o="bar" type="button">Bar</button><button data-o="line" type="button">Line</button></div>

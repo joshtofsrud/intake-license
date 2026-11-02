@@ -254,3 +254,9 @@
 @media (max-width:1100px){.rb-build>div:last-child{order:-1}.rb-panel{margin-top:18px}}
 .rb-off{opacity:.45}
 .rb-grid2 .full{grid-column:1/-1}
+
+/* MARKER-REPORT-SUGGEST MARKER-REPORT-EXPLAIN */
+.rb-tile .ico.t-good{color:var(--rb-good);background:var(--rb-good-bg)}
+.rb-note.rb-stale{border-left-color:var(--rb-warn)}
+.rb-note.rb-stale > div:first-child{opacity:.7}
+#explainBox .rb-note{line-height:1.55}

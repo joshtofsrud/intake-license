@@ -801,6 +801,8 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             Route::post('/reports/custom/{id}/delivery', [TenantControllers\CustomReportsController::class, 'delivery'])->name('reports.custom.delivery');
             Route::post('/reports/custom/{id}/test',     [TenantControllers\CustomReportsController::class, 'test'])->name('reports.custom.test');
             Route::post('/reports/custom/{id}/pin',      [TenantControllers\CustomReportsController::class, 'pin'])->name('reports.custom.pin');
+            // MARKER-REPORT-EXPLAIN: Explain this (Claude, with a built-in fallback)
+            Route::post('/reports/custom/explain',      [TenantControllers\CustomReportsController::class, 'explain'])->name('reports.custom.explain');
             Route::get('/reports/data-quality',        [TenantControllers\ReportsController::class, 'dataQuality'])->name('reports.data_quality');
             Route::get('/reports/data-quality/export', [TenantControllers\ReportsController::class, 'dataQualityExport'])->name('reports.data_quality.export');
             // Traffic tab

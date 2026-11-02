@@ -10,6 +10,7 @@ var BOOT = JSON.parse(document.getElementById('rb-boot').textContent);
 var DS = BOOT.catalog, URLS = BOOT.urls, ME = BOOT.me, SCHED = BOOT.schedule || { freqs: {}, days: {}, times: {}, distEmail: false };
 var RANGES = BOOT.ranges;
 var SAVED = BOOT.saved || [], MYCALCS = BOOT.calcs || [];
+var SUGG = (BOOT.suggest || {}).items || [], SUGG_ON = (BOOT.suggest || {}).checked || null, SUGG_RUN = !!(BOOT.suggest || {}).running;
 var ALLM = {};
 Object.keys(DS).forEach(function (d) { DS[d].m.forEach(function (m) { if (!ALLM[m[1]]) ALLM[m[1]] = d + ':' + m[0]; }); });
 var ADD = { n: 1, '$': 1, h: 1 };
@@ -72,6 +73,7 @@ function deltaCell(dl) { return dl == null ? '<span class="rb-dim">—</span>' :
 
 /* ===================== Lucide icons (ISC licence) ===================== */
 var LU = {"truck": "<path d=\"M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2\" /> <path d=\"M15 18H9\" /> <path d=\"M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.624l-3.48-4.35A1 1 0 0 0 17.52 8H14\" /> <circle cx=\"17\" cy=\"18\" r=\"2\" /> <circle cx=\"7\" cy=\"18\" r=\"2\" />", "alarm-clock": "<circle cx=\"12\" cy=\"13\" r=\"8\" /> <path d=\"M12 9v4l2 2\" /> <path d=\"M5 3 2 6\" /> <path d=\"m22 6-3-3\" /> <path d=\"M6.38 18.7 4 21\" /> <path d=\"M17.64 18.67 20 21\" />", "calendar-days": "<path d=\"M8 2v4\" /> <path d=\"M16 2v4\" /> <rect width=\"18\" height=\"18\" x=\"3\" y=\"4\" rx=\"2\" /> <path d=\"M3 10h18\" /> <path d=\"M8 14h.01\" /> <path d=\"M12 14h.01\" /> <path d=\"M16 14h.01\" /> <path d=\"M8 18h.01\" /> <path d=\"M12 18h.01\" /> <path d=\"M16 18h.01\" />", "percent": "<line x1=\"19\" x2=\"5\" y1=\"5\" y2=\"19\" /> <circle cx=\"6.5\" cy=\"6.5\" r=\"2.5\" /> <circle cx=\"17.5\" cy=\"17.5\" r=\"2.5\" />", "map-pin": "<path d=\"M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0\" /> <circle cx=\"12\" cy=\"10\" r=\"3\" />", "receipt": "<path d=\"M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z\" /> <path d=\"M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8\" /> <path d=\"M12 17.5v-11\" />", "clock": "<circle cx=\"12\" cy=\"12\" r=\"10\" /> <polyline points=\"12 6 12 12 16 14\" />", "timer": "<line x1=\"10\" x2=\"14\" y1=\"2\" y2=\"2\" /> <line x1=\"12\" x2=\"15\" y1=\"14\" y2=\"11\" /> <circle cx=\"12\" cy=\"14\" r=\"8\" />", "user-plus": "<path d=\"M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2\" /> <circle cx=\"9\" cy=\"7\" r=\"4\" /> <line x1=\"19\" x2=\"19\" y1=\"8\" y2=\"14\" /> <line x1=\"22\" x2=\"16\" y1=\"11\" y2=\"11\" />", "crown": "<path d=\"M11.562 3.266a.5.5 0 0 1 .876 0L15.39 8.87a1 1 0 0 0 1.516.294L21.183 5.5a.5.5 0 0 1 .798.519l-2.834 10.246a1 1 0 0 1-.956.734H5.81a1 1 0 0 1-.957-.734L2.02 6.02a.5.5 0 0 1 .798-.519l4.276 3.664a1 1 0 0 0 1.516-.294z\" /> <path d=\"M5 21h14\" />", "history": "<path d=\"M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8\" /> <path d=\"M3 3v5h5\" /> <path d=\"M12 7v5l4 2\" />", "inbox": "<polyline points=\"22 12 16 12 14 15 10 15 8 12 2 12\" /> <path d=\"M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z\" />", "calendar-check": "<path d=\"M8 2v4\" /> <path d=\"M16 2v4\" /> <rect width=\"18\" height=\"18\" x=\"3\" y=\"4\" rx=\"2\" /> <path d=\"M3 10h18\" /> <path d=\"m9 16 2 2 4-4\" />", "package-plus": "<path d=\"M16 16h6\" /> <path d=\"M19 13v6\" /> <path d=\"M21 10V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l2-1.14\" /> <path d=\"m7.5 4.27 9 5.15\" /> <polyline points=\"3.29 7 12 12 20.71 7\" /> <line x1=\"12\" x2=\"12\" y1=\"22\" y2=\"12\" />", "boxes": "<path d=\"M2.97 12.92A2 2 0 0 0 2 14.63v3.24a2 2 0 0 0 .97 1.71l3 1.8a2 2 0 0 0 2.06 0L12 19v-5.5l-5-3-4.03 2.42Z\" /> <path d=\"m7 16.5-4.74-2.85\" /> <path d=\"m7 16.5 5-3\" /> <path d=\"M7 16.5v5.17\" /> <path d=\"M12 13.5V19l3.97 2.38a2 2 0 0 0 2.06 0l3-1.8a2 2 0 0 0 .97-1.71v-3.24a2 2 0 0 0-.97-1.71L17 10.5l-5 3Z\" /> <path d=\"m17 16.5-5-3\" /> <path d=\"m17 16.5 4.74-2.85\" /> <path d=\"M17 16.5v5.17\" /> <path d=\"M7.97 4.42A2 2 0 0 0 7 6.13v4.37l5 3 5-3V6.13a2 2 0 0 0-.97-1.71l-3-1.8a2 2 0 0 0-2.06 0l-3 1.8Z\" /> <path d=\"M12 8 7.26 5.15\" /> <path d=\"m12 8 4.74-2.85\" /> <path d=\"M12 13.5V8\" />", "banknote": "<rect width=\"20\" height=\"12\" x=\"2\" y=\"6\" rx=\"2\" /> <circle cx=\"12\" cy=\"12\" r=\"2\" /> <path d=\"M6 12h.01M18 12h.01\" />", "tags": "<path d=\"m15 5 6.3 6.3a2.4 2.4 0 0 1 0 3.4L17 19\" /> <path d=\"M9.586 5.586A2 2 0 0 0 8.172 5H3a1 1 0 0 0-1 1v5.172a2 2 0 0 0 .586 1.414L8.29 18.29a2.426 2.426 0 0 0 3.42 0l3.58-3.58a2.426 2.426 0 0 0 0-3.42z\" /> <circle cx=\"6.5\" cy=\"9.5\" r=\".5\" fill=\"currentColor\" />", "package-open": "<path d=\"M12 22v-9\" /> <path d=\"M15.17 2.21a1.67 1.67 0 0 1 1.63 0L21 4.57a1.93 1.93 0 0 1 0 3.36L8.82 14.79a1.655 1.655 0 0 1-1.64 0L3 12.43a1.93 1.93 0 0 1 0-3.36z\" /> <path d=\"M20 13v3.87a2.06 2.06 0 0 1-1.11 1.83l-6 3.08a1.93 1.93 0 0 1-1.78 0l-6-3.08A2.06 2.06 0 0 1 4 16.87V13\" /> <path d=\"M21 12.43a1.93 1.93 0 0 0 0-3.36L8.83 2.2a1.64 1.64 0 0 0-1.63 0L3 4.57a1.93 1.93 0 0 0 0 3.36l12.18 6.86a1.636 1.636 0 0 0 1.63 0z\" />", "archive": "<rect width=\"20\" height=\"5\" x=\"2\" y=\"3\" rx=\"1\" /> <path d=\"M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8\" /> <path d=\"M10 12h4\" />", "trending-up": "<polyline points=\"22 7 13.5 15.5 8.5 10.5 2 17\" /> <polyline points=\"16 7 22 7 22 13\" />"};
+Object.assign(LU, {"trending-down": "<polyline points=\"22 17 13.5 8.5 8.5 13.5 2 7\" /> <polyline points=\"16 17 22 17 22 11\" />", "user-x": "<path d=\"M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2\" /> <circle cx=\"9\" cy=\"7\" r=\"4\" /> <line x1=\"17\" x2=\"22\" y1=\"8\" y2=\"13\" /> <line x1=\"22\" x2=\"17\" y1=\"8\" y2=\"13\" />", "calendar-x": "<path d=\"M8 2v4\" /> <path d=\"M16 2v4\" /> <rect width=\"18\" height=\"18\" x=\"3\" y=\"4\" rx=\"2\" /> <path d=\"M3 10h18\" /> <path d=\"m14 14-4 4\" /> <path d=\"m10 14 4 4\" />", "sparkles": "<path d=\"M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z\" /> <path d=\"M20 3v4\" /> <path d=\"M22 5h-4\" /> <path d=\"M4 17v2\" /> <path d=\"M5 18H3\" />"}); // MARKER-REPORT-SUGGEST
 function lu(n, sz) { return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"' + (sz ? ' width="' + sz + '" height="' + sz + '"' : '') + '>' + (LU[n] || LU['calendar-days']) + '</svg>'; }
 
 /* ===================== state ===================== */
@@ -226,6 +228,19 @@ function renderList() {
   $('#tplList').innerHTML = TPL.slice(0, tshow).map(function (t, i) { return '<button class="rb-tile" data-tpl="' + i + '"><span class="ico c-' + t[3].ds + '">' + lu(t[2]) + '</span><span class="nm">' + esc(t[0]) + '</span><span class="ds">' + esc(t[1]) + '</span><span class="go">' + esc(DS[t[3].ds].l) + '</span></button>'; }).join('');
   $('#tplMore').textContent = TPL.length > 8 ? (tplAll ? 'Show fewer' : 'Show all ' + TPL.length) : '';
   $('#headBtns').innerHTML = '<button class="ia-btn ia-btn--sm ia-btn--primary" type="button" data-new>New report</button>';
+  renderSuggest();
+}
+/* Suggested builds: worked out each night on the server (MARKER-REPORT-SUGGEST). */
+function renderSuggest() {
+  $('#suggHint').textContent = 'found by comparing recent weeks with the ones before · checked each night' + (SUGG_ON ? ', last on ' + SUGG_ON : '');
+  if (!SUGG.length) {
+    $('#suggList').innerHTML = '<div class="rb-empty" style="grid-column:1/-1">' + (SUGG_RUN ? 'The first check is running now. Reload this page in a minute to see what it found.' : SUGG_ON ? 'Nothing stood out in the last check. When something moves enough to be worth a look, it shows here.' : 'The first check runs tonight. Anything worth a look shows here in the morning.') +
+      (TPL.length ? '<div class="rb-ex" style="justify-content:center;margin-top:10px"><span>Meanwhile, try</span>' + TPL.slice(0, 3).map(function (t, i) { return '<button class="rb-chip" data-tpl="' + i + '">' + esc(t[0]) + '</button>'; }).join('') + '</div>' : '') + '</div>';
+    return;
+  }
+  $('#suggList').innerHTML = SUGG.map(function (g, i) {
+    return '<button class="rb-tile big" type="button" data-sugg="' + i + '"><span class="ico t-' + esc(g.tone) + '">' + lu(g.icon) + '</span><span class="amt">' + esc(g.a) + '<small>' + esc(g.al) + '</small></span><span class="nm">' + esc(g.t) + '</span><span class="ds">' + esc(g.s) + '</span><span class="go">' + esc(DS[g.cfg.ds] ? DS[g.cfg.ds].l : '') + ' · open →</span></button>';
+  }).join('');
 }
 
 /* ===================== builder panel ===================== */
@@ -279,7 +294,7 @@ function renderHeader() {
 function renderPreview() {
   var tl = S.mode === 'timeline';
   $('#viewBar').style.display = tl ? 'none' : 'flex'; $('#stands').innerHTML = ''; $('#related').innerHTML = '';
-  renderHeader(); renderLegend();
+  renderHeader(); renderLegend(); renderExplain();
   if (!tl && !S.measures.length) { $('#preview').innerHTML = '<div class="rb-empty">Pick at least one thing to show.<div class="rb-ex" style="justify-content:center;margin-top:10px">' + DS[S.ds].m.slice(0, 3).map(function (m) { return '<button class="rb-chip" data-addm="' + m[0] + '">' + esc(m[1]) + '</button>'; }).join('') + '</div></div>'; $('#rowHint').textContent = ''; return; }
   if (tl && !S.tcust) { renderTimeline(null); return; }
   var id = ++REQ;
@@ -411,6 +426,7 @@ function renderLegend() {
     '<div class="row"><span>Whole shop:</span><span>reports cover every location unless you filter by one.' + (d.lock ? ' ' + esc(d.l) + ' is limited to ' + esc(d.lock.toLowerCase()) + '.' : '') + '</span></div>' +
     (d.cav ? '<div class="row"><span>About this data:</span><span>' + d.cav.map(esc).join(' ') + '</span></div>' : '') +
     '<div class="row"><span>Ask:</span><span>matches the words you type to the fields on this page, in your browser. Nothing you type is sent anywhere, and it only fills in the settings.</span></div>' +
+    '<div class="row"><span>Explain:</span><span>sends the rows and totals shown in this report — nothing else — to Claude, Anthropic\'s AI, which writes a few plain sentences about them. It never changes a number. If Claude can\'t be reached, a built-in summary is shown instead and says so.</span></div>' +
     '<div class="row"><span>Totals:</span><span>are worked out from all the data, not by adding the rows, so a ticket in two categories counts once. Calculations use the same figures as the table.</span></div>' +
     '<div class="row"><span>Size:</span><span>a run shows up to 5,000 rows. Export gives the same rows as a CSV.</span></div>';
 }
@@ -592,6 +608,30 @@ function sendTest() {
   (SAVED_ID && !dirtyOn ? go() : saveReport(($('input[name=vis]:checked') || {}).value || 'me').then(function () { return post(URLS.delivery.replace('__ID__', SAVED_ID), deliveryBody()).then(function (j) { SAVED = j.saved; return go(); }); }))
     .catch(function (e) { toast(String(e)); }).then(function () { $('#shTest').disabled = false; });
 }
+/* ===================== explain (MARKER-REPORT-EXPLAIN) ===================== */
+var EXPL = null; // {key, text, by, note} once written; {key, busy:true} while waiting
+function explKey() { return JSON.stringify(payload(S)); }
+function renderExplain() {
+  var box = $('#explainBox'); if (!box) return;
+  $('#btnExplain').style.display = S.mode === 'timeline' ? 'none' : '';
+  if (!EXPL || S.mode === 'timeline') { box.innerHTML = ''; $('#btnExplain').textContent = 'Explain this'; return; }
+  $('#btnExplain').textContent = 'Hide explanation';
+  if (EXPL.busy) { box.innerHTML = '<div class="rb-note"><div><b>In plain words.</b> <span class="rb-dim">Reading the numbers…</span></div></div>'; return; }
+  if (EXPL.err) { box.innerHTML = '<div class="rb-note"><div>That couldn\'t be explained: ' + esc(EXPL.err) + '</div><button class="ia-btn ia-btn--sm" data-explain-again style="margin-left:auto">Try again</button></div>'; return; }
+  var stale = EXPL.key !== explKey();
+  box.innerHTML = '<div class="rb-note' + (stale ? ' rb-stale' : '') + '"><div><b>In plain words.</b> ' + esc(EXPL.text) +
+    '<div class="rb-hint" style="margin-top:6px">' + (stale ? 'The report has changed since this was written. ' : '') +
+    (EXPL.by === 'claude' ? 'Written by Claude from the numbers in this report only.' : esc(EXPL.note || 'Built-in summary from the numbers in this report.')) + '</div></div>' +
+    '<span style="margin-left:auto;display:flex;gap:6px;flex-shrink:0">' + (stale ? '<button class="ia-btn ia-btn--sm" data-explain-again>Explain again</button>' : '<button class="ia-btn ia-btn--sm" data-copyx>Copy</button>') + '<button class="rb-x" data-explain-x aria-label="Hide explanation">×</button></span></div>';
+}
+function runExplain() {
+  var key = explKey(); EXPL = { key: key, busy: true }; renderExplain();
+  post(URLS.explain, { cfg: payload(S), title: $('#rTitle').value || autoTitle() }).then(function (j) {
+    if (!EXPL || EXPL.key !== key) return;
+    EXPL = { key: key, text: j.text, by: j.by, note: j.note }; renderExplain();
+  }).catch(function (e) { if (!EXPL || EXPL.key !== key) return; EXPL = { key: key, err: String(e) }; renderExplain(); });
+}
+
 function saveReport(vis) {
   var nm = ($('#rTitle').value || autoTitle()).trim();
   var cur = SAVED_ID && savedById(SAVED_ID);
@@ -613,7 +653,7 @@ function openReport(cfg, name, id, read) {
   S.ds = ds;
   if (!S.tevents.rental && S.tevents.rental !== 0) S.tevents.rental = 1;
   (S.calcs || []).forEach(function (c) { var n = +String(c.id).replace(/\D/g, ''); if (n >= calcSeq) calcSeq = n + 1; });
-  SAVED_ID = id || null; OUT = 'table'; CM = null; RES = null;
+  SAVED_ID = id || null; OUT = 'table'; CM = null; RES = null; EXPL = null;
   if (S.mode === 'timeline') S.ds = DS.customers ? 'customers' : ds;
   S.read = read || null;
   titleAuto = !name; S.title = name || autoTitle();
@@ -676,6 +716,11 @@ document.addEventListener('click', function (e) {
   if (t.id === 'btnSave') { saveReport(null).catch(function () {}); return; }
   if (t.id === 'btnExport') { var url = URLS.export + '?cfg=' + encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify(payload(S)))))) + '&name=' + encodeURIComponent($('#rTitle').value || 'report'); window.location.href = url; toast('Your CSV is downloading'); return; }
   if (t.id === 'btnShare') { openShare(); return; }
+  if (t.id === 'btnExplain') { if (EXPL && !EXPL.busy) { EXPL = null; renderExplain(); } else if (!EXPL) runExplain(); return; }
+  if (t.dataset.explainAgain != null) { runExplain(); return; }
+  if (t.dataset.explainX != null) { EXPL = null; renderExplain(); return; }
+  if (t.dataset.copyx != null) { var txt = EXPL && EXPL.text; if (txt && navigator.clipboard) navigator.clipboard.writeText(txt).then(function () { toast('Copied'); }, function () { toast('Couldn\'t copy — select the text instead.'); }); else toast('Couldn\'t copy — select the text instead.'); return; }
+  if (t.dataset.sugg != null) { var g = SUGG[+t.dataset.sugg]; if (!g || !DS[g.cfg.ds]) { toast('That data isn\'t available to you.'); return; } openReport(Object.assign({}, g.cfg, { why: 'Why you\'re seeing this: ' + g.why }), null, null); return; }
   if (t.id === 'shSave') { saveShare(); return; }
   if (t.id === 'shTest') { sendTest(); return; }
   if (t.dataset.close !== undefined || t.id === 'scrim') { closeAll(); return; }

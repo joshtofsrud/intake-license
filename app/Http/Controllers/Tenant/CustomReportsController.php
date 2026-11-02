@@ -6,8 +6,10 @@ use App\Http\Controllers\Controller;
 use App\Services\Tenant\CustomerTimelineService;
 use App\Services\Tenant\ReportBuilder\ReportCatalog;
 use App\Services\Tenant\ReportBuilder\ReportEngine;
+use App\Services\Tenant\ReportBuilder\ReportExplainer;
 use App\Services\Tenant\ReportBuilder\ReportMailer;
 use App\Services\Tenant\ReportBuilder\ReportSchedule;
+use App\Services\Tenant\ReportBuilder\ReportSuggestions;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -18,7 +20,7 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * CustomReportsController — the "Custom" tab on Reports.
- * (MARKER-REPORT-BUILDER-CORE MARKER-REPORT-BUILDER-V2 MARKER-REPORT-DELIVERY)
+ * (MARKER-REPORT-BUILDER-CORE MARKER-REPORT-BUILDER-V2 MARKER-REPORT-DELIVERY MARKER-REPORT-EXPLAIN)
  *
  * Read-only: nothing here changes shop data. The page sends a report's
  * settings; every request cleans them against the catalog before running.
@@ -51,6 +53,7 @@ class CustomReportsController extends Controller
                 'templates' => ReportCatalog::templates(),
                 'saved'     => $this->listSaved(),
                 'calcs'     => $this->myCalcs(),
+                'suggest'   => $this->suggestions($engine),
                 'me'        => ['id' => $u?->id, 'name' => $u?->name, 'email' => $u?->email, 'manager' => $this->isManager()],
                 'schedule'  => ['freqs' => ReportSchedule::FREQS, 'days' => ReportSchedule::DAYS, 'times' => ReportSchedule::times(),
                     'distEmail' => ReportCatalog::velocity()['email']],
@@ -67,6 +70,7 @@ class CustomReportsController extends Controller
                     'delivery'  => route('tenant.reports.custom.delivery', ['id' => '__ID__']),
                     'test'      => route('tenant.reports.custom.test', ['id' => '__ID__']),
                     'pin'       => route('tenant.reports.custom.pin', ['id' => '__ID__']),
+                    'explain'   => route('tenant.reports.custom.explain'),
                 ],
             ],
         ]);
@@ -81,6 +85,46 @@ class CustomReportsController extends Controller
         }
         $out = $cfg['dim2'] !== '' ? $engine->pivot($cfg) : $engine->rows($cfg);
         return response()->json(['cfg' => $cfg, 'kind' => $cfg['dim2'] !== '' ? 'pivot' : 'rows'] + $out);
+    }
+
+    /** "Explain this": a few plain sentences about the numbers on screen. */
+    public function explain(Request $request)
+    {
+        $engine = $this->engine();
+        $cfg = $engine->clean((array) $request->input('cfg', []));
+        if ($cfg['mode'] === 'timeline') {
+            return response()->json(['message' => 'Explain works on reports, not the customer timeline.'], 422);
+        }
+        $out = (new ReportExplainer(tenant(), $engine, $this->isManager()))->explain($cfg, (string) $request->input('title', ''));
+        return response()->json($out);
+    }
+
+    /** Last night's suggested builds, only those this person can open. */
+    private function suggestions(ReportEngine $engine): array
+    {
+        try {
+            // A shop's very first visit: run the first check right after this page is sent,
+            // so nobody has to wait for the nightly run to see the tiles.
+            $t = tenant();
+            if (!DB::table('tenant_report_suggest_checks')->where('tenant_id', $t->id)->exists()) {
+                $today = now()->setTimezone($t->timezone())->toDateString();
+                if (DB::table('tenant_report_suggest_checks')->insertOrIgnore(['tenant_id' => $t->id, 'checked_on' => $today, 'checked_at' => null])) {
+                    app()->terminating(function () use ($t, $today) {
+                        try {
+                            $s = new ReportSuggestions($t);
+                            $s->store($s->build(), $today);
+                        } catch (\Throwable $e) {
+                            DB::table('tenant_report_suggest_checks')->where('tenant_id', $t->id)->update(['checked_at' => now()]);
+                            \App\Support\JobFailureReporter::report(self::class, 'The first suggested-builds check failed for a shop', $e, [], $t->id);
+                        }
+                    });
+                }
+            }
+            return ReportSuggestions::forUser($t, $engine->catalog(), $this->isManager());
+        } catch (\Throwable $e) {
+            report($e);
+            return ['items' => [], 'checked' => null];
+        }
     }
 
     public function export(Request $request): StreamedResponse

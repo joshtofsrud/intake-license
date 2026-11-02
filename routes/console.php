@@ -379,3 +379,7 @@ Schedule::command('catalog:spec-attrs')
 // and report alerts (once a day per shop, from 6am shop time).
 Schedule::command('reports:deliver')->everyFiveMinutes()->withoutOverlapping();
 Schedule::command('reports:check-alerts')->hourly()->withoutOverlapping();
+
+// MARKER-REPORT-SUGGEST: Suggested builds on Reports > Custom. Hourly, but each shop
+// is checked once a night, after 2am in the shop's own time.
+Schedule::command('reports:suggest')->hourly()->withoutOverlapping();
