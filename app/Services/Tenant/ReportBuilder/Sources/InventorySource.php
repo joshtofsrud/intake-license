@@ -84,6 +84,28 @@ class InventorySource extends Source
     /** What every run needs, worked out once per request: a Reports tab runs this source several times over the same catalog. */
     private array $prep = [];
 
+    /** When another report is the main one, only items it can match are needed: the ones that sold in the range. */
+    private bool $onlySold = false;
+
+    public function setOnlySold(bool $v): void
+    {
+        $this->onlySold = $v;
+    }
+
+    /** How many items would run out within $days at the pace they sold in the range. No rows are built, so it stays cheap on a big catalog. */
+    public function countRunningOut(Carbon $from, Carbon $to, int $days): int
+    {
+        $P = $this->prepared(false, $from, $to);
+        $perDayDiv = max(1, $this->p->days($from, $to));
+        $n = 0;
+        foreach ($P['rows'] as $r) {
+            $su = $P['sold'][$r[0]][0] ?? 0.0;
+            $perDay = $su / $perDayDiv;
+            if ($perDay > 0 && max(0, $r[4]) / $perDay < $days) $n++;
+        }
+        return $n;
+    }
+
     private function prepared(bool $byLoc, Carbon $from, Carbon $to): array
     {
         $key = ($byLoc ? 'L' : 'N') . $from->toDateString() . $to->toDateString();
@@ -98,8 +120,7 @@ class InventorySource extends Source
             ->where('it.tenant_id', $tid)->where('it.is_active', 1)->whereNull('it.deleted_at')
             ->select('it.id', 'it.name', 'it.category_id', 'it.default_vendor_id', 'it.computed_stock_count', 'it.created_at', 'pc.manufacturer')
             ->selectRaw('COALESCE(it.received_cost_cents, it.shop_cost_cents, it.catalog_cost_cents) as unit_cost')
-            ->selectRaw('COALESCE(it.shop_sell_price_cents, it.catalog_msrp_cents) as price')
-            ->get();
+            ->selectRaw('COALESCE(it.shop_sell_price_cents, it.catalog_msrp_cents) as price');
 
         $lastRecv = DB::table('tenant_inventory_receive_shipment_items as ri')
             ->join('tenant_inventory_receive_shipments as s', 's.id', '=', 'ri.shipment_id')
@@ -134,8 +155,10 @@ class InventorySource extends Source
         }
 
 
+        // One packed row per item (a shop can hold tens of thousands, and a Reports tab keeps these for the whole page).
+        // [id, name, unit cost, price, stock, category, vendor, brand name, brand, age bucket, margin band, price band, sold lately]
         $rows = [];
-        foreach ($items as $it) {
+        foreach ($items->cursor() as $it) {
             $id = (string) $it->id;
             $unitCost = $it->unit_cost !== null ? (int) $it->unit_cost : null;
             $price = $it->price !== null ? (int) $it->price : null;
@@ -144,13 +167,13 @@ class InventorySource extends Source
             $ageTs = strtotime(substr((string) $ageFrom, 0, 10) . ' UTC');
             $age = $ageTs === false ? 0 : max(0, $todayDay - (int) floor($ageTs / 86400));
             $rows[] = [
-                'id' => $id, 'name' => (string) $it->name, 'unitCost' => $unitCost, 'price' => $price, 'stock' => (int) $it->computed_stock_count,
-                'cat' => $it->category_id ? (string) $it->category_id : 'uncat',
-                'vend' => $it->default_vendor_id ? (string) $it->default_vendor_id : 'none',
-                'brandName' => $brandName, 'brand' => $brandName === '' ? 'none' : mb_strtolower($brandName),
-                'bucket' => (string) ($age <= 30 ? 0 : ($age <= 90 ? 1 : ($age <= 180 ? 2 : ($age <= 365 ? 3 : 4)))),
-                'mb' => ($unitCost !== null && $price) ? self::mband(($price - $unitCost) / $price * 100) : 'none',
-                'pb' => self::pband($price), 'moved' => isset($moved[$id]),
+                $id, (string) $it->name, $unitCost, $price, (int) $it->computed_stock_count,
+                $it->category_id ? (string) $it->category_id : 'uncat',
+                $it->default_vendor_id ? (string) $it->default_vendor_id : 'none',
+                $brandName, $brandName === '' ? 'none' : mb_strtolower($brandName),
+                (string) ($age <= 30 ? 0 : ($age <= 90 ? 1 : ($age <= 180 ? 2 : ($age <= 365 ? 3 : 4)))),
+                ($unitCost !== null && $price) ? self::mband(($price - $unitCost) / $price * 100) : 'none',
+                self::pband($price), isset($moved[$id]),
             ];
         }
         unset($items);
@@ -176,19 +199,14 @@ class InventorySource extends Source
         $catN = $this->names('cat'); $vendN = $this->names('vend'); $locN = $this->names('loc');
         $groups = [];
         $total = [];
-        foreach ($P['rows'] as $it) {
-            $id = $it['id'];
-            $unitCost = $it['unitCost'];
-            $price = $it['price'];
-            $cat = $it['cat']; $vend = $it['vend']; $brandName = $it['brandName']; $brand = $it['brand'];
-            $bucket = $it['bucket']; $mb = $it['mb']; $pb = $it['pb'];
+        foreach ($P['rows'] as [$id, $name, $unitCost, $price, $stock0, $cat, $vend, $brandName, $brand, $bucket, $mb, $pb, $wasMoved]) {
 
             $attrs = ['cat' => $cat, 'vend' => $vend, 'brand' => $brand, 'bucket' => $bucket, 'mband' => $mb, 'pband' => $pb];
             foreach (['cat', 'vend', 'brand', 'bucket', 'mband', 'pband'] as $k) {
                 if (!$this->passes($attrs[$k], $f[$k] ?? null)) continue 2;
             }
 
-            $places = $byLoc ? ($locStock[$id] ?? []) : ['' => $it['stock']];
+            $places = $byLoc ? ($locStock[$id] ?? []) : ['' => $stock0];
             if ($byLoc) {
                 foreach ($soldBy[$id] ?? [] as $l => $_) {
                     $places[$l] = $places[$l] ?? 0;
@@ -200,10 +218,11 @@ class InventorySource extends Source
                 $units = max(0, $stock);
                 [$su, $cogs] = $sold[$id . ($byLoc ? '|' . $loc : '')] ?? [0.0, 0.0];
                 if ($units === 0 && $su == 0 && in_array('item', $dims, true)) continue;
+                if ($this->onlySold && $su == 0 && in_array('item', $dims, true)) continue;
                 $cost = $units * (int) ($unitCost ?? 0);
                 $c = [
                     'units' => $units, 'cost' => $cost, 'retail' => $units * (int) ($price ?? 0), 'skus' => $units > 0 ? 1 : 0,
-                    'sold' => $su, 'cogs' => $cogs, 'dead' => ($units > 0 && !$it['moved']) ? $cost : 0,
+                    'sold' => $su, 'cogs' => $cogs, 'dead' => ($units > 0 && !$wasMoved) ? $cost : 0,
                     'a1' => $bucket === '0' ? $cost : 0, 'a2' => $bucket === '1' ? $cost : 0, 'a3' => $bucket === '2' ? $cost : 0,
                     'a4' => in_array($bucket, ['3', '4'], true) ? $cost : 0,
                 ];
@@ -216,7 +235,7 @@ class InventorySource extends Source
                         'bucket' => [$bucket, self::BUCKETS[(int) $bucket]],
                         'mband', 'pband' => [$d === 'mband' ? $mb : $pb, $this->bandOptions($d)[$d === 'mband' ? $mb : $pb]],
                         'loc'    => [$loc, $loc === '' ? 'No location' : ($locN[$loc] ?? 'Removed location')],
-                        default  => [$id, $it['name']],
+                        default  => [$id, $name],
                     };
                 }
                 $this->add($groups, $keys, $labels, $c);

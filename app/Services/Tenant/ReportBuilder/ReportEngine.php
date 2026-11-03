@@ -95,6 +95,7 @@ class ReportEngine
             $filters = array_values(array_filter($cfg['filters'], fn ($f) => in_array($f['f'], $fkeys, true)));
             $src = $this->sources[$ds];
             $src->setRangeDays($this->p->days($from, $to));
+            if (method_exists($src, 'setOnlySold')) $src->setOnlySold($ds !== $cfg['ds'] && in_array('item', $dims, true));
             $out[$ds] = ['ms' => array_unique($ms), 'res' => $src->run($dims, $filters, $from, $to)];
         }
         return $out;
@@ -218,6 +219,15 @@ class ReportEngine
             if ($prev !== null) $out['prev'][$m] = $this->cellValue($cfg, $m, $prev);
         }
         return $out;
+    }
+
+    /** Items that would run out within $days at the pace they sold in this range, without building a row per item. */
+    public function inventoryRunningOut(array $cfg, int $days): int
+    {
+        [$from, $to] = $this->dates($cfg);
+        $src = $this->sources['inv'];
+        $src->setRangeDays($this->p->days($from, $to));
+        return $src->countRunningOut($from, $to, $days);
     }
 
     /** A grid: one breakdown down the side, the other across the top. */

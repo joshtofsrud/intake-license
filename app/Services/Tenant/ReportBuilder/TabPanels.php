@@ -259,13 +259,8 @@ class TabPanels
         $dead = $r['totals']['inv:dead'] ?? 0.0;
         $a = [(float) ($by['0'] ?? 0), (float) ($by['1'] ?? 0), (float) ($by['2'] ?? 0), (float) (($by['3'] ?? 0) + ($by['4'] ?? 0))];
 
-        // Items that will run out within two weeks at the current pace. Lowest first, so the row limit can't hide any.
-        $ci = $this->cfg('inv', ['dleft'], 'item', ['compare' => 'off', 'sortDir' => 'asc']);
-        $under = 0;
-        foreach ($e->rows($ci)['rows'] as $row) {
-            $d = $e->cellValue($ci, 'dleft', $row['vals']);
-            if ($d !== null && $d < 14) $under++;
-        }
+        // Items that will run out within two weeks at the current pace.
+        $under = $e->inventoryRunningOut($this->cfg('inv', ['dleft'], 'item', ['compare' => 'off']), 14);
 
         $days = (int) (data_get($this->tenant->settings, 'inventory.dead_stock_days') ?: 180);
         $pctOld = $cost > 0 ? number_format($a[3] / $cost * 100, 1) . '% of stock' : 'nothing on hand';
