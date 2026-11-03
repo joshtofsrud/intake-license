@@ -81,13 +81,18 @@ class InventorySource extends Source
         return is_numeric($v) && (int) $v > 0 ? (int) $v : 180;
     }
 
-    public function run(array $dims, array $filters, Carbon $from, Carbon $to): array
-    {
-        $tid = $this->tid();
-        $f = $this->byKey($filters);
-        $byLoc = in_array('loc', $dims, true) || isset($f['loc']);
-        $today = $this->p->today();
+    /** What every run needs, worked out once per request: a Reports tab runs this source several times over the same catalog. */
+    private array $prep = [];
 
+    private function prepared(bool $byLoc, Carbon $from, Carbon $to): array
+    {
+        $key = ($byLoc ? 'L' : 'N') . $from->toDateString() . $to->toDateString();
+        if (isset($this->prep[$key])) return $this->prep[$key];
+        $this->prep = [];   // one entry at a time keeps memory flat
+
+        $tid = $this->tid();
+        $today = $this->p->today();
+        $todayDay = (int) floor(strtotime($today->toDateString() . ' UTC') / 86400);
         $items = DB::table('tenant_inventory_items as it')
             ->leftJoin('platform_distributor_catalogs as pc', 'pc.id', '=', 'it.distributor_catalog_id')
             ->where('it.tenant_id', $tid)->where('it.is_active', 1)->whereNull('it.deleted_at')
@@ -128,35 +133,65 @@ class InventorySource extends Source
             }
         }
 
-        $catN = $this->names('cat'); $vendN = $this->names('vend'); $locN = $this->names('loc');
-        $groups = [];
-        $total = [];
+
+        $rows = [];
         foreach ($items as $it) {
             $id = (string) $it->id;
             $unitCost = $it->unit_cost !== null ? (int) $it->unit_cost : null;
             $price = $it->price !== null ? (int) $it->price : null;
-            $cat = $it->category_id ? (string) $it->category_id : 'uncat';
-            $vend = $it->default_vendor_id ? (string) $it->default_vendor_id : 'none';
             $brandName = trim((string) $it->manufacturer);
-            $brand = $brandName === '' ? 'none' : mb_strtolower($brandName);
             $ageFrom = $lastRecv[$id] ?? ($it->created_at ? substr((string) $it->created_at, 0, 10) : $today->toDateString());
-            $age = max(0, (int) Carbon::parse($ageFrom)->diffInDays($today, false));
-            $bucket = (string) ($age <= 30 ? 0 : ($age <= 90 ? 1 : ($age <= 180 ? 2 : ($age <= 365 ? 3 : 4))));
-            $mb = ($unitCost !== null && $price) ? self::mband(($price - $unitCost) / $price * 100) : 'none';
-            $pb = self::pband($price);
+            $ageTs = strtotime(substr((string) $ageFrom, 0, 10) . ' UTC');
+            $age = $ageTs === false ? 0 : max(0, $todayDay - (int) floor($ageTs / 86400));
+            $rows[] = [
+                'id' => $id, 'name' => (string) $it->name, 'unitCost' => $unitCost, 'price' => $price, 'stock' => (int) $it->computed_stock_count,
+                'cat' => $it->category_id ? (string) $it->category_id : 'uncat',
+                'vend' => $it->default_vendor_id ? (string) $it->default_vendor_id : 'none',
+                'brandName' => $brandName, 'brand' => $brandName === '' ? 'none' : mb_strtolower($brandName),
+                'bucket' => (string) ($age <= 30 ? 0 : ($age <= 90 ? 1 : ($age <= 180 ? 2 : ($age <= 365 ? 3 : 4)))),
+                'mb' => ($unitCost !== null && $price) ? self::mband(($price - $unitCost) / $price * 100) : 'none',
+                'pb' => self::pband($price), 'moved' => isset($moved[$id]),
+            ];
+        }
+        unset($items);
+
+        // Sold units per item and location, indexed so a location run doesn't scan every sale for every item.
+        $soldBy = [];
+        if ($byLoc) {
+            foreach ($sold as $sk => $v) {
+                [$sid, $sloc] = explode('|', $sk, 2) + [1 => ''];
+                $soldBy[$sid][$sloc] = $v;
+            }
+        }
+        return $this->prep[$key] = ['rows' => $rows, 'sold' => $sold, 'soldBy' => $soldBy, 'locStock' => $locStock];
+    }
+
+    public function run(array $dims, array $filters, Carbon $from, Carbon $to): array
+    {
+        $f = $this->byKey($filters);
+        $byLoc = in_array('loc', $dims, true) || isset($f['loc']);
+        $P = $this->prepared($byLoc, $from, $to);
+        $sold = $P['sold']; $soldBy = $P['soldBy']; $locStock = $P['locStock'];
+
+        $catN = $this->names('cat'); $vendN = $this->names('vend'); $locN = $this->names('loc');
+        $groups = [];
+        $total = [];
+        foreach ($P['rows'] as $it) {
+            $id = $it['id'];
+            $unitCost = $it['unitCost'];
+            $price = $it['price'];
+            $cat = $it['cat']; $vend = $it['vend']; $brandName = $it['brandName']; $brand = $it['brand'];
+            $bucket = $it['bucket']; $mb = $it['mb']; $pb = $it['pb'];
 
             $attrs = ['cat' => $cat, 'vend' => $vend, 'brand' => $brand, 'bucket' => $bucket, 'mband' => $mb, 'pband' => $pb];
             foreach (['cat', 'vend', 'brand', 'bucket', 'mband', 'pband'] as $k) {
                 if (!$this->passes($attrs[$k], $f[$k] ?? null)) continue 2;
             }
 
-            $places = $byLoc ? ($locStock[$id] ?? []) : ['' => (int) $it->computed_stock_count];
+            $places = $byLoc ? ($locStock[$id] ?? []) : ['' => $it['stock']];
             if ($byLoc) {
-                foreach ($sold as $sk => $_) {
-                    if (str_starts_with($sk, $id . '|')) {
-                        $l = substr($sk, strlen($id) + 1);
-                        $places[$l] = $places[$l] ?? 0;
-                    }
+                foreach ($soldBy[$id] ?? [] as $l => $_) {
+                    $places[$l] = $places[$l] ?? 0;
                 }
             }
             foreach ($places as $loc => $stock) {
@@ -168,7 +203,7 @@ class InventorySource extends Source
                 $cost = $units * (int) ($unitCost ?? 0);
                 $c = [
                     'units' => $units, 'cost' => $cost, 'retail' => $units * (int) ($price ?? 0), 'skus' => $units > 0 ? 1 : 0,
-                    'sold' => $su, 'cogs' => $cogs, 'dead' => ($units > 0 && !isset($moved[$id])) ? $cost : 0,
+                    'sold' => $su, 'cogs' => $cogs, 'dead' => ($units > 0 && !$it['moved']) ? $cost : 0,
                     'a1' => $bucket === '0' ? $cost : 0, 'a2' => $bucket === '1' ? $cost : 0, 'a3' => $bucket === '2' ? $cost : 0,
                     'a4' => in_array($bucket, ['3', '4'], true) ? $cost : 0,
                 ];
@@ -181,7 +216,7 @@ class InventorySource extends Source
                         'bucket' => [$bucket, self::BUCKETS[(int) $bucket]],
                         'mband', 'pband' => [$d === 'mband' ? $mb : $pb, $this->bandOptions($d)[$d === 'mband' ? $mb : $pb]],
                         'loc'    => [$loc, $loc === '' ? 'No location' : ($locN[$loc] ?? 'Removed location')],
-                        default  => [$id, (string) $it->name],
+                        default  => [$id, $it['name']],
                     };
                 }
                 $this->add($groups, $keys, $labels, $c);
