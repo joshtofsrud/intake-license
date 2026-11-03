@@ -29,12 +29,15 @@ class CustomersSource extends Source
                 'ltvt'   => ['Total lifetime value', '$'],
                 'inbox'  => ['Inbox contacts', 'n'],
                 'lapsed' => ['Lapsed customers', 'n'],
+                'atrisk' => ['At-risk customers', 'n'],
+                'nophone' => ['Missing phone number', 'n'],
+                'since' => ['Days since last purchase', 'n'],
             ],
             'dims' => [
                 'day' => ['Day', 't'], 'week' => ['Week', 't'], 'month' => ['Month', 't'],
                 'tag' => ['Tag', 'c'], 'vip' => ['VIP', 'c'], 'cust' => ['Customer', 'c'],
             ],
-            'filters' => ['tag' => 'Tag', 'vip' => 'VIP'],
+            'filters' => ['tag' => 'Tag', 'vip' => 'VIP', 'phone' => 'Phone number', 'lapsed' => 'Lapsed'],
         ];
     }
 
@@ -44,6 +47,8 @@ class CustomersSource extends Source
             'tag' => DB::table('tenant_customer_tags')->where('tenant_id', $this->tid())->orderBy('name')->pluck('name', 'id')
                 ->map(fn ($v) => (string) $v)->all() + ['none' => 'No tag'],
             'vip' => ['vip' => 'VIP', 'regular' => 'Not VIP'],
+            'phone' => ['has' => 'Has a phone number', 'missing' => 'No phone number'],
+            'lapsed' => ['yes' => 'Lapsed', 'no' => 'Not lapsed'],
             default => [],
         };
     }
@@ -61,9 +66,16 @@ class CustomersSource extends Source
             $tags[(string) $t->customer_id][] = (string) $t->tag_id;
         }
 
+        // Last purchase before the end of the range, for "lapsed".
+        $lastBuy = DB::table('tenant_sales')->where('tenant_id', $tid)->whereNotNull('customer_id')->where('payment_status', 'paid')
+            ->whereNull('refund_of_sale_id')->where('sale_date', '<=', $toS)
+            ->selectRaw('customer_id, MAX(sale_date) as last_on')->groupBy('customer_id')->pluck('last_on', 'customer_id')->all();
+        $lapseBefore = $to->copy()->subDays(180)->toDateString();
+        $riskBefore = $to->copy()->subDays(90)->toDateString();
+
         $cust = [];
         $q = DB::table('tenant_customers')->where('tenant_id', $tid)->whereNull('erased_at')
-            ->select('id', 'first_name', 'last_name', 'created_at', 'is_vip');
+            ->select('id', 'first_name', 'last_name', 'created_at', 'is_vip', 'phone');
         foreach ($q->cursor() as $c) {
             $id = (string) $c->id;
             $ctags = $tags[$id] ?? ['none'];
@@ -73,9 +85,13 @@ class CustomersSource extends Source
                 if (!empty($f['tag']['not']) && array_intersect($ctags, $f['tag']['not'])) continue;
             }
             if (!$this->passes($vip, $f['vip'] ?? null)) continue;
+            $noPhone = trim((string) $c->phone) === '';
+            if (!$this->passes($noPhone ? 'missing' : 'has', $f['phone'] ?? null)) continue;
+            $lapsedNow = isset($lastBuy[$id]) && substr((string) $lastBuy[$id], 0, 10) < $lapseBefore;
+            if (!$this->passes($lapsedNow ? 'yes' : 'no', $f['lapsed'] ?? null)) continue;
             $created = $c->created_at ? Carbon::parse($c->created_at, 'UTC')->setTimezone($tz)->toDateString() : '2000-01-01';
             $cust[$id] = ['name' => trim($c->first_name . ' ' . $c->last_name) ?: 'Unnamed customer', 'created' => $created,
-                'tags' => $ctags, 'vip' => $vip];
+                'tags' => $ctags, 'vip' => $vip, 'nophone' => $noPhone ? 1 : 0];
         }
 
         // Paid sales in the range, per customer per day (refunds count negative).
@@ -90,12 +106,6 @@ class CustomersSource extends Source
             ->selectRaw('customer_id, SUM((CASE WHEN refund_of_sale_id IS NULL THEN 1 ELSE -1 END) * (subtotal_cents - discount_cents)) as spend')
             ->groupBy('customer_id')->pluck('spend', 'customer_id')->all();
 
-        // Last purchase before the end of the range, for "lapsed".
-        $lastBuy = DB::table('tenant_sales')->where('tenant_id', $tid)->whereNotNull('customer_id')->where('payment_status', 'paid')
-            ->whereNull('refund_of_sale_id')->where('sale_date', '<=', $toS)
-            ->selectRaw('customer_id, MAX(sale_date) as last_on')->groupBy('customer_id')->pluck('last_on', 'customer_id')->all();
-        $lapseBefore = $to->copy()->subDays(180)->toDateString();
-
         [$ua, $ub] = $this->p->utcBounds($from, $to);
         $msgs = DB::table('tenant_messages as m')->join('tenant_threads as t', 't.id', '=', 'm.thread_id')
             ->where('t.tenant_id', $tid)->where('m.direction', 'in')->whereBetween('m.created_at', [$ua, $ub])
@@ -108,7 +118,7 @@ class CustomersSource extends Source
         }
 
         $groups = []; $active = []; $threads = [];
-        $total = ['custs' => count($cust), 'newc' => 0, 'active' => 0, 'tickets' => 0, 'spend' => 0, 'ltv' => 0, 'inbox' => 0, 'lapsed' => 0];
+        $total = ['custs' => count($cust), 'newc' => 0, 'active' => 0, 'tickets' => 0, 'spend' => 0, 'ltv' => 0, 'inbox' => 0, 'lapsed' => 0, 'atrisk' => 0, 'nophone' => 0];
         $tActive = []; $tThreads = [];
 
         // Static keys (tag / vip / customer) for one customer, as [[keys...], [labels...]] combinations.
@@ -140,9 +150,13 @@ class CustomersSource extends Source
             $total['ltv'] += (float) ($life[$id] ?? 0);
             $isLapsed = isset($lastBuy[$id]) && substr((string) $lastBuy[$id], 0, 10) < $lapseBefore ? 1 : 0;
             $total['lapsed'] += $isLapsed;
+            $atRisk = isset($lastBuy[$id]) && substr((string) $lastBuy[$id], 0, 10) >= $lapseBefore && substr((string) $lastBuy[$id], 0, 10) < $riskBefore ? 1 : 0;
+            $total['atrisk'] += $atRisk;
+            $total['nophone'] += $c['nophone'];
             if ($ti === null) {
                 foreach ($combos($id, null) as [$k, $l]) {
-                    $this->add($groups, array_values($k), array_values($l), ['custs' => 1, 'newc' => $isNew ? 1 : 0, 'ltv' => (float) ($life[$id] ?? 0), 'lapsed' => $isLapsed]);
+                    $this->add($groups, array_values($k), array_values($l), ['custs' => 1, 'newc' => $isNew ? 1 : 0, 'ltv' => (float) ($life[$id] ?? 0), 'lapsed' => $isLapsed, 'atrisk' => $atRisk, 'nophone' => $c['nophone']]
+                        + (isset($lastBuy[$id]) ? ['since' => (float) abs((int) Carbon::parse(substr((string) $lastBuy[$id], 0, 10))->diffInDays($to))] : []));
                 }
             } elseif ($isNew) {
                 foreach ($combos($id, $bucketOf($c['created'])) as [$k, $l]) {
@@ -234,6 +248,9 @@ class CustomersSource extends Source
             'ltvt'   => $has('ltv') ? $c['ltv'] / 100 : null,
             'inbox'  => (float) $c['inbox'],
             'lapsed' => $has('lapsed') ? (float) $c['lapsed'] : null,
+            'since'  => $has('since') && ($c['custs'] ?? 0) == 1 ? (float) $c['since'] : null,
+            'atrisk' => $has('atrisk') ? (float) $c['atrisk'] : null,
+            'nophone' => $has('nophone') ? (float) $c['nophone'] : null,
             default  => null,
         };
     }

@@ -40,7 +40,7 @@
   @if(!empty($p['grid']))
     @php $g = $p['grid']; @endphp
     @if(!empty($g['empty']))
-      <div class="rb-note"><div>No appointments in this range. <a href="{{ route('tenant.reports.' . $tab, ['range' => 'last_90', 'compare' => $q['compare']]) }}" class="rb-link">Try the last 90 days</a></div></div>
+      <div class="rb-note"><div>No appointments in this range. <a href="{{ route($tabRoute, ['range' => 'last_90', 'compare' => $q['compare']]) }}" class="rb-link">Try the last 90 days</a></div></div>
     @else
       @if($g['locked'])<div class="rb-lock"><div class="rb-blurme">@endif
       <div style="overflow-x:auto"><table class="rx-grid">
@@ -63,6 +63,10 @@
     </div>
   @endif
 
+  @if(!empty($p['targets']))
+    @include('tenant.reports._rx_targets', ['tg' => $p['targets']])
+  @endif
+
   @if(!empty($p['table']))
     @php $t = $p['table']; @endphp
     @if($t['locked'])
@@ -82,7 +86,7 @@
         <div class="rb-lockbadge"><span><b>Branded feature</b> — see your real {{ $t['what'] }}<button type="button" data-up="{{ $t['what'] }}">Upgrade</button></span></div>
       </div>
     @elseif(empty($t['rows']))
-      <div class="rb-note"><div>{{ $t['empty'] ?? 'Nothing in this range.' }} <a href="{{ route('tenant.reports.' . $tab, ['range' => 'last_90', 'compare' => $q['compare']]) }}" class="rb-link">Try the last 90 days</a></div></div>
+      <div class="rb-note"><div>{{ $t['empty'] ?? 'Nothing in this range.' }} <a href="{{ route($tabRoute, ['range' => 'last_90', 'compare' => $q['compare']]) }}" class="rb-link">Try the last 90 days</a></div></div>
     @else
       <div class="rb-tbl"><table class="ia-table rx-tbl">
         <thead><tr>@foreach($t['head'] as $j => $h)<th class="{{ $j ? 'num' : '' }}">{{ $h }}</th>@endforeach</tr></thead>

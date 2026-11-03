@@ -9,13 +9,13 @@
 @section('content')
 {{-- MARKER-REPORT-TABS-ENGINE — a Reports tab drawn from the report engine. Read-only: nothing here changes shop data. --}}
 @php
-  $tabRoute = 'tenant.reports.' . $tab;
+  $tabRoute = $routeName ?? ('tenant.reports.' . $tab);
   $base = ['range' => $q['slug'], 'compare' => $q['compare']] + ($q['range'] === 'Custom' ? ['from' => $q['from'], 'to' => $q['to']] : []);
   $fmtDate = fn ($a, $b) => $a->isSameDay($b) ? $a->format('M j, Y') : ($a->year === $b->year ? $a->format('M j') . ' – ' . $b->format('M j, Y') : $a->format('M j, Y') . ' – ' . $b->format('M j, Y'));
   $openMap = [];
   foreach ($panels as $p) { if (!empty($p['open'])) $openMap[$p['id']] = ['title' => $p['title'], 'rows' => $p['open']['rows'], 'url' => $p['open']['url']]; }
 @endphp
-<div class="ia-section ia-section--wide" id="rx-app" data-explain="{{ route('tenant.reports.custom.explain') }}" data-locked="{{ $locked ? 1 : 0 }}" data-upgrade="{{ route('tenant.team.index', []) }}">
+<div class="ia-section ia-section--wide" id="rx-app" data-explain="{{ route('tenant.reports.custom.explain') }}" data-locked="{{ ($noAccess ?? $locked) ? 1 : 0 }}" data-upgrade="{{ route('tenant.team.index', []) }}">
 
 <div class="ia-page-head">
   <div class="ia-page-head-left">

@@ -412,13 +412,13 @@ class TabPanels
     }
 
     /** A small bar chart as inline SVG. Bars are aggregates by period; a locked shop gets a fixed pattern instead of real values. */
-    private function bars(array $labels, array $values, bool $fake = false): string
+    private function bars(array $labels, array $values, bool $fake = false, string $aria = 'Appointments finished per period'): string
     {
         $n = count($values);
         if ($n === 0) return '';
         $mx = max(1.0, (float) max($values));
         $w = 560; $h = 110; $step = $w / $n; $bw = max(2, min(26, $step * 0.68));
-        $svg = '<svg viewBox="0 0 ' . $w . ' ' . $h . '" style="width:100%;max-width:640px;height:110px;display:block" role="img" aria-label="Appointments finished per period">';
+        $svg = '<svg viewBox="0 0 ' . $w . ' ' . $h . '" style="width:100%;max-width:640px;height:110px;display:block" role="img" aria-label="' . e($aria) . '">';
         foreach ($values as $i => $v) {
             $bh = (int) round($v / $mx * 88);
             $x = round($i * $step + ($step - $bw) / 2, 1);
@@ -432,27 +432,10 @@ class TabPanels
         return $svg;
     }
 
-    // ---------------------------------------------------------------- Staff
-
-    public function staff(): array
+    /** Appointments by weekday and start hour, as a grid the page colours in. Placeholder pattern when locked. */
+    private function densityGrid(array $c): array
     {
         $e = $this->e;
-        $out = [];
-
-        // Sales and hours: owners and managers only (hours are pay-adjacent)
-        if ($this->isManager) {
-            $calc = [['id' => 'calc:t1', 'name' => 'Sales per labor hour', 'f' => '[Revenue] / [Hours worked]', 't' => '$']];
-            $c = $this->cfg('sales', ['staff:hrs', 'staff:ot', 'tickets', 'rev', 'calc:t1'], 'staff', ['calcs' => $calc]);
-            $out[] = $this->listPanel('s-hours', 'Sales and hours', 'what each person sold against the hours they worked', $c, 'Staff', [
-                ['Hours', 'staff:hrs', 'd'], ['Overtime', 'staff:ot', 'd'], ['Tickets', 'sales:tickets', 'n'], ['Revenue', 'sales:rev', '$'], ['Sales / hour', 'calc:t1', '$'],
-            ], 'staff figures', 'No sales or hours in this range.', 'Hours come from the time clock, after any edits made on a timesheet. Overtime is the part of those hours that counted as overtime.');
-        } else {
-            $out[] = $this->panel('s-hours', 'Sales and hours', 'what each person sold against the hours they worked', null,
-                ['note' => 'Sales and hours are shown to owners and managers.']);
-        }
-
-        // Booking density: a grid of appointments by weekday and start hour
-        $c = $this->cfg('appts', ['ap'], 'dow', ['dim2' => 'hod', 'compare' => 'off']);
         $grid = null;
         if ($this->locked) {
             $days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -486,6 +469,31 @@ class TabPanels
             }
             $grid = ['cols' => $cols, 'rows' => $rows, 'max' => max(1.0, $mx), 'locked' => false, 'empty' => $mx <= 0];
         }
+        return $grid;
+    }
+
+    // ---------------------------------------------------------------- Staff
+
+    public function staff(): array
+    {
+        $e = $this->e;
+        $out = [];
+
+        // Sales and hours: owners and managers only (hours are pay-adjacent)
+        if ($this->isManager) {
+            $calc = [['id' => 'calc:t1', 'name' => 'Sales per labor hour', 'f' => '[Revenue] / [Hours worked]', 't' => '$']];
+            $c = $this->cfg('sales', ['staff:hrs', 'staff:ot', 'tickets', 'rev', 'calc:t1'], 'staff', ['calcs' => $calc]);
+            $out[] = $this->listPanel('s-hours', 'Sales and hours', 'what each person sold against the hours they worked', $c, 'Staff', [
+                ['Hours', 'staff:hrs', 'd'], ['Overtime', 'staff:ot', 'd'], ['Tickets', 'sales:tickets', 'n'], ['Revenue', 'sales:rev', '$'], ['Sales / hour', 'calc:t1', '$'],
+            ], 'staff figures', 'No sales or hours in this range.', 'Hours come from the time clock, after any edits made on a timesheet. Overtime is the part of those hours that counted as overtime.');
+        } else {
+            $out[] = $this->panel('s-hours', 'Sales and hours', 'what each person sold against the hours they worked', null,
+                ['note' => 'Sales and hours are shown to owners and managers.']);
+        }
+
+        // Booking density: a grid of appointments by weekday and start hour
+        $c = $this->cfg('appts', ['ap'], 'dow', ['dim2' => 'hod', 'compare' => 'off']);
+        $grid = $this->densityGrid($c);
         $out[] = $this->panel('s-dens', 'Booking density', 'appointments by day of the week and the hour they start', $c, ['grid' => $grid,
             'after' => 'Counts every appointment in the range by the hour it is booked to start, in the shop\'s time zone, whatever its status.']);
 
@@ -584,13 +592,296 @@ class TabPanels
         $c = $this->cfg('appts', ['ap', 'done', 'booked', 'hours'], 'res');
         $out[] = $this->listPanel('v-res', 'Production by bay or chair', 'what each station or person produced', $c, 'Staff or resource', [
             ['Appointments', 'ap', 'n'], ['Completed', 'done', 'n'], ['Booked value', 'booked', '$'], ['Booked hours', 'hours', 'd'],
-        ], 'production', 'No appointments in this range.', 'Booked hours are the time booked on each appointment, not the hours a station was open, so no utilization percentage is shown.');
+        ], 'production', 'No appointments in this range.', 'Booked hours are the time booked on each appointment. Utilization against your opening hours is on the Operations tab.');
 
         $legend = [
             ['Completed:', 'means completed, shipped or closed. Work still in progress counts as booked, and is counted as completed once it is finished. This is the same list on the Staff tab and in Custom › Appointments.'],
             ['Booked value:', 'is the service lines on the appointment before tax, leaving out cancelled and refunded work. Parts are shown separately.'],
-            ['Booked hours:', 'are added up from the duration on each appointment. There are no available-hours figures here, so there is no utilization percentage.'],
-            ['Not tracked:', 'no-shows and estimate accuracy aren\'t recorded in Intake, so they aren\'t shown.'],
+            ['Booked hours:', 'are added up from the duration on each appointment. Utilization against your opening hours is on the Operations tab.'],
+            ['Not tracked:', 'Intake has no no-show status, so none is shown here. The Operations tab lists past appointments still pending or confirmed as possible no-shows. Estimate accuracy isn\'t recorded.'],
+        ];
+        return ['panels' => $out, 'legend' => $legend];
+    }
+
+    // ---------------------------------------------------------------- Operations
+
+    /** A copy of the question limited to days that are over (yesterday at the latest), for the no-show estimate. Null when none of the range is over. */
+    private function pastCfg(array $measures, string $dim, array $statuses): ?array
+    {
+        $base = $this->cfg('appts', ['ap'], 'day');
+        [$a, $b] = $this->e->periods()->rangeFor($base);
+        $yesterday = $this->tenant->localToday()->copy()->subDay();
+        $end = $b->lt($yesterday) ? $b : $yesterday;
+        if ($a->gt($end)) return null;
+        $filters = [];
+        foreach ($statuses as $s) $filters[] = ['f' => 'stat', 'op' => 'is', 'v' => $s];
+        return $this->cfg('appts', $measures, $dim, ['range' => 'Custom', 'from' => $a->toDateString(), 'to' => $end->toDateString(), 'compare' => 'off', 'filters' => $filters]);
+    }
+
+    public function operations(): array
+    {
+        $e = $this->e;
+        $out = [];
+        $cmp = $this->q['compare'] !== 'off';
+        $settings = (array) ($this->tenant->settings ?? []);
+        $targets = (array) ($settings['report_targets'] ?? []);
+        $spot = $settings['report_spotlight_category'] ?? null;
+
+        // Sales
+        $c = $this->cfg('sales', ['rev', 'tickets', 'avg', 'refunds', 'marginp'], 'day');
+        $t = $e->totals($c);
+        $refunds = $t['vals']['refunds'] ?? null;
+        $bucket = $this->bucketFor($c);
+        $cc = $this->cfg('sales', ['rev'], $bucket);
+        $r = $e->rows($cc);
+        $chart = ['svg' => $this->bars(array_column($r['rows'], 'l'), array_map(fn ($row) => (float) ($e->cellValue($cc, 'rev', $row['vals']) ?? 0), $r['rows']), false, 'Revenue per ' . $bucket), 'locked' => false];
+        $out[] = $this->panel('o-sales', 'Sales', 'paid sales, refunds taken off, before tax and tips', $c, ['figs' => [
+            $this->figCmp('Revenue', $t, 'rev', '$'),
+            $this->figCmp('Tickets', $t, 'tickets', 'n'),
+            $this->figCmp('Average ticket', $t, 'avg', '$'),
+            $this->fig('Refunds', $this->fmt($refunds, '$'), $refunds ? 'already taken off revenue' : 'none in this range', $refunds ? 'warn' : ''),
+            $this->figCmp('Margin %', $t, 'marginp', '%'),
+        ], 'chart' => $chart]);
+        $revTotal = (float) ($t['vals']['rev'] ?? 0);
+        $avgTicket = $t['vals']['avg'] ?? null;
+        $marginPct = $t['vals']['marginp'] ?? null;
+
+        // Sales by category, labor and product
+        $c = $this->cfg('sales', ['rev', 'margin', 'marginp'], 'cat');
+        $r = $e->rows($c);
+        $rows = []; $catNames = []; $labor = 0.0; $product = 0.0; $productCat = 0.0;
+        foreach ($r['rows'] as $row) {
+            $rev = $e->cellValue($c, 'rev', $row['vals']);
+            $k = $row['k'];
+            if ($k === 'svc') $labor += (float) $rev;
+            elseif ($k !== 'other') { $product += (float) $rev; if ($k !== 'uncat') { $productCat += (float) $rev; $catNames[] = $row['l']; } }
+            $name = e($row['l']) . ($spot !== null && $row['l'] === $spot ? ' ' . self::pill('Spotlight', 'info') : '');
+            $cells = [$name, $this->fmt($rev, '$'), self::share($revTotal > 0 && $rev !== null ? $rev / $revTotal * 100 : 0), $this->fmt($e->cellValue($c, 'marginp', $row['vals']), '%')];
+            if ($cmp) $cells[] = $this->delta($rev, $e->cellValue($c, 'rev', $row['prev']));
+            $rows[] = $cells;
+        }
+        $total = ['Total', $this->fmt($r['totals']['sales:rev'] ?? null, '$'), '', $this->fmt($r['totals']['sales:marginp'] ?? null, '%')];
+        if ($cmp) $total[] = '';
+        $uncat = max(0.0, $product - $productCat);
+        $coverage = $product > 0 ? $productCat / $product * 100 : 100.0;
+        $after = round($coverage) . '% of product sales landed in a real category.';
+        $afterHtml = false;
+        if ($uncat > 0.004) {
+            $after = e($after) . ' ' . e($this->fmt($uncat, '$')) . ' is uncategorised: <a class="rb-link" href="' . e(route('tenant.inventory.uncategorized')) . '">map those items</a> and these numbers get sharper.';
+            $afterHtml = true;
+        }
+        $out[] = $this->panel('o-cat', 'Sales by category', 'where the revenue comes from', $c, [
+            'table' => $this->table(['Category', 'Revenue', 'Share', 'Margin %'] + ($cmp ? [4 => 'Revenue vs before'] : []), $rows, $total, 'category sales', 'No sales in this range.'),
+            'after' => $after, 'afterHtml' => $afterHtml,
+        ]);
+
+        // Labor and parts
+        $c = $this->cfg('appts', ['partsp', 'partsn', 'parts'], 'day');
+        $ta = $e->totals($c);
+        $laborPct = $revTotal > 0 ? $labor / $revTotal * 100 : null;
+        $out[] = $this->panel('o-labor', 'Labor and parts', 'service work against product sales, and how often parts ride along', $c, ['figs' => [
+            $this->fig('Labor sold', $this->fmt($labor, '$'), $laborPct === null ? 'no sales in this range' : round($laborPct, 1) . '% of revenue'),
+            $this->fig('Product sales', $this->fmt($product, '$'), 'excludes labor and other lines'),
+            $this->figCmp('Parts attach rate', $ta, 'partsp', '%', 'of appointments'),
+            $this->figCmp('Appointments with parts', $ta, 'partsn', 'n'),
+            $this->figCmp('Parts revenue', $ta, 'parts', '$'),
+        ]]);
+        $attach = $ta['vals']['partsp'] ?? null;
+
+        // Targets
+        $acts = [
+            ['avg_ticket', 'Average ticket', $avgTicket === null ? '—' : $this->fmt($avgTicket, '$'), $avgTicket],
+            ['labor_pct', 'Labor share', $laborPct === null ? '—' : round($laborPct, 1) . '%', $laborPct],
+            ['attach_pct', 'Attachment rate', $attach === null ? '—' : round($attach, 1) . '%', $attach],
+            ['margin_pct', 'Margin', $marginPct === null ? '—' : round($marginPct, 1) . '%', $marginPct],
+        ];
+        $tr = [];
+        foreach ($acts as [$key, $label, $text, $num]) {
+            $tv = $targets[$key] ?? null;
+            $status = ($tv === null || $num === null) ? null : ($num >= $tv ? 'on' : 'under');
+            $tr[] = ['key' => $key, 'label' => $label, 'actual' => $text, 'target' => $tv, 'status' => $status];
+        }
+        $opts = array_values(array_unique($catNames));
+        $opts = array_map(fn ($o) => ['v' => $o, 'l' => $o], $opts);
+        if ($spot !== null && !in_array($spot, $catNames, true)) $opts[] = ['v' => $spot, 'l' => $spot . ' (no sales in this range)'];
+        $out[] = $this->panel('o-targets', 'Targets', 'what good looks like for your shop', null, ['targets' => [
+            'rows' => $tr, 'spot' => $spot, 'options' => $opts, 'action' => route('tenant.reports.targets'),
+        ]]);
+
+        // Bookings and cancellations
+        $c = $this->cfg('appts', ['ap', 'done', 'canc', 'cancp'], 'day');
+        $t = $e->totals($c);
+        $ns = null;
+        $nsCfg = $this->pastCfg(['ap'], 'day', ['pending', 'confirmed']);
+        if ($nsCfg) $ns = $e->totals($nsCfg)['vals']['ap'] ?? 0.0;
+        [$a, $b] = $e->periods()->rangeFor($c);
+        $figs = [
+            $this->figCmp('Appointments', $t, 'ap', 'n'),
+            $this->figCmp('Completed', $t, 'done', 'n'),
+            $this->figCmp('Cancelled', $t, 'canc', 'n', null, '', true),
+            $this->figCmp('Cancellation rate', $t, 'cancp', '%', null, '', true),
+            $this->fig('Possible no-shows', $ns === null ? '—' : $this->fmt($ns, 'n'), $ns === null ? 'none of this range is over yet' : 'past, still pending or confirmed', $ns ? 'warn' : ''),
+        ];
+        $bk = $this->bucketFor($c);
+        $chart = null;
+        if ($e->periods()->days($a, $b) > 1) {
+            $cb = $this->cfg('appts', ['ap'], $bk);
+            $rb = $e->rows($cb);
+            $chart = ['svg' => $this->bars(array_column($rb['rows'], 'l'), array_map(fn ($row) => (float) ($e->cellValue($cb, 'ap', $row['vals']) ?? 0), $rb['rows']), false, 'Appointments booked per ' . $bk), 'locked' => false];
+        }
+        $out[] = $this->panel('o-book', 'Bookings and cancellations', 'appointments by the day they are booked for', $c, ['figs' => $figs, 'chart' => $chart,
+            'after' => 'Intake has no no-show status. A possible no-show is a past appointment still marked pending or confirmed: it may be a no-show, or it may just not have been closed out.']);
+
+        // Customers
+        $c = $this->cfg('customers', ['custs', 'newc', 'active', 'visits', 'lapsed'], 'day');
+        $t = $e->totals($c);
+        $pan = $this->listPanel('o-cust', 'Customers', 'who is buying, and who spent the most', $this->cfg('customers', ['spend', 'visits', 'ltvt'], 'cust', ['limit' => 8, 'compare' => 'off']),
+            'Customer', [['Spend', 'spend', '$'], ['Visits', 'visits', 'd'], ['Lifetime value', 'ltvt', '$']], 'top customers', 'No customer sales in this range.',
+            'Spend is paid sales net of refunds, before tax and tips. The full lists (lapsed, missing a phone, highest lifetime value) are on the Customers tab.', 'Top 8 by spend in this range');
+        $pan['figs'] = [
+            $this->fig('Customers', $this->fmt($t['vals']['custs'] ?? null, 'n'), 'all customers on file'),
+            $this->figCmp('New customers', $t, 'newc', 'n'),
+            $this->figCmp('Customers who bought', $t, 'active', 'n'),
+            $this->figCmp('Visits per customer', $t, 'visits', 'd'),
+            $this->fig('Lapsed', $this->fmt($t['vals']['lapsed'] ?? null, 'n'), 'no purchase in 180 days'),
+        ];
+        $out[] = $pan;
+
+        // Services
+        $c = $this->cfg('appts', ['ap', 'booked', 'paid'], 'svc', ['limit' => 10, 'compare' => 'off']);
+        $out[] = $this->listPanel('o-svc', 'Service popularity', 'what you do most, and what it earns', $c, 'Service', [
+            ['Appointments', 'ap', 'n'], ['Booked value', 'booked', '$'], ['Paid so far', 'paid', '$'],
+        ], 'service popularity', 'No appointments in this range.', 'An appointment with several services counts once under each. Paid so far is the part of each appointment already paid, split across its services.', 'Top 10, most appointments first');
+
+        // Staff utilization
+        $c = $this->cfg('appts', ['hours', 'ap', 'done'], 'res', ['compare' => 'off']);
+        $r = $e->rows($c);
+        [$a, $b] = $e->periods()->rangeFor($c);
+        $open = (new ShopHours($this->tenant))->minutes($a, $b);
+        $nsRes = []; $allRes = [];
+        $n1 = $this->pastCfg(['ap'], 'res', ['pending', 'confirmed']);
+        $n2 = $this->pastCfg(['ap'], 'res', []);
+        if ($n1 && $n2) {
+            foreach ($e->rows($n1)['rows'] as $row) $nsRes[$row['k']] = (float) ($e->cellValue($n1, 'ap', $row['vals']) ?? 0);
+            foreach ($e->rows($n2)['rows'] as $row) $allRes[$row['k']] = (float) ($e->cellValue($n2, 'ap', $row['vals']) ?? 0);
+        }
+        $rows = [];
+        foreach ($r['rows'] as $row) {
+            $hrs = (float) ($e->cellValue($c, 'hours', $row['vals']) ?? 0);
+            if ($row['k'] === '' || $open <= 0) {
+                $util = '—';
+            } else {
+                $u = (int) min(100, round($hrs * 60 / $open * 100));
+                $util = self::share($u) . ' ' . ($u > 85 ? self::pill('Overloaded', 'bad') : ($u >= 50 ? self::pill('Healthy', 'good') : self::pill('Underused', 'warn')));
+            }
+            $tot = $allRes[$row['k']] ?? 0.0;
+            $rows[] = [e($row['l']), $this->fmt($hrs, 'd'), $util, $this->fmt($e->cellValue($c, 'ap', $row['vals']), 'n'), $tot > 0 ? round(($nsRes[$row['k']] ?? 0) / $tot * 100) . '%' : '—'];
+        }
+        $out[] = $this->panel('o-staff', 'Staff utilization', 'booked hours against the hours the shop was open', $c, [
+            'table' => $this->table(['Staff or resource', 'Booked hours', 'Utilization', 'Appointments', 'Possible no-shows'], $rows, null, 'utilization', 'No appointments in this range.'),
+            'after' => 'The shop was open ' . number_format($open / 60, 1) . ' hours in this range, from your opening hours. Every person is measured against the same shop hours. Overloaded is over 85%, healthy is 50 to 85%, underused is under 50%.',
+        ]);
+
+        // Capacity heatmap
+        $c = $this->cfg('appts', ['ap'], 'dow', ['dim2' => 'hod', 'compare' => 'off']);
+        $out[] = $this->panel('o-heat', 'Capacity heatmap', 'appointments by day of the week and the hour they start, darker is busier', $c, ['grid' => $this->densityGrid($c),
+            'after' => 'Counts every appointment in the range by the hour it starts, whatever its status. Pick a longer range for a clearer picture: a few days will look patchy.']);
+
+        $legend = [
+            ['Sales basis:', 'revenue here is sales dated in the range, refunds taken off, before tax and tips. The old Operations revenue chart counted payments by the day money arrived, so the two can differ. The Money tab still shows what was received.'],
+            ['Categories:', 'are the category each item is filed under. Services and Other are shown on their own, and labor is the Services line.'],
+            ['Margin:', 'lines with no cost recorded are left out of the margin %, not counted as zero, so it is no longer understated by uncosted lines.'],
+            ['Attachment rate:', 'is now the share of appointments that had parts added, the same figure as on the Services tab. It used to be the share of parts sold on a service ticket, so check any attachment target you set.'],
+            ['Possible no-shows:', 'Intake has no no-show status. This counts past appointments still marked pending or confirmed, which may be a no-show or may just not have been closed.'],
+            ['Targets:', 'a blank target stays blank and shows no status. Spotlight marks one category in the table above.'],
+        ];
+        return ['panels' => $out, 'legend' => $legend];
+    }
+
+    // ---------------------------------------------------------------- Customers
+
+    /**
+     * A list of customers. Each row's name carries the contact details, read for just the customers shown
+     * (and not at all for a shop without extended reports).
+     */
+    private function customerList(string $id, string $title, string $hint, array $cfg, array $cols, string $what, string $empty, ?string $after, ?string $openExtra = null): array
+    {
+        $e = $this->e;
+        $rows = []; $total = null;
+        if (!$this->locked) {
+            $r = $e->rows($cfg);
+            $contact = [];
+            $ids = array_column($r['rows'], 'k');
+            if ($ids) {
+                foreach (\Illuminate\Support\Facades\DB::table('tenant_customers')->where('tenant_id', $this->tenant->id)->whereIn('id', $ids)->get(['id', 'email', 'phone']) as $c) {
+                    $contact[(string) $c->id] = trim(implode(' · ', array_filter([(string) $c->email, (string) $c->phone])));
+                }
+            }
+            foreach ($r['rows'] as $row) {
+                $meta = $contact[$row['k']] ?? '';
+                $cells = [e($row['l']) . ($meta !== '' ? '<span class="rb-hint" style="display:block">' . e($meta) . '</span>' : '')];
+                foreach ($cols as [, $m, $t]) $cells[] = $this->fmt($e->cellValue($cfg, $m, $row['vals']), $t);
+                $rows[] = $cells;
+            }
+        }
+        return $this->panel($id, $title, $hint, $cfg, [
+            'table' => $this->table(array_merge(['Customer'], array_column($cols, 0)), $rows, $total, $what, $empty),
+            'after' => $after,
+        ], $openExtra);
+    }
+
+    public function customers(): array
+    {
+        $e = $this->e;
+        $out = [];
+
+        $c = $this->cfg('customers', ['custs', 'newc', 'active', 'ltv', 'lapsed'], 'day');
+        $t = $e->totals($c);
+        $out[] = $this->panel('c-over', 'Customers', 'who you have, who is new, and who is buying', $c, ['figs' => [
+            $this->fig('Customers', $this->fmt($t['vals']['custs'] ?? null, 'n'), 'all customers on file'),
+            $this->figCmp('New customers', $t, 'newc', 'n'),
+            $this->figCmp('Customers who bought', $t, 'active', 'n'),
+            $this->fig('Average lifetime value', $this->fmt($t['vals']['ltv'] ?? null, '$'), 'all time'),
+            $this->fig('Lapsed', $this->fmt($t['vals']['lapsed'] ?? null, 'n'), 'no purchase in 180 days', ($t['vals']['lapsed'] ?? 0) > 0 ? 'warn' : ''),
+        ]]);
+
+        $c = $this->cfg('customers', ['ltvt', 'spend', 'visits'], 'cust', ['limit' => 50, 'compare' => 'off']);
+        $out[] = $this->customerList('c-ltv', 'Highest lifetime value', 'your most valuable customers', $c, [
+            ['Lifetime value', 'ltvt', '$'], ['Spend in range', 'spend', '$'], ['Visits in range', 'visits', 'd'],
+        ], 'top customers', 'No customer sales yet. Once sales are tied to customers, the leaderboard fills in.',
+            'Top 50. Lifetime value is every paid sale tied to the customer, net of refunds, before tax and tips, and does not follow the range.', 'Top 50, highest lifetime value first');
+
+        $c = $this->cfg('customers', ['atrisk', 'lapsed'], 'day');
+        $t = $e->totals($c);
+        $cl = $this->cfg('customers', ['since', 'ltvt'], 'cust', ['limit' => 100, 'compare' => 'off', 'filters' => [['f' => 'lapsed', 'op' => 'is', 'v' => 'yes']]]);
+        $pan = $this->customerList('c-lapsed', 'Lapsed customers', 'used to buy, haven\'t lately: a win-back list', $cl, [
+            ['Days since last purchase', 'since', 'n'], ['Lifetime value', 'ltvt', '$'],
+        ], 'lapsed customers', 'No lapsed customers. Either everyone is a regular, or you are just getting started.',
+            'Top 100, longest lapsed first. Lapsed means they bought before but not in the 180 days up to the end of the range. At-risk is 90 to 180 days.', 'Lapsed only, longest first');
+        $pan['figs'] = [
+            $this->fig('Lapsed', $this->fmt($t['vals']['lapsed'] ?? null, 'n'), 'no purchase in 180+ days', ($t['vals']['lapsed'] ?? 0) > 0 ? 'warn' : ''),
+            $this->fig('At-risk', $this->fmt($t['vals']['atrisk'] ?? null, 'n'), '90 to 180 days since last purchase'),
+        ];
+        $out[] = $pan;
+
+        $c = $this->cfg('customers', ['nophone', 'custs'], 'day');
+        $t = $e->totals($c);
+        $n = $t['vals']['nophone'] ?? null; $all = $t['vals']['custs'] ?? null;
+        $cm = $this->cfg('customers', ['ltvt', 'spend'], 'cust', ['limit' => 100, 'compare' => 'off', 'filters' => [['f' => 'phone', 'op' => 'is', 'v' => 'missing']]]);
+        $pan = $this->customerList('c-phone', 'Missing a phone number', 'customers you can\'t text or call', $cm, [
+            ['Lifetime value', 'ltvt', '$'], ['Spend in range', 'spend', '$'],
+        ], 'customers missing a phone number', 'Every customer has a phone number.',
+            'Top 100, highest lifetime value first, so the customers worth fixing come first. A phone number counts as missing when it is blank.', 'Missing a phone number only');
+        $pan['figs'] = [
+            $this->fig('Missing a phone number', $this->fmt($n, 'n'), $all ? round(($n ?? 0) / $all * 100, 1) . '% of customers' : '', ($n ?? 0) > 0 ? 'warn' : ''),
+        ];
+        $out[] = $pan;
+
+        $legend = [
+            ['What follows the range:', 'new customers, who bought, spend and visits. Total customers, lifetime value, and the lapsed and missing-phone lists describe the whole customer list as of the end of the range.'],
+            ['Lapsed:', 'now means no paid purchase in 180 days. The old tab used appointments. Customers who only ever booked and never paid are no longer counted as lapsed.'],
+            ['Lifetime value:', 'is paid sales net of refunds, before tax and tips. The old tab counted payments including tax and tips, so figures are slightly lower and match Custom › Customers.'],
+            ['Erased customers:', 'are left out everywhere.'],
         ];
         return ['panels' => $out, 'legend' => $legend];
     }

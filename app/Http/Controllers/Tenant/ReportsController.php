@@ -3,8 +3,6 @@
 namespace App\Http\Controllers\Tenant;
 
 use App\Http\Controllers\Controller;
-use App\Services\Tenant\ReportsDataService;
-use App\Services\Tenant\CustomersReportService;
 use App\Services\Tenant\ReportBuilder\ReportAccess;
 use App\Services\Tenant\ReportBuilder\ReportEngine;
 use App\Services\Tenant\ReportBuilder\TabPanels;
@@ -59,77 +57,17 @@ class ReportsController extends Controller
         return back()->with('info', 'Targets saved.');
     }
 
+    /** Operations and Customers run on the report engine too. (MARKER-REPORT-TABS-ENGINE) */
     public function index(Request $request): View
     {
-        $tenant = tenant();
-        $svc = new ReportsDataService($tenant);
-        $today = $tenant->localToday();
-
-        $range = (string) $request->query('range', 'today');
-        if (!in_array($range, ['today', 'week', 'month', 'last_30', 'custom'], true)) {
-            $range = 'today';
-        }
-
-        // Compute [from, to] based on range
-        if ($range === 'custom') {
-            $fromStr = (string) $request->query('from', $today->toDateString());
-            $toStr   = (string) $request->query('to',   $today->toDateString());
-            try {
-                $from = Carbon::parse($fromStr, $tenant->timezone())->startOfDay();
-                $to   = Carbon::parse($toStr, $tenant->timezone())->startOfDay();
-                if ($from->gt($to)) [$from, $to] = [$to, $from]; // swap if reversed
-            } catch (\Throwable $e) {
-                $from = $today->copy();
-                $to   = $today->copy();
-                $range = 'today';
-            }
-        } else {
-            [$from, $to] = match ($range) {
-                'week'    => [$today->copy()->subDays(6), $today->copy()],
-                'month'   => [$today->copy()->startOfMonth(), $today->copy()],
-                'last_30' => [$today->copy()->subDays(29), $today->copy()],
-                default   => [$today->copy(), $today->copy()],
-            };
-        }
-
-        $rangeLabel = match ($range) {
-            'week'   => 'Last 7 days',
-            'last_30' => 'Last 30 days',
-            'month'  => $today->format('F'),
-            'custom' => $from->isSameDay($to)
-                ? $from->format('M j, Y')
-                : $from->format('M j') . ' – ' . $to->format('M j, Y'),
-            default  => 'Today',
-        };
-
-        return view('tenant.reports.index', [
-            'tenant'      => $tenant,
-            'range'       => $range,
-            'range_label' => $rangeLabel,
-            'from'        => $from,
-            'to'          => $to,
-            'kpis'        => $svc->topKpis($from, $to),
-            'revenue'     => $svc->zoneRevenue($from, $to),
-            'bookings'    => $svc->zoneBookings($from, $to),
-            'customers'   => $svc->zoneCustomers($from, $to),
-            'services'    => $svc->zoneServices($from, $to),
-            'staff'       => $svc->zoneStaff($from, $to),
-            'capacity'    => $svc->zoneCapacity($from, $to),
-            'ops'         => $svc->zoneOps($from, $to),
-            'targets'     => (array) ($tenant->settings['report_targets'] ?? []),
-            'spotlight'   => $tenant->settings['report_spotlight_category'] ?? null,
-            'today_label' => $today->format('l, F j, Y'),
-        ]);
+        return $this->engineTab($request, 'operations', 'How the shop is running: sales, labor and parts, bookings, targets, and how busy people are.');
     }
 
-    /**
-     * Customers tab — whole-database, NOT date-ranged.
-     *
-     * Three panels:
-     *   - missing contact info (customers with no phone on file)
-     *   - lapsed customers (no delivered appointment in 180d)
-     *   - highest LTV (top customers by lifetime value)
-     */
+    public function customers(Request $request): View
+    {
+        return $this->engineTab($request, 'customers', 'Who your customers are, who is new, who has gone quiet, and who is worth the most.');
+    }
+
     /**
      * what's missing across the records as they
      * stand, as opposed to what happened during any one import.
@@ -170,33 +108,6 @@ class ReportsController extends Controller
         }, $filename, ['Content-Type' => 'text/csv']);
     }
 
-    public function customers(Request $request): View
-    {
-        $tenant = tenant();
-        $svc = new CustomersReportService($tenant);
-
-        // Gate: extended_reports capability gates the list data. Starter
-        // tenants see real aggregate counts (cheap, not sensitive) with
-        // blurred placeholder list rows and an upsell modal.
-        $isLocked = !$tenant->extended_reports_enabled;
-
-        return view('tenant.reports.customers', [
-            'tenant'    => $tenant,
-            'is_locked' => $isLocked,
-            'missing'   => $svc->missingContactInfo($isLocked),
-            'lapsed'    => $svc->lapsedCustomers($isLocked),
-            'topLtv'    => $svc->highestLtv($isLocked),
-        ]);
-    }
-
-    /**
-     * Services tab — date-ranged service depth analytics.
-     *
-     * Five real panels (throughput, mix, parts attach, comebacks,
-     * production by resource) + two stubs (mechanic productivity,
-     * estimate accuracy) that surface "coming soon" until the
-     * supporting schema lands.
-     */
     /** Services and Staff run on the report engine too. (MARKER-REPORT-TABS-ENGINE) */
     public function services(Request $request): View
     {
@@ -224,11 +135,16 @@ class ReportsController extends Controller
         $tenant = tenant();
         $user = Auth::guard('tenant')->user();
         $isManager = (bool) ($user && $user->isManager());
-        $locked = !ReportAccess::allowed($tenant);
+        $noAccess = !ReportAccess::allowed($tenant);
+        // Operations was open to every shop before the engine, so its tables stay open. Explain and Open in builder still need extended reports.
+        $locked = $tab === 'operations' ? false : $noAccess;
         $q = TabQuery::read($request);
         $engine = new ReportEngine($tenant, $isManager);
         $panels = new TabPanels($tenant, $engine, $q, $isManager, $locked);
-        $built = match ($tab) { 'money' => $panels->money(), 'staff' => $panels->staff(), 'services' => $panels->services(), default => $panels->retail() };
+        $built = match ($tab) {
+            'money' => $panels->money(), 'staff' => $panels->staff(), 'services' => $panels->services(),
+            'operations' => $panels->operations(), 'customers' => $panels->customers(), default => $panels->retail(),
+        };
 
         [$from, $to] = $engine->periods()->rangeFor(['range' => $q['range'], 'from' => $q['from'], 'to' => $q['to']]);
         $prev = $q['compare'] === 'off' ? null : $engine->periods()->previous($from, $to, $q['compare']);
@@ -239,6 +155,8 @@ class ReportsController extends Controller
             'subtitle' => $subtitle,
             'q'        => $q,
             'locked'   => $locked,
+            'noAccess' => $noAccess,
+            'routeName' => $tab === 'operations' ? 'tenant.reports.index' : 'tenant.reports.' . $tab,
             'panels'   => $built['panels'],
             'legend'   => $built['legend'],
             'from'     => $from,
